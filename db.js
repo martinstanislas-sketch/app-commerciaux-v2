@@ -76,6 +76,19 @@ function initSchema() {
 
   // Migration: update default target_per_hour from 200 to 300 for untouched rows
   db.exec("UPDATE weekly_settings SET target_per_hour = 300 WHERE target_per_hour = 200");
+
+  // Migration: add client_email to sales if missing
+  const saleCols2 = db.prepare("PRAGMA table_info(sales)").all();
+  if (!saleCols2.find(c => c.name === 'client_email')) {
+    db.exec("ALTER TABLE sales ADD COLUMN client_email TEXT DEFAULT ''");
+  }
+
+  // Migration: add relance tracking columns to sales
+  if (!saleCols2.find(c => c.name === 'r1_sent')) {
+    db.exec("ALTER TABLE sales ADD COLUMN r1_sent TEXT DEFAULT NULL");
+    db.exec("ALTER TABLE sales ADD COLUMN r2_sent TEXT DEFAULT NULL");
+    db.exec("ALTER TABLE sales ADD COLUMN r3_sent TEXT DEFAULT NULL");
+  }
 }
 
 function seed() {

@@ -495,13 +495,31 @@ async function loadSales() {
   tbody.innerHTML = '';
 
   if (sales.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-light);padding:24px">Aucune vente cette semaine</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-light);padding:24px">Aucune vente cette semaine</td></tr>';
     return;
   }
 
   for (const s of sales) {
     const ribClass = s.rib_status === 'Reçu' ? 'rib-recu' :
                      s.rib_status === 'En attente' ? 'rib-attente' : 'rib-non-fourni';
+
+    // Relance buttons (only if RIB not received)
+    let relanceHtml = '';
+    if (s.rib_status !== 'Reçu') {
+      const r1Done = !!s.r1_sent;
+      const r2Done = !!s.r2_sent;
+      const r3Done = !!s.r3_sent;
+
+      relanceHtml = `
+        <button class="btn-relance btn-valider-rib" onclick="validateRib(${s.id})">Valider</button>
+        <button class="btn-relance btn-r1" onclick="sendRelance(${s.id}, 1)" ${r1Done ? 'disabled' : ''} title="${r1Done ? 'Envoyée le ' + s.r1_sent : '1ère relance'}">R1</button>
+        <button class="btn-relance btn-r2" onclick="sendRelance(${s.id}, 2)" ${r2Done ? 'disabled' : (!r1Done ? 'disabled' : '')} title="${r2Done ? 'Envoyée le ' + s.r2_sent : '2ème relance'}">R2</button>
+        <button class="btn-relance btn-r3" onclick="sendRelance(${s.id}, 3)" ${r3Done ? 'disabled' : (!r2Done ? 'disabled' : '')} title="${r3Done ? 'Envoyée le ' + s.r3_sent : 'Contentieux'}">R3</button>
+      `;
+    } else {
+      relanceHtml = '<span style="color:var(--success);font-size:0.8rem;">✓ RIB reçu</span>';
+    }
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')}</td>
@@ -510,6 +528,7 @@ async function loadSales() {
       <td>${s.client_first_name}</td>
       <td>${s.client_last_name}</td>
       <td><span class="rib-badge ${ribClass}">${s.rib_status || 'Non fourni'}</span></td>
+      <td class="relance-actions">${relanceHtml}</td>
       <td class="actions">
         <button class="btn-sm" onclick="editSale(${s.id})">Modifier</button>
         <button class="btn-sm danger" onclick="deleteSale(${s.id})">Supprimer</button>
@@ -560,6 +579,7 @@ function openSaleModal(repId = null, saleData = null) {
   document.getElementById('sale-amount').value = saleData?.amount || '';
   document.getElementById('sale-firstname').value = saleData?.client_first_name || '';
   document.getElementById('sale-lastname').value = saleData?.client_last_name || '';
+  document.getElementById('sale-client-email').value = saleData?.client_email || '';
   document.getElementById('sale-rib-status').value = saleData?.rib_status || 'Non fourni';
 }
 
@@ -576,6 +596,7 @@ async function saveSale() {
     amount: parseFloat(document.getElementById('sale-amount').value),
     client_first_name: document.getElementById('sale-firstname').value.trim(),
     client_last_name: document.getElementById('sale-lastname').value.trim(),
+    client_email: document.getElementById('sale-client-email').value.trim(),
     rib_status: document.getElementById('sale-rib-status').value
   };
 
@@ -609,6 +630,29 @@ window.deleteSale = async function(id) {
   try {
     await api(`/sales/${id}`, { method: 'DELETE' });
     loadDashboard();
+    loadSales();
+  } catch (e) {
+    alert(e.message);
+  }
+};
+
+window.validateRib = async function(id) {
+  if (!confirm('Confirmer la réception du RIB ?')) return;
+  try {
+    await api(`/sales/${id}/validate-rib`, { method: 'POST', body: {} });
+    loadSales();
+    loadDashboard();
+  } catch (e) {
+    alert(e.message);
+  }
+};
+
+window.sendRelance = async function(id, level) {
+  const labels = { 1: '1ère relance (R1)', 2: '2ème relance (R2)', 3: 'mise en contentieux (R3)' };
+  if (!confirm(`Envoyer la ${labels[level]} par email au client ?`)) return;
+  try {
+    await api(`/sales/${id}/relance`, { method: 'POST', body: { level } });
+    alert(`Relance R${level} envoyée avec succès !`);
     loadSales();
   } catch (e) {
     alert(e.message);

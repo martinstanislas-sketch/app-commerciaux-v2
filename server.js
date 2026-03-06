@@ -259,7 +259,7 @@ app.put('/api/weeks/:week_start/lock', (req, res) => {
 
 app.post('/api/sales', (req, res) => {
   const db = getDb();
-  const { sales_rep_id, date, amount, client_first_name, client_last_name, rib_status } = req.body;
+  const { sales_rep_id, date, amount, client_first_name, client_last_name, rib_status, client_email } = req.body;
   const weekStart = getMonday(date);
 
   // Check lock
@@ -272,9 +272,9 @@ app.post('/api/sales', (req, res) => {
   }
 
   const result = db.prepare(`
-    INSERT INTO sales (sales_rep_id, date, amount, client_first_name, client_last_name, week_start, rib_status)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(sales_rep_id, date, amount, client_first_name || '', client_last_name || '', weekStart, rib_status || 'Non fourni');
+    INSERT INTO sales (sales_rep_id, date, amount, client_first_name, client_last_name, week_start, rib_status, client_email)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(sales_rep_id, date, amount, client_first_name || '', client_last_name || '', weekStart, rib_status || 'Non fourni', client_email || '');
 
   res.json({ id: result.lastInsertRowid });
 });
@@ -284,7 +284,7 @@ app.post('/api/sales', (req, res) => {
 app.put('/api/sales/:id', (req, res) => {
   const db = getDb();
   const { id } = req.params;
-  const { sales_rep_id, date, amount, client_first_name, client_last_name, rib_status } = req.body;
+  const { sales_rep_id, date, amount, client_first_name, client_last_name, rib_status, client_email } = req.body;
   const weekStart = getMonday(date);
 
   const existing = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
@@ -300,9 +300,9 @@ app.put('/api/sales/:id', (req, res) => {
   }
 
   db.prepare(`
-    UPDATE sales SET sales_rep_id = ?, date = ?, amount = ?, client_first_name = ?, client_last_name = ?, week_start = ?, rib_status = ?
+    UPDATE sales SET sales_rep_id = ?, date = ?, amount = ?, client_first_name = ?, client_last_name = ?, week_start = ?, rib_status = ?, client_email = ?
     WHERE id = ?
-  `).run(sales_rep_id, date, amount, client_first_name || '', client_last_name || '', weekStart, rib_status || 'Non fourni', id);
+  `).run(sales_rep_id, date, amount, client_first_name || '', client_last_name || '', weekStart, rib_status || 'Non fourni', client_email || '', id);
 
   res.json({ success: true });
 });
@@ -326,6 +326,118 @@ app.delete('/api/sales/:id', (req, res) => {
 
   db.prepare('DELETE FROM sales WHERE id = ?').run(id);
   res.json({ success: true });
+});
+
+// ─── POST /api/sales/:id/validate-rib ───────────────────────
+
+app.post('/api/sales/:id/validate-rib', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
+  if (!sale) return res.status(404).json({ error: 'Vente non trouvée' });
+
+  db.prepare('UPDATE sales SET rib_status = ? WHERE id = ?').run('Reçu', id);
+  res.json({ success: true });
+});
+
+// ─── POST /api/sales/:id/relance ────────────────────────────
+
+app.post('/api/sales/:id/relance', async (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { level } = req.body; // 1, 2 or 3
+
+  if (![1, 2, 3].includes(level)) {
+    return res.status(400).json({ error: 'level doit être 1, 2 ou 3' });
+  }
+
+  const sale = db.prepare(`
+    SELECT s.*, sr.name as rep_name
+    FROM sales s JOIN sales_reps sr ON sr.id = s.sales_rep_id
+    WHERE s.id = ?
+  `).get(id);
+
+  if (!sale) return res.status(404).json({ error: 'Vente non trouvée' });
+  if (sale.rib_status === 'Reçu') return res.status(400).json({ error: 'RIB déjà reçu' });
+
+  // Check sequential: R2 needs R1, R3 needs R2
+  if (level === 2 && !sale.r1_sent) return res.status(400).json({ error: 'R1 doit être envoyée avant R2' });
+  if (level === 3 && !sale.r2_sent) return res.status(400).json({ error: 'R2 doit être envoyée avant R3' });
+
+  // Check not already sent
+  const col = `r${level}_sent`;
+  if (sale[col]) return res.status(400).json({ error: `R${level} déjà envoyée le ${sale[col]}` });
+
+  if (!sale.client_email) {
+    return res.status(400).json({ error: 'Email client manquant. Modifiez la vente pour ajouter un email.' });
+  }
+
+  const clientName = `${sale.client_first_name} ${sale.client_last_name}`.trim() || 'Client';
+  const now = new Date().toISOString().slice(0, 10);
+
+  // Email templates
+  const templates = {
+    1: {
+      subject: 'Rappel — RIB en attente pour votre dossier',
+      html: `<p>Bonjour ${clientName},</p>
+<p>Nous vous rappelons que nous n'avons pas encore reçu votre RIB concernant votre dossier du ${new Date(sale.date).toLocaleDateString('fr-FR')} d'un montant de ${sale.amount} €.</p>
+<p>Merci de nous le transmettre dans les meilleurs délais.</p>
+<p>Cordialement,<br>L'équipe My Coach Ginkgo</p>`
+    },
+    2: {
+      subject: '2ème relance — RIB toujours manquant',
+      html: `<p>Bonjour ${clientName},</p>
+<p>Malgré notre précédente relance, nous n'avons toujours pas reçu votre RIB concernant votre dossier du ${new Date(sale.date).toLocaleDateString('fr-FR')} d'un montant de ${sale.amount} €.</p>
+<p><strong>Sans réponse de votre part sous 48h, nous serons dans l'obligation d'engager une procédure de recouvrement.</strong></p>
+<p>Cordialement,<br>L'équipe My Coach Ginkgo</p>`
+    },
+    3: {
+      subject: 'Mise en contentieux — RIB non fourni',
+      html: `<p>Bonjour ${clientName},</p>
+<p>Suite à nos relances restées sans réponse concernant votre dossier du ${new Date(sale.date).toLocaleDateString('fr-FR')} d'un montant de ${sale.amount} €, <strong>votre dossier est transmis au service contentieux</strong>.</p>
+<p>Cordialement,<br>L'équipe My Coach Ginkgo</p>`
+    }
+  };
+
+  const template = templates[level];
+
+  try {
+    // Send email to client
+    await sendEmail({
+      to: sale.client_email,
+      subject: template.subject,
+      html: template.html
+    });
+
+    // R3: also send dossier to Fabian (contentieux)
+    if (level === 3) {
+      const CONTENTIEUX_EMAIL = process.env.CONTENTIEUX_EMAIL || 'fabianfernez@gmail.com';
+      await sendEmail({
+        to: CONTENTIEUX_EMAIL,
+        subject: `[Contentieux] Dossier ${clientName} — RIB non fourni`,
+        html: `<h3>Dossier transmis au contentieux</h3>
+<table style="border-collapse:collapse;">
+<tr><td style="padding:4px 12px;font-weight:bold;">Client</td><td style="padding:4px 12px;">${clientName}</td></tr>
+<tr><td style="padding:4px 12px;font-weight:bold;">Email</td><td style="padding:4px 12px;">${sale.client_email}</td></tr>
+<tr><td style="padding:4px 12px;font-weight:bold;">Montant</td><td style="padding:4px 12px;">${sale.amount} €</td></tr>
+<tr><td style="padding:4px 12px;font-weight:bold;">Date vente</td><td style="padding:4px 12px;">${new Date(sale.date).toLocaleDateString('fr-FR')}</td></tr>
+<tr><td style="padding:4px 12px;font-weight:bold;">Commercial</td><td style="padding:4px 12px;">${sale.rep_name}</td></tr>
+<tr><td style="padding:4px 12px;font-weight:bold;">R1 envoyée</td><td style="padding:4px 12px;">${sale.r1_sent || '—'}</td></tr>
+<tr><td style="padding:4px 12px;font-weight:bold;">R2 envoyée</td><td style="padding:4px 12px;">${sale.r2_sent || '—'}</td></tr>
+<tr><td style="padding:4px 12px;font-weight:bold;">R3 envoyée</td><td style="padding:4px 12px;">${now}</td></tr>
+</table>`
+      });
+    }
+
+    // Update DB
+    db.prepare(`UPDATE sales SET ${col} = ? WHERE id = ?`).run(now, id);
+
+    res.json({ success: true, level, sent_date: now });
+  } catch (err) {
+    console.error(`Erreur envoi relance R${level}:`, err.message);
+    res.status(500).json({ error: `Erreur d'envoi email: ${err.message}` });
+  }
 });
 
 // ─── GET /api/weeks/:week_start/sales ───────────────────────
