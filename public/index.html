@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suivi Commerciaux</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Livvic:wght@400;500;600;700&family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- ═══════════ LOGIN OVERLAY ═══════════ -->
+  <div id="login-overlay" class="login-overlay">
+    <div class="login-card">
+      <img src="logo-mycoach-noir.png" alt="My Coach Ginkgo" class="login-logo">
+      <h2>Connexion</h2>
+      <form id="login-form">
+        <input type="password" id="login-pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Entrez votre code PIN" autocomplete="off" required>
+        <div id="login-error" class="login-error hidden">Code incorrect</div>
+        <button type="submit" class="btn-primary">Se connecter</button>
+      </form>
+    </div>
+  </div>
+
+  <header>
+    <h1>Suivi Commerciaux</h1>
+    <nav>
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="ventes">Ventes</button>
+      <button class="tab-btn" data-tab="mensuel">Récap Mensuel</button>
+      <button class="tab-btn" data-tab="email">Email</button>
+    </nav>
+    <div id="user-info" class="user-info hidden">
+      <span id="user-name"></span>
+      <button id="btn-logout" class="btn-logout" title="Se déconnecter">Déconnexion</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ═══════════ DASHBOARD ═══════════ -->
+    <section id="tab-dashboard" class="tab-content active">
+      <div class="week-nav">
+        <button id="prev-week" title="Semaine précédente">&larr;</button>
+        <span id="week-label">—</span>
+        <button id="next-week" title="Semaine suivante">&rarr;</button>
+        <input type="date" id="week-picker">
+        <button id="lock-week" class="btn-lock" title="Verrouiller/Déverrouiller la semaine">Verrouiller</button>
+        <a id="export-week-csv" class="btn-export" title="Exporter CSV semaine">CSV</a>
+      </div>
+
+      <div id="cards-container"></div>
+
+      <div id="classements">
+        <div class="ranking-block">
+          <h3>Classement CA</h3>
+          <table id="rank-ca"><tbody></tbody></table>
+        </div>
+        <div class="ranking-block">
+          <h3>Classement Ratio (CA/h)</h3>
+          <table id="rank-ratio"><tbody></tbody></table>
+        </div>
+        <div class="ranking-block">
+          <h3>Classement Panier Moyen</h3>
+          <table id="rank-panier"><tbody></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ VENTES ═══════════ -->
+    <section id="tab-ventes" class="tab-content">
+      <div class="week-nav">
+        <button id="v-prev-week">&larr;</button>
+        <span id="v-week-label">—</span>
+        <button id="v-next-week">&rarr;</button>
+        <input type="date" id="v-week-picker">
+        <select id="v-filter-rep">
+          <option value="">Tous les commerciaux</option>
+        </select>
+      </div>
+
+      <button id="btn-add-sale" class="btn-primary">+ Ajouter une vente</button>
+
+      <table id="sales-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Commercial</th>
+            <th>Montant</th>
+            <th>Prénom</th>
+            <th>Nom</th>
+            <th>Statut RIB</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- ═══════════ MENSUEL ═══════════ -->
+    <section id="tab-mensuel" class="tab-content">
+      <div class="month-nav">
+        <button id="prev-month">&larr;</button>
+        <span id="month-label">—</span>
+        <button id="next-month">&rarr;</button>
+        <input type="month" id="month-picker">
+        <a id="export-month-csv" class="btn-export" title="Exporter CSV mois">CSV</a>
+        <button id="btn-recap-pdf" class="btn-recap-pdf" onclick="generateRecapPDF()" title="Télécharger le PDF du récap mensuel">
+          <span style="font-size: 18px;">📄</span> Générer PDF
+        </button>
+      </div>
+
+      <div id="monthly-reps"></div>
+      <div id="monthly-charts" class="monthly-charts">
+        <h3>Évolution Hebdomadaire</h3>
+        <div class="charts-grid">
+          <div class="chart-wrap">
+            <canvas id="chart-ratio"></canvas>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="chart-panier"></canvas>
+          </div>
+        </div>
+      </div>
+      <div id="monthly-analysis"></div>
+      <div id="monthly-global"></div>
+    </section>
+    <!-- ═══════════ EMAIL ═══════════ -->
+    <section id="tab-email" class="tab-content">
+      <div class="email-panel">
+        <h2>Test Email SMTP</h2>
+        <p>Vérifie que la configuration SMTP est fonctionnelle en envoyant un email de test à l'adresse configurée dans <code>SMTP_FROM</code>.</p>
+        <button id="btn-test-email" class="btn-primary">Tester l'envoi email</button>
+        <div id="email-result" class="email-result hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══════════ MODAL VENTE ═══════════ -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 id="modal-title">Ajouter une vente</h2>
+      <form id="sale-form">
+        <input type="hidden" id="sale-id">
+        <div class="form-row">
+          <label for="sale-rep">Commercial</label>
+          <select id="sale-rep" required></select>
+        </div>
+        <div class="form-row">
+          <label for="sale-date">Date</label>
+          <input type="date" id="sale-date" required>
+        </div>
+        <div class="form-row">
+          <label for="sale-amount">Montant (€)</label>
+          <input type="number" id="sale-amount" step="0.01" min="0" required>
+        </div>
+        <div class="form-row">
+          <label for="sale-firstname">Prénom client</label>
+          <input type="text" id="sale-firstname">
+        </div>
+        <div class="form-row">
+          <label for="sale-lastname">Nom client</label>
+          <input type="text" id="sale-lastname">
+        </div>
+        <div class="form-row">
+          <label for="sale-rib-status">Statut RIB</label>
+          <select id="sale-rib-status">
+            <option value="Non fourni">Non fourni</option>
+            <option value="En attente">En attente</option>
+            <option value="Reçu">Reçu</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Enregistrer</button>
+          <button type="button" id="modal-cancel" class="btn-secondary">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
