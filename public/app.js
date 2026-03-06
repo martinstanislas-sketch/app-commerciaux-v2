@@ -343,13 +343,14 @@ function renderCards(commerciaux) {
         <div class="field">
           <label>Objectif €/h</label>
           <select data-rep-id="${c.sales_rep_id}" data-field="target" ${settingsDisabled ? 'disabled' : ''}>
-            <option value="200" ${c.target_per_hour === 200 ? 'selected' : ''}>200</option>
             <option value="250" ${c.target_per_hour === 250 ? 'selected' : ''}>250</option>
-            <option value="custom" ${c.target_per_hour !== 200 && c.target_per_hour !== 250 ? 'selected' : ''}>Autre</option>
+            <option value="300" ${c.target_per_hour === 300 ? 'selected' : ''}>300</option>
+            <option value="350" ${c.target_per_hour === 350 ? 'selected' : ''}>350</option>
+            <option value="custom" ${c.target_per_hour !== 250 && c.target_per_hour !== 300 && c.target_per_hour !== 350 ? 'selected' : ''}>Autre</option>
           </select>
           <input type="number" step="1" min="0" value="${c.target_per_hour}"
                  data-rep-id="${c.sales_rep_id}" data-field="target-custom"
-                 style="margin-top:4px;${c.target_per_hour !== 200 && c.target_per_hour !== 250 ? '' : 'display:none'}"
+                 style="margin-top:4px;${c.target_per_hour !== 250 && c.target_per_hour !== 300 && c.target_per_hour !== 350 ? '' : 'display:none'}"
                  ${settingsDisabled ? 'disabled' : ''}>
         </div>
       </div>
@@ -411,7 +412,7 @@ async function saveSettings(repId, card) {
   const targetSelect = card.querySelector('select[data-field="target"]');
   let target;
   if (targetSelect.value === 'custom') {
-    target = parseFloat(card.querySelector('input[data-field="target-custom"]').value) || 200;
+    target = parseFloat(card.querySelector('input[data-field="target-custom"]').value) || 300;
   } else {
     target = parseFloat(targetSelect.value);
   }

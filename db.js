@@ -1,7 +1,9 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, 'data.db');
+// Store DB outside project dir to survive redeployments
+const DB_DIR = process.env.DB_DIR || __dirname;
+const DB_PATH = path.join(DB_DIR, 'data.db');
 
 let db;
 
@@ -28,7 +30,7 @@ function initSchema() {
       sales_rep_id INTEGER NOT NULL REFERENCES sales_reps(id),
       week_start TEXT NOT NULL,
       hours_worked REAL NOT NULL DEFAULT 0,
-      target_per_hour REAL NOT NULL DEFAULT 200,
+      target_per_hour REAL NOT NULL DEFAULT 300,
       locked INTEGER NOT NULL DEFAULT 0,
       UNIQUE(sales_rep_id, week_start)
     );
@@ -71,6 +73,9 @@ function initSchema() {
   if (!repCols2.find(c => c.name === 'pin')) {
     db.exec("ALTER TABLE sales_reps ADD COLUMN pin TEXT DEFAULT NULL");
   }
+
+  // Migration: update default target_per_hour from 200 to 300 for untouched rows
+  db.exec("UPDATE weekly_settings SET target_per_hour = 300 WHERE target_per_hour = 200");
 }
 
 function seed() {
@@ -95,7 +100,7 @@ function ensureWeeklySettings(weekStart) {
   const reps = db.prepare('SELECT id FROM sales_reps').all();
   const insert = db.prepare(`
     INSERT OR IGNORE INTO weekly_settings (sales_rep_id, week_start, hours_worked, target_per_hour)
-    VALUES (?, ?, 0, 200)
+    VALUES (?, ?, 0, 300)
   `);
   for (const rep of reps) {
     insert.run(rep.id, weekStart);
