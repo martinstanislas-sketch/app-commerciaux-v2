@@ -16,6 +16,29 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const sessions = new Map();
 
+// ─── Auth Middleware ────────────────────────────────────────
+
+function requireAuth(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Non connecté' });
+  }
+  const token = authHeader.slice(7);
+  const session = sessions.get(token);
+  if (!session) {
+    return res.status(401).json({ error: 'Session expirée' });
+  }
+  req.session = session;
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.session || req.session.role !== 'admin') {
+    return res.status(403).json({ error: 'Accès réservé aux administrateurs' });
+  }
+  next();
+}
+
 // ─── Auth Routes ────────────────────────────────────────────
 
 app.post('/api/auth/login', (req, res) => {
@@ -64,6 +87,18 @@ app.post('/api/auth/logout', (req, res) => {
     sessions.delete(authHeader.slice(7));
   }
   res.json({ success: true });
+});
+
+// ─── Feature Status ─────────────────────────────────────────
+
+app.get('/api/status', (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const smtpOk = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  res.json({
+    ai: !!(apiKey && apiKey !== 'votre_cle_api_ici'),
+    email: smtpOk,
+    webhook: !!process.env.WEBHOOK_API_KEY,
+  });
 });
 
 // ─── Webhook Auth Middleware ─────────────────────────────────
@@ -124,6 +159,27 @@ function validateSalePayload(sale, db) {
 
 // ─── Helpers ────────────────────────────────────────────────
 
+function escapeCsvField(value) {
+  const str = String(value ?? '');
+  // Neutralize Excel formula injection
+  if (/^[=+\-@]/.test(str)) {
+    return `"'${str.replace(/"/g, '""')}"`;
+  }
+  // Quote if contains delimiter, quote, or newline
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function isValidDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+}
+
 function getMonday(dateStr) {
   // Parse as local date parts to avoid timezone issues
   const [y, m, dd] = dateStr.split('-').map(Number);
@@ -139,7 +195,7 @@ function getMonday(dateStr) {
 
 // ─── GET /api/sales-reps ────────────────────────────────────
 
-app.get('/api/sales-reps', (req, res) => {
+app.get('/api/sales-reps', requireAuth, (req, res) => {
   const db = getDb();
   const reps = db.prepare('SELECT * FROM sales_reps ORDER BY id').all();
   res.json(reps);
@@ -147,7 +203,7 @@ app.get('/api/sales-reps', (req, res) => {
 
 // ─── GET /api/weeks/:week_start/dashboard ───────────────────
 
-app.get('/api/weeks/:week_start/dashboard', (req, res) => {
+app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
   const db = getDb();
   const weekStart = req.params.week_start;
 
@@ -216,7 +272,7 @@ app.get('/api/weeks/:week_start/dashboard', (req, res) => {
 
 // ─── PUT /api/weeks/:week_start/settings/:sales_rep_id ──────
 
-app.put('/api/weeks/:week_start/settings/:sales_rep_id', (req, res) => {
+app.put('/api/weeks/:week_start/settings/:sales_rep_id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const { week_start, sales_rep_id } = req.params;
   const { hours_worked, target_per_hour } = req.body;
@@ -243,7 +299,7 @@ app.put('/api/weeks/:week_start/settings/:sales_rep_id', (req, res) => {
 
 // ─── PUT /api/weeks/:week_start/lock ────────────────────────
 
-app.put('/api/weeks/:week_start/lock', (req, res) => {
+app.put('/api/weeks/:week_start/lock', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const { week_start } = req.params;
   const { locked } = req.body;
@@ -257,9 +313,14 @@ app.put('/api/weeks/:week_start/lock', (req, res) => {
 
 // ─── POST /api/sales ────────────────────────────────────────
 
-app.post('/api/sales', (req, res) => {
+app.post('/api/sales', requireAuth, (req, res) => {
   const db = getDb();
   const { sales_rep_id, date, amount, client_first_name, client_last_name, rib_status, client_email } = req.body;
+
+  if (!isValidDate(date)) {
+    return res.status(400).json({ error: 'Date invalide (format attendu : YYYY-MM-DD)' });
+  }
+
   const weekStart = getMonday(date);
 
   // Check lock
@@ -281,10 +342,15 @@ app.post('/api/sales', (req, res) => {
 
 // ─── PUT /api/sales/:id ─────────────────────────────────────
 
-app.put('/api/sales/:id', (req, res) => {
+app.put('/api/sales/:id', requireAuth, (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { sales_rep_id, date, amount, client_first_name, client_last_name, rib_status, client_email } = req.body;
+
+  if (!isValidDate(date)) {
+    return res.status(400).json({ error: 'Date invalide (format attendu : YYYY-MM-DD)' });
+  }
+
   const weekStart = getMonday(date);
 
   const existing = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
@@ -309,7 +375,7 @@ app.put('/api/sales/:id', (req, res) => {
 
 // ─── DELETE /api/sales/:id ──────────────────────────────────
 
-app.delete('/api/sales/:id', (req, res) => {
+app.delete('/api/sales/:id', requireAuth, (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -330,7 +396,7 @@ app.delete('/api/sales/:id', (req, res) => {
 
 // ─── POST /api/sales/:id/validate-rib ───────────────────────
 
-app.post('/api/sales/:id/validate-rib', (req, res) => {
+app.post('/api/sales/:id/validate-rib', requireAuth, (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -343,7 +409,11 @@ app.post('/api/sales/:id/validate-rib', (req, res) => {
 
 // ─── POST /api/sales/:id/relance ────────────────────────────
 
-app.post('/api/sales/:id/relance', async (req, res) => {
+app.post('/api/sales/:id/relance', requireAuth, async (req, res) => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    return res.status(503).json({ error: 'Email non configuré. Les relances nécessitent SMTP_HOST, SMTP_USER et SMTP_PASS dans .env', feature: 'email' });
+  }
+
   const db = getDb();
   const { id } = req.params;
   const { level } = req.body; // 1, 2 or 3
@@ -442,7 +512,7 @@ app.post('/api/sales/:id/relance', async (req, res) => {
 
 // ─── GET /api/weeks/:week_start/sales ───────────────────────
 
-app.get('/api/weeks/:week_start/sales', (req, res) => {
+app.get('/api/weeks/:week_start/sales', requireAuth, (req, res) => {
   const db = getDb();
   const { week_start } = req.params;
   const { sales_rep_id } = req.query;
@@ -468,7 +538,7 @@ app.get('/api/weeks/:week_start/sales', (req, res) => {
 
 // ─── GET /api/months/:yyyy-mm/summary ───────────────────────
 
-app.get('/api/months/:month/summary', (req, res) => {
+app.get('/api/months/:month/summary', requireAuth, (req, res) => {
   const db = getDb();
   const month = req.params.month; // "2025-02"
 
@@ -564,7 +634,7 @@ app.get('/api/months/:month/summary', (req, res) => {
 
 // ─── GET /api/months/:month/weekly-breakdown ─────────────────
 
-app.get('/api/months/:month/weekly-breakdown', (req, res) => {
+app.get('/api/months/:month/weekly-breakdown', requireAuth, (req, res) => {
   const db = getDb();
   const month = req.params.month;
   const year = parseInt(month.split('-')[0]);
@@ -638,7 +708,7 @@ app.get('/api/months/:month/weekly-breakdown', (req, res) => {
 
 // ─── Transcript ─────────────────────────────────────────────
 
-app.get('/api/weeks/:week_start/transcript/:sales_rep_id', (req, res) => {
+app.get('/api/weeks/:week_start/transcript/:sales_rep_id', requireAuth, (req, res) => {
   const db = getDb();
   const { week_start, sales_rep_id } = req.params;
   ensureWeeklySettings(week_start);
@@ -650,7 +720,7 @@ app.get('/api/weeks/:week_start/transcript/:sales_rep_id', (req, res) => {
   res.json({ transcript: row?.transcript || '' });
 });
 
-app.put('/api/weeks/:week_start/transcript/:sales_rep_id', (req, res) => {
+app.put('/api/weeks/:week_start/transcript/:sales_rep_id', requireAuth, (req, res) => {
   const db = getDb();
   const { week_start, sales_rep_id } = req.params;
   const { transcript } = req.body;
@@ -666,7 +736,12 @@ app.put('/api/weeks/:week_start/transcript/:sales_rep_id', (req, res) => {
 
 // ─── Transcript Analysis (AI) ────────────────────────────────
 
-app.post('/api/analyze-transcript', async (req, res) => {
+app.post('/api/analyze-transcript', requireAuth, async (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey || apiKey === 'votre_cle_api_ici') {
+    return res.status(503).json({ error: 'Analyse IA non configurée. Définissez ANTHROPIC_API_KEY dans .env', feature: 'ai' });
+  }
+
   const { transcript, rep_name, week_start, hours_worked, target_per_hour, ca, nb_ventes, panier_moyen, ratio } = req.body;
 
   if (!transcript || !transcript.trim()) {
@@ -674,7 +749,7 @@ app.post('/api/analyze-transcript', async (req, res) => {
   }
 
   try {
-    const client = new Anthropic();
+    const client = new Anthropic({ apiKey });
 
     const weekEnd = (() => {
       const [y, m, d] = week_start.split('-').map(Number);
@@ -741,7 +816,7 @@ Sois synthétique et direct. Utilise des bullet points courts et percutants.`
 
 // ─── CSV Exports ────────────────────────────────────────────
 
-app.get('/api/export/week/:week_start', (req, res) => {
+app.get('/api/export/week/:week_start', requireAuth, (req, res) => {
   const db = getDb();
   const { week_start } = req.params;
 
@@ -755,7 +830,7 @@ app.get('/api/export/week/:week_start', (req, res) => {
 
   let csv = 'Date,Commercial,Montant,Prénom Client,Nom Client,Statut RIB\n';
   for (const s of sales) {
-    csv += `${s.date},${s.commercial},${s.amount},${s.client_first_name},${s.client_last_name},${s.rib_status || 'Non fourni'}\n`;
+    csv += `${escapeCsvField(s.date)},${escapeCsvField(s.commercial)},${s.amount},${escapeCsvField(s.client_first_name)},${escapeCsvField(s.client_last_name)},${escapeCsvField(s.rib_status || 'Non fourni')}\n`;
   }
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -763,7 +838,7 @@ app.get('/api/export/week/:week_start', (req, res) => {
   res.send('\uFEFF' + csv); // BOM for Excel
 });
 
-app.get('/api/export/month/:month', (req, res) => {
+app.get('/api/export/month/:month', requireAuth, (req, res) => {
   const db = getDb();
   const month = req.params.month;
   const year = parseInt(month.split('-')[0]);
@@ -781,7 +856,7 @@ app.get('/api/export/month/:month', (req, res) => {
 
   let csv = 'Date,Commercial,Montant,Prénom Client,Nom Client,Statut RIB\n';
   for (const s of sales) {
-    csv += `${s.date},${s.commercial},${s.amount},${s.client_first_name},${s.client_last_name},${s.rib_status || 'Non fourni'}\n`;
+    csv += `${escapeCsvField(s.date)},${escapeCsvField(s.commercial)},${s.amount},${escapeCsvField(s.client_first_name)},${escapeCsvField(s.client_last_name)},${escapeCsvField(s.rib_status || 'Non fourni')}\n`;
   }
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -946,10 +1021,13 @@ app.put('/api/webhook/sales-reps/:id', webhookAuth, (req, res) => {
 
 // ─── Email ──────────────────────────────────────────────────
 
-app.post('/api/email/test', async (req, res) => {
+app.post('/api/email/test', requireAuth, requireAdmin, async (req, res) => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    return res.status(503).json({ error: 'Email non configuré. Définissez SMTP_HOST, SMTP_USER et SMTP_PASS dans .env', feature: 'email' });
+  }
   const testTo = process.env.SMTP_FROM || process.env.SMTP_USER;
   if (!testTo) {
-    return res.status(500).json({ error: 'SMTP non configuré. Vérifiez votre fichier .env' });
+    return res.status(503).json({ error: 'SMTP_FROM ou SMTP_USER manquant dans .env', feature: 'email' });
   }
 
   try {
@@ -968,7 +1046,11 @@ app.post('/api/email/test', async (req, res) => {
   }
 });
 
-app.post('/api/email/send', async (req, res) => {
+app.post('/api/email/send', requireAuth, requireAdmin, async (req, res) => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    return res.status(503).json({ error: 'Email non configuré. Définissez SMTP_HOST, SMTP_USER et SMTP_PASS dans .env', feature: 'email' });
+  }
+
   const { to, subject, html, text } = req.body;
 
   // Validation

@@ -18,6 +18,7 @@ function getMyName() {
 let currentWeekStart = '';
 let salesReps = [];
 let currentMonth = '';
+let featureStatus = { ai: false, email: false, webhook: false };
 let isLocked = false;
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -194,6 +195,13 @@ async function bootApp() {
   const now = new Date();
   currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
+  // Charger le statut des features externes
+  try {
+    const statusRes = await fetch('/api/status');
+    if (statusRes.ok) featureStatus = await statusRes.json();
+  } catch (_) { /* keep defaults */ }
+  applyFeatureStatus();
+
   // Only bind event listeners once to avoid duplicates on re-login
   if (!_appBooted) {
     initTabs();
@@ -205,6 +213,16 @@ async function bootApp() {
   }
 
   loadDashboard();
+}
+
+function applyFeatureStatus() {
+  // Email : bouton test + relances
+  const btnTestEmail = document.getElementById('btn-test-email');
+  if (btnTestEmail) {
+    btnTestEmail.disabled = !featureStatus.email;
+    btnTestEmail.title = featureStatus.email ? 'Envoyer un email de test' : 'Email non configuré (SMTP manquant dans .env)';
+  }
+  // Relances : désactivées visuellement dans renderSalesTable si email non configuré
 }
 
 // ─── Init ───────────────────────────────────────────────────
@@ -510,11 +528,13 @@ async function loadSales() {
       const r2Done = !!s.r2_sent;
       const r3Done = !!s.r3_sent;
 
+      const emailOff = !featureStatus.email;
+      const noEmailTitle = 'Email non configuré (SMTP manquant)';
       relanceHtml = `
         <button class="btn-relance btn-valider-rib" onclick="validateRib(${s.id})">Valider</button>
-        <button class="btn-relance btn-r1" onclick="sendRelance(${s.id}, 1)" ${r1Done ? 'disabled' : ''} title="${r1Done ? 'Envoyée le ' + s.r1_sent : '1ère relance'}">R1</button>
-        <button class="btn-relance btn-r2" onclick="sendRelance(${s.id}, 2)" ${r2Done ? 'disabled' : (!r1Done ? 'disabled' : '')} title="${r2Done ? 'Envoyée le ' + s.r2_sent : '2ème relance'}">R2</button>
-        <button class="btn-relance btn-r3" onclick="sendRelance(${s.id}, 3)" ${r3Done ? 'disabled' : (!r2Done ? 'disabled' : '')} title="${r3Done ? 'Envoyée le ' + s.r3_sent : 'Contentieux'}">R3</button>
+        <button class="btn-relance btn-r1" onclick="sendRelance(${s.id}, 1)" ${r1Done || emailOff ? 'disabled' : ''} title="${emailOff ? noEmailTitle : (r1Done ? 'Envoyée le ' + s.r1_sent : '1ère relance')}">R1</button>
+        <button class="btn-relance btn-r2" onclick="sendRelance(${s.id}, 2)" ${r2Done || !r1Done || emailOff ? 'disabled' : ''} title="${emailOff ? noEmailTitle : (r2Done ? 'Envoyée le ' + s.r2_sent : '2ème relance')}">R2</button>
+        <button class="btn-relance btn-r3" onclick="sendRelance(${s.id}, 3)" ${r3Done || !r2Done || emailOff ? 'disabled' : ''} title="${emailOff ? noEmailTitle : (r3Done ? 'Envoyée le ' + s.r3_sent : 'Contentieux')}">R3</button>
       `;
     } else {
       relanceHtml = '<span style="color:var(--success);font-size:0.8rem;">✓ RIB reçu</span>';

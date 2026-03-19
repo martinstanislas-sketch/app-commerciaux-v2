@@ -74,8 +74,11 @@ function initSchema() {
     db.exec("ALTER TABLE sales_reps ADD COLUMN pin TEXT DEFAULT NULL");
   }
 
-  // Migration: update default target_per_hour from 200 to 300 for untouched rows
-  db.exec("UPDATE weekly_settings SET target_per_hour = 300 WHERE target_per_hour = 200");
+  // Migration: update default target_per_hour from 200 to 300 (one-time)
+  // Only apply for rows that still have the old default AND have no sales data
+  const migrationDone = db.prepare("PRAGMA table_info(weekly_settings)").all();
+  // Use a flag approach: only run if there are rows with exactly 200
+  // This was a one-time migration, keeping as no-op comment for history
 
   // Migration: add client_email to sales if missing
   const saleCols2 = db.prepare("PRAGMA table_info(sales)").all();
@@ -91,19 +94,50 @@ function initSchema() {
   }
 }
 
+/**
+ * Génère un code PIN à partir du prénom : 4 premières lettres en minuscule.
+ * Si doublon, ajoute un chiffre incrémental (ex: marv, marv2, marv3).
+ */
+function generatePin(name, existingPins) {
+  const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 4);
+  if (!existingPins.includes(base)) return base;
+  let i = 2;
+  while (existingPins.includes(base + i)) i++;
+  return base + i;
+}
+
 function seed() {
-  const reps = ['Marvin', 'Magali', 'Fabian'];
+  // Liste des commerciaux depuis .env (noms uniquement, PINs auto-générés)
+  const namesEnv = process.env.COMMERCIAL_NAMES || '';
+  const names = namesEnv.split(',').map(n => n.trim()).filter(Boolean);
+
+  if (names.length === 0) {
+    console.warn('[SEED] COMMERCIAL_NAMES non défini dans .env — aucun commercial créé');
+    return;
+  }
+
   const insertRep = db.prepare('INSERT OR IGNORE INTO sales_reps (name) VALUES (?)');
-  for (const name of reps) {
+  const updatePin = db.prepare('UPDATE sales_reps SET pin = ? WHERE name = ?');
+
+  // Insérer les commerciaux
+  for (const name of names) {
     insertRep.run(name);
   }
 
-  // Seed default PINs if not already set
-  const defaultPins = { 'Marvin': '1111', 'Magali': '2222', 'Fabian': '3333' };
-  const updatePin = db.prepare('UPDATE sales_reps SET pin = ? WHERE name = ? AND (pin IS NULL OR pin = \'\')');
-  for (const [name, pin] of Object.entries(defaultPins)) {
-    updatePin.run(pin, name);
+  // Générer et attribuer les PINs uniquement pour les commerciaux qui n'en ont pas
+  const allReps = db.prepare('SELECT id, name, pin FROM sales_reps ORDER BY id').all();
+  const usedPins = allReps.filter(r => r.pin).map(r => r.pin);
+
+  for (const rep of allReps) {
+    if (rep.pin) continue; // Ne pas écraser un PIN existant
+    const pin = generatePin(rep.name, usedPins);
+    usedPins.push(pin);
+    updatePin.run(pin, rep.name);
   }
+
+  // Refresh list to show current PINs
+  const finalReps = db.prepare('SELECT name, pin FROM sales_reps ORDER BY id').all();
+  console.log(`[SEED] ${finalReps.length} commerciaux — codes: ${finalReps.map(r => r.name + ':' + r.pin).join(', ')}`);
 }
 
 /**

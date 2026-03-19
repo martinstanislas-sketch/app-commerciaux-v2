@@ -4,3 +4,5 @@ data.db-shm
 data.db-wal
 .env
 .claude/
+.DS_Store
+production_*
