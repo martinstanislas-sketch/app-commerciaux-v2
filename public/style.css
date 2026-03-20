@@ -1877,8 +1877,51 @@ main {
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-light);
 }
+#admin-badges-panel {
+  max-width: 720px;
+}
 .admin-panel h2 { margin-bottom: 1rem; }
 .admin-panel.hidden { display: none; }
+
+/* ─── Admin Badges Header ──────────────────────── */
+.admin-badges-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.2rem;
+}
+.admin-badges-header h2 { margin-bottom: 0; }
+.admin-badges-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-badges-nav button {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s var(--ease);
+}
+.admin-badges-nav button:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.admin-badges-nav span {
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--navy);
+  min-width: 120px;
+  text-align: center;
+  text-transform: capitalize;
+}
 
 .add-rep-form {
   display: flex;

@@ -238,12 +238,15 @@ async function bootApp() {
     initMensuelTab();
     initModal();
     initAdminPanel();
+    initAdminBadgesNav();
     _appBooted = true;
   }
 
-  // Show/hide admin panel
+  // Show/hide admin panels
   const adminPanel = document.getElementById('admin-reps-panel');
   if (adminPanel) adminPanel.classList.toggle('hidden', !isAdmin());
+  const badgesPanel = document.getElementById('admin-badges-panel');
+  if (badgesPanel) badgesPanel.classList.toggle('hidden', !isAdmin());
 
   // Show/hide tabs based on role
   updateTabVisibility();
@@ -632,6 +635,94 @@ async function loadDashboard() {
   lockBtn.classList.toggle('locked', isLocked);
 
   renderCards(data.commerciaux);
+
+  // Load admin badges panel
+  if (isAdmin()) loadAdminBadges();
+}
+
+// ─── Admin Badges ────────────────────────────────────────────
+
+let badgesMonth = new Date().toISOString().slice(0, 7); // e.g. "2026-03"
+
+function initAdminBadgesNav() {
+  const prevBtn = document.getElementById('badges-prev-month');
+  const nextBtn = document.getElementById('badges-next-month');
+  if (!prevBtn || !nextBtn) return;
+
+  prevBtn.addEventListener('click', () => {
+    const [y, m] = badgesMonth.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    badgesMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    loadAdminBadges();
+  });
+
+  nextBtn.addEventListener('click', () => {
+    const [y, m] = badgesMonth.split('-').map(Number);
+    const d = new Date(y, m, 1);
+    badgesMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    loadAdminBadges();
+  });
+}
+
+async function loadAdminBadges() {
+  const grid = document.getElementById('admin-badges-grid');
+  const label = document.getElementById('badges-month-label');
+  if (!grid || !label) return;
+
+  label.textContent = formatMonthLabel(badgesMonth);
+
+  try {
+    const data = await api(`/months/${badgesMonth}/summary`);
+    const activeReps = data.rep_stats.filter(r => r.total_hours > 0);
+
+    if (activeReps.length === 0) {
+      grid.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px 0;">Pas de données pour ce mois</p>';
+      return;
+    }
+
+    // Fetch monthly daily-action counters
+    let monthlyCounters = [];
+    try { monthlyCounters = await api(`/daily-actions/monthly/${badgesMonth}`); } catch (e) { /* ignore */ }
+
+    // Build per-rep counter totals
+    const counterTotals = {};
+    activeReps.forEach(r => { counterTotals[r.sales_rep_id] = { name: r.name, rdv_fixes: 0, references: 0, entretien_premier_mois: 0 }; });
+    monthlyCounters.forEach(row => {
+      if (!counterTotals[row.sales_rep_id]) return;
+      if (row.action_key === 'predefined:rdv_fixes') counterTotals[row.sales_rep_id].rdv_fixes = row.total;
+      if (row.action_key === 'predefined:references') counterTotals[row.sales_rep_id].references = row.total;
+      if (row.action_key === 'predefined:entretien_premier_mois') counterTotals[row.sales_rep_id].entretien_premier_mois = row.total;
+    });
+    const counterList = Object.values(counterTotals);
+
+    const bestPanier = [...activeReps].sort((a, b) => b.panier_moyen - a.panier_moyen)[0];
+    const bestCA = [...activeReps].sort((a, b) => b.ca - a.ca)[0];
+    const bestSale = [...activeReps].sort((a, b) => b.best_sale - a.best_sale)[0];
+    const bestRDV = [...counterList].sort((a, b) => b.rdv_fixes - a.rdv_fixes)[0];
+    const bestRef = [...counterList].sort((a, b) => b.references - a.references)[0];
+    const bestAccueil = [...counterList].sort((a, b) => b.entretien_premier_mois - a.entretien_premier_mois)[0];
+
+    const badges = [
+      { icon: '🛒', title: "Panier d'Élite", name: bestPanier.name, value: fmtEuro(bestPanier.panier_moyen) },
+      { icon: '💰', title: 'Meilleur CA', name: bestCA.name, value: fmtEuro(bestCA.ca) },
+      { icon: '📞', title: "Téléphone d'Or", name: bestRDV.name, value: bestRDV.rdv_fixes + ' RDV fixés' },
+      { icon: '💎', title: 'Coup KO', name: bestSale.name, value: fmtEuro(bestSale.best_sale) },
+      { icon: '🤝', title: 'Ambassadeur', name: bestRef.name, value: bestRef.references + ' références' },
+      { icon: '👋', title: "Comité d'Accueil", name: bestAccueil.name, value: bestAccueil.entretien_premier_mois + ' entretiens' },
+    ];
+
+    grid.innerHTML = badges.map(b => `
+      <div class="badge-card">
+        <div class="badge-icon">${b.icon}</div>
+        <div class="badge-title">${b.title}</div>
+        <div class="badge-name">${b.name}</div>
+        <div class="badge-value">${b.value}</div>
+      </div>
+    `).join('');
+
+  } catch (err) {
+    grid.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px 0;">Erreur de chargement</p>';
+  }
 }
 
 function renderCards(commerciaux) {
