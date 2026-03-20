@@ -1195,6 +1195,16 @@ main {
   font-weight: 600;
   color: var(--text-secondary);
 }
+.badge-card.badge-unassigned {
+  opacity: .55;
+  border-style: dashed;
+}
+.badge-card.badge-unassigned .badge-name {
+  color: var(--text-muted);
+  font-size: .78rem;
+  font-weight: 600;
+  letter-spacing: .5px;
+}
 
 .monthly-kpi-grid {
   display: grid;
@@ -1862,38 +1872,6 @@ main {
 }
 .btn-toggle-rib:hover:not(.active) { background: var(--bg-subtle); }
 
-/* ─── Rep Filter Bar (Monthly Recap) ──────────── */
-.rep-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 20px;
-  padding: 14px 18px;
-  background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-xs);
-  border: 1px solid var(--border-light);
-}
-.rep-filter-label {
-  font-weight: 700;
-  color: var(--text-muted);
-  font-size: .82rem;
-}
-.rep-filter-cb {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: .85rem;
-  font-weight: 500;
-}
-.rep-filter-cb input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--primary);
-  cursor: pointer;
-}
-
 /* ─── Email Panel ──────────────────────────────── */
 .email-panel {
   max-width: 560px;
@@ -2232,10 +2210,14 @@ main {
   box-shadow: 0 2px 6px rgba(5,150,105,0.25);
 }
 .td-check-row.td-done .td-check-box::after {
-  content: "✓";
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
+  content: "";
+  display: block;
+  width: 6px;
+  height: 11px;
+  border: solid #fff;
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+  margin-top: -1px;
 }
 .td-check-label {
   font-size: .88rem;

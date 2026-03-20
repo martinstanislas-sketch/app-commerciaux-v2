@@ -702,23 +702,26 @@ async function loadAdminBadges() {
     const bestRef = [...counterList].sort((a, b) => b.references - a.references)[0];
     const bestAccueil = [...counterList].sort((a, b) => b.entretien_premier_mois - a.entretien_premier_mois)[0];
 
+    const NA = 'A SAISIR';
     const badges = [
-      { icon: '🛒', title: "Panier d'Élite", name: bestPanier.name, value: fmtEuro(bestPanier.panier_moyen) },
-      { icon: '💰', title: 'Meilleur CA', name: bestCA.name, value: fmtEuro(bestCA.ca) },
-      { icon: '📞', title: "Téléphone d'Or", name: bestRDV.name, value: bestRDV.rdv_fixes + ' RDV fixés' },
-      { icon: '💎', title: 'Coup KO', name: bestSale.name, value: fmtEuro(bestSale.best_sale) },
-      { icon: '🤝', title: 'Ambassadeur', name: bestRef.name, value: bestRef.references + ' références' },
-      { icon: '👋', title: "Comité d'Accueil", name: bestAccueil.name, value: bestAccueil.entretien_premier_mois + ' entretiens' },
+      { icon: '🛒', title: "Panier d'Élite", name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA, value: fmtEuro(bestPanier.panier_moyen) },
+      { icon: '💰', title: 'Meilleur CA', name: bestCA.ca > 0 ? bestCA.name : NA, value: fmtEuro(bestCA.ca) },
+      { icon: '📞', title: "Téléphone d'Or", name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA, value: bestRDV.rdv_fixes + ' RDV fixés' },
+      { icon: '💎', title: 'Coup KO', name: bestSale.best_sale > 0 ? bestSale.name : NA, value: fmtEuro(bestSale.best_sale) },
+      { icon: '🤝', title: 'Ambassadeur', name: bestRef.references > 0 ? bestRef.name : NA, value: bestRef.references + ' références' },
+      { icon: '👋', title: "Comité d'Accueil", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA, value: bestAccueil.entretien_premier_mois + ' entretiens' },
     ];
 
-    grid.innerHTML = badges.map(b => `
-      <div class="badge-card">
+    grid.innerHTML = badges.map(b => {
+      const unassigned = b.name === NA ? ' badge-unassigned' : '';
+      return `
+      <div class="badge-card${unassigned}">
         <div class="badge-icon">${b.icon}</div>
         <div class="badge-title">${b.title}</div>
         <div class="badge-name">${b.name}</div>
         <div class="badge-value">${b.value}</div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
 
   } catch (err) {
     grid.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px 0;">Erreur de chargement</p>';
@@ -1308,19 +1311,21 @@ async function loadMonthlySummary() {
     const bestRef = [...counterList].sort((a, b) => b.references - a.references)[0];
     const bestAccueil = [...counterList].sort((a, b) => b.entretien_premier_mois - a.entretien_premier_mois)[0];
 
+    const NA = 'A SAISIR';
     const badges = [
-      { icon: '🛒', title: "Panier d'Élite", name: bestPanier.name, value: fmtEuro(bestPanier.panier_moyen) },
-      { icon: '💰', title: 'Meilleur CA', name: bestCA.name, value: fmtEuro(bestCA.ca) },
-      { icon: '📞', title: "Téléphone d'Or", name: bestRDV.name, value: bestRDV.rdv_fixes + ' RDV fixés' },
-      { icon: '💎', title: 'Coup KO', name: bestSale.name, value: fmtEuro(bestSale.best_sale) },
-      { icon: '🤝', title: 'Ambassadeur', name: bestRef.name, value: bestRef.references + ' références' },
-      { icon: '👋', title: "Comité d'Accueil", name: bestAccueil.name, value: bestAccueil.entretien_premier_mois + ' entretiens' },
+      { icon: '🛒', title: "Panier d'Élite", name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA, value: fmtEuro(bestPanier.panier_moyen) },
+      { icon: '💰', title: 'Meilleur CA', name: bestCA.ca > 0 ? bestCA.name : NA, value: fmtEuro(bestCA.ca) },
+      { icon: '📞', title: "Téléphone d'Or", name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA, value: bestRDV.rdv_fixes + ' RDV fixés' },
+      { icon: '💎', title: 'Coup KO', name: bestSale.best_sale > 0 ? bestSale.name : NA, value: fmtEuro(bestSale.best_sale) },
+      { icon: '🤝', title: 'Ambassadeur', name: bestRef.references > 0 ? bestRef.name : NA, value: bestRef.references + ' références' },
+      { icon: '👋', title: "Comité d'Accueil", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA, value: bestAccueil.entretien_premier_mois + ' entretiens' },
     ];
 
     podiumHTML += '<div class="badges-grid">';
     badges.forEach(b => {
+      const unassigned = b.name === NA ? ' badge-unassigned' : '';
       podiumHTML += `
-        <div class="badge-card">
+        <div class="badge-card${unassigned}">
           <div class="badge-icon">${b.icon}</div>
           <div class="badge-title">${b.title}</div>
           <div class="badge-name">${b.name}</div>
@@ -1343,37 +1348,6 @@ async function loadMonthlySummary() {
 
   // ── Graphiques évolution hebdomadaire (admin only) ──
   if (isAdmin()) await loadWeeklyCharts();
-}
-
-function getCheckedRepNames() {
-  const cbs = document.querySelectorAll('.rep-filter-bar input[type="checkbox"]');
-  if (cbs.length === 0) return null; // no filter bar = show all
-  return Array.from(cbs).filter(cb => cb.checked).map(cb => cb.dataset.repName);
-}
-
-async function updateMonthlyFilters() {
-  const checkedNames = getCheckedRepNames();
-
-  // Update charts — filter datasets by visibility
-  if (chartRatio && chartPanier) {
-    chartRatio.data.datasets.forEach(ds => {
-      ds.hidden = checkedNames && !checkedNames.includes(ds.label);
-    });
-    chartPanier.data.datasets.forEach(ds => {
-      ds.hidden = checkedNames && !checkedNames.includes(ds.label);
-    });
-    chartRatio.update();
-    chartPanier.update();
-  }
-
-  // Update analysis cards — show/hide
-  document.querySelectorAll('#monthly-analysis .analysis-card').forEach(card => {
-    const nameEl = card.querySelector('.analysis-card-header span');
-    if (nameEl) {
-      const name = nameEl.textContent.trim();
-      card.style.display = (checkedNames && !checkedNames.includes(name)) ? 'none' : '';
-    }
-  });
 }
 
 // ─── Charts ──────────────────────────────────────────────────
