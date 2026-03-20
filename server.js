@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
-// Anthropic SDK loaded lazily to save memory
+const Anthropic = require('@anthropic-ai/sdk').default;
 const { getDb, ensureWeeklySettings, generatePin } = require('./db');
 const { sendEmail, verifyConnection } = require('./email');
 
@@ -844,7 +844,6 @@ app.post('/api/analyze-transcript', requireAuth, async (req, res) => {
   }
 
   try {
-    const Anthropic = require('@anthropic-ai/sdk').default;
     const client = new Anthropic({ apiKey });
 
     const weekEnd = (() => {
@@ -1234,15 +1233,6 @@ app.post('/api/email/send', requireAuth, requireAdmin, async (req, res) => {
     console.error('Erreur envoi email:', e.message);
     res.status(500).json({ error: e.message });
   }
-});
-
-// ─── Error handling ──────────────────────────────────────────
-
-process.on('uncaughtException', (err) => {
-  console.error('[FATAL] Uncaught exception:', err.message, err.stack);
-});
-process.on('unhandledRejection', (err) => {
-  console.error('[FATAL] Unhandled rejection:', err);
 });
 
 // ─── Start ──────────────────────────────────────────────────
