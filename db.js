@@ -74,6 +74,12 @@ function initSchema() {
     db.exec("ALTER TABLE sales_reps ADD COLUMN pin TEXT DEFAULT NULL");
   }
 
+  // Migration: add start_week column to sales_reps
+  const repCols3 = db.prepare("PRAGMA table_info(sales_reps)").all();
+  if (!repCols3.find(c => c.name === 'start_week')) {
+    db.exec("ALTER TABLE sales_reps ADD COLUMN start_week TEXT DEFAULT NULL");
+  }
+
   // Migration: update default target_per_hour from 200 to 300 (one-time)
   // Only apply for rows that still have the old default AND have no sales data
   const migrationDone = db.prepare("PRAGMA table_info(weekly_settings)").all();
@@ -176,12 +182,14 @@ function seed() {
  * Ensure weekly_settings rows exist for a given week_start for all reps.
  */
 function ensureWeeklySettings(weekStart) {
-  const reps = db.prepare('SELECT id FROM sales_reps').all();
+  const reps = db.prepare('SELECT id, start_week FROM sales_reps').all();
   const insert = db.prepare(`
     INSERT OR IGNORE INTO weekly_settings (sales_rep_id, week_start, hours_worked, target_per_hour)
     VALUES (?, ?, 0, 250)
   `);
   for (const rep of reps) {
+    // Only include reps whose start_week is <= this week (or no start_week = always included)
+    if (rep.start_week && rep.start_week > weekStart) continue;
     insert.run(rep.id, weekStart);
   }
 }

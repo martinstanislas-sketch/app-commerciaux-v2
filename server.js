@@ -204,7 +204,7 @@ app.get('/api/sales-reps', requireAuth, (req, res) => {
 // ─── POST /api/sales-reps (admin only) ──────────────────────
 
 app.post('/api/sales-reps', requireAuth, requireAdmin, (req, res) => {
-  const { name } = req.body;
+  const { name, start_week } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Le nom est requis' });
   }
@@ -221,8 +221,14 @@ app.post('/api/sales-reps', requireAuth, requireAdmin, (req, res) => {
   const allPins = db.prepare('SELECT pin FROM sales_reps WHERE pin IS NOT NULL').all().map(r => r.pin);
   const pin = generatePin(trimmedName, allPins);
 
+  // Compute start_week as Monday of the selected date (or null)
+  let startWeek = null;
+  if (start_week) {
+    startWeek = getMonday(start_week);
+  }
+
   // Insert
-  const result = db.prepare('INSERT INTO sales_reps (name, pin) VALUES (?, ?)').run(trimmedName, pin);
+  const result = db.prepare('INSERT INTO sales_reps (name, pin, start_week) VALUES (?, ?, ?)').run(trimmedName, pin, startWeek);
   const newRep = db.prepare('SELECT * FROM sales_reps WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(newRep);
 });
@@ -606,7 +612,8 @@ app.get('/api/months/:month/summary', requireAuth, (req, res) => {
 
   // Weeks that have at least one day in this month:
   // week_start <= lastDay AND week_end (week_start + 6 days) >= firstDay
-  const reps = db.prepare('SELECT * FROM sales_reps ORDER BY id').all();
+  // Only include reps active during this month (start_week <= lastDay or no start_week)
+  const reps = db.prepare('SELECT * FROM sales_reps WHERE start_week IS NULL OR start_week <= ? ORDER BY id').all(lastDay);
 
   // Get all sales in this month (by date, not week_start)
   const allSales = db.prepare(`
@@ -699,7 +706,7 @@ app.get('/api/months/:month/weekly-breakdown', requireAuth, (req, res) => {
   const firstDay = `${month}-01`;
   const lastDay = new Date(year, mon, 0).toISOString().slice(0, 10);
 
-  const reps = db.prepare('SELECT * FROM sales_reps ORDER BY id').all();
+  const reps = db.prepare('SELECT * FROM sales_reps WHERE start_week IS NULL OR start_week <= ? ORDER BY id').all(lastDay);
 
   // Find all distinct week_starts that overlap with this month
   const weeks = db.prepare(`
@@ -722,7 +729,7 @@ app.get('/api/months/:month/weekly-breakdown', requireAuth, (req, res) => {
     const startLabel = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
     const endLabel = weekEndDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 
-    const repData = reps.map(rep => {
+    const repData = reps.filter(rep => !rep.start_week || rep.start_week <= ws).map(rep => {
       // Sales for this rep in this week AND within the month
       const salesRow = db.prepare(`
         SELECT COALESCE(SUM(amount), 0) as ca, COUNT(*) as nb_ventes

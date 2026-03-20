@@ -6,13 +6,13 @@
   <title>Suivi Commerciaux</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Livvic:wght@400;500;600;700&family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <!-- ═══════════ LOGIN OVERLAY ═══════════ -->
+  <!-- LOGIN OVERLAY -->
   <div id="login-overlay" class="login-overlay">
     <div class="login-card">
       <img src="logo-mycoach-noir.png" alt="My Coach Ginkgo" class="login-logo">
@@ -26,12 +26,14 @@
   </div>
 
   <header>
-    <h1>Suivi Commerciaux</h1>
+    <div class="header-left">
+      <h1>Suivi Commerciaux</h1>
+    </div>
     <nav>
       <button class="tab-btn" data-tab="today">Aujourd'hui</button>
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="ventes">Ventes</button>
-      <button class="tab-btn" data-tab="mensuel">Récap Mensuel</button>
+      <button class="tab-btn" data-tab="mensuel">Mensuel</button>
     </nav>
     <div id="user-info" class="user-info hidden">
       <span id="user-name"></span>
@@ -40,12 +42,12 @@
   </header>
 
   <main>
-    <!-- ═══════════ AUJOURD'HUI ═══════════ -->
+    <!-- AUJOURD'HUI -->
     <section id="tab-today" class="tab-content">
       <div id="today-standalone"></div>
     </section>
 
-    <!-- ═══════════ DASHBOARD ═══════════ -->
+    <!-- DASHBOARD -->
     <section id="tab-dashboard" class="tab-content active">
       <div class="week-nav">
         <button id="prev-week" title="Semaine précédente">&larr;</button>
@@ -59,9 +61,20 @@
       <div id="cards-container"></div>
 
       <!-- Classements retirés -->
+
+      <!-- Admin: Gestion Commerciaux -->
+      <div id="admin-reps-panel" class="admin-panel hidden">
+        <h2>Gestion des commerciaux</h2>
+        <form id="add-rep-form" class="add-rep-form">
+          <input type="text" id="new-rep-name" placeholder="Nom du commercial" required>
+          <input type="date" id="new-rep-start-week" title="Semaine de démarrage">
+          <button type="submit" class="btn-primary">Ajouter</button>
+        </form>
+        <div id="admin-rep-list" class="admin-rep-list"></div>
+      </div>
     </section>
 
-    <!-- ═══════════ VENTES ═══════════ -->
+    <!-- VENTES -->
     <section id="tab-ventes" class="tab-content">
       <div class="week-nav">
         <button id="v-prev-week">&larr;</button>
@@ -93,7 +106,7 @@
       </table>
     </section>
 
-    <!-- ═══════════ MENSUEL ═══════════ -->
+    <!-- MENSUEL -->
     <section id="tab-mensuel" class="tab-content">
       <div class="month-nav">
         <button id="prev-month">&larr;</button>
@@ -121,10 +134,10 @@
       <div id="monthly-analysis"></div>
       <div id="monthly-global"></div>
     </section>
-    <!-- ═══════════ EMAIL / ADMIN ═══════════ -->
+    <!-- EMAIL / ADMIN -->
   </main>
 
-  <!-- ═══════════ MODAL VENTE ═══════════ -->
+  <!-- MODAL VENTE -->
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal">
       <h2 id="modal-title">Ajouter une vente</h2>

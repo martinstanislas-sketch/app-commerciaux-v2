@@ -358,8 +358,31 @@ async function loadTodayTab() {
     const valMap = {};
     values.forEach(v => { valMap[v.action_key] = v.value; });
 
+    const savedEnergy = valMap['predefined:energie'] || 0;
+    const savedHS = valMap['predefined:histoire_sportive'] || 0;
+
     let html = `
     <div class="td-page">
+      <!-- Énergie + Histoire Sportive -->
+      <div class="td-top-widgets">
+        <div class="td-widget td-widget-energie">
+          <div class="td-widget-label">Énergie du jour</div>
+          <div class="td-smileys">
+            <button class="td-smiley td-smiley-green ${savedEnergy === 3 ? 'active' : ''}" data-energy="3" title="Super forme">😊</button>
+            <button class="td-smiley td-smiley-orange ${savedEnergy === 2 ? 'active' : ''}" data-energy="2" title="Neutre">😐</button>
+            <button class="td-smiley td-smiley-red ${savedEnergy === 1 ? 'active' : ''}" data-energy="1" title="Pas en forme">😞</button>
+          </div>
+        </div>
+        <div class="td-widget td-widget-histoire">
+          <div class="td-widget-label">Histoire sportive</div>
+          <div class="td-histoire-controls">
+            <button class="td-histoire-btn" data-dir="minus">−</button>
+            <input type="number" class="td-histoire-val" value="${savedHS}" min="0">
+            <button class="td-histoire-btn" data-dir="plus">+</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Actions Oui/Non -->
       <div class="td-block">
         <h3 class="td-block-title">Actions prioritaires</h3>
@@ -413,6 +436,42 @@ function updateTodayStyles(container) {
 }
 
 function bindTodayStandaloneEvents(container, repId) {
+  // Énergie smileys
+  container.querySelectorAll('.td-smiley').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      container.querySelectorAll('.td-smiley').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
+        method: 'PUT', body: { action_key: 'predefined:energie', value: parseInt(btn.dataset.energy) }
+      });
+    });
+  });
+
+  // Histoire sportive +/- buttons
+  container.querySelectorAll('.td-histoire-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const input = container.querySelector('.td-histoire-val');
+      let val = parseInt(input.value) || 0;
+      val = btn.dataset.dir === 'plus' ? val + 1 : Math.max(0, val - 1);
+      input.value = val;
+      await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
+        method: 'PUT', body: { action_key: 'predefined:histoire_sportive', value: val }
+      });
+    });
+  });
+
+  // Histoire sportive direct input
+  const hsInput = container.querySelector('.td-histoire-val');
+  if (hsInput) {
+    hsInput.addEventListener('change', async () => {
+      const val = Math.max(0, parseInt(hsInput.value) || 0);
+      hsInput.value = val;
+      await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
+        method: 'PUT', body: { action_key: 'predefined:histoire_sportive', value: val }
+      });
+    });
+  }
+
   // Yes/No checkboxes
   container.querySelectorAll('.td-yesno').forEach(cb => {
     cb.addEventListener('change', async () => {
@@ -2075,15 +2134,23 @@ function initAdminPanel() {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const nameInput = document.getElementById('new-rep-name');
+    const startWeekInput = document.getElementById('new-rep-start-week');
     const name = nameInput.value.trim();
     if (!name) return;
 
+    const body = { name };
+    if (startWeekInput && startWeekInput.value) {
+      body.start_week = startWeekInput.value;
+    }
+
     try {
-      const newRep = await api('/sales-reps', { method: 'POST', body: { name } });
+      const newRep = await api('/sales-reps', { method: 'POST', body });
       nameInput.value = '';
+      if (startWeekInput) startWeekInput.value = '';
       // Refresh salesReps and all dropdowns
       await refreshSalesReps();
       renderAdminRepList();
+      loadDashboard();
     } catch (err) {
       alert(err.message || 'Erreur lors de l\'ajout');
     }
@@ -2131,13 +2198,17 @@ function renderAdminRepList() {
     return;
   }
 
-  listDiv.innerHTML = salesReps.map(rep => `
-    <div class="admin-rep-row">
+  listDiv.innerHTML = salesReps.map(rep => {
+    const startLabel = rep.start_week
+      ? `Depuis le ${new Date(rep.start_week + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      : 'Depuis toujours';
+    return `<div class="admin-rep-row">
       <span class="admin-rep-name">${rep.name}</span>
+      <span class="admin-rep-start">${startLabel}</span>
       <span class="admin-rep-pin">PIN : <strong>${rep.pin || '—'}</strong></span>
       <button class="btn-delete-rep" onclick="deleteRep(${rep.id}, '${rep.name}')" title="Supprimer">✕</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 async function deleteRep(id, name) {
