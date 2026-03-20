@@ -79,6 +79,7 @@
         <select id="v-filter-rep">
           <option value="">Tous les commerciaux</option>
         </select>
+        <button id="v-filter-rib" class="btn-toggle-rib" title="Afficher uniquement les RIB manquants">RIB manquants</button>
       </div>
 
       <button id="btn-add-sale" class="btn-primary">+ Ajouter une vente</button>
@@ -128,13 +129,22 @@
       <div id="monthly-analysis"></div>
       <div id="monthly-global"></div>
     </section>
-    <!-- ═══════════ EMAIL ═══════════ -->
+    <!-- ═══════════ EMAIL / ADMIN ═══════════ -->
     <section id="tab-email" class="tab-content">
       <div class="email-panel">
         <h2>Test Email SMTP</h2>
         <p>Vérifie que la configuration SMTP est fonctionnelle en envoyant un email de test à l'adresse configurée dans <code>SMTP_FROM</code>.</p>
         <button id="btn-test-email" class="btn-primary">Tester l'envoi email</button>
         <div id="email-result" class="email-result hidden"></div>
+      </div>
+
+      <div id="admin-reps-panel" class="admin-panel hidden">
+        <h2>Gestion des Commerciaux</h2>
+        <form id="add-rep-form" class="add-rep-form">
+          <input type="text" id="new-rep-name" placeholder="Prénom du commercial" required>
+          <button type="submit" class="btn-primary">Ajouter</button>
+        </form>
+        <div id="admin-rep-list" class="admin-rep-list"></div>
       </div>
     </section>
   </main>
@@ -154,16 +164,16 @@
           <input type="date" id="sale-date" required>
         </div>
         <div class="form-row">
-          <label for="sale-amount">Montant (€)</label>
-          <input type="number" id="sale-amount" step="0.01" min="0" required>
-        </div>
-        <div class="form-row">
           <label for="sale-firstname">Prénom client</label>
           <input type="text" id="sale-firstname">
         </div>
         <div class="form-row">
           <label for="sale-lastname">Nom client</label>
           <input type="text" id="sale-lastname">
+        </div>
+        <div class="form-row">
+          <label for="sale-amount">Montant (€)</label>
+          <input type="number" id="sale-amount" step="0.01" min="0" required>
         </div>
         <div class="form-row">
           <label for="sale-client-email">Email client</label>

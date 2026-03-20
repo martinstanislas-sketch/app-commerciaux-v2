@@ -30,7 +30,7 @@ function initSchema() {
       sales_rep_id INTEGER NOT NULL REFERENCES sales_reps(id),
       week_start TEXT NOT NULL,
       hours_worked REAL NOT NULL DEFAULT 0,
-      target_per_hour REAL NOT NULL DEFAULT 300,
+      target_per_hour REAL NOT NULL DEFAULT 250,
       locked INTEGER NOT NULL DEFAULT 0,
       UNIQUE(sales_rep_id, week_start)
     );
@@ -92,6 +92,38 @@ function initSchema() {
     db.exec("ALTER TABLE sales ADD COLUMN r2_sent TEXT DEFAULT NULL");
     db.exec("ALTER TABLE sales ADD COLUMN r3_sent TEXT DEFAULT NULL");
   }
+
+  // Table for chat-style transcript messages
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS transcript_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sales_rep_id INTEGER NOT NULL REFERENCES sales_reps(id),
+      week_start TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_transcript_messages_week_rep ON transcript_messages(week_start, sales_rep_id);
+  `);
+
+  // Tables for daily action tracking ("Aujourd'hui")
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS daily_action_types (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sales_rep_id INTEGER NOT NULL REFERENCES sales_reps(id),
+      name TEXT NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('counter', 'yesno')),
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE TABLE IF NOT EXISTS daily_action_values (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sales_rep_id INTEGER NOT NULL REFERENCES sales_reps(id),
+      action_key TEXT NOT NULL,
+      date TEXT NOT NULL,
+      value REAL NOT NULL DEFAULT 0,
+      UNIQUE(sales_rep_id, action_key, date)
+    );
+  `);
 }
 
 /**
@@ -147,11 +179,11 @@ function ensureWeeklySettings(weekStart) {
   const reps = db.prepare('SELECT id FROM sales_reps').all();
   const insert = db.prepare(`
     INSERT OR IGNORE INTO weekly_settings (sales_rep_id, week_start, hours_worked, target_per_hour)
-    VALUES (?, ?, 0, 300)
+    VALUES (?, ?, 0, 250)
   `);
   for (const rep of reps) {
     insert.run(rep.id, weekStart);
   }
 }
 
-module.exports = { getDb, ensureWeeklySettings };
+module.exports = { getDb, ensureWeeklySettings, generatePin };

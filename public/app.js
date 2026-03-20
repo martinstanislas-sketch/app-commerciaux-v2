@@ -209,8 +209,13 @@ async function bootApp() {
     initVentesTab();
     initMensuelTab();
     initModal();
+    initAdminPanel();
     _appBooted = true;
   }
+
+  // Show/hide admin panel
+  const adminPanel = document.getElementById('admin-reps-panel');
+  if (adminPanel) adminPanel.classList.toggle('hidden', !isAdmin());
 
   loadDashboard();
 }
@@ -389,6 +394,10 @@ function renderCards(commerciaux) {
           <div class="kpi-label">Ratio CA/h</div>
           <div class="kpi-value">${fmt(c.ratio)} €/h</div>
         </div>
+        ${c.hours_worked > 0 ? `<div class="kpi-item kpi-objectif ${c.ca >= c.hours_worked * c.target_per_hour ? 'success' : 'danger'}">
+          <div class="kpi-label">CA Objectif</div>
+          <div class="kpi-value">${fmtEuro(c.hours_worked * c.target_per_hour)}</div>
+        </div>` : ''}
       </div>
       <button class="btn-add-sale" data-rep-id="${c.sales_rep_id}" ${isLocked ? 'disabled' : ''}>
         + Ajouter une vente
@@ -421,7 +430,53 @@ function renderCards(commerciaux) {
       openSaleModal(c.sales_rep_id);
     });
 
+    // "Aujourd'hui" daily actions section
+    const todaySection = document.createElement('div');
+    todaySection.className = 'today-section';
+    todaySection.setAttribute('data-rep-id', c.sales_rep_id);
+    todaySection.innerHTML = `
+      <div class="today-label">Aujourd'hui</div>
+      <div class="today-actions" id="today-actions-${c.sales_rep_id}"></div>
+      <button class="today-add-btn" data-rep-id="${c.sales_rep_id}">+ Ajouter une action</button>
+      <div class="today-add-form hidden" id="today-add-form-${c.sales_rep_id}">
+        <input type="text" class="today-add-name" placeholder="Nom de l'action">
+        <select class="today-add-type">
+          <option value="counter">Compteur</option>
+          <option value="yesno">Oui / Non</option>
+        </select>
+        <button class="today-add-confirm">Créer</button>
+        <button class="today-add-cancel">Annuler</button>
+      </div>
+    `;
+    card.appendChild(todaySection);
+
+    // Chat messages section
+    const chatSection = document.createElement('div');
+    chatSection.className = 'chat-section';
+    chatSection.innerHTML = `
+      <div class="chat-label">Remarques</div>
+      <div class="chat-messages" id="chat-messages-${c.sales_rep_id}"></div>
+      <div class="chat-input-row">
+        <input type="text" class="chat-input" placeholder="Écrire une remarque..." data-rep-id="${c.sales_rep_id}">
+        <button class="chat-send-btn" data-rep-id="${c.sales_rep_id}">Envoyer</button>
+      </div>
+    `;
+    card.appendChild(chatSection);
+
+    // Send message events
+    const chatInput = chatSection.querySelector('.chat-input');
+    const chatSendBtn = chatSection.querySelector('.chat-send-btn');
+    chatSendBtn.addEventListener('click', () => sendChatMessage(c.sales_rep_id, chatInput));
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && chatInput.value.trim()) sendChatMessage(c.sales_rep_id, chatInput);
+    });
+
+    // Append card to DOM BEFORE async loads (they use getElementById)
     container.appendChild(card);
+
+    // Load async data
+    initTodaySection(c.sales_rep_id, todaySection);
+    loadChatMessages(c.sales_rep_id);
   }
 }
 
@@ -430,7 +485,7 @@ async function saveSettings(repId, card) {
   const targetSelect = card.querySelector('select[data-field="target"]');
   let target;
   if (targetSelect.value === 'custom') {
-    target = parseFloat(card.querySelector('input[data-field="target-custom"]').value) || 300;
+    target = parseFloat(card.querySelector('input[data-field="target-custom"]').value) || 250;
   } else {
     target = parseFloat(targetSelect.value);
   }
@@ -466,6 +521,75 @@ function renderRankTable(tableId, ranking, formatter) {
   }
 }
 
+// ─── Chat Messages ──────────────────────────────────────────
+
+async function loadChatMessages(repId) {
+  const container = document.getElementById(`chat-messages-${repId}`);
+  if (!container) return;
+
+  try {
+    const data = await api(`/weeks/${currentWeekStart}/messages/${repId}`);
+    container.innerHTML = '';
+
+    // Show legacy transcript as first bubble if exists
+    if (data.legacy_transcript && data.legacy_transcript.trim()) {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble legacy';
+      bubble.innerHTML = `
+        <div class="chat-bubble-text">${data.legacy_transcript.replace(/\n/g, '<br>')}</div>
+        <div class="chat-bubble-time">Ancien transcript</div>
+      `;
+      container.appendChild(bubble);
+    }
+
+    for (const msg of data.messages) {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble';
+      const date = new Date(msg.created_at);
+      const timeStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' à ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      bubble.innerHTML = `
+        <div class="chat-bubble-text">${msg.message.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>
+        <div class="chat-bubble-meta">
+          <span class="chat-bubble-time">${timeStr}</span>
+          ${isAdmin() ? `<button class="chat-delete-btn" onclick="deleteChatMessage(${msg.id}, ${repId})">×</button>` : ''}
+        </div>
+      `;
+      container.appendChild(bubble);
+    }
+
+    // Scroll to bottom
+    container.scrollTop = container.scrollHeight;
+  } catch (e) {
+    console.error('Erreur chargement messages:', e);
+  }
+}
+
+async function sendChatMessage(repId, inputEl) {
+  const message = inputEl.value.trim();
+  if (!message) return;
+
+  try {
+    await api(`/weeks/${currentWeekStart}/messages/${repId}`, {
+      method: 'POST',
+      body: { message }
+    });
+    inputEl.value = '';
+    await loadChatMessages(repId);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+window.deleteChatMessage = async function(msgId, repId) {
+  if (!confirm('Supprimer ce message ?')) return;
+  try {
+    await api(`/messages/${msgId}`, { method: 'DELETE' });
+    await loadChatMessages(repId);
+  } catch (e) {
+    alert(e.message);
+  }
+};
+
 // ─── Ventes Tab ─────────────────────────────────────────────
 
 function initVentesTab() {
@@ -499,6 +623,13 @@ function initVentesTab() {
   }
   filterSelect.addEventListener('change', loadSales);
 
+  // RIB filter toggle
+  const ribBtn = document.getElementById('v-filter-rib');
+  ribBtn.addEventListener('click', () => {
+    ribBtn.classList.toggle('active');
+    loadSales();
+  });
+
   document.getElementById('btn-add-sale').addEventListener('click', () => openSaleModal());
 }
 
@@ -508,7 +639,14 @@ async function loadSales() {
   let url = `/weeks/${currentWeekStart}/sales`;
   if (filterRep) url += `?sales_rep_id=${filterRep}`;
 
-  const sales = await api(url);
+  let sales = await api(url);
+
+  // Filtre RIB manquants côté client
+  const ribFilterActive = document.getElementById('v-filter-rib')?.classList.contains('active');
+  if (ribFilterActive) {
+    sales = sales.filter(s => s.rib_status !== 'Reçu');
+  }
+
   const tbody = document.querySelector('#sales-table tbody');
   tbody.innerHTML = '';
 
@@ -765,6 +903,23 @@ async function loadMonthlySummary() {
 
   repsDiv.innerHTML = podiumHTML;
 
+  // ── Filtres checkboxes commerciaux ──
+  const filterDiv = document.createElement('div');
+  filterDiv.className = 'rep-filter-bar';
+  filterDiv.innerHTML = '<span class="rep-filter-label">Filtrer :</span>' +
+    data.rep_stats.map(r => `<label class="rep-filter-cb">
+      <input type="checkbox" data-rep-id="${r.id}" data-rep-name="${r.name}" checked>
+      <span class="rep-filter-name">${r.name}</span>
+    </label>`).join('');
+  repsDiv.appendChild(filterDiv);
+
+  // Listen for checkbox changes
+  filterDiv.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      updateMonthlyFilters();
+    });
+  });
+
   // ── Panier moyen global (en bas) ──
   const globalDiv = document.getElementById('monthly-global');
   globalDiv.innerHTML = `
@@ -781,6 +936,37 @@ async function loadMonthlySummary() {
 
   // ── Graphiques évolution hebdomadaire ──
   await loadWeeklyCharts();
+}
+
+function getCheckedRepNames() {
+  const cbs = document.querySelectorAll('.rep-filter-bar input[type="checkbox"]');
+  if (cbs.length === 0) return null; // no filter bar = show all
+  return Array.from(cbs).filter(cb => cb.checked).map(cb => cb.dataset.repName);
+}
+
+async function updateMonthlyFilters() {
+  const checkedNames = getCheckedRepNames();
+
+  // Update charts — filter datasets by visibility
+  if (chartRatio && chartPanier) {
+    chartRatio.data.datasets.forEach(ds => {
+      ds.hidden = checkedNames && !checkedNames.includes(ds.label);
+    });
+    chartPanier.data.datasets.forEach(ds => {
+      ds.hidden = checkedNames && !checkedNames.includes(ds.label);
+    });
+    chartRatio.update();
+    chartPanier.update();
+  }
+
+  // Update analysis cards — show/hide
+  document.querySelectorAll('#monthly-analysis .analysis-card').forEach(card => {
+    const nameEl = card.querySelector('.analysis-card-header span');
+    if (nameEl) {
+      const name = nameEl.textContent.trim();
+      card.style.display = (checkedNames && !checkedNames.includes(name)) ? 'none' : '';
+    }
+  });
 }
 
 // ─── Charts ──────────────────────────────────────────────────
@@ -1473,6 +1659,141 @@ function blobToDataURL(blob) {
   });
 }
 
+// ─── Daily Actions ("Aujourd'hui") ──────────────────────────
+
+function getTodayDate() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+async function initTodaySection(repId, section) {
+  const addBtn = section.querySelector('.today-add-btn');
+  const addForm = section.querySelector(`#today-add-form-${repId}`);
+
+  addBtn.addEventListener('click', () => {
+    addForm.classList.toggle('hidden');
+    if (!addForm.classList.contains('hidden')) {
+      addForm.querySelector('.today-add-name').focus();
+    }
+  });
+
+  addForm.querySelector('.today-add-cancel').addEventListener('click', () => {
+    addForm.classList.add('hidden');
+    addForm.querySelector('.today-add-name').value = '';
+  });
+
+  addForm.querySelector('.today-add-confirm').addEventListener('click', async () => {
+    const name = addForm.querySelector('.today-add-name').value.trim();
+    const type = addForm.querySelector('.today-add-type').value;
+    if (!name) return;
+
+    await api(`/daily-actions/types/${repId}`, { method: 'POST', body: { name, type } });
+    addForm.querySelector('.today-add-name').value = '';
+    addForm.classList.add('hidden');
+    await renderTodayActions(repId);
+  });
+
+  await renderTodayActions(repId);
+}
+
+async function renderTodayActions(repId) {
+  const container = document.getElementById(`today-actions-${repId}`);
+  if (!container) return;
+
+  const today = getTodayDate();
+  const [types, valuesArr] = await Promise.all([
+    api(`/daily-actions/types/${repId}`),
+    api(`/daily-actions/values/${repId}/${today}`)
+  ]);
+
+  // Build values map
+  const valMap = {};
+  for (const v of valuesArr) valMap[v.action_key] = v.value;
+
+  let html = '';
+
+  // Built-in: Histoires sportives
+  const hsValue = valMap['builtin:histoires_sportives'] || 0;
+  html += `
+    <div class="today-action-row builtin">
+      <span class="today-action-name">Histoires sportives</span>
+      <input type="number" class="today-counter" min="0" value="${hsValue}"
+             data-rep-id="${repId}" data-key="builtin:histoires_sportives">
+    </div>
+  `;
+
+  // Custom counter actions
+  const counterTypes = types.filter(t => t.type === 'counter');
+  const yesnoTypes = types.filter(t => t.type === 'yesno');
+
+  if (counterTypes.length > 0) {
+    html += '<div class="today-group-label">Actions compteur</div>';
+    for (const t of counterTypes) {
+      const val = valMap[`custom:${t.id}`] || 0;
+      html += `
+        <div class="today-action-row">
+          <span class="today-action-name">${t.name}</span>
+          <input type="number" class="today-counter" min="0" value="${val}"
+                 data-rep-id="${repId}" data-key="custom:${t.id}">
+          <button class="today-delete-btn" data-type-id="${t.id}" title="Supprimer">✕</button>
+        </div>
+      `;
+    }
+  }
+
+  if (yesnoTypes.length > 0) {
+    html += '<div class="today-group-label">Actions Oui / Non</div>';
+    for (const t of yesnoTypes) {
+      const val = valMap[`custom:${t.id}`] || 0;
+      html += `
+        <div class="today-action-row">
+          <span class="today-action-name">${t.name}</span>
+          <label class="today-toggle">
+            <input type="checkbox" ${val ? 'checked' : ''}
+                   data-rep-id="${repId}" data-key="custom:${t.id}">
+            <span class="today-toggle-slider"></span>
+          </label>
+          <button class="today-delete-btn" data-type-id="${t.id}" title="Supprimer">✕</button>
+        </div>
+      `;
+    }
+  }
+
+  container.innerHTML = html;
+
+  // Bind counter change events
+  container.querySelectorAll('.today-counter').forEach(input => {
+    input.addEventListener('change', async () => {
+      await api(`/daily-actions/values/${input.dataset.repId}/${today}`, {
+        method: 'PUT',
+        body: { action_key: input.dataset.key, value: parseFloat(input.value) || 0 }
+      });
+    });
+  });
+
+  // Bind toggle change events
+  container.querySelectorAll('.today-toggle input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      await api(`/daily-actions/values/${cb.dataset.repId}/${today}`, {
+        method: 'PUT',
+        body: { action_key: cb.dataset.key, value: cb.checked ? 1 : 0 }
+      });
+    });
+  });
+
+  // Bind delete buttons
+  container.querySelectorAll('.today-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Supprimer cette action ?')) return;
+      await api(`/daily-actions/types/${btn.dataset.typeId}`, { method: 'DELETE' });
+      await renderTodayActions(repId);
+    });
+  });
+}
+
 // ─── Email Test ─────────────────────────────────────────────
 
 (function initEmailTest() {
@@ -1504,3 +1825,89 @@ function blobToDataURL(blob) {
     }
   });
 })();
+
+// ─── Admin: Gestion Commerciaux ─────────────────────────────
+
+function initAdminPanel() {
+  const form = document.getElementById('add-rep-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nameInput = document.getElementById('new-rep-name');
+    const name = nameInput.value.trim();
+    if (!name) return;
+
+    try {
+      const newRep = await api('/sales-reps', { method: 'POST', body: { name } });
+      nameInput.value = '';
+      // Refresh salesReps and all dropdowns
+      await refreshSalesReps();
+      renderAdminRepList();
+    } catch (err) {
+      alert(err.message || 'Erreur lors de l\'ajout');
+    }
+  });
+
+  renderAdminRepList();
+}
+
+async function refreshSalesReps() {
+  salesReps = await api('/sales-reps');
+
+  // Refresh modal sale-rep dropdown
+  const repSelect = document.getElementById('sale-rep');
+  if (repSelect) {
+    repSelect.innerHTML = '';
+    for (const rep of salesReps) {
+      const opt = document.createElement('option');
+      opt.value = rep.id;
+      opt.textContent = rep.name;
+      repSelect.appendChild(opt);
+    }
+  }
+
+  // Refresh ventes filter dropdown
+  const filterSelect = document.getElementById('v-filter-rep');
+  if (filterSelect) {
+    const currentVal = filterSelect.value;
+    filterSelect.innerHTML = '<option value="">Tous les commerciaux</option>';
+    for (const rep of salesReps) {
+      const opt = document.createElement('option');
+      opt.value = rep.id;
+      opt.textContent = rep.name;
+      filterSelect.appendChild(opt);
+    }
+    filterSelect.value = currentVal;
+  }
+}
+
+function renderAdminRepList() {
+  const listDiv = document.getElementById('admin-rep-list');
+  if (!listDiv) return;
+
+  if (salesReps.length === 0) {
+    listDiv.innerHTML = '<p style="color:var(--text-light)">Aucun commercial</p>';
+    return;
+  }
+
+  listDiv.innerHTML = salesReps.map(rep => `
+    <div class="admin-rep-row">
+      <span class="admin-rep-name">${rep.name}</span>
+      <span class="admin-rep-pin">PIN : <strong>${rep.pin || '—'}</strong></span>
+      <button class="btn-delete-rep" onclick="deleteRep(${rep.id}, '${rep.name}')" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+}
+
+async function deleteRep(id, name) {
+  if (!confirm(`Supprimer le commercial "${name}" ? Cette action est irréversible.`)) return;
+
+  try {
+    await api(`/sales-reps/${id}`, { method: 'DELETE' });
+    await refreshSalesReps();
+    renderAdminRepList();
+  } catch (err) {
+    alert(err.message || 'Erreur lors de la suppression');
+  }
+}

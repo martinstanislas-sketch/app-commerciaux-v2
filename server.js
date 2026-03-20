@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk').default;
-const { getDb, ensureWeeklySettings } = require('./db');
+const { getDb, ensureWeeklySettings, generatePin } = require('./db');
 const { sendEmail, verifyConnection } = require('./email');
 
 const app = express();
@@ -199,6 +199,55 @@ app.get('/api/sales-reps', requireAuth, (req, res) => {
   const db = getDb();
   const reps = db.prepare('SELECT * FROM sales_reps ORDER BY id').all();
   res.json(reps);
+});
+
+// ─── POST /api/sales-reps (admin only) ──────────────────────
+
+app.post('/api/sales-reps', requireAuth, requireAdmin, (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Le nom est requis' });
+  }
+  const trimmedName = name.trim();
+  const db = getDb();
+
+  // Check if name already exists
+  const existing = db.prepare('SELECT id FROM sales_reps WHERE LOWER(name) = LOWER(?)').get(trimmedName);
+  if (existing) {
+    return res.status(409).json({ error: 'Ce commercial existe déjà' });
+  }
+
+  // Generate PIN
+  const allPins = db.prepare('SELECT pin FROM sales_reps WHERE pin IS NOT NULL').all().map(r => r.pin);
+  const pin = generatePin(trimmedName, allPins);
+
+  // Insert
+  const result = db.prepare('INSERT INTO sales_reps (name, pin) VALUES (?, ?)').run(trimmedName, pin);
+  const newRep = db.prepare('SELECT * FROM sales_reps WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(newRep);
+});
+
+// ─── DELETE /api/sales-reps/:id (admin only) ────────────────
+
+app.delete('/api/sales-reps/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const repId = parseInt(req.params.id);
+
+  // Check if rep has any sales
+  const salesCount = db.prepare('SELECT COUNT(*) as count FROM sales WHERE sales_rep_id = ?').get(repId);
+  if (salesCount && salesCount.count > 0) {
+    return res.status(409).json({ error: `Impossible de supprimer : ${salesCount.count} vente(s) associée(s)` });
+  }
+
+  // Delete related data first
+  db.prepare('DELETE FROM weekly_settings WHERE sales_rep_id = ?').run(repId);
+  db.prepare('DELETE FROM transcript_messages WHERE sales_rep_id = ?').run(repId);
+  const result = db.prepare('DELETE FROM sales_reps WHERE id = ?').run(repId);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Commercial non trouvé' });
+  }
+  res.json({ ok: true });
 });
 
 // ─── GET /api/weeks/:week_start/dashboard ───────────────────
@@ -734,6 +783,52 @@ app.put('/api/weeks/:week_start/transcript/:sales_rep_id', requireAuth, (req, re
   res.json({ success: true });
 });
 
+// ─── Chat Messages ──────────────────────────────────────────
+
+app.get('/api/weeks/:week_start/messages/:sales_rep_id', requireAuth, (req, res) => {
+  const db = getDb();
+  const { week_start, sales_rep_id } = req.params;
+
+  const messages = db.prepare(
+    'SELECT * FROM transcript_messages WHERE week_start = ? AND sales_rep_id = ? ORDER BY created_at ASC'
+  ).all(week_start, sales_rep_id);
+
+  // Also return legacy transcript if any
+  const legacy = db.prepare(
+    'SELECT transcript FROM weekly_settings WHERE week_start = ? AND sales_rep_id = ?'
+  ).get(week_start, sales_rep_id);
+
+  res.json({ messages, legacy_transcript: legacy?.transcript || '' });
+});
+
+app.post('/api/weeks/:week_start/messages/:sales_rep_id', requireAuth, (req, res) => {
+  const db = getDb();
+  const { week_start, sales_rep_id } = req.params;
+  const { message } = req.body;
+
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: 'Message vide' });
+  }
+
+  const result = db.prepare(
+    'INSERT INTO transcript_messages (sales_rep_id, week_start, message) VALUES (?, ?, ?)'
+  ).run(sales_rep_id, week_start, message.trim());
+
+  const created = db.prepare('SELECT * FROM transcript_messages WHERE id = ?').get(result.lastInsertRowid);
+  res.json(created);
+});
+
+app.delete('/api/messages/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const existing = db.prepare('SELECT * FROM transcript_messages WHERE id = ?').get(id);
+  if (!existing) return res.status(404).json({ error: 'Message non trouvé' });
+
+  db.prepare('DELETE FROM transcript_messages WHERE id = ?').run(id);
+  res.json({ success: true });
+});
+
 // ─── Transcript Analysis (AI) ────────────────────────────────
 
 app.post('/api/analyze-transcript', requireAuth, async (req, res) => {
@@ -862,6 +957,68 @@ app.get('/api/export/month/:month', requireAuth, (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename=ventes-mois-${month}.csv`);
   res.send('\uFEFF' + csv);
+});
+
+// ─── Daily Actions: Types CRUD ──────────────────────────────
+
+app.get('/api/daily-actions/types/:sales_rep_id', requireAuth, (req, res) => {
+  const db = getDb();
+  const types = db.prepare(
+    'SELECT * FROM daily_action_types WHERE sales_rep_id = ? ORDER BY sort_order, id'
+  ).all(req.params.sales_rep_id);
+  res.json(types);
+});
+
+app.post('/api/daily-actions/types/:sales_rep_id', requireAuth, (req, res) => {
+  const db = getDb();
+  const { name, type } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
+  if (!['counter', 'yesno'].includes(type)) return res.status(400).json({ error: 'Type invalide' });
+
+  const maxOrder = db.prepare(
+    'SELECT MAX(sort_order) as m FROM daily_action_types WHERE sales_rep_id = ?'
+  ).get(req.params.sales_rep_id);
+
+  const result = db.prepare(
+    'INSERT INTO daily_action_types (sales_rep_id, name, type, sort_order) VALUES (?, ?, ?, ?)'
+  ).run(req.params.sales_rep_id, name.trim(), type, (maxOrder?.m || 0) + 1);
+
+  const newType = db.prepare('SELECT * FROM daily_action_types WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(newType);
+});
+
+app.delete('/api/daily-actions/types/:id', requireAuth, (req, res) => {
+  const db = getDb();
+  const typeId = parseInt(req.params.id);
+  // Delete associated values
+  db.prepare("DELETE FROM daily_action_values WHERE action_key = 'custom:' || ?").run(typeId);
+  const result = db.prepare('DELETE FROM daily_action_types WHERE id = ?').run(typeId);
+  if (result.changes === 0) return res.status(404).json({ error: 'Type non trouvé' });
+  res.json({ ok: true });
+});
+
+// ─── Daily Actions: Values ──────────────────────────────────
+
+app.get('/api/daily-actions/values/:sales_rep_id/:date', requireAuth, (req, res) => {
+  const db = getDb();
+  const values = db.prepare(
+    'SELECT * FROM daily_action_values WHERE sales_rep_id = ? AND date = ?'
+  ).all(req.params.sales_rep_id, req.params.date);
+  res.json(values);
+});
+
+app.put('/api/daily-actions/values/:sales_rep_id/:date', requireAuth, (req, res) => {
+  const db = getDb();
+  const { action_key, value } = req.body;
+  if (!action_key) return res.status(400).json({ error: 'action_key requis' });
+
+  db.prepare(`
+    INSERT INTO daily_action_values (sales_rep_id, action_key, date, value)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(sales_rep_id, action_key, date) DO UPDATE SET value = excluded.value
+  `).run(req.params.sales_rep_id, action_key, req.params.date, value || 0);
+
+  res.json({ ok: true });
 });
 
 // ─── Webhook: POST /api/webhook/sales (single) ──────────────
