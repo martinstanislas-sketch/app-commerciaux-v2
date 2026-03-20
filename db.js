@@ -1,8 +1,11 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
 // Store DB outside project dir to survive redeployments
 const DB_DIR = process.env.DB_PATH || __dirname;
+// Ensure directory exists
+if (!fs.existsSync(DB_DIR)) { fs.mkdirSync(DB_DIR, { recursive: true }); }
 const DB_PATH = path.join(DB_DIR, 'data.db');
 
 let db;

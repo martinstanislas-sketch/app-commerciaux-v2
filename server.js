@@ -1236,6 +1236,15 @@ app.post('/api/email/send', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// ─── Error handling ──────────────────────────────────────────
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught exception:', err.message, err.stack);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[FATAL] Unhandled rejection:', err);
+});
+
 // ─── Start ──────────────────────────────────────────────────
 
 app.listen(PORT, () => {
