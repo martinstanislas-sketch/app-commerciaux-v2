@@ -20,6 +20,33 @@ let salesReps = [];
 let currentMonth = '';
 let featureStatus = { ai: false, email: false, webhook: false };
 let isLocked = false;
+let todaySelectedDate = new Date().toISOString().slice(0, 10);
+
+// ─── Actions prédéfinies Aujourd'hui ────────────────────────
+const PREDEFINED_YESNO = [
+  { key: 'rappel_rdv', label: "J'ai rappelé les RDV programmés pour demain" },
+  { key: 'story', label: "J'ai publié une story" },
+  { key: 'rappel_noshow', label: "J'ai rappelé les no-show du jour" },
+  { key: 'appel_annules', label: "J'ai appelé les RDV annulés du jour" },
+];
+const PREDEFINED_COUNTERS = [
+  { key: 'references', label: 'Références prises' },
+  { key: 'entretien_premier_mois', label: 'Entretiens clients 1er mois' },
+  { key: 'rdv_onfire', label: 'RDV fixés (On Fire)' },
+  { key: 'renouvellements', label: 'Renouvellements challenge signés' },
+  { key: 'rdv_resiliation', label: 'RDV fixés (adhérents résiliation)' },
+  { key: 'reprises', label: 'Reprises signées (anciens clients)' },
+];
+const TOTAL_ACTIONS = PREDEFINED_YESNO.length + PREDEFINED_COUNTERS.length;
+
+function getBadge(score) {
+  const pct = score / TOTAL_ACTIONS * 100;
+  if (pct >= 100) return { name: 'Diamant', icon: '💎', next: null, progress: 100 };
+  if (pct >= 80) return { name: 'Or', icon: '🥇', next: 'Diamant 💎', progress: (pct - 80) / 20 * 100 };
+  if (pct >= 60) return { name: 'Argent', icon: '🥈', next: 'Or 🥇', progress: (pct - 60) / 20 * 100 };
+  if (pct >= 40) return { name: 'Bronze', icon: '🥉', next: 'Argent 🥈', progress: (pct - 40) / 20 * 100 };
+  return { name: null, icon: '', next: 'Bronze 🥉', progress: pct / 40 * 100 };
+}
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -227,18 +254,18 @@ async function bootApp() {
 function updateTabVisibility() {
   const todayBtn = document.querySelector('[data-tab="today"]');
   const ventesBtn = document.querySelector('[data-tab="ventes"]');
+  const dashBtn = document.querySelector('[data-tab="dashboard"]');
 
   if (isAdmin()) {
-    // Admin: hide Aujourd'hui, show Ventes
     if (todayBtn) todayBtn.style.display = 'none';
     if (ventesBtn) ventesBtn.style.display = '';
-    // Default to dashboard
-    document.querySelector('[data-tab="dashboard"]').click();
+    if (dashBtn) dashBtn.style.display = '';
+    dashBtn.click();
   } else {
-    // Commercial: show Aujourd'hui, hide Ventes
+    // Commercial: only Aujourd'hui + Récap Mensuel
     if (todayBtn) todayBtn.style.display = '';
     if (ventesBtn) ventesBtn.style.display = 'none';
-    // Default to Aujourd'hui
+    if (dashBtn) dashBtn.style.display = 'none';
     todayBtn.click();
   }
 }
@@ -249,139 +276,183 @@ async function loadTodayTab() {
   const repId = getMyRepId();
   if (!repId) return;
 
-  const today = new Date().toISOString().slice(0, 10);
-
   try {
-    const [types, values, sales] = await Promise.all([
-      api(`/daily-actions/types/${repId}`),
-      api(`/daily-actions/values/${repId}/${today}`),
-      api(`/weeks/${currentWeekStart}/sales?sales_rep_id=${repId}`)
-    ]);
-
-    // Check for missing RIBs
-    const mySales = sales.filter(s => s.sales_rep_id === repId);
-    const ribMissing = mySales.filter(s => s.rib_status !== 'Reçu');
-
+    const values = await api(`/daily-actions/values/${repId}/${todaySelectedDate}`);
     const valMap = {};
     values.forEach(v => { valMap[v.action_key] = v.value; });
 
-    let html = `<div class="today-standalone-card">`;
-    html += `<h2>Aujourd'hui — ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>`;
+    // Calculate score
+    let score = 0;
+    PREDEFINED_YESNO.forEach(a => { if (valMap[`predefined:${a.key}`]) score++; });
+    PREDEFINED_COUNTERS.forEach(a => { if ((valMap[`predefined:${a.key}`] || 0) > 0) score++; });
+    const badge = getBadge(score);
+    const pct = Math.round(score / TOTAL_ACTIONS * 100);
+    const barColor = pct >= 80 ? 'var(--success)' : pct >= 50 ? '#f59e0b' : '#ef4444';
 
-    // Daily actions
-    html += `<div class="today-actions-list">`;
-    for (const t of types) {
-      const key = `type_${t.id}`;
-      const val = valMap[key] || 0;
-      if (t.type === 'counter') {
-        html += `<div class="today-action-row">
-          <span class="today-action-name">${t.name}</span>
-          <div class="today-counter">
-            <button class="today-counter-btn minus" data-key="${key}" data-rep="${repId}">−</button>
-            <input type="number" class="today-counter-input" value="${val}" min="0" data-key="${key}" data-rep-id="${repId}">
-            <button class="today-counter-btn plus" data-key="${key}" data-rep="${repId}">+</button>
-          </div>
-        </div>`;
-      } else {
-        html += `<div class="today-action-row">
-          <span class="today-action-name">${t.name}</span>
-          <label class="today-toggle">
-            <input type="checkbox" class="today-yesno" data-key="${key}" data-rep-id="${repId}" ${val ? 'checked' : ''}>
-            <span class="today-toggle-slider"></span>
-          </label>
-        </div>`;
-      }
-    }
-    html += `</div>`;
+    // Date display
+    const dateObj = new Date(todaySelectedDate + 'T12:00:00');
+    const dateStr = dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const isToday = todaySelectedDate === new Date().toISOString().slice(0, 10);
 
-    html += `<button class="today-add-btn" id="today-standalone-add-btn" data-rep-id="${repId}">+ Ajouter une action</button>`;
-    html += `<div class="today-add-form hidden" id="today-standalone-add-form">
-      <input type="text" class="today-add-name" placeholder="Nom de l'action">
-      <select class="today-add-type">
-        <option value="counter">Compteur</option>
-        <option value="yesno">Oui / Non</option>
-      </select>
-      <button class="today-add-confirm">Créer</button>
-      <button class="today-add-cancel">Annuler</button>
+    let html = `
+    <div class="td-page">
+      <!-- Header -->
+      <div class="td-header">
+        <button class="td-nav-btn" id="td-prev">&#8592;</button>
+        <div class="td-date">${isToday ? "Aujourd'hui" : ''} <span>${dateStr}</span></div>
+        <button class="td-nav-btn" id="td-next">&#8594;</button>
+      </div>
+
+      <!-- Score -->
+      <div class="td-score-card">
+        <div class="td-score-number">${score}<span class="td-score-total">/${TOTAL_ACTIONS}</span></div>
+        <div class="td-score-label">Score du jour</div>
+        <div class="td-progress-bar"><div class="td-progress-fill" style="width:${pct}%;background:${barColor}"></div></div>
+      </div>
+
+      <!-- Badge -->
+      <div class="td-badge-card">
+        ${badge.name
+          ? `<span class="td-badge-current">${badge.icon} ${badge.name}</span>`
+          : '<span class="td-badge-none">Aucun badge</span>'}
+        ${badge.next
+          ? `<div class="td-badge-next">
+              <span>Prochain : ${badge.next}</span>
+              <div class="td-badge-bar"><div class="td-badge-fill" style="width:${Math.round(badge.progress)}%"></div></div>
+            </div>`
+          : '<span class="td-badge-max">Niveau max atteint !</span>'}
+      </div>
+
+      <!-- Actions Oui/Non -->
+      <div class="td-block">
+        <h3 class="td-block-title">Actions prioritaires</h3>
+        <div class="td-checklist">
+          ${PREDEFINED_YESNO.map(a => {
+            const checked = valMap[`predefined:${a.key}`] ? 'checked' : '';
+            return `<label class="td-check-row ${checked ? 'td-done' : ''}">
+              <input type="checkbox" class="td-yesno" data-key="predefined:${a.key}" ${checked}>
+              <span class="td-check-box"></span>
+              <span class="td-check-label">${a.label}</span>
+            </label>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Compteurs -->
+      <div class="td-block">
+        <h3 class="td-block-title">Compteurs du jour</h3>
+        <div class="td-counters-grid">
+          ${PREDEFINED_COUNTERS.map(a => {
+            const val = valMap[`predefined:${a.key}`] || 0;
+            return `<div class="td-counter-card ${val > 0 ? 'td-counter-active' : ''}">
+              <div class="td-counter-label">${a.label}</div>
+              <div class="td-counter-controls">
+                <button class="td-counter-btn" data-key="predefined:${a.key}" data-dir="minus">−</button>
+                <input type="number" class="td-counter-val" value="${val}" min="0" data-key="predefined:${a.key}">
+                <button class="td-counter-btn" data-key="predefined:${a.key}" data-dir="plus">+</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
     </div>`;
 
-    // RIB manquants section
-    if (ribMissing.length > 0) {
-      html += `<div class="rib-missing-section">`;
-      html += `<h3 class="rib-missing-title">RIB manquants (${ribMissing.length})</h3>`;
-      html += `<div class="rib-missing-list">`;
-      for (const s of ribMissing) {
-        html += `<div class="rib-missing-row">
-          <span>${s.client_first_name} ${s.client_last_name}</span>
-          <span class="rib-badge ${s.rib_status === 'En attente' ? 'rib-attente' : 'rib-non-fourni'}">${s.rib_status || 'Non fourni'}</span>
-        </div>`;
-      }
-      html += `</div></div>`;
-    }
-
-    html += `</div>`;
     container.innerHTML = html;
-
-    // Bind events for standalone today tab
     bindTodayStandaloneEvents(container, repId);
   } catch (err) {
     console.error('Erreur chargement Aujourd\'hui:', err);
   }
 }
 
+function updateTodayScore(container) {
+  let score = 0;
+  container.querySelectorAll('.td-yesno').forEach(cb => { if (cb.checked) score++; });
+  container.querySelectorAll('.td-counter-val').forEach(inp => { if (parseInt(inp.value) > 0) score++; });
+  const pct = Math.round(score / TOTAL_ACTIONS * 100);
+  const barColor = pct >= 80 ? 'var(--success)' : pct >= 50 ? '#f59e0b' : '#ef4444';
+  const badge = getBadge(score);
+
+  const numEl = container.querySelector('.td-score-number');
+  if (numEl) numEl.innerHTML = `${score}<span class="td-score-total">/${TOTAL_ACTIONS}</span>`;
+  const fill = container.querySelector('.td-progress-fill');
+  if (fill) { fill.style.width = pct + '%'; fill.style.background = barColor; }
+
+  const badgeCard = container.querySelector('.td-badge-card');
+  if (badgeCard) {
+    badgeCard.innerHTML = badge.name
+      ? `<span class="td-badge-current">${badge.icon} ${badge.name}</span>`
+      : '<span class="td-badge-none">Aucun badge</span>';
+    if (badge.next) {
+      badgeCard.innerHTML += `<div class="td-badge-next"><span>Prochain : ${badge.next}</span>
+        <div class="td-badge-bar"><div class="td-badge-fill" style="width:${Math.round(badge.progress)}%"></div></div></div>`;
+    } else {
+      badgeCard.innerHTML += '<span class="td-badge-max">Niveau max atteint !</span>';
+    }
+  }
+
+  // Update check row styles
+  container.querySelectorAll('.td-check-row').forEach(row => {
+    const cb = row.querySelector('.td-yesno');
+    row.classList.toggle('td-done', cb && cb.checked);
+  });
+  // Update counter card styles
+  container.querySelectorAll('.td-counter-card').forEach(card => {
+    const inp = card.querySelector('.td-counter-val');
+    card.classList.toggle('td-counter-active', inp && parseInt(inp.value) > 0);
+  });
+}
+
 function bindTodayStandaloneEvents(container, repId) {
-  const today = new Date().toISOString().slice(0, 10);
+  // Date navigation
+  container.querySelector('#td-prev')?.addEventListener('click', () => {
+    const d = new Date(todaySelectedDate + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    todaySelectedDate = d.toISOString().slice(0, 10);
+    loadTodayTab();
+  });
+  container.querySelector('#td-next')?.addEventListener('click', () => {
+    const d = new Date(todaySelectedDate + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    todaySelectedDate = d.toISOString().slice(0, 10);
+    loadTodayTab();
+  });
+
+  // Yes/No checkboxes
+  container.querySelectorAll('.td-yesno').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
+        method: 'PUT', body: { action_key: cb.dataset.key, value: cb.checked ? 1 : 0 }
+      });
+      updateTodayScore(container);
+    });
+  });
 
   // Counter +/- buttons
-  container.querySelectorAll('.today-counter-btn').forEach(btn => {
+  container.querySelectorAll('.td-counter-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const key = btn.dataset.key;
-      const input = container.querySelector(`.today-counter-input[data-key="${key}"]`);
+      const input = container.querySelector(`.td-counter-val[data-key="${key}"]`);
       let val = parseInt(input.value) || 0;
-      val = btn.classList.contains('plus') ? val + 1 : Math.max(0, val - 1);
+      val = btn.dataset.dir === 'plus' ? val + 1 : Math.max(0, val - 1);
       input.value = val;
-      await api(`/daily-actions/values/${repId}/${today}`, {
-        method: 'POST', body: { action_key: key, value: val }
+      await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
+        method: 'PUT', body: { action_key: key, value: val }
       });
+      updateTodayScore(container);
     });
   });
 
   // Counter direct input
-  container.querySelectorAll('.today-counter-input').forEach(input => {
+  container.querySelectorAll('.td-counter-val').forEach(input => {
     input.addEventListener('change', async () => {
       const val = Math.max(0, parseInt(input.value) || 0);
       input.value = val;
-      await api(`/daily-actions/values/${repId}/${today}`, {
-        method: 'POST', body: { action_key: input.dataset.key, value: val }
+      await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
+        method: 'PUT', body: { action_key: input.dataset.key, value: val }
       });
+      updateTodayScore(container);
     });
   });
-
-  // Yes/No checkboxes
-  container.querySelectorAll('.today-yesno').forEach(cb => {
-    cb.addEventListener('change', async () => {
-      await api(`/daily-actions/values/${repId}/${today}`, {
-        method: 'POST', body: { action_key: cb.dataset.key, value: cb.checked ? 1 : 0 }
-      });
-    });
-  });
-
-  // Add action button
-  const addBtn = container.querySelector('#today-standalone-add-btn');
-  const addForm = container.querySelector('#today-standalone-add-form');
-  if (addBtn && addForm) {
-    addBtn.addEventListener('click', () => addForm.classList.toggle('hidden'));
-    addForm.querySelector('.today-add-cancel').addEventListener('click', () => addForm.classList.add('hidden'));
-    addForm.querySelector('.today-add-confirm').addEventListener('click', async () => {
-      const name = addForm.querySelector('.today-add-name').value.trim();
-      const type = addForm.querySelector('.today-add-type').value;
-      if (!name) return;
-      await api(`/daily-actions/types/${repId}`, { method: 'POST', body: { name, type } });
-      addForm.querySelector('.today-add-name').value = '';
-      addForm.classList.add('hidden');
-      loadTodayTab();
-    });
-  }
 }
 
 function applyFeatureStatus() {

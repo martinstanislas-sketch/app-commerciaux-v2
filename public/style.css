@@ -1493,39 +1493,28 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px; }
   background: #fee2e2;
 }
 
-/* ─── Standalone Aujourd'hui Tab ─────────────── */
-.today-standalone-card {
-  background: var(--card);
-  border-radius: var(--radius);
-  padding: 24px;
+/* ─── Tableau de pilotage Aujourd'hui ─────────── */
+.td-page {
   max-width: 600px;
   margin: 0 auto;
-  box-shadow: 0 1px 4px rgba(0,0,0,.06);
-}
-.today-standalone-card h2 {
-  font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 20px;
-  color: var(--text);
-  text-transform: capitalize;
-}
-.today-actions-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 16px;
 }
-.today-counter {
+
+/* Header date + nav */
+.td-header {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 16px;
 }
-.today-counter-btn {
-  width: 32px;
-  height: 32px;
+.td-nav-btn {
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  border-radius: 50%;
+  background: var(--card);
   font-size: 18px;
   cursor: pointer;
   display: flex;
@@ -1533,44 +1522,233 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px; }
   justify-content: center;
   transition: all 0.2s;
 }
-.today-counter-btn:hover {
+.td-nav-btn:hover {
   background: var(--primary);
   color: #fff;
   border-color: var(--primary);
 }
-.today-counter-input {
-  width: 50px;
-  text-align: center;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 16px;
+.td-date {
+  font-size: 15px;
   font-weight: 600;
+  color: var(--text);
+  text-transform: capitalize;
+}
+.td-date span { font-weight: 400; color: var(--text-light); }
+
+/* Score card */
+.td-score-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.td-score-number {
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--primary);
+  line-height: 1;
+}
+.td-score-total {
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--text-light);
+}
+.td-score-label {
+  font-size: 13px;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 8px 0 16px;
+}
+.td-progress-bar {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.td-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease, background 0.4s ease;
 }
 
-/* ─── RIB manquants section ─────────────── */
-.rib-missing-section {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
+/* Badge card */
+.td-badge-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
 }
-.rib-missing-title {
-  font-size: 14px;
+.td-badge-current {
+  font-size: 18px;
   font-weight: 700;
-  color: var(--danger);
-  margin-bottom: 12px;
+  white-space: nowrap;
 }
-.rib-missing-list {
+.td-badge-none {
+  font-size: 14px;
+  color: var(--text-light);
+}
+.td-badge-max {
+  font-size: 13px;
+  color: var(--success);
+  font-weight: 600;
+}
+.td-badge-next {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-light);
+}
+.td-badge-next span { display: block; margin-bottom: 6px; }
+.td-badge-bar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.td-badge-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* Block titles */
+.td-block {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.td-block-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-light);
+  margin-bottom: 14px;
+}
+
+/* Checklist (Oui/Non) */
+.td-checklist {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.rib-missing-row {
+.td-check-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  background: #fef2f2;
-  border-radius: var(--radius);
-  font-size: 14px;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
 }
+.td-check-row:hover { border-color: var(--primary); }
+.td-check-row.td-done {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.td-check-row input { display: none; }
+.td-check-box {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #cbd5e1;
+  border-radius: 6px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.td-check-row.td-done .td-check-box {
+  background: var(--success);
+  border-color: var(--success);
+}
+.td-check-row.td-done .td-check-box::after {
+  content: '\\2713';
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+.td-check-label {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.3;
+}
+.td-check-row.td-done .td-check-label {
+  color: var(--text-light);
+  text-decoration: line-through;
+}
+
+/* Counters grid */
+.td-counters-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 500px) {
+  .td-counters-grid { grid-template-columns: 1fr; }
+}
+.td-counter-card {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 14px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+.td-counter-card.td-counter-active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.td-counter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-light);
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+.td-counter-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+.td-counter-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 20px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.td-counter-btn:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.td-counter-btn:active { transform: scale(0.92); }
+.td-counter-val {
+  width: 48px;
+  height: 34px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  -moz-appearance: textfield;
+}
+.td-counter-val::-webkit-inner-spin-button,
+.td-counter-val::-webkit-outer-spin-button { -webkit-appearance: none; }
