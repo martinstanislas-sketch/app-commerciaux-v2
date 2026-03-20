@@ -24,11 +24,11 @@ let todaySelectedDate = new Date().toISOString().slice(0, 10);
 
 // ─── Actions prédéfinies Aujourd'hui ────────────────────────
 const PREDEFINED_YESNO = [
+  { key: 'check_studio', label: "J'ai fait un check du studio" },
+  { key: 'appel_annules_noshow', label: "J'ai appelé les RDV annulés et no show du jour" },
+  { key: 'mails_sms', label: "J'ai traité 100% des mails, SMS et appel en absence du jour" },
   { key: 'rappel_rdv', label: "J'ai rappelé les RDV programmés pour demain" },
   { key: 'story', label: "J'ai publié une story" },
-  { key: 'rappel_noshow', label: "J'ai rappelé les no-show du jour" },
-  { key: 'appel_annules', label: "J'ai appelé les RDV annulés du jour" },
-  { key: 'mails_sms', label: "J'ai traité 100% des mails et SMS du jour" },
 ];
 const PREDEFINED_COUNTERS = [
   { key: 'references', label: 'Prise de ref' },
