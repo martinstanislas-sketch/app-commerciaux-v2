@@ -2,7 +2,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 
 // Store DB outside project dir to survive redeployments
-const DB_DIR = process.env.DB_DIR || __dirname;
+const DB_DIR = process.env.DB_PATH || __dirname;
 const DB_PATH = path.join(DB_DIR, 'data.db');
 
 let db;
