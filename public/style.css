@@ -1066,6 +1066,58 @@ main {
   line-height: 1.6;
 }
 
+/* ─── Ranking Rest (4e et au-delà) ─────────────── */
+.ranking-rest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+.ranking-rest-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+  transition: all .15s var(--ease);
+}
+.ranking-rest-row:hover {
+  border-color: var(--border);
+  box-shadow: var(--shadow-xs);
+}
+.ranking-rest-rank {
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: var(--text-muted);
+  min-width: 28px;
+}
+.ranking-rest-name {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--navy);
+  flex: 1;
+  letter-spacing: -0.01em;
+}
+.ranking-rest-ratio {
+  font-size: .95rem;
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: -0.02em;
+}
+.ranking-rest-detail {
+  font-size: .78rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+@media (max-width: 500px) {
+  .ranking-rest-row { flex-wrap: wrap; gap: 6px 12px; }
+  .ranking-rest-detail { width: 100%; }
+}
+
 /* ─── Ranking Tables ────────────────────────────── */
 .ranking-table-wrap {
   display: flex;

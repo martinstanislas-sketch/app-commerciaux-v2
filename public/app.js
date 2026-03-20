@@ -1239,9 +1239,10 @@ async function loadMonthlySummary() {
   // ── Podium par ratio mensuel (uniquement ceux ayant travaillé) ──
   const activeReps = data.rep_stats.filter(r => r.total_hours > 0);
   const sorted = [...activeReps].sort((a, b) => b.ratio_mensuel - a.ratio_mensuel);
-  const podiumOrder = sorted.length >= 3
-    ? [sorted[1], sorted[0], sorted[2]]
-    : [...sorted];
+  const top3 = sorted.slice(0, 3);
+  const podiumOrder = top3.length >= 3
+    ? [top3[1], top3[0], top3[2]]
+    : [...top3];
   const medals = { 0: 'gold', 1: 'silver', 2: 'bronze' };
   const rankLabels = { 0: '1er', 1: '2e', 2: '3e' };
 
@@ -1249,7 +1250,7 @@ async function loadMonthlySummary() {
   let podiumHTML = '<h3>Classement Ratio</h3><div class="podium">';
 
   podiumOrder.forEach((r) => {
-    const originalIdx = sorted.indexOf(r);
+    const originalIdx = top3.indexOf(r);
     const medal = medals[originalIdx] || '';
     const rank = rankLabels[originalIdx] || '';
 
@@ -1267,6 +1268,21 @@ async function loadMonthlySummary() {
       </div>`;
   });
   podiumHTML += '</div>';
+
+  // ── Classement complet (4e et au-delà) ──
+  if (sorted.length > 3) {
+    podiumHTML += '<div class="ranking-rest">';
+    sorted.slice(3).forEach((r, i) => {
+      podiumHTML += `
+        <div class="ranking-rest-row">
+          <span class="ranking-rest-rank">${i + 4}e</span>
+          <span class="ranking-rest-name">${r.name}</span>
+          <span class="ranking-rest-ratio">${fmt(r.ratio_mensuel)} €/h</span>
+          <span class="ranking-rest-detail">${fmtEuro(r.ca)} · ${r.nb_ventes} ventes · ${fmt(r.total_hours)}h</span>
+        </div>`;
+    });
+    podiumHTML += '</div>';
+  }
 
   // ── 6 Badges de performance ──
   if (activeReps.length > 0) {
