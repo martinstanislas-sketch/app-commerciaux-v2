@@ -35,7 +35,6 @@ const PREDEFINED_COUNTERS = [
   { key: 'entretien_premier_mois', label: 'Entretien 1er mois' },
   { key: 'rdv_fixes', label: 'RDV fixés' },
   { key: 'entretien_fin_challenge', label: 'Entretiens fin de challenge' },
-  { key: 'contact_anciens', label: 'Contact anciens clients' },
   { key: 'contact_entreprise', label: 'Contact entreprise' },
 ];
 const TOTAL_ACTIONS = PREDEFINED_YESNO.length + PREDEFINED_COUNTERS.length;
