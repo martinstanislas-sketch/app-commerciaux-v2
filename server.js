@@ -273,7 +273,7 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
            COALESCE(SUM(amount), 0) as total_ca,
            COUNT(*) as nb_ventes
     FROM sales
-    WHERE week_start = ?
+    WHERE week_start = ? AND rib_status = 'Reçu'
     GROUP BY sales_rep_id
   `).all(weekStart);
 
@@ -452,7 +452,14 @@ app.post('/api/sales/:id/validate-rib', requireAuth, (req, res) => {
   const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
   if (!sale) return res.status(404).json({ error: 'Vente non trouvée' });
 
-  db.prepare('UPDATE sales SET rib_status = ? WHERE id = ?').run('Reçu', id);
+  // Validate RIB and assign to current week (when button was clicked)
+  const today = new Date();
+  const day = today.getDay(); // 0=Sun
+  const diff = today.getDate() - day + (day === 0 ? -6 : 1); // Monday
+  const monday = new Date(today.setDate(diff));
+  const currentWeekStart = monday.toISOString().slice(0, 10);
+
+  db.prepare('UPDATE sales SET rib_status = ?, week_start = ? WHERE id = ?').run('Reçu', currentWeekStart, id);
   res.json({ success: true });
 });
 
@@ -620,7 +627,8 @@ app.get('/api/months/:month/summary', requireAuth, (req, res) => {
 
   // Per-rep stats with cumulated monthly ratio + best single sale
   const repStats = reps.map(rep => {
-    const repSales = allSales.filter(s => s.sales_rep_id === rep.id);
+    const repSalesAll = allSales.filter(s => s.sales_rep_id === rep.id);
+    const repSales = repSalesAll.filter(s => s.rib_status === 'Reçu');
     const ca = repSales.reduce((sum, s) => sum + s.amount, 0);
     const nbVentes = repSales.length;
     const panierMoyen = nbVentes > 0 ? ca / nbVentes : 0;
@@ -719,7 +727,7 @@ app.get('/api/months/:month/weekly-breakdown', requireAuth, (req, res) => {
       const salesRow = db.prepare(`
         SELECT COALESCE(SUM(amount), 0) as ca, COUNT(*) as nb_ventes
         FROM sales
-        WHERE sales_rep_id = ? AND week_start = ? AND date >= ? AND date <= ?
+        WHERE sales_rep_id = ? AND week_start = ? AND date >= ? AND date <= ? AND rib_status = 'Reçu'
       `).get(rep.id, ws, firstDay, lastDay);
 
       const settings = db.prepare(`

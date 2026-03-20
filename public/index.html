@@ -34,24 +34,6 @@
       <button class="tab-btn" data-tab="mensuel">Récap Mensuel</button>
     </nav>
     <div id="user-info" class="user-info hidden">
-      <div id="header-widgets" class="header-widgets hidden">
-        <div class="hw-item hw-histoire">
-          <span class="hw-label">Histoire Sportive</span>
-          <div class="hw-counter">
-            <button class="hw-btn" id="hs-minus">−</button>
-            <input type="number" class="hw-val" id="hs-value" value="0" min="0">
-            <button class="hw-btn" id="hs-plus">+</button>
-          </div>
-        </div>
-        <div class="hw-item hw-energie">
-          <span class="hw-label">Énergie</span>
-          <div class="hw-smileys">
-            <button class="hw-smiley" data-energy="3" title="Super forme">😊</button>
-            <button class="hw-smiley" data-energy="2" title="Neutre">😐</button>
-            <button class="hw-smiley" data-energy="1" title="Fatigué">😞</button>
-          </div>
-        </div>
-      </div>
       <span id="user-name"></span>
       <button id="btn-logout" class="btn-logout" title="Se déconnecter">Déconnexion</button>
     </div>
@@ -76,20 +58,7 @@
 
       <div id="cards-container"></div>
 
-      <div id="classements">
-        <div class="ranking-block">
-          <h3>Classement CA</h3>
-          <table id="rank-ca"><tbody></tbody></table>
-        </div>
-        <div class="ranking-block">
-          <h3>Classement Ratio (CA/h)</h3>
-          <table id="rank-ratio"><tbody></tbody></table>
-        </div>
-        <div class="ranking-block">
-          <h3>Classement Panier Moyen</h3>
-          <table id="rank-panier"><tbody></tbody></table>
-        </div>
-      </div>
+      <!-- Classements retirés -->
     </section>
 
     <!-- ═══════════ VENTES ═══════════ -->
@@ -170,27 +139,18 @@
           <input type="date" id="sale-date" required>
         </div>
         <div class="form-row">
-          <label for="sale-firstname">Prénom client</label>
-          <input type="text" id="sale-firstname">
-        </div>
-        <div class="form-row">
-          <label for="sale-lastname">Nom client</label>
-          <input type="text" id="sale-lastname">
+          <label for="sale-client-name">Nom Prénom</label>
+          <input type="text" id="sale-client-name" placeholder="Dupont Jean">
         </div>
         <div class="form-row">
           <label for="sale-amount">Montant (€)</label>
           <input type="number" id="sale-amount" step="0.01" min="0" required>
         </div>
         <div class="form-row">
-          <label for="sale-client-email">Email client</label>
-          <input type="email" id="sale-client-email" placeholder="email@exemple.com">
-        </div>
-        <div class="form-row">
           <label for="sale-rib-status">Statut RIB</label>
           <select id="sale-rib-status">
+            <option value="Reçu" selected>Fourni</option>
             <option value="Non fourni">Non fourni</option>
-            <option value="En attente">En attente</option>
-            <option value="Reçu">Reçu</option>
           </select>
         </div>
         <div class="form-actions">

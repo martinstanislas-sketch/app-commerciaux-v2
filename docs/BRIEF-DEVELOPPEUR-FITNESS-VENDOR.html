@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brief Développeur — Intégration Fitness Vendor → My Coach Ginkgo</title>
+  <style>
+    :root {
+      --primary: #ea580c;
+      --primary-dark: #c2410c;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --code-bg: #0f172a;
+      --code-text: #e2e8f0;
+      --success: #16a34a;
+      --warning: #d97706;
+      --error: #dc2626;
+      --info: #2563eb;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: white;
+      padding: 48px 40px 40px;
+    }
+
+    .header-inner {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .header .tag {
+      display: inline-block;
+      background: var(--primary);
+      padding: 4px 14px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      line-height: 1.2;
+    }
+
+    .header .subtitle {
+      font-size: 1.05rem;
+      opacity: 0.7;
+    }
+
+    .header-meta {
+      display: flex;
+      gap: 32px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.15);
+      font-size: 0.88rem;
+      opacity: 0.8;
+    }
+
+    .header-meta dt { font-weight: 400; opacity: 0.7; }
+    .header-meta dd { font-weight: 600; }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 32px;
+    }
+
+    /* FLOW DIAGRAM */
+    .flow-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px;
+      margin-bottom: 32px;
+    }
+
+    .flow-diagram {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 32px 16px;
+      flex-wrap: wrap;
+    }
+
+    .flow-box {
+      background: #f1f5f9;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 28px;
+      text-align: center;
+      min-width: 180px;
+    }
+
+    .flow-box.active {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      border-color: var(--primary);
+      color: white;
+    }
+
+    .flow-box .box-title {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+
+    .flow-box .box-sub {
+      font-size: 0.8rem;
+      opacity: 0.7;
+    }
+
+    .flow-arrow {
+      font-size: 2rem;
+      color: var(--primary);
+      padding: 0 16px;
+      font-weight: 700;
+    }
+
+    .flow-label {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: -8px;
+      font-style: italic;
+    }
+
+    /* SECTIONS */
+    .section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px;
+      margin-bottom: 28px;
+    }
+
+    .section-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--primary);
+      color: white;
+      font-weight: 700;
+      font-size: 1rem;
+      margin-right: 12px;
+      vertical-align: middle;
+    }
+
+    .section h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 24px 0 10px;
+      color: var(--text);
+    }
+
+    .section h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 16px 0 8px;
+      color: var(--text-muted);
+    }
+
+    p { margin-bottom: 12px; }
+
+    ul, ol {
+      margin: 8px 0 16px 24px;
+    }
+
+    li { margin-bottom: 6px; }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 20px 24px;
+      border-radius: 10px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      line-height: 1.65;
+      margin: 12px 0;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    }
+
+    code {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      background: #f1f5f9;
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-size: 0.87rem;
+      color: var(--primary-dark);
+    }
+
+    pre code { background: none; padding: 0; color: inherit; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 0.9rem;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+      text-align: left;
+      padding: 11px 14px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .required { color: var(--error); font-weight: 700; }
+    .optional { color: var(--text-muted); font-weight: 500; }
+
+    .callout {
+      padding: 16px 20px;
+      border-radius: 10px;
+      margin: 16px 0;
+      font-size: 0.92rem;
+    }
+
+    .callout-info {
+      background: #eff6ff;
+      border-left: 4px solid var(--info);
+      color: #1e3a5f;
+    }
+
+    .callout-warning {
+      background: #fffbeb;
+      border-left: 4px solid var(--warning);
+      color: #78350f;
+    }
+
+    .callout-danger {
+      background: #fef2f2;
+      border-left: 4px solid var(--error);
+      color: #7f1d1d;
+    }
+
+    .callout-success {
+      background: #f0fdf4;
+      border-left: 4px solid var(--success);
+      color: #14532d;
+    }
+
+    .callout strong { display: block; margin-bottom: 4px; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 12px;
+      border-radius: 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .badge-post { background: #dcfce7; color: #166534; }
+    .badge-get { background: #dbeafe; color: #1e40af; }
+    .badge-put { background: #fef3c7; color: #92400e; }
+    .badge-rib-recu { background: #dcfce7; color: #166534; }
+    .badge-rib-attente { background: #fef3c7; color: #92400e; }
+    .badge-rib-non { background: #f1f5f9; color: #64748b; }
+
+    .endpoint-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-radius: 10px;
+      margin: 8px 0;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 16px 0;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0;
+    }
+
+    .mini-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .mini-card .label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .mini-card .value {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .mini-card code {
+      display: inline-block;
+      margin-top: 8px;
+      font-size: 0.85rem;
+    }
+
+    .checklist {
+      list-style: none;
+      margin-left: 0;
+      padding: 0;
+    }
+
+    .checklist li {
+      padding: 8px 0 8px 32px;
+      position: relative;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .checklist li::before {
+      content: "☐";
+      position: absolute;
+      left: 4px;
+      font-size: 1.1rem;
+    }
+
+    .checklist li:last-child { border-bottom: none; }
+
+    .sequence-step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .sequence-step:last-child { border-bottom: none; padding-bottom: 0; }
+
+    .seq-num {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #f1f5f9;
+      color: var(--primary);
+      font-weight: 700;
+      flex-shrink: 0;
+      border: 2px solid var(--primary);
+    }
+
+    .seq-content h4 { margin: 2px 0 6px; }
+
+    .footer {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 24px 0;
+    }
+
+    @media print {
+      .header { padding: 28px 20px 24px; }
+      .container { padding: 20px; }
+      .section { break-inside: avoid; page-break-inside: avoid; }
+      pre { font-size: 0.78rem; padding: 14px; }
+      .flow-diagram { padding: 16px 0; }
+    }
+
+    @media (max-width: 640px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .flow-diagram { flex-direction: column; }
+      .flow-arrow { transform: rotate(90deg); padding: 8px 0; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<div class="header">
+  <div class="header-inner">
+    <span class="tag">Brief technique</span>
+    <h1>Intégration Fitness Vendor → Suivi Commerciaux</h1>
+    <p class="subtitle">Tout ce dont le développeur a besoin pour configurer l'envoi automatique des ventes</p>
+    <div class="header-meta">
+      <dl><dt>Client</dt><dd>My Coach Ginkgo</dd></dl>
+      <dl><dt>Projet</dt><dd>Suivi Commerciaux V2</dd></dl>
+      <dl><dt>Date</dt><dd>3 mars 2026</dd></dl>
+      <dl><dt>Version API</dt><dd>v1.0</dd></dl>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ═══════════ CONTEXTE ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">0</span> Contexte et objectif</h2>
+
+  <p>My Coach Ginkgo dispose d'une <strong>application web de suivi des performances commerciales</strong> qui centralise les ventes, calcule les KPIs et génère des récaps mensuels pour 3 commerciaux.</p>
+
+  <p><strong>Objectif de l'intégration :</strong> Lorsqu'un commercial saisit une vente dans <strong>Fitness Vendor</strong> (plateforme Bubble.io), cette vente doit <strong>automatiquement apparaître</strong> dans l'application Suivi Commerciaux, sans aucune double saisie.</p>
+
+  <div class="callout callout-info">
+    <strong>Flux de données unidirectionnel</strong>
+    Fitness Vendor → Suivi Commerciaux (jamais l'inverse). Notre application ne va pas chercher les données, c'est Fitness Vendor qui les pousse via un appel API (webhook).
+  </div>
+</div>
+
+<!-- ═══════════ ARCHITECTURE ═══════════ -->
+<div class="flow-section">
+  <h2 style="text-align: center; margin-bottom: 8px; font-size: 1.15rem;">Architecture du flux</h2>
+  <div class="flow-diagram">
+    <div class="flow-box">
+      <div class="box-title">Commercial</div>
+      <div class="box-sub">Saisit une vente</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box active">
+      <div class="box-title">Fitness Vendor</div>
+      <div class="box-sub">Bubble.io</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box" style="border-color: var(--primary);">
+      <div class="box-title">POST /api/webhook/sales</div>
+      <div class="box-sub">Appel HTTP automatique</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">
+      <div class="box-title">Suivi Commerciaux</div>
+      <div class="box-sub">Vente enregistrée + KPIs mis à jour</div>
+    </div>
+  </div>
+  <p class="flow-label">Déclenchement automatique via un Backend Workflow Bubble à chaque création de vente</p>
+</div>
+
+<!-- ═══════════ 1. CONNEXION ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">1</span> Informations de connexion</h2>
+
+  <div class="grid-2">
+    <div class="mini-card">
+      <div class="label">URL de base</div>
+      <div class="value">https://VOTRE_DOMAINE</div>
+      <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">A remplacer par l'URL du serveur déployé</p>
+    </div>
+    <div class="mini-card">
+      <div class="label">Port (dev local)</div>
+      <div class="value">3000</div>
+      <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">http://localhost:3000 en développement</p>
+    </div>
+  </div>
+
+  <h3>Authentification</h3>
+  <p>Chaque requête doit inclure un header <code>Authorization</code> avec la clé API au format Bearer Token :</p>
+
+  <pre><code>Authorization: Bearer wh_mycoachginkgo_2026_secret_key
+Content-Type: application/json</code></pre>
+
+  <div class="callout callout-danger">
+    <strong>Sécurité</strong>
+    Cette clé doit être stockée côté serveur (jamais exposée côté client). Dans Bubble.io, utiliser l'option "Private key in header" du plugin API Connector.
+  </div>
+</div>
+
+<!-- ═══════════ 2. COMMERCIAUX ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">2</span> Commerciaux à identifier</h2>
+
+  <p>L'API identifie le commercial par son <strong>nom exact</strong> (insensible à la casse). Voici les 3 commerciaux enregistrés :</p>
+
+  <div class="grid-3">
+    <div class="mini-card">
+      <div class="label">ID 1</div>
+      <div class="value">Marvin</div>
+      <code>"Marvin"</code>
+    </div>
+    <div class="mini-card">
+      <div class="label">ID 2</div>
+      <div class="value">Magali</div>
+      <code>"Magali"</code>
+    </div>
+    <div class="mini-card">
+      <div class="label">ID 3</div>
+      <div class="value">Fabian</div>
+      <code>"Fabian"</code>
+    </div>
+  </div>
+
+  <div class="callout callout-warning">
+    <strong>Matching du commercial</strong>
+    Le champ <code>commercial_name</code> doit correspondre au nom du commercial dans notre système. La comparaison est insensible à la casse (<code>"marvin"</code> = <code>"Marvin"</code> = <code>"MARVIN"</code>), mais l'orthographe doit être exacte. Si le nom dans Fitness Vendor diffère (ex : "Marvin Dupont"), il faudra soit le transformer côté Bubble (ne garder que le prénom), soit utiliser le système d'<code>external_id</code>.
+  </div>
+
+  <h3>Alternative : External ID</h3>
+  <p>Si les noms dans Fitness Vendor ne correspondent pas exactement, on peut assigner un identifiant externe unique à chaque commercial via l'endpoint <code>PUT /api/webhook/sales-reps/:id</code>, puis utiliser <code>external_id</code> dans les ventes au lieu de <code>commercial_name</code>.</p>
+</div>
+
+<!-- ═══════════ 3. ENDPOINT PRINCIPAL ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">3</span> Endpoint principal : créer une vente</h2>
+
+  <div class="endpoint-row">
+    <span class="badge badge-post">POST</span>
+    /api/webhook/sales
+  </div>
+
+  <p>C'est l'endpoint que Fitness Vendor doit appeler <strong>à chaque nouvelle vente</strong>.</p>
+
+  <h3>Payload JSON à envoyer</h3>
+  <pre><code>{
+  "date":               "2026-03-03",
+  "amount":             1500,
+  "client_first_name":  "Jean",
+  "client_last_name":   "Dupont",
+  "commercial_name":    "Marvin",
+  "rib_status":         "En attente"
+}</code></pre>
+
+  <h3>Détail de chaque champ</h3>
+  <table>
+    <thead>
+      <tr><th>Champ</th><th>Type</th><th>Requis</th><th>Description</th><th>Contraintes</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>date</code></td>
+        <td>string</td>
+        <td class="required">OUI</td>
+        <td>Date de la vente</td>
+        <td>Format <strong>YYYY-MM-DD</strong> strictement. Ex : <code>"2026-03-03"</code>, jamais <code>"03/03/2026"</code></td>
+      </tr>
+      <tr>
+        <td><code>amount</code></td>
+        <td>number</td>
+        <td class="required">OUI</td>
+        <td>Montant en euros</td>
+        <td>Nombre positif, pas de symbole €. Ex : <code>1500</code> ou <code>49.90</code></td>
+      </tr>
+      <tr>
+        <td><code>client_first_name</code></td>
+        <td>string</td>
+        <td class="optional">non</td>
+        <td>Prénom du client</td>
+        <td>Texte libre. Vide si non disponible.</td>
+      </tr>
+      <tr>
+        <td><code>client_last_name</code></td>
+        <td>string</td>
+        <td class="optional">non</td>
+        <td>Nom du client</td>
+        <td>Texte libre. Vide si non disponible.</td>
+      </tr>
+      <tr>
+        <td><code>commercial_name</code></td>
+        <td>string</td>
+        <td class="required">OUI*</td>
+        <td>Nom du commercial</td>
+        <td><code>"Marvin"</code>, <code>"Magali"</code> ou <code>"Fabian"</code> (insensible à la casse)</td>
+      </tr>
+      <tr>
+        <td><code>external_id</code></td>
+        <td>string</td>
+        <td class="required">OUI*</td>
+        <td>ID externe du commercial</td>
+        <td>Si configuré via PUT /api/webhook/sales-reps/:id</td>
+      </tr>
+      <tr>
+        <td><code>rib_status</code></td>
+        <td>string</td>
+        <td class="optional">non</td>
+        <td>Statut du RIB</td>
+        <td>3 valeurs exactes : <code>"Reçu"</code>, <code>"En attente"</code>, <code>"Non fourni"</code>. Défaut = <code>"Non fourni"</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-info">
+    <strong>* Identification du commercial</strong>
+    Au moins UN de ces champs est requis : <code>commercial_name</code>, <code>external_id</code> ou <code>sales_rep_id</code>. Nous recommandons <code>commercial_name</code> qui est le plus simple.
+  </div>
+
+  <h3>Réponse en cas de succès (201)</h3>
+  <pre><code>{
+  "success": true,
+  "id": 42,
+  "week_start": "2026-03-02",
+  "sales_rep_id": 1,
+  "rib_status": "En attente"
+}</code></pre>
+
+  <h3>Réponses d'erreur</h3>
+  <table>
+    <thead>
+      <tr><th>Code</th><th>Cause</th><th>Exemple de body</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>400</code></td>
+        <td>Champ manquant ou format invalide</td>
+        <td><code>{"error":"Validation échouée","details":["date est requis","amount doit être un nombre positif"]}</code></td>
+      </tr>
+      <tr>
+        <td><code>401</code></td>
+        <td>Clé API absente ou incorrecte</td>
+        <td><code>{"error":"Non autorisé : clé API manquante ou invalide"}</code></td>
+      </tr>
+      <tr>
+        <td><code>403</code></td>
+        <td>Semaine verrouillée (saisie clôturée par le manager)</td>
+        <td><code>{"error":"Semaine verrouillée","week_start":"2026-03-02"}</code></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════ 4. MAPPING ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">4</span> Mapping champs Fitness Vendor → API</h2>
+
+  <p>Correspondance à établir dans le workflow Bubble.io entre les données de la vente Fitness Vendor et les champs de notre API :</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 35%;">Donnée Fitness Vendor</th>
+        <th style="width: 5%; text-align:center;">→</th>
+        <th style="width: 30%;">Champ API</th>
+        <th>Transformation nécessaire</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Date de la vente</td>
+        <td style="text-align:center; color:var(--primary); font-weight:bold;">→</td>
+        <td><code>date</code></td>
+        <td><strong>Reformater en YYYY-MM-DD</strong>. Dans Bubble : <code>Current date:formatted as YYYY-MM-DD</code></td>
+      </tr>
+      <tr>
+        <td>Montant de l'abonnement / prix</td>
+        <td style="text-align:center; color:var(--primary); font-weight:bold;">→</td>
+        <td><code>amount</code></td>
+        <td>Nombre seulement (pas de "€", pas de texte). Si c'est un texte, le convertir en number.</td>
+      </tr>
+      <tr>
+        <td>Prénom du prospect (champ <code>prenom</code>)</td>
+        <td style="text-align:center; color:var(--primary); font-weight:bold;">→</td>
+        <td><code>client_first_name</code></td>
+        <td>Aucune (texte direct)</td>
+      </tr>
+      <tr>
+        <td>Nom du prospect (champ <code>nom</code>)</td>
+        <td style="text-align:center; color:var(--primary); font-weight:bold;">→</td>
+        <td><code>client_last_name</code></td>
+        <td>Aucune (texte direct)</td>
+      </tr>
+      <tr>
+        <td>Nom du commercial qui a fait la vente</td>
+        <td style="text-align:center; color:var(--primary); font-weight:bold;">→</td>
+        <td><code>commercial_name</code></td>
+        <td>Doit correspondre à <code>"Marvin"</code>, <code>"Magali"</code> ou <code>"Fabian"</code>. Si le champ contient un nom complet, extraire uniquement le prénom.</td>
+      </tr>
+      <tr>
+        <td>Statut du RIB (si disponible)</td>
+        <td style="text-align:center; color:var(--primary); font-weight:bold;">→</td>
+        <td><code>rib_status</code></td>
+        <td>Mapper vers <code>"Reçu"</code>, <code>"En attente"</code> ou <code>"Non fourni"</code>. Si non disponible, ne pas envoyer le champ (défaut = "Non fourni").</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-warning">
+    <strong>Points d'attention pour le mapping</strong>
+    <ul style="margin: 8px 0 0 16px;">
+      <li>La <strong>date</strong> est le piège le plus courant. Bubble utilise souvent un format datetime complet. Il faut extraire uniquement <code>YYYY-MM-DD</code>.</li>
+      <li>Le <strong>montant</strong> doit être un nombre, pas une chaîne. <code>1500</code> et non <code>"1 500 €"</code>.</li>
+      <li>Le <strong>nom du commercial</strong> doit matcher nos 3 noms exacts. Si Fitness Vendor utilise des noms complets ou des IDs, prévoir une conversion.</li>
+      <li>Les accents dans <code>rib_status</code> sont importants : <code>"Reçu"</code> avec le ç.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════ 5. STATUT RIB ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">5</span> Valeurs du Statut RIB</h2>
+
+  <p>Le champ <code>rib_status</code> accepte <strong>exactement</strong> ces 3 valeurs (avec accents) :</p>
+
+  <table>
+    <thead>
+      <tr><th>Valeur exacte à envoyer</th><th>Affichage</th><th>Signification</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>"Non fourni"</code></td>
+        <td><span class="badge badge-rib-non">Non fourni</span></td>
+        <td>Valeur par défaut si le champ est omis</td>
+      </tr>
+      <tr>
+        <td><code>"En attente"</code></td>
+        <td><span class="badge badge-rib-attente">En attente</span></td>
+        <td>RIB demandé mais pas encore reçu</td>
+      </tr>
+      <tr>
+        <td><code>"Reçu"</code></td>
+        <td><span class="badge badge-rib-recu">Reçu</span></td>
+        <td>RIB reçu et validé</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════ 6. GUIDE BUBBLE ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">6</span> Guide de configuration Bubble.io</h2>
+
+  <div class="sequence-step">
+    <div class="seq-num">1</div>
+    <div class="seq-content">
+      <h4>Installer le plugin API Connector</h4>
+      <p>Aller dans l'éditeur Bubble → <strong>Plugins</strong> → <strong>Add plugins</strong> → Chercher <strong>"API Connector"</strong> → Installer.</p>
+    </div>
+  </div>
+
+  <div class="sequence-step">
+    <div class="seq-num">2</div>
+    <div class="seq-content">
+      <h4>Créer une nouvelle API</h4>
+      <p>Dans API Connector :</p>
+      <ul>
+        <li>Cliquer <strong>"Add another API"</strong></li>
+        <li>Nom de l'API : <code>MyCoachGinkgo</code></li>
+        <li>Authentication : <strong>"Private key in header"</strong></li>
+        <li>Key name : <code>Authorization</code></li>
+        <li>Key value : <code>Bearer wh_mycoachginkgo_2026_secret_key</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sequence-step">
+    <div class="seq-num">3</div>
+    <div class="seq-content">
+      <h4>Ajouter l'appel "Envoyer Vente"</h4>
+      <p>Cliquer <strong>"Add another call"</strong> :</p>
+      <ul>
+        <li>Nom : <code>Envoyer Vente</code></li>
+        <li>Use as : <strong>Action</strong> (pas "Data")</li>
+        <li>Data type : <strong>JSON</strong></li>
+        <li>Méthode : <strong>POST</strong></li>
+        <li>URL : <code>https://VOTRE_DOMAINE/api/webhook/sales</code></li>
+      </ul>
+      <p>Ajouter le header :</p>
+      <ul>
+        <li>Key : <code>Content-Type</code> — Value : <code>application/json</code></li>
+      </ul>
+      <p>Body (cocher "Body type: JSON") :</p>
+      <pre><code>{
+  "date":              "&lt;date&gt;",
+  "amount":            &lt;amount&gt;,
+  "client_first_name": "&lt;first_name&gt;",
+  "client_last_name":  "&lt;last_name&gt;",
+  "commercial_name":   "&lt;commercial&gt;",
+  "rib_status":        "&lt;rib_status&gt;"
+}</code></pre>
+      <p>Dans Bubble, les valeurs entre <code>&lt; &gt;</code> deviennent des paramètres dynamiques que vous mapperez dans le workflow.</p>
+      <p>Cliquer <strong>"Initialize call"</strong> pour valider la configuration (remplacer temporairement les paramètres par des valeurs de test).</p>
+    </div>
+  </div>
+
+  <div class="sequence-step">
+    <div class="seq-num">4</div>
+    <div class="seq-content">
+      <h4>Créer le Backend Workflow</h4>
+      <p>Aller dans <strong>Backend workflows</strong> (onglet en haut dans l'éditeur Bubble) :</p>
+      <ul>
+        <li>Trigger : <strong>Database trigger</strong> → "When a thing is created" → type = votre type de vente</li>
+        <li>OU : <strong>Custom event</strong> déclenché par le bouton "Valider la vente"</li>
+      </ul>
+      <p>Ajouter une action :</p>
+      <ul>
+        <li>Action type : <strong>Plugins → MyCoachGinkgo - Envoyer Vente</strong></li>
+        <li>Mapper les paramètres dynamiques depuis les données de la vente créée</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sequence-step">
+    <div class="seq-num">5</div>
+    <div class="seq-content">
+      <h4>Tester l'intégration</h4>
+      <p>Créer une vente test dans Fitness Vendor et vérifier :</p>
+      <ul>
+        <li>Dans les logs Bubble : le call API retourne un status <code>201</code></li>
+        <li>Dans Suivi Commerciaux : la vente apparaît dans l'onglet Ventes</li>
+        <li>Le bon commercial est associé</li>
+        <li>Le montant et le nom client sont corrects</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout callout-success">
+    <strong>Resultat attendu</strong>
+    Une fois configuré, chaque vente saisie dans Fitness Vendor apparaît automatiquement dans le tableau de bord Suivi Commerciaux en quelques secondes, avec tous les KPIs recalculés (CA, ratio, panier moyen, classements).
+  </div>
+</div>
+
+<!-- ═══════════ 7. AUTRES ENDPOINTS ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">7</span> Autres endpoints disponibles</h2>
+
+  <p>Ces endpoints sont optionnels mais peuvent être utiles :</p>
+
+  <div class="endpoint-row">
+    <span class="badge badge-post">POST</span>
+    /api/webhook/sales/bulk
+  </div>
+  <p>Envoi de plusieurs ventes en un seul appel (max 100). Utile pour un import initial ou une synchronisation batch.</p>
+
+  <div class="endpoint-row">
+    <span class="badge badge-get">GET</span>
+    /api/webhook/sales-reps
+  </div>
+  <p>Lister les commerciaux avec leurs IDs. Utile pour vérifier les noms exacts ou débugger un problème de matching.</p>
+
+  <div class="endpoint-row">
+    <span class="badge badge-put">PUT</span>
+    /api/webhook/sales-reps/:id
+  </div>
+  <p>Assigner un <code>external_id</code> à un commercial. Utile si les noms dans Fitness Vendor ne correspondent pas.</p>
+
+  <p>La documentation détaillée de ces endpoints est disponible dans le document <strong>API-WEBHOOK-FITNESS-VENDOR</strong>.</p>
+</div>
+
+<!-- ═══════════ 8. ERREURS ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">8</span> Gestion des erreurs et codes HTTP</h2>
+
+  <table>
+    <thead>
+      <tr><th>Code</th><th>Signification</th><th>Action côté Fitness Vendor</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>201</strong></td>
+        <td>Vente créée avec succès</td>
+        <td>Rien à faire, tout est OK</td>
+      </tr>
+      <tr>
+        <td><strong>400</strong></td>
+        <td>Données invalides</td>
+        <td>Vérifier le format de la date (YYYY-MM-DD), que le montant est un nombre, et que le nom du commercial existe</td>
+      </tr>
+      <tr>
+        <td><strong>401</strong></td>
+        <td>Authentification échouée</td>
+        <td>Vérifier que le header Authorization contient la bonne clé API</td>
+      </tr>
+      <tr>
+        <td><strong>403</strong></td>
+        <td>Semaine verrouillée</td>
+        <td>Le manager a clôturé cette semaine. La vente ne peut plus être ajoutée pour cette période. Contacter le manager pour déverrouiller si nécessaire.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-info">
+    <strong>Conseil : gestion des erreurs dans Bubble</strong>
+    Configurer une action "If API call returns error" dans le workflow pour logger les erreurs ou notifier l'administrateur. Les erreurs 400 contiennent un tableau <code>details</code> avec la liste précise des problèmes.
+  </div>
+</div>
+
+<!-- ═══════════ 9. EXEMPLES CURL ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">9</span> Tests manuels (cURL)</h2>
+
+  <p>Pour tester l'API avant de configurer Bubble, utiliser ces commandes depuis un terminal :</p>
+
+  <h4>Vérifier l'authentification</h4>
+  <pre><code>curl -s -X GET https://VOTRE_DOMAINE/api/webhook/sales-reps \
+  -H "Authorization: Bearer wh_mycoachginkgo_2026_secret_key" | python3 -m json.tool</code></pre>
+
+  <h4>Créer une vente test</h4>
+  <pre><code>curl -s -X POST https://VOTRE_DOMAINE/api/webhook/sales \
+  -H "Authorization: Bearer wh_mycoachginkgo_2026_secret_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "date": "2026-03-03",
+    "amount": 1500,
+    "client_first_name": "Test",
+    "client_last_name": "API",
+    "commercial_name": "Marvin",
+    "rib_status": "En attente"
+  }' | python3 -m json.tool</code></pre>
+
+  <h4>Vérifier qu'une erreur 401 est bien renvoyée sans clé</h4>
+  <pre><code>curl -s -X POST https://VOTRE_DOMAINE/api/webhook/sales \
+  -H "Content-Type: application/json" \
+  -d '{"date":"2026-03-03","amount":100,"commercial_name":"Marvin"}' | python3 -m json.tool</code></pre>
+</div>
+
+<!-- ═══════════ 10. CHECKLIST ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">10</span> Checklist de mise en production</h2>
+
+  <ul class="checklist">
+    <li><strong>Serveur déployé</strong> — L'application Suivi Commerciaux est accessible via une URL HTTPS publique</li>
+    <li><strong>Plugin API Connector</strong> installé dans Bubble</li>
+    <li><strong>API configurée</strong> dans API Connector avec la clé d'authentification</li>
+    <li><strong>Call "Envoyer Vente"</strong> configuré et initialisé avec succès</li>
+    <li><strong>Backend Workflow</strong> créé avec le trigger sur création de vente</li>
+    <li><strong>Mapping des champs</strong> vérifié (date format, montant number, nom commercial exact)</li>
+    <li><strong>Test unitaire</strong> — créer une vente dans FV et vérifier qu'elle apparaît dans Suivi Commerciaux</li>
+    <li><strong>Test des 3 commerciaux</strong> — vérifier que Marvin, Magali et Fabian sont bien identifiés</li>
+    <li><strong>Test du RIB</strong> — vérifier que les 3 statuts sont correctement transmis</li>
+    <li><strong>Test d'erreur</strong> — vérifier le comportement quand l'API est indisponible ou retourne une erreur</li>
+    <li><strong>Monitoring</strong> — s'assurer que les erreurs de workflow sont loggées côté Bubble</li>
+  </ul>
+</div>
+
+<!-- ═══════════ 11. QUESTIONS OUVERTES ═══════════ -->
+<div class="section">
+  <h2><span class="section-number">11</span> Questions ouvertes / points à clarifier</h2>
+
+  <p>Ces points doivent être résolus entre l'équipe My Coach Ginkgo et le développeur Fitness Vendor :</p>
+
+  <table>
+    <thead>
+      <tr><th>#</th><th>Question</th><th>Impact</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><strong>Quel champ contient le montant de la vente ?</strong> L'API Fitness Vendor montre des champs prospect (nom, prénom, email...) mais pas de champ montant visible. Quel est le nom exact du champ ou de la table contenant le montant ?</td>
+        <td>Mapping du champ <code>amount</code></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><strong>Comment identifier le commercial dans Fitness Vendor ?</strong> Est-ce un champ texte libre, un menu déroulant, un User Bubble ? Le format exact déterminera si on utilise <code>commercial_name</code> directement ou un mapping via <code>external_id</code>.</td>
+        <td>Matching du commercial</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><strong>Quel événement déclenche l'envoi ?</strong> Est-ce la création d'un enregistrement vente dans la base Bubble ? Un clic sur un bouton spécifique ? Un changement de statut ?</td>
+        <td>Trigger du Backend Workflow</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><strong>Le statut RIB existe-t-il dans Fitness Vendor ?</strong> Si oui, quelles sont ses valeurs actuelles ? Faut-il un mapping entre les valeurs FV et les nôtres ?</td>
+        <td>Mapping du champ <code>rib_status</code></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><strong>URL de déploiement</strong> — L'application doit être déployée sur un serveur accessible publiquement. Quel hébergement sera utilisé ?</td>
+        <td>Remplacement de <code>VOTRE_DOMAINE</code></td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><strong>Gestion des doublons</strong> — Que faire si la même vente est envoyée deux fois (retry réseau, double clic) ? Actuellement, l'API crée un doublon. Faut-il ajouter un mécanisme de déduplication ?</td>
+        <td>Logique anti-doublon à prévoir si nécessaire</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+
+<div class="footer">
+  <p><strong>My Coach Ginkgo — Suivi Commerciaux V2</strong></p>
+  <p>Brief technique — Intégration Fitness Vendor</p>
+  <p>Document généré le 3 mars 2026</p>
+</div>
+
+</body>
+</html>

@@ -573,7 +573,6 @@ async function loadDashboard() {
   lockBtn.classList.toggle('locked', isLocked);
 
   renderCards(data.commerciaux);
-  renderRankings(data);
 }
 
 function renderCards(commerciaux) {
@@ -668,25 +667,7 @@ function renderCards(commerciaux) {
       openSaleModal(c.sales_rep_id);
     });
 
-    // "Aujourd'hui" daily actions section
-    const todaySection = document.createElement('div');
-    todaySection.className = 'today-section';
-    todaySection.setAttribute('data-rep-id', c.sales_rep_id);
-    todaySection.innerHTML = `
-      <div class="today-label">Aujourd'hui</div>
-      <div class="today-actions" id="today-actions-${c.sales_rep_id}"></div>
-      <button class="today-add-btn" data-rep-id="${c.sales_rep_id}">+ Ajouter une action</button>
-      <div class="today-add-form hidden" id="today-add-form-${c.sales_rep_id}">
-        <input type="text" class="today-add-name" placeholder="Nom de l'action">
-        <select class="today-add-type">
-          <option value="counter">Compteur</option>
-          <option value="yesno">Oui / Non</option>
-        </select>
-        <button class="today-add-confirm">Créer</button>
-        <button class="today-add-cancel">Annuler</button>
-      </div>
-    `;
-    card.appendChild(todaySection);
+    // "Aujourd'hui" daily actions section removed from admin dashboard
 
     // Chat messages section
     const chatSection = document.createElement('div');
@@ -713,7 +694,6 @@ function renderCards(commerciaux) {
     container.appendChild(card);
 
     // Load async data
-    initTodaySection(c.sales_rep_id, todaySection);
     loadChatMessages(c.sales_rep_id);
   }
 }
@@ -965,18 +945,18 @@ function openSaleModal(repId = null, saleData = null) {
   document.getElementById('sale-id').value = saleData ? saleData.id : '';
   document.getElementById('sale-rep').value = repId || saleData?.sales_rep_id || salesReps[0]?.id;
 
-  // Default date: first day of current week
+  // Default date: today
   const weekEnd = addDays(currentWeekStart, 6);
+  const today = new Date().toISOString().slice(0, 10);
   const dateInput = document.getElementById('sale-date');
-  dateInput.value = saleData?.date || currentWeekStart;
+  dateInput.value = saleData?.date || today;
   dateInput.min = currentWeekStart;
   dateInput.max = weekEnd;
 
   document.getElementById('sale-amount').value = saleData?.amount || '';
-  document.getElementById('sale-firstname').value = saleData?.client_first_name || '';
-  document.getElementById('sale-lastname').value = saleData?.client_last_name || '';
-  document.getElementById('sale-client-email').value = saleData?.client_email || '';
-  document.getElementById('sale-rib-status').value = saleData?.rib_status || 'Non fourni';
+  const clientName = saleData ? `${saleData.client_last_name || ''} ${saleData.client_first_name || ''}`.trim() : '';
+  document.getElementById('sale-client-name').value = clientName;
+  document.getElementById('sale-rib-status').value = saleData?.rib_status || 'Reçu';
 }
 
 function closeModal() {
@@ -986,13 +966,17 @@ function closeModal() {
 
 async function saveSale() {
   const id = document.getElementById('sale-id').value;
+  const fullName = document.getElementById('sale-client-name').value.trim();
+  const nameParts = fullName.split(/\s+/);
+  const lastName = nameParts[0] || '';
+  const firstName = nameParts.slice(1).join(' ') || '';
   const body = {
     sales_rep_id: parseInt(document.getElementById('sale-rep').value),
     date: document.getElementById('sale-date').value,
     amount: parseFloat(document.getElementById('sale-amount').value),
-    client_first_name: document.getElementById('sale-firstname').value.trim(),
-    client_last_name: document.getElementById('sale-lastname').value.trim(),
-    client_email: document.getElementById('sale-client-email').value.trim(),
+    client_first_name: firstName,
+    client_last_name: lastName,
+    client_email: '',
     rib_status: document.getElementById('sale-rib-status').value
   };
 
@@ -1174,22 +1158,7 @@ async function loadMonthlySummary() {
 
   repsDiv.innerHTML = podiumHTML;
 
-  // ── Filtres checkboxes commerciaux (uniquement ceux ayant travaillé) ──
-  const filterDiv = document.createElement('div');
-  filterDiv.className = 'rep-filter-bar';
-  filterDiv.innerHTML = '<span class="rep-filter-label">Filtrer :</span>' +
-    activeReps.map(r => `<label class="rep-filter-cb">
-      <input type="checkbox" data-rep-id="${r.id}" data-rep-name="${r.name}" checked>
-      <span class="rep-filter-name">${r.name}</span>
-    </label>`).join('');
-  repsDiv.appendChild(filterDiv);
-
-  // Listen for checkbox changes
-  filterDiv.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener('change', () => {
-      updateMonthlyFilters();
-    });
-  });
+  // Filtres retirés
 
   // ── Panier moyen global (retiré) ──
   const globalDiv = document.getElementById('monthly-global');

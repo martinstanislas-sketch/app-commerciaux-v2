@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentation API Webhook — My Coach Ginkgo</title>
+  <style>
+    :root {
+      --primary: #ea580c;
+      --primary-dark: #c2410c;
+      --bg: #fafaf9;
+      --card: #ffffff;
+      --text: #1c1917;
+      --text-muted: #78716c;
+      --border: #e7e5e4;
+      --code-bg: #1e293b;
+      --code-text: #e2e8f0;
+      --success: #16a34a;
+      --warning: #d97706;
+      --error: #dc2626;
+      --info: #2563eb;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 0;
+    }
+
+    .header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 48px 40px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .header .subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+      font-weight: 400;
+    }
+
+    .header .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      padding: 4px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      margin-top: 12px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 32px;
+    }
+
+    .toc {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 40px;
+    }
+
+    .toc h2 {
+      font-size: 1.1rem;
+      color: var(--primary);
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .toc ol {
+      padding-left: 20px;
+    }
+
+    .toc li {
+      margin-bottom: 6px;
+    }
+
+    .toc a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .toc a:hover {
+      color: var(--primary);
+    }
+
+    .section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 28px;
+    }
+
+    .section h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--primary);
+      color: var(--text);
+    }
+
+    .section h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 24px 0 12px;
+      color: var(--text);
+    }
+
+    .endpoint {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .method {
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+      font-family: 'Consolas', 'Monaco', monospace;
+    }
+
+    .method-post { background: #dcfce7; color: #166534; }
+    .method-get { background: #dbeafe; color: #1e40af; }
+    .method-put { background: #fef3c7; color: #92400e; }
+
+    .endpoint-url {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 20px 24px;
+      border-radius: 10px;
+      overflow-x: auto;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      margin: 12px 0;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    }
+
+    code {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.88rem;
+      color: var(--primary-dark);
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 0.92rem;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 2px solid var(--border);
+      color: var(--text);
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .required {
+      color: var(--error);
+      font-weight: 700;
+    }
+
+    .optional {
+      color: var(--text-muted);
+    }
+
+    .note {
+      background: #eff6ff;
+      border-left: 4px solid var(--info);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 0.92rem;
+      color: #1e3a5f;
+    }
+
+    .warning {
+      background: #fefce8;
+      border-left: 4px solid var(--warning);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 0.92rem;
+      color: #713f12;
+    }
+
+    .success-box {
+      background: #f0fdf4;
+      border-left: 4px solid var(--success);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 0.92rem;
+      color: #14532d;
+    }
+
+    .status-code {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      font-family: 'Consolas', 'Monaco', monospace;
+    }
+
+    .status-2xx { background: #dcfce7; color: #166534; }
+    .status-4xx { background: #fef2f2; color: #991b1b; }
+    .status-5xx { background: #fef2f2; color: #991b1b; }
+
+    .rib-badge {
+      display: inline-block;
+      padding: 3px 12px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .rib-recu { background: #dcfce7; color: #166534; }
+    .rib-attente { background: #fef3c7; color: #92400e; }
+    .rib-non-fourni { background: #f1f5f9; color: #64748b; }
+
+    .connection-info {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 8px 16px;
+      margin: 16px 0;
+    }
+
+    .connection-info dt {
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .connection-info dd {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.9rem;
+    }
+
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      font-weight: 700;
+      font-size: 0.9rem;
+      margin-right: 10px;
+      flex-shrink: 0;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .step-content h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .step-content p {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+
+    .commerciaux-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin: 16px 0;
+    }
+
+    .commercial-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .commercial-card .name {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .commercial-card .id-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .commercial-card code {
+      display: block;
+      margin-top: 8px;
+      font-size: 0.88rem;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 32px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .arrow {
+      color: var(--primary);
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    .mapping-arrow {
+      text-align: center;
+      color: var(--primary);
+      font-weight: bold;
+    }
+
+    @media print {
+      .header { padding: 32px 24px; }
+      .container { padding: 20px 16px; }
+      .section { break-inside: avoid; }
+      pre { font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Documentation API Webhook</h1>
+    <p class="subtitle">My Coach Ginkgo &mdash; Suivi Commerciaux</p>
+    <span class="badge">Integration Fitness Vendor &rarr; Suivi Commerciaux</span>
+  </div>
+
+  <div class="container">
+
+    <!-- TABLE DES MATIERES -->
+    <div class="toc">
+      <h2>Sommaire</h2>
+      <ol>
+        <li><a href="#connexion">Informations de connexion</a></li>
+        <li><a href="#creer-vente">Créer une vente</a></li>
+        <li><a href="#bulk">Créer plusieurs ventes (bulk)</a></li>
+        <li><a href="#commerciaux">Lister les commerciaux</a></li>
+        <li><a href="#external-id">Assigner un identifiant externe</a></li>
+        <li><a href="#mapping">Mapping des champs</a></li>
+        <li><a href="#rib">Valeurs Statut RIB</a></li>
+        <li><a href="#bubble">Configuration Bubble.io</a></li>
+        <li><a href="#codes">Codes de réponse</a></li>
+        <li><a href="#tests">Exemples de test cURL</a></li>
+      </ol>
+    </div>
+
+    <!-- 1. CONNEXION -->
+    <div class="section" id="connexion">
+      <h2>1. Informations de connexion</h2>
+
+      <dl class="connection-info">
+        <dt>URL de base</dt>
+        <dd><strong>https://VOTRE_DOMAINE</strong></dd>
+        <dt>Authentification</dt>
+        <dd>Bearer Token</dd>
+        <dt>Format</dt>
+        <dd>JSON (application/json)</dd>
+      </dl>
+
+      <h3>Header obligatoire (sur chaque requête)</h3>
+      <pre><code>Authorization: Bearer wh_mycoachginkgo_2026_secret_key
+Content-Type: application/json</code></pre>
+
+      <div class="warning">
+        <strong>Important :</strong> Chaque appel doit inclure le header <code>Authorization</code> avec la clé API. Sans ce header, la requête sera rejetée avec une erreur <code>401</code>.
+      </div>
+    </div>
+
+    <!-- 2. CREER UNE VENTE -->
+    <div class="section" id="creer-vente">
+      <h2>2. Créer une vente</h2>
+
+      <div class="endpoint">
+        <span class="method method-post">POST</span>
+        <span class="endpoint-url">/api/webhook/sales</span>
+      </div>
+
+      <p>Envoie une vente unique vers le suivi commerciaux. A appeler chaque fois qu'un commercial saisit une vente dans Fitness Vendor.</p>
+
+      <h3>Corps de la requête (JSON)</h3>
+      <pre><code>{
+  "date": "2026-03-03",
+  "amount": 1500,
+  "client_first_name": "Jean",
+  "client_last_name": "Dupont",
+  "commercial_name": "Marvin",
+  "rib_status": "En attente"
+}</code></pre>
+
+      <h3>Détail des champs</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Champ</th>
+            <th>Type</th>
+            <th>Requis</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>date</code></td>
+            <td>string</td>
+            <td class="required">Oui</td>
+            <td>Date de la vente au format <code>YYYY-MM-DD</code></td>
+          </tr>
+          <tr>
+            <td><code>amount</code></td>
+            <td>number</td>
+            <td class="required">Oui</td>
+            <td>Montant de la vente en euros (nombre positif)</td>
+          </tr>
+          <tr>
+            <td><code>client_first_name</code></td>
+            <td>string</td>
+            <td class="optional">Non</td>
+            <td>Prénom du client</td>
+          </tr>
+          <tr>
+            <td><code>client_last_name</code></td>
+            <td>string</td>
+            <td class="optional">Non</td>
+            <td>Nom du client</td>
+          </tr>
+          <tr>
+            <td><code>commercial_name</code></td>
+            <td>string</td>
+            <td class="required">Oui*</td>
+            <td>Nom du commercial (insensible à la casse)</td>
+          </tr>
+          <tr>
+            <td><code>external_id</code></td>
+            <td>string</td>
+            <td class="required">Oui*</td>
+            <td>Identifiant externe du commercial</td>
+          </tr>
+          <tr>
+            <td><code>sales_rep_id</code></td>
+            <td>number</td>
+            <td class="required">Oui*</td>
+            <td>ID interne du commercial (1, 2 ou 3)</td>
+          </tr>
+          <tr>
+            <td><code>rib_status</code></td>
+            <td>string</td>
+            <td class="optional">Non</td>
+            <td><code>"Reçu"</code>, <code>"En attente"</code> ou <code>"Non fourni"</code> (défaut)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>* Identification du commercial :</strong> Au moins <strong>un</strong> de ces trois champs est requis : <code>commercial_name</code>, <code>external_id</code> ou <code>sales_rep_id</code>. Nous recommandons <code>commercial_name</code> pour la simplicité.
+      </div>
+
+      <h3>Réponse succès</h3>
+      <p><span class="status-code status-2xx">201 Created</span></p>
+      <pre><code>{
+  "success": true,
+  "id": 42,
+  "week_start": "2026-03-02",
+  "sales_rep_id": 1,
+  "rib_status": "En attente"
+}</code></pre>
+    </div>
+
+    <!-- 3. BULK -->
+    <div class="section" id="bulk">
+      <h2>3. Créer plusieurs ventes (bulk)</h2>
+
+      <div class="endpoint">
+        <span class="method method-post">POST</span>
+        <span class="endpoint-url">/api/webhook/sales/bulk</span>
+      </div>
+
+      <p>Envoie un lot de ventes en une seule requête (maximum 100).</p>
+
+      <h3>Corps de la requête</h3>
+      <pre><code>{
+  "sales": [
+    {
+      "date": "2026-03-03",
+      "amount": 1500,
+      "client_first_name": "Jean",
+      "client_last_name": "Dupont",
+      "commercial_name": "Marvin",
+      "rib_status": "Reçu"
+    },
+    {
+      "date": "2026-03-03",
+      "amount": 800,
+      "client_first_name": "Marie",
+      "client_last_name": "Martin",
+      "commercial_name": "Magali"
+    }
+  ]
+}</code></pre>
+
+      <h3>Réponse succès</h3>
+      <p><span class="status-code status-2xx">201 Created</span></p>
+      <pre><code>{
+  "total": 2,
+  "success": 2,
+  "failed": 0,
+  "results": [
+    { "index": 0, "success": true, "id": 43, "week_start": "2026-03-02" },
+    { "index": 1, "success": true, "id": 44, "week_start": "2026-03-02" }
+  ]
+}</code></pre>
+
+      <div class="note">
+        <strong>Note :</strong> Si certaines ventes échouent (champ manquant, commercial non trouvé...), les autres sont quand même insérées. Le champ <code>results</code> détaille le statut individuel de chaque vente.
+      </div>
+    </div>
+
+    <!-- 4. COMMERCIAUX -->
+    <div class="section" id="commerciaux">
+      <h2>4. Lister les commerciaux</h2>
+
+      <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-url">/api/webhook/sales-reps</span>
+      </div>
+
+      <p>Retourne la liste complète des commerciaux avec leurs identifiants.</p>
+
+      <h3>Commerciaux enregistrés</h3>
+      <div class="commerciaux-grid">
+        <div class="commercial-card">
+          <div class="name">Marvin</div>
+          <div class="id-label">ID interne</div>
+          <code>1</code>
+          <div class="id-label" style="margin-top:8px">commercial_name</div>
+          <code>"Marvin"</code>
+        </div>
+        <div class="commercial-card">
+          <div class="name">Magali</div>
+          <div class="id-label">ID interne</div>
+          <code>2</code>
+          <div class="id-label" style="margin-top:8px">commercial_name</div>
+          <code>"Magali"</code>
+        </div>
+        <div class="commercial-card">
+          <div class="name">Fabian</div>
+          <div class="id-label">ID interne</div>
+          <code>3</code>
+          <div class="id-label" style="margin-top:8px">commercial_name</div>
+          <code>"Fabian"</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. EXTERNAL ID -->
+    <div class="section" id="external-id">
+      <h2>5. Assigner un identifiant externe</h2>
+
+      <div class="endpoint">
+        <span class="method method-put">PUT</span>
+        <span class="endpoint-url">/api/webhook/sales-reps/:id</span>
+      </div>
+
+      <p>Associe un identifiant Fitness Vendor à un commercial. Utile si les noms diffèrent entre les deux systèmes.</p>
+
+      <h3>Corps de la requête</h3>
+      <pre><code>{
+  "external_id": "FV-001-MARVIN"
+}</code></pre>
+
+      <h3>Réponse succès</h3>
+      <p><span class="status-code status-2xx">200 OK</span></p>
+      <pre><code>{
+  "success": true,
+  "id": 1,
+  "external_id": "FV-001-MARVIN"
+}</code></pre>
+    </div>
+
+    <!-- 6. MAPPING -->
+    <div class="section" id="mapping">
+      <h2>6. Mapping des champs</h2>
+
+      <p>Correspondance entre les champs de Fitness Vendor et ceux de notre API :</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Champ Fitness Vendor</th>
+            <th class="mapping-arrow"></th>
+            <th>Champ Webhook</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Prénom du client</td>
+            <td class="mapping-arrow"><span class="arrow">&rarr;</span></td>
+            <td><code>client_first_name</code></td>
+            <td>Texte libre</td>
+          </tr>
+          <tr>
+            <td>Nom du client</td>
+            <td class="mapping-arrow"><span class="arrow">&rarr;</span></td>
+            <td><code>client_last_name</code></td>
+            <td>Texte libre</td>
+          </tr>
+          <tr>
+            <td>Montant de la vente</td>
+            <td class="mapping-arrow"><span class="arrow">&rarr;</span></td>
+            <td><code>amount</code></td>
+            <td>Nombre en euros (ex : 1500)</td>
+          </tr>
+          <tr>
+            <td>Date de la vente</td>
+            <td class="mapping-arrow"><span class="arrow">&rarr;</span></td>
+            <td><code>date</code></td>
+            <td>Format <code>YYYY-MM-DD</code> obligatoire</td>
+          </tr>
+          <tr>
+            <td>Nom du commercial</td>
+            <td class="mapping-arrow"><span class="arrow">&rarr;</span></td>
+            <td><code>commercial_name</code></td>
+            <td><code>Marvin</code>, <code>Magali</code> ou <code>Fabian</code></td>
+          </tr>
+          <tr>
+            <td>Statut du RIB</td>
+            <td class="mapping-arrow"><span class="arrow">&rarr;</span></td>
+            <td><code>rib_status</code></td>
+            <td><code>Reçu</code>, <code>En attente</code> ou <code>Non fourni</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 7. RIB -->
+    <div class="section" id="rib">
+      <h2>7. Valeurs Statut RIB</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Valeur</th>
+            <th>Affichage</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>"Non fourni"</code></td>
+            <td><span class="rib-badge rib-non-fourni">Non fourni</span></td>
+            <td>RIB non encore demandé (valeur par défaut si le champ est omis)</td>
+          </tr>
+          <tr>
+            <td><code>"En attente"</code></td>
+            <td><span class="rib-badge rib-attente">En attente</span></td>
+            <td>RIB demandé, pas encore reçu</td>
+          </tr>
+          <tr>
+            <td><code>"Reçu"</code></td>
+            <td><span class="rib-badge rib-recu">Reçu</span></td>
+            <td>RIB reçu et validé</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 8. BUBBLE -->
+    <div class="section" id="bubble">
+      <h2>8. Configuration dans Bubble.io (Fitness Vendor)</h2>
+
+      <div class="step">
+        <span class="step-number">1</span>
+        <div class="step-content">
+          <h4>Installer le plugin API Connector</h4>
+          <p>Dans l'éditeur Bubble &rarr; <strong>Plugins</strong> &rarr; <strong>Add plugins</strong> &rarr; Rechercher et installer <strong>API Connector</strong></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-number">2</span>
+        <div class="step-content">
+          <h4>Configurer l'API</h4>
+          <p>Dans le plugin API Connector :</p>
+          <ul style="margin: 8px 0 0 20px; color: var(--text-muted); font-size: 0.92rem;">
+            <li>Cliquer <strong>Add another API</strong></li>
+            <li>Nom : <code>MyCoachGinkgo</code></li>
+            <li>Authentication : <strong>Private key in header</strong></li>
+            <li>Key name : <code>Authorization</code></li>
+            <li>Key value : <code>Bearer wh_mycoachginkgo_2026_secret_key</code></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-number">3</span>
+        <div class="step-content">
+          <h4>Ajouter l'appel "Créer une vente"</h4>
+          <p>Cliquer <strong>Add another call</strong> avec ces paramètres :</p>
+          <ul style="margin: 8px 0 0 20px; color: var(--text-muted); font-size: 0.92rem;">
+            <li>Nom : <code>Envoyer Vente</code></li>
+            <li>Méthode : <strong>POST</strong></li>
+            <li>URL : <code>https://VOTRE_DOMAINE/api/webhook/sales</code></li>
+            <li>Header : <code>Content-Type: application/json</code></li>
+            <li>Body type : <strong>JSON</strong></li>
+          </ul>
+          <pre><code>{
+  "date": "&lt;date_de_la_vente&gt;",
+  "amount": &lt;montant&gt;,
+  "client_first_name": "&lt;prenom_client&gt;",
+  "client_last_name": "&lt;nom_client&gt;",
+  "commercial_name": "&lt;nom_du_commercial&gt;",
+  "rib_status": "&lt;statut_rib&gt;"
+}</code></pre>
+          <p>Remplacer les valeurs entre <code>&lt; &gt;</code> par les champs dynamiques Bubble correspondants.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-number">4</span>
+        <div class="step-content">
+          <h4>Déclencher l'appel automatiquement</h4>
+          <p>Dans le Workflow Bubble :</p>
+          <ul style="margin: 8px 0 0 20px; color: var(--text-muted); font-size: 0.92rem;">
+            <li>Event : <strong>When a new sale/vente is created</strong></li>
+            <li>Action : <strong>Plugins &rarr; MyCoachGinkgo - Envoyer Vente</strong></li>
+            <li>Mapper les champs dynamiques de la vente vers les paramètres de l'appel</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="success-box">
+        <strong>Résultat :</strong> Dès qu'un commercial saisit une vente dans Fitness Vendor, elle apparaît automatiquement dans le tableau de bord Suivi Commerciaux avec tous les KPIs mis à jour en temps réel.
+      </div>
+    </div>
+
+    <!-- 9. CODES -->
+    <div class="section" id="codes">
+      <h2>9. Codes de réponse</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Signification</th>
+            <th>Quand</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="status-code status-2xx">200</span></td>
+            <td>OK</td>
+            <td>Requête GET ou PUT réussie</td>
+          </tr>
+          <tr>
+            <td><span class="status-code status-2xx">201</span></td>
+            <td>Created</td>
+            <td>Vente(s) créée(s) avec succès</td>
+          </tr>
+          <tr>
+            <td><span class="status-code status-4xx">400</span></td>
+            <td>Bad Request</td>
+            <td>Champs manquants, format de date invalide, montant négatif</td>
+          </tr>
+          <tr>
+            <td><span class="status-code status-4xx">401</span></td>
+            <td>Unauthorized</td>
+            <td>Clé API manquante ou invalide</td>
+          </tr>
+          <tr>
+            <td><span class="status-code status-4xx">403</span></td>
+            <td>Forbidden</td>
+            <td>Semaine verrouillée (saisie fermée pour cette semaine)</td>
+          </tr>
+          <tr>
+            <td><span class="status-code status-4xx">404</span></td>
+            <td>Not Found</td>
+            <td>Commercial non trouvé</td>
+          </tr>
+          <tr>
+            <td><span class="status-code status-4xx">409</span></td>
+            <td>Conflict</td>
+            <td>L'external_id est déjà attribué à un autre commercial</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 10. TESTS -->
+    <div class="section" id="tests">
+      <h2>10. Exemples de test cURL</h2>
+
+      <h3>Créer une vente</h3>
+      <pre><code>curl -X POST https://VOTRE_DOMAINE/api/webhook/sales \
+  -H "Authorization: Bearer wh_mycoachginkgo_2026_secret_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "date": "2026-03-03",
+    "amount": 1500,
+    "client_first_name": "Jean",
+    "client_last_name": "Dupont",
+    "commercial_name": "Marvin",
+    "rib_status": "En attente"
+  }'</code></pre>
+
+      <h3>Tester l'authentification (doit retourner 401)</h3>
+      <pre><code>curl -X POST https://VOTRE_DOMAINE/api/webhook/sales \
+  -H "Content-Type: application/json" \
+  -d '{"date":"2026-03-03","amount":100,"commercial_name":"Marvin"}'</code></pre>
+
+      <h3>Lister les commerciaux</h3>
+      <pre><code>curl -X GET https://VOTRE_DOMAINE/api/webhook/sales-reps \
+  -H "Authorization: Bearer wh_mycoachginkgo_2026_secret_key"</code></pre>
+
+      <h3>Envoyer plusieurs ventes</h3>
+      <pre><code>curl -X POST https://VOTRE_DOMAINE/api/webhook/sales/bulk \
+  -H "Authorization: Bearer wh_mycoachginkgo_2026_secret_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sales": [
+      {"date":"2026-03-03","amount":1500,"commercial_name":"Marvin","client_first_name":"Jean","client_last_name":"Dupont"},
+      {"date":"2026-03-03","amount":800,"commercial_name":"Magali","client_first_name":"Marie","client_last_name":"Martin"}
+    ]
+  }'</code></pre>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <p><strong>My Coach Ginkgo</strong> &mdash; Suivi Commerciaux</p>
+    <p>Document généré le 3 mars 2026</p>
+  </div>
+
+</body>
+</html>
