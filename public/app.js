@@ -28,6 +28,7 @@ const PREDEFINED_YESNO = [
   { key: 'story', label: "J'ai publié une story" },
   { key: 'rappel_noshow', label: "J'ai rappelé les no-show du jour" },
   { key: 'appel_annules', label: "J'ai appelé les RDV annulés du jour" },
+  { key: 'mails_sms', label: "J'ai traité 100% des mails et SMS du jour" },
 ];
 const PREDEFINED_COUNTERS = [
   { key: 'references', label: 'Références prises' },
@@ -276,53 +277,17 @@ async function loadTodayTab() {
   const repId = getMyRepId();
   if (!repId) return;
 
+  // Always lock to today's date
+  const today = new Date().toISOString().slice(0, 10);
+  todaySelectedDate = today;
+
   try {
     const values = await api(`/daily-actions/values/${repId}/${todaySelectedDate}`);
     const valMap = {};
     values.forEach(v => { valMap[v.action_key] = v.value; });
 
-    // Calculate score
-    let score = 0;
-    PREDEFINED_YESNO.forEach(a => { if (valMap[`predefined:${a.key}`]) score++; });
-    PREDEFINED_COUNTERS.forEach(a => { if ((valMap[`predefined:${a.key}`] || 0) > 0) score++; });
-    const badge = getBadge(score);
-    const pct = Math.round(score / TOTAL_ACTIONS * 100);
-    const barColor = pct >= 80 ? 'var(--success)' : pct >= 50 ? '#f59e0b' : '#ef4444';
-
-    // Date display
-    const dateObj = new Date(todaySelectedDate + 'T12:00:00');
-    const dateStr = dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    const isToday = todaySelectedDate === new Date().toISOString().slice(0, 10);
-
     let html = `
     <div class="td-page">
-      <!-- Header -->
-      <div class="td-header">
-        <button class="td-nav-btn" id="td-prev">&#8592;</button>
-        <div class="td-date">${isToday ? "Aujourd'hui" : ''} <span>${dateStr}</span></div>
-        <button class="td-nav-btn" id="td-next">&#8594;</button>
-      </div>
-
-      <!-- Score -->
-      <div class="td-score-card">
-        <div class="td-score-number">${score}<span class="td-score-total">/${TOTAL_ACTIONS}</span></div>
-        <div class="td-score-label">Score du jour</div>
-        <div class="td-progress-bar"><div class="td-progress-fill" style="width:${pct}%;background:${barColor}"></div></div>
-      </div>
-
-      <!-- Badge -->
-      <div class="td-badge-card">
-        ${badge.name
-          ? `<span class="td-badge-current">${badge.icon} ${badge.name}</span>`
-          : '<span class="td-badge-none">Aucun badge</span>'}
-        ${badge.next
-          ? `<div class="td-badge-next">
-              <span>Prochain : ${badge.next}</span>
-              <div class="td-badge-bar"><div class="td-badge-fill" style="width:${Math.round(badge.progress)}%"></div></div>
-            </div>`
-          : '<span class="td-badge-max">Niveau max atteint !</span>'}
-      </div>
-
       <!-- Actions Oui/Non -->
       <div class="td-block">
         <h3 class="td-block-title">Actions prioritaires</h3>
@@ -364,38 +329,11 @@ async function loadTodayTab() {
   }
 }
 
-function updateTodayScore(container) {
-  let score = 0;
-  container.querySelectorAll('.td-yesno').forEach(cb => { if (cb.checked) score++; });
-  container.querySelectorAll('.td-counter-val').forEach(inp => { if (parseInt(inp.value) > 0) score++; });
-  const pct = Math.round(score / TOTAL_ACTIONS * 100);
-  const barColor = pct >= 80 ? 'var(--success)' : pct >= 50 ? '#f59e0b' : '#ef4444';
-  const badge = getBadge(score);
-
-  const numEl = container.querySelector('.td-score-number');
-  if (numEl) numEl.innerHTML = `${score}<span class="td-score-total">/${TOTAL_ACTIONS}</span>`;
-  const fill = container.querySelector('.td-progress-fill');
-  if (fill) { fill.style.width = pct + '%'; fill.style.background = barColor; }
-
-  const badgeCard = container.querySelector('.td-badge-card');
-  if (badgeCard) {
-    badgeCard.innerHTML = badge.name
-      ? `<span class="td-badge-current">${badge.icon} ${badge.name}</span>`
-      : '<span class="td-badge-none">Aucun badge</span>';
-    if (badge.next) {
-      badgeCard.innerHTML += `<div class="td-badge-next"><span>Prochain : ${badge.next}</span>
-        <div class="td-badge-bar"><div class="td-badge-fill" style="width:${Math.round(badge.progress)}%"></div></div></div>`;
-    } else {
-      badgeCard.innerHTML += '<span class="td-badge-max">Niveau max atteint !</span>';
-    }
-  }
-
-  // Update check row styles
+function updateTodayStyles(container) {
   container.querySelectorAll('.td-check-row').forEach(row => {
     const cb = row.querySelector('.td-yesno');
     row.classList.toggle('td-done', cb && cb.checked);
   });
-  // Update counter card styles
   container.querySelectorAll('.td-counter-card').forEach(card => {
     const inp = card.querySelector('.td-counter-val');
     card.classList.toggle('td-counter-active', inp && parseInt(inp.value) > 0);
@@ -403,27 +341,13 @@ function updateTodayScore(container) {
 }
 
 function bindTodayStandaloneEvents(container, repId) {
-  // Date navigation
-  container.querySelector('#td-prev')?.addEventListener('click', () => {
-    const d = new Date(todaySelectedDate + 'T12:00:00');
-    d.setDate(d.getDate() - 1);
-    todaySelectedDate = d.toISOString().slice(0, 10);
-    loadTodayTab();
-  });
-  container.querySelector('#td-next')?.addEventListener('click', () => {
-    const d = new Date(todaySelectedDate + 'T12:00:00');
-    d.setDate(d.getDate() + 1);
-    todaySelectedDate = d.toISOString().slice(0, 10);
-    loadTodayTab();
-  });
-
   // Yes/No checkboxes
   container.querySelectorAll('.td-yesno').forEach(cb => {
     cb.addEventListener('change', async () => {
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
         method: 'PUT', body: { action_key: cb.dataset.key, value: cb.checked ? 1 : 0 }
       });
-      updateTodayScore(container);
+      updateTodayStyles(container);
     });
   });
 
@@ -438,7 +362,7 @@ function bindTodayStandaloneEvents(container, repId) {
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
         method: 'PUT', body: { action_key: key, value: val }
       });
-      updateTodayScore(container);
+      updateTodayStyles(container);
     });
   });
 
@@ -450,7 +374,7 @@ function bindTodayStandaloneEvents(container, repId) {
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
         method: 'PUT', body: { action_key: input.dataset.key, value: val }
       });
-      updateTodayScore(container);
+      updateTodayStyles(container);
     });
   });
 }
