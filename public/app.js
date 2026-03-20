@@ -363,29 +363,29 @@ async function loadTodayTab() {
 
     let html = `
     <div class="td-page">
-      <!-- Énergie + Histoire Sportive -->
-      <div class="td-top-widgets">
-        <div class="td-widget td-widget-energie">
-          <div class="td-widget-label">Énergie du jour</div>
-          <div class="td-smileys">
-            <button class="td-smiley td-smiley-green ${savedEnergy === 3 ? 'active' : ''}" data-energy="3" title="Super forme">😊</button>
-            <button class="td-smiley td-smiley-orange ${savedEnergy === 2 ? 'active' : ''}" data-energy="2" title="Neutre">😐</button>
-            <button class="td-smiley td-smiley-red ${savedEnergy === 1 ? 'active' : ''}" data-energy="1" title="Pas en forme">😞</button>
-          </div>
-        </div>
-        <div class="td-widget td-widget-histoire">
-          <div class="td-widget-label">Histoire sportive</div>
-          <div class="td-histoire-controls">
-            <button class="td-histoire-btn" data-dir="minus">−</button>
-            <input type="number" class="td-histoire-val" value="${savedHS}" min="0">
-            <button class="td-histoire-btn" data-dir="plus">+</button>
-          </div>
-        </div>
-      </div>
-
       <!-- Actions Oui/Non -->
       <div class="td-block">
         <h3 class="td-block-title">Actions prioritaires</h3>
+
+        <!-- Histoire Sportive + Énergie inline -->
+        <div class="td-inline-widgets">
+          <div class="td-inline-widget td-widget-histoire">
+            <span class="td-inline-label">Histoire sportive</span>
+            <div class="td-histoire-controls">
+              <button class="td-histoire-btn" data-dir="minus">−</button>
+              <input type="number" class="td-histoire-val" value="${savedHS}" min="0">
+              <button class="td-histoire-btn" data-dir="plus">+</button>
+            </div>
+          </div>
+          <div class="td-inline-widget td-widget-energie">
+            <span class="td-inline-label">Énergie</span>
+            <div class="td-smileys">
+              <button class="td-smiley td-smiley-green ${savedEnergy === 3 ? 'active' : ''}" data-energy="3" title="Super forme">😊</button>
+              <button class="td-smiley td-smiley-orange ${savedEnergy === 2 ? 'active' : ''}" data-energy="2" title="Neutre">😐</button>
+              <button class="td-smiley td-smiley-red ${savedEnergy === 1 ? 'active' : ''}" data-energy="1" title="Pas en forme">😞</button>
+            </div>
+          </div>
+        </div>
         <div class="td-checklist">
           ${PREDEFINED_YESNO.map(a => {
             const checked = valMap[`predefined:${a.key}`] ? 'checked' : '';
@@ -1131,8 +1131,16 @@ async function loadMonthlySummary() {
   document.getElementById('export-month-csv').href = `/api/export/month/${currentMonth}`;
 
   // Show/hide admin-only controls
+  const admin = isAdmin();
   const pdfBtn = document.getElementById('btn-recap-pdf');
-  if (pdfBtn) pdfBtn.style.display = isAdmin() ? '' : 'none';
+  if (pdfBtn) pdfBtn.style.display = admin ? '' : 'none';
+  const monthPicker = document.getElementById('month-picker');
+  if (monthPicker) monthPicker.style.display = admin ? '' : 'none';
+  const exportCSV = document.getElementById('export-month-csv');
+  if (exportCSV) exportCSV.style.display = admin ? '' : 'none';
+  // Hide charts for commercials
+  const chartsDiv = document.getElementById('monthly-charts');
+  if (chartsDiv) chartsDiv.style.display = admin ? '' : 'none';
 
   const data = await api(`/months/${currentMonth}/summary`);
   lastMonthlyData = data;
@@ -1226,8 +1234,8 @@ async function loadMonthlySummary() {
   // ── Analyse individuelle avec checkboxes ──
   await renderAnalysisSection(data);
 
-  // ── Graphiques évolution hebdomadaire ──
-  await loadWeeklyCharts();
+  // ── Graphiques évolution hebdomadaire (admin only) ──
+  if (isAdmin()) await loadWeeklyCharts();
 }
 
 function getCheckedRepNames() {
@@ -1588,7 +1596,8 @@ async function renderAnalysisSection(data) {
   }
 
   const title = admin ? 'Analyse Individuelle' : 'Mon Analyse';
-  let html = `<div class="analysis-section"><h3>${title}</h3><div class="analysis-grid">`;
+  const gridClass = (!admin && visibleAnalyses.length === 1) ? 'analysis-grid analysis-grid-solo' : 'analysis-grid';
+  let html = `<div class="analysis-section"><h3>${title}</h3><div class="${gridClass}">`;
   visibleAnalyses.forEach((a) => {
     const repIdx = a.originalIdx;
     const editBtn = admin

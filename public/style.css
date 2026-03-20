@@ -965,6 +965,7 @@ main {
   margin-bottom: 20px;
   box-shadow: var(--shadow-sm);
 }
+#monthly-global:empty { display: none; }
 
 #monthly-global h3, #monthly-reps h3 {
   font-size: .95rem;
@@ -1297,6 +1298,21 @@ main {
   grid-template-columns: repeat(3, 1fr);
   gap: 18px;
 }
+.analysis-grid.analysis-grid-solo {
+  grid-template-columns: 1fr;
+}
+.analysis-grid-solo .analysis-card {
+  max-width: 100%;
+}
+.analysis-grid-solo .analysis-card-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 32px;
+}
+.analysis-grid-solo .analysis-label.good { grid-column: 1; }
+.analysis-grid-solo .analysis-items:first-of-type { grid-column: 1; }
+.analysis-grid-solo .analysis-label.work { grid-column: 2; grid-row: 1; }
+.analysis-grid-solo .analysis-items:last-of-type { grid-column: 2; }
 .analysis-card {
   border: 1px solid var(--border-light);
   border-radius: var(--radius);
@@ -1927,39 +1943,35 @@ main {
 }
 .btn-delete-rep:hover { background: var(--danger-light); }
 
-/* ─── Today Top Widgets (Énergie + Histoire) ──── */
-.td-top-widgets {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  max-width: 620px;
-  margin: 0 auto 16px;
-}
-@media (max-width: 500px) {
-  .td-top-widgets { grid-template-columns: 1fr; }
-}
-
-.td-widget {
-  background: var(--card);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-light);
-  text-align: center;
-}
-
-.td-widget-label {
-  font-size: .72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .8px;
-  color: var(--text-muted);
+/* ─── Today Inline Widgets (Énergie + Histoire) ── */
+.td-inline-widgets {
+  display: flex;
+  gap: 14px;
   margin-bottom: 14px;
 }
+@media (max-width: 500px) {
+  .td-inline-widgets { flex-direction: column; }
+}
 
-/* Énergie smileys */
-.td-widget-energie {
-  border-top: 3px solid #8b5cf6;
+.td-inline-widget {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border-light);
+}
+
+.td-inline-widget.td-widget-histoire { border-left: 3px solid #6366f1; }
+.td-inline-widget.td-widget-energie { border-left: 3px solid #8b5cf6; }
+
+.td-inline-label {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .td-smileys {
@@ -1969,12 +1981,12 @@ main {
 }
 
 .td-smiley {
-  width: 52px;
-  height: 52px;
-  border: 3px solid var(--border);
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--border);
   border-radius: 50%;
-  background: var(--bg-subtle);
-  font-size: 26px;
+  background: white;
+  font-size: 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -2017,12 +2029,12 @@ main {
 }
 
 .td-histoire-btn {
-  width: 42px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
   border: 1.5px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--card);
-  font-size: 22px;
+  border-radius: var(--radius-sm);
+  background: white;
+  font-size: 18px;
   font-weight: 500;
   cursor: pointer;
   display: flex;
@@ -2040,8 +2052,8 @@ main {
 .td-histoire-btn:active { transform: scale(0.92); }
 
 .td-histoire-val {
-  width: 60px;
-  height: 42px;
+  width: 48px;
+  height: 34px;
   text-align: center;
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
@@ -2125,7 +2137,7 @@ main {
   box-shadow: 0 2px 6px rgba(5,150,105,0.25);
 }
 .td-check-row.td-done .td-check-box::after {
-  content: '\2713';
+  content: "✓";
   color: #fff;
   font-size: 14px;
   font-weight: 700;
