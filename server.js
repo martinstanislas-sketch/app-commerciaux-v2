@@ -2,8 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
-let Anthropic = null;
-try { Anthropic = require('@anthropic-ai/sdk').default; } catch (e) { console.warn('[WARN] @anthropic-ai/sdk non disponible — analyse IA désactivée'); }
+// Anthropic SDK loaded lazily to save memory
 const { getDb, ensureWeeklySettings, generatePin } = require('./db');
 const { sendEmail, verifyConnection } = require('./email');
 
@@ -834,7 +833,7 @@ app.delete('/api/messages/:id', requireAuth, requireAdmin, (req, res) => {
 
 app.post('/api/analyze-transcript', requireAuth, async (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!Anthropic || !apiKey || apiKey === 'votre_cle_api_ici') {
+  if (!apiKey || apiKey === 'votre_cle_api_ici') {
     return res.status(503).json({ error: 'Analyse IA non configurée. Définissez ANTHROPIC_API_KEY dans .env', feature: 'ai' });
   }
 
@@ -845,6 +844,7 @@ app.post('/api/analyze-transcript', requireAuth, async (req, res) => {
   }
 
   try {
+    const Anthropic = require('@anthropic-ai/sdk').default;
     const client = new Anthropic({ apiKey });
 
     const weekEnd = (() => {
