@@ -34,6 +34,24 @@
       <button class="tab-btn" data-tab="mensuel">Récap Mensuel</button>
     </nav>
     <div id="user-info" class="user-info hidden">
+      <div id="header-widgets" class="header-widgets hidden">
+        <div class="hw-item hw-histoire">
+          <span class="hw-label">Histoire Sportive</span>
+          <div class="hw-counter">
+            <button class="hw-btn" id="hs-minus">−</button>
+            <input type="number" class="hw-val" id="hs-value" value="0" min="0">
+            <button class="hw-btn" id="hs-plus">+</button>
+          </div>
+        </div>
+        <div class="hw-item hw-energie">
+          <span class="hw-label">Énergie</span>
+          <div class="hw-smileys">
+            <button class="hw-smiley" data-energy="3" title="Super forme">😊</button>
+            <button class="hw-smiley" data-energy="2" title="Neutre">😐</button>
+            <button class="hw-smiley" data-energy="1" title="Fatigué">😞</button>
+          </div>
+        </div>
+      </div>
       <span id="user-name"></span>
       <button id="btn-logout" class="btn-logout" title="Se déconnecter">Déconnexion</button>
     </div>

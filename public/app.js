@@ -31,12 +31,12 @@ const PREDEFINED_YESNO = [
   { key: 'mails_sms', label: "J'ai traité 100% des mails et SMS du jour" },
 ];
 const PREDEFINED_COUNTERS = [
-  { key: 'references', label: 'Références prises' },
-  { key: 'entretien_premier_mois', label: 'Entretiens clients 1er mois' },
-  { key: 'rdv_onfire', label: 'RDV fixés (On Fire)' },
-  { key: 'renouvellements', label: 'Renouvellements challenge signés' },
-  { key: 'rdv_resiliation', label: 'RDV fixés (adhérents résiliation)' },
-  { key: 'reprises', label: 'Reprises signées (anciens clients)' },
+  { key: 'references', label: 'Prise de ref' },
+  { key: 'entretien_premier_mois', label: 'Entretien 1er mois' },
+  { key: 'rdv_fixes', label: 'RDV fixés' },
+  { key: 'entretien_fin_challenge', label: 'Entretiens fin de challenge' },
+  { key: 'contact_anciens', label: 'Contact anciens clients' },
+  { key: 'contact_entreprise', label: 'Contact entreprise' },
 ];
 const TOTAL_ACTIONS = PREDEFINED_YESNO.length + PREDEFINED_COUNTERS.length;
 
@@ -248,6 +248,9 @@ async function bootApp() {
   // Show/hide tabs based on role
   updateTabVisibility();
 
+  // Show header widgets for commercials
+  initHeaderWidgets();
+
   loadDashboard();
   if (!isAdmin()) loadTodayTab();
 }
@@ -269,6 +272,75 @@ function updateTabVisibility() {
     if (dashBtn) dashBtn.style.display = 'none';
     todayBtn.click();
   }
+}
+
+async function initHeaderWidgets() {
+  const widgetsDiv = document.getElementById('header-widgets');
+  if (!widgetsDiv) return;
+
+  if (isAdmin()) {
+    widgetsDiv.classList.add('hidden');
+    return;
+  }
+  widgetsDiv.classList.remove('hidden');
+
+  const repId = getMyRepId();
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Load saved values
+  try {
+    const values = await api(`/daily-actions/values/${repId}/${today}`);
+    const valMap = {};
+    values.forEach(v => { valMap[v.action_key] = v.value; });
+
+    // Histoire Sportive
+    const hsInput = document.getElementById('hs-value');
+    hsInput.value = valMap['predefined:histoire_sportive'] || 0;
+
+    // Énergie
+    const savedEnergy = valMap['predefined:energie'] || 0;
+    if (savedEnergy > 0) {
+      const activeBtn = widgetsDiv.querySelector(`.hw-smiley[data-energy="${savedEnergy}"]`);
+      if (activeBtn) activeBtn.classList.add('active');
+    }
+  } catch (e) { /* ignore */ }
+
+  // Histoire Sportive +/- buttons
+  document.getElementById('hs-minus').addEventListener('click', async () => {
+    const inp = document.getElementById('hs-value');
+    const val = Math.max(0, (parseInt(inp.value) || 0) - 1);
+    inp.value = val;
+    await api(`/daily-actions/values/${repId}/${today}`, {
+      method: 'PUT', body: { action_key: 'predefined:histoire_sportive', value: val }
+    });
+  });
+  document.getElementById('hs-plus').addEventListener('click', async () => {
+    const inp = document.getElementById('hs-value');
+    const val = (parseInt(inp.value) || 0) + 1;
+    inp.value = val;
+    await api(`/daily-actions/values/${repId}/${today}`, {
+      method: 'PUT', body: { action_key: 'predefined:histoire_sportive', value: val }
+    });
+  });
+  document.getElementById('hs-value').addEventListener('change', async () => {
+    const inp = document.getElementById('hs-value');
+    const val = Math.max(0, parseInt(inp.value) || 0);
+    inp.value = val;
+    await api(`/daily-actions/values/${repId}/${today}`, {
+      method: 'PUT', body: { action_key: 'predefined:histoire_sportive', value: val }
+    });
+  });
+
+  // Énergie smiley buttons
+  widgetsDiv.querySelectorAll('.hw-smiley').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      widgetsDiv.querySelectorAll('.hw-smiley').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      await api(`/daily-actions/values/${repId}/${today}`, {
+        method: 'PUT', body: { action_key: 'predefined:energie', value: parseInt(btn.dataset.energy) }
+      });
+    });
+  });
 }
 
 async function loadTodayTab() {
@@ -430,6 +502,12 @@ function initTabs() {
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+
+      // Show/hide header widgets only on Aujourd'hui tab
+      const widgets = document.getElementById('header-widgets');
+      if (widgets && !isAdmin()) {
+        widgets.classList.toggle('hidden', btn.dataset.tab !== 'today');
+      }
 
       if (btn.dataset.tab === 'today') loadTodayTab();
       if (btn.dataset.tab === 'ventes') loadSales();
@@ -1016,8 +1094,9 @@ async function loadMonthlySummary() {
   const data = await api(`/months/${currentMonth}/summary`);
   lastMonthlyData = data;
 
-  // ── Podium par ratio mensuel ──
-  const sorted = [...data.rep_stats].sort((a, b) => b.ratio_mensuel - a.ratio_mensuel);
+  // ── Podium par ratio mensuel (uniquement ceux ayant travaillé) ──
+  const activeReps = data.rep_stats.filter(r => r.total_hours > 0);
+  const sorted = [...activeReps].sort((a, b) => b.ratio_mensuel - a.ratio_mensuel);
   const podiumOrder = sorted.length >= 3
     ? [sorted[1], sorted[0], sorted[2]]
     : [...sorted];
@@ -1047,27 +1126,59 @@ async function loadMonthlySummary() {
   });
   podiumHTML += '</div>';
 
-  // ── Classement Panier Moyen ──
-  const sortedPanier = [...data.rep_stats].sort((a, b) => b.panier_moyen - a.panier_moyen);
-  podiumHTML += '<h3 style="margin-top:28px">Classement Panier Moyen</h3><div class="ranking-table-wrap">';
-  sortedPanier.forEach((r, i) => {
-    const medal = medals[i] || '';
-    podiumHTML += `
-      <div class="ranking-row ${medal}">
-        <span class="rank-medal r${i + 1}">${i + 1}</span>
-        <span class="ranking-name">${r.name}</span>
-        <span class="ranking-value">${fmtEuro(r.panier_moyen)}</span>
-      </div>`;
-  });
-  podiumHTML += '</div>';
+  // ── 6 Badges de performance ──
+  if (activeReps.length > 0) {
+    // Fetch monthly daily-action counters
+    let monthlyCounters = [];
+    try { monthlyCounters = await api(`/daily-actions/monthly/${currentMonth}`); } catch (e) { /* ignore */ }
+
+    // Build per-rep counter totals
+    const counterTotals = {};
+    activeReps.forEach(r => { counterTotals[r.sales_rep_id] = { name: r.name, rdv_fixes: 0, references: 0, entretien_premier_mois: 0 }; });
+    monthlyCounters.forEach(row => {
+      if (!counterTotals[row.sales_rep_id]) return;
+      if (row.action_key === 'predefined:rdv_fixes') counterTotals[row.sales_rep_id].rdv_fixes = row.total;
+      if (row.action_key === 'predefined:references') counterTotals[row.sales_rep_id].references = row.total;
+      if (row.action_key === 'predefined:entretien_premier_mois') counterTotals[row.sales_rep_id].entretien_premier_mois = row.total;
+    });
+    const counterList = Object.values(counterTotals);
+
+    const bestPanier = [...activeReps].sort((a, b) => b.panier_moyen - a.panier_moyen)[0];
+    const bestCA = [...activeReps].sort((a, b) => b.ca - a.ca)[0];
+    const bestSale = [...activeReps].sort((a, b) => b.best_sale - a.best_sale)[0];
+    const bestRDV = [...counterList].sort((a, b) => b.rdv_fixes - a.rdv_fixes)[0];
+    const bestRef = [...counterList].sort((a, b) => b.references - a.references)[0];
+    const bestAccueil = [...counterList].sort((a, b) => b.entretien_premier_mois - a.entretien_premier_mois)[0];
+
+    const badges = [
+      { icon: '🛒', title: "Panier d'Élite", name: bestPanier.name, value: fmtEuro(bestPanier.panier_moyen) },
+      { icon: '💰', title: 'Meilleur CA', name: bestCA.name, value: fmtEuro(bestCA.ca) },
+      { icon: '📞', title: "Téléphone d'Or", name: bestRDV.name, value: bestRDV.rdv_fixes + ' RDV fixés' },
+      { icon: '💎', title: 'Coup KO', name: bestSale.name, value: fmtEuro(bestSale.best_sale) },
+      { icon: '🤝', title: 'Ambassadeur', name: bestRef.name, value: bestRef.references + ' références' },
+      { icon: '👋', title: "Comité d'Accueil", name: bestAccueil.name, value: bestAccueil.entretien_premier_mois + ' entretiens' },
+    ];
+
+    podiumHTML += '<div class="badges-grid">';
+    badges.forEach(b => {
+      podiumHTML += `
+        <div class="badge-card">
+          <div class="badge-icon">${b.icon}</div>
+          <div class="badge-title">${b.title}</div>
+          <div class="badge-name">${b.name}</div>
+          <div class="badge-value">${b.value}</div>
+        </div>`;
+    });
+    podiumHTML += '</div>';
+  }
 
   repsDiv.innerHTML = podiumHTML;
 
-  // ── Filtres checkboxes commerciaux ──
+  // ── Filtres checkboxes commerciaux (uniquement ceux ayant travaillé) ──
   const filterDiv = document.createElement('div');
   filterDiv.className = 'rep-filter-bar';
   filterDiv.innerHTML = '<span class="rep-filter-label">Filtrer :</span>' +
-    data.rep_stats.map(r => `<label class="rep-filter-cb">
+    activeReps.map(r => `<label class="rep-filter-cb">
       <input type="checkbox" data-rep-id="${r.id}" data-rep-name="${r.name}" checked>
       <span class="rep-filter-name">${r.name}</span>
     </label>`).join('');
@@ -1080,16 +1191,9 @@ async function loadMonthlySummary() {
     });
   });
 
-  // ── Panier moyen global (en bas) ──
+  // ── Panier moyen global (retiré) ──
   const globalDiv = document.getElementById('monthly-global');
-  globalDiv.innerHTML = `
-    <div class="monthly-kpi-grid">
-      <div class="monthly-kpi">
-        <div class="label">Panier Moyen Global</div>
-        <div class="value">${fmtEuro(data.global.panier_moyen)}</div>
-      </div>
-    </div>
-  `;
+  globalDiv.innerHTML = '';
 
   // ── Analyse individuelle avec checkboxes ──
   await renderAnalysisSection(data);
@@ -1163,7 +1267,14 @@ async function loadWeeklyCharts() {
     }
 
     const labels = filteredWeeks.map(w => w.label);
-    const reps = filteredWeeks[0].reps;
+    const allReps = filteredWeeks[0].reps;
+    // Only include reps who have worked hours in at least one week
+    const reps = allReps.filter(rep => {
+      return filteredWeeks.some(w => {
+        const r = w.reps.find(rr => rr.sales_rep_id === rep.sales_rep_id);
+        return r && r.hours_worked > 0;
+      });
+    });
 
     // Build datasets for Ratio
     const ratioDatasets = reps.map(rep => {

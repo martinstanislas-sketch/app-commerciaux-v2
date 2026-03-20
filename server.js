@@ -1021,6 +1021,24 @@ app.put('/api/daily-actions/values/:sales_rep_id/:date', requireAuth, (req, res)
   res.json({ ok: true });
 });
 
+// ─── Monthly aggregation of daily action counters ────────────
+
+app.get('/api/daily-actions/monthly/:month', requireAuth, (req, res) => {
+  const db = getDb();
+  const month = req.params.month; // format: 2026-03
+  const startDate = month + '-01';
+  const endDate = month + '-31';
+
+  const rows = db.prepare(`
+    SELECT sales_rep_id, action_key, SUM(value) as total
+    FROM daily_action_values
+    WHERE date >= ? AND date <= ? AND action_key LIKE 'predefined:%'
+    GROUP BY sales_rep_id, action_key
+  `).all(startDate, endDate);
+
+  res.json(rows);
+});
+
 // ─── Webhook: POST /api/webhook/sales (single) ──────────────
 
 app.post('/api/webhook/sales', webhookAuth, (req, res) => {
