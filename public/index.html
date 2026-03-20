@@ -31,7 +31,6 @@
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="ventes">Ventes</button>
       <button class="tab-btn" data-tab="mensuel">Récap Mensuel</button>
-      <button class="tab-btn" data-tab="email">Email</button>
     </nav>
     <div id="user-info" class="user-info hidden">
       <span id="user-name"></span>
@@ -130,23 +129,6 @@
       <div id="monthly-global"></div>
     </section>
     <!-- ═══════════ EMAIL / ADMIN ═══════════ -->
-    <section id="tab-email" class="tab-content">
-      <div class="email-panel">
-        <h2>Test Email SMTP</h2>
-        <p>Vérifie que la configuration SMTP est fonctionnelle en envoyant un email de test à l'adresse configurée dans <code>SMTP_FROM</code>.</p>
-        <button id="btn-test-email" class="btn-primary">Tester l'envoi email</button>
-        <div id="email-result" class="email-result hidden"></div>
-      </div>
-
-      <div id="admin-reps-panel" class="admin-panel hidden">
-        <h2>Gestion des Commerciaux</h2>
-        <form id="add-rep-form" class="add-rep-form">
-          <input type="text" id="new-rep-name" placeholder="Prénom du commercial" required>
-          <button type="submit" class="btn-primary">Ajouter</button>
-        </form>
-        <div id="admin-rep-list" class="admin-rep-list"></div>
-      </div>
-    </section>
   </main>
 
   <!-- ═══════════ MODAL VENTE ═══════════ -->
