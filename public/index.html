@@ -28,6 +28,7 @@
   <header>
     <h1>Suivi Commerciaux</h1>
     <nav>
+      <button class="tab-btn" data-tab="today">Aujourd'hui</button>
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="ventes">Ventes</button>
       <button class="tab-btn" data-tab="mensuel">Récap Mensuel</button>
@@ -39,6 +40,11 @@
   </header>
 
   <main>
+    <!-- ═══════════ AUJOURD'HUI ═══════════ -->
+    <section id="tab-today" class="tab-content">
+      <div id="today-standalone"></div>
+    </section>
+
     <!-- ═══════════ DASHBOARD ═══════════ -->
     <section id="tab-dashboard" class="tab-content active">
       <div class="week-nav">

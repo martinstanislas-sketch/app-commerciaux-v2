@@ -217,7 +217,171 @@ async function bootApp() {
   const adminPanel = document.getElementById('admin-reps-panel');
   if (adminPanel) adminPanel.classList.toggle('hidden', !isAdmin());
 
+  // Show/hide tabs based on role
+  updateTabVisibility();
+
   loadDashboard();
+  if (!isAdmin()) loadTodayTab();
+}
+
+function updateTabVisibility() {
+  const todayBtn = document.querySelector('[data-tab="today"]');
+  const ventesBtn = document.querySelector('[data-tab="ventes"]');
+
+  if (isAdmin()) {
+    // Admin: hide Aujourd'hui, show Ventes
+    if (todayBtn) todayBtn.style.display = 'none';
+    if (ventesBtn) ventesBtn.style.display = '';
+    // Default to dashboard
+    document.querySelector('[data-tab="dashboard"]').click();
+  } else {
+    // Commercial: show Aujourd'hui, hide Ventes
+    if (todayBtn) todayBtn.style.display = '';
+    if (ventesBtn) ventesBtn.style.display = 'none';
+    // Default to Aujourd'hui
+    todayBtn.click();
+  }
+}
+
+async function loadTodayTab() {
+  const container = document.getElementById('today-standalone');
+  if (!container) return;
+  const repId = getMyRepId();
+  if (!repId) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    const [types, values, sales] = await Promise.all([
+      api(`/daily-actions/types/${repId}`),
+      api(`/daily-actions/values/${repId}/${today}`),
+      api(`/weeks/${currentWeekStart}/sales?sales_rep_id=${repId}`)
+    ]);
+
+    // Check for missing RIBs
+    const mySales = sales.filter(s => s.sales_rep_id === repId);
+    const ribMissing = mySales.filter(s => s.rib_status !== 'Reçu');
+
+    const valMap = {};
+    values.forEach(v => { valMap[v.action_key] = v.value; });
+
+    let html = `<div class="today-standalone-card">`;
+    html += `<h2>Aujourd'hui — ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>`;
+
+    // Daily actions
+    html += `<div class="today-actions-list">`;
+    for (const t of types) {
+      const key = `type_${t.id}`;
+      const val = valMap[key] || 0;
+      if (t.type === 'counter') {
+        html += `<div class="today-action-row">
+          <span class="today-action-name">${t.name}</span>
+          <div class="today-counter">
+            <button class="today-counter-btn minus" data-key="${key}" data-rep="${repId}">−</button>
+            <input type="number" class="today-counter-input" value="${val}" min="0" data-key="${key}" data-rep-id="${repId}">
+            <button class="today-counter-btn plus" data-key="${key}" data-rep="${repId}">+</button>
+          </div>
+        </div>`;
+      } else {
+        html += `<div class="today-action-row">
+          <span class="today-action-name">${t.name}</span>
+          <label class="today-toggle">
+            <input type="checkbox" class="today-yesno" data-key="${key}" data-rep-id="${repId}" ${val ? 'checked' : ''}>
+            <span class="today-toggle-slider"></span>
+          </label>
+        </div>`;
+      }
+    }
+    html += `</div>`;
+
+    html += `<button class="today-add-btn" id="today-standalone-add-btn" data-rep-id="${repId}">+ Ajouter une action</button>`;
+    html += `<div class="today-add-form hidden" id="today-standalone-add-form">
+      <input type="text" class="today-add-name" placeholder="Nom de l'action">
+      <select class="today-add-type">
+        <option value="counter">Compteur</option>
+        <option value="yesno">Oui / Non</option>
+      </select>
+      <button class="today-add-confirm">Créer</button>
+      <button class="today-add-cancel">Annuler</button>
+    </div>`;
+
+    // RIB manquants section
+    if (ribMissing.length > 0) {
+      html += `<div class="rib-missing-section">`;
+      html += `<h3 class="rib-missing-title">RIB manquants (${ribMissing.length})</h3>`;
+      html += `<div class="rib-missing-list">`;
+      for (const s of ribMissing) {
+        html += `<div class="rib-missing-row">
+          <span>${s.client_first_name} ${s.client_last_name}</span>
+          <span class="rib-badge ${s.rib_status === 'En attente' ? 'rib-attente' : 'rib-non-fourni'}">${s.rib_status || 'Non fourni'}</span>
+        </div>`;
+      }
+      html += `</div></div>`;
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+
+    // Bind events for standalone today tab
+    bindTodayStandaloneEvents(container, repId);
+  } catch (err) {
+    console.error('Erreur chargement Aujourd\'hui:', err);
+  }
+}
+
+function bindTodayStandaloneEvents(container, repId) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Counter +/- buttons
+  container.querySelectorAll('.today-counter-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const key = btn.dataset.key;
+      const input = container.querySelector(`.today-counter-input[data-key="${key}"]`);
+      let val = parseInt(input.value) || 0;
+      val = btn.classList.contains('plus') ? val + 1 : Math.max(0, val - 1);
+      input.value = val;
+      await api(`/daily-actions/values/${repId}/${today}`, {
+        method: 'POST', body: { action_key: key, value: val }
+      });
+    });
+  });
+
+  // Counter direct input
+  container.querySelectorAll('.today-counter-input').forEach(input => {
+    input.addEventListener('change', async () => {
+      const val = Math.max(0, parseInt(input.value) || 0);
+      input.value = val;
+      await api(`/daily-actions/values/${repId}/${today}`, {
+        method: 'POST', body: { action_key: input.dataset.key, value: val }
+      });
+    });
+  });
+
+  // Yes/No checkboxes
+  container.querySelectorAll('.today-yesno').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      await api(`/daily-actions/values/${repId}/${today}`, {
+        method: 'POST', body: { action_key: cb.dataset.key, value: cb.checked ? 1 : 0 }
+      });
+    });
+  });
+
+  // Add action button
+  const addBtn = container.querySelector('#today-standalone-add-btn');
+  const addForm = container.querySelector('#today-standalone-add-form');
+  if (addBtn && addForm) {
+    addBtn.addEventListener('click', () => addForm.classList.toggle('hidden'));
+    addForm.querySelector('.today-add-cancel').addEventListener('click', () => addForm.classList.add('hidden'));
+    addForm.querySelector('.today-add-confirm').addEventListener('click', async () => {
+      const name = addForm.querySelector('.today-add-name').value.trim();
+      const type = addForm.querySelector('.today-add-type').value;
+      if (!name) return;
+      await api(`/daily-actions/types/${repId}`, { method: 'POST', body: { name, type } });
+      addForm.querySelector('.today-add-name').value = '';
+      addForm.classList.add('hidden');
+      loadTodayTab();
+    });
+  }
 }
 
 function applyFeatureStatus() {
@@ -272,6 +436,7 @@ function initTabs() {
       btn.classList.add('active');
       document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
 
+      if (btn.dataset.tab === 'today') loadTodayTab();
       if (btn.dataset.tab === 'ventes') loadSales();
       if (btn.dataset.tab === 'mensuel') loadMonthlySummary();
     });
