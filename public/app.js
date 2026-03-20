@@ -678,36 +678,42 @@ async function loadAdminBadges() {
       return;
     }
 
-    // Fetch monthly daily-action counters
+    // Fetch monthly daily-action counters + discipline data
     let monthlyCounters = [];
+    let disciplineData = [];
     try { monthlyCounters = await api(`/daily-actions/monthly/${badgesMonth}`); } catch (e) { /* ignore */ }
+    try { disciplineData = await api(`/daily-actions/discipline/${badgesMonth}`); } catch (e) { /* ignore */ }
 
     // Build per-rep counter totals
     const counterTotals = {};
-    activeReps.forEach(r => { counterTotals[r.sales_rep_id] = { name: r.name, rdv_fixes: 0, references: 0, entretien_premier_mois: 0 }; });
+    activeReps.forEach(r => { counterTotals[r.sales_rep_id] = { name: r.name, rdv_fixes: 0, references: 0, entretien_premier_mois: 0, contact_entreprise: 0, discipline: 0 }; });
     monthlyCounters.forEach(row => {
       if (!counterTotals[row.sales_rep_id]) return;
       if (row.action_key === 'predefined:rdv_fixes') counterTotals[row.sales_rep_id].rdv_fixes = row.total;
       if (row.action_key === 'predefined:references') counterTotals[row.sales_rep_id].references = row.total;
       if (row.action_key === 'predefined:entretien_premier_mois') counterTotals[row.sales_rep_id].entretien_premier_mois = row.total;
+      if (row.action_key === 'predefined:contact_entreprise') counterTotals[row.sales_rep_id].contact_entreprise = row.total;
+    });
+    disciplineData.forEach(row => {
+      if (counterTotals[row.sales_rep_id]) counterTotals[row.sales_rep_id].discipline = row.total_actions;
     });
     const counterList = Object.values(counterTotals);
 
     const bestPanier = [...activeReps].sort((a, b) => b.panier_moyen - a.panier_moyen)[0];
-    const bestCA = [...activeReps].sort((a, b) => b.ca - a.ca)[0];
-    const bestSale = [...activeReps].sort((a, b) => b.best_sale - a.best_sale)[0];
     const bestRDV = [...counterList].sort((a, b) => b.rdv_fixes - a.rdv_fixes)[0];
     const bestRef = [...counterList].sort((a, b) => b.references - a.references)[0];
     const bestAccueil = [...counterList].sort((a, b) => b.entretien_premier_mois - a.entretien_premier_mois)[0];
+    const bestBusiness = [...counterList].sort((a, b) => b.contact_entreprise - a.contact_entreprise)[0];
+    const bestDiscipline = [...counterList].sort((a, b) => b.discipline - a.discipline)[0];
 
     const NA = 'A SAISIR';
     const badges = [
-      { icon: '🛒', title: "Panier d'Élite", name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA, value: fmtEuro(bestPanier.panier_moyen) },
-      { icon: '💰', title: 'Meilleur CA', name: bestCA.ca > 0 ? bestCA.name : NA, value: fmtEuro(bestCA.ca) },
-      { icon: '📞', title: "Téléphone d'Or", name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA, value: bestRDV.rdv_fixes + ' RDV fixés' },
-      { icon: '💎', title: 'Coup KO', name: bestSale.best_sale > 0 ? bestSale.name : NA, value: fmtEuro(bestSale.best_sale) },
-      { icon: '🤝', title: 'Ambassadeur', name: bestRef.references > 0 ? bestRef.name : NA, value: bestRef.references + ' références' },
-      { icon: '👋', title: "Comité d'Accueil", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA, value: bestAccueil.entretien_premier_mois + ' entretiens' },
+      { icon: '💎', title: 'Premium', desc: 'Meilleur panier moyen', name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA },
+      { icon: '📞', title: 'RDV', desc: 'Le plus de rendez-vous fixés', name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA },
+      { icon: '🤝', title: 'Ambassadeur', desc: 'Le plus de références', name: bestRef.references > 0 ? bestRef.name : NA },
+      { icon: '👋', title: 'Accueil', desc: "Le plus d'appels nouveaux clients", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA },
+      { icon: '💼', title: 'Business', desc: 'Le plus de contacts entreprises', name: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : NA },
+      { icon: '🏆', title: 'Discipline', desc: "Le plus d'actions validées", name: bestDiscipline.discipline > 0 ? bestDiscipline.name : NA },
     ];
 
     grid.innerHTML = badges.map(b => {
@@ -716,8 +722,8 @@ async function loadAdminBadges() {
       <div class="badge-card${unassigned}">
         <div class="badge-icon">${b.icon}</div>
         <div class="badge-title">${b.title}</div>
+        <div class="badge-desc">${b.desc}</div>
         <div class="badge-name">${b.name}</div>
-        <div class="badge-value">${b.value}</div>
       </div>`;
     }).join('');
 
@@ -1287,36 +1293,42 @@ async function loadMonthlySummary() {
 
   // ── 6 Badges de performance ──
   if (activeReps.length > 0) {
-    // Fetch monthly daily-action counters
+    // Fetch monthly daily-action counters + discipline data
     let monthlyCounters = [];
+    let disciplineData = [];
     try { monthlyCounters = await api(`/daily-actions/monthly/${currentMonth}`); } catch (e) { /* ignore */ }
+    try { disciplineData = await api(`/daily-actions/discipline/${currentMonth}`); } catch (e) { /* ignore */ }
 
     // Build per-rep counter totals
     const counterTotals = {};
-    activeReps.forEach(r => { counterTotals[r.sales_rep_id] = { name: r.name, rdv_fixes: 0, references: 0, entretien_premier_mois: 0 }; });
+    activeReps.forEach(r => { counterTotals[r.sales_rep_id] = { name: r.name, rdv_fixes: 0, references: 0, entretien_premier_mois: 0, contact_entreprise: 0, discipline: 0 }; });
     monthlyCounters.forEach(row => {
       if (!counterTotals[row.sales_rep_id]) return;
       if (row.action_key === 'predefined:rdv_fixes') counterTotals[row.sales_rep_id].rdv_fixes = row.total;
       if (row.action_key === 'predefined:references') counterTotals[row.sales_rep_id].references = row.total;
       if (row.action_key === 'predefined:entretien_premier_mois') counterTotals[row.sales_rep_id].entretien_premier_mois = row.total;
+      if (row.action_key === 'predefined:contact_entreprise') counterTotals[row.sales_rep_id].contact_entreprise = row.total;
+    });
+    disciplineData.forEach(row => {
+      if (counterTotals[row.sales_rep_id]) counterTotals[row.sales_rep_id].discipline = row.total_actions;
     });
     const counterList = Object.values(counterTotals);
 
     const bestPanier = [...activeReps].sort((a, b) => b.panier_moyen - a.panier_moyen)[0];
-    const bestCA = [...activeReps].sort((a, b) => b.ca - a.ca)[0];
-    const bestSale = [...activeReps].sort((a, b) => b.best_sale - a.best_sale)[0];
     const bestRDV = [...counterList].sort((a, b) => b.rdv_fixes - a.rdv_fixes)[0];
     const bestRef = [...counterList].sort((a, b) => b.references - a.references)[0];
     const bestAccueil = [...counterList].sort((a, b) => b.entretien_premier_mois - a.entretien_premier_mois)[0];
+    const bestBusiness = [...counterList].sort((a, b) => b.contact_entreprise - a.contact_entreprise)[0];
+    const bestDiscipline = [...counterList].sort((a, b) => b.discipline - a.discipline)[0];
 
     const NA = 'A SAISIR';
     const badges = [
-      { icon: '🛒', title: "Panier d'Élite", name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA, value: fmtEuro(bestPanier.panier_moyen) },
-      { icon: '💰', title: 'Meilleur CA', name: bestCA.ca > 0 ? bestCA.name : NA, value: fmtEuro(bestCA.ca) },
-      { icon: '📞', title: "Téléphone d'Or", name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA, value: bestRDV.rdv_fixes + ' RDV fixés' },
-      { icon: '💎', title: 'Coup KO', name: bestSale.best_sale > 0 ? bestSale.name : NA, value: fmtEuro(bestSale.best_sale) },
-      { icon: '🤝', title: 'Ambassadeur', name: bestRef.references > 0 ? bestRef.name : NA, value: bestRef.references + ' références' },
-      { icon: '👋', title: "Comité d'Accueil", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA, value: bestAccueil.entretien_premier_mois + ' entretiens' },
+      { icon: '💎', title: 'Premium', desc: 'Meilleur panier moyen', name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA },
+      { icon: '📞', title: 'RDV', desc: 'Le plus de rendez-vous fixés', name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA },
+      { icon: '🤝', title: 'Ambassadeur', desc: 'Le plus de références', name: bestRef.references > 0 ? bestRef.name : NA },
+      { icon: '👋', title: 'Accueil', desc: "Le plus d'appels nouveaux clients", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA },
+      { icon: '💼', title: 'Business', desc: 'Le plus de contacts entreprises', name: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : NA },
+      { icon: '🏆', title: 'Discipline', desc: "Le plus d'actions validées", name: bestDiscipline.discipline > 0 ? bestDiscipline.name : NA },
     ];
 
     podiumHTML += '<div class="badges-grid">';
@@ -1326,8 +1338,8 @@ async function loadMonthlySummary() {
         <div class="badge-card${unassigned}">
           <div class="badge-icon">${b.icon}</div>
           <div class="badge-title">${b.title}</div>
+          <div class="badge-desc">${b.desc}</div>
           <div class="badge-name">${b.name}</div>
-          <div class="badge-value">${b.value}</div>
         </div>`;
     });
     podiumHTML += '</div>';
@@ -1502,7 +1514,7 @@ async function loadWeeklyCharts() {
 
 // ─── Analyse par commercial (données hebdomadaires) ─────────
 
-function analyzeRepWeekly(data, weeklyBreakdown) {
+function analyzeRepWeekly(data, weeklyBreakdown, counterTotals) {
   const sorted = [...data.rep_stats].sort((a, b) => b.ratio_mensuel - a.ratio_mensuel);
   const sortedPanier = [...data.rep_stats].sort((a, b) => b.panier_moyen - a.panier_moyen);
   const totalHours = data.rep_stats.reduce((s, r) => s + r.total_hours, 0);
@@ -1570,91 +1582,68 @@ function analyzeRepWeekly(data, weeklyBreakdown) {
       if (repData.ratio === minRatio && reps.length > 1) weeksAsLast++;
     });
 
-    // ══════════ POINTS FORTS ══════════
+    // ══════════ POINTS DE SATISFACTION (max 2) ══════════
 
-    // 1. Ranking mensuel
     const ratioRank = sorted.indexOf(r) + 1;
-    if (ratioRank === 1) {
-      points.push('Meilleur ratio CA/h du mois : ' + fmt(r.ratio_mensuel) + ' €/h (vs ' + fmt(sorted[1].ratio_mensuel) + ' €/h pour ' + sorted[1].name + ')');
-    }
     const panierRank = sortedPanier.indexOf(r) + 1;
-    if (panierRank === 1) {
-      points.push('Meilleur panier moyen du mois : ' + fmtEuro(r.panier_moyen) + ' (vs moy. équipe ' + fmtEuro(avgPanier) + ')');
+
+    if (ratioTrendPct > 10) points.push('Bonne progression du ratio sur le mois');
+    if (panierTrend > 50 && avgFirstPanier > 0) points.push('Panier moyen en hausse sur le mois');
+    if (r.panier_moyen >= 2000 && r.nb_ventes > 0) points.push('Bon panier moyen');
+    if (cvRatio < 0.15) points.push('Bonne régularité des performances');
+    if (r.nb_ventes >= avgVentes * 1.2) points.push('Bon volume de ventes sur le mois');
+
+    // Limiter à 2 points max
+    points.splice(2);
+
+    // ══════════ AXES D'AMÉLIORATION (max 2) ══════════
+
+    const repCounters = counterTotals && counterTotals[r.sales_rep_id] ? counterTotals[r.sales_rep_id] : null;
+
+    // 1. Panier moyen < 2000 €
+    if (r.nb_ventes > 0 && r.panier_moyen < 2000) {
+      travail.push('Augmenter le panier moyen');
     }
 
-    // 2. Best week
-    points.push('Meilleure semaine (' + bestCAWeek.label + ') : ' + fmtEuro(bestCAWeek.ca) + ' de CA, ' + bestCAWeek.nb + ' ventes, ratio ' + fmt(bestCAWeek.ratio) + ' €/h');
-
-    // 3. Trend ratio positif
-    if (ratioTrendPct > 10) {
-      points.push('Ratio en progression : +' + fmt(ratioTrendPct) + '% entre début et fin de mois (' + fmt(firstHalfRatio) + ' → ' + fmt(secondHalfRatio) + ' €/h)');
+    // 2. Ventes < 50% des histoires sportives
+    const hsTotal = repCounters ? repCounters.histoire_sportive : 0;
+    if (hsTotal > 0 && r.nb_ventes < hsTotal * 0.5) {
+      travail.push('Transformer davantage les histoires sportives en ventes');
     }
 
-    // 4. Trend panier positif
-    if (panierTrend > 50 && avgFirstPanier > 0) {
-      points.push('Panier moyen en hausse : ' + fmtEuro(avgFirstPanier) + ' → ' + fmtEuro(avgSecondPanier) + ' entre début et fin de mois');
+    // 3. Comparaison avec les confrères
+    if (counterTotals) {
+      const activeRepIds = data.rep_stats.filter(rr => rr.total_hours > 0).map(rr => rr.sales_rep_id);
+      const activeCounters = activeRepIds.map(id => counterTotals[id]).filter(Boolean);
+      const nbActive = activeCounters.length;
+
+      if (nbActive > 1) {
+        const avgRef = activeCounters.reduce((s, c) => s + c.references, 0) / nbActive;
+        const myRef = repCounters ? repCounters.references : 0;
+        const othersHaveRef = activeCounters.some(c => c.references > 0);
+        if (avgRef >= 1 && (myRef === 0 && othersHaveRef || myRef < avgRef * 0.7)) {
+          travail.push('Augmenter le nombre de prises de références');
+        }
+
+        const repsWithSales = data.rep_stats.filter(rr => rr.total_hours > 0 && rr.nb_ventes > 0);
+        if (repsWithSales.length > 1) {
+          const avgPanierEquipe = repsWithSales.reduce((s, rr) => s + rr.panier_moyen, 0) / repsWithSales.length;
+          if (avgPanierEquipe > 0 && r.nb_ventes > 0 && r.panier_moyen < avgPanierEquipe * 0.7) {
+            travail.push('Renforcer la valeur moyenne des ventes');
+          }
+        }
+
+        const avgEnt = activeCounters.reduce((s, c) => s + c.entretien_premier_mois, 0) / nbActive;
+        const myEnt = repCounters ? repCounters.entretien_premier_mois : 0;
+        const othersHaveEnt = activeCounters.some(c => c.entretien_premier_mois > 0);
+        if (avgEnt >= 1 && (myEnt === 0 && othersHaveEnt || myEnt < avgEnt * 0.7)) {
+          travail.push('Renforcer le suivi des nouveaux adhérents');
+        }
+      }
     }
 
-    // 5. Consistency
-    if (cvRatio < 0.15) {
-      points.push('Régularité remarquable : ratio stable entre ' + fmt(Math.min(...ratios)) + ' et ' + fmt(Math.max(...ratios)) + ' €/h sur ' + nbWeeks + ' semaines');
-    }
-
-    // 6. Volume
-    if (r.nb_ventes >= avgVentes * 1.2) {
-      points.push('Volume de ventes élevé : ' + r.nb_ventes + ' ventes (moy. équipe : ' + Math.round(avgVentes) + '), meilleure semaine ' + bestVolumeWeek.nb + ' ventes (' + bestVolumeWeek.label + ')');
-    }
-
-    // 7. Weeks as leader
-    if (weeksAsLeader >= 2) {
-      points.push('Leader du ratio CA/h sur ' + weeksAsLeader + '/' + nbWeeks + ' semaines');
-    }
-
-    // 8. Efficiency
-    if (r.total_hours < Math.max(...data.rep_stats.map(rr => rr.total_hours)) * 0.8 && ratioRank <= 2) {
-      points.push('Très efficace : ratio de ' + fmt(r.ratio_mensuel) + ' €/h avec seulement ' + fmt(r.total_hours) + 'h travaillées');
-    }
-
-    // ══════════ AXES DE TRAVAIL ══════════
-
-    // 1. Worst week
-    travail.push('Semaine la plus faible (' + worstRatioWeek.label + ') : ' + fmtEuro(worstRatioWeek.ca) + ' de CA, ratio ' + fmt(worstRatioWeek.ratio) + ' €/h — écart de ' + fmt(bestRatioWeek.ratio - worstRatioWeek.ratio) + ' €/h avec sa meilleure semaine');
-
-    // 2. Ratio below average
-    if (ratioRank > 1 && r.ratio_mensuel < ratioGlobal) {
-      travail.push('Ratio mensuel (' + fmt(r.ratio_mensuel) + ' €/h) en dessous de la moyenne équipe (' + fmt(ratioGlobal) + ' €/h) — écart de ' + fmt(ratioGlobal - r.ratio_mensuel) + ' €/h à combler');
-    }
-
-    // 3. Trend ratio négatif
-    if (ratioTrendPct < -10) {
-      travail.push('Ratio en baisse : ' + fmt(Math.abs(ratioTrendPct)) + '% entre début et fin de mois (' + fmt(firstHalfRatio) + ' → ' + fmt(secondHalfRatio) + ' €/h)');
-    }
-
-    // 4. Trend panier négatif
-    if (panierTrend < -50 && avgFirstPanier > 0) {
-      travail.push('Panier moyen en recul : ' + fmtEuro(avgFirstPanier) + ' → ' + fmtEuro(avgSecondPanier) + ' entre début et fin de mois');
-    }
-
-    // 5. Inconsistency
-    if (cvRatio >= 0.25) {
-      travail.push('Irrégularité du ratio : écart de ' + fmt(Math.max(...ratios) - Math.min(...ratios)) + ' €/h entre meilleure et pire semaine (de ' + fmt(Math.min(...ratios)) + ' à ' + fmt(Math.max(...ratios)) + ' €/h)');
-    }
-
-    // 6. Weeks as last
-    if (weeksAsLast >= 2) {
-      travail.push('Dernier du classement ratio sur ' + weeksAsLast + '/' + nbWeeks + ' semaines');
-    }
-
-    // 7. Low volume
-    if (r.nb_ventes < avgVentes * 0.8) {
-      const worstVolWeek = weeks.reduce((a, b) => a.nb < b.nb ? a : b);
-      travail.push('Volume insuffisant : ' + r.nb_ventes + ' ventes vs moy. ' + Math.round(avgVentes) + ' — seulement ' + worstVolWeek.nb + ' vente(s) la semaine du ' + worstVolWeek.label);
-    }
-
-    // 8. Panier below average
-    if (panierRank > 1 && r.panier_moyen < avgPanier * 0.85) {
-      travail.push('Panier moyen de ' + fmtEuro(r.panier_moyen) + ' nettement sous la moyenne équipe (' + fmtEuro(avgPanier) + ') — pic à ' + fmtEuro(bestPanierWeek.pm) + ' (' + bestPanierWeek.label + ') montre le potentiel');
-    }
+    // Limiter à 2 axes max
+    travail.splice(2);
 
     return { name: r.name, points, travail };
   });
@@ -1663,7 +1652,22 @@ function analyzeRepWeekly(data, weeklyBreakdown) {
 async function renderAnalysisSection(data) {
   const div = document.getElementById('monthly-analysis');
   const breakdown = await api(`/months/${currentMonth}/weekly-breakdown`);
-  const analyses = analyzeRepWeekly(data, breakdown);
+
+  // Fetch monthly counters for axes d'amélioration (histoires sportives, références, entretiens)
+  let monthlyCounters = [];
+  try { monthlyCounters = await api(`/daily-actions/monthly/${currentMonth}`); } catch (e) { /* ignore */ }
+  const counterTotals = {};
+  data.rep_stats.forEach(r => {
+    counterTotals[r.sales_rep_id] = { references: 0, entretien_premier_mois: 0, histoire_sportive: 0 };
+  });
+  monthlyCounters.forEach(row => {
+    if (!counterTotals[row.sales_rep_id]) return;
+    if (row.action_key === 'predefined:references') counterTotals[row.sales_rep_id].references = row.total;
+    if (row.action_key === 'predefined:entretien_premier_mois') counterTotals[row.sales_rep_id].entretien_premier_mois = row.total;
+    if (row.action_key === 'predefined:histoire_sportive') counterTotals[row.sales_rep_id].histoire_sportive = row.total;
+  });
+
+  const analyses = analyzeRepWeekly(data, breakdown, counterTotals);
 
   // Filter: commercial sees only their own analysis card
   const admin = isAdmin();
@@ -1725,6 +1729,13 @@ async function renderAnalysisSection(data) {
   div.querySelectorAll('.analysis-item input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => {
       cb.closest('.analysis-item').classList.toggle('unchecked', !cb.checked);
+    });
+  });
+
+  // Toggle collapse on h3 click
+  div.querySelectorAll('.analysis-section h3').forEach(h3 => {
+    h3.addEventListener('click', () => {
+      h3.closest('.analysis-section').classList.toggle('collapsed');
     });
   });
 

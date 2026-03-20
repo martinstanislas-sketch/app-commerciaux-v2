@@ -1054,6 +1054,23 @@ app.get('/api/daily-actions/monthly/:month', requireAuth, (req, res) => {
   res.json(rows);
 });
 
+// ─── Discipline badge: count non-zero actions per rep for a month ──
+app.get('/api/daily-actions/discipline/:month', requireAuth, (req, res) => {
+  const db = getDb();
+  const month = req.params.month;
+  const startDate = month + '-01';
+  const endDate = month + '-31';
+
+  const rows = db.prepare(`
+    SELECT sales_rep_id, COUNT(*) as total_actions
+    FROM daily_action_values
+    WHERE date >= ? AND date <= ? AND value > 0
+    GROUP BY sales_rep_id
+  `).all(startDate, endDate);
+
+  res.json(rows);
+});
+
 // ─── Webhook: POST /api/webhook/sales (single) ──────────────
 
 app.post('/api/webhook/sales', webhookAuth, (req, res) => {
