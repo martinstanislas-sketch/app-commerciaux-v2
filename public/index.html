@@ -79,7 +79,11 @@
       <div id="admin-reps-panel" class="admin-panel hidden">
         <h2>Gestion des commerciaux</h2>
         <form id="add-rep-form" class="add-rep-form">
-          <input type="text" id="new-rep-name" placeholder="Nom du commercial" required>
+          <input type="text" id="new-rep-name" placeholder="Nom" required>
+          <select id="new-rep-role" title="Rôle">
+            <option value="commercial">Commercial</option>
+            <option value="phoneur">Phoneur</option>
+          </select>
           <input type="date" id="new-rep-start-week" title="Semaine de démarrage">
           <button type="submit" class="btn-primary">Ajouter</button>
         </form>

@@ -2453,11 +2453,13 @@ function initAdminPanel() {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const nameInput = document.getElementById('new-rep-name');
+    const roleSelect = document.getElementById('new-rep-role');
     const startWeekInput = document.getElementById('new-rep-start-week');
     const name = nameInput.value.trim();
     if (!name) return;
 
     const body = { name };
+    if (roleSelect) body.role = roleSelect.value;
     if (startWeekInput && startWeekInput.value) {
       body.start_week = startWeekInput.value;
     }
@@ -2465,6 +2467,7 @@ function initAdminPanel() {
     try {
       const newRep = await api('/sales-reps', { method: 'POST', body });
       nameInput.value = '';
+      if (roleSelect) roleSelect.value = 'commercial';
       if (startWeekInput) startWeekInput.value = '';
       // Refresh salesReps and all dropdowns
       await refreshSalesReps();

@@ -205,17 +205,18 @@ app.get('/api/sales-reps', requireAuth, (req, res) => {
 // ─── POST /api/sales-reps (admin only) ──────────────────────
 
 app.post('/api/sales-reps', requireAuth, requireAdmin, (req, res) => {
-  const { name, start_week } = req.body;
+  const { name, start_week, role } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Le nom est requis' });
   }
   const trimmedName = name.trim();
+  const repRole = (role === 'phoneur') ? 'phoneur' : 'commercial';
   const db = getDb();
 
   // Check if name already exists
   const existing = db.prepare('SELECT id FROM sales_reps WHERE LOWER(name) = LOWER(?)').get(trimmedName);
   if (existing) {
-    return res.status(409).json({ error: 'Ce commercial existe déjà' });
+    return res.status(409).json({ error: 'Ce nom existe déjà' });
   }
 
   // Generate PIN
@@ -228,8 +229,8 @@ app.post('/api/sales-reps', requireAuth, requireAdmin, (req, res) => {
     startWeek = getMonday(start_week);
   }
 
-  // Insert
-  const result = db.prepare('INSERT INTO sales_reps (name, pin, start_week) VALUES (?, ?, ?)').run(trimmedName, pin, startWeek);
+  // Insert with role
+  const result = db.prepare('INSERT INTO sales_reps (name, pin, start_week, role) VALUES (?, ?, ?, ?)').run(trimmedName, pin, startWeek, repRole);
   const newRep = db.prepare('SELECT * FROM sales_reps WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(newRep);
 });
