@@ -2664,5 +2664,131 @@ main {
   }
 }
 
+/* ─── Admin Phoneurs Recap ─────────────────────── */
+#admin-phoneurs-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 18px;
+}
+
+.aph-card {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow .2s var(--ease), transform .2s var(--ease);
+}
+.aph-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.aph-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.aph-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: .85rem;
+  flex-shrink: 0;
+}
+
+.aph-header-info { flex: 1; }
+.aph-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+.aph-subtitle {
+  font-size: .78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.aph-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.aph-kpi {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 6px;
+  text-align: center;
+  transition: border-color .15s;
+}
+.aph-kpi:hover { border-color: var(--border); }
+
+.aph-kpi-icon { font-size: 1rem; display: block; margin-bottom: 2px; }
+.aph-kpi-value {
+  font-size: .95rem;
+  font-weight: 800;
+  color: var(--navy);
+  display: block;
+}
+.aph-kpi-label {
+  font-size: .6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  font-weight: 600;
+  display: block;
+  margin-top: 2px;
+  line-height: 1.15;
+}
+
+.aph-details {
+  background: var(--bg-subtle);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  border: 1px solid var(--border-light);
+}
+
+.aph-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.aph-table tr:not(:last-child) td {
+  border-bottom: 1px solid var(--border-light);
+}
+.aph-td-label {
+  font-size: .78rem;
+  color: var(--text-secondary);
+  padding: 6px 0;
+}
+.aph-td-val {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--navy);
+  text-align: right;
+  padding: 6px 0;
+}
+
+@media (max-width: 500px) {
+  #admin-phoneurs-container {
+    grid-template-columns: 1fr;
+  }
+  .aph-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* ─── Selection ─────────────────────────────────── */
 ::selection { background: rgba(79,70,229,0.15); color: var(--text); }

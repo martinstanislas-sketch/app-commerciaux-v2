@@ -264,6 +264,7 @@ async function bootApp() {
     initMensuelTab();
     initModal();
     initAdminPanel();
+    initAdminPhoneursNav();
     _appBooted = true;
   }
 
@@ -293,6 +294,7 @@ function updateTabVisibility() {
   const phoningRecapBtn = document.querySelector('[data-tab="phoning-recap"]');
   const mensuelBtn = document.querySelector('[data-tab="mensuel"]');
   const notesBtn = document.querySelector('[data-tab="notes"]');
+  const adminPhoneursBtn = document.querySelector('[data-tab="admin-phoneurs"]');
 
   if (isPhoneLead()) {
     // Phoneur: Aujourd'hui (fiche) + Récap (KPI)
@@ -303,6 +305,7 @@ function updateTabVisibility() {
     if (phoningRecapBtn) phoningRecapBtn.style.display = '';
     if (mensuelBtn) mensuelBtn.style.display = 'none';
     if (notesBtn) notesBtn.style.display = 'none';
+    if (adminPhoneursBtn) adminPhoneursBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -312,6 +315,7 @@ function updateTabVisibility() {
     if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
     if (mensuelBtn) mensuelBtn.style.display = '';
     if (notesBtn) notesBtn.style.display = '';
+    if (adminPhoneursBtn) adminPhoneursBtn.style.display = '';
     dashBtn.click();
   } else {
     // Commercial: only Aujourd'hui + Récap Mensuel
@@ -322,6 +326,7 @@ function updateTabVisibility() {
     if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
     if (mensuelBtn) mensuelBtn.style.display = '';
     if (notesBtn) notesBtn.style.display = 'none';
+    if (adminPhoneursBtn) adminPhoneursBtn.style.display = 'none';
     todayBtn.click();
   }
 }
@@ -859,6 +864,134 @@ function buildPhoningKPIs(t) {
   `).join('');
 }
 
+// ─── Admin Phoneurs : Récap mensuel (admin only) ─────────────
+
+let currentPhoneursMonth = '';
+
+function initAdminPhoneursNav() {
+  const prevBtn = document.getElementById('ph-prev-month');
+  const nextBtn = document.getElementById('ph-next-month');
+  const picker = document.getElementById('ph-month-picker');
+  if (!prevBtn) return;
+
+  const now = new Date();
+  currentPhoneursMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  prevBtn.addEventListener('click', () => {
+    const [y, m] = currentPhoneursMonth.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    currentPhoneursMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    loadAdminPhoneurs();
+  });
+  nextBtn.addEventListener('click', () => {
+    const [y, m] = currentPhoneursMonth.split('-').map(Number);
+    const d = new Date(y, m, 1);
+    currentPhoneursMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    loadAdminPhoneurs();
+  });
+  if (picker) {
+    picker.addEventListener('change', () => {
+      if (picker.value) {
+        currentPhoneursMonth = picker.value;
+        loadAdminPhoneurs();
+      }
+    });
+  }
+}
+
+async function loadAdminPhoneurs() {
+  const container = document.getElementById('admin-phoneurs-container');
+  if (!container) return;
+
+  if (!currentPhoneursMonth) {
+    const now = new Date();
+    currentPhoneursMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  // Update month nav label
+  const label = document.getElementById('ph-month-label');
+  const picker = document.getElementById('ph-month-picker');
+  const [y, m] = currentPhoneursMonth.split('-').map(Number);
+  const monthName = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  if (label) label.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+  if (picker) picker.value = currentPhoneursMonth;
+
+  try {
+    const data = await api(`/phoning/all-monthly/${currentPhoneursMonth}`);
+
+    if (!data.phoneurs || data.phoneurs.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px 0;">Aucun phoneur enregistré</p>';
+      return;
+    }
+
+    const avatarColors = [
+      { bg: '#FAEEDA', color: '#854F0B' },
+      { bg: '#EEEDFE', color: '#3C3489' },
+      { bg: '#EAF3DE', color: '#3B6D11' },
+      { bg: '#FCEBEB', color: '#A32D2D' },
+    ];
+
+    let html = '';
+    data.phoneurs.forEach((p, idx) => {
+      const t = p.totals;
+      const ac = avatarColors[idx % avatarColors.length];
+      const initiales = p.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
+      const totalAppels = (t.appels_rdv_demain || 0) + (t.appels_on_fire || 0) +
+        (t.appels_entrants || 0) + (t.appels_vni || 0) + (t.appels_clients || 0) +
+        (t.appels_resilies || 0) + (t.appels_annules_noshow || 0);
+      const totalRDV = (t.rdv_on_fire || 0) + (t.rdv_leads_froids || 0);
+      const taux = totalAppels > 0 ? Math.round((totalRDV / totalAppels) * 100) : 0;
+
+      const kpis = [
+        { icon: '📅', label: 'Jours travaillés', value: p.days_worked },
+        { icon: '⏱️', label: 'Heures', value: `${(t.heures_travaillees || 0).toFixed(1)}h` },
+        { icon: '📞', label: 'Total appels', value: totalAppels },
+        { icon: '📅', label: 'RDV fixés', value: totalRDV },
+        { icon: '🎯', label: 'Taux → RDV', value: `${taux}%` },
+        { icon: '🔥', label: 'Appels On Fire', value: t.appels_on_fire || 0 },
+        { icon: '❄️', label: 'Leads froids', value: t.leads_froids || 0 },
+        { icon: '📲', label: 'Appels entrants', value: t.appels_entrants || 0 },
+      ];
+
+      html += `
+        <div class="aph-card">
+          <div class="aph-card-header">
+            <div class="aph-avatar" style="background:${ac.bg};color:${ac.color}">${initiales}</div>
+            <div class="aph-header-info">
+              <h3 class="aph-name">${p.name}</h3>
+              <span class="aph-subtitle">${p.days_worked} jour(s) travaillé(s)</span>
+            </div>
+          </div>
+          <div class="aph-kpi-grid">
+            ${kpis.map(k => `
+              <div class="aph-kpi">
+                <span class="aph-kpi-icon">${k.icon}</span>
+                <span class="aph-kpi-value">${k.value}</span>
+                <span class="aph-kpi-label">${k.label}</span>
+              </div>
+            `).join('')}
+          </div>
+          <div class="aph-details">
+            <table class="aph-table">
+              <tbody>
+                ${PHONING_COUNTERS.map(c => {
+                  const val = t[c.key] || 0;
+                  return `<tr><td class="aph-td-label">${c.label}</td><td class="aph-td-val">${val}${c.unit ? ' ' + c.unit : ''}</td></tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+  } catch (err) {
+    console.error('Erreur chargement phoneurs:', err);
+    container.innerHTML = '<p style="color:red;">Erreur de chargement</p>';
+  }
+}
+
 function applyFeatureStatus() {
   // Email : bouton test + relances
   const btnTestEmail = document.getElementById('btn-test-email');
@@ -921,6 +1054,7 @@ function initTabs() {
       if (btn.dataset.tab === 'ventes') loadSales();
       if (btn.dataset.tab === 'mensuel') loadMonthlySummary();
       if (btn.dataset.tab === 'notes') loadNotes();
+      if (btn.dataset.tab === 'admin-phoneurs') loadAdminPhoneurs();
       if (btn.dataset.tab === 'phoning') loadPhoningTab();
       if (btn.dataset.tab === 'phoning-recap') loadPhoningRecap();
     });

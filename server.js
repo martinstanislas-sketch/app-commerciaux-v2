@@ -1112,6 +1112,44 @@ app.get('/api/phoning/monthly/:sales_rep_id/:month', requireAuth, (req, res) => 
   res.json({ totals: rows, days_worked: daysWorked?.count || 0 });
 });
 
+// ─── Phoning: all phoneurs monthly summary (admin) ───────────
+app.get('/api/phoning/all-monthly/:month', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const month = req.params.month;
+  const startDate = month + '-01';
+  const endDate = month + '-31';
+
+  // Get all phoneurs
+  const phoneurs = db.prepare("SELECT id, name FROM sales_reps WHERE role = 'phoneur' ORDER BY name").all();
+
+  const results = phoneurs.map(p => {
+    const rows = db.prepare(`
+      SELECT action_key, SUM(value) as total
+      FROM daily_action_values
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND action_key LIKE 'phoning:%'
+      GROUP BY action_key
+    `).all(p.id, startDate, endDate);
+
+    const daysWorked = db.prepare(`
+      SELECT COUNT(DISTINCT date) as count
+      FROM daily_action_values
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND action_key LIKE 'phoning:%' AND value > 0
+    `).get(p.id, startDate, endDate);
+
+    const totals = {};
+    rows.forEach(r => { totals[r.action_key.replace('phoning:', '')] = r.total; });
+
+    return {
+      sales_rep_id: p.id,
+      name: p.name,
+      days_worked: daysWorked?.count || 0,
+      totals
+    };
+  });
+
+  res.json({ month, phoneurs: results });
+});
+
 // ─── Webhook: POST /api/webhook/sales (single) ──────────────
 
 app.post('/api/webhook/sales', webhookAuth, (req, res) => {
