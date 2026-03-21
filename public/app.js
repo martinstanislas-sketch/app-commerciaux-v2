@@ -1738,24 +1738,34 @@ async function loadMonthlySummary() {
 
     const NA = 'A SAISIR';
     const badges = [
-      { icon: '💎', title: 'Premium', desc: 'Meilleur panier moyen', name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA },
-      { icon: '📞', title: 'RDV', desc: 'Le plus de rendez-vous fixés', name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA },
-      { icon: '🤝', title: 'Ambassadeur', desc: 'Le plus de références', name: bestRef.references > 0 ? bestRef.name : NA },
-      { icon: '👋', title: 'Accueil', desc: "Le plus d'appels nouveaux clients", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA },
-      { icon: '💼', title: 'Business', desc: 'Le plus de contacts entreprises', name: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : NA },
-      { icon: '🏆', title: 'Discipline', desc: "Le plus d'actions validées", name: bestDiscipline.discipline > 0 ? bestDiscipline.name : NA },
+      { icon: '💎', title: 'Premium', desc: 'Meilleur panier moyen', name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA, value: bestPanier.panier_moyen > 0 ? Math.round(bestPanier.panier_moyen).toLocaleString('fr-FR') + ' €' : null },
+      { icon: '📞', title: 'RDV', desc: 'Le plus de rendez-vous fixés', name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA, value: bestRDV.rdv_fixes > 0 ? bestRDV.rdv_fixes : null },
+      { icon: '🤝', title: 'Ambassadeur', desc: 'Le plus de références', name: bestRef.references > 0 ? bestRef.name : NA, value: bestRef.references > 0 ? bestRef.references : null },
+      { icon: '👋', title: 'Accueil', desc: "Le plus d'appels nouveaux clients", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA, value: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.entretien_premier_mois : null },
+      { icon: '💼', title: 'Business', desc: 'Le plus de contacts entreprises', name: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : NA, value: bestBusiness.contact_entreprise > 0 ? bestBusiness.contact_entreprise : null },
+      { icon: '🏆', title: 'Discipline', desc: "Le plus d'actions validées", name: bestDiscipline.discipline > 0 ? bestDiscipline.name : NA, value: bestDiscipline.discipline > 0 ? bestDiscipline.discipline : null },
     ];
 
     rankHTML += '<div class="badges-grid">';
     badges.forEach(b => {
       const attribue = b.name !== NA;
-      rankHTML += `
-        <div class="badge-card${attribue ? '' : ' badge-unassigned'}">
-          <div class="badge-icon">${b.icon}</div>
-          <div class="badge-title">${b.title}</div>
-          <div class="badge-desc">${b.desc}</div>
-          <div class="badge-name">${attribue ? b.name : b.desc}</div>
-        </div>`;
+      if (attribue) {
+        rankHTML += `
+          <div class="badge-card">
+            <div class="badge-icon">${b.icon}</div>
+            <div class="badge-title">${b.title}</div>
+            <div class="badge-desc">${b.desc}</div>
+            <div class="badge-name">${b.name} — ${b.value}</div>
+          </div>`;
+      } else {
+        rankHTML += `
+          <div class="badge-card badge-unassigned">
+            <div class="badge-icon">${b.icon}</div>
+            <div class="badge-title">${b.title}</div>
+            <div class="badge-desc">${b.desc}</div>
+            <div class="badge-name badge-blink">À saisir</div>
+          </div>`;
+      }
     });
     rankHTML += '</div>';
   }
