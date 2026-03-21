@@ -711,6 +711,87 @@ app.get('/api/months/:month/summary', requireAuth, (req, res) => {
   });
 });
 
+// ─── GET /api/months/:month/analysis-data ─────────────────────
+// Returns per-rep data needed for individual analysis:
+// - monthly counters (HS, references, rdv_fixes, entretien_premier_mois, contact_entreprise)
+// - sales without RIB count
+// - commercial days worked (distinct days with daily_action_values)
+// - days with ALL predefined actions completed vs total commercial days
+
+app.get('/api/months/:month/analysis-data', requireAuth, (req, res) => {
+  const db = getDb();
+  const month = req.params.month;
+  const year = parseInt(month.split('-')[0]);
+  const mon = parseInt(month.split('-')[1]);
+  const firstDay = `${month}-01`;
+  const lastDay = new Date(year, mon, 0).toISOString().slice(0, 10);
+
+  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
+
+  // Total predefined actions count (yesno + counters)
+  const PREDEFINED_ACTION_COUNT = 9; // 5 yesno + 4 counters
+
+  const result = reps.map(rep => {
+    // 1. Monthly counters
+    const counters = db.prepare(`
+      SELECT action_key, SUM(value) as total
+      FROM daily_action_values
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND action_key LIKE 'predefined:%'
+      GROUP BY action_key
+    `).all(rep.id, firstDay, lastDay);
+
+    const totals = {};
+    counters.forEach(c => { totals[c.action_key.replace('predefined:', '')] = c.total; });
+
+    // 2. Sales without RIB for this rep in this month
+    const salesNoRib = db.prepare(`
+      SELECT COUNT(*) as count FROM sales
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND rib_status != 'Reçu'
+    `).get(rep.id, firstDay, lastDay);
+
+    // 3. Total sales count (all statuses) for reference comparison
+    const totalSalesAll = db.prepare(`
+      SELECT COUNT(*) as count FROM sales
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ?
+    `).get(rep.id, firstDay, lastDay);
+
+    // 4. Commercial days = distinct days with at least one predefined action value > 0
+    const commercialDays = db.prepare(`
+      SELECT COUNT(DISTINCT date) as count
+      FROM daily_action_values
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND action_key LIKE 'predefined:%' AND value > 0
+    `).get(rep.id, firstDay, lastDay);
+
+    // 5. Days with ALL predefined actions completed
+    // A day is "complete" if it has at least PREDEFINED_ACTION_COUNT distinct actions with value > 0
+    const completeDays = db.prepare(`
+      SELECT COUNT(*) as count FROM (
+        SELECT date, COUNT(DISTINCT action_key) as actions_done
+        FROM daily_action_values
+        WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND action_key LIKE 'predefined:%' AND value > 0
+        GROUP BY date
+        HAVING actions_done >= ?
+      )
+    `).get(rep.id, firstDay, lastDay, PREDEFINED_ACTION_COUNT);
+
+    // 6. RDV objectif per day = 2 (10 per week / 5 days)
+    const rdvObjectifParJour = 2;
+
+    return {
+      sales_rep_id: rep.id,
+      name: rep.name,
+      counters: totals,
+      sales_no_rib: salesNoRib?.count || 0,
+      total_sales_all: totalSalesAll?.count || 0,
+      commercial_days: commercialDays?.count || 0,
+      complete_days: completeDays?.count || 0,
+      rdv_objectif_par_jour: rdvObjectifParJour
+    };
+  });
+
+  res.json({ month, reps: result });
+});
+
 // ─── GET /api/months/:month/weekly-breakdown ─────────────────
 
 app.get('/api/months/:month/weekly-breakdown', requireAuth, (req, res) => {

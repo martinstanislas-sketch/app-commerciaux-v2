@@ -1927,244 +1927,208 @@ async function loadWeeklyCharts() {
   }
 }
 
-// ─── Analyse par commercial (données hebdomadaires) ─────────
+// ─── Analyse individuelle (règles métier strictes) ──────────
+//
+// ORDRE DE PRIORITÉ :
+// 1. Transformation HS / ventes
+// 2. Panier moyen
+// 3. Références
+// 4. Actions prioritaires
+// 5. RDV fixés
+// 6. Entretien 1er mois
+// 7. Contacts entreprise
+//
+// + Vente sans RIB = point d'amélioration prioritaire
+// Le ratio global ne doit JAMAIS apparaître dans satisfaction / amélioration
+// Max 3 satisfaction, max 3 amélioration
 
-function analyzeRepWeekly(data, weeklyBreakdown, counterTotals) {
-  const sorted = [...data.rep_stats].sort((a, b) => b.ratio_mensuel - a.ratio_mensuel);
-  const sortedPanier = [...data.rep_stats].sort((a, b) => b.panier_moyen - a.panier_moyen);
-  const totalHours = data.rep_stats.reduce((s, r) => s + r.total_hours, 0);
-  const ratioGlobal = totalHours > 0 ? data.global.ca / totalHours : 0;
-  const avgPanier = data.global.panier_moyen;
-  const avgVentes = data.global.nb_ventes / data.rep_stats.length;
+function analyzeRep(repStat, analysisData) {
+  const c = analysisData.counters || {};
+  const nbVentes = repStat.nb_ventes || 0;
+  const panier = repStat.panier_moyen || 0;
+  const hours = repStat.total_hours || 0;
+  const hs = c.histoire_sportive || 0;
+  const refs = c.references || 0;
+  const rdv = c.rdv_fixes || 0;
+  const ent = c.entretien_premier_mois || 0;
+  const contact = c.contact_entreprise || 0;
+  const salesNoRib = analysisData.sales_no_rib || 0;
+  const commercialDays = analysisData.commercial_days || 0;
+  const completeDays = analysisData.complete_days || 0;
+  const rdvObjectif = analysisData.rdv_objectif_par_jour || 2;
 
-  // Filter weeks with activity
-  const activeWeeks = weeklyBreakdown.weeks.filter(w => w.reps.some(r => r.ca > 0));
+  // Collect all evaluations: { priority, type, text }
+  // type: 'ok' | 'ko' | 'neutre'
+  const evals = [];
 
-  return data.rep_stats.map(r => {
-    const points = [];
-    const travail = [];
+  // ── Priorité 0 (la plus haute) : Vente sans RIB ──
+  if (salesNoRib > 0) {
+    evals.push({ priority: 0, type: 'ko', text: `${salesNoRib > 1 ? salesNoRib + ' ventes ont été réalisées' : 'Une vente a été réalisée'} sans RIB fourni` });
+  }
 
-    // Extract this rep's weekly stats
-    const weeks = activeWeeks.map(w => {
-      const rd = w.reps.find(rr => rr.sales_rep_id === r.id || rr.name === r.name);
-      return { label: w.label, ca: rd?.ca || 0, nb: rd?.nb_ventes || 0, pm: rd?.panier_moyen || 0, h: rd?.hours_worked || 0, ratio: rd?.ratio || 0 };
-    });
-    const nbWeeks = weeks.length;
-    if (nbWeeks === 0) return { name: r.name, points: ['Pas de données'], travail: ['Pas de données'] };
-
-    // ── Weekly ratios, paniers, volumes ──
-    const ratios = weeks.map(w => w.ratio);
-    const paniers = weeks.map(w => w.pm);
-    const volumes = weeks.map(w => w.nb);
-    const cas = weeks.map(w => w.ca);
-
-    const bestRatioWeek = weeks.reduce((a, b) => a.ratio > b.ratio ? a : b);
-    const worstRatioWeek = weeks.reduce((a, b) => a.ratio < b.ratio ? a : b);
-    const bestPanierWeek = weeks.reduce((a, b) => a.pm > b.pm ? a : b);
-    const worstPanierWeek = weeks.filter(w => w.nb > 0).reduce((a, b) => a.pm < b.pm ? a : b, weeks[0]);
-    const bestCAWeek = weeks.reduce((a, b) => a.ca > b.ca ? a : b);
-    const bestVolumeWeek = weeks.reduce((a, b) => a.nb > b.nb ? a : b);
-
-    // ── Trend analysis (comparing last half vs first half) ──
-    const mid = Math.ceil(nbWeeks / 2);
-    const firstHalfRatio = ratios.slice(0, mid).reduce((s, v) => s + v, 0) / mid;
-    const secondHalfRatio = ratios.slice(mid).reduce((s, v) => s + v, 0) / (nbWeeks - mid);
-    const ratioTrend = secondHalfRatio - firstHalfRatio;
-    const ratioTrendPct = firstHalfRatio > 0 ? (ratioTrend / firstHalfRatio * 100) : 0;
-
-    const firstHalfPanier = paniers.slice(0, mid).filter(v => v > 0);
-    const secondHalfPanier = paniers.slice(mid).filter(v => v > 0);
-    const avgFirstPanier = firstHalfPanier.length ? firstHalfPanier.reduce((s, v) => s + v, 0) / firstHalfPanier.length : 0;
-    const avgSecondPanier = secondHalfPanier.length ? secondHalfPanier.reduce((s, v) => s + v, 0) / secondHalfPanier.length : 0;
-    const panierTrend = avgSecondPanier - avgFirstPanier;
-
-    // ── Consistency (coefficient of variation) ──
-    const avgRatio = ratios.reduce((s, v) => s + v, 0) / nbWeeks;
-    const stdRatio = Math.sqrt(ratios.reduce((s, v) => s + (v - avgRatio) ** 2, 0) / nbWeeks);
-    const cvRatio = avgRatio > 0 ? stdRatio / avgRatio : 0;
-
-    // ── Team weekly comparisons ──
-    let weeksAsLeader = 0;
-    let weeksAsLast = 0;
-    activeWeeks.forEach(w => {
-      const reps = w.reps.filter(rr => rr.ca > 0);
-      if (reps.length === 0) return;
-      const repData = reps.find(rr => rr.name === r.name);
-      if (!repData) return;
-      const maxRatio = Math.max(...reps.map(rr => rr.ratio));
-      const minRatio = Math.min(...reps.map(rr => rr.ratio));
-      if (repData.ratio === maxRatio) weeksAsLeader++;
-      if (repData.ratio === minRatio && reps.length > 1) weeksAsLast++;
-    });
-
-    // ══════════ POINTS DE SATISFACTION (max 2) ══════════
-
-    const ratioRank = sorted.indexOf(r) + 1;
-    const panierRank = sortedPanier.indexOf(r) + 1;
-
-    if (ratioTrendPct > 10) points.push('Bonne progression du ratio sur le mois');
-    if (panierTrend > 50 && avgFirstPanier > 0) points.push('Panier moyen en hausse sur le mois');
-    if (r.panier_moyen >= 2000 && r.nb_ventes > 0) points.push('Bon panier moyen');
-    if (cvRatio < 0.15) points.push('Bonne régularité des performances');
-    if (r.nb_ventes >= avgVentes * 1.2) points.push('Bon volume de ventes sur le mois');
-
-    // Limiter à 2 points max
-    points.splice(2);
-
-    // ══════════ AXES D'AMÉLIORATION (max 2) ══════════
-
-    const repCounters = counterTotals && counterTotals[r.sales_rep_id] ? counterTotals[r.sales_rep_id] : null;
-
-    // 1. Panier moyen < 2000 €
-    if (r.nb_ventes > 0 && r.panier_moyen < 2000) {
-      travail.push('Augmenter le panier moyen');
+  // ── Priorité 1 : Transformation HS / ventes ──
+  if (hs > 0) {
+    const taux = nbVentes / hs;
+    if (taux > 0.5) {
+      evals.push({ priority: 1, type: 'ok', text: 'Bonne transformation des histoires sportives en ventes' });
+    } else if (taux === 0.5) {
+      evals.push({ priority: 1, type: 'neutre', text: 'Transformation des histoires sportives dans la moyenne (50%)' });
+    } else {
+      evals.push({ priority: 1, type: 'ko', text: 'Les histoires sportives ne se transforment pas suffisamment en ventes' });
     }
+  }
 
-    // 2. Ventes < 50% des histoires sportives
-    const hsTotal = repCounters ? repCounters.histoire_sportive : 0;
-    if (hsTotal > 0 && r.nb_ventes < hsTotal * 0.5) {
-      travail.push('Transformer davantage les histoires sportives en ventes');
+  // ── Priorité 2 : Panier moyen ──
+  if (nbVentes > 0) {
+    if (panier > 3000) {
+      evals.push({ priority: 2, type: 'ok', text: 'Très bon panier moyen' });
+    } else if (panier >= 2100) {
+      evals.push({ priority: 2, type: 'neutre', text: 'Panier moyen dans la cible' });
+    } else {
+      evals.push({ priority: 2, type: 'ko', text: 'Panier moyen trop faible' });
     }
+  }
 
-    // 3. Références < nombre de ventes
-    const myRef = repCounters ? repCounters.references : 0;
-    if (r.nb_ventes > 0 && myRef < r.nb_ventes) {
-      travail.push('Augmenter le nombre de prises de références');
+  // ── Priorité 3 : Références ──
+  // inscrits = nb de ventes (chaque vente = un inscrit)
+  if (nbVentes > 0) {
+    if (refs > nbVentes) {
+      evals.push({ priority: 3, type: 'ok', text: 'Bonnes prises de références au-delà des inscriptions' });
+    } else if (refs === nbVentes) {
+      evals.push({ priority: 3, type: 'neutre', text: 'Références égales aux inscriptions' });
+    } else {
+      evals.push({ priority: 3, type: 'ko', text: 'Références insuffisantes au regard des inscriptions' });
     }
+  }
 
-    // 4. Aucun RDV fixé sur le mois
-    const myRDV = repCounters ? repCounters.rdv_fixes : 0;
-    if (r.total_hours > 0 && myRDV === 0) {
-      travail.push('Fixer des rendez-vous chaque semaine');
+  // ── Priorité 4 : Actions prioritaires ──
+  if (commercialDays > 0) {
+    if (completeDays >= commercialDays) {
+      evals.push({ priority: 4, type: 'ok', text: 'Bonne régularité sur les actions prioritaires' });
+    } else {
+      evals.push({ priority: 4, type: 'ko', text: 'Les actions prioritaires ne sont pas tenues avec régularité' });
     }
+  }
 
-    // 3. Comparaison avec les confrères
-    if (counterTotals) {
-      const activeRepIds = data.rep_stats.filter(rr => rr.total_hours > 0).map(rr => rr.sales_rep_id);
-      const activeCounters = activeRepIds.map(id => counterTotals[id]).filter(Boolean);
-      const nbActive = activeCounters.length;
-
-      if (nbActive > 1) {
-        const avgRef = activeCounters.reduce((s, c) => s + c.references, 0) / nbActive;
-        const myRef = repCounters ? repCounters.references : 0;
-        const othersHaveRef = activeCounters.some(c => c.references > 0);
-        if (avgRef >= 1 && (myRef === 0 && othersHaveRef || myRef < avgRef * 0.7)) {
-          travail.push('Augmenter le nombre de prises de références');
-        }
-
-        const repsWithSales = data.rep_stats.filter(rr => rr.total_hours > 0 && rr.nb_ventes > 0);
-        if (repsWithSales.length > 1) {
-          const avgPanierEquipe = repsWithSales.reduce((s, rr) => s + rr.panier_moyen, 0) / repsWithSales.length;
-          if (avgPanierEquipe > 0 && r.nb_ventes > 0 && r.panier_moyen < avgPanierEquipe * 0.7) {
-            travail.push('Renforcer la valeur moyenne des ventes');
-          }
-        }
-
-        const avgEnt = activeCounters.reduce((s, c) => s + c.entretien_premier_mois, 0) / nbActive;
-        const myEnt = repCounters ? repCounters.entretien_premier_mois : 0;
-        const othersHaveEnt = activeCounters.some(c => c.entretien_premier_mois > 0);
-        if (avgEnt >= 1 && (myEnt === 0 && othersHaveEnt || myEnt < avgEnt * 0.7)) {
-          travail.push('Renforcer le suivi des nouveaux adhérents');
-        }
-      }
+  // ── Priorité 5 : RDV fixés (proratisés sur jours commerciaux) ──
+  if (commercialDays > 0) {
+    const rdvObjectifProrate = commercialDays * rdvObjectif;
+    if (rdv >= rdvObjectifProrate) {
+      evals.push({ priority: 5, type: 'ok', text: 'Bon volume de RDV fixés au regard des jours commerciaux' });
+    } else {
+      evals.push({ priority: 5, type: 'ko', text: 'Le volume de RDV fixés reste trop faible au regard des jours commerciaux' });
     }
+  }
 
-    // Limiter à 2 axes max
-    travail.splice(2);
+  // ── Priorité 6 : Entretien 1er mois ──
+  if (hours > 0) {
+    if (ent > 0) {
+      evals.push({ priority: 6, type: 'ok', text: 'Bon suivi des nouveaux adhérents (entretien 1er mois)' });
+    } else {
+      evals.push({ priority: 6, type: 'ko', text: 'Aucun entretien 1er mois réalisé' });
+    }
+  }
 
-    return { name: r.name, points, travail };
-  });
+  // ── Priorité 7 : Contacts entreprise ──
+  if (hours > 0) {
+    if (contact > 3) {
+      evals.push({ priority: 7, type: 'ok', text: 'Bonne dynamique de contacts entreprise' });
+    } else if (contact >= 1) {
+      evals.push({ priority: 7, type: 'neutre', text: 'Contacts entreprise présents mais perfectibles' });
+    } else {
+      evals.push({ priority: 7, type: 'ko', text: 'Aucun contact entreprise sur le mois' });
+    }
+  }
+
+  // Sort by priority (lowest number = highest priority)
+  evals.sort((a, b) => a.priority - b.priority);
+
+  // Select top 3 satisfaction, top 3 amélioration
+  const satisfaction = evals.filter(e => e.type === 'ok').slice(0, 3);
+  const amelioration = evals.filter(e => e.type === 'ko').slice(0, 3);
+
+  // Neutres: shown only if we have fewer than 1 satisfaction AND fewer than 1 amelioration
+  let neutres = [];
+  if (satisfaction.length === 0 && amelioration.length === 0) {
+    neutres = evals.filter(e => e.type === 'neutre').slice(0, 3);
+  }
+
+  return { name: repStat.name, satisfaction, amelioration, neutres };
 }
 
 async function renderAnalysisSection(data) {
   const div = document.getElementById('monthly-analysis');
-  const breakdown = await api(`/months/${currentMonth}/weekly-breakdown`);
 
-  // Fetch monthly counters for axes d'amélioration
-  let monthlyCounters = [];
-  try { monthlyCounters = await api(`/daily-actions/monthly/${currentMonth}`); } catch (e) { /* ignore */ }
-  const counterTotals = {};
-  data.rep_stats.forEach(r => {
-    counterTotals[r.sales_rep_id] = { references: 0, entretien_premier_mois: 0, histoire_sportive: 0, rdv_fixes: 0 };
-  });
-  monthlyCounters.forEach(row => {
-    if (!counterTotals[row.sales_rep_id]) return;
-    if (row.action_key === 'predefined:references') counterTotals[row.sales_rep_id].references = row.total;
-    if (row.action_key === 'predefined:entretien_premier_mois') counterTotals[row.sales_rep_id].entretien_premier_mois = row.total;
-    if (row.action_key === 'predefined:histoire_sportive') counterTotals[row.sales_rep_id].histoire_sportive = row.total;
-    if (row.action_key === 'predefined:rdv_fixes') counterTotals[row.sales_rep_id].rdv_fixes = row.total;
-  });
+  // Fetch analysis data from server
+  let analysisDataArr = [];
+  try {
+    const result = await api(`/months/${currentMonth}/analysis-data`);
+    analysisDataArr = result.reps || [];
+  } catch (e) { /* ignore */ }
 
-  const analyses = analyzeRepWeekly(data, breakdown, counterTotals);
+  // Build lookup by sales_rep_id
+  const analysisById = {};
+  analysisDataArr.forEach(d => { analysisById[d.sales_rep_id] = d; });
+
+  // Analyze each rep
+  const analyses = data.rep_stats
+    .filter(r => r.total_hours > 0)
+    .map(r => {
+      const ad = analysisById[r.sales_rep_id] || { counters: {}, sales_no_rib: 0, commercial_days: 0, complete_days: 0, rdv_objectif_par_jour: 2 };
+      return analyzeRep(r, ad);
+    });
 
   // Filter: commercial sees only their own analysis card
   const admin = isAdmin();
   const myName = getMyName();
-
-  let visibleAnalyses = analyses.map((a, idx) => ({ ...a, originalIdx: idx }));
+  let visibleAnalyses = analyses;
   if (!admin && myName) {
-    visibleAnalyses = visibleAnalyses.filter(a => a.name === myName);
+    visibleAnalyses = analyses.filter(a => a.name === myName);
   }
-
-  // Get rep_stats indexed by name for ratio/manque calculations
-  const repByName = {};
-  data.rep_stats.forEach(r => { repByName[r.name] = r; });
 
   const title = admin ? 'Analyse Individuelle' : 'Mon Analyse';
   const gridClass = (!admin && visibleAnalyses.length === 1) ? 'analysis-grid analysis-grid-solo' : 'analysis-grid';
   let html = `<div class="analysis-section"><h3>${title}</h3><div class="${gridClass}">`;
 
-  visibleAnalyses.forEach((a) => {
-    const rep = repByName[a.name] || {};
-    const ratio = rep.ratio_mensuel || 0;
-    const heures = rep.total_hours || 0;
-    const ca = rep.ca || 0;
-    const objectifCA = rep.objectif_ca || 0;
-    const objectif = heures > 0 && objectifCA > 0 ? Math.round(objectifCA / heures) : 250;
-    const panierMoyen = rep.panier_moyen || 0;
-    const manque = objectifCA > 0 && heures > 0 ? Math.round(objectifCA - ca) : 0;
-    const ventesNecessaires = panierMoyen > 0 && manque > 0 ? Math.ceil(manque / panierMoyen) : 0;
-
-    // Bloc 1 — Points forts
-    let pointsHTML = '';
-    if (a.points.length > 0) {
-      pointsHTML = `<div class="analysis-blk analysis-blk-ok">
-        <div class="analysis-blk-label">Points forts</div>
-        ${a.points.map(p => `<div>• ${p}</div>`).join('')}
+  visibleAnalyses.forEach((a, idx) => {
+    // Bloc 1 — Points de satisfaction
+    let satHTML = '';
+    if (a.satisfaction.length > 0) {
+      satHTML = `<div class="analysis-blk analysis-blk-ok">
+        <div class="analysis-blk-label">Points de satisfaction</div>
+        ${a.satisfaction.map(p => `<div>• ${p.text}</div>`).join('')}
       </div>`;
     }
 
-    // Bloc 2 — À améliorer
-    let travailItems = a.travail.map(t => `<div>• ${t}</div>`).join('');
-    if (manque > 0 && heures > 0) {
-      travailItems += `<div>• Ratio ${Math.round(ratio)} €/h vs objectif ${objectif} €/h — il manque ${manque.toLocaleString('fr-FR')} € ce mois</div>`;
-    }
-    let travailHTML = '';
-    if (travailItems) {
-      travailHTML = `<div class="analysis-blk analysis-blk-ko">
-        <div class="analysis-blk-label">À améliorer</div>
-        ${travailItems}
+    // Bloc 2 — Points d'amélioration
+    let amHTML = '';
+    if (a.amelioration.length > 0) {
+      amHTML = `<div class="analysis-blk analysis-blk-ko">
+        <div class="analysis-blk-label">Points d'amélioration</div>
+        ${a.amelioration.map(p => `<div>• ${p.text}</div>`).join('')}
       </div>`;
     }
 
-    // Bloc 3 — Levier actionnable
-    let leverHTML = '';
-    if (manque > 0 && ventesNecessaires > 0) {
-      leverHTML = `<div class="analysis-blk analysis-blk-lever">
-        <div class="analysis-blk-label">Levier actionnable</div>
-        <div>${ventesNecessaires} vente${ventesNecessaires > 1 ? 's' : ''} supplémentaire${ventesNecessaires > 1 ? 's' : ''} à ${Math.round(panierMoyen).toLocaleString('fr-FR')} € = objectif atteint</div>
+    // Bloc 3 — Points neutres (seulement si aucun ok/ko)
+    let neutreHTML = '';
+    if (a.neutres.length > 0) {
+      neutreHTML = `<div class="analysis-blk analysis-blk-lever">
+        <div class="analysis-blk-label">Points neutres</div>
+        ${a.neutres.map(p => `<div>• ${p.text}</div>`).join('')}
       </div>`;
     }
 
-    html += `<div class="analysis-card" data-rep="${a.originalIdx}">
+    const noData = !satHTML && !amHTML && !neutreHTML;
+
+    html += `<div class="analysis-card" data-rep="${idx}">
       <div class="analysis-card-header">
         <span>${a.name}</span>
       </div>
       <div class="analysis-card-body">
-        ${pointsHTML}
-        ${travailHTML}
-        ${leverHTML}
-        ${!pointsHTML && !travailHTML && !leverHTML ? '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">Pas assez de données pour l\'analyse</div>' : ''}
+        ${satHTML}
+        ${amHTML}
+        ${neutreHTML}
+        ${noData ? '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">Pas assez de données pour générer une analyse pertinente</div>' : ''}
       </div>
     </div>`;
   });
@@ -2359,21 +2323,21 @@ async function generateRecapPDF() {
           const leverBlk = card.querySelector('.analysis-blk-lever');
           const points = okBlk ? Array.from(okBlk.querySelectorAll('div:not(.analysis-blk-label)')).map(d => d.textContent.replace(/^• /, '')) : [];
           const travail = koBlk ? Array.from(koBlk.querySelectorAll('div:not(.analysis-blk-label)')).map(d => d.textContent.replace(/^• /, '')) : [];
-          const lever = leverBlk ? Array.from(leverBlk.querySelectorAll('div:not(.analysis-blk-label)')).map(d => d.textContent) : [];
-          if (points.length === 0 && travail.length === 0) return '';
+          const neutres = leverBlk ? Array.from(leverBlk.querySelectorAll('div:not(.analysis-blk-label)')).map(d => d.textContent.replace(/^• /, '')) : [];
+          if (points.length === 0 && travail.length === 0 && neutres.length === 0) return '';
           return `<div class="pdf-analysis an-${i + 1}">
             <div class="an-name">${name}</div>
             ${points.length ? `<div class="an-section">
-              <div class="an-label good">Points forts</div>
+              <div class="an-label good">Satisfaction</div>
               ${points.map(p => `<div class="an-item good">${p}</div>`).join('')}
             </div>` : ''}
             ${travail.length ? `<div class="an-section">
-              <div class="an-label work">Axe de travail</div>
+              <div class="an-label work">Amélioration</div>
               ${travail.map(t => `<div class="an-item work">${t}</div>`).join('')}
             </div>` : ''}
-            ${lever.length ? `<div class="an-section">
-              <div class="an-label" style="color:#3C3489">Levier</div>
-              ${lever.map(l => `<div class="an-item" style="color:#3C3489">${l}</div>`).join('')}
+            ${neutres.length ? `<div class="an-section">
+              <div class="an-label" style="color:#3C3489">Neutre</div>
+              ${neutres.map(n => `<div class="an-item" style="color:#3C3489">${n}</div>`).join('')}
             </div>` : ''}
           </div>`;
         }).join('');
