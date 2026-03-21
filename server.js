@@ -56,13 +56,14 @@ app.post('/api/auth/login', (req, res) => {
     return res.json({ token, role: 'admin', name: 'Admin', sales_rep_id: null });
   }
 
-  // Check commercial PIN
+  // Check commercial / phoneur PIN
   const db = getDb();
-  const rep = db.prepare('SELECT id, name FROM sales_reps WHERE pin = ?').get(pin.trim());
+  const rep = db.prepare('SELECT id, name, role FROM sales_reps WHERE pin = ?').get(pin.trim());
   if (rep) {
     const token = crypto.randomUUID();
-    sessions.set(token, { role: 'commercial', name: rep.name, sales_rep_id: rep.id });
-    return res.json({ token, role: 'commercial', name: rep.name, sales_rep_id: rep.id });
+    const role = rep.role || 'commercial';
+    sessions.set(token, { role, name: rep.name, sales_rep_id: rep.id });
+    return res.json({ token, role, name: rep.name, sales_rep_id: rep.id });
   }
 
   return res.status(401).json({ error: 'Code incorrect' });
@@ -264,13 +265,13 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
 
   ensureWeeklySettings(weekStart);
 
-  const reps = db.prepare('SELECT * FROM sales_reps ORDER BY id').all();
+  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' ORDER BY id").all();
 
   const settings = db.prepare(`
     SELECT ws.*, sr.name as rep_name
     FROM weekly_settings ws
     JOIN sales_reps sr ON sr.id = ws.sales_rep_id
-    WHERE ws.week_start = ?
+    WHERE ws.week_start = ? AND sr.role != 'phoneur'
     ORDER BY ws.sales_rep_id
   `).all(weekStart);
 
@@ -612,8 +613,8 @@ app.get('/api/months/:month/summary', requireAuth, (req, res) => {
 
   // Weeks that have at least one day in this month:
   // week_start <= lastDay AND week_end (week_start + 6 days) >= firstDay
-  // Only include reps active during this month (start_week <= lastDay or no start_week)
-  const reps = db.prepare('SELECT * FROM sales_reps WHERE start_week IS NULL OR start_week <= ? ORDER BY id').all(lastDay);
+  // Only include commercial reps active during this month (exclude phoneurs)
+  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
 
   // Get all sales in this month (by date, not week_start)
   const allSales = db.prepare(`
@@ -643,6 +644,7 @@ app.get('/api/months/:month/summary', requireAuth, (req, res) => {
     const repWeeks = weeklySettings.filter(ws => ws.sales_rep_id === rep.id);
     const totalHours = repWeeks.reduce((sum, ws) => sum + ws.hours_worked, 0);
     const ratioMensuel = totalHours > 0 ? ca / totalHours : 0;
+    const objectifCA = repWeeks.reduce((sum, ws) => sum + ws.hours_worked * ws.target_per_hour, 0);
 
     // Best single sale for this rep
     const bestSale = repSales.length > 0 ? repSales[0].amount : 0; // already sorted DESC
@@ -655,7 +657,8 @@ app.get('/api/months/:month/summary', requireAuth, (req, res) => {
       panier_moyen: panierMoyen,
       total_hours: totalHours,
       ratio_mensuel: ratioMensuel,
-      best_sale: bestSale
+      best_sale: bestSale,
+      objectif_ca: objectifCA
     };
   });
 
@@ -706,7 +709,7 @@ app.get('/api/months/:month/weekly-breakdown', requireAuth, (req, res) => {
   const firstDay = `${month}-01`;
   const lastDay = new Date(year, mon, 0).toISOString().slice(0, 10);
 
-  const reps = db.prepare('SELECT * FROM sales_reps WHERE start_week IS NULL OR start_week <= ? ORDER BY id').all(lastDay);
+  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
 
   // Find all distinct week_starts that overlap with this month
   const weeks = db.prepare(`
@@ -1069,6 +1072,32 @@ app.get('/api/daily-actions/discipline/:month', requireAuth, (req, res) => {
   `).all(startDate, endDate);
 
   res.json(rows);
+});
+
+// ─── Phoning: monthly aggregation for a phoneur ─────────────
+app.get('/api/phoning/monthly/:sales_rep_id/:month', requireAuth, (req, res) => {
+  const db = getDb();
+  const repId = parseInt(req.params.sales_rep_id);
+  const month = req.params.month;
+  const startDate = month + '-01';
+  const endDate = month + '-31';
+
+  // Aggregate all phoning: values for this rep/month
+  const rows = db.prepare(`
+    SELECT action_key, SUM(value) as total
+    FROM daily_action_values
+    WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND action_key LIKE 'phoning:%'
+    GROUP BY action_key
+  `).all(repId, startDate, endDate);
+
+  // Count distinct days worked (at least one phoning value > 0)
+  const daysWorked = db.prepare(`
+    SELECT COUNT(DISTINCT date) as count
+    FROM daily_action_values
+    WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND action_key LIKE 'phoning:%' AND value > 0
+  `).get(repId, startDate, endDate);
+
+  res.json({ totals: rows, days_worked: daysWorked?.count || 0 });
 });
 
 // ─── Webhook: POST /api/webhook/sales (single) ──────────────

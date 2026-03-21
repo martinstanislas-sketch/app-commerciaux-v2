@@ -80,11 +80,11 @@ function initSchema() {
     db.exec("ALTER TABLE sales_reps ADD COLUMN start_week TEXT DEFAULT NULL");
   }
 
-  // Migration: update default target_per_hour from 200 to 300 (one-time)
-  // Only apply for rows that still have the old default AND have no sales data
-  const migrationDone = db.prepare("PRAGMA table_info(weekly_settings)").all();
-  // Use a flag approach: only run if there are rows with exactly 200
-  // This was a one-time migration, keeping as no-op comment for history
+  // Migration: add role column to sales_reps
+  const repCols4 = db.prepare("PRAGMA table_info(sales_reps)").all();
+  if (!repCols4.find(c => c.name === 'role')) {
+    db.exec("ALTER TABLE sales_reps ADD COLUMN role TEXT NOT NULL DEFAULT 'commercial'");
+  }
 
   // Migration: add client_email to sales if missing
   const saleCols2 = db.prepare("PRAGMA table_info(sales)").all();
@@ -156,13 +156,25 @@ function seed() {
 
   const insertRep = db.prepare('INSERT OR IGNORE INTO sales_reps (name) VALUES (?)');
   const updatePin = db.prepare('UPDATE sales_reps SET pin = ? WHERE name = ?');
+  const updateRole = db.prepare('UPDATE sales_reps SET role = ? WHERE name = ?');
 
   // Insérer les commerciaux
   for (const name of names) {
     insertRep.run(name);
   }
 
-  // Générer et attribuer les PINs uniquement pour les commerciaux qui n'en ont pas
+  // Phoneurs depuis .env
+  const phoneurNamesEnv = process.env.PHONEUR_NAMES || '';
+  const phoneurNames = phoneurNamesEnv.split(',').map(n => n.trim()).filter(Boolean);
+  for (const name of phoneurNames) {
+    insertRep.run(name);
+  }
+  // Mettre à jour le rôle 'phoneur'
+  for (const name of phoneurNames) {
+    updateRole.run('phoneur', name);
+  }
+
+  // Générer et attribuer les PINs uniquement pour ceux qui n'en ont pas
   const allReps = db.prepare('SELECT id, name, pin FROM sales_reps ORDER BY id').all();
   const usedPins = allReps.filter(r => r.pin).map(r => r.pin);
 
@@ -174,15 +186,15 @@ function seed() {
   }
 
   // Refresh list to show current PINs
-  const finalReps = db.prepare('SELECT name, pin FROM sales_reps ORDER BY id').all();
-  console.log(`[SEED] ${finalReps.length} commerciaux — codes: ${finalReps.map(r => r.name + ':' + r.pin).join(', ')}`);
+  const finalReps = db.prepare('SELECT name, pin, role FROM sales_reps ORDER BY id').all();
+  console.log(`[SEED] ${finalReps.length} utilisateurs — codes: ${finalReps.map(r => r.name + ':' + r.pin + ' (' + r.role + ')').join(', ')}`);
 }
 
 /**
  * Ensure weekly_settings rows exist for a given week_start for all reps.
  */
 function ensureWeeklySettings(weekStart) {
-  const reps = db.prepare('SELECT id, start_week FROM sales_reps').all();
+  const reps = db.prepare("SELECT id, start_week FROM sales_reps WHERE role != 'phoneur'").all();
   const insert = db.prepare(`
     INSERT OR IGNORE INTO weekly_settings (sales_rep_id, week_start, hours_worked, target_per_hour)
     VALUES (?, ?, 0, 250)

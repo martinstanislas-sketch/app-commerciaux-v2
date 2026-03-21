@@ -14,6 +14,10 @@ function getMyName() {
   return currentUser ? currentUser.name : null;
 }
 
+function isPhoneLead() {
+  return currentUser && currentUser.role === 'phoneur';
+}
+
 // ─── State ──────────────────────────────────────────────────
 let currentWeekStart = '';
 let salesReps = [];
@@ -37,6 +41,30 @@ const PREDEFINED_COUNTERS = [
   { key: 'contact_entreprise', label: 'Contact entreprise' },
 ];
 const TOTAL_ACTIONS = PREDEFINED_YESNO.length + PREDEFINED_COUNTERS.length;
+
+// ─── Champs Phoning ─────────────────────────────────────────
+const PHONING_COUNTERS = [
+  { key: 'heures_travaillees', label: 'Heures travaillées', unit: 'h' },
+  { key: 'appels_rdv_demain', label: 'Appels RDV du lendemain' },
+  { key: 'appels_on_fire', label: 'Appels On Fire' },
+  { key: 'rdv_on_fire', label: 'RDV fixés (On Fire)' },
+  { key: 'appels_entrants', label: 'Appels entrants / en absence' },
+  { key: 'leads_froids', label: 'Leads froids relancés' },
+  { key: 'rdv_leads_froids', label: 'RDV fixés (Leads froids)' },
+  { key: 'appels_vni', label: 'Appels VNI' },
+  { key: 'appels_clients', label: 'Appels clients' },
+  { key: 'appels_resilies', label: 'Appels résiliés' },
+  { key: 'appels_annules_noshow', label: 'Appels annulés / no show' },
+];
+const PHONING_YESNO = [
+  { key: 'mails_sms_traites', label: 'Mail et SMS traités intégralement' },
+];
+// Champs supplémentaires Pamela uniquement
+const PHONING_PAMELA_YESNO = [
+  { key: 'repartition_taches', label: 'Répartition des tâches quotidienne' },
+  { key: 'checkup', label: 'Check-up complété' },
+  { key: 'analyse_taches_ecoute', label: 'Analyse des données + écoute' },
+];
 
 function getBadge(score) {
   const pct = score / TOTAL_ACTIONS * 100;
@@ -252,25 +280,47 @@ async function bootApp() {
   // Show header widgets for commercials
   initHeaderWidgets();
 
-  loadDashboard();
-  if (!isAdmin()) loadTodayTab();
+  if (isPhoneLead()) {
+    loadPhoningTab();
+  } else {
+    loadDashboard();
+    if (!isAdmin()) loadTodayTab();
+  }
 }
 
 function updateTabVisibility() {
   const todayBtn = document.querySelector('[data-tab="today"]');
   const ventesBtn = document.querySelector('[data-tab="ventes"]');
   const dashBtn = document.querySelector('[data-tab="dashboard"]');
+  const phoningBtn = document.querySelector('[data-tab="phoning"]');
+  const phoningRecapBtn = document.querySelector('[data-tab="phoning-recap"]');
+  const mensuelBtn = document.querySelector('[data-tab="mensuel"]');
 
-  if (isAdmin()) {
+  if (isPhoneLead()) {
+    // Phoneur: Aujourd'hui (fiche) + Récap (KPI)
+    if (todayBtn) todayBtn.style.display = 'none';
+    if (ventesBtn) ventesBtn.style.display = 'none';
+    if (dashBtn) dashBtn.style.display = 'none';
+    if (phoningBtn) phoningBtn.style.display = '';
+    if (phoningRecapBtn) phoningRecapBtn.style.display = '';
+    if (mensuelBtn) mensuelBtn.style.display = 'none';
+    phoningBtn.click();
+  } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
     if (ventesBtn) ventesBtn.style.display = '';
     if (dashBtn) dashBtn.style.display = '';
+    if (phoningBtn) phoningBtn.style.display = 'none';
+    if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
+    if (mensuelBtn) mensuelBtn.style.display = '';
     dashBtn.click();
   } else {
     // Commercial: only Aujourd'hui + Récap Mensuel
     if (todayBtn) todayBtn.style.display = '';
     if (ventesBtn) ventesBtn.style.display = 'none';
     if (dashBtn) dashBtn.style.display = 'none';
+    if (phoningBtn) phoningBtn.style.display = 'none';
+    if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
+    if (mensuelBtn) mensuelBtn.style.display = '';
     todayBtn.click();
   }
 }
@@ -511,6 +561,178 @@ function bindTodayStandaloneEvents(container, repId) {
   });
 }
 
+// ─── Phoning Tab : Fiche du jour (onglet "Aujourd'hui") ──────
+
+async function loadPhoningTab() {
+  const container = document.getElementById('phoning-container');
+  if (!container) return;
+  const repId = getMyRepId();
+  if (!repId) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    const values = await api(`/daily-actions/values/${repId}/${today}`);
+    const valMap = {};
+    values.forEach(v => { valMap[v.action_key] = v.value; });
+
+    const isPamela = (getMyName() || '').toLowerCase() === 'pamela';
+    const allYesNo = [...PHONING_YESNO, ...(isPamela ? PHONING_PAMELA_YESNO : [])];
+
+    let html = `
+    <div class="ph-page">
+      <div class="ph-header">
+        <h2 class="ph-title">📞 Fiche Phoning — ${new Date(today).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
+      </div>
+
+      <!-- Compteurs -->
+      <div class="td-block">
+        <h3 class="td-block-title">Volumes du jour</h3>
+        <div class="td-counters-grid ph-counters-grid">
+          ${PHONING_COUNTERS.map(a => {
+            const val = valMap[`phoning:${a.key}`] || 0;
+            return `<div class="td-counter-card ${val > 0 ? 'td-counter-active' : ''}">
+              <div class="td-counter-label">${a.label}</div>
+              <div class="td-counter-controls">
+                <button class="td-counter-btn ph-counter-btn" data-key="phoning:${a.key}" data-dir="minus">−</button>
+                <input type="number" class="td-counter-val ph-counter-val" value="${val}" min="0" data-key="phoning:${a.key}" ${a.unit === 'h' ? 'step="0.5"' : ''}>
+                <button class="td-counter-btn ph-counter-btn" data-key="phoning:${a.key}" data-dir="plus">+</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Cases oui/non -->
+      <div class="td-block">
+        <h3 class="td-block-title">Validations</h3>
+        <div class="td-checklist">
+          ${allYesNo.map(a => {
+            const checked = valMap[`phoning:${a.key}`] ? 'checked' : '';
+            return `<label class="td-check-row ${checked ? 'td-done' : ''}">
+              <input type="checkbox" class="td-yesno ph-yesno" data-key="phoning:${a.key}" ${checked}>
+              <span class="td-check-box"></span>
+              <span class="td-check-label">${a.label}</span>
+            </label>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+
+    container.innerHTML = html;
+    bindPhoningEvents(container, repId, today);
+  } catch (err) {
+    console.error('Erreur chargement Phoning:', err);
+    container.innerHTML = '<p style="color:red;">Erreur de chargement</p>';
+  }
+}
+
+function bindPhoningEvents(container, repId, today) {
+  // Counter +/- buttons
+  container.querySelectorAll('.ph-counter-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const key = btn.dataset.key;
+      const input = container.querySelector(`.ph-counter-val[data-key="${key}"]`);
+      const step = input.step === '0.5' ? 0.5 : 1;
+      let val = parseFloat(input.value) || 0;
+      val = btn.dataset.dir === 'plus' ? val + step : Math.max(0, val - step);
+      input.value = val;
+      await api(`/daily-actions/values/${repId}/${today}`, {
+        method: 'PUT', body: { action_key: key, value: val }
+      });
+      const card = btn.closest('.td-counter-card');
+      if (card) card.classList.toggle('td-counter-active', val > 0);
+    });
+  });
+
+  // Counter direct input
+  container.querySelectorAll('.ph-counter-val').forEach(input => {
+    input.addEventListener('change', async () => {
+      const val = Math.max(0, parseFloat(input.value) || 0);
+      input.value = val;
+      await api(`/daily-actions/values/${repId}/${today}`, {
+        method: 'PUT', body: { action_key: input.dataset.key, value: val }
+      });
+      const card = input.closest('.td-counter-card');
+      if (card) card.classList.toggle('td-counter-active', val > 0);
+    });
+  });
+
+  // Yes/No checkboxes
+  container.querySelectorAll('.ph-yesno').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      await api(`/daily-actions/values/${repId}/${today}`, {
+        method: 'PUT', body: { action_key: cb.dataset.key, value: cb.checked ? 1 : 0 }
+      });
+      const row = cb.closest('.td-check-row');
+      if (row) row.classList.toggle('td-done', cb.checked);
+    });
+  });
+}
+
+// ─── Phoning Tab : Récap mensuel (onglet "Récap") ───────────
+
+async function loadPhoningRecap() {
+  const container = document.getElementById('phoning-recap-container');
+  if (!container) return;
+  const repId = getMyRepId();
+  if (!repId) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const currentPhoningMonth = today.slice(0, 7);
+  const monthLabel = new Date(today).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  try {
+    const monthly = await api(`/phoning/monthly/${repId}/${currentPhoningMonth}`);
+    const monthTotals = {};
+    if (monthly.totals) {
+      monthly.totals.forEach(r => { monthTotals[r.action_key.replace('phoning:', '')] = r.total; });
+    }
+
+    const html = `
+    <div class="ph-page">
+      <div class="ph-header">
+        <h2 class="ph-title">📊 Récap — ${monthLabel}</h2>
+        <p class="ph-subtitle">${monthly.days_worked || 0} jour(s) travaillé(s)</p>
+      </div>
+      <div class="ph-kpi-grid">
+        ${buildPhoningKPIs(monthTotals)}
+      </div>
+    </div>`;
+
+    container.innerHTML = html;
+  } catch (err) {
+    console.error('Erreur chargement Récap Phoning:', err);
+    container.innerHTML = '<p style="color:red;">Erreur de chargement</p>';
+  }
+}
+
+function buildPhoningKPIs(t) {
+  const totalAppels = (t.appels_rdv_demain || 0) + (t.appels_on_fire || 0) +
+    (t.appels_entrants || 0) + (t.appels_vni || 0) + (t.appels_clients || 0) +
+    (t.appels_resilies || 0) + (t.appels_annules_noshow || 0);
+  const totalRDV = (t.rdv_on_fire || 0) + (t.rdv_leads_froids || 0);
+  const taux = totalAppels > 0 ? Math.round((totalRDV / totalAppels) * 100) : 0;
+
+  const kpis = [
+    { icon: '⏱️', label: 'Heures travaillées', value: `${(t.heures_travaillees || 0).toFixed(1)}h` },
+    { icon: '📞', label: 'Total appels', value: totalAppels },
+    { icon: '📅', label: 'RDV fixés', value: totalRDV },
+    { icon: '🎯', label: 'Taux appels → RDV', value: `${taux}%` },
+    { icon: '❄️', label: 'Leads froids relancés', value: t.leads_froids || 0 },
+    { icon: '🔥', label: 'Appels On Fire', value: t.appels_on_fire || 0 },
+    { icon: '📲', label: 'Appels entrants', value: t.appels_entrants || 0 },
+  ];
+
+  return kpis.map(k => `
+    <div class="ph-kpi-card">
+      <div class="ph-kpi-icon">${k.icon}</div>
+      <div class="ph-kpi-value">${k.value}</div>
+      <div class="ph-kpi-label">${k.label}</div>
+    </div>
+  `).join('');
+}
+
 function applyFeatureStatus() {
   // Email : bouton test + relances
   const btnTestEmail = document.getElementById('btn-test-email');
@@ -572,6 +794,8 @@ function initTabs() {
       if (btn.dataset.tab === 'today') loadTodayTab();
       if (btn.dataset.tab === 'ventes') loadSales();
       if (btn.dataset.tab === 'mensuel') loadMonthlySummary();
+      if (btn.dataset.tab === 'phoning') loadPhoningTab();
+      if (btn.dataset.tab === 'phoning-recap') loadPhoningRecap();
     });
   });
 }
@@ -633,6 +857,7 @@ async function loadDashboard() {
   lockBtn.classList.toggle('locked', isLocked);
 
   renderCards(data.commerciaux);
+  renderRankingList(data.commerciaux);
 
   // Load admin badges panel
   if (isAdmin()) loadAdminBadges();
@@ -717,13 +942,13 @@ async function loadAdminBadges() {
     ];
 
     grid.innerHTML = badges.map(b => {
-      const unassigned = b.name === NA ? ' badge-unassigned' : '';
+      const attribue = b.name !== NA;
       return `
-      <div class="badge-card${unassigned}">
+      <div class="badge-card${attribue ? '' : ' badge-unassigned'}">
         <div class="badge-icon">${b.icon}</div>
         <div class="badge-title">${b.title}</div>
         <div class="badge-desc">${b.desc}</div>
-        <div class="badge-name">${b.name}</div>
+        <div class="badge-name">${attribue ? b.name : 'En attente'}</div>
       </div>`;
     }).join('');
 
@@ -740,16 +965,39 @@ function renderCards(commerciaux) {
     const card = document.createElement('div');
     card.className = 'rep-card';
 
-    const objectifBadge = c.nb_ventes > 0 || c.hours_worked > 0
-      ? `<span class="badge-objectif ${c.objectif_atteint ? 'atteint' : 'non-atteint'}">
-           ${c.objectif_atteint ? 'Objectif atteint' : 'Objectif non atteint'}
-         </span>`
+    // Hero ratio calculations
+    const ratioColor = c.ratio >= c.target_per_hour ? '#3B6D11'
+      : c.ratio >= c.target_per_hour * 0.8 ? '#BA7517' : '#E24B4A';
+    const objPct = c.hours_worked > 0 && c.target_per_hour > 0
+      ? Math.min(Math.round((c.ratio / c.target_per_hour) * 100), 100) : 0;
+    const ecart = c.target_per_hour > 0 && c.hours_worked > 0
+      ? Math.round(c.target_per_hour * c.hours_worked - c.ca) : null;
+    const ecartLabel = ecart !== null && ecart > 0
+      ? `Il manque ${ecart.toLocaleString('fr-FR')} €`
+      : ecart !== null && ecart <= 0
+      ? `Objectif dépassé de ${Math.abs(ecart).toLocaleString('fr-FR')} €`
       : '';
+
+    // Analysis calculations
+    const manque = c.target_per_hour > 0 && c.hours_worked > 0
+      ? Math.round(c.target_per_hour * c.hours_worked - c.ca) : 0;
+    const ventesNecessaires = c.panier_moyen > 0 && manque > 0
+      ? Math.ceil(manque / c.panier_moyen) : 0;
 
     const settingsDisabled = isLocked || !isAdmin();
 
     card.innerHTML = `
-      <h2>${c.rep_name} ${objectifBadge}</h2>
+      <h2>${c.rep_name}</h2>
+      <div class="rep-ratio-hero">
+        <div class="rep-ratio-value" style="color:${ratioColor}">
+          ${c.ratio > 0 ? Math.round(c.ratio) + ' €/h' : '—'}
+        </div>
+        ${ecartLabel ? `<span class="badge-objectif ${ecart > 0 ? 'non-atteint' : 'atteint'}">${ecartLabel}</span>` : ''}
+        <div class="rep-ratio-bar">
+          <div class="rep-ratio-bar-fill" style="width:${objPct}%;background:${ratioColor}"></div>
+        </div>
+        <div class="rep-ratio-legend">${objPct}% de l'objectif (${c.target_per_hour} €/h)</div>
+      </div>
       <div class="settings-row" ${!isAdmin() ? 'style="display:none"' : ''}>
         <div class="field">
           <label>Heures travaillées</label>
@@ -784,15 +1032,23 @@ function renderCards(commerciaux) {
           <div class="kpi-label">Panier Moyen</div>
           <div class="kpi-value">${fmtEuro(c.panier_moyen)}</div>
         </div>
-        <div class="kpi-item ${c.objectif_atteint ? 'success' : (c.hours_worked > 0 ? 'danger' : '')}">
-          <div class="kpi-label">Ratio CA/h</div>
-          <div class="kpi-value">${fmt(c.ratio)} €/h</div>
-        </div>
-        ${c.hours_worked > 0 ? `<div class="kpi-item kpi-objectif ${c.ca >= c.hours_worked * c.target_per_hour ? 'success' : 'danger'}">
-          <div class="kpi-label">CA Objectif</div>
-          <div class="kpi-value">${fmtEuro(c.hours_worked * c.target_per_hour)}</div>
-        </div>` : ''}
       </div>
+      ${c.hours_worked > 0 ? `
+      <div class="analysis-grid">
+        <div class="analysis-ok">
+          <div class="analysis-label">Points forts</div>
+          <div>Volume : ${c.nb_ventes} vente${c.nb_ventes > 1 ? 's' : ''} · Panier moyen ${Math.round(c.panier_moyen).toLocaleString('fr-FR')} €</div>
+        </div>
+        <div class="analysis-ko">
+          <div class="analysis-label">À améliorer</div>
+          <div>Ratio ${Math.round(c.ratio)} €/h vs objectif ${c.target_per_hour} €/h</div>
+          ${manque > 0 ? `<div>Il manque <strong>${manque.toLocaleString('fr-FR')} €</strong></div>` : ''}
+        </div>
+      </div>
+      ${manque > 0 && ventesNecessaires > 0 ? `
+      <div class="analysis-lever">
+        Levier : ${ventesNecessaires} vente${ventesNecessaires > 1 ? 's' : ''} supplémentaire${ventesNecessaires > 1 ? 's' : ''} à ${Math.round(c.panier_moyen).toLocaleString('fr-FR')} € = objectif atteint
+      </div>` : ''}` : ''}
       <button class="btn-add-sale" data-rep-id="${c.sales_rep_id}" ${isLocked ? 'disabled' : ''}>
         + Ajouter une vente
       </button>
@@ -876,24 +1132,86 @@ async function saveSettings(repId, card) {
   }
 }
 
-function renderRankings(data) {
-  renderRankTable('rank-ca', data.classement_ca, v => fmtEuro(v));
-  renderRankTable('rank-ratio', data.classement_ratio, v => `${fmt(v)} €/h`);
-  renderRankTable('rank-panier', data.classement_panier, v => fmtEuro(v));
-}
-
-function renderRankTable(tableId, ranking, formatter) {
-  const tbody = document.querySelector(`#${tableId} tbody`);
-  tbody.innerHTML = '';
-  for (const r of ranking) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><span class="rank-medal r${r.rang}">${r.rang}</span></td>
-      <td>${r.name}</td>
-      <td style="text-align:right;font-weight:600">${formatter(r.value)}</td>
-    `;
-    tbody.appendChild(tr);
+function renderRankingList(commerciaux) {
+  let container = document.getElementById('ranking-list-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'ranking-list-container';
+    const cardsContainer = document.getElementById('cards-container');
+    cardsContainer.parentNode.insertBefore(container, cardsContainer.nextSibling);
   }
+
+  if (!commerciaux || commerciaux.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const avatarColors = [
+    { bg: '#EAF3DE', color: '#3B6D11' },
+    { bg: '#EEEDFE', color: '#3C3489' },
+    { bg: '#FAEEDA', color: '#854F0B' },
+    { bg: '#FCEBEB', color: '#A32D2D' },
+    { bg: '#E0F2FE', color: '#0369A1' },
+  ];
+
+  const sorted = [...commerciaux]
+    .map((r, i) => ({
+      ...r,
+      nom: r.rep_name,
+      heures: r.hours_worked,
+      ventes: r.nb_ventes,
+      objectif: r.target_per_hour,
+      ratio: r.hours_worked > 0 ? r.ca / r.hours_worked : 0,
+      initiales: r.rep_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+      avatarBg: avatarColors[i % avatarColors.length].bg,
+      avatarColor: avatarColors[i % avatarColors.length].color,
+    }))
+    .sort((a, b) => b.ratio - a.ratio);
+
+  const thresholds = { green: 300, orange: 250 };
+  function getStatus(ratio) {
+    if (ratio === 0) return { cls: 'rank-nodata', label: 'Pas de données', color: '#888780' };
+    if (ratio >= thresholds.green) return { cls: 'rank-ok', label: 'Objectif atteint', color: '#3B6D11' };
+    if (ratio >= thresholds.orange) return { cls: 'rank-warn', label: 'Sous objectif', color: '#854F0B' };
+    return { cls: 'rank-ko', label: 'En danger', color: '#A32D2D' };
+  }
+  const maxRatio = sorted[0]?.ratio || 1;
+
+  container.innerHTML = `
+    <h2 style="margin:24px 0 12px">Classement de la semaine</h2>
+    <div class="ranking-list">
+      <div class="ranking-list-legend">
+        <span class="rl-dot rl-green"></span>&ge; 300 €/h
+        <span class="rl-dot rl-orange"></span>250–299 €/h
+        <span class="rl-dot rl-red"></span>&lt; 250 €/h
+      </div>
+      ${sorted.map((r, i) => {
+        const s = getStatus(r.ratio);
+        const pct = r.ratio > 0 ? Math.round((r.ratio / maxRatio) * 100) : 0;
+        return `
+        <div class="rl-row ${s.cls}">
+          <span class="rl-rank">#${i + 1}</span>
+          <div class="rl-avatar" style="background:${r.avatarBg};color:${r.avatarColor}">
+            ${r.initiales}
+          </div>
+          <div class="rl-info">
+            <div class="rl-name-row">
+              <span class="rl-name">${r.nom}</span>
+              <span class="rl-pill rl-pill-${s.cls}">${s.label}</span>
+            </div>
+            <div class="rl-sub">
+              ${r.ca > 0 ? `${r.ca.toLocaleString('fr-FR')} € · ${r.ventes} vente${r.ventes > 1 ? 's' : ''} · Panier ${Math.round(r.ca / (r.ventes || 1)).toLocaleString('fr-FR')} € · ${r.heures}h` : '0 € · 0 vente · 0h'}
+            </div>
+            <div class="rl-bar-wrap">
+              <div class="rl-bar-fill" style="width:${pct}%;background:${s.color}"></div>
+            </div>
+          </div>
+          <div class="rl-ratio" style="color:${s.color}">
+            ${r.ratio > 0 ? Math.round(r.ratio) + ' €/h' : '—'}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
 }
 
 // ─── Chat Messages ──────────────────────────────────────────
@@ -1265,12 +1583,16 @@ async function loadMonthlySummary() {
       <div class="podium-step ${medal}">
         <div class="podium-rank">${rank}</div>
         <div class="podium-name">${r.name}</div>
-        <div class="podium-ratio">${fmt(r.ratio_mensuel)} €/h</div>
+        <div class="podium-ratio">${Math.round(r.ratio_mensuel)} €/h</div>
         <div class="podium-block ${medal}">
+          <div class="podium-ca-label">CA réalisé</div>
           <div class="podium-ca">${fmtEuro(r.ca)}</div>
-          <div class="podium-detail">${r.nb_ventes} ventes</div>
-          <div class="podium-detail">Moy: ${fmtEuro(r.panier_moyen)}</div>
-          <div class="podium-detail">${fmt(r.total_hours)}h</div>
+          <div class="podium-obj-label">Objectif CA</div>
+          <div class="podium-obj">${fmtEuro(r.objectif_ca || 0)}</div>
+          ${r.objectif_ca > 0 ? (() => {
+            const pct = Math.min(Math.round((r.ca / r.objectif_ca) * 100), 100);
+            return `<div class="podium-progress"><div class="podium-progress-bar" style="width:${pct}%"></div></div><div class="podium-progress-text">${pct}%</div>`;
+          })() : ''}
         </div>
       </div>`;
   });
@@ -1284,8 +1606,8 @@ async function loadMonthlySummary() {
         <div class="ranking-rest-row">
           <span class="ranking-rest-rank">${i + 4}e</span>
           <span class="ranking-rest-name">${r.name}</span>
-          <span class="ranking-rest-ratio">${fmt(r.ratio_mensuel)} €/h</span>
-          <span class="ranking-rest-detail">${fmtEuro(r.ca)} · ${r.nb_ventes} ventes · ${fmt(r.total_hours)}h</span>
+          <span class="ranking-rest-ratio">${Math.round(r.ratio_mensuel)} €/h</span>
+          <span class="ranking-rest-detail">${fmtEuro(r.ca)} · Obj: ${fmtEuro(r.objectif_ca || 0)}</span>
         </div>`;
     });
     podiumHTML += '</div>';
@@ -1611,6 +1933,18 @@ function analyzeRepWeekly(data, weeklyBreakdown, counterTotals) {
       travail.push('Transformer davantage les histoires sportives en ventes');
     }
 
+    // 3. Références < nombre de ventes
+    const myRef = repCounters ? repCounters.references : 0;
+    if (r.nb_ventes > 0 && myRef < r.nb_ventes) {
+      travail.push('Augmenter le nombre de prises de références');
+    }
+
+    // 4. Aucun RDV fixé sur le mois
+    const myRDV = repCounters ? repCounters.rdv_fixes : 0;
+    if (r.total_hours > 0 && myRDV === 0) {
+      travail.push('Fixer des rendez-vous chaque semaine');
+    }
+
     // 3. Comparaison avec les confrères
     if (counterTotals) {
       const activeRepIds = data.rep_stats.filter(rr => rr.total_hours > 0).map(rr => rr.sales_rep_id);
@@ -1658,13 +1992,14 @@ async function renderAnalysisSection(data) {
   try { monthlyCounters = await api(`/daily-actions/monthly/${currentMonth}`); } catch (e) { /* ignore */ }
   const counterTotals = {};
   data.rep_stats.forEach(r => {
-    counterTotals[r.sales_rep_id] = { references: 0, entretien_premier_mois: 0, histoire_sportive: 0 };
+    counterTotals[r.sales_rep_id] = { references: 0, entretien_premier_mois: 0, histoire_sportive: 0, rdv_fixes: 0 };
   });
   monthlyCounters.forEach(row => {
     if (!counterTotals[row.sales_rep_id]) return;
     if (row.action_key === 'predefined:references') counterTotals[row.sales_rep_id].references = row.total;
     if (row.action_key === 'predefined:entretien_premier_mois') counterTotals[row.sales_rep_id].entretien_premier_mois = row.total;
     if (row.action_key === 'predefined:histoire_sportive') counterTotals[row.sales_rep_id].histoire_sportive = row.total;
+    if (row.action_key === 'predefined:rdv_fixes') counterTotals[row.sales_rep_id].rdv_fixes = row.total;
   });
 
   const analyses = analyzeRepWeekly(data, breakdown, counterTotals);

@@ -34,6 +34,8 @@
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="ventes">Ventes</button>
       <button class="tab-btn" data-tab="mensuel">Mensuel</button>
+      <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
+      <button class="tab-btn" data-tab="phoning-recap">Récap</button>
     </nav>
     <div id="user-info" class="user-info hidden">
       <span id="user-name"></span>
@@ -45,6 +47,16 @@
     <!-- AUJOURD'HUI -->
     <section id="tab-today" class="tab-content">
       <div id="today-standalone"></div>
+    </section>
+
+    <!-- PHONING : Fiche du jour -->
+    <section id="tab-phoning" class="tab-content">
+      <div id="phoning-container"></div>
+    </section>
+
+    <!-- PHONING : Récap mensuel -->
+    <section id="tab-phoning-recap" class="tab-content">
+      <div id="phoning-recap-container"></div>
     </section>
 
     <!-- DASHBOARD -->
