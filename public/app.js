@@ -264,15 +264,12 @@ async function bootApp() {
     initMensuelTab();
     initModal();
     initAdminPanel();
-    initAdminBadgesNav();
     _appBooted = true;
   }
 
   // Show/hide admin panels
   const adminPanel = document.getElementById('admin-reps-panel');
   if (adminPanel) adminPanel.classList.toggle('hidden', !isAdmin());
-  const badgesPanel = document.getElementById('admin-badges-panel');
-  if (badgesPanel) badgesPanel.classList.toggle('hidden', !isAdmin());
 
   // Show/hide tabs based on role
   updateTabVisibility();
@@ -295,6 +292,7 @@ function updateTabVisibility() {
   const phoningBtn = document.querySelector('[data-tab="phoning"]');
   const phoningRecapBtn = document.querySelector('[data-tab="phoning-recap"]');
   const mensuelBtn = document.querySelector('[data-tab="mensuel"]');
+  const notesBtn = document.querySelector('[data-tab="notes"]');
 
   if (isPhoneLead()) {
     // Phoneur: Aujourd'hui (fiche) + Récap (KPI)
@@ -304,6 +302,7 @@ function updateTabVisibility() {
     if (phoningBtn) phoningBtn.style.display = '';
     if (phoningRecapBtn) phoningRecapBtn.style.display = '';
     if (mensuelBtn) mensuelBtn.style.display = 'none';
+    if (notesBtn) notesBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -312,6 +311,7 @@ function updateTabVisibility() {
     if (phoningBtn) phoningBtn.style.display = 'none';
     if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
     if (mensuelBtn) mensuelBtn.style.display = '';
+    if (notesBtn) notesBtn.style.display = '';
     dashBtn.click();
   } else {
     // Commercial: only Aujourd'hui + Récap Mensuel
@@ -321,6 +321,7 @@ function updateTabVisibility() {
     if (phoningBtn) phoningBtn.style.display = 'none';
     if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
     if (mensuelBtn) mensuelBtn.style.display = '';
+    if (notesBtn) notesBtn.style.display = 'none';
     todayBtn.click();
   }
 }
@@ -561,6 +562,131 @@ function bindTodayStandaloneEvents(container, repId) {
   });
 }
 
+// ─── Admin Notes (Remarques) ─────────────────────────────────
+
+async function loadNotes() {
+  const list = document.getElementById('notes-list');
+  if (!list) return;
+
+  const addBtn = document.getElementById('btn-add-note');
+  if (addBtn && !addBtn._bound) {
+    addBtn._bound = true;
+    addBtn.addEventListener('click', () => openNoteEditor(null));
+  }
+
+  try {
+    const notes = await api('/notes');
+    if (notes.length === 0) {
+      list.innerHTML = '<p class="notes-empty">Aucune remarque pour le moment.</p>';
+      return;
+    }
+    list.innerHTML = notes.map(n => {
+      const date = new Date(n.updated_at);
+      const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' à ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const preview = n.content.length > 120 ? n.content.slice(0, 120) + '…' : n.content;
+      return `
+      <div class="note-card" data-note-id="${n.id}">
+        <div class="note-preview">${preview.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, ' ')}</div>
+        <div class="note-meta">
+          <span class="note-date">${dateStr}</span>
+          <div class="note-actions">
+            <button class="note-btn note-btn-copy" data-id="${n.id}" title="Copier">Copier</button>
+            <button class="note-btn note-btn-edit" data-id="${n.id}" title="Modifier">Modifier</button>
+            <button class="note-btn note-btn-delete" data-id="${n.id}" title="Supprimer">Supprimer</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Bind events
+    list.querySelectorAll('.note-btn-copy').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const note = notes.find(n => n.id === parseInt(btn.dataset.id));
+        if (note) {
+          try {
+            await navigator.clipboard.writeText(note.content);
+            btn.textContent = 'Copié !';
+            setTimeout(() => btn.textContent = 'Copier', 1500);
+          } catch { alert('Copie impossible'); }
+        }
+      });
+    });
+    list.querySelectorAll('.note-btn-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const note = notes.find(n => n.id === parseInt(btn.dataset.id));
+        if (note) openNoteEditor(note);
+      });
+    });
+    list.querySelectorAll('.note-btn-delete').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Supprimer cette remarque ?')) return;
+        try {
+          await api(`/notes/${btn.dataset.id}`, { method: 'DELETE' });
+          loadNotes();
+        } catch (e) { alert(e.message); }
+      });
+    });
+    // Click on card to expand/collapse
+    list.querySelectorAll('.note-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.note-btn')) return;
+        card.classList.toggle('expanded');
+        const preview = card.querySelector('.note-preview');
+        const note = notes.find(n => n.id === parseInt(card.dataset.noteId));
+        if (!note) return;
+        if (card.classList.contains('expanded')) {
+          preview.innerHTML = note.content.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+        } else {
+          const short = note.content.length > 120 ? note.content.slice(0, 120) + '…' : note.content;
+          preview.innerHTML = short.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, ' ');
+        }
+      });
+    });
+  } catch (e) {
+    list.innerHTML = '<p class="notes-empty">Erreur de chargement</p>';
+  }
+}
+
+function openNoteEditor(existingNote) {
+  // Remove any existing editor
+  const old = document.getElementById('note-editor-overlay');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'note-editor-overlay';
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal note-modal">
+      <h2>${existingNote ? 'Modifier la remarque' : 'Nouvelle remarque'}</h2>
+      <textarea id="note-editor-content" rows="8" placeholder="Écrire votre remarque...">${existingNote ? existingNote.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') : ''}</textarea>
+      <div class="form-actions">
+        <button id="note-editor-save" class="btn-primary">Enregistrer</button>
+        <button id="note-editor-cancel" class="btn-secondary">Annuler</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const textarea = document.getElementById('note-editor-content');
+  textarea.focus();
+
+  document.getElementById('note-editor-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  document.getElementById('note-editor-save').addEventListener('click', async () => {
+    const content = textarea.value.trim();
+    if (!content) return;
+    try {
+      if (existingNote) {
+        await api(`/notes/${existingNote.id}`, { method: 'PUT', body: { content } });
+      } else {
+        await api('/notes', { method: 'POST', body: { content } });
+      }
+      overlay.remove();
+      loadNotes();
+    } catch (e) { alert(e.message); }
+  });
+}
+
 // ─── Phoning Tab : Fiche du jour (onglet "Aujourd'hui") ──────
 
 async function loadPhoningTab() {
@@ -794,6 +920,7 @@ function initTabs() {
       if (btn.dataset.tab === 'today') loadTodayTab();
       if (btn.dataset.tab === 'ventes') loadSales();
       if (btn.dataset.tab === 'mensuel') loadMonthlySummary();
+      if (btn.dataset.tab === 'notes') loadNotes();
       if (btn.dataset.tab === 'phoning') loadPhoningTab();
       if (btn.dataset.tab === 'phoning-recap') loadPhoningRecap();
     });
@@ -857,104 +984,7 @@ async function loadDashboard() {
   lockBtn.classList.toggle('locked', isLocked);
 
   renderCards(data.commerciaux);
-  renderRankingList(data.commerciaux);
 
-  // Load admin badges panel
-  if (isAdmin()) loadAdminBadges();
-}
-
-// ─── Admin Badges ────────────────────────────────────────────
-
-let badgesMonth = new Date().toISOString().slice(0, 7); // e.g. "2026-03"
-
-function initAdminBadgesNav() {
-  const prevBtn = document.getElementById('badges-prev-month');
-  const nextBtn = document.getElementById('badges-next-month');
-  if (!prevBtn || !nextBtn) return;
-
-  prevBtn.addEventListener('click', () => {
-    const [y, m] = badgesMonth.split('-').map(Number);
-    const d = new Date(y, m - 2, 1);
-    badgesMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    loadAdminBadges();
-  });
-
-  nextBtn.addEventListener('click', () => {
-    const [y, m] = badgesMonth.split('-').map(Number);
-    const d = new Date(y, m, 1);
-    badgesMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    loadAdminBadges();
-  });
-}
-
-async function loadAdminBadges() {
-  const grid = document.getElementById('admin-badges-grid');
-  const label = document.getElementById('badges-month-label');
-  if (!grid || !label) return;
-
-  label.textContent = formatMonthLabel(badgesMonth);
-
-  try {
-    const data = await api(`/months/${badgesMonth}/summary`);
-    const activeReps = data.rep_stats.filter(r => r.total_hours > 0);
-
-    if (activeReps.length === 0) {
-      grid.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px 0;">Pas de données pour ce mois</p>';
-      return;
-    }
-
-    // Fetch monthly daily-action counters + discipline data
-    let monthlyCounters = [];
-    let disciplineData = [];
-    try { monthlyCounters = await api(`/daily-actions/monthly/${badgesMonth}`); } catch (e) { /* ignore */ }
-    try { disciplineData = await api(`/daily-actions/discipline/${badgesMonth}`); } catch (e) { /* ignore */ }
-
-    // Build per-rep counter totals
-    const counterTotals = {};
-    activeReps.forEach(r => { counterTotals[r.sales_rep_id] = { name: r.name, rdv_fixes: 0, references: 0, entretien_premier_mois: 0, contact_entreprise: 0, discipline: 0 }; });
-    monthlyCounters.forEach(row => {
-      if (!counterTotals[row.sales_rep_id]) return;
-      if (row.action_key === 'predefined:rdv_fixes') counterTotals[row.sales_rep_id].rdv_fixes = row.total;
-      if (row.action_key === 'predefined:references') counterTotals[row.sales_rep_id].references = row.total;
-      if (row.action_key === 'predefined:entretien_premier_mois') counterTotals[row.sales_rep_id].entretien_premier_mois = row.total;
-      if (row.action_key === 'predefined:contact_entreprise') counterTotals[row.sales_rep_id].contact_entreprise = row.total;
-    });
-    disciplineData.forEach(row => {
-      if (counterTotals[row.sales_rep_id]) counterTotals[row.sales_rep_id].discipline = row.total_actions;
-    });
-    const counterList = Object.values(counterTotals);
-
-    const bestPanier = [...activeReps].sort((a, b) => b.panier_moyen - a.panier_moyen)[0];
-    const bestRDV = [...counterList].sort((a, b) => b.rdv_fixes - a.rdv_fixes)[0];
-    const bestRef = [...counterList].sort((a, b) => b.references - a.references)[0];
-    const bestAccueil = [...counterList].sort((a, b) => b.entretien_premier_mois - a.entretien_premier_mois)[0];
-    const bestBusiness = [...counterList].sort((a, b) => b.contact_entreprise - a.contact_entreprise)[0];
-    const bestDiscipline = [...counterList].sort((a, b) => b.discipline - a.discipline)[0];
-
-    const NA = 'A SAISIR';
-    const badges = [
-      { icon: '💎', title: 'Premium', desc: 'Meilleur panier moyen', name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA },
-      { icon: '📞', title: 'RDV', desc: 'Le plus de rendez-vous fixés', name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA },
-      { icon: '🤝', title: 'Ambassadeur', desc: 'Le plus de références', name: bestRef.references > 0 ? bestRef.name : NA },
-      { icon: '👋', title: 'Accueil', desc: "Le plus d'appels nouveaux clients", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA },
-      { icon: '💼', title: 'Business', desc: 'Le plus de contacts entreprises', name: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : NA },
-      { icon: '🏆', title: 'Discipline', desc: "Le plus d'actions validées", name: bestDiscipline.discipline > 0 ? bestDiscipline.name : NA },
-    ];
-
-    grid.innerHTML = badges.map(b => {
-      const attribue = b.name !== NA;
-      return `
-      <div class="badge-card${attribue ? '' : ' badge-unassigned'}">
-        <div class="badge-icon">${b.icon}</div>
-        <div class="badge-title">${b.title}</div>
-        <div class="badge-desc">${b.desc}</div>
-        <div class="badge-name">${attribue ? b.name : 'En attente'}</div>
-      </div>`;
-    }).join('');
-
-  } catch (err) {
-    grid.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px 0;">Erreur de chargement</p>';
-  }
 }
 
 function renderCards(commerciaux) {
@@ -967,20 +997,17 @@ function renderCards(commerciaux) {
 
     // Hero ratio calculations
     const ratioColor = c.ratio >= c.target_per_hour ? '#3B6D11'
-      : c.ratio >= c.target_per_hour * 0.8 ? '#BA7517' : '#E24B4A';
+      : c.ratio >= c.target_per_hour * 0.8 ? '#BA7517' : '#A32D2D';
+    const heroBg = c.ratio >= c.target_per_hour ? '#EAF3DE'
+      : c.ratio >= c.target_per_hour * 0.8 ? '#FAEEDA' : '#FCEBEB';
+    const heroBorder = c.ratio >= c.target_per_hour ? '#c6e0a8'
+      : c.ratio >= c.target_per_hour * 0.8 ? '#ecd5a8' : '#f0c4c4';
     const objPct = c.hours_worked > 0 && c.target_per_hour > 0
       ? Math.min(Math.round((c.ratio / c.target_per_hour) * 100), 100) : 0;
-    const ecart = c.target_per_hour > 0 && c.hours_worked > 0
-      ? Math.round(c.target_per_hour * c.hours_worked - c.ca) : null;
-    const ecartLabel = ecart !== null && ecart > 0
-      ? `Il manque ${ecart.toLocaleString('fr-FR')} €`
-      : ecart !== null && ecart <= 0
-      ? `Objectif dépassé de ${Math.abs(ecart).toLocaleString('fr-FR')} €`
-      : '';
-
-    // Analysis calculations
     const manque = c.target_per_hour > 0 && c.hours_worked > 0
       ? Math.round(c.target_per_hour * c.hours_worked - c.ca) : 0;
+    const surplus = c.target_per_hour > 0 && c.hours_worked > 0
+      ? Math.round(c.ca - c.target_per_hour * c.hours_worked) : 0;
     const ventesNecessaires = c.panier_moyen > 0 && manque > 0
       ? Math.ceil(manque / c.panier_moyen) : 0;
 
@@ -988,15 +1015,16 @@ function renderCards(commerciaux) {
 
     card.innerHTML = `
       <h2>${c.rep_name}</h2>
-      <div class="rep-ratio-hero">
-        <div class="rep-ratio-value" style="color:${ratioColor}">
+      <div class="rep-ratio-hero" style="background:${c.hours_worked > 0 ? heroBg : 'var(--bg-subtle)'};border-color:${c.hours_worked > 0 ? heroBorder : 'var(--border-light)'}">
+        <div class="rep-ratio-value" style="color:${c.hours_worked > 0 ? ratioColor : 'var(--text-muted)'}">
           ${c.ratio > 0 ? Math.round(c.ratio) + ' €/h' : '—'}
         </div>
-        ${ecartLabel ? `<span class="badge-objectif ${ecart > 0 ? 'non-atteint' : 'atteint'}">${ecartLabel}</span>` : ''}
+        <div class="rep-ratio-sub">Ratio · Objectif : ${c.target_per_hour} €/h</div>
         <div class="rep-ratio-bar">
           <div class="rep-ratio-bar-fill" style="width:${objPct}%;background:${ratioColor}"></div>
         </div>
-        <div class="rep-ratio-legend">${objPct}% de l'objectif (${c.target_per_hour} €/h)</div>
+        ${manque > 0 && c.hours_worked > 0 ? `<div class="rep-ratio-ecart" style="color:#A32D2D">Il manque ${manque.toLocaleString('fr-FR')} € pour atteindre l'objectif</div>` : ''}
+        ${surplus > 0 && c.hours_worked > 0 ? `<div class="rep-ratio-ecart" style="color:#3B6D11">Objectif dépassé de +${surplus.toLocaleString('fr-FR')} €</div>` : ''}
       </div>
       <div class="settings-row" ${!isAdmin() ? 'style="display:none"' : ''}>
         <div class="field">
@@ -1043,6 +1071,7 @@ function renderCards(commerciaux) {
           <div class="analysis-label">À améliorer</div>
           <div>Ratio ${Math.round(c.ratio)} €/h vs objectif ${c.target_per_hour} €/h</div>
           ${manque > 0 ? `<div>Il manque <strong>${manque.toLocaleString('fr-FR')} €</strong></div>` : ''}
+          ${c.rib_manquants > 0 ? `<div>RIB à récupérer : ${c.rib_manquants} dossier${c.rib_manquants > 1 ? 's' : ''} en attente</div>` : ''}
         </div>
       </div>
       ${manque > 0 && ventesNecessaires > 0 ? `
@@ -1130,88 +1159,6 @@ async function saveSettings(repId, card) {
   } catch (e) {
     alert(e.message);
   }
-}
-
-function renderRankingList(commerciaux) {
-  let container = document.getElementById('ranking-list-container');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'ranking-list-container';
-    const cardsContainer = document.getElementById('cards-container');
-    cardsContainer.parentNode.insertBefore(container, cardsContainer.nextSibling);
-  }
-
-  if (!commerciaux || commerciaux.length === 0) {
-    container.innerHTML = '';
-    return;
-  }
-
-  const avatarColors = [
-    { bg: '#EAF3DE', color: '#3B6D11' },
-    { bg: '#EEEDFE', color: '#3C3489' },
-    { bg: '#FAEEDA', color: '#854F0B' },
-    { bg: '#FCEBEB', color: '#A32D2D' },
-    { bg: '#E0F2FE', color: '#0369A1' },
-  ];
-
-  const sorted = [...commerciaux]
-    .map((r, i) => ({
-      ...r,
-      nom: r.rep_name,
-      heures: r.hours_worked,
-      ventes: r.nb_ventes,
-      objectif: r.target_per_hour,
-      ratio: r.hours_worked > 0 ? r.ca / r.hours_worked : 0,
-      initiales: r.rep_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
-      avatarBg: avatarColors[i % avatarColors.length].bg,
-      avatarColor: avatarColors[i % avatarColors.length].color,
-    }))
-    .sort((a, b) => b.ratio - a.ratio);
-
-  const thresholds = { green: 300, orange: 250 };
-  function getStatus(ratio) {
-    if (ratio === 0) return { cls: 'rank-nodata', label: 'Pas de données', color: '#888780' };
-    if (ratio >= thresholds.green) return { cls: 'rank-ok', label: 'Objectif atteint', color: '#3B6D11' };
-    if (ratio >= thresholds.orange) return { cls: 'rank-warn', label: 'Sous objectif', color: '#854F0B' };
-    return { cls: 'rank-ko', label: 'En danger', color: '#A32D2D' };
-  }
-  const maxRatio = sorted[0]?.ratio || 1;
-
-  container.innerHTML = `
-    <h2 style="margin:24px 0 12px">Classement de la semaine</h2>
-    <div class="ranking-list">
-      <div class="ranking-list-legend">
-        <span class="rl-dot rl-green"></span>&ge; 300 €/h
-        <span class="rl-dot rl-orange"></span>250–299 €/h
-        <span class="rl-dot rl-red"></span>&lt; 250 €/h
-      </div>
-      ${sorted.map((r, i) => {
-        const s = getStatus(r.ratio);
-        const pct = r.ratio > 0 ? Math.round((r.ratio / maxRatio) * 100) : 0;
-        return `
-        <div class="rl-row ${s.cls}">
-          <span class="rl-rank">#${i + 1}</span>
-          <div class="rl-avatar" style="background:${r.avatarBg};color:${r.avatarColor}">
-            ${r.initiales}
-          </div>
-          <div class="rl-info">
-            <div class="rl-name-row">
-              <span class="rl-name">${r.nom}</span>
-              <span class="rl-pill rl-pill-${s.cls}">${s.label}</span>
-            </div>
-            <div class="rl-sub">
-              ${r.ca > 0 ? `${r.ca.toLocaleString('fr-FR')} € · ${r.ventes} vente${r.ventes > 1 ? 's' : ''} · Panier ${Math.round(r.ca / (r.ventes || 1)).toLocaleString('fr-FR')} € · ${r.heures}h` : '0 € · 0 vente · 0h'}
-            </div>
-            <div class="rl-bar-wrap">
-              <div class="rl-bar-fill" style="width:${pct}%;background:${s.color}"></div>
-            </div>
-          </div>
-          <div class="rl-ratio" style="color:${s.color}">
-            ${r.ratio > 0 ? Math.round(r.ratio) + ' €/h' : '—'}
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
 }
 
 // ─── Chat Messages ──────────────────────────────────────────
@@ -1561,57 +1508,69 @@ async function loadMonthlySummary() {
   const data = await api(`/months/${currentMonth}/summary`);
   lastMonthlyData = data;
 
-  // ── Podium par ratio mensuel (uniquement ceux ayant travaillé) ──
+  // ── Classement par ratio mensuel (ranking list) ──
   const activeReps = data.rep_stats.filter(r => r.total_hours > 0);
-  const sorted = [...activeReps].sort((a, b) => b.ratio_mensuel - a.ratio_mensuel);
-  const top3 = sorted.slice(0, 3);
-  const podiumOrder = top3.length >= 3
-    ? [top3[1], top3[0], top3[2]]
-    : [...top3];
-  const medals = { 0: 'gold', 1: 'silver', 2: 'bronze' };
-  const rankLabels = { 0: '1er', 1: '2e', 2: '3e' };
+  const allReps = data.rep_stats;
+  const sorted = [...allReps].sort((a, b) => {
+    if (a.total_hours === 0 && b.total_hours === 0) return 0;
+    if (a.total_hours === 0) return 1;
+    if (b.total_hours === 0) return -1;
+    return b.ratio_mensuel - a.ratio_mensuel;
+  });
+
+  const avatarColors = [
+    { bg: '#EAF3DE', color: '#3B6D11' },
+    { bg: '#EEEDFE', color: '#3C3489' },
+    { bg: '#FAEEDA', color: '#854F0B' },
+    { bg: '#FCEBEB', color: '#A32D2D' },
+    { bg: '#E0F2FE', color: '#0369A1' },
+  ];
+
+  function rlStatus(ratio, hours) {
+    if (hours === 0 || ratio === 0) return { cls: 'rl-nd', pill: 'nd', label: 'Pas de données', color: '#888780' };
+    if (ratio >= 300) return { cls: 'rl-ok', pill: 'ok', label: 'Objectif atteint', color: '#3B6D11' };
+    if (ratio >= 250) return { cls: 'rl-warn', pill: 'warn', label: 'Sous objectif', color: '#BA7517' };
+    return { cls: 'rl-ko', pill: 'ko', label: 'En danger', color: '#A32D2D' };
+  }
+
+  const maxRatio = sorted.length > 0 ? Math.max(...sorted.map(r => r.ratio_mensuel || 0), 1) : 1;
 
   const repsDiv = document.getElementById('monthly-reps');
-  let podiumHTML = '<h3>Classement Ratio</h3><div class="podium">';
-
-  podiumOrder.forEach((r) => {
-    const originalIdx = top3.indexOf(r);
-    const medal = medals[originalIdx] || '';
-    const rank = rankLabels[originalIdx] || '';
-
-    podiumHTML += `
-      <div class="podium-step ${medal}">
-        <div class="podium-rank">${rank}</div>
-        <div class="podium-name">${r.name}</div>
-        <div class="podium-ratio">${Math.round(r.ratio_mensuel)} €/h</div>
-        <div class="podium-block ${medal}">
-          <div class="podium-ca-label">CA réalisé</div>
-          <div class="podium-ca">${fmtEuro(r.ca)}</div>
-          <div class="podium-obj-label">Objectif CA</div>
-          <div class="podium-obj">${fmtEuro(r.objectif_ca || 0)}</div>
-          ${r.objectif_ca > 0 ? (() => {
-            const pct = Math.min(Math.round((r.ca / r.objectif_ca) * 100), 100);
-            return `<div class="podium-progress"><div class="podium-progress-bar" style="width:${pct}%"></div></div><div class="podium-progress-text">${pct}%</div>`;
-          })() : ''}
-        </div>
-      </div>`;
-  });
-  podiumHTML += '</div>';
-
-  // ── Classement complet (4e et au-delà) ──
-  if (sorted.length > 3) {
-    podiumHTML += '<div class="ranking-rest">';
-    sorted.slice(3).forEach((r, i) => {
-      podiumHTML += `
-        <div class="ranking-rest-row">
-          <span class="ranking-rest-rank">${i + 4}e</span>
-          <span class="ranking-rest-name">${r.name}</span>
-          <span class="ranking-rest-ratio">${Math.round(r.ratio_mensuel)} €/h</span>
-          <span class="ranking-rest-detail">${fmtEuro(r.ca)} · Obj: ${fmtEuro(r.objectif_ca || 0)}</span>
+  let rankHTML = `
+    <h3>Classement Ratio</h3>
+    <div class="ranking-list">
+      <div class="ranking-list-legend">
+        <span class="rl-dot" style="background:#3B6D11"></span>&ge; 300 €/h
+        <span class="rl-dot" style="background:#BA7517"></span>250–299 €/h
+        <span class="rl-dot" style="background:#E24B4A"></span>&lt; 250 €/h
+      </div>
+      ${sorted.map((r, i) => {
+        const s = rlStatus(r.ratio_mensuel, r.total_hours);
+        const initiales = r.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+        const ac = avatarColors[i % avatarColors.length];
+        const pct = r.ratio_mensuel > 0 ? Math.round((r.ratio_mensuel / maxRatio) * 100) : 0;
+        return `
+        <div class="rl-row ${s.cls}">
+          <span class="rl-pos">#${i + 1}</span>
+          <div class="rl-avatar" style="background:${ac.bg};color:${ac.color}">${initiales}</div>
+          <div class="rl-info">
+            <div class="rl-name-row">
+              <span class="rl-name">${r.name}</span>
+              <span class="rl-pill rl-pill-${s.pill}">${s.label}</span>
+            </div>
+            <div class="rl-sub">
+              ${r.total_hours > 0 ? `${r.ca.toLocaleString('fr-FR')} € · ${r.nb_ventes} vente${r.nb_ventes > 1 ? 's' : ''} · Panier ${Math.round(r.panier_moyen).toLocaleString('fr-FR')} € · ${r.total_hours}h` : '0 € · 0 vente · 0h'}
+            </div>
+            <div class="rl-bar-wrap">
+              <div class="rl-bar-fill" style="width:${pct}%;background:${s.color}"></div>
+            </div>
+          </div>
+          <div class="rl-ratio" style="color:${s.color}">
+            ${r.total_hours > 0 ? Math.round(r.ratio_mensuel) + ' €/h' : '—'}
+          </div>
         </div>`;
-    });
-    podiumHTML += '</div>';
-  }
+      }).join('')}
+    </div>`;
 
   // ── 6 Badges de performance ──
   if (activeReps.length > 0) {
@@ -1653,21 +1612,21 @@ async function loadMonthlySummary() {
       { icon: '🏆', title: 'Discipline', desc: "Le plus d'actions validées", name: bestDiscipline.discipline > 0 ? bestDiscipline.name : NA },
     ];
 
-    podiumHTML += '<div class="badges-grid">';
+    rankHTML += '<div class="badges-grid">';
     badges.forEach(b => {
-      const unassigned = b.name === NA ? ' badge-unassigned' : '';
-      podiumHTML += `
-        <div class="badge-card${unassigned}">
+      const attribue = b.name !== NA;
+      rankHTML += `
+        <div class="badge-card${attribue ? '' : ' badge-unassigned'}">
           <div class="badge-icon">${b.icon}</div>
           <div class="badge-title">${b.title}</div>
           <div class="badge-desc">${b.desc}</div>
-          <div class="badge-name">${b.name}</div>
+          <div class="badge-name">${attribue ? b.name : b.desc}</div>
         </div>`;
     });
-    podiumHTML += '</div>';
+    rankHTML += '</div>';
   }
 
-  repsDiv.innerHTML = podiumHTML;
+  repsDiv.innerHTML = rankHTML;
 
   // Filtres retirés
 
@@ -1987,7 +1946,7 @@ async function renderAnalysisSection(data) {
   const div = document.getElementById('monthly-analysis');
   const breakdown = await api(`/months/${currentMonth}/weekly-breakdown`);
 
-  // Fetch monthly counters for axes d'amélioration (histoires sportives, références, entretiens)
+  // Fetch monthly counters for axes d'amélioration
   let monthlyCounters = [];
   try { monthlyCounters = await api(`/daily-actions/monthly/${currentMonth}`); } catch (e) { /* ignore */ }
   const counterTotals = {};
@@ -2013,148 +1972,70 @@ async function renderAnalysisSection(data) {
     visibleAnalyses = visibleAnalyses.filter(a => a.name === myName);
   }
 
+  // Get rep_stats indexed by name for ratio/manque calculations
+  const repByName = {};
+  data.rep_stats.forEach(r => { repByName[r.name] = r; });
+
   const title = admin ? 'Analyse Individuelle' : 'Mon Analyse';
   const gridClass = (!admin && visibleAnalyses.length === 1) ? 'analysis-grid analysis-grid-solo' : 'analysis-grid';
   let html = `<div class="analysis-section"><h3>${title}</h3><div class="${gridClass}">`;
-  visibleAnalyses.forEach((a) => {
-    const repIdx = a.originalIdx;
-    const editBtn = admin
-      ? `<button class="edit-toggle" onclick="toggleEditMode(${repIdx})">✏️ Éditer</button>`
-      : '';
-    const addPointBtn = admin
-      ? `<button class="add-item-btn good" onclick="addItem(${repIdx}, 'point')">+ Ajouter un point</button>`
-      : '';
-    const addAxeBtn = admin
-      ? `<button class="add-item-btn work" onclick="addItem(${repIdx}, 'travail')">+ Ajouter un axe</button>`
-      : '';
-    const checkboxAttr = admin ? 'checked' : 'checked disabled';
 
-    html += `<div class="analysis-card" data-rep="${repIdx}">
+  visibleAnalyses.forEach((a) => {
+    const rep = repByName[a.name] || {};
+    const ratio = rep.ratio_mensuel || 0;
+    const heures = rep.total_hours || 0;
+    const ca = rep.ca || 0;
+    const objectifCA = rep.objectif_ca || 0;
+    const objectif = heures > 0 && objectifCA > 0 ? Math.round(objectifCA / heures) : 250;
+    const panierMoyen = rep.panier_moyen || 0;
+    const manque = objectifCA > 0 && heures > 0 ? Math.round(objectifCA - ca) : 0;
+    const ventesNecessaires = panierMoyen > 0 && manque > 0 ? Math.ceil(manque / panierMoyen) : 0;
+
+    // Bloc 1 — Points forts
+    let pointsHTML = '';
+    if (a.points.length > 0) {
+      pointsHTML = `<div class="analysis-blk analysis-blk-ok">
+        <div class="analysis-blk-label">Points forts</div>
+        ${a.points.map(p => `<div>• ${p}</div>`).join('')}
+      </div>`;
+    }
+
+    // Bloc 2 — À améliorer
+    let travailItems = a.travail.map(t => `<div>• ${t}</div>`).join('');
+    if (manque > 0 && heures > 0) {
+      travailItems += `<div>• Ratio ${Math.round(ratio)} €/h vs objectif ${objectif} €/h — il manque ${manque.toLocaleString('fr-FR')} € ce mois</div>`;
+    }
+    let travailHTML = '';
+    if (travailItems) {
+      travailHTML = `<div class="analysis-blk analysis-blk-ko">
+        <div class="analysis-blk-label">À améliorer</div>
+        ${travailItems}
+      </div>`;
+    }
+
+    // Bloc 3 — Levier actionnable
+    let leverHTML = '';
+    if (manque > 0 && ventesNecessaires > 0) {
+      leverHTML = `<div class="analysis-blk analysis-blk-lever">
+        <div class="analysis-blk-label">Levier actionnable</div>
+        <div>${ventesNecessaires} vente${ventesNecessaires > 1 ? 's' : ''} supplémentaire${ventesNecessaires > 1 ? 's' : ''} à ${Math.round(panierMoyen).toLocaleString('fr-FR')} € = objectif atteint</div>
+      </div>`;
+    }
+
+    html += `<div class="analysis-card" data-rep="${a.originalIdx}">
       <div class="analysis-card-header">
         <span>${a.name}</span>
-        ${editBtn}
       </div>
       <div class="analysis-card-body">
-        <div class="analysis-label good">Points de satisfaction</div>
-        <div class="analysis-items points-${repIdx}">
-          ${a.points.map((p, i) => `<label class="analysis-item" data-rep="${repIdx}" data-type="point" data-idx="${i}">
-            <input type="checkbox" ${checkboxAttr}>
-            <span class="dot good"></span>
-            <span>${p}</span>
-          </label>`).join('')}
-        </div>
-        ${addPointBtn}
-
-        <div class="analysis-label work">Axes d'amélioration</div>
-        <div class="analysis-items travail-${repIdx}">
-          ${a.travail.map((t, i) => `<label class="analysis-item" data-rep="${repIdx}" data-type="travail" data-idx="${i}">
-            <input type="checkbox" ${checkboxAttr}>
-            <span class="dot work"></span>
-            <span>${t}</span>
-          </label>`).join('')}
-        </div>
-        ${addAxeBtn}
+        ${pointsHTML}
+        ${travailHTML}
+        ${leverHTML}
+        ${!pointsHTML && !travailHTML && !leverHTML ? '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">Pas assez de données pour l\'analyse</div>' : ''}
       </div>
     </div>`;
   });
   html += '</div></div>';
   div.innerHTML = html;
-
-  // Setup checkboxes
-  div.querySelectorAll('.analysis-item input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener('change', () => {
-      cb.closest('.analysis-item').classList.toggle('unchecked', !cb.checked);
-    });
-  });
-
-  // Toggle collapse on h3 click
-  div.querySelectorAll('.analysis-section h3').forEach(h3 => {
-    h3.addEventListener('click', () => {
-      h3.closest('.analysis-section').classList.toggle('collapsed');
-    });
-  });
-
-  // Setup delete buttons
-  div.querySelectorAll('.item-delete-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const item = btn.closest('.analysis-item');
-      item.remove();
-    });
-  });
-
-  // Setup edit inputs
-  div.querySelectorAll('.analysis-item.editable input').forEach(inp => {
-    inp.addEventListener('blur', () => {
-      const span = inp.closest('.analysis-item').querySelector('span:last-child');
-      if (span) span.textContent = inp.value;
-      inp.parentElement.replaceWith(inp.closest('.analysis-item').cloneNode(true));
-    });
-    inp.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') inp.blur();
-    });
-  });
-}
-
-function toggleEditMode(repIdx) {
-  const card = document.querySelector(`.analysis-card[data-rep="${repIdx}"]`);
-  const isEditing = card.classList.toggle('edit-mode');
-
-  if (isEditing) {
-    // Convert items to editable
-    card.querySelectorAll('.analysis-item').forEach(item => {
-      const span = item.querySelector('span:last-child');
-      if (span && !item.classList.contains('editable')) {
-        const text = span.textContent;
-        item.classList.add('editable');
-        item.innerHTML = `
-          <input type="checkbox" ${item.querySelector('input[type="checkbox"]').checked ? 'checked' : ''}>
-          <span class="dot ${item.querySelector('.dot').classList.contains('good') ? 'good' : 'work'}"></span>
-          <input type="text" value="${text}" style="flex:1;">
-          <button class="item-delete-btn" onclick="this.closest('.analysis-item').remove()">✕ Suppr</button>
-        `;
-      }
-    });
-
-    // Focus first input
-    const firstInput = card.querySelector('.analysis-item.editable input[type="text"]');
-    if (firstInput) firstInput.focus();
-  } else {
-    // Convert back to display mode
-    card.querySelectorAll('.analysis-item.editable').forEach(item => {
-      const checkbox = item.querySelector('input[type="checkbox"]');
-      const dotClass = item.querySelector('.dot').className.match(/\bgood\b|\bwork\b/)[0];
-      const text = item.querySelector('input[type="text"]').value;
-      item.classList.remove('editable');
-      item.innerHTML = `
-        <input type="checkbox" ${checkbox.checked ? 'checked' : ''}>
-        <span class="dot ${dotClass}"></span>
-        <span>${text}</span>
-      `;
-      item.querySelector('input[type="checkbox"]').addEventListener('change', function() {
-        this.closest('.analysis-item').classList.toggle('unchecked', !this.checked);
-      });
-    });
-  }
-}
-
-function addItem(repIdx, type) {
-  const card = document.querySelector(`.analysis-card[data-rep="${repIdx}"]`);
-  const containerClass = type === 'point' ? 'points-' : 'travail-';
-  const container = card.querySelector(`.${containerClass}${repIdx}`);
-  const dotClass = type === 'point' ? 'good' : 'work';
-  const newItem = document.createElement('label');
-  newItem.className = 'analysis-item editable';
-  newItem.setAttribute('data-rep', repIdx);
-  newItem.setAttribute('data-type', type);
-  newItem.innerHTML = `
-    <input type="checkbox" checked>
-    <span class="dot ${dotClass}"></span>
-    <input type="text" placeholder="Entrez un texte..." autofocus style="flex:1;">
-    <button class="item-delete-btn" onclick="this.closest('.analysis-item').remove()">✕ Suppr</button>
-  `;
-  container.appendChild(newItem);
-  newItem.querySelector('input[type="text"]').focus();
 }
 
 // ─── PDF Recap Generation ───────────────────────────────────
@@ -2338,23 +2219,27 @@ async function generateRecapPDF() {
         const cards = document.querySelectorAll('#monthly-analysis .analysis-card');
         if (!cards.length) return '';
         return Array.from(cards).map((card, i) => {
-          const name = card.querySelector('.analysis-card-header').textContent;
-          const checkedPoints = Array.from(card.querySelectorAll('[data-type="point"]'))
-            .filter(el => el.querySelector('input').checked)
-            .map(el => el.querySelector('span:last-child').textContent);
-          const checkedTravail = Array.from(card.querySelectorAll('[data-type="travail"]'))
-            .filter(el => el.querySelector('input').checked)
-            .map(el => el.querySelector('span:last-child').textContent);
-          if (checkedPoints.length === 0 && checkedTravail.length === 0) return '';
+          const name = card.querySelector('.analysis-card-header').textContent.trim();
+          const okBlk = card.querySelector('.analysis-blk-ok');
+          const koBlk = card.querySelector('.analysis-blk-ko');
+          const leverBlk = card.querySelector('.analysis-blk-lever');
+          const points = okBlk ? Array.from(okBlk.querySelectorAll('div:not(.analysis-blk-label)')).map(d => d.textContent.replace(/^• /, '')) : [];
+          const travail = koBlk ? Array.from(koBlk.querySelectorAll('div:not(.analysis-blk-label)')).map(d => d.textContent.replace(/^• /, '')) : [];
+          const lever = leverBlk ? Array.from(leverBlk.querySelectorAll('div:not(.analysis-blk-label)')).map(d => d.textContent) : [];
+          if (points.length === 0 && travail.length === 0) return '';
           return `<div class="pdf-analysis an-${i + 1}">
             <div class="an-name">${name}</div>
-            ${checkedPoints.length ? `<div class="an-section">
+            ${points.length ? `<div class="an-section">
               <div class="an-label good">Points forts</div>
-              ${checkedPoints.map(p => `<div class="an-item good">${p}</div>`).join('')}
+              ${points.map(p => `<div class="an-item good">${p}</div>`).join('')}
             </div>` : ''}
-            ${checkedTravail.length ? `<div class="an-section">
+            ${travail.length ? `<div class="an-section">
               <div class="an-label work">Axe de travail</div>
-              ${checkedTravail.map(t => `<div class="an-item work">${t}</div>`).join('')}
+              ${travail.map(t => `<div class="an-item work">${t}</div>`).join('')}
+            </div>` : ''}
+            ${lever.length ? `<div class="an-section">
+              <div class="an-label" style="color:#3C3489">Levier</div>
+              ${lever.map(l => `<div class="an-item" style="color:#3C3489">${l}</div>`).join('')}
             </div>` : ''}
           </div>`;
         }).join('');

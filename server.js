@@ -289,6 +289,16 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
     salesMap[s.sales_rep_id] = s;
   }
 
+  // Count missing RIBs per rep for this week
+  const ribManquants = db.prepare(`
+    SELECT sales_rep_id, COUNT(*) as count
+    FROM sales
+    WHERE week_start = ? AND rib_status != 'Reçu'
+    GROUP BY sales_rep_id
+  `).all(weekStart);
+  const ribMap = {};
+  for (const r of ribManquants) { ribMap[r.sales_rep_id] = r.count; }
+
   const dashboard = settings.map(s => {
     const salesData = salesMap[s.sales_rep_id] || { total_ca: 0, nb_ventes: 0 };
     const ca = salesData.total_ca;
@@ -308,7 +318,8 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
       nb_ventes: nbVentes,
       panier_moyen: panierMoyen,
       ratio,
-      objectif_atteint: objectifAtteint
+      objectif_atteint: objectifAtteint,
+      rib_manquants: ribMap[s.sales_rep_id] || 0
     };
   });
 
@@ -1312,6 +1323,40 @@ app.post('/api/email/send', requireAuth, requireAdmin, async (req, res) => {
     console.error('Erreur envoi email:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ─── Admin Notes (Remarques) ────────────────────────────────
+
+app.get('/api/notes', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const notes = db.prepare('SELECT * FROM admin_notes ORDER BY updated_at DESC').all();
+  res.json(notes);
+});
+
+app.post('/api/notes', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { content } = req.body;
+  if (!content || !content.trim()) return res.status(400).json({ error: 'Contenu requis' });
+  const result = db.prepare('INSERT INTO admin_notes (content) VALUES (?)').run(content.trim());
+  const note = db.prepare('SELECT * FROM admin_notes WHERE id = ?').get(result.lastInsertRowid);
+  res.json(note);
+});
+
+app.put('/api/notes/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { content } = req.body;
+  if (!content || !content.trim()) return res.status(400).json({ error: 'Contenu requis' });
+  db.prepare("UPDATE admin_notes SET content = ?, updated_at = datetime('now','localtime') WHERE id = ?").run(content.trim(), req.params.id);
+  const note = db.prepare('SELECT * FROM admin_notes WHERE id = ?').get(req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note introuvable' });
+  res.json(note);
+});
+
+app.delete('/api/notes/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const result = db.prepare('DELETE FROM admin_notes WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Note introuvable' });
+  res.json({ success: true });
 });
 
 // ─── Start ──────────────────────────────────────────────────
