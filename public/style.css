@@ -826,6 +826,28 @@ main {
   position: sticky;
   top: 0;
 }
+#sales-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color .15s;
+  white-space: nowrap;
+}
+#sales-table th.sortable:hover {
+  color: var(--primary);
+}
+#sales-table th.sortable.sort-active {
+  color: var(--primary);
+}
+.sort-icon {
+  display: inline-block;
+  font-size: .65rem;
+  margin-left: 3px;
+  opacity: .4;
+  transition: opacity .15s;
+}
+#sales-table th.sort-active .sort-icon {
+  opacity: 1;
+}
 
 #sales-table td {
   padding: 12px 16px;
@@ -2095,6 +2117,93 @@ main {
 }
 .btn-delete-rep:hover { background: var(--danger-light); }
 
+/* ─── Energy Table (Admin) ─────────────────────── */
+.energy-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.energy-nav button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: .95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s var(--ease);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.energy-nav button:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+#energy-week-label {
+  font-weight: 700;
+  font-size: .9rem;
+  color: var(--navy);
+}
+
+.nrj-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+.nrj-table th {
+  background: var(--bg-subtle);
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-muted);
+  padding: 10px 6px;
+  border-bottom: 2px solid var(--border-light);
+  text-align: center;
+}
+.nrj-table th .nrj-date {
+  display: block;
+  font-size: .8rem;
+  font-weight: 800;
+  color: var(--navy);
+  margin-top: 2px;
+}
+.nrj-table tr:not(:last-child) td {
+  border-bottom: 1px solid var(--border-light);
+}
+.nrj-name {
+  font-weight: 700;
+  font-size: .82rem;
+  color: var(--navy);
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+.nrj-cell {
+  text-align: center;
+  padding: 8px 4px;
+  font-size: 1.1rem;
+}
+.nrj-cell.nrj-empty {
+  color: var(--text-muted);
+  font-size: .8rem;
+}
+.nrj-cell.nrj-good { background: #f0fdf4; }
+.nrj-cell.nrj-mid { background: #fffbeb; }
+.nrj-cell.nrj-low { background: #fef2f2; }
+.nrj-cell.nrj-avg {
+  font-size: .78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* Role badges in admin panel */
 .admin-rep-role {
   display: inline-block;
@@ -2247,11 +2356,38 @@ main {
 
 /* ─── Tableau de pilotage Aujourd'hui ─────────── */
 .td-page {
-  max-width: 620px;
+  max-width: 1100px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.td-clubs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 700px) {
+  .td-clubs-grid { grid-template-columns: 1fr; }
+}
+
+.td-club-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.td-club-header {
+  font-size: .82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  text-align: center;
 }
 
 .td-block {

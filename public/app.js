@@ -265,12 +265,15 @@ async function bootApp() {
     initModal();
     initAdminPanel();
     initAdminPhoneursNav();
+    initAdminEnergy();
     _appBooted = true;
   }
 
   // Show/hide admin panels
   const adminPanel = document.getElementById('admin-reps-panel');
   if (adminPanel) adminPanel.classList.toggle('hidden', !isAdmin());
+  const energyPanel = document.getElementById('admin-energy-panel');
+  if (energyPanel) energyPanel.classList.toggle('hidden', !isAdmin());
 
   // Show/hide tabs based on role
   updateTabVisibility();
@@ -282,6 +285,7 @@ async function bootApp() {
     loadPhoningTab();
   } else {
     loadDashboard();
+    if (isAdmin()) loadAdminEnergy();
     if (!isAdmin()) loadTodayTab();
   }
 }
@@ -400,13 +404,78 @@ async function initHeaderWidgets() {
   });
 }
 
+// Club prefixes: Club 1 = 'predefined:' (backward compatible), Club 2 = 'club2:'
+const CLUB_PREFIXES = [
+  { id: 'club1', label: 'Club 1', prefix: 'predefined:' },
+  { id: 'club2', label: 'Club 2', prefix: 'club2:' },
+];
+
+function renderClubBlock(club, valMap) {
+  const p = club.prefix;
+  const savedEnergy = valMap[`${p}energie`] || 0;
+  const savedHS = valMap[`${p}histoire_sportive`] || 0;
+
+  return `
+    <div class="td-club-block" data-club="${club.id}" data-prefix="${p}">
+      <div class="td-club-header">${club.label}</div>
+
+      <div class="td-block">
+        <h3 class="td-block-title">Actions prioritaires</h3>
+        <div class="td-inline-widgets">
+          <div class="td-inline-widget td-widget-histoire">
+            <span class="td-inline-label">Histoire sportive</span>
+            <div class="td-histoire-controls">
+              <button class="td-histoire-btn" data-dir="minus" data-prefix="${p}">−</button>
+              <input type="number" class="td-histoire-val" data-prefix="${p}" value="${savedHS}" min="0">
+              <button class="td-histoire-btn" data-dir="plus" data-prefix="${p}">+</button>
+            </div>
+          </div>
+          <div class="td-inline-widget td-widget-energie">
+            <span class="td-inline-label">Énergie</span>
+            <div class="td-smileys">
+              <button class="td-smiley td-smiley-green ${savedEnergy === 3 ? 'active' : ''}" data-energy="3" data-prefix="${p}" title="Super forme">😊</button>
+              <button class="td-smiley td-smiley-orange ${savedEnergy === 2 ? 'active' : ''}" data-energy="2" data-prefix="${p}" title="Neutre">😐</button>
+              <button class="td-smiley td-smiley-red ${savedEnergy === 1 ? 'active' : ''}" data-energy="1" data-prefix="${p}" title="Pas en forme">😞</button>
+            </div>
+          </div>
+        </div>
+        <div class="td-checklist">
+          ${PREDEFINED_YESNO.map(a => {
+            const checked = valMap[`${p}${a.key}`] ? 'checked' : '';
+            return `<label class="td-check-row ${checked ? 'td-done' : ''}">
+              <input type="checkbox" class="td-yesno" data-key="${p}${a.key}" ${checked}>
+              <span class="td-check-box"></span>
+              <span class="td-check-label">${a.label}</span>
+            </label>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="td-block">
+        <h3 class="td-block-title">Compteurs du jour</h3>
+        <div class="td-counters-grid">
+          ${PREDEFINED_COUNTERS.map(a => {
+            const val = valMap[`${p}${a.key}`] || 0;
+            return `<div class="td-counter-card ${val > 0 ? 'td-counter-active' : ''}">
+              <div class="td-counter-label">${a.label}</div>
+              <div class="td-counter-controls">
+                <button class="td-counter-btn" data-key="${p}${a.key}" data-dir="minus">−</button>
+                <input type="number" class="td-counter-val" value="${val}" min="0" data-key="${p}${a.key}">
+                <button class="td-counter-btn" data-key="${p}${a.key}" data-dir="plus">+</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
 async function loadTodayTab() {
   const container = document.getElementById('today-standalone');
   if (!container) return;
   const repId = getMyRepId();
   if (!repId) return;
 
-  // Always lock to today's date
   const today = new Date().toISOString().slice(0, 10);
   todaySelectedDate = today;
 
@@ -415,154 +484,104 @@ async function loadTodayTab() {
     const valMap = {};
     values.forEach(v => { valMap[v.action_key] = v.value; });
 
-    const savedEnergy = valMap['predefined:energie'] || 0;
-    const savedHS = valMap['predefined:histoire_sportive'] || 0;
-
-    let html = `
-    <div class="td-page">
-      <!-- Actions Oui/Non -->
-      <div class="td-block">
-        <h3 class="td-block-title">Actions prioritaires</h3>
-
-        <!-- Histoire Sportive + Énergie inline -->
-        <div class="td-inline-widgets">
-          <div class="td-inline-widget td-widget-histoire">
-            <span class="td-inline-label">Histoire sportive</span>
-            <div class="td-histoire-controls">
-              <button class="td-histoire-btn" data-dir="minus">−</button>
-              <input type="number" class="td-histoire-val" value="${savedHS}" min="0">
-              <button class="td-histoire-btn" data-dir="plus">+</button>
-            </div>
-          </div>
-          <div class="td-inline-widget td-widget-energie">
-            <span class="td-inline-label">Énergie</span>
-            <div class="td-smileys">
-              <button class="td-smiley td-smiley-green ${savedEnergy === 3 ? 'active' : ''}" data-energy="3" title="Super forme">😊</button>
-              <button class="td-smiley td-smiley-orange ${savedEnergy === 2 ? 'active' : ''}" data-energy="2" title="Neutre">😐</button>
-              <button class="td-smiley td-smiley-red ${savedEnergy === 1 ? 'active' : ''}" data-energy="1" title="Pas en forme">😞</button>
-            </div>
-          </div>
-        </div>
-        <div class="td-checklist">
-          ${PREDEFINED_YESNO.map(a => {
-            const checked = valMap[`predefined:${a.key}`] ? 'checked' : '';
-            return `<label class="td-check-row ${checked ? 'td-done' : ''}">
-              <input type="checkbox" class="td-yesno" data-key="predefined:${a.key}" ${checked}>
-              <span class="td-check-box"></span>
-              <span class="td-check-label">${a.label}</span>
-            </label>`;
-          }).join('')}
-        </div>
-      </div>
-
-      <!-- Compteurs -->
-      <div class="td-block">
-        <h3 class="td-block-title">Compteurs du jour</h3>
-        <div class="td-counters-grid">
-          ${PREDEFINED_COUNTERS.map(a => {
-            const val = valMap[`predefined:${a.key}`] || 0;
-            return `<div class="td-counter-card ${val > 0 ? 'td-counter-active' : ''}">
-              <div class="td-counter-label">${a.label}</div>
-              <div class="td-counter-controls">
-                <button class="td-counter-btn" data-key="predefined:${a.key}" data-dir="minus">−</button>
-                <input type="number" class="td-counter-val" value="${val}" min="0" data-key="predefined:${a.key}">
-                <button class="td-counter-btn" data-key="predefined:${a.key}" data-dir="plus">+</button>
-              </div>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>
-    </div>`;
+    let html = `<div class="td-page"><div class="td-clubs-grid">`;
+    CLUB_PREFIXES.forEach(club => { html += renderClubBlock(club, valMap); });
+    html += `</div></div>`;
 
     container.innerHTML = html;
-    bindTodayStandaloneEvents(container, repId);
+
+    // Bind events for each club block
+    CLUB_PREFIXES.forEach(club => {
+      const block = container.querySelector(`[data-club="${club.id}"]`);
+      if (block) bindClubEvents(block, repId, club.prefix);
+    });
   } catch (err) {
     console.error('Erreur chargement Aujourd\'hui:', err);
   }
 }
 
-function updateTodayStyles(container) {
-  container.querySelectorAll('.td-check-row').forEach(row => {
+function updateTodayStyles(block) {
+  block.querySelectorAll('.td-check-row').forEach(row => {
     const cb = row.querySelector('.td-yesno');
     row.classList.toggle('td-done', cb && cb.checked);
   });
-  container.querySelectorAll('.td-counter-card').forEach(card => {
+  block.querySelectorAll('.td-counter-card').forEach(card => {
     const inp = card.querySelector('.td-counter-val');
     card.classList.toggle('td-counter-active', inp && parseInt(inp.value) > 0);
   });
 }
 
-function bindTodayStandaloneEvents(container, repId) {
+function bindClubEvents(block, repId, prefix) {
   // Énergie smileys
-  container.querySelectorAll('.td-smiley').forEach(btn => {
+  block.querySelectorAll('.td-smiley').forEach(btn => {
     btn.addEventListener('click', async () => {
-      container.querySelectorAll('.td-smiley').forEach(b => b.classList.remove('active'));
+      block.querySelectorAll('.td-smiley').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
-        method: 'PUT', body: { action_key: 'predefined:energie', value: parseInt(btn.dataset.energy) }
+        method: 'PUT', body: { action_key: `${prefix}energie`, value: parseInt(btn.dataset.energy) }
       });
     });
   });
 
   // Histoire sportive +/- buttons
-  container.querySelectorAll('.td-histoire-btn').forEach(btn => {
+  block.querySelectorAll('.td-histoire-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const input = container.querySelector('.td-histoire-val');
+      const input = block.querySelector(`.td-histoire-val[data-prefix="${prefix}"]`);
       let val = parseInt(input.value) || 0;
       val = btn.dataset.dir === 'plus' ? val + 1 : Math.max(0, val - 1);
       input.value = val;
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
-        method: 'PUT', body: { action_key: 'predefined:histoire_sportive', value: val }
+        method: 'PUT', body: { action_key: `${prefix}histoire_sportive`, value: val }
       });
     });
   });
 
   // Histoire sportive direct input
-  const hsInput = container.querySelector('.td-histoire-val');
+  const hsInput = block.querySelector(`.td-histoire-val[data-prefix="${prefix}"]`);
   if (hsInput) {
     hsInput.addEventListener('change', async () => {
       const val = Math.max(0, parseInt(hsInput.value) || 0);
       hsInput.value = val;
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
-        method: 'PUT', body: { action_key: 'predefined:histoire_sportive', value: val }
+        method: 'PUT', body: { action_key: `${prefix}histoire_sportive`, value: val }
       });
     });
   }
 
   // Yes/No checkboxes
-  container.querySelectorAll('.td-yesno').forEach(cb => {
+  block.querySelectorAll('.td-yesno').forEach(cb => {
     cb.addEventListener('change', async () => {
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
         method: 'PUT', body: { action_key: cb.dataset.key, value: cb.checked ? 1 : 0 }
       });
-      updateTodayStyles(container);
+      updateTodayStyles(block);
     });
   });
 
   // Counter +/- buttons
-  container.querySelectorAll('.td-counter-btn').forEach(btn => {
+  block.querySelectorAll('.td-counter-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const key = btn.dataset.key;
-      const input = container.querySelector(`.td-counter-val[data-key="${key}"]`);
+      const input = block.querySelector(`.td-counter-val[data-key="${key}"]`);
       let val = parseInt(input.value) || 0;
       val = btn.dataset.dir === 'plus' ? val + 1 : Math.max(0, val - 1);
       input.value = val;
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
         method: 'PUT', body: { action_key: key, value: val }
       });
-      updateTodayStyles(container);
+      updateTodayStyles(block);
     });
   });
 
   // Counter direct input
-  container.querySelectorAll('.td-counter-val').forEach(input => {
+  block.querySelectorAll('.td-counter-val').forEach(input => {
     input.addEventListener('change', async () => {
       const val = Math.max(0, parseInt(input.value) || 0);
       input.value = val;
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
         method: 'PUT', body: { action_key: input.dataset.key, value: val }
       });
-      updateTodayStyles(container);
+      updateTodayStyles(block);
     });
   });
 }
@@ -862,6 +881,100 @@ function buildPhoningKPIs(t) {
       <div class="ph-kpi-label">${k.label}</div>
     </div>
   `).join('');
+}
+
+// ─── Admin Énergie : Tableau de suivi (admin only) ───────────
+
+let energyWeekStart = '';
+
+function initAdminEnergy() {
+  const prevBtn = document.getElementById('energy-prev-week');
+  const nextBtn = document.getElementById('energy-next-week');
+  if (!prevBtn) return;
+
+  energyWeekStart = getMonday(new Date().toISOString().slice(0, 10));
+
+  prevBtn.addEventListener('click', () => {
+    const d = new Date(energyWeekStart + 'T00:00:00');
+    d.setDate(d.getDate() - 7);
+    energyWeekStart = formatDate(d);
+    loadAdminEnergy();
+  });
+  nextBtn.addEventListener('click', () => {
+    const d = new Date(energyWeekStart + 'T00:00:00');
+    d.setDate(d.getDate() + 7);
+    energyWeekStart = formatDate(d);
+    loadAdminEnergy();
+  });
+}
+
+const ENERGY_EMOJIS = { 3: '😊', 2: '😐', 1: '😞' };
+const ENERGY_LABELS = { 3: 'Bon', 2: 'Moyen', 1: 'Bas' };
+const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+async function loadAdminEnergy() {
+  const container = document.getElementById('energy-table-container');
+  if (!container) return;
+
+  if (!energyWeekStart) energyWeekStart = getMonday(new Date().toISOString().slice(0, 10));
+
+  // Update label
+  const label = document.getElementById('energy-week-label');
+  const startD = new Date(energyWeekStart + 'T00:00:00');
+  const endD = new Date(startD);
+  endD.setDate(endD.getDate() + 6);
+  const fmtD = d => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  if (label) label.textContent = `${fmtD(startD)} → ${fmtD(endD)} ${endD.getFullYear()}`;
+
+  try {
+    const data = await api(`/admin/energy/${energyWeekStart}`);
+    if (!data.reps || data.reps.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px 0;">Aucun commercial</p>';
+      return;
+    }
+
+    function energyCell(val) {
+      if (!val) return '<td class="nrj-cell nrj-empty">—</td>';
+      const emoji = ENERGY_EMOJIS[val] || '—';
+      const cls = val === 3 ? 'nrj-good' : val === 2 ? 'nrj-mid' : 'nrj-low';
+      return `<td class="nrj-cell ${cls}">${emoji}</td>`;
+    }
+
+    function avgCell(avg) {
+      if (avg === null) return '<td class="nrj-cell nrj-empty">—</td>';
+      const cls = avg >= 2.5 ? 'nrj-good' : avg >= 1.5 ? 'nrj-mid' : 'nrj-low';
+      const emoji = avg >= 2.5 ? '😊' : avg >= 1.5 ? '😐' : '😞';
+      return `<td class="nrj-cell nrj-avg ${cls}">${emoji} ${avg.toFixed(1)}</td>`;
+    }
+
+    let html = `<table class="nrj-table">
+      <thead>
+        <tr>
+          <th>Commercial</th>
+          ${DAY_NAMES.map((d, i) => {
+            const dd = new Date(energyWeekStart + 'T00:00:00');
+            dd.setDate(dd.getDate() + i);
+            return `<th>${d}<br><span class="nrj-date">${dd.getDate()}</span></th>`;
+          }).join('')}
+          <th>Moy.</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.reps.map(r => `
+          <tr>
+            <td class="nrj-name">${r.name}</td>
+            ${r.days.map(v => energyCell(v)).join('')}
+            ${avgCell(r.avg)}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+
+    container.innerHTML = html;
+  } catch (err) {
+    console.error('Erreur chargement énergie:', err);
+    container.innerHTML = '<p style="color:red;">Erreur de chargement</p>';
+  }
 }
 
 // ─── Admin Phoneurs : Récap mensuel (admin only) ─────────────
@@ -1405,6 +1518,75 @@ function initVentesTab() {
   });
 
   document.getElementById('btn-add-sale').addEventListener('click', () => openSaleModal());
+  initSalesSort();
+}
+
+// ─── Sales sort state ────────────────────────────────────────
+let salesSortKey = null;   // 'date', 'rep_name', 'amount', etc.
+let salesSortDir = 0;      // 0 = default, 1 = asc, -1 = desc
+
+function initSalesSort() {
+  document.querySelectorAll('#sales-table th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (salesSortKey === key) {
+        // Cycle: asc → desc → default
+        if (salesSortDir === 1) salesSortDir = -1;
+        else if (salesSortDir === -1) { salesSortDir = 0; salesSortKey = null; }
+        else salesSortDir = 1;
+      } else {
+        salesSortKey = key;
+        salesSortDir = 1;
+      }
+      updateSortIcons();
+      loadSales();
+    });
+  });
+}
+
+function updateSortIcons() {
+  document.querySelectorAll('#sales-table th.sortable').forEach(th => {
+    const icon = th.querySelector('.sort-icon');
+    const key = th.dataset.sort;
+    if (key === salesSortKey && salesSortDir !== 0) {
+      th.classList.add('sort-active');
+      icon.textContent = salesSortDir === 1 ? '↑' : '↓';
+    } else {
+      th.classList.remove('sort-active');
+      icon.textContent = '';
+    }
+  });
+}
+
+function sortSales(sales) {
+  if (!salesSortKey || salesSortDir === 0) return sales;
+  const RIB_ORDER = { 'Reçu': 0, 'En attente': 1, 'Non fourni': 2 };
+
+  return [...sales].sort((a, b) => {
+    let va, vb;
+    switch (salesSortKey) {
+      case 'date':
+        va = a.date || ''; vb = b.date || '';
+        break;
+      case 'amount':
+        va = a.amount || 0; vb = b.amount || 0;
+        return (va - vb) * salesSortDir;
+      case 'rib_status':
+        va = RIB_ORDER[a.rib_status] ?? 9;
+        vb = RIB_ORDER[b.rib_status] ?? 9;
+        return (va - vb) * salesSortDir;
+      case 'relance':
+        va = (a.r3_sent ? 3 : a.r2_sent ? 2 : a.r1_sent ? 1 : 0);
+        vb = (b.r3_sent ? 3 : b.r2_sent ? 2 : b.r1_sent ? 1 : 0);
+        return (va - vb) * salesSortDir;
+      default:
+        va = (a[salesSortKey] || '').toString().toLowerCase();
+        vb = (b[salesSortKey] || '').toString().toLowerCase();
+    }
+    if (va < vb) return -1 * salesSortDir;
+    if (va > vb) return 1 * salesSortDir;
+    return 0;
+  });
 }
 
 async function loadSales() {
@@ -1420,6 +1602,9 @@ async function loadSales() {
   if (ribFilterActive) {
     sales = sales.filter(s => s.rib_status !== 'Reçu');
   }
+
+  // Apply sort
+  sales = sortSales(sales);
 
   const tbody = document.querySelector('#sales-table tbody');
   tbody.innerHTML = '';
@@ -2646,13 +2831,15 @@ function renderAdminRepList() {
 }
 
 async function deleteRep(id, name) {
-  if (!confirm(`Supprimer le commercial "${name}" ? Cette action est irréversible.`)) return;
+  if (!confirm(`Archiver "${name}" ?\n\nCette personne n'apparaîtra plus dans les listes actives mais son historique sera conservé.`)) return;
 
   try {
     await api(`/sales-reps/${id}`, { method: 'DELETE' });
     await refreshSalesReps();
     renderAdminRepList();
+    loadDashboard();
+    alert(`"${name}" a été archivé avec succès.`);
   } catch (err) {
-    alert(err.message || 'Erreur lors de la suppression');
+    alert(err.message || 'Erreur lors de l\'archivage');
   }
 }

@@ -86,6 +86,11 @@ function initSchema() {
     db.exec("ALTER TABLE sales_reps ADD COLUMN role TEXT NOT NULL DEFAULT 'commercial'");
   }
 
+  // Migration: add archived column to sales_reps
+  if (!repCols4.find(c => c.name === 'archived')) {
+    db.exec("ALTER TABLE sales_reps ADD COLUMN archived INTEGER NOT NULL DEFAULT 0");
+  }
+
   // Migration: add client_email to sales if missing
   const saleCols2 = db.prepare("PRAGMA table_info(sales)").all();
   if (!saleCols2.find(c => c.name === 'client_email')) {

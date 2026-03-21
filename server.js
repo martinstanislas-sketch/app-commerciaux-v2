@@ -58,7 +58,7 @@ app.post('/api/auth/login', (req, res) => {
 
   // Check commercial / phoneur PIN
   const db = getDb();
-  const rep = db.prepare('SELECT id, name, role FROM sales_reps WHERE pin = ?').get(pin.trim());
+  const rep = db.prepare('SELECT id, name, role FROM sales_reps WHERE pin = ? AND archived = 0').get(pin.trim());
   if (rep) {
     const token = crypto.randomUUID();
     const role = rep.role || 'commercial';
@@ -198,7 +198,7 @@ function getMonday(dateStr) {
 
 app.get('/api/sales-reps', requireAuth, (req, res) => {
   const db = getDb();
-  const reps = db.prepare('SELECT * FROM sales_reps ORDER BY id').all();
+  const reps = db.prepare('SELECT * FROM sales_reps WHERE archived = 0 ORDER BY id').all();
   res.json(reps);
 });
 
@@ -235,27 +235,18 @@ app.post('/api/sales-reps', requireAuth, requireAdmin, (req, res) => {
   res.status(201).json(newRep);
 });
 
-// ─── DELETE /api/sales-reps/:id (admin only) ────────────────
+// ─── DELETE /api/sales-reps/:id (admin only) — soft delete ──
 
 app.delete('/api/sales-reps/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const repId = parseInt(req.params.id);
 
-  // Check if rep has any sales
-  const salesCount = db.prepare('SELECT COUNT(*) as count FROM sales WHERE sales_rep_id = ?').get(repId);
-  if (salesCount && salesCount.count > 0) {
-    return res.status(409).json({ error: `Impossible de supprimer : ${salesCount.count} vente(s) associée(s)` });
-  }
+  const rep = db.prepare('SELECT * FROM sales_reps WHERE id = ?').get(repId);
+  if (!rep) return res.status(404).json({ error: 'Commercial non trouvé' });
 
-  // Delete related data first
-  db.prepare('DELETE FROM weekly_settings WHERE sales_rep_id = ?').run(repId);
-  db.prepare('DELETE FROM transcript_messages WHERE sales_rep_id = ?').run(repId);
-  const result = db.prepare('DELETE FROM sales_reps WHERE id = ?').run(repId);
-
-  if (result.changes === 0) {
-    return res.status(404).json({ error: 'Commercial non trouvé' });
-  }
-  res.json({ ok: true });
+  // Soft delete: archive the rep (keeps all historical data intact)
+  db.prepare('UPDATE sales_reps SET archived = 1 WHERE id = ?').run(repId);
+  res.json({ ok: true, archived: true });
 });
 
 // ─── GET /api/weeks/:week_start/dashboard ───────────────────
@@ -266,13 +257,13 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
 
   ensureWeeklySettings(weekStart);
 
-  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' ORDER BY id").all();
+  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND archived = 0 ORDER BY id").all();
 
   const settings = db.prepare(`
     SELECT ws.*, sr.name as rep_name
     FROM weekly_settings ws
     JOIN sales_reps sr ON sr.id = ws.sales_rep_id
-    WHERE ws.week_start = ? AND sr.role != 'phoneur'
+    WHERE ws.week_start = ? AND sr.role != 'phoneur' AND sr.archived = 0
     ORDER BY ws.sales_rep_id
   `).all(weekStart);
 
@@ -626,7 +617,7 @@ app.get('/api/months/:month/summary', requireAuth, (req, res) => {
   // Weeks that have at least one day in this month:
   // week_start <= lastDay AND week_end (week_start + 6 days) >= firstDay
   // Only include commercial reps active during this month (exclude phoneurs)
-  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
+  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND archived = 0 AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
 
   // Get all sales in this month (by date, not week_start)
   const allSales = db.prepare(`
@@ -726,22 +717,24 @@ app.get('/api/months/:month/analysis-data', requireAuth, (req, res) => {
   const firstDay = `${month}-01`;
   const lastDay = new Date(year, mon, 0).toISOString().slice(0, 10);
 
-  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
+  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND archived = 0 AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
 
   // Total predefined actions count (yesno + counters)
   const PREDEFINED_ACTION_COUNT = 9; // 5 yesno + 4 counters
 
   const result = reps.map(rep => {
-    // 1. Monthly counters
+    // 1. Monthly counters — combine predefined: and club2: (normalize to predefined:)
     const counters = db.prepare(`
-      SELECT action_key, SUM(value) as total
+      SELECT
+        CASE WHEN action_key LIKE 'club2:%' THEN 'predefined:' || SUBSTR(action_key, 7) ELSE action_key END as norm_key,
+        SUM(value) as total
       FROM daily_action_values
-      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND action_key LIKE 'predefined:%'
-      GROUP BY action_key
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%')
+      GROUP BY norm_key
     `).all(rep.id, firstDay, lastDay);
 
     const totals = {};
-    counters.forEach(c => { totals[c.action_key.replace('predefined:', '')] = c.total; });
+    counters.forEach(c => { totals[c.norm_key.replace('predefined:', '')] = c.total; });
 
     // 2. Sales without RIB for this rep in this month
     const salesNoRib = db.prepare(`
@@ -755,24 +748,40 @@ app.get('/api/months/:month/analysis-data', requireAuth, (req, res) => {
       WHERE sales_rep_id = ? AND date >= ? AND date <= ?
     `).get(rep.id, firstDay, lastDay);
 
-    // 4. Commercial days = distinct days with at least one predefined action value > 0
+    // 4. Commercial days = distinct days with at least one action value > 0 (either club)
     const commercialDays = db.prepare(`
       SELECT COUNT(DISTINCT date) as count
       FROM daily_action_values
-      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND action_key LIKE 'predefined:%' AND value > 0
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%') AND value > 0
     `).get(rep.id, firstDay, lastDay);
 
-    // 5. Days with ALL predefined actions completed
-    // A day is "complete" if it has at least PREDEFINED_ACTION_COUNT distinct actions with value > 0
-    const completeDays = db.prepare(`
-      SELECT COUNT(*) as count FROM (
-        SELECT date, COUNT(DISTINCT action_key) as actions_done
-        FROM daily_action_values
-        WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND action_key LIKE 'predefined:%' AND value > 0
-        GROUP BY date
-        HAVING actions_done >= ?
-      )
-    `).get(rep.id, firstDay, lastDay, PREDEFINED_ACTION_COUNT);
+    // 5. Days with ALL actions completed per used club
+    // A club is "used" on a day if it has at least 1 value > 0
+    // A day is "complete" if every used club has PREDEFINED_ACTION_COUNT actions done
+    // We check this by: for each day, count used clubs and complete clubs
+    const dayDetails = db.prepare(`
+      SELECT date,
+        CASE WHEN action_key LIKE 'predefined:%' THEN 'c1' ELSE 'c2' END as club,
+        COUNT(DISTINCT CASE WHEN action_key LIKE 'club2:%' THEN 'predefined:' || SUBSTR(action_key, 7) ELSE action_key END) as actions_done
+      FROM daily_action_values
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%') AND value > 0
+      GROUP BY date, club
+    `).all(rep.id, firstDay, lastDay);
+
+    // Group by date
+    const dayMap = {};
+    dayDetails.forEach(d => {
+      if (!dayMap[d.date]) dayMap[d.date] = {};
+      dayMap[d.date][d.club] = d.actions_done;
+    });
+    let completeDaysCount = 0;
+    for (const [, clubs] of Object.entries(dayMap)) {
+      let allComplete = true;
+      for (const [, count] of Object.entries(clubs)) {
+        if (count < PREDEFINED_ACTION_COUNT) allComplete = false;
+      }
+      if (allComplete) completeDaysCount++;
+    }
 
     // 6. RDV objectif per day = 2 (10 per week / 5 days)
     const rdvObjectifParJour = 2;
@@ -784,7 +793,7 @@ app.get('/api/months/:month/analysis-data', requireAuth, (req, res) => {
       sales_no_rib: salesNoRib?.count || 0,
       total_sales_all: totalSalesAll?.count || 0,
       commercial_days: commercialDays?.count || 0,
-      complete_days: completeDays?.count || 0,
+      complete_days: completeDaysCount,
       rdv_objectif_par_jour: rdvObjectifParJour
     };
   });
@@ -802,7 +811,7 @@ app.get('/api/months/:month/weekly-breakdown', requireAuth, (req, res) => {
   const firstDay = `${month}-01`;
   const lastDay = new Date(year, mon, 0).toISOString().slice(0, 10);
 
-  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
+  const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND archived = 0 AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
 
   // Find all distinct week_starts that overlap with this month
   const weeks = db.prepare(`
@@ -1132,6 +1141,49 @@ app.put('/api/daily-actions/values/:sales_rep_id/:date', requireAuth, (req, res)
   res.json({ ok: true });
 });
 
+// ─── Admin: Energy levels per week ───────────────────────────
+
+app.get('/api/admin/energy/:weekStart', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const weekStart = req.params.weekStart; // format: 2026-03-09 (Monday)
+
+  // Build 7 days from weekStart
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart + 'T00:00:00');
+    d.setDate(d.getDate() + i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+
+  const reps = db.prepare("SELECT id, name FROM sales_reps WHERE role != 'phoneur' AND archived = 0 ORDER BY name").all();
+
+  const result = reps.map(rep => {
+    // Get energy from both clubs and average per day
+    const rows = db.prepare(`
+      SELECT date, AVG(value) as value FROM daily_action_values
+      WHERE sales_rep_id = ? AND (action_key = 'predefined:energie' OR action_key = 'club2:energie') AND date >= ? AND date <= ? AND value > 0
+      GROUP BY date
+    `).all(rep.id, days[0], days[6]);
+
+    const byDate = {};
+    rows.forEach(r => { byDate[r.date] = Math.round(r.value); });
+
+    const values = days.map(d => byDate[d] || null);
+    const filled = values.filter(v => v !== null);
+    const avg = filled.length > 0 ? Math.round((filled.reduce((s, v) => s + v, 0) / filled.length) * 10) / 10 : null;
+
+    return {
+      sales_rep_id: rep.id,
+      name: rep.name,
+      days: values,
+      avg,
+      count: filled.length
+    };
+  });
+
+  res.json({ week_start: weekStart, days, reps: result });
+});
+
 // ─── Monthly aggregation of daily action counters ────────────
 
 app.get('/api/daily-actions/monthly/:month', requireAuth, (req, res) => {
@@ -1140,11 +1192,14 @@ app.get('/api/daily-actions/monthly/:month', requireAuth, (req, res) => {
   const startDate = month + '-01';
   const endDate = month + '-31';
 
+  // Combine predefined: and club2: counters by normalizing keys to predefined:
   const rows = db.prepare(`
-    SELECT sales_rep_id, action_key, SUM(value) as total
+    SELECT sales_rep_id,
+      CASE WHEN action_key LIKE 'club2:%' THEN 'predefined:' || SUBSTR(action_key, 7) ELSE action_key END as action_key,
+      SUM(value) as total
     FROM daily_action_values
-    WHERE date >= ? AND date <= ? AND action_key LIKE 'predefined:%'
-    GROUP BY sales_rep_id, action_key
+    WHERE date >= ? AND date <= ? AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%')
+    GROUP BY sales_rep_id, CASE WHEN action_key LIKE 'club2:%' THEN 'predefined:' || SUBSTR(action_key, 7) ELSE action_key END
   `).all(startDate, endDate);
 
   res.json(rows);
@@ -1160,7 +1215,7 @@ app.get('/api/daily-actions/discipline/:month', requireAuth, (req, res) => {
   const rows = db.prepare(`
     SELECT sales_rep_id, COUNT(*) as total_actions
     FROM daily_action_values
-    WHERE date >= ? AND date <= ? AND value > 0
+    WHERE date >= ? AND date <= ? AND value > 0 AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%')
     GROUP BY sales_rep_id
   `).all(startDate, endDate);
 
@@ -1201,7 +1256,7 @@ app.get('/api/phoning/all-monthly/:month', requireAuth, requireAdmin, (req, res)
   const endDate = month + '-31';
 
   // Get all phoneurs
-  const phoneurs = db.prepare("SELECT id, name FROM sales_reps WHERE role = 'phoneur' ORDER BY name").all();
+  const phoneurs = db.prepare("SELECT id, name FROM sales_reps WHERE role = 'phoneur' AND archived = 0 ORDER BY name").all();
 
   const results = phoneurs.map(p => {
     const rows = db.prepare(`
