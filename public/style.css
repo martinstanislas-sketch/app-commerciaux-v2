@@ -2088,6 +2088,25 @@ main {
 }
 .btn-delete-rep:hover { background: var(--danger-light); }
 
+/* Role badges in admin panel */
+.admin-rep-role {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.admin-rep-role.commercial {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.admin-rep-role.phoneur {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 /* ─── Today Inline Widgets (Énergie + Histoire) ── */
 .td-inline-widgets {
   display: flex;

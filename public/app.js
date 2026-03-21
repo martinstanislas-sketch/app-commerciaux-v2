@@ -2521,8 +2521,12 @@ function renderAdminRepList() {
     const startLabel = rep.start_week
       ? `Depuis le ${new Date(rep.start_week + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`
       : 'Depuis toujours';
+    const roleBadge = rep.role === 'phoneur'
+      ? '<span class="admin-rep-role phoneur">Phoneur</span>'
+      : '<span class="admin-rep-role commercial">Commercial</span>';
     return `<div class="admin-rep-row">
       <span class="admin-rep-name">${rep.name}</span>
+      ${roleBadge}
       <span class="admin-rep-start">${startLabel}</span>
       <span class="admin-rep-pin">PIN : <strong>${rep.pin || '—'}</strong></span>
       <button class="btn-delete-rep" onclick="deleteRep(${rep.id}, '${rep.name}')" title="Supprimer">✕</button>
