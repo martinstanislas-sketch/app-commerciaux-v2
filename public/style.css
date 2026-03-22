@@ -3128,6 +3128,52 @@ main {
   color: var(--danger);
 }
 
+/* Control Energy Section */
+.ctrl-energy-section {
+  margin-top: 18px;
+}
+.ctrl-energy-section h3 {
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 10px;
+}
+.ctrl-energy-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ctrl-nrj-cell {
+  flex: 1;
+  min-width: 60px;
+  padding: 10px 6px;
+  border-radius: var(--radius);
+  text-align: center;
+  border: 1px solid var(--border-light);
+  background: var(--bg-subtle);
+}
+.ctrl-nrj-day {
+  display: block;
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  margin-bottom: 4px;
+}
+.ctrl-nrj-emoji {
+  display: block;
+  font-size: 1.3rem;
+}
+.ctrl-nrj-good { background: #ecfdf5; border-color: #a7f3d0; }
+.ctrl-nrj-mid { background: #fffbeb; border-color: #fde68a; }
+.ctrl-nrj-low { background: #fef2f2; border-color: #fecaca; }
+.ctrl-nrj-empty { opacity: .5; }
+.ctrl-nrj-avg .ctrl-nrj-emoji {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
 /* Checkbox control */
 .ctrl-check-cell { text-align: center; }
 .ctrl-checkbox {

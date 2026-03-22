@@ -1226,7 +1226,10 @@ async function loadControlTab() {
         </div>`;
     }
 
-    // ── Bloc 4 : Points de satisfaction / amélioration ──
+    // ── Bloc 4 : Suivi Énergie de la semaine ──
+    html += await renderControlEnergy(repId, ctrlWeekStart);
+
+    // ── Bloc 5 : Points de satisfaction / amélioration ──
     html += await renderControlAnalysis(repId, data.month);
 
     container.innerHTML = html;
@@ -1299,6 +1302,42 @@ async function renderControlBadges(repId, repName, month) {
     });
     badgeHTML += '</div></div>';
     return badgeHTML;
+  } catch (e) {
+    return '';
+  }
+}
+
+async function renderControlEnergy(repId, weekStart) {
+  try {
+    const data = await api(`/admin/energy/${weekStart}`);
+    const rep = data.reps.find(r => r.sales_rep_id == repId);
+    if (!rep) return '<div class="ctrl-energy-section"><h3>Suivi Énergie</h3><p class="ctrl-empty">Aucune donnée</p></div>';
+
+    const startD = new Date(weekStart + 'T00:00:00');
+
+    let html = `
+      <div class="ctrl-energy-section">
+        <h3>Suivi Énergie</h3>
+        <div class="ctrl-energy-grid">
+          ${DAY_NAMES.map((day, i) => {
+            const dd = new Date(startD);
+            dd.setDate(dd.getDate() + i);
+            const val = rep.days[i];
+            const emoji = val ? (ENERGY_EMOJIS[val] || '—') : '—';
+            const cls = val === 3 ? 'ctrl-nrj-good' : val === 2 ? 'ctrl-nrj-mid' : val === 1 ? 'ctrl-nrj-low' : 'ctrl-nrj-empty';
+            return `
+              <div class="ctrl-nrj-cell ${cls}">
+                <span class="ctrl-nrj-day">${day} ${dd.getDate()}</span>
+                <span class="ctrl-nrj-emoji">${emoji}</span>
+              </div>`;
+          }).join('')}
+          <div class="ctrl-nrj-cell ctrl-nrj-avg ${rep.avg >= 2.5 ? 'ctrl-nrj-good' : rep.avg >= 1.5 ? 'ctrl-nrj-mid' : rep.avg ? 'ctrl-nrj-low' : 'ctrl-nrj-empty'}">
+            <span class="ctrl-nrj-day">Moy.</span>
+            <span class="ctrl-nrj-emoji">${rep.avg !== null ? (rep.avg >= 2.5 ? '😊' : rep.avg >= 1.5 ? '😐' : '😞') + ' ' + rep.avg.toFixed(1) : '—'}</span>
+          </div>
+        </div>
+      </div>`;
+    return html;
   } catch (e) {
     return '';
   }
