@@ -109,6 +109,14 @@ function initSchema() {
     db.exec("ALTER TABLE sales ADD COLUMN controlled INTEGER NOT NULL DEFAULT 0");
   }
 
+  // Migration: add default_hours to sales_reps
+  const repCols5 = db.prepare("PRAGMA table_info(sales_reps)").all();
+  if (!repCols5.find(c => c.name === 'default_hours')) {
+    db.exec("ALTER TABLE sales_reps ADD COLUMN default_hours REAL NOT NULL DEFAULT 0");
+    // Set 20h default for Nathan, Hervé, Barnabé
+    db.prepare("UPDATE sales_reps SET default_hours = 20 WHERE LOWER(name) IN ('nathan', 'hervé', 'barnabé', 'herve', 'barnabe')").run();
+  }
+
   // Table for chat-style transcript messages
   db.exec(`
     CREATE TABLE IF NOT EXISTS transcript_messages (
@@ -214,15 +222,15 @@ function seed() {
  * Ensure weekly_settings rows exist for a given week_start for all reps.
  */
 function ensureWeeklySettings(weekStart) {
-  const reps = db.prepare("SELECT id, start_week FROM sales_reps WHERE role != 'phoneur'").all();
+  const reps = db.prepare("SELECT id, start_week, default_hours FROM sales_reps WHERE role != 'phoneur'").all();
   const insert = db.prepare(`
     INSERT OR IGNORE INTO weekly_settings (sales_rep_id, week_start, hours_worked, target_per_hour)
-    VALUES (?, ?, 0, 250)
+    VALUES (?, ?, ?, 250)
   `);
   for (const rep of reps) {
     // Only include reps whose start_week is <= this week (or no start_week = always included)
     if (rep.start_week && rep.start_week > weekStart) continue;
-    insert.run(rep.id, weekStart);
+    insert.run(rep.id, weekStart, rep.default_hours || 0);
   }
 }
 
