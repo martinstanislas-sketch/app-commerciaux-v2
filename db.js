@@ -104,6 +104,11 @@ function initSchema() {
     db.exec("ALTER TABLE sales ADD COLUMN r3_sent TEXT DEFAULT NULL");
   }
 
+  // Migration: add controlled column to sales
+  if (!saleCols2.find(c => c.name === 'controlled')) {
+    db.exec("ALTER TABLE sales ADD COLUMN controlled INTEGER NOT NULL DEFAULT 0");
+  }
+
   // Table for chat-style transcript messages
   db.exec(`
     CREATE TABLE IF NOT EXISTS transcript_messages (

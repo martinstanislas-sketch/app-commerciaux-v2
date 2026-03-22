@@ -266,6 +266,7 @@ async function bootApp() {
     initAdminPanel();
     initAdminPhoneursNav();
     initAdminEnergy();
+    initControlTab();
     _appBooted = true;
   }
 
@@ -299,6 +300,7 @@ function updateTabVisibility() {
   const mensuelBtn = document.querySelector('[data-tab="mensuel"]');
   const notesBtn = document.querySelector('[data-tab="notes"]');
   const adminPhoneursBtn = document.querySelector('[data-tab="admin-phoneurs"]');
+  const controleBtn = document.querySelector('[data-tab="controle"]');
 
   if (isPhoneLead()) {
     // Phoneur: Aujourd'hui (fiche) + Récap (KPI)
@@ -310,6 +312,7 @@ function updateTabVisibility() {
     if (mensuelBtn) mensuelBtn.style.display = 'none';
     if (notesBtn) notesBtn.style.display = 'none';
     if (adminPhoneursBtn) adminPhoneursBtn.style.display = 'none';
+    if (controleBtn) controleBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -320,6 +323,7 @@ function updateTabVisibility() {
     if (mensuelBtn) mensuelBtn.style.display = '';
     if (notesBtn) notesBtn.style.display = '';
     if (adminPhoneursBtn) adminPhoneursBtn.style.display = '';
+    if (controleBtn) controleBtn.style.display = '';
     dashBtn.click();
   } else {
     // Commercial: only Aujourd'hui + Récap Mensuel
@@ -331,6 +335,7 @@ function updateTabVisibility() {
     if (mensuelBtn) mensuelBtn.style.display = '';
     if (notesBtn) notesBtn.style.display = 'none';
     if (adminPhoneursBtn) adminPhoneursBtn.style.display = 'none';
+    if (controleBtn) controleBtn.style.display = 'none';
     todayBtn.click();
   }
 }
@@ -1105,6 +1110,247 @@ async function loadAdminPhoneurs() {
   }
 }
 
+// ─── Admin Contrôle : Onglet contrôle hebdomadaire ───────────
+
+let ctrlWeekStart = '';
+
+function initControlTab() {
+  const select = document.getElementById('ctrl-rep-select');
+  const prevBtn = document.getElementById('ctrl-prev-week');
+  const nextBtn = document.getElementById('ctrl-next-week');
+  if (!select) return;
+
+  ctrlWeekStart = getMonday(new Date().toISOString().slice(0, 10));
+
+  select.addEventListener('change', () => loadControlTab());
+  prevBtn.addEventListener('click', () => {
+    ctrlWeekStart = addDays(ctrlWeekStart, -7);
+    loadControlTab();
+  });
+  nextBtn.addEventListener('click', () => {
+    ctrlWeekStart = addDays(ctrlWeekStart, 7);
+    loadControlTab();
+  });
+}
+
+async function loadControlTab() {
+  const container = document.getElementById('ctrl-container');
+  const select = document.getElementById('ctrl-rep-select');
+  if (!container || !select) return;
+
+  if (!ctrlWeekStart) ctrlWeekStart = getMonday(new Date().toISOString().slice(0, 10));
+
+  // Update week label
+  const label = document.getElementById('ctrl-week-label');
+  const startD = new Date(ctrlWeekStart + 'T00:00:00');
+  const endD = new Date(startD);
+  endD.setDate(endD.getDate() + 6);
+  const fmtD = d => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  if (label) label.textContent = `${fmtD(startD)} → ${fmtD(endD)} ${endD.getFullYear()}`;
+
+  // Populate rep select (commercials only, not phoneurs, not archived)
+  const commercials = salesReps.filter(r => r.role !== 'phoneur' && !r.archived);
+  const currentVal = select.value;
+  if (select.options.length <= 1) {
+    commercials.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.id;
+      opt.textContent = r.name;
+      select.appendChild(opt);
+    });
+  }
+  if (currentVal) select.value = currentVal;
+
+  const repId = select.value;
+  if (!repId) {
+    container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px 0;">Sélectionnez un commercial pour voir son contrôle</p>';
+    return;
+  }
+
+  try {
+    const data = await api(`/control/${repId}/${ctrlWeekStart}`);
+    const repName = commercials.find(r => r.id == repId)?.name || '';
+
+    // ── Bloc 1 : CA semaine ──
+    let html = `
+      <div class="ctrl-summary">
+        <div class="ctrl-ca-card">
+          <div class="ctrl-ca-label">CA Semaine</div>
+          <div class="ctrl-ca-value">${data.ca.toLocaleString('fr-FR')} €</div>
+          <div class="ctrl-ca-sub">${data.nb_ventes} vente${data.nb_ventes > 1 ? 's' : ''}</div>
+        </div>
+      </div>`;
+
+    // ── Bloc 2 : Badges du mois ──
+    html += await renderControlBadges(repId, repName, data.month);
+
+    // ── Bloc 3 : Tableau des ventes ──
+    if (data.sales.length === 0) {
+      html += '<div class="ctrl-empty">Aucune vente cette semaine</div>';
+    } else {
+      html += `
+        <div class="ctrl-sales-section">
+          <h3>Ventes de la semaine</h3>
+          <table class="ctrl-sales-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Nom</th>
+                <th>Prénom</th>
+                <th>Montant</th>
+                <th>RIB</th>
+                <th>Contrôlé</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.sales.map(s => {
+                const ribClass = s.rib_status === 'Reçu' ? 'ctrl-rib-ok' : 'ctrl-rib-ko';
+                const ribLabel = s.rib_status === 'Reçu' ? 'Fourni' : 'Non fourni';
+                return `<tr>
+                  <td>${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</td>
+                  <td>${s.client_last_name || '—'}</td>
+                  <td>${s.client_first_name || '—'}</td>
+                  <td class="ctrl-amount">${s.amount.toLocaleString('fr-FR')} €</td>
+                  <td><span class="${ribClass}">${ribLabel}</span></td>
+                  <td class="ctrl-check-cell">
+                    <label class="ctrl-checkbox">
+                      <input type="checkbox" ${s.controlled ? 'checked' : ''} onchange="toggleControlled(${s.id}, this.checked)">
+                      <span class="ctrl-checkmark"></span>
+                    </label>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    // ── Bloc 4 : Points de satisfaction / amélioration ──
+    html += await renderControlAnalysis(repId, data.month);
+
+    container.innerHTML = html;
+  } catch (err) {
+    console.error('Erreur chargement contrôle:', err);
+    container.innerHTML = '<p style="color:red;">Erreur de chargement</p>';
+  }
+}
+
+async function toggleControlled(saleId, controlled) {
+  try {
+    await api(`/sales/${saleId}/controlled`, { method: 'PUT', body: { controlled } });
+  } catch (err) {
+    console.error('Erreur toggle controlled:', err);
+  }
+}
+
+async function renderControlBadges(repId, repName, month) {
+  // Fetch monthly summary to compute badges
+  try {
+    const summaryData = await api(`/months/${month}/summary`);
+    const activeReps = summaryData.rep_stats.filter(r => r.total_hours > 0);
+    if (activeReps.length === 0) return '<div class="ctrl-empty">Aucun badge ce mois</div>';
+
+    let monthlyCounters = [];
+    let disciplineData = [];
+    try { monthlyCounters = await api(`/daily-actions/monthly/${month}`); } catch (e) {}
+    try { disciplineData = await api(`/daily-actions/discipline/${month}`); } catch (e) {}
+
+    const counterTotals = {};
+    activeReps.forEach(r => { counterTotals[r.sales_rep_id] = { name: r.name, rdv_fixes: 0, references: 0, entretien_premier_mois: 0, contact_entreprise: 0, discipline: 0, panier_moyen: r.panier_moyen }; });
+    monthlyCounters.forEach(row => {
+      if (!counterTotals[row.sales_rep_id]) return;
+      if (row.action_key === 'predefined:rdv_fixes') counterTotals[row.sales_rep_id].rdv_fixes = row.total;
+      if (row.action_key === 'predefined:references') counterTotals[row.sales_rep_id].references = row.total;
+      if (row.action_key === 'predefined:entretien_premier_mois') counterTotals[row.sales_rep_id].entretien_premier_mois = row.total;
+      if (row.action_key === 'predefined:contact_entreprise') counterTotals[row.sales_rep_id].contact_entreprise = row.total;
+    });
+    disciplineData.forEach(row => {
+      if (counterTotals[row.sales_rep_id]) counterTotals[row.sales_rep_id].discipline = row.total_actions;
+    });
+    const counterList = Object.values(counterTotals);
+
+    const bestPanier = [...activeReps].sort((a, b) => b.panier_moyen - a.panier_moyen)[0];
+    const bestRDV = [...counterList].sort((a, b) => b.rdv_fixes - a.rdv_fixes)[0];
+    const bestRef = [...counterList].sort((a, b) => b.references - a.references)[0];
+    const bestAccueil = [...counterList].sort((a, b) => b.entretien_premier_mois - a.entretien_premier_mois)[0];
+    const bestBusiness = [...counterList].sort((a, b) => b.contact_entreprise - a.contact_entreprise)[0];
+    const bestDiscipline = [...counterList].sort((a, b) => b.discipline - a.discipline)[0];
+
+    const badges = [
+      { icon: '💎', title: 'Premium', winner: bestPanier.panier_moyen > 0 ? bestPanier.name : null },
+      { icon: '📞', title: 'RDV', winner: bestRDV.rdv_fixes > 0 ? bestRDV.name : null },
+      { icon: '🤝', title: 'Ambassadeur', winner: bestRef.references > 0 ? bestRef.name : null },
+      { icon: '👋', title: 'Accueil', winner: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : null },
+      { icon: '💼', title: 'Business', winner: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : null },
+      { icon: '🏆', title: 'Discipline', winner: bestDiscipline.discipline > 0 ? bestDiscipline.name : null },
+    ];
+
+    // Filter: only show badges won by this rep
+    const wonBadges = badges.filter(b => b.winner === repName);
+
+    if (wonBadges.length === 0) {
+      return '<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="ctrl-empty-inline">Aucun badge obtenu ce mois</div></div>';
+    }
+
+    let badgeHTML = '<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="ctrl-badges-row">';
+    wonBadges.forEach(b => {
+      badgeHTML += `<div class="ctrl-badge"><span class="ctrl-badge-icon">${b.icon}</span><span class="ctrl-badge-title">${b.title}</span></div>`;
+    });
+    badgeHTML += '</div></div>';
+    return badgeHTML;
+  } catch (e) {
+    return '';
+  }
+}
+
+async function renderControlAnalysis(repId, month) {
+  try {
+    const summaryData = await api(`/months/${month}/summary`);
+    const repStat = summaryData.rep_stats.find(r => r.sales_rep_id == repId);
+    if (!repStat || repStat.total_hours === 0) {
+      return '<div class="ctrl-analysis-section"><h3>Analyse</h3><div class="ctrl-empty-inline">Pas assez de données pour générer une analyse</div></div>';
+    }
+
+    let analysisDataArr = [];
+    try {
+      const result = await api(`/months/${month}/analysis-data`);
+      analysisDataArr = result.reps || [];
+    } catch (e) {}
+
+    const ad = analysisDataArr.find(d => d.sales_rep_id == repId) || { counters: {}, sales_no_rib: 0, commercial_days: 0, complete_days: 0, rdv_objectif_par_jour: 2 };
+    const analysis = analyzeRep(repStat, ad);
+
+    let html = '<div class="ctrl-analysis-section"><h3>Analyse du mois</h3>';
+
+    if (analysis.satisfaction.length > 0) {
+      html += '<div class="ctrl-analysis-blk ctrl-blk-ok"><div class="ctrl-blk-label">Points de satisfaction</div>';
+      analysis.satisfaction.forEach(p => { html += `<div>• ${p.text}</div>`; });
+      html += '</div>';
+    }
+
+    if (analysis.amelioration.length > 0) {
+      html += '<div class="ctrl-analysis-blk ctrl-blk-ko"><div class="ctrl-blk-label">Points d\'amélioration</div>';
+      analysis.amelioration.forEach(p => { html += `<div>• ${p.text}</div>`; });
+      html += '</div>';
+    }
+
+    if (analysis.satisfaction.length === 0 && analysis.amelioration.length === 0) {
+      if (analysis.neutres.length > 0) {
+        html += '<div class="ctrl-analysis-blk ctrl-blk-neutre"><div class="ctrl-blk-label">Points neutres</div>';
+        analysis.neutres.forEach(p => { html += `<div>• ${p.text}</div>`; });
+        html += '</div>';
+      } else {
+        html += '<div class="ctrl-empty-inline">Pas assez de données pour générer une analyse pertinente</div>';
+      }
+    }
+
+    html += '</div>';
+    return html;
+  } catch (e) {
+    return '';
+  }
+}
+
 function applyFeatureStatus() {
   // Email : bouton test + relances
   const btnTestEmail = document.getElementById('btn-test-email');
@@ -1168,6 +1414,7 @@ function initTabs() {
       if (btn.dataset.tab === 'mensuel') loadMonthlySummary();
       if (btn.dataset.tab === 'notes') loadNotes();
       if (btn.dataset.tab === 'admin-phoneurs') loadAdminPhoneurs();
+      if (btn.dataset.tab === 'controle') loadControlTab();
       if (btn.dataset.tab === 'phoning') loadPhoningTab();
       if (btn.dataset.tab === 'phoning-recap') loadPhoningRecap();
     });

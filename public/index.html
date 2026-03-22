@@ -36,6 +36,7 @@
       <button class="tab-btn" data-tab="mensuel">Récap</button>
       <button class="tab-btn" data-tab="notes">Remarques</button>
       <button class="tab-btn" data-tab="admin-phoneurs">Phoneurs</button>
+      <button class="tab-btn" data-tab="controle">Contrôle</button>
       <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button>
     </nav>
@@ -182,6 +183,20 @@
         <input type="month" id="ph-month-picker">
       </div>
       <div id="admin-phoneurs-container"></div>
+    </section>
+    <!-- CONTRÔLE (Admin) -->
+    <section id="tab-controle" class="tab-content">
+      <div class="ctrl-header">
+        <select id="ctrl-rep-select">
+          <option value="">— Sélectionner un commercial —</option>
+        </select>
+        <div class="ctrl-week-nav">
+          <button id="ctrl-prev-week">&larr;</button>
+          <span id="ctrl-week-label">—</span>
+          <button id="ctrl-next-week">&rarr;</button>
+        </div>
+      </div>
+      <div id="ctrl-container"></div>
     </section>
     <!-- EMAIL / ADMIN -->
   </main>

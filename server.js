@@ -1286,6 +1286,49 @@ app.get('/api/phoning/all-monthly/:month', requireAuth, requireAdmin, (req, res)
   res.json({ month, phoneurs: results });
 });
 
+// ─── Admin: Control tab data ─────────────────────────────────
+
+app.get('/api/control/:sales_rep_id/:week_start', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const repId = parseInt(req.params.sales_rep_id);
+  const weekStart = req.params.week_start;
+
+  // 1. CA de la semaine (toutes ventes, pas seulement RIB reçu)
+  const caRow = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as ca, COUNT(*) as nb_ventes
+    FROM sales WHERE sales_rep_id = ? AND week_start = ?
+  `).get(repId, weekStart);
+
+  // 2. Ventes de la semaine avec détails
+  const sales = db.prepare(`
+    SELECT id, date, amount, client_first_name, client_last_name, rib_status, controlled
+    FROM sales WHERE sales_rep_id = ? AND week_start = ?
+    ORDER BY date DESC, id DESC
+  `).all(repId, weekStart);
+
+  // 3. Badges du mois (besoin du mois en cours basé sur la semaine)
+  // On prend le mois du lundi de la semaine
+  const month = weekStart.slice(0, 7);
+
+  res.json({
+    ca: caRow.ca,
+    nb_ventes: caRow.nb_ventes,
+    sales,
+    month
+  });
+});
+
+// ─── Admin: Toggle sale controlled ───────────────────────────
+
+app.put('/api/sales/:id/controlled', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const saleId = parseInt(req.params.id);
+  const { controlled } = req.body;
+  const val = controlled ? 1 : 0;
+  db.prepare('UPDATE sales SET controlled = ? WHERE id = ?').run(val, saleId);
+  res.json({ ok: true, controlled: val });
+});
+
 // ─── Webhook: POST /api/webhook/sales (single) ──────────────
 
 app.post('/api/webhook/sales', webhookAuth, (req, res) => {
