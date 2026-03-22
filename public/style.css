@@ -3274,3 +3274,207 @@ main {
 
 /* ─── Selection ─────────────────────────────────── */
 ::selection { background: rgba(79,70,229,0.15); color: var(--text); }
+
+/* ═══════════════════════════════════════════════════
+   MOBILE RESPONSIVE
+   ═══════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* ─── Header ─── */
+  header {
+    padding: 8px 12px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+    min-height: auto;
+  }
+  .header-left { justify-content: center; }
+  header h1 { font-size: .95rem; text-align: center; }
+
+  nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 3px;
+    justify-content: flex-start;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    padding: 6px 12px;
+    font-size: .7rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .user-info {
+    justify-content: center;
+    gap: 8px;
+    margin-left: 0;
+  }
+
+  /* ─── Main ─── */
+  main { padding: 12px; }
+
+  /* ─── Login ─── */
+  .login-card {
+    padding: 2rem 1.5rem;
+    margin: 0 12px;
+    max-width: 100%;
+  }
+  .login-logo { width: 120px; }
+
+  /* ─── Week Nav / Month Nav ─── */
+  .week-nav, .month-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .week-nav button, .month-nav button {
+    width: 34px;
+    height: 34px;
+    font-size: .85rem;
+  }
+  #week-label, #v-week-label, #month-label {
+    font-size: .82rem;
+    min-width: auto;
+  }
+  .week-nav .btn-lock,
+  .week-nav .btn-export,
+  .month-nav .btn-export,
+  .month-nav .btn-recap-pdf {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+  .week-nav input, .month-nav input, .week-nav select {
+    width: 100%;
+  }
+
+  /* ─── Cards ─── */
+  #cards-container {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .rep-card { padding: 12px; }
+  .rep-card h2 { font-size: .85rem; }
+
+  .kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .rep-card .settings-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* ─── Hero Ratio ─── */
+  .rep-ratio-hero {
+    padding: 12px;
+  }
+
+  /* ─── Sales Table ─── */
+  #tab-ventes { overflow-x: auto; }
+  #sales-table {
+    font-size: .75rem;
+    min-width: 600px;
+  }
+  #sales-table th, #sales-table td {
+    padding: 6px 8px;
+  }
+
+  /* ─── Monthly / Recap ─── */
+  .ranking-list { font-size: .82rem; }
+  .rl-row { padding: 8px 10px; gap: 8px; }
+  .rl-avatar { width: 32px; height: 32px; font-size: .7rem; }
+  .rl-ratio { font-size: .82rem; min-width: 55px; }
+  .rl-sub { font-size: .68rem; }
+
+  .badges-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px;
+  }
+  .badge-card { padding: 12px 8px; }
+
+  /* ─── Analysis blocks ─── */
+  .analysis-card { margin-bottom: 14px; }
+  .analysis-blk { padding: 10px 12px; }
+
+  /* ─── Charts ─── */
+  .charts-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ─── Admin Reps ─── */
+  .add-rep-form {
+    flex-direction: column;
+  }
+  .add-rep-form input,
+  .add-rep-form select,
+  .add-rep-form .btn-primary {
+    width: 100%;
+  }
+  .admin-rep-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  /* ─── Notes ─── */
+  .notes-header {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .notes-header .btn-primary { width: 100%; }
+  .note-card { padding: 12px; }
+
+  /* ─── Contrôle ─── */
+  .ctrl-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ctrl-header select { width: 100%; }
+  .ctrl-week-nav { justify-content: center; }
+  .ctrl-summary { flex-direction: column; }
+  .ctrl-sales-section { overflow-x: auto; }
+  .ctrl-sales-table { min-width: 500px; font-size: .75rem; }
+  .ctrl-energy-grid { flex-wrap: wrap; }
+  .ctrl-nrj-cell { min-width: 42px; flex: 1 1 42px; padding: 8px 4px; }
+  .ctrl-nrj-emoji { font-size: 1.1rem; }
+
+  /* ─── Admin Phoneurs ─── */
+  #admin-phoneurs-container {
+    grid-template-columns: 1fr;
+  }
+  .aph-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* ─── Phoning Tab ─── */
+  .ph-page { padding: 8px 0; }
+
+  /* ─── Today / Club blocks ─── */
+  .td-inline-widgets { flex-direction: column; }
+
+  /* ─── Modal ─── */
+  .modal {
+    width: 95%;
+    max-width: 100%;
+    margin: 20px;
+    padding: 20px;
+  }
+}
+
+@media (max-width: 400px) {
+  header h1 { font-size: .85rem; }
+  .tab-btn { padding: 5px 10px; font-size: .65rem; }
+  main { padding: 8px; }
+  .kpi-grid { grid-template-columns: 1fr; }
+  .badges-grid { grid-template-columns: 1fr !important; }
+  .aph-kpi-grid { grid-template-columns: 1fr; }
+  .ctrl-nrj-cell { min-width: 36px; }
+}
