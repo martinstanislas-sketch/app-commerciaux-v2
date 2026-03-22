@@ -1206,7 +1206,8 @@ async function loadControlTab() {
               ${data.sales.map(s => {
                 const ribClass = s.rib_status === 'Reçu' ? 'ctrl-rib-ok' : 'ctrl-rib-ko';
                 const ribLabel = s.rib_status === 'Reçu' ? 'Fourni' : 'Non fourni';
-                return `<tr>
+                const noRib = s.rib_status !== 'Reçu';
+                return `<tr class="${noRib ? 'ctrl-row-no-rib' : ''}">
                   <td>${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</td>
                   <td>${s.client_last_name || '—'}</td>
                   <td>${s.client_first_name || '—'}</td>

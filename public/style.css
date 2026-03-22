@@ -3116,6 +3116,18 @@ main {
   font-weight: 700;
 }
 
+/* Row highlighting for sales without RIB */
+.ctrl-row-no-rib {
+  background: #fef2f2 !important;
+}
+.ctrl-row-no-rib td {
+  color: var(--danger);
+  font-weight: 600;
+}
+.ctrl-row-no-rib .ctrl-amount {
+  color: var(--danger);
+}
+
 /* Checkbox control */
 .ctrl-check-cell { text-align: center; }
 .ctrl-checkbox {
