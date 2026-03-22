@@ -273,9 +273,6 @@ async function bootApp() {
   // Show/hide admin panels
   const adminPanel = document.getElementById('admin-reps-panel');
   if (adminPanel) adminPanel.classList.toggle('hidden', !isAdmin());
-  const energyPanel = document.getElementById('admin-energy-panel');
-  if (energyPanel) energyPanel.classList.toggle('hidden', !isAdmin());
-
   // Show/hide tabs based on role
   updateTabVisibility();
 
@@ -286,7 +283,6 @@ async function bootApp() {
     loadPhoningTab();
   } else {
     loadDashboard();
-    if (isAdmin()) loadAdminEnergy();
     if (!isAdmin()) loadTodayTab();
   }
 }
