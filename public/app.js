@@ -2423,9 +2423,9 @@ function analyzeRep(repStat, analysisData) {
   // ── Priorité 2 : Panier moyen ──
   if (nbVentes > 0) {
     if (panier > 3000) {
-      evals.push({ priority: 2, type: 'ok', text: 'Très bon panier moyen' });
-    } else if (panier >= 2100) {
-      evals.push({ priority: 2, type: 'neutre', text: 'Panier moyen dans la cible' });
+      evals.push({ priority: 2, type: 'ok', text: 'Excellent panier moyen' });
+    } else if (panier > 2100) {
+      evals.push({ priority: 2, type: 'ok', text: 'Bon panier moyen' });
     } else {
       evals.push({ priority: 2, type: 'ko', text: 'Panier moyen trop faible' });
     }
