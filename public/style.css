@@ -3590,13 +3590,12 @@ main {
   font-weight: 700;
   color: var(--text-secondary);
   text-align: center;
-  font-size: .65rem;
+  font-size: .62rem;
   text-transform: uppercase;
-  letter-spacing: .3px;
-  white-space: nowrap;
-  max-width: 90px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  letter-spacing: .2px;
+  white-space: normal;
+  line-height: 1.3;
+  min-width: 65px;
 }
 .act-comp-table th:first-child { text-align: left; }
 .act-comp-table td {

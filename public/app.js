@@ -1701,7 +1701,7 @@ async function loadActionsComparison(period) {
               <tr>
                 <th>Commercial</th>
                 <th>Heures</th>
-                ${PREDEFINED_YESNO.map(a => `<th title="${a.label}">${a.label.length > 20 ? a.label.slice(0, 18) + '…' : a.label}</th>`).join('')}
+                ${PREDEFINED_YESNO.map(a => `<th>${a.label}</th>`).join('')}
                 ${PREDEFINED_COUNTERS.map(c => `<th>${c.label}</th>`).join('')}
               </tr>
             </thead>
