@@ -637,8 +637,9 @@ app.get('/api/months/:month/summary', requireAuth, (req, res) => {
   `).all(firstDay, lastDay);
 
   // Per-rep stats with cumulated monthly ratio + best single sale
+  // Only count sales with RIB received in the recap
   const repStats = reps.map(rep => {
-    const repSales = allSales.filter(s => s.sales_rep_id === rep.id);
+    const repSales = allSales.filter(s => s.sales_rep_id === rep.id && s.rib_status === 'Reçu');
     const ca = repSales.reduce((sum, s) => sum + s.amount, 0);
     const nbVentes = repSales.length;
     const panierMoyen = nbVentes > 0 ? ca / nbVentes : 0;
@@ -834,11 +835,11 @@ app.get('/api/months/:month/weekly-breakdown', requireAuth, (req, res) => {
     const endLabel = weekEndDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 
     const repData = reps.filter(rep => !rep.start_week || rep.start_week <= ws).map(rep => {
-      // Sales for this rep in this week AND within the month
+      // Sales for this rep in this week AND within the month (only RIB received)
       const salesRow = db.prepare(`
         SELECT COALESCE(SUM(amount), 0) as ca, COUNT(*) as nb_ventes
         FROM sales
-        WHERE sales_rep_id = ? AND week_start = ? AND date >= ? AND date <= ?
+        WHERE sales_rep_id = ? AND week_start = ? AND date >= ? AND date <= ? AND rib_status = 'Reçu'
       `).get(rep.id, ws, firstDay, lastDay);
 
       const settings = db.prepare(`
