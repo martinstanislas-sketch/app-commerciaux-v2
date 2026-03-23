@@ -3133,6 +3133,87 @@ main {
   color: var(--danger);
 }
 
+/* Control Hours Section */
+.ctrl-hours-section {
+  margin-top: 18px;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-xs);
+}
+.ctrl-hours-section h3 {
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 12px;
+}
+.ctrl-hours-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.ctrl-hours-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ctrl-hours-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.ctrl-hours-input {
+  width: 80px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--navy);
+  text-align: center;
+  font-family: inherit;
+  transition: border-color .2s;
+}
+.ctrl-hours-input:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-ghost);
+}
+.ctrl-hours-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ctrl-hours-save {
+  padding: 8px 18px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: white;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .2s var(--ease);
+}
+.ctrl-hours-save:hover {
+  background: var(--primary-hover);
+  box-shadow: 0 2px 8px rgba(79,70,229,0.25);
+}
+.ctrl-hours-check {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+}
+.ctrl-hours-check-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 /* Control Energy Section */
 .ctrl-energy-section {
   margin-top: 18px;

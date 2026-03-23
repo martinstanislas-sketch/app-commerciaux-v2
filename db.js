@@ -54,6 +54,10 @@ function initSchema() {
   if (!cols.find(c => c.name === 'transcript')) {
     db.exec("ALTER TABLE weekly_settings ADD COLUMN transcript TEXT NOT NULL DEFAULT ''");
   }
+  // Migration: add hours_controlled column
+  if (!cols.find(c => c.name === 'hours_controlled')) {
+    db.exec("ALTER TABLE weekly_settings ADD COLUMN hours_controlled INTEGER NOT NULL DEFAULT 0");
+  }
 
   // Migration: add external_id column to sales_reps if missing
   const repCols = db.prepare("PRAGMA table_info(sales_reps)").all();

@@ -1177,10 +1177,31 @@ async function loadControlTab() {
         </div>
       </div>`;
 
-    // ── Bloc 2 : Badges du mois ──
+    // ── Bloc 2 : Heures (contrôle + modification) ──
+    const hoursChecked = data.hours_controlled ? 'checked' : '';
+    html += `
+      <div class="ctrl-hours-section">
+        <h3>Heures déclarées</h3>
+        <div class="ctrl-hours-row">
+          <div class="ctrl-hours-input-wrap">
+            <label class="ctrl-hours-label">Heures semaine</label>
+            <input type="number" id="ctrl-hours-input" class="ctrl-hours-input" value="${data.hours_worked}" step="0.5" min="0" max="80">
+          </div>
+          <div class="ctrl-hours-actions">
+            <button class="ctrl-hours-save" onclick="saveControlHours(${repId}, '${ctrlWeekStart}')">Enregistrer</button>
+            <label class="ctrl-checkbox ctrl-hours-check">
+              <input type="checkbox" ${hoursChecked} onchange="toggleHoursControlled(${repId}, '${ctrlWeekStart}', this.checked)">
+              <span class="ctrl-checkmark"></span>
+              <span class="ctrl-hours-check-label">Validé</span>
+            </label>
+          </div>
+        </div>
+      </div>`;
+
+    // ── Bloc 3 : Badges du mois ──
     html += await renderControlBadges(repId, repName, data.month);
 
-    // ── Bloc 3 : Tableau des ventes ──
+    // ── Bloc 4 : Tableau des ventes ──
     if (data.sales.length === 0) {
       html += '<div class="ctrl-empty">Aucune vente cette semaine</div>';
     } else {
@@ -1240,6 +1261,32 @@ async function toggleControlled(saleId, controlled) {
     await api(`/sales/${saleId}/controlled`, { method: 'PUT', body: { controlled } });
   } catch (err) {
     console.error('Erreur toggle controlled:', err);
+  }
+}
+
+async function saveControlHours(repId, weekStart) {
+  const input = document.getElementById('ctrl-hours-input');
+  if (!input) return;
+  const hours = parseFloat(input.value) || 0;
+  try {
+    await api(`/control/${repId}/${weekStart}/hours`, { method: 'PUT', body: { hours_worked: hours } });
+    // Flash success
+    const btn = document.querySelector('.ctrl-hours-save');
+    if (btn) {
+      btn.textContent = '✓ Enregistré';
+      btn.style.background = 'var(--success)';
+      setTimeout(() => { btn.textContent = 'Enregistrer'; btn.style.background = ''; }, 2000);
+    }
+  } catch (err) {
+    alert('Erreur : ' + (err.message || 'Impossible de modifier les heures'));
+  }
+}
+
+async function toggleHoursControlled(repId, weekStart, controlled) {
+  try {
+    await api(`/control/${repId}/${weekStart}/hours`, { method: 'PUT', body: { hours_controlled: controlled } });
+  } catch (err) {
+    console.error('Erreur toggle hours controlled:', err);
   }
 }
 

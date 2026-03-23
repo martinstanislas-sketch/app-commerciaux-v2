@@ -1305,14 +1305,22 @@ app.get('/api/control/:sales_rep_id/:week_start', requireAuth, requireAdmin, (re
     ORDER BY date DESC, id DESC
   `).all(repId, weekStart);
 
-  // 3. Badges du mois (besoin du mois en cours basé sur la semaine)
-  // On prend le mois du lundi de la semaine
+  // 3. Heures et objectif de la semaine
+  const settings = db.prepare(`
+    SELECT hours_worked, target_per_hour, hours_controlled
+    FROM weekly_settings WHERE week_start = ? AND sales_rep_id = ?
+  `).get(weekStart, repId);
+
+  // 4. Badges du mois (besoin du mois en cours basé sur la semaine)
   const month = weekStart.slice(0, 7);
 
   res.json({
     ca: caRow.ca,
     nb_ventes: caRow.nb_ventes,
     sales,
+    hours_worked: settings?.hours_worked || 0,
+    target_per_hour: settings?.target_per_hour || 250,
+    hours_controlled: settings?.hours_controlled || 0,
     month
   });
 });
@@ -1326,6 +1334,28 @@ app.put('/api/sales/:id/controlled', requireAuth, requireAdmin, (req, res) => {
   const val = controlled ? 1 : 0;
   db.prepare('UPDATE sales SET controlled = ? WHERE id = ?').run(val, saleId);
   res.json({ ok: true, controlled: val });
+});
+
+// ─── Admin: Control hours (validate + update) ───────────────
+
+app.put('/api/control/:sales_rep_id/:week_start/hours', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const repId = parseInt(req.params.sales_rep_id);
+  const weekStart = req.params.week_start;
+  const { hours_worked, hours_controlled } = req.body;
+
+  ensureWeeklySettings(weekStart);
+
+  if (hours_worked !== undefined) {
+    db.prepare('UPDATE weekly_settings SET hours_worked = ? WHERE week_start = ? AND sales_rep_id = ?')
+      .run(hours_worked, weekStart, repId);
+  }
+  if (hours_controlled !== undefined) {
+    db.prepare('UPDATE weekly_settings SET hours_controlled = ? WHERE week_start = ? AND sales_rep_id = ?')
+      .run(hours_controlled ? 1 : 0, weekStart, repId);
+  }
+
+  res.json({ ok: true });
 });
 
 // ─── Webhook: POST /api/webhook/sales (single) ──────────────
