@@ -37,6 +37,7 @@
       <button class="tab-btn" data-tab="notes">Remarques</button>
       <button class="tab-btn" data-tab="admin-phoneurs">Phoneurs</button>
       <button class="tab-btn" data-tab="controle">Contrôle</button>
+      <button class="tab-btn" data-tab="admin-actions">Actions</button>
       <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button>
     </nav>
@@ -184,6 +185,19 @@
         </div>
       </div>
       <div id="ctrl-container"></div>
+    </section>
+
+    <!-- ACTIONS (Admin) -->
+    <section id="tab-admin-actions" class="tab-content">
+      <div class="act-nav">
+        <button id="act-prev-week">&larr;</button>
+        <span id="act-week-label">—</span>
+        <button id="act-next-week">&rarr;</button>
+        <select id="act-day-filter">
+          <option value="all">Toute la semaine</option>
+        </select>
+      </div>
+      <div id="admin-actions-container"></div>
     </section>
     <!-- EMAIL / ADMIN -->
   </main>

@@ -1119,6 +1119,45 @@ app.delete('/api/daily-actions/types/:id', requireAuth, (req, res) => {
 
 // ─── Daily Actions: Values ──────────────────────────────────
 
+// ─── Admin: All actions for all commercials for a week ────────
+app.get('/api/admin/actions/:weekStart', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const weekStart = req.params.weekStart;
+
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart + 'T00:00:00');
+    d.setDate(d.getDate() + i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+
+  const reps = db.prepare("SELECT id, name FROM sales_reps WHERE role != 'phoneur' AND archived = 0 ORDER BY name").all();
+
+  const result = reps.map(rep => {
+    const rows = db.prepare(`
+      SELECT action_key, date, value
+      FROM daily_action_values
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%')
+    `).all(rep.id, days[0], days[6]);
+
+    // Build per-day map
+    const byDay = {};
+    days.forEach(d => { byDay[d] = {}; });
+    rows.forEach(r => {
+      if (!byDay[r.date]) byDay[r.date] = {};
+      byDay[r.date][r.action_key] = r.value;
+    });
+
+    return {
+      sales_rep_id: rep.id,
+      name: rep.name,
+      days: byDay
+    };
+  });
+
+  res.json({ week_start: weekStart, days, reps: result });
+});
+
 app.get('/api/daily-actions/values/:sales_rep_id/:date', requireAuth, (req, res) => {
   const db = getDb();
   const values = db.prepare(

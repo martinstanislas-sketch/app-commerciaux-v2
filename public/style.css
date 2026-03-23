@@ -3417,6 +3417,156 @@ main {
   .ctrl-sales-table th, .ctrl-sales-table td { padding: 8px 10px; }
 }
 
+/* ─── Admin Actions Tab ────────────────────────── */
+.act-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  background: var(--card);
+  padding: 10px 16px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+  flex-wrap: wrap;
+}
+.act-nav button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s var(--ease);
+  color: var(--text-secondary);
+}
+.act-nav button:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+#act-week-label {
+  font-weight: 700;
+  font-size: .95rem;
+  min-width: 200px;
+  text-align: center;
+  color: var(--navy);
+}
+#act-day-filter {
+  margin-left: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .85rem;
+  font-family: inherit;
+  background: var(--bg-subtle);
+}
+
+.act-rep-card {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-xs);
+}
+.act-rep-name {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.act-day-block {
+  margin-bottom: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.act-day-block.act-day-empty { opacity: .5; }
+.act-day-header {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+  padding: 6px 12px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-light);
+}
+.act-day-content {
+  padding: 10px 12px;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.act-checks { flex: 1; min-width: 250px; }
+.act-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .78rem;
+  padding: 3px 0;
+}
+.act-check-icon { font-size: .85rem; flex-shrink: 0; }
+.act-done { color: var(--text); }
+.act-missing { color: var(--text-muted); }
+.act-club-badge {
+  font-size: .65rem;
+  font-weight: 700;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.act-counters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.act-counter-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 70px;
+  padding: 6px 8px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
+.act-counter-label {
+  font-size: .62rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  text-align: center;
+  letter-spacing: .3px;
+}
+.act-counter-value {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+.act-counter-active {
+  color: var(--navy);
+}
+
+@media (max-width: 768px) {
+  .act-nav { flex-direction: column; align-items: stretch; }
+  #act-week-label { min-width: auto; }
+  #act-day-filter { margin-left: 0; width: 100%; }
+  .act-day-content { flex-direction: column; gap: 10px; }
+  .act-checks { min-width: auto; }
+}
+
 /* ─── Selection ─────────────────────────────────── */
 ::selection { background: rgba(79,70,229,0.15); color: var(--text); }
 

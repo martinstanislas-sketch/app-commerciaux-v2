@@ -267,6 +267,7 @@ async function bootApp() {
     initAdminPhoneursNav();
     initAdminEnergy();
     initControlTab();
+    initAdminActionsNav();
     _appBooted = true;
   }
 
@@ -297,9 +298,9 @@ function updateTabVisibility() {
   const notesBtn = document.querySelector('[data-tab="notes"]');
   const adminPhoneursBtn = document.querySelector('[data-tab="admin-phoneurs"]');
   const controleBtn = document.querySelector('[data-tab="controle"]');
+  const actionsBtn = document.querySelector('[data-tab="admin-actions"]');
 
   if (isPhoneLead()) {
-    // Phoneur: Aujourd'hui (fiche) + Récap (KPI)
     if (todayBtn) todayBtn.style.display = 'none';
     if (ventesBtn) ventesBtn.style.display = 'none';
     if (dashBtn) dashBtn.style.display = 'none';
@@ -309,6 +310,7 @@ function updateTabVisibility() {
     if (notesBtn) notesBtn.style.display = 'none';
     if (adminPhoneursBtn) adminPhoneursBtn.style.display = 'none';
     if (controleBtn) controleBtn.style.display = 'none';
+    if (actionsBtn) actionsBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -320,9 +322,9 @@ function updateTabVisibility() {
     if (notesBtn) notesBtn.style.display = '';
     if (adminPhoneursBtn) adminPhoneursBtn.style.display = '';
     if (controleBtn) controleBtn.style.display = '';
+    if (actionsBtn) actionsBtn.style.display = '';
     dashBtn.click();
   } else {
-    // Commercial: only Aujourd'hui + Récap Mensuel
     if (todayBtn) todayBtn.style.display = '';
     if (ventesBtn) ventesBtn.style.display = 'none';
     if (dashBtn) dashBtn.style.display = 'none';
@@ -332,6 +334,7 @@ function updateTabVisibility() {
     if (notesBtn) notesBtn.style.display = 'none';
     if (adminPhoneursBtn) adminPhoneursBtn.style.display = 'none';
     if (controleBtn) controleBtn.style.display = 'none';
+    if (actionsBtn) actionsBtn.style.display = 'none';
     todayBtn.click();
   }
 }
@@ -1479,6 +1482,152 @@ async function renderControlAnalysis(repId, month) {
   }
 }
 
+// ─── Admin Actions : Suivi actions hebdo (admin only) ────────
+
+let actionsWeekStart = '';
+
+function initAdminActionsNav() {
+  const prevBtn = document.getElementById('act-prev-week');
+  const nextBtn = document.getElementById('act-next-week');
+  if (!prevBtn) return;
+
+  actionsWeekStart = getMonday(new Date().toISOString().slice(0, 10));
+
+  prevBtn.addEventListener('click', () => {
+    const d = new Date(actionsWeekStart + 'T00:00:00');
+    d.setDate(d.getDate() - 7);
+    actionsWeekStart = formatDate(d);
+    loadAdminActions();
+  });
+  nextBtn.addEventListener('click', () => {
+    const d = new Date(actionsWeekStart + 'T00:00:00');
+    d.setDate(d.getDate() + 7);
+    actionsWeekStart = formatDate(d);
+    loadAdminActions();
+  });
+
+  const dayFilter = document.getElementById('act-day-filter');
+  if (dayFilter) dayFilter.addEventListener('change', () => loadAdminActions());
+}
+
+async function loadAdminActions() {
+  const container = document.getElementById('admin-actions-container');
+  if (!container) return;
+
+  if (!actionsWeekStart) actionsWeekStart = getMonday(new Date().toISOString().slice(0, 10));
+
+  // Update label
+  const label = document.getElementById('act-week-label');
+  const startD = new Date(actionsWeekStart + 'T00:00:00');
+  const endD = new Date(startD);
+  endD.setDate(endD.getDate() + 6);
+  const fmtD = d => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  if (label) label.textContent = `${fmtD(startD)} → ${fmtD(endD)} ${endD.getFullYear()}`;
+
+  // Populate day filter
+  const dayFilter = document.getElementById('act-day-filter');
+  if (dayFilter && dayFilter.options.length <= 1) {
+    const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startD);
+      d.setDate(d.getDate() + i);
+      const opt = document.createElement('option');
+      opt.value = d.toISOString().slice(0, 10);
+      opt.textContent = `${dayNames[i]} ${d.getDate()}`;
+      dayFilter.appendChild(opt);
+    }
+  }
+  // Update day filter options when week changes
+  if (dayFilter && dayFilter.options.length > 1) {
+    const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startD);
+      d.setDate(d.getDate() + i);
+      dayFilter.options[i + 1].value = d.toISOString().slice(0, 10);
+      dayFilter.options[i + 1].textContent = `${dayNames[i]} ${d.getDate()}`;
+    }
+  }
+
+  const filterDay = dayFilter ? dayFilter.value : 'all';
+
+  try {
+    const data = await api(`/admin/actions/${actionsWeekStart}`);
+
+    if (!data.reps || data.reps.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Aucun commercial</p>';
+      return;
+    }
+
+    const daysToShow = filterDay === 'all' ? data.days : [filterDay];
+    const dayLabels = { 0: 'Lun', 1: 'Mar', 2: 'Mer', 3: 'Jeu', 4: 'Ven', 5: 'Sam', 6: 'Dim' };
+
+    let html = '';
+    data.reps.forEach(rep => {
+      // Check if rep has any data for the filtered days
+      const hasData = daysToShow.some(d => rep.days[d] && Object.keys(rep.days[d]).length > 0);
+
+      html += `<div class="act-rep-card">
+        <h3 class="act-rep-name">${rep.name}</h3>`;
+
+      daysToShow.forEach(day => {
+        const vals = rep.days[day] || {};
+        const dayD = new Date(day + 'T00:00:00');
+        const dayLabel = dayD.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+
+        // Checkboxes (Club 1 + Club 2)
+        const checks = PREDEFINED_YESNO.map(a => {
+          const v1 = vals[`predefined:${a.key}`] || 0;
+          const v2 = vals[`club2:${a.key}`] || 0;
+          const done = v1 > 0 || v2 > 0;
+          const both = v1 > 0 && v2 > 0;
+          return { label: a.label, done, both };
+        });
+
+        // Counters (Club 1 + Club 2 summed)
+        const counters = PREDEFINED_COUNTERS.map(c => {
+          const v1 = vals[`predefined:${c.key}`] || 0;
+          const v2 = vals[`club2:${c.key}`] || 0;
+          return { label: c.label, value: v1 + v2 };
+        });
+
+        const allChecked = checks.every(c => c.done);
+        const anyData = checks.some(c => c.done) || counters.some(c => c.value > 0);
+
+        html += `
+          <div class="act-day-block ${!anyData ? 'act-day-empty' : ''}">
+            <div class="act-day-header">${dayLabel}</div>
+            <div class="act-day-content">
+              <div class="act-checks">
+                ${checks.map(c => `
+                  <div class="act-check-row ${c.done ? 'act-done' : 'act-missing'}">
+                    <span class="act-check-icon">${c.done ? '✅' : '❌'}</span>
+                    <span>${c.label}</span>
+                    ${c.both ? '<span class="act-club-badge">×2</span>' : ''}
+                  </div>
+                `).join('')}
+              </div>
+              <div class="act-counters">
+                ${counters.map(c => `
+                  <div class="act-counter-item">
+                    <span class="act-counter-label">${c.label}</span>
+                    <span class="act-counter-value ${c.value > 0 ? 'act-counter-active' : ''}">${c.value}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>`;
+      });
+
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+  } catch (err) {
+    console.error('Erreur chargement actions:', err);
+    container.innerHTML = '<p style="color:red;">Erreur de chargement</p>';
+  }
+}
+
 function applyFeatureStatus() {
   // Email : bouton test + relances
   const btnTestEmail = document.getElementById('btn-test-email');
@@ -1542,6 +1691,7 @@ function initTabs() {
       if (btn.dataset.tab === 'mensuel') loadMonthlySummary();
       if (btn.dataset.tab === 'notes') loadNotes();
       if (btn.dataset.tab === 'admin-phoneurs') loadAdminPhoneurs();
+      if (btn.dataset.tab === 'admin-actions') loadAdminActions();
       if (btn.dataset.tab === 'controle') loadControlTab();
       if (btn.dataset.tab === 'phoning') loadPhoningTab();
       if (btn.dataset.tab === 'phoning-recap') loadPhoningRecap();
