@@ -1595,6 +1595,17 @@ function updateWeekLabel() {
 
 // ─── Dashboard ──────────────────────────────────────────────
 
+async function removeRepFromWeek(repId, repName) {
+  if (!confirm(`Retirer "${repName}" de la semaine ${ctrlWeekStart || currentWeek} ?\n\nCela supprimera ses heures, ventes, actions et transcripts pour cette semaine. Cette action est irréversible.`)) return;
+  try {
+    const week = currentWeek;
+    await api(`/weeks/${week}/rep/${repId}`, { method: 'DELETE' });
+    loadDashboard();
+  } catch (err) {
+    alert('Erreur : ' + (err.message || 'Impossible de retirer le commercial'));
+  }
+}
+
 async function loadDashboard() {
   updateWeekLabel();
 
@@ -1636,7 +1647,7 @@ function renderCards(commerciaux) {
     const settingsDisabled = isLocked || !isAdmin();
 
     card.innerHTML = `
-      <h2>${c.rep_name}</h2>
+      <h2>${c.rep_name}${isAdmin() && !isLocked ? `<button class="btn-remove-rep-week" onclick="removeRepFromWeek(${c.sales_rep_id}, '${c.rep_name}')" title="Retirer ce commercial de la semaine">✕</button>` : ''}</h2>
       <div class="rep-ratio-hero" style="background:${c.hours_worked > 0 ? heroBg : 'var(--bg-subtle)'};border-color:${c.hours_worked > 0 ? heroBorder : 'var(--border-light)'}">
         <div class="rep-ratio-value" style="color:${c.hours_worked > 0 ? ratioColor : 'var(--text-muted)'}">
           ${c.ratio > 0 ? Math.round(c.ratio) + ' €/h' : '—'}

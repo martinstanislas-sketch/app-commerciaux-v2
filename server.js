@@ -1358,6 +1358,34 @@ app.put('/api/control/:sales_rep_id/:week_start/hours', requireAuth, requireAdmi
   res.json({ ok: true });
 });
 
+// ─── Admin: Remove rep from a specific week ─────────────────
+
+app.delete('/api/weeks/:week_start/rep/:sales_rep_id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const weekStart = req.params.week_start;
+  const repId = parseInt(req.params.sales_rep_id);
+
+  // Get week end date (Sunday)
+  const startD = new Date(weekStart + 'T00:00:00');
+  const endD = new Date(startD);
+  endD.setDate(endD.getDate() + 6);
+  const weekEnd = endD.toISOString().slice(0, 10);
+
+  // Delete weekly_settings for this rep/week
+  db.prepare('DELETE FROM weekly_settings WHERE week_start = ? AND sales_rep_id = ?').run(weekStart, repId);
+
+  // Delete sales for this rep/week
+  db.prepare('DELETE FROM sales WHERE week_start = ? AND sales_rep_id = ?').run(weekStart, repId);
+
+  // Delete daily action values for this rep in this week's date range
+  db.prepare('DELETE FROM daily_action_values WHERE sales_rep_id = ? AND date >= ? AND date <= ?').run(repId, weekStart, weekEnd);
+
+  // Delete transcript messages for this rep/week
+  db.prepare('DELETE FROM transcript_messages WHERE sales_rep_id = ? AND week_start = ?').run(repId, weekStart);
+
+  res.json({ ok: true });
+});
+
 // ─── Webhook: POST /api/webhook/sales (single) ──────────────
 
 app.post('/api/webhook/sales', webhookAuth, (req, res) => {
