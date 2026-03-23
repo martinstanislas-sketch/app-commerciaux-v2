@@ -1508,6 +1508,9 @@ function initAdminActionsNav() {
 
   const dayFilter = document.getElementById('act-day-filter');
   if (dayFilter) dayFilter.addEventListener('change', () => loadAdminActions());
+
+  const periodToggle = document.getElementById('act-period-toggle');
+  if (periodToggle) periodToggle.addEventListener('change', () => loadAdminActions());
 }
 
 async function loadAdminActions() {
@@ -1549,6 +1552,11 @@ async function loadAdminActions() {
   }
 
   const filterDay = dayFilter ? dayFilter.value : 'all';
+  const periodToggle = document.getElementById('act-period-toggle');
+  const period = periodToggle ? periodToggle.value : 'week';
+
+  // Load comparison table
+  await loadActionsComparison(period);
 
   try {
     const data = await api(`/admin/actions/${actionsWeekStart}`);
@@ -1625,6 +1633,104 @@ async function loadAdminActions() {
   } catch (err) {
     console.error('Erreur chargement actions:', err);
     container.innerHTML = '<p style="color:red;">Erreur de chargement</p>';
+  }
+}
+
+async function loadActionsComparison(period) {
+  const tableDiv = document.getElementById('act-comparison-table');
+  if (!tableDiv) return;
+
+  try {
+    let reps;
+    let periodLabel;
+
+    if (period === 'month') {
+      // Use month of the current week
+      const month = actionsWeekStart.slice(0, 7);
+      const data = await api(`/admin/actions-summary/${month}`);
+      reps = data.reps;
+      const [y, m] = month.split('-').map(Number);
+      periodLabel = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    } else {
+      // Use weekly data and aggregate
+      const data = await api(`/admin/actions/${actionsWeekStart}`);
+      const startD = new Date(actionsWeekStart + 'T00:00:00');
+      const endD = new Date(startD);
+      endD.setDate(endD.getDate() + 6);
+      const fmtD = d => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      periodLabel = `${fmtD(startD)} → ${fmtD(endD)}`;
+
+      reps = data.reps.map(rep => {
+        const totals = {};
+        Object.values(rep.days).forEach(dayVals => {
+          Object.entries(dayVals).forEach(([key, val]) => {
+            const k = key.replace('predefined:', '').replace('club2:', '');
+            totals[k] = (totals[k] || 0) + val;
+          });
+        });
+        // Count days with activity
+        const daysActive = Object.values(rep.days).filter(dv => Object.values(dv).some(v => v > 0)).length;
+        return { name: rep.name, totals, days_active: daysActive, total_hours: null };
+      });
+
+      // Fetch hours for the week
+      try {
+        const dashboard = await api(`/weeks/${actionsWeekStart}/dashboard`);
+        dashboard.commerciaux.forEach(c => {
+          const r = reps.find(rr => rr.name === c.rep_name);
+          if (r) r.total_hours = c.hours_worked;
+        });
+      } catch (e) { /* ignore */ }
+    }
+
+    if (!reps || reps.length === 0) {
+      tableDiv.innerHTML = '';
+      return;
+    }
+
+    // Build columns: Heures + yesno checks (count of days done) + counters
+    const yesnoKeys = PREDEFINED_YESNO.map(a => a.key);
+    const counterKeys = PREDEFINED_COUNTERS.map(c => c.key);
+
+    let html = `
+      <div class="act-comp-section">
+        <h3>Comparatif — ${periodLabel}</h3>
+        <div class="act-comp-scroll">
+          <table class="act-comp-table">
+            <thead>
+              <tr>
+                <th>Commercial</th>
+                <th>Heures</th>
+                ${PREDEFINED_YESNO.map(a => `<th title="${a.label}">${a.label.length > 20 ? a.label.slice(0, 18) + '…' : a.label}</th>`).join('')}
+                ${PREDEFINED_COUNTERS.map(c => `<th>${c.label}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${reps.map(r => {
+                const t = r.totals || {};
+                return `<tr>
+                  <td class="act-comp-name">${r.name}</td>
+                  <td class="act-comp-hours">${r.total_hours !== null && r.total_hours !== undefined ? r.total_hours + 'h' : '—'}</td>
+                  ${yesnoKeys.map(k => {
+                    const val = t[k] || 0;
+                    // For yesno, value = number of days checked
+                    return `<td class="act-comp-val ${val > 0 ? 'act-comp-ok' : 'act-comp-zero'}">${val > 0 ? val + 'j' : '0'}</td>`;
+                  }).join('')}
+                  ${counterKeys.map(k => {
+                    const val = t[k] || 0;
+                    return `<td class="act-comp-val ${val > 0 ? 'act-comp-ok' : 'act-comp-zero'}">${val}</td>`;
+                  }).join('')}
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+
+    tableDiv.innerHTML = html;
+  } catch (err) {
+    console.error('Erreur chargement comparatif:', err);
+    tableDiv.innerHTML = '';
   }
 }
 

@@ -1158,6 +1158,59 @@ app.get('/api/admin/actions/:weekStart', requireAuth, requireAdmin, (req, res) =
   res.json({ week_start: weekStart, days, reps: result });
 });
 
+// ─── Admin: Actions summary for a month (comparison table) ───
+app.get('/api/admin/actions-summary/:month', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const month = req.params.month;
+  const firstDay = month + '-01';
+  const year = parseInt(month.split('-')[0]);
+  const mon = parseInt(month.split('-')[1]);
+  const lastDay = new Date(year, mon, 0).toISOString().slice(0, 10);
+
+  const reps = db.prepare("SELECT id, name FROM sales_reps WHERE role != 'phoneur' AND archived = 0 ORDER BY name").all();
+
+  const result = reps.map(rep => {
+    // Hours from weekly_settings
+    const hoursRow = db.prepare(`
+      SELECT COALESCE(SUM(hours_worked), 0) as total_hours
+      FROM weekly_settings
+      WHERE sales_rep_id = ? AND week_start >= date(?, '-6 days') AND week_start <= ?
+    `).get(rep.id, firstDay, lastDay);
+
+    // Action counters (predefined + club2 summed)
+    const actions = db.prepare(`
+      SELECT action_key, SUM(value) as total
+      FROM daily_action_values
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%')
+      GROUP BY action_key
+    `).all(rep.id, firstDay, lastDay);
+
+    const totals = {};
+    actions.forEach(a => {
+      // Normalize key: 'predefined:references' and 'club2:references' both → 'references'
+      const key = a.action_key.replace('predefined:', '').replace('club2:', '');
+      totals[key] = (totals[key] || 0) + a.total;
+    });
+
+    // Count days with all yesno actions done (both clubs if used)
+    const daysWorked = db.prepare(`
+      SELECT COUNT(DISTINCT date) as count
+      FROM daily_action_values
+      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%') AND value > 0
+    `).get(rep.id, firstDay, lastDay);
+
+    return {
+      sales_rep_id: rep.id,
+      name: rep.name,
+      total_hours: hoursRow.total_hours,
+      days_active: daysWorked?.count || 0,
+      totals
+    };
+  });
+
+  res.json({ month, reps: result });
+});
+
 app.get('/api/daily-actions/values/:sales_rep_id/:date', requireAuth, (req, res) => {
   const db = getDb();
   const values = db.prepare(
