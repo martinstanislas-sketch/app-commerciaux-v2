@@ -1701,8 +1701,15 @@ async function loadActionsComparison(period) {
               <tr>
                 <th>Commercial</th>
                 <th>Heures</th>
-                ${PREDEFINED_YESNO.map(a => `<th>${a.label}</th>`).join('')}
-                ${PREDEFINED_COUNTERS.map(c => `<th>${c.label}</th>`).join('')}
+                <th>Check studio</th>
+                <th>Annulés / no-show</th>
+                <th>Messages traités</th>
+                <th>RDV de demain</th>
+                <th>Story postée</th>
+                <th>Ref</th>
+                <th>1er mois</th>
+                <th>RDV fixés</th>
+                <th>Entreprise</th>
               </tr>
             </thead>
             <tbody>
