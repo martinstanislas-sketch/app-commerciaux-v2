@@ -1300,7 +1300,7 @@ app.get('/api/control/:sales_rep_id/:week_start', requireAuth, requireAdmin, (re
 
   // 2. Ventes de la semaine avec détails
   const sales = db.prepare(`
-    SELECT id, date, amount, client_first_name, client_last_name, rib_status, controlled
+    SELECT id, date, amount, client_first_name, client_last_name, rib_status, controlled, sales_rep_id
     FROM sales WHERE sales_rep_id = ? AND week_start = ?
     ORDER BY date DESC, id DESC
   `).all(repId, weekStart);

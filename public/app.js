@@ -1202,6 +1202,9 @@ async function loadControlTab() {
     html += await renderControlBadges(repId, repName, data.month);
 
     // ── Bloc 4 : Tableau des ventes ──
+    const repOptions = salesReps.filter(r => r.role !== 'phoneur' && !r.archived)
+      .map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+
     if (data.sales.length === 0) {
       html += '<div class="ctrl-empty">Aucune vente cette semaine</div>';
     } else {
@@ -1212,29 +1215,36 @@ async function loadControlTab() {
             <thead>
               <tr>
                 <th>Date</th>
+                <th>Commercial</th>
                 <th>Nom</th>
                 <th>Prénom</th>
                 <th>Montant</th>
                 <th>RIB</th>
                 <th>Contrôlé</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               ${data.sales.map(s => {
-                const ribClass = s.rib_status === 'Reçu' ? 'ctrl-rib-ok' : 'ctrl-rib-ko';
-                const ribLabel = s.rib_status === 'Reçu' ? 'Fourni' : 'Non fourni';
                 const noRib = s.rib_status !== 'Reçu';
-                return `<tr class="${noRib ? 'ctrl-row-no-rib' : ''}">
-                  <td>${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</td>
-                  <td>${s.client_last_name || '—'}</td>
-                  <td>${s.client_first_name || '—'}</td>
-                  <td class="ctrl-amount">${s.amount.toLocaleString('fr-FR')} €</td>
-                  <td><span class="${ribClass}">${ribLabel}</span></td>
+                return `<tr class="${noRib ? 'ctrl-row-no-rib' : ''}" id="ctrl-sale-${s.id}">
+                  <td><input type="date" class="ctrl-edit-input ctrl-edit-date" value="${s.date}" data-field="date"></td>
+                  <td><select class="ctrl-edit-input ctrl-edit-rep" data-field="sales_rep_id">${repOptions.replace(`value="${s.sales_rep_id}"`, `value="${s.sales_rep_id}" selected`)}</select></td>
+                  <td><input type="text" class="ctrl-edit-input" value="${s.client_last_name || ''}" data-field="client_last_name" placeholder="Nom"></td>
+                  <td><input type="text" class="ctrl-edit-input" value="${s.client_first_name || ''}" data-field="client_first_name" placeholder="Prénom"></td>
+                  <td><input type="number" class="ctrl-edit-input ctrl-edit-amount" value="${s.amount}" step="0.01" min="0" data-field="amount"></td>
+                  <td><select class="ctrl-edit-input ctrl-edit-rib" data-field="rib_status">
+                    <option value="Reçu" ${s.rib_status === 'Reçu' ? 'selected' : ''}>Fourni</option>
+                    <option value="Non fourni" ${s.rib_status !== 'Reçu' ? 'selected' : ''}>Non fourni</option>
+                  </select></td>
                   <td class="ctrl-check-cell">
                     <label class="ctrl-checkbox">
                       <input type="checkbox" ${s.controlled ? 'checked' : ''} onchange="toggleControlled(${s.id}, this.checked)">
                       <span class="ctrl-checkmark"></span>
                     </label>
+                  </td>
+                  <td class="ctrl-actions-cell">
+                    <button class="ctrl-save-sale" onclick="saveCtrlSale(${s.id})" title="Enregistrer">💾</button>
                   </td>
                 </tr>`;
               }).join('')}
@@ -1287,6 +1297,41 @@ async function toggleHoursControlled(repId, weekStart, controlled) {
     await api(`/control/${repId}/${weekStart}/hours`, { method: 'PUT', body: { hours_controlled: controlled } });
   } catch (err) {
     console.error('Erreur toggle hours controlled:', err);
+  }
+}
+
+async function saveCtrlSale(saleId) {
+  const row = document.getElementById(`ctrl-sale-${saleId}`);
+  if (!row) return;
+
+  const getValue = (field) => {
+    const el = row.querySelector(`[data-field="${field}"]`);
+    return el ? el.value : '';
+  };
+
+  const body = {
+    date: getValue('date'),
+    sales_rep_id: parseInt(getValue('sales_rep_id')),
+    client_last_name: getValue('client_last_name'),
+    client_first_name: getValue('client_first_name'),
+    amount: parseFloat(getValue('amount')) || 0,
+    rib_status: getValue('rib_status')
+  };
+
+  try {
+    await api(`/sales/${saleId}`, { method: 'PUT', body });
+    const btn = row.querySelector('.ctrl-save-sale');
+    if (btn) {
+      btn.textContent = '✓';
+      btn.style.background = 'var(--success)';
+      btn.style.color = 'white';
+      setTimeout(() => { btn.textContent = '💾'; btn.style.background = ''; btn.style.color = ''; }, 2000);
+    }
+    // Update row color based on RIB
+    const noRib = body.rib_status !== 'Reçu';
+    row.className = noRib ? 'ctrl-row-no-rib' : '';
+  } catch (err) {
+    alert('Erreur : ' + (err.message || 'Impossible de modifier la vente'));
   }
 }
 
