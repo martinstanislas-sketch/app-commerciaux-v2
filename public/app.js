@@ -1588,39 +1588,63 @@ async function loadAdminActions() {
           const v2 = vals[`club2:${a.key}`] || 0;
           const done = v1 > 0 || v2 > 0;
           const both = v1 > 0 && v2 > 0;
-          return { label: a.label, done, both };
+          return { key: a.key, label: a.label, done, both, v1, v2 };
         });
 
         // Counters (Club 1 + Club 2 summed)
         const counters = PREDEFINED_COUNTERS.map(c => {
           const v1 = vals[`predefined:${c.key}`] || 0;
           const v2 = vals[`club2:${c.key}`] || 0;
-          return { label: c.label, value: v1 + v2 };
+          return { key: c.key, label: c.label, value: v1 + v2, v1, v2 };
         });
 
         const allChecked = checks.every(c => c.done);
         const anyData = checks.some(c => c.done) || counters.some(c => c.value > 0);
+        const isAdmin = currentRole === 'admin';
 
         html += `
           <div class="act-day-block ${!anyData ? 'act-day-empty' : ''}">
             <div class="act-day-header">${dayLabel}</div>
             <div class="act-day-content">
               <div class="act-checks">
-                ${checks.map(c => `
-                  <div class="act-check-row ${c.done ? 'act-done' : 'act-missing'}">
-                    <span class="act-check-icon">${c.done ? '✅' : '❌'}</span>
-                    <span>${c.label}</span>
-                    ${c.both ? '<span class="act-club-badge">×2</span>' : ''}
-                  </div>
-                `).join('')}
+                ${checks.map(c => {
+                  if (isAdmin) {
+                    return `
+                      <div class="act-check-row ${c.done ? 'act-done' : 'act-missing'} act-editable"
+                           data-rep="${rep.sales_rep_id}" data-day="${day}" data-key="${c.key}" data-type="yesno"
+                           data-v1="${c.v1}" data-v2="${c.v2}"
+                           onclick="toggleActionCheck(this)">
+                        <span class="act-check-icon">${c.done ? '✅' : '❌'}</span>
+                        <span>${c.label}</span>
+                        ${c.both ? '<span class="act-club-badge">×2</span>' : ''}
+                      </div>`;
+                  }
+                  return `
+                    <div class="act-check-row ${c.done ? 'act-done' : 'act-missing'}">
+                      <span class="act-check-icon">${c.done ? '✅' : '❌'}</span>
+                      <span>${c.label}</span>
+                      ${c.both ? '<span class="act-club-badge">×2</span>' : ''}
+                    </div>`;
+                }).join('')}
               </div>
               <div class="act-counters">
-                ${counters.map(c => `
-                  <div class="act-counter-item">
-                    <span class="act-counter-label">${c.label}</span>
-                    <span class="act-counter-value ${c.value > 0 ? 'act-counter-active' : ''}">${c.value}</span>
-                  </div>
-                `).join('')}
+                ${counters.map(c => {
+                  if (isAdmin) {
+                    return `
+                      <div class="act-counter-item act-editable">
+                        <span class="act-counter-label">${c.label}</span>
+                        <input type="number" min="0" class="act-counter-input" value="${c.value}"
+                               data-rep="${rep.sales_rep_id}" data-day="${day}" data-key="${c.key}"
+                               data-v1="${c.v1}" data-v2="${c.v2}"
+                               onchange="updateActionCounter(this)">
+                      </div>`;
+                  }
+                  return `
+                    <div class="act-counter-item">
+                      <span class="act-counter-label">${c.label}</span>
+                      <span class="act-counter-value ${c.value > 0 ? 'act-counter-active' : ''}">${c.value}</span>
+                    </div>`;
+                }).join('')}
               </div>
             </div>
           </div>`;
@@ -1633,6 +1657,47 @@ async function loadAdminActions() {
   } catch (err) {
     console.error('Erreur chargement actions:', err);
     container.innerHTML = '<p style="color:red;">Erreur de chargement</p>';
+  }
+}
+
+// ─── Admin: toggle yesno action ──────────────────────────────
+async function toggleActionCheck(el) {
+  const repId = el.dataset.rep;
+  const day = el.dataset.day;
+  const key = el.dataset.key;
+  const v1 = parseInt(el.dataset.v1) || 0;
+  const newVal = v1 > 0 ? 0 : 1; // toggle
+
+  try {
+    await api(`/daily-actions/values/${repId}/${day}`, {
+      method: 'PUT',
+      body: { action_key: `predefined:${key}`, value: newVal }
+    });
+    // Reload actions tab
+    await loadAdminActions();
+  } catch (err) {
+    console.error('Erreur toggle action:', err);
+  }
+}
+
+// ─── Admin: update counter action ────────────────────────────
+async function updateActionCounter(el) {
+  const repId = el.dataset.rep;
+  const day = el.dataset.day;
+  const key = el.dataset.key;
+  const newVal = parseInt(el.value) || 0;
+
+  try {
+    await api(`/daily-actions/values/${repId}/${day}`, {
+      method: 'PUT',
+      body: { action_key: `predefined:${key}`, value: newVal }
+    });
+    // Reload comparison table
+    const periodToggle = document.getElementById('act-period-toggle');
+    const period = periodToggle ? periodToggle.value : 'week';
+    await loadActionsComparison(period);
+  } catch (err) {
+    console.error('Erreur update counter:', err);
   }
 }
 

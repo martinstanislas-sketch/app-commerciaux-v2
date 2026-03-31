@@ -3559,6 +3559,27 @@ main {
   color: var(--navy);
 }
 
+/* Admin editable actions */
+.act-editable { cursor: pointer; }
+.act-check-row.act-editable:hover { background: var(--bg-subtle); border-radius: 6px; }
+.act-counter-input {
+  width: 56px;
+  padding: 4px 6px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  text-align: center;
+  border: 1.5px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  color: var(--navy);
+  transition: border-color .2s;
+}
+.act-counter-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
 /* Actions comparison table */
 .act-comp-section {
   background: var(--card);
