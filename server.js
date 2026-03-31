@@ -42,31 +42,53 @@ function requireAdmin(req, res, next) {
 // ─── Week-Month Majority Helper ─────────────────────────────
 // A week (Mon-Sun) belongs to the month where the majority of its 7 days fall.
 // e.g. March 30 → April 5 = 2 days in March, 5 in April → counts as April.
+// Uses pure arithmetic (no Date objects) to avoid timezone/DST issues.
 const _pad2 = n => String(n).padStart(2, '0');
-const _localDate = d => `${d.getFullYear()}-${_pad2(d.getMonth() + 1)}-${_pad2(d.getDate())}`;
+
+// Days in a given month (1-indexed)
+function _daysInMonth(year, month) {
+  // month is 1-12
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+// Day of week for a date (0=Sun, 1=Mon, ... 6=Sat) — Zeller-like via UTC
+function _dayOfWeek(y, m, d) {
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+// Add days to a {y,m,d} date, returns {y,m,d}
+function _addDays(y, m, d, n) {
+  const ms = Date.UTC(y, m - 1, d) + n * 86400000;
+  const dt = new Date(ms);
+  return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
+}
+
+function _dateStr(y, m, d) {
+  return `${y}-${_pad2(m)}-${_pad2(d)}`;
+}
 
 function getWeekStartsForMonth(month) {
   const year = parseInt(month.split('-')[0]);
   const mon = parseInt(month.split('-')[1]);
-  const firstOfMonth = new Date(year, mon - 1, 1);
-  const lastOfMonth = new Date(year, mon, 0);
+  const lastDayNum = _daysInMonth(year, mon);
 
-  // Start searching from the Monday 6 days before the 1st
-  const search = new Date(firstOfMonth);
-  search.setDate(search.getDate() - 6);
-  while (search.getDay() !== 1) search.setDate(search.getDate() - 1);
+  // Find Monday on or before (firstOfMonth - 6 days) to catch overlapping weeks
+  let s = _addDays(year, mon, 1, -6);
+  while (_dayOfWeek(s.y, s.m, s.d) !== 1) {
+    s = _addDays(s.y, s.m, s.d, -1);
+  }
 
   const result = [];
-  const cur = new Date(search);
-  while (cur <= lastOfMonth) {
+  let cur = { ...s };
+  // Loop while cur <= last day of month
+  while (cur.y < year || (cur.y === year && cur.m < mon) || (cur.y === year && cur.m === mon && cur.d <= lastDayNum)) {
     let daysInMonth = 0;
     for (let i = 0; i < 7; i++) {
-      const d = new Date(cur);
-      d.setDate(d.getDate() + i);
-      if (d.getFullYear() === year && d.getMonth() === mon - 1) daysInMonth++;
+      const dd = _addDays(cur.y, cur.m, cur.d, i);
+      if (dd.y === year && dd.m === mon) daysInMonth++;
     }
-    if (daysInMonth >= 4) result.push(_localDate(cur));
-    cur.setDate(cur.getDate() + 7);
+    if (daysInMonth >= 4) result.push(_dateStr(cur.y, cur.m, cur.d));
+    cur = _addDays(cur.y, cur.m, cur.d, 7);
   }
   return result;
 }
@@ -77,8 +99,8 @@ function getDateRangeFromWeeks(weekStarts) {
   const first = weekStarts[0];
   const last = weekStarts[weekStarts.length - 1];
   const [ly, lm, ld] = last.split('-').map(Number);
-  const end = new Date(ly, lm - 1, ld + 6);
-  return { from: first, to: _localDate(end) };
+  const end = _addDays(ly, lm, ld, 6);
+  return { from: first, to: _dateStr(end.y, end.m, end.d) };
 }
 
 // ─── Auth Routes ────────────────────────────────────────────
