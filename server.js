@@ -39,6 +39,48 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// ─── Week-Month Majority Helper ─────────────────────────────
+// A week (Mon-Sun) belongs to the month where the majority of its 7 days fall.
+// e.g. March 30 → April 5 = 2 days in March, 5 in April → counts as April.
+const _pad2 = n => String(n).padStart(2, '0');
+const _localDate = d => `${d.getFullYear()}-${_pad2(d.getMonth() + 1)}-${_pad2(d.getDate())}`;
+
+function getWeekStartsForMonth(month) {
+  const year = parseInt(month.split('-')[0]);
+  const mon = parseInt(month.split('-')[1]);
+  const firstOfMonth = new Date(year, mon - 1, 1);
+  const lastOfMonth = new Date(year, mon, 0);
+
+  // Start searching from the Monday 6 days before the 1st
+  const search = new Date(firstOfMonth);
+  search.setDate(search.getDate() - 6);
+  while (search.getDay() !== 1) search.setDate(search.getDate() - 1);
+
+  const result = [];
+  const cur = new Date(search);
+  while (cur <= lastOfMonth) {
+    let daysInMonth = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(cur);
+      d.setDate(d.getDate() + i);
+      if (d.getFullYear() === year && d.getMonth() === mon - 1) daysInMonth++;
+    }
+    if (daysInMonth >= 4) result.push(_localDate(cur));
+    cur.setDate(cur.getDate() + 7);
+  }
+  return result;
+}
+
+// Returns the date range covered by a set of week_starts (each week = 7 days)
+function getDateRangeFromWeeks(weekStarts) {
+  if (!weekStarts.length) return { from: '9999-12-31', to: '0000-01-01' };
+  const first = weekStarts[0];
+  const last = weekStarts[weekStarts.length - 1];
+  const [ly, lm, ld] = last.split('-').map(Number);
+  const end = new Date(ly, lm - 1, ld + 6);
+  return { from: first, to: _localDate(end) };
+}
+
 // ─── Auth Routes ────────────────────────────────────────────
 
 app.post('/api/auth/login', (req, res) => {
@@ -608,33 +650,33 @@ app.get('/api/months/:month/summary', requireAuth, (req, res) => {
   const db = getDb();
   const month = req.params.month; // "2025-02"
 
-  // Find all week_starts that overlap with this month
   const year = parseInt(month.split('-')[0]);
   const mon = parseInt(month.split('-')[1]);
-  const firstDay = `${month}-01`;
   const lastDay = new Date(year, mon, 0).toISOString().slice(0, 10);
 
-  // Weeks that have at least one day in this month:
-  // week_start <= lastDay AND week_end (week_start + 6 days) >= firstDay
-  // Only include commercial reps active during this month (exclude phoneurs)
+  // Week-month majority rule: only include weeks where ≥4 of 7 days fall in this month
+  const monthWeeks = getWeekStartsForMonth(month);
+  const { from: dateFrom, to: dateTo } = getDateRangeFromWeeks(monthWeeks);
+
   const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND archived = 0 AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
 
-  // Get all sales in this month (by date, not week_start)
-  const allSales = db.prepare(`
+  // Get all sales from weeks attributed to this month
+  const placeholders = monthWeeks.map(() => '?').join(',');
+  const allSales = monthWeeks.length > 0 ? db.prepare(`
     SELECT s.*, sr.name as rep_name
     FROM sales s
     JOIN sales_reps sr ON sr.id = s.sales_rep_id
-    WHERE s.date >= ? AND s.date <= ?
+    WHERE s.week_start IN (${placeholders})
     ORDER BY s.amount DESC
-  `).all(firstDay, lastDay);
+  `).all(...monthWeeks) : [];
 
-  // Total hours per rep across all weeks of the month
-  const weeklySettings = db.prepare(`
+  // Total hours per rep across attributed weeks
+  const weeklySettings = monthWeeks.length > 0 ? db.prepare(`
     SELECT ws.*, sr.name as rep_name
     FROM weekly_settings ws
     JOIN sales_reps sr ON sr.id = ws.sales_rep_id
-    WHERE ws.week_start >= date(?, '-6 days') AND ws.week_start <= ?
-  `).all(firstDay, lastDay);
+    WHERE ws.week_start IN (${placeholders})
+  `).all(...monthWeeks) : [];
 
   // Per-rep stats with cumulated monthly ratio + best single sale
   // Only count sales with RIB received in the recap
@@ -714,13 +756,18 @@ app.get('/api/months/:month/analysis-data', requireAuth, (req, res) => {
   const month = req.params.month;
   const year = parseInt(month.split('-')[0]);
   const mon = parseInt(month.split('-')[1]);
-  const firstDay = `${month}-01`;
   const lastDay = new Date(year, mon, 0).toISOString().slice(0, 10);
+
+  // Week-month majority rule
+  const monthWeeks = getWeekStartsForMonth(month);
+  const { from: dateFrom, to: dateTo } = getDateRangeFromWeeks(monthWeeks);
 
   const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND archived = 0 AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
 
   // Total predefined actions count (yesno + counters)
   const PREDEFINED_ACTION_COUNT = 9; // 5 yesno + 4 counters
+
+  const placeholdersA = monthWeeks.map(() => '?').join(',');
 
   const result = reps.map(rep => {
     // 1. Monthly counters — combine predefined: and club2: (normalize to predefined:)
@@ -731,34 +778,31 @@ app.get('/api/months/:month/analysis-data', requireAuth, (req, res) => {
       FROM daily_action_values
       WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%')
       GROUP BY norm_key
-    `).all(rep.id, firstDay, lastDay);
+    `).all(rep.id, dateFrom, dateTo);
 
     const totals = {};
     counters.forEach(c => { totals[c.norm_key.replace('predefined:', '')] = c.total; });
 
-    // 2. Sales without RIB for this rep in this month
-    const salesNoRib = db.prepare(`
+    // 2. Sales without RIB for this rep (from weeks attributed to this month)
+    const salesNoRib = monthWeeks.length > 0 ? db.prepare(`
       SELECT COUNT(*) as count FROM sales
-      WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND rib_status != 'Reçu'
-    `).get(rep.id, firstDay, lastDay);
+      WHERE sales_rep_id = ? AND week_start IN (${placeholdersA}) AND rib_status != 'Reçu'
+    `).get(rep.id, ...monthWeeks) : { count: 0 };
 
     // 3. Total sales count (all statuses) for reference comparison
-    const totalSalesAll = db.prepare(`
+    const totalSalesAll = monthWeeks.length > 0 ? db.prepare(`
       SELECT COUNT(*) as count FROM sales
-      WHERE sales_rep_id = ? AND date >= ? AND date <= ?
-    `).get(rep.id, firstDay, lastDay);
+      WHERE sales_rep_id = ? AND week_start IN (${placeholdersA})
+    `).get(rep.id, ...monthWeeks) : { count: 0 };
 
     // 4. Commercial days = distinct days with at least one action value > 0 (either club)
     const commercialDays = db.prepare(`
       SELECT COUNT(DISTINCT date) as count
       FROM daily_action_values
       WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%') AND value > 0
-    `).get(rep.id, firstDay, lastDay);
+    `).get(rep.id, dateFrom, dateTo);
 
     // 5. Days with ALL actions completed per used club
-    // A club is "used" on a day if it has at least 1 value > 0
-    // A day is "complete" if every used club has PREDEFINED_ACTION_COUNT actions done
-    // We check this by: for each day, count used clubs and complete clubs
     const dayDetails = db.prepare(`
       SELECT date,
         CASE WHEN action_key LIKE 'predefined:%' THEN 'c1' ELSE 'c2' END as club,
@@ -766,7 +810,7 @@ app.get('/api/months/:month/analysis-data', requireAuth, (req, res) => {
       FROM daily_action_values
       WHERE sales_rep_id = ? AND date >= ? AND date <= ? AND (action_key LIKE 'predefined:%' OR action_key LIKE 'club2:%') AND value > 0
       GROUP BY date, club
-    `).all(rep.id, firstDay, lastDay);
+    `).all(rep.id, dateFrom, dateTo);
 
     // Group by date
     const dayMap = {};
@@ -808,39 +852,28 @@ app.get('/api/months/:month/weekly-breakdown', requireAuth, (req, res) => {
   const month = req.params.month;
   const year = parseInt(month.split('-')[0]);
   const mon = parseInt(month.split('-')[1]);
-  const firstDay = `${month}-01`;
   const lastDay = new Date(year, mon, 0).toISOString().slice(0, 10);
+
+  // Week-month majority rule
+  const monthWeeks = getWeekStartsForMonth(month);
 
   const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND archived = 0 AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
 
-  // Find all distinct week_starts that overlap with this month
-  const weeks = db.prepare(`
-    SELECT DISTINCT ws.week_start
-    FROM weekly_settings ws
-    WHERE ws.week_start >= date(?, '-6 days') AND ws.week_start <= ?
-    ORDER BY ws.week_start
-  `).all(firstDay, lastDay);
-
-  const weeklyData = weeks.map(w => {
-    const ws = w.week_start;
-    // Calculate week end (for filtering sales within the month)
+  const weeklyData = monthWeeks.map(ws => {
     const [wy, wm, wd] = ws.split('-').map(Number);
-    const weekEndDate = new Date(wy, wm - 1, wd);
-    weekEndDate.setDate(weekEndDate.getDate() + 6);
-    const weekEnd = weekEndDate.toISOString().slice(0, 10);
+    const weekEndDate = new Date(wy, wm - 1, wd + 6);
 
-    // Week label
     const startDate = new Date(wy, wm - 1, wd);
     const startLabel = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
     const endLabel = weekEndDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 
     const repData = reps.filter(rep => !rep.start_week || rep.start_week <= ws).map(rep => {
-      // Sales for this rep in this week AND within the month (only RIB received)
+      // All sales for this rep in this week (whole week counts for this month)
       const salesRow = db.prepare(`
         SELECT COALESCE(SUM(amount), 0) as ca, COUNT(*) as nb_ventes
         FROM sales
-        WHERE sales_rep_id = ? AND week_start = ? AND date >= ? AND date <= ? AND rib_status = 'Reçu'
-      `).get(rep.id, ws, firstDay, lastDay);
+        WHERE sales_rep_id = ? AND week_start = ? AND rib_status = 'Reçu'
+      `).get(rep.id, ws);
 
       const settings = db.prepare(`
         SELECT hours_worked, target_per_hour
