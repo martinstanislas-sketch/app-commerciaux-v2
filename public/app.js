@@ -1261,7 +1261,10 @@ async function loadControlTab() {
     // ── Bloc 4 : Suivi Énergie de la semaine ──
     html += await renderControlEnergy(repId, ctrlWeekStart);
 
-    // ── Bloc 5 : Points de satisfaction / amélioration ──
+    // ── Bloc 5 : Remarques Actions de la semaine ──
+    html += await renderControlRemarks(repId, ctrlWeekStart);
+
+    // ── Bloc 6 : Points de satisfaction / amélioration ──
     html += await renderControlAnalysis(repId, data.month);
 
     container.innerHTML = html;
@@ -1396,6 +1399,43 @@ async function renderControlBadges(repId, repName, month) {
     });
     badgeHTML += '</div></div>';
     return badgeHTML;
+  } catch (e) {
+    return '';
+  }
+}
+
+async function renderControlRemarks(repId, weekStart) {
+  try {
+    const remarks = await api(`/action-remarks/${weekStart}`);
+    const startD = new Date(weekStart + 'T00:00:00');
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startD);
+      d.setDate(d.getDate() + i);
+      days.push(d.toISOString().slice(0, 10));
+    }
+
+    const dayRemarks = days.map(day => ({
+      date: day,
+      label: new Date(day + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' }),
+      remark: remarks[`${repId}:${day}`] || ''
+    })).filter(d => d.remark);
+
+    if (dayRemarks.length === 0) return '';
+
+    let html = `
+      <div class="ctrl-remarks-section">
+        <h3>Remarques Actions</h3>
+        <div class="ctrl-remarks-list">
+          ${dayRemarks.map(d => `
+            <div class="ctrl-remark-item">
+              <span class="ctrl-remark-day">${d.label}</span>
+              <span class="ctrl-remark-text">${d.remark.replace(/</g, '&lt;')}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+    return html;
   } catch (e) {
     return '';
   }
@@ -1562,7 +1602,10 @@ async function loadAdminActions() {
   await loadActionsComparison(period);
 
   try {
-    const data = await api(`/admin/actions/${actionsWeekStart}`);
+    const [data, remarks] = await Promise.all([
+      api(`/admin/actions/${actionsWeekStart}`),
+      (currentUser && currentUser.role === 'admin') ? api(`/action-remarks/${actionsWeekStart}`) : {}
+    ]);
 
     if (!data.reps || data.reps.length === 0) {
       container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Aucun commercial</p>';
@@ -1649,6 +1692,12 @@ async function loadAdminActions() {
                     </div>`;
                 }).join('')}
               </div>
+              ${(currentUser && currentUser.role === 'admin') ? `
+              <div class="act-day-remark">
+                <textarea class="act-remark-input" placeholder="Remarque..."
+                  data-rep="${rep.sales_rep_id}" data-day="${day}"
+                  onblur="saveActionDayRemark(this)">${(remarks[`${rep.sales_rep_id}:${day}`] || '').replace(/</g, '&lt;')}</textarea>
+              </div>` : (remarks[`${rep.sales_rep_id}:${day}`] ? `<div class="act-day-remark"><p class="act-remark-text">${remarks[`${rep.sales_rep_id}:${day}`].replace(/</g, '&lt;')}</p></div>` : '')}
             </div>
           </div>`;
       });
@@ -1660,6 +1709,21 @@ async function loadAdminActions() {
   } catch (err) {
     console.error('Erreur chargement actions:', err);
     container.innerHTML = '<p style="color:red;">Erreur de chargement</p>';
+  }
+}
+
+// ─── Admin: save action day remark ───────────────────────────
+async function saveActionDayRemark(el) {
+  const repId = el.dataset.rep;
+  const day = el.dataset.day;
+  const remark = el.value.trim();
+  try {
+    await api(`/action-remarks/${repId}/${day}`, { method: 'PUT', body: { remark } });
+    el.style.borderColor = '#22c55e';
+    setTimeout(() => { el.style.borderColor = ''; }, 1000);
+  } catch (e) {
+    console.error('Erreur sauvegarde remarque:', e);
+    el.style.borderColor = '#ef4444';
   }
 }
 

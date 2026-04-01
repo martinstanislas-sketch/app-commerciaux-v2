@@ -3340,6 +3340,43 @@ main {
 }
 
 /* Control Energy Section */
+/* ─── Ctrl Remarks ──────────────────────────── */
+.ctrl-remarks-section {
+  margin-top: 18px;
+}
+.ctrl-remarks-section h3 {
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 10px;
+}
+.ctrl-remarks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ctrl-remark-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.ctrl-remark-day {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  min-width: 120px;
+  text-transform: capitalize;
+}
+.ctrl-remark-text {
+  font-size: 13px;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
 .ctrl-energy-section {
   margin-top: 18px;
 }
@@ -3751,6 +3788,36 @@ main {
   #act-day-filter, #act-period-toggle { margin-left: 0; width: 100%; }
   .act-day-content { flex-direction: column; gap: 10px; }
   .act-checks { min-width: auto; }
+}
+
+/* ─── Action Day Remarks ────────────────────────── */
+.act-day-remark {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+.act-remark-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.3s;
+}
+.act-remark-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.act-remark-input::placeholder { color: var(--text-muted); }
+.act-remark-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  font-style: italic;
 }
 
 /* ─── Selection ─────────────────────────────────── */

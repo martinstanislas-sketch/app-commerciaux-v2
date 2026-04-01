@@ -1804,6 +1804,38 @@ app.delete('/api/notes/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// ─── Action Day Remarks ────────────────────────────────────
+app.get('/api/action-remarks/:weekStart', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const weekStart = req.params.weekStart;
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart + 'T00:00:00');
+    d.setDate(d.getDate() + i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  const rows = db.prepare(`
+    SELECT sales_rep_id, date, remark FROM action_day_remarks
+    WHERE date >= ? AND date <= ?
+  `).all(days[0], days[6]);
+  // Return as { "repId:date": remark }
+  const map = {};
+  rows.forEach(r => { map[`${r.sales_rep_id}:${r.date}`] = r.remark; });
+  res.json(map);
+});
+
+app.put('/api/action-remarks/:sales_rep_id/:date', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { sales_rep_id, date } = req.params;
+  const { remark } = req.body;
+  db.prepare(`
+    INSERT INTO action_day_remarks (sales_rep_id, date, remark)
+    VALUES (?, ?, ?)
+    ON CONFLICT(sales_rep_id, date) DO UPDATE SET remark = excluded.remark
+  `).run(parseInt(sales_rep_id), date, remark || '');
+  res.json({ ok: true });
+});
+
 // ─── Start ──────────────────────────────────────────────────
 
 app.listen(PORT, () => {

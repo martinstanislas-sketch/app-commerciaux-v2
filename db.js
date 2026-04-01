@@ -133,6 +133,17 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_transcript_messages_week_rep ON transcript_messages(week_start, sales_rep_id);
   `);
 
+  // Table for action day remarks (admin notes per rep/day)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS action_day_remarks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sales_rep_id INTEGER NOT NULL REFERENCES sales_reps(id),
+      date TEXT NOT NULL,
+      remark TEXT NOT NULL DEFAULT '',
+      UNIQUE(sales_rep_id, date)
+    );
+  `);
+
   // Migration: add remark column to sales
   const saleCols3 = db.prepare("PRAGMA table_info(sales)").all();
   if (!saleCols3.find(c => c.name === 'remark')) {
