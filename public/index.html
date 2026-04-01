@@ -34,12 +34,12 @@
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="ventes">Ventes</button>
       <button class="tab-btn" data-tab="mensuel">Récap</button>
-      <button class="tab-btn" data-tab="notes">Remarques</button>
-      <button class="tab-btn" data-tab="admin-phoneurs">Phoneurs</button>
+      <!-- <button class="tab-btn" data-tab="notes">Remarques</button> -->
+      <!-- <button class="tab-btn" data-tab="admin-phoneurs">Phoneurs</button> -->
       <button class="tab-btn" data-tab="controle">Contrôle</button>
       <button class="tab-btn" data-tab="admin-actions">Actions</button>
-      <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
-      <button class="tab-btn" data-tab="phoning-recap">Récap</button>
+      <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
+      <button class="tab-btn" data-tab="phoning-recap">Récap</button> -->
     </nav>
     <div id="user-info" class="user-info hidden">
       <span id="user-name"></span>
@@ -53,15 +53,15 @@
       <div id="today-standalone"></div>
     </section>
 
-    <!-- PHONING : Fiche du jour -->
+    <!-- PHONING (désactivé) -->
+    <!--
     <section id="tab-phoning" class="tab-content">
       <div id="phoning-container"></div>
     </section>
-
-    <!-- PHONING : Récap mensuel -->
     <section id="tab-phoning-recap" class="tab-content">
       <div id="phoning-recap-container"></div>
     </section>
+    -->
 
     <!-- DASHBOARD -->
     <section id="tab-dashboard" class="tab-content active">
@@ -83,7 +83,6 @@
           <input type="text" id="new-rep-name" placeholder="Nom" required>
           <select id="new-rep-role" title="Rôle">
             <option value="commercial">Commercial</option>
-            <option value="phoneur">Phoneur</option>
           </select>
           <input type="date" id="new-rep-start-week" title="Semaine de démarrage">
           <button type="submit" class="btn-primary">Ajouter</button>
@@ -153,7 +152,8 @@
       <div id="monthly-global"></div>
     </section>
 
-    <!-- REMARQUES (Admin) -->
+    <!-- REMARQUES (désactivé) -->
+    <!--
     <section id="tab-notes" class="tab-content">
       <div class="notes-header">
         <h2>Remarques</h2>
@@ -161,8 +161,10 @@
       </div>
       <div id="notes-list"></div>
     </section>
+    -->
 
-    <!-- PHONEURS RECAP (Admin) -->
+    <!-- PHONEURS RECAP (désactivé) -->
+    <!--
     <section id="tab-admin-phoneurs" class="tab-content">
       <div class="month-nav">
         <button id="ph-prev-month">&larr;</button>
@@ -172,6 +174,7 @@
       </div>
       <div id="admin-phoneurs-container"></div>
     </section>
+    -->
     <!-- CONTRÔLE (Admin) -->
     <section id="tab-controle" class="tab-content">
       <div class="ctrl-header">
