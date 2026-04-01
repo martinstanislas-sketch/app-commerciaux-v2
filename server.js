@@ -313,6 +313,28 @@ app.delete('/api/sales-reps/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true, archived: true });
 });
 
+// ─── PUT /api/sales-reps/:id/pin (admin only) ───────────────
+
+app.put('/api/sales-reps/:id/pin', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const repId = parseInt(req.params.id);
+  const { pin } = req.body;
+
+  if (!pin || typeof pin !== 'string' || pin.trim().length < 2) {
+    return res.status(400).json({ error: 'PIN requis (min 2 caractères)' });
+  }
+
+  const rep = db.prepare('SELECT * FROM sales_reps WHERE id = ?').get(repId);
+  if (!rep) return res.status(404).json({ error: 'Commercial non trouvé' });
+
+  // Check PIN not already used by another rep
+  const existing = db.prepare('SELECT id FROM sales_reps WHERE pin = ? AND id != ? AND archived = 0').get(pin.trim(), repId);
+  if (existing) return res.status(409).json({ error: 'Ce PIN est déjà utilisé par un autre commercial' });
+
+  db.prepare('UPDATE sales_reps SET pin = ? WHERE id = ?').run(pin.trim(), repId);
+  res.json({ ok: true, pin: pin.trim() });
+});
+
 // ─── GET /api/weeks/:week_start/dashboard ───────────────────
 
 app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {

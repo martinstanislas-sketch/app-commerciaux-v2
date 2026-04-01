@@ -2148,6 +2148,17 @@ main {
 }
 .btn-delete-rep:hover { background: var(--danger-light); }
 
+.btn-edit-pin {
+  background: none;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s;
+}
+.btn-edit-pin:hover { background: var(--primary-ghost); }
+
 /* ─── Energy Table (Admin) ─────────────────────── */
 .energy-nav {
   display: flex;

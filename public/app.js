@@ -3623,9 +3623,27 @@ function renderAdminRepList() {
       ${roleBadge}
       <span class="admin-rep-start">${startLabel}</span>
       <span class="admin-rep-pin">PIN : <strong>${rep.pin || '—'}</strong></span>
+      <button class="btn-edit-pin" onclick="editPin(${rep.id}, '${rep.name}', '${rep.pin || ''}')" title="Modifier le PIN">✏️</button>
       <button class="btn-delete-rep" onclick="deleteRep(${rep.id}, '${rep.name}')" title="Supprimer">✕</button>
     </div>`;
   }).join('');
+}
+
+async function editPin(id, name, currentPin) {
+  const newPin = prompt(`Nouveau PIN pour "${name}" :`, currentPin);
+  if (newPin === null) return; // cancelled
+  if (!newPin || newPin.trim().length < 2) {
+    alert('Le PIN doit faire au moins 2 caractères.');
+    return;
+  }
+  try {
+    await api(`/sales-reps/${id}/pin`, { method: 'PUT', body: { pin: newPin.trim() } });
+    await refreshSalesReps();
+    renderAdminRepList();
+    alert(`PIN de "${name}" mis à jour : ${newPin.trim()}`);
+  } catch (err) {
+    alert(err.message || 'Erreur lors du changement de PIN');
+  }
 }
 
 async function deleteRep(id, name) {
