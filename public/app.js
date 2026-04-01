@@ -1990,7 +1990,11 @@ function initTabs() {
       if (btn.dataset.tab === 'mensuel') loadMonthlySummary();
       if (btn.dataset.tab === 'notes') loadNotes();
       if (btn.dataset.tab === 'admin-phoneurs') loadAdminPhoneurs();
-      if (btn.dataset.tab === 'admin-actions') loadAdminActions();
+      if (btn.dataset.tab === 'admin-actions') {
+        // Sync Actions week with Dashboard week
+        actionsWeekStart = currentWeekStart;
+        loadAdminActions();
+      }
       if (btn.dataset.tab === 'controle') loadControlTab();
       if (btn.dataset.tab === 'phoning') loadPhoningTab();
       if (btn.dataset.tab === 'phoning-recap') loadPhoningRecap();
