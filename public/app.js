@@ -1660,75 +1660,87 @@ async function loadAdminActions() {
   }
 }
 
-// ─── Admin: toggle yesno action ──────────────────────────────
+// ─── Admin: toggle yesno action (instant DOM update) ─────────
 async function toggleActionCheck(el) {
   const repId = el.dataset.rep;
   const day = el.dataset.day;
   const key = el.dataset.key;
   const v1 = parseInt(el.dataset.v1) || 0;
-  const newVal = v1 > 0 ? 0 : 1; // toggle
+  const newVal = v1 > 0 ? 0 : 1;
 
-  try {
-    await api(`/daily-actions/values/${repId}/${day}`, {
-      method: 'PUT',
-      body: { action_key: `predefined:${key}`, value: newVal }
-    });
-    // Reload actions tab
-    await loadAdminActions();
-  } catch (err) {
-    console.error('Erreur toggle action:', err);
+  // Instant DOM toggle
+  const icon = el.querySelector('.act-check-icon');
+  if (newVal > 0) {
+    el.classList.remove('act-missing');
+    el.classList.add('act-done');
+    if (icon) icon.textContent = '✅';
+  } else {
+    el.classList.remove('act-done');
+    el.classList.add('act-missing');
+    if (icon) icon.textContent = '❌';
   }
+  el.dataset.v1 = newVal;
+
+  // Update comparison table cell instantly
+  _updateCompCell(repId, key, 'yesno', newVal - v1);
+
+  // Save in background
+  api(`/daily-actions/values/${repId}/${day}`, {
+    method: 'PUT',
+    body: { action_key: `predefined:${key}`, value: newVal }
+  }).catch(err => console.error('Erreur toggle action:', err));
 }
 
-// ─── Admin: update counter action ────────────────────────────
+// ─── Admin: update counter action (instant) ──────────────────
 async function updateActionCounter(el) {
   const repId = el.dataset.rep;
   const day = el.dataset.day;
   const key = el.dataset.key;
   const newVal = parseInt(el.value) || 0;
+  const oldV1 = parseInt(el.dataset.v1) || 0;
 
-  try {
-    await api(`/daily-actions/values/${repId}/${day}`, {
-      method: 'PUT',
-      body: { action_key: `predefined:${key}`, value: newVal }
-    });
-    // Reload comparison table
-    const periodToggle = document.getElementById('act-period-toggle');
-    const period = periodToggle ? periodToggle.value : 'week';
-    await loadActionsComparison(period);
-  } catch (err) {
-    console.error('Erreur update counter:', err);
+  // Update comparison table cell instantly
+  _updateCompCell(repId, key, 'counter', newVal - oldV1);
+  el.dataset.v1 = newVal;
+
+  // Save in background
+  api(`/daily-actions/values/${repId}/${day}`, {
+    method: 'PUT',
+    body: { action_key: `predefined:${key}`, value: newVal }
+  }).catch(err => console.error('Erreur update counter:', err));
+}
+
+// ─── Helper: update comparison table cell without re-render ──
+function _updateCompCell(repId, key, type, delta) {
+  const table = document.querySelector('.act-comp-table');
+  if (!table || delta === 0) return;
+  const input = table.querySelector(`input[data-rep="${repId}"][data-key="${key}"]`);
+  if (input) {
+    const cur = parseInt(input.value) || 0;
+    input.value = Math.max(0, cur + delta);
   }
 }
 
 // ─── Admin: update hours from comparison table ───────────────
 async function updateCompHours(el, repId, targetPerHour) {
   const hours = parseFloat(el.value) || 0;
-  try {
-    await api(`/weeks/${actionsWeekStart}/settings/${repId}`, {
-      method: 'PUT',
-      body: { hours_worked: hours, target_per_hour: targetPerHour }
-    });
-  } catch (err) {
-    console.error('Erreur update heures comparatif:', err);
-  }
+  api(`/weeks/${actionsWeekStart}/settings/${repId}`, {
+    method: 'PUT',
+    body: { hours_worked: hours, target_per_hour: targetPerHour }
+  }).catch(err => console.error('Erreur update heures comparatif:', err));
 }
 
 // ─── Admin: update action from comparison table ──────────────
-// Distributes the new total to the first day (Monday) of the week
 async function updateCompAction(el) {
   const repId = el.dataset.rep;
   const key = el.dataset.key;
   const newTotal = parseInt(el.value) || 0;
 
-  // For simplicity: set Monday's value to the new total, reset other days
-  // First get current weekly data to know old per-day distribution
   try {
     const data = await api(`/admin/actions/${actionsWeekStart}`);
     const rep = data.reps.find(r => r.sales_rep_id == repId);
     if (!rep) return;
 
-    // Calculate current total for this key across all days
     let currentTotal = 0;
     const days = data.days;
     days.forEach(day => {
@@ -1739,7 +1751,6 @@ async function updateCompAction(el) {
     const delta = newTotal - currentTotal;
     if (delta === 0) return;
 
-    // Apply delta to Monday (first day)
     const monday = days[0];
     const mondayVal = (rep.days[monday] && rep.days[monday][`predefined:${key}`]) || 0;
     const newMondayVal = Math.max(0, mondayVal + delta);
@@ -1749,8 +1760,31 @@ async function updateCompAction(el) {
       body: { action_key: `predefined:${key}`, value: newMondayVal }
     });
 
-    // Reload the detail section too
-    await loadAdminActions();
+    // Update detail section Monday cell if visible (without full reload)
+    const detailInput = document.querySelector(
+      `#admin-actions-container .act-counter-input[data-rep="${repId}"][data-key="${key}"][data-day="${monday}"]`
+    );
+    if (detailInput) {
+      detailInput.value = newMondayVal;
+      detailInput.dataset.v1 = newMondayVal;
+    }
+    // Toggle detail checkboxes for Monday if yesno
+    const detailCheck = document.querySelector(
+      `#admin-actions-container .act-check-row[data-rep="${repId}"][data-key="${key}"][data-day="${monday}"]`
+    );
+    if (detailCheck) {
+      const icon = detailCheck.querySelector('.act-check-icon');
+      if (newMondayVal > 0) {
+        detailCheck.classList.remove('act-missing');
+        detailCheck.classList.add('act-done');
+        if (icon) icon.textContent = '✅';
+      } else {
+        detailCheck.classList.remove('act-done');
+        detailCheck.classList.add('act-missing');
+        if (icon) icon.textContent = '❌';
+      }
+      detailCheck.dataset.v1 = newMondayVal;
+    }
   } catch (err) {
     console.error('Erreur update action comparatif:', err);
   }
