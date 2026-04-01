@@ -1600,7 +1600,7 @@ async function loadAdminActions() {
 
         const allChecked = checks.every(c => c.done);
         const anyData = checks.some(c => c.done) || counters.some(c => c.value > 0);
-        const isAdmin = currentRole === 'admin';
+        const adminMode = currentUser && currentUser.role === 'admin';
 
         html += `
           <div class="act-day-block ${!anyData ? 'act-day-empty' : ''}">
@@ -1608,7 +1608,7 @@ async function loadAdminActions() {
             <div class="act-day-content">
               <div class="act-checks">
                 ${checks.map(c => {
-                  if (isAdmin) {
+                  if (adminMode) {
                     return `
                       <div class="act-check-row ${c.done ? 'act-done' : 'act-missing'} act-editable"
                            data-rep="${rep.sales_rep_id}" data-day="${day}" data-key="${c.key}" data-type="yesno"
@@ -1629,7 +1629,7 @@ async function loadAdminActions() {
               </div>
               <div class="act-counters">
                 ${counters.map(c => {
-                  if (isAdmin) {
+                  if (adminMode) {
                     return `
                       <div class="act-counter-item act-editable">
                         <span class="act-counter-label">${c.label}</span>
@@ -1701,6 +1701,61 @@ async function updateActionCounter(el) {
   }
 }
 
+// ─── Admin: update hours from comparison table ───────────────
+async function updateCompHours(el, repId, targetPerHour) {
+  const hours = parseFloat(el.value) || 0;
+  try {
+    await api(`/weeks/${actionsWeekStart}/settings/${repId}`, {
+      method: 'PUT',
+      body: { hours_worked: hours, target_per_hour: targetPerHour }
+    });
+  } catch (err) {
+    console.error('Erreur update heures comparatif:', err);
+  }
+}
+
+// ─── Admin: update action from comparison table ──────────────
+// Distributes the new total to the first day (Monday) of the week
+async function updateCompAction(el) {
+  const repId = el.dataset.rep;
+  const key = el.dataset.key;
+  const newTotal = parseInt(el.value) || 0;
+
+  // For simplicity: set Monday's value to the new total, reset other days
+  // First get current weekly data to know old per-day distribution
+  try {
+    const data = await api(`/admin/actions/${actionsWeekStart}`);
+    const rep = data.reps.find(r => r.sales_rep_id == repId);
+    if (!rep) return;
+
+    // Calculate current total for this key across all days
+    let currentTotal = 0;
+    const days = data.days;
+    days.forEach(day => {
+      const v = (rep.days[day] && rep.days[day][`predefined:${key}`]) || 0;
+      currentTotal += v;
+    });
+
+    const delta = newTotal - currentTotal;
+    if (delta === 0) return;
+
+    // Apply delta to Monday (first day)
+    const monday = days[0];
+    const mondayVal = (rep.days[monday] && rep.days[monday][`predefined:${key}`]) || 0;
+    const newMondayVal = Math.max(0, mondayVal + delta);
+
+    await api(`/daily-actions/values/${repId}/${monday}`, {
+      method: 'PUT',
+      body: { action_key: `predefined:${key}`, value: newMondayVal }
+    });
+
+    // Reload the detail section too
+    await loadAdminActions();
+  } catch (err) {
+    console.error('Erreur update action comparatif:', err);
+  }
+}
+
 async function loadActionsComparison(period) {
   const tableDiv = document.getElementById('act-comparison-table');
   if (!tableDiv) return;
@@ -1733,9 +1788,8 @@ async function loadActionsComparison(period) {
             totals[k] = (totals[k] || 0) + val;
           });
         });
-        // Count days with activity
         const daysActive = Object.values(rep.days).filter(dv => Object.values(dv).some(v => v > 0)).length;
-        return { name: rep.name, totals, days_active: daysActive, total_hours: null };
+        return { sales_rep_id: rep.sales_rep_id, name: rep.name, totals, days_active: daysActive, total_hours: null, target_per_hour: null };
       });
 
       // Fetch hours for the week
@@ -1743,7 +1797,11 @@ async function loadActionsComparison(period) {
         const dashboard = await api(`/weeks/${actionsWeekStart}/dashboard`);
         dashboard.commerciaux.forEach(c => {
           const r = reps.find(rr => rr.name === c.rep_name);
-          if (r) r.total_hours = c.hours_worked;
+          if (r) {
+            r.total_hours = c.hours_worked;
+            r.target_per_hour = c.target_per_hour || 250;
+            r.sales_rep_id = c.sales_rep_id;
+          }
         });
       } catch (e) { /* ignore */ }
     }
@@ -1756,6 +1814,7 @@ async function loadActionsComparison(period) {
     // Build columns: Heures + yesno checks (count of days done) + counters
     const yesnoKeys = PREDEFINED_YESNO.map(a => a.key);
     const counterKeys = PREDEFINED_COUNTERS.map(c => c.key);
+    const adminMode = currentUser && currentUser.role === 'admin' && period === 'week';
 
     let html = `
       <div class="act-comp-section">
@@ -1780,12 +1839,37 @@ async function loadActionsComparison(period) {
             <tbody>
               ${reps.map(r => {
                 const t = r.totals || {};
+                const repId = r.sales_rep_id || '';
+                if (adminMode && repId) {
+                  return `<tr>
+                    <td class="act-comp-name">${r.name}</td>
+                    <td class="act-comp-hours">
+                      <input type="number" class="act-comp-input" value="${r.total_hours || 0}" min="0" step="0.5"
+                             onchange="updateCompHours(this, ${repId}, ${r.target_per_hour || 250})">
+                    </td>
+                    ${yesnoKeys.map(k => {
+                      const val = t[k] || 0;
+                      return `<td class="act-comp-val">
+                        <input type="number" class="act-comp-input" value="${val}" min="0"
+                               data-rep="${repId}" data-key="${k}" data-type="yesno"
+                               onchange="updateCompAction(this)">
+                      </td>`;
+                    }).join('')}
+                    ${counterKeys.map(k => {
+                      const val = t[k] || 0;
+                      return `<td class="act-comp-val">
+                        <input type="number" class="act-comp-input" value="${val}" min="0"
+                               data-rep="${repId}" data-key="${k}" data-type="counter"
+                               onchange="updateCompAction(this)">
+                      </td>`;
+                    }).join('')}
+                  </tr>`;
+                }
                 return `<tr>
                   <td class="act-comp-name">${r.name}</td>
                   <td class="act-comp-hours">${r.total_hours !== null && r.total_hours !== undefined ? r.total_hours + 'h' : '—'}</td>
                   ${yesnoKeys.map(k => {
                     const val = t[k] || 0;
-                    // For yesno, value = number of days checked
                     return `<td class="act-comp-val ${val > 0 ? 'act-comp-ok' : 'act-comp-zero'}">${val > 0 ? val + 'j' : '0'}</td>`;
                   }).join('')}
                   ${counterKeys.map(k => {
