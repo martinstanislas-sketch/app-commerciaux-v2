@@ -59,6 +59,29 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ─── Global Form Elements Reset (dark theme) ──── */
+input, select, textarea, button {
+  font-family: inherit;
+  color: var(--text);
+}
+input, select, textarea {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  color-scheme: dark;
+}
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+select option {
+  background: var(--card);
+  color: var(--text);
+}
+input::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+}
+
 /* ─── Login Overlay ─────────────────────────────── */
 .login-overlay {
   position: fixed;
@@ -405,7 +428,7 @@ main {
   letter-spacing: -0.02em;
 }
 
-.week-nav input, .month-nav input, .week-nav select {
+.week-nav input, .month-nav input, .week-nav select, .month-nav select {
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -415,7 +438,7 @@ main {
   color: var(--text);
   transition: all .2s var(--ease);
 }
-.week-nav input:focus, .month-nav input:focus, .week-nav select:focus {
+.week-nav input:focus, .month-nav input:focus, .week-nav select:focus, .month-nav select:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-ghost);
   outline: none;
