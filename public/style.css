@@ -1006,12 +1006,27 @@ main {
   box-shadow: 0 0 0 3px var(--primary-ghost);
 }
 .sale-remark-cell {
-  max-width: 150px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: .82rem;
   color: var(--text-secondary);
+  cursor: pointer;
+}
+.sale-remark-cell:hover { background: var(--primary-ghost); border-radius: 4px; }
+.remark-placeholder { color: var(--text-muted); font-style: italic; font-size: .78rem; }
+.remark-inline-input {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: .82rem;
+  border: 1.5px solid var(--primary);
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-ghost);
 }
 .form-row input, .form-row select {
   width: 100%;

@@ -2484,7 +2484,7 @@ async function loadSales() {
       <td>${s.client_first_name}</td>
       <td>${s.client_last_name}</td>
       <td><span class="rib-badge ${ribClass}">${s.rib_status || 'Non fourni'}</span></td>
-      <td class="sale-remark-cell" title="${(s.remark || '').replace(/"/g, '&quot;')}">${s.remark || ''}</td>
+      <td class="sale-remark-cell" title="${(s.remark || '').replace(/"/g, '&quot;')}" onclick="editRemarkInline(this, ${s.id})">${s.remark || '<span class="remark-placeholder">+ Remarque</span>'}</td>
       <td class="relance-actions">${relanceHtml}</td>
       <td class="actions">
         <button class="btn-sm" onclick="editSale(${s.id})">Modifier</button>
@@ -2580,6 +2580,50 @@ async function saveSale() {
     alert(e.message);
   }
 }
+
+window.editRemarkInline = function(td, saleId) {
+  if (td.querySelector('input')) return; // already editing
+  const current = td.textContent === '+ Remarque' ? '' : td.textContent.trim();
+  td.innerHTML = `<input type="text" class="remark-inline-input" value="${current.replace(/"/g, '&quot;')}" placeholder="Remarque..."
+    onblur="saveRemarkInline(this, ${saleId})"
+    onkeydown="if(event.key==='Enter'){this.blur();}if(event.key==='Escape'){this.dataset.cancel='1';this.blur();}">`;
+  const input = td.querySelector('input');
+  input.focus();
+  input.select();
+};
+
+window.saveRemarkInline = async function(input, saleId) {
+  if (input.dataset.cancel === '1') {
+    loadSales();
+    return;
+  }
+  const remark = input.value.trim();
+  try {
+    // Get current sale data to preserve other fields
+    const sales = await api(`/weeks/${currentWeekStart}/sales`);
+    const sale = sales.find(s => s.id === saleId);
+    if (!sale) return;
+    await api(`/sales/${saleId}`, {
+      method: 'PUT',
+      body: {
+        sales_rep_id: sale.sales_rep_id,
+        date: sale.date,
+        amount: sale.amount,
+        client_first_name: sale.client_first_name,
+        client_last_name: sale.client_last_name,
+        rib_status: sale.rib_status,
+        client_email: sale.client_email || '',
+        remark
+      }
+    });
+    // Update cell inline
+    const td = input.parentElement;
+    td.innerHTML = remark || '<span class="remark-placeholder">+ Remarque</span>';
+    td.title = remark;
+  } catch (err) {
+    console.error('Erreur save remark:', err);
+  }
+};
 
 window.editSale = async function(id) {
   const sales = await api(`/weeks/${currentWeekStart}/sales`);
