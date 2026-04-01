@@ -115,6 +115,7 @@
             <th class="sortable" data-sort="client_first_name">Prénom <span class="sort-icon"></span></th>
             <th class="sortable" data-sort="client_last_name">Nom <span class="sort-icon"></span></th>
             <th class="sortable" data-sort="rib_status">Statut RIB <span class="sort-icon"></span></th>
+            <th>Remarque</th>
             <th class="sortable" data-sort="relance">Relances <span class="sort-icon"></span></th>
             <th>Actions</th>
           </tr>
@@ -238,6 +239,10 @@
             <option value="Reçu" selected>Fourni</option>
             <option value="Non fourni">Non fourni</option>
           </select>
+        </div>
+        <div class="form-row">
+          <label for="sale-remark">Remarque</label>
+          <textarea id="sale-remark" rows="2" placeholder="Remarque optionnelle..."></textarea>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn-primary">Enregistrer</button>

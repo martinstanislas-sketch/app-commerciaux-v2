@@ -988,6 +988,31 @@ main {
   text-transform: uppercase;
   letter-spacing: .5px;
 }
+.form-row textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .9rem;
+  font-family: inherit;
+  transition: all .2s var(--ease);
+  background: var(--bg-subtle);
+  color: var(--text);
+  resize: vertical;
+}
+.form-row textarea:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-ghost);
+}
+.sale-remark-cell {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .82rem;
+  color: var(--text-secondary);
+}
 .form-row input, .form-row select {
   width: 100%;
   padding: 10px 14px;

@@ -460,7 +460,7 @@ app.put('/api/weeks/:week_start/lock', requireAuth, requireAdmin, (req, res) => 
 
 app.post('/api/sales', requireAuth, (req, res) => {
   const db = getDb();
-  const { sales_rep_id, date, amount, client_first_name, client_last_name, rib_status, client_email } = req.body;
+  const { sales_rep_id, date, amount, client_first_name, client_last_name, rib_status, client_email, remark } = req.body;
 
   if (!isValidDate(date)) {
     return res.status(400).json({ error: 'Date invalide (format attendu : YYYY-MM-DD)' });
@@ -478,9 +478,9 @@ app.post('/api/sales', requireAuth, (req, res) => {
   }
 
   const result = db.prepare(`
-    INSERT INTO sales (sales_rep_id, date, amount, client_first_name, client_last_name, week_start, rib_status, client_email)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(sales_rep_id, date, amount, client_first_name || '', client_last_name || '', weekStart, rib_status || 'Non fourni', client_email || '');
+    INSERT INTO sales (sales_rep_id, date, amount, client_first_name, client_last_name, week_start, rib_status, client_email, remark)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(sales_rep_id, date, amount, client_first_name || '', client_last_name || '', weekStart, rib_status || 'Non fourni', client_email || '', remark || '');
 
   res.json({ id: result.lastInsertRowid });
 });
@@ -490,7 +490,7 @@ app.post('/api/sales', requireAuth, (req, res) => {
 app.put('/api/sales/:id', requireAuth, (req, res) => {
   const db = getDb();
   const { id } = req.params;
-  const { sales_rep_id, date, amount, client_first_name, client_last_name, rib_status, client_email } = req.body;
+  const { sales_rep_id, date, amount, client_first_name, client_last_name, rib_status, client_email, remark } = req.body;
 
   if (!isValidDate(date)) {
     return res.status(400).json({ error: 'Date invalide (format attendu : YYYY-MM-DD)' });
@@ -511,9 +511,9 @@ app.put('/api/sales/:id', requireAuth, (req, res) => {
   }
 
   db.prepare(`
-    UPDATE sales SET sales_rep_id = ?, date = ?, amount = ?, client_first_name = ?, client_last_name = ?, week_start = ?, rib_status = ?, client_email = ?
+    UPDATE sales SET sales_rep_id = ?, date = ?, amount = ?, client_first_name = ?, client_last_name = ?, week_start = ?, rib_status = ?, client_email = ?, remark = ?
     WHERE id = ?
-  `).run(sales_rep_id, date, amount, client_first_name || '', client_last_name || '', weekStart, rib_status || 'Non fourni', client_email || '', id);
+  `).run(sales_rep_id, date, amount, client_first_name || '', client_last_name || '', weekStart, rib_status || 'Non fourni', client_email || '', remark || '', id);
 
   res.json({ success: true });
 });

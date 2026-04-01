@@ -133,6 +133,12 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_transcript_messages_week_rep ON transcript_messages(week_start, sales_rep_id);
   `);
 
+  // Migration: add remark column to sales
+  const saleCols3 = db.prepare("PRAGMA table_info(sales)").all();
+  if (!saleCols3.find(c => c.name === 'remark')) {
+    db.exec("ALTER TABLE sales ADD COLUMN remark TEXT DEFAULT ''");
+  }
+
   // Tables for daily action tracking ("Aujourd'hui")
   db.exec(`
     CREATE TABLE IF NOT EXISTS daily_action_types (

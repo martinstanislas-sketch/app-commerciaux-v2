@@ -1223,6 +1223,7 @@ async function loadControlTab() {
                 <th>Prénom</th>
                 <th>Montant</th>
                 <th>RIB</th>
+                <th>Remarque</th>
                 <th>Contrôlé</th>
                 <th>Actions</th>
               </tr>
@@ -1240,6 +1241,7 @@ async function loadControlTab() {
                     <option value="Reçu" ${s.rib_status === 'Reçu' ? 'selected' : ''}>Fourni</option>
                     <option value="Non fourni" ${s.rib_status !== 'Reçu' ? 'selected' : ''}>Non fourni</option>
                   </select></td>
+                  <td><input type="text" class="ctrl-edit-input" value="${(s.remark || '').replace(/"/g, '&quot;')}" data-field="remark" placeholder="Remarque"></td>
                   <td class="ctrl-check-cell">
                     <label class="ctrl-checkbox">
                       <input type="checkbox" ${s.controlled ? 'checked' : ''} onchange="toggleControlled(${s.id}, this.checked)">
@@ -1318,7 +1320,8 @@ async function saveCtrlSale(saleId) {
     client_last_name: getValue('client_last_name'),
     client_first_name: getValue('client_first_name'),
     amount: parseFloat(getValue('amount')) || 0,
-    rib_status: getValue('rib_status')
+    rib_status: getValue('rib_status'),
+    remark: getValue('remark')
   };
 
   try {
@@ -2442,7 +2445,7 @@ async function loadSales() {
   tbody.innerHTML = '';
 
   if (sales.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-light);padding:24px">Aucune vente cette semaine</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-light);padding:24px">Aucune vente cette semaine</td></tr>';
     return;
   }
 
@@ -2477,6 +2480,7 @@ async function loadSales() {
       <td>${s.client_first_name}</td>
       <td>${s.client_last_name}</td>
       <td><span class="rib-badge ${ribClass}">${s.rib_status || 'Non fourni'}</span></td>
+      <td class="sale-remark-cell" title="${(s.remark || '').replace(/"/g, '&quot;')}">${s.remark || ''}</td>
       <td class="relance-actions">${relanceHtml}</td>
       <td class="actions">
         <button class="btn-sm" onclick="editSale(${s.id})">Modifier</button>
@@ -2530,6 +2534,8 @@ function openSaleModal(repId = null, saleData = null) {
   const clientName = saleData ? `${saleData.client_last_name || ''} ${saleData.client_first_name || ''}`.trim() : '';
   document.getElementById('sale-client-name').value = clientName;
   document.getElementById('sale-rib-status').value = saleData?.rib_status || 'Reçu';
+  const remarkEl = document.getElementById('sale-remark');
+  if (remarkEl) remarkEl.value = saleData?.remark || '';
 }
 
 function closeModal() {
@@ -2550,7 +2556,8 @@ async function saveSale() {
     client_first_name: firstName,
     client_last_name: lastName,
     client_email: '',
-    rib_status: document.getElementById('sale-rib-status').value
+    rib_status: document.getElementById('sale-rib-status').value,
+    remark: (document.getElementById('sale-remark')?.value || '').trim()
   };
 
   try {
