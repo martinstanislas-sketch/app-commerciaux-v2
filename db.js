@@ -203,13 +203,26 @@ function seed() {
     return;
   }
 
+  // ── Migration: rename old short names → full names (preserve data) ──
+  const renameMap = {
+    'Fabian': 'Fabian Fernez',
+    'Magali': 'Magali Guyot',
+    'Marvin': 'Marvin Boulligny'
+  };
+  const renameStmt = db.prepare('UPDATE sales_reps SET name = ? WHERE name = ? AND NOT EXISTS (SELECT 1 FROM sales_reps WHERE name = ?)');
+  for (const [oldName, newName] of Object.entries(renameMap)) {
+    renameStmt.run(newName, oldName, newName);
+  }
+
   const insertRep = db.prepare('INSERT OR IGNORE INTO sales_reps (name) VALUES (?)');
   const updatePin = db.prepare('UPDATE sales_reps SET pin = ? WHERE name = ?');
   const updateRole = db.prepare('UPDATE sales_reps SET role = ? WHERE name = ?');
+  const updateHours = db.prepare('UPDATE sales_reps SET default_hours = ? WHERE name = ?');
 
   // Insérer les commerciaux
   for (const name of names) {
     insertRep.run(name);
+    updateRole.run('commercial', name);
   }
 
   // Phoneurs depuis .env
@@ -218,25 +231,48 @@ function seed() {
   for (const name of phoneurNames) {
     insertRep.run(name);
   }
-  // Mettre à jour le rôle 'phoneur'
   for (const name of phoneurNames) {
     updateRole.run('phoneur', name);
   }
 
+  // Archiver les anciens commerciaux/phoneurs qui ne sont plus dans la liste
+  const allActive = [...names, ...phoneurNames];
+  const archiveOld = db.prepare('UPDATE sales_reps SET archived = 1 WHERE name NOT IN (' + allActive.map(() => '?').join(',') + ') AND archived = 0');
+  if (allActive.length > 0) archiveOld.run(...allActive);
+
+  // ── Default hours par commercial ──
+  const defaultHoursMap = {
+    'Fabian Fernez': 27,
+    'Cédric Haddou': 25,
+    'Magali Guyot': 28,
+    'Marvin Boulligny': 28,
+    'Tony Carbon': 10,
+    'Benjamin Constanty': 9,
+    'Rachael Silva': 6,
+    'Luca Roeloff': 6,
+    'Tony Caen': 17,
+    'Hervé Paris': 30,
+    'Nathan': 24,
+    'Barnabé': 17
+  };
+  for (const [name, hours] of Object.entries(defaultHoursMap)) {
+    updateHours.run(hours, name);
+  }
+
   // Générer et attribuer les PINs uniquement pour ceux qui n'en ont pas
-  const allReps = db.prepare('SELECT id, name, pin FROM sales_reps ORDER BY id').all();
+  const allReps = db.prepare('SELECT id, name, pin FROM sales_reps WHERE archived = 0 ORDER BY id').all();
   const usedPins = allReps.filter(r => r.pin).map(r => r.pin);
 
   for (const rep of allReps) {
-    if (rep.pin) continue; // Ne pas écraser un PIN existant
+    if (rep.pin) continue;
     const pin = generatePin(rep.name, usedPins);
     usedPins.push(pin);
     updatePin.run(pin, rep.name);
   }
 
   // Refresh list to show current PINs
-  const finalReps = db.prepare('SELECT name, pin, role FROM sales_reps ORDER BY id').all();
-  console.log(`[SEED] ${finalReps.length} utilisateurs — codes: ${finalReps.map(r => r.name + ':' + r.pin + ' (' + r.role + ')').join(', ')}`);
+  const finalReps = db.prepare('SELECT name, pin, role, default_hours FROM sales_reps WHERE archived = 0 ORDER BY id').all();
+  console.log(`[SEED] ${finalReps.length} utilisateurs — codes: ${finalReps.map(r => r.name + ':' + r.pin + ' (' + r.role + ', ' + r.default_hours + 'h)').join(', ')}`);
 }
 
 /**
