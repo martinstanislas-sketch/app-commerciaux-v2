@@ -325,8 +325,9 @@ function updateTabVisibility() {
     if (actionsBtn) actionsBtn.style.display = '';
     dashBtn.click();
   } else {
+    // Commercial: Aujourd'hui + Ventes (ses propres ventes) + Récap
     if (todayBtn) todayBtn.style.display = '';
-    if (ventesBtn) ventesBtn.style.display = 'none';
+    if (ventesBtn) ventesBtn.style.display = '';
     if (dashBtn) dashBtn.style.display = 'none';
     if (phoningBtn) phoningBtn.style.display = 'none';
     if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
@@ -2405,16 +2406,24 @@ function initVentesTab() {
 
   // Filter dropdown
   const filterSelect = document.getElementById('v-filter-rep');
-  for (const rep of salesReps) {
-    const opt = document.createElement('option');
-    opt.value = rep.id;
-    opt.textContent = rep.name;
-    filterSelect.appendChild(opt);
+  if (!isAdmin() && currentUser) {
+    // Commercial: lock filter to own rep, hide dropdown
+    filterSelect.innerHTML = `<option value="${currentUser.sales_rep_id}">${currentUser.name}</option>`;
+    filterSelect.value = currentUser.sales_rep_id;
+    filterSelect.style.display = 'none';
+  } else {
+    for (const rep of salesReps) {
+      const opt = document.createElement('option');
+      opt.value = rep.id;
+      opt.textContent = rep.name;
+      filterSelect.appendChild(opt);
+    }
   }
   filterSelect.addEventListener('change', loadSales);
 
-  // RIB filter toggle
+  // RIB filter toggle (admin only)
   const ribBtn = document.getElementById('v-filter-rib');
+  if (!isAdmin()) ribBtn.style.display = 'none';
   ribBtn.addEventListener('click', () => {
     ribBtn.classList.toggle('active');
     loadSales();
@@ -2494,7 +2503,18 @@ function sortSales(sales) {
 
 async function loadSales() {
   updateWeekLabel();
-  const filterRep = document.getElementById('v-filter-rep').value;
+
+  // Hide admin-only columns for commercials
+  const thead = document.querySelector('#sales-table thead tr');
+  if (thead) {
+    const ths = thead.querySelectorAll('th');
+    // Relances (index 7) and Actions (index 8) — hide for non-admin
+    if (ths[7]) ths[7].style.display = isAdmin() ? '' : 'none';
+    if (ths[8]) ths[8].style.display = isAdmin() ? '' : 'none';
+  }
+
+  // Commercial: always filter to own sales
+  const filterRep = (!isAdmin() && currentUser) ? currentUser.sales_rep_id : document.getElementById('v-filter-rep').value;
   let url = `/weeks/${currentWeekStart}/sales`;
   if (filterRep) url += `?sales_rep_id=${filterRep}`;
 
@@ -2549,11 +2569,11 @@ async function loadSales() {
       <td>${s.client_last_name}</td>
       <td><span class="rib-badge ${ribClass}">${s.rib_status || 'Non fourni'}</span></td>
       <td class="sale-remark-cell" title="${(s.remark || '').replace(/"/g, '&quot;')}" onclick="editRemarkInline(this, ${s.id})">${s.remark || '<span class="remark-placeholder">+ Remarque</span>'}</td>
-      <td class="relance-actions">${relanceHtml}</td>
+      ${isAdmin() ? `<td class="relance-actions">${relanceHtml}</td>
       <td class="actions">
         <button class="btn-sm" onclick="editSale(${s.id})">Modifier</button>
         <button class="btn-sm danger" onclick="deleteSale(${s.id})">Supprimer</button>
-      </td>
+      </td>` : ''}
     `;
     tbody.appendChild(tr);
   }
@@ -2588,7 +2608,16 @@ function openSaleModal(repId = null, saleData = null) {
 
   document.getElementById('modal-title').textContent = saleData ? 'Modifier la vente' : 'Ajouter une vente';
   document.getElementById('sale-id').value = saleData ? saleData.id : '';
-  document.getElementById('sale-rep').value = repId || saleData?.sales_rep_id || salesReps[0]?.id;
+
+  const repSelect = document.getElementById('sale-rep');
+  if (!isAdmin() && currentUser) {
+    // Commercial: force own rep, hide selector
+    repSelect.value = currentUser.sales_rep_id;
+    repSelect.closest('.form-row').style.display = 'none';
+  } else {
+    repSelect.closest('.form-row').style.display = '';
+    repSelect.value = repId || saleData?.sales_rep_id || salesReps[0]?.id;
+  }
 
   // Default date: today
   const weekEnd = addDays(currentWeekStart, 6);
