@@ -26,6 +26,25 @@ let featureStatus = { ai: false, email: false, webhook: false };
 let isLocked = false;
 let todaySelectedDate = new Date().toISOString().slice(0, 10);
 
+// ─── Toast Notification System ─────────────────────────────
+function showToast(message, type = 'success', duration = 2500) {
+  let container = document.querySelector('.toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const icons = { success: '✓', error: '✕', info: 'ℹ' };
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `<span class="toast-icon">${icons[type] || '✓'}</span><span>${message}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('toast-out');
+    toast.addEventListener('animationend', () => toast.remove());
+  }, duration);
+}
+
 // ─── Actions prédéfinies Aujourd'hui ────────────────────────
 const PREDEFINED_YESNO = [
   { key: 'check_studio', label: "J'ai fait un check du studio" },
@@ -201,19 +220,30 @@ function initAuthUI() {
       if (!res.ok) {
         errorDiv.textContent = data.error || 'Code incorrect';
         errorDiv.classList.remove('hidden');
+        const card = document.querySelector('.login-card');
+        card.classList.add('login-error');
+        card.addEventListener('animationend', () => card.classList.remove('login-error'), { once: true });
         pinInput.value = '';
         pinInput.focus();
         return;
       }
 
-      // Success
+      // Success — brief visual confirmation before transition
       authToken = data.token;
       currentUser = { role: data.role, name: data.name, sales_rep_id: data.sales_rep_id };
       localStorage.setItem('authToken', authToken);
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
+      const loginCard = document.querySelector('.login-card');
+      const loginBtn = loginCard.querySelector('.btn-primary');
+      loginCard.classList.add('login-success');
+      loginBtn.textContent = `Bienvenue ${data.name || ''}`;
+
       pinInput.value = '';
+      await new Promise(r => setTimeout(r, 600));
       hideLogin();
+      loginCard.classList.remove('login-success');
+      loginBtn.textContent = 'Se connecter';
       updateUserUI();
       await bootApp();
     } catch (err) {
@@ -423,7 +453,13 @@ function renderClubBlock(club, valMap) {
 
   return `
     <div class="td-club-block" data-club="${club.id}" data-prefix="${p}">
-      <div class="td-club-header">${club.label}</div>
+      <div class="td-club-header">
+        <span>${club.label}</span>
+        <span class="td-club-progress-pct" data-club-pct="${club.id}">0%</span>
+      </div>
+      <div class="td-club-progress-bar">
+        <div class="td-club-progress-fill" data-club-fill="${club.id}" style="width:0%"></div>
+      </div>
 
       <div class="td-block">
         <h3 class="td-block-title">Actions prioritaires</h3>
@@ -501,8 +537,49 @@ async function loadTodayTab() {
       const block = container.querySelector(`[data-club="${club.id}"]`);
       if (block) bindClubEvents(block, repId, club.prefix);
     });
+
+    // Update per-club progress bars
+    updateAllClubProgress(container);
   } catch (err) {
     console.error('Erreur chargement Aujourd\'hui:', err);
+  }
+}
+
+function updateAllClubProgress(container) {
+  if (!container) container = document.getElementById('today-standalone');
+  if (!container) return;
+
+  let allDone = true;
+  CLUB_PREFIXES.forEach(club => {
+    const block = container.querySelector(`[data-club="${club.id}"]`);
+    if (!block) return;
+
+    const checks = block.querySelectorAll('.td-yesno');
+    const counters = block.querySelectorAll('.td-counter-val');
+    if (checks.length === 0 && counters.length === 0) return;
+
+    let done = 0, total = checks.length + counters.length;
+    checks.forEach(cb => { if (cb.checked) done++; });
+    counters.forEach(inp => { if (parseInt(inp.value) > 0) done++; });
+
+    const pct = Math.round((done / total) * 100);
+    const fill = container.querySelector(`[data-club-fill="${club.id}"]`);
+    const label = container.querySelector(`[data-club-pct="${club.id}"]`);
+    if (!fill || !label) return;
+
+    fill.style.width = pct + '%';
+    label.textContent = `${done}/${total} · ${pct}%`;
+
+    const level = pct === 100 ? 'full' : pct >= 60 ? 'good' : pct >= 30 ? 'mid' : 'low';
+    fill.className = `td-club-progress-fill progress-${level}`;
+    label.className = `td-club-progress-pct progress-${level}`;
+
+    if (pct < 100) allDone = false;
+  });
+
+  if (allDone && !container.dataset.celebrated) {
+    container.dataset.celebrated = '1';
+    showToast('Journée complète — bravo !', 'success', 3000);
   }
 }
 
@@ -561,6 +638,8 @@ function bindClubEvents(block, repId, prefix) {
         method: 'PUT', body: { action_key: cb.dataset.key, value: cb.checked ? 1 : 0 }
       });
       updateTodayStyles(block);
+      updateAllClubProgress();
+      if (cb.checked) showToast('Action validée', 'success', 1500);
     });
   });
 
@@ -572,10 +651,15 @@ function bindClubEvents(block, repId, prefix) {
       let val = parseInt(input.value) || 0;
       val = btn.dataset.dir === 'plus' ? val + 1 : Math.max(0, val - 1);
       input.value = val;
+      // Number bump animation
+      input.classList.remove('number-bump');
+      void input.offsetWidth;
+      input.classList.add('number-bump');
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
         method: 'PUT', body: { action_key: key, value: val }
       });
       updateTodayStyles(block);
+      updateAllClubProgress();
     });
   });
 
@@ -1321,8 +1405,9 @@ async function saveControlHours(repId, weekStart) {
       btn.style.background = 'var(--success)';
       setTimeout(() => { btn.textContent = 'Enregistrer'; btn.style.background = ''; }, 2000);
     }
+    showToast('Heures enregistrées', 'success', 2000);
   } catch (err) {
-    alert('Erreur : ' + (err.message || 'Impossible de modifier les heures'));
+    showToast('Erreur : impossible de modifier les heures', 'error');
   }
 }
 
@@ -1365,8 +1450,9 @@ async function saveCtrlSale(saleId) {
     // Update row color based on RIB
     const noRib = body.rib_status !== 'Reçu';
     row.className = noRib ? 'ctrl-row-no-rib' : '';
+    showToast('Vente mise à jour', 'success', 1800);
   } catch (err) {
-    alert('Erreur : ' + (err.message || 'Impossible de modifier la vente'));
+    showToast('Erreur : impossible de modifier la vente', 'error');
   }
 }
 
@@ -1750,10 +1836,12 @@ async function saveActionDayRemark(el) {
   try {
     await api(`/action-remarks/${repId}/${day}`, { method: 'PUT', body: { remark } });
     el.style.borderColor = '#22c55e';
-    setTimeout(() => { el.style.borderColor = ''; }, 1000);
+    el.classList.add('pulse-save');
+    setTimeout(() => { el.style.borderColor = ''; el.classList.remove('pulse-save'); }, 1000);
   } catch (e) {
     console.error('Erreur sauvegarde remarque:', e);
     el.style.borderColor = '#ef4444';
+    showToast('Erreur sauvegarde remarque', 'error');
   }
 }
 
@@ -2606,10 +2694,32 @@ async function loadSales() {
   // Apply sort
   sales = sortSales(sales);
 
+  // ─── Summary stats bar ───────────────────────────
+  let statsBar = document.getElementById('ventes-stats-bar');
+  if (!statsBar) {
+    statsBar = document.createElement('div');
+    statsBar.id = 'ventes-stats-bar';
+    statsBar.className = 'ventes-stats-bar';
+    const table = document.getElementById('sales-table');
+    table.parentNode.insertBefore(statsBar, table);
+  }
+  const totalCA = sales.reduce((s, v) => s + (v.validated ? v.amount : 0), 0);
+  const pendingRib = sales.filter(v => v.rib_status !== 'Reçu').length;
+  const pendingValidation = sales.filter(v => !v.validated).length;
+  statsBar.innerHTML = `
+    <span class="stats-item"><strong>${sales.length}</strong> vente${sales.length > 1 ? 's' : ''}</span>
+    <span class="stats-sep">·</span>
+    <span class="stats-item">CA validé : <strong>${fmtEuro(totalCA)}</strong></span>
+    ${pendingRib > 0 ? `<span class="stats-sep">·</span><span class="stats-item stats-warn">${pendingRib} RIB manquant${pendingRib > 1 ? 's' : ''}</span>` : ''}
+    ${pendingValidation > 0 ? `<span class="stats-sep">·</span><span class="stats-item stats-warn">${pendingValidation} en attente</span>` : ''}
+  `;
+
   const tbody = document.querySelector('#sales-table tbody');
   tbody.innerHTML = '';
 
   if (sales.length === 0) {
+    statsBar.innerHTML = '';
+
     tbody.innerHTML = `<tr class="empty-state-row"><td colspan="9">
       <span class="empty-state-icon">🛒</span>
       <span class="empty-state-title">Aucune vente cette semaine</span>
@@ -2758,12 +2868,13 @@ async function saveSale() {
     }
     closeModal();
     loadDashboard();
+    showToast(id ? 'Vente modifiée' : 'Vente ajoutée', 'success', 2000);
     // Also reload sales if on that tab
     if (document.getElementById('tab-ventes').classList.contains('active')) {
       loadSales();
     }
   } catch (e) {
-    alert(e.message);
+    showToast(e.message || 'Erreur lors de l\'enregistrement', 'error');
   }
 }
 
@@ -2825,8 +2936,9 @@ window.deleteSale = async function(id) {
     await api(`/sales/${id}`, { method: 'DELETE' });
     loadDashboard();
     loadSales();
+    showToast('Vente supprimée', 'info', 2000);
   } catch (e) {
-    alert(e.message);
+    showToast(e.message || 'Erreur', 'error');
   }
 };
 
@@ -2836,8 +2948,9 @@ window.validateRib = async function(id) {
     await api(`/sales/${id}/validate-rib`, { method: 'POST', body: {} });
     loadSales();
     loadDashboard();
+    showToast('RIB validé', 'success', 2000);
   } catch (e) {
-    alert(e.message);
+    showToast(e.message || 'Erreur', 'error');
   }
 };
 
@@ -2846,10 +2959,10 @@ window.sendRelance = async function(id, level) {
   if (!confirm(`Envoyer la ${labels[level]} par email au client ?`)) return;
   try {
     await api(`/sales/${id}/relance`, { method: 'POST', body: { level } });
-    alert(`Relance R${level} envoyée avec succès !`);
+    showToast(`Relance R${level} envoyée`, 'success', 2500);
     loadSales();
   } catch (e) {
-    alert(e.message);
+    showToast(e.message || 'Erreur', 'error');
   }
 };
 
@@ -2859,8 +2972,9 @@ window.toggleValidation = async function(id, validate) {
     await api(endpoint, { method: 'POST', body: {} });
     loadSales();
     loadDashboard();
+    showToast(validate ? 'Vente validée' : 'Validation retirée', validate ? 'success' : 'info', 2000);
   } catch (e) {
-    alert(e.message);
+    showToast(e.message || 'Erreur', 'error');
   }
 };
 
