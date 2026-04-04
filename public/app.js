@@ -607,7 +607,11 @@ async function loadNotes() {
   try {
     const notes = await api('/notes');
     if (notes.length === 0) {
-      list.innerHTML = '<p class="notes-empty">Aucune remarque pour le moment.</p>';
+      list.innerHTML = `<div class="empty-state">
+        <span class="empty-state-icon">📝</span>
+        <span class="empty-state-title">Aucune remarque</span>
+        <span class="empty-state-desc">Les remarques ajoutées par l'admin apparaîtront ici.</span>
+      </div>`;
       return;
     }
     list.innerHTML = notes.map(n => {
@@ -673,7 +677,11 @@ async function loadNotes() {
       });
     });
   } catch (e) {
-    list.innerHTML = '<p class="notes-empty">Erreur de chargement</p>';
+    list.innerHTML = `<div class="empty-state">
+      <span class="empty-state-icon">⚠️</span>
+      <span class="empty-state-title">Erreur de chargement</span>
+      <span class="empty-state-desc">Impossible de récupérer les remarques. Réessayez plus tard.</span>
+    </div>`;
   }
 }
 
@@ -935,7 +943,11 @@ async function loadAdminEnergy() {
   try {
     const data = await api(`/admin/energy/${energyWeekStart}`);
     if (!data.reps || data.reps.length === 0) {
-      container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px 0;">Aucun commercial</p>';
+      container.innerHTML = `<div class="empty-state">
+        <span class="empty-state-icon">😊</span>
+        <span class="empty-state-title">Aucun commercial cette semaine</span>
+        <span class="empty-state-desc">Le suivi énergie apparaîtra ici quand des commerciaux seront actifs.</span>
+      </div>`;
       return;
     }
 
@@ -1039,7 +1051,11 @@ async function loadAdminPhoneurs() {
     const data = await api(`/phoning/all-monthly/${currentPhoneursMonth}`);
 
     if (!data.phoneurs || data.phoneurs.length === 0) {
-      container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px 0;">Aucun phoneur enregistré</p>';
+      container.innerHTML = `<div class="empty-state">
+        <span class="empty-state-icon">📞</span>
+        <span class="empty-state-title">Aucun phoneur enregistré</span>
+        <span class="empty-state-desc">Les statistiques de phoning apparaîtront ici une fois les phoneurs configurés.</span>
+      </div>`;
       return;
     }
 
@@ -1164,7 +1180,11 @@ async function loadControlTab() {
 
   const repId = select.value;
   if (!repId) {
-    container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px 0;">Sélectionnez un commercial pour voir son contrôle</p>';
+    container.innerHTML = `<div class="empty-state">
+      <span class="empty-state-icon">👤</span>
+      <span class="empty-state-title">Sélectionnez un commercial</span>
+      <span class="empty-state-desc">Choisissez un commercial dans la liste ci-dessus pour consulter son contrôle hebdomadaire.</span>
+    </div>`;
     return;
   }
 
@@ -1211,7 +1231,11 @@ async function loadControlTab() {
       .map(r => `<option value="${r.id}">${r.name}</option>`).join('');
 
     if (data.sales.length === 0) {
-      html += '<div class="ctrl-empty">Aucune vente cette semaine</div>';
+      html += `<div class="empty-state">
+        <span class="empty-state-icon">🛒</span>
+        <span class="empty-state-title">Aucune vente cette semaine</span>
+        <span class="empty-state-desc">Les ventes saisies par ce commercial apparaîtront ici.</span>
+      </div>`;
     } else {
       html += `
         <div class="ctrl-sales-section">
@@ -1351,7 +1375,7 @@ async function renderControlBadges(repId, repName, month) {
   try {
     const summaryData = await api(`/months/${month}/summary`);
     const activeReps = summaryData.rep_stats.filter(r => r.total_hours > 0);
-    if (activeReps.length === 0) return '<div class="ctrl-empty">Aucun badge ce mois</div>';
+    if (activeReps.length === 0) return `<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="empty-state-inline"><span class="empty-state-icon">🏅</span><span>Aucun badge attribué ce mois — les données sont insuffisantes.</span></div></div>`;
 
     let monthlyCounters = [];
     let disciplineData = [];
@@ -1392,7 +1416,7 @@ async function renderControlBadges(repId, repName, month) {
     const wonBadges = badges.filter(b => b.winner === repName);
 
     if (wonBadges.length === 0) {
-      return '<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="ctrl-empty-inline">Aucun badge obtenu ce mois</div></div>';
+      return `<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="empty-state-inline"><span class="empty-state-icon">🎯</span><span>Aucun badge obtenu ce mois — encore tout à jouer !</span></div></div>`;
     }
 
     let badgeHTML = '<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="ctrl-badges-row">';
@@ -1447,7 +1471,7 @@ async function renderControlEnergy(repId, weekStart) {
   try {
     const data = await api(`/admin/energy/${weekStart}`);
     const rep = data.reps.find(r => r.sales_rep_id == repId);
-    if (!rep) return '<div class="ctrl-energy-section"><h3>Suivi Énergie</h3><p class="ctrl-empty">Aucune donnée</p></div>';
+    if (!rep) return `<div class="ctrl-energy-section"><h3>Suivi Énergie</h3><div class="empty-state-inline"><span class="empty-state-icon">😊</span><span>Aucune donnée d'énergie pour cette semaine.</span></div></div>`;
 
     const startD = new Date(weekStart + 'T00:00:00');
 
@@ -1484,7 +1508,7 @@ async function renderControlAnalysis(repId, month) {
     const summaryData = await api(`/months/${month}/summary`);
     const repStat = summaryData.rep_stats.find(r => r.sales_rep_id == repId);
     if (!repStat || repStat.total_hours === 0) {
-      return '<div class="ctrl-analysis-section"><h3>Analyse</h3><div class="ctrl-empty-inline">Pas assez de données pour générer une analyse</div></div>';
+      return `<div class="ctrl-analysis-section"><h3>Analyse</h3><div class="empty-state-inline"><span class="empty-state-icon">📊</span><span>Pas assez de données ce mois pour générer une analyse. Les heures doivent être renseignées.</span></div></div>`;
     }
 
     let analysisDataArr = [];
@@ -1516,7 +1540,7 @@ async function renderControlAnalysis(repId, month) {
         analysis.neutres.forEach(p => { html += `<div>• ${p.text}</div>`; });
         html += '</div>';
       } else {
-        html += '<div class="ctrl-empty-inline">Pas assez de données pour générer une analyse pertinente</div>';
+        html += '<div class="empty-state-inline"><span class="empty-state-icon">📊</span><span>Pas assez de données pour une analyse pertinente.</span></div>';
       }
     }
 
@@ -1610,7 +1634,11 @@ async function loadAdminActions() {
     ]);
 
     if (!data.reps || data.reps.length === 0) {
-      container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Aucun commercial</p>';
+      container.innerHTML = `<div class="empty-state">
+        <span class="empty-state-icon">📋</span>
+        <span class="empty-state-title">Aucun commercial actif</span>
+        <span class="empty-state-desc">Les actions quotidiennes des commerciaux apparaîtront ici.</span>
+      </div>`;
       return;
     }
 
@@ -2143,6 +2171,15 @@ function renderCards(commerciaux) {
   const container = document.getElementById('cards-container');
   container.innerHTML = '';
 
+  if (commerciaux.length === 0) {
+    container.innerHTML = `<div class="empty-state">
+      <span class="empty-state-icon">📊</span>
+      <span class="empty-state-title">Aucune donnée cette semaine</span>
+      <span class="empty-state-desc">Les fiches commerciales apparaîtront ici une fois les heures renseignées.</span>
+    </div>`;
+    return;
+  }
+
   for (const c of commerciaux) {
     const card = document.createElement('div');
     card.className = 'rep-card';
@@ -2573,7 +2610,11 @@ async function loadSales() {
   tbody.innerHTML = '';
 
   if (sales.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-light);padding:24px">Aucune vente cette semaine</td></tr>';
+    tbody.innerHTML = `<tr class="empty-state-row"><td colspan="9">
+      <span class="empty-state-icon">🛒</span>
+      <span class="empty-state-title">Aucune vente cette semaine</span>
+      <span class="empty-state-desc">Utilisez le bouton ci-dessus pour ajouter une vente.</span>
+    </td></tr>`;
     return;
   }
 
@@ -3366,7 +3407,7 @@ async function renderAnalysisSection(data) {
         ${satHTML}
         ${amHTML}
         ${neutreHTML}
-        ${noData ? '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">Pas assez de données pour générer une analyse pertinente</div>' : ''}
+        ${noData ? '<div class="empty-state-inline" style="margin-top:8px;"><span class="empty-state-icon">📊</span><span>Pas assez de données pour une analyse pertinente.</span></div>' : ''}
       </div>
     </div>`;
   });
@@ -3852,7 +3893,11 @@ function renderAdminRepList() {
   if (!listDiv) return;
 
   if (salesReps.length === 0) {
-    listDiv.innerHTML = '<p style="color:var(--text-light)">Aucun commercial</p>';
+    listDiv.innerHTML = `<div class="empty-state">
+      <span class="empty-state-icon">👥</span>
+      <span class="empty-state-title">Aucun commercial</span>
+      <span class="empty-state-desc">Ajoutez un commercial via le formulaire ci-dessus.</span>
+    </div>`;
     return;
   }
 
