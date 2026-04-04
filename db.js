@@ -113,6 +113,13 @@ function initSchema() {
     db.exec("ALTER TABLE sales ADD COLUMN controlled INTEGER NOT NULL DEFAULT 0");
   }
 
+  // Migration: add validated column to sales (admin must validate before it counts in recap/dashboard)
+  const saleCols4 = db.prepare("PRAGMA table_info(sales)").all();
+  if (!saleCols4.find(c => c.name === 'validated')) {
+    db.exec("ALTER TABLE sales ADD COLUMN validated INTEGER NOT NULL DEFAULT 1");
+    // Existing sales are considered already validated
+  }
+
   // Migration: add default_hours to sales_reps
   const repCols5 = db.prepare("PRAGMA table_info(sales_reps)").all();
   if (!repCols5.find(c => c.name === 'default_hours')) {

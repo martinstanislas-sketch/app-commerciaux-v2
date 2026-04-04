@@ -358,7 +358,7 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
            COALESCE(SUM(amount), 0) as total_ca,
            COUNT(*) as nb_ventes
     FROM sales
-    WHERE week_start = ?
+    WHERE week_start = ? AND validated = 1
     GROUP BY sales_rep_id
   `).all(weekStart);
 
@@ -367,11 +367,11 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
     salesMap[s.sales_rep_id] = s;
   }
 
-  // Count missing RIBs per rep for this week
+  // Count missing RIBs per rep for this week (only validated sales)
   const ribManquants = db.prepare(`
     SELECT sales_rep_id, COUNT(*) as count
     FROM sales
-    WHERE week_start = ? AND rib_status != 'Reçu'
+    WHERE week_start = ? AND rib_status != 'Reçu' AND validated = 1
     GROUP BY sales_rep_id
   `).all(weekStart);
   const ribMap = {};
@@ -477,12 +477,44 @@ app.post('/api/sales', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Semaine verrouillée' });
   }
 
-  const result = db.prepare(`
-    INSERT INTO sales (sales_rep_id, date, amount, client_first_name, client_last_name, week_start, rib_status, client_email, remark)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(sales_rep_id, date, amount, client_first_name || '', client_last_name || '', weekStart, rib_status || 'Non fourni', client_email || '', remark || '');
+  // Sales added by commercial are not validated (need admin validation)
+  // Sales added by admin are auto-validated
+  const session = sessions.get(req.headers.authorization?.replace('Bearer ', ''));
+  const isAdminUser = session && session.role === 'admin';
+  const validated = isAdminUser ? 1 : 0;
 
-  res.json({ id: result.lastInsertRowid });
+  const result = db.prepare(`
+    INSERT INTO sales (sales_rep_id, date, amount, client_first_name, client_last_name, week_start, rib_status, client_email, remark, validated)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(sales_rep_id, date, amount, client_first_name || '', client_last_name || '', weekStart, rib_status || 'Non fourni', client_email || '', remark || '', validated);
+
+  res.json({ id: result.lastInsertRowid, validated });
+});
+
+// ─── POST /api/sales/:id/validate (admin only) ────────────────
+
+app.post('/api/sales/:id/validate', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
+  if (!sale) return res.status(404).json({ error: 'Vente non trouvée' });
+
+  db.prepare('UPDATE sales SET validated = 1 WHERE id = ?').run(id);
+  res.json({ success: true });
+});
+
+// ─── POST /api/sales/:id/unvalidate (admin only) ──────────────
+
+app.post('/api/sales/:id/unvalidate', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
+  if (!sale) return res.status(404).json({ error: 'Vente non trouvée' });
+
+  db.prepare('UPDATE sales SET validated = 0 WHERE id = ?').run(id);
+  res.json({ success: true });
 });
 
 // ─── PUT /api/sales/:id ─────────────────────────────────────
@@ -704,13 +736,13 @@ app.get('/api/months/:month/summary', requireAuth, (req, res) => {
 
   const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND archived = 0 AND (start_week IS NULL OR start_week <= ?) ORDER BY id").all(lastDay);
 
-  // Get all sales from weeks attributed to this month
+  // Get all validated sales from weeks attributed to this month
   const placeholders = monthWeeks.map(() => '?').join(',');
   const allSales = monthWeeks.length > 0 ? db.prepare(`
     SELECT s.*, sr.name as rep_name
     FROM sales s
     JOIN sales_reps sr ON sr.id = s.sales_rep_id
-    WHERE s.week_start IN (${placeholders})
+    WHERE s.week_start IN (${placeholders}) AND s.validated = 1
     ORDER BY s.amount DESC
   `).all(...monthWeeks) : [];
 
@@ -827,16 +859,16 @@ app.get('/api/months/:month/analysis-data', requireAuth, (req, res) => {
     const totals = {};
     counters.forEach(c => { totals[c.norm_key.replace('predefined:', '')] = c.total; });
 
-    // 2. Sales without RIB for this rep (from weeks attributed to this month)
+    // 2. Sales without RIB for this rep (from weeks attributed to this month, validated only)
     const salesNoRib = monthWeeks.length > 0 ? db.prepare(`
       SELECT COUNT(*) as count FROM sales
-      WHERE sales_rep_id = ? AND week_start IN (${placeholdersA}) AND rib_status != 'Reçu'
+      WHERE sales_rep_id = ? AND week_start IN (${placeholdersA}) AND rib_status != 'Reçu' AND validated = 1
     `).get(rep.id, ...monthWeeks) : { count: 0 };
 
-    // 3. Total sales count (all statuses) for reference comparison
+    // 3. Total sales count (validated only) for reference comparison
     const totalSalesAll = monthWeeks.length > 0 ? db.prepare(`
       SELECT COUNT(*) as count FROM sales
-      WHERE sales_rep_id = ? AND week_start IN (${placeholdersA})
+      WHERE sales_rep_id = ? AND week_start IN (${placeholdersA}) AND validated = 1
     `).get(rep.id, ...monthWeeks) : { count: 0 };
 
     // 4. Commercial days = distinct days with at least one action value > 0 (either club)
@@ -912,11 +944,11 @@ app.get('/api/months/:month/weekly-breakdown', requireAuth, (req, res) => {
     const endLabel = weekEndDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 
     const repData = reps.filter(rep => !rep.start_week || rep.start_week <= ws).map(rep => {
-      // All sales for this rep in this week (whole week counts for this month)
+      // All validated sales for this rep in this week
       const salesRow = db.prepare(`
         SELECT COALESCE(SUM(amount), 0) as ca, COUNT(*) as nb_ventes
         FROM sales
-        WHERE sales_rep_id = ? AND week_start = ? AND rib_status = 'Reçu'
+        WHERE sales_rep_id = ? AND week_start = ? AND rib_status = 'Reçu' AND validated = 1
       `).get(rep.id, ws);
 
       const settings = db.prepare(`
@@ -1462,15 +1494,15 @@ app.get('/api/control/:sales_rep_id/:week_start', requireAuth, requireAdmin, (re
   const repId = parseInt(req.params.sales_rep_id);
   const weekStart = req.params.week_start;
 
-  // 1. CA de la semaine (toutes ventes, pas seulement RIB reçu)
+  // 1. CA de la semaine (only validated sales count)
   const caRow = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as ca, COUNT(*) as nb_ventes
-    FROM sales WHERE sales_rep_id = ? AND week_start = ?
+    FROM sales WHERE sales_rep_id = ? AND week_start = ? AND validated = 1
   `).get(repId, weekStart);
 
-  // 2. Ventes de la semaine avec détails
+  // 2. Ventes de la semaine avec détails (show all, including non-validated)
   const sales = db.prepare(`
-    SELECT id, date, amount, client_first_name, client_last_name, rib_status, controlled, sales_rep_id
+    SELECT id, date, amount, client_first_name, client_last_name, rib_status, controlled, sales_rep_id, validated
     FROM sales WHERE sales_rep_id = ? AND week_start = ?
     ORDER BY date DESC, id DESC
   `).all(repId, weekStart);

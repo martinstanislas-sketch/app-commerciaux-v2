@@ -2242,6 +2242,53 @@ main {
 }
 .btn-toggle-rib:hover:not(.active) { background: var(--bg-subtle); }
 
+/* ─── Sale Validation ────────────────────────────── */
+.validation-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.validation-badge.validated {
+  background: var(--success-light);
+  color: var(--success);
+}
+.validation-badge.pending {
+  background: var(--warning-light);
+  color: var(--warning);
+  animation: pendingPulse 2s ease-in-out infinite;
+}
+@keyframes pendingPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .6; }
+}
+.btn-validate {
+  background: var(--success) !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+.btn-validate:hover:not(:disabled) {
+  background: #16a34a !important;
+}
+.btn-unvalidate {
+  background: var(--warning) !important;
+  color: #fff !important;
+  font-size: .65rem !important;
+}
+.btn-unvalidate:hover:not(:disabled) {
+  background: #d97706 !important;
+}
+.sale-not-validated {
+  background: rgba(245, 158, 11, 0.04) !important;
+  border-left: 3px solid var(--warning);
+}
+.sale-not-validated td:first-child {
+  padding-left: 13px;
+}
+
 /* ─── Email Panel ──────────────────────────────── */
 .email-panel {
   max-width: 560px;

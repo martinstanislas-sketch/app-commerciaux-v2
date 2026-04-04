@@ -276,6 +276,7 @@ async function bootApp() {
   if (adminPanel) adminPanel.classList.toggle('hidden', !isAdmin());
   // Show/hide tabs based on role
   updateTabVisibility();
+  applyVentesRoleVisibility();
 
   // Show header widgets for commercials
   initHeaderWidgets();
@@ -2388,54 +2389,34 @@ function initVentesTab() {
   const vNext = document.getElementById('v-next-week');
   const vPicker = document.getElementById('v-week-picker');
 
-  if (!isAdmin()) {
-    // Commercial: lock to current week only
-    currentWeekStart = getMonday(new Date().toISOString().slice(0, 10));
-    vPrev.style.display = 'none';
-    vNext.style.display = 'none';
-    vPicker.style.display = 'none';
-  } else {
-    vPrev.addEventListener('click', () => {
-      currentWeekStart = addDays(currentWeekStart, -7);
+  // Event listeners — bind once, they check isAdmin() at click time
+  vPrev.addEventListener('click', () => {
+    if (!isAdmin()) return;
+    currentWeekStart = addDays(currentWeekStart, -7);
+    loadDashboard();
+    loadSales();
+  });
+
+  vNext.addEventListener('click', () => {
+    if (!isAdmin()) return;
+    currentWeekStart = addDays(currentWeekStart, 7);
+    loadDashboard();
+    loadSales();
+  });
+
+  vPicker.addEventListener('change', (e) => {
+    if (!isAdmin()) return;
+    if (e.target.value) {
+      currentWeekStart = getMonday(e.target.value);
       loadDashboard();
       loadSales();
-    });
-
-    vNext.addEventListener('click', () => {
-      currentWeekStart = addDays(currentWeekStart, 7);
-      loadDashboard();
-      loadSales();
-    });
-
-    vPicker.addEventListener('change', (e) => {
-      if (e.target.value) {
-        currentWeekStart = getMonday(e.target.value);
-        loadDashboard();
-        loadSales();
-      }
-    });
-  }
-
-  // Filter dropdown
-  const filterSelect = document.getElementById('v-filter-rep');
-  if (!isAdmin() && currentUser) {
-    // Commercial: lock filter to own rep, hide dropdown
-    filterSelect.innerHTML = `<option value="${currentUser.sales_rep_id}">${currentUser.name}</option>`;
-    filterSelect.value = currentUser.sales_rep_id;
-    filterSelect.style.display = 'none';
-  } else {
-    for (const rep of salesReps) {
-      const opt = document.createElement('option');
-      opt.value = rep.id;
-      opt.textContent = rep.name;
-      filterSelect.appendChild(opt);
     }
-  }
+  });
+
+  const filterSelect = document.getElementById('v-filter-rep');
   filterSelect.addEventListener('change', loadSales);
 
-  // RIB filter toggle (admin only)
   const ribBtn = document.getElementById('v-filter-rib');
-  if (!isAdmin()) ribBtn.style.display = 'none';
   ribBtn.addEventListener('click', () => {
     ribBtn.classList.toggle('active');
     loadSales();
@@ -2443,6 +2424,47 @@ function initVentesTab() {
 
   document.getElementById('btn-add-sale').addEventListener('click', () => openSaleModal());
   initSalesSort();
+}
+
+// Called on every login — applies role-based visibility to Ventes tab
+function applyVentesRoleVisibility() {
+  const vPrev = document.getElementById('v-prev-week');
+  const vNext = document.getElementById('v-next-week');
+  const vPicker = document.getElementById('v-week-picker');
+  const filterSelect = document.getElementById('v-filter-rep');
+  const ribBtn = document.getElementById('v-filter-rib');
+
+  if (!isAdmin()) {
+    // Commercial: lock to current week, hide navigation
+    currentWeekStart = getMonday(new Date().toISOString().slice(0, 10));
+    vPrev.style.display = 'none';
+    vNext.style.display = 'none';
+    vPicker.style.display = 'none';
+
+    // Lock filter to own rep
+    filterSelect.innerHTML = `<option value="${currentUser.sales_rep_id}">${currentUser.name}</option>`;
+    filterSelect.value = currentUser.sales_rep_id;
+    filterSelect.style.display = 'none';
+
+    ribBtn.style.display = 'none';
+  } else {
+    // Admin: show all navigation
+    vPrev.style.display = '';
+    vNext.style.display = '';
+    vPicker.style.display = '';
+
+    // Rebuild filter dropdown with all reps
+    filterSelect.innerHTML = '<option value="">Tous les commerciaux</option>';
+    for (const rep of salesReps) {
+      const opt = document.createElement('option');
+      opt.value = rep.id;
+      opt.textContent = rep.name;
+      filterSelect.appendChild(opt);
+    }
+    filterSelect.style.display = '';
+
+    ribBtn.style.display = '';
+  }
 }
 
 // ─── Sales sort state ────────────────────────────────────────
@@ -2516,13 +2538,19 @@ function sortSales(sales) {
 async function loadSales() {
   updateWeekLabel();
 
-  // Hide admin-only columns for commercials
+  // Adjust columns for admin vs commercial
   const thead = document.querySelector('#sales-table thead tr');
   if (thead) {
     const ths = thead.querySelectorAll('th');
-    // Relances (index 7) and Actions (index 8) — hide for non-admin
-    if (ths[7]) ths[7].style.display = isAdmin() ? '' : 'none';
-    if (ths[8]) ths[8].style.display = isAdmin() ? '' : 'none';
+    if (isAdmin()) {
+      // Admin sees: Relances + Actions
+      if (ths[7]) { ths[7].style.display = ''; ths[7].innerHTML = 'Relances <span class="sort-icon"></span>'; }
+      if (ths[8]) ths[8].style.display = '';
+    } else {
+      // Commercial sees: Statut (validation) column instead, no Actions
+      if (ths[7]) { ths[7].style.display = ''; ths[7].innerHTML = 'Statut'; ths[7].classList.remove('sortable'); }
+      if (ths[8]) ths[8].style.display = 'none';
+    }
   }
 
   // Commercial: always filter to own sales
@@ -2572,7 +2600,19 @@ async function loadSales() {
       relanceHtml = '<span style="color:var(--success);font-size:0.8rem;">✓ RIB reçu</span>';
     }
 
+    // Validation status
+    const isValidated = s.validated === 1;
+    const validationBadge = isValidated
+      ? '<span class="validation-badge validated">Validée</span>'
+      : '<span class="validation-badge pending">En attente</span>';
+    const validationBtn = isAdmin()
+      ? (isValidated
+          ? `<button class="btn-relance btn-unvalidate" onclick="toggleValidation(${s.id}, false)" title="Retirer la validation">Dévalider</button>`
+          : `<button class="btn-relance btn-validate" onclick="toggleValidation(${s.id}, true)" title="Valider cette vente">Valider</button>`)
+      : '';
+
     const tr = document.createElement('tr');
+    if (!isValidated) tr.classList.add('sale-not-validated');
     tr.innerHTML = `
       <td>${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')}</td>
       <td>${s.rep_name}</td>
@@ -2581,11 +2621,11 @@ async function loadSales() {
       <td>${s.client_last_name}</td>
       <td><span class="rib-badge ${ribClass}">${s.rib_status || 'Non fourni'}</span></td>
       <td class="sale-remark-cell" title="${(s.remark || '').replace(/"/g, '&quot;')}" onclick="editRemarkInline(this, ${s.id})">${s.remark || '<span class="remark-placeholder">+ Remarque</span>'}</td>
-      ${isAdmin() ? `<td class="relance-actions">${relanceHtml}</td>
+      ${isAdmin() ? `<td class="relance-actions">${validationBtn} ${relanceHtml}</td>
       <td class="actions">
         <button class="btn-sm" onclick="editSale(${s.id})">Modifier</button>
         <button class="btn-sm danger" onclick="deleteSale(${s.id})">Supprimer</button>
-      </td>` : ''}
+      </td>` : `<td>${validationBadge}</td>`}
     `;
     tbody.appendChild(tr);
   }
@@ -2767,6 +2807,17 @@ window.sendRelance = async function(id, level) {
     await api(`/sales/${id}/relance`, { method: 'POST', body: { level } });
     alert(`Relance R${level} envoyée avec succès !`);
     loadSales();
+  } catch (e) {
+    alert(e.message);
+  }
+};
+
+window.toggleValidation = async function(id, validate) {
+  const endpoint = validate ? `/sales/${id}/validate` : `/sales/${id}/unvalidate`;
+  try {
+    await api(endpoint, { method: 'POST', body: {} });
+    loadSales();
+    loadDashboard();
   } catch (e) {
     alert(e.message);
   }
