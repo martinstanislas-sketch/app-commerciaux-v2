@@ -274,7 +274,7 @@ let _appBooted = false;
 
 async function bootApp() {
   salesReps = await api('/sales-reps');
-  currentWeekStart = getPreviousWeekMonday();
+  currentWeekStart = getMonday(new Date().toISOString().slice(0, 10));
 
   const now = new Date();
   currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
