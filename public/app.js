@@ -2384,25 +2384,37 @@ window.deleteChatMessage = async function(msgId, repId) {
 // ─── Ventes Tab ─────────────────────────────────────────────
 
 function initVentesTab() {
-  document.getElementById('v-prev-week').addEventListener('click', () => {
-    currentWeekStart = addDays(currentWeekStart, -7);
-    loadDashboard();
-    loadSales();
-  });
+  const vPrev = document.getElementById('v-prev-week');
+  const vNext = document.getElementById('v-next-week');
+  const vPicker = document.getElementById('v-week-picker');
 
-  document.getElementById('v-next-week').addEventListener('click', () => {
-    currentWeekStart = addDays(currentWeekStart, 7);
-    loadDashboard();
-    loadSales();
-  });
-
-  document.getElementById('v-week-picker').addEventListener('change', (e) => {
-    if (e.target.value) {
-      currentWeekStart = getMonday(e.target.value);
+  if (!isAdmin()) {
+    // Commercial: lock to current week only
+    currentWeekStart = getMonday(new Date().toISOString().slice(0, 10));
+    vPrev.style.display = 'none';
+    vNext.style.display = 'none';
+    vPicker.style.display = 'none';
+  } else {
+    vPrev.addEventListener('click', () => {
+      currentWeekStart = addDays(currentWeekStart, -7);
       loadDashboard();
       loadSales();
-    }
-  });
+    });
+
+    vNext.addEventListener('click', () => {
+      currentWeekStart = addDays(currentWeekStart, 7);
+      loadDashboard();
+      loadSales();
+    });
+
+    vPicker.addEventListener('change', (e) => {
+      if (e.target.value) {
+        currentWeekStart = getMonday(e.target.value);
+        loadDashboard();
+        loadSales();
+      }
+    });
+  }
 
   // Filter dropdown
   const filterSelect = document.getElementById('v-filter-rep');
