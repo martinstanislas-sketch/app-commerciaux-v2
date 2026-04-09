@@ -223,10 +223,6 @@
           </div>
           <div class="perso-daily-grid">
             <div class="perso-daily-item">
-              <label>Poids (kg)</label>
-              <input type="number" id="perso-weight" step="0.1" min="0" placeholder="—">
-            </div>
-            <div class="perso-daily-item">
               <label>Énergie</label>
               <div class="perso-energy-scale" id="perso-energy-scale">
                 <button type="button" data-val="1">1</button>
@@ -263,13 +259,6 @@
           </div>
         </div>
 
-        <!-- Exercices DB -->
-        <div class="perso-block">
-          <div class="perso-block-header">
-            <h2>Catalogue d'exercices</h2>
-          </div>
-          <div id="perso-exercises-list" class="perso-exercises-list"></div>
-        </div>
       </div>
     </section>
     <!-- EMAIL / ADMIN -->
@@ -298,6 +287,26 @@
           <button type="button" id="perso-tpl-cancel" class="btn-secondary">Annuler</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL PERSO: session recap -->
+  <div id="perso-recap-overlay" class="modal-overlay hidden">
+    <div class="modal modal-lg">
+      <h2 id="perso-recap-title">Récap de la séance</h2>
+      <div class="perso-recap-highlight">
+        <span class="perso-recap-label">Total soulevé</span>
+        <strong id="perso-recap-total">0 kg</strong>
+      </div>
+      <div class="perso-recap-meta">
+        <div><label>Exercices</label><strong id="perso-recap-exs-count">0</strong></div>
+        <div><label>Séries</label><strong id="perso-recap-sets">0</strong></div>
+        <div><label>Reps totales</label><strong id="perso-recap-reps">0</strong></div>
+      </div>
+      <div id="perso-recap-list" class="perso-recap-list"></div>
+      <div class="form-actions">
+        <button type="button" onclick="closeSessionRecap()" class="btn-primary">OK</button>
+      </div>
     </div>
   </div>
 

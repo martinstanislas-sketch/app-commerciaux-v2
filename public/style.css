@@ -4881,11 +4881,28 @@ main {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.perso-template-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
 }
 
 .perso-template-card.is-favorite {
   border-color: #f59e0b;
   border-left: 3px solid #f59e0b;
+}
+
+.perso-template-cta {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--primary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .perso-template-head {
@@ -5069,6 +5086,74 @@ main {
   margin-top: 12px;
 }
 
+/* Variable charges per set */
+.perso-mode-toggle {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.perso-mode-toggle.active {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #10b981;
+}
+.perso-perf-variable {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px dashed rgba(16, 185, 129, 0.3);
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+.perso-var-set {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+.perso-var-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding-bottom: 10px;
+  min-width: 55px;
+}
+.perso-var-inp label {
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.perso-var-inp input[type="number"] {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.perso-add-set {
+  align-self: flex-start;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+}
+.perso-perf-inputs-slim {
+  grid-template-columns: 1fr !important;
+}
+@media (max-width: 640px) {
+  .perso-var-set {
+    grid-template-columns: 1fr 1fr auto;
+  }
+  .perso-var-label {
+    grid-column: 1 / -1;
+    padding-bottom: 0;
+  }
+}
+
 .perso-session-add input {
   width: 100%;
   padding: 10px 14px;
@@ -5076,6 +5161,123 @@ main {
   border: 1px dashed var(--border);
   border-radius: 8px;
   color: var(--text);
+}
+
+/* Session footer: total + end button */
+.perso-session-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.perso-session-total {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.perso-total-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+#perso-total-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #10b981;
+}
+
+.perso-end-btn {
+  padding: 12px 24px;
+  font-size: 0.95rem;
+}
+
+/* Recap modal */
+.perso-recap-highlight {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.05));
+  border: 1px solid #10b981;
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.perso-recap-highlight .perso-recap-label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+}
+
+.perso-recap-highlight strong {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #10b981;
+}
+
+.perso-recap-meta {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.perso-recap-meta > div {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.perso-recap-meta label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.perso-recap-meta strong {
+  font-size: 1.2rem;
+  color: var(--text);
+}
+
+.perso-recap-list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.perso-recap-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+
+.perso-recap-ex-name { font-weight: 600; color: var(--text); }
+.perso-recap-ex-detail { color: var(--text-muted); font-size: 0.9rem; }
+.perso-recap-ex-sub { font-weight: 700; color: #10b981; font-size: 0.9rem; min-width: 80px; text-align: right; }
+
+@media (max-width: 640px) {
+  .perso-recap-meta { grid-template-columns: 1fr; }
+  .perso-recap-row { grid-template-columns: 1fr; gap: 4px; }
+  .perso-recap-ex-sub { text-align: left; }
+  .perso-session-footer { flex-direction: column; align-items: stretch; }
+  .perso-end-btn { width: 100%; }
 }
 
 /* Autocomplete */

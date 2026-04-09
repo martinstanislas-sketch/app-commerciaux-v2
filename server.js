@@ -1885,19 +1885,27 @@ app.get('/api/perso/exercises', requireAuth, requireAdmin, (req, res) => {
   res.json(rows);
 });
 
-// Get one exercise with last + best performance
+// Get one exercise with last + max at 10 reps
 app.get('/api/perso/exercises/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const id = parseInt(req.params.id);
   const ex = db.prepare('SELECT * FROM perso_exercises WHERE id = ?').get(id);
   if (!ex) return res.status(404).json({ error: 'Exercice introuvable' });
   const last = db.prepare(`
-    SELECT * FROM perso_performances WHERE exercise_id = ? ORDER BY date DESC, id DESC LIMIT 1
+    SELECT * FROM perso_performances WHERE exercise_id = ? AND (charge > 0 OR reps > 0)
+    ORDER BY date DESC, id DESC LIMIT 1
   `).get(id);
+  // Max charge at 10 reps or more (personal record at 10 reps)
+  const max10 = db.prepare(`
+    SELECT * FROM perso_performances WHERE exercise_id = ? AND reps >= 10
+    ORDER BY charge DESC, reps DESC LIMIT 1
+  `).get(id);
+  // Overall best (fallback)
   const best = db.prepare(`
-    SELECT * FROM perso_performances WHERE exercise_id = ? ORDER BY charge DESC, reps DESC LIMIT 1
+    SELECT * FROM perso_performances WHERE exercise_id = ? AND (charge > 0 OR reps > 0)
+    ORDER BY charge DESC, reps DESC LIMIT 1
   `).get(id);
-  res.json({ ...ex, last, best });
+  res.json({ ...ex, last, max10, best });
 });
 
 // Create or get exercise by name (auto-create)
@@ -2049,13 +2057,13 @@ app.delete('/api/perso/sessions/:id', requireAuth, requireAdmin, (req, res) => {
 app.post('/api/perso/sessions/:id/performances', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const session_id = parseInt(req.params.id);
-  const { exercise_id, charge, sets, reps, feeling, date } = req.body;
+  const { exercise_id, charge, sets, reps, feeling, date, sets_detail } = req.body;
   if (!exercise_id) return res.status(400).json({ error: 'Exercice requis' });
   const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 as n FROM perso_performances WHERE session_id = ?').get(session_id).n;
   const result = db.prepare(`
-    INSERT INTO perso_performances (session_id, exercise_id, charge, sets, reps, feeling, date, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(session_id, exercise_id, charge || 0, sets || 0, reps || 0, feeling || 'moyen', date, maxOrder);
+    INSERT INTO perso_performances (session_id, exercise_id, charge, sets, reps, feeling, date, sort_order, sets_detail)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(session_id, exercise_id, charge || 0, sets || 0, reps || 0, feeling || 'moyen', date, maxOrder, sets_detail ? JSON.stringify(sets_detail) : null);
   res.json({ id: result.lastInsertRowid });
 });
 
@@ -2063,19 +2071,22 @@ app.post('/api/perso/sessions/:id/performances', requireAuth, requireAdmin, (req
 app.put('/api/perso/performances/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const id = parseInt(req.params.id);
-  const { charge, sets, reps, feeling } = req.body;
+  const { charge, sets, reps, feeling, sets_detail } = req.body;
   db.prepare(`
     UPDATE perso_performances
     SET charge = COALESCE(?, charge),
         sets = COALESCE(?, sets),
         reps = COALESCE(?, reps),
-        feeling = COALESCE(?, feeling)
+        feeling = COALESCE(?, feeling),
+        sets_detail = CASE WHEN ? = 1 THEN ? ELSE sets_detail END
     WHERE id = ?
   `).run(
     charge !== undefined ? charge : null,
     sets !== undefined ? sets : null,
     reps !== undefined ? reps : null,
     feeling !== undefined ? feeling : null,
+    sets_detail !== undefined ? 1 : 0,
+    sets_detail !== undefined ? (sets_detail === null ? null : JSON.stringify(sets_detail)) : null,
     id
   );
   res.json({ ok: true });

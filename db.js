@@ -241,6 +241,12 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_perso_perf_session ON perso_performances(session_id);
     CREATE INDEX IF NOT EXISTS idx_perso_sessions_date ON perso_sessions(date);
   `);
+
+  // Migration: add sets_detail JSON column (per-set charge/reps support)
+  const perfCols = db.prepare("PRAGMA table_info(perso_performances)").all();
+  if (!perfCols.find(c => c.name === 'sets_detail')) {
+    db.exec("ALTER TABLE perso_performances ADD COLUMN sets_detail TEXT DEFAULT NULL");
+  }
 }
 
 /**
