@@ -38,6 +38,7 @@
       <!-- <button class="tab-btn" data-tab="admin-phoneurs">Phoneurs</button> -->
       <button class="tab-btn" data-tab="controle">Contrôle</button>
       <button class="tab-btn" data-tab="admin-actions">Actions</button>
+      <button class="tab-btn" data-tab="perso">Perso</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button> -->
     </nav>
@@ -210,8 +211,110 @@
       <div id="act-comparison-table"></div>
       <div id="admin-actions-container"></div>
     </section>
+
+    <!-- PERSO (admin only) -->
+    <section id="tab-perso" class="tab-content">
+      <div id="perso-container">
+        <!-- Suivi du jour -->
+        <div class="perso-block perso-daily-block">
+          <div class="perso-block-header">
+            <h2>Suivi du jour</h2>
+            <span id="perso-today-date" class="perso-date-label">—</span>
+          </div>
+          <div class="perso-daily-grid">
+            <div class="perso-daily-item">
+              <label>Poids (kg)</label>
+              <input type="number" id="perso-weight" step="0.1" min="0" placeholder="—">
+            </div>
+            <div class="perso-daily-item">
+              <label>Énergie</label>
+              <div class="perso-energy-scale" id="perso-energy-scale">
+                <button type="button" data-val="1">1</button>
+                <button type="button" data-val="2">2</button>
+                <button type="button" data-val="3">3</button>
+                <button type="button" data-val="4">4</button>
+                <button type="button" data-val="5">5</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Séances / Templates -->
+        <div class="perso-block">
+          <div class="perso-block-header">
+            <h2>Séances</h2>
+            <div class="perso-block-actions">
+              <button type="button" id="perso-btn-new-template" class="btn-secondary">+ Nouveau template</button>
+            </div>
+          </div>
+          <div id="perso-templates-list" class="perso-templates-list"></div>
+        </div>
+
+        <!-- Session du jour -->
+        <div class="perso-block">
+          <div class="perso-block-header">
+            <h2>Séance du jour</h2>
+            <div class="perso-block-actions">
+              <button type="button" id="perso-btn-start-blank" class="btn-secondary">+ Séance libre</button>
+            </div>
+          </div>
+          <div id="perso-session-container" class="perso-session-container">
+            <div class="perso-empty">Aucune séance en cours aujourd'hui. Choisis un template ou démarre une séance libre.</div>
+          </div>
+        </div>
+
+        <!-- Exercices DB -->
+        <div class="perso-block">
+          <div class="perso-block-header">
+            <h2>Catalogue d'exercices</h2>
+          </div>
+          <div id="perso-exercises-list" class="perso-exercises-list"></div>
+        </div>
+      </div>
+    </section>
     <!-- EMAIL / ADMIN -->
   </main>
+
+  <!-- MODAL PERSO: template editor -->
+  <div id="perso-tpl-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 id="perso-tpl-title">Nouveau template</h2>
+      <form id="perso-tpl-form">
+        <input type="hidden" id="perso-tpl-id">
+        <div class="form-row">
+          <label for="perso-tpl-name">Nom de la séance</label>
+          <input type="text" id="perso-tpl-name" placeholder="PUSH, PULL, LEG..." required>
+        </div>
+        <div class="form-row">
+          <label>Exercices</label>
+          <div id="perso-tpl-exercises" class="perso-tpl-exercises"></div>
+          <div class="perso-tpl-add-row">
+            <input type="text" id="perso-tpl-exercise-input" placeholder="Ajouter un exercice..." autocomplete="off">
+            <div id="perso-tpl-autocomplete" class="perso-autocomplete hidden"></div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Enregistrer</button>
+          <button type="button" id="perso-tpl-cancel" class="btn-secondary">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL PERSO: progression -->
+  <div id="perso-progress-overlay" class="modal-overlay hidden">
+    <div class="modal modal-lg">
+      <h2 id="perso-progress-title">Progression</h2>
+      <div class="perso-progress-stats" id="perso-progress-stats"></div>
+      <div class="perso-chart-wrap">
+        <canvas id="perso-progress-chart"></canvas>
+      </div>
+      <div id="perso-progress-history" class="perso-progress-history"></div>
+      <div class="form-actions">
+        <button type="button" id="perso-progress-close" class="btn-secondary">Fermer</button>
+      </div>
+    </div>
+  </div>
 
   <!-- MODAL VENTE -->
   <div id="modal-overlay" class="modal-overlay hidden">

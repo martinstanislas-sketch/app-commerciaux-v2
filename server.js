@@ -1868,6 +1868,246 @@ app.put('/api/action-remarks/:sales_rep_id/:date', requireAuth, requireAdmin, (r
   res.json({ ok: true });
 });
 
+// ─── PERSO: Workout tracking (admin only) ──────────────────
+
+// List exercises (with optional search for autocomplete)
+app.get('/api/perso/exercises', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { q } = req.query;
+  let rows;
+  if (q && q.trim()) {
+    rows = db.prepare(`
+      SELECT * FROM perso_exercises WHERE LOWER(name) LIKE ? ORDER BY name LIMIT 20
+    `).all('%' + q.trim().toLowerCase() + '%');
+  } else {
+    rows = db.prepare('SELECT * FROM perso_exercises ORDER BY name').all();
+  }
+  res.json(rows);
+});
+
+// Get one exercise with last + best performance
+app.get('/api/perso/exercises/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id);
+  const ex = db.prepare('SELECT * FROM perso_exercises WHERE id = ?').get(id);
+  if (!ex) return res.status(404).json({ error: 'Exercice introuvable' });
+  const last = db.prepare(`
+    SELECT * FROM perso_performances WHERE exercise_id = ? ORDER BY date DESC, id DESC LIMIT 1
+  `).get(id);
+  const best = db.prepare(`
+    SELECT * FROM perso_performances WHERE exercise_id = ? ORDER BY charge DESC, reps DESC LIMIT 1
+  `).get(id);
+  res.json({ ...ex, last, best });
+});
+
+// Create or get exercise by name (auto-create)
+app.post('/api/perso/exercises', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { name, muscle_group, goal_charge } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
+  const trimmed = name.trim();
+  let ex = db.prepare('SELECT * FROM perso_exercises WHERE LOWER(name) = LOWER(?)').get(trimmed);
+  if (!ex) {
+    const result = db.prepare(`
+      INSERT INTO perso_exercises (name, muscle_group, goal_charge) VALUES (?, ?, ?)
+    `).run(trimmed, muscle_group || '', goal_charge || null);
+    ex = db.prepare('SELECT * FROM perso_exercises WHERE id = ?').get(result.lastInsertRowid);
+  }
+  res.json(ex);
+});
+
+// Update exercise (muscle group, goal)
+app.put('/api/perso/exercises/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id);
+  const { muscle_group, goal_charge } = req.body;
+  db.prepare(`
+    UPDATE perso_exercises
+    SET muscle_group = COALESCE(?, muscle_group),
+        goal_charge = ?
+    WHERE id = ?
+  `).run(muscle_group !== undefined ? muscle_group : null, goal_charge !== undefined ? goal_charge : null, id);
+  res.json({ ok: true });
+});
+
+// Delete exercise
+app.delete('/api/perso/exercises/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  db.prepare('DELETE FROM perso_exercises WHERE id = ?').run(parseInt(req.params.id));
+  res.json({ ok: true });
+});
+
+// Exercise history (for progression chart)
+app.get('/api/perso/exercises/:id/history', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT date, charge, sets, reps, feeling
+    FROM perso_performances
+    WHERE exercise_id = ?
+    ORDER BY date ASC, id ASC
+  `).all(parseInt(req.params.id));
+  res.json(rows);
+});
+
+// ─── Templates ─────────────────────────────────────────────
+
+app.get('/api/perso/templates', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const templates = db.prepare('SELECT * FROM perso_templates ORDER BY favorite DESC, name').all();
+  const getExercises = db.prepare(`
+    SELECT e.* FROM perso_template_exercises te
+    JOIN perso_exercises e ON e.id = te.exercise_id
+    WHERE te.template_id = ?
+    ORDER BY te.sort_order, te.id
+  `);
+  templates.forEach(t => { t.exercises = getExercises.all(t.id); });
+  res.json(templates);
+});
+
+app.post('/api/perso/templates', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { name, exercise_ids } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
+  const result = db.prepare('INSERT INTO perso_templates (name) VALUES (?)').run(name.trim());
+  const tid = result.lastInsertRowid;
+  if (Array.isArray(exercise_ids)) {
+    const insert = db.prepare('INSERT INTO perso_template_exercises (template_id, exercise_id, sort_order) VALUES (?, ?, ?)');
+    exercise_ids.forEach((eid, i) => insert.run(tid, eid, i));
+  }
+  res.json({ id: tid });
+});
+
+app.put('/api/perso/templates/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id);
+  const { name, favorite, exercise_ids } = req.body;
+  if (name !== undefined) db.prepare('UPDATE perso_templates SET name = ? WHERE id = ?').run(name.trim(), id);
+  if (favorite !== undefined) db.prepare('UPDATE perso_templates SET favorite = ? WHERE id = ?').run(favorite ? 1 : 0, id);
+  if (Array.isArray(exercise_ids)) {
+    db.prepare('DELETE FROM perso_template_exercises WHERE template_id = ?').run(id);
+    const insert = db.prepare('INSERT INTO perso_template_exercises (template_id, exercise_id, sort_order) VALUES (?, ?, ?)');
+    exercise_ids.forEach((eid, i) => insert.run(id, eid, i));
+  }
+  res.json({ ok: true });
+});
+
+app.delete('/api/perso/templates/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  db.prepare('DELETE FROM perso_templates WHERE id = ?').run(parseInt(req.params.id));
+  res.json({ ok: true });
+});
+
+// ─── Sessions & Performances ────────────────────────────────
+
+// Get or create today's session for a given date
+app.get('/api/perso/sessions/:date', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { date } = req.params;
+  let session = db.prepare('SELECT * FROM perso_sessions WHERE date = ? ORDER BY id DESC LIMIT 1').get(date);
+  if (!session) {
+    res.json(null);
+    return;
+  }
+  session.performances = db.prepare(`
+    SELECT p.*, e.name as exercise_name, e.muscle_group, e.goal_charge
+    FROM perso_performances p
+    JOIN perso_exercises e ON e.id = p.exercise_id
+    WHERE p.session_id = ?
+    ORDER BY p.sort_order, p.id
+  `).all(session.id);
+  res.json(session);
+});
+
+// Create session (optionally from template)
+app.post('/api/perso/sessions', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { date, template_id } = req.body;
+  if (!date) return res.status(400).json({ error: 'Date requise' });
+  const result = db.prepare('INSERT INTO perso_sessions (date, template_id) VALUES (?, ?)').run(date, template_id || null);
+  const sid = result.lastInsertRowid;
+  // If template, pre-create empty performances
+  if (template_id) {
+    const exs = db.prepare(`
+      SELECT exercise_id, sort_order FROM perso_template_exercises WHERE template_id = ? ORDER BY sort_order
+    `).all(template_id);
+    const insert = db.prepare(`
+      INSERT INTO perso_performances (session_id, exercise_id, charge, sets, reps, feeling, date, sort_order)
+      VALUES (?, ?, 0, 0, 0, 'moyen', ?, ?)
+    `);
+    exs.forEach(e => insert.run(sid, e.exercise_id, date, e.sort_order));
+  }
+  res.json({ id: sid });
+});
+
+app.delete('/api/perso/sessions/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  db.prepare('DELETE FROM perso_sessions WHERE id = ?').run(parseInt(req.params.id));
+  res.json({ ok: true });
+});
+
+// Add performance to session
+app.post('/api/perso/sessions/:id/performances', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const session_id = parseInt(req.params.id);
+  const { exercise_id, charge, sets, reps, feeling, date } = req.body;
+  if (!exercise_id) return res.status(400).json({ error: 'Exercice requis' });
+  const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 as n FROM perso_performances WHERE session_id = ?').get(session_id).n;
+  const result = db.prepare(`
+    INSERT INTO perso_performances (session_id, exercise_id, charge, sets, reps, feeling, date, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(session_id, exercise_id, charge || 0, sets || 0, reps || 0, feeling || 'moyen', date, maxOrder);
+  res.json({ id: result.lastInsertRowid });
+});
+
+// Update performance
+app.put('/api/perso/performances/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id);
+  const { charge, sets, reps, feeling } = req.body;
+  db.prepare(`
+    UPDATE perso_performances
+    SET charge = COALESCE(?, charge),
+        sets = COALESCE(?, sets),
+        reps = COALESCE(?, reps),
+        feeling = COALESCE(?, feeling)
+    WHERE id = ?
+  `).run(
+    charge !== undefined ? charge : null,
+    sets !== undefined ? sets : null,
+    reps !== undefined ? reps : null,
+    feeling !== undefined ? feeling : null,
+    id
+  );
+  res.json({ ok: true });
+});
+
+app.delete('/api/perso/performances/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  db.prepare('DELETE FROM perso_performances WHERE id = ?').run(parseInt(req.params.id));
+  res.json({ ok: true });
+});
+
+// ─── Daily tracking (weight, energy) ────────────────────────
+
+app.get('/api/perso/daily/:date', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM perso_daily WHERE date = ?').get(req.params.date);
+  res.json(row || { date: req.params.date, weight: null, energy: null });
+});
+
+app.put('/api/perso/daily/:date', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { date } = req.params;
+  const { weight, energy } = req.body;
+  db.prepare(`
+    INSERT INTO perso_daily (date, weight, energy) VALUES (?, ?, ?)
+    ON CONFLICT(date) DO UPDATE SET
+      weight = COALESCE(excluded.weight, perso_daily.weight),
+      energy = COALESCE(excluded.energy, perso_daily.energy)
+  `).run(date, weight !== undefined ? weight : null, energy !== undefined ? energy : null);
+  res.json({ ok: true });
+});
+
 // ─── Start ──────────────────────────────────────────────────
 
 app.listen(PORT, () => {

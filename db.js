@@ -186,6 +186,61 @@ function initSchema() {
       updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     );
   `);
+
+  // ─── PERSO: Workout tracking (admin only) ──────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS perso_exercises (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      muscle_group TEXT DEFAULT '',
+      goal_charge REAL DEFAULT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS perso_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      favorite INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS perso_template_exercises (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      template_id INTEGER NOT NULL REFERENCES perso_templates(id) ON DELETE CASCADE,
+      exercise_id INTEGER NOT NULL REFERENCES perso_exercises(id) ON DELETE CASCADE,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS perso_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      template_id INTEGER DEFAULT NULL REFERENCES perso_templates(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS perso_performances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL REFERENCES perso_sessions(id) ON DELETE CASCADE,
+      exercise_id INTEGER NOT NULL REFERENCES perso_exercises(id),
+      charge REAL NOT NULL DEFAULT 0,
+      sets INTEGER NOT NULL DEFAULT 0,
+      reps INTEGER NOT NULL DEFAULT 0,
+      feeling TEXT NOT NULL DEFAULT 'moyen' CHECK(feeling IN ('facile','moyen','dur')),
+      date TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS perso_daily (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL UNIQUE,
+      weight REAL DEFAULT NULL,
+      energy INTEGER DEFAULT NULL CHECK(energy IS NULL OR (energy >= 1 AND energy <= 5))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_perso_perf_exercise ON perso_performances(exercise_id, date);
+    CREATE INDEX IF NOT EXISTS idx_perso_perf_session ON perso_performances(session_id);
+    CREATE INDEX IF NOT EXISTS idx_perso_sessions_date ON perso_sessions(date);
+  `);
 }
 
 /**

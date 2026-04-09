@@ -4761,6 +4761,549 @@ main {
   .login-card { margin: 20px auto; }
 }
 
+/* ═══════════════════════════════════════════════════
+   PERSO TAB (admin only — workout tracking)
+   ═══════════════════════════════════════════════════ */
+
+#tab-perso { padding-top: 8px; }
+
+#perso-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.perso-block {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.perso-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.perso-block-header h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.perso-block-actions { display: flex; gap: 8px; }
+
+.perso-date-label {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+/* Daily block */
+.perso-daily-block { border-left-color: #10b981; }
+
+.perso-daily-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.perso-daily-item label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.perso-daily-item input[type="number"] {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.perso-energy-scale {
+  display: flex;
+  gap: 6px;
+}
+
+.perso-energy-scale button {
+  flex: 1;
+  min-height: 44px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.perso-energy-scale button:hover { border-color: var(--primary); }
+
+.perso-energy-scale button.active {
+  background: #10b981;
+  border-color: #10b981;
+  color: #fff;
+}
+
+/* Templates */
+.perso-templates-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.perso-template-card {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.perso-template-card.is-favorite {
+  border-color: #f59e0b;
+  border-left: 3px solid #f59e0b;
+}
+
+.perso-template-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.perso-template-head h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.perso-tpl-fav {
+  background: transparent;
+  border: none;
+  color: #f59e0b;
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 0 4px;
+  min-width: 32px;
+}
+
+.perso-template-actions { display: flex; gap: 6px; }
+
+.perso-template-actions .btn-primary {
+  padding: 6px 14px;
+  font-size: 0.85rem;
+}
+
+.perso-template-exs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.perso-chip {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.perso-chip-sm {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--primary);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.perso-goal-chip {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.perso-goal-chip.is-reached {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+/* Session */
+.perso-session-container { min-height: 80px; }
+
+.perso-session-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.perso-session-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.perso-session-exs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.perso-perf-row {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.perso-perf-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+
+.perso-perf-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.perso-perf-name strong {
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.perso-perf-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.perso-stat-last { color: var(--primary); }
+.perso-stat-best { color: #10b981; font-weight: 600; }
+
+.perso-perf-inputs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.perso-perf-inp label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.perso-perf-inp input[type="number"] {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.perso-feeling-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.perso-feeling-btns button {
+  flex: 1;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  min-height: 36px;
+}
+
+.perso-feeling-btns button.active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--primary);
+}
+
+.perso-session-add {
+  position: relative;
+  margin-top: 12px;
+}
+
+.perso-session-add input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text);
+}
+
+/* Autocomplete */
+.perso-autocomplete {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.perso-ac-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.perso-ac-item:last-child { border-bottom: none; }
+.perso-ac-item:hover { background: var(--bg-subtle); }
+
+.perso-ac-create {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.perso-ac-empty {
+  padding: 12px 14px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* Exercises catalog */
+.perso-exercises-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.perso-ex-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  gap: 10px;
+}
+
+.perso-ex-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.perso-ex-actions { display: flex; gap: 6px; }
+
+/* Template editor modal */
+.perso-tpl-exercises {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.perso-tpl-ex-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.perso-tpl-ex-num {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-width: 24px;
+}
+
+.perso-tpl-ex-name { flex: 1; color: var(--text); }
+
+.perso-tpl-add-row {
+  position: relative;
+}
+
+.perso-tpl-add-row input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text);
+}
+
+/* Progression modal */
+.modal-lg { max-width: 800px !important; width: 95%; }
+
+.perso-progress-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.perso-stat-block {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.perso-stat-block label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.perso-stat-block strong {
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.perso-chart-wrap {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  height: 260px;
+  margin-bottom: 16px;
+}
+
+.perso-progress-history {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.perso-progress-history h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.perso-hist-row {
+  display: grid;
+  grid-template-columns: 100px 1fr auto;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text);
+  align-items: center;
+}
+
+.perso-hist-date { color: var(--text-muted); }
+
+/* Empty states */
+.perso-empty {
+  text-align: center;
+  padding: 24px 12px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.perso-empty-sm {
+  text-align: center;
+  padding: 12px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.perso-muted { color: var(--text-muted); font-size: 0.85rem; }
+
+/* Icon buttons */
+.btn-icon {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.btn-icon:hover { border-color: var(--primary); }
+
+.btn-icon.btn-danger:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* PERSO responsive */
+@media (max-width: 768px) {
+  .perso-daily-grid { grid-template-columns: 1fr; }
+  .perso-templates-list { grid-template-columns: 1fr; }
+  .perso-perf-inputs { grid-template-columns: 1fr 1fr; }
+  .perso-progress-stats { grid-template-columns: 1fr; }
+  .perso-block { padding: 14px; }
+  .perso-hist-row { grid-template-columns: 1fr; gap: 4px; }
+}
+
+@media (max-width: 480px) {
+  .perso-perf-inputs { grid-template-columns: 1fr; }
+  .perso-template-head { flex-wrap: wrap; }
+}
+
 /* ─── Print optimization ────────────────────────── */
 @media print {
   header, .week-nav, .month-nav, .btn-add-sale, .btn-lock,

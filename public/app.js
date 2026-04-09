@@ -330,6 +330,7 @@ function updateTabVisibility() {
   const adminPhoneursBtn = document.querySelector('[data-tab="admin-phoneurs"]');
   const controleBtn = document.querySelector('[data-tab="controle"]');
   const actionsBtn = document.querySelector('[data-tab="admin-actions"]');
+  const persoBtn = document.querySelector('[data-tab="perso"]');
 
   if (isPhoneLead()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -342,6 +343,7 @@ function updateTabVisibility() {
     if (adminPhoneursBtn) adminPhoneursBtn.style.display = 'none';
     if (controleBtn) controleBtn.style.display = 'none';
     if (actionsBtn) actionsBtn.style.display = 'none';
+    if (persoBtn) persoBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -354,6 +356,7 @@ function updateTabVisibility() {
     if (adminPhoneursBtn) adminPhoneursBtn.style.display = '';
     if (controleBtn) controleBtn.style.display = '';
     if (actionsBtn) actionsBtn.style.display = '';
+    if (persoBtn) persoBtn.style.display = '';
     dashBtn.click();
   } else {
     // Commercial: Aujourd'hui + Ventes (ses propres ventes) + Récap
@@ -367,6 +370,7 @@ function updateTabVisibility() {
     if (adminPhoneursBtn) adminPhoneursBtn.style.display = 'none';
     if (controleBtn) controleBtn.style.display = 'none';
     if (actionsBtn) actionsBtn.style.display = 'none';
+    if (persoBtn) persoBtn.style.display = 'none';
     todayBtn.click();
   }
 }
@@ -2180,6 +2184,7 @@ function initTabs() {
       if (btn.dataset.tab === 'controle') loadControlTab();
       if (btn.dataset.tab === 'phoning') loadPhoningTab();
       if (btn.dataset.tab === 'phoning-recap') loadPhoningRecap();
+      if (btn.dataset.tab === 'perso') loadPersoTab();
     });
   });
 }
@@ -4062,4 +4067,485 @@ async function deleteRep(id, name) {
   } catch (err) {
     alert(err.message || 'Erreur lors de l\'archivage');
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// PERSO (workout tracking — admin only)
+// ═══════════════════════════════════════════════════════════
+
+let persoState = {
+  booted: false,
+  todayDate: () => new Date().toISOString().slice(0, 10),
+  currentSession: null,
+  templates: [],
+  exercises: [],
+  tplDraft: { id: null, name: '', exercise_ids: [] },
+  progressChart: null
+};
+
+async function loadPersoTab() {
+  if (!isAdmin()) return;
+  if (!persoState.booted) initPersoTab();
+  const date = persoState.todayDate();
+  document.getElementById('perso-today-date').textContent = new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Load daily
+  try {
+    const daily = await api(`/perso/daily/${date}`);
+    document.getElementById('perso-weight').value = daily.weight != null ? daily.weight : '';
+    document.querySelectorAll('#perso-energy-scale button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val) === daily.energy));
+  } catch (e) { /* ignore */ }
+
+  // Load templates, exercises, current session
+  await refreshPersoTemplates();
+  await refreshPersoExercises();
+  await loadPersoSession();
+}
+
+function initPersoTab() {
+  persoState.booted = true;
+
+  // Daily: weight input
+  const weightInp = document.getElementById('perso-weight');
+  weightInp.addEventListener('change', async () => {
+    const val = parseFloat(weightInp.value);
+    await api(`/perso/daily/${persoState.todayDate()}`, {
+      method: 'PUT',
+      body: { weight: isNaN(val) ? null : val }
+    });
+  });
+
+  // Daily: energy scale
+  document.querySelectorAll('#perso-energy-scale button').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const val = parseInt(btn.dataset.val);
+      document.querySelectorAll('#perso-energy-scale button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      await api(`/perso/daily/${persoState.todayDate()}`, {
+        method: 'PUT',
+        body: { energy: val }
+      });
+    });
+  });
+
+  // Buttons
+  document.getElementById('perso-btn-new-template').addEventListener('click', () => openTemplateEditor(null));
+  document.getElementById('perso-btn-start-blank').addEventListener('click', () => startPersoSession(null));
+
+  // Template modal
+  document.getElementById('perso-tpl-cancel').addEventListener('click', closeTemplateEditor);
+  document.getElementById('perso-tpl-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await saveTemplate();
+  });
+
+  // Template exercise autocomplete
+  const tplInput = document.getElementById('perso-tpl-exercise-input');
+  tplInput.addEventListener('input', () => renderExerciseAutocomplete(tplInput.value, 'perso-tpl-autocomplete', async (ex) => {
+    if (!persoState.tplDraft.exercise_ids.includes(ex.id)) {
+      persoState.tplDraft.exercise_ids.push(ex.id);
+      renderTemplateEditorExercises();
+    }
+    tplInput.value = '';
+    document.getElementById('perso-tpl-autocomplete').classList.add('hidden');
+  }));
+  tplInput.addEventListener('blur', () => setTimeout(() => document.getElementById('perso-tpl-autocomplete').classList.add('hidden'), 200));
+
+  // Progression modal
+  document.getElementById('perso-progress-close').addEventListener('click', () => {
+    document.getElementById('perso-progress-overlay').classList.add('hidden');
+    if (persoState.progressChart) { persoState.progressChart.destroy(); persoState.progressChart = null; }
+  });
+}
+
+// ─── Templates ─────────────────────────────────────────────
+
+async function refreshPersoTemplates() {
+  persoState.templates = await api('/perso/templates');
+  renderPersoTemplates();
+}
+
+function renderPersoTemplates() {
+  const container = document.getElementById('perso-templates-list');
+  if (persoState.templates.length === 0) {
+    container.innerHTML = '<div class="perso-empty">Aucun template. Crée ta première séance type.</div>';
+    return;
+  }
+  container.innerHTML = persoState.templates.map(t => `
+    <div class="perso-template-card ${t.favorite ? 'is-favorite' : ''}">
+      <div class="perso-template-head">
+        <button class="perso-tpl-fav" onclick="togglePersoTemplateFavorite(${t.id})" title="${t.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${t.favorite ? '★' : '☆'}</button>
+        <h3>${escapeHtml(t.name)}</h3>
+        <div class="perso-template-actions">
+          <button onclick="startPersoSession(${t.id})" class="btn-primary">Démarrer</button>
+          <button onclick="openTemplateEditor(${t.id})" class="btn-icon" title="Modifier">✎</button>
+          <button onclick="deletePersoTemplate(${t.id})" class="btn-icon btn-danger" title="Supprimer">✕</button>
+        </div>
+      </div>
+      <div class="perso-template-exs">
+        ${t.exercises.length === 0 ? '<span class="perso-muted">Aucun exercice</span>' : t.exercises.map(e => `<span class="perso-chip">${escapeHtml(e.name)}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function openTemplateEditor(templateId) {
+  if (templateId) {
+    const t = persoState.templates.find(x => x.id === templateId);
+    persoState.tplDraft = { id: t.id, name: t.name, exercise_ids: t.exercises.map(e => e.id) };
+    document.getElementById('perso-tpl-title').textContent = 'Modifier le template';
+  } else {
+    persoState.tplDraft = { id: null, name: '', exercise_ids: [] };
+    document.getElementById('perso-tpl-title').textContent = 'Nouveau template';
+  }
+  document.getElementById('perso-tpl-id').value = persoState.tplDraft.id || '';
+  document.getElementById('perso-tpl-name').value = persoState.tplDraft.name;
+  renderTemplateEditorExercises();
+  document.getElementById('perso-tpl-overlay').classList.remove('hidden');
+}
+
+function closeTemplateEditor() {
+  document.getElementById('perso-tpl-overlay').classList.add('hidden');
+}
+
+function renderTemplateEditorExercises() {
+  const container = document.getElementById('perso-tpl-exercises');
+  if (persoState.tplDraft.exercise_ids.length === 0) {
+    container.innerHTML = '<div class="perso-empty-sm">Aucun exercice. Ajoute-en ci-dessous.</div>';
+    return;
+  }
+  container.innerHTML = persoState.tplDraft.exercise_ids.map((eid, idx) => {
+    const ex = persoState.exercises.find(x => x.id === eid);
+    if (!ex) return '';
+    return `
+      <div class="perso-tpl-ex-row">
+        <span class="perso-tpl-ex-num">${idx + 1}.</span>
+        <span class="perso-tpl-ex-name">${escapeHtml(ex.name)}</span>
+        <button type="button" class="btn-icon btn-danger" onclick="removeTplExercise(${eid})">✕</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function removeTplExercise(exId) {
+  persoState.tplDraft.exercise_ids = persoState.tplDraft.exercise_ids.filter(id => id !== exId);
+  renderTemplateEditorExercises();
+}
+
+async function saveTemplate() {
+  const name = document.getElementById('perso-tpl-name').value.trim();
+  if (!name) return alert('Nom requis');
+  const body = { name, exercise_ids: persoState.tplDraft.exercise_ids };
+  if (persoState.tplDraft.id) {
+    await api(`/perso/templates/${persoState.tplDraft.id}`, { method: 'PUT', body });
+  } else {
+    await api('/perso/templates', { method: 'POST', body });
+  }
+  closeTemplateEditor();
+  await refreshPersoTemplates();
+}
+
+async function deletePersoTemplate(id) {
+  if (!confirm('Supprimer ce template ?')) return;
+  await api(`/perso/templates/${id}`, { method: 'DELETE' });
+  await refreshPersoTemplates();
+}
+
+async function togglePersoTemplateFavorite(id) {
+  const t = persoState.templates.find(x => x.id === id);
+  await api(`/perso/templates/${id}`, { method: 'PUT', body: { favorite: !t.favorite } });
+  await refreshPersoTemplates();
+}
+
+// ─── Exercises DB ──────────────────────────────────────────
+
+async function refreshPersoExercises() {
+  persoState.exercises = await api('/perso/exercises');
+  renderPersoExercisesList();
+}
+
+function renderPersoExercisesList() {
+  const container = document.getElementById('perso-exercises-list');
+  if (!container) return;
+  if (persoState.exercises.length === 0) {
+    container.innerHTML = '<div class="perso-empty">Aucun exercice enregistré. Les exercices sont créés automatiquement lors des séances.</div>';
+    return;
+  }
+  container.innerHTML = persoState.exercises.map(ex => `
+    <div class="perso-ex-row">
+      <div class="perso-ex-info">
+        <strong>${escapeHtml(ex.name)}</strong>
+        ${ex.muscle_group ? `<span class="perso-chip-sm">${escapeHtml(ex.muscle_group)}</span>` : ''}
+        ${ex.goal_charge ? `<span class="perso-goal-chip">🎯 ${ex.goal_charge} kg</span>` : ''}
+      </div>
+      <div class="perso-ex-actions">
+        <button class="btn-icon" onclick="openExerciseProgress(${ex.id})" title="Progression">📈</button>
+        <button class="btn-icon" onclick="editPersoExerciseMeta(${ex.id})" title="Modifier">✎</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function editPersoExerciseMeta(id) {
+  const ex = persoState.exercises.find(x => x.id === id);
+  if (!ex) return;
+  const group = prompt(`Groupe musculaire pour "${ex.name}" :`, ex.muscle_group || '');
+  if (group === null) return;
+  const goalStr = prompt(`Objectif de charge (kg) pour "${ex.name}" — laisser vide pour retirer :`, ex.goal_charge || '');
+  if (goalStr === null) return;
+  const goal = goalStr.trim() === '' ? null : parseFloat(goalStr);
+  await api(`/perso/exercises/${id}`, { method: 'PUT', body: { muscle_group: group, goal_charge: goal } });
+  await refreshPersoExercises();
+  // Refresh current session display if needed
+  if (persoState.currentSession) await loadPersoSession();
+}
+
+// ─── Autocomplete helper ────────────────────────────────────
+
+async function renderExerciseAutocomplete(query, containerId, onSelect) {
+  const container = document.getElementById(containerId);
+  if (!query || query.length < 1) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+    return;
+  }
+  const results = await api(`/perso/exercises?q=${encodeURIComponent(query)}`);
+  const trimmed = query.trim();
+  const exactMatch = results.find(r => r.name.toLowerCase() === trimmed.toLowerCase());
+  let html = results.map(r => `<div class="perso-ac-item" data-id="${r.id}" data-name="${escapeHtml(r.name)}">${escapeHtml(r.name)}${r.muscle_group ? ` · ${escapeHtml(r.muscle_group)}` : ''}</div>`).join('');
+  if (!exactMatch && trimmed) {
+    html += `<div class="perso-ac-item perso-ac-create" data-create="${escapeHtml(trimmed)}">+ Créer "${escapeHtml(trimmed)}"</div>`;
+  }
+  container.innerHTML = html || '<div class="perso-ac-empty">Aucun résultat</div>';
+  container.classList.remove('hidden');
+  container.querySelectorAll('.perso-ac-item').forEach(el => {
+    el.addEventListener('mousedown', async (e) => {
+      e.preventDefault();
+      if (el.dataset.create) {
+        const newEx = await api('/perso/exercises', { method: 'POST', body: { name: el.dataset.create } });
+        await refreshPersoExercises();
+        onSelect(newEx);
+      } else {
+        const ex = results.find(r => r.id === parseInt(el.dataset.id));
+        onSelect(ex);
+      }
+    });
+  });
+}
+
+// ─── Session du jour ───────────────────────────────────────
+
+async function loadPersoSession() {
+  const date = persoState.todayDate();
+  persoState.currentSession = await api(`/perso/sessions/${date}`);
+  renderPersoSession();
+}
+
+async function startPersoSession(templateId) {
+  const date = persoState.todayDate();
+  if (persoState.currentSession) {
+    if (!confirm('Une séance existe déjà pour aujourd\'hui. La remplacer ?')) return;
+    await api(`/perso/sessions/${persoState.currentSession.id}`, { method: 'DELETE' });
+  }
+  await api('/perso/sessions', { method: 'POST', body: { date, template_id: templateId } });
+  await loadPersoSession();
+}
+
+function renderPersoSession() {
+  const container = document.getElementById('perso-session-container');
+  const s = persoState.currentSession;
+  if (!s) {
+    container.innerHTML = '<div class="perso-empty">Aucune séance en cours aujourd\'hui. Choisis un template ou démarre une séance libre.</div>';
+    return;
+  }
+  const tplName = s.template_id ? (persoState.templates.find(t => t.id === s.template_id)?.name || 'Séance') : 'Séance libre';
+  container.innerHTML = `
+    <div class="perso-session-head">
+      <h3>${escapeHtml(tplName)}</h3>
+      <button class="btn-icon btn-danger" onclick="deleteCurrentPersoSession()" title="Supprimer la séance">✕</button>
+    </div>
+    <div class="perso-session-exs" id="perso-session-exs">
+      ${(s.performances || []).map(p => renderPerfRow(p)).join('')}
+    </div>
+    <div class="perso-session-add">
+      <input type="text" id="perso-add-ex-input" placeholder="Ajouter un exercice..." autocomplete="off">
+      <div id="perso-add-ex-autocomplete" class="perso-autocomplete hidden"></div>
+    </div>
+  `;
+
+  // Bind add exercise input
+  const addInp = document.getElementById('perso-add-ex-input');
+  addInp.addEventListener('input', () => renderExerciseAutocomplete(addInp.value, 'perso-add-ex-autocomplete', async (ex) => {
+    await api(`/perso/sessions/${s.id}/performances`, {
+      method: 'POST',
+      body: { exercise_id: ex.id, date: persoState.todayDate() }
+    });
+    addInp.value = '';
+    document.getElementById('perso-add-ex-autocomplete').classList.add('hidden');
+    await loadPersoSession();
+  }));
+  addInp.addEventListener('blur', () => setTimeout(() => document.getElementById('perso-add-ex-autocomplete').classList.add('hidden'), 200));
+
+  // Load last/best async for each performance
+  (s.performances || []).forEach(p => loadPerfStats(p));
+}
+
+function renderPerfRow(p) {
+  const goalReached = p.goal_charge && p.charge >= p.goal_charge;
+  return `
+    <div class="perso-perf-row" data-perf="${p.id}" data-exercise="${p.exercise_id}">
+      <div class="perso-perf-head">
+        <div class="perso-perf-name">
+          <strong>${escapeHtml(p.exercise_name)}</strong>
+          ${p.muscle_group ? `<span class="perso-chip-sm">${escapeHtml(p.muscle_group)}</span>` : ''}
+          ${p.goal_charge ? `<span class="perso-goal-chip ${goalReached ? 'is-reached' : ''}">🎯 ${p.goal_charge} kg${goalReached ? ' ✓' : ''}</span>` : ''}
+        </div>
+        <div class="perso-perf-actions">
+          <button class="btn-icon" onclick="openExerciseProgress(${p.exercise_id})" title="Progression">📈</button>
+          <button class="btn-icon btn-danger" onclick="deletePerf(${p.id})" title="Supprimer">✕</button>
+        </div>
+      </div>
+      <div class="perso-perf-stats" id="perso-perf-stats-${p.id}">
+        <span class="perso-muted">Chargement…</span>
+      </div>
+      <div class="perso-perf-inputs">
+        <div class="perso-perf-inp">
+          <label>Charge (kg)</label>
+          <input type="number" step="0.5" value="${p.charge || ''}" onchange="updatePerf(${p.id}, 'charge', this.value)">
+        </div>
+        <div class="perso-perf-inp">
+          <label>Séries</label>
+          <input type="number" value="${p.sets || ''}" onchange="updatePerf(${p.id}, 'sets', this.value)">
+        </div>
+        <div class="perso-perf-inp">
+          <label>Reps</label>
+          <input type="number" value="${p.reps || ''}" onchange="updatePerf(${p.id}, 'reps', this.value)">
+        </div>
+        <div class="perso-perf-inp">
+          <label>Ressenti</label>
+          <div class="perso-feeling-btns">
+            <button type="button" class="${p.feeling === 'facile' ? 'active' : ''}" onclick="updatePerf(${p.id}, 'feeling', 'facile')">😊</button>
+            <button type="button" class="${p.feeling === 'moyen' ? 'active' : ''}" onclick="updatePerf(${p.id}, 'feeling', 'moyen')">😐</button>
+            <button type="button" class="${p.feeling === 'dur' ? 'active' : ''}" onclick="updatePerf(${p.id}, 'feeling', 'dur')">😓</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function loadPerfStats(perf) {
+  try {
+    const ex = await api(`/perso/exercises/${perf.exercise_id}`);
+    const statsDiv = document.getElementById(`perso-perf-stats-${perf.id}`);
+    if (!statsDiv) return;
+    const lastTxt = ex.last ? `Dernière : ${ex.last.charge}kg × ${ex.last.sets}×${ex.last.reps}` : 'Dernière : —';
+    const bestTxt = ex.best ? `Best : ${ex.best.charge}kg × ${ex.best.sets}×${ex.best.reps}` : 'Best : —';
+    statsDiv.innerHTML = `
+      <span class="perso-stat-last">${lastTxt}</span>
+      <span class="perso-stat-best">${bestTxt}</span>
+    `;
+  } catch (e) { /* ignore */ }
+}
+
+async function updatePerf(id, field, value) {
+  const body = {};
+  if (field === 'charge' || field === 'sets' || field === 'reps') {
+    body[field] = parseFloat(value) || 0;
+  } else {
+    body[field] = value;
+  }
+  await api(`/perso/performances/${id}`, { method: 'PUT', body });
+  if (field === 'feeling') {
+    // Update active button
+    const row = document.querySelector(`.perso-perf-row[data-perf="${id}"]`);
+    if (row) row.querySelectorAll('.perso-feeling-btns button').forEach(b => {
+      b.classList.toggle('active', b.textContent.trim() === ({ facile: '😊', moyen: '😐', dur: '😓' })[value]);
+    });
+  }
+  if (field === 'charge') {
+    // May affect goal indicator — reload session
+    await loadPersoSession();
+  }
+}
+
+async function deletePerf(id) {
+  if (!confirm('Supprimer cet exercice de la séance ?')) return;
+  await api(`/perso/performances/${id}`, { method: 'DELETE' });
+  await loadPersoSession();
+}
+
+async function deleteCurrentPersoSession() {
+  if (!persoState.currentSession) return;
+  if (!confirm('Supprimer toute la séance du jour ?')) return;
+  await api(`/perso/sessions/${persoState.currentSession.id}`, { method: 'DELETE' });
+  await loadPersoSession();
+}
+
+// ─── Progression ───────────────────────────────────────────
+
+async function openExerciseProgress(exerciseId) {
+  const ex = await api(`/perso/exercises/${exerciseId}`);
+  const history = await api(`/perso/exercises/${exerciseId}/history`);
+
+  document.getElementById('perso-progress-title').textContent = `Progression — ${ex.name}`;
+
+  const stats = document.getElementById('perso-progress-stats');
+  const lastTxt = ex.last ? `${ex.last.charge}kg × ${ex.last.sets}×${ex.last.reps}` : '—';
+  const bestTxt = ex.best ? `${ex.best.charge}kg × ${ex.best.sets}×${ex.best.reps}` : '—';
+  const goalTxt = ex.goal_charge ? `${ex.goal_charge} kg` : '—';
+  stats.innerHTML = `
+    <div class="perso-stat-block"><label>Dernière</label><strong>${lastTxt}</strong></div>
+    <div class="perso-stat-block"><label>Meilleure</label><strong>${bestTxt}</strong></div>
+    <div class="perso-stat-block"><label>Objectif</label><strong>${goalTxt}</strong></div>
+  `;
+
+  // Chart
+  document.getElementById('perso-progress-overlay').classList.remove('hidden');
+  setTimeout(() => {
+    const ctx = document.getElementById('perso-progress-chart').getContext('2d');
+    if (persoState.progressChart) persoState.progressChart.destroy();
+    persoState.progressChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: history.map(h => h.date),
+        datasets: [{
+          label: 'Charge (kg)',
+          data: history.map(h => h.charge),
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99,102,241,0.1)',
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#e5e7eb' } } },
+        scales: {
+          x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+  }, 50);
+
+  // History list
+  const hist = document.getElementById('perso-progress-history');
+  if (history.length === 0) {
+    hist.innerHTML = '<div class="perso-empty">Aucun historique</div>';
+  } else {
+    hist.innerHTML = '<h4>Historique</h4>' + history.slice().reverse().map(h => `
+      <div class="perso-hist-row">
+        <span class="perso-hist-date">${new Date(h.date + 'T00:00:00').toLocaleDateString('fr-FR')}</span>
+        <span>${h.charge}kg × ${h.sets}×${h.reps}</span>
+        <span class="perso-chip-sm">${h.feeling}</span>
+      </div>
+    `).join('');
+  }
+}
+
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
