@@ -4070,7 +4070,7 @@ async function deleteRep(id, name) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// PERSO (workout tracking — admin only)
+// PERSO V2 (workout tracking — admin only)
 // ═══════════════════════════════════════════════════════════
 
 let persoState = {
@@ -4080,6 +4080,7 @@ let persoState = {
   templates: [],
   exercises: [],
   tplDraft: { id: null, name: '', exercise_ids: [] },
+  restTimer: null, // { interval, remaining, total, perfId, setNum }
   progressChart: null
 };
 
@@ -4089,13 +4090,12 @@ async function loadPersoTab() {
   const date = persoState.todayDate();
   document.getElementById('perso-today-date').textContent = new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-  // Load daily
+  // Load daily energy
   try {
     const daily = await api(`/perso/daily/${date}`);
     document.querySelectorAll('#perso-energy-scale button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val) === daily.energy));
   } catch (e) { /* ignore */ }
 
-  // Load templates, exercises, current session
   await refreshPersoTemplates();
   await refreshPersoExercises();
   await loadPersoSession();
@@ -4103,32 +4103,18 @@ async function loadPersoTab() {
 
 function initPersoTab() {
   persoState.booted = true;
-
-  // Daily: energy scale
   document.querySelectorAll('#perso-energy-scale button').forEach(btn => {
     btn.addEventListener('click', async () => {
       const val = parseInt(btn.dataset.val);
       document.querySelectorAll('#perso-energy-scale button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      await api(`/perso/daily/${persoState.todayDate()}`, {
-        method: 'PUT',
-        body: { energy: val }
-      });
+      await api(`/perso/daily/${persoState.todayDate()}`, { method: 'PUT', body: { energy: val } });
     });
   });
-
-  // Buttons
   document.getElementById('perso-btn-new-template').addEventListener('click', () => openTemplateEditor(null));
   document.getElementById('perso-btn-start-blank').addEventListener('click', () => startPersoSession(null));
-
-  // Template modal
   document.getElementById('perso-tpl-cancel').addEventListener('click', closeTemplateEditor);
-  document.getElementById('perso-tpl-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await saveTemplate();
-  });
-
-  // Template exercise autocomplete
+  document.getElementById('perso-tpl-form').addEventListener('submit', async (e) => { e.preventDefault(); await saveTemplate(); });
   const tplInput = document.getElementById('perso-tpl-exercise-input');
   tplInput.addEventListener('input', () => renderExerciseAutocomplete(tplInput.value, 'perso-tpl-autocomplete', async (ex) => {
     if (!persoState.tplDraft.exercise_ids.includes(ex.id)) {
@@ -4139,8 +4125,6 @@ function initPersoTab() {
     document.getElementById('perso-tpl-autocomplete').classList.add('hidden');
   }));
   tplInput.addEventListener('blur', () => setTimeout(() => document.getElementById('perso-tpl-autocomplete').classList.add('hidden'), 200));
-
-  // Progression modal
   document.getElementById('perso-progress-close').addEventListener('click', () => {
     document.getElementById('perso-progress-overlay').classList.add('hidden');
     if (persoState.progressChart) { persoState.progressChart.destroy(); persoState.progressChart = null; }
@@ -4174,7 +4158,7 @@ function renderPersoTemplates() {
         ${t.exercises.length === 0 ? '<span class="perso-muted">Aucun exercice</span>' : t.exercises.map(e => `<span class="perso-chip">${escapeHtml(e.name)}</span>`).join('')}
       </div>
       <div class="perso-template-cta">
-        ${t.exercises.length} exercice${t.exercises.length > 1 ? 's' : ''} · Cliquer pour démarrer →
+        ${t.exercises.length} exercice${t.exercises.length > 1 ? 's' : ''} · Cliquer pour démarrer
       </div>
     </div>
   `).join('');
@@ -4194,10 +4178,7 @@ function openTemplateEditor(templateId) {
   renderTemplateEditorExercises();
   document.getElementById('perso-tpl-overlay').classList.remove('hidden');
 }
-
-function closeTemplateEditor() {
-  document.getElementById('perso-tpl-overlay').classList.add('hidden');
-}
+function closeTemplateEditor() { document.getElementById('perso-tpl-overlay').classList.add('hidden'); }
 
 function renderTemplateEditorExercises() {
   const container = document.getElementById('perso-tpl-exercises');
@@ -4208,40 +4189,27 @@ function renderTemplateEditorExercises() {
   container.innerHTML = persoState.tplDraft.exercise_ids.map((eid, idx) => {
     const ex = persoState.exercises.find(x => x.id === eid);
     if (!ex) return '';
-    return `
-      <div class="perso-tpl-ex-row">
-        <span class="perso-tpl-ex-num">${idx + 1}.</span>
-        <span class="perso-tpl-ex-name">${escapeHtml(ex.name)}</span>
-        <button type="button" class="btn-icon btn-danger" onclick="removeTplExercise(${eid})">✕</button>
-      </div>
-    `;
+    return `<div class="perso-tpl-ex-row"><span class="perso-tpl-ex-num">${idx + 1}.</span><span class="perso-tpl-ex-name">${escapeHtml(ex.name)}</span><button type="button" class="btn-icon btn-danger" onclick="removeTplExercise(${eid})">✕</button></div>`;
   }).join('');
 }
-
 function removeTplExercise(exId) {
   persoState.tplDraft.exercise_ids = persoState.tplDraft.exercise_ids.filter(id => id !== exId);
   renderTemplateEditorExercises();
 }
-
 async function saveTemplate() {
   const name = document.getElementById('perso-tpl-name').value.trim();
   if (!name) return alert('Nom requis');
   const body = { name, exercise_ids: persoState.tplDraft.exercise_ids };
-  if (persoState.tplDraft.id) {
-    await api(`/perso/templates/${persoState.tplDraft.id}`, { method: 'PUT', body });
-  } else {
-    await api('/perso/templates', { method: 'POST', body });
-  }
+  if (persoState.tplDraft.id) { await api(`/perso/templates/${persoState.tplDraft.id}`, { method: 'PUT', body }); }
+  else { await api('/perso/templates', { method: 'POST', body }); }
   closeTemplateEditor();
   await refreshPersoTemplates();
 }
-
 async function deletePersoTemplate(id) {
   if (!confirm('Supprimer ce template ?')) return;
   await api(`/perso/templates/${id}`, { method: 'DELETE' });
   await refreshPersoTemplates();
 }
-
 async function togglePersoTemplateFavorite(id) {
   const t = persoState.templates.find(x => x.id === id);
   await api(`/perso/templates/${id}`, { method: 'PUT', body: { favorite: !t.favorite } });
@@ -4250,39 +4218,16 @@ async function togglePersoTemplateFavorite(id) {
 
 // ─── Exercises DB ──────────────────────────────────────────
 
-async function refreshPersoExercises() {
-  persoState.exercises = await api('/perso/exercises');
-}
-
-async function editPersoExerciseMeta(id) {
-  const ex = persoState.exercises.find(x => x.id === id);
-  if (!ex) return;
-  const group = prompt(`Groupe musculaire pour "${ex.name}" :`, ex.muscle_group || '');
-  if (group === null) return;
-  const goalStr = prompt(`Objectif de charge (kg) pour "${ex.name}" — laisser vide pour retirer :`, ex.goal_charge || '');
-  if (goalStr === null) return;
-  const goal = goalStr.trim() === '' ? null : parseFloat(goalStr);
-  await api(`/perso/exercises/${id}`, { method: 'PUT', body: { muscle_group: group, goal_charge: goal } });
-  await refreshPersoExercises();
-  if (persoState.currentSession) await loadPersoSession();
-}
-
-// ─── Autocomplete helper ────────────────────────────────────
+async function refreshPersoExercises() { persoState.exercises = await api('/perso/exercises'); }
 
 async function renderExerciseAutocomplete(query, containerId, onSelect) {
   const container = document.getElementById(containerId);
-  if (!query || query.length < 1) {
-    container.classList.add('hidden');
-    container.innerHTML = '';
-    return;
-  }
+  if (!query || query.length < 1) { container.classList.add('hidden'); container.innerHTML = ''; return; }
   const results = await api(`/perso/exercises?q=${encodeURIComponent(query)}`);
   const trimmed = query.trim();
   const exactMatch = results.find(r => r.name.toLowerCase() === trimmed.toLowerCase());
-  let html = results.map(r => `<div class="perso-ac-item" data-id="${r.id}" data-name="${escapeHtml(r.name)}">${escapeHtml(r.name)}${r.muscle_group ? ` · ${escapeHtml(r.muscle_group)}` : ''}</div>`).join('');
-  if (!exactMatch && trimmed) {
-    html += `<div class="perso-ac-item perso-ac-create" data-create="${escapeHtml(trimmed)}">+ Créer "${escapeHtml(trimmed)}"</div>`;
-  }
+  let html = results.map(r => `<div class="perso-ac-item" data-id="${r.id}">${escapeHtml(r.name)}${r.muscle_group ? ` · ${escapeHtml(r.muscle_group)}` : ''}</div>`).join('');
+  if (!exactMatch && trimmed) html += `<div class="perso-ac-item perso-ac-create" data-create="${escapeHtml(trimmed)}">+ Créer "${escapeHtml(trimmed)}"</div>`;
   container.innerHTML = html || '<div class="perso-ac-empty">Aucun résultat</div>';
   container.classList.remove('hidden');
   container.querySelectorAll('.perso-ac-item').forEach(el => {
@@ -4300,7 +4245,7 @@ async function renderExerciseAutocomplete(query, containerId, onSelect) {
   });
 }
 
-// ─── Session du jour ───────────────────────────────────────
+// ─── Session V2 ────────────────────────────────────────────
 
 async function loadPersoSession() {
   const date = persoState.todayDate();
@@ -4311,98 +4256,93 @@ async function loadPersoSession() {
 async function startPersoSession(templateId) {
   const date = persoState.todayDate();
   if (persoState.currentSession) {
-    if (!confirm('Une séance existe déjà pour aujourd\'hui. La remplacer ?')) return;
+    if (!confirm('Une séance existe déjà. La remplacer ?')) return;
     await api(`/perso/sessions/${persoState.currentSession.id}`, { method: 'DELETE' });
   }
   await api('/perso/sessions', { method: 'POST', body: { date, template_id: templateId } });
   await loadPersoSession();
-  // Auto-scroll to session block
   setTimeout(() => {
     const el = document.getElementById('perso-session-container');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 100);
 }
 
+function sessionTotalKg(s) {
+  if (!s || !s.performances) return 0;
+  return s.performances.reduce((sum, p) => {
+    return sum + (p.set_logs || [])
+      .filter(sl => !sl.is_warmup && sl.completed)
+      .reduce((t, sl) => t + (sl.weight_kg || 0) * (sl.reps || 0), 0);
+  }, 0);
+}
+
+function sessionTotalSets(s) {
+  if (!s || !s.performances) return 0;
+  return s.performances.reduce((n, p) => n + (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed).length, 0);
+}
+
+function sessionTotalReps(s) {
+  if (!s || !s.performances) return 0;
+  return s.performances.reduce((n, p) => n + (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed).reduce((r, sl) => r + (sl.reps || 0), 0), 0);
+}
+
 function renderPersoSession() {
   const container = document.getElementById('perso-session-container');
   const s = persoState.currentSession;
   if (!s) {
-    container.innerHTML = '<div class="perso-empty">Aucune séance en cours aujourd\'hui. Choisis un template ou démarre une séance libre.</div>';
+    container.innerHTML = '<div class="perso-empty">Aucune séance en cours. Choisis un template ou démarre une séance libre.</div>';
     return;
   }
-  const tplName = s.template_id ? (persoState.templates.find(t => t.id === s.template_id)?.name || 'Séance') : 'Séance libre';
+
+  const sessionName = s.name || (s.template_id ? (persoState.templates.find(t => t.id === s.template_id)?.name || 'Séance') : 'Séance libre');
+  const lowEnergy = s.energy_level && s.energy_level <= 2;
+
   container.innerHTML = `
     <div class="perso-session-head">
-      <h3>${escapeHtml(tplName)}</h3>
-      <button class="btn-icon btn-danger" onclick="deleteCurrentPersoSession()" title="Supprimer la séance">✕</button>
+      <h3>${escapeHtml(sessionName)}</h3>
+      <span class="perso-session-status ${s.status === 'completed' ? 'is-done' : ''}">${s.status === 'completed' ? 'Terminée' : 'En cours'}</span>
+      <button class="btn-icon btn-danger" onclick="deleteCurrentPersoSession()" title="Supprimer">✕</button>
     </div>
+    ${lowEnergy ? '<div class="perso-low-energy-banner">Énergie basse — suggestions conservatrices (-5% charge)</div>' : ''}
+    <div id="perso-rest-timer-bar" class="perso-rest-bar hidden"></div>
     <div class="perso-session-exs" id="perso-session-exs">
-      ${(s.performances || []).map(p => renderPerfRow(p)).join('')}
+      ${(s.performances || []).map(p => renderPerfRowV2(p)).join('')}
     </div>
     <div class="perso-session-add">
       <input type="text" id="perso-add-ex-input" placeholder="Ajouter un exercice..." autocomplete="off">
       <div id="perso-add-ex-autocomplete" class="perso-autocomplete hidden"></div>
     </div>
     <div class="perso-session-footer">
-      <div class="perso-session-total" id="perso-session-total">
+      <div class="perso-session-total">
         <span class="perso-total-label">Total soulevé</span>
-        <strong id="perso-total-value">0 kg</strong>
+        <strong id="perso-total-value">${sessionTotalKg(s).toLocaleString('fr-FR')} kg</strong>
       </div>
-      <button class="btn-primary perso-end-btn" onclick="showSessionRecap()">Terminer la séance</button>
+      <button class="btn-primary perso-end-btn" onclick="finishSession()">Terminer la séance</button>
     </div>
   `;
 
-  updateSessionTotal();
-
-  // Bind add exercise input
+  // Bind add exercise
   const addInp = document.getElementById('perso-add-ex-input');
   addInp.addEventListener('input', () => renderExerciseAutocomplete(addInp.value, 'perso-add-ex-autocomplete', async (ex) => {
-    await api(`/perso/sessions/${s.id}/performances`, {
-      method: 'POST',
-      body: { exercise_id: ex.id, date: persoState.todayDate() }
-    });
+    await api(`/perso/sessions/${s.id}/performances`, { method: 'POST', body: { exercise_id: ex.id, date: persoState.todayDate() } });
     addInp.value = '';
     document.getElementById('perso-add-ex-autocomplete').classList.add('hidden');
     await loadPersoSession();
   }));
-  addInp.addEventListener('blur', () => setTimeout(() => document.getElementById('perso-add-ex-autocomplete').classList.add('hidden'), 200));
-
-  // Load last/best async for each performance
-  (s.performances || []).forEach(p => loadPerfStats(p));
+  addInp.addEventListener('blur', () => setTimeout(() => document.getElementById('perso-add-ex-autocomplete')?.classList.add('hidden'), 200));
 }
 
-function parseSetsDetail(p) {
-  if (!p.sets_detail) return null;
-  if (Array.isArray(p.sets_detail)) return p.sets_detail;
-  try { return JSON.parse(p.sets_detail); } catch { return null; }
-}
+// ─── Render a single exercise row with set_logs ─────────────
 
-function perfTotalKg(p) {
-  const detail = parseSetsDetail(p);
-  if (detail) return detail.reduce((s, x) => s + (parseFloat(x.charge) || 0) * (parseInt(x.reps) || 0), 0);
-  return (parseFloat(p.charge) || 0) * (parseInt(p.sets) || 0) * (parseInt(p.reps) || 0);
-}
-function perfSetsCount(p) {
-  const detail = parseSetsDetail(p);
-  if (detail) return detail.length;
-  return parseInt(p.sets) || 0;
-}
-function perfRepsCount(p) {
-  const detail = parseSetsDetail(p);
-  if (detail) return detail.reduce((s, x) => s + (parseInt(x.reps) || 0), 0);
-  return (parseInt(p.sets) || 0) * (parseInt(p.reps) || 0);
-}
-function perfMaxCharge(p) {
-  const detail = parseSetsDetail(p);
-  if (detail) return detail.reduce((m, x) => Math.max(m, parseFloat(x.charge) || 0), 0);
-  return parseFloat(p.charge) || 0;
-}
+function renderPerfRowV2(p) {
+  const sets = p.set_logs || [];
+  const suggestion = p.suggestion;
+  const completedSets = sets.filter(sl => sl.completed && !sl.is_warmup).length;
+  const totalSets = sets.filter(sl => !sl.is_warmup).length;
+  const tonnage = sets.filter(sl => !sl.is_warmup && sl.completed).reduce((s, sl) => s + (sl.weight_kg || 0) * (sl.reps || 0), 0);
+  const maxW = sets.reduce((m, sl) => Math.max(m, sl.weight_kg || 0), 0);
+  const goalReached = p.goal_charge && maxW >= p.goal_charge;
 
-function renderPerfRow(p) {
-  const detail = parseSetsDetail(p);
-  const isVariable = !!detail;
-  const maxCharge = perfMaxCharge(p);
-  const goalReached = p.goal_charge && maxCharge >= p.goal_charge;
   return `
     <div class="perso-perf-row" data-perf="${p.id}" data-exercise="${p.exercise_id}">
       <div class="perso-perf-head">
@@ -4410,247 +4350,160 @@ function renderPerfRow(p) {
           <strong>${escapeHtml(p.exercise_name)}</strong>
           ${p.muscle_group ? `<span class="perso-chip-sm">${escapeHtml(p.muscle_group)}</span>` : ''}
           ${p.goal_charge ? `<span class="perso-goal-chip ${goalReached ? 'is-reached' : ''}">🎯 ${p.goal_charge} kg${goalReached ? ' ✓' : ''}</span>` : ''}
+          <span class="perso-set-progress">${completedSets}/${totalSets}</span>
         </div>
         <div class="perso-perf-actions">
-          <button class="btn-icon perso-mode-toggle ${isVariable ? 'active' : ''}" onclick="togglePerfMode(${p.id})" title="${isVariable ? 'Mode uniforme' : 'Charges variables par série'}">${isVariable ? '≡' : '⇅'}</button>
           <button class="btn-icon" onclick="openExerciseProgress(${p.exercise_id})" title="Progression">📈</button>
+          <button class="btn-icon" onclick="editExerciseSettings(${p.exercise_id})" title="Paramètres">⚙</button>
           <button class="btn-icon btn-danger" onclick="deletePerf(${p.id})" title="Supprimer">✕</button>
         </div>
       </div>
-      <div class="perso-perf-stats" id="perso-perf-stats-${p.id}">
-        <span class="perso-muted">Chargement…</span>
+      ${suggestion ? `
+        <div class="perso-suggestion">
+          <span class="perso-suggestion-last">Dernière fois (${formatDateShort(suggestion.lastDate)}) : ${suggestion.lastSets.map(s => `${s.weight_kg}×${s.reps}`).join(', ')}</span>
+          <span class="perso-suggestion-msg">${escapeHtml(suggestion.message)}</span>
+        </div>
+      ` : ''}
+      <div class="perso-set-logs">
+        ${sets.map(sl => renderSetLogRow(p, sl)).join('')}
+        <button type="button" class="btn-secondary perso-add-set" onclick="addSetLog(${p.id})">+ Série</button>
       </div>
-      ${isVariable ? `
-        <div class="perso-perf-variable" id="perso-perf-var-${p.id}">
-          ${detail.map((s, i) => renderVarSetRow(p.id, i, s)).join('')}
-          <button type="button" class="btn-secondary perso-add-set" onclick="addPerfSet(${p.id})">+ Ajouter une série</button>
+      <div class="perso-perf-feeling">
+        <label>Ressenti</label>
+        <div class="perso-feeling-btns">
+          <button type="button" class="${p.feeling === 'facile' ? 'active' : ''}" onclick="updatePerfFeeling(${p.id}, 'facile')">😊</button>
+          <button type="button" class="${p.feeling === 'moyen' ? 'active' : ''}" onclick="updatePerfFeeling(${p.id}, 'moyen')">😐</button>
+          <button type="button" class="${p.feeling === 'dur' ? 'active' : ''}" onclick="updatePerfFeeling(${p.id}, 'dur')">😓</button>
         </div>
-        <div class="perso-perf-inputs perso-perf-inputs-slim">
-          <div class="perso-perf-inp">
-            <label>Ressenti</label>
-            <div class="perso-feeling-btns">
-              <button type="button" class="${p.feeling === 'facile' ? 'active' : ''}" onclick="updatePerf(${p.id}, 'feeling', 'facile')">😊</button>
-              <button type="button" class="${p.feeling === 'moyen' ? 'active' : ''}" onclick="updatePerf(${p.id}, 'feeling', 'moyen')">😐</button>
-              <button type="button" class="${p.feeling === 'dur' ? 'active' : ''}" onclick="updatePerf(${p.id}, 'feeling', 'dur')">😓</button>
-            </div>
-          </div>
-        </div>
-      ` : `
-        <div class="perso-perf-inputs">
-          <div class="perso-perf-inp">
-            <label>Charge (kg)</label>
-            <input type="number" step="0.5" value="${p.charge || ''}" onchange="updatePerf(${p.id}, 'charge', this.value)">
-          </div>
-          <div class="perso-perf-inp">
-            <label>Séries</label>
-            <input type="number" value="${p.sets || ''}" onchange="updatePerf(${p.id}, 'sets', this.value)">
-          </div>
-          <div class="perso-perf-inp">
-            <label>Reps</label>
-            <input type="number" value="${p.reps || ''}" onchange="updatePerf(${p.id}, 'reps', this.value)">
-          </div>
-          <div class="perso-perf-inp">
-            <label>Ressenti</label>
-            <div class="perso-feeling-btns">
-              <button type="button" class="${p.feeling === 'facile' ? 'active' : ''}" onclick="updatePerf(${p.id}, 'feeling', 'facile')">😊</button>
-              <button type="button" class="${p.feeling === 'moyen' ? 'active' : ''}" onclick="updatePerf(${p.id}, 'feeling', 'moyen')">😐</button>
-              <button type="button" class="${p.feeling === 'dur' ? 'active' : ''}" onclick="updatePerf(${p.id}, 'feeling', 'dur')">😓</button>
-            </div>
-          </div>
-        </div>
-      `}
+      </div>
+      ${tonnage > 0 ? `<div class="perso-perf-tonnage">Tonnage : ${tonnage.toLocaleString('fr-FR')} kg</div>` : ''}
     </div>
   `;
 }
 
-function renderVarSetRow(perfId, idx, s) {
+function renderSetLogRow(perf, sl) {
+  const doneClass = sl.completed ? 'is-done' : '';
+  const warmupClass = sl.is_warmup ? 'is-warmup' : '';
+  const prBadge = sl.is_pr ? '<span class="perso-pr-badge">🏆 PR</span>' : '';
   return `
-    <div class="perso-var-set" data-idx="${idx}">
-      <span class="perso-var-label">Série ${idx + 1}</span>
-      <div class="perso-var-inp">
-        <label>Charge</label>
-        <input type="number" step="0.5" value="${s.charge || ''}" onchange="updatePerfSet(${perfId}, ${idx}, 'charge', this.value)">
+    <div class="perso-set-row ${doneClass} ${warmupClass}" data-set="${sl.id}">
+      <span class="perso-set-num">${sl.is_warmup ? 'W' : `S${sl.set_number}`}</span>
+      <div class="perso-set-inp">
+        <input type="number" step="0.5" value="${sl.weight_kg || ''}" placeholder="kg"
+               onchange="updateSetLog(${sl.id}, 'weight_kg', this.value)" ${sl.completed ? '' : ''}>
+        <span class="perso-set-unit">kg</span>
       </div>
-      <div class="perso-var-inp">
-        <label>Reps</label>
-        <input type="number" value="${s.reps || ''}" onchange="updatePerfSet(${perfId}, ${idx}, 'reps', this.value)">
+      <span class="perso-set-x">×</span>
+      <div class="perso-set-inp">
+        <input type="number" value="${sl.reps || ''}" placeholder="reps"
+               onchange="updateSetLog(${sl.id}, 'reps', this.value)">
+        <span class="perso-set-unit">reps</span>
       </div>
-      <button type="button" class="btn-icon btn-danger" onclick="removePerfSet(${perfId}, ${idx})" title="Supprimer la série">✕</button>
+      <button type="button" class="perso-set-done-btn ${sl.completed ? 'active' : ''}" onclick="toggleSetDone(${perf.id}, ${sl.id})" title="Valider">✓</button>
+      ${prBadge}
+      <button type="button" class="btn-icon btn-xs btn-danger" onclick="deleteSetLog(${perf.id}, ${sl.id})" title="Suppr">✕</button>
     </div>
   `;
 }
 
-async function togglePerfMode(id) {
-  const p = persoState.currentSession?.performances?.find(x => x.id === id);
-  if (!p) return;
-  const detail = parseSetsDetail(p);
-  let newDetail;
-  if (detail) {
-    // Switch back to uniform: clear sets_detail
-    newDetail = null;
-  } else {
-    // Switch to variable: seed with N copies of current {charge, reps}
-    const n = Math.max(parseInt(p.sets) || 0, 1);
-    newDetail = Array.from({ length: n }, () => ({ charge: parseFloat(p.charge) || 0, reps: parseInt(p.reps) || 0 }));
-  }
-  await api(`/perso/performances/${id}`, { method: 'PUT', body: { sets_detail: newDetail } });
-  p.sets_detail = newDetail;
-  // Re-render just this row
-  const row = document.querySelector(`.perso-perf-row[data-perf="${id}"]`);
-  if (row) row.outerHTML = renderPerfRow(p);
-  updateSessionTotal();
-  loadPerfStats(p);
-}
+// ─── Set Log interactions ──────────────────────────────────
 
-async function addPerfSet(id) {
-  const p = persoState.currentSession?.performances?.find(x => x.id === id);
-  if (!p) return;
-  const detail = parseSetsDetail(p) || [];
-  const last = detail[detail.length - 1] || { charge: 0, reps: 0 };
-  detail.push({ charge: last.charge, reps: last.reps });
-  await api(`/perso/performances/${id}`, { method: 'PUT', body: { sets_detail: detail } });
-  p.sets_detail = detail;
-  const row = document.querySelector(`.perso-perf-row[data-perf="${id}"]`);
-  if (row) row.outerHTML = renderPerfRow(p);
-  updateSessionTotal();
-}
-
-async function removePerfSet(id, idx) {
-  const p = persoState.currentSession?.performances?.find(x => x.id === id);
-  if (!p) return;
-  const detail = parseSetsDetail(p) || [];
-  detail.splice(idx, 1);
-  await api(`/perso/performances/${id}`, { method: 'PUT', body: { sets_detail: detail } });
-  p.sets_detail = detail;
-  const row = document.querySelector(`.perso-perf-row[data-perf="${id}"]`);
-  if (row) row.outerHTML = renderPerfRow(p);
-  updateSessionTotal();
-}
-
-async function updatePerfSet(id, idx, field, value) {
-  const p = persoState.currentSession?.performances?.find(x => x.id === id);
-  if (!p) return;
-  const detail = parseSetsDetail(p) || [];
-  if (!detail[idx]) return;
-  detail[idx][field] = parseFloat(value) || 0;
-  await api(`/perso/performances/${id}`, { method: 'PUT', body: { sets_detail: detail } });
-  p.sets_detail = detail;
-  updateSessionTotal();
-  // Refresh goal chip based on new max charge
-  if (p.goal_charge) {
-    const row = document.querySelector(`.perso-perf-row[data-perf="${id}"]`);
-    const chip = row?.querySelector('.perso-goal-chip');
-    if (chip) {
-      const reached = perfMaxCharge(p) >= p.goal_charge;
-      chip.classList.toggle('is-reached', reached);
-      chip.innerHTML = `🎯 ${p.goal_charge} kg${reached ? ' ✓' : ''}`;
-    }
-  }
-}
-
-async function loadPerfStats(perf) {
-  try {
-    const ex = await api(`/perso/exercises/${perf.exercise_id}`);
-    const statsDiv = document.getElementById(`perso-perf-stats-${perf.id}`);
-    if (!statsDiv) return;
-    const lastTxt = ex.last ? `Dernière : ${ex.last.charge}kg × ${ex.last.sets}×${ex.last.reps}` : 'Dernière : —';
-    const max10Txt = ex.max10
-      ? `Max 10 reps : ${ex.max10.charge}kg × ${ex.max10.reps}`
-      : 'Max 10 reps : —';
-    statsDiv.innerHTML = `
-      <span class="perso-stat-last">${lastTxt}</span>
-      <span class="perso-stat-best">${max10Txt}</span>
-    `;
-  } catch (e) { /* ignore */ }
-}
-
-async function updatePerf(id, field, value) {
-  const body = {};
-  if (field === 'charge' || field === 'sets' || field === 'reps') {
+let _setLogDebounce = {};
+async function updateSetLog(id, field, value) {
+  clearTimeout(_setLogDebounce[id + field]);
+  _setLogDebounce[id + field] = setTimeout(async () => {
+    const body = {};
     body[field] = parseFloat(value) || 0;
-  } else {
-    body[field] = value;
-  }
-  await api(`/perso/performances/${id}`, { method: 'PUT', body });
-
-  // Update in-memory session state
-  if (persoState.currentSession && persoState.currentSession.performances) {
-    const p = persoState.currentSession.performances.find(x => x.id === id);
-    if (p) p[field] = body[field];
-  }
-
-  if (field === 'feeling') {
-    const row = document.querySelector(`.perso-perf-row[data-perf="${id}"]`);
-    if (row) row.querySelectorAll('.perso-feeling-btns button').forEach(b => {
-      b.classList.toggle('active', b.textContent.trim() === ({ facile: '😊', moyen: '😐', dur: '😓' })[value]);
-    });
-  }
-  updateSessionTotal();
-  if (field === 'charge') {
-    // May affect goal indicator — refresh just the row's goal chip
-    const p = persoState.currentSession?.performances?.find(x => x.id === id);
-    if (p && p.goal_charge) {
-      const row = document.querySelector(`.perso-perf-row[data-perf="${id}"]`);
-      const chip = row?.querySelector('.perso-goal-chip');
-      if (chip) {
-        const reached = p.charge >= p.goal_charge;
-        chip.classList.toggle('is-reached', reached);
-        chip.innerHTML = `🎯 ${p.goal_charge} kg${reached ? ' ✓' : ''}`;
-      }
+    await api(`/perso/set-logs/${id}`, { method: 'PUT', body });
+    // Update in-memory
+    for (const p of (persoState.currentSession?.performances || [])) {
+      const sl = (p.set_logs || []).find(s => s.id === id);
+      if (sl) { sl[field] = body[field]; break; }
     }
-    // Refresh last/best stats for this exercise
-    if (p) loadPerfStats(p);
+    updateTotalDisplay();
+  }, 400);
+}
+
+async function toggleSetDone(perfId, setId) {
+  const p = persoState.currentSession?.performances?.find(x => x.id === perfId);
+  if (!p) return;
+  const sl = (p.set_logs || []).find(s => s.id === setId);
+  if (!sl) return;
+  const newVal = !sl.completed;
+  const res = await api(`/perso/set-logs/${setId}`, { method: 'PUT', body: { completed: newVal } });
+  sl.completed = newVal;
+
+  // Update UI for this set row
+  const rowEl = document.querySelector(`.perso-set-row[data-set="${setId}"]`);
+  if (rowEl) {
+    rowEl.classList.toggle('is-done', newVal);
+    rowEl.querySelector('.perso-set-done-btn')?.classList.toggle('active', newVal);
+  }
+
+  // PR check
+  if (newVal && res.prs && res.prs.length > 0) {
+    sl.is_pr = true;
+    showPRNotification(res.prs, p.exercise_name);
+    if (rowEl && !rowEl.querySelector('.perso-pr-badge')) {
+      rowEl.querySelector('.perso-set-done-btn').insertAdjacentHTML('afterend', '<span class="perso-pr-badge perso-pr-animate">🏆 PR</span>');
+    }
+  }
+
+  updateTotalDisplay();
+  updateSetProgress(perfId);
+
+  // Start rest timer if set completed (not last set of last exercise)
+  if (newVal && !sl.is_warmup) {
+    const restSec = p.default_rest_seconds || 120;
+    startRestTimer(restSec, perfId, sl.set_number);
   }
 }
 
-function updateSessionTotal() {
-  const s = persoState.currentSession;
-  if (!s) return;
-  const total = (s.performances || []).reduce((sum, p) => sum + perfTotalKg(p), 0);
+function updateSetProgress(perfId) {
+  const p = persoState.currentSession?.performances?.find(x => x.id === perfId);
+  if (!p) return;
+  const sets = p.set_logs || [];
+  const done = sets.filter(s => s.completed && !s.is_warmup).length;
+  const total = sets.filter(s => !s.is_warmup).length;
+  const el = document.querySelector(`.perso-perf-row[data-perf="${perfId}"] .perso-set-progress`);
+  if (el) el.textContent = `${done}/${total}`;
+  // Tonnage
+  const tonnage = sets.filter(s => !s.is_warmup && s.completed).reduce((t, s) => t + (s.weight_kg || 0) * (s.reps || 0), 0);
+  const tEl = document.querySelector(`.perso-perf-row[data-perf="${perfId}"] .perso-perf-tonnage`);
+  if (tEl) tEl.textContent = `Tonnage : ${tonnage.toLocaleString('fr-FR')} kg`;
+}
+
+async function addSetLog(perfId) {
+  const p = persoState.currentSession?.performances?.find(x => x.id === perfId);
+  if (!p) return;
+  const lastSet = (p.set_logs || []).slice(-1)[0];
+  const res = await api(`/perso/performances/${perfId}/sets`, { method: 'POST', body: { weight_kg: lastSet?.weight_kg || 0, reps: lastSet?.reps || 0 } });
+  await loadPersoSession(); // reload for simplicity
+}
+
+async function deleteSetLog(perfId, setId) {
+  await api(`/perso/set-logs/${setId}`, { method: 'DELETE' });
+  const p = persoState.currentSession?.performances?.find(x => x.id === perfId);
+  if (p) p.set_logs = (p.set_logs || []).filter(s => s.id !== setId);
+  const rowEl = document.querySelector(`.perso-set-row[data-set="${setId}"]`);
+  if (rowEl) rowEl.remove();
+  updateTotalDisplay();
+  updateSetProgress(perfId);
+}
+
+async function updatePerfFeeling(id, feeling) {
+  await api(`/perso/performances/${id}`, { method: 'PUT', body: { feeling } });
+  const p = persoState.currentSession?.performances?.find(x => x.id === id);
+  if (p) p.feeling = feeling;
+  const row = document.querySelector(`.perso-perf-row[data-perf="${id}"]`);
+  if (row) row.querySelectorAll('.perso-feeling-btns button').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim() === ({ facile: '😊', moyen: '😐', dur: '😓' })[feeling]);
+  });
+}
+
+function updateTotalDisplay() {
   const el = document.getElementById('perso-total-value');
-  if (el) el.textContent = total.toLocaleString('fr-FR') + ' kg';
-}
-
-function showSessionRecap() {
-  const s = persoState.currentSession;
-  if (!s || !s.performances || s.performances.length === 0) {
-    alert('Aucun exercice dans la séance.');
-    return;
-  }
-  const total = s.performances.reduce((sum, p) => sum + perfTotalKg(p), 0);
-  const totalSets = s.performances.reduce((n, p) => n + perfSetsCount(p), 0);
-  const totalReps = s.performances.reduce((n, p) => n + perfRepsCount(p), 0);
-  const tplName = s.template_id ? (persoState.templates.find(t => t.id === s.template_id)?.name || 'Séance') : 'Séance libre';
-
-  const overlay = document.getElementById('perso-recap-overlay');
-  document.getElementById('perso-recap-title').textContent = `Récap — ${tplName}`;
-  document.getElementById('perso-recap-total').textContent = total.toLocaleString('fr-FR') + ' kg';
-  document.getElementById('perso-recap-exs-count').textContent = s.performances.length;
-  document.getElementById('perso-recap-sets').textContent = totalSets;
-  document.getElementById('perso-recap-reps').textContent = totalReps;
-
-  const list = document.getElementById('perso-recap-list');
-  list.innerHTML = s.performances.map(p => {
-    const sub = perfTotalKg(p);
-    const feelIcon = { facile: '😊', moyen: '😐', dur: '😓' }[p.feeling] || '';
-    const detail = parseSetsDetail(p);
-    const detailTxt = detail
-      ? detail.map((x, i) => `S${i + 1}: ${x.charge || 0}kg×${x.reps || 0}`).join(' · ')
-      : `${p.charge || 0}kg × ${p.sets || 0}×${p.reps || 0}`;
-    return `
-      <div class="perso-recap-row">
-        <div class="perso-recap-ex-name">${escapeHtml(p.exercise_name)}</div>
-        <div class="perso-recap-ex-detail">${detailTxt} ${feelIcon}</div>
-        <div class="perso-recap-ex-sub">${sub.toLocaleString('fr-FR')} kg</div>
-      </div>
-    `;
-  }).join('');
-
-  overlay.classList.remove('hidden');
-}
-
-function closeSessionRecap() {
-  document.getElementById('perso-recap-overlay').classList.add('hidden');
+  if (el) el.textContent = sessionTotalKg(persoState.currentSession).toLocaleString('fr-FR') + ' kg';
 }
 
 async function deletePerf(id) {
@@ -4661,54 +4514,290 @@ async function deletePerf(id) {
 
 async function deleteCurrentPersoSession() {
   if (!persoState.currentSession) return;
-  if (!confirm('Supprimer toute la séance du jour ?')) return;
+  if (!confirm('Supprimer toute la séance ?')) return;
+  stopRestTimer();
   await api(`/perso/sessions/${persoState.currentSession.id}`, { method: 'DELETE' });
   await loadPersoSession();
 }
 
-// ─── Progression ───────────────────────────────────────────
+// ─── Exercise settings modal ───────────────────────────────
+
+async function editExerciseSettings(exId) {
+  const ex = persoState.exercises.find(x => x.id === exId);
+  if (!ex) return;
+  const group = prompt(`Groupe musculaire :`, ex.muscle_group || '');
+  if (group === null) return;
+  const bp = prompt(`Partie du corps (upper / lower) :`, ex.body_part || 'upper');
+  if (bp === null) return;
+  const type = prompt(`Type (compound_heavy / compound / isolation / superset) :`, ex.exercise_type || 'compound');
+  if (type === null) return;
+  const ts = prompt(`Séries cibles :`, ex.target_sets || 3);
+  if (ts === null) return;
+  const tr = prompt(`Reps cibles :`, ex.target_reps || 10);
+  if (tr === null) return;
+  const rest = prompt(`Repos par défaut (secondes) :`, ex.default_rest_seconds || 120);
+  if (rest === null) return;
+  const goalStr = prompt(`Objectif de charge (kg, vide pour retirer) :`, ex.goal_charge || '');
+  if (goalStr === null) return;
+
+  await api(`/perso/exercises/${exId}`, { method: 'PUT', body: {
+    muscle_group: group, body_part: bp, exercise_type: type,
+    target_sets: parseInt(ts) || 3, target_reps: parseInt(tr) || 10,
+    default_rest_seconds: parseInt(rest) || 120,
+    goal_charge: goalStr.trim() === '' ? null : parseFloat(goalStr)
+  }});
+  await refreshPersoExercises();
+  if (persoState.currentSession) await loadPersoSession();
+}
+
+// ─── Rest Timer (Feature 3) ────────────────────────────────
+
+function startRestTimer(seconds, perfId, setNum) {
+  stopRestTimer();
+  const total = seconds;
+  let remaining = seconds;
+  const bar = document.getElementById('perso-rest-timer-bar');
+  if (!bar) return;
+  bar.classList.remove('hidden');
+
+  function updateBar() {
+    const pct = Math.max(0, remaining / total * 100);
+    const mins = Math.floor(Math.abs(remaining) / 60);
+    const secs = Math.abs(remaining) % 60;
+    const timeStr = `${remaining < 0 ? '+' : ''}${mins}:${String(secs).padStart(2, '0')}`;
+    const isOvertime = remaining < 0;
+    bar.innerHTML = `
+      <div class="perso-rest-inner ${isOvertime ? 'is-overtime' : ''}">
+        <div class="perso-rest-progress" style="width: ${isOvertime ? 100 : pct}%"></div>
+        <div class="perso-rest-content">
+          <span class="perso-rest-label">REPOS</span>
+          <strong class="perso-rest-time">${timeStr}</strong>
+          <span class="perso-rest-of">/ ${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}</span>
+          <div class="perso-rest-btns">
+            <button onclick="adjustRestTimer(-15)">-15s</button>
+            <button onclick="stopRestTimer()">Passer</button>
+            <button onclick="adjustRestTimer(15)">+15s</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  updateBar();
+  persoState.restTimer = {
+    interval: setInterval(() => {
+      remaining--;
+      updateBar();
+      if (remaining === 0) {
+        // Beep + vibrate
+        playBeep();
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+      }
+    }, 1000),
+    remaining: () => remaining,
+    adjustRemaining: (delta) => { remaining += delta; },
+    total,
+    perfId,
+    setNum
+  };
+}
+
+function adjustRestTimer(delta) {
+  if (persoState.restTimer) persoState.restTimer.adjustRemaining(delta);
+}
+
+function stopRestTimer() {
+  if (persoState.restTimer) {
+    clearInterval(persoState.restTimer.interval);
+    persoState.restTimer = null;
+  }
+  const bar = document.getElementById('perso-rest-timer-bar');
+  if (bar) { bar.classList.add('hidden'); bar.innerHTML = ''; }
+}
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 440;
+    gain.gain.value = 0.3;
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+  } catch (e) { /* no audio */ }
+}
+
+// ─── PR Notification (Feature 2) ───────────────────────────
+
+function showPRNotification(prs, exerciseName) {
+  if (navigator.vibrate) navigator.vibrate(50);
+  const labels = {
+    max_weight: 'Charge max',
+    estimated_1rm: '1RM estimé',
+    max_volume_set: 'Meilleur set (volume)',
+    max_total_tonnage: 'Tonnage séance'
+  };
+  const msg = prs.map(pr => {
+    const diff = pr.prev ? ` (+${Math.round((pr.value - pr.prev) * 10) / 10})` : '';
+    return `🏆 ${labels[pr.type] || pr.type} : ${pr.value} ${pr.unit}${diff}`;
+  }).join('\n');
+
+  // Show floating toast
+  const toast = document.createElement('div');
+  toast.className = 'perso-pr-toast';
+  toast.innerHTML = `<strong>Nouveau record ! — ${escapeHtml(exerciseName)}</strong><br>${escapeHtml(msg)}`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4000);
+}
+
+// ─── Finish Session (Recap) ────────────────────────────────
+
+async function finishSession() {
+  const s = persoState.currentSession;
+  if (!s) return;
+
+  // Mark session as completed
+  await api(`/perso/sessions/${s.id}`, { method: 'PUT', body: { status: 'completed' } });
+  stopRestTimer();
+
+  const total = sessionTotalKg(s);
+  const totalSets = sessionTotalSets(s);
+  const totalReps = sessionTotalReps(s);
+  const sessionName = s.name || 'Séance';
+
+  // Duration
+  let durationStr = '';
+  if (s.started_at) {
+    const start = new Date(s.started_at.replace(' ', 'T'));
+    const end = new Date();
+    const diffMin = Math.round((end - start) / 60000);
+    const h = Math.floor(diffMin / 60);
+    const m = diffMin % 60;
+    durationStr = h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m} min`;
+  }
+
+  // Collect PRs from set_logs
+  const prSets = [];
+  (s.performances || []).forEach(p => {
+    (p.set_logs || []).forEach(sl => {
+      if (sl.is_pr) prSets.push({ exercise: p.exercise_name, set: sl });
+    });
+  });
+
+  const overlay = document.getElementById('perso-recap-overlay');
+  document.getElementById('perso-recap-title').textContent = `Récap — ${sessionName}`;
+  document.getElementById('perso-recap-total').textContent = total.toLocaleString('fr-FR') + ' kg';
+  document.getElementById('perso-recap-exs-count').textContent = (s.performances || []).length;
+  document.getElementById('perso-recap-sets').textContent = totalSets;
+  document.getElementById('perso-recap-reps').textContent = totalReps;
+
+  const list = document.getElementById('perso-recap-list');
+  list.innerHTML = `
+    ${durationStr ? `<div class="perso-recap-duration">Durée : ${durationStr}</div>` : ''}
+    ${prSets.length > 0 ? `<div class="perso-recap-prs"><strong>Records battus :</strong><br>${prSets.map(pr => `🏆 ${escapeHtml(pr.exercise)} — ${pr.set.weight_kg}kg×${pr.set.reps}`).join('<br>')}</div>` : ''}
+    ${(s.performances || []).map(p => {
+      const sets = (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed);
+      const sub = sets.reduce((t, sl) => t + (sl.weight_kg || 0) * (sl.reps || 0), 0);
+      const feelIcon = { facile: '😊', moyen: '😐', dur: '😓' }[p.feeling] || '';
+      const detailTxt = sets.map((sl, i) => `S${i + 1}: ${sl.weight_kg || 0}kg×${sl.reps || 0}`).join(' · ');
+      return `
+        <div class="perso-recap-row">
+          <div class="perso-recap-ex-name">${escapeHtml(p.exercise_name)} ${feelIcon}</div>
+          <div class="perso-recap-ex-detail">${detailTxt}</div>
+          <div class="perso-recap-ex-sub">${sub.toLocaleString('fr-FR')} kg</div>
+        </div>
+      `;
+    }).join('')}
+  `;
+
+  overlay.classList.remove('hidden');
+  // Reload so UI shows "Terminée"
+  await loadPersoSession();
+}
+
+function closeSessionRecap() {
+  document.getElementById('perso-recap-overlay').classList.add('hidden');
+}
+
+// ─── Progression V2 (Feature 4) ────────────────────────────
 
 async function openExerciseProgress(exerciseId) {
-  const ex = await api(`/perso/exercises/${exerciseId}`);
-  const history = await api(`/perso/exercises/${exerciseId}/history`);
+  const [ex, history] = await Promise.all([
+    api(`/perso/exercises/${exerciseId}`),
+    api(`/perso/exercises/${exerciseId}/history?period=3m`)
+  ]);
 
   document.getElementById('perso-progress-title').textContent = `Progression — ${ex.name}`;
 
+  // Records
   const stats = document.getElementById('perso-progress-stats');
-  const lastTxt = ex.last ? `${ex.last.charge}kg × ${ex.last.sets}×${ex.last.reps}` : '—';
-  const bestTxt = ex.best ? `${ex.best.charge}kg × ${ex.best.sets}×${ex.best.reps}` : '—';
-  const goalTxt = ex.goal_charge ? `${ex.goal_charge} kg` : '—';
-  stats.innerHTML = `
-    <div class="perso-stat-block"><label>Dernière</label><strong>${lastTxt}</strong></div>
-    <div class="perso-stat-block"><label>Meilleure</label><strong>${bestTxt}</strong></div>
-    <div class="perso-stat-block"><label>Objectif</label><strong>${goalTxt}</strong></div>
-  `;
+  const records = ex.records || [];
+  const recLabels = { max_weight: 'Charge max', estimated_1rm: '1RM estimé', max_volume_set: 'Meilleur set', max_total_tonnage: 'Tonnage max' };
+  if (records.length > 0) {
+    stats.innerHTML = records.map(r => `
+      <div class="perso-stat-block"><label>🏆 ${recLabels[r.record_type] || r.record_type}</label><strong>${r.value} ${r.unit}</strong></div>
+    `).join('');
+  } else {
+    const lastTxt = ex.last && ex.last.sets.length ? ex.last.sets.map(s => `${s.weight_kg}×${s.reps}`).join(', ') : '—';
+    stats.innerHTML = `<div class="perso-stat-block"><label>Dernière</label><strong>${lastTxt}</strong></div>
+      <div class="perso-stat-block"><label>Objectif</label><strong>${ex.goal_charge ? ex.goal_charge + ' kg' : '—'}</strong></div>`;
+  }
 
-  // Chart
   document.getElementById('perso-progress-overlay').classList.remove('hidden');
+
+  // Chart with 3 datasets
   setTimeout(() => {
     const ctx = document.getElementById('perso-progress-chart').getContext('2d');
     if (persoState.progressChart) persoState.progressChart.destroy();
     persoState.progressChart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: history.map(h => h.date),
-        datasets: [{
-          label: 'Charge (kg)',
-          data: history.map(h => h.charge),
-          borderColor: '#6366f1',
-          backgroundColor: 'rgba(99,102,241,0.1)',
-          tension: 0.3,
-          fill: true
-        }]
+        labels: history.map(h => new Date(h.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })),
+        datasets: [
+          {
+            label: 'Charge max (kg)',
+            data: history.map(h => h.maxWeight || null),
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99,102,241,0.1)',
+            tension: 0.3, fill: false, pointRadius: 4
+          },
+          {
+            label: '1RM estimé (kg)',
+            data: history.map(h => h.estimated1RM || null),
+            borderColor: '#f59e0b',
+            borderDash: [5, 5],
+            tension: 0.3, fill: false, pointRadius: 3
+          },
+          {
+            label: 'Volume (kg)',
+            data: history.map(h => h.totalVolume || null),
+            borderColor: '#10b981',
+            tension: 0.3, fill: false, pointRadius: 3,
+            yAxisID: 'y1'
+          }
+        ]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: '#e5e7eb' } } },
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#e5e7eb' } }, tooltip: {
+          callbacks: {
+            afterLabel: (ctx) => {
+              const h = history[ctx.dataIndex];
+              if (h && h.sets) {
+                const prSets = h.sets.filter(s => s.is_pr);
+                if (prSets.length > 0) return '🏆 PR !';
+              }
+              return '';
+            }
+          }
+        }},
         scales: {
           x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-          y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+          y: { position: 'left', ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: 'kg', color: '#9ca3af' } },
+          y1: { position: 'right', ticks: { color: '#10b981' }, grid: { display: false }, title: { display: true, text: 'Volume (kg)', color: '#10b981' } }
         }
       }
     });
@@ -4719,14 +4808,25 @@ async function openExerciseProgress(exerciseId) {
   if (history.length === 0) {
     hist.innerHTML = '<div class="perso-empty">Aucun historique</div>';
   } else {
-    hist.innerHTML = '<h4>Historique</h4>' + history.slice().reverse().map(h => `
-      <div class="perso-hist-row">
-        <span class="perso-hist-date">${new Date(h.date + 'T00:00:00').toLocaleDateString('fr-FR')}</span>
-        <span>${h.charge}kg × ${h.sets}×${h.reps}</span>
-        <span class="perso-chip-sm">${h.feeling}</span>
-      </div>
-    `).join('');
+    hist.innerHTML = '<h4>Historique</h4>' + history.slice().reverse().map(h => {
+      const setsStr = h.sets.map(s => `${s.weight_kg}×${s.reps}${s.is_pr ? ' 🏆' : ''}`).join(', ');
+      return `
+        <div class="perso-hist-row">
+          <span class="perso-hist-date">${new Date(h.date + 'T00:00:00').toLocaleDateString('fr-FR')}</span>
+          <span>${setsStr}</span>
+          <span class="perso-chip-sm">${h.totalVolume.toLocaleString('fr-FR')} kg</span>
+        </div>
+      `;
+    }).join('');
   }
+}
+
+// ─── Helpers ───────────────────────────────────────────────
+
+function formatDateShort(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
 function escapeHtml(str) {

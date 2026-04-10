@@ -1868,102 +1868,252 @@ app.put('/api/action-remarks/:sales_rep_id/:date', requireAuth, requireAdmin, (r
   res.json({ ok: true });
 });
 
-// ─── PERSO: Workout tracking (admin only) ──────────────────
+// ─── PERSO: Workout tracking V2 (admin only) ────────────────
 
-// List exercises (with optional search for autocomplete)
+// ═══ Helper: compute 1RM Epley ═══
+function estimated1RM(weight, reps) {
+  if (!weight || !reps || reps <= 0) return 0;
+  if (reps === 1) return weight;
+  return weight * (1 + reps / 30);
+}
+
+// ═══ Helper: check & update PRs after a set is completed ═══
+function checkAndUpdatePRs(db, exerciseId, sessionId, setLogId, weight, reps) {
+  const prs = [];
+  if (!weight || weight <= 0 || !reps || reps <= 0) return prs;
+
+  // max_weight
+  const curMaxWeight = db.prepare("SELECT * FROM personal_records WHERE exercise_id = ? AND record_type = 'max_weight'").get(exerciseId);
+  if (!curMaxWeight || weight > curMaxWeight.value) {
+    db.prepare("DELETE FROM personal_records WHERE exercise_id = ? AND record_type = 'max_weight'").run(exerciseId);
+    db.prepare("INSERT INTO personal_records (exercise_id, record_type, value, unit, session_id, set_log_id, previous_value) VALUES (?, 'max_weight', ?, 'kg', ?, ?, ?)").run(exerciseId, weight, sessionId, setLogId, curMaxWeight?.value || null);
+    prs.push({ type: 'max_weight', value: weight, prev: curMaxWeight?.value, unit: 'kg' });
+  }
+
+  // estimated_1rm (only if reps <= 12 for formula reliability)
+  if (reps <= 12) {
+    const e1rm = Math.round(estimated1RM(weight, reps) * 10) / 10;
+    const curE1rm = db.prepare("SELECT * FROM personal_records WHERE exercise_id = ? AND record_type = 'estimated_1rm'").get(exerciseId);
+    if (!curE1rm || e1rm > curE1rm.value) {
+      db.prepare("DELETE FROM personal_records WHERE exercise_id = ? AND record_type = 'estimated_1rm'").run(exerciseId);
+      db.prepare("INSERT INTO personal_records (exercise_id, record_type, value, unit, session_id, set_log_id, previous_value) VALUES (?, 'estimated_1rm', ?, 'kg', ?, ?, ?)").run(exerciseId, e1rm, sessionId, setLogId, curE1rm?.value || null);
+      prs.push({ type: 'estimated_1rm', value: e1rm, prev: curE1rm?.value, unit: 'kg' });
+    }
+  }
+
+  // max_volume_set (weight * reps for single set)
+  const vol = weight * reps;
+  const curMaxVol = db.prepare("SELECT * FROM personal_records WHERE exercise_id = ? AND record_type = 'max_volume_set'").get(exerciseId);
+  if (!curMaxVol || vol > curMaxVol.value) {
+    db.prepare("DELETE FROM personal_records WHERE exercise_id = ? AND record_type = 'max_volume_set'").run(exerciseId);
+    db.prepare("INSERT INTO personal_records (exercise_id, record_type, value, unit, session_id, set_log_id, previous_value) VALUES (?, 'max_volume_set', ?, 'kg', ?, ?, ?)").run(exerciseId, vol, sessionId, setLogId, curMaxVol?.value || null);
+    prs.push({ type: 'max_volume_set', value: vol, prev: curMaxVol?.value, unit: 'kg' });
+  }
+
+  // Mark set_log is_pr
+  if (prs.length > 0) {
+    db.prepare("UPDATE perso_set_logs SET is_pr = 1 WHERE id = ?").run(setLogId);
+  }
+
+  return prs;
+}
+
+// ═══ Helper: progressive overload suggestion ═══
+function getProgressionSuggestion(db, exerciseId, energyLevel) {
+  // Find last completed exercise log with set_logs
+  const lastPerf = db.prepare(`
+    SELECT p.id, p.session_id, p.date, e.body_part, e.target_reps, e.target_sets
+    FROM perso_performances p
+    JOIN perso_exercises e ON e.id = p.exercise_id
+    JOIN perso_sessions s ON s.id = p.session_id
+    WHERE p.exercise_id = ? AND s.status = 'completed'
+    ORDER BY p.date DESC, p.id DESC LIMIT 1
+  `).get(exerciseId);
+
+  if (!lastPerf) return null;
+
+  const lastSets = db.prepare(`
+    SELECT * FROM perso_set_logs
+    WHERE performance_id = ? AND is_warmup = 0 AND completed = 1
+    ORDER BY set_number
+  `).all(lastPerf.id);
+
+  if (lastSets.length === 0) return null;
+
+  const targetReps = lastPerf.target_reps || 10;
+  const allHitTarget = lastSets.every(s => s.reps >= targetReps);
+  const increment = lastPerf.body_part === 'lower' ? 5 : 2.5;
+
+  let suggestedWeight = lastSets[0]?.weight_kg || 0;
+  let suggestedReps = targetReps;
+  let message = '';
+
+  if (allHitTarget) {
+    suggestedWeight = suggestedWeight + increment;
+    message = `Toutes les séries à ${targetReps} reps atteintes. +${increment} kg`;
+  } else {
+    message = `Reps incomplètes. Même charge, vise ${targetReps} reps partout`;
+  }
+
+  // Low energy adjustment
+  if (energyLevel && energyLevel <= 2) {
+    suggestedWeight = Math.round((suggestedWeight * 0.95) * 2) / 2; // round to 0.5
+    message += ' (énergie basse: -5%)';
+  }
+
+  return {
+    lastDate: lastPerf.date,
+    lastSets: lastSets.map(s => ({ weight_kg: s.weight_kg, reps: s.reps })),
+    suggestedWeight: Math.round(suggestedWeight * 2) / 2, // round to 0.5
+    suggestedReps,
+    suggestedSets: lastPerf.target_sets || lastSets.length || 3,
+    message
+  };
+}
+
+// ═══ Exercises ═══════════════════════════════════════════════
+
 app.get('/api/perso/exercises', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const { q } = req.query;
   let rows;
   if (q && q.trim()) {
-    rows = db.prepare(`
-      SELECT * FROM perso_exercises WHERE LOWER(name) LIKE ? ORDER BY name LIMIT 20
-    `).all('%' + q.trim().toLowerCase() + '%');
+    rows = db.prepare("SELECT * FROM perso_exercises WHERE LOWER(name) LIKE ? ORDER BY name LIMIT 20").all('%' + q.trim().toLowerCase() + '%');
   } else {
     rows = db.prepare('SELECT * FROM perso_exercises ORDER BY name').all();
   }
   res.json(rows);
 });
 
-// Get one exercise with last + max at 10 reps
 app.get('/api/perso/exercises/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const id = parseInt(req.params.id);
   const ex = db.prepare('SELECT * FROM perso_exercises WHERE id = ?').get(id);
   if (!ex) return res.status(404).json({ error: 'Exercice introuvable' });
-  const last = db.prepare(`
-    SELECT * FROM perso_performances WHERE exercise_id = ? AND (charge > 0 OR reps > 0)
-    ORDER BY date DESC, id DESC LIMIT 1
+
+  // Personal records
+  ex.records = db.prepare("SELECT * FROM personal_records WHERE exercise_id = ? ORDER BY record_type").all(id);
+
+  // Last completed performance with sets
+  const lastPerf = db.prepare(`
+    SELECT p.id, p.date FROM perso_performances p
+    JOIN perso_sessions s ON s.id = p.session_id
+    WHERE p.exercise_id = ? AND s.status = 'completed'
+    ORDER BY p.date DESC, p.id DESC LIMIT 1
   `).get(id);
-  // Max charge at 10 reps or more (personal record at 10 reps)
-  const max10 = db.prepare(`
-    SELECT * FROM perso_performances WHERE exercise_id = ? AND reps >= 10
-    ORDER BY charge DESC, reps DESC LIMIT 1
-  `).get(id);
-  // Overall best (fallback)
-  const best = db.prepare(`
-    SELECT * FROM perso_performances WHERE exercise_id = ? AND (charge > 0 OR reps > 0)
-    ORDER BY charge DESC, reps DESC LIMIT 1
-  `).get(id);
-  res.json({ ...ex, last, max10, best });
+  if (lastPerf) {
+    ex.last = {
+      date: lastPerf.date,
+      sets: db.prepare("SELECT weight_kg, reps FROM perso_set_logs WHERE performance_id = ? AND is_warmup = 0 AND completed = 1 ORDER BY set_number").all(lastPerf.id)
+    };
+  }
+
+  // Backward compat: old-style last for display
+  const oldLast = db.prepare("SELECT * FROM perso_performances WHERE exercise_id = ? AND (charge > 0 OR reps > 0) ORDER BY date DESC, id DESC LIMIT 1").get(id);
+  ex.lastLegacy = oldLast;
+
+  res.json(ex);
 });
 
-// Create or get exercise by name (auto-create)
 app.post('/api/perso/exercises', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
-  const { name, muscle_group, goal_charge } = req.body;
+  const { name, muscle_group, goal_charge, body_part, exercise_type, target_sets, target_reps, default_rest_seconds } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
   const trimmed = name.trim();
   let ex = db.prepare('SELECT * FROM perso_exercises WHERE LOWER(name) = LOWER(?)').get(trimmed);
   if (!ex) {
     const result = db.prepare(`
-      INSERT INTO perso_exercises (name, muscle_group, goal_charge) VALUES (?, ?, ?)
-    `).run(trimmed, muscle_group || '', goal_charge || null);
+      INSERT INTO perso_exercises (name, muscle_group, goal_charge, body_part, exercise_type, target_sets, target_reps, default_rest_seconds)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(trimmed, muscle_group || '', goal_charge || null, body_part || 'upper', exercise_type || 'compound', target_sets || 3, target_reps || 10, default_rest_seconds || 120);
     ex = db.prepare('SELECT * FROM perso_exercises WHERE id = ?').get(result.lastInsertRowid);
   }
   res.json(ex);
 });
 
-// Update exercise (muscle group, goal)
 app.put('/api/perso/exercises/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const id = parseInt(req.params.id);
-  const { muscle_group, goal_charge } = req.body;
-  db.prepare(`
-    UPDATE perso_exercises
-    SET muscle_group = COALESCE(?, muscle_group),
-        goal_charge = ?
-    WHERE id = ?
-  `).run(muscle_group !== undefined ? muscle_group : null, goal_charge !== undefined ? goal_charge : null, id);
+  const { muscle_group, goal_charge, body_part, exercise_type, target_sets, target_reps, default_rest_seconds } = req.body;
+  const fields = [];
+  const vals = [];
+  if (muscle_group !== undefined) { fields.push('muscle_group = ?'); vals.push(muscle_group); }
+  if (goal_charge !== undefined) { fields.push('goal_charge = ?'); vals.push(goal_charge); }
+  if (body_part !== undefined) { fields.push('body_part = ?'); vals.push(body_part); }
+  if (exercise_type !== undefined) { fields.push('exercise_type = ?'); vals.push(exercise_type); }
+  if (target_sets !== undefined) { fields.push('target_sets = ?'); vals.push(target_sets); }
+  if (target_reps !== undefined) { fields.push('target_reps = ?'); vals.push(target_reps); }
+  if (default_rest_seconds !== undefined) { fields.push('default_rest_seconds = ?'); vals.push(default_rest_seconds); }
+  if (fields.length > 0) {
+    vals.push(id);
+    db.prepare(`UPDATE perso_exercises SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+  }
   res.json({ ok: true });
 });
 
-// Delete exercise
 app.delete('/api/perso/exercises/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   db.prepare('DELETE FROM perso_exercises WHERE id = ?').run(parseInt(req.params.id));
   res.json({ ok: true });
 });
 
-// Exercise history (for progression chart)
+// Exercise history V2 (aggregated per session)
 app.get('/api/perso/exercises/:id/history', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
+  const exId = parseInt(req.params.id);
+  const { period } = req.query; // '1m', '3m', '6m', '1y', 'all'
+  let dateFilter = '';
+  if (period && period !== 'all') {
+    const months = { '1m': 1, '3m': 3, '6m': 6, '1y': 12 }[period] || 3;
+    const d = new Date();
+    d.setMonth(d.getMonth() - months);
+    dateFilter = ` AND p.date >= '${d.toISOString().slice(0, 10)}'`;
+  }
   const rows = db.prepare(`
-    SELECT date, charge, sets, reps, feeling
-    FROM perso_performances
-    WHERE exercise_id = ?
-    ORDER BY date ASC, id ASC
-  `).all(parseInt(req.params.id));
-  res.json(rows);
+    SELECT p.id, p.date, p.feeling,
+           e.name as exercise_name
+    FROM perso_performances p
+    JOIN perso_exercises e ON e.id = p.exercise_id
+    WHERE p.exercise_id = ?${dateFilter}
+    ORDER BY p.date ASC, p.id ASC
+  `).all(exId);
+
+  const getSetLogs = db.prepare("SELECT * FROM perso_set_logs WHERE performance_id = ? AND is_warmup = 0 AND completed = 1 ORDER BY set_number");
+
+  const history = rows.map(r => {
+    const sets = getSetLogs.all(r.id);
+    const maxWeight = sets.reduce((m, s) => Math.max(m, s.weight_kg || 0), 0);
+    const totalVolume = sets.reduce((v, s) => v + (s.weight_kg || 0) * (s.reps || 0), 0);
+    const best1RM = sets.filter(s => s.reps <= 12).reduce((m, s) => Math.max(m, estimated1RM(s.weight_kg || 0, s.reps || 0)), 0);
+    return {
+      date: r.date,
+      feeling: r.feeling,
+      sets: sets.map(s => ({ weight_kg: s.weight_kg, reps: s.reps, is_pr: !!s.is_pr })),
+      maxWeight,
+      totalVolume,
+      estimated1RM: Math.round(best1RM * 10) / 10
+    };
+  });
+  res.json(history);
 });
 
-// ─── Templates ─────────────────────────────────────────────
+// Exercise records
+app.get('/api/perso/exercises/:id/records', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const records = db.prepare("SELECT * FROM personal_records WHERE exercise_id = ? ORDER BY record_type").all(parseInt(req.params.id));
+  res.json(records);
+});
+
+// ═══ Templates ═══════════════════════════════════════════════
 
 app.get('/api/perso/templates', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const templates = db.prepare('SELECT * FROM perso_templates ORDER BY favorite DESC, name').all();
   const getExercises = db.prepare(`
-    SELECT e.* FROM perso_template_exercises te
+    SELECT te.sort_order, te.target_sets, te.target_reps,
+           e.id, e.name, e.muscle_group, e.body_part, e.exercise_type, e.goal_charge,
+           e.default_rest_seconds, e.target_sets as ex_target_sets, e.target_reps as ex_target_reps
+    FROM perso_template_exercises te
     JOIN perso_exercises e ON e.id = te.exercise_id
     WHERE te.template_id = ?
     ORDER BY te.sort_order, te.id
@@ -2005,46 +2155,143 @@ app.delete('/api/perso/templates/:id', requireAuth, requireAdmin, (req, res) => 
   res.json({ ok: true });
 });
 
-// ─── Sessions & Performances ────────────────────────────────
+// ═══ Sessions & Performances V2 ═════════════════════════════
 
-// Get or create today's session for a given date
+// Get session by date (with full set_logs + suggestions)
 app.get('/api/perso/sessions/:date', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const { date } = req.params;
   let session = db.prepare('SELECT * FROM perso_sessions WHERE date = ? ORDER BY id DESC LIMIT 1').get(date);
-  if (!session) {
-    res.json(null);
-    return;
-  }
-  session.performances = db.prepare(`
-    SELECT p.*, e.name as exercise_name, e.muscle_group, e.goal_charge
+  if (!session) return res.json(null);
+
+  // Get daily energy for progressive overload suggestions
+  const daily = db.prepare('SELECT energy FROM perso_daily WHERE date = ?').get(date);
+  const energyLevel = daily?.energy || null;
+
+  const performances = db.prepare(`
+    SELECT p.*, e.name as exercise_name, e.muscle_group, e.goal_charge,
+           e.body_part, e.exercise_type, e.target_sets as ex_target_sets,
+           e.target_reps as ex_target_reps, e.default_rest_seconds
     FROM perso_performances p
     JOIN perso_exercises e ON e.id = p.exercise_id
     WHERE p.session_id = ?
     ORDER BY p.sort_order, p.id
   `).all(session.id);
+
+  const getSetLogs = db.prepare("SELECT * FROM perso_set_logs WHERE performance_id = ? ORDER BY set_number");
+
+  performances.forEach(p => {
+    p.set_logs = getSetLogs.all(p.id);
+    // Progressive overload suggestion
+    p.suggestion = getProgressionSuggestion(db, p.exercise_id, energyLevel);
+    // Records for this exercise
+    p.records = db.prepare("SELECT record_type, value, unit FROM personal_records WHERE exercise_id = ?").all(p.exercise_id);
+  });
+
+  session.performances = performances;
+  session.energy_level = session.energy_level || energyLevel;
   res.json(session);
 });
 
-// Create session (optionally from template)
+// List sessions for a month (for calendar)
+app.get('/api/perso/sessions', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { month } = req.query; // 'YYYY-MM'
+  if (!month) return res.status(400).json({ error: 'month requis' });
+  const rows = db.prepare(`
+    SELECT id, date, status, name, template_id, started_at, ended_at
+    FROM perso_sessions
+    WHERE date LIKE ?
+    ORDER BY date ASC
+  `).all(month + '%');
+  res.json(rows);
+});
+
+// Create session
 app.post('/api/perso/sessions', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const { date, template_id } = req.body;
   if (!date) return res.status(400).json({ error: 'Date requise' });
-  const result = db.prepare('INSERT INTO perso_sessions (date, template_id) VALUES (?, ?)').run(date, template_id || null);
+
+  let sessionName = 'Séance libre';
+  if (template_id) {
+    const tpl = db.prepare('SELECT name FROM perso_templates WHERE id = ?').get(template_id);
+    if (tpl) sessionName = tpl.name;
+  }
+
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const result = db.prepare(`
+    INSERT INTO perso_sessions (date, template_id, name, started_at, status) VALUES (?, ?, ?, ?, 'in_progress')
+  `).run(date, template_id || null, sessionName, now);
   const sid = result.lastInsertRowid;
-  // If template, pre-create empty performances
+
+  // If template, pre-create performances with set_logs pre-filled from suggestion
   if (template_id) {
     const exs = db.prepare(`
-      SELECT exercise_id, sort_order FROM perso_template_exercises WHERE template_id = ? ORDER BY sort_order
+      SELECT te.exercise_id, te.sort_order, te.target_sets, te.target_reps,
+             e.target_sets as ex_target_sets, e.target_reps as ex_target_reps
+      FROM perso_template_exercises te
+      JOIN perso_exercises e ON e.id = te.exercise_id
+      WHERE te.template_id = ? ORDER BY te.sort_order
     `).all(template_id);
-    const insert = db.prepare(`
-      INSERT INTO perso_performances (session_id, exercise_id, charge, sets, reps, feeling, date, sort_order)
-      VALUES (?, ?, 0, 0, 0, 'moyen', ?, ?)
-    `);
-    exs.forEach(e => insert.run(sid, e.exercise_id, date, e.sort_order));
+
+    const daily = db.prepare('SELECT energy FROM perso_daily WHERE date = ?').get(date);
+    const energy = daily?.energy || null;
+
+    const insertPerf = db.prepare("INSERT INTO perso_performances (session_id, exercise_id, charge, sets, reps, feeling, date, sort_order) VALUES (?, ?, 0, 0, 0, 'moyen', ?, ?)");
+    const insertSet = db.prepare("INSERT INTO perso_set_logs (performance_id, set_number, weight_kg, reps, completed) VALUES (?, ?, ?, ?, 0)");
+
+    exs.forEach(e => {
+      const perfResult = insertPerf.run(sid, e.exercise_id, date, e.sort_order);
+      const perfId = perfResult.lastInsertRowid;
+      const suggestion = getProgressionSuggestion(db, e.exercise_id, energy);
+      const nSets = e.target_sets || e.ex_target_sets || 3;
+      const targetReps = e.target_reps || e.ex_target_reps || 10;
+      for (let i = 0; i < nSets; i++) {
+        insertSet.run(perfId, i + 1, suggestion?.suggestedWeight || 0, suggestion?.suggestedReps || targetReps);
+      }
+    });
   }
+
   res.json({ id: sid });
+});
+
+// Update session (status, notes, end)
+app.put('/api/perso/sessions/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id);
+  const { status, notes, body_weight_kg, energy_level, name } = req.body;
+  const fields = [];
+  const vals = [];
+  if (status !== undefined) {
+    fields.push('status = ?'); vals.push(status);
+    if (status === 'completed') {
+      fields.push('ended_at = ?'); vals.push(new Date().toISOString().replace('T', ' ').slice(0, 19));
+      // Recalculate max_total_tonnage PR for each exercise in this session
+      const perfs = db.prepare("SELECT id, exercise_id FROM perso_performances WHERE session_id = ?").all(id);
+      const session = db.prepare("SELECT id FROM perso_sessions WHERE id = ?").get(id);
+      for (const p of perfs) {
+        const sets = db.prepare("SELECT weight_kg, reps FROM perso_set_logs WHERE performance_id = ? AND is_warmup = 0 AND completed = 1").all(p.id);
+        const tonnage = sets.reduce((s, x) => s + (x.weight_kg || 0) * (x.reps || 0), 0);
+        if (tonnage > 0) {
+          const cur = db.prepare("SELECT * FROM personal_records WHERE exercise_id = ? AND record_type = 'max_total_tonnage'").get(p.exercise_id);
+          if (!cur || tonnage > cur.value) {
+            db.prepare("DELETE FROM personal_records WHERE exercise_id = ? AND record_type = 'max_total_tonnage'").run(p.exercise_id);
+            db.prepare("INSERT INTO personal_records (exercise_id, record_type, value, unit, session_id, previous_value) VALUES (?, 'max_total_tonnage', ?, 'kg', ?, ?)").run(p.exercise_id, tonnage, id, cur?.value || null);
+          }
+        }
+      }
+    }
+  }
+  if (notes !== undefined) { fields.push('notes = ?'); vals.push(notes); }
+  if (body_weight_kg !== undefined) { fields.push('body_weight_kg = ?'); vals.push(body_weight_kg); }
+  if (energy_level !== undefined) { fields.push('energy_level = ?'); vals.push(energy_level); }
+  if (name !== undefined) { fields.push('name = ?'); vals.push(name); }
+  if (fields.length > 0) {
+    vals.push(id);
+    db.prepare(`UPDATE perso_sessions SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+  }
+  res.json({ ok: true });
 });
 
 app.delete('/api/perso/sessions/:id', requireAuth, requireAdmin, (req, res) => {
@@ -2053,42 +2300,44 @@ app.delete('/api/perso/sessions/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// Add performance to session
+// Add performance (exercise_log) to session
 app.post('/api/perso/sessions/:id/performances', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const session_id = parseInt(req.params.id);
-  const { exercise_id, charge, sets, reps, feeling, date, sets_detail } = req.body;
+  const { exercise_id, date } = req.body;
   if (!exercise_id) return res.status(400).json({ error: 'Exercice requis' });
   const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 as n FROM perso_performances WHERE session_id = ?').get(session_id).n;
-  const result = db.prepare(`
-    INSERT INTO perso_performances (session_id, exercise_id, charge, sets, reps, feeling, date, sort_order, sets_detail)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(session_id, exercise_id, charge || 0, sets || 0, reps || 0, feeling || 'moyen', date, maxOrder, sets_detail ? JSON.stringify(sets_detail) : null);
-  res.json({ id: result.lastInsertRowid });
+  const result = db.prepare("INSERT INTO perso_performances (session_id, exercise_id, charge, sets, reps, feeling, date, sort_order) VALUES (?, ?, 0, 0, 0, 'moyen', ?, ?)").run(session_id, exercise_id, date, maxOrder);
+  const perfId = result.lastInsertRowid;
+
+  // Pre-create set_logs with suggestion
+  const session = db.prepare('SELECT * FROM perso_sessions WHERE id = ?').get(session_id);
+  const daily = db.prepare('SELECT energy FROM perso_daily WHERE date = ?').get(session?.date || date);
+  const ex = db.prepare('SELECT * FROM perso_exercises WHERE id = ?').get(exercise_id);
+  const suggestion = getProgressionSuggestion(db, exercise_id, daily?.energy || null);
+  const nSets = ex?.target_sets || 3;
+  const targetReps = ex?.target_reps || 10;
+  const insertSet = db.prepare("INSERT INTO perso_set_logs (performance_id, set_number, weight_kg, reps, completed) VALUES (?, ?, ?, ?, 0)");
+  for (let i = 0; i < nSets; i++) {
+    insertSet.run(perfId, i + 1, suggestion?.suggestedWeight || 0, suggestion?.suggestedReps || targetReps);
+  }
+
+  res.json({ id: perfId });
 });
 
-// Update performance
+// Update performance feeling/notes
 app.put('/api/perso/performances/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const id = parseInt(req.params.id);
-  const { charge, sets, reps, feeling, sets_detail } = req.body;
-  db.prepare(`
-    UPDATE perso_performances
-    SET charge = COALESCE(?, charge),
-        sets = COALESCE(?, sets),
-        reps = COALESCE(?, reps),
-        feeling = COALESCE(?, feeling),
-        sets_detail = CASE WHEN ? = 1 THEN ? ELSE sets_detail END
-    WHERE id = ?
-  `).run(
-    charge !== undefined ? charge : null,
-    sets !== undefined ? sets : null,
-    reps !== undefined ? reps : null,
-    feeling !== undefined ? feeling : null,
-    sets_detail !== undefined ? 1 : 0,
-    sets_detail !== undefined ? (sets_detail === null ? null : JSON.stringify(sets_detail)) : null,
-    id
-  );
+  const { feeling, notes } = req.body;
+  const fields = [];
+  const vals = [];
+  if (feeling !== undefined) { fields.push('feeling = ?'); vals.push(feeling); }
+  if (notes !== undefined) { fields.push('notes = ?'); vals.push(notes); }
+  if (fields.length > 0) {
+    vals.push(id);
+    db.prepare(`UPDATE perso_performances SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+  }
   res.json({ ok: true });
 });
 
@@ -2098,7 +2347,59 @@ app.delete('/api/perso/performances/:id', requireAuth, requireAdmin, (req, res) 
   res.json({ ok: true });
 });
 
-// ─── Daily tracking (weight, energy) ────────────────────────
+// ═══ Set Logs ════════════════════════════════════════════════
+
+// Add a set to a performance
+app.post('/api/perso/performances/:id/sets', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const perfId = parseInt(req.params.id);
+  const { weight_kg, reps, is_warmup } = req.body;
+  const maxNum = db.prepare('SELECT COALESCE(MAX(set_number), 0) + 1 as n FROM perso_set_logs WHERE performance_id = ?').get(perfId).n;
+  const result = db.prepare("INSERT INTO perso_set_logs (performance_id, set_number, weight_kg, reps, is_warmup, completed) VALUES (?, ?, ?, ?, ?, 0)").run(perfId, maxNum, weight_kg || 0, reps || 0, is_warmup ? 1 : 0);
+  res.json({ id: result.lastInsertRowid, set_number: maxNum });
+});
+
+// Update a set (weight, reps, rpe, rir, completed)
+app.put('/api/perso/set-logs/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id);
+  const { weight_kg, reps, rpe, rir, is_warmup, completed, rest_seconds } = req.body;
+
+  const fields = [];
+  const vals = [];
+  if (weight_kg !== undefined) { fields.push('weight_kg = ?'); vals.push(weight_kg); }
+  if (reps !== undefined) { fields.push('reps = ?'); vals.push(reps); }
+  if (rpe !== undefined) { fields.push('rpe = ?'); vals.push(rpe); }
+  if (rir !== undefined) { fields.push('rir = ?'); vals.push(rir); }
+  if (is_warmup !== undefined) { fields.push('is_warmup = ?'); vals.push(is_warmup ? 1 : 0); }
+  if (rest_seconds !== undefined) { fields.push('rest_seconds = ?'); vals.push(rest_seconds); }
+  if (completed !== undefined) { fields.push('completed = ?'); vals.push(completed ? 1 : 0); }
+
+  if (fields.length > 0) {
+    vals.push(id);
+    db.prepare(`UPDATE perso_set_logs SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+  }
+
+  // PR check when completing a set
+  let prs = [];
+  if (completed) {
+    const setLog = db.prepare("SELECT sl.*, p.exercise_id, p.session_id FROM perso_set_logs sl JOIN perso_performances p ON p.id = sl.performance_id WHERE sl.id = ?").get(id);
+    if (setLog && !setLog.is_warmup) {
+      prs = checkAndUpdatePRs(db, setLog.exercise_id, setLog.session_id, id, setLog.weight_kg, setLog.reps);
+    }
+  }
+
+  res.json({ ok: true, prs });
+});
+
+// Delete a set
+app.delete('/api/perso/set-logs/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  db.prepare('DELETE FROM perso_set_logs WHERE id = ?').run(parseInt(req.params.id));
+  res.json({ ok: true });
+});
+
+// ═══ Daily tracking (weight, energy) ════════════════════════
 
 app.get('/api/perso/daily/:date', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();

@@ -247,6 +247,110 @@ function initSchema() {
   if (!perfCols.find(c => c.name === 'sets_detail')) {
     db.exec("ALTER TABLE perso_performances ADD COLUMN sets_detail TEXT DEFAULT NULL");
   }
+
+  // ─── V2 PERSO MIGRATIONS ─────────────────────────────────────
+
+  // perso_exercises: add body_part, exercise_type, target_sets, target_reps, default_rest_seconds
+  const exCols = db.prepare("PRAGMA table_info(perso_exercises)").all();
+  if (!exCols.find(c => c.name === 'body_part')) {
+    db.exec("ALTER TABLE perso_exercises ADD COLUMN body_part TEXT NOT NULL DEFAULT 'upper'");
+    db.exec("ALTER TABLE perso_exercises ADD COLUMN exercise_type TEXT NOT NULL DEFAULT 'compound'");
+    db.exec("ALTER TABLE perso_exercises ADD COLUMN target_sets INTEGER NOT NULL DEFAULT 3");
+    db.exec("ALTER TABLE perso_exercises ADD COLUMN target_reps INTEGER NOT NULL DEFAULT 10");
+    db.exec("ALTER TABLE perso_exercises ADD COLUMN default_rest_seconds INTEGER NOT NULL DEFAULT 120");
+  }
+
+  // perso_sessions: add started_at, ended_at, status, notes, body_weight_kg, energy_level, name
+  const sesCols = db.prepare("PRAGMA table_info(perso_sessions)").all();
+  if (!sesCols.find(c => c.name === 'status')) {
+    db.exec("ALTER TABLE perso_sessions ADD COLUMN started_at TEXT DEFAULT NULL");
+    db.exec("ALTER TABLE perso_sessions ADD COLUMN ended_at TEXT DEFAULT NULL");
+    db.exec("ALTER TABLE perso_sessions ADD COLUMN status TEXT NOT NULL DEFAULT 'in_progress'");
+    db.exec("ALTER TABLE perso_sessions ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+    db.exec("ALTER TABLE perso_sessions ADD COLUMN body_weight_kg REAL DEFAULT NULL");
+    db.exec("ALTER TABLE perso_sessions ADD COLUMN energy_level INTEGER DEFAULT NULL");
+    db.exec("ALTER TABLE perso_sessions ADD COLUMN name TEXT NOT NULL DEFAULT ''");
+  }
+
+  // perso_performances (exercise_log): add notes
+  if (!perfCols.find(c => c.name === 'notes')) {
+    db.exec("ALTER TABLE perso_performances ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+  }
+
+  // perso_set_logs: individual set tracking
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS perso_set_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      performance_id INTEGER NOT NULL REFERENCES perso_performances(id) ON DELETE CASCADE,
+      set_number INTEGER NOT NULL,
+      weight_kg REAL DEFAULT NULL,
+      reps INTEGER NOT NULL DEFAULT 0,
+      rpe INTEGER DEFAULT NULL,
+      rir INTEGER DEFAULT NULL,
+      is_warmup INTEGER NOT NULL DEFAULT 0,
+      is_pr INTEGER NOT NULL DEFAULT 0,
+      completed INTEGER NOT NULL DEFAULT 0,
+      rest_seconds INTEGER DEFAULT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_set_logs_perf ON perso_set_logs(performance_id);
+  `);
+
+  // personal_records
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS personal_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exercise_id INTEGER NOT NULL REFERENCES perso_exercises(id) ON DELETE CASCADE,
+      record_type TEXT NOT NULL,
+      value REAL NOT NULL,
+      unit TEXT NOT NULL DEFAULT 'kg',
+      achieved_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      session_id INTEGER DEFAULT NULL,
+      set_log_id INTEGER DEFAULT NULL,
+      previous_value REAL DEFAULT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_pr_exercise ON personal_records(exercise_id, record_type);
+  `);
+
+  // ─── Data migration: convert old perso_performances to set_logs ────
+  // If there are performances with data but no set_logs yet, migrate them
+  const hasSets = db.prepare("SELECT COUNT(*) as cnt FROM perso_set_logs").get().cnt;
+  if (hasSets === 0) {
+    const oldPerfs = db.prepare(`
+      SELECT id, charge, sets, reps, sets_detail FROM perso_performances
+      WHERE charge > 0 OR reps > 0 OR sets_detail IS NOT NULL
+    `).all();
+    const insertSet = db.prepare(`
+      INSERT INTO perso_set_logs (performance_id, set_number, weight_kg, reps, completed)
+      VALUES (?, ?, ?, ?, 1)
+    `);
+    for (const p of oldPerfs) {
+      let detail = null;
+      if (p.sets_detail) {
+        try { detail = JSON.parse(p.sets_detail); } catch {}
+      }
+      if (detail && Array.isArray(detail)) {
+        detail.forEach((s, i) => {
+          insertSet.run(p.id, i + 1, s.charge || 0, s.reps || 0);
+        });
+      } else if (p.sets > 0 || p.reps > 0) {
+        const n = Math.max(p.sets || 1, 1);
+        for (let i = 0; i < n; i++) {
+          insertSet.run(p.id, i + 1, p.charge || 0, p.reps || 0);
+        }
+      }
+    }
+    if (oldPerfs.length > 0) {
+      console.log(`[MIGRATION] Migrated ${oldPerfs.length} performances → perso_set_logs`);
+    }
+  }
+
+  // perso_template_exercises: add target_sets, target_reps
+  const tplExCols = db.prepare("PRAGMA table_info(perso_template_exercises)").all();
+  if (!tplExCols.find(c => c.name === 'target_sets')) {
+    db.exec("ALTER TABLE perso_template_exercises ADD COLUMN target_sets INTEGER NOT NULL DEFAULT 3");
+    db.exec("ALTER TABLE perso_template_exercises ADD COLUMN target_reps INTEGER NOT NULL DEFAULT 10");
+  }
 }
 
 /**
