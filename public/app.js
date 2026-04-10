@@ -4956,35 +4956,62 @@ async function deleteCurrentPersoSession() {
 
 // ─── Exercise settings modal ───────────────────────────────
 
-async function editExerciseSettings(exId) {
+function editExerciseSettings(exId) {
   const ex = persoState.exercises.find(x => x.id === exId);
   if (!ex) return;
-  const group = prompt(`Groupe musculaire :`, ex.muscle_group || '');
-  if (group === null) return;
-  const bp = prompt(`Partie du corps (upper / lower) :`, ex.body_part || 'upper');
-  if (bp === null) return;
-  const type = prompt(`Type (compound_heavy / compound / isolation / superset) :`, ex.exercise_type || 'compound');
-  if (type === null) return;
-  const ts = prompt(`Séries cibles :`, ex.target_sets || 3);
-  if (ts === null) return;
-  const tr = prompt(`Reps cibles :`, ex.target_reps || 10);
-  if (tr === null) return;
-  const rest = prompt(`Repos par défaut (secondes) :`, ex.default_rest_seconds || 120);
-  if (rest === null) return;
-  const goalStr = prompt(`Objectif de charge (kg, vide pour retirer) :`, ex.goal_charge || '');
-  if (goalStr === null) return;
-  const videoUrl = prompt(`Lien vidéo (YouTube, etc. — vide pour retirer) :`, ex.video_url || '');
-  if (videoUrl === null) return;
 
-  await api(`/perso/exercises/${exId}`, { method: 'PUT', body: {
-    muscle_group: group, body_part: bp, exercise_type: type,
-    target_sets: parseInt(ts) || 3, target_reps: parseInt(tr) || 10,
-    default_rest_seconds: parseInt(rest) || 120,
-    goal_charge: goalStr.trim() === '' ? null : parseFloat(goalStr),
-    video_url: videoUrl.trim() || null
-  }});
-  await refreshPersoExercises();
-  if (persoState.currentSession) await loadPersoSession();
+  // Build modal dynamically
+  let overlay = document.getElementById('perso-ex-settings-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'perso-ex-settings-overlay';
+    overlay.className = 'modal-overlay hidden';
+    overlay.innerHTML = `<div class="modal"><h2 id="perso-ex-settings-title">Paramètres</h2>
+      <form id="perso-ex-settings-form">
+        <div class="form-row"><label>Groupe musculaire</label><input type="text" id="pex-group" placeholder="Pectoraux, Dos, Jambes..."></div>
+        <div class="form-row"><label>Partie du corps</label><select id="pex-bp"><option value="upper">Haut du corps</option><option value="lower">Bas du corps</option></select></div>
+        <div class="form-row"><label>Séries cibles</label><input type="number" id="pex-sets" min="1" max="20" value="3"></div>
+        <div class="form-row"><label>Reps cibles</label><input type="number" id="pex-reps" min="1" max="100" value="10"></div>
+        <div class="form-row"><label>Repos (secondes)</label><input type="number" id="pex-rest" min="0" max="600" value="120"></div>
+        <div class="form-row"><label>Objectif charge (kg)</label><input type="number" id="pex-goal" step="0.5" placeholder="Optionnel"></div>
+        <div class="form-row"><label>Lien vidéo</label><input type="url" id="pex-video" placeholder="https://youtube.com/..."></div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Enregistrer</button>
+          <button type="button" id="pex-cancel" class="btn-secondary">Annuler</button>
+        </div>
+      </form></div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('pex-cancel').addEventListener('click', () => overlay.classList.add('hidden'));
+    document.getElementById('perso-ex-settings-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = overlay.dataset.exId;
+      await api(`/perso/exercises/${id}`, { method: 'PUT', body: {
+        muscle_group: document.getElementById('pex-group').value.trim(),
+        body_part: document.getElementById('pex-bp').value,
+        target_sets: parseInt(document.getElementById('pex-sets').value) || 3,
+        target_reps: parseInt(document.getElementById('pex-reps').value) || 10,
+        default_rest_seconds: parseInt(document.getElementById('pex-rest').value) || 120,
+        goal_charge: document.getElementById('pex-goal').value.trim() === '' ? null : parseFloat(document.getElementById('pex-goal').value),
+        video_url: document.getElementById('pex-video').value.trim() || null
+      }});
+      overlay.classList.add('hidden');
+      await refreshPersoExercises();
+      if (persoState.currentSession) await loadPersoSession();
+      showToast('Exercice mis à jour');
+    });
+  }
+
+  // Fill form with current values
+  overlay.dataset.exId = exId;
+  document.getElementById('perso-ex-settings-title').textContent = `⚙ ${ex.name}`;
+  document.getElementById('pex-group').value = ex.muscle_group || '';
+  document.getElementById('pex-bp').value = ex.body_part || 'upper';
+  document.getElementById('pex-sets').value = ex.target_sets || 3;
+  document.getElementById('pex-reps').value = ex.target_reps || 10;
+  document.getElementById('pex-rest').value = ex.default_rest_seconds || 120;
+  document.getElementById('pex-goal').value = ex.goal_charge || '';
+  document.getElementById('pex-video').value = ex.video_url || '';
+  overlay.classList.remove('hidden');
 }
 
 // ─── Rest Timer (Feature 3) ────────────────────────────────
