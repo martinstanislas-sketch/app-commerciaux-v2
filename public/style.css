@@ -4882,6 +4882,87 @@ main {
   border-color: rgba(16,185,129,0.2);
 }
 
+/* Exercise catalog section */
+.perso-section-exercises {
+  border-color: rgba(99, 102, 241, 0.2);
+}
+.perso-exercises-search {
+  margin-bottom: 12px;
+}
+.perso-exercises-search input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.perso-exercises-search input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.perso-exercises-search input::placeholder { color: var(--text-muted); }
+
+.perso-exercises-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.perso-ex-card {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s;
+}
+.perso-ex-card:hover {
+  border-color: var(--primary);
+}
+.perso-ex-card-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.perso-ex-card-name {
+  font-size: 1rem;
+  color: var(--text);
+}
+.perso-ex-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.perso-chip-muted {
+  background: rgba(255,255,255,0.05) !important;
+  color: var(--text-muted) !important;
+}
+.perso-chip-goal {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #f59e0b !important;
+}
+.perso-ex-card-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.8rem;
+}
+.perso-ex-meta-url { color: #ef4444; }
+.perso-ex-meta-empty { color: var(--text-muted); opacity: 0.5; }
+.perso-ex-meta-rest { color: var(--text-muted); }
+.perso-ex-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+  .perso-exercises-list { grid-template-columns: 1fr; }
+}
+
 .perso-section-header {
   display: flex;
   justify-content: space-between;

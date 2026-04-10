@@ -4130,6 +4130,10 @@ function initPersoTab() {
     document.getElementById('perso-progress-overlay').classList.add('hidden');
     if (persoState.progressChart) { persoState.progressChart.destroy(); persoState.progressChart = null; }
   });
+
+  // Exercise catalog
+  document.getElementById('perso-btn-add-exercise').addEventListener('click', addNewExercise);
+  document.getElementById('perso-ex-search').addEventListener('input', (e) => renderExercisesCatalog(e.target.value));
 }
 
 // ─── Templates ─────────────────────────────────────────────
@@ -4317,7 +4321,62 @@ async function togglePersoTemplateFavorite(id) {
 
 // ─── Exercises DB ──────────────────────────────────────────
 
-async function refreshPersoExercises() { persoState.exercises = await api('/perso/exercises'); }
+async function refreshPersoExercises() {
+  persoState.exercises = await api('/perso/exercises');
+  if (document.getElementById('perso-exercises-list')) renderExercisesCatalog();
+}
+
+// ─── Exercise Catalog ─────────────────────────────────────
+
+function renderExercisesCatalog(filter = '') {
+  const container = document.getElementById('perso-exercises-list');
+  if (!container) return;
+  const q = filter.toLowerCase().trim();
+  const filtered = q ? persoState.exercises.filter(e => e.name.toLowerCase().includes(q) || (e.muscle_group || '').toLowerCase().includes(q) || (e.body_part || '').toLowerCase().includes(q)) : persoState.exercises;
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="perso-empty-sm">${q ? 'Aucun exercice trouvé.' : 'Aucun exercice. Ajoute-en un !'}</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(ex => `
+    <div class="perso-ex-card">
+      <div class="perso-ex-card-main">
+        <strong class="perso-ex-card-name">${escapeHtml(ex.name)}</strong>
+        ${ex.video_url ? `<a href="${escapeHtml(ex.video_url)}" target="_blank" rel="noopener" class="perso-video-link" title="Voir la vidéo">▶</a>` : ''}
+      </div>
+      <div class="perso-ex-card-tags">
+        ${ex.muscle_group ? `<span class="perso-chip-sm">${escapeHtml(ex.muscle_group)}</span>` : ''}
+        <span class="perso-chip-sm perso-chip-muted">${ex.body_part === 'lower' ? 'Bas du corps' : 'Haut du corps'}</span>
+        <span class="perso-chip-sm perso-chip-muted">${ex.target_sets}×${ex.target_reps}</span>
+        ${ex.goal_charge ? `<span class="perso-chip-sm perso-chip-goal">🎯 ${ex.goal_charge} kg</span>` : ''}
+      </div>
+      <div class="perso-ex-card-meta">
+        ${ex.video_url ? `<span class="perso-ex-meta-url" title="${escapeHtml(ex.video_url)}">📹 Vidéo liée</span>` : '<span class="perso-ex-meta-empty">Pas de vidéo</span>'}
+        <span class="perso-ex-meta-rest">⏱ ${ex.default_rest_seconds}s repos</span>
+      </div>
+      <div class="perso-ex-card-actions">
+        <button class="btn-icon" onclick="editExerciseSettings(${ex.id})" title="Modifier">✎</button>
+        <button class="btn-icon btn-danger" onclick="deleteExercise(${ex.id}, '${escapeHtml(ex.name)}')" title="Supprimer">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function addNewExercise() {
+  const name = prompt('Nom du nouvel exercice :');
+  if (!name || !name.trim()) return;
+  await api('/perso/exercises', { method: 'POST', body: { name: name.trim() } });
+  await refreshPersoExercises();
+  showToast(`Exercice "${name.trim()}" ajouté`);
+}
+
+async function deleteExercise(id, name) {
+  if (!confirm(`Supprimer l'exercice "${name}" ? Ça supprimera aussi toutes les performances associées.`)) return;
+  await api(`/perso/exercises/${id}`, { method: 'DELETE' });
+  await refreshPersoExercises();
+  showToast(`Exercice "${name}" supprimé`);
+}
 
 async function renderExerciseAutocomplete(query, containerId, onSelect) {
   const container = document.getElementById(containerId);
