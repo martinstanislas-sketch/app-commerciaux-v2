@@ -5465,6 +5465,58 @@ main {
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: 6px;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  cursor: grab;
+}
+.perso-tpl-ex-row.dragging {
+  opacity: 0.4;
+  transform: scale(0.97);
+}
+.perso-tpl-ex-row.drag-over {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+.perso-tpl-drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  user-select: none;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.perso-tpl-ex-row:hover .perso-tpl-drag-handle { opacity: 1; }
+
+.perso-tpl-ex-arrows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.perso-tpl-ex-arrows .btn-arrow {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 4px;
+  width: 26px;
+  height: 20px;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.perso-tpl-ex-arrows .btn-arrow:hover:not(:disabled) {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.perso-tpl-ex-arrows .btn-arrow:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
 }
 
 .perso-tpl-ex-num {

@@ -4182,15 +4182,61 @@ function closeTemplateEditor() { document.getElementById('perso-tpl-overlay').cl
 
 function renderTemplateEditorExercises() {
   const container = document.getElementById('perso-tpl-exercises');
-  if (persoState.tplDraft.exercise_ids.length === 0) {
+  const ids = persoState.tplDraft.exercise_ids;
+  if (ids.length === 0) {
     container.innerHTML = '<div class="perso-empty-sm">Aucun exercice. Ajoute-en ci-dessous.</div>';
     return;
   }
-  container.innerHTML = persoState.tplDraft.exercise_ids.map((eid, idx) => {
+  container.innerHTML = ids.map((eid, idx) => {
     const ex = persoState.exercises.find(x => x.id === eid);
     if (!ex) return '';
-    return `<div class="perso-tpl-ex-row"><span class="perso-tpl-ex-num">${idx + 1}.</span><span class="perso-tpl-ex-name">${escapeHtml(ex.name)}</span><button type="button" class="btn-icon btn-danger" onclick="removeTplExercise(${eid})">✕</button></div>`;
+    return `<div class="perso-tpl-ex-row" draggable="true" data-idx="${idx}">
+      <span class="perso-tpl-drag-handle" title="Glisser pour réordonner">⠿</span>
+      <span class="perso-tpl-ex-num">${idx + 1}.</span>
+      <span class="perso-tpl-ex-name">${escapeHtml(ex.name)}</span>
+      <div class="perso-tpl-ex-arrows">
+        <button type="button" class="btn-icon btn-arrow" onclick="moveTplExercise(${idx},-1)" ${idx === 0 ? 'disabled' : ''} title="Monter">↑</button>
+        <button type="button" class="btn-icon btn-arrow" onclick="moveTplExercise(${idx},1)" ${idx === ids.length - 1 ? 'disabled' : ''} title="Descendre">↓</button>
+      </div>
+      <button type="button" class="btn-icon btn-danger" onclick="removeTplExercise(${eid})">✕</button>
+    </div>`;
   }).join('');
+
+  // Drag & drop
+  container.querySelectorAll('.perso-tpl-ex-row').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.dataset.idx);
+      row.classList.add('dragging');
+    });
+    row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      const toIdx = parseInt(row.dataset.idx);
+      if (fromIdx !== toIdx) {
+        const arr = persoState.tplDraft.exercise_ids;
+        const [moved] = arr.splice(fromIdx, 1);
+        arr.splice(toIdx, 0, moved);
+        renderTemplateEditorExercises();
+      }
+    });
+  });
+}
+
+function moveTplExercise(idx, dir) {
+  const arr = persoState.tplDraft.exercise_ids;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= arr.length) return;
+  [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+  renderTemplateEditorExercises();
 }
 function removeTplExercise(exId) {
   persoState.tplDraft.exercise_ids = persoState.tplDraft.exercise_ids.filter(id => id !== exId);
