@@ -5546,7 +5546,29 @@ main {
   min-width: 24px;
 }
 
-.perso-tpl-ex-name { flex: 1; color: var(--text); }
+.perso-tpl-ex-info { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.perso-tpl-ex-name { color: var(--text); font-weight: 500; }
+.perso-tpl-ex-video {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.perso-tpl-ex-video input {
+  flex: 1;
+  padding: 5px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  min-width: 0;
+}
+.perso-tpl-ex-video input:focus {
+  border-color: var(--primary);
+  outline: none;
+  color: var(--text);
+}
+.perso-tpl-ex-video input::placeholder { color: var(--text-muted); opacity: 0.5; }
 
 .perso-tpl-add-row {
   position: relative;

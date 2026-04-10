@@ -4193,7 +4193,13 @@ function renderTemplateEditorExercises() {
     return `<div class="perso-tpl-ex-row" draggable="true" data-idx="${idx}">
       <span class="perso-tpl-drag-handle" title="Glisser pour réordonner">⠿</span>
       <span class="perso-tpl-ex-num">${idx + 1}.</span>
-      <span class="perso-tpl-ex-name">${escapeHtml(ex.name)}</span>
+      <div class="perso-tpl-ex-info">
+        <span class="perso-tpl-ex-name">${escapeHtml(ex.name)}</span>
+        <div class="perso-tpl-ex-video">
+          <input type="url" placeholder="Lien vidéo YouTube..." value="${escapeHtml(ex.video_url || '')}" onchange="updateExerciseVideoUrl(${ex.id}, this.value)" onclick="event.stopPropagation()" />
+          ${ex.video_url ? `<a href="${escapeHtml(ex.video_url)}" target="_blank" rel="noopener" class="perso-video-link" onclick="event.stopPropagation()" title="Voir la vidéo">▶</a>` : ''}
+        </div>
+      </div>
       <div class="perso-tpl-ex-arrows">
         <button type="button" class="btn-icon btn-arrow" onclick="moveTplExercise(${idx},-1)" ${idx === 0 ? 'disabled' : ''} title="Monter">↑</button>
         <button type="button" class="btn-icon btn-arrow" onclick="moveTplExercise(${idx},1)" ${idx === ids.length - 1 ? 'disabled' : ''} title="Descendre">↓</button>
@@ -4238,6 +4244,13 @@ function moveTplExercise(idx, dir) {
   [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
   renderTemplateEditorExercises();
 }
+async function updateExerciseVideoUrl(exId, url) {
+  await api(`/perso/exercises/${exId}`, { method: 'PUT', body: { video_url: url.trim() || null } });
+  await refreshPersoExercises();
+  renderTemplateEditorExercises();
+  showToast(url.trim() ? 'Lien vidéo enregistré' : 'Lien vidéo retiré');
+}
+
 function removeTplExercise(exId) {
   persoState.tplDraft.exercise_ids = persoState.tplDraft.exercise_ids.filter(id => id !== exId);
   renderTemplateEditorExercises();
