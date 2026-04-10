@@ -215,47 +215,45 @@
     <!-- PERSO (admin only) -->
     <section id="tab-perso" class="tab-content">
       <div id="perso-container">
-        <!-- Suivi du jour -->
-        <div class="perso-block perso-daily-block">
-          <div class="perso-block-header">
-            <h2>Suivi du jour</h2>
-            <span id="perso-today-date" class="perso-date-label">—</span>
-          </div>
-          <div class="perso-daily-grid">
-            <div class="perso-daily-item">
-              <label>Énergie</label>
+        <!-- Hero: Suivi du jour -->
+        <div class="perso-hero">
+          <div class="perso-hero-left">
+            <h2 class="perso-hero-title" id="perso-today-date">—</h2>
+            <div class="perso-hero-energy">
+              <span class="perso-hero-label">Niveau d'énergie</span>
               <div class="perso-energy-scale" id="perso-energy-scale">
-                <button type="button" data-val="1">1</button>
-                <button type="button" data-val="2">2</button>
-                <button type="button" data-val="3">3</button>
-                <button type="button" data-val="4">4</button>
-                <button type="button" data-val="5">5</button>
+                <button type="button" data-val="1" title="Vidé">1</button>
+                <button type="button" data-val="2" title="Fatigué">2</button>
+                <button type="button" data-val="3" title="Normal">3</button>
+                <button type="button" data-val="4" title="En forme">4</button>
+                <button type="button" data-val="5" title="Au top">5</button>
               </div>
             </div>
+          </div>
+          <div class="perso-hero-right">
+            <button type="button" id="perso-btn-start-blank" class="perso-hero-action">
+              <span class="perso-hero-action-icon">+</span>
+              Séance libre
+            </button>
           </div>
         </div>
 
         <!-- Séances / Templates -->
-        <div class="perso-block">
-          <div class="perso-block-header">
-            <h2>Séances</h2>
-            <div class="perso-block-actions">
-              <button type="button" id="perso-btn-new-template" class="btn-secondary">+ Nouveau template</button>
-            </div>
+        <div class="perso-section">
+          <div class="perso-section-header">
+            <h2>Mes séances</h2>
+            <button type="button" id="perso-btn-new-template" class="perso-btn-ghost">+ Nouveau template</button>
           </div>
           <div id="perso-templates-list" class="perso-templates-list"></div>
         </div>
 
         <!-- Session du jour -->
-        <div class="perso-block">
-          <div class="perso-block-header">
+        <div class="perso-section perso-section-session">
+          <div class="perso-section-header">
             <h2>Séance du jour</h2>
-            <div class="perso-block-actions">
-              <button type="button" id="perso-btn-start-blank" class="btn-secondary">+ Séance libre</button>
-            </div>
           </div>
           <div id="perso-session-container" class="perso-session-container">
-            <div class="perso-empty">Aucune séance en cours aujourd'hui. Choisis un template ou démarre une séance libre.</div>
+            <div class="perso-empty">Aucune séance en cours. Choisis un template ci-dessus ou démarre une séance libre.</div>
           </div>
         </div>
 

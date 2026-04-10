@@ -4770,74 +4770,39 @@ main {
 #perso-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  max-width: 1100px;
+  gap: 24px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
-.perso-block {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--primary);
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.perso-block-header {
+/* ─── Hero (Suivi du jour) ──────────────────────── */
+.perso-hero {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-  gap: 12px;
+  gap: 20px;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(16,185,129,0.06) 100%);
+  border: 1px solid rgba(99,102,241,0.15);
+  border-radius: 16px;
   flex-wrap: wrap;
 }
 
-.perso-block-header h2 {
-  font-size: 1.1rem;
+.perso-hero-title {
+  margin: 0 0 12px;
+  font-size: 1.2rem;
   font-weight: 700;
-  margin: 0;
   color: var(--text);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.perso-block-actions { display: flex; gap: 8px; }
-
-.perso-date-label {
-  font-size: 0.9rem;
-  color: var(--text-muted);
   text-transform: capitalize;
 }
 
-/* Daily block */
-.perso-daily-block { border-left-color: #10b981; }
-
-.perso-daily-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.perso-daily-item label {
+.perso-hero-label {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   color: var(--text-muted);
+  letter-spacing: 1px;
   margin-bottom: 8px;
-  letter-spacing: 0.5px;
-}
-
-.perso-daily-item input[type="number"] {
-  width: 100%;
-  padding: 12px 14px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-size: 1.1rem;
-  font-weight: 600;
 }
 
 .perso-energy-scale {
@@ -4846,63 +4811,164 @@ main {
 }
 
 .perso-energy-scale button {
-  flex: 1;
-  min-height: 44px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-size: 1rem;
+  width: 44px;
+  height: 44px;
+  background: rgba(255,255,255,0.04);
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
 }
 
-.perso-energy-scale button:hover { border-color: var(--primary); }
+.perso-energy-scale button:hover {
+  border-color: #10b981;
+  color: var(--text);
+  transform: scale(1.1);
+}
 
 .perso-energy-scale button.active {
   background: #10b981;
   border-color: #10b981;
   color: #fff;
+  transform: scale(1.1);
+  box-shadow: 0 0 12px rgba(16,185,129,0.4);
 }
 
-/* Templates */
+.perso-hero-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(99,102,241,0.1);
+  border: 1px dashed rgba(99,102,241,0.4);
+  border-radius: 12px;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.perso-hero-action:hover {
+  background: rgba(99,102,241,0.2);
+  border-style: solid;
+}
+
+.perso-hero-action-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+/* ─── Sections ──────────────────────────────────── */
+.perso-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.perso-section-session {
+  border-color: rgba(16,185,129,0.2);
+}
+
+.perso-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.perso-section-header h2 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.perso-btn-ghost {
+  background: none;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.perso-btn-ghost:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* ─── Templates ─────────────────────────────────── */
 .perso-templates-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
 }
 
 .perso-template-card {
   background: var(--bg-subtle);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
+  border-radius: 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.perso-template-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), #10b981);
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
 .perso-template-card:hover {
   border-color: var(--primary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
 }
 
-.perso-template-card.is-favorite {
-  border-color: #f59e0b;
-  border-left: 3px solid #f59e0b;
+.perso-template-card:hover::before { opacity: 1; }
+
+.perso-template-card.is-favorite::before {
+  background: linear-gradient(90deg, #f59e0b, #eab308);
+  opacity: 1;
 }
 
 .perso-template-cta {
-  margin-top: 4px;
+  margin-top: auto;
+  padding-top: 8px;
   font-size: 0.75rem;
   color: var(--primary);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  border-top: 1px solid var(--border);
 }
 
 .perso-template-head {
@@ -4926,10 +4992,10 @@ main {
   font-size: 1.3rem;
   cursor: pointer;
   padding: 0 4px;
-  min-width: 32px;
+  min-width: 28px;
 }
 
-.perso-template-actions { display: flex; gap: 6px; }
+.perso-template-actions { display: flex; gap: 4px; }
 
 .perso-template-actions .btn-primary {
   padding: 6px 14px;
@@ -4943,20 +5009,21 @@ main {
 }
 
 .perso-chip {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
   color: var(--text-muted);
   padding: 4px 10px;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .perso-chip-sm {
-  background: rgba(99, 102, 241, 0.15);
-  color: var(--primary);
-  padding: 2px 8px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+  padding: 3px 10px;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -4980,29 +5047,44 @@ main {
 
 .perso-session-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 
 .perso-session-head h3 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
+  font-weight: 700;
   color: var(--text);
+  flex: 1;
 }
 
 .perso-session-exs {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   margin-bottom: 16px;
 }
 
 .perso-perf-row {
   background: var(--bg-subtle);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
+  border-radius: 14px;
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.perso-perf-row::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--primary);
+  opacity: 0.4;
 }
 
 .perso-perf-head {
@@ -5021,7 +5103,7 @@ main {
 }
 
 .perso-perf-name strong {
-  font-size: 1rem;
+  font-size: 1.05rem;
   color: var(--text);
 }
 
@@ -5029,12 +5111,12 @@ main {
   display: flex;
   gap: 16px;
   margin-bottom: 12px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
 }
 
-.perso-stat-last { color: var(--primary); }
-.perso-stat-best { color: #10b981; font-weight: 600; }
+.perso-stat-last { color: #818cf8; }
+.perso-stat-best { color: #34d399; font-weight: 600; }
 
 .perso-perf-inputs {
   display: grid;
@@ -5066,19 +5148,24 @@ main {
 }
 
 .perso-feeling-btns button {
-  flex: 1;
-  padding: 6px;
-  background: var(--card);
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.03);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 999px;
   cursor: pointer;
-  font-size: 1.1rem;
-  min-height: 36px;
+  font-size: 1.05rem;
+  min-height: 34px;
+  transition: all 0.15s;
+}
+
+.perso-feeling-btns button:hover {
+  background: rgba(99,102,241,0.1);
 }
 
 .perso-feeling-btns button.active {
   background: rgba(99, 102, 241, 0.2);
   border-color: var(--primary);
+  box-shadow: 0 0 8px rgba(99,102,241,0.2);
 }
 
 .perso-session-add {
@@ -5169,9 +5256,11 @@ main {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
+  margin-top: 24px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(16,185,129,0.02) 100%);
+  border: 1px solid rgba(16,185,129,0.15);
+  border-radius: 14px;
   flex-wrap: wrap;
 }
 
@@ -5182,21 +5271,33 @@ main {
 }
 
 .perso-total-label {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
   color: var(--text-muted);
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
 }
 
 #perso-total-value {
-  font-size: 1.6rem;
+  font-size: 1.8rem;
   font-weight: 800;
-  color: #10b981;
+  color: #34d399;
+  letter-spacing: -0.5px;
 }
 
 .perso-end-btn {
-  padding: 12px 24px;
+  padding: 14px 28px;
   font-size: 0.95rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  transition: all 0.2s;
+}
+
+.perso-end-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16,185,129,0.3);
 }
 
 /* Recap modal */
@@ -5457,9 +5558,10 @@ main {
 /* Empty states */
 .perso-empty {
   text-align: center;
-  padding: 24px 12px;
+  padding: 32px 16px;
   color: var(--text-muted);
   font-size: 0.9rem;
+  opacity: 0.6;
 }
 
 .perso-empty-sm {
@@ -5467,6 +5569,7 @@ main {
   padding: 12px;
   color: var(--text-muted);
   font-size: 0.85rem;
+  opacity: 0.6;
 }
 
 .perso-muted { color: var(--text-muted); font-size: 0.85rem; }
@@ -5493,12 +5596,16 @@ main {
 
 /* PERSO responsive */
 @media (max-width: 768px) {
-  .perso-daily-grid { grid-template-columns: 1fr; }
+  .perso-hero { flex-direction: column; align-items: stretch; padding: 18px; }
+  .perso-hero-right { align-self: stretch; }
+  .perso-hero-action { justify-content: center; }
   .perso-templates-list { grid-template-columns: 1fr; }
   .perso-perf-inputs { grid-template-columns: 1fr 1fr; }
   .perso-progress-stats { grid-template-columns: 1fr; }
-  .perso-block { padding: 14px; }
+  .perso-section { padding: 16px; }
   .perso-hist-row { grid-template-columns: 1fr; gap: 4px; }
+  .perso-session-footer { flex-direction: column; align-items: stretch; text-align: center; }
+  .perso-end-btn { width: 100%; }
 }
 
 @media (max-width: 480px) {
@@ -5518,32 +5625,36 @@ main {
 }
 
 .perso-set-row {
-  display: grid;
-  grid-template-columns: 36px 1fr auto 1fr auto auto auto;
-  gap: 8px;
+  display: flex;
   align-items: center;
-  padding: 6px 10px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
   transition: all 0.2s;
 }
 
 .perso-set-row.is-done {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.perso-set-row.is-done .perso-set-num {
+  color: #34d399;
 }
 
 .perso-set-row.is-warmup {
-  opacity: 0.6;
+  opacity: 0.5;
   border-style: dashed;
 }
 
 .perso-set-num {
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 800;
   text-transform: uppercase;
   color: var(--text-muted);
+  min-width: 28px;
   text-align: center;
 }
 
@@ -5554,33 +5665,42 @@ main {
 }
 
 .perso-set-inp input[type="number"] {
-  width: 70px;
-  padding: 8px 10px;
-  background: var(--bg-subtle);
+  width: 64px;
+  padding: 10px 6px;
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 10px;
   color: var(--text);
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  font-weight: 700;
   text-align: center;
+  transition: border-color 0.15s;
+}
+
+.perso-set-inp input[type="number"]:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
 }
 
 .perso-set-unit {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--text-muted);
+  font-weight: 500;
 }
 
 .perso-set-x {
-  color: var(--text-muted);
-  font-weight: 700;
+  color: rgba(255,255,255,0.15);
+  font-weight: 800;
+  font-size: 0.9rem;
 }
 
 .perso-set-done-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   border: 2px solid var(--border);
-  background: var(--card);
+  background: transparent;
   color: var(--text-muted);
   font-size: 1.1rem;
   cursor: pointer;
@@ -5588,18 +5708,21 @@ main {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  min-width: 40px;
+  min-width: 42px;
+  margin-left: auto;
 }
 
 .perso-set-done-btn.active {
   background: #22c55e;
   border-color: #22c55e;
   color: #fff;
+  box-shadow: 0 0 12px rgba(34,197,94,0.3);
 }
 
 .perso-set-done-btn:hover:not(.active) {
   border-color: #22c55e;
   color: #22c55e;
+  transform: scale(1.05);
 }
 
 .btn-xs {
@@ -5642,61 +5765,64 @@ main {
 
 /* Suggestion */
 .perso-suggestion {
-  background: rgba(99, 102, 241, 0.08);
-  border-left: 3px solid var(--primary);
-  border-radius: 0 6px 6px 0;
-  padding: 8px 12px;
-  margin-bottom: 10px;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99,102,241,0.12);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
   font-size: 0.8rem;
 }
 
 .perso-suggestion-last {
   display: block;
   color: var(--text-muted);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
+  font-size: 0.75rem;
 }
 
 .perso-suggestion-msg {
-  color: var(--primary);
+  color: #818cf8;
   font-weight: 600;
 }
 
 .perso-low-energy-banner {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
   padding: 10px 14px;
-  color: #ef4444;
+  color: #f87171;
   font-weight: 600;
-  font-size: 0.85rem;
-  margin-bottom: 12px;
+  font-size: 0.82rem;
+  margin-bottom: 14px;
   text-align: center;
 }
 
 .perso-session-status {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
-  padding: 3px 10px;
-  border-radius: 10px;
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
-  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
 .perso-session-status.is-done {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+  color: #34d399;
 }
 
 /* PR badge */
 .perso-pr-badge {
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.65rem;
+  font-weight: 800;
   background: linear-gradient(135deg, #f59e0b, #eab308);
   color: #000;
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
   white-space: nowrap;
+  letter-spacing: 0.3px;
 }
 
 .perso-pr-animate {
@@ -5732,20 +5858,21 @@ main {
 
 /* Rest Timer Bar */
 .perso-rest-bar {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .perso-rest-inner {
   position: relative;
-  background: var(--bg-subtle);
-  border: 1px solid var(--primary);
-  border-radius: 10px;
+  background: rgba(99,102,241,0.04);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 14px;
   overflow: hidden;
   min-height: 70px;
 }
 
 .perso-rest-inner.is-overtime {
-  border-color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239,68,68,0.04);
 }
 
 .perso-rest-progress {
@@ -5753,12 +5880,12 @@ main {
   top: 0;
   left: 0;
   bottom: 0;
-  background: rgba(99, 102, 241, 0.15);
+  background: linear-gradient(90deg, rgba(99,102,241,0.12), rgba(99,102,241,0.06));
   transition: width 1s linear;
 }
 
 .perso-rest-inner.is-overtime .perso-rest-progress {
-  background: rgba(239, 68, 68, 0.15);
+  background: linear-gradient(90deg, rgba(239,68,68,0.12), rgba(239,68,68,0.06));
 }
 
 .perso-rest-content {
@@ -5766,28 +5893,29 @@ main {
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 14px;
+  padding: 16px 20px;
   flex-wrap: wrap;
 }
 
 .perso-rest-label {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
   color: var(--text-muted);
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
 }
 
 .perso-rest-time {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   font-weight: 800;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
 }
 
 .perso-rest-of {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
 }
 
@@ -5798,18 +5926,20 @@ main {
 }
 
 .perso-rest-btns button {
-  padding: 6px 14px;
-  background: var(--card);
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.04);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 10px;
   color: var(--text);
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
+  transition: all 0.15s;
 }
 
 .perso-rest-btns button:hover {
   background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
@@ -5822,13 +5952,13 @@ main {
 }
 
 .perso-recap-prs {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: 8px;
-  padding: 12px 14px;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 12px;
+  padding: 14px 16px;
   margin-bottom: 12px;
   font-size: 0.85rem;
-  color: #f59e0b;
+  color: #fbbf24;
 }
 
 @media (max-width: 768px) {
