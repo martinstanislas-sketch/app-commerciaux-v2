@@ -5584,7 +5584,7 @@ main {
 .perso-superset-block {
   border: 2px solid rgba(245, 158, 11, 0.3);
   border-radius: 16px;
-  padding: 4px;
+  padding: 12px;
   background: rgba(245, 158, 11, 0.03);
   position: relative;
 }
@@ -5594,12 +5594,124 @@ main {
   color: #f59e0b;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 6px 14px 2px;
+  margin-bottom: 10px;
 }
-.perso-superset-divider {
-  height: 1px;
-  background: rgba(245, 158, 11, 0.15);
-  margin: 2px 12px;
+
+/* Superset column headers */
+.ss-headers {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.ss-col-header {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: var(--bg-subtle);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.ss-col-header strong { font-size: 0.95rem; }
+.ss-col-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+/* Superset interleaved rounds */
+.ss-rounds { display: flex; flex-direction: column; gap: 6px; }
+.ss-round {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ss-round-num {
+  min-width: 28px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #f59e0b;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ss-round-cols {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+}
+
+/* Individual superset cell */
+.ss-cell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+.ss-cell.is-done {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+.ss-cell-empty {
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+.ss-cell-inputs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+.ss-inp-kg, .ss-inp-reps {
+  width: 52px;
+  padding: 4px 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.ss-inp-kg:focus, .ss-inp-reps:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.ss-x {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* Superset column footers */
+.ss-footers {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+.ss-col-footer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+.ss-col-footer .perso-add-set { font-size: 0.8rem; padding: 4px 10px; }
+.ss-col-footer .perso-tonnage { font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
+
+/* Responsive superset */
+@media (max-width: 600px) {
+  .ss-round { flex-direction: column; align-items: stretch; gap: 4px; }
+  .ss-round-num { text-align: left; padding-left: 4px; }
+  .ss-round-cols { flex-direction: column; gap: 4px; }
+  .ss-headers { flex-direction: column; gap: 6px; }
+  .ss-footers { flex-direction: column; gap: 6px; }
 }
 
 .perso-tpl-ex-num {

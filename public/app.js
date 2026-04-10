@@ -4439,23 +4439,86 @@ function renderSessionExercises(performances) {
   while (i < performances.length) {
     const p = performances[i];
     if (p.superset_group) {
-      // Collect all in the same superset group
       const group = p.superset_group;
       const groupPerfs = [];
       while (i < performances.length && performances[i].superset_group === group) {
         groupPerfs.push(performances[i]);
         i++;
       }
-      html += `<div class="perso-superset-block">
-        <div class="perso-superset-label">🔗 Superset ${group.toUpperCase()}</div>
-        ${groupPerfs.map(gp => renderPerfRowV2(gp)).join('<div class="perso-superset-divider"></div>')}
-      </div>`;
+      html += renderSupersetBlock(group, groupPerfs);
     } else {
       html += renderPerfRowV2(p);
       i++;
     }
   }
   return html;
+}
+
+function renderSupersetBlock(group, perfs) {
+  // Find max sets across exercises in this superset
+  const maxSets = Math.max(...perfs.map(p => (p.set_logs || []).filter(sl => !sl.is_warmup).length));
+
+  // Header row with exercise names
+  const headers = perfs.map(p => {
+    const sets = (p.set_logs || []).filter(sl => !sl.is_warmup);
+    const completedSets = sets.filter(sl => sl.completed).length;
+    const maxW = sets.reduce((m, sl) => Math.max(m, sl.weight_kg || 0), 0);
+    const goalReached = p.goal_charge && maxW >= p.goal_charge;
+    return `<div class="ss-col-header">
+      <strong>${escapeHtml(p.exercise_name)}</strong>
+      ${p.video_url ? `<a href="${escapeHtml(p.video_url)}" target="_blank" rel="noopener" class="perso-video-link" title="Vidéo">▶</a>` : ''}
+      ${p.muscle_group ? `<span class="perso-chip-sm">${escapeHtml(p.muscle_group)}</span>` : ''}
+      <span class="perso-set-progress">${completedSets}/${sets.length}</span>
+      <div class="ss-col-actions">
+        <button class="btn-icon" onclick="openExerciseProgress(${p.exercise_id})" title="Progression">📈</button>
+        <button class="btn-icon" onclick="editExerciseSettings(${p.exercise_id})" title="Paramètres">⚙</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Interleaved set rows
+  let rows = '';
+  for (let s = 0; s < maxSets; s++) {
+    const cols = perfs.map(p => {
+      const sets = (p.set_logs || []).filter(sl => !sl.is_warmup);
+      const sl = sets[s];
+      if (!sl) return `<div class="ss-cell ss-cell-empty">—</div>`;
+      const doneClass = sl.completed ? 'is-done' : '';
+      const prBadge = sl.is_pr ? '<span class="perso-pr-badge">🏆 PR</span>' : '';
+      return `<div class="ss-cell ${doneClass}">
+        <div class="ss-cell-inputs">
+          <input type="number" step="0.5" value="${sl.weight_kg || ''}" placeholder="kg" class="ss-inp-kg"
+                 onchange="updateSetLog(${sl.id}, 'weight_kg', this.value)">
+          <span class="ss-x">×</span>
+          <input type="number" value="${sl.reps || ''}" placeholder="reps" class="ss-inp-reps"
+                 onchange="updateSetLog(${sl.id}, 'reps', this.value)">
+        </div>
+        <button type="button" class="perso-set-done-btn ${sl.completed ? 'active' : ''}" onclick="toggleSetDone(${p.id}, ${sl.id})" title="Valider">✓</button>
+        ${prBadge}
+      </div>`;
+    }).join('');
+
+    rows += `<div class="ss-round">
+      <span class="ss-round-num">S${s + 1}</span>
+      <div class="ss-round-cols">${cols}</div>
+    </div>`;
+  }
+
+  // Footer: add set buttons + feeling
+  const footer = perfs.map(p => {
+    const tonnage = (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed).reduce((t, sl) => t + (sl.weight_kg || 0) * (sl.reps || 0), 0);
+    return `<div class="ss-col-footer">
+      <button type="button" class="btn-secondary perso-add-set" onclick="addSetLog(${p.id})">+ Série</button>
+      <span class="perso-tonnage">Tonnage : ${tonnage} kg</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="perso-superset-block" data-group="${group}">
+    <div class="perso-superset-label">🔗 Superset ${group.toUpperCase()}</div>
+    <div class="ss-headers">${headers}</div>
+    <div class="ss-rounds">${rows}</div>
+    <div class="ss-footers">${footer}</div>
+  </div>`;
 }
 
 function renderPerfRowV2(p) {
