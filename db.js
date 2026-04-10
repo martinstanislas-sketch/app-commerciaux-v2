@@ -280,6 +280,15 @@ function initSchema() {
     db.exec("ALTER TABLE perso_performances ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
   }
 
+  // superset_group for paired exercises (agonist/antagonist)
+  const teCols = db.prepare("PRAGMA table_info(perso_template_exercises)").all();
+  if (!teCols.find(c => c.name === 'superset_group')) {
+    db.exec("ALTER TABLE perso_template_exercises ADD COLUMN superset_group TEXT DEFAULT NULL");
+  }
+  if (!perfCols.find(c => c.name === 'superset_group')) {
+    db.exec("ALTER TABLE perso_performances ADD COLUMN superset_group TEXT DEFAULT NULL");
+  }
+
   // perso_set_logs: individual set tracking
   db.exec(`
     CREATE TABLE IF NOT EXISTS perso_set_logs (

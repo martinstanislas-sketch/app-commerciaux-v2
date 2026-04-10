@@ -2111,9 +2111,9 @@ app.get('/api/perso/templates', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const templates = db.prepare('SELECT * FROM perso_templates ORDER BY favorite DESC, name').all();
   const getExercises = db.prepare(`
-    SELECT te.sort_order, te.target_sets, te.target_reps,
+    SELECT te.sort_order, te.target_sets, te.target_reps, te.superset_group,
            e.id, e.name, e.muscle_group, e.body_part, e.exercise_type, e.goal_charge,
-           e.default_rest_seconds, e.target_sets as ex_target_sets, e.target_reps as ex_target_reps
+           e.default_rest_seconds, e.target_sets as ex_target_sets, e.target_reps as ex_target_reps, e.video_url
     FROM perso_template_exercises te
     JOIN perso_exercises e ON e.id = te.exercise_id
     WHERE te.template_id = ?
@@ -2125,13 +2125,13 @@ app.get('/api/perso/templates', requireAuth, requireAdmin, (req, res) => {
 
 app.post('/api/perso/templates', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
-  const { name, exercise_ids } = req.body;
+  const { name, exercise_ids, superset_groups } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
   const result = db.prepare('INSERT INTO perso_templates (name) VALUES (?)').run(name.trim());
   const tid = result.lastInsertRowid;
   if (Array.isArray(exercise_ids)) {
-    const insert = db.prepare('INSERT INTO perso_template_exercises (template_id, exercise_id, sort_order) VALUES (?, ?, ?)');
-    exercise_ids.forEach((eid, i) => insert.run(tid, eid, i));
+    const insert = db.prepare('INSERT INTO perso_template_exercises (template_id, exercise_id, sort_order, superset_group) VALUES (?, ?, ?, ?)');
+    exercise_ids.forEach((eid, i) => insert.run(tid, eid, i, superset_groups?.[i] || null));
   }
   res.json({ id: tid });
 });
@@ -2139,13 +2139,13 @@ app.post('/api/perso/templates', requireAuth, requireAdmin, (req, res) => {
 app.put('/api/perso/templates/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const id = parseInt(req.params.id);
-  const { name, favorite, exercise_ids } = req.body;
+  const { name, favorite, exercise_ids, superset_groups } = req.body;
   if (name !== undefined) db.prepare('UPDATE perso_templates SET name = ? WHERE id = ?').run(name.trim(), id);
   if (favorite !== undefined) db.prepare('UPDATE perso_templates SET favorite = ? WHERE id = ?').run(favorite ? 1 : 0, id);
   if (Array.isArray(exercise_ids)) {
     db.prepare('DELETE FROM perso_template_exercises WHERE template_id = ?').run(id);
-    const insert = db.prepare('INSERT INTO perso_template_exercises (template_id, exercise_id, sort_order) VALUES (?, ?, ?)');
-    exercise_ids.forEach((eid, i) => insert.run(id, eid, i));
+    const insert = db.prepare('INSERT INTO perso_template_exercises (template_id, exercise_id, sort_order, superset_group) VALUES (?, ?, ?, ?)');
+    exercise_ids.forEach((eid, i) => insert.run(id, eid, i, superset_groups?.[i] || null));
   }
   res.json({ ok: true });
 });
@@ -2229,7 +2229,7 @@ app.post('/api/perso/sessions', requireAuth, requireAdmin, (req, res) => {
   // If template, pre-create performances with set_logs pre-filled from suggestion
   if (template_id) {
     const exs = db.prepare(`
-      SELECT te.exercise_id, te.sort_order, te.target_sets, te.target_reps,
+      SELECT te.exercise_id, te.sort_order, te.target_sets, te.target_reps, te.superset_group,
              e.target_sets as ex_target_sets, e.target_reps as ex_target_reps
       FROM perso_template_exercises te
       JOIN perso_exercises e ON e.id = te.exercise_id
@@ -2239,11 +2239,11 @@ app.post('/api/perso/sessions', requireAuth, requireAdmin, (req, res) => {
     const daily = db.prepare('SELECT energy FROM perso_daily WHERE date = ?').get(date);
     const energy = daily?.energy || null;
 
-    const insertPerf = db.prepare("INSERT INTO perso_performances (session_id, exercise_id, charge, sets, reps, feeling, date, sort_order) VALUES (?, ?, 0, 0, 0, 'moyen', ?, ?)");
+    const insertPerf = db.prepare("INSERT INTO perso_performances (session_id, exercise_id, charge, sets, reps, feeling, date, sort_order, superset_group) VALUES (?, ?, 0, 0, 0, 'moyen', ?, ?, ?)");
     const insertSet = db.prepare("INSERT INTO perso_set_logs (performance_id, set_number, weight_kg, reps, completed) VALUES (?, ?, ?, ?, 0)");
 
     exs.forEach(e => {
-      const perfResult = insertPerf.run(sid, e.exercise_id, date, e.sort_order);
+      const perfResult = insertPerf.run(sid, e.exercise_id, date, e.sort_order, e.superset_group || null);
       const perfId = perfResult.lastInsertRowid;
       const suggestion = getProgressionSuggestion(db, e.exercise_id, energy);
       const nSets = e.target_sets || e.ex_target_sets || 3;

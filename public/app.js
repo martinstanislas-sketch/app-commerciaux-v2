@@ -4119,6 +4119,7 @@ function initPersoTab() {
   tplInput.addEventListener('input', () => renderExerciseAutocomplete(tplInput.value, 'perso-tpl-autocomplete', async (ex) => {
     if (!persoState.tplDraft.exercise_ids.includes(ex.id)) {
       persoState.tplDraft.exercise_ids.push(ex.id);
+      persoState.tplDraft.superset_groups.push(null);
       renderTemplateEditorExercises();
     }
     tplInput.value = '';
@@ -4167,10 +4168,10 @@ function renderPersoTemplates() {
 function openTemplateEditor(templateId) {
   if (templateId) {
     const t = persoState.templates.find(x => x.id === templateId);
-    persoState.tplDraft = { id: t.id, name: t.name, exercise_ids: t.exercises.map(e => e.id) };
+    persoState.tplDraft = { id: t.id, name: t.name, exercise_ids: t.exercises.map(e => e.id), superset_groups: t.exercises.map(e => e.superset_group || null) };
     document.getElementById('perso-tpl-title').textContent = 'Modifier le template';
   } else {
-    persoState.tplDraft = { id: null, name: '', exercise_ids: [] };
+    persoState.tplDraft = { id: null, name: '', exercise_ids: [], superset_groups: [] };
     document.getElementById('perso-tpl-title').textContent = 'Nouveau template';
   }
   document.getElementById('perso-tpl-id').value = persoState.tplDraft.id || '';
@@ -4190,9 +4191,11 @@ function renderTemplateEditorExercises() {
   container.innerHTML = ids.map((eid, idx) => {
     const ex = persoState.exercises.find(x => x.id === eid);
     if (!ex) return '';
-    return `<div class="perso-tpl-ex-row" draggable="true" data-idx="${idx}">
+    const ssGroup = persoState.tplDraft.superset_groups[idx];
+    const ssLabel = ssGroup ? ssGroup.toUpperCase() : '';
+    return `<div class="perso-tpl-ex-row ${ssGroup ? 'has-superset superset-' + ssGroup : ''}" draggable="true" data-idx="${idx}">
       <span class="perso-tpl-drag-handle" title="Glisser pour réordonner">⠿</span>
-      <span class="perso-tpl-ex-num">${idx + 1}.</span>
+      ${ssGroup ? `<span class="perso-tpl-ss-badge">${ssLabel}</span>` : `<span class="perso-tpl-ex-num">${idx + 1}.</span>`}
       <div class="perso-tpl-ex-info">
         <span class="perso-tpl-ex-name">${escapeHtml(ex.name)}</span>
         <div class="perso-tpl-ex-video">
@@ -4200,6 +4203,7 @@ function renderTemplateEditorExercises() {
           ${ex.video_url ? `<a href="${escapeHtml(ex.video_url)}" target="_blank" rel="noopener" class="perso-video-link" onclick="event.stopPropagation()" title="Voir la vidéo">▶</a>` : ''}
         </div>
       </div>
+      <button type="button" class="btn-icon btn-superset ${ssGroup ? 'active' : ''}" onclick="toggleSuperset(${idx})" title="${ssGroup ? 'Retirer du superset' : 'Lier en superset (agoniste/antagoniste)'}">🔗</button>
       <div class="perso-tpl-ex-arrows">
         <button type="button" class="btn-icon btn-arrow" onclick="moveTplExercise(${idx},-1)" ${idx === 0 ? 'disabled' : ''} title="Monter">↑</button>
         <button type="button" class="btn-icon btn-arrow" onclick="moveTplExercise(${idx},1)" ${idx === ids.length - 1 ? 'disabled' : ''} title="Descendre">↓</button>
@@ -4239,9 +4243,38 @@ function renderTemplateEditorExercises() {
 
 function moveTplExercise(idx, dir) {
   const arr = persoState.tplDraft.exercise_ids;
+  const ss = persoState.tplDraft.superset_groups;
   const newIdx = idx + dir;
   if (newIdx < 0 || newIdx >= arr.length) return;
   [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+  [ss[idx], ss[newIdx]] = [ss[newIdx], ss[idx]];
+  renderTemplateEditorExercises();
+}
+
+function toggleSuperset(idx) {
+  const ss = persoState.tplDraft.superset_groups;
+  if (ss[idx]) {
+    // Remove from superset
+    ss[idx] = null;
+  } else {
+    // Find next available group letter, or link with neighbor
+    // Check if the previous or next exercise already has a group
+    const prevGroup = idx > 0 ? ss[idx - 1] : null;
+    const nextGroup = idx < ss.length - 1 ? ss[idx + 1] : null;
+    if (prevGroup) {
+      ss[idx] = prevGroup;
+    } else if (nextGroup) {
+      ss[idx] = nextGroup;
+    } else if (idx < ss.length - 1) {
+      // Create a new group with the next exercise
+      const usedGroups = new Set(ss.filter(Boolean));
+      const letters = 'abcdefghijklmnopqrstuvwxyz';
+      let newGroup = 'a';
+      for (const l of letters) { if (!usedGroups.has(l)) { newGroup = l; break; } }
+      ss[idx] = newGroup;
+      ss[idx + 1] = newGroup;
+    }
+  }
   renderTemplateEditorExercises();
 }
 async function updateExerciseVideoUrl(exId, url) {
@@ -4252,13 +4285,17 @@ async function updateExerciseVideoUrl(exId, url) {
 }
 
 function removeTplExercise(exId) {
-  persoState.tplDraft.exercise_ids = persoState.tplDraft.exercise_ids.filter(id => id !== exId);
+  const idx = persoState.tplDraft.exercise_ids.indexOf(exId);
+  if (idx !== -1) {
+    persoState.tplDraft.exercise_ids.splice(idx, 1);
+    persoState.tplDraft.superset_groups.splice(idx, 1);
+  }
   renderTemplateEditorExercises();
 }
 async function saveTemplate() {
   const name = document.getElementById('perso-tpl-name').value.trim();
   if (!name) return alert('Nom requis');
-  const body = { name, exercise_ids: persoState.tplDraft.exercise_ids };
+  const body = { name, exercise_ids: persoState.tplDraft.exercise_ids, superset_groups: persoState.tplDraft.superset_groups };
   if (persoState.tplDraft.id) { await api(`/perso/templates/${persoState.tplDraft.id}`, { method: 'PUT', body }); }
   else { await api('/perso/templates', { method: 'POST', body }); }
   closeTemplateEditor();
@@ -4365,7 +4402,7 @@ function renderPersoSession() {
     ${lowEnergy ? '<div class="perso-low-energy-banner">Énergie basse — suggestions conservatrices (-5% charge)</div>' : ''}
     <div id="perso-rest-timer-bar" class="perso-rest-bar hidden"></div>
     <div class="perso-session-exs" id="perso-session-exs">
-      ${(s.performances || []).map(p => renderPerfRowV2(p)).join('')}
+      ${renderSessionExercises(s.performances || [])}
     </div>
     <div class="perso-session-add">
       <input type="text" id="perso-add-ex-input" placeholder="Ajouter un exercice..." autocomplete="off">
@@ -4392,6 +4429,31 @@ function renderPersoSession() {
 }
 
 // ─── Render a single exercise row with set_logs ─────────────
+
+function renderSessionExercises(performances) {
+  let html = '';
+  let i = 0;
+  while (i < performances.length) {
+    const p = performances[i];
+    if (p.superset_group) {
+      // Collect all in the same superset group
+      const group = p.superset_group;
+      const groupPerfs = [];
+      while (i < performances.length && performances[i].superset_group === group) {
+        groupPerfs.push(performances[i]);
+        i++;
+      }
+      html += `<div class="perso-superset-block">
+        <div class="perso-superset-label">🔗 Superset ${group.toUpperCase()}</div>
+        ${groupPerfs.map(gp => renderPerfRowV2(gp)).join('<div class="perso-superset-divider"></div>')}
+      </div>`;
+    } else {
+      html += renderPerfRowV2(p);
+      i++;
+    }
+  }
+  return html;
+}
 
 function renderPerfRowV2(p) {
   const sets = p.set_logs || [];
