@@ -2159,6 +2159,43 @@ app.delete('/api/perso/templates/:id', requireAuth, requireAdmin, (req, res) => 
 // ═══ Sessions & Performances V2 ═════════════════════════════
 
 // Get session by date (with full set_logs + suggestions)
+// Sessions range (for calendar)
+app.get('/api/perso/sessions/range', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const { from, to } = req.query;
+  if (!from || !to) return res.status(400).json({ error: 'from and to required' });
+  const rows = db.prepare(`
+    SELECT id, date, status, name, template_id, started_at, ended_at
+    FROM perso_sessions
+    WHERE date >= ? AND date <= ?
+    ORDER BY date ASC
+  `).all(from, to);
+  // Include performances for volume calculation
+  const perfStmt = db.prepare(`SELECT p.id, p.exercise_id, e.name as exercise_name,
+    (SELECT json_group_array(json_object('id', sl.id, 'weight_kg', sl.weight_kg, 'reps', sl.reps, 'completed', sl.completed, 'is_warmup', sl.is_warmup))
+     FROM perso_set_logs sl WHERE sl.performance_id = p.id) as set_logs_json
+    FROM perso_performances p JOIN perso_exercises e ON e.id = p.exercise_id WHERE p.session_id = ?`);
+  rows.forEach(r => {
+    const perfs = perfStmt.all(r.id);
+    r.performances = perfs.map(p => ({ ...p, set_logs: JSON.parse(p.set_logs_json || '[]') }));
+  });
+  res.json(rows);
+});
+
+// Recent PRs
+app.get('/api/perso/records/recent', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const limit = parseInt(req.query.limit) || 5;
+  const rows = db.prepare(`
+    SELECT r.*, e.name as exercise_name
+    FROM personal_records r
+    JOIN perso_exercises e ON e.id = r.exercise_id
+    ORDER BY r.achieved_at DESC, r.id DESC
+    LIMIT ?
+  `).all(limit);
+  res.json(rows);
+});
+
 app.get('/api/perso/sessions/:date', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const { date } = req.params;

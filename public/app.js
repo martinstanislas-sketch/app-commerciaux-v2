@@ -4081,7 +4081,9 @@ let persoState = {
   exercises: [],
   tplDraft: { id: null, name: '', exercise_ids: [] },
   restTimer: null, // { interval, remaining, total, perfId, setNum }
-  progressChart: null
+  progressChart: null,
+  calYear: new Date().getFullYear(),
+  calMonth: new Date().getMonth()
 };
 
 async function loadPersoTab() {
@@ -4134,6 +4136,195 @@ function initPersoTab() {
   // Exercise catalog
   document.getElementById('perso-btn-add-exercise').addEventListener('click', addNewExercise);
   document.getElementById('perso-ex-search').addEventListener('input', (e) => renderExercisesCatalog(e.target.value));
+
+  // Calendar navigation
+  document.getElementById('perso-cal-prev').addEventListener('click', () => { persoState.calMonth--; if (persoState.calMonth < 0) { persoState.calMonth = 11; persoState.calYear--; } renderCalendar(); });
+  document.getElementById('perso-cal-next').addEventListener('click', () => { persoState.calMonth++; if (persoState.calMonth > 11) { persoState.calMonth = 0; persoState.calYear++; } renderCalendar(); });
+
+  // Set date display
+  const now = new Date();
+  persoState.calYear = now.getFullYear();
+  persoState.calMonth = now.getMonth();
+  document.getElementById('perso-today-date').textContent = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Energy text
+  const energyLabels = { 1: 'Vidé', 2: 'Fatigué', 3: 'Normal', 4: 'En forme', 5: 'Au top !' };
+  document.querySelectorAll('#perso-energy-scale button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('perso-energy-text').textContent = energyLabels[parseInt(btn.dataset.val)] || '';
+    });
+  });
+
+  // Exercise filter buttons
+  renderExerciseFilters();
+
+  // Load sidebar data
+  renderCalendar();
+  loadMonthStats();
+  loadRecentPRs();
+}
+
+// ─── Calendar ─────────────────────────────────────────────
+
+async function renderCalendar() {
+  const container = document.getElementById('perso-calendar');
+  const monthLabel = document.getElementById('perso-cal-month');
+  if (!container || !monthLabel) return;
+
+  const year = persoState.calYear;
+  const month = persoState.calMonth;
+  const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  monthLabel.textContent = `${monthNames[month]} ${year}`;
+
+  // Fetch sessions for this month
+  const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month + 1, 0);
+  const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+  let sessionDates = new Set();
+  try {
+    const sessions = await api(`/perso/sessions/range?from=${firstDay}&to=${lastDayStr}`);
+    if (Array.isArray(sessions)) {
+      sessions.forEach(s => sessionDates.add(s.date));
+    }
+  } catch (e) { /* endpoint may not exist yet */ }
+
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const daysInMonth = lastDay.getDate();
+  const firstDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7; // Monday = 0
+
+  // Day of week headers
+  const dows = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  let html = dows.map(d => `<span class="p-cal-dow">${d}</span>`).join('');
+
+  // Empty cells before first day
+  for (let i = 0; i < firstDayOfWeek; i++) {
+    html += '<span class="p-cal-day empty"></span>';
+  }
+
+  // Day cells
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const isToday = dateStr === todayStr;
+    const isTrained = sessionDates.has(dateStr);
+    const cls = isToday ? 'today' : isTrained ? 'trained' : '';
+    html += `<span class="p-cal-day ${cls}" data-date="${dateStr}">${d}</span>`;
+  }
+
+  container.innerHTML = html;
+
+  // Update month badge
+  const badge = document.getElementById('perso-month-badge');
+  if (badge) {
+    const count = sessionDates.size;
+    badge.textContent = `${count} séance${count > 1 ? 's' : ''} ce mois`;
+    badge.className = `p-badge ${count >= 12 ? 'p-badge-green' : count >= 8 ? 'p-badge-blue' : count >= 4 ? 'p-badge-orange' : 'p-badge-red'}`;
+  }
+}
+
+// ─── Month Stats ──────────────────────────────────────────
+
+async function loadMonthStats() {
+  const container = document.getElementById('perso-month-stats');
+  if (!container) return;
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month + 1, 0);
+  const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+
+  let sessions = [];
+  try {
+    sessions = await api(`/perso/sessions/range?from=${firstDay}&to=${lastDayStr}`) || [];
+  } catch (e) { /* endpoint may not exist */ }
+
+  const totalSessions = sessions.length;
+  const totalVolume = sessions.reduce((sum, s) => {
+    return sum + (s.performances || []).reduce((pSum, p) => {
+      return pSum + (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed).reduce((t, sl) => t + (sl.weight_kg || 0) * (sl.reps || 0), 0);
+    }, 0);
+  }, 0);
+
+  // Estimate time from sessions with start/end
+  let totalMinutes = 0;
+  sessions.forEach(s => {
+    if (s.started_at && s.ended_at) {
+      totalMinutes += Math.round((new Date(s.ended_at) - new Date(s.started_at)) / 60000);
+    }
+  });
+  const timeStr = totalMinutes >= 60 ? `${Math.floor(totalMinutes / 60)}h${String(totalMinutes % 60).padStart(2, '0')}` : `${totalMinutes}min`;
+
+  // Weekly frequency
+  const weeksInMonth = Math.ceil(lastDay.getDate() / 7);
+  const freq = weeksInMonth > 0 ? (totalSessions / weeksInMonth).toFixed(1) : '0';
+
+  const stats = container.querySelectorAll('.p-stat-val');
+  if (stats.length >= 4) {
+    stats[0].textContent = totalSessions;
+    stats[1].textContent = totalVolume > 0 ? `${(totalVolume / 1000).toFixed(1)}t` : '0 kg';
+    stats[2].textContent = timeStr;
+    stats[3].textContent = `${freq} /sem`;
+  }
+}
+
+// ─── Recent PRs ───────────────────────────────────────────
+
+async function loadRecentPRs() {
+  const container = document.getElementById('perso-recent-prs');
+  if (!container) return;
+
+  let prs = [];
+  try {
+    prs = await api('/perso/records/recent?limit=5') || [];
+  } catch (e) { /* endpoint may not exist */ }
+
+  if (!prs.length) {
+    container.innerHTML = '<div class="p-empty-sm">Aucun record pour le moment.</div>';
+    return;
+  }
+
+  const typeLabels = { max_weight: 'Charge max', estimated_1rm: '1RM estimé', max_volume_set: 'Meilleur set', max_total_tonnage: 'Tonnage max' };
+  container.innerHTML = prs.map(pr => `
+    <div class="p-record-row">
+      <span class="p-record-emoji">🏆</span>
+      <div class="p-record-info">
+        <div class="p-record-name">${escapeHtml(pr.exercise_name || pr.exercise)}</div>
+        <div class="p-record-sub">${typeLabels[pr.record_type] || pr.record_type}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="p-record-val">${pr.value} ${pr.unit || 'kg'}</div>
+        ${pr.previous ? `<div class="p-record-delta">+${Math.round((pr.value - pr.previous) * 10) / 10}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── Exercise Filters ─────────────────────────────────────
+
+function renderExerciseFilters() {
+  const container = document.getElementById('perso-ex-filters');
+  if (!container) return;
+
+  const groups = new Set();
+  persoState.exercises.forEach(ex => { if (ex.muscle_group) groups.add(ex.muscle_group); });
+
+  let html = '<button class="p-ex-filter active" data-filter="">Tous</button>';
+  [...groups].sort().forEach(g => {
+    html += `<button class="p-ex-filter" data-filter="${escapeHtml(g)}">${escapeHtml(g)}</button>`;
+  });
+  container.innerHTML = html;
+
+  container.querySelectorAll('.p-ex-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.p-ex-filter').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const filter = btn.dataset.filter;
+      document.getElementById('perso-ex-search').value = filter;
+      renderExercisesCatalog(filter);
+    });
+  });
 }
 
 // ─── Templates ─────────────────────────────────────────────
@@ -4146,24 +4337,22 @@ async function refreshPersoTemplates() {
 function renderPersoTemplates() {
   const container = document.getElementById('perso-templates-list');
   if (persoState.templates.length === 0) {
-    container.innerHTML = '<div class="perso-empty">Aucune séance. Crée ta première séance type.</div>';
+    container.innerHTML = '<div class="p-empty">Aucune séance. Crée ta première séance type.</div>';
     return;
   }
   container.innerHTML = persoState.templates.map(t => `
-    <div class="perso-template-card ${t.favorite ? 'is-favorite' : ''}" onclick="startPersoSession(${t.id})" role="button" tabindex="0">
-      <div class="perso-template-head">
-        <button class="perso-tpl-fav" onclick="event.stopPropagation(); togglePersoTemplateFavorite(${t.id})" title="${t.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${t.favorite ? '★' : '☆'}</button>
-        <h3>${escapeHtml(t.name)}</h3>
-        <div class="perso-template-actions" onclick="event.stopPropagation()">
-          <button onclick="openTemplateEditor(${t.id})" class="btn-icon" title="Modifier">✎</button>
-          <button onclick="deletePersoTemplate(${t.id})" class="btn-icon btn-danger" title="Supprimer">✕</button>
+    <div class="p-tpl-card ${t.favorite ? 'is-favorite' : ''}" onclick="startPersoSession(${t.id})" role="button" tabindex="0">
+      <button class="p-tpl-fav" onclick="event.stopPropagation(); togglePersoTemplateFavorite(${t.id})" title="${t.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${t.favorite ? '★' : '☆'}</button>
+      <div class="p-tpl-info">
+        <div class="p-tpl-name">${escapeHtml(t.name)}</div>
+        <div class="p-tpl-chips">
+          ${t.exercises.length === 0 ? '<span class="p-empty-sm">Aucun exercice</span>' : t.exercises.map(e => `<span class="p-chip">${escapeHtml(e.name)}</span>`).join('')}
         </div>
+        <div class="p-tpl-meta">${t.exercises.length} exercice${t.exercises.length > 1 ? 's' : ''} · Cliquer pour démarrer</div>
       </div>
-      <div class="perso-template-exs">
-        ${t.exercises.length === 0 ? '<span class="perso-muted">Aucun exercice</span>' : t.exercises.map(e => `<span class="perso-chip">${escapeHtml(e.name)}</span>`).join('')}
-      </div>
-      <div class="perso-template-cta">
-        ${t.exercises.length} exercice${t.exercises.length > 1 ? 's' : ''} · Cliquer pour démarrer
+      <div class="p-tpl-actions" onclick="event.stopPropagation()">
+        <button onclick="openTemplateEditor(${t.id})" class="btn-icon" title="Modifier">✎</button>
+        <button onclick="deletePersoTemplate(${t.id})" class="btn-icon btn-danger" title="Supprimer">✕</button>
       </div>
     </div>
   `).join('');
@@ -4189,7 +4378,7 @@ function renderTemplateEditorExercises() {
   const container = document.getElementById('perso-tpl-exercises');
   const ids = persoState.tplDraft.exercise_ids;
   if (ids.length === 0) {
-    container.innerHTML = '<div class="perso-empty-sm">Aucun exercice. Ajoute-en ci-dessous.</div>';
+    container.innerHTML = '<div class="p-empty-sm">Aucun exercice. Ajoute-en ci-dessous.</div>';
     return;
   }
   container.innerHTML = ids.map((eid, idx) => {
@@ -4197,18 +4386,18 @@ function renderTemplateEditorExercises() {
     if (!ex) return '';
     const ssGroup = persoState.tplDraft.superset_groups[idx];
     const ssLabel = ssGroup ? ssGroup.toUpperCase() : '';
-    return `<div class="perso-tpl-ex-row ${ssGroup ? 'has-superset superset-' + ssGroup : ''}" draggable="true" data-idx="${idx}">
-      <span class="perso-tpl-drag-handle" title="Glisser pour réordonner">⠿</span>
-      ${ssGroup ? `<span class="perso-tpl-ss-badge">${ssLabel}</span>` : `<span class="perso-tpl-ex-num">${idx + 1}.</span>`}
-      <div class="perso-tpl-ex-info">
-        <span class="perso-tpl-ex-name">${escapeHtml(ex.name)}</span>
-        <div class="perso-tpl-ex-video">
+    return `<div class="p-tpl-ex-row ${ssGroup ? 'has-superset superset-' + ssGroup : ''}" draggable="true" data-idx="${idx}">
+      <span class="p-tpl-drag" title="Glisser pour réordonner">⠿</span>
+      ${ssGroup ? `<span class="p-tpl-ss-badge">${ssLabel}</span>` : `<span class="p-tpl-ex-num">${idx + 1}.</span>`}
+      <div class="p-tpl-ex-info">
+        <span class="p-tpl-ex-name">${escapeHtml(ex.name)}</span>
+        <div class="p-tpl-ex-video">
           <input type="url" placeholder="Lien vidéo YouTube..." value="${escapeHtml(ex.video_url || '')}" onchange="updateExerciseVideoUrl(${ex.id}, this.value)" onclick="event.stopPropagation()" />
-          ${ex.video_url ? `<a href="${escapeHtml(ex.video_url)}" target="_blank" rel="noopener" class="perso-video-link" onclick="event.stopPropagation()" title="Voir la vidéo">▶</a>` : ''}
+          ${ex.video_url ? `<a href="${escapeHtml(ex.video_url)}" target="_blank" rel="noopener" class="p-video-link" onclick="event.stopPropagation()" title="Voir la vidéo">▶</a>` : ''}
         </div>
       </div>
       <button type="button" class="btn-icon btn-superset ${ssGroup ? 'active' : ''}" onclick="toggleSuperset(${idx})" title="${ssGroup ? 'Retirer du superset' : 'Lier en superset (agoniste/antagoniste)'}">🔗</button>
-      <div class="perso-tpl-ex-arrows">
+      <div class="p-tpl-arrows">
         <button type="button" class="btn-icon btn-arrow" onclick="moveTplExercise(${idx},-1)" ${idx === 0 ? 'disabled' : ''} title="Monter">↑</button>
         <button type="button" class="btn-icon btn-arrow" onclick="moveTplExercise(${idx},1)" ${idx === ids.length - 1 ? 'disabled' : ''} title="Descendre">↓</button>
       </div>
@@ -4217,7 +4406,7 @@ function renderTemplateEditorExercises() {
   }).join('');
 
   // Drag & drop
-  container.querySelectorAll('.perso-tpl-ex-row').forEach(row => {
+  container.querySelectorAll('.p-tpl-ex-row').forEach(row => {
     row.addEventListener('dragstart', e => {
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', row.dataset.idx);
@@ -4335,27 +4524,25 @@ function renderExercisesCatalog(filter = '') {
   const filtered = q ? persoState.exercises.filter(e => e.name.toLowerCase().includes(q) || (e.muscle_group || '').toLowerCase().includes(q) || (e.body_part || '').toLowerCase().includes(q)) : persoState.exercises;
 
   if (filtered.length === 0) {
-    container.innerHTML = `<div class="perso-empty-sm">${q ? 'Aucun exercice trouvé.' : 'Aucun exercice. Ajoute-en un !'}</div>`;
+    container.innerHTML = `<div class="p-empty-sm">${q ? 'Aucun exercice trouvé.' : 'Aucun exercice. Ajoute-en un !'}</div>`;
     return;
   }
 
   container.innerHTML = filtered.map(ex => `
-    <div class="perso-ex-card">
-      <div class="perso-ex-card-main">
-        <strong class="perso-ex-card-name">${escapeHtml(ex.name)}</strong>
-        ${ex.video_url ? `<a href="${escapeHtml(ex.video_url)}" target="_blank" rel="noopener" class="perso-video-link" title="Voir la vidéo">▶</a>` : ''}
+    <div class="p-ex-row">
+      <div class="p-ex-info">
+        <strong class="p-ex-name">${escapeHtml(ex.name)}</strong>
+        ${ex.video_url ? `<a href="${escapeHtml(ex.video_url)}" target="_blank" rel="noopener" class="p-video-link" title="Voir la vidéo">▶</a>` : ''}
       </div>
-      <div class="perso-ex-card-tags">
-        ${ex.muscle_group ? `<span class="perso-chip-sm">${escapeHtml(ex.muscle_group)}</span>` : ''}
-        <span class="perso-chip-sm perso-chip-muted">${ex.body_part === 'lower' ? 'Bas du corps' : 'Haut du corps'}</span>
-        <span class="perso-chip-sm perso-chip-muted">${ex.target_sets}×${ex.target_reps}</span>
-        ${ex.goal_charge ? `<span class="perso-chip-sm perso-chip-goal">🎯 ${ex.goal_charge} kg</span>` : ''}
+      <div class="p-ex-sub">
+        ${ex.muscle_group ? `<span class="p-chip">${escapeHtml(ex.muscle_group)}</span>` : ''}
+        <span class="p-chip p-chip-muted">${ex.body_part === 'lower' ? 'Bas du corps' : 'Haut du corps'}</span>
+        <span class="p-chip p-chip-muted">${ex.target_sets}×${ex.target_reps}</span>
+        ${ex.goal_charge ? `<span class="p-chip p-chip-orange">🎯 ${ex.goal_charge} kg</span>` : ''}
+        ${ex.video_url ? `<span class="p-chip p-chip-blue" title="${escapeHtml(ex.video_url)}">📹 Vidéo liée</span>` : '<span class="p-chip p-chip-muted">Pas de vidéo</span>'}
+        <span class="p-chip p-chip-muted">⏱ ${ex.default_rest_seconds}s repos</span>
       </div>
-      <div class="perso-ex-card-meta">
-        ${ex.video_url ? `<span class="perso-ex-meta-url" title="${escapeHtml(ex.video_url)}">📹 Vidéo liée</span>` : '<span class="perso-ex-meta-empty">Pas de vidéo</span>'}
-        <span class="perso-ex-meta-rest">⏱ ${ex.default_rest_seconds}s repos</span>
-      </div>
-      <div class="perso-ex-card-actions">
+      <div class="p-ex-actions">
         <button class="btn-icon" onclick="editExerciseSettings(${ex.id})" title="Modifier">✎</button>
         <button class="btn-icon btn-danger" onclick="deleteExercise(${ex.id}, '${escapeHtml(ex.name)}')" title="Supprimer">✕</button>
       </div>
@@ -4384,11 +4571,11 @@ async function renderExerciseAutocomplete(query, containerId, onSelect) {
   const results = await api(`/perso/exercises?q=${encodeURIComponent(query)}`);
   const trimmed = query.trim();
   const exactMatch = results.find(r => r.name.toLowerCase() === trimmed.toLowerCase());
-  let html = results.map(r => `<div class="perso-ac-item" data-id="${r.id}">${escapeHtml(r.name)}${r.muscle_group ? ` · ${escapeHtml(r.muscle_group)}` : ''}</div>`).join('');
-  if (!exactMatch && trimmed) html += `<div class="perso-ac-item perso-ac-create" data-create="${escapeHtml(trimmed)}">+ Créer "${escapeHtml(trimmed)}"</div>`;
-  container.innerHTML = html || '<div class="perso-ac-empty">Aucun résultat</div>';
+  let html = results.map(r => `<div class="p-autocomplete-item" data-id="${r.id}">${escapeHtml(r.name)}${r.muscle_group ? ` · ${escapeHtml(r.muscle_group)}` : ''}</div>`).join('');
+  if (!exactMatch && trimmed) html += `<div class="p-autocomplete-item p-autocomplete-create" data-create="${escapeHtml(trimmed)}">+ Créer "${escapeHtml(trimmed)}"</div>`;
+  container.innerHTML = html || '<div class="p-empty-sm">Aucun résultat</div>';
   container.classList.remove('hidden');
-  container.querySelectorAll('.perso-ac-item').forEach(el => {
+  container.querySelectorAll('.p-autocomplete-item').forEach(el => {
     el.addEventListener('mousedown', async (e) => {
       e.preventDefault();
       if (el.dataset.create) {
@@ -4448,7 +4635,7 @@ function renderPersoSession() {
   const container = document.getElementById('perso-session-container');
   const s = persoState.currentSession;
   if (!s) {
-    container.innerHTML = '<div class="perso-empty">Aucune séance en cours. Choisis un template ou démarre une séance libre.</div>';
+    container.innerHTML = '<div class="p-empty">Aucune séance en cours. Choisis un template ou démarre une séance libre.</div>';
     return;
   }
 
@@ -4456,26 +4643,26 @@ function renderPersoSession() {
   const lowEnergy = s.energy_level && s.energy_level <= 2;
 
   container.innerHTML = `
-    <div class="perso-session-head">
+    <div class="p-session-head">
       <h3>${escapeHtml(sessionName)}</h3>
-      <span class="perso-session-status ${s.status === 'completed' ? 'is-done' : ''}">${s.status === 'completed' ? 'Terminée' : 'En cours'}</span>
+      <span class="p-session-status ${s.status === 'completed' ? 'is-done' : ''}">${s.status === 'completed' ? 'Terminée' : 'En cours'}</span>
       <button class="btn-icon btn-danger" onclick="deleteCurrentPersoSession()" title="Supprimer">✕</button>
     </div>
-    ${lowEnergy ? '<div class="perso-low-energy-banner">Énergie basse — suggestions conservatrices (-5% charge)</div>' : ''}
-    <div id="perso-rest-timer-bar" class="perso-rest-bar hidden"></div>
-    <div class="perso-session-exs" id="perso-session-exs">
+    ${lowEnergy ? '<div class="p-low-energy-banner">Énergie basse — suggestions conservatrices (-5% charge)</div>' : ''}
+    <div id="perso-rest-timer-bar" class="p-rest-bar hidden"></div>
+    <div id="perso-session-exs">
       ${renderSessionExercises(s.performances || [])}
     </div>
-    <div class="perso-session-add">
+    <div class="p-session-add">
       <input type="text" id="perso-add-ex-input" placeholder="Ajouter un exercice..." autocomplete="off">
-      <div id="perso-add-ex-autocomplete" class="perso-autocomplete hidden"></div>
+      <div id="perso-add-ex-autocomplete" class="p-autocomplete hidden"></div>
     </div>
-    <div class="perso-session-footer">
-      <div class="perso-session-total">
-        <span class="perso-total-label">Total soulevé</span>
+    <div class="p-session-footer">
+      <div class="p-session-total">
+        <span class="p-total-label">Total soulevé</span>
         <strong id="perso-total-value">${sessionTotalKg(s).toLocaleString('fr-FR')} kg</strong>
       </div>
-      <button class="btn-primary perso-end-btn" onclick="finishSession()">Terminer la séance</button>
+      <button class="btn-primary p-end-btn" onclick="finishSession()">Terminer la séance</button>
     </div>
   `;
 
@@ -4525,9 +4712,9 @@ function renderSupersetBlock(group, perfs) {
     const goalReached = p.goal_charge && maxW >= p.goal_charge;
     return `<div class="ss-col-header">
       <strong>${escapeHtml(p.exercise_name)}</strong>
-      ${p.video_url ? `<a href="${escapeHtml(p.video_url)}" target="_blank" rel="noopener" class="perso-video-link" title="Vidéo">▶</a>` : ''}
-      ${p.muscle_group ? `<span class="perso-chip-sm">${escapeHtml(p.muscle_group)}</span>` : ''}
-      <span class="perso-set-progress">${completedSets}/${sets.length}</span>
+      ${p.video_url ? `<a href="${escapeHtml(p.video_url)}" target="_blank" rel="noopener" class="p-video-link" title="Vidéo">▶</a>` : ''}
+      ${p.muscle_group ? `<span class="p-chip">${escapeHtml(p.muscle_group)}</span>` : ''}
+      <span class="p-set-progress">${completedSets}/${sets.length}</span>
       <div class="ss-col-actions">
         <button class="btn-icon" onclick="openExerciseProgress(${p.exercise_id})" title="Progression">📈</button>
         <button class="btn-icon" onclick="editExerciseSettings(${p.exercise_id})" title="Paramètres">⚙</button>
@@ -4543,7 +4730,7 @@ function renderSupersetBlock(group, perfs) {
       const sl = sets[s];
       if (!sl) return `<div class="ss-cell ss-cell-empty">—</div>`;
       const doneClass = sl.completed ? 'is-done' : '';
-      const prBadge = sl.is_pr ? '<span class="perso-pr-badge">🏆 PR</span>' : '';
+      const prBadge = sl.is_pr ? '<span class="p-pr-badge">🏆 PR</span>' : '';
       return `<div class="ss-cell ${doneClass}">
         <div class="ss-cell-inputs">
           <input type="number" step="0.5" value="${sl.weight_kg || ''}" placeholder="kg" class="ss-inp-kg"
@@ -4552,7 +4739,7 @@ function renderSupersetBlock(group, perfs) {
           <input type="number" value="${sl.reps || ''}" placeholder="reps" class="ss-inp-reps"
                  onchange="updateSetLog(${sl.id}, 'reps', this.value)">
         </div>
-        <button type="button" class="perso-set-done-btn ${sl.completed ? 'active' : ''}" onclick="toggleSetDone(${p.id}, ${sl.id})" title="Valider">✓</button>
+        <button type="button" class="p-set-done ${sl.completed ? 'active' : ''}" onclick="toggleSetDone(${p.id}, ${sl.id})" title="Valider">✓</button>
         ${prBadge}
       </div>`;
     }).join('');
@@ -4567,13 +4754,13 @@ function renderSupersetBlock(group, perfs) {
   const footer = perfs.map(p => {
     const tonnage = (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed).reduce((t, sl) => t + (sl.weight_kg || 0) * (sl.reps || 0), 0);
     return `<div class="ss-col-footer">
-      <button type="button" class="btn-secondary perso-add-set" onclick="addSetLog(${p.id})">+ Série</button>
-      <span class="perso-tonnage">Tonnage : ${tonnage} kg</span>
+      <button type="button" class="p-add-set" onclick="addSetLog(${p.id})">+ Série</button>
+      <span class="p-tonnage">Tonnage : ${tonnage} kg</span>
     </div>`;
   }).join('');
 
-  return `<div class="perso-superset-block" data-group="${group}">
-    <div class="perso-superset-label">🔗 Superset ${group.toUpperCase()}</div>
+  return `<div class="p-superset-block" data-group="${group}">
+    <div class="p-superset-label">🔗 Superset ${group.toUpperCase()}</div>
     <div class="ss-headers">${headers}</div>
     <div class="ss-rounds">${rows}</div>
     <div class="ss-footers">${footer}</div>
@@ -4590,40 +4777,40 @@ function renderPerfRowV2(p) {
   const goalReached = p.goal_charge && maxW >= p.goal_charge;
 
   return `
-    <div class="perso-perf-row" data-perf="${p.id}" data-exercise="${p.exercise_id}">
-      <div class="perso-perf-head">
-        <div class="perso-perf-name">
+    <div class="p-perf-row" data-perf="${p.id}" data-exercise="${p.exercise_id}">
+      <div class="p-perf-head">
+        <div class="p-perf-name">
           <strong>${escapeHtml(p.exercise_name)}</strong>
-          ${p.video_url ? `<a href="${escapeHtml(p.video_url)}" target="_blank" rel="noopener" class="perso-video-link" title="Voir la vidéo">▶</a>` : ''}
-          ${p.muscle_group ? `<span class="perso-chip-sm">${escapeHtml(p.muscle_group)}</span>` : ''}
-          ${p.goal_charge ? `<span class="perso-goal-chip ${goalReached ? 'is-reached' : ''}">🎯 ${p.goal_charge} kg${goalReached ? ' ✓' : ''}</span>` : ''}
-          <span class="perso-set-progress">${completedSets}/${totalSets}</span>
+          ${p.video_url ? `<a href="${escapeHtml(p.video_url)}" target="_blank" rel="noopener" class="p-video-link" title="Voir la vidéo">▶</a>` : ''}
+          ${p.muscle_group ? `<span class="p-chip">${escapeHtml(p.muscle_group)}</span>` : ''}
+          ${p.goal_charge ? `<span class="p-goal-chip ${goalReached ? 'is-reached' : ''}">🎯 ${p.goal_charge} kg${goalReached ? ' ✓' : ''}</span>` : ''}
+          <span class="p-set-progress">${completedSets}/${totalSets}</span>
         </div>
-        <div class="perso-perf-actions">
+        <div class="p-perf-actions">
           <button class="btn-icon" onclick="openExerciseProgress(${p.exercise_id})" title="Progression">📈</button>
           <button class="btn-icon" onclick="editExerciseSettings(${p.exercise_id})" title="Paramètres">⚙</button>
           <button class="btn-icon btn-danger" onclick="deletePerf(${p.id})" title="Supprimer">✕</button>
         </div>
       </div>
       ${suggestion ? `
-        <div class="perso-suggestion">
-          <span class="perso-suggestion-last">Dernière fois (${formatDateShort(suggestion.lastDate)}) : ${suggestion.lastSets.map(s => `${s.weight_kg}×${s.reps}`).join(', ')}</span>
-          <span class="perso-suggestion-msg">${escapeHtml(suggestion.message)}</span>
+        <div class="p-suggestion">
+          <span class="p-suggestion-last">Dernière fois (${formatDateShort(suggestion.lastDate)}) : ${suggestion.lastSets.map(s => `${s.weight_kg}×${s.reps}`).join(', ')}</span>
+          <span class="p-suggestion-msg">${escapeHtml(suggestion.message)}</span>
         </div>
       ` : ''}
-      <div class="perso-set-logs">
+      <div class="p-set-logs">
         ${sets.map(sl => renderSetLogRow(p, sl)).join('')}
-        <button type="button" class="btn-secondary perso-add-set" onclick="addSetLog(${p.id})">+ Série</button>
+        <button type="button" class="p-add-set" onclick="addSetLog(${p.id})">+ Série</button>
       </div>
-      <div class="perso-perf-feeling">
+      <div class="p-perf-footer">
         <label>Ressenti</label>
-        <div class="perso-feeling-btns">
+        <div class="p-feeling-btns">
           <button type="button" class="${p.feeling === 'facile' ? 'active' : ''}" onclick="updatePerfFeeling(${p.id}, 'facile')">😊</button>
           <button type="button" class="${p.feeling === 'moyen' ? 'active' : ''}" onclick="updatePerfFeeling(${p.id}, 'moyen')">😐</button>
           <button type="button" class="${p.feeling === 'dur' ? 'active' : ''}" onclick="updatePerfFeeling(${p.id}, 'dur')">😓</button>
         </div>
       </div>
-      ${tonnage > 0 ? `<div class="perso-perf-tonnage">Tonnage : ${tonnage.toLocaleString('fr-FR')} kg</div>` : ''}
+      ${tonnage > 0 ? `<div class="p-tonnage">Tonnage : ${tonnage.toLocaleString('fr-FR')} kg</div>` : ''}
     </div>
   `;
 }
@@ -4631,22 +4818,22 @@ function renderPerfRowV2(p) {
 function renderSetLogRow(perf, sl) {
   const doneClass = sl.completed ? 'is-done' : '';
   const warmupClass = sl.is_warmup ? 'is-warmup' : '';
-  const prBadge = sl.is_pr ? '<span class="perso-pr-badge">🏆 PR</span>' : '';
+  const prBadge = sl.is_pr ? '<span class="p-pr-badge">🏆 PR</span>' : '';
   return `
-    <div class="perso-set-row ${doneClass} ${warmupClass}" data-set="${sl.id}">
-      <span class="perso-set-num">${sl.is_warmup ? 'W' : `S${sl.set_number}`}</span>
-      <div class="perso-set-inp">
+    <div class="p-set-row ${doneClass} ${warmupClass}" data-set="${sl.id}">
+      <span class="p-set-num">${sl.is_warmup ? 'W' : `S${sl.set_number}`}</span>
+      <div class="p-set-inp">
         <input type="number" step="0.5" value="${sl.weight_kg || ''}" placeholder="kg"
                onchange="updateSetLog(${sl.id}, 'weight_kg', this.value)" ${sl.completed ? '' : ''}>
-        <span class="perso-set-unit">kg</span>
+        <span class="p-set-unit">kg</span>
       </div>
-      <span class="perso-set-x">×</span>
-      <div class="perso-set-inp">
+      <span class="p-set-x">×</span>
+      <div class="p-set-inp">
         <input type="number" value="${sl.reps || ''}" placeholder="reps"
                onchange="updateSetLog(${sl.id}, 'reps', this.value)">
-        <span class="perso-set-unit">reps</span>
+        <span class="p-set-unit">reps</span>
       </div>
-      <button type="button" class="perso-set-done-btn ${sl.completed ? 'active' : ''}" onclick="toggleSetDone(${perf.id}, ${sl.id})" title="Valider">✓</button>
+      <button type="button" class="p-set-done ${sl.completed ? 'active' : ''}" onclick="toggleSetDone(${perf.id}, ${sl.id})" title="Valider">✓</button>
       ${prBadge}
       <button type="button" class="btn-icon btn-xs btn-danger" onclick="deleteSetLog(${perf.id}, ${sl.id})" title="Suppr">✕</button>
     </div>
@@ -4681,18 +4868,18 @@ async function toggleSetDone(perfId, setId) {
   sl.completed = newVal;
 
   // Update UI for this set row
-  const rowEl = document.querySelector(`.perso-set-row[data-set="${setId}"]`);
+  const rowEl = document.querySelector(`.p-set-row[data-set="${setId}"]`);
   if (rowEl) {
     rowEl.classList.toggle('is-done', newVal);
-    rowEl.querySelector('.perso-set-done-btn')?.classList.toggle('active', newVal);
+    rowEl.querySelector('.p-set-done')?.classList.toggle('active', newVal);
   }
 
   // PR check
   if (newVal && res.prs && res.prs.length > 0) {
     sl.is_pr = true;
     showPRNotification(res.prs, p.exercise_name);
-    if (rowEl && !rowEl.querySelector('.perso-pr-badge')) {
-      rowEl.querySelector('.perso-set-done-btn').insertAdjacentHTML('afterend', '<span class="perso-pr-badge perso-pr-animate">🏆 PR</span>');
+    if (rowEl && !rowEl.querySelector('.p-pr-badge')) {
+      rowEl.querySelector('.p-set-done').insertAdjacentHTML('afterend', '<span class="p-pr-badge p-pr-animate">🏆 PR</span>');
     }
   }
 
@@ -4712,11 +4899,11 @@ function updateSetProgress(perfId) {
   const sets = p.set_logs || [];
   const done = sets.filter(s => s.completed && !s.is_warmup).length;
   const total = sets.filter(s => !s.is_warmup).length;
-  const el = document.querySelector(`.perso-perf-row[data-perf="${perfId}"] .perso-set-progress`);
+  const el = document.querySelector(`.p-perf-row[data-perf="${perfId}"] .p-set-progress`);
   if (el) el.textContent = `${done}/${total}`;
   // Tonnage
   const tonnage = sets.filter(s => !s.is_warmup && s.completed).reduce((t, s) => t + (s.weight_kg || 0) * (s.reps || 0), 0);
-  const tEl = document.querySelector(`.perso-perf-row[data-perf="${perfId}"] .perso-perf-tonnage`);
+  const tEl = document.querySelector(`.p-perf-row[data-perf="${perfId}"] .p-tonnage`);
   if (tEl) tEl.textContent = `Tonnage : ${tonnage.toLocaleString('fr-FR')} kg`;
 }
 
@@ -4732,7 +4919,7 @@ async function deleteSetLog(perfId, setId) {
   await api(`/perso/set-logs/${setId}`, { method: 'DELETE' });
   const p = persoState.currentSession?.performances?.find(x => x.id === perfId);
   if (p) p.set_logs = (p.set_logs || []).filter(s => s.id !== setId);
-  const rowEl = document.querySelector(`.perso-set-row[data-set="${setId}"]`);
+  const rowEl = document.querySelector(`.p-set-row[data-set="${setId}"]`);
   if (rowEl) rowEl.remove();
   updateTotalDisplay();
   updateSetProgress(perfId);
@@ -4742,8 +4929,8 @@ async function updatePerfFeeling(id, feeling) {
   await api(`/perso/performances/${id}`, { method: 'PUT', body: { feeling } });
   const p = persoState.currentSession?.performances?.find(x => x.id === id);
   if (p) p.feeling = feeling;
-  const row = document.querySelector(`.perso-perf-row[data-perf="${id}"]`);
-  if (row) row.querySelectorAll('.perso-feeling-btns button').forEach(b => {
+  const row = document.querySelector(`.p-perf-row[data-perf="${id}"]`);
+  if (row) row.querySelectorAll('.p-feeling-btns button').forEach(b => {
     b.classList.toggle('active', b.textContent.trim() === ({ facile: '😊', moyen: '😐', dur: '😓' })[feeling]);
   });
 }
@@ -4817,17 +5004,15 @@ function startRestTimer(seconds, perfId, setNum) {
     const timeStr = `${remaining < 0 ? '+' : ''}${mins}:${String(secs).padStart(2, '0')}`;
     const isOvertime = remaining < 0;
     bar.innerHTML = `
-      <div class="perso-rest-inner ${isOvertime ? 'is-overtime' : ''}">
-        <div class="perso-rest-progress" style="width: ${isOvertime ? 100 : pct}%"></div>
-        <div class="perso-rest-content">
-          <span class="perso-rest-label">REPOS</span>
-          <strong class="perso-rest-time">${timeStr}</strong>
-          <span class="perso-rest-of">/ ${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}</span>
-          <div class="perso-rest-btns">
-            <button onclick="adjustRestTimer(-15)">-15s</button>
-            <button onclick="stopRestTimer()">Passer</button>
-            <button onclick="adjustRestTimer(15)">+15s</button>
-          </div>
+      <div class="p-rest-info ${isOvertime ? 'is-overtime' : ''}">
+        <div class="p-rest-progress" style="width: ${isOvertime ? 100 : pct}%">
+          <div class="p-rest-fill"></div>
+        </div>
+        <div class="p-rest-time">${timeStr} / ${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}</div>
+        <div class="p-rest-actions">
+          <button onclick="adjustRestTimer(-15)">-15s</button>
+          <button class="p-rest-skip" onclick="stopRestTimer()">Passer</button>
+          <button onclick="adjustRestTimer(15)">+15s</button>
         </div>
       </div>
     `;
@@ -4896,7 +5081,7 @@ function showPRNotification(prs, exerciseName) {
 
   // Show floating toast
   const toast = document.createElement('div');
-  toast.className = 'perso-pr-toast';
+  toast.className = 'p-pr-toast';
   toast.innerHTML = `<strong>Nouveau record ! — ${escapeHtml(exerciseName)}</strong><br>${escapeHtml(msg)}`;
   document.body.appendChild(toast);
   setTimeout(() => toast.classList.add('show'), 10);
@@ -4946,18 +5131,18 @@ async function finishSession() {
 
   const list = document.getElementById('perso-recap-list');
   list.innerHTML = `
-    ${durationStr ? `<div class="perso-recap-duration">Durée : ${durationStr}</div>` : ''}
-    ${prSets.length > 0 ? `<div class="perso-recap-prs"><strong>Records battus :</strong><br>${prSets.map(pr => `🏆 ${escapeHtml(pr.exercise)} — ${pr.set.weight_kg}kg×${pr.set.reps}`).join('<br>')}</div>` : ''}
+    ${durationStr ? `<div class="p-badge p-badge-blue" style="margin-bottom:8px;">Durée : ${durationStr}</div>` : ''}
+    ${prSets.length > 0 ? `<div style="margin-bottom:8px;"><strong style="color:var(--p-orange);">Records battus :</strong><br>${prSets.map(pr => `🏆 ${escapeHtml(pr.exercise)} — ${pr.set.weight_kg}kg×${pr.set.reps}`).join('<br>')}</div>` : ''}
     ${(s.performances || []).map(p => {
       const sets = (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed);
       const sub = sets.reduce((t, sl) => t + (sl.weight_kg || 0) * (sl.reps || 0), 0);
       const feelIcon = { facile: '😊', moyen: '😐', dur: '😓' }[p.feeling] || '';
       const detailTxt = sets.map((sl, i) => `S${i + 1}: ${sl.weight_kg || 0}kg×${sl.reps || 0}`).join(' · ');
       return `
-        <div class="perso-recap-row">
-          <div class="perso-recap-ex-name">${escapeHtml(p.exercise_name)} ${feelIcon}</div>
-          <div class="perso-recap-ex-detail">${detailTxt}</div>
-          <div class="perso-recap-ex-sub">${sub.toLocaleString('fr-FR')} kg</div>
+        <div class="p-progress-row">
+          <span class="p-progress-date">${escapeHtml(p.exercise_name)} ${feelIcon}</span>
+          <span class="p-progress-sets">${detailTxt}</span>
+          <span class="p-progress-tonnage">${sub.toLocaleString('fr-FR')} kg</span>
         </div>
       `;
     }).join('')}
@@ -4988,12 +5173,12 @@ async function openExerciseProgress(exerciseId) {
   const recLabels = { max_weight: 'Charge max', estimated_1rm: '1RM estimé', max_volume_set: 'Meilleur set', max_total_tonnage: 'Tonnage max' };
   if (records.length > 0) {
     stats.innerHTML = records.map(r => `
-      <div class="perso-stat-block"><label>🏆 ${recLabels[r.record_type] || r.record_type}</label><strong>${r.value} ${r.unit}</strong></div>
+      <div class="p-progress-stat"><span class="p-label">🏆 ${recLabels[r.record_type] || r.record_type}</span><strong>${r.value} ${r.unit}</strong></div>
     `).join('');
   } else {
     const lastTxt = ex.last && ex.last.sets.length ? ex.last.sets.map(s => `${s.weight_kg}×${s.reps}`).join(', ') : '—';
-    stats.innerHTML = `<div class="perso-stat-block"><label>Dernière</label><strong>${lastTxt}</strong></div>
-      <div class="perso-stat-block"><label>Objectif</label><strong>${ex.goal_charge ? ex.goal_charge + ' kg' : '—'}</strong></div>`;
+    stats.innerHTML = `<div class="p-progress-stat"><span class="p-label">Dernière</span><strong>${lastTxt}</strong></div>
+      <div class="p-progress-stat"><span class="p-label">Objectif</span><strong>${ex.goal_charge ? ex.goal_charge + ' kg' : '—'}</strong></div>`;
   }
 
   document.getElementById('perso-progress-overlay').classList.remove('hidden');
@@ -5056,15 +5241,15 @@ async function openExerciseProgress(exerciseId) {
   // History list
   const hist = document.getElementById('perso-progress-history');
   if (history.length === 0) {
-    hist.innerHTML = '<div class="perso-empty">Aucun historique</div>';
+    hist.innerHTML = '<div class="p-empty">Aucun historique</div>';
   } else {
-    hist.innerHTML = '<h4>Historique</h4>' + history.slice().reverse().map(h => {
+    hist.innerHTML = '<h4 style="color:var(--p-text);font-size:13px;margin-bottom:8px;">Historique</h4>' + history.slice().reverse().map(h => {
       const setsStr = h.sets.map(s => `${s.weight_kg}×${s.reps}${s.is_pr ? ' 🏆' : ''}`).join(', ');
       return `
-        <div class="perso-hist-row">
-          <span class="perso-hist-date">${new Date(h.date + 'T00:00:00').toLocaleDateString('fr-FR')}</span>
-          <span>${setsStr}</span>
-          <span class="perso-chip-sm">${h.totalVolume.toLocaleString('fr-FR')} kg</span>
+        <div class="p-progress-row">
+          <span class="p-progress-date">${new Date(h.date + 'T00:00:00').toLocaleDateString('fr-FR')}</span>
+          <span class="p-progress-sets">${setsStr}</span>
+          <span class="p-progress-tonnage">${h.totalVolume.toLocaleString('fr-FR')} kg</span>
         </div>
       `;
     }).join('');
