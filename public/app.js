@@ -4255,24 +4255,27 @@ function toggleSuperset(idx) {
   const ss = persoState.tplDraft.superset_groups;
   if (ss[idx]) {
     // Remove from superset
+    const oldGroup = ss[idx];
     ss[idx] = null;
+    // If only 1 exercise left in the group, remove it too
+    const remaining = ss.filter(g => g === oldGroup);
+    if (remaining.length === 1) {
+      const lastIdx = ss.indexOf(oldGroup);
+      ss[lastIdx] = null;
+    }
   } else {
-    // Find next available group letter, or link with neighbor
-    // Check if the previous or next exercise already has a group
-    const prevGroup = idx > 0 ? ss[idx - 1] : null;
-    const nextGroup = idx < ss.length - 1 ? ss[idx + 1] : null;
-    if (prevGroup) {
-      ss[idx] = prevGroup;
-    } else if (nextGroup) {
-      ss[idx] = nextGroup;
-    } else if (idx < ss.length - 1) {
-      // Create a new group with the next exercise
+    // Find the next exercise without a group to pair with
+    const nextFree = idx < ss.length - 1 && !ss[idx + 1] ? idx + 1 : null;
+    if (nextFree !== null) {
+      // Create a new group
       const usedGroups = new Set(ss.filter(Boolean));
       const letters = 'abcdefghijklmnopqrstuvwxyz';
       let newGroup = 'a';
       for (const l of letters) { if (!usedGroups.has(l)) { newGroup = l; break; } }
       ss[idx] = newGroup;
-      ss[idx + 1] = newGroup;
+      ss[nextFree] = newGroup;
+    } else {
+      showToast('Place cet exercice à côté d\'un autre exercice libre pour créer un superset', 'info');
     }
   }
   renderTemplateEditorExercises();
