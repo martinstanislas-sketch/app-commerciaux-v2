@@ -5107,6 +5107,26 @@ main {
   color: var(--text);
 }
 
+.perso-video-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  font-size: 0.75rem;
+  text-decoration: none;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.perso-video-link:hover {
+  background: #ef4444;
+  color: #fff;
+  transform: scale(1.1);
+}
+
 .perso-perf-stats {
   display: flex;
   gap: 16px;

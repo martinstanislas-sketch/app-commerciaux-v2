@@ -4394,6 +4394,7 @@ function renderPerfRowV2(p) {
       <div class="perso-perf-head">
         <div class="perso-perf-name">
           <strong>${escapeHtml(p.exercise_name)}</strong>
+          ${p.video_url ? `<a href="${escapeHtml(p.video_url)}" target="_blank" rel="noopener" class="perso-video-link" title="Voir la vidéo">▶</a>` : ''}
           ${p.muscle_group ? `<span class="perso-chip-sm">${escapeHtml(p.muscle_group)}</span>` : ''}
           ${p.goal_charge ? `<span class="perso-goal-chip ${goalReached ? 'is-reached' : ''}">🎯 ${p.goal_charge} kg${goalReached ? ' ✓' : ''}</span>` : ''}
           <span class="perso-set-progress">${completedSets}/${totalSets}</span>
@@ -4585,12 +4586,15 @@ async function editExerciseSettings(exId) {
   if (rest === null) return;
   const goalStr = prompt(`Objectif de charge (kg, vide pour retirer) :`, ex.goal_charge || '');
   if (goalStr === null) return;
+  const videoUrl = prompt(`Lien vidéo (YouTube, etc. — vide pour retirer) :`, ex.video_url || '');
+  if (videoUrl === null) return;
 
   await api(`/perso/exercises/${exId}`, { method: 'PUT', body: {
     muscle_group: group, body_part: bp, exercise_type: type,
     target_sets: parseInt(ts) || 3, target_reps: parseInt(tr) || 10,
     default_rest_seconds: parseInt(rest) || 120,
-    goal_charge: goalStr.trim() === '' ? null : parseFloat(goalStr)
+    goal_charge: goalStr.trim() === '' ? null : parseFloat(goalStr),
+    video_url: videoUrl.trim() || null
   }});
   await refreshPersoExercises();
   if (persoState.currentSession) await loadPersoSession();

@@ -2017,15 +2017,15 @@ app.get('/api/perso/exercises/:id', requireAuth, requireAdmin, (req, res) => {
 
 app.post('/api/perso/exercises', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
-  const { name, muscle_group, goal_charge, body_part, exercise_type, target_sets, target_reps, default_rest_seconds } = req.body;
+  const { name, muscle_group, goal_charge, body_part, exercise_type, target_sets, target_reps, default_rest_seconds, video_url } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
   const trimmed = name.trim();
   let ex = db.prepare('SELECT * FROM perso_exercises WHERE LOWER(name) = LOWER(?)').get(trimmed);
   if (!ex) {
     const result = db.prepare(`
-      INSERT INTO perso_exercises (name, muscle_group, goal_charge, body_part, exercise_type, target_sets, target_reps, default_rest_seconds)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(trimmed, muscle_group || '', goal_charge || null, body_part || 'upper', exercise_type || 'compound', target_sets || 3, target_reps || 10, default_rest_seconds || 120);
+      INSERT INTO perso_exercises (name, muscle_group, goal_charge, body_part, exercise_type, target_sets, target_reps, default_rest_seconds, video_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(trimmed, muscle_group || '', goal_charge || null, body_part || 'upper', exercise_type || 'compound', target_sets || 3, target_reps || 10, default_rest_seconds || 120, video_url || null);
     ex = db.prepare('SELECT * FROM perso_exercises WHERE id = ?').get(result.lastInsertRowid);
   }
   res.json(ex);
@@ -2034,7 +2034,7 @@ app.post('/api/perso/exercises', requireAuth, requireAdmin, (req, res) => {
 app.put('/api/perso/exercises/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const id = parseInt(req.params.id);
-  const { muscle_group, goal_charge, body_part, exercise_type, target_sets, target_reps, default_rest_seconds } = req.body;
+  const { muscle_group, goal_charge, body_part, exercise_type, target_sets, target_reps, default_rest_seconds, video_url } = req.body;
   const fields = [];
   const vals = [];
   if (muscle_group !== undefined) { fields.push('muscle_group = ?'); vals.push(muscle_group); }
@@ -2044,6 +2044,7 @@ app.put('/api/perso/exercises/:id', requireAuth, requireAdmin, (req, res) => {
   if (target_sets !== undefined) { fields.push('target_sets = ?'); vals.push(target_sets); }
   if (target_reps !== undefined) { fields.push('target_reps = ?'); vals.push(target_reps); }
   if (default_rest_seconds !== undefined) { fields.push('default_rest_seconds = ?'); vals.push(default_rest_seconds); }
+  if (video_url !== undefined) { fields.push('video_url = ?'); vals.push(video_url || null); }
   if (fields.length > 0) {
     vals.push(id);
     db.prepare(`UPDATE perso_exercises SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
@@ -2171,7 +2172,7 @@ app.get('/api/perso/sessions/:date', requireAuth, requireAdmin, (req, res) => {
   const performances = db.prepare(`
     SELECT p.*, e.name as exercise_name, e.muscle_group, e.goal_charge,
            e.body_part, e.exercise_type, e.target_sets as ex_target_sets,
-           e.target_reps as ex_target_reps, e.default_rest_seconds
+           e.target_reps as ex_target_reps, e.default_rest_seconds, e.video_url
     FROM perso_performances p
     JOIN perso_exercises e ON e.id = p.exercise_id
     WHERE p.session_id = ?

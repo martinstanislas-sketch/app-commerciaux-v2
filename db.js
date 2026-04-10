@@ -252,6 +252,9 @@ function initSchema() {
 
   // perso_exercises: add body_part, exercise_type, target_sets, target_reps, default_rest_seconds
   const exCols = db.prepare("PRAGMA table_info(perso_exercises)").all();
+  if (!exCols.find(c => c.name === 'video_url')) {
+    db.exec("ALTER TABLE perso_exercises ADD COLUMN video_url TEXT DEFAULT NULL");
+  }
   if (!exCols.find(c => c.name === 'body_part')) {
     db.exec("ALTER TABLE perso_exercises ADD COLUMN body_part TEXT NOT NULL DEFAULT 'upper'");
     db.exec("ALTER TABLE perso_exercises ADD COLUMN exercise_type TEXT NOT NULL DEFAULT 'compound'");
