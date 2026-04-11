@@ -432,7 +432,7 @@ function seed() {
     'Marvin Boulligny': 28,
     'Tony Carbon': 10,
     'Benjamin Constanty': 9,
-    'Rachael Silva': 6,
+    'Raphael Silva': 6,
     'Luca Roeloff': 6,
     'Tony Caen': 17,
     'Hervé Paris': 30,

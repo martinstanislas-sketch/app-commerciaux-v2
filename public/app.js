@@ -2581,7 +2581,48 @@ function initVentesTab() {
   });
 
   document.getElementById('btn-add-sale').addEventListener('click', () => openSaleModal());
+  document.getElementById('btn-export-xls').addEventListener('click', exportSalesXLS);
   initSalesSort();
+}
+
+function exportSalesXLS() {
+  const table = document.getElementById('sales-table');
+  if (!table) return;
+  const rows = table.querySelectorAll('tbody tr');
+  if (rows.length === 0 || (rows.length === 1 && rows[0].querySelector('.empty-state'))) {
+    showToast('Aucune vente à exporter', 'error');
+    return;
+  }
+
+  const data = [];
+  rows.forEach(tr => {
+    const cells = tr.querySelectorAll('td');
+    if (cells.length < 6) return;
+    data.push({
+      'Date': cells[0]?.textContent?.trim() || '',
+      'Commercial': cells[1]?.textContent?.trim() || '',
+      'Montant': cells[2]?.textContent?.trim() || '',
+      'Prénom': cells[3]?.textContent?.trim() || '',
+      'Nom': cells[4]?.textContent?.trim() || '',
+      'Statut RIB': cells[5]?.textContent?.trim() || '',
+      'Remarque': cells[6]?.textContent?.trim() || '',
+      'Statut': cells[7]?.textContent?.trim() || ''
+    });
+  });
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  // Auto-size columns
+  const colWidths = Object.keys(data[0]).map(key => ({
+    wch: Math.max(key.length, ...data.map(r => (r[key] || '').length)) + 2
+  }));
+  ws['!cols'] = colWidths;
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ventes');
+
+  const weekLabel = currentWeekStart.replace(/-/g, '');
+  XLSX.writeFile(wb, `ventes_semaine_${weekLabel}.xlsx`);
+  showToast('Export Excel téléchargé ✅');
 }
 
 // Called on every login — applies role-based visibility to Ventes tab

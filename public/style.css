@@ -5934,6 +5934,30 @@ main {
   flex-direction: column;
   gap: 16px;
 }
+.v-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.btn-export-xls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+.btn-export-xls:hover {
+  background: var(--primary);
+  color: #fff;
+}
 .v-chart-wrap {
   background: var(--glass-bg);
   backdrop-filter: var(--glass-blur);

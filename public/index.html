@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
   <!-- LOGIN OVERLAY -->
@@ -107,7 +108,10 @@
         <button id="v-filter-rib" class="btn-toggle-rib" title="Afficher uniquement les RIB manquants">RIB manquants</button>
       </div>
 
-      <button id="btn-add-sale" class="btn-primary">+ Ajouter une vente</button>
+      <div class="v-actions-row">
+        <button id="btn-add-sale" class="btn-primary">+ Ajouter une vente</button>
+        <button id="btn-export-xls" class="btn-export-xls" title="Exporter les ventes en Excel">📥 Export Excel</button>
+      </div>
 
       <div class="sales-table-wrap">
         <table id="sales-table">
