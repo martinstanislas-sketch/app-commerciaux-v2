@@ -2820,8 +2820,8 @@ async function loadSales() {
             }
           },
           scales: {
-            x: { grid: { display: false }, ticks: { font: { size: 10, weight: '500', family: 'Inter' }, color: '#94A3B8' } },
-            y: { beginAtZero: true, grid: { color: 'rgba(148,163,194,0.08)' }, ticks: { font: { size: 10, family: 'Inter' }, color: '#94A3B8', callback: v => v > 0 ? fmtEuro(v) : '0' } }
+            x: { border: { color: '#64748B', width: 1.5 }, grid: { display: false }, ticks: { font: { size: 11, weight: '600', family: 'Inter' }, color: '#475569' } },
+            y: { beginAtZero: true, border: { color: '#94A3B8' }, grid: { color: 'rgba(148,163,194,0.18)' }, ticks: { font: { size: 10, family: 'Inter' }, color: '#64748B', callback: v => v > 0 ? fmtEuro(v) : '0' } }
           }
         }
       });
