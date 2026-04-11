@@ -5939,9 +5939,10 @@ main {
   backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: 18px 18px 28px;
+  margin-bottom: 24px;
   position: relative;
-  height: 260px;
+  height: 280px;
 }
 .v-chart-title {
   font-size: 11px;
