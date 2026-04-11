@@ -557,7 +557,7 @@ async function loadTodayTab() {
           <h1>👋 ${greet}, ${getMyName()} !</h1>
           <p>${dayStr.charAt(0).toUpperCase() + dayStr.slice(1)}</p>
         </div>
-        <div class="td-greeting-badge">${globalPct === 100 ? '✨ Journ\u00e9e compl\u00e8te' : `${totalDone}/${totalItems} actions`}</div>
+        <div class="td-greeting-badge">${globalPct === 100 ? '✨ Journ\u00e9e compl\u00e8te' : `${globalPct}%`}</div>
       </div>
       <div class="td-clubs-grid">`;
     CLUB_PREFIXES.forEach(club => { html += renderClubBlock(club, valMap); });
