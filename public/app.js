@@ -47,17 +47,17 @@ function showToast(message, type = 'success', duration = 2500) {
 
 // ─── Actions prédéfinies Aujourd'hui ────────────────────────
 const PREDEFINED_YESNO = [
-  { key: 'check_studio', label: "J'ai fait un check du studio" },
-  { key: 'appel_annules_noshow', label: "J'ai appelé les RDV annulés et no show du jour" },
-  { key: 'mails_sms', label: "J'ai traité 100% des mails, SMS et appel en absence du jour" },
-  { key: 'rappel_rdv', label: "J'ai rappelé les RDV programmés pour demain" },
-  { key: 'story', label: "J'ai publié une story" },
+  { key: 'check_studio', label: "🏢 J'ai fait un check du studio" },
+  { key: 'appel_annules_noshow', label: "📞 J'ai appelé les RDV annulés et no show du jour" },
+  { key: 'mails_sms', label: "📧 J'ai traité 100% des mails, SMS et appel en absence du jour" },
+  { key: 'rappel_rdv', label: "🔔 J'ai rappelé les RDV programmés pour demain" },
+  { key: 'story', label: "📱 J'ai publié une story" },
 ];
 const PREDEFINED_COUNTERS = [
-  { key: 'references', label: 'Prise de ref' },
-  { key: 'entretien_premier_mois', label: 'Entretien 1er mois' },
-  { key: 'rdv_fixes', label: 'RDV fixés' },
-  { key: 'contact_entreprise', label: 'Contact entreprise' },
+  { key: 'references', label: '🤝 Prise de ref' },
+  { key: 'entretien_premier_mois', label: '👋 Entretien 1er mois' },
+  { key: 'rdv_fixes', label: '📅 RDV fixés' },
+  { key: 'contact_entreprise', label: '🏢 Contact entreprise' },
 ];
 const TOTAL_ACTIONS = PREDEFINED_YESNO.length + PREDEFINED_COUNTERS.length;
 
@@ -88,10 +88,10 @@ const PHONING_PAMELA_YESNO = [
 function getBadge(score) {
   const pct = score / TOTAL_ACTIONS * 100;
   if (pct >= 100) return { name: 'Diamant', icon: '💎', next: null, progress: 100 };
-  if (pct >= 80) return { name: 'Or', icon: '🥇', next: 'Diamant 💎', progress: (pct - 80) / 20 * 100 };
-  if (pct >= 60) return { name: 'Argent', icon: '🥈', next: 'Or 🥇', progress: (pct - 60) / 20 * 100 };
-  if (pct >= 40) return { name: 'Bronze', icon: '🥉', next: 'Argent 🥈', progress: (pct - 40) / 20 * 100 };
-  return { name: null, icon: '', next: 'Bronze 🥉', progress: pct / 40 * 100 };
+  if (pct >= 80) return { name: 'Or', icon: '🏆', next: 'Diamant', progress: (pct - 80) / 20 * 100 };
+  if (pct >= 60) return { name: 'Argent', icon: '🥈', next: 'Or', progress: (pct - 60) / 20 * 100 };
+  if (pct >= 40) return { name: 'Bronze', icon: '🥉', next: 'Argent', progress: (pct - 40) / 20 * 100 };
+  return { name: null, icon: '🎯', next: 'Bronze', progress: pct / 40 * 100 };
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -191,10 +191,22 @@ function hideLogin() {
 function updateUserUI() {
   const infoDiv = document.getElementById('user-info');
   const nameSpan = document.getElementById('user-name');
+  const avatarDiv = document.getElementById('user-avatar');
+  const roleBadge = document.getElementById('user-role-badge');
   if (currentUser) {
-    nameSpan.textContent = currentUser.role === 'admin'
-      ? 'Admin'
-      : currentUser.name;
+    const displayName = currentUser.role === 'admin' ? 'Admin' : currentUser.name;
+    nameSpan.textContent = displayName;
+    // Avatar initials
+    if (avatarDiv) {
+      const initials = displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      avatarDiv.textContent = initials;
+    }
+    // Role badge
+    if (roleBadge) {
+      const roleLabel = currentUser.role === 'admin' ? 'Admin' : currentUser.role === 'phoneur' ? 'Phoneur' : 'Commercial';
+      roleBadge.textContent = roleLabel;
+      roleBadge.className = 'user-role-badge' + (currentUser.role === 'admin' ? ' admin' : '');
+    }
     infoDiv.classList.remove('hidden');
   } else {
     infoDiv.classList.add('hidden');
@@ -459,29 +471,23 @@ function renderClubBlock(club, valMap) {
     <div class="td-club-block" data-club="${club.id}" data-prefix="${p}">
       <div class="td-club-header">
         <span>${club.label}</span>
-        <span class="td-club-progress-pct" data-club-pct="${club.id}">0%</span>
-      </div>
-      <div class="td-club-progress-bar">
-        <div class="td-club-progress-fill" data-club-fill="${club.id}" style="width:0%"></div>
       </div>
 
       <div class="td-block">
-        <h3 class="td-block-title">Actions prioritaires</h3>
+        <h3 class="td-block-title">Priorit\u00e9s</h3>
         <div class="td-inline-widgets">
           <div class="td-inline-widget td-widget-histoire">
             <span class="td-inline-label">Histoire sportive</span>
             <div class="td-histoire-controls">
-              <button class="td-histoire-btn" data-dir="minus" data-prefix="${p}">−</button>
+              <button class="td-histoire-btn" data-dir="minus" data-prefix="${p}">\u2212</button>
               <input type="number" class="td-histoire-val" data-prefix="${p}" value="${savedHS}" min="0">
               <button class="td-histoire-btn" data-dir="plus" data-prefix="${p}">+</button>
             </div>
           </div>
           <div class="td-inline-widget td-widget-energie">
-            <span class="td-inline-label">Énergie</span>
-            <div class="td-smileys">
-              <button class="td-smiley td-smiley-green ${savedEnergy === 3 ? 'active' : ''}" data-energy="3" data-prefix="${p}" title="Super forme">😊</button>
-              <button class="td-smiley td-smiley-orange ${savedEnergy === 2 ? 'active' : ''}" data-energy="2" data-prefix="${p}" title="Neutre">😐</button>
-              <button class="td-smiley td-smiley-red ${savedEnergy === 1 ? 'active' : ''}" data-energy="1" data-prefix="${p}" title="Pas en forme">😞</button>
+            <span class="td-inline-label">\u00c9nergie</span>
+            <div class="td-energy-nums">
+              ${[{n:1,e:'😵',l:'Vid\u00e9'},{n:2,e:'😴',l:'Fatigu\u00e9'},{n:3,e:'😐',l:'Normal'},{n:4,e:'💪',l:'En forme'},{n:5,e:'🔥',l:'Au top'}].map(({n,e,l}) => `<button class="td-energy-btn ${savedEnergy === n ? 'active' : ''}" data-energy="${n}" data-prefix="${p}" title="${l}">${e}</button>`).join('')}
             </div>
           </div>
         </div>
@@ -498,14 +504,14 @@ function renderClubBlock(club, valMap) {
       </div>
 
       <div class="td-block">
-        <h3 class="td-block-title">Compteurs du jour</h3>
+        <h3 class="td-block-title">Compteurs</h3>
         <div class="td-counters-grid">
           ${PREDEFINED_COUNTERS.map(a => {
             const val = valMap[`${p}${a.key}`] || 0;
             return `<div class="td-counter-card ${val > 0 ? 'td-counter-active' : ''}">
               <div class="td-counter-label">${a.label}</div>
               <div class="td-counter-controls">
-                <button class="td-counter-btn" data-key="${p}${a.key}" data-dir="minus">−</button>
+                <button class="td-counter-btn" data-key="${p}${a.key}" data-dir="minus">\u2212</button>
                 <input type="number" class="td-counter-val" value="${val}" min="0" data-key="${p}${a.key}">
                 <button class="td-counter-btn" data-key="${p}${a.key}" data-dir="plus">+</button>
               </div>
@@ -530,7 +536,30 @@ async function loadTodayTab() {
     const valMap = {};
     values.forEach(v => { valMap[v.action_key] = v.value; });
 
-    let html = `<div class="td-page"><div class="td-clubs-grid">`;
+    // Greeting
+    const hour = new Date().getHours();
+    const greet = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
+    const dayStr = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+    // Compute overall progress across all clubs
+    let totalDone = 0, totalItems = 0;
+    CLUB_PREFIXES.forEach(club => {
+      const p = club.prefix;
+      PREDEFINED_YESNO.forEach(a => { totalItems++; if (valMap[`${p}${a.key}`]) totalDone++; });
+      PREDEFINED_COUNTERS.forEach(a => { totalItems++; if (valMap[`${p}${a.key}`] > 0) totalDone++; });
+    });
+    const globalPct = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
+    const progressClass = globalPct >= 80 ? 'green' : globalPct >= 40 ? 'orange' : '';
+
+    let html = `<div class="td-page">
+      <div class="td-greeting">
+        <div class="td-greeting-left">
+          <h1>👋 ${greet}, ${getMyName()} !</h1>
+          <p>${dayStr.charAt(0).toUpperCase() + dayStr.slice(1)}</p>
+        </div>
+        <div class="td-greeting-badge">${globalPct === 100 ? '✨ Journ\u00e9e compl\u00e8te' : `${totalDone}/${totalItems} actions`}</div>
+      </div>
+      <div class="td-clubs-grid">`;
     CLUB_PREFIXES.forEach(club => { html += renderClubBlock(club, valMap); });
     html += `</div></div>`;
 
@@ -599,10 +628,10 @@ function updateTodayStyles(block) {
 }
 
 function bindClubEvents(block, repId, prefix) {
-  // Énergie smileys
-  block.querySelectorAll('.td-smiley').forEach(btn => {
+  // Énergie numeric buttons (1-5)
+  block.querySelectorAll('.td-energy-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
-      block.querySelectorAll('.td-smiley').forEach(b => b.classList.remove('active'));
+      block.querySelectorAll('.td-energy-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       await api(`/daily-actions/values/${repId}/${todaySelectedDate}`, {
         method: 'PUT', body: { action_key: `${prefix}energie`, value: parseInt(btn.dataset.energy) }
@@ -696,7 +725,7 @@ async function loadNotes() {
     const notes = await api('/notes');
     if (notes.length === 0) {
       list.innerHTML = `<div class="empty-state">
-        <span class="empty-state-icon">📝</span>
+        <span class="empty-state-icon">&mdash;</span>
         <span class="empty-state-title">Aucune remarque</span>
         <span class="empty-state-desc">Les remarques ajoutées par l'admin apparaîtront ici.</span>
       </div>`;
@@ -766,7 +795,7 @@ async function loadNotes() {
     });
   } catch (e) {
     list.innerHTML = `<div class="empty-state">
-      <span class="empty-state-icon">⚠️</span>
+      <span class="empty-state-icon">&mdash;</span>
       <span class="empty-state-title">Erreur de chargement</span>
       <span class="empty-state-desc">Impossible de récupérer les remarques. Réessayez plus tard.</span>
     </div>`;
@@ -834,7 +863,7 @@ async function loadPhoningTab() {
     let html = `
     <div class="ph-page">
       <div class="ph-header">
-        <h2 class="ph-title">📞 Fiche Phoning — ${new Date(today).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
+        <h2 class="ph-title">Fiche Phoning — ${new Date(today).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
       </div>
 
       <!-- Compteurs -->
@@ -944,7 +973,7 @@ async function loadPhoningRecap() {
     const html = `
     <div class="ph-page">
       <div class="ph-header">
-        <h2 class="ph-title">📊 Récap — ${monthLabel}</h2>
+        <h2 class="ph-title">R\u00e9cap — ${monthLabel}</h2>
         <p class="ph-subtitle">${monthly.days_worked || 0} jour(s) travaillé(s)</p>
       </div>
       <div class="ph-kpi-grid">
@@ -968,9 +997,9 @@ function buildPhoningKPIs(t) {
 
   const kpis = [
     { icon: '⏱️', label: 'Heures travaillées', value: `${(t.heures_travaillees || 0).toFixed(1)}h` },
-    { icon: '📞', label: 'Total appels', value: totalAppels },
+    { icon: '', label: 'Total appels', value: totalAppels },
     { icon: '📅', label: 'RDV fixés', value: totalRDV },
-    { icon: '🎯', label: 'Taux appels → RDV', value: `${taux}%` },
+    { icon: '', label: 'Taux appels → RDV', value: `${taux}%` },
     { icon: '❄️', label: 'Leads froids relancés', value: t.leads_froids || 0 },
     { icon: '🔥', label: 'Appels On Fire', value: t.appels_on_fire || 0 },
     { icon: '📲', label: 'Appels entrants', value: t.appels_entrants || 0 },
@@ -1010,7 +1039,7 @@ function initAdminEnergy() {
   });
 }
 
-const ENERGY_EMOJIS = { 3: '😊', 2: '😐', 1: '😞' };
+const ENERGY_EMOJIS = { 5: '5', 4: '4', 3: '3', 2: '2', 1: '1' };
 const ENERGY_LABELS = { 3: 'Bon', 2: 'Moyen', 1: 'Bas' };
 const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
@@ -1032,7 +1061,7 @@ async function loadAdminEnergy() {
     const data = await api(`/admin/energy/${energyWeekStart}`);
     if (!data.reps || data.reps.length === 0) {
       container.innerHTML = `<div class="empty-state">
-        <span class="empty-state-icon">😊</span>
+        <span class="empty-state-icon">&mdash;</span>
         <span class="empty-state-title">Aucun commercial cette semaine</span>
         <span class="empty-state-desc">Le suivi énergie apparaîtra ici quand des commerciaux seront actifs.</span>
       </div>`;
@@ -1049,8 +1078,7 @@ async function loadAdminEnergy() {
     function avgCell(avg) {
       if (avg === null) return '<td class="nrj-cell nrj-empty">—</td>';
       const cls = avg >= 2.5 ? 'nrj-good' : avg >= 1.5 ? 'nrj-mid' : 'nrj-low';
-      const emoji = avg >= 2.5 ? '😊' : avg >= 1.5 ? '😐' : '😞';
-      return `<td class="nrj-cell nrj-avg ${cls}">${emoji} ${avg.toFixed(1)}</td>`;
+      return `<td class="nrj-cell nrj-avg ${cls}">${avg.toFixed(1)}/5</td>`;
     }
 
     let html = `<table class="nrj-table">
@@ -1140,7 +1168,7 @@ async function loadAdminPhoneurs() {
 
     if (!data.phoneurs || data.phoneurs.length === 0) {
       container.innerHTML = `<div class="empty-state">
-        <span class="empty-state-icon">📞</span>
+        <span class="empty-state-icon">&mdash;</span>
         <span class="empty-state-title">Aucun phoneur enregistré</span>
         <span class="empty-state-desc">Les statistiques de phoning apparaîtront ici une fois les phoneurs configurés.</span>
       </div>`;
@@ -1169,9 +1197,9 @@ async function loadAdminPhoneurs() {
       const kpis = [
         { icon: '📅', label: 'Jours travaillés', value: p.days_worked },
         { icon: '⏱️', label: 'Heures', value: `${(t.heures_travaillees || 0).toFixed(1)}h` },
-        { icon: '📞', label: 'Total appels', value: totalAppels },
+        { icon: '', label: 'Total appels', value: totalAppels },
         { icon: '📅', label: 'RDV fixés', value: totalRDV },
-        { icon: '🎯', label: 'Taux → RDV', value: `${taux}%` },
+        { icon: '', label: 'Taux → RDV', value: `${taux}%` },
         { icon: '🔥', label: 'Appels On Fire', value: t.appels_on_fire || 0 },
         { icon: '❄️', label: 'Leads froids', value: t.leads_froids || 0 },
         { icon: '📲', label: 'Appels entrants', value: t.appels_entrants || 0 },
@@ -1269,7 +1297,7 @@ async function loadControlTab() {
   const repId = select.value;
   if (!repId) {
     container.innerHTML = `<div class="empty-state">
-      <span class="empty-state-icon">👤</span>
+      <span class="empty-state-icon">&mdash;</span>
       <span class="empty-state-title">Sélectionnez un commercial</span>
       <span class="empty-state-desc">Choisissez un commercial dans la liste ci-dessus pour consulter son contrôle hebdomadaire.</span>
     </div>`;
@@ -1320,7 +1348,7 @@ async function loadControlTab() {
 
     if (data.sales.length === 0) {
       html += `<div class="empty-state">
-        <span class="empty-state-icon">🛒</span>
+        <span class="empty-state-icon">&mdash;</span>
         <span class="empty-state-title">Aucune vente cette semaine</span>
         <span class="empty-state-desc">Les ventes saisies par ce commercial apparaîtront ici.</span>
       </div>`;
@@ -1465,7 +1493,7 @@ async function renderControlBadges(repId, repName, month) {
   try {
     const summaryData = await api(`/months/${month}/summary`);
     const activeReps = summaryData.rep_stats.filter(r => r.total_hours > 0);
-    if (activeReps.length === 0) return `<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="empty-state-inline"><span class="empty-state-icon">🏅</span><span>Aucun badge attribué ce mois — les données sont insuffisantes.</span></div></div>`;
+    if (activeReps.length === 0) return `<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="empty-state-inline"><span class="empty-state-icon">&mdash;</span><span>Aucun badge attribué ce mois — les données sont insuffisantes.</span></div></div>`;
 
     let monthlyCounters = [];
     let disciplineData = [];
@@ -1494,24 +1522,24 @@ async function renderControlBadges(repId, repName, month) {
     const bestDiscipline = [...counterList].sort((a, b) => b.discipline - a.discipline)[0];
 
     const badges = [
-      { icon: '💎', title: 'Premium', winner: bestPanier.panier_moyen > 0 ? bestPanier.name : null },
-      { icon: '📞', title: 'RDV', winner: bestRDV.rdv_fixes > 0 ? bestRDV.name : null },
-      { icon: '🤝', title: 'Ambassadeur', winner: bestRef.references > 0 ? bestRef.name : null },
-      { icon: '👋', title: 'Accueil', winner: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : null },
-      { icon: '💼', title: 'Business', winner: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : null },
-      { icon: '🏆', title: 'Discipline', winner: bestDiscipline.discipline > 0 ? bestDiscipline.name : null },
+      { color: 'gold', title: 'Premium', winner: bestPanier.panier_moyen > 0 ? bestPanier.name : null },
+      { color: 'blue', title: 'RDV', winner: bestRDV.rdv_fixes > 0 ? bestRDV.name : null },
+      { color: 'green', title: 'Ambassadeur', winner: bestRef.references > 0 ? bestRef.name : null },
+      { color: 'orange', title: 'Accueil', winner: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : null },
+      { color: 'blue', title: 'Business', winner: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : null },
+      { color: 'gold', title: 'Discipline', winner: bestDiscipline.discipline > 0 ? bestDiscipline.name : null },
     ];
 
     // Filter: only show badges won by this rep
     const wonBadges = badges.filter(b => b.winner === repName);
 
     if (wonBadges.length === 0) {
-      return `<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="empty-state-inline"><span class="empty-state-icon">🎯</span><span>Aucun badge obtenu ce mois — encore tout à jouer !</span></div></div>`;
+      return `<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="empty-state-inline"><span class="empty-state-icon">&mdash;</span><span>Aucun badge obtenu ce mois — encore tout à jouer !</span></div></div>`;
     }
 
     let badgeHTML = '<div class="ctrl-badges-section"><h3>Badges du mois</h3><div class="ctrl-badges-row">';
     wonBadges.forEach(b => {
-      badgeHTML += `<div class="ctrl-badge"><span class="ctrl-badge-icon">${b.icon}</span><span class="ctrl-badge-title">${b.title}</span></div>`;
+      badgeHTML += `<div class="ctrl-badge"><span class="mc-dot mc-dot-${b.color}"></span><span class="ctrl-badge-title">${b.title}</span></div>`;
     });
     badgeHTML += '</div></div>';
     return badgeHTML;
@@ -1561,7 +1589,7 @@ async function renderControlEnergy(repId, weekStart) {
   try {
     const data = await api(`/admin/energy/${weekStart}`);
     const rep = data.reps.find(r => r.sales_rep_id == repId);
-    if (!rep) return `<div class="ctrl-energy-section"><h3>Suivi Énergie</h3><div class="empty-state-inline"><span class="empty-state-icon">😊</span><span>Aucune donnée d'énergie pour cette semaine.</span></div></div>`;
+    if (!rep) return `<div class="ctrl-energy-section"><h3>Suivi Énergie</h3><div class="empty-state-inline"><span class="empty-state-icon">&mdash;</span><span>Aucune donnée d'énergie pour cette semaine.</span></div></div>`;
 
     const startD = new Date(weekStart + 'T00:00:00');
 
@@ -1583,7 +1611,7 @@ async function renderControlEnergy(repId, weekStart) {
           }).join('')}
           <div class="ctrl-nrj-cell ctrl-nrj-avg ${rep.avg >= 2.5 ? 'ctrl-nrj-good' : rep.avg >= 1.5 ? 'ctrl-nrj-mid' : rep.avg ? 'ctrl-nrj-low' : 'ctrl-nrj-empty'}">
             <span class="ctrl-nrj-day">Moy.</span>
-            <span class="ctrl-nrj-emoji">${rep.avg !== null ? (rep.avg >= 2.5 ? '😊' : rep.avg >= 1.5 ? '😐' : '😞') + ' ' + rep.avg.toFixed(1) : '—'}</span>
+            <span class="ctrl-nrj-emoji">${rep.avg !== null ? rep.avg.toFixed(1) + '/5' : '\u2014'}</span>
           </div>
         </div>
       </div>`;
@@ -1598,7 +1626,7 @@ async function renderControlAnalysis(repId, month) {
     const summaryData = await api(`/months/${month}/summary`);
     const repStat = summaryData.rep_stats.find(r => r.sales_rep_id == repId);
     if (!repStat || repStat.total_hours === 0) {
-      return `<div class="ctrl-analysis-section"><h3>Analyse</h3><div class="empty-state-inline"><span class="empty-state-icon">📊</span><span>Pas assez de données ce mois pour générer une analyse. Les heures doivent être renseignées.</span></div></div>`;
+      return `<div class="ctrl-analysis-section"><h3>Analyse</h3><div class="empty-state-inline"><span class="empty-state-icon">&mdash;</span><span>Pas assez de données ce mois pour générer une analyse. Les heures doivent être renseignées.</span></div></div>`;
     }
 
     let analysisDataArr = [];
@@ -1630,7 +1658,7 @@ async function renderControlAnalysis(repId, month) {
         analysis.neutres.forEach(p => { html += `<div>• ${p.text}</div>`; });
         html += '</div>';
       } else {
-        html += '<div class="empty-state-inline"><span class="empty-state-icon">📊</span><span>Pas assez de données pour une analyse pertinente.</span></div>';
+        html += '<div class="empty-state-inline"><span class="empty-state-icon">&mdash;</span><span>Pas assez de données pour une analyse pertinente.</span></div>';
       }
     }
 
@@ -1725,7 +1753,7 @@ async function loadAdminActions() {
 
     if (!data.reps || data.reps.length === 0) {
       container.innerHTML = `<div class="empty-state">
-        <span class="empty-state-icon">📋</span>
+        <span class="empty-state-icon">&mdash;</span>
         <span class="empty-state-title">Aucun commercial actif</span>
         <span class="empty-state-desc">Les actions quotidiennes des commerciaux apparaîtront ici.</span>
       </div>`;
@@ -1780,14 +1808,14 @@ async function loadAdminActions() {
                            data-rep="${rep.sales_rep_id}" data-day="${day}" data-key="${c.key}" data-type="yesno"
                            data-v1="${c.v1}" data-v2="${c.v2}"
                            onclick="toggleActionCheck(this)">
-                        <span class="act-check-icon">${c.done ? '✅' : '❌'}</span>
+                        <span class="act-check-icon"><span class="mc-dot ${c.done ? 'mc-dot-green' : 'mc-dot-red'}"></span></span>
                         <span>${c.label}</span>
-                        ${c.both ? '<span class="act-club-badge">×2</span>' : ''}
+                        ${c.both ? '<span class="act-club-badge">\u00d72</span>' : ''}
                       </div>`;
                   }
                   return `
                     <div class="act-check-row ${c.done ? 'act-done' : 'act-missing'}">
-                      <span class="act-check-icon">${c.done ? '✅' : '❌'}</span>
+                      <span class="act-check-icon"><span class="mc-dot ${c.done ? 'mc-dot-green' : 'mc-dot-red'}"></span></span>
                       <span>${c.label}</span>
                       ${c.both ? '<span class="act-club-badge">×2</span>' : ''}
                     </div>`;
@@ -1862,11 +1890,11 @@ async function toggleActionCheck(el) {
   if (newVal > 0) {
     el.classList.remove('act-missing');
     el.classList.add('act-done');
-    if (icon) icon.textContent = '✅';
+    if (icon) icon.innerHTML = '<span class="mc-dot mc-dot-green"></span>';
   } else {
     el.classList.remove('act-done');
     el.classList.add('act-missing');
-    if (icon) icon.textContent = '❌';
+    if (icon) icon.innerHTML = '<span class="mc-dot mc-dot-red"></span>';
   }
   el.dataset.v1 = newVal;
 
@@ -1966,11 +1994,11 @@ async function updateCompAction(el) {
       if (newMondayVal > 0) {
         detailCheck.classList.remove('act-missing');
         detailCheck.classList.add('act-done');
-        if (icon) icon.textContent = '✅';
+        if (icon) icon.innerHTML = '<span class="mc-dot mc-dot-green"></span>';
       } else {
         detailCheck.classList.remove('act-done');
         detailCheck.classList.add('act-missing');
-        if (icon) icon.textContent = '❌';
+        if (icon) icon.innerHTML = '<span class="mc-dot mc-dot-red"></span>';
       }
       detailCheck.dataset.v1 = newMondayVal;
     }
@@ -2266,7 +2294,7 @@ function renderCards(commerciaux) {
 
   if (commerciaux.length === 0) {
     container.innerHTML = `<div class="empty-state">
-      <span class="empty-state-icon">📊</span>
+      <span class="empty-state-icon">&mdash;</span>
       <span class="empty-state-title">Aucune donnée cette semaine</span>
       <span class="empty-state-desc">Les fiches commerciales apparaîtront ici une fois les heures renseignées.</span>
     </div>`;
@@ -2665,6 +2693,8 @@ function sortSales(sales) {
   });
 }
 
+let chartVentesCA = null;
+
 async function loadSales() {
   updateWeekLabel();
 
@@ -2673,11 +2703,9 @@ async function loadSales() {
   if (thead) {
     const ths = thead.querySelectorAll('th');
     if (isAdmin()) {
-      // Admin sees: Relances + Actions
       if (ths[7]) { ths[7].style.display = ''; ths[7].innerHTML = 'Relances <span class="sort-icon"></span>'; }
       if (ths[8]) ths[8].style.display = '';
     } else {
-      // Commercial sees: Statut (validation) column instead, no Actions
       if (ths[7]) { ths[7].style.display = ''; ths[7].innerHTML = 'Statut'; ths[7].classList.remove('sortable'); }
       if (ths[8]) ths[8].style.display = 'none';
     }
@@ -2699,25 +2727,106 @@ async function loadSales() {
   // Apply sort
   sales = sortSales(sales);
 
-  // ─── Summary stats bar ───────────────────────────
+  // ─── KPI stat cards ──────────────────────────────
+  const totalCA = sales.reduce((s, v) => s + (v.validated ? v.amount : 0), 0);
+  const totalAllCA = sales.reduce((s, v) => s + v.amount, 0);
+  const pendingRib = sales.filter(v => v.rib_status !== 'Reçu').length;
+  const pendingValidation = sales.filter(v => !v.validated).length;
+  const avgPanier = sales.length > 0 ? Math.round(totalAllCA / sales.length) : 0;
+
   let statsBar = document.getElementById('ventes-stats-bar');
   if (!statsBar) {
     statsBar = document.createElement('div');
     statsBar.id = 'ventes-stats-bar';
-    statsBar.className = 'ventes-stats-bar';
     const table = document.getElementById('sales-table');
     table.parentNode.insertBefore(statsBar, table);
   }
-  const totalCA = sales.reduce((s, v) => s + (v.validated ? v.amount : 0), 0);
-  const pendingRib = sales.filter(v => v.rib_status !== 'Reçu').length;
-  const pendingValidation = sales.filter(v => !v.validated).length;
   statsBar.innerHTML = `
-    <span class="stats-item"><strong>${sales.length}</strong> vente${sales.length > 1 ? 's' : ''}</span>
-    <span class="stats-sep">·</span>
-    <span class="stats-item">CA validé : <strong>${fmtEuro(totalCA)}</strong></span>
-    ${pendingRib > 0 ? `<span class="stats-sep">·</span><span class="stats-item stats-warn">${pendingRib} RIB manquant${pendingRib > 1 ? 's' : ''}</span>` : ''}
-    ${pendingValidation > 0 ? `<span class="stats-sep">·</span><span class="stats-item stats-warn">${pendingValidation} en attente</span>` : ''}
+    <div class="sc-stats-row">
+      <div class="sc-stat-card accent-green">
+        <div class="sc-stat-icon">💰</div>
+        <div class="sc-stat-label">CA valid\u00e9</div>
+        <div class="sc-stat-value">${fmtEuro(totalCA)}</div>
+        <div class="sc-stat-sub">${sales.length} vente${sales.length > 1 ? 's' : ''}</div>
+      </div>
+      <div class="sc-stat-card accent-blue">
+        <div class="sc-stat-icon">🛒</div>
+        <div class="sc-stat-label">Panier moyen</div>
+        <div class="sc-stat-value">${fmtEuro(avgPanier)}</div>
+        <div class="sc-stat-sub">Sur ${sales.length} vente${sales.length > 1 ? 's' : ''}</div>
+      </div>
+      <div class="sc-stat-card ${pendingRib > 0 ? 'accent-orange' : ''}">
+        <div class="sc-stat-icon">📋</div>
+        <div class="sc-stat-label">RIB manquants</div>
+        <div class="sc-stat-value">${pendingRib}</div>
+        <div class="sc-stat-sub">${pendingRib > 0 ? 'Dossiers en attente' : 'Tous re\u00e7us'}</div>
+      </div>
+      <div class="sc-stat-card ${pendingValidation > 0 ? 'accent-red' : ''}">
+        <div class="sc-stat-icon">⏳</div>
+        <div class="sc-stat-label">En attente</div>
+        <div class="sc-stat-value">${pendingValidation}</div>
+        <div class="sc-stat-sub">${pendingValidation > 0 ? 'Ventes \u00e0 valider' : 'Tout valid\u00e9'}</div>
+      </div>
+    </div>
+    ${sales.length > 0 ? '<div class="v-chart-wrap"><div class="v-chart-title">CA vs Objectif</div><canvas id="chart-ventes-ca"></canvas></div>' : ''}
   `;
+
+  // ─── Bar chart CA/jour ────────────────────────────
+  if (sales.length > 0) {
+    const caByDay = {};
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(currentWeekStart, i);
+      caByDay[d] = 0;
+    }
+    sales.forEach(s => { if (s.validated && caByDay[s.date] !== undefined) caByDay[s.date] += s.amount; });
+
+    const dayLabels = Object.keys(caByDay).map(d => new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }));
+    const dayValues = Object.values(caByDay);
+
+    const existingChart = Chart.getChart('chart-ventes-ca');
+    if (existingChart) existingChart.destroy();
+
+    const ctx = document.getElementById('chart-ventes-ca');
+    if (ctx) {
+      chartVentesCA = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: dayLabels,
+          datasets: [{
+            label: 'CA valid\u00e9',
+            data: dayValues,
+            backgroundColor: dayValues.map(v => v > 0 ? 'rgba(99,102,241,0.7)' : 'rgba(99,102,241,0.08)'),
+            borderRadius: 4,
+            borderSkipped: false,
+            maxBarThickness: 48,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#fff',
+              titleColor: '#1E293B',
+              bodyColor: '#475569',
+              borderColor: 'rgba(148,163,194,0.2)',
+              borderWidth: 1,
+              titleFont: { size: 12, family: 'Inter' },
+              bodyFont: { size: 11, family: 'Inter' },
+              cornerRadius: 8,
+              padding: 10,
+              callbacks: { label: ctx => fmtEuro(ctx.parsed.y) }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 10, weight: '500', family: 'Inter' }, color: '#94A3B8' } },
+            y: { beginAtZero: true, grid: { color: 'rgba(148,163,194,0.08)' }, ticks: { font: { size: 10, family: 'Inter' }, color: '#94A3B8', callback: v => v > 0 ? fmtEuro(v) : '0' } }
+          }
+        }
+      });
+    }
+  }
 
   const tbody = document.querySelector('#sales-table tbody');
   tbody.innerHTML = '';
@@ -2726,7 +2835,6 @@ async function loadSales() {
     statsBar.innerHTML = '';
 
     tbody.innerHTML = `<tr class="empty-state-row"><td colspan="9">
-      <span class="empty-state-icon">🛒</span>
       <span class="empty-state-title">Aucune vente cette semaine</span>
       <span class="empty-state-desc">Utilisez le bouton ci-dessus pour ajouter une vente.</span>
     </td></tr>`;
@@ -3030,8 +3138,17 @@ async function loadMonthlySummary() {
   const data = await api(`/months/${currentMonth}/summary`);
   lastMonthlyData = data;
 
-  // ── Classement par ratio mensuel (ranking list) ──
+  // ── Global KPIs ──
+  const totalCA = data.global.ca || 0;
+  const totalVentes = data.global.nb_ventes || 0;
+  const totalHours = data.rep_stats.reduce((s, r) => s + r.total_hours, 0);
+  const globalRatio = totalHours > 0 ? Math.round(totalCA / totalHours) : 0;
+  const globalPanier = totalVentes > 0 ? Math.round(totalCA / totalVentes) : 0;
   const activeReps = data.rep_stats.filter(r => r.total_hours > 0);
+  const repsAtObjectif = activeReps.filter(r => r.ratio_mensuel >= 300).length;
+  const objPct = activeReps.length > 0 ? Math.round((repsAtObjectif / activeReps.length) * 100) : 0;
+  const progressClass = objPct >= 80 ? 'green' : objPct >= 40 ? 'orange' : '';
+
   const allReps = data.rep_stats;
   const sorted = [...allReps].sort((a, b) => {
     if (a.total_hours === 0 && b.total_hours === 0) return 0;
@@ -3058,7 +3175,86 @@ async function loadMonthlySummary() {
   const maxRatio = sorted.length > 0 ? Math.max(...sorted.map(r => r.ratio_mensuel || 0), 1) : 1;
 
   const repsDiv = document.getElementById('monthly-reps');
-  let rankHTML = `
+
+  // ── KPI stat cards ──
+  let kpiHTML = '';
+  if (admin) {
+    kpiHTML = `
+    <div class="sc-stats-row">
+      <div class="sc-stat-card accent-green">
+        <div class="sc-stat-icon">💰</div>
+        <div class="sc-stat-label">CA Total</div>
+        <div class="sc-stat-value">${fmtEuro(totalCA)}</div>
+        <div class="sc-stat-sub">${totalVentes} vente${totalVentes > 1 ? 's' : ''} \u00b7 ${totalHours}h</div>
+      </div>
+      <div class="sc-stat-card accent-blue">
+        <div class="sc-stat-icon">⚡</div>
+        <div class="sc-stat-label">Ratio global</div>
+        <div class="sc-stat-value">${globalRatio} \u20ac/h</div>
+        <div class="sc-stat-sub">Objectif : 300 \u20ac/h</div>
+      </div>
+      <div class="sc-stat-card accent-orange">
+        <div class="sc-stat-icon">🛒</div>
+        <div class="sc-stat-label">Panier moyen</div>
+        <div class="sc-stat-value">${fmtEuro(globalPanier)}</div>
+        <div class="sc-stat-sub">Moyenne \u00e9quipe</div>
+      </div>
+      <div class="sc-stat-card ${objPct >= 80 ? 'accent-green' : objPct >= 40 ? 'accent-orange' : 'accent-red'}">
+        <div class="sc-stat-icon">🎯</div>
+        <div class="sc-stat-label">Objectif atteint</div>
+        <div class="sc-stat-value">${repsAtObjectif}/${activeReps.length}</div>
+        <div class="sc-stat-sub">${objPct}% de l'\u00e9quipe</div>
+      </div>
+    </div>
+    <div class="sc-progress-wrap">
+      <div class="sc-progress-header">
+        <span class="sc-progress-label">Commerciaux \u00e0 l'objectif</span>
+        <span class="sc-progress-pct">${objPct}%</span>
+      </div>
+      <div class="sc-progress-bar">
+        <div class="sc-progress-fill ${progressClass}" style="width:${objPct}%"></div>
+      </div>
+    </div>`;
+  } else {
+    // Commercial: show their own stats
+    const myRepId = getMyRepId();
+    const myStats = data.rep_stats.find(r => r.sales_rep_id === myRepId);
+    if (myStats) {
+      const myRatio = myStats.total_hours > 0 ? Math.round(myStats.ratio_mensuel) : 0;
+      const myPanier = Math.round(myStats.panier_moyen);
+      const myRatioOk = myRatio >= 300;
+      kpiHTML = `
+      <div class="sc-stats-row">
+        <div class="sc-stat-card accent-green">
+          <div class="sc-stat-icon">💰</div>
+          <div class="sc-stat-label">Mon CA</div>
+          <div class="sc-stat-value">${fmtEuro(myStats.ca)}</div>
+          <div class="sc-stat-sub">${myStats.nb_ventes} vente${myStats.nb_ventes > 1 ? 's' : ''}</div>
+        </div>
+        <div class="sc-stat-card ${myRatioOk ? 'accent-green' : 'accent-red'}">
+          <div class="sc-stat-icon">⚡</div>
+          <div class="sc-stat-label">Mon Ratio</div>
+          <div class="sc-stat-value">${myRatio} \u20ac/h</div>
+          <div class="sc-stat-sub">Objectif : 300 \u20ac/h</div>
+        </div>
+        <div class="sc-stat-card accent-blue">
+          <div class="sc-stat-icon">🛒</div>
+          <div class="sc-stat-label">Mon panier moyen</div>
+          <div class="sc-stat-value">${fmtEuro(myPanier)}</div>
+          <div class="sc-stat-sub">Sur ${myStats.nb_ventes} vente${myStats.nb_ventes > 1 ? 's' : ''}</div>
+        </div>
+        <div class="sc-stat-card accent-gold">
+          <div class="sc-stat-icon">🏅</div>
+          <div class="sc-stat-label">Mon classement</div>
+          <div class="sc-stat-value">#${sorted.findIndex(r => r.sales_rep_id === myRepId) + 1}</div>
+          <div class="sc-stat-sub">Sur ${sorted.length} commerciaux</div>
+        </div>
+      </div>`;
+    }
+  }
+
+  // ── Classement par ratio mensuel (ranking list) ──
+  let rankHTML = kpiHTML + `
     <h3>Classement Ratio</h3>
     <div class="ranking-list">
       <div class="ranking-list-legend">
@@ -3126,12 +3322,12 @@ async function loadMonthlySummary() {
 
     const NA = 'A SAISIR';
     const badges = [
-      { icon: '💎', title: 'Premium', desc: 'Meilleur panier moyen', name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA, value: bestPanier.panier_moyen > 0 ? Math.round(bestPanier.panier_moyen).toLocaleString('fr-FR') + ' €' : null },
-      { icon: '📞', title: 'RDV', desc: 'Le plus de rendez-vous fixés', name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA, value: bestRDV.rdv_fixes > 0 ? bestRDV.rdv_fixes : null },
-      { icon: '🤝', title: 'Ambassadeur', desc: 'Le plus de références', name: bestRef.references > 0 ? bestRef.name : NA, value: bestRef.references > 0 ? bestRef.references : null },
-      { icon: '👋', title: 'Accueil', desc: "Le plus d'appels nouveaux clients", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA, value: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.entretien_premier_mois : null },
-      { icon: '💼', title: 'Business', desc: 'Le plus de contacts entreprises', name: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : NA, value: bestBusiness.contact_entreprise > 0 ? bestBusiness.contact_entreprise : null },
-      { icon: '🏆', title: 'Discipline', desc: "Le plus d'actions validées", name: bestDiscipline.discipline > 0 ? bestDiscipline.name : NA, value: bestDiscipline.discipline > 0 ? bestDiscipline.discipline : null },
+      { color: 'gold', title: 'Premium', desc: 'Meilleur panier moyen', name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA, value: bestPanier.panier_moyen > 0 ? Math.round(bestPanier.panier_moyen).toLocaleString('fr-FR') + ' \u20ac' : null },
+      { color: 'blue', title: 'RDV', desc: 'Le plus de rendez-vous fix\u00e9s', name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA, value: bestRDV.rdv_fixes > 0 ? bestRDV.rdv_fixes : null },
+      { color: 'green', title: 'Ambassadeur', desc: 'Le plus de r\u00e9f\u00e9rences', name: bestRef.references > 0 ? bestRef.name : NA, value: bestRef.references > 0 ? bestRef.references : null },
+      { color: 'orange', title: 'Accueil', desc: "Le plus d'appels nouveaux clients", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA, value: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.entretien_premier_mois : null },
+      { color: 'blue', title: 'Business', desc: 'Le plus de contacts entreprises', name: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : NA, value: bestBusiness.contact_entreprise > 0 ? bestBusiness.contact_entreprise : null },
+      { color: 'gold', title: 'Discipline', desc: "Le plus d'actions valid\u00e9es", name: bestDiscipline.discipline > 0 ? bestDiscipline.name : NA, value: bestDiscipline.discipline > 0 ? bestDiscipline.discipline : null },
     ];
 
     rankHTML += '<div class="badges-grid">';
@@ -3140,18 +3336,18 @@ async function loadMonthlySummary() {
       if (attribue) {
         rankHTML += `
           <div class="badge-card">
-            <div class="badge-icon">${b.icon}</div>
+            <span class="mc-dot mc-dot-${b.color}" style="margin-bottom:8px"></span>
             <div class="badge-title">${b.title}</div>
             <div class="badge-desc">${b.desc}</div>
-            <div class="badge-name">${b.name} — ${b.value}</div>
+            <div class="badge-name">${b.name} \u2014 ${b.value}</div>
           </div>`;
       } else {
         rankHTML += `
           <div class="badge-card badge-unassigned">
-            <div class="badge-icon">${b.icon}</div>
+            <span class="mc-dot mc-dot-muted" style="margin-bottom:8px"></span>
             <div class="badge-title">${b.title}</div>
             <div class="badge-desc">${b.desc}</div>
-            <div class="badge-name badge-blink">À saisir</div>
+            <div class="badge-name badge-blink">\u00c0 saisir</div>
           </div>`;
       }
     });
@@ -3179,9 +3375,9 @@ let chartRatio = null;
 let chartPanier = null;
 
 const REP_COLORS = {
-  'Marvin':  { line: '#002366', bg: 'rgba(0,35,102,.1)' },
-  'Magali':  { line: '#fa6863', bg: 'rgba(250,104,99,.1)' },
-  'Fabian':  { line: '#0f52ba', bg: 'rgba(15,82,186,.1)' }
+  'Marvin':  { line: '#6366F1', bg: 'rgba(99,102,241,.12)' },
+  'Magali':  { line: '#EC4899', bg: 'rgba(236,72,153,.12)' },
+  'Fabian':  { line: '#10B981', bg: 'rgba(16,185,129,.12)' }
 };
 
 async function loadWeeklyCharts() {
@@ -3261,7 +3457,11 @@ async function loadWeeklyCharts() {
       plugins: {
         legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16, font: { size: 11 } } },
         tooltip: {
-          backgroundColor: '#212121',
+          backgroundColor: '#fff',
+          titleColor: '#1E293B',
+          bodyColor: '#475569',
+          borderColor: 'rgba(148,163,194,0.2)',
+          borderWidth: 1,
           titleFont: { size: 12 },
           bodyFont: { size: 11 },
           cornerRadius: 6,
@@ -3526,7 +3726,7 @@ async function renderAnalysisSection(data) {
         ${satHTML}
         ${amHTML}
         ${neutreHTML}
-        ${noData ? '<div class="empty-state-inline" style="margin-top:8px;"><span class="empty-state-icon">📊</span><span>Pas assez de données pour une analyse pertinente.</span></div>' : ''}
+        ${noData ? '<div class="empty-state-inline" style="margin-top:8px;"><span class="empty-state-icon">&mdash;</span><span>Pas assez de données pour une analyse pertinente.</span></div>' : ''}
       </div>
     </div>`;
   });
@@ -4013,7 +4213,7 @@ function renderAdminRepList() {
 
   if (salesReps.length === 0) {
     listDiv.innerHTML = `<div class="empty-state">
-      <span class="empty-state-icon">👥</span>
+      <span class="empty-state-icon">&mdash;</span>
       <span class="empty-state-title">Aucun commercial</span>
       <span class="empty-state-desc">Ajoutez un commercial via le formulaire ci-dessus.</span>
     </div>`;

@@ -15,7 +15,7 @@
   <!-- LOGIN OVERLAY -->
   <div id="login-overlay" class="login-overlay">
     <div class="login-card">
-      <img src="logo-mycoach-blanc.png" alt="My Coach Ginkgo" class="login-logo">
+      <img src="logo-mycoach-noir.png" alt="My Coach Ginkgo" class="login-logo">
       <h2>Connexion</h2>
       <form id="login-form">
         <input type="password" id="login-pin" pattern="[a-zA-Z0-9]*" maxlength="6" placeholder="Entrez votre code PIN" autocomplete="off" required>
@@ -30,21 +30,23 @@
       <h1>Suivi Commerciaux</h1>
     </div>
     <nav>
-      <button class="tab-btn" data-tab="today">Aujourd'hui</button>
+      <button class="tab-btn" data-tab="today">Performance du jour</button>
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="ventes">Ventes</button>
-      <button class="tab-btn" data-tab="mensuel">Récap</button>
+      <button class="tab-btn" data-tab="mensuel">R&eacute;cap mensuel</button>
       <!-- <button class="tab-btn" data-tab="notes">Remarques</button> -->
       <!-- <button class="tab-btn" data-tab="admin-phoneurs">Phoneurs</button> -->
-      <button class="tab-btn" data-tab="controle">Contrôle</button>
+      <button class="tab-btn" data-tab="controle">Contr&ocirc;le</button>
       <button class="tab-btn" data-tab="admin-actions">Actions</button>
       <button class="tab-btn" data-tab="perso">Perso</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button> -->
     </nav>
     <div id="user-info" class="user-info hidden">
+      <div id="user-avatar" class="user-avatar"></div>
       <span id="user-name"></span>
-      <button id="btn-logout" class="btn-logout" title="Se déconnecter">Déconnexion</button>
+      <span id="user-role-badge" class="user-role-badge"></span>
+      <button id="btn-logout" class="btn-logout" title="Se d&eacute;connecter">Sortir</button>
     </div>
   </header>
 
@@ -135,8 +137,8 @@
         <button id="next-month">&rarr;</button>
         <input type="month" id="month-picker">
         <a id="export-month-csv" class="btn-export" title="Exporter CSV mois">CSV</a>
-        <button id="btn-recap-pdf" class="btn-recap-pdf" onclick="generateRecapPDF()" title="Télécharger le PDF du récap mensuel">
-          <span style="font-size: 18px;">📄</span> Générer PDF
+        <button id="btn-recap-pdf" class="btn-recap-pdf" onclick="generateRecapPDF()" title="T&eacute;l&eacute;charger le PDF du r&eacute;cap mensuel">
+          G&eacute;n&eacute;rer PDF
         </button>
       </div>
 
