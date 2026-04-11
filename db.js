@@ -436,8 +436,8 @@ function seed() {
     'Luca Roeloff': 6,
     'Tony Caen': 17,
     'Hervé Paris': 30,
-    'Nathan': 24,
-    'Barnabé': 17
+    'Nathan Tours': 24,
+    'Barnabé Caen': 17
   };
   for (const [name, hours] of Object.entries(defaultHoursMap)) {
     updateHours.run(hours, name);
