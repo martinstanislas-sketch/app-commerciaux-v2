@@ -3578,7 +3578,7 @@ async function loadWeeklyCharts() {
 // 7. Contacts entreprise
 //
 // + Vente sans RIB = point d'amélioration prioritaire
-// Le ratio global ne doit JAMAIS apparaître dans satisfaction / amélioration
+// Ratio >= 300 = point positif, ratio < 250 = point négatif, entre 250 et 300 = rien
 // Max 3 satisfaction, max 3 amélioration
 
 function analyzeRep(repStat, analysisData) {
@@ -3603,6 +3603,17 @@ function analyzeRep(repStat, analysisData) {
   // ── Priorité 0 (la plus haute) : Vente sans RIB ──
   if (salesNoRib > 0) {
     evals.push({ priority: 0, type: 'ko', text: `${salesNoRib > 1 ? salesNoRib + ' ventes ont été réalisées' : 'Une vente a été réalisée'} sans RIB fourni` });
+  }
+
+  // ── Priorité 0.5 : Ratio CA/h ──
+  if (hours > 0) {
+    const ratio = Math.round(repStat.ratio_mensuel || 0);
+    if (ratio >= 300) {
+      evals.push({ priority: 0.5, type: 'ok', text: `Ratio de ${ratio} €/h — objectif atteint` });
+    } else if (ratio < 250) {
+      evals.push({ priority: 0.5, type: 'ko', text: `Ratio de ${ratio} €/h — en dessous de l'objectif` });
+    }
+    // Entre 250 et 299 : on ne dit rien
   }
 
   // ── Priorité 1 : Transformation HS / ventes ──
