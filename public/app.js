@@ -2213,6 +2213,8 @@ function initTabs() {
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+      // Body class for tab-specific layouts (e.g. full-width for tasks)
+      document.body.classList.toggle('on-tasks-tab', btn.dataset.tab === 'tasks');
       // Auto-close mobile nav on tab pick
       if (nav) {
         nav.classList.remove('mobile-open');

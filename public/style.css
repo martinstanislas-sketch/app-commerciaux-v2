@@ -535,6 +535,13 @@ main {
   margin: 0 auto;
   padding: 16px 20px;
 }
+/* Tasks tab uses full screen width (kanban benefits from horizontal space) */
+main:has(#tab-tasks.active),
+body.on-tasks-tab main {
+  max-width: 100%;
+  padding-left: 32px;
+  padding-right: 32px;
+}
 
 .tab-content { display: none; }
 .tab-content.active { display: block; animation: tabFadeIn .3s var(--ease); }
