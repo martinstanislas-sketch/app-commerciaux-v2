@@ -235,6 +235,9 @@
             <span class="tasks-count" id="tasks-count">0 t&acirc;ches</span>
           </div>
           <div class="tasks-toolbar">
+            <select id="tasks-view-as" class="tasks-view-as" style="display:none">
+              <option value="admin">Mon tableau</option>
+            </select>
             <button id="btn-tasks-search" class="btn-tasks-search" title="Rechercher (Cmd+K)">🔍 Chercher</button>
             <button id="btn-tasks-export" class="btn-tasks-icon" title="Exporter en ZIP">⬇ Export</button>
             <button id="btn-tasks-settings" class="btn-tasks-icon" title="Personnaliser le fond">⚙ Personnaliser</button>
@@ -242,6 +245,7 @@
             <button id="btn-add-column" class="btn-add-column">+ Ajouter une colonne</button>
           </div>
         </div>
+        <div id="tasks-view-banner" class="tasks-view-banner hidden"></div>
         <div class="tasks-board" id="tasks-board"></div>
       </div>
       <!-- Task Panel (slide-in from right) -->

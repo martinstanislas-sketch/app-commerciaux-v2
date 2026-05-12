@@ -2460,33 +2460,152 @@ app.put('/api/perso/daily/:date', requireAuth, requireAdmin, (req, res) => {
 
 // ─── Task Vault (Kanban board) ──────────────────────────────
 
-// GET all columns with their tasks
-app.get('/api/tasks/board', requireAuth, (req, res) => {
+// Resolve current user's key string ("admin" or "rep:<id>")
+function getUserKey(session) {
+  if (!session) return null;
+  if (session.role === 'admin') return 'admin';
+  return session.sales_rep_id ? `rep:${session.sales_rep_id}` : null;
+}
+
+// Display name for a userKey
+function userKeyToName(db, userKey) {
+  if (!userKey) return '';
+  if (userKey === 'admin') return 'Admin';
+  const m = userKey.match(/^rep:(\d+)$/);
+  if (m) {
+    const row = db.prepare('SELECT name FROM sales_reps WHERE id = ?').get(parseInt(m[1], 10));
+    return row?.name || 'Inconnu';
+  }
+  return userKey;
+}
+
+// Ensure a user has at least the default columns; if zero, seed.
+function ensureUserColumns(db, userKey) {
+  const count = db.prepare('SELECT COUNT(*) AS c FROM task_columns WHERE created_by = ?').get(userKey).c;
+  if (count === 0) {
+    const ins = db.prepare('INSERT INTO task_columns (name, color, position, created_by) VALUES (?, ?, ?, ?)');
+    ins.run('Demain', '#6366F1', 0, userKey);
+    ins.run('En attente', '#EC4899', 1, userKey);
+  }
+}
+
+// Verify ownership before any write: throws 403 if not creator nor admin
+function assertOwnTaskOrAdmin(req, taskId) {
   const db = getDb();
-  const columns = db.prepare('SELECT id, name, color, position FROM task_columns ORDER BY position ASC, id ASC').all();
-  const tasks = db.prepare('SELECT id, column_id, parent_id, text, highlighted, completed, position, due, description, tags FROM tasks ORDER BY position ASC, id ASC').all();
-  // Parse tags JSON
-  tasks.forEach(t => {
-    try { t.tags = t.tags ? JSON.parse(t.tags) : []; } catch { t.tags = []; }
-  });
-  const byCol = {};
-  columns.forEach(c => { byCol[c.id] = { ...c, tasks: [] }; });
-  tasks.forEach(t => { if (byCol[t.column_id]) byCol[t.column_id].tasks.push(t); });
-  res.json(Object.values(byCol));
+  const row = db.prepare('SELECT created_by FROM tasks WHERE id = ?').get(taskId);
+  if (!row) return { ok: false, code: 404, msg: 'Tâche introuvable' };
+  const userKey = getUserKey(req.session);
+  if (req.session.role === 'admin') return { ok: true, row };
+  if (row.created_by === userKey) return { ok: true, row };
+  return { ok: false, code: 403, msg: 'Tâche non autorisée' };
+}
+
+function assertOwnColumnOrAdmin(req, colId) {
+  const db = getDb();
+  const row = db.prepare('SELECT created_by FROM task_columns WHERE id = ?').get(colId);
+  if (!row) return { ok: false, code: 404, msg: 'Colonne introuvable' };
+  const userKey = getUserKey(req.session);
+  if (req.session.role === 'admin') return { ok: true, row };
+  if (row.created_by === userKey) return { ok: true, row };
+  return { ok: false, code: 403, msg: 'Colonne non autorisée' };
+}
+
+// List of all users (for admin: pick a board to view OR pick an assignee)
+app.get('/api/tasks/users', requireAuth, (req, res) => {
+  const db = getDb();
+  const reps = db.prepare('SELECT id, name, role FROM sales_reps WHERE archived = 0 ORDER BY name ASC').all();
+  const users = [
+    { key: 'admin', name: 'Admin', role: 'admin' },
+    ...reps.map(r => ({ key: `rep:${r.id}`, name: r.name, role: r.role || 'commercial' }))
+  ];
+  res.json(users);
 });
 
-// Create a column
+// GET all columns with their tasks (scoped to current user, or to ?as=<userKey> for admin)
+app.get('/api/tasks/board', requireAuth, (req, res) => {
+  const db = getDb();
+  let userKey = getUserKey(req.session);
+  // Admin can view another user's board with ?as=<userKey>
+  if (req.session.role === 'admin' && req.query.as) {
+    userKey = String(req.query.as);
+  }
+  if (!userKey) return res.status(400).json({ error: 'User key indisponible' });
+
+  ensureUserColumns(db, userKey);
+
+  const columns = db.prepare('SELECT id, name, color, position FROM task_columns WHERE created_by = ? ORDER BY position ASC, id ASC').all(userKey);
+
+  // Own tasks: created_by = userKey AND column belongs to userKey
+  const ownTasks = db.prepare(`
+    SELECT id, column_id, parent_id, text, highlighted, completed, position, due, description, tags, created_by, assigned_to
+    FROM tasks
+    WHERE created_by = ? AND column_id IN (SELECT id FROM task_columns WHERE created_by = ?)
+    ORDER BY position ASC, id ASC
+  `).all(userKey, userKey);
+
+  // Assigned tasks: assigned_to = userKey AND created by someone else
+  // These will be displayed in a virtual column "📌 Assignées à moi"
+  const assignedTasks = db.prepare(`
+    SELECT id, column_id, parent_id, text, highlighted, completed, position, due, description, tags, created_by, assigned_to
+    FROM tasks
+    WHERE assigned_to = ? AND created_by != ?
+    ORDER BY position ASC, id ASC
+  `).all(userKey, userKey);
+
+  const enrich = (t) => {
+    try { t.tags = t.tags ? JSON.parse(t.tags) : []; } catch { t.tags = []; }
+    t.created_by_name = userKeyToName(db, t.created_by);
+    t.assigned_to_name = t.assigned_to ? userKeyToName(db, t.assigned_to) : null;
+  };
+  ownTasks.forEach(enrich);
+  assignedTasks.forEach(enrich);
+
+  // Build the board: real columns first
+  const byCol = {};
+  columns.forEach(c => { byCol[c.id] = { ...c, tasks: [] }; });
+  ownTasks.forEach(t => { if (byCol[t.column_id]) byCol[t.column_id].tasks.push(t); });
+
+  const result = Object.values(byCol);
+
+  // Add virtual "Assignées à moi" column if there are any assigned tasks
+  if (assignedTasks.length > 0) {
+    // Re-assign column_id to virtual id (-1) so the front-end can render them
+    assignedTasks.forEach(t => { t.column_id = -1; t.parent_id = null; });
+    result.unshift({
+      id: -1,
+      name: 'Assignées à moi',
+      color: '#F59E0B',
+      position: -1,
+      is_virtual: true,
+      tasks: assignedTasks
+    });
+  }
+
+  res.json({
+    board: result,
+    viewing_user_key: userKey,
+    viewing_user_name: userKeyToName(db, userKey),
+    is_viewing_other: userKey !== getUserKey(req.session)
+  });
+});
+
+// Create a column (scoped to current user, or admin acting "as" a user)
 app.post('/api/tasks/columns', requireAuth, (req, res) => {
   const db = getDb();
   const { name, color } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
-  const maxPos = db.prepare('SELECT COALESCE(MAX(position), -1) AS p FROM task_columns').get().p;
-  const info = db.prepare('INSERT INTO task_columns (name, color, position) VALUES (?, ?, ?)').run(name.trim(), color || '#6366F1', maxPos + 1);
-  res.json({ id: info.lastInsertRowid, name: name.trim(), color: color || '#6366F1', position: maxPos + 1, tasks: [] });
+  let userKey = getUserKey(req.session);
+  if (req.session.role === 'admin' && req.body.as) userKey = String(req.body.as);
+  if (!userKey) return res.status(400).json({ error: 'User key indisponible' });
+  const maxPos = db.prepare('SELECT COALESCE(MAX(position), -1) AS p FROM task_columns WHERE created_by = ?').get(userKey).p;
+  const info = db.prepare('INSERT INTO task_columns (name, color, position, created_by) VALUES (?, ?, ?, ?)').run(name.trim(), color || '#6366F1', maxPos + 1, userKey);
+  res.json({ id: info.lastInsertRowid, name: name.trim(), color: color || '#6366F1', position: maxPos + 1, tasks: [], created_by: userKey });
 });
 
-// Update a column
+// Update a column (only owner or admin)
 app.put('/api/tasks/columns/:id', requireAuth, (req, res) => {
+  const check = assertOwnColumnOrAdmin(req, req.params.id);
+  if (!check.ok) return res.status(check.code).json({ error: check.msg });
   const db = getDb();
   const { name, color } = req.body;
   const fields = [];
@@ -2499,31 +2618,58 @@ app.put('/api/tasks/columns/:id', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Delete a column (and its tasks via cascade)
+// Delete a column (only owner or admin)
 app.delete('/api/tasks/columns/:id', requireAuth, (req, res) => {
+  const check = assertOwnColumnOrAdmin(req, req.params.id);
+  if (!check.ok) return res.status(check.code).json({ error: check.msg });
   const db = getDb();
   db.prepare('DELETE FROM task_columns WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
-// Create a task
+// Create a task (created_by = current user, or admin acting "as" someone)
 app.post('/api/tasks', requireAuth, (req, res) => {
   const db = getDb();
-  const { column_id, text, parent_id } = req.body;
+  const { column_id, text, parent_id, assigned_to } = req.body;
   if (!column_id || !text || !text.trim()) return res.status(400).json({ error: 'column_id et text requis' });
+  // Resolve creator: by default the current user; admin can override with ?as=
+  let createdBy = getUserKey(req.session);
+  if (req.session.role === 'admin' && req.body.as) createdBy = String(req.body.as);
+  if (!createdBy) return res.status(400).json({ error: 'User key indisponible' });
+  // Verify column belongs to creator (or admin acting on another user's board)
+  const col = db.prepare('SELECT created_by FROM task_columns WHERE id = ?').get(column_id);
+  if (!col) return res.status(404).json({ error: 'Colonne introuvable' });
+  if (req.session.role !== 'admin' && col.created_by !== createdBy) {
+    return res.status(403).json({ error: 'Colonne non autorisée' });
+  }
   const maxPos = db.prepare(
     parent_id
       ? 'SELECT COALESCE(MAX(position), -1) AS p FROM tasks WHERE parent_id = ?'
       : 'SELECT COALESCE(MAX(position), -1) AS p FROM tasks WHERE column_id = ? AND parent_id IS NULL'
   ).get(parent_id || column_id).p;
-  const info = db.prepare('INSERT INTO tasks (column_id, parent_id, text, position) VALUES (?, ?, ?, ?)').run(column_id, parent_id || null, text.trim(), maxPos + 1);
-  res.json({ id: info.lastInsertRowid, column_id, parent_id: parent_id || null, text: text.trim(), highlighted: 0, completed: 0, position: maxPos + 1 });
+  const info = db.prepare('INSERT INTO tasks (column_id, parent_id, text, position, created_by, assigned_to) VALUES (?, ?, ?, ?, ?, ?)').run(
+    column_id, parent_id || null, text.trim(), maxPos + 1, createdBy, assigned_to || null
+  );
+  res.json({
+    id: info.lastInsertRowid,
+    column_id, parent_id: parent_id || null,
+    text: text.trim(), highlighted: 0, completed: 0, position: maxPos + 1,
+    created_by: createdBy, assigned_to: assigned_to || null,
+    created_by_name: userKeyToName(db, createdBy),
+    assigned_to_name: assigned_to ? userKeyToName(db, assigned_to) : null
+  });
 });
 
-// Update a task
+// Update a task (only owner, assignee or admin)
 app.put('/api/tasks/:id', requireAuth, (req, res) => {
   const db = getDb();
-  const { text, highlighted, completed, column_id, position, parent_id, due, description, tags } = req.body;
+  const row = db.prepare('SELECT created_by, assigned_to FROM tasks WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Tâche introuvable' });
+  const userKey = getUserKey(req.session);
+  const canEdit = req.session.role === 'admin' || row.created_by === userKey || row.assigned_to === userKey;
+  if (!canEdit) return res.status(403).json({ error: 'Tâche non autorisée' });
+
+  const { text, highlighted, completed, column_id, position, parent_id, due, description, tags, assigned_to } = req.body;
   const fields = [];
   const values = [];
   if (text !== undefined) { fields.push('text = ?'); values.push(text); }
@@ -2535,14 +2681,17 @@ app.put('/api/tasks/:id', requireAuth, (req, res) => {
   if (due !== undefined) { fields.push('due = ?'); values.push(due || null); }
   if (description !== undefined) { fields.push('description = ?'); values.push(description || null); }
   if (tags !== undefined) { fields.push('tags = ?'); values.push(Array.isArray(tags) ? JSON.stringify(tags) : null); }
+  if (assigned_to !== undefined) { fields.push('assigned_to = ?'); values.push(assigned_to || null); }
   if (fields.length === 0) return res.json({ ok: true });
   values.push(req.params.id);
   db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values);
   res.json({ ok: true });
 });
 
-// Delete a task
+// Delete a task (only creator or admin)
 app.delete('/api/tasks/:id', requireAuth, (req, res) => {
+  const check = assertOwnTaskOrAdmin(req, req.params.id);
+  if (!check.ok) return res.status(check.code).json({ error: check.msg });
   const db = getDb();
   db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
@@ -2554,6 +2703,18 @@ app.post('/api/tasks/reorder', requireAuth, (req, res) => {
   const db = getDb();
   const { updates } = req.body;
   if (!Array.isArray(updates)) return res.status(400).json({ error: 'updates array required' });
+  // Ownership check: all tasks must belong to the current user (or admin can move anything)
+  if (req.session.role !== 'admin') {
+    const userKey = getUserKey(req.session);
+    const checkStmt = db.prepare('SELECT created_by, assigned_to FROM tasks WHERE id = ?');
+    for (const u of updates) {
+      const r = checkStmt.get(u.id);
+      if (!r) return res.status(404).json({ error: `Tâche ${u.id} introuvable` });
+      if (r.created_by !== userKey && r.assigned_to !== userKey) {
+        return res.status(403).json({ error: `Tâche ${u.id} non autorisée` });
+      }
+    }
+  }
   const stmt = db.prepare('UPDATE tasks SET column_id = ?, parent_id = ?, position = ? WHERE id = ?');
   const tx = db.transaction((updates) => {
     for (const u of updates) stmt.run(u.column_id, u.parent_id || null, u.position, u.id);
@@ -2562,19 +2723,23 @@ app.post('/api/tasks/reorder', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Restore a deleted task (undo) — receives full payload
-// Body: { id?, column_id, parent_id, text, highlighted, completed, position, subtasks?: [...] }
+// Restore a deleted task (undo) — preserves created_by/assigned_to from payload
 app.post('/api/tasks/restore', requireAuth, (req, res) => {
   const db = getDb();
   const { task, subtasks } = req.body;
   if (!task) return res.status(400).json({ error: 'task required' });
-  const insertTask = db.prepare('INSERT INTO tasks (id, column_id, parent_id, text, highlighted, completed, position, due, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  const userKey = getUserKey(req.session);
+  // Only the original creator or admin can restore
+  if (req.session.role !== 'admin' && task.created_by !== userKey) {
+    return res.status(403).json({ error: 'Tâche non autorisée' });
+  }
+  const insertTask = db.prepare('INSERT INTO tasks (id, column_id, parent_id, text, highlighted, completed, position, due, description, tags, created_by, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   const tagsToJson = (tags) => Array.isArray(tags) ? JSON.stringify(tags) : (tags || null);
   const tx = db.transaction(() => {
-    insertTask.run(task.id, task.column_id, task.parent_id || null, task.text, task.highlighted ? 1 : 0, task.completed ? 1 : 0, task.position, task.due || null, task.description || null, tagsToJson(task.tags));
+    insertTask.run(task.id, task.column_id, task.parent_id || null, task.text, task.highlighted ? 1 : 0, task.completed ? 1 : 0, task.position, task.due || null, task.description || null, tagsToJson(task.tags), task.created_by || userKey, task.assigned_to || null);
     if (Array.isArray(subtasks)) {
       for (const s of subtasks) {
-        insertTask.run(s.id, s.column_id, s.parent_id || null, s.text, s.highlighted ? 1 : 0, s.completed ? 1 : 0, s.position, s.due || null, s.description || null, tagsToJson(s.tags));
+        insertTask.run(s.id, s.column_id, s.parent_id || null, s.text, s.highlighted ? 1 : 0, s.completed ? 1 : 0, s.position, s.due || null, s.description || null, tagsToJson(s.tags), s.created_by || userKey, s.assigned_to || null);
       }
     }
   });
@@ -2587,6 +2752,16 @@ app.post('/api/tasks/columns/reorder', requireAuth, (req, res) => {
   const db = getDb();
   const { order } = req.body;
   if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' });
+  // Verify all columns belong to current user (or admin)
+  if (req.session.role !== 'admin') {
+    const userKey = getUserKey(req.session);
+    const checkStmt = db.prepare('SELECT created_by FROM task_columns WHERE id = ?');
+    for (const id of order) {
+      const r = checkStmt.get(id);
+      if (!r) return res.status(404).json({ error: `Colonne ${id} introuvable` });
+      if (r.created_by !== userKey) return res.status(403).json({ error: `Colonne ${id} non autorisée` });
+    }
+  }
   const stmt = db.prepare('UPDATE task_columns SET position = ? WHERE id = ?');
   const tx = db.transaction(() => {
     order.forEach((id, idx) => stmt.run(idx, id));

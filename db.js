@@ -360,6 +360,25 @@ function initSchema() {
   if (!taskCols.includes('tags')) {
     db.exec(`ALTER TABLE tasks ADD COLUMN tags TEXT;`); // JSON array string
   }
+  // Migration: ownership fields (created_by, assigned_to)
+  // Format: "admin" for admin user, "rep:<id>" for sales rep
+  if (!taskCols.includes('created_by')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN created_by TEXT;`);
+    // Set existing tasks to admin (they were created before isolation existed)
+    db.exec(`UPDATE tasks SET created_by = 'admin' WHERE created_by IS NULL;`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by);`);
+  }
+  if (!taskCols.includes('assigned_to')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN assigned_to TEXT;`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);`);
+  }
+  // Same scoping for task_columns (each user has their own columns)
+  const colCols2 = db.prepare("PRAGMA table_info(task_columns)").all().map(c => c.name);
+  if (!colCols2.includes('created_by')) {
+    db.exec(`ALTER TABLE task_columns ADD COLUMN created_by TEXT;`);
+    db.exec(`UPDATE task_columns SET created_by = 'admin' WHERE created_by IS NULL;`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_cols_created_by ON task_columns(created_by);`);
+  }
   // Seed default columns if empty
   const colCount = db.prepare('SELECT COUNT(*) AS c FROM task_columns').get().c;
   if (colCount === 0) {

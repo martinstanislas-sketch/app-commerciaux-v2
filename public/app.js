@@ -5626,6 +5626,17 @@ let tasksDragging = null;       // { type: 'task'|'column', id, sourceColId? }
 let tasksDropTarget = null;     // { type: 'before'|'after'|'child'|'column-end'|'column-swap', taskId?, colId? }
 let tasksActiveFilters = new Set(); // Set of column IDs that are active filters (empty = show all)
 let tasksHoveredColumnId = null; // For "n" shortcut
+let tasksUsersList = [];           // List of users for admin selector / assignment dropdown
+let tasksViewingUserKey = null;    // Which user's board are we currently viewing
+let tasksViewingUserName = '';     // Display name
+let tasksIsViewingOther = false;   // Admin viewing someone else's board
+let tasksCurrentUserKey = null;    // Current user's own key
+
+function getMyUserKey() {
+  if (!currentUser) return null;
+  if (currentUser.role === 'admin') return 'admin';
+  return currentUser.sales_rep_id ? `rep:${currentUser.sales_rep_id}` : null;
+}
 
 // ── Undo/Redo history ──
 // Each entry: { undo: async fn, redo: async fn, label: string }
@@ -5675,12 +5686,74 @@ async function tasksRedo() {
 async function loadTasksBoard() {
   const container = document.getElementById('tasks-board');
   if (!container) return;
+  tasksCurrentUserKey = getMyUserKey();
+  if (!tasksViewingUserKey) tasksViewingUserKey = tasksCurrentUserKey;
   try {
-    tasksBoard = await api('/tasks/board');
+    // Load users list once (admin needs it, others may need it for assignment dropdown)
+    if (tasksUsersList.length === 0) {
+      try { tasksUsersList = await api('/tasks/users'); } catch { tasksUsersList = []; }
+    }
+    // Build URL with ?as for admin viewing another board
+    const asParam = (isAdmin() && tasksViewingUserKey && tasksViewingUserKey !== 'admin')
+      ? `?as=${encodeURIComponent(tasksViewingUserKey)}`
+      : '';
+    const data = await api('/tasks/board' + asParam);
+    // Backward compat: support both old (array) and new ({board, ...}) responses
+    if (Array.isArray(data)) {
+      tasksBoard = data;
+      tasksViewingUserName = '';
+      tasksIsViewingOther = false;
+    } else {
+      tasksBoard = data.board || [];
+      tasksViewingUserKey = data.viewing_user_key;
+      tasksViewingUserName = data.viewing_user_name || '';
+      tasksIsViewingOther = !!data.is_viewing_other;
+    }
+    renderViewBanner();
+    renderViewAsSelector();
     renderTasksBoard();
   } catch (e) {
     console.error('Erreur chargement tâches:', e);
     container.innerHTML = '<div class="empty-state">Erreur de chargement</div>';
+  }
+}
+
+function renderViewBanner() {
+  const banner = document.getElementById('tasks-view-banner');
+  if (!banner) return;
+  if (tasksIsViewingOther) {
+    banner.innerHTML = `
+      👁️ Vous consultez le tableau de <strong>${escapeHtml(tasksViewingUserName)}</strong>
+      <button class="tk-banner-back" id="tk-banner-back">↩ Retour à mon tableau</button>
+    `;
+    banner.classList.remove('hidden');
+    document.getElementById('tk-banner-back')?.addEventListener('click', () => {
+      tasksViewingUserKey = tasksCurrentUserKey;
+      loadTasksBoard();
+    });
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+function renderViewAsSelector() {
+  const sel = document.getElementById('tasks-view-as');
+  if (!sel) return;
+  if (!isAdmin()) {
+    sel.style.display = 'none';
+    return;
+  }
+  // Admin only: dropdown to pick whose board
+  sel.style.display = '';
+  sel.innerHTML = tasksUsersList.map(u =>
+    `<option value="${escapeHtml(u.key)}" ${u.key === tasksViewingUserKey ? 'selected' : ''}>${escapeHtml(u.name)}${u.key === 'admin' ? ' (moi)' : ''}</option>`
+  ).join('');
+  if (!sel.dataset.bound) {
+    sel.dataset.bound = '1';
+    sel.addEventListener('change', () => {
+      tasksViewingUserKey = sel.value;
+      loadTasksBoard();
+    });
   }
 }
 
@@ -5713,8 +5786,16 @@ function renderTaskNode(t, depth = 0) {
   const checkInfo = computeChecklistCount(t.description);
   const checkBadge = checkInfo ? `<span class="tk-check-badge">☑ ${checkInfo.done}/${checkInfo.total}</span>` : '';
   const subCount = (t.children && t.children.length) ? `<span class="tk-sub-badge">↳ ${t.children.length}</span>` : '';
-  const meta = (dueBadge || tagsHtml || checkBadge || subCount)
-    ? `<div class="tk-card-meta">${dueBadge}${checkBadge}${subCount}${tagsHtml}</div>`
+  // Assignment indicator: when current user is the assignee (not creator), show "Assignée par X"
+  let assignBadge = '';
+  if (t.assigned_to && t.created_by && tasksCurrentUserKey === t.assigned_to && t.created_by !== tasksCurrentUserKey) {
+    assignBadge = `<span class="tk-assign-badge" title="Assignée par ${escapeHtml(t.created_by_name || '')}">📌 Assignée par ${escapeHtml(t.created_by_name || '')}</span>`;
+  } else if (t.assigned_to && t.created_by === tasksCurrentUserKey) {
+    // I created it and assigned it to someone else: show whom
+    assignBadge = `<span class="tk-assign-badge tk-assign-out" title="Assignée à ${escapeHtml(t.assigned_to_name || '')}">→ ${escapeHtml(t.assigned_to_name || '')}</span>`;
+  }
+  const meta = (dueBadge || tagsHtml || checkBadge || subCount || assignBadge)
+    ? `<div class="tk-card-meta">${dueBadge}${checkBadge}${subCount}${assignBadge}${tagsHtml}</div>`
     : '';
 
   return `
@@ -5835,18 +5916,24 @@ function renderTasksBoard() {
   // Render board (only visible columns)
   container.innerHTML = visibleColumns.map(col => {
     const tree = buildTaskTree(col.tasks);
+    const isVirtual = col.is_virtual || col.id < 0;
+    const nameAttr = isVirtual ? '' : `data-edit-col="${col.id}"`;
+    const menuBtn = isVirtual ? '' : `<button class="tk-col-menu" data-col-menu="${col.id}" title="Options">⋯</button>`;
+    const headerDraggable = isVirtual ? '' : 'draggable="true"';
+    const addBtn = isVirtual ? '' : `<button class="tk-add-task" data-add-task="${col.id}">+ Ajouter une tâche</button>`;
+    const colClass = isVirtual ? 'tk-col tk-col-virtual' : 'tk-col';
     return `
-    <div class="tk-col" data-col-id="${col.id}">
-      <div class="tk-col-header" style="border-top-color: ${col.color}" data-col-header="${col.id}" draggable="true">
-        <div class="tk-col-name" data-edit-col="${col.id}">${escapeHtml(col.name)}</div>
+    <div class="${colClass}" data-col-id="${col.id}">
+      <div class="tk-col-header" style="border-top-color: ${col.color}" data-col-header="${col.id}" ${headerDraggable}>
+        <div class="tk-col-name" ${nameAttr}>${isVirtual ? '📌 ' : ''}${escapeHtml(col.name)}</div>
         <div class="tk-col-right">
           <span class="tk-col-count" style="background: ${col.color}20; color: ${col.color}">${col.tasks.length}</span>
-          <button class="tk-col-menu" data-col-menu="${col.id}" title="Options">⋯</button>
+          ${menuBtn}
         </div>
       </div>
       <div class="tk-col-body" data-col-body="${col.id}">
         ${tree.map(t => renderTaskNode(t, 0)).join('')}
-        <button class="tk-add-task" data-add-task="${col.id}">+ Ajouter une tâche</button>
+        ${addBtn}
       </div>
     </div>`;
   }).join('');
@@ -6356,6 +6443,10 @@ function openCardContextMenu(taskId, x, y) {
 }
 
 function addTaskInline(columnId, btn) {
+  if (tasksIsViewingOther) {
+    showToast('Lecture seule — vous consultez le tableau d\'un autre utilisateur', 'error');
+    return;
+  }
   // Replace button with input
   const input = document.createElement('input');
   input.type = 'text';
@@ -6527,6 +6618,18 @@ function renderTaskPanel(task) {
       </div>
 
       <div class="tk-pn-section">
+        <div class="tk-pn-label">Assigner à un collègue</div>
+        <select id="tk-pn-assignee" class="tk-pn-assignee">
+          <option value="">— Personne —</option>
+          ${tasksUsersList
+            .filter(u => u.key !== task.created_by) // can't assign to creator (it's already theirs)
+            .map(u => `<option value="${escapeHtml(u.key)}" ${u.key === task.assigned_to ? 'selected' : ''}>${escapeHtml(u.name)}</option>`)
+            .join('')}
+        </select>
+        ${task.created_by && task.created_by !== tasksCurrentUserKey ? `<div class="tk-pn-creator">Créée par <strong>${escapeHtml(task.created_by_name || '')}</strong></div>` : ''}
+      </div>
+
+      <div class="tk-pn-section">
         <div class="tk-pn-label">Description</div>
         <textarea id="tk-pn-desc" placeholder="Notes, instructions, checklist (- [ ] item)…">${escapeHtml(description)}</textarea>
       </div>
@@ -6646,6 +6749,22 @@ function wireTaskPanelEvents(task) {
       await api(`/tasks/${task.id}`, { method: 'PUT', body: { tags: task.tags } });
       refreshPanelTags(task);
     });
+  });
+
+  // Assignee
+  const assigneeSel = panel.querySelector('#tk-pn-assignee');
+  assigneeSel?.addEventListener('change', async () => {
+    const newAssignee = assigneeSel.value || null;
+    const oldVal = task.assigned_to || null;
+    task.assigned_to = newAssignee;
+    await updateTaskFieldWithUndo(task.id, 'assigned_to', oldVal, newAssignee, 'Assignation modifiée');
+    // Refresh user name for display
+    if (newAssignee) {
+      const u = tasksUsersList.find(x => x.key === newAssignee);
+      task.assigned_to_name = u?.name || '';
+    } else {
+      task.assigned_to_name = null;
+    }
   });
 
   // Description
@@ -6817,6 +6936,10 @@ function openColumnMenu(columnId, btn) {
 }
 
 async function addNewColumn() {
+  if (tasksIsViewingOther) {
+    showToast('Lecture seule — impossible d\'ajouter une colonne au tableau d\'un autre', 'error');
+    return;
+  }
   const name = prompt('Nom de la nouvelle colonne :');
   if (!name || !name.trim()) return;
   try {

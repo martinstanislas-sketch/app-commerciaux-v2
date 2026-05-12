@@ -7554,6 +7554,112 @@ img {
   background: transparent !important;
 }
 
+/* ─── Tasks: admin view selector + banner + assignment ─── */
+.tasks-view-as {
+  background: #fff;
+  border: 1.5px solid rgba(99, 102, 241, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--primary, #6366F1);
+  cursor: pointer;
+  font-family: inherit;
+  min-width: 160px;
+}
+.tasks-view-as:hover, .tasks-view-as:focus {
+  border-color: var(--primary, #6366F1);
+  outline: none;
+}
+.tasks-view-banner {
+  background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+  border: 1.5px solid #F59E0B;
+  color: #78350F;
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-size: .9rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.tasks-view-banner.hidden {
+  display: none;
+}
+.tk-banner-back {
+  background: #fff;
+  border: 1.5px solid #F59E0B;
+  color: #78350F;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tk-banner-back:hover {
+  background: #FBBF24;
+  color: #fff;
+}
+
+/* Assignment badges on cards */
+.tk-assign-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #FEF3C7;
+  border: 1.5px solid #F59E0B;
+  color: #92400E;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.2px;
+}
+.tk-assign-badge.tk-assign-out {
+  background: #EDE9FE;
+  border-color: #8B5CF6;
+  color: #5B21B6;
+}
+
+/* Panel: assignee select + creator note */
+.tk-pn-assignee {
+  width: 100%;
+  background: #fff;
+  border: 1.5px solid rgba(148,163,194,0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: .85rem;
+  font-family: inherit;
+  color: var(--text, #1E293B);
+  cursor: pointer;
+}
+.tk-pn-assignee:focus {
+  outline: none;
+  border-color: var(--primary, #6366F1);
+}
+.tk-pn-creator {
+  margin-top: 8px;
+  font-size: .78rem;
+  color: var(--text-muted, #94A3B8);
+  font-style: italic;
+}
+.tk-pn-creator strong {
+  color: var(--text, #1E293B);
+  font-style: normal;
+}
+
+/* Virtual "Assignées à moi" column */
+.tk-col-virtual {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.02));
+  border: 1.5px dashed rgba(245, 158, 11, 0.4);
+}
+.tk-col-virtual .tk-col-header {
+  border-top-color: #F59E0B !important;
+}
+
 /* Buttons & inputs: full-width on mobile */
 @media (max-width: 768px) {
   .btn-primary,
