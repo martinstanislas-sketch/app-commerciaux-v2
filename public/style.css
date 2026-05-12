@@ -45,6 +45,15 @@
   }
 }
 
+/* ─── Force light color scheme everywhere (anti dark-mode browser override) */
+html {
+  color-scheme: light only;
+  -webkit-color-scheme: light only;
+}
+html, body, * {
+  forced-color-adjust: none;
+}
+
 /* ─── Reset & Base ──────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
