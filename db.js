@@ -350,6 +350,16 @@ function initSchema() {
     db.exec(`ALTER TABLE tasks ADD COLUMN parent_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE;`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id, position);`);
   }
+  // Migration: Phase 2 fields (due, description, tags)
+  if (!taskCols.includes('due')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN due TEXT;`);
+  }
+  if (!taskCols.includes('description')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN description TEXT;`);
+  }
+  if (!taskCols.includes('tags')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN tags TEXT;`); // JSON array string
+  }
   // Seed default columns if empty
   const colCount = db.prepare('SELECT COUNT(*) AS c FROM task_columns').get().c;
   if (colCount === 0) {

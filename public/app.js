@@ -5590,6 +5590,17 @@ function buildTaskTree(flatTasks) {
 
 function renderTaskNode(t, depth = 0) {
   const indentClass = depth > 0 ? `tk-card-sub tk-depth-${Math.min(depth, 3)}` : '';
+  const dueBadge = renderDueBadge(t.due, t.completed);
+  const tagsHtml = (Array.isArray(t.tags) && t.tags.length > 0)
+    ? `<div class="tk-card-tags">${t.tags.map(tag => `<span class="tk-tag-pill">${escapeHtml(tag.length > 22 ? tag.slice(0, 22) + '…' : tag)}</span>`).join('')}</div>`
+    : '';
+  const checkInfo = computeChecklistCount(t.description);
+  const checkBadge = checkInfo ? `<span class="tk-check-badge">☑ ${checkInfo.done}/${checkInfo.total}</span>` : '';
+  const subCount = (t.children && t.children.length) ? `<span class="tk-sub-badge">↳ ${t.children.length}</span>` : '';
+  const meta = (dueBadge || tagsHtml || checkBadge || subCount)
+    ? `<div class="tk-card-meta">${dueBadge}${checkBadge}${subCount}${tagsHtml}</div>`
+    : '';
+
   return `
     <div class="tk-card-wrap" data-task-wrap="${t.id}" style="${depth > 0 ? `margin-left: ${depth * 16}px;` : ''}">
       <div class="tk-card ${t.highlighted ? 'tk-highlight' : ''} ${t.completed ? 'tk-done' : ''} ${indentClass}"
@@ -5598,6 +5609,7 @@ function renderTaskNode(t, depth = 0) {
            data-col-id="${t.column_id}"
            draggable="true">
         <div class="tk-card-text" data-edit-task="${t.id}">${escapeHtml(t.text)}</div>
+        ${meta}
         <div class="tk-card-actions">
           <button class="tk-card-arrow" data-move-task="${t.id}" data-dir="up" title="Monter">↑</button>
           <button class="tk-card-arrow" data-move-task="${t.id}" data-dir="down" title="Descendre">↓</button>
@@ -5607,6 +5619,74 @@ function renderTaskNode(t, depth = 0) {
       ${t.children.map(c => renderTaskNode(c, depth + 1)).join('')}
     </div>
   `;
+}
+
+// ── Date helpers for due badges ──
+function parseDueValue(due) {
+  if (!due) return null;
+  // Either "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM"
+  const datePart = due.slice(0, 10);
+  const timePart = due.length > 10 ? due.slice(11, 16) : null;
+  return { datePart, timePart };
+}
+
+function renderDueBadge(due, completed) {
+  const parsed = parseDueValue(due);
+  if (!parsed) return '';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [y, m, d] = parsed.datePart.split('-').map(Number);
+  const dueDate = new Date(y, m - 1, d);
+  dueDate.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((dueDate - today) / 86400000);
+  let label;
+  if (diffDays === 0) label = 'Aujourd\'hui';
+  else if (diffDays === 1) label = 'Demain';
+  else if (diffDays === -1) label = 'Hier';
+  else if (diffDays > 1 && diffDays <= 14) label = `Dans ${diffDays}j`;
+  else if (diffDays < -1 && diffDays >= -14) label = `Il y a ${-diffDays}j`;
+  else {
+    const months = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    label = `${d} ${months[m - 1]}`;
+  }
+  if (parsed.timePart) label += ' · ' + parsed.timePart;
+  let cls = 'tk-due-badge';
+  if (diffDays < 0 && !completed) cls += ' tk-due-overdue';
+  else if (diffDays === 0) cls += ' tk-due-today';
+  else cls += ' tk-due-normal';
+  return `<span class="${cls}">📅 ${escapeHtml(label)}</span>`;
+}
+
+// ── Checklist helpers ──
+function computeChecklistCount(description) {
+  if (!description) return null;
+  const lines = description.split('\n');
+  let total = 0, done = 0;
+  for (const line of lines) {
+    const m = line.match(/^\s*[-*]\s*\[( |x|X)\]/);
+    if (m) {
+      total++;
+      if (m[1].toLowerCase() === 'x') done++;
+    }
+  }
+  if (total === 0) return null;
+  return { total, done };
+}
+
+function toggleChecklistLine(description, index) {
+  if (!description) return description;
+  const lines = description.split('\n');
+  let count = -1;
+  return lines.map(line => {
+    const m = line.match(/^(\s*[-*]\s*\[)( |x|X)(\].*)$/);
+    if (!m) return line;
+    count++;
+    if (count === index) {
+      const newCheck = m[2].toLowerCase() === 'x' ? ' ' : 'x';
+      return m[1] + newCheck + m[3];
+    }
+    return line;
+  }).join('\n');
 }
 
 function renderTasksBoard() {
@@ -5651,16 +5731,19 @@ function wireTasksEvents() {
       addSubtaskInline(parseInt(btn.dataset.addSubtask, 10), btn);
     });
   });
-  // Edit task
-  container.querySelectorAll('[data-edit-task]').forEach(el => {
-    el.addEventListener('click', (e) => {
+  // Click on card (anywhere except buttons) opens the panel
+  container.querySelectorAll('.tk-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      // Ignore clicks on action buttons (arrows, subtask, etc.)
+      if (e.target.closest('.tk-card-actions') || e.target.closest('.tk-card-subbtn')) return;
+      // Shift+click = delete
       if (e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
-        deleteTaskWithUndo(parseInt(el.dataset.editTask, 10));
+        deleteTaskWithUndo(parseInt(card.dataset.taskId, 10));
         return;
       }
-      editTask(parseInt(el.dataset.editTask, 10), el);
+      openTaskPanel(parseInt(card.dataset.taskId, 10));
     });
   });
   // Move up/down arrows
@@ -6120,34 +6203,326 @@ function addTaskInline(columnId, btn) {
   input.addEventListener('blur', () => setTimeout(submit, 100));
 }
 
-function editTask(taskId, el) {
-  const col = tasksBoard.find(c => c.tasks.some(t => t.id === taskId));
-  if (!col) return;
-  const task = col.tasks.find(t => t.id === taskId);
-  const currentText = task.text;
-  const input = document.createElement('textarea');
-  input.className = 'tk-edit-input';
-  input.value = currentText;
-  el.replaceWith(input);
-  input.focus();
-  input.select();
-  let done = false;
+// Replaced by openTaskPanel — kept name for compat
+function editTask(taskId) {
+  openTaskPanel(taskId);
+}
 
-  const cleanup = (newText) => {
-    if (done) return;
-    done = true;
-    if (newText !== undefined && newText !== currentText && newText.trim()) {
-      task.text = newText.trim();
-      api(`/tasks/${taskId}`, { method: 'PUT', body: { text: newText.trim() } }).catch(() => showToast('Erreur sauvegarde', 'error'));
+// ── Task panel (side drawer) ──
+let currentPanelTaskId = null;
+
+function openTaskPanel(taskId) {
+  const allTasks = tasksBoard.flatMap(c => c.tasks);
+  const task = allTasks.find(t => t.id === taskId);
+  if (!task) return;
+  currentPanelTaskId = taskId;
+  const panel = document.getElementById('tk-panel');
+  const backdrop = document.getElementById('tk-panel-backdrop');
+  if (!panel || !backdrop) return;
+  panel.innerHTML = renderTaskPanel(task);
+  panel.classList.remove('hidden');
+  backdrop.classList.remove('hidden');
+  setTimeout(() => {
+    panel.classList.add('open');
+    backdrop.classList.add('open');
+  }, 10);
+  wireTaskPanelEvents(task);
+  // ESC to close
+  document.addEventListener('keydown', onPanelEsc);
+  backdrop.addEventListener('click', closeTaskPanel);
+}
+
+function onPanelEsc(e) {
+  if (e.key === 'Escape') {
+    // Don't close if focus is in an input/textarea
+    closeTaskPanel();
+  }
+}
+
+function closeTaskPanel() {
+  const panel = document.getElementById('tk-panel');
+  const backdrop = document.getElementById('tk-panel-backdrop');
+  if (!panel || !backdrop) return;
+  panel.classList.remove('open');
+  backdrop.classList.remove('open');
+  setTimeout(() => {
+    panel.classList.add('hidden');
+    backdrop.classList.add('hidden');
+  }, 200);
+  document.removeEventListener('keydown', onPanelEsc);
+  backdrop.removeEventListener('click', closeTaskPanel);
+  currentPanelTaskId = null;
+  // Re-render the board so card badges/preview update
+  renderTasksBoard();
+}
+
+function renderTaskPanel(task) {
+  const cols = tasksBoard;
+  const parsed = parseDueValue(task.due);
+  const dueDate = parsed?.datePart || '';
+  const dueTime = parsed?.timePart || '';
+  const tags = Array.isArray(task.tags) ? task.tags : [];
+  const description = task.description || '';
+  const checklist = computeChecklistCount(description);
+
+  // Render checklist items (clickable) under description
+  let checklistHTML = '';
+  if (checklist) {
+    const lines = description.split('\n');
+    let idx = -1;
+    const items = [];
+    lines.forEach(line => {
+      const m = line.match(/^\s*[-*]\s*\[( |x|X)\]\s*(.*)$/);
+      if (m) {
+        idx++;
+        const checked = m[1].toLowerCase() === 'x';
+        const itemIdx = idx;
+        items.push(`
+          <label class="tk-check-item">
+            <input type="checkbox" data-check-idx="${itemIdx}" ${checked ? 'checked' : ''}>
+            <span>${escapeHtml(m[2])}</span>
+          </label>
+        `);
+      }
+    });
+    checklistHTML = `
+      <div class="tk-pn-section">
+        <div class="tk-pn-section-header">
+          <span class="tk-pn-label">Checklist</span>
+          <span class="tk-pn-checkcount">${checklist.done}/${checklist.total} cochées</span>
+        </div>
+        <div class="tk-check-list">${items.join('')}</div>
+      </div>
+    `;
+  }
+
+  return `
+    <header class="tk-pn-header">
+      <input type="text" class="tk-pn-title" id="tk-pn-title" value="${escapeHtml(task.text)}" placeholder="Titre de la tâche">
+      <button class="tk-pn-close" id="tk-pn-close" title="Fermer">✕</button>
+    </header>
+    <div class="tk-pn-body">
+      <div class="tk-pn-section">
+        <div class="tk-pn-label">Colonne</div>
+        <div class="tk-pn-cols">
+          ${cols.map(c => `
+            <button class="tk-pn-col-btn ${c.id === task.column_id ? 'active' : ''}"
+              data-col-pick="${c.id}"
+              style="--col-color: ${c.color}; ${c.id === task.column_id ? `background:${c.color}; border-color:${c.color}; color:#fff;` : ''}">
+              ${escapeHtml(c.name)}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="tk-pn-section">
+        <div class="tk-pn-label">Échéance</div>
+        <div class="tk-pn-due">
+          <input type="date" id="tk-pn-date" value="${dueDate}">
+          <input type="time" id="tk-pn-time" value="${dueTime}">
+          <button class="tk-pn-due-clear" id="tk-pn-due-clear">Retirer</button>
+        </div>
+      </div>
+
+      <div class="tk-pn-section">
+        <div class="tk-pn-label">Tags</div>
+        <div class="tk-pn-tags" id="tk-pn-tags">
+          ${tags.map((tag, i) => `<span class="tk-pn-tag">${escapeHtml(tag)}<button data-tag-rm="${i}">×</button></span>`).join('')}
+          <input type="text" id="tk-pn-tag-input" placeholder="Ajouter un tag…">
+        </div>
+      </div>
+
+      <div class="tk-pn-section">
+        <div class="tk-pn-label">Description</div>
+        <textarea id="tk-pn-desc" placeholder="Notes, instructions, checklist (- [ ] item)…">${escapeHtml(description)}</textarea>
+      </div>
+
+      ${checklistHTML}
+
+      <div class="tk-pn-section tk-pn-buttons">
+        <button class="tk-pn-toggle ${task.highlighted ? 'active' : ''}" id="tk-pn-highlight">
+          ${task.highlighted ? '○ Retirer le liseré rouge' : '🔴 Mettre un liseré rouge'}
+        </button>
+        <button class="tk-pn-delete" id="tk-pn-delete">Supprimer</button>
+      </div>
+    </div>
+  `;
+}
+
+function wireTaskPanelEvents(task) {
+  const panel = document.getElementById('tk-panel');
+  if (!panel) return;
+  // Close
+  panel.querySelector('#tk-pn-close')?.addEventListener('click', closeTaskPanel);
+
+  // Title save on blur
+  const titleInput = panel.querySelector('#tk-pn-title');
+  titleInput?.addEventListener('blur', async () => {
+    const val = titleInput.value.trim();
+    if (val && val !== task.text) {
+      task.text = val;
+      await api(`/tasks/${task.id}`, { method: 'PUT', body: { text: val } });
     }
-    renderTasksBoard();
-  };
-
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); cleanup(input.value); }
-    else if (e.key === 'Escape') cleanup();
   });
-  input.addEventListener('blur', () => setTimeout(() => cleanup(input.value), 100));
+  titleInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); titleInput.blur(); }
+  });
+
+  // Column switch
+  panel.querySelectorAll('[data-col-pick]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const newColId = parseInt(btn.dataset.colPick, 10);
+      if (newColId === task.column_id) return;
+      task.column_id = newColId;
+      // Move to end of new column
+      const allTasks = tasksBoard.flatMap(c => c.tasks);
+      const newCol = tasksBoard.find(c => c.id === newColId);
+      const newPos = newCol ? newCol.tasks.filter(t => !t.parent_id).length : 0;
+      await api(`/tasks/${task.id}`, { method: 'PUT', body: { column_id: newColId, parent_id: null, position: newPos } });
+      // Reload to get fresh data and re-render panel
+      await loadTasksBoard();
+      // Re-open panel with updated state
+      openTaskPanel(task.id);
+    });
+  });
+
+  // Due date / time
+  const dateInput = panel.querySelector('#tk-pn-date');
+  const timeInput = panel.querySelector('#tk-pn-time');
+  const saveDue = async () => {
+    const date = dateInput.value;
+    const time = timeInput.value;
+    let due = null;
+    if (date) due = time ? `${date}T${time}` : date;
+    task.due = due;
+    await api(`/tasks/${task.id}`, { method: 'PUT', body: { due } });
+  };
+  dateInput?.addEventListener('change', saveDue);
+  timeInput?.addEventListener('change', saveDue);
+  panel.querySelector('#tk-pn-due-clear')?.addEventListener('click', async () => {
+    dateInput.value = '';
+    timeInput.value = '';
+    task.due = null;
+    await api(`/tasks/${task.id}`, { method: 'PUT', body: { due: null } });
+  });
+
+  // Tags
+  const tagInput = panel.querySelector('#tk-pn-tag-input');
+  const addTag = async (val) => {
+    val = val.trim();
+    if (!val) return;
+    if (!Array.isArray(task.tags)) task.tags = [];
+    if (task.tags.includes(val)) return;
+    task.tags.push(val);
+    await api(`/tasks/${task.id}`, { method: 'PUT', body: { tags: task.tags } });
+    // Re-render tags section
+    refreshPanelTags(task);
+  };
+  tagInput?.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      await addTag(tagInput.value);
+      tagInput.value = '';
+    } else if (e.key === 'Backspace' && tagInput.value === '' && task.tags.length > 0) {
+      task.tags.pop();
+      await api(`/tasks/${task.id}`, { method: 'PUT', body: { tags: task.tags } });
+      refreshPanelTags(task);
+    }
+  });
+  panel.querySelectorAll('[data-tag-rm]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx = parseInt(btn.dataset.tagRm, 10);
+      task.tags.splice(idx, 1);
+      await api(`/tasks/${task.id}`, { method: 'PUT', body: { tags: task.tags } });
+      refreshPanelTags(task);
+    });
+  });
+
+  // Description
+  const desc = panel.querySelector('#tk-pn-desc');
+  desc?.addEventListener('blur', async () => {
+    const val = desc.value;
+    if (val !== (task.description || '')) {
+      task.description = val;
+      await api(`/tasks/${task.id}`, { method: 'PUT', body: { description: val } });
+      // Re-render checklist part
+      refreshPanelChecklist(task);
+    }
+  });
+
+  // Checklist toggles
+  panel.querySelectorAll('[data-check-idx]').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      const idx = parseInt(cb.dataset.checkIdx, 10);
+      task.description = toggleChecklistLine(task.description || '', idx);
+      await api(`/tasks/${task.id}`, { method: 'PUT', body: { description: task.description } });
+      // Update textarea + checklist counter
+      const ta = panel.querySelector('#tk-pn-desc');
+      if (ta) ta.value = task.description;
+      refreshPanelChecklist(task);
+    });
+  });
+
+  // Highlight toggle
+  panel.querySelector('#tk-pn-highlight')?.addEventListener('click', async () => {
+    task.highlighted = task.highlighted ? 0 : 1;
+    await api(`/tasks/${task.id}`, { method: 'PUT', body: { highlighted: task.highlighted } });
+    // Re-render panel with updated state
+    document.getElementById('tk-pn-highlight').textContent = task.highlighted ? '○ Retirer le liseré rouge' : '🔴 Mettre un liseré rouge';
+    document.getElementById('tk-pn-highlight').classList.toggle('active', !!task.highlighted);
+  });
+
+  // Delete
+  panel.querySelector('#tk-pn-delete')?.addEventListener('click', () => {
+    const id = task.id;
+    closeTaskPanel();
+    deleteTaskWithUndo(id);
+  });
+}
+
+function refreshPanelTags(task) {
+  const tagsContainer = document.getElementById('tk-pn-tags');
+  if (!tagsContainer) return;
+  const tags = task.tags || [];
+  tagsContainer.innerHTML = `
+    ${tags.map((tag, i) => `<span class="tk-pn-tag">${escapeHtml(tag)}<button data-tag-rm="${i}">×</button></span>`).join('')}
+    <input type="text" id="tk-pn-tag-input" placeholder="Ajouter un tag…">
+  `;
+  // Re-wire
+  const tagInput = tagsContainer.querySelector('#tk-pn-tag-input');
+  tagInput?.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const val = tagInput.value.trim();
+      if (!val) return;
+      if (!Array.isArray(task.tags)) task.tags = [];
+      if (task.tags.includes(val)) return;
+      task.tags.push(val);
+      await api(`/tasks/${task.id}`, { method: 'PUT', body: { tags: task.tags } });
+      refreshPanelTags(task);
+    } else if (e.key === 'Backspace' && tagInput.value === '' && task.tags.length > 0) {
+      task.tags.pop();
+      await api(`/tasks/${task.id}`, { method: 'PUT', body: { tags: task.tags } });
+      refreshPanelTags(task);
+    }
+  });
+  tagInput?.focus();
+  tagsContainer.querySelectorAll('[data-tag-rm]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx = parseInt(btn.dataset.tagRm, 10);
+      task.tags.splice(idx, 1);
+      await api(`/tasks/${task.id}`, { method: 'PUT', body: { tags: task.tags } });
+      refreshPanelTags(task);
+    });
+  });
+}
+
+function refreshPanelChecklist(task) {
+  // Re-render entire panel to update checklist section cleanly
+  const panel = document.getElementById('tk-panel');
+  if (!panel) return;
+  panel.innerHTML = renderTaskPanel(task);
+  wireTaskPanelEvents(task);
 }
 
 function editColumn(columnId, el) {

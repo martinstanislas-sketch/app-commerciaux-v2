@@ -2464,7 +2464,11 @@ app.put('/api/perso/daily/:date', requireAuth, requireAdmin, (req, res) => {
 app.get('/api/tasks/board', requireAuth, (req, res) => {
   const db = getDb();
   const columns = db.prepare('SELECT id, name, color, position FROM task_columns ORDER BY position ASC, id ASC').all();
-  const tasks = db.prepare('SELECT id, column_id, parent_id, text, highlighted, completed, position FROM tasks ORDER BY position ASC, id ASC').all();
+  const tasks = db.prepare('SELECT id, column_id, parent_id, text, highlighted, completed, position, due, description, tags FROM tasks ORDER BY position ASC, id ASC').all();
+  // Parse tags JSON
+  tasks.forEach(t => {
+    try { t.tags = t.tags ? JSON.parse(t.tags) : []; } catch { t.tags = []; }
+  });
   const byCol = {};
   columns.forEach(c => { byCol[c.id] = { ...c, tasks: [] }; });
   tasks.forEach(t => { if (byCol[t.column_id]) byCol[t.column_id].tasks.push(t); });
@@ -2519,7 +2523,7 @@ app.post('/api/tasks', requireAuth, (req, res) => {
 // Update a task
 app.put('/api/tasks/:id', requireAuth, (req, res) => {
   const db = getDb();
-  const { text, highlighted, completed, column_id, position, parent_id } = req.body;
+  const { text, highlighted, completed, column_id, position, parent_id, due, description, tags } = req.body;
   const fields = [];
   const values = [];
   if (text !== undefined) { fields.push('text = ?'); values.push(text); }
@@ -2528,6 +2532,9 @@ app.put('/api/tasks/:id', requireAuth, (req, res) => {
   if (column_id !== undefined) { fields.push('column_id = ?'); values.push(column_id); }
   if (position !== undefined) { fields.push('position = ?'); values.push(position); }
   if (parent_id !== undefined) { fields.push('parent_id = ?'); values.push(parent_id || null); }
+  if (due !== undefined) { fields.push('due = ?'); values.push(due || null); }
+  if (description !== undefined) { fields.push('description = ?'); values.push(description || null); }
+  if (tags !== undefined) { fields.push('tags = ?'); values.push(Array.isArray(tags) ? JSON.stringify(tags) : null); }
   if (fields.length === 0) return res.json({ ok: true });
   values.push(req.params.id);
   db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values);
@@ -2561,12 +2568,13 @@ app.post('/api/tasks/restore', requireAuth, (req, res) => {
   const db = getDb();
   const { task, subtasks } = req.body;
   if (!task) return res.status(400).json({ error: 'task required' });
-  const insertTask = db.prepare('INSERT INTO tasks (id, column_id, parent_id, text, highlighted, completed, position) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const insertTask = db.prepare('INSERT INTO tasks (id, column_id, parent_id, text, highlighted, completed, position, due, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  const tagsToJson = (tags) => Array.isArray(tags) ? JSON.stringify(tags) : (tags || null);
   const tx = db.transaction(() => {
-    insertTask.run(task.id, task.column_id, task.parent_id || null, task.text, task.highlighted ? 1 : 0, task.completed ? 1 : 0, task.position);
+    insertTask.run(task.id, task.column_id, task.parent_id || null, task.text, task.highlighted ? 1 : 0, task.completed ? 1 : 0, task.position, task.due || null, task.description || null, tagsToJson(task.tags));
     if (Array.isArray(subtasks)) {
       for (const s of subtasks) {
-        insertTask.run(s.id, s.column_id, s.parent_id || null, s.text, s.highlighted ? 1 : 0, s.completed ? 1 : 0, s.position);
+        insertTask.run(s.id, s.column_id, s.parent_id || null, s.text, s.highlighted ? 1 : 0, s.completed ? 1 : 0, s.position, s.due || null, s.description || null, tagsToJson(s.tags));
       }
     }
   });
