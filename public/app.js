@@ -5553,6 +5553,8 @@ function escapeHtml(str) {
 
 const TASK_COLORS = ['#6366F1', '#EC4899', '#10B981', '#F59E0B', '#8B5CF6', '#06B6D4', '#EF4444', '#84CC16'];
 let tasksBoard = [];
+let tasksDragging = null;       // { type: 'task'|'column', id, sourceColId? }
+let tasksDropTarget = null;     // { type: 'before'|'after'|'child'|'column-end'|'column-swap', taskId?, colId? }
 
 async function loadTasksBoard() {
   const container = document.getElementById('tasks-board');
@@ -5566,6 +5568,47 @@ async function loadTasksBoard() {
   }
 }
 
+// Build a tree of tasks from the flat list: roots have parent_id null, children nested under their parent
+function buildTaskTree(flatTasks) {
+  const map = {};
+  flatTasks.forEach(t => { map[t.id] = { ...t, children: [] }; });
+  const roots = [];
+  flatTasks.forEach(t => {
+    if (t.parent_id && map[t.parent_id]) {
+      map[t.parent_id].children.push(map[t.id]);
+    } else {
+      roots.push(map[t.id]);
+    }
+  });
+  const sortByPos = (arr) => {
+    arr.sort((a, b) => a.position - b.position || a.id - b.id);
+    arr.forEach(n => sortByPos(n.children));
+  };
+  sortByPos(roots);
+  return roots;
+}
+
+function renderTaskNode(t, depth = 0) {
+  const indentClass = depth > 0 ? `tk-card-sub tk-depth-${Math.min(depth, 3)}` : '';
+  return `
+    <div class="tk-card-wrap" data-task-wrap="${t.id}" style="${depth > 0 ? `margin-left: ${depth * 16}px;` : ''}">
+      <div class="tk-card ${t.highlighted ? 'tk-highlight' : ''} ${t.completed ? 'tk-done' : ''} ${indentClass}"
+           data-task-id="${t.id}"
+           data-parent-id="${t.parent_id || ''}"
+           data-col-id="${t.column_id}"
+           draggable="true">
+        <div class="tk-card-text" data-edit-task="${t.id}">${escapeHtml(t.text)}</div>
+        <div class="tk-card-actions">
+          <button class="tk-card-arrow" data-move-task="${t.id}" data-dir="up" title="Monter">↑</button>
+          <button class="tk-card-arrow" data-move-task="${t.id}" data-dir="down" title="Descendre">↓</button>
+          <button class="tk-card-subbtn" data-add-subtask="${t.id}" title="Sous-tâche">+ Sous-tâche</button>
+        </div>
+      </div>
+      ${t.children.map(c => renderTaskNode(c, depth + 1)).join('')}
+    </div>
+  `;
+}
+
 function renderTasksBoard() {
   const container = document.getElementById('tasks-board');
   if (!container) return;
@@ -5573,42 +5616,468 @@ function renderTasksBoard() {
   const countEl = document.getElementById('tasks-count');
   if (countEl) countEl.textContent = `${totalTasks} tâche${totalTasks !== 1 ? 's' : ''}`;
 
-  container.innerHTML = tasksBoard.map(col => `
+  container.innerHTML = tasksBoard.map(col => {
+    const tree = buildTaskTree(col.tasks);
+    return `
     <div class="tk-col" data-col-id="${col.id}">
-      <div class="tk-col-header" style="border-top-color: ${col.color}">
+      <div class="tk-col-header" style="border-top-color: ${col.color}" data-col-header="${col.id}" draggable="true">
         <div class="tk-col-name" data-edit-col="${col.id}">${escapeHtml(col.name)}</div>
         <div class="tk-col-right">
           <span class="tk-col-count" style="background: ${col.color}20; color: ${col.color}">${col.tasks.length}</span>
           <button class="tk-col-menu" data-col-menu="${col.id}" title="Options">⋯</button>
         </div>
       </div>
-      <div class="tk-col-body">
-        ${col.tasks.map(t => `
-          <div class="tk-card ${t.highlighted ? 'tk-highlight' : ''} ${t.completed ? 'tk-done' : ''}" data-task-id="${t.id}">
-            <div class="tk-card-text" data-edit-task="${t.id}">${escapeHtml(t.text)}</div>
-          </div>
-        `).join('')}
+      <div class="tk-col-body" data-col-body="${col.id}">
+        ${tree.map(t => renderTaskNode(t, 0)).join('')}
         <button class="tk-add-task" data-add-task="${col.id}">+ Ajouter une tâche</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
-  // Wire events
+  wireTasksEvents();
+}
+
+function wireTasksEvents() {
+  const container = document.getElementById('tasks-board');
+  if (!container) return;
+  // Add task
   container.querySelectorAll('[data-add-task]').forEach(btn => {
     btn.addEventListener('click', () => addTaskInline(parseInt(btn.dataset.addTask, 10), btn));
   });
-  container.querySelectorAll('[data-edit-task]').forEach(el => {
-    el.addEventListener('click', () => editTask(parseInt(el.dataset.editTask, 10), el));
+  // Add subtask
+  container.querySelectorAll('[data-add-subtask]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addSubtaskInline(parseInt(btn.dataset.addSubtask, 10), btn);
+    });
   });
+  // Edit task
+  container.querySelectorAll('[data-edit-task]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteTaskWithUndo(parseInt(el.dataset.editTask, 10));
+        return;
+      }
+      editTask(parseInt(el.dataset.editTask, 10), el);
+    });
+  });
+  // Move up/down arrows
+  container.querySelectorAll('[data-move-task]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      moveTaskInList(parseInt(btn.dataset.moveTask, 10), btn.dataset.dir);
+    });
+  });
+  // Edit column name
   container.querySelectorAll('[data-edit-col]').forEach(el => {
     el.addEventListener('click', () => editColumn(parseInt(el.dataset.editCol, 10), el));
   });
+  // Column menu
   container.querySelectorAll('[data-col-menu]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       openColumnMenu(parseInt(btn.dataset.colMenu, 10), btn);
     });
   });
+  // Right-click context menu on cards
+  container.querySelectorAll('.tk-card').forEach(card => {
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openCardContextMenu(parseInt(card.dataset.taskId, 10), e.clientX, e.clientY);
+    });
+  });
+  // ── Drag & drop ──
+  container.querySelectorAll('.tk-card').forEach(card => {
+    card.addEventListener('dragstart', onTaskDragStart);
+    card.addEventListener('dragend', onTaskDragEnd);
+    card.addEventListener('dragover', onTaskDragOver);
+    card.addEventListener('dragleave', onTaskDragLeave);
+    card.addEventListener('drop', onTaskDrop);
+  });
+  container.querySelectorAll('[data-col-body]').forEach(body => {
+    body.addEventListener('dragover', onColumnBodyDragOver);
+    body.addEventListener('dragleave', onColumnBodyDragLeave);
+    body.addEventListener('drop', onColumnBodyDrop);
+  });
+  container.querySelectorAll('[data-col-header]').forEach(header => {
+    header.addEventListener('dragstart', onColumnDragStart);
+    header.addEventListener('dragend', onColumnDragEnd);
+    header.addEventListener('dragover', onColumnHeaderDragOver);
+    header.addEventListener('drop', onColumnHeaderDrop);
+  });
+}
+
+// ── Drag & drop handlers ──
+
+function onTaskDragStart(e) {
+  const id = parseInt(e.currentTarget.dataset.taskId, 10);
+  tasksDragging = { type: 'task', id };
+  e.currentTarget.classList.add('tk-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  // Some browsers need data to be set
+  try { e.dataTransfer.setData('text/plain', String(id)); } catch (_) {}
+  document.body.classList.add('tk-dragging-active');
+}
+
+function onTaskDragEnd(e) {
+  e.currentTarget.classList.remove('tk-dragging');
+  document.body.classList.remove('tk-dragging-active');
+  clearDropIndicators();
+  tasksDragging = null;
+  tasksDropTarget = null;
+}
+
+function onTaskDragOver(e) {
+  if (!tasksDragging || tasksDragging.type !== 'task') return;
+  e.preventDefault();
+  e.stopPropagation();
+  const card = e.currentTarget;
+  const targetId = parseInt(card.dataset.taskId, 10);
+  if (targetId === tasksDragging.id) return;
+  if (isDescendant(tasksDragging.id, targetId)) return; // prevent loops
+
+  const rect = card.getBoundingClientRect();
+  const y = e.clientY - rect.top;
+  clearDropIndicators();
+  if (y < 10) {
+    card.classList.add('tk-drop-before');
+    tasksDropTarget = { type: 'before', taskId: targetId };
+  } else {
+    card.classList.add('tk-drop-child');
+    tasksDropTarget = { type: 'child', taskId: targetId };
+  }
+}
+
+function onTaskDragLeave(e) {
+  e.currentTarget.classList.remove('tk-drop-before', 'tk-drop-child');
+}
+
+function onTaskDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (!tasksDragging || !tasksDropTarget) return;
+  const dragId = tasksDragging.id;
+  const target = tasksDropTarget;
+  clearDropIndicators();
+  applyDrop(dragId, target);
+}
+
+function onColumnBodyDragOver(e) {
+  if (!tasksDragging || tasksDragging.type !== 'task') return;
+  e.preventDefault();
+  const body = e.currentTarget;
+  // Only show end indicator if hovering near the bottom (below all cards)
+  const colId = parseInt(body.dataset.colBody, 10);
+  clearDropIndicators();
+  body.classList.add('tk-col-drop');
+  tasksDropTarget = { type: 'column-end', colId };
+}
+
+function onColumnBodyDragLeave(e) {
+  if (e.currentTarget.contains(e.relatedTarget)) return;
+  e.currentTarget.classList.remove('tk-col-drop');
+}
+
+function onColumnBodyDrop(e) {
+  e.preventDefault();
+  if (!tasksDragging || !tasksDropTarget) return;
+  const dragId = tasksDragging.id;
+  const target = tasksDropTarget;
+  clearDropIndicators();
+  applyDrop(dragId, target);
+}
+
+function onColumnDragStart(e) {
+  // If user is starting to drag from header but the original target was the inline name/menu, abort
+  if (e.target.closest('[data-edit-col]') || e.target.closest('[data-col-menu]')) {
+    e.preventDefault();
+    return;
+  }
+  const id = parseInt(e.currentTarget.dataset.colHeader, 10);
+  tasksDragging = { type: 'column', id };
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', 'col-' + id); } catch (_) {}
+  e.currentTarget.classList.add('tk-col-dragging');
+}
+
+function onColumnDragEnd(e) {
+  e.currentTarget.classList.remove('tk-col-dragging');
+  document.querySelectorAll('.tk-col-swap-target').forEach(el => el.classList.remove('tk-col-swap-target'));
+  tasksDragging = null;
+  tasksDropTarget = null;
+}
+
+function onColumnHeaderDragOver(e) {
+  if (!tasksDragging || tasksDragging.type !== 'column') return;
+  e.preventDefault();
+  const targetId = parseInt(e.currentTarget.dataset.colHeader, 10);
+  if (targetId === tasksDragging.id) return;
+  document.querySelectorAll('.tk-col-swap-target').forEach(el => el.classList.remove('tk-col-swap-target'));
+  e.currentTarget.classList.add('tk-col-swap-target');
+  tasksDropTarget = { type: 'column-swap', colId: targetId };
+}
+
+function onColumnHeaderDrop(e) {
+  e.preventDefault();
+  if (!tasksDragging || !tasksDropTarget || tasksDropTarget.type !== 'column-swap') return;
+  swapColumns(tasksDragging.id, tasksDropTarget.colId);
+}
+
+function clearDropIndicators() {
+  document.querySelectorAll('.tk-drop-before, .tk-drop-child, .tk-col-drop').forEach(el => {
+    el.classList.remove('tk-drop-before', 'tk-drop-child', 'tk-col-drop');
+  });
+}
+
+// Check if checkId is descendant of ancestorId (in the flat tasks list)
+function isDescendant(ancestorId, checkId) {
+  if (ancestorId === checkId) return true;
+  const allTasks = tasksBoard.flatMap(c => c.tasks);
+  const childrenOf = (pid) => allTasks.filter(t => t.parent_id === pid);
+  const stack = [...childrenOf(ancestorId)];
+  while (stack.length) {
+    const t = stack.pop();
+    if (t.id === checkId) return true;
+    stack.push(...childrenOf(t.id));
+  }
+  return false;
+}
+
+async function applyDrop(taskId, target) {
+  const allTasks = tasksBoard.flatMap(c => c.tasks);
+  const task = allTasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  let newColumnId = task.column_id;
+  let newParentId = task.parent_id;
+  let newPosition = task.position;
+
+  if (target.type === 'before') {
+    const targetTask = allTasks.find(t => t.id === target.taskId);
+    if (!targetTask) return;
+    newColumnId = targetTask.column_id;
+    newParentId = targetTask.parent_id;
+    newPosition = targetTask.position;
+  } else if (target.type === 'child') {
+    const targetTask = allTasks.find(t => t.id === target.taskId);
+    if (!targetTask) return;
+    newColumnId = targetTask.column_id;
+    newParentId = targetTask.id;
+    const siblings = allTasks.filter(t => t.parent_id === targetTask.id);
+    newPosition = siblings.length;
+  } else if (target.type === 'column-end') {
+    newColumnId = target.colId;
+    newParentId = null;
+    const roots = allTasks.filter(t => t.column_id === target.colId && t.parent_id === null);
+    newPosition = roots.length;
+  }
+
+  // Build the bulk updates: shift positions of siblings appropriately
+  await persistTaskMove(taskId, newColumnId, newParentId, newPosition);
+  await loadTasksBoard();
+}
+
+async function persistTaskMove(taskId, columnId, parentId, position) {
+  try {
+    await api('/tasks/reorder', { method: 'POST', body: { updates: [{ id: taskId, column_id: columnId, parent_id: parentId, position }] } });
+    // Now also shift the descendants' column_id if it changed (they should follow parent)
+    const allTasks = tasksBoard.flatMap(c => c.tasks);
+    const task = allTasks.find(t => t.id === taskId);
+    if (task && task.column_id !== columnId) {
+      const toUpdate = [];
+      const collect = (pid) => {
+        allTasks.filter(t => t.parent_id === pid).forEach(c => {
+          toUpdate.push({ id: c.id, column_id: columnId, parent_id: c.parent_id, position: c.position });
+          collect(c.id);
+        });
+      };
+      collect(taskId);
+      if (toUpdate.length > 0) {
+        await api('/tasks/reorder', { method: 'POST', body: { updates: toUpdate } });
+      }
+    }
+  } catch (e) {
+    showToast('Erreur déplacement', 'error');
+  }
+}
+
+async function swapColumns(sourceId, targetId) {
+  const ids = tasksBoard.map(c => c.id);
+  const srcIdx = ids.indexOf(sourceId);
+  const tgtIdx = ids.indexOf(targetId);
+  if (srcIdx < 0 || tgtIdx < 0) return;
+  [ids[srcIdx], ids[tgtIdx]] = [ids[tgtIdx], ids[srcIdx]];
+  try {
+    await api('/tasks/columns/reorder', { method: 'POST', body: { order: ids } });
+    await loadTasksBoard();
+  } catch (e) {
+    showToast('Erreur réorganisation', 'error');
+  }
+}
+
+// ── Add subtask inline ──
+function addSubtaskInline(parentId, btn) {
+  const allTasks = tasksBoard.flatMap(c => c.tasks);
+  const parent = allTasks.find(t => t.id === parentId);
+  if (!parent) return;
+  const wrap = document.querySelector(`[data-task-wrap="${parentId}"]`);
+  if (!wrap) return;
+
+  // Create input directly below parent card
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tk-add-input tk-sub-input';
+  input.placeholder = 'Nouvelle sous-tâche…';
+  input.style.marginLeft = (16 + 16) + 'px'; // approximate indent
+  wrap.appendChild(input);
+  input.focus();
+  let submitted = false;
+
+  const cleanup = () => { if (input.parentNode) input.remove(); };
+
+  const submit = async (continueAfter) => {
+    if (submitted) return;
+    const text = input.value.trim();
+    if (!text) { submitted = true; cleanup(); return; }
+    submitted = true;
+    try {
+      await api('/tasks', { method: 'POST', body: { column_id: parent.column_id, parent_id: parent.id, text } });
+      await loadTasksBoard();
+      if (continueAfter) {
+        // Re-open another sub-input under the same parent for chaining
+        setTimeout(() => {
+          const btn2 = document.querySelector(`[data-add-subtask="${parentId}"]`);
+          if (btn2) addSubtaskInline(parentId, btn2);
+        }, 50);
+      }
+    } catch (e) {
+      showToast('Erreur sous-tâche', 'error');
+      cleanup();
+    }
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submit(true); }
+    else if (e.key === 'Escape') { submitted = true; cleanup(); }
+  });
+  input.addEventListener('blur', () => setTimeout(() => submit(false), 100));
+}
+
+// ── Move task up/down within siblings ──
+async function moveTaskInList(taskId, direction) {
+  const allTasks = tasksBoard.flatMap(c => c.tasks);
+  const task = allTasks.find(t => t.id === taskId);
+  if (!task) return;
+  const siblings = allTasks
+    .filter(t => t.column_id === task.column_id && (t.parent_id || null) === (task.parent_id || null))
+    .sort((a, b) => a.position - b.position);
+  const idx = siblings.findIndex(t => t.id === taskId);
+  if (idx < 0) return;
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= siblings.length) return;
+  const other = siblings[swapIdx];
+  // Swap positions
+  try {
+    await api('/tasks/reorder', { method: 'POST', body: { updates: [
+      { id: task.id, column_id: task.column_id, parent_id: task.parent_id, position: other.position },
+      { id: other.id, column_id: other.column_id, parent_id: other.parent_id, position: task.position }
+    ] } });
+    await loadTasksBoard();
+  } catch (e) {
+    showToast('Erreur déplacement', 'error');
+  }
+}
+
+// ── Delete with toast undo ──
+async function deleteTaskWithUndo(taskId) {
+  const allTasks = tasksBoard.flatMap(c => c.tasks);
+  const task = allTasks.find(t => t.id === taskId);
+  if (!task) return;
+  // Collect descendants for restore
+  const descendants = [];
+  const collect = (pid) => {
+    allTasks.filter(t => t.parent_id === pid).forEach(c => {
+      descendants.push({ ...c });
+      collect(c.id);
+    });
+  };
+  collect(taskId);
+
+  try {
+    await api(`/tasks/${taskId}`, { method: 'DELETE' });
+    await loadTasksBoard();
+    showUndoToast(task.text, async () => {
+      try {
+        await api('/tasks/restore', { method: 'POST', body: { task, subtasks: descendants } });
+        await loadTasksBoard();
+        showToast('Tâche restaurée', 'success', 1500);
+      } catch (e) {
+        showToast('Restauration impossible', 'error');
+      }
+    });
+  } catch (e) {
+    showToast('Erreur suppression', 'error');
+  }
+}
+
+function showUndoToast(taskText, onUndo) {
+  // Remove any existing undo toast
+  document.querySelectorAll('.tk-undo-toast').forEach(t => t.remove());
+  const toast = document.createElement('div');
+  toast.className = 'tk-undo-toast';
+  const shortText = taskText.length > 40 ? taskText.slice(0, 40) + '…' : taskText;
+  toast.innerHTML = `<span>« ${escapeHtml(shortText)} » supprimée</span> <button class="tk-undo-btn">Annuler</button>`;
+  document.body.appendChild(toast);
+  const timer = setTimeout(() => toast.remove(), 5000);
+  toast.querySelector('.tk-undo-btn').addEventListener('click', () => {
+    clearTimeout(timer);
+    toast.remove();
+    onUndo();
+  });
+}
+
+// ── Context menu on card ──
+function openCardContextMenu(taskId, x, y) {
+  document.querySelectorAll('.tk-menu-popup').forEach(m => m.remove());
+  const allTasks = tasksBoard.flatMap(c => c.tasks);
+  const task = allTasks.find(t => t.id === taskId);
+  if (!task) return;
+  const menu = document.createElement('div');
+  menu.className = 'tk-menu-popup';
+  menu.innerHTML = `
+    <button class="tk-menu-item" data-action="up">↑ Monter</button>
+    <button class="tk-menu-item" data-action="down">↓ Descendre</button>
+    <button class="tk-menu-item" data-action="highlight">${task.highlighted ? '○ Retirer le liseré rouge' : '🔴 Mettre un liseré rouge'}</button>
+    <button class="tk-menu-item tk-menu-danger" data-action="delete">Supprimer</button>
+  `;
+  document.body.appendChild(menu);
+  menu.style.top = y + 'px';
+  menu.style.left = x + 'px';
+  // Clamp to viewport
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 8) + 'px';
+  if (rect.bottom > window.innerHeight) menu.style.top = (window.innerHeight - rect.height - 8) + 'px';
+
+  menu.querySelector('[data-action="up"]').addEventListener('click', () => { menu.remove(); moveTaskInList(taskId, 'up'); });
+  menu.querySelector('[data-action="down"]').addEventListener('click', () => { menu.remove(); moveTaskInList(taskId, 'down'); });
+  menu.querySelector('[data-action="highlight"]').addEventListener('click', async () => {
+    menu.remove();
+    const newVal = task.highlighted ? 0 : 1;
+    task.highlighted = newVal;
+    await api(`/tasks/${taskId}`, { method: 'PUT', body: { highlighted: newVal } });
+    renderTasksBoard();
+  });
+  menu.querySelector('[data-action="delete"]').addEventListener('click', () => { menu.remove(); deleteTaskWithUndo(taskId); });
+
+  const closeOnOutside = (e) => {
+    if (!menu.contains(e.target)) {
+      menu.remove();
+      document.removeEventListener('click', closeOnOutside);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', closeOnOutside), 50);
 }
 
 function addTaskInline(columnId, btn) {

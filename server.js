@@ -2464,7 +2464,7 @@ app.put('/api/perso/daily/:date', requireAuth, requireAdmin, (req, res) => {
 app.get('/api/tasks/board', requireAuth, (req, res) => {
   const db = getDb();
   const columns = db.prepare('SELECT id, name, color, position FROM task_columns ORDER BY position ASC, id ASC').all();
-  const tasks = db.prepare('SELECT id, column_id, text, highlighted, completed, position FROM tasks ORDER BY position ASC, id ASC').all();
+  const tasks = db.prepare('SELECT id, column_id, parent_id, text, highlighted, completed, position FROM tasks ORDER BY position ASC, id ASC').all();
   const byCol = {};
   columns.forEach(c => { byCol[c.id] = { ...c, tasks: [] }; });
   tasks.forEach(t => { if (byCol[t.column_id]) byCol[t.column_id].tasks.push(t); });
@@ -2505,17 +2505,21 @@ app.delete('/api/tasks/columns/:id', requireAuth, (req, res) => {
 // Create a task
 app.post('/api/tasks', requireAuth, (req, res) => {
   const db = getDb();
-  const { column_id, text } = req.body;
+  const { column_id, text, parent_id } = req.body;
   if (!column_id || !text || !text.trim()) return res.status(400).json({ error: 'column_id et text requis' });
-  const maxPos = db.prepare('SELECT COALESCE(MAX(position), -1) AS p FROM tasks WHERE column_id = ?').get(column_id).p;
-  const info = db.prepare('INSERT INTO tasks (column_id, text, position) VALUES (?, ?, ?)').run(column_id, text.trim(), maxPos + 1);
-  res.json({ id: info.lastInsertRowid, column_id, text: text.trim(), highlighted: 0, completed: 0, position: maxPos + 1 });
+  const maxPos = db.prepare(
+    parent_id
+      ? 'SELECT COALESCE(MAX(position), -1) AS p FROM tasks WHERE parent_id = ?'
+      : 'SELECT COALESCE(MAX(position), -1) AS p FROM tasks WHERE column_id = ? AND parent_id IS NULL'
+  ).get(parent_id || column_id).p;
+  const info = db.prepare('INSERT INTO tasks (column_id, parent_id, text, position) VALUES (?, ?, ?, ?)').run(column_id, parent_id || null, text.trim(), maxPos + 1);
+  res.json({ id: info.lastInsertRowid, column_id, parent_id: parent_id || null, text: text.trim(), highlighted: 0, completed: 0, position: maxPos + 1 });
 });
 
 // Update a task
 app.put('/api/tasks/:id', requireAuth, (req, res) => {
   const db = getDb();
-  const { text, highlighted, completed, column_id, position } = req.body;
+  const { text, highlighted, completed, column_id, position, parent_id } = req.body;
   const fields = [];
   const values = [];
   if (text !== undefined) { fields.push('text = ?'); values.push(text); }
@@ -2523,6 +2527,7 @@ app.put('/api/tasks/:id', requireAuth, (req, res) => {
   if (completed !== undefined) { fields.push('completed = ?'); values.push(completed ? 1 : 0); }
   if (column_id !== undefined) { fields.push('column_id = ?'); values.push(column_id); }
   if (position !== undefined) { fields.push('position = ?'); values.push(position); }
+  if (parent_id !== undefined) { fields.push('parent_id = ?'); values.push(parent_id || null); }
   if (fields.length === 0) return res.json({ ok: true });
   values.push(req.params.id);
   db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values);
@@ -2533,6 +2538,52 @@ app.put('/api/tasks/:id', requireAuth, (req, res) => {
 app.delete('/api/tasks/:id', requireAuth, (req, res) => {
   const db = getDb();
   db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Bulk reorder/move tasks (drag & drop)
+// Body: { updates: [{ id, column_id, parent_id, position }, ...] }
+app.post('/api/tasks/reorder', requireAuth, (req, res) => {
+  const db = getDb();
+  const { updates } = req.body;
+  if (!Array.isArray(updates)) return res.status(400).json({ error: 'updates array required' });
+  const stmt = db.prepare('UPDATE tasks SET column_id = ?, parent_id = ?, position = ? WHERE id = ?');
+  const tx = db.transaction((updates) => {
+    for (const u of updates) stmt.run(u.column_id, u.parent_id || null, u.position, u.id);
+  });
+  tx(updates);
+  res.json({ ok: true });
+});
+
+// Restore a deleted task (undo) — receives full payload
+// Body: { id?, column_id, parent_id, text, highlighted, completed, position, subtasks?: [...] }
+app.post('/api/tasks/restore', requireAuth, (req, res) => {
+  const db = getDb();
+  const { task, subtasks } = req.body;
+  if (!task) return res.status(400).json({ error: 'task required' });
+  const insertTask = db.prepare('INSERT INTO tasks (id, column_id, parent_id, text, highlighted, completed, position) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const tx = db.transaction(() => {
+    insertTask.run(task.id, task.column_id, task.parent_id || null, task.text, task.highlighted ? 1 : 0, task.completed ? 1 : 0, task.position);
+    if (Array.isArray(subtasks)) {
+      for (const s of subtasks) {
+        insertTask.run(s.id, s.column_id, s.parent_id || null, s.text, s.highlighted ? 1 : 0, s.completed ? 1 : 0, s.position);
+      }
+    }
+  });
+  try { tx(); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Reorder columns: receives { order: [colId1, colId2, ...] }
+app.post('/api/tasks/columns/reorder', requireAuth, (req, res) => {
+  const db = getDb();
+  const { order } = req.body;
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' });
+  const stmt = db.prepare('UPDATE task_columns SET position = ? WHERE id = ?');
+  const tx = db.transaction(() => {
+    order.forEach((id, idx) => stmt.run(idx, id));
+  });
+  tx();
   res.json({ ok: true });
 });
 

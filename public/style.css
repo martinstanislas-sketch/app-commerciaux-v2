@@ -6384,3 +6384,177 @@ main {
 .tk-menu-item.tk-menu-danger:hover {
   background: rgba(239,68,68,0.08);
 }
+
+/* ─── Tasks Phase 1: drag & drop, subtasks, undo toast ─── */
+.tk-card-wrap {
+  display: block;
+  position: relative;
+}
+.tk-card {
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.tk-card-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: none;
+  gap: 4px;
+  align-items: center;
+}
+.tk-card:hover .tk-card-actions {
+  display: flex;
+}
+.tk-card-arrow {
+  background: rgba(255,255,255,0.95);
+  border: 1px solid rgba(148,163,194,0.3);
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text-muted, #94A3B8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+.tk-card-arrow:hover {
+  background: var(--primary, #6366F1);
+  border-color: var(--primary, #6366F1);
+  color: #fff;
+}
+.tk-card-subbtn {
+  background: rgba(255,255,255,0.95);
+  border: 1px dashed rgba(148,163,194,0.5);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: .65rem;
+  font-weight: 600;
+  color: var(--text-muted, #94A3B8);
+  cursor: pointer;
+}
+.tk-card-subbtn:hover {
+  border-style: solid;
+  border-color: var(--primary, #6366F1);
+  color: var(--primary, #6366F1);
+}
+.tk-card-sub {
+  background: #FAFAFB;
+}
+.tk-card-sub::before {
+  content: '↳';
+  position: absolute;
+  left: -14px;
+  top: 10px;
+  color: var(--text-muted, #94A3B8);
+  font-size: 14px;
+  font-weight: 700;
+}
+.tk-sub-input {
+  margin-top: 6px;
+}
+
+/* Drag & drop states */
+.tk-card.tk-dragging {
+  opacity: 0.45;
+  transform: rotate(1.5deg);
+  cursor: grabbing;
+}
+body.tk-dragging-active .tk-add-task,
+body.tk-dragging-active .tk-card-subbtn {
+  opacity: 0.4;
+}
+body.tk-dragging-active * {
+  cursor: grabbing !important;
+}
+.tk-card.tk-drop-before::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -4px;
+  height: 3px;
+  background: var(--primary, #6366F1);
+  border-radius: 2px;
+  z-index: 10;
+}
+.tk-card.tk-drop-child {
+  outline: 3px solid var(--primary, #6366F1);
+  outline-offset: -1px;
+  transform: scale(1.02);
+}
+.tk-card.tk-drop-child::after {
+  content: '↘ DEVIENT SOUS-TÂCHE';
+  position: absolute;
+  top: -10px;
+  right: 8px;
+  background: var(--primary, #6366F1);
+  color: #fff;
+  font-size: .55rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 3px 7px;
+  border-radius: 8px;
+  z-index: 11;
+}
+.tk-col-body.tk-col-drop {
+  background: rgba(99,102,241,0.05);
+  outline: 2px dashed var(--primary, #6366F1);
+  outline-offset: -4px;
+  border-radius: var(--radius-sm, 10px);
+}
+.tk-col-header[draggable="true"] {
+  cursor: grab;
+}
+.tk-col-header[draggable="true"]:active {
+  cursor: grabbing;
+}
+.tk-col.tk-col-dragging,
+.tk-col-header.tk-col-dragging {
+  opacity: 0.6;
+}
+.tk-col-header.tk-col-swap-target {
+  background: rgba(99,102,241,0.1);
+  outline: 2px dashed var(--primary, #6366F1);
+}
+
+/* Undo toast */
+.tk-undo-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text, #1E293B);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: .85rem;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.25);
+  z-index: 9999;
+  animation: tkToastIn .2s ease;
+}
+@keyframes tkToastIn {
+  from { transform: translate(-50%, 20px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+.tk-undo-btn {
+  background: var(--primary, #6366F1);
+  border: none;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tk-undo-btn:hover {
+  background: var(--primary-dark, #4F46E5);
+}

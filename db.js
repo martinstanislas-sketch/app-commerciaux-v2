@@ -344,6 +344,12 @@ function initSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_column ON tasks(column_id, position);
   `);
+  // Migration: add parent_id column to tasks if missing (for sub-tasks)
+  const taskCols = db.prepare("PRAGMA table_info(tasks)").all().map(c => c.name);
+  if (!taskCols.includes('parent_id')) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN parent_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE;`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id, position);`);
+  }
   // Seed default columns if empty
   const colCount = db.prepare('SELECT COUNT(*) AS c FROM task_columns').get().c;
   if (colCount === 0) {
