@@ -6770,10 +6770,243 @@ function initTasksBindings() {
     searchBtn.dataset.bound = '1';
     searchBtn.addEventListener('click', openTasksSearch);
   }
+  const exportBtn = document.getElementById('btn-tasks-export');
+  if (exportBtn && !exportBtn.dataset.bound) {
+    exportBtn.dataset.bound = '1';
+    exportBtn.addEventListener('click', exportTasksZip);
+  }
+  const settingsBtn = document.getElementById('btn-tasks-settings');
+  if (settingsBtn && !settingsBtn.dataset.bound) {
+    settingsBtn.dataset.bound = '1';
+    settingsBtn.addEventListener('click', openTasksSettings);
+  }
+  initTasksWallpaper();
+  initTasksSettingsModal();
   // Global keyboard shortcuts
   if (!document.body.dataset.tkShortcutsBound) {
     document.body.dataset.tkShortcutsBound = '1';
     document.addEventListener('keydown', onTasksGlobalShortcut);
+  }
+}
+
+// ── Export to ZIP (one .md per task + _taskvault.json) ──
+async function exportTasksZip() {
+  if (typeof JSZip === 'undefined') {
+    showToast('JSZip non chargé', 'error');
+    return;
+  }
+  const zip = new JSZip();
+  const taskvault = {
+    exported_at: new Date().toISOString(),
+    columns: tasksBoard.map(c => ({ id: c.id, name: c.name, color: c.color, position: c.position }))
+  };
+  zip.file('_taskvault.json', JSON.stringify(taskvault, null, 2));
+
+  const slugify = (s) => (s || 'task')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60);
+
+  tasksBoard.forEach(col => {
+    col.tasks.forEach(task => {
+      const status = col.name;
+      const tags = Array.isArray(task.tags) ? task.tags : [];
+      const links = tasksBoard.flatMap(c => c.tasks)
+        .filter(t => t.parent_id === task.id)
+        .map(t => t.id);
+      const fm = ['---'];
+      fm.push(`title: ${JSON.stringify(task.text || '')}`);
+      fm.push(`status: ${JSON.stringify(status)}`);
+      if (task.due) fm.push(`due: ${task.due}`);
+      fm.push(`order: ${task.position}`);
+      fm.push(`highlight: ${task.highlighted ? 'true' : 'false'}`);
+      if (tags.length) {
+        fm.push('tags:');
+        tags.forEach(t => fm.push(`  - ${JSON.stringify(t)}`));
+      }
+      if (links.length) {
+        fm.push('links:');
+        links.forEach(l => fm.push(`  - ${l}`));
+      }
+      if (task.parent_id) fm.push(`parent: ${task.parent_id}`);
+      fm.push('---');
+      const body = task.description || '';
+      const md = fm.join('\n') + '\n\n' + body + '\n';
+      const filename = `${task.id}-${slugify(task.text)}.md`;
+      zip.file(filename, md);
+    });
+  });
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const dateStr = new Date().toISOString().slice(0, 10);
+  a.download = `taskvault-${dateStr}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Export ZIP téléchargé', 'success', 2000);
+}
+
+// ── Wallpaper personnalisation ──
+const TK_DB_NAME = 'tkPrefs';
+const TK_STORE = 'kv';
+
+function openTkDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(TK_DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(TK_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function tkDbGet(key) {
+  const db = await openTkDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(TK_STORE, 'readonly');
+    const req = tx.objectStore(TK_STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function tkDbSet(key, val) {
+  const db = await openTkDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(TK_STORE, 'readwrite');
+    tx.objectStore(TK_STORE).put(val, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function tkDbDel(key) {
+  const db = await openTkDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(TK_STORE, 'readwrite');
+    tx.objectStore(TK_STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function initTasksWallpaper() {
+  try {
+    const blob = await tkDbGet('wallpaper');
+    if (blob) applyWallpaperFromBlob(blob);
+  } catch (_) {}
+  // Apply saved opacity & blur
+  const veilOp = parseInt(localStorage.getItem('tkVeilOpacity') || '60', 10);
+  const blur = parseInt(localStorage.getItem('tkVeilBlur') || '0', 10);
+  applyVeilSettings(veilOp, blur);
+}
+
+function applyWallpaperFromBlob(blob) {
+  const url = URL.createObjectURL(blob);
+  const wp = document.getElementById('tk-wallpaper');
+  if (wp) {
+    wp.style.backgroundImage = `url(${url})`;
+    wp.classList.add('active');
+    document.body.classList.add('tk-has-wallpaper');
+  }
+}
+
+function clearWallpaper() {
+  const wp = document.getElementById('tk-wallpaper');
+  if (wp) {
+    wp.style.backgroundImage = '';
+    wp.classList.remove('active');
+    document.body.classList.remove('tk-has-wallpaper');
+  }
+  tkDbDel('wallpaper').catch(() => {});
+}
+
+function applyVeilSettings(opacity, blur) {
+  const veil = document.getElementById('tk-wallpaper-veil');
+  if (veil) {
+    veil.style.background = `rgba(255,255,255,${opacity / 100})`;
+    veil.style.backdropFilter = blur > 0 ? `blur(${blur}px)` : '';
+  }
+}
+
+function openTasksSettings() {
+  const overlay = document.getElementById('tk-settings-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  // Sync sliders with stored values
+  const veil = parseInt(localStorage.getItem('tkVeilOpacity') || '60', 10);
+  const blur = parseInt(localStorage.getItem('tkVeilBlur') || '0', 10);
+  const veilSlider = document.getElementById('tk-settings-veil');
+  const blurSlider = document.getElementById('tk-settings-blur');
+  if (veilSlider) veilSlider.value = veil;
+  if (blurSlider) blurSlider.value = blur;
+  document.getElementById('tk-settings-veil-val').textContent = veil + '%';
+  document.getElementById('tk-settings-blur-val').textContent = blur + ' px';
+}
+
+function closeTasksSettings() {
+  document.getElementById('tk-settings-overlay')?.classList.add('hidden');
+}
+
+function initTasksSettingsModal() {
+  const overlay = document.getElementById('tk-settings-overlay');
+  if (!overlay || overlay.dataset.bound) return;
+  overlay.dataset.bound = '1';
+
+  document.getElementById('tk-settings-close')?.addEventListener('click', closeTasksSettings);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeTasksSettings(); });
+
+  const dropzone = document.getElementById('tk-settings-dropzone');
+  const fileInput = document.getElementById('tk-settings-file');
+  if (dropzone && fileInput) {
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) await saveWallpaper(file);
+    });
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (file) await saveWallpaper(file);
+    });
+  }
+
+  document.getElementById('tk-settings-remove')?.addEventListener('click', () => {
+    clearWallpaper();
+    showToast('Image de fond retirée', 'info', 1500);
+  });
+
+  const veilSlider = document.getElementById('tk-settings-veil');
+  veilSlider?.addEventListener('input', () => {
+    const v = parseInt(veilSlider.value, 10);
+    document.getElementById('tk-settings-veil-val').textContent = v + '%';
+    localStorage.setItem('tkVeilOpacity', String(v));
+    const b = parseInt(localStorage.getItem('tkVeilBlur') || '0', 10);
+    applyVeilSettings(v, b);
+  });
+
+  const blurSlider = document.getElementById('tk-settings-blur');
+  blurSlider?.addEventListener('input', () => {
+    const b = parseInt(blurSlider.value, 10);
+    document.getElementById('tk-settings-blur-val').textContent = b + ' px';
+    localStorage.setItem('tkVeilBlur', String(b));
+    const v = parseInt(localStorage.getItem('tkVeilOpacity') || '60', 10);
+    applyVeilSettings(v, b);
+  });
+}
+
+async function saveWallpaper(file) {
+  try {
+    await tkDbSet('wallpaper', file);
+    applyWallpaperFromBlob(file);
+    showToast('Image de fond appliquée', 'success', 1500);
+  } catch (e) {
+    showToast('Erreur enregistrement', 'error');
   }
 }
 if (document.readyState === 'loading') {

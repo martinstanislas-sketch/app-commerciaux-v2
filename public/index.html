@@ -11,6 +11,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
   <!-- LOGIN OVERLAY -->
@@ -229,6 +230,8 @@
           </div>
           <div class="tasks-toolbar">
             <button id="btn-tasks-search" class="btn-tasks-search" title="Rechercher (Cmd+K)">🔍 Chercher</button>
+            <button id="btn-tasks-export" class="btn-tasks-icon" title="Exporter en ZIP">⬇ Export</button>
+            <button id="btn-tasks-settings" class="btn-tasks-icon" title="Personnaliser le fond">⚙ Personnaliser</button>
             <div class="tasks-filters" id="tasks-filters"></div>
             <button id="btn-add-column" class="btn-add-column">+ Ajouter une colonne</button>
           </div>
@@ -238,6 +241,38 @@
       <!-- Task Panel (slide-in from right) -->
       <div id="tk-panel-backdrop" class="tk-panel-backdrop hidden"></div>
       <aside id="tk-panel" class="tk-panel hidden" aria-hidden="true"></aside>
+      <!-- Wallpaper layer (behind everything on tasks tab) -->
+      <div id="tk-wallpaper" class="tk-wallpaper"></div>
+      <div id="tk-wallpaper-veil" class="tk-wallpaper-veil"></div>
+
+      <!-- Personalisation modal -->
+      <div id="tk-settings-overlay" class="tk-settings-overlay hidden">
+        <div class="tk-settings-modal">
+          <header class="tk-settings-header">
+            <h2>Personnalisation</h2>
+            <button class="tk-settings-close" id="tk-settings-close">&times;</button>
+          </header>
+          <div class="tk-settings-body">
+            <div class="tk-settings-section">
+              <label class="tk-settings-label">Image de fond</label>
+              <div class="tk-settings-dropzone" id="tk-settings-dropzone">
+                <input type="file" id="tk-settings-file" accept="image/*" hidden>
+                <span>Glissez une image ici ou <strong>cliquez pour choisir</strong></span>
+              </div>
+              <button class="tk-settings-remove" id="tk-settings-remove">Retirer l'image</button>
+            </div>
+            <div class="tk-settings-section">
+              <label class="tk-settings-label">Opacit&eacute; du voile blanc <span id="tk-settings-veil-val">60%</span></label>
+              <input type="range" id="tk-settings-veil" min="0" max="100" value="60">
+            </div>
+            <div class="tk-settings-section">
+              <label class="tk-settings-label">Flou <span id="tk-settings-blur-val">0 px</span></label>
+              <input type="range" id="tk-settings-blur" min="0" max="20" value="0">
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Search palette modal -->
       <div id="tk-search-overlay" class="tk-search-overlay hidden">
         <div class="tk-search-modal">
