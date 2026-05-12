@@ -326,6 +326,9 @@ async function bootApp() {
   if (isPhoneLead()) {
     loadPhoningTab();
   } else {
+    // Default landing tab = Tâches (Kanban)
+    loadTasksBoard();
+    // Preload others in background for instant tab switch
     loadDashboard();
     if (!isAdmin()) loadTodayTab();
   }
@@ -343,6 +346,7 @@ function updateTabVisibility() {
   const controleBtn = document.querySelector('[data-tab="controle"]');
   const actionsBtn = document.querySelector('[data-tab="admin-actions"]');
   const persoBtn = document.querySelector('[data-tab="perso"]');
+  const tasksBtn = document.querySelector('[data-tab="tasks"]');
 
   if (isPhoneLead()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -356,6 +360,7 @@ function updateTabVisibility() {
     if (controleBtn) controleBtn.style.display = 'none';
     if (actionsBtn) actionsBtn.style.display = 'none';
     if (persoBtn) persoBtn.style.display = 'none';
+    if (tasksBtn) tasksBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -369,9 +374,11 @@ function updateTabVisibility() {
     if (controleBtn) controleBtn.style.display = '';
     if (actionsBtn) actionsBtn.style.display = '';
     if (persoBtn) persoBtn.style.display = '';
-    dashBtn.click();
+    if (tasksBtn) tasksBtn.style.display = '';
+    // Default landing tab on login = Tâches
+    if (tasksBtn) tasksBtn.click(); else dashBtn.click();
   } else {
-    // Commercial: Aujourd'hui + Ventes (ses propres ventes) + Récap
+    // Commercial: Aujourd'hui + Ventes (ses propres ventes) + Récap + Tâches
     if (todayBtn) todayBtn.style.display = '';
     if (ventesBtn) ventesBtn.style.display = '';
     if (dashBtn) dashBtn.style.display = 'none';
@@ -383,7 +390,9 @@ function updateTabVisibility() {
     if (controleBtn) controleBtn.style.display = 'none';
     if (actionsBtn) actionsBtn.style.display = 'none';
     if (persoBtn) persoBtn.style.display = 'none';
-    todayBtn.click();
+    if (tasksBtn) tasksBtn.style.display = '';
+    // Default landing tab on login = Tâches
+    if (tasksBtn) tasksBtn.click(); else todayBtn.click();
   }
 }
 

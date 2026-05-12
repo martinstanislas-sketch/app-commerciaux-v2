@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=mobile3">
+  <link rel="stylesheet" href="style.css?v=mobile4">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -39,14 +39,14 @@
     </div>
     <nav id="main-nav">
       <button class="tab-btn" data-tab="today">Performance du jour</button>
-      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="ventes">Ventes</button>
       <button class="tab-btn" data-tab="mensuel">R&eacute;cap mensuel</button>
       <!-- <button class="tab-btn" data-tab="notes">Remarques</button> -->
       <!-- <button class="tab-btn" data-tab="admin-phoneurs">Phoneurs</button> -->
       <button class="tab-btn" data-tab="controle">Contr&ocirc;le</button>
       <button class="tab-btn" data-tab="admin-actions">Actions</button>
-      <button class="tab-btn" data-tab="tasks">T&acirc;ches</button>
+      <button class="tab-btn active" data-tab="tasks">T&acirc;ches</button>
       <button class="tab-btn" data-tab="perso">Perso</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button> -->
@@ -76,7 +76,7 @@
     -->
 
     <!-- DASHBOARD -->
-    <section id="tab-dashboard" class="tab-content active">
+    <section id="tab-dashboard" class="tab-content">
       <div class="week-nav">
         <button id="prev-week" title="Semaine précédente">&larr;</button>
         <span id="week-label">—</span>
@@ -227,7 +227,7 @@
     </section>
 
     <!-- TASKS (Kanban) -->
-    <section id="tab-tasks" class="tab-content">
+    <section id="tab-tasks" class="tab-content active">
       <div class="tasks-page">
         <div class="tasks-header">
           <div class="tasks-title">
@@ -510,6 +510,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=mobile2"></script>
+  <script src="app.js?v=mobile4"></script>
 </body>
 </html>
