@@ -5556,6 +5556,52 @@ let tasksBoard = [];
 let tasksDragging = null;       // { type: 'task'|'column', id, sourceColId? }
 let tasksDropTarget = null;     // { type: 'before'|'after'|'child'|'column-end'|'column-swap', taskId?, colId? }
 let tasksActiveFilters = new Set(); // Set of column IDs that are active filters (empty = show all)
+let tasksHoveredColumnId = null; // For "n" shortcut
+
+// ── Undo/Redo history ──
+// Each entry: { undo: async fn, redo: async fn, label: string }
+const tasksUndoStack = [];
+const tasksRedoStack = [];
+const TASKS_HISTORY_MAX = 50;
+
+function recordHistory(entry) {
+  tasksUndoStack.push(entry);
+  if (tasksUndoStack.length > TASKS_HISTORY_MAX) tasksUndoStack.shift();
+  // New action wipes the redo stack
+  tasksRedoStack.length = 0;
+}
+
+async function tasksUndo() {
+  if (tasksUndoStack.length === 0) {
+    showToast('Rien à annuler', 'info', 1500);
+    return;
+  }
+  const entry = tasksUndoStack.pop();
+  try {
+    await entry.undo();
+    tasksRedoStack.push(entry);
+    await loadTasksBoard();
+    showToast(`↶ ${entry.label}`, 'info', 1500);
+  } catch (e) {
+    showToast('Erreur annulation', 'error');
+  }
+}
+
+async function tasksRedo() {
+  if (tasksRedoStack.length === 0) {
+    showToast('Rien à refaire', 'info', 1500);
+    return;
+  }
+  const entry = tasksRedoStack.pop();
+  try {
+    await entry.redo();
+    tasksUndoStack.push(entry);
+    await loadTasksBoard();
+    showToast(`↷ ${entry.label}`, 'info', 1500);
+  } catch (e) {
+    showToast('Erreur refait', 'error');
+  }
+}
 
 async function loadTasksBoard() {
   const container = document.getElementById('tasks-board');
@@ -5830,6 +5876,11 @@ function wireTasksEvents() {
     body.addEventListener('dragleave', onColumnBodyDragLeave);
     body.addEventListener('drop', onColumnBodyDrop);
   });
+  // Track hovered column for "n" shortcut
+  container.querySelectorAll('.tk-col').forEach(col => {
+    col.addEventListener('mouseenter', () => { tasksHoveredColumnId = parseInt(col.dataset.colId, 10); });
+    col.addEventListener('mouseleave', () => { tasksHoveredColumnId = null; });
+  });
   container.querySelectorAll('[data-col-header]').forEach(header => {
     header.addEventListener('dragstart', onColumnDragStart);
     header.addEventListener('dragend', onColumnDragEnd);
@@ -6010,10 +6061,13 @@ async function applyDrop(taskId, target) {
 
 async function persistTaskMove(taskId, columnId, parentId, position) {
   try {
-    await api('/tasks/reorder', { method: 'POST', body: { updates: [{ id: taskId, column_id: columnId, parent_id: parentId, position }] } });
-    // Now also shift the descendants' column_id if it changed (they should follow parent)
+    // Capture previous state for undo
     const allTasks = tasksBoard.flatMap(c => c.tasks);
     const task = allTasks.find(t => t.id === taskId);
+    const prev = task ? { column_id: task.column_id, parent_id: task.parent_id, position: task.position } : null;
+    const next = { column_id: columnId, parent_id: parentId, position };
+
+    await api('/tasks/reorder', { method: 'POST', body: { updates: [{ id: taskId, ...next }] } });
     if (task && task.column_id !== columnId) {
       const toUpdate = [];
       const collect = (pid) => {
@@ -6026,6 +6080,13 @@ async function persistTaskMove(taskId, columnId, parentId, position) {
       if (toUpdate.length > 0) {
         await api('/tasks/reorder', { method: 'POST', body: { updates: toUpdate } });
       }
+    }
+    if (prev) {
+      recordHistory({
+        label: 'Déplacement annulé',
+        undo: async () => { await api('/tasks/reorder', { method: 'POST', body: { updates: [{ id: taskId, ...prev }] } }); },
+        redo: async () => { await api('/tasks/reorder', { method: 'POST', body: { updates: [{ id: taskId, ...next }] } }); }
+      });
     }
   } catch (e) {
     showToast('Erreur déplacement', 'error');
@@ -6134,13 +6195,29 @@ async function deleteTaskWithUndo(taskId) {
   };
   collect(taskId);
 
-  try {
+  const restore = async () => {
+    await api('/tasks/restore', { method: 'POST', body: { task, subtasks: descendants } });
+  };
+  const remove = async () => {
     await api(`/tasks/${taskId}`, { method: 'DELETE' });
+  };
+
+  try {
+    await remove();
     await loadTasksBoard();
+    // Record in history (Cmd+Z = restore, Cmd+Shift+Z = delete again)
+    recordHistory({
+      label: 'Suppression annulée',
+      undo: restore,
+      redo: remove
+    });
     showUndoToast(task.text, async () => {
       try {
-        await api('/tasks/restore', { method: 'POST', body: { task, subtasks: descendants } });
+        await restore();
         await loadTasksBoard();
+        // The undo through toast also pops from undo stack
+        const idx = tasksUndoStack.findIndex(e => e.undo === restore);
+        if (idx >= 0) tasksUndoStack.splice(idx, 1);
         showToast('Tâche restaurée', 'success', 1500);
       } catch (e) {
         showToast('Restauration impossible', 'error');
@@ -6280,7 +6357,9 @@ function openTaskPanel(taskId) {
 
 function onPanelEsc(e) {
   if (e.key === 'Escape') {
-    // Don't close if focus is in an input/textarea
+    // Don't close if the search overlay is open (it handles its own Esc)
+    const searchOverlay = document.getElementById('tk-search-overlay');
+    if (searchOverlay && !searchOverlay.classList.contains('hidden')) return;
     closeTaskPanel();
   }
 }
@@ -6395,6 +6474,19 @@ function renderTaskPanel(task) {
   `;
 }
 
+// Helper: update a single field with undo support
+async function updateTaskFieldWithUndo(taskId, field, oldValue, newValue, label) {
+  const apply = async (val) => {
+    await api(`/tasks/${taskId}`, { method: 'PUT', body: { [field]: val } });
+  };
+  await apply(newValue);
+  recordHistory({
+    label: label || `Modification annulée`,
+    undo: async () => { await apply(oldValue); },
+    redo: async () => { await apply(newValue); }
+  });
+}
+
 function wireTaskPanelEvents(task) {
   const panel = document.getElementById('tk-panel');
   if (!panel) return;
@@ -6403,11 +6495,14 @@ function wireTaskPanelEvents(task) {
 
   // Title save on blur
   const titleInput = panel.querySelector('#tk-pn-title');
+  let titleOriginal = task.text;
+  titleInput?.addEventListener('focus', () => { titleOriginal = task.text; });
   titleInput?.addEventListener('blur', async () => {
     const val = titleInput.value.trim();
     if (val && val !== task.text) {
+      const oldVal = titleOriginal;
       task.text = val;
-      await api(`/tasks/${task.id}`, { method: 'PUT', body: { text: val } });
+      await updateTaskFieldWithUndo(task.id, 'text', oldVal, val, 'Titre modifié');
     }
   });
   titleInput?.addEventListener('keydown', (e) => {
@@ -6486,11 +6581,14 @@ function wireTaskPanelEvents(task) {
 
   // Description
   const desc = panel.querySelector('#tk-pn-desc');
+  let descOriginal = task.description || '';
+  desc?.addEventListener('focus', () => { descOriginal = task.description || ''; });
   desc?.addEventListener('blur', async () => {
     const val = desc.value;
     if (val !== (task.description || '')) {
+      const oldVal = descOriginal;
       task.description = val;
-      await api(`/tasks/${task.id}`, { method: 'PUT', body: { description: val } });
+      await updateTaskFieldWithUndo(task.id, 'description', oldVal, val, 'Description modifiée');
       // Re-render checklist part
       refreshPanelChecklist(task);
     }
@@ -6511,8 +6609,9 @@ function wireTaskPanelEvents(task) {
 
   // Highlight toggle
   panel.querySelector('#tk-pn-highlight')?.addEventListener('click', async () => {
+    const oldVal = task.highlighted;
     task.highlighted = task.highlighted ? 0 : 1;
-    await api(`/tasks/${task.id}`, { method: 'PUT', body: { highlighted: task.highlighted } });
+    await updateTaskFieldWithUndo(task.id, 'highlighted', oldVal, task.highlighted, 'Liseré rouge basculé');
     // Re-render panel with updated state
     document.getElementById('tk-pn-highlight').textContent = task.highlighted ? '○ Retirer le liseré rouge' : '🔴 Mettre un liseré rouge';
     document.getElementById('tk-pn-highlight').classList.toggle('active', !!task.highlighted);
@@ -6685,21 +6784,51 @@ if (document.readyState === 'loading') {
 
 // ── Global shortcuts (only fire when tasks tab visible and no input focused) ──
 function onTasksGlobalShortcut(e) {
-  // Cmd+K opens search regardless
+  if (!isTasksTabVisible()) return;
+  // Cmd+K opens search regardless of focus
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-    if (!isTasksTabVisible()) return;
     e.preventDefault();
     openTasksSearch();
     return;
   }
-  // Only fire other shortcuts when tasks tab is visible AND not typing
-  if (!isTasksTabVisible()) return;
+  // Cmd+Z = undo, Cmd+Shift+Z = redo (these work even with focus on inputs)
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+    // Skip if focus is in an input/textarea — let native undo work first
+    const tag = (document.activeElement?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) return;
+    e.preventDefault();
+    if (e.shiftKey) tasksRedo();
+    else tasksUndo();
+    return;
+  }
+  // Other shortcuts: only when not typing
   const tag = (document.activeElement?.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === '/') {
     e.preventDefault();
     openTasksSearch();
+  } else if (e.key.toLowerCase() === 'n') {
+    e.preventDefault();
+    // Create new task in hovered column (fallback: first column)
+    const colId = tasksHoveredColumnId || (tasksBoard[0]?.id);
+    if (!colId) return;
+    const btn = document.querySelector(`[data-add-task="${colId}"]`);
+    if (btn) {
+      btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      addTaskInline(colId, btn);
+    }
+  } else if (e.key.toLowerCase() === 'c') {
+    // Delete current panel task
+    if (currentPanelTaskId) {
+      e.preventDefault();
+      const id = currentPanelTaskId;
+      closeTaskPanel();
+      deleteTaskWithUndo(id);
+    }
+  } else if (e.key === '1') {
+    // Tab "Tableau" — already on tasks tab
+    e.preventDefault();
   }
 }
 
