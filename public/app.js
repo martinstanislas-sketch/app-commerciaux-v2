@@ -2186,12 +2186,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ─── Tabs ───────────────────────────────────────────────────
 
 function initTabs() {
+  // Hamburger menu toggle
+  const hamburger = document.getElementById('mobile-menu-toggle');
+  const nav = document.getElementById('main-nav');
+  if (hamburger && nav && !hamburger.dataset.bound) {
+    hamburger.dataset.bound = '1';
+    hamburger.addEventListener('click', () => {
+      const isOpen = nav.classList.toggle('mobile-open');
+      hamburger.classList.toggle('open', isOpen);
+      hamburger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+  }
+
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+      // Auto-close mobile nav on tab pick
+      if (nav) {
+        nav.classList.remove('mobile-open');
+        if (hamburger) {
+          hamburger.classList.remove('open');
+          hamburger.setAttribute('aria-expanded', 'false');
+        }
+      }
 
       // Show/hide header widgets only on Aujourd'hui tab
       const widgets = document.getElementById('header-widgets');

@@ -2,6 +2,36 @@
    SUIVI COMMERCIAUX — Premium SaaS Design System
    ═══════════════════════════════════════════════════════════════ */
 
+/* ─── Hamburger button (hidden on desktop) ──────── */
+.mobile-menu-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: stretch;
+}
+.mobile-menu-toggle span {
+  display: block;
+  height: 2.5px;
+  background: var(--text, #1E293B);
+  border-radius: 2px;
+  transition: transform .2s, opacity .2s;
+}
+.mobile-menu-toggle.open span:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+.mobile-menu-toggle.open span:nth-child(2) {
+  opacity: 0;
+}
+.mobile-menu-toggle.open span:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
 /* ─── Reset & Base ──────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -7351,4 +7381,236 @@ input[type="range"]#tk-settings-blur {
   .tk-card-actions {
     display: flex !important;
   }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE GLOBAL — Mobile-first refinements
+   ════════════════════════════════════════════════════════════ */
+
+/* Safety: prevent horizontal scroll on all viewports */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* Images: max-width: 100% and height: auto everywhere */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Tables: always horizontal-scroll wrapper on mobile */
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    white-space: nowrap;
+  }
+  /* Reset for tables already inside a scroll-wrap */
+  .sales-table-wrap table,
+  .ctrl-sales-section table,
+  .act-comp-scroll table {
+    display: table;
+  }
+}
+
+/* Hamburger menu — mobile nav */
+@media (max-width: 768px) {
+  /* Show hamburger */
+  .mobile-menu-toggle {
+    display: flex;
+    position: absolute;
+    right: 12px;
+    top: 10px;
+    z-index: 20;
+  }
+
+  /* Header: position relative for hamburger anchor */
+  header {
+    position: relative;
+    padding-right: 64px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+  }
+  .header-left {
+    flex: 1;
+    width: auto !important;
+    justify-content: flex-start !important;
+  }
+  header h1 {
+    text-align: left !important;
+    margin: 0;
+  }
+
+  /* Nav: dropdown panel below header bar when open */
+  nav {
+    display: none !important;
+    position: absolute;
+    top: 100%;
+    left: 8px;
+    right: 8px;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: auto !important;
+    padding: 8px !important;
+    gap: 4px !important;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(15,23,42,0.18);
+    overflow: visible !important;
+    max-height: 70vh;
+    overflow-y: auto !important;
+    z-index: 30;
+    margin-top: 6px;
+    border: 1px solid rgba(148,163,194,0.2);
+  }
+  nav.mobile-open {
+    display: flex !important;
+  }
+  nav .tab-btn {
+    width: 100% !important;
+    text-align: left;
+    padding: 12px 14px !important;
+    min-height: 44px;
+    font-size: .9rem !important;
+    border-radius: 8px;
+    flex-shrink: 0 !important;
+    background: transparent;
+    color: var(--text, #1E293B);
+  }
+  nav .tab-btn.active {
+    background: var(--primary, #6366F1);
+    color: #fff;
+  }
+
+  /* User info: shown inline next to hamburger */
+  .user-info {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-right: 48px; /* leave room for hamburger */
+  }
+  .user-info #user-name {
+    font-size: .8rem;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .user-role-badge {
+    font-size: .65rem;
+    padding: 2px 6px;
+  }
+  .btn-logout {
+    font-size: .75rem;
+    padding: 6px 10px;
+  }
+}
+
+/* Buttons & inputs: full-width on mobile */
+@media (max-width: 768px) {
+  .btn-primary,
+  .btn-secondary,
+  .add-rep-form button,
+  .form-actions .btn-primary,
+  .form-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+  /* Form rows inputs */
+  .form-row input,
+  .form-row select,
+  .form-row textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
+  }
+}
+
+/* Touch-target minimum size 44x44 */
+@media (max-width: 768px) {
+  button, .btn-toggle, .btn-export, .btn-lock,
+  .week-nav button, .month-nav button,
+  .tab-btn, .btn-logout, .modal button {
+    min-height: 44px;
+  }
+  /* Icon-only square buttons */
+  .week-nav button, .month-nav button,
+  .ctrl-week-nav button,
+  .act-nav button {
+    min-width: 44px;
+  }
+  /* Inline action icons (delete, edit) get a clear tap area */
+  .actions button,
+  .relance-actions button {
+    min-height: 36px;
+    padding: 6px 10px;
+  }
+}
+
+/* Typography reduction on mobile */
+@media (max-width: 768px) {
+  h1 { font-size: 1.1rem; }
+  h2 { font-size: 1rem; }
+  h3 { font-size: .9rem; }
+  /* Big numbers in stat cards */
+  .sc-stat-value, .rep-card .ratio-big {
+    font-size: 1.4rem !important;
+  }
+  .kpi-card .kpi-value, .stat-card .stat-value {
+    font-size: 1.2rem;
+  }
+}
+
+/* Stat-cards and grids → 1 col on mobile */
+@media (max-width: 768px) {
+  .sc-stats-row,
+  .stats-row,
+  .kpi-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .sc-stat-card,
+  .stat-card {
+    padding: 10px;
+  }
+}
+
+/* Modals: full-screen-ish on mobile */
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 8px;
+  }
+  .modal {
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+}
+
+/* Spacing reduction on very small screens */
+@media (max-width: 480px) {
+  main {
+    padding: 10px 8px;
+  }
+  .rep-card, .v-page > div, .analysis-card {
+    padding: 10px;
+  }
+  .sc-stat-value {
+    font-size: 1.2rem !important;
+  }
+  /* 4-col stats → 2-col on small */
+  .sc-stats-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Touch-friendly hover replacements on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .tk-card-actions {
+    display: flex !important;
+  }
+  /* Buttons already 44x44 from above */
 }
