@@ -7534,6 +7534,26 @@ img {
 /* Add a versioned cachebuster comment so deploys reload styles */
 /* mobile-hamburger-v2 */
 
+/* ─── Read-only mode (commercial viewing past week) ── */
+.v-readonly-banner {
+  background: #FEF3C7;
+  border: 1.5px solid #F59E0B;
+  color: #92400E;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: .85rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.sale-remark-cell.sale-remark-readonly {
+  cursor: default !important;
+  color: var(--text-muted, #94A3B8);
+}
+.sale-remark-cell.sale-remark-readonly:hover {
+  background: transparent !important;
+}
+
 /* Buttons & inputs: full-width on mobile */
 @media (max-width: 768px) {
   .btn-primary,

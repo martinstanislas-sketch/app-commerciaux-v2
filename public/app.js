@@ -2577,26 +2577,34 @@ function initVentesTab() {
   const vNext = document.getElementById('v-next-week');
   const vPicker = document.getElementById('v-week-picker');
 
-  // Event listeners — bind once, they check isAdmin() at click time
+  // Event listeners — admin can go anywhere, commercial can go back but not into the future
   vPrev.addEventListener('click', () => {
-    if (!isAdmin()) return;
     currentWeekStart = addDays(currentWeekStart, -7);
-    loadDashboard();
+    if (isAdmin()) loadDashboard();
     loadSales();
   });
 
   vNext.addEventListener('click', () => {
-    if (!isAdmin()) return;
-    currentWeekStart = addDays(currentWeekStart, 7);
-    loadDashboard();
+    const nextWeek = addDays(currentWeekStart, 7);
+    const todayMonday = getMonday(new Date().toISOString().slice(0, 10));
+    // Commercial: block navigating into the future
+    if (!isAdmin() && nextWeek > todayMonday) return;
+    currentWeekStart = nextWeek;
+    if (isAdmin()) loadDashboard();
     loadSales();
   });
 
   vPicker.addEventListener('change', (e) => {
-    if (!isAdmin()) return;
     if (e.target.value) {
-      currentWeekStart = getMonday(e.target.value);
-      loadDashboard();
+      const picked = getMonday(e.target.value);
+      const todayMonday = getMonday(new Date().toISOString().slice(0, 10));
+      if (!isAdmin() && picked > todayMonday) {
+        showToast('Impossible de sélectionner une semaine future', 'error');
+        e.target.value = '';
+        return;
+      }
+      currentWeekStart = picked;
+      if (isAdmin()) loadDashboard();
       loadSales();
     }
   });
@@ -2664,11 +2672,12 @@ function applyVentesRoleVisibility() {
   const ribBtn = document.getElementById('v-filter-rib');
 
   if (!isAdmin()) {
-    // Commercial: lock to current week, hide navigation
+    // Commercial: start on current week, but can navigate to past weeks in read-only mode
     currentWeekStart = getMonday(new Date().toISOString().slice(0, 10));
-    vPrev.style.display = 'none';
-    vNext.style.display = 'none';
-    vPicker.style.display = 'none';
+    // Navigation allowed (past = read-only, future = blocked in nav handlers)
+    vPrev.style.display = '';
+    vNext.style.display = '';
+    vPicker.style.display = '';
 
     // Lock filter to own rep
     filterSelect.innerHTML = `<option value="${currentUser.sales_rep_id}">${currentUser.name}</option>`;
@@ -2768,6 +2777,32 @@ let chartVentesCA = null;
 
 async function loadSales() {
   updateWeekLabel();
+
+  // Read-only mode: commercial viewing a non-current week
+  const todayMonday = getMonday(new Date().toISOString().slice(0, 10));
+  const isCurrentWeek = currentWeekStart === todayMonday;
+  const ventesReadOnly = !isAdmin() && !isCurrentWeek;
+
+  // Show/hide "Ajouter une vente" button + read-only banner
+  const addBtn = document.getElementById('btn-add-sale');
+  if (addBtn) {
+    addBtn.style.display = (!isAdmin() && !isCurrentWeek) ? 'none' : '';
+  }
+  // Inject / update read-only banner
+  let banner = document.getElementById('v-readonly-banner');
+  if (ventesReadOnly) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'v-readonly-banner';
+      banner.className = 'v-readonly-banner';
+      const table = document.getElementById('sales-table');
+      if (table) table.parentNode.insertBefore(banner, table);
+    }
+    banner.innerHTML = '🔒 Semaine passée — lecture seule (impossible de modifier ces ventes)';
+    banner.style.display = '';
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
 
   // Adjust columns for admin vs commercial
   const thead = document.querySelector('#sales-table thead tr');
@@ -2948,6 +2983,11 @@ async function loadSales() {
 
     const tr = document.createElement('tr');
     if (!isValidated) tr.classList.add('sale-not-validated');
+    const remarkCellOnClick = ventesReadOnly ? '' : `onclick="editRemarkInline(this, ${s.id})"`;
+    const remarkCellClass = ventesReadOnly ? 'sale-remark-cell sale-remark-readonly' : 'sale-remark-cell';
+    const remarkContent = ventesReadOnly
+      ? (s.remark || '<span class="remark-placeholder">—</span>')
+      : (s.remark || '<span class="remark-placeholder">+ Remarque</span>');
     tr.innerHTML = `
       <td>${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')}</td>
       <td>${s.rep_name}</td>
@@ -2955,7 +2995,7 @@ async function loadSales() {
       <td>${s.client_first_name}</td>
       <td>${s.client_last_name}</td>
       <td><span class="rib-badge ${ribClass}">${s.rib_status || 'Non fourni'}</span></td>
-      <td class="sale-remark-cell" title="${(s.remark || '').replace(/"/g, '&quot;')}" onclick="editRemarkInline(this, ${s.id})">${s.remark || '<span class="remark-placeholder">+ Remarque</span>'}</td>
+      <td class="${remarkCellClass}" title="${(s.remark || '').replace(/"/g, '&quot;')}" ${remarkCellOnClick}>${remarkContent}</td>
       ${isAdmin() ? `<td class="relance-actions">${validationBtn} ${relanceHtml}</td>
       <td class="actions">
         <button class="btn-sm" onclick="editSale(${s.id})">Modifier</button>
