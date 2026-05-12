@@ -324,6 +324,34 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_pr_exercise ON personal_records(exercise_id, record_type);
   `);
 
+  // ─── Task Vault: Kanban board ───────────────────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_columns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      color TEXT DEFAULT '#6366F1',
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      column_id INTEGER NOT NULL REFERENCES task_columns(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      highlighted INTEGER NOT NULL DEFAULT 0,
+      completed INTEGER NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_tasks_column ON tasks(column_id, position);
+  `);
+  // Seed default columns if empty
+  const colCount = db.prepare('SELECT COUNT(*) AS c FROM task_columns').get().c;
+  if (colCount === 0) {
+    const insertCol = db.prepare('INSERT INTO task_columns (name, color, position) VALUES (?, ?, ?)');
+    insertCol.run('Demain', '#6366F1', 0);
+    insertCol.run('En attente', '#EC4899', 1);
+  }
+
   // ─── Data migration: convert old perso_performances to set_logs ────
   // If there are performances with data but no set_logs yet, migrate them
   const hasSets = db.prepare("SELECT COUNT(*) as cnt FROM perso_set_logs").get().cnt;

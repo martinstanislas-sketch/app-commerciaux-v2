@@ -39,6 +39,7 @@
       <!-- <button class="tab-btn" data-tab="admin-phoneurs">Phoneurs</button> -->
       <button class="tab-btn" data-tab="controle">Contr&ocirc;le</button>
       <button class="tab-btn" data-tab="admin-actions">Actions</button>
+      <button class="tab-btn" data-tab="tasks">T&acirc;ches</button>
       <button class="tab-btn" data-tab="perso">Perso</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button> -->
@@ -216,6 +217,22 @@
       </div>
       <div id="act-comparison-table"></div>
       <div id="admin-actions-container"></div>
+    </section>
+
+    <!-- TASKS (Kanban) -->
+    <section id="tab-tasks" class="tab-content">
+      <div class="tasks-page">
+        <div class="tasks-header">
+          <div class="tasks-title">
+            <h1>T&acirc;ches</h1>
+            <span class="tasks-count" id="tasks-count">0 t&acirc;ches</span>
+          </div>
+          <div class="tasks-actions">
+            <button id="btn-add-column" class="btn-add-column">+ Ajouter une colonne</button>
+          </div>
+        </div>
+        <div class="tasks-board" id="tasks-board"></div>
+      </div>
     </section>
 
     <!-- PERSO (admin only) -->

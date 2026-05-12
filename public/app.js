@@ -2213,6 +2213,7 @@ function initTabs() {
       if (btn.dataset.tab === 'phoning') loadPhoningTab();
       if (btn.dataset.tab === 'phoning-recap') loadPhoningRecap();
       if (btn.dataset.tab === 'perso') loadPersoTab();
+      if (btn.dataset.tab === 'tasks') loadTasksBoard();
     });
   });
 }
@@ -5546,4 +5547,238 @@ function formatDateShort(dateStr) {
 function escapeHtml(str) {
   if (str == null) return '';
   return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ─── Tasks (Kanban Board) ───────────────────────────────────
+
+const TASK_COLORS = ['#6366F1', '#EC4899', '#10B981', '#F59E0B', '#8B5CF6', '#06B6D4', '#EF4444', '#84CC16'];
+let tasksBoard = [];
+
+async function loadTasksBoard() {
+  const container = document.getElementById('tasks-board');
+  if (!container) return;
+  try {
+    tasksBoard = await api('/tasks/board');
+    renderTasksBoard();
+  } catch (e) {
+    console.error('Erreur chargement tâches:', e);
+    container.innerHTML = '<div class="empty-state">Erreur de chargement</div>';
+  }
+}
+
+function renderTasksBoard() {
+  const container = document.getElementById('tasks-board');
+  if (!container) return;
+  const totalTasks = tasksBoard.reduce((sum, c) => sum + c.tasks.length, 0);
+  const countEl = document.getElementById('tasks-count');
+  if (countEl) countEl.textContent = `${totalTasks} tâche${totalTasks !== 1 ? 's' : ''}`;
+
+  container.innerHTML = tasksBoard.map(col => `
+    <div class="tk-col" data-col-id="${col.id}">
+      <div class="tk-col-header" style="border-top-color: ${col.color}">
+        <div class="tk-col-name" data-edit-col="${col.id}">${escapeHtml(col.name)}</div>
+        <div class="tk-col-right">
+          <span class="tk-col-count" style="background: ${col.color}20; color: ${col.color}">${col.tasks.length}</span>
+          <button class="tk-col-menu" data-col-menu="${col.id}" title="Options">⋯</button>
+        </div>
+      </div>
+      <div class="tk-col-body">
+        ${col.tasks.map(t => `
+          <div class="tk-card ${t.highlighted ? 'tk-highlight' : ''} ${t.completed ? 'tk-done' : ''}" data-task-id="${t.id}">
+            <div class="tk-card-text" data-edit-task="${t.id}">${escapeHtml(t.text)}</div>
+          </div>
+        `).join('')}
+        <button class="tk-add-task" data-add-task="${col.id}">+ Ajouter une tâche</button>
+      </div>
+    </div>
+  `).join('');
+
+  // Wire events
+  container.querySelectorAll('[data-add-task]').forEach(btn => {
+    btn.addEventListener('click', () => addTaskInline(parseInt(btn.dataset.addTask, 10), btn));
+  });
+  container.querySelectorAll('[data-edit-task]').forEach(el => {
+    el.addEventListener('click', () => editTask(parseInt(el.dataset.editTask, 10), el));
+  });
+  container.querySelectorAll('[data-edit-col]').forEach(el => {
+    el.addEventListener('click', () => editColumn(parseInt(el.dataset.editCol, 10), el));
+  });
+  container.querySelectorAll('[data-col-menu]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openColumnMenu(parseInt(btn.dataset.colMenu, 10), btn);
+    });
+  });
+}
+
+function addTaskInline(columnId, btn) {
+  // Replace button with input
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tk-add-input';
+  input.placeholder = 'Nouvelle tâche…';
+  btn.style.display = 'none';
+  btn.parentNode.insertBefore(input, btn);
+  input.focus();
+  let submitted = false;
+
+  const cleanup = () => {
+    if (input.parentNode) input.remove();
+    btn.style.display = '';
+  };
+
+  const submit = async () => {
+    if (submitted) return;
+    submitted = true;
+    const text = input.value.trim();
+    if (!text) { cleanup(); return; }
+    try {
+      const task = await api('/tasks', { method: 'POST', body: { column_id: columnId, text } });
+      const col = tasksBoard.find(c => c.id === columnId);
+      if (col) col.tasks.push(task);
+      cleanup();
+      renderTasksBoard();
+    } catch (e) {
+      showToast('Erreur ajout tâche', 'error');
+      cleanup();
+    }
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+    else if (e.key === 'Escape') { submitted = true; cleanup(); }
+  });
+  input.addEventListener('blur', () => setTimeout(submit, 100));
+}
+
+function editTask(taskId, el) {
+  const col = tasksBoard.find(c => c.tasks.some(t => t.id === taskId));
+  if (!col) return;
+  const task = col.tasks.find(t => t.id === taskId);
+  const currentText = task.text;
+  const input = document.createElement('textarea');
+  input.className = 'tk-edit-input';
+  input.value = currentText;
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+
+  const cleanup = (newText) => {
+    if (done) return;
+    done = true;
+    if (newText !== undefined && newText !== currentText && newText.trim()) {
+      task.text = newText.trim();
+      api(`/tasks/${taskId}`, { method: 'PUT', body: { text: newText.trim() } }).catch(() => showToast('Erreur sauvegarde', 'error'));
+    }
+    renderTasksBoard();
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); cleanup(input.value); }
+    else if (e.key === 'Escape') cleanup();
+  });
+  input.addEventListener('blur', () => setTimeout(() => cleanup(input.value), 100));
+}
+
+function editColumn(columnId, el) {
+  const col = tasksBoard.find(c => c.id === columnId);
+  if (!col) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tk-edit-col-input';
+  input.value = col.name;
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+
+  const cleanup = (newName) => {
+    if (done) return;
+    done = true;
+    if (newName !== undefined && newName.trim() && newName.trim() !== col.name) {
+      col.name = newName.trim();
+      api(`/tasks/columns/${columnId}`, { method: 'PUT', body: { name: newName.trim() } }).catch(() => showToast('Erreur sauvegarde', 'error'));
+    }
+    renderTasksBoard();
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); cleanup(input.value); }
+    else if (e.key === 'Escape') cleanup();
+  });
+  input.addEventListener('blur', () => setTimeout(() => cleanup(input.value), 100));
+}
+
+function openColumnMenu(columnId, btn) {
+  // Close any existing menu
+  document.querySelectorAll('.tk-menu-popup').forEach(m => m.remove());
+
+  const col = tasksBoard.find(c => c.id === columnId);
+  if (!col) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'tk-menu-popup';
+  menu.innerHTML = `
+    <div class="tk-menu-section">Couleur</div>
+    <div class="tk-color-grid">
+      ${TASK_COLORS.map(c => `<button class="tk-color-dot ${c === col.color ? 'active' : ''}" data-color="${c}" style="background:${c}"></button>`).join('')}
+    </div>
+    <button class="tk-menu-item tk-menu-danger" data-action="delete">Supprimer la colonne</button>
+  `;
+  document.body.appendChild(menu);
+  const rect = btn.getBoundingClientRect();
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.left = (rect.right - menu.offsetWidth) + 'px';
+
+  menu.querySelectorAll('[data-color]').forEach(c => {
+    c.addEventListener('click', async () => {
+      const newColor = c.dataset.color;
+      col.color = newColor;
+      await api(`/tasks/columns/${columnId}`, { method: 'PUT', body: { color: newColor } });
+      menu.remove();
+      renderTasksBoard();
+    });
+  });
+
+  menu.querySelector('[data-action="delete"]').addEventListener('click', async () => {
+    if (!confirm(`Supprimer la colonne "${col.name}" et ses ${col.tasks.length} tâche(s) ?`)) return;
+    await api(`/tasks/columns/${columnId}`, { method: 'DELETE' });
+    tasksBoard = tasksBoard.filter(c => c.id !== columnId);
+    menu.remove();
+    renderTasksBoard();
+  });
+
+  const closeOnOutside = (e) => {
+    if (!menu.contains(e.target)) {
+      menu.remove();
+      document.removeEventListener('click', closeOnOutside);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', closeOnOutside), 50);
+}
+
+async function addNewColumn() {
+  const name = prompt('Nom de la nouvelle colonne :');
+  if (!name || !name.trim()) return;
+  try {
+    const newCol = await api('/tasks/columns', { method: 'POST', body: { name: name.trim(), color: TASK_COLORS[tasksBoard.length % TASK_COLORS.length] } });
+    tasksBoard.push(newCol);
+    renderTasksBoard();
+  } catch (e) {
+    showToast('Erreur création colonne', 'error');
+  }
+}
+
+function initTasksBindings() {
+  const btn = document.getElementById('btn-add-column');
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', addNewColumn);
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initTasksBindings);
+} else {
+  initTasksBindings();
 }

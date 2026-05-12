@@ -2458,6 +2458,84 @@ app.put('/api/perso/daily/:date', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Task Vault (Kanban board) ──────────────────────────────
+
+// GET all columns with their tasks
+app.get('/api/tasks/board', requireAuth, (req, res) => {
+  const db = getDb();
+  const columns = db.prepare('SELECT id, name, color, position FROM task_columns ORDER BY position ASC, id ASC').all();
+  const tasks = db.prepare('SELECT id, column_id, text, highlighted, completed, position FROM tasks ORDER BY position ASC, id ASC').all();
+  const byCol = {};
+  columns.forEach(c => { byCol[c.id] = { ...c, tasks: [] }; });
+  tasks.forEach(t => { if (byCol[t.column_id]) byCol[t.column_id].tasks.push(t); });
+  res.json(Object.values(byCol));
+});
+
+// Create a column
+app.post('/api/tasks/columns', requireAuth, (req, res) => {
+  const db = getDb();
+  const { name, color } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
+  const maxPos = db.prepare('SELECT COALESCE(MAX(position), -1) AS p FROM task_columns').get().p;
+  const info = db.prepare('INSERT INTO task_columns (name, color, position) VALUES (?, ?, ?)').run(name.trim(), color || '#6366F1', maxPos + 1);
+  res.json({ id: info.lastInsertRowid, name: name.trim(), color: color || '#6366F1', position: maxPos + 1, tasks: [] });
+});
+
+// Update a column
+app.put('/api/tasks/columns/:id', requireAuth, (req, res) => {
+  const db = getDb();
+  const { name, color } = req.body;
+  const fields = [];
+  const values = [];
+  if (name !== undefined) { fields.push('name = ?'); values.push(name); }
+  if (color !== undefined) { fields.push('color = ?'); values.push(color); }
+  if (fields.length === 0) return res.json({ ok: true });
+  values.push(req.params.id);
+  db.prepare(`UPDATE task_columns SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  res.json({ ok: true });
+});
+
+// Delete a column (and its tasks via cascade)
+app.delete('/api/tasks/columns/:id', requireAuth, (req, res) => {
+  const db = getDb();
+  db.prepare('DELETE FROM task_columns WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Create a task
+app.post('/api/tasks', requireAuth, (req, res) => {
+  const db = getDb();
+  const { column_id, text } = req.body;
+  if (!column_id || !text || !text.trim()) return res.status(400).json({ error: 'column_id et text requis' });
+  const maxPos = db.prepare('SELECT COALESCE(MAX(position), -1) AS p FROM tasks WHERE column_id = ?').get(column_id).p;
+  const info = db.prepare('INSERT INTO tasks (column_id, text, position) VALUES (?, ?, ?)').run(column_id, text.trim(), maxPos + 1);
+  res.json({ id: info.lastInsertRowid, column_id, text: text.trim(), highlighted: 0, completed: 0, position: maxPos + 1 });
+});
+
+// Update a task
+app.put('/api/tasks/:id', requireAuth, (req, res) => {
+  const db = getDb();
+  const { text, highlighted, completed, column_id, position } = req.body;
+  const fields = [];
+  const values = [];
+  if (text !== undefined) { fields.push('text = ?'); values.push(text); }
+  if (highlighted !== undefined) { fields.push('highlighted = ?'); values.push(highlighted ? 1 : 0); }
+  if (completed !== undefined) { fields.push('completed = ?'); values.push(completed ? 1 : 0); }
+  if (column_id !== undefined) { fields.push('column_id = ?'); values.push(column_id); }
+  if (position !== undefined) { fields.push('position = ?'); values.push(position); }
+  if (fields.length === 0) return res.json({ ok: true });
+  values.push(req.params.id);
+  db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  res.json({ ok: true });
+});
+
+// Delete a task
+app.delete('/api/tasks/:id', requireAuth, (req, res) => {
+  const db = getDb();
+  db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 // ─── Start ──────────────────────────────────────────────────
 
 app.listen(PORT, () => {
