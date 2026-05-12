@@ -6979,10 +6979,13 @@ body.tk-dragging-active * {
 }
 
 /* ─── Tasks Phase 3: search palette + filter pills + counters ─── */
+.tasks-page {
+  max-width: 100%;
+}
 .tasks-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .btn-tasks-search {
@@ -6998,18 +7001,26 @@ body.tk-dragging-active * {
   color: var(--text, #1E293B);
   cursor: pointer;
   transition: all .15s;
+  flex-shrink: 0;
 }
 .btn-tasks-search:hover {
   border-color: var(--primary, #6366F1);
   color: var(--primary, #6366F1);
 }
+/* Filter pills row — own line, full width */
 .tasks-filters {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  flex: 1;
-  min-width: 0;
+  margin: -4px 0 8px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.5);
+  border-radius: 10px;
+  border: 1px solid rgba(148,163,194,0.15);
+}
+.tasks-filters:empty {
+  display: none;
 }
 .tk-filter-pill {
   display: inline-flex;
