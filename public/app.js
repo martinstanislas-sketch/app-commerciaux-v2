@@ -5555,6 +5555,7 @@ const TASK_COLORS = ['#6366F1', '#EC4899', '#10B981', '#F59E0B', '#8B5CF6', '#06
 let tasksBoard = [];
 let tasksDragging = null;       // { type: 'task'|'column', id, sourceColId? }
 let tasksDropTarget = null;     // { type: 'before'|'after'|'child'|'column-end'|'column-swap', taskId?, colId? }
+let tasksActiveFilters = new Set(); // Set of column IDs that are active filters (empty = show all)
 
 async function loadTasksBoard() {
   const container = document.getElementById('tasks-board');
@@ -5693,10 +5694,31 @@ function renderTasksBoard() {
   const container = document.getElementById('tasks-board');
   if (!container) return;
   const totalTasks = tasksBoard.reduce((sum, c) => sum + c.tasks.length, 0);
-  const countEl = document.getElementById('tasks-count');
-  if (countEl) countEl.textContent = `${totalTasks} tâche${totalTasks !== 1 ? 's' : ''}`;
+  const visibleColumns = tasksActiveFilters.size === 0
+    ? tasksBoard
+    : tasksBoard.filter(c => tasksActiveFilters.has(c.id));
+  const visibleTasks = visibleColumns.reduce((sum, c) => sum + c.tasks.length, 0);
 
-  container.innerHTML = tasksBoard.map(col => {
+  // Update header counter
+  const countEl = document.getElementById('tasks-count');
+  if (countEl) {
+    if (tasksActiveFilters.size > 0) {
+      countEl.innerHTML = `<button class="tk-count-clear" title="Effacer les filtres">${visibleTasks} / ${totalTasks} tâches <span class="tk-count-clear-x">✕</span></button>`;
+      const clearBtn = countEl.querySelector('.tk-count-clear');
+      if (clearBtn) clearBtn.addEventListener('click', () => {
+        tasksActiveFilters.clear();
+        renderTasksBoard();
+      });
+    } else {
+      countEl.textContent = `${totalTasks} tâche${totalTasks !== 1 ? 's' : ''}`;
+    }
+  }
+
+  // Render filter pills
+  renderFilterPills();
+
+  // Render board (only visible columns)
+  container.innerHTML = visibleColumns.map(col => {
     const tree = buildTaskTree(col.tasks);
     return `
     <div class="tk-col" data-col-id="${col.id}">
@@ -5715,6 +5737,30 @@ function renderTasksBoard() {
   }).join('');
 
   wireTasksEvents();
+}
+
+function renderFilterPills() {
+  const el = document.getElementById('tasks-filters');
+  if (!el) return;
+  el.innerHTML = tasksBoard.map(col => {
+    const active = tasksActiveFilters.has(col.id);
+    return `
+      <button class="tk-filter-pill ${active ? 'active' : ''}"
+        data-filter-col="${col.id}"
+        style="${active ? `background:${col.color}; border-color:${col.color}; color:#fff; box-shadow: 3px 3px 0 rgba(15,23,42,0.15);` : `border-color:${col.color}40;`}">
+        <span class="tk-filter-dot" style="background:${col.color}"></span>
+        ${escapeHtml(col.name)} · ${col.tasks.length}
+      </button>
+    `;
+  }).join('');
+  el.querySelectorAll('[data-filter-col]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.filterCol, 10);
+      if (tasksActiveFilters.has(id)) tasksActiveFilters.delete(id);
+      else tasksActiveFilters.add(id);
+      renderTasksBoard();
+    });
+  });
 }
 
 function wireTasksEvents() {
@@ -6620,9 +6666,169 @@ function initTasksBindings() {
     btn.dataset.bound = '1';
     btn.addEventListener('click', addNewColumn);
   }
+  const searchBtn = document.getElementById('btn-tasks-search');
+  if (searchBtn && !searchBtn.dataset.bound) {
+    searchBtn.dataset.bound = '1';
+    searchBtn.addEventListener('click', openTasksSearch);
+  }
+  // Global keyboard shortcuts
+  if (!document.body.dataset.tkShortcutsBound) {
+    document.body.dataset.tkShortcutsBound = '1';
+    document.addEventListener('keydown', onTasksGlobalShortcut);
+  }
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initTasksBindings);
 } else {
   initTasksBindings();
+}
+
+// ── Global shortcuts (only fire when tasks tab visible and no input focused) ──
+function onTasksGlobalShortcut(e) {
+  // Cmd+K opens search regardless
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    if (!isTasksTabVisible()) return;
+    e.preventDefault();
+    openTasksSearch();
+    return;
+  }
+  // Only fire other shortcuts when tasks tab is visible AND not typing
+  if (!isTasksTabVisible()) return;
+  const tag = (document.activeElement?.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === '/') {
+    e.preventDefault();
+    openTasksSearch();
+  }
+}
+
+function isTasksTabVisible() {
+  const t = document.getElementById('tab-tasks');
+  return t && t.classList.contains('active');
+}
+
+// ── Search palette ──
+let tasksSearchSelected = 0;
+let tasksSearchResults = [];
+
+function openTasksSearch() {
+  const overlay = document.getElementById('tk-search-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  const input = document.getElementById('tk-search-input');
+  if (input) {
+    input.value = '';
+    setTimeout(() => input.focus(), 50);
+  }
+  tasksSearchSelected = 0;
+  renderSearchResults('');
+
+  if (!overlay.dataset.bound) {
+    overlay.dataset.bound = '1';
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeTasksSearch();
+    });
+    input.addEventListener('input', () => {
+      tasksSearchSelected = 0;
+      renderSearchResults(input.value);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); closeTasksSearch(); }
+      else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        tasksSearchSelected = Math.min(tasksSearchResults.length - 1, tasksSearchSelected + 1);
+        renderSearchResults(input.value, true);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        tasksSearchSelected = Math.max(0, tasksSearchSelected - 1);
+        renderSearchResults(input.value, true);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const result = tasksSearchResults[tasksSearchSelected];
+        if (result) {
+          closeTasksSearch();
+          openTaskPanel(result.task.id);
+        }
+      }
+    });
+  }
+}
+
+function closeTasksSearch() {
+  const overlay = document.getElementById('tk-search-overlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+function scoreTask(task, query) {
+  if (!query) return 0;
+  const q = query.toLowerCase();
+  const title = (task.text || '').toLowerCase();
+  const desc = (task.description || '').toLowerCase();
+  const tags = Array.isArray(task.tags) ? task.tags.join(' ').toLowerCase() : '';
+  let score = 0;
+  if (title.startsWith(q)) score += 100;
+  if (title.includes(q)) score += 70;
+  if (tags.includes(q)) score += 50;
+  if (desc.includes(q)) score += 20;
+  // Fuzzy: all chars in q appear in title in order
+  let i = 0;
+  for (const c of title) { if (c === q[i]) i++; if (i >= q.length) break; }
+  if (i === q.length) score += 10;
+  return score;
+}
+
+function renderSearchResults(query, keepSelection) {
+  const resultsEl = document.getElementById('tk-search-results');
+  if (!resultsEl) return;
+  const allTasks = tasksBoard.flatMap(c => c.tasks.map(t => ({ task: t, col: c })));
+  const q = query.trim();
+  if (!q) {
+    // Show recent tasks (most recently created — by id desc)
+    tasksSearchResults = allTasks
+      .slice()
+      .sort((a, b) => b.task.id - a.task.id)
+      .slice(0, 12);
+  } else {
+    const scored = allTasks
+      .map(item => ({ ...item, score: scoreTask(item.task, q) }))
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 12);
+    tasksSearchResults = scored;
+  }
+  if (!keepSelection) tasksSearchSelected = 0;
+  if (tasksSearchSelected >= tasksSearchResults.length) tasksSearchSelected = Math.max(0, tasksSearchResults.length - 1);
+
+  if (tasksSearchResults.length === 0) {
+    resultsEl.innerHTML = '<div class="tk-search-empty">Aucune tâche trouvée</div>';
+    return;
+  }
+
+  resultsEl.innerHTML = tasksSearchResults.map((r, i) => `
+    <div class="tk-search-item ${i === tasksSearchSelected ? 'selected' : ''}" data-search-idx="${i}">
+      <span class="tk-search-dot" style="background:${r.col.color}"></span>
+      <div class="tk-search-text">
+        <div class="tk-search-title">${escapeHtml(r.task.text)}</div>
+        <div class="tk-search-col">${escapeHtml(r.col.name)}</div>
+      </div>
+    </div>
+  `).join('');
+
+  resultsEl.querySelectorAll('[data-search-idx]').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.searchIdx, 10);
+      const result = tasksSearchResults[idx];
+      if (result) {
+        closeTasksSearch();
+        openTaskPanel(result.task.id);
+      }
+    });
+    el.addEventListener('mouseenter', () => {
+      tasksSearchSelected = parseInt(el.dataset.searchIdx, 10);
+      resultsEl.querySelectorAll('.tk-search-item').forEach((it, i) => {
+        it.classList.toggle('selected', i === tasksSearchSelected);
+      });
+    });
+  });
 }

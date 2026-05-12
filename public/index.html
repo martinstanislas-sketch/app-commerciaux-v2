@@ -227,7 +227,9 @@
             <h1>T&acirc;ches</h1>
             <span class="tasks-count" id="tasks-count">0 t&acirc;ches</span>
           </div>
-          <div class="tasks-actions">
+          <div class="tasks-toolbar">
+            <button id="btn-tasks-search" class="btn-tasks-search" title="Rechercher (Cmd+K)">🔍 Chercher</button>
+            <div class="tasks-filters" id="tasks-filters"></div>
             <button id="btn-add-column" class="btn-add-column">+ Ajouter une colonne</button>
           </div>
         </div>
@@ -236,6 +238,18 @@
       <!-- Task Panel (slide-in from right) -->
       <div id="tk-panel-backdrop" class="tk-panel-backdrop hidden"></div>
       <aside id="tk-panel" class="tk-panel hidden" aria-hidden="true"></aside>
+      <!-- Search palette modal -->
+      <div id="tk-search-overlay" class="tk-search-overlay hidden">
+        <div class="tk-search-modal">
+          <input type="text" id="tk-search-input" placeholder="Rechercher une t&acirc;che…" autocomplete="off">
+          <div class="tk-search-results" id="tk-search-results"></div>
+          <div class="tk-search-hint">
+            <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> naviguer</span>
+            <span><kbd>&crarr;</kbd> ouvrir</span>
+            <span><kbd>Esc</kbd> fermer</span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- PERSO (admin only) -->
