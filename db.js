@@ -455,7 +455,10 @@ function seed() {
   const renameMap = {
     'Fabian': 'Fabian Fernez',
     'Magali': 'Magali Guyot',
-    'Marvin': 'Marvin Boulligny'
+    'Marvin': 'Marvin Boulligny',
+    'Nathan': 'Nathan Tours',
+    'Barnabé': 'Barnabé Caen',
+    'Rachael Silva': 'Raphael Silva'
   };
   const renameStmt = db.prepare('UPDATE sales_reps SET name = ? WHERE name = ? AND NOT EXISTS (SELECT 1 FROM sales_reps WHERE name = ?)');
   for (const [oldName, newName] of Object.entries(renameMap)) {
