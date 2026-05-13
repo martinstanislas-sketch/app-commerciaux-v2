@@ -277,21 +277,25 @@ app.post('/api/sales-reps', requireAuth, requireAdmin, (req, res) => {
   const repRole = (role === 'phoneur') ? 'phoneur' : 'commercial';
   const db = getDb();
 
-  // Check if name already exists
-  const existing = db.prepare('SELECT id FROM sales_reps WHERE LOWER(name) = LOWER(?)').get(trimmedName);
+  // Compute start_week
+  let startWeek = null;
+  if (start_week) startWeek = getMonday(start_week);
+
+  // Check if name already exists (any archived status)
+  const existing = db.prepare('SELECT id, archived FROM sales_reps WHERE LOWER(name) = LOWER(?)').get(trimmedName);
   if (existing) {
+    if (existing.archived) {
+      // Un-archive: réactiver le commercial existant en préservant son historique (PIN, ventes, settings)
+      db.prepare('UPDATE sales_reps SET archived = 0, role = ?, start_week = ? WHERE id = ?').run(repRole, startWeek, existing.id);
+      const restored = db.prepare('SELECT * FROM sales_reps WHERE id = ?').get(existing.id);
+      return res.status(200).json(restored);
+    }
     return res.status(409).json({ error: 'Ce nom existe déjà' });
   }
 
-  // Generate PIN
+  // Generate PIN for new rep
   const allPins = db.prepare('SELECT pin FROM sales_reps WHERE pin IS NOT NULL').all().map(r => r.pin);
   const pin = generatePin(trimmedName, allPins);
-
-  // Compute start_week as Monday of the selected date (or null)
-  let startWeek = null;
-  if (start_week) {
-    startWeek = getMonday(start_week);
-  }
 
   // Insert with role
   const result = db.prepare('INSERT INTO sales_reps (name, pin, start_week, role) VALUES (?, ?, ?, ?)').run(trimmedName, pin, startWeek, repRole);
