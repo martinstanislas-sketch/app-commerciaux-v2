@@ -4898,6 +4898,108 @@ async function loadPersoSession() {
   const date = persoState.todayDate();
   persoState.currentSession = await api(`/perso/sessions/${date}`);
   renderPersoSession();
+  await loadPersoCompletedSessions();
+}
+
+async function loadPersoCompletedSessions() {
+  const today = new Date();
+  const from = new Date(today);
+  from.setMonth(from.getMonth() - 6); // last 6 months
+  const fromStr = from.toISOString().slice(0, 10);
+  const toStr = today.toISOString().slice(0, 10);
+  try {
+    const sessions = await api(`/perso/sessions/range?from=${fromStr}&to=${toStr}`);
+    persoState.completedSessions = sessions.filter(s => s.status === 'completed');
+    renderPersoCompletedSessions();
+  } catch (e) {
+    console.error('Erreur chargement séances terminées:', e);
+  }
+}
+
+function renderPersoCompletedSessions() {
+  const list = document.getElementById('perso-completed-list');
+  if (!list) return;
+  const sessions = persoState.completedSessions || [];
+  if (sessions.length === 0) {
+    list.innerHTML = '<div class="p-empty">Aucune séance terminée pour le moment.</div>';
+    return;
+  }
+  // Sort by date desc
+  const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
+  list.innerHTML = sorted.map(s => {
+    const total = sessionTotalKg(s);
+    const sessionName = s.name || 'Séance';
+    const dateObj = new Date(s.date + 'T00:00:00');
+    const dateLabel = dateObj.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+    const exsCount = (s.performances || []).length;
+    return `
+      <div class="p-completed-bubble" onclick="openCompletedSession(${s.id})">
+        <div class="p-completed-bubble-head">
+          <span class="p-completed-bubble-name">${escapeHtml(sessionName)}</span>
+          <span class="p-completed-bubble-badge">✓ Terminée</span>
+        </div>
+        <div class="p-completed-bubble-meta">
+          <span class="p-completed-bubble-date">📅 ${dateLabel}</span>
+          <span class="p-completed-bubble-total">💪 ${total.toLocaleString('fr-FR')} kg</span>
+          ${exsCount > 0 ? `<span class="p-completed-bubble-exs">${exsCount} ex.</span>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function openCompletedSession(sessionId) {
+  const s = (persoState.completedSessions || []).find(x => x.id === sessionId);
+  if (!s) return;
+  // Show the same recap modal in read-only mode
+  showSessionRecap(s);
+}
+
+function showSessionRecap(s) {
+  const total = sessionTotalKg(s);
+  const totalSets = sessionTotalSets(s);
+  const totalReps = sessionTotalReps(s);
+  const sessionName = s.name || 'Séance';
+
+  let durationStr = '';
+  if (s.started_at && s.ended_at) {
+    const start = new Date(s.started_at.replace(' ', 'T'));
+    const end = new Date(s.ended_at.replace(' ', 'T'));
+    const diffMin = Math.round((end - start) / 60000);
+    if (diffMin > 0) {
+      const h = Math.floor(diffMin / 60);
+      const m = diffMin % 60;
+      durationStr = h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m} min`;
+    }
+  }
+
+  const dateLabel = new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const overlay = document.getElementById('perso-recap-overlay');
+  document.getElementById('perso-recap-title').textContent = `${sessionName} — ${dateLabel}`;
+  document.getElementById('perso-recap-total').textContent = total.toLocaleString('fr-FR') + ' kg';
+  document.getElementById('perso-recap-exs-count').textContent = (s.performances || []).length;
+  document.getElementById('perso-recap-sets').textContent = totalSets;
+  document.getElementById('perso-recap-reps').textContent = totalReps;
+
+  const list = document.getElementById('perso-recap-list');
+  list.innerHTML = `
+    ${durationStr ? `<div class="p-badge p-badge-blue" style="margin-bottom:8px;">Durée : ${durationStr}</div>` : ''}
+    ${(s.performances || []).map(p => {
+      const sets = (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed);
+      const sub = sets.reduce((t, sl) => t + (sl.weight_kg || 0) * (sl.reps || 0), 0);
+      const feelIcon = { facile: '😊', moyen: '😐', dur: '😓' }[p.feeling] || '';
+      const detailTxt = sets.map((sl, i) => `S${i + 1}: ${sl.weight_kg || 0}kg×${sl.reps || 0}`).join(' · ');
+      return `
+        <div class="p-progress-row">
+          <span class="p-progress-date">${escapeHtml(p.exercise_name)} ${feelIcon}</span>
+          <span class="p-progress-sets">${detailTxt || '<em style="color:var(--p-text2)">Pas de séries enregistrées</em>'}</span>
+          <span class="p-progress-tonnage">${sub.toLocaleString('fr-FR')} kg</span>
+        </div>
+      `;
+    }).join('') || '<div class="p-empty">Aucun exercice enregistré</div>'}
+  `;
+  overlay.classList.remove('hidden');
 }
 
 async function startPersoSession(templateId) {

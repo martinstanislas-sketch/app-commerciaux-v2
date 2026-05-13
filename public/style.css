@@ -7692,6 +7692,69 @@ img {
   font-style: normal;
 }
 
+/* ─── Perso: Séances terminées (bubbles) ─── */
+.p-completed-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+@media (max-width: 768px) {
+  .p-completed-list { grid-template-columns: 1fr; }
+}
+.p-completed-bubble {
+  background: var(--p-card, #FFFFFF);
+  border: 1.5px solid var(--p-border, #E2E8F0);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.p-completed-bubble:hover {
+  border-color: var(--p-green, #16A34A);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.12);
+}
+.p-completed-bubble-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.p-completed-bubble-name {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--p-text, #0F172A);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.p-completed-bubble-badge {
+  background: var(--p-green-soft, #DCFCE7);
+  color: var(--p-green, #16A34A);
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.p-completed-bubble-meta {
+  display: flex;
+  gap: 10px;
+  font-size: .8rem;
+  color: var(--p-text2, #475569);
+  font-weight: 500;
+  flex-wrap: wrap;
+}
+.p-completed-bubble-total {
+  color: var(--p-accent, #4F46E5);
+  font-weight: 700;
+}
+
 /* Virtual "Assignées à moi" column */
 .tk-col-virtual {
   background: linear-gradient(180deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.02));
