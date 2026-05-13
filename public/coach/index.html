@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suivi Coach</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;0,9..144,900;1,9..144,900&family=Inter+Tight:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=20260423a">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- LOGIN OVERLAY -->
+  <div id="login-overlay" class="login-overlay">
+    <div class="login-card">
+      <div style="font-size:2.5rem;margin-bottom:0.5rem;">💪</div>
+      <h2 class="login-title">Coach</h2>
+      <p class="login-subtitle">Suivi Quotidien</p>
+      <form id="login-form">
+        <input type="password" id="login-pin" pattern="[a-zA-Z0-9]*" maxlength="6" placeholder="Ton code coach" autocomplete="off" required>
+        <div id="login-error" class="login-error hidden">Code incorrect</div>
+        <button type="submit" class="btn-primary">Se connecter</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- CLUB SELECT OVERLAY -->
+  <div id="club-select-overlay" class="login-overlay hidden">
+    <div class="login-card club-select-card">
+      <div class="club-select-icon">📍</div>
+      <h2 class="club-select-title">Ton studio aujourd'hui</h2>
+      <p class="club-select-subtitle">Sélectionne le club sur lequel tu travailles</p>
+      <div id="club-select-grid" class="club-select-grid"></div>
+    </div>
+  </div>
+
+
+  <header>
+    <div class="header-left">
+      <h1 id="app-title">Coach</h1>
+      <div id="header-elites-score" title="Score E.L.I.T.E.S du mois">
+        <span class="hes-label">E.L.I.T.E.S</span>
+        <span class="hes-value" id="hes-score">—</span>
+        <span class="hes-max">/54</span>
+      </div>
+    </div>
+    <nav>
+      <button class="tab-btn" data-tab="today">
+        <span class="tab-icon">📋</span>
+        <span class="tab-label">Journée</span>
+      </button>
+      <button class="tab-btn active" data-tab="dashboard">
+        <span class="tab-icon">📐</span>
+        <span class="tab-label">RH</span>
+      </button>
+      <button class="tab-btn" data-tab="recap">
+        <span class="tab-icon">📈</span>
+        <span class="tab-label">Succès</span>
+      </button>
+      <button class="tab-btn" data-tab="controle">
+        <span class="tab-icon">🏢</span>
+        <span class="tab-label">Contrôle</span>
+      </button>
+      <button class="tab-btn" data-tab="community">
+        <span class="tab-icon">💬</span>
+        <span class="tab-label">Team</span>
+      </button>
+      <button class="tab-btn tab-btn-academy" data-tab="ressources">
+        <span class="tab-icon">🎓</span>
+        <span class="tab-label">Academy</span>
+      </button>
+      <button class="tab-btn tab-btn-module" data-tab="module">
+        <span class="tab-icon">📦</span>
+        <span class="tab-label">Module</span>
+      </button>
+      <button class="tab-btn tab-btn-validation" data-tab="validation">
+        <span class="tab-icon">🎓</span>
+        <span class="tab-label">ACADEMY</span>
+      </button>
+      <button class="tab-btn tab-btn-calendrier" data-tab="calendrier">
+        <span class="tab-icon">🏠</span>
+        <span class="tab-label">Vie du Club</span>
+      </button>
+      <button class="tab-btn tab-btn-accompagnement" data-tab="accompagnement">
+        <span class="tab-icon">🤝</span>
+        <span class="tab-label">Accompagnement</span>
+      </button>
+      <button class="tab-btn tab-btn-vue-ensemble" data-tab="vue-ensemble">
+        <span class="tab-icon">🏢</span>
+        <span class="tab-label">Vue d'ensemble</span>
+      </button>
+      <button class="tab-btn" data-tab="pilotage">
+        <span class="tab-icon">🎯</span>
+        <span class="tab-label">Pilotage</span>
+      </button>
+      <button class="tab-btn" data-tab="revue">
+        <span class="tab-icon">📝</span>
+        <span class="tab-label">Revue</span>
+      </button>
+      <button class="tab-btn" data-tab="dr-revues">
+        <span class="tab-icon">📋</span>
+        <span class="tab-label">Revues</span>
+      </button>
+      <button class="tab-btn tab-btn-palmares" data-tab="palmares">
+        <span class="tab-icon">🥇</span>
+        <span class="tab-label">Palmarès</span>
+      </button>
+      <button class="tab-btn tab-btn-parcours" data-tab="parcours">
+        <span class="tab-icon">🏅</span>
+        <span class="tab-label">Parcours</span>
+      </button>
+      <button class="tab-btn tab-btn-suivi-dr" data-tab="suivi-dr">
+        <span class="tab-icon">📊</span>
+        <span class="tab-label">Suivi DR</span>
+      </button>
+      <button class="tab-btn tab-btn-data" data-tab="data">
+        <span class="tab-icon">🗄️</span>
+        <span class="tab-label">DATA</span>
+      </button>
+    </nav>
+    <div id="user-info" class="user-info hidden">
+      <span id="user-name"></span>
+      <button id="btn-logout" class="btn-logout" title="Se déconnecter">Déconnexion</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- AUJOURD'HUI (Coach) -->
+    <section id="tab-today" class="tab-content">
+      <div id="today-container"></div>
+    </section>
+
+    <!-- DASHBOARD (Admin) -->
+    <section id="tab-dashboard" class="tab-content active">
+      <div class="month-nav">
+        <button id="dash-prev-month">&larr;</button>
+        <span id="dash-month-label">—</span>
+        <button id="dash-next-month">&rarr;</button>
+        <input type="month" id="dash-month-picker">
+      </div>
+      <div id="dashboard-cards"></div>
+      <!-- Admin: Gestion Coachs -->
+      <div id="admin-coaches-panel" class="admin-panel hidden">
+        <h2>Gestion des Coachs</h2>
+        <form id="add-coach-form" class="add-rep-form">
+          <input type="text" id="new-coach-name" placeholder="Nom" required>
+          <input type="text" id="new-coach-studio" placeholder="Studio">
+          <label class="add-coach-leader-check">
+            <input type="checkbox" id="new-coach-is-leader">
+            <span>Coach Leader</span>
+          </label>
+          <button type="submit" class="btn-primary">Ajouter</button>
+        </form>
+        <div id="admin-coach-list" class="admin-rep-list"></div>
+      </div>
+    </section>
+
+    <!-- RÉCAP (Coach) -->
+    <section id="tab-recap" class="tab-content">
+      <div class="month-nav">
+        <button id="recap-prev-month">&larr;</button>
+        <span id="recap-month-label">—</span>
+        <button id="recap-next-month">&rarr;</button>
+        <input type="month" id="recap-month-picker">
+        <button id="btn-recap-pdf" class="btn-recap-pdf" title="Télécharger le PDF du récap mensuel">
+          <span style="font-size: 18px;">📄</span> Générer PDF
+        </button>
+      </div>
+      <div id="recap-container"></div>
+    </section>
+
+    <!-- COMMUNAUTÉ -->
+    <section id="tab-community" class="tab-content">
+      <div class="comm-container">
+        <div class="comm-header">
+          <h2>💬 Espace Team</h2>
+          <p class="comm-subtitle">Échangez entre Coachs — CR & messages Team</p>
+          <div id="comm-club-filters" class="comm-club-filters"></div>
+        </div>
+        <div id="comm-messages" class="comm-messages"></div>
+        <div class="comm-input-bar" id="comm-input-bar">
+          <div class="comm-text-input" id="comm-text-input-wrap">
+            <input type="text" id="comm-text" placeholder="Écrire un message..." maxlength="500">
+            <button id="comm-send-text" class="comm-send-btn" title="Envoyer">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+            </button>
+          </div>
+          <div class="comm-rec-live hidden" id="comm-rec-live">
+            <span class="comm-rec-dot"></span>
+            <span class="comm-rec-label">REC</span>
+            <span class="comm-rec-timer" id="comm-recording-timer">0:00</span>
+            <span class="comm-rec-hint">🎙️ pour envoyer</span>
+            <button class="comm-rec-cancel" id="comm-rec-cancel" title="Annuler et recommencer">🗑️</button>
+          </div>
+          <button id="comm-record-btn" class="comm-record-btn" title="Enregistrer un vocal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ACADEMY -->
+    <section id="tab-ressources" class="tab-content">
+      <div class="res-container">
+        <div class="res-header">
+          <h2>🎓 Academy</h2>
+          <p class="res-subtitle">Formations & ressources pour progresser</p>
+          <button id="aca-manage-btn" class="btn-secondary hidden" style="margin-top:8px;" data-admin-only="true">⚙️ Gérer les formations</button>
+        </div>
+
+        <!-- Panel ajout/gestion formations (admin uniquement) -->
+        <div id="aca-manage-panel" class="val-manage-panel hidden">
+          <div class="val-manage-header">
+            <h3>📦 Ajouter une formation</h3>
+            <button id="aca-manage-close" class="val-manage-close">✕ Fermer</button>
+          </div>
+          <div class="val-add-form" style="flex-wrap:wrap;gap:8px;">
+            <input type="text" id="aca-formation-name" placeholder="Nom du module" class="val-input">
+            <select id="aca-formation-cat" class="val-input" style="flex:0 0 auto;min-width:180px;">
+              <option value="essentielles">🎯 Essentielles</option>
+              <option value="signature">✨ Signature</option>
+              <option value="expertise">🧠 Expertise</option>
+              <option value="leadership">👑 Leadership</option>
+            </select>
+            <input type="text" id="aca-formation-desc" placeholder="Description (optionnel)" class="val-input" style="flex:1 1 100%;">
+            <input type="text" id="aca-formation-video" placeholder="URL YouTube (optionnel)" class="val-input" style="flex:1 1 100%;">
+            <button id="aca-add-btn" class="btn-primary val-add-btn">+ Ajouter</button>
+          </div>
+        </div>
+
+        <!-- Liste des formations par catégorie -->
+        <div id="aca-operational-container"></div>
+        <div id="aca-formations"></div>
+
+      </div>
+    </section>
+
+    <!-- MODULE (Academy 1234 uniquement) -->
+    <section id="tab-module" class="tab-content">
+      <div class="res-container">
+        <div class="res-header">
+          <h2>📦 Modules</h2>
+          <p class="res-subtitle">Les ressources de formation</p>
+          <button id="mod-manage-btn" class="btn-secondary hidden" style="margin-top:8px;" data-admin-only="true">⚙️ Gérer les formations</button>
+        </div>
+        <div id="mod-manage-panel" class="val-manage-panel hidden">
+          <div class="val-manage-header">
+            <h3>📦 Ajouter une formation</h3>
+            <button id="mod-manage-close" class="val-manage-close">✕ Fermer</button>
+          </div>
+          <div class="val-add-form" style="flex-wrap:wrap;gap:8px;">
+            <input type="text" id="mod-formation-name" placeholder="Nom du module" class="val-input">
+            <select id="mod-formation-cat" class="val-input" style="flex:0 0 auto;min-width:180px;">
+              <option value="essentielles">🎯 Essentielles</option>
+              <option value="signature">✨ Signature</option>
+              <option value="expertise">🧠 Expertise</option>
+              <option value="leadership">👑 Leadership</option>
+            </select>
+            <input type="text" id="mod-formation-desc" placeholder="Description (optionnel)" class="val-input" style="flex:1 1 100%;">
+            <input type="text" id="mod-formation-video" placeholder="URL YouTube (optionnel)" class="val-input" style="flex:1 1 100%;">
+            <button id="mod-add-btn" class="btn-primary val-add-btn">+ Ajouter</button>
+          </div>
+        </div>
+        <div id="mod-formations"></div>
+      </div>
+    </section>
+
+    <!-- ACCOMPAGNEMENT (Directeur + Admin) -->
+    <section id="tab-accompagnement" class="tab-content">
+      <div id="accomp-container"></div>
+    </section>
+
+    <!-- PILOTAGE (Leader only) -->
+    <section id="tab-pilotage" class="tab-content">
+      <div id="pilotage-container"></div>
+    </section>
+
+    <!-- REVUE MENSUELLE (Leader only) -->
+    <section id="tab-revue" class="tab-content">
+      <div id="revue-container"></div>
+    </section>
+
+    <!-- REVUES DR (Directeur + Admin) -->
+    <section id="tab-dr-revues" class="tab-content">
+      <div id="dr-revues-container"></div>
+    </section>
+
+    <!-- PALMARÈS DU MOIS (Directeur + Admin) -->
+    <section id="tab-palmares" class="tab-content">
+      <div class="month-nav">
+        <button id="palmares-prev-month">&larr;</button>
+        <span id="palmares-month-label">—</span>
+        <button id="palmares-next-month">&rarr;</button>
+        <input type="month" id="palmares-month-picker">
+      </div>
+      <div id="palmares-container"></div>
+    </section>
+
+    <!-- CALENDRIER (tous les utilisateurs) -->
+    <section id="tab-calendrier" class="tab-content">
+      <div class="cal-container">
+        <div class="cal-header">
+          <h2>📅 Vie du Club</h2>
+          <p class="cal-subtitle">Événements, formations et temps forts à venir</p>
+        </div>
+        <!-- Formulaire ajout (admin / 1234 uniquement) -->
+        <div id="cal-add-form" class="cal-add-form hidden">
+          <h3 class="cal-form-title">➕ Ajouter un événement</h3>
+          <div class="cal-form-row">
+            <input type="text" id="cal-input-title" placeholder="Titre de l'événement *" class="cal-input" maxlength="100">
+            <input type="date" id="cal-input-date" class="cal-input cal-input-date">
+          </div>
+          <div class="cal-form-row">
+            <input type="text" id="cal-input-studio" placeholder="Studio (optionnel)" class="cal-input">
+            <input type="text" id="cal-input-notes" placeholder="Notes / lieu (optionnel)" class="cal-input">
+          </div>
+          <button id="cal-submit-btn" class="btn-primary cal-submit-btn">Ajouter</button>
+        </div>
+        <!-- Grille visuelle + liste côte à côte -->
+        <div class="cal-layout">
+          <div class="cal-left-col">
+            <div id="cal-visual-section" class="cal-visual-section"></div>
+            <!-- Focus du mois -->
+            <div id="cal-focus-block" class="cal-focus-block"></div>
+          </div>
+          <div id="cal-events-list" class="cal-events-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VUE D'ENSEMBLE (Directeur) -->
+    <section id="tab-vue-ensemble" class="tab-content">
+      <div class="month-nav">
+        <button id="vue-ensemble-prev-month">&larr;</button>
+        <span id="vue-ensemble-month-label">—</span>
+        <button id="vue-ensemble-next-month">&rarr;</button>
+        <input type="month" id="vue-ensemble-month-picker">
+      </div>
+      <div id="vue-ensemble-container"></div>
+    </section>
+
+    <!-- PARCOURS (1234 access) -->
+    <section id="tab-parcours" class="tab-content">
+      <div class="val-container">
+        <div class="val-header">
+          <h2>🏅 Parcours des coachs</h2>
+          <p class="val-subtitle">Niveau et progression de toute l'équipe</p>
+        </div>
+        <div id="parcours-content"></div>
+      </div>
+    </section>
+
+    <!-- PARCOURS COACH DETAIL MODAL -->
+    <div id="parc-detail-modal" class="hidden"></div>
+
+    <!-- VALIDATION COMMENT POPUP -->
+    <div id="val-comment-modal" class="hidden">
+      <div class="vcm-backdrop">
+        <div class="vcm-card">
+          <div class="vcm-header">
+            <span id="vcm-title">Ajouter un message</span>
+            <button class="vcm-close" onclick="cancelValComment()">✕</button>
+          </div>
+          <p id="vcm-subtitle" class="vcm-subtitle"></p>
+          <textarea id="vcm-text" class="vcm-textarea" placeholder="Message optionnel pour le collaborateur…" rows="4"></textarea>
+          <div class="vcm-actions">
+            <button class="btn-secondary" onclick="cancelValComment()">Annuler</button>
+            <button id="vcm-confirm-btn" class="btn-primary" onclick="confirmValComment()">Confirmer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VALIDATION -->
+    <section id="tab-validation" class="tab-content">
+      <div class="val-container">
+        <div class="val-header">
+          <h2 id="val-section-title">🎓 ACADEMY</h2>
+          <p class="val-subtitle" id="val-section-subtitle">Ton parcours de formations</p>
+          <button id="val-manage-btn" class="btn-secondary hidden" style="margin-top:8px;" data-admin-only="true">⚙️ Gérer les modules</button>
+        </div>
+        <!-- Panneau ajout modules (admin uniquement) -->
+        <div id="val-manage-panel" class="val-manage-panel hidden">
+          <div class="val-manage-header">
+            <h3>📦 Ajouter un module</h3>
+            <button class="val-manage-close" id="val-manage-close">✕ Fermer</button>
+          </div>
+          <div class="val-add-form">
+            <input type="text" id="val-formation-name" placeholder="Nom du module" class="val-input">
+            <select id="val-formation-cat" class="val-input" style="flex:0 0 auto;min-width:180px;">
+              <option value="essentielles">🎯 Essentielles</option>
+              <option value="signature">✨ Signature</option>
+              <option value="expertise">🧠 Expertise</option>
+              <option value="leadership">👑 Leadership</option>
+            </select>
+            <button id="val-add-btn" class="btn-primary val-add-btn">+ Ajouter</button>
+          </div>
+        </div>
+        <!-- Pending validations panel (admin only) -->
+        <div id="val-pending-panel" class="hidden"></div>
+        <div id="val-admin-coach-select" class="val-coach-select hidden"></div>
+        <!-- Studio progress (coach leader / admin) -->
+        <div id="val-studio-progress" class="hidden"></div>
+        <div id="val-list" class="val-list"></div>
+        <!-- Academy intégrée (coach / coach leader uniquement) -->
+        <div id="val-aca-section"></div>
+      </div>
+    </section>
+
+
+    <!-- REMARQUES (Admin) -->
+    <section id="tab-notes" class="tab-content">
+      <div class="notes-header">
+        <h2>Remarques</h2>
+        <button id="btn-add-note" class="btn-primary">+ Nouvelle note</button>
+      </div>
+      <div id="notes-list"></div>
+    </section>
+
+    <!-- CONTRÔLE (Admin) -->
+    <section id="tab-controle" class="tab-content">
+      <div class="ctrl-header">
+        <select id="ctrl-club-select">
+          <option value="">— Sélectionner un Club —</option>
+        </select>
+        <div class="month-nav" style="border:none;padding:0;">
+          <button id="ctrl-prev-month">&larr;</button>
+          <span id="ctrl-month-label">—</span>
+          <button id="ctrl-next-month">&rarr;</button>
+        </div>
+        <button id="btn-objectifs" class="btn-secondary" style="display:none;font-size:.8rem;padding:8px 14px;">⚙️ Objectifs</button>
+      </div>
+      <div id="ctrl-container"></div>
+    </section>
+
+    <!-- PERSO (Admin only) -->
+    <section id="tab-perso" class="tab-content">
+      <div class="perso-container">
+        <div class="perso-header">
+          <h2>🔒 Espace Perso</h2>
+          <p class="perso-subtitle">Suivi entraînement & forme du jour</p>
+        </div>
+
+        <!-- Suivi du jour -->
+        <div class="perso-card">
+          <h3>📅 Suivi du jour</h3>
+          <div class="perso-row">
+            <div class="perso-field">
+              <label>Date</label>
+              <input type="date" id="perso-date">
+            </div>
+            <div class="perso-field">
+              <label>Poids (kg)</label>
+              <input type="number" id="perso-poids" step="0.1" placeholder="78.5">
+            </div>
+            <div class="perso-field">
+              <label>Énergie (1-5)</label>
+              <div class="perso-energie-stars" id="perso-energie-stars">
+                <button type="button" data-val="1">1</button>
+                <button type="button" data-val="2">2</button>
+                <button type="button" data-val="3">3</button>
+                <button type="button" data-val="4">4</button>
+                <button type="button" data-val="5">5</button>
+              </div>
+            </div>
+            <button id="perso-save-daily" class="btn-primary">💾 Enregistrer</button>
+          </div>
+        </div>
+
+        <!-- Séances (templates) -->
+        <div class="perso-card">
+          <h3>🗂️ Séances <button id="perso-new-session" class="btn-secondary" style="font-size:.75rem;padding:4px 10px;margin-left:auto;">+ Nouvelle</button></h3>
+          <div id="perso-sessions-list" class="perso-sessions-list"></div>
+        </div>
+
+        <!-- Saisie exercice -->
+        <div class="perso-card">
+          <h3>💪 Ajouter un exercice</h3>
+          <div class="perso-row">
+            <div class="perso-field perso-field-auto">
+              <label>Nom de l'exercice</label>
+              <input type="text" id="perso-ex-name" placeholder="Ex: Développé couché" autocomplete="off">
+              <div id="perso-ex-suggestions" class="perso-suggestions hidden"></div>
+            </div>
+            <div class="perso-field">
+              <label>Groupe musculaire</label>
+              <input type="text" id="perso-ex-muscle" placeholder="Pectoraux">
+            </div>
+            <div class="perso-field">
+              <label>Objectif (kg)</label>
+              <input type="number" id="perso-ex-obj" step="0.5" placeholder="100">
+            </div>
+          </div>
+          <div class="perso-row">
+            <div class="perso-field">
+              <label>Charge (kg)</label>
+              <input type="number" id="perso-ex-charge" step="0.5" placeholder="60">
+            </div>
+            <div class="perso-field">
+              <label>Séries</label>
+              <input type="number" id="perso-ex-series" placeholder="4">
+            </div>
+            <div class="perso-field">
+              <label>Répétitions</label>
+              <input type="number" id="perso-ex-reps" placeholder="10">
+            </div>
+            <div class="perso-field">
+              <label>Ressenti</label>
+              <div class="perso-feeling" id="perso-feeling">
+                <button type="button" data-val="facile">😌 Facile</button>
+                <button type="button" data-val="moyen" class="active">😐 Moyen</button>
+                <button type="button" data-val="dur">😰 Dur</button>
+              </div>
+            </div>
+          </div>
+          <div id="perso-ex-perf" class="perso-perf hidden"></div>
+          <button id="perso-add-set" class="btn-primary">➕ Enregistrer l'exercice</button>
+        </div>
+
+        <!-- Exercices du jour -->
+        <div class="perso-card">
+          <h3>📋 Exercices du jour</h3>
+          <div id="perso-sets-today" class="perso-sets-today">
+            <p style="color:var(--text-muted);text-align:center;padding:20px;">Aucun exercice enregistré aujourd'hui.</p>
+          </div>
+        </div>
+
+        <!-- Session editor (modal) -->
+        <div id="perso-session-overlay" class="perso-progress-overlay hidden">
+          <div class="perso-progress-card">
+            <div class="perso-progress-header">
+              <h3 id="perso-session-title">Nouvelle séance</h3>
+              <button id="perso-session-close" class="modal-close">&times;</button>
+            </div>
+            <div class="perso-field" style="margin-bottom:12px;">
+              <label>Nom de la séance</label>
+              <input type="text" id="perso-session-name" placeholder="Ex: PUSH, PULL, Jambes...">
+            </div>
+            <div class="perso-field" style="margin-bottom:12px;position:relative;">
+              <label>Ajouter un exercice</label>
+              <input type="text" id="perso-session-ex-input" placeholder="Rechercher un exercice..." autocomplete="off">
+              <div id="perso-session-ex-suggestions" class="perso-suggestions hidden"></div>
+            </div>
+            <div id="perso-session-ex-list" class="perso-session-ex-list"></div>
+            <div style="display:flex;gap:8px;margin-top:16px;">
+              <button id="perso-session-save" class="btn-primary" style="flex:1;">💾 Enregistrer</button>
+              <button id="perso-session-delete" class="btn-secondary hidden">🗑️ Supprimer</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progression (modal) -->
+        <div id="perso-progress-overlay" class="perso-progress-overlay hidden">
+          <div class="perso-progress-card">
+            <div class="perso-progress-header">
+              <h3 id="perso-progress-title">Progression</h3>
+              <button id="perso-progress-close" class="modal-close">&times;</button>
+            </div>
+            <div class="perso-progress-chart-wrap">
+              <canvas id="perso-progress-chart"></canvas>
+            </div>
+            <div id="perso-progress-history" class="perso-progress-history"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OBJECTIFS CA MODAL -->
+    <div id="obj-modal-overlay" class="modal-overlay" style="display:none;">
+      <div class="modal-card" style="max-width:520px;">
+        <div class="modal-header">
+          <h3>⚙️ Objectifs CA du mois</h3>
+          <button class="modal-close" onclick="closeObjModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="obj-modal-grid" class="obj-modal-grid"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeObjModal()">Annuler</button>
+          <button class="btn-primary" id="obj-save-btn" onclick="saveObjectifs()">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+    <!-- SUIVI DR (Directeur + Admin) -->
+    <section id="tab-suivi-dr" class="tab-content">
+      <div id="suivi-dr-container"></div>
+    </section>
+
+    <!-- DATA (Admin) -->
+    <section id="tab-data" class="tab-content">
+      <div id="data-container" class="val-container"></div>
+    </section>
+
+  </main>
+
+  <!-- BELT UP OVERLAY -->
+  <div id="belt-up-overlay" class="belt-up-overlay hidden">
+    <div class="belt-up-card" id="belt-up-card"></div>
+  </div>
+
+  <!-- BADGE UNLOCK OVERLAY -->
+  <div id="badge-unlock-overlay" class="badge-unlock-overlay hidden">
+    <div class="badge-unlock-card" id="badge-unlock-card"></div>
+  </div>
+
+  <!-- QUIZ MODAL -->
+  <div id="quiz-overlay" class="quiz-overlay hidden">
+    <div class="quiz-modal">
+      <button class="quiz-close" onclick="closeQuiz()">&times;</button>
+      <div id="quiz-content"></div>
+    </div>
+  </div>
+
+  <!-- QUIZ EDITOR MODAL (Admin) -->
+  <div id="quiz-editor-overlay" class="quiz-overlay hidden">
+    <div class="quiz-modal quiz-modal-wide">
+      <button class="quiz-close" onclick="closeQuizEditor()">&times;</button>
+      <div id="quiz-editor-content"></div>
+    </div>
+  </div>
+
+  <script src="app.js?v=20260331c"></script>
+</body>
+</html>

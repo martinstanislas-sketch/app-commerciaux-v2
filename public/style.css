@@ -2455,6 +2455,30 @@ body.on-tasks-tab main {
   border: 1px solid rgba(239,68,68,0.3);
 }
 
+/* Bouton accès app Coaching */
+.btn-goto-coach {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #1C1410, #2A1F18);
+  color: #FFD700;
+  font-size: .8rem;
+  font-weight: 700;
+  border-radius: 8px;
+  text-decoration: none;
+  border: 1.5px solid #B8944A;
+  transition: all .15s;
+}
+.btn-goto-coach:hover {
+  background: linear-gradient(135deg, #B8944A, #9A7A3E);
+  color: #FFF;
+  transform: translateY(-1px);
+}
+.btn-goto-coach.hidden {
+  display: none !important;
+}
+
 .admin-rep-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));

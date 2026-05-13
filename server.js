@@ -9,8 +9,11 @@ const { sendEmail, verifyConnection } = require('./email');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // 10mb pour audio messages communauté
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Static serving for COACH app at /coach
+app.use('/coach', express.static(path.join(__dirname, 'public', 'coach')));
 
 // ─── Sessions (in-memory) ───────────────────────────────────
 
@@ -2833,6 +2836,16 @@ app.put('/api/admin/pin', requireAuth, requireAdmin, (req, res) => {
   `).run(newPin.trim());
   res.json({ ok: true });
 });
+
+// ─── Mount COACH routes under /api/coach/* ──────────────────
+
+try {
+  const mountCoachRoutes = require('./coach-routes');
+  mountCoachRoutes(app, getDb, sessions, { requireAuth, requireAdmin });
+  console.log('✓ Routes coaching montées sous /api/coach/*');
+} catch (e) {
+  console.error('✗ Erreur chargement coach-routes:', e.message);
+}
 
 // ─── Start ──────────────────────────────────────────────────
 

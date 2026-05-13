@@ -246,6 +246,18 @@ function initAuthUI() {
       localStorage.setItem('authToken', authToken);
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
+      // Redirection auto vers l'app coaching si rôle coach/director/academy
+      const coachRoles = ['coach', 'coach-leader', 'director', 'academy'];
+      if (coachRoles.includes(data.role)) {
+        // Transfert du token vers le storage coach et redirection
+        localStorage.setItem('authToken_coach', data.token);
+        localStorage.setItem('currentUser_coach', JSON.stringify({
+          role: data.role, name: data.name, coach_id: data.coach_id || null, is_leader: data.is_leader || false
+        }));
+        window.location.href = '/coach/';
+        return;
+      }
+
       const loginCard = document.querySelector('.login-card');
       const loginBtn = loginCard.querySelector('.btn-primary');
       loginCard.classList.add('login-success');
@@ -318,6 +330,9 @@ async function bootApp() {
   if (adminPanel) adminPanel.classList.toggle('hidden', !isAdmin());
   const securityPanel = document.getElementById('admin-security-panel');
   if (securityPanel) securityPanel.classList.toggle('hidden', !isAdmin());
+  // Bouton accès Coaching (admin uniquement)
+  const coachBtn = document.getElementById('btn-goto-coach');
+  if (coachBtn) coachBtn.classList.toggle('hidden', !isAdmin());
   // Show/hide tabs based on role
   updateTabVisibility();
   applyVentesRoleVisibility();
