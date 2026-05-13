@@ -4917,8 +4917,9 @@ body.on-tasks-tab main {
 #tab-perso { padding-top: 8px; font-family: 'Inter', system-ui, sans-serif; }
 
 #perso-container {
-  max-width: 1280px;
-  margin: 0 auto;
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
 }
 
 /* ─── Header ─────────────────────────────────────── */
