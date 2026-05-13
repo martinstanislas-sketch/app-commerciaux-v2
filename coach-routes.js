@@ -2795,9 +2795,5 @@ app.patch('/api/coach/club-nouveaux/:club/ok', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── Start ──────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`Serveur Coach démarré sur http://localhost:${PORT}`);
-  getDb();
-});
+// (Le app.listen est géré par server.js principal, pas ici)
 }; // end mountCoachRoutes
