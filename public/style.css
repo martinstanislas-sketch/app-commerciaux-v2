@@ -4895,23 +4895,23 @@ body.on-tasks-tab main {
 
 /* ─── Design tokens ─────────────────────────────── */
 :root {
-  --p-bg: #0B1120;
-  --p-card: #111827;
-  --p-card-hover: #1A2332;
-  --p-border: #1E293B;
-  --p-accent: #3B82F6;
-  --p-accent-soft: #1E3A5F;
-  --p-green: #22C55E;
-  --p-green-soft: #14532D;
-  --p-orange: #F59E0B;
-  --p-orange-soft: #78350F;
-  --p-red: #EF4444;
-  --p-red-soft: #7F1D1D;
-  --p-violet: #A855F7;
-  --p-violet-soft: #3B0764;
-  --p-text: #F1F5F9;
-  --p-text2: #94A3B8;
-  --p-dim: #475569;
+  --p-bg: #F8FAFC;
+  --p-card: #FFFFFF;
+  --p-card-hover: #F1F5F9;
+  --p-border: #E2E8F0;
+  --p-accent: #4F46E5;
+  --p-accent-soft: #EEF2FF;
+  --p-green: #16A34A;
+  --p-green-soft: #DCFCE7;
+  --p-orange: #EA580C;
+  --p-orange-soft: #FFEDD5;
+  --p-red: #DC2626;
+  --p-red-soft: #FEE2E2;
+  --p-violet: #7C3AED;
+  --p-violet-soft: #EDE9FE;
+  --p-text: #0F172A;
+  --p-text2: #475569;
+  --p-dim: #94A3B8;
 }
 
 #tab-perso { padding-top: 8px; font-family: 'Inter', system-ui, sans-serif; }
