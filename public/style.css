@@ -531,14 +531,13 @@ nav {
 
 /* ─── Main ──────────────────────────────────────── */
 main {
-  max-width: 1200px;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 16px 20px;
+  padding: 16px 32px;
 }
-/* Tasks tab uses full screen width (kanban benefits from horizontal space) */
+/* Tasks tab keeps comfortable padding (Kanban already uses horizontal scroll) */
 main:has(#tab-tasks.active),
 body.on-tasks-tab main {
-  max-width: 100%;
   padding-left: 32px;
   padding-right: 32px;
 }
