@@ -352,12 +352,8 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
     WHERE ws.week_start = ? AND sr.role != 'phoneur' AND sr.archived = 0
     ORDER BY ws.sales_rep_id
   `).all(weekStart);
-  // Force hours=0 for commercial role; target_per_hour stays user-defined (default 300)
-  for (const s of settings) {
-    if (s.rep_role === 'commercial') {
-      s.hours_worked = 0;
-    }
-  }
+  // Valeurs gérées via les défauts à la création de la semaine (hours=0, target=300 pour commercial)
+  // mais entièrement éditables ensuite
 
   const salesByRep = db.prepare(`
     SELECT sales_rep_id,
@@ -431,11 +427,7 @@ app.put('/api/weeks/:week_start/settings/:sales_rep_id', requireAuth, requireAdm
 
   ensureWeeklySettings(week_start);
 
-  // Force hours=0 for commercial role (target_per_hour stays editable, default 300)
-  const rep = db.prepare('SELECT role FROM sales_reps WHERE id = ?').get(sales_rep_id);
-  if (rep && rep.role === 'commercial') {
-    hours_worked = 0;
-  }
+  // Heures et target éditables pour tous les rôles (defaults gérés à la création de la semaine)
 
   // Check lock
   const existing = db.prepare(

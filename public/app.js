@@ -2351,10 +2351,10 @@ function renderCards(commerciaux) {
       </div>
       <div class="settings-row" ${!isAdmin() ? 'style="display:none"' : ''}>
         <div class="field">
-          <label>Heures travaillées${c.rep_role === 'commercial' ? ' <span class="field-locked-hint">(fixé)</span>' : ''}</label>
+          <label>Heures travaillées</label>
           <input type="number" step="0.5" min="0" value="${c.hours_worked}"
                  data-rep-id="${c.sales_rep_id}" data-field="hours"
-                 ${settingsDisabled || c.rep_role === 'commercial' ? 'disabled' : ''}>
+                 ${settingsDisabled ? 'disabled' : ''}>
         </div>
         <div class="field">
           <label>Objectif €/h</label>
