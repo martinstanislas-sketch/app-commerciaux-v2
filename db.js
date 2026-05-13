@@ -325,6 +325,21 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_pr_exercise ON personal_records(exercise_id, record_type);
   `);
 
+  // ─── App settings (key-value store) ─────────────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+  `);
+  // Seed admin_pin if missing (uses env var as initial value, default 'ginkgo')
+  const adminPinRow = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('admin_pin');
+  if (!adminPinRow) {
+    const initialPin = process.env.ADMIN_PIN || 'ginkgo';
+    db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)').run('admin_pin', initialPin);
+  }
+
   // ─── Task Vault: Kanban board ───────────────────────────────
   db.exec(`
     CREATE TABLE IF NOT EXISTS task_columns (

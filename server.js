@@ -111,17 +111,19 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(400).json({ error: 'Code PIN requis' });
   }
 
-  const adminPin = process.env.ADMIN_PIN;
+  const db = getDb();
+  // Lecture du PIN admin depuis la DB (fallback env var)
+  const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('admin_pin');
+  const adminPin = (row && row.value) || process.env.ADMIN_PIN || 'ginkgo';
 
   // Check admin PIN
-  if (adminPin && pin.trim() === adminPin) {
+  if (pin.trim() === adminPin) {
     const token = crypto.randomUUID();
     sessions.set(token, { role: 'admin', name: 'Stan', sales_rep_id: null });
     return res.json({ token, role: 'admin', name: 'Stan', sales_rep_id: null });
   }
 
   // Check commercial / phoneur PIN
-  const db = getDb();
   const rep = db.prepare('SELECT id, name, role FROM sales_reps WHERE pin = ? AND archived = 0').get(pin.trim());
   if (rep) {
     const token = crypto.randomUUID();
@@ -2776,6 +2778,26 @@ app.post('/api/tasks/columns/reorder', requireAuth, (req, res) => {
     order.forEach((id, idx) => stmt.run(idx, id));
   });
   tx();
+  res.json({ ok: true });
+});
+
+// ─── Admin PIN: change endpoint ─────────────────────────────
+
+app.put('/api/admin/pin', requireAuth, requireAdmin, (req, res) => {
+  const { currentPin, newPin } = req.body;
+  if (!newPin || typeof newPin !== 'string' || newPin.trim().length < 4) {
+    return res.status(400).json({ error: 'Le nouveau PIN doit faire au moins 4 caractères' });
+  }
+  const db = getDb();
+  const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('admin_pin');
+  const stored = (row && row.value) || process.env.ADMIN_PIN || 'ginkgo';
+  if (!currentPin || currentPin !== stored) {
+    return res.status(403).json({ error: 'PIN actuel incorrect' });
+  }
+  db.prepare(`
+    INSERT INTO app_settings (key, value, updated_at) VALUES ('admin_pin', ?, datetime('now','localtime'))
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `).run(newPin.trim());
   res.json({ ok: true });
 });
 

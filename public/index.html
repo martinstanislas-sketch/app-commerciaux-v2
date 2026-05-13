@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=mobile17">
+  <link rel="stylesheet" href="style.css?v=mobile19">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -96,6 +96,19 @@
           <button type="submit" class="btn-primary">Ajouter</button>
         </form>
         <div id="admin-rep-list" class="admin-rep-list"></div>
+      </div>
+
+      <!-- Admin: Sécurité (changement de PIN) -->
+      <div id="admin-security-panel" class="admin-panel hidden">
+        <h2>S&eacute;curit&eacute;</h2>
+        <p class="admin-panel-sub">Modifier le code PIN administrateur. Le nouveau PIN sera utilis&eacute; pour les prochaines connexions.</p>
+        <form id="change-pin-form" class="add-rep-form">
+          <input type="password" id="current-pin" placeholder="PIN actuel" required autocomplete="current-password">
+          <input type="password" id="new-pin" placeholder="Nouveau PIN (4 car. min)" required autocomplete="new-password" minlength="4">
+          <input type="password" id="confirm-pin" placeholder="Confirmer nouveau PIN" required autocomplete="new-password" minlength="4">
+          <button type="submit" class="btn-primary">Changer le PIN</button>
+        </form>
+        <div id="change-pin-feedback" class="admin-pin-feedback"></div>
       </div>
     </section>
 
@@ -520,6 +533,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=mobile18"></script>
+  <script src="app.js?v=mobile19"></script>
 </body>
 </html>

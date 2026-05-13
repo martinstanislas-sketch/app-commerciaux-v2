@@ -316,6 +316,8 @@ async function bootApp() {
   // Show/hide admin panels
   const adminPanel = document.getElementById('admin-reps-panel');
   if (adminPanel) adminPanel.classList.toggle('hidden', !isAdmin());
+  const securityPanel = document.getElementById('admin-security-panel');
+  if (securityPanel) securityPanel.classList.toggle('hidden', !isAdmin());
   // Show/hide tabs based on role
   updateTabVisibility();
   applyVentesRoleVisibility();
@@ -4245,6 +4247,38 @@ async function renderTodayActions(repId) {
 // ─── Admin: Gestion Commerciaux ─────────────────────────────
 
 function initAdminPanel() {
+  // PIN change form
+  const pinForm = document.getElementById('change-pin-form');
+  if (pinForm && !pinForm.dataset.bound) {
+    pinForm.dataset.bound = '1';
+    pinForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const feedback = document.getElementById('change-pin-feedback');
+      const currentPin = document.getElementById('current-pin').value;
+      const newPin = document.getElementById('new-pin').value;
+      const confirmPin = document.getElementById('confirm-pin').value;
+      if (newPin !== confirmPin) {
+        feedback.textContent = '❌ Les deux nouveaux PINs ne correspondent pas.';
+        feedback.className = 'admin-pin-feedback error';
+        return;
+      }
+      if (newPin.length < 4) {
+        feedback.textContent = '❌ Le nouveau PIN doit faire au moins 4 caractères.';
+        feedback.className = 'admin-pin-feedback error';
+        return;
+      }
+      try {
+        await api('/admin/pin', { method: 'PUT', body: { currentPin, newPin } });
+        feedback.textContent = '✅ PIN modifié avec succès. Il sera utilisé pour la prochaine connexion.';
+        feedback.className = 'admin-pin-feedback success';
+        pinForm.reset();
+      } catch (err) {
+        feedback.textContent = '❌ ' + (err.message || 'Erreur lors du changement');
+        feedback.className = 'admin-pin-feedback error';
+      }
+    });
+  }
+
   const form = document.getElementById('add-rep-form');
   if (!form) return;
 

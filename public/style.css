@@ -2427,6 +2427,34 @@ body.on-tasks-tab main {
   text-transform: none;
 }
 
+/* Admin: PIN change panel */
+.admin-panel-sub {
+  font-size: .85rem;
+  color: var(--text-muted, #94A3B8);
+  margin-bottom: 14px;
+  margin-top: -4px;
+}
+.admin-pin-feedback {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: .85rem;
+  font-weight: 500;
+  display: none;
+}
+.admin-pin-feedback.success {
+  display: block;
+  background: rgba(34,197,94,0.1);
+  color: #15803D;
+  border: 1px solid rgba(34,197,94,0.3);
+}
+.admin-pin-feedback.error {
+  display: block;
+  background: rgba(239,68,68,0.1);
+  color: #B91C1C;
+  border: 1px solid rgba(239,68,68,0.3);
+}
+
 .admin-rep-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
