@@ -132,6 +132,39 @@ app.post('/api/auth/login', (req, res) => {
     return res.json({ token, role, name: rep.name, sales_rep_id: rep.id });
   }
 
+  // Check coach PIN (table coaches)
+  const coach = db.prepare('SELECT id, name, role, studio, is_leader FROM coaches WHERE pin = ? AND archived = 0').get(pin.trim());
+  if (coach) {
+    const token = crypto.randomUUID();
+    const role = coach.is_leader ? 'coach-leader' : (coach.role || 'coach');
+    sessions.set(token, {
+      role,
+      name: coach.name,
+      sales_rep_id: null,
+      coach_id: coach.id,
+      is_leader: !!coach.is_leader,
+      studio: coach.studio
+    });
+    return res.json({
+      token, role, name: coach.name, sales_rep_id: null,
+      coach_id: coach.id, is_leader: !!coach.is_leader, studio: coach.studio
+    });
+  }
+
+  // Check special role PINs from env (academy, director)
+  const academyPin = process.env.ACADEMY_PIN;
+  if (academyPin && pin.trim() === academyPin) {
+    const token = crypto.randomUUID();
+    sessions.set(token, { role: 'academy', name: 'Academy', sales_rep_id: null });
+    return res.json({ token, role: 'academy', name: 'Academy', sales_rep_id: null });
+  }
+  const directorPin = process.env.DIRECTOR_PIN;
+  if (directorPin && pin.trim() === directorPin) {
+    const token = crypto.randomUUID();
+    sessions.set(token, { role: 'director', name: 'Directeur', sales_rep_id: null });
+    return res.json({ token, role: 'director', name: 'Directeur', sales_rep_id: null });
+  }
+
   return res.status(401).json({ error: 'Code incorrect' });
 });
 
