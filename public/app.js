@@ -5771,11 +5771,27 @@ function buildTaskTree(flatTasks) {
       roots.push(map[t.id]);
     }
   });
-  const sortByPos = (arr) => {
-    arr.sort((a, b) => a.position - b.position || a.id - b.id);
-    arr.forEach(n => sortByPos(n.children));
+  const isMobile = window.innerWidth <= 768;
+  // Mobile: sort by priority (overdue → today → others); Desktop: by position
+  const priorityScore = (t) => {
+    if (!t.due || t.completed) return 100;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const [y, m, d] = t.due.slice(0, 10).split('-').map(Number);
+    const due = new Date(y, m - 1, d);
+    const diffDays = Math.round((due - today) / 86400000);
+    if (diffDays < 0) return 0;      // overdue → top
+    if (diffDays === 0) return 1;    // today → next
+    if (diffDays <= 2) return 2;     // next 2 days
+    return 50 + diffDays;            // later
   };
-  sortByPos(roots);
+  const sortFn = isMobile
+    ? (a, b) => priorityScore(a) - priorityScore(b) || a.position - b.position
+    : (a, b) => a.position - b.position || a.id - b.id;
+  const sortNodes = (arr) => {
+    arr.sort(sortFn);
+    arr.forEach(n => sortNodes(n.children));
+  };
+  sortNodes(roots);
   return roots;
 }
 
@@ -5984,8 +6000,17 @@ function wireTasksEvents() {
   // Click on card (anywhere except buttons) opens the panel
   container.querySelectorAll('.tk-card').forEach(card => {
     card.addEventListener('click', (e) => {
-      // Ignore clicks on action buttons (arrows, subtask, etc.)
-      if (e.target.closest('.tk-card-actions') || e.target.closest('.tk-card-subbtn')) return;
+      // Mobile: clicking the actions zone opens the context menu (… button)
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile && e.target.closest('.tk-card-actions')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        openCardContextMenu(parseInt(card.dataset.taskId, 10), rect.right - 20, rect.top + 30);
+        return;
+      }
+      // Ignore clicks on action buttons (arrows, subtask, etc.) on desktop
+      if (e.target.closest('.tk-card-arrow') || e.target.closest('.tk-card-subbtn')) return;
       // Shift+click = delete
       if (e.shiftKey) {
         e.preventDefault();
