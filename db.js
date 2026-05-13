@@ -582,4 +582,335 @@ function ensureWeeklySettings(weekStart) {
   }
 }
 
-module.exports = { getDb, ensureWeeklySettings, generatePin };
+// ═══════════════════════════════════════════════════════════════
+// MODULE COACH — schéma des tables importées de l'app coaching
+// Préfixes appliqués où conflit avec les tables Commerciaux:
+//   COACH.daily_action_values → coach_daily_action_values
+//   COACH.admin_notes         → coach_admin_notes
+//   COACH.sessions            → coach_sessions (en plus de la session en mémoire)
+// ═══════════════════════════════════════════════════════════════
+function initCoachSchema() {
+  const d = getDb();
+  d.exec(`
+    -- Coaches (utilisateurs côté coaching)
+    CREATE TABLE IF NOT EXISTS coaches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      pin TEXT DEFAULT NULL,
+      role TEXT NOT NULL DEFAULT 'coach',
+      studio TEXT DEFAULT '',
+      start_month TEXT DEFAULT NULL,
+      archived INTEGER NOT NULL DEFAULT 0,
+      is_leader INTEGER NOT NULL DEFAULT 0,
+      in_accompagnement INTEGER NOT NULL DEFAULT 0
+    );
+
+    -- Sessions persistantes côté coaching (en plus du Map mémoire admin)
+    CREATE TABLE IF NOT EXISTS coach_sessions (
+      token TEXT PRIMARY KEY,
+      role TEXT NOT NULL,
+      name TEXT NOT NULL,
+      coach_id INTEGER,
+      is_leader INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- Données mensuelles par coach
+    CREATE TABLE IF NOT EXISTS monthly_data (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL REFERENCES coaches(id),
+      month TEXT NOT NULL,
+      taux_resiliation REAL DEFAULT NULL,
+      taux_non_frequentants REAL DEFAULT NULL,
+      nb_adherents INTEGER DEFAULT NULL,
+      commentaire_manager TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      chiffre_affaires REAL DEFAULT NULL,
+      nouveaux_clients INTEGER DEFAULT NULL,
+      taux_occupation REAL DEFAULT NULL,
+      taux_contribution REAL DEFAULT NULL,
+      depenses REAL DEFAULT NULL,
+      les_sa TEXT DEFAULT '',
+      UNIQUE(coach_id, month)
+    );
+
+    -- Membres résiliés
+    CREATE TABLE IF NOT EXISTS resiliation_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL REFERENCES coaches(id),
+      month TEXT NOT NULL,
+      member_name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    -- Membres non-fréquentants
+    CREATE TABLE IF NOT EXISTS non_frequentant_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL REFERENCES coaches(id),
+      month TEXT NOT NULL,
+      member_name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    -- Nouveaux clients
+    CREATE TABLE IF NOT EXISTS nouveaux_clients_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL REFERENCES coaches(id),
+      month TEXT NOT NULL,
+      member_name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    -- Compteurs journaliers côté coach (renommé pour éviter conflit avec daily_action_values commerciaux)
+    CREATE TABLE IF NOT EXISTS coach_daily_action_values (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL REFERENCES coaches(id),
+      action_key TEXT NOT NULL,
+      date TEXT NOT NULL,
+      value REAL NOT NULL DEFAULT 0,
+      text_value TEXT DEFAULT '',
+      UNIQUE(coach_id, action_key, date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_coach_daily_values_coach_date ON coach_daily_action_values(coach_id, date);
+
+    -- Messages communauté
+    CREATE TABLE IF NOT EXISTS community_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL REFERENCES coaches(id),
+      type TEXT NOT NULL DEFAULT 'text',
+      content TEXT DEFAULT '',
+      audio_data TEXT DEFAULT NULL,
+      audio_duration REAL DEFAULT NULL,
+      is_cr INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      target_club TEXT DEFAULT NULL,
+      is_system INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_community_created ON community_messages(created_at DESC);
+
+    -- Likes
+    CREATE TABLE IF NOT EXISTS message_likes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id INTEGER NOT NULL,
+      coach_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      UNIQUE(message_id, coach_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_likes_message ON message_likes(message_id);
+
+    -- Formations
+    CREATE TABLE IF NOT EXISTS formations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'onboarding',
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      description TEXT DEFAULT '',
+      video_url TEXT DEFAULT '',
+      sort_order INTEGER DEFAULT 0
+    );
+
+    -- Validations formations
+    CREATE TABLE IF NOT EXISTS formation_validations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      formation_id INTEGER NOT NULL,
+      coach_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      validated_at TEXT DEFAULT NULL,
+      comment TEXT DEFAULT NULL,
+      UNIQUE(formation_id, coach_id)
+    );
+
+    -- Calendrier formations
+    CREATE TABLE IF NOT EXISTS formation_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      event_date TEXT NOT NULL,
+      studio TEXT DEFAULT NULL,
+      notes TEXT DEFAULT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_formation_events_date ON formation_events(event_date);
+
+    -- Quiz
+    CREATE TABLE IF NOT EXISTS quiz_questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      formation_id INTEGER NOT NULL,
+      question TEXT NOT NULL,
+      option_a TEXT NOT NULL,
+      option_b TEXT NOT NULL,
+      option_c TEXT NOT NULL,
+      option_d TEXT NOT NULL,
+      correct_answer TEXT NOT NULL DEFAULT 'a',
+      explanation TEXT DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS quiz_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      formation_id INTEGER NOT NULL,
+      coach_id INTEGER NOT NULL,
+      score INTEGER NOT NULL,
+      total INTEGER NOT NULL,
+      passed INTEGER NOT NULL DEFAULT 0,
+      taken_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    -- Objectifs CA
+    CREATE TABLE IF NOT EXISTS ca_objectifs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      club TEXT NOT NULL,
+      month TEXT NOT NULL,
+      objectif REAL NOT NULL,
+      objectif_min REAL DEFAULT NULL,
+      UNIQUE(club, month)
+    );
+
+    -- Action quotidienne par studio
+    CREATE TABLE IF NOT EXISTS club_daily_action (
+      studio TEXT PRIMARY KEY,
+      action_text TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    -- XP & Gamification
+    CREATE TABLE IF NOT EXISTS xp_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL REFERENCES coaches(id),
+      amount INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      ref_id INTEGER DEFAULT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_xp_coach ON xp_log(coach_id);
+
+    CREATE TABLE IF NOT EXISTS coach_badges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL REFERENCES coaches(id),
+      badge_key TEXT NOT NULL,
+      unlocked_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      UNIQUE(coach_id, badge_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS coach_streaks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL UNIQUE REFERENCES coaches(id),
+      current_streak INTEGER NOT NULL DEFAULT 0,
+      best_streak INTEGER NOT NULL DEFAULT 0,
+      last_validation_week TEXT DEFAULT NULL
+    );
+
+    -- Évaluations E.L.I.T.E.S des leaders
+    CREATE TABLE IF NOT EXISTS leader_evaluations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL REFERENCES coaches(id),
+      month TEXT NOT NULL,
+      score INTEGER DEFAULT NULL,
+      points_forts TEXT DEFAULT '',
+      points_ameliorer TEXT DEFAULT '',
+      plan_action TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      score_engagement INTEGER DEFAULT NULL,
+      score_loyal INTEGER DEFAULT NULL,
+      score_infos INTEGER DEFAULT NULL,
+      score_team INTEGER DEFAULT NULL,
+      score_eclat INTEGER DEFAULT NULL,
+      score_succes INTEGER DEFAULT NULL,
+      comment_engagement TEXT DEFAULT '',
+      comment_loyal TEXT DEFAULT '',
+      comment_infos TEXT DEFAULT '',
+      comment_team TEXT DEFAULT '',
+      comment_eclat TEXT DEFAULT '',
+      comment_succes TEXT DEFAULT '',
+      global_comment TEXT DEFAULT '',
+      eval_data TEXT DEFAULT '{}',
+      remarques TEXT DEFAULT '',
+      UNIQUE(coach_id, month)
+    );
+    CREATE INDEX IF NOT EXISTS idx_leader_eval_month ON leader_evaluations(month);
+
+    -- Revues studio (E.L.I.T.E.S complète) — schéma souple, on copie depuis COACH
+    CREATE TABLE IF NOT EXISTS studio_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      coach_id INTEGER NOT NULL REFERENCES coaches(id),
+      studio TEXT NOT NULL,
+      month TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      contribution REAL, taux_resiliation REAL, taux_non_freq REAL,
+      avis_google INTEGER, temoignages INTEGER, references_count INTEGER,
+      surpack REAL, score_audit REAL,
+      obj_resiliation REAL, comment_engagement TEXT DEFAULT '', comment_loyaute TEXT DEFAULT '',
+      fichier_client TEXT, pesees TEXT, welcome_calls TEXT,
+      resilies_commentes TEXT, comment_infos TEXT DEFAULT '',
+      nb_remontees INTEGER, coachs_observes TEXT, cr_quotidiens TEXT,
+      ponctualite TEXT, comment_team TEXT DEFAULT '',
+      stories TEXT, presence_reseaux TEXT, standard_image TEXT, comment_eclat TEXT DEFAULT '',
+      nb_events INTEGER, nb_partenaires INTEGER, petit_plus TEXT, comment_succes TEXT DEFAULT '',
+      plan_sujet TEXT, plan_action TEXT, plan_echeance TEXT,
+      dr_comment TEXT,
+      submitted_at TEXT, validated_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      UNIQUE(studio, month)
+    );
+    CREATE INDEX IF NOT EXISTS idx_studio_reviews_month ON studio_reviews(month);
+
+    -- Rapports DR hebdo
+    CREATE TABLE IF NOT EXISTS dr_weekly_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      week TEXT NOT NULL UNIQUE,
+      top_leader_1 TEXT DEFAULT '', top_leader_1_comment TEXT DEFAULT '',
+      top_leader_2 TEXT DEFAULT '', top_leader_2_comment TEXT DEFAULT '',
+      flop_leader_1 TEXT DEFAULT '', flop_leader_1_comment TEXT DEFAULT '',
+      flop_leader_2 TEXT DEFAULT '', flop_leader_2_comment TEXT DEFAULT '',
+      top_club_1 TEXT DEFAULT '', top_club_1_comment TEXT DEFAULT '',
+      top_club_2 TEXT DEFAULT '', top_club_2_comment TEXT DEFAULT '',
+      flop_club_1 TEXT DEFAULT '', flop_club_1_comment TEXT DEFAULT '',
+      flop_club_2 TEXT DEFAULT '', flop_club_2_comment TEXT DEFAULT '',
+      priority_1 TEXT DEFAULT '', priority_2 TEXT DEFAULT '', priority_3 TEXT DEFAULT '',
+      arbitrage TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_dr_weekly_week ON dr_weekly_reports(week DESC);
+
+    -- Notes admin côté coach (renommé)
+    CREATE TABLE IF NOT EXISTS coach_admin_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    -- Focus mensuel
+    CREATE TABLE IF NOT EXISTS monthly_focus (
+      month TEXT PRIMARY KEY,
+      content TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    -- Ressources (vidéos YouTube)
+    CREATE TABLE IF NOT EXISTS ressources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      youtube_url TEXT NOT NULL,
+      video_id TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT 'vision',
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+  `);
+}
+
+// Exécute la création des tables coach au démarrage
+const _origGetDb = getDb;
+let _coachInitDone = false;
+function getDbWithCoach() {
+  const result = _origGetDb();
+  if (!_coachInitDone) {
+    _coachInitDone = true;
+    try { initCoachSchema(); } catch (e) { console.error('initCoachSchema:', e.message); }
+  }
+  return result;
+}
+// Remplace l'export getDb par la version qui inclut coach
+module.exports = { getDb: getDbWithCoach, ensureWeeklySettings, generatePin, initCoachSchema };
