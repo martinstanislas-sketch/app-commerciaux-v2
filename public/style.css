@@ -2345,15 +2345,17 @@ body.on-tasks-tab main {
 
 /* ─── Admin Panel ──────────────────────────────── */
 .admin-panel {
-  max-width: 560px;
-  margin: 2rem auto;
+  max-width: 100%;
+  width: 100%;
+  margin: 2rem 0;
   padding: 2rem;
   background: var(--card);
   border-radius: var(--radius);
   border: 1px solid var(--border-light);
+  box-sizing: border-box;
 }
 #admin-badges-panel {
-  max-width: 720px;
+  max-width: 100%;
 }
 .admin-panel h2 { margin-bottom: 1rem; }
 .admin-panel.hidden { display: none; }
@@ -2418,9 +2420,14 @@ body.on-tasks-tab main {
 }
 
 .admin-rep-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+@media (max-width: 768px) {
+  .admin-rep-list {
+    grid-template-columns: 1fr;
+  }
 }
 .admin-rep-row {
   display: flex;
