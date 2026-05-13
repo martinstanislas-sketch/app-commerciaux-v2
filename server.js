@@ -116,8 +116,8 @@ app.post('/api/auth/login', (req, res) => {
   // Check admin PIN
   if (adminPin && pin.trim() === adminPin) {
     const token = crypto.randomUUID();
-    sessions.set(token, { role: 'admin', name: 'Admin', sales_rep_id: null });
-    return res.json({ token, role: 'admin', name: 'Admin', sales_rep_id: null });
+    sessions.set(token, { role: 'admin', name: 'Stan', sales_rep_id: null });
+    return res.json({ token, role: 'admin', name: 'Stan', sales_rep_id: null });
   }
 
   // Check commercial / phoneur PIN
@@ -2483,7 +2483,7 @@ function getUserKey(session) {
 // Display name for a userKey
 function userKeyToName(db, userKey) {
   if (!userKey) return '';
-  if (userKey === 'admin') return 'Admin';
+  if (userKey === 'admin') return 'Stan';
   const m = userKey.match(/^rep:(\d+)$/);
   if (m) {
     const row = db.prepare('SELECT name FROM sales_reps WHERE id = ?').get(parseInt(m[1], 10));
@@ -2528,7 +2528,7 @@ app.get('/api/tasks/users', requireAuth, (req, res) => {
   const db = getDb();
   const reps = db.prepare('SELECT id, name, role FROM sales_reps WHERE archived = 0 ORDER BY name ASC').all();
   const users = [
-    { key: 'admin', name: 'Admin', role: 'admin' },
+    { key: 'admin', name: 'Stan', role: 'admin' },
     ...reps.map(r => ({ key: `rep:${r.id}`, name: r.name, role: r.role || 'commercial' }))
   ];
   res.json(users);

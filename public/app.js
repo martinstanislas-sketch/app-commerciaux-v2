@@ -194,7 +194,7 @@ function updateUserUI() {
   const avatarDiv = document.getElementById('user-avatar');
   const roleBadge = document.getElementById('user-role-badge');
   if (currentUser) {
-    const displayName = currentUser.role === 'admin' ? 'Admin' : currentUser.name;
+    const displayName = currentUser.role === 'admin' ? 'Stan' : currentUser.name;
     nameSpan.textContent = displayName;
     // Avatar initials
     if (avatarDiv) {
