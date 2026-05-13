@@ -4915,6 +4915,14 @@ body.on-tasks-tab main {
 }
 
 #tab-perso { padding-top: 8px; font-family: 'Inter', system-ui, sans-serif; }
+#tab-perso.active {
+  background: var(--p-bg);
+  margin: -16px -32px;
+  padding: 24px 32px 60px;
+  min-height: calc(100vh - 64px);
+  color: var(--p-text);
+}
+#tab-perso.active a { color: var(--p-accent); }
 
 #perso-container {
   max-width: 100%;
