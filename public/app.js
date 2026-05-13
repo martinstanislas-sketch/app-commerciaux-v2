@@ -342,6 +342,7 @@ function updateTabVisibility() {
   const phoningRecapBtn = document.querySelector('[data-tab="phoning-recap"]');
   const mensuelBtn = document.querySelector('[data-tab="mensuel"]');
   const tasksBtn = document.querySelector('[data-tab="tasks"]');
+  const persoBtn = document.querySelector('[data-tab="perso"]');
 
   if (isPhoneLead()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -351,6 +352,7 @@ function updateTabVisibility() {
     if (phoningRecapBtn) phoningRecapBtn.style.display = '';
     if (mensuelBtn) mensuelBtn.style.display = 'none';
     if (tasksBtn) tasksBtn.style.display = 'none';
+    if (persoBtn) persoBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -360,6 +362,7 @@ function updateTabVisibility() {
     if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
     if (mensuelBtn) mensuelBtn.style.display = '';
     if (tasksBtn) tasksBtn.style.display = '';
+    if (persoBtn) persoBtn.style.display = '';
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else dashBtn.click();
   } else {
@@ -371,6 +374,7 @@ function updateTabVisibility() {
     if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
     if (mensuelBtn) mensuelBtn.style.display = '';
     if (tasksBtn) tasksBtn.style.display = '';
+    if (persoBtn) persoBtn.style.display = 'none';
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else todayBtn.click();
   }
