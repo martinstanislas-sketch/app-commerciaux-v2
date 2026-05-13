@@ -2418,6 +2418,14 @@ body.on-tasks-tab main {
 .add-rep-form .btn-primary {
   white-space: nowrap;
 }
+.field-locked-hint {
+  font-size: .65rem;
+  font-weight: 600;
+  color: var(--text-muted, #94A3B8);
+  margin-left: 4px;
+  letter-spacing: 0;
+  text-transform: none;
+}
 
 .admin-rep-list {
   display: grid;

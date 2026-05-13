@@ -346,12 +346,19 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
   const reps = db.prepare("SELECT * FROM sales_reps WHERE role != 'phoneur' AND archived = 0 ORDER BY id").all();
 
   const settings = db.prepare(`
-    SELECT ws.*, sr.name as rep_name
+    SELECT ws.*, sr.name as rep_name, sr.role as rep_role
     FROM weekly_settings ws
     JOIN sales_reps sr ON sr.id = ws.sales_rep_id
     WHERE ws.week_start = ? AND sr.role != 'phoneur' AND sr.archived = 0
     ORDER BY ws.sales_rep_id
   `).all(weekStart);
+  // Force defaults for commercial role: hours=0 and target=300
+  for (const s of settings) {
+    if (s.rep_role === 'commercial') {
+      s.hours_worked = 0;
+      s.target_per_hour = 300;
+    }
+  }
 
   const salesByRep = db.prepare(`
     SELECT sales_rep_id,
@@ -388,6 +395,7 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
     return {
       sales_rep_id: s.sales_rep_id,
       rep_name: s.rep_name,
+      rep_role: s.rep_role,
       hours_worked: s.hours_worked,
       target_per_hour: s.target_per_hour,
       locked: s.locked,
@@ -420,9 +428,16 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
 app.put('/api/weeks/:week_start/settings/:sales_rep_id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const { week_start, sales_rep_id } = req.params;
-  const { hours_worked, target_per_hour } = req.body;
+  let { hours_worked, target_per_hour } = req.body;
 
   ensureWeeklySettings(week_start);
+
+  // Force defaults for commercial role: hours=0 and target=300, non-editable
+  const rep = db.prepare('SELECT role FROM sales_reps WHERE id = ?').get(sales_rep_id);
+  if (rep && rep.role === 'commercial') {
+    hours_worked = 0;
+    target_per_hour = 300;
+  }
 
   // Check lock
   const existing = db.prepare(

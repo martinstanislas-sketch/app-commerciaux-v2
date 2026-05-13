@@ -341,11 +341,6 @@ function updateTabVisibility() {
   const phoningBtn = document.querySelector('[data-tab="phoning"]');
   const phoningRecapBtn = document.querySelector('[data-tab="phoning-recap"]');
   const mensuelBtn = document.querySelector('[data-tab="mensuel"]');
-  const notesBtn = document.querySelector('[data-tab="notes"]');
-  const adminPhoneursBtn = document.querySelector('[data-tab="admin-phoneurs"]');
-  const controleBtn = document.querySelector('[data-tab="controle"]');
-  const actionsBtn = document.querySelector('[data-tab="admin-actions"]');
-  const persoBtn = document.querySelector('[data-tab="perso"]');
   const tasksBtn = document.querySelector('[data-tab="tasks"]');
 
   if (isPhoneLead()) {
@@ -355,11 +350,6 @@ function updateTabVisibility() {
     if (phoningBtn) phoningBtn.style.display = '';
     if (phoningRecapBtn) phoningRecapBtn.style.display = '';
     if (mensuelBtn) mensuelBtn.style.display = 'none';
-    if (notesBtn) notesBtn.style.display = 'none';
-    if (adminPhoneursBtn) adminPhoneursBtn.style.display = 'none';
-    if (controleBtn) controleBtn.style.display = 'none';
-    if (actionsBtn) actionsBtn.style.display = 'none';
-    if (persoBtn) persoBtn.style.display = 'none';
     if (tasksBtn) tasksBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
@@ -369,27 +359,17 @@ function updateTabVisibility() {
     if (phoningBtn) phoningBtn.style.display = 'none';
     if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
     if (mensuelBtn) mensuelBtn.style.display = '';
-    if (notesBtn) notesBtn.style.display = '';
-    if (adminPhoneursBtn) adminPhoneursBtn.style.display = '';
-    if (controleBtn) controleBtn.style.display = '';
-    if (actionsBtn) actionsBtn.style.display = '';
-    if (persoBtn) persoBtn.style.display = '';
     if (tasksBtn) tasksBtn.style.display = '';
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else dashBtn.click();
   } else {
-    // Commercial: Aujourd'hui + Ventes (ses propres ventes) + Récap + Tâches
+    // Commercial: Aujourd'hui + Ventes + Récap + Tâches
     if (todayBtn) todayBtn.style.display = '';
     if (ventesBtn) ventesBtn.style.display = '';
     if (dashBtn) dashBtn.style.display = 'none';
     if (phoningBtn) phoningBtn.style.display = 'none';
     if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
     if (mensuelBtn) mensuelBtn.style.display = '';
-    if (notesBtn) notesBtn.style.display = 'none';
-    if (adminPhoneursBtn) adminPhoneursBtn.style.display = 'none';
-    if (controleBtn) controleBtn.style.display = 'none';
-    if (actionsBtn) actionsBtn.style.display = 'none';
-    if (persoBtn) persoBtn.style.display = 'none';
     if (tasksBtn) tasksBtn.style.display = '';
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else todayBtn.click();
@@ -1534,9 +1514,6 @@ async function renderControlBadges(repId, repName, month) {
       { color: 'gold', title: 'Premium', winner: bestPanier.panier_moyen > 0 ? bestPanier.name : null },
       { color: 'blue', title: 'RDV', winner: bestRDV.rdv_fixes > 0 ? bestRDV.name : null },
       { color: 'green', title: 'Ambassadeur', winner: bestRef.references > 0 ? bestRef.name : null },
-      { color: 'orange', title: 'Accueil', winner: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : null },
-      { color: 'blue', title: 'Business', winner: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : null },
-      { color: 'gold', title: 'Discipline', winner: bestDiscipline.discipline > 0 ? bestDiscipline.name : null },
     ];
 
     // Filter: only show badges won by this rep
@@ -2370,14 +2347,14 @@ function renderCards(commerciaux) {
       </div>
       <div class="settings-row" ${!isAdmin() ? 'style="display:none"' : ''}>
         <div class="field">
-          <label>Heures travaillées</label>
+          <label>Heures travaillées${c.rep_role === 'commercial' ? ' <span class="field-locked-hint">(fixé)</span>' : ''}</label>
           <input type="number" step="0.5" min="0" value="${c.hours_worked}"
                  data-rep-id="${c.sales_rep_id}" data-field="hours"
-                 ${settingsDisabled ? 'disabled' : ''}>
+                 ${settingsDisabled || c.rep_role === 'commercial' ? 'disabled' : ''}>
         </div>
         <div class="field">
-          <label>Objectif €/h</label>
-          <select data-rep-id="${c.sales_rep_id}" data-field="target" ${settingsDisabled ? 'disabled' : ''}>
+          <label>Objectif €/h${c.rep_role === 'commercial' ? ' <span class="field-locked-hint">(fixé)</span>' : ''}</label>
+          <select data-rep-id="${c.sales_rep_id}" data-field="target" ${settingsDisabled || c.rep_role === 'commercial' ? 'disabled' : ''}>
             <option value="250" ${c.target_per_hour === 250 ? 'selected' : ''}>250</option>
             <option value="300" ${c.target_per_hour === 300 ? 'selected' : ''}>300</option>
             <option value="350" ${c.target_per_hour === 350 ? 'selected' : ''}>350</option>
@@ -2386,7 +2363,7 @@ function renderCards(commerciaux) {
           <input type="number" step="1" min="0" value="${c.target_per_hour}"
                  data-rep-id="${c.sales_rep_id}" data-field="target-custom"
                  style="margin-top:4px;${c.target_per_hour !== 250 && c.target_per_hour !== 300 && c.target_per_hour !== 350 ? '' : 'display:none'}"
-                 ${settingsDisabled ? 'disabled' : ''}>
+                 ${settingsDisabled || c.rep_role === 'commercial' ? 'disabled' : ''}>
         </div>
       </div>
       <div class="kpi-grid">
@@ -3438,9 +3415,6 @@ async function loadMonthlySummary() {
       { color: 'gold', title: 'Premium', desc: 'Meilleur panier moyen', name: bestPanier.panier_moyen > 0 ? bestPanier.name : NA, value: bestPanier.panier_moyen > 0 ? Math.round(bestPanier.panier_moyen).toLocaleString('fr-FR') + ' \u20ac' : null },
       { color: 'blue', title: 'RDV', desc: 'Le plus de rendez-vous fix\u00e9s', name: bestRDV.rdv_fixes > 0 ? bestRDV.name : NA, value: bestRDV.rdv_fixes > 0 ? bestRDV.rdv_fixes : null },
       { color: 'green', title: 'Ambassadeur', desc: 'Le plus de r\u00e9f\u00e9rences', name: bestRef.references > 0 ? bestRef.name : NA, value: bestRef.references > 0 ? bestRef.references : null },
-      { color: 'orange', title: 'Accueil', desc: "Le plus d'appels nouveaux clients", name: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.name : NA, value: bestAccueil.entretien_premier_mois > 0 ? bestAccueil.entretien_premier_mois : null },
-      { color: 'blue', title: 'Business', desc: 'Le plus de contacts entreprises', name: bestBusiness.contact_entreprise > 0 ? bestBusiness.name : NA, value: bestBusiness.contact_entreprise > 0 ? bestBusiness.contact_entreprise : null },
-      { color: 'gold', title: 'Discipline', desc: "Le plus d'actions valid\u00e9es", name: bestDiscipline.discipline > 0 ? bestDiscipline.name : NA, value: bestDiscipline.discipline > 0 ? bestDiscipline.discipline : null },
     ];
 
     rankHTML += '<div class="badges-grid">';
