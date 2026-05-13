@@ -14,6 +14,7 @@ function getDb() {
     db.pragma('foreign_keys = ON');
     initSchema();
     seed();
+    migrateCommercialTargetDefault();
   }
   return db;
 }
@@ -525,16 +526,41 @@ function seed() {
 /**
  * Ensure weekly_settings rows exist for a given week_start for all reps.
  */
+/**
+ * One-time migration: switch commercial weekly settings from old default 250 → 300
+ * Only runs once (marked via a flag in a no-op table).
+ */
+function migrateCommercialTargetDefault() {
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY, applied_at TEXT)`);
+    const done = db.prepare("SELECT 1 FROM _migrations WHERE key = ?").get('commercial_target_300');
+    if (done) return;
+    const r = db.prepare(`
+      UPDATE weekly_settings
+      SET target_per_hour = 300
+      WHERE target_per_hour = 250
+        AND sales_rep_id IN (SELECT id FROM sales_reps WHERE role = 'commercial')
+    `).run();
+    db.prepare("INSERT INTO _migrations (key, applied_at) VALUES (?, datetime('now'))").run('commercial_target_300');
+    console.log(`Migration commercial_target_300: ${r.changes} ligne(s) mises à jour`);
+  } catch (e) {
+    console.error('Migration commercial_target_300 échec:', e.message);
+  }
+}
+
 function ensureWeeklySettings(weekStart) {
-  const reps = db.prepare("SELECT id, start_week, default_hours FROM sales_reps WHERE role != 'phoneur'").all();
+  const reps = db.prepare("SELECT id, start_week, default_hours, role FROM sales_reps WHERE role != 'phoneur'").all();
   const insert = db.prepare(`
     INSERT OR IGNORE INTO weekly_settings (sales_rep_id, week_start, hours_worked, target_per_hour)
-    VALUES (?, ?, ?, 250)
+    VALUES (?, ?, ?, ?)
   `);
   for (const rep of reps) {
     // Only include reps whose start_week is <= this week (or no start_week = always included)
     if (rep.start_week && rep.start_week > weekStart) continue;
-    insert.run(rep.id, weekStart, rep.default_hours || 0);
+    // Commercial role: default hours=0 and target=300
+    const hours = rep.role === 'commercial' ? 0 : (rep.default_hours || 0);
+    const target = rep.role === 'commercial' ? 300 : 250;
+    insert.run(rep.id, weekStart, hours, target);
   }
 }
 

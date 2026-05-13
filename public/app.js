@@ -2353,8 +2353,8 @@ function renderCards(commerciaux) {
                  ${settingsDisabled || c.rep_role === 'commercial' ? 'disabled' : ''}>
         </div>
         <div class="field">
-          <label>Objectif €/h${c.rep_role === 'commercial' ? ' <span class="field-locked-hint">(fixé)</span>' : ''}</label>
-          <select data-rep-id="${c.sales_rep_id}" data-field="target" ${settingsDisabled || c.rep_role === 'commercial' ? 'disabled' : ''}>
+          <label>Objectif €/h</label>
+          <select data-rep-id="${c.sales_rep_id}" data-field="target" ${settingsDisabled ? 'disabled' : ''}>
             <option value="250" ${c.target_per_hour === 250 ? 'selected' : ''}>250</option>
             <option value="300" ${c.target_per_hour === 300 ? 'selected' : ''}>300</option>
             <option value="350" ${c.target_per_hour === 350 ? 'selected' : ''}>350</option>
@@ -2363,7 +2363,7 @@ function renderCards(commerciaux) {
           <input type="number" step="1" min="0" value="${c.target_per_hour}"
                  data-rep-id="${c.sales_rep_id}" data-field="target-custom"
                  style="margin-top:4px;${c.target_per_hour !== 250 && c.target_per_hour !== 300 && c.target_per_hour !== 350 ? '' : 'display:none'}"
-                 ${settingsDisabled || c.rep_role === 'commercial' ? 'disabled' : ''}>
+                 ${settingsDisabled ? 'disabled' : ''}>
         </div>
       </div>
       <div class="kpi-grid">

@@ -352,11 +352,10 @@ app.get('/api/weeks/:week_start/dashboard', requireAuth, (req, res) => {
     WHERE ws.week_start = ? AND sr.role != 'phoneur' AND sr.archived = 0
     ORDER BY ws.sales_rep_id
   `).all(weekStart);
-  // Force defaults for commercial role: hours=0 and target=300
+  // Force hours=0 for commercial role; target_per_hour stays user-defined (default 300)
   for (const s of settings) {
     if (s.rep_role === 'commercial') {
       s.hours_worked = 0;
-      s.target_per_hour = 300;
     }
   }
 
@@ -432,11 +431,10 @@ app.put('/api/weeks/:week_start/settings/:sales_rep_id', requireAuth, requireAdm
 
   ensureWeeklySettings(week_start);
 
-  // Force defaults for commercial role: hours=0 and target=300, non-editable
+  // Force hours=0 for commercial role (target_per_hour stays editable, default 300)
   const rep = db.prepare('SELECT role FROM sales_reps WHERE id = ?').get(sales_rep_id);
   if (rep && rep.role === 'commercial') {
     hours_worked = 0;
-    target_per_hour = 300;
   }
 
   // Check lock
