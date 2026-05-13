@@ -901,6 +901,37 @@ function initCoachSchema() {
   `);
 }
 
+// Auto-import des données coach si DB vide (depuis coach-data-seed.sql)
+function autoImportCoachData() {
+  const d = getDb();
+  try {
+    const count = d.prepare('SELECT COUNT(*) AS c FROM coaches').get().c;
+    if (count > 0) return; // déjà des données, on ne touche pas
+
+    const fs = require('fs');
+    const sqlPath = path.join(__dirname, 'coach-data-seed.sql');
+    if (!fs.existsSync(sqlPath)) {
+      console.log('[coach-seed] coach-data-seed.sql introuvable, skip');
+      return;
+    }
+    const sql = fs.readFileSync(sqlPath, 'utf-8');
+    const statements = sql.split(/;\s*\n/).filter(s => s.trim().startsWith('INSERT'));
+    console.log(`[coach-seed] Import de ${statements.length} INSERT statements...`);
+    d.pragma('foreign_keys = OFF');
+    const tx = d.transaction(() => {
+      for (const stmt of statements) {
+        try { d.exec(stmt + ';'); } catch (e) { /* ignore individual failures */ }
+      }
+    });
+    tx();
+    d.pragma('foreign_keys = ON');
+    const newCount = d.prepare('SELECT COUNT(*) AS c FROM coaches').get().c;
+    console.log(`[coach-seed] ✓ Import terminé : ${newCount} coaches en DB`);
+  } catch (e) {
+    console.error('[coach-seed] Erreur:', e.message);
+  }
+}
+
 // Exécute la création des tables coach au démarrage
 const _origGetDb = getDb;
 let _coachInitDone = false;
@@ -909,6 +940,7 @@ function getDbWithCoach() {
   if (!_coachInitDone) {
     _coachInitDone = true;
     try { initCoachSchema(); } catch (e) { console.error('initCoachSchema:', e.message); }
+    try { autoImportCoachData(); } catch (e) { console.error('autoImportCoachData:', e.message); }
   }
   return result;
 }
