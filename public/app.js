@@ -333,6 +333,8 @@ async function bootApp() {
   // Bouton accès Coaching (admin uniquement)
   const coachBtn = document.getElementById('btn-goto-coach');
   if (coachBtn) coachBtn.classList.toggle('hidden', !isAdmin());
+  // Barre de navigation du bas (mobile)
+  renderBottomNav();
   // Show/hide tabs based on role
   updateTabVisibility();
   applyVentesRoleVisibility();
@@ -2192,6 +2194,58 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ─── Tabs ───────────────────────────────────────────────────
 
+// Icônes pour la barre de navigation du bas (mobile)
+const TAB_ICONS = {
+  today: '📊',
+  dashboard: '🏠',
+  ventes: '💰',
+  mensuel: '📅',
+  tasks: '✅',
+  perso: '💪',
+  controle: '🔍',
+  'admin-actions': '⚡',
+  notes: '📝'
+};
+const TAB_SHORT_LABELS = {
+  today: 'Jour',
+  dashboard: 'Dashboard',
+  ventes: 'Ventes',
+  mensuel: 'Récap',
+  tasks: 'Tâches',
+  perso: 'Perso',
+  controle: 'Contrôle',
+  'admin-actions': 'Actions',
+  notes: 'Notes'
+};
+
+// Construit / met à jour la barre de navigation du bas (mobile)
+function renderBottomNav() {
+  const bottomNav = document.getElementById('bottom-nav');
+  if (!bottomNav) return;
+  // Onglets visibles = tab-btn non masqués
+  const visibleTabs = Array.from(document.querySelectorAll('#main-nav .tab-btn'))
+    .filter(btn => btn.style.display !== 'none');
+  bottomNav.innerHTML = visibleTabs.map(btn => {
+    const tab = btn.dataset.tab;
+    const active = btn.classList.contains('active');
+    const icon = TAB_ICONS[tab] || '•';
+    const label = TAB_SHORT_LABELS[tab] || btn.textContent.trim();
+    return `
+      <button class="bottom-nav-item ${active ? 'active' : ''}" data-bottom-tab="${tab}">
+        <span class="bottom-nav-icon">${icon}</span>
+        <span class="bottom-nav-label">${label}</span>
+      </button>
+    `;
+  }).join('');
+  bottomNav.querySelectorAll('[data-bottom-tab]').forEach(item => {
+    item.addEventListener('click', () => {
+      const tab = item.dataset.bottomTab;
+      const realBtn = document.querySelector(`#main-nav .tab-btn[data-tab="${tab}"]`);
+      if (realBtn) realBtn.click();
+    });
+  });
+}
+
 function initTabs() {
   // Hamburger menu toggle
   const hamburger = document.getElementById('mobile-menu-toggle');
@@ -2221,6 +2275,8 @@ function initTabs() {
           hamburger.setAttribute('aria-expanded', 'false');
         }
       }
+      // Sync bottom nav active state
+      renderBottomNav();
 
       // Show/hide header widgets only on Aujourd'hui tab
       const widgets = document.getElementById('header-widgets');

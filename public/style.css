@@ -39,9 +39,89 @@
   transform: translateY(-8px) rotate(-45deg);
 }
 /* Show on mobile + tablet (up to 900px for safety on iPad mini & big phones) */
+/* ─── Bottom navigation bar (mobile) ─────────────── */
+.bottom-nav {
+  display: none;
+}
 @media (max-width: 900px) {
+  /* Le hamburger est remplacé par la barre du bas */
   .mobile-menu-toggle {
-    display: flex !important;
+    display: none !important;
+  }
+  /* La barre du bas, fixe */
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(148, 163, 194, 0.2);
+    box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.06);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    justify-content: space-around;
+    align-items: stretch;
+  }
+  .bottom-nav-item {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px 2px;
+    border-radius: 10px;
+    min-height: 48px;
+    transition: background .15s;
+  }
+  .bottom-nav-item:active {
+    background: rgba(99, 102, 241, 0.08);
+  }
+  .bottom-nav-icon {
+    font-size: 20px;
+    line-height: 1;
+    filter: grayscale(0.4) opacity(0.55);
+    transition: filter .15s, transform .15s;
+  }
+  .bottom-nav-label {
+    font-size: .6rem;
+    font-weight: 600;
+    color: var(--text-muted, #94A3B8);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    transition: color .15s;
+  }
+  .bottom-nav-item.active .bottom-nav-icon {
+    filter: grayscale(0) opacity(1);
+    transform: scale(1.1);
+  }
+  .bottom-nav-item.active .bottom-nav-label {
+    color: var(--primary, #6366F1);
+    font-weight: 700;
+  }
+  /* Espace en bas pour ne pas masquer le contenu derrière la barre */
+  body {
+    padding-bottom: 64px;
+  }
+  main {
+    padding-bottom: 24px;
+  }
+  /* Dark theme bottom nav quand on est sur l'onglet Tâches */
+  body.on-tasks-tab .bottom-nav {
+    background: rgba(11, 16, 32, 0.97);
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
+  body.on-tasks-tab .bottom-nav-label {
+    color: #64748B;
+  }
+  body.on-tasks-tab .bottom-nav-item.active .bottom-nav-label {
+    color: #818CF8;
   }
 }
 
@@ -7559,45 +7639,9 @@ img {
     margin: 0;
   }
 
-  /* Nav: dropdown panel below header bar when open */
-  nav {
+  /* Nav principale (#main-nav): masquée sur mobile, remplacée par la bottom-nav */
+  #main-nav {
     display: none !important;
-    position: absolute;
-    top: 100%;
-    left: 8px;
-    right: 8px;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    width: auto !important;
-    padding: 8px !important;
-    gap: 4px !important;
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 12px 32px rgba(15,23,42,0.18);
-    overflow: visible !important;
-    max-height: 70vh;
-    overflow-y: auto !important;
-    z-index: 30;
-    margin-top: 6px;
-    border: 1px solid rgba(148,163,194,0.2);
-  }
-  nav.mobile-open {
-    display: flex !important;
-  }
-  nav .tab-btn {
-    width: 100% !important;
-    text-align: left;
-    padding: 12px 14px !important;
-    min-height: 44px;
-    font-size: .9rem !important;
-    border-radius: 8px;
-    flex-shrink: 0 !important;
-    background: transparent;
-    color: var(--text, #1E293B);
-  }
-  nav .tab-btn.active {
-    background: var(--primary, #6366F1);
-    color: #fff;
   }
 
   /* User info: shown inline next to hamburger */
