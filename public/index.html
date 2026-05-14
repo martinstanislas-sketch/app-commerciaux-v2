@@ -319,6 +319,15 @@
           <div id="perso-month-badge" class="p-badge p-badge-green"></div>
         </div>
 
+        <!-- Navigation interne (style app musculation) -->
+        <nav class="p-nav" id="perso-nav">
+          <button type="button" class="p-nav-item active" data-pnav="perso-card-hero">🏠 Accueil</button>
+          <button type="button" class="p-nav-item" data-pnav="perso-card-templates">🏋️ Entraînements</button>
+          <button type="button" class="p-nav-item" data-pnav="perso-card-progress">📈 Progression</button>
+          <button type="button" class="p-nav-item" data-pnav="perso-catalog">📋 Exercices</button>
+          <button type="button" class="p-nav-item" data-pnav="perso-goal-anchor">🎯 Objectifs</button>
+        </nav>
+
         <!-- 2-column layout -->
         <div class="p-layout">
           <!-- Main column -->
@@ -328,11 +337,19 @@
             <div class="p-card p-card-hero" id="perso-card-hero">
               <div class="p-hero-head">
                 <h2 class="p-hero-title">Séance du jour</h2>
-                <span class="p-hero-sub">Ton entraînement d'aujourd'hui</span>
               </div>
               <div id="perso-session-container" class="p-session-container">
                 <div class="p-empty">Choisis un template ou démarre une séance libre.</div>
               </div>
+            </div>
+
+            <!-- Templates — remonté en priorité -->
+            <div class="p-card p-card-secondary" id="perso-card-templates">
+              <div class="p-section-title">
+                <h2>Mes séances</h2>
+                <button type="button" id="perso-btn-new-template" class="p-btn-ghost">+ Créer une séance</button>
+              </div>
+              <div id="perso-templates-list" class="p-templates-list"></div>
             </div>
 
             <!-- Suivi du jour (énergie) — secondaire -->
@@ -362,15 +379,6 @@
               </div>
             </div>
 
-            <!-- Templates — secondaire -->
-            <div class="p-card p-card-secondary" id="perso-card-templates">
-              <div class="p-section-title">
-                <h2>Mes séances</h2>
-                <button type="button" id="perso-btn-new-template" class="p-btn-ghost">+ Créer une séance</button>
-              </div>
-              <div id="perso-templates-list" class="p-templates-list"></div>
-            </div>
-
             <!-- Catalogue exercices — secondaire & repliable -->
             <div class="p-card p-card-secondary p-catalog" id="perso-catalog">
               <div class="p-catalog-header" id="perso-catalog-toggle">
@@ -396,21 +404,7 @@
           <!-- Sidebar -->
           <div class="p-sidebar">
 
-            <!-- Mini calendrier -->
-            <div class="p-card" id="perso-card-calendar">
-              <div class="p-cal-header">
-                <button type="button" id="perso-cal-prev" class="p-cal-nav">◀</button>
-                <span id="perso-cal-month" class="p-cal-title">Avril 2026</span>
-                <button type="button" id="perso-cal-next" class="p-cal-nav">▶</button>
-              </div>
-              <div id="perso-calendar" class="p-calendar"></div>
-              <div class="p-cal-legend">
-                <span><i class="p-dot p-dot-green"></i> Entraîné</span>
-                <span><i class="p-dot p-dot-blue"></i> Aujourd'hui</span>
-              </div>
-            </div>
-
-            <!-- Résumé de progression -->
+            <!-- Résumé de progression — remonté en priorité -->
             <div class="p-card p-progress-card" id="perso-card-progress">
               <div class="p-section-title"><h2>Ma progression</h2></div>
 
@@ -421,7 +415,7 @@
               </div>
 
               <!-- Objectif de la semaine -->
-              <div class="p-goal-block">
+              <div class="p-goal-block" id="perso-goal-anchor">
                 <div class="p-goal-head">
                   <span class="p-goal-label">Objectif de la semaine</span>
                   <button type="button" id="perso-goal-edit" class="p-goal-edit" title="Modifier l'objectif">✎</button>
@@ -463,6 +457,20 @@
               <div class="p-section-title"><h2>🏆 Records récents</h2></div>
               <div id="perso-recent-prs" class="p-records-list">
                 <div class="p-empty-sm">Aucun record pour le moment.</div>
+              </div>
+            </div>
+
+            <!-- Mini calendrier — importance réduite, déplacé en bas -->
+            <div class="p-card p-card-calendar-compact" id="perso-card-calendar">
+              <div class="p-cal-header">
+                <button type="button" id="perso-cal-prev" class="p-cal-nav">◀</button>
+                <span id="perso-cal-month" class="p-cal-title">Avril 2026</span>
+                <button type="button" id="perso-cal-next" class="p-cal-nav">▶</button>
+              </div>
+              <div id="perso-calendar" class="p-calendar"></div>
+              <div class="p-cal-legend">
+                <span><i class="p-dot p-dot-green"></i> Entraîné</span>
+                <span><i class="p-dot p-dot-blue"></i> Aujourd'hui</span>
               </div>
             </div>
 

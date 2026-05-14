@@ -5130,14 +5130,14 @@ body.on-tasks-tab main {
     display: contents;
   }
   .p-sidebar { position: static; }
-  /* Ordre explicite des cartes */
+  /* Ordre explicite des cartes (mobile) */
   #perso-card-hero      { order: 1; }
   #perso-card-progress  { order: 2; }
   #perso-card-templates { order: 3; }
   #perso-card-energy    { order: 4; }
   #perso-card-completed { order: 5; }
-  #perso-card-calendar  { order: 6; }
-  #perso-card-records   { order: 7; }
+  #perso-card-records   { order: 6; }
+  #perso-card-calendar  { order: 7; }
   #perso-catalog        { order: 8; }
 }
 
@@ -5156,18 +5156,68 @@ body.on-tasks-tab main {
 .p-card-glow-blue { border-color: rgba(59,130,246,0.25); }
 .p-card-glow-green { border-color: rgba(34,197,94,0.25); }
 
+/* ─── Navigation interne (style app musculation) ─── */
+.p-nav {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 22px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.p-nav::-webkit-scrollbar { display: none; }
+.p-nav-item {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 16px;
+  background: var(--p-card);
+  border: 1px solid var(--p-border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--p-text2);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.p-nav-item:hover {
+  border-color: var(--p-accent);
+  color: var(--p-accent);
+}
+.p-nav-item.active {
+  background: linear-gradient(135deg, #4F46E5, #6366F1);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
 /* ─── HERO : bloc "Séance du jour" — action principale ─── */
 .p-card-hero {
-  background: linear-gradient(135deg, #FFFFFF 0%, #F5F4FF 100%);
-  border: 1.5px solid rgba(79, 70, 229, 0.25);
-  border-radius: 22px;
-  padding: 28px;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.06), 0 16px 40px rgba(79, 70, 229, 0.12);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F3F2FF 100%);
+  border: 1.5px solid rgba(79, 70, 229, 0.22);
+  border-radius: 20px;
+  padding: 20px 22px;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.06), 0 14px 36px rgba(79, 70, 229, 0.12);
   position: relative;
+  overflow: hidden;
+}
+/* Barre d'accent en haut du hero */
+.p-card-hero::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #4F46E5, #818CF8, #EC4899);
 }
 .p-card-hero:hover {
-  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.08), 0 20px 48px rgba(79, 70, 229, 0.16);
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.08), 0 18px 44px rgba(79, 70, 229, 0.16);
 }
+/* Header du hero — compact */
+.p-card-hero .p-hero-head { margin-bottom: 12px; }
+.p-card-hero .p-hero-title { font-size: 20px; }
 .p-hero-head {
   margin-bottom: 18px;
 }
@@ -5183,52 +5233,53 @@ body.on-tasks-tab main {
   color: var(--p-text2);
   font-weight: 500;
 }
-/* État vide du hero : gros CTA */
+/* État vide du hero : compact + recommandation */
 .p-hero-empty {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 14px;
-  padding: 24px 16px;
-  text-align: center;
+  padding: 4px 0;
 }
-.p-hero-empty-icon {
-  font-size: 48px;
-  line-height: 1;
-}
-.p-hero-empty-text {
+.p-hero-reco {
   font-size: 16px;
   font-weight: 600;
   color: var(--p-text);
   margin: 0;
+  line-height: 1.45;
+}
+.p-hero-reco strong {
+  font-weight: 900;
+  color: var(--p-accent);
+}
+.p-hero-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 .p-hero-cta {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 18px 40px;
+  padding: 15px 32px;
   background: linear-gradient(135deg, #4F46E5, #6366F1);
   color: #fff;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   border: none;
-  border-radius: 14px;
+  border-radius: 13px;
   cursor: pointer;
-  box-shadow: 0 8px 28px rgba(79, 70, 229, 0.4);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.38);
   transition: transform .15s, box-shadow .15s;
 }
 .p-hero-cta:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 12px 36px rgba(79, 70, 229, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(79, 70, 229, 0.5);
 }
 .p-hero-cta:active {
-  transform: translateY(0) scale(1);
-}
-.p-hero-empty-hint {
-  font-size: 12px;
-  color: var(--p-dim);
-  margin: 0;
+  transform: translateY(0);
 }
 .p-hero-empty-sub {
   font-size: 14px;
@@ -6110,6 +6161,27 @@ body.on-tasks-tab main {
 /* ─── Calendar ───────────────────────────────────── */
 .p-cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .p-cal-title { font-size: 14px; font-weight: 700; color: var(--p-text); text-transform: capitalize; }
+
+/* Calendrier compact — importance visuelle réduite */
+.p-card-calendar-compact {
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.55);
+  box-shadow: none;
+  border-color: rgba(226,232,240,0.6);
+}
+.p-card-calendar-compact:hover {
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.04);
+}
+.p-card-calendar-compact .p-cal-header { margin-bottom: 8px; }
+.p-card-calendar-compact .p-cal-title { font-size: 12.5px; }
+.p-card-calendar-compact .p-cal-day {
+  height: 26px;
+  font-size: 11px;
+}
+.p-card-calendar-compact .p-cal-legend {
+  font-size: 10.5px;
+  margin-top: 8px;
+}
 .p-cal-nav {
   background: none; border: none; color: var(--p-text2); font-size: 14px; cursor: pointer; padding: 4px 8px;
   border-radius: 6px; transition: background 0.15s;
@@ -6154,8 +6226,15 @@ body.on-tasks-tab main {
 }
 
 /* ─── Résumé de progression (sidebar) ─── */
+/* Carte progression — dominante dans la colonne de droite */
 .p-progress-card {
-  border-color: var(--p-accent);
+  border: 1.5px solid rgba(79, 70, 229, 0.25);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.06), 0 14px 32px rgba(79, 70, 229, 0.1);
+}
+.p-progress-card .p-section-title h2 {
+  font-size: 15px;
+  color: var(--p-text);
+  letter-spacing: 0.5px;
 }
 /* Message de coaching automatique */
 .p-coaching-msg {

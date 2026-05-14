@@ -4557,6 +4557,22 @@ function initPersoTab() {
     catalog.classList.add('is-collapsed');
   }
 
+  // Navigation interne (pills) — scroll vers la section + état actif
+  document.querySelectorAll('#perso-nav .p-nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.pnav;
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      // Si on cible le catalogue, on le déplie
+      if (targetId === 'perso-catalog') {
+        document.getElementById('perso-catalog')?.classList.remove('is-collapsed');
+      }
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.querySelectorAll('#perso-nav .p-nav-item').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
   // Calendar navigation
   document.getElementById('perso-cal-prev').addEventListener('click', () => { persoState.calMonth--; if (persoState.calMonth < 0) { persoState.calMonth = 11; persoState.calYear--; } renderCalendar(); });
   document.getElementById('perso-cal-next').addEventListener('click', () => { persoState.calMonth++; if (persoState.calMonth > 11) { persoState.calMonth = 0; persoState.calYear++; } renderCalendar(); });
@@ -4738,6 +4754,8 @@ function computeCoachingTips({ weekCount, goal, sessions, todayStr }) {
 }
 // Stocke le tip secondaire à afficher dans le hero
 let persoHeroCoachingTip = null;
+// Stocke la recommandation de séance du jour { lastType, recoType, templateId }
+let persoRecommendation = null;
 
 async function loadPersoProgression() {
   const now = new Date();
@@ -4821,7 +4839,24 @@ async function loadPersoProgression() {
 
   // Tip secondaire pour le hero : suggestion de rotation OU 2e conseil
   persoHeroCoachingTip = tips.find(t => t.isSuggestion) || tips[1] || null;
-  // Si le hero est en état vide, on rafraîchit pour afficher le tip
+
+  // ── Recommandation de séance du jour ──
+  // Détermine quelle séance recommander et le template associé
+  const sortedSessions = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
+  const lastSess = sortedSessions[0];
+  const lastType = lastSess ? detectPersoSessionType(lastSess) : null;
+  let recoType = lastType ? nextPersoWorkout(lastType) : null;
+  if (!recoType) recoType = 'Push'; // défaut si pas d'historique typé
+  // Cherche un template correspondant au type recommandé
+  let recoTemplate = (persoState.templates || []).find(t => persoTemplateType(t).label === recoType);
+  // Sinon, propose le premier template favori ou le premier dispo
+  if (!recoTemplate && persoState.templates && persoState.templates.length > 0) {
+    recoTemplate = persoState.templates.find(t => t.favorite) || persoState.templates[0];
+    if (recoTemplate) recoType = persoTemplateType(recoTemplate).label;
+  }
+  persoRecommendation = { lastType, recoType, templateId: recoTemplate ? recoTemplate.id : null };
+
+  // Si le hero est en état vide, on rafraîchit pour afficher le tip + reco
   if (!persoState.currentSession) renderPersoSession();
 
   // Bouton édition objectif
@@ -5408,30 +5443,38 @@ function renderPersoSession() {
   const container = document.getElementById('perso-session-container');
   const s = persoState.currentSession;
   if (!s) {
-    // État vide : message engageant + gros CTA + tip de coaching contextuel
-    const coachTip = persoHeroCoachingTip
-      ? `<div class="p-hero-coach-tip"><span>${persoHeroCoachingTip.icon}</span> ${escapeHtml(persoHeroCoachingTip.text)}</div>`
-      : '';
+    // État vide compact + recommandation intelligente
+    const reco = persoRecommendation;
+    let recoLine, primaryLabel;
+    if (reco && reco.lastType && reco.recoType) {
+      recoLine = `Ta dernière séance était <strong>${escapeHtml(reco.lastType)}</strong>. Aujourd'hui, on te recommande <strong>${escapeHtml(reco.recoType)}</strong>.`;
+      primaryLabel = `▶ Démarrer ${escapeHtml(reco.recoType)}`;
+    } else if (reco && reco.recoType) {
+      recoLine = `Prêt à t'entraîner ? On te recommande de commencer par <strong>${escapeHtml(reco.recoType)}</strong>.`;
+      primaryLabel = `▶ Démarrer ${escapeHtml(reco.recoType)}`;
+    } else {
+      recoLine = `Aucune séance prévue. Lance ta première séance pour démarrer ta progression.`;
+      primaryLabel = '▶ Démarrer ma séance';
+    }
     container.innerHTML = `
       <div class="p-hero-empty">
-        <div class="p-hero-empty-icon">🔥</div>
-        <p class="p-hero-empty-text">Aucune séance prévue aujourd'hui</p>
-        <p class="p-hero-empty-sub">Lance une séance libre ou choisis un template — c'est le moment de progresser.</p>
-        ${coachTip}
-        <button type="button" id="perso-btn-start-blank" class="p-hero-cta">
-          ▶ Démarrer ma séance
-        </button>
-        <button type="button" id="perso-btn-choose-template" class="p-hero-cta-secondary">
-          Choisir un template
-        </button>
+        <p class="p-hero-reco">${recoLine}</p>
+        <div class="p-hero-actions">
+          <button type="button" id="perso-btn-start-reco" class="p-hero-cta">${primaryLabel}</button>
+          <button type="button" id="perso-btn-choose-template" class="p-hero-cta-secondary">Choisir une autre séance</button>
+        </div>
       </div>
     `;
-    const startBtn = document.getElementById('perso-btn-start-blank');
-    if (startBtn) startBtn.addEventListener('click', () => startPersoSession(null));
+    const startBtn = document.getElementById('perso-btn-start-reco');
+    if (startBtn) startBtn.addEventListener('click', () => {
+      // Démarre le template recommandé s'il existe, sinon séance libre
+      const tplId = persoRecommendation && persoRecommendation.templateId;
+      startPersoSession(tplId || null);
+    });
     const chooseBtn = document.getElementById('perso-btn-choose-template');
     if (chooseBtn) chooseBtn.addEventListener('click', () => {
-      const tplCard = document.getElementById('perso-templates-list')?.closest('.p-card');
-      if (tplCard) tplCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const tplCard = document.getElementById('perso-card-templates');
+      if (tplCard) tplCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     return;
   }
