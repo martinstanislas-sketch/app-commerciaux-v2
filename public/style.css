@@ -5115,6 +5115,32 @@ body.on-tasks-tab main {
 .p-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 22px; }
 .p-sidebar { width: 330px; flex-shrink: 0; display: flex; flex-direction: column; gap: 22px; position: sticky; top: 80px; }
 
+/* ─── Réorganisation mobile : ordre prioritaire ──────
+   1. Séance du jour  2. Ma progression (stats)  3. Mes séances
+   4. Énergie  5. Séances terminées  6. Calendrier  7. Records
+   8. Catalogue (tout en bas, compact)
+   ─────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .p-layout {
+    flex-direction: column;
+    gap: 16px;
+  }
+  /* display: contents → les cartes deviennent enfants directs de .p-layout */
+  .p-main, .p-sidebar {
+    display: contents;
+  }
+  .p-sidebar { position: static; }
+  /* Ordre explicite des cartes */
+  #perso-card-hero      { order: 1; }
+  #perso-card-progress  { order: 2; }
+  #perso-card-templates { order: 3; }
+  #perso-card-energy    { order: 4; }
+  #perso-card-completed { order: 5; }
+  #perso-card-calendar  { order: 6; }
+  #perso-card-records   { order: 7; }
+  #perso-catalog        { order: 8; }
+}
+
 /* ─── Card — premium, ombres légères, coins propres ── */
 .p-card {
   background: var(--p-card);
@@ -6456,18 +6482,28 @@ body.on-tasks-tab main {
 .p-btn-icon.danger:hover { color: var(--p-red); }
 
 /* ─── Responsive ─────────────────────────────────── */
-@media (max-width: 1024px) {
+/* Tablette (901-1024px) : layout en colonne, sidebar en rangée.
+   En-dessous de 900px, c'est la règle display:contents + order qui gère. */
+@media (min-width: 901px) and (max-width: 1024px) {
   .p-layout { flex-direction: column; }
   .p-sidebar { width: 100%; position: static; flex-direction: row; flex-wrap: wrap; }
   .p-sidebar .p-card { flex: 1; min-width: 260px; }
 }
 @media (max-width: 768px) {
-  .p-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .p-header { flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 18px; }
   .p-stats-grid { grid-template-columns: 1fr 1fr; }
   .ss-round { flex-direction: column; align-items: stretch; gap: 4px; }
   .ss-round-num { text-align: left; padding-left: 4px; }
   .ss-round-cols { flex-direction: column; gap: 4px; }
   .ss-headers, .ss-footers { flex-direction: column; gap: 6px; }
+}
+/* Onglet Perso mobile : pas de marge négative en haut (évite que le
+   titre passe sous le header) + padding top confortable */
+@media (max-width: 900px) {
+  #tab-perso.active {
+    margin: 0 -14px;
+    padding: 16px 14px 80px;
+  }
 }
 @media (max-width: 480px) {
   .p-energy-scale button { width: 40px; height: 40px; font-size: 1rem; }
@@ -8273,17 +8309,19 @@ img {
     z-index: 100;
   }
 
-  /* Header: position relative for hamburger anchor */
+  /* Header: layout simple en colonne (le hamburger est remplacé
+     par la bottom-nav, plus besoin de réserver de la place) */
   header {
-    position: relative;
-    padding-right: 64px !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    flex-wrap: wrap !important;
+    position: sticky;
+    padding: 10px 14px !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    height: auto !important;
   }
   .header-left {
-    flex: 1;
-    width: auto !important;
+    width: 100% !important;
     justify-content: flex-start !important;
   }
   header h1 {
@@ -8296,12 +8334,14 @@ img {
     display: none !important;
   }
 
-  /* User info: shown inline next to hamburger */
+  /* User info: ligne propre sous le titre */
   .user-info {
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
+    align-items: center;
     gap: 6px;
-    margin-right: 56px; /* leave room for hamburger */
+    margin-right: 0;
+    width: 100%;
   }
   .user-info #user-name {
     font-size: .8rem;
