@@ -5008,10 +5008,10 @@ function openTemplateEditor(templateId) {
   if (templateId) {
     const t = persoState.templates.find(x => x.id === templateId);
     persoState.tplDraft = { id: t.id, name: t.name, exercise_ids: t.exercises.map(e => e.id), superset_groups: t.exercises.map(e => e.superset_group || null) };
-    document.getElementById('perso-tpl-title').textContent = 'Modifier le template';
+    document.getElementById('perso-tpl-title').textContent = 'Modifier la séance';
   } else {
     persoState.tplDraft = { id: null, name: '', exercise_ids: [], superset_groups: [] };
-    document.getElementById('perso-tpl-title').textContent = 'Nouveau template';
+    document.getElementById('perso-tpl-title').textContent = 'Créer une séance';
   }
   document.getElementById('perso-tpl-id').value = persoState.tplDraft.id || '';
   document.getElementById('perso-tpl-name').value = persoState.tplDraft.name;
@@ -5487,16 +5487,7 @@ function renderPersoSession() {
       </div>
       <button class="btn-primary p-end-btn" onclick="finishSession()">Terminer la séance</button>
     </div>
-    <button type="button" id="perso-btn-swap-session" class="p-hero-cta-secondary p-swap-btn">
-      Choisir une autre séance
-    </button>
   `;
-
-  const swapBtn = document.getElementById('perso-btn-swap-session');
-  if (swapBtn) swapBtn.addEventListener('click', () => {
-    const tplCard = document.getElementById('perso-templates-list')?.closest('.p-card');
-    if (tplCard) tplCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  });
 
   // Bind add exercise
   const addInp = document.getElementById('perso-add-ex-input');
