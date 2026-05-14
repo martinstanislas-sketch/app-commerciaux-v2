@@ -324,11 +324,22 @@
           <!-- Main column -->
           <div class="p-main">
 
-            <!-- Suivi du jour -->
-            <div class="p-card">
+            <!-- ★ SÉANCE DU JOUR — bloc principal (hero) -->
+            <div class="p-card p-card-hero">
+              <div class="p-hero-head">
+                <h2 class="p-hero-title">Séance du jour</h2>
+                <span class="p-hero-sub">Ton entraînement d'aujourd'hui</span>
+              </div>
+              <div id="perso-session-container" class="p-session-container">
+                <div class="p-empty">Choisis un template ou démarre une séance libre.</div>
+              </div>
+            </div>
+
+            <!-- Suivi du jour (énergie) — secondaire -->
+            <div class="p-card p-card-secondary">
               <div class="p-daily-grid">
                 <div class="p-daily-col">
-                  <span class="p-label">Énergie</span>
+                  <span class="p-label">Énergie du jour</span>
                   <div class="p-energy-scale" id="perso-energy-scale">
                     <button type="button" data-val="1" title="Vidé">😵</button>
                     <button type="button" data-val="2" title="Fatigué">😴</button>
@@ -341,21 +352,8 @@
               </div>
             </div>
 
-            <!-- Séance du jour -->
-            <div class="p-card p-card-glow-blue">
-              <div class="p-section-title">
-                <h2>Séance du jour</h2>
-                <div class="p-section-actions">
-                  <button type="button" id="perso-btn-start-blank" class="p-btn-cta-sm">+ Séance libre</button>
-                </div>
-              </div>
-              <div id="perso-session-container" class="p-session-container">
-                <div class="p-empty">Choisis un template ou démarre une séance libre.</div>
-              </div>
-            </div>
-
-            <!-- Séances terminées (historique) -->
-            <div class="p-card">
+            <!-- Séances terminées (historique) — secondaire -->
+            <div class="p-card p-card-secondary">
               <div class="p-section-title">
                 <h2>S&eacute;ances termin&eacute;es</h2>
               </div>
@@ -364,8 +362,8 @@
               </div>
             </div>
 
-            <!-- Templates -->
-            <div class="p-card">
+            <!-- Templates — secondaire -->
+            <div class="p-card p-card-secondary">
               <div class="p-section-title">
                 <h2>Mes séances</h2>
                 <button type="button" id="perso-btn-new-template" class="p-btn-ghost">+ Nouveau template</button>
@@ -373,8 +371,8 @@
               <div id="perso-templates-list" class="p-templates-list"></div>
             </div>
 
-            <!-- Catalogue exercices -->
-            <div class="p-card">
+            <!-- Catalogue exercices — secondaire -->
+            <div class="p-card p-card-secondary">
               <div class="p-section-title">
                 <h2>Catalogue d'exercices</h2>
                 <button type="button" id="perso-btn-add-exercise" class="p-btn-ghost">+ Exercice</button>

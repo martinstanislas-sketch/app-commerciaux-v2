@@ -4521,7 +4521,7 @@ function initPersoTab() {
     });
   });
   document.getElementById('perso-btn-new-template').addEventListener('click', () => openTemplateEditor(null));
-  document.getElementById('perso-btn-start-blank').addEventListener('click', () => startPersoSession(null));
+  // perso-btn-start-blank désormais rendu dynamiquement dans renderPersoSession (état vide)
   document.getElementById('perso-tpl-cancel').addEventListener('click', closeTemplateEditor);
   document.getElementById('perso-tpl-form').addEventListener('submit', async (e) => { e.preventDefault(); await saveTemplate(); });
   const tplInput = document.getElementById('perso-tpl-exercise-input');
@@ -5144,7 +5144,19 @@ function renderPersoSession() {
   const container = document.getElementById('perso-session-container');
   const s = persoState.currentSession;
   if (!s) {
-    container.innerHTML = '<div class="p-empty">Aucune séance en cours. Choisis un template ou démarre une séance libre.</div>';
+    // État vide : gros CTA pour démarrer une séance
+    container.innerHTML = `
+      <div class="p-hero-empty">
+        <div class="p-hero-empty-icon">🏋️</div>
+        <p class="p-hero-empty-text">Aucune séance en cours aujourd'hui</p>
+        <button type="button" id="perso-btn-start-blank" class="p-hero-cta">
+          ▶ Démarrer ma séance
+        </button>
+        <p class="p-hero-empty-hint">ou choisis un template dans « Mes séances » ci-dessous</p>
+      </div>
+    `;
+    const startBtn = document.getElementById('perso-btn-start-blank');
+    if (startBtn) startBtn.addEventListener('click', () => startPersoSession(null));
     return;
   }
 
