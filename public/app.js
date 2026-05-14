@@ -4662,6 +4662,83 @@ async function loadMonthStats() {
   return loadPersoProgression();
 }
 
+// ─── Moteur de coaching ──────────────────────────────────
+// Détecte le type d'une séance depuis son nom
+function detectPersoSessionType(session) {
+  const name = (session.name || '').toLowerCase();
+  if (/\bpush\b|poussée?/.test(name)) return 'Push';
+  if (/\bpull\b|tirage|dos/.test(name)) return 'Pull';
+  if (/\blegs?\b|jambes?|cuisse/.test(name)) return 'Legs';
+  if (/haut/.test(name)) return 'Haut du corps';
+  if (/bas/.test(name)) return 'Bas du corps';
+  return null;
+}
+// Suggère la prochaine séance selon une rotation classique
+function nextPersoWorkout(lastType) {
+  const rotation = {
+    'Push': 'Pull',
+    'Pull': 'Legs',
+    'Legs': 'Push',
+    'Haut du corps': 'Bas du corps',
+    'Bas du corps': 'Haut du corps'
+  };
+  return rotation[lastType] || null;
+}
+// Calcule la liste des conseils de coaching, triés par priorité
+function computeCoachingTips({ weekCount, goal, sessions, todayStr }) {
+  const tips = [];
+  const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
+  const lastSession = sorted[0];
+
+  // 1. Objectif de la semaine
+  if (weekCount === 0) {
+    tips.push({ icon: '🎯', priority: 1, text: "Tu n'as pas encore fait de séance cette semaine. C'est le moment de t'y mettre !" });
+  } else if (weekCount >= goal) {
+    tips.push({ icon: '🏆', priority: 2, text: `Objectif atteint — ${weekCount} séance${weekCount > 1 ? 's' : ''} cette semaine. Tu progresses, continue comme ça !` });
+  } else {
+    const remaining = goal - weekCount;
+    tips.push({ icon: '🔥', priority: 2, text: `Encore ${remaining} séance${remaining > 1 ? 's' : ''} pour atteindre ton objectif de la semaine.` });
+  }
+
+  // 2. Suggestion de rotation (si dernière séance récente)
+  if (lastSession) {
+    const lastType = detectPersoSessionType(lastSession);
+    const daysSince = Math.round((new Date(todayStr) - new Date(lastSession.date + 'T00:00:00')) / 86400000);
+    if (lastType && daysSince >= 1 && daysSince <= 4) {
+      const next = nextPersoWorkout(lastType);
+      if (next) {
+        tips.push({ icon: '💡', priority: 3, text: `Ta dernière séance était ${lastType}, tu peux faire ${next} aujourd'hui.`, isSuggestion: true });
+      }
+    }
+  }
+
+  // 3. Charges non renseignées
+  const recent = sorted.slice(0, 5);
+  const hasWeights = recent.some(s =>
+    (s.performances || []).some(p =>
+      (p.set_logs || []).some(sl => (sl.weight_kg || 0) > 0)
+    )
+  );
+  if (recent.length >= 2 && !hasWeights) {
+    tips.push({ icon: '📝', priority: 4, text: "Pense à noter tes charges pour suivre ton évolution." });
+  }
+
+  // 4. Progression : volume de cette semaine > semaine précédente
+  const weekStart = mondayOfWeek(todayStr);
+  const prevWeekStart = (() => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })();
+  const volOf = (sList) => sList.reduce((sum, s) => sum + (s.performances || []).reduce((ps, p) =>
+    ps + (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed).reduce((t, sl) => t + (sl.weight_kg || 0) * (sl.reps || 0), 0), 0), 0);
+  const thisWeekVol = volOf(sorted.filter(s => s.date >= weekStart && s.date <= todayStr));
+  const prevWeekVol = volOf(sorted.filter(s => s.date >= prevWeekStart && s.date < weekStart));
+  if (prevWeekVol > 0 && thisWeekVol > prevWeekVol * 1.05) {
+    tips.push({ icon: '📈', priority: 3, text: "Ton volume d'entraînement augmente — tu progresses, continue !" });
+  }
+
+  return tips.sort((a, b) => a.priority - b.priority);
+}
+// Stocke le tip secondaire à afficher dans le hero
+let persoHeroCoachingTip = null;
+
 async function loadPersoProgression() {
   const now = new Date();
   const year = now.getFullYear();
@@ -4731,28 +4808,21 @@ async function loadPersoProgression() {
     barFill.classList.toggle('is-complete', weekCount >= goal);
   }
 
-  // Message de coaching automatique
+  // Moteur de coaching — calcule tous les conseils contextuels
+  const tips = computeCoachingTips({ weekCount, goal, sessions, todayStr });
+
+  // Tip principal → bandeau de la sidebar
   const msgEl = document.querySelector('#perso-coaching-msg .p-coaching-text');
   const iconEl = document.querySelector('#perso-coaching-msg .p-coaching-icon');
-  if (msgEl) {
-    let msg, icon;
-    const remaining = goal - weekCount;
-    if (weekCount === 0) {
-      msg = "C'est le moment de lancer ta première séance de la semaine 💪";
-      icon = '🚀';
-    } else if (weekCount >= goal) {
-      msg = `Objectif atteint ! ${weekCount} séance${weekCount > 1 ? 's' : ''} cette semaine — excellent travail.`;
-      icon = '🎯';
-    } else if (remaining === 1) {
-      msg = "Encore 1 séance pour atteindre ton objectif de la semaine !";
-      icon = '🔥';
-    } else {
-      msg = `Encore ${remaining} séances pour atteindre ton objectif. Bonne régularité, continue !`;
-      icon = '💬';
-    }
-    msgEl.textContent = msg;
-    if (iconEl) iconEl.textContent = icon;
+  if (msgEl && tips.length > 0) {
+    msgEl.textContent = tips[0].text;
+    if (iconEl) iconEl.textContent = tips[0].icon;
   }
+
+  // Tip secondaire pour le hero : suggestion de rotation OU 2e conseil
+  persoHeroCoachingTip = tips.find(t => t.isSuggestion) || tips[1] || null;
+  // Si le hero est en état vide, on rafraîchit pour afficher le tip
+  if (!persoState.currentSession) renderPersoSession();
 
   // Bouton édition objectif
   const editBtn = document.getElementById('perso-goal-edit');
@@ -5338,12 +5408,16 @@ function renderPersoSession() {
   const container = document.getElementById('perso-session-container');
   const s = persoState.currentSession;
   if (!s) {
-    // État vide : message engageant + gros CTA
+    // État vide : message engageant + gros CTA + tip de coaching contextuel
+    const coachTip = persoHeroCoachingTip
+      ? `<div class="p-hero-coach-tip"><span>${persoHeroCoachingTip.icon}</span> ${escapeHtml(persoHeroCoachingTip.text)}</div>`
+      : '';
     container.innerHTML = `
       <div class="p-hero-empty">
         <div class="p-hero-empty-icon">🔥</div>
         <p class="p-hero-empty-text">Aucune séance prévue aujourd'hui</p>
         <p class="p-hero-empty-sub">Lance une séance libre ou choisis un template — c'est le moment de progresser.</p>
+        ${coachTip}
         <button type="button" id="perso-btn-start-blank" class="p-hero-cta">
           ▶ Démarrer ma séance
         </button>
