@@ -4629,50 +4629,134 @@ async function renderCalendar() {
   }
 }
 
-// ─── Month Stats ──────────────────────────────────────────
+// ─── Progression sportive (sidebar) ──────────────────────
+
+function getPersoWeeklyGoal() {
+  const stored = parseInt(localStorage.getItem('persoWeeklyGoal') || '3', 10);
+  return (stored >= 1 && stored <= 7) ? stored : 3;
+}
+
+// Lundi de la semaine d'une date donnée (format YYYY-MM-DD)
+function mondayOfWeek(date) {
+  const d = new Date(date);
+  const day = (d.getDay() + 6) % 7; // 0 = lundi
+  d.setDate(d.getDate() - day);
+  return d.toISOString().slice(0, 10);
+}
 
 async function loadMonthStats() {
-  const container = document.getElementById('perso-month-stats');
-  if (!container) return;
+  // Conservé sous le même nom pour compat avec les appels existants
+  return loadPersoProgression();
+}
 
+async function loadPersoProgression() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
-  const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-  const lastDay = new Date(year, month + 1, 0);
-  const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+  // On charge les 8 dernières semaines pour calculs (fréquence, etc.)
+  const from = new Date(now); from.setDate(from.getDate() - 56);
+  const fromStr = from.toISOString().slice(0, 10);
+  const toStr = now.toISOString().slice(0, 10);
 
   let sessions = [];
   try {
-    sessions = await api(`/perso/sessions/range?from=${firstDay}&to=${lastDayStr}`) || [];
-  } catch (e) { /* endpoint may not exist */ }
+    sessions = await api(`/perso/sessions/range?from=${fromStr}&to=${toStr}`) || [];
+  } catch (e) { /* ignore */ }
 
-  const totalSessions = sessions.length;
-  const totalVolume = sessions.reduce((sum, s) => {
-    return sum + (s.performances || []).reduce((pSum, p) => {
-      return pSum + (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed).reduce((t, sl) => t + (sl.weight_kg || 0) * (sl.reps || 0), 0);
-    }, 0);
-  }, 0);
+  const todayStr = now.toISOString().slice(0, 10);
+  const weekStart = mondayOfWeek(todayStr);
 
-  // Estimate time from sessions with start/end
-  let totalMinutes = 0;
-  sessions.forEach(s => {
+  // Séances de cette semaine
+  const weekSessions = sessions.filter(s => s.date >= weekStart && s.date <= todayStr);
+  const weekCount = weekSessions.length;
+
+  // Temps total cette semaine (estimé)
+  let weekMinutes = 0;
+  weekSessions.forEach(s => {
     if (s.started_at && s.ended_at) {
-      totalMinutes += Math.round((new Date(s.ended_at) - new Date(s.started_at)) / 60000);
+      weekMinutes += Math.round((new Date(s.ended_at.replace(' ', 'T')) - new Date(s.started_at.replace(' ', 'T'))) / 60000);
+    } else {
+      // Estimation: ~8min par exercice
+      weekMinutes += (s.performances || []).length * 8;
     }
   });
-  const timeStr = totalMinutes >= 60 ? `${Math.floor(totalMinutes / 60)}h${String(totalMinutes % 60).padStart(2, '0')}` : `${totalMinutes}min`;
+  const timeStr = weekMinutes >= 60
+    ? `${Math.floor(weekMinutes / 60)}h${String(weekMinutes % 60).padStart(2, '0')}`
+    : `${weekMinutes}min`;
 
-  // Weekly frequency
-  const weeksInMonth = Math.ceil(lastDay.getDate() / 7);
-  const freq = weeksInMonth > 0 ? (totalSessions / weeksInMonth).toFixed(1) : '0';
+  // Fréquence moyenne sur les 8 dernières semaines
+  const freq = sessions.length > 0 ? (sessions.length / 8).toFixed(1) : '0';
 
-  const stats = container.querySelectorAll('.p-stat-val');
-  if (stats.length >= 4) {
-    stats[0].textContent = totalSessions;
-    stats[1].textContent = totalVolume > 0 ? `${(totalVolume / 1000).toFixed(1)}t` : '0 kg';
-    stats[2].textContent = timeStr;
-    stats[3].textContent = `${freq} /sem`;
+  // Dernière séance réalisée (la plus récente, complétée de préférence)
+  const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
+  const lastSession = sorted[0];
+  let lastStr = '—';
+  if (lastSession) {
+    const d = new Date(lastSession.date + 'T00:00:00');
+    const diffDays = Math.round((new Date(todayStr) - d) / 86400000);
+    if (diffDays === 0) lastStr = "Auj.";
+    else if (diffDays === 1) lastStr = "Hier";
+    else if (diffDays < 7) lastStr = `${diffDays}j`;
+    else lastStr = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }
+
+  // Objectif de la semaine
+  const goal = getPersoWeeklyGoal();
+
+  // Mise à jour du DOM
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setText('perso-stat-week', weekCount);
+  setText('perso-stat-time', timeStr);
+  setText('perso-stat-freq', freq);
+  setText('perso-stat-last', lastStr);
+  setText('perso-goal-count', `${weekCount} / ${goal}`);
+
+  const barFill = document.getElementById('perso-goal-bar-fill');
+  if (barFill) {
+    const pct = Math.min(100, Math.round((weekCount / goal) * 100));
+    barFill.style.width = pct + '%';
+    barFill.classList.toggle('is-complete', weekCount >= goal);
+  }
+
+  // Message de coaching automatique
+  const msgEl = document.querySelector('#perso-coaching-msg .p-coaching-text');
+  const iconEl = document.querySelector('#perso-coaching-msg .p-coaching-icon');
+  if (msgEl) {
+    let msg, icon;
+    const remaining = goal - weekCount;
+    if (weekCount === 0) {
+      msg = "C'est le moment de lancer ta première séance de la semaine 💪";
+      icon = '🚀';
+    } else if (weekCount >= goal) {
+      msg = `Objectif atteint ! ${weekCount} séance${weekCount > 1 ? 's' : ''} cette semaine — excellent travail.`;
+      icon = '🎯';
+    } else if (remaining === 1) {
+      msg = "Encore 1 séance pour atteindre ton objectif de la semaine !";
+      icon = '🔥';
+    } else {
+      msg = `Encore ${remaining} séances pour atteindre ton objectif. Bonne régularité, continue !`;
+      icon = '💬';
+    }
+    msgEl.textContent = msg;
+    if (iconEl) iconEl.textContent = icon;
+  }
+
+  // Bouton édition objectif
+  const editBtn = document.getElementById('perso-goal-edit');
+  if (editBtn && !editBtn.dataset.bound) {
+    editBtn.dataset.bound = '1';
+    editBtn.addEventListener('click', () => {
+      const current = getPersoWeeklyGoal();
+      const input = prompt('Objectif de séances par semaine (1 à 7) :', current);
+      if (input === null) return;
+      const n = parseInt(input, 10);
+      if (n >= 1 && n <= 7) {
+        localStorage.setItem('persoWeeklyGoal', String(n));
+        loadPersoProgression();
+      } else {
+        showToast('Valeur invalide (1-7)', 'error');
+      }
+    });
   }
 }
 

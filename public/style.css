@@ -5791,6 +5791,129 @@ body.on-tasks-tab main {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+
+/* ─── Résumé de progression (sidebar) ─── */
+.p-progress-card {
+  border-color: var(--p-accent);
+}
+/* Message de coaching automatique */
+.p-coaching-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--p-accent-soft), rgba(79,70,229,0.08));
+  border: 1px solid rgba(79,70,229,0.2);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+.p-coaching-icon {
+  font-size: 20px;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+.p-coaching-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--p-text);
+  line-height: 1.4;
+}
+/* Bloc objectif de la semaine */
+.p-goal-block {
+  margin-bottom: 16px;
+}
+.p-goal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.p-goal-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--p-dim);
+}
+.p-goal-edit {
+  background: transparent;
+  border: none;
+  color: var(--p-dim);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.p-goal-edit:hover {
+  background: var(--p-accent-soft);
+  color: var(--p-accent);
+}
+.p-goal-progress-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.p-goal-count {
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--p-text);
+  letter-spacing: -0.02em;
+}
+.p-goal-unit {
+  font-size: 13px;
+  color: var(--p-text2);
+  font-weight: 600;
+}
+.p-goal-bar {
+  height: 8px;
+  background: var(--p-bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.p-goal-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #6366F1, #4F46E5);
+  border-radius: 999px;
+  transition: width .4s ease;
+}
+.p-goal-bar-fill.is-complete {
+  background: linear-gradient(90deg, #22C55E, #16A34A);
+}
+/* Cartes de stats progression */
+.p-progress-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.p-progress-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 12px;
+  background: var(--p-bg);
+  border-radius: 12px;
+  border: 1px solid var(--p-border);
+}
+.p-progress-stat-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.p-progress-stat-value {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--p-text);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.p-progress-stat-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--p-dim);
+  line-height: 1.3;
+}
 .p-stat {
   background: var(--p-bg);
   border-radius: 10px;

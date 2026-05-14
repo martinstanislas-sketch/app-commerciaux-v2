@@ -403,20 +403,57 @@
               </div>
             </div>
 
-            <!-- Stats du mois -->
-            <div class="p-card">
-              <div class="p-section-title"><h2>Stats du mois</h2></div>
-              <div class="p-stats-grid" id="perso-month-stats">
-                <div class="p-stat"><span class="p-stat-icon">🏋️</span><span class="p-label">Séances</span><strong class="p-stat-val">0</strong></div>
-                <div class="p-stat"><span class="p-stat-icon">📊</span><span class="p-label">Volume</span><strong class="p-stat-val">0 kg</strong></div>
-                <div class="p-stat"><span class="p-stat-icon">⏱️</span><span class="p-label">Temps</span><strong class="p-stat-val">0h</strong></div>
-                <div class="p-stat"><span class="p-stat-icon">📅</span><span class="p-label">Fréquence</span><strong class="p-stat-val">0 /sem</strong></div>
+            <!-- Résumé de progression -->
+            <div class="p-card p-progress-card">
+              <div class="p-section-title"><h2>Ma progression</h2></div>
+
+              <!-- Message de coaching automatique -->
+              <div id="perso-coaching-msg" class="p-coaching-msg">
+                <span class="p-coaching-icon">💬</span>
+                <span class="p-coaching-text">Démarre ta première séance de la semaine !</span>
+              </div>
+
+              <!-- Objectif de la semaine -->
+              <div class="p-goal-block">
+                <div class="p-goal-head">
+                  <span class="p-goal-label">Objectif de la semaine</span>
+                  <button type="button" id="perso-goal-edit" class="p-goal-edit" title="Modifier l'objectif">✎</button>
+                </div>
+                <div class="p-goal-progress-row">
+                  <span class="p-goal-count" id="perso-goal-count">0 / 3</span>
+                  <span class="p-goal-unit">séances</span>
+                </div>
+                <div class="p-goal-bar"><div class="p-goal-bar-fill" id="perso-goal-bar-fill"></div></div>
+              </div>
+
+              <!-- Cartes de stats -->
+              <div class="p-progress-grid">
+                <div class="p-progress-stat-card">
+                  <span class="p-progress-stat-icon">🔥</span>
+                  <strong class="p-progress-stat-value" id="perso-stat-week">0</strong>
+                  <span class="p-progress-stat-label">Séances cette semaine</span>
+                </div>
+                <div class="p-progress-stat-card">
+                  <span class="p-progress-stat-icon">⏱️</span>
+                  <strong class="p-progress-stat-value" id="perso-stat-time">0min</strong>
+                  <span class="p-progress-stat-label">Temps total</span>
+                </div>
+                <div class="p-progress-stat-card">
+                  <span class="p-progress-stat-icon">📈</span>
+                  <strong class="p-progress-stat-value" id="perso-stat-freq">0</strong>
+                  <span class="p-progress-stat-label">Fréquence /sem</span>
+                </div>
+                <div class="p-progress-stat-card">
+                  <span class="p-progress-stat-icon">📅</span>
+                  <strong class="p-progress-stat-value" id="perso-stat-last">—</strong>
+                  <span class="p-progress-stat-label">Dernière séance</span>
+                </div>
               </div>
             </div>
 
             <!-- Records récents -->
             <div class="p-card">
-              <div class="p-section-title"><h2>Records récents</h2></div>
+              <div class="p-section-title"><h2>🏆 Records récents</h2></div>
               <div id="perso-recent-prs" class="p-records-list">
                 <div class="p-empty-sm">Aucun record pour le moment.</div>
               </div>
