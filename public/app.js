@@ -4825,28 +4825,100 @@ async function refreshPersoTemplates() {
   renderPersoTemplates();
 }
 
+// Détermine le "type" d'une séance template (Push/Pull/Legs/Haut/Bas...)
+function persoTemplateType(t) {
+  const name = (t.name || '').toLowerCase();
+  // 1. Détection par mots-clés dans le nom
+  if (/\bpush\b|poussée?/.test(name)) return { label: 'Push', cls: 'push' };
+  if (/\bpull\b|tirage|dos/.test(name)) return { label: 'Pull', cls: 'pull' };
+  if (/\blegs?\b|jambes?|cuisse/.test(name)) return { label: 'Legs', cls: 'legs' };
+  if (/full|complet|corps entier/.test(name)) return { label: 'Full body', cls: 'full' };
+  if (/haut/.test(name)) return { label: 'Haut du corps', cls: 'upper' };
+  if (/bas/.test(name)) return { label: 'Bas du corps', cls: 'lower' };
+  // 2. Sinon, déduction depuis les body_part des exercices
+  const exs = t.exercises || [];
+  if (exs.length === 0) return { label: 'Séance', cls: 'default' };
+  const parts = exs.map(e => e.body_part).filter(Boolean);
+  const lower = parts.filter(p => p === 'lower').length;
+  const upper = parts.filter(p => p === 'upper').length;
+  if (lower > 0 && upper > 0) return { label: 'Full body', cls: 'full' };
+  if (lower > upper) return { label: 'Bas du corps', cls: 'lower' };
+  if (upper > 0) return { label: 'Haut du corps', cls: 'upper' };
+  return { label: 'Séance', cls: 'default' };
+}
+
+// Durée estimée d'un template (minutes)
+function estimateTemplateDuration(t) {
+  const exs = t.exercises || [];
+  if (exs.length === 0) return 0;
+  let totalSec = 0;
+  exs.forEach(e => {
+    const sets = e.target_sets || e.ex_target_sets || 3;
+    const rest = e.default_rest_seconds || 90;
+    totalSec += sets * (45 + rest);
+  });
+  return Math.max(5, Math.round(totalSec / 60));
+}
+
+// "Dernière réalisation" formatée
+function formatTemplateLastUsed(dateStr) {
+  if (!dateStr) return 'Jamais réalisée';
+  const d = new Date(dateStr + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - d) / 86400000);
+  if (diff === 0) return "Réalisée aujourd'hui";
+  if (diff === 1) return 'Réalisée hier';
+  if (diff < 7) return `Réalisée il y a ${diff}j`;
+  if (diff < 30) return `Réalisée il y a ${Math.floor(diff / 7)} sem.`;
+  return 'Réalisée le ' + d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
 function renderPersoTemplates() {
   const container = document.getElementById('perso-templates-list');
   if (persoState.templates.length === 0) {
     container.innerHTML = '<div class="p-empty">Aucune séance. Crée ta première séance type.</div>';
     return;
   }
-  container.innerHTML = persoState.templates.map(t => `
-    <div class="p-tpl-card ${t.favorite ? 'is-favorite' : ''}" onclick="startPersoSession(${t.id})" role="button" tabindex="0">
-      <button class="p-tpl-fav" onclick="event.stopPropagation(); togglePersoTemplateFavorite(${t.id})" title="${t.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${t.favorite ? '★' : '☆'}</button>
-      <div class="p-tpl-info">
-        <div class="p-tpl-name">${escapeHtml(t.name)}</div>
-        <div class="p-tpl-chips">
-          ${t.exercises.length === 0 ? '<span class="p-empty-sm">Aucun exercice</span>' : t.exercises.map(e => `<span class="p-chip">${escapeHtml(e.name)}</span>`).join('')}
+  container.innerHTML = persoState.templates.map(t => {
+    const type = persoTemplateType(t);
+    const nbEx = t.exercises.length;
+    const duration = estimateTemplateDuration(t);
+    const lastUsed = formatTemplateLastUsed(t.last_used);
+    // Aperçu des exercices : 4 max, puis "+N"
+    const previewExs = t.exercises.slice(0, 4);
+    const extraCount = nbEx - previewExs.length;
+    const exPreview = nbEx === 0
+      ? '<span class="p-tpl-ex-empty">Aucun exercice</span>'
+      : previewExs.map(e => `<span class="p-tpl-ex-pill">${escapeHtml(e.name)}</span>`).join('')
+        + (extraCount > 0 ? `<span class="p-tpl-ex-pill p-tpl-ex-more">+${extraCount}</span>` : '');
+
+    return `
+    <div class="p-workout-card ${t.favorite ? 'is-favorite' : ''}">
+      <div class="p-workout-head">
+        <div class="p-workout-titles">
+          <span class="p-workout-type p-workout-type-${type.cls}">${type.label}</span>
+          <h3 class="p-workout-name">${escapeHtml(t.name)}</h3>
         </div>
-        <div class="p-tpl-meta">${t.exercises.length} exercice${t.exercises.length > 1 ? 's' : ''} · Cliquer pour démarrer</div>
+        <button class="p-workout-fav" onclick="event.stopPropagation(); togglePersoTemplateFavorite(${t.id})" title="${t.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${t.favorite ? '★' : '☆'}</button>
       </div>
-      <div class="p-tpl-actions" onclick="event.stopPropagation()">
-        <button onclick="openTemplateEditor(${t.id})" class="btn-icon" title="Modifier">✎</button>
-        <button onclick="deletePersoTemplate(${t.id})" class="btn-icon btn-danger" title="Supprimer">✕</button>
+
+      <div class="p-workout-meta">
+        <span class="p-workout-meta-item">📋 ${nbEx} ex.</span>
+        <span class="p-workout-meta-item">⏱ ~${duration} min</span>
+        <span class="p-workout-meta-item p-workout-last">📅 ${lastUsed}</span>
       </div>
-    </div>
-  `).join('');
+
+      <div class="p-workout-exs">${exPreview}</div>
+
+      <div class="p-workout-footer">
+        <button class="p-workout-start" onclick="startPersoSession(${t.id})">▶ Démarrer</button>
+        <div class="p-workout-actions">
+          <button onclick="openTemplateEditor(${t.id})" class="p-workout-action-btn" title="Modifier">✎</button>
+          <button onclick="deletePersoTemplate(${t.id})" class="p-workout-action-btn p-workout-action-danger" title="Supprimer">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function openTemplateEditor(templateId) {

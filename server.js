@@ -2166,7 +2166,13 @@ app.get('/api/perso/templates', requireAuth, requireAdmin, (req, res) => {
     WHERE te.template_id = ?
     ORDER BY te.sort_order, te.id
   `);
-  templates.forEach(t => { t.exercises = getExercises.all(t.id); });
+  const getLastUsed = db.prepare(
+    'SELECT MAX(date) AS last_used FROM perso_sessions WHERE template_id = ?'
+  );
+  templates.forEach(t => {
+    t.exercises = getExercises.all(t.id);
+    t.last_used = getLastUsed.get(t.id)?.last_used || null;
+  });
   res.json(templates);
 });
 
