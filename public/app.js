@@ -5140,39 +5140,95 @@ function sessionTotalReps(s) {
   return s.performances.reduce((n, p) => n + (p.set_logs || []).filter(sl => !sl.is_warmup && sl.completed).reduce((r, sl) => r + (sl.reps || 0), 0), 0);
 }
 
+// Estime la durée d'une séance (minutes) à partir des exercices
+function estimatePersoSessionDuration(performances) {
+  if (!performances || performances.length === 0) return 0;
+  let totalSec = 0;
+  performances.forEach(p => {
+    const sets = p.ex_target_sets || 3;
+    const rest = p.default_rest_seconds || 90;
+    totalSec += sets * (45 + rest); // 45s d'effort + repos par série
+  });
+  return Math.max(5, Math.round(totalSec / 60));
+}
+
+// Détermine le focus musculaire d'une séance
+function persoSessionFocus(performances) {
+  if (!performances || performances.length === 0) return '—';
+  const groups = [...new Set(performances.map(p => (p.muscle_group || '').trim()).filter(Boolean))];
+  if (groups.length > 0) return groups.slice(0, 3).join(' · ');
+  const partLabels = { upper: 'Haut du corps', lower: 'Bas du corps', core: 'Gainage', full: 'Corps entier' };
+  const parts = [...new Set(performances.map(p => p.body_part).filter(Boolean))];
+  return parts.map(pt => partLabels[pt] || pt).join(' · ') || 'Séance complète';
+}
+
 function renderPersoSession() {
   const container = document.getElementById('perso-session-container');
   const s = persoState.currentSession;
   if (!s) {
-    // État vide : gros CTA pour démarrer une séance
+    // État vide : message engageant + gros CTA
     container.innerHTML = `
       <div class="p-hero-empty">
-        <div class="p-hero-empty-icon">🏋️</div>
-        <p class="p-hero-empty-text">Aucune séance en cours aujourd'hui</p>
+        <div class="p-hero-empty-icon">🔥</div>
+        <p class="p-hero-empty-text">Aucune séance prévue aujourd'hui</p>
+        <p class="p-hero-empty-sub">Lance une séance libre ou choisis un template — c'est le moment de progresser.</p>
         <button type="button" id="perso-btn-start-blank" class="p-hero-cta">
           ▶ Démarrer ma séance
         </button>
-        <p class="p-hero-empty-hint">ou choisis un template dans « Mes séances » ci-dessous</p>
+        <button type="button" id="perso-btn-choose-template" class="p-hero-cta-secondary">
+          Choisir un template
+        </button>
       </div>
     `;
     const startBtn = document.getElementById('perso-btn-start-blank');
     if (startBtn) startBtn.addEventListener('click', () => startPersoSession(null));
+    const chooseBtn = document.getElementById('perso-btn-choose-template');
+    if (chooseBtn) chooseBtn.addEventListener('click', () => {
+      const tplCard = document.getElementById('perso-templates-list')?.closest('.p-card');
+      if (tplCard) tplCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
     return;
   }
 
   const sessionName = s.name || (s.template_id ? (persoState.templates.find(t => t.id === s.template_id)?.name || 'Séance') : 'Séance libre');
   const lowEnergy = s.energy_level && s.energy_level <= 2;
+  const perfs = s.performances || [];
+  const nbExs = perfs.length;
+  const duration = estimatePersoSessionDuration(perfs);
+  const focus = persoSessionFocus(perfs);
+  const isCompleted = s.status === 'completed';
 
   container.innerHTML = `
-    <div class="p-session-head">
-      <h3>${escapeHtml(sessionName)}</h3>
-      <span class="p-session-status ${s.status === 'completed' ? 'is-done' : ''}">${s.status === 'completed' ? 'Terminée' : 'En cours'}</span>
-      <button class="btn-icon btn-danger" onclick="deleteCurrentPersoSession()" title="Supprimer">✕</button>
+    <div class="p-hero-session">
+      <div class="p-hero-session-top">
+        <div>
+          <span class="p-hero-session-label">${isCompleted ? '✓ Séance terminée' : '▶ Séance en cours'}</span>
+          <h3 class="p-hero-session-name">${escapeHtml(sessionName)}</h3>
+        </div>
+        <button class="btn-icon btn-danger" onclick="deleteCurrentPersoSession()" title="Supprimer la séance">✕</button>
+      </div>
+      <div class="p-hero-stats">
+        <div class="p-hero-stat">
+          <span class="p-hero-stat-icon">📋</span>
+          <span class="p-hero-stat-value">${nbExs}</span>
+          <span class="p-hero-stat-label">exercice${nbExs > 1 ? 's' : ''}</span>
+        </div>
+        <div class="p-hero-stat">
+          <span class="p-hero-stat-icon">⏱</span>
+          <span class="p-hero-stat-value">~${duration}</span>
+          <span class="p-hero-stat-label">minutes</span>
+        </div>
+        <div class="p-hero-stat p-hero-stat-wide">
+          <span class="p-hero-stat-icon">🎯</span>
+          <span class="p-hero-stat-value p-hero-stat-focus">${escapeHtml(focus)}</span>
+          <span class="p-hero-stat-label">objectif</span>
+        </div>
+      </div>
     </div>
     ${lowEnergy ? '<div class="p-low-energy-banner">Énergie basse — suggestions conservatrices (-5% charge)</div>' : ''}
     <div id="perso-rest-timer-bar" class="p-rest-bar hidden"></div>
     <div id="perso-session-exs">
-      ${renderSessionExercises(s.performances || [])}
+      ${renderSessionExercises(perfs)}
     </div>
     <div class="p-session-add">
       <input type="text" id="perso-add-ex-input" placeholder="Ajouter un exercice..." autocomplete="off">
@@ -5185,7 +5241,16 @@ function renderPersoSession() {
       </div>
       <button class="btn-primary p-end-btn" onclick="finishSession()">Terminer la séance</button>
     </div>
+    <button type="button" id="perso-btn-swap-session" class="p-hero-cta-secondary p-swap-btn">
+      Choisir une autre séance
+    </button>
   `;
+
+  const swapBtn = document.getElementById('perso-btn-swap-session');
+  if (swapBtn) swapBtn.addEventListener('click', () => {
+    const tplCard = document.getElementById('perso-templates-list')?.closest('.p-card');
+    if (tplCard) tplCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
 
   // Bind add exercise
   const addInp = document.getElementById('perso-add-ex-input');

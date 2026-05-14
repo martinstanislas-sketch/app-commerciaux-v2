@@ -5195,6 +5195,104 @@ body.on-tasks-tab main {
   color: var(--p-dim);
   margin: 0;
 }
+.p-hero-empty-sub {
+  font-size: 14px;
+  color: var(--p-text2);
+  margin: 0;
+  max-width: 360px;
+  line-height: 1.5;
+}
+/* Bouton secondaire (Choisir un template / autre séance) */
+.p-hero-cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 24px;
+  background: transparent;
+  color: var(--p-accent);
+  font-size: 14px;
+  font-weight: 700;
+  border: 1.5px solid var(--p-accent);
+  border-radius: 11px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.p-hero-cta-secondary:hover {
+  background: var(--p-accent-soft);
+}
+.p-swap-btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+/* ─── Hero session header (séance active) ─── */
+.p-hero-session {
+  margin-bottom: 18px;
+}
+.p-hero-session-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.p-hero-session-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--p-accent);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.p-hero-session-name {
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--p-text);
+  margin: 4px 0 0;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.p-hero-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.p-hero-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 14px 10px;
+  background: var(--p-accent-soft);
+  border-radius: 12px;
+  text-align: center;
+}
+.p-hero-stat-wide {
+  grid-column: 1 / -1;
+}
+.p-hero-stat-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.p-hero-stat-value {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--p-text);
+  letter-spacing: -0.02em;
+}
+.p-hero-stat-value.p-hero-stat-focus {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--p-accent);
+}
+.p-hero-stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--p-dim);
+}
 
 /* ─── Cards secondaires : importance visuelle réduite ─── */
 .p-card-secondary {
