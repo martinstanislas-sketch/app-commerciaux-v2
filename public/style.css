@@ -5048,9 +5048,13 @@ body.on-tasks-tab main {
 
 #tab-perso { padding-top: 8px; font-family: 'Inter', system-ui, sans-serif; }
 #tab-perso.active {
-  background: var(--p-bg);
+  /* Fond premium : dégradé subtil au lieu d'un aplat */
+  background:
+    radial-gradient(900px 500px at 100% 0%, rgba(79, 70, 229, 0.05), transparent 60%),
+    radial-gradient(700px 400px at 0% 100%, rgba(34, 197, 94, 0.04), transparent 55%),
+    var(--p-bg);
   margin: -16px -32px;
-  padding: 24px 32px 60px;
+  padding: 28px 32px 80px;
   min-height: calc(100vh - 64px);
   color: var(--p-text);
 }
@@ -5102,37 +5106,42 @@ body.on-tasks-tab main {
 .p-badge-violet { background: var(--p-violet-soft); color: var(--p-violet); }
 .p-badge-red { background: var(--p-red-soft); color: var(--p-red); }
 
-/* ─── Layout 2 colonnes ─────────────────────────── */
+/* ─── Layout 2 colonnes — espacements aérés ──────── */
 .p-layout {
   display: flex;
-  gap: 24px;
+  gap: 28px;
   align-items: flex-start;
 }
-.p-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
-.p-sidebar { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 80px; }
+.p-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 22px; }
+.p-sidebar { width: 330px; flex-shrink: 0; display: flex; flex-direction: column; gap: 22px; position: sticky; top: 80px; }
 
-/* ─── Card ───────────────────────────────────────── */
+/* ─── Card — premium, ombres légères, coins propres ── */
 .p-card {
   background: var(--p-card);
-  border: 1px solid var(--p-border);
-  border-radius: 16px;
-  padding: 20px;
-  transition: border-color 0.2s;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 20px rgba(15, 23, 42, 0.04);
+  transition: box-shadow .2s ease, transform .2s ease;
 }
-.p-card:hover { border-color: #2A3A50; }
-.p-card-glow-blue { border-color: rgba(59,130,246,0.3); box-shadow: 0 0 20px rgba(59,130,246,0.08); }
-.p-card-glow-green { border-color: rgba(34,197,94,0.3); box-shadow: 0 0 20px rgba(34,197,94,0.08); }
+.p-card:hover {
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.05), 0 10px 28px rgba(15, 23, 42, 0.07);
+}
+.p-card-glow-blue { border-color: rgba(59,130,246,0.25); }
+.p-card-glow-green { border-color: rgba(34,197,94,0.25); }
 
 /* ─── HERO : bloc "Séance du jour" — action principale ─── */
 .p-card-hero {
-  background: linear-gradient(135deg, var(--p-card) 0%, rgba(79, 70, 229, 0.04) 100%);
-  border: 2px solid var(--p-accent);
-  border-radius: 20px;
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5F4FF 100%);
+  border: 1.5px solid rgba(79, 70, 229, 0.25);
+  border-radius: 22px;
   padding: 28px;
-  box-shadow: 0 8px 32px rgba(79, 70, 229, 0.12);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.06), 0 16px 40px rgba(79, 70, 229, 0.12);
   position: relative;
 }
-.p-card-hero:hover { border-color: var(--p-accent); }
+.p-card-hero:hover {
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.08), 0 20px 48px rgba(79, 70, 229, 0.16);
+}
 .p-hero-head {
   margin-bottom: 18px;
 }
@@ -5294,17 +5303,17 @@ body.on-tasks-tab main {
   color: var(--p-dim);
 }
 
-/* ─── Cards secondaires : importance visuelle réduite ─── */
+/* ─── Cards secondaires : importance réduite mais soignées ─── */
 .p-card-secondary {
-  background: transparent;
-  border: 1px solid var(--p-border);
-  border-radius: 14px;
-  padding: 16px 18px;
-  opacity: 0.92;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 .p-card-secondary:hover {
-  opacity: 1;
-  border-color: var(--p-border);
+  background: var(--p-card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(15, 23, 42, 0.05);
 }
 .p-card-secondary .p-section-title {
   margin-bottom: 12px;
