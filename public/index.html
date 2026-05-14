@@ -371,17 +371,24 @@
               <div id="perso-templates-list" class="p-templates-list"></div>
             </div>
 
-            <!-- Catalogue exercices — secondaire -->
-            <div class="p-card p-card-secondary">
-              <div class="p-section-title">
-                <h2>Catalogue d'exercices</h2>
+            <!-- Catalogue exercices — secondaire & repliable -->
+            <div class="p-card p-card-secondary p-catalog" id="perso-catalog">
+              <div class="p-catalog-header" id="perso-catalog-toggle">
+                <div class="p-catalog-title">
+                  <span class="p-catalog-chevron">▸</span>
+                  <h2>Catalogue d'exercices</h2>
+                  <span class="p-catalog-count" id="perso-catalog-count">0</span>
+                </div>
                 <button type="button" id="perso-btn-add-exercise" class="p-btn-ghost">+ Exercice</button>
               </div>
-              <div class="p-ex-filters" id="perso-ex-filters"></div>
-              <div class="p-ex-search">
-                <input type="text" id="perso-ex-search" placeholder="Rechercher un exercice..." autocomplete="off">
+              <div class="p-catalog-body" id="perso-catalog-body">
+                <div class="p-ex-searchbar">
+                  <span class="p-ex-search-icon">🔍</span>
+                  <input type="text" id="perso-ex-search" placeholder="Rechercher un exercice..." autocomplete="off">
+                </div>
+                <div class="p-ex-filters" id="perso-ex-filters"></div>
+                <div id="perso-exercises-list" class="p-exercises-list"></div>
               </div>
-              <div id="perso-exercises-list" class="p-exercises-list"></div>
             </div>
 
           </div>

@@ -4541,8 +4541,21 @@ function initPersoTab() {
   });
 
   // Exercise catalog
-  document.getElementById('perso-btn-add-exercise').addEventListener('click', addNewExercise);
+  document.getElementById('perso-btn-add-exercise').addEventListener('click', (e) => {
+    e.stopPropagation(); // ne pas déclencher le toggle du catalogue
+    addNewExercise();
+  });
   document.getElementById('perso-ex-search').addEventListener('input', (e) => renderExercisesCatalog(e.target.value));
+  // Repli/dépli du catalogue
+  const catalogToggle = document.getElementById('perso-catalog-toggle');
+  const catalog = document.getElementById('perso-catalog');
+  if (catalogToggle && catalog) {
+    catalogToggle.addEventListener('click', () => {
+      catalog.classList.toggle('is-collapsed');
+    });
+    // Replié par défaut (secondaire)
+    catalog.classList.add('is-collapsed');
+  }
 
   // Calendar navigation
   document.getElementById('perso-cal-prev').addEventListener('click', () => { persoState.calMonth--; if (persoState.calMonth < 0) { persoState.calMonth = 11; persoState.calYear--; } renderCalendar(); });
@@ -5086,31 +5099,34 @@ function renderExercisesCatalog(filter = '') {
   const q = filter.toLowerCase().trim();
   const filtered = q ? persoState.exercises.filter(e => e.name.toLowerCase().includes(q) || (e.muscle_group || '').toLowerCase().includes(q) || (e.body_part || '').toLowerCase().includes(q)) : persoState.exercises;
 
+  // Compteur dans le header
+  const countEl = document.getElementById('perso-catalog-count');
+  if (countEl) countEl.textContent = persoState.exercises.length;
+
   if (filtered.length === 0) {
     container.innerHTML = `<div class="p-empty-sm">${q ? 'Aucun exercice trouvé.' : 'Aucun exercice. Ajoute-en un !'}</div>`;
     return;
   }
 
-  container.innerHTML = filtered.map(ex => `
-    <div class="p-ex-row">
-      <div class="p-ex-info">
-        <strong class="p-ex-name">${escapeHtml(ex.name)}</strong>
-        ${ex.video_url ? `<a href="${escapeHtml(ex.video_url)}" target="_blank" rel="noopener" class="p-video-link" title="Voir la vidéo">▶</a>` : ''}
+  container.innerHTML = filtered.map(ex => {
+    const bodyLabel = ex.body_part === 'lower' ? 'Bas' : 'Haut';
+    return `
+    <div class="p-ex-line">
+      <div class="p-ex-line-main">
+        <span class="p-ex-line-name">${escapeHtml(ex.name)}</span>
+        ${ex.video_url ? `<a href="${escapeHtml(ex.video_url)}" target="_blank" rel="noopener" class="p-ex-line-video" title="Voir la vidéo">▶</a>` : ''}
       </div>
-      <div class="p-ex-sub">
-        ${ex.muscle_group ? `<span class="p-chip">${escapeHtml(ex.muscle_group)}</span>` : ''}
-        <span class="p-chip p-chip-muted">${ex.body_part === 'lower' ? 'Bas du corps' : 'Haut du corps'}</span>
-        <span class="p-chip p-chip-muted">${ex.target_sets}×${ex.target_reps}</span>
-        ${ex.goal_charge ? `<span class="p-chip p-chip-orange">🎯 ${ex.goal_charge} kg</span>` : ''}
-        ${ex.video_url ? `<span class="p-chip p-chip-blue" title="${escapeHtml(ex.video_url)}">📹 Vidéo liée</span>` : '<span class="p-chip p-chip-muted">Pas de vidéo</span>'}
-        <span class="p-chip p-chip-muted">⏱ ${ex.default_rest_seconds}s repos</span>
+      <div class="p-ex-line-meta">
+        ${ex.muscle_group ? `<span class="p-ex-line-tag">${escapeHtml(ex.muscle_group)}</span>` : `<span class="p-ex-line-tag p-ex-line-tag-muted">${bodyLabel}</span>`}
+        <span class="p-ex-line-sets">${ex.target_sets}×${ex.target_reps}</span>
+        ${ex.goal_charge ? `<span class="p-ex-line-goal">🎯 ${ex.goal_charge}kg</span>` : ''}
       </div>
-      <div class="p-ex-actions">
-        <button class="btn-icon" onclick="editExerciseSettings(${ex.id})" title="Modifier">✎</button>
-        <button class="btn-icon btn-danger" onclick="deleteExercise(${ex.id}, '${escapeHtml(ex.name)}')" title="Supprimer">✕</button>
+      <div class="p-ex-line-actions">
+        <button class="p-ex-line-btn" onclick="editExerciseSettings(${ex.id})" title="Modifier">✎</button>
+        <button class="p-ex-line-btn p-ex-line-btn-danger" onclick="deleteExercise(${ex.id}, '${escapeHtml(ex.name).replace(/'/g, "\\'")}')" title="Supprimer">✕</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 async function addNewExercise() {

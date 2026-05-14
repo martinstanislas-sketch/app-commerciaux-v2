@@ -5826,15 +5826,91 @@ body.on-tasks-tab main {
 .ss-col-footer .p-tonnage { margin-left: auto; }
 
 /* ─── Exercise catalog ───────────────────────────── */
+/* ─── Catalogue d'exercices — compact & repliable ─── */
+.p-catalog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+.p-catalog-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.p-catalog-title h2 {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--p-dim);
+  margin: 0;
+}
+.p-catalog-chevron {
+  font-size: 11px;
+  color: var(--p-dim);
+  transition: transform .2s;
+}
+.p-catalog:not(.is-collapsed) .p-catalog-chevron {
+  transform: rotate(90deg);
+}
+.p-catalog-count {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--p-bg);
+  color: var(--p-text2);
+}
+.p-catalog-body {
+  margin-top: 14px;
+}
+.p-catalog.is-collapsed .p-catalog-body {
+  display: none;
+}
+
+/* Barre de recherche propre */
+.p-ex-searchbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--p-bg);
+  border: 1px solid var(--p-border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  transition: border-color .15s;
+}
+.p-ex-searchbar:focus-within {
+  border-color: var(--p-accent);
+}
+.p-ex-search-icon {
+  font-size: 13px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+.p-ex-searchbar input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 0;
+  color: var(--p-text);
+  font-size: 13px;
+  outline: none;
+}
+.p-ex-searchbar input::placeholder { color: var(--p-dim); }
+
+/* Filtres par groupe musculaire */
 .p-ex-filters {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 .p-ex-filter {
-  padding: 5px 12px;
-  border-radius: 8px;
+  padding: 5px 11px;
+  border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
   background: transparent;
@@ -5846,35 +5922,127 @@ body.on-tasks-tab main {
 .p-ex-filter:hover { border-color: var(--p-accent); color: var(--p-accent); }
 .p-ex-filter.active { background: var(--p-accent); color: white; border-color: var(--p-accent); }
 
-.p-ex-search { margin-bottom: 12px; }
-.p-ex-search input {
-  width: 100%; padding: 10px 14px;
-  background: var(--p-bg); border: 1px solid var(--p-border); border-radius: 10px;
-  color: var(--p-text); font-size: 13px;
+/* Liste scrollable, hauteur limitée */
+.p-exercises-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
-.p-ex-search input:focus { border-color: var(--p-accent); outline: none; }
-.p-ex-search input::placeholder { color: var(--p-dim); }
+.p-exercises-list::-webkit-scrollbar { width: 6px; }
+.p-exercises-list::-webkit-scrollbar-thumb {
+  background: var(--p-border);
+  border-radius: 999px;
+}
 
-.p-exercises-list { display: flex; flex-direction: column; gap: 6px; }
-
-.p-ex-row {
+/* Ligne d'exercice compacte et aérée */
+.p-ex-line {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  background: var(--p-bg);
-  border: 1px solid var(--p-border);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.2s;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  transition: background .12s;
 }
-.p-ex-row:hover { border-color: var(--p-accent); background: var(--p-card-hover); }
-.p-ex-icon { font-size: 18px; flex-shrink: 0; }
-.p-ex-info { flex: 1; min-width: 0; }
-.p-ex-name { font-size: 14px; font-weight: 600; color: var(--p-text); }
-.p-ex-sub { font-size: 11px; color: var(--p-dim); margin-top: 2px; }
-.p-ex-pr { font-size: 14px; font-weight: 800; color: var(--p-accent); }
-.p-ex-actions { display: flex; gap: 4px; }
+.p-ex-line:hover {
+  background: var(--p-bg);
+}
+.p-ex-line-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.p-ex-line-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--p-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.p-ex-line-video {
+  font-size: 9px;
+  color: #fff;
+  background: var(--p-red);
+  width: 16px; height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.p-ex-line-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.p-ex-line-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--p-accent-soft);
+  color: var(--p-accent);
+  white-space: nowrap;
+}
+.p-ex-line-tag-muted {
+  background: var(--p-bg);
+  color: var(--p-dim);
+}
+.p-ex-line-sets {
+  font-size: 11px;
+  color: var(--p-text2);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.p-ex-line-goal {
+  font-size: 10.5px;
+  color: var(--p-orange);
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* Actions très discrètes — visibles au survol */
+.p-ex-line-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity .12s;
+  flex-shrink: 0;
+}
+.p-ex-line:hover .p-ex-line-actions {
+  opacity: 1;
+}
+.p-ex-line-btn {
+  width: 26px; height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--p-dim);
+  transition: all .12s;
+}
+.p-ex-line-btn:hover {
+  background: var(--p-accent-soft);
+  color: var(--p-accent);
+}
+.p-ex-line-btn-danger:hover {
+  background: var(--p-red-soft);
+  color: var(--p-red);
+}
+/* Sur mobile : actions toujours visibles (pas de hover) */
+@media (hover: none) {
+  .p-ex-line-actions { opacity: 0.6; }
+}
 
 /* ─── Calendar ───────────────────────────────────── */
 .p-cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
