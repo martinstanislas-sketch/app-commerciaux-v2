@@ -8623,7 +8623,7 @@ async function fetchPilotageFunnelData(state) {
   PF_SIDE_INDICATORS.forEach(i => {
     indicators[i.key] = aggregate(`side:${i.key}`, i.format, i.agg);
   });
-  // Catégories (pour pouvoir afficher des deltas plus tard si on veut)
+  // Catégories
   const categories = {};
   PILOTAGE_CATEGORIES.forEach(cat => {
     categories[cat.key] = {};
@@ -8631,8 +8631,25 @@ async function fetchPilotageFunnelData(state) {
       categories[cat.key][k.key] = aggregate(`cat:${cat.key}:${k.key}`, k.format, k.agg);
     });
   });
+  // Synthèse financière
+  const financials = {};
+  financials.ca_ttc   = aggregate('fin:ca_ttc',   'eur', 'sum');
+  financials.depenses = aggregate('fin:depenses', 'eur', 'sum');
+  // Dérivés
+  if (financials.ca_ttc != null) financials.ca_ht = financials.ca_ttc / 1.20;
+  if (financials.ca_ht != null && financials.depenses != null) {
+    financials.cashflow = financials.ca_ht - financials.depenses;
+    if (financials.ca_ht !== 0) {
+      financials.ebe_pct = (financials.cashflow / financials.ca_ht) * 100;
+    }
+  }
+  // Breakdown dépenses
+  const depBreakdown = {};
+  PF_DEPENSES_BREAKDOWN.forEach(cat => {
+    depBreakdown[cat.key] = aggregate(`fin:dep_${cat.key}`, 'eur', 'sum');
+  });
 
-  return { main: {}, compare: { funnel, indicators, categories } };
+  return { main: {}, compare: { funnel, indicators, categories, financials, depBreakdown } };
 }
 
 async function fetchPilotageFunnelClubs() {
@@ -9234,10 +9251,17 @@ async function renderPilotageFunnel() {
       const kpisHtml = cat.kpis.map(k => {
         const subKey = `cat:${cat.key}:${k.key}`;
         const valueHtml = pilotageEditableValueHtml(pilotageFunnelState, subKey, k.format, k.agg, 'pilotage-kpi-value');
+        // Valeur de comparaison
+        const cmpVal = (hasCompare && compare && compare.categories && compare.categories[cat.key])
+          ? compare.categories[cat.key][k.key] : null;
+        const cmpHtml = (cmpVal != null && !Number.isNaN(Number(cmpVal)))
+          ? `<span class="pilotage-kpi-cmp" title="Comparaison">vs ${pilotageFormatValue(cmpVal, k.format)}</span>`
+          : '';
         return `
           <div class="pilotage-kpi">
             <span class="pilotage-kpi-label">${escapeHtml(k.label)}</span>
             ${valueHtml}
+            ${cmpHtml}
             <span class="pilotage-kpi-status" aria-hidden="true"></span>
           </div>
         `;
@@ -9391,10 +9415,16 @@ async function renderPilotageFunnel() {
         : '';
       const expandableClass = f.expandable ? ' pf-fin-cell--expandable' : '';
       const chevron = f.expandable ? '<span class="pf-fin-chev">▾</span>' : '';
+      // Chip de comparaison (si compareWith actif et valeur disponible)
+      const cmpVal = (hasCompare && compare && compare.financials) ? compare.financials[f.key] : null;
+      const cmpHtml = (cmpVal != null && !Number.isNaN(Number(cmpVal)))
+        ? `<span class="pf-fin-cmp" title="Comparaison : ${escapeHtml(summarizeCompare(pilotageFunnelState.compareWith))}">vs ${pfFormat(cmpVal, f.format)}</span>`
+        : '';
       return `
         <div class="pf-fin-cell ${toneClass}${expandableClass}" ${expandableAttrs}>
           <span class="pf-fin-label">${escapeHtml(f.label)}${f.hint ? ` <span class="pf-fin-hint">${escapeHtml(f.hint)}</span>` : ''}${chevron}</span>
           ${valueHtml}
+          ${cmpHtml}
         </div>
       `;
     }).join('');
@@ -9412,10 +9442,16 @@ async function renderPilotageFunnel() {
         ? `Agrégat auto de ${r.aggCount} club(s) — clique pour saisir une valeur consolidée`
         : 'Cliquer pour saisir une valeur';
       const attrs = `data-edit-key="${escapeHtml(r.editKey)}" data-format="eur" tabindex="0" title="${tooltip}"`;
+      // Comparaison
+      const cmpVal = (hasCompare && compare && compare.depBreakdown) ? compare.depBreakdown[cat.key] : null;
+      const cmpHtml = (cmpVal != null && !Number.isNaN(Number(cmpVal)))
+        ? `<span class="pf-dep-cmp" title="Comparaison">vs ${pilotageFormatValue(cmpVal, 'eur')}</span>`
+        : '';
       return `
         <div class="pf-dep-cell">
           <span class="pf-dep-label">${escapeHtml(cat.label)}</span>
           <span class="${cls}" ${attrs}>${display}</span>
+          ${cmpHtml}
         </div>
       `;
     }).join('');
