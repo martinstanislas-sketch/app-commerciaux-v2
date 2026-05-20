@@ -8082,7 +8082,7 @@ function pilotagePeriodSig(period, anchorISO, customStart, customEnd) {
   return 'unknown';
 }
 
-// Détermine la liste des clubs effectifs (résout 'all') et indique si l'édition est possible.
+// Détermine la liste des clubs effectifs (résout 'all').
 // state.clubs peut être ['all'] ou liste de noms. state.club est un nom unique ou 'all'.
 function pilotageEffectiveClubs(state) {
   let arr;
@@ -8096,37 +8096,63 @@ function pilotageEffectiveClubs(state) {
   return arr;
 }
 
-// Lit une valeur stockée : retourne soit la valeur unique (1 club), soit un agrégat (somme/moy)
-// selon le format et la stratégie d'agrégation.
+// Identifiant canonique du scope de clubs sélectionné, utilisé comme préfixe de clé de stockage.
+// Permet d'enregistrer des valeurs distinctes pour : un club unique, "tous les clubs", ou un multi.
+function pilotageClubScopeKey(state) {
+  if (Array.isArray(state.clubs)) {
+    if (state.clubs.includes('all') || state.clubs.length === 0) return '__all__';
+    if (state.clubs.length === 1) return state.clubs[0];
+    return '__multi__:' + state.clubs.slice().sort().join('+');
+  }
+  if (state.club) {
+    return state.club === 'all' ? '__all__' : state.club;
+  }
+  return '__all__';
+}
+
+// Lit la valeur pour le scope courant. Si rien n'a été saisi directement pour ce scope,
+// et que le scope est multi-clubs, tente une agrégation depuis les valeurs individuelles
+// comme fallback. La cellule reste toujours éditable.
 function pilotageResolveValue(state, storageSubKey, format, aggOverride) {
   const periodSig = pilotagePeriodSig(state.period, state.dateAnchor, state.customStart, state.customEnd);
-  const clubs = pilotageEffectiveClubs(state);
-  if (clubs.length === 1) {
-    const key = `${clubs[0]}|${periodSig}|${storageSubKey}`;
-    return { value: pilotageStoreRead(key), editKey: key, editable: true, aggregate: false };
+  const scope = pilotageClubScopeKey(state);
+  const key = `${scope}|${periodSig}|${storageSubKey}`;
+  // Valeur directe pour le scope courant
+  const direct = pilotageStoreRead(key);
+  if (direct != null) {
+    return { value: direct, editKey: key, editable: true, aggregate: false };
   }
-  // Agrégat multi-clubs
-  let total = 0, count = 0;
-  for (const c of clubs) {
-    const v = pilotageStoreRead(`${c}|${periodSig}|${storageSubKey}`);
-    if (v != null) { total += v; count++; }
+  // Pas de valeur directe → si on est en multi/tous-clubs, tente un agrégat depuis les clubs individuels
+  if (scope === '__all__' || scope.startsWith('__multi__:')) {
+    const clubs = pilotageEffectiveClubs(state);
+    if (clubs.length > 1) {
+      let total = 0, count = 0;
+      for (const c of clubs) {
+        const v = pilotageStoreRead(`${c}|${periodSig}|${storageSubKey}`);
+        if (v != null) { total += v; count++; }
+      }
+      if (count > 0) {
+        const aggType = aggOverride || (format === 'pct' ? 'avg' : 'sum');
+        const aggValue = aggType === 'avg' ? (total / count) : total;
+        // L'agrégat est une valeur de fallback : la cellule reste éditable
+        // (taper une valeur remplacera le calcul automatique pour le scope courant)
+        return { value: aggValue, editKey: key, editable: true, aggregate: true, aggCount: count };
+      }
+    }
   }
-  if (count === 0) return { value: null, editable: false, aggregate: true };
-  // Stratégie : 'sum' par défaut sauf si format=pct ou aggOverride='avg'
-  const agg = aggOverride || (format === 'pct' ? 'avg' : 'sum');
-  const out = agg === 'avg' ? (total / count) : total;
-  return { value: out, editable: false, aggregate: true, aggCount: count };
+  // Aucune valeur ni fallback
+  return { value: null, editKey: key, editable: true, aggregate: false };
 }
 
 // Génère le HTML d'une valeur cliquable/éditable
 function pilotageEditableValueHtml(state, storageSubKey, format, aggOverride, baseClass) {
   const r = pilotageResolveValue(state, storageSubKey, format, aggOverride);
   const display = pilotageFormatValue(r.value, format);
-  const cls = baseClass + (r.editable ? ' editable' : '') + (r.aggregate ? ' aggregate' : '');
-  const attrs = r.editable
-    ? `data-edit-key="${escapeHtml(r.editKey)}" data-format="${format}" tabindex="0" title="Cliquer pour saisir une valeur"`
-    : (r.aggregate ? `title="Agrégat de ${r.aggCount} club(s) — sélectionne un club unique pour éditer"` : '');
-  return `<span class="${cls}" ${attrs}>${display}</span>`;
+  const cls = baseClass + ' editable' + (r.aggregate ? ' aggregate' : '');
+  const tooltip = r.aggregate
+    ? `Agrégat auto de ${r.aggCount} club(s) — clique pour saisir une valeur consolidée qui prendra le dessus`
+    : 'Cliquer pour saisir une valeur';
+  return `<span class="${cls}" data-edit-key="${escapeHtml(r.editKey)}" data-format="${format}" tabindex="0" title="${tooltip}">${display}</span>`;
 }
 
 // Handler de clic pour transformer une cellule éditable en input
@@ -8850,10 +8876,11 @@ async function renderPilotageFunnel() {
       // Valeur éditable
       const r = sv.resolved;
       const display = pilotageFormatValue(r.value, sv.stage.format);
-      const cls = 'pf-funnel-bar-value' + (r.editable ? ' editable' : '') + (r.aggregate ? ' aggregate' : '');
-      const attrs = r.editable
-        ? `data-edit-key="${escapeHtml(r.editKey)}" data-format="${sv.stage.format}" tabindex="0" title="Cliquer pour saisir une valeur"`
-        : (r.aggregate ? `title="Agrégat de ${r.aggCount} club(s)"` : '');
+      const cls = 'pf-funnel-bar-value editable' + (r.aggregate ? ' aggregate' : '');
+      const tooltip = r.aggregate
+        ? `Agrégat auto de ${r.aggCount} club(s) — clique pour saisir une valeur consolidée`
+        : 'Cliquer pour saisir une valeur';
+      const attrs = `data-edit-key="${escapeHtml(r.editKey)}" data-format="${sv.stage.format}" tabindex="0" title="${tooltip}"`;
       return `
         ${i > 0 ? `<div class="pf-funnel-arrow"><span>${convo}</span></div>` : ''}
         <div class="pf-funnel-row">
@@ -8934,10 +8961,11 @@ async function renderPilotageFunnel() {
       if (f.editable && cell.resolved) {
         const r = cell.resolved;
         const display = pilotageFormatValue(r.value, f.format);
-        const cls = 'pf-fin-value' + (r.editable ? ' editable' : '') + (r.aggregate ? ' aggregate' : '');
-        const attrs = r.editable
-          ? `data-edit-key="${escapeHtml(r.editKey)}" data-format="${f.format}" tabindex="0" title="Cliquer pour saisir une valeur"`
-          : (r.aggregate ? `title="Agrégat de ${r.aggCount} club(s)"` : '');
+        const cls = 'pf-fin-value editable' + (r.aggregate ? ' aggregate' : '');
+        const tooltip = r.aggregate
+          ? `Agrégat auto de ${r.aggCount} club(s) — clique pour saisir une valeur consolidée`
+          : 'Cliquer pour saisir une valeur';
+        const attrs = `data-edit-key="${escapeHtml(r.editKey)}" data-format="${f.format}" tabindex="0" title="${tooltip}"`;
         valueHtml = `<span class="${cls}" ${attrs}>${display}</span>`;
       } else {
         valueHtml = `<span class="pf-fin-value">${pfFormat(raw, f.format)}</span>`;
