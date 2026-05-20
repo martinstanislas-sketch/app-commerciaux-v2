@@ -8535,9 +8535,17 @@ const PF_SIDE_INDICATORS = [
 // Seules CA et Dépenses sont éditables — Cash-flow et EBE % sont calculés (depuis CA HT interne).
 const PF_FINANCIALS = [
   { key: 'ca_ttc',    label: 'CA',         format: 'eur', tone: 'neutral',   editable: true,  agg: 'sum' },
-  { key: 'depenses',  label: 'Dépenses',   format: 'eur', tone: 'negative',  editable: true,  agg: 'sum' },
+  { key: 'depenses',  label: 'Dépenses',   format: 'eur', tone: 'negative',  editable: true,  agg: 'sum', expandable: true },
   { key: 'cashflow',  label: 'Cash-flow',  format: 'eur', tone: 'highlight', editable: false },
   { key: 'ebe_pct',   label: 'EBE',        format: 'pct', tone: 'highlight', editable: false },
+];
+
+// Décomposition des dépenses — cliquable sous la cellule Dépenses
+const PF_DEPENSES_BREAKDOWN = [
+  { key: 'salaire',        label: 'Masse salariale',         keywords: ['masse salariale'] },
+  { key: 'batiment',       label: 'Bâtiment',                keywords: ['bâtiment', 'batiment'] },
+  { key: 'marketing',      label: 'Marketing',               keywords: ['marketing'] },
+  { key: 'fonctionnement', label: 'Frais de fonctionnement', keywords: ['frais de fonctionnement', 'remboursement adhérent', 'remboursement adherent', 'remboursement adhérents', 'remboursement adherents'] },
 ];
 
 // État (en mémoire)
@@ -8713,38 +8721,107 @@ function parsePennylaneXlsx(arrayBuffer) {
     throw new Error('Sections Encaissements / Décaissements introuvables');
   }
 
-  // 3. Trouver la 1ère occurrence de chaque club dans chaque section
-  const findClubRowsInRange = (startIdx, endIdx) => {
-    const out = {};
+  // 3. Trouver la 1ère occurrence de chaque club dans chaque section, avec la plage
+  // (rangeEnd = ligne du club suivant ou fin de section)
+  const findClubRangesInSection = (startIdx, endIdx) => {
+    const out = {}; // club → { rowIdx, endIdx }
+    const orderedHits = [];
     for (let i = startIdx; i < endIdx; i++) {
       const label = String((rows[i] || [])[0] || '').trim().toLowerCase();
       if (!label) continue;
       const mapped = PENNYLANE_CLUB_MAP[label];
       if (mapped && !out[mapped]) {
-        out[mapped] = i;
+        out[mapped] = { rowIdx: i, endIdx: endIdx };
+        orderedHits.push({ club: mapped, rowIdx: i });
       }
+    }
+    // Resserrer les endIdx selon l'ordre des club rows trouvés
+    orderedHits.sort((a, b) => a.rowIdx - b.rowIdx);
+    for (let k = 0; k < orderedHits.length; k++) {
+      const next = orderedHits[k + 1];
+      out[orderedHits[k].club].endIdx = next ? next.rowIdx : endIdx;
     }
     return out;
   };
-  const caRows  = findClubRowsInRange(encStart + 1, decStart);
-  const depRows = findClubRowsInRange(decStart + 1, rows.length);
+  const caRows  = findClubRangesInSection(encStart + 1, decStart);
+  const depRows = findClubRangesInSection(decStart + 1, rows.length);
+
+  // 3.bis. Pour chaque club en décaissements, trouver les sous-rows de breakdown
+  // (Masse salariale {club}, Bâtiment {club}, Marketing {club}, Frais de fonctionnement {club},
+  //  Remboursement adhérent {club}). Sub-row détectée si label commence par un keyword.
+  // Note: ces sous-rows sont des sous-totaux directement sous le club row.
+  const matchBreakdownKey = (label) => {
+    const lbl = label.trim().toLowerCase();
+    for (const cat of PF_DEPENSES_BREAKDOWN) {
+      for (const kw of cat.keywords) {
+        if (lbl.startsWith(kw)) {
+          // Doit être suivi par un espace ou être suivi exactement par le club
+          const after = lbl.slice(kw.length);
+          if (after === '' || after.startsWith(' ')) return cat.key;
+        }
+      }
+    }
+    return null;
+  };
+
+  const findClubBreakdownSubRows = (clubRange) => {
+    // Retourne pour ce club : { salaire: rowIdx, batiment: rowIdx, marketing: rowIdx, fonctionnement: rowIdx[] }
+    const subs = {};
+    for (let i = clubRange.rowIdx + 1; i < clubRange.endIdx; i++) {
+      const label = String((rows[i] || [])[0] || '').trim();
+      if (!label) continue;
+      const key = matchBreakdownKey(label);
+      if (key) {
+        // Pour 'fonctionnement', plusieurs sous-rows peuvent matcher
+        // (Remboursement adhérents + Frais de fonctionnement) → on les agrège
+        if (key === 'fonctionnement') {
+          subs[key] = subs[key] || [];
+          subs[key].push(i);
+        } else if (!subs[key]) {
+          subs[key] = i;
+        }
+      }
+    }
+    return subs;
+  };
 
   // 4. Extraire les valeurs
   const result = {
     months: Object.keys(monthColumns).sort(),
-    data: {}, // monthSig → { club → { ca_ttc, depenses } }
+    data: {}, // monthSig → { club → { ca_ttc, depenses, dep_salaire, dep_batiment, dep_marketing, dep_fonctionnement } }
   };
   for (const [sig, col] of Object.entries(monthColumns)) {
     result.data[sig] = {};
     for (const club of PILOTAGE_CLUBS) {
-      const caRow = caRows[club];
-      const depRow = depRows[club];
-      const ca  = caRow  !== undefined ? Number((rows[caRow]  || [])[col]) : null;
-      const dep = depRow !== undefined ? Number((rows[depRow] || [])[col]) : null;
-      if ((ca != null && !Number.isNaN(ca)) || (dep != null && !Number.isNaN(dep))) {
-        result.data[sig][club] = {};
-        if (ca != null && !Number.isNaN(ca))  result.data[sig][club].ca_ttc = ca;
-        if (dep != null && !Number.isNaN(dep)) result.data[sig][club].depenses = dep;
+      const caRange = caRows[club];
+      const depRange = depRows[club];
+      const ca  = caRange  ? Number((rows[caRange.rowIdx]  || [])[col]) : null;
+      const dep = depRange ? Number((rows[depRange.rowIdx] || [])[col]) : null;
+
+      const clubData = {};
+      if (ca != null && !Number.isNaN(ca))   clubData.ca_ttc = ca;
+      if (dep != null && !Number.isNaN(dep)) clubData.depenses = dep;
+
+      // Breakdown des dépenses (si depRange trouvé)
+      if (depRange) {
+        const subs = findClubBreakdownSubRows(depRange);
+        for (const cat of PF_DEPENSES_BREAKDOWN) {
+          const ref = subs[cat.key];
+          if (ref == null) continue;
+          let total = 0, found = false;
+          const indices = Array.isArray(ref) ? ref : [ref];
+          for (const idx of indices) {
+            const v = Number((rows[idx] || [])[col]);
+            if (!Number.isNaN(v)) { total += v; found = true; }
+          }
+          if (found) {
+            clubData[`dep_${cat.key}`] = total;
+          }
+        }
+      }
+
+      if (Object.keys(clubData).length > 0) {
+        result.data[sig][club] = clubData;
       }
     }
   }
@@ -8768,6 +8845,16 @@ function importPennylaneIntoStore(parsed) {
         valuesWritten++;
         monthsTouched.add(sig);
         clubsTouched.add(club);
+      }
+      // Breakdown dépenses
+      for (const cat of PF_DEPENSES_BREAKDOWN) {
+        const v = values[`dep_${cat.key}`];
+        if (v != null) {
+          pilotageStoreWrite(`${club}|${sig}|fin:dep_${cat.key}`, v);
+          valuesWritten++;
+          monthsTouched.add(sig);
+          clubsTouched.add(club);
+        }
       }
     }
   }
@@ -8897,6 +8984,22 @@ async function loadPilotageFunnel() {
   if (rootPf && !rootPf.dataset.editBound) {
     rootPf.dataset.editBound = '1';
     rootPf.addEventListener('click', (e) => pilotageHandleEditClick(e, () => renderPilotageFunnel()));
+  }
+
+  // Toggle du panel breakdown au clic sur la cellule Dépenses
+  if (rootPf && !rootPf.dataset.expandBound) {
+    rootPf.dataset.expandBound = '1';
+    rootPf.addEventListener('click', (e) => {
+      // Ne pas toggle si on clique sur le span valeur (éditable) à l'intérieur
+      if (e.target.closest('[data-edit-key]')) return;
+      const expandable = e.target.closest('[data-fin-expandable]');
+      if (!expandable) return;
+      const panel = document.getElementById('pf-dep-breakdown');
+      if (!panel) return;
+      const willOpen = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden');
+      expandable.classList.toggle('pf-fin-cell--open', willOpen);
+    });
   }
 
   await renderPilotageFunnel();
@@ -9236,10 +9339,37 @@ async function renderPilotageFunnel() {
       } else {
         valueHtml = `<span class="pf-fin-value">${pfFormat(raw, f.format)}</span>`;
       }
+      // Cell expandable (Dépenses) : ajoute un chevron + classe cliquable
+      const expandableAttrs = f.expandable
+        ? `data-fin-expandable="${f.key}" role="button" tabindex="0" title="Cliquer pour voir le détail des dépenses"`
+        : '';
+      const expandableClass = f.expandable ? ' pf-fin-cell--expandable' : '';
+      const chevron = f.expandable ? '<span class="pf-fin-chev">▾</span>' : '';
       return `
-        <div class="pf-fin-cell ${toneClass}">
-          <span class="pf-fin-label">${escapeHtml(f.label)}${f.hint ? ` <span class="pf-fin-hint">${escapeHtml(f.hint)}</span>` : ''}</span>
+        <div class="pf-fin-cell ${toneClass}${expandableClass}" ${expandableAttrs}>
+          <span class="pf-fin-label">${escapeHtml(f.label)}${f.hint ? ` <span class="pf-fin-hint">${escapeHtml(f.hint)}</span>` : ''}${chevron}</span>
           ${valueHtml}
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Render du panel breakdown des dépenses
+  const breakdownGrid = document.getElementById('pf-dep-breakdown-grid');
+  if (breakdownGrid) {
+    breakdownGrid.innerHTML = PF_DEPENSES_BREAKDOWN.map(cat => {
+      const subKey = `fin:dep_${cat.key}`;
+      const r = pilotageResolveValue(pilotageFunnelState, subKey, 'eur', 'sum');
+      const display = pilotageFormatValue(r.value, 'eur');
+      const cls = 'pf-dep-value editable' + (r.aggregate ? ' aggregate' : '');
+      const tooltip = r.aggregate
+        ? `Agrégat auto de ${r.aggCount} club(s) — clique pour saisir une valeur consolidée`
+        : 'Cliquer pour saisir une valeur';
+      const attrs = `data-edit-key="${escapeHtml(r.editKey)}" data-format="eur" tabindex="0" title="${tooltip}"`;
+      return `
+        <div class="pf-dep-cell">
+          <span class="pf-dep-label">${escapeHtml(cat.label)}</span>
+          <span class="${cls}" ${attrs}>${display}</span>
         </div>
       `;
     }).join('');

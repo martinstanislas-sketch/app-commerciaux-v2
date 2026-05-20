@@ -10508,6 +10508,123 @@ img {
   font-style: normal;
 }
 
+/* Dépenses — cellule expandable (chevron + toggle) */
+#tab-pilotage-funnel .pf-fin-cell--expandable {
+  cursor: pointer;
+  transition: background var(--ds-dur-fast);
+  border-radius: 8px;
+}
+#tab-pilotage-funnel .pf-fin-cell--expandable:hover {
+  background: var(--ds-bg-subtle);
+}
+#tab-pilotage-funnel .pf-fin-chev {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 9px;
+  color: var(--ds-fg-4);
+  transition: transform var(--ds-dur-base) var(--ds-ease);
+  vertical-align: middle;
+}
+#tab-pilotage-funnel .pf-fin-cell--expandable.pf-fin-cell--open .pf-fin-chev {
+  transform: rotate(180deg);
+}
+
+/* Panel breakdown — apparaît sous la Synthèse financière */
+#tab-pilotage-funnel .pf-dep-breakdown.hidden {
+  display: none !important;
+}
+#tab-pilotage-funnel .pf-dep-breakdown {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--ds-border-2);
+}
+#tab-pilotage-funnel .pf-dep-breakdown-head {
+  margin-bottom: 14px;
+}
+#tab-pilotage-funnel .pf-dep-breakdown-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-4);
+}
+#tab-pilotage-funnel .pf-dep-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+}
+#tab-pilotage-funnel .pf-dep-cell {
+  padding: 4px 18px;
+  border-right: 1px solid var(--ds-border-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+#tab-pilotage-funnel .pf-dep-cell:last-child {
+  border-right: 0;
+}
+#tab-pilotage-funnel .pf-dep-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-fg-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+#tab-pilotage-funnel .pf-dep-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ds-fg-1);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+/* Editable / aggregate states sur les sous-valeurs */
+#tab-pilotage-funnel .pf-dep-value.editable {
+  cursor: text;
+  border-bottom: 1.5px dashed transparent;
+  border-radius: 4px;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+  padding: 0 2px;
+}
+#tab-pilotage-funnel .pf-dep-value.editable:hover {
+  border-bottom-color: var(--ds-primary-500);
+  color: var(--ds-primary-700);
+}
+#tab-pilotage-funnel .pf-dep-value.aggregate::after {
+  content: 'Σ';
+  font-size: 0.55em;
+  vertical-align: super;
+  margin-left: 3px;
+  color: var(--ds-fg-4);
+  font-weight: 600;
+}
+
+/* Responsive breakdown */
+@media (max-width: 1024px) {
+  #tab-pilotage-funnel .pf-dep-breakdown-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+  #tab-pilotage-funnel .pf-dep-cell {
+    border-right: 0;
+    padding: 8px 0;
+  }
+}
+@media (max-width: 600px) {
+  #tab-pilotage-funnel .pf-dep-breakdown-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Category cards — 5 cols, top-border accent ────────────── */
 #tab-pilotage-funnel .pf-grid {
   display: grid;
