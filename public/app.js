@@ -9715,23 +9715,83 @@ async function renderPilotageFunnel() {
     }).join('');
   }
 
-  // Render carte « Recettes complémentaires » (niveau Groupe)
-  const grecGrid = document.getElementById('pf-grec-grid');
-  if (grecGrid) {
-    const periodSig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
-    grecGrid.innerHTML = PF_GROUP_RECETTES.map(r => {
-      const v = pilotageReadGroup(periodSig, `grec:${r.key}`);
-      const display = pilotageFormatValue(v, 'eur');
-      const editKey = `__group__|${periodSig}|grec:${r.key}`;
-      const cls = 'pf-grec-value editable';
-      const attrs = `data-edit-key="${escapeHtml(editKey)}" data-format="eur" tabindex="0" title="Cliquer pour saisir une valeur"`;
-      return `
-        <div class="pf-grec-cell">
-          <span class="pf-grec-label">${escapeHtml(r.label)}</span>
-          <span class="${cls}" ${attrs}>${display}</span>
-        </div>
-      `;
-    }).join('');
+  // Render carte « Détail du club » — visible seulement si UN club spécifique sélectionné
+  const detailCard = document.getElementById('pf-club-detail');
+  if (detailCard) {
+    const sigPF = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+    const clubsArr = pilotageFunnelState.clubs || [];
+    const isSingleClub = clubsArr.length === 1;
+    if (!isSingleClub) {
+      detailCard.classList.add('hidden');
+    } else {
+      const club = clubsArr[0];
+      detailCard.classList.remove('hidden');
+      const nameEl = document.getElementById('pf-club-detail-name');
+      if (nameEl) nameEl.textContent = club;
+
+      // Récupère CA et Dépenses (différent pour Tourcoing = données niveau Groupe)
+      let ca, dep;
+      const isTourcoing = club === 'Tourcoing';
+      if (isTourcoing) {
+        ca  = pilotageStoreRead(`__group__|${sigPF}|grec:tourcoing`);
+        dep = pilotageStoreRead(`__group__|${sigPF}|gdep:tourcoing`);
+      } else {
+        ca  = pilotageStoreRead(`${club}|${sigPF}|fin:ca_ttc`);
+        dep = pilotageStoreRead(`${club}|${sigPF}|fin:depenses`);
+      }
+      const cashflow = (ca != null && dep != null) ? (ca - dep) : null;
+      const ebe = (ca != null && cashflow != null && ca !== 0) ? (cashflow / ca) * 100 : null;
+
+      // 4 cellules principales
+      const main = document.getElementById('pf-club-detail-main');
+      if (main) {
+        const cells = [
+          { label: 'CA',        value: ca,       format: 'eur', tone: 'neutral' },
+          { label: 'Dépenses',  value: dep,      format: 'eur', tone: 'muted' },
+          { label: 'Cash-flow', value: cashflow, format: 'eur', tone: 'highlight' },
+          { label: 'EBE',       value: ebe,      format: 'pct', tone: 'highlight' },
+        ];
+        main.innerHTML = cells.map(c => {
+          let toneClass = '';
+          if (c.tone === 'highlight' && c.value != null && !Number.isNaN(Number(c.value))) {
+            toneClass = Number(c.value) >= 0 ? 'pf-fin-positive' : 'pf-fin-negative';
+          } else if (c.tone === 'muted') {
+            toneClass = 'pf-fin-muted';
+          }
+          return `
+            <div class="pf-fin-cell ${toneClass}">
+              <span class="pf-fin-label">${escapeHtml(c.label)}</span>
+              <span class="pf-fin-value">${pilotageFormatValue(c.value, c.format)}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Breakdown des dépenses (uniquement pour clubs My Coach, pas pour Tourcoing
+      // qui n'a pas de décomposition par poste dans le fichier Pennylane)
+      const breakdownWrap = document.getElementById('pf-club-detail-breakdown-wrap');
+      const breakdownGrid = document.getElementById('pf-club-detail-breakdown');
+      if (breakdownWrap && breakdownGrid) {
+        if (isTourcoing) {
+          breakdownWrap.classList.add('hidden');
+        } else {
+          breakdownWrap.classList.remove('hidden');
+          breakdownGrid.innerHTML = PF_DEPENSES_BREAKDOWN.map(cat => {
+            const v = pilotageStoreRead(`${club}|${sigPF}|fin:dep_${cat.key}`);
+            const display = pilotageFormatValue(v, 'eur');
+            const editKey = `${club}|${sigPF}|fin:dep_${cat.key}`;
+            const cls = 'pf-dep-value editable';
+            const attrs = `data-edit-key="${escapeHtml(editKey)}" data-format="eur" tabindex="0" title="Cliquer pour saisir une valeur"`;
+            return `
+              <div class="pf-dep-cell">
+                <span class="pf-dep-label">${escapeHtml(cat.label)}</span>
+                <span class="${cls}" ${attrs}>${display}</span>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    }
   }
 
   // Synchronise les boutons du toggle scope avec l'état

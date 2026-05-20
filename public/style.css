@@ -10502,6 +10502,63 @@ img {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
 }
+
+/* Carte de détail club (apparaît au clic sur EBE cell) */
+#tab-pilotage-funnel .pf-club-detail-card.hidden {
+  display: none !important;
+}
+#tab-pilotage-funnel .pf-club-detail-card {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 28px 18px;
+  margin-bottom: 32px;
+  box-shadow: none;
+  border-left: 3px solid var(--ds-primary-500);
+}
+#tab-pilotage-funnel .pf-club-detail-head {
+  margin-bottom: 18px;
+}
+#tab-pilotage-funnel .pf-club-detail-name {
+  text-transform: none;
+  letter-spacing: -0.01em;
+  color: var(--ds-fg-1);
+  font-size: 14px;
+  font-weight: 700;
+}
+#tab-pilotage-funnel .pf-club-detail-main {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 18px;
+}
+#tab-pilotage-funnel .pf-club-detail-breakdown-wrap.hidden { display: none !important; }
+#tab-pilotage-funnel .pf-club-detail-breakdown-wrap {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--ds-border-2);
+}
+#tab-pilotage-funnel .pf-club-detail-breakdown-head {
+  margin-bottom: 14px;
+}
+#tab-pilotage-funnel .pf-club-detail-breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+}
+@media (max-width: 1100px) {
+  #tab-pilotage-funnel .pf-club-detail-main,
+  #tab-pilotage-funnel .pf-club-detail-breakdown {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+@media (max-width: 600px) {
+  #tab-pilotage-funnel .pf-club-detail-main,
+  #tab-pilotage-funnel .pf-club-detail-breakdown {
+    grid-template-columns: 1fr;
+  }
+}
 #tab-pilotage-funnel .pf-grec-cell {
   padding: 4px 18px;
   border-right: 1px solid var(--ds-border-2);
