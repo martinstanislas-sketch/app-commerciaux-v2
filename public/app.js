@@ -8524,7 +8524,7 @@ async function renderPilotage() {
 // Structure V1 :
 //   1. Filtres : période, plage, multi-clubs, comparaison (multi)
 //   2. Cartes catégories (réutilise PILOTAGE_CATEGORIES)
-//   3. Funnel vertical 5 étapes (Leads → RDV pris → RDV venus → Ventes → CA)
+//   3. Funnel vertical 4 étapes (Leads → RDV pris → RDV venus → Ventes)
 //      + bandeau « ghost » de comparaison en filigrane
 //      + taux de conversion entre chaque étape
 //   4. Indicateurs complémentaires (CPL, no-show, transfo, résiliation)
@@ -8542,7 +8542,6 @@ const PF_FUNNEL_STAGES = [
   { key: 'rdv_pris',  label: 'RDV pris',           format: 'int', color: '#06B6D4', agg: 'sum' },
   { key: 'rdv_venus', label: 'RDV venus',          format: 'int', color: '#10B981', agg: 'sum' },
   { key: 'ventes',    label: 'Ventes',             format: 'int', color: '#F59E0B', agg: 'sum' },
-  { key: 'ca',        label: 'Chiffre d\'affaires', format: 'eur', color: '#EF4444', agg: 'sum' },
 ];
 
 const PF_SIDE_INDICATORS = [
