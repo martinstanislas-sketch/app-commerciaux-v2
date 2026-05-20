@@ -8560,16 +8560,17 @@ const PF_EBE_CELLS = [
 // Recettes complémentaires niveau Groupe (Pennylane → rows hors My Coach by Ginkgo)
 // Produit exceptionnel = total Groupe Gingko Sport (= subv apprentis + recouvrement
 // + produit exceptionnel + remboursement intérêt + autres).
+// Note : Tourcoing n'est PAS ici (il est un club à part entière via PENNYLANE_CLUB_MAP),
+// donc son CA et ses Dépenses sont stockés sous Tourcoing|sig|fin:ca_ttc / fin:depenses
+// avec breakdown détaillé (Masse salariale, Bâtiment, etc.).
 const PF_GROUP_RECETTES = [
-  { key: 'tourcoing',      label: 'Tourcoing',            pennylane: 'ginkgo sport',                section: 'enc' },
   { key: 'franchises',     label: 'Franchisés',           pennylane: 'franchisés my coach by ginkgo', section: 'enc' },
   { key: 'produit_except', label: 'Produit exceptionnel', pennylane: 'groupe gingko sport',         section: 'enc' },
 ];
 
-// Dépenses Groupe (hors clubs My Coach)
+// Dépenses Groupe (hors clubs My Coach et Tourcoing)
 const PF_GROUP_DEPENSES = [
   { key: 'groupe',    label: 'Frais Groupe',  pennylane: 'groupe gingko sport',           section: 'dec' },
-  { key: 'tourcoing', label: 'Tourcoing',     pennylane: 'ginkgo sport',                  section: 'dec' },
   { key: 'franchise', label: 'Franchise',     pennylane: 'franchise my coach by ginkgo', section: 'dec' },
   { key: 'taxes',     label: 'Taxes',         pennylane: 'taxes',                         section: 'dec' },
 ];
@@ -8708,7 +8709,25 @@ const PENNYLANE_CLUB_MAP = {
   'neuilly sur seine':    'Neuilly-sur-Seine',
   'levallois-perret':     'Levallois-Perret',
   'levallois perret':     'Levallois-Perret',
+  'ginkgo sport':         'Tourcoing',
 };
+
+// Lignes top-level dans Pennylane (sections / clubs) — utilisé pour borner
+// le scan des sous-catégories de dépenses (Masse salariale, Bâtiment, etc.)
+// afin d'éviter de déborder sur la section voisine (Taxes, Lambersart, etc.).
+const PENNYLANE_TOP_BOUNDARIES = new Set([
+  'groupe gingko sport',
+  'my coach by ginkgo',
+  'franchisés my coach by ginkgo',
+  'franchise my coach by ginkgo',
+  'ginkgo sport',
+  'lambersart',
+  'lesquin',
+  'ouverture my coach by ginkgo',
+  'taxes',
+  'virement interne',
+  'a catégoriser',
+]);
 
 const PENNYLANE_MONTHS = {
   'janv': 1, 'jan': 1, 'janvier': 1,
@@ -8819,6 +8838,10 @@ function parsePennylaneXlsx(arrayBuffer) {
     for (let i = clubRange.rowIdx + 1; i < clubRange.endIdx; i++) {
       const label = String((rows[i] || [])[0] || '').trim();
       if (!label) continue;
+      // Stop si on rencontre une section top-level (Tourcoing/Taxes/Lambersart/etc.)
+      // pour éviter de déborder sur la section voisine.
+      const labelLc = label.toLowerCase();
+      if (PENNYLANE_TOP_BOUNDARIES.has(labelLc)) break;
       const key = matchBreakdownKey(label);
       if (key) {
         // Pour 'fonctionnement', plusieurs sous-rows peuvent matcher
@@ -9682,8 +9705,12 @@ async function renderPilotageFunnel() {
         }
         clickClub = cell.club;
       } else if (cell.type === 'tourcoing_ebe') {
-        const ca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
-        const dep = pilotageStoreRead(`__group__|${periodSig}|gdep:tourcoing`);
+        // Tourcoing est désormais un club à part entière. Fallback sur les
+        // anciennes clés grec/gdep si les nouvelles clés sont vides (data legacy).
+        let ca  = pilotageStoreRead(`Tourcoing|${periodSig}|fin:ca_ttc`);
+        let dep = pilotageStoreRead(`Tourcoing|${periodSig}|fin:depenses`);
+        if (ca == null)  ca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
+        if (dep == null) dep = pilotageStoreRead(`__group__|${periodSig}|gdep:tourcoing`);
         if (ca != null && dep != null && ca !== 0) {
           const caHt = ca / 1.20;
           if (caHt !== 0) value = ((caHt - dep) / caHt) * 100;
@@ -9732,15 +9759,14 @@ async function renderPilotageFunnel() {
       const nameEl = document.getElementById('pf-club-detail-name');
       if (nameEl) nameEl.textContent = club;
 
-      // Récupère CA et Dépenses (différent pour Tourcoing = données niveau Groupe)
-      let ca, dep;
+      // Récupère CA et Dépenses (Tourcoing = club normal + fallback legacy)
+      let ca  = pilotageStoreRead(`${club}|${sigPF}|fin:ca_ttc`);
+      let dep = pilotageStoreRead(`${club}|${sigPF}|fin:depenses`);
       const isTourcoing = club === 'Tourcoing';
       if (isTourcoing) {
-        ca  = pilotageStoreRead(`__group__|${sigPF}|grec:tourcoing`);
-        dep = pilotageStoreRead(`__group__|${sigPF}|gdep:tourcoing`);
-      } else {
-        ca  = pilotageStoreRead(`${club}|${sigPF}|fin:ca_ttc`);
-        dep = pilotageStoreRead(`${club}|${sigPF}|fin:depenses`);
+        // Fallback sur ancienne clé groupe si data legacy
+        if (ca == null)  ca  = pilotageStoreRead(`__group__|${sigPF}|grec:tourcoing`);
+        if (dep == null) dep = pilotageStoreRead(`__group__|${sigPF}|gdep:tourcoing`);
       }
       // Cash-flow = variation de trésorerie TTC (encaissements − décaissements)
       const cashflow = (ca != null && dep != null) ? (ca - dep) : null;
@@ -9776,29 +9802,25 @@ async function renderPilotageFunnel() {
         }).join('');
       }
 
-      // Breakdown des dépenses (uniquement pour clubs My Coach, pas pour Tourcoing
-      // qui n'a pas de décomposition par poste dans le fichier Pennylane)
+      // Breakdown des dépenses (Tourcoing inclus — il a ses propres sous-rows
+      // « Masse salariale Tourcoing », « Bâtiment Tourcoing », etc. dans Pennylane)
       const breakdownWrap = document.getElementById('pf-club-detail-breakdown-wrap');
       const breakdownGrid = document.getElementById('pf-club-detail-breakdown');
       if (breakdownWrap && breakdownGrid) {
-        if (isTourcoing) {
-          breakdownWrap.classList.add('hidden');
-        } else {
-          breakdownWrap.classList.remove('hidden');
-          breakdownGrid.innerHTML = PF_DEPENSES_BREAKDOWN.map(cat => {
-            const v = pilotageStoreRead(`${club}|${sigPF}|fin:dep_${cat.key}`);
-            const display = pilotageFormatValue(v, 'eur');
-            const editKey = `${club}|${sigPF}|fin:dep_${cat.key}`;
-            const cls = 'pf-dep-value editable';
-            const attrs = `data-edit-key="${escapeHtml(editKey)}" data-format="eur" tabindex="0" title="Cliquer pour saisir une valeur"`;
-            return `
-              <div class="pf-dep-cell">
-                <span class="pf-dep-label">${escapeHtml(cat.label)}</span>
-                <span class="${cls}" ${attrs}>${display}</span>
-              </div>
-            `;
-          }).join('');
-        }
+        breakdownWrap.classList.remove('hidden');
+        breakdownGrid.innerHTML = PF_DEPENSES_BREAKDOWN.map(cat => {
+          const v = pilotageStoreRead(`${club}|${sigPF}|fin:dep_${cat.key}`);
+          const display = pilotageFormatValue(v, 'eur');
+          const editKey = `${club}|${sigPF}|fin:dep_${cat.key}`;
+          const cls = 'pf-dep-value editable';
+          const attrs = `data-edit-key="${escapeHtml(editKey)}" data-format="eur" tabindex="0" title="Cliquer pour saisir une valeur"`;
+          return `
+            <div class="pf-dep-cell">
+              <span class="pf-dep-label">${escapeHtml(cat.label)}</span>
+              <span class="${cls}" ${attrs}>${display}</span>
+            </div>
+          `;
+        }).join('');
       }
     }
   }
