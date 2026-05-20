@@ -8522,13 +8522,13 @@ const PF_SIDE_INDICATORS = [
   { key: 'surpacks',     label: 'Ventes de surpacks',        format: 'int', agg: 'sum' },
 ];
 
-// Seules CA TTC et Dépenses sont éditables — les autres sont calculées (HT, cash-flow, EBE %).
+// Seules CA et Dépenses sont éditables — les autres sont calculées (HT, cash-flow, EBE %).
 const PF_FINANCIALS = [
-  { key: 'ca_ttc',    label: 'CA TTC',     format: 'eur', tone: 'neutral',   editable: true,  agg: 'sum' },
-  { key: 'ca_ht',     label: 'CA HT',      format: 'eur', tone: 'neutral',   editable: false, hint: '÷ 1,20' },
+  { key: 'ca_ttc',    label: 'CA',         format: 'eur', tone: 'neutral',   editable: true,  agg: 'sum' },
+  { key: 'ca_ht',     label: 'CA HT',      format: 'eur', tone: 'neutral',   editable: false },
   { key: 'depenses',  label: 'Dépenses',   format: 'eur', tone: 'negative',  editable: true,  agg: 'sum' },
   { key: 'cashflow',  label: 'Cash-flow',  format: 'eur', tone: 'highlight', editable: false },
-  { key: 'ebe_pct',   label: 'EBE %',      format: 'pct', tone: 'highlight', editable: false, hint: 'CF ÷ CA HT' },
+  { key: 'ebe_pct',   label: 'EBE %',      format: 'pct', tone: 'highlight', editable: false },
 ];
 
 // État (en mémoire)
