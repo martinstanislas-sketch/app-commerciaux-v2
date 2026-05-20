@@ -8275,17 +8275,6 @@ const PILOTAGE_CATEGORIES = [
       { key: 'ca',          label: 'CA',          format: 'eur', agg: 'sum' },
     ],
   },
-  {
-    key: 'coach_sportif',
-    label: 'Coach sportif',
-    icon: '💪',
-    accent: '#10B981', // emerald
-    kpis: [
-      { key: 'prises_ref', label: 'Prises de ref', format: 'int', agg: 'sum' },
-      { key: 'resultats',  label: 'Résultats',     format: 'int', agg: 'sum' },
-      { key: 'surpacks',   label: 'Surpacks',      format: 'int', agg: 'sum' },
-    ],
-  },
 ];
 
 // État courant de l'onglet (en mémoire seulement, pas de persistance V1)

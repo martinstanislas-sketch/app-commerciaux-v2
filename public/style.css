@@ -9867,7 +9867,7 @@ img {
 /* Cartes catégories — partagent les classes .pilotage-card du tab Pilotage */
 .pf-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 32px;
 }
@@ -10055,7 +10055,7 @@ img {
 /* Synthèse financière */
 .pf-financials {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
 .pf-fin-cell {
@@ -10803,7 +10803,7 @@ img {
 /* ── Category cards — 5 cols, top-border accent ────────────── */
 #tab-pilotage-funnel .pf-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 36px;
 }
