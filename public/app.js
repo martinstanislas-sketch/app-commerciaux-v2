@@ -9676,14 +9676,17 @@ async function renderPilotageFunnel() {
         const ca  = pilotageStoreRead(`${cell.club}|${periodSig}|fin:ca_ttc`);
         const dep = pilotageStoreRead(`${cell.club}|${periodSig}|fin:depenses`);
         if (ca != null && dep != null && ca !== 0) {
-          value = ((ca - dep) / ca) * 100;
+          // EBE en HT : on retire la TVA 20% du CA avant le calcul
+          const caHt = ca / 1.20;
+          if (caHt !== 0) value = ((caHt - dep) / caHt) * 100;
         }
         clickClub = cell.club;
       } else if (cell.type === 'tourcoing_ebe') {
         const ca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
         const dep = pilotageStoreRead(`__group__|${periodSig}|gdep:tourcoing`);
         if (ca != null && dep != null && ca !== 0) {
-          value = ((ca - dep) / ca) * 100;
+          const caHt = ca / 1.20;
+          if (caHt !== 0) value = ((caHt - dep) / caHt) * 100;
         }
         clickClub = 'Tourcoing';
       } else if (cell.type === 'franchise_ca') {
@@ -9739,8 +9742,14 @@ async function renderPilotageFunnel() {
         ca  = pilotageStoreRead(`${club}|${sigPF}|fin:ca_ttc`);
         dep = pilotageStoreRead(`${club}|${sigPF}|fin:depenses`);
       }
+      // Cash-flow = variation de trésorerie TTC (encaissements − décaissements)
       const cashflow = (ca != null && dep != null) ? (ca - dep) : null;
-      const ebe = (ca != null && cashflow != null && ca !== 0) ? (cashflow / ca) * 100 : null;
+      // EBE en HT : CA HT = CA TTC ÷ 1,20, puis (CA HT − Dépenses) ÷ CA HT × 100
+      let ebe = null;
+      if (ca != null && dep != null) {
+        const caHt = ca / 1.20;
+        if (caHt !== 0) ebe = ((caHt - dep) / caHt) * 100;
+      }
 
       // 4 cellules principales
       const main = document.getElementById('pf-club-detail-main');
