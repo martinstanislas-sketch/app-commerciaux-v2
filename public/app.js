@@ -362,7 +362,6 @@ function updateTabVisibility() {
   const mensuelBtn = document.querySelector('[data-tab="mensuel"]');
   const tasksBtn = document.querySelector('[data-tab="tasks"]');
   const persoBtn = document.querySelector('[data-tab="perso"]');
-  const pilotageBtn = document.querySelector('[data-tab="pilotage"]');
   const pilotageFunnelBtn = document.querySelector('[data-tab="pilotage-funnel"]');
 
   if (isPhoneLead()) {
@@ -374,7 +373,6 @@ function updateTabVisibility() {
     if (mensuelBtn) mensuelBtn.style.display = 'none';
     if (tasksBtn) tasksBtn.style.display = 'none';
     if (persoBtn) persoBtn.style.display = 'none';
-    if (pilotageBtn) pilotageBtn.style.display = 'none';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
@@ -386,7 +384,6 @@ function updateTabVisibility() {
     if (mensuelBtn) mensuelBtn.style.display = '';
     if (tasksBtn) tasksBtn.style.display = '';
     if (persoBtn) persoBtn.style.display = '';
-    if (pilotageBtn) pilotageBtn.style.display = '';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else dashBtn.click();
@@ -400,7 +397,6 @@ function updateTabVisibility() {
     if (mensuelBtn) mensuelBtn.style.display = '';
     if (tasksBtn) tasksBtn.style.display = '';
     if (persoBtn) persoBtn.style.display = 'none';
-    if (pilotageBtn) pilotageBtn.style.display = 'none';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else todayBtn.click();
@@ -2210,7 +2206,6 @@ const TAB_ICONS = {
   mensuel: '📅',
   tasks: '✅',
   perso: '💪',
-  pilotage: '🎯',
   'pilotage-funnel': '🔻',
   controle: '🔍',
   'admin-actions': '⚡',
@@ -2223,8 +2218,7 @@ const TAB_SHORT_LABELS = {
   mensuel: 'Récap',
   tasks: 'Tâches',
   perso: 'Perso',
-  pilotage: 'Pilotage',
-  'pilotage-funnel': 'Funnel',
+  'pilotage-funnel': 'Pilotage',
   controle: 'Contrôle',
   'admin-actions': 'Actions',
   notes: 'Notes'
@@ -2311,7 +2305,6 @@ function initTabs() {
       if (btn.dataset.tab === 'phoning-recap') loadPhoningRecap();
       if (btn.dataset.tab === 'perso') loadPersoTab();
       if (btn.dataset.tab === 'tasks') loadTasksBoard();
-      if (btn.dataset.tab === 'pilotage') loadPilotage();
       if (btn.dataset.tab === 'pilotage-funnel') loadPilotageFunnel();
     });
   });
@@ -8344,11 +8337,12 @@ async function fetchPilotageData(/* state */) {
 
 // ── Liste des clubs (V1: liste figée, à brancher sur une API plus tard) ──
 const PILOTAGE_CLUBS = [
-  'Lille Marcq-en-Barœul',
-  'Wasquehal',
   'Neuilly-sur-Seine',
   'Levallois-Perret',
   'Boulogne-Billancourt',
+  'Wasquehal',
+  'Marcq-en-Barœul',
+  'Lille',
 ];
 
 async function fetchPilotageClubs() {
@@ -8762,8 +8756,18 @@ function togglePfPopover(pop, trigger) {
   if (willOpen && trigger) {
     const rect = trigger.getBoundingClientRect();
     pop.style.top = (rect.bottom + window.scrollY + 6) + 'px';
-    pop.style.left = (rect.left + window.scrollX) + 'px';
     pop.style.minWidth = rect.width + 'px';
+    // Position initiale puis clamp dans le viewport pour ne jamais déborder à droite
+    pop.style.left = (rect.left + window.scrollX) + 'px';
+    const popWidth = pop.offsetWidth;
+    const vw = document.documentElement.clientWidth;
+    const MARGIN = 12;
+    let left = rect.left;
+    if (left + popWidth > vw - MARGIN) {
+      // Bascule en alignement droit du popover sur le bord droit du trigger
+      left = Math.max(MARGIN, rect.right - popWidth);
+    }
+    pop.style.left = (left + window.scrollX) + 'px';
   }
 }
 

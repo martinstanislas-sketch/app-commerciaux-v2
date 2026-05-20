@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=fintop1">
+  <link rel="stylesheet" href="style.css?v=clubs6">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -44,7 +44,6 @@
       <button class="tab-btn" data-tab="mensuel">R&eacute;cap mensuel</button>
       <button class="tab-btn active" data-tab="tasks">T&acirc;ches</button>
       <button class="tab-btn" data-tab="perso">Perso</button>
-      <button class="tab-btn" data-tab="pilotage">Pilotage</button>
       <button class="tab-btn" data-tab="pilotage-funnel">Pilotage Funnel</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button> -->
@@ -482,57 +481,6 @@
       </div>
     </section>
 
-    <!-- =================== PILOTAGE (admin) =================== -->
-    <section id="tab-pilotage" class="tab-content">
-      <div class="pilotage-wrap">
-        <header class="pilotage-header">
-          <div>
-            <h2 class="pilotage-title">Pilotage</h2>
-            <p class="pilotage-sub">Vue d'ensemble du funnel commercial My Coach</p>
-          </div>
-          <div class="pilotage-filters" id="pilotage-filters">
-            <div class="pilotage-filter-group">
-              <label class="pilotage-filter-label">Club</label>
-              <select id="pilotage-club" class="pilotage-select">
-                <option value="all">Tous les clubs</option>
-              </select>
-            </div>
-            <div class="pilotage-filter-group">
-              <label class="pilotage-filter-label">Période</label>
-              <div class="pilotage-period" id="pilotage-period">
-                <button class="pilotage-period-btn" data-period="day">Jour</button>
-                <button class="pilotage-period-btn" data-period="week">Semaine</button>
-                <button class="pilotage-period-btn active" data-period="month">Mois</button>
-                <button class="pilotage-period-btn" data-period="quarter">Trimestre</button>
-                <button class="pilotage-period-btn" data-period="custom">Personnalisé</button>
-              </div>
-            </div>
-            <div class="pilotage-filter-group">
-              <label class="pilotage-filter-label">Plage</label>
-              <div class="pilotage-date-nav" id="pilotage-date-nav">
-                <button class="pilotage-date-btn" id="pilotage-prev" title="Période précédente">‹</button>
-                <span class="pilotage-date-label" id="pilotage-date-label">—</span>
-                <button class="pilotage-date-btn" id="pilotage-next" title="Période suivante">›</button>
-              </div>
-              <div class="pf-date-custom hidden" id="pilotage-date-custom">
-                <input type="date" id="pilotage-date-from" class="pf-date-input">
-                <span class="pf-date-sep">→</span>
-                <input type="date" id="pilotage-date-to" class="pf-date-input">
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div class="pilotage-grid" id="pilotage-grid">
-          <!-- Cartes rendues dynamiquement par renderPilotage() -->
-        </div>
-
-        <p class="pilotage-footnote">
-          Version 1 — Structure d'affichage. Les valeurs réelles, objectifs (vert / orange / rouge) et courbes d'évolution seront branchés dans une prochaine itération.
-        </p>
-      </div>
-    </section>
-
     <!-- =================== PILOTAGE FUNNEL (admin) =================== -->
     <section id="tab-pilotage-funnel" class="tab-content">
       <div class="pf-wrap">
@@ -740,6 +688,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=fintop1"></script>
+  <script src="app.js?v=clubs6"></script>
 </body>
 </html>

@@ -9781,7 +9781,8 @@ img {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-width: 200px;
+  min-width: 180px;
+  max-width: 280px;
   height: 38px;
   padding: 0 12px;
   border: 1px solid #e2e8f0;
@@ -9792,6 +9793,15 @@ img {
   color: #0f172a;
   cursor: pointer;
   transition: border-color .15s, box-shadow .15s;
+  overflow: hidden;
+}
+.pf-multi-trigger > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
 }
 .pf-multi-trigger:hover {
   border-color: #6366F1;
@@ -9799,6 +9809,7 @@ img {
 .pf-multi-caret {
   color: #94a3b8;
   font-size: 0.7rem;
+  flex-shrink: 0;
 }
 
 /* Popover multi-select */
