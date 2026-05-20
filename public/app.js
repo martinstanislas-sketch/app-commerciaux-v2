@@ -8556,12 +8556,65 @@ function pfShiftAnchor(period, anchor, dir) {
   return pilotageShiftAnchor(period, anchor, dir);
 }
 
-// ── Source de données (V1: tout vide) ──────────────────────────────
-// Plus tard : fetchPilotageFunnelData({ period, dateAnchor, clubs, compareWith })
-// devra retourner { main: {...}, compare: {...} } avec les mêmes clés que
-// PF_FUNNEL_STAGES, PF_SIDE_INDICATORS, PF_FINANCIALS et PILOTAGE_CATEGORIES.
-async function fetchPilotageFunnelData(/* state */) {
-  return { main: {}, compare: null };
+// ── Source de données ──────────────────────────────────────────────
+// Les valeurs principales sont résolues directement par pilotageResolveValue()
+// au moment du render (lecture localStorage). Ici on calcule uniquement la
+// donnée de comparaison à partir des clubs choisis dans state.compareWith.
+async function fetchPilotageFunnelData(state) {
+  const compareWith = state.compareWith || [];
+  if (compareWith.length === 0) {
+    return { main: {}, compare: null };
+  }
+
+  // Résoudre la liste des clubs à agréger pour la comparaison
+  let compareClubs;
+  if (compareWith.includes('__others__')) {
+    // Moyenne des autres clubs : tous les clubs sauf ceux de la sélection principale
+    const mainClubs = pilotageEffectiveClubs(state);
+    const mainSet = new Set(mainClubs);
+    compareClubs = PILOTAGE_CLUBS.filter(c => !mainSet.has(c));
+  } else {
+    // Cumul de clubs spécifiques
+    compareClubs = compareWith.slice();
+  }
+  if (compareClubs.length === 0) {
+    return { main: {}, compare: null };
+  }
+
+  const periodSig = pilotagePeriodSig(state.period, state.dateAnchor, state.customStart, state.customEnd);
+
+  // Helper : agrège une valeur (sum ou avg) depuis la liste des clubs de comparaison
+  const aggregate = (subKey, format, aggOverride) => {
+    let total = 0, count = 0;
+    for (const c of compareClubs) {
+      const v = pilotageStoreRead(`${c}|${periodSig}|${subKey}`);
+      if (v != null) { total += v; count++; }
+    }
+    if (count === 0) return null;
+    const agg = aggOverride || (format === 'pct' ? 'avg' : 'sum');
+    return agg === 'avg' ? (total / count) : total;
+  };
+
+  // Funnel stages
+  const funnel = {};
+  PF_FUNNEL_STAGES.forEach(s => {
+    funnel[s.key] = aggregate(`fnl:${s.key}`, s.format, s.agg);
+  });
+  // Side indicators
+  const indicators = {};
+  PF_SIDE_INDICATORS.forEach(i => {
+    indicators[i.key] = aggregate(`side:${i.key}`, i.format, i.agg);
+  });
+  // Catégories (pour pouvoir afficher des deltas plus tard si on veut)
+  const categories = {};
+  PILOTAGE_CATEGORIES.forEach(cat => {
+    categories[cat.key] = {};
+    cat.kpis.forEach(k => {
+      categories[cat.key][k.key] = aggregate(`cat:${cat.key}:${k.key}`, k.format, k.agg);
+    });
+  });
+
+  return { main: {}, compare: { funnel, indicators, categories } };
 }
 
 async function fetchPilotageFunnelClubs() {
