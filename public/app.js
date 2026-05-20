@@ -8572,12 +8572,10 @@ const PF_FINANCIALS = [
 const PF_CONSOLIDATED_EBE = [
   { key: 'mycoach',         label: 'EBE My Coach',             scope: ['mycoach'] },
   { key: 'mycoach_franch',  label: 'EBE My Coach + Franchise', scope: ['mycoach', 'franchise'] },
-  // Groupe = entités d'exploitation : 6 My Coach + Franchise + Tourcoing.
-  // On N'INCLUT PAS les lignes Frais Groupe / Taxes / Produit exceptionnel :
-  // par définition, l'EBE (Excédent Brut d'Exploitation) est calculé AVANT
-  // impôts/taxes et hors éléments exceptionnels. Les inclure produisait des
-  // mois artificiellement négatifs (ex: avril → gros acomptes TVA + IS).
-  { key: 'groupe',          label: 'EBE Groupe',               scope: ['mycoach', 'franchise', 'tourcoing'] },
+  // EBE consolidé Groupe = 6 My Coach + Franchise + Tourcoing en recettes,
+  // ET TOUTES les dépenses (clubs + Franchise + Tourcoing + Taxes) SAUF
+  // la ligne « Groupe Gingko Sport » (frais holding, exclus volontairement).
+  { key: 'groupe',          label: 'EBE Groupe',               scope: ['mycoach', 'franchise', 'tourcoing', 'taxes'] },
 ];
 
 // Les 6 clubs My Coach (sans Tourcoing) — utilisés pour les agrégats
@@ -8627,6 +8625,15 @@ function pilotageConsolidatedEbeBreakdown(periodSig, scopeArr) {
     if (tca != null)  { totalCa += tca; hasAny = true; }
     if (tdep != null) { totalDep += tdep; hasAny = true; }
   }
+  // Lignes additionnelles côté dépenses (pas de CA associé)
+  // « Taxes » : décaissements fiscaux (IS, TVA, etc.) — inclus dans l'EBE
+  // consolidé Groupe selon la définition utilisateur, mais PAS dans My Coach
+  // ni My Coach + Franchise.
+  if (scopeArr.includes('taxes')) {
+    const taxDep = pilotageStoreRead(`__group__|${periodSig}|gdep:taxes`);
+    entries.push({ label: 'Taxes', ca: null, dep: taxDep, group: 'Autres dépenses' });
+    if (taxDep != null) { totalDep += taxDep; hasAny = true; }
+  }
   const caHt = totalCa / 1.20;
   let ebe = null;
   if (hasAny && totalCa !== 0 && caHt !== 0) {
@@ -8636,43 +8643,11 @@ function pilotageConsolidatedEbeBreakdown(periodSig, scopeArr) {
 }
 
 function pilotageConsolidatedEbe(periodSig, scopeArr) {
-  let totalCa = 0, totalDep = 0, hasAny = false;
-  // Étape 1 : Σ CA et Σ Dépenses des 6 clubs My Coach
-  if (scopeArr.includes('mycoach')) {
-    for (const club of PF_MYCOACH_CLUBS) {
-      const ca  = pilotageStoreRead(`${club}|${periodSig}|fin:ca_ttc`);
-      const dep = pilotageStoreRead(`${club}|${periodSig}|fin:depenses`);
-      if (ca != null)  { totalCa += ca; hasAny = true; }
-      if (dep != null) { totalDep += dep; hasAny = true; }
-    }
-  }
-  // Étape 2 : Σ CA et Σ Dépenses Franchise (lignes Pennylane « Franchisés My Coach by Ginkgo »
-  // en encaissements, « Franchise My Coach by Ginkgo » en décaissements)
-  if (scopeArr.includes('franchise')) {
-    const fca  = pilotageStoreRead(`__group__|${periodSig}|grec:franchises`);
-    const fdep = pilotageStoreRead(`__group__|${periodSig}|gdep:franchise`);
-    if (fca != null)  { totalCa += fca; hasAny = true; }
-    if (fdep != null) { totalDep += fdep; hasAny = true; }
-  }
-  // Étape 3 : Σ CA et Σ Dépenses Tourcoing (club à part entière + fallback legacy
-  // sur les anciennes clés grec/gdep si les nouvelles ne sont pas peuplées)
-  if (scopeArr.includes('tourcoing')) {
-    let tca  = pilotageStoreRead(`Tourcoing|${periodSig}|fin:ca_ttc`);
-    let tdep = pilotageStoreRead(`Tourcoing|${periodSig}|fin:depenses`);
-    if (tca  == null) tca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
-    if (tdep == null) tdep = pilotageStoreRead(`__group__|${periodSig}|gdep:tourcoing`);
-    if (tca != null)  { totalCa += tca; hasAny = true; }
-    if (tdep != null) { totalDep += tdep; hasAny = true; }
-  }
-  // (Pas d'étape 4 « lignes Groupe » : Frais Groupe, Taxes et Produit exceptionnel
-  // sont volontairement exclus du scope EBE — ils ne relèvent pas de l'exploitation
-  // courante au sens de l'EBE.)
-  if (!hasAny || totalCa === 0) return null;
-  // Étape 5 : conversion TVA une seule fois sur le total agrégé
-  const caHt = totalCa / 1.20;
-  if (caHt === 0) return null;
-  // Étape 6 : EBE consolidé = (Σ CA_HT − Σ Dépenses) / Σ CA_HT × 100
-  return ((caHt - totalDep) / caHt) * 100;
+  // Source unique de vérité : on délègue au breakdown (qui sait gérer le
+  // scope 'taxes' et toute future extension) et on retourne le ratio final.
+  const b = pilotageConsolidatedEbeBreakdown(periodSig, scopeArr);
+  if (!b.hasAny || b.totalCa === 0) return null;
+  return b.ebe;
 }
 
 // Cellules affichées dans la Synthèse financière : 6 EBE clubs + EBE Ginkgo Sport + CA Franchise
@@ -9964,8 +9939,10 @@ async function renderPilotageFunnel() {
           const fmtEur = (v) => pilotageFormatValue(v, 'eur');
           const fmtPct = (v) => pilotageFormatValue(v, 'pct');
           const ebeClass = (b.ebe != null && b.ebe >= 0) ? 'pf-fin-positive' : (b.ebe != null ? 'pf-fin-negative' : '');
-          // Regroupe les entrées par "group" (My Coach / Franchise / Tourcoing)
-          const groupsOrder = ['My Coach', 'Franchise', 'Tourcoing'];
+          // Regroupe les entrées par "group" (My Coach / Franchise / Tourcoing /
+          // Autres dépenses comme Taxes). L'ordre garantit l'affichage logique :
+          // recettes opérationnelles d'abord, dépenses additionnelles en bas.
+          const groupsOrder = ['My Coach', 'Franchise', 'Tourcoing', 'Autres dépenses'];
           const grouped = {};
           for (const e of b.entries) {
             grouped[e.group] = grouped[e.group] || [];
