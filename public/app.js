@@ -9147,20 +9147,35 @@ function importPennylaneIntoStore(parsed) {
 // ═══════════════════════════════════════════════════════════════════
 
 const CHECKUP_CLUB_MAP = {
-  'levallois':         'Levallois-Perret',
-  'levallois-perret':  'Levallois-Perret',
-  'neuilly':           'Neuilly-sur-Seine',
-  'neuilly-sur-seine': 'Neuilly-sur-Seine',
-  'boulogne':          'Boulogne-Billancourt',
-  'bb':                'Boulogne-Billancourt',
-  'wasquehal':         'Wasquehal',
-  'lille':             'Lille',
-  'lille fa':          'Lille',
-  'marcq':             'Marcq-en-Barœul',
-  'marcq fa':          'Marcq-en-Barœul',
-  'marcq-en-baroeul':  'Marcq-en-Barœul',
-  'marcq-en-barœul':   'Marcq-en-Barœul',
-  'tourcoing':         'Tourcoing',
+  'levallois':           'Levallois-Perret',
+  'levallois-perret':    'Levallois-Perret',
+  'levallois perret':    'Levallois-Perret',
+  'levallois fa':        'Levallois-Perret',
+  'lvl':                 'Levallois-Perret',
+  'lev':                 'Levallois-Perret',
+  'neuilly':             'Neuilly-sur-Seine',
+  'neuilly-sur-seine':   'Neuilly-sur-Seine',
+  'neuilly sur seine':   'Neuilly-sur-Seine',
+  'neuilly fa':          'Neuilly-sur-Seine',
+  'boulogne':            'Boulogne-Billancourt',
+  'boulogne-billancourt':'Boulogne-Billancourt',
+  'boulogne billancourt':'Boulogne-Billancourt',
+  'boulogne fa':         'Boulogne-Billancourt',
+  'bb':                  'Boulogne-Billancourt',
+  'wasquehal':           'Wasquehal',
+  'wasquehal fa':        'Wasquehal',
+  'lille':               'Lille',
+  'lille fa':            'Lille',
+  'vieux lille':         'Lille',
+  'marcq':               'Marcq-en-Barœul',
+  'marcq fa':            'Marcq-en-Barœul',
+  'marcq-en-baroeul':    'Marcq-en-Barœul',
+  'marcq-en-barœul':     'Marcq-en-Barœul',
+  'marcq en baroeul':    'Marcq-en-Barœul',
+  'marcq en barœul':     'Marcq-en-Barœul',
+  'tourcoing':           'Tourcoing',
+  'tourcoing fa':        'Tourcoing',
+  'ginkgo sport':        'Tourcoing',
 };
 
 const CHECKUP_MONTHS_FR = {
@@ -9362,47 +9377,88 @@ function parseCheckUpXlsx(arrayBuffer, fileName = '') {
   // semaine/jour). On collecte TOUTES les colonnes étiquetées, puis pour chaque
   // club on additionne les valeurs des colonnes Dispo d'un côté, des colonnes
   // Rempli de l'autre. Le taux = somme(Rempli) ÷ somme(Dispo) × 100.
+  //
+  // Le libellé du club peut se trouver dans n'importe quelle colonne du début
+  // de ligne (col 0, 1, 2, …), pas forcément col 0 — on scanne donc les 4 ou
+  // 5 premières colonnes à la recherche d'un match dans CHECKUP_CLUB_MAP.
   const coachSheet = wb.Sheets['COACH'] || wb.Sheets['Coach'] || wb.Sheets['coach'];
   if (coachSheet && primaryMonth) {
     const rows = XLSX.utils.sheet_to_json(coachSheet, { header: 1, defval: null });
     const sig = `month-${defaultYear}-${String(primaryMonth).padStart(2, '0')}`;
-    // Détecte toutes les colonnes Dispo / Rempli en scannant les 15 premières lignes
+    // Détecte toutes les colonnes Dispo / Rempli en scannant les 20 premières lignes
     const dispoCols = [];
     const rempliCols = [];
-    const headerScanMax = Math.min(rows.length, 15);
+    const headerScanMax = Math.min(rows.length, 20);
     for (let i = 0; i < headerScanMax; i++) {
       const row = rows[i] || [];
       for (let c = 0; c < row.length; c++) {
         const cell = String(row[c] || '').trim().toLowerCase();
-        if (cell === 'dispo' || cell === 'dispos' || cell === 'disponible' || cell === 'disponibles') {
+        if (cell === 'dispo' || cell === 'dispos' || cell === 'disponible' || cell === 'disponibles'
+            || cell === 'capacité' || cell === 'capacite' || cell === 'places') {
           if (!dispoCols.includes(c)) dispoCols.push(c);
-        } else if (cell === 'rempli' || cell === 'remplis' || cell === 'remplie' || cell === 'remplies') {
+        } else if (cell === 'rempli' || cell === 'remplis' || cell === 'remplie' || cell === 'remplies'
+            || cell === 'inscrits' || cell === 'inscrit') {
           if (!rempliCols.includes(c)) rempliCols.push(c);
         }
       }
     }
+    // Trouve dans une ligne le libellé club (scan des 6 premières colonnes
+    // pour gérer le cas où col 0 = date/coach/horaire et le club est en col 1+)
+    const findClubInRow = (row) => {
+      const maxCol = Math.min(row.length, 6);
+      for (let c = 0; c < maxCol; c++) {
+        const lbl = String(row[c] || '').trim().toLowerCase();
+        if (!lbl) continue;
+        const m = CHECKUP_CLUB_MAP[lbl];
+        if (m) return m;
+        // Match partiel : ex. "Levallois - Bd Bineau" → on trouve « levallois »
+        for (const [key, club] of Object.entries(CHECKUP_CLUB_MAP)) {
+          if (key.length >= 5 && lbl.includes(key)) return club;
+        }
+      }
+      return null;
+    };
     if (dispoCols.length > 0 && rempliCols.length > 0) {
       const sumsByClub = {}; // { club: { dispo, rempli } }
+      const unmatchedLabels = new Set();
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i] || [];
-        const lbl = String(row[0] || '').trim().toLowerCase();
-        const club = CHECKUP_CLUB_MAP[lbl];
-        if (!club) continue;
-        sumsByClub[club] = sumsByClub[club] || { dispo: 0, rempli: 0 };
+        const club = findClubInRow(row);
+        if (!club) {
+          // Collecte les libellés non-matchés pour debug
+          const firstLabel = String(row[0] || '').trim();
+          if (firstLabel && Number.isNaN(Number(firstLabel))) {
+            unmatchedLabels.add(firstLabel);
+          }
+          continue;
+        }
+        sumsByClub[club] = sumsByClub[club] || { dispo: 0, rempli: 0, rowCount: 0 };
+        let touchedRow = false;
         for (const c of dispoCols) {
           const v = Number(row[c]);
-          if (!Number.isNaN(v)) sumsByClub[club].dispo += v;
+          if (!Number.isNaN(v)) { sumsByClub[club].dispo += v; touchedRow = true; }
         }
         for (const c of rempliCols) {
           const v = Number(row[c]);
-          if (!Number.isNaN(v)) sumsByClub[club].rempli += v;
+          if (!Number.isNaN(v)) { sumsByClub[club].rempli += v; touchedRow = true; }
         }
+        if (touchedRow) sumsByClub[club].rowCount++;
+      }
+      // Log debug pour identifier rapidement les clubs manquants
+      console.log('[CHECK UP / COACH] colonnes Dispo:', dispoCols, '· colonnes Rempli:', rempliCols);
+      console.log('[CHECK UP / COACH] sommes par club:', sumsByClub);
+      if (unmatchedLabels.size > 0) {
+        console.warn('[CHECK UP / COACH] libellés col 0 non reconnus comme club :',
+          Array.from(unmatchedLabels));
       }
       for (const [club, s] of Object.entries(sumsByClub)) {
         if (s.dispo > 0) {
           ensure(sig, club).remplissage = (s.rempli / s.dispo) * 100; // → %
         }
       }
+    } else {
+      console.warn('[CHECK UP / COACH] colonnes Dispo / Rempli introuvables — fallback Récapitulatif',
+        '· dispoCols:', dispoCols, '· rempliCols:', rempliCols);
     }
   }
 
