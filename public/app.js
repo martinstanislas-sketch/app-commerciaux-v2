@@ -9120,17 +9120,19 @@ function parseCheckUpXlsx(arrayBuffer, fileName = '') {
       const coutMarketing = Number(row[1]);
       const leads         = Number(row[2]);
       const rdv           = Number(row[4]);
-      const showUpRate    = Number(row[5]); // taux SHOW UP (0-1)
-      const transfoRate   = Number(row[8]); // taux conversion M1 (0-1)
+      const showUpRate    = Number(row[5]);  // taux SHOW UP (0-1)
+      const transfoRate   = Number(row[8]);  // taux conversion M1 (0-1)
       const ventes        = Number(row[9]);
+      const retentionRate = Number(row[13]); // Taux rétention (0-1)
 
       const sig = `month-${defaultYear}-${String(currentMonthNum).padStart(2, '0')}`;
       const d = ensure(sig, club);
-      if (!Number.isNaN(leads))       d.leads     = leads;
-      if (!Number.isNaN(rdv))         d.rdv_fixes = rdv;
-      if (!Number.isNaN(ventes))      d.ventes    = ventes;
-      if (!Number.isNaN(transfoRate)) d.transfo   = transfoRate * 100; // → %
-      if (!Number.isNaN(showUpRate))  d.show_up   = showUpRate * 100;  // → %
+      if (!Number.isNaN(leads))       d.leads       = leads;
+      if (!Number.isNaN(rdv))         d.rdv_fixes   = rdv;
+      if (!Number.isNaN(ventes))      d.ventes      = ventes;
+      if (!Number.isNaN(transfoRate)) d.transfo     = transfoRate * 100;          // → %
+      if (!Number.isNaN(showUpRate))  d.show_up     = showUpRate * 100;           // → %
+      if (!Number.isNaN(retentionRate)) d.resiliation = (1 - retentionRate) * 100; // → % (1 - taux rétention)
       if (!Number.isNaN(coutMarketing) && !Number.isNaN(leads)  && leads  > 0) d.cpl = coutMarketing / leads;
       if (!Number.isNaN(coutMarketing) && !Number.isNaN(ventes) && ventes > 0) d.cac = coutMarketing / ventes;
     }
@@ -9199,6 +9201,7 @@ function importCheckUpIntoStore(parsed) {
     non_traites: 'cat:phoning:non_traites',
     transfo:     'cat:conseillers:transfo',
     show_up:     'cat:conseillers:show_up',
+    resiliation: 'cat:coach_leader:resiliation',
     remplissage: 'cat:coach_leader:remplissage',
   };
   // Aussi alimenter le funnel
