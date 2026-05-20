@@ -10431,17 +10431,135 @@ img {
   box-shadow: none;
 }
 
-/* Header de la Synthèse financière — titre à gauche + nav mois à droite */
+/* Header de la Synthèse financière — titre / toggle scope / nav mois */
 #tab-pilotage-funnel .pf-financials-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
   flex-wrap: wrap;
 }
 #tab-pilotage-funnel .pf-financials-head .pf-section-title {
   margin: 0;
+  margin-right: auto;
+}
+
+/* Toggle scope My Coach / Groupe */
+#tab-pilotage-funnel .pf-scope-toggle {
+  display: inline-flex;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+  padding: 2px;
+}
+#tab-pilotage-funnel .pf-scope-btn {
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--ds-fg-3);
+  cursor: pointer;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+  white-space: nowrap;
+}
+#tab-pilotage-funnel .pf-scope-btn:hover { color: var(--ds-fg-1); }
+#tab-pilotage-funnel .pf-scope-btn.active {
+  background: var(--ds-fg-1);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Carte Recettes complémentaires */
+#tab-pilotage-funnel .pf-grec-card {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 28px 18px;
+  margin-bottom: 32px;
+  box-shadow: none;
+}
+#tab-pilotage-funnel .pf-grec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+#tab-pilotage-funnel .pf-grec-head .pf-section-title {
+  margin: 0;
+}
+#tab-pilotage-funnel .pf-grec-sub {
+  font-size: 11.5px;
+  color: var(--ds-fg-4);
+  font-weight: 500;
+}
+#tab-pilotage-funnel .pf-grec-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+}
+#tab-pilotage-funnel .pf-grec-cell {
+  padding: 4px 18px;
+  border-right: 1px solid var(--ds-border-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+#tab-pilotage-funnel .pf-grec-cell:last-child { border-right: 0; }
+#tab-pilotage-funnel .pf-grec-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+#tab-pilotage-funnel .pf-grec-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ds-fg-1);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+#tab-pilotage-funnel .pf-grec-value.editable {
+  cursor: text;
+  border-bottom: 1.5px dashed transparent;
+  border-radius: 4px;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+  padding: 0 2px;
+}
+#tab-pilotage-funnel .pf-grec-value.editable:hover {
+  border-bottom-color: var(--ds-primary-500);
+  color: var(--ds-primary-700);
+}
+
+@media (max-width: 1100px) {
+  #tab-pilotage-funnel .pf-grec-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+  #tab-pilotage-funnel .pf-grec-cell {
+    border-right: 0;
+    padding: 8px 0;
+  }
+}
+@media (max-width: 700px) {
+  #tab-pilotage-funnel .pf-grec-grid {
+    grid-template-columns: 1fr;
+  }
 }
 #tab-pilotage-funnel .pf-fin-nav {
   display: inline-flex;

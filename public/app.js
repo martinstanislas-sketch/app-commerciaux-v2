@@ -8055,6 +8055,26 @@ function pilotageStoreWrite(key, value) {
   } catch (_) {}
 }
 
+// Lit une valeur niveau Groupe (top-level Pennylane, indépendant des clubs)
+function pilotageReadGroup(periodSig, subKey) {
+  return pilotageStoreRead(`__group__|${periodSig}|${subKey}`);
+}
+
+// Totaux niveau Groupe pour une période (somme des recettes ou des dépenses)
+function pilotageGroupTotals(periodSig) {
+  let totalRec = 0, recCount = 0;
+  for (const r of PF_GROUP_RECETTES) {
+    const v = pilotageReadGroup(periodSig, `grec:${r.key}`);
+    if (v != null) { totalRec += v; recCount++; }
+  }
+  let totalDep = 0, depCount = 0;
+  for (const d of PF_GROUP_DEPENSES) {
+    const v = pilotageReadGroup(periodSig, `gdep:${d.key}`);
+    if (v != null) { totalDep += v; depCount++; }
+  }
+  return { recettes: recCount > 0 ? totalRec : null, depenses: depCount > 0 ? totalDep : null, recCount, depCount };
+}
+
 // Formate une Date JS en YYYY-MM-DD en LOCAL (évite le shift UTC qui causait
 // un décalage de ±1 jour en France lors de l'utilisation de toISOString()).
 function pilotageToLocalISODate(d) {
@@ -8540,6 +8560,23 @@ const PF_FINANCIALS = [
   { key: 'ebe_pct',   label: 'EBE',        format: 'pct', tone: 'highlight', editable: false },
 ];
 
+// Recettes complémentaires niveau Groupe (Pennylane → rows hors My Coach by Ginkgo)
+const PF_GROUP_RECETTES = [
+  { key: 'tourcoing',      label: 'Tourcoing',            pennylane: 'ginkgo sport',                section: 'enc' },
+  { key: 'franchises',     label: 'Franchisés',           pennylane: 'franchisés my coach by ginkgo', section: 'enc' },
+  { key: 'subv_apprentis', label: 'Subv. apprentis',      pennylane: 'subvention apprentis',        section: 'enc', under: 'groupe gingko sport' },
+  { key: 'recouvrement',   label: 'Recouvrement',         pennylane: 'recouvrement créances',       section: 'enc', under: 'groupe gingko sport' },
+  { key: 'produit_except', label: 'Produit exceptionnel', pennylane: 'produit exceptionnel',        section: 'enc', under: 'groupe gingko sport' },
+];
+
+// Dépenses Groupe (hors clubs My Coach)
+const PF_GROUP_DEPENSES = [
+  { key: 'groupe',    label: 'Frais Groupe',  pennylane: 'groupe gingko sport',           section: 'dec' },
+  { key: 'tourcoing', label: 'Tourcoing',     pennylane: 'ginkgo sport',                  section: 'dec' },
+  { key: 'franchise', label: 'Franchise',     pennylane: 'franchise my coach by ginkgo', section: 'dec' },
+  { key: 'taxes',     label: 'Taxes',         pennylane: 'taxes',                         section: 'dec' },
+];
+
 // Décomposition des dépenses — cliquable sous la cellule Dépenses
 const PF_DEPENSES_BREAKDOWN = [
   { key: 'salaire',        label: 'Masse salariale',         keywords: ['masse salariale'] },
@@ -8556,6 +8593,7 @@ let pilotageFunnelState = {
   customEnd: '',
   clubs: ['all'],          // ['all'] ou liste de noms
   compareWith: [],         // [] = pas de compare, ['__others__'] = moyenne du groupe (tous clubs), ou liste de noms
+  scope: 'mycoach',        // 'mycoach' (6 clubs commerciaux) | 'group' (consolidé : clubs + Tourcoing + franchisés + frais Groupe + taxes)
 };
 
 // Cache des clubs disponibles
@@ -8841,6 +8879,64 @@ function parsePennylaneXlsx(arrayBuffer) {
       }
     }
   }
+
+  // 5. Extraire les valeurs niveau GROUPE (top-level rows en Encaissements / Décaissements)
+  // Helper : trouver une ligne par label exact (lowercase trimmed) dans une plage
+  const findRowExact = (startIdx, endIdx, target) => {
+    const tgt = target.trim().toLowerCase();
+    for (let i = startIdx; i < endIdx; i++) {
+      const lbl = String((rows[i] || [])[0] || '').trim().toLowerCase();
+      if (lbl === tgt) return i;
+    }
+    return -1;
+  };
+  // Trouver la fin de section Encaissements/Décaissements pour scoper la recherche
+  const decEnd = (() => {
+    // Cherche la prochaine ligne "Trésorerie en fin" ou "Opérations" après decStart
+    for (let i = decStart + 1; i < rows.length; i++) {
+      const lbl = String((rows[i] || [])[0] || '').trim().toLowerCase();
+      if (lbl.startsWith('trésorerie en fin') || lbl.startsWith('opérations des comptes') || lbl.startsWith('opérations')) return i;
+    }
+    return rows.length;
+  })();
+
+  result.group = {}; // monthSig → { grec:tourcoing, grec:franchises, ..., gdep:groupe, gdep:taxes, ... }
+  for (const [sig, col] of Object.entries(monthColumns)) {
+    const g = {};
+
+    // Recettes niveau Groupe
+    for (const r of PF_GROUP_RECETTES) {
+      let rowIdx = -1;
+      if (r.under) {
+        // Sous-ligne : trouver d'abord la ligne parente, puis chercher dedans
+        const parentIdx = findRowExact(encStart + 1, decStart, r.under);
+        if (parentIdx > 0) {
+          // Le scope se termine au prochain top-level (autre section parente)
+          // Pour simplifier, on cherche dans les 30 lignes suivantes
+          rowIdx = findRowExact(parentIdx + 1, Math.min(parentIdx + 30, decStart), r.pennylane);
+        }
+      } else {
+        // Ligne top-level dans Encaissements
+        rowIdx = findRowExact(encStart + 1, decStart, r.pennylane);
+      }
+      if (rowIdx > 0) {
+        const v = Number((rows[rowIdx] || [])[col]);
+        if (!Number.isNaN(v)) g[`grec:${r.key}`] = v;
+      }
+    }
+
+    // Dépenses niveau Groupe
+    for (const d of PF_GROUP_DEPENSES) {
+      const rowIdx = findRowExact(decStart + 1, decEnd, d.pennylane);
+      if (rowIdx > 0) {
+        const v = Number((rows[rowIdx] || [])[col]);
+        if (!Number.isNaN(v)) g[`gdep:${d.key}`] = v;
+      }
+    }
+
+    if (Object.keys(g).length > 0) result.group[sig] = g;
+  }
+
   return result;
 }
 
@@ -8862,7 +8958,6 @@ function importPennylaneIntoStore(parsed) {
         monthsTouched.add(sig);
         clubsTouched.add(club);
       }
-      // Breakdown dépenses
       for (const cat of PF_DEPENSES_BREAKDOWN) {
         const v = values[`dep_${cat.key}`];
         if (v != null) {
@@ -8874,7 +8969,24 @@ function importPennylaneIntoStore(parsed) {
       }
     }
   }
-  return { valuesWritten, monthsCount: monthsTouched.size, clubsCount: clubsTouched.size, monthsTouched: Array.from(monthsTouched) };
+  // Valeurs niveau Groupe (stockées sous pseudo-club __group__)
+  let groupValuesWritten = 0;
+  if (parsed.group) {
+    for (const [sig, gvalues] of Object.entries(parsed.group)) {
+      for (const [subKey, v] of Object.entries(gvalues)) {
+        pilotageStoreWrite(`__group__|${sig}|${subKey}`, v);
+        groupValuesWritten++;
+        monthsTouched.add(sig);
+      }
+    }
+  }
+  return {
+    valuesWritten: valuesWritten + groupValuesWritten,
+    monthsCount: monthsTouched.size,
+    clubsCount: clubsTouched.size,
+    groupValues: groupValuesWritten,
+    monthsTouched: Array.from(monthsTouched),
+  };
 }
 
 async function handlePennylaneFileImport(file) {
@@ -8959,6 +9071,16 @@ async function loadPilotageFunnel() {
       renderPilotageFunnel();
     });
   }
+
+  // Bind toggle scope (My Coach / Groupe consolidé)
+  document.querySelectorAll('#pf-scope-toggle .pf-scope-btn').forEach(btn => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      pilotageFunnelState.scope = btn.dataset.scope;
+      renderPilotageFunnel();
+    });
+  });
 
   // Bind nav mois dans la Synthèse financière — force le mode 'month' et shift d'un mois
   const finPrev = document.getElementById('pf-fin-prev');
@@ -9361,15 +9483,27 @@ async function renderPilotageFunnel() {
   // Synthèse financière (CA TTC + Dépenses éditables, le reste calculé)
   const fin = document.getElementById('pf-financials');
   if (fin) {
-    // Récupère les valeurs éditables stockées
+    // Récupère les valeurs éditables stockées (My Coach = somme des clubs)
     const resTtc = pilotageResolveValue(pilotageFunnelState, 'fin:ca_ttc', 'eur', 'sum');
     const resDep = pilotageResolveValue(pilotageFunnelState, 'fin:depenses', 'eur', 'sum');
-    const caTtc = resTtc.value;
-    const depenses = resDep.value;
+    let caTtc = resTtc.value;
+    let depenses = resDep.value;
+
+    // Mode Groupe consolidé : ajouter les totaux niveau Groupe
+    if (pilotageFunnelState.scope === 'group') {
+      const periodSig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+      const totals = pilotageGroupTotals(periodSig);
+      if (totals.recettes != null) {
+        caTtc = (caTtc || 0) + totals.recettes;
+      }
+      if (totals.depenses != null) {
+        depenses = (depenses || 0) + totals.depenses;
+      }
+    }
+
     // Calculs dérivés
     const caHt = (caTtc != null) ? caTtc / 1.20 : null;
     const cashflow = (caHt != null && depenses != null) ? (caHt - depenses) : null;
-    // EBE % = Cash-flow / CA HT × 100 (marge d'EBE)
     const ebePct = (cashflow != null && caHt != null && caHt !== 0) ? (cashflow / caHt) * 100 : null;
 
     const cellMap = {
@@ -9428,6 +9562,30 @@ async function renderPilotageFunnel() {
       `;
     }).join('');
   }
+
+  // Render carte « Recettes complémentaires » (niveau Groupe)
+  const grecGrid = document.getElementById('pf-grec-grid');
+  if (grecGrid) {
+    const periodSig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+    grecGrid.innerHTML = PF_GROUP_RECETTES.map(r => {
+      const v = pilotageReadGroup(periodSig, `grec:${r.key}`);
+      const display = pilotageFormatValue(v, 'eur');
+      const editKey = `__group__|${periodSig}|grec:${r.key}`;
+      const cls = 'pf-grec-value editable';
+      const attrs = `data-edit-key="${escapeHtml(editKey)}" data-format="eur" tabindex="0" title="Cliquer pour saisir une valeur"`;
+      return `
+        <div class="pf-grec-cell">
+          <span class="pf-grec-label">${escapeHtml(r.label)}</span>
+          <span class="${cls}" ${attrs}>${display}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Synchronise les boutons du toggle scope avec l'état
+  document.querySelectorAll('#pf-scope-toggle .pf-scope-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.scope === pilotageFunnelState.scope);
+  });
 
   // Render du panel breakdown des dépenses
   const breakdownGrid = document.getElementById('pf-dep-breakdown-grid');
