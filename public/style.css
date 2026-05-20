@@ -12584,3 +12584,526 @@ body.tk-dragging-active #tab-tasks .tk-card {
   #tab-dashboard .add-rep-form input,
   #tab-dashboard .add-rep-form select { width: 100%; min-width: 0; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   VENTES — Redesign cockpit-business (Design System v1)
+   Source: design-system/ui_kits/suivi-commerciaux/ventes.css
+   Scopé à #tab-ventes. Table data-dense + status pills + filters.
+   ══════════════════════════════════════════════════════════════════ */
+
+#tab-ventes {
+  /* Tokens locaux */
+  --ds-bg-app:        #F7F8FA;
+  --ds-bg-subtle:     #F1F3F7;
+  --ds-bg-card:       #FFFFFF;
+  --ds-bg-card-soft:  #FAFBFC;
+
+  --ds-fg-1: #0F172A;
+  --ds-fg-2: #334155;
+  --ds-fg-3: #64748B;
+  --ds-fg-4: #94A3B8;
+
+  --ds-border-1: #E2E8F0;
+  --ds-border-2: #EDF1F5;
+  --ds-border-strong: #CBD5E1;
+
+  --ds-primary-500: #6366F1;
+  --ds-primary-600: #4F46E5;
+  --ds-primary-700: #4338CA;
+  --ds-primary-tint:  rgba(99,102,241,0.08);
+
+  --ds-success-500: #10B981;
+  --ds-success-700: #047857;
+  --ds-success-tint: rgba(16,185,129,0.10);
+
+  --ds-warning-500: #F59E0B;
+  --ds-warning-700: #B45309;
+  --ds-warning-tint: rgba(245,158,11,0.12);
+
+  --ds-danger-500: #EF4444;
+  --ds-danger-700: #B91C1C;
+  --ds-danger-tint: rgba(239,68,68,0.10);
+
+  --ds-dur-fast: 120ms;
+  --ds-dur-base: 180ms;
+  --ds-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  padding: 28px 28px 64px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: transparent;
+}
+
+/* ── Week nav toolbar (filters) ─────────────────────────────── */
+#tab-ventes .week-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+#tab-ventes .week-nav #v-prev-week,
+#tab-ventes .week-nav #v-next-week {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 8px;
+  color: var(--ds-fg-3);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease),
+              color var(--ds-dur-fast) var(--ds-ease);
+  box-shadow: none;
+}
+#tab-ventes .week-nav #v-prev-week:hover,
+#tab-ventes .week-nav #v-next-week:hover {
+  border-color: var(--ds-fg-3);
+  color: var(--ds-fg-1);
+}
+#tab-ventes .week-nav #v-week-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  text-transform: capitalize;
+  min-width: 220px;
+  padding: 0 8px;
+}
+#tab-ventes .week-nav #v-week-picker,
+#tab-ventes .week-nav #v-filter-rep {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+#tab-ventes .week-nav #v-week-picker:focus,
+#tab-ventes .week-nav #v-filter-rep:focus {
+  outline: none;
+  border-color: var(--ds-primary-500);
+  box-shadow: 0 0 0 3px var(--ds-primary-tint);
+}
+#tab-ventes .week-nav .btn-toggle-rib {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ds-fg-2);
+  cursor: pointer;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+  margin-left: auto;
+  box-shadow: none;
+}
+#tab-ventes .week-nav .btn-toggle-rib:hover {
+  border-color: var(--ds-fg-3);
+}
+#tab-ventes .week-nav .btn-toggle-rib.active {
+  background: var(--ds-danger-tint);
+  color: var(--ds-danger-700);
+  border-color: color-mix(in oklab, var(--ds-danger-500) 30%, transparent);
+}
+
+/* ── Actions row (Ajouter une vente / Export Excel) ─────────── */
+#tab-ventes .v-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+#tab-ventes #btn-add-sale,
+#tab-ventes .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ds-fg-1);
+  background: var(--ds-fg-1);
+  color: #fff;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition: background var(--ds-dur-fast) var(--ds-ease);
+  box-shadow: none;
+}
+#tab-ventes #btn-add-sale:hover,
+#tab-ventes .btn-primary:hover {
+  background: #1E293B;
+  border-color: #1E293B;
+}
+#tab-ventes #btn-export-xls,
+#tab-ventes .btn-export-xls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  color: var(--ds-fg-1);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease);
+  box-shadow: none;
+}
+#tab-ventes #btn-export-xls:hover,
+#tab-ventes .btn-export-xls:hover {
+  border-color: var(--ds-fg-3);
+}
+
+/* ── Stats summary bar ──────────────────────────────────────── */
+#tab-ventes #ventes-stats-bar {
+  margin-bottom: 18px;
+}
+#tab-ventes .sc-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 18px 24px;
+}
+#tab-ventes .sc-stat-card {
+  padding: 0 22px 0 0;
+  border-right: 1px solid var(--ds-border-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  position: relative;
+  background: transparent;
+  box-shadow: none;
+}
+#tab-ventes .sc-stat-card:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+#tab-ventes .sc-stat-card + .sc-stat-card { padding-left: 22px; }
+#tab-ventes .sc-stat-icon {
+  font-size: 14px;
+  opacity: 0.55;
+  margin-bottom: 2px;
+}
+#tab-ventes .sc-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-4);
+}
+#tab-ventes .sc-stat-value {
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--ds-fg-1);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+#tab-ventes .sc-stat-sub {
+  font-size: 11.5px;
+  color: var(--ds-fg-3);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+/* Accents : ne reprennent pas les pastels, juste un dot sémantique */
+#tab-ventes .sc-stat-card.accent-green .sc-stat-value { color: var(--ds-success-700); }
+#tab-ventes .sc-stat-card.accent-orange .sc-stat-value { color: var(--ds-warning-700); }
+#tab-ventes .sc-stat-card.accent-red .sc-stat-value { color: var(--ds-danger-700); }
+#tab-ventes .sc-stat-card.accent-blue .sc-stat-value { color: var(--ds-primary-700); }
+
+/* ── Table ──────────────────────────────────────────────────── */
+#tab-ventes .sales-table-wrap {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: none;
+}
+#tab-ventes #sales-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: transparent;
+}
+#tab-ventes #sales-table thead th {
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card-soft);
+  white-space: nowrap;
+  user-select: none;
+}
+#tab-ventes #sales-table thead th.sortable { cursor: pointer; }
+#tab-ventes #sales-table thead th.sortable:hover { color: var(--ds-fg-1); }
+#tab-ventes #sales-table thead th.sorted-asc,
+#tab-ventes #sales-table thead th.sorted-desc {
+  color: var(--ds-fg-1);
+}
+#tab-ventes #sales-table thead th .sort-icon {
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--ds-fg-4);
+  font-size: 10px;
+}
+#tab-ventes #sales-table thead th.sorted-asc .sort-icon::after { content: '▲'; color: var(--ds-fg-1); }
+#tab-ventes #sales-table thead th.sorted-desc .sort-icon::after { content: '▼'; color: var(--ds-fg-1); }
+#tab-ventes #sales-table thead th.th-actions { text-align: right; padding-right: 18px; }
+
+#tab-ventes #sales-table tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--ds-border-2);
+  color: var(--ds-fg-1);
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+#tab-ventes #sales-table tbody tr:last-child td { border-bottom: 0; }
+#tab-ventes #sales-table tbody tr:hover td { background: var(--ds-bg-subtle); }
+#tab-ventes #sales-table tbody tr.sale-not-validated td {
+  background: rgba(245,158,11,0.04);
+}
+#tab-ventes #sales-table tbody tr.sale-not-validated:hover td {
+  background: rgba(245,158,11,0.08);
+}
+#tab-ventes #sales-table tbody td:nth-child(1) {
+  color: var(--ds-fg-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+#tab-ventes #sales-table tbody td:nth-child(2) { font-weight: 600; }
+#tab-ventes #sales-table tbody td:nth-child(3) { font-weight: 700; text-align: left; }
+#tab-ventes #sales-table tbody td:nth-child(4),
+#tab-ventes #sales-table tbody td:nth-child(5) { font-weight: 600; }
+
+/* RIB badges */
+#tab-ventes .rib-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+#tab-ventes .rib-recu {
+  background: var(--ds-success-tint);
+  color: var(--ds-success-700);
+}
+#tab-ventes .rib-attente {
+  background: var(--ds-warning-tint);
+  color: var(--ds-warning-700);
+}
+#tab-ventes .rib-non-fourni {
+  background: var(--ds-danger-tint);
+  color: var(--ds-danger-700);
+}
+
+/* Validation badges */
+#tab-ventes .validation-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+#tab-ventes .validation-badge.validated {
+  background: var(--ds-success-tint);
+  color: var(--ds-success-700);
+}
+#tab-ventes .validation-badge.pending {
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-3);
+}
+
+/* Cellule Remarque inline-editable */
+#tab-ventes .sale-remark-cell {
+  color: var(--ds-fg-3);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+  font-weight: 500;
+}
+#tab-ventes .sale-remark-cell:not(.sale-remark-readonly):hover {
+  background: var(--ds-primary-tint);
+  color: var(--ds-primary-700);
+}
+#tab-ventes .sale-remark-readonly {
+  cursor: default;
+}
+#tab-ventes .remark-placeholder {
+  color: var(--ds-fg-4);
+  font-style: italic;
+}
+
+/* Cellule de relances (R1/R2/R3 + Valider) */
+#tab-ventes #sales-table tbody td.relance-actions,
+#tab-ventes #sales-table tbody td.actions {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+#tab-ventes .btn-relance {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  color: var(--ds-fg-2);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  margin-right: 4px;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+}
+#tab-ventes .btn-relance:hover:not(:disabled) {
+  border-color: var(--ds-fg-3);
+  color: var(--ds-fg-1);
+}
+#tab-ventes .btn-relance:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+#tab-ventes .btn-valider-rib,
+#tab-ventes .btn-validate {
+  background: var(--ds-success-tint) !important;
+  color: var(--ds-success-700) !important;
+  border-color: color-mix(in oklab, var(--ds-success-500) 30%, transparent) !important;
+}
+#tab-ventes .btn-unvalidate {
+  background: var(--ds-warning-tint) !important;
+  color: var(--ds-warning-700) !important;
+  border-color: color-mix(in oklab, var(--ds-warning-500) 30%, transparent) !important;
+}
+#tab-ventes .btn-r1,
+#tab-ventes .btn-r2,
+#tab-ventes .btn-r3 {
+  background: var(--ds-bg-card);
+}
+#tab-ventes .btn-r3:not(:disabled) {
+  background: var(--ds-danger-tint);
+  color: var(--ds-danger-700);
+  border-color: color-mix(in oklab, var(--ds-danger-500) 30%, transparent);
+}
+
+/* Actions Modifier/Supprimer */
+#tab-ventes .btn-sm {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  color: var(--ds-fg-2);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: -0.005em;
+  margin-right: 4px;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+}
+#tab-ventes .btn-sm:hover:not(:disabled) {
+  border-color: var(--ds-fg-3);
+  color: var(--ds-fg-1);
+}
+#tab-ventes .btn-sm.danger {
+  color: var(--ds-danger-700);
+}
+#tab-ventes .btn-sm.danger:hover {
+  background: var(--ds-danger-tint);
+  border-color: color-mix(in oklab, var(--ds-danger-500) 30%, transparent);
+}
+
+/* Empty state row */
+#tab-ventes .empty-state-row td {
+  padding: 60px 24px !important;
+  text-align: center;
+  background: var(--ds-bg-card-soft);
+}
+#tab-ventes .empty-state-row .empty-state-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  letter-spacing: -0.005em;
+  margin-bottom: 4px;
+}
+#tab-ventes .empty-state-row .empty-state-desc {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ds-fg-3);
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  #tab-ventes .sc-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    padding: 14px 18px;
+  }
+  #tab-ventes .sc-stat-card {
+    border-right: 0;
+    border-bottom: 1px solid var(--ds-border-2);
+    padding: 0 0 12px;
+  }
+  #tab-ventes .sc-stat-card:nth-last-child(-n+2) {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+  #tab-ventes .sc-stat-card + .sc-stat-card { padding-left: 0; }
+}
+@media (max-width: 768px) {
+  #tab-ventes { padding: 18px 14px 80px; }
+  #tab-ventes .week-nav { gap: 6px; }
+  #tab-ventes .week-nav #v-week-label { min-width: 0; flex: 1; }
+  #tab-ventes .week-nav .btn-toggle-rib { margin-left: 0; width: 100%; justify-content: center; }
+  #tab-ventes .sc-stats-row { grid-template-columns: 1fr; }
+  #tab-ventes .sales-table-wrap { overflow-x: auto; }
+  #tab-ventes #sales-table { min-width: 760px; }
+}
