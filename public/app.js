@@ -8555,7 +8555,7 @@ let pilotageFunnelState = {
   customStart: '',
   customEnd: '',
   clubs: ['all'],          // ['all'] ou liste de noms
-  compareWith: [],         // [] = pas de compare, ['__others__'] = moyenne autres clubs, ou liste de noms
+  compareWith: [],         // [] = pas de compare, ['__others__'] = moyenne du groupe (tous clubs), ou liste de noms
 };
 
 // Cache des clubs disponibles
@@ -8587,10 +8587,9 @@ async function fetchPilotageFunnelData(state) {
   // Résoudre la liste des clubs à agréger pour la comparaison
   let compareClubs;
   if (compareWith.includes('__others__')) {
-    // Moyenne des autres clubs : tous les clubs sauf ceux de la sélection principale
-    const mainClubs = pilotageEffectiveClubs(state);
-    const mainSet = new Set(mainClubs);
-    compareClubs = PILOTAGE_CLUBS.filter(c => !mainSet.has(c));
+    // Moyenne du groupe : moyenne sur TOUS les clubs (incluant le club sélectionné),
+    // pour comparer la performance d'un club à la performance globale du réseau.
+    compareClubs = PILOTAGE_CLUBS.slice();
   } else {
     // Cumul de clubs spécifiques
     compareClubs = compareWith.slice();
@@ -9114,7 +9113,7 @@ async function initPfMultiSelectors() {
         <input type="radio" name="pf-cmp" data-cmp="none" checked> <span>Aucune comparaison</span>
       </label>
       <label class="pf-popover-row">
-        <input type="radio" name="pf-cmp" data-cmp="others"> <span>Moyenne des autres clubs</span>
+        <input type="radio" name="pf-cmp" data-cmp="others"> <span>Moyenne du groupe</span>
       </label>
       <div class="pf-popover-divider"></div>
       <div class="pf-popover-hint">Cumul de clubs spécifiques :</div>
@@ -9203,7 +9202,7 @@ function summarizeClubs(arr) {
 
 function summarizeCompare(arr) {
   if (!arr || arr.length === 0) return 'Aucune comparaison';
-  if (arr[0] === '__others__') return 'Moyenne des autres clubs';
+  if (arr[0] === '__others__') return 'Moyenne du groupe';
   if (arr.length === 1) return arr[0];
   if (arr.length <= 3) return arr.join(' + ');
   return `${arr.length} clubs cumulés`;
