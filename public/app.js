@@ -8055,6 +8055,15 @@ function pilotageStoreWrite(key, value) {
   } catch (_) {}
 }
 
+// Formate une Date JS en YYYY-MM-DD en LOCAL (évite le shift UTC qui causait
+// un décalage de ±1 jour en France lors de l'utilisation de toISOString()).
+function pilotageToLocalISODate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // Signature de période → utilisée dans la clé de stockage pour qu'un mois,
 // une semaine, un trimestre, etc. soient distincts.
 function pilotagePeriodSig(period, anchorISO, customStart, customEnd) {
@@ -8324,7 +8333,8 @@ function pilotageShiftAnchor(period, anchorISO, dir /* -1 | +1 */) {
   if (period === 'week')    d.setDate(d.getDate() + 7 * dir);
   if (period === 'month')   d.setMonth(d.getMonth() + dir);
   if (period === 'quarter') d.setMonth(d.getMonth() + 3 * dir);
-  return d.toISOString().slice(0, 10);
+  // IMPORTANT : format local pour éviter le shift UTC (-1/-2 jours selon fuseau)
+  return pilotageToLocalISODate(d);
 }
 
 // ── Source de données (V1: tout vide) ───────────────────────────────
@@ -8533,7 +8543,7 @@ const PF_FINANCIALS = [
 // État (en mémoire)
 let pilotageFunnelState = {
   period: 'month',         // 'day' | 'week' | 'month' | 'quarter' | 'custom'
-  dateAnchor: new Date().toISOString().slice(0, 10),
+  dateAnchor: pilotageToLocalISODate(new Date()),
   customStart: '',
   customEnd: '',
   clubs: ['all'],          // ['all'] ou liste de noms
@@ -8804,8 +8814,8 @@ async function loadPilotageFunnel() {
       if (pilotageFunnelState.period === 'custom' && (!pilotageFunnelState.customStart || !pilotageFunnelState.customEnd)) {
         const today = new Date();
         const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
-        pilotageFunnelState.customStart = monthAgo.toISOString().slice(0, 10);
-        pilotageFunnelState.customEnd = today.toISOString().slice(0, 10);
+        pilotageFunnelState.customStart = pilotageToLocalISODate(monthAgo);
+        pilotageFunnelState.customEnd = pilotageToLocalISODate(today);
       }
       renderPilotageFunnel();
     });
@@ -8835,13 +8845,13 @@ async function loadPilotageFunnel() {
     dateLbl.style.cursor = 'pointer';
     dateLbl.title = "Cliquer pour revenir à aujourd'hui";
     dateLbl.addEventListener('click', () => {
-      pilotageFunnelState.dateAnchor = new Date().toISOString().slice(0, 10);
+      pilotageFunnelState.dateAnchor = pilotageToLocalISODate(new Date());
       // En mode custom on remet aussi les bornes au dernier mois
       if (pilotageFunnelState.period === 'custom') {
         const today = new Date();
         const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
-        pilotageFunnelState.customStart = monthAgo.toISOString().slice(0, 10);
-        pilotageFunnelState.customEnd = today.toISOString().slice(0, 10);
+        pilotageFunnelState.customStart = pilotageToLocalISODate(monthAgo);
+        pilotageFunnelState.customEnd = pilotageToLocalISODate(today);
       }
       renderPilotageFunnel();
     });
