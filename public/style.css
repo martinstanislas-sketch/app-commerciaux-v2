@@ -11475,12 +11475,17 @@ img {
   position: relative;
   z-index: 2;
   border-radius: 8px;
-  padding: 14px 20px;
+  padding: 12px 18px;
   color: #fff;
+  /* Layout vertical : label au-dessus, valeur (+ chips) en dessous,
+     pour garantir que la valeur reste lisible même quand la barre est étroite
+     (ex: Ventes en bas du funnel). */
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 60px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  min-height: 70px;
   background: var(--ds-primary-500) !important;
   background-image: none !important;
   box-shadow: none;
@@ -11495,6 +11500,7 @@ img {
   letter-spacing: 0.10em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.85);
+  line-height: 1;
 }
 #tab-pilotage-funnel .pf-funnel-bar-value {
   font-size: 24px;
@@ -11502,6 +11508,7 @@ img {
   letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
   color: #fff;
+  line-height: 1.05;
 }
 
 /* Ghost compare bar — version visible avec fond hachuré + label "vs" */
@@ -11537,13 +11544,13 @@ img {
   text-transform: uppercase;
 }
 
-/* Stats à droite de la barre (valeur principale + delta + valeur compare) */
+/* Stats sous le label dans la barre (valeur principale + delta + valeur compare) */
 #tab-pilotage-funnel .pf-funnel-bar-stats {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 #tab-pilotage-funnel .pf-funnel-bar-cmp {
   font-size: 11.5px;
