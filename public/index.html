@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-pf-2kpi1">
+  <link rel="stylesheet" href="style.css?v=ds-pf-scope2">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -518,8 +518,8 @@
           <div class="pf-financials-head">
             <h3 class="pf-section-title">Synthèse financière</h3>
             <div class="pf-scope-toggle" id="pf-scope-toggle" role="tablist" aria-label="Périmètre">
-              <button class="pf-scope-btn active" data-scope="mycoach" type="button">My Coach (6 clubs)</button>
-              <button class="pf-scope-btn" data-scope="group" type="button">Groupe consolidé</button>
+              <button class="pf-scope-btn" data-scope="mycoach" type="button" title="Afficher My Coach (somme des clubs). Cliquer à nouveau pour désélectionner.">My Coach (6 clubs)</button>
+              <button class="pf-scope-btn" data-scope="group" type="button" title="Afficher Groupe consolidé (My Coach + Tourcoing + franchisés + frais Groupe + taxes). Cliquer à nouveau pour désélectionner.">Groupe consolidé</button>
             </div>
             <div class="pf-fin-nav" id="pf-fin-nav">
               <button class="pf-date-btn" id="pf-fin-prev" title="Mois précédent" type="button">‹</button>
@@ -719,6 +719,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-pf-2kpi1"></script>
+  <script src="app.js?v=ds-pf-scope2"></script>
 </body>
 </html>

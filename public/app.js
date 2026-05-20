@@ -8579,7 +8579,7 @@ let pilotageFunnelState = {
   customEnd: '',
   clubs: ['all'],          // ['all'] ou liste de noms
   compareWith: [],         // [] = pas de compare, ['__others__'] = moyenne du groupe (tous clubs), ou liste de noms
-  scope: 'mycoach',        // 'mycoach' (6 clubs commerciaux) | 'group' (consolidé : clubs + Tourcoing + franchisés + frais Groupe + taxes)
+  scope: 'none',           // 'none' (par défaut, rien affiché sauf si club spécifique) | 'mycoach' | 'group'
 };
 
 // Cache des clubs disponibles
@@ -9257,12 +9257,17 @@ async function loadPilotageFunnel() {
     });
   }
 
-  // Bind toggle scope (My Coach / Groupe consolidé)
+  // Bind toggle scope (My Coach / Groupe consolidé) — clic sur l'actif = désélection
   document.querySelectorAll('#pf-scope-toggle .pf-scope-btn').forEach(btn => {
     if (btn.dataset.bound) return;
     btn.dataset.bound = '1';
     btn.addEventListener('click', () => {
-      pilotageFunnelState.scope = btn.dataset.scope;
+      // Si déjà actif → désélectionne (passe à 'none')
+      if (pilotageFunnelState.scope === btn.dataset.scope) {
+        pilotageFunnelState.scope = 'none';
+      } else {
+        pilotageFunnelState.scope = btn.dataset.scope;
+      }
       renderPilotageFunnel();
     });
   });
@@ -9668,11 +9673,21 @@ async function renderPilotageFunnel() {
   // Synthèse financière (CA TTC + Dépenses éditables, le reste calculé)
   const fin = document.getElementById('pf-financials');
   if (fin) {
+    // Détermine si l'on a un club SPÉCIFIQUE sélectionné (≠ tous, ≠ multi)
+    const clubsArr = pilotageFunnelState.clubs || [];
+    const hasSpecificClub = clubsArr.length === 1 && clubsArr[0] !== 'all';
+
     // Récupère les valeurs éditables stockées (My Coach = somme des clubs)
     const resTtc = pilotageResolveValue(pilotageFunnelState, 'fin:ca_ttc', 'eur', 'sum');
     const resDep = pilotageResolveValue(pilotageFunnelState, 'fin:depenses', 'eur', 'sum');
     let caTtc = resTtc.value;
     let depenses = resDep.value;
+
+    // Si scope='none' ET pas de club spécifique → on masque les valeurs (rien affiché)
+    if (pilotageFunnelState.scope === 'none' && !hasSpecificClub) {
+      caTtc = null;
+      depenses = null;
+    }
 
     // Mode Groupe consolidé : ajouter les totaux niveau Groupe
     if (pilotageFunnelState.scope === 'group') {
