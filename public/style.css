@@ -10179,9 +10179,9 @@ img {
 
 /* ── Page wrapper & head ─────────────────────────────────────── */
 #tab-pilotage-funnel .pf-wrap {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 36px 28px 64px;
+  max-width: 100%;
+  margin: 0;
+  padding: 36px 36px 64px;
 }
 #tab-pilotage-funnel .pf-header {
   display: flex;
