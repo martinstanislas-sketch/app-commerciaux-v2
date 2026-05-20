@@ -9412,6 +9412,7 @@ function importCheckUpIntoStore(parsed) {
     transfo:     'side:transfo',
     resiliation: 'side:resiliation',
   };
+  let catCount = 0, fnlCount = 0, sideCount = 0;
   for (const [sig, perClub] of Object.entries(parsed.data)) {
     for (const [club, values] of Object.entries(perClub)) {
       for (const [k, v] of Object.entries(values)) {
@@ -9419,22 +9420,28 @@ function importCheckUpIntoStore(parsed) {
         if (v == null || Number.isNaN(Number(v))) continue;
         if (MAP[k]) {
           pilotageStoreWrite(`${club}|${sig}|${MAP[k]}`, v);
-          valuesWritten++;
+          valuesWritten++; catCount++;
         }
         if (FUNNEL_MAP[k]) {
           pilotageStoreWrite(`${club}|${sig}|${FUNNEL_MAP[k]}`, v);
-          valuesWritten++;
+          valuesWritten++; fnlCount++;
         }
         if (SIDE_MAP[k]) {
           pilotageStoreWrite(`${club}|${sig}|${SIDE_MAP[k]}`, v);
-          valuesWritten++;
+          valuesWritten++; sideCount++;
         }
         monthsTouched.add(sig);
         clubsTouched.add(club);
       }
     }
   }
-  return { valuesWritten, monthsCount: monthsTouched.size, clubsCount: clubsTouched.size, monthsTouched: Array.from(monthsTouched) };
+  return {
+    valuesWritten,
+    monthsCount: monthsTouched.size,
+    clubsCount: clubsTouched.size,
+    monthsTouched: Array.from(monthsTouched),
+    catCount, fnlCount, sideCount,
+  };
 }
 
 async function handlePennylaneFileImport(file) {
@@ -9465,9 +9472,32 @@ async function handlePennylaneFileImport(file) {
         return;
       }
       const monthLabels = months.sort().map(s => s.replace('month-', '')).join(', ');
-      if (!confirm(`Import Check Up (KPIs commerciaux) :\n\n• ${months.length} mois : ${monthLabels}\n• Alimente : Leads, CPL (€/jour PROSPECTION), CAC, RDV pris, RDV venus, Show Up, No-show, Transfo, Non traités, Remplissage, Résiliation (nb brut)\n\nLes valeurs existantes pour ces mois seront remplacées. Continuer ?`)) return;
+      if (!confirm(
+        `Import Check Up (KPIs commerciaux) :\n\n`
+        + `• ${months.length} mois : ${monthLabels}\n\n`
+        + `Funnel de performance :\n`
+        + `  · Leads générés (col leads)\n`
+        + `  · RDV pris (col RDV)\n`
+        + `  · RDV venus (Show Up × RDV pris)\n`
+        + `  · Ventes (col ventes)\n\n`
+        + `Indicateurs latéraux :\n`
+        + `  · Coût par lead (Σ €/jour de l'onglet PROSPECTION ÷ leads)\n`
+        + `  · Taux de no-show (1 − Show Up)\n`
+        + `  · Taux de transformation (taux conversion M1)\n`
+        + `  · Résiliation (nb brut, colonne « Résiliation »)\n\n`
+        + `Cartes catégories : Marketing, Phoning, Conseillers, Coach leader.\n\n`
+        + `Les valeurs existantes pour ces mois seront remplacées. Continuer ?`
+      )) return;
       const s = importCheckUpIntoStore(parsed);
-      alert(`Import Check Up réussi ✓\n\n• ${s.valuesWritten} valeurs alimentées\n• ${s.monthsCount} mois · ${s.clubsCount} clubs\n\nMois : ${s.monthsTouched.map(x => x.replace('month-', '')).join(', ')}`);
+      alert(
+        `Import Check Up réussi ✓\n\n`
+        + `• ${s.valuesWritten} valeurs alimentées\n`
+        + `   – ${s.fnlCount}  étapes funnel\n`
+        + `   – ${s.sideCount}  indicateurs latéraux (CPL, no-show, transfo, résiliation)\n`
+        + `   – ${s.catCount}  KPIs de cartes catégories\n`
+        + `• ${s.monthsCount} mois · ${s.clubsCount} clubs\n\n`
+        + `Mois : ${s.monthsTouched.map(x => x.replace('month-', '')).join(', ')}`
+      );
     } else {
       alert("Type de fichier non reconnu.\n\nFormats attendus :\n• Pennylane : Plan de trésorerie (.xlsx avec feuille « Plan de trésorerie »)\n• Check Up : KPIs commerciaux (.xlsx avec feuilles « conversion » + « APPEL » + « Récapitulatif »)");
       return;
