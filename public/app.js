@@ -8664,6 +8664,24 @@ async function loadPilotageFunnel() {
       renderPilotageFunnel();
     });
   }
+  // Bind clic sur le label : retour à aujourd'hui (1 clic = reset à today)
+  const dateLbl = document.getElementById('pf-date-label');
+  if (dateLbl && !dateLbl.dataset.bound) {
+    dateLbl.dataset.bound = '1';
+    dateLbl.style.cursor = 'pointer';
+    dateLbl.title = "Cliquer pour revenir à aujourd'hui";
+    dateLbl.addEventListener('click', () => {
+      pilotageFunnelState.dateAnchor = new Date().toISOString().slice(0, 10);
+      // En mode custom on remet aussi les bornes au dernier mois
+      if (pilotageFunnelState.period === 'custom') {
+        const today = new Date();
+        const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
+        pilotageFunnelState.customStart = monthAgo.toISOString().slice(0, 10);
+        pilotageFunnelState.customEnd = today.toISOString().slice(0, 10);
+      }
+      renderPilotageFunnel();
+    });
+  }
 
   // Bind champs date custom
   const fromInput = document.getElementById('pf-date-from');
