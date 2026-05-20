@@ -8522,12 +8522,13 @@ const PF_SIDE_INDICATORS = [
   { key: 'surpacks',     label: 'Ventes de surpacks',        format: 'int', agg: 'sum' },
 ];
 
-// Seules CA TTC et Dépenses sont éditables — les autres sont calculées (HT, cash-flow).
+// Seules CA TTC et Dépenses sont éditables — les autres sont calculées (HT, cash-flow, EBE %).
 const PF_FINANCIALS = [
   { key: 'ca_ttc',    label: 'CA TTC',     format: 'eur', tone: 'neutral',   editable: true,  agg: 'sum' },
   { key: 'ca_ht',     label: 'CA HT',      format: 'eur', tone: 'neutral',   editable: false, hint: '÷ 1,20' },
   { key: 'depenses',  label: 'Dépenses',   format: 'eur', tone: 'negative',  editable: true,  agg: 'sum' },
   { key: 'cashflow',  label: 'Cash-flow',  format: 'eur', tone: 'highlight', editable: false },
+  { key: 'ebe_pct',   label: 'EBE %',      format: 'pct', tone: 'highlight', editable: false, hint: 'CF ÷ CA HT' },
 ];
 
 // État (en mémoire)
@@ -8938,12 +8939,15 @@ async function renderPilotageFunnel() {
     // Calculs dérivés
     const caHt = (caTtc != null) ? caTtc / 1.20 : null;
     const cashflow = (caHt != null && depenses != null) ? (caHt - depenses) : null;
+    // EBE % = Cash-flow / CA HT × 100 (marge d'EBE)
+    const ebePct = (cashflow != null && caHt != null && caHt !== 0) ? (cashflow / caHt) * 100 : null;
 
     const cellMap = {
       ca_ttc:   { resolved: resTtc, value: caTtc },
       ca_ht:    { value: caHt,    editable: false },
       depenses: { resolved: resDep, value: depenses },
       cashflow: { value: cashflow, editable: false },
+      ebe_pct:  { value: ebePct,  editable: false },
     };
 
     fin.innerHTML = PF_FINANCIALS.map(f => {
