@@ -8565,20 +8565,39 @@ const PF_FINANCIALS = [
 
 // Cellules consolidées affichées dans la carte « EBE consolidés » au-dessus de la Synthèse.
 // Chaque scope définit quels CA et Dépenses additionner (en TTC) ; l'EBE est ensuite
-// calculé en HT (CA HT = CA TTC ÷ 1,20).
+// calculé en HT sur le total : on N'AGRÈGE JAMAIS d'EBE individuels (pas de moyenne
+// de pourcentages). On somme TOUTES les recettes, on somme TOUTES les dépenses,
+// puis on applique la formule EBE = (Σ CA_HT − Σ Dépenses) / Σ CA_HT × 100
+// avec Σ CA_HT = (Σ CA_TTC) ÷ 1,20.
 const PF_CONSOLIDATED_EBE = [
-  { key: 'mycoach',         label: 'EBE My Coach',           scope: ['mycoach'] },
+  { key: 'mycoach',         label: 'EBE My Coach',             scope: ['mycoach'] },
   { key: 'mycoach_franch',  label: 'EBE My Coach + Franchise', scope: ['mycoach', 'franchise'] },
-  { key: 'groupe',          label: 'EBE Groupe',             scope: ['mycoach', 'franchise', 'tourcoing'] },
+  // Groupe = TOUTES les entités du holding → 6 My Coach + Franchise + Tourcoing
+  // + les lignes Groupe (Produit exceptionnel en recettes, Frais Groupe + Taxes
+  // en dépenses) pour refléter le « vrai » EBE consolidé du groupe.
+  { key: 'groupe',          label: 'EBE Groupe',               scope: ['mycoach', 'franchise', 'tourcoing', 'group'] },
 ];
 
 // Les 6 clubs My Coach (sans Tourcoing) — utilisés pour les agrégats
 const PF_MYCOACH_CLUBS = ['Lille', 'Levallois-Perret', 'Boulogne-Billancourt', 'Marcq-en-Barœul', 'Wasquehal', 'Neuilly-sur-Seine'];
 
-// Calcule l'EBE consolidé pour un scope donné (CA et Dépenses agrégés en TTC,
-// puis EBE = (CA_HT − Dépenses) / CA_HT × 100 avec CA_HT = CA / 1,20)
+// Calcule l'EBE consolidé pour un scope donné.
+//
+// PRINCIPE (important — ne PAS confondre avec une moyenne d'EBE) :
+//   1. On agrège (somme arithmétique) TOUTES les recettes (CA TTC) du scope
+//      → `totalCa`
+//   2. On agrège (somme arithmétique) TOUTES les dépenses du scope
+//      → `totalDep`
+//   3. On applique UNE SEULE fois la conversion TVA : Σ CA_HT = Σ CA_TTC ÷ 1,20
+//   4. EBE consolidé = (Σ CA_HT − Σ Dépenses) / Σ CA_HT × 100
+//
+// On ne calcule JAMAIS l'EBE de chaque club séparément pour ensuite faire une
+// moyenne — la moyenne arithmétique des pourcentages ne donne pas le même
+// résultat qu'un EBE calculé sur les totaux (et c'est cette dernière valeur
+// qui a un sens financier).
 function pilotageConsolidatedEbe(periodSig, scopeArr) {
   let totalCa = 0, totalDep = 0, hasAny = false;
+  // Étape 1 : Σ CA et Σ Dépenses des 6 clubs My Coach
   if (scopeArr.includes('mycoach')) {
     for (const club of PF_MYCOACH_CLUBS) {
       const ca  = pilotageStoreRead(`${club}|${periodSig}|fin:ca_ttc`);
@@ -8587,14 +8606,17 @@ function pilotageConsolidatedEbe(periodSig, scopeArr) {
       if (dep != null) { totalDep += dep; hasAny = true; }
     }
   }
+  // Étape 2 : Σ CA et Σ Dépenses Franchise (lignes Pennylane « Franchisés My Coach by Ginkgo »
+  // en encaissements, « Franchise My Coach by Ginkgo » en décaissements)
   if (scopeArr.includes('franchise')) {
     const fca  = pilotageStoreRead(`__group__|${periodSig}|grec:franchises`);
     const fdep = pilotageStoreRead(`__group__|${periodSig}|gdep:franchise`);
     if (fca != null)  { totalCa += fca; hasAny = true; }
     if (fdep != null) { totalDep += fdep; hasAny = true; }
   }
+  // Étape 3 : Σ CA et Σ Dépenses Tourcoing (club à part entière + fallback legacy
+  // sur les anciennes clés grec/gdep si les nouvelles ne sont pas peuplées)
   if (scopeArr.includes('tourcoing')) {
-    // Tourcoing comme club (+ fallback legacy sur grec/gdep)
     let tca  = pilotageStoreRead(`Tourcoing|${periodSig}|fin:ca_ttc`);
     let tdep = pilotageStoreRead(`Tourcoing|${periodSig}|fin:depenses`);
     if (tca  == null) tca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
@@ -8602,9 +8624,22 @@ function pilotageConsolidatedEbe(periodSig, scopeArr) {
     if (tca != null)  { totalCa += tca; hasAny = true; }
     if (tdep != null) { totalDep += tdep; hasAny = true; }
   }
+  // Étape 4 : lignes niveau Groupe (uniquement pour l'EBE Groupe consolidé)
+  // — Recettes : Produit exceptionnel (subv apprentis + recouvrement + ...)
+  // — Dépenses : Frais Groupe + Taxes
+  if (scopeArr.includes('group')) {
+    const gRecExcept = pilotageStoreRead(`__group__|${periodSig}|grec:produit_except`);
+    const gDepGroupe = pilotageStoreRead(`__group__|${periodSig}|gdep:groupe`);
+    const gDepTaxes  = pilotageStoreRead(`__group__|${periodSig}|gdep:taxes`);
+    if (gRecExcept != null) { totalCa  += gRecExcept; hasAny = true; }
+    if (gDepGroupe != null) { totalDep += gDepGroupe; hasAny = true; }
+    if (gDepTaxes  != null) { totalDep += gDepTaxes;  hasAny = true; }
+  }
   if (!hasAny || totalCa === 0) return null;
+  // Étape 5 : conversion TVA une seule fois sur le total agrégé
   const caHt = totalCa / 1.20;
   if (caHt === 0) return null;
+  // Étape 6 : EBE consolidé = (Σ CA_HT − Σ Dépenses) / Σ CA_HT × 100
   return ((caHt - totalDep) / caHt) * 100;
 }
 
