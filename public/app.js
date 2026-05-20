@@ -8527,7 +8527,7 @@ const PF_FINANCIALS = [
   { key: 'ca_ttc',    label: 'CA',         format: 'eur', tone: 'neutral',   editable: true,  agg: 'sum' },
   { key: 'depenses',  label: 'Dépenses',   format: 'eur', tone: 'negative',  editable: true,  agg: 'sum' },
   { key: 'cashflow',  label: 'Cash-flow',  format: 'eur', tone: 'highlight', editable: false },
-  { key: 'ebe_pct',   label: 'EBE %',      format: 'pct', tone: 'highlight', editable: false },
+  { key: 'ebe_pct',   label: 'EBE',        format: 'pct', tone: 'highlight', editable: false },
 ];
 
 // État (en mémoire)
