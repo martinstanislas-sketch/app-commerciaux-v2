@@ -10564,11 +10564,179 @@ img {
 }
 #tab-pilotage-funnel .pf-club-detail-breakdown-head {
   margin-bottom: 14px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+#tab-pilotage-funnel .pf-club-detail-breakdown-head .pf-dep-breakdown-hint {
+  font-size: 11px;
+  color: var(--ds-fg-4);
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 #tab-pilotage-funnel .pf-club-detail-breakdown {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
+}
+
+/* ── Breakdown : cellules cliquables (carte détail club) ───────── */
+#tab-pilotage-funnel .pf-club-detail-breakdown .pf-dep-cell--clickable {
+  position: relative;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background var(--ds-dur-fast) var(--ds-ease),
+              box-shadow var(--ds-dur-fast) var(--ds-ease);
+}
+#tab-pilotage-funnel .pf-club-detail-breakdown .pf-dep-cell--clickable:hover {
+  background: var(--ds-bg-elev-1, rgba(99, 102, 241, 0.04));
+}
+#tab-pilotage-funnel .pf-club-detail-breakdown .pf-dep-cell--clickable:focus-visible {
+  outline: 2px solid var(--ds-primary-500);
+  outline-offset: -2px;
+}
+#tab-pilotage-funnel .pf-club-detail-breakdown .pf-dep-cell--clickable.is-open {
+  background: rgba(99, 102, 241, 0.08);
+  box-shadow: inset 0 -2px 0 var(--ds-primary-500);
+}
+#tab-pilotage-funnel .pf-club-detail-breakdown .pf-dep-cell--clickable.has-items .pf-dep-label::after {
+  content: '';
+}
+#tab-pilotage-funnel .pf-club-detail-breakdown .pf-dep-cell--clickable:not(.has-items) {
+  cursor: default;
+  opacity: 0.85;
+}
+#tab-pilotage-funnel .pf-club-detail-breakdown .pf-dep-caret {
+  font-size: 11px;
+  color: var(--ds-primary-500);
+  line-height: 1;
+  margin-top: 2px;
+}
+
+/* ── Panel des lignes détaillées (items Pennylane) ────────────── */
+#tab-pilotage-funnel .pf-club-detail-items.hidden { display: none !important; }
+#tab-pilotage-funnel .pf-club-detail-items {
+  margin-top: 16px;
+  background: var(--ds-bg-elev-1, #f8f9fc);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 10px;
+  padding: 14px 16px 12px;
+  animation: pfItemsFade 180ms var(--ds-ease, ease-out) both;
+}
+@keyframes pfItemsFade {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#tab-pilotage-funnel .pf-items-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ds-border-2);
+}
+#tab-pilotage-funnel .pf-items-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ds-fg-1);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+#tab-pilotage-funnel .pf-items-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ds-fg-4);
+  background: var(--ds-bg-card, #fff);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+#tab-pilotage-funnel .pf-items-close {
+  background: transparent;
+  border: 1px solid var(--ds-border-2);
+  color: var(--ds-fg-3);
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+}
+#tab-pilotage-funnel .pf-items-close:hover {
+  background: var(--ds-bg-card, #fff);
+  color: var(--ds-fg-1);
+  border-color: var(--ds-primary-500);
+}
+#tab-pilotage-funnel .pf-items-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+#tab-pilotage-funnel .pf-items-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--ds-border-3, rgba(0,0,0,0.04));
+}
+#tab-pilotage-funnel .pf-items-row:last-child { border-bottom: 0; }
+#tab-pilotage-funnel .pf-items-label {
+  font-size: 13px;
+  color: var(--ds-fg-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#tab-pilotage-funnel .pf-items-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+#tab-pilotage-funnel .pf-items-foot {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ds-border-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+#tab-pilotage-funnel .pf-items-foot-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+}
+#tab-pilotage-funnel .pf-items-foot-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ds-fg-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+#tab-pilotage-funnel .pf-items-empty {
+  font-size: 12.5px;
+  color: var(--ds-fg-3);
+  padding: 10px 4px 4px;
+  font-style: italic;
 }
 @media (max-width: 1100px) {
   #tab-pilotage-funnel .pf-club-detail-main,

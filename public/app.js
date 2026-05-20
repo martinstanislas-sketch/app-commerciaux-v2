@@ -8055,6 +8055,24 @@ function pilotageStoreWrite(key, value) {
   } catch (_) {}
 }
 
+// Variantes JSON pour stocker des structures (ex: listes d'items)
+function pilotageStoreReadJson(key) {
+  try {
+    const v = localStorage.getItem(PILOTAGE_STORE_PREFIX + key);
+    if (!v) return null;
+    return JSON.parse(v);
+  } catch (_) { return null; }
+}
+function pilotageStoreWriteJson(key, value) {
+  try {
+    if (!value || (Array.isArray(value) && value.length === 0)) {
+      localStorage.removeItem(PILOTAGE_STORE_PREFIX + key);
+    } else {
+      localStorage.setItem(PILOTAGE_STORE_PREFIX + key, JSON.stringify(value));
+    }
+  } catch (_) {}
+}
+
 // Lit une valeur niveau Groupe (top-level Pennylane, indépendant des clubs)
 function pilotageReadGroup(periodSig, subKey) {
   return pilotageStoreRead(`__group__|${periodSig}|${subKey}`);
@@ -8645,6 +8663,7 @@ let pilotageFunnelState = {
   clubs: [],               // [] = aucun club (rien filtré) | liste de noms (1+)
   compareWith: [],         // [] = pas de compare, ['__others__'] = moyenne du groupe (tous clubs), ou liste de noms
   scope: 'none',           // 'none' (par défaut, rien affiché sauf si club spécifique) | 'mycoach' | 'group'
+  detailCatOpen: null,     // null | 'salaire' | 'batiment' | 'marketing' | 'fonctionnement' — catégorie dépliée dans la carte détail
 };
 
 // Cache des clubs disponibles
@@ -8886,8 +8905,11 @@ function parsePennylaneXlsx(arrayBuffer) {
   };
 
   const findClubBreakdownSubRows = (clubRange) => {
-    // Retourne pour ce club : { salaire: rowIdx, batiment: rowIdx, marketing: rowIdx, fonctionnement: rowIdx[] }
-    const subs = {};
+    // Retourne pour ce club : { salaire: [{rowIdx, endIdx}], batiment: [...], ... }
+    // endIdx = exclusive upper bound pour les items-enfants de cette sous-row.
+    // Une sous-row peut apparaître plusieurs fois (ex: Bâtiment = Leasing + Prêts + Conso)
+    // → on agrège leurs valeurs ET leurs items.
+    const ordered = [];
     for (let i = clubRange.rowIdx + 1; i < clubRange.endIdx; i++) {
       const label = String((rows[i] || [])[0] || '').trim();
       if (!label) continue;
@@ -8896,14 +8918,16 @@ function parsePennylaneXlsx(arrayBuffer) {
       const labelLc = label.toLowerCase();
       if (PENNYLANE_TOP_BOUNDARIES.has(labelLc)) break;
       const key = matchBreakdownKey(label);
-      if (key) {
-        // Plusieurs sous-rows peuvent matcher un même bucket
-        // (ex: Leasing + Prêts bancaire + Consommation énergétique → Bâtiment
-        //  ou Remboursement adhérent + Frais de fonctionnement → Frais de fonc).
-        // On agrège systématiquement.
-        subs[key] = subs[key] || [];
-        subs[key].push(i);
-      }
+      if (key) ordered.push({ rowIdx: i, key });
+    }
+    // Calcule endIdx pour chaque sous-row (= rowIdx de la suivante ou fin de club)
+    const subs = {};
+    for (let k = 0; k < ordered.length; k++) {
+      const sub = ordered[k];
+      const next = ordered[k + 1];
+      const endIdx = next ? next.rowIdx : clubRange.endIdx;
+      subs[sub.key] = subs[sub.key] || [];
+      subs[sub.key].push({ rowIdx: sub.rowIdx, endIdx });
     }
     return subs;
   };
@@ -8925,20 +8949,38 @@ function parsePennylaneXlsx(arrayBuffer) {
       if (ca != null && !Number.isNaN(ca))   clubData.ca_ttc = ca;
       if (dep != null && !Number.isNaN(dep)) clubData.depenses = dep;
 
-      // Breakdown des dépenses (si depRange trouvé)
+      // Breakdown des dépenses (si depRange trouvé) + extraction des items enfants
       if (depRange) {
         const subs = findClubBreakdownSubRows(depRange);
         for (const cat of PF_DEPENSES_BREAKDOWN) {
-          const ref = subs[cat.key];
-          if (ref == null) continue;
+          const ranges = subs[cat.key];
+          if (!ranges || ranges.length === 0) continue;
           let total = 0, found = false;
-          const indices = Array.isArray(ref) ? ref : [ref];
-          for (const idx of indices) {
-            const v = Number((rows[idx] || [])[col]);
+          const items = [];
+          for (const range of ranges) {
+            const v = Number((rows[range.rowIdx] || [])[col]);
             if (!Number.isNaN(v)) { total += v; found = true; }
+            // Scan des lignes enfants entre range.rowIdx (exclu) et range.endIdx (exclu)
+            for (let j = range.rowIdx + 1; j < range.endIdx; j++) {
+              const rawLabel = String((rows[j] || [])[0] || '');
+              const trimmed = rawLabel.trim();
+              if (!trimmed) continue;
+              const lcTrim = trimmed.toLowerCase();
+              if (PENNYLANE_TOP_BOUNDARIES.has(lcTrim)) break;
+              // Ignore tout libellé qui ressemble à une autre sous-row de breakdown
+              if (matchBreakdownKey(trimmed)) continue;
+              const itemVal = Number((rows[j] || [])[col]);
+              if (Number.isNaN(itemVal) || itemVal === 0) continue;
+              items.push({ label: trimmed, value: itemVal });
+            }
           }
           if (found) {
             clubData[`dep_${cat.key}`] = total;
+          }
+          if (items.length > 0) {
+            // Tri décroissant par valeur absolue pour faire remonter les gros postes
+            items.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+            clubData[`dep_${cat.key}_items`] = items;
           }
         }
       }
@@ -9023,6 +9065,17 @@ function importPennylaneIntoStore(parsed) {
           valuesWritten++;
           monthsTouched.add(sig);
           clubsTouched.add(club);
+        }
+        // Items enfants (détail des lignes de dépenses) — stockés en JSON
+        const items = values[`dep_${cat.key}_items`];
+        if (items && items.length > 0) {
+          pilotageStoreWriteJson(`${club}|${sig}|fin:dep_${cat.key}:items`, items);
+          valuesWritten++;
+          monthsTouched.add(sig);
+          clubsTouched.add(club);
+        } else {
+          // Nettoie une éventuelle ancienne entrée
+          pilotageStoreWriteJson(`${club}|${sig}|fin:dep_${cat.key}:items`, null);
         }
       }
     }
@@ -9437,7 +9490,42 @@ async function loadPilotageFunnel() {
       const isOnlyThis = current.length === 1 && current[0] === club;
       // Toggle : si déjà sélectionné seul → désélectionne (vide)
       pilotageFunnelState.clubs = isOnlyThis ? [] : [club];
+      // Reset l'éventuel panneau de détails ouvert (autre club / aucun club)
+      pilotageFunnelState.detailCatOpen = null;
       syncPfClubsCheckboxes();
+      renderPilotageFunnel();
+    });
+  }
+
+  // Clic sur une cellule du breakdown dépenses (carte détail club)
+  // → bascule l'affichage du détail des lignes Pennylane
+  if (rootPf && !rootPf.dataset.depDetailBound) {
+    rootPf.dataset.depDetailBound = '1';
+    rootPf.addEventListener('click', (e) => {
+      // Bouton de fermeture du panneau
+      if (e.target.closest('[data-detail-close]')) {
+        pilotageFunnelState.detailCatOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
+      // L'édition inline de la valeur passe en priorité
+      if (e.target.closest('[data-edit-key]')) return;
+      const cell = e.target.closest('[data-detail-cat]');
+      if (!cell) return;
+      const cat = cell.dataset.detailCat;
+      pilotageFunnelState.detailCatOpen =
+        pilotageFunnelState.detailCatOpen === cat ? null : cat;
+      renderPilotageFunnel();
+    });
+    // Activation clavier (Entrée / Espace)
+    rootPf.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const cell = e.target.closest && e.target.closest('[data-detail-cat]');
+      if (!cell) return;
+      e.preventDefault();
+      const cat = cell.dataset.detailCat;
+      pilotageFunnelState.detailCatOpen =
+        pilotageFunnelState.detailCatOpen === cat ? null : cat;
       renderPilotageFunnel();
     });
   }
@@ -9479,6 +9567,8 @@ async function initPfMultiSelectors() {
           if (idx >= 0) current.splice(idx, 1);
         }
         pilotageFunnelState.clubs = current;
+        // Reset le panneau de détails ouvert (autre club / multi)
+        pilotageFunnelState.detailCatOpen = null;
       }
       syncPfClubsCheckboxes();
       renderPilotageFunnel();
@@ -9882,19 +9972,74 @@ async function renderPilotageFunnel() {
       const breakdownGrid = document.getElementById('pf-club-detail-breakdown');
       if (breakdownWrap && breakdownGrid) {
         breakdownWrap.classList.remove('hidden');
+        const openCat = pilotageFunnelState.detailCatOpen;
         breakdownGrid.innerHTML = PF_DEPENSES_BREAKDOWN.map(cat => {
           const v = pilotageStoreRead(`${club}|${sigPF}|fin:dep_${cat.key}`);
           const display = pilotageFormatValue(v, 'eur');
           const editKey = `${club}|${sigPF}|fin:dep_${cat.key}`;
-          const cls = 'pf-dep-value editable';
-          const attrs = `data-edit-key="${escapeHtml(editKey)}" data-format="eur" tabindex="0" title="Cliquer pour saisir une valeur"`;
+          const valAttrs = `data-edit-key="${escapeHtml(editKey)}" data-format="eur" tabindex="0" title="Cliquer pour saisir une valeur"`;
+          // La cellule entière est cliquable pour ouvrir le détail des lignes
+          const items = pilotageStoreReadJson(`${club}|${sigPF}|fin:dep_${cat.key}:items`);
+          const hasItems = Array.isArray(items) && items.length > 0;
+          const isOpen = openCat === cat.key;
+          const cellCls = 'pf-dep-cell pf-dep-cell--clickable'
+            + (hasItems ? ' has-items' : '')
+            + (isOpen ? ' is-open' : '');
+          const cellTitle = hasItems
+            ? `Voir le détail des lignes (${items.length})`
+            : 'Aucune ligne détaillée importée pour cette catégorie';
           return `
-            <div class="pf-dep-cell">
+            <div class="${cellCls}" data-detail-cat="${escapeHtml(cat.key)}" role="button" tabindex="0" title="${escapeHtml(cellTitle)}">
               <span class="pf-dep-label">${escapeHtml(cat.label)}</span>
-              <span class="${cls}" ${attrs}>${display}</span>
+              <span class="pf-dep-value editable" ${valAttrs}>${display}</span>
+              ${hasItems ? `<span class="pf-dep-caret" aria-hidden="true">${isOpen ? '▾' : '▸'}</span>` : ''}
             </div>
           `;
         }).join('');
+      }
+
+      // Panel des items (lignes Pennylane) pour la catégorie dépliée
+      const itemsPanel = document.getElementById('pf-club-detail-items');
+      if (itemsPanel) {
+        const openCat = pilotageFunnelState.detailCatOpen;
+        if (!openCat) {
+          itemsPanel.classList.add('hidden');
+          itemsPanel.innerHTML = '';
+        } else {
+          const cat = PF_DEPENSES_BREAKDOWN.find(c => c.key === openCat);
+          const items = pilotageStoreReadJson(`${club}|${sigPF}|fin:dep_${openCat}:items`);
+          if (!cat || !Array.isArray(items) || items.length === 0) {
+            itemsPanel.classList.remove('hidden');
+            itemsPanel.innerHTML = `
+              <div class="pf-items-head">
+                <span class="pf-items-title">${escapeHtml(cat ? cat.label : 'Catégorie')}</span>
+                <button type="button" class="pf-items-close" data-detail-close title="Fermer">✕</button>
+              </div>
+              <div class="pf-items-empty">Aucune ligne détaillée importée pour cette catégorie sur cette période. Réimporte le fichier Pennylane pour récupérer le détail.</div>
+            `;
+          } else {
+            const total = items.reduce((s, it) => s + (Number(it.value) || 0), 0);
+            itemsPanel.classList.remove('hidden');
+            itemsPanel.innerHTML = `
+              <div class="pf-items-head">
+                <span class="pf-items-title">${escapeHtml(cat.label)} <span class="pf-items-count">${items.length} ligne${items.length > 1 ? 's' : ''}</span></span>
+                <button type="button" class="pf-items-close" data-detail-close title="Fermer">✕</button>
+              </div>
+              <ul class="pf-items-list">
+                ${items.map(it => `
+                  <li class="pf-items-row">
+                    <span class="pf-items-label">${escapeHtml(it.label)}</span>
+                    <span class="pf-items-value">${pilotageFormatValue(it.value, 'eur')}</span>
+                  </li>
+                `).join('')}
+              </ul>
+              <div class="pf-items-foot">
+                <span class="pf-items-foot-label">Total</span>
+                <span class="pf-items-foot-value">${pilotageFormatValue(total, 'eur')}</span>
+              </div>
+            `;
+          }
+        }
       }
     }
   }
