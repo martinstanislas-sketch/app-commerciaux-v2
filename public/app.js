@@ -8572,10 +8572,12 @@ const PF_FINANCIALS = [
 const PF_CONSOLIDATED_EBE = [
   { key: 'mycoach',         label: 'EBE My Coach',             scope: ['mycoach'] },
   { key: 'mycoach_franch',  label: 'EBE My Coach + Franchise', scope: ['mycoach', 'franchise'] },
-  // Groupe = TOUTES les entités du holding → 6 My Coach + Franchise + Tourcoing
-  // + les lignes Groupe (Produit exceptionnel en recettes, Frais Groupe + Taxes
-  // en dépenses) pour refléter le « vrai » EBE consolidé du groupe.
-  { key: 'groupe',          label: 'EBE Groupe',               scope: ['mycoach', 'franchise', 'tourcoing', 'group'] },
+  // Groupe = entités d'exploitation : 6 My Coach + Franchise + Tourcoing.
+  // On N'INCLUT PAS les lignes Frais Groupe / Taxes / Produit exceptionnel :
+  // par définition, l'EBE (Excédent Brut d'Exploitation) est calculé AVANT
+  // impôts/taxes et hors éléments exceptionnels. Les inclure produisait des
+  // mois artificiellement négatifs (ex: avril → gros acomptes TVA + IS).
+  { key: 'groupe',          label: 'EBE Groupe',               scope: ['mycoach', 'franchise', 'tourcoing'] },
 ];
 
 // Les 6 clubs My Coach (sans Tourcoing) — utilisés pour les agrégats
@@ -8624,17 +8626,9 @@ function pilotageConsolidatedEbe(periodSig, scopeArr) {
     if (tca != null)  { totalCa += tca; hasAny = true; }
     if (tdep != null) { totalDep += tdep; hasAny = true; }
   }
-  // Étape 4 : lignes niveau Groupe (uniquement pour l'EBE Groupe consolidé)
-  // — Recettes : Produit exceptionnel (subv apprentis + recouvrement + ...)
-  // — Dépenses : Frais Groupe + Taxes
-  if (scopeArr.includes('group')) {
-    const gRecExcept = pilotageStoreRead(`__group__|${periodSig}|grec:produit_except`);
-    const gDepGroupe = pilotageStoreRead(`__group__|${periodSig}|gdep:groupe`);
-    const gDepTaxes  = pilotageStoreRead(`__group__|${periodSig}|gdep:taxes`);
-    if (gRecExcept != null) { totalCa  += gRecExcept; hasAny = true; }
-    if (gDepGroupe != null) { totalDep += gDepGroupe; hasAny = true; }
-    if (gDepTaxes  != null) { totalDep += gDepTaxes;  hasAny = true; }
-  }
+  // (Pas d'étape 4 « lignes Groupe » : Frais Groupe, Taxes et Produit exceptionnel
+  // sont volontairement exclus du scope EBE — ils ne relèvent pas de l'exploitation
+  // courante au sens de l'EBE.)
   if (!hasAny || totalCa === 0) return null;
   // Étape 5 : conversion TVA une seule fois sur le total agrégé
   const caHt = totalCa / 1.20;
