@@ -8621,9 +8621,17 @@ const PF_GROUP_DEPENSES = [
 ];
 
 // Décomposition des dépenses — cliquable sous la cellule Dépenses
+// Pour Ginkgo Sport (Tourcoing), pas de section « Bâtiment » dédiée, donc on
+// agrège dans « Bâtiment » les sections équivalentes : Leasing, Prêts bancaire,
+// Consommation énergétique (= fluides chez My Coach).
 const PF_DEPENSES_BREAKDOWN = [
   { key: 'salaire',        label: 'Masse salariale',         keywords: ['masse salariale'] },
-  { key: 'batiment',       label: 'Bâtiment',                keywords: ['bâtiment', 'batiment'] },
+  { key: 'batiment',       label: 'Bâtiment',                keywords: [
+      'bâtiment', 'batiment',
+      'leasing',
+      'prêts bancaire', 'prets bancaire', 'prêt bancaire', 'pret bancaire',
+      'consommation énergétique', 'consommation energetique',
+  ] },
   { key: 'marketing',      label: 'Marketing',               keywords: ['marketing'] },
   { key: 'fonctionnement', label: 'Frais de fonctionnement', keywords: ['frais de fonctionnement', 'remboursement adhérent', 'remboursement adherent', 'remboursement adhérents', 'remboursement adherents'] },
 ];
@@ -8889,14 +8897,12 @@ function parsePennylaneXlsx(arrayBuffer) {
       if (PENNYLANE_TOP_BOUNDARIES.has(labelLc)) break;
       const key = matchBreakdownKey(label);
       if (key) {
-        // Pour 'fonctionnement', plusieurs sous-rows peuvent matcher
-        // (Remboursement adhérents + Frais de fonctionnement) → on les agrège
-        if (key === 'fonctionnement') {
-          subs[key] = subs[key] || [];
-          subs[key].push(i);
-        } else if (!subs[key]) {
-          subs[key] = i;
-        }
+        // Plusieurs sous-rows peuvent matcher un même bucket
+        // (ex: Leasing + Prêts bancaire + Consommation énergétique → Bâtiment
+        //  ou Remboursement adhérent + Frais de fonctionnement → Frais de fonc).
+        // On agrège systématiquement.
+        subs[key] = subs[key] || [];
+        subs[key].push(i);
       }
     }
     return subs;
