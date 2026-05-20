@@ -362,6 +362,7 @@ function updateTabVisibility() {
   const mensuelBtn = document.querySelector('[data-tab="mensuel"]');
   const tasksBtn = document.querySelector('[data-tab="tasks"]');
   const persoBtn = document.querySelector('[data-tab="perso"]');
+  const pilotageBtn = document.querySelector('[data-tab="pilotage"]');
 
   if (isPhoneLead()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -372,6 +373,7 @@ function updateTabVisibility() {
     if (mensuelBtn) mensuelBtn.style.display = 'none';
     if (tasksBtn) tasksBtn.style.display = 'none';
     if (persoBtn) persoBtn.style.display = 'none';
+    if (pilotageBtn) pilotageBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -382,6 +384,7 @@ function updateTabVisibility() {
     if (mensuelBtn) mensuelBtn.style.display = '';
     if (tasksBtn) tasksBtn.style.display = '';
     if (persoBtn) persoBtn.style.display = '';
+    if (pilotageBtn) pilotageBtn.style.display = '';
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else dashBtn.click();
   } else {
@@ -394,6 +397,7 @@ function updateTabVisibility() {
     if (mensuelBtn) mensuelBtn.style.display = '';
     if (tasksBtn) tasksBtn.style.display = '';
     if (persoBtn) persoBtn.style.display = 'none';
+    if (pilotageBtn) pilotageBtn.style.display = 'none';
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else todayBtn.click();
   }
@@ -2202,6 +2206,7 @@ const TAB_ICONS = {
   mensuel: '📅',
   tasks: '✅',
   perso: '💪',
+  pilotage: '🎯',
   controle: '🔍',
   'admin-actions': '⚡',
   notes: '📝'
@@ -2213,6 +2218,7 @@ const TAB_SHORT_LABELS = {
   mensuel: 'Récap',
   tasks: 'Tâches',
   perso: 'Perso',
+  pilotage: 'Pilotage',
   controle: 'Contrôle',
   'admin-actions': 'Actions',
   notes: 'Notes'
@@ -2299,6 +2305,7 @@ function initTabs() {
       if (btn.dataset.tab === 'phoning-recap') loadPhoningRecap();
       if (btn.dataset.tab === 'perso') loadPersoTab();
       if (btn.dataset.tab === 'tasks') loadTasksBoard();
+      if (btn.dataset.tab === 'pilotage') loadPilotage();
     });
   });
 }
@@ -6480,11 +6487,13 @@ function renderTasksBoard() {
     const nameAttr = isVirtual ? '' : `data-edit-col="${col.id}"`;
     const menuBtn = isVirtual ? '' : `<button class="tk-col-menu" data-col-menu="${col.id}" title="Options">⋯</button>`;
     const headerDraggable = isVirtual ? '' : 'draggable="true"';
+    const dragHandle = isVirtual ? '' : `<span class="tk-col-drag-handle" title="Glisser pour déplacer la colonne">⋮⋮</span>`;
     const addBtn = isVirtual ? '' : `<button class="tk-add-task" data-add-task="${col.id}">+ Ajouter une tâche</button>`;
     const colClass = isVirtual ? 'tk-col tk-col-virtual' : 'tk-col';
     return `
     <div class="${colClass}" data-col-id="${col.id}">
       <div class="tk-col-header" style="border-top-color: ${col.color}" data-col-header="${col.id}" ${headerDraggable}>
+        ${dragHandle}
         <div class="tk-col-name" ${nameAttr}>${isVirtual ? '📌 ' : ''}${escapeHtml(col.name)}</div>
         <div class="tk-col-right">
           <span class="tk-col-count" style="background: ${col.color}20; color: ${col.color}">${col.tasks.length}</span>
@@ -6709,25 +6718,37 @@ function onColumnDragStart(e) {
 
 function onColumnDragEnd(e) {
   e.currentTarget.classList.remove('tk-col-dragging');
-  document.querySelectorAll('.tk-col-swap-target').forEach(el => el.classList.remove('tk-col-swap-target'));
+  clearColumnDropIndicators();
   tasksDragging = null;
   tasksDropTarget = null;
+}
+
+function clearColumnDropIndicators() {
+  document.querySelectorAll('.tk-col-drop-left, .tk-col-drop-right, .tk-col-swap-target')
+    .forEach(el => el.classList.remove('tk-col-drop-left', 'tk-col-drop-right', 'tk-col-swap-target'));
 }
 
 function onColumnHeaderDragOver(e) {
   if (!tasksDragging || tasksDragging.type !== 'column') return;
   e.preventDefault();
-  const targetId = parseInt(e.currentTarget.dataset.colHeader, 10);
+  e.dataTransfer.dropEffect = 'move';
+  const header = e.currentTarget;
+  const targetId = parseInt(header.dataset.colHeader, 10);
   if (targetId === tasksDragging.id) return;
-  document.querySelectorAll('.tk-col-swap-target').forEach(el => el.classList.remove('tk-col-swap-target'));
-  e.currentTarget.classList.add('tk-col-swap-target');
-  tasksDropTarget = { type: 'column-swap', colId: targetId };
+  // Detect left/right half of the header to decide insertion side
+  const col = header.closest('.tk-col');
+  if (!col) return;
+  const rect = col.getBoundingClientRect();
+  const side = (e.clientX - rect.left) < rect.width / 2 ? 'before' : 'after';
+  clearColumnDropIndicators();
+  col.classList.add(side === 'before' ? 'tk-col-drop-left' : 'tk-col-drop-right');
+  tasksDropTarget = { type: 'column-insert', colId: targetId, side };
 }
 
 function onColumnHeaderDrop(e) {
   e.preventDefault();
-  if (!tasksDragging || !tasksDropTarget || tasksDropTarget.type !== 'column-swap') return;
-  swapColumns(tasksDragging.id, tasksDropTarget.colId);
+  if (!tasksDragging || !tasksDropTarget || tasksDropTarget.type !== 'column-insert') return;
+  moveColumnTo(tasksDragging.id, tasksDropTarget.colId, tasksDropTarget.side);
 }
 
 function clearDropIndicators() {
@@ -6818,17 +6839,45 @@ async function persistTaskMove(taskId, columnId, parentId, position) {
   }
 }
 
-async function swapColumns(sourceId, targetId) {
-  const ids = tasksBoard.map(c => c.id);
+// Move a column before/after a target column (insertion, not swap).
+// Only operates on REAL columns (ignores the virtual "📌 Assignées à moi").
+async function moveColumnTo(sourceId, targetId, side /* 'before' | 'after' */) {
+  if (sourceId === targetId) return;
+  // Build the order from real columns only
+  const realCols = tasksBoard.filter(c => !c.is_virtual && c.id > 0);
+  const ids = realCols.map(c => c.id);
   const srcIdx = ids.indexOf(sourceId);
-  const tgtIdx = ids.indexOf(targetId);
-  if (srcIdx < 0 || tgtIdx < 0) return;
-  [ids[srcIdx], ids[tgtIdx]] = [ids[tgtIdx], ids[srcIdx]];
+  if (srcIdx < 0) return;
+  ids.splice(srcIdx, 1); // remove source
+  let tgtIdx = ids.indexOf(targetId);
+  if (tgtIdx < 0) return;
+  if (side === 'after') tgtIdx += 1;
+  ids.splice(tgtIdx, 0, sourceId);
+  // Avoid unnecessary calls if nothing changed
+  const before = realCols.map(c => c.id).join(',');
+  if (before === ids.join(',')) return;
   try {
     await api('/tasks/columns/reorder', { method: 'POST', body: { order: ids } });
     await loadTasksBoard();
   } catch (e) {
     showToast('Erreur réorganisation', 'error');
+  }
+}
+
+// Shift a column one slot left or right (used by the column menu)
+async function shiftColumn(columnId, dir /* -1 = left, +1 = right */) {
+  const realCols = tasksBoard.filter(c => !c.is_virtual && c.id > 0);
+  const ids = realCols.map(c => c.id);
+  const idx = ids.indexOf(columnId);
+  if (idx < 0) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= ids.length) return;
+  [ids[idx], ids[newIdx]] = [ids[newIdx], ids[idx]];
+  try {
+    await api('/tasks/columns/reorder', { method: 'POST', body: { order: ids } });
+    await loadTasksBoard();
+  } catch (e) {
+    showToast('Erreur déplacement', 'error');
   }
 }
 
@@ -7463,9 +7512,20 @@ function openColumnMenu(columnId, btn) {
   const col = tasksBoard.find(c => c.id === columnId);
   if (!col) return;
 
+  // Compute position among real columns to enable/disable move buttons
+  const realCols = tasksBoard.filter(c => !c.is_virtual && c.id > 0);
+  const idx = realCols.findIndex(c => c.id === columnId);
+  const canLeft = idx > 0;
+  const canRight = idx >= 0 && idx < realCols.length - 1;
+
   const menu = document.createElement('div');
   menu.className = 'tk-menu-popup';
   menu.innerHTML = `
+    <div class="tk-menu-section">Déplacer</div>
+    <div class="tk-menu-move-row">
+      <button class="tk-menu-item tk-menu-move" data-action="move-left" ${canLeft ? '' : 'disabled'}>← Gauche</button>
+      <button class="tk-menu-item tk-menu-move" data-action="move-right" ${canRight ? '' : 'disabled'}>Droite →</button>
+    </div>
     <div class="tk-menu-section">Couleur</div>
     <div class="tk-color-grid">
       ${TASK_COLORS.map(c => `<button class="tk-color-dot ${c === col.color ? 'active' : ''}" data-color="${c}" style="background:${c}"></button>`).join('')}
@@ -7486,6 +7546,21 @@ function openColumnMenu(columnId, btn) {
       renderTasksBoard();
     });
   });
+
+  const moveLeftBtn = menu.querySelector('[data-action="move-left"]');
+  if (moveLeftBtn && !moveLeftBtn.disabled) {
+    moveLeftBtn.addEventListener('click', async () => {
+      menu.remove();
+      await shiftColumn(columnId, -1);
+    });
+  }
+  const moveRightBtn = menu.querySelector('[data-action="move-right"]');
+  if (moveRightBtn && !moveRightBtn.disabled) {
+    moveRightBtn.addEventListener('click', async () => {
+      menu.remove();
+      await shiftColumn(columnId, +1);
+    });
+  }
 
   menu.querySelector('[data-action="delete"]').addEventListener('click', async () => {
     if (!confirm(`Supprimer la colonne "${col.name}" et ses ${col.tasks.length} tâche(s) ?`)) return;
@@ -7954,4 +8029,242 @@ function renderSearchResults(query, keepSelection) {
       });
     });
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PILOTAGE — Tableau de bord funnel commercial (admin uniquement)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Cette V1 pose la structure d'affichage :
+//   - 5 cartes (Marketing / Phoning / Conseillers forme / Coach leader / Coach sportif)
+//   - 3 KPIs par carte (placeholders "—" pour l'instant)
+//   - Filtres : club + période (jour/semaine/mois/trimestre) + nav date
+//
+// Évolutions futures (préparées dans la structure) :
+//   - Brancher `fetchPilotageData(state)` pour récupérer des vraies valeurs
+//   - Ajouter `objective` à chaque KPI → calcul d'un statut vert/orange/rouge
+//   - Ajouter `trend` / sparkline d'évolution
+//   - Liste dynamique des clubs depuis l'API
+// -------------------------------------------------------------------
+
+const PILOTAGE_CATEGORIES = [
+  {
+    key: 'marketing',
+    label: 'Marketing',
+    icon: '📣',
+    accent: '#6366F1', // indigo
+    kpis: [
+      { key: 'leads', label: 'Leads', format: 'int', unit: '' },
+      { key: 'cpl',   label: 'CPL',   format: 'eur', unit: '€' },
+      { key: 'cac',   label: 'CAC',   format: 'eur', unit: '€' },
+    ],
+  },
+  {
+    key: 'phoning',
+    label: 'Phoning',
+    icon: '📞',
+    accent: '#06B6D4', // cyan
+    kpis: [
+      { key: 'rdv_fixes',   label: 'RDV fixés',   format: 'int' },
+      { key: 'non_traites', label: 'Non traités', format: 'int' },
+      { key: 'no_show',     label: 'No-show',     format: 'int' },
+    ],
+  },
+  {
+    key: 'conseillers',
+    label: 'Conseillers forme',
+    icon: '🧑‍💼',
+    accent: '#F59E0B', // amber
+    kpis: [
+      { key: 'transfo',      label: 'Transfo',       format: 'pct' },
+      { key: 'panier_moyen', label: 'Panier moyen',  format: 'eur' },
+      { key: 'ratio',        label: 'Ratio',         format: 'int' },
+    ],
+  },
+  {
+    key: 'coach_leader',
+    label: 'Coach leader',
+    icon: '🏅',
+    accent: '#8B5CF6', // violet
+    kpis: [
+      { key: 'resiliation', label: 'Résiliation', format: 'pct' },
+      { key: 'remplissage', label: 'Remplissage', format: 'pct' },
+      { key: 'ca',          label: 'CA',          format: 'eur' },
+    ],
+  },
+  {
+    key: 'coach_sportif',
+    label: 'Coach sportif',
+    icon: '💪',
+    accent: '#10B981', // emerald
+    kpis: [
+      { key: 'prises_ref', label: 'Prises de ref', format: 'int' },
+      { key: 'resultats',  label: 'Résultats',     format: 'int' },
+      { key: 'surpacks',   label: 'Surpacks',      format: 'int' },
+    ],
+  },
+];
+
+// État courant de l'onglet (en mémoire seulement, pas de persistance V1)
+let pilotageState = {
+  club: 'all',                   // 'all' | club name
+  period: 'month',               // 'day' | 'week' | 'month' | 'quarter'
+  dateAnchor: new Date().toISOString().slice(0, 10), // YYYY-MM-DD
+};
+
+// ── Helpers de formatage ────────────────────────────────────────────
+function pilotageFormatValue(value, format) {
+  if (value === null || value === undefined || value === '') return '—';
+  const n = Number(value);
+  if (Number.isNaN(n)) return '—';
+  switch (format) {
+    case 'eur':
+      return n.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
+    case 'pct':
+      return n.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' %';
+    case 'int':
+    default:
+      return n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
+  }
+}
+
+function pilotageFormatRange(period, anchorISO) {
+  const d = new Date(anchorISO + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return '—';
+  const opts = { day: '2-digit', month: 'short', year: 'numeric' };
+  if (period === 'day') {
+    return d.toLocaleDateString('fr-FR', opts);
+  }
+  if (period === 'week') {
+    // Lundi → dimanche
+    const monday = new Date(d);
+    const day = (monday.getDay() + 6) % 7; // 0=Mon
+    monday.setDate(monday.getDate() - day);
+    const sunday = new Date(monday);
+    sunday.setDate(sunday.getDate() + 6);
+    return `${monday.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} – ${sunday.toLocaleDateString('fr-FR', opts)}`;
+  }
+  if (period === 'month') {
+    return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  }
+  if (period === 'quarter') {
+    const q = Math.floor(d.getMonth() / 3) + 1;
+    return `T${q} ${d.getFullYear()}`;
+  }
+  return '—';
+}
+
+function pilotageShiftAnchor(period, anchorISO, dir /* -1 | +1 */) {
+  const d = new Date(anchorISO + 'T00:00:00');
+  if (period === 'day')     d.setDate(d.getDate() + dir);
+  if (period === 'week')    d.setDate(d.getDate() + 7 * dir);
+  if (period === 'month')   d.setMonth(d.getMonth() + dir);
+  if (period === 'quarter') d.setMonth(d.getMonth() + 3 * dir);
+  return d.toISOString().slice(0, 10);
+}
+
+// ── Source de données (V1: tout vide) ───────────────────────────────
+// Plus tard, cette fonction appellera /api/pilotage/... et retournera
+// un objet { marketing: { leads: 142, cpl: 18, cac: 95 }, phoning: {...}, ... }
+async function fetchPilotageData(/* state */) {
+  // TODO V2: brancher l'API quand les indicateurs seront calculables côté serveur
+  return {};
+}
+
+// ── Liste des clubs (V1: placeholder, à brancher plus tard) ─────────
+async function fetchPilotageClubs() {
+  // TODO V2: GET /api/clubs ou dérivé depuis les coaches/sales_reps
+  return [
+    { value: 'all',   label: 'Tous les clubs' },
+    // Clubs connus (issus du fichier de seed coach) :
+    { value: 'Caen',  label: 'Caen' },
+    { value: 'Tours', label: 'Tours' },
+  ];
+}
+
+// ── Render ──────────────────────────────────────────────────────────
+async function loadPilotage() {
+  if (!isAdmin()) return; // safety net
+  // Initialise la liste des clubs (une seule fois)
+  const clubSelect = document.getElementById('pilotage-club');
+  if (clubSelect && !clubSelect.dataset.bound) {
+    const clubs = await fetchPilotageClubs();
+    clubSelect.innerHTML = clubs.map(c => `<option value="${c.value}">${escapeHtml(c.label)}</option>`).join('');
+    clubSelect.value = pilotageState.club;
+    clubSelect.addEventListener('change', () => {
+      pilotageState.club = clubSelect.value;
+      renderPilotage();
+    });
+    clubSelect.dataset.bound = '1';
+  }
+
+  // Bind période (pills)
+  document.querySelectorAll('#pilotage-period .pilotage-period-btn').forEach(btn => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      pilotageState.period = btn.dataset.period;
+      document.querySelectorAll('#pilotage-period .pilotage-period-btn')
+        .forEach(b => b.classList.toggle('active', b === btn));
+      renderPilotage();
+    });
+  });
+
+  // Bind navigation date
+  const prevBtn = document.getElementById('pilotage-prev');
+  const nextBtn = document.getElementById('pilotage-next');
+  if (prevBtn && !prevBtn.dataset.bound) {
+    prevBtn.dataset.bound = '1';
+    prevBtn.addEventListener('click', () => {
+      pilotageState.dateAnchor = pilotageShiftAnchor(pilotageState.period, pilotageState.dateAnchor, -1);
+      renderPilotage();
+    });
+  }
+  if (nextBtn && !nextBtn.dataset.bound) {
+    nextBtn.dataset.bound = '1';
+    nextBtn.addEventListener('click', () => {
+      pilotageState.dateAnchor = pilotageShiftAnchor(pilotageState.period, pilotageState.dateAnchor, +1);
+      renderPilotage();
+    });
+  }
+
+  await renderPilotage();
+}
+
+async function renderPilotage() {
+  // Label de plage
+  const lbl = document.getElementById('pilotage-date-label');
+  if (lbl) lbl.textContent = pilotageFormatRange(pilotageState.period, pilotageState.dateAnchor);
+
+  // Récupère les valeurs (V1 = objet vide)
+  const data = await fetchPilotageData(pilotageState);
+
+  // Render des cartes
+  const grid = document.getElementById('pilotage-grid');
+  if (!grid) return;
+  grid.innerHTML = PILOTAGE_CATEGORIES.map(cat => {
+    const catData = data[cat.key] || {};
+    const kpisHtml = cat.kpis.map(k => {
+      const raw = catData[k.key];
+      const display = pilotageFormatValue(raw, k.format);
+      return `
+        <div class="pilotage-kpi" data-cat="${cat.key}" data-kpi="${k.key}">
+          <span class="pilotage-kpi-label">${escapeHtml(k.label)}</span>
+          <span class="pilotage-kpi-value">${display}</span>
+          <span class="pilotage-kpi-status" aria-hidden="true"></span>
+        </div>
+      `;
+    }).join('');
+    return `
+      <article class="pilotage-card" style="--pilotage-accent: ${cat.accent}" data-category="${cat.key}">
+        <header class="pilotage-card-head">
+          <span class="pilotage-card-icon" style="background: ${cat.accent}1a; color: ${cat.accent}">${cat.icon}</span>
+          <h3 class="pilotage-card-title">${escapeHtml(cat.label)}</h3>
+        </header>
+        <div class="pilotage-card-kpis">
+          ${kpisHtml}
+        </div>
+      </article>
+    `;
+  }).join('');
 }
