@@ -8669,16 +8669,14 @@ async function fetchPilotageFunnelData(state) {
       categories[cat.key][k.key] = aggregate(`cat:${cat.key}:${k.key}`, k.format, k.agg);
     });
   });
-  // Synthèse financière
+  // Synthèse financière (modèle trésorerie : encaissements − décaissements)
   const financials = {};
   financials.ca_ttc   = aggregate('fin:ca_ttc',   'eur', 'sum');
   financials.depenses = aggregate('fin:depenses', 'eur', 'sum');
-  // Dérivés
-  if (financials.ca_ttc != null) financials.ca_ht = financials.ca_ttc / 1.20;
-  if (financials.ca_ht != null && financials.depenses != null) {
-    financials.cashflow = financials.ca_ht - financials.depenses;
-    if (financials.ca_ht !== 0) {
-      financials.ebe_pct = (financials.cashflow / financials.ca_ht) * 100;
+  if (financials.ca_ttc != null && financials.depenses != null) {
+    financials.cashflow = financials.ca_ttc - financials.depenses;
+    if (financials.ca_ttc !== 0) {
+      financials.ebe_pct = (financials.cashflow / financials.ca_ttc) * 100;
     }
   }
   // Breakdown dépenses
@@ -9704,14 +9702,12 @@ async function renderPilotageFunnel() {
       }
     }
 
-    // Calculs dérivés
-    const caHt = (caTtc != null) ? caTtc / 1.20 : null;
-    const cashflow = (caHt != null && depenses != null) ? (caHt - depenses) : null;
-    const ebePct = (cashflow != null && caHt != null && caHt !== 0) ? (cashflow / caHt) * 100 : null;
+    // Calculs dérivés (modèle trésorerie : encaissements − décaissements directs)
+    const cashflow = (caTtc != null && depenses != null) ? (caTtc - depenses) : null;
+    const ebePct = (cashflow != null && caTtc != null && caTtc !== 0) ? (cashflow / caTtc) * 100 : null;
 
     const cellMap = {
       ca_ttc:   { resolved: resTtc, value: caTtc },
-      ca_ht:    { value: caHt,    editable: false },
       depenses: { resolved: resDep, value: depenses },
       cashflow: { value: cashflow, editable: false },
       ebe_pct:  { value: ebePct,  editable: false },
