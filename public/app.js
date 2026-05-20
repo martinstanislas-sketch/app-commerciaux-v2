@@ -363,6 +363,7 @@ function updateTabVisibility() {
   const tasksBtn = document.querySelector('[data-tab="tasks"]');
   const persoBtn = document.querySelector('[data-tab="perso"]');
   const pilotageBtn = document.querySelector('[data-tab="pilotage"]');
+  const pilotageFunnelBtn = document.querySelector('[data-tab="pilotage-funnel"]');
 
   if (isPhoneLead()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -374,6 +375,7 @@ function updateTabVisibility() {
     if (tasksBtn) tasksBtn.style.display = 'none';
     if (persoBtn) persoBtn.style.display = 'none';
     if (pilotageBtn) pilotageBtn.style.display = 'none';
+    if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -385,6 +387,7 @@ function updateTabVisibility() {
     if (tasksBtn) tasksBtn.style.display = '';
     if (persoBtn) persoBtn.style.display = '';
     if (pilotageBtn) pilotageBtn.style.display = '';
+    if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else dashBtn.click();
   } else {
@@ -398,6 +401,7 @@ function updateTabVisibility() {
     if (tasksBtn) tasksBtn.style.display = '';
     if (persoBtn) persoBtn.style.display = 'none';
     if (pilotageBtn) pilotageBtn.style.display = 'none';
+    if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else todayBtn.click();
   }
@@ -2207,6 +2211,7 @@ const TAB_ICONS = {
   tasks: '✅',
   perso: '💪',
   pilotage: '🎯',
+  'pilotage-funnel': '🔻',
   controle: '🔍',
   'admin-actions': '⚡',
   notes: '📝'
@@ -2219,6 +2224,7 @@ const TAB_SHORT_LABELS = {
   tasks: 'Tâches',
   perso: 'Perso',
   pilotage: 'Pilotage',
+  'pilotage-funnel': 'Funnel',
   controle: 'Contrôle',
   'admin-actions': 'Actions',
   notes: 'Notes'
@@ -2306,6 +2312,7 @@ function initTabs() {
       if (btn.dataset.tab === 'perso') loadPersoTab();
       if (btn.dataset.tab === 'tasks') loadTasksBoard();
       if (btn.dataset.tab === 'pilotage') loadPilotage();
+      if (btn.dataset.tab === 'pilotage-funnel') loadPilotageFunnel();
     });
   });
 }
@@ -8267,4 +8274,417 @@ async function renderPilotage() {
       </article>
     `;
   }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PILOTAGE FUNNEL — Funnel commercial + indicateurs + finances (admin)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Structure V1 :
+//   1. Filtres : période, plage, multi-clubs, comparaison (multi)
+//   2. Cartes catégories (réutilise PILOTAGE_CATEGORIES)
+//   3. Funnel vertical 5 étapes (Leads → RDV pris → RDV venus → Ventes → CA)
+//      + bandeau « ghost » de comparaison en filigrane
+//      + taux de conversion entre chaque étape
+//   4. Indicateurs complémentaires (CPL, no-show, transfo, panier, résil, ref, surpacks)
+//   5. Synthèse financière (CA TTC, CA HT, Dépenses, Cash-flow, Break-Even)
+//
+// Évolutions futures :
+//   - fetchPilotageFunnelData(state) → branchement API
+//   - Objectifs colorés sur les KPIs et le funnel
+//   - Sparkline d'évolution
+//   - Export PDF / Excel
+// -------------------------------------------------------------------
+
+const PF_FUNNEL_STAGES = [
+  { key: 'leads',     label: 'Leads générés',    format: 'int', color: '#6366F1' },
+  { key: 'rdv_pris',  label: 'RDV pris',         format: 'int', color: '#06B6D4' },
+  { key: 'rdv_venus', label: 'RDV venus',        format: 'int', color: '#10B981' },
+  { key: 'ventes',    label: 'Ventes',           format: 'int', color: '#F59E0B' },
+  { key: 'ca',        label: 'Chiffre d\'affaires', format: 'eur', color: '#EF4444' },
+];
+
+const PF_SIDE_INDICATORS = [
+  { key: 'cpl',          label: 'Coût par lead',          format: 'eur' },
+  { key: 'no_show',      label: 'Taux de no-show',        format: 'pct' },
+  { key: 'transfo',      label: 'Taux de transformation', format: 'pct' },
+  { key: 'panier_moyen', label: 'Panier moyen',           format: 'eur' },
+  { key: 'resiliation',  label: 'Taux de résiliation',    format: 'pct' },
+  { key: 'prises_ref',   label: 'Prises de recommandations', format: 'int' },
+  { key: 'surpacks',     label: 'Ventes de surpacks',     format: 'int' },
+];
+
+const PF_FINANCIALS = [
+  { key: 'ca_ttc',     label: 'CA TTC',     format: 'eur', tone: 'neutral' },
+  { key: 'ca_ht',      label: 'CA HT',      format: 'eur', tone: 'neutral', hint: '÷ 1,20' },
+  { key: 'depenses',   label: 'Dépenses',   format: 'eur', tone: 'negative' },
+  { key: 'cashflow',   label: 'Cash-flow',  format: 'eur', tone: 'highlight' },
+  { key: 'breakeven',  label: 'Break-Even', format: 'eur', tone: 'accent' },
+];
+
+// État (en mémoire)
+let pilotageFunnelState = {
+  period: 'month',
+  dateAnchor: new Date().toISOString().slice(0, 10),
+  clubs: ['all'],          // ['all'] ou liste de noms
+  compareWith: [],         // [] = pas de compare, ['__others__'] = moyenne autres clubs, ou liste de noms
+};
+
+// Cache des clubs disponibles
+let pfClubsCache = null;
+
+// ── Helpers ─────────────────────────────────────────────────────────
+function pfFormat(value, format) {
+  return pilotageFormatValue(value, format); // réutilise le formateur Pilotage
+}
+
+function pfFormatRange(period, anchorISO) {
+  return pilotageFormatRange(period, anchorISO); // idem
+}
+
+function pfShiftAnchor(period, anchor, dir) {
+  return pilotageShiftAnchor(period, anchor, dir);
+}
+
+// ── Source de données (V1: tout vide) ──────────────────────────────
+// Plus tard : fetchPilotageFunnelData({ period, dateAnchor, clubs, compareWith })
+// devra retourner { main: {...}, compare: {...} } avec les mêmes clés que
+// PF_FUNNEL_STAGES, PF_SIDE_INDICATORS, PF_FINANCIALS et PILOTAGE_CATEGORIES.
+async function fetchPilotageFunnelData(/* state */) {
+  return { main: {}, compare: null };
+}
+
+async function fetchPilotageFunnelClubs() {
+  if (pfClubsCache) return pfClubsCache;
+  // TODO V2: appeler une vraie API. Pour l'instant on récupère ce qu'on connaît.
+  pfClubsCache = ['Caen', 'Tours']; // mêmes clubs hardcodés que l'onglet Pilotage
+  return pfClubsCache;
+}
+
+// ── Render principal ───────────────────────────────────────────────
+async function loadPilotageFunnel() {
+  if (!isAdmin()) return;
+
+  // Bind période
+  document.querySelectorAll('#pf-period .pf-period-btn').forEach(btn => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      pilotageFunnelState.period = btn.dataset.period;
+      document.querySelectorAll('#pf-period .pf-period-btn')
+        .forEach(b => b.classList.toggle('active', b === btn));
+      renderPilotageFunnel();
+    });
+  });
+
+  // Bind navigation date
+  const prevBtn = document.getElementById('pf-prev');
+  const nextBtn = document.getElementById('pf-next');
+  if (prevBtn && !prevBtn.dataset.bound) {
+    prevBtn.dataset.bound = '1';
+    prevBtn.addEventListener('click', () => {
+      pilotageFunnelState.dateAnchor = pfShiftAnchor(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, -1);
+      renderPilotageFunnel();
+    });
+  }
+  if (nextBtn && !nextBtn.dataset.bound) {
+    nextBtn.dataset.bound = '1';
+    nextBtn.addEventListener('click', () => {
+      pilotageFunnelState.dateAnchor = pfShiftAnchor(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, +1);
+      renderPilotageFunnel();
+    });
+  }
+
+  // Bind popovers (clubs + compare)
+  await initPfMultiSelectors();
+
+  await renderPilotageFunnel();
+}
+
+async function initPfMultiSelectors() {
+  const clubs = await fetchPilotageFunnelClubs();
+
+  // Trigger Clubs analysés
+  const trgClubs = document.getElementById('pf-clubs-trigger');
+  const popClubs = document.getElementById('pf-clubs-popover');
+  const optClubs = document.getElementById('pf-clubs-options');
+  if (trgClubs && !trgClubs.dataset.bound) {
+    trgClubs.dataset.bound = '1';
+    optClubs.innerHTML = `
+      <label class="pf-popover-row">
+        <input type="checkbox" data-club-all> <span>Tous les clubs</span>
+      </label>
+      <div class="pf-popover-divider"></div>
+      ${clubs.map(c => `
+        <label class="pf-popover-row">
+          <input type="checkbox" data-club="${escapeHtml(c)}"> <span>${escapeHtml(c)}</span>
+        </label>
+      `).join('')}
+    `;
+    syncPfClubsCheckboxes();
+    trgClubs.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePfPopover(popClubs, trgClubs);
+      // ferme l'autre popover
+      document.getElementById('pf-compare-popover').classList.add('hidden');
+    });
+    optClubs.addEventListener('change', (e) => {
+      if (e.target.matches('[data-club-all]')) {
+        pilotageFunnelState.clubs = e.target.checked ? ['all'] : [];
+      } else if (e.target.matches('[data-club]')) {
+        const c = e.target.dataset.club;
+        // Toute coche d'un club désactive "Tous"
+        const currentSpecific = pilotageFunnelState.clubs.filter(x => x !== 'all');
+        if (e.target.checked) {
+          if (!currentSpecific.includes(c)) currentSpecific.push(c);
+        } else {
+          const idx = currentSpecific.indexOf(c);
+          if (idx >= 0) currentSpecific.splice(idx, 1);
+        }
+        pilotageFunnelState.clubs = currentSpecific.length ? currentSpecific : ['all'];
+      }
+      syncPfClubsCheckboxes();
+      renderPilotageFunnel();
+    });
+  }
+
+  // Trigger Comparer avec
+  const trgCmp = document.getElementById('pf-compare-trigger');
+  const popCmp = document.getElementById('pf-compare-popover');
+  const optCmp = document.getElementById('pf-compare-options');
+  if (trgCmp && !trgCmp.dataset.bound) {
+    trgCmp.dataset.bound = '1';
+    optCmp.innerHTML = `
+      <label class="pf-popover-row">
+        <input type="radio" name="pf-cmp" data-cmp="none" checked> <span>Aucune comparaison</span>
+      </label>
+      <label class="pf-popover-row">
+        <input type="radio" name="pf-cmp" data-cmp="others"> <span>Moyenne des autres clubs</span>
+      </label>
+      <div class="pf-popover-divider"></div>
+      <div class="pf-popover-hint">Cumul de clubs spécifiques :</div>
+      ${clubs.map(c => `
+        <label class="pf-popover-row">
+          <input type="checkbox" data-cmp-club="${escapeHtml(c)}"> <span>${escapeHtml(c)}</span>
+        </label>
+      `).join('')}
+    `;
+    trgCmp.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePfPopover(popCmp, trgCmp);
+      document.getElementById('pf-clubs-popover').classList.add('hidden');
+    });
+    optCmp.addEventListener('change', (e) => {
+      if (e.target.matches('[data-cmp]')) {
+        const v = e.target.dataset.cmp;
+        if (v === 'none') pilotageFunnelState.compareWith = [];
+        else if (v === 'others') pilotageFunnelState.compareWith = ['__others__'];
+        // Décoche les clubs spécifiques
+        optCmp.querySelectorAll('[data-cmp-club]').forEach(cb => { cb.checked = false; });
+      } else if (e.target.matches('[data-cmp-club]')) {
+        // L'utilisateur sélectionne des clubs spécifiques → bascule en mode liste
+        const specific = Array.from(optCmp.querySelectorAll('[data-cmp-club]:checked')).map(cb => cb.dataset.cmpClub);
+        pilotageFunnelState.compareWith = specific;
+        // Décoche les radios
+        optCmp.querySelectorAll('[data-cmp]').forEach(r => { r.checked = false; });
+        if (specific.length === 0) {
+          optCmp.querySelector('[data-cmp="none"]').checked = true;
+        }
+      }
+      renderPilotageFunnel();
+    });
+  }
+
+  // Fermeture au clic extérieur
+  if (!document.body.dataset.pfPopoverGlobal) {
+    document.body.dataset.pfPopoverGlobal = '1';
+    document.addEventListener('click', (e) => {
+      const inClubs = e.target.closest('#pf-clubs-popover, #pf-clubs-trigger');
+      const inCmp   = e.target.closest('#pf-compare-popover, #pf-compare-trigger');
+      if (!inClubs) document.getElementById('pf-clubs-popover')?.classList.add('hidden');
+      if (!inCmp)   document.getElementById('pf-compare-popover')?.classList.add('hidden');
+    });
+  }
+}
+
+function togglePfPopover(pop, trigger) {
+  if (!pop) return;
+  const willOpen = pop.classList.contains('hidden');
+  pop.classList.toggle('hidden');
+  if (willOpen && trigger) {
+    const rect = trigger.getBoundingClientRect();
+    pop.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+    pop.style.left = (rect.left + window.scrollX) + 'px';
+    pop.style.minWidth = rect.width + 'px';
+  }
+}
+
+function syncPfClubsCheckboxes() {
+  const opt = document.getElementById('pf-clubs-options');
+  if (!opt) return;
+  const all = pilotageFunnelState.clubs.includes('all');
+  opt.querySelectorAll('[data-club-all]').forEach(cb => { cb.checked = all; });
+  opt.querySelectorAll('[data-club]').forEach(cb => {
+    cb.checked = !all && pilotageFunnelState.clubs.includes(cb.dataset.club);
+  });
+}
+
+function summarizeClubs(arr) {
+  if (!arr || arr.length === 0 || arr.includes('all')) return 'Tous les clubs';
+  if (arr.length === 1) return arr[0];
+  if (arr.length <= 3) return arr.join(', ');
+  return `${arr.length} clubs sélectionnés`;
+}
+
+function summarizeCompare(arr) {
+  if (!arr || arr.length === 0) return 'Aucune comparaison';
+  if (arr[0] === '__others__') return 'Moyenne des autres clubs';
+  if (arr.length === 1) return arr[0];
+  if (arr.length <= 3) return arr.join(' + ');
+  return `${arr.length} clubs cumulés`;
+}
+
+async function renderPilotageFunnel() {
+  // Labels de filtres
+  document.getElementById('pf-date-label').textContent = pfFormatRange(pilotageFunnelState.period, pilotageFunnelState.dateAnchor);
+  document.getElementById('pf-clubs-summary').textContent = summarizeClubs(pilotageFunnelState.clubs);
+  document.getElementById('pf-compare-summary').textContent = summarizeCompare(pilotageFunnelState.compareWith);
+
+  // Données (V1 vide)
+  const { main, compare } = await fetchPilotageFunnelData(pilotageFunnelState);
+  const hasCompare = !!compare && pilotageFunnelState.compareWith.length > 0;
+
+  // Cartes catégories (mêmes 5 que Pilotage)
+  const grid = document.getElementById('pf-grid');
+  if (grid) {
+    grid.innerHTML = PILOTAGE_CATEGORIES.map(cat => {
+      const catData = (main && main[cat.key]) || {};
+      const kpisHtml = cat.kpis.map(k => `
+        <div class="pilotage-kpi">
+          <span class="pilotage-kpi-label">${escapeHtml(k.label)}</span>
+          <span class="pilotage-kpi-value">${pfFormat(catData[k.key], k.format)}</span>
+          <span class="pilotage-kpi-status" aria-hidden="true"></span>
+        </div>
+      `).join('');
+      return `
+        <article class="pilotage-card" style="--pilotage-accent: ${cat.accent}">
+          <header class="pilotage-card-head">
+            <span class="pilotage-card-icon" style="background: ${cat.accent}1a; color: ${cat.accent}">${cat.icon}</span>
+            <h3 class="pilotage-card-title">${escapeHtml(cat.label)}</h3>
+          </header>
+          <div class="pilotage-card-kpis">${kpisHtml}</div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  // Funnel : largeurs proportionnelles à la première étape (Leads)
+  // En l'absence de données (V1), on utilise une dégressivité par défaut pour rendre la forme visible.
+  const funnel = document.getElementById('pf-funnel');
+  if (funnel) {
+    const mainFunnel = main && main.funnel ? main.funnel : {};
+    const cmpFunnel  = hasCompare && compare && compare.funnel ? compare.funnel : null;
+    const topMain = Number(mainFunnel[PF_FUNNEL_STAGES[0].key]) || 0;
+    const topCmp  = cmpFunnel ? Number(cmpFunnel[PF_FUNNEL_STAGES[0].key]) || 0 : 0;
+
+    const rows = PF_FUNNEL_STAGES.map((stage, i) => {
+      const v = Number(mainFunnel[stage.key]);
+      const cv = cmpFunnel ? Number(cmpFunnel[stage.key]) : null;
+
+      // Largeur main : si data → proportion, sinon fallback dégressif
+      const fallback = 100 - i * 16; // 100, 84, 68, 52, 36
+      const wMain = (topMain > 0 && !Number.isNaN(v)) ? Math.max(8, Math.round((v / topMain) * 100)) : fallback;
+      const wCmp  = (cmpFunnel && topCmp > 0 && !Number.isNaN(cv)) ? Math.max(8, Math.round((cv / topCmp) * 100)) : null;
+
+      // Taux de conversion vs étape précédente
+      let convo = '';
+      if (i > 0) {
+        const prev = Number(mainFunnel[PF_FUNNEL_STAGES[i - 1].key]);
+        if (!Number.isNaN(v) && !Number.isNaN(prev) && prev > 0) {
+          convo = `${Math.round((v / prev) * 100)} %`;
+        } else {
+          convo = '—';
+        }
+      }
+
+      return `
+        ${i > 0 ? `<div class="pf-funnel-arrow"><span>${convo}</span></div>` : ''}
+        <div class="pf-funnel-row">
+          ${wCmp !== null ? `<div class="pf-funnel-ghost" style="width:${wCmp}%"></div>` : ''}
+          <div class="pf-funnel-bar" style="width:${wMain}%; background: linear-gradient(135deg, ${stage.color} 0%, ${stage.color}cc 100%)">
+            <span class="pf-funnel-bar-label">${escapeHtml(stage.label)}</span>
+            <span class="pf-funnel-bar-value">${pfFormat(mainFunnel[stage.key], stage.format)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+    funnel.innerHTML = rows;
+  }
+
+  // Légende compare
+  const legCmp = document.getElementById('pf-legend-compare');
+  const legCmpLabel = document.getElementById('pf-legend-compare-label');
+  if (legCmp) {
+    legCmp.classList.toggle('hidden', !hasCompare);
+    if (hasCompare && legCmpLabel) legCmpLabel.textContent = summarizeCompare(pilotageFunnelState.compareWith);
+  }
+
+  // Indicateurs latéraux
+  const side = document.getElementById('pf-side-list');
+  if (side) {
+    const sideData = main && main.indicators ? main.indicators : {};
+    const cmpSide  = hasCompare && compare && compare.indicators ? compare.indicators : null;
+    side.innerHTML = PF_SIDE_INDICATORS.map(ind => {
+      const valStr = pfFormat(sideData[ind.key], ind.format);
+      const cmpStr = cmpSide ? pfFormat(cmpSide[ind.key], ind.format) : null;
+      return `
+        <li class="pf-side-row">
+          <span class="pf-side-label">${escapeHtml(ind.label)}</span>
+          <span class="pf-side-values">
+            <span class="pf-side-value">${valStr}</span>
+            ${cmpStr !== null ? `<span class="pf-side-cmp" title="Comparaison">${cmpStr}</span>` : ''}
+          </span>
+        </li>
+      `;
+    }).join('');
+  }
+
+  // Synthèse financière
+  const fin = document.getElementById('pf-financials');
+  if (fin) {
+    const finData = main && main.financials ? main.financials : {};
+    // Si CA HT non fourni mais CA TTC oui, on le dérive (÷ 1,20)
+    if ((finData.ca_ht === undefined || finData.ca_ht === null) && finData.ca_ttc != null && !Number.isNaN(Number(finData.ca_ttc))) {
+      finData.ca_ht = Number(finData.ca_ttc) / 1.20;
+    }
+    // Cash-flow = CA HT − Dépenses si non fourni
+    if ((finData.cashflow === undefined || finData.cashflow === null) && finData.ca_ht != null && finData.depenses != null) {
+      finData.cashflow = Number(finData.ca_ht) - Number(finData.depenses);
+    }
+    // Break-Even = Dépenses (seuil de CA HT) si non fourni
+    if ((finData.breakeven === undefined || finData.breakeven === null) && finData.depenses != null) {
+      finData.breakeven = Number(finData.depenses);
+    }
+
+    fin.innerHTML = PF_FINANCIALS.map(f => {
+      const raw = finData[f.key];
+      const valStr = pfFormat(raw, f.format);
+      let toneClass = '';
+      if (f.tone === 'highlight') {
+        if (raw != null && !Number.isNaN(Number(raw))) {
+          toneClass = Number(raw) >= 0 ? 'pf-fin-positive' : 'pf-fin-negative';
+        }
+      } else if (f.tone === 'negative') {
+        toneClass = 'pf-fin-muted';
+      } else if (f.tone === 'accent') {
+        toneClass = 'pf-fin-accent';
+      }
+      return `
+        <div class="pf-fin-cell ${toneClass}">
+          <span class="pf-fin-label">${escapeHtml(f.label)}${f.hint ? ` <span class="pf-fin-hint">${escapeHtml(f.hint)}</span>` : ''}</span>
+          <span class="pf-fin-value">${valStr}</span>
+        </div>
+      `;
+    }).join('');
+  }
 }

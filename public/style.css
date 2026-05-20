@@ -9525,3 +9525,446 @@ img {
     font-size: 0.8rem;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   PILOTAGE FUNNEL — Funnel, indicateurs et finances
+   ════════════════════════════════════════════════════════════════ */
+.pf-wrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 28px 64px;
+}
+.pf-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.pf-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  margin: 0 0 4px;
+}
+.pf-sub {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+.pf-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.pf-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pf-filter-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+.pf-period {
+  display: inline-flex;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 4px;
+  gap: 2px;
+}
+.pf-period-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+.pf-period-btn:hover { color: #0f172a; }
+.pf-period-btn.active {
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.08);
+}
+.pf-date-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 38px;
+  padding: 0 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+.pf-date-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.pf-date-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.pf-date-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+  min-width: 130px;
+  text-align: center;
+  text-transform: capitalize;
+}
+
+/* Multi-select trigger */
+.pf-multi-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 200px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.pf-multi-trigger:hover {
+  border-color: #6366F1;
+}
+.pf-multi-caret {
+  color: #94a3b8;
+  font-size: 0.7rem;
+}
+
+/* Popover multi-select */
+.pf-popover {
+  position: absolute;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(15,23,42,0.12);
+  padding: 8px 0;
+  min-width: 220px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.pf-popover.hidden { display: none; }
+.pf-popover-head {
+  padding: 6px 14px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.pf-popover-body { padding: 4px 0; }
+.pf-popover-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  color: #0f172a;
+  cursor: pointer;
+  transition: background .12s;
+}
+.pf-popover-row:hover { background: #f1f5f9; }
+.pf-popover-row input { accent-color: #6366F1; cursor: pointer; }
+.pf-popover-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 6px 12px;
+}
+.pf-popover-hint {
+  padding: 6px 14px 4px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Cartes catégories — partagent les classes .pilotage-card du tab Pilotage */
+.pf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+  margin-bottom: 32px;
+}
+
+/* Section funnel + indicateurs */
+.pf-funnel-section {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 18px;
+  margin-bottom: 32px;
+}
+.pf-funnel-card,
+.pf-side-card,
+.pf-financials-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+}
+.pf-section-title {
+  margin: 0 0 18px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #64748b;
+}
+
+/* Funnel vertical */
+.pf-funnel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.pf-funnel-row {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+.pf-funnel-bar {
+  position: relative;
+  z-index: 2;
+  min-height: 56px;
+  border-radius: 12px;
+  padding: 12px 22px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.08);
+  transition: transform .18s ease;
+}
+.pf-funnel-bar:hover { transform: translateY(-1px); }
+.pf-funnel-bar-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.pf-funnel-bar-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.pf-funnel-ghost {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 12px;
+  background: repeating-linear-gradient(135deg, rgba(99,102,241,0.10) 0 8px, rgba(99,102,241,0.04) 8px 16px);
+  border: 1.5px dashed rgba(99,102,241,0.35);
+  z-index: 1;
+}
+.pf-funnel-arrow {
+  width: 100%;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.04em;
+  padding: 6px 0;
+  position: relative;
+}
+.pf-funnel-arrow::before {
+  content: '▾';
+  display: inline-block;
+  margin-right: 6px;
+  color: #cbd5e1;
+}
+.pf-funnel-arrow span {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  color: #475569;
+}
+
+/* Légende funnel */
+.pf-funnel-legend {
+  display: flex;
+  gap: 18px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+.pf-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #475569;
+  font-weight: 600;
+}
+.pf-legend-item.hidden { display: none; }
+.pf-legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.pf-legend-main { background: linear-gradient(135deg, #6366F1, #06B6D4); }
+.pf-legend-ghost {
+  background: repeating-linear-gradient(135deg, rgba(99,102,241,0.25) 0 4px, rgba(99,102,241,0.08) 4px 8px);
+  border: 1px dashed rgba(99,102,241,0.4);
+}
+
+/* Indicateurs latéraux */
+.pf-side-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pf-side-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  transition: background .15s;
+}
+.pf-side-row:hover { background: #f1f5f9; }
+.pf-side-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475569;
+}
+.pf-side-values {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.pf-side-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.pf-side-cmp {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  background: rgba(99,102,241,0.08);
+  border-radius: 5px;
+}
+
+/* Synthèse financière */
+.pf-financials {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+.pf-fin-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  position: relative;
+}
+.pf-fin-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+.pf-fin-hint {
+  text-transform: none;
+  font-weight: 500;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  letter-spacing: 0;
+  margin-left: 2px;
+}
+.pf-fin-value {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.pf-fin-positive { background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.18); }
+.pf-fin-positive .pf-fin-value { color: #047857; }
+.pf-fin-negative { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.18); }
+.pf-fin-negative .pf-fin-value { color: #b91c1c; }
+.pf-fin-muted .pf-fin-value { color: #475569; }
+.pf-fin-accent { background: rgba(99,102,241,0.07); border-color: rgba(99,102,241,0.18); }
+.pf-fin-accent .pf-fin-value { color: #4338ca; }
+.pf-financials-note {
+  margin: 12px 0 0;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .pf-funnel-section {
+    grid-template-columns: 1fr;
+  }
+  .pf-financials {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 768px) {
+  .pf-wrap {
+    padding: 16px 14px 80px;
+  }
+  .pf-title { font-size: 1.4rem; }
+  .pf-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .pf-filters { gap: 12px; }
+  .pf-filter-group { flex: 1; min-width: 140px; }
+  .pf-grid { grid-template-columns: 1fr; gap: 14px; }
+  .pf-financials { grid-template-columns: repeat(2, 1fr); }
+  .pf-funnel-card, .pf-side-card, .pf-financials-card {
+    padding: 16px 14px;
+  }
+  .pf-funnel-bar { min-height: 48px; padding: 10px 14px; }
+  .pf-funnel-bar-value { font-size: 1rem; }
+  .pf-multi-trigger { min-width: 0; width: 100%; }
+}

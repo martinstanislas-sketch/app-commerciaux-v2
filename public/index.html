@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=pilotage1">
+  <link rel="stylesheet" href="style.css?v=funnel1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -45,6 +45,7 @@
       <button class="tab-btn active" data-tab="tasks">T&acirc;ches</button>
       <button class="tab-btn" data-tab="perso">Perso</button>
       <button class="tab-btn" data-tab="pilotage">Pilotage</button>
+      <button class="tab-btn" data-tab="pilotage-funnel">Pilotage Funnel</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button> -->
     </nav>
@@ -526,6 +527,99 @@
       </div>
     </section>
 
+    <!-- =================== PILOTAGE FUNNEL (admin) =================== -->
+    <section id="tab-pilotage-funnel" class="tab-content">
+      <div class="pf-wrap">
+        <header class="pf-header">
+          <div>
+            <h2 class="pf-title">Pilotage Funnel</h2>
+            <p class="pf-sub">Performance commerciale du funnel, du lead au chiffre d'affaires</p>
+          </div>
+          <div class="pf-filters">
+            <div class="pf-filter-group">
+              <label class="pf-filter-label">Période</label>
+              <div class="pf-period" id="pf-period">
+                <button class="pf-period-btn" data-period="day">Jour</button>
+                <button class="pf-period-btn" data-period="week">Semaine</button>
+                <button class="pf-period-btn active" data-period="month">Mois</button>
+                <button class="pf-period-btn" data-period="quarter">Trimestre</button>
+              </div>
+            </div>
+            <div class="pf-filter-group">
+              <label class="pf-filter-label">Plage</label>
+              <div class="pf-date-nav">
+                <button class="pf-date-btn" id="pf-prev" title="Précédent">‹</button>
+                <span class="pf-date-label" id="pf-date-label">—</span>
+                <button class="pf-date-btn" id="pf-next" title="Suivant">›</button>
+              </div>
+            </div>
+            <div class="pf-filter-group">
+              <label class="pf-filter-label">Clubs analysés</label>
+              <button class="pf-multi-trigger" id="pf-clubs-trigger" type="button">
+                <span id="pf-clubs-summary">Tous les clubs</span>
+                <span class="pf-multi-caret">▾</span>
+              </button>
+            </div>
+            <div class="pf-filter-group">
+              <label class="pf-filter-label">Comparer avec</label>
+              <button class="pf-multi-trigger" id="pf-compare-trigger" type="button">
+                <span id="pf-compare-summary">Aucune comparaison</span>
+                <span class="pf-multi-caret">▾</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Cartes catégories -->
+        <div class="pf-grid" id="pf-grid">
+          <!-- rendu dynamiquement -->
+        </div>
+
+        <!-- Funnel + indicateurs latéraux -->
+        <div class="pf-funnel-section">
+          <div class="pf-funnel-card">
+            <h3 class="pf-section-title">Funnel de performance</h3>
+            <div class="pf-funnel" id="pf-funnel">
+              <!-- rendu dynamiquement -->
+            </div>
+            <div class="pf-funnel-legend" id="pf-funnel-legend">
+              <span class="pf-legend-item"><span class="pf-legend-swatch pf-legend-main"></span>Sélection</span>
+              <span class="pf-legend-item pf-legend-compare hidden" id="pf-legend-compare"><span class="pf-legend-swatch pf-legend-ghost"></span><span id="pf-legend-compare-label">Comparaison</span></span>
+            </div>
+          </div>
+          <aside class="pf-side-card">
+            <h3 class="pf-section-title">Indicateurs complémentaires</h3>
+            <ul class="pf-side-list" id="pf-side-list">
+              <!-- rendu dynamiquement -->
+            </ul>
+          </aside>
+        </div>
+
+        <!-- Tableau financier -->
+        <div class="pf-financials-card">
+          <h3 class="pf-section-title">Synthèse financière</h3>
+          <div class="pf-financials" id="pf-financials">
+            <!-- rendu dynamiquement -->
+          </div>
+          <p class="pf-financials-note">CA HT = CA TTC ÷ 1,20 · Cash-flow = CA HT − Dépenses · Break-Even = seuil de CA HT pour couvrir les dépenses</p>
+        </div>
+
+        <!-- Popovers multi-sélection -->
+        <div class="pf-popover hidden" id="pf-clubs-popover">
+          <div class="pf-popover-head">Clubs analysés</div>
+          <div class="pf-popover-body" id="pf-clubs-options"></div>
+        </div>
+        <div class="pf-popover hidden" id="pf-compare-popover">
+          <div class="pf-popover-head">Référence de comparaison</div>
+          <div class="pf-popover-body" id="pf-compare-options"></div>
+        </div>
+
+        <p class="pilotage-footnote">
+          Version 1 — Structure d'affichage. Données réelles, objectifs colorés et courbes d'évolution à brancher dans une itération suivante.
+        </p>
+      </div>
+    </section>
+
     <!-- EMAIL / ADMIN -->
   </main>
 
@@ -634,6 +728,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=pilotage1"></script>
+  <script src="app.js?v=funnel1"></script>
 </body>
 </html>
