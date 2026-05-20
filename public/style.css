@@ -9742,7 +9742,12 @@ img {
 .pilotage-date-nav.hidden,
 .pf-date-custom.hidden,
 .pf-popover.hidden,
-.pf-legend-item.hidden { display: none; }
+.pf-legend-item.hidden,
+/* Override pour les règles scopées du redesign DS (specificity 1,1,0) */
+#tab-pilotage-funnel .pf-date-nav.hidden,
+#tab-pilotage-funnel .pf-date-custom.hidden,
+#tab-pilotage-funnel .pf-legend-item.hidden,
+#tab-pilotage-funnel .pf-popover.hidden { display: none !important; }
 
 .pf-date-custom {
   display: inline-flex;
