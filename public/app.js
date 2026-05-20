@@ -8944,6 +8944,40 @@ async function loadPilotageFunnel() {
     });
   }
 
+  // Bind nav mois dans la Synthèse financière — force le mode 'month' et shift d'un mois
+  const finPrev = document.getElementById('pf-fin-prev');
+  const finNext = document.getElementById('pf-fin-next');
+  const finLbl  = document.getElementById('pf-fin-label');
+  const switchToMonthAndShift = (dir) => {
+    if (pilotageFunnelState.period !== 'month') {
+      pilotageFunnelState.period = 'month';
+      // Met à jour visuellement la pill active dans la barre du funnel
+      document.querySelectorAll('#pf-period .pf-period-btn')
+        .forEach(b => b.classList.toggle('active', b.dataset.period === 'month'));
+    }
+    pilotageFunnelState.dateAnchor = pfShiftAnchor('month', pilotageFunnelState.dateAnchor, dir);
+    renderPilotageFunnel();
+  };
+  if (finPrev && !finPrev.dataset.bound) {
+    finPrev.dataset.bound = '1';
+    finPrev.addEventListener('click', () => switchToMonthAndShift(-1));
+  }
+  if (finNext && !finNext.dataset.bound) {
+    finNext.dataset.bound = '1';
+    finNext.addEventListener('click', () => switchToMonthAndShift(+1));
+  }
+  if (finLbl && !finLbl.dataset.bound) {
+    finLbl.dataset.bound = '1';
+    finLbl.style.cursor = 'pointer';
+    finLbl.addEventListener('click', () => {
+      pilotageFunnelState.period = 'month';
+      document.querySelectorAll('#pf-period .pf-period-btn')
+        .forEach(b => b.classList.toggle('active', b.dataset.period === 'month'));
+      pilotageFunnelState.dateAnchor = pilotageToLocalISODate(new Date());
+      renderPilotageFunnel();
+    });
+  }
+
   // Bind champs date custom
   const fromInput = document.getElementById('pf-date-from');
   const toInput = document.getElementById('pf-date-to');
@@ -9173,7 +9207,19 @@ async function renderPilotageFunnel() {
   }
 
   // Labels de filtres
-  document.getElementById('pf-date-label').textContent = pfFormatRange(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+  const rangeLabel = pfFormatRange(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+  document.getElementById('pf-date-label').textContent = rangeLabel;
+  // Le label dans la Synthèse financière affiche TOUJOURS un libellé mois,
+  // même si l'utilisateur est en mode jour/semaine/trimestre/custom
+  const finLblEl = document.getElementById('pf-fin-label');
+  if (finLblEl) {
+    if (pilotageFunnelState.period === 'month') {
+      finLblEl.textContent = rangeLabel;
+    } else {
+      // Format mois forcé pour cohérence visuelle
+      finLblEl.textContent = pfFormatRange('month', pilotageFunnelState.dateAnchor, '', '');
+    }
+  }
   document.getElementById('pf-clubs-summary').textContent = summarizeClubs(pilotageFunnelState.clubs);
   document.getElementById('pf-compare-summary').textContent = summarizeCompare(pilotageFunnelState.compareWith);
 

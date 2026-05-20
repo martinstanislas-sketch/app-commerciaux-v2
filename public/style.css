@@ -10430,6 +10430,38 @@ img {
   border-top: 3px solid var(--ds-primary-500);
   box-shadow: none;
 }
+
+/* Header de la Synthèse financière — titre à gauche + nav mois à droite */
+#tab-pilotage-funnel .pf-financials-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+#tab-pilotage-funnel .pf-financials-head .pf-section-title {
+  margin: 0;
+}
+#tab-pilotage-funnel .pf-fin-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 30px;
+  padding: 0 4px;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+}
+#tab-pilotage-funnel .pf-fin-nav .pf-date-btn {
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+}
+#tab-pilotage-funnel .pf-fin-nav .pf-date-label {
+  font-size: 12px;
+  min-width: 110px;
+}
 #tab-pilotage-funnel .pf-financials {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
