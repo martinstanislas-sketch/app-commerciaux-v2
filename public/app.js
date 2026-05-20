@@ -8502,13 +8502,12 @@ const PF_SIDE_INDICATORS = [
   { key: 'surpacks',     label: 'Ventes de surpacks',        format: 'int', agg: 'sum' },
 ];
 
-// Seules CA TTC et Dépenses sont éditables — les autres sont calculées (HT, cash-flow, break-even).
+// Seules CA TTC et Dépenses sont éditables — les autres sont calculées (HT, cash-flow).
 const PF_FINANCIALS = [
   { key: 'ca_ttc',    label: 'CA TTC',     format: 'eur', tone: 'neutral',   editable: true,  agg: 'sum' },
   { key: 'ca_ht',     label: 'CA HT',      format: 'eur', tone: 'neutral',   editable: false, hint: '÷ 1,20' },
   { key: 'depenses',  label: 'Dépenses',   format: 'eur', tone: 'negative',  editable: true,  agg: 'sum' },
   { key: 'cashflow',  label: 'Cash-flow',  format: 'eur', tone: 'highlight', editable: false },
-  { key: 'breakeven', label: 'Break-Even', format: 'eur', tone: 'accent',    editable: false },
 ];
 
 // État (en mémoire)
@@ -8908,20 +8907,12 @@ async function renderPilotageFunnel() {
     // Calculs dérivés
     const caHt = (caTtc != null) ? caTtc / 1.20 : null;
     const cashflow = (caHt != null && depenses != null) ? (caHt - depenses) : null;
-    const breakeven = (depenses != null) ? depenses : null;
-
-    const resolveFinValue = (key, r, computed) => {
-      if (r) return r;
-      // Cellule calculée (non éditable)
-      return { value: computed, editable: false, aggregate: false };
-    };
 
     const cellMap = {
       ca_ttc:   { resolved: resTtc, value: caTtc },
       ca_ht:    { value: caHt,    editable: false },
       depenses: { resolved: resDep, value: depenses },
       cashflow: { value: cashflow, editable: false },
-      breakeven:{ value: breakeven, editable: false },
     };
 
     fin.innerHTML = PF_FINANCIALS.map(f => {
