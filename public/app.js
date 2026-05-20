@@ -8039,6 +8039,132 @@ function renderSearchResults(query, keepSelection) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// PILOTAGE — Stockage local des valeurs (V1, à migrer en API plus tard)
+// ═══════════════════════════════════════════════════════════════════
+const PILOTAGE_STORE_PREFIX = 'pilot:v1:';
+
+function pilotageStoreRead(key) {
+  try {
+    const v = localStorage.getItem(PILOTAGE_STORE_PREFIX + key);
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    return Number.isNaN(n) ? null : n;
+  } catch (_) { return null; }
+}
+
+function pilotageStoreWrite(key, value) {
+  try {
+    if (value === '' || value == null || Number.isNaN(Number(value))) {
+      localStorage.removeItem(PILOTAGE_STORE_PREFIX + key);
+    } else {
+      localStorage.setItem(PILOTAGE_STORE_PREFIX + key, String(Number(value)));
+    }
+  } catch (_) {}
+}
+
+// Signature de période → utilisée dans la clé de stockage pour qu'un mois,
+// une semaine, un trimestre, etc. soient distincts.
+function pilotagePeriodSig(period, anchorISO, customStart, customEnd) {
+  if (period === 'custom') return `custom-${customStart || '-'}_${customEnd || '-'}`;
+  if (period === 'day')   return `day-${anchorISO}`;
+  if (period === 'week') {
+    const d = new Date(anchorISO + 'T00:00:00');
+    const day = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - day);
+    return `week-${d.toISOString().slice(0, 10)}`;
+  }
+  if (period === 'month')   return `month-${anchorISO.slice(0, 7)}`;
+  if (period === 'quarter') {
+    const d = new Date(anchorISO + 'T00:00:00');
+    const q = Math.floor(d.getMonth() / 3) + 1;
+    return `quarter-${d.getFullYear()}-Q${q}`;
+  }
+  return 'unknown';
+}
+
+// Détermine la liste des clubs effectifs (résout 'all') et indique si l'édition est possible.
+// state.clubs peut être ['all'] ou liste de noms. state.club est un nom unique ou 'all'.
+function pilotageEffectiveClubs(state) {
+  let arr;
+  if (Array.isArray(state.clubs)) {
+    arr = (state.clubs.includes('all') || state.clubs.length === 0) ? PILOTAGE_CLUBS.slice() : state.clubs.slice();
+  } else if (state.club) {
+    arr = state.club === 'all' ? PILOTAGE_CLUBS.slice() : [state.club];
+  } else {
+    arr = PILOTAGE_CLUBS.slice();
+  }
+  return arr;
+}
+
+// Lit une valeur stockée : retourne soit la valeur unique (1 club), soit un agrégat (somme/moy)
+// selon le format et la stratégie d'agrégation.
+function pilotageResolveValue(state, storageSubKey, format, aggOverride) {
+  const periodSig = pilotagePeriodSig(state.period, state.dateAnchor, state.customStart, state.customEnd);
+  const clubs = pilotageEffectiveClubs(state);
+  if (clubs.length === 1) {
+    const key = `${clubs[0]}|${periodSig}|${storageSubKey}`;
+    return { value: pilotageStoreRead(key), editKey: key, editable: true, aggregate: false };
+  }
+  // Agrégat multi-clubs
+  let total = 0, count = 0;
+  for (const c of clubs) {
+    const v = pilotageStoreRead(`${c}|${periodSig}|${storageSubKey}`);
+    if (v != null) { total += v; count++; }
+  }
+  if (count === 0) return { value: null, editable: false, aggregate: true };
+  // Stratégie : 'sum' par défaut sauf si format=pct ou aggOverride='avg'
+  const agg = aggOverride || (format === 'pct' ? 'avg' : 'sum');
+  const out = agg === 'avg' ? (total / count) : total;
+  return { value: out, editable: false, aggregate: true, aggCount: count };
+}
+
+// Génère le HTML d'une valeur cliquable/éditable
+function pilotageEditableValueHtml(state, storageSubKey, format, aggOverride, baseClass) {
+  const r = pilotageResolveValue(state, storageSubKey, format, aggOverride);
+  const display = pilotageFormatValue(r.value, format);
+  const cls = baseClass + (r.editable ? ' editable' : '') + (r.aggregate ? ' aggregate' : '');
+  const attrs = r.editable
+    ? `data-edit-key="${escapeHtml(r.editKey)}" data-format="${format}" tabindex="0" title="Cliquer pour saisir une valeur"`
+    : (r.aggregate ? `title="Agrégat de ${r.aggCount} club(s) — sélectionne un club unique pour éditer"` : '');
+  return `<span class="${cls}" ${attrs}>${display}</span>`;
+}
+
+// Handler de clic pour transformer une cellule éditable en input
+function pilotageHandleEditClick(e, reRender) {
+  const span = e.target.closest('[data-edit-key]');
+  if (!span || span.tagName === 'INPUT' || span.classList.contains('editing')) return;
+  const editKey = span.dataset.editKey;
+  const format = span.dataset.format || 'int';
+  const current = pilotageStoreRead(editKey);
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.step = format === 'pct' ? '0.1' : '1';
+  input.value = current != null ? current : '';
+  input.className = 'pilotage-kpi-input';
+  input.placeholder = '—';
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const commit = () => {
+    if (done) return; done = true;
+    pilotageStoreWrite(editKey, input.value.trim());
+    reRender();
+  };
+  const cancel = () => {
+    if (done) return; done = true;
+    reRender();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter')      { ev.preventDefault(); input.blur(); }
+    else if (ev.key === 'Escape'){ ev.preventDefault(); cancel(); }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // PILOTAGE — Tableau de bord funnel commercial (admin uniquement)
 // ═══════════════════════════════════════════════════════════════════
 //
@@ -8054,6 +8180,8 @@ function renderSearchResults(query, keepSelection) {
 //   - Liste dynamique des clubs depuis l'API
 // -------------------------------------------------------------------
 
+// agg: stratégie d'agrégation multi-clubs ('sum' par défaut pour int/eur, 'avg' pour pct).
+// Override explicite pour les unitaires (CPL, CAC, panier moyen, ratio).
 const PILOTAGE_CATEGORIES = [
   {
     key: 'marketing',
@@ -8061,9 +8189,9 @@ const PILOTAGE_CATEGORIES = [
     icon: '📣',
     accent: '#6366F1', // indigo
     kpis: [
-      { key: 'leads', label: 'Leads', format: 'int', unit: '' },
-      { key: 'cpl',   label: 'CPL',   format: 'eur', unit: '€' },
-      { key: 'cac',   label: 'CAC',   format: 'eur', unit: '€' },
+      { key: 'leads', label: 'Leads', format: 'int', agg: 'sum' },
+      { key: 'cpl',   label: 'CPL',   format: 'eur', agg: 'avg' },
+      { key: 'cac',   label: 'CAC',   format: 'eur', agg: 'avg' },
     ],
   },
   {
@@ -8072,9 +8200,9 @@ const PILOTAGE_CATEGORIES = [
     icon: '📞',
     accent: '#06B6D4', // cyan
     kpis: [
-      { key: 'rdv_fixes',   label: 'RDV fixés',   format: 'int' },
-      { key: 'non_traites', label: 'Non traités', format: 'int' },
-      { key: 'no_show',     label: 'No-show',     format: 'int' },
+      { key: 'rdv_fixes',   label: 'RDV fixés',   format: 'int', agg: 'sum' },
+      { key: 'non_traites', label: 'Non traités', format: 'int', agg: 'sum' },
+      { key: 'no_show',     label: 'No-show',     format: 'int', agg: 'sum' },
     ],
   },
   {
@@ -8083,9 +8211,9 @@ const PILOTAGE_CATEGORIES = [
     icon: '🧑‍💼',
     accent: '#F59E0B', // amber
     kpis: [
-      { key: 'transfo',      label: 'Transfo',       format: 'pct' },
-      { key: 'panier_moyen', label: 'Panier moyen',  format: 'eur' },
-      { key: 'ratio',        label: 'Ratio',         format: 'int' },
+      { key: 'transfo',      label: 'Transfo',       format: 'pct', agg: 'avg' },
+      { key: 'panier_moyen', label: 'Panier moyen',  format: 'eur', agg: 'avg' },
+      { key: 'ratio',        label: 'Ratio',         format: 'int', agg: 'avg' },
     ],
   },
   {
@@ -8094,9 +8222,9 @@ const PILOTAGE_CATEGORIES = [
     icon: '🏅',
     accent: '#8B5CF6', // violet
     kpis: [
-      { key: 'resiliation', label: 'Résiliation', format: 'pct' },
-      { key: 'remplissage', label: 'Remplissage', format: 'pct' },
-      { key: 'ca',          label: 'CA',          format: 'eur' },
+      { key: 'resiliation', label: 'Résiliation', format: 'pct', agg: 'avg' },
+      { key: 'remplissage', label: 'Remplissage', format: 'pct', agg: 'avg' },
+      { key: 'ca',          label: 'CA',          format: 'eur', agg: 'sum' },
     ],
   },
   {
@@ -8105,9 +8233,9 @@ const PILOTAGE_CATEGORIES = [
     icon: '💪',
     accent: '#10B981', // emerald
     kpis: [
-      { key: 'prises_ref', label: 'Prises de ref', format: 'int' },
-      { key: 'resultats',  label: 'Résultats',     format: 'int' },
-      { key: 'surpacks',   label: 'Surpacks',      format: 'int' },
+      { key: 'prises_ref', label: 'Prises de ref', format: 'int', agg: 'sum' },
+      { key: 'resultats',  label: 'Résultats',     format: 'int', agg: 'sum' },
+      { key: 'surpacks',   label: 'Surpacks',      format: 'int', agg: 'sum' },
     ],
   },
 ];
@@ -8115,8 +8243,10 @@ const PILOTAGE_CATEGORIES = [
 // État courant de l'onglet (en mémoire seulement, pas de persistance V1)
 let pilotageState = {
   club: 'all',                   // 'all' | club name
-  period: 'month',               // 'day' | 'week' | 'month' | 'quarter'
+  period: 'month',               // 'day' | 'week' | 'month' | 'quarter' | 'custom'
   dateAnchor: new Date().toISOString().slice(0, 10), // YYYY-MM-DD
+  customStart: '',               // YYYY-MM-DD (utilisé si period === 'custom')
+  customEnd: '',                 // YYYY-MM-DD (utilisé si period === 'custom')
 };
 
 // ── Helpers de formatage ────────────────────────────────────────────
@@ -8135,7 +8265,15 @@ function pilotageFormatValue(value, format) {
   }
 }
 
-function pilotageFormatRange(period, anchorISO) {
+function pilotageFormatRange(period, anchorISO, customStart, customEnd) {
+  if (period === 'custom') {
+    if (!customStart || !customEnd) return '—';
+    const a = new Date(customStart + 'T00:00:00');
+    const b = new Date(customEnd + 'T00:00:00');
+    if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return '—';
+    const opts = { day: '2-digit', month: 'short', year: 'numeric' };
+    return `${a.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} – ${b.toLocaleDateString('fr-FR', opts)}`;
+  }
   const d = new Date(anchorISO + 'T00:00:00');
   if (Number.isNaN(d.getTime())) return '—';
   const opts = { day: '2-digit', month: 'short', year: 'numeric' };
@@ -8178,14 +8316,20 @@ async function fetchPilotageData(/* state */) {
   return {};
 }
 
-// ── Liste des clubs (V1: placeholder, à brancher plus tard) ─────────
+// ── Liste des clubs (V1: liste figée, à brancher sur une API plus tard) ──
+const PILOTAGE_CLUBS = [
+  'Lille Marcq-en-Barœul',
+  'Wasquehal',
+  'Neuilly-sur-Seine',
+  'Levallois-Perret',
+  'Boulogne-Billancourt',
+];
+
 async function fetchPilotageClubs() {
   // TODO V2: GET /api/clubs ou dérivé depuis les coaches/sales_reps
   return [
-    { value: 'all',   label: 'Tous les clubs' },
-    // Clubs connus (issus du fichier de seed coach) :
-    { value: 'Caen',  label: 'Caen' },
-    { value: 'Tours', label: 'Tours' },
+    { value: 'all', label: 'Tous les clubs' },
+    ...PILOTAGE_CLUBS.map(c => ({ value: c, label: c })),
   ];
 }
 
@@ -8213,6 +8357,13 @@ async function loadPilotage() {
       pilotageState.period = btn.dataset.period;
       document.querySelectorAll('#pilotage-period .pilotage-period-btn')
         .forEach(b => b.classList.toggle('active', b === btn));
+      // En mode "custom", initialise les bornes si vides (dernier mois)
+      if (pilotageState.period === 'custom' && (!pilotageState.customStart || !pilotageState.customEnd)) {
+        const today = new Date();
+        const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
+        pilotageState.customStart = monthAgo.toISOString().slice(0, 10);
+        pilotageState.customEnd = today.toISOString().slice(0, 10);
+      }
       renderPilotage();
     });
   });
@@ -8235,13 +8386,51 @@ async function loadPilotage() {
     });
   }
 
+  // Bind champs date custom
+  const fromInput = document.getElementById('pilotage-date-from');
+  const toInput = document.getElementById('pilotage-date-to');
+  if (fromInput && !fromInput.dataset.bound) {
+    fromInput.dataset.bound = '1';
+    fromInput.addEventListener('change', () => {
+      pilotageState.customStart = fromInput.value;
+      renderPilotage();
+    });
+  }
+  if (toInput && !toInput.dataset.bound) {
+    toInput.dataset.bound = '1';
+    toInput.addEventListener('change', () => {
+      pilotageState.customEnd = toInput.value;
+      renderPilotage();
+    });
+  }
+
+  // Délégation de clic pour l'édition inline des KPIs
+  const root = document.getElementById('tab-pilotage');
+  if (root && !root.dataset.editBound) {
+    root.dataset.editBound = '1';
+    root.addEventListener('click', (e) => pilotageHandleEditClick(e, () => renderPilotage()));
+  }
+
   await renderPilotage();
 }
 
 async function renderPilotage() {
+  // Bascule nav ‹›  ↔  champs date custom
+  const isCustom = pilotageState.period === 'custom';
+  const navEl = document.getElementById('pilotage-date-nav');
+  const customEl = document.getElementById('pilotage-date-custom');
+  if (navEl) navEl.classList.toggle('hidden', isCustom);
+  if (customEl) customEl.classList.toggle('hidden', !isCustom);
+  if (isCustom) {
+    const fromInput = document.getElementById('pilotage-date-from');
+    const toInput = document.getElementById('pilotage-date-to');
+    if (fromInput && fromInput.value !== pilotageState.customStart) fromInput.value = pilotageState.customStart || '';
+    if (toInput && toInput.value !== pilotageState.customEnd) toInput.value = pilotageState.customEnd || '';
+  }
+
   // Label de plage
   const lbl = document.getElementById('pilotage-date-label');
-  if (lbl) lbl.textContent = pilotageFormatRange(pilotageState.period, pilotageState.dateAnchor);
+  if (lbl) lbl.textContent = pilotageFormatRange(pilotageState.period, pilotageState.dateAnchor, pilotageState.customStart, pilotageState.customEnd);
 
   // Récupère les valeurs (V1 = objet vide)
   const data = await fetchPilotageData(pilotageState);
@@ -8250,14 +8439,13 @@ async function renderPilotage() {
   const grid = document.getElementById('pilotage-grid');
   if (!grid) return;
   grid.innerHTML = PILOTAGE_CATEGORIES.map(cat => {
-    const catData = data[cat.key] || {};
     const kpisHtml = cat.kpis.map(k => {
-      const raw = catData[k.key];
-      const display = pilotageFormatValue(raw, k.format);
+      const subKey = `cat:${cat.key}:${k.key}`;
+      const valueHtml = pilotageEditableValueHtml(pilotageState, subKey, k.format, k.agg, 'pilotage-kpi-value');
       return `
         <div class="pilotage-kpi" data-cat="${cat.key}" data-kpi="${k.key}">
           <span class="pilotage-kpi-label">${escapeHtml(k.label)}</span>
-          <span class="pilotage-kpi-value">${display}</span>
+          ${valueHtml}
           <span class="pilotage-kpi-status" aria-hidden="true"></span>
         </div>
       `;
@@ -8297,35 +8485,38 @@ async function renderPilotage() {
 // -------------------------------------------------------------------
 
 const PF_FUNNEL_STAGES = [
-  { key: 'leads',     label: 'Leads générés',    format: 'int', color: '#6366F1' },
-  { key: 'rdv_pris',  label: 'RDV pris',         format: 'int', color: '#06B6D4' },
-  { key: 'rdv_venus', label: 'RDV venus',        format: 'int', color: '#10B981' },
-  { key: 'ventes',    label: 'Ventes',           format: 'int', color: '#F59E0B' },
-  { key: 'ca',        label: 'Chiffre d\'affaires', format: 'eur', color: '#EF4444' },
+  { key: 'leads',     label: 'Leads générés',      format: 'int', color: '#6366F1', agg: 'sum' },
+  { key: 'rdv_pris',  label: 'RDV pris',           format: 'int', color: '#06B6D4', agg: 'sum' },
+  { key: 'rdv_venus', label: 'RDV venus',          format: 'int', color: '#10B981', agg: 'sum' },
+  { key: 'ventes',    label: 'Ventes',             format: 'int', color: '#F59E0B', agg: 'sum' },
+  { key: 'ca',        label: 'Chiffre d\'affaires', format: 'eur', color: '#EF4444', agg: 'sum' },
 ];
 
 const PF_SIDE_INDICATORS = [
-  { key: 'cpl',          label: 'Coût par lead',          format: 'eur' },
-  { key: 'no_show',      label: 'Taux de no-show',        format: 'pct' },
-  { key: 'transfo',      label: 'Taux de transformation', format: 'pct' },
-  { key: 'panier_moyen', label: 'Panier moyen',           format: 'eur' },
-  { key: 'resiliation',  label: 'Taux de résiliation',    format: 'pct' },
-  { key: 'prises_ref',   label: 'Prises de recommandations', format: 'int' },
-  { key: 'surpacks',     label: 'Ventes de surpacks',     format: 'int' },
+  { key: 'cpl',          label: 'Coût par lead',             format: 'eur', agg: 'avg' },
+  { key: 'no_show',      label: 'Taux de no-show',           format: 'pct', agg: 'avg' },
+  { key: 'transfo',      label: 'Taux de transformation',    format: 'pct', agg: 'avg' },
+  { key: 'panier_moyen', label: 'Panier moyen',              format: 'eur', agg: 'avg' },
+  { key: 'resiliation',  label: 'Taux de résiliation',       format: 'pct', agg: 'avg' },
+  { key: 'prises_ref',   label: 'Prises de recommandations', format: 'int', agg: 'sum' },
+  { key: 'surpacks',     label: 'Ventes de surpacks',        format: 'int', agg: 'sum' },
 ];
 
+// Seules CA TTC et Dépenses sont éditables — les autres sont calculées (HT, cash-flow, break-even).
 const PF_FINANCIALS = [
-  { key: 'ca_ttc',     label: 'CA TTC',     format: 'eur', tone: 'neutral' },
-  { key: 'ca_ht',      label: 'CA HT',      format: 'eur', tone: 'neutral', hint: '÷ 1,20' },
-  { key: 'depenses',   label: 'Dépenses',   format: 'eur', tone: 'negative' },
-  { key: 'cashflow',   label: 'Cash-flow',  format: 'eur', tone: 'highlight' },
-  { key: 'breakeven',  label: 'Break-Even', format: 'eur', tone: 'accent' },
+  { key: 'ca_ttc',    label: 'CA TTC',     format: 'eur', tone: 'neutral',   editable: true,  agg: 'sum' },
+  { key: 'ca_ht',     label: 'CA HT',      format: 'eur', tone: 'neutral',   editable: false, hint: '÷ 1,20' },
+  { key: 'depenses',  label: 'Dépenses',   format: 'eur', tone: 'negative',  editable: true,  agg: 'sum' },
+  { key: 'cashflow',  label: 'Cash-flow',  format: 'eur', tone: 'highlight', editable: false },
+  { key: 'breakeven', label: 'Break-Even', format: 'eur', tone: 'accent',    editable: false },
 ];
 
 // État (en mémoire)
 let pilotageFunnelState = {
-  period: 'month',
+  period: 'month',         // 'day' | 'week' | 'month' | 'quarter' | 'custom'
   dateAnchor: new Date().toISOString().slice(0, 10),
+  customStart: '',
+  customEnd: '',
   clubs: ['all'],          // ['all'] ou liste de noms
   compareWith: [],         // [] = pas de compare, ['__others__'] = moyenne autres clubs, ou liste de noms
 };
@@ -8338,8 +8529,8 @@ function pfFormat(value, format) {
   return pilotageFormatValue(value, format); // réutilise le formateur Pilotage
 }
 
-function pfFormatRange(period, anchorISO) {
-  return pilotageFormatRange(period, anchorISO); // idem
+function pfFormatRange(period, anchorISO, customStart, customEnd) {
+  return pilotageFormatRange(period, anchorISO, customStart, customEnd); // idem
 }
 
 function pfShiftAnchor(period, anchor, dir) {
@@ -8356,8 +8547,8 @@ async function fetchPilotageFunnelData(/* state */) {
 
 async function fetchPilotageFunnelClubs() {
   if (pfClubsCache) return pfClubsCache;
-  // TODO V2: appeler une vraie API. Pour l'instant on récupère ce qu'on connaît.
-  pfClubsCache = ['Caen', 'Tours']; // mêmes clubs hardcodés que l'onglet Pilotage
+  // TODO V2: appeler une vraie API. Liste partagée avec l'onglet Pilotage.
+  pfClubsCache = PILOTAGE_CLUBS.slice();
   return pfClubsCache;
 }
 
@@ -8373,6 +8564,13 @@ async function loadPilotageFunnel() {
       pilotageFunnelState.period = btn.dataset.period;
       document.querySelectorAll('#pf-period .pf-period-btn')
         .forEach(b => b.classList.toggle('active', b === btn));
+      // Initialise les bornes custom si vides
+      if (pilotageFunnelState.period === 'custom' && (!pilotageFunnelState.customStart || !pilotageFunnelState.customEnd)) {
+        const today = new Date();
+        const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
+        pilotageFunnelState.customStart = monthAgo.toISOString().slice(0, 10);
+        pilotageFunnelState.customEnd = today.toISOString().slice(0, 10);
+      }
       renderPilotageFunnel();
     });
   });
@@ -8395,8 +8593,33 @@ async function loadPilotageFunnel() {
     });
   }
 
+  // Bind champs date custom
+  const fromInput = document.getElementById('pf-date-from');
+  const toInput = document.getElementById('pf-date-to');
+  if (fromInput && !fromInput.dataset.bound) {
+    fromInput.dataset.bound = '1';
+    fromInput.addEventListener('change', () => {
+      pilotageFunnelState.customStart = fromInput.value;
+      renderPilotageFunnel();
+    });
+  }
+  if (toInput && !toInput.dataset.bound) {
+    toInput.dataset.bound = '1';
+    toInput.addEventListener('change', () => {
+      pilotageFunnelState.customEnd = toInput.value;
+      renderPilotageFunnel();
+    });
+  }
+
   // Bind popovers (clubs + compare)
   await initPfMultiSelectors();
+
+  // Délégation de clic pour l'édition inline des valeurs (catégories, funnel, side, finances)
+  const rootPf = document.getElementById('tab-pilotage-funnel');
+  if (rootPf && !rootPf.dataset.editBound) {
+    rootPf.dataset.editBound = '1';
+    rootPf.addEventListener('click', (e) => pilotageHandleEditClick(e, () => renderPilotageFunnel()));
+  }
 
   await renderPilotageFunnel();
 }
@@ -8545,8 +8768,21 @@ function summarizeCompare(arr) {
 }
 
 async function renderPilotageFunnel() {
+  // Bascule nav ‹›  ↔  champs date custom
+  const isCustom = pilotageFunnelState.period === 'custom';
+  const navEl = document.getElementById('pf-date-nav');
+  const customEl = document.getElementById('pf-date-custom');
+  if (navEl) navEl.classList.toggle('hidden', isCustom);
+  if (customEl) customEl.classList.toggle('hidden', !isCustom);
+  if (isCustom) {
+    const fromInput = document.getElementById('pf-date-from');
+    const toInput = document.getElementById('pf-date-to');
+    if (fromInput && fromInput.value !== pilotageFunnelState.customStart) fromInput.value = pilotageFunnelState.customStart || '';
+    if (toInput && toInput.value !== pilotageFunnelState.customEnd) toInput.value = pilotageFunnelState.customEnd || '';
+  }
+
   // Labels de filtres
-  document.getElementById('pf-date-label').textContent = pfFormatRange(pilotageFunnelState.period, pilotageFunnelState.dateAnchor);
+  document.getElementById('pf-date-label').textContent = pfFormatRange(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
   document.getElementById('pf-clubs-summary').textContent = summarizeClubs(pilotageFunnelState.clubs);
   document.getElementById('pf-compare-summary').textContent = summarizeCompare(pilotageFunnelState.compareWith);
 
@@ -8554,18 +8790,21 @@ async function renderPilotageFunnel() {
   const { main, compare } = await fetchPilotageFunnelData(pilotageFunnelState);
   const hasCompare = !!compare && pilotageFunnelState.compareWith.length > 0;
 
-  // Cartes catégories (mêmes 5 que Pilotage)
+  // Cartes catégories (mêmes 5 que Pilotage) — éditables via localStorage
   const grid = document.getElementById('pf-grid');
   if (grid) {
     grid.innerHTML = PILOTAGE_CATEGORIES.map(cat => {
-      const catData = (main && main[cat.key]) || {};
-      const kpisHtml = cat.kpis.map(k => `
-        <div class="pilotage-kpi">
-          <span class="pilotage-kpi-label">${escapeHtml(k.label)}</span>
-          <span class="pilotage-kpi-value">${pfFormat(catData[k.key], k.format)}</span>
-          <span class="pilotage-kpi-status" aria-hidden="true"></span>
-        </div>
-      `).join('');
+      const kpisHtml = cat.kpis.map(k => {
+        const subKey = `cat:${cat.key}:${k.key}`;
+        const valueHtml = pilotageEditableValueHtml(pilotageFunnelState, subKey, k.format, k.agg, 'pilotage-kpi-value');
+        return `
+          <div class="pilotage-kpi">
+            <span class="pilotage-kpi-label">${escapeHtml(k.label)}</span>
+            ${valueHtml}
+            <span class="pilotage-kpi-status" aria-hidden="true"></span>
+          </div>
+        `;
+      }).join('');
       return `
         <article class="pilotage-card" style="--pilotage-accent: ${cat.accent}">
           <header class="pilotage-card-head">
@@ -8578,42 +8817,51 @@ async function renderPilotageFunnel() {
     }).join('');
   }
 
-  // Funnel : largeurs proportionnelles à la première étape (Leads)
-  // En l'absence de données (V1), on utilise une dégressivité par défaut pour rendre la forme visible.
+  // Funnel — les étapes lisent depuis le store. La 1ère étape (Leads) détermine la largeur de référence.
   const funnel = document.getElementById('pf-funnel');
   if (funnel) {
-    const mainFunnel = main && main.funnel ? main.funnel : {};
-    const cmpFunnel  = hasCompare && compare && compare.funnel ? compare.funnel : null;
-    const topMain = Number(mainFunnel[PF_FUNNEL_STAGES[0].key]) || 0;
-    const topCmp  = cmpFunnel ? Number(cmpFunnel[PF_FUNNEL_STAGES[0].key]) || 0 : 0;
+    // Résout chaque étape pour obtenir la valeur effective (single ou agrégat)
+    const stageValues = PF_FUNNEL_STAGES.map(stage => {
+      const r = pilotageResolveValue(pilotageFunnelState, `fnl:${stage.key}`, stage.format, stage.agg);
+      return { stage, resolved: r, value: r.value };
+    });
+    const topMain = Number(stageValues[0].value) || 0;
 
-    const rows = PF_FUNNEL_STAGES.map((stage, i) => {
-      const v = Number(mainFunnel[stage.key]);
-      const cv = cmpFunnel ? Number(cmpFunnel[stage.key]) : null;
+    // Comparaison : on ne stocke pas (V1), donc fallback proportionnel uniquement
+    const cmpFunnel = hasCompare && compare && compare.funnel ? compare.funnel : null;
+    const topCmp = cmpFunnel ? Number(cmpFunnel[PF_FUNNEL_STAGES[0].key]) || 0 : 0;
 
+    const rows = stageValues.map((sv, i) => {
+      const v = Number(sv.value);
+      const cv = cmpFunnel ? Number(cmpFunnel[sv.stage.key]) : null;
       // Largeur main : si data → proportion, sinon fallback dégressif
-      const fallback = 100 - i * 16; // 100, 84, 68, 52, 36
+      const fallback = 100 - i * 16;
       const wMain = (topMain > 0 && !Number.isNaN(v)) ? Math.max(8, Math.round((v / topMain) * 100)) : fallback;
       const wCmp  = (cmpFunnel && topCmp > 0 && !Number.isNaN(cv)) ? Math.max(8, Math.round((cv / topCmp) * 100)) : null;
-
       // Taux de conversion vs étape précédente
       let convo = '';
       if (i > 0) {
-        const prev = Number(mainFunnel[PF_FUNNEL_STAGES[i - 1].key]);
+        const prev = Number(stageValues[i - 1].value);
         if (!Number.isNaN(v) && !Number.isNaN(prev) && prev > 0) {
           convo = `${Math.round((v / prev) * 100)} %`;
         } else {
           convo = '—';
         }
       }
-
+      // Valeur éditable
+      const r = sv.resolved;
+      const display = pilotageFormatValue(r.value, sv.stage.format);
+      const cls = 'pf-funnel-bar-value' + (r.editable ? ' editable' : '') + (r.aggregate ? ' aggregate' : '');
+      const attrs = r.editable
+        ? `data-edit-key="${escapeHtml(r.editKey)}" data-format="${sv.stage.format}" tabindex="0" title="Cliquer pour saisir une valeur"`
+        : (r.aggregate ? `title="Agrégat de ${r.aggCount} club(s)"` : '');
       return `
         ${i > 0 ? `<div class="pf-funnel-arrow"><span>${convo}</span></div>` : ''}
         <div class="pf-funnel-row">
           ${wCmp !== null ? `<div class="pf-funnel-ghost" style="width:${wCmp}%"></div>` : ''}
-          <div class="pf-funnel-bar" style="width:${wMain}%; background: linear-gradient(135deg, ${stage.color} 0%, ${stage.color}cc 100%)">
-            <span class="pf-funnel-bar-label">${escapeHtml(stage.label)}</span>
-            <span class="pf-funnel-bar-value">${pfFormat(mainFunnel[stage.key], stage.format)}</span>
+          <div class="pf-funnel-bar" style="width:${wMain}%; background: linear-gradient(135deg, ${sv.stage.color} 0%, ${sv.stage.color}cc 100%)">
+            <span class="pf-funnel-bar-label">${escapeHtml(sv.stage.label)}</span>
+            <span class="${cls}" ${attrs}>${display}</span>
           </div>
         </div>
       `;
@@ -8629,19 +8877,19 @@ async function renderPilotageFunnel() {
     if (hasCompare && legCmpLabel) legCmpLabel.textContent = summarizeCompare(pilotageFunnelState.compareWith);
   }
 
-  // Indicateurs latéraux
+  // Indicateurs latéraux (éditables)
   const side = document.getElementById('pf-side-list');
   if (side) {
-    const sideData = main && main.indicators ? main.indicators : {};
-    const cmpSide  = hasCompare && compare && compare.indicators ? compare.indicators : null;
+    const cmpSide = hasCompare && compare && compare.indicators ? compare.indicators : null;
     side.innerHTML = PF_SIDE_INDICATORS.map(ind => {
-      const valStr = pfFormat(sideData[ind.key], ind.format);
+      const subKey = `side:${ind.key}`;
+      const valueHtml = pilotageEditableValueHtml(pilotageFunnelState, subKey, ind.format, ind.agg, 'pf-side-value');
       const cmpStr = cmpSide ? pfFormat(cmpSide[ind.key], ind.format) : null;
       return `
         <li class="pf-side-row">
           <span class="pf-side-label">${escapeHtml(ind.label)}</span>
           <span class="pf-side-values">
-            <span class="pf-side-value">${valStr}</span>
+            ${valueHtml}
             ${cmpStr !== null ? `<span class="pf-side-cmp" title="Comparaison">${cmpStr}</span>` : ''}
           </span>
         </li>
@@ -8649,26 +8897,37 @@ async function renderPilotageFunnel() {
     }).join('');
   }
 
-  // Synthèse financière
+  // Synthèse financière (CA TTC + Dépenses éditables, le reste calculé)
   const fin = document.getElementById('pf-financials');
   if (fin) {
-    const finData = main && main.financials ? main.financials : {};
-    // Si CA HT non fourni mais CA TTC oui, on le dérive (÷ 1,20)
-    if ((finData.ca_ht === undefined || finData.ca_ht === null) && finData.ca_ttc != null && !Number.isNaN(Number(finData.ca_ttc))) {
-      finData.ca_ht = Number(finData.ca_ttc) / 1.20;
-    }
-    // Cash-flow = CA HT − Dépenses si non fourni
-    if ((finData.cashflow === undefined || finData.cashflow === null) && finData.ca_ht != null && finData.depenses != null) {
-      finData.cashflow = Number(finData.ca_ht) - Number(finData.depenses);
-    }
-    // Break-Even = Dépenses (seuil de CA HT) si non fourni
-    if ((finData.breakeven === undefined || finData.breakeven === null) && finData.depenses != null) {
-      finData.breakeven = Number(finData.depenses);
-    }
+    // Récupère les valeurs éditables stockées
+    const resTtc = pilotageResolveValue(pilotageFunnelState, 'fin:ca_ttc', 'eur', 'sum');
+    const resDep = pilotageResolveValue(pilotageFunnelState, 'fin:depenses', 'eur', 'sum');
+    const caTtc = resTtc.value;
+    const depenses = resDep.value;
+    // Calculs dérivés
+    const caHt = (caTtc != null) ? caTtc / 1.20 : null;
+    const cashflow = (caHt != null && depenses != null) ? (caHt - depenses) : null;
+    const breakeven = (depenses != null) ? depenses : null;
+
+    const resolveFinValue = (key, r, computed) => {
+      if (r) return r;
+      // Cellule calculée (non éditable)
+      return { value: computed, editable: false, aggregate: false };
+    };
+
+    const cellMap = {
+      ca_ttc:   { resolved: resTtc, value: caTtc },
+      ca_ht:    { value: caHt,    editable: false },
+      depenses: { resolved: resDep, value: depenses },
+      cashflow: { value: cashflow, editable: false },
+      breakeven:{ value: breakeven, editable: false },
+    };
 
     fin.innerHTML = PF_FINANCIALS.map(f => {
-      const raw = finData[f.key];
-      const valStr = pfFormat(raw, f.format);
+      const cell = cellMap[f.key] || {};
+      const raw = cell.value;
+      // Tone class
       let toneClass = '';
       if (f.tone === 'highlight') {
         if (raw != null && !Number.isNaN(Number(raw))) {
@@ -8679,10 +8938,23 @@ async function renderPilotageFunnel() {
       } else if (f.tone === 'accent') {
         toneClass = 'pf-fin-accent';
       }
+      // Markup valeur
+      let valueHtml;
+      if (f.editable && cell.resolved) {
+        const r = cell.resolved;
+        const display = pilotageFormatValue(r.value, f.format);
+        const cls = 'pf-fin-value' + (r.editable ? ' editable' : '') + (r.aggregate ? ' aggregate' : '');
+        const attrs = r.editable
+          ? `data-edit-key="${escapeHtml(r.editKey)}" data-format="${f.format}" tabindex="0" title="Cliquer pour saisir une valeur"`
+          : (r.aggregate ? `title="Agrégat de ${r.aggCount} club(s)"` : '');
+        valueHtml = `<span class="${cls}" ${attrs}>${display}</span>`;
+      } else {
+        valueHtml = `<span class="pf-fin-value">${pfFormat(raw, f.format)}</span>`;
+      }
       return `
         <div class="pf-fin-cell ${toneClass}">
           <span class="pf-fin-label">${escapeHtml(f.label)}${f.hint ? ` <span class="pf-fin-hint">${escapeHtml(f.hint)}</span>` : ''}</span>
-          <span class="pf-fin-value">${valStr}</span>
+          ${valueHtml}
         </div>
       `;
     }).join('');

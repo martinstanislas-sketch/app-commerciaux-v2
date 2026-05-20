@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=funnel1">
+  <link rel="stylesheet" href="style.css?v=edit1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -504,14 +504,20 @@
                 <button class="pilotage-period-btn" data-period="week">Semaine</button>
                 <button class="pilotage-period-btn active" data-period="month">Mois</button>
                 <button class="pilotage-period-btn" data-period="quarter">Trimestre</button>
+                <button class="pilotage-period-btn" data-period="custom">Personnalisé</button>
               </div>
             </div>
             <div class="pilotage-filter-group">
               <label class="pilotage-filter-label">Plage</label>
-              <div class="pilotage-date-nav">
+              <div class="pilotage-date-nav" id="pilotage-date-nav">
                 <button class="pilotage-date-btn" id="pilotage-prev" title="Période précédente">‹</button>
                 <span class="pilotage-date-label" id="pilotage-date-label">—</span>
                 <button class="pilotage-date-btn" id="pilotage-next" title="Période suivante">›</button>
+              </div>
+              <div class="pf-date-custom hidden" id="pilotage-date-custom">
+                <input type="date" id="pilotage-date-from" class="pf-date-input">
+                <span class="pf-date-sep">→</span>
+                <input type="date" id="pilotage-date-to" class="pf-date-input">
               </div>
             </div>
           </div>
@@ -543,14 +549,20 @@
                 <button class="pf-period-btn" data-period="week">Semaine</button>
                 <button class="pf-period-btn active" data-period="month">Mois</button>
                 <button class="pf-period-btn" data-period="quarter">Trimestre</button>
+                <button class="pf-period-btn" data-period="custom">Personnalisé</button>
               </div>
             </div>
             <div class="pf-filter-group">
               <label class="pf-filter-label">Plage</label>
-              <div class="pf-date-nav">
+              <div class="pf-date-nav" id="pf-date-nav">
                 <button class="pf-date-btn" id="pf-prev" title="Précédent">‹</button>
                 <span class="pf-date-label" id="pf-date-label">—</span>
                 <button class="pf-date-btn" id="pf-next" title="Suivant">›</button>
+              </div>
+              <div class="pf-date-custom hidden" id="pf-date-custom">
+                <input type="date" id="pf-date-from" class="pf-date-input">
+                <span class="pf-date-sep">→</span>
+                <input type="date" id="pf-date-to" class="pf-date-input">
               </div>
             </div>
             <div class="pf-filter-group">
@@ -728,6 +740,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=funnel1"></script>
+  <script src="app.js?v=edit1"></script>
 </body>
 </html>
