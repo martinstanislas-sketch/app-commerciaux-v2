@@ -9945,21 +9945,39 @@ async function renderPilotageFunnel() {
     const cmpFunnel = hasCompare && compare && compare.funnel ? compare.funnel : null;
     const topCmp = cmpFunnel ? Number(cmpFunnel[PF_FUNNEL_STAGES[0].key]) || 0 : 0;
 
+    const cmpLabel = hasCompare ? summarizeCompare(pilotageFunnelState.compareWith) : '';
     const rows = stageValues.map((sv, i) => {
       const v = Number(sv.value);
       const cv = cmpFunnel ? Number(cmpFunnel[sv.stage.key]) : null;
+      const hasCmpVal = cmpFunnel && cv != null && !Number.isNaN(cv);
       // Largeur main : si data → proportion, sinon fallback dégressif
       const fallback = 100 - i * 16;
       const wMain = (topMain > 0 && !Number.isNaN(v)) ? Math.max(8, Math.round((v / topMain) * 100)) : fallback;
-      const wCmp  = (cmpFunnel && topCmp > 0 && !Number.isNaN(cv)) ? Math.max(8, Math.round((cv / topCmp) * 100)) : null;
-      // Taux de conversion vs étape précédente
-      let convo = '';
+      const wCmp  = (hasCmpVal && topCmp > 0) ? Math.max(8, Math.round((cv / topCmp) * 100)) : null;
+      // Taux de conversion vs étape précédente (main + cmp)
+      let convoMain = '', convoCmp = '';
       if (i > 0) {
         const prev = Number(stageValues[i - 1].value);
         if (!Number.isNaN(v) && !Number.isNaN(prev) && prev > 0) {
-          convo = `${Math.round((v / prev) * 100)} %`;
-        } else {
-          convo = '—';
+          convoMain = `${Math.round((v / prev) * 100)} %`;
+        } else { convoMain = '—'; }
+        if (hasCmpVal) {
+          const prevCmp = Number(cmpFunnel[stageValues[i - 1].stage.key]);
+          if (!Number.isNaN(prevCmp) && prevCmp > 0) {
+            convoCmp = `${Math.round((cv / prevCmp) * 100)} %`;
+          }
+        }
+      }
+      // Chips de comparaison (valeur + delta)
+      let cmpChip = '', deltaChip = '';
+      if (hasCmpVal) {
+        cmpChip = `<span class="pf-funnel-bar-cmp" title="Valeur de comparaison (${escapeHtml(cmpLabel)})">vs ${escapeHtml(pilotageFormatValue(cv, sv.stage.format))}</span>`;
+        if (!Number.isNaN(v) && cv !== 0) {
+          const delta = ((v - cv) / Math.abs(cv)) * 100;
+          const sign = delta > 0 ? '+' : '';
+          const tone = Math.abs(delta) < 0.5 ? 'neutral' : (delta >= 0 ? 'positive' : 'negative');
+          const deltaStr = `${sign}${Math.round(delta * 10) / 10} %`.replace('.0 %', ' %');
+          deltaChip = `<span class="pf-funnel-bar-delta ${tone}" title="Écart de la valeur principale vs comparaison">${escapeHtml(deltaStr)}</span>`;
         }
       }
       // Valeur éditable
@@ -9970,13 +9988,21 @@ async function renderPilotageFunnel() {
         ? `Agrégat auto de ${r.aggCount} club(s) — clique pour saisir une valeur consolidée`
         : 'Cliquer pour saisir une valeur';
       const attrs = `data-edit-key="${escapeHtml(r.editKey)}" data-format="${sv.stage.format}" tabindex="0" title="${tooltip}"`;
+      // Contenu de la pastille de conversion
+      const arrowContent = convoCmp
+        ? `<span class="pf-funnel-arrow-main">${convoMain}</span><span class="pf-funnel-arrow-cmp" title="Conversion ${escapeHtml(cmpLabel)}">vs ${convoCmp}</span>`
+        : `<span class="pf-funnel-arrow-main">${convoMain}</span>`;
       return `
-        ${i > 0 ? `<div class="pf-funnel-arrow"><span>${convo}</span></div>` : ''}
+        ${i > 0 ? `<div class="pf-funnel-arrow">${arrowContent}</div>` : ''}
         <div class="pf-funnel-row">
-          ${wCmp !== null ? `<div class="pf-funnel-ghost" style="width:${wCmp}%"></div>` : ''}
+          ${wCmp !== null ? `<div class="pf-funnel-ghost" style="width:${wCmp}%" title="${escapeHtml(cmpLabel)}"><span class="pf-funnel-ghost-label">vs</span></div>` : ''}
           <div class="pf-funnel-bar" style="width:${wMain}%; background: linear-gradient(135deg, ${sv.stage.color} 0%, ${sv.stage.color}cc 100%)">
             <span class="pf-funnel-bar-label">${escapeHtml(sv.stage.label)}</span>
-            <span class="${cls}" ${attrs}>${display}</span>
+            <span class="pf-funnel-bar-stats">
+              <span class="${cls}" ${attrs}>${display}</span>
+              ${deltaChip}
+              ${cmpChip}
+            </span>
           </div>
         </div>
       `;
