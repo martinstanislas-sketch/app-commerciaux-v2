@@ -14566,3 +14566,463 @@ body.tk-dragging-active #tab-tasks .tk-card {
   #tab-perso .p-progress-grid { grid-template-columns: 1fr; }
   #tab-perso .p-header { flex-direction: column; align-items: stretch; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PERFORMANCE DU JOUR — Redesign cockpit-business (DS v1)
+   Source: design-system/ui_kits/suivi-commerciaux/today.css
+   Scopé à #tab-today. Checklist commercial du jour : énergie + histoire
+   sportive + checklist yes/no + compteurs (RDV / Refs / etc.), par club.
+   ══════════════════════════════════════════════════════════════════ */
+
+#tab-today {
+  --ds-bg-app:        #F7F8FA;
+  --ds-bg-subtle:     #F1F3F7;
+  --ds-bg-card:       #FFFFFF;
+  --ds-bg-card-soft:  #FAFBFC;
+
+  --ds-fg-1: #0F172A;
+  --ds-fg-2: #334155;
+  --ds-fg-3: #64748B;
+  --ds-fg-4: #94A3B8;
+
+  --ds-border-1: #E2E8F0;
+  --ds-border-2: #EDF1F5;
+  --ds-border-strong: #CBD5E1;
+
+  --ds-primary-500: #6366F1;
+  --ds-primary-600: #4F46E5;
+  --ds-primary-700: #4338CA;
+  --ds-primary-tint:  rgba(99,102,241,0.08);
+
+  --ds-success-500: #10B981;
+  --ds-success-700: #047857;
+  --ds-success-tint: rgba(16,185,129,0.10);
+
+  --ds-warning-500: #F59E0B;
+  --ds-warning-700: #B45309;
+  --ds-warning-tint: rgba(245,158,11,0.12);
+
+  --ds-danger-500: #EF4444;
+  --ds-danger-700: #B91C1C;
+  --ds-danger-tint: rgba(239,68,68,0.10);
+
+  --ds-dur-fast: 120ms;
+  --ds-dur-base: 180ms;
+  --ds-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  background: var(--ds-bg-app);
+}
+
+#tab-today .td-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 28px 64px;
+}
+
+/* ── Greeting (Bonjour Stan + date + badge progress) ─────── */
+#tab-today .td-greeting {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+#tab-today .td-greeting-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+#tab-today .td-greeting-left h1 {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.022em;
+  color: var(--ds-fg-1);
+  line-height: 1.1;
+  margin: 0;
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+}
+#tab-today .td-greeting-left p {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ds-fg-3);
+  margin: 4px 0 0;
+  text-transform: capitalize;
+}
+#tab-today .td-greeting-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: var(--ds-primary-tint);
+  color: var(--ds-primary-700);
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--ds-primary-500) 20%, transparent);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Grid des clubs ──────────────────────────────────────── */
+#tab-today .td-clubs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 18px;
+}
+
+/* ── Carte club ───────────────────────────────────────────── */
+#tab-today .td-club-block {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: none;
+}
+#tab-today .td-club-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--ds-border-2);
+  margin: 0;
+}
+#tab-today .td-club-header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+}
+#tab-today .td-club-header span::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ds-primary-500);
+  flex-shrink: 0;
+}
+#tab-today .td-club-block[data-club="club2"] .td-club-header span::before {
+  background: var(--ds-success-500);
+}
+
+/* ── Block (Priorités / Compteurs) ──────────────────────── */
+#tab-today .td-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+}
+#tab-today .td-block-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  margin: 0 0 4px;
+}
+
+/* ── Inline widgets (Histoire sportive + Énergie) ────────── */
+#tab-today .td-inline-widgets {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  padding: 10px 0;
+  align-items: center;
+  border-bottom: 1px solid var(--ds-border-2);
+}
+#tab-today .td-inline-widget {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+#tab-today .td-inline-widget.td-widget-energie {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--ds-border-2);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+#tab-today .td-inline-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ds-fg-2);
+  letter-spacing: -0.005em;
+}
+
+/* Histoire sportive — stepper compact */
+#tab-today .td-histoire-controls {
+  display: inline-flex;
+  align-items: center;
+  background: var(--ds-bg-card-soft);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 0;
+}
+#tab-today .td-histoire-btn {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--ds-fg-3);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--ds-dur-fast);
+}
+#tab-today .td-histoire-btn:hover {
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-1);
+}
+#tab-today .td-histoire-val {
+  min-width: 44px;
+  text-align: center;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-fg-1);
+  padding: 0 6px;
+  background: transparent;
+  border: 0;
+  outline: none;
+  -moz-appearance: textfield;
+}
+#tab-today .td-histoire-val::-webkit-outer-spin-button,
+#tab-today .td-histoire-val::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Énergie — 5 emoji buttons */
+#tab-today .td-energy-nums {
+  display: inline-flex;
+  background: var(--ds-bg-card-soft);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+#tab-today .td-energy-btn {
+  width: 36px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  border-radius: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ds-fg-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--ds-dur-fast);
+  font-family: inherit;
+}
+#tab-today .td-energy-btn:hover {
+  background: var(--ds-bg-subtle);
+}
+#tab-today .td-energy-btn.active {
+  background: var(--ds-fg-1);
+  color: #fff;
+  box-shadow: none;
+}
+#tab-today .td-energy-btn[data-energy="1"].active { background: var(--ds-danger-500); }
+#tab-today .td-energy-btn[data-energy="2"].active { background: var(--ds-warning-500); }
+#tab-today .td-energy-btn[data-energy="3"].active { background: var(--ds-fg-3); }
+#tab-today .td-energy-btn[data-energy="4"].active { background: var(--ds-primary-500); }
+#tab-today .td-energy-btn[data-energy="5"].active { background: var(--ds-success-500); }
+
+/* ── Checklist Yes/No ────────────────────────────────────── */
+#tab-today .td-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+#tab-today .td-check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  background: var(--ds-bg-card-soft);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--ds-dur-fast);
+  user-select: none;
+}
+#tab-today .td-check-row:hover { border-color: var(--ds-fg-3); }
+#tab-today .td-check-row.td-done {
+  background: var(--ds-success-tint);
+  border-color: color-mix(in oklab, var(--ds-success-500) 25%, transparent);
+}
+#tab-today .td-check-row.td-done .td-check-label {
+  color: var(--ds-fg-3);
+  text-decoration: line-through;
+}
+#tab-today .td-yesno {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+#tab-today .td-check-box {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid var(--ds-border-strong);
+  background: var(--ds-bg-card);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--ds-dur-fast);
+  position: relative;
+}
+#tab-today .td-check-row.td-done .td-check-box {
+  background: var(--ds-success-500);
+  border-color: var(--ds-success-500);
+}
+#tab-today .td-check-row.td-done .td-check-box::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 1.8px 1.8px 0;
+  transform: rotate(45deg);
+}
+#tab-today .td-check-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ds-fg-1);
+  letter-spacing: -0.005em;
+}
+
+/* ── Compteurs grid ──────────────────────────────────────── */
+#tab-today .td-counters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+#tab-today .td-counter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--ds-bg-card-soft);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 10px;
+  transition: all var(--ds-dur-fast);
+}
+#tab-today .td-counter-card.td-counter-active {
+  background: var(--ds-primary-tint);
+  border-color: color-mix(in oklab, var(--ds-primary-500) 25%, transparent);
+}
+#tab-today .td-counter-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ds-fg-2);
+  letter-spacing: -0.005em;
+}
+#tab-today .td-counter-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#tab-today .td-counter-btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 6px;
+  color: var(--ds-fg-2);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--ds-dur-fast);
+}
+#tab-today .td-counter-btn:hover {
+  border-color: var(--ds-fg-3);
+  color: var(--ds-fg-1);
+}
+#tab-today .td-counter-val {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  color: var(--ds-fg-1);
+  text-align: center;
+  background: transparent;
+  border: 0;
+  outline: none;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  -moz-appearance: textfield;
+  font-family: inherit;
+}
+#tab-today .td-counter-val::-webkit-outer-spin-button,
+#tab-today .td-counter-val::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+#tab-today .td-counter-card.td-counter-active .td-counter-val {
+  color: var(--ds-primary-700);
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  #tab-today .td-clubs-grid { grid-template-columns: 1fr; }
+  #tab-today .td-greeting { flex-direction: column; align-items: stretch; gap: 12px; }
+  #tab-today .td-greeting-badge { align-self: flex-start; }
+  #tab-today .td-inline-widgets { grid-template-columns: 1fr; gap: 0; }
+  #tab-today .td-inline-widget {
+    border-top: 1px solid var(--ds-border-2);
+    padding: 10px 0;
+  }
+  #tab-today .td-inline-widget:first-child { border-top: 0; padding-top: 0; }
+  #tab-today .td-inline-widget.td-widget-energie {
+    grid-column: auto;
+    margin-top: 0;
+  }
+}
+@media (max-width: 600px) {
+  #tab-today .td-page { padding: 18px 14px 80px; }
+  #tab-today .td-greeting-left h1 { font-size: 22px; }
+  #tab-today .td-counters-grid { grid-template-columns: 1fr; }
+  #tab-today .td-energy-btn { width: 32px; height: 28px; font-size: 13px; }
+}
