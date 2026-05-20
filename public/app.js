@@ -8558,12 +8558,12 @@ const PF_EBE_CELLS = [
 ];
 
 // Recettes complémentaires niveau Groupe (Pennylane → rows hors My Coach by Ginkgo)
+// Produit exceptionnel = total Groupe Gingko Sport (= subv apprentis + recouvrement
+// + produit exceptionnel + remboursement intérêt + autres).
 const PF_GROUP_RECETTES = [
   { key: 'tourcoing',      label: 'Tourcoing',            pennylane: 'ginkgo sport',                section: 'enc' },
   { key: 'franchises',     label: 'Franchisés',           pennylane: 'franchisés my coach by ginkgo', section: 'enc' },
-  { key: 'subv_apprentis', label: 'Subv. apprentis',      pennylane: 'subvention apprentis',        section: 'enc', under: 'groupe gingko sport' },
-  { key: 'recouvrement',   label: 'Recouvrement',         pennylane: 'recouvrement créances',       section: 'enc', under: 'groupe gingko sport' },
-  { key: 'produit_except', label: 'Produit exceptionnel', pennylane: 'produit exceptionnel',        section: 'enc', under: 'groupe gingko sport' },
+  { key: 'produit_except', label: 'Produit exceptionnel', pennylane: 'groupe gingko sport',         section: 'enc' },
 ];
 
 // Dépenses Groupe (hors clubs My Coach)
@@ -8899,21 +8899,10 @@ function parsePennylaneXlsx(arrayBuffer) {
   for (const [sig, col] of Object.entries(monthColumns)) {
     const g = {};
 
-    // Recettes niveau Groupe
+    // Recettes niveau Groupe — toujours top-level dans Encaissements
+    // (produit_except = total Groupe Gingko Sport, qui inclut toutes les sous-lignes)
     for (const r of PF_GROUP_RECETTES) {
-      let rowIdx = -1;
-      if (r.under) {
-        // Sous-ligne : trouver d'abord la ligne parente, puis chercher dedans
-        const parentIdx = findRowExact(encStart + 1, decStart, r.under);
-        if (parentIdx > 0) {
-          // Le scope se termine au prochain top-level (autre section parente)
-          // Pour simplifier, on cherche dans les 30 lignes suivantes
-          rowIdx = findRowExact(parentIdx + 1, Math.min(parentIdx + 30, decStart), r.pennylane);
-        }
-      } else {
-        // Ligne top-level dans Encaissements
-        rowIdx = findRowExact(encStart + 1, decStart, r.pennylane);
-      }
+      const rowIdx = findRowExact(encStart + 1, decStart, r.pennylane);
       if (rowIdx > 0) {
         const v = Number((rows[rowIdx] || [])[col]);
         if (!Number.isNaN(v)) g[`grec:${r.key}`] = v;
