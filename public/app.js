@@ -8527,7 +8527,7 @@ async function renderPilotage() {
 //   3. Funnel vertical 5 étapes (Leads → RDV pris → RDV venus → Ventes → CA)
 //      + bandeau « ghost » de comparaison en filigrane
 //      + taux de conversion entre chaque étape
-//   4. Indicateurs complémentaires (CPL, no-show, transfo, panier, résil, ref, surpacks)
+//   4. Indicateurs complémentaires (CPL, no-show, transfo, résiliation)
 //   5. Synthèse financière (CA TTC, CA HT, Dépenses, Cash-flow, Break-Even)
 //
 // Évolutions futures :
@@ -8546,13 +8546,10 @@ const PF_FUNNEL_STAGES = [
 ];
 
 const PF_SIDE_INDICATORS = [
-  { key: 'cpl',          label: 'Coût par lead',             format: 'eur', agg: 'avg' },
-  { key: 'no_show',      label: 'Taux de no-show',           format: 'pct', agg: 'avg' },
-  { key: 'transfo',      label: 'Taux de transformation',    format: 'pct', agg: 'avg' },
-  { key: 'panier_moyen', label: 'Panier moyen',              format: 'eur', agg: 'avg' },
-  { key: 'resiliation',  label: 'Taux de résiliation',       format: 'pct', agg: 'avg' },
-  { key: 'prises_ref',   label: 'Prises de recommandations', format: 'int', agg: 'sum' },
-  { key: 'surpacks',     label: 'Ventes de surpacks',        format: 'int', agg: 'sum' },
+  { key: 'cpl',         label: 'Coût par lead',          format: 'eur', agg: 'avg' },
+  { key: 'no_show',     label: 'Taux de no-show',        format: 'pct', agg: 'avg' },
+  { key: 'transfo',     label: 'Taux de transformation', format: 'pct', agg: 'avg' },
+  { key: 'resiliation', label: 'Résiliation',            format: 'int', agg: 'sum' },
 ];
 
 // Seules CA et Dépenses sont éditables — utilisé par les imports Pennylane (parser).
@@ -9197,6 +9194,25 @@ function parseCheckUpXlsx(arrayBuffer, fileName = '') {
   const convSheet = wb.Sheets['conversion'];
   if (convSheet) {
     const rows = XLSX.utils.sheet_to_json(convSheet, { header: 1, defval: null });
+    // Détection des colonnes par label d'entête : on scanne les premières
+    // lignes pour trouver « Résiliation » (libellé exact attendu d'après
+    // l'utilisateur). Si trouvé, on lit le nombre brut (entier) au lieu
+    // de dériver depuis le taux de rétention.
+    let resiliationCol = null;
+    {
+      const headerScanMax = Math.min(rows.length, 12);
+      for (let i = 0; i < headerScanMax; i++) {
+        const row = rows[i] || [];
+        for (let c = 0; c < row.length; c++) {
+          const cell = String(row[c] || '').trim().toLowerCase();
+          if (cell === 'résiliation' || cell === 'resiliation') {
+            resiliationCol = c;
+            break;
+          }
+        }
+        if (resiliationCol != null) break;
+      }
+    }
     let currentMonthNum = null;
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i] || [];
@@ -9219,7 +9235,12 @@ function parseCheckUpXlsx(arrayBuffer, fileName = '') {
       const showUpRate    = Number(row[5]);  // taux SHOW UP (0-1)
       const transfoRate   = Number(row[8]);  // taux conversion M1 (0-1)
       const ventes        = Number(row[9]);
-      const retentionRate = Number(row[13]); // Taux rétention (0-1)
+      // Résiliation : nombre brut (entier) lu directement depuis la colonne
+      // « Résiliation » détectée par header. Fallback : col 13 = taux rétention
+      // (legacy, gardé pour data ancienne) → on retombera sur le pct si la
+      // nouvelle colonne n'existe pas.
+      const resiliationCount = resiliationCol != null ? Number(row[resiliationCol]) : NaN;
+      const retentionRate    = Number(row[13]); // Taux rétention (0-1)
 
       // RDV venus (catégorie PROSPECT, feuille conversion) : la feuille définit
       // Show Up = RDV venus / RDV pris, donc RDV venus = RDV pris × Show Up.
@@ -9244,10 +9265,71 @@ function parseCheckUpXlsx(arrayBuffer, fileName = '') {
       if (rdvVenus != null)           d.rdv_venus   = rdvVenus;
       if (!Number.isNaN(ventes))      d.ventes      = ventes;
       if (!Number.isNaN(transfoRate)) d.transfo     = transfoRate * 100;          // → %
-      if (!Number.isNaN(showUpRate))  d.show_up     = showUpRate * 100;           // → %
-      if (!Number.isNaN(retentionRate)) d.resiliation = (1 - retentionRate) * 100; // → % (1 - taux rétention)
+      if (!Number.isNaN(showUpRate)) {
+        d.show_up = showUpRate * 100;        // → % (catégorie Conseillers)
+        d.no_show = (1 - showUpRate) * 100;  // → % (side indicator)
+      }
+      // Résiliation : on PRIORISE la colonne « Résiliation » (nombre brut, entier).
+      // Fallback legacy : 1 − taux rétention (en %) si la nouvelle colonne n'est
+      // pas trouvée (data plus ancienne ou format différent).
+      if (!Number.isNaN(resiliationCount)) {
+        d.resiliation = resiliationCount;
+      } else if (!Number.isNaN(retentionRate)) {
+        d.resiliation = (1 - retentionRate) * 100;
+      }
       if (!Number.isNaN(coutMarketing) && !Number.isNaN(leads)  && leads  > 0) d.cpl = coutMarketing / leads;
       if (!Number.isNaN(coutMarketing) && !Number.isNaN(ventes) && ventes > 0) d.cac = coutMarketing / ventes;
+      // On stocke aussi le coût marketing brut au cas où PROSPECTION ne donne rien
+      if (!Number.isNaN(coutMarketing)) d._cout_marketing_fallback = coutMarketing;
+    }
+  }
+
+  // ── Feuille 'PROSPECTION' — Coût par lead via somme des « €/jour » ─────
+  // L'utilisateur indique que chaque date du mois a une colonne « €/jour »
+  // qui contient le coût marketing dépensé ce jour-là. On somme TOUTES ces
+  // valeurs pour chaque club afin d'obtenir le coût marketing mensuel exact,
+  // puis on en déduit le CPL en divisant par le nombre de leads (déjà parsé
+  // depuis la feuille conversion).
+  const prospSheet = wb.Sheets['PROSPECTION'] || wb.Sheets['Prospection'] || wb.Sheets['prospection'];
+  if (prospSheet && primaryMonth) {
+    const rows = XLSX.utils.sheet_to_json(prospSheet, { header: 1, defval: null });
+    // Détecte toutes les colonnes dont l'en-tête contient « €/jour » (ou
+    // équivalents : « €/j », « euro/jour », etc.) dans les 12 premières lignes.
+    const dailyCostCols = [];
+    const headerScanMax = Math.min(rows.length, 12);
+    for (let i = 0; i < headerScanMax; i++) {
+      const row = rows[i] || [];
+      for (let c = 0; c < row.length; c++) {
+        const cell = String(row[c] || '').trim().toLowerCase().replace(/\s+/g, '');
+        if (cell === '€/jour' || cell === '€/j' || cell === 'euro/jour'
+            || cell.includes('€/jour') || cell.includes('eurosparjour')) {
+          if (!dailyCostCols.includes(c)) dailyCostCols.push(c);
+        }
+      }
+    }
+    if (dailyCostCols.length > 0) {
+      const sig = `month-${defaultYear}-${String(primaryMonth).padStart(2, '0')}`;
+      const costByClub = {};
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i] || [];
+        const lbl = String(row[0] || '').trim().toLowerCase();
+        const club = CHECKUP_CLUB_MAP[lbl];
+        if (!club) continue;
+        let total = 0;
+        for (const c of dailyCostCols) {
+          const v = Number(row[c]);
+          if (!Number.isNaN(v)) total += v;
+        }
+        if (total > 0) costByClub[club] = (costByClub[club] || 0) + total;
+      }
+      for (const [club, cost] of Object.entries(costByClub)) {
+        const d = ensure(sig, club);
+        d._cout_marketing_prospection = cost;
+        // Recalcule le CPL avec le coût PROSPECTION si on a les leads
+        if (d.leads != null && d.leads > 0) {
+          d.cpl = cost / d.leads;
+        }
+      }
     }
   }
 
@@ -9306,7 +9388,7 @@ function importCheckUpIntoStore(parsed) {
   let valuesWritten = 0;
   const monthsTouched = new Set();
   const clubsTouched = new Set();
-  // Mapping KPI → storage subKey
+  // Mapping KPI → storage subKey (cartes catégories)
   const MAP = {
     leads:       'cat:marketing:leads',
     cpl:         'cat:marketing:cpl',
@@ -9317,17 +9399,24 @@ function importCheckUpIntoStore(parsed) {
     resiliation: 'cat:coach_leader:resiliation',
     remplissage: 'cat:coach_leader:remplissage',
   };
-  // Aussi alimenter le funnel
+  // Funnel principal
   const FUNNEL_MAP = {
     leads:     'fnl:leads',
     rdv_fixes: 'fnl:rdv_pris',
     rdv_venus: 'fnl:rdv_venus',
     ventes:    'fnl:ventes',
   };
+  // Indicateurs latéraux (PF_SIDE_INDICATORS)
+  const SIDE_MAP = {
+    cpl:         'side:cpl',
+    no_show:     'side:no_show',
+    transfo:     'side:transfo',
+    resiliation: 'side:resiliation',
+  };
   for (const [sig, perClub] of Object.entries(parsed.data)) {
     for (const [club, values] of Object.entries(perClub)) {
-      // Indicators
       for (const [k, v] of Object.entries(values)) {
+        if (k.startsWith('_')) continue; // champs internes (ex: _cout_marketing_*)
         if (v == null || Number.isNaN(Number(v))) continue;
         if (MAP[k]) {
           pilotageStoreWrite(`${club}|${sig}|${MAP[k]}`, v);
@@ -9335,6 +9424,10 @@ function importCheckUpIntoStore(parsed) {
         }
         if (FUNNEL_MAP[k]) {
           pilotageStoreWrite(`${club}|${sig}|${FUNNEL_MAP[k]}`, v);
+          valuesWritten++;
+        }
+        if (SIDE_MAP[k]) {
+          pilotageStoreWrite(`${club}|${sig}|${SIDE_MAP[k]}`, v);
           valuesWritten++;
         }
         monthsTouched.add(sig);
@@ -9373,7 +9466,7 @@ async function handlePennylaneFileImport(file) {
         return;
       }
       const monthLabels = months.sort().map(s => s.replace('month-', '')).join(', ');
-      if (!confirm(`Import Check Up (KPIs commerciaux) :\n\n• ${months.length} mois : ${monthLabels}\n• Alimente : Leads, CPL, CAC, RDV pris, RDV venus, Show Up, Transfo, Non traités, Remplissage, Résiliation\n\nLes valeurs existantes pour ces mois seront remplacées. Continuer ?`)) return;
+      if (!confirm(`Import Check Up (KPIs commerciaux) :\n\n• ${months.length} mois : ${monthLabels}\n• Alimente : Leads, CPL (€/jour PROSPECTION), CAC, RDV pris, RDV venus, Show Up, No-show, Transfo, Non traités, Remplissage, Résiliation (nb brut)\n\nLes valeurs existantes pour ces mois seront remplacées. Continuer ?`)) return;
       const s = importCheckUpIntoStore(parsed);
       alert(`Import Check Up réussi ✓\n\n• ${s.valuesWritten} valeurs alimentées\n• ${s.monthsCount} mois · ${s.clubsCount} clubs\n\nMois : ${s.monthsTouched.map(x => x.replace('month-', '')).join(', ')}`);
     } else {
