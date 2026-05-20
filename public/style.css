@@ -11511,38 +11511,10 @@ img {
   line-height: 1.05;
 }
 
-/* Ghost compare bar — version visible avec fond hachuré + label "vs" */
-#tab-pilotage-funnel .pf-funnel-ghost {
-  position: absolute;
-  left: 0;
-  top: -2px;
-  bottom: -2px;
-  border: 1.5px dashed rgba(99, 102, 241, 0.55);
-  border-radius: 10px;
-  background: repeating-linear-gradient(
-    135deg,
-    rgba(99, 102, 241, 0.12) 0 6px,
-    rgba(99, 102, 241, 0.04) 6px 12px
-  );
-  box-shadow: none;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 10px;
-  pointer-events: none;
-}
-#tab-pilotage-funnel .pf-funnel-ghost-label {
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  color: rgba(99, 102, 241, 0.95);
-  background: var(--ds-bg-card, #fff);
-  padding: 2px 6px;
-  border-radius: 999px;
-  border: 1px solid rgba(99, 102, 241, 0.45);
-  text-transform: uppercase;
-}
+/* Ghost compare bar — masquée (la comparaison est désormais affichée
+   uniquement via les chips delta + « vs » dans la barre principale,
+   ce qui suffit visuellement sans le souci d'alignement de la ghost). */
+#tab-pilotage-funnel .pf-funnel-ghost { display: none; }
 
 /* Stats sous le label dans la barre (valeur principale + delta + valeur compare) */
 #tab-pilotage-funnel .pf-funnel-bar-stats {

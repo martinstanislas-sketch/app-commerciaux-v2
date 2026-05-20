@@ -10024,7 +10024,6 @@ async function renderPilotageFunnel() {
       return `
         ${i > 0 ? `<div class="pf-funnel-arrow">${arrowContent}</div>` : ''}
         <div class="pf-funnel-row">
-          ${wCmp !== null ? `<div class="pf-funnel-ghost" style="width:${wCmp}%" title="${escapeHtml(cmpLabel)}"><span class="pf-funnel-ghost-label">vs</span></div>` : ''}
           <div class="pf-funnel-bar" style="width:${wMain}%; background: linear-gradient(135deg, ${sv.stage.color} 0%, ${sv.stage.color}cc 100%)">
             <span class="pf-funnel-bar-label">${escapeHtml(sv.stage.label)}</span>
             <span class="pf-funnel-bar-stats">
