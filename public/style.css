@@ -11902,3 +11902,685 @@ body.tk-dragging-active #tab-tasks .tk-card {
   }
   #tk-panel { width: 100vw; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   DASHBOARD (admin hebdo) — Redesign cockpit-business (DS v1)
+   Source: design-system/ui_kits/suivi-commerciaux/dashboard.css
+   Scopé à #tab-dashboard. Conserve toute la richesse fonctionnelle
+   (settings hours/target, chat/remarques, points forts/à améliorer,
+   gestion commerciaux, sécurité PIN, add sale) en passant en cockpit.
+   ══════════════════════════════════════════════════════════════════ */
+
+#tab-dashboard {
+  /* Tokens locaux */
+  --ds-bg-app:        #F7F8FA;
+  --ds-bg-subtle:     #F1F3F7;
+  --ds-bg-card:       #FFFFFF;
+  --ds-bg-card-soft:  #FAFBFC;
+
+  --ds-fg-1: #0F172A;
+  --ds-fg-2: #334155;
+  --ds-fg-3: #64748B;
+  --ds-fg-4: #94A3B8;
+
+  --ds-border-1: #E2E8F0;
+  --ds-border-2: #EDF1F5;
+  --ds-border-strong: #CBD5E1;
+
+  --ds-primary-500: #6366F1;
+  --ds-primary-600: #4F46E5;
+  --ds-primary-700: #4338CA;
+  --ds-primary-tint:  rgba(99,102,241,0.08);
+
+  --ds-success-500: #10B981;
+  --ds-success-700: #047857;
+  --ds-success-tint: rgba(16,185,129,0.10);
+
+  --ds-warning-500: #F59E0B;
+  --ds-warning-700: #B45309;
+  --ds-warning-tint: rgba(245,158,11,0.12);
+
+  --ds-danger-500: #EF4444;
+  --ds-danger-700: #B91C1C;
+  --ds-danger-tint: rgba(239,68,68,0.10);
+
+  --ds-dur-fast: 120ms;
+  --ds-dur-base: 180ms;
+  --ds-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  padding: 28px 28px 64px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: transparent;
+}
+
+/* ── Week nav toolbar (header de l'onglet) ──────────────────── */
+#tab-dashboard .week-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 22px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+#tab-dashboard .week-nav #prev-week,
+#tab-dashboard .week-nav #next-week {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 8px;
+  color: var(--ds-fg-3);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease),
+              color var(--ds-dur-fast) var(--ds-ease);
+  box-shadow: none;
+}
+#tab-dashboard .week-nav #prev-week:hover,
+#tab-dashboard .week-nav #next-week:hover {
+  border-color: var(--ds-fg-3);
+  color: var(--ds-fg-1);
+}
+#tab-dashboard .week-nav #week-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  text-transform: capitalize;
+  min-width: 220px;
+  padding: 0 8px;
+}
+#tab-dashboard .week-nav #week-picker {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+#tab-dashboard .week-nav #week-picker:focus {
+  outline: none;
+  border-color: var(--ds-primary-500);
+  box-shadow: 0 0 0 3px var(--ds-primary-tint);
+}
+#tab-dashboard .week-nav .btn-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+  cursor: pointer;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+  margin-left: auto;
+}
+#tab-dashboard .week-nav .btn-lock:hover { border-color: var(--ds-fg-3); }
+#tab-dashboard .week-nav .btn-lock.locked {
+  background: var(--ds-warning-tint);
+  color: var(--ds-warning-700);
+  border-color: color-mix(in oklab, var(--ds-warning-500) 30%, transparent);
+}
+#tab-dashboard .week-nav .btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+}
+#tab-dashboard .week-nav .btn-export:hover { border-color: var(--ds-fg-3); }
+
+/* ── Grille des cartes commerciaux ──────────────────────────── */
+#tab-dashboard #cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 14px;
+  background: transparent;
+  padding: 0;
+}
+
+/* Empty state */
+#tab-dashboard .empty-state {
+  grid-column: 1 / -1;
+  background: var(--ds-bg-card);
+  border: 1px dashed var(--ds-border-strong);
+  border-radius: 12px;
+  padding: 60px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+#tab-dashboard .empty-state-icon {
+  font-size: 32px;
+  color: var(--ds-fg-4);
+  font-weight: 400;
+}
+#tab-dashboard .empty-state-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  letter-spacing: -0.01em;
+}
+#tab-dashboard .empty-state-desc {
+  font-size: 13px;
+  color: var(--ds-fg-3);
+  max-width: 380px;
+  line-height: 1.5;
+}
+
+/* ── Carte commercial ────────────────────────────────────────── */
+#tab-dashboard .rep-card {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease),
+              transform var(--ds-dur-fast) var(--ds-ease),
+              box-shadow var(--ds-dur-fast) var(--ds-ease);
+  position: relative;
+  box-shadow: none;
+}
+#tab-dashboard .rep-card:hover {
+  border-color: var(--ds-fg-3);
+  transform: translateY(-1px);
+  box-shadow: 0 1px 2px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04);
+}
+#tab-dashboard .rep-card h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+}
+#tab-dashboard .btn-remove-rep-week {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--ds-fg-4);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity var(--ds-dur-fast), background var(--ds-dur-fast), color var(--ds-dur-fast);
+}
+#tab-dashboard .rep-card:hover .btn-remove-rep-week { opacity: 0.6; }
+#tab-dashboard .btn-remove-rep-week:hover {
+  opacity: 1 !important;
+  background: var(--ds-danger-tint);
+  color: var(--ds-danger-700);
+}
+
+/* Hero ratio block — conserve les couleurs sémantiques (rouge/orange/vert) */
+#tab-dashboard .rep-ratio-hero {
+  border-radius: 10px;
+  border: 1px solid !important;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: none;
+}
+#tab-dashboard .rep-ratio-value {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+#tab-dashboard .rep-ratio-sub {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  font-variant-numeric: tabular-nums;
+}
+#tab-dashboard .rep-ratio-bar {
+  height: 4px;
+  background: rgba(15,23,42,0.07);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+#tab-dashboard .rep-ratio-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 280ms cubic-bezier(0.3, 0, 0.1, 1);
+}
+#tab-dashboard .rep-ratio-ecart {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+/* Settings row (Heures / Objectif) — discret */
+#tab-dashboard .settings-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--ds-border-2);
+}
+#tab-dashboard .settings-row .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+#tab-dashboard .settings-row .field label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-fg-4);
+}
+#tab-dashboard .settings-row input,
+#tab-dashboard .settings-row select {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  min-width: 0;
+}
+#tab-dashboard .settings-row input:focus,
+#tab-dashboard .settings-row select:focus {
+  border-color: var(--ds-primary-500);
+  box-shadow: 0 0 0 3px var(--ds-primary-tint);
+}
+#tab-dashboard .settings-row input:disabled,
+#tab-dashboard .settings-row select:disabled {
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-3);
+  cursor: not-allowed;
+}
+
+/* KPI grid (CA Total / Nb Ventes / Panier Moyen) */
+#tab-dashboard .kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--ds-border-2);
+  padding-top: 12px;
+}
+#tab-dashboard .kpi-item {
+  padding: 0 12px 0 0;
+  border-right: 1px solid var(--ds-border-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+#tab-dashboard .kpi-item:last-child { border-right: 0; padding-right: 0; }
+#tab-dashboard .kpi-item + .kpi-item { padding-left: 12px; }
+#tab-dashboard .kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-fg-4);
+}
+#tab-dashboard .kpi-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Analysis grid (Points forts / À améliorer) */
+#tab-dashboard .analysis-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+#tab-dashboard .analysis-ok,
+#tab-dashboard .analysis-ko {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  border: 1px solid;
+}
+#tab-dashboard .analysis-ok {
+  background: var(--ds-success-tint);
+  border-color: color-mix(in oklab, var(--ds-success-500) 20%, transparent);
+  color: var(--ds-success-700);
+}
+#tab-dashboard .analysis-ko {
+  background: var(--ds-danger-tint);
+  border-color: color-mix(in oklab, var(--ds-danger-500) 20%, transparent);
+  color: var(--ds-danger-700);
+}
+#tab-dashboard .analysis-ok .analysis-label,
+#tab-dashboard .analysis-ko .analysis-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+#tab-dashboard .analysis-ok strong,
+#tab-dashboard .analysis-ko strong {
+  font-weight: 700;
+}
+#tab-dashboard .analysis-lever {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--ds-primary-tint);
+  color: var(--ds-primary-700);
+  border: 1px solid color-mix(in oklab, var(--ds-primary-500) 20%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* Bouton « + Ajouter une vente » — primaire slate-foncé */
+#tab-dashboard .btn-add-sale {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ds-fg-1);
+  background: var(--ds-fg-1);
+  color: #fff;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition: background var(--ds-dur-fast) var(--ds-ease);
+  box-shadow: none;
+}
+#tab-dashboard .btn-add-sale:hover:not(:disabled) {
+  background: #1E293B;
+  border-color: #1E293B;
+}
+#tab-dashboard .btn-add-sale:disabled {
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-4);
+  border-color: var(--ds-border-1);
+  cursor: not-allowed;
+}
+
+/* ── Section chat (Remarques) ───────────────────────────────── */
+#tab-dashboard .chat-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ds-border-2);
+}
+#tab-dashboard .chat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-4);
+  margin: 0;
+}
+#tab-dashboard .chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+#tab-dashboard .chat-messages::-webkit-scrollbar { width: 6px; }
+#tab-dashboard .chat-messages::-webkit-scrollbar-thumb {
+  background: var(--ds-border-1);
+  border-radius: 3px;
+}
+#tab-dashboard .chat-bubble {
+  padding: 8px 10px;
+  background: var(--ds-bg-card-soft);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--ds-fg-2);
+  line-height: 1.4;
+  position: relative;
+}
+#tab-dashboard .chat-bubble.legacy {
+  background: var(--ds-bg-subtle);
+  border-style: dashed;
+}
+#tab-dashboard .chat-bubble-text {
+  white-space: pre-wrap;
+}
+#tab-dashboard .chat-bubble-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--ds-fg-4);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+#tab-dashboard .chat-bubble-time {
+  font-weight: 600;
+}
+#tab-dashboard .chat-delete-btn {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--ds-fg-4);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0;
+  transition: all var(--ds-dur-fast);
+}
+#tab-dashboard .chat-bubble:hover .chat-delete-btn { opacity: 0.7; }
+#tab-dashboard .chat-delete-btn:hover {
+  opacity: 1 !important;
+  background: var(--ds-danger-tint);
+  color: var(--ds-danger-700);
+}
+#tab-dashboard .chat-input-row {
+  display: flex;
+  gap: 6px;
+}
+#tab-dashboard .chat-input {
+  flex: 1;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ds-fg-1);
+  outline: none;
+}
+#tab-dashboard .chat-input:focus {
+  border-color: var(--ds-primary-500);
+  box-shadow: 0 0 0 3px var(--ds-primary-tint);
+}
+#tab-dashboard .chat-input::placeholder { color: var(--ds-fg-4); }
+#tab-dashboard .chat-send-btn {
+  padding: 0 12px;
+  height: 32px;
+  border: 1px solid var(--ds-fg-1);
+  background: var(--ds-fg-1);
+  color: #fff;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--ds-dur-fast);
+}
+#tab-dashboard .chat-send-btn:hover { background: #1E293B; }
+
+/* ── Admin panels (Gestion commerciaux / Sécurité PIN) ──────── */
+#tab-dashboard .admin-panel {
+  grid-column: 1 / -1;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 24px 20px;
+  margin-top: 24px;
+  box-shadow: none;
+}
+#tab-dashboard .admin-panel h2 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  margin: 0 0 16px;
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+}
+#tab-dashboard .admin-panel-sub {
+  font-size: 12.5px;
+  color: var(--ds-fg-3);
+  line-height: 1.5;
+  margin: -8px 0 14px;
+}
+#tab-dashboard .add-rep-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+#tab-dashboard .add-rep-form input,
+#tab-dashboard .add-rep-form select {
+  flex: 1;
+  min-width: 140px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ds-fg-1);
+  outline: none;
+}
+#tab-dashboard .add-rep-form input:focus,
+#tab-dashboard .add-rep-form select:focus {
+  border-color: var(--ds-primary-500);
+  box-shadow: 0 0 0 3px var(--ds-primary-tint);
+}
+#tab-dashboard .add-rep-form .btn-primary {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--ds-fg-1);
+  background: var(--ds-fg-1);
+  color: #fff;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--ds-dur-fast);
+}
+#tab-dashboard .add-rep-form .btn-primary:hover { background: #1E293B; }
+#tab-dashboard .admin-rep-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#tab-dashboard .admin-pin-feedback {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+#tab-dashboard .admin-pin-feedback.success {
+  background: var(--ds-success-tint);
+  color: var(--ds-success-700);
+}
+#tab-dashboard .admin-pin-feedback.error {
+  background: var(--ds-danger-tint);
+  color: var(--ds-danger-700);
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  #tab-dashboard #cards-container {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+}
+@media (max-width: 768px) {
+  #tab-dashboard { padding: 18px 14px 80px; }
+  #tab-dashboard .week-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  #tab-dashboard .week-nav .btn-lock { margin-left: 0; }
+  #tab-dashboard #cards-container { grid-template-columns: 1fr; }
+  #tab-dashboard .analysis-grid { grid-template-columns: 1fr; }
+  #tab-dashboard .kpi-grid { gap: 8px; }
+  #tab-dashboard .kpi-item { padding: 0 8px; }
+  #tab-dashboard .add-rep-form { flex-direction: column; }
+  #tab-dashboard .add-rep-form input,
+  #tab-dashboard .add-rep-form select { width: 100%; min-width: 0; }
+}
