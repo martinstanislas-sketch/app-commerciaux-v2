@@ -8373,6 +8373,7 @@ const PILOTAGE_CLUBS = [
   'Wasquehal',
   'Marcq-en-Barœul',
   'Lille',
+  'Tourcoing',
 ];
 
 async function fetchPilotageClubs() {
@@ -8989,27 +8990,229 @@ function importPennylaneIntoStore(parsed) {
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// IMPORT CHECK UP — 2ᵉ type d'import (KPIs commerciaux)
+// Fichier : "CHECK UP MOIS YYYY.xlsx" avec feuilles conversion / APPEL /
+// COACH / Récapitulatif. Alimente Leads, CPL, CAC, RDV, No-show, Transfo,
+// Remplissage, Non traités par club × mois.
+// ═══════════════════════════════════════════════════════════════════
+
+const CHECKUP_CLUB_MAP = {
+  'levallois':         'Levallois-Perret',
+  'levallois-perret':  'Levallois-Perret',
+  'neuilly':           'Neuilly-sur-Seine',
+  'neuilly-sur-seine': 'Neuilly-sur-Seine',
+  'boulogne':          'Boulogne-Billancourt',
+  'bb':                'Boulogne-Billancourt',
+  'wasquehal':         'Wasquehal',
+  'lille':             'Lille',
+  'lille fa':          'Lille',
+  'marcq':             'Marcq-en-Barœul',
+  'marcq fa':          'Marcq-en-Barœul',
+  'marcq-en-baroeul':  'Marcq-en-Barœul',
+  'marcq-en-barœul':   'Marcq-en-Barœul',
+  'tourcoing':         'Tourcoing',
+};
+
+const CHECKUP_MONTHS_FR = {
+  'janvier': 1, 'février': 2, 'fevrier': 2, 'mars': 3, 'avril': 4, 'mai': 5,
+  'juin': 6, 'juillet': 7, 'août': 8, 'aout': 8, 'septembre': 9,
+  'octobre': 10, 'novembre': 11, 'décembre': 12, 'decembre': 12,
+};
+
+function parseCheckUpXlsx(arrayBuffer, fileName = '') {
+  if (typeof XLSX === 'undefined') throw new Error('SheetJS non chargé');
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+
+  // Détecte l'année depuis le nom de fichier
+  let defaultYear = new Date().getFullYear();
+  const yrMatch = fileName.match(/(20\d{2})/);
+  if (yrMatch) defaultYear = parseInt(yrMatch[1], 10);
+  // Détecte le mois primaire depuis le nom de fichier
+  let primaryMonth = null;
+  const monthMatch = fileName.toLowerCase().match(/(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)/);
+  if (monthMatch) primaryMonth = CHECKUP_MONTHS_FR[monthMatch[1]];
+
+  const result = { data: {} }; // sig → club → {leads, cpl, cac, rdv_fixes, no_show, transfo, non_traites, remplissage, ventes}
+  const ensure = (sig, club) => {
+    if (!result.data[sig]) result.data[sig] = {};
+    if (!result.data[sig][club]) result.data[sig][club] = {};
+    return result.data[sig][club];
+  };
+
+  // ── Feuille 'conversion' ─────────────────────────────────────
+  const convSheet = wb.Sheets['conversion'];
+  if (convSheet) {
+    const rows = XLSX.utils.sheet_to_json(convSheet, { header: 1, defval: null });
+    let currentMonthNum = null;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || [];
+      const first = String(row[0] || '').trim().toLowerCase();
+      // Détection du titre de mois ("Avril", "Mars", etc.)
+      if (CHECKUP_MONTHS_FR[first]) {
+        currentMonthNum = CHECKUP_MONTHS_FR[first];
+        continue;
+      }
+      if (!currentMonthNum) continue;
+      // Skip headers et totaux
+      if (!first || first === 'clubs' || first.startsWith('total') || first === 'franchise') continue;
+      // Skip franchise clubs (Tours, Veigné, Caen, Paris, Valence, etc.)
+      const club = CHECKUP_CLUB_MAP[first];
+      if (!club) continue;
+
+      const coutMarketing = Number(row[1]);
+      const leads         = Number(row[2]);
+      const rdv           = Number(row[4]);
+      const showUpRate    = Number(row[5]); // taux SHOW UP (0-1)
+      const transfoRate   = Number(row[8]); // taux conversion M1 (0-1)
+      const ventes        = Number(row[9]);
+
+      const sig = `month-${defaultYear}-${String(currentMonthNum).padStart(2, '0')}`;
+      const d = ensure(sig, club);
+      if (!Number.isNaN(leads))       d.leads     = leads;
+      if (!Number.isNaN(rdv))         d.rdv_fixes = rdv;
+      if (!Number.isNaN(ventes))      d.ventes    = ventes;
+      if (!Number.isNaN(transfoRate)) d.transfo   = transfoRate * 100;       // → %
+      if (!Number.isNaN(showUpRate))  d.no_show   = (1 - showUpRate) * 100;  // → %
+      if (!Number.isNaN(coutMarketing) && !Number.isNaN(leads)  && leads  > 0) d.cpl = coutMarketing / leads;
+      if (!Number.isNaN(coutMarketing) && !Number.isNaN(ventes) && ventes > 0) d.cac = coutMarketing / ventes;
+    }
+  }
+
+  // ── Feuille 'APPEL' — Non traités = somme des Qté (cols 3,6,9,12,15,18,21) ──
+  const appelSheet = wb.Sheets['APPEL'];
+  if (appelSheet && primaryMonth) {
+    const rows = XLSX.utils.sheet_to_json(appelSheet, { header: 1, defval: null });
+    const sig = `month-${defaultYear}-${String(primaryMonth).padStart(2, '0')}`;
+    const qteCols = [3, 6, 9, 12, 15, 18, 21];
+    const qtyByClub = {};
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || [];
+      const lbl = String(row[0] || '').trim().toLowerCase();
+      const club = CHECKUP_CLUB_MAP[lbl];
+      if (!club) continue;
+      let weekTotal = 0;
+      for (const c of qteCols) {
+        const v = Number(row[c]);
+        if (!Number.isNaN(v)) weekTotal += v;
+      }
+      qtyByClub[club] = (qtyByClub[club] || 0) + weekTotal;
+    }
+    for (const [club, total] of Object.entries(qtyByClub)) {
+      ensure(sig, club).non_traites = total;
+    }
+  }
+
+  // ── Feuille 'Récapitulatif' — Remplissage réel = moyenne col 7 ──
+  const recapSheet = wb.Sheets['Récapitulatif'];
+  if (recapSheet && primaryMonth) {
+    const rows = XLSX.utils.sheet_to_json(recapSheet, { header: 1, defval: null });
+    const sig = `month-${defaultYear}-${String(primaryMonth).padStart(2, '0')}`;
+    const valuesByClub = {};
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || [];
+      const lbl = String(row[0] || '').trim().toLowerCase();
+      const club = CHECKUP_CLUB_MAP[lbl];
+      if (!club) continue;
+      const v = Number(row[7]);
+      // Skip #REF!, #VALUE!, 0
+      if (Number.isNaN(v) || v === 0) continue;
+      valuesByClub[club] = valuesByClub[club] || [];
+      valuesByClub[club].push(v);
+    }
+    for (const [club, arr] of Object.entries(valuesByClub)) {
+      if (arr.length === 0) continue;
+      const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+      ensure(sig, club).remplissage = avg * 100; // → %
+    }
+  }
+
+  return result;
+}
+
+function importCheckUpIntoStore(parsed) {
+  let valuesWritten = 0;
+  const monthsTouched = new Set();
+  const clubsTouched = new Set();
+  // Mapping KPI → storage subKey
+  const MAP = {
+    leads:       'cat:marketing:leads',
+    cpl:         'cat:marketing:cpl',
+    cac:         'cat:marketing:cac',
+    rdv_fixes:   'cat:phoning:rdv_fixes',
+    non_traites: 'cat:phoning:non_traites',
+    no_show:     'cat:phoning:no_show',
+    transfo:     'cat:conseillers:transfo',
+    remplissage: 'cat:coach_leader:remplissage',
+  };
+  // Aussi alimenter le funnel
+  const FUNNEL_MAP = {
+    leads:     'fnl:leads',
+    rdv_fixes: 'fnl:rdv_pris',
+    ventes:    'fnl:ventes',
+  };
+  for (const [sig, perClub] of Object.entries(parsed.data)) {
+    for (const [club, values] of Object.entries(perClub)) {
+      // Indicators
+      for (const [k, v] of Object.entries(values)) {
+        if (v == null || Number.isNaN(Number(v))) continue;
+        if (MAP[k]) {
+          pilotageStoreWrite(`${club}|${sig}|${MAP[k]}`, v);
+          valuesWritten++;
+        }
+        if (FUNNEL_MAP[k]) {
+          pilotageStoreWrite(`${club}|${sig}|${FUNNEL_MAP[k]}`, v);
+          valuesWritten++;
+        }
+        monthsTouched.add(sig);
+        clubsTouched.add(club);
+      }
+    }
+  }
+  return { valuesWritten, monthsCount: monthsTouched.size, clubsCount: clubsTouched.size, monthsTouched: Array.from(monthsTouched) };
+}
+
 async function handlePennylaneFileImport(file) {
   if (!file) return;
   try {
     const buf = await file.arrayBuffer();
-    const parsed = parsePennylaneXlsx(buf);
-    if (Object.keys(parsed.data).length === 0) {
-      alert("Aucune valeur exploitable trouvée dans ce fichier.\n\nLe fichier doit être un export Pennylane « Plan de trésorerie » avec une colonne par mois et des lignes par club sous Encaissements / Décaissements.");
+    // Détection automatique du type de fichier
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheetNames = wb.SheetNames;
+    const isPennylane = sheetNames.some(n => n.toLowerCase().includes('plan de trésorerie') || n.toLowerCase().includes('plan de tresorerie'));
+    const isCheckUp = sheetNames.some(n => ['conversion', 'PROSPECTION', 'APPEL', 'COACH', 'Récapitulatif'].includes(n));
+
+    if (isPennylane) {
+      const parsed = parsePennylaneXlsx(buf);
+      if (Object.keys(parsed.data).length === 0) {
+        alert("Aucune valeur exploitable trouvée dans ce fichier Pennylane.");
+        return;
+      }
+      const monthLabels = parsed.months.map(s => s.replace('month-', '')).join(', ');
+      if (!confirm(`Import Pennylane (Plan de trésorerie) :\n\n• ${parsed.months.length} mois : ${monthLabels}\n• ${PILOTAGE_CLUBS.length} clubs scannés\n\nLes valeurs CA et Dépenses pour ces mois seront remplacées. Continuer ?`)) return;
+      const s = importPennylaneIntoStore(parsed);
+      alert(`Import Pennylane réussi ✓\n\n• ${s.valuesWritten} valeurs alimentées\n• ${s.monthsCount} mois · ${s.clubsCount} clubs\n• ${s.groupValues || 0} valeurs niveau Groupe\n\nMois : ${s.monthsTouched.map(x => x.replace('month-', '')).join(', ')}`);
+    } else if (isCheckUp) {
+      const parsed = parseCheckUpXlsx(buf, file.name);
+      const months = Object.keys(parsed.data);
+      if (months.length === 0) {
+        alert("Aucune valeur exploitable trouvée dans ce fichier Check Up.\n\nVérifie qu'il contient bien les feuilles « conversion », « APPEL », « Récapitulatif ».");
+        return;
+      }
+      const monthLabels = months.sort().map(s => s.replace('month-', '')).join(', ');
+      if (!confirm(`Import Check Up (KPIs commerciaux) :\n\n• ${months.length} mois : ${monthLabels}\n• Alimente : Leads, CPL, CAC, RDV, No-show, Transfo, Non traités, Remplissage\n\nLes valeurs existantes pour ces mois seront remplacées. Continuer ?`)) return;
+      const s = importCheckUpIntoStore(parsed);
+      alert(`Import Check Up réussi ✓\n\n• ${s.valuesWritten} valeurs alimentées\n• ${s.monthsCount} mois · ${s.clubsCount} clubs\n\nMois : ${s.monthsTouched.map(x => x.replace('month-', '')).join(', ')}`);
+    } else {
+      alert("Type de fichier non reconnu.\n\nFormats attendus :\n• Pennylane : Plan de trésorerie (.xlsx avec feuille « Plan de trésorerie »)\n• Check Up : KPIs commerciaux (.xlsx avec feuilles « conversion » + « APPEL » + « Récapitulatif »)");
       return;
     }
-    // Résumé pour confirmation
-    const monthLabels = parsed.months.map(s => s.replace('month-', '')).join(', ');
-    if (!confirm(`Import depuis Pennylane :\n\n• ${parsed.months.length} mois détecté(s) : ${monthLabels}\n• ${PILOTAGE_CLUBS.length} clubs scannés\n\nLes valeurs CA et Dépenses existantes pour ces mois seront remplacées. Continuer ?`)) return;
-    const summary = importPennylaneIntoStore(parsed);
-    alert(`Import réussi ✓\n\n• ${summary.valuesWritten} valeurs alimentées\n• ${summary.monthsCount} mois\n• ${summary.clubsCount} clubs\n\nMois touchés : ${summary.monthsTouched.map(s => s.replace('month-', '')).join(', ')}`);
-    // Re-render pour afficher les valeurs
     if (typeof renderPilotageFunnel === 'function') {
       await renderPilotageFunnel();
     }
   } catch (err) {
     alert("Erreur d'import :\n\n" + err.message);
-    console.error('[Import Pennylane]', err);
+    console.error('[Import]', err);
   }
 }
 
