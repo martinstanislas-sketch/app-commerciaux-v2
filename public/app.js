@@ -9356,7 +9356,58 @@ function parseCheckUpXlsx(arrayBuffer, fileName = '') {
     }
   }
 
-  // ── Feuille 'Récapitulatif' — Remplissage réel = moyenne col 7 ──
+  // ── Feuille 'COACH' — Taux de remplissage = Σ Rempli ÷ Σ Dispo × 100 ───
+  // Structure attendue : un en-tête contient les libellés « Dispo » et « Rempli »
+  // (potentiellement répétés plusieurs fois si la feuille a plusieurs sous-blocs
+  // semaine/jour). On collecte TOUTES les colonnes étiquetées, puis pour chaque
+  // club on additionne les valeurs des colonnes Dispo d'un côté, des colonnes
+  // Rempli de l'autre. Le taux = somme(Rempli) ÷ somme(Dispo) × 100.
+  const coachSheet = wb.Sheets['COACH'] || wb.Sheets['Coach'] || wb.Sheets['coach'];
+  if (coachSheet && primaryMonth) {
+    const rows = XLSX.utils.sheet_to_json(coachSheet, { header: 1, defval: null });
+    const sig = `month-${defaultYear}-${String(primaryMonth).padStart(2, '0')}`;
+    // Détecte toutes les colonnes Dispo / Rempli en scannant les 15 premières lignes
+    const dispoCols = [];
+    const rempliCols = [];
+    const headerScanMax = Math.min(rows.length, 15);
+    for (let i = 0; i < headerScanMax; i++) {
+      const row = rows[i] || [];
+      for (let c = 0; c < row.length; c++) {
+        const cell = String(row[c] || '').trim().toLowerCase();
+        if (cell === 'dispo' || cell === 'dispos' || cell === 'disponible' || cell === 'disponibles') {
+          if (!dispoCols.includes(c)) dispoCols.push(c);
+        } else if (cell === 'rempli' || cell === 'remplis' || cell === 'remplie' || cell === 'remplies') {
+          if (!rempliCols.includes(c)) rempliCols.push(c);
+        }
+      }
+    }
+    if (dispoCols.length > 0 && rempliCols.length > 0) {
+      const sumsByClub = {}; // { club: { dispo, rempli } }
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i] || [];
+        const lbl = String(row[0] || '').trim().toLowerCase();
+        const club = CHECKUP_CLUB_MAP[lbl];
+        if (!club) continue;
+        sumsByClub[club] = sumsByClub[club] || { dispo: 0, rempli: 0 };
+        for (const c of dispoCols) {
+          const v = Number(row[c]);
+          if (!Number.isNaN(v)) sumsByClub[club].dispo += v;
+        }
+        for (const c of rempliCols) {
+          const v = Number(row[c]);
+          if (!Number.isNaN(v)) sumsByClub[club].rempli += v;
+        }
+      }
+      for (const [club, s] of Object.entries(sumsByClub)) {
+        if (s.dispo > 0) {
+          ensure(sig, club).remplissage = (s.rempli / s.dispo) * 100; // → %
+        }
+      }
+    }
+  }
+
+  // ── Feuille 'Récapitulatif' — Fallback Remplissage (si COACH absent ou
+  //    sans colonnes Dispo/Rempli détectables) ──────────────────────────
   const recapSheet = wb.Sheets['Récapitulatif'];
   if (recapSheet && primaryMonth) {
     const rows = XLSX.utils.sheet_to_json(recapSheet, { header: 1, defval: null });
@@ -9375,8 +9426,12 @@ function parseCheckUpXlsx(arrayBuffer, fileName = '') {
     }
     for (const [club, arr] of Object.entries(valuesByClub)) {
       if (arr.length === 0) continue;
-      const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
-      ensure(sig, club).remplissage = avg * 100; // → %
+      const d = ensure(sig, club);
+      if (d.remplissage == null) {
+        // Ne remplace pas la valeur COACH si elle existe déjà
+        const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+        d.remplissage = avg * 100; // → %
+      }
     }
   }
 
@@ -9485,7 +9540,8 @@ async function handlePennylaneFileImport(file) {
         + `  · Taux de no-show (1 − Show Up)\n`
         + `  · Taux de transformation (taux conversion M1)\n`
         + `  · Résiliation (nb brut, colonne « Résiliation »)\n\n`
-        + `Cartes catégories : Marketing, Phoning, Conseillers, Coach leader.\n\n`
+        + `Cartes catégories : Marketing, Phoning, Conseillers, Coach leader.\n`
+        + `  · Remplissage (Σ Rempli ÷ Σ Dispo de l'onglet COACH)\n\n`
         + `Les valeurs existantes pour ces mois seront remplacées. Continuer ?`
       )) return;
       const s = importCheckUpIntoStore(parsed);
