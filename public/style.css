@@ -10375,6 +10375,36 @@ img {
   flex-shrink: 0;
 }
 
+/* Bouton Importer Excel — primary slate */
+#tab-pilotage-funnel .pf-import-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--ds-fg-1);
+  background: var(--ds-fg-1);
+  color: #fff;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition: background var(--ds-dur-fast) var(--ds-ease);
+  box-shadow: none;
+}
+#tab-pilotage-funnel .pf-import-btn:hover {
+  background: #1E293B;
+  border-color: #1E293B;
+}
+#tab-pilotage-funnel .pf-import-btn::before {
+  content: '↑';
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-block;
+}
+
 /* ── Section titles ──────────────────────────────────────────── */
 #tab-pilotage-funnel .pf-section-title {
   font-size: 11px;

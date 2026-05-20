@@ -8624,6 +8624,170 @@ async function fetchPilotageFunnelClubs() {
   return pfClubsCache;
 }
 
+// ── Import Pennylane (Plan de trésorerie) ─────────────────────────
+// Parse un export xlsx Pennylane et alimente localStorage avec CA + Dépenses
+// par club et par mois, pour les 6 clubs de l'app.
+
+const PENNYLANE_CLUB_MAP = {
+  // Excel label (lowercase trimmed) → club name dans PILOTAGE_CLUBS
+  'wasquehal':            'Wasquehal',
+  'vieux lille':          'Lille',
+  'lille':                'Lille',
+  'marcq-en-baroeul':     'Marcq-en-Barœul',
+  'marcq-en-barœul':      'Marcq-en-Barœul',
+  'boulogne billancourt': 'Boulogne-Billancourt',
+  'boulogne-billancourt': 'Boulogne-Billancourt',
+  'neuilly-sur-seine':    'Neuilly-sur-Seine',
+  'neuilly sur seine':    'Neuilly-sur-Seine',
+  'levallois-perret':     'Levallois-Perret',
+  'levallois perret':     'Levallois-Perret',
+};
+
+const PENNYLANE_MONTHS = {
+  'janv': 1, 'jan': 1, 'janvier': 1,
+  'févr': 2, 'fev': 2, 'fevr': 2, 'fév': 2, 'février': 2, 'fevrier': 2,
+  'mars': 3,
+  'avr':  4, 'avril': 4,
+  'mai':  5,
+  'juin': 6,
+  'juil': 7, 'juillet': 7,
+  'août': 8, 'aout': 8,
+  'sept': 9, 'septembre': 9,
+  'oct':  10, 'octobre': 10,
+  'nov':  11, 'novembre': 11,
+  'déc':  12, 'dec': 12, 'décembre': 12, 'decembre': 12,
+};
+
+function parsePennylaneXlsx(arrayBuffer) {
+  if (typeof XLSX === 'undefined') {
+    throw new Error('SheetJS (XLSX) non chargé');
+  }
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+
+  // 1. Trouver la ligne d'en-tête et la map mois → index colonne
+  const monthColumns = {}; // monthSig → columnIndex
+  let headerRowIdx = -1;
+  for (let i = 0; i < Math.min(15, rows.length); i++) {
+    const row = rows[i] || [];
+    for (let j = 0; j < row.length; j++) {
+      const cell = String(row[j] || '').trim().toLowerCase();
+      // Match formats: "Janv. 26", "Févr. 26", "Mai 26", etc.
+      const m = cell.match(/^([a-zéèûôîàùç]+)\.?\s+(\d{2,4})$/);
+      if (m) {
+        const monthKey = m[1].replace(/\.$/, '');
+        const monthNum = PENNYLANE_MONTHS[monthKey] || PENNYLANE_MONTHS[monthKey.slice(0, 4)] || PENNYLANE_MONTHS[monthKey.slice(0, 3)];
+        if (monthNum) {
+          let year = parseInt(m[2], 10);
+          if (year < 100) year += 2000;
+          const sig = `month-${year}-${String(monthNum).padStart(2, '0')}`;
+          monthColumns[sig] = j;
+          if (headerRowIdx === -1) headerRowIdx = i;
+        }
+      }
+    }
+  }
+  if (Object.keys(monthColumns).length === 0) {
+    throw new Error('Aucune colonne mois détectée dans l\'en-tête');
+  }
+
+  // 2. Trouver les sections Encaissements et Décaissements
+  let encStart = -1, decStart = -1;
+  for (let i = headerRowIdx + 1; i < rows.length; i++) {
+    const label = String((rows[i] || [])[0] || '').trim().toLowerCase();
+    if (label.startsWith('encaissements') && encStart === -1) encStart = i;
+    else if (label.startsWith('décaissements') && decStart === -1) { decStart = i; break; }
+  }
+  if (encStart === -1 || decStart === -1) {
+    throw new Error('Sections Encaissements / Décaissements introuvables');
+  }
+
+  // 3. Trouver la 1ère occurrence de chaque club dans chaque section
+  const findClubRowsInRange = (startIdx, endIdx) => {
+    const out = {};
+    for (let i = startIdx; i < endIdx; i++) {
+      const label = String((rows[i] || [])[0] || '').trim().toLowerCase();
+      if (!label) continue;
+      const mapped = PENNYLANE_CLUB_MAP[label];
+      if (mapped && !out[mapped]) {
+        out[mapped] = i;
+      }
+    }
+    return out;
+  };
+  const caRows  = findClubRowsInRange(encStart + 1, decStart);
+  const depRows = findClubRowsInRange(decStart + 1, rows.length);
+
+  // 4. Extraire les valeurs
+  const result = {
+    months: Object.keys(monthColumns).sort(),
+    data: {}, // monthSig → { club → { ca_ttc, depenses } }
+  };
+  for (const [sig, col] of Object.entries(monthColumns)) {
+    result.data[sig] = {};
+    for (const club of PILOTAGE_CLUBS) {
+      const caRow = caRows[club];
+      const depRow = depRows[club];
+      const ca  = caRow  !== undefined ? Number((rows[caRow]  || [])[col]) : null;
+      const dep = depRow !== undefined ? Number((rows[depRow] || [])[col]) : null;
+      if ((ca != null && !Number.isNaN(ca)) || (dep != null && !Number.isNaN(dep))) {
+        result.data[sig][club] = {};
+        if (ca != null && !Number.isNaN(ca))  result.data[sig][club].ca_ttc = ca;
+        if (dep != null && !Number.isNaN(dep)) result.data[sig][club].depenses = dep;
+      }
+    }
+  }
+  return result;
+}
+
+function importPennylaneIntoStore(parsed) {
+  let valuesWritten = 0;
+  const monthsTouched = new Set();
+  const clubsTouched = new Set();
+  for (const [sig, perClub] of Object.entries(parsed.data)) {
+    for (const [club, values] of Object.entries(perClub)) {
+      if (values.ca_ttc != null) {
+        pilotageStoreWrite(`${club}|${sig}|fin:ca_ttc`, values.ca_ttc);
+        valuesWritten++;
+        monthsTouched.add(sig);
+        clubsTouched.add(club);
+      }
+      if (values.depenses != null) {
+        pilotageStoreWrite(`${club}|${sig}|fin:depenses`, values.depenses);
+        valuesWritten++;
+        monthsTouched.add(sig);
+        clubsTouched.add(club);
+      }
+    }
+  }
+  return { valuesWritten, monthsCount: monthsTouched.size, clubsCount: clubsTouched.size, monthsTouched: Array.from(monthsTouched) };
+}
+
+async function handlePennylaneFileImport(file) {
+  if (!file) return;
+  try {
+    const buf = await file.arrayBuffer();
+    const parsed = parsePennylaneXlsx(buf);
+    if (Object.keys(parsed.data).length === 0) {
+      alert("Aucune valeur exploitable trouvée dans ce fichier.\n\nLe fichier doit être un export Pennylane « Plan de trésorerie » avec une colonne par mois et des lignes par club sous Encaissements / Décaissements.");
+      return;
+    }
+    // Résumé pour confirmation
+    const monthLabels = parsed.months.map(s => s.replace('month-', '')).join(', ');
+    if (!confirm(`Import depuis Pennylane :\n\n• ${parsed.months.length} mois détecté(s) : ${monthLabels}\n• ${PILOTAGE_CLUBS.length} clubs scannés\n\nLes valeurs CA et Dépenses existantes pour ces mois seront remplacées. Continuer ?`)) return;
+    const summary = importPennylaneIntoStore(parsed);
+    alert(`Import réussi ✓\n\n• ${summary.valuesWritten} valeurs alimentées\n• ${summary.monthsCount} mois\n• ${summary.clubsCount} clubs\n\nMois touchés : ${summary.monthsTouched.map(s => s.replace('month-', '')).join(', ')}`);
+    // Re-render pour afficher les valeurs
+    if (typeof renderPilotageFunnel === 'function') {
+      await renderPilotageFunnel();
+    }
+  } catch (err) {
+    alert("Erreur d'import :\n\n" + err.message);
+    console.error('[Import Pennylane]', err);
+  }
+}
+
 // ── Render principal ───────────────────────────────────────────────
 async function loadPilotageFunnel() {
   if (!isAdmin()) return;
@@ -8698,6 +8862,20 @@ async function loadPilotageFunnel() {
     toInput.addEventListener('change', () => {
       pilotageFunnelState.customEnd = toInput.value;
       renderPilotageFunnel();
+    });
+  }
+
+  // Bind bouton Importer Excel
+  const importBtn = document.getElementById('pf-import-trigger');
+  const importInput = document.getElementById('pf-import-file');
+  if (importBtn && importInput && !importBtn.dataset.bound) {
+    importBtn.dataset.bound = '1';
+    importBtn.addEventListener('click', () => importInput.click());
+    importInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) await handlePennylaneFileImport(file);
+      // Reset l'input pour que le même fichier puisse être réimporté
+      e.target.value = '';
     });
   }
 
