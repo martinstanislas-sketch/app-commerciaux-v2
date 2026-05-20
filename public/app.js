@@ -8104,18 +8104,17 @@ function pilotagePeriodSig(period, anchorISO, customStart, customEnd) {
   return 'unknown';
 }
 
-// Détermine la liste des clubs effectifs (résout 'all').
-// state.clubs peut être ['all'] ou liste de noms. state.club est un nom unique ou 'all'.
+// Détermine la liste des clubs effectifs.
+// state.clubs : liste de noms (vide = aucun club).
 function pilotageEffectiveClubs(state) {
-  let arr;
   if (Array.isArray(state.clubs)) {
-    arr = (state.clubs.includes('all') || state.clubs.length === 0) ? PILOTAGE_CLUBS.slice() : state.clubs.slice();
-  } else if (state.club) {
-    arr = state.club === 'all' ? PILOTAGE_CLUBS.slice() : [state.club];
-  } else {
-    arr = PILOTAGE_CLUBS.slice();
+    if (state.clubs.includes('all')) return PILOTAGE_CLUBS.slice();
+    return state.clubs.slice();
   }
-  return arr;
+  if (state.club) {
+    return state.club === 'all' ? PILOTAGE_CLUBS.slice() : [state.club];
+  }
+  return [];
 }
 
 // Identifiant canonique du scope de clubs sélectionné, utilisé comme préfixe de clé de stockage.
@@ -8589,7 +8588,7 @@ let pilotageFunnelState = {
   dateAnchor: pilotageToLocalISODate(new Date()),
   customStart: '',
   customEnd: '',
-  clubs: ['all'],          // ['all'] ou liste de noms
+  clubs: [],               // [] = aucun club (rien filtré) | liste de noms (1+)
   compareWith: [],         // [] = pas de compare, ['__others__'] = moyenne du groupe (tous clubs), ou liste de noms
   scope: 'none',           // 'none' (par défaut, rien affiché sauf si club spécifique) | 'mycoach' | 'group'
 };
@@ -9360,19 +9359,20 @@ async function loadPilotageFunnel() {
     rootPf.addEventListener('click', (e) => pilotageHandleEditClick(e, () => renderPilotageFunnel()));
   }
 
-  // Toggle du panel breakdown au clic sur la cellule Dépenses
-  if (rootPf && !rootPf.dataset.expandBound) {
-    rootPf.dataset.expandBound = '1';
+  // Clic sur une cellule EBE → filtre les Clubs analysés sur ce club (toggle)
+  if (rootPf && !rootPf.dataset.ebeClickBound) {
+    rootPf.dataset.ebeClickBound = '1';
     rootPf.addEventListener('click', (e) => {
-      // Ne pas toggle si on clique sur le span valeur (éditable) à l'intérieur
       if (e.target.closest('[data-edit-key]')) return;
-      const expandable = e.target.closest('[data-fin-expandable]');
-      if (!expandable) return;
-      const panel = document.getElementById('pf-dep-breakdown');
-      if (!panel) return;
-      const willOpen = panel.classList.contains('hidden');
-      panel.classList.toggle('hidden');
-      expandable.classList.toggle('pf-fin-cell--open', willOpen);
+      const cell = e.target.closest('[data-fin-club]');
+      if (!cell) return;
+      const club = cell.dataset.finClub;
+      const current = pilotageFunnelState.clubs;
+      const isOnlyThis = current.length === 1 && current[0] === club;
+      // Toggle : si déjà sélectionné seul → désélectionne (vide)
+      pilotageFunnelState.clubs = isOnlyThis ? [] : [club];
+      syncPfClubsCheckboxes();
+      renderPilotageFunnel();
     });
   }
 
@@ -9389,10 +9389,6 @@ async function initPfMultiSelectors() {
   if (trgClubs && !trgClubs.dataset.bound) {
     trgClubs.dataset.bound = '1';
     optClubs.innerHTML = `
-      <label class="pf-popover-row">
-        <input type="checkbox" data-club-all> <span>Tous les clubs</span>
-      </label>
-      <div class="pf-popover-divider"></div>
       ${clubs.map(c => `
         <label class="pf-popover-row">
           <input type="checkbox" data-club="${escapeHtml(c)}"> <span>${escapeHtml(c)}</span>
@@ -9407,19 +9403,16 @@ async function initPfMultiSelectors() {
       document.getElementById('pf-compare-popover').classList.add('hidden');
     });
     optClubs.addEventListener('change', (e) => {
-      if (e.target.matches('[data-club-all]')) {
-        pilotageFunnelState.clubs = e.target.checked ? ['all'] : [];
-      } else if (e.target.matches('[data-club]')) {
+      if (e.target.matches('[data-club]')) {
         const c = e.target.dataset.club;
-        // Toute coche d'un club désactive "Tous"
-        const currentSpecific = pilotageFunnelState.clubs.filter(x => x !== 'all');
+        const current = pilotageFunnelState.clubs.filter(x => x !== 'all');
         if (e.target.checked) {
-          if (!currentSpecific.includes(c)) currentSpecific.push(c);
+          if (!current.includes(c)) current.push(c);
         } else {
-          const idx = currentSpecific.indexOf(c);
-          if (idx >= 0) currentSpecific.splice(idx, 1);
+          const idx = current.indexOf(c);
+          if (idx >= 0) current.splice(idx, 1);
         }
-        pilotageFunnelState.clubs = currentSpecific.length ? currentSpecific : ['all'];
+        pilotageFunnelState.clubs = current;
       }
       syncPfClubsCheckboxes();
       renderPilotageFunnel();
@@ -9510,15 +9503,14 @@ function togglePfPopover(pop, trigger) {
 function syncPfClubsCheckboxes() {
   const opt = document.getElementById('pf-clubs-options');
   if (!opt) return;
-  const all = pilotageFunnelState.clubs.includes('all');
-  opt.querySelectorAll('[data-club-all]').forEach(cb => { cb.checked = all; });
   opt.querySelectorAll('[data-club]').forEach(cb => {
-    cb.checked = !all && pilotageFunnelState.clubs.includes(cb.dataset.club);
+    cb.checked = pilotageFunnelState.clubs.includes(cb.dataset.club);
   });
 }
 
 function summarizeClubs(arr) {
-  if (!arr || arr.length === 0 || arr.includes('all')) return 'Tous les clubs';
+  if (!arr || arr.length === 0) return 'Aucun club sélectionné';
+  if (arr.includes('all')) return 'Tous les clubs';
   if (arr.length === 1) return arr[0];
   if (arr.length <= 3) return arr.join(', ');
   return `${arr.length} clubs sélectionnés`;
@@ -9686,25 +9678,29 @@ async function renderPilotageFunnel() {
   const fin = document.getElementById('pf-financials');
   if (fin) {
     const periodSig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
-    fin.innerHTML = PF_EBE_CELLS.map(cell => {
+    fin.innerHTML = PF_EBE_CELLS.map((cell, idx) => {
       let value = null;
       let format = 'pct';
+      // Club lié au clic (filtre Clubs analysés). null = pas de filtre possible.
+      let clickClub = null;
       if (cell.type === 'club_ebe') {
         const ca  = pilotageStoreRead(`${cell.club}|${periodSig}|fin:ca_ttc`);
         const dep = pilotageStoreRead(`${cell.club}|${periodSig}|fin:depenses`);
         if (ca != null && dep != null && ca !== 0) {
           value = ((ca - dep) / ca) * 100;
         }
+        clickClub = cell.club;
       } else if (cell.type === 'tourcoing_ebe') {
-        // Tourcoing (= Ginkgo Sport) — données stockées niveau Groupe
         const ca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
         const dep = pilotageStoreRead(`__group__|${periodSig}|gdep:tourcoing`);
         if (ca != null && dep != null && ca !== 0) {
           value = ((ca - dep) / ca) * 100;
         }
+        clickClub = 'Tourcoing';
       } else if (cell.type === 'franchise_ca') {
         value = pilotageStoreRead(`__group__|${periodSig}|grec:franchises`);
         format = 'eur';
+        // Franchise pas dans PILOTAGE_CLUBS → non cliquable
       }
       // Tone sémantique : vert si EBE positif, rouge si négatif, accent indigo pour CA
       let tone = '';
@@ -9713,9 +9709,16 @@ async function renderPilotageFunnel() {
       } else if (format === 'eur' && value != null) {
         tone = 'pf-fin-accent';
       }
+      // Indicateur visuel si ce club est actuellement sélectionné
+      const isSelected = clickClub && pilotageFunnelState.clubs.length === 1 && pilotageFunnelState.clubs[0] === clickClub;
+      const clickableClass = clickClub ? ' pf-fin-cell--clickable' : '';
+      const selectedClass = isSelected ? ' pf-fin-cell--selected' : '';
+      const clickAttrs = clickClub
+        ? `data-fin-club="${escapeHtml(clickClub)}" role="button" tabindex="0" title="Cliquer pour voir le détail de ${escapeHtml(clickClub)}"`
+        : '';
       const display = pilotageFormatValue(value, format);
       return `
-        <div class="pf-fin-cell ${tone}">
+        <div class="pf-fin-cell ${tone}${clickableClass}${selectedClass}" ${clickAttrs}>
           <span class="pf-fin-label">${escapeHtml(cell.label)}</span>
           <span class="pf-fin-value">${display}</span>
         </div>

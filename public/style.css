@@ -10692,6 +10692,30 @@ img {
 #tab-pilotage-funnel .pf-fin-cell--expandable:hover {
   background: var(--ds-bg-subtle);
 }
+
+/* Cellules EBE cliquables — filtre auto sur le club */
+#tab-pilotage-funnel .pf-fin-cell--clickable {
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 14px 12px;
+  transition: background var(--ds-dur-fast) var(--ds-ease),
+              border-color var(--ds-dur-fast) var(--ds-ease),
+              transform var(--ds-dur-fast) var(--ds-ease);
+  border: 1px solid transparent;
+}
+#tab-pilotage-funnel .pf-fin-cell--clickable:hover {
+  background: var(--ds-bg-subtle);
+  border-color: var(--ds-border-1);
+  transform: translateY(-1px);
+}
+#tab-pilotage-funnel .pf-fin-cell--clickable.pf-fin-cell--selected {
+  background: var(--ds-primary-tint);
+  border-color: color-mix(in oklab, var(--ds-primary-500) 35%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ds-primary-500) 12%, transparent);
+}
+#tab-pilotage-funnel .pf-fin-cell--clickable.pf-fin-cell--selected .pf-fin-label {
+  color: var(--ds-primary-700);
+}
 #tab-pilotage-funnel .pf-fin-chev {
   display: inline-block;
   margin-left: 6px;
