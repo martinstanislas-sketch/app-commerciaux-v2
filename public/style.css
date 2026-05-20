@@ -10503,6 +10503,30 @@ img {
   gap: 0;
 }
 
+/* Carte « EBE consolidés » — vue agrégée au-dessus de la Synthèse */
+#tab-pilotage-funnel .pf-consol-card {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 28px 18px;
+  margin-bottom: 18px;
+  box-shadow: none;
+}
+#tab-pilotage-funnel .pf-consol-card .pf-section-title {
+  margin: 0 0 16px;
+}
+#tab-pilotage-funnel .pf-consol-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+@media (max-width: 768px) {
+  #tab-pilotage-funnel .pf-consol-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
 /* Carte de détail club (apparaît au clic sur EBE cell) */
 #tab-pilotage-funnel .pf-club-detail-card.hidden {
   display: none !important;

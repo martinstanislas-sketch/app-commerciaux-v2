@@ -8545,6 +8545,51 @@ const PF_FINANCIALS = [
   { key: 'ebe_pct',   label: 'EBE',        format: 'pct', tone: 'highlight', editable: false },
 ];
 
+// Cellules consolidées affichées dans la carte « EBE consolidés » au-dessus de la Synthèse.
+// Chaque scope définit quels CA et Dépenses additionner (en TTC) ; l'EBE est ensuite
+// calculé en HT (CA HT = CA TTC ÷ 1,20).
+const PF_CONSOLIDATED_EBE = [
+  { key: 'mycoach',         label: 'EBE My Coach',           scope: ['mycoach'] },
+  { key: 'mycoach_franch',  label: 'EBE My Coach + Franchise', scope: ['mycoach', 'franchise'] },
+  { key: 'groupe',          label: 'EBE Groupe',             scope: ['mycoach', 'franchise', 'tourcoing'] },
+];
+
+// Les 6 clubs My Coach (sans Tourcoing) — utilisés pour les agrégats
+const PF_MYCOACH_CLUBS = ['Lille', 'Levallois-Perret', 'Boulogne-Billancourt', 'Marcq-en-Barœul', 'Wasquehal', 'Neuilly-sur-Seine'];
+
+// Calcule l'EBE consolidé pour un scope donné (CA et Dépenses agrégés en TTC,
+// puis EBE = (CA_HT − Dépenses) / CA_HT × 100 avec CA_HT = CA / 1,20)
+function pilotageConsolidatedEbe(periodSig, scopeArr) {
+  let totalCa = 0, totalDep = 0, hasAny = false;
+  if (scopeArr.includes('mycoach')) {
+    for (const club of PF_MYCOACH_CLUBS) {
+      const ca  = pilotageStoreRead(`${club}|${periodSig}|fin:ca_ttc`);
+      const dep = pilotageStoreRead(`${club}|${periodSig}|fin:depenses`);
+      if (ca != null)  { totalCa += ca; hasAny = true; }
+      if (dep != null) { totalDep += dep; hasAny = true; }
+    }
+  }
+  if (scopeArr.includes('franchise')) {
+    const fca  = pilotageStoreRead(`__group__|${periodSig}|grec:franchises`);
+    const fdep = pilotageStoreRead(`__group__|${periodSig}|gdep:franchise`);
+    if (fca != null)  { totalCa += fca; hasAny = true; }
+    if (fdep != null) { totalDep += fdep; hasAny = true; }
+  }
+  if (scopeArr.includes('tourcoing')) {
+    // Tourcoing comme club (+ fallback legacy sur grec/gdep)
+    let tca  = pilotageStoreRead(`Tourcoing|${periodSig}|fin:ca_ttc`);
+    let tdep = pilotageStoreRead(`Tourcoing|${periodSig}|fin:depenses`);
+    if (tca  == null) tca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
+    if (tdep == null) tdep = pilotageStoreRead(`__group__|${periodSig}|gdep:tourcoing`);
+    if (tca != null)  { totalCa += tca; hasAny = true; }
+    if (tdep != null) { totalDep += tdep; hasAny = true; }
+  }
+  if (!hasAny || totalCa === 0) return null;
+  const caHt = totalCa / 1.20;
+  if (caHt === 0) return null;
+  return ((caHt - totalDep) / caHt) * 100;
+}
+
 // Cellules affichées dans la Synthèse financière : 6 EBE clubs + EBE Ginkgo Sport + CA Franchise
 const PF_EBE_CELLS = [
   { type: 'club_ebe',     club: 'Lille',                label: 'EBE Lille' },
@@ -9682,6 +9727,26 @@ async function renderPilotageFunnel() {
             ${cmpStr !== null ? `<span class="pf-side-cmp" title="Comparaison">${cmpStr}</span>` : ''}
           </span>
         </li>
+      `;
+    }).join('');
+  }
+
+  // Carte « EBE consolidés » (3 cellules : My Coach / +Franchise / Groupe)
+  const consolGrid = document.getElementById('pf-consol-grid');
+  if (consolGrid) {
+    const sig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+    consolGrid.innerHTML = PF_CONSOLIDATED_EBE.map(c => {
+      const value = pilotageConsolidatedEbe(sig, c.scope);
+      let tone = '';
+      if (value != null && !Number.isNaN(Number(value))) {
+        tone = Number(value) >= 0 ? 'pf-fin-positive' : 'pf-fin-negative';
+      }
+      const display = pilotageFormatValue(value, 'pct');
+      return `
+        <div class="pf-fin-cell ${tone}">
+          <span class="pf-fin-label">${escapeHtml(c.label)}</span>
+          <span class="pf-fin-value">${display}</span>
+        </div>
       `;
     }).join('');
   }
