@@ -8597,6 +8597,44 @@ const PF_MYCOACH_CLUBS = ['Lille', 'Levallois-Perret', 'Boulogne-Billancourt', '
 // moyenne — la moyenne arithmétique des pourcentages ne donne pas le même
 // résultat qu'un EBE calculé sur les totaux (et c'est cette dernière valeur
 // qui a un sens financier).
+// Variante qui retourne le détail complet du calcul (pour affichage tooltip / panel)
+// Structure : { entries:[{label,ca,dep,group}], totalCa, caHt, totalDep, ebe }
+function pilotageConsolidatedEbeBreakdown(periodSig, scopeArr) {
+  const entries = [];
+  let totalCa = 0, totalDep = 0, hasAny = false;
+  if (scopeArr.includes('mycoach')) {
+    for (const club of PF_MYCOACH_CLUBS) {
+      const ca  = pilotageStoreRead(`${club}|${periodSig}|fin:ca_ttc`);
+      const dep = pilotageStoreRead(`${club}|${periodSig}|fin:depenses`);
+      entries.push({ label: club, ca, dep, group: 'My Coach' });
+      if (ca != null)  { totalCa += ca; hasAny = true; }
+      if (dep != null) { totalDep += dep; hasAny = true; }
+    }
+  }
+  if (scopeArr.includes('franchise')) {
+    const fca  = pilotageStoreRead(`__group__|${periodSig}|grec:franchises`);
+    const fdep = pilotageStoreRead(`__group__|${periodSig}|gdep:franchise`);
+    entries.push({ label: 'Franchise', ca: fca, dep: fdep, group: 'Franchise' });
+    if (fca != null)  { totalCa += fca; hasAny = true; }
+    if (fdep != null) { totalDep += fdep; hasAny = true; }
+  }
+  if (scopeArr.includes('tourcoing')) {
+    let tca  = pilotageStoreRead(`Tourcoing|${periodSig}|fin:ca_ttc`);
+    let tdep = pilotageStoreRead(`Tourcoing|${periodSig}|fin:depenses`);
+    if (tca  == null) tca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
+    if (tdep == null) tdep = pilotageStoreRead(`__group__|${periodSig}|gdep:tourcoing`);
+    entries.push({ label: 'Tourcoing', ca: tca, dep: tdep, group: 'Tourcoing' });
+    if (tca != null)  { totalCa += tca; hasAny = true; }
+    if (tdep != null) { totalDep += tdep; hasAny = true; }
+  }
+  const caHt = totalCa / 1.20;
+  let ebe = null;
+  if (hasAny && totalCa !== 0 && caHt !== 0) {
+    ebe = ((caHt - totalDep) / caHt) * 100;
+  }
+  return { entries, totalCa, caHt, totalDep, ebe, hasAny };
+}
+
 function pilotageConsolidatedEbe(periodSig, scopeArr) {
   let totalCa = 0, totalDep = 0, hasAny = false;
   // Étape 1 : Σ CA et Σ Dépenses des 6 clubs My Coach
@@ -8693,6 +8731,7 @@ let pilotageFunnelState = {
   compareWith: [],         // [] = pas de compare, ['__others__'] = moyenne du groupe (tous clubs), ou liste de noms
   scope: 'none',           // 'none' (par défaut, rien affiché sauf si club spécifique) | 'mycoach' | 'group'
   detailCatOpen: null,     // null | 'salaire' | 'batiment' | 'marketing' | 'fonctionnement' — catégorie dépliée dans la carte détail
+  consolDetailOpen: null,  // null | 'mycoach' | 'mycoach_franch' | 'groupe' — cellule EBE consolidé dépliée
 };
 
 // Cache des clubs disponibles
@@ -9526,6 +9565,34 @@ async function loadPilotageFunnel() {
     });
   }
 
+  // Clic sur une cellule EBE consolidé → ouvre/ferme le panel détail du calcul
+  if (rootPf && !rootPf.dataset.consolDetailBound) {
+    rootPf.dataset.consolDetailBound = '1';
+    rootPf.addEventListener('click', (e) => {
+      if (e.target.closest('[data-consol-close]')) {
+        pilotageFunnelState.consolDetailOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
+      const cell = e.target.closest('[data-consol-key]');
+      if (!cell) return;
+      const key = cell.dataset.consolKey;
+      pilotageFunnelState.consolDetailOpen =
+        pilotageFunnelState.consolDetailOpen === key ? null : key;
+      renderPilotageFunnel();
+    });
+    rootPf.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const cell = e.target.closest && e.target.closest('[data-consol-key]');
+      if (!cell) return;
+      e.preventDefault();
+      const key = cell.dataset.consolKey;
+      pilotageFunnelState.consolDetailOpen =
+        pilotageFunnelState.consolDetailOpen === key ? null : key;
+      renderPilotageFunnel();
+    });
+  }
+
   // Clic sur une cellule du breakdown dépenses (carte détail club)
   // → bascule l'affichage du détail des lignes Pennylane
   if (rootPf && !rootPf.dataset.depDetailBound) {
@@ -9863,6 +9930,7 @@ async function renderPilotageFunnel() {
   const consolGrid = document.getElementById('pf-consol-grid');
   if (consolGrid) {
     const sig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+    const openKey = pilotageFunnelState.consolDetailOpen;
     consolGrid.innerHTML = PF_CONSOLIDATED_EBE.map(c => {
       const value = pilotageConsolidatedEbe(sig, c.scope);
       let tone = '';
@@ -9870,13 +9938,103 @@ async function renderPilotageFunnel() {
         tone = Number(value) >= 0 ? 'pf-fin-positive' : 'pf-fin-negative';
       }
       const display = pilotageFormatValue(value, 'pct');
+      const isOpen = openKey === c.key;
+      const cls = 'pf-fin-cell pf-consol-cell--clickable' + (tone ? ` ${tone}` : '') + (isOpen ? ' is-open' : '');
       return `
-        <div class="pf-fin-cell ${tone}">
-          <span class="pf-fin-label">${escapeHtml(c.label)}</span>
+        <div class="${cls}" data-consol-key="${escapeHtml(c.key)}" role="button" tabindex="0" title="Cliquer pour voir le détail du calcul">
+          <span class="pf-fin-label">${escapeHtml(c.label)} <span class="pf-consol-caret" aria-hidden="true">${isOpen ? '▾' : '▸'}</span></span>
           <span class="pf-fin-value">${display}</span>
         </div>
       `;
     }).join('');
+
+    // Panel de détail du calcul EBE consolidé
+    const detailPanel = document.getElementById('pf-consol-detail');
+    if (detailPanel) {
+      if (!openKey) {
+        detailPanel.classList.add('hidden');
+        detailPanel.innerHTML = '';
+      } else {
+        const cfg = PF_CONSOLIDATED_EBE.find(c => c.key === openKey);
+        if (!cfg) {
+          detailPanel.classList.add('hidden');
+          detailPanel.innerHTML = '';
+        } else {
+          const b = pilotageConsolidatedEbeBreakdown(sig, cfg.scope);
+          const fmtEur = (v) => pilotageFormatValue(v, 'eur');
+          const fmtPct = (v) => pilotageFormatValue(v, 'pct');
+          const ebeClass = (b.ebe != null && b.ebe >= 0) ? 'pf-fin-positive' : (b.ebe != null ? 'pf-fin-negative' : '');
+          // Regroupe les entrées par "group" (My Coach / Franchise / Tourcoing)
+          const groupsOrder = ['My Coach', 'Franchise', 'Tourcoing'];
+          const grouped = {};
+          for (const e of b.entries) {
+            grouped[e.group] = grouped[e.group] || [];
+            grouped[e.group].push(e);
+          }
+          let html = `
+            <div class="pf-consol-detail-head">
+              <span class="pf-consol-detail-title">${escapeHtml(cfg.label)} <span class="pf-consol-detail-sub">détail du calcul</span></span>
+              <button type="button" class="pf-items-close" data-consol-close title="Fermer">✕</button>
+            </div>
+            <table class="pf-consol-detail-table">
+              <thead>
+                <tr>
+                  <th class="pf-cd-col-label">Entité</th>
+                  <th class="pf-cd-col-num">CA TTC</th>
+                  <th class="pf-cd-col-num">CA HT (÷1,20)</th>
+                  <th class="pf-cd-col-num">Dépenses</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          for (const g of groupsOrder) {
+            const list = grouped[g];
+            if (!list || list.length === 0) continue;
+            for (const e of list) {
+              const caHt = (e.ca != null) ? e.ca / 1.20 : null;
+              html += `
+                <tr>
+                  <td class="pf-cd-col-label">${escapeHtml(e.label)}</td>
+                  <td class="pf-cd-col-num">${fmtEur(e.ca)}</td>
+                  <td class="pf-cd-col-num pf-cd-muted">${fmtEur(caHt)}</td>
+                  <td class="pf-cd-col-num">${fmtEur(e.dep)}</td>
+                </tr>
+              `;
+            }
+          }
+          html += `
+              </tbody>
+              <tfoot>
+                <tr class="pf-cd-total">
+                  <td class="pf-cd-col-label">Total</td>
+                  <td class="pf-cd-col-num">${fmtEur(b.totalCa)}</td>
+                  <td class="pf-cd-col-num">${fmtEur(b.caHt)}</td>
+                  <td class="pf-cd-col-num">${fmtEur(b.totalDep)}</td>
+                </tr>
+              </tfoot>
+            </table>
+            <div class="pf-consol-formula">
+              <span class="pf-cf-step">Σ CA HT</span>
+              <span class="pf-cf-val">${fmtEur(b.caHt)}</span>
+              <span class="pf-cf-op">−</span>
+              <span class="pf-cf-step">Σ Dépenses</span>
+              <span class="pf-cf-val">${fmtEur(b.totalDep)}</span>
+              <span class="pf-cf-op">=</span>
+              <span class="pf-cf-val">${fmtEur(b.caHt != null && b.totalDep != null ? b.caHt - b.totalDep : null)}</span>
+              <span class="pf-cf-op">÷</span>
+              <span class="pf-cf-step">Σ CA HT</span>
+              <span class="pf-cf-val">${fmtEur(b.caHt)}</span>
+              <span class="pf-cf-op">×</span>
+              <span class="pf-cf-val">100</span>
+              <span class="pf-cf-arrow">→</span>
+              <span class="pf-cf-result ${ebeClass}">${fmtPct(b.ebe)}</span>
+            </div>
+          `;
+          detailPanel.classList.remove('hidden');
+          detailPanel.innerHTML = html;
+        }
+      }
+    }
   }
 
   // Synthèse financière : 6 EBE clubs My Coach + EBE Ginkgo Sport + CA Franchise
