@@ -10880,3 +10880,1025 @@ img {
   #tab-pilotage-funnel .pf-funnel-bar { min-height: 52px; padding: 12px 16px; }
   #tab-pilotage-funnel .pf-funnel-bar-value { font-size: 20px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   TÂCHES (Kanban) — Redesign cockpit-business (Design System v1)
+   Source: design-system/ui_kits/suivi-commerciaux/tasks.css
+   Scopé à #tab-tasks (+ panneau et wallpaper hors-tab via IDs uniques).
+   Conserve la fonctionnalité wallpaper personnalisable (out of scope kit).
+   ══════════════════════════════════════════════════════════════════ */
+
+#tab-tasks {
+  /* Tokens locaux */
+  --ds-bg-app:        #F7F8FA;
+  --ds-bg-subtle:     #F1F3F7;
+  --ds-bg-card:       #FFFFFF;
+  --ds-bg-card-soft:  #FAFBFC;
+
+  --ds-fg-1: #0F172A;
+  --ds-fg-2: #334155;
+  --ds-fg-3: #64748B;
+  --ds-fg-4: #94A3B8;
+
+  --ds-border-1: #E2E8F0;
+  --ds-border-2: #EDF1F5;
+  --ds-border-strong: #CBD5E1;
+
+  --ds-primary-500: #6366F1;
+  --ds-primary-600: #4F46E5;
+  --ds-primary-700: #4338CA;
+  --ds-primary-tint:  rgba(99,102,241,0.08);
+  --ds-primary-tint-2:rgba(99,102,241,0.14);
+
+  --ds-warning-500: #F59E0B;
+  --ds-warning-700: #B45309;
+  --ds-warning-tint: rgba(245,158,11,0.12);
+
+  --ds-danger-500: #EF4444;
+  --ds-danger-700: #B91C1C;
+  --ds-danger-tint: rgba(239,68,68,0.10);
+
+  --ds-success-500: #10B981;
+  --ds-success-700: #047857;
+  --ds-success-tint: rgba(16,185,129,0.10);
+
+  --ds-dur-fast: 120ms;
+  --ds-dur-base: 180ms;
+  --ds-dur-slow: 280ms;
+  --ds-ease: cubic-bezier(0.2, 0, 0, 1);
+  --ds-ease-emph: cubic-bezier(0.3, 0, 0.1, 1);
+}
+
+/* Wrapper de page — pleine largeur, retire les paddings agressifs legacy */
+#tab-tasks .tasks-page {
+  max-width: 100%;
+  padding: 28px 28px 64px;
+  background: transparent;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Header de page ─────────────────────────────────────────── */
+#tab-tasks .tasks-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+#tab-tasks .tasks-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+#tab-tasks .tasks-title h1 {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.022em;
+  color: var(--ds-fg-1);
+  line-height: 1.1;
+  margin: 0;
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+  background-clip: initial;
+  text-fill-color: initial;
+}
+#tab-tasks .tasks-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ds-fg-4);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+#tab-tasks .tasks-count .tk-count-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--ds-primary-tint);
+  color: var(--ds-primary-700);
+  border: 0;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 12px;
+}
+#tab-tasks .tasks-count .tk-count-clear-x {
+  font-weight: 700;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* ── Toolbar (Chercher / Export / Personnaliser / + Colonne) ── */
+#tab-tasks .tasks-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#tab-tasks .tasks-view-as,
+#tab-tasks .btn-tasks-search,
+#tab-tasks .btn-tasks-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  padding: 0 12px;
+  height: 34px;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+  color: var(--ds-fg-1);
+  cursor: pointer;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease),
+              background var(--ds-dur-fast) var(--ds-ease);
+  box-shadow: none;
+}
+#tab-tasks .tasks-view-as:hover,
+#tab-tasks .btn-tasks-search:hover,
+#tab-tasks .btn-tasks-icon:hover {
+  border-color: var(--ds-fg-3);
+  background: var(--ds-bg-card);
+}
+#tab-tasks .btn-add-column {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  padding: 0 12px;
+  height: 34px;
+  background: var(--ds-fg-1);
+  color: #fff;
+  border: 1px solid var(--ds-fg-1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background var(--ds-dur-fast) var(--ds-ease);
+  box-shadow: none;
+}
+#tab-tasks .btn-add-column:hover { background: #1E293B; }
+
+/* Bannière "Lecture seule" (admin viewing another user) */
+#tab-tasks .tasks-view-banner {
+  background: var(--ds-warning-tint);
+  border: 1px solid color-mix(in oklab, var(--ds-warning-500) 30%, transparent);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ds-warning-700);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+#tab-tasks .tk-banner-back {
+  background: var(--ds-warning-500);
+  color: #fff;
+  border: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 11.5px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+/* ── Filter chips ────────────────────────────────────────────── */
+#tab-tasks .tasks-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+  background: transparent;
+  padding: 0;
+  border: 0;
+}
+#tab-tasks .tk-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 0 10px;
+  height: 28px;
+  background: var(--ds-bg-card) !important;
+  border: 1px solid var(--ds-border-1) !important;
+  border-radius: 999px;
+  color: var(--ds-fg-2) !important;
+  cursor: pointer;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease);
+  box-shadow: none !important;
+}
+#tab-tasks .tk-filter-pill:hover {
+  border-color: var(--ds-fg-3) !important;
+}
+#tab-tasks .tk-filter-pill.active {
+  background: var(--ds-fg-1) !important;
+  color: #fff !important;
+  border-color: var(--ds-fg-1) !important;
+}
+#tab-tasks .tk-filter-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Board ──────────────────────────────────────────────────── */
+#tab-tasks .tasks-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  align-items: flex-start;
+  background: transparent;
+}
+
+/* Colonnes — cards blanches avec dot + label uppercase */
+#tab-tasks .tk-col {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 12px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 200px;
+  max-height: calc(100vh - 260px);
+  box-shadow: none;
+  position: relative;
+}
+#tab-tasks .tk-col-virtual {
+  background: var(--ds-bg-card-soft);
+  border-style: dashed;
+}
+#tab-tasks .tk-col-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  /* La couleur vient inline (style="border-top-color: ${col.color}") */
+  border-top: 2px solid;
+  border-bottom: 1px solid var(--ds-border-2);
+  border-radius: 12px 12px 0 0;
+  margin: -13px -13px 0;
+  background: transparent;
+  position: relative;
+}
+#tab-tasks .tk-col-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  flex: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: transparent;
+}
+#tab-tasks .tk-col-name:hover {
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-1);
+}
+#tab-tasks .tk-col-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#tab-tasks .tk-col-count {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--ds-fg-4) !important;
+  font-variant-numeric: tabular-nums;
+  background: var(--ds-bg-subtle) !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+}
+#tab-tasks .tk-col-menu {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--ds-fg-4);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+#tab-tasks .tk-col-menu:hover {
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-1);
+}
+#tab-tasks .tk-col-drag-handle {
+  width: 16px;
+  color: var(--ds-fg-4);
+  font-size: 0.85rem;
+  cursor: grab;
+  opacity: 0.5;
+  user-select: none;
+}
+#tab-tasks .tk-col-header:hover .tk-col-drag-handle {
+  opacity: 1;
+  color: var(--ds-fg-3);
+}
+
+#tab-tasks .tk-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+  padding: 2px;
+  margin: -2px;
+}
+#tab-tasks .tk-col-body::-webkit-scrollbar { width: 8px; }
+#tab-tasks .tk-col-body::-webkit-scrollbar-thumb {
+  background: var(--ds-border-1);
+  border-radius: 4px;
+}
+#tab-tasks .tk-col-body::-webkit-scrollbar-track { background: transparent; }
+
+/* Drop targets (drag&drop) */
+#tab-tasks .tk-col-body.tk-col-drop {
+  outline: 2px dashed var(--ds-primary-500);
+  outline-offset: -4px;
+  background: var(--ds-primary-tint);
+  border-radius: 8px;
+}
+#tab-tasks .tk-col.tk-col-drop-left::before,
+#tab-tasks .tk-col.tk-col-drop-right::after {
+  background: var(--ds-primary-500);
+  box-shadow: 0 0 0 3px var(--ds-primary-tint);
+}
+
+/* Bouton "+ Ajouter une tâche" — dashed indigo on hover */
+#tab-tasks .tk-add-task {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 10px;
+  background: transparent;
+  border: 1px dashed var(--ds-border-strong);
+  border-radius: 8px;
+  color: var(--ds-fg-3);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+  width: 100%;
+  justify-content: flex-start;
+}
+#tab-tasks .tk-add-task:hover {
+  border-color: var(--ds-primary-500);
+  color: var(--ds-primary-600);
+  background: var(--ds-primary-tint);
+}
+
+/* Inline input (création de tâche / sous-tâche) */
+#tab-tasks .tk-add-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--ds-primary-500);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ds-fg-1);
+  background: var(--ds-bg-card);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-primary-tint);
+}
+
+/* Input d'édition du nom de colonne */
+#tab-tasks .tk-edit-col-input {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-1);
+  background: var(--ds-bg-card);
+  border: 1.5px solid var(--ds-primary-500);
+  border-radius: 5px;
+  padding: 2px 4px;
+  font-family: inherit;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-primary-tint);
+}
+
+/* ── Card (tâche) ────────────────────────────────────────────── */
+#tab-tasks .tk-card-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#tab-tasks .tk-card {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 10px;
+  padding: 12px 14px 10px;
+  cursor: pointer;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: none;
+}
+#tab-tasks .tk-card:hover {
+  border-color: var(--ds-fg-3);
+  transform: translateY(-1px);
+  box-shadow: 0 1px 2px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04);
+}
+#tab-tasks .tk-card.tk-highlight {
+  background: linear-gradient(90deg, var(--ds-warning-tint) 0%, transparent 50%);
+  border-color: color-mix(in oklab, var(--ds-warning-500) 30%, var(--ds-border-1));
+}
+#tab-tasks .tk-card.tk-highlight::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: var(--ds-warning-500);
+  border-radius: 0 2px 2px 0;
+}
+#tab-tasks .tk-card.tk-done {
+  opacity: 0.55;
+}
+#tab-tasks .tk-card.tk-done .tk-card-text {
+  text-decoration: line-through;
+  color: var(--ds-fg-3);
+}
+
+/* Indentation profondeur (sous-tâches) */
+#tab-tasks .tk-depth-1 { margin-left: 18px; }
+#tab-tasks .tk-depth-2 { margin-left: 36px; }
+#tab-tasks .tk-depth-3 { margin-left: 54px; }
+#tab-tasks .tk-depth-4 { margin-left: 72px; }
+
+/* Texte de la carte */
+#tab-tasks .tk-card-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  outline: none;
+  font-family: inherit;
+  resize: none;
+  width: 100%;
+}
+
+/* Méta sous le titre (date, sous-tâches count, etc.) */
+#tab-tasks .tk-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ds-fg-3);
+  flex-wrap: wrap;
+}
+
+/* Due date badge */
+#tab-tasks .tk-due-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-3);
+}
+#tab-tasks .tk-due-badge.tk-due-today {
+  background: var(--ds-warning-tint);
+  color: var(--ds-warning-700);
+}
+#tab-tasks .tk-due-badge.tk-due-overdue {
+  background: var(--ds-danger-tint);
+  color: var(--ds-danger-700);
+}
+#tab-tasks .tk-due-badge.tk-due-normal {
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-3);
+}
+
+/* Tags */
+#tab-tasks .tk-card-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+#tab-tasks .tk-card-tags > span,
+#tab-tasks .tk-card-tags > .tk-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-2);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+#tab-tasks .tk-tag.red { background: var(--ds-danger-tint); color: var(--ds-danger-700); }
+
+/* Sub-tâche badge / counter */
+#tab-tasks .tk-card-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ds-fg-3);
+  font-size: 10.5px;
+}
+
+/* Assignee badge */
+#tab-tasks .tk-assign-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-2);
+  font-size: 9.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--ds-border-1);
+}
+#tab-tasks .tk-assign-out {
+  color: var(--ds-fg-4);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-style: italic;
+}
+
+/* Actions card (flèches, sub-btn) */
+#tab-tasks .tk-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity var(--ds-dur-fast);
+}
+#tab-tasks .tk-card:hover .tk-card-actions { opacity: 1; }
+#tab-tasks .tk-card-arrow,
+#tab-tasks .tk-card-subbtn {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--ds-fg-4);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+#tab-tasks .tk-card-arrow:hover,
+#tab-tasks .tk-card-subbtn:hover {
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-1);
+}
+
+/* Checklist (sous-tâches inline) */
+#tab-tasks .tk-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+#tab-tasks .tk-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--ds-bg-card-soft);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ds-fg-2);
+}
+#tab-tasks .tk-check-badge {
+  font-size: 9.5px;
+  color: var(--ds-fg-4);
+  font-weight: 700;
+}
+
+/* Drop indicators (drag&drop) */
+#tab-tasks .tk-drop-before {
+  border-top: 2px solid var(--ds-primary-500);
+  border-radius: 2px;
+}
+#tab-tasks .tk-drop-child {
+  background: var(--ds-primary-tint);
+  border-color: var(--ds-primary-500);
+}
+#tab-tasks .tk-dragging {
+  opacity: 0.5;
+}
+body.tk-dragging-active #tab-tasks .tk-card {
+  cursor: grabbing;
+}
+
+/* Color dot grid (menu colonne) */
+#tab-tasks .tk-color-grid,
+.tk-menu-popup .tk-color-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  padding: 4px 8px 8px;
+}
+.tk-menu-popup .tk-color-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 0;
+  cursor: pointer;
+  position: relative;
+}
+.tk-menu-popup .tk-color-dot.active::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* ── Side panel (slide-in droite, plein écran à droite) ─────── */
+/* Le panel est sibling de #tab-tasks dans le DOM, donc on cible par ID. */
+#tk-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.30);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms cubic-bezier(0.2, 0, 0, 1);
+  z-index: 90;
+}
+#tk-panel-backdrop:not(.hidden) {
+  opacity: 1;
+  pointer-events: auto;
+}
+#tk-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: 90vw;
+  background: #FFFFFF;
+  border-left: 1px solid #E2E8F0;
+  box-shadow: -16px 0 40px -16px rgba(15,23,42,0.20);
+  transform: translateX(100%);
+  transition: transform 280ms cubic-bezier(0.3, 0, 0.1, 1);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#tk-panel:not(.hidden) {
+  transform: translateX(0);
+}
+#tk-panel .tk-pn-header {
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid #E2E8F0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: transparent;
+}
+#tk-panel .tk-pn-section-header,
+#tk-panel .tk-pn-creator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #94A3B8;
+  background: transparent;
+}
+#tk-panel .tk-pn-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748B;
+  font-size: 16px;
+  font-weight: 700;
+}
+#tk-panel .tk-pn-close:hover {
+  background: #F1F3F7;
+  color: #0F172A;
+}
+#tk-panel .tk-pn-body {
+  padding: 18px 22px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+#tk-panel .tk-pn-highlight {
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0F172A;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  padding: 0;
+  margin-bottom: 16px;
+  resize: none;
+}
+#tk-panel .tk-pn-section {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid #EDF1F5;
+  align-items: baseline;
+}
+#tk-panel .tk-pn-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #94A3B8;
+  padding-top: 3px;
+}
+#tk-panel .tk-pn-desc {
+  font-size: 13.5px;
+  color: #334155;
+  line-height: 1.55;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  padding: 4px 0;
+  margin-top: 4px;
+  min-height: 60px;
+}
+#tk-panel .tk-pn-date {
+  width: 100%;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0F172A;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 7px;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+#tk-panel .tk-pn-date:focus {
+  border-color: #6366F1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+}
+#tk-panel .tk-pn-due-clear {
+  border: 0;
+  background: transparent;
+  color: #94A3B8;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+#tk-panel .tk-pn-due-clear:hover { color: #B91C1C; }
+#tk-panel .tk-pn-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+#tk-panel .tk-pn-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #F1F3F7;
+  color: #334155;
+}
+#tk-panel .tk-pn-tag-input {
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  color: #0F172A;
+  outline: none;
+  min-width: 80px;
+  padding: 2px 4px;
+}
+#tk-panel .tk-pn-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+#tk-panel .tk-pn-col-btn {
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+#tk-panel .tk-pn-col-btn:hover { border-color: #64748B; }
+#tk-panel .tk-pn-col-btn.active {
+  background: #0F172A;
+  color: #fff;
+  border-color: #0F172A;
+}
+#tk-panel .tk-pn-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #EDF1F5;
+}
+#tk-panel .tk-pn-delete {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid #E2E8F0;
+  color: #B91C1C;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#tk-panel .tk-pn-delete:hover {
+  background: rgba(239,68,68,0.06);
+  border-color: rgba(239,68,68,0.3);
+}
+#tk-panel .tk-pn-checkcount {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+#tk-panel .tk-pn-assignee,
+#tk-panel .tk-pn-time {
+  font-size: 12px;
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Menu popup (couleur / déplacer / supprimer) ─────────────── */
+.tk-menu-popup {
+  position: absolute;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px -8px rgba(15,23,42,0.10),
+              0 4px 12px -4px rgba(15,23,42,0.06);
+  padding: 6px 0;
+  min-width: 180px;
+  z-index: 200;
+}
+.tk-menu-popup .tk-menu-section {
+  padding: 6px 12px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #94A3B8;
+}
+.tk-menu-popup .tk-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: #0F172A;
+  cursor: pointer;
+}
+.tk-menu-popup .tk-menu-item:hover {
+  background: #F1F3F7;
+}
+.tk-menu-popup .tk-menu-item.tk-menu-danger { color: #B91C1C; }
+.tk-menu-popup .tk-menu-item.tk-menu-danger:hover {
+  background: rgba(239,68,68,0.06);
+}
+.tk-menu-popup .tk-menu-move-row {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px 8px;
+}
+.tk-menu-popup .tk-menu-move {
+  flex: 1;
+  text-align: center;
+  padding: 6px 10px;
+  border: 1px solid #E2E8F0;
+  border-radius: 7px;
+  background: #FFFFFF;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #0F172A;
+  cursor: pointer;
+}
+.tk-menu-popup .tk-menu-move:hover:not([disabled]) {
+  border-color: #6366F1;
+  color: #4338CA;
+}
+.tk-menu-popup .tk-menu-move[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Toast (annulation / actions) ───────────────────────────── */
+/* Le toast est append au body, pas dans #tab-tasks. */
+.tk-undo-toast {
+  background: #0F172A;
+  border-radius: 10px;
+  padding: 10px 14px 10px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  box-shadow: 0 12px 28px -8px rgba(15,23,42,0.30);
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  #tab-tasks .tasks-board { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  #tab-tasks .tasks-page { padding: 18px 14px 80px; }
+  #tab-tasks .tasks-title h1 { font-size: 22px; }
+  #tab-tasks .tasks-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  #tab-tasks .tasks-board {
+    grid-template-columns: 1fr;
+  }
+  #tk-panel { width: 100vw; }
+}
