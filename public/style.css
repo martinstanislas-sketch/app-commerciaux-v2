@@ -10655,6 +10655,49 @@ img {
   padding: 28px 32px 24px;
   box-shadow: none;
 }
+
+/* Header du funnel-card avec filtres période en ligne */
+#tab-pilotage-funnel .pf-funnel-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+#tab-pilotage-funnel .pf-funnel-card-head .pf-section-title {
+  margin: 0;
+}
+#tab-pilotage-funnel .pf-funnel-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* Compactage des pills + date nav pour qu'ils tiennent sur une ligne */
+#tab-pilotage-funnel .pf-funnel-card-head .pf-period {
+  padding: 2px;
+}
+#tab-pilotage-funnel .pf-funnel-card-head .pf-period-btn {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+#tab-pilotage-funnel .pf-funnel-card-head .pf-date-nav,
+#tab-pilotage-funnel .pf-funnel-card-head .pf-date-custom {
+  height: 30px;
+}
+#tab-pilotage-funnel .pf-funnel-card-head .pf-date-label {
+  min-width: 120px;
+  font-size: 12px;
+}
+#tab-pilotage-funnel .pf-funnel-card-head .pf-date-btn {
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+}
+#tab-pilotage-funnel .pf-funnel-card-head .pf-date-input {
+  font-size: 12px;
+}
 #tab-pilotage-funnel .pf-side-card {
   padding: 28px 28px 22px;
   align-self: flex-start;
