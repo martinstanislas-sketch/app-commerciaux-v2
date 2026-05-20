@@ -40,3 +40,6 @@ Thumbs.db
 production_*
 *.bak
 *.backup
+
+# ── Design system kit (référence locale, pas dans le build) ──
+design-system/

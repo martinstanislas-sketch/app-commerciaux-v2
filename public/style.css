@@ -10129,3 +10129,754 @@ img {
   .pf-funnel-bar-value { font-size: 1rem; }
   .pf-multi-trigger { min-width: 0; width: 100%; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PILOTAGE FUNNEL — Redesign cockpit-business (Design System v1)
+   Source: design-system/ui_kits/suivi-commerciaux/
+   Variante "Pilotage" — indigo monochrome funnel, top-borders catégories.
+   Toutes les règles sont scopées à #tab-pilotage-funnel pour ne pas
+   impacter les autres onglets. Override des inline styles via !important
+   pour les cas où app.js émet des `style="..."` (bar background, icon chip).
+   ══════════════════════════════════════════════════════════════════ */
+
+#tab-pilotage-funnel {
+  /* Tokens locaux (importés de design-system/colors_and_type.css) */
+  --ds-bg-app:      #F7F8FA;
+  --ds-bg-subtle:   #F1F3F7;
+  --ds-bg-card:     #FFFFFF;
+
+  --ds-fg-1: #0F172A;
+  --ds-fg-2: #334155;
+  --ds-fg-3: #64748B;
+  --ds-fg-4: #94A3B8;
+
+  --ds-border-1: #E2E8F0;
+  --ds-border-2: #EDF1F5;
+  --ds-border-strong: #CBD5E1;
+
+  --ds-primary-500: #6366F1;
+  --ds-primary-600: #4F46E5;
+  --ds-primary-700: #4338CA;
+  --ds-primary-tint: rgba(99,102,241,0.08);
+
+  --ds-success-500: #10B981;
+  --ds-success-700: #047857;
+  --ds-warning-500: #F59E0B;
+  --ds-danger-500:  #EF4444;
+  --ds-danger-700:  #B91C1C;
+
+  --ds-dur-fast: 120ms;
+  --ds-dur-base: 180ms;
+  --ds-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  background: var(--ds-bg-app);
+}
+
+/* ── Page wrapper & head ─────────────────────────────────────── */
+#tab-pilotage-funnel .pf-wrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 36px 28px 64px;
+}
+#tab-pilotage-funnel .pf-header {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin-bottom: 36px;
+}
+#tab-pilotage-funnel .pf-title {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.022em;
+  color: var(--ds-fg-1);
+  line-height: 1.1;
+  margin: 0;
+}
+#tab-pilotage-funnel .pf-sub {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--ds-fg-3);
+  max-width: 580px;
+  line-height: 1.5;
+}
+
+/* ── Filters bar — flat row, plus de panneau encadré ────────── */
+#tab-pilotage-funnel .pf-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+#tab-pilotage-funnel .pf-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+#tab-pilotage-funnel .pf-filter-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-4);
+}
+
+/* Period pills — segment style, fond carte, actif slate-foncé */
+#tab-pilotage-funnel .pf-period {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 0;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#tab-pilotage-funnel .pf-period::-webkit-scrollbar { display: none; }
+#tab-pilotage-funnel .pf-period-btn {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ds-fg-3);
+  background: transparent;
+  border: 0;
+  padding: 7px 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  letter-spacing: -0.005em;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#tab-pilotage-funnel .pf-period-btn:hover {
+  color: var(--ds-fg-1);
+  background: transparent;
+}
+#tab-pilotage-funnel .pf-period-btn.active {
+  background: var(--ds-fg-1);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+/* Date nav (‹ › + label) */
+#tab-pilotage-funnel .pf-date-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 0 4px;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+}
+#tab-pilotage-funnel .pf-date-btn {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--ds-fg-3);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#tab-pilotage-funnel .pf-date-btn:hover {
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-1);
+}
+#tab-pilotage-funnel .pf-date-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+  min-width: 140px;
+  text-align: center;
+  text-transform: capitalize;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Champs date custom (du / au) */
+#tab-pilotage-funnel .pf-date-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+}
+#tab-pilotage-funnel .pf-date-input {
+  border: 0;
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+  font-family: inherit;
+  padding: 4px 2px;
+  outline: none;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+#tab-pilotage-funnel .pf-date-input:focus { color: var(--ds-primary-700); }
+#tab-pilotage-funnel .pf-date-sep {
+  color: var(--ds-fg-4);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+/* Multi-select triggers (Clubs analysés, Comparer avec) */
+#tab-pilotage-funnel .pf-multi-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 200px;
+  max-width: 260px;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+  cursor: pointer;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease);
+  overflow: hidden;
+}
+#tab-pilotage-funnel .pf-multi-trigger:hover { border-color: var(--ds-fg-3); }
+#tab-pilotage-funnel .pf-multi-trigger > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+#tab-pilotage-funnel .pf-multi-caret {
+  color: var(--ds-fg-4);
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+/* ── Section titles ──────────────────────────────────────────── */
+#tab-pilotage-funnel .pf-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  margin: 0 0 20px;
+}
+
+/* ── Synthèse financière — hero card en tête ────────────────── */
+#tab-pilotage-funnel .pf-financials-card {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 28px 32px 24px;
+  position: relative;
+  margin-bottom: 32px;
+  box-shadow: none;
+  overflow: hidden;
+}
+#tab-pilotage-funnel .pf-financials-card--top {
+  border-top: 3px solid var(--ds-primary-500);
+  box-shadow: none;
+}
+#tab-pilotage-funnel .pf-financials {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+}
+#tab-pilotage-funnel .pf-fin-cell {
+  padding: 4px 22px 4px 0;
+  border-right: 1px solid var(--ds-border-2);
+  border-bottom: 0;
+  border-top: 0;
+  border-left: 0;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  background: transparent;
+}
+#tab-pilotage-funnel .pf-fin-cell:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+#tab-pilotage-funnel .pf-fin-cell + .pf-fin-cell { padding-left: 22px; }
+#tab-pilotage-funnel .pf-fin-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#tab-pilotage-funnel .pf-fin-hint {
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--ds-fg-4);
+  font-size: 10px;
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
+  margin-left: 6px;
+}
+#tab-pilotage-funnel .pf-fin-value {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--ds-fg-1);
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+/* Tons spécifiques (set par app.js sur .pf-fin-cell) */
+#tab-pilotage-funnel .pf-fin-cell.pf-fin-positive,
+#tab-pilotage-funnel .pf-fin-cell.pf-fin-negative,
+#tab-pilotage-funnel .pf-fin-cell.pf-fin-accent,
+#tab-pilotage-funnel .pf-fin-cell.pf-fin-muted {
+  background: transparent;
+  border-bottom: 0;
+  border-top: 0;
+  border-left: 0;
+}
+#tab-pilotage-funnel .pf-fin-cell.pf-fin-positive .pf-fin-value { color: var(--ds-primary-600); }
+#tab-pilotage-funnel .pf-fin-cell.pf-fin-negative .pf-fin-value { color: var(--ds-danger-700); }
+#tab-pilotage-funnel .pf-fin-cell.pf-fin-muted    .pf-fin-value { color: var(--ds-fg-1); }
+#tab-pilotage-funnel .pf-fin-cell.pf-fin-accent   .pf-fin-value { color: var(--ds-primary-700); }
+
+#tab-pilotage-funnel .pf-financials-note {
+  margin: 22px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--ds-border-2);
+  font-size: 11.5px;
+  color: var(--ds-fg-4);
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
+  letter-spacing: -0.01em;
+  font-style: normal;
+}
+
+/* ── Category cards — 5 cols, top-border accent ────────────── */
+#tab-pilotage-funnel .pf-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 36px;
+}
+#tab-pilotage-funnel .pilotage-card {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 18px 18px;
+  position: relative;
+  overflow: visible;
+  min-width: 0;
+  transition: border-color var(--ds-dur-base) var(--ds-ease),
+              transform var(--ds-dur-base) var(--ds-ease);
+  box-shadow: none;
+}
+#tab-pilotage-funnel .pilotage-card::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  height: 3px;
+  background: var(--pilotage-accent, var(--ds-primary-500));
+  border-radius: 12px 12px 0 0;
+}
+#tab-pilotage-funnel .pilotage-card:hover {
+  border-color: var(--ds-fg-3);
+  transform: translateY(-1px);
+}
+#tab-pilotage-funnel .pilotage-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+/* Icon chip — override inline `background: cat1a; color: cat` */
+#tab-pilotage-funnel .pilotage-card-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--pilotage-accent, var(--ds-primary-500)) 12%, transparent) !important;
+  color: var(--pilotage-accent, var(--ds-primary-500)) !important;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+#tab-pilotage-funnel .pilotage-card-title {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#tab-pilotage-funnel .pilotage-card-kpis {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+#tab-pilotage-funnel .pilotage-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  min-width: 0;
+  grid-template-columns: none;
+}
+#tab-pilotage-funnel .pilotage-kpi:hover { background: transparent; }
+#tab-pilotage-funnel .pilotage-kpi-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-fg-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#tab-pilotage-funnel .pilotage-kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+#tab-pilotage-funnel .pilotage-kpi-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ds-border-strong);
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Editable cells — kit pattern (dashed underline on hover) ── */
+#tab-pilotage-funnel .pilotage-kpi-value.editable,
+#tab-pilotage-funnel .pf-funnel-bar-value.editable,
+#tab-pilotage-funnel .pf-side-value.editable,
+#tab-pilotage-funnel .pf-fin-value.editable {
+  cursor: text;
+  border-bottom: 1.5px dashed transparent;
+  border-radius: 4px;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+  padding: 0 2px;
+  background: transparent;
+  color: inherit;
+}
+#tab-pilotage-funnel .pilotage-kpi-value.editable:hover,
+#tab-pilotage-funnel .pf-funnel-bar-value.editable:hover,
+#tab-pilotage-funnel .pf-side-value.editable:hover,
+#tab-pilotage-funnel .pf-fin-value.editable:hover {
+  border-bottom-color: var(--ds-primary-500);
+  color: var(--ds-primary-700);
+  background: transparent;
+}
+#tab-pilotage-funnel .pilotage-kpi-value.aggregate::after,
+#tab-pilotage-funnel .pf-funnel-bar-value.aggregate::after,
+#tab-pilotage-funnel .pf-side-value.aggregate::after,
+#tab-pilotage-funnel .pf-fin-value.aggregate::after {
+  content: 'Σ';
+  font-size: 0.55em;
+  vertical-align: super;
+  margin-left: 3px;
+  color: var(--ds-fg-4);
+  font-weight: 600;
+  opacity: 1;
+}
+
+/* Inline edit input */
+#tab-pilotage-funnel .pilotage-kpi-input {
+  padding: 2px 6px;
+  border: 1.5px solid var(--ds-primary-500);
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--ds-fg-1);
+  background: var(--ds-bg-card);
+  outline: none;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  box-shadow: 0 0 0 3px var(--ds-primary-tint);
+}
+
+/* ── Funnel + side metrics layout ──────────────────────────── */
+#tab-pilotage-funnel .pf-funnel-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+  gap: 18px;
+  margin-bottom: 24px;
+}
+#tab-pilotage-funnel .pf-funnel-card,
+#tab-pilotage-funnel .pf-side-card {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 28px 32px 24px;
+  box-shadow: none;
+}
+#tab-pilotage-funnel .pf-side-card {
+  padding: 28px 28px 22px;
+  align-self: flex-start;
+}
+
+/* Funnel bars — indigo monochrome (override inline gradient via !important) */
+#tab-pilotage-funnel .pf-funnel {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  align-items: stretch;
+}
+#tab-pilotage-funnel .pf-funnel-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  position: relative;
+}
+#tab-pilotage-funnel .pf-funnel-bar {
+  position: relative;
+  z-index: 2;
+  border-radius: 8px;
+  padding: 14px 20px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 60px;
+  background: var(--ds-primary-500) !important;
+  background-image: none !important;
+  box-shadow: none;
+  transition: transform var(--ds-dur-base) var(--ds-ease);
+}
+#tab-pilotage-funnel .pf-funnel-bar:hover {
+  transform: translateY(-1px);
+}
+#tab-pilotage-funnel .pf-funnel-bar-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+#tab-pilotage-funnel .pf-funnel-bar-value {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+/* Ghost compare bar */
+#tab-pilotage-funnel .pf-funnel-ghost {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  border: 1px dashed var(--ds-border-strong);
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  z-index: 1;
+}
+
+/* Conversion pill between stages */
+#tab-pilotage-funnel .pf-funnel-arrow {
+  width: 100%;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ds-fg-3);
+  letter-spacing: 0.04em;
+  padding: 8px 0;
+}
+#tab-pilotage-funnel .pf-funnel-arrow::before {
+  content: '↓';
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--ds-border-strong);
+  font-weight: 400;
+}
+#tab-pilotage-funnel .pf-funnel-arrow span {
+  display: inline-block;
+  padding: 4px 10px;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  color: var(--ds-fg-3);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+/* Funnel legend */
+#tab-pilotage-funnel .pf-funnel-legend {
+  display: flex;
+  gap: 18px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ds-border-2);
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--ds-fg-3);
+}
+#tab-pilotage-funnel .pf-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+}
+#tab-pilotage-funnel .pf-legend-swatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+  border: 0;
+}
+#tab-pilotage-funnel .pf-legend-main {
+  background: var(--ds-primary-500);
+}
+#tab-pilotage-funnel .pf-legend-ghost {
+  background: transparent;
+  border: 1px dashed var(--ds-border-strong);
+}
+
+/* ── Side metrics — hairline rows ───────────────────────────── */
+#tab-pilotage-funnel .pf-side-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+#tab-pilotage-funnel .pf-side-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--ds-border-2);
+  background: transparent;
+  border-radius: 0;
+  transition: background var(--ds-dur-fast) var(--ds-ease);
+  gap: 12px;
+}
+#tab-pilotage-funnel .pf-side-row:last-child { border-bottom: 0; }
+#tab-pilotage-funnel .pf-side-row:hover {
+  background: var(--ds-bg-subtle);
+  margin: 0 -10px;
+  padding-left: 10px;
+  padding-right: 10px;
+  border-radius: 6px;
+}
+#tab-pilotage-funnel .pf-side-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+}
+#tab-pilotage-funnel .pf-side-values {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+}
+#tab-pilotage-funnel .pf-side-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+}
+#tab-pilotage-funnel .pf-side-cmp {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ds-fg-4);
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* ── Footnote ────────────────────────────────────────────────── */
+#tab-pilotage-funnel .pilotage-footnote {
+  margin-top: 32px;
+  font-size: 11px;
+  color: var(--ds-fg-4);
+  text-align: center;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
+  background: transparent;
+  border-left: 0;
+  padding: 0;
+  font-style: normal;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  #tab-pilotage-funnel .pf-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  #tab-pilotage-funnel .pf-financials {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+  #tab-pilotage-funnel .pf-fin-cell {
+    border-right: 0;
+  }
+  #tab-pilotage-funnel .pf-fin-cell + .pf-fin-cell { padding-left: 0; }
+}
+@media (max-width: 1024px) {
+  #tab-pilotage-funnel .pf-funnel-section { grid-template-columns: 1fr; }
+  #tab-pilotage-funnel .pf-financials {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 768px) {
+  #tab-pilotage-funnel .pf-wrap { padding: 24px 16px 80px; }
+  #tab-pilotage-funnel .pf-title { font-size: 24px; }
+  #tab-pilotage-funnel .pf-grid { grid-template-columns: 1fr; }
+  #tab-pilotage-funnel .pf-financials { grid-template-columns: 1fr; }
+  #tab-pilotage-funnel .pf-funnel-card,
+  #tab-pilotage-funnel .pf-side-card,
+  #tab-pilotage-funnel .pf-financials-card {
+    padding: 18px 16px;
+  }
+  #tab-pilotage-funnel .pf-funnel-bar { min-height: 52px; padding: 12px 16px; }
+  #tab-pilotage-funnel .pf-funnel-bar-value { font-size: 20px; }
+}
