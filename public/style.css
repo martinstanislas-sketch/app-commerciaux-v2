@@ -13724,3 +13724,845 @@ body.tk-dragging-active #tab-tasks .tk-card {
   #tab-mensuel .rl-ratio { min-width: 60px; font-size: 14px; }
   #tab-mensuel .analysis-grid { grid-template-columns: 1fr; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PERSO (Mon Entraînement) — Redesign cockpit-business (DS v1)
+   Source: design-system/ui_kits/suivi-commerciaux/perso.css
+   Scopé à #tab-perso. La page est très riche (séance du jour,
+   templates, records, calendrier, catalogue, progress, etc.) — on
+   cible les macro-zones structurelles. Les sous-composants conservent
+   leur logique mais héritent du look cockpit via les tokens.
+   ══════════════════════════════════════════════════════════════════ */
+
+#tab-perso {
+  --ds-bg-app:        #F7F8FA;
+  --ds-bg-subtle:     #F1F3F7;
+  --ds-bg-card:       #FFFFFF;
+  --ds-bg-card-soft:  #FAFBFC;
+
+  --ds-fg-1: #0F172A;
+  --ds-fg-2: #334155;
+  --ds-fg-3: #64748B;
+  --ds-fg-4: #94A3B8;
+
+  --ds-border-1: #E2E8F0;
+  --ds-border-2: #EDF1F5;
+  --ds-border-strong: #CBD5E1;
+
+  --ds-primary-500: #6366F1;
+  --ds-primary-600: #4F46E5;
+  --ds-primary-700: #4338CA;
+  --ds-primary-tint:  rgba(99,102,241,0.08);
+
+  --ds-success-500: #10B981;
+  --ds-success-700: #047857;
+  --ds-success-tint: rgba(16,185,129,0.10);
+
+  --ds-warning-500: #F59E0B;
+  --ds-warning-700: #B45309;
+  --ds-warning-tint: rgba(245,158,11,0.12);
+
+  --ds-danger-500: #EF4444;
+  --ds-danger-700: #B91C1C;
+  --ds-danger-tint: rgba(239,68,68,0.10);
+
+  --ds-dur-fast: 120ms;
+  --ds-dur-base: 180ms;
+  --ds-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  background: var(--ds-bg-app);
+}
+/* Override le radial-gradient legacy pour neutraliser l'aurora */
+#tab-perso.active {
+  background: var(--ds-bg-app) !important;
+}
+
+#tab-perso .p-wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 28px 80px;
+  background: transparent;
+}
+
+/* ── Header de page ─────────────────────────────────────────── */
+#tab-perso .p-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+#tab-perso .p-hero-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#tab-perso .p-hero-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.022em;
+  color: var(--ds-fg-1);
+  line-height: 1.1;
+  margin: 0;
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+}
+#tab-perso .p-hero-head .p-label,
+#tab-perso .p-header .p-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-4);
+}
+
+/* ── Nav pills (Accueil / Entraînements / Progression / etc.) ── */
+#tab-perso .p-nav {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 0;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 0 22px;
+}
+#tab-perso .p-nav::-webkit-scrollbar { display: none; }
+#tab-perso .p-nav-item {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ds-fg-3);
+  background: transparent;
+  border: 0;
+  padding: 7px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  letter-spacing: -0.005em;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#tab-perso .p-nav-item:hover {
+  color: var(--ds-fg-1);
+  background: transparent;
+}
+#tab-perso .p-nav-item.active {
+  background: var(--ds-fg-1);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+/* ── Layout principal (grid 2 cols) ─────────────────────────── */
+#tab-perso .p-layout {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 18px;
+  align-items: flex-start;
+  background: transparent;
+}
+#tab-perso .p-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+#tab-perso .p-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* ── Carte générique ────────────────────────────────────────── */
+#tab-perso .p-card {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 24px;
+  box-shadow: none;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease);
+}
+#tab-perso .p-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+#tab-perso .p-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  margin: 0;
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+}
+#tab-perso .p-card-meta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ds-fg-4);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── Hero "Séance du jour" — card slate-foncé ──────────────── */
+#tab-perso .p-card-hero {
+  background: var(--ds-fg-1);
+  color: #fff;
+  border-color: var(--ds-fg-1);
+  position: relative;
+  overflow: hidden;
+  padding: 26px 32px 24px;
+  border-radius: 12px;
+}
+#tab-perso .p-card-hero::before {
+  content: '';
+  position: absolute;
+  right: -80px;
+  top: -80px;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99,102,241,0.20), transparent 60%);
+  pointer-events: none;
+}
+#tab-perso .p-card-hero::after {
+  display: none;
+}
+#tab-perso .p-card-hero .p-card-title,
+#tab-perso .p-card-hero .p-label {
+  color: rgba(255,255,255,0.55);
+}
+#tab-perso .p-hero-session-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+#tab-perso .p-hero-session-name {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: #fff;
+  margin: 4px 0 6px;
+}
+#tab-perso .p-hero-session-top {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  z-index: 1;
+}
+#tab-perso .p-hero-stats {
+  display: flex;
+  gap: 18px;
+  margin-top: 14px;
+  position: relative;
+  z-index: 1;
+}
+#tab-perso .p-hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+#tab-perso .p-hero-stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+#tab-perso .p-hero-stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  color: #fff;
+}
+#tab-perso .p-hero-stat-icon {
+  display: none;
+}
+#tab-perso .p-hero-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  position: relative;
+  z-index: 1;
+}
+#tab-perso .p-hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #fff;
+  color: var(--ds-fg-1);
+  transition: background var(--ds-dur-fast);
+}
+#tab-perso .p-hero-cta:hover { background: rgba(255,255,255,0.92); }
+#tab-perso .p-hero-cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(255,255,255,0.10);
+  color: #fff;
+  transition: background var(--ds-dur-fast);
+}
+#tab-perso .p-hero-cta-secondary:hover { background: rgba(255,255,255,0.18); }
+#tab-perso .p-hero-empty,
+#tab-perso .p-hero-reco {
+  color: rgba(255,255,255,0.85);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Coaching message (sous le hero) */
+#tab-perso .p-coaching-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 8px;
+  position: relative;
+  z-index: 1;
+}
+#tab-perso .p-coaching-icon { font-size: 16px; opacity: 0.8; }
+#tab-perso .p-coaching-text {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.92);
+  line-height: 1.45;
+}
+
+/* Low energy banner */
+#tab-perso .p-low-energy-banner {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--ds-warning-tint);
+  color: var(--ds-warning-700);
+  border: 1px solid color-mix(in oklab, var(--ds-warning-500) 25%, transparent);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* ── Templates (Mes séances) ───────────────────────────────── */
+#tab-perso .p-card-templates {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 24px;
+}
+#tab-perso .p-templates-grid,
+#tab-perso .p-tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+#tab-perso .p-tpl-card,
+#tab-perso .ps-tpl-card,
+#tab-perso .p-template-card {
+  background: var(--ds-bg-card-soft);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color var(--ds-dur-fast), transform var(--ds-dur-fast);
+  position: relative;
+  box-shadow: none;
+}
+#tab-perso .p-tpl-card:hover,
+#tab-perso .p-template-card:hover {
+  border-color: var(--ds-fg-3);
+  transform: translateY(-1px);
+}
+#tab-perso .p-tpl-card.active,
+#tab-perso .p-template-card.active {
+  background: var(--ds-primary-tint);
+  border-color: color-mix(in oklab, var(--ds-primary-500) 30%, transparent);
+}
+
+/* ── Goal block (Objectif hebdo) ─────────────────────────── */
+#tab-perso .p-goal-block,
+#tab-perso .p-card-goal {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 18px 22px;
+}
+#tab-perso .p-goal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+#tab-perso .p-goal-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+}
+#tab-perso .p-goal-count {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  color: var(--ds-fg-1);
+}
+#tab-perso .p-goal-unit {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ds-fg-3);
+  letter-spacing: -0.005em;
+}
+#tab-perso .p-goal-bar {
+  height: 6px;
+  background: var(--ds-bg-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+}
+#tab-perso .p-goal-bar-fill {
+  height: 100%;
+  background: var(--ds-fg-1);
+  border-radius: 3px;
+  transition: width 280ms cubic-bezier(0.3, 0, 0.1, 1);
+}
+#tab-perso .p-goal-bar-fill.hit { background: var(--ds-primary-500); }
+#tab-perso .p-goal-bar-fill.over { background: var(--ds-success-500); }
+#tab-perso .p-goal-edit {
+  background: transparent;
+  border: 0;
+  color: var(--ds-fg-4);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 4px;
+}
+#tab-perso .p-goal-edit:hover { color: var(--ds-fg-1); }
+
+/* ── Records (PR) ──────────────────────────────────────────── */
+#tab-perso .p-card-records {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 24px;
+}
+#tab-perso .p-record-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ds-border-2);
+}
+#tab-perso .p-record-row:last-child { border-bottom: 0; }
+#tab-perso .p-record-emoji {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--ds-warning-tint);
+  color: var(--ds-warning-700);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+#tab-perso .p-record-info {
+  min-width: 0;
+}
+#tab-perso .p-record-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+}
+#tab-perso .p-record-sub {
+  font-size: 10.5px;
+  color: var(--ds-fg-4);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+#tab-perso .p-record-val {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  font-variant-numeric: tabular-nums;
+}
+#tab-perso .p-record-delta {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ds-success-700);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Calendrier (mini-strip + month view compact) ──────────── */
+#tab-perso .p-card-calendar,
+#tab-perso .p-card-calendar-compact {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: none;
+}
+#tab-perso .p-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+#tab-perso .p-cal-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+}
+#tab-perso .p-cal-nav {
+  display: inline-flex;
+  gap: 4px;
+}
+#tab-perso .p-cal-nav button {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--ds-fg-4);
+  cursor: pointer;
+  font-size: 12px;
+}
+#tab-perso .p-cal-nav button:hover {
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-1);
+}
+#tab-perso .p-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+#tab-perso .p-cal-dow {
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ds-fg-4);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 0;
+}
+#tab-perso .p-cal-day {
+  text-align: center;
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ds-fg-2);
+  background: var(--ds-bg-card-soft);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 5px;
+  font-variant-numeric: tabular-nums;
+  min-height: 24px;
+  cursor: default;
+}
+#tab-perso .p-cal-day.done {
+  background: var(--ds-success-tint);
+  border-color: color-mix(in oklab, var(--ds-success-500) 25%, transparent);
+  color: var(--ds-success-700);
+}
+#tab-perso .p-cal-day.today {
+  background: var(--ds-primary-tint);
+  border-color: color-mix(in oklab, var(--ds-primary-500) 35%, transparent);
+  color: var(--ds-primary-700);
+}
+#tab-perso .p-cal-day.empty {
+  background: transparent;
+  border-color: transparent;
+}
+#tab-perso .p-cal-legend {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 10.5px;
+  color: var(--ds-fg-4);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* ── Catalog (Exercices) ───────────────────────────────────── */
+#tab-perso .p-catalog {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+#tab-perso .p-catalog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+}
+#tab-perso .p-catalog-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ds-fg-3);
+  margin: 0;
+}
+#tab-perso .p-catalog-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ds-fg-4);
+  font-variant-numeric: tabular-nums;
+  background: var(--ds-bg-subtle);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+#tab-perso .p-catalog-chevron {
+  color: var(--ds-fg-4);
+  font-size: 11px;
+}
+#tab-perso .p-catalog-body {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ds-border-2);
+}
+
+/* ── Card energy (formulaire feeling) ─────────────────────── */
+#tab-perso .p-card-energy {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 18px 22px;
+}
+#tab-perso .p-energy-scale {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+#tab-perso .p-feeling-btns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+#tab-perso .p-energy-text {
+  font-size: 12.5px;
+  color: var(--ds-fg-3);
+  margin-top: 8px;
+}
+
+/* ── Completed sessions list ──────────────────────────────── */
+#tab-perso .p-card-completed {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 24px;
+}
+#tab-perso .p-completed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#tab-perso .p-completed-bubble {
+  background: var(--ds-bg-card-soft);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color var(--ds-dur-fast);
+}
+#tab-perso .p-completed-bubble:hover { border-color: var(--ds-fg-3); }
+#tab-perso .p-completed-bubble-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#tab-perso .p-completed-bubble-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ds-fg-1);
+}
+#tab-perso .p-completed-bubble-date {
+  font-size: 11px;
+  color: var(--ds-fg-4);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+#tab-perso .p-completed-bubble-meta {
+  font-size: 11px;
+  color: var(--ds-fg-3);
+  font-weight: 500;
+}
+#tab-perso .p-completed-bubble-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+#tab-perso .p-completed-bubble-total {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ds-fg-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Progress / records compact ───────────────────────────── */
+#tab-perso .p-card-progress,
+#tab-perso .p-progress-card {
+  background: var(--ds-bg-card);
+  border: 1px solid var(--ds-border-1);
+  border-radius: 12px;
+  padding: 22px 24px;
+  position: relative;
+}
+#tab-perso .p-progress-stats,
+#tab-perso .p-progress-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+#tab-perso .p-progress-stat-card,
+#tab-perso .p-progress-stat {
+  background: var(--ds-bg-card-soft);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+#tab-perso .p-progress-stat-icon { display: none; }
+#tab-perso .p-progress-stat-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-fg-4);
+}
+#tab-perso .p-progress-stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  color: var(--ds-fg-1);
+  line-height: 1.1;
+}
+
+/* ── Bouton ghost générique ───────────────────────────────── */
+#tab-perso .p-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--ds-border-1);
+  background: var(--ds-bg-card);
+  color: var(--ds-fg-1);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--ds-dur-fast);
+  box-shadow: none;
+}
+#tab-perso .p-btn-ghost:hover { border-color: var(--ds-fg-3); }
+
+/* ── Chip / pill ─────────────────────────────────────────── */
+#tab-perso .p-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ds-bg-subtle);
+  color: var(--ds-fg-3);
+  letter-spacing: 0.02em;
+}
+#tab-perso .p-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--ds-primary-tint);
+  color: var(--ds-primary-700);
+  letter-spacing: 0.02em;
+}
+
+/* ── Empty state ──────────────────────────────────────────── */
+#tab-perso .p-empty,
+#tab-perso .p-empty-sm {
+  text-align: center;
+  padding: 24px 16px;
+  background: var(--ds-bg-card-soft);
+  border: 1px dashed var(--ds-border-strong);
+  border-radius: 8px;
+  color: var(--ds-fg-3);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+#tab-perso .p-empty-sm { padding: 14px 12px; font-size: 12px; }
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 980px) {
+  #tab-perso .p-layout { grid-template-columns: 1fr; }
+  #tab-perso .p-templates-grid,
+  #tab-perso .p-tpl-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  #tab-perso .p-wrap { padding: 18px 14px 80px; }
+  #tab-perso .p-hero-title { font-size: 22px; }
+  #tab-perso .p-card-hero { padding: 20px 18px; }
+  #tab-perso .p-hero-session-name { font-size: 20px; }
+  #tab-perso .p-hero-actions { flex-direction: column; align-items: stretch; }
+  #tab-perso .p-progress-stats,
+  #tab-perso .p-progress-grid { grid-template-columns: 1fr; }
+  #tab-perso .p-header { flex-direction: column; align-items: stretch; }
+}
