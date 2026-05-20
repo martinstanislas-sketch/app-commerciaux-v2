@@ -9221,10 +9221,27 @@ function parseCheckUpXlsx(arrayBuffer, fileName = '') {
       const ventes        = Number(row[9]);
       const retentionRate = Number(row[13]); // Taux rétention (0-1)
 
+      // RDV venus (catégorie PROSPECT, feuille conversion) : la feuille définit
+      // Show Up = RDV venus / RDV pris, donc RDV venus = RDV pris × Show Up.
+      // On tente d'abord les colonnes voisines (col 6 ou 7) au cas où la valeur
+      // brute serait stockée directement, sinon on calcule.
+      let rdvVenus = null;
+      const candidate6 = Number(row[6]);
+      const candidate7 = Number(row[7]);
+      const isPlausibleVenus = (v) => !Number.isNaN(v) && v >= 0
+        && (Number.isNaN(rdv) || v <= rdv + 0.5)  // ≤ RDV pris
+        && v === Math.round(v);                     // entier
+      if (isPlausibleVenus(candidate6) && candidate6 > 0)      rdvVenus = candidate6;
+      else if (isPlausibleVenus(candidate7) && candidate7 > 0) rdvVenus = candidate7;
+      else if (!Number.isNaN(rdv) && !Number.isNaN(showUpRate)) {
+        rdvVenus = Math.round(rdv * showUpRate);
+      }
+
       const sig = `month-${defaultYear}-${String(currentMonthNum).padStart(2, '0')}`;
       const d = ensure(sig, club);
       if (!Number.isNaN(leads))       d.leads       = leads;
       if (!Number.isNaN(rdv))         d.rdv_fixes   = rdv;
+      if (rdvVenus != null)           d.rdv_venus   = rdvVenus;
       if (!Number.isNaN(ventes))      d.ventes      = ventes;
       if (!Number.isNaN(transfoRate)) d.transfo     = transfoRate * 100;          // → %
       if (!Number.isNaN(showUpRate))  d.show_up     = showUpRate * 100;           // → %
@@ -9304,6 +9321,7 @@ function importCheckUpIntoStore(parsed) {
   const FUNNEL_MAP = {
     leads:     'fnl:leads',
     rdv_fixes: 'fnl:rdv_pris',
+    rdv_venus: 'fnl:rdv_venus',
     ventes:    'fnl:ventes',
   };
   for (const [sig, perClub] of Object.entries(parsed.data)) {
@@ -9355,7 +9373,7 @@ async function handlePennylaneFileImport(file) {
         return;
       }
       const monthLabels = months.sort().map(s => s.replace('month-', '')).join(', ');
-      if (!confirm(`Import Check Up (KPIs commerciaux) :\n\n• ${months.length} mois : ${monthLabels}\n• Alimente : Leads, CPL, CAC, RDV, No-show, Transfo, Non traités, Remplissage\n\nLes valeurs existantes pour ces mois seront remplacées. Continuer ?`)) return;
+      if (!confirm(`Import Check Up (KPIs commerciaux) :\n\n• ${months.length} mois : ${monthLabels}\n• Alimente : Leads, CPL, CAC, RDV pris, RDV venus, Show Up, Transfo, Non traités, Remplissage, Résiliation\n\nLes valeurs existantes pour ces mois seront remplacées. Continuer ?`)) return;
       const s = importCheckUpIntoStore(parsed);
       alert(`Import Check Up réussi ✓\n\n• ${s.valuesWritten} valeurs alimentées\n• ${s.monthsCount} mois · ${s.clubsCount} clubs\n\nMois : ${s.monthsTouched.map(x => x.replace('month-', '')).join(', ')}`);
     } else {
