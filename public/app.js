@@ -8239,7 +8239,6 @@ const PILOTAGE_CATEGORIES = [
     kpis: [
       { key: 'leads', label: 'Leads', format: 'int', agg: 'sum' },
       { key: 'cpl',   label: 'CPL',   format: 'eur', agg: 'avg' },
-      { key: 'cac',   label: 'CAC',   format: 'eur', agg: 'avg' },
     ],
   },
   {
@@ -8250,7 +8249,6 @@ const PILOTAGE_CATEGORIES = [
     kpis: [
       { key: 'rdv_fixes',   label: 'RDV fixés',   format: 'int', agg: 'sum' },
       { key: 'non_traites', label: 'Non traités', format: 'int', agg: 'sum' },
-      { key: 'no_show',     label: 'No-show',     format: 'int', agg: 'sum' },
     ],
   },
   {
@@ -8259,9 +8257,8 @@ const PILOTAGE_CATEGORIES = [
     icon: '🧑‍💼',
     accent: '#F59E0B', // amber
     kpis: [
-      { key: 'transfo',      label: 'Transfo',       format: 'pct', agg: 'avg' },
-      { key: 'panier_moyen', label: 'Panier moyen',  format: 'eur', agg: 'avg' },
-      { key: 'ratio',        label: 'Ratio',         format: 'int', agg: 'avg' },
+      { key: 'transfo', label: 'Transfo', format: 'pct', agg: 'avg' },
+      { key: 'show_up', label: 'Show Up', format: 'pct', agg: 'avg' },
     ],
   },
   {
@@ -8272,7 +8269,6 @@ const PILOTAGE_CATEGORIES = [
     kpis: [
       { key: 'resiliation', label: 'Résiliation', format: 'pct', agg: 'avg' },
       { key: 'remplissage', label: 'Remplissage', format: 'pct', agg: 'avg' },
-      { key: 'ca',          label: 'CA',          format: 'eur', agg: 'sum' },
     ],
   },
 ];
@@ -9059,8 +9055,8 @@ function parseCheckUpXlsx(arrayBuffer, fileName = '') {
       if (!Number.isNaN(leads))       d.leads     = leads;
       if (!Number.isNaN(rdv))         d.rdv_fixes = rdv;
       if (!Number.isNaN(ventes))      d.ventes    = ventes;
-      if (!Number.isNaN(transfoRate)) d.transfo   = transfoRate * 100;       // → %
-      if (!Number.isNaN(showUpRate))  d.no_show   = (1 - showUpRate) * 100;  // → %
+      if (!Number.isNaN(transfoRate)) d.transfo   = transfoRate * 100; // → %
+      if (!Number.isNaN(showUpRate))  d.show_up   = showUpRate * 100;  // → %
       if (!Number.isNaN(coutMarketing) && !Number.isNaN(leads)  && leads  > 0) d.cpl = coutMarketing / leads;
       if (!Number.isNaN(coutMarketing) && !Number.isNaN(ventes) && ventes > 0) d.cac = coutMarketing / ventes;
     }
@@ -9125,11 +9121,10 @@ function importCheckUpIntoStore(parsed) {
   const MAP = {
     leads:       'cat:marketing:leads',
     cpl:         'cat:marketing:cpl',
-    cac:         'cat:marketing:cac',
     rdv_fixes:   'cat:phoning:rdv_fixes',
     non_traites: 'cat:phoning:non_traites',
-    no_show:     'cat:phoning:no_show',
     transfo:     'cat:conseillers:transfo',
+    show_up:     'cat:conseillers:show_up',
     remplissage: 'cat:coach_leader:remplissage',
   };
   // Aussi alimenter le funnel
