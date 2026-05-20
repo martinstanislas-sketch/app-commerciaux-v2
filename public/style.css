@@ -9330,21 +9330,29 @@ img {
 }
 .pilotage-period {
   display: inline-flex;
+  flex-wrap: nowrap;
   background: #f1f5f9;
   border-radius: 10px;
   padding: 4px;
   gap: 2px;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.pilotage-period::-webkit-scrollbar { display: none; }
 .pilotage-period-btn {
   border: none;
   background: transparent;
-  padding: 6px 14px;
+  padding: 6px 11px;
   border-radius: 7px;
-  font-size: 0.85rem;
+  font-size: 0.83rem;
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
   transition: background .15s, color .15s, box-shadow .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .pilotage-period-btn:hover { color: #0f172a; }
 .pilotage-period-btn.active {
@@ -9658,21 +9666,29 @@ img {
 }
 .pf-period {
   display: inline-flex;
+  flex-wrap: nowrap;
   background: #f1f5f9;
   border-radius: 10px;
   padding: 4px;
   gap: 2px;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.pf-period::-webkit-scrollbar { display: none; }
 .pf-period-btn {
   border: none;
   background: transparent;
-  padding: 6px 14px;
+  padding: 6px 11px;
   border-radius: 7px;
-  font-size: 0.85rem;
+  font-size: 0.83rem;
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
   transition: background .15s, color .15s, box-shadow .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .pf-period-btn:hover { color: #0f172a; }
 .pf-period-btn.active {
