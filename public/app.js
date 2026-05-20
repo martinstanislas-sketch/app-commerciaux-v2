@@ -8538,12 +8538,24 @@ const PF_SIDE_INDICATORS = [
   { key: 'surpacks',     label: 'Ventes de surpacks',        format: 'int', agg: 'sum' },
 ];
 
-// Seules CA et Dépenses sont éditables — Cash-flow et EBE % sont calculés (depuis CA HT interne).
+// Seules CA et Dépenses sont éditables — utilisé par les imports Pennylane (parser).
 const PF_FINANCIALS = [
   { key: 'ca_ttc',    label: 'CA',         format: 'eur', tone: 'neutral',   editable: true,  agg: 'sum' },
-  { key: 'depenses',  label: 'Dépenses',   format: 'eur', tone: 'negative',  editable: true,  agg: 'sum', expandable: true },
+  { key: 'depenses',  label: 'Dépenses',   format: 'eur', tone: 'negative',  editable: true,  agg: 'sum' },
   { key: 'cashflow',  label: 'Cash-flow',  format: 'eur', tone: 'highlight', editable: false },
   { key: 'ebe_pct',   label: 'EBE',        format: 'pct', tone: 'highlight', editable: false },
+];
+
+// Cellules affichées dans la Synthèse financière : 6 EBE clubs + EBE Ginkgo Sport + CA Franchise
+const PF_EBE_CELLS = [
+  { type: 'club_ebe',     club: 'Lille',                label: 'EBE Lille' },
+  { type: 'club_ebe',     club: 'Levallois-Perret',     label: 'EBE Levallois' },
+  { type: 'club_ebe',     club: 'Boulogne-Billancourt', label: 'EBE Boulogne' },
+  { type: 'club_ebe',     club: 'Marcq-en-Barœul',      label: 'EBE Marcq' },
+  { type: 'club_ebe',     club: 'Wasquehal',            label: 'EBE Wasquehal' },
+  { type: 'club_ebe',     club: 'Neuilly-sur-Seine',    label: 'EBE Neuilly' },
+  { type: 'tourcoing_ebe',                              label: 'EBE Ginkgo Sport' },
+  { type: 'franchise_ca',                               label: 'CA Franchise' },
 ];
 
 // Recettes complémentaires niveau Groupe (Pennylane → rows hors My Coach by Ginkgo)
@@ -9670,92 +9682,42 @@ async function renderPilotageFunnel() {
     }).join('');
   }
 
-  // Synthèse financière (CA TTC + Dépenses éditables, le reste calculé)
+  // Synthèse financière : 6 EBE clubs My Coach + EBE Ginkgo Sport + CA Franchise
   const fin = document.getElementById('pf-financials');
   if (fin) {
-    // Détermine si l'on a un club SPÉCIFIQUE sélectionné (≠ tous, ≠ multi)
-    const clubsArr = pilotageFunnelState.clubs || [];
-    const hasSpecificClub = clubsArr.length === 1 && clubsArr[0] !== 'all';
-
-    // Récupère les valeurs éditables stockées (My Coach = somme des clubs)
-    const resTtc = pilotageResolveValue(pilotageFunnelState, 'fin:ca_ttc', 'eur', 'sum');
-    const resDep = pilotageResolveValue(pilotageFunnelState, 'fin:depenses', 'eur', 'sum');
-    let caTtc = resTtc.value;
-    let depenses = resDep.value;
-
-    // Si scope='none' ET pas de club spécifique → on masque les valeurs (rien affiché)
-    if (pilotageFunnelState.scope === 'none' && !hasSpecificClub) {
-      caTtc = null;
-      depenses = null;
-    }
-
-    // Mode Groupe consolidé : ajouter les totaux niveau Groupe
-    if (pilotageFunnelState.scope === 'group') {
-      const periodSig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
-      const totals = pilotageGroupTotals(periodSig);
-      if (totals.recettes != null) {
-        caTtc = (caTtc || 0) + totals.recettes;
-      }
-      if (totals.depenses != null) {
-        depenses = (depenses || 0) + totals.depenses;
-      }
-    }
-
-    // Calculs dérivés (modèle trésorerie : encaissements − décaissements directs)
-    const cashflow = (caTtc != null && depenses != null) ? (caTtc - depenses) : null;
-    const ebePct = (cashflow != null && caTtc != null && caTtc !== 0) ? (cashflow / caTtc) * 100 : null;
-
-    const cellMap = {
-      ca_ttc:   { resolved: resTtc, value: caTtc },
-      depenses: { resolved: resDep, value: depenses },
-      cashflow: { value: cashflow, editable: false },
-      ebe_pct:  { value: ebePct,  editable: false },
-    };
-
-    fin.innerHTML = PF_FINANCIALS.map(f => {
-      const cell = cellMap[f.key] || {};
-      const raw = cell.value;
-      // Tone class
-      let toneClass = '';
-      if (f.tone === 'highlight') {
-        if (raw != null && !Number.isNaN(Number(raw))) {
-          toneClass = Number(raw) >= 0 ? 'pf-fin-positive' : 'pf-fin-negative';
+    const periodSig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+    fin.innerHTML = PF_EBE_CELLS.map(cell => {
+      let value = null;
+      let format = 'pct';
+      if (cell.type === 'club_ebe') {
+        const ca  = pilotageStoreRead(`${cell.club}|${periodSig}|fin:ca_ttc`);
+        const dep = pilotageStoreRead(`${cell.club}|${periodSig}|fin:depenses`);
+        if (ca != null && dep != null && ca !== 0) {
+          value = ((ca - dep) / ca) * 100;
         }
-      } else if (f.tone === 'negative') {
-        toneClass = 'pf-fin-muted';
-      } else if (f.tone === 'accent') {
-        toneClass = 'pf-fin-accent';
+      } else if (cell.type === 'tourcoing_ebe') {
+        // Tourcoing (= Ginkgo Sport) — données stockées niveau Groupe
+        const ca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
+        const dep = pilotageStoreRead(`__group__|${periodSig}|gdep:tourcoing`);
+        if (ca != null && dep != null && ca !== 0) {
+          value = ((ca - dep) / ca) * 100;
+        }
+      } else if (cell.type === 'franchise_ca') {
+        value = pilotageStoreRead(`__group__|${periodSig}|grec:franchises`);
+        format = 'eur';
       }
-      // Markup valeur
-      let valueHtml;
-      if (f.editable && cell.resolved) {
-        const r = cell.resolved;
-        const display = pilotageFormatValue(r.value, f.format);
-        const cls = 'pf-fin-value editable' + (r.aggregate ? ' aggregate' : '');
-        const tooltip = r.aggregate
-          ? `Agrégat auto de ${r.aggCount} club(s) — clique pour saisir une valeur consolidée`
-          : 'Cliquer pour saisir une valeur';
-        const attrs = `data-edit-key="${escapeHtml(r.editKey)}" data-format="${f.format}" tabindex="0" title="${tooltip}"`;
-        valueHtml = `<span class="${cls}" ${attrs}>${display}</span>`;
-      } else {
-        valueHtml = `<span class="pf-fin-value">${pfFormat(raw, f.format)}</span>`;
+      // Tone sémantique : vert si EBE positif, rouge si négatif, accent indigo pour CA
+      let tone = '';
+      if (format === 'pct' && value != null && !Number.isNaN(Number(value))) {
+        tone = Number(value) >= 0 ? 'pf-fin-positive' : 'pf-fin-negative';
+      } else if (format === 'eur' && value != null) {
+        tone = 'pf-fin-accent';
       }
-      // Cell expandable (Dépenses) : ajoute un chevron + classe cliquable
-      const expandableAttrs = f.expandable
-        ? `data-fin-expandable="${f.key}" role="button" tabindex="0" title="Cliquer pour voir le détail des dépenses"`
-        : '';
-      const expandableClass = f.expandable ? ' pf-fin-cell--expandable' : '';
-      const chevron = f.expandable ? '<span class="pf-fin-chev">▾</span>' : '';
-      // Chip de comparaison (si compareWith actif et valeur disponible)
-      const cmpVal = (hasCompare && compare && compare.financials) ? compare.financials[f.key] : null;
-      const cmpHtml = (cmpVal != null && !Number.isNaN(Number(cmpVal)))
-        ? `<span class="pf-fin-cmp" title="Comparaison : ${escapeHtml(summarizeCompare(pilotageFunnelState.compareWith))}">vs ${pfFormat(cmpVal, f.format)}</span>`
-        : '';
+      const display = pilotageFormatValue(value, format);
       return `
-        <div class="pf-fin-cell ${toneClass}${expandableClass}" ${expandableAttrs}>
-          <span class="pf-fin-label">${escapeHtml(f.label)}${f.hint ? ` <span class="pf-fin-hint">${escapeHtml(f.hint)}</span>` : ''}${chevron}</span>
-          ${valueHtml}
-          ${cmpHtml}
+        <div class="pf-fin-cell ${tone}">
+          <span class="pf-fin-label">${escapeHtml(cell.label)}</span>
+          <span class="pf-fin-value">${display}</span>
         </div>
       `;
     }).join('');

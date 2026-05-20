@@ -10055,8 +10055,8 @@ img {
 /* Synthèse financière */
 .pf-financials {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 4px 0;
 }
 .pf-fin-cell {
   display: flex;
