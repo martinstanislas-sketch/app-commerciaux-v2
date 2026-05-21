@@ -8567,7 +8567,7 @@ const PF_FINANCIALS = [
 // puis on applique la formule EBE = (Σ CA_HT − Σ Dépenses) / Σ CA_HT × 100
 // avec Σ CA_HT = (Σ CA_TTC) ÷ 1,20.
 const PF_CONSOLIDATED_EBE = [
-  { key: 'mycoach_franch',  label: 'EBE My Coach + Franchise', scope: ['mycoach', 'franchise'] },
+  { key: 'mycoach_franch',  label: 'EBE My Coach Groupe',      scope: ['mycoach', 'franchise'] },
   // Cellules « EBE My Coach » et « EBE Groupe » retirées à la demande de
   // l'utilisateur — seule la consolidation My Coach + Franchise est conservée.
 ];
