@@ -8810,14 +8810,14 @@ function renderSynthChart() {
   });
 }
 
-// Extracteur d'un KPI catégorie pour un mois donné, agrégé selon les clubs
-// sélectionnés (ou tous les PILOTAGE_CLUBS si aucun club spécifique).
+// Extracteur d'un KPI catégorie pour un mois donné, agrégé sur TOUS les
+// clubs (PILOTAGE_CLUBS), indépendamment de la sélection courante. C'est
+// volontaire : le graphique d'un KPI catégorie reflète l'évolution
+// agrégat-réseau du KPI (vue d'ensemble), pas la performance d'un seul club.
 // agg = 'sum' | 'avg' (lu depuis la définition du KPI).
 function pfExtractCatKpi(catKey, kpiKey, sig, agg) {
-  const clubs = (pilotageFunnelState.clubs && pilotageFunnelState.clubs.length > 0)
-    ? pilotageFunnelState.clubs : PILOTAGE_CLUBS;
   let total = 0, count = 0;
-  for (const club of clubs) {
+  for (const club of PILOTAGE_CLUBS) {
     const v = pilotageStoreRead(`${club}|${sig}|cat:${catKey}:${kpiKey}`);
     if (v != null && !Number.isNaN(Number(v))) { total += Number(v); count++; }
   }
@@ -8842,15 +8842,11 @@ function renderCatChart() {
   if (!cat) { pfHideChart('pf-cat-chart-canvas', 'pf-cat-chart-wrap'); return; }
   const kpi = cat.kpis.find(k => k.key === kpiKey);
   if (!kpi) { pfHideChart('pf-cat-chart-canvas', 'pf-cat-chart-wrap'); return; }
-  const clubsArr = pilotageFunnelState.clubs || [];
-  const subtitle = clubsArr.length === 1 ? ` — ${clubsArr[0]}`
-                 : clubsArr.length > 1 ? ` — ${clubsArr.length} clubs`
-                 : ' — tous clubs';
   pfRenderHistoricalChart({
     canvasId: 'pf-cat-chart-canvas',
     wrapId: 'pf-cat-chart-wrap',
     titleId: 'pf-cat-chart-title',
-    title: `Évolution — ${cat.label} · ${kpi.label}${subtitle}`,
+    title: `Évolution — ${cat.label} · ${kpi.label} (tous clubs)`,
     format: kpi.format,
     extract: (sig) => pfExtractCatKpi(catKey, kpiKey, sig, kpi.agg),
   });
