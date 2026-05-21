@@ -10814,6 +10814,295 @@ img {
 #tab-pilotage-funnel .pf-grid.hidden,
 #tab-pilotage-funnel .pf-funnel-section.hidden { display: none !important; }
 
+/* ── Accès consultant : visibilité conditionnelle ──────────────── */
+/* Par défaut : éléments admin visibles, éléments consultant masqués */
+.pf-consultant-only { display: none !important; }
+/* Quand l'utilisateur connecté est consultant : on inverse */
+body.is-consultant .pf-admin-only      { display: none !important; }
+body.is-consultant .pf-consultant-only { display: revert !important; }
+body.is-consultant .pf-consultant-only.pf-filter-group { display: flex !important; }
+
+/* Header month nav (consultant) */
+#tab-pilotage-funnel .pf-month-nav-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--ds-bg-card, #fff);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 8px;
+}
+
+/* Bouton flottant « + Commentaire » pour le consultant */
+.pf-consultant-comment-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--ds-primary-500, #6366f1);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.40);
+  transition: all 180ms ease-out;
+}
+.pf-consultant-comment-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.50);
+}
+
+/* Modal de saisie du commentaire */
+.pf-comment-modal.hidden { display: none !important; }
+.pf-comment-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.pf-comment-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+}
+.pf-comment-modal-card {
+  position: relative;
+  z-index: 1;
+  background: #fff;
+  border-radius: 14px;
+  width: min(560px, 92vw);
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.30);
+  display: flex;
+  flex-direction: column;
+}
+.pf-comment-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.pf-comment-modal-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.pf-comment-modal-close {
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+  color: #64748b;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+.pf-comment-modal-close:hover { background: #f1f5f9; color: #0f172a; }
+.pf-comment-modal-body {
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pf-comment-field { display: flex; flex-direction: column; gap: 6px; }
+.pf-comment-field span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.02em;
+}
+.pf-comment-field span em {
+  color: #94a3b8;
+  font-style: normal;
+  font-weight: 500;
+}
+.pf-comment-field input,
+.pf-comment-field textarea {
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  width: 100%;
+  background: #fff;
+  color: #0f172a;
+  resize: vertical;
+  transition: border-color 150ms ease;
+}
+.pf-comment-field input:focus,
+.pf-comment-field textarea:focus { outline: none; border-color: var(--ds-primary-500, #6366f1); }
+.pf-comment-modal-info {
+  font-size: 12px;
+  color: #64748b;
+}
+.pf-comment-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+}
+.pf-btn-secondary {
+  padding: 8px 16px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.pf-btn-secondary:hover { background: #f1f5f9; }
+.pf-btn-primary {
+  padding: 8px 18px;
+  border: none;
+  background: var(--ds-primary-500, #6366f1);
+  color: #fff;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.pf-btn-primary:hover { background: #4f46e5; }
+.pf-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Toast de confirmation */
+.pf-toast {
+  position: fixed;
+  bottom: 90px;
+  right: 24px;
+  z-index: 9200;
+  background: #0f172a;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.30);
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.pf-toast.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Panneau admin : commentaires reçus */
+.pf-admin-comments-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  border-left: 4px solid #6366f1;
+}
+.pf-admin-comments-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.pf-admin-comments-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.pf-admin-comments-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #ef4444;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pf-admin-comments-empty {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+.pf-admin-comments-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pf-admin-comment {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.pf-admin-comment.is-unread {
+  background: #fef9c3;
+  border-color: #fde68a;
+}
+.pf-admin-comment-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11.5px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+.pf-admin-comment-author { font-weight: 700; color: #0f172a; }
+.pf-admin-comment-target {
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 4px;
+}
+.pf-admin-comment-text {
+  font-size: 13px;
+  color: #0f172a;
+  white-space: pre-wrap;
+  margin-bottom: 6px;
+}
+.pf-admin-comment-actions {
+  display: flex;
+  gap: 8px;
+}
+.pf-admin-comment-read,
+.pf-admin-comment-del {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
+}
+.pf-admin-comment-read:hover { background: #ecfdf5; color: #047857; border-color: #6ee7b7; }
+.pf-admin-comment-del:hover  { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+
 /* ── Graphique historique EBE consolidé ─────────────────────── */
 #tab-pilotage-funnel .pf-consol-chart-wrap.hidden { display: none !important; }
 #tab-pilotage-funnel .pf-consol-chart-wrap {

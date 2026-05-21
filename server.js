@@ -126,6 +126,15 @@ app.post('/api/auth/login', (req, res) => {
     return res.json({ token, role: 'admin', name: 'Stan', sales_rep_id: null });
   }
 
+  // Check consultant code (accès Pilotage en lecture seule + commentaires)
+  // Code en dur (peut être surchargé par PILOTAGE_CONSULTANT_PIN dans .env)
+  const consultantPin = process.env.PILOTAGE_CONSULTANT_PIN || 'MJJ#MCG';
+  if (pin.trim() === consultantPin) {
+    const token = crypto.randomUUID();
+    sessions.set(token, { role: 'consultant', name: 'Consultant', sales_rep_id: null });
+    return res.json({ token, role: 'consultant', name: 'Consultant', sales_rep_id: null });
+  }
+
   // Check commercial / phoneur PIN
   const rep = db.prepare('SELECT id, name, role FROM sales_reps WHERE pin = ? AND archived = 0').get(pin.trim());
   if (rep) {
@@ -189,6 +198,56 @@ app.post('/api/auth/logout', (req, res) => {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     sessions.delete(authHeader.slice(7));
   }
+  res.json({ success: true });
+});
+
+// ─── Pilotage : Commentaires (laissés par consultants) ───────────
+// Tout utilisateur authentifié peut POST un commentaire.
+// Seul l'admin peut LIRE / MARQUER COMME LU.
+
+app.post('/api/pilotage/comments', requireAuth, (req, res) => {
+  const { target_label, comment_text, context_json } = req.body || {};
+  const text = (comment_text || '').toString().trim();
+  if (!text) return res.status(400).json({ error: 'comment_text requis' });
+  if (text.length > 5000) return res.status(400).json({ error: 'Commentaire trop long (max 5000 caractères)' });
+  const label = (target_label || '').toString().trim().slice(0, 200);
+  let ctxJson = null;
+  if (context_json) {
+    try { ctxJson = typeof context_json === 'string' ? context_json : JSON.stringify(context_json); }
+    catch (_) { ctxJson = null; }
+    if (ctxJson && ctxJson.length > 4000) ctxJson = null;
+  }
+  const db = getDb();
+  const result = db.prepare(
+    `INSERT INTO pilotage_comments (target_label, comment_text, author_name, author_role, context_json)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(label, text, req.session.name || 'Inconnu', req.session.role || 'unknown', ctxJson);
+  res.json({ success: true, id: result.lastInsertRowid });
+});
+
+app.get('/api/pilotage/comments', requireAuth, requireAdmin, (req, res) => {
+  const onlyUnread = String(req.query.unread || '').trim() === '1';
+  const db = getDb();
+  const rows = onlyUnread
+    ? db.prepare(`SELECT * FROM pilotage_comments WHERE read_at IS NULL ORDER BY created_at DESC LIMIT 200`).all()
+    : db.prepare(`SELECT * FROM pilotage_comments ORDER BY created_at DESC LIMIT 200`).all();
+  const unreadCount = db.prepare(`SELECT COUNT(*) AS c FROM pilotage_comments WHERE read_at IS NULL`).get().c;
+  res.json({ comments: rows, unread_count: unreadCount });
+});
+
+app.post('/api/pilotage/comments/:id/read', requireAuth, requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  const db = getDb();
+  db.prepare(`UPDATE pilotage_comments SET read_at = datetime('now','localtime') WHERE id = ?`).run(id);
+  res.json({ success: true });
+});
+
+app.delete('/api/pilotage/comments/:id', requireAuth, requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  const db = getDb();
+  db.prepare(`DELETE FROM pilotage_comments WHERE id = ?`).run(id);
   res.json({ success: true });
 });
 

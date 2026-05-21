@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-pf-rename1">
+  <link rel="stylesheet" href="style.css?v=ds-pf-consultant1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -503,12 +503,22 @@
                 <span class="pf-multi-caret">▾</span>
               </button>
             </div>
-            <div class="pf-filter-group">
+            <!-- Import : admin uniquement -->
+            <div class="pf-filter-group pf-admin-only">
               <label class="pf-filter-label">Import</label>
               <button class="pf-import-btn" id="pf-import-trigger" type="button" title="Importer un export Pennylane (Plan de trésorerie) ou un Check Up mensuel (KPIs commerciaux)">
                 <span>Importer Excel</span>
               </button>
               <input type="file" id="pf-import-file" accept=".xlsx,.xls" style="display:none">
+            </div>
+            <!-- Mois : visible pour tous, remplace l'import pour le consultant -->
+            <div class="pf-filter-group pf-consultant-only">
+              <label class="pf-filter-label">Mois</label>
+              <div class="pf-month-nav-header">
+                <button class="pf-date-btn" id="pf-hdr-month-prev" title="Mois précédent" type="button">‹</button>
+                <span class="pf-date-label" id="pf-hdr-month-label" title="Cliquer pour revenir au mois courant">—</span>
+                <button class="pf-date-btn" id="pf-hdr-month-next" title="Mois suivant" type="button">›</button>
+              </div>
             </div>
           </div>
         </header>
@@ -775,6 +785,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-pf-rename1"></script>
+  <script src="app.js?v=ds-pf-consultant1"></script>
 </body>
 </html>

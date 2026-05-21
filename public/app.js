@@ -6,6 +6,11 @@ function isAdmin() {
   return currentUser && currentUser.role === 'admin';
 }
 
+// Accès consultant : lecture seule de l'onglet Pilotage + envoi de commentaires
+function isConsultant() {
+  return currentUser && currentUser.role === 'consultant';
+}
+
 function getMyRepId() {
   return currentUser ? currentUser.sales_rep_id : null;
 }
@@ -203,13 +208,263 @@ function updateUserUI() {
     }
     // Role badge
     if (roleBadge) {
-      const roleLabel = currentUser.role === 'admin' ? 'Admin' : currentUser.role === 'phoneur' ? 'Phoneur' : 'Commercial';
+      const roleLabel = currentUser.role === 'admin'      ? 'Admin'
+                      : currentUser.role === 'consultant' ? 'Consultant'
+                      : currentUser.role === 'phoneur'    ? 'Phoneur'
+                      : 'Commercial';
       roleBadge.textContent = roleLabel;
       roleBadge.className = 'user-role-badge' + (currentUser.role === 'admin' ? ' admin' : '');
     }
     infoDiv.classList.remove('hidden');
+    // Si consultant : restreint l'interface à l'onglet Pilotage et passe en lecture seule
+    applyConsultantRestrictions();
   } else {
     infoDiv.classList.add('hidden');
+  }
+}
+
+// Si l'utilisateur courant est consultant, masque tous les onglets sauf Pilotage,
+// désactive les contrôles d'édition (import, bouton import, inline edit), et
+// affiche un bouton flottant pour laisser un commentaire à l'administrateur.
+function applyConsultantRestrictions() {
+  const consultant = isConsultant();
+  // Onglets : ne garder que Pilotage
+  document.querySelectorAll('#main-nav .tab-btn').forEach(btn => {
+    if (!consultant) { btn.style.display = ''; return; }
+    if (btn.dataset.tab === 'pilotage-funnel') {
+      btn.style.display = '';
+      btn.classList.add('active');
+    } else {
+      btn.style.display = 'none';
+      btn.classList.remove('active');
+    }
+  });
+  if (consultant) {
+    // Force l'affichage de l'onglet Pilotage
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    const pilotageSection = document.getElementById('tab-pilotage-funnel');
+    if (pilotageSection) pilotageSection.classList.add('active');
+  }
+  // Marqueur global sur <body> pour scoper la CSS
+  document.body.classList.toggle('is-consultant', consultant);
+  // Bouton flottant « Commenter »
+  setupConsultantCommentButton(consultant);
+  // Pour l'admin : panneau des commentaires reçus
+  if (isAdmin()) loadAdminCommentsBadge();
+}
+
+// Crée (ou supprime) le bouton flottant « + Commentaire » pour le consultant.
+function setupConsultantCommentButton(visible) {
+  let btn = document.getElementById('pf-consultant-comment-fab');
+  if (!visible) {
+    if (btn) btn.remove();
+    const modal = document.getElementById('pf-comment-modal');
+    if (modal) modal.classList.add('hidden');
+    return;
+  }
+  if (btn) return;
+  btn = document.createElement('button');
+  btn.id = 'pf-consultant-comment-fab';
+  btn.className = 'pf-consultant-comment-fab';
+  btn.type = 'button';
+  btn.title = 'Laisser un commentaire à l\'administrateur';
+  btn.innerHTML = '💬 <span>Commenter</span>';
+  btn.addEventListener('click', openConsultantCommentModal);
+  document.body.appendChild(btn);
+}
+
+// Ouvre le modal pour saisir un commentaire. Le contexte (mois courant,
+// clubs sélectionnés, etc.) est capturé automatiquement.
+function openConsultantCommentModal() {
+  let modal = document.getElementById('pf-comment-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'pf-comment-modal';
+    modal.className = 'pf-comment-modal hidden';
+    modal.innerHTML = `
+      <div class="pf-comment-modal-backdrop" data-comment-cancel></div>
+      <div class="pf-comment-modal-card" role="dialog" aria-modal="true" aria-label="Nouveau commentaire">
+        <div class="pf-comment-modal-head">
+          <h3>Nouveau commentaire</h3>
+          <button type="button" class="pf-comment-modal-close" data-comment-cancel aria-label="Fermer">✕</button>
+        </div>
+        <div class="pf-comment-modal-body">
+          <label class="pf-comment-field">
+            <span>Sur quoi ? <em>(ex: « EBE Wasquehal mars 2026 »)</em></span>
+            <input type="text" id="pf-comment-target" maxlength="200" placeholder="Le chiffre, la cellule, le club, la période…">
+          </label>
+          <label class="pf-comment-field">
+            <span>Votre commentaire</span>
+            <textarea id="pf-comment-text" rows="6" maxlength="5000" placeholder="Décrivez ce que vous voulez signaler à l'administrateur…"></textarea>
+          </label>
+          <div class="pf-comment-modal-info">L'administrateur recevra ce message dans sa page Pilotage.</div>
+        </div>
+        <div class="pf-comment-modal-foot">
+          <button type="button" class="pf-btn-secondary" data-comment-cancel>Annuler</button>
+          <button type="button" class="pf-btn-primary" id="pf-comment-submit">Envoyer</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => {
+      if (e.target.closest('[data-comment-cancel]')) {
+        modal.classList.add('hidden');
+      }
+    });
+    document.getElementById('pf-comment-submit').addEventListener('click', submitConsultantComment);
+  }
+  // Préfill du contexte automatique
+  const targetEl = document.getElementById('pf-comment-target');
+  const textEl = document.getElementById('pf-comment-text');
+  if (targetEl) targetEl.value = pfConsultantAutoTarget();
+  if (textEl) { textEl.value = ''; }
+  modal.classList.remove('hidden');
+  setTimeout(() => { if (textEl) textEl.focus(); }, 50);
+}
+
+function pfConsultantAutoTarget() {
+  try {
+    const sig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+    const monthLabel = sig.startsWith('month-')
+      ? new Date(sig.slice(6) + '-01T00:00:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+      : sig;
+    const clubs = pilotageFunnelState.clubs || [];
+    const clubsLabel = clubs.length === 0 ? '' : ` · ${clubs.join(', ')}`;
+    return `Pilotage — ${monthLabel}${clubsLabel}`;
+  } catch (_) { return ''; }
+}
+
+async function submitConsultantComment() {
+  const targetEl = document.getElementById('pf-comment-target');
+  const textEl = document.getElementById('pf-comment-text');
+  const btn = document.getElementById('pf-comment-submit');
+  const text = (textEl && textEl.value || '').trim();
+  if (!text) {
+    if (textEl) { textEl.focus(); textEl.style.borderColor = '#ef4444'; setTimeout(() => textEl.style.borderColor = '', 1500); }
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+  try {
+    const ctx = {};
+    try {
+      ctx.period_sig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+      ctx.clubs = pilotageFunnelState.clubs;
+      ctx.url = window.location.href;
+    } catch (_) {}
+    const res = await fetch('/api/pilotage/comments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify({
+        target_label: targetEl ? targetEl.value : '',
+        comment_text: text,
+        context_json: JSON.stringify(ctx),
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const modal = document.getElementById('pf-comment-modal');
+    if (modal) modal.classList.add('hidden');
+    // Petit toast de confirmation
+    showPfToast('Commentaire envoyé à l\'administrateur ✓');
+  } catch (err) {
+    alert('Erreur lors de l\'envoi du commentaire :\n' + (err.message || err));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Envoyer'; }
+  }
+}
+
+function showPfToast(msg) {
+  let toast = document.getElementById('pf-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'pf-toast';
+    toast.className = 'pf-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('is-visible');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.remove('is-visible'), 3000);
+}
+
+// Côté admin : récupère le nombre de commentaires non-lus et affiche un badge
+// + une liste cliquable dans l'onglet Pilotage.
+async function loadAdminCommentsBadge() {
+  try {
+    const res = await fetch('/api/pilotage/comments', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    renderAdminCommentsPanel(data.comments || [], data.unread_count || 0);
+  } catch (_) {}
+}
+
+function renderAdminCommentsPanel(comments, unreadCount) {
+  let panel = document.getElementById('pf-admin-comments-panel');
+  if (!panel) {
+    const root = document.querySelector('#tab-pilotage-funnel .pf-wrap');
+    if (!root) return;
+    panel = document.createElement('section');
+    panel.id = 'pf-admin-comments-panel';
+    panel.className = 'pf-admin-comments-panel';
+    root.insertBefore(panel, root.querySelector('.pf-consol-card') || root.firstChild);
+  }
+  if (!comments || comments.length === 0) {
+    panel.innerHTML = `
+      <div class="pf-admin-comments-head">
+        <h3>Commentaires reçus</h3>
+        <span class="pf-admin-comments-empty">Aucun commentaire pour l'instant.</span>
+      </div>
+    `;
+    return;
+  }
+  panel.innerHTML = `
+    <div class="pf-admin-comments-head">
+      <h3>Commentaires reçus ${unreadCount > 0 ? `<span class="pf-admin-comments-badge">${unreadCount} non lu${unreadCount > 1 ? 's' : ''}</span>` : ''}</h3>
+    </div>
+    <ul class="pf-admin-comments-list">
+      ${comments.map(c => `
+        <li class="pf-admin-comment ${c.read_at ? '' : 'is-unread'}">
+          <div class="pf-admin-comment-meta">
+            <span class="pf-admin-comment-author">${escapeHtml(c.author_name || 'Consultant')}</span>
+            <span class="pf-admin-comment-date">${escapeHtml((c.created_at || '').replace('T', ' '))}</span>
+          </div>
+          ${c.target_label ? `<div class="pf-admin-comment-target">📍 ${escapeHtml(c.target_label)}</div>` : ''}
+          <div class="pf-admin-comment-text">${escapeHtml(c.comment_text || '')}</div>
+          <div class="pf-admin-comment-actions">
+            ${c.read_at ? '' : `<button type="button" class="pf-admin-comment-read" data-comment-read="${c.id}">Marquer comme lu</button>`}
+            <button type="button" class="pf-admin-comment-del" data-comment-delete="${c.id}">Supprimer</button>
+          </div>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+  // Délégation de clic une seule fois
+  if (!panel.dataset.bound) {
+    panel.dataset.bound = '1';
+    panel.addEventListener('click', async (e) => {
+      const readBtn = e.target.closest('[data-comment-read]');
+      const delBtn = e.target.closest('[data-comment-delete]');
+      if (readBtn) {
+        const id = readBtn.dataset.commentRead;
+        await fetch(`/api/pilotage/comments/${id}/read`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+        });
+        loadAdminCommentsBadge();
+      } else if (delBtn) {
+        if (!confirm('Supprimer ce commentaire ?')) return;
+        const id = delBtn.dataset.commentDelete;
+        await fetch(`/api/pilotage/comments/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+        });
+        loadAdminCommentsBadge();
+      }
+    });
   }
 }
 
@@ -8196,6 +8451,8 @@ function pilotageEditableValueHtml(state, storageSubKey, format, aggOverride, ba
 
 // Handler de clic pour transformer une cellule éditable en input
 function pilotageHandleEditClick(e, reRender) {
+  // Lecture seule pour le rôle consultant : aucune édition inline n'est autorisée
+  if (isConsultant()) return;
   const span = e.target.closest('[data-edit-key]');
   if (!span || span.tagName === 'INPUT' || span.classList.contains('editing')) return;
   const editKey = span.dataset.editKey;
@@ -10150,6 +10407,31 @@ async function loadPilotageFunnel() {
     });
   }
 
+  // Bind nav mois dans le HEADER de Pilotage (visible pour le consultant
+  // qui n'a pas accès au bouton Import — même comportement que la Synthèse)
+  const hdrPrev = document.getElementById('pf-hdr-month-prev');
+  const hdrNext = document.getElementById('pf-hdr-month-next');
+  const hdrLbl  = document.getElementById('pf-hdr-month-label');
+  if (hdrPrev && !hdrPrev.dataset.bound) {
+    hdrPrev.dataset.bound = '1';
+    hdrPrev.addEventListener('click', () => switchToMonthAndShift(-1));
+  }
+  if (hdrNext && !hdrNext.dataset.bound) {
+    hdrNext.dataset.bound = '1';
+    hdrNext.addEventListener('click', () => switchToMonthAndShift(+1));
+  }
+  if (hdrLbl && !hdrLbl.dataset.bound) {
+    hdrLbl.dataset.bound = '1';
+    hdrLbl.style.cursor = 'pointer';
+    hdrLbl.addEventListener('click', () => {
+      pilotageFunnelState.period = 'month';
+      document.querySelectorAll('#pf-period .pf-period-btn')
+        .forEach(b => b.classList.toggle('active', b.dataset.period === 'month'));
+      pilotageFunnelState.dateAnchor = pilotageToLocalISODate(new Date());
+      renderPilotageFunnel();
+    });
+  }
+
   // Bind champs date custom
   const fromInput = document.getElementById('pf-date-from');
   const toInput = document.getElementById('pf-date-to');
@@ -10639,6 +10921,13 @@ async function renderPilotageFunnel() {
       // Format mois forcé pour cohérence visuelle
       finLblEl.textContent = pfFormatRange('month', pilotageFunnelState.dateAnchor, '', '');
     }
+  }
+  // Label mois dans le header Pilotage (consultant)
+  const hdrLblEl = document.getElementById('pf-hdr-month-label');
+  if (hdrLblEl) {
+    hdrLblEl.textContent = pilotageFunnelState.period === 'month'
+      ? rangeLabel
+      : pfFormatRange('month', pilotageFunnelState.dateAnchor, '', '');
   }
   document.getElementById('pf-clubs-summary').textContent = summarizeClubs(pilotageFunnelState.clubs);
   document.getElementById('pf-compare-summary').textContent = summarizeCompare(pilotageFunnelState.compareWith);

@@ -898,6 +898,20 @@ function initCoachSchema() {
       category TEXT NOT NULL DEFAULT 'vision',
       created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     );
+
+    -- Commentaires laissés par les utilisateurs « consultant » (et autres
+    -- rôles non-admin) sur la page Pilotage. L'admin reçoit / lit ces
+    -- commentaires via /api/pilotage/comments.
+    CREATE TABLE IF NOT EXISTS pilotage_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      target_label TEXT NOT NULL DEFAULT '',
+      comment_text TEXT NOT NULL,
+      author_name TEXT NOT NULL DEFAULT 'Consultant',
+      author_role TEXT NOT NULL DEFAULT 'consultant',
+      context_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      read_at TEXT
+    );
   `);
 }
 
