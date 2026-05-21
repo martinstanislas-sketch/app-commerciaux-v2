@@ -9757,9 +9757,38 @@ async function handlePennylaneFileImport(file) {
   }
 }
 
+// Nettoyage one-shot : remet à 0 toutes les valeurs d'un mois donné dans le
+// localStorage tant que l'utilisateur n'a pas réimporté ce mois. Un flag
+// `pilotage:cleared:<mois>` empêche le nettoyage de se rejouer ensuite —
+// les imports futurs réécrivent normalement les clés.
+function pilotageClearMonthOnce(monthSig, flagKey) {
+  try {
+    if (localStorage.getItem(flagKey) === '1') return;
+    const needle = `|${monthSig}|`;
+    const toDelete = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (k.startsWith(PILOTAGE_STORE_PREFIX) && k.includes(needle)) {
+        toDelete.push(k);
+      }
+    }
+    for (const k of toDelete) localStorage.removeItem(k);
+    localStorage.setItem(flagKey, '1');
+    if (toDelete.length > 0) {
+      console.log(`[Pilotage] nettoyage ${monthSig} : ${toDelete.length} clés supprimées (réimporte le fichier Excel pour repeupler).`);
+    }
+  } catch (_) {}
+}
+
 // ── Render principal ───────────────────────────────────────────────
 async function loadPilotageFunnel() {
   if (!isAdmin()) return;
+
+  // Reset de mai 2026 : les valeurs étaient renseignées partiellement
+  // (mois en cours dans Pennylane / CHECK UP). Ne se rejoue pas grâce
+  // au flag — un nouvel import du mois repeuplera les clés.
+  pilotageClearMonthOnce('month-2026-05', 'pilotage:cleared:2026-05:v1');
 
   // Bind période
   document.querySelectorAll('#pf-period .pf-period-btn').forEach(btn => {
