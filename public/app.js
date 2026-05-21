@@ -8810,6 +8810,52 @@ function renderSynthChart() {
   });
 }
 
+// Extracteur d'un KPI catégorie pour un mois donné, agrégé selon les clubs
+// sélectionnés (ou tous les PILOTAGE_CLUBS si aucun club spécifique).
+// agg = 'sum' | 'avg' (lu depuis la définition du KPI).
+function pfExtractCatKpi(catKey, kpiKey, sig, agg) {
+  const clubs = (pilotageFunnelState.clubs && pilotageFunnelState.clubs.length > 0)
+    ? pilotageFunnelState.clubs : PILOTAGE_CLUBS;
+  let total = 0, count = 0;
+  for (const club of clubs) {
+    const v = pilotageStoreRead(`${club}|${sig}|cat:${catKey}:${kpiKey}`);
+    if (v != null && !Number.isNaN(Number(v))) { total += Number(v); count++; }
+  }
+  if (count === 0) return null;
+  return (agg === 'avg') ? (total / count) : total;
+}
+
+// Rend (ou masque) le chart d'un KPI catégorie selon
+// `pilotageFunnelState.catChartOpen` au format '<catKey>:<kpiKey>'.
+// Masqué si aucun club n'est sélectionné (cohérent avec le fait que la grille
+// des cartes catégories n'est elle-même visible qu'avec un club sélectionné).
+function renderCatChart() {
+  const key = pilotageFunnelState.catChartOpen;
+  const hasClubSelected = (pilotageFunnelState.clubs || []).length > 0;
+  if (!key || !hasClubSelected) {
+    pfHideChart('pf-cat-chart-canvas', 'pf-cat-chart-wrap');
+    if (!hasClubSelected) pilotageFunnelState.catChartOpen = null;
+    return;
+  }
+  const [catKey, kpiKey] = key.split(':');
+  const cat = PILOTAGE_CATEGORIES.find(c => c.key === catKey);
+  if (!cat) { pfHideChart('pf-cat-chart-canvas', 'pf-cat-chart-wrap'); return; }
+  const kpi = cat.kpis.find(k => k.key === kpiKey);
+  if (!kpi) { pfHideChart('pf-cat-chart-canvas', 'pf-cat-chart-wrap'); return; }
+  const clubsArr = pilotageFunnelState.clubs || [];
+  const subtitle = clubsArr.length === 1 ? ` — ${clubsArr[0]}`
+                 : clubsArr.length > 1 ? ` — ${clubsArr.length} clubs`
+                 : ' — tous clubs';
+  pfRenderHistoricalChart({
+    canvasId: 'pf-cat-chart-canvas',
+    wrapId: 'pf-cat-chart-wrap',
+    titleId: 'pf-cat-chart-title',
+    title: `Évolution — ${cat.label} · ${kpi.label}${subtitle}`,
+    format: kpi.format,
+    extract: (sig) => pfExtractCatKpi(catKey, kpiKey, sig, kpi.agg),
+  });
+}
+
 // Rend (ou masque) le chart de la carte Détail club selon
 // `pilotageFunnelState.detailChartOpen` (ca | depenses | cashflow | ebe)
 // et `pilotageFunnelState.clubs[0]`.
@@ -8910,6 +8956,7 @@ let pilotageFunnelState = {
   consolChartOpen: null,   // null | 'mycoach_franch' | 'mycoach_franch_hq' — graphique historique des EBE affiché
   synthChartOpen: null,    // null | 'club_ebe:<Club>' | 'franchise_ca' | 'hq_dep' — graphique d'une cellule Synthèse
   detailChartOpen: null,   // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — graphique d'une cellule du détail club
+  catChartOpen: null,      // null | '<catKey>:<kpiKey>' — graphique d'un KPI de carte catégorie
   finDetailOpen: null,     // null | 'franchise_ca' | 'hq_dep' — cellule Synthèse fin dépliée (drill-down items Pennylane)
   clubDetailOpen: null,    // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — cellule de la carte détail club dépliée
 };
@@ -10224,6 +10271,11 @@ async function loadPilotageFunnel() {
         renderPilotageFunnel();
         return;
       }
+      if (e.target.closest('[data-cat-chart-close]')) {
+        pilotageFunnelState.catChartOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
       // Toggle graphique Synthèse (8 cellules)
       const synthBtn = e.target.closest('[data-synth-chart]');
       if (synthBtn) {
@@ -10241,6 +10293,16 @@ async function loadPilotageFunnel() {
         const key = detailBtn.dataset.detailChart;
         pilotageFunnelState.detailChartOpen =
           pilotageFunnelState.detailChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
+      // Toggle graphique KPI catégorie (8 KPIs : Leads, CPL, RDV, …)
+      const catBtn = e.target.closest('[data-cat-chart]');
+      if (catBtn) {
+        e.stopPropagation();
+        const key = catBtn.dataset.catChart;
+        pilotageFunnelState.catChartOpen =
+          pilotageFunnelState.catChartOpen === key ? null : key;
         renderPilotageFunnel();
         return;
       }
@@ -10262,6 +10324,15 @@ async function loadPilotageFunnel() {
         const key = detailBtn.dataset.detailChart;
         pilotageFunnelState.detailChartOpen =
           pilotageFunnelState.detailChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
+      const catBtn = e.target.closest && e.target.closest('[data-cat-chart]');
+      if (catBtn) {
+        e.preventDefault();
+        const key = catBtn.dataset.catChart;
+        pilotageFunnelState.catChartOpen =
+          pilotageFunnelState.catChartOpen === key ? null : key;
         renderPilotageFunnel();
         return;
       }
@@ -10583,6 +10654,7 @@ async function renderPilotageFunnel() {
   // Cartes catégories (mêmes 5 que Pilotage) — éditables via localStorage
   const grid = document.getElementById('pf-grid');
   if (grid) {
+    const openCatChart = pilotageFunnelState.catChartOpen;
     grid.innerHTML = PILOTAGE_CATEGORIES.map(cat => {
       const kpisHtml = cat.kpis.map(k => {
         const subKey = `cat:${cat.key}:${k.key}`;
@@ -10593,9 +10665,19 @@ async function renderPilotageFunnel() {
         const cmpHtml = (cmpVal != null && !Number.isNaN(Number(cmpVal)))
           ? `<span class="pilotage-kpi-cmp" title="Comparaison">vs ${pilotageFormatValue(cmpVal, k.format)}</span>`
           : '';
+        // Bouton graphique historique pour ce KPI
+        const catChartKey = `${cat.key}:${k.key}`;
+        const isCatChartOpen = openCatChart === catChartKey;
+        const chartIconBtn = `
+          <button type="button" class="pf-consol-chart-btn pf-consol-chart-btn--mini${isCatChartOpen ? ' is-active' : ''}" data-cat-chart="${escapeHtml(catChartKey)}" title="${isCatChartOpen ? 'Masquer' : 'Afficher'} le graphique des derniers mois" aria-label="Graphique historique">
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 13.5V2.5"/><path d="M2 13.5h12"/><path d="M4.5 11l2.5-3 2.5 2 3-4"/>
+            </svg>
+          </button>
+        `;
         return `
-          <div class="pilotage-kpi">
-            <span class="pilotage-kpi-label">${escapeHtml(k.label)}</span>
+          <div class="pilotage-kpi${isCatChartOpen ? ' is-chart-open' : ''}">
+            <span class="pilotage-kpi-label">${escapeHtml(k.label)}${chartIconBtn}</span>
             ${valueHtml}
             ${cmpHtml}
             <span class="pilotage-kpi-status" aria-hidden="true"></span>
@@ -10612,6 +10694,9 @@ async function renderPilotageFunnel() {
         </article>
       `;
     }).join('');
+
+    // Graphique historique pour le KPI catégorie actif
+    renderCatChart();
   }
 
   // Funnel — les étapes lisent depuis le store. La 1ère étape (Leads) détermine la largeur de référence.
