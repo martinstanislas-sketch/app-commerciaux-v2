@@ -8567,9 +8567,10 @@ const PF_FINANCIALS = [
 // puis on applique la formule EBE = (Σ CA_HT − Σ Dépenses) / Σ CA_HT × 100
 // avec Σ CA_HT = (Σ CA_TTC) ÷ 1,20.
 const PF_CONSOLIDATED_EBE = [
-  { key: 'mycoach_franch',  label: 'EBE My Coach Groupe',      scope: ['mycoach', 'franchise'] },
-  // Cellules « EBE My Coach » et « EBE Groupe » retirées à la demande de
-  // l'utilisateur — seule la consolidation My Coach + Franchise est conservée.
+  { key: 'mycoach_franch',  label: 'EBE My Coach Groupe',        scope: ['mycoach', 'franchise'] },
+  // Variante avec 100 % du HQ (« Groupe Gingko Sport ») soustrait :
+  // EBE = (Σ CA HT − Σ Dépenses − HQ) ÷ Σ CA HT × 100
+  { key: 'mycoach_franch_hq', label: 'EBE My Coach Groupe + HQ', scope: ['mycoach', 'franchise', 'hq'] },
 ];
 
 // Les 6 clubs My Coach (sans Tourcoing) — utilisés pour les agrégats
@@ -8612,10 +8613,13 @@ function pilotageConsolidatedEbeBreakdown(periodSig, scopeArr) {
   }
   // (Scope 'tourcoing' désormais supprimé — Ginkgo Sport n'est plus analysé
   //  dans l'EBE Groupe ni ailleurs dans la page Pilotage Funnel.)
-  // Pas de lignes « Taxes » ou « Groupe Gingko Sport » côté dépenses :
-  // les valeurs Pennylane sont déjà en HT (la TVA est retirée via la
-  // conversion CA TTC ÷ 1,20 sur le total agrégé), donc inclure les
-  // décaissements fiscaux dans l'EBE serait redondant.
+  // Scope 'hq' : 100 % du HQ (ligne « Groupe Gingko Sport » des décaissements
+  // Pennylane) ajouté en dépense supplémentaire pour la variante consolidée.
+  if (scopeArr.includes('hq')) {
+    const hqDep = pilotageStoreRead(`__group__|${periodSig}|gdep:groupe`);
+    entries.push({ label: 'HQ (Groupe Gingko Sport)', ca: null, dep: hqDep, group: 'HQ' });
+    if (hqDep != null) { totalDep += hqDep; hasAny = true; }
+  }
   const caHt = totalCa / 1.20;
   let ebe = null;
   if (hasAny && totalCa !== 0 && caHt !== 0) {
@@ -10201,6 +10205,15 @@ function summarizeCompare(arr) {
 }
 
 async function renderPilotageFunnel() {
+  // Masque les sections Catégories / Funnel / Indicateurs latéraux tant
+  // qu'aucun club n'est sélectionné (au moins un club dans le filtre Clubs
+  // analysés). Quand au moins un club est choisi, on les ré-affiche.
+  const hasClubSelected = (pilotageFunnelState.clubs || []).length > 0;
+  const pfGrid = document.getElementById('pf-grid');
+  const pfFunnelSection = document.getElementById('pf-funnel-section');
+  if (pfGrid) pfGrid.classList.toggle('hidden', !hasClubSelected);
+  if (pfFunnelSection) pfFunnelSection.classList.toggle('hidden', !hasClubSelected);
+
   // Bascule nav ‹›  ↔  champs date custom
   const isCustom = pilotageFunnelState.period === 'custom';
   const navEl = document.getElementById('pf-date-nav');
@@ -10416,7 +10429,7 @@ async function renderPilotageFunnel() {
           // Regroupe les entrées par "group" (My Coach / Franchise / Tourcoing /
           // Autres dépenses comme Taxes). L'ordre garantit l'affichage logique :
           // recettes opérationnelles d'abord, dépenses additionnelles en bas.
-          const groupsOrder = ['My Coach', 'Franchise', 'Tourcoing', 'Autres dépenses'];
+          const groupsOrder = ['My Coach', 'Franchise', 'Tourcoing', 'HQ', 'Autres dépenses'];
           const grouped = {};
           for (const e of b.entries) {
             grouped[e.group] = grouped[e.group] || [];

@@ -10517,7 +10517,7 @@ img {
 }
 #tab-pilotage-funnel .pf-consol-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0;
 }
 @media (max-width: 768px) {
@@ -10774,6 +10774,10 @@ img {
   line-height: 1;
   margin-top: 2px;
 }
+
+/* Sections masquées tant qu'aucun club n'est sélectionné */
+#tab-pilotage-funnel .pf-grid.hidden,
+#tab-pilotage-funnel .pf-funnel-section.hidden { display: none !important; }
 
 /* ── Panel drill-down Synthèse (Franchise / HQ) ───────────────── */
 #tab-pilotage-funnel .pf-fin-detail.hidden { display: none !important; }
