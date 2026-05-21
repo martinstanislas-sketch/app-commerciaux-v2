@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-pf-ebechart1">
+  <link rel="stylesheet" href="style.css?v=ds-pf-allcharts1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -551,6 +551,16 @@
           <div class="pf-fin-detail hidden" id="pf-fin-detail">
             <!-- rendu dynamiquement : liste des lignes Pennylane sous-jacentes -->
           </div>
+          <!-- Graphique historique sur clic d'une icône d'une cellule Synthèse -->
+          <div class="pf-consol-chart-wrap hidden" id="pf-synth-chart-wrap">
+            <div class="pf-consol-chart-head">
+              <span class="pf-consol-chart-title" id="pf-synth-chart-title">Évolution</span>
+              <button type="button" class="pf-items-close" data-synth-chart-close title="Fermer">✕</button>
+            </div>
+            <div class="pf-consol-chart-canvas-wrap">
+              <canvas id="pf-synth-chart-canvas"></canvas>
+            </div>
+          </div>
         </div>
 
         <!-- Détail club sélectionné (CA / Dépenses / Cash-flow / EBE + breakdown dépenses) -->
@@ -564,6 +574,16 @@
           <!-- Drill-down quand on clique sur CA / Cash-flow / EBE -->
           <div class="pf-club-detail-extra hidden" id="pf-club-detail-extra">
             <!-- rendu dynamiquement -->
+          </div>
+          <!-- Graphique historique sur clic d'une icône d'une cellule Détail -->
+          <div class="pf-consol-chart-wrap hidden" id="pf-detail-chart-wrap">
+            <div class="pf-consol-chart-head">
+              <span class="pf-consol-chart-title" id="pf-detail-chart-title">Évolution</span>
+              <button type="button" class="pf-items-close" data-detail-chart-close title="Fermer">✕</button>
+            </div>
+            <div class="pf-consol-chart-canvas-wrap">
+              <canvas id="pf-detail-chart-canvas"></canvas>
+            </div>
           </div>
           <div class="pf-club-detail-breakdown-wrap hidden" id="pf-club-detail-breakdown-wrap">
             <div class="pf-club-detail-breakdown-head">
@@ -745,6 +765,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-pf-ebechart1"></script>
+  <script src="app.js?v=ds-pf-allcharts1"></script>
 </body>
 </html>

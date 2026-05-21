@@ -8636,39 +8636,26 @@ function pilotageConsolidatedEbe(periodSig, scopeArr) {
   return b.ebe;
 }
 
-// Référence vers l'instance Chart.js de l'historique EBE (pour pouvoir la
-// détruire avant d'en recréer une au prochain render).
-let pilotageConsolChartInstance = null;
+// Instances Chart.js pour les graphiques d'historique — indexées par
+// canvas id pour pouvoir les détruire proprement avant un re-render.
+const pilotageChartInstances = new Map();
 
-// Rend (ou met à jour) le graphique d'évolution de l'EBE consolidé selon
-// la cellule active dans `pilotageFunnelState.consolChartOpen`. Affiche
-// les 12 derniers mois (mois courant inclus, ancré sur pilotageFunnelState
-// .dateAnchor). Si aucune cellule n'est active → masque le panneau.
-function renderConsolEbeChart() {
-  const wrap = document.getElementById('pf-consol-chart-wrap');
-  const canvas = document.getElementById('pf-consol-chart-canvas');
-  const titleEl = document.getElementById('pf-consol-chart-title');
-  if (!wrap || !canvas) return;
-  const key = pilotageFunnelState.consolChartOpen;
-  if (!key) {
-    wrap.classList.add('hidden');
-    if (pilotageConsolChartInstance) {
-      pilotageConsolChartInstance.destroy();
-      pilotageConsolChartInstance = null;
-    }
-    return;
-  }
-  const cfg = PF_CONSOLIDATED_EBE.find(c => c.key === key);
-  if (!cfg) {
-    wrap.classList.add('hidden');
-    return;
-  }
-  wrap.classList.remove('hidden');
-  if (titleEl) titleEl.textContent = `Évolution — ${cfg.label}`;
+// Helper générique : rend un graphique ligne d'évolution sur les 12 derniers
+// mois ancrés sur `pilotageFunnelState.dateAnchor`. opts = {
+//   canvasId, wrapId, titleId, title, format ('eur'|'pct'),
+//   extract: (monthSig) => number|null  // valeur du mois
+// }
+function pfRenderHistoricalChart(opts) {
+  const { canvasId, wrapId, titleId, title, format, extract } = opts;
+  const wrap = wrapId ? document.getElementById(wrapId) : null;
+  const canvas = document.getElementById(canvasId);
+  const titleEl = titleId ? document.getElementById(titleId) : null;
+  if (!canvas) return;
+  if (wrap) wrap.classList.remove('hidden');
+  if (titleEl) titleEl.textContent = title || '';
 
-  // Construit la série des 12 derniers mois (le mois ancré = dernier point)
+  // Série des 12 derniers mois (le mois ancré = dernier point)
   const anchor = new Date(pilotageFunnelState.dateAnchor || pilotageToLocalISODate(new Date()));
-  // On ramène à un jour neutre pour éviter les surprises de fin de mois
   anchor.setDate(1);
   const months = [];
   for (let i = 11; i >= 0; i--) {
@@ -8679,26 +8666,34 @@ function renderConsolEbeChart() {
   }
   const labels = months.map(m => m.label);
   const values = months.map(m => {
-    const v = pilotageConsolidatedEbe(m.sig, cfg.scope);
+    const v = extract(m.sig);
     return (v == null || Number.isNaN(Number(v))) ? null : Number(v);
   });
-  // Couleur par point : vert si ≥ 0, rouge si < 0, gris si null
-  const pointColors = values.map(v => v == null ? 'rgba(148,163,184,0.4)' : (v >= 0 ? '#22c55e' : '#ef4444'));
+  // Couleur par point : vert si ≥ 0, rouge si < 0 (eur ou pct), gris si null
+  const pointColors = values.map(v => v == null
+    ? 'rgba(148,163,184,0.4)'
+    : (v >= 0 ? '#22c55e' : '#ef4444'));
 
   if (typeof Chart === 'undefined') {
     canvas.parentElement.innerHTML = '<div class="pf-items-empty">Chart.js non chargé.</div>';
     return;
   }
-  if (pilotageConsolChartInstance) {
-    pilotageConsolChartInstance.destroy();
-    pilotageConsolChartInstance = null;
-  }
-  pilotageConsolChartInstance = new Chart(canvas, {
+  const prev = pilotageChartInstances.get(canvasId);
+  if (prev) { prev.destroy(); pilotageChartInstances.delete(canvasId); }
+
+  const fmtTooltip = (n) => format === 'pct'
+    ? `${n.toFixed(1).replace('.', ',')} %`
+    : pilotageFormatValue(n, 'eur');
+  const fmtAxis = (n) => format === 'pct'
+    ? `${Number(n).toFixed(0)} %`
+    : (Math.abs(n) >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n));
+
+  const inst = new Chart(canvas, {
     type: 'line',
     data: {
       labels,
       datasets: [{
-        label: cfg.label,
+        label: title || '',
         data: values,
         spanGaps: true,
         borderColor: '#6366f1',
@@ -8729,25 +8724,125 @@ function renderConsolEbeChart() {
           callbacks: {
             label: ctx => ctx.parsed.y == null
               ? 'Pas de donnée'
-              : `${cfg.label} : ${ctx.parsed.y.toFixed(1).replace('.', ',')} %`,
+              : `${title || ''} : ${fmtTooltip(ctx.parsed.y)}`,
           },
         },
       },
       scales: {
-        x: {
-          grid: { display: false },
-          ticks: { font: { size: 11, family: 'Inter' }, color: '#64748b' },
-        },
-        y: {
-          grid: { color: 'rgba(148,163,184,0.15)' },
-          ticks: {
-            font: { size: 11, family: 'Inter' },
-            color: '#64748b',
-            callback: (v) => `${Number(v).toFixed(0)} %`,
-          },
-        },
+        x: { grid: { display: false }, ticks: { font: { size: 11, family: 'Inter' }, color: '#64748b' } },
+        y: { grid: { color: 'rgba(148,163,184,0.15)' }, ticks: { font: { size: 11, family: 'Inter' }, color: '#64748b', callback: fmtAxis } },
       },
     },
+  });
+  pilotageChartInstances.set(canvasId, inst);
+}
+
+// Détruit et masque un chart si on n'a plus rien à afficher
+function pfHideChart(canvasId, wrapId) {
+  const wrap = wrapId ? document.getElementById(wrapId) : null;
+  if (wrap) wrap.classList.add('hidden');
+  const prev = pilotageChartInstances.get(canvasId);
+  if (prev) { prev.destroy(); pilotageChartInstances.delete(canvasId); }
+}
+
+// Helpers d'extraction par métrique (utilisés par les charts par cellule)
+function pfExtractEbeClub(club, sig) {
+  const ca = pilotageStoreRead(`${club}|${sig}|fin:ca_ttc`);
+  const dep = pilotageStoreRead(`${club}|${sig}|fin:depenses`);
+  if (ca == null || dep == null || ca === 0) return null;
+  const caHt = ca / 1.20;
+  if (caHt === 0) return null;
+  return ((caHt - dep) / caHt) * 100;
+}
+function pfExtractCashflowClub(club, sig) {
+  const ca = pilotageStoreRead(`${club}|${sig}|fin:ca_ttc`);
+  const dep = pilotageStoreRead(`${club}|${sig}|fin:depenses`);
+  if (ca == null || dep == null) return null;
+  return (ca / 1.20) - dep;
+}
+
+// Rend (ou masque) le chart de la carte EBE consolidés selon
+// `pilotageFunnelState.consolChartOpen`.
+function renderConsolEbeChart() {
+  const key = pilotageFunnelState.consolChartOpen;
+  if (!key) { pfHideChart('pf-consol-chart-canvas', 'pf-consol-chart-wrap'); return; }
+  const cfg = PF_CONSOLIDATED_EBE.find(c => c.key === key);
+  if (!cfg) { pfHideChart('pf-consol-chart-canvas', 'pf-consol-chart-wrap'); return; }
+  pfRenderHistoricalChart({
+    canvasId: 'pf-consol-chart-canvas',
+    wrapId: 'pf-consol-chart-wrap',
+    titleId: 'pf-consol-chart-title',
+    title: `Évolution — ${cfg.label}`,
+    format: 'pct',
+    extract: (sig) => pilotageConsolidatedEbe(sig, cfg.scope),
+  });
+}
+
+// Rend (ou masque) le chart de la Synthèse financière selon
+// `pilotageFunnelState.synthChartOpen`.
+// Clé attendue : `club_ebe:<Club>` | `franchise_ca` | `hq_dep`.
+function renderSynthChart() {
+  const key = pilotageFunnelState.synthChartOpen;
+  if (!key) { pfHideChart('pf-synth-chart-canvas', 'pf-synth-chart-wrap'); return; }
+  let extract, title, format;
+  if (key.startsWith('club_ebe:')) {
+    const club = key.slice('club_ebe:'.length);
+    title = `Évolution EBE — ${club}`;
+    format = 'pct';
+    extract = (sig) => pfExtractEbeClub(club, sig);
+  } else if (key === 'franchise_ca') {
+    title = 'Évolution — CA Franchise';
+    format = 'eur';
+    extract = (sig) => pilotageStoreRead(`__group__|${sig}|grec:franchises`);
+  } else if (key === 'hq_dep') {
+    title = 'Évolution — HQ';
+    format = 'eur';
+    extract = (sig) => pilotageStoreRead(`__group__|${sig}|gdep:groupe`);
+  } else {
+    pfHideChart('pf-synth-chart-canvas', 'pf-synth-chart-wrap');
+    return;
+  }
+  pfRenderHistoricalChart({
+    canvasId: 'pf-synth-chart-canvas',
+    wrapId: 'pf-synth-chart-wrap',
+    titleId: 'pf-synth-chart-title',
+    title, format, extract,
+  });
+}
+
+// Rend (ou masque) le chart de la carte Détail club selon
+// `pilotageFunnelState.detailChartOpen` (ca | depenses | cashflow | ebe)
+// et `pilotageFunnelState.clubs[0]`.
+function renderDetailChart() {
+  const key = pilotageFunnelState.detailChartOpen;
+  const club = (pilotageFunnelState.clubs || [])[0];
+  if (!key || !club) { pfHideChart('pf-detail-chart-canvas', 'pf-detail-chart-wrap'); return; }
+  let extract, title, format;
+  if (key === 'ca') {
+    title = `Évolution CA — ${club}`;
+    format = 'eur';
+    extract = (sig) => pilotageStoreRead(`${club}|${sig}|fin:ca_ttc`);
+  } else if (key === 'depenses') {
+    title = `Évolution Dépenses — ${club}`;
+    format = 'eur';
+    extract = (sig) => pilotageStoreRead(`${club}|${sig}|fin:depenses`);
+  } else if (key === 'cashflow') {
+    title = `Évolution Cash-flow — ${club}`;
+    format = 'eur';
+    extract = (sig) => pfExtractCashflowClub(club, sig);
+  } else if (key === 'ebe') {
+    title = `Évolution EBE — ${club}`;
+    format = 'pct';
+    extract = (sig) => pfExtractEbeClub(club, sig);
+  } else {
+    pfHideChart('pf-detail-chart-canvas', 'pf-detail-chart-wrap');
+    return;
+  }
+  pfRenderHistoricalChart({
+    canvasId: 'pf-detail-chart-canvas',
+    wrapId: 'pf-detail-chart-wrap',
+    titleId: 'pf-detail-chart-title',
+    title, format, extract,
   });
 }
 
@@ -8813,6 +8908,8 @@ let pilotageFunnelState = {
   detailCatOpen: null,     // null | 'salaire' | 'batiment' | 'marketing' | 'fonctionnement' — catégorie dépliée dans la carte détail
   consolDetailOpen: null,  // null | 'mycoach' | 'mycoach_franch' | 'groupe' — cellule EBE consolidé dépliée
   consolChartOpen: null,   // null | 'mycoach_franch' | 'mycoach_franch_hq' — graphique historique des EBE affiché
+  synthChartOpen: null,    // null | 'club_ebe:<Club>' | 'franchise_ca' | 'hq_dep' — graphique d'une cellule Synthèse
+  detailChartOpen: null,   // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — graphique d'une cellule du détail club
   finDetailOpen: null,     // null | 'franchise_ca' | 'hq_dep' — cellule Synthèse fin dépliée (drill-down items Pennylane)
   clubDetailOpen: null,    // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — cellule de la carte détail club dépliée
 };
@@ -10095,16 +10192,79 @@ async function loadPilotageFunnel() {
         renderPilotageFunnel();
         return;
       }
+      // L'icône graphique d'une cellule détail a sa propre logique (handler dédié)
+      if (e.target.closest('[data-detail-chart]')) return;
       const cell = e.target.closest('[data-detail-toggle]');
       if (!cell) return;
       toggleDetail(cell.dataset.detailToggle);
     });
     rootPf.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (e.target.closest && e.target.closest('[data-detail-chart]')) return;
       const cell = e.target.closest && e.target.closest('[data-detail-toggle]');
       if (!cell) return;
       e.preventDefault();
       toggleDetail(cell.dataset.detailToggle);
+    });
+  }
+
+  // Clic sur une icône graphique d'une cellule du Détail club ou de la
+  // Synthèse financière → toggle le graphique correspondant
+  if (rootPf && !rootPf.dataset.cellChartBound) {
+    rootPf.dataset.cellChartBound = '1';
+    rootPf.addEventListener('click', (e) => {
+      // Fermeture explicite des graphes via leurs boutons ✕
+      if (e.target.closest('[data-synth-chart-close]')) {
+        pilotageFunnelState.synthChartOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
+      if (e.target.closest('[data-detail-chart-close]')) {
+        pilotageFunnelState.detailChartOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
+      // Toggle graphique Synthèse (8 cellules)
+      const synthBtn = e.target.closest('[data-synth-chart]');
+      if (synthBtn) {
+        e.stopPropagation();
+        const key = synthBtn.dataset.synthChart;
+        pilotageFunnelState.synthChartOpen =
+          pilotageFunnelState.synthChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
+      // Toggle graphique Détail club (4 cellules)
+      const detailBtn = e.target.closest('[data-detail-chart]');
+      if (detailBtn) {
+        e.stopPropagation();
+        const key = detailBtn.dataset.detailChart;
+        pilotageFunnelState.detailChartOpen =
+          pilotageFunnelState.detailChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
+    });
+    rootPf.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const synthBtn = e.target.closest && e.target.closest('[data-synth-chart]');
+      if (synthBtn) {
+        e.preventDefault();
+        const key = synthBtn.dataset.synthChart;
+        pilotageFunnelState.synthChartOpen =
+          pilotageFunnelState.synthChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
+      const detailBtn = e.target.closest && e.target.closest('[data-detail-chart]');
+      if (detailBtn) {
+        e.preventDefault();
+        const key = detailBtn.dataset.detailChart;
+        pilotageFunnelState.detailChartOpen =
+          pilotageFunnelState.detailChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
     });
   }
 
@@ -10743,14 +10903,31 @@ async function renderPilotageFunnel() {
       } else if (finDetailKey) {
         clickAttrs = `data-fin-detail="${escapeHtml(finDetailKey)}" role="button" tabindex="0" title="Cliquer pour voir le détail des lignes ${escapeHtml(finDetailLabel)}"`;
       }
+      // Clé du chart historique pour cette cellule
+      const synthChartKey = (cell.type === 'club_ebe')   ? `club_ebe:${cell.club}`
+                          : (cell.type === 'franchise_ca') ? 'franchise_ca'
+                          : (cell.type === 'hq_dep')       ? 'hq_dep'
+                          : null;
+      const isSynthChartOpen = synthChartKey && pilotageFunnelState.synthChartOpen === synthChartKey;
+      const chartIconBtn = synthChartKey ? `
+        <button type="button" class="pf-consol-chart-btn pf-consol-chart-btn--mini${isSynthChartOpen ? ' is-active' : ''}" data-synth-chart="${escapeHtml(synthChartKey)}" title="${isSynthChartOpen ? 'Masquer' : 'Afficher'} le graphique des derniers mois" aria-label="Graphique historique">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 13.5V2.5"/><path d="M2 13.5h12"/><path d="M4.5 11l2.5-3 2.5 2 3-4"/>
+          </svg>
+        </button>
+      ` : '';
       const display = pilotageFormatValue(value, format);
+      const chartOpenCls = isSynthChartOpen ? ' is-chart-open' : '';
       return `
-        <div class="pf-fin-cell ${tone}${clickableClass}${selectedClass}" ${clickAttrs}>
-          <span class="pf-fin-label">${escapeHtml(cell.label)}</span>
+        <div class="pf-fin-cell ${tone}${clickableClass}${selectedClass}${chartOpenCls}" ${clickAttrs}>
+          <span class="pf-fin-label">${escapeHtml(cell.label)}${chartIconBtn}</span>
           <span class="pf-fin-value">${display}</span>
         </div>
       `;
     }).join('');
+
+    // Graphique historique pour la cellule de Synthèse active
+    renderSynthChart();
   }
 
   // Render carte « Détail des lignes » pour Franchise / HQ (visible quand
@@ -10846,6 +11023,7 @@ async function renderPilotageFunnel() {
           { key: 'cashflow',  label: 'Cash-flow', value: cashflow, format: 'eur', tone: 'highlight' },
           { key: 'ebe',       label: 'EBE',       value: ebe,      format: 'pct', tone: 'highlight' },
         ];
+        const openDetailChart = pilotageFunnelState.detailChartOpen;
         main.innerHTML = cells.map(c => {
           let toneClass = '';
           if (c.tone === 'highlight' && c.value != null && !Number.isNaN(Number(c.value))) {
@@ -10855,18 +11033,29 @@ async function renderPilotageFunnel() {
           }
           // Toutes les cellules sont cliquables (révèle le drill-down)
           const isOpen = openCell === c.key;
+          const isChartOpen = openDetailChart === c.key;
           const clickableCls = ' pf-fin-cell--clickable';
-          const selectedCls = isOpen ? ' pf-fin-cell--selected' : '';
+          const selectedCls = (isOpen || isChartOpen) ? ' pf-fin-cell--selected' : '';
           const clickAttrs = `data-detail-toggle="${escapeHtml(c.key)}" role="button" tabindex="0" title="Cliquer pour ${isOpen ? 'masquer' : 'voir'} le détail"`;
           const caret = ` <span class="pf-dep-toggle-caret" aria-hidden="true">${isOpen ? '▾' : '▸'}</span>`;
+          const chartIconBtn = `
+            <button type="button" class="pf-consol-chart-btn pf-consol-chart-btn--mini${isChartOpen ? ' is-active' : ''}" data-detail-chart="${escapeHtml(c.key)}" title="${isChartOpen ? 'Masquer' : 'Afficher'} le graphique des derniers mois" aria-label="Graphique historique">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 13.5V2.5"/><path d="M2 13.5h12"/><path d="M4.5 11l2.5-3 2.5 2 3-4"/>
+              </svg>
+            </button>
+          `;
           return `
             <div class="pf-fin-cell ${toneClass}${clickableCls}${selectedCls}" ${clickAttrs}>
-              <span class="pf-fin-label">${escapeHtml(c.label)}${caret}</span>
+              <span class="pf-fin-label">${escapeHtml(c.label)}${caret}${chartIconBtn}</span>
               <span class="pf-fin-value">${pilotageFormatValue(c.value, c.format)}</span>
             </div>
           `;
         }).join('');
       }
+
+      // Graphique historique pour la cellule du Détail club active
+      renderDetailChart();
 
       // Panel « Détail CA / Cash-flow / EBE » — visible quand l'une de ces
       // cellules est ouverte (la cellule Dépenses utilise le breakdown grid

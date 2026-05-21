@@ -10554,6 +10554,13 @@ img {
   background: var(--ds-primary-500);
   border-color: var(--ds-primary-500);
 }
+/* Variante compacte pour les cellules Synthèse + Détail club */
+#tab-pilotage-funnel .pf-consol-chart-btn--mini {
+  width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  border-radius: 5px;
+}
 
 /* ── Cellules EBE consolidé cliquables (drill-down du calcul) ─── */
 #tab-pilotage-funnel .pf-consol-cell--clickable {
