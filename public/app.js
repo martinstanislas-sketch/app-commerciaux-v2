@@ -8368,6 +8368,8 @@ async function fetchPilotageData(/* state */) {
 }
 
 // ── Liste des clubs (V1: liste figée, à brancher sur une API plus tard) ──
+// Tourcoing / Ginkgo Sport est exclu volontairement : on ne l'analyse plus
+// dans l'EBE Groupe ni nulle part dans la page Pilotage Funnel.
 const PILOTAGE_CLUBS = [
   'Neuilly-sur-Seine',
   'Levallois-Perret',
@@ -8375,7 +8377,6 @@ const PILOTAGE_CLUBS = [
   'Wasquehal',
   'Marcq-en-Barœul',
   'Lille',
-  'Tourcoing',
 ];
 
 async function fetchPilotageClubs() {
@@ -8568,11 +8569,10 @@ const PF_FINANCIALS = [
 const PF_CONSOLIDATED_EBE = [
   { key: 'mycoach',         label: 'EBE My Coach',             scope: ['mycoach'] },
   { key: 'mycoach_franch',  label: 'EBE My Coach + Franchise', scope: ['mycoach', 'franchise'] },
-  // EBE consolidé Groupe = 6 My Coach + Franchise + Tourcoing.
-  // On EXCLUT la ligne « Taxes » : toutes les valeurs sont déjà ramenées en HT
-  // via la conversion CA TTC ÷ 1,20, donc la TVA n'a plus à être déduite côté
-  // dépenses. La ligne « Groupe Gingko Sport » reste aussi exclue (holding).
-  { key: 'groupe',          label: 'EBE Groupe',               scope: ['mycoach', 'franchise', 'tourcoing'] },
+  // EBE consolidé Groupe = 6 My Coach + Franchise (Tourcoing exclu — l'entité
+  // Ginkgo Sport n'est plus analysée dans cette page). Valeurs déjà HT via
+  // Σ CA TTC ÷ 1,20, donc ni Taxes ni Frais Groupe à ajouter côté dépenses.
+  { key: 'groupe',          label: 'EBE Groupe',               scope: ['mycoach', 'franchise'] },
 ];
 
 // Les 6 clubs My Coach (sans Tourcoing) — utilisés pour les agrégats
@@ -8613,15 +8613,8 @@ function pilotageConsolidatedEbeBreakdown(periodSig, scopeArr) {
     if (fca != null)  { totalCa += fca; hasAny = true; }
     if (fdep != null) { totalDep += fdep; hasAny = true; }
   }
-  if (scopeArr.includes('tourcoing')) {
-    let tca  = pilotageStoreRead(`Tourcoing|${periodSig}|fin:ca_ttc`);
-    let tdep = pilotageStoreRead(`Tourcoing|${periodSig}|fin:depenses`);
-    if (tca  == null) tca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
-    if (tdep == null) tdep = pilotageStoreRead(`__group__|${periodSig}|gdep:tourcoing`);
-    entries.push({ label: 'Tourcoing', ca: tca, dep: tdep, group: 'Tourcoing' });
-    if (tca != null)  { totalCa += tca; hasAny = true; }
-    if (tdep != null) { totalDep += tdep; hasAny = true; }
-  }
+  // (Scope 'tourcoing' désormais supprimé — Ginkgo Sport n'est plus analysé
+  //  dans l'EBE Groupe ni ailleurs dans la page Pilotage Funnel.)
   // Pas de lignes « Taxes » ou « Groupe Gingko Sport » côté dépenses :
   // les valeurs Pennylane sont déjà en HT (la TVA est retirée via la
   // conversion CA TTC ÷ 1,20 sur le total agrégé), donc inclure les
@@ -8642,7 +8635,9 @@ function pilotageConsolidatedEbe(periodSig, scopeArr) {
   return b.ebe;
 }
 
-// Cellules affichées dans la Synthèse financière : 6 EBE clubs + EBE Ginkgo Sport + CA Franchise
+// Cellules affichées dans la Synthèse financière : 6 EBE clubs + CA Franchise
+// (cellule EBE Ginkgo Sport retirée volontairement — l'entité Tourcoing
+// n'est plus analysée dans cette page).
 const PF_EBE_CELLS = [
   { type: 'club_ebe',     club: 'Lille',                label: 'EBE Lille' },
   { type: 'club_ebe',     club: 'Levallois-Perret',     label: 'EBE Levallois' },
@@ -8650,7 +8645,6 @@ const PF_EBE_CELLS = [
   { type: 'club_ebe',     club: 'Marcq-en-Barœul',      label: 'EBE Marcq' },
   { type: 'club_ebe',     club: 'Wasquehal',            label: 'EBE Wasquehal' },
   { type: 'club_ebe',     club: 'Neuilly-sur-Seine',    label: 'EBE Neuilly' },
-  { type: 'tourcoing_ebe',                              label: 'EBE Ginkgo Sport' },
   { type: 'franchise_ca',                               label: 'CA Franchise' },
 ];
 
@@ -10305,18 +10299,6 @@ async function renderPilotageFunnel() {
           if (caHt !== 0) value = ((caHt - dep) / caHt) * 100;
         }
         clickClub = cell.club;
-      } else if (cell.type === 'tourcoing_ebe') {
-        // Tourcoing est désormais un club à part entière. Fallback sur les
-        // anciennes clés grec/gdep si les nouvelles clés sont vides (data legacy).
-        let ca  = pilotageStoreRead(`Tourcoing|${periodSig}|fin:ca_ttc`);
-        let dep = pilotageStoreRead(`Tourcoing|${periodSig}|fin:depenses`);
-        if (ca == null)  ca  = pilotageStoreRead(`__group__|${periodSig}|grec:tourcoing`);
-        if (dep == null) dep = pilotageStoreRead(`__group__|${periodSig}|gdep:tourcoing`);
-        if (ca != null && dep != null && ca !== 0) {
-          const caHt = ca / 1.20;
-          if (caHt !== 0) value = ((caHt - dep) / caHt) * 100;
-        }
-        clickClub = 'Tourcoing';
       } else if (cell.type === 'franchise_ca') {
         value = pilotageStoreRead(`__group__|${periodSig}|grec:franchises`);
         format = 'eur';
@@ -10360,15 +10342,9 @@ async function renderPilotageFunnel() {
       const nameEl = document.getElementById('pf-club-detail-name');
       if (nameEl) nameEl.textContent = club;
 
-      // Récupère CA et Dépenses (Tourcoing = club normal + fallback legacy)
-      let ca  = pilotageStoreRead(`${club}|${sigPF}|fin:ca_ttc`);
-      let dep = pilotageStoreRead(`${club}|${sigPF}|fin:depenses`);
-      const isTourcoing = club === 'Tourcoing';
-      if (isTourcoing) {
-        // Fallback sur ancienne clé groupe si data legacy
-        if (ca == null)  ca  = pilotageStoreRead(`__group__|${sigPF}|grec:tourcoing`);
-        if (dep == null) dep = pilotageStoreRead(`__group__|${sigPF}|gdep:tourcoing`);
-      }
+      // Récupère CA et Dépenses pour le club sélectionné
+      const ca  = pilotageStoreRead(`${club}|${sigPF}|fin:ca_ttc`);
+      const dep = pilotageStoreRead(`${club}|${sigPF}|fin:depenses`);
       // Cash-flow = variation de trésorerie TTC (encaissements − décaissements)
       const cashflow = (ca != null && dep != null) ? (ca - dep) : null;
       // EBE en HT : CA HT = CA TTC ÷ 1,20, puis (CA HT − Dépenses) ÷ CA HT × 100
