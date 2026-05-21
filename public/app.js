@@ -8568,10 +8568,11 @@ const PF_FINANCIALS = [
 const PF_CONSOLIDATED_EBE = [
   { key: 'mycoach',         label: 'EBE My Coach',             scope: ['mycoach'] },
   { key: 'mycoach_franch',  label: 'EBE My Coach + Franchise', scope: ['mycoach', 'franchise'] },
-  // EBE consolidé Groupe = 6 My Coach + Franchise + Tourcoing en recettes,
-  // ET TOUTES les dépenses (clubs + Franchise + Tourcoing + Taxes) SAUF
-  // la ligne « Groupe Gingko Sport » (frais holding, exclus volontairement).
-  { key: 'groupe',          label: 'EBE Groupe',               scope: ['mycoach', 'franchise', 'tourcoing', 'taxes'] },
+  // EBE consolidé Groupe = 6 My Coach + Franchise + Tourcoing.
+  // On EXCLUT la ligne « Taxes » : toutes les valeurs sont déjà ramenées en HT
+  // via la conversion CA TTC ÷ 1,20, donc la TVA n'a plus à être déduite côté
+  // dépenses. La ligne « Groupe Gingko Sport » reste aussi exclue (holding).
+  { key: 'groupe',          label: 'EBE Groupe',               scope: ['mycoach', 'franchise', 'tourcoing'] },
 ];
 
 // Les 6 clubs My Coach (sans Tourcoing) — utilisés pour les agrégats
@@ -8621,15 +8622,10 @@ function pilotageConsolidatedEbeBreakdown(periodSig, scopeArr) {
     if (tca != null)  { totalCa += tca; hasAny = true; }
     if (tdep != null) { totalDep += tdep; hasAny = true; }
   }
-  // Lignes additionnelles côté dépenses (pas de CA associé)
-  // « Taxes » : décaissements fiscaux (IS, TVA, etc.) — inclus dans l'EBE
-  // consolidé Groupe selon la définition utilisateur, mais PAS dans My Coach
-  // ni My Coach + Franchise.
-  if (scopeArr.includes('taxes')) {
-    const taxDep = pilotageStoreRead(`__group__|${periodSig}|gdep:taxes`);
-    entries.push({ label: 'Taxes', ca: null, dep: taxDep, group: 'Autres dépenses' });
-    if (taxDep != null) { totalDep += taxDep; hasAny = true; }
-  }
+  // Pas de lignes « Taxes » ou « Groupe Gingko Sport » côté dépenses :
+  // les valeurs Pennylane sont déjà en HT (la TVA est retirée via la
+  // conversion CA TTC ÷ 1,20 sur le total agrégé), donc inclure les
+  // décaissements fiscaux dans l'EBE serait redondant.
   const caHt = totalCa / 1.20;
   let ebe = null;
   if (hasAny && totalCa !== 0 && caHt !== 0) {
