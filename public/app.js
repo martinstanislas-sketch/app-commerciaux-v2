@@ -8639,10 +8639,10 @@ const PF_EBE_CELLS = [
   { type: 'club_ebe',     club: 'Lille',                label: 'EBE Lille' },
   { type: 'club_ebe',     club: 'Levallois-Perret',     label: 'EBE Levallois' },
   { type: 'club_ebe',     club: 'Boulogne-Billancourt', label: 'EBE Boulogne' },
-  { type: 'club_ebe',     club: 'Marcq-en-Barœul',      label: 'EBE Marcq' },
+  { type: 'franchise_ca',                               label: 'CA Franchise' },
   { type: 'club_ebe',     club: 'Wasquehal',            label: 'EBE Wasquehal' },
   { type: 'club_ebe',     club: 'Neuilly-sur-Seine',    label: 'EBE Neuilly' },
-  { type: 'franchise_ca',                               label: 'CA Franchise' },
+  { type: 'club_ebe',     club: 'Marcq-en-Barœul',      label: 'EBE Marcq' },
   // HQ (Headquarters) = dépenses « Groupe Gingko Sport » dans les décaissements
   // Pennylane, stockées sous __group__|sig|gdep:groupe.
   { type: 'hq_dep',                                     label: 'HQ' },
