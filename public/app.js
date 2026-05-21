@@ -8567,10 +8567,9 @@ const PF_FINANCIALS = [
 // puis on applique la formule EBE = (Σ CA_HT − Σ Dépenses) / Σ CA_HT × 100
 // avec Σ CA_HT = (Σ CA_TTC) ÷ 1,20.
 const PF_CONSOLIDATED_EBE = [
-  { key: 'mycoach',         label: 'EBE My Coach',             scope: ['mycoach'] },
   { key: 'mycoach_franch',  label: 'EBE My Coach + Franchise', scope: ['mycoach', 'franchise'] },
-  // Cellule « EBE Groupe » retirée (à la demande de l'utilisateur — l'EBE
-  // My Coach + Franchise couvre déjà le périmètre consolidé pertinent).
+  // Cellules « EBE My Coach » et « EBE Groupe » retirées à la demande de
+  // l'utilisateur — seule la consolidation My Coach + Franchise est conservée.
 ];
 
 // Les 6 clubs My Coach (sans Tourcoing) — utilisés pour les agrégats
