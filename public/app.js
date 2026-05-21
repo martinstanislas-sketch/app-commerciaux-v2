@@ -8694,7 +8694,7 @@ let pilotageFunnelState = {
   detailCatOpen: null,     // null | 'salaire' | 'batiment' | 'marketing' | 'fonctionnement' — catégorie dépliée dans la carte détail
   consolDetailOpen: null,  // null | 'mycoach' | 'mycoach_franch' | 'groupe' — cellule EBE consolidé dépliée
   finDetailOpen: null,     // null | 'franchise_ca' | 'hq_dep' — cellule Synthèse fin dépliée (drill-down items Pennylane)
-  depBreakdownOpen: false, // false par défaut — passe à true quand on clique sur la cellule « Dépenses » du détail club
+  clubDetailOpen: null,    // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — cellule de la carte détail club dépliée
 };
 
 // Cache des clubs disponibles
@@ -9040,6 +9040,29 @@ function parsePennylaneXlsx(arrayBuffer) {
       if (ca != null && !Number.isNaN(ca))   clubData.ca_ttc = ca;
       if (dep != null && !Number.isNaN(dep)) clubData.depenses = dep;
 
+      // Items-enfants du CA (drill-down sur la cellule « CA » de la carte
+      // détail club) : on extrait toutes les lignes sous le club dans la
+      // section Encaissements (Prélèvement, CB, chèque, etc.) jusqu'à la
+      // prochaine ligne top-level boundary.
+      if (caRange && ca != null && !Number.isNaN(ca)) {
+        const caItems = [];
+        for (let j = caRange.rowIdx + 1; j < caRange.endIdx; j++) {
+          const rawLabel = String((rows[j] || [])[0] || '');
+          const trimmed = rawLabel.trim();
+          if (!trimmed) continue;
+          const lcTrim = trimmed.toLowerCase();
+          if (PENNYLANE_TOP_BOUNDARIES.has(lcTrim)) break;
+          const itemVal = Number((rows[j] || [])[col]);
+          if (Number.isNaN(itemVal) || itemVal === 0) continue;
+          caItems.push({ label: trimmed, value: itemVal });
+        }
+        if (caItems.length > 0) {
+          const reconciledCa = reconcileBreakdownItems(caItems, ca);
+          reconciledCa.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+          clubData.ca_ttc_items = reconciledCa;
+        }
+      }
+
       // Breakdown des dépenses (si depRange trouvé) + extraction des items enfants
       if (depRange) {
         const subs = findClubBreakdownSubRows(depRange);
@@ -9182,6 +9205,15 @@ function importPennylaneIntoStore(parsed) {
         valuesWritten++;
         monthsTouched.add(sig);
         clubsTouched.add(club);
+      }
+      // Items-enfants du CA (Prélèvement, CB, chèque, etc.) en JSON
+      if (Array.isArray(values.ca_ttc_items) && values.ca_ttc_items.length > 0) {
+        pilotageStoreWriteJson(`${club}|${sig}|fin:ca_ttc:items`, values.ca_ttc_items);
+        valuesWritten++;
+        monthsTouched.add(sig);
+        clubsTouched.add(club);
+      } else {
+        pilotageStoreWriteJson(`${club}|${sig}|fin:ca_ttc:items`, null);
       }
       if (values.depenses != null) {
         pilotageStoreWrite(`${club}|${sig}|fin:depenses`, values.depenses);
@@ -9885,7 +9917,7 @@ async function loadPilotageFunnel() {
       pilotageFunnelState.clubs = isOnlyThis ? [] : [club];
       // Reset l'éventuel panneau de détails ouvert (autre club / aucun club)
       pilotageFunnelState.detailCatOpen = null;
-      pilotageFunnelState.depBreakdownOpen = false;
+      pilotageFunnelState.clubDetailOpen = null;
       // Ferme le drill-down Franchise/HQ (incompatible avec la sélection d'un club)
       pilotageFunnelState.finDetailOpen = null;
       syncPfClubsCheckboxes();
@@ -9893,27 +9925,37 @@ async function loadPilotageFunnel() {
     });
   }
 
-  // Clic sur la cellule « Dépenses » du détail club → toggle le breakdown
-  if (rootPf && !rootPf.dataset.depToggleBound) {
-    rootPf.dataset.depToggleBound = '1';
-    const toggleDep = () => {
-      pilotageFunnelState.depBreakdownOpen = !pilotageFunnelState.depBreakdownOpen;
-      // En fermant, on ferme aussi le panneau d'une catégorie éventuellement dépliée
-      if (!pilotageFunnelState.depBreakdownOpen) {
+  // Clic sur une cellule du détail club (CA / Dépenses / Cash-flow / EBE)
+  // → toggle le panneau de détail correspondant
+  if (rootPf && !rootPf.dataset.clubDetailToggleBound) {
+    rootPf.dataset.clubDetailToggleBound = '1';
+    const toggleDetail = (which) => {
+      pilotageFunnelState.clubDetailOpen =
+        pilotageFunnelState.clubDetailOpen === which ? null : which;
+      // En fermant ou en changeant, on ferme aussi le panneau d'une catégorie éventuellement dépliée
+      if (pilotageFunnelState.clubDetailOpen !== 'depenses') {
         pilotageFunnelState.detailCatOpen = null;
       }
       renderPilotageFunnel();
     };
     rootPf.addEventListener('click', (e) => {
       if (e.target.closest('[data-edit-key]')) return;
-      if (!e.target.closest('[data-dep-toggle]')) return;
-      toggleDep();
+      if (e.target.closest('[data-club-detail-close]')) {
+        pilotageFunnelState.clubDetailOpen = null;
+        pilotageFunnelState.detailCatOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
+      const cell = e.target.closest('[data-detail-toggle]');
+      if (!cell) return;
+      toggleDetail(cell.dataset.detailToggle);
     });
     rootPf.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (!e.target.closest || !e.target.closest('[data-dep-toggle]')) return;
+      const cell = e.target.closest && e.target.closest('[data-detail-toggle]');
+      if (!cell) return;
       e.preventDefault();
-      toggleDep();
+      toggleDetail(cell.dataset.detailToggle);
     });
   }
 
@@ -10046,7 +10088,7 @@ async function initPfMultiSelectors() {
         pilotageFunnelState.clubs = current;
         // Reset le panneau de détails ouvert (autre club / multi)
         pilotageFunnelState.detailCatOpen = null;
-        pilotageFunnelState.depBreakdownOpen = false;
+        pilotageFunnelState.clubDetailOpen = null;
       }
       syncPfClubsCheckboxes();
       renderPilotageFunnel();
@@ -10583,18 +10625,20 @@ async function renderPilotageFunnel() {
       // Récupère CA et Dépenses pour le club sélectionné
       const ca  = pilotageStoreRead(`${club}|${sigPF}|fin:ca_ttc`);
       const dep = pilotageStoreRead(`${club}|${sigPF}|fin:depenses`);
-      // Cash-flow = variation de trésorerie TTC (encaissements − décaissements)
-      const cashflow = (ca != null && dep != null) ? (ca - dep) : null;
-      // EBE en HT : CA HT = CA TTC ÷ 1,20, puis (CA HT − Dépenses) ÷ CA HT × 100
+      // CA HT (après retrait des 20% de TVA)
+      const caHt = (ca != null) ? ca / 1.20 : null;
+      // Cash-flow = CA HT − Dépenses (sur la base HT, à la demande utilisateur)
+      const cashflow = (caHt != null && dep != null) ? (caHt - dep) : null;
+      // EBE en HT : (CA HT − Dépenses) ÷ CA HT × 100
       let ebe = null;
-      if (ca != null && dep != null) {
-        const caHt = ca / 1.20;
-        if (caHt !== 0) ebe = ((caHt - dep) / caHt) * 100;
+      if (caHt != null && dep != null && caHt !== 0) {
+        ebe = ((caHt - dep) / caHt) * 100;
       }
 
-      // 4 cellules principales
+      // 4 cellules principales — toutes cliquables pour ouvrir leur drill-down
       const main = document.getElementById('pf-club-detail-main');
-      const depOpen = !!pilotageFunnelState.depBreakdownOpen;
+      const openCell = pilotageFunnelState.clubDetailOpen;
+      const depOpen = openCell === 'depenses';
       if (main) {
         const cells = [
           { key: 'ca',        label: 'CA',        value: ca,       format: 'eur', tone: 'neutral' },
@@ -10609,14 +10653,12 @@ async function renderPilotageFunnel() {
           } else if (c.tone === 'muted') {
             toneClass = 'pf-fin-muted';
           }
-          // La cellule « Dépenses » est cliquable pour révéler le détail
-          const isDep = c.key === 'depenses';
-          const clickableCls = isDep ? ' pf-fin-cell--clickable' : '';
-          const selectedCls = (isDep && depOpen) ? ' pf-fin-cell--selected' : '';
-          const clickAttrs = isDep
-            ? `data-dep-toggle="1" role="button" tabindex="0" title="Cliquer pour ${depOpen ? 'masquer' : 'voir'} le détail des dépenses"`
-            : '';
-          const caret = isDep ? ` <span class="pf-dep-toggle-caret" aria-hidden="true">${depOpen ? '▾' : '▸'}</span>` : '';
+          // Toutes les cellules sont cliquables (révèle le drill-down)
+          const isOpen = openCell === c.key;
+          const clickableCls = ' pf-fin-cell--clickable';
+          const selectedCls = isOpen ? ' pf-fin-cell--selected' : '';
+          const clickAttrs = `data-detail-toggle="${escapeHtml(c.key)}" role="button" tabindex="0" title="Cliquer pour ${isOpen ? 'masquer' : 'voir'} le détail"`;
+          const caret = ` <span class="pf-dep-toggle-caret" aria-hidden="true">${isOpen ? '▾' : '▸'}</span>`;
           return `
             <div class="pf-fin-cell ${toneClass}${clickableCls}${selectedCls}" ${clickAttrs}>
               <span class="pf-fin-label">${escapeHtml(c.label)}${caret}</span>
@@ -10624,6 +10666,147 @@ async function renderPilotageFunnel() {
             </div>
           `;
         }).join('');
+      }
+
+      // Panel « Détail CA / Cash-flow / EBE » — visible quand l'une de ces
+      // cellules est ouverte (la cellule Dépenses utilise le breakdown grid
+      // séparé ci-dessous).
+      const extraPanel = document.getElementById('pf-club-detail-extra');
+      if (extraPanel) {
+        if (openCell === 'ca' || openCell === 'cashflow' || openCell === 'ebe') {
+          extraPanel.classList.remove('hidden');
+          if (openCell === 'ca') {
+            // Liste des items du CA (Prélèvement, CB, chèque, etc.)
+            let caItems = pilotageStoreReadJson(`${club}|${sigPF}|fin:ca_ttc:items`);
+            if (Array.isArray(caItems) && caItems.length > 0 && ca != null) {
+              const sum = caItems.reduce((s, it) => s + (Number(it.value) || 0), 0);
+              if (Math.abs(sum - Number(ca)) > 0.5) {
+                caItems = reconcileBreakdownItems(caItems, Number(ca));
+              }
+            }
+            if (!Array.isArray(caItems) || caItems.length === 0) {
+              extraPanel.innerHTML = `
+                <div class="pf-items-head">
+                  <span class="pf-items-title">CA <span class="pf-consol-detail-sub">Détail des encaissements</span></span>
+                  <button type="button" class="pf-items-close" data-club-detail-close title="Fermer">✕</button>
+                </div>
+                <div class="pf-items-empty">Aucune ligne détaillée importée pour le CA. Réimporte le fichier Pennylane pour récupérer le détail (Prélèvement, CB, chèque, etc.).</div>
+              `;
+            } else {
+              const total = caItems.reduce((s, it) => s + (Number(it.value) || 0), 0);
+              extraPanel.innerHTML = `
+                <div class="pf-items-head">
+                  <span class="pf-items-title">CA <span class="pf-consol-detail-sub">Détail des encaissements</span> <span class="pf-items-count">${caItems.length} ligne${caItems.length > 1 ? 's' : ''}</span></span>
+                  <button type="button" class="pf-items-close" data-club-detail-close title="Fermer">✕</button>
+                </div>
+                <ul class="pf-items-list">
+                  ${caItems.map(it => `
+                    <li class="pf-items-row">
+                      <span class="pf-items-label">${escapeHtml(it.label)}</span>
+                      <span class="pf-items-value">${pilotageFormatValue(it.value, 'eur')}</span>
+                    </li>
+                  `).join('')}
+                </ul>
+                <div class="pf-items-foot">
+                  <span class="pf-items-foot-label">Total</span>
+                  <span class="pf-items-foot-value">${pilotageFormatValue(total, 'eur')}</span>
+                </div>
+              `;
+            }
+          } else if (openCell === 'cashflow') {
+            // Calcul Cash-flow = CA HT − Dépenses
+            const fmt = (v) => pilotageFormatValue(v, 'eur');
+            extraPanel.innerHTML = `
+              <div class="pf-items-head">
+                <span class="pf-items-title">Cash-flow <span class="pf-consol-detail-sub">CA HT − Dépenses</span></span>
+                <button type="button" class="pf-items-close" data-club-detail-close title="Fermer">✕</button>
+              </div>
+              <table class="pf-consol-detail-table">
+                <tbody>
+                  <tr>
+                    <td class="pf-cd-col-label">CA TTC</td>
+                    <td class="pf-cd-col-num pf-cd-muted">${fmt(ca)}</td>
+                  </tr>
+                  <tr>
+                    <td class="pf-cd-col-label">CA HT (÷ 1,20)</td>
+                    <td class="pf-cd-col-num">${fmt(caHt)}</td>
+                  </tr>
+                  <tr>
+                    <td class="pf-cd-col-label">Dépenses</td>
+                    <td class="pf-cd-col-num">−&nbsp;${fmt(dep)}</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="pf-cd-total">
+                    <td class="pf-cd-col-label">Cash-flow</td>
+                    <td class="pf-cd-col-num">${fmt(cashflow)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+              <div class="pf-consol-formula">
+                <span class="pf-cf-step">CA HT</span>
+                <span class="pf-cf-val">${fmt(caHt)}</span>
+                <span class="pf-cf-op">−</span>
+                <span class="pf-cf-step">Dépenses</span>
+                <span class="pf-cf-val">${fmt(dep)}</span>
+                <span class="pf-cf-arrow">→</span>
+                <span class="pf-cf-result ${cashflow != null && cashflow >= 0 ? 'pf-fin-positive' : 'pf-fin-negative'}">${fmt(cashflow)}</span>
+              </div>
+            `;
+          } else if (openCell === 'ebe') {
+            // Calcul EBE = (CA HT − Dépenses) ÷ CA HT × 100
+            const fmtE = (v) => pilotageFormatValue(v, 'eur');
+            const fmtP = (v) => pilotageFormatValue(v, 'pct');
+            const diff = (caHt != null && dep != null) ? (caHt - dep) : null;
+            extraPanel.innerHTML = `
+              <div class="pf-items-head">
+                <span class="pf-items-title">EBE <span class="pf-consol-detail-sub">(CA HT − Dépenses) ÷ CA HT × 100</span></span>
+                <button type="button" class="pf-items-close" data-club-detail-close title="Fermer">✕</button>
+              </div>
+              <table class="pf-consol-detail-table">
+                <tbody>
+                  <tr>
+                    <td class="pf-cd-col-label">CA TTC</td>
+                    <td class="pf-cd-col-num pf-cd-muted">${fmtE(ca)}</td>
+                  </tr>
+                  <tr>
+                    <td class="pf-cd-col-label">CA HT (÷ 1,20)</td>
+                    <td class="pf-cd-col-num">${fmtE(caHt)}</td>
+                  </tr>
+                  <tr>
+                    <td class="pf-cd-col-label">Dépenses</td>
+                    <td class="pf-cd-col-num">−&nbsp;${fmtE(dep)}</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="pf-cd-total">
+                    <td class="pf-cd-col-label">CA HT − Dépenses</td>
+                    <td class="pf-cd-col-num">${fmtE(diff)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+              <div class="pf-consol-formula">
+                <span class="pf-cf-step">CA HT</span>
+                <span class="pf-cf-val">${fmtE(caHt)}</span>
+                <span class="pf-cf-op">−</span>
+                <span class="pf-cf-step">Dépenses</span>
+                <span class="pf-cf-val">${fmtE(dep)}</span>
+                <span class="pf-cf-op">=</span>
+                <span class="pf-cf-val">${fmtE(diff)}</span>
+                <span class="pf-cf-op">÷</span>
+                <span class="pf-cf-step">CA HT</span>
+                <span class="pf-cf-val">${fmtE(caHt)}</span>
+                <span class="pf-cf-op">×</span>
+                <span class="pf-cf-val">100</span>
+                <span class="pf-cf-arrow">→</span>
+                <span class="pf-cf-result ${ebe != null && ebe >= 0 ? 'pf-fin-positive' : 'pf-fin-negative'}">${fmtP(ebe)}</span>
+              </div>
+            `;
+          }
+        } else {
+          extraPanel.classList.add('hidden');
+          extraPanel.innerHTML = '';
+        }
       }
 
       // Breakdown des dépenses (visible uniquement si Dépenses a été cliqué)
