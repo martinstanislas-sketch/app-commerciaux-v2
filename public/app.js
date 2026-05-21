@@ -8845,6 +8845,66 @@ const PENNYLANE_MONTHS = {
   'déc':  12, 'dec': 12, 'décembre': 12, 'decembre': 12,
 };
 
+// Réconcilie une liste d'items extraits d'une catégorie de dépenses Pennylane
+// avec le total attendu (= valeur du sous-total parent). Pennylane peut contenir
+// des sous-totaux imbriqués qui font apparaître la même valeur deux fois dans
+// notre scan ligne-à-ligne (ex: Fluides = 122€ contient Électricité = 122€).
+// Heuristique :
+//   1. Si la somme des items > total : on cherche, en priorité, le sous-total
+//      le plus probable :
+//      a) un item dont la valeur égale UN sous-ensemble consécutif d'items
+//         suivants (parent-enfants),
+//      b) à défaut, un item dont la valeur égale exactement l'écart actuel.
+//   2. On retire cet item et on recommence jusqu'à ce que la somme matche
+//      le total ou qu'aucun candidat ne soit trouvé (safety break).
+function reconcileBreakdownItems(items, target) {
+  if (!Array.isArray(items) || items.length === 0) return items;
+  if (target == null || Number.isNaN(Number(target))) return items.slice();
+  const tolerance = 0.5; // tolérance pour erreurs de centimes
+  const keep = new Array(items.length).fill(true);
+  const currentSum = () => items.reduce((s, it, i) => keep[i] ? s + Number(it.value) : s, 0);
+  let safety = 50;
+  while (Math.abs(currentSum() - target) > tolerance && safety-- > 0) {
+    const total = currentSum();
+    if (total < target) break; // somme inférieure : on ne peut pas corriger en retirant
+    let removed = false;
+    // (1) Recherche d'un sous-total dont la valeur = somme d'items consécutifs suivants
+    for (let i = 0; i < items.length - 1; i++) {
+      if (!keep[i]) continue;
+      const parentVal = Number(items[i].value);
+      if (parentVal === 0) continue;
+      let runSum = 0;
+      let matched = false;
+      for (let j = i + 1; j < items.length; j++) {
+        if (!keep[j]) continue;
+        runSum += Number(items[j].value);
+        if (Math.abs(runSum - parentVal) < tolerance) { matched = true; break; }
+        // Critère d'arrêt : si runSum dépasse parentVal dans la direction utile
+        if (parentVal > 0 && runSum > parentVal + tolerance) break;
+        if (parentVal < 0 && runSum < parentVal - tolerance) break;
+      }
+      if (matched) {
+        keep[i] = false;
+        removed = true;
+        break;
+      }
+    }
+    if (removed) continue;
+    // (2) Recherche d'un item dont la valeur = écart exact
+    const diff = total - target;
+    for (let i = 0; i < items.length; i++) {
+      if (!keep[i]) continue;
+      if (Math.abs(Number(items[i].value) - diff) < tolerance) {
+        keep[i] = false;
+        removed = true;
+        break;
+      }
+    }
+    if (!removed) break; // aucun candidat trouvé → on s'arrête
+  }
+  return items.filter((_, i) => keep[i]);
+}
+
 function parsePennylaneXlsx(arrayBuffer) {
   if (typeof XLSX === 'undefined') {
     throw new Error('SheetJS (XLSX) non chargé');
@@ -9007,9 +9067,16 @@ function parsePennylaneXlsx(arrayBuffer) {
             clubData[`dep_${cat.key}`] = total;
           }
           if (items.length > 0) {
+            // Réconciliation : Pennylane peut contenir des sous-totaux
+            // imbriqués (ex: Fluides = parent, Électricité = unique enfant
+            // avec la MÊME valeur). Notre scan d'items les capture tous,
+            // ce qui fait double-emploi. On retire les items dont la valeur
+            // correspond à l'écart entre la somme actuelle et le total
+            // attendu, ou qui équivalent à la somme de leurs frères suivants.
+            const reconciled = reconcileBreakdownItems(items, total);
             // Tri décroissant par valeur absolue pour faire remonter les gros postes
-            items.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
-            clubData[`dep_${cat.key}_items`] = items;
+            reconciled.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+            clubData[`dep_${cat.key}_items`] = reconciled;
           }
         }
       }
@@ -10420,7 +10487,16 @@ async function renderPilotageFunnel() {
           itemsPanel.innerHTML = '';
         } else {
           const cat = PF_DEPENSES_BREAKDOWN.find(c => c.key === openCat);
-          const items = pilotageStoreReadJson(`${club}|${sigPF}|fin:dep_${openCat}:items`);
+          let items = pilotageStoreReadJson(`${club}|${sigPF}|fin:dep_${openCat}:items`);
+          // Réconcilie les items avec le total catégorie pour les data legacy
+          // (importées avant le fix de dédup des sous-totaux imbriqués).
+          const catTotal = pilotageStoreRead(`${club}|${sigPF}|fin:dep_${openCat}`);
+          if (Array.isArray(items) && items.length > 0 && catTotal != null) {
+            const sum = items.reduce((s, it) => s + (Number(it.value) || 0), 0);
+            if (Math.abs(sum - Number(catTotal)) > 0.5) {
+              items = reconcileBreakdownItems(items, Number(catTotal));
+            }
+          }
           if (!cat || !Array.isArray(items) || items.length === 0) {
             itemsPanel.classList.remove('hidden');
             itemsPanel.innerHTML = `
