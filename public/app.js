@@ -8569,10 +8569,8 @@ const PF_FINANCIALS = [
 const PF_CONSOLIDATED_EBE = [
   { key: 'mycoach',         label: 'EBE My Coach',             scope: ['mycoach'] },
   { key: 'mycoach_franch',  label: 'EBE My Coach + Franchise', scope: ['mycoach', 'franchise'] },
-  // EBE consolidé Groupe = 6 My Coach + Franchise (Tourcoing exclu — l'entité
-  // Ginkgo Sport n'est plus analysée dans cette page). Valeurs déjà HT via
-  // Σ CA TTC ÷ 1,20, donc ni Taxes ni Frais Groupe à ajouter côté dépenses.
-  { key: 'groupe',          label: 'EBE Groupe',               scope: ['mycoach', 'franchise'] },
+  // Cellule « EBE Groupe » retirée (à la demande de l'utilisateur — l'EBE
+  // My Coach + Franchise couvre déjà le périmètre consolidé pertinent).
 ];
 
 // Les 6 clubs My Coach (sans Tourcoing) — utilisés pour les agrégats
