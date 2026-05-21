@@ -127,12 +127,13 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   // Check consultant code (accès Pilotage en lecture seule + commentaires)
-  // Code en dur (peut être surchargé par PILOTAGE_CONSULTANT_PIN dans .env)
+  // Code en dur (peut être surchargé par PILOTAGE_CONSULTANT_PIN dans .env).
+  // Nom affiché à l'écran et utilisé comme auteur des commentaires = « Mathieu ».
   const consultantPin = process.env.PILOTAGE_CONSULTANT_PIN || 'MJJ#MCG';
   if (pin.trim() === consultantPin) {
     const token = crypto.randomUUID();
-    sessions.set(token, { role: 'consultant', name: 'Consultant', sales_rep_id: null });
-    return res.json({ token, role: 'consultant', name: 'Consultant', sales_rep_id: null });
+    sessions.set(token, { role: 'consultant', name: 'Mathieu', sales_rep_id: null });
+    return res.json({ token, role: 'consultant', name: 'Mathieu', sales_rep_id: null });
   }
 
   // Check commercial / phoneur PIN
