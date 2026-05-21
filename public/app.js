@@ -8693,6 +8693,7 @@ let pilotageFunnelState = {
   scope: 'none',           // 'none' (par défaut, rien affiché sauf si club spécifique) | 'mycoach' | 'group'
   detailCatOpen: null,     // null | 'salaire' | 'batiment' | 'marketing' | 'fonctionnement' — catégorie dépliée dans la carte détail
   consolDetailOpen: null,  // null | 'mycoach' | 'mycoach_franch' | 'groupe' — cellule EBE consolidé dépliée
+  finDetailOpen: null,     // null | 'franchise_ca' | 'hq_dep' — cellule Synthèse fin dépliée (drill-down items Pennylane)
 };
 
 // Cache des clubs disponibles
@@ -9107,6 +9108,25 @@ function parsePennylaneXlsx(arrayBuffer) {
     return rows.length;
   })();
 
+  // Extrait les items-enfants d'une ligne top-level (entre rowIdx+1 et la
+  // prochaine ligne top-level boundary ou la fin de la section). Utilisé pour
+  // les drill-down HQ, Franchise, etc.
+  const extractGroupItems = (rowIdx, sectionEnd, col) => {
+    const items = [];
+    for (let j = rowIdx + 1; j < sectionEnd; j++) {
+      const rawLabel = String((rows[j] || [])[0] || '');
+      const trimmed = rawLabel.trim();
+      if (!trimmed) continue;
+      const lcTrim = trimmed.toLowerCase();
+      // Stop si on atteint une nouvelle ligne top-level
+      if (PENNYLANE_TOP_BOUNDARIES.has(lcTrim)) break;
+      const v = Number((rows[j] || [])[col]);
+      if (Number.isNaN(v) || v === 0) continue;
+      items.push({ label: trimmed, value: v });
+    }
+    return items;
+  };
+
   result.group = {}; // monthSig → { grec:tourcoing, grec:franchises, ..., gdep:groupe, gdep:taxes, ... }
   for (const [sig, col] of Object.entries(monthColumns)) {
     const g = {};
@@ -9118,6 +9138,13 @@ function parsePennylaneXlsx(arrayBuffer) {
       if (rowIdx > 0) {
         const v = Number((rows[rowIdx] || [])[col]);
         if (!Number.isNaN(v)) g[`grec:${r.key}`] = v;
+        // Items-enfants (drill-down)
+        const items = extractGroupItems(rowIdx, decStart, col);
+        if (items.length > 0) {
+          const reconciled = reconcileBreakdownItems(items, v);
+          reconciled.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+          g[`grec:${r.key}:items`] = reconciled;
+        }
       }
     }
 
@@ -9127,6 +9154,13 @@ function parsePennylaneXlsx(arrayBuffer) {
       if (rowIdx > 0) {
         const v = Number((rows[rowIdx] || [])[col]);
         if (!Number.isNaN(v)) g[`gdep:${d.key}`] = v;
+        // Items-enfants (drill-down)
+        const items = extractGroupItems(rowIdx, decEnd, col);
+        if (items.length > 0) {
+          const reconciled = reconcileBreakdownItems(items, v);
+          reconciled.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+          g[`gdep:${d.key}:items`] = reconciled;
+        }
       }
     }
 
@@ -9181,7 +9215,13 @@ function importPennylaneIntoStore(parsed) {
   if (parsed.group) {
     for (const [sig, gvalues] of Object.entries(parsed.group)) {
       for (const [subKey, v] of Object.entries(gvalues)) {
-        pilotageStoreWrite(`__group__|${sig}|${subKey}`, v);
+        // Sub-keys terminant par « :items » sont des tableaux JSON
+        // (drill-down détaillé), les autres sont des montants numériques.
+        if (subKey.endsWith(':items')) {
+          pilotageStoreWriteJson(`__group__|${sig}|${subKey}`, v);
+        } else {
+          pilotageStoreWrite(`__group__|${sig}|${subKey}`, v);
+        }
         groupValuesWritten++;
         monthsTouched.add(sig);
       }
@@ -9844,7 +9884,38 @@ async function loadPilotageFunnel() {
       pilotageFunnelState.clubs = isOnlyThis ? [] : [club];
       // Reset l'éventuel panneau de détails ouvert (autre club / aucun club)
       pilotageFunnelState.detailCatOpen = null;
+      // Ferme le drill-down Franchise/HQ (incompatible avec la sélection d'un club)
+      pilotageFunnelState.finDetailOpen = null;
       syncPfClubsCheckboxes();
+      renderPilotageFunnel();
+    });
+  }
+
+  // Clic sur la cellule Franchise ou HQ → toggle drill-down des items
+  if (rootPf && !rootPf.dataset.finDetailBound) {
+    rootPf.dataset.finDetailBound = '1';
+    rootPf.addEventListener('click', (e) => {
+      if (e.target.closest('[data-fin-detail-close]')) {
+        pilotageFunnelState.finDetailOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
+      if (e.target.closest('[data-edit-key]')) return;
+      const cell = e.target.closest('[data-fin-detail]');
+      if (!cell) return;
+      const key = cell.dataset.finDetail;
+      pilotageFunnelState.finDetailOpen =
+        pilotageFunnelState.finDetailOpen === key ? null : key;
+      renderPilotageFunnel();
+    });
+    rootPf.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const cell = e.target.closest && e.target.closest('[data-fin-detail]');
+      if (!cell) return;
+      e.preventDefault();
+      const key = cell.dataset.finDetail;
+      pilotageFunnelState.finDetailOpen =
+        pilotageFunnelState.finDetailOpen === key ? null : key;
       renderPilotageFunnel();
     });
   }
@@ -10383,13 +10454,26 @@ async function renderPilotageFunnel() {
       } else if (format === 'eur' && value != null) {
         tone = (cell.type === 'hq_dep') ? 'pf-fin-muted' : 'pf-fin-accent';
       }
+      // Cellules Franchise et HQ : cliquables pour drill-down sur les
+      // sous-lignes Pennylane (grec:franchises:items / gdep:groupe:items)
+      const finDetailKey = (cell.type === 'franchise_ca') ? 'franchise_ca'
+                         : (cell.type === 'hq_dep')       ? 'hq_dep'
+                         : null;
+      const finDetailLabel = finDetailKey === 'franchise_ca' ? 'CA Franchise'
+                           : finDetailKey === 'hq_dep'      ? 'HQ'
+                           : '';
+      const isFinDetailOpen = finDetailKey && pilotageFunnelState.finDetailOpen === finDetailKey;
       // Indicateur visuel si ce club est actuellement sélectionné
-      const isSelected = clickClub && pilotageFunnelState.clubs.length === 1 && pilotageFunnelState.clubs[0] === clickClub;
-      const clickableClass = clickClub ? ' pf-fin-cell--clickable' : '';
+      const isSelected = (clickClub && pilotageFunnelState.clubs.length === 1 && pilotageFunnelState.clubs[0] === clickClub)
+                       || isFinDetailOpen;
+      const clickableClass = (clickClub || finDetailKey) ? ' pf-fin-cell--clickable' : '';
       const selectedClass = isSelected ? ' pf-fin-cell--selected' : '';
-      const clickAttrs = clickClub
-        ? `data-fin-club="${escapeHtml(clickClub)}" role="button" tabindex="0" title="Cliquer pour voir le détail de ${escapeHtml(clickClub)}"`
-        : '';
+      let clickAttrs = '';
+      if (clickClub) {
+        clickAttrs = `data-fin-club="${escapeHtml(clickClub)}" role="button" tabindex="0" title="Cliquer pour voir le détail de ${escapeHtml(clickClub)}"`;
+      } else if (finDetailKey) {
+        clickAttrs = `data-fin-detail="${escapeHtml(finDetailKey)}" role="button" tabindex="0" title="Cliquer pour voir le détail des lignes ${escapeHtml(finDetailLabel)}"`;
+      }
       const display = pilotageFormatValue(value, format);
       return `
         <div class="pf-fin-cell ${tone}${clickableClass}${selectedClass}" ${clickAttrs}>
@@ -10398,6 +10482,61 @@ async function renderPilotageFunnel() {
         </div>
       `;
     }).join('');
+  }
+
+  // Render carte « Détail des lignes » pour Franchise / HQ (visible quand
+  // pilotageFunnelState.finDetailOpen est franchise_ca ou hq_dep)
+  const finDetailCard = document.getElementById('pf-fin-detail');
+  if (finDetailCard) {
+    const sigPF = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
+    const openKey = pilotageFunnelState.finDetailOpen;
+    if (!openKey) {
+      finDetailCard.classList.add('hidden');
+      finDetailCard.innerHTML = '';
+    } else {
+      const meta = openKey === 'franchise_ca'
+        ? { title: 'CA Franchise', subtitle: 'Détail des recettes franchisées', storageKey: `__group__|${sigPF}|grec:franchises`, itemsKey: `__group__|${sigPF}|grec:franchises:items` }
+        : { title: 'HQ', subtitle: 'Détail des dépenses Groupe Gingko Sport', storageKey: `__group__|${sigPF}|gdep:groupe`, itemsKey: `__group__|${sigPF}|gdep:groupe:items` };
+      const catTotal = pilotageStoreRead(meta.storageKey);
+      let items = pilotageStoreReadJson(meta.itemsKey);
+      // Réconciliation pour data legacy
+      if (Array.isArray(items) && items.length > 0 && catTotal != null) {
+        const sum = items.reduce((s, it) => s + (Number(it.value) || 0), 0);
+        if (Math.abs(sum - Number(catTotal)) > 0.5) {
+          items = reconcileBreakdownItems(items, Number(catTotal));
+        }
+      }
+      finDetailCard.classList.remove('hidden');
+      if (!Array.isArray(items) || items.length === 0) {
+        finDetailCard.innerHTML = `
+          <div class="pf-items-head">
+            <span class="pf-items-title">${escapeHtml(meta.title)} <span class="pf-consol-detail-sub">${escapeHtml(meta.subtitle)}</span></span>
+            <button type="button" class="pf-items-close" data-fin-detail-close title="Fermer">✕</button>
+          </div>
+          <div class="pf-items-empty">Aucune ligne détaillée importée. Réimporte le fichier Pennylane pour récupérer le détail.</div>
+        `;
+      } else {
+        const total = items.reduce((s, it) => s + (Number(it.value) || 0), 0);
+        finDetailCard.innerHTML = `
+          <div class="pf-items-head">
+            <span class="pf-items-title">${escapeHtml(meta.title)} <span class="pf-consol-detail-sub">${escapeHtml(meta.subtitle)}</span> <span class="pf-items-count">${items.length} ligne${items.length > 1 ? 's' : ''}</span></span>
+            <button type="button" class="pf-items-close" data-fin-detail-close title="Fermer">✕</button>
+          </div>
+          <ul class="pf-items-list">
+            ${items.map(it => `
+              <li class="pf-items-row">
+                <span class="pf-items-label">${escapeHtml(it.label)}</span>
+                <span class="pf-items-value">${pilotageFormatValue(it.value, 'eur')}</span>
+              </li>
+            `).join('')}
+          </ul>
+          <div class="pf-items-foot">
+            <span class="pf-items-foot-label">Total</span>
+            <span class="pf-items-foot-value">${pilotageFormatValue(total, 'eur')}</span>
+          </div>
+        `;
+      }
+    }
   }
 
   // Render carte « Détail du club » — visible seulement si UN club spécifique sélectionné

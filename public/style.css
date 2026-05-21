@@ -10775,6 +10775,17 @@ img {
   margin-top: 2px;
 }
 
+/* ── Panel drill-down Synthèse (Franchise / HQ) ───────────────── */
+#tab-pilotage-funnel .pf-fin-detail.hidden { display: none !important; }
+#tab-pilotage-funnel .pf-fin-detail {
+  margin-top: 16px;
+  background: var(--ds-bg-elev-1, #f8f9fc);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 10px;
+  padding: 14px 16px 12px;
+  animation: pfItemsFade 180ms var(--ds-ease, ease-out) both;
+}
+
 /* ── Panel des lignes détaillées (items Pennylane) ────────────── */
 #tab-pilotage-funnel .pf-club-detail-items.hidden { display: none !important; }
 #tab-pilotage-funnel .pf-club-detail-items {
