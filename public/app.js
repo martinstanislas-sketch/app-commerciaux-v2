@@ -8643,6 +8643,9 @@ const PF_EBE_CELLS = [
   { type: 'club_ebe',     club: 'Wasquehal',            label: 'EBE Wasquehal' },
   { type: 'club_ebe',     club: 'Neuilly-sur-Seine',    label: 'EBE Neuilly' },
   { type: 'franchise_ca',                               label: 'CA Franchise' },
+  // HQ (Headquarters) = dépenses « Groupe Gingko Sport » dans les décaissements
+  // Pennylane, stockées sous __group__|sig|gdep:groupe.
+  { type: 'hq_dep',                                     label: 'HQ' },
 ];
 
 // Recettes complémentaires niveau Groupe (Pennylane → rows hors My Coach by Ginkgo)
@@ -10367,13 +10370,18 @@ async function renderPilotageFunnel() {
         value = pilotageStoreRead(`__group__|${periodSig}|grec:franchises`);
         format = 'eur';
         // Franchise pas dans PILOTAGE_CLUBS → non cliquable
+      } else if (cell.type === 'hq_dep') {
+        // HQ (Headquarters) = dépenses « Groupe Gingko Sport » de Pennylane
+        value = pilotageStoreRead(`__group__|${periodSig}|gdep:groupe`);
+        format = 'eur';
       }
-      // Tone sémantique : vert si EBE positif, rouge si négatif, accent indigo pour CA
+      // Tone sémantique : vert si EBE positif, rouge si négatif, accent indigo
+      // pour CA, rouge atténué pour les dépenses HQ.
       let tone = '';
       if (format === 'pct' && value != null && !Number.isNaN(Number(value))) {
         tone = Number(value) >= 0 ? 'pf-fin-positive' : 'pf-fin-negative';
       } else if (format === 'eur' && value != null) {
-        tone = 'pf-fin-accent';
+        tone = (cell.type === 'hq_dep') ? 'pf-fin-muted' : 'pf-fin-accent';
       }
       // Indicateur visuel si ce club est actuellement sélectionné
       const isSelected = clickClub && pilotageFunnelState.clubs.length === 1 && pilotageFunnelState.clubs[0] === clickClub;
