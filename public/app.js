@@ -8694,6 +8694,7 @@ let pilotageFunnelState = {
   detailCatOpen: null,     // null | 'salaire' | 'batiment' | 'marketing' | 'fonctionnement' — catégorie dépliée dans la carte détail
   consolDetailOpen: null,  // null | 'mycoach' | 'mycoach_franch' | 'groupe' — cellule EBE consolidé dépliée
   finDetailOpen: null,     // null | 'franchise_ca' | 'hq_dep' — cellule Synthèse fin dépliée (drill-down items Pennylane)
+  depBreakdownOpen: false, // false par défaut — passe à true quand on clique sur la cellule « Dépenses » du détail club
 };
 
 // Cache des clubs disponibles
@@ -9884,10 +9885,35 @@ async function loadPilotageFunnel() {
       pilotageFunnelState.clubs = isOnlyThis ? [] : [club];
       // Reset l'éventuel panneau de détails ouvert (autre club / aucun club)
       pilotageFunnelState.detailCatOpen = null;
+      pilotageFunnelState.depBreakdownOpen = false;
       // Ferme le drill-down Franchise/HQ (incompatible avec la sélection d'un club)
       pilotageFunnelState.finDetailOpen = null;
       syncPfClubsCheckboxes();
       renderPilotageFunnel();
+    });
+  }
+
+  // Clic sur la cellule « Dépenses » du détail club → toggle le breakdown
+  if (rootPf && !rootPf.dataset.depToggleBound) {
+    rootPf.dataset.depToggleBound = '1';
+    const toggleDep = () => {
+      pilotageFunnelState.depBreakdownOpen = !pilotageFunnelState.depBreakdownOpen;
+      // En fermant, on ferme aussi le panneau d'une catégorie éventuellement dépliée
+      if (!pilotageFunnelState.depBreakdownOpen) {
+        pilotageFunnelState.detailCatOpen = null;
+      }
+      renderPilotageFunnel();
+    };
+    rootPf.addEventListener('click', (e) => {
+      if (e.target.closest('[data-edit-key]')) return;
+      if (!e.target.closest('[data-dep-toggle]')) return;
+      toggleDep();
+    });
+    rootPf.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (!e.target.closest || !e.target.closest('[data-dep-toggle]')) return;
+      e.preventDefault();
+      toggleDep();
     });
   }
 
@@ -10020,6 +10046,7 @@ async function initPfMultiSelectors() {
         pilotageFunnelState.clubs = current;
         // Reset le panneau de détails ouvert (autre club / multi)
         pilotageFunnelState.detailCatOpen = null;
+        pilotageFunnelState.depBreakdownOpen = false;
       }
       syncPfClubsCheckboxes();
       renderPilotageFunnel();
@@ -10567,12 +10594,13 @@ async function renderPilotageFunnel() {
 
       // 4 cellules principales
       const main = document.getElementById('pf-club-detail-main');
+      const depOpen = !!pilotageFunnelState.depBreakdownOpen;
       if (main) {
         const cells = [
-          { label: 'CA',        value: ca,       format: 'eur', tone: 'neutral' },
-          { label: 'Dépenses',  value: dep,      format: 'eur', tone: 'muted' },
-          { label: 'Cash-flow', value: cashflow, format: 'eur', tone: 'highlight' },
-          { label: 'EBE',       value: ebe,      format: 'pct', tone: 'highlight' },
+          { key: 'ca',        label: 'CA',        value: ca,       format: 'eur', tone: 'neutral' },
+          { key: 'depenses',  label: 'Dépenses',  value: dep,      format: 'eur', tone: 'muted' },
+          { key: 'cashflow',  label: 'Cash-flow', value: cashflow, format: 'eur', tone: 'highlight' },
+          { key: 'ebe',       label: 'EBE',       value: ebe,      format: 'pct', tone: 'highlight' },
         ];
         main.innerHTML = cells.map(c => {
           let toneClass = '';
@@ -10581,20 +10609,32 @@ async function renderPilotageFunnel() {
           } else if (c.tone === 'muted') {
             toneClass = 'pf-fin-muted';
           }
+          // La cellule « Dépenses » est cliquable pour révéler le détail
+          const isDep = c.key === 'depenses';
+          const clickableCls = isDep ? ' pf-fin-cell--clickable' : '';
+          const selectedCls = (isDep && depOpen) ? ' pf-fin-cell--selected' : '';
+          const clickAttrs = isDep
+            ? `data-dep-toggle="1" role="button" tabindex="0" title="Cliquer pour ${depOpen ? 'masquer' : 'voir'} le détail des dépenses"`
+            : '';
+          const caret = isDep ? ` <span class="pf-dep-toggle-caret" aria-hidden="true">${depOpen ? '▾' : '▸'}</span>` : '';
           return `
-            <div class="pf-fin-cell ${toneClass}">
-              <span class="pf-fin-label">${escapeHtml(c.label)}</span>
+            <div class="pf-fin-cell ${toneClass}${clickableCls}${selectedCls}" ${clickAttrs}>
+              <span class="pf-fin-label">${escapeHtml(c.label)}${caret}</span>
               <span class="pf-fin-value">${pilotageFormatValue(c.value, c.format)}</span>
             </div>
           `;
         }).join('');
       }
 
-      // Breakdown des dépenses (Tourcoing inclus — il a ses propres sous-rows
-      // « Masse salariale Tourcoing », « Bâtiment Tourcoing », etc. dans Pennylane)
+      // Breakdown des dépenses (visible uniquement si Dépenses a été cliqué)
       const breakdownWrap = document.getElementById('pf-club-detail-breakdown-wrap');
       const breakdownGrid = document.getElementById('pf-club-detail-breakdown');
-      if (breakdownWrap && breakdownGrid) {
+      if (breakdownWrap && breakdownGrid && !depOpen) {
+        // Masque le wrap et le panneau d'items détaillé éventuellement ouvert
+        breakdownWrap.classList.add('hidden');
+        const itemsPanel0 = document.getElementById('pf-club-detail-items');
+        if (itemsPanel0) { itemsPanel0.classList.add('hidden'); itemsPanel0.innerHTML = ''; }
+      } else if (breakdownWrap && breakdownGrid && depOpen) {
         breakdownWrap.classList.remove('hidden');
         const openCat = pilotageFunnelState.detailCatOpen;
         breakdownGrid.innerHTML = PF_DEPENSES_BREAKDOWN.map(cat => {
