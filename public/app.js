@@ -8636,6 +8636,121 @@ function pilotageConsolidatedEbe(periodSig, scopeArr) {
   return b.ebe;
 }
 
+// Référence vers l'instance Chart.js de l'historique EBE (pour pouvoir la
+// détruire avant d'en recréer une au prochain render).
+let pilotageConsolChartInstance = null;
+
+// Rend (ou met à jour) le graphique d'évolution de l'EBE consolidé selon
+// la cellule active dans `pilotageFunnelState.consolChartOpen`. Affiche
+// les 12 derniers mois (mois courant inclus, ancré sur pilotageFunnelState
+// .dateAnchor). Si aucune cellule n'est active → masque le panneau.
+function renderConsolEbeChart() {
+  const wrap = document.getElementById('pf-consol-chart-wrap');
+  const canvas = document.getElementById('pf-consol-chart-canvas');
+  const titleEl = document.getElementById('pf-consol-chart-title');
+  if (!wrap || !canvas) return;
+  const key = pilotageFunnelState.consolChartOpen;
+  if (!key) {
+    wrap.classList.add('hidden');
+    if (pilotageConsolChartInstance) {
+      pilotageConsolChartInstance.destroy();
+      pilotageConsolChartInstance = null;
+    }
+    return;
+  }
+  const cfg = PF_CONSOLIDATED_EBE.find(c => c.key === key);
+  if (!cfg) {
+    wrap.classList.add('hidden');
+    return;
+  }
+  wrap.classList.remove('hidden');
+  if (titleEl) titleEl.textContent = `Évolution — ${cfg.label}`;
+
+  // Construit la série des 12 derniers mois (le mois ancré = dernier point)
+  const anchor = new Date(pilotageFunnelState.dateAnchor || pilotageToLocalISODate(new Date()));
+  // On ramène à un jour neutre pour éviter les surprises de fin de mois
+  anchor.setDate(1);
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(anchor.getFullYear(), anchor.getMonth() - i, 1);
+    const sig = `month-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const lbl = d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+    months.push({ sig, label: lbl });
+  }
+  const labels = months.map(m => m.label);
+  const values = months.map(m => {
+    const v = pilotageConsolidatedEbe(m.sig, cfg.scope);
+    return (v == null || Number.isNaN(Number(v))) ? null : Number(v);
+  });
+  // Couleur par point : vert si ≥ 0, rouge si < 0, gris si null
+  const pointColors = values.map(v => v == null ? 'rgba(148,163,184,0.4)' : (v >= 0 ? '#22c55e' : '#ef4444'));
+
+  if (typeof Chart === 'undefined') {
+    canvas.parentElement.innerHTML = '<div class="pf-items-empty">Chart.js non chargé.</div>';
+    return;
+  }
+  if (pilotageConsolChartInstance) {
+    pilotageConsolChartInstance.destroy();
+    pilotageConsolChartInstance = null;
+  }
+  pilotageConsolChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: cfg.label,
+        data: values,
+        spanGaps: true,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.10)',
+        pointBackgroundColor: pointColors,
+        pointBorderColor: pointColors,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0.3,
+        fill: true,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#fff',
+          titleColor: '#1E293B',
+          bodyColor: '#475569',
+          borderColor: 'rgba(148,163,194,0.2)',
+          borderWidth: 1,
+          titleFont: { size: 12, family: 'Inter' },
+          bodyFont: { size: 11, family: 'Inter' },
+          cornerRadius: 8,
+          padding: 10,
+          callbacks: {
+            label: ctx => ctx.parsed.y == null
+              ? 'Pas de donnée'
+              : `${cfg.label} : ${ctx.parsed.y.toFixed(1).replace('.', ',')} %`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 11, family: 'Inter' }, color: '#64748b' },
+        },
+        y: {
+          grid: { color: 'rgba(148,163,184,0.15)' },
+          ticks: {
+            font: { size: 11, family: 'Inter' },
+            color: '#64748b',
+            callback: (v) => `${Number(v).toFixed(0)} %`,
+          },
+        },
+      },
+    },
+  });
+}
+
 // Cellules affichées dans la Synthèse financière : 6 EBE clubs + CA Franchise
 // (cellule EBE Ginkgo Sport retirée volontairement — l'entité Tourcoing
 // n'est plus analysée dans cette page).
@@ -8697,6 +8812,7 @@ let pilotageFunnelState = {
   scope: 'none',           // 'none' (par défaut, rien affiché sauf si club spécifique) | 'mycoach' | 'group'
   detailCatOpen: null,     // null | 'salaire' | 'batiment' | 'marketing' | 'fonctionnement' — catégorie dépliée dans la carte détail
   consolDetailOpen: null,  // null | 'mycoach' | 'mycoach_franch' | 'groupe' — cellule EBE consolidé dépliée
+  consolChartOpen: null,   // null | 'mycoach_franch' | 'mycoach_franch_hq' — graphique historique des EBE affiché
   finDetailOpen: null,     // null | 'franchise_ca' | 'hq_dep' — cellule Synthèse fin dépliée (drill-down items Pennylane)
   clubDetailOpen: null,    // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — cellule de la carte détail club dépliée
 };
@@ -10021,12 +10137,29 @@ async function loadPilotageFunnel() {
     });
   }
 
-  // Clic sur une cellule EBE consolidé → ouvre/ferme le panel détail du calcul
+  // Clic sur une cellule EBE consolidé → ouvre/ferme le panel détail du calcul.
+  // Le bouton graphique a sa propre logique (data-consol-chart) gérée plus bas.
   if (rootPf && !rootPf.dataset.consolDetailBound) {
     rootPf.dataset.consolDetailBound = '1';
     rootPf.addEventListener('click', (e) => {
       if (e.target.closest('[data-consol-close]')) {
         pilotageFunnelState.consolDetailOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
+      // Bouton de fermeture du graphique
+      if (e.target.closest('[data-consol-chart-close]')) {
+        pilotageFunnelState.consolChartOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
+      // Icône graphique : toggle du chart sans déclencher le drill-down détail
+      const chartBtn = e.target.closest('[data-consol-chart]');
+      if (chartBtn) {
+        e.stopPropagation();
+        const key = chartBtn.dataset.consolChart;
+        pilotageFunnelState.consolChartOpen =
+          pilotageFunnelState.consolChartOpen === key ? null : key;
         renderPilotageFunnel();
         return;
       }
@@ -10039,6 +10172,16 @@ async function loadPilotageFunnel() {
     });
     rootPf.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
+      // Activation clavier du bouton graphique
+      const chartBtn = e.target.closest && e.target.closest('[data-consol-chart]');
+      if (chartBtn) {
+        e.preventDefault();
+        const key = chartBtn.dataset.consolChart;
+        pilotageFunnelState.consolChartOpen =
+          pilotageFunnelState.consolChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
       const cell = e.target.closest && e.target.closest('[data-consol-key]');
       if (!cell) return;
       e.preventDefault();
@@ -10422,6 +10565,7 @@ async function renderPilotageFunnel() {
   if (consolGrid) {
     const sig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
     const openKey = pilotageFunnelState.consolDetailOpen;
+    const openChart = pilotageFunnelState.consolChartOpen;
     consolGrid.innerHTML = PF_CONSOLIDATED_EBE.map(c => {
       const value = pilotageConsolidatedEbe(sig, c.scope);
       let tone = '';
@@ -10430,10 +10574,21 @@ async function renderPilotageFunnel() {
       }
       const display = pilotageFormatValue(value, 'pct');
       const isOpen = openKey === c.key;
-      const cls = 'pf-fin-cell pf-consol-cell--clickable' + (tone ? ` ${tone}` : '') + (isOpen ? ' is-open' : '');
+      const isChartOpen = openChart === c.key;
+      const cls = 'pf-fin-cell pf-consol-cell--clickable' + (tone ? ` ${tone}` : '') + (isOpen ? ' is-open' : '') + (isChartOpen ? ' is-chart-open' : '');
+      // Icône graphique (SVG inline) — clic indépendant du toggle détail
+      const chartIcon = `
+        <button type="button" class="pf-consol-chart-btn${isChartOpen ? ' is-active' : ''}" data-consol-chart="${escapeHtml(c.key)}" title="${isChartOpen ? 'Masquer' : 'Afficher'} le graphique des derniers mois" aria-label="Graphique EBE">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 13.5V2.5"/>
+            <path d="M2 13.5h12"/>
+            <path d="M4.5 11l2.5-3 2.5 2 3-4"/>
+          </svg>
+        </button>
+      `;
       return `
         <div class="${cls}" data-consol-key="${escapeHtml(c.key)}" role="button" tabindex="0" title="Cliquer pour voir le détail du calcul">
-          <span class="pf-fin-label">${escapeHtml(c.label)} <span class="pf-consol-caret" aria-hidden="true">${isOpen ? '▾' : '▸'}</span></span>
+          <span class="pf-fin-label">${escapeHtml(c.label)} <span class="pf-consol-caret" aria-hidden="true">${isOpen ? '▾' : '▸'}</span>${chartIcon}</span>
           <span class="pf-fin-value">${display}</span>
         </div>
       `;
@@ -10528,6 +10683,9 @@ async function renderPilotageFunnel() {
         }
       }
     }
+
+    // Graphique historique EBE (toggle via le logo à côté du label)
+    renderConsolEbeChart();
   }
 
   // Synthèse financière : 6 EBE clubs My Coach + EBE Ginkgo Sport + CA Franchise

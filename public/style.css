@@ -10527,6 +10527,34 @@ img {
   }
 }
 
+/* Bouton graphique (logo) à côté du label EBE consolidé */
+#tab-pilotage-funnel .pf-consol-chart-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 6px;
+  padding: 0;
+  background: var(--ds-bg-card, #fff);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 6px;
+  color: var(--ds-fg-3);
+  cursor: pointer;
+  vertical-align: middle;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+}
+#tab-pilotage-funnel .pf-consol-chart-btn:hover {
+  color: var(--ds-primary-500);
+  border-color: var(--ds-primary-500);
+  background: rgba(99, 102, 241, 0.08);
+}
+#tab-pilotage-funnel .pf-consol-chart-btn.is-active {
+  color: #fff;
+  background: var(--ds-primary-500);
+  border-color: var(--ds-primary-500);
+}
+
 /* ── Cellules EBE consolidé cliquables (drill-down du calcul) ─── */
 #tab-pilotage-funnel .pf-consol-cell--clickable {
   cursor: pointer;
@@ -10778,6 +10806,36 @@ img {
 /* Sections masquées tant qu'aucun club n'est sélectionné */
 #tab-pilotage-funnel .pf-grid.hidden,
 #tab-pilotage-funnel .pf-funnel-section.hidden { display: none !important; }
+
+/* ── Graphique historique EBE consolidé ─────────────────────── */
+#tab-pilotage-funnel .pf-consol-chart-wrap.hidden { display: none !important; }
+#tab-pilotage-funnel .pf-consol-chart-wrap {
+  margin-top: 18px;
+  background: var(--ds-bg-elev-1, #f8f9fc);
+  border: 1px solid var(--ds-border-2);
+  border-radius: 10px;
+  padding: 14px 16px 12px;
+  animation: pfItemsFade 180ms var(--ds-ease, ease-out) both;
+}
+#tab-pilotage-funnel .pf-consol-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ds-border-2);
+}
+#tab-pilotage-funnel .pf-consol-chart-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ds-fg-1);
+}
+#tab-pilotage-funnel .pf-consol-chart-canvas-wrap {
+  position: relative;
+  height: 260px;
+}
 
 /* ── Panel drill-down Synthèse (Franchise / HQ) ───────────────── */
 #tab-pilotage-funnel .pf-fin-detail.hidden { display: none !important; }
