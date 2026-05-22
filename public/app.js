@@ -637,6 +637,7 @@ function updateTabVisibility() {
     if (persoBtn) persoBtn.style.display = 'none';
     if (pilotageFunnelBtn) {
       pilotageFunnelBtn.style.display = '';
+      pilotageFunnelInitToPreviousMonth();
       pilotageFunnelBtn.click();
     }
     return;
@@ -661,8 +662,15 @@ function updateTabVisibility() {
     if (tasksBtn) tasksBtn.style.display = '';
     if (persoBtn) persoBtn.style.display = '';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
-    // Default landing tab on login = Tâches
-    if (tasksBtn) tasksBtn.click(); else dashBtn.click();
+    // Default landing tab on login (admin) = Pilotage, pré-réglé au mois précédent
+    if (pilotageFunnelBtn) {
+      pilotageFunnelInitToPreviousMonth();
+      pilotageFunnelBtn.click();
+    } else if (tasksBtn) {
+      tasksBtn.click();
+    } else {
+      dashBtn.click();
+    }
   } else {
     // Commercial: Aujourd'hui + Ventes + Récap + Tâches
     if (todayBtn) todayBtn.style.display = '';
@@ -9313,6 +9321,24 @@ let pilotageFunnelState = {
   finDetailOpen: null,     // null | 'franchise_ca' | 'hq_dep' — cellule Synthèse fin dépliée (drill-down items Pennylane)
   clubDetailOpen: null,    // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — cellule de la carte détail club dépliée
 };
+
+// Pré-règle pilotageFunnelState au mois précédent (le mois en cours étant
+// rarement complet, on landed sur le mois écoulé qui a des chiffres clos).
+// Idempotent : on ne touche pas l'état si l'utilisateur a déjà navigué
+// manuellement (dateAnchor différent du mois courant).
+function pilotageFunnelInitToPreviousMonth() {
+  try {
+    const today = new Date();
+    const todayISO = pilotageToLocalISODate(today);
+    // Si l'ancre est déjà différente du jour courant, on respecte le choix
+    // utilisateur (ex: il a changé de mois avant de cliquer ailleurs et revient)
+    if (pilotageFunnelState.dateAnchor && pilotageFunnelState.dateAnchor !== todayISO) return;
+    // Bascule en mode month + ancre = 1er du mois précédent
+    const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    pilotageFunnelState.period = 'month';
+    pilotageFunnelState.dateAnchor = pilotageToLocalISODate(prev);
+  } catch (_) {}
+}
 
 // Cache des clubs disponibles
 let pfClubsCache = null;
