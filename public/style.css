@@ -11146,13 +11146,18 @@ body.is-consultant .pf-consultant-only.pf-filter-group { display: flex !importan
 
 /* ── Panel drill-down détail club (CA / Cash-flow / EBE) ──────── */
 #tab-pilotage-funnel .pf-club-detail-extra.hidden { display: none !important; }
+/* Détail CA / Cash-flow / EBE : présenté comme le « Détail des dépenses »
+   (en-tête sobre + grille de cellules pf-dep-cell, pas de boîte autour) */
 #tab-pilotage-funnel .pf-club-detail-extra {
-  margin-top: 16px;
-  background: var(--ds-bg-elev-1, #f8f9fc);
-  border: 1px solid var(--ds-border-2);
-  border-radius: 10px;
-  padding: 14px 16px 12px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--ds-border-2);
   animation: pfItemsFade 180ms var(--ds-ease, ease-out) both;
+}
+#tab-pilotage-funnel .pf-club-detail-extra .pf-club-detail-breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
 }
 
 /* ── Panel des lignes détaillées (items Pennylane) ────────────── */

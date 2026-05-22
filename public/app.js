@@ -11503,13 +11503,26 @@ async function renderPilotageFunnel() {
 
       // Panel « Détail CA / Cash-flow / EBE » — visible quand l'une de ces
       // cellules est ouverte (la cellule Dépenses utilise le breakdown grid
-      // séparé ci-dessous).
+      // séparé ci-dessous). On utilise la MÊME présentation visuelle que
+      // celle du « Détail des dépenses » : un en-tête sobre + une grille de
+      // cellules `pf-dep-cell` à 4 colonnes max (chaque item = une cellule).
       const extraPanel = document.getElementById('pf-club-detail-extra');
       if (extraPanel) {
+        // Helper : construit une cellule « pf-dep-cell » avec label + valeur + icône graphique
+        const renderDepStyleCell = (label, value, format) => `
+          <div class="pf-dep-cell">
+            <span class="pf-dep-label">${escapeHtml(label)}</span>
+            <span class="pf-dep-value">${pilotageFormatValue(value, format || 'eur')}</span>
+          </div>
+        `;
         if (openCell === 'ca' || openCell === 'cashflow' || openCell === 'ebe') {
           extraPanel.classList.remove('hidden');
+          let headerTitle = '';
+          let cellsHtml = '';
+          let emptyHtml = '';
+
           if (openCell === 'ca') {
-            // Liste des items du CA (Prélèvement, CB, chèque, etc.)
+            headerTitle = 'Détail des encaissements';
             let caItems = pilotageStoreReadJson(`${club}|${sigPF}|fin:ca_ttc:items`);
             if (Array.isArray(caItems) && caItems.length > 0 && ca != null) {
               const sum = caItems.reduce((s, it) => s + (Number(it.value) || 0), 0);
@@ -11518,92 +11531,32 @@ async function renderPilotageFunnel() {
               }
             }
             if (!Array.isArray(caItems) || caItems.length === 0) {
-              extraPanel.innerHTML = `
-                <div class="pf-items-head">
-                  <span class="pf-items-title">CA <span class="pf-consol-detail-sub">Détail des encaissements</span></span>
-                  <button type="button" class="pf-items-close" data-club-detail-close title="Fermer">✕</button>
-                </div>
-                <div class="pf-items-empty">Aucune ligne détaillée importée pour le CA. Réimporte le fichier Pennylane pour récupérer le détail (Prélèvement, CB, chèque, etc.).</div>
-              `;
+              emptyHtml = `<div class="pf-items-empty">Aucune ligne détaillée importée pour le CA. Réimporte le fichier Pennylane pour récupérer le détail (Prélèvement, CB, chèque, etc.).</div>`;
             } else {
-              const total = caItems.reduce((s, it) => s + (Number(it.value) || 0), 0);
-              extraPanel.innerHTML = `
-                <div class="pf-items-head">
-                  <span class="pf-items-title">CA <span class="pf-consol-detail-sub">Détail des encaissements</span> <span class="pf-items-count">${caItems.length} ligne${caItems.length > 1 ? 's' : ''}</span></span>
-                  <button type="button" class="pf-items-close" data-club-detail-close title="Fermer">✕</button>
-                </div>
-                <ul class="pf-items-list">
-                  ${caItems.map(it => `
-                    <li class="pf-items-row">
-                      <span class="pf-items-label">${escapeHtml(it.label)}</span>
-                      <span class="pf-items-value">${pilotageFormatValue(it.value, 'eur')}</span>
-                    </li>
-                  `).join('')}
-                </ul>
-                <div class="pf-items-foot">
-                  <span class="pf-items-foot-label">Total</span>
-                  <span class="pf-items-foot-value">${pilotageFormatValue(total, 'eur')}</span>
-                </div>
-              `;
+              cellsHtml = caItems.map(it => renderDepStyleCell(it.label, it.value, 'eur')).join('');
             }
           } else if (openCell === 'cashflow') {
-            // Cash-flow = CA HT − Dépenses, présenté en format « liste d'items »
-            // similaire au Détail des encaissements.
-            const fmt = (v) => pilotageFormatValue(v, 'eur');
-            const items = [
-              { label: 'CA HT (CA TTC ÷ 1,20)',         value: caHt },
-              { label: 'Dépenses (à déduire)',          value: dep != null ? -dep : null },
-            ];
-            const validItems = items.filter(it => it.value != null && !Number.isNaN(Number(it.value)));
-            extraPanel.innerHTML = `
-              <div class="pf-items-head">
-                <span class="pf-items-title">Cash-flow <span class="pf-consol-detail-sub">CA HT − Dépenses</span> <span class="pf-items-count">${validItems.length} ligne${validItems.length > 1 ? 's' : ''}</span></span>
-                <button type="button" class="pf-items-close" data-club-detail-close title="Fermer">✕</button>
-              </div>
-              <ul class="pf-items-list">
-                ${items.map(it => `
-                  <li class="pf-items-row">
-                    <span class="pf-items-label">${escapeHtml(it.label)}</span>
-                    <span class="pf-items-value">${fmt(it.value)}</span>
-                  </li>
-                `).join('')}
-              </ul>
-              <div class="pf-items-foot">
-                <span class="pf-items-foot-label">Total</span>
-                <span class="pf-items-foot-value ${cashflow != null && cashflow >= 0 ? 'pf-fin-positive' : (cashflow != null ? 'pf-fin-negative' : '')}">${fmt(cashflow)}</span>
-              </div>
-            `;
+            headerTitle = 'Détail du cash-flow (CA HT − Dépenses)';
+            cellsHtml = [
+              renderDepStyleCell('CA HT (÷ 1,20)', caHt, 'eur'),
+              renderDepStyleCell('Dépenses', dep, 'eur'),
+            ].join('');
           } else if (openCell === 'ebe') {
-            // EBE = (CA HT − Dépenses) ÷ CA HT × 100, présenté en format
-            // « liste d'items » avec Total = pourcentage final.
-            const fmtE = (v) => pilotageFormatValue(v, 'eur');
-            const fmtP = (v) => pilotageFormatValue(v, 'pct');
             const diff = (caHt != null && dep != null) ? (caHt - dep) : null;
-            const items = [
-              { label: 'CA HT (CA TTC ÷ 1,20)',         value: caHt },
-              { label: 'Dépenses (à déduire)',          value: dep != null ? -dep : null },
-              { label: 'Cash-flow (CA HT − Dépenses)',  value: diff },
-            ];
-            const validItems = items.filter(it => it.value != null && !Number.isNaN(Number(it.value)));
-            extraPanel.innerHTML = `
-              <div class="pf-items-head">
-                <span class="pf-items-title">EBE <span class="pf-consol-detail-sub">(CA HT − Dépenses) ÷ CA HT × 100</span> <span class="pf-items-count">${validItems.length} ligne${validItems.length > 1 ? 's' : ''}</span></span>
-                <button type="button" class="pf-items-close" data-club-detail-close title="Fermer">✕</button>
-              </div>
-              <ul class="pf-items-list">
-                ${items.map(it => `
-                  <li class="pf-items-row">
-                    <span class="pf-items-label">${escapeHtml(it.label)}</span>
-                    <span class="pf-items-value">${fmtE(it.value)}</span>
-                  </li>
-                `).join('')}
-              </ul>
-              <div class="pf-items-foot">
-                <span class="pf-items-foot-label">Total</span>
-                <span class="pf-items-foot-value ${ebe != null && ebe >= 0 ? 'pf-fin-positive' : (ebe != null ? 'pf-fin-negative' : '')}">${fmtP(ebe)}</span>
-              </div>
-            `;
+            headerTitle = 'Détail de l\'EBE — (CA HT − Dépenses) ÷ CA HT × 100';
+            cellsHtml = [
+              renderDepStyleCell('CA HT (÷ 1,20)', caHt, 'eur'),
+              renderDepStyleCell('Dépenses', dep, 'eur'),
+              renderDepStyleCell('Cash-flow', diff, 'eur'),
+            ].join('');
           }
+
+          extraPanel.innerHTML = `
+            <div class="pf-club-detail-breakdown-head">
+              <span class="pf-dep-breakdown-title">${escapeHtml(headerTitle)}</span>
+            </div>
+            ${emptyHtml || `<div class="pf-club-detail-breakdown">${cellsHtml}</div>`}
+          `;
         } else {
           extraPanel.classList.add('hidden');
           extraPanel.innerHTML = '';
