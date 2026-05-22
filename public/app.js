@@ -9130,6 +9130,24 @@ function renderCatChart() {
   });
 }
 
+// Rend (ou masque) le chart d'une catégorie de dépenses (Masse salariale,
+// Bâtiment, Marketing, Frais de fonctionnement) du Détail club.
+// Source : `${club}|${sig}|fin:dep_${catKey}` par mois.
+function renderDepCatChart(club) {
+  const key = pilotageFunnelState.depCatChartOpen;
+  if (!key || !club) { pfHideChart('pf-depcat-chart-canvas', 'pf-depcat-chart-wrap'); return; }
+  const cat = PF_DEPENSES_BREAKDOWN.find(c => c.key === key);
+  if (!cat) { pfHideChart('pf-depcat-chart-canvas', 'pf-depcat-chart-wrap'); return; }
+  pfRenderHistoricalChart({
+    canvasId: 'pf-depcat-chart-canvas',
+    wrapId: 'pf-depcat-chart-wrap',
+    titleId: 'pf-depcat-chart-title',
+    title: `Évolution ${cat.label} — ${club}`,
+    format: 'eur',
+    extract: (sig) => pilotageStoreRead(`${club}|${sig}|fin:dep_${key}`),
+  });
+}
+
 // Rend (ou masque) le chart de la carte Détail club selon
 // `pilotageFunnelState.detailChartOpen` (ca | depenses | cashflow | ebe)
 // et `pilotageFunnelState.clubs[0]`.
@@ -9231,6 +9249,7 @@ let pilotageFunnelState = {
   synthChartOpen: null,    // null | 'club_ebe:<Club>' | 'franchise_ca' | 'hq_dep' — graphique d'une cellule Synthèse
   detailChartOpen: null,   // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — graphique d'une cellule du détail club
   catChartOpen: null,      // null | '<catKey>:<kpiKey>' — graphique d'un KPI de carte catégorie
+  depCatChartOpen: null,   // null | 'salaire'|'batiment'|'marketing'|'fonctionnement' — graphique d'une catégorie de dépense
   finDetailOpen: null,     // null | 'franchise_ca' | 'hq_dep' — cellule Synthèse fin dépliée (drill-down items Pennylane)
   clubDetailOpen: null,    // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — cellule de la carte détail club dépliée
 };
@@ -10610,6 +10629,21 @@ async function loadPilotageFunnel() {
         renderPilotageFunnel();
         return;
       }
+      // Toggle graphique catégorie de dépenses (Masse salariale, Bâtiment, …)
+      if (e.target.closest('[data-depcat-chart-close]')) {
+        pilotageFunnelState.depCatChartOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
+      const depcatBtn = e.target.closest('[data-depcat-chart]');
+      if (depcatBtn) {
+        e.stopPropagation();
+        const key = depcatBtn.dataset.depcatChart;
+        pilotageFunnelState.depCatChartOpen =
+          pilotageFunnelState.depCatChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
     });
     rootPf.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -10637,6 +10671,15 @@ async function loadPilotageFunnel() {
         const key = catBtn.dataset.catChart;
         pilotageFunnelState.catChartOpen =
           pilotageFunnelState.catChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
+      const depcatBtn = e.target.closest && e.target.closest('[data-depcat-chart]');
+      if (depcatBtn) {
+        e.preventDefault();
+        const key = depcatBtn.dataset.depcatChart;
+        pilotageFunnelState.depCatChartOpen =
+          pilotageFunnelState.depCatChartOpen === key ? null : key;
         renderPilotageFunnel();
         return;
       }
@@ -10738,8 +10781,9 @@ async function loadPilotageFunnel() {
         renderPilotageFunnel();
         return;
       }
-      // L'édition inline de la valeur passe en priorité
+      // L'édition inline de la valeur et l'icône graphique passent en priorité
       if (e.target.closest('[data-edit-key]')) return;
+      if (e.target.closest('[data-depcat-chart]')) return;
       const cell = e.target.closest('[data-detail-cat]');
       if (!cell) return;
       const cat = cell.dataset.detailCat;
@@ -10750,6 +10794,7 @@ async function loadPilotageFunnel() {
     // Activation clavier (Entrée / Espace)
     rootPf.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (e.target.closest && e.target.closest('[data-depcat-chart]')) return;
       const cell = e.target.closest && e.target.closest('[data-detail-cat]');
       if (!cell) return;
       e.preventDefault();
@@ -11605,6 +11650,7 @@ async function renderPilotageFunnel() {
       } else if (breakdownWrap && breakdownGrid && depOpen) {
         breakdownWrap.classList.remove('hidden');
         const openCat = pilotageFunnelState.detailCatOpen;
+        const openDepCatChart = pilotageFunnelState.depCatChartOpen;
         breakdownGrid.innerHTML = PF_DEPENSES_BREAKDOWN.map(cat => {
           const v = pilotageStoreRead(`${club}|${sigPF}|fin:dep_${cat.key}`);
           const display = pilotageFormatValue(v, 'eur');
@@ -11614,20 +11660,32 @@ async function renderPilotageFunnel() {
           const items = pilotageStoreReadJson(`${club}|${sigPF}|fin:dep_${cat.key}:items`);
           const hasItems = Array.isArray(items) && items.length > 0;
           const isOpen = openCat === cat.key;
+          const isChartOpen = openDepCatChart === cat.key;
           const cellCls = 'pf-dep-cell pf-dep-cell--clickable'
             + (hasItems ? ' has-items' : '')
-            + (isOpen ? ' is-open' : '');
+            + (isOpen ? ' is-open' : '')
+            + (isChartOpen ? ' is-chart-open' : '');
           const cellTitle = hasItems
             ? `Voir le détail des lignes (${items.length})`
             : 'Aucune ligne détaillée importée pour cette catégorie';
+          const chartIconBtn = `
+            <button type="button" class="pf-consol-chart-btn pf-consol-chart-btn--mini${isChartOpen ? ' is-active' : ''}" data-depcat-chart="${escapeHtml(cat.key)}" title="${isChartOpen ? 'Masquer' : 'Afficher'} le graphique des derniers mois" aria-label="Graphique historique">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 13.5V2.5"/><path d="M2 13.5h12"/><path d="M4.5 11l2.5-3 2.5 2 3-4"/>
+              </svg>
+            </button>
+          `;
           return `
             <div class="${cellCls}" data-detail-cat="${escapeHtml(cat.key)}" role="button" tabindex="0" title="${escapeHtml(cellTitle)}">
-              <span class="pf-dep-label">${escapeHtml(cat.label)}</span>
+              <span class="pf-dep-label">${escapeHtml(cat.label)}${chartIconBtn}</span>
               <span class="pf-dep-value editable" ${valAttrs}>${display}</span>
               ${hasItems ? `<span class="pf-dep-caret" aria-hidden="true">${isOpen ? '▾' : '▸'}</span>` : ''}
             </div>
           `;
         }).join('');
+
+        // Rendu du graphique pour la catégorie de dépenses active
+        renderDepCatChart(club);
       }
 
       // Panel des items (lignes Pennylane) pour la catégorie dépliée

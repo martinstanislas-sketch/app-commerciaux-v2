@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-pf-consult-only1">
+  <link rel="stylesheet" href="style.css?v=ds-pf-depcatchart1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -605,6 +605,16 @@
             <div class="pf-club-detail-items hidden" id="pf-club-detail-items">
               <!-- rendu dynamiquement : tableau des lignes Pennylane sous la catégorie cliquée -->
             </div>
+            <!-- Graphique historique pour une catégorie de dépenses -->
+            <div class="pf-consol-chart-wrap hidden" id="pf-depcat-chart-wrap">
+              <div class="pf-consol-chart-head">
+                <span class="pf-consol-chart-title" id="pf-depcat-chart-title">Évolution</span>
+                <button type="button" class="pf-items-close" data-depcat-chart-close title="Fermer">✕</button>
+              </div>
+              <div class="pf-consol-chart-canvas-wrap">
+                <canvas id="pf-depcat-chart-canvas"></canvas>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -785,6 +795,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-pf-consult-only1"></script>
+  <script src="app.js?v=ds-pf-depcatchart1"></script>
 </body>
 </html>
