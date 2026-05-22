@@ -8845,7 +8845,10 @@ const PF_FINANCIALS = [
 // puis on applique la formule EBE = (Σ CA_HT − Σ Dépenses) / Σ CA_HT × 100
 // avec Σ CA_HT = (Σ CA_TTC) ÷ 1,20.
 const PF_CONSOLIDATED_EBE = [
-  { key: 'mycoach_franch',  label: 'EBE My Coach Groupe',        scope: ['mycoach', 'franchise'] },
+  // EBE des 6 studios My Coach uniquement (hors franchise et hors HQ).
+  { key: 'mycoach',           label: 'EBE My Coach',             scope: ['mycoach'] },
+  // EBE My Coach + Franchise
+  { key: 'mycoach_franch',    label: 'EBE My Coach Groupe',      scope: ['mycoach', 'franchise'] },
   // Variante avec 100 % du HQ (« Groupe Gingko Sport ») soustrait :
   // EBE = (Σ CA HT − Σ Dépenses − HQ) ÷ Σ CA HT × 100
   { key: 'mycoach_franch_hq', label: 'EBE My Coach Groupe + HQ', scope: ['mycoach', 'franchise', 'hq'] },
