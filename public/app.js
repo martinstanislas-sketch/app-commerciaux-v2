@@ -11594,6 +11594,9 @@ async function renderPilotageFunnel() {
         // Helper : construit une cellule « pf-dep-cell » avec label + valeur
         // + icône graphique (chartKey = identifiant utilisé pour le toggle du
         // chart d'évolution 12 mois associé à cette cellule).
+        // L'icône est placée en sibling du label (avec wrapper flex) pour
+        // qu'elle reste visible même quand le libellé est long et tronqué
+        // (ex: « Encaissement ponctuels - Neuilly sur Seine (CB, chèque, etc) »).
         const renderDepStyleCell = (label, value, format, chartKey) => {
           const isChartOpen = chartKey && openExtraChart === chartKey;
           const chartBtn = chartKey ? `
@@ -11605,7 +11608,10 @@ async function renderPilotageFunnel() {
           ` : '';
           return `
             <div class="pf-dep-cell${isChartOpen ? ' is-chart-open' : ''}">
-              <span class="pf-dep-label">${escapeHtml(label)}${chartBtn}</span>
+              <span class="pf-dep-label-row">
+                <span class="pf-dep-label" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+                ${chartBtn}
+              </span>
               <span class="pf-dep-value">${pilotageFormatValue(value, format || 'eur')}</span>
             </div>
           `;

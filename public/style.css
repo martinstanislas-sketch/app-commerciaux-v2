@@ -11581,7 +11581,19 @@ body.is-consultant .pf-consultant-only.pf-filter-group { display: flex !importan
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  min-width: 0;
 }
+/* Conteneur flex pour garder l'icône 📈 visible quand le libellé est long
+   (cas typique : libellés Pennylane avec nom de club + détail entre parenthèses) */
+#tab-pilotage-funnel .pf-dep-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+#tab-pilotage-funnel .pf-dep-label-row .pf-dep-label { flex: 0 1 auto; }
+#tab-pilotage-funnel .pf-dep-label-row .pf-consol-chart-btn { flex: 0 0 auto; }
 #tab-pilotage-funnel .pf-dep-value {
   font-size: 20px;
   font-weight: 800;
