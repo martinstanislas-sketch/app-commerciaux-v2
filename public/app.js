@@ -6783,8 +6783,8 @@ function renderTasksBoard() {
       const canLeft  = idx > 0;
       const canRight = idx >= 0 && idx < realColIds.length - 1;
       moveButtons = `
-        <button class="tk-col-move tk-col-move-left"  data-move-col="${col.id}" data-dir="-1" title="Déplacer la colonne vers la gauche" ${canLeft ? '' : 'disabled'}>‹</button>
-        <button class="tk-col-move tk-col-move-right" data-move-col="${col.id}" data-dir="1"  title="Déplacer la colonne vers la droite" ${canRight ? '' : 'disabled'}>›</button>
+        <button class="tk-col-move tk-col-move-left"  draggable="false" data-move-col="${col.id}" data-dir="-1" title="Déplacer la colonne vers la gauche" ${canLeft ? '' : 'disabled'}>‹</button>
+        <button class="tk-col-move tk-col-move-right" draggable="false" data-move-col="${col.id}" data-dir="1"  title="Déplacer la colonne vers la droite" ${canRight ? '' : 'disabled'}>›</button>
       `;
     }
     const addBtn = isVirtual ? '' : `<button class="tk-add-task" data-add-task="${col.id}">+ Ajouter une tâche</button>`;
@@ -7018,8 +7018,11 @@ function onColumnBodyDrop(e) {
 }
 
 function onColumnDragStart(e) {
-  // If user is starting to drag from header but the original target was the inline name/menu, abort
-  if (e.target.closest('[data-edit-col]') || e.target.closest('[data-col-menu]')) {
+  // If user is starting to drag from header but the original target was the
+  // inline name / menu / move-arrows / drag-only-affordances, abort.
+  if (e.target.closest('[data-edit-col]')
+      || e.target.closest('[data-col-menu]')
+      || e.target.closest('[data-move-col]')) {
     e.preventDefault();
     return;
   }
