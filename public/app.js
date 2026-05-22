@@ -6918,8 +6918,13 @@ function wireTasksEvents() {
   container.querySelectorAll('[data-col-header]').forEach(header => {
     header.addEventListener('dragstart', onColumnDragStart);
     header.addEventListener('dragend', onColumnDragEnd);
-    header.addEventListener('dragover', onColumnHeaderDragOver);
-    header.addEventListener('drop', onColumnHeaderDrop);
+  });
+  // Drop d'une colonne sur N'IMPORTE QUELLE zone d'une autre colonne
+  // (header, body, vide) — bien plus tolérant que de viser le header.
+  container.querySelectorAll('.tk-col').forEach(colEl => {
+    colEl.addEventListener('dragover', onColumnContainerDragOver);
+    colEl.addEventListener('dragleave', onColumnContainerDragLeave);
+    colEl.addEventListener('drop', onColumnContainerDrop);
   });
   // Boutons de déplacement de colonne (← →) visibles dans chaque entête
   container.querySelectorAll('[data-move-col]').forEach(btn => {
@@ -7045,16 +7050,17 @@ function clearColumnDropIndicators() {
     .forEach(el => el.classList.remove('tk-col-drop-left', 'tk-col-drop-right', 'tk-col-swap-target'));
 }
 
-function onColumnHeaderDragOver(e) {
+// Drop d'une colonne sur n'importe quelle zone d'une autre colonne (le
+// header, le body, ou la zone vide). Bien plus tolérant que de viser
+// uniquement la fine bande du header.
+function onColumnContainerDragOver(e) {
   if (!tasksDragging || tasksDragging.type !== 'column') return;
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
-  const header = e.currentTarget;
-  const targetId = parseInt(header.dataset.colHeader, 10);
-  if (targetId === tasksDragging.id) return;
-  // Detect left/right half of the header to decide insertion side
-  const col = header.closest('.tk-col');
-  if (!col) return;
+  const col = e.currentTarget;
+  const targetId = parseInt(col.dataset.colId, 10);
+  if (!Number.isInteger(targetId) || targetId === tasksDragging.id || targetId < 0) return;
+  // Détecte gauche/droite à l'horizontale de la cellule survolée
   const rect = col.getBoundingClientRect();
   const side = (e.clientX - rect.left) < rect.width / 2 ? 'before' : 'after';
   clearColumnDropIndicators();
@@ -7062,10 +7068,27 @@ function onColumnHeaderDragOver(e) {
   tasksDropTarget = { type: 'column-insert', colId: targetId, side };
 }
 
-function onColumnHeaderDrop(e) {
+function onColumnContainerDragLeave(e) {
+  if (!tasksDragging || tasksDragging.type !== 'column') return;
+  // Ne nettoie que si on quitte vraiment la colonne (pas si on entre dans
+  // un enfant comme le header ou le body)
+  if (e.currentTarget.contains(e.relatedTarget)) return;
+  e.currentTarget.classList.remove('tk-col-drop-left', 'tk-col-drop-right', 'tk-col-swap-target');
+}
+
+function onColumnContainerDrop(e) {
+  if (!tasksDragging || tasksDragging.type !== 'column') return;
   e.preventDefault();
-  if (!tasksDragging || !tasksDropTarget || tasksDropTarget.type !== 'column-insert') return;
-  moveColumnTo(tasksDragging.id, tasksDropTarget.colId, tasksDropTarget.side);
+  e.stopPropagation();
+  if (!tasksDropTarget || tasksDropTarget.type !== 'column-insert') {
+    clearColumnDropIndicators();
+    return;
+  }
+  const src = tasksDragging.id;
+  const tgt = tasksDropTarget.colId;
+  const side = tasksDropTarget.side;
+  clearColumnDropIndicators();
+  moveColumnTo(src, tgt, side);
 }
 
 function clearDropIndicators() {
