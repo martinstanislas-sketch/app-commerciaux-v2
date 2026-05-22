@@ -7512,7 +7512,8 @@ body.tk-dragging-active * {
   outline: 2px dashed var(--primary, #6366F1);
 }
 
-/* Column drag handle (the ⋮⋮ before the title) */
+/* Column drag handle (the ⋮⋮ before the title) — toujours visible pour
+   être facilement identifiable comme zone de drag */
 .tk-col-drag-handle {
   display: inline-flex;
   align-items: center;
@@ -7524,7 +7525,7 @@ body.tk-dragging-active * {
   line-height: 1;
   cursor: grab;
   user-select: none;
-  opacity: 0.55;
+  opacity: 0.85;
   transition: opacity .15s, color .15s;
   flex-shrink: 0;
 }
@@ -7535,6 +7536,42 @@ body.tk-dragging-active * {
 .tk-col-header:active .tk-col-drag-handle {
   cursor: grabbing;
 }
+
+/* Boutons « ‹ › » de déplacement direct d'une colonne (toujours visibles) */
+.tk-col-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all .12s ease-out;
+  user-select: none;
+  flex-shrink: 0;
+}
+.tk-col-move:hover:not(:disabled) {
+  background: var(--primary, #6366F1);
+  border-color: var(--primary, #6366F1);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.tk-col-move:active:not(:disabled) {
+  transform: translateY(0);
+}
+.tk-col-move:disabled {
+  opacity: 0.30;
+  cursor: not-allowed;
+}
+.tk-col-move-left  { margin-right: 2px; }
+.tk-col-move-right { margin-right: 4px; }
 
 /* Column drop indicators — vertical accent bar on the left/right edge of the target column */
 .tk-col.tk-col-drop-left,

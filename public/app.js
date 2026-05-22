@@ -6765,6 +6765,9 @@ function renderTasksBoard() {
   renderFilterPills();
 
   // Render board (only visible columns)
+  // Pré-calcul de l'index de chaque colonne dans la liste des colonnes réelles
+  // (pour gérer les bornes des flèches ← →)
+  const realColIds = tasksBoard.filter(c => !c.is_virtual && c.id > 0).map(c => c.id);
   container.innerHTML = visibleColumns.map(col => {
     const tree = buildTaskTree(col.tasks);
     const isVirtual = col.is_virtual || col.id < 0;
@@ -6772,6 +6775,18 @@ function renderTasksBoard() {
     const menuBtn = isVirtual ? '' : `<button class="tk-col-menu" data-col-menu="${col.id}" title="Options">⋯</button>`;
     const headerDraggable = isVirtual ? '' : 'draggable="true"';
     const dragHandle = isVirtual ? '' : `<span class="tk-col-drag-handle" title="Glisser pour déplacer la colonne">⋮⋮</span>`;
+    // Boutons ← → de déplacement direct (toujours visibles, plus simple à
+    // utiliser que le drag-and-drop pour les utilisateurs occasionnels)
+    let moveButtons = '';
+    if (!isVirtual) {
+      const idx = realColIds.indexOf(col.id);
+      const canLeft  = idx > 0;
+      const canRight = idx >= 0 && idx < realColIds.length - 1;
+      moveButtons = `
+        <button class="tk-col-move tk-col-move-left"  data-move-col="${col.id}" data-dir="-1" title="Déplacer la colonne vers la gauche" ${canLeft ? '' : 'disabled'}>‹</button>
+        <button class="tk-col-move tk-col-move-right" data-move-col="${col.id}" data-dir="1"  title="Déplacer la colonne vers la droite" ${canRight ? '' : 'disabled'}>›</button>
+      `;
+    }
     const addBtn = isVirtual ? '' : `<button class="tk-add-task" data-add-task="${col.id}">+ Ajouter une tâche</button>`;
     const colClass = isVirtual ? 'tk-col tk-col-virtual' : 'tk-col';
     return `
@@ -6780,6 +6795,7 @@ function renderTasksBoard() {
         ${dragHandle}
         <div class="tk-col-name" ${nameAttr}>${isVirtual ? '📌 ' : ''}${escapeHtml(col.name)}</div>
         <div class="tk-col-right">
+          ${moveButtons}
           <span class="tk-col-count" style="background: ${col.color}20; color: ${col.color}">${col.tasks.length}</span>
           ${menuBtn}
         </div>
@@ -6904,6 +6920,20 @@ function wireTasksEvents() {
     header.addEventListener('dragend', onColumnDragEnd);
     header.addEventListener('dragover', onColumnHeaderDragOver);
     header.addEventListener('drop', onColumnHeaderDrop);
+  });
+  // Boutons de déplacement de colonne (← →) visibles dans chaque entête
+  container.querySelectorAll('[data-move-col]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (btn.disabled) return;
+      const colId = parseInt(btn.dataset.moveCol, 10);
+      const dir = parseInt(btn.dataset.dir, 10);
+      shiftColumn(colId, dir);
+    });
+    // Empêche le drag-and-drop de partir depuis ces boutons (sinon ça
+    // déclenche le drag de la colonne au lieu d'un simple clic)
+    btn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+    btn.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
   });
 }
 
