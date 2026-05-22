@@ -597,7 +597,13 @@ async function bootApp() {
   // Show header widgets for commercials
   initHeaderWidgets();
 
-  if (isPhoneLead()) {
+  if (isConsultant()) {
+    // Consultant : on charge uniquement le Pilotage (les autres onglets sont
+    // masqués). updateTabVisibility() a déjà déclenché le clic sur Pilotage.
+    if (typeof loadPilotageFunnel === 'function') {
+      loadPilotageFunnel();
+    }
+  } else if (isPhoneLead()) {
     loadPhoningTab();
   } else {
     // Default landing tab = Tâches (Kanban)
@@ -619,7 +625,22 @@ function updateTabVisibility() {
   const persoBtn = document.querySelector('[data-tab="perso"]');
   const pilotageFunnelBtn = document.querySelector('[data-tab="pilotage-funnel"]');
 
-  if (isPhoneLead()) {
+  if (isConsultant()) {
+    // Consultant : uniquement l'onglet Pilotage
+    if (todayBtn) todayBtn.style.display = 'none';
+    if (ventesBtn) ventesBtn.style.display = 'none';
+    if (dashBtn) dashBtn.style.display = 'none';
+    if (phoningBtn) phoningBtn.style.display = 'none';
+    if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
+    if (mensuelBtn) mensuelBtn.style.display = 'none';
+    if (tasksBtn) tasksBtn.style.display = 'none';
+    if (persoBtn) persoBtn.style.display = 'none';
+    if (pilotageFunnelBtn) {
+      pilotageFunnelBtn.style.display = '';
+      pilotageFunnelBtn.click();
+    }
+    return;
+  } else if (isPhoneLead()) {
     if (todayBtn) todayBtn.style.display = 'none';
     if (ventesBtn) ventesBtn.style.display = 'none';
     if (dashBtn) dashBtn.style.display = 'none';
@@ -10296,12 +10317,17 @@ function pilotageClearMonthOnce(monthSig, flagKey) {
 
 // ── Render principal ───────────────────────────────────────────────
 async function loadPilotageFunnel() {
-  if (!isAdmin()) return;
+  // Accès : admin (édition complète) ou consultant (lecture seule + commentaires)
+  if (!isAdmin() && !isConsultant()) return;
 
   // Reset de mai 2026 : les valeurs étaient renseignées partiellement
   // (mois en cours dans Pennylane / CHECK UP). Ne se rejoue pas grâce
   // au flag — un nouvel import du mois repeuplera les clés.
-  pilotageClearMonthOnce('month-2026-05', 'pilotage:cleared:2026-05:v1');
+  // (Consultant : on ne purge pas le localStorage du consultant, on lui
+  //  laisse voir les valeurs telles qu'elles ont été pré-importées par l'admin.)
+  if (isAdmin()) {
+    pilotageClearMonthOnce('month-2026-05', 'pilotage:cleared:2026-05:v1');
+  }
 
   // Bind période
   document.querySelectorAll('#pf-period .pf-period-btn').forEach(btn => {
