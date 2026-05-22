@@ -9133,6 +9133,62 @@ function renderCatChart() {
   });
 }
 
+// Rend (ou masque) le chart d'une cellule individuelle d'un drill-down
+// CA / Cash-flow / EBE (CA HT, Dépenses, Cash-flow, ou item CA spécifique).
+// Clé attendue dans `pilotageFunnelState.extraCellChartOpen` :
+//   'cf:caht'        → CA HT (= CA TTC ÷ 1,20)
+//   'cf:dep'         → Dépenses
+//   'ebe:caht'       → CA HT (même série que cf:caht)
+//   'ebe:dep'        → Dépenses
+//   'ebe:cf'         → Cash-flow (CA HT − Dépenses)
+//   'ca:item:<lbl>'  → ligne CA spécifique (Prélèvement, CB chèque, etc.)
+function renderExtraCellChart(club) {
+  const key = pilotageFunnelState.extraCellChartOpen;
+  if (!key || !club) { pfHideChart('pf-extracell-chart-canvas', 'pf-extracell-chart-wrap'); return; }
+  let title, format, extract;
+  if (key === 'cf:caht' || key === 'ebe:caht') {
+    title = `Évolution CA HT — ${club}`;
+    format = 'eur';
+    extract = (sig) => {
+      const v = pilotageStoreRead(`${club}|${sig}|fin:ca_ttc`);
+      return v != null ? v / 1.20 : null;
+    };
+  } else if (key === 'cf:dep' || key === 'ebe:dep') {
+    title = `Évolution Dépenses — ${club}`;
+    format = 'eur';
+    extract = (sig) => pilotageStoreRead(`${club}|${sig}|fin:depenses`);
+  } else if (key === 'ebe:cf') {
+    title = `Évolution Cash-flow — ${club}`;
+    format = 'eur';
+    extract = (sig) => pfExtractCashflowClub(club, sig);
+  } else if (key.startsWith('ca:item:')) {
+    const label = key.slice('ca:item:'.length);
+    title = `Évolution ${label}`;
+    format = 'eur';
+    extract = (sig) => {
+      const items = pilotageStoreReadJson(`${club}|${sig}|fin:ca_ttc:items`);
+      if (!Array.isArray(items)) return null;
+      // Match exact d'abord, sinon match approximatif (les libellés Pennylane
+      // peuvent légèrement varier d'un mois à l'autre).
+      let m = items.find(it => it.label === label);
+      if (!m) {
+        const norm = label.trim().toLowerCase();
+        m = items.find(it => String(it.label || '').trim().toLowerCase() === norm);
+      }
+      return m ? Number(m.value) : null;
+    };
+  } else {
+    pfHideChart('pf-extracell-chart-canvas', 'pf-extracell-chart-wrap');
+    return;
+  }
+  pfRenderHistoricalChart({
+    canvasId: 'pf-extracell-chart-canvas',
+    wrapId: 'pf-extracell-chart-wrap',
+    titleId: 'pf-extracell-chart-title',
+    title, format, extract,
+  });
+}
+
 // Rend (ou masque) le chart d'une catégorie de dépenses (Masse salariale,
 // Bâtiment, Marketing, Frais de fonctionnement) du Détail club.
 // Source : `${club}|${sig}|fin:dep_${catKey}` par mois.
@@ -9253,6 +9309,7 @@ let pilotageFunnelState = {
   detailChartOpen: null,   // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — graphique d'une cellule du détail club
   catChartOpen: null,      // null | '<catKey>:<kpiKey>' — graphique d'un KPI de carte catégorie
   depCatChartOpen: null,   // null | 'salaire'|'batiment'|'marketing'|'fonctionnement' — graphique d'une catégorie de dépense
+  extraCellChartOpen: null,// null | 'cf:caht'|'cf:dep'|'ebe:caht'|'ebe:dep'|'ebe:cf'|`ca:item:<label>` — graphique d'une cellule du drill-down CA/Cash-flow/EBE
   finDetailOpen: null,     // null | 'franchise_ca' | 'hq_dep' — cellule Synthèse fin dépliée (drill-down items Pennylane)
   clubDetailOpen: null,    // null | 'ca' | 'depenses' | 'cashflow' | 'ebe' — cellule de la carte détail club dépliée
 };
@@ -10647,6 +10704,22 @@ async function loadPilotageFunnel() {
         renderPilotageFunnel();
         return;
       }
+      // Toggle graphique d'une cellule du drill-down CA / Cash-flow / EBE
+      // (CA HT, Dépenses, Cash-flow, ou item CA spécifique)
+      if (e.target.closest('[data-extracell-chart-close]')) {
+        pilotageFunnelState.extraCellChartOpen = null;
+        renderPilotageFunnel();
+        return;
+      }
+      const extraBtn = e.target.closest('[data-extracell-chart]');
+      if (extraBtn) {
+        e.stopPropagation();
+        const key = extraBtn.dataset.extracellChart;
+        pilotageFunnelState.extraCellChartOpen =
+          pilotageFunnelState.extraCellChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
     });
     rootPf.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -10683,6 +10756,15 @@ async function loadPilotageFunnel() {
         const key = depcatBtn.dataset.depcatChart;
         pilotageFunnelState.depCatChartOpen =
           pilotageFunnelState.depCatChartOpen === key ? null : key;
+        renderPilotageFunnel();
+        return;
+      }
+      const extraBtn = e.target.closest && e.target.closest('[data-extracell-chart]');
+      if (extraBtn) {
+        e.preventDefault();
+        const key = extraBtn.dataset.extracellChart;
+        pilotageFunnelState.extraCellChartOpen =
+          pilotageFunnelState.extraCellChartOpen === key ? null : key;
         renderPilotageFunnel();
         return;
       }
@@ -11508,13 +11590,26 @@ async function renderPilotageFunnel() {
       // cellules `pf-dep-cell` à 4 colonnes max (chaque item = une cellule).
       const extraPanel = document.getElementById('pf-club-detail-extra');
       if (extraPanel) {
-        // Helper : construit une cellule « pf-dep-cell » avec label + valeur + icône graphique
-        const renderDepStyleCell = (label, value, format) => `
-          <div class="pf-dep-cell">
-            <span class="pf-dep-label">${escapeHtml(label)}</span>
-            <span class="pf-dep-value">${pilotageFormatValue(value, format || 'eur')}</span>
-          </div>
-        `;
+        const openExtraChart = pilotageFunnelState.extraCellChartOpen;
+        // Helper : construit une cellule « pf-dep-cell » avec label + valeur
+        // + icône graphique (chartKey = identifiant utilisé pour le toggle du
+        // chart d'évolution 12 mois associé à cette cellule).
+        const renderDepStyleCell = (label, value, format, chartKey) => {
+          const isChartOpen = chartKey && openExtraChart === chartKey;
+          const chartBtn = chartKey ? `
+            <button type="button" class="pf-consol-chart-btn pf-consol-chart-btn--mini${isChartOpen ? ' is-active' : ''}" data-extracell-chart="${escapeHtml(chartKey)}" title="${isChartOpen ? 'Masquer' : 'Afficher'} le graphique des derniers mois" aria-label="Graphique historique">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 13.5V2.5"/><path d="M2 13.5h12"/><path d="M4.5 11l2.5-3 2.5 2 3-4"/>
+              </svg>
+            </button>
+          ` : '';
+          return `
+            <div class="pf-dep-cell${isChartOpen ? ' is-chart-open' : ''}">
+              <span class="pf-dep-label">${escapeHtml(label)}${chartBtn}</span>
+              <span class="pf-dep-value">${pilotageFormatValue(value, format || 'eur')}</span>
+            </div>
+          `;
+        };
         if (openCell === 'ca' || openCell === 'cashflow' || openCell === 'ebe') {
           extraPanel.classList.remove('hidden');
           let headerTitle = '';
@@ -11533,33 +11628,51 @@ async function renderPilotageFunnel() {
             if (!Array.isArray(caItems) || caItems.length === 0) {
               emptyHtml = `<div class="pf-items-empty">Aucune ligne détaillée importée pour le CA. Réimporte le fichier Pennylane pour récupérer le détail (Prélèvement, CB, chèque, etc.).</div>`;
             } else {
-              cellsHtml = caItems.map(it => renderDepStyleCell(it.label, it.value, 'eur')).join('');
+              cellsHtml = caItems.map(it => renderDepStyleCell(it.label, it.value, 'eur', `ca:item:${it.label}`)).join('');
             }
           } else if (openCell === 'cashflow') {
             headerTitle = 'Détail du cash-flow (CA HT − Dépenses)';
             cellsHtml = [
-              renderDepStyleCell('CA HT (÷ 1,20)', caHt, 'eur'),
-              renderDepStyleCell('Dépenses', dep, 'eur'),
+              renderDepStyleCell('CA HT (÷ 1,20)', caHt, 'eur', 'cf:caht'),
+              renderDepStyleCell('Dépenses',       dep,  'eur', 'cf:dep'),
             ].join('');
           } else if (openCell === 'ebe') {
             const diff = (caHt != null && dep != null) ? (caHt - dep) : null;
             headerTitle = 'Détail de l\'EBE — (CA HT − Dépenses) ÷ CA HT × 100';
             cellsHtml = [
-              renderDepStyleCell('CA HT (÷ 1,20)', caHt, 'eur'),
-              renderDepStyleCell('Dépenses', dep, 'eur'),
-              renderDepStyleCell('Cash-flow', diff, 'eur'),
+              renderDepStyleCell('CA HT (÷ 1,20)', caHt, 'eur', 'ebe:caht'),
+              renderDepStyleCell('Dépenses',       dep,  'eur', 'ebe:dep'),
+              renderDepStyleCell('Cash-flow',      diff, 'eur', 'ebe:cf'),
             ].join('');
           }
 
+          // On préserve le wrap du chart d'évolution (placé en dehors du
+          // bloc qui se ré-écrit) en re-créant la même structure HTML mais
+          // sans toucher #pf-extracell-chart-wrap qui est rendu plus bas.
           extraPanel.innerHTML = `
             <div class="pf-club-detail-breakdown-head">
               <span class="pf-dep-breakdown-title">${escapeHtml(headerTitle)}</span>
             </div>
             ${emptyHtml || `<div class="pf-club-detail-breakdown">${cellsHtml}</div>`}
+            <div class="pf-consol-chart-wrap hidden" id="pf-extracell-chart-wrap">
+              <div class="pf-consol-chart-head">
+                <span class="pf-consol-chart-title" id="pf-extracell-chart-title">Évolution</span>
+                <button type="button" class="pf-items-close" data-extracell-chart-close title="Fermer">✕</button>
+              </div>
+              <div class="pf-consol-chart-canvas-wrap">
+                <canvas id="pf-extracell-chart-canvas"></canvas>
+              </div>
+            </div>
           `;
+          // Rend le chart pour la cellule active (si l'utilisateur a cliqué
+          // une icône graphique)
+          renderExtraCellChart(club);
         } else {
           extraPanel.classList.add('hidden');
           extraPanel.innerHTML = '';
+          // Si plus aucun drill-down CA/Cash-flow/EBE n'est ouvert, on ferme
+          // également le chart par cellule éventuellement actif.
+          pilotageFunnelState.extraCellChartOpen = null;
         }
       }
 
