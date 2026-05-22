@@ -9035,6 +9035,42 @@ function pfHideChart(canvasId, wrapId) {
 }
 
 // Helpers d'extraction par métrique (utilisés par les charts par cellule)
+// Réordonne PF_EBE_CELLS pour la Synthèse financière selon la performance :
+//   Ligne 1 : 3 meilleurs EBE clubs (ordre décroissant) + CA Franchise
+//   Ligne 2 : 3 moins bons EBE clubs (ordre décroissant) + HQ
+// Si un club n'a pas de donnée pour le mois, son EBE est traité comme NaN et
+// il est placé en fin de classement.
+function pfOrderEbeCellsByPerf(periodSig) {
+  const clubCells = PF_EBE_CELLS.filter(c => c.type === 'club_ebe');
+  const others = PF_EBE_CELLS.filter(c => c.type !== 'club_ebe');
+  // Calcule l'EBE pour chaque club
+  const withEbe = clubCells.map(c => {
+    const ca = pilotageStoreRead(`${c.club}|${periodSig}|fin:ca_ttc`);
+    const dep = pilotageStoreRead(`${c.club}|${periodSig}|fin:depenses`);
+    let ebe = null;
+    if (ca != null && dep != null && ca !== 0) {
+      const caHt = ca / 1.20;
+      if (caHt !== 0) ebe = ((caHt - dep) / caHt) * 100;
+    }
+    return { cell: c, ebe };
+  });
+  // Tri décroissant par EBE ; les null en queue
+  withEbe.sort((a, b) => {
+    if (a.ebe == null && b.ebe == null) return 0;
+    if (a.ebe == null) return 1;
+    if (b.ebe == null) return -1;
+    return b.ebe - a.ebe;
+  });
+  const sortedClubs = withEbe.map(x => x.cell);
+  const franchise = others.find(c => c.type === 'franchise_ca');
+  const hq        = others.find(c => c.type === 'hq_dep');
+  // Recompose l'ordre final (ligne 1 + ligne 2 dans une grille 4 colonnes)
+  return [
+    sortedClubs[0], sortedClubs[1], sortedClubs[2], franchise,
+    sortedClubs[3], sortedClubs[4], sortedClubs[5], hq,
+  ].filter(Boolean);
+}
+
 function pfExtractEbeClub(club, sig) {
   const ca = pilotageStoreRead(`${club}|${sig}|fin:ca_ttc`);
   const dep = pilotageStoreRead(`${club}|${sig}|fin:depenses`);
@@ -11400,11 +11436,14 @@ async function renderPilotageFunnel() {
     renderConsolEbeChart();
   }
 
-  // Synthèse financière : 6 EBE clubs My Coach + EBE Ginkgo Sport + CA Franchise
+  // Synthèse financière : 6 EBE clubs (triés par EBE % décroissant — top 3 en
+  // haut, bottom 3 en bas) + CA Franchise (fin de 1ère ligne) + HQ (fin de
+  // 2ème ligne).
   const fin = document.getElementById('pf-financials');
   if (fin) {
     const periodSig = pilotagePeriodSig(pilotageFunnelState.period, pilotageFunnelState.dateAnchor, pilotageFunnelState.customStart, pilotageFunnelState.customEnd);
-    fin.innerHTML = PF_EBE_CELLS.map((cell, idx) => {
+    const orderedCells = pfOrderEbeCellsByPerf(periodSig);
+    fin.innerHTML = orderedCells.map((cell, idx) => {
       let value = null;
       let format = 'pct';
       // Club lié au clic (filtre Clubs analysés). null = pas de filtre possible.
