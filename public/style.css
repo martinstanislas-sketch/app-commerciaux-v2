@@ -11272,6 +11272,17 @@ body.is-consultant .pf-consultant-only.pf-filter-group { display: flex !importan
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
+/* Coloration sémantique du Total quand le sens financier est utile */
+#tab-pilotage-funnel .pf-items-foot-value.pf-fin-positive {
+  background: transparent;
+  border: 0;
+  color: #047857;
+}
+#tab-pilotage-funnel .pf-items-foot-value.pf-fin-negative {
+  background: transparent;
+  border: 0;
+  color: #b91c1c;
+}
 #tab-pilotage-funnel .pf-items-empty {
   font-size: 12.5px;
   color: var(--ds-fg-3);

@@ -11544,92 +11544,60 @@ async function renderPilotageFunnel() {
               `;
             }
           } else if (openCell === 'cashflow') {
-            // Calcul Cash-flow = CA HT − Dépenses
+            // Cash-flow = CA HT − Dépenses, présenté en format « liste d'items »
+            // similaire au Détail des encaissements.
             const fmt = (v) => pilotageFormatValue(v, 'eur');
+            const items = [
+              { label: 'CA HT (CA TTC ÷ 1,20)',         value: caHt },
+              { label: 'Dépenses (à déduire)',          value: dep != null ? -dep : null },
+            ];
+            const validItems = items.filter(it => it.value != null && !Number.isNaN(Number(it.value)));
             extraPanel.innerHTML = `
               <div class="pf-items-head">
-                <span class="pf-items-title">Cash-flow <span class="pf-consol-detail-sub">CA HT − Dépenses</span></span>
+                <span class="pf-items-title">Cash-flow <span class="pf-consol-detail-sub">CA HT − Dépenses</span> <span class="pf-items-count">${validItems.length} ligne${validItems.length > 1 ? 's' : ''}</span></span>
                 <button type="button" class="pf-items-close" data-club-detail-close title="Fermer">✕</button>
               </div>
-              <table class="pf-consol-detail-table">
-                <tbody>
-                  <tr>
-                    <td class="pf-cd-col-label">CA TTC</td>
-                    <td class="pf-cd-col-num pf-cd-muted">${fmt(ca)}</td>
-                  </tr>
-                  <tr>
-                    <td class="pf-cd-col-label">CA HT (÷ 1,20)</td>
-                    <td class="pf-cd-col-num">${fmt(caHt)}</td>
-                  </tr>
-                  <tr>
-                    <td class="pf-cd-col-label">Dépenses</td>
-                    <td class="pf-cd-col-num">−&nbsp;${fmt(dep)}</td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr class="pf-cd-total">
-                    <td class="pf-cd-col-label">Cash-flow</td>
-                    <td class="pf-cd-col-num">${fmt(cashflow)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-              <div class="pf-consol-formula">
-                <span class="pf-cf-step">CA HT</span>
-                <span class="pf-cf-val">${fmt(caHt)}</span>
-                <span class="pf-cf-op">−</span>
-                <span class="pf-cf-step">Dépenses</span>
-                <span class="pf-cf-val">${fmt(dep)}</span>
-                <span class="pf-cf-arrow">→</span>
-                <span class="pf-cf-result ${cashflow != null && cashflow >= 0 ? 'pf-fin-positive' : 'pf-fin-negative'}">${fmt(cashflow)}</span>
+              <ul class="pf-items-list">
+                ${items.map(it => `
+                  <li class="pf-items-row">
+                    <span class="pf-items-label">${escapeHtml(it.label)}</span>
+                    <span class="pf-items-value">${fmt(it.value)}</span>
+                  </li>
+                `).join('')}
+              </ul>
+              <div class="pf-items-foot">
+                <span class="pf-items-foot-label">Total</span>
+                <span class="pf-items-foot-value ${cashflow != null && cashflow >= 0 ? 'pf-fin-positive' : (cashflow != null ? 'pf-fin-negative' : '')}">${fmt(cashflow)}</span>
               </div>
             `;
           } else if (openCell === 'ebe') {
-            // Calcul EBE = (CA HT − Dépenses) ÷ CA HT × 100
+            // EBE = (CA HT − Dépenses) ÷ CA HT × 100, présenté en format
+            // « liste d'items » avec Total = pourcentage final.
             const fmtE = (v) => pilotageFormatValue(v, 'eur');
             const fmtP = (v) => pilotageFormatValue(v, 'pct');
             const diff = (caHt != null && dep != null) ? (caHt - dep) : null;
+            const items = [
+              { label: 'CA HT (CA TTC ÷ 1,20)',         value: caHt },
+              { label: 'Dépenses (à déduire)',          value: dep != null ? -dep : null },
+              { label: 'Cash-flow (CA HT − Dépenses)',  value: diff },
+            ];
+            const validItems = items.filter(it => it.value != null && !Number.isNaN(Number(it.value)));
             extraPanel.innerHTML = `
               <div class="pf-items-head">
-                <span class="pf-items-title">EBE <span class="pf-consol-detail-sub">(CA HT − Dépenses) ÷ CA HT × 100</span></span>
+                <span class="pf-items-title">EBE <span class="pf-consol-detail-sub">(CA HT − Dépenses) ÷ CA HT × 100</span> <span class="pf-items-count">${validItems.length} ligne${validItems.length > 1 ? 's' : ''}</span></span>
                 <button type="button" class="pf-items-close" data-club-detail-close title="Fermer">✕</button>
               </div>
-              <table class="pf-consol-detail-table">
-                <tbody>
-                  <tr>
-                    <td class="pf-cd-col-label">CA TTC</td>
-                    <td class="pf-cd-col-num pf-cd-muted">${fmtE(ca)}</td>
-                  </tr>
-                  <tr>
-                    <td class="pf-cd-col-label">CA HT (÷ 1,20)</td>
-                    <td class="pf-cd-col-num">${fmtE(caHt)}</td>
-                  </tr>
-                  <tr>
-                    <td class="pf-cd-col-label">Dépenses</td>
-                    <td class="pf-cd-col-num">−&nbsp;${fmtE(dep)}</td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr class="pf-cd-total">
-                    <td class="pf-cd-col-label">CA HT − Dépenses</td>
-                    <td class="pf-cd-col-num">${fmtE(diff)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-              <div class="pf-consol-formula">
-                <span class="pf-cf-step">CA HT</span>
-                <span class="pf-cf-val">${fmtE(caHt)}</span>
-                <span class="pf-cf-op">−</span>
-                <span class="pf-cf-step">Dépenses</span>
-                <span class="pf-cf-val">${fmtE(dep)}</span>
-                <span class="pf-cf-op">=</span>
-                <span class="pf-cf-val">${fmtE(diff)}</span>
-                <span class="pf-cf-op">÷</span>
-                <span class="pf-cf-step">CA HT</span>
-                <span class="pf-cf-val">${fmtE(caHt)}</span>
-                <span class="pf-cf-op">×</span>
-                <span class="pf-cf-val">100</span>
-                <span class="pf-cf-arrow">→</span>
-                <span class="pf-cf-result ${ebe != null && ebe >= 0 ? 'pf-fin-positive' : 'pf-fin-negative'}">${fmtP(ebe)}</span>
+              <ul class="pf-items-list">
+                ${items.map(it => `
+                  <li class="pf-items-row">
+                    <span class="pf-items-label">${escapeHtml(it.label)}</span>
+                    <span class="pf-items-value">${fmtE(it.value)}</span>
+                  </li>
+                `).join('')}
+              </ul>
+              <div class="pf-items-foot">
+                <span class="pf-items-foot-label">Total</span>
+                <span class="pf-items-foot-value ${ebe != null && ebe >= 0 ? 'pf-fin-positive' : (ebe != null ? 'pf-fin-negative' : '')}">${fmtP(ebe)}</span>
               </div>
             `;
           }
