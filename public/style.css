@@ -7500,8 +7500,14 @@ body.tk-dragging-active * {
 /* Le header devient lui-même drag-grabbable via pointer events */
 .tk-col-header {
   cursor: grab;
-  touch-action: pan-y; /* on bloquera le scroll-X pendant le drag en JS */
+  touch-action: none; /* indispensable pour que pointermove soit reçu sur tactile */
   user-select: none;
+  -webkit-user-select: none;
+}
+/* Idem sur les enfants pour que le drag fonctionne quel que soit l'élément
+   sous le doigt. Les boutons et inputs gardent leurs propres touch-action. */
+.tk-col-header > *:not(input):not(button):not([data-col-menu]):not([data-move-col]) {
+  touch-action: none;
 }
 .tk-col-header:active {
   cursor: grabbing;
