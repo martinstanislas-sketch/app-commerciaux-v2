@@ -6917,13 +6917,15 @@ function wireTasksEvents() {
     col.addEventListener('mouseenter', () => { tasksHoveredColumnId = parseInt(col.dataset.colId, 10); });
     col.addEventListener('mouseleave', () => { tasksHoveredColumnId = null; });
   });
-  // Drag-and-drop des COLONNES via pointer events (mouse + touch). Implémenté
-  // au niveau du container par délégation : un seul listener pour toutes les
-  // colonnes, qui filtre par target dans le pointerdown.
-  if (!container.dataset.colPointerBound) {
-    container.dataset.colPointerBound = '1';
-    container.addEventListener('pointerdown', onColumnPointerDown);
-  }
+  // Drag-and-drop des COLONNES via pointer events (mouse + touch).
+  // Listener attaché directement sur chaque header pour éviter tout
+  // problème de délégation / capture interceptée par les cards (qui ont
+  // draggable=true HTML5 et peuvent absorber certains événements).
+  container.querySelectorAll('[data-col-header]').forEach(header => {
+    if (header.dataset.pfColDragBound) return;
+    header.dataset.pfColDragBound = '1';
+    header.addEventListener('pointerdown', onColumnPointerDown);
+  });
   // Boutons de déplacement de colonne (← →) visibles dans chaque entête
   container.querySelectorAll('[data-move-col]').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -7041,15 +7043,16 @@ function onColumnPointerDown(e) {
   // Boutons souris autres que clic gauche → ignore (mais on garde tous les
   // pointers touch/pen).
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  // Le drag part uniquement du header d'une colonne réelle
-  const header = e.target.closest('[data-col-header]');
+  // Le drag part uniquement du header d'une colonne réelle. Avec un binding
+  // direct sur le header, e.currentTarget est déjà le header — fallback
+  // sur closest() au cas où c'est attaché ailleurs.
+  const header = (e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.colHeader)
+    ? e.currentTarget
+    : e.target.closest('[data-col-header]');
   if (!header) return;
   // Si l'utilisateur a cliqué sur un bouton interactif (menu ⋯, flèches ‹ ›,
   // ou un input/textarea déjà en édition), on laisse l'événement se
-  // propager normalement (clic simple, sans drag). Le name editor inline
-  // (data-edit-col) reste draggable : le seuil de 5 px laisse passer les
-  // clics simples qui déclenchent l'édition, mais un vrai drag s'active
-  // dès qu'on bouge.
+  // propager normalement (clic simple, sans drag).
   if (e.target.closest('[data-col-menu]')
       || e.target.closest('[data-move-col]')
       || e.target.tagName === 'INPUT'
@@ -7060,6 +7063,8 @@ function onColumnPointerDown(e) {
   if (!colEl) return;
   const colId = parseInt(header.dataset.colHeader, 10);
   if (!Number.isInteger(colId) || colId < 0) return;
+
+  console.log('[tk-col-drag] pointerdown sur colonne', colId, 'type=', e.pointerType);
 
   pfColDrag = {
     colId,
@@ -7074,14 +7079,14 @@ function onColumnPointerDown(e) {
     target: null,
   };
 
-  // Listeners au niveau document : capture tous les mouvements même si le
-  // pointer sort du header initial.
+  // Listeners au niveau window : capture tous les mouvements même si le
+  // pointer sort du header initial (utile sur tactile aussi).
   const move = (ev) => onColumnPointerMove(ev);
   const up   = (ev) => onColumnPointerUp(ev, move, up, cancel);
   const cancel = (ev) => onColumnPointerUp(ev, move, up, cancel);
-  document.addEventListener('pointermove', move, { passive: false });
-  document.addEventListener('pointerup', up);
-  document.addEventListener('pointercancel', cancel);
+  window.addEventListener('pointermove', move, { passive: false });
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', cancel);
 }
 
 function onColumnPointerMove(e) {
@@ -7092,6 +7097,7 @@ function onColumnPointerMove(e) {
     // Seuil de 5px avant de lancer le drag — laisse les clics simples passer
     if (Math.hypot(dx, dy) < 5) return;
     pfColDrag.started = true;
+    console.log('[tk-col-drag] drag started, colId=', pfColDrag.colId);
     createColumnDragGhost(e);
     document.body.classList.add('tk-col-dragging-active');
   }
@@ -7126,10 +7132,11 @@ function onColumnPointerMove(e) {
 }
 
 function onColumnPointerUp(e, move, up, cancel) {
-  document.removeEventListener('pointermove', move, { passive: false });
-  document.removeEventListener('pointerup', up);
-  document.removeEventListener('pointercancel', cancel);
+  window.removeEventListener('pointermove', move, { passive: false });
+  window.removeEventListener('pointerup', up);
+  window.removeEventListener('pointercancel', cancel);
   if (!pfColDrag) return;
+  console.log('[tk-col-drag] pointerup', { started: pfColDrag.started, target: pfColDrag.target });
   const wasStarted = pfColDrag.started;
   const src = pfColDrag.colId;
   const tgt = pfColDrag.target;
