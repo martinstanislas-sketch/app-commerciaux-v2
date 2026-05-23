@@ -7134,24 +7134,33 @@ function onColumnPointerMove(e) {
     pfColDrag.ghost.style.left = (e.clientX - pfColDrag.ghostOffsetX) + 'px';
     pfColDrag.ghost.style.top  = (e.clientY - pfColDrag.ghostOffsetY) + 'px';
   }
-  // Détecte la colonne cible la plus proche
-  const cols = document.querySelectorAll('#tasks-board .tk-col[data-col-id]');
-  let target = null;
+  // Détecte la colonne cible la PLUS PROCHE horizontalement, peu importe
+  // que le pointeur soit dans la colonne, dans le gap entre colonnes, ou
+  // même légèrement à côté. Approche : on calcule la distance horizontale
+  // du curseur au centre de chaque colonne candidate et on prend la plus
+  // proche dans une limite raisonnable.
+  const cols = Array.from(document.querySelectorAll('#tasks-board .tk-col[data-col-id]'))
+    .filter(col => {
+      const id = parseInt(col.dataset.colId, 10);
+      return Number.isInteger(id) && id !== pfColDrag.colId && id >= 0;
+    });
+  let bestCol = null;
+  let bestDist = Infinity;
   for (const col of cols) {
-    const id = parseInt(col.dataset.colId, 10);
-    if (!Number.isInteger(id) || id === pfColDrag.colId || id < 0) continue;
-    const rect = col.getBoundingClientRect();
-    if (e.clientX >= rect.left && e.clientX <= rect.right
-        && e.clientY >= rect.top && e.clientY <= rect.bottom + 80) {
-      const side = e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
-      target = { col, colId: id, side };
-      break;
-    }
+    const r = col.getBoundingClientRect();
+    const centerX = (r.left + r.right) / 2;
+    const dist = Math.abs(e.clientX - centerX);
+    if (dist < bestDist) { bestDist = dist; bestCol = col; }
   }
   clearColumnDropIndicators();
-  if (target) {
-    target.col.classList.add(target.side === 'before' ? 'tk-col-drop-left' : 'tk-col-drop-right');
-    pfColDrag.target = { colId: target.colId, side: target.side };
+  if (bestCol) {
+    const r = bestCol.getBoundingClientRect();
+    const side = e.clientX < (r.left + r.right) / 2 ? 'before' : 'after';
+    bestCol.classList.add(side === 'before' ? 'tk-col-drop-left' : 'tk-col-drop-right');
+    pfColDrag.target = {
+      colId: parseInt(bestCol.dataset.colId, 10),
+      side,
+    };
   } else {
     pfColDrag.target = null;
   }
@@ -7172,6 +7181,7 @@ function onColumnPointerUp(e, move, up, cancel) {
   const tgt = pfColDrag.target;
   cleanupColumnDrag();
   if (wasStarted) {
+    console.log('[tk-col-drag] drop final — target =', tgt);
     // Supprime le « click » qui suivrait naturellement le pointerup
     // (sinon le clic accidentel sur le nom déclencherait l'édition inline
     // de la colonne après un drag réussi).
@@ -7183,7 +7193,12 @@ function onColumnPointerUp(e, move, up, cancel) {
     document.addEventListener('click', suppress, true);
     // Sécurité : retire la garde après 400 ms même si aucun click n'a eu lieu
     setTimeout(() => document.removeEventListener('click', suppress, true), 400);
-    if (tgt) moveColumnTo(src, tgt.colId, tgt.side);
+    if (tgt) {
+      console.log('[tk-col-drag] appel moveColumnTo(', src, ',', tgt.colId, ',', tgt.side, ')');
+      moveColumnTo(src, tgt.colId, tgt.side);
+    } else {
+      console.log('[tk-col-drag] aucune cible détectée, drag annulé');
+    }
   }
 }
 
