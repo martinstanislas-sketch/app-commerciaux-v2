@@ -7044,10 +7044,13 @@ function onColumnPointerDown(e) {
   // Le drag part uniquement du header d'une colonne réelle
   const header = e.target.closest('[data-col-header]');
   if (!header) return;
-  // Si l'utilisateur a cliqué sur un élément interactif (boutons, name editor),
-  // on laisse l'événement se propager normalement (clic simple).
-  if (e.target.closest('[data-edit-col]')
-      || e.target.closest('[data-col-menu]')
+  // Si l'utilisateur a cliqué sur un bouton interactif (menu ⋯, flèches ‹ ›,
+  // ou un input/textarea déjà en édition), on laisse l'événement se
+  // propager normalement (clic simple, sans drag). Le name editor inline
+  // (data-edit-col) reste draggable : le seuil de 5 px laisse passer les
+  // clics simples qui déclenchent l'édition, mais un vrai drag s'active
+  // dès qu'on bouge.
+  if (e.target.closest('[data-col-menu]')
       || e.target.closest('[data-move-col]')
       || e.target.tagName === 'INPUT'
       || e.target.tagName === 'TEXTAREA') {
@@ -7131,8 +7134,19 @@ function onColumnPointerUp(e, move, up, cancel) {
   const src = pfColDrag.colId;
   const tgt = pfColDrag.target;
   cleanupColumnDrag();
-  if (wasStarted && tgt) {
-    moveColumnTo(src, tgt.colId, tgt.side);
+  if (wasStarted) {
+    // Supprime le « click » qui suivrait naturellement le pointerup
+    // (sinon le clic accidentel sur le nom déclencherait l'édition inline
+    // de la colonne après un drag réussi).
+    const suppress = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      document.removeEventListener('click', suppress, true);
+    };
+    document.addEventListener('click', suppress, true);
+    // Sécurité : retire la garde après 400 ms même si aucun click n'a eu lieu
+    setTimeout(() => document.removeEventListener('click', suppress, true), 400);
+    if (tgt) moveColumnTo(src, tgt.colId, tgt.side);
   }
 }
 
