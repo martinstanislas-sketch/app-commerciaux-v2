@@ -7497,11 +7497,33 @@ body.tk-dragging-active * {
   outline-offset: -4px;
   border-radius: var(--radius-sm, 10px);
 }
-.tk-col-header[draggable="true"] {
+/* Le header devient lui-même drag-grabbable via pointer events */
+.tk-col-header {
   cursor: grab;
+  touch-action: pan-y; /* on bloquera le scroll-X pendant le drag en JS */
+  user-select: none;
 }
-.tk-col-header[draggable="true"]:active {
+.tk-col-header:active {
   cursor: grabbing;
+}
+/* Pendant un drag actif, on bloque toute interaction sur le board pour
+   garantir des coordonnées propres et empêcher la sélection de texte */
+body.tk-col-dragging-active {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+body.tk-col-dragging-active * { cursor: grabbing !important; }
+
+/* Le fantôme qui suit le pointeur pendant le drag */
+.tk-col-ghost {
+  pointer-events: none;
+  opacity: 0.92;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.30), 0 0 0 1px rgba(99,102,241,0.30);
+  transform: rotate(2deg) scale(1.02);
+  transform-origin: center;
+  transition: none !important;
+  background: #fff;
+  border-radius: 14px;
 }
 .tk-col.tk-col-dragging,
 .tk-col-header.tk-col-dragging {
