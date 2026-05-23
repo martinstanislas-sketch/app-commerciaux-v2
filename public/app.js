@@ -6927,17 +6927,26 @@ function wireTasksEvents() {
     header.addEventListener('pointerdown', onColumnPointerDown);
   });
   // Boutons de déplacement de colonne (← →) visibles dans chaque entête
-  container.querySelectorAll('[data-move-col]').forEach(btn => {
+  const moveButtons = container.querySelectorAll('[data-move-col]');
+  console.log('[tk-col-arrow] binding click sur', moveButtons.length, 'boutons ‹ ›');
+  moveButtons.forEach(btn => {
     btn.addEventListener('click', (e) => {
+      console.log('[tk-col-arrow] CLIC reçu sur bouton', btn.dataset.dir, 'colonne', btn.dataset.moveCol, 'disabled=', btn.disabled);
       e.stopPropagation();
-      if (btn.disabled) return;
+      e.preventDefault();
+      if (btn.disabled) {
+        console.log('[tk-col-arrow] bouton désactivé, ignoré');
+        return;
+      }
       const colId = parseInt(btn.dataset.moveCol, 10);
       const dir = parseInt(btn.dataset.dir, 10);
+      console.log('[tk-col-arrow] appel shiftColumn(', colId, ',', dir, ')');
       shiftColumn(colId, dir);
     });
     // Empêche le drag-and-drop de partir depuis ces boutons (sinon ça
     // déclenche le drag de la colonne au lieu d'un simple clic)
     btn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+    btn.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
     btn.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
   });
 }
@@ -7321,18 +7330,24 @@ async function moveColumnTo(sourceId, targetId, side /* 'before' | 'after' */) {
 
 // Shift a column one slot left or right (used by the column menu)
 async function shiftColumn(columnId, dir /* -1 = left, +1 = right */) {
+  console.log('[shiftColumn] start, columnId=', columnId, 'dir=', dir);
   const realCols = tasksBoard.filter(c => !c.is_virtual && c.id > 0);
   const ids = realCols.map(c => c.id);
+  console.log('[shiftColumn] real cols ids=', ids);
   const idx = ids.indexOf(columnId);
-  if (idx < 0) return;
+  if (idx < 0) { console.log('[shiftColumn] colonne introuvable, abort'); return; }
   const newIdx = idx + dir;
-  if (newIdx < 0 || newIdx >= ids.length) return;
+  if (newIdx < 0 || newIdx >= ids.length) { console.log('[shiftColumn] hors limites, abort'); return; }
   [ids[idx], ids[newIdx]] = [ids[newIdx], ids[idx]];
+  console.log('[shiftColumn] nouvel ordre=', ids);
   try {
-    await api('/tasks/columns/reorder', { method: 'POST', body: { order: ids } });
+    const result = await api('/tasks/columns/reorder', { method: 'POST', body: { order: ids } });
+    console.log('[shiftColumn] API OK', result);
     await loadTasksBoard();
+    console.log('[shiftColumn] board rechargé');
   } catch (e) {
-    showToast('Erreur déplacement', 'error');
+    console.error('[shiftColumn] ERREUR', e);
+    showToast('Erreur déplacement: ' + (e.message || e), 'error');
   }
 }
 
