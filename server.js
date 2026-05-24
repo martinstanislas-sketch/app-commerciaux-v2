@@ -2650,7 +2650,7 @@ app.get('/api/tasks/board', requireAuth, (req, res) => {
 
   // Own tasks: created_by = userKey AND column belongs to userKey
   const ownTasks = db.prepare(`
-    SELECT id, column_id, parent_id, text, highlighted, completed, position, due, description, tags, created_by, assigned_to
+    SELECT id, column_id, parent_id, text, highlighted, completed, position, due, description, tags, created_by, assigned_to, created_at
     FROM tasks
     WHERE created_by = ? AND column_id IN (SELECT id FROM task_columns WHERE created_by = ?)
     ORDER BY position ASC, id ASC
@@ -2659,7 +2659,7 @@ app.get('/api/tasks/board', requireAuth, (req, res) => {
   // Assigned tasks: assigned_to = userKey AND created by someone else
   // These will be displayed in a virtual column "📌 Assignées à moi"
   const assignedTasks = db.prepare(`
-    SELECT id, column_id, parent_id, text, highlighted, completed, position, due, description, tags, created_by, assigned_to
+    SELECT id, column_id, parent_id, text, highlighted, completed, position, due, description, tags, created_by, assigned_to, created_at
     FROM tasks
     WHERE assigned_to = ? AND created_by != ?
     ORDER BY position ASC, id ASC

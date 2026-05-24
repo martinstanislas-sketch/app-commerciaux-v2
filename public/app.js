@@ -6461,6 +6461,27 @@ let tasksDragging = null;       // { type: 'task'|'column', id, sourceColId? }
 let tasksDropTarget = null;     // { type: 'before'|'after'|'child'|'column-end'|'column-swap', taskId?, colId? }
 let tasksActiveFilters = new Set(); // Set of column IDs that are active filters (empty = show all)
 let tasksHoveredColumnId = null; // For "n" shortcut
+// Mode de tri par colonne — persiste dans localStorage (clé : tasks:colSort:<colId>)
+// Valeurs : 'position' (manuel/défaut), 'created_desc', 'created_asc',
+// 'due_asc', 'due_desc', 'assigned'
+function tasksGetColSort(colId) {
+  try { return localStorage.getItem('tasks:colSort:' + colId) || 'position'; }
+  catch (_) { return 'position'; }
+}
+function tasksSetColSort(colId, mode) {
+  try {
+    if (!mode || mode === 'position') localStorage.removeItem('tasks:colSort:' + colId);
+    else localStorage.setItem('tasks:colSort:' + colId, mode);
+  } catch (_) {}
+}
+const TASKS_SORT_OPTIONS = [
+  { value: 'position',     label: '↕️ Manuel (drag)' },
+  { value: 'created_desc', label: '🆕 Date de création (récent → ancien)' },
+  { value: 'created_asc',  label: '📅 Date de création (ancien → récent)' },
+  { value: 'due_asc',      label: '⏰ Échéance (proche → lointaine)' },
+  { value: 'due_desc',     label: '⌛ Échéance (lointaine → proche)' },
+  { value: 'assigned',     label: '👤 Personne assignée' },
+];
 let tasksUsersList = [];           // List of users for admin selector / assignment dropdown
 let tasksViewingUserKey = null;    // Which user's board are we currently viewing
 let tasksViewingUserName = '';     // Display name
@@ -6593,7 +6614,9 @@ function renderViewAsSelector() {
 }
 
 // Build a tree of tasks from the flat list: roots have parent_id null, children nested under their parent
-function buildTaskTree(flatTasks) {
+// sortMode (optionnel) : 'position' (défaut) | 'created_desc' | 'created_asc' |
+//                       'due_asc' | 'due_desc' | 'assigned'
+function buildTaskTree(flatTasks, sortMode) {
   const map = {};
   flatTasks.forEach(t => { map[t.id] = { ...t, children: [] }; });
   const roots = [];
@@ -6617,9 +6640,41 @@ function buildTaskTree(flatTasks) {
     if (diffDays <= 2) return 2;     // next 2 days
     return 50 + diffDays;            // later
   };
-  const sortFn = isMobile
-    ? (a, b) => priorityScore(a) - priorityScore(b) || a.position - b.position
-    : (a, b) => a.position - b.position || a.id - b.id;
+  // Sélection de la fonction de tri en fonction du mode demandé
+  const cmpCreatedDesc = (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || b.id - a.id;
+  const cmpCreatedAsc  = (a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || a.id - b.id;
+  const cmpDueAsc = (a, b) => {
+    // Tâches sans échéance et terminées en fin de liste
+    const aMissing = !a.due, bMissing = !b.due;
+    if (aMissing && bMissing) return a.position - b.position;
+    if (aMissing) return 1;
+    if (bMissing) return -1;
+    return String(a.due).localeCompare(String(b.due)) || a.position - b.position;
+  };
+  const cmpDueDesc = (a, b) => {
+    const aMissing = !a.due, bMissing = !b.due;
+    if (aMissing && bMissing) return a.position - b.position;
+    if (aMissing) return 1;
+    if (bMissing) return -1;
+    return String(b.due).localeCompare(String(a.due)) || a.position - b.position;
+  };
+  const cmpAssigned = (a, b) => {
+    const an = String(a.assigned_to_name || a.assigned_to || 'zzz_non-assigné');
+    const bn = String(b.assigned_to_name || b.assigned_to || 'zzz_non-assigné');
+    return an.localeCompare(bn) || a.position - b.position;
+  };
+  let sortFn;
+  if (sortMode === 'created_desc') sortFn = cmpCreatedDesc;
+  else if (sortMode === 'created_asc') sortFn = cmpCreatedAsc;
+  else if (sortMode === 'due_asc') sortFn = cmpDueAsc;
+  else if (sortMode === 'due_desc') sortFn = cmpDueDesc;
+  else if (sortMode === 'assigned') sortFn = cmpAssigned;
+  else {
+    // Mode par défaut « position » : mobile = priorité d'échéance, desktop = position manuelle
+    sortFn = isMobile
+      ? (a, b) => priorityScore(a) - priorityScore(b) || a.position - b.position
+      : (a, b) => a.position - b.position || a.id - b.id;
+  }
   const sortNodes = (arr) => {
     arr.sort(sortFn);
     arr.forEach(n => sortNodes(n.children));
@@ -6769,7 +6824,8 @@ function renderTasksBoard() {
   // (pour gérer les bornes des flèches ← →)
   const realColIds = tasksBoard.filter(c => !c.is_virtual && c.id > 0).map(c => c.id);
   container.innerHTML = visibleColumns.map(col => {
-    const tree = buildTaskTree(col.tasks);
+    const sortMode = tasksGetColSort(col.id);
+    const tree = buildTaskTree(col.tasks, sortMode);
     const isVirtual = col.is_virtual || col.id < 0;
     const nameAttr = isVirtual ? '' : `data-edit-col="${col.id}"`;
     const menuBtn = isVirtual ? '' : `<button class="tk-col-menu" data-col-menu="${col.id}" title="Options">⋯</button>`;
@@ -6791,6 +6847,24 @@ function renderTasksBoard() {
     }
     const addBtn = isVirtual ? '' : `<button class="tk-add-task" data-add-task="${col.id}">+ Ajouter une tâche</button>`;
     const colClass = isVirtual ? 'tk-col tk-col-virtual' : 'tk-col';
+    // Barre de tri pour cette colonne (sauf colonnes virtuelles)
+    let sortBar = '';
+    if (!isVirtual) {
+      const currentSort = sortMode || 'position';
+      const currentLabel = (TASKS_SORT_OPTIONS.find(o => o.value === currentSort) || TASKS_SORT_OPTIONS[0]).label;
+      const opts = TASKS_SORT_OPTIONS
+        .map(o => `<option value="${escapeHtml(o.value)}" ${o.value === currentSort ? 'selected' : ''}>${escapeHtml(o.label)}</option>`)
+        .join('');
+      const isCustomSort = currentSort !== 'position';
+      sortBar = `
+        <div class="tk-col-sort-bar${isCustomSort ? ' is-custom' : ''}">
+          <label class="tk-col-sort-label" title="Trier les tâches de cette colonne">
+            <span class="tk-col-sort-icon" aria-hidden="true">⇅</span>
+            <select class="tk-col-sort-select" data-sort-col="${col.id}" title="${escapeHtml(currentLabel)}">${opts}</select>
+          </label>
+        </div>
+      `;
+    }
     return `
     <div class="${colClass}" data-col-id="${col.id}">
       <div class="tk-col-header" style="border-top-color: ${col.color}" data-col-header="${col.id}" ${headerDraggable}>
@@ -6802,6 +6876,7 @@ function renderTasksBoard() {
           ${menuBtn}
         </div>
       </div>
+      ${sortBar}
       <div class="tk-col-body" data-col-body="${col.id}">
         ${tree.map(t => renderTaskNode(t, 0)).join('')}
         ${addBtn}
@@ -6917,6 +6992,18 @@ function wireTasksEvents() {
     col.addEventListener('mouseenter', () => { tasksHoveredColumnId = parseInt(col.dataset.colId, 10); });
     col.addEventListener('mouseleave', () => { tasksHoveredColumnId = null; });
   });
+  // Sélecteurs de tri par colonne
+  container.querySelectorAll('[data-sort-col]').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const colId = parseInt(sel.dataset.sortCol, 10);
+      tasksSetColSort(colId, sel.value);
+      renderTasksBoard();
+    });
+    // Empêche le drag de la colonne quand on interagit avec le select
+    sel.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+    sel.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+  });
+
   // Drag-and-drop des COLONNES via pointer events (mouse + touch).
   // Listener attaché directement sur chaque header pour éviter tout
   // problème de délégation / capture interceptée par les cards (qui ont
