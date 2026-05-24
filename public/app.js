@@ -7777,60 +7777,66 @@ function renderTaskPanel(task) {
       <button class="tk-pn-close" id="tk-pn-close" title="Fermer">✕</button>
     </header>
     <div class="tk-pn-body">
-      <div class="tk-pn-section">
-        <div class="tk-pn-label">Colonne</div>
-        <div class="tk-pn-cols">
-          ${cols.map(c => `
-            <button class="tk-pn-col-btn ${c.id === task.column_id ? 'active' : ''}"
-              data-col-pick="${c.id}"
-              style="--col-color: ${c.color}; ${c.id === task.column_id ? `background:${c.color}; border-color:${c.color}; color:#fff;` : ''}">
-              ${escapeHtml(c.name)}
-            </button>
-          `).join('')}
+      <!-- Colonne gauche : métadonnées compactes -->
+      <div class="tk-pn-col tk-pn-col-left">
+        <div class="tk-pn-section">
+          <div class="tk-pn-label">Colonne</div>
+          <div class="tk-pn-cols">
+            ${cols.map(c => `
+              <button class="tk-pn-col-btn ${c.id === task.column_id ? 'active' : ''}"
+                data-col-pick="${c.id}"
+                style="--col-color: ${c.color}; ${c.id === task.column_id ? `background:${c.color}; border-color:${c.color}; color:#fff;` : ''}">
+                ${escapeHtml(c.name)}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="tk-pn-section">
+          <div class="tk-pn-label">Échéance</div>
+          <div class="tk-pn-due">
+            <input type="date" id="tk-pn-date" value="${dueDate}">
+            <input type="time" id="tk-pn-time" value="${dueTime}">
+            <button class="tk-pn-due-clear" id="tk-pn-due-clear">Retirer</button>
+          </div>
+        </div>
+
+        <div class="tk-pn-section">
+          <div class="tk-pn-label">Tags</div>
+          <div class="tk-pn-tags" id="tk-pn-tags">
+            ${tags.map((tag, i) => `<span class="tk-pn-tag">${escapeHtml(tag)}<button data-tag-rm="${i}">×</button></span>`).join('')}
+            <input type="text" id="tk-pn-tag-input" placeholder="Ajouter un tag…">
+          </div>
+        </div>
+
+        <div class="tk-pn-section">
+          <div class="tk-pn-label">Assigner à un collègue</div>
+          <select id="tk-pn-assignee" class="tk-pn-assignee">
+            <option value="">— Personne —</option>
+            ${tasksUsersList
+              .filter(u => u.key !== task.created_by)
+              .map(u => `<option value="${escapeHtml(u.key)}" ${u.key === task.assigned_to ? 'selected' : ''}>${escapeHtml(u.name)}</option>`)
+              .join('')}
+          </select>
+          ${task.created_by && task.created_by !== tasksCurrentUserKey ? `<div class="tk-pn-creator">Créée par <strong>${escapeHtml(task.created_by_name || '')}</strong></div>` : ''}
         </div>
       </div>
 
-      <div class="tk-pn-section">
-        <div class="tk-pn-label">Échéance</div>
-        <div class="tk-pn-due">
-          <input type="date" id="tk-pn-date" value="${dueDate}">
-          <input type="time" id="tk-pn-time" value="${dueTime}">
-          <button class="tk-pn-due-clear" id="tk-pn-due-clear">Retirer</button>
+      <!-- Colonne droite : contenu principal (description, checklist, actions) -->
+      <div class="tk-pn-col tk-pn-col-right">
+        <div class="tk-pn-section">
+          <div class="tk-pn-label">Description</div>
+          <textarea id="tk-pn-desc" placeholder="Notes, instructions, checklist (- [ ] item)…">${escapeHtml(description)}</textarea>
         </div>
-      </div>
 
-      <div class="tk-pn-section">
-        <div class="tk-pn-label">Tags</div>
-        <div class="tk-pn-tags" id="tk-pn-tags">
-          ${tags.map((tag, i) => `<span class="tk-pn-tag">${escapeHtml(tag)}<button data-tag-rm="${i}">×</button></span>`).join('')}
-          <input type="text" id="tk-pn-tag-input" placeholder="Ajouter un tag…">
+        ${checklistHTML}
+
+        <div class="tk-pn-section tk-pn-buttons">
+          <button class="tk-pn-toggle ${task.highlighted ? 'active' : ''}" id="tk-pn-highlight">
+            ${task.highlighted ? '○ Retirer le liseré rouge' : '🔴 Mettre un liseré rouge'}
+          </button>
+          <button class="tk-pn-delete" id="tk-pn-delete">Supprimer</button>
         </div>
-      </div>
-
-      <div class="tk-pn-section">
-        <div class="tk-pn-label">Assigner à un collègue</div>
-        <select id="tk-pn-assignee" class="tk-pn-assignee">
-          <option value="">— Personne —</option>
-          ${tasksUsersList
-            .filter(u => u.key !== task.created_by) // can't assign to creator (it's already theirs)
-            .map(u => `<option value="${escapeHtml(u.key)}" ${u.key === task.assigned_to ? 'selected' : ''}>${escapeHtml(u.name)}</option>`)
-            .join('')}
-        </select>
-        ${task.created_by && task.created_by !== tasksCurrentUserKey ? `<div class="tk-pn-creator">Créée par <strong>${escapeHtml(task.created_by_name || '')}</strong></div>` : ''}
-      </div>
-
-      <div class="tk-pn-section">
-        <div class="tk-pn-label">Description</div>
-        <textarea id="tk-pn-desc" placeholder="Notes, instructions, checklist (- [ ] item)…">${escapeHtml(description)}</textarea>
-      </div>
-
-      ${checklistHTML}
-
-      <div class="tk-pn-section tk-pn-buttons">
-        <button class="tk-pn-toggle ${task.highlighted ? 'active' : ''}" id="tk-pn-highlight">
-          ${task.highlighted ? '○ Retirer le liseré rouge' : '🔴 Mettre un liseré rouge'}
-        </button>
-        <button class="tk-pn-delete" id="tk-pn-delete">Supprimer</button>
       </div>
     </div>
   `;
