@@ -7831,17 +7831,17 @@ body.tk-col-dragging-active * { cursor: grabbing !important; }
 .tk-panel-backdrop.hidden {
   display: none;
 }
-/* Fiche tâche : modal centré, GRAND format, pour une visibilité maximale.
-   Plus de slide-in latéral — la fiche s'ouvre au milieu de l'écran et
-   occupe la majeure partie de la zone visible. */
+/* Fiche tâche : grand modal centré, premium, occupe la quasi-totalité
+   de l'écran. Largeur 90vw avec cap 1400px, hauteur 90vh avec cap 900px.
+   Le contenu interne scrolle dans le modal (jamais la page entière). */
 .tk-panel {
   position: fixed;
   top: 50%;
   left: 50%;
-  width: min(1200px, 96vw);
-  max-width: 96vw;
-  height: min(880px, 92vh);
-  max-height: 92vh;
+  width: min(1400px, 90vw);
+  max-width: 90vw;
+  height: min(900px, 90vh);
+  max-height: 90vh;
   background: #fff;
   z-index: 1001;
   border-radius: 18px;
@@ -7852,7 +7852,7 @@ body.tk-col-dragging-active * { cursor: grabbing !important; }
               0 8px 24px rgba(15, 23, 42, 0.12);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: hidden; /* le scroll se fait dans .tk-pn-body, pas sur le modal */
   pointer-events: none;
 }
 .tk-panel.open {
@@ -7866,9 +7866,10 @@ body.tk-col-dragging-active * { cursor: grabbing !important; }
 .tk-pn-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 22px 28px 16px;
+  gap: 14px;
+  padding: 24px 32px 18px;
   border-bottom: 1px solid rgba(148,163,194,0.18);
+  flex-shrink: 0; /* le header ne se compresse jamais : laisse place au body */
 }
 .tk-pn-title {
   flex: 1;
@@ -7887,21 +7888,25 @@ body.tk-col-dragging-active * { cursor: grabbing !important; }
 .tk-pn-close {
   background: transparent;
   border: none;
-  font-size: 18px;
+  font-size: 20px;
   cursor: pointer;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   color: var(--text-muted, #94A3B8);
+  flex-shrink: 0;
+  transition: all .15s ease;
 }
 .tk-pn-close:hover {
   background: rgba(148,163,194,0.15);
   color: var(--text, #1E293B);
 }
 .tk-pn-body {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0; /* nécessaire pour que overflow-y fonctionne dans un flex */
   overflow-y: auto;
-  padding: 22px 28px 32px;
+  overflow-x: hidden;
+  padding: 24px 32px 36px;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -8105,12 +8110,13 @@ body.tk-col-dragging-active * { cursor: grabbing !important; }
   color: #fff;
 }
 
-/* Responsive : la fiche reste centrée mais prend presque tout l'écran
-   sur mobile (94vw / 90vh) pour rester confortable au pouce. */
+/* Responsive : sur mobile, le modal occupe quasi toute la largeur
+   avec une marge légère (96vw) et 92vh de hauteur. */
 @media (max-width: 760px) {
   .tk-panel {
     width: 96vw;
     max-width: 96vw;
+    height: 92vh;
     max-height: 92vh;
     border-radius: 14px;
   }
