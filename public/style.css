@@ -7816,7 +7816,9 @@ body.tk-col-dragging-active * { cursor: grabbing !important; }
 .tk-panel-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15,23,42,0.35);
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   z-index: 1000;
   opacity: 0;
   transition: opacity .2s ease;
@@ -7829,24 +7831,32 @@ body.tk-col-dragging-active * { cursor: grabbing !important; }
 .tk-panel-backdrop.hidden {
   display: none;
 }
+/* Fiche tâche : modal centré, grand format, pour une bonne visibilité.
+   Plus de slide-in latéral — la fiche s'ouvre au milieu de l'écran. */
 .tk-panel {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 440px;
-  max-width: 92vw;
+  top: 50%;
+  left: 50%;
+  width: min(880px, 94vw);
+  max-width: 94vw;
+  max-height: 90vh;
   background: #fff;
   z-index: 1001;
-  transform: translateX(100%);
-  transition: transform .25s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: -8px 0 24px rgba(15,23,42,0.12);
+  border-radius: 18px;
+  transform: translate(-50%, -50%) scale(0.94);
+  opacity: 0;
+  transition: opacity .18s ease-out, transform .22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.30),
+              0 8px 24px rgba(15, 23, 42, 0.12);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  pointer-events: none;
 }
 .tk-panel.open {
-  transform: translateX(0);
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  pointer-events: auto;
 }
 .tk-panel.hidden {
   display: none;
@@ -8093,21 +8103,14 @@ body.tk-col-dragging-active * { cursor: grabbing !important; }
   color: #fff;
 }
 
-/* Responsive: panel becomes bottom sheet on small screens */
+/* Responsive : la fiche reste centrée mais prend presque tout l'écran
+   sur mobile (94vw / 90vh) pour rester confortable au pouce. */
 @media (max-width: 760px) {
   .tk-panel {
-    top: auto;
-    left: 0;
-    right: 0;
-    width: 100%;
-    max-width: 100%;
-    height: 92vh;
-    border-top-left-radius: 18px;
-    border-top-right-radius: 18px;
-    transform: translateY(100%);
-  }
-  .tk-panel.open {
-    transform: translateY(0);
+    width: 96vw;
+    max-width: 96vw;
+    max-height: 92vh;
+    border-radius: 14px;
   }
 }
 
