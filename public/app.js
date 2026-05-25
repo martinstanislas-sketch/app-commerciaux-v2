@@ -12219,10 +12219,17 @@ const PREL_SITE_MAP = {
   'my coach wasquehal':             'Wasquehal',
 };
 
-// Parse une date d'échéance Vendor — formats acceptés : « DD/MM/YYYY »,
-// « YYYY-MM-DD », ou une valeur Excel sérielle (jours depuis 1900-01-01).
+// Parse une date d'échéance Vendor — formats acceptés :
+//   - Objet Date JS (cellDates: true côté SheetJS)
+//   - Nombre (date sérielle Excel, jours depuis 1899-12-30)
+//   - String DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, DD.MM.YYYY
 function prelParseDate(v) {
   if (v == null || v === '') return null;
+  // Date object (cellDates:true côté SheetJS)
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) return null;
+    return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+  }
   if (typeof v === 'number') {
     // Date Excel : jours depuis 1899-12-30 (corrige le bug 1900)
     const d = new Date(Math.round((v - 25569) * 86400 * 1000));
@@ -12230,11 +12237,14 @@ function prelParseDate(v) {
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
   }
   const s = String(v).trim();
-  // DD/MM/YYYY
-  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  // DD/MM/YYYY ou DD-MM-YYYY ou DD.MM.YYYY
+  let m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
   if (m) return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
   // YYYY-MM-DD
   m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  // YYYY/MM/DD
+  m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
   if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
   return null;
 }
@@ -12433,38 +12443,95 @@ async function handlePrelFileImport(file) {
       return;
     }
     const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array' });
+    // cellDates:true → les cellules date sont retournées comme objets Date JS
+    // (plus fiable que parser une string DD/MM/YYYY qui peut varier selon locale)
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     if (!sheet) { alert('Fichier vide ou illisible.'); return; }
     const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
     if (rows.length === 0) { alert('Aucune ligne trouvée dans le fichier.'); return; }
+
+    // Construit un index normalisé des clés (lowercase + trim) pour rendre la
+    // lecture insensible à la casse et aux espaces parasites dans les en-têtes.
+    const sampleKeys = Object.keys(rows[0] || {});
+    const keyByNorm = {};
+    for (const k of sampleKeys) {
+      const norm = String(k).trim().toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/é|è|ê|ë/g, 'e')
+        .replace(/à|â|ä/g, 'a');
+      if (!keyByNorm[norm]) keyByNorm[norm] = k;
+    }
+    const pick = (row, ...candidates) => {
+      for (const c of candidates) {
+        const norm = String(c).trim().toLowerCase()
+          .replace(/\s+/g, ' ')
+          .replace(/é|è|ê|ë/g, 'e')
+          .replace(/à|â|ä/g, 'a');
+        const key = keyByNorm[norm];
+        if (key && row[key] != null && row[key] !== '') return row[key];
+      }
+      return null;
+    };
+    console.log('[prel] colonnes détectées :', sampleKeys);
+    console.log('[prel] première ligne brute :', rows[0]);
+
     // Normalise chaque ligne
     const normalized = [];
-    const skipped = { club: 0, date: 0 };
+    const skipped = { club: 0, date: 0, dateExamples: [], clubExamples: [] };
     for (const r of rows) {
-      const echeanceISO = prelParseDate(r['Echeance'] || r['Échéance'] || r['echeance']);
-      if (!echeanceISO) { skipped.date++; continue; }
+      const rawDate = pick(r, 'Echeance', 'Échéance', 'echeance', 'Date d\'échéance');
+      const echeanceISO = prelParseDate(rawDate);
+      if (!echeanceISO) {
+        skipped.date++;
+        if (skipped.dateExamples.length < 3) skipped.dateExamples.push(String(rawDate));
+        continue;
+      }
       const week = prelMondayOf(echeanceISO);
-      const club = prelResolveClub(r['Site'] || r['site']);
-      if (!club) { skipped.club++; continue; } // franchise ou inconnu → ignoré
+      const rawSite = pick(r, 'Site', 'site');
+      const club = prelResolveClub(rawSite);
+      if (!club) {
+        skipped.club++;
+        if (skipped.clubExamples.length < 3) skipped.clubExamples.push(String(rawSite));
+        continue;
+      }
+      const ttcRaw = pick(r, 'TTC', 'ttc');
+      const idClientRaw = pick(r, 'Id_client', 'Id client', 'IdClient');
+      const idPrestaRaw = pick(r, 'Id_prestation', 'Id prestation');
       normalized.push({
         club,
         week_start: week,
         echeance: echeanceISO,
-        id_client: Number.isFinite(Number(r['Id_client'])) ? parseInt(r['Id_client'], 10) : null,
-        id_prestation: Number.isFinite(Number(r['Id_prestation'])) ? parseInt(r['Id_prestation'], 10) : null,
-        membre: r['Membre'] || null,
-        etat: r['Etat'] || r['État'] || null,
-        ttc: Number.isFinite(Number(r['TTC'])) ? Number(r['TTC']) : null,
-        vendeur: r['Vendeur'] || null,
-        prestation: r['Prestation'] || null,
-        raison: r['Raison (si impayé)'] || r['Raison'] || null,
-        tel: r['Tel. SMS'] || r['Tel. Personnel'] || null,
-        email: r['Email'] || null,
+        id_client: Number.isFinite(Number(idClientRaw)) ? parseInt(idClientRaw, 10) : null,
+        id_prestation: Number.isFinite(Number(idPrestaRaw)) ? parseInt(idPrestaRaw, 10) : null,
+        membre: pick(r, 'Membre'),
+        etat: pick(r, 'Etat', 'État'),
+        ttc: Number.isFinite(Number(ttcRaw)) ? Number(ttcRaw) : null,
+        vendeur: pick(r, 'Vendeur'),
+        prestation: pick(r, 'Prestation'),
+        raison: pick(r, 'Raison (si impayé)', 'Raison'),
+        tel: pick(r, 'Tel. SMS', 'Tel. Personnel', 'Tel SMS', 'Téléphone'),
+        email: pick(r, 'Email', 'E-mail'),
       });
     }
+    console.log('[prel] normalisées :', normalized.length, '/ ignorées :', skipped);
     if (normalized.length === 0) {
-      alert(`Aucune ligne exploitable.\n• ${skipped.club} ignorées (club non-réseau / franchise)\n• ${skipped.date} ignorées (date d'échéance invalide)`);
+      const colsHint = sampleKeys.length > 0
+        ? `\n\nColonnes détectées :\n${sampleKeys.slice(0, 12).map(k => `  · ${k}`).join('\n')}${sampleKeys.length > 12 ? `\n  · …` : ''}`
+        : '';
+      const dateHint = skipped.dateExamples.length > 0
+        ? `\n\nExemples de valeurs de date rejetées :\n${skipped.dateExamples.map(s => `  · « ${s} »`).join('\n')}`
+        : '';
+      const clubHint = skipped.clubExamples.length > 0
+        ? `\n\nExemples de Site rejetés :\n${skipped.clubExamples.map(s => `  · « ${s} »`).join('\n')}`
+        : '';
+      alert(
+        `Aucune ligne exploitable.\n`
+        + `• ${skipped.club} ignorées (club non-réseau / franchise)\n`
+        + `• ${skipped.date} ignorées (date d'échéance invalide)`
+        + colsHint + dateHint + clubHint
+        + `\n\nOuvre la console (F12) pour voir le détail.`
+      );
       return;
     }
     // Récapitulatif
