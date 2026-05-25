@@ -11226,6 +11226,12 @@ img {
   color: #cbd5e1;
   font-size: 12px;
 }
+/* Layout 2 colonnes : Membre flexible à gauche, action compacte à droite */
+#tab-prel .prel-table .prel-col-action {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
 
 /* ── Accès consultant : visibilité conditionnelle ──────────────── */
 /* Par défaut : éléments admin visibles, éléments consultant masqués */

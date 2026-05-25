@@ -12458,12 +12458,7 @@ async function renderPrelComparison(weekStart) {
                   <thead>
                     <tr>
                       <th>Membre</th>
-                      <th>Prestation</th>
-                      <th>Vendeur</th>
-                      <th class="prel-num">TTC</th>
-                      <th>Échéance S-1</th>
-                      <th>Contact</th>
-                      <th>Fiche Déciplus</th>
+                      <th class="prel-col-action">Fiche Déciplus</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -12474,17 +12469,9 @@ async function renderPrelComparison(weekStart) {
                       return `
                       <tr>
                         <td><strong>${escapeHtml(p.membre || '—')}</strong></td>
-                        <td>${escapeHtml(p.prestation || '—')}</td>
-                        <td>${escapeHtml(p.vendeur || '—')}</td>
-                        <td class="prel-num">${prelFormatEur(p.ttc)}</td>
-                        <td>${p.echeance ? prelFormatDateFR(p.echeance) : '—'}</td>
-                        <td class="prel-contact">
-                          ${p.tel   ? `<a href="tel:${escapeHtml(String(p.tel))}">${escapeHtml(String(p.tel))}</a>` : ''}
-                          ${p.email ? `<a href="mailto:${escapeHtml(p.email)}">${escapeHtml(p.email)}</a>` : ''}
-                        </td>
-                        <td class="prel-deciplus">
+                        <td class="prel-deciplus prel-col-action">
                           ${deciplusUrl
-                            ? `<a class="prel-deciplus-link" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus de ce client">↗ Fiche</a>`
+                            ? `<a class="prel-deciplus-link" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus de ce client">↗ Fiche Déciplus</a>`
                             : '<span class="prel-deciplus-empty">—</span>'}
                         </td>
                       </tr>
