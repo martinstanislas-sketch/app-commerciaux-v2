@@ -11017,6 +11017,19 @@ img {
   background: #4f46e5;
   transform: translateY(-1px);
 }
+#tab-prel .prel-week-toggle {
+  display: block;
+  margin-top: 6px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 11px;
+  color: #6366F1;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+#tab-prel .prel-week-toggle:hover { color: #4f46e5; }
 
 /* État vide */
 #tab-prel .prel-empty {

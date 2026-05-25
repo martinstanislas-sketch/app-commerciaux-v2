@@ -12309,6 +12309,14 @@ async function loadPrelTab() {
   await reloadPrelWeeks();
 }
 
+// Quand un fichier Vendor est uploadé, il contient typiquement des
+// échéances étalées sur plusieurs semaines (la semaine en cours + des
+// échéances futures planifiées). Par défaut on filtre le dropdown pour
+// ne garder que les semaines « principales » — celles avec ≥ 30 % du
+// nombre max de lignes — pour cacher les « semaines fantômes » futures
+// avec peu de lignes (effet de bord visuel). Un toggle permet de tout afficher.
+let prelShowAllWeeks = false;
+
 async function reloadPrelWeeks(autoSelect) {
   try {
     const res = await fetch('/api/prel/weeks', {
@@ -12320,23 +12328,60 @@ async function reloadPrelWeeks(autoSelect) {
     const sel = document.getElementById('prel-week-select');
     const results = document.getElementById('prel-results');
     if (!sel) return;
-    sel.innerHTML = weeks.length === 0
-      ? '<option value="">Aucune semaine importée</option>'
-      : weeks.map(w => `<option value="${escapeHtml(w.week_start)}">${escapeHtml(prelFormatWeek(w.week_start))} · ${w.clubs_count} clubs · ${w.rows_count} lignes</option>`).join('');
     if (weeks.length === 0) {
+      sel.innerHTML = '<option value="">Aucune semaine importée</option>';
       if (results) results.innerHTML = `
         <div class="prel-empty">
           <div class="prel-empty-icon" aria-hidden="true">📥</div>
           <div class="prel-empty-text">
             Importe un fichier d'échéances pour démarrer.<br>
-            Une fois la semaine choisie, on te liste par club les clients prélevés en S-1 mais qui ne le sont plus cette semaine.
+            Une fois la semaine choisie, on te liste par club les clients encaissés en S-1 mais qui ne le sont plus cette semaine.
           </div>
         </div>`;
+      const toggle = document.getElementById('prel-week-toggle');
+      if (toggle) toggle.style.display = 'none';
       return;
     }
-    const target = autoSelect || sel.value || weeks[0].week_start;
-    sel.value = target;
-    renderPrelComparison(target);
+    // Filtre les « semaines fantômes » (échéances futures avec peu de lignes)
+    const maxRows = weeks.reduce((m, w) => Math.max(m, w.rows_count), 0);
+    const threshold = Math.max(30, Math.round(maxRows * 0.30));
+    const principalWeeks = weeks.filter(w => w.rows_count >= threshold);
+    const ghostWeeks = weeks.filter(w => w.rows_count < threshold);
+    const visible = prelShowAllWeeks ? weeks : principalWeeks;
+    sel.innerHTML = visible.map(w => {
+      const isGhost = w.rows_count < threshold;
+      const tag = isGhost ? ' · échéances futures' : '';
+      return `<option value="${escapeHtml(w.week_start)}">${escapeHtml(prelFormatWeek(w.week_start))} · ${w.clubs_count} clubs · ${w.rows_count} lignes${tag}</option>`;
+    }).join('');
+    // Toggle « afficher toutes les semaines » si on en a caché
+    let toggle = document.getElementById('prel-week-toggle');
+    if (ghostWeeks.length > 0) {
+      if (!toggle) {
+        toggle = document.createElement('button');
+        toggle.id = 'prel-week-toggle';
+        toggle.type = 'button';
+        toggle.className = 'prel-week-toggle';
+        sel.parentNode.appendChild(toggle);
+        toggle.addEventListener('click', () => {
+          prelShowAllWeeks = !prelShowAllWeeks;
+          reloadPrelWeeks(sel.value);
+        });
+      }
+      toggle.style.display = '';
+      toggle.textContent = prelShowAllWeeks
+        ? `Masquer les ${ghostWeeks.length} semaine${ghostWeeks.length > 1 ? 's' : ''} d'échéances futures`
+        : `+ ${ghostWeeks.length} semaine${ghostWeeks.length > 1 ? 's' : ''} d'échéances futures`;
+    } else if (toggle) {
+      toggle.style.display = 'none';
+    }
+    // Auto-sélection : valeur passée, ou valeur actuelle, ou première visible
+    const target = autoSelect
+      || (visible.find(w => w.week_start === sel.value) ? sel.value : null)
+      || (visible[0] && visible[0].week_start);
+    if (target) {
+      sel.value = target;
+      renderPrelComparison(target);
+    }
   } catch (err) {
     console.error('[prel] weeks load error', err);
   }
