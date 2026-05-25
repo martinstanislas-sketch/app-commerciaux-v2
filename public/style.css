@@ -11203,6 +11203,29 @@ img {
   text-decoration: none;
 }
 #tab-prel .prel-table .prel-contact a:hover { text-decoration: underline; }
+#tab-prel .prel-table .prel-deciplus { white-space: nowrap; }
+#tab-prel .prel-deciplus-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: var(--ds-primary-500, #6366F1);
+  color: #fff !important;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  text-decoration: none !important;
+  transition: all 120ms ease;
+}
+#tab-prel .prel-deciplus-link:hover {
+  background: #4f46e5;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.30);
+}
+#tab-prel .prel-deciplus-empty {
+  color: #cbd5e1;
+  font-size: 12px;
+}
 
 /* ── Accès consultant : visibilité conditionnelle ──────────────── */
 /* Par défaut : éléments admin visibles, éléments consultant masqués */

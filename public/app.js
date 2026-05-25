@@ -12199,6 +12199,11 @@ async function renderPilotageFunnel() {
 //      clients prélevés (Etat = OK) en S-1 mais absents/non-OK en S.
 // ═══════════════════════════════════════════════════════════════════
 
+// URL Déciplus pour ouvrir la fiche d'un client directement depuis P.R.E.L.
+// `{ID}` est remplacé par la valeur de `Id_client` de chaque ligne Vendor.
+// (À adapter ici si l'URL Déciplus évolue.)
+const PREL_DECIPLUS_URL = 'https://ginkgo-sport.deciplus.pro/check.php?idj={ID}';
+
 // Mapping « Site » Vendor → club canonique. On exclut explicitement les
 // franchises (Tours, Veigné, Caen, Paris, Valence, etc.).
 const PREL_SITE_MAP = {
@@ -12458,10 +12463,15 @@ async function renderPrelComparison(weekStart) {
                       <th class="prel-num">TTC</th>
                       <th>Échéance S-1</th>
                       <th>Contact</th>
+                      <th>Fiche Déciplus</th>
                     </tr>
                   </thead>
                   <tbody>
-                    ${c.perdus.map(p => `
+                    ${c.perdus.map(p => {
+                      const deciplusUrl = (p.id_client != null)
+                        ? PREL_DECIPLUS_URL.replace('{ID}', String(p.id_client))
+                        : null;
+                      return `
                       <tr>
                         <td><strong>${escapeHtml(p.membre || '—')}</strong></td>
                         <td>${escapeHtml(p.prestation || '—')}</td>
@@ -12472,8 +12482,13 @@ async function renderPrelComparison(weekStart) {
                           ${p.tel   ? `<a href="tel:${escapeHtml(String(p.tel))}">${escapeHtml(String(p.tel))}</a>` : ''}
                           ${p.email ? `<a href="mailto:${escapeHtml(p.email)}">${escapeHtml(p.email)}</a>` : ''}
                         </td>
+                        <td class="prel-deciplus">
+                          ${deciplusUrl
+                            ? `<a class="prel-deciplus-link" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus de ce client">↗ Fiche</a>`
+                            : '<span class="prel-deciplus-empty">—</span>'}
+                        </td>
                       </tr>
-                    `).join('')}
+                    `;}).join('')}
                   </tbody>
                 </table>
               </div>
