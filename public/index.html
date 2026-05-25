@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-pf-prel9">
+  <link rel="stylesheet" href="style.css?v=ds-pf-prel-auto1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -688,7 +688,7 @@
       </div>
     </section>
 
-    <!-- P.R.E.L (admin uniquement) — analyse hebdomadaire des prélèvements -->
+    <!-- P.R.E.L (admin uniquement) — analyse automatique des 2 dernières semaines -->
     <section id="tab-prel" class="tab-content">
       <div class="prel-wrap">
         <header class="prel-header">
@@ -696,10 +696,6 @@
             <h2 class="prel-title">P.R.E.L</h2>
           </div>
           <div class="prel-toolbar">
-            <label class="prel-week">
-              <span>Semaine analysée</span>
-              <select id="prel-week-select"></select>
-            </label>
             <button class="prel-btn-primary" id="prel-import-trigger" type="button" title="Importer un fichier échéances (.xls / .xlsx)">
               <span>📂 Importer un fichier</span>
             </button>
@@ -710,8 +706,8 @@
           <div class="prel-empty">
             <div class="prel-empty-icon" aria-hidden="true">📥</div>
             <div class="prel-empty-text">
-              Importe un fichier d'échéances pour démarrer.<br>
-              Une fois la semaine choisie, on te liste par club les clients prélevés en S-1 mais qui ne le sont plus cette semaine.
+              Importe au moins 2 semaines consécutives d'échéances pour démarrer.<br>
+              L'analyse se fait automatiquement sur les <strong>2 dernières semaines</strong> et affiche les clients qui étaient encaissés la semaine dernière mais ne le sont plus cette semaine.
             </div>
           </div>
         </div>
@@ -826,6 +822,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-pf-prel9"></script>
+  <script src="app.js?v=ds-pf-prel-auto1"></script>
 </body>
 </html>

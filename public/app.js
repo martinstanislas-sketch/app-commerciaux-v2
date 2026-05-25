@@ -12306,23 +12306,15 @@ async function loadPrelTab() {
         fileInput.value = '';
       });
     }
-    const sel = document.getElementById('prel-week-select');
-    if (sel) {
-      sel.addEventListener('change', () => renderPrelComparison(sel.value));
-    }
   }
   await reloadPrelWeeks();
 }
 
-// Quand un fichier Vendor est uploadé, il contient typiquement des
-// échéances étalées sur plusieurs semaines (la semaine en cours + des
-// échéances futures planifiées). Par défaut on filtre le dropdown pour
-// ne garder que les semaines « principales » — celles avec ≥ 30 % du
-// nombre max de lignes — pour cacher les « semaines fantômes » futures
-// avec peu de lignes (effet de bord visuel). Un toggle permet de tout afficher.
-let prelShowAllWeeks = false;
-
-async function reloadPrelWeeks(autoSelect) {
+// L'analyse se fait automatiquement sur les 2 dernières semaines
+// « principales » (les plus récentes avec une volumétrie significative).
+// Pas de sélecteur — l'utilisateur uploads ses fichiers et l'app fait
+// le diff direct entre S (la plus récente) et S-1 (l'avant-dernière).
+async function reloadPrelWeeks() {
   try {
     const res = await fetch('/api/prel/weeks', {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
@@ -12330,76 +12322,39 @@ async function reloadPrelWeeks(autoSelect) {
     if (!res.ok) return;
     const data = await res.json();
     const weeks = data.weeks || [];
-    const sel = document.getElementById('prel-week-select');
     const results = document.getElementById('prel-results');
-    if (!sel) return;
+    if (!results) return;
     if (weeks.length === 0) {
-      sel.innerHTML = '<option value="">Aucune semaine importée</option>';
-      if (results) results.innerHTML = `
+      results.innerHTML = `
         <div class="prel-empty">
           <div class="prel-empty-icon" aria-hidden="true">📥</div>
           <div class="prel-empty-text">
-            Importe un fichier d'échéances pour démarrer.<br>
-            Une fois la semaine choisie, on te liste par club les clients encaissés en S-1 mais qui ne le sont plus cette semaine.
+            Importe au moins 2 semaines consécutives d'échéances pour démarrer.<br>
+            L'analyse se fait automatiquement sur les <strong>2 dernières semaines</strong>.
           </div>
         </div>`;
-      const toggle = document.getElementById('prel-week-toggle');
-      if (toggle) toggle.style.display = 'none';
       return;
     }
-    // Filtre les « semaines fantômes » (échéances futures avec peu de lignes)
+    // Filtre les semaines principales (volumétrie significative)
     const maxRows = weeks.reduce((m, w) => Math.max(m, w.rows_count), 0);
     const threshold = Math.max(30, Math.round(maxRows * 0.30));
     const principalWeeks = weeks.filter(w => w.rows_count >= threshold);
-    const ghostWeeks = weeks.filter(w => w.rows_count < threshold);
-    const visible = prelShowAllWeeks ? weeks : principalWeeks;
-    sel.innerHTML = visible.map(w => {
-      const isGhost = w.rows_count < threshold;
-      const tag = isGhost ? ' · échéances futures' : '';
-      return `<option value="${escapeHtml(w.week_start)}">${escapeHtml(prelFormatWeek(w.week_start))} · ${w.clubs_count} clubs · ${w.rows_count} lignes${tag}</option>`;
-    }).join('');
-    // Toggle « afficher toutes les semaines » si on en a caché
-    let toggle = document.getElementById('prel-week-toggle');
-    if (ghostWeeks.length > 0) {
-      if (!toggle) {
-        toggle = document.createElement('button');
-        toggle.id = 'prel-week-toggle';
-        toggle.type = 'button';
-        toggle.className = 'prel-week-toggle';
-        sel.parentNode.appendChild(toggle);
-        toggle.addEventListener('click', () => {
-          prelShowAllWeeks = !prelShowAllWeeks;
-          reloadPrelWeeks(sel.value);
-        });
-      }
-      toggle.style.display = '';
-      toggle.textContent = prelShowAllWeeks
-        ? `Masquer les ${ghostWeeks.length} semaine${ghostWeeks.length > 1 ? 's' : ''} d'échéances futures`
-        : `+ ${ghostWeeks.length} semaine${ghostWeeks.length > 1 ? 's' : ''} d'échéances futures`;
-    } else if (toggle) {
-      toggle.style.display = 'none';
+    if (principalWeeks.length < 2) {
+      // Affiche un message d'attente : il faut au moins 2 semaines
+      const onlyOne = principalWeeks[0] || weeks[0];
+      results.innerHTML = `
+        <div class="prel-empty">
+          <div class="prel-empty-icon" aria-hidden="true">⏳</div>
+          <div class="prel-empty-text">
+            Une seule semaine importée pour l'instant : <strong>${escapeHtml(prelFormatWeek(onlyOne.week_start))}</strong> (${onlyOne.rows_count} lignes).<br>
+            Importe le fichier de la semaine suivante pour démarrer la comparaison S vs S-1.
+          </div>
+        </div>`;
+      return;
     }
-    // Auto-sélection intelligente : on PRIVILÉGIE les semaines principales
-    // pour éviter d'atterrir par défaut sur une semaine d'échéances futures
-    // (qui aurait 0 perdus puisqu'il n'y a pas de S-1 réel pour ces semaines).
-    let target = null;
-    if (autoSelect && principalWeeks.find(w => w.week_start === autoSelect)) {
-      target = autoSelect;
-    } else if (sel.value && principalWeeks.find(w => w.week_start === sel.value)) {
-      target = sel.value;
-    } else if (principalWeeks.length > 0) {
-      target = principalWeeks[0].week_start; // la plus récente
-    } else if (autoSelect) {
-      target = autoSelect;
-    } else if (sel.value) {
-      target = sel.value;
-    } else if (visible[0]) {
-      target = visible[0].week_start;
-    }
-    if (target) {
-      sel.value = target;
-      renderPrelComparison(target);
-    }
+    // Les 2 dernières semaines principales (déjà triées DESC par week_start)
+    const weekS = principalWeeks[0].week_start;
+    renderPrelComparison(weekS);
   } catch (err) {
     console.error('[prel] weeks load error', err);
   }
@@ -12423,22 +12378,28 @@ async function renderPrelComparison(weekStart) {
     const totalPerdus = clubs.reduce((s, c) => s + (c.perdus_count || 0), 0);
     const totalMontant = clubs.reduce((s, c) => s + (c.perdus || []).reduce((t, p) => t + (p.ttc || 0), 0), 0);
     results.innerHTML = `
-      <div class="prel-summary">
-        <div class="prel-summary-item">
-          <span class="prel-summary-label">Semaine S</span>
-          <span class="prel-summary-value">${escapeHtml(prelFormatWeek(data.week_cur))}</span>
+      <!-- Bandeau principal des semaines comparées -->
+      <div class="prel-hero">
+        <div class="prel-hero-weeks">
+          <div class="prel-hero-week">
+            <span class="prel-hero-tag">Semaine en cours</span>
+            <span class="prel-hero-date">${escapeHtml(prelFormatWeek(data.week_cur))}</span>
+          </div>
+          <div class="prel-hero-vs">vs</div>
+          <div class="prel-hero-week prel-hero-week--prev">
+            <span class="prel-hero-tag">Semaine précédente</span>
+            <span class="prel-hero-date">${escapeHtml(prelFormatWeek(data.week_prev))}</span>
+          </div>
         </div>
-        <div class="prel-summary-item">
-          <span class="prel-summary-label">Semaine S-1</span>
-          <span class="prel-summary-value">${escapeHtml(prelFormatWeek(data.week_prev))}</span>
-        </div>
-        <div class="prel-summary-item is-highlight">
-          <span class="prel-summary-label">Clients perdus</span>
-          <span class="prel-summary-value">${totalPerdus}</span>
-        </div>
-        <div class="prel-summary-item is-highlight">
-          <span class="prel-summary-label">Montant perdu</span>
-          <span class="prel-summary-value">${prelFormatEur(totalMontant)}</span>
+        <div class="prel-hero-stats">
+          <div class="prel-hero-stat">
+            <span class="prel-hero-stat-value">${totalPerdus}</span>
+            <span class="prel-hero-stat-label">Client${totalPerdus > 1 ? 's' : ''} perdu${totalPerdus > 1 ? 's' : ''}</span>
+          </div>
+          <div class="prel-hero-stat prel-hero-stat--montant">
+            <span class="prel-hero-stat-value">${prelFormatEur(totalMontant)}</span>
+            <span class="prel-hero-stat-label">Montant perdu</span>
+          </div>
         </div>
       </div>
       <div class="prel-clubs">

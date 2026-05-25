@@ -10982,34 +10982,10 @@ img {
 }
 #tab-prel .prel-toolbar {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 14px;
   flex-wrap: wrap;
   flex-shrink: 0;
-}
-#tab-prel .prel-week {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-#tab-prel .prel-week select {
-  font: inherit;
-  font-size: 13px;
-  text-transform: none;
-  letter-spacing: 0;
-  font-weight: 500;
-  padding: 10px 14px;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  background: #fff;
-  min-width: 280px;
-  cursor: pointer;
-  color: #0f172a;
 }
 #tab-prel .prel-btn-primary {
   background: var(--ds-primary-500, #6366F1);
@@ -11026,19 +11002,92 @@ img {
   background: #4f46e5;
   transform: translateY(-1px);
 }
-#tab-prel .prel-week-toggle {
-  display: block;
-  margin-top: 6px;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  font-size: 11px;
-  color: #6366F1;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-style: dotted;
+/* ── Bandeau hero (2 semaines comparées + stats globales) ─── */
+#tab-prel .prel-hero {
+  background: linear-gradient(135deg, #6366F1 0%, #4f46e5 100%);
+  color: #fff;
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-bottom: 28px;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 32px;
+  align-items: center;
+  box-shadow: 0 12px 32px rgba(99, 102, 241, 0.25);
 }
-#tab-prel .prel-week-toggle:hover { color: #4f46e5; }
+#tab-prel .prel-hero-weeks {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+#tab-prel .prel-hero-week {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 200px;
+}
+#tab-prel .prel-hero-week--prev { opacity: 0.85; }
+#tab-prel .prel-hero-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+#tab-prel .prel-hero-date {
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+#tab-prel .prel-hero-vs {
+  font-size: 14px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+#tab-prel .prel-hero-stats {
+  display: flex;
+  gap: 24px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+#tab-prel .prel-hero-stat {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  padding: 14px 20px;
+  text-align: right;
+  min-width: 140px;
+}
+#tab-prel .prel-hero-stat-value {
+  display: block;
+  font-size: 32px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+#tab-prel .prel-hero-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+@media (max-width: 760px) {
+  #tab-prel .prel-hero {
+    grid-template-columns: 1fr;
+    padding: 20px 22px;
+  }
+  #tab-prel .prel-hero-stats {
+    justify-content: flex-start;
+  }
+}
 
 /* État vide */
 #tab-prel .prel-empty {
@@ -11110,38 +11159,48 @@ img {
 }
 #tab-prel .prel-summary-item.is-highlight .prel-summary-value { color: #b91c1c; }
 
-/* Clubs grid */
+/* Grille des clubs : 2 colonnes desktop, 1 mobile */
 #tab-prel .prel-clubs {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+@media (max-width: 900px) {
+  #tab-prel .prel-clubs { grid-template-columns: 1fr; }
 }
 #tab-prel .prel-club-card {
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   padding: 20px 22px;
+  transition: box-shadow .15s ease;
+}
+#tab-prel .prel-club-card:hover {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 #tab-prel .prel-club-card.has-perdus {
-  border-left: 4px solid #ef4444;
+  border-top: 4px solid #ef4444;
+  background: linear-gradient(180deg, #fef2f2 0%, #fff 60px);
 }
 #tab-prel .prel-club-head {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 16px;
   margin-bottom: 14px;
   flex-wrap: wrap;
 }
 #tab-prel .prel-club-name {
   margin: 0;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 800;
   color: #0f172a;
+  letter-spacing: -0.01em;
 }
 #tab-prel .prel-club-stats {
   display: inline-flex;
-  gap: 16px;
+  align-items: center;
+  gap: 14px;
   font-size: 12px;
   color: #64748b;
 }
@@ -11150,11 +11209,26 @@ img {
   font-weight: 800;
   margin-right: 2px;
 }
-#tab-prel .prel-stat-loss strong { color: #ef4444; }
+#tab-prel .prel-stat-loss {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+#tab-prel .prel-stat-loss strong { color: #b91c1c; font-size: 14px; }
 #tab-prel .prel-club-empty {
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
   color: #16a34a;
-  padding: 8px 4px;
+  padding: 10px 12px;
+  background: #f0fdf4;
+  border-radius: 8px;
   font-weight: 600;
 }
 
