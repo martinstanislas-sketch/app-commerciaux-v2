@@ -624,6 +624,7 @@ function updateTabVisibility() {
   const tasksBtn = document.querySelector('[data-tab="tasks"]');
   const persoBtn = document.querySelector('[data-tab="perso"]');
   const pilotageFunnelBtn = document.querySelector('[data-tab="pilotage-funnel"]');
+  const prelBtn = document.querySelector('[data-tab="prel"]');
 
   if (isConsultant()) {
     // Consultant : uniquement l'onglet Pilotage
@@ -635,6 +636,7 @@ function updateTabVisibility() {
     if (mensuelBtn) mensuelBtn.style.display = 'none';
     if (tasksBtn) tasksBtn.style.display = 'none';
     if (persoBtn) persoBtn.style.display = 'none';
+    if (prelBtn) prelBtn.style.display = 'none';
     if (pilotageFunnelBtn) {
       pilotageFunnelBtn.style.display = '';
       pilotageFunnelInitToPreviousMonth();
@@ -651,6 +653,7 @@ function updateTabVisibility() {
     if (tasksBtn) tasksBtn.style.display = 'none';
     if (persoBtn) persoBtn.style.display = 'none';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
+    if (prelBtn) prelBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -662,6 +665,7 @@ function updateTabVisibility() {
     if (tasksBtn) tasksBtn.style.display = '';
     if (persoBtn) persoBtn.style.display = '';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
+    if (prelBtn) prelBtn.style.display = ''; // P.R.E.L : admin uniquement
     // Default landing tab on login (admin) = Pilotage, pré-réglé au mois précédent
     if (pilotageFunnelBtn) {
       pilotageFunnelInitToPreviousMonth();
@@ -682,6 +686,7 @@ function updateTabVisibility() {
     if (tasksBtn) tasksBtn.style.display = '';
     if (persoBtn) persoBtn.style.display = 'none';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
+    if (prelBtn) prelBtn.style.display = 'none'; // P.R.E.L réservé à l'admin
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else todayBtn.click();
   }

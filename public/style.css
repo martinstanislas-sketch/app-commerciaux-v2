@@ -10946,6 +10946,49 @@ img {
 #tab-pilotage-funnel .pf-grid.hidden,
 #tab-pilotage-funnel .pf-funnel-section.hidden { display: none !important; }
 
+/* ─── P.R.E.L (onglet admin) — placeholder en attente de contenu ─── */
+#tab-prel .prel-wrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 32px 28px;
+}
+#tab-prel .prel-header {
+  margin-bottom: 32px;
+}
+#tab-prel .prel-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ds-fg-1, #0F172A);
+  margin: 0 0 6px;
+}
+#tab-prel .prel-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ds-fg-3, #64748B);
+}
+#tab-prel .prel-empty {
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 16px;
+  padding: 48px 32px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+#tab-prel .prel-empty-icon {
+  font-size: 48px;
+  line-height: 1;
+}
+#tab-prel .prel-empty-text {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.6;
+  max-width: 520px;
+}
+
 /* ── Accès consultant : visibilité conditionnelle ──────────────── */
 /* Par défaut : éléments admin visibles, éléments consultant masqués */
 .pf-consultant-only { display: none !important; }
