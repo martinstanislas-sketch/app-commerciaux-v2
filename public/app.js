@@ -6574,6 +6574,8 @@ async function loadTasksBoard() {
     renderViewBanner();
     renderViewAsSelector();
     renderTasksBoard();
+    // Met à jour le badge "Archives" en parallèle (best-effort)
+    refreshArchivedColumnsBadge();
   } catch (e) {
     console.error('Erreur chargement tâches:', e);
     container.innerHTML = '<div class="empty-state">Erreur de chargement</div>';
@@ -8114,6 +8116,7 @@ function openColumnMenu(columnId, btn) {
     <div class="tk-color-grid">
       ${TASK_COLORS.map(c => `<button class="tk-color-dot ${c === col.color ? 'active' : ''}" data-color="${c}" style="background:${c}"></button>`).join('')}
     </div>
+    <button class="tk-menu-item tk-menu-archive" data-action="archive">📦 Archiver la colonne</button>
     <button class="tk-menu-item tk-menu-danger" data-action="delete">Supprimer la colonne</button>
   `;
   document.body.appendChild(menu);
@@ -8146,8 +8149,23 @@ function openColumnMenu(columnId, btn) {
     });
   }
 
+  menu.querySelector('[data-action="archive"]').addEventListener('click', async () => {
+    const n = (col.tasks || []).length;
+    if (!confirm(`Archiver la colonne « ${col.name} » avec ses ${n} tâche(s) ?\n\nLa colonne disparaît du tableau mais ses tâches sont conservées. Tu pourras la restaurer depuis 📦 Archives.`)) return;
+    try {
+      await api(`/tasks/columns/${columnId}`, { method: 'PUT', body: { archived: 1 } });
+      tasksBoard = tasksBoard.filter(c => c.id !== columnId);
+      menu.remove();
+      renderTasksBoard();
+      await refreshArchivedColumnsBadge();
+      showToast(`Colonne « ${col.name} » archivée`, 'success');
+    } catch (e) {
+      showToast('Erreur archivage', 'error');
+    }
+  });
+
   menu.querySelector('[data-action="delete"]').addEventListener('click', async () => {
-    if (!confirm(`Supprimer la colonne "${col.name}" et ses ${col.tasks.length} tâche(s) ?`)) return;
+    if (!confirm(`Supprimer DÉFINITIVEMENT la colonne "${col.name}" et ses ${col.tasks.length} tâche(s) ?\n\n⚠ Pour conserver les tâches, utilise plutôt 📦 Archiver la colonne.`)) return;
     await api(`/tasks/columns/${columnId}`, { method: 'DELETE' });
     tasksBoard = tasksBoard.filter(c => c.id !== columnId);
     menu.remove();
@@ -8179,6 +8197,115 @@ async function addNewColumn() {
   }
 }
 
+// ── Colonnes archivées : badge dans la toolbar + modal de restauration ──
+async function refreshArchivedColumnsBadge() {
+  const btn = document.getElementById('btn-tasks-archives');
+  const badge = document.getElementById('tk-archives-count');
+  if (!btn || !badge) return;
+  try {
+    const asParam = (isAdmin() && tasksViewingUserKey && tasksViewingUserKey !== 'admin')
+      ? `?as=${encodeURIComponent(tasksViewingUserKey)}`
+      : '';
+    const url = `/tasks/columns/archived${asParam}`;
+    const data = await api(url);
+    const cols = (data && data.columns) || [];
+    badge.textContent = String(cols.length);
+    if (cols.length > 0) {
+      btn.style.display = '';
+      btn.classList.add('has-archives');
+    } else {
+      btn.style.display = 'none';
+      btn.classList.remove('has-archives');
+    }
+  } catch (e) {
+    // Silencieux : la fonctionnalité est facultative.
+    btn.style.display = 'none';
+  }
+}
+
+async function openArchivedColumnsModal() {
+  const overlay = document.getElementById('tk-archives-overlay');
+  const list = document.getElementById('tk-archives-list');
+  if (!overlay || !list) return;
+  list.innerHTML = `<div class="tk-archives-empty">Chargement…</div>`;
+  overlay.classList.remove('hidden');
+  try {
+    const asParam = (isAdmin() && tasksViewingUserKey && tasksViewingUserKey !== 'admin')
+      ? `?as=${encodeURIComponent(tasksViewingUserKey)}`
+      : '';
+    const url = `/tasks/columns/archived${asParam}`;
+    const data = await api(url);
+    const cols = (data && data.columns) || [];
+    if (cols.length === 0) {
+      list.innerHTML = `<div class="tk-archives-empty">Aucune colonne archivée.</div>`;
+      return;
+    }
+    const fmtDate = (s) => {
+      if (!s) return '';
+      // Format SQLite "YYYY-MM-DD HH:MM:SS" → "DD/MM/YYYY à HH:MM"
+      const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+      return m ? `${m[3]}/${m[2]}/${m[1]} à ${m[4]}:${m[5]}` : s;
+    };
+    list.innerHTML = cols.map(c => `
+      <div class="tk-archive-row" data-col-id="${c.id}">
+        <div class="tk-archive-color" style="background:${escapeHtml(c.color || '#6366F1')}"></div>
+        <div class="tk-archive-info">
+          <div class="tk-archive-name">${escapeHtml(c.name || '—')}</div>
+          <div class="tk-archive-meta">
+            <span class="tk-archive-count">${c.task_count} tâche${c.task_count > 1 ? 's' : ''}</span>
+            <span class="tk-archive-dot">·</span>
+            <span class="tk-archive-date">archivée le ${escapeHtml(fmtDate(c.archived_at))}</span>
+          </div>
+        </div>
+        <div class="tk-archive-actions">
+          <button class="tk-archive-btn tk-archive-restore" data-action="restore" data-col-id="${c.id}" title="Restaurer la colonne et toutes ses tâches">↺ Restaurer</button>
+          <button class="tk-archive-btn tk-archive-delete" data-action="delete" data-col-id="${c.id}" data-col-name="${escapeHtml(c.name || '')}" title="Supprimer DÉFINITIVEMENT la colonne et ses tâches">🗑</button>
+        </div>
+      </div>
+    `).join('');
+    list.querySelectorAll('[data-action="restore"]').forEach(b => {
+      b.addEventListener('click', () => restoreArchivedColumn(parseInt(b.dataset.colId, 10)));
+    });
+    list.querySelectorAll('[data-action="delete"]').forEach(b => {
+      b.addEventListener('click', () => deleteArchivedColumn(parseInt(b.dataset.colId, 10), b.dataset.colName || ''));
+    });
+  } catch (e) {
+    list.innerHTML = `<div class="tk-archives-empty">Erreur : ${escapeHtml(String(e.message || e))}</div>`;
+  }
+}
+
+function closeArchivedColumnsModal() {
+  const overlay = document.getElementById('tk-archives-overlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+async function restoreArchivedColumn(colId) {
+  if (!colId) return;
+  try {
+    await api(`/tasks/columns/${colId}`, { method: 'PUT', body: { archived: 0 } });
+    // Recharge le tableau et re-rend
+    await loadTasksBoard();
+    await refreshArchivedColumnsBadge();
+    await openArchivedColumnsModal();
+    showToast('Colonne restaurée ✓', 'success');
+  } catch (e) {
+    showToast('Erreur restauration : ' + (e.message || e), 'error');
+  }
+}
+
+async function deleteArchivedColumn(colId, name) {
+  if (!colId) return;
+  if (!confirm(`Supprimer DÉFINITIVEMENT la colonne « ${name} » et toutes ses tâches ?\n\nCette action est irréversible.`)) return;
+  try {
+    await api(`/tasks/columns/${colId}`, { method: 'DELETE' });
+    await refreshArchivedColumnsBadge();
+    await openArchivedColumnsModal();
+    showToast('Colonne supprimée', 'success');
+  } catch (e) {
+    showToast('Erreur suppression : ' + (e.message || e), 'error');
+  }
+}
+
 function initTasksBindings() {
   const btn = document.getElementById('btn-add-column');
   if (btn && !btn.dataset.bound) {
@@ -8200,6 +8327,24 @@ function initTasksBindings() {
     settingsBtn.dataset.bound = '1';
     settingsBtn.addEventListener('click', openTasksSettings);
   }
+  const archivesBtn = document.getElementById('btn-tasks-archives');
+  if (archivesBtn && !archivesBtn.dataset.bound) {
+    archivesBtn.dataset.bound = '1';
+    archivesBtn.addEventListener('click', openArchivedColumnsModal);
+  }
+  const closeArch = document.getElementById('tk-archives-close');
+  if (closeArch && !closeArch.dataset.bound) {
+    closeArch.dataset.bound = '1';
+    closeArch.addEventListener('click', closeArchivedColumnsModal);
+  }
+  const archOverlay = document.getElementById('tk-archives-overlay');
+  if (archOverlay && !archOverlay.dataset.bound) {
+    archOverlay.dataset.bound = '1';
+    archOverlay.addEventListener('click', (e) => {
+      if (e.target === archOverlay) closeArchivedColumnsModal();
+    });
+  }
+  refreshArchivedColumnsBadge();
   initTasksWallpaper();
   initTasksSettingsModal();
   // Global keyboard shortcuts
@@ -12296,67 +12441,215 @@ async function loadPrelTab() {
   if (!isAdmin()) return;
   if (!prelTabBooted) {
     prelTabBooted = true;
-    const trigger = document.getElementById('prel-import-trigger');
-    const fileInput = document.getElementById('prel-import-file');
-    if (trigger && fileInput) {
-      trigger.addEventListener('click', () => fileInput.click());
-      fileInput.addEventListener('change', (e) => {
+    // Inputs fichier cachés : un par slot
+    const filePrev = document.getElementById('prel-import-file-prev');
+    const fileCur = document.getElementById('prel-import-file-cur');
+    if (filePrev) {
+      filePrev.addEventListener('change', (e) => {
         const f = e.target.files && e.target.files[0];
-        if (f) handlePrelFileImport(f);
-        fileInput.value = '';
+        if (f) handlePrelFileImport(f, 'prev');
+        filePrev.value = '';
       });
     }
+    if (fileCur) {
+      fileCur.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) handlePrelFileImport(f, 'cur');
+        fileCur.value = '';
+      });
+    }
+    const fixBtn = document.getElementById('prel-fix-ttc-trigger');
+    if (fixBtn) {
+      fixBtn.addEventListener('click', () => prelFixTtcUnits());
+    }
+    const rotateBtn = document.getElementById('prel-rotate-trigger');
+    if (rotateBtn) {
+      rotateBtn.addEventListener('click', () => prelRotateWeek());
+    }
+    const cleanupBtn = document.getElementById('prel-cleanup-trigger');
+    if (cleanupBtn) {
+      cleanupBtn.addEventListener('click', () => prelCleanupOldWeeks());
+    }
   }
-  await reloadPrelWeeks();
+  await reloadPrelSlots();
 }
 
-// L'analyse se fait automatiquement sur les 2 dernières semaines
-// « principales » (les plus récentes avec une volumétrie significative).
-// Pas de sélecteur — l'utilisateur uploads ses fichiers et l'app fait
-// le diff direct entre S (la plus récente) et S-1 (l'avant-dernière).
-async function reloadPrelWeeks() {
+// Diagnostic + correction des TTC stockés en centimes (×100) dans prel_rows.
+// Ouvre une boîte qui montre la médiane / min / max, et propose d'appliquer
+// la division par 100 si les valeurs ressemblent à des centimes.
+async function prelFixTtcUnits() {
   try {
-    const res = await fetch('/api/prel/weeks', {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    const weeks = data.weeks || [];
-    const results = document.getElementById('prel-results');
-    if (!results) return;
-    if (weeks.length === 0) {
-      results.innerHTML = `
-        <div class="prel-empty">
-          <div class="prel-empty-icon" aria-hidden="true">📥</div>
-          <div class="prel-empty-text">
-            Importe au moins 2 semaines consécutives d'échéances pour démarrer.<br>
-            L'analyse se fait automatiquement sur les <strong>2 dernières semaines</strong>.
-          </div>
-        </div>`;
+    const headers = { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` };
+    const resDiag = await fetch('/api/prel/ttc-diagnostic', { headers });
+    if (!resDiag.ok) throw new Error(await resDiag.text());
+    const diag = await resDiag.json();
+    if (diag.count === 0) {
+      alert('Aucune ligne TTC en base.');
       return;
     }
-    // Filtre les semaines principales (volumétrie significative)
-    const maxRows = weeks.reduce((m, w) => Math.max(m, w.rows_count), 0);
-    const threshold = Math.max(30, Math.round(maxRows * 0.30));
-    const principalWeeks = weeks.filter(w => w.rows_count >= threshold);
-    if (principalWeeks.length < 2) {
-      // Affiche un message d'attente : il faut au moins 2 semaines
-      const onlyOne = principalWeeks[0] || weeks[0];
-      results.innerHTML = `
+    const fmt = (v) => Number(v).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+    const sampleStr = (diag.sample || []).map(v => fmt(v)).join(', ');
+    const verdict = diag.probable_cents
+      ? `\n⚠ Les TTC ressemblent à des CENTIMES.\n   Médiane brute : ${fmt(diag.median)}\n   Après ÷ 100 : ${fmt(diag.median / 100)} €\n\nVeux-tu diviser TOUTES les valeurs TTC par 100 ?`
+      : `\n✓ Les TTC ressemblent déjà à des euros (médiane ${fmt(diag.median)}, ${(diag.int_ratio * 100).toFixed(0)} % entiers).\n   Aucune correction nécessaire.`;
+    const msg = `Diagnostic TTC :\n\n`
+      + `• ${diag.count} lignes en base\n`
+      + `• Min : ${fmt(diag.min)}  · Médiane : ${fmt(diag.median)}  · Max : ${fmt(diag.max)}\n`
+      + `• Entiers : ${(diag.int_ratio * 100).toFixed(0)} %\n`
+      + `• Échantillon : ${sampleStr}\n`
+      + verdict;
+    if (!diag.probable_cents) {
+      alert(msg);
+      return;
+    }
+    if (!confirm(msg)) return;
+    const resFix = await fetch('/api/prel/fix-ttc-units', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apply: true }),
+    });
+    if (!resFix.ok) throw new Error(await resFix.text());
+    const result = await resFix.json();
+    alert(`Correction appliquée ✓\n\n${result.message || ''}\nMédiane avant : ${fmt(result.median_before)}\nMédiane après : ${fmt(result.median_after)} €`);
+    await reloadPrelWeeks();
+  } catch (err) {
+    alert('Erreur correction TTC : ' + (err.message || err));
+  }
+}
+
+// Système de SLOTS figés : l'utilisateur définit explicitement quel
+// fichier est S (semaine en cours) et quel fichier est S-1 (semaine
+// précédente). Plus d'auto-détection capricieuse.
+async function reloadPrelSlots() {
+  const slotsEl = document.getElementById('prel-slots');
+  const resultsEl = document.getElementById('prel-results');
+  if (!slotsEl || !resultsEl) return;
+  try {
+    const data = await fetch('/api/prel/slots', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+    }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
+    renderPrelSlots(data);
+    // Si les 2 slots sont remplis ET pointent sur la même semaine principale,
+    // on lance la comparaison
+    if (data.cur && data.prev && data.cur.week_start && data.prev.week_start) {
+      await renderPrelComparison(data.cur.week_start);
+    } else {
+      // Sinon, message d'attente
+      const missing = [];
+      if (!data.prev || !data.prev.week_start) missing.push('S-1 (semaine précédente)');
+      if (!data.cur || !data.cur.week_start) missing.push('S (semaine en cours)');
+      resultsEl.innerHTML = `
         <div class="prel-empty">
           <div class="prel-empty-icon" aria-hidden="true">⏳</div>
           <div class="prel-empty-text">
-            Une seule semaine importée pour l'instant : <strong>${escapeHtml(prelFormatWeek(onlyOne.week_start))}</strong> (${onlyOne.rows_count} lignes).<br>
-            Importe le fichier de la semaine suivante pour démarrer la comparaison S vs S-1.
+            En attente d'import pour : <strong>${missing.join(' et ')}</strong>.<br>
+            Clique sur « Importer » dans l'emplacement correspondant ci-dessus.
           </div>
         </div>`;
-      return;
     }
-    // Les 2 dernières semaines principales (déjà triées DESC par week_start)
-    const weekS = principalWeeks[0].week_start;
-    renderPrelComparison(weekS);
   } catch (err) {
-    console.error('[prel] weeks load error', err);
+    console.error('[prel] slots load error', err);
+    slotsEl.innerHTML = `<div class="prel-empty"><div class="prel-empty-text">Erreur : ${escapeHtml(String(err.message || err))}</div></div>`;
+  }
+}
+
+function renderPrelSlots(data) {
+  const slotsEl = document.getElementById('prel-slots');
+  if (!slotsEl) return;
+  const fmtDate = (s) => {
+    if (!s) return '';
+    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    return m ? `${m[3]}/${m[2]} à ${m[4]}:${m[5]}` : s;
+  };
+  const renderSlot = (label, slotKey, meta, accent) => {
+    const filled = meta && meta.week_start;
+    return `
+      <div class="prel-slot ${filled ? 'prel-slot-filled' : 'prel-slot-empty'} prel-slot-${slotKey}">
+        <div class="prel-slot-header">
+          <span class="prel-slot-label" style="background:${accent}">${label}</span>
+          ${filled ? `<button class="prel-slot-clear" data-slot="${slotKey}" title="Vider cet emplacement" type="button">✕</button>` : ''}
+        </div>
+        <div class="prel-slot-body">
+          ${filled
+            ? `
+              <div class="prel-slot-week">${escapeHtml(prelFormatWeek(meta.week_start))}</div>
+              <div class="prel-slot-meta">
+                <span class="prel-slot-rows">${meta.rows_count} lignes</span>
+                ${meta.clubs_count ? `<span class="prel-slot-dot">·</span><span>${meta.clubs_count} club${meta.clubs_count > 1 ? 's' : ''}</span>` : ''}
+              </div>
+              ${meta.filename ? `<div class="prel-slot-file" title="${escapeHtml(meta.filename)}">📄 ${escapeHtml(meta.filename)}</div>` : ''}
+              ${meta.uploaded_at ? `<div class="prel-slot-date">Importé le ${escapeHtml(fmtDate(meta.uploaded_at))}</div>` : ''}
+              <button class="prel-slot-btn prel-slot-replace" data-upload="${slotKey}" type="button">📂 Remplacer le fichier</button>
+            `
+            : `
+              <div class="prel-slot-placeholder">Aucun fichier importé</div>
+              <button class="prel-slot-btn prel-slot-import" data-upload="${slotKey}" type="button">📂 Importer un fichier</button>
+            `}
+        </div>
+      </div>
+    `;
+  };
+  slotsEl.innerHTML = `
+    ${renderSlot('S-1 · Semaine précédente', 'prev', data.prev, '#6366F1')}
+    <div class="prel-slot-arrow" aria-hidden="true">→</div>
+    ${renderSlot('S · Semaine en cours', 'cur', data.cur, '#4f46e5')}
+  `;
+  // Bindings
+  slotsEl.querySelectorAll('[data-upload]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const slot = btn.dataset.upload;
+      const input = document.getElementById(slot === 'prev' ? 'prel-import-file-prev' : 'prel-import-file-cur');
+      if (input) input.click();
+    });
+  });
+  slotsEl.querySelectorAll('[data-slot]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const slot = btn.dataset.slot;
+      const label = slot === 'prev' ? 'S-1 (semaine précédente)' : 'S (semaine en cours)';
+      if (!confirm(`Vider l'emplacement ${label} ?\n\nLes données en BDD sont conservées, seule l'association à ce slot est retirée.`)) return;
+      try {
+        await fetch('/api/prel/slots/clear', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+          },
+          body: JSON.stringify({ slot }),
+        });
+        await reloadPrelSlots();
+      } catch (e) {
+        alert('Erreur : ' + (e.message || e));
+      }
+    });
+  });
+}
+
+async function prelRotateWeek() {
+  if (!confirm('Nouvelle semaine ?\n\n• La semaine S (en cours) devient S-1 (précédente).\n• Le slot S est libéré pour le prochain import.\n\nLes données en BDD restent intactes.')) return;
+  try {
+    await fetch('/api/prel/slots/rotate', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+    });
+    await reloadPrelSlots();
+  } catch (e) {
+    alert('Erreur rotation : ' + (e.message || e));
+  }
+}
+
+async function prelCleanupOldWeeks() {
+  if (!confirm('Nettoyer les anciennes données ?\n\nToutes les semaines qui ne sont PAS dans les slots S-1 ou S seront DÉFINITIVEMENT supprimées de la base.\n\nContinuer ?')) return;
+  try {
+    const res = await fetch('/api/prel/slots/cleanup', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    alert(`Nettoyage terminé ✓\n\n• ${data.deleted_rows} lignes supprimées\n• ${data.deleted_weeks} semaine(s) effacée(s)\n\nSlots conservés : ${(data.kept || []).join(', ')}`);
+    await reloadPrelSlots();
+  } catch (e) {
+    alert('Erreur nettoyage : ' + (e.message || e));
   }
 }
 
@@ -12542,8 +12835,9 @@ function prelFormatDateFR(iso) {
   return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
 }
 
-async function handlePrelFileImport(file) {
+async function handlePrelFileImport(file, targetSlot) {
   if (!file) return;
+  const slotLabel = targetSlot === 'cur' ? 'S (semaine en cours)' : targetSlot === 'prev' ? 'S-1 (semaine précédente)' : null;
   try {
     if (typeof XLSX === 'undefined') {
       alert('SheetJS non chargé — recharge la page.');
@@ -12622,6 +12916,33 @@ async function handlePrelFileImport(file) {
       });
     }
     console.log('[prel] normalisées :', normalized.length, '/ ignorées :', skipped);
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Détection « TTC en centimes » :
+    // Les exports Vendor / Déciplus stockent souvent les montants TTC sous
+    // forme d'entiers en centimes (6900 = 69,00 €). Si on les insère bruts,
+    // les cumuls deviennent absurdes (× 100). Heuristique :
+    //   • médiane TTC > 500
+    //   • >= 90% des valeurs sont des entiers
+    // → on divise toutes les valeurs par 100.
+    // ─────────────────────────────────────────────────────────────────────
+    const ttcSamples = normalized.map(r => r.ttc).filter(v => v != null && !Number.isNaN(v));
+    let centsModeApplied = false;
+    let ttcMedian = null;
+    if (ttcSamples.length >= 5) {
+      const sorted = [...ttcSamples].sort((a, b) => a - b);
+      ttcMedian = sorted[Math.floor(sorted.length / 2)];
+      const intRatio = ttcSamples.filter(v => Number.isInteger(v)).length / ttcSamples.length;
+      console.log('[prel] TTC stats : médiane =', ttcMedian, '· entiers =', (intRatio * 100).toFixed(0) + '%', '· min =', sorted[0], '· max =', sorted[sorted.length - 1]);
+      if (ttcMedian > 500 && intRatio > 0.9) {
+        centsModeApplied = true;
+        for (const r of normalized) {
+          if (r.ttc != null) r.ttc = r.ttc / 100;
+        }
+        console.log('[prel] ⚠ TTC détecté en centimes → divisé par 100 (médiane brute', ttcMedian, '→', ttcMedian / 100, '€)');
+      }
+    }
+
     // Détection d'un mauvais format (rapport agrégé/pivot) :
     // les fichiers d'échéances détaillées DOIVENT contenir une colonne Echeance.
     // Si elle est absente, on prévient explicitement l'utilisateur.
@@ -12658,12 +12979,18 @@ async function handlePrelFileImport(file) {
       byClubWeek[k] = (byClubWeek[k] || 0) + 1;
     });
     const recap = Object.entries(byClubWeek).map(([k, n]) => `   · ${k} : ${n} lignes`).join('\n');
+    const centsMsg = centsModeApplied
+      ? `\n⚠ TTC détecté en CENTIMES (médiane brute ${ttcMedian} → ${ttcMedian / 100} €)\n   → toutes les valeurs ont été divisées par 100\n`
+      : '';
+    const slotMsg = slotLabel ? `\n→ Ce fichier sera affecté au slot ${slotLabel}\n` : '';
     if (!confirm(
       `Import P.R.E.L :\n\n`
       + `• ${normalized.length} lignes exploitables\n`
       + `• ${skipped.club} ignorées (hors réseau / franchise)\n`
-      + `• ${skipped.date} ignorées (date invalide)\n\n`
-      + `Répartition :\n${recap}\n\n`
+      + `• ${skipped.date} ignorées (date invalide)\n`
+      + centsMsg
+      + slotMsg
+      + `\nRépartition :\n${recap}\n\n`
       + `Continuer ?`
     )) return;
     const res = await fetch('/api/prel/upload', {
@@ -12672,22 +12999,24 @@ async function handlePrelFileImport(file) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
       },
-      body: JSON.stringify({ filename: file.name, rows: normalized }),
+      body: JSON.stringify({ filename: file.name, rows: normalized, target_slot: targetSlot || null }),
     });
     if (!res.ok) throw new Error(await res.text());
     const result = await res.json();
     const replacedMsg = (result.replaced_count > 0)
       ? `\n• ${result.replaced_count} anciennes lignes remplacées (semaines déjà importées)`
       : '';
+    const assignedMsg = (result.assigned_slot && result.assigned_week)
+      ? `\n• Slot ${result.assigned_slot === 'cur' ? 'S' : 'S-1'} affecté à la semaine ${result.assigned_week}`
+      : '';
     alert(
       `Import réussi ✓\n\n`
-      + `• ${result.rows_count} lignes enregistrées${replacedMsg}\n`
+      + `• ${result.rows_count} lignes enregistrées${replacedMsg}${assignedMsg}\n`
       + `• Clubs : ${result.clubs.join(', ')}\n`
       + `• Semaines : ${result.week_start_min} → ${result.week_start_max}`
     );
-    // Recharge l'affichage — l'analyse se fait automatiquement sur les 2
-    // dernières semaines principales, plus besoin de passer une valeur.
-    await reloadPrelWeeks();
+    // Recharge l'affichage : slots + comparaison
+    await reloadPrelSlots();
   } catch (err) {
     console.error('[prel] import error', err);
     alert('Erreur d\'import :\n' + (err.message || err));

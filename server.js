@@ -207,10 +207,13 @@ app.post('/api/auth/logout', (req, res) => {
 // (SheetJS déjà chargé), le serveur reçoit du JSON normalisé.
 
 app.post('/api/prel/upload', requireAuth, requireAdmin, (req, res) => {
-  const { filename, rows } = req.body || {};
+  const { filename, rows, target_slot } = req.body || {};
   if (!Array.isArray(rows) || rows.length === 0) {
     return res.status(400).json({ error: 'rows array non vide requis' });
   }
+  const targetSlot = ['cur', 'prev'].includes(String(target_slot || '').toLowerCase())
+    ? String(target_slot).toLowerCase()
+    : null;
   const db = getDb();
   // Calcule les couples (club × week_start) présents dans le nouveau fichier
   // pour REMPLACER les anciennes données de ces semaines (évite l'accumulation
@@ -264,6 +267,26 @@ app.post('/api/prel/upload', requireAuth, requireAdmin, (req, res) => {
       .run(rows.length, minWeek, maxWeek, Array.from(clubs).join(','), uploadId);
   });
   tx();
+
+  // Si l'upload cible un slot, on l'assigne automatiquement à la semaine
+  // la plus représentée dans le fichier (en pratique : la semaine principale
+  // du fichier — la majorité des lignes y tombent).
+  let assignedSlot = null;
+  let assignedWeek = null;
+  if (targetSlot) {
+    // Trouve la semaine majoritaire dans les rows insérés
+    const weekCounts = {};
+    for (const r of rows) {
+      if (r && r.week_start) weekCounts[r.week_start] = (weekCounts[r.week_start] || 0) + 1;
+    }
+    const sortedWeeks = Object.entries(weekCounts).sort((a, b) => b[1] - a[1]);
+    if (sortedWeeks.length > 0) {
+      assignedWeek = sortedWeeks[0][0];
+      prelSetSlot(db, targetSlot, assignedWeek);
+      assignedSlot = targetSlot;
+    }
+  }
+
   res.json({
     ok: true,
     upload_id: uploadId,
@@ -272,6 +295,8 @@ app.post('/api/prel/upload', requireAuth, requireAdmin, (req, res) => {
     week_start_min: minWeek,
     week_start_max: maxWeek,
     clubs: Array.from(clubs),
+    assigned_slot: assignedSlot,
+    assigned_week: assignedWeek,
   });
 });
 
@@ -300,6 +325,141 @@ app.delete('/api/prel/uploads/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// SLOTS S-1 / S : système figé d'emplacements pour la comparaison.
+//
+// Plutôt que d'auto-détecter les 2 semaines les plus volumineuses
+// (qui peut tomber sur d'anciennes données de test), l'utilisateur définit
+// explicitement quelle semaine est S et quelle semaine est S-1.
+//
+// Stockage : 2 clés dans app_settings
+//   • prel_slot_cur_week  → semaine S (la plus récente)
+//   • prel_slot_prev_week → semaine S-1 (la précédente)
+//
+// Endpoints :
+//   GET  /api/prel/slots          → état actuel des 2 slots + métadata
+//   POST /api/prel/slots/set      → { slot: 'cur'|'prev', week_start }
+//   POST /api/prel/slots/clear    → { slot: 'cur'|'prev' }
+//   POST /api/prel/slots/rotate   → S devient S-1, S est vidée
+//   POST /api/prel/slots/cleanup  → supprime toutes les semaines hors slots
+// ─────────────────────────────────────────────────────────────────────────
+
+const PREL_SLOT_KEYS = { cur: 'prel_slot_cur_week', prev: 'prel_slot_prev_week' };
+function prelGetSlot(db, slot) {
+  const key = PREL_SLOT_KEYS[slot];
+  if (!key) return null;
+  const row = db.prepare(`SELECT value FROM app_settings WHERE key = ?`).get(key);
+  return row && row.value ? String(row.value) : null;
+}
+function prelSetSlot(db, slot, value) {
+  const key = PREL_SLOT_KEYS[slot];
+  if (!key) return;
+  if (value == null) {
+    db.prepare(`DELETE FROM app_settings WHERE key = ?`).run(key);
+  } else {
+    db.prepare(`
+      INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now','localtime'))
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now','localtime')
+    `).run(key, String(value));
+  }
+}
+function prelWeekMeta(db, week) {
+  if (!week) return null;
+  const r = db.prepare(`
+    SELECT COUNT(*) AS rows_count, COUNT(DISTINCT club) AS clubs_count
+    FROM prel_rows WHERE week_start = ?
+  `).get(week);
+  // Dernier upload contenant cette semaine
+  const up = db.prepare(`
+    SELECT filename, uploaded_at FROM prel_uploads
+    WHERE week_start_min <= ? AND week_start_max >= ?
+    ORDER BY uploaded_at DESC LIMIT 1
+  `).get(week, week);
+  return {
+    week_start: week,
+    rows_count: r ? r.rows_count : 0,
+    clubs_count: r ? r.clubs_count : 0,
+    filename: up ? up.filename : null,
+    uploaded_at: up ? up.uploaded_at : null,
+  };
+}
+
+app.get('/api/prel/slots', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const curWeek = prelGetSlot(db, 'cur');
+  const prevWeek = prelGetSlot(db, 'prev');
+  res.json({
+    cur: prelWeekMeta(db, curWeek),
+    prev: prelWeekMeta(db, prevWeek),
+  });
+});
+
+app.post('/api/prel/slots/set', requireAuth, requireAdmin, (req, res) => {
+  const slot = String((req.body && req.body.slot) || '').toLowerCase();
+  const weekStart = String((req.body && req.body.week_start) || '').trim();
+  if (!['cur', 'prev'].includes(slot)) return res.status(400).json({ error: 'slot doit être cur ou prev' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) return res.status(400).json({ error: 'week_start invalide (YYYY-MM-DD)' });
+  const db = getDb();
+  // Vérifie que la semaine existe en base
+  const exists = db.prepare(`SELECT 1 FROM prel_rows WHERE week_start = ? LIMIT 1`).get(weekStart);
+  if (!exists) return res.status(400).json({ error: `Aucune donnée pour la semaine ${weekStart}` });
+  prelSetSlot(db, slot, weekStart);
+  res.json({ ok: true, slot, week_start: weekStart });
+});
+
+app.post('/api/prel/slots/clear', requireAuth, requireAdmin, (req, res) => {
+  const slot = String((req.body && req.body.slot) || '').toLowerCase();
+  if (!['cur', 'prev'].includes(slot)) return res.status(400).json({ error: 'slot doit être cur ou prev' });
+  const db = getDb();
+  prelSetSlot(db, slot, null);
+  res.json({ ok: true });
+});
+
+app.post('/api/prel/slots/rotate', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const curWeek = prelGetSlot(db, 'cur');
+  // Rotation atomique : S devient S-1, S est vidée
+  const tx = db.transaction(() => {
+    prelSetSlot(db, 'prev', curWeek);
+    prelSetSlot(db, 'cur', null);
+  });
+  tx();
+  res.json({ ok: true, prev_week: curWeek, cur_week: null });
+});
+
+// Nettoyage : supprime toutes les lignes pour les semaines qui NE sont PAS
+// dans les slots (utile pour purger les anciennes données de test).
+app.post('/api/prel/slots/cleanup', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const curWeek = prelGetSlot(db, 'cur');
+  const prevWeek = prelGetSlot(db, 'prev');
+  const keep = [curWeek, prevWeek].filter(Boolean);
+  if (keep.length === 0) {
+    return res.status(400).json({ error: 'Aucun slot défini — refuse de tout supprimer.' });
+  }
+  // Liste les semaines qui vont être supprimées (pour info)
+  const toDelete = db.prepare(`
+    SELECT week_start, COUNT(*) AS rows_count
+    FROM prel_rows
+    WHERE week_start NOT IN (${keep.map(() => '?').join(',')})
+    GROUP BY week_start
+  `).all(...keep);
+  const totalRows = toDelete.reduce((s, w) => s + w.rows_count, 0);
+  const totalWeeks = toDelete.length;
+  if (totalRows === 0) {
+    return res.json({ ok: true, deleted_rows: 0, deleted_weeks: 0, message: 'Aucune donnée hors slots à supprimer.' });
+  }
+  db.prepare(`DELETE FROM prel_rows WHERE week_start NOT IN (${keep.map(() => '?').join(',')})`).run(...keep);
+  res.json({
+    ok: true,
+    deleted_rows: totalRows,
+    deleted_weeks: totalWeeks,
+    weeks: toDelete.map(w => w.week_start),
+    kept: keep,
+  });
+});
+
+
 // Comparaison S vs S-1 : pour chaque club, retourne la liste des clients
 // présents en S-1 (état « prélevé / réussi ») mais absents OU non-prélevés
 // en S. Définition d'un prélèvement réussi (cf. format Vendor du client) :
@@ -317,12 +477,24 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
   const week = String(req.query.week || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return res.status(400).json({ error: 'week=YYYY-MM-DD requis' });
   const includeArchived = String(req.query.include_archived || '').trim() === '1';
-  // Calcule la semaine précédente (lundi - 7 jours) en arithmétique pure
-  const [y, m, d] = week.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() - 7);
-  const prevWeek = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
   const db = getDb();
+  // Détermination de S-1 :
+  //   1. Si ?prev= est fourni dans l'URL → on l'utilise
+  //   2. Sinon, si un slot prev existe ET que `week` matche le slot cur → on prend le slot prev
+  //   3. Sinon, fallback : S - 7 jours
+  let prevWeek = String(req.query.prev || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(prevWeek)) {
+    const slotCur = prelGetSlot(db, 'cur');
+    const slotPrev = prelGetSlot(db, 'prev');
+    if (slotCur === week && slotPrev) {
+      prevWeek = slotPrev;
+    } else {
+      const [y, m, d] = week.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() - 7);
+      prevWeek = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
+    }
+  }
   const clubs = db.prepare(`
     SELECT DISTINCT club FROM prel_rows
     WHERE week_start = ? OR week_start = ?
@@ -335,9 +507,32 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
     archivedByClub[a.club] = archivedByClub[a.club] || new Map();
     archivedByClub[a.club].set(a.id_client, a);
   });
+  // ───────────────────────────────────────────────────────────────────────
+  // Détection « TTC en centimes » au runtime (pas de modif des données stockées) :
+  // Les exports Vendor / Déciplus stockent souvent les montants en entiers
+  // (6900 = 69,00 €). Si l'import historique n'a pas converti, on corrige
+  // ICI à la volée, à chaque comparaison.
+  // Heuristique GLOBALE (toutes lignes S-1 confondues) :
+  //   médiane > 500 ET ≥ 90% des valeurs sont des entiers
+  // ───────────────────────────────────────────────────────────────────────
+  const globalPrevTtc = db.prepare(`
+    SELECT ttc FROM prel_rows
+    WHERE week_start = ? AND ttc IS NOT NULL
+  `).all(prevWeek).map(r => Number(r.ttc)).filter(v => !Number.isNaN(v));
+  let ttcDivisor = 1;
+  if (globalPrevTtc.length >= 5) {
+    const sorted = [...globalPrevTtc].sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    const intRatio = globalPrevTtc.filter(v => Number.isInteger(v)).length / globalPrevTtc.length;
+    if (med > 500 && intRatio > 0.9) {
+      ttcDivisor = 100;
+      console.log(`[prel/comparison] TTC en centimes détecté pour semaine ${prevWeek} (médiane ${med}, ${(intRatio * 100).toFixed(0)}% entiers) → ÷ 100 à la volée`);
+    }
+  }
+
   const result = clubs.map(club => {
     const prevAll = db.prepare(`
-      SELECT id_client, id_prestation, membre, etat, echeance, ttc, vendeur, prestation, raison, tel, email
+      SELECT id, id_client, id_prestation, membre, etat, echeance, ttc, vendeur, prestation, raison, tel, email
       FROM prel_rows
       WHERE club = ? AND week_start = ?
     `).all(club, prevWeek);
@@ -350,6 +545,10 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
     const curOkClients = new Set();
     cur.forEach(r => { if (prelIsOk(r.etat)) curOkClients.add(r.id_client); });
     // Regroupe les prestations PAR CLIENT (pour sommer le TTC total perdu)
+    // Dédup : si la même (id_prestation, echeance) revient plusieurs fois pour
+    // un même client (artefact d'import ou Excel avec lignes répétées), on ne
+    // la compte qu'une seule fois. Fallback : (echeance, ttc) si id_prestation
+    // est null.
     const byClient = new Map(); // id_client → { ...firstRow, ttc_total, prestations:[] }
     for (const r of prev) {
       if (curOkClients.has(r.id_client)) continue; // pas perdu → on saute
@@ -362,10 +561,16 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
           tel: r.tel,
           ttc_total: 0,
           prestations: [],
+          _seen: new Set(), // pour dédup interne
         });
       }
       const entry = byClient.get(key);
-      const ttc = Number(r.ttc) || 0;
+      const dedupKey = (r.id_prestation != null)
+        ? `p:${r.id_prestation}|${r.echeance || ''}`
+        : `f:${r.echeance || ''}|${r.ttc != null ? r.ttc : ''}|${r.prestation || ''}`;
+      if (entry._seen.has(dedupKey)) continue; // doublon déjà comptabilisé
+      entry._seen.add(dedupKey);
+      const ttc = (Number(r.ttc) || 0) / ttcDivisor;
       entry.ttc_total += ttc;
       entry.prestations.push({
         prestation: r.prestation,
@@ -375,6 +580,8 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
         raison: r.raison,
       });
     }
+    // Nettoie le set interne avant la sérialisation
+    for (const e of byClient.values()) { delete e._seen; }
     // Sépare archivés vs actifs
     const archivedMap = archivedByClub[club] || new Map();
     const perdusActifs = [];
@@ -405,7 +612,13 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
       perdus,
     };
   });
-  res.json({ week_cur: week, week_prev: prevWeek, clubs: result, include_archived: includeArchived });
+  res.json({
+    week_cur: week,
+    week_prev: prevWeek,
+    clubs: result,
+    include_archived: includeArchived,
+    ttc_divisor_applied: ttcDivisor,
+  });
 });
 
 // Archive un client comme « sous contrôle » pour une semaine donnée.
@@ -442,6 +655,105 @@ app.delete('/api/prel/archive', requireAuth, requireAdmin, (req, res) => {
   db.prepare(`DELETE FROM prel_archived WHERE club = ? AND week_start = ? AND id_client = ?`)
     .run(String(club), String(week_start), parseInt(id_client, 10));
   res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Diagnostic + correction des TTC stockés en CENTIMES dans prel_rows.
+// Les exports Vendor / Déciplus stockent souvent les montants en entiers
+// (6900 = 69,00 €). Si l'import historique n'a pas fait la conversion,
+// les cumuls deviennent absurdes (×100).
+//
+// GET  /api/prel/ttc-diagnostic       → médiane, min, max, ratio entiers
+// POST /api/prel/fix-ttc-units        → divise par 100 les valeurs détectées
+//                                       comme centimes (apply=1 pour exécuter)
+// ─────────────────────────────────────────────────────────────────────────
+app.get('/api/prel/ttc-diagnostic', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const week = String(req.query.week || '').trim();
+  const params = [];
+  let where = `ttc IS NOT NULL`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    where += ` AND week_start = ?`;
+    params.push(week);
+  }
+  const rows = db.prepare(`SELECT ttc FROM prel_rows WHERE ${where}`).all(...params);
+  if (rows.length === 0) {
+    return res.json({ ok: true, count: 0, message: 'Aucune ligne avec TTC' });
+  }
+  const vals = rows.map(r => Number(r.ttc)).filter(v => !Number.isNaN(v)).sort((a, b) => a - b);
+  const median = vals[Math.floor(vals.length / 2)];
+  const intCount = vals.filter(v => Number.isInteger(v)).length;
+  const intRatio = intCount / vals.length;
+  const probableCents = median > 500 && intRatio > 0.9;
+  // Échantillon de quelques valeurs
+  const sample = vals.slice(0, 5).concat(vals.slice(-5));
+  res.json({
+    ok: true,
+    count: vals.length,
+    median,
+    min: vals[0],
+    max: vals[vals.length - 1],
+    int_ratio: intRatio,
+    probable_cents: probableCents,
+    sample,
+    week_filter: /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : null,
+  });
+});
+
+app.post('/api/prel/fix-ttc-units', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const week = String((req.body && req.body.week) || '').trim();
+  const apply = !!(req.body && req.body.apply);
+  const params = [];
+  let where = `ttc IS NOT NULL`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    where += ` AND week_start = ?`;
+    params.push(week);
+  }
+  const rows = db.prepare(`SELECT id, ttc FROM prel_rows WHERE ${where}`).all(...params);
+  if (rows.length === 0) {
+    return res.json({ ok: true, count: 0, message: 'Aucune ligne avec TTC' });
+  }
+  const vals = rows.map(r => Number(r.ttc)).filter(v => !Number.isNaN(v)).sort((a, b) => a - b);
+  const median = vals[Math.floor(vals.length / 2)];
+  const intRatio = vals.filter(v => Number.isInteger(v)).length / vals.length;
+  const probableCents = median > 500 && intRatio > 0.9;
+  if (!probableCents) {
+    return res.json({
+      ok: true,
+      applied: false,
+      count: rows.length,
+      median,
+      int_ratio: intRatio,
+      message: 'Les TTC ne ressemblent pas à des centimes (médiane ≤ 500 ou trop peu d\'entiers). Aucune correction appliquée.',
+    });
+  }
+  if (!apply) {
+    return res.json({
+      ok: true,
+      applied: false,
+      dry_run: true,
+      count: rows.length,
+      median,
+      int_ratio: intRatio,
+      preview: `${rows.length} lignes seraient divisées par 100. Médiane ${median} → ${median / 100} €. Re-poste avec apply=true.`,
+    });
+  }
+  const upd = db.prepare(`UPDATE prel_rows SET ttc = ttc / 100.0 WHERE id = ?`);
+  const tx = db.transaction(() => {
+    let n = 0;
+    for (const r of rows) { upd.run(r.id); n++; }
+    return n;
+  });
+  const updated = tx();
+  res.json({
+    ok: true,
+    applied: true,
+    updated,
+    median_before: median,
+    median_after: median / 100,
+    message: `${updated} lignes corrigées (÷ 100).`,
+  });
 });
 
 // Liste des archivés pour une semaine (toutes clubs confondus)
@@ -2899,7 +3211,8 @@ app.get('/api/tasks/board', requireAuth, (req, res) => {
 
   ensureUserColumns(db, userKey);
 
-  const columns = db.prepare('SELECT id, name, color, position FROM task_columns WHERE created_by = ? ORDER BY position ASC, id ASC').all(userKey);
+  // Board ne montre que les colonnes ACTIVES (non archivées).
+  const columns = db.prepare('SELECT id, name, color, position FROM task_columns WHERE created_by = ? AND COALESCE(archived, 0) = 0 ORDER BY position ASC, id ASC').all(userKey);
 
   // Own tasks: created_by = userKey AND column belongs to userKey
   const ownTasks = db.prepare(`
@@ -2973,15 +3286,38 @@ app.put('/api/tasks/columns/:id', requireAuth, (req, res) => {
   const check = assertOwnColumnOrAdmin(req, req.params.id);
   if (!check.ok) return res.status(check.code).json({ error: check.msg });
   const db = getDb();
-  const { name, color } = req.body;
+  const { name, color, archived } = req.body;
   const fields = [];
   const values = [];
   if (name !== undefined) { fields.push('name = ?'); values.push(name); }
   if (color !== undefined) { fields.push('color = ?'); values.push(color); }
+  if (archived !== undefined) {
+    const v = archived ? 1 : 0;
+    fields.push('archived = ?'); values.push(v);
+    if (v === 1) { fields.push("archived_at = datetime('now','localtime')"); }
+    else        { fields.push('archived_at = NULL'); }
+  }
   if (fields.length === 0) return res.json({ ok: true });
   values.push(req.params.id);
   db.prepare(`UPDATE task_columns SET ${fields.join(', ')} WHERE id = ?`).run(...values);
   res.json({ ok: true });
+});
+
+// Liste des colonnes ARCHIVÉES pour l'utilisateur courant (ou un autre via ?as=).
+// Renvoie nom, couleur, position, archived_at + count des tâches dans chaque colonne.
+app.get('/api/tasks/columns/archived', requireAuth, (req, res) => {
+  const db = getDb();
+  let userKey = getUserKey(req.session);
+  if (req.session.role === 'admin' && req.query.as) userKey = String(req.query.as);
+  if (!userKey) return res.status(400).json({ error: 'User key indisponible' });
+  const cols = db.prepare(`
+    SELECT c.id, c.name, c.color, c.position, c.archived_at,
+           (SELECT COUNT(*) FROM tasks t WHERE t.column_id = c.id) AS task_count
+    FROM task_columns c
+    WHERE c.created_by = ? AND COALESCE(c.archived, 0) = 1
+    ORDER BY c.archived_at DESC, c.id DESC
+  `).all(userKey);
+  res.json({ columns: cols });
 });
 
 // Delete a column (only owner or admin)

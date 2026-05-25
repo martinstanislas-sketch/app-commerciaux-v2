@@ -395,6 +395,14 @@ function initSchema() {
     db.exec(`UPDATE task_columns SET created_by = 'admin' WHERE created_by IS NULL;`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_cols_created_by ON task_columns(created_by);`);
   }
+  // Migration: column archive (hide a column without deleting its tasks)
+  if (!colCols2.includes('archived')) {
+    db.exec(`ALTER TABLE task_columns ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_cols_archived ON task_columns(created_by, archived);`);
+  }
+  if (!colCols2.includes('archived_at')) {
+    db.exec(`ALTER TABLE task_columns ADD COLUMN archived_at TEXT;`);
+  }
   // Seed default columns if empty
   const colCount = db.prepare('SELECT COUNT(*) AS c FROM task_columns').get().c;
   if (colCount === 0) {

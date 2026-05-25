@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-pf-prel-archive1">
+  <link rel="stylesheet" href="style.css?v=ds-prel-slots1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -251,6 +251,7 @@
               <option value="admin">Mon tableau</option>
             </select>
             <button id="btn-tasks-search" class="btn-tasks-search" title="Rechercher (Cmd+K)">🔍 Chercher</button>
+            <button id="btn-tasks-archives" class="btn-tasks-icon" title="Colonnes archivées" style="display:none">📦 Archives <span class="tk-archives-count" id="tk-archives-count">0</span></button>
             <button id="btn-tasks-export" class="btn-tasks-icon" title="Exporter en ZIP">⬇ Export</button>
             <button id="btn-tasks-settings" class="btn-tasks-icon" title="Personnaliser le fond">⚙ Personnaliser</button>
             <button id="btn-add-column" class="btn-add-column">+ Ajouter une colonne</button>
@@ -263,6 +264,18 @@
       <!-- Task Panel (slide-in from right) -->
       <div id="tk-panel-backdrop" class="tk-panel-backdrop hidden"></div>
       <aside id="tk-panel" class="tk-panel hidden" aria-hidden="true"></aside>
+      <!-- Modal : colonnes archivées -->
+      <div id="tk-archives-overlay" class="modal-overlay hidden">
+        <div class="modal tk-archives-modal">
+          <div class="tk-archives-header">
+            <h2>📦 Colonnes archivées</h2>
+            <button class="tk-archives-close" id="tk-archives-close" type="button" aria-label="Fermer">✕</button>
+          </div>
+          <div class="tk-archives-list" id="tk-archives-list">
+            <div class="tk-archives-empty">Aucune colonne archivée.</div>
+          </div>
+        </div>
+      </div>
       <!-- Wallpaper layer (behind everything on tasks tab) -->
       <div id="tk-wallpaper" class="tk-wallpaper"></div>
       <div id="tk-wallpaper-veil" class="tk-wallpaper-veil"></div>
@@ -688,7 +701,7 @@
       </div>
     </section>
 
-    <!-- P.R.E.L (admin uniquement) — analyse automatique des 2 dernières semaines -->
+    <!-- P.R.E.L (admin uniquement) — 2 slots figés S-1 et S -->
     <section id="tab-prel" class="tab-content">
       <div class="prel-wrap">
         <header class="prel-header">
@@ -696,18 +709,28 @@
             <h2 class="prel-title">P.R.E.L</h2>
           </div>
           <div class="prel-toolbar">
-            <button class="prel-btn-primary" id="prel-import-trigger" type="button" title="Importer un fichier échéances (.xls / .xlsx)">
-              <span>📂 Importer un fichier</span>
+            <button class="prel-btn-secondary" id="prel-rotate-trigger" type="button" title="Nouvelle semaine : S devient S-1, le slot S est libéré pour un nouvel import">
+              <span>🔄 Nouvelle semaine</span>
             </button>
-            <input type="file" id="prel-import-file" accept=".xlsx,.xls" style="display:none">
+            <button class="prel-btn-secondary" id="prel-cleanup-trigger" type="button" title="Supprime toutes les semaines hors des 2 slots actifs">
+              <span>🧹 Nettoyer</span>
+            </button>
+            <button class="prel-btn-secondary" id="prel-fix-ttc-trigger" type="button" title="Détecte les TTC stockés en centimes (×100) et les divise par 100">
+              <span>🔧 Corriger les TTC</span>
+            </button>
           </div>
         </header>
+        <!-- 2 slots figés : S-1 et S -->
+        <div class="prel-slots" id="prel-slots"></div>
+        <!-- Inputs fichier cachés (un par slot pour éviter la confusion) -->
+        <input type="file" id="prel-import-file-prev" accept=".xlsx,.xls" style="display:none">
+        <input type="file" id="prel-import-file-cur" accept=".xlsx,.xls" style="display:none">
         <div class="prel-results" id="prel-results">
           <div class="prel-empty">
             <div class="prel-empty-icon" aria-hidden="true">📥</div>
             <div class="prel-empty-text">
-              Importe au moins 2 semaines consécutives d'échéances pour démarrer.<br>
-              L'analyse se fait automatiquement sur les <strong>2 dernières semaines</strong> et affiche les clients qui étaient encaissés la semaine dernière mais ne le sont plus cette semaine.
+              Importe deux fichiers d'échéances : un pour la <strong>semaine précédente (S-1)</strong> et un pour la <strong>semaine en cours (S)</strong>.<br>
+              L'analyse comparera automatiquement les deux dès qu'ils seront chargés.
             </div>
           </div>
         </div>
@@ -822,6 +845,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-pf-prel-archive1"></script>
+  <script src="app.js?v=ds-prel-slots1"></script>
 </body>
 </html>
