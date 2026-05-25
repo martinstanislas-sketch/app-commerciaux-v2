@@ -12515,6 +12515,13 @@ async function handlePrelFileImport(file) {
       });
     }
     console.log('[prel] normalisées :', normalized.length, '/ ignorées :', skipped);
+    // Détection d'un mauvais format (rapport agrégé/pivot) :
+    // les fichiers d'échéances détaillées DOIVENT contenir une colonne Echeance.
+    // Si elle est absente, on prévient explicitement l'utilisateur.
+    const hasEcheanceCol = sampleKeys.some(k => {
+      const n = String(k).trim().toLowerCase().replace(/é|è|ê/g, 'e');
+      return n === 'echeance' || n.includes('echeance');
+    });
     if (normalized.length === 0) {
       const colsHint = sampleKeys.length > 0
         ? `\n\nColonnes détectées :\n${sampleKeys.slice(0, 12).map(k => `  · ${k}`).join('\n')}${sampleKeys.length > 12 ? `\n  · …` : ''}`
@@ -12525,11 +12532,14 @@ async function handlePrelFileImport(file) {
       const clubHint = skipped.clubExamples.length > 0
         ? `\n\nExemples de Site rejetés :\n${skipped.clubExamples.map(s => `  · « ${s} »`).join('\n')}`
         : '';
+      const formatHint = hasEcheanceCol
+        ? ''
+        : `\n\n⚠ Ce fichier ne semble pas être la liste détaillée des échéances :\naucune colonne « Echeance » détectée. Tu as peut-être importé un rapport agrégé / pivot. Le bon fichier est celui qui contient une ligne par client avec les colonnes Echeance, Membre, Site, Etat, Id_client, etc.`;
       alert(
         `Aucune ligne exploitable.\n`
         + `• ${skipped.club} ignorées (club non-réseau / franchise)\n`
         + `• ${skipped.date} ignorées (date d'échéance invalide)`
-        + colsHint + dateHint + clubHint
+        + formatHint + colsHint + dateHint + clubHint
         + `\n\nOuvre la console (F12) pour voir le détail.`
       );
       return;

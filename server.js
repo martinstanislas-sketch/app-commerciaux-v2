@@ -283,8 +283,18 @@ app.delete('/api/prel/uploads/:id', requireAuth, requireAdmin, (req, res) => {
 });
 
 // Comparaison S vs S-1 : pour chaque club, retourne la liste des clients
-// présents en S-1 (Etat = OK) mais absents OU non-OK en S.
-// Param : week (YYYY-MM-DD lundi). week-1 = week − 7 jours.
+// présents en S-1 (état « prélevé / réussi ») mais absents OU non-prélevés
+// en S. Définition d'un prélèvement réussi (cf. format Vendor du client) :
+//   - « Encaisse »  (encaissé / réussi — état dominant dans les exports)
+//   - « OK »        (fallback pour d'autres formats éventuels)
+//   - « Encaissé »  (variante avec accent)
+// Tous les autres états — Suspendu, Impayé, A faire, Envoyé, etc. —
+// comptent comme NON-prélevé.
+const PREL_ETATS_OK = ['OK', 'ENCAISSE', 'ENCAISSÉ'];
+function prelIsOk(etat) {
+  return PREL_ETATS_OK.includes(String(etat || '').toUpperCase().trim());
+}
+
 app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
   const week = String(req.query.week || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return res.status(400).json({ error: 'week=YYYY-MM-DD requis' });
@@ -294,27 +304,26 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
   dt.setUTCDate(dt.getUTCDate() - 7);
   const prevWeek = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
   const db = getDb();
-  // Liste des clubs présents sur l'une ou l'autre des deux semaines
   const clubs = db.prepare(`
     SELECT DISTINCT club FROM prel_rows
     WHERE week_start = ? OR week_start = ?
     ORDER BY club ASC
   `).all(week, prevWeek).map(r => r.club);
-  // Pour chaque club, on calcule perdus
   const result = clubs.map(club => {
-    const prev = db.prepare(`
+    // Toutes les lignes de S-1 (filtrage OK fait en JS pour gérer les variantes)
+    const prevAll = db.prepare(`
       SELECT id_client, id_prestation, membre, etat, echeance, ttc, vendeur, prestation, raison, tel, email
       FROM prel_rows
-      WHERE club = ? AND week_start = ? AND UPPER(COALESCE(etat,'')) = 'OK'
+      WHERE club = ? AND week_start = ?
     `).all(club, prevWeek);
+    const prev = prevAll.filter(r => prelIsOk(r.etat));
     const cur = db.prepare(`
       SELECT id_client, id_prestation, etat
       FROM prel_rows
       WHERE club = ? AND week_start = ?
     `).all(club, week);
-    // Index des clients qui ont au moins un Etat = OK sur la semaine courante
     const curOkClients = new Set();
-    cur.forEach(r => { if (String(r.etat || '').toUpperCase() === 'OK') curOkClients.add(r.id_client); });
+    cur.forEach(r => { if (prelIsOk(r.etat)) curOkClients.add(r.id_client); });
     const perdus = prev.filter(r => !curOkClients.has(r.id_client));
     return {
       club,
