@@ -2595,6 +2595,7 @@ function initTabs() {
       if (btn.dataset.tab === 'perso') loadPersoTab();
       if (btn.dataset.tab === 'tasks') loadTasksBoard();
       if (btn.dataset.tab === 'pilotage-funnel') loadPilotageFunnel();
+      if (btn.dataset.tab === 'prel') loadPrelTab();
     });
   });
 }
@@ -12180,5 +12181,322 @@ async function renderPilotageFunnel() {
         </div>
       `;
     }).join('');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// P.R.E.L — Imports hebdomadaires des fichiers d'échéances + analyse
+// S vs S-1 (clients perdus par club).
+//
+// Workflow :
+//   1. L'admin clique sur « Importer un fichier » et choisit un .xls/.xlsx
+//   2. Le parser client lit chaque ligne, dérive le club (depuis Site) et
+//      le week_start (lundi de la semaine de l'échéance)
+//   3. Les lignes sont envoyées à POST /api/prel/upload qui les stocke
+//   4. La liste des semaines disponibles est rechargée
+//   5. L'utilisateur sélectionne une semaine → on appelle
+//      GET /api/prel/comparison?week=… qui retourne par club la liste des
+//      clients prélevés (Etat = OK) en S-1 mais absents/non-OK en S.
+// ═══════════════════════════════════════════════════════════════════
+
+// Mapping « Site » Vendor → club canonique. On exclut explicitement les
+// franchises (Tours, Veigné, Caen, Paris, Valence, etc.).
+const PREL_SITE_MAP = {
+  'my coach boulogne billancourt': 'Boulogne-Billancourt',
+  'my coach boulogne':              'Boulogne-Billancourt',
+  'my coach lille':                 'Lille',
+  'my coach vieux lille':           'Lille',
+  'my coach levallois':             'Levallois-Perret',
+  'my coach levallois perret':      'Levallois-Perret',
+  'my coach levallois-perret':      'Levallois-Perret',
+  'my coach marcq':                 'Marcq-en-Barœul',
+  'my coach marcq en baroeul':      'Marcq-en-Barœul',
+  'my coach marcq-en-baroeul':      'Marcq-en-Barœul',
+  'my coach marcq en barœul':       'Marcq-en-Barœul',
+  'my coach neuilly':               'Neuilly-sur-Seine',
+  'my coach neuilly sur seine':     'Neuilly-sur-Seine',
+  'my coach neuilly-sur-seine':     'Neuilly-sur-Seine',
+  'my coach wasquehal':             'Wasquehal',
+};
+
+// Parse une date d'échéance Vendor — formats acceptés : « DD/MM/YYYY »,
+// « YYYY-MM-DD », ou une valeur Excel sérielle (jours depuis 1900-01-01).
+function prelParseDate(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') {
+    // Date Excel : jours depuis 1899-12-30 (corrige le bug 1900)
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    if (Number.isNaN(d.getTime())) return null;
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
+  const s = String(v).trim();
+  // DD/MM/YYYY
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+  // YYYY-MM-DD
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  return null;
+}
+
+// Calcule le lundi de la semaine (ISO 8601) d'une date YYYY-MM-DD
+function prelMondayOf(dateISO) {
+  if (!dateISO) return null;
+  const [y, m, d] = dateISO.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const wd = dt.getUTCDay(); // 0 = dim, 1 = lun, ..., 6 = sam
+  const delta = wd === 0 ? -6 : (1 - wd);
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
+}
+
+// Résout un libellé « Site » Vendor en club canonique.
+// Renvoie null pour les franchises et autres sites non-My Coach réseau.
+function prelResolveClub(site) {
+  if (!site) return null;
+  const norm = String(site).trim().toLowerCase().replace(/\s+/g, ' ');
+  if (PREL_SITE_MAP[norm]) return PREL_SITE_MAP[norm];
+  for (const [key, club] of Object.entries(PREL_SITE_MAP)) {
+    if (norm.includes(key)) return club;
+  }
+  return null;
+}
+
+function prelFormatWeek(iso) {
+  if (!iso) return '—';
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const end = new Date(dt); end.setUTCDate(end.getUTCDate() + 6);
+  const fmt = (x) => x.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  return `Sem. du ${fmt(dt)} au ${fmt(end)} ${dt.getUTCFullYear()}`;
+}
+
+function prelFormatEur(v) {
+  if (v == null || Number.isNaN(Number(v))) return '—';
+  return Number(v).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
+}
+
+let prelTabBooted = false;
+async function loadPrelTab() {
+  if (!isAdmin()) return;
+  if (!prelTabBooted) {
+    prelTabBooted = true;
+    const trigger = document.getElementById('prel-import-trigger');
+    const fileInput = document.getElementById('prel-import-file');
+    if (trigger && fileInput) {
+      trigger.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) handlePrelFileImport(f);
+        fileInput.value = '';
+      });
+    }
+    const sel = document.getElementById('prel-week-select');
+    if (sel) {
+      sel.addEventListener('change', () => renderPrelComparison(sel.value));
+    }
+  }
+  await reloadPrelWeeks();
+}
+
+async function reloadPrelWeeks(autoSelect) {
+  try {
+    const res = await fetch('/api/prel/weeks', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const weeks = data.weeks || [];
+    const sel = document.getElementById('prel-week-select');
+    const results = document.getElementById('prel-results');
+    if (!sel) return;
+    sel.innerHTML = weeks.length === 0
+      ? '<option value="">Aucune semaine importée</option>'
+      : weeks.map(w => `<option value="${escapeHtml(w.week_start)}">${escapeHtml(prelFormatWeek(w.week_start))} · ${w.clubs_count} clubs · ${w.rows_count} lignes</option>`).join('');
+    if (weeks.length === 0) {
+      if (results) results.innerHTML = `
+        <div class="prel-empty">
+          <div class="prel-empty-icon" aria-hidden="true">📥</div>
+          <div class="prel-empty-text">
+            Importe un fichier d'échéances pour démarrer.<br>
+            Une fois la semaine choisie, on te liste par club les clients prélevés en S-1 mais qui ne le sont plus cette semaine.
+          </div>
+        </div>`;
+      return;
+    }
+    const target = autoSelect || sel.value || weeks[0].week_start;
+    sel.value = target;
+    renderPrelComparison(target);
+  } catch (err) {
+    console.error('[prel] weeks load error', err);
+  }
+}
+
+async function renderPrelComparison(weekStart) {
+  const results = document.getElementById('prel-results');
+  if (!results || !weekStart) return;
+  results.innerHTML = `<div class="prel-loading">Chargement de la comparaison…</div>`;
+  try {
+    const res = await fetch(`/api/prel/comparison?week=${encodeURIComponent(weekStart)}`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    const clubs = data.clubs || [];
+    if (clubs.length === 0) {
+      results.innerHTML = `<div class="prel-empty"><div class="prel-empty-icon">🌤️</div><div class="prel-empty-text">Aucune donnée pour cette semaine. Importe le fichier de la semaine concernée ou de la semaine précédente.</div></div>`;
+      return;
+    }
+    const totalPerdus = clubs.reduce((s, c) => s + (c.perdus_count || 0), 0);
+    const totalMontant = clubs.reduce((s, c) => s + (c.perdus || []).reduce((t, p) => t + (p.ttc || 0), 0), 0);
+    results.innerHTML = `
+      <div class="prel-summary">
+        <div class="prel-summary-item">
+          <span class="prel-summary-label">Semaine S</span>
+          <span class="prel-summary-value">${escapeHtml(prelFormatWeek(data.week_cur))}</span>
+        </div>
+        <div class="prel-summary-item">
+          <span class="prel-summary-label">Semaine S-1</span>
+          <span class="prel-summary-value">${escapeHtml(prelFormatWeek(data.week_prev))}</span>
+        </div>
+        <div class="prel-summary-item is-highlight">
+          <span class="prel-summary-label">Clients perdus</span>
+          <span class="prel-summary-value">${totalPerdus}</span>
+        </div>
+        <div class="prel-summary-item is-highlight">
+          <span class="prel-summary-label">Montant perdu</span>
+          <span class="prel-summary-value">${prelFormatEur(totalMontant)}</span>
+        </div>
+      </div>
+      <div class="prel-clubs">
+        ${clubs.map(c => `
+          <article class="prel-club-card ${c.perdus_count > 0 ? 'has-perdus' : ''}">
+            <header class="prel-club-head">
+              <h3 class="prel-club-name">${escapeHtml(c.club)}</h3>
+              <div class="prel-club-stats">
+                <span class="prel-stat"><strong>${c.prev_count}</strong> en S-1</span>
+                <span class="prel-stat"><strong>${c.cur_ok_count}</strong> en S</span>
+                <span class="prel-stat prel-stat-loss"><strong>${c.perdus_count}</strong> perdus</span>
+              </div>
+            </header>
+            ${c.perdus_count === 0 ? `<div class="prel-club-empty">✓ Aucun client perdu cette semaine.</div>` : `
+              <div class="prel-table-wrap">
+                <table class="prel-table">
+                  <thead>
+                    <tr>
+                      <th>Membre</th>
+                      <th>Prestation</th>
+                      <th>Vendeur</th>
+                      <th class="prel-num">TTC</th>
+                      <th>Échéance S-1</th>
+                      <th>Contact</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${c.perdus.map(p => `
+                      <tr>
+                        <td><strong>${escapeHtml(p.membre || '—')}</strong></td>
+                        <td>${escapeHtml(p.prestation || '—')}</td>
+                        <td>${escapeHtml(p.vendeur || '—')}</td>
+                        <td class="prel-num">${prelFormatEur(p.ttc)}</td>
+                        <td>${p.echeance ? prelFormatDateFR(p.echeance) : '—'}</td>
+                        <td class="prel-contact">
+                          ${p.tel   ? `<a href="tel:${escapeHtml(String(p.tel))}">${escapeHtml(String(p.tel))}</a>` : ''}
+                          ${p.email ? `<a href="mailto:${escapeHtml(p.email)}">${escapeHtml(p.email)}</a>` : ''}
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </article>
+        `).join('')}
+      </div>
+    `;
+  } catch (err) {
+    results.innerHTML = `<div class="prel-empty"><div class="prel-empty-text">Erreur : ${escapeHtml(String(err.message || err))}</div></div>`;
+  }
+}
+
+function prelFormatDateFR(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return '—';
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
+}
+
+async function handlePrelFileImport(file) {
+  if (!file) return;
+  try {
+    if (typeof XLSX === 'undefined') {
+      alert('SheetJS non chargé — recharge la page.');
+      return;
+    }
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    if (!sheet) { alert('Fichier vide ou illisible.'); return; }
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+    if (rows.length === 0) { alert('Aucune ligne trouvée dans le fichier.'); return; }
+    // Normalise chaque ligne
+    const normalized = [];
+    const skipped = { club: 0, date: 0 };
+    for (const r of rows) {
+      const echeanceISO = prelParseDate(r['Echeance'] || r['Échéance'] || r['echeance']);
+      if (!echeanceISO) { skipped.date++; continue; }
+      const week = prelMondayOf(echeanceISO);
+      const club = prelResolveClub(r['Site'] || r['site']);
+      if (!club) { skipped.club++; continue; } // franchise ou inconnu → ignoré
+      normalized.push({
+        club,
+        week_start: week,
+        echeance: echeanceISO,
+        id_client: Number.isFinite(Number(r['Id_client'])) ? parseInt(r['Id_client'], 10) : null,
+        id_prestation: Number.isFinite(Number(r['Id_prestation'])) ? parseInt(r['Id_prestation'], 10) : null,
+        membre: r['Membre'] || null,
+        etat: r['Etat'] || r['État'] || null,
+        ttc: Number.isFinite(Number(r['TTC'])) ? Number(r['TTC']) : null,
+        vendeur: r['Vendeur'] || null,
+        prestation: r['Prestation'] || null,
+        raison: r['Raison (si impayé)'] || r['Raison'] || null,
+        tel: r['Tel. SMS'] || r['Tel. Personnel'] || null,
+        email: r['Email'] || null,
+      });
+    }
+    if (normalized.length === 0) {
+      alert(`Aucune ligne exploitable.\n• ${skipped.club} ignorées (club non-réseau / franchise)\n• ${skipped.date} ignorées (date d'échéance invalide)`);
+      return;
+    }
+    // Récapitulatif
+    const byClubWeek = {};
+    normalized.forEach(r => {
+      const k = `${r.club} · ${prelFormatWeek(r.week_start)}`;
+      byClubWeek[k] = (byClubWeek[k] || 0) + 1;
+    });
+    const recap = Object.entries(byClubWeek).map(([k, n]) => `   · ${k} : ${n} lignes`).join('\n');
+    if (!confirm(
+      `Import P.R.E.L :\n\n`
+      + `• ${normalized.length} lignes exploitables\n`
+      + `• ${skipped.club} ignorées (hors réseau / franchise)\n`
+      + `• ${skipped.date} ignorées (date invalide)\n\n`
+      + `Répartition :\n${recap}\n\n`
+      + `Continuer ?`
+    )) return;
+    const res = await fetch('/api/prel/upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify({ filename: file.name, rows: normalized }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    alert(`Import réussi ✓\n\n${result.rows_count} lignes enregistrées\nClubs : ${result.clubs.join(', ')}\nSemaines : ${result.week_start_min} → ${result.week_start_max}`);
+    // Reload weeks et auto-sélectionne la dernière importée
+    await reloadPrelWeeks(result.week_start_max);
+  } catch (err) {
+    console.error('[prel] import error', err);
+    alert('Erreur d\'import :\n' + (err.message || err));
   }
 }

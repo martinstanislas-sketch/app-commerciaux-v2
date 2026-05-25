@@ -202,6 +202,133 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
+// ─── P.R.E.L : uploads hebdomadaires + diff S vs S-1 ────────────
+// Routes admin uniquement. Le parsing XLSX est fait côté client
+// (SheetJS déjà chargé), le serveur reçoit du JSON normalisé.
+
+app.post('/api/prel/upload', requireAuth, requireAdmin, (req, res) => {
+  const { filename, rows } = req.body || {};
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: 'rows array non vide requis' });
+  }
+  const db = getDb();
+  const ins = db.prepare(`INSERT INTO prel_uploads (filename, rows_count) VALUES (?, 0)`).run(String(filename || 'inconnu'));
+  const uploadId = ins.lastInsertRowid;
+  const stmt = db.prepare(`
+    INSERT INTO prel_rows (upload_id, club, week_start, id_client, id_prestation, membre, etat, echeance, ttc, vendeur, prestation, raison, tel, email)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const clubs = new Set();
+  let minWeek = null, maxWeek = null;
+  const tx = db.transaction(() => {
+    for (const r of rows) {
+      if (!r || !r.club || !r.week_start) continue;
+      stmt.run(
+        uploadId,
+        String(r.club),
+        String(r.week_start),
+        Number.isInteger(r.id_client) ? r.id_client : null,
+        Number.isInteger(r.id_prestation) ? r.id_prestation : null,
+        r.membre || null,
+        r.etat || null,
+        r.echeance || null,
+        (typeof r.ttc === 'number' && !Number.isNaN(r.ttc)) ? r.ttc : null,
+        r.vendeur || null,
+        r.prestation || null,
+        r.raison || null,
+        r.tel || null,
+        r.email || null,
+      );
+      clubs.add(r.club);
+      if (minWeek === null || r.week_start < minWeek) minWeek = r.week_start;
+      if (maxWeek === null || r.week_start > maxWeek) maxWeek = r.week_start;
+    }
+    db.prepare(`UPDATE prel_uploads SET rows_count = ?, week_start_min = ?, week_start_max = ?, clubs_csv = ? WHERE id = ?`)
+      .run(rows.length, minWeek, maxWeek, Array.from(clubs).join(','), uploadId);
+  });
+  tx();
+  res.json({
+    ok: true,
+    upload_id: uploadId,
+    rows_count: rows.length,
+    week_start_min: minWeek,
+    week_start_max: maxWeek,
+    clubs: Array.from(clubs),
+  });
+});
+
+app.get('/api/prel/weeks', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT week_start, COUNT(*) AS rows_count, COUNT(DISTINCT club) AS clubs_count
+    FROM prel_rows
+    GROUP BY week_start
+    ORDER BY week_start DESC
+  `).all();
+  res.json({ weeks: rows });
+});
+
+app.get('/api/prel/uploads', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(`SELECT * FROM prel_uploads ORDER BY uploaded_at DESC LIMIT 100`).all();
+  res.json({ uploads: rows });
+});
+
+app.delete('/api/prel/uploads/:id', requireAuth, requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  const db = getDb();
+  db.prepare(`DELETE FROM prel_uploads WHERE id = ?`).run(id);
+  res.json({ ok: true });
+});
+
+// Comparaison S vs S-1 : pour chaque club, retourne la liste des clients
+// présents en S-1 (Etat = OK) mais absents OU non-OK en S.
+// Param : week (YYYY-MM-DD lundi). week-1 = week − 7 jours.
+app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
+  const week = String(req.query.week || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return res.status(400).json({ error: 'week=YYYY-MM-DD requis' });
+  // Calcule la semaine précédente (lundi - 7 jours) en arithmétique pure
+  const [y, m, d] = week.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 7);
+  const prevWeek = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
+  const db = getDb();
+  // Liste des clubs présents sur l'une ou l'autre des deux semaines
+  const clubs = db.prepare(`
+    SELECT DISTINCT club FROM prel_rows
+    WHERE week_start = ? OR week_start = ?
+    ORDER BY club ASC
+  `).all(week, prevWeek).map(r => r.club);
+  // Pour chaque club, on calcule perdus
+  const result = clubs.map(club => {
+    const prev = db.prepare(`
+      SELECT id_client, id_prestation, membre, etat, echeance, ttc, vendeur, prestation, raison, tel, email
+      FROM prel_rows
+      WHERE club = ? AND week_start = ? AND UPPER(COALESCE(etat,'')) = 'OK'
+    `).all(club, prevWeek);
+    const cur = db.prepare(`
+      SELECT id_client, id_prestation, etat
+      FROM prel_rows
+      WHERE club = ? AND week_start = ?
+    `).all(club, week);
+    // Index des clients qui ont au moins un Etat = OK sur la semaine courante
+    const curOkClients = new Set();
+    cur.forEach(r => { if (String(r.etat || '').toUpperCase() === 'OK') curOkClients.add(r.id_client); });
+    const perdus = prev.filter(r => !curOkClients.has(r.id_client));
+    return {
+      club,
+      week_prev: prevWeek,
+      week_cur: week,
+      prev_count: prev.length,
+      cur_ok_count: curOkClients.size,
+      perdus_count: perdus.length,
+      perdus,
+    };
+  });
+  res.json({ week_cur: week, week_prev: prevWeek, clubs: result });
+});
+
 // ─── Pilotage : Commentaires (laissés par consultants) ───────────
 // Tout utilisateur authentifié peut POST un commentaire.
 // Seul l'admin peut LIRE / MARQUER COMME LU.

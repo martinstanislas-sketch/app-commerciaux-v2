@@ -10946,14 +10946,19 @@ img {
 #tab-pilotage-funnel .pf-grid.hidden,
 #tab-pilotage-funnel .pf-funnel-section.hidden { display: none !important; }
 
-/* ─── P.R.E.L (onglet admin) — placeholder en attente de contenu ─── */
+/* ─── P.R.E.L (onglet admin) — analyse hebdo des prélèvements ─── */
 #tab-prel .prel-wrap {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 32px 28px;
+  padding: 32px 28px 64px;
 }
 #tab-prel .prel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
   margin-bottom: 32px;
+  flex-wrap: wrap;
 }
 #tab-prel .prel-title {
   font-size: 28px;
@@ -10967,6 +10972,53 @@ img {
   font-size: 14px;
   color: var(--ds-fg-3, #64748B);
 }
+#tab-prel .prel-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+#tab-prel .prel-week {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+#tab-prel .prel-week select {
+  font: inherit;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  min-width: 280px;
+  cursor: pointer;
+  color: #0f172a;
+}
+#tab-prel .prel-btn-primary {
+  background: var(--ds-primary-500, #6366F1);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 18px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+#tab-prel .prel-btn-primary:hover {
+  background: #4f46e5;
+  transform: translateY(-1px);
+}
+
+/* État vide */
 #tab-prel .prel-empty {
   background: #fff;
   border: 1px dashed #cbd5e1;
@@ -10978,16 +11030,152 @@ img {
   align-items: center;
   gap: 16px;
 }
-#tab-prel .prel-empty-icon {
-  font-size: 48px;
-  line-height: 1;
-}
+#tab-prel .prel-empty-icon { font-size: 48px; line-height: 1; }
 #tab-prel .prel-empty-text {
   font-size: 14px;
   color: #475569;
   line-height: 1.6;
   max-width: 520px;
 }
+#tab-prel .prel-loading {
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+}
+
+/* Summary bar */
+#tab-prel .prel-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+@media (max-width: 760px) {
+  #tab-prel .prel-summary { grid-template-columns: repeat(2, 1fr); }
+}
+#tab-prel .prel-summary-item {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#tab-prel .prel-summary-item.is-highlight {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(254, 242, 242, 0.5);
+}
+#tab-prel .prel-summary-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+#tab-prel .prel-summary-item.is-highlight .prel-summary-label { color: #b91c1c; }
+#tab-prel .prel-summary-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+#tab-prel .prel-summary-item.is-highlight .prel-summary-value { color: #b91c1c; }
+
+/* Clubs grid */
+#tab-prel .prel-clubs {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+#tab-prel .prel-club-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px 22px;
+}
+#tab-prel .prel-club-card.has-perdus {
+  border-left: 4px solid #ef4444;
+}
+#tab-prel .prel-club-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+#tab-prel .prel-club-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+}
+#tab-prel .prel-club-stats {
+  display: inline-flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #64748b;
+}
+#tab-prel .prel-stat strong {
+  color: #0f172a;
+  font-weight: 800;
+  margin-right: 2px;
+}
+#tab-prel .prel-stat-loss strong { color: #ef4444; }
+#tab-prel .prel-club-empty {
+  font-size: 13px;
+  color: #16a34a;
+  padding: 8px 4px;
+  font-weight: 600;
+}
+
+/* Table */
+#tab-prel .prel-table-wrap {
+  overflow-x: auto;
+  margin: 0 -22px -20px;
+  padding: 0 22px 14px;
+}
+#tab-prel .prel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+#tab-prel .prel-table thead th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  border-bottom: 1.5px solid #e2e8f0;
+}
+#tab-prel .prel-table tbody td {
+  padding: 10px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+  color: #0f172a;
+}
+#tab-prel .prel-table tbody tr:last-child td { border-bottom: 0; }
+#tab-prel .prel-table .prel-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 700;
+}
+#tab-prel .prel-table .prel-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+#tab-prel .prel-table .prel-contact a {
+  color: #6366F1;
+  text-decoration: none;
+}
+#tab-prel .prel-table .prel-contact a:hover { text-decoration: underline; }
 
 /* ── Accès consultant : visibilité conditionnelle ──────────────── */
 /* Par défaut : éléments admin visibles, éléments consultant masqués */

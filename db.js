@@ -899,6 +899,40 @@ function initCoachSchema() {
       created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     );
 
+    -- P.R.E.L : uploads hebdomadaires des fichiers d'échéances Vendor
+    -- (un seul fichier multi-clubs par semaine). On stocke chaque ligne
+    -- avec son club résolu (depuis colonne Site) et son week_start (lundi
+    -- de la semaine de l'échéance). La diff S vs S-1 est calculée à la
+    -- volée à la lecture (pas pré-aggregée — volume faible).
+    CREATE TABLE IF NOT EXISTS prel_uploads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT,
+      uploaded_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      rows_count INTEGER NOT NULL DEFAULT 0,
+      week_start_min TEXT,  -- min(week_start) parmi les lignes
+      week_start_max TEXT,  -- max(week_start) parmi les lignes
+      clubs_csv TEXT        -- liste des clubs rencontrés (CSV)
+    );
+    CREATE TABLE IF NOT EXISTS prel_rows (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      upload_id INTEGER NOT NULL REFERENCES prel_uploads(id) ON DELETE CASCADE,
+      club TEXT NOT NULL,
+      week_start TEXT NOT NULL,            -- YYYY-MM-DD du lundi
+      id_client INTEGER,
+      id_prestation INTEGER,
+      membre TEXT,
+      etat TEXT,
+      echeance TEXT,                       -- YYYY-MM-DD
+      ttc REAL,
+      vendeur TEXT,
+      prestation TEXT,
+      raison TEXT,
+      tel TEXT,
+      email TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_prel_lookup ON prel_rows(club, week_start, id_client);
+    CREATE INDEX IF NOT EXISTS idx_prel_upload ON prel_rows(upload_id);
+
     -- Commentaires laissés par les utilisateurs « consultant » (et autres
     -- rôles non-admin) sur la page Pilotage. L'admin reçoit / lit ces
     -- commentaires via /api/pilotage/comments.
