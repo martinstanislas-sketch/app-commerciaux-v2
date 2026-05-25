@@ -12590,9 +12590,18 @@ async function handlePrelFileImport(file) {
     });
     if (!res.ok) throw new Error(await res.text());
     const result = await res.json();
-    alert(`Import réussi ✓\n\n${result.rows_count} lignes enregistrées\nClubs : ${result.clubs.join(', ')}\nSemaines : ${result.week_start_min} → ${result.week_start_max}`);
-    // Reload weeks et auto-sélectionne la dernière importée
-    await reloadPrelWeeks(result.week_start_max);
+    const replacedMsg = (result.replaced_count > 0)
+      ? `\n• ${result.replaced_count} anciennes lignes remplacées (semaines déjà importées)`
+      : '';
+    alert(
+      `Import réussi ✓\n\n`
+      + `• ${result.rows_count} lignes enregistrées${replacedMsg}\n`
+      + `• Clubs : ${result.clubs.join(', ')}\n`
+      + `• Semaines : ${result.week_start_min} → ${result.week_start_max}`
+    );
+    // Recharge l'affichage — l'analyse se fait automatiquement sur les 2
+    // dernières semaines principales, plus besoin de passer une valeur.
+    await reloadPrelWeeks();
   } catch (err) {
     console.error('[prel] import error', err);
     alert('Erreur d\'import :\n' + (err.message || err));

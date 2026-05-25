@@ -212,15 +212,32 @@ app.post('/api/prel/upload', requireAuth, requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'rows array non vide requis' });
   }
   const db = getDb();
+  // Calcule les couples (club × week_start) présents dans le nouveau fichier
+  // pour REMPLACER les anciennes données de ces semaines (évite l'accumulation
+  // si on ré-uploade le même fichier ou un fichier qui chevauche).
+  const combos = new Set();
+  for (const r of rows) {
+    if (r && r.club && r.week_start) combos.add(`${r.club}|||${r.week_start}`);
+  }
   const ins = db.prepare(`INSERT INTO prel_uploads (filename, rows_count) VALUES (?, 0)`).run(String(filename || 'inconnu'));
   const uploadId = ins.lastInsertRowid;
   const stmt = db.prepare(`
     INSERT INTO prel_rows (upload_id, club, week_start, id_client, id_prestation, membre, etat, echeance, ttc, vendeur, prestation, raison, tel, email)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const delStmt = db.prepare(`DELETE FROM prel_rows WHERE club = ? AND week_start = ?`);
   const clubs = new Set();
   let minWeek = null, maxWeek = null;
+  let replacedCount = 0;
   const tx = db.transaction(() => {
+    // 1. Purge les anciennes lignes pour chaque couple (club, week_start) ré-uploadé
+    for (const combo of combos) {
+      const [club, week] = combo.split('|||');
+      const before = db.prepare(`SELECT COUNT(*) AS c FROM prel_rows WHERE club = ? AND week_start = ?`).get(club, week).c;
+      delStmt.run(club, week);
+      replacedCount += before;
+    }
+    // 2. Insère les nouvelles lignes
     for (const r of rows) {
       if (!r || !r.club || !r.week_start) continue;
       stmt.run(
@@ -251,6 +268,7 @@ app.post('/api/prel/upload', requireAuth, requireAdmin, (req, res) => {
     ok: true,
     upload_id: uploadId,
     rows_count: rows.length,
+    replaced_count: replacedCount,
     week_start_min: minWeek,
     week_start_max: maxWeek,
     clubs: Array.from(clubs),
@@ -324,12 +342,26 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
     `).all(club, week);
     const curOkClients = new Set();
     cur.forEach(r => { if (prelIsOk(r.etat)) curOkClients.add(r.id_client); });
-    const perdus = prev.filter(r => !curOkClients.has(r.id_client));
+    const perdusRaw = prev.filter(r => !curOkClients.has(r.id_client));
+    // Déduplique par id_client (un client peut avoir plusieurs prestations
+    // → plusieurs lignes pour la même semaine, on ne le compte qu'une fois).
+    const seen = new Set();
+    const perdus = [];
+    for (const p of perdusRaw) {
+      const key = p.id_client != null ? `id:${p.id_client}` : `mb:${(p.membre || '').toLowerCase().trim()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      perdus.push(p);
+    }
+    // Compteurs en clients UNIQUES (pas en lignes — un même client peut
+    // avoir plusieurs prestations / échéances dans la même semaine).
+    const prevClientsUniq = new Set();
+    prev.forEach(r => { if (r.id_client != null) prevClientsUniq.add(r.id_client); });
     return {
       club,
       week_prev: prevWeek,
       week_cur: week,
-      prev_count: prev.length,
+      prev_count: prevClientsUniq.size,
       cur_ok_count: curOkClients.size,
       perdus_count: perdus.length,
       perdus,
