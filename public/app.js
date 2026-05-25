@@ -12374,10 +12374,23 @@ async function reloadPrelWeeks(autoSelect) {
     } else if (toggle) {
       toggle.style.display = 'none';
     }
-    // Auto-sélection : valeur passée, ou valeur actuelle, ou première visible
-    const target = autoSelect
-      || (visible.find(w => w.week_start === sel.value) ? sel.value : null)
-      || (visible[0] && visible[0].week_start);
+    // Auto-sélection intelligente : on PRIVILÉGIE les semaines principales
+    // pour éviter d'atterrir par défaut sur une semaine d'échéances futures
+    // (qui aurait 0 perdus puisqu'il n'y a pas de S-1 réel pour ces semaines).
+    let target = null;
+    if (autoSelect && principalWeeks.find(w => w.week_start === autoSelect)) {
+      target = autoSelect;
+    } else if (sel.value && principalWeeks.find(w => w.week_start === sel.value)) {
+      target = sel.value;
+    } else if (principalWeeks.length > 0) {
+      target = principalWeeks[0].week_start; // la plus récente
+    } else if (autoSelect) {
+      target = autoSelect;
+    } else if (sel.value) {
+      target = sel.value;
+    } else if (visible[0]) {
+      target = visible[0].week_start;
+    }
     if (target) {
       sel.value = target;
       renderPrelComparison(target);
