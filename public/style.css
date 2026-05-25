@@ -11232,6 +11232,111 @@ img {
   font-weight: 600;
 }
 
+/* Pastille « archivés » dans l'en-tête de club */
+#tab-prel .prel-stat-archived {
+  display: inline-flex;
+  align-items: center;
+  background: #ecfdf5;
+  color: #047857;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+#tab-prel .prel-stat-archived strong { color: #047857; font-size: 14px; }
+
+/* Bandeau « N archivés » + toggle global au-dessus de la grille */
+#tab-prel .prel-archive-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+#tab-prel .prel-archive-info {
+  font-size: 13px;
+  color: #475569;
+}
+#tab-prel .prel-archive-toggle {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+#tab-prel .prel-archive-toggle:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+/* Badge « ✓ sous contrôle » à côté du nom dans une ligne archivée */
+#tab-prel .prel-archived-badge {
+  display: inline-block;
+  margin-left: 8px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+#tab-prel .prel-table tr.is-archived {
+  opacity: 0.65;
+  background: #f8fafc;
+}
+
+/* Compteur de prestations multiples */
+#tab-prel .prel-presta-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+/* Boutons d'action génériques */
+#tab-prel .prel-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 120ms ease;
+  margin-left: 6px;
+  border: 1px solid;
+}
+#tab-prel .prel-action-archive {
+  background: #fff;
+  color: #047857;
+  border-color: #6ee7b7;
+}
+#tab-prel .prel-action-archive:hover {
+  background: #ecfdf5;
+  border-color: #047857;
+  transform: translateY(-1px);
+}
+#tab-prel .prel-action-unarchive {
+  background: #fff;
+  color: #b45309;
+  border-color: #fcd34d;
+}
+#tab-prel .prel-action-unarchive:hover {
+  background: #fef3c7;
+  border-color: #b45309;
+  transform: translateY(-1px);
+}
+
 /* Table */
 #tab-prel .prel-table-wrap {
   overflow-x: auto;

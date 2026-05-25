@@ -316,6 +316,7 @@ function prelIsOk(etat) {
 app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
   const week = String(req.query.week || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return res.status(400).json({ error: 'week=YYYY-MM-DD requis' });
+  const includeArchived = String(req.query.include_archived || '').trim() === '1';
   // Calcule la semaine précédente (lundi - 7 jours) en arithmétique pure
   const [y, m, d] = week.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
@@ -327,8 +328,14 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
     WHERE week_start = ? OR week_start = ?
     ORDER BY club ASC
   `).all(week, prevWeek).map(r => r.club);
+  // Pré-charge les archivés de la semaine S (par club, par id_client)
+  const archivedAll = db.prepare(`SELECT * FROM prel_archived WHERE week_start = ?`).all(week);
+  const archivedByClub = {};
+  archivedAll.forEach(a => {
+    archivedByClub[a.club] = archivedByClub[a.club] || new Map();
+    archivedByClub[a.club].set(a.id_client, a);
+  });
   const result = clubs.map(club => {
-    // Toutes les lignes de S-1 (filtrage OK fait en JS pour gérer les variantes)
     const prevAll = db.prepare(`
       SELECT id_client, id_prestation, membre, etat, echeance, ttc, vendeur, prestation, raison, tel, email
       FROM prel_rows
@@ -342,19 +349,48 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
     `).all(club, week);
     const curOkClients = new Set();
     cur.forEach(r => { if (prelIsOk(r.etat)) curOkClients.add(r.id_client); });
-    const perdusRaw = prev.filter(r => !curOkClients.has(r.id_client));
-    // Déduplique par id_client (un client peut avoir plusieurs prestations
-    // → plusieurs lignes pour la même semaine, on ne le compte qu'une fois).
-    const seen = new Set();
-    const perdus = [];
-    for (const p of perdusRaw) {
-      const key = p.id_client != null ? `id:${p.id_client}` : `mb:${(p.membre || '').toLowerCase().trim()}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      perdus.push(p);
+    // Regroupe les prestations PAR CLIENT (pour sommer le TTC total perdu)
+    const byClient = new Map(); // id_client → { ...firstRow, ttc_total, prestations:[] }
+    for (const r of prev) {
+      if (curOkClients.has(r.id_client)) continue; // pas perdu → on saute
+      const key = r.id_client != null ? r.id_client : `mb:${(r.membre || '').toLowerCase().trim()}`;
+      if (!byClient.has(key)) {
+        byClient.set(key, {
+          id_client: r.id_client,
+          membre: r.membre,
+          email: r.email,
+          tel: r.tel,
+          ttc_total: 0,
+          prestations: [],
+        });
+      }
+      const entry = byClient.get(key);
+      const ttc = Number(r.ttc) || 0;
+      entry.ttc_total += ttc;
+      entry.prestations.push({
+        prestation: r.prestation,
+        ttc,
+        echeance: r.echeance,
+        vendeur: r.vendeur,
+        raison: r.raison,
+      });
     }
-    // Compteurs en clients UNIQUES (pas en lignes — un même client peut
-    // avoir plusieurs prestations / échéances dans la même semaine).
+    // Sépare archivés vs actifs
+    const archivedMap = archivedByClub[club] || new Map();
+    const perdusActifs = [];
+    const perdusArchives = [];
+    for (const entry of byClient.values()) {
+      const archived = entry.id_client != null && archivedMap.get(entry.id_client);
+      if (archived) {
+        perdusArchives.push({ ...entry, archived: true, archived_note: archived.note, archived_at: archived.archived_at });
+      } else {
+        perdusActifs.push(entry);
+      }
+    }
+    const perdus = includeArchived ? [...perdusActifs, ...perdusArchives] : perdusActifs;
+    // Montant total perdu = somme cumulée des TTC S-1 (toutes prestations
+    // des clients NON archivés). Si includeArchived=1 on inclut tout.
+    const montant_total = perdusActifs.reduce((s, p) => s + (p.ttc_total || 0), 0);
     const prevClientsUniq = new Set();
     prev.forEach(r => { if (r.id_client != null) prevClientsUniq.add(r.id_client); });
     return {
@@ -363,11 +399,60 @@ app.get('/api/prel/comparison', requireAuth, requireAdmin, (req, res) => {
       week_cur: week,
       prev_count: prevClientsUniq.size,
       cur_ok_count: curOkClients.size,
-      perdus_count: perdus.length,
+      perdus_count: perdusActifs.length,
+      archived_count: perdusArchives.length,
+      montant_total,
       perdus,
     };
   });
-  res.json({ week_cur: week, week_prev: prevWeek, clubs: result });
+  res.json({ week_cur: week, week_prev: prevWeek, clubs: result, include_archived: includeArchived });
+});
+
+// Archive un client comme « sous contrôle » pour une semaine donnée.
+// Body : { club, week_start, id_client, membre?, note? }
+app.post('/api/prel/archive', requireAuth, requireAdmin, (req, res) => {
+  const { club, week_start, id_client, membre, note } = req.body || {};
+  if (!club || !week_start || id_client == null) {
+    return res.status(400).json({ error: 'club, week_start, id_client requis' });
+  }
+  const db = getDb();
+  try {
+    db.prepare(`
+      INSERT INTO prel_archived (club, week_start, id_client, membre, note, archived_by)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(club, week_start, id_client) DO UPDATE SET
+        membre = COALESCE(excluded.membre, prel_archived.membre),
+        note = COALESCE(excluded.note, prel_archived.note),
+        archived_at = datetime('now','localtime')
+    `).run(String(club), String(week_start), parseInt(id_client, 10),
+           membre || null, note || null, req.session.name || 'admin');
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Désarchive (retour dans la liste des perdus)
+app.delete('/api/prel/archive', requireAuth, requireAdmin, (req, res) => {
+  const { club, week_start, id_client } = req.body || {};
+  if (!club || !week_start || id_client == null) {
+    return res.status(400).json({ error: 'club, week_start, id_client requis' });
+  }
+  const db = getDb();
+  db.prepare(`DELETE FROM prel_archived WHERE club = ? AND week_start = ? AND id_client = ?`)
+    .run(String(club), String(week_start), parseInt(id_client, 10));
+  res.json({ ok: true });
+});
+
+// Liste des archivés pour une semaine (toutes clubs confondus)
+app.get('/api/prel/archived', requireAuth, requireAdmin, (req, res) => {
+  const week = String(req.query.week || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return res.status(400).json({ error: 'week=YYYY-MM-DD requis' });
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT * FROM prel_archived WHERE week_start = ? ORDER BY club, membre
+  `).all(week);
+  res.json({ archived: rows });
 });
 
 // ─── Pilotage : Commentaires (laissés par consultants) ───────────

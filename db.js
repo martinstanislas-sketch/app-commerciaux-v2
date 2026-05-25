@@ -933,6 +933,22 @@ function initCoachSchema() {
     CREATE INDEX IF NOT EXISTS idx_prel_lookup ON prel_rows(club, week_start, id_client);
     CREATE INDEX IF NOT EXISTS idx_prel_upload ON prel_rows(upload_id);
 
+    -- P.R.E.L : archivage des clients « sous contrôle » par l'admin.
+    -- Un client est archivé pour une semaine donnée — s'il redevient perdu
+    -- une autre semaine, il réapparaît (pas d'archivage global).
+    CREATE TABLE IF NOT EXISTS prel_archived (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      club TEXT NOT NULL,
+      week_start TEXT NOT NULL,            -- semaine S de la comparaison
+      id_client INTEGER,
+      membre TEXT,
+      note TEXT,
+      archived_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      archived_by TEXT NOT NULL DEFAULT 'admin'
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_prel_archived_uniq
+      ON prel_archived(club, week_start, id_client);
+
     -- Commentaires laissés par les utilisateurs « consultant » (et autres
     -- rôles non-admin) sur la page Pilotage. L'admin reçoit / lit ces
     -- commentaires via /api/pilotage/comments.

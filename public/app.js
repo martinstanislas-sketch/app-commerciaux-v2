@@ -12360,12 +12360,15 @@ async function reloadPrelWeeks() {
   }
 }
 
+let prelShowArchived = false; // toggle global pour afficher les archivés
+
 async function renderPrelComparison(weekStart) {
   const results = document.getElementById('prel-results');
   if (!results || !weekStart) return;
   results.innerHTML = `<div class="prel-loading">Chargement de la comparaison…</div>`;
   try {
-    const res = await fetch(`/api/prel/comparison?week=${encodeURIComponent(weekStart)}`, {
+    const url = `/api/prel/comparison?week=${encodeURIComponent(weekStart)}${prelShowArchived ? '&include_archived=1' : ''}`;
+    const res = await fetch(url, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
     });
     if (!res.ok) throw new Error(await res.text());
@@ -12376,7 +12379,8 @@ async function renderPrelComparison(weekStart) {
       return;
     }
     const totalPerdus = clubs.reduce((s, c) => s + (c.perdus_count || 0), 0);
-    const totalMontant = clubs.reduce((s, c) => s + (c.perdus || []).reduce((t, p) => t + (p.ttc || 0), 0), 0);
+    const totalArchives = clubs.reduce((s, c) => s + (c.archived_count || 0), 0);
+    const totalMontant = clubs.reduce((s, c) => s + (c.montant_total || 0), 0);
     results.innerHTML = `
       <!-- Bandeau principal des semaines comparées -->
       <div class="prel-hero">
@@ -12398,10 +12402,18 @@ async function renderPrelComparison(weekStart) {
           </div>
           <div class="prel-hero-stat prel-hero-stat--montant">
             <span class="prel-hero-stat-value">${prelFormatEur(totalMontant)}</span>
-            <span class="prel-hero-stat-label">Montant perdu</span>
+            <span class="prel-hero-stat-label">Montant cumulé S-1</span>
           </div>
         </div>
       </div>
+      ${totalArchives > 0 ? `
+        <div class="prel-archive-bar">
+          <span class="prel-archive-info">${totalArchives} client${totalArchives > 1 ? 's' : ''} archivé${totalArchives > 1 ? 's' : ''} (sous contrôle) sur cette semaine.</span>
+          <button type="button" class="prel-archive-toggle" data-toggle-archived>
+            ${prelShowArchived ? '🔽 Masquer les archivés' : '📂 Voir les archivés'}
+          </button>
+        </div>
+      ` : ''}
       <div class="prel-clubs">
         ${clubs.map(c => `
           <article class="prel-club-card ${c.perdus_count > 0 ? 'has-perdus' : ''}">
@@ -12411,15 +12423,17 @@ async function renderPrelComparison(weekStart) {
                 <span class="prel-stat"><strong>${c.prev_count}</strong> en S-1</span>
                 <span class="prel-stat"><strong>${c.cur_ok_count}</strong> en S</span>
                 <span class="prel-stat prel-stat-loss"><strong>${c.perdus_count}</strong> perdus</span>
+                ${c.archived_count > 0 ? `<span class="prel-stat prel-stat-archived"><strong>${c.archived_count}</strong> archivés</span>` : ''}
               </div>
             </header>
-            ${c.perdus_count === 0 ? `<div class="prel-club-empty">✓ Aucun client perdu cette semaine.</div>` : `
+            ${(c.perdus || []).length === 0 ? `<div class="prel-club-empty">✓ Aucun client perdu cette semaine.</div>` : `
               <div class="prel-table-wrap">
                 <table class="prel-table">
                   <thead>
                     <tr>
                       <th>Membre</th>
-                      <th class="prel-col-action">Fiche Déciplus</th>
+                      <th class="prel-num">Montant S-1</th>
+                      <th class="prel-col-action">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -12427,13 +12441,23 @@ async function renderPrelComparison(weekStart) {
                       const deciplusUrl = (p.id_client != null)
                         ? PREL_DECIPLUS_URL.replace('{ID}', String(p.id_client))
                         : null;
+                      const ttcLabel = prelFormatEur(p.ttc_total);
+                      const presList = (p.prestations || []).map(x => `${escapeHtml(x.prestation || '?')} : ${prelFormatEur(x.ttc)}`).join('\n');
+                      const isArchived = !!p.archived;
                       return `
-                      <tr>
-                        <td><strong>${escapeHtml(p.membre || '—')}</strong></td>
-                        <td class="prel-deciplus prel-col-action">
+                      <tr class="${isArchived ? 'is-archived' : ''}">
+                        <td>
+                          <strong>${escapeHtml(p.membre || '—')}</strong>
+                          ${isArchived ? '<span class="prel-archived-badge" title="Client archivé / sous contrôle">✓ sous contrôle</span>' : ''}
+                        </td>
+                        <td class="prel-num" title="${escapeHtml(presList)}">${ttcLabel}${(p.prestations && p.prestations.length > 1) ? `<span class="prel-presta-count" title="${escapeHtml(presList)}"> · ${p.prestations.length} prest.</span>` : ''}</td>
+                        <td class="prel-col-action">
                           ${deciplusUrl
-                            ? `<a class="prel-deciplus-link" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus de ce client">↗ Fiche Déciplus</a>`
-                            : '<span class="prel-deciplus-empty">—</span>'}
+                            ? `<a class="prel-deciplus-link" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus de ce client">↗ Fiche</a>`
+                            : ''}
+                          ${isArchived
+                            ? `<button type="button" class="prel-action-btn prel-action-unarchive" data-unarchive-club="${escapeHtml(c.club)}" data-unarchive-week="${escapeHtml(c.week_cur)}" data-unarchive-id="${escapeHtml(String(p.id_client || ''))}" title="Remettre dans la liste des perdus">↺ Désarchiver</button>`
+                            : `<button type="button" class="prel-action-btn prel-action-archive" data-archive-club="${escapeHtml(c.club)}" data-archive-week="${escapeHtml(c.week_cur)}" data-archive-id="${escapeHtml(String(p.id_client || ''))}" data-archive-membre="${escapeHtml(p.membre || '')}" title="Marquer comme « sous contrôle » — sortir de la liste">✓ Sous contrôle</button>`}
                         </td>
                       </tr>
                     `;}).join('')}
@@ -12445,8 +12469,70 @@ async function renderPrelComparison(weekStart) {
         `).join('')}
       </div>
     `;
+    // Bind toggle « voir les archivés »
+    const toggleBtn = results.querySelector('[data-toggle-archived]');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        prelShowArchived = !prelShowArchived;
+        renderPrelComparison(weekStart);
+      });
+    }
+    // Bind boutons archive / unarchive
+    results.querySelectorAll('[data-archive-id]').forEach(btn => {
+      btn.addEventListener('click', () => prelArchiveClient(
+        btn.dataset.archiveClub,
+        btn.dataset.archiveWeek,
+        btn.dataset.archiveId,
+        btn.dataset.archiveMembre,
+        weekStart
+      ));
+    });
+    results.querySelectorAll('[data-unarchive-id]').forEach(btn => {
+      btn.addEventListener('click', () => prelUnarchiveClient(
+        btn.dataset.unarchiveClub,
+        btn.dataset.unarchiveWeek,
+        btn.dataset.unarchiveId,
+        weekStart
+      ));
+    });
   } catch (err) {
     results.innerHTML = `<div class="prel-empty"><div class="prel-empty-text">Erreur : ${escapeHtml(String(err.message || err))}</div></div>`;
+  }
+}
+
+async function prelArchiveClient(club, week, idClient, membre, refreshWeek) {
+  if (!idClient) { alert('Impossible d\'archiver : id_client manquant.'); return; }
+  try {
+    const res = await fetch('/api/prel/archive', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify({ club, week_start: week, id_client: parseInt(idClient, 10), membre }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await renderPrelComparison(refreshWeek);
+  } catch (err) {
+    alert('Erreur archivage : ' + (err.message || err));
+  }
+}
+
+async function prelUnarchiveClient(club, week, idClient, refreshWeek) {
+  if (!idClient) return;
+  try {
+    const res = await fetch('/api/prel/archive', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify({ club, week_start: week, id_client: parseInt(idClient, 10) }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await renderPrelComparison(refreshWeek);
+  } catch (err) {
+    alert('Erreur désarchivage : ' + (err.message || err));
   }
 }
 
