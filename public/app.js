@@ -12707,7 +12707,7 @@ function renderPrelContractsSection(analysis) {
                   : '<span class="prel-contract-pill prel-contract-warn">⏸ Présent en S, pas encaissé</span>'}
               </div>
               ${c.has_pdf
-                ? `<a href="/api/contracts/${c.id}/pdf" target="_blank" rel="noopener" class="prel-contract-pdf">📄 Contrat</a>`
+                ? `<button type="button" class="prel-contract-pdf" data-pdf-id="${c.id}">📄 Contrat</button>`
                 : ''}
             </div>
           `).join('')}
@@ -13194,6 +13194,59 @@ function fileToBase64(file) {
   });
 }
 
+// Ouverture d'un PDF de contrat dans un nouvel onglet via blob URL.
+// L'endpoint /api/contracts/:id/pdf exige un Bearer token, qu'un simple
+// <a href> ne transmet pas. On fetch le PDF avec le bon header, puis on
+// ouvre le blob dans un nouvel onglet (Object URL).
+async function openContractPdf(contractId) {
+  if (!contractId) return;
+  let win = null;
+  try {
+    // Ouvre la fenêtre immédiatement (sinon Safari/Chrome bloquent pour
+    // « popup hors clic utilisateur »). On chargera le blob ensuite.
+    win = window.open('', '_blank');
+    const res = await fetch(`/api/contracts/${contractId}/pdf`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status}${msg ? ' — ' + msg.slice(0, 200) : ''}`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    if (win && !win.closed) {
+      win.location.href = url;
+    } else {
+      // Fallback : si le popup a été bloqué, on déclenche un téléchargement
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    // Libère la mémoire après quelques minutes
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+  } catch (err) {
+    if (win && !win.closed) win.close();
+    alert('Impossible d\'ouvrir le PDF : ' + (err.message || err));
+  }
+}
+
+// Délégateur global : un seul listener sur le document capte les clics
+// sur tout élément ayant data-pdf-id (peu importe où il est dans la page).
+if (!window.__contractPdfDelegatorBound) {
+  window.__contractPdfDelegatorBound = true;
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-pdf-id]');
+    if (!t) return;
+    e.preventDefault();
+    const id = parseInt(t.dataset.pdfId, 10);
+    if (Number.isInteger(id)) openContractPdf(id);
+  });
+}
+
 // ── Analyse croisée S-1 → S ───────────────────────────────────
 async function reloadNewsAnalysis() {
   const box = document.getElementById('news-analysis');
@@ -13239,7 +13292,7 @@ function renderNewsAnalysis(data) {
           ? '<span class="news-status-pill news-status-missing">⚠ Pas de prélèvement</span>'
           : '<span class="news-status-pill news-status-warn">⏸ Présent, pas encaissé</span>'}
       </div>
-      ${c.has_pdf ? `<a href="/api/contracts/${c.id}/pdf" target="_blank" rel="noopener" class="news-alert-pdf">📄 Voir</a>` : ''}
+      ${c.has_pdf ? `<button type="button" class="news-alert-pdf" data-pdf-id="${c.id}">📄 Voir</button>` : ''}
     </div>
   `).join('');
   box.innerHTML = `
@@ -13392,7 +13445,7 @@ function renderNewsContracts(contracts) {
               <span class="news-contract-date">Signé le ${escapeHtml(fmtDate(c.signed_date))}</span>
             </div>
             ${c.has_pdf
-              ? `<a class="news-contract-pdf-btn" href="/api/contracts/${c.id}/pdf" target="_blank" rel="noopener">📄 Voir le contrat</a>`
+              ? `<button type="button" class="news-contract-pdf-btn" data-pdf-id="${c.id}">📄 Voir le contrat</button>`
               : `<div class="news-contract-no-pdf">Pas de PDF stocké</div>`}
           </article>
         `).join('')}

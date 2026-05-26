@@ -11683,7 +11683,8 @@ img {
   background: rgba(245,158,11,0.14);
   color: #B45309;
 }
-#tab-prel .prel-contract-pdf {
+#tab-prel .prel-contract-pdf,
+#tab-prel button.prel-contract-pdf {
   font-size: 12px;
   font-weight: 600;
   color: #6366F1;
@@ -11691,9 +11692,13 @@ img {
   background: rgba(99,102,241,0.08);
   padding: 5px 10px;
   border-radius: 7px;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
   transition: background 120ms ease;
 }
-#tab-prel .prel-contract-pdf:hover {
+#tab-prel .prel-contract-pdf:hover,
+#tab-prel button.prel-contract-pdf:hover {
   background: rgba(99,102,241,0.16);
 }
 #tab-prel .prel-contracts-ok-msg {
@@ -17893,7 +17898,8 @@ body.tk-dragging-active #tab-tasks .tk-card {
   background: rgba(245,158,11,0.14);
   color: #B45309;
 }
-#tab-news .news-alert-pdf {
+#tab-news .news-alert-pdf,
+#tab-news button.news-alert-pdf {
   font-size: 12px;
   font-weight: 600;
   color: #6366F1;
@@ -17901,9 +17907,13 @@ body.tk-dragging-active #tab-tasks .tk-card {
   background: rgba(99,102,241,0.08);
   padding: 6px 12px;
   border-radius: 8px;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
   transition: background 120ms ease;
 }
-#tab-news .news-alert-pdf:hover {
+#tab-news .news-alert-pdf:hover,
+#tab-news button.news-alert-pdf:hover {
   background: rgba(99,102,241,0.16);
 }
 #tab-news .news-alert-ok {
@@ -18006,7 +18016,8 @@ body.tk-dragging-active #tab-tasks .tk-card {
 #tab-news .news-contract-dot {
   opacity: 0.5;
 }
-#tab-news .news-contract-pdf-btn {
+#tab-news .news-contract-pdf-btn,
+#tab-news button.news-contract-pdf-btn {
   margin-top: 4px;
   background: transparent;
   border: 1px solid rgba(99,102,241,0.3);
@@ -18017,9 +18028,13 @@ body.tk-dragging-active #tab-tasks .tk-card {
   border-radius: 8px;
   text-decoration: none;
   text-align: center;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
   transition: all 120ms ease;
 }
-#tab-news .news-contract-pdf-btn:hover {
+#tab-news .news-contract-pdf-btn:hover,
+#tab-news button.news-contract-pdf-btn:hover {
   background: rgba(99,102,241,0.08);
 }
 #tab-news .news-contract-no-pdf {
