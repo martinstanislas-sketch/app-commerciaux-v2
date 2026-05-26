@@ -440,6 +440,36 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_contracts_member ON contracts(member_normalized);
     CREATE INDEX IF NOT EXISTS idx_contracts_club ON contracts(club);
   `);
+
+  // Migration ponctuelle : re-capitalise les noms des contrats déjà importés
+  // en minuscules avant l'ajout du title-case (effectué une seule fois).
+  try {
+    const needsFix = db.prepare(`
+      SELECT COUNT(*) AS c FROM contracts
+      WHERE (member_first_name IS NOT NULL AND member_first_name = LOWER(member_first_name)
+             AND member_first_name != '')
+    `).get().c;
+    if (needsFix > 0) {
+      const rows = db.prepare(`SELECT id, member_first_name, member_last_name FROM contracts`).all();
+      const titleCase = (s) => {
+        if (!s) return s;
+        return String(s).toLowerCase()
+          .split(/(\s+|-+)/)
+          .map(p => (!p || /^\s+$|^-+$/.test(p)) ? p : p.charAt(0).toUpperCase() + p.slice(1))
+          .join('');
+      };
+      const upd = db.prepare(`UPDATE contracts SET member_first_name = ?, member_last_name = ? WHERE id = ?`);
+      const tx = db.transaction(() => {
+        for (const r of rows) {
+          upd.run(titleCase(r.member_first_name || ''), titleCase(r.member_last_name || ''), r.id);
+        }
+      });
+      tx();
+      console.log(`[migration] contrats : ${rows.length} noms recapitalisés`);
+    }
+  } catch (e) {
+    console.error('[migration] contracts title-case échouée :', e.message);
+  }
   // Seed default columns if empty
   const colCount = db.prepare('SELECT COUNT(*) AS c FROM task_columns').get().c;
   if (colCount === 0) {

@@ -3656,6 +3656,21 @@ function contractNormalizeName(...parts) {
     .trim();
 }
 
+// Capitalise chaque mot d'une chaîne : "liam savey" → "Liam Savey", "de la cruz" → "De La Cruz".
+// Gère les particules courantes (de, du, da, etc.) en conservant la casse pour les
+// noms composés (Jean-Pierre → Jean-Pierre, jean-pierre → Jean-Pierre).
+function contractTitleCase(s) {
+  if (!s) return s;
+  return String(s)
+    .toLowerCase()
+    .split(/(\s+|-+)/) // garde les séparateurs
+    .map(part => {
+      if (!part || /^\s+$|^-+$/.test(part)) return part;
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    })
+    .join('');
+}
+
 // Parse le filename : YYMMDDX-prenom-nom-contrat-Studio.pdf
 //   → { signed_date, first_name, last_name, raw_studio, club }
 function contractParseFilename(filename) {
@@ -3670,8 +3685,8 @@ function contractParseFilename(filename) {
   if (year < 2020 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31) return null;
   const signedDate = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   const nameTokens = namePart.split(/[-_]+/).filter(Boolean);
-  const firstName = nameTokens[0] || '';
-  const lastName = nameTokens.slice(1).join(' ');
+  const firstName = contractTitleCase(nameTokens[0] || '');
+  const lastName = contractTitleCase(nameTokens.slice(1).join(' '));
   const rawStudio = studioPart.replace(/[-_]+/g, ' ').trim();
   const club = contractResolveStudio(rawStudio);
   return {

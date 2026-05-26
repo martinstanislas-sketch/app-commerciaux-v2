@@ -13142,10 +13142,6 @@ async function reloadNewsAnalysis() {
 function renderNewsAnalysis(data) {
   const box = document.getElementById('news-analysis');
   if (!box) return;
-  if (!data.total_contracts) {
-    box.innerHTML = '';
-    return;
-  }
   const fmtWeek = (iso) => {
     if (!iso) return '?';
     const [y, m, d] = iso.split('-').map(Number);
@@ -13159,6 +13155,10 @@ function renderNewsAnalysis(data) {
   const missingList = (data.contracts || []).filter(c => c.match === 'missing');
   const presentNotPaidList = (data.contracts || []).filter(c => c.match === 'present_not_paid');
   const hasAlert = (missingList.length + presentNotPaidList.length) > 0;
+  const total = data.total_contracts || 0;
+  // Le bandeau s'affiche TOUJOURS (informatif même si 0 contrat en S-1)
+  let heroClass = 'news-hero-neutral';
+  if (total > 0) heroClass = hasAlert ? 'news-hero-alert' : 'news-hero-ok';
   const missingCards = [...missingList, ...presentNotPaidList].slice(0, 50).map(c => `
     <div class="news-alert-row">
       <div class="news-alert-name">
@@ -13174,7 +13174,7 @@ function renderNewsAnalysis(data) {
     </div>
   `).join('');
   box.innerHTML = `
-    <div class="news-hero ${hasAlert ? 'news-hero-alert' : 'news-hero-ok'}">
+    <div class="news-hero ${heroClass}">
       <div class="news-hero-left">
         <div class="news-hero-eyebrow">Analyse signature → prélèvement</div>
         <div class="news-hero-weeks">
@@ -13187,8 +13187,8 @@ function renderNewsAnalysis(data) {
       </div>
       <div class="news-hero-right">
         <div class="news-hero-stat">
-          <div class="news-hero-stat-val">${data.total_contracts}</div>
-          <div class="news-hero-stat-lbl">contrats</div>
+          <div class="news-hero-stat-val">${total}</div>
+          <div class="news-hero-stat-lbl">signés S-1</div>
         </div>
         <div class="news-hero-stat news-hero-stat-ok">
           <div class="news-hero-stat-val">${counts.paid || 0}</div>
@@ -13200,7 +13200,10 @@ function renderNewsAnalysis(data) {
         </div>
       </div>
     </div>
-    ${!data.prel_has_data
+    ${total === 0
+      ? `<div class="news-alert-note">ℹ Aucun contrat signé pendant la semaine S-1 (${escapeHtml(fmtWeek(data.week_signed))}). Vérifie les slots P.R.E.L pour ajuster la fenêtre d'analyse.</div>`
+      : ''}
+    ${!data.prel_has_data && total > 0
       ? `<div class="news-alert-note">ℹ Aucune donnée P.R.E.L pour la semaine ${escapeHtml(data.week_payment)}. Importe le fichier S dans l'onglet P.R.E.L pour activer l'analyse.</div>`
       : ''}
     ${hasAlert ? `
@@ -13210,7 +13213,7 @@ function renderNewsAnalysis(data) {
         </div>
         ${missingCards}
       </div>
-    ` : (data.prel_has_data ? `<div class="news-alert-ok">✓ Tous les contrats signés en S-1 ont été prélevés en S.</div>` : '')}
+    ` : (data.prel_has_data && total > 0 ? `<div class="news-alert-ok">✓ Tous les contrats signés en S-1 ont été prélevés en S.</div>` : '')}
   `;
 }
 
