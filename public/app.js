@@ -12531,19 +12531,29 @@ async function reloadPrelSlots() {
   const resultsEl = document.getElementById('prel-results');
   if (!slotsEl || !resultsEl) return;
   try {
-    const data = await fetch('/api/prel/slots', {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
-    }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
-    renderPrelSlots(data);
-    // Si les 2 slots sont remplis ET pointent sur la même semaine principale,
-    // on lance la comparaison
-    if (data.cur && data.prev && data.cur.week_start && data.prev.week_start) {
-      await renderPrelComparison(data.cur.week_start);
+    const headers = { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` };
+    // Charge en parallèle les slots ET la liste des semaines disponibles
+    // (pour la navigation arrière)
+    const [slotsData, weeksData] = await Promise.all([
+      fetch('/api/prel/slots', { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error('slots HTTP ' + r.status))),
+      fetch('/api/prel/weeks', { headers }).then(r => r.ok ? r.json() : { weeks: [] }),
+    ]);
+    prelAvailableWeeks = (weeksData.weeks || []).map(w => w.week_start);
+    renderPrelSlots(slotsData);
+    // Si les 2 slots sont remplis, on lance la comparaison sur le slot cur
+    if (slotsData.cur && slotsData.prev && slotsData.cur.week_start && slotsData.prev.week_start) {
+      prelDefaultWeek = slotsData.cur.week_start;
+      // Si on n'avait pas encore de viewed week OU que c'est la 1ère fois,
+      // on s'aligne sur le slot ; sinon on conserve la navigation utilisateur
+      if (!prelViewedWeek || !prelAvailableWeeks.includes(prelViewedWeek)) {
+        prelViewedWeek = prelDefaultWeek;
+      }
+      await renderPrelComparison(prelViewedWeek);
     } else {
       // Sinon, message d'attente
       const missing = [];
-      if (!data.prev || !data.prev.week_start) missing.push('S-1 (semaine précédente)');
-      if (!data.cur || !data.cur.week_start) missing.push('S (semaine en cours)');
+      if (!slotsData.prev || !slotsData.prev.week_start) missing.push('S-1 (semaine précédente)');
+      if (!slotsData.cur || !slotsData.cur.week_start) missing.push('S (semaine en cours)');
       resultsEl.innerHTML = `
         <div class="prel-empty">
           <div class="prel-empty-icon" aria-hidden="true">⏳</div>
@@ -12660,6 +12670,109 @@ async function prelCleanupOldWeeks() {
 }
 
 let prelShowArchived = false; // toggle global pour afficher les archivés
+let prelViewedWeek = null;    // Semaine S actuellement affichée (peut différer du slot)
+let prelDefaultWeek = null;   // Semaine S « par défaut » (slot cur) — pour le bouton retour
+let prelAvailableWeeks = [];  // Liste des semaines avec données en prel_rows (DESC)
+
+// Barre de navigation entre semaines : flèches ← → + label de la semaine
+// affichée + bouton retour vers le slot S par défaut.
+function renderPrelNavigation(weekStart) {
+  const idx = prelAvailableWeeks.indexOf(weekStart);
+  // prelAvailableWeeks est trié DESC → [0] = plus récente
+  const hasNewer = idx > 0;                                  // ← flèche vers plus récent
+  const hasOlder = idx >= 0 && idx < prelAvailableWeeks.length - 1; // → flèche vers plus ancien
+  const isDefault = prelDefaultWeek && weekStart === prelDefaultWeek;
+  return `
+    <nav class="prel-nav" aria-label="Navigation entre semaines">
+      <button type="button" class="prel-nav-btn" data-nav="older" ${hasOlder ? '' : 'disabled'} title="Semaine plus ancienne">
+        ← Semaine plus ancienne
+      </button>
+      <div class="prel-nav-center">
+        <span class="prel-nav-eyebrow">Semaine analysée (S)</span>
+        <span class="prel-nav-label">${escapeHtml(prelFormatWeek(weekStart))}</span>
+        ${!isDefault && prelDefaultWeek ? `
+          <button type="button" class="prel-nav-reset" data-nav="reset" title="Revenir à la semaine du slot S">↩ Revenir au slot S</button>
+        ` : ''}
+      </div>
+      <button type="button" class="prel-nav-btn" data-nav="newer" ${hasNewer ? '' : 'disabled'} title="Semaine plus récente">
+        Semaine plus récente →
+      </button>
+    </nav>
+  `;
+}
+
+function bindPrelNavigation() {
+  const results = document.getElementById('prel-results');
+  if (!results) return;
+  results.querySelectorAll('[data-nav]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.nav;
+      const idx = prelAvailableWeeks.indexOf(prelViewedWeek);
+      let target = null;
+      if (action === 'older') {
+        target = (idx >= 0 && idx < prelAvailableWeeks.length - 1) ? prelAvailableWeeks[idx + 1] : null;
+      } else if (action === 'newer') {
+        target = (idx > 0) ? prelAvailableWeeks[idx - 1] : null;
+      } else if (action === 'reset') {
+        target = prelDefaultWeek;
+      }
+      if (target) renderPrelComparison(target);
+    });
+  });
+}
+
+// Panneau « Ventes de la semaine » : total CA + nb ventes + détail par
+// commercial. Affiché en haut de la vue P.R.E.L pour avoir le contexte
+// business à côté des perdus / nouveaux contrats.
+function renderPrelSalesPanel(sales) {
+  if (!sales) return '';
+  const total = Number(sales.total_amount) || 0;
+  const count = Number(sales.total_count) || 0;
+  if (count === 0) {
+    return `
+      <section class="prel-sales-panel prel-sales-empty">
+        <div class="prel-sales-head">
+          <span class="prel-sales-icon">💼</span>
+          <div>
+            <div class="prel-sales-title">Ventes de la semaine</div>
+            <div class="prel-sales-subtitle">${escapeHtml(prelFormatWeek(sales.week_start))} · aucune vente enregistrée</div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+  const byRep = (sales.by_rep || []).map(r => `
+    <div class="prel-sales-rep">
+      <div class="prel-sales-rep-name">${escapeHtml(r.rep_name || `Commercial #${r.rep_id}`)}</div>
+      <div class="prel-sales-rep-stats">
+        <span class="prel-sales-rep-amount">${prelFormatEur(r.amount)}</span>
+        <span class="prel-sales-rep-count">${r.count} vente${r.count > 1 ? 's' : ''}</span>
+      </div>
+    </div>
+  `).join('');
+  return `
+    <section class="prel-sales-panel">
+      <div class="prel-sales-head">
+        <span class="prel-sales-icon">💼</span>
+        <div class="prel-sales-head-text">
+          <div class="prel-sales-title">Ventes de la semaine</div>
+          <div class="prel-sales-subtitle">${escapeHtml(prelFormatWeek(sales.week_start))}</div>
+        </div>
+        <div class="prel-sales-totals">
+          <div class="prel-sales-total">
+            <span class="prel-sales-total-value">${prelFormatEur(total)}</span>
+            <span class="prel-sales-total-label">Total CA</span>
+          </div>
+          <div class="prel-sales-total">
+            <span class="prel-sales-total-value">${count}</span>
+            <span class="prel-sales-total-label">Vente${count > 1 ? 's' : ''}</span>
+          </div>
+        </div>
+      </div>
+      ${byRep ? `<div class="prel-sales-reps">${byRep}</div>` : ''}
+    </section>
+  `;
+}
 
 // Section « Nouveaux contrats » dans P.R.E.L : pour chaque contrat signé
 // en S-1 (uploadé dans NEWS), affiche si le premier prélèvement a bien
@@ -12729,15 +12842,18 @@ function renderPrelContractsSection(analysis) {
 async function renderPrelComparison(weekStart) {
   const results = document.getElementById('prel-results');
   if (!results || !weekStart) return;
+  // Mémorise la semaine actuellement affichée (pour les flèches de nav)
+  prelViewedWeek = weekStart;
   results.innerHTML = `<div class="prel-loading">Chargement de la comparaison…</div>`;
   try {
     const headers = { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` };
     const url = `/api/prel/comparison?week=${encodeURIComponent(weekStart)}${prelShowArchived ? '&include_archived=1' : ''}`;
     // En parallèle : la comparaison « clients perdus » + l'analyse des
-    // contrats signés en S-1 (NEWS) qui devraient être prélevés en S.
-    const [res, analysisRes] = await Promise.all([
+    // contrats signés en S-1 (NEWS) + les ventes de la semaine S.
+    const [res, analysisRes, salesRes] = await Promise.all([
       fetch(url, { headers }),
-      fetch('/api/contracts/analysis', { headers }).catch(() => null),
+      fetch(`/api/contracts/analysis?week=${encodeURIComponent(weekStart)}`, { headers }).catch(() => null),
+      fetch(`/api/prel/sales-week?week=${encodeURIComponent(weekStart)}`, { headers }).catch(() => null),
     ]);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
@@ -12745,15 +12861,29 @@ async function renderPrelComparison(weekStart) {
     if (analysisRes && analysisRes.ok) {
       try { contractAnalysis = await analysisRes.json(); } catch (_) {}
     }
+    let salesWeek = null;
+    if (salesRes && salesRes.ok) {
+      try { salesWeek = await salesRes.json(); } catch (_) {}
+    }
     const clubs = data.clubs || [];
     if (clubs.length === 0) {
-      results.innerHTML = `<div class="prel-empty"><div class="prel-empty-icon">🌤️</div><div class="prel-empty-text">Aucune donnée pour cette semaine. Importe le fichier de la semaine concernée ou de la semaine précédente.</div></div>`;
+      // Pas de données pour cette semaine — on garde la navigation pour
+      // pouvoir revenir en arrière, mais on affiche un message clair.
+      results.innerHTML = `
+        ${renderPrelNavigation(weekStart)}
+        <div class="prel-empty">
+          <div class="prel-empty-icon">🌤️</div>
+          <div class="prel-empty-text">Aucune donnée pour cette semaine. Navigue vers une autre semaine ou importe le fichier correspondant.</div>
+        </div>`;
+      bindPrelNavigation();
       return;
     }
     const totalPerdus = clubs.reduce((s, c) => s + (c.perdus_count || 0), 0);
     const totalArchives = clubs.reduce((s, c) => s + (c.archived_count || 0), 0);
     const totalMontant = clubs.reduce((s, c) => s + (c.montant_total || 0), 0);
     results.innerHTML = `
+      ${renderPrelNavigation(weekStart)}
+      ${renderPrelSalesPanel(salesWeek)}
       <!-- Bandeau principal des semaines comparées -->
       <div class="prel-hero">
         <div class="prel-hero-weeks">
@@ -12842,6 +12972,8 @@ async function renderPrelComparison(weekStart) {
         `).join('')}
       </div>
     `;
+    // Bind navigation entre semaines
+    bindPrelNavigation();
     // Bind toggle « voir les archivés »
     const toggleBtn = results.querySelector('[data-toggle-archived]');
     if (toggleBtn) {

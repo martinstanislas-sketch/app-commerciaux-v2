@@ -300,6 +300,33 @@ app.post('/api/prel/upload', requireAuth, requireAdmin, (req, res) => {
   });
 });
 
+// Ventes de la semaine — utilisé dans la vue P.R.E.L pour donner le
+// contexte business à côté des perdus / nouveaux contrats.
+app.get('/api/prel/sales-week', requireAuth, requireAdmin, (req, res) => {
+  const week = String(req.query.week || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return res.status(400).json({ error: 'week=YYYY-MM-DD requis' });
+  const db = getDb();
+  const totals = db.prepare(`
+    SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total
+    FROM sales WHERE week_start = ?
+  `).get(week);
+  const byRep = db.prepare(`
+    SELECT s.sales_rep_id AS rep_id, r.name AS rep_name,
+           COUNT(*) AS count, COALESCE(SUM(s.amount), 0) AS amount
+    FROM sales s
+    LEFT JOIN sales_reps r ON r.id = s.sales_rep_id
+    WHERE s.week_start = ?
+    GROUP BY s.sales_rep_id, r.name
+    ORDER BY amount DESC, r.name ASC
+  `).all(week);
+  res.json({
+    week_start: week,
+    total_count: totals.count || 0,
+    total_amount: totals.total || 0,
+    by_rep: byRep,
+  });
+});
+
 app.get('/api/prel/weeks', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const rows = db.prepare(`
@@ -3900,7 +3927,10 @@ app.delete('/api/contracts/:id', requireAuth, requireAdmin, (req, res) => {
 // semaine S avec état dans PREL_ETATS_OK (Encaisse / OK / Encaissé).
 app.get('/api/contracts/analysis', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
-  // Détermine S et S-1 : priorité aux slots P.R.E.L, sinon calculé depuis aujourd'hui
+  // Détermine S et S-1 :
+  //   • ?week= explicite → on l'utilise comme S
+  //   • sinon → slot cur, sinon lundi du serveur
+  //   • S-1 = ?prev= si fourni, sinon slot prev si week == slot cur, sinon S-7 jours
   let weekS = String(req.query.week || '').trim();
   let weekPrev = String(req.query.prev || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(weekS)) {
@@ -3908,7 +3938,6 @@ app.get('/api/contracts/analysis', requireAuth, requireAdmin, (req, res) => {
     if (slotCur) {
       weekS = slotCur;
     } else {
-      // Fallback : lundi de cette semaine (date du serveur)
       const today = new Date();
       const dow = today.getDay();
       const offset = (dow === 0 ? -6 : 1 - dow);
@@ -3917,10 +3946,12 @@ app.get('/api/contracts/analysis', requireAuth, requireAdmin, (req, res) => {
     }
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(weekPrev)) {
+    const slotCur = prelGetSlot(db, 'cur');
     const slotPrev = prelGetSlot(db, 'prev');
-    if (slotPrev) {
+    if (slotCur === weekS && slotPrev) {
       weekPrev = slotPrev;
     } else {
+      // S-1 = S - 7 jours (calcul arithmétique)
       const [y, m, d] = weekS.split('-').map(Number);
       const dt = new Date(Date.UTC(y, m - 1, d));
       dt.setUTCDate(dt.getUTCDate() - 7);
