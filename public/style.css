@@ -11587,6 +11587,123 @@ img {
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
+
+/* ── Section « Nouveaux contrats » dans PREL ───────────────── */
+#tab-prel .prel-contracts-section {
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin-bottom: 22px;
+  border: 1px solid;
+}
+#tab-prel .prel-contracts-section.prel-contracts-alert {
+  background: linear-gradient(180deg, rgba(239,68,68,0.04) 0%, #fff 60%);
+  border-color: rgba(239,68,68,0.25);
+  box-shadow: 0 4px 14px rgba(239,68,68,0.08);
+}
+#tab-prel .prel-contracts-section.prel-contracts-ok {
+  background: linear-gradient(180deg, rgba(16,185,129,0.04) 0%, #fff 60%);
+  border-color: rgba(16,185,129,0.25);
+}
+#tab-prel .prel-contracts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+#tab-prel .prel-contracts-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text, #1E293B);
+}
+#tab-prel .prel-contracts-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted, #94A3B8);
+}
+#tab-prel .prel-contracts-subtitle strong {
+  color: var(--text, #1E293B);
+}
+#tab-prel .prel-contracts-subtitle .prel-contracts-bad {
+  color: #DC2626;
+}
+#tab-prel .prel-contracts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+#tab-prel .prel-contract-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid rgba(148,163,194,0.18);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+#tab-prel .prel-contract-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#tab-prel .prel-contract-info strong {
+  color: var(--text, #1E293B);
+  font-size: 14px;
+}
+#tab-prel .prel-contract-club {
+  background: rgba(99,102,241,0.08);
+  color: #6366F1;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+#tab-prel .prel-contract-date {
+  font-size: 12px;
+  color: var(--text-muted, #94A3B8);
+}
+#tab-prel .prel-contract-pill {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+#tab-prel .prel-contract-missing {
+  background: rgba(239,68,68,0.12);
+  color: #DC2626;
+}
+#tab-prel .prel-contract-warn {
+  background: rgba(245,158,11,0.14);
+  color: #B45309;
+}
+#tab-prel .prel-contract-pdf {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366F1;
+  text-decoration: none;
+  background: rgba(99,102,241,0.08);
+  padding: 5px 10px;
+  border-radius: 7px;
+  transition: background 120ms ease;
+}
+#tab-prel .prel-contract-pdf:hover {
+  background: rgba(99,102,241,0.16);
+}
+#tab-prel .prel-contracts-ok-msg {
+  background: rgba(16,185,129,0.08);
+  color: #059669;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+}
 #tab-prel .prel-archive-info {
   font-size: 13px;
   color: #475569;

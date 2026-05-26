@@ -12661,17 +12661,85 @@ async function prelCleanupOldWeeks() {
 
 let prelShowArchived = false; // toggle global pour afficher les archivés
 
+// Section « Nouveaux contrats » dans P.R.E.L : pour chaque contrat signé
+// en S-1 (uploadé dans NEWS), affiche si le premier prélèvement a bien
+// eu lieu (Encaisse) en S, ou s'il manque.
+function renderPrelContractsSection(analysis) {
+  if (!analysis || analysis.total_contracts === 0) return '';
+  const counts = analysis.counts || {};
+  const contracts = analysis.contracts || [];
+  const missing = contracts.filter(c => c.match === 'missing');
+  const presentNotPaid = contracts.filter(c => c.match === 'present_not_paid');
+  const paid = contracts.filter(c => c.match === 'paid');
+  const alertRows = [...missing, ...presentNotPaid];
+  const hasAlert = alertRows.length > 0;
+  const fmtDate = (iso) => {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-').map(Number);
+    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+  };
+  return `
+    <section class="prel-contracts-section ${hasAlert ? 'prel-contracts-alert' : 'prel-contracts-ok'}">
+      <header class="prel-contracts-head">
+        <div>
+          <h3 class="prel-contracts-title">
+            ${hasAlert ? '🚨' : '✓'} Nouveaux contrats S-1 : suivi 1er prélèvement
+          </h3>
+          <p class="prel-contracts-subtitle">
+            ${analysis.total_contracts} contrat${analysis.total_contracts > 1 ? 's signés' : ' signé'} la semaine dernière ·
+            <strong>${counts.paid || 0}</strong> prélevé${(counts.paid || 0) > 1 ? 's ✓' : ' ✓'} ·
+            <strong class="prel-contracts-bad">${alertRows.length}</strong> à relancer
+          </p>
+        </div>
+      </header>
+      ${hasAlert ? `
+        <div class="prel-contracts-list">
+          ${alertRows.map(c => `
+            <div class="prel-contract-row">
+              <div class="prel-contract-info">
+                <strong>${escapeHtml((c.member_first_name || '') + ' ' + (c.member_last_name || ''))}</strong>
+                <span class="prel-contract-club">${escapeHtml(c.club || '?')}</span>
+                <span class="prel-contract-date">Signé le ${escapeHtml(fmtDate(c.signed_date))}</span>
+              </div>
+              <div class="prel-contract-status">
+                ${c.match === 'missing'
+                  ? '<span class="prel-contract-pill prel-contract-missing">⚠ Pas de prélèvement en S</span>'
+                  : '<span class="prel-contract-pill prel-contract-warn">⏸ Présent en S, pas encaissé</span>'}
+              </div>
+              ${c.has_pdf
+                ? `<a href="/api/contracts/${c.id}/pdf" target="_blank" rel="noopener" class="prel-contract-pdf">📄 Contrat</a>`
+                : ''}
+            </div>
+          `).join('')}
+        </div>
+      ` : `
+        <div class="prel-contracts-ok-msg">
+          ✓ Les ${counts.paid || 0} contrat${(counts.paid || 0) > 1 ? 's' : ''} signé${(counts.paid || 0) > 1 ? 's' : ''} en S-1 ${(counts.paid || 0) > 1 ? 'ont' : 'a'} bien été prélevé${(counts.paid || 0) > 1 ? 's' : ''} en S.
+        </div>
+      `}
+    </section>
+  `;
+}
+
 async function renderPrelComparison(weekStart) {
   const results = document.getElementById('prel-results');
   if (!results || !weekStart) return;
   results.innerHTML = `<div class="prel-loading">Chargement de la comparaison…</div>`;
   try {
+    const headers = { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` };
     const url = `/api/prel/comparison?week=${encodeURIComponent(weekStart)}${prelShowArchived ? '&include_archived=1' : ''}`;
-    const res = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
-    });
+    // En parallèle : la comparaison « clients perdus » + l'analyse des
+    // contrats signés en S-1 (NEWS) qui devraient être prélevés en S.
+    const [res, analysisRes] = await Promise.all([
+      fetch(url, { headers }),
+      fetch('/api/contracts/analysis', { headers }).catch(() => null),
+    ]);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
+    let contractAnalysis = null;
+    if (analysisRes && analysisRes.ok) {
+      try { contractAnalysis = await analysisRes.json(); } catch (_) {}
+    }
     const clubs = data.clubs || [];
     if (clubs.length === 0) {
       results.innerHTML = `<div class="prel-empty"><div class="prel-empty-icon">🌤️</div><div class="prel-empty-text">Aucune donnée pour cette semaine. Importe le fichier de la semaine concernée ou de la semaine précédente.</div></div>`;
@@ -12713,6 +12781,7 @@ async function renderPrelComparison(weekStart) {
           </button>
         </div>
       ` : ''}
+      ${renderPrelContractsSection(contractAnalysis)}
       <div class="prel-clubs">
         ${clubs.map(c => `
           <article class="prel-club-card ${c.perdus_count > 0 ? 'has-perdus' : ''}">
