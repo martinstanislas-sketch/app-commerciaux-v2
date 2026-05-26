@@ -13030,228 +13030,318 @@ async function handlePrelFileImport(file, targetSlot) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// NEWS (admin uniquement) — fil chronologique de notes / annonces.
+// NEWS (admin uniquement) — contrats signés + analyse croisée vs P.R.E.L.
+// Détecte les contrats signés en S-1 mais non prélevés (Encaisse) en S.
 // ─────────────────────────────────────────────────────────────────────────
 
 let newsTabBooted = false;
-let newsCurrentTagFilter = null;
-let newsAllTags = [];
+let newsFilterClub = null;
+let newsFilterWeek = null;
+let newsAvailableClubs = [];
+let newsAvailableWeeks = [];
 
 async function loadNewsTab() {
   if (!isAdmin()) return;
   if (!newsTabBooted) {
     newsTabBooted = true;
-    const newBtn = document.getElementById('news-new-trigger');
-    if (newBtn) newBtn.addEventListener('click', () => openNewsModal(null));
-    const closeBtn = document.getElementById('news-modal-close');
-    if (closeBtn) closeBtn.addEventListener('click', closeNewsModal);
-    const cancelBtn = document.getElementById('news-form-cancel');
-    if (cancelBtn) cancelBtn.addEventListener('click', closeNewsModal);
-    const overlay = document.getElementById('news-overlay');
-    if (overlay) overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeNewsModal();
-    });
-    const form = document.getElementById('news-form');
-    if (form) form.addEventListener('submit', onNewsFormSubmit);
+    const trigger = document.getElementById('news-upload-trigger');
+    const input = document.getElementById('news-upload-input');
+    if (trigger && input) {
+      trigger.addEventListener('click', () => input.click());
+      input.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length > 0) await handleContractFilesUpload(files);
+        input.value = '';
+      });
+    }
   }
-  await reloadNewsFeed();
+  await Promise.all([reloadNewsAnalysis(), reloadNewsFeed()]);
 }
 
+// Upload : convertit chaque PDF en base64 puis envoie en JSON.
+async function handleContractFilesUpload(files) {
+  // Pré-vérif des filenames
+  const items = [];
+  const unparseable = [];
+  for (const f of files) {
+    if (!f.name.toLowerCase().endsWith('.pdf')) continue;
+    if (!/^\d{6}/.test(f.name)) {
+      unparseable.push(f.name);
+      continue;
+    }
+    items.push(f);
+  }
+  if (items.length === 0) {
+    alert('Aucun PDF reconnu. Format attendu : YYMMDDX-prenom-nom-contrat-Studio.pdf');
+    return;
+  }
+  const msg = `Importer ${items.length} contrat${items.length > 1 ? 's' : ''} ?\n\n`
+    + items.slice(0, 8).map(f => `  · ${f.name}`).join('\n')
+    + (items.length > 8 ? `\n  · … (+${items.length - 8})` : '')
+    + (unparseable.length > 0 ? `\n\n⚠ ${unparseable.length} fichier(s) ignoré(s) (filename non reconnu) :\n` + unparseable.slice(0, 5).map(n => `  · ${n}`).join('\n') : '');
+  if (!confirm(msg)) return;
+
+  // Convertit chaque fichier en base64
+  const payload = [];
+  for (const f of items) {
+    try {
+      const b64 = await fileToBase64(f);
+      payload.push({ filename: f.name, pdf_base64: b64 });
+    } catch (e) {
+      console.error('[news] erreur lecture', f.name, e);
+    }
+  }
+  try {
+    const res = await fetch('/api/contracts/upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify({ items: payload }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    const errLines = (result.errors || []).slice(0, 5).map(e => `  · ${e.filename} : ${e.reason}`).join('\n');
+    alert(`Import terminé ✓\n\n• ${result.inserted} nouveau(x)\n• ${result.replaced} remplacé(s)\n• ${result.skipped} ignoré(s)`
+      + (errLines ? `\n\nDétails ignorés :\n${errLines}` : ''));
+    await Promise.all([reloadNewsAnalysis(), reloadNewsFeed()]);
+  } catch (err) {
+    alert('Erreur import : ' + (err.message || err));
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result || '';
+      // Le résultat est de la forme "data:application/pdf;base64,XXXX"
+      const idx = String(result).indexOf(',');
+      resolve(idx >= 0 ? String(result).slice(idx + 1) : String(result));
+    };
+    reader.onerror = () => reject(reader.error || new Error('Erreur lecture fichier'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// ── Analyse croisée S-1 → S ───────────────────────────────────
+async function reloadNewsAnalysis() {
+  const box = document.getElementById('news-analysis');
+  if (!box) return;
+  try {
+    const data = await fetch('/api/contracts/analysis', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+    }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
+    renderNewsAnalysis(data);
+  } catch (err) {
+    box.innerHTML = '';
+  }
+}
+
+function renderNewsAnalysis(data) {
+  const box = document.getElementById('news-analysis');
+  if (!box) return;
+  if (!data.total_contracts) {
+    box.innerHTML = '';
+    return;
+  }
+  const fmtWeek = (iso) => {
+    if (!iso) return '?';
+    const [y, m, d] = iso.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m - 1, d));
+    const end = new Date(Date.UTC(y, m - 1, d + 6));
+    const dd = (dt) => String(dt.getUTCDate()).padStart(2, '0');
+    const mm = (dt) => String(dt.getUTCMonth() + 1).padStart(2, '0');
+    return `du ${dd(start)}/${mm(start)} au ${dd(end)}/${mm(end)}`;
+  };
+  const counts = data.counts || {};
+  const missingList = (data.contracts || []).filter(c => c.match === 'missing');
+  const presentNotPaidList = (data.contracts || []).filter(c => c.match === 'present_not_paid');
+  const hasAlert = (missingList.length + presentNotPaidList.length) > 0;
+  const missingCards = [...missingList, ...presentNotPaidList].slice(0, 50).map(c => `
+    <div class="news-alert-row">
+      <div class="news-alert-name">
+        <strong>${escapeHtml((c.member_first_name || '') + ' ' + (c.member_last_name || ''))}</strong>
+        <span class="news-alert-club">${escapeHtml(c.club || '?')}</span>
+      </div>
+      <div class="news-alert-status">
+        ${c.match === 'missing'
+          ? '<span class="news-status-pill news-status-missing">⚠ Pas de prélèvement</span>'
+          : '<span class="news-status-pill news-status-warn">⏸ Présent, pas encaissé</span>'}
+      </div>
+      ${c.has_pdf ? `<a href="/api/contracts/${c.id}/pdf" target="_blank" rel="noopener" class="news-alert-pdf">📄 Voir</a>` : ''}
+    </div>
+  `).join('');
+  box.innerHTML = `
+    <div class="news-hero ${hasAlert ? 'news-hero-alert' : 'news-hero-ok'}">
+      <div class="news-hero-left">
+        <div class="news-hero-eyebrow">Analyse signature → prélèvement</div>
+        <div class="news-hero-weeks">
+          <span class="news-hero-week-label">Signés S-1</span>
+          <span class="news-hero-week-value">${escapeHtml(fmtWeek(data.week_signed))}</span>
+          <span class="news-hero-arrow">→</span>
+          <span class="news-hero-week-label">Prélevés S</span>
+          <span class="news-hero-week-value">${escapeHtml(fmtWeek(data.week_payment))}</span>
+        </div>
+      </div>
+      <div class="news-hero-right">
+        <div class="news-hero-stat">
+          <div class="news-hero-stat-val">${data.total_contracts}</div>
+          <div class="news-hero-stat-lbl">contrats</div>
+        </div>
+        <div class="news-hero-stat news-hero-stat-ok">
+          <div class="news-hero-stat-val">${counts.paid || 0}</div>
+          <div class="news-hero-stat-lbl">prélevés ✓</div>
+        </div>
+        <div class="news-hero-stat news-hero-stat-bad">
+          <div class="news-hero-stat-val">${(counts.missing || 0) + (counts.present_not_paid || 0)}</div>
+          <div class="news-hero-stat-lbl">à relancer</div>
+        </div>
+      </div>
+    </div>
+    ${!data.prel_has_data
+      ? `<div class="news-alert-note">ℹ Aucune donnée P.R.E.L pour la semaine ${escapeHtml(data.week_payment)}. Importe le fichier S dans l'onglet P.R.E.L pour activer l'analyse.</div>`
+      : ''}
+    ${hasAlert ? `
+      <div class="news-alert-list">
+        <div class="news-alert-list-title">
+          🚨 ${missingList.length + presentNotPaidList.length} contrat${(missingList.length + presentNotPaidList.length) > 1 ? 's' : ''} à relancer
+        </div>
+        ${missingCards}
+      </div>
+    ` : (data.prel_has_data ? `<div class="news-alert-ok">✓ Tous les contrats signés en S-1 ont été prélevés en S.</div>` : '')}
+  `;
+}
+
+// ── Liste complète des contrats ───────────────────────────────
 async function reloadNewsFeed() {
   const feed = document.getElementById('news-feed');
-  const filters = document.getElementById('news-filters');
   if (!feed) return;
   feed.innerHTML = `<div class="news-loading">Chargement…</div>`;
   try {
-    const url = newsCurrentTagFilter
-      ? `/api/news?tag=${encodeURIComponent(newsCurrentTagFilter)}`
-      : '/api/news';
+    const params = [];
+    if (newsFilterClub) params.push(`club=${encodeURIComponent(newsFilterClub)}`);
+    if (newsFilterWeek) params.push(`week=${encodeURIComponent(newsFilterWeek)}`);
+    const url = '/api/contracts' + (params.length ? '?' + params.join('&') : '');
     const data = await fetch(url, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
     }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
-    newsAllTags = data.all_tags || [];
+    newsAvailableClubs = data.clubs || [];
+    newsAvailableWeeks = data.weeks || [];
     renderNewsFilters();
-    renderNewsFeed(data.posts || []);
+    renderNewsContracts(data.contracts || []);
   } catch (err) {
     feed.innerHTML = `<div class="news-empty"><div class="news-empty-text">Erreur : ${escapeHtml(String(err.message || err))}</div></div>`;
-    if (filters) filters.innerHTML = '';
   }
 }
 
 function renderNewsFilters() {
   const filters = document.getElementById('news-filters');
   if (!filters) return;
-  if (newsAllTags.length === 0) {
+  if (newsAvailableClubs.length === 0 && newsAvailableWeeks.length === 0) {
     filters.innerHTML = '';
     return;
   }
-  const allActive = !newsCurrentTagFilter;
+  const fmtWeekShort = (iso) => {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m - 1, d));
+    return `${String(start.getUTCDate()).padStart(2, '0')}/${String(start.getUTCMonth() + 1).padStart(2, '0')}`;
+  };
   filters.innerHTML = `
-    <button class="news-filter-pill ${allActive ? 'active' : ''}" data-tag="">Tous</button>
-    ${newsAllTags.map(t => `
-      <button class="news-filter-pill ${newsCurrentTagFilter === t ? 'active' : ''}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</button>
-    `).join('')}
+    <div class="news-filter-group">
+      <span class="news-filter-label">Club :</span>
+      <button class="news-filter-pill ${!newsFilterClub ? 'active' : ''}" data-club="">Tous</button>
+      ${newsAvailableClubs.map(c => `<button class="news-filter-pill ${newsFilterClub === c ? 'active' : ''}" data-club="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('')}
+    </div>
+    <div class="news-filter-group">
+      <span class="news-filter-label">Semaine :</span>
+      <button class="news-filter-pill ${!newsFilterWeek ? 'active' : ''}" data-week="">Toutes</button>
+      ${newsAvailableWeeks.slice(0, 8).map(w => `<button class="news-filter-pill ${newsFilterWeek === w ? 'active' : ''}" data-week="${escapeHtml(w)}">${escapeHtml(fmtWeekShort(w))}</button>`).join('')}
+    </div>
   `;
-  filters.querySelectorAll('[data-tag]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const t = btn.dataset.tag || null;
-      newsCurrentTagFilter = t || null;
-      reloadNewsFeed();
-    });
+  filters.querySelectorAll('[data-club]').forEach(b => {
+    b.addEventListener('click', () => { newsFilterClub = b.dataset.club || null; reloadNewsFeed(); });
+  });
+  filters.querySelectorAll('[data-week]').forEach(b => {
+    b.addEventListener('click', () => { newsFilterWeek = b.dataset.week || null; reloadNewsFeed(); });
   });
 }
 
-function renderNewsFeed(posts) {
+function renderNewsContracts(contracts) {
   const feed = document.getElementById('news-feed');
   if (!feed) return;
-  if (posts.length === 0) {
+  if (contracts.length === 0) {
     feed.innerHTML = `
       <div class="news-empty">
-        <div class="news-empty-icon" aria-hidden="true">📰</div>
-        <div class="news-empty-text">${newsCurrentTagFilter
-          ? `Aucune news avec le tag <strong>${escapeHtml(newsCurrentTagFilter)}</strong>.`
-          : 'Aucune news pour l\'instant. Clique sur <strong>＋ Nouvelle news</strong> pour commencer.'}</div>
+        <div class="news-empty-icon" aria-hidden="true">📄</div>
+        <div class="news-empty-text">Aucun contrat ne correspond aux filtres actifs.</div>
       </div>`;
     return;
   }
-  feed.innerHTML = posts.map(p => renderNewsCard(p)).join('');
-  feed.querySelectorAll('[data-edit-id]').forEach(b => {
-    b.addEventListener('click', () => {
-      const id = parseInt(b.dataset.editId, 10);
-      const post = posts.find(p => p.id === id);
-      if (post) openNewsModal(post);
-    });
-  });
-  feed.querySelectorAll('[data-delete-id]').forEach(b => {
-    b.addEventListener('click', () => deleteNewsPost(parseInt(b.dataset.deleteId, 10), b.dataset.deleteTitle));
-  });
-  feed.querySelectorAll('[data-pin-id]').forEach(b => {
-    b.addEventListener('click', () => toggleNewsPin(parseInt(b.dataset.pinId, 10), b.dataset.pinned === '1'));
-  });
-}
-
-function renderNewsCard(p) {
-  const relDate = newsFormatRelative(p.created_at);
-  const wasUpdated = p.updated_at && p.updated_at !== p.created_at;
-  // Échappe le corps puis convertit les retours-ligne en <br>
-  const bodyHtml = escapeHtml(p.body || '').replace(/\n/g, '<br>');
-  const tagsHtml = (p.tags || []).map(t => `<span class="news-tag">${escapeHtml(t)}</span>`).join('');
-  return `
-    <article class="news-card ${p.pinned ? 'news-card-pinned' : ''}">
-      <header class="news-card-header">
-        <div class="news-card-meta">
-          ${p.pinned ? '<span class="news-pin-badge" title="Épinglée">📌 Épinglée</span>' : ''}
-          ${tagsHtml}
-          <span class="news-card-date" title="${escapeHtml(p.created_at)}">${escapeHtml(relDate)}</span>
-          ${wasUpdated ? `<span class="news-card-updated" title="Modifiée le ${escapeHtml(p.updated_at)}">(modifiée)</span>` : ''}
-        </div>
-        <div class="news-card-actions">
-          <button class="news-icon-btn" data-pin-id="${p.id}" data-pinned="${p.pinned ? '1' : '0'}" title="${p.pinned ? 'Désépingler' : 'Épingler'}">${p.pinned ? '📌' : '📍'}</button>
-          <button class="news-icon-btn" data-edit-id="${p.id}" title="Modifier">✏</button>
-          <button class="news-icon-btn news-icon-danger" data-delete-id="${p.id}" data-delete-title="${escapeHtml(p.title)}" title="Supprimer">🗑</button>
-        </div>
+  // Groupage par semaine signature
+  const byWeek = {};
+  for (const c of contracts) {
+    if (!byWeek[c.week_start]) byWeek[c.week_start] = [];
+    byWeek[c.week_start].push(c);
+  }
+  const fmtWeekLabel = (iso) => {
+    if (!iso) return '?';
+    const [y, m, d] = iso.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m - 1, d));
+    const end = new Date(Date.UTC(y, m - 1, d + 6));
+    const dd = (dt) => String(dt.getUTCDate()).padStart(2, '0');
+    const mm = (dt) => String(dt.getUTCMonth() + 1).padStart(2, '0');
+    return `Sem. du ${dd(start)}/${mm(start)} au ${dd(end)}/${mm(end)} ${end.getUTCFullYear()}`;
+  };
+  const fmtDate = (iso) => {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-').map(Number);
+    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+  };
+  const weeks = Object.keys(byWeek).sort((a, b) => b.localeCompare(a));
+  feed.innerHTML = weeks.map(wk => `
+    <section class="news-week-group">
+      <header class="news-week-header">
+        <h3 class="news-week-title">${escapeHtml(fmtWeekLabel(wk))}</h3>
+        <span class="news-week-count">${byWeek[wk].length} contrat${byWeek[wk].length > 1 ? 's' : ''}</span>
       </header>
-      <h3 class="news-card-title">${escapeHtml(p.title)}</h3>
-      ${p.body ? `<div class="news-card-body">${bodyHtml}</div>` : ''}
-    </article>
-  `;
-}
-
-function newsFormatRelative(iso) {
-  if (!iso) return '';
-  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
-  if (!m) return iso;
-  const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
-  const now = new Date();
-  const diff = (now - dt) / 1000;
-  if (diff < 60) return 'à l\'instant';
-  if (diff < 3600) return `il y a ${Math.floor(diff / 60)} min`;
-  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)} h`;
-  if (diff < 7 * 86400) return `il y a ${Math.floor(diff / 86400)} j`;
-  // Au-delà, date absolue
-  return `${m[3]}/${m[2]}/${m[1]}`;
-}
-
-function openNewsModal(post) {
-  const overlay = document.getElementById('news-overlay');
-  if (!overlay) return;
-  document.getElementById('news-modal-title').textContent = post ? 'Modifier la news' : 'Nouvelle news';
-  document.getElementById('news-form-id').value = post ? String(post.id) : '';
-  document.getElementById('news-form-title').value = post ? post.title : '';
-  document.getElementById('news-form-body').value = post ? (post.body || '') : '';
-  document.getElementById('news-form-tags').value = post ? (post.tags || []).join(', ') : '';
-  document.getElementById('news-form-pinned').checked = post ? !!post.pinned : false;
-  overlay.classList.remove('hidden');
-  setTimeout(() => {
-    const titleInput = document.getElementById('news-form-title');
-    if (titleInput) titleInput.focus();
-  }, 50);
-}
-
-function closeNewsModal() {
-  const overlay = document.getElementById('news-overlay');
-  if (overlay) overlay.classList.add('hidden');
-}
-
-async function onNewsFormSubmit(e) {
-  e.preventDefault();
-  const id = document.getElementById('news-form-id').value;
-  const title = document.getElementById('news-form-title').value.trim();
-  const body = document.getElementById('news-form-body').value;
-  const tagsRaw = document.getElementById('news-form-tags').value;
-  const pinned = document.getElementById('news-form-pinned').checked;
-  if (!title) {
-    alert('Le titre est requis.');
-    return;
-  }
-  const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
-  const payload = { title, body, tags, pinned };
-  try {
-    const url = id ? `/api/news/${id}` : '/api/news';
-    const method = id ? 'PUT' : 'POST';
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
-      },
-      body: JSON.stringify(payload),
+      <div class="news-contracts-grid">
+        ${byWeek[wk].map(c => `
+          <article class="news-contract-card">
+            <header class="news-contract-card-header">
+              <div class="news-contract-name">${escapeHtml((c.member_first_name || '') + ' ' + (c.member_last_name || ''))}</div>
+              <button class="news-icon-btn news-icon-danger" data-delete-id="${c.id}" data-delete-name="${escapeHtml((c.member_first_name || '') + ' ' + (c.member_last_name || ''))}" title="Supprimer ce contrat">🗑</button>
+            </header>
+            <div class="news-contract-meta">
+              <span class="news-contract-club">${escapeHtml(c.club || '?')}</span>
+              <span class="news-contract-dot">·</span>
+              <span class="news-contract-date">Signé le ${escapeHtml(fmtDate(c.signed_date))}</span>
+            </div>
+            ${c.has_pdf
+              ? `<a class="news-contract-pdf-btn" href="/api/contracts/${c.id}/pdf" target="_blank" rel="noopener">📄 Voir le contrat</a>`
+              : `<div class="news-contract-no-pdf">Pas de PDF stocké</div>`}
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `).join('');
+  feed.querySelectorAll('[data-delete-id]').forEach(b => {
+    b.addEventListener('click', async () => {
+      const id = parseInt(b.dataset.deleteId, 10);
+      const name = b.dataset.deleteName || '';
+      if (!confirm(`Supprimer le contrat de « ${name} » ?\n\nCette action est irréversible.`)) return;
+      try {
+        const res = await fetch(`/api/contracts/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+        });
+        if (!res.ok) throw new Error(await res.text());
+        await Promise.all([reloadNewsAnalysis(), reloadNewsFeed()]);
+      } catch (err) {
+        alert('Erreur suppression : ' + (err.message || err));
+      }
     });
-    if (!res.ok) throw new Error(await res.text());
-    closeNewsModal();
-    await reloadNewsFeed();
-  } catch (err) {
-    alert('Erreur enregistrement : ' + (err.message || err));
-  }
-}
-
-async function deleteNewsPost(id, title) {
-  if (!confirm(`Supprimer la news « ${title} » ?\n\nCette action est irréversible.`)) return;
-  try {
-    const res = await fetch(`/api/news/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
-    });
-    if (!res.ok) throw new Error(await res.text());
-    await reloadNewsFeed();
-  } catch (err) {
-    alert('Erreur suppression : ' + (err.message || err));
-  }
-}
-
-async function toggleNewsPin(id, currentlyPinned) {
-  try {
-    const res = await fetch(`/api/news/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
-      },
-      body: JSON.stringify({ pinned: !currentlyPinned }),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    await reloadNewsFeed();
-  } catch (err) {
-    alert('Erreur épinglage : ' + (err.message || err));
-  }
+  });
 }

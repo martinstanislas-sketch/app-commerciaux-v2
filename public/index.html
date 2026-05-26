@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-news1">
+  <link rel="stylesheet" href="style.css?v=ds-news-contracts1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -738,62 +738,38 @@
       </div>
     </section>
 
-    <!-- NEWS (admin uniquement) — notes / annonces datées -->
+    <!-- NEWS (admin uniquement) — contrats signés + analyse vs P.R.E.L -->
     <section id="tab-news" class="tab-content">
       <div class="news-wrap">
         <header class="news-header">
           <div>
-            <h2 class="news-title">NEWS</h2>
-            <p class="news-subtitle">Notes, annonces, événements — un fil chronologique privé.</p>
+            <h2 class="news-title">NEWS · Contrats signés</h2>
+            <p class="news-subtitle">Dépose les PDF des contrats. L'app extrait la date, le nom, le club, et croise avec P.R.E.L pour détecter les contrats non prélevés.</p>
           </div>
           <div class="news-toolbar">
-            <button class="news-btn-primary" id="news-new-trigger" type="button">
-              <span>＋ Nouvelle news</span>
+            <button class="news-btn-primary" id="news-upload-trigger" type="button">
+              <span>📂 Importer des contrats (PDF)</span>
             </button>
+            <input type="file" id="news-upload-input" accept="application/pdf,.pdf" multiple style="display:none">
           </div>
         </header>
+        <!-- Bandeau analyse S-1 → S -->
+        <div class="news-analysis" id="news-analysis"></div>
+        <!-- Filtres : club + semaine -->
         <div class="news-filters" id="news-filters"></div>
+        <!-- Liste des contrats -->
         <div class="news-feed" id="news-feed">
           <div class="news-empty">
-            <div class="news-empty-icon" aria-hidden="true">📰</div>
-            <div class="news-empty-text">Aucune news pour l'instant. Clique sur <strong>＋ Nouvelle news</strong> pour commencer.</div>
+            <div class="news-empty-icon" aria-hidden="true">📄</div>
+            <div class="news-empty-text">
+              Aucun contrat importé pour l'instant.<br>
+              Clique sur <strong>📂 Importer des contrats</strong> et sélectionne les PDF (un ou plusieurs).<br>
+              <span class="news-empty-hint">Format de nom attendu : <code>YYMMDDX-prenom-nom-contrat-Studio.pdf</code></span>
+            </div>
           </div>
         </div>
       </div>
     </section>
-
-    <!-- Modal : créer / éditer une news -->
-    <div id="news-overlay" class="modal-overlay hidden">
-      <div class="modal news-modal">
-        <div class="news-modal-header">
-          <h2 id="news-modal-title">Nouvelle news</h2>
-          <button class="news-modal-close" id="news-modal-close" type="button" aria-label="Fermer">✕</button>
-        </div>
-        <form id="news-form" class="news-form">
-          <input type="hidden" id="news-form-id">
-          <label class="news-field">
-            <span class="news-field-label">Titre <span class="news-required">*</span></span>
-            <input type="text" id="news-form-title" maxlength="200" required placeholder="Ex : Lancement nouveau partenariat">
-          </label>
-          <label class="news-field">
-            <span class="news-field-label">Contenu</span>
-            <textarea id="news-form-body" rows="8" maxlength="20000" placeholder="Le détail, les liens, les contacts… (retours à la ligne conservés)"></textarea>
-          </label>
-          <label class="news-field">
-            <span class="news-field-label">Tags <span class="news-field-hint">(séparés par des virgules)</span></span>
-            <input type="text" id="news-form-tags" placeholder="Ex : ventes, partenariat, urgent">
-          </label>
-          <label class="news-field news-field-inline">
-            <input type="checkbox" id="news-form-pinned">
-            <span>📌 Épingler en haut du fil</span>
-          </label>
-          <div class="news-form-actions">
-            <button type="button" class="news-btn-secondary" id="news-form-cancel">Annuler</button>
-            <button type="submit" class="news-btn-primary" id="news-form-save">Enregistrer</button>
-          </div>
-        </form>
-      </div>
-    </div>
 
     <!-- EMAIL / ADMIN -->
   </main>
@@ -903,6 +879,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-news1"></script>
+  <script src="app.js?v=ds-news-contracts1"></script>
 </body>
 </html>

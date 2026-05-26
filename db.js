@@ -404,21 +404,41 @@ function initSchema() {
     db.exec(`ALTER TABLE task_columns ADD COLUMN archived_at TEXT;`);
   }
 
-  // ─── NEWS (admin uniquement) ────────────────────────────────
-  // Notes / annonces datées. CRUD complet pour l'admin, lecture seule
-  // exclusive (l'onglet est lui-même caché aux non-admins).
+  // ─── NEWS / CONTRATS (admin uniquement) ──────────────────────
+  // Anciennement notes texte → maintenant : contrats signés stockés en blob.
+  // L'ancienne table news_posts est conservée mais plus utilisée par l'UI.
   db.exec(`
     CREATE TABLE IF NOT EXISTS news_posts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       body TEXT NOT NULL DEFAULT '',
-      tags TEXT,                                       -- JSON array string
+      tags TEXT,
       pinned INTEGER NOT NULL DEFAULT 0,
       author TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     );
     CREATE INDEX IF NOT EXISTS idx_news_created ON news_posts(pinned DESC, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS contracts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT NOT NULL,
+      signed_date TEXT NOT NULL,                       -- YYYY-MM-DD
+      week_start TEXT NOT NULL,                        -- lundi ISO de la semaine
+      member_first_name TEXT,
+      member_last_name TEXT,
+      member_normalized TEXT,                          -- pour matching (lowercase + sans accents)
+      club TEXT NOT NULL,                              -- club canonique (Lille, Boulogne-Billancourt, etc.)
+      raw_studio TEXT,                                 -- nom brut extrait du filename
+      pdf_blob BLOB,                                   -- contenu PDF
+      pdf_size INTEGER NOT NULL DEFAULT 0,
+      uploaded_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      uploaded_by TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_contracts_signed ON contracts(signed_date);
+    CREATE INDEX IF NOT EXISTS idx_contracts_week ON contracts(week_start);
+    CREATE INDEX IF NOT EXISTS idx_contracts_member ON contracts(member_normalized);
+    CREATE INDEX IF NOT EXISTS idx_contracts_club ON contracts(club);
   `);
   // Seed default columns if empty
   const colCount = db.prepare('SELECT COUNT(*) AS c FROM task_columns').get().c;

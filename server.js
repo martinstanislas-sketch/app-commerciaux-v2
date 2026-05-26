@@ -3612,6 +3612,342 @@ app.delete('/api/news/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── CONTRATS signés (admin uniquement) ──────────────────────
+// Stockage des PDF de contrats avec analyse croisée vs P.R.E.L :
+// détecte les clients signés en S-1 mais non prélevés (Encaisse) en S.
+
+// Mapping studio brut (extrait du filename) → club canonique (cohérent avec P.R.E.L).
+const CONTRACT_STUDIO_MAP = {
+  'my coach lille':                 'Lille',
+  'my coach vieux lille':           'Lille',
+  'my coach boulogne':              'Boulogne-Billancourt',
+  'my coach boulogne billancourt':  'Boulogne-Billancourt',
+  'my coach levallois':             'Levallois-Perret',
+  'my coach levallois perret':      'Levallois-Perret',
+  'my coach marcq':                 'Marcq-en-Barœul',
+  'my coach marcq en baroeul':      'Marcq-en-Barœul',
+  'my coach neuilly':               'Neuilly-sur-Seine',
+  'my coach neuilly sur seine':     'Neuilly-sur-Seine',
+  'my coach wasquehal':             'Wasquehal',
+};
+function contractResolveStudio(raw) {
+  if (!raw) return null;
+  const norm = String(raw).toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (CONTRACT_STUDIO_MAP[norm]) return CONTRACT_STUDIO_MAP[norm];
+  for (const [k, v] of Object.entries(CONTRACT_STUDIO_MAP)) {
+    if (norm.includes(k)) return v;
+  }
+  return null;
+}
+
+// Normalise un nom pour le matching avec prel_rows.membre :
+// lowercase, sans accents, espaces simples, trim.
+function contractNormalizeName(...parts) {
+  return parts
+    .filter(Boolean)
+    .map(s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''))
+    .join(' ')
+    .replace(/[^a-z0-9\s]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Parse le filename : YYMMDDX-prenom-nom-contrat-Studio.pdf
+//   → { signed_date, first_name, last_name, raw_studio, club }
+function contractParseFilename(filename) {
+  const name = String(filename || '').replace(/\.pdf$/i, '');
+  // Capture les 6 premiers chiffres (date) + index optionnel + reste
+  const m = /^(\d{2})(\d{2})(\d{2})\d*[-_](.+?)[-_]contrat[-_](.+)$/i.exec(name);
+  if (!m) return null;
+  const [, yy, mm, dd, namePart, studioPart] = m;
+  const year = 2000 + parseInt(yy, 10);
+  const day = parseInt(dd, 10);
+  const month = parseInt(mm, 10);
+  if (year < 2020 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const signedDate = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  const nameTokens = namePart.split(/[-_]+/).filter(Boolean);
+  const firstName = nameTokens[0] || '';
+  const lastName = nameTokens.slice(1).join(' ');
+  const rawStudio = studioPart.replace(/[-_]+/g, ' ').trim();
+  const club = contractResolveStudio(rawStudio);
+  return {
+    signed_date: signedDate,
+    first_name: firstName,
+    last_name: lastName,
+    raw_studio: rawStudio,
+    club,
+  };
+}
+
+// Lundi ISO de la semaine d'une date YYYY-MM-DD
+function contractMondayOf(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay(); // 0=dim, 1=lun, …, 6=sam
+  const offset = (dow === 0 ? -6 : 1 - dow);
+  dt.setUTCDate(dt.getUTCDate() + offset);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
+}
+
+function contractRowToJson(r, { includeBlob = false } = {}) {
+  return {
+    id: r.id,
+    filename: r.filename,
+    signed_date: r.signed_date,
+    week_start: r.week_start,
+    member_first_name: r.member_first_name,
+    member_last_name: r.member_last_name,
+    member_normalized: r.member_normalized,
+    club: r.club,
+    raw_studio: r.raw_studio,
+    pdf_size: r.pdf_size,
+    uploaded_at: r.uploaded_at,
+    uploaded_by: r.uploaded_by,
+    has_pdf: !!(r.pdf_blob && r.pdf_size > 0),
+  };
+}
+
+// POST /api/contracts/upload
+// body: { items: [{ filename, pdf_base64 }] }
+// Parse chaque filename → insère un contrat. Ignore les filenames non
+// reconnus. Si un contrat existe déjà (même filename), on remplace son
+// PDF (idempotent).
+app.post('/api/contracts/upload', requireAuth, requireAdmin, (req, res) => {
+  const items = (req.body && req.body.items) || [];
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items requis (array non vide)' });
+  }
+  const db = getDb();
+  const results = { inserted: 0, replaced: 0, skipped: 0, errors: [] };
+  const insStmt = db.prepare(`
+    INSERT INTO contracts (filename, signed_date, week_start, member_first_name,
+      member_last_name, member_normalized, club, raw_studio, pdf_blob, pdf_size, uploaded_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const updStmt = db.prepare(`
+    UPDATE contracts SET pdf_blob = ?, pdf_size = ?, uploaded_at = datetime('now','localtime'), uploaded_by = ?
+    WHERE filename = ?
+  `);
+  const findStmt = db.prepare(`SELECT id FROM contracts WHERE filename = ?`);
+  const tx = db.transaction(() => {
+    for (const item of items) {
+      const filename = String(item.filename || '').trim();
+      const base64 = String(item.pdf_base64 || '');
+      if (!filename) { results.skipped++; results.errors.push({ filename, reason: 'filename vide' }); continue; }
+      const parsed = contractParseFilename(filename);
+      if (!parsed) { results.skipped++; results.errors.push({ filename, reason: 'filename non reconnu (format attendu YYMMDDX-prenom-nom-contrat-Studio.pdf)' }); continue; }
+      if (!parsed.club) { results.skipped++; results.errors.push({ filename, reason: `studio non reconnu : "${parsed.raw_studio}"` }); continue; }
+      let pdfBuf = null;
+      let pdfSize = 0;
+      if (base64) {
+        try {
+          // Retire un éventuel préfixe data:application/pdf;base64,
+          const clean = base64.replace(/^data:[^,]*,/, '');
+          pdfBuf = Buffer.from(clean, 'base64');
+          pdfSize = pdfBuf.length;
+        } catch (e) {
+          results.errors.push({ filename, reason: 'base64 invalide' });
+        }
+      }
+      const memberNorm = contractNormalizeName(parsed.first_name, parsed.last_name);
+      const weekStart = contractMondayOf(parsed.signed_date);
+      const existing = findStmt.get(filename);
+      if (existing) {
+        updStmt.run(pdfBuf, pdfSize, req.session.name || 'admin', filename);
+        results.replaced++;
+      } else {
+        insStmt.run(
+          filename,
+          parsed.signed_date,
+          weekStart,
+          parsed.first_name,
+          parsed.last_name,
+          memberNorm,
+          parsed.club,
+          parsed.raw_studio,
+          pdfBuf,
+          pdfSize,
+          req.session.name || 'admin',
+        );
+        results.inserted++;
+      }
+    }
+  });
+  tx();
+  res.json({ ok: true, ...results });
+});
+
+// GET /api/contracts — liste avec filtres optionnels
+//   ?club=Lille       → uniquement un club
+//   ?week=YYYY-MM-DD  → uniquement une semaine (lundi)
+app.get('/api/contracts', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const where = [];
+  const params = [];
+  if (req.query.club) { where.push('club = ?'); params.push(String(req.query.club)); }
+  if (req.query.week) { where.push('week_start = ?'); params.push(String(req.query.week)); }
+  const sql = `
+    SELECT id, filename, signed_date, week_start, member_first_name, member_last_name,
+           member_normalized, club, raw_studio, pdf_size, uploaded_at, uploaded_by,
+           (pdf_blob IS NOT NULL AND pdf_size > 0) AS has_pdf_flag
+    FROM contracts
+    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+    ORDER BY signed_date DESC, id DESC
+  `;
+  const rows = db.prepare(sql).all(...params);
+  // Liste des semaines + clubs distincts pour les filtres
+  const weeks = db.prepare(`SELECT DISTINCT week_start FROM contracts ORDER BY week_start DESC`).all().map(r => r.week_start);
+  const clubs = db.prepare(`SELECT DISTINCT club FROM contracts WHERE club IS NOT NULL ORDER BY club ASC`).all().map(r => r.club);
+  res.json({
+    contracts: rows.map(r => ({
+      id: r.id, filename: r.filename, signed_date: r.signed_date, week_start: r.week_start,
+      member_first_name: r.member_first_name, member_last_name: r.member_last_name,
+      member_normalized: r.member_normalized, club: r.club, raw_studio: r.raw_studio,
+      pdf_size: r.pdf_size, uploaded_at: r.uploaded_at, uploaded_by: r.uploaded_by,
+      has_pdf: !!r.has_pdf_flag,
+    })),
+    weeks, clubs,
+  });
+});
+
+// GET /api/contracts/:id/pdf — stream du PDF stocké en blob
+app.get('/api/contracts/:id/pdf', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  const row = db.prepare(`SELECT filename, pdf_blob, pdf_size FROM contracts WHERE id = ?`).get(id);
+  if (!row || !row.pdf_blob) return res.status(404).json({ error: 'PDF introuvable' });
+  res.setHeader('Content-Type', 'application/pdf');
+  // inline pour ouverture dans le navigateur; pour forcer download, mettre 'attachment'
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(row.filename)}"`);
+  res.setHeader('Content-Length', String(row.pdf_size || row.pdf_blob.length));
+  res.send(row.pdf_blob);
+});
+
+app.delete('/api/contracts/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  db.prepare(`DELETE FROM contracts WHERE id = ?`).run(id);
+  res.json({ ok: true });
+});
+
+// GET /api/contracts/analysis
+// Analyse croisée S-1 (signature) → S (prélèvement attendu).
+// Renvoie pour chaque contrat signé en S-1 :
+//   • match: 'paid' | 'missing' | 'no_data'
+//   • si missing : le contrat est dans la liste rouge à relancer
+// Le matching se fait par nom normalisé (prénom + nom) vs prel_rows.membre.
+// Détection « paid » = au moins 1 ligne prel_rows pour ce membre dans la
+// semaine S avec état dans PREL_ETATS_OK (Encaisse / OK / Encaissé).
+app.get('/api/contracts/analysis', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  // Détermine S et S-1 : priorité aux slots P.R.E.L, sinon calculé depuis aujourd'hui
+  let weekS = String(req.query.week || '').trim();
+  let weekPrev = String(req.query.prev || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekS)) {
+    const slotCur = prelGetSlot(db, 'cur');
+    if (slotCur) {
+      weekS = slotCur;
+    } else {
+      // Fallback : lundi de cette semaine (date du serveur)
+      const today = new Date();
+      const dow = today.getDay();
+      const offset = (dow === 0 ? -6 : 1 - dow);
+      today.setDate(today.getDate() + offset);
+      weekS = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    }
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekPrev)) {
+    const slotPrev = prelGetSlot(db, 'prev');
+    if (slotPrev) {
+      weekPrev = slotPrev;
+    } else {
+      const [y, m, d] = weekS.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() - 7);
+      weekPrev = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
+    }
+  }
+  // Charge les contrats signés en S-1
+  const contracts = db.prepare(`
+    SELECT id, filename, signed_date, week_start, member_first_name, member_last_name,
+           member_normalized, club, pdf_size,
+           (pdf_blob IS NOT NULL AND pdf_size > 0) AS has_pdf_flag
+    FROM contracts
+    WHERE week_start = ?
+    ORDER BY club, member_last_name, member_first_name
+  `).all(weekPrev);
+  // Charge les prélèvements de S, indexés par (club, nom normalisé)
+  const prelRows = db.prepare(`
+    SELECT membre, club, etat FROM prel_rows WHERE week_start = ?
+  `).all(weekS);
+  const prelHasData = prelRows.length > 0;
+  // Index : club → Set des noms normalisés qui ont au moins 1 ligne « Encaisse »
+  const paidByClub = {};
+  // Index : club → Set des noms normalisés présents (toutes états)
+  const presentByClub = {};
+  for (const r of prelRows) {
+    const norm = contractNormalizeName(r.membre);
+    if (!norm) continue;
+    presentByClub[r.club] = presentByClub[r.club] || new Set();
+    presentByClub[r.club].add(norm);
+    if (prelIsOk(r.etat)) {
+      paidByClub[r.club] = paidByClub[r.club] || new Set();
+      paidByClub[r.club].add(norm);
+    }
+  }
+  // Pour chaque contrat, détermine le statut
+  const enriched = contracts.map(c => {
+    const memberNorm = c.member_normalized || contractNormalizeName(c.member_first_name, c.member_last_name);
+    let match = 'no_data';
+    if (prelHasData) {
+      const paidSet = paidByClub[c.club];
+      const presentSet = presentByClub[c.club];
+      if (paidSet && paidSet.has(memberNorm)) {
+        match = 'paid';
+      } else if (presentSet && presentSet.has(memberNorm)) {
+        match = 'present_not_paid'; // présent mais pas encaissé (suspendu / impayé / etc.)
+      } else {
+        match = 'missing';
+      }
+    }
+    return {
+      id: c.id, filename: c.filename, signed_date: c.signed_date, week_start: c.week_start,
+      member_first_name: c.member_first_name, member_last_name: c.member_last_name,
+      member_normalized: memberNorm, club: c.club, pdf_size: c.pdf_size,
+      has_pdf: !!c.has_pdf_flag,
+      match,
+    };
+  });
+  // Agrégats par club
+  const byClub = {};
+  for (const c of enriched) {
+    if (!byClub[c.club]) byClub[c.club] = { club: c.club, total: 0, paid: 0, missing: 0, present_not_paid: 0, no_data: 0, contracts: [] };
+    byClub[c.club].total++;
+    byClub[c.club][c.match]++;
+    byClub[c.club].contracts.push(c);
+  }
+  res.json({
+    week_signed: weekPrev,
+    week_payment: weekS,
+    prel_has_data: prelHasData,
+    total_contracts: enriched.length,
+    counts: {
+      paid: enriched.filter(c => c.match === 'paid').length,
+      missing: enriched.filter(c => c.match === 'missing').length,
+      present_not_paid: enriched.filter(c => c.match === 'present_not_paid').length,
+      no_data: enriched.filter(c => c.match === 'no_data').length,
+    },
+    clubs: Object.values(byClub).sort((a, b) => a.club.localeCompare(b.club)),
+    contracts: enriched,
+  });
+});
+
 // ─── Mount COACH routes under /api/coach/* ──────────────────
 
 try {
