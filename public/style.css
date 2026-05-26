@@ -11701,6 +11701,20 @@ img {
 #tab-prel button.prel-contract-pdf:hover {
   background: rgba(99,102,241,0.16);
 }
+#tab-prel .prel-contract-fiche {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  background: #6366F1;
+  padding: 5px 10px;
+  border-radius: 7px;
+  transition: background 120ms ease;
+  white-space: nowrap;
+}
+#tab-prel .prel-contract-fiche:hover {
+  background: #4f46e5;
+}
 #tab-prel .prel-contracts-ok-msg {
   background: rgba(16,185,129,0.08);
   color: #059669;
@@ -17916,6 +17930,20 @@ body.tk-dragging-active #tab-tasks .tk-card {
 #tab-news button.news-alert-pdf:hover {
   background: rgba(99,102,241,0.16);
 }
+#tab-news .news-alert-fiche {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  background: #6366F1;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: background 120ms ease;
+  white-space: nowrap;
+}
+#tab-news .news-alert-fiche:hover {
+  background: #4f46e5;
+}
 #tab-news .news-alert-ok {
   background: rgba(16,185,129,0.08);
   color: #059669;
@@ -18016,9 +18044,14 @@ body.tk-dragging-active #tab-tasks .tk-card {
 #tab-news .news-contract-dot {
   opacity: 0.5;
 }
+#tab-news .news-contract-actions {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 #tab-news .news-contract-pdf-btn,
 #tab-news button.news-contract-pdf-btn {
-  margin-top: 4px;
   background: transparent;
   border: 1px solid rgba(99,102,241,0.3);
   color: #6366F1;
@@ -18036,6 +18069,33 @@ body.tk-dragging-active #tab-tasks .tk-card {
 #tab-news .news-contract-pdf-btn:hover,
 #tab-news button.news-contract-pdf-btn:hover {
   background: rgba(99,102,241,0.08);
+}
+#tab-news .news-contract-fiche-btn {
+  background: #6366F1;
+  border: 1px solid #6366F1;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  text-align: center;
+  width: 100%;
+  transition: all 120ms ease;
+  display: block;
+  box-sizing: border-box;
+}
+#tab-news .news-contract-fiche-btn:hover {
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+#tab-news .news-contract-no-fiche {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted, #94A3B8);
+  font-style: italic;
+  padding: 6px 0;
+  cursor: help;
 }
 #tab-news .news-contract-no-pdf {
   margin-top: 4px;

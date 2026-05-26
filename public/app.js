@@ -12694,7 +12694,9 @@ function renderPrelContractsSection(analysis) {
       </header>
       ${hasAlert ? `
         <div class="prel-contracts-list">
-          ${alertRows.map(c => `
+          ${alertRows.map(c => {
+            const deciplusUrl = (c.id_client != null) ? PREL_DECIPLUS_URL.replace('{ID}', String(c.id_client)) : null;
+            return `
             <div class="prel-contract-row">
               <div class="prel-contract-info">
                 <strong>${escapeHtml((c.member_first_name || '') + ' ' + (c.member_last_name || ''))}</strong>
@@ -12706,11 +12708,14 @@ function renderPrelContractsSection(analysis) {
                   ? '<span class="prel-contract-pill prel-contract-missing">⚠ Pas de prélèvement en S</span>'
                   : '<span class="prel-contract-pill prel-contract-warn">⏸ Présent en S, pas encaissé</span>'}
               </div>
+              ${deciplusUrl
+                ? `<a class="prel-contract-fiche" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus">↗ Fiche</a>`
+                : ''}
               ${c.has_pdf
                 ? `<button type="button" class="prel-contract-pdf" data-pdf-id="${c.id}">📄 Contrat</button>`
                 : ''}
             </div>
-          `).join('')}
+          `;}).join('')}
         </div>
       ` : `
         <div class="prel-contracts-ok-msg">
@@ -13281,7 +13286,9 @@ function renderNewsAnalysis(data) {
   // Le bandeau s'affiche TOUJOURS (informatif même si 0 contrat en S-1)
   let heroClass = 'news-hero-neutral';
   if (total > 0) heroClass = hasAlert ? 'news-hero-alert' : 'news-hero-ok';
-  const missingCards = [...missingList, ...presentNotPaidList].slice(0, 50).map(c => `
+  const missingCards = [...missingList, ...presentNotPaidList].slice(0, 50).map(c => {
+    const deciplusUrl = (c.id_client != null) ? PREL_DECIPLUS_URL.replace('{ID}', String(c.id_client)) : null;
+    return `
     <div class="news-alert-row">
       <div class="news-alert-name">
         <strong>${escapeHtml((c.member_first_name || '') + ' ' + (c.member_last_name || ''))}</strong>
@@ -13292,9 +13299,10 @@ function renderNewsAnalysis(data) {
           ? '<span class="news-status-pill news-status-missing">⚠ Pas de prélèvement</span>'
           : '<span class="news-status-pill news-status-warn">⏸ Présent, pas encaissé</span>'}
       </div>
+      ${deciplusUrl ? `<a class="news-alert-fiche" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus">↗ Fiche</a>` : ''}
       ${c.has_pdf ? `<button type="button" class="news-alert-pdf" data-pdf-id="${c.id}">📄 Voir</button>` : ''}
     </div>
-  `).join('');
+  `;}).join('');
   box.innerHTML = `
     <div class="news-hero ${heroClass}">
       <div class="news-hero-left">
@@ -13433,7 +13441,9 @@ function renderNewsContracts(contracts) {
         <span class="news-week-count">${byWeek[wk].length} contrat${byWeek[wk].length > 1 ? 's' : ''}</span>
       </header>
       <div class="news-contracts-grid">
-        ${byWeek[wk].map(c => `
+        ${byWeek[wk].map(c => {
+          const deciplusUrl = (c.id_client != null) ? PREL_DECIPLUS_URL.replace('{ID}', String(c.id_client)) : null;
+          return `
           <article class="news-contract-card">
             <header class="news-contract-card-header">
               <div class="news-contract-name">${escapeHtml((c.member_first_name || '') + ' ' + (c.member_last_name || ''))}</div>
@@ -13444,11 +13454,16 @@ function renderNewsContracts(contracts) {
               <span class="news-contract-dot">·</span>
               <span class="news-contract-date">Signé le ${escapeHtml(fmtDate(c.signed_date))}</span>
             </div>
-            ${c.has_pdf
-              ? `<button type="button" class="news-contract-pdf-btn" data-pdf-id="${c.id}">📄 Voir le contrat</button>`
-              : `<div class="news-contract-no-pdf">Pas de PDF stocké</div>`}
+            <div class="news-contract-actions">
+              ${deciplusUrl
+                ? `<a class="news-contract-fiche-btn" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus">↗ Fiche Déciplus</a>`
+                : `<div class="news-contract-no-fiche" title="Le client doit avoir été vu au moins une fois dans P.R.E.L pour obtenir le lien Déciplus">Pas de fiche Déciplus</div>`}
+              ${c.has_pdf
+                ? `<button type="button" class="news-contract-pdf-btn" data-pdf-id="${c.id}">📄 Voir le contrat</button>`
+                : `<div class="news-contract-no-pdf">Pas de PDF stocké</div>`}
+            </div>
           </article>
-        `).join('')}
+        `;}).join('')}
       </div>
     </section>
   `).join('');

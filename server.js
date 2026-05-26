@@ -3644,8 +3644,8 @@ function contractResolveStudio(raw) {
   return null;
 }
 
-// Normalise un nom pour le matching avec prel_rows.membre :
-// lowercase, sans accents, espaces simples, trim.
+// Normalise un nom pour stockage / affichage :
+// lowercase, sans accents, espaces simples, trim. Garde l'ordre original.
 function contractNormalizeName(...parts) {
   return parts
     .filter(Boolean)
@@ -3654,6 +3654,16 @@ function contractNormalizeName(...parts) {
     .replace(/[^a-z0-9\s]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// Clé de matching robuste aux inversions « Prénom Nom » ↔ « NOM Prénom ».
+// Vendor exporte typiquement "PELLIEUX Sylvain" alors que les contrats
+// arrivent en "Liam Savey". On trie les tokens alphabétiquement pour
+// rendre la comparaison commutative.
+function contractMatchKey(...parts) {
+  const norm = contractNormalizeName(...parts);
+  if (!norm) return '';
+  return norm.split(/\s+/).filter(Boolean).sort().join(' ');
 }
 
 // Capitalise chaque mot d'une chaîne : "liam savey" → "Liam Savey", "de la cruz" → "De La Cruz".
@@ -3706,6 +3716,29 @@ function contractMondayOf(iso) {
   const offset = (dow === 0 ? -6 : 1 - dow);
   dt.setUTCDate(dt.getUTCDate() + offset);
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
+}
+
+// Construit un index { club: Map<matchKey, id_client> } à partir de prel_rows.
+// Permet de retrouver le id_client d'un contrat → URL Déciplus.
+function buildPrelIdClientIndex(db) {
+  const rows = db.prepare(`
+    SELECT DISTINCT club, membre, id_client
+    FROM prel_rows
+    WHERE id_client IS NOT NULL AND membre IS NOT NULL
+  `).all();
+  const idx = {};
+  for (const r of rows) {
+    const key = contractMatchKey(r.membre);
+    if (!key || !r.club) continue;
+    if (!idx[r.club]) idx[r.club] = new Map();
+    // Si plusieurs id_client pour le même nom (rare), on garde le 1er
+    if (!idx[r.club].has(key)) idx[r.club].set(key, r.id_client);
+  }
+  return idx;
+}
+function lookupIdClient(idx, club, contractMatchKeyStr) {
+  if (!club || !contractMatchKeyStr || !idx[club]) return null;
+  return idx[club].get(contractMatchKeyStr) || null;
 }
 
 function contractRowToJson(r, { includeBlob = false } = {}) {
@@ -3814,17 +3847,23 @@ app.get('/api/contracts', requireAuth, requireAdmin, (req, res) => {
     ORDER BY signed_date DESC, id DESC
   `;
   const rows = db.prepare(sql).all(...params);
+  // Index id_client basé sur prel_rows (pour le bouton « Fiche » Déciplus)
+  const idClientIdx = buildPrelIdClientIndex(db);
   // Liste des semaines + clubs distincts pour les filtres
   const weeks = db.prepare(`SELECT DISTINCT week_start FROM contracts ORDER BY week_start DESC`).all().map(r => r.week_start);
   const clubs = db.prepare(`SELECT DISTINCT club FROM contracts WHERE club IS NOT NULL ORDER BY club ASC`).all().map(r => r.club);
   res.json({
-    contracts: rows.map(r => ({
-      id: r.id, filename: r.filename, signed_date: r.signed_date, week_start: r.week_start,
-      member_first_name: r.member_first_name, member_last_name: r.member_last_name,
-      member_normalized: r.member_normalized, club: r.club, raw_studio: r.raw_studio,
-      pdf_size: r.pdf_size, uploaded_at: r.uploaded_at, uploaded_by: r.uploaded_by,
-      has_pdf: !!r.has_pdf_flag,
-    })),
+    contracts: rows.map(r => {
+      const matchKey = contractMatchKey(r.member_first_name, r.member_last_name);
+      return {
+        id: r.id, filename: r.filename, signed_date: r.signed_date, week_start: r.week_start,
+        member_first_name: r.member_first_name, member_last_name: r.member_last_name,
+        member_normalized: r.member_normalized, club: r.club, raw_studio: r.raw_studio,
+        pdf_size: r.pdf_size, uploaded_at: r.uploaded_at, uploaded_by: r.uploaded_by,
+        has_pdf: !!r.has_pdf_flag,
+        id_client: lookupIdClient(idClientIdx, r.club, matchKey),
+      };
+    }),
     weeks, clubs,
   });
 });
@@ -3897,46 +3936,55 @@ app.get('/api/contracts/analysis', requireAuth, requireAdmin, (req, res) => {
     WHERE week_start = ?
     ORDER BY club, member_last_name, member_first_name
   `).all(weekPrev);
-  // Charge les prélèvements de S, indexés par (club, nom normalisé)
+  // Charge les prélèvements de S, indexés par (club, matchKey)
   const prelRows = db.prepare(`
-    SELECT membre, club, etat FROM prel_rows WHERE week_start = ?
+    SELECT membre, club, etat, id_client FROM prel_rows WHERE week_start = ?
   `).all(weekS);
   const prelHasData = prelRows.length > 0;
-  // Index : club → Set des noms normalisés qui ont au moins 1 ligne « Encaisse »
-  const paidByClub = {};
-  // Index : club → Set des noms normalisés présents (toutes états)
-  const presentByClub = {};
+  // Index : club → Map<matchKey, { id_client, isOk }>
+  // matchKey trie les tokens du nom alphabétiquement → résout l'inversion
+  // « Prénom Nom » (contrat) ↔ « NOM Prénom » (Vendor / prel_rows)
+  const indexByClub = {};
   for (const r of prelRows) {
-    const norm = contractNormalizeName(r.membre);
-    if (!norm) continue;
-    presentByClub[r.club] = presentByClub[r.club] || new Set();
-    presentByClub[r.club].add(norm);
-    if (prelIsOk(r.etat)) {
-      paidByClub[r.club] = paidByClub[r.club] || new Set();
-      paidByClub[r.club].add(norm);
-    }
+    const key = contractMatchKey(r.membre);
+    if (!key || !r.club) continue;
+    if (!indexByClub[r.club]) indexByClub[r.club] = new Map();
+    const cur = indexByClub[r.club].get(key) || { id_client: null, isOk: false };
+    if (prelIsOk(r.etat)) cur.isOk = true;
+    if (r.id_client != null && cur.id_client == null) cur.id_client = r.id_client;
+    indexByClub[r.club].set(key, cur);
   }
-  // Pour chaque contrat, détermine le statut
+  // Index id_client toutes semaines confondues (fallback : si le client
+  // n'est pas dans S mais a été vu une fois, on peut quand même générer
+  // l'URL Déciplus pour le bouton « Fiche »)
+  const fallbackIdClientIdx = buildPrelIdClientIndex(db);
+  // Pour chaque contrat, détermine le statut + id_client
   const enriched = contracts.map(c => {
-    const memberNorm = c.member_normalized || contractNormalizeName(c.member_first_name, c.member_last_name);
+    const matchKey = contractMatchKey(c.member_first_name, c.member_last_name);
     let match = 'no_data';
+    let idClient = null;
     if (prelHasData) {
-      const paidSet = paidByClub[c.club];
-      const presentSet = presentByClub[c.club];
-      if (paidSet && paidSet.has(memberNorm)) {
-        match = 'paid';
-      } else if (presentSet && presentSet.has(memberNorm)) {
-        match = 'present_not_paid'; // présent mais pas encaissé (suspendu / impayé / etc.)
+      const idx = indexByClub[c.club];
+      const entry = idx && idx.get(matchKey);
+      if (entry) {
+        idClient = entry.id_client;
+        match = entry.isOk ? 'paid' : 'present_not_paid';
       } else {
         match = 'missing';
       }
     }
+    // Si pas trouvé dans S, tente l'index global pour récupérer le id_client
+    if (idClient == null) {
+      idClient = lookupIdClient(fallbackIdClientIdx, c.club, matchKey);
+    }
     return {
       id: c.id, filename: c.filename, signed_date: c.signed_date, week_start: c.week_start,
       member_first_name: c.member_first_name, member_last_name: c.member_last_name,
-      member_normalized: memberNorm, club: c.club, pdf_size: c.pdf_size,
+      member_normalized: c.member_normalized || contractNormalizeName(c.member_first_name, c.member_last_name),
+      club: c.club, pdf_size: c.pdf_size,
       has_pdf: !!c.has_pdf_flag,
       match,
+      id_client: idClient,
     };
   });
   // Agrégats par club
