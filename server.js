@@ -3875,6 +3875,7 @@ app.get('/api/contracts', requireAuth, requireAdmin, (req, res) => {
   `;
   const rows = db.prepare(sql).all(...params);
   // Index id_client basé sur prel_rows (pour le bouton « Fiche » Déciplus)
+  // Fallback uniquement si pas de id_client manuel sur le contrat.
   const idClientIdx = buildPrelIdClientIndex(db);
   // Liste des semaines + clubs distincts pour les filtres
   const weeks = db.prepare(`SELECT DISTINCT week_start FROM contracts ORDER BY week_start DESC`).all().map(r => r.week_start);
@@ -3882,17 +3883,48 @@ app.get('/api/contracts', requireAuth, requireAdmin, (req, res) => {
   res.json({
     contracts: rows.map(r => {
       const matchKey = contractMatchKey(r.member_first_name, r.member_last_name);
+      const idClient = (r.id_client != null && Number.isInteger(r.id_client))
+        ? r.id_client
+        : lookupIdClient(idClientIdx, r.club, matchKey);
       return {
         id: r.id, filename: r.filename, signed_date: r.signed_date, week_start: r.week_start,
         member_first_name: r.member_first_name, member_last_name: r.member_last_name,
         member_normalized: r.member_normalized, club: r.club, raw_studio: r.raw_studio,
         pdf_size: r.pdf_size, uploaded_at: r.uploaded_at, uploaded_by: r.uploaded_by,
         has_pdf: !!r.has_pdf_flag,
-        id_client: lookupIdClient(idClientIdx, r.club, matchKey),
+        id_client: idClient,
+        id_client_manual: r.id_client, // pour distinguer manuel vs deviné
       };
     }),
     weeks, clubs,
   });
+});
+
+// PUT /api/contracts/:id — mettre à jour des champs (id_client manuel,
+// éventuellement d'autres plus tard). Permet de lier un contrat à sa
+// fiche Déciplus quand l'auto-détection ne suffit pas.
+app.put('/api/contracts/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  const existing = db.prepare(`SELECT id FROM contracts WHERE id = ?`).get(id);
+  if (!existing) return res.status(404).json({ error: 'Contrat introuvable' });
+  const fields = [];
+  const values = [];
+  if (req.body && req.body.id_client !== undefined) {
+    const v = req.body.id_client;
+    if (v === null || v === '') {
+      fields.push('id_client = NULL');
+    } else {
+      const n = parseInt(v, 10);
+      if (!Number.isInteger(n) || n < 1) return res.status(400).json({ error: 'id_client doit être un entier positif' });
+      fields.push('id_client = ?'); values.push(n);
+    }
+  }
+  if (fields.length === 0) return res.json({ ok: true });
+  values.push(id);
+  db.prepare(`UPDATE contracts SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  res.json({ ok: true });
 });
 
 // GET /api/contracts/:id/pdf — stream du PDF stocké en blob
@@ -3958,10 +3990,10 @@ app.get('/api/contracts/analysis', requireAuth, requireAdmin, (req, res) => {
       weekPrev = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
     }
   }
-  // Charge les contrats signés en S-1
+  // Charge les contrats signés en S-1 (avec id_client manuel s'il existe)
   const contracts = db.prepare(`
     SELECT id, filename, signed_date, week_start, member_first_name, member_last_name,
-           member_normalized, club, pdf_size,
+           member_normalized, club, pdf_size, id_client AS id_client_manual,
            (pdf_blob IS NOT NULL AND pdf_size > 0) AS has_pdf_flag
     FROM contracts
     WHERE week_start = ?
@@ -3989,22 +4021,25 @@ app.get('/api/contracts/analysis', requireAuth, requireAdmin, (req, res) => {
   // n'est pas dans S mais a été vu une fois, on peut quand même générer
   // l'URL Déciplus pour le bouton « Fiche »)
   const fallbackIdClientIdx = buildPrelIdClientIndex(db);
-  // Pour chaque contrat, détermine le statut + id_client
+  // Pour chaque contrat, détermine le statut + id_client.
+  // Priorité id_client : manuel (contracts.id_client) > PREL S match > fallback global.
   const enriched = contracts.map(c => {
     const matchKey = contractMatchKey(c.member_first_name, c.member_last_name);
     let match = 'no_data';
-    let idClient = null;
+    let idClient = (c.id_client_manual != null && Number.isInteger(c.id_client_manual))
+      ? c.id_client_manual
+      : null;
     if (prelHasData) {
       const idx = indexByClub[c.club];
       const entry = idx && idx.get(matchKey);
       if (entry) {
-        idClient = entry.id_client;
+        if (idClient == null) idClient = entry.id_client;
         match = entry.isOk ? 'paid' : 'present_not_paid';
       } else {
         match = 'missing';
       }
     }
-    // Si pas trouvé dans S, tente l'index global pour récupérer le id_client
+    // Si pas trouvé dans S et toujours pas d'id, tente l'index global
     if (idClient == null) {
       idClient = lookupIdClient(fallbackIdClientIdx, c.club, matchKey);
     }
@@ -4016,6 +4051,7 @@ app.get('/api/contracts/analysis', requireAuth, requireAdmin, (req, res) => {
       has_pdf: !!c.has_pdf_flag,
       match,
       id_client: idClient,
+      id_client_manual: c.id_client_manual || null,
     };
   });
   // Agrégats par club

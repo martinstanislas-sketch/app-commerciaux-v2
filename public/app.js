@@ -12823,7 +12823,7 @@ function renderPrelContractsSection(analysis) {
               </div>
               ${deciplusUrl
                 ? `<a class="prel-contract-fiche" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus">↗ Fiche</a>`
-                : ''}
+                : `<button type="button" class="prel-contract-link" data-link-contract-id="${c.id}" data-link-member="${escapeHtml((c.member_first_name || '') + ' ' + (c.member_last_name || ''))}" title="Saisir l'id Déciplus pour activer le bouton Fiche">🔗 Lier</button>`}
               ${c.has_pdf
                 ? `<button type="button" class="prel-contract-pdf" data-pdf-id="${c.id}">📄 Contrat</button>`
                 : ''}
@@ -13384,6 +13384,69 @@ if (!window.__contractPdfDelegatorBound) {
   });
 }
 
+// Liaison manuelle contrat ↔ id_client Déciplus. Quand l'auto-détection
+// ne trouve pas le client en base PREL, on permet à l'admin de saisir
+// l'id Déciplus à la main (visible dans l'URL ?idj=XXX sur Déciplus).
+async function linkContractIdClient(contractId, memberName) {
+  if (!contractId) return;
+  const hint = memberName ? `pour « ${memberName} »` : '';
+  const raw = prompt(
+    `Saisis l'ID Déciplus ${hint} :\n\n`
+    + `(Tu le trouves dans l'URL de la fiche Déciplus :\n`
+    + `https://ginkgo-sport.deciplus.pro/check.php?idj=XXXXX\n`
+    + `→ copie le numéro après "idj=")`
+  );
+  if (raw === null) return; // annulé
+  const trimmed = String(raw).trim();
+  if (!trimmed) return;
+  // Supporte une URL collée entièrement
+  let idClient = null;
+  const urlMatch = trimmed.match(/[?&]idj=(\d+)/);
+  if (urlMatch) {
+    idClient = parseInt(urlMatch[1], 10);
+  } else if (/^\d+$/.test(trimmed)) {
+    idClient = parseInt(trimmed, 10);
+  } else {
+    alert(`Format non reconnu. Exemples valides :\n  · 13948\n  · https://ginkgo-sport.deciplus.pro/check.php?idj=13948`);
+    return;
+  }
+  if (!Number.isInteger(idClient) || idClient < 1) {
+    alert('ID Déciplus invalide (entier positif requis).');
+    return;
+  }
+  try {
+    const res = await fetch(`/api/contracts/${contractId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify({ id_client: idClient }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    // Recharge le contexte visible
+    if (typeof reloadNewsAnalysis === 'function') reloadNewsAnalysis();
+    if (typeof reloadNewsFeed === 'function') reloadNewsFeed();
+    if (typeof prelViewedWeek === 'string' && prelViewedWeek && typeof renderPrelComparison === 'function') {
+      renderPrelComparison(prelViewedWeek);
+    }
+  } catch (e) {
+    alert('Erreur enregistrement : ' + (e.message || e));
+  }
+}
+
+if (!window.__contractLinkDelegatorBound) {
+  window.__contractLinkDelegatorBound = true;
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-link-contract-id]');
+    if (!t) return;
+    e.preventDefault();
+    const id = parseInt(t.dataset.linkContractId, 10);
+    const member = t.dataset.linkMember || '';
+    if (Number.isInteger(id)) linkContractIdClient(id, member);
+  });
+}
+
 // ── Analyse croisée S-1 → S ───────────────────────────────────
 async function reloadNewsAnalysis() {
   const box = document.getElementById('news-analysis');
@@ -13431,7 +13494,9 @@ function renderNewsAnalysis(data) {
           ? '<span class="news-status-pill news-status-missing">⚠ Pas de prélèvement</span>'
           : '<span class="news-status-pill news-status-warn">⏸ Présent, pas encaissé</span>'}
       </div>
-      ${deciplusUrl ? `<a class="news-alert-fiche" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus">↗ Fiche</a>` : ''}
+      ${deciplusUrl
+        ? `<a class="news-alert-fiche" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus">↗ Fiche</a>`
+        : `<button type="button" class="news-alert-link" data-link-contract-id="${c.id}" data-link-member="${escapeHtml((c.member_first_name || '') + ' ' + (c.member_last_name || ''))}" title="Saisir l'id Déciplus pour activer le bouton Fiche">🔗 Lier</button>`}
       ${c.has_pdf ? `<button type="button" class="news-alert-pdf" data-pdf-id="${c.id}">📄 Voir</button>` : ''}
     </div>
   `;}).join('');
@@ -13589,7 +13654,7 @@ function renderNewsContracts(contracts) {
             <div class="news-contract-actions">
               ${deciplusUrl
                 ? `<a class="news-contract-fiche-btn" href="${escapeHtml(deciplusUrl)}" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Déciplus">↗ Fiche Déciplus</a>`
-                : `<div class="news-contract-no-fiche" title="Le client doit avoir été vu au moins une fois dans P.R.E.L pour obtenir le lien Déciplus">Pas de fiche Déciplus</div>`}
+                : `<button type="button" class="news-contract-link-btn" data-link-contract-id="${c.id}" data-link-member="${escapeHtml((c.member_first_name || '') + ' ' + (c.member_last_name || ''))}" title="Saisir manuellement l'id Déciplus">🔗 Lier à Déciplus</button>`}
               ${c.has_pdf
                 ? `<button type="button" class="news-contract-pdf-btn" data-pdf-id="${c.id}">📄 Voir le contrat</button>`
                 : `<div class="news-contract-no-pdf">Pas de PDF stocké</div>`}

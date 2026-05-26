@@ -11889,6 +11889,23 @@ img {
 #tab-prel .prel-contract-fiche:hover {
   background: #4f46e5;
 }
+#tab-prel .prel-contract-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366F1;
+  background: transparent;
+  border: 1px dashed rgba(99,102,241,0.5);
+  padding: 4px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 120ms ease;
+}
+#tab-prel .prel-contract-link:hover {
+  background: rgba(99,102,241,0.08);
+  border-color: #6366F1;
+}
 #tab-prel .prel-contracts-ok-msg {
   background: rgba(16,185,129,0.08);
   color: #059669;
@@ -18118,6 +18135,23 @@ body.tk-dragging-active #tab-tasks .tk-card {
 #tab-news .news-alert-fiche:hover {
   background: #4f46e5;
 }
+#tab-news .news-alert-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366F1;
+  background: transparent;
+  border: 1px dashed rgba(99,102,241,0.5);
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 120ms ease;
+}
+#tab-news .news-alert-link:hover {
+  background: rgba(99,102,241,0.08);
+  border-color: #6366F1;
+}
 #tab-news .news-alert-ok {
   background: rgba(16,185,129,0.08);
   color: #059669;
@@ -18270,6 +18304,25 @@ body.tk-dragging-active #tab-tasks .tk-card {
   font-style: italic;
   padding: 6px 0;
   cursor: help;
+}
+#tab-news .news-contract-link-btn {
+  background: transparent;
+  border: 1px dashed rgba(99,102,241,0.5);
+  color: #6366F1;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  text-align: center;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  transition: all 120ms ease;
+}
+#tab-news .news-contract-link-btn:hover {
+  background: rgba(99,102,241,0.08);
+  border-color: #6366F1;
 }
 #tab-news .news-contract-no-pdf {
   margin-top: 4px;

@@ -441,6 +441,14 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_contracts_club ON contracts(club);
   `);
 
+  // Migration : ajoute id_client à la table contracts pour permettre
+  // l'association manuelle quand le membre n'apparaît dans aucun PREL.
+  const contractCols = db.prepare("PRAGMA table_info(contracts)").all().map(c => c.name);
+  if (!contractCols.includes('id_client')) {
+    db.exec(`ALTER TABLE contracts ADD COLUMN id_client INTEGER;`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contracts_id_client ON contracts(id_client);`);
+  }
+
   // Migration ponctuelle : re-capitalise les noms des contrats déjà importés
   // en minuscules avant l'ajout du title-case (effectué une seule fois).
   try {
