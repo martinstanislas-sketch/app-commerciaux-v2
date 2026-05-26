@@ -3492,6 +3492,126 @@ app.put('/api/admin/pin', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── NEWS (admin uniquement) ────────────────────────────────
+// Liste, création, modification, suppression et épinglage de posts
+// chronologiques. L'onglet est caché aux non-admins côté front, et
+// chaque endpoint enforce `requireAdmin` côté back.
+
+function newsRowToJson(r) {
+  let tags = [];
+  if (r.tags) {
+    try { tags = JSON.parse(r.tags); } catch (_) { tags = []; }
+    if (!Array.isArray(tags)) tags = [];
+  }
+  return {
+    id: r.id,
+    title: r.title,
+    body: r.body || '',
+    tags,
+    pinned: !!r.pinned,
+    author: r.author || null,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
+}
+
+app.get('/api/news', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const tag = (req.query.tag || '').toString().trim();
+  let rows;
+  if (tag) {
+    // Filtre simple : on cherche le tag exact dans le JSON
+    const pattern = `%"${tag.replace(/[%_]/g, '')}"%`;
+    rows = db.prepare(`
+      SELECT * FROM news_posts
+      WHERE tags LIKE ?
+      ORDER BY pinned DESC, created_at DESC
+    `).all(pattern);
+  } else {
+    rows = db.prepare(`
+      SELECT * FROM news_posts
+      ORDER BY pinned DESC, created_at DESC
+    `).all();
+  }
+  // Aggrège la liste de tous les tags pour le filtre
+  const allTags = new Set();
+  db.prepare(`SELECT tags FROM news_posts WHERE tags IS NOT NULL`).all().forEach(r => {
+    try {
+      const arr = JSON.parse(r.tags);
+      if (Array.isArray(arr)) arr.forEach(t => { if (t) allTags.add(String(t)); });
+    } catch (_) {}
+  });
+  res.json({
+    posts: rows.map(newsRowToJson),
+    all_tags: Array.from(allTags).sort(),
+  });
+});
+
+app.post('/api/news', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const title = String((req.body && req.body.title) || '').trim();
+  const body = String((req.body && req.body.body) || '').trim();
+  if (!title) return res.status(400).json({ error: 'Titre requis' });
+  if (title.length > 200) return res.status(400).json({ error: 'Titre trop long (max 200)' });
+  if (body.length > 20000) return res.status(400).json({ error: 'Corps trop long (max 20000)' });
+  let tags = [];
+  if (Array.isArray(req.body && req.body.tags)) {
+    tags = req.body.tags.map(t => String(t).trim()).filter(Boolean).slice(0, 10);
+  }
+  const pinned = req.body && req.body.pinned ? 1 : 0;
+  const info = db.prepare(`
+    INSERT INTO news_posts (title, body, tags, pinned, author)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(title, body, JSON.stringify(tags), pinned, req.session.name || 'admin');
+  const row = db.prepare(`SELECT * FROM news_posts WHERE id = ?`).get(info.lastInsertRowid);
+  res.json(newsRowToJson(row));
+});
+
+app.put('/api/news/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  const existing = db.prepare(`SELECT * FROM news_posts WHERE id = ?`).get(id);
+  if (!existing) return res.status(404).json({ error: 'Post introuvable' });
+  const fields = [];
+  const values = [];
+  if (req.body.title !== undefined) {
+    const t = String(req.body.title).trim();
+    if (!t) return res.status(400).json({ error: 'Titre vide' });
+    if (t.length > 200) return res.status(400).json({ error: 'Titre trop long' });
+    fields.push('title = ?'); values.push(t);
+  }
+  if (req.body.body !== undefined) {
+    const b = String(req.body.body).trim();
+    if (b.length > 20000) return res.status(400).json({ error: 'Corps trop long' });
+    fields.push('body = ?'); values.push(b);
+  }
+  if (req.body.tags !== undefined) {
+    let tags = [];
+    if (Array.isArray(req.body.tags)) {
+      tags = req.body.tags.map(t => String(t).trim()).filter(Boolean).slice(0, 10);
+    }
+    fields.push('tags = ?'); values.push(JSON.stringify(tags));
+  }
+  if (req.body.pinned !== undefined) {
+    fields.push('pinned = ?'); values.push(req.body.pinned ? 1 : 0);
+  }
+  if (fields.length === 0) return res.json(newsRowToJson(existing));
+  fields.push(`updated_at = datetime('now','localtime')`);
+  values.push(id);
+  db.prepare(`UPDATE news_posts SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  const row = db.prepare(`SELECT * FROM news_posts WHERE id = ?`).get(id);
+  res.json(newsRowToJson(row));
+});
+
+app.delete('/api/news/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  db.prepare(`DELETE FROM news_posts WHERE id = ?`).run(id);
+  res.json({ ok: true });
+});
+
 // ─── Mount COACH routes under /api/coach/* ──────────────────
 
 try {

@@ -625,6 +625,7 @@ function updateTabVisibility() {
   const persoBtn = document.querySelector('[data-tab="perso"]');
   const pilotageFunnelBtn = document.querySelector('[data-tab="pilotage-funnel"]');
   const prelBtn = document.querySelector('[data-tab="prel"]');
+  const newsBtn = document.querySelector('[data-tab="news"]');
 
   if (isConsultant()) {
     // Consultant : uniquement l'onglet Pilotage
@@ -637,6 +638,7 @@ function updateTabVisibility() {
     if (tasksBtn) tasksBtn.style.display = 'none';
     if (persoBtn) persoBtn.style.display = 'none';
     if (prelBtn) prelBtn.style.display = 'none';
+    if (newsBtn) newsBtn.style.display = 'none';
     if (pilotageFunnelBtn) {
       pilotageFunnelBtn.style.display = '';
       pilotageFunnelInitToPreviousMonth();
@@ -654,6 +656,7 @@ function updateTabVisibility() {
     if (persoBtn) persoBtn.style.display = 'none';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
     if (prelBtn) prelBtn.style.display = 'none';
+    if (newsBtn) newsBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -666,6 +669,7 @@ function updateTabVisibility() {
     if (persoBtn) persoBtn.style.display = '';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
     if (prelBtn) prelBtn.style.display = ''; // P.R.E.L : admin uniquement
+    if (newsBtn) newsBtn.style.display = ''; // NEWS : admin uniquement
     // Default landing tab on login (admin) = Pilotage, pré-réglé au mois précédent
     if (pilotageFunnelBtn) {
       pilotageFunnelInitToPreviousMonth();
@@ -687,6 +691,7 @@ function updateTabVisibility() {
     if (persoBtn) persoBtn.style.display = 'none';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
     if (prelBtn) prelBtn.style.display = 'none'; // P.R.E.L réservé à l'admin
+    if (newsBtn) newsBtn.style.display = 'none'; // NEWS réservé à l'admin
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else todayBtn.click();
   }
@@ -2596,6 +2601,7 @@ function initTabs() {
       if (btn.dataset.tab === 'tasks') loadTasksBoard();
       if (btn.dataset.tab === 'pilotage-funnel') loadPilotageFunnel();
       if (btn.dataset.tab === 'prel') loadPrelTab();
+      if (btn.dataset.tab === 'news') loadNewsTab();
     });
   });
 }
@@ -13020,5 +13026,232 @@ async function handlePrelFileImport(file, targetSlot) {
   } catch (err) {
     console.error('[prel] import error', err);
     alert('Erreur d\'import :\n' + (err.message || err));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// NEWS (admin uniquement) — fil chronologique de notes / annonces.
+// ─────────────────────────────────────────────────────────────────────────
+
+let newsTabBooted = false;
+let newsCurrentTagFilter = null;
+let newsAllTags = [];
+
+async function loadNewsTab() {
+  if (!isAdmin()) return;
+  if (!newsTabBooted) {
+    newsTabBooted = true;
+    const newBtn = document.getElementById('news-new-trigger');
+    if (newBtn) newBtn.addEventListener('click', () => openNewsModal(null));
+    const closeBtn = document.getElementById('news-modal-close');
+    if (closeBtn) closeBtn.addEventListener('click', closeNewsModal);
+    const cancelBtn = document.getElementById('news-form-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', closeNewsModal);
+    const overlay = document.getElementById('news-overlay');
+    if (overlay) overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeNewsModal();
+    });
+    const form = document.getElementById('news-form');
+    if (form) form.addEventListener('submit', onNewsFormSubmit);
+  }
+  await reloadNewsFeed();
+}
+
+async function reloadNewsFeed() {
+  const feed = document.getElementById('news-feed');
+  const filters = document.getElementById('news-filters');
+  if (!feed) return;
+  feed.innerHTML = `<div class="news-loading">Chargement…</div>`;
+  try {
+    const url = newsCurrentTagFilter
+      ? `/api/news?tag=${encodeURIComponent(newsCurrentTagFilter)}`
+      : '/api/news';
+    const data = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+    }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
+    newsAllTags = data.all_tags || [];
+    renderNewsFilters();
+    renderNewsFeed(data.posts || []);
+  } catch (err) {
+    feed.innerHTML = `<div class="news-empty"><div class="news-empty-text">Erreur : ${escapeHtml(String(err.message || err))}</div></div>`;
+    if (filters) filters.innerHTML = '';
+  }
+}
+
+function renderNewsFilters() {
+  const filters = document.getElementById('news-filters');
+  if (!filters) return;
+  if (newsAllTags.length === 0) {
+    filters.innerHTML = '';
+    return;
+  }
+  const allActive = !newsCurrentTagFilter;
+  filters.innerHTML = `
+    <button class="news-filter-pill ${allActive ? 'active' : ''}" data-tag="">Tous</button>
+    ${newsAllTags.map(t => `
+      <button class="news-filter-pill ${newsCurrentTagFilter === t ? 'active' : ''}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</button>
+    `).join('')}
+  `;
+  filters.querySelectorAll('[data-tag]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = btn.dataset.tag || null;
+      newsCurrentTagFilter = t || null;
+      reloadNewsFeed();
+    });
+  });
+}
+
+function renderNewsFeed(posts) {
+  const feed = document.getElementById('news-feed');
+  if (!feed) return;
+  if (posts.length === 0) {
+    feed.innerHTML = `
+      <div class="news-empty">
+        <div class="news-empty-icon" aria-hidden="true">📰</div>
+        <div class="news-empty-text">${newsCurrentTagFilter
+          ? `Aucune news avec le tag <strong>${escapeHtml(newsCurrentTagFilter)}</strong>.`
+          : 'Aucune news pour l\'instant. Clique sur <strong>＋ Nouvelle news</strong> pour commencer.'}</div>
+      </div>`;
+    return;
+  }
+  feed.innerHTML = posts.map(p => renderNewsCard(p)).join('');
+  feed.querySelectorAll('[data-edit-id]').forEach(b => {
+    b.addEventListener('click', () => {
+      const id = parseInt(b.dataset.editId, 10);
+      const post = posts.find(p => p.id === id);
+      if (post) openNewsModal(post);
+    });
+  });
+  feed.querySelectorAll('[data-delete-id]').forEach(b => {
+    b.addEventListener('click', () => deleteNewsPost(parseInt(b.dataset.deleteId, 10), b.dataset.deleteTitle));
+  });
+  feed.querySelectorAll('[data-pin-id]').forEach(b => {
+    b.addEventListener('click', () => toggleNewsPin(parseInt(b.dataset.pinId, 10), b.dataset.pinned === '1'));
+  });
+}
+
+function renderNewsCard(p) {
+  const relDate = newsFormatRelative(p.created_at);
+  const wasUpdated = p.updated_at && p.updated_at !== p.created_at;
+  // Échappe le corps puis convertit les retours-ligne en <br>
+  const bodyHtml = escapeHtml(p.body || '').replace(/\n/g, '<br>');
+  const tagsHtml = (p.tags || []).map(t => `<span class="news-tag">${escapeHtml(t)}</span>`).join('');
+  return `
+    <article class="news-card ${p.pinned ? 'news-card-pinned' : ''}">
+      <header class="news-card-header">
+        <div class="news-card-meta">
+          ${p.pinned ? '<span class="news-pin-badge" title="Épinglée">📌 Épinglée</span>' : ''}
+          ${tagsHtml}
+          <span class="news-card-date" title="${escapeHtml(p.created_at)}">${escapeHtml(relDate)}</span>
+          ${wasUpdated ? `<span class="news-card-updated" title="Modifiée le ${escapeHtml(p.updated_at)}">(modifiée)</span>` : ''}
+        </div>
+        <div class="news-card-actions">
+          <button class="news-icon-btn" data-pin-id="${p.id}" data-pinned="${p.pinned ? '1' : '0'}" title="${p.pinned ? 'Désépingler' : 'Épingler'}">${p.pinned ? '📌' : '📍'}</button>
+          <button class="news-icon-btn" data-edit-id="${p.id}" title="Modifier">✏</button>
+          <button class="news-icon-btn news-icon-danger" data-delete-id="${p.id}" data-delete-title="${escapeHtml(p.title)}" title="Supprimer">🗑</button>
+        </div>
+      </header>
+      <h3 class="news-card-title">${escapeHtml(p.title)}</h3>
+      ${p.body ? `<div class="news-card-body">${bodyHtml}</div>` : ''}
+    </article>
+  `;
+}
+
+function newsFormatRelative(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return iso;
+  const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+  const now = new Date();
+  const diff = (now - dt) / 1000;
+  if (diff < 60) return 'à l\'instant';
+  if (diff < 3600) return `il y a ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)} h`;
+  if (diff < 7 * 86400) return `il y a ${Math.floor(diff / 86400)} j`;
+  // Au-delà, date absolue
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function openNewsModal(post) {
+  const overlay = document.getElementById('news-overlay');
+  if (!overlay) return;
+  document.getElementById('news-modal-title').textContent = post ? 'Modifier la news' : 'Nouvelle news';
+  document.getElementById('news-form-id').value = post ? String(post.id) : '';
+  document.getElementById('news-form-title').value = post ? post.title : '';
+  document.getElementById('news-form-body').value = post ? (post.body || '') : '';
+  document.getElementById('news-form-tags').value = post ? (post.tags || []).join(', ') : '';
+  document.getElementById('news-form-pinned').checked = post ? !!post.pinned : false;
+  overlay.classList.remove('hidden');
+  setTimeout(() => {
+    const titleInput = document.getElementById('news-form-title');
+    if (titleInput) titleInput.focus();
+  }, 50);
+}
+
+function closeNewsModal() {
+  const overlay = document.getElementById('news-overlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+async function onNewsFormSubmit(e) {
+  e.preventDefault();
+  const id = document.getElementById('news-form-id').value;
+  const title = document.getElementById('news-form-title').value.trim();
+  const body = document.getElementById('news-form-body').value;
+  const tagsRaw = document.getElementById('news-form-tags').value;
+  const pinned = document.getElementById('news-form-pinned').checked;
+  if (!title) {
+    alert('Le titre est requis.');
+    return;
+  }
+  const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+  const payload = { title, body, tags, pinned };
+  try {
+    const url = id ? `/api/news/${id}` : '/api/news';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    closeNewsModal();
+    await reloadNewsFeed();
+  } catch (err) {
+    alert('Erreur enregistrement : ' + (err.message || err));
+  }
+}
+
+async function deleteNewsPost(id, title) {
+  if (!confirm(`Supprimer la news « ${title} » ?\n\nCette action est irréversible.`)) return;
+  try {
+    const res = await fetch(`/api/news/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await reloadNewsFeed();
+  } catch (err) {
+    alert('Erreur suppression : ' + (err.message || err));
+  }
+}
+
+async function toggleNewsPin(id, currentlyPinned) {
+  try {
+    const res = await fetch(`/api/news/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify({ pinned: !currentlyPinned }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await reloadNewsFeed();
+  } catch (err) {
+    alert('Erreur épinglage : ' + (err.message || err));
   }
 }

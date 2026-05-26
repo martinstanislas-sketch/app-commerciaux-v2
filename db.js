@@ -403,6 +403,23 @@ function initSchema() {
   if (!colCols2.includes('archived_at')) {
     db.exec(`ALTER TABLE task_columns ADD COLUMN archived_at TEXT;`);
   }
+
+  // ─── NEWS (admin uniquement) ────────────────────────────────
+  // Notes / annonces datées. CRUD complet pour l'admin, lecture seule
+  // exclusive (l'onglet est lui-même caché aux non-admins).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS news_posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      tags TEXT,                                       -- JSON array string
+      pinned INTEGER NOT NULL DEFAULT 0,
+      author TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_news_created ON news_posts(pinned DESC, created_at DESC);
+  `);
   // Seed default columns if empty
   const colCount = db.prepare('SELECT COUNT(*) AS c FROM task_columns').get().c;
   if (colCount === 0) {
