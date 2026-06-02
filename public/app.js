@@ -13799,7 +13799,7 @@ const COCKPIT_PILIERS = [
   {
     id: 'p03', num: '03', name: 'Vendre', subtitle: 'Transformer & maximiser',
     kpis: [
-      { id: 'panier_moyen', label: 'Panier moyen', unit: '€' },
+      { id: 'suspension', label: 'Suspension', unit: '' },
       { id: 'heures_co_ca', label: 'Heures co. / CA facturé', unit: '' },
       { id: 'taux_conversion', label: 'Taux de conversion', unit: '%' },
     ],
