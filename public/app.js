@@ -7651,30 +7651,72 @@ function addTaskInline(columnId, btn) {
     showToast('Lecture seule — vous consultez le tableau d\'un autre utilisateur', 'error');
     return;
   }
-  // Replace button with input
-  const input = document.createElement('input');
-  input.type = 'text';
+  // Textarea (au lieu d'un simple input) → permet le multi-lignes via
+  // Shift+Enter ou un coller depuis le presse-papiers. Enter seul = soumet.
+  const input = document.createElement('textarea');
   input.className = 'tk-add-input';
-  input.placeholder = 'Nouvelle tâche…';
+  input.placeholder = 'Nouvelle tâche…  (Enter = créer · Shift+Enter = ligne suivante)';
+  input.rows = 1;
   btn.style.display = 'none';
   btn.parentNode.insertBefore(input, btn);
   input.focus();
   let submitted = false;
+  let dialogOpen = false;
+
+  const autoGrow = () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+  };
+  input.addEventListener('input', autoGrow);
 
   const cleanup = () => {
     if (input.parentNode) input.remove();
     btn.style.display = '';
   };
 
+  const createOne = async (text) => {
+    const task = await api('/tasks', { method: 'POST', body: { column_id: columnId, text } });
+    const col = tasksBoard.find(c => c.id === columnId);
+    if (col) col.tasks.push(task);
+  };
+
   const submit = async () => {
-    if (submitted) return;
+    if (submitted || dialogOpen) return;
+    const raw = input.value;
+    const text = raw.trim();
+    if (!text) { submitted = true; cleanup(); return; }
+    // Détecte le multi-lignes (lignes non vides après split)
+    const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length >= 2) {
+      dialogOpen = true;
+      showSplitTasksDialog(lines, async (choice) => {
+        dialogOpen = false;
+        if (choice === 'cancel') {
+          input.focus();
+          return;
+        }
+        submitted = true;
+        try {
+          if (choice === 'multi') {
+            // Création séquentielle pour préserver l'ordre des positions
+            for (const line of lines) await createOne(line);
+          } else { // 'single'
+            // Conserve les retours-ligne en stockant la version brute
+            await createOne(text);
+          }
+          cleanup();
+          renderTasksBoard();
+        } catch (e) {
+          showToast('Erreur ajout tâche', 'error');
+          cleanup();
+        }
+      });
+      return;
+    }
+    // Cas simple : une seule tâche
     submitted = true;
-    const text = input.value.trim();
-    if (!text) { cleanup(); return; }
     try {
-      const task = await api('/tasks', { method: 'POST', body: { column_id: columnId, text } });
-      const col = tasksBoard.find(c => c.id === columnId);
-      if (col) col.tasks.push(task);
+      await createOne(text);
       cleanup();
       renderTasksBoard();
     } catch (e) {
@@ -7684,10 +7726,53 @@ function addTaskInline(columnId, btn) {
   };
 
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); submit(); }
-    else if (e.key === 'Escape') { submitted = true; cleanup(); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      // Enter seul → soumet ; Shift+Enter → laisse passer (nouvelle ligne)
+      e.preventDefault();
+      submit();
+    } else if (e.key === 'Escape') {
+      submitted = true;
+      cleanup();
+    }
   });
-  input.addEventListener('blur', () => setTimeout(submit, 100));
+  input.addEventListener('blur', () => {
+    // Si une dialogue est ouverte, on ne soumet pas (l'utilisateur a cliqué dessus)
+    setTimeout(() => { if (!dialogOpen) submit(); }, 100);
+  });
+}
+
+// Mini-dialogue : propose de scinder N lignes en N tâches séparées
+// ou de créer 1 seule tâche multi-lignes.
+function showSplitTasksDialog(lines, callback) {
+  // Ferme une éventuelle dialogue précédente
+  document.querySelectorAll('.tk-split-overlay').forEach(o => o.remove());
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay tk-split-overlay';
+  overlay.innerHTML = `
+    <div class="modal tk-split-modal">
+      <h3 class="tk-split-title">${lines.length} lignes détectées</h3>
+      <p class="tk-split-subtitle">Que veux-tu faire ?</p>
+      <ul class="tk-split-preview">
+        ${lines.slice(0, 6).map(l => `<li>${escapeHtml(l)}</li>`).join('')}
+        ${lines.length > 6 ? `<li class="tk-split-more">… (+${lines.length - 6} de plus)</li>` : ''}
+      </ul>
+      <div class="tk-split-actions">
+        <button type="button" class="tk-split-btn tk-split-multi">📋 Créer ${lines.length} tâches séparées</button>
+        <button type="button" class="tk-split-btn tk-split-single">📝 Créer 1 seule tâche (multi-lignes)</button>
+        <button type="button" class="tk-split-btn tk-split-cancel">Annuler</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const done = (choice) => { overlay.remove(); callback(choice); };
+  overlay.querySelector('.tk-split-multi').addEventListener('click', () => done('multi'));
+  overlay.querySelector('.tk-split-single').addEventListener('click', () => done('single'));
+  overlay.querySelector('.tk-split-cancel').addEventListener('click', () => done('cancel'));
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) done('cancel');
+  });
+  // Focus sur le bouton principal pour Enter = scinder
+  setTimeout(() => overlay.querySelector('.tk-split-multi').focus(), 50);
 }
 
 // Replaced by openTaskPanel — kept name for compat

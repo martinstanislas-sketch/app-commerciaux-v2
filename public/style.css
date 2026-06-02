@@ -13818,6 +13818,94 @@ body.is-consultant .pf-consultant-only.pf-filter-group { display: flex !importan
   background: var(--ds-bg-card);
   outline: none;
   box-shadow: 0 0 0 3px var(--ds-primary-tint);
+  resize: none;        /* géré par autoGrow JS */
+  min-height: 36px;
+  line-height: 1.4;
+  overflow-y: auto;
+}
+
+/* ── Mini-modale : scinder en plusieurs tâches ou créer une seule ── */
+.tk-split-overlay {
+  z-index: 9000;
+}
+.tk-split-modal {
+  max-width: 480px;
+  width: 92vw;
+  padding: 22px 24px 18px;
+}
+.tk-split-modal .tk-split-title {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text, #1E293B);
+}
+.tk-split-modal .tk-split-subtitle {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--text-muted, #94A3B8);
+}
+.tk-split-modal .tk-split-preview {
+  margin: 0 0 18px;
+  padding: 10px 14px 10px 30px;
+  background: rgba(99,102,241,0.05);
+  border-radius: 10px;
+  list-style: decimal;
+  font-size: 13px;
+  color: var(--text, #1E293B);
+  max-height: 180px;
+  overflow-y: auto;
+}
+.tk-split-modal .tk-split-preview li {
+  padding: 3px 0;
+  line-height: 1.4;
+}
+.tk-split-modal .tk-split-preview li.tk-split-more {
+  list-style: none;
+  margin-left: -16px;
+  font-style: italic;
+  color: var(--text-muted, #94A3B8);
+}
+.tk-split-modal .tk-split-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tk-split-modal .tk-split-btn {
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 9px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 120ms ease;
+  border: 1px solid;
+}
+.tk-split-modal .tk-split-multi {
+  background: #6366F1;
+  border-color: #6366F1;
+  color: #fff;
+}
+.tk-split-modal .tk-split-multi:hover {
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+.tk-split-modal .tk-split-single {
+  background: transparent;
+  border-color: rgba(99,102,241,0.3);
+  color: #6366F1;
+}
+.tk-split-modal .tk-split-single:hover {
+  background: rgba(99,102,241,0.08);
+}
+.tk-split-modal .tk-split-cancel {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted, #94A3B8);
+}
+.tk-split-modal .tk-split-cancel:hover {
+  background: rgba(148,163,194,0.08);
+  color: var(--text, #1E293B);
 }
 
 /* Input d'édition du nom de colonne */
