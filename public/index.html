@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-tk-multi1">
+  <link rel="stylesheet" href="style.css?v=ds-cockpit1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -47,6 +47,7 @@
       <button class="tab-btn" data-tab="pilotage-funnel">Pilotage</button>
       <button class="tab-btn" data-tab="prel">P.R.E.L</button>
       <button class="tab-btn" data-tab="news">NEWS</button>
+      <button class="tab-btn" data-tab="cockpit">Cockpit</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button> -->
     </nav>
@@ -771,6 +772,28 @@
       </div>
     </section>
 
+    <!-- COCKPIT (admin uniquement) — Tableau de bord mensuel KPIs par club -->
+    <section id="tab-cockpit" class="tab-content">
+      <div class="cockpit-banner">
+        <h1 class="cockpit-banner-title">Cockpit de pilotage — suivi mensuel</h1>
+      </div>
+      <div class="cockpit-wrap">
+        <div class="cockpit-toolbar">
+          <div class="cockpit-club-picker">
+            <button type="button" class="cockpit-nav-btn" id="cockpit-club-prev" aria-label="Club précédent">‹</button>
+            <select id="cockpit-club-select" class="cockpit-club-select"></select>
+            <button type="button" class="cockpit-nav-btn" id="cockpit-club-next" aria-label="Club suivant">›</button>
+          </div>
+          <div class="cockpit-month-picker">
+            <button type="button" class="cockpit-nav-btn" id="cockpit-month-prev" aria-label="Mois précédent">‹</button>
+            <span id="cockpit-month-label" class="cockpit-month-label">—</span>
+            <button type="button" class="cockpit-nav-btn" id="cockpit-month-next" aria-label="Mois suivant">›</button>
+          </div>
+        </div>
+        <div id="cockpit-piliers" class="cockpit-piliers"></div>
+      </div>
+    </section>
+
     <!-- EMAIL / ADMIN -->
   </main>
 
@@ -879,6 +902,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-tk-multi1"></script>
+  <script src="app.js?v=ds-cockpit1"></script>
 </body>
 </html>

@@ -4078,6 +4078,115 @@ app.get('/api/contracts/analysis', requireAuth, requireAdmin, (req, res) => {
   });
 });
 
+// ─── COCKPIT : suivi mensuel KPIs par club ──────────────────
+// Liste de clubs (à éditer ici pour reconfigurer le tableau de bord).
+const COCKPIT_CLUBS = [
+  'Boulogne-Billancourt',
+  'Lille',
+  'Levallois-Perret',
+  'Marcq-en-Barœul',
+  'Neuilly-sur-Seine',
+  'Wasquehal',
+];
+
+function isValidIsoMonth(s) {
+  return /^\d{4}-\d{2}-01$/.test(String(s || ''));
+}
+
+app.get('/api/cockpit/clubs', requireAuth, requireAdmin, (req, res) => {
+  res.json({ clubs: COCKPIT_CLUBS });
+});
+
+// GET /api/cockpit/data?club=X&month=YYYY-MM-01
+// → { objectifs: { kpi_id: val }, valeurs: { kpi_id: val } } pour ce club+mois.
+app.get('/api/cockpit/data', requireAuth, requireAdmin, (req, res) => {
+  const club = String(req.query.club || '').trim();
+  const month = String(req.query.month || '').trim();
+  if (!club) return res.status(400).json({ error: 'club requis' });
+  if (!isValidIsoMonth(month)) return res.status(400).json({ error: 'month requis (YYYY-MM-01)' });
+  const db = getDb();
+  const objs = db.prepare(`SELECT kpi_id, objectif FROM kpi_objectives WHERE club = ?`).all(club);
+  const vals = db.prepare(`SELECT kpi_id, valeur FROM kpi_values WHERE club = ? AND month = ?`).all(club, month);
+  const objectifs = {};
+  objs.forEach(r => { objectifs[r.kpi_id] = r.objectif; });
+  const valeurs = {};
+  vals.forEach(r => { valeurs[r.kpi_id] = r.valeur; });
+  res.json({ club, month, objectifs, valeurs });
+});
+
+// GET /api/cockpit/average?month=YYYY-MM-01
+// → { objectifs: { kpi_id: { avg, n } }, valeurs: { kpi_id: { avg, n } } }
+//   Moyenne arithmétique sur les clubs ayant une valeur non null.
+//   n = nombre de clubs renseignés (sur COCKPIT_CLUBS.length).
+app.get('/api/cockpit/average', requireAuth, requireAdmin, (req, res) => {
+  const month = String(req.query.month || '').trim();
+  if (!isValidIsoMonth(month)) return res.status(400).json({ error: 'month requis (YYYY-MM-01)' });
+  const db = getDb();
+  const totalClubs = COCKPIT_CLUBS.length;
+  const objs = db.prepare(`
+    SELECT kpi_id, AVG(objectif) AS avg, COUNT(*) AS n
+    FROM kpi_objectives WHERE objectif IS NOT NULL AND club IN (${COCKPIT_CLUBS.map(() => '?').join(',')})
+    GROUP BY kpi_id
+  `).all(...COCKPIT_CLUBS);
+  const vals = db.prepare(`
+    SELECT kpi_id, AVG(valeur) AS avg, COUNT(*) AS n
+    FROM kpi_values WHERE month = ? AND valeur IS NOT NULL
+      AND club IN (${COCKPIT_CLUBS.map(() => '?').join(',')})
+    GROUP BY kpi_id
+  `).all(month, ...COCKPIT_CLUBS);
+  const objectifs = {};
+  objs.forEach(r => { objectifs[r.kpi_id] = { avg: r.avg, n: r.n }; });
+  const valeurs = {};
+  vals.forEach(r => { valeurs[r.kpi_id] = { avg: r.avg, n: r.n }; });
+  res.json({ month, total_clubs: totalClubs, objectifs, valeurs });
+});
+
+// PUT /api/cockpit/objectif  body { club, kpi_id, objectif }
+app.put('/api/cockpit/objectif', requireAuth, requireAdmin, (req, res) => {
+  const { club, kpi_id } = req.body || {};
+  const objectif = req.body && req.body.objectif;
+  if (!club || !kpi_id) return res.status(400).json({ error: 'club + kpi_id requis' });
+  if (!COCKPIT_CLUBS.includes(club)) return res.status(400).json({ error: 'club inconnu' });
+  const db = getDb();
+  const v = (objectif === null || objectif === '' || objectif === undefined)
+    ? null
+    : Number(objectif);
+  if (v !== null && !Number.isFinite(v)) return res.status(400).json({ error: 'objectif doit être un nombre' });
+  if (v === null) {
+    db.prepare(`DELETE FROM kpi_objectives WHERE club = ? AND kpi_id = ?`).run(String(club), String(kpi_id));
+  } else {
+    db.prepare(`
+      INSERT INTO kpi_objectives (club, kpi_id, objectif) VALUES (?, ?, ?)
+      ON CONFLICT(club, kpi_id) DO UPDATE SET objectif = excluded.objectif
+    `).run(String(club), String(kpi_id), v);
+  }
+  res.json({ ok: true });
+});
+
+// PUT /api/cockpit/valeur  body { club, month, kpi_id, valeur }
+app.put('/api/cockpit/valeur', requireAuth, requireAdmin, (req, res) => {
+  const { club, month, kpi_id } = req.body || {};
+  const valeur = req.body && req.body.valeur;
+  if (!club || !kpi_id) return res.status(400).json({ error: 'club + kpi_id requis' });
+  if (!COCKPIT_CLUBS.includes(club)) return res.status(400).json({ error: 'club inconnu' });
+  if (!isValidIsoMonth(month)) return res.status(400).json({ error: 'month requis (YYYY-MM-01)' });
+  const db = getDb();
+  const v = (valeur === null || valeur === '' || valeur === undefined)
+    ? null
+    : Number(valeur);
+  if (v !== null && !Number.isFinite(v)) return res.status(400).json({ error: 'valeur doit être un nombre' });
+  if (v === null) {
+    db.prepare(`DELETE FROM kpi_values WHERE club = ? AND month = ? AND kpi_id = ?`)
+      .run(String(club), String(month), String(kpi_id));
+  } else {
+    db.prepare(`
+      INSERT INTO kpi_values (club, month, kpi_id, valeur) VALUES (?, ?, ?, ?)
+      ON CONFLICT(club, month, kpi_id) DO UPDATE SET valeur = excluded.valeur
+    `).run(String(club), String(month), String(kpi_id), v);
+  }
+  res.json({ ok: true });
+});
+
 // ─── Mount COACH routes under /api/coach/* ──────────────────
 
 try {

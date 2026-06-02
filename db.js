@@ -449,6 +449,26 @@ function initSchema() {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_contracts_id_client ON contracts(id_client);`);
   }
 
+  // ─── COCKPIT : suivi mensuel KPIs par club ──────────────────
+  // Équivalent SQLite des tables kpi_objectives / kpi_values décrites
+  // dans le brief Supabase. Upsert immédiat à la saisie.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS kpi_objectives (
+      club TEXT NOT NULL,
+      kpi_id TEXT NOT NULL,
+      objectif REAL,
+      PRIMARY KEY (club, kpi_id)
+    );
+    CREATE TABLE IF NOT EXISTS kpi_values (
+      club TEXT NOT NULL,
+      month TEXT NOT NULL,        -- 1er du mois ISO (YYYY-MM-01)
+      kpi_id TEXT NOT NULL,
+      valeur REAL,
+      PRIMARY KEY (club, month, kpi_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_kpi_values_month ON kpi_values(month);
+  `);
+
   // Migration ponctuelle : re-capitalise les noms des contrats déjà importés
   // en minuscules avant l'ajout du title-case (effectué une seule fois).
   try {

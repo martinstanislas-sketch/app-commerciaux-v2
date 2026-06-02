@@ -626,6 +626,7 @@ function updateTabVisibility() {
   const pilotageFunnelBtn = document.querySelector('[data-tab="pilotage-funnel"]');
   const prelBtn = document.querySelector('[data-tab="prel"]');
   const newsBtn = document.querySelector('[data-tab="news"]');
+  const cockpitBtn = document.querySelector('[data-tab="cockpit"]');
 
   if (isConsultant()) {
     // Consultant : uniquement l'onglet Pilotage
@@ -639,6 +640,7 @@ function updateTabVisibility() {
     if (persoBtn) persoBtn.style.display = 'none';
     if (prelBtn) prelBtn.style.display = 'none';
     if (newsBtn) newsBtn.style.display = 'none';
+    if (cockpitBtn) cockpitBtn.style.display = 'none';
     if (pilotageFunnelBtn) {
       pilotageFunnelBtn.style.display = '';
       pilotageFunnelInitToPreviousMonth();
@@ -657,6 +659,7 @@ function updateTabVisibility() {
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
     if (prelBtn) prelBtn.style.display = 'none';
     if (newsBtn) newsBtn.style.display = 'none';
+    if (cockpitBtn) cockpitBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -670,6 +673,7 @@ function updateTabVisibility() {
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
     if (prelBtn) prelBtn.style.display = ''; // P.R.E.L : admin uniquement
     if (newsBtn) newsBtn.style.display = ''; // NEWS : admin uniquement
+    if (cockpitBtn) cockpitBtn.style.display = ''; // Cockpit : admin uniquement
     // Default landing tab on login (admin) = Pilotage, pré-réglé au mois précédent
     if (pilotageFunnelBtn) {
       pilotageFunnelInitToPreviousMonth();
@@ -692,6 +696,7 @@ function updateTabVisibility() {
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
     if (prelBtn) prelBtn.style.display = 'none'; // P.R.E.L réservé à l'admin
     if (newsBtn) newsBtn.style.display = 'none'; // NEWS réservé à l'admin
+    if (cockpitBtn) cockpitBtn.style.display = 'none'; // Cockpit réservé à l'admin
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else todayBtn.click();
   }
@@ -2602,6 +2607,7 @@ function initTabs() {
       if (btn.dataset.tab === 'pilotage-funnel') loadPilotageFunnel();
       if (btn.dataset.tab === 'prel') loadPrelTab();
       if (btn.dataset.tab === 'news') loadNewsTab();
+      if (btn.dataset.tab === 'cockpit') loadCockpitTab();
     });
   });
 }
@@ -13766,4 +13772,254 @@ function renderNewsContracts(contracts) {
       }
     });
   });
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// COCKPIT — Tableau de bord mensuel KPIs (admin uniquement)
+// ═════════════════════════════════════════════════════════════════════════
+
+// Structure de référence des piliers + KPIs (en dur, identique au brief)
+const COCKPIT_PILIERS = [
+  {
+    id: 'p01', num: '01', name: 'Acquisition', subtitle: 'Générer du flux',
+    kpis: [
+      { id: 'meta_ads', label: 'Meta Ads', unit: 'leads' },
+      { id: 'partenaires_locaux', label: 'Partenaires locaux', unit: '' },
+      { id: 'prise_reference', label: 'Prise de référence', unit: '' },
+    ],
+  },
+  {
+    id: 'p02', num: '02', name: 'Fixer des RDV', subtitle: 'Qualifier & convertir',
+    kpis: [
+      { id: 'appels_restants', label: "Nbr d'appels restants / mois", unit: '' },
+      { id: 'ratio_rdv_appels', label: 'Ratio RDV fixés / appels', unit: '%' },
+      { id: 'ratio_showup_rdv', label: 'Ratio Show up / RDV fixé', unit: '%' },
+    ],
+  },
+  {
+    id: 'p03', num: '03', name: 'Vendre', subtitle: 'Transformer & maximiser',
+    kpis: [
+      { id: 'panier_moyen', label: 'Panier moyen', unit: '€' },
+      { id: 'heures_co_ca', label: 'Heures co. / CA facturé', unit: '' },
+      { id: 'taux_conversion', label: 'Taux de conversion', unit: '%' },
+    ],
+  },
+  {
+    id: 'p04', num: '04', name: 'LTV', subtitle: 'Fidéliser & développer',
+    kpis: [
+      { id: 'retention_m1', label: 'Rétention M1 cohorte', unit: '%' },
+      { id: 'taux_resiliation', label: 'Taux de résiliation', unit: '%' },
+      { id: 'surpack', label: 'Surpack', unit: '%' },
+    ],
+  },
+];
+
+const COCKPIT_AVG_KEY = '__avg__';
+const COCKPIT_MONTHS_FR = [
+  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+];
+
+// État Cockpit
+let cockpitBooted = false;
+let cockpitClubs = [];
+let cockpitClub = null;          // club courant ou COCKPIT_AVG_KEY
+let cockpitMonth = null;         // ISO YYYY-MM-01
+
+function cockpitTodayMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+function cockpitFormatMonth(iso) {
+  if (!iso) return '—';
+  const [y, m] = iso.split('-').map(Number);
+  return `${COCKPIT_MONTHS_FR[m - 1] || '?'} ${y}`;
+}
+function cockpitShiftMonth(iso, delta) {
+  const [y, m] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-01`;
+}
+
+async function loadCockpitTab() {
+  if (!isAdmin()) return;
+  if (!cockpitBooted) {
+    cockpitBooted = true;
+    // Charge la liste de clubs
+    try {
+      const data = await fetch('/api/cockpit/clubs', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+      }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP')));
+      cockpitClubs = Array.isArray(data.clubs) ? data.clubs : [];
+    } catch (_) {
+      cockpitClubs = [];
+    }
+    // Initialise l'état
+    if (!cockpitClub) cockpitClub = cockpitClubs[0] || COCKPIT_AVG_KEY;
+    if (!cockpitMonth) cockpitMonth = cockpitTodayMonth();
+    cockpitBuildSelectors();
+    // Bindings
+    document.getElementById('cockpit-club-prev')?.addEventListener('click', () => cockpitNavigateClub(-1));
+    document.getElementById('cockpit-club-next')?.addEventListener('click', () => cockpitNavigateClub(+1));
+    document.getElementById('cockpit-month-prev')?.addEventListener('click', () => cockpitNavigateMonth(-1));
+    document.getElementById('cockpit-month-next')?.addEventListener('click', () => cockpitNavigateMonth(+1));
+    document.getElementById('cockpit-club-select')?.addEventListener('change', (e) => {
+      cockpitClub = e.target.value;
+      cockpitRender();
+    });
+  }
+  cockpitRender();
+}
+
+function cockpitBuildSelectors() {
+  const sel = document.getElementById('cockpit-club-select');
+  if (!sel) return;
+  const opts = [
+    ...cockpitClubs.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`),
+    `<option value="${COCKPIT_AVG_KEY}">Tous les clubs (moyenne)</option>`,
+  ].join('');
+  sel.innerHTML = opts;
+  sel.value = cockpitClub;
+}
+
+function cockpitNavigateClub(delta) {
+  // Liste des entrées navigables : tous les clubs + moyenne en dernier
+  const seq = [...cockpitClubs, COCKPIT_AVG_KEY];
+  const idx = seq.indexOf(cockpitClub);
+  if (idx < 0) return;
+  const next = (idx + delta + seq.length) % seq.length;
+  cockpitClub = seq[next];
+  const sel = document.getElementById('cockpit-club-select');
+  if (sel) sel.value = cockpitClub;
+  cockpitRender();
+}
+function cockpitNavigateMonth(delta) {
+  cockpitMonth = cockpitShiftMonth(cockpitMonth, delta);
+  cockpitRender();
+}
+
+async function cockpitRender() {
+  const monthLabel = document.getElementById('cockpit-month-label');
+  if (monthLabel) monthLabel.textContent = cockpitFormatMonth(cockpitMonth);
+  const container = document.getElementById('cockpit-piliers');
+  if (!container) return;
+  container.innerHTML = `<div class="cockpit-loading">Chargement…</div>`;
+  try {
+    const headers = { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` };
+    const isAvg = cockpitClub === COCKPIT_AVG_KEY;
+    const url = isAvg
+      ? `/api/cockpit/average?month=${encodeURIComponent(cockpitMonth)}`
+      : `/api/cockpit/data?club=${encodeURIComponent(cockpitClub)}&month=${encodeURIComponent(cockpitMonth)}`;
+    const data = await fetch(url, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
+    cockpitRenderPiliers(data, isAvg);
+  } catch (err) {
+    container.innerHTML = `<div class="cockpit-error">Erreur : ${escapeHtml(String(err.message || err))}</div>`;
+  }
+}
+
+function cockpitRenderPiliers(data, isAvg) {
+  const container = document.getElementById('cockpit-piliers');
+  if (!container) return;
+  const totalClubs = (data.total_clubs != null) ? data.total_clubs : (cockpitClubs.length || 0);
+  const cellValue = (kpiId, source) => {
+    // source = data.objectifs ou data.valeurs
+    if (isAvg) {
+      const entry = source && source[kpiId];
+      if (!entry || entry.n === 0) return { display: '—', readonly: true };
+      const v = Number(entry.avg);
+      const valStr = Number.isFinite(v) ? cockpitFormatNumber(v) : '—';
+      return { display: `${valStr} <span class="cockpit-avg-n">(${entry.n}/${totalClubs})</span>`, readonly: true };
+    }
+    const raw = source && source[kpiId];
+    return { display: (raw != null) ? raw : '', readonly: false };
+  };
+  container.innerHTML = COCKPIT_PILIERS.map(pilier => `
+    <article class="cockpit-pilier">
+      <header class="cockpit-pilier-head">
+        <div class="cockpit-pilier-num">${escapeHtml(pilier.num)}</div>
+        <div class="cockpit-pilier-meta">
+          <h2 class="cockpit-pilier-name">${escapeHtml(pilier.name)}</h2>
+          <div class="cockpit-pilier-subtitle">${escapeHtml(pilier.subtitle)}</div>
+        </div>
+      </header>
+      <table class="cockpit-table">
+        <thead>
+          <tr>
+            <th class="cockpit-col-indic">Indicateur</th>
+            <th class="cockpit-col-num">Objectif</th>
+            <th class="cockpit-col-num">${isAvg ? 'Moyenne clubs' : 'Valeur du mois'}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pilier.kpis.map(kpi => {
+            const obj = cellValue(kpi.id, data.objectifs);
+            const val = cellValue(kpi.id, data.valeurs);
+            const unit = kpi.unit ? `<span class="cockpit-unit">${escapeHtml(kpi.unit)}</span>` : '';
+            return `
+              <tr>
+                <td class="cockpit-indic">
+                  <span class="cockpit-indic-label">${escapeHtml(kpi.label)}</span>
+                  ${unit}
+                </td>
+                <td class="cockpit-cell">
+                  ${isAvg
+                    ? `<div class="cockpit-readonly">${obj.display}</div>`
+                    : `<input type="number" step="any" inputmode="decimal" class="cockpit-input" data-kpi="${escapeHtml(kpi.id)}" data-field="objectif" value="${escapeHtml(String(obj.display))}" placeholder="—">`}
+                </td>
+                <td class="cockpit-cell">
+                  ${isAvg
+                    ? `<div class="cockpit-readonly">${val.display}</div>`
+                    : `<input type="number" step="any" inputmode="decimal" class="cockpit-input" data-kpi="${escapeHtml(kpi.id)}" data-field="valeur" value="${escapeHtml(String(val.display))}" placeholder="—">`}
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </article>
+  `).join('');
+  // Branchement des inputs (mode édition uniquement)
+  if (!isAvg) {
+    container.querySelectorAll('.cockpit-input').forEach(input => {
+      input.addEventListener('blur', () => cockpitSaveCell(input));
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+    });
+  }
+}
+
+function cockpitFormatNumber(v) {
+  if (!Number.isFinite(v)) return '—';
+  // Affichage à 1 ou 2 décimales selon la valeur
+  if (Math.abs(v) >= 100 || Number.isInteger(v)) return v.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
+  return v.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+}
+
+async function cockpitSaveCell(input) {
+  const kpiId = input.dataset.kpi;
+  const field = input.dataset.field; // 'objectif' ou 'valeur'
+  const raw = input.value.trim();
+  const value = raw === '' ? null : Number(raw);
+  if (value !== null && !Number.isFinite(value)) {
+    input.style.borderColor = '#EF4444';
+    return;
+  }
+  input.style.borderColor = '';
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+    };
+    const url = field === 'objectif' ? '/api/cockpit/objectif' : '/api/cockpit/valeur';
+    const body = field === 'objectif'
+      ? { club: cockpitClub, kpi_id: kpiId, objectif: value }
+      : { club: cockpitClub, kpi_id: kpiId, month: cockpitMonth, valeur: value };
+    const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(await res.text());
+    // Petit feedback visuel discret
+    input.style.background = '#EAF1FC';
+    setTimeout(() => { input.style.background = ''; }, 500);
+  } catch (err) {
+    input.style.borderColor = '#EF4444';
+    console.error('[cockpit] save error', err);
+  }
 }
