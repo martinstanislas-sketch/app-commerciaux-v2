@@ -13782,6 +13782,7 @@ function renderNewsContracts(contracts) {
 const COCKPIT_PILIERS = [
   {
     id: 'p01', num: '01', name: 'Acquisition', subtitle: 'Générer du flux',
+    objectifLabel: 'N-1',
     kpis: [
       { id: 'meta_ads', label: 'Meta Ads', unit: 'leads', autoObjective: 'previous_month' },
       { id: 'cpl', label: 'CPL', unit: '€' },
@@ -13946,7 +13947,7 @@ function cockpitRenderPiliers(data, isAvg) {
         <thead>
           <tr>
             <th class="cockpit-col-indic">Indicateur</th>
-            <th class="cockpit-col-num">Objectif</th>
+            <th class="cockpit-col-num">${escapeHtml(pilier.objectifLabel || 'Objectif')}</th>
             <th class="cockpit-col-num">${isAvg ? 'Moyenne clubs' : 'Valeur du mois'}</th>
           </tr>
         </thead>
