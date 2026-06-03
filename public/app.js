@@ -13783,7 +13783,7 @@ const COCKPIT_PILIERS = [
   {
     id: 'p01', num: '01', name: 'Acquisition', subtitle: 'Générer du flux',
     kpis: [
-      { id: 'meta_ads', label: 'Meta Ads', unit: 'leads' },
+      { id: 'meta_ads', label: 'Meta Ads', unit: 'leads', autoObjective: 'previous_month' },
       { id: 'partenaires_locaux', label: 'Partenaires locaux', unit: '' },
       { id: 'prise_reference', label: 'Prise de référence', unit: '' },
     ],
@@ -13955,17 +13955,29 @@ function cockpitRenderPiliers(data, isAvg) {
             const obj = cellValue(kpi.id, data.objectifs);
             const val = cellValue(kpi.id, data.valeurs);
             const unit = kpi.unit ? `<span class="cockpit-unit">${escapeHtml(kpi.unit)}</span>` : '';
+            // Objectif auto : pour Meta Ads (et tout KPI marqué autoObjective:
+            // 'previous_month'), la cellule objectif est calculée serveur-side
+            // depuis la valeur de M-1 → toujours lecture seule, jamais éditable.
+            const isAutoObj = kpi.autoObjective === 'previous_month';
+            const autoTitle = "Objectif automatique : valeur du même club au mois précédent";
+            // En mode club édition, afficher la valeur formatée si auto-objectif,
+            // sinon l'input éditable normal.
+            let objCell;
+            if (isAvg) {
+              objCell = `<div class="cockpit-readonly">${obj.display}</div>`;
+            } else if (isAutoObj) {
+              const v = (obj.display === '' || obj.display == null) ? '—' : cockpitFormatNumber(Number(obj.display));
+              objCell = `<div class="cockpit-readonly cockpit-auto" title="${escapeHtml(autoTitle)}">${escapeHtml(String(v))} <span class="cockpit-auto-tag">auto M-1</span></div>`;
+            } else {
+              objCell = `<input type="number" step="any" inputmode="decimal" class="cockpit-input" data-kpi="${escapeHtml(kpi.id)}" data-field="objectif" value="${escapeHtml(String(obj.display))}" placeholder="—">`;
+            }
             return `
               <tr>
                 <td class="cockpit-indic">
                   <span class="cockpit-indic-label">${escapeHtml(kpi.label)}</span>
                   ${unit}
                 </td>
-                <td class="cockpit-cell">
-                  ${isAvg
-                    ? `<div class="cockpit-readonly">${obj.display}</div>`
-                    : `<input type="number" step="any" inputmode="decimal" class="cockpit-input" data-kpi="${escapeHtml(kpi.id)}" data-field="objectif" value="${escapeHtml(String(obj.display))}" placeholder="—">`}
-                </td>
+                <td class="cockpit-cell">${objCell}</td>
                 <td class="cockpit-cell">
                   ${isAvg
                     ? `<div class="cockpit-readonly">${val.display}</div>`

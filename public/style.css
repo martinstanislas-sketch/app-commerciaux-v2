@@ -18672,6 +18672,23 @@ body.tk-dragging-active #tab-tasks .tk-card {
   font-weight: 600;
   min-width: 60px;
 }
+#tab-cockpit .cockpit-readonly.cockpit-auto {
+  background: #DCE6FA;
+  border: 1px dashed #3A57A8;
+  cursor: help;
+}
+#tab-cockpit .cockpit-auto-tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #3A57A8;
+  background: #fff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
 #tab-cockpit .cockpit-avg-n {
   font-size: 11px;
   font-weight: 500;
