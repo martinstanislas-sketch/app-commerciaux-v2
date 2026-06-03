@@ -4093,17 +4093,17 @@ function isValidIsoMonth(s) {
   return /^\d{4}-\d{2}-01$/.test(String(s || ''));
 }
 
-// Calcule le mois précédent (1er du mois) à partir d'un YYYY-MM-01.
-function cockpitPreviousMonth(iso) {
+// Calcule le même mois de l'année précédente (N-1) à partir d'un YYYY-MM-01.
+// Ex: 2026-06-01 → 2025-06-01.
+function cockpitPreviousYearSameMonth(iso) {
   const [y, m] = iso.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 2, 1)); // m-1 en 0-indexed = m-2
-  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-01`;
+  return `${y - 1}-${String(m).padStart(2, '0')}-01`;
 }
 
 // KPI dont l'objectif est calculé automatiquement à partir de la valeur
-// du mois précédent (pas saisissable côté UI). Doit rester cohérent avec
-// la flag `autoObjective: 'previous_month'` côté front.
-const COCKPIT_AUTO_OBJECTIVE_PREVIOUS_MONTH = new Set(['meta_ads']);
+// du même mois en N-1 (pas saisissable côté UI). Doit rester cohérent
+// avec la flag `autoObjective: 'previous_year_same_month'` côté front.
+const COCKPIT_AUTO_OBJECTIVE_N_MINUS_1 = new Set(['meta_ads']);
 
 app.get('/api/cockpit/clubs', requireAuth, requireAdmin, (req, res) => {
   res.json({ clubs: COCKPIT_CLUBS });
@@ -4124,18 +4124,18 @@ app.get('/api/cockpit/data', requireAuth, requireAdmin, (req, res) => {
   const valeurs = {};
   vals.forEach(r => { valeurs[r.kpi_id] = r.valeur; });
 
-  // Objectifs auto-calculés : pour chaque KPI marqué « previous_month »,
-  // l'objectif = valeur de M-1 pour ce même club. Écrase tout objectif
-  // saisi manuellement (le champ devient lecture seule côté UI de toute façon).
-  if (COCKPIT_AUTO_OBJECTIVE_PREVIOUS_MONTH.size > 0) {
-    const prevMonth = cockpitPreviousMonth(month);
-    const autoIds = Array.from(COCKPIT_AUTO_OBJECTIVE_PREVIOUS_MONTH);
+  // Objectifs auto-calculés : pour chaque KPI marqué N-1, l'objectif =
+  // valeur du même mois de l'année précédente pour ce même club.
+  // Écrase toute saisie manuelle (la cellule est lecture seule côté UI).
+  if (COCKPIT_AUTO_OBJECTIVE_N_MINUS_1.size > 0) {
+    const prevYearMonth = cockpitPreviousYearSameMonth(month);
+    const autoIds = Array.from(COCKPIT_AUTO_OBJECTIVE_N_MINUS_1);
     const prevRows = db.prepare(`
       SELECT kpi_id, valeur FROM kpi_values
       WHERE club = ? AND month = ? AND kpi_id IN (${autoIds.map(() => '?').join(',')})
-    `).all(club, prevMonth, ...autoIds);
+    `).all(club, prevYearMonth, ...autoIds);
     prevRows.forEach(r => { objectifs[r.kpi_id] = r.valeur; });
-    // Si pas de valeur en M-1, on force l'objectif à null (pas de valeur héritée d'une saisie manuelle)
+    // Si pas de valeur en N-1, on force l'objectif à null
     autoIds.forEach(id => {
       if (!prevRows.find(r => r.kpi_id === id)) objectifs[id] = null;
     });
@@ -4169,19 +4169,19 @@ app.get('/api/cockpit/average', requireAuth, requireAdmin, (req, res) => {
   const valeurs = {};
   vals.forEach(r => { valeurs[r.kpi_id] = { avg: r.avg, n: r.n }; });
 
-  // Objectifs auto-calculés en mode moyenne : pour les KPI marqués
-  // « previous_month », on remplace par la moyenne (par club) des valeurs
-  // de M-1. Compte les clubs qui ONT une valeur en M-1.
-  if (COCKPIT_AUTO_OBJECTIVE_PREVIOUS_MONTH.size > 0) {
-    const prevMonth = cockpitPreviousMonth(month);
-    const autoIds = Array.from(COCKPIT_AUTO_OBJECTIVE_PREVIOUS_MONTH);
+  // Objectifs auto-calculés en mode moyenne : pour les KPI marqués N-1,
+  // moyenne (par club) des valeurs du même mois N-1. Compte les clubs qui
+  // ont une valeur en N-1.
+  if (COCKPIT_AUTO_OBJECTIVE_N_MINUS_1.size > 0) {
+    const prevYearMonth = cockpitPreviousYearSameMonth(month);
+    const autoIds = Array.from(COCKPIT_AUTO_OBJECTIVE_N_MINUS_1);
     const prevAvg = db.prepare(`
       SELECT kpi_id, AVG(valeur) AS avg, COUNT(*) AS n
       FROM kpi_values WHERE month = ? AND valeur IS NOT NULL
         AND kpi_id IN (${autoIds.map(() => '?').join(',')})
         AND club IN (${COCKPIT_CLUBS.map(() => '?').join(',')})
       GROUP BY kpi_id
-    `).all(prevMonth, ...autoIds, ...COCKPIT_CLUBS);
+    `).all(prevYearMonth, ...autoIds, ...COCKPIT_CLUBS);
     autoIds.forEach(id => { objectifs[id] = { avg: null, n: 0 }; });
     prevAvg.forEach(r => { objectifs[r.kpi_id] = { avg: r.avg, n: r.n }; });
   }

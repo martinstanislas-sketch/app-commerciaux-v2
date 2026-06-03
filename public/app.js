@@ -13784,7 +13784,7 @@ const COCKPIT_PILIERS = [
     id: 'p01', num: '01', name: 'Acquisition', subtitle: 'Générer du flux',
     objectifLabel: 'N-1',
     kpis: [
-      { id: 'meta_ads', label: 'Meta Ads', unit: 'leads', autoObjective: 'previous_month' },
+      { id: 'meta_ads', label: 'Meta Ads', unit: 'leads', autoObjective: 'previous_year_same_month' },
       { id: 'cpl', label: 'CPL', unit: '€' },
       { id: 'prise_reference', label: 'Prise de référence', unit: '' },
     ],
@@ -13957,10 +13957,11 @@ function cockpitRenderPiliers(data, isAvg) {
             const val = cellValue(kpi.id, data.valeurs);
             const unit = kpi.unit ? `<span class="cockpit-unit">${escapeHtml(kpi.unit)}</span>` : '';
             // Objectif auto : pour Meta Ads (et tout KPI marqué autoObjective:
-            // 'previous_month'), la cellule objectif est calculée serveur-side
-            // depuis la valeur de M-1 → toujours lecture seule, jamais éditable.
-            const isAutoObj = kpi.autoObjective === 'previous_month';
-            const autoTitle = "Objectif automatique : valeur du même club au mois précédent";
+            // 'previous_year_same_month'), la cellule objectif est calculée
+            // serveur-side depuis la valeur du même mois en N-1 (année passée)
+            // → toujours lecture seule, jamais éditable.
+            const isAutoObj = kpi.autoObjective === 'previous_year_same_month';
+            const autoTitle = "Objectif automatique : valeur du même club, même mois, année précédente (N-1)";
             // En mode club édition, afficher la valeur formatée si auto-objectif,
             // sinon l'input éditable normal.
             let objCell;
@@ -13968,7 +13969,7 @@ function cockpitRenderPiliers(data, isAvg) {
               objCell = `<div class="cockpit-readonly">${obj.display}</div>`;
             } else if (isAutoObj) {
               const v = (obj.display === '' || obj.display == null) ? '—' : cockpitFormatNumber(Number(obj.display));
-              objCell = `<div class="cockpit-readonly cockpit-auto" title="${escapeHtml(autoTitle)}">${escapeHtml(String(v))} <span class="cockpit-auto-tag">auto M-1</span></div>`;
+              objCell = `<div class="cockpit-readonly cockpit-auto" title="${escapeHtml(autoTitle)}">${escapeHtml(String(v))} <span class="cockpit-auto-tag">auto N-1</span></div>`;
             } else {
               objCell = `<input type="number" step="any" inputmode="decimal" class="cockpit-input" data-kpi="${escapeHtml(kpi.id)}" data-field="objectif" value="${escapeHtml(String(obj.display))}" placeholder="—">`;
             }
