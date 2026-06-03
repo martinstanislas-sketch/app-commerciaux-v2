@@ -13784,7 +13784,7 @@ const COCKPIT_PILIERS = [
     id: 'p01', num: '01', name: 'Acquisition', subtitle: 'Générer du flux',
     kpis: [
       { id: 'meta_ads', label: 'Meta Ads', unit: 'leads', autoObjective: 'previous_month' },
-      { id: 'partenaires_locaux', label: 'Partenaires locaux', unit: '' },
+      { id: 'cpl', label: 'CPL', unit: '€' },
       { id: 'prise_reference', label: 'Prise de référence', unit: '' },
     ],
   },
