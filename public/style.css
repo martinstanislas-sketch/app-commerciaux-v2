@@ -18888,9 +18888,13 @@ body.tk-dragging-active #tab-tasks .tk-card {
   line-height: 1.2;
 }
 #tab-standards .std-wrap {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 28px 24px 80px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 28px 40px 80px;
+}
+@media (max-width: 720px) {
+  #tab-standards .std-wrap { padding: 16px 14px 80px; }
 }
 #tab-standards .std-toolbar {
   display: flex;
@@ -19141,11 +19145,8 @@ body.tk-dragging-active #tab-tasks .tk-card {
 
 #tab-standards .std-slots-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
-}
-@media (max-width: 1300px) {
-  #tab-standards .std-slots-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
 }
 /* ── Login Guest ─── */
 #login-form.hidden, #login-guest-form.hidden {
@@ -19721,7 +19722,7 @@ body.tk-dragging-active #tab-tasks .tk-card {
   margin-top: auto;
 }
 
-/* Carte pleine : photo en haut + bloc info en bas */
+/* Carte pleine : photo en haut + bloc info en bas, zones isolées */
 #tab-standards .std-card-photo {
   position: relative;
   display: block;
@@ -19732,6 +19733,8 @@ body.tk-dragging-active #tab-tasks .tk-card {
   padding: 0;
   cursor: pointer;
   overflow: hidden;
+  flex-shrink: 0;
+  z-index: 1;
 }
 #tab-standards .std-card-img {
   width: 100%;
@@ -19744,10 +19747,22 @@ body.tk-dragging-active #tab-tasks .tk-card {
   transform: scale(1.02);
 }
 #tab-standards .std-card-body {
+  position: relative;
+  z-index: 2;
+  background: #fff;
   padding: 12px 14px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+#tab-standards .std-card-body .std-card-head {
+  min-width: 0;
+}
+#tab-standards .std-card-body .std-card-title {
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 #tab-standards .std-card-meta {
   display: flex;
@@ -19849,7 +19864,7 @@ body.tk-dragging-active #tab-tasks .tk-card {
   position: absolute;
   top: -8px;
   left: 12px;
-  z-index: 1;
+  z-index: 3;
   background: #14B8A6;
   color: #fff;
   padding: 2px 9px;
