@@ -4622,7 +4622,7 @@ const STANDARDS_DAILY_BASE = [
   { id: 'salle_entrainement', label: 'Training 1', icon: '🏋️' },
   { id: 'salle_entrainement_2', label: 'Training 2', icon: '🤸' },
   { id: 'sdb', label: 'SDB', icon: '🚿' },
-  { id: 'chic_coach', label: 'Chic du coach', icon: '👔' },
+  { id: 'chic_coach', label: 'Chic', icon: '👔' },
 ];
 // Génère les 12 slots définitifs : c1_<id> et c2_<id> avec le champ
 // `coach` (1 ou 2) pour permettre le regroupement côté front.
