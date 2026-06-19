@@ -4323,33 +4323,14 @@ app.delete('/api/coach-leaders/:id', requireAuth, requireAdmin, (req, res) => {
 // côté serveur (envoyés au front via GET /api/standards/criteria),
 // modifiables ici sans toucher au front.
 const STANDARDS_CRITERIA = [
-  { category: 'Accueil & savoir-être', items: [
-    { id: 'acc_1', label: 'Salutation chaleureuse à l\'arrivée' },
-    { id: 'acc_2', label: 'Tenue et présentation professionnelles' },
-    { id: 'acc_3', label: 'Connaissance du prénom des membres' },
-    { id: 'acc_4', label: 'Disponibilité pour répondre aux questions' },
-    { id: 'acc_5', label: 'Au revoir personnalisé en fin de séance' },
+  { category: 'Personnalisation', items: [
+    { id: 'perso_1', label: 'L\'adhérent voit son nom et son programme du jour au tableau' },
   ]},
-  { category: 'Espaces & matériel', items: [
-    { id: 'esp_1', label: 'Propreté générale des locaux' },
-    { id: 'esp_2', label: 'Matériel rangé et opérationnel' },
-    { id: 'esp_3', label: 'Vestiaires propres et approvisionnés' },
-    { id: 'esp_4', label: 'Affichages à jour (planning, news)' },
-    { id: 'esp_5', label: 'Musique et ambiance adaptées' },
+  { category: 'Accompagnement', items: [
+    { id: 'accomp_1', label: 'Le suivi client est bien rempli et sans attente' },
   ]},
-  { category: 'Coaching & protocole', items: [
-    { id: 'coa_1', label: 'Démarrage de séance dans les temps' },
-    { id: 'coa_2', label: 'Programme suivi et adapté' },
-    { id: 'coa_3', label: 'Corrections techniques régulières' },
-    { id: 'coa_4', label: 'Encouragements et motivation' },
-    { id: 'coa_5', label: 'Briefing nutritionnel mensuel' },
-  ]},
-  { category: 'Communication & suivi', items: [
-    { id: 'com_1', label: 'Relances clients absents' },
-    { id: 'com_2', label: 'Suivi des objectifs individuels' },
-    { id: 'com_3', label: 'Reporting hebdo à l\'admin' },
-    { id: 'com_4', label: 'Gestion des nouveaux inscrits (J+7)' },
-    { id: 'com_5', label: 'Anniversaires souhaités' },
+  { category: 'Exigence', items: [
+    { id: 'exig_1', label: 'Propre, rangé, matériel à sa place — l\'effet « waouh »' },
   ]},
 ];
 
