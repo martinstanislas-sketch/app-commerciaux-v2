@@ -14174,7 +14174,19 @@ async function standardsRender() {
   const scoreEl = document.getElementById('std-score-display');
   if (!container) return;
   if (!standardsStudio) {
-    container.innerHTML = `<div class="std-empty">${isAdmin() ? 'Aucun coach leader configuré. Clique sur ⚙ Gérer les coach leaders pour commencer.' : 'Aucun studio attribué.'}</div>`;
+    if (isAdmin()) {
+      container.innerHTML = `
+        <div class="std-empty-cta">
+          <div class="std-empty-icon">👥</div>
+          <h3 class="std-empty-title">Aucun coach leader configuré</h3>
+          <p class="std-empty-text">Crée un coach leader (nom + studio + PIN), il pourra ensuite se connecter avec son code et remplir sa checklist mensuelle.</p>
+          <button type="button" class="std-empty-action" id="std-empty-create">＋ Créer un coach leader</button>
+        </div>`;
+      const action = document.getElementById('std-empty-create');
+      if (action) action.addEventListener('click', openCoachLeadersModal);
+    } else {
+      container.innerHTML = `<div class="std-empty">Aucun studio attribué.</div>`;
+    }
     if (scoreEl) scoreEl.innerHTML = '';
     return;
   }

@@ -18862,6 +18862,50 @@ body.tk-dragging-active #tab-tasks .tk-card {
 }
 #tab-standards .std-error { color: #B91C1C; }
 
+#tab-standards .std-empty-cta {
+  background: #fff;
+  border: 2px dashed #CCFBF1;
+  border-radius: 14px;
+  padding: 40px 24px;
+  text-align: center;
+  max-width: 540px;
+  margin: 20px auto;
+}
+#tab-standards .std-empty-icon {
+  font-size: 44px;
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+#tab-standards .std-empty-title {
+  margin: 0 0 8px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0F766E;
+}
+#tab-standards .std-empty-text {
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+}
+#tab-standards .std-empty-action {
+  background: linear-gradient(135deg, #14B8A6 0%, #0F766E 100%);
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 22px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.18);
+}
+#tab-standards .std-empty-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.25);
+}
+
 #tab-standards .std-category {
   background: #fff;
   border-radius: 12px;
