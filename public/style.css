@@ -18909,11 +18909,8 @@ body.tk-dragging-active #tab-tasks .tk-card {
 /* ── Nouvelles cards : 2 créneaux photo par jour ─── */
 #tab-standards .std-slots-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-}
-@media (max-width: 720px) {
-  #tab-standards .std-slots-grid { grid-template-columns: 1fr; }
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
 }
 #tab-standards .std-slot {
   background: #fff;

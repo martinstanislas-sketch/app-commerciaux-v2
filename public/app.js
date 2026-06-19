@@ -14104,6 +14104,7 @@ let standardsBooted = false;
 let standardsStudios = [];         // pour admin : liste des studios distincts
 let standardsStudio = null;        // studio courant
 let standardsDate = null;          // YYYY-MM-DD (jour courant affiché)
+let standardsSlotsDef = [];        // définition des 5 slots (id, label, icon)
 
 // Backwards-compat : ces variables ne sont plus utilisées mais référencées
 // ailleurs dans le code (reset au login). On les laisse à null.
@@ -14132,6 +14133,14 @@ async function loadStandardsTab() {
   if (!standardsBooted) {
     standardsBooted = true;
     const headers = { 'Authorization': `Bearer ${authToken}` };
+    // Charge la définition des 5 slots photo
+    try {
+      const sl = await fetch('/api/standards/daily/slots', { headers });
+      if (sl.ok) {
+        const d = await sl.json();
+        standardsSlotsDef = d.slots || [];
+      }
+    } catch (_) { standardsSlotsDef = []; }
     if (isAdmin()) {
       try {
         const stRes = await fetch('/api/standards/studios', { headers });
@@ -14222,19 +14231,19 @@ function standardsRenderDaily(data) {
   const container = document.getElementById('std-categories');
   if (!container) return;
   const slots = data.slots || {};
-  const renderSlot = (slotKey, label, icon) => {
-    const s = slots[slotKey];
+  const fmtDateTime = (iso) => {
+    if (!iso) return '';
+    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    return m ? `${m[3]}/${m[2]} à ${m[4]}:${m[5]}` : iso;
+  };
+  const renderSlot = (def) => {
+    const s = slots[def.id];
     const filled = s && s.has_photo;
-    const fmtDateTime = (iso) => {
-      if (!iso) return '';
-      const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
-      return m ? `${m[3]}/${m[2]} à ${m[4]}:${m[5]}` : iso;
-    };
     return `
-      <article class="std-slot ${filled ? 'std-slot-filled' : 'std-slot-empty'}" data-slot="${slotKey}">
+      <article class="std-slot ${filled ? 'std-slot-filled' : 'std-slot-empty'}" data-slot="${escapeHtml(def.id)}">
         <header class="std-slot-head">
-          <div class="std-slot-icon">${icon}</div>
-          <div class="std-slot-title">${escapeHtml(label)}</div>
+          <div class="std-slot-icon">${escapeHtml(def.icon || '📷')}</div>
+          <div class="std-slot-title">${escapeHtml(def.label)}</div>
         </header>
         <div class="std-slot-body">
           ${filled ? `
@@ -14243,25 +14252,25 @@ function standardsRenderDaily(data) {
               <div class="std-slot-when">${escapeHtml(fmtDateTime(s.uploaded_at))}</div>
             </div>
             <div class="std-slot-actions">
-              <button type="button" class="std-slot-btn std-slot-view" data-slot-action="view" data-slot-key="${slotKey}">📷 Voir la photo</button>
-              <button type="button" class="std-slot-btn std-slot-replace" data-slot-action="replace" data-slot-key="${slotKey}">↻ Remplacer</button>
-              <button type="button" class="std-slot-btn std-slot-delete" data-slot-action="delete" data-slot-key="${slotKey}">✕ Supprimer</button>
+              <button type="button" class="std-slot-btn std-slot-view" data-slot-action="view" data-slot-key="${escapeHtml(def.id)}">📷 Voir</button>
+              <button type="button" class="std-slot-btn std-slot-replace" data-slot-action="replace" data-slot-key="${escapeHtml(def.id)}">↻ Remplacer</button>
+              <button type="button" class="std-slot-btn std-slot-delete" data-slot-action="delete" data-slot-key="${escapeHtml(def.id)}">✕</button>
             </div>
           ` : `
-            <div class="std-slot-placeholder">Aucune photo pour ce créneau.</div>
-            <button type="button" class="std-slot-btn std-slot-upload" data-slot-action="upload" data-slot-key="${slotKey}">📷 Ajouter une photo</button>
+            <div class="std-slot-placeholder">Aucune photo</div>
+            <button type="button" class="std-slot-btn std-slot-upload" data-slot-action="upload" data-slot-key="${escapeHtml(def.id)}">📷 Ajouter</button>
           `}
-          <input type="file" accept="image/*" class="std-slot-input" data-slot-key="${slotKey}" style="display:none">
+          <input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(def.id)}" style="display:none">
         </div>
       </article>
     `;
   };
-  container.innerHTML = `
-    <div class="std-slots-grid">
-      ${renderSlot('morning', 'Matin', '🌅')}
-      ${renderSlot('afternoon', 'Après-midi', '🌇')}
-    </div>
-  `;
+  const defs = standardsSlotsDef && standardsSlotsDef.length ? standardsSlotsDef : [];
+  if (defs.length === 0) {
+    container.innerHTML = `<div class="std-empty">Aucun emplacement photo configuré.</div>`;
+    return;
+  }
+  container.innerHTML = `<div class="std-slots-grid">${defs.map(renderSlot).join('')}</div>`;
   // Bindings
   container.querySelectorAll('[data-slot-action]').forEach(btn => {
     btn.addEventListener('click', () => {

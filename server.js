@@ -4508,7 +4508,24 @@ app.get('/api/standards/evaluation/photo', requireAuth, (req, res) => {
 // ─── STANDARDS daily (matin / après-midi) ───────────────────
 // Format quotidien : par studio + jour + créneau, une photo libre.
 
-const STANDARDS_DAILY_SLOTS = ['morning', 'afternoon'];
+// Slots fixes — id + label. N'importe quel coach leader du studio
+// peut remplir n'importe quel slot (un par jour).
+const STANDARDS_DAILY_SLOTS_DEF = [
+  { id: 'excel_adherent', label: 'Excel de suivi adhérent', icon: '📊' },
+  { id: 'tableau_pret', label: 'Tableau prêt', icon: '📋' },
+  { id: 'salle_entrainement', label: 'Salle d\'entraînement', icon: '🏋️' },
+  { id: 'sdb', label: 'SDB', icon: '🚿' },
+  { id: 'chic_coach', label: 'Chic du coach', icon: '👔' },
+];
+const STANDARDS_DAILY_SLOTS = STANDARDS_DAILY_SLOTS_DEF.map(s => s.id);
+
+app.get('/api/standards/daily/slots', requireAuth, (req, res) => {
+  if (req.session.role !== 'admin' && req.session.role !== 'coach_leader') {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+  res.json({ slots: STANDARDS_DAILY_SLOTS_DEF });
+});
+
 function isValidStandardsDate(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 }
@@ -4525,7 +4542,8 @@ app.get('/api/standards/daily', requireAuth, (req, res) => {
            (photo_blob IS NOT NULL AND photo_size > 0) AS has_photo_flag
     FROM standards_daily WHERE studio = ? AND date = ?
   `).all(studio, date);
-  const bySlot = { morning: null, afternoon: null };
+  const bySlot = {};
+  STANDARDS_DAILY_SLOTS.forEach(id => { bySlot[id] = null; });
   rows.forEach(r => {
     bySlot[r.slot] = {
       has_photo: !!r.has_photo_flag,
