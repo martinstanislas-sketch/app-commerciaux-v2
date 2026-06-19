@@ -490,6 +490,28 @@ function renderAdminCommentsPanel(comments, unreadCount) {
   }
 }
 
+// PIN guest temporairement stocké entre l'étape 1 (saisie du code dans
+// le formulaire principal) et l'étape 2 (saisie studio + prénom).
+let pendingGuestPin = null;
+
+async function showGuestCompletionForm(pin) {
+  pendingGuestPin = pin;
+  document.getElementById('login-form').classList.add('hidden');
+  const gf = document.getElementById('login-guest-form');
+  if (gf) gf.classList.remove('hidden');
+  // Charge les studios
+  try {
+    const r = await fetch('/api/auth/guest-studios');
+    const d = await r.json();
+    const sel = document.getElementById('guest-studio');
+    if (sel) {
+      sel.innerHTML = `<option value="">Choisis ton studio…</option>` +
+        (d.studios || []).map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    }
+  } catch (_) {}
+  setTimeout(() => document.getElementById('guest-studio')?.focus(), 50);
+}
+
 function initAuthUI() {
   // Login form
   document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -514,6 +536,13 @@ function initAuthUI() {
         card.addEventListener('animationend', () => card.classList.remove('login-error'), { once: true });
         pinInput.value = '';
         pinInput.focus();
+        return;
+      }
+
+      // Cas spécial : le code guest a été saisi → bascule sur le sous-formulaire
+      if (data.guest_pending === true) {
+        await showGuestCompletionForm(pinInput.value);
+        pinInput.value = '';
         return;
       }
 
@@ -572,50 +601,35 @@ function initAuthUI() {
     }
   });
 
-  // ─── Login Guest : toggle + form ──────────────────────────
-  const guestToggle = document.getElementById('login-guest-toggle');
+  // ─── Sous-formulaire Guest (déclenché après saisie du code "guest") ──
   const guestBack = document.getElementById('login-guest-back');
   const normalForm = document.getElementById('login-form');
   const guestForm = document.getElementById('login-guest-form');
-  if (guestToggle && guestForm && normalForm) {
-    guestToggle.addEventListener('click', async () => {
-      normalForm.classList.add('hidden');
-      guestToggle.classList.add('hidden');
-      guestForm.classList.remove('hidden');
-      // Charge les studios disponibles
-      try {
-        const r = await fetch('/api/auth/guest-studios');
-        const d = await r.json();
-        const sel = document.getElementById('guest-studio');
-        if (sel) {
-          sel.innerHTML = `<option value="">Choisis ton studio…</option>` +
-            (d.studios || []).map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-        }
-      } catch (_) {}
-      const pinIn = document.getElementById('guest-pin');
-      if (pinIn) pinIn.focus();
-    });
-  }
-  if (guestBack && guestForm && normalForm && guestToggle) {
+  if (guestBack && guestForm && normalForm) {
     guestBack.addEventListener('click', () => {
       guestForm.classList.add('hidden');
       normalForm.classList.remove('hidden');
-      guestToggle.classList.remove('hidden');
+      pendingGuestPin = null;
+      setTimeout(() => document.getElementById('login-pin')?.focus(), 50);
     });
   }
   if (guestForm) {
     guestForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const pin = document.getElementById('guest-pin').value.trim();
       const studio = document.getElementById('guest-studio').value;
       const name = document.getElementById('guest-name').value.trim();
       const errorDiv = document.getElementById('guest-error');
       errorDiv.classList.add('hidden');
+      if (!pendingGuestPin) {
+        errorDiv.textContent = 'Session expirée, retour au login';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
       try {
         const res = await fetch('/api/auth/guest-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin, studio, name }),
+          body: JSON.stringify({ pin: pendingGuestPin, studio, name }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -630,6 +644,7 @@ function initAuthUI() {
         };
         localStorage.setItem('authToken', authToken);
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        pendingGuestPin = null;
         if (typeof standardsDate !== 'undefined') standardsDate = null;
         if (typeof standardsBooted !== 'undefined') standardsBooted = false;
         hideLogin();
@@ -14213,7 +14228,7 @@ function standardsShiftDate(iso, delta) {
 }
 
 async function loadStandardsTab() {
-  if (!isAdmin() && !isCoachLeader()) return;
+  if (!isAdmin() && !isCoachLeader() && !isGuest()) return;
   if (!standardsBooted) {
     standardsBooted = true;
     const headers = { 'Authorization': `Bearer ${authToken}` };

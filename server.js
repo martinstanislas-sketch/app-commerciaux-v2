@@ -189,6 +189,14 @@ app.post('/api/auth/login', (req, res) => {
     return res.json({ token, role: 'director', name: 'Directeur', sales_rep_id: null });
   }
 
+  // Code Guest : reconnu mais pas de token immédiat. Le front affichera
+  // un sous-formulaire pour saisir studio + prénom, puis appellera
+  // /api/auth/guest-login pour finaliser.
+  const guestCodeCheck = process.env.GUEST_CODE || 'guest';
+  if (pin.trim() === guestCodeCheck) {
+    return res.json({ guest_pending: true });
+  }
+
   return res.status(401).json({ error: 'Code incorrect' });
 });
 

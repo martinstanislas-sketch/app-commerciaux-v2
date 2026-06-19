@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-roles-guest1">
+  <link rel="stylesheet" href="style.css?v=ds-guest-direct1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -27,17 +27,16 @@
         <div id="login-error" class="login-error hidden">Code incorrect</div>
         <button type="submit" class="btn-primary">Se connecter</button>
       </form>
-      <button type="button" class="login-guest-link" id="login-guest-toggle">Accès Guest</button>
-      <!-- Formulaire Guest (caché par défaut) -->
+      <!-- Sous-formulaire Guest (affiché automatiquement après saisie du code guest) -->
       <form id="login-guest-form" class="login-guest-form hidden">
-        <input type="password" id="guest-pin" maxlength="32" placeholder="Code Guest" autocomplete="off" required>
+        <div class="login-guest-welcome">👋 Bienvenue ! Dis-nous où tu es et qui tu es :</div>
         <select id="guest-studio" required>
           <option value="">Choisis ton studio…</option>
         </select>
         <input type="text" id="guest-name" maxlength="40" placeholder="Ton prénom" autocomplete="off" required>
         <div id="guest-error" class="login-error hidden">Erreur</div>
-        <button type="submit" class="btn-primary">Entrer en guest</button>
-        <button type="button" class="login-guest-back" id="login-guest-back">← Retour au login normal</button>
+        <button type="submit" class="btn-primary">Continuer</button>
+        <button type="button" class="login-guest-back" id="login-guest-back">← Retour</button>
       </form>
     </div>
   </div>
@@ -974,6 +973,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-roles-guest1"></script>
+  <script src="app.js?v=ds-guest-direct1"></script>
 </body>
 </html>

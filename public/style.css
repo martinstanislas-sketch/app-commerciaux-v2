@@ -18919,23 +18919,19 @@ body.tk-dragging-active #tab-tasks .tk-card {
   #tab-standards .std-slots-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 /* ── Login Guest ─── */
-#login-form.hidden, #login-guest-form.hidden, #login-guest-toggle.hidden {
+#login-form.hidden, #login-guest-form.hidden {
   display: none;
 }
-.login-guest-link {
-  background: transparent;
-  border: 0;
-  margin-top: 14px;
-  color: #6366F1;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  text-decoration: underline;
-  padding: 6px 10px;
-  border-radius: 6px;
+.login-guest-welcome {
+  text-align: center;
+  font-size: 14px;
+  color: #475569;
+  background: rgba(99,102,241,0.06);
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 4px;
+  font-weight: 500;
 }
-.login-guest-link:hover { background: rgba(99,102,241,0.06); }
 .login-guest-form {
   margin-top: 12px;
   display: flex;
