@@ -18919,10 +18919,21 @@ body.tk-dragging-active #tab-tasks .tk-card {
   #tab-standards .std-slots-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
-  #tab-standards .std-slots-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 480px) {
-  #tab-standards .std-slots-grid { grid-template-columns: 1fr; }
+  /* Mobile : 1 carte par ligne, grands boutons, pleine largeur */
+  #tab-standards .std-slots-grid { grid-template-columns: 1fr; gap: 14px; }
+  #tab-standards .std-banner { padding: 18px 16px; }
+  #tab-standards .std-banner-title { font-size: 20px; }
+  #tab-standards .std-wrap { padding: 16px 14px 100px; }
+  #tab-standards .std-toolbar { gap: 10px; padding: 10px 12px; }
+  #tab-standards .std-studio-select { font-size: 15px; padding: 9px 12px; }
+  #tab-standards .std-month-label { font-size: 14px; min-width: 0; flex: 1; }
+  #tab-standards .std-nav-btn { width: 38px; height: 38px; }
+  #tab-standards .std-slot-head { padding: 14px 18px; min-height: 56px; }
+  #tab-standards .std-slot-title { font-size: 16px; }
+  #tab-standards .std-slot-icon { font-size: 24px; }
+  #tab-standards .std-slot-body { padding: 14px 16px; }
+  #tab-standards .std-slot-btn { padding: 13px 16px; font-size: 15px; }
+  #tab-standards .std-slot-upload { padding: 16px 20px; font-size: 16px; }
 }
 #tab-standards .std-slot {
   background: #fff;
@@ -18988,6 +18999,73 @@ body.tk-dragging-active #tab-tasks .tk-card {
   font-style: italic;
   padding: 16px 0;
   text-align: center;
+}
+/* ─ Zone empty cliquable (toute la zone du body sert de bouton) ─ */
+#tab-standards .std-slot-empty-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #14B8A6 0%, #0F766E 100%);
+  color: #fff;
+  border: 0;
+  border-radius: 12px;
+  padding: 24px 14px;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 130px;
+  transition: all 120ms ease;
+  box-shadow: 0 3px 10px rgba(15, 118, 110, 0.15);
+}
+#tab-standards .std-slot-empty-zone:active {
+  transform: scale(0.98);
+}
+#tab-standards .std-slot-empty-zone:hover {
+  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.22);
+}
+#tab-standards .std-slot-empty-icon {
+  font-size: 36px;
+  line-height: 1;
+}
+#tab-standards .std-slot-empty-label {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+/* ─ Miniature photo (tap = ouvre en grand) ─ */
+#tab-standards .std-slot-thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #F0FDFA;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+#tab-standards .std-slot-thumb:active { transform: scale(0.99); }
+#tab-standards .std-slot-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+#tab-standards .std-slot-thumb-overlay {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(15, 118, 110, 0.92);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 6px;
+  pointer-events: none;
 }
 #tab-standards .std-slot-meta {
   background: #F0FDFA;

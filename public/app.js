@@ -14247,18 +14247,23 @@ function standardsRenderDaily(data) {
         </header>
         <div class="std-slot-body">
           ${filled ? `
+            <button type="button" class="std-slot-thumb" data-slot-action="view" data-slot-key="${escapeHtml(def.id)}" title="Ouvrir la photo en grand">
+              <img class="std-slot-thumb-img" data-thumb-key="${escapeHtml(def.id)}" alt="${escapeHtml(def.label)}">
+              <span class="std-slot-thumb-overlay">📷 Voir</span>
+            </button>
             <div class="std-slot-meta">
               <div class="std-slot-by">Par <strong>${escapeHtml(s.uploaded_by || '?')}</strong></div>
               <div class="std-slot-when">${escapeHtml(fmtDateTime(s.uploaded_at))}</div>
             </div>
             <div class="std-slot-actions">
-              <button type="button" class="std-slot-btn std-slot-view" data-slot-action="view" data-slot-key="${escapeHtml(def.id)}">📷 Voir</button>
               <button type="button" class="std-slot-btn std-slot-replace" data-slot-action="replace" data-slot-key="${escapeHtml(def.id)}">↻ Remplacer</button>
               <button type="button" class="std-slot-btn std-slot-delete" data-slot-action="delete" data-slot-key="${escapeHtml(def.id)}">✕</button>
             </div>
           ` : `
-            <div class="std-slot-placeholder">Aucune photo</div>
-            <button type="button" class="std-slot-btn std-slot-upload" data-slot-action="upload" data-slot-key="${escapeHtml(def.id)}">📷 Ajouter</button>
+            <button type="button" class="std-slot-empty-zone" data-slot-action="upload" data-slot-key="${escapeHtml(def.id)}">
+              <span class="std-slot-empty-icon">📷</span>
+              <span class="std-slot-empty-label">Prendre la photo</span>
+            </button>
           `}
           <input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(def.id)}" style="display:none">
         </div>
@@ -14271,6 +14276,11 @@ function standardsRenderDaily(data) {
     return;
   }
   container.innerHTML = `<div class="std-slots-grid">${defs.map(renderSlot).join('')}</div>`;
+  // Charge les miniatures pour les slots remplis
+  container.querySelectorAll('.std-slot-thumb-img').forEach(img => {
+    const slot = img.dataset.thumbKey;
+    standardsLoadThumb(slot, img);
+  });
   // Bindings
   container.querySelectorAll('[data-slot-action]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -14295,6 +14305,39 @@ function standardsRenderDaily(data) {
       input.value = '';
     });
   });
+}
+
+// Cache des blob URLs des miniatures (clé = `${studio}|${date}|${slot}`)
+// Permet de ne pas re-fetch la photo à chaque render.
+const standardsThumbCache = new Map();
+
+async function standardsLoadThumb(slot, imgEl) {
+  const key = `${standardsStudio}|${standardsDate}|${slot}`;
+  if (standardsThumbCache.has(key)) {
+    imgEl.src = standardsThumbCache.get(key);
+    return;
+  }
+  try {
+    const url = `/api/standards/daily/photo?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    standardsThumbCache.set(key, blobUrl);
+    imgEl.src = blobUrl;
+  } catch (e) {
+    // silencieux : on garde l'overlay « Voir » sur fond gris
+  }
+}
+
+// Invalide le cache miniature pour un slot (à appeler après upload/delete)
+function standardsInvalidateThumb(slot) {
+  const key = `${standardsStudio}|${standardsDate}|${slot}`;
+  const url = standardsThumbCache.get(key);
+  if (url) {
+    URL.revokeObjectURL(url);
+    standardsThumbCache.delete(key);
+  }
 }
 
 async function standardsUploadDailyPhoto(slot, file) {
@@ -14326,6 +14369,7 @@ async function standardsUploadDailyPhoto(slot, file) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || ('HTTP ' + res.status));
     }
+    standardsInvalidateThumb(slot);
     await standardsRender();
   } catch (err) {
     alert('Erreur upload photo : ' + (err.message || err));
@@ -14360,6 +14404,7 @@ async function standardsDeleteDailyPhoto(slot) {
     const url = `/api/standards/daily/photo?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
     const res = await fetch(url, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    standardsInvalidateThumb(slot);
     await standardsRender();
   } catch (err) {
     alert('Erreur suppression photo : ' + (err.message || err));
