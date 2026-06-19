@@ -14598,6 +14598,9 @@ function canEditKpiActionCleFront() {
 }
 
 function renderKpiPanel(readOnly) {
+  // Les guests sont des coachs de passage : ils n'ont pas accès aux
+  // indicateurs internes du club (chiffres / action clé).
+  if (isGuest()) return '';
   const k = standardsKpi || {};
   const fmtEur = (v) => {
     const n = Number(v) || 0;
