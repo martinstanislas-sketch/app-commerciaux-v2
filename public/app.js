@@ -14874,19 +14874,20 @@ function standardsRenderDaily(data) {
     };
     bodyHtml = groups.map(g => {
       const checkinDone = !!standardsCheckinBySlot[g.num];
-      // Tant que le check-in n'est pas rempli, on n'affiche pas les
-      // cards photo. Le coach DOIT remplir son humeur + tâches d'abord.
-      // L'admin et les superviseurs (readOnly) voient toujours les photos.
+      // Les cards photo restent visibles. Si le check-in n'est pas
+      // rempli, on grise la rangée et on affiche un bandeau de
+      // verrouillage explicite. L'upload est bloqué côté serveur (412).
       const isSelfFiller = !readOnly && !isAdmin();
-      const showPhotos = !isSelfFiller || checkinDone;
+      const locked = isSelfFiller && !checkinDone;
       return `
-        <div class="std-group">
+        <div class="std-group ${locked ? 'std-group-locked' : ''}">
           <header class="std-group-head">
             <span class="std-group-icon">${STD_ICONS.user}</span>
             <h3 class="std-group-title">${escapeHtml(groupTitle(g))}</h3>
           </header>
           ${renderCheckinPanel(g.num, groupTitle(g), readOnly)}
-          ${showPhotos ? `<div class="std-slots-grid">${g.defs.map(renderSlot).join('')}</div>` : ''}
+          ${locked ? `<div class="std-group-lock">🔒 Remplis ton check-in pour débloquer les photos</div>` : ''}
+          <div class="std-slots-grid${locked ? ' std-slots-grid-locked' : ''}">${g.defs.map(renderSlot).join('')}</div>
         </div>
       `;
     }).join('');

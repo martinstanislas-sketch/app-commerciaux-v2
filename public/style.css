@@ -20362,6 +20362,25 @@ body.tk-dragging-active #tab-tasks .tk-card {
   #tab-standards .std-kpi-btn { width: 30px; height: 30px; font-size: 16px; }
 }
 
+/* ── Rangée verrouillée tant que check-in non rempli ─── */
+#tab-standards .std-group-lock {
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 10px;
+}
+#tab-standards .std-slots-grid-locked {
+  opacity: 0.55;
+  pointer-events: none;
+  user-select: none;
+  filter: grayscale(0.35);
+}
+
 /* ── Check-in du jour (mood + tâches) — affiché avant les photos ─── */
 #tab-standards .std-checkin {
   background: #fff;
