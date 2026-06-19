@@ -470,6 +470,16 @@ function initSchema() {
   if (!clCols.includes('can_view_history')) {
     db.exec(`ALTER TABLE coach_leaders ADD COLUMN can_view_history INTEGER NOT NULL DEFAULT 1;`);
   }
+  // Migration : on est passé du soft-delete au hard-delete pour
+  // coach_leaders. Purge des anciens enregistrements archivés afin
+  // de libérer leurs PIN (sinon impossible de recréer un compte
+  // avec le même code).
+  try {
+    const purged = db.prepare(`DELETE FROM coach_leaders WHERE archived = 1`).run();
+    if (purged.changes > 0) {
+      console.log(`[migration] coach_leaders : ${purged.changes} enregistrement(s) archivé(s) purgé(s) (libère les PIN)`);
+    }
+  } catch (_) {}
   db.exec(`
 
     CREATE TABLE IF NOT EXISTS standards_evaluations (

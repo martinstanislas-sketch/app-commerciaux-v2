@@ -4369,8 +4369,10 @@ app.delete('/api/coach-leaders/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const id = parseInt(req.params.id, 10);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
-  // Soft delete : archived = 1
-  db.prepare(`UPDATE coach_leaders SET archived = 1 WHERE id = ?`).run(id);
+  // Suppression définitive (le PIN redevient libre pour réutilisation).
+  // Les photos déjà uploadées par ce coach leader restent dans
+  // standards_daily — leur champ uploaded_by est juste un nom texte.
+  db.prepare(`DELETE FROM coach_leaders WHERE id = ?`).run(id);
   res.json({ ok: true });
 });
 
