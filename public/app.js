@@ -14875,11 +14875,13 @@ function standardsRenderDaily(data) {
     bodyHtml = groups.map(g => {
       const checkinDone = !!standardsCheckinBySlot[g.num];
       // Le check-in d'énergie ne bloque PAS les photos pour :
-      // - l'admin (toujours)
-      // - les guests (coach de passage : pas de friction pour eux)
-      // Seuls le coach leader / coach sportif / coach historique sont
-      // tenus de remplir leur check-in d'abord.
-      const isSelfFiller = !readOnly && !isAdmin() && !isGuest();
+      // - l'admin
+      // - les guests (coach de passage)
+      // - le Coach Sportif (coach_leader sans accès aux jours passés)
+      // Seul le Coach Leader complet (full = can_view_history=true)
+      // est tenu de faire son check-in avant d'uploader des photos.
+      const isCoachSportif = currentUser && currentUser.role === 'coach_leader' && currentUser.can_view_history === false;
+      const isSelfFiller = !readOnly && !isAdmin() && !isGuest() && !isCoachSportif;
       const locked = isSelfFiller && !checkinDone;
       // Plus de titre « Matin / Après-midi » → on enchaîne directement
       // les photos puis le check-in d'énergie, dans cet ordre.
