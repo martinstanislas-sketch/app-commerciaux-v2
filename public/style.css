@@ -19126,6 +19126,49 @@ body.tk-dragging-active #tab-tasks .tk-card {
   color: #EF4444;
 }
 
+/* ── Mode lecture seule (coach leader sur jour passé) ─── */
+#tab-standards .std-readonly-banner {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  border: 1px solid #F59E0B;
+  color: #92400E;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+#tab-standards .std-slot-readonly.std-slot-empty {
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+}
+#tab-standards .std-slot-readonly-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 14px;
+  min-height: 200px;
+}
+#tab-standards .std-slot-readonly-empty .std-slot-empty-icon {
+  font-size: 48px;
+  filter: grayscale(1) opacity(0.4);
+}
+#tab-standards .std-slot-readonly-empty .std-slot-empty-label {
+  color: #94A3B8;
+  font-family: Georgia, serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+#tab-standards .std-slot-readonly-note {
+  font-size: 12px;
+  color: #94A3B8;
+  font-style: italic;
+}
+
 /* ── Zone empty (card non remplie) — gros visuel ─── */
 #tab-standards .std-slot-empty-zone {
   flex: 1;

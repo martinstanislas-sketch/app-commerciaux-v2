@@ -4530,6 +4530,16 @@ function isValidStandardsDate(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 }
 
+// Le coach leader ne peut modifier que les photos du jour. L'admin n'a
+// aucune restriction (peut corriger un jour passé si besoin).
+function standardsCanModify(req, date) {
+  if (req.session.role === 'admin') return true;
+  if (req.session.role !== 'coach_leader') return false;
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return date === today;
+}
+
 app.get('/api/standards/daily', requireAuth, (req, res) => {
   const studio = String(req.query.studio || '').trim();
   const date = String(req.query.date || '').trim();
@@ -4563,9 +4573,10 @@ app.put('/api/standards/daily/photo', requireAuth, (req, res) => {
   const photo_base64 = (req.body && req.body.photo_base64) || '';
   let mime = (req.body && req.body.mime) || 'image/jpeg';
   if (!studio || !slot) return res.status(400).json({ error: 'studio + slot requis' });
-  if (!STANDARDS_DAILY_SLOTS.includes(slot)) return res.status(400).json({ error: 'slot doit être morning | afternoon' });
+  if (!STANDARDS_DAILY_SLOTS.includes(slot)) return res.status(400).json({ error: 'slot inconnu' });
   if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!standardsCanModify(req, date)) return res.status(403).json({ error: "Modification autorisée uniquement pour le jour en cours" });
   if (!photo_base64) return res.status(400).json({ error: 'photo_base64 requis' });
   let buf;
   try {
@@ -4617,6 +4628,7 @@ app.delete('/api/standards/daily/photo', requireAuth, (req, res) => {
   if (!studio || !slot) return res.status(400).json({ error: 'studio + slot requis' });
   if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!standardsCanModify(req, date)) return res.status(403).json({ error: "Suppression autorisée uniquement pour le jour en cours" });
   const db = getDb();
   db.prepare(`DELETE FROM standards_daily WHERE studio = ? AND date = ? AND slot = ?`)
     .run(studio, date, slot);

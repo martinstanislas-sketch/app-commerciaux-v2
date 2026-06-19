@@ -14231,6 +14231,10 @@ function standardsRenderDaily(data) {
   const container = document.getElementById('std-categories');
   if (!container) return;
   const slots = data.slots || {};
+  // Le coach leader peut SEULEMENT modifier le jour courant ; l'admin
+  // peut tout faire. Détecte le mode lecture-seule.
+  const today = standardsTodayDate();
+  const readOnly = isCoachLeader() && standardsDate !== today;
   // Compte les photos prises pour la barre de progression
   const defsAll = standardsSlotsDef || [];
   const doneCount = defsAll.reduce((n, def) => n + ((slots[def.id] && slots[def.id].has_photo) ? 1 : 0), 0);
@@ -14261,7 +14265,7 @@ function standardsRenderDaily(data) {
     const s = slots[def.id];
     const filled = s && s.has_photo;
     return `
-      <article class="std-slot ${filled ? 'std-slot-filled' : 'std-slot-empty'}" data-slot="${escapeHtml(def.id)}">
+      <article class="std-slot ${filled ? 'std-slot-filled' : 'std-slot-empty'} ${readOnly ? 'std-slot-readonly' : ''}" data-slot="${escapeHtml(def.id)}">
         ${filled ? `
           <button type="button" class="std-slot-photo-zone" data-slot-action="view" data-slot-key="${escapeHtml(def.id)}" title="Ouvrir la photo en grand">
             <img class="std-slot-thumb-img" data-thumb-key="${escapeHtml(def.id)}" alt="${escapeHtml(def.label)}">
@@ -14278,10 +14282,18 @@ function standardsRenderDaily(data) {
               <span class="std-slot-by"><strong>${escapeHtml(s.uploaded_by || '?')}</strong></span>
               <span class="std-slot-when">${escapeHtml(fmtDateTime(s.uploaded_at))}</span>
             </div>
-            <div class="std-slot-actions">
-              <button type="button" class="std-slot-mini-btn std-slot-replace" data-slot-action="replace" data-slot-key="${escapeHtml(def.id)}" title="Reprendre la photo">↻</button>
-              <button type="button" class="std-slot-mini-btn std-slot-delete" data-slot-action="delete" data-slot-key="${escapeHtml(def.id)}" title="Supprimer">✕</button>
-            </div>
+            ${readOnly ? '' : `
+              <div class="std-slot-actions">
+                <button type="button" class="std-slot-mini-btn std-slot-replace" data-slot-action="replace" data-slot-key="${escapeHtml(def.id)}" title="Reprendre la photo">↻</button>
+                <button type="button" class="std-slot-mini-btn std-slot-delete" data-slot-action="delete" data-slot-key="${escapeHtml(def.id)}" title="Supprimer">✕</button>
+              </div>
+            `}
+          </div>
+        ` : (readOnly ? `
+          <div class="std-slot-readonly-empty">
+            <span class="std-slot-empty-icon">${escapeHtml(def.icon || '📷')}</span>
+            <span class="std-slot-empty-label">${escapeHtml(def.label)}</span>
+            <span class="std-slot-readonly-note">Aucune photo ce jour-là</span>
           </div>
         ` : `
           <button type="button" class="std-slot-empty-zone" data-slot-action="upload" data-slot-key="${escapeHtml(def.id)}">
@@ -14293,8 +14305,8 @@ function standardsRenderDaily(data) {
               <span class="std-slot-empty-cta">📷 Prendre la photo</span>
             </div>
           </button>
-        `}
-        <input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(def.id)}" style="display:none">
+        `)}
+        ${readOnly ? '' : `<input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(def.id)}" style="display:none">`}
       </article>
     `;
   };
@@ -14303,7 +14315,14 @@ function standardsRenderDaily(data) {
     container.innerHTML = `<div class="std-empty">Aucun emplacement photo configuré.</div>`;
     return;
   }
-  container.innerHTML = `<div class="std-slots-grid">${defs.map(renderSlot).join('')}</div>`;
+  container.innerHTML = `
+    ${readOnly ? `
+      <div class="std-readonly-banner">
+        🔒 Lecture seule — tu peux consulter les photos mais pas les modifier pour les jours passés.
+      </div>
+    ` : ''}
+    <div class="std-slots-grid">${defs.map(renderSlot).join('')}</div>
+  `;
   // Charge les miniatures pour les slots remplis
   container.querySelectorAll('.std-slot-thumb-img').forEach(img => {
     const slot = img.dataset.thumbKey;
