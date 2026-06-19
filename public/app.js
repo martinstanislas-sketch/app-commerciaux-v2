@@ -641,7 +641,7 @@ function initAuthUI() {
         return;
       }
       if (!coach_slot) {
-        errorDiv.textContent = 'Choisis Coach 1 ou Coach 2';
+        errorDiv.textContent = 'Choisis Matin ou Après-midi';
         errorDiv.classList.remove('hidden');
         return;
       }
@@ -14583,14 +14583,15 @@ function standardsRenderDaily(data) {
     })).filter(g => g.defs.length > 0);
     // Pour chaque groupe : si toutes les photos remplies ont le même
     // uploader, on utilise SON prénom comme titre au lieu de "Coach N"
+    const slotLabel = (n) => n === 1 ? 'Matin' : 'Après-midi';
     const groupTitle = (g) => {
       const uploaders = g.defs
         .map(d => slots[d.id]?.uploaded_by)
         .filter(Boolean);
-      if (uploaders.length === 0) return `Coach ${g.num}`;
+      if (uploaders.length === 0) return slotLabel(g.num);
       const unique = new Set(uploaders);
       if (unique.size === 1) return uploaders[0]; // un seul nom → on l'utilise
-      return `Coach ${g.num}`; // mélange → titre générique
+      return slotLabel(g.num); // mélange → titre générique
     };
     bodyHtml = groups.map(g => `
       <div class="std-group">
@@ -15076,7 +15077,7 @@ async function reloadCoachLeaders() {
       return;
     }
     listEl.innerHTML = leaders.map(l => {
-      const slotLabel = (l.coach_slot === 1) ? 'Coach 1' : (l.coach_slot === 2) ? 'Coach 2' : '';
+      const slotLabel = (l.coach_slot === 1) ? 'Matin' : (l.coach_slot === 2) ? 'Après-midi' : '';
       const accessLabel = l.can_view_history
         ? '🔓 Leader (voit tout)'
         : `⏱ Assistant${slotLabel ? ' · ' + slotLabel : ''}`;
@@ -15153,8 +15154,8 @@ function openLeaderEdit(id) {
       <label class="std-leader-edit-field std-leader-edit-slot-field" style="${history ? 'display:none' : ''}">
         <span>Rangée affectée</span>
         <select class="std-leader-edit-slot">
-          <option value="1" ${slot === '1' ? 'selected' : ''}>Coach 1 (matin)</option>
-          <option value="2" ${slot === '2' ? 'selected' : ''}>Coach 2 (après-midi)</option>
+          <option value="1" ${slot === '1' ? 'selected' : ''}>Matin</option>
+          <option value="2" ${slot === '2' ? 'selected' : ''}>Après-midi</option>
         </select>
       </label>
       <div class="std-leader-edit-actions">
