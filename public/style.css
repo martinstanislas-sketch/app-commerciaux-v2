@@ -19357,7 +19357,52 @@ body.tk-dragging-active #tab-tasks .tk-card {
 }
 
 @media (max-width: 720px) {
-  /* Mobile-first compact : 1 carte par ligne mais minimaliste */
+  /* Mobile : transformation en parcours visuel (style « mission ») */
+  /* Connecteur vertical à gauche du groupe */
+  #tab-standards .std-group {
+    position: relative;
+    padding-left: 22px;
+  }
+  #tab-standards .std-group::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 56px;
+    bottom: 8px;
+    width: 2px;
+    background: linear-gradient(180deg, rgba(20,184,166,0.4), rgba(15,23,42,0.05));
+    border-radius: 1px;
+  }
+  /* Marqueurs "node" sur chaque card */
+  #tab-standards .std-card {
+    position: relative;
+  }
+  #tab-standards .std-card::before {
+    content: '';
+    position: absolute;
+    left: -22px;
+    top: 20px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #CBD5E1;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #CBD5E1;
+  }
+  #tab-standards .std-card-filled::before {
+    background: #10B981;
+    box-shadow: 0 0 0 2px #D1FAE5;
+  }
+  #tab-standards .std-card-next::before {
+    background: #14B8A6;
+    box-shadow: 0 0 0 2px rgba(20,184,166,0.25), 0 0 12px rgba(20,184,166,0.6);
+    animation: stdNodePulse 1.6s ease-in-out infinite;
+  }
+  @keyframes stdNodePulse {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(20,184,166,0.25), 0 0 12px rgba(20,184,166,0.6); }
+    50% { box-shadow: 0 0 0 4px rgba(20,184,166,0.35), 0 0 16px rgba(20,184,166,0.8); }
+  }
+
   #tab-standards .std-slots-grid { grid-template-columns: 1fr; gap: 10px; }
   #tab-standards .std-banner { padding: 12px 14px; }
   #tab-standards .std-banner-title { font-size: 16px; line-height: 1.2; }
@@ -19434,22 +19479,32 @@ body.tk-dragging-active #tab-tasks .tk-card {
 #tab-standards .std-progress-next {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
   margin-top: 10px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: #0F172A;
   color: #fff;
   border: 0;
-  border-radius: 9px;
-  font-size: 13px;
-  font-weight: 500;
+  border-radius: 10px;
   font-family: inherit;
   cursor: pointer;
   gap: 10px;
   transition: all 120ms ease;
+  text-align: left;
 }
-#tab-standards .std-progress-next strong { font-weight: 700; }
+#tab-standards .std-progress-next-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #94A3B8;
+}
+#tab-standards .std-progress-next-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  flex: 1;
+}
 #tab-standards .std-progress-next-arrow { font-size: 16px; font-weight: 700; opacity: 0.85; }
 #tab-standards .std-progress-next:hover {
   background: #1E293B;
@@ -19771,6 +19826,46 @@ body.tk-dragging-active #tab-tasks .tk-card {
   font-family: inherit;
   font-weight: 700;
   font-size: 15px;
+}
+
+/* ── Card "Suivant" : mise en avant visuelle de la prochaine action ─── */
+#tab-standards .std-card-next {
+  border-color: #14B8A6;
+  box-shadow: 0 8px 24px -6px rgba(20,184,166,0.35), 0 0 0 1px rgba(20,184,166,0.2);
+  position: relative;
+}
+#tab-standards .std-card-next .std-card-icon {
+  background: #ECFDF5;
+  color: #047857;
+}
+#tab-standards .std-card-next .std-card-primary {
+  background: linear-gradient(135deg, #14B8A6 0%, #0F766E 100%);
+  box-shadow: 0 6px 16px -4px rgba(20,184,166,0.45);
+}
+#tab-standards .std-card-next .std-card-primary:hover {
+  background: linear-gradient(135deg, #0D9488 0%, #115E59 100%);
+}
+#tab-standards .std-card-next-tag {
+  position: absolute;
+  top: -8px;
+  left: 12px;
+  z-index: 1;
+  background: #14B8A6;
+  color: #fff;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  box-shadow: 0 2px 6px rgba(20,184,166,0.4);
+}
+
+/* Texte adaptatif bouton (long/short) */
+.std-card-primary-short { display: none; }
+@media (max-width: 720px) {
+  .std-card-primary-long { display: none; }
+  .std-card-primary-short { display: inline; }
 }
 
 /* Ancien styles std-slot conservés en fallback (legacy) — peuvent être ignorés */

@@ -14245,7 +14245,7 @@ function stdGetIcon(slotId) {
 function renderStandardPhotoCard(props) {
   const {
     title, slotId, slotKey, status, hasPhoto, readOnly,
-    uploadedBy, uploadedAt, rejectionReason,
+    uploadedBy, uploadedAt, rejectionReason, isNext,
   } = props;
   const fmtDateTime = (iso) => {
     if (!iso) return '';
@@ -14294,8 +14294,10 @@ function renderStandardPhotoCard(props) {
   }
 
   // Carte « à faire » : icône, titre, badge, gros bouton principal
+  // isNext = la première card vide rencontrée → est mise en avant
   return `
-    <article class="std-card std-card-empty" data-slot="${escapeHtml(slotKey)}">
+    <article class="std-card std-card-empty ${isNext ? 'std-card-next' : ''}" data-slot="${escapeHtml(slotKey)}">
+      ${isNext ? '<span class="std-card-next-tag">Suivant</span>' : ''}
       <div class="std-card-empty-body">
         <header class="std-card-head">
           <span class="std-card-icon">${iconSvg}</span>
@@ -14307,7 +14309,8 @@ function renderStandardPhotoCard(props) {
         ` : `
           <button type="button" class="std-card-primary" data-slot-action="upload" data-slot-key="${escapeHtml(slotKey)}">
             ${STD_ICONS.camera}
-            <span>Prendre la photo</span>
+            <span class="std-card-primary-long">Prendre la photo</span>
+            <span class="std-card-primary-short">Photo</span>
           </button>
           <input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(slotKey)}" style="display:none">
         `}
@@ -14471,15 +14474,19 @@ function standardsRenderDaily(data) {
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
   // Trouve la prochaine photo à faire (premier slot sans photo)
   const nextSlot = defsAll.find(def => !(slots[def.id] && slots[def.id].has_photo));
+  const nextSlotId = nextSlot ? nextSlot.id : null;
+  // Stocke l'id de la prochaine action pour que la card puisse se marquer
+  container.dataset.nextSlot = nextSlotId || '';
   // Affiche la progression + bandeau prochaine action
   const scoreEl = document.getElementById('std-score-display');
   if (scoreEl) {
     let stateClass = 'std-progress-empty';
     let mainMsg = 'À démarrer';
-    if (pct >= 100) { stateClass = 'std-progress-done'; mainMsg = 'Studio complet aujourd\'hui ✓'; }
+    const remaining = total - doneCount;
+    if (pct >= 100) { stateClass = 'std-progress-done'; mainMsg = 'Studio complet ✓'; }
     else if (pct >= 75) { stateClass = 'std-progress-half'; mainMsg = 'Dernière ligne droite'; }
     else if (pct >= 50) { stateClass = 'std-progress-half'; mainMsg = 'Bien avancé'; }
-    else if (pct > 0) mainMsg = `Encore ${total - doneCount} photo${total - doneCount > 1 ? 's' : ''} à faire`;
+    else if (pct > 0) mainMsg = `${remaining} restante${remaining > 1 ? 's' : ''}`;
     scoreEl.innerHTML = `
       <div class="std-progress ${stateClass}">
         <div class="std-progress-row">
@@ -14489,7 +14496,8 @@ function standardsRenderDaily(data) {
         <div class="std-progress-bar"><div class="std-progress-fill" style="width:${pct}%"></div></div>
         ${nextSlot && !readOnly ? `
           <button type="button" class="std-progress-next" data-next-slot="${escapeHtml(nextSlot.id)}">
-            🎯 Prochaine : <strong>${escapeHtml(nextSlot.label)}${nextSlot.coach ? ` (Coach ${nextSlot.coach})` : ''}</strong>
+            <span class="std-progress-next-label">Suivant</span>
+            <strong class="std-progress-next-title">${escapeHtml(nextSlot.label)}</strong>
             <span class="std-progress-next-arrow">→</span>
           </button>
         ` : ''}
@@ -14526,6 +14534,7 @@ function standardsRenderDaily(data) {
       uploadedBy: s.uploaded_by || null,
       uploadedAt: s.uploaded_at || null,
       rejectionReason: null,
+      isNext: def.id === nextSlotId,
     });
   };
   const defs = standardsSlotsDef && standardsSlotsDef.length ? standardsSlotsDef : [];
