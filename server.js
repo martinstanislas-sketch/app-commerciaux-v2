@@ -4617,7 +4617,7 @@ app.get('/api/standards/evaluation/photo', requireAuth, (req, res) => {
 // peut remplir n'importe quel slot (un par jour).
 // 6 catégories de base — dupliquées en deux groupes (Coach 1 / Coach 2)
 const STANDARDS_DAILY_BASE = [
-  { id: 'excel_adherent', label: 'Excel Adhérent', icon: '📊' },
+  { id: 'excel_adherent', label: 'Suivi Adh', icon: '📊' },
   { id: 'tableau_pret', label: 'Tableau prêt', icon: '📋' },
   { id: 'salle_entrainement', label: 'Training 1', icon: '🏋️' },
   { id: 'salle_entrainement_2', label: 'Training 2', icon: '🤸' },
