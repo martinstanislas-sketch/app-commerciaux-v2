@@ -4818,8 +4818,7 @@ const KPI_DEFAULTS = { prises_ref: 0, call_non_freq: 0, avis_google: 0, temoigna
 function canEditKpiCounters(req) {
   if (req.session.role === 'admin') return true;
   if (req.session.role === 'standards_admin') return false; // read-only
-  if (req.session.role === 'guest') return false; // pas d'accès aux KPI internes
-  if (['coach_leader', 'coach', 'coach-leader'].includes(req.session.role)) return true;
+  if (['coach_leader', 'guest', 'coach', 'coach-leader'].includes(req.session.role)) return true;
   return false;
 }
 function canEditKpiActionCle(req) {
@@ -4835,8 +4834,6 @@ app.get('/api/standards/daily/kpi', requireAuth, (req, res) => {
   if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
   if (!standardsCanViewDate(req, date)) return res.status(403).json({ error: 'Accès refusé sur cette date' });
-  // Guest : pas d'accès aux indicateurs internes du club
-  if (req.session.role === 'guest') return res.status(403).json({ error: 'Accès refusé' });
   const db = getDb();
   const row = db.prepare(`
     SELECT prises_ref, call_non_freq, avis_google, temoignages, surpack_eur, action_cle, updated_at
