@@ -4814,7 +4814,18 @@ function checkinExists(studio, date, coach_slot) {
 // leader complet (can_view_history = true) ou l'admin.
 const KPI_COUNTERS = ['prises_ref', 'call_non_freq', 'avis_google', 'temoignages'];
 const KPI_DEFAULTS = { prises_ref: 0, call_non_freq: 0, avis_google: 0, temoignages: 0, surpack_eur: 0, action_cle: null };
+const KPI_CLUB_OWNER = '__club__';
 
+// Détermine le scope KPI selon le rôle :
+//  - guest    → ligne PRIVÉE par guest (clé = `guest:<safeName>`)
+//  - autres   → ligne PARTAGÉE du club (`__club__`)
+function kpiOwnerKey(session) {
+  if (session.role === 'guest') {
+    const safe = String(session.name || 'inconnu').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+    return `guest:${safe || 'inconnu'}`;
+  }
+  return KPI_CLUB_OWNER;
+}
 function canEditKpiCounters(req) {
   if (req.session.role === 'admin') return true;
   if (req.session.role === 'standards_admin') return false; // read-only
@@ -4823,7 +4834,10 @@ function canEditKpiCounters(req) {
 }
 function canEditKpiActionCle(req) {
   if (req.session.role === 'admin') return true;
+  // Coach leader complet → édite l'action clé du club
   if (req.session.role === 'coach_leader' && req.session.can_view_history === true) return true;
+  // Guest → édite SA propre action clé (scope guest:NAME)
+  if (req.session.role === 'guest') return true;
   return false;
 }
 
@@ -4835,10 +4849,11 @@ app.get('/api/standards/daily/kpi', requireAuth, (req, res) => {
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
   if (!standardsCanViewDate(req, date)) return res.status(403).json({ error: 'Accès refusé sur cette date' });
   const db = getDb();
+  const owner = kpiOwnerKey(req.session);
   const row = db.prepare(`
     SELECT prises_ref, call_non_freq, avis_google, temoignages, surpack_eur, action_cle, updated_at
-    FROM standards_daily_kpi WHERE studio = ? AND date = ?
-  `).get(studio, date);
+    FROM standards_daily_kpi WHERE studio = ? AND date = ? AND owner_key = ?
+  `).get(studio, date, owner);
   res.json({ studio, date, kpi: row || { ...KPI_DEFAULTS, updated_at: null } });
 });
 
@@ -4878,13 +4893,14 @@ app.put('/api/standards/daily/kpi', requireAuth, (req, res) => {
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
 
   const db = getDb();
-  // Récupère la ligne existante (ou crée avec defaults)
-  const existing = db.prepare('SELECT * FROM standards_daily_kpi WHERE studio = ? AND date = ?').get(studio, date) || { ...KPI_DEFAULTS };
+  const owner = kpiOwnerKey(req.session);
+  // Récupère la ligne existante du scope (ou défauts)
+  const existing = db.prepare('SELECT * FROM standards_daily_kpi WHERE studio = ? AND date = ? AND owner_key = ?').get(studio, date, owner) || { ...KPI_DEFAULTS };
   const merged = { ...existing, ...updates };
   db.prepare(`
-    INSERT INTO standards_daily_kpi (studio, date, prises_ref, call_non_freq, avis_google, temoignages, surpack_eur, action_cle, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
-    ON CONFLICT(studio, date) DO UPDATE SET
+    INSERT INTO standards_daily_kpi (studio, date, owner_key, prises_ref, call_non_freq, avis_google, temoignages, surpack_eur, action_cle, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+    ON CONFLICT(studio, date, owner_key) DO UPDATE SET
       prises_ref = excluded.prises_ref,
       call_non_freq = excluded.call_non_freq,
       avis_google = excluded.avis_google,
@@ -4892,7 +4908,7 @@ app.put('/api/standards/daily/kpi', requireAuth, (req, res) => {
       surpack_eur = excluded.surpack_eur,
       action_cle = excluded.action_cle,
       updated_at = excluded.updated_at
-  `).run(studio, date, merged.prises_ref, merged.call_non_freq, merged.avis_google, merged.temoignages, merged.surpack_eur, merged.action_cle);
+  `).run(studio, date, owner, merged.prises_ref, merged.call_non_freq, merged.avis_google, merged.temoignages, merged.surpack_eur, merged.action_cle);
   res.json({ ok: true, kpi: merged });
 });
 

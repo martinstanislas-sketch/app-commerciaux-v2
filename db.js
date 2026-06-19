@@ -555,12 +555,13 @@ function initSchema() {
   } catch (_) {}
 
   // ─── STANDARDS daily : indicateurs du jour (compteurs + action clé) ──
-  // Une ligne par studio × jour. Compteurs partagés entre tous les coachs
-  // qui passent ; action_cle éditée uniquement par le coach leader.
+  // owner_key : '__club__' = ligne partagée par les coachs du studio,
+  // 'guest:NAME' = ligne privée d'un guest (un guest ne voit que sa ligne).
   db.exec(`
     CREATE TABLE IF NOT EXISTS standards_daily_kpi (
       studio TEXT NOT NULL,
       date TEXT NOT NULL,
+      owner_key TEXT NOT NULL DEFAULT '__club__',
       prises_ref INTEGER NOT NULL DEFAULT 0,
       call_non_freq INTEGER NOT NULL DEFAULT 0,
       avis_google INTEGER NOT NULL DEFAULT 0,
@@ -568,10 +569,49 @@ function initSchema() {
       surpack_eur REAL NOT NULL DEFAULT 0,
       action_cle TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-      PRIMARY KEY (studio, date)
+      PRIMARY KEY (studio, date, owner_key)
     );
     CREATE INDEX IF NOT EXISTS idx_standards_kpi_date ON standards_daily_kpi(date, studio);
   `);
+  // Migration : si la table existait avec PRIMARY KEY (studio, date)
+  // sans owner_key, on recrée la table avec la nouvelle PK et on copie
+  // les lignes existantes en les rattachant au scope club.
+  try {
+    const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='standards_daily_kpi'").get();
+    const hasOwnerInPK = tableSql && /PRIMARY KEY\s*\([^)]*owner_key/i.test(tableSql.sql);
+    if (!hasOwnerInPK) {
+      const cols = db.prepare("PRAGMA table_info(standards_daily_kpi)").all().map(c => c.name);
+      const hasOwnerCol = cols.includes('owner_key');
+      db.exec('BEGIN');
+      db.exec(`
+        CREATE TABLE standards_daily_kpi_new (
+          studio TEXT NOT NULL,
+          date TEXT NOT NULL,
+          owner_key TEXT NOT NULL DEFAULT '__club__',
+          prises_ref INTEGER NOT NULL DEFAULT 0,
+          call_non_freq INTEGER NOT NULL DEFAULT 0,
+          avis_google INTEGER NOT NULL DEFAULT 0,
+          temoignages INTEGER NOT NULL DEFAULT 0,
+          surpack_eur REAL NOT NULL DEFAULT 0,
+          action_cle TEXT,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+          PRIMARY KEY (studio, date, owner_key)
+        )
+      `);
+      const ownerExpr = hasOwnerCol ? `COALESCE(owner_key, '__club__')` : `'__club__'`;
+      db.exec(`
+        INSERT INTO standards_daily_kpi_new (studio, date, owner_key, prises_ref, call_non_freq, avis_google, temoignages, surpack_eur, action_cle, updated_at)
+        SELECT studio, date, ${ownerExpr}, prises_ref, call_non_freq, avis_google, temoignages, surpack_eur, action_cle, updated_at
+        FROM standards_daily_kpi
+      `);
+      db.exec(`DROP TABLE standards_daily_kpi`);
+      db.exec(`ALTER TABLE standards_daily_kpi_new RENAME TO standards_daily_kpi`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_standards_kpi_date ON standards_daily_kpi(date, studio)`);
+      db.exec('COMMIT');
+    }
+  } catch (e) {
+    try { db.exec('ROLLBACK'); } catch (_) {}
+  }
 
   // ─── STANDARDS daily : check-in mood + tâches (story / compte-rendu) ──
   // Le coach (ou coach leader / guest) doit déclarer son humeur du jour et

@@ -14588,12 +14588,15 @@ function canEditKpiCountersFront() {
   if (isStandardsAdmin()) return false;
   return ['admin', 'coach_leader', 'guest', 'coach', 'coach-leader'].includes(currentUser.role);
 }
-// Action clé du moment : uniquement coach leader COMPLET (can_view_history)
-// ou admin. Les assistants studio et les guests voient mais n'éditent pas.
+// Action clé du moment :
+//   - Coach leader complet et admin → édite l'action clé du club partagée
+//   - Guest → édite SA propre action clé (scope privé guest:NAME)
+//   - Coach sportif / coach / autres → voient mais n'éditent pas
 function canEditKpiActionCleFront() {
   if (!currentUser) return false;
   if (currentUser.role === 'admin') return true;
   if (currentUser.role === 'coach_leader' && currentUser.can_view_history === true) return true;
+  if (currentUser.role === 'guest') return true;
   return false;
 }
 
