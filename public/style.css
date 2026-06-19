@@ -18919,153 +18919,268 @@ body.tk-dragging-active #tab-tasks .tk-card {
   #tab-standards .std-slots-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
-  /* Mobile : 1 carte par ligne, grands boutons, pleine largeur */
+  /* Mobile : 1 carte par ligne, plus grand visuel */
   #tab-standards .std-slots-grid { grid-template-columns: 1fr; gap: 14px; }
-  #tab-standards .std-banner { padding: 18px 16px; }
-  #tab-standards .std-banner-title { font-size: 20px; }
-  #tab-standards .std-wrap { padding: 16px 14px 100px; }
-  #tab-standards .std-toolbar { gap: 10px; padding: 10px 12px; }
+  #tab-standards .std-banner { padding: 16px 14px; }
+  #tab-standards .std-banner-title { font-size: 19px; }
+  #tab-standards .std-wrap { padding: 14px 12px 100px; }
+  #tab-standards .std-toolbar { gap: 8px; padding: 10px 12px; }
   #tab-standards .std-studio-select { font-size: 15px; padding: 9px 12px; }
   #tab-standards .std-month-label { font-size: 14px; min-width: 0; flex: 1; }
   #tab-standards .std-nav-btn { width: 38px; height: 38px; }
-  #tab-standards .std-slot-head { padding: 14px 18px; min-height: 56px; }
-  #tab-standards .std-slot-title { font-size: 16px; }
-  #tab-standards .std-slot-icon { font-size: 24px; }
-  #tab-standards .std-slot-body { padding: 14px 16px; }
-  #tab-standards .std-slot-btn { padding: 13px 16px; font-size: 15px; }
-  #tab-standards .std-slot-upload { padding: 16px 20px; font-size: 16px; }
+  #tab-standards .std-progress-count { font-size: 20px; }
+  #tab-standards .std-slot-empty-icon { font-size: 72px; }
+  #tab-standards .std-slot-empty-label { font-size: 16px; }
+  #tab-standards .std-slot-empty-cta { padding: 11px 22px; font-size: 14px; }
+  #tab-standards .std-slot-empty-zone { min-height: 240px; }
+  #tab-standards .std-slot-photo-badge { font-size: 13px; padding: 7px 12px; }
+  #tab-standards .std-slot-photo-check { width: 40px; height: 40px; font-size: 22px; }
+  #tab-standards .std-slot-mini-btn { width: 40px; height: 40px; font-size: 16px; }
 }
+/* ── Barre de progression globale ─── */
+#tab-standards .std-progress {
+  width: 100%;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  border: 1px solid #CCFBF1;
+  box-shadow: 0 1px 3px rgba(15, 118, 110, 0.06);
+}
+#tab-standards .std-progress-text {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+#tab-standards .std-progress-count {
+  font-family: Georgia, serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0F766E;
+}
+#tab-standards .std-progress-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6A7392;
+}
+#tab-standards .std-progress-done .std-progress-count,
+#tab-standards .std-progress-done .std-progress-label { color: #10B981; }
+#tab-standards .std-progress-empty .std-progress-count,
+#tab-standards .std-progress-empty .std-progress-label { color: #94A3B8; }
+#tab-standards .std-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #F0FDFA;
+  border-radius: 999px;
+  overflow: hidden;
+}
+#tab-standards .std-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #14B8A6 0%, #0F766E 100%);
+  border-radius: 999px;
+  transition: width 300ms ease;
+}
+#tab-standards .std-progress-done .std-progress-fill {
+  background: linear-gradient(90deg, #10B981 0%, #059669 100%);
+}
+
+/* ── Cards slot redessinées ─── */
 #tab-standards .std-slot {
   background: #fff;
-  border-radius: 14px;
-  border: 1px solid #CCFBF1;
+  border-radius: 16px;
+  border: 1px solid #E2E8F0;
   box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 #tab-standards .std-slot-filled {
   border-color: #14B8A6;
+  box-shadow: 0 4px 14px rgba(20, 184, 166, 0.18);
 }
 #tab-standards .std-slot-empty {
-  border-style: dashed;
+  border: 2px dashed #FCA5A5;
+  background: linear-gradient(180deg, #FEF2F2 0%, #fff 100%);
 }
-#tab-standards .std-slot-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
-  background: #0F766E;
-  color: #fff;
-  min-height: 64px;
-  flex-shrink: 0;
-}
-#tab-standards .std-slot-filled .std-slot-head {
-  background: #0F766E;
-}
-#tab-standards .std-slot-empty .std-slot-head {
-  background: #94A3B8;
-}
-#tab-standards .std-slot-icon {
-  font-size: 20px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-#tab-standards .std-slot-title {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.25;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  hyphens: auto;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-#tab-standards .std-slot-body {
-  padding: 18px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-#tab-standards .std-slot-placeholder {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #94A3B8;
-  font-size: 13px;
-  font-style: italic;
-  padding: 16px 0;
-  text-align: center;
-}
-/* ─ Zone empty cliquable (toute la zone du body sert de bouton) ─ */
-#tab-standards .std-slot-empty-zone {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background: linear-gradient(135deg, #14B8A6 0%, #0F766E 100%);
-  color: #fff;
-  border: 0;
-  border-radius: 12px;
-  padding: 24px 14px;
-  cursor: pointer;
-  font-family: inherit;
-  min-height: 130px;
-  transition: all 120ms ease;
-  box-shadow: 0 3px 10px rgba(15, 118, 110, 0.15);
-}
-#tab-standards .std-slot-empty-zone:active {
-  transform: scale(0.98);
-}
-#tab-standards .std-slot-empty-zone:hover {
-  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.22);
-}
-#tab-standards .std-slot-empty-icon {
-  font-size: 36px;
-  line-height: 1;
-}
-#tab-standards .std-slot-empty-label {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-}
-/* ─ Miniature photo (tap = ouvre en grand) ─ */
-#tab-standards .std-slot-thumb {
+/* ── Zone photo plein-cadre (card remplie) ─── */
+#tab-standards .std-slot-photo-zone {
   position: relative;
   display: block;
   width: 100%;
   aspect-ratio: 4 / 3;
-  background: #F0FDFA;
+  background: linear-gradient(135deg, #0F766E 0%, #134E4A 100%);
   border: 0;
-  border-radius: 10px;
-  overflow: hidden;
   padding: 0;
   cursor: pointer;
+  overflow: hidden;
   transition: transform 120ms ease;
 }
-#tab-standards .std-slot-thumb:active { transform: scale(0.99); }
+#tab-standards .std-slot-photo-zone:active { transform: scale(0.99); }
 #tab-standards .std-slot-thumb-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-#tab-standards .std-slot-thumb-overlay {
+#tab-standards .std-slot-photo-overlay {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
-  background: rgba(15, 118, 110, 0.92);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 9px;
-  border-radius: 6px;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
   pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.35) 100%);
+}
+#tab-standards .std-slot-photo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.94);
+  color: #0F766E;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  align-self: flex-start;
+  max-width: calc(100% - 50px);
+  backdrop-filter: blur(6px);
+}
+#tab-standards .std-slot-photo-icon { font-size: 16px; line-height: 1; }
+#tab-standards .std-slot-photo-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#tab-standards .std-slot-photo-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  background: #10B981;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+}
+#tab-standards .std-slot-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #F0FDFA;
+  border-top: 1px solid #CCFBF1;
+}
+#tab-standards .std-slot-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+#tab-standards .std-slot-by {
+  font-size: 13px;
+  color: #1E293B;
+}
+#tab-standards .std-slot-by strong { color: #0F766E; }
+#tab-standards .std-slot-when {
+  font-size: 11px;
+  color: #6A7392;
+}
+#tab-standards .std-slot-actions {
+  display: flex;
+  gap: 4px;
+}
+#tab-standards .std-slot-mini-btn {
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  border: 1px solid #CBD5E1;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  color: #475569;
+  transition: all 100ms ease;
+}
+#tab-standards .std-slot-mini-btn.std-slot-replace:hover {
+  background: #F0FDFA;
+  border-color: #14B8A6;
+  color: #0F766E;
+}
+#tab-standards .std-slot-mini-btn.std-slot-delete:hover {
+  background: #FEF2F2;
+  border-color: #EF4444;
+  color: #EF4444;
+}
+
+/* ── Zone empty (card non remplie) — gros visuel ─── */
+#tab-standards .std-slot-empty-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 200px;
+  transition: all 120ms ease;
+}
+#tab-standards .std-slot-empty-zone:active { transform: scale(0.99); }
+#tab-standards .std-slot-empty-top {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 14px 8px;
+}
+#tab-standards .std-slot-empty-icon {
+  font-size: 64px;
+  line-height: 1;
+  filter: grayscale(0.4) opacity(0.7);
+  transition: all 200ms ease;
+}
+#tab-standards .std-slot-empty-zone:hover .std-slot-empty-icon {
+  transform: scale(1.1);
+  filter: grayscale(0) opacity(1);
+}
+#tab-standards .std-slot-empty-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 18px;
+}
+#tab-standards .std-slot-empty-label {
+  font-family: Georgia, serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #475569;
+  text-align: center;
+  line-height: 1.25;
+}
+#tab-standards .std-slot-empty-cta {
+  background: linear-gradient(135deg, #14B8A6 0%, #0F766E 100%);
+  color: #fff;
+  padding: 9px 16px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  box-shadow: 0 3px 10px rgba(15, 118, 110, 0.25);
 }
 #tab-standards .std-slot-meta {
   background: #F0FDFA;

@@ -14231,6 +14231,27 @@ function standardsRenderDaily(data) {
   const container = document.getElementById('std-categories');
   if (!container) return;
   const slots = data.slots || {};
+  // Compte les photos prises pour la barre de progression
+  const defsAll = standardsSlotsDef || [];
+  const doneCount = defsAll.reduce((n, def) => n + ((slots[def.id] && slots[def.id].has_photo) ? 1 : 0), 0);
+  const total = defsAll.length;
+  const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+  // Affiche la progression en haut du score-display
+  const scoreEl = document.getElementById('std-score-display');
+  if (scoreEl) {
+    let stateClass = 'std-progress-empty';
+    if (pct >= 100) stateClass = 'std-progress-done';
+    else if (pct >= 50) stateClass = 'std-progress-half';
+    scoreEl.innerHTML = `
+      <div class="std-progress ${stateClass}">
+        <div class="std-progress-text">
+          <span class="std-progress-count">${doneCount}/${total}</span>
+          <span class="std-progress-label">${pct >= 100 ? '✓ Toutes les photos prises !' : pct >= 50 ? 'Bien avancé' : pct > 0 ? 'En cours' : 'À démarrer'}</span>
+        </div>
+        <div class="std-progress-bar"><div class="std-progress-fill" style="width:${pct}%"></div></div>
+      </div>
+    `;
+  }
   const fmtDateTime = (iso) => {
     if (!iso) return '';
     const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
@@ -14241,32 +14262,39 @@ function standardsRenderDaily(data) {
     const filled = s && s.has_photo;
     return `
       <article class="std-slot ${filled ? 'std-slot-filled' : 'std-slot-empty'}" data-slot="${escapeHtml(def.id)}">
-        <header class="std-slot-head">
-          <div class="std-slot-icon">${escapeHtml(def.icon || '📷')}</div>
-          <div class="std-slot-title">${escapeHtml(def.label)}</div>
-        </header>
-        <div class="std-slot-body">
-          ${filled ? `
-            <button type="button" class="std-slot-thumb" data-slot-action="view" data-slot-key="${escapeHtml(def.id)}" title="Ouvrir la photo en grand">
-              <img class="std-slot-thumb-img" data-thumb-key="${escapeHtml(def.id)}" alt="${escapeHtml(def.label)}">
-              <span class="std-slot-thumb-overlay">📷 Voir</span>
-            </button>
+        ${filled ? `
+          <button type="button" class="std-slot-photo-zone" data-slot-action="view" data-slot-key="${escapeHtml(def.id)}" title="Ouvrir la photo en grand">
+            <img class="std-slot-thumb-img" data-thumb-key="${escapeHtml(def.id)}" alt="${escapeHtml(def.label)}">
+            <div class="std-slot-photo-overlay">
+              <div class="std-slot-photo-badge">
+                <span class="std-slot-photo-icon">${escapeHtml(def.icon || '📷')}</span>
+                <span class="std-slot-photo-label">${escapeHtml(def.label)}</span>
+              </div>
+              <div class="std-slot-photo-check">✓</div>
+            </div>
+          </button>
+          <div class="std-slot-footer">
             <div class="std-slot-meta">
-              <div class="std-slot-by">Par <strong>${escapeHtml(s.uploaded_by || '?')}</strong></div>
-              <div class="std-slot-when">${escapeHtml(fmtDateTime(s.uploaded_at))}</div>
+              <span class="std-slot-by"><strong>${escapeHtml(s.uploaded_by || '?')}</strong></span>
+              <span class="std-slot-when">${escapeHtml(fmtDateTime(s.uploaded_at))}</span>
             </div>
             <div class="std-slot-actions">
-              <button type="button" class="std-slot-btn std-slot-replace" data-slot-action="replace" data-slot-key="${escapeHtml(def.id)}">↻ Remplacer</button>
-              <button type="button" class="std-slot-btn std-slot-delete" data-slot-action="delete" data-slot-key="${escapeHtml(def.id)}">✕</button>
+              <button type="button" class="std-slot-mini-btn std-slot-replace" data-slot-action="replace" data-slot-key="${escapeHtml(def.id)}" title="Reprendre la photo">↻</button>
+              <button type="button" class="std-slot-mini-btn std-slot-delete" data-slot-action="delete" data-slot-key="${escapeHtml(def.id)}" title="Supprimer">✕</button>
             </div>
-          ` : `
-            <button type="button" class="std-slot-empty-zone" data-slot-action="upload" data-slot-key="${escapeHtml(def.id)}">
-              <span class="std-slot-empty-icon">📷</span>
-              <span class="std-slot-empty-label">Prendre la photo</span>
-            </button>
-          `}
-          <input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(def.id)}" style="display:none">
-        </div>
+          </div>
+        ` : `
+          <button type="button" class="std-slot-empty-zone" data-slot-action="upload" data-slot-key="${escapeHtml(def.id)}">
+            <div class="std-slot-empty-top">
+              <span class="std-slot-empty-icon">${escapeHtml(def.icon || '📷')}</span>
+            </div>
+            <div class="std-slot-empty-bottom">
+              <span class="std-slot-empty-label">${escapeHtml(def.label)}</span>
+              <span class="std-slot-empty-cta">📷 Prendre la photo</span>
+            </div>
+          </button>
+        `}
+        <input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(def.id)}" style="display:none">
       </article>
     `;
   };
