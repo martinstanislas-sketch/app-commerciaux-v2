@@ -14199,8 +14199,118 @@ async function cockpitSaveCell(input) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// STANDARDS — 2 créneaux photo par jour (matin / après-midi), par studio
+// STANDARDS — photos quotidiennes par studio (Coach 1 + Coach 2)
 // ═════════════════════════════════════════════════════════════════════════
+
+// Icônes Lucide-style en SVG inline (pas de dépendance externe).
+// Une seule taille/style → pic dans currentColor pour suivre le contexte.
+const STD_ICONS = {
+  spreadsheet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>',
+  clipboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>',
+  dumbbell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14"/><path d="M18 5v14"/><path d="M3 9v6"/><path d="M21 9v6"/><path d="M6 12h12"/></svg>',
+  activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+  shower: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16"/><path d="M14 4l4-2 3 3-2 4"/><circle cx="9" cy="13" r="0.5" fill="currentColor"/><circle cx="13" cy="15" r="0.5" fill="currentColor"/><circle cx="11" cy="17" r="0.5" fill="currentColor"/><circle cx="7" cy="17" r="0.5" fill="currentColor"/><circle cx="9" cy="20" r="0.5" fill="currentColor"/></svg>',
+  shirt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>',
+  camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><polyline points="21 3 21 8 16 8"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><polyline points="3 21 3 16 8 16"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>',
+};
+
+// Mapping slot base id → icon key
+const STD_SLOT_ICONS = {
+  excel_adherent: 'spreadsheet',
+  tableau_pret: 'clipboard',
+  salle_entrainement: 'dumbbell',
+  salle_entrainement_2: 'activity',
+  sdb: 'shower',
+  chic_coach: 'shirt',
+};
+
+function stdGetIcon(slotId) {
+  // Strip c1_/c2_ prefix to get the base id
+  const baseId = String(slotId || '').replace(/^c[12]_/, '');
+  const key = STD_SLOT_ICONS[baseId];
+  return key ? STD_ICONS[key] : STD_ICONS.camera;
+}
+
+// Composant card réutilisable. Props : { title, slotId, status, onTakePhoto,
+//   uploadedBy, uploadedAt, rejectionReason, hasPhoto, readOnly, slotKey }
+// status ∈ { 'todo' | 'sent' | 'validated' | 'rejected' }
+function renderStandardPhotoCard(props) {
+  const {
+    title, slotId, slotKey, status, hasPhoto, readOnly,
+    uploadedBy, uploadedAt, rejectionReason,
+  } = props;
+  const fmtDateTime = (iso) => {
+    if (!iso) return '';
+    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    return m ? `${m[3]}/${m[2]} · ${m[4]}:${m[5]}` : iso;
+  };
+  const iconSvg = stdGetIcon(slotId);
+  // Badge selon le status
+  const badges = {
+    todo: '<span class="std-badge std-badge-todo">À faire</span>',
+    sent: '<span class="std-badge std-badge-sent">Envoyée</span>',
+    validated: '<span class="std-badge std-badge-validated">✓ Validée</span>',
+    rejected: '<span class="std-badge std-badge-rejected">Refusée</span>',
+  };
+  const badge = badges[status] || badges.todo;
+
+  if (hasPhoto) {
+    // Carte « pleine » : photo + badge + uploader + actions discrètes
+    return `
+      <article class="std-card std-card-filled" data-slot="${escapeHtml(slotKey)}">
+        <button type="button" class="std-card-photo" data-slot-action="view" data-slot-key="${escapeHtml(slotKey)}" title="Voir en grand">
+          <img class="std-card-img std-slot-thumb-img" data-thumb-key="${escapeHtml(slotKey)}" alt="${escapeHtml(title)}">
+        </button>
+        <div class="std-card-body">
+          <header class="std-card-head">
+            <span class="std-card-icon">${iconSvg}</span>
+            <h4 class="std-card-title">${escapeHtml(title)}</h4>
+            ${badge}
+          </header>
+          ${status === 'rejected' && rejectionReason ? `
+            <div class="std-card-reject">${escapeHtml(rejectionReason)}</div>
+          ` : ''}
+          <div class="std-card-meta">
+            <span class="std-card-meta-user">${STD_ICONS.user}<span>${escapeHtml(uploadedBy || '?')}</span></span>
+            <span class="std-card-meta-when">${escapeHtml(fmtDateTime(uploadedAt))}</span>
+          </div>
+          ${readOnly ? '' : `
+            <div class="std-card-actions">
+              <button type="button" class="std-card-action-btn std-card-replace" data-slot-action="replace" data-slot-key="${escapeHtml(slotKey)}" title="Reprendre la photo">${STD_ICONS.refresh}<span>Remplacer</span></button>
+              <button type="button" class="std-card-action-btn std-card-delete" data-slot-action="delete" data-slot-key="${escapeHtml(slotKey)}" title="Supprimer">${STD_ICONS.trash}</button>
+            </div>
+          `}
+        </div>
+      </article>
+    `;
+  }
+
+  // Carte « à faire » : icône, titre, badge, gros bouton principal
+  return `
+    <article class="std-card std-card-empty" data-slot="${escapeHtml(slotKey)}">
+      <div class="std-card-empty-body">
+        <header class="std-card-head">
+          <span class="std-card-icon">${iconSvg}</span>
+          <h4 class="std-card-title">${escapeHtml(title)}</h4>
+          ${badge}
+        </header>
+        ${readOnly ? `
+          <div class="std-card-readonly-note">Aucune photo ce jour-là</div>
+        ` : `
+          <button type="button" class="std-card-primary" data-slot-action="upload" data-slot-key="${escapeHtml(slotKey)}">
+            ${STD_ICONS.camera}
+            <span>Prendre la photo</span>
+          </button>
+          <input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(slotKey)}" style="display:none">
+        `}
+      </div>
+    </article>
+  `;
+}
 
 const STD_DAYS_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const STD_MONTHS_FR = [
@@ -14377,53 +14487,19 @@ function standardsRenderDaily(data) {
     return m ? `${m[3]}/${m[2]} à ${m[4]}:${m[5]}` : iso;
   };
   const renderSlot = (def) => {
-    const s = slots[def.id];
-    const filled = s && s.has_photo;
-    return `
-      <article class="std-slot ${filled ? 'std-slot-filled' : 'std-slot-empty'} ${readOnly ? 'std-slot-readonly' : ''}" data-slot="${escapeHtml(def.id)}">
-        ${filled ? `
-          <button type="button" class="std-slot-photo-zone" data-slot-action="view" data-slot-key="${escapeHtml(def.id)}" title="Ouvrir la photo en grand">
-            <img class="std-slot-thumb-img" data-thumb-key="${escapeHtml(def.id)}" alt="${escapeHtml(def.label)}">
-            <div class="std-slot-photo-overlay">
-              <div class="std-slot-photo-badge">
-                <span class="std-slot-photo-icon">${escapeHtml(def.icon || '📷')}</span>
-                <span class="std-slot-photo-label">${escapeHtml(def.label)}</span>
-              </div>
-              <div class="std-slot-photo-check">✓</div>
-            </div>
-          </button>
-          <div class="std-slot-footer">
-            <div class="std-slot-meta">
-              <span class="std-slot-by"><strong>${escapeHtml(s.uploaded_by || '?')}</strong></span>
-              <span class="std-slot-when">${escapeHtml(fmtDateTime(s.uploaded_at))}</span>
-            </div>
-            ${readOnly ? '' : `
-              <div class="std-slot-actions">
-                <button type="button" class="std-slot-mini-btn std-slot-replace" data-slot-action="replace" data-slot-key="${escapeHtml(def.id)}" title="Reprendre la photo">↻</button>
-                <button type="button" class="std-slot-mini-btn std-slot-delete" data-slot-action="delete" data-slot-key="${escapeHtml(def.id)}" title="Supprimer">✕</button>
-              </div>
-            `}
-          </div>
-        ` : (readOnly ? `
-          <div class="std-slot-readonly-empty">
-            <span class="std-slot-empty-icon">${escapeHtml(def.icon || '📷')}</span>
-            <span class="std-slot-empty-label">${escapeHtml(def.label)}</span>
-            <span class="std-slot-readonly-note">Aucune photo ce jour-là</span>
-          </div>
-        ` : `
-          <button type="button" class="std-slot-empty-zone" data-slot-action="upload" data-slot-key="${escapeHtml(def.id)}">
-            <div class="std-slot-empty-top">
-              <span class="std-slot-empty-icon">${escapeHtml(def.icon || '📷')}</span>
-            </div>
-            <div class="std-slot-empty-bottom">
-              <span class="std-slot-empty-label">${escapeHtml(def.label)}</span>
-              <span class="std-slot-empty-cta">📷 Prendre la photo</span>
-            </div>
-          </button>
-        `)}
-        ${readOnly ? '' : `<input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(def.id)}" style="display:none">`}
-      </article>
-    `;
+    const s = slots[def.id] || {};
+    const hasPhoto = !!s.has_photo;
+    return renderStandardPhotoCard({
+      title: def.label,
+      slotId: def.id,
+      slotKey: def.id,
+      status: hasPhoto ? 'validated' : 'todo',
+      hasPhoto,
+      readOnly,
+      uploadedBy: s.uploaded_by || null,
+      uploadedAt: s.uploaded_at || null,
+      rejectionReason: null,
+    });
   };
   const defs = standardsSlotsDef && standardsSlotsDef.length ? standardsSlotsDef : [];
   if (defs.length === 0) {
@@ -14438,11 +14514,22 @@ function standardsRenderDaily(data) {
       num: n,
       defs: defs.filter(d => d.coach === n),
     })).filter(g => g.defs.length > 0);
+    // Pour chaque groupe : si toutes les photos remplies ont le même
+    // uploader, on utilise SON prénom comme titre au lieu de "Coach N"
+    const groupTitle = (g) => {
+      const uploaders = g.defs
+        .map(d => slots[d.id]?.uploaded_by)
+        .filter(Boolean);
+      if (uploaders.length === 0) return `Coach ${g.num}`;
+      const unique = new Set(uploaders);
+      if (unique.size === 1) return uploaders[0]; // un seul nom → on l'utilise
+      return `Coach ${g.num}`; // mélange → titre générique
+    };
     bodyHtml = groups.map(g => `
       <div class="std-group">
         <header class="std-group-head">
-          <span class="std-group-icon">👤</span>
-          <h3 class="std-group-title">Coach ${g.num}</h3>
+          <span class="std-group-icon">${STD_ICONS.user}</span>
+          <h3 class="std-group-title">${escapeHtml(groupTitle(g))}</h3>
         </header>
         <div class="std-slots-grid">${g.defs.map(renderSlot).join('')}</div>
       </div>

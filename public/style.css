@@ -19199,8 +19199,8 @@ body.tk-dragging-active #tab-tasks .tk-card {
 }
 
 @media (max-width: 720px) {
-  /* Mobile : 1 carte par ligne, plus grand visuel */
-  #tab-standards .std-slots-grid { grid-template-columns: 1fr; gap: 14px; }
+  /* Mobile : 1 carte par ligne, bouton plein largeur, lisibilité max */
+  #tab-standards .std-slots-grid { grid-template-columns: 1fr; gap: 12px; }
   #tab-standards .std-banner { padding: 16px 14px; }
   #tab-standards .std-banner-title { font-size: 19px; }
   #tab-standards .std-wrap { padding: 14px 12px 100px; }
@@ -19209,13 +19209,14 @@ body.tk-dragging-active #tab-tasks .tk-card {
   #tab-standards .std-month-label { font-size: 14px; min-width: 0; flex: 1; }
   #tab-standards .std-nav-btn { width: 38px; height: 38px; }
   #tab-standards .std-progress-count { font-size: 20px; }
-  #tab-standards .std-slot-empty-icon { font-size: 72px; }
-  #tab-standards .std-slot-empty-label { font-size: 16px; }
-  #tab-standards .std-slot-empty-cta { padding: 11px 22px; font-size: 14px; }
-  #tab-standards .std-slot-empty-zone { min-height: 240px; }
-  #tab-standards .std-slot-photo-badge { font-size: 13px; padding: 7px 12px; }
-  #tab-standards .std-slot-photo-check { width: 40px; height: 40px; font-size: 22px; }
-  #tab-standards .std-slot-mini-btn { width: 40px; height: 40px; font-size: 16px; }
+  /* Cards : optimisations mobile */
+  #tab-standards .std-card-icon { width: 36px; height: 36px; }
+  #tab-standards .std-card-icon svg { width: 20px; height: 20px; }
+  #tab-standards .std-card-title { font-size: 15px; }
+  #tab-standards .std-card-primary { padding: 14px 16px; font-size: 15px; }
+  #tab-standards .std-card-primary svg { width: 20px; height: 20px; }
+  #tab-standards .std-card-empty-body { padding: 18px; gap: 16px; }
+  #tab-standards .std-card-action-btn { padding: 10px 12px; font-size: 13px; }
 }
 /* ── Barre de progression globale ─── */
 #tab-standards .std-progress {
@@ -19265,24 +19266,247 @@ body.tk-dragging-active #tab-tasks .tk-card {
   background: linear-gradient(90deg, #10B981 0%, #059669 100%);
 }
 
-/* ── Cards slot redessinées ─── */
-#tab-standards .std-slot {
+/* ── Cards Standards : refonte premium ─── */
+#tab-standards .std-card {
   background: #fff;
-  border-radius: 16px;
-  border: 1px solid #E2E8F0;
-  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  border-radius: 14px;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(15, 23, 42, 0.04);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: all 180ms cubic-bezier(.4,0,.2,1);
   position: relative;
 }
-#tab-standards .std-slot-filled {
-  border-color: #14B8A6;
-  box-shadow: 0 4px 14px rgba(20, 184, 166, 0.18);
+#tab-standards .std-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
 }
-#tab-standards .std-slot-empty {
-  border: 2px dashed #FCA5A5;
-  background: linear-gradient(180deg, #FEF2F2 0%, #fff 100%);
+#tab-standards .std-card-filled { border-color: #D1FAE5; }
+#tab-standards .std-card-empty { background: #fff; }
+
+/* Header commun : icône + titre + badge */
+#tab-standards .std-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#tab-standards .std-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #F1F5F9;
+  color: #475569;
+  flex-shrink: 0;
+}
+#tab-standards .std-card-icon svg {
+  width: 18px;
+  height: 18px;
+}
+#tab-standards .std-card-filled .std-card-icon {
+  background: #ECFDF5;
+  color: #047857;
+}
+#tab-standards .std-card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0F172A;
+  line-height: 1.3;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Badges d'état */
+#tab-standards .std-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#tab-standards .std-badge-todo {
+  background: #F1F5F9;
+  color: #64748B;
+}
+#tab-standards .std-badge-sent {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+#tab-standards .std-badge-validated {
+  background: #D1FAE5;
+  color: #047857;
+}
+#tab-standards .std-badge-rejected {
+  background: #FEE2E2;
+  color: #B91C1C;
+}
+
+/* Carte vide : padding intérieur + bouton primaire */
+#tab-standards .std-card-empty-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+#tab-standards .std-card-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #0F172A;
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+  margin-top: auto;
+  transition: background 120ms ease, transform 120ms ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+#tab-standards .std-card-primary svg { width: 18px; height: 18px; }
+#tab-standards .std-card-primary:hover {
+  background: #1E293B;
+  transform: translateY(-1px);
+}
+#tab-standards .std-card-primary:active { transform: scale(0.99); }
+#tab-standards .std-card-readonly-note {
+  font-size: 12px;
+  color: #94A3B8;
+  font-style: italic;
+  text-align: center;
+  padding: 12px 0;
+  margin-top: auto;
+}
+
+/* Carte pleine : photo en haut + bloc info en bas */
+#tab-standards .std-card-photo {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #F1F5F9;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+#tab-standards .std-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 200ms ease;
+}
+#tab-standards .std-card-photo:hover .std-card-img {
+  transform: scale(1.02);
+}
+#tab-standards .std-card-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#tab-standards .std-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: #64748B;
+  border-top: 1px solid #F1F5F9;
+  padding-top: 10px;
+}
+#tab-standards .std-card-meta-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #0F172A;
+  font-weight: 600;
+}
+#tab-standards .std-card-meta-user svg { width: 14px; height: 14px; color: #94A3B8; }
+#tab-standards .std-card-meta-when { color: #94A3B8; font-size: 11px; }
+#tab-standards .std-card-reject {
+  background: #FEF2F2;
+  color: #B91C1C;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+}
+#tab-standards .std-card-actions {
+  display: flex;
+  gap: 6px;
+}
+#tab-standards .std-card-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  flex: 1;
+  transition: all 120ms ease;
+}
+#tab-standards .std-card-action-btn svg { width: 14px; height: 14px; }
+#tab-standards .std-card-action-btn.std-card-delete { flex: 0 0 auto; padding: 7px 9px; }
+#tab-standards .std-card-action-btn.std-card-replace:hover {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
+  color: #0F172A;
+}
+#tab-standards .std-card-action-btn.std-card-delete:hover {
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+  color: #B91C1C;
+}
+
+/* Section header (groupe par coach) : design plus discret */
+#tab-standards .std-group-head {
+  background: #fff;
+  color: #0F172A;
+  border: 1px solid #E5E7EB;
+}
+#tab-standards .std-group-head .std-group-icon svg {
+  width: 18px;
+  height: 18px;
+  color: #475569;
+}
+#tab-standards .std-group-title {
+  color: #0F172A;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+/* Ancien styles std-slot conservés en fallback (legacy) — peuvent être ignorés */
+#tab-standards .std-slot {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #E5E7EB;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 /* ── Zone photo plein-cadre (card remplie) ─── */
 #tab-standards .std-slot-photo-zone {
