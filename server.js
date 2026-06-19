@@ -4511,9 +4511,9 @@ app.get('/api/standards/evaluation/photo', requireAuth, (req, res) => {
 // Slots fixes — id + label. N'importe quel coach leader du studio
 // peut remplir n'importe quel slot (un par jour).
 const STANDARDS_DAILY_SLOTS_DEF = [
-  { id: 'excel_adherent', label: 'Excel de suivi adhérent', icon: '📊' },
+  { id: 'excel_adherent', label: 'Excel Adhérent', icon: '📊' },
   { id: 'tableau_pret', label: 'Tableau prêt', icon: '📋' },
-  { id: 'salle_entrainement', label: 'Salle d\'entraînement', icon: '🏋️' },
+  { id: 'salle_entrainement', label: 'Training', icon: '🏋️' },
   { id: 'sdb', label: 'SDB', icon: '🚿' },
   { id: 'chic_coach', label: 'Chic du coach', icon: '👔' },
 ];
