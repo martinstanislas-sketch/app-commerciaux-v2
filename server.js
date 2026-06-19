@@ -4588,7 +4588,8 @@ app.get('/api/standards/evaluation/photo', requireAuth, (req, res) => {
 
 // Slots fixes — id + label. N'importe quel coach leader du studio
 // peut remplir n'importe quel slot (un par jour).
-const STANDARDS_DAILY_SLOTS_DEF = [
+// 6 catégories de base — dupliquées en deux groupes (Coach 1 / Coach 2)
+const STANDARDS_DAILY_BASE = [
   { id: 'excel_adherent', label: 'Excel Adhérent', icon: '📊' },
   { id: 'tableau_pret', label: 'Tableau prêt', icon: '📋' },
   { id: 'salle_entrainement', label: 'Training 1', icon: '🏋️' },
@@ -4596,6 +4597,16 @@ const STANDARDS_DAILY_SLOTS_DEF = [
   { id: 'sdb', label: 'SDB', icon: '🚿' },
   { id: 'chic_coach', label: 'Chic du coach', icon: '👔' },
 ];
+// Génère les 12 slots définitifs : c1_<id> et c2_<id> avec le champ
+// `coach` (1 ou 2) pour permettre le regroupement côté front.
+const STANDARDS_DAILY_SLOTS_DEF = [1, 2].flatMap(coachNum =>
+  STANDARDS_DAILY_BASE.map(b => ({
+    id: `c${coachNum}_${b.id}`,
+    label: b.label,
+    icon: b.icon,
+    coach: coachNum,
+  }))
+);
 const STANDARDS_DAILY_SLOTS = STANDARDS_DAILY_SLOTS_DEF.map(s => s.id);
 
 app.get('/api/standards/daily/slots', requireAuth, (req, res) => {

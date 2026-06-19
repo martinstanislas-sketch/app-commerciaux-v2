@@ -507,14 +507,14 @@ function initSchema() {
     db.exec(`ALTER TABLE standards_evaluations ADD COLUMN photo_size INTEGER NOT NULL DEFAULT 0;`);
   }
 
-  // ─── STANDARDS daily (matin / après-midi) ───────────────────
-  // Format quotidien : par studio + jour + créneau (matin/après-midi),
-  // une photo libre (sans notation, sans commentaire).
+  // ─── STANDARDS daily ────────────────────────────────────────
+  // Photos quotidiennes par studio + jour + slot. Les slot_id sont
+  // préfixés par c1_ ou c2_ pour indiquer le coach (2 coachs/jour).
   db.exec(`
     CREATE TABLE IF NOT EXISTS standards_daily (
       studio TEXT NOT NULL,
       date TEXT NOT NULL,            -- YYYY-MM-DD
-      slot TEXT NOT NULL,            -- 'morning' | 'afternoon'
+      slot TEXT NOT NULL,            -- ex: c1_excel_adherent
       photo_blob BLOB,
       photo_mime TEXT,
       photo_size INTEGER NOT NULL DEFAULT 0,
@@ -524,6 +524,18 @@ function initSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_standards_daily_date ON standards_daily(date, studio);
   `);
+  // Migration : préfixer les anciens slots (sans c1_/c2_) en c1_*
+  // pour les associer rétroactivement au coach 1.
+  try {
+    const oldSlots = ['excel_adherent', 'tableau_pret', 'salle_entrainement', 'salle_entrainement_2', 'sdb', 'chic_coach'];
+    const placeholders = oldSlots.map(() => '?').join(',');
+    const result = db.prepare(
+      `UPDATE standards_daily SET slot = 'c1_' || slot WHERE slot IN (${placeholders})`
+    ).run(...oldSlots);
+    if (result.changes > 0) {
+      console.log(`[migration] standards_daily : ${result.changes} photo(s) migrée(s) avec préfixe c1_`);
+    }
+  } catch (_) {}
 
   // ─── COCKPIT : suivi mensuel KPIs par club ──────────────────
   // Équivalent SQLite des tables kpi_objectives / kpi_values décrites

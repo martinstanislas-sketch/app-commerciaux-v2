@@ -18910,6 +18910,33 @@ body.tk-dragging-active #tab-tasks .tk-card {
 }
 
 /* ── Nouvelles cards : 2 créneaux photo par jour ─── */
+/* ── Section par coach ─── */
+#tab-standards .std-group {
+  margin-bottom: 22px;
+}
+#tab-standards .std-group:last-child { margin-bottom: 0; }
+#tab-standards .std-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  background: linear-gradient(90deg, #0F766E 0%, #14B8A6 100%);
+  border-radius: 10px;
+  color: #fff;
+}
+#tab-standards .std-group-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+#tab-standards .std-group-title {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
 #tab-standards .std-slots-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

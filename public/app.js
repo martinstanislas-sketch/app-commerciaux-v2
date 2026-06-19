@@ -14430,13 +14430,33 @@ function standardsRenderDaily(data) {
     container.innerHTML = `<div class="std-empty">Aucun emplacement photo configuré.</div>`;
     return;
   }
+  // Regroupe par coach (1, 2) si le champ existe ; sinon une seule rangée
+  const hasCoachField = defs.some(d => d.coach != null);
+  let bodyHtml = '';
+  if (hasCoachField) {
+    const groups = [1, 2].map(n => ({
+      num: n,
+      defs: defs.filter(d => d.coach === n),
+    })).filter(g => g.defs.length > 0);
+    bodyHtml = groups.map(g => `
+      <div class="std-group">
+        <header class="std-group-head">
+          <span class="std-group-icon">👤</span>
+          <h3 class="std-group-title">Coach ${g.num}</h3>
+        </header>
+        <div class="std-slots-grid">${g.defs.map(renderSlot).join('')}</div>
+      </div>
+    `).join('');
+  } else {
+    bodyHtml = `<div class="std-slots-grid">${defs.map(renderSlot).join('')}</div>`;
+  }
   container.innerHTML = `
     ${readOnly ? `
       <div class="std-readonly-banner">
         🔒 Lecture seule — tu peux consulter les photos mais pas les modifier pour les jours passés.
       </div>
     ` : ''}
-    <div class="std-slots-grid">${defs.map(renderSlot).join('')}</div>
+    ${bodyHtml}
   `;
   // Charge les miniatures pour les slots remplis
   container.querySelectorAll('.std-slot-thumb-img').forEach(img => {
