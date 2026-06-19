@@ -31,11 +31,16 @@ function isCoachLeader() {
 function isGuest() {
   return currentUser && currentUser.role === 'guest';
 }
-// Peut consulter l'historique : seul un coach_leader avec le flag true,
-// ou l'admin. Les guests et les assistants studio sont limités à today.
+// Accès Standards admin : superviseur lecture seule sur tous les studios.
+function isStandardsAdmin() {
+  return currentUser && currentUser.role === 'standards_admin';
+}
+// Peut consulter l'historique : admin, standards_admin, ou coach_leader avec
+// le flag true. Les guests et les assistants studio sont limités à today.
 function canViewStandardsHistory() {
   if (!currentUser) return false;
   if (currentUser.role === 'admin') return true;
+  if (currentUser.role === 'standards_admin') return true;
   if (currentUser.role === 'coach_leader' && currentUser.can_view_history === true) return true;
   return false;
 }
@@ -222,7 +227,7 @@ function updateUserUI() {
   // Titre du bandeau : « Coach » pour les rôles coach (leader, assistant,
   // guest, coach historique), sinon « Suivi Commerciaux » par défaut.
   if (appTitle) {
-    const coachRoles = ['coach_leader', 'guest', 'coach', 'coach-leader'];
+    const coachRoles = ['coach_leader', 'guest', 'coach', 'coach-leader', 'standards_admin'];
     appTitle.textContent = currentUser && coachRoles.includes(currentUser.role)
       ? 'Coach' : 'Suivi Commerciaux';
   }
@@ -236,11 +241,12 @@ function updateUserUI() {
     }
     // Role badge
     if (roleBadge) {
-      const roleLabel = currentUser.role === 'admin'        ? 'Admin'
-                      : currentUser.role === 'consultant'   ? 'Consultant'
-                      : currentUser.role === 'phoneur'      ? 'Phoneur'
-                      : currentUser.role === 'coach_leader' ? (currentUser.can_view_history ? 'Coach Leader' : 'Assistant Studio')
-                      : currentUser.role === 'guest'        ? 'Guest'
+      const roleLabel = currentUser.role === 'admin'           ? 'Admin'
+                      : currentUser.role === 'standards_admin' ? 'Superviseur Standards'
+                      : currentUser.role === 'consultant'      ? 'Consultant'
+                      : currentUser.role === 'phoneur'         ? 'Phoneur'
+                      : currentUser.role === 'coach_leader'    ? (currentUser.can_view_history ? 'Coach Leader' : 'Assistant Studio')
+                      : currentUser.role === 'guest'           ? 'Guest'
                       : 'Commercial';
       roleBadge.textContent = roleLabel;
       roleBadge.className = 'user-role-badge' + (currentUser.role === 'admin' ? ' admin' : '');
@@ -777,8 +783,8 @@ function updateTabVisibility() {
   const cockpitBtn = document.querySelector('[data-tab="cockpit"]');
   const standardsBtn = document.querySelector('[data-tab="standards"]');
 
-  if (isCoachLeader() || isGuest()) {
-    // Coach leader / Guest : UNIQUEMENT l'onglet Standards.
+  if (isCoachLeader() || isGuest() || isStandardsAdmin()) {
+    // Coach leader / Guest / Superviseur Standards : UNIQUEMENT l'onglet Standards.
     if (todayBtn) todayBtn.style.display = 'none';
     if (ventesBtn) ventesBtn.style.display = 'none';
     if (dashBtn) dashBtn.style.display = 'none';
@@ -14362,7 +14368,7 @@ function standardsShiftDate(iso, delta) {
 }
 
 async function loadStandardsTab() {
-  if (!isAdmin() && !isCoachLeader() && !isGuest()) return;
+  if (!isAdmin() && !isCoachLeader() && !isGuest() && !isStandardsAdmin()) return;
   if (!standardsBooted) {
     standardsBooted = true;
     const headers = { 'Authorization': `Bearer ${authToken}` };
@@ -14374,7 +14380,7 @@ async function loadStandardsTab() {
         standardsSlotsDef = d.slots || [];
       }
     } catch (_) { standardsSlotsDef = []; }
-    if (isAdmin()) {
+    if (isAdmin() || isStandardsAdmin()) {
       try {
         const stRes = await fetch('/api/standards/studios', { headers });
         if (stRes.ok) {
@@ -14382,10 +14388,16 @@ async function loadStandardsTab() {
           standardsStudios = data.studios || [];
         }
       } catch (_) { standardsStudios = []; }
+      // Gestion des coach leaders : réservée à l'admin (lecture/écriture).
+      // Le superviseur Standards reste lecture seule sur le périmètre.
       const manageBtn = document.getElementById('std-manage-leaders');
       if (manageBtn) {
-        manageBtn.style.display = '';
-        manageBtn.addEventListener('click', openCoachLeadersModal);
+        if (isAdmin()) {
+          manageBtn.style.display = '';
+          manageBtn.addEventListener('click', openCoachLeadersModal);
+        } else {
+          manageBtn.style.display = 'none';
+        }
       }
     } else {
       standardsStudios = getMyStudio() ? [getMyStudio()] : [];
@@ -14492,7 +14504,7 @@ function standardsRenderDaily(data) {
   // Le coach leader peut SEULEMENT modifier le jour courant ; l'admin
   // peut tout faire. Détecte le mode lecture-seule.
   const today = standardsTodayDate();
-  const readOnly = isCoachLeader() && standardsDate !== today;
+  const readOnly = isStandardsAdmin() || (isCoachLeader() && standardsDate !== today);
   // Filtre selon le coach_slot de l'utilisateur (1 ou 2). NULL = tout voir.
   const userCoachSlot = currentUser && currentUser.coach_slot;
   const allDefs = standardsSlotsDef || [];
@@ -14608,7 +14620,9 @@ function standardsRenderDaily(data) {
   container.innerHTML = `
     ${readOnly ? `
       <div class="std-readonly-banner">
-        🔒 Lecture seule — tu peux consulter les photos mais pas les modifier pour les jours passés.
+        🔒 Lecture seule — ${isStandardsAdmin()
+          ? 'tu peux consulter tous les studios mais pas modifier les uploads.'
+          : 'tu peux consulter les photos mais pas les modifier pour les jours passés.'}
       </div>
     ` : ''}
     ${bodyHtml}

@@ -136,6 +136,19 @@ app.post('/api/auth/login', (req, res) => {
     return res.json({ token, role: 'consultant', name: 'Mathieu', sales_rep_id: null });
   }
 
+  // Check Standards admin PINs : superviseurs métier en lecture seule sur
+  // TOUS les studios et TOUS les jours. Aucun pouvoir de modification.
+  const STANDARDS_VIEWER_PINS = {
+    [process.env.STANDARDS_ADMIN_PIN_1 || 'marvindr']: 'Marvin',
+    [process.env.STANDARDS_ADMIN_PIN_2 || 'quentinamc']: 'Quentin',
+  };
+  const stdViewerName = STANDARDS_VIEWER_PINS[pin.trim()];
+  if (stdViewerName) {
+    const token = crypto.randomUUID();
+    sessions.set(token, { role: 'standards_admin', name: stdViewerName, sales_rep_id: null });
+    return res.json({ token, role: 'standards_admin', name: stdViewerName, sales_rep_id: null });
+  }
+
   // Check commercial / phoneur PIN
   const rep = db.prepare('SELECT id, name, role FROM sales_reps WHERE pin = ? AND archived = 0').get(pin.trim());
   if (rep) {
@@ -4433,6 +4446,7 @@ function isValidStandardsMonth(s) { return /^\d{4}-\d{2}-01$/.test(String(s || '
 // coach_leader / guest OK seulement pour leur propre studio.
 function authStandardsStudio(req, studio) {
   if (req.session.role === 'admin') return true;
+  if (req.session.role === 'standards_admin') return true; // lecture seule, tous studios
   if (req.session.role === 'coach_leader' && req.session.studio === studio) return true;
   if (req.session.role === 'guest' && req.session.studio === studio) return true;
   return false;
@@ -4443,6 +4457,7 @@ function authStandardsStudio(req, studio) {
 // (assistant studio, guest) ne peuvent voir QUE today.
 function standardsCanViewDate(req, date) {
   if (req.session.role === 'admin') return true;
+  if (req.session.role === 'standards_admin') return true; // historique complet
   if (req.session.role === 'coach_leader' && req.session.can_view_history === true) return true;
   // Tous les autres : today uniquement
   const d = new Date();
@@ -4457,7 +4472,10 @@ app.get('/api/standards/criteria', requireAuth, (req, res) => {
   res.json({ categories: STANDARDS_CRITERIA });
 });
 
-app.get('/api/standards/studios', requireAuth, requireAdmin, (req, res) => {
+app.get('/api/standards/studios', requireAuth, (req, res) => {
+  if (req.session.role !== 'admin' && req.session.role !== 'standards_admin') {
+    return res.status(403).json({ error: 'Accès réservé aux administrateurs Standards' });
+  }
   // Renvoie la liste des studios distincts en base (depuis coach_leaders)
   const db = getDb();
   const rows = db.prepare(`
@@ -4637,7 +4655,7 @@ const STANDARDS_DAILY_SLOTS_DEF = [1, 2].flatMap(coachNum =>
 const STANDARDS_DAILY_SLOTS = STANDARDS_DAILY_SLOTS_DEF.map(s => s.id);
 
 app.get('/api/standards/daily/slots', requireAuth, (req, res) => {
-  if (!['admin', 'coach_leader', 'guest'].includes(req.session.role)) {
+  if (!['admin', 'standards_admin', 'coach_leader', 'guest'].includes(req.session.role)) {
     return res.status(403).json({ error: 'Accès refusé' });
   }
   res.json({ slots: STANDARDS_DAILY_SLOTS_DEF });
