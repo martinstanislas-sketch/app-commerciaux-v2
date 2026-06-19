@@ -475,6 +475,18 @@ function initSchema() {
   if (!clCols.includes('coach_slot')) {
     db.exec(`ALTER TABLE coach_leaders ADD COLUMN coach_slot INTEGER;`);
   }
+  // Migration : tout assistant (can_view_history=0) sans coach_slot
+  // se voit assigner Coach 1 par défaut. Sinon il verrait toutes les
+  // photos du studio comme un leader (bug). L'admin pourra le
+  // basculer en Coach 2 via la modale d'édition si besoin.
+  try {
+    const fixed = db.prepare(
+      `UPDATE coach_leaders SET coach_slot = 1 WHERE can_view_history = 0 AND coach_slot IS NULL`
+    ).run();
+    if (fixed.changes > 0) {
+      console.log(`[migration] coach_leaders : ${fixed.changes} assistant(s) sans rangée → assignés à Coach 1 par défaut`);
+    }
+  } catch (_) {}
   // Migration : on est passé du soft-delete au hard-delete pour
   // coach_leaders. Purge des anciens enregistrements archivés afin
   // de libérer leurs PIN (sinon impossible de recréer un compte
