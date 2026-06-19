@@ -218,6 +218,14 @@ function updateUserUI() {
   const nameSpan = document.getElementById('user-name');
   const avatarDiv = document.getElementById('user-avatar');
   const roleBadge = document.getElementById('user-role-badge');
+  const appTitle = document.getElementById('app-title');
+  // Titre du bandeau : « Coach » pour les rôles coach (leader, assistant,
+  // guest, coach historique), sinon « Suivi Commerciaux » par défaut.
+  if (appTitle) {
+    const coachRoles = ['coach_leader', 'guest', 'coach', 'coach-leader'];
+    appTitle.textContent = currentUser && coachRoles.includes(currentUser.role)
+      ? 'Coach' : 'Suivi Commerciaux';
+  }
   if (currentUser) {
     const displayName = currentUser.role === 'admin' ? 'Stan' : currentUser.name;
     nameSpan.textContent = displayName;
