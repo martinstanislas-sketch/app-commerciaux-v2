@@ -14874,21 +14874,16 @@ function standardsRenderDaily(data) {
     };
     bodyHtml = groups.map(g => {
       const checkinDone = !!standardsCheckinBySlot[g.num];
-      // Les cards photo restent visibles. Si le check-in n'est pas
-      // rempli, on grise la rangée et on affiche un bandeau de
-      // verrouillage explicite. L'upload est bloqué côté serveur (412).
       const isSelfFiller = !readOnly && !isAdmin();
       const locked = isSelfFiller && !checkinDone;
+      // Plus de titre « Matin / Après-midi » → on enchaîne directement
+      // les photos puis le check-in d'énergie, dans cet ordre.
       return `
-        <div class="std-group ${locked ? 'std-group-locked' : ''}">
-          <header class="std-group-head">
-            <span class="std-group-icon">${STD_ICONS.user}</span>
-            <h3 class="std-group-title">${escapeHtml(groupTitle(g))}</h3>
-          </header>
-          ${renderCheckinPanel(g.num, groupTitle(g), readOnly)}
+        <section class="std-group ${locked ? 'std-group-locked' : ''}">
           ${locked ? `<div class="std-group-lock">🔒 Remplis ton check-in pour débloquer les photos</div>` : ''}
           <div class="std-slots-grid${locked ? ' std-slots-grid-locked' : ''}">${g.defs.map(renderSlot).join('')}</div>
-        </div>
+          ${renderCheckinPanel(g.num, groupTitle(g), readOnly)}
+        </section>
       `;
     }).join('');
   } else {

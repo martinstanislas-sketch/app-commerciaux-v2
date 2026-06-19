@@ -20215,21 +20215,24 @@ body.tk-dragging-active #tab-tasks .tk-card {
   color: #EF4444;
 }
 
-/* ── Indicateurs du jour (compteurs + action clé) ────────── */
+/* ── Indicateurs du jour (compteurs + action clé) ──────────
+   Esthétique sobre, premium : fond crème très clair, bordures fines,
+   pas d'ambré saturé qui crierait sur la page. */
 #tab-standards .std-kpi-panel {
-  background: #FFFBEB;
-  border: 1px solid #FDE68A;
-  border-radius: 14px;
-  padding: 16px 16px 14px;
-  margin-bottom: 14px;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 #tab-standards .std-kpi-head {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  color: #B45309;
-  letter-spacing: 0.12em;
+  color: #64748B;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 #tab-standards .std-kpi-grid {
   display: grid;
@@ -20243,19 +20246,21 @@ body.tk-dragging-active #tab-tasks .tk-card {
   gap: 10px;
 }
 #tab-standards .std-kpi-card {
-  background: #fff;
-  border: 1px solid #FDE68A;
+  background: #F8FAFC;
+  border: 1px solid #E5E7EB;
   border-radius: 12px;
-  padding: 10px 12px 12px;
+  padding: 12px 14px 14px;
+  transition: border-color 120ms ease, background 120ms ease;
 }
+#tab-standards .std-kpi-card:hover { border-color: #CBD5E1; }
 #tab-standards .std-kpi-label {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  color: #475569;
-  letter-spacing: 0.08em;
+  color: #64748B;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 #tab-standards .std-kpi-row {
   display: flex;
@@ -20264,14 +20269,14 @@ body.tk-dragging-active #tab-tasks .tk-card {
   gap: 8px;
 }
 #tab-standards .std-kpi-btn {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
   border: 1px solid #E5E7EB;
-  background: #F1F5F9;
+  background: #fff;
   color: #475569;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 600;
   cursor: pointer;
   font-family: inherit;
   display: inline-flex;
@@ -20279,9 +20284,13 @@ body.tk-dragging-active #tab-tasks .tk-card {
   justify-content: center;
   line-height: 1;
   flex-shrink: 0;
-  transition: background 120ms ease, transform 120ms ease;
+  transition: background 120ms ease, transform 120ms ease, border-color 120ms ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
-#tab-standards .std-kpi-btn:hover { background: #E2E8F0; }
+#tab-standards .std-kpi-btn:hover {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
+}
 #tab-standards .std-kpi-btn:active { transform: scale(0.95); }
 #tab-standards .std-kpi-value {
   font-size: 22px;
@@ -20291,6 +20300,7 @@ body.tk-dragging-active #tab-tasks .tk-card {
   text-align: center;
   flex: 1;
   line-height: 1;
+  letter-spacing: -0.01em;
 }
 #tab-standards .std-kpi-surpack-row {
   display: flex;
@@ -20313,13 +20323,13 @@ body.tk-dragging-active #tab-tasks .tk-card {
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 #tab-standards .std-kpi-surpack-input:focus {
-  border-color: #F59E0B;
-  box-shadow: 0 0 0 3px rgba(245,158,11,0.18);
+  border-color: #0F172A;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.10);
 }
 #tab-standards .std-kpi-eur {
-  font-size: 20px;
-  font-weight: 800;
-  color: #B45309;
+  font-size: 18px;
+  font-weight: 700;
+  color: #64748B;
 }
 #tab-standards .std-kpi-action-input {
   width: 100%;
@@ -20336,8 +20346,8 @@ body.tk-dragging-active #tab-tasks .tk-card {
   min-height: 50px;
 }
 #tab-standards .std-kpi-action-input:focus {
-  border-color: #F59E0B;
-  box-shadow: 0 0 0 3px rgba(245,158,11,0.18);
+  border-color: #0F172A;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.10);
 }
 #tab-standards .std-kpi-action-display {
   font-size: 13px;
@@ -20364,15 +20374,15 @@ body.tk-dragging-active #tab-tasks .tk-card {
 
 /* ── Rangée verrouillée tant que check-in non rempli ─── */
 #tab-standards .std-group-lock {
-  background: #FEF3C7;
-  border: 1px solid #FDE68A;
-  color: #92400E;
+  background: #F8FAFC;
+  border: 1px dashed #CBD5E1;
+  color: #475569;
   padding: 10px 14px;
   border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
   text-align: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 #tab-standards .std-slots-grid-locked {
   opacity: 0.55;
@@ -20385,22 +20395,23 @@ body.tk-dragging-active #tab-tasks .tk-card {
 #tab-standards .std-checkin {
   background: #fff;
   border: 1px solid #E5E7EB;
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-top: 14px;
+  margin-bottom: 4px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 #tab-standards .std-checkin-form {
-  border: 1px solid #FDE68A;
-  background: linear-gradient(180deg, #FFFBEB 0%, #FEFCE8 100%);
+  border: 1px solid #E5E7EB;
+  background: #F8FAFC;
 }
 #tab-standards .std-checkin-title {
-  margin: 0 0 12px;
-  font-size: 14px;
+  margin: 0 0 14px;
+  font-size: 11px;
   font-weight: 700;
-  color: #92400E;
+  color: #64748B;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.16em;
   text-align: center;
 }
 #tab-standards .std-checkin-moods {
@@ -20414,24 +20425,29 @@ body.tk-dragging-active #tab-tasks .tk-card {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 10px 4px;
+  gap: 6px;
+  padding: 12px 6px;
   background: #fff;
   border: 1px solid #E5E7EB;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   font-family: inherit;
   transition: all 120ms ease;
-  min-height: 64px;
+  min-height: 70px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 #tab-standards .std-checkin-mood-btn:hover {
-  border-color: #FCD34D;
-  background: #FFFBEB;
+  border-color: #CBD5E1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 #tab-standards .std-checkin-mood-btn.selected {
-  border-color: #F59E0B;
-  background: #FEF3C7;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+  border-color: #0F172A;
+  background: #0F172A;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+}
+#tab-standards .std-checkin-mood-btn.selected .std-checkin-mood-label {
+  color: #fff;
 }
 #tab-standards .std-checkin-mood-emoji {
   font-size: 22px;
@@ -20444,17 +20460,14 @@ body.tk-dragging-active #tab-tasks .tk-card {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-#tab-standards .std-checkin-mood-btn.selected .std-checkin-mood-label {
-  color: #92400E;
-}
 #tab-standards .std-checkin-tasks-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 0;
-  border-top: 1px solid #FDE68A;
-  border-bottom: 1px solid #FDE68A;
-  margin-bottom: 12px;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid #E5E7EB;
+  border-bottom: 1px solid #E5E7EB;
+  margin-bottom: 14px;
 }
 #tab-standards .std-checkin-check {
   display: flex;
@@ -20468,7 +20481,7 @@ body.tk-dragging-active #tab-tasks .tk-card {
 #tab-standards .std-checkin-check input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #F59E0B;
+  accent-color: #0F172A;
   cursor: pointer;
 }
 #tab-standards .std-checkin-submit {
