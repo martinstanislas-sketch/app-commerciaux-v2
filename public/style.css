@@ -18887,11 +18887,47 @@ body.tk-dragging-active #tab-tasks .tk-card {
 }
 #tab-standards .std-item {
   display: grid;
-  grid-template-columns: 1fr auto 240px;
-  gap: 14px;
+  grid-template-columns: 1fr auto 220px auto;
+  gap: 12px;
   align-items: center;
   padding: 12px 18px;
   border-bottom: 1px solid #F0FDFA;
+}
+#tab-standards .std-item-photo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+#tab-standards .std-photo-btn {
+  background: #fff;
+  border: 1px solid #CBD5E1;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 100ms ease;
+}
+#tab-standards .std-photo-btn:hover { background: #F1F5F9; }
+#tab-standards .std-photo-btn.has-photo {
+  background: #F0FDFA;
+  border-color: #14B8A6;
+  color: #0F766E;
+}
+#tab-standards .std-photo-btn.has-photo:hover {
+  background: #CCFBF1;
+}
+#tab-standards .std-photo-delete {
+  padding: 6px 9px;
+  color: #94A3B8;
+}
+#tab-standards .std-photo-delete:hover {
+  background: rgba(239,68,68,0.08);
+  color: #EF4444;
+  border-color: rgba(239,68,68,0.3);
 }
 #tab-standards .std-item:last-child { border-bottom: 0; }
 #tab-standards .std-item-label {
@@ -19087,7 +19123,15 @@ body.tk-dragging-active #tab-tasks .tk-card {
 }
 .std-leaders-add-btn:hover { transform: translateY(-1px); }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
+  #tab-standards .std-item {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+  }
+  #tab-standards .std-item-label { grid-column: 1 / -1; }
+  #tab-standards .std-item-comment { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
   #tab-standards .std-item {
     grid-template-columns: 1fr;
     gap: 8px;

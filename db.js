@@ -476,6 +476,18 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_standards_eval_month ON standards_evaluations(month, studio);
   `);
 
+  // Migration : ajoute le support photo (1 photo par évaluation)
+  const stdCols = db.prepare("PRAGMA table_info(standards_evaluations)").all().map(c => c.name);
+  if (!stdCols.includes('photo_blob')) {
+    db.exec(`ALTER TABLE standards_evaluations ADD COLUMN photo_blob BLOB;`);
+  }
+  if (!stdCols.includes('photo_mime')) {
+    db.exec(`ALTER TABLE standards_evaluations ADD COLUMN photo_mime TEXT;`);
+  }
+  if (!stdCols.includes('photo_size')) {
+    db.exec(`ALTER TABLE standards_evaluations ADD COLUMN photo_size INTEGER NOT NULL DEFAULT 0;`);
+  }
+
   // ─── COCKPIT : suivi mensuel KPIs par club ──────────────────
   // Équivalent SQLite des tables kpi_objectives / kpi_values décrites
   // dans le brief Supabase. Upsert immédiat à la saisie.

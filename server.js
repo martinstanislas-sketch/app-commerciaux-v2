@@ -4331,6 +4331,7 @@ const STANDARDS_CRITERIA = [
   ]},
   { category: 'Exigence', items: [
     { id: 'exig_1', label: 'Propre, rangé, matériel à sa place — l\'effet « waouh »' },
+    { id: 'exig_2', label: 'CHIC du coach' },
   ]},
 ];
 
@@ -4368,11 +4369,22 @@ app.get('/api/standards/evaluations', requireAuth, (req, res) => {
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
   const db = getDb();
   const rows = db.prepare(`
-    SELECT criterion_id, status, comment, evaluated_by, updated_at
+    SELECT criterion_id, status, comment, evaluated_by, updated_at, photo_size,
+           (photo_blob IS NOT NULL AND photo_size > 0) AS has_photo_flag
     FROM standards_evaluations WHERE studio = ? AND month = ?
   `).all(studio, month);
   const byCriterion = {};
-  rows.forEach(r => { byCriterion[r.criterion_id] = r; });
+  rows.forEach(r => {
+    byCriterion[r.criterion_id] = {
+      criterion_id: r.criterion_id,
+      status: r.status,
+      comment: r.comment,
+      evaluated_by: r.evaluated_by,
+      updated_at: r.updated_at,
+      photo_size: r.photo_size || 0,
+      has_photo: !!r.has_photo_flag,
+    };
+  });
   // Calcule le score : OK / (OK + NOK)
   const flatItems = STANDARDS_CRITERIA.flatMap(c => c.items.map(i => i.id));
   let okCount = 0, nokCount = 0, evalCount = 0;
@@ -4411,8 +4423,12 @@ app.put('/api/standards/evaluation', requireAuth, (req, res) => {
   const known = STANDARDS_CRITERIA.flatMap(c => c.items.map(i => i.id));
   if (!known.includes(criterion_id)) return res.status(400).json({ error: 'criterion_id inconnu' });
   const db = getDb();
-  if (status === null && (comment === null || comment === '')) {
-    // Si on vide tout, on supprime la ligne
+  // Si tout est vide ET pas de photo associée → supprime la ligne
+  const hasPhoto = db.prepare(`
+    SELECT 1 FROM standards_evaluations
+    WHERE studio = ? AND month = ? AND criterion_id = ? AND photo_blob IS NOT NULL AND photo_size > 0
+  `).get(studio, month, criterion_id);
+  if (status === null && (comment === null || comment === '') && !hasPhoto) {
     db.prepare(`DELETE FROM standards_evaluations WHERE studio = ? AND month = ? AND criterion_id = ?`)
       .run(studio, month, criterion_id);
   } else {
@@ -4425,6 +4441,94 @@ app.put('/api/standards/evaluation', requireAuth, (req, res) => {
         evaluated_by = excluded.evaluated_by,
         updated_at = datetime('now','localtime')
     `).run(studio, month, criterion_id, status, comment, req.session.name || 'inconnu');
+  }
+  res.json({ ok: true });
+});
+
+// Upload d'une photo pour un critère donné. Body : { studio, month,
+// criterion_id, photo_base64, mime } — base64 avec ou sans préfixe data:.
+app.put('/api/standards/evaluation/photo', requireAuth, (req, res) => {
+  const studio = String((req.body && req.body.studio) || '').trim();
+  const month = String((req.body && req.body.month) || '').trim();
+  const criterion_id = String((req.body && req.body.criterion_id) || '').trim();
+  const photo_base64 = (req.body && req.body.photo_base64) || '';
+  let mime = (req.body && req.body.mime) || 'image/jpeg';
+  if (!studio || !criterion_id) return res.status(400).json({ error: 'studio + criterion_id requis' });
+  if (!isValidStandardsMonth(month)) return res.status(400).json({ error: 'month requis (YYYY-MM-01)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!photo_base64) return res.status(400).json({ error: 'photo_base64 requis' });
+  const known = STANDARDS_CRITERIA.flatMap(c => c.items.map(i => i.id));
+  if (!known.includes(criterion_id)) return res.status(400).json({ error: 'criterion_id inconnu' });
+  // Décode base64 (avec ou sans préfixe data:)
+  let buf;
+  try {
+    const clean = String(photo_base64).replace(/^data:[^,]*,/, '');
+    buf = Buffer.from(clean, 'base64');
+  } catch (e) {
+    return res.status(400).json({ error: 'base64 invalide' });
+  }
+  if (!buf.length) return res.status(400).json({ error: 'photo vide' });
+  if (buf.length > 8 * 1024 * 1024) return res.status(413).json({ error: 'photo trop lourde (max 8 Mo)' });
+  // Si mime non précisé, on tente une détection rapide via magic bytes
+  if (!/^image\//.test(mime)) mime = 'image/jpeg';
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO standards_evaluations (studio, month, criterion_id, photo_blob, photo_size, photo_mime, evaluated_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(studio, month, criterion_id) DO UPDATE SET
+      photo_blob = excluded.photo_blob,
+      photo_size = excluded.photo_size,
+      photo_mime = excluded.photo_mime,
+      evaluated_by = excluded.evaluated_by,
+      updated_at = datetime('now','localtime')
+  `).run(studio, month, criterion_id, buf, buf.length, mime, req.session.name || 'inconnu');
+  res.json({ ok: true, size: buf.length, mime });
+});
+
+// Récupère la photo (stream binaire avec auth Bearer).
+app.get('/api/standards/evaluation/photo', requireAuth, (req, res) => {
+  const studio = String(req.query.studio || '').trim();
+  const month = String(req.query.month || '').trim();
+  const criterion_id = String(req.query.criterion_id || '').trim();
+  if (!studio || !criterion_id) return res.status(400).json({ error: 'studio + criterion_id requis' });
+  if (!isValidStandardsMonth(month)) return res.status(400).json({ error: 'month requis (YYYY-MM-01)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT photo_blob, photo_size, photo_mime FROM standards_evaluations
+    WHERE studio = ? AND month = ? AND criterion_id = ?
+  `).get(studio, month, criterion_id);
+  if (!row || !row.photo_blob) return res.status(404).json({ error: 'Photo introuvable' });
+  res.setHeader('Content-Type', row.photo_mime || 'image/jpeg');
+  res.setHeader('Content-Length', String(row.photo_size || row.photo_blob.length));
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  res.send(row.photo_blob);
+});
+
+// Supprime la photo d'un critère donné.
+app.delete('/api/standards/evaluation/photo', requireAuth, (req, res) => {
+  const studio = String((req.body && req.body.studio) || req.query.studio || '').trim();
+  const month = String((req.body && req.body.month) || req.query.month || '').trim();
+  const criterion_id = String((req.body && req.body.criterion_id) || req.query.criterion_id || '').trim();
+  if (!studio || !criterion_id) return res.status(400).json({ error: 'studio + criterion_id requis' });
+  if (!isValidStandardsMonth(month)) return res.status(400).json({ error: 'month requis (YYYY-MM-01)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT status, comment FROM standards_evaluations
+    WHERE studio = ? AND month = ? AND criterion_id = ?
+  `).get(studio, month, criterion_id);
+  if (!row) return res.json({ ok: true });
+  // Si plus rien d'autre, on supprime la ligne ; sinon on vide juste la photo
+  if (!row.status && !row.comment) {
+    db.prepare(`DELETE FROM standards_evaluations WHERE studio = ? AND month = ? AND criterion_id = ?`)
+      .run(studio, month, criterion_id);
+  } else {
+    db.prepare(`
+      UPDATE standards_evaluations SET photo_blob = NULL, photo_size = 0, photo_mime = NULL,
+        updated_at = datetime('now','localtime')
+      WHERE studio = ? AND month = ? AND criterion_id = ?
+    `).run(studio, month, criterion_id);
   }
   res.json({ ok: true });
 });

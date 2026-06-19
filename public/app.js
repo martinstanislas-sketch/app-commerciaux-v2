@@ -14229,6 +14229,7 @@ function standardsRenderCategories(data) {
           const e = evals[it.id] || {};
           const status = e.status || '';
           const comment = e.comment || '';
+          const hasPhoto = !!e.has_photo;
           return `
             <div class="std-item" data-criterion="${escapeHtml(it.id)}">
               <div class="std-item-label">${escapeHtml(it.label)}</div>
@@ -14238,6 +14239,13 @@ function standardsRenderCategories(data) {
                 <button type="button" class="std-status-btn std-status-na ${status === 'na' ? 'active' : ''}" data-status="na" title="Non applicable">— N/A</button>
               </div>
               <input type="text" class="std-item-comment" data-field="comment" placeholder="Commentaire (optionnel)" value="${escapeHtml(comment)}">
+              <div class="std-item-photo">
+                <input type="file" accept="image/*" class="std-photo-input" style="display:none" data-criterion="${escapeHtml(it.id)}">
+                ${hasPhoto
+                  ? `<button type="button" class="std-photo-btn has-photo" data-action="view" data-criterion="${escapeHtml(it.id)}" title="Voir la photo">📷 Voir</button>
+                     <button type="button" class="std-photo-btn std-photo-delete" data-action="delete" data-criterion="${escapeHtml(it.id)}" title="Supprimer la photo">✕</button>`
+                  : `<button type="button" class="std-photo-btn" data-action="upload" data-criterion="${escapeHtml(it.id)}" title="Ajouter une photo">📷 Photo</button>`}
+              </div>
             </div>
           `;
         }).join('')}
@@ -14268,6 +14276,100 @@ function standardsRenderCategories(data) {
       standardsSaveEvaluation(criterion, status, input.value);
     });
   });
+  // Boutons photo : upload, view, delete
+  container.querySelectorAll('.std-photo-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      const criterion = btn.dataset.criterion;
+      if (action === 'upload') {
+        const input = btn.closest('.std-item').querySelector('.std-photo-input');
+        if (input) input.click();
+      } else if (action === 'view') {
+        standardsViewPhoto(criterion);
+      } else if (action === 'delete') {
+        if (confirm('Supprimer la photo ?')) standardsDeletePhoto(criterion);
+      }
+    });
+  });
+  container.querySelectorAll('.std-photo-input').forEach(input => {
+    input.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const criterion = input.dataset.criterion;
+      await standardsUploadPhoto(criterion, file);
+      input.value = '';
+    });
+  });
+}
+
+async function standardsUploadPhoto(criterion_id, file) {
+  if (!file.type.startsWith('image/')) {
+    alert('Format non supporté — image requise.');
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    alert('Photo trop lourde (max 8 Mo). Réduis sa résolution.');
+    return;
+  }
+  try {
+    const b64 = await fileToBase64(file);
+    const res = await fetch('/api/standards/evaluation/photo', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        studio: standardsStudio,
+        month: standardsMonth,
+        criterion_id,
+        photo_base64: b64,
+        mime: file.type,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    await standardsRender();
+  } catch (err) {
+    alert('Erreur upload photo : ' + (err.message || err));
+  }
+}
+
+// Affiche la photo dans un nouvel onglet via blob URL (endpoint protégé par Bearer).
+async function standardsViewPhoto(criterion_id) {
+  let win = null;
+  try {
+    win = window.open('', '_blank');
+    const url = `/api/standards/evaluation/photo?studio=${encodeURIComponent(standardsStudio)}&month=${encodeURIComponent(standardsMonth)}&criterion_id=${encodeURIComponent(criterion_id)}`;
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    if (win && !win.closed) {
+      win.location.href = blobUrl;
+    } else {
+      const a = document.createElement('a');
+      a.href = blobUrl; a.target = '_blank'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+  } catch (err) {
+    if (win && !win.closed) win.close();
+    alert('Erreur affichage photo : ' + (err.message || err));
+  }
+}
+
+async function standardsDeletePhoto(criterion_id) {
+  try {
+    const url = `/api/standards/evaluation/photo?studio=${encodeURIComponent(standardsStudio)}&month=${encodeURIComponent(standardsMonth)}&criterion_id=${encodeURIComponent(criterion_id)}`;
+    const res = await fetch(url, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await standardsRender();
+  } catch (err) {
+    alert('Erreur suppression photo : ' + (err.message || err));
+  }
 }
 
 async function standardsSaveEvaluation(criterion_id, status, comment) {
