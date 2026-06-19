@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-standards-readonly1">
+  <link rel="stylesheet" href="style.css?v=ds-roles-guest1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -26,6 +26,18 @@
         <input type="password" id="login-pin" maxlength="32" placeholder="Entrez votre code PIN" autocomplete="off" required>
         <div id="login-error" class="login-error hidden">Code incorrect</div>
         <button type="submit" class="btn-primary">Se connecter</button>
+      </form>
+      <button type="button" class="login-guest-link" id="login-guest-toggle">Accès Guest</button>
+      <!-- Formulaire Guest (caché par défaut) -->
+      <form id="login-guest-form" class="login-guest-form hidden">
+        <input type="password" id="guest-pin" maxlength="32" placeholder="Code Guest" autocomplete="off" required>
+        <select id="guest-studio" required>
+          <option value="">Choisis ton studio…</option>
+        </select>
+        <input type="text" id="guest-name" maxlength="40" placeholder="Ton prénom" autocomplete="off" required>
+        <div id="guest-error" class="login-error hidden">Erreur</div>
+        <button type="submit" class="btn-primary">Entrer en guest</button>
+        <button type="button" class="login-guest-back" id="login-guest-back">← Retour au login normal</button>
       </form>
     </div>
   </div>
@@ -821,6 +833,11 @@
               <span class="std-field-label">PIN * (4+ caractères)</span>
               <input type="text" id="std-leader-pin" required minlength="4">
             </label>
+            <label class="std-field-checkbox">
+              <input type="checkbox" id="std-leader-history" checked>
+              <span>Accès aux jours passés (lecture seule)</span>
+              <small>Décocher = simple assistant studio : voit uniquement aujourd'hui</small>
+            </label>
             <button type="submit" class="std-leaders-add-btn">Créer</button>
           </form>
         </div>
@@ -957,6 +974,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-standards-readonly1"></script>
+  <script src="app.js?v=ds-roles-guest1"></script>
 </body>
 </html>

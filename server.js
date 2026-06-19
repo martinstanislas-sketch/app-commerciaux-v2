@@ -146,11 +146,14 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   // Check coach LEADER PIN (table coach_leaders dédiée) — rôle : 'coach_leader'
-  const cl = db.prepare('SELECT id, name, studio FROM coach_leaders WHERE pin = ? AND archived = 0').get(pin.trim());
+  // Le flag can_view_history détermine si l'utilisateur peut consulter les
+  // jours passés. 0 = assistant studio (today only). 1 = leader (full).
+  const cl = db.prepare('SELECT id, name, studio, can_view_history FROM coach_leaders WHERE pin = ? AND archived = 0').get(pin.trim());
   if (cl) {
     const token = crypto.randomUUID();
-    sessions.set(token, { role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, sales_rep_id: null });
-    return res.json({ token, role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, sales_rep_id: null });
+    const canViewHistory = !!cl.can_view_history;
+    sessions.set(token, { role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, can_view_history: canViewHistory, sales_rep_id: null });
+    return res.json({ token, role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, can_view_history: canViewHistory, sales_rep_id: null });
   }
 
   // Check coach PIN (table coaches)
@@ -187,6 +190,33 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   return res.status(401).json({ error: 'Code incorrect' });
+});
+
+// ─── Guest login ─────────────────────────────────────────────
+// Personne extérieure qui passe occasionnellement dans un studio.
+// Code partagé (env GUEST_CODE, défaut "guest"). À la connexion, on
+// demande le studio + le prénom pour identifier le guest.
+// Le guest a les mêmes droits qu'un assistant studio : photos
+// quotidiennes seulement, modification du jour courant uniquement.
+app.post('/api/auth/guest-login', (req, res) => {
+  const pin = String((req.body && req.body.pin) || '').trim();
+  const studio = String((req.body && req.body.studio) || '').trim();
+  const name = String((req.body && req.body.name) || '').trim();
+  const guestCode = process.env.GUEST_CODE || 'guest';
+  if (!pin) return res.status(400).json({ error: 'Code requis' });
+  if (pin !== guestCode) return res.status(401).json({ error: 'Code guest incorrect' });
+  if (!studio) return res.status(400).json({ error: 'Studio requis' });
+  if (!name || name.length < 2) return res.status(400).json({ error: 'Prénom requis (2 caractères min)' });
+  const token = crypto.randomUUID();
+  const safeName = name.replace(/[<>"'`]/g, '').slice(0, 40);
+  sessions.set(token, {
+    role: 'guest',
+    name: safeName,
+    studio,
+    can_view_history: false,
+    sales_rep_id: null,
+  });
+  res.json({ token, role: 'guest', name: safeName, studio, can_view_history: false, sales_rep_id: null });
 });
 
 app.get('/api/auth/me', (req, res) => {
@@ -4247,7 +4277,7 @@ app.put('/api/cockpit/valeur', requireAuth, requireAdmin, (req, res) => {
 app.get('/api/coach-leaders', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const rows = db.prepare(`
-    SELECT id, name, pin, studio, archived, created_at
+    SELECT id, name, pin, studio, can_view_history, archived, created_at
     FROM coach_leaders
     WHERE archived = 0
     ORDER BY studio ASC, name ASC
@@ -4255,23 +4285,41 @@ app.get('/api/coach-leaders', requireAuth, requireAdmin, (req, res) => {
   res.json({ leaders: rows });
 });
 
+// Studios disponibles pour le guest login : agrège les studios des
+// coach_leaders + COCKPIT_CLUBS (fallback). Endpoint public (pas d'auth).
+app.get('/api/auth/guest-studios', (req, res) => {
+  const db = getDb();
+  const studios = new Set();
+  try {
+    db.prepare(`SELECT DISTINCT studio FROM coach_leaders WHERE archived = 0`).all()
+      .forEach(r => { if (r.studio) studios.add(r.studio); });
+  } catch (_) {}
+  // Fallback : si aucun coach leader, on propose la liste des clubs Cockpit
+  if (studios.size === 0 && typeof COCKPIT_CLUBS !== 'undefined' && Array.isArray(COCKPIT_CLUBS)) {
+    COCKPIT_CLUBS.forEach(c => studios.add(c));
+  }
+  res.json({ studios: Array.from(studios).sort() });
+});
+
 app.post('/api/coach-leaders', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const name = String((req.body && req.body.name) || '').trim();
   const pin = String((req.body && req.body.pin) || '').trim();
   const studio = String((req.body && req.body.studio) || '').trim();
+  // Par défaut accès historique = OUI (coach leader complet).
+  // Si false → simple assistant studio (today seulement).
+  const canViewHistory = req.body && req.body.can_view_history === false ? 0 : 1;
   if (!name) return res.status(400).json({ error: 'Nom requis' });
   if (!pin || pin.length < 4) return res.status(400).json({ error: 'PIN requis (4 caractères minimum)' });
   if (!studio) return res.status(400).json({ error: 'Studio requis' });
-  // Vérifie unicité du PIN (toutes sources confondues)
   const taken = db.prepare(`SELECT id FROM coach_leaders WHERE pin = ?`).get(pin)
     || db.prepare(`SELECT id FROM sales_reps WHERE pin = ?`).get(pin)
     || db.prepare(`SELECT id FROM coaches WHERE pin = ?`).get(pin);
   if (taken) return res.status(409).json({ error: 'PIN déjà utilisé par un autre compte' });
   try {
     const info = db.prepare(`
-      INSERT INTO coach_leaders (name, pin, studio) VALUES (?, ?, ?)
-    `).run(name, pin, studio);
+      INSERT INTO coach_leaders (name, pin, studio, can_view_history) VALUES (?, ?, ?, ?)
+    `).run(name, pin, studio, canViewHistory);
     res.json({ ok: true, id: info.lastInsertRowid });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -4338,11 +4386,24 @@ const STANDARDS_CRITERIA = [
 function isValidStandardsMonth(s) { return /^\d{4}-\d{2}-01$/.test(String(s || '')); }
 
 // Helper d'autorisation : admin OK pour tout studio,
-// coach_leader OK seulement pour son propre studio.
+// coach_leader / guest OK seulement pour leur propre studio.
 function authStandardsStudio(req, studio) {
   if (req.session.role === 'admin') return true;
   if (req.session.role === 'coach_leader' && req.session.studio === studio) return true;
+  if (req.session.role === 'guest' && req.session.studio === studio) return true;
   return false;
+}
+
+// Restriction sur la consultation des jours passés. Coach leader avec
+// can_view_history=true peut consulter les jours passés. Tous les autres
+// (assistant studio, guest) ne peuvent voir QUE today.
+function standardsCanViewDate(req, date) {
+  if (req.session.role === 'admin') return true;
+  if (req.session.role === 'coach_leader' && req.session.can_view_history === true) return true;
+  // Tous les autres : today uniquement
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return date === today;
 }
 
 app.get('/api/standards/criteria', requireAuth, (req, res) => {
@@ -4513,14 +4574,15 @@ app.get('/api/standards/evaluation/photo', requireAuth, (req, res) => {
 const STANDARDS_DAILY_SLOTS_DEF = [
   { id: 'excel_adherent', label: 'Excel Adhérent', icon: '📊' },
   { id: 'tableau_pret', label: 'Tableau prêt', icon: '📋' },
-  { id: 'salle_entrainement', label: 'Training', icon: '🏋️' },
+  { id: 'salle_entrainement', label: 'Training 1', icon: '🏋️' },
+  { id: 'salle_entrainement_2', label: 'Training 2', icon: '🤸' },
   { id: 'sdb', label: 'SDB', icon: '🚿' },
   { id: 'chic_coach', label: 'Chic du coach', icon: '👔' },
 ];
 const STANDARDS_DAILY_SLOTS = STANDARDS_DAILY_SLOTS_DEF.map(s => s.id);
 
 app.get('/api/standards/daily/slots', requireAuth, (req, res) => {
-  if (req.session.role !== 'admin' && req.session.role !== 'coach_leader') {
+  if (!['admin', 'coach_leader', 'guest'].includes(req.session.role)) {
     return res.status(403).json({ error: 'Accès refusé' });
   }
   res.json({ slots: STANDARDS_DAILY_SLOTS_DEF });
@@ -4530,11 +4592,12 @@ function isValidStandardsDate(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 }
 
-// Le coach leader ne peut modifier que les photos du jour. L'admin n'a
-// aucune restriction (peut corriger un jour passé si besoin).
+// Modification autorisée :
+//   - admin : tout
+//   - coach_leader / guest : today uniquement
 function standardsCanModify(req, date) {
   if (req.session.role === 'admin') return true;
-  if (req.session.role !== 'coach_leader') return false;
+  if (!['coach_leader', 'guest'].includes(req.session.role)) return false;
   const d = new Date();
   const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   return date === today;
@@ -4546,6 +4609,7 @@ app.get('/api/standards/daily', requireAuth, (req, res) => {
   if (!studio) return res.status(400).json({ error: 'studio requis' });
   if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!standardsCanViewDate(req, date)) return res.status(403).json({ error: "Accès refusé : consultation des jours passés non autorisée" });
   const db = getDb();
   const rows = db.prepare(`
     SELECT slot, photo_size, photo_mime, uploaded_by, uploaded_at,
@@ -4609,6 +4673,7 @@ app.get('/api/standards/daily/photo', requireAuth, (req, res) => {
   if (!studio || !slot) return res.status(400).json({ error: 'studio + slot requis' });
   if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!standardsCanViewDate(req, date)) return res.status(403).json({ error: "Accès refusé : consultation des jours passés non autorisée" });
   const db = getDb();
   const row = db.prepare(`
     SELECT photo_blob, photo_size, photo_mime FROM standards_daily

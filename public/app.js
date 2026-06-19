@@ -27,6 +27,18 @@ function isPhoneLead() {
 function isCoachLeader() {
   return currentUser && currentUser.role === 'coach_leader';
 }
+// Accès guest : passe occasionnellement dans un studio. Vue limitée à today.
+function isGuest() {
+  return currentUser && currentUser.role === 'guest';
+}
+// Peut consulter l'historique : seul un coach_leader avec le flag true,
+// ou l'admin. Les guests et les assistants studio sont limités à today.
+function canViewStandardsHistory() {
+  if (!currentUser) return false;
+  if (currentUser.role === 'admin') return true;
+  if (currentUser.role === 'coach_leader' && currentUser.can_view_history === true) return true;
+  return false;
+}
 function getMyStudio() {
   return currentUser && currentUser.studio ? currentUser.studio : null;
 }
@@ -219,7 +231,8 @@ function updateUserUI() {
       const roleLabel = currentUser.role === 'admin'        ? 'Admin'
                       : currentUser.role === 'consultant'   ? 'Consultant'
                       : currentUser.role === 'phoneur'      ? 'Phoneur'
-                      : currentUser.role === 'coach_leader' ? 'Coach Leader'
+                      : currentUser.role === 'coach_leader' ? (currentUser.can_view_history ? 'Coach Leader' : 'Assistant Studio')
+                      : currentUser.role === 'guest'        ? 'Guest'
                       : 'Commercial';
       roleBadge.textContent = roleLabel;
       roleBadge.className = 'user-role-badge' + (currentUser.role === 'admin' ? ' admin' : '');
@@ -516,6 +529,7 @@ function initAuthUI() {
         coach_leader_id: data.coach_leader_id || null,
         coach_id: data.coach_id || null,
         is_leader: data.is_leader || false,
+        can_view_history: data.can_view_history === true,
       };
       localStorage.setItem('authToken', authToken);
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -557,6 +571,76 @@ function initAuthUI() {
       errorDiv.classList.remove('hidden');
     }
   });
+
+  // ─── Login Guest : toggle + form ──────────────────────────
+  const guestToggle = document.getElementById('login-guest-toggle');
+  const guestBack = document.getElementById('login-guest-back');
+  const normalForm = document.getElementById('login-form');
+  const guestForm = document.getElementById('login-guest-form');
+  if (guestToggle && guestForm && normalForm) {
+    guestToggle.addEventListener('click', async () => {
+      normalForm.classList.add('hidden');
+      guestToggle.classList.add('hidden');
+      guestForm.classList.remove('hidden');
+      // Charge les studios disponibles
+      try {
+        const r = await fetch('/api/auth/guest-studios');
+        const d = await r.json();
+        const sel = document.getElementById('guest-studio');
+        if (sel) {
+          sel.innerHTML = `<option value="">Choisis ton studio…</option>` +
+            (d.studios || []).map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+        }
+      } catch (_) {}
+      const pinIn = document.getElementById('guest-pin');
+      if (pinIn) pinIn.focus();
+    });
+  }
+  if (guestBack && guestForm && normalForm && guestToggle) {
+    guestBack.addEventListener('click', () => {
+      guestForm.classList.add('hidden');
+      normalForm.classList.remove('hidden');
+      guestToggle.classList.remove('hidden');
+    });
+  }
+  if (guestForm) {
+    guestForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pin = document.getElementById('guest-pin').value.trim();
+      const studio = document.getElementById('guest-studio').value;
+      const name = document.getElementById('guest-name').value.trim();
+      const errorDiv = document.getElementById('guest-error');
+      errorDiv.classList.add('hidden');
+      try {
+        const res = await fetch('/api/auth/guest-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin, studio, name }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorDiv.textContent = data.error || 'Erreur';
+          errorDiv.classList.remove('hidden');
+          return;
+        }
+        authToken = data.token;
+        currentUser = {
+          role: data.role, name: data.name, sales_rep_id: null,
+          studio: data.studio, can_view_history: false,
+        };
+        localStorage.setItem('authToken', authToken);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        if (typeof standardsDate !== 'undefined') standardsDate = null;
+        if (typeof standardsBooted !== 'undefined') standardsBooted = false;
+        hideLogin();
+        updateUserUI();
+        await bootApp();
+      } catch (err) {
+        errorDiv.textContent = 'Erreur réseau';
+        errorDiv.classList.remove('hidden');
+      }
+    });
+  }
 
   // Logout button
   document.getElementById('btn-logout').addEventListener('click', async () => {
@@ -657,8 +741,8 @@ function updateTabVisibility() {
   const cockpitBtn = document.querySelector('[data-tab="cockpit"]');
   const standardsBtn = document.querySelector('[data-tab="standards"]');
 
-  if (isCoachLeader()) {
-    // Coach leader : UNIQUEMENT l'onglet Standards, filtré sur son studio.
+  if (isCoachLeader() || isGuest()) {
+    // Coach leader / Guest : UNIQUEMENT l'onglet Standards.
     if (todayBtn) todayBtn.style.display = 'none';
     if (ventesBtn) ventesBtn.style.display = 'none';
     if (dashBtn) dashBtn.style.display = 'none';
@@ -14157,6 +14241,14 @@ async function loadStandardsTab() {
     } else {
       standardsStudios = getMyStudio() ? [getMyStudio()] : [];
     }
+    // Si pas d'accès à l'historique : cache les flèches de navigation
+    // (et force l'affichage du jour courant)
+    if (!canViewStandardsHistory()) {
+      const prevBtn = document.getElementById('std-month-prev');
+      const nextBtn = document.getElementById('std-month-next');
+      if (prevBtn) prevBtn.style.display = 'none';
+      if (nextBtn) nextBtn.style.display = 'none';
+    }
 
     standardsStudio = standardsStudios[0] || null;
     standardsDate = standardsTodayDate();
@@ -14696,6 +14788,7 @@ async function reloadCoachLeaders() {
         <div class="std-leader-info">
           <strong>${escapeHtml(l.name)}</strong>
           <span class="std-leader-studio">${escapeHtml(l.studio)}</span>
+          <span class="std-leader-access ${l.can_view_history ? '' : 'std-leader-access-assist'}">${l.can_view_history ? '🔓 Leader' : '⏱ Assistant'}</span>
           <span class="std-leader-pin">PIN : <code>${escapeHtml(l.pin)}</code></span>
         </div>
         <button type="button" class="std-leader-delete" data-delete-id="${l.id}" data-delete-name="${escapeHtml(l.name)}" title="Supprimer">🗑</button>
@@ -14729,6 +14822,7 @@ async function onCreateCoachLeader(e) {
   const name = document.getElementById('std-leader-name').value.trim();
   const studio = document.getElementById('std-leader-studio').value.trim();
   const pin = document.getElementById('std-leader-pin').value.trim();
+  const canViewHistory = document.getElementById('std-leader-history')?.checked !== false;
   if (!name || !studio || !pin) return;
   if (pin.length < 4) { alert('PIN trop court (4 caractères minimum).'); return; }
   try {
@@ -14738,7 +14832,7 @@ async function onCreateCoachLeader(e) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${authToken}`,
       },
-      body: JSON.stringify({ name, studio, pin }),
+      body: JSON.stringify({ name, studio, pin, can_view_history: canViewHistory }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Erreur' }));

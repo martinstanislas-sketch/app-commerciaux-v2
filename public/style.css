@@ -18912,12 +18912,104 @@ body.tk-dragging-active #tab-tasks .tk-card {
 /* ── Nouvelles cards : 2 créneaux photo par jour ─── */
 #tab-standards .std-slots-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
 }
-@media (max-width: 1100px) {
+@media (max-width: 1300px) {
   #tab-standards .std-slots-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+/* ── Login Guest ─── */
+#login-form.hidden, #login-guest-form.hidden, #login-guest-toggle.hidden {
+  display: none;
+}
+.login-guest-link {
+  background: transparent;
+  border: 0;
+  margin-top: 14px;
+  color: #6366F1;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: underline;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.login-guest-link:hover { background: rgba(99,102,241,0.06); }
+.login-guest-form {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.login-guest-form select {
+  background: var(--card, #fff);
+  border: 1.5px solid rgba(99,102,241,0.25);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--text, #1E293B);
+  cursor: pointer;
+  outline: none;
+}
+.login-guest-form select:focus {
+  border-color: #6366F1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+}
+.login-guest-back {
+  background: transparent;
+  border: 0;
+  color: #6A7392;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  margin-top: 2px;
+}
+.login-guest-back:hover { color: #6366F1; }
+
+/* ── Modale admin coach leader : checkbox accès historique ─── */
+.std-field-checkbox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #F8FAFC;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  cursor: pointer;
+  font-size: 13px;
+  color: #1E293B;
+}
+.std-field-checkbox input[type=checkbox] {
+  width: 18px; height: 18px;
+  vertical-align: middle;
+  margin-right: 6px;
+  accent-color: #14B8A6;
+}
+.std-field-checkbox > span {
+  font-weight: 600;
+}
+.std-field-checkbox small {
+  display: block;
+  color: #6A7392;
+  font-size: 11px;
+  margin-top: 2px;
+  font-weight: 400;
+}
+.std-leader-access {
+  background: rgba(20,184,166,0.10);
+  color: #0F766E;
+  padding: 2px 9px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.std-leader-access.std-leader-access-assist {
+  background: rgba(245,158,11,0.14);
+  color: #B45309;
+}
+
 @media (max-width: 720px) {
   /* Mobile : 1 carte par ligne, plus grand visuel */
   #tab-standards .std-slots-grid { grid-template-columns: 1fr; gap: 14px; }

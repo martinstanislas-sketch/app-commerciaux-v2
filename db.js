@@ -462,6 +462,15 @@ function initSchema() {
       created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     );
     CREATE INDEX IF NOT EXISTS idx_coach_leaders_studio ON coach_leaders(studio, archived);
+  `);
+  // Migration : ajout du flag « accès aux jours passés »
+  // 1 = coach leader (peut consulter l'historique, lecture seule sur passés)
+  // 0 = assistant studio (voit uniquement le jour courant, modifie aujourd'hui)
+  const clCols = db.prepare("PRAGMA table_info(coach_leaders)").all().map(c => c.name);
+  if (!clCols.includes('can_view_history')) {
+    db.exec(`ALTER TABLE coach_leaders ADD COLUMN can_view_history INTEGER NOT NULL DEFAULT 1;`);
+  }
+  db.exec(`
 
     CREATE TABLE IF NOT EXISTS standards_evaluations (
       studio TEXT NOT NULL,
