@@ -19005,6 +19005,113 @@ body.tk-dragging-active #tab-tasks .tk-card {
   background: rgba(245,158,11,0.14);
   color: #B45309;
 }
+.std-leader-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+.std-leader-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.std-leader-edit {
+  background: transparent;
+  border: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #94A3B8;
+  transition: all 100ms ease;
+}
+.std-leader-edit:hover {
+  background: #F0FDFA;
+  color: #0F766E;
+}
+/* ─ Formulaire d'édition inline ─ */
+.std-leader-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #fff;
+  padding: 12px;
+  border: 1px solid #14B8A6;
+  border-radius: 8px;
+  margin: -4px 0;
+}
+.std-leader-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.std-leader-edit-field span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.std-leader-edit-field input {
+  padding: 7px 10px;
+  border: 1px solid #CBD5E1;
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1E293B;
+  outline: none;
+}
+.std-leader-edit-field input:focus {
+  border-color: #14B8A6;
+  box-shadow: 0 0 0 2px rgba(20,184,166,0.15);
+}
+.std-leader-edit-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+  cursor: pointer;
+}
+.std-leader-edit-checkbox input { accent-color: #14B8A6; }
+.std-leader-edit-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.std-leader-edit-actions button {
+  border: 0;
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.std-leader-edit-cancel {
+  background: #F1F5F9;
+  color: #475569;
+}
+.std-leader-edit-cancel:hover {
+  background: #E2E8F0;
+}
+.std-leader-edit-save {
+  background: linear-gradient(135deg, #14B8A6 0%, #0F766E 100%);
+  color: #fff;
+}
+.std-leader-edit-save:hover { transform: translateY(-1px); }
+.std-leader-edit-error {
+  color: #DC2626;
+  font-size: 12px;
+  background: #FEF2F2;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-top: 2px;
+}
 
 @media (max-width: 720px) {
   /* Mobile : 1 carte par ligne, plus grand visuel */

@@ -4350,14 +4350,21 @@ app.put('/api/coach-leaders/:id', requireAuth, requireAdmin, (req, res) => {
   if (req.body.pin !== undefined) {
     const v = String(req.body.pin).trim();
     if (!v || v.length < 4) return res.status(400).json({ error: 'PIN trop court' });
-    const taken = db.prepare(`SELECT id FROM coach_leaders WHERE pin = ? AND id != ?`).get(v, id);
-    if (taken) return res.status(409).json({ error: 'PIN déjà utilisé' });
+    // Unicité : check sur coach_leaders (autres) + sales_reps + coaches
+    const taken = db.prepare(`SELECT id FROM coach_leaders WHERE pin = ? AND id != ?`).get(v, id)
+      || db.prepare(`SELECT id FROM sales_reps WHERE pin = ?`).get(v)
+      || db.prepare(`SELECT id FROM coaches WHERE pin = ?`).get(v);
+    if (taken) return res.status(409).json({ error: 'PIN déjà utilisé par un autre compte' });
     fields.push('pin = ?'); values.push(v);
   }
   if (req.body.studio !== undefined) {
     const v = String(req.body.studio).trim();
     if (!v) return res.status(400).json({ error: 'Studio vide' });
     fields.push('studio = ?'); values.push(v);
+  }
+  if (req.body.can_view_history !== undefined) {
+    const v = req.body.can_view_history === true || req.body.can_view_history === 1 ? 1 : 0;
+    fields.push('can_view_history = ?'); values.push(v);
   }
   if (fields.length === 0) return res.json({ ok: true });
   values.push(id);

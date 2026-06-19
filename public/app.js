@@ -14799,16 +14799,25 @@ async function reloadCoachLeaders() {
       return;
     }
     listEl.innerHTML = leaders.map(l => `
-      <div class="std-leader-row" data-leader-id="${l.id}">
-        <div class="std-leader-info">
-          <strong>${escapeHtml(l.name)}</strong>
-          <span class="std-leader-studio">${escapeHtml(l.studio)}</span>
-          <span class="std-leader-access ${l.can_view_history ? '' : 'std-leader-access-assist'}">${l.can_view_history ? '🔓 Leader' : '⏱ Assistant'}</span>
-          <span class="std-leader-pin">PIN : <code>${escapeHtml(l.pin)}</code></span>
+      <div class="std-leader-row" data-leader-id="${l.id}" data-leader-name="${escapeHtml(l.name)}" data-leader-studio="${escapeHtml(l.studio)}" data-leader-pin="${escapeHtml(l.pin)}" data-leader-history="${l.can_view_history ? '1' : '0'}">
+        <div class="std-leader-display">
+          <div class="std-leader-info">
+            <strong>${escapeHtml(l.name)}</strong>
+            <span class="std-leader-studio">${escapeHtml(l.studio)}</span>
+            <span class="std-leader-access ${l.can_view_history ? '' : 'std-leader-access-assist'}">${l.can_view_history ? '🔓 Leader' : '⏱ Assistant'}</span>
+            <span class="std-leader-pin">PIN : <code>${escapeHtml(l.pin)}</code></span>
+          </div>
+          <div class="std-leader-row-actions">
+            <button type="button" class="std-leader-edit" data-edit-id="${l.id}" title="Modifier">✏</button>
+            <button type="button" class="std-leader-delete" data-delete-id="${l.id}" data-delete-name="${escapeHtml(l.name)}" title="Supprimer">🗑</button>
+          </div>
         </div>
-        <button type="button" class="std-leader-delete" data-delete-id="${l.id}" data-delete-name="${escapeHtml(l.name)}" title="Supprimer">🗑</button>
       </div>
     `).join('');
+    // Bind Edit buttons → ouvre le mode édition inline
+    listEl.querySelectorAll('[data-edit-id]').forEach(btn => {
+      btn.addEventListener('click', () => openLeaderEdit(parseInt(btn.dataset.editId, 10)));
+    });
     listEl.querySelectorAll('[data-delete-id]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = parseInt(btn.dataset.deleteId, 10);
@@ -14829,6 +14838,89 @@ async function reloadCoachLeaders() {
     });
   } catch (err) {
     listEl.innerHTML = `<div class="std-leaders-empty">Erreur : ${escapeHtml(String(err.message || err))}</div>`;
+  }
+}
+
+function openLeaderEdit(id) {
+  const row = document.querySelector(`.std-leader-row[data-leader-id="${id}"]`);
+  if (!row) return;
+  const name = row.dataset.leaderName || '';
+  const studio = row.dataset.leaderStudio || '';
+  const pin = row.dataset.leaderPin || '';
+  const history = row.dataset.leaderHistory === '1';
+  // Remplace l'affichage par le formulaire d'édition
+  row.innerHTML = `
+    <div class="std-leader-edit-form">
+      <label class="std-leader-edit-field">
+        <span>Nom</span>
+        <input type="text" class="std-leader-edit-name" value="${escapeHtml(name)}" required>
+      </label>
+      <label class="std-leader-edit-field">
+        <span>Studio</span>
+        <input type="text" class="std-leader-edit-studio" value="${escapeHtml(studio)}" required>
+      </label>
+      <label class="std-leader-edit-field">
+        <span>PIN (4+ caractères)</span>
+        <input type="text" class="std-leader-edit-pin" value="${escapeHtml(pin)}" minlength="4" required>
+      </label>
+      <label class="std-leader-edit-checkbox">
+        <input type="checkbox" class="std-leader-edit-history" ${history ? 'checked' : ''}>
+        <span>Accès aux jours passés (lecture seule)</span>
+      </label>
+      <div class="std-leader-edit-actions">
+        <button type="button" class="std-leader-edit-cancel">Annuler</button>
+        <button type="button" class="std-leader-edit-save">💾 Enregistrer</button>
+      </div>
+      <div class="std-leader-edit-error" style="display:none"></div>
+    </div>
+  `;
+  row.querySelector('.std-leader-edit-cancel').addEventListener('click', () => reloadCoachLeaders());
+  row.querySelector('.std-leader-edit-save').addEventListener('click', () => saveLeaderEdit(id, row));
+  row.querySelector('.std-leader-edit-name')?.focus();
+}
+
+async function saveLeaderEdit(id, row) {
+  const name = row.querySelector('.std-leader-edit-name').value.trim();
+  const studio = row.querySelector('.std-leader-edit-studio').value.trim();
+  const pin = row.querySelector('.std-leader-edit-pin').value.trim();
+  const canViewHistory = row.querySelector('.std-leader-edit-history').checked;
+  const errEl = row.querySelector('.std-leader-edit-error');
+  errEl.style.display = 'none';
+  if (!name || !studio || !pin) {
+    errEl.textContent = 'Tous les champs sont requis';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (pin.length < 4) {
+    errEl.textContent = 'PIN trop court (4 caractères minimum)';
+    errEl.style.display = 'block';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/coach-leaders/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ name, studio, pin, can_view_history: canViewHistory }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      errEl.textContent = err.error || 'Erreur enregistrement';
+      errEl.style.display = 'block';
+      return;
+    }
+    await reloadCoachLeaders();
+    // Met à jour la liste de studios disponibles si on a ajouté un nouveau
+    if (typeof standardsStudios !== 'undefined' && !standardsStudios.includes(studio)) {
+      standardsStudios.push(studio);
+      standardsStudios.sort();
+      if (typeof standardsBuildSelectors === 'function') standardsBuildSelectors();
+    }
+  } catch (err) {
+    errEl.textContent = 'Erreur réseau';
+    errEl.style.display = 'block';
   }
 }
 
