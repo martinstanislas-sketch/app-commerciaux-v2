@@ -216,9 +216,10 @@ function updateUserUI() {
     }
     // Role badge
     if (roleBadge) {
-      const roleLabel = currentUser.role === 'admin'      ? 'Admin'
-                      : currentUser.role === 'consultant' ? 'Consultant'
-                      : currentUser.role === 'phoneur'    ? 'Phoneur'
+      const roleLabel = currentUser.role === 'admin'        ? 'Admin'
+                      : currentUser.role === 'consultant'   ? 'Consultant'
+                      : currentUser.role === 'phoneur'      ? 'Phoneur'
+                      : currentUser.role === 'coach_leader' ? 'Coach Leader'
                       : 'Commercial';
       roleBadge.textContent = roleLabel;
       roleBadge.className = 'user-role-badge' + (currentUser.role === 'admin' ? ' admin' : '');
@@ -505,9 +506,26 @@ function initAuthUI() {
 
       // Success — brief visual confirmation before transition
       authToken = data.token;
-      currentUser = { role: data.role, name: data.name, sales_rep_id: data.sales_rep_id };
+      // Inclut TOUS les champs utiles selon le rôle (studio pour coach_leader,
+      // coach_leader_id, is_leader, etc.). Sinon getMyStudio() rate.
+      currentUser = {
+        role: data.role,
+        name: data.name,
+        sales_rep_id: data.sales_rep_id,
+        studio: data.studio || null,
+        coach_leader_id: data.coach_leader_id || null,
+        coach_id: data.coach_id || null,
+        is_leader: data.is_leader || false,
+      };
       localStorage.setItem('authToken', authToken);
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      // Reset des états mensuels (Cockpit / Standards) pour que la session
+      // démarre TOUJOURS sur le mois d'aujourd'hui, jamais sur un ancien
+      // mois mémorisé depuis la session précédente.
+      if (typeof cockpitMonth !== 'undefined') cockpitMonth = null;
+      if (typeof standardsMonth !== 'undefined') standardsMonth = null;
+      if (typeof standardsBooted !== 'undefined') standardsBooted = false;
+      if (typeof cockpitBooted !== 'undefined') cockpitBooted = false;
 
       // Redirection auto vers l'app coaching si rôle coach/director/academy
       const coachRoles = ['coach', 'coach-leader', 'director', 'academy'];
@@ -552,8 +570,9 @@ function initAuthUI() {
     currentUser = null;
     localStorage.removeItem('authToken');
     localStorage.removeItem('currentUser');
-    updateUserUI();
-    showLogin();
+    // Reload pour purger l'état JS (mois sélectionnés, slots, etc.) et
+    // garantir qu'à la prochaine connexion tout repart sur today.
+    location.reload();
   });
 }
 
