@@ -4950,8 +4950,9 @@ app.put('/api/standards/daily/photo', requireAuth, (req, res) => {
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
   if (!standardsCanModify(req, date)) return res.status(403).json({ error: "Modification autorisée uniquement pour le jour en cours" });
   // Gating : un check-in (mood + tâches) doit exister pour la rangée
-  // concernée avant tout upload photo. L'admin est exempté.
-  if (req.session.role !== 'admin') {
+  // avant tout upload photo. L'admin ET les guests sont exemptés (les
+  // guests sont des coachs de passage, on évite la friction pour eux).
+  if (req.session.role !== 'admin' && req.session.role !== 'guest') {
     const coachNum = slotToCoachNum(slot);
     if (coachNum && !checkinExists(studio, date, coachNum)) {
       return res.status(412).json({ error: "Fais ton check-in du jour avant d'envoyer une photo" });

@@ -295,7 +295,7 @@ function updateUserUI() {
                       : currentUser.role === 'standards_admin' ? 'Superviseur Standards'
                       : currentUser.role === 'consultant'      ? 'Consultant'
                       : currentUser.role === 'phoneur'         ? 'Phoneur'
-                      : currentUser.role === 'coach_leader'    ? (currentUser.can_view_history ? 'Coach Leader' : 'Assistant Studio')
+                      : currentUser.role === 'coach_leader'    ? (currentUser.can_view_history ? 'Coach Leader' : 'Coach Sportif')
                       : currentUser.role === 'guest'           ? 'Guest'
                       : 'Commercial';
       roleBadge.textContent = roleLabel;
@@ -14874,7 +14874,12 @@ function standardsRenderDaily(data) {
     };
     bodyHtml = groups.map(g => {
       const checkinDone = !!standardsCheckinBySlot[g.num];
-      const isSelfFiller = !readOnly && !isAdmin();
+      // Le check-in d'énergie ne bloque PAS les photos pour :
+      // - l'admin (toujours)
+      // - les guests (coach de passage : pas de friction pour eux)
+      // Seuls le coach leader / coach sportif / coach historique sont
+      // tenus de remplir leur check-in d'abord.
+      const isSelfFiller = !readOnly && !isAdmin() && !isGuest();
       const locked = isSelfFiller && !checkinDone;
       // Plus de titre « Matin / Après-midi » → on enchaîne directement
       // les photos puis le check-in d'énergie, dans cet ordre.
