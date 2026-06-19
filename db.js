@@ -449,6 +449,33 @@ function initSchema() {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_contracts_id_client ON contracts(id_client);`);
   }
 
+  // ─── COACH LEADERS + STANDARDS ──────────────────────────────
+  // Table dédiée séparée de `coaches` : un coach leader a son PIN
+  // individuel et un studio attribué. Évalue les standards de son studio.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS coach_leaders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      pin TEXT NOT NULL UNIQUE,
+      studio TEXT NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_coach_leaders_studio ON coach_leaders(studio, archived);
+
+    CREATE TABLE IF NOT EXISTS standards_evaluations (
+      studio TEXT NOT NULL,
+      month TEXT NOT NULL,           -- YYYY-MM-01
+      criterion_id TEXT NOT NULL,
+      status TEXT,                   -- 'ok' | 'nok' | 'na' | NULL (non évalué)
+      comment TEXT,
+      evaluated_by TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      PRIMARY KEY (studio, month, criterion_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_standards_eval_month ON standards_evaluations(month, studio);
+  `);
+
   // ─── COCKPIT : suivi mensuel KPIs par club ──────────────────
   // Équivalent SQLite des tables kpi_objectives / kpi_values décrites
   // dans le brief Supabase. Upsert immédiat à la saisie.

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-cockpit-row4">
+  <link rel="stylesheet" href="style.css?v=ds-standards1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -48,6 +48,7 @@
       <button class="tab-btn" data-tab="prel">P.R.E.L</button>
       <button class="tab-btn" data-tab="news">NEWS</button>
       <button class="tab-btn" data-tab="cockpit">Cockpit</button>
+      <button class="tab-btn" data-tab="standards">Standards</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button> -->
     </nav>
@@ -772,6 +773,60 @@
       </div>
     </section>
 
+    <!-- STANDARDS (admin + coach leaders) — Checklist d'évaluation par studio -->
+    <section id="tab-standards" class="tab-content">
+      <div class="std-banner">
+        <h1 class="std-banner-title">Standards — évaluation mensuelle du studio</h1>
+      </div>
+      <div class="std-wrap">
+        <div class="std-toolbar">
+          <div class="std-studio-picker">
+            <label class="std-studio-label">Studio :</label>
+            <select id="std-studio-select" class="std-studio-select"></select>
+          </div>
+          <div class="std-month-picker">
+            <button type="button" class="std-nav-btn" id="std-month-prev" aria-label="Mois précédent">‹</button>
+            <span id="std-month-label" class="std-month-label">—</span>
+            <button type="button" class="std-nav-btn" id="std-month-next" aria-label="Mois suivant">›</button>
+          </div>
+          <div class="std-score" id="std-score-display"></div>
+          <button type="button" class="std-admin-btn" id="std-manage-leaders" style="display:none">⚙ Gérer les coach leaders</button>
+        </div>
+        <div id="std-categories" class="std-categories"></div>
+      </div>
+    </section>
+
+    <!-- Modale admin : gestion des coach leaders -->
+    <div id="std-leaders-overlay" class="modal-overlay hidden">
+      <div class="modal std-leaders-modal">
+        <div class="std-leaders-header">
+          <h2>Gérer les coach leaders</h2>
+          <button class="std-leaders-close" id="std-leaders-close" type="button" aria-label="Fermer">✕</button>
+        </div>
+        <div class="std-leaders-body">
+          <div class="std-leaders-list" id="std-leaders-list">
+            <div class="std-leaders-empty">Chargement…</div>
+          </div>
+          <form class="std-leaders-form" id="std-leaders-form" autocomplete="off">
+            <h3>＋ Ajouter un coach leader</h3>
+            <label class="std-field">
+              <span class="std-field-label">Nom *</span>
+              <input type="text" id="std-leader-name" required>
+            </label>
+            <label class="std-field">
+              <span class="std-field-label">Studio *</span>
+              <input type="text" id="std-leader-studio" required placeholder="Ex : Lille">
+            </label>
+            <label class="std-field">
+              <span class="std-field-label">PIN * (4+ caractères)</span>
+              <input type="text" id="std-leader-pin" required minlength="4">
+            </label>
+            <button type="submit" class="std-leaders-add-btn">Créer</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <!-- COCKPIT (admin uniquement) — Tableau de bord mensuel KPIs par club -->
     <section id="tab-cockpit" class="tab-content">
       <div class="cockpit-banner">
@@ -902,6 +957,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-cockpit-n1year1"></script>
+  <script src="app.js?v=ds-standards1"></script>
 </body>
 </html>

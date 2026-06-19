@@ -145,6 +145,14 @@ app.post('/api/auth/login', (req, res) => {
     return res.json({ token, role, name: rep.name, sales_rep_id: rep.id });
   }
 
+  // Check coach LEADER PIN (table coach_leaders dédiée) — rôle : 'coach_leader'
+  const cl = db.prepare('SELECT id, name, studio FROM coach_leaders WHERE pin = ? AND archived = 0').get(pin.trim());
+  if (cl) {
+    const token = crypto.randomUUID();
+    sessions.set(token, { role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, sales_rep_id: null });
+    return res.json({ token, role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, sales_rep_id: null });
+  }
+
   // Check coach PIN (table coaches)
   const coach = db.prepare('SELECT id, name, role, studio, is_leader FROM coaches WHERE pin = ? AND archived = 0').get(pin.trim());
   if (coach) {
@@ -4231,6 +4239,211 @@ app.put('/api/cockpit/valeur', requireAuth, requireAdmin, (req, res) => {
       INSERT INTO kpi_values (club, month, kpi_id, valeur) VALUES (?, ?, ?, ?)
       ON CONFLICT(club, month, kpi_id) DO UPDATE SET valeur = excluded.valeur
     `).run(String(club), String(month), String(kpi_id), v);
+  }
+  res.json({ ok: true });
+});
+
+// ─── COACH LEADERS : gestion par l'admin ────────────────────
+app.get('/api/coach-leaders', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT id, name, pin, studio, archived, created_at
+    FROM coach_leaders
+    WHERE archived = 0
+    ORDER BY studio ASC, name ASC
+  `).all();
+  res.json({ leaders: rows });
+});
+
+app.post('/api/coach-leaders', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const name = String((req.body && req.body.name) || '').trim();
+  const pin = String((req.body && req.body.pin) || '').trim();
+  const studio = String((req.body && req.body.studio) || '').trim();
+  if (!name) return res.status(400).json({ error: 'Nom requis' });
+  if (!pin || pin.length < 4) return res.status(400).json({ error: 'PIN requis (4 caractères minimum)' });
+  if (!studio) return res.status(400).json({ error: 'Studio requis' });
+  // Vérifie unicité du PIN (toutes sources confondues)
+  const taken = db.prepare(`SELECT id FROM coach_leaders WHERE pin = ?`).get(pin)
+    || db.prepare(`SELECT id FROM sales_reps WHERE pin = ?`).get(pin)
+    || db.prepare(`SELECT id FROM coaches WHERE pin = ?`).get(pin);
+  if (taken) return res.status(409).json({ error: 'PIN déjà utilisé par un autre compte' });
+  try {
+    const info = db.prepare(`
+      INSERT INTO coach_leaders (name, pin, studio) VALUES (?, ?, ?)
+    `).run(name, pin, studio);
+    res.json({ ok: true, id: info.lastInsertRowid });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/coach-leaders/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  const existing = db.prepare(`SELECT id FROM coach_leaders WHERE id = ?`).get(id);
+  if (!existing) return res.status(404).json({ error: 'Coach leader introuvable' });
+  const fields = [];
+  const values = [];
+  if (req.body.name !== undefined) {
+    const v = String(req.body.name).trim();
+    if (!v) return res.status(400).json({ error: 'Nom vide' });
+    fields.push('name = ?'); values.push(v);
+  }
+  if (req.body.pin !== undefined) {
+    const v = String(req.body.pin).trim();
+    if (!v || v.length < 4) return res.status(400).json({ error: 'PIN trop court' });
+    const taken = db.prepare(`SELECT id FROM coach_leaders WHERE pin = ? AND id != ?`).get(v, id);
+    if (taken) return res.status(409).json({ error: 'PIN déjà utilisé' });
+    fields.push('pin = ?'); values.push(v);
+  }
+  if (req.body.studio !== undefined) {
+    const v = String(req.body.studio).trim();
+    if (!v) return res.status(400).json({ error: 'Studio vide' });
+    fields.push('studio = ?'); values.push(v);
+  }
+  if (fields.length === 0) return res.json({ ok: true });
+  values.push(id);
+  db.prepare(`UPDATE coach_leaders SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  res.json({ ok: true });
+});
+
+app.delete('/api/coach-leaders/:id', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+  // Soft delete : archived = 1
+  db.prepare(`UPDATE coach_leaders SET archived = 1 WHERE id = ?`).run(id);
+  res.json({ ok: true });
+});
+
+// ─── STANDARDS : checklist d'évaluation par studio + mois ───
+// Critères structurés en 4 catégories x 5 critères. Stockés en dur
+// côté serveur (envoyés au front via GET /api/standards/criteria),
+// modifiables ici sans toucher au front.
+const STANDARDS_CRITERIA = [
+  { category: 'Accueil & savoir-être', items: [
+    { id: 'acc_1', label: 'Salutation chaleureuse à l\'arrivée' },
+    { id: 'acc_2', label: 'Tenue et présentation professionnelles' },
+    { id: 'acc_3', label: 'Connaissance du prénom des membres' },
+    { id: 'acc_4', label: 'Disponibilité pour répondre aux questions' },
+    { id: 'acc_5', label: 'Au revoir personnalisé en fin de séance' },
+  ]},
+  { category: 'Espaces & matériel', items: [
+    { id: 'esp_1', label: 'Propreté générale des locaux' },
+    { id: 'esp_2', label: 'Matériel rangé et opérationnel' },
+    { id: 'esp_3', label: 'Vestiaires propres et approvisionnés' },
+    { id: 'esp_4', label: 'Affichages à jour (planning, news)' },
+    { id: 'esp_5', label: 'Musique et ambiance adaptées' },
+  ]},
+  { category: 'Coaching & protocole', items: [
+    { id: 'coa_1', label: 'Démarrage de séance dans les temps' },
+    { id: 'coa_2', label: 'Programme suivi et adapté' },
+    { id: 'coa_3', label: 'Corrections techniques régulières' },
+    { id: 'coa_4', label: 'Encouragements et motivation' },
+    { id: 'coa_5', label: 'Briefing nutritionnel mensuel' },
+  ]},
+  { category: 'Communication & suivi', items: [
+    { id: 'com_1', label: 'Relances clients absents' },
+    { id: 'com_2', label: 'Suivi des objectifs individuels' },
+    { id: 'com_3', label: 'Reporting hebdo à l\'admin' },
+    { id: 'com_4', label: 'Gestion des nouveaux inscrits (J+7)' },
+    { id: 'com_5', label: 'Anniversaires souhaités' },
+  ]},
+];
+
+function isValidStandardsMonth(s) { return /^\d{4}-\d{2}-01$/.test(String(s || '')); }
+
+// Helper d'autorisation : admin OK pour tout studio,
+// coach_leader OK seulement pour son propre studio.
+function authStandardsStudio(req, studio) {
+  if (req.session.role === 'admin') return true;
+  if (req.session.role === 'coach_leader' && req.session.studio === studio) return true;
+  return false;
+}
+
+app.get('/api/standards/criteria', requireAuth, (req, res) => {
+  if (req.session.role !== 'admin' && req.session.role !== 'coach_leader') {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+  res.json({ categories: STANDARDS_CRITERIA });
+});
+
+app.get('/api/standards/studios', requireAuth, requireAdmin, (req, res) => {
+  // Renvoie la liste des studios distincts en base (depuis coach_leaders)
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT DISTINCT studio FROM coach_leaders WHERE archived = 0 ORDER BY studio ASC
+  `).all();
+  res.json({ studios: rows.map(r => r.studio) });
+});
+
+app.get('/api/standards/evaluations', requireAuth, (req, res) => {
+  const studio = String(req.query.studio || '').trim();
+  const month = String(req.query.month || '').trim();
+  if (!studio) return res.status(400).json({ error: 'studio requis' });
+  if (!isValidStandardsMonth(month)) return res.status(400).json({ error: 'month requis (YYYY-MM-01)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT criterion_id, status, comment, evaluated_by, updated_at
+    FROM standards_evaluations WHERE studio = ? AND month = ?
+  `).all(studio, month);
+  const byCriterion = {};
+  rows.forEach(r => { byCriterion[r.criterion_id] = r; });
+  // Calcule le score : OK / (OK + NOK)
+  const flatItems = STANDARDS_CRITERIA.flatMap(c => c.items.map(i => i.id));
+  let okCount = 0, nokCount = 0, evalCount = 0;
+  for (const id of flatItems) {
+    const e = byCriterion[id];
+    if (!e || !e.status || e.status === 'na') continue;
+    evalCount++;
+    if (e.status === 'ok') okCount++;
+    if (e.status === 'nok') nokCount++;
+  }
+  const totalItems = flatItems.length;
+  const denom = okCount + nokCount;
+  const score = denom > 0 ? Math.round((okCount / denom) * 100) : null;
+  res.json({
+    studio, month,
+    evaluations: byCriterion,
+    counts: { ok: okCount, nok: nokCount, na: evalCount === 0 ? 0 : (evalCount - okCount - nokCount), unrated: totalItems - okCount - nokCount },
+    total_items: totalItems,
+    score_pct: score,
+  });
+});
+
+app.put('/api/standards/evaluation', requireAuth, (req, res) => {
+  const studio = String((req.body && req.body.studio) || '').trim();
+  const month = String((req.body && req.body.month) || '').trim();
+  const criterion_id = String((req.body && req.body.criterion_id) || '').trim();
+  const status = (req.body && req.body.status) || null;
+  const comment = (req.body && req.body.comment) || null;
+  if (!studio || !criterion_id) return res.status(400).json({ error: 'studio + criterion_id requis' });
+  if (!isValidStandardsMonth(month)) return res.status(400).json({ error: 'month requis (YYYY-MM-01)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (status !== null && !['ok', 'nok', 'na'].includes(String(status))) {
+    return res.status(400).json({ error: 'status doit être ok | nok | na | null' });
+  }
+  // Vérifie que le criterion_id existe dans la structure
+  const known = STANDARDS_CRITERIA.flatMap(c => c.items.map(i => i.id));
+  if (!known.includes(criterion_id)) return res.status(400).json({ error: 'criterion_id inconnu' });
+  const db = getDb();
+  if (status === null && (comment === null || comment === '')) {
+    // Si on vide tout, on supprime la ligne
+    db.prepare(`DELETE FROM standards_evaluations WHERE studio = ? AND month = ? AND criterion_id = ?`)
+      .run(studio, month, criterion_id);
+  } else {
+    db.prepare(`
+      INSERT INTO standards_evaluations (studio, month, criterion_id, status, comment, evaluated_by)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(studio, month, criterion_id) DO UPDATE SET
+        status = excluded.status,
+        comment = excluded.comment,
+        evaluated_by = excluded.evaluated_by,
+        updated_at = datetime('now','localtime')
+    `).run(studio, month, criterion_id, status, comment, req.session.name || 'inconnu');
   }
   res.json({ ok: true });
 });

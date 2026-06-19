@@ -23,6 +23,14 @@ function isPhoneLead() {
   return currentUser && currentUser.role === 'phoneur';
 }
 
+// Accès coach leader : un studio attribué, voit uniquement Standards.
+function isCoachLeader() {
+  return currentUser && currentUser.role === 'coach_leader';
+}
+function getMyStudio() {
+  return currentUser && currentUser.studio ? currentUser.studio : null;
+}
+
 // ─── State ──────────────────────────────────────────────────
 let currentWeekStart = '';
 let salesReps = [];
@@ -627,8 +635,28 @@ function updateTabVisibility() {
   const prelBtn = document.querySelector('[data-tab="prel"]');
   const newsBtn = document.querySelector('[data-tab="news"]');
   const cockpitBtn = document.querySelector('[data-tab="cockpit"]');
+  const standardsBtn = document.querySelector('[data-tab="standards"]');
 
-  if (isConsultant()) {
+  if (isCoachLeader()) {
+    // Coach leader : UNIQUEMENT l'onglet Standards, filtré sur son studio.
+    if (todayBtn) todayBtn.style.display = 'none';
+    if (ventesBtn) ventesBtn.style.display = 'none';
+    if (dashBtn) dashBtn.style.display = 'none';
+    if (phoningBtn) phoningBtn.style.display = 'none';
+    if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
+    if (mensuelBtn) mensuelBtn.style.display = 'none';
+    if (tasksBtn) tasksBtn.style.display = 'none';
+    if (persoBtn) persoBtn.style.display = 'none';
+    if (prelBtn) prelBtn.style.display = 'none';
+    if (newsBtn) newsBtn.style.display = 'none';
+    if (cockpitBtn) cockpitBtn.style.display = 'none';
+    if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = 'none';
+    if (standardsBtn) {
+      standardsBtn.style.display = '';
+      standardsBtn.click();
+    }
+    return;
+  } else if (isConsultant()) {
     // Consultant : uniquement l'onglet Pilotage
     if (todayBtn) todayBtn.style.display = 'none';
     if (ventesBtn) ventesBtn.style.display = 'none';
@@ -641,6 +669,7 @@ function updateTabVisibility() {
     if (prelBtn) prelBtn.style.display = 'none';
     if (newsBtn) newsBtn.style.display = 'none';
     if (cockpitBtn) cockpitBtn.style.display = 'none';
+    if (standardsBtn) standardsBtn.style.display = 'none';
     if (pilotageFunnelBtn) {
       pilotageFunnelBtn.style.display = '';
       pilotageFunnelInitToPreviousMonth();
@@ -660,6 +689,7 @@ function updateTabVisibility() {
     if (prelBtn) prelBtn.style.display = 'none';
     if (newsBtn) newsBtn.style.display = 'none';
     if (cockpitBtn) cockpitBtn.style.display = 'none';
+    if (standardsBtn) standardsBtn.style.display = 'none';
     phoningBtn.click();
   } else if (isAdmin()) {
     if (todayBtn) todayBtn.style.display = 'none';
@@ -674,6 +704,7 @@ function updateTabVisibility() {
     if (prelBtn) prelBtn.style.display = ''; // P.R.E.L : admin uniquement
     if (newsBtn) newsBtn.style.display = ''; // NEWS : admin uniquement
     if (cockpitBtn) cockpitBtn.style.display = ''; // Cockpit : admin uniquement
+    if (standardsBtn) standardsBtn.style.display = ''; // Standards : admin + coach leaders
     // Default landing tab on login (admin) = Pilotage, pré-réglé au mois précédent
     if (pilotageFunnelBtn) {
       pilotageFunnelInitToPreviousMonth();
@@ -697,6 +728,7 @@ function updateTabVisibility() {
     if (prelBtn) prelBtn.style.display = 'none'; // P.R.E.L réservé à l'admin
     if (newsBtn) newsBtn.style.display = 'none'; // NEWS réservé à l'admin
     if (cockpitBtn) cockpitBtn.style.display = 'none'; // Cockpit réservé à l'admin
+    if (standardsBtn) standardsBtn.style.display = 'none'; // Standards réservé admin + coach leader
     // Default landing tab on login = Tâches
     if (tasksBtn) tasksBtn.click(); else todayBtn.click();
   }
@@ -2608,6 +2640,7 @@ function initTabs() {
       if (btn.dataset.tab === 'prel') loadPrelTab();
       if (btn.dataset.tab === 'news') loadNewsTab();
       if (btn.dataset.tab === 'cockpit') loadCockpitTab();
+      if (btn.dataset.tab === 'standards') loadStandardsTab();
     });
   });
 }
@@ -14035,5 +14068,327 @@ async function cockpitSaveCell(input) {
   } catch (err) {
     input.style.borderColor = '#EF4444';
     console.error('[cockpit] save error', err);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// STANDARDS — checklist d'évaluation par studio (admin + coach leaders)
+// ═════════════════════════════════════════════════════════════════════════
+
+const STD_MONTHS_FR = [
+  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+];
+let standardsBooted = false;
+let standardsCriteria = [];        // [{ category, items: [{ id, label }] }]
+let standardsStudios = [];         // pour admin : liste des studios distincts
+let standardsStudio = null;        // studio courant
+let standardsMonth = null;         // YYYY-MM-01
+
+function standardsTodayMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+function standardsFormatMonth(iso) {
+  if (!iso) return '—';
+  const [y, m] = iso.split('-').map(Number);
+  return `${STD_MONTHS_FR[m - 1] || '?'} ${y}`;
+}
+function standardsShiftMonth(iso, delta) {
+  const [y, m] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-01`;
+}
+
+async function loadStandardsTab() {
+  if (!isAdmin() && !isCoachLeader()) return;
+  if (!standardsBooted) {
+    standardsBooted = true;
+    const headers = { 'Authorization': `Bearer ${authToken}` };
+    // Charge les critères (commun) + studios si admin
+    try {
+      const critRes = await fetch('/api/standards/criteria', { headers });
+      if (critRes.ok) {
+        const data = await critRes.json();
+        standardsCriteria = data.categories || [];
+      }
+    } catch (_) { standardsCriteria = []; }
+
+    if (isAdmin()) {
+      try {
+        const stRes = await fetch('/api/standards/studios', { headers });
+        if (stRes.ok) {
+          const data = await stRes.json();
+          standardsStudios = data.studios || [];
+        }
+      } catch (_) { standardsStudios = []; }
+      // Bouton « Gérer les coach leaders »
+      const manageBtn = document.getElementById('std-manage-leaders');
+      if (manageBtn) {
+        manageBtn.style.display = '';
+        manageBtn.addEventListener('click', openCoachLeadersModal);
+      }
+    } else {
+      // Coach leader : son studio est fixé, pas de sélecteur
+      standardsStudios = getMyStudio() ? [getMyStudio()] : [];
+    }
+
+    // Init état
+    standardsStudio = standardsStudios[0] || null;
+    standardsMonth = standardsTodayMonth();
+    standardsBuildSelectors();
+    // Bindings
+    document.getElementById('std-month-prev')?.addEventListener('click', () => { standardsMonth = standardsShiftMonth(standardsMonth, -1); standardsRender(); });
+    document.getElementById('std-month-next')?.addEventListener('click', () => { standardsMonth = standardsShiftMonth(standardsMonth, +1); standardsRender(); });
+    document.getElementById('std-studio-select')?.addEventListener('change', (e) => {
+      standardsStudio = e.target.value;
+      standardsRender();
+    });
+    // Modale coach leaders
+    document.getElementById('std-leaders-close')?.addEventListener('click', closeCoachLeadersModal);
+    document.getElementById('std-leaders-overlay')?.addEventListener('click', (e) => {
+      if (e.target.id === 'std-leaders-overlay') closeCoachLeadersModal();
+    });
+    document.getElementById('std-leaders-form')?.addEventListener('submit', onCreateCoachLeader);
+  }
+  standardsRender();
+}
+
+function standardsBuildSelectors() {
+  const sel = document.getElementById('std-studio-select');
+  if (!sel) return;
+  if (standardsStudios.length === 0) {
+    sel.innerHTML = `<option value="">Aucun studio configuré</option>`;
+    sel.disabled = true;
+    return;
+  }
+  sel.innerHTML = standardsStudios.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  sel.value = standardsStudio;
+  sel.disabled = isCoachLeader(); // coach leader = lecture seule sur son studio
+}
+
+async function standardsRender() {
+  const monthLabel = document.getElementById('std-month-label');
+  if (monthLabel) monthLabel.textContent = standardsFormatMonth(standardsMonth);
+  const container = document.getElementById('std-categories');
+  const scoreEl = document.getElementById('std-score-display');
+  if (!container) return;
+  if (!standardsStudio) {
+    container.innerHTML = `<div class="std-empty">${isAdmin() ? 'Aucun coach leader configuré. Clique sur ⚙ Gérer les coach leaders pour commencer.' : 'Aucun studio attribué.'}</div>`;
+    if (scoreEl) scoreEl.innerHTML = '';
+    return;
+  }
+  container.innerHTML = `<div class="std-loading">Chargement…</div>`;
+  try {
+    const headers = { 'Authorization': `Bearer ${authToken}` };
+    const url = `/api/standards/evaluations?studio=${encodeURIComponent(standardsStudio)}&month=${encodeURIComponent(standardsMonth)}`;
+    const data = await fetch(url, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
+    standardsRenderCategories(data);
+    standardsRenderScore(data);
+  } catch (err) {
+    container.innerHTML = `<div class="std-error">Erreur : ${escapeHtml(String(err.message || err))}</div>`;
+    if (scoreEl) scoreEl.innerHTML = '';
+  }
+}
+
+function standardsRenderScore(data) {
+  const scoreEl = document.getElementById('std-score-display');
+  if (!scoreEl) return;
+  const score = data.score_pct;
+  const counts = data.counts || {};
+  if (score === null) {
+    scoreEl.innerHTML = `<span class="std-score-empty">Pas encore évalué</span>`;
+    return;
+  }
+  let color = '#10B981'; // vert
+  if (score < 80) color = '#F59E0B'; // orange
+  if (score < 60) color = '#EF4444'; // rouge
+  scoreEl.innerHTML = `
+    <div class="std-score-badge" style="--score-color: ${color}">
+      <span class="std-score-value">${score}%</span>
+      <span class="std-score-detail">${counts.ok || 0} ✓ · ${counts.nok || 0} ✗ · ${counts.unrated || 0} —</span>
+    </div>
+  `;
+}
+
+function standardsRenderCategories(data) {
+  const container = document.getElementById('std-categories');
+  if (!container) return;
+  if (!standardsCriteria.length) {
+    container.innerHTML = `<div class="std-empty">Aucun critère défini.</div>`;
+    return;
+  }
+  const evals = data.evaluations || {};
+  container.innerHTML = standardsCriteria.map(cat => `
+    <section class="std-category">
+      <header class="std-cat-head">
+        <h3 class="std-cat-title">${escapeHtml(cat.category)}</h3>
+      </header>
+      <div class="std-items">
+        ${cat.items.map(it => {
+          const e = evals[it.id] || {};
+          const status = e.status || '';
+          const comment = e.comment || '';
+          return `
+            <div class="std-item" data-criterion="${escapeHtml(it.id)}">
+              <div class="std-item-label">${escapeHtml(it.label)}</div>
+              <div class="std-item-status">
+                <button type="button" class="std-status-btn std-status-ok ${status === 'ok' ? 'active' : ''}" data-status="ok" title="Conforme">✓ OK</button>
+                <button type="button" class="std-status-btn std-status-nok ${status === 'nok' ? 'active' : ''}" data-status="nok" title="Non conforme">✗ NOK</button>
+                <button type="button" class="std-status-btn std-status-na ${status === 'na' ? 'active' : ''}" data-status="na" title="Non applicable">— N/A</button>
+              </div>
+              <input type="text" class="std-item-comment" data-field="comment" placeholder="Commentaire (optionnel)" value="${escapeHtml(comment)}">
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </section>
+  `).join('');
+  // Bindings
+  container.querySelectorAll('.std-status-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.std-item');
+      const criterion = item.dataset.criterion;
+      const status = btn.dataset.status;
+      // Toggle : reclic sur le bouton actif → annule
+      const wasActive = btn.classList.contains('active');
+      item.querySelectorAll('.std-status-btn').forEach(b => b.classList.remove('active'));
+      if (!wasActive) btn.classList.add('active');
+      const newStatus = wasActive ? null : status;
+      const comment = item.querySelector('.std-item-comment').value;
+      standardsSaveEvaluation(criterion, newStatus, comment);
+    });
+  });
+  container.querySelectorAll('.std-item-comment').forEach(input => {
+    input.addEventListener('blur', () => {
+      const item = input.closest('.std-item');
+      const criterion = item.dataset.criterion;
+      const activeBtn = item.querySelector('.std-status-btn.active');
+      const status = activeBtn ? activeBtn.dataset.status : null;
+      standardsSaveEvaluation(criterion, status, input.value);
+    });
+  });
+}
+
+async function standardsSaveEvaluation(criterion_id, status, comment) {
+  try {
+    const res = await fetch('/api/standards/evaluation', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        studio: standardsStudio,
+        month: standardsMonth,
+        criterion_id,
+        status,
+        comment: comment || null,
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    // Recharge juste le score (léger)
+    const headers = { 'Authorization': `Bearer ${authToken}` };
+    const url = `/api/standards/evaluations?studio=${encodeURIComponent(standardsStudio)}&month=${encodeURIComponent(standardsMonth)}`;
+    const data = await fetch(url, { headers }).then(r => r.ok ? r.json() : null);
+    if (data) standardsRenderScore(data);
+  } catch (err) {
+    console.error('[standards] save error', err);
+    showToast('Erreur enregistrement', 'error');
+  }
+}
+
+// ─── Modale admin : gestion des coach leaders ────────────────
+async function openCoachLeadersModal() {
+  const overlay = document.getElementById('std-leaders-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  await reloadCoachLeaders();
+}
+function closeCoachLeadersModal() {
+  const overlay = document.getElementById('std-leaders-overlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+async function reloadCoachLeaders() {
+  const listEl = document.getElementById('std-leaders-list');
+  if (!listEl) return;
+  listEl.innerHTML = `<div class="std-leaders-empty">Chargement…</div>`;
+  try {
+    const headers = { 'Authorization': `Bearer ${authToken}` };
+    const data = await fetch('/api/coach-leaders', { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP')));
+    const leaders = data.leaders || [];
+    if (leaders.length === 0) {
+      listEl.innerHTML = `<div class="std-leaders-empty">Aucun coach leader. Ajoute le premier ci-dessous.</div>`;
+      return;
+    }
+    listEl.innerHTML = leaders.map(l => `
+      <div class="std-leader-row" data-leader-id="${l.id}">
+        <div class="std-leader-info">
+          <strong>${escapeHtml(l.name)}</strong>
+          <span class="std-leader-studio">${escapeHtml(l.studio)}</span>
+          <span class="std-leader-pin">PIN : <code>${escapeHtml(l.pin)}</code></span>
+        </div>
+        <button type="button" class="std-leader-delete" data-delete-id="${l.id}" data-delete-name="${escapeHtml(l.name)}" title="Supprimer">🗑</button>
+      </div>
+    `).join('');
+    listEl.querySelectorAll('[data-delete-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = parseInt(btn.dataset.deleteId, 10);
+        const name = btn.dataset.deleteName;
+        if (!confirm(`Supprimer le coach leader « ${name} » ?`)) return;
+        try {
+          await fetch(`/api/coach-leaders/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+          });
+          await reloadCoachLeaders();
+          // Recharge aussi la liste des studios visible côté admin
+          standardsStudios = standardsStudios.filter(s => true); // se remplira à la prochaine ouverture
+        } catch (e) {
+          alert('Erreur suppression');
+        }
+      });
+    });
+  } catch (err) {
+    listEl.innerHTML = `<div class="std-leaders-empty">Erreur : ${escapeHtml(String(err.message || err))}</div>`;
+  }
+}
+
+async function onCreateCoachLeader(e) {
+  e.preventDefault();
+  const name = document.getElementById('std-leader-name').value.trim();
+  const studio = document.getElementById('std-leader-studio').value.trim();
+  const pin = document.getElementById('std-leader-pin').value.trim();
+  if (!name || !studio || !pin) return;
+  if (pin.length < 4) { alert('PIN trop court (4 caractères minimum).'); return; }
+  try {
+    const res = await fetch('/api/coach-leaders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ name, studio, pin }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Erreur' }));
+      alert(err.error || 'Erreur création');
+      return;
+    }
+    document.getElementById('std-leaders-form').reset();
+    await reloadCoachLeaders();
+    // Met à jour la liste des studios disponibles
+    if (!standardsStudios.includes(studio)) {
+      standardsStudios.push(studio);
+      standardsStudios.sort();
+    }
+    // Si on n'avait pas de studio sélectionné, on prend celui qu'on vient
+    // de créer + recharge la vue
+    if (!standardsStudio) standardsStudio = studio;
+    standardsBuildSelectors();
+    standardsRender();
+  } catch (e) {
+    alert('Erreur création');
   }
 }
