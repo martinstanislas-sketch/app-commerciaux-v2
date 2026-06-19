@@ -2,15 +2,20 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#F0F4FA">
   <meta name="supported-color-schemes" content="light">
+  <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Coach Ginkgo">
   <title>Suivi Commerciaux</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-std-premium1">
+  <link rel="stylesheet" href="style.css?v=ds-std-mob1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -787,7 +792,7 @@
     <!-- STANDARDS (admin + coach leaders) — Checklist d'évaluation par studio -->
     <section id="tab-standards" class="tab-content">
       <div class="std-banner">
-        <h1 class="std-banner-title">Standards — photos quotidiennes du studio</h1>
+        <h1 class="std-banner-title"><span class="std-banner-title-long">Standards — photos quotidiennes du studio</span><span class="std-banner-title-short">Standards du jour</span></h1>
       </div>
       <div class="std-wrap">
         <div class="std-toolbar">
@@ -973,6 +978,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-std-premium1"></script>
+  <script src="app.js?v=ds-std-mob1"></script>
 </body>
 </html>

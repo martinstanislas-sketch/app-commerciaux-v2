@@ -19199,35 +19199,63 @@ body.tk-dragging-active #tab-tasks .tk-card {
 }
 
 @media (max-width: 720px) {
-  /* Mobile : 1 carte par ligne, bouton plein largeur, lisibilité max */
-  #tab-standards .std-slots-grid { grid-template-columns: 1fr; gap: 12px; }
-  #tab-standards .std-banner { padding: 16px 14px; }
-  #tab-standards .std-banner-title { font-size: 19px; }
-  #tab-standards .std-wrap { padding: 14px 12px 100px; }
-  #tab-standards .std-toolbar { gap: 8px; padding: 10px 12px; }
-  #tab-standards .std-studio-select { font-size: 15px; padding: 9px 12px; }
-  #tab-standards .std-month-label { font-size: 14px; min-width: 0; flex: 1; }
-  #tab-standards .std-nav-btn { width: 38px; height: 38px; }
-  #tab-standards .std-progress-count { font-size: 20px; }
-  /* Cards : optimisations mobile */
-  #tab-standards .std-card-icon { width: 36px; height: 36px; }
+  /* Mobile-first compact : 1 carte par ligne mais minimaliste */
+  #tab-standards .std-slots-grid { grid-template-columns: 1fr; gap: 10px; }
+  #tab-standards .std-banner { padding: 12px 14px; }
+  #tab-standards .std-banner-title { font-size: 16px; line-height: 1.2; }
+  #tab-standards .std-wrap { padding: 10px 10px 100px; }
+  #tab-standards .std-toolbar { gap: 8px; padding: 8px 10px; margin-bottom: 10px; }
+  #tab-standards .std-studio-select { font-size: 14px; padding: 8px 10px; }
+  #tab-standards .std-month-label { font-size: 13px; min-width: 0; flex: 1; }
+  #tab-standards .std-nav-btn { width: 36px; height: 36px; }
+  #tab-standards .std-progress { padding: 10px 12px; }
+  #tab-standards .std-progress-count { font-size: 16px; }
+  #tab-standards .std-group-head { padding: 8px 12px; margin-bottom: 8px; }
+  #tab-standards .std-group-title { font-size: 14px; }
+  /* Cards à faire : compactes, horizontal */
+  #tab-standards .std-card-empty .std-card-empty-body {
+    flex-direction: row;
+    align-items: center;
+    padding: 12px;
+    gap: 12px;
+  }
+  #tab-standards .std-card-empty .std-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  #tab-standards .std-card-empty .std-card-title { font-size: 14px; }
+  #tab-standards .std-card-empty .std-card-primary {
+    width: auto;
+    flex-shrink: 0;
+    padding: 11px 16px;
+    font-size: 13px;
+    margin-top: 0;
+    white-space: nowrap;
+  }
+  #tab-standards .std-card-empty .std-card-primary span { display: none; }
+  #tab-standards .std-card-empty .std-card-primary::after {
+    content: 'Photo';
+    font-weight: 600;
+  }
+  #tab-standards .std-card-icon { width: 38px; height: 38px; }
   #tab-standards .std-card-icon svg { width: 20px; height: 20px; }
-  #tab-standards .std-card-title { font-size: 15px; }
-  #tab-standards .std-card-primary { padding: 14px 16px; font-size: 15px; }
-  #tab-standards .std-card-primary svg { width: 20px; height: 20px; }
-  #tab-standards .std-card-empty-body { padding: 18px; gap: 16px; }
-  #tab-standards .std-card-action-btn { padding: 10px 12px; font-size: 13px; }
+  /* Card pleine : photo plus contenue */
+  #tab-standards .std-card-filled .std-card-photo { aspect-ratio: 16 / 10; }
+  #tab-standards .std-card-action-btn { padding: 9px 11px; font-size: 13px; }
 }
-/* ── Barre de progression globale ─── */
+/* ── Barre de progression compacte avec « prochaine action » ─── */
 #tab-standards .std-progress {
   width: 100%;
   background: #fff;
   border-radius: 12px;
   padding: 12px 16px;
-  border: 1px solid #CCFBF1;
-  box-shadow: 0 1px 3px rgba(15, 118, 110, 0.06);
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
-#tab-standards .std-progress-text {
+#tab-standards .std-progress-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -19235,15 +19263,103 @@ body.tk-dragging-active #tab-tasks .tk-card {
   margin-bottom: 8px;
 }
 #tab-standards .std-progress-count {
-  font-family: Georgia, serif;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 800;
-  color: #0F766E;
+  color: #0F172A;
+  font-family: inherit;
 }
 #tab-standards .std-progress-label {
   font-size: 13px;
   font-weight: 600;
-  color: #6A7392;
+  color: #475569;
+}
+#tab-standards .std-progress-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #0F172A;
+  color: #fff;
+  border: 0;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  gap: 10px;
+  transition: all 120ms ease;
+}
+#tab-standards .std-progress-next strong { font-weight: 700; }
+#tab-standards .std-progress-next-arrow { font-size: 16px; font-weight: 700; opacity: 0.85; }
+#tab-standards .std-progress-next:hover {
+  background: #1E293B;
+  transform: translateY(-1px);
+}
+
+/* Card pulse quand on saute dessus via « Prochaine » */
+@keyframes stdCardPulse {
+  0%, 100% { transform: translateY(0); box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04); }
+  50% { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(15, 118, 110, 0.28); }
+}
+#tab-standards .std-card-pulse {
+  animation: stdCardPulse 600ms ease 2;
+  border-color: #14B8A6;
+}
+
+/* Skeleton/uploading state */
+#tab-standards .std-card-uploading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+#tab-standards .std-card-uploading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(20,184,166,0.18) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: stdUploading 1.2s infinite linear;
+  pointer-events: none;
+}
+@keyframes stdUploading {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Toast */
+.std-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 80px;
+  transform: translate(-50%, 20px);
+  background: #0F172A;
+  color: #fff;
+  padding: 12px 22px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.35);
+  opacity: 0;
+  transition: opacity 200ms ease, transform 200ms ease;
+  z-index: 100000;
+  pointer-events: none;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+}
+.std-toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.std-toast-error {
+  background: #DC2626;
+}
+
+/* Titre raccourci sur mobile */
+#tab-standards .std-banner-title-short { display: none; }
+@media (max-width: 720px) {
+  #tab-standards .std-banner-title-long { display: none; }
+  #tab-standards .std-banner-title-short { display: inline; }
 }
 #tab-standards .std-progress-done .std-progress-count,
 #tab-standards .std-progress-done .std-progress-label { color: #10B981; }

@@ -14465,21 +14465,44 @@ function standardsRenderDaily(data) {
   const doneCount = defsAll.reduce((n, def) => n + ((slots[def.id] && slots[def.id].has_photo) ? 1 : 0), 0);
   const total = defsAll.length;
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-  // Affiche la progression en haut du score-display
+  // Trouve la prochaine photo à faire (premier slot sans photo)
+  const nextSlot = defsAll.find(def => !(slots[def.id] && slots[def.id].has_photo));
+  // Affiche la progression + bandeau prochaine action
   const scoreEl = document.getElementById('std-score-display');
   if (scoreEl) {
     let stateClass = 'std-progress-empty';
-    if (pct >= 100) stateClass = 'std-progress-done';
-    else if (pct >= 50) stateClass = 'std-progress-half';
+    let mainMsg = 'À démarrer';
+    if (pct >= 100) { stateClass = 'std-progress-done'; mainMsg = 'Studio complet aujourd\'hui ✓'; }
+    else if (pct >= 75) { stateClass = 'std-progress-half'; mainMsg = 'Dernière ligne droite'; }
+    else if (pct >= 50) { stateClass = 'std-progress-half'; mainMsg = 'Bien avancé'; }
+    else if (pct > 0) mainMsg = `Encore ${total - doneCount} photo${total - doneCount > 1 ? 's' : ''} à faire`;
     scoreEl.innerHTML = `
       <div class="std-progress ${stateClass}">
-        <div class="std-progress-text">
+        <div class="std-progress-row">
           <span class="std-progress-count">${doneCount}/${total}</span>
-          <span class="std-progress-label">${pct >= 100 ? '✓ Toutes les photos prises !' : pct >= 50 ? 'Bien avancé' : pct > 0 ? 'En cours' : 'À démarrer'}</span>
+          <span class="std-progress-label">${escapeHtml(mainMsg)}</span>
         </div>
         <div class="std-progress-bar"><div class="std-progress-fill" style="width:${pct}%"></div></div>
+        ${nextSlot && !readOnly ? `
+          <button type="button" class="std-progress-next" data-next-slot="${escapeHtml(nextSlot.id)}">
+            🎯 Prochaine : <strong>${escapeHtml(nextSlot.label)}${nextSlot.coach ? ` (Coach ${nextSlot.coach})` : ''}</strong>
+            <span class="std-progress-next-arrow">→</span>
+          </button>
+        ` : ''}
       </div>
     `;
+    const nextBtn = scoreEl.querySelector('[data-next-slot]');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        const target = scoreEl.querySelector(`[data-next-slot]`)?.dataset.nextSlot;
+        const targetCard = document.querySelector(`.std-card[data-slot="${target}"]`);
+        if (targetCard) {
+          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetCard.classList.add('std-card-pulse');
+          setTimeout(() => targetCard.classList.remove('std-card-pulse'), 1200);
+        }
+      });
+    }
   }
   const fmtDateTime = (iso) => {
     if (!iso) return '';
@@ -14609,17 +14632,69 @@ function standardsInvalidateThumb(slot) {
   }
 }
 
+// Compresse une image côté navigateur (canvas) :
+// - Redimensionne à max 1600 px sur le grand côté
+// - Re-encode en JPEG qualité 0.85
+// - Retourne un base64 prêt à uploader (sans préfixe data:)
+async function compressImageToBase64(file, maxDim = 1600, quality = 0.85) {
+  const bitmap = await (async () => {
+    if (typeof createImageBitmap === 'function') {
+      try { return await createImageBitmap(file); } catch (_) {}
+    }
+    // Fallback via Image()
+    return await new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image illisible')); };
+      img.src = url;
+    });
+  })();
+  const srcW = bitmap.width || bitmap.naturalWidth;
+  const srcH = bitmap.height || bitmap.naturalHeight;
+  const scale = Math.min(1, maxDim / Math.max(srcW, srcH));
+  const w = Math.round(srcW * scale);
+  const h = Math.round(srcH * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  if (bitmap.close) try { bitmap.close(); } catch (_) {}
+  const dataUrl = canvas.toDataURL('image/jpeg', quality);
+  return { base64: dataUrl.replace(/^data:[^,]*,/, ''), mime: 'image/jpeg', width: w, height: h };
+}
+
+// Toast simple en bas d'écran
+function showStandardsToast(message, type) {
+  document.querySelectorAll('.std-toast').forEach(t => t.remove());
+  const toast = document.createElement('div');
+  toast.className = 'std-toast std-toast-' + (type || 'success');
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => toast.remove(), 250);
+  }, 2400);
+}
+
 async function standardsUploadDailyPhoto(slot, file) {
   if (!file.type.startsWith('image/')) {
-    alert('Format non supporté — image requise.');
+    showStandardsToast('Format non supporté — image requise.', 'error');
     return;
   }
-  if (file.size > 8 * 1024 * 1024) {
-    alert('Photo trop lourde (max 8 Mo).');
+  if (file.size > 25 * 1024 * 1024) {
+    showStandardsToast('Photo trop lourde (max 25 Mo brut).', 'error');
     return;
   }
+  // Indicateur visuel : on tag la card en « uploading »
+  const card = document.querySelector(`.std-card[data-slot="${slot}"]`);
+  if (card) card.classList.add('std-card-uploading');
   try {
-    const b64 = await fileToBase64(file);
+    // Compression avant upload — réduit la bande passante x5-x20 vs originale
+    const { base64, mime } = await compressImageToBase64(file);
     const res = await fetch('/api/standards/daily/photo', {
       method: 'PUT',
       headers: {
@@ -14630,8 +14705,8 @@ async function standardsUploadDailyPhoto(slot, file) {
         studio: standardsStudio,
         date: standardsDate,
         slot,
-        photo_base64: b64,
-        mime: file.type,
+        photo_base64: base64,
+        mime,
       }),
     });
     if (!res.ok) {
@@ -14639,9 +14714,12 @@ async function standardsUploadDailyPhoto(slot, file) {
       throw new Error(err.error || ('HTTP ' + res.status));
     }
     standardsInvalidateThumb(slot);
+    if (card) card.classList.remove('std-card-uploading');
+    showStandardsToast('✓ Photo envoyée', 'success');
     await standardsRender();
   } catch (err) {
-    alert('Erreur upload photo : ' + (err.message || err));
+    if (card) card.classList.remove('std-card-uploading');
+    showStandardsToast('Erreur upload : ' + (err.message || err), 'error');
   }
 }
 
