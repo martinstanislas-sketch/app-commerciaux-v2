@@ -4730,6 +4730,83 @@ app.get('/api/standards/daily/slots', requireAuth, (req, res) => {
   res.json({ slots: STANDARDS_DAILY_SLOTS_DEF });
 });
 
+// ─── Check-in quotidien (mood + tâches) ─────────────────────
+// Doit être rempli AVANT de pouvoir uploader une photo Standards.
+// Une ligne par studio × date × coach_slot (matin/après-midi).
+const STANDARDS_MOODS = ['en_feu', 'bien', 'neutre', 'fatigue', 'pas_top'];
+
+function slotToCoachNum(slot) {
+  if (slot.startsWith('c1_')) return 1;
+  if (slot.startsWith('c2_')) return 2;
+  return null;
+}
+
+app.get('/api/standards/checkin', requireAuth, (req, res) => {
+  const studio = String(req.query.studio || '').trim();
+  const date = String(req.query.date || '').trim();
+  if (!studio) return res.status(400).json({ error: 'studio requis' });
+  if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!standardsCanViewDate(req, date)) return res.status(403).json({ error: 'Accès refusé sur cette date' });
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT coach_slot, mood, story_done, report_done, coach_name, updated_at
+    FROM standards_daily_checkin WHERE studio = ? AND date = ?
+  `).all(studio, date);
+  const bySlot = {};
+  rows.forEach(r => {
+    bySlot[r.coach_slot] = {
+      mood: r.mood,
+      story_done: !!r.story_done,
+      report_done: !!r.report_done,
+      coach_name: r.coach_name,
+      updated_at: r.updated_at,
+    };
+  });
+  res.json({ studio, date, slots: bySlot });
+});
+
+app.put('/api/standards/checkin', requireAuth, (req, res) => {
+  const studio = String((req.body && req.body.studio) || '').trim();
+  const date = String((req.body && req.body.date) || '').trim();
+  const coach_slot = parseInt((req.body && req.body.coach_slot), 10);
+  const mood = String((req.body && req.body.mood) || '').trim();
+  const story_done = (req.body && req.body.story_done) ? 1 : 0;
+  const report_done = (req.body && req.body.report_done) ? 1 : 0;
+  if (!studio) return res.status(400).json({ error: 'studio requis' });
+  if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
+  if (!(coach_slot === 1 || coach_slot === 2)) return res.status(400).json({ error: 'coach_slot doit être 1 ou 2' });
+  if (!STANDARDS_MOODS.includes(mood)) return res.status(400).json({ error: 'humeur invalide' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!standardsCanModify(req, date)) return res.status(403).json({ error: 'Modification uniquement pour le jour en cours' });
+  // Les superviseurs (standards_admin) sont en lecture seule
+  if (req.session.role === 'standards_admin') return res.status(403).json({ error: 'Lecture seule' });
+  // Si le user a un coach_slot fixé (assistant studio / guest), il ne peut
+  // remplir que SA rangée
+  if ((req.session.coach_slot === 1 || req.session.coach_slot === 2) && req.session.coach_slot !== coach_slot) {
+    return res.status(403).json({ error: 'Tu ne peux remplir que ta rangée' });
+  }
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO standards_daily_checkin (studio, date, coach_slot, mood, story_done, report_done, coach_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(studio, date, coach_slot) DO UPDATE SET
+      mood = excluded.mood,
+      story_done = excluded.story_done,
+      report_done = excluded.report_done,
+      coach_name = excluded.coach_name,
+      updated_at = datetime('now','localtime')
+  `).run(studio, date, coach_slot, mood, story_done, report_done, req.session.name || 'inconnu');
+  res.json({ ok: true });
+});
+
+// Helper : vérifie qu'un check-in existe pour (studio, date, coach_slot)
+function checkinExists(studio, date, coach_slot) {
+  const db = getDb();
+  const row = db.prepare('SELECT 1 FROM standards_daily_checkin WHERE studio = ? AND date = ? AND coach_slot = ?').get(studio, date, coach_slot);
+  return !!row;
+}
+
 function isValidStandardsDate(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 }
@@ -4783,6 +4860,14 @@ app.put('/api/standards/daily/photo', requireAuth, (req, res) => {
   if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
   if (!standardsCanModify(req, date)) return res.status(403).json({ error: "Modification autorisée uniquement pour le jour en cours" });
+  // Gating : un check-in (mood + tâches) doit exister pour la rangée
+  // concernée avant tout upload photo. L'admin est exempté.
+  if (req.session.role !== 'admin') {
+    const coachNum = slotToCoachNum(slot);
+    if (coachNum && !checkinExists(studio, date, coachNum)) {
+      return res.status(412).json({ error: "Fais ton check-in du jour avant d'envoyer une photo" });
+    }
+  }
   if (!photo_base64) return res.status(400).json({ error: 'photo_base64 requis' });
   let buf;
   try {

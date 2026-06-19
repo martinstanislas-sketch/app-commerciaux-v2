@@ -554,6 +554,26 @@ function initSchema() {
     }
   } catch (_) {}
 
+  // ─── STANDARDS daily : check-in mood + tâches (story / compte-rendu) ──
+  // Le coach (ou coach leader / guest) doit déclarer son humeur du jour et
+  // cocher Story / Compte-rendu AVANT de pouvoir uploader des photos.
+  // Une ligne par studio × jour × rangée (coach_slot 1 = matin, 2 = après-midi).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS standards_daily_checkin (
+      studio TEXT NOT NULL,
+      date TEXT NOT NULL,
+      coach_slot INTEGER NOT NULL,
+      mood TEXT NOT NULL,
+      story_done INTEGER NOT NULL DEFAULT 0,
+      report_done INTEGER NOT NULL DEFAULT 0,
+      coach_name TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      PRIMARY KEY (studio, date, coach_slot)
+    );
+    CREATE INDEX IF NOT EXISTS idx_standards_checkin_date ON standards_daily_checkin(date, studio);
+  `);
+
   // ─── COCKPIT : suivi mensuel KPIs par club ──────────────────
   // Équivalent SQLite des tables kpi_objectives / kpi_values décrites
   // dans le brief Supabase. Upsert immédiat à la saisie.

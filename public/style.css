@@ -20215,6 +20215,181 @@ body.tk-dragging-active #tab-tasks .tk-card {
   color: #EF4444;
 }
 
+/* ── Check-in du jour (mood + tâches) — affiché avant les photos ─── */
+#tab-standards .std-checkin {
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+#tab-standards .std-checkin-form {
+  border: 1px solid #FDE68A;
+  background: linear-gradient(180deg, #FFFBEB 0%, #FEFCE8 100%);
+}
+#tab-standards .std-checkin-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400E;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+#tab-standards .std-checkin-moods {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+#tab-standards .std-checkin-mood-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 4px;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 120ms ease;
+  min-height: 64px;
+}
+#tab-standards .std-checkin-mood-btn:hover {
+  border-color: #FCD34D;
+  background: #FFFBEB;
+}
+#tab-standards .std-checkin-mood-btn.selected {
+  border-color: #F59E0B;
+  background: #FEF3C7;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+#tab-standards .std-checkin-mood-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+#tab-standards .std-checkin-mood-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+#tab-standards .std-checkin-mood-btn.selected .std-checkin-mood-label {
+  color: #92400E;
+}
+#tab-standards .std-checkin-tasks-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid #FDE68A;
+  border-bottom: 1px solid #FDE68A;
+  margin-bottom: 12px;
+}
+#tab-standards .std-checkin-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #0F172A;
+  cursor: pointer;
+  font-weight: 500;
+}
+#tab-standards .std-checkin-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #F59E0B;
+  cursor: pointer;
+}
+#tab-standards .std-checkin-submit {
+  width: 100%;
+  padding: 11px 14px;
+  background: #0F172A;
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 120ms ease;
+}
+#tab-standards .std-checkin-submit:hover:not(:disabled) {
+  background: #1E293B;
+}
+#tab-standards .std-checkin-submit:disabled {
+  background: #CBD5E1;
+  cursor: not-allowed;
+}
+#tab-standards .std-checkin-done {
+  border-color: #D1FAE5;
+  background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 100%);
+}
+#tab-standards .std-checkin-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+#tab-standards .std-checkin-mood {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0F172A;
+}
+#tab-standards .std-checkin-tasks {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#tab-standards .std-checkin-task {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+#tab-standards .std-checkin-task.done {
+  background: #D1FAE5;
+  color: #047857;
+}
+#tab-standards .std-checkin-task.todo {
+  background: #F1F5F9;
+  color: #64748B;
+}
+#tab-standards .std-checkin-edit {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  font-family: inherit;
+}
+#tab-standards .std-checkin-edit:hover {
+  background: #F1F5F9;
+}
+#tab-standards .std-checkin-empty-ro {
+  font-size: 12px;
+  color: #94A3B8;
+  font-style: italic;
+  text-align: center;
+}
+@media (max-width: 480px) {
+  #tab-standards .std-checkin-moods { gap: 6px; }
+  #tab-standards .std-checkin-mood-btn { padding: 8px 2px; min-height: 60px; }
+  #tab-standards .std-checkin-mood-emoji { font-size: 20px; }
+  #tab-standards .std-checkin-mood-label { font-size: 10px; }
+}
+
 /* ── Mode lecture seule (coach leader sur jour passé) ─── */
 #tab-standards .std-readonly-banner {
   background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);

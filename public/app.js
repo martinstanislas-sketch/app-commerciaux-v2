@@ -14559,11 +14559,115 @@ async function standardsRender() {
   container.innerHTML = `<div class="std-loading">Chargement…</div>`;
   try {
     const headers = { 'Authorization': `Bearer ${authToken}` };
-    const url = `/api/standards/daily?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}`;
-    const data = await fetch(url, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
-    standardsRenderDaily(data);
+    const dailyUrl = `/api/standards/daily?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}`;
+    const checkinUrl = `/api/standards/checkin?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}`;
+    const [daily, checkin] = await Promise.all([
+      fetch(dailyUrl, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
+      fetch(checkinUrl, { headers }).then(r => r.ok ? r.json() : { slots: {} }),
+    ]);
+    standardsCheckinBySlot = checkin.slots || {};
+    standardsRenderDaily(daily);
   } catch (err) {
     container.innerHTML = `<div class="std-error">Erreur : ${escapeHtml(String(err.message || err))}</div>`;
+  }
+}
+
+// Module-level state pour les check-ins du jour affiché
+let standardsCheckinBySlot = {};
+
+const STD_MOODS = [
+  { id: 'en_feu',  emoji: '🔥', label: 'En feu !' },
+  { id: 'bien',    emoji: '😊', label: 'Bien' },
+  { id: 'neutre',  emoji: '😐', label: 'Neutre' },
+  { id: 'fatigue', emoji: '😕', label: 'Fatigué' },
+  { id: 'pas_top', emoji: '😞', label: 'Pas top' },
+];
+
+function stdMoodLabel(id) {
+  const m = STD_MOODS.find(x => x.id === id);
+  return m ? `${m.emoji} ${m.label}` : '';
+}
+
+function renderCheckinPanel(coachSlot, groupTitleDisplay, readOnly) {
+  const current = standardsCheckinBySlot[coachSlot];
+  if (current) {
+    // Compact summary
+    return `
+      <div class="std-checkin std-checkin-done" data-coach-slot="${coachSlot}">
+        <div class="std-checkin-summary">
+          <span class="std-checkin-mood">${escapeHtml(stdMoodLabel(current.mood))}</span>
+          <span class="std-checkin-tasks">
+            <span class="std-checkin-task ${current.story_done ? 'done' : 'todo'}">${current.story_done ? '✓' : '○'} Story</span>
+            <span class="std-checkin-task ${current.report_done ? 'done' : 'todo'}">${current.report_done ? '✓' : '○'} Compte-rendu</span>
+          </span>
+          ${readOnly ? '' : `<button type="button" class="std-checkin-edit" data-coach-slot="${coachSlot}">Modifier</button>`}
+        </div>
+      </div>
+    `;
+  }
+  if (readOnly) {
+    return `<div class="std-checkin std-checkin-empty-ro" data-coach-slot="${coachSlot}">Aucun check-in renseigné</div>`;
+  }
+  // Form (mood + tasks)
+  return `
+    <div class="std-checkin std-checkin-form" data-coach-slot="${coachSlot}">
+      <h4 class="std-checkin-title">Comment tu te sens aujourd'hui ?</h4>
+      <div class="std-checkin-moods" role="radiogroup">
+        ${STD_MOODS.map(m => `
+          <button type="button" class="std-checkin-mood-btn" data-mood="${m.id}" data-coach-slot="${coachSlot}">
+            <span class="std-checkin-mood-emoji">${m.emoji}</span>
+            <span class="std-checkin-mood-label">${escapeHtml(m.label)}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="std-checkin-tasks-form">
+        <label class="std-checkin-check">
+          <input type="checkbox" data-checkin-task="story" data-coach-slot="${coachSlot}">
+          <span>Story du jour publiée</span>
+        </label>
+        <label class="std-checkin-check">
+          <input type="checkbox" data-checkin-task="report" data-coach-slot="${coachSlot}">
+          <span>Compte rendu transmis</span>
+        </label>
+      </div>
+      <button type="button" class="std-checkin-submit" data-coach-slot="${coachSlot}" disabled>Valider mon check-in</button>
+    </div>
+  `;
+}
+
+async function submitCheckin(coachSlot) {
+  const card = document.querySelector(`.std-checkin-form[data-coach-slot="${coachSlot}"]`);
+  if (!card) return;
+  const moodBtn = card.querySelector('.std-checkin-mood-btn.selected');
+  if (!moodBtn) return;
+  const mood = moodBtn.dataset.mood;
+  const story_done = card.querySelector('[data-checkin-task="story"]').checked;
+  const report_done = card.querySelector('[data-checkin-task="report"]').checked;
+  const submitBtn = card.querySelector('.std-checkin-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Envoi…';
+  try {
+    const res = await fetch('/api/standards/checkin', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+      body: JSON.stringify({
+        studio: standardsStudio, date: standardsDate,
+        coach_slot: coachSlot, mood, story_done, report_done,
+      }),
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      showStandardsToast(d.error || 'Erreur', 'error');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Valider mon check-in';
+      return;
+    }
+    showStandardsToast('Check-in enregistré ✓', 'success');
+    await standardsRender();
+  } catch (_) {
+    showStandardsToast('Erreur réseau', 'error');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Valider mon check-in';
   }
 }
 
@@ -14675,15 +14779,24 @@ function standardsRenderDaily(data) {
       if (unique.size === 1) return uploaders[0]; // un seul nom → on l'utilise
       return slotLabel(g.num); // mélange → titre générique
     };
-    bodyHtml = groups.map(g => `
-      <div class="std-group">
-        <header class="std-group-head">
-          <span class="std-group-icon">${STD_ICONS.user}</span>
-          <h3 class="std-group-title">${escapeHtml(groupTitle(g))}</h3>
-        </header>
-        <div class="std-slots-grid">${g.defs.map(renderSlot).join('')}</div>
-      </div>
-    `).join('');
+    bodyHtml = groups.map(g => {
+      const checkinDone = !!standardsCheckinBySlot[g.num];
+      // Tant que le check-in n'est pas rempli, on n'affiche pas les
+      // cards photo. Le coach DOIT remplir son humeur + tâches d'abord.
+      // L'admin et les superviseurs (readOnly) voient toujours les photos.
+      const isSelfFiller = !readOnly && !isAdmin();
+      const showPhotos = !isSelfFiller || checkinDone;
+      return `
+        <div class="std-group">
+          <header class="std-group-head">
+            <span class="std-group-icon">${STD_ICONS.user}</span>
+            <h3 class="std-group-title">${escapeHtml(groupTitle(g))}</h3>
+          </header>
+          ${renderCheckinPanel(g.num, groupTitle(g), readOnly)}
+          ${showPhotos ? `<div class="std-slots-grid">${g.defs.map(renderSlot).join('')}</div>` : ''}
+        </div>
+      `;
+    }).join('');
   } else {
     bodyHtml = `<div class="std-slots-grid">${defs.map(renderSlot).join('')}</div>`;
   }
@@ -14724,6 +14837,27 @@ function standardsRenderDaily(data) {
       const slotKey = input.dataset.slotKey;
       await standardsUploadDailyPhoto(slotKey, file);
       input.value = '';
+    });
+  });
+  // Check-in bindings : mood select + tasks + submit + edit
+  container.querySelectorAll('.std-checkin-mood-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cs = btn.dataset.coachSlot;
+      const card = container.querySelector(`.std-checkin-form[data-coach-slot="${cs}"]`);
+      if (!card) return;
+      card.querySelectorAll('.std-checkin-mood-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      card.querySelector('.std-checkin-submit').disabled = false;
+    });
+  });
+  container.querySelectorAll('.std-checkin-submit').forEach(btn => {
+    btn.addEventListener('click', () => submitCheckin(parseInt(btn.dataset.coachSlot, 10)));
+  });
+  container.querySelectorAll('.std-checkin-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cs = parseInt(btn.dataset.coachSlot, 10);
+      delete standardsCheckinBySlot[cs];
+      standardsRenderDaily(data);
     });
   });
 }
