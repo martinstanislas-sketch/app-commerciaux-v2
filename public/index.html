@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-std-mob1">
+  <link rel="stylesheet" href="style.css?v=ds-login-prem1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -24,25 +24,45 @@
 <body>
   <!-- LOGIN OVERLAY -->
   <div id="login-overlay" class="login-overlay">
+    <!-- Halo / glow décoratif d'ambiance -->
+    <div class="login-glow login-glow-1" aria-hidden="true"></div>
+    <div class="login-glow login-glow-2" aria-hidden="true"></div>
     <div class="login-card">
-      <img src="logo-mycoach-noir.png" alt="My Coach Ginkgo" class="login-logo">
-      <h2>Connexion</h2>
-      <form id="login-form">
-        <input type="password" id="login-pin" maxlength="32" placeholder="Entrez votre code PIN" autocomplete="off" required>
+      <div class="login-brand">
+        <img src="logo-mycoach-blanc.png" alt="My Coach by Ginkgo" class="login-logo">
+      </div>
+      <div class="login-headline">
+        <h2 class="login-title">Bienvenue</h2>
+        <p class="login-subtitle">Entrez votre code PIN pour accéder à votre espace</p>
+      </div>
+      <form id="login-form" class="login-form">
+        <div class="login-field">
+          <input type="password" id="login-pin" maxlength="32" placeholder="••••••••" autocomplete="off" inputmode="numeric" required>
+          <label class="login-field-label" for="login-pin">Code PIN</label>
+        </div>
         <div id="login-error" class="login-error hidden">Code incorrect</div>
-        <button type="submit" class="btn-primary">Se connecter</button>
+        <button type="submit" class="btn-primary login-submit">
+          <span class="login-submit-text">Se connecter</span>
+          <span class="login-submit-spinner" aria-hidden="true"></span>
+        </button>
       </form>
       <!-- Sous-formulaire Guest (affiché automatiquement après saisie du code guest) -->
       <form id="login-guest-form" class="login-guest-form hidden">
-        <div class="login-guest-welcome">👋 Bienvenue ! Dis-nous où tu es et qui tu es :</div>
-        <select id="guest-studio" required>
-          <option value="">Choisis ton studio…</option>
-        </select>
-        <input type="text" id="guest-name" maxlength="40" placeholder="Ton prénom" autocomplete="off" required>
+        <div class="login-guest-welcome">Bienvenue ! Dis-nous où tu es et qui tu es</div>
+        <div class="login-field">
+          <select id="guest-studio" required>
+            <option value="">Choisis ton studio…</option>
+          </select>
+        </div>
+        <div class="login-field">
+          <input type="text" id="guest-name" maxlength="40" placeholder=" " autocomplete="off" required>
+          <label class="login-field-label" for="guest-name">Ton prénom</label>
+        </div>
         <div id="guest-error" class="login-error hidden">Erreur</div>
-        <button type="submit" class="btn-primary">Continuer</button>
+        <button type="submit" class="btn-primary login-submit"><span class="login-submit-text">Continuer</span></button>
         <button type="button" class="login-guest-back" id="login-guest-back">← Retour</button>
       </form>
+      <div class="login-footer">My Coach by Ginkgo · Espace coaching</div>
     </div>
   </div>
 
@@ -978,6 +998,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-std-mob1"></script>
+  <script src="app.js?v=ds-login-prem1"></script>
 </body>
 </html>

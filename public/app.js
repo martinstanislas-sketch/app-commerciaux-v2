@@ -526,7 +526,9 @@ function initAuthUI() {
     e.preventDefault();
     const pinInput = document.getElementById('login-pin');
     const errorDiv = document.getElementById('login-error');
+    const submitBtn = e.target.querySelector('.btn-primary');
     errorDiv.classList.add('hidden');
+    submitBtn?.classList.add('loading');
 
     try {
       const res = await fetch('/api/auth/login', {
@@ -540,12 +542,14 @@ function initAuthUI() {
         errorDiv.textContent = data.error || 'Code incorrect';
         errorDiv.classList.remove('hidden');
         const card = document.querySelector('.login-card');
-        card.classList.add('login-error');
-        card.addEventListener('animationend', () => card.classList.remove('login-error'), { once: true });
+        card.classList.add('login-shake');
+        card.addEventListener('animationend', () => card.classList.remove('login-shake'), { once: true });
         pinInput.value = '';
         pinInput.focus();
+        submitBtn?.classList.remove('loading');
         return;
       }
+      submitBtn?.classList.remove('loading');
 
       // Cas spécial : le code guest a été saisi → bascule sur le sous-formulaire
       if (data.guest_pending === true) {
