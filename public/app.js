@@ -571,6 +571,7 @@ function initAuthUI() {
         coach_id: data.coach_id || null,
         is_leader: data.is_leader || false,
         can_view_history: data.can_view_history === true,
+        coach_slot: (data.coach_slot === 1 || data.coach_slot === 2) ? data.coach_slot : null,
       };
       localStorage.setItem('authToken', authToken);
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -653,6 +654,7 @@ function initAuthUI() {
         currentUser = {
           role: data.role, name: data.name, sales_rep_id: null,
           studio: data.studio, can_view_history: false,
+          coach_slot: (data.coach_slot === 1 || data.coach_slot === 2) ? data.coach_slot : null,
         };
         localStorage.setItem('authToken', authToken);
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -14467,8 +14469,12 @@ function standardsRenderDaily(data) {
   // peut tout faire. Détecte le mode lecture-seule.
   const today = standardsTodayDate();
   const readOnly = isCoachLeader() && standardsDate !== today;
-  // Compte les photos prises pour la barre de progression
-  const defsAll = standardsSlotsDef || [];
+  // Filtre selon le coach_slot de l'utilisateur (1 ou 2). NULL = tout voir.
+  const userCoachSlot = currentUser && currentUser.coach_slot;
+  const allDefs = standardsSlotsDef || [];
+  const defsAll = (userCoachSlot === 1 || userCoachSlot === 2)
+    ? allDefs.filter(d => d.coach === userCoachSlot)
+    : allDefs;
   const doneCount = defsAll.reduce((n, def) => n + ((slots[def.id] && slots[def.id].has_photo) ? 1 : 0), 0);
   const total = defsAll.length;
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
@@ -14537,7 +14543,8 @@ function standardsRenderDaily(data) {
       isNext: def.id === nextSlotId,
     });
   };
-  const defs = standardsSlotsDef && standardsSlotsDef.length ? standardsSlotsDef : [];
+  // Utilise defsAll qui est déjà filtré selon le coach_slot de l'utilisateur
+  const defs = defsAll;
   if (defs.length === 0) {
     container.innerHTML = `<div class="std-empty">Aucun emplacement photo configuré.</div>`;
     return;
@@ -15016,6 +15023,15 @@ async function openCoachLeadersModal() {
   const overlay = document.getElementById('std-leaders-overlay');
   if (!overlay) return;
   overlay.classList.remove('hidden');
+  // Toggle dynamique : afficher le sélecteur "Rangée" uniquement si assistant
+  const cb = document.getElementById('std-leader-history');
+  const slotField = document.getElementById('std-leader-slot-field');
+  if (cb && slotField && !cb.dataset.bound) {
+    cb.dataset.bound = '1';
+    const update = () => { slotField.style.display = cb.checked ? 'none' : 'flex'; };
+    cb.addEventListener('change', update);
+    update();
+  }
   await reloadCoachLeaders();
 }
 function closeCoachLeadersModal() {
@@ -15035,13 +15051,18 @@ async function reloadCoachLeaders() {
       listEl.innerHTML = `<div class="std-leaders-empty">Aucun coach leader. Ajoute le premier ci-dessous.</div>`;
       return;
     }
-    listEl.innerHTML = leaders.map(l => `
-      <div class="std-leader-row" data-leader-id="${l.id}" data-leader-name="${escapeHtml(l.name)}" data-leader-studio="${escapeHtml(l.studio)}" data-leader-pin="${escapeHtml(l.pin)}" data-leader-history="${l.can_view_history ? '1' : '0'}">
+    listEl.innerHTML = leaders.map(l => {
+      const slotLabel = (l.coach_slot === 1) ? 'Coach 1' : (l.coach_slot === 2) ? 'Coach 2' : '';
+      const accessLabel = l.can_view_history
+        ? '🔓 Leader (voit tout)'
+        : `⏱ Assistant${slotLabel ? ' · ' + slotLabel : ''}`;
+      return `
+      <div class="std-leader-row" data-leader-id="${l.id}" data-leader-name="${escapeHtml(l.name)}" data-leader-studio="${escapeHtml(l.studio)}" data-leader-pin="${escapeHtml(l.pin)}" data-leader-history="${l.can_view_history ? '1' : '0'}" data-leader-slot="${l.coach_slot || ''}">
         <div class="std-leader-display">
           <div class="std-leader-info">
             <strong>${escapeHtml(l.name)}</strong>
             <span class="std-leader-studio">${escapeHtml(l.studio)}</span>
-            <span class="std-leader-access ${l.can_view_history ? '' : 'std-leader-access-assist'}">${l.can_view_history ? '🔓 Leader' : '⏱ Assistant'}</span>
+            <span class="std-leader-access ${l.can_view_history ? '' : 'std-leader-access-assist'}">${accessLabel}</span>
             <span class="std-leader-pin">PIN : <code>${escapeHtml(l.pin)}</code></span>
           </div>
           <div class="std-leader-row-actions">
@@ -15050,7 +15071,7 @@ async function reloadCoachLeaders() {
           </div>
         </div>
       </div>
-    `).join('');
+    `;}).join('');
     // Bind Edit buttons → ouvre le mode édition inline
     listEl.querySelectorAll('[data-edit-id]').forEach(btn => {
       btn.addEventListener('click', () => openLeaderEdit(parseInt(btn.dataset.editId, 10)));
@@ -15085,6 +15106,7 @@ function openLeaderEdit(id) {
   const studio = row.dataset.leaderStudio || '';
   const pin = row.dataset.leaderPin || '';
   const history = row.dataset.leaderHistory === '1';
+  const slot = row.dataset.leaderSlot || '';
   // Remplace l'affichage par le formulaire d'édition
   row.innerHTML = `
     <div class="std-leader-edit-form">
@@ -15104,6 +15126,13 @@ function openLeaderEdit(id) {
         <input type="checkbox" class="std-leader-edit-history" ${history ? 'checked' : ''}>
         <span>Accès aux jours passés (lecture seule)</span>
       </label>
+      <label class="std-leader-edit-field std-leader-edit-slot-field" style="${history ? 'display:none' : ''}">
+        <span>Rangée affectée</span>
+        <select class="std-leader-edit-slot">
+          <option value="1" ${slot === '1' ? 'selected' : ''}>Coach 1 (matin)</option>
+          <option value="2" ${slot === '2' ? 'selected' : ''}>Coach 2 (après-midi)</option>
+        </select>
+      </label>
       <div class="std-leader-edit-actions">
         <button type="button" class="std-leader-edit-cancel">Annuler</button>
         <button type="button" class="std-leader-edit-save">💾 Enregistrer</button>
@@ -15111,6 +15140,10 @@ function openLeaderEdit(id) {
       <div class="std-leader-edit-error" style="display:none"></div>
     </div>
   `;
+  // Toggle de la rangée selon le checkbox accès historique
+  const cb = row.querySelector('.std-leader-edit-history');
+  const slotField = row.querySelector('.std-leader-edit-slot-field');
+  cb?.addEventListener('change', () => { slotField.style.display = cb.checked ? 'none' : 'flex'; });
   row.querySelector('.std-leader-edit-cancel').addEventListener('click', () => reloadCoachLeaders());
   row.querySelector('.std-leader-edit-save').addEventListener('click', () => saveLeaderEdit(id, row));
   row.querySelector('.std-leader-edit-name')?.focus();
@@ -15121,6 +15154,9 @@ async function saveLeaderEdit(id, row) {
   const studio = row.querySelector('.std-leader-edit-studio').value.trim();
   const pin = row.querySelector('.std-leader-edit-pin').value.trim();
   const canViewHistory = row.querySelector('.std-leader-edit-history').checked;
+  const slotRaw = row.querySelector('.std-leader-edit-slot')?.value;
+  const coachSlot = (!canViewHistory && (slotRaw === '1' || slotRaw === '2'))
+    ? parseInt(slotRaw, 10) : null;
   const errEl = row.querySelector('.std-leader-edit-error');
   errEl.style.display = 'none';
   if (!name || !studio || !pin) {
@@ -15140,7 +15176,7 @@ async function saveLeaderEdit(id, row) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${authToken}`,
       },
-      body: JSON.stringify({ name, studio, pin, can_view_history: canViewHistory }),
+      body: JSON.stringify({ name, studio, pin, can_view_history: canViewHistory, coach_slot: coachSlot }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -15167,6 +15203,9 @@ async function onCreateCoachLeader(e) {
   const studio = document.getElementById('std-leader-studio').value.trim();
   const pin = document.getElementById('std-leader-pin').value.trim();
   const canViewHistory = document.getElementById('std-leader-history')?.checked !== false;
+  const coachSlotRaw = document.getElementById('std-leader-slot')?.value;
+  const coachSlot = (!canViewHistory && (coachSlotRaw === '1' || coachSlotRaw === '2'))
+    ? parseInt(coachSlotRaw, 10) : null;
   if (!name || !studio || !pin) return;
   if (pin.length < 4) { alert('PIN trop court (4 caractères minimum).'); return; }
   try {
@@ -15176,7 +15215,7 @@ async function onCreateCoachLeader(e) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${authToken}`,
       },
-      body: JSON.stringify({ name, studio, pin, can_view_history: canViewHistory }),
+      body: JSON.stringify({ name, studio, pin, can_view_history: canViewHistory, coach_slot: coachSlot }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Erreur' }));

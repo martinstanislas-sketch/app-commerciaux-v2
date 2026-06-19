@@ -470,6 +470,11 @@ function initSchema() {
   if (!clCols.includes('can_view_history')) {
     db.exec(`ALTER TABLE coach_leaders ADD COLUMN can_view_history INTEGER NOT NULL DEFAULT 1;`);
   }
+  // coach_slot : NULL = voit tout (coach leader), 1 ou 2 = ne voit
+  // que sa rangée (assistant rattaché à un créneau précis)
+  if (!clCols.includes('coach_slot')) {
+    db.exec(`ALTER TABLE coach_leaders ADD COLUMN coach_slot INTEGER;`);
+  }
   // Migration : on est passé du soft-delete au hard-delete pour
   // coach_leaders. Purge des anciens enregistrements archivés afin
   // de libérer leurs PIN (sinon impossible de recréer un compte

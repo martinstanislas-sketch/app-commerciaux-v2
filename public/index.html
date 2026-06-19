@@ -860,7 +860,14 @@
             <label class="std-field-checkbox">
               <input type="checkbox" id="std-leader-history" checked>
               <span>Accès aux jours passés (lecture seule)</span>
-              <small>Décocher = simple assistant studio : voit uniquement aujourd'hui</small>
+              <small>Décocher = simple assistant studio : voit uniquement sa partie du jour</small>
+            </label>
+            <label class="std-field" id="std-leader-slot-field" style="display:none">
+              <span class="std-field-label">Rangée affectée (assistant uniquement)</span>
+              <select id="std-leader-slot">
+                <option value="1">Coach 1 (matin)</option>
+                <option value="2">Coach 2 (après-midi)</option>
+              </select>
             </label>
             <button type="submit" class="std-leaders-add-btn">Créer</button>
           </form>
@@ -998,6 +1005,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-std-mission1"></script>
+  <script src="app.js?v=ds-coachslot1"></script>
 </body>
 </html>

@@ -146,14 +146,15 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   // Check coach LEADER PIN (table coach_leaders dédiée) — rôle : 'coach_leader'
-  // Le flag can_view_history détermine si l'utilisateur peut consulter les
-  // jours passés. 0 = assistant studio (today only). 1 = leader (full).
-  const cl = db.prepare('SELECT id, name, studio, can_view_history FROM coach_leaders WHERE pin = ? AND archived = 0').get(pin.trim());
+  // can_view_history : 1 = leader complet (voit tout), 0 = assistant (today only)
+  // coach_slot : NULL = voit tout, 1 ou 2 = ne voit que sa rangée
+  const cl = db.prepare('SELECT id, name, studio, can_view_history, coach_slot FROM coach_leaders WHERE pin = ? AND archived = 0').get(pin.trim());
   if (cl) {
     const token = crypto.randomUUID();
     const canViewHistory = !!cl.can_view_history;
-    sessions.set(token, { role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, can_view_history: canViewHistory, sales_rep_id: null });
-    return res.json({ token, role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, can_view_history: canViewHistory, sales_rep_id: null });
+    const coachSlot = cl.coach_slot || null;
+    sessions.set(token, { role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, can_view_history: canViewHistory, coach_slot: coachSlot, sales_rep_id: null });
+    return res.json({ token, role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, can_view_history: canViewHistory, coach_slot: coachSlot, sales_rep_id: null });
   }
 
   // Check coach PIN (table coaches)
@@ -215,6 +216,12 @@ app.post('/api/auth/guest-login', (req, res) => {
   if (pin !== guestCode) return res.status(401).json({ error: 'Code guest incorrect' });
   if (!studio) return res.status(400).json({ error: 'Studio requis' });
   if (!name || name.length < 2) return res.status(400).json({ error: 'Prénom requis (2 caractères min)' });
+  // coach_slot optionnel : si fourni (1 ou 2) → guest filtré sur cette rangée
+  let coachSlot = null;
+  if (req.body && req.body.coach_slot != null) {
+    const n = parseInt(req.body.coach_slot, 10);
+    if (n === 1 || n === 2) coachSlot = n;
+  }
   const token = crypto.randomUUID();
   const safeName = name.replace(/[<>"'`]/g, '').slice(0, 40);
   sessions.set(token, {
@@ -222,9 +229,10 @@ app.post('/api/auth/guest-login', (req, res) => {
     name: safeName,
     studio,
     can_view_history: false,
+    coach_slot: coachSlot,
     sales_rep_id: null,
   });
-  res.json({ token, role: 'guest', name: safeName, studio, can_view_history: false, sales_rep_id: null });
+  res.json({ token, role: 'guest', name: safeName, studio, can_view_history: false, coach_slot: coachSlot, sales_rep_id: null });
 });
 
 app.get('/api/auth/me', (req, res) => {
@@ -4285,7 +4293,7 @@ app.put('/api/cockpit/valeur', requireAuth, requireAdmin, (req, res) => {
 app.get('/api/coach-leaders', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const rows = db.prepare(`
-    SELECT id, name, pin, studio, can_view_history, archived, created_at
+    SELECT id, name, pin, studio, can_view_history, coach_slot, archived, created_at
     FROM coach_leaders
     WHERE archived = 0
     ORDER BY studio ASC, name ASC
@@ -4315,8 +4323,15 @@ app.post('/api/coach-leaders', requireAuth, requireAdmin, (req, res) => {
   const pin = String((req.body && req.body.pin) || '').trim();
   const studio = String((req.body && req.body.studio) || '').trim();
   // Par défaut accès historique = OUI (coach leader complet).
-  // Si false → simple assistant studio (today seulement).
+  // Si false → simple assistant studio (today seulement, rangée filtrée).
   const canViewHistory = req.body && req.body.can_view_history === false ? 0 : 1;
+  // coach_slot : 1 ou 2 si assistant. NULL si leader complet.
+  // (un leader peut tout voir donc on ignore coach_slot pour lui)
+  let coachSlot = null;
+  if (canViewHistory === 0 && req.body && req.body.coach_slot != null) {
+    const n = parseInt(req.body.coach_slot, 10);
+    if (n === 1 || n === 2) coachSlot = n;
+  }
   if (!name) return res.status(400).json({ error: 'Nom requis' });
   if (!pin || pin.length < 4) return res.status(400).json({ error: 'PIN requis (4 caractères minimum)' });
   if (!studio) return res.status(400).json({ error: 'Studio requis' });
@@ -4326,8 +4341,8 @@ app.post('/api/coach-leaders', requireAuth, requireAdmin, (req, res) => {
   if (taken) return res.status(409).json({ error: 'PIN déjà utilisé par un autre compte' });
   try {
     const info = db.prepare(`
-      INSERT INTO coach_leaders (name, pin, studio, can_view_history) VALUES (?, ?, ?, ?)
-    `).run(name, pin, studio, canViewHistory);
+      INSERT INTO coach_leaders (name, pin, studio, can_view_history, coach_slot) VALUES (?, ?, ?, ?, ?)
+    `).run(name, pin, studio, canViewHistory, coachSlot);
     res.json({ ok: true, id: info.lastInsertRowid });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -4365,6 +4380,18 @@ app.put('/api/coach-leaders/:id', requireAuth, requireAdmin, (req, res) => {
   if (req.body.can_view_history !== undefined) {
     const v = req.body.can_view_history === true || req.body.can_view_history === 1 ? 1 : 0;
     fields.push('can_view_history = ?'); values.push(v);
+    // Si on repasse en leader, on nettoie coach_slot
+    if (v === 1) { fields.push('coach_slot = NULL'); }
+  }
+  if (req.body.coach_slot !== undefined) {
+    const raw = req.body.coach_slot;
+    if (raw === null || raw === '' || raw === 'null') {
+      fields.push('coach_slot = NULL');
+    } else {
+      const n = parseInt(raw, 10);
+      if (n !== 1 && n !== 2) return res.status(400).json({ error: 'coach_slot doit être 1 ou 2' });
+      fields.push('coach_slot = ?'); values.push(n);
+    }
   }
   if (fields.length === 0) return res.json({ ok: true });
   values.push(id);
