@@ -631,6 +631,8 @@ function initAuthUI() {
       e.preventDefault();
       const studio = document.getElementById('guest-studio').value;
       const name = document.getElementById('guest-name').value.trim();
+      const slotRaw = document.getElementById('guest-slot')?.value;
+      const coach_slot = (slotRaw === '1' || slotRaw === '2') ? parseInt(slotRaw, 10) : null;
       const errorDiv = document.getElementById('guest-error');
       errorDiv.classList.add('hidden');
       if (!pendingGuestPin) {
@@ -638,11 +640,16 @@ function initAuthUI() {
         errorDiv.classList.remove('hidden');
         return;
       }
+      if (!coach_slot) {
+        errorDiv.textContent = 'Choisis Coach 1 ou Coach 2';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
       try {
         const res = await fetch('/api/auth/guest-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin: pendingGuestPin, studio, name }),
+          body: JSON.stringify({ pin: pendingGuestPin, studio, name, coach_slot }),
         });
         const data = await res.json();
         if (!res.ok) {

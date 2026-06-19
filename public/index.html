@@ -58,6 +58,13 @@
           <input type="text" id="guest-name" maxlength="40" placeholder=" " autocomplete="off" required>
           <label class="login-field-label" for="guest-name">Ton prénom</label>
         </div>
+        <div class="login-field">
+          <select id="guest-slot" required>
+            <option value="">Tu es Coach 1 ou Coach 2 ?</option>
+            <option value="1">Je suis Coach 1</option>
+            <option value="2">Je suis Coach 2</option>
+          </select>
+        </div>
         <div id="guest-error" class="login-error hidden">Erreur</div>
         <button type="submit" class="btn-primary login-submit"><span class="login-submit-text">Continuer</span></button>
         <button type="button" class="login-guest-back" id="login-guest-back">← Retour</button>
@@ -1005,6 +1012,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-noforward1"></script>
+  <script src="app.js?v=ds-guestslot1"></script>
 </body>
 </html>
