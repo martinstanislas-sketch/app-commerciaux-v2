@@ -14561,11 +14561,14 @@ async function standardsRender() {
     const headers = { 'Authorization': `Bearer ${authToken}` };
     const dailyUrl = `/api/standards/daily?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}`;
     const checkinUrl = `/api/standards/checkin?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}`;
-    const [daily, checkin] = await Promise.all([
+    const kpiUrl = `/api/standards/daily/kpi?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}`;
+    const [daily, checkin, kpiRes] = await Promise.all([
       fetch(dailyUrl, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
       fetch(checkinUrl, { headers }).then(r => r.ok ? r.json() : { slots: {} }),
+      fetch(kpiUrl, { headers }).then(r => r.ok ? r.json() : { kpi: null }),
     ]);
     standardsCheckinBySlot = checkin.slots || {};
+    standardsKpi = kpiRes.kpi || { prises_ref:0, call_non_freq:0, avis_google:0, temoignages:0, surpack_eur:0, action_cle:null };
     standardsRenderDaily(daily);
   } catch (err) {
     container.innerHTML = `<div class="std-error">Erreur : ${escapeHtml(String(err.message || err))}</div>`;
@@ -14574,6 +14577,96 @@ async function standardsRender() {
 
 // Module-level state pour les check-ins du jour affiché
 let standardsCheckinBySlot = {};
+// Indicateurs du jour (compteurs + action clé)
+let standardsKpi = { prises_ref:0, call_non_freq:0, avis_google:0, temoignages:0, surpack_eur:0, action_cle:null };
+
+// Peut éditer les compteurs (prises ref, etc.) : tous les rôles qui peuvent
+// modifier les photos aujourd'hui (admin, coach_leader full ou assistant,
+// guest, coach).
+function canEditKpiCountersFront() {
+  if (!currentUser) return false;
+  if (isStandardsAdmin()) return false;
+  return ['admin', 'coach_leader', 'guest', 'coach', 'coach-leader'].includes(currentUser.role);
+}
+// Action clé du moment : uniquement coach leader COMPLET (can_view_history)
+// ou admin. Les assistants studio et les guests voient mais n'éditent pas.
+function canEditKpiActionCleFront() {
+  if (!currentUser) return false;
+  if (currentUser.role === 'admin') return true;
+  if (currentUser.role === 'coach_leader' && currentUser.can_view_history === true) return true;
+  return false;
+}
+
+function renderKpiPanel(readOnly) {
+  const k = standardsKpi || {};
+  const fmtEur = (v) => {
+    const n = Number(v) || 0;
+    return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n);
+  };
+  const editCounters = !readOnly && canEditKpiCountersFront();
+  const editActionCle = !readOnly && canEditKpiActionCleFront();
+  const counter = (id, label, value) => `
+    <div class="std-kpi-card std-kpi-counter">
+      <div class="std-kpi-label">${escapeHtml(label)}</div>
+      <div class="std-kpi-row">
+        ${editCounters ? `<button type="button" class="std-kpi-btn" data-kpi-action="dec" data-kpi-field="${id}" aria-label="-">−</button>` : ''}
+        <div class="std-kpi-value" data-kpi-display="${id}">${Number(value) || 0}</div>
+        ${editCounters ? `<button type="button" class="std-kpi-btn" data-kpi-action="inc" data-kpi-field="${id}" aria-label="+">+</button>` : ''}
+      </div>
+    </div>
+  `;
+  return `
+    <div class="std-kpi-panel">
+      <header class="std-kpi-head">Indicateurs du jour</header>
+      <div class="std-kpi-grid">
+        ${counter('prises_ref', 'Prises de référence', k.prises_ref)}
+        ${counter('call_non_freq', 'Call non fréquentant', k.call_non_freq)}
+        ${counter('avis_google', 'Avis Google', k.avis_google)}
+        ${counter('temoignages', 'Témoignages', k.temoignages)}
+      </div>
+      <div class="std-kpi-grid-wide">
+        <div class="std-kpi-card std-kpi-surpack">
+          <div class="std-kpi-label">Surpack €</div>
+          <div class="std-kpi-surpack-row">
+            ${editCounters ? `
+              <input type="number" min="0" step="0.01" class="std-kpi-surpack-input" data-kpi-field="surpack_eur" value="${Number(k.surpack_eur) || 0}">
+            ` : `<div class="std-kpi-value">${escapeHtml(fmtEur(k.surpack_eur))}</div>`}
+            <span class="std-kpi-eur">€</span>
+          </div>
+        </div>
+        <div class="std-kpi-card std-kpi-action">
+          <div class="std-kpi-label">Action clé du moment</div>
+          ${editActionCle ? `
+            <textarea class="std-kpi-action-input" data-kpi-field="action_cle" maxlength="500" rows="2" placeholder="Renseigne l'action clé à mettre en avant aujourd'hui…">${escapeHtml(k.action_cle || '')}</textarea>
+          ` : `
+            <div class="std-kpi-action-display ${k.action_cle ? '' : 'empty'}">${k.action_cle ? escapeHtml(k.action_cle) : 'Aucune action clé renseignée'}</div>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function pushKpiUpdate(payload) {
+  try {
+    const res = await fetch('/api/standards/daily/kpi', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+      body: JSON.stringify({ studio: standardsStudio, date: standardsDate, ...payload }),
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      showStandardsToast(d.error || 'Erreur', 'error');
+      return false;
+    }
+    const data = await res.json();
+    standardsKpi = data.kpi || standardsKpi;
+    return true;
+  } catch (_) {
+    showStandardsToast('Erreur réseau', 'error');
+    return false;
+  }
+}
 
 const STD_MOODS = [
   { id: 'en_feu',  emoji: '🔥', label: 'En feu !' },
@@ -14808,6 +14901,7 @@ function standardsRenderDaily(data) {
           : 'tu peux consulter les photos mais pas les modifier pour les jours passés.'}
       </div>
     ` : ''}
+    ${renderKpiPanel(readOnly)}
     ${bodyHtml}
   `;
   // Charge les miniatures pour les slots remplis
@@ -14853,6 +14947,42 @@ function standardsRenderDaily(data) {
   container.querySelectorAll('.std-checkin-submit').forEach(btn => {
     btn.addEventListener('click', () => submitCheckin(parseInt(btn.dataset.coachSlot, 10)));
   });
+  // KPI bindings : compteurs +/- + surpack + action clé
+  container.querySelectorAll('[data-kpi-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const field = btn.dataset.kpiField;
+      const delta = btn.dataset.kpiAction === 'inc' ? 1 : -1;
+      const current = Number(standardsKpi[field]) || 0;
+      const next = Math.max(0, current + delta);
+      if (next === current) return;
+      // Update optimiste puis push
+      standardsKpi[field] = next;
+      const disp = container.querySelector(`[data-kpi-display="${field}"]`);
+      if (disp) disp.textContent = next;
+      const ok = await pushKpiUpdate({ [field]: next });
+      if (!ok) {
+        standardsKpi[field] = current;
+        if (disp) disp.textContent = current;
+      }
+    });
+  });
+  // Surpack € : on commit au blur (pas à chaque keystroke)
+  container.querySelectorAll('.std-kpi-surpack-input').forEach(input => {
+    input.addEventListener('change', async () => {
+      const v = parseFloat(input.value);
+      if (!Number.isFinite(v) || v < 0) { input.value = Number(standardsKpi.surpack_eur) || 0; return; }
+      await pushKpiUpdate({ surpack_eur: v });
+    });
+  });
+  // Action clé : debounce 800ms
+  const actionInput = container.querySelector('.std-kpi-action-input');
+  if (actionInput) {
+    let timer = null;
+    actionInput.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => pushKpiUpdate({ action_cle: actionInput.value }), 800);
+    });
+  }
   container.querySelectorAll('.std-checkin-edit').forEach(btn => {
     btn.addEventListener('click', () => {
       const cs = parseInt(btn.dataset.coachSlot, 10);

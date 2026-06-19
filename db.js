@@ -554,6 +554,25 @@ function initSchema() {
     }
   } catch (_) {}
 
+  // ─── STANDARDS daily : indicateurs du jour (compteurs + action clé) ──
+  // Une ligne par studio × jour. Compteurs partagés entre tous les coachs
+  // qui passent ; action_cle éditée uniquement par le coach leader.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS standards_daily_kpi (
+      studio TEXT NOT NULL,
+      date TEXT NOT NULL,
+      prises_ref INTEGER NOT NULL DEFAULT 0,
+      call_non_freq INTEGER NOT NULL DEFAULT 0,
+      avis_google INTEGER NOT NULL DEFAULT 0,
+      temoignages INTEGER NOT NULL DEFAULT 0,
+      surpack_eur REAL NOT NULL DEFAULT 0,
+      action_cle TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      PRIMARY KEY (studio, date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_standards_kpi_date ON standards_daily_kpi(date, studio);
+  `);
+
   // ─── STANDARDS daily : check-in mood + tâches (story / compte-rendu) ──
   // Le coach (ou coach leader / guest) doit déclarer son humeur du jour et
   // cocher Story / Compte-rendu AVANT de pouvoir uploader des photos.

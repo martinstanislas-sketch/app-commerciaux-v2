@@ -20215,6 +20215,153 @@ body.tk-dragging-active #tab-tasks .tk-card {
   color: #EF4444;
 }
 
+/* ── Indicateurs du jour (compteurs + action clé) ────────── */
+#tab-standards .std-kpi-panel {
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 14px;
+  padding: 16px 16px 14px;
+  margin-bottom: 14px;
+}
+#tab-standards .std-kpi-head {
+  font-size: 12px;
+  font-weight: 700;
+  color: #B45309;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+#tab-standards .std-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#tab-standards .std-kpi-grid-wide {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px;
+}
+#tab-standards .std-kpi-card {
+  background: #fff;
+  border: 1px solid #FDE68A;
+  border-radius: 12px;
+  padding: 10px 12px 12px;
+}
+#tab-standards .std-kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 8px;
+}
+#tab-standards .std-kpi-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#tab-standards .std-kpi-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+  background: #F1F5F9;
+  color: #475569;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: background 120ms ease, transform 120ms ease;
+}
+#tab-standards .std-kpi-btn:hover { background: #E2E8F0; }
+#tab-standards .std-kpi-btn:active { transform: scale(0.95); }
+#tab-standards .std-kpi-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0F172A;
+  font-family: inherit;
+  text-align: center;
+  flex: 1;
+  line-height: 1;
+}
+#tab-standards .std-kpi-surpack-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+#tab-standards .std-kpi-surpack-input {
+  width: 110px;
+  padding: 7px 10px;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #0F172A;
+  background: #fff;
+  text-align: right;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+#tab-standards .std-kpi-surpack-input:focus {
+  border-color: #F59E0B;
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.18);
+}
+#tab-standards .std-kpi-eur {
+  font-size: 20px;
+  font-weight: 800;
+  color: #B45309;
+}
+#tab-standards .std-kpi-action-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #0F172A;
+  background: #fff;
+  resize: vertical;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  min-height: 50px;
+}
+#tab-standards .std-kpi-action-input:focus {
+  border-color: #F59E0B;
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.18);
+}
+#tab-standards .std-kpi-action-display {
+  font-size: 13px;
+  color: #0F172A;
+  font-style: normal;
+  text-align: center;
+  padding: 8px 4px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#tab-standards .std-kpi-action-display.empty {
+  color: #94A3B8;
+  font-style: italic;
+}
+@media (max-width: 720px) {
+  #tab-standards .std-kpi-panel { padding: 12px; }
+  #tab-standards .std-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  #tab-standards .std-kpi-grid-wide { grid-template-columns: 1fr; }
+  #tab-standards .std-kpi-value { font-size: 20px; }
+  #tab-standards .std-kpi-btn { width: 30px; height: 30px; font-size: 16px; }
+}
+
 /* ── Check-in du jour (mood + tâches) — affiché avant les photos ─── */
 #tab-standards .std-checkin {
   background: #fff;

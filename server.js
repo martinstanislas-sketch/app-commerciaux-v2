@@ -4807,6 +4807,95 @@ function checkinExists(studio, date, coach_slot) {
   return !!row;
 }
 
+// ─── Indicateurs du jour (compteurs + action clé) ───────────
+// Une ligne par studio × jour. Compteurs (prises_ref, call_non_freq,
+// avis_google, temoignages, surpack_eur) modifiables par tous ceux qui
+// ont accès au studio aujourd'hui. action_cle uniquement par le coach
+// leader complet (can_view_history = true) ou l'admin.
+const KPI_COUNTERS = ['prises_ref', 'call_non_freq', 'avis_google', 'temoignages'];
+const KPI_DEFAULTS = { prises_ref: 0, call_non_freq: 0, avis_google: 0, temoignages: 0, surpack_eur: 0, action_cle: null };
+
+function canEditKpiCounters(req) {
+  if (req.session.role === 'admin') return true;
+  if (req.session.role === 'standards_admin') return false; // read-only
+  if (['coach_leader', 'guest', 'coach', 'coach-leader'].includes(req.session.role)) return true;
+  return false;
+}
+function canEditKpiActionCle(req) {
+  if (req.session.role === 'admin') return true;
+  if (req.session.role === 'coach_leader' && req.session.can_view_history === true) return true;
+  return false;
+}
+
+app.get('/api/standards/daily/kpi', requireAuth, (req, res) => {
+  const studio = String(req.query.studio || '').trim();
+  const date = String(req.query.date || '').trim();
+  if (!studio) return res.status(400).json({ error: 'studio requis' });
+  if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!standardsCanViewDate(req, date)) return res.status(403).json({ error: 'Accès refusé sur cette date' });
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT prises_ref, call_non_freq, avis_google, temoignages, surpack_eur, action_cle, updated_at
+    FROM standards_daily_kpi WHERE studio = ? AND date = ?
+  `).get(studio, date);
+  res.json({ studio, date, kpi: row || { ...KPI_DEFAULTS, updated_at: null } });
+});
+
+app.put('/api/standards/daily/kpi', requireAuth, (req, res) => {
+  const studio = String((req.body && req.body.studio) || '').trim();
+  const date = String((req.body && req.body.date) || '').trim();
+  if (!studio) return res.status(400).json({ error: 'studio requis' });
+  if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!standardsCanModify(req, date)) return res.status(403).json({ error: 'Modification uniquement pour le jour en cours' });
+
+  const body = req.body || {};
+  const updates = {};
+  // Compteurs entiers
+  for (const k of KPI_COUNTERS) {
+    if (body[k] != null) {
+      if (!canEditKpiCounters(req)) return res.status(403).json({ error: 'Tu ne peux pas modifier les compteurs' });
+      const n = parseInt(body[k], 10);
+      if (!Number.isFinite(n) || n < 0 || n > 9999) return res.status(400).json({ error: `${k} doit être un entier ≥ 0` });
+      updates[k] = n;
+    }
+  }
+  // Surpack € : nombre décimal positif
+  if (body.surpack_eur != null) {
+    if (!canEditKpiCounters(req)) return res.status(403).json({ error: 'Tu ne peux pas modifier les compteurs' });
+    const v = parseFloat(body.surpack_eur);
+    if (!Number.isFinite(v) || v < 0 || v > 1e7) return res.status(400).json({ error: 'surpack_eur doit être un nombre ≥ 0' });
+    updates.surpack_eur = Math.round(v * 100) / 100;
+  }
+  // Action clé : coach leader complet ou admin uniquement
+  if ('action_cle' in body) {
+    if (!canEditKpiActionCle(req)) return res.status(403).json({ error: "Seul le coach leader peut renseigner l'action clé du moment" });
+    const raw = body.action_cle == null ? null : String(body.action_cle);
+    if (raw && raw.length > 500) return res.status(400).json({ error: 'Action clé trop longue (500 caractères max)' });
+    updates.action_cle = raw ? raw.trim() : null;
+  }
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
+
+  const db = getDb();
+  // Récupère la ligne existante (ou crée avec defaults)
+  const existing = db.prepare('SELECT * FROM standards_daily_kpi WHERE studio = ? AND date = ?').get(studio, date) || { ...KPI_DEFAULTS };
+  const merged = { ...existing, ...updates };
+  db.prepare(`
+    INSERT INTO standards_daily_kpi (studio, date, prises_ref, call_non_freq, avis_google, temoignages, surpack_eur, action_cle, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+    ON CONFLICT(studio, date) DO UPDATE SET
+      prises_ref = excluded.prises_ref,
+      call_non_freq = excluded.call_non_freq,
+      avis_google = excluded.avis_google,
+      temoignages = excluded.temoignages,
+      surpack_eur = excluded.surpack_eur,
+      action_cle = excluded.action_cle,
+      updated_at = excluded.updated_at
+  `).run(studio, date, merged.prises_ref, merged.call_non_freq, merged.avis_google, merged.temoignages, merged.surpack_eur, merged.action_cle);
+  res.json({ ok: true, kpi: merged });
+});
+
 function isValidStandardsDate(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 }
