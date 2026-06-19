@@ -248,6 +248,75 @@ app.post('/api/auth/guest-login', (req, res) => {
   res.json({ token, role: 'guest', name: safeName, studio, can_view_history: false, coach_slot: coachSlot, sales_rep_id: null });
 });
 
+// ─── Change PIN ──────────────────────────────────────────────
+// Le salarié connecté peut changer son propre code PIN. Le nouveau PIN
+// doit être unique sur l'ensemble des tables (sales_reps, coaches,
+// coach_leaders, admin) — l'admin garde la main car l'update va
+// directement dans la même ligne qu'il gère côté admin.
+//
+// Rôles autorisés : admin, commercial, phoneur, coach, coach-leader,
+// coach_leader. Rôles hardcodés (consultant, academy, director,
+// standards_admin) ou éphémères (guest) ne peuvent pas changer leur PIN.
+app.post('/api/auth/change-pin', requireAuth, (req, res) => {
+  const current = String((req.body && req.body.current_pin) || '').trim();
+  const next = String((req.body && req.body.new_pin) || '').trim();
+  if (!current || !next) return res.status(400).json({ error: 'Code actuel et nouveau code requis' });
+  if (next.length < 4) return res.status(400).json({ error: 'Le nouveau code doit faire au moins 4 caractères' });
+  if (next.length > 32) return res.status(400).json({ error: 'Code trop long (32 caractères max)' });
+  if (current === next) return res.status(400).json({ error: 'Le nouveau code doit être différent de l\'ancien' });
+
+  const db = getDb();
+  const role = req.session.role;
+  const session = req.session;
+
+  // Trouve la ligne du salarié + vérifie son code actuel
+  let table, idCol, currentRow;
+  if (role === 'admin') {
+    const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('admin_pin');
+    const adminPin = (row && row.value) || process.env.ADMIN_PIN || 'ginkgo';
+    if (current !== adminPin) return res.status(401).json({ error: 'Code actuel incorrect' });
+    table = 'admin'; // marqueur spécial
+  } else if (['commercial', 'phoneur'].includes(role) && session.sales_rep_id) {
+    table = 'sales_reps'; idCol = session.sales_rep_id;
+    currentRow = db.prepare('SELECT pin FROM sales_reps WHERE id = ? AND archived = 0').get(idCol);
+  } else if (['coach', 'coach-leader'].includes(role) && session.coach_id) {
+    table = 'coaches'; idCol = session.coach_id;
+    currentRow = db.prepare('SELECT pin FROM coaches WHERE id = ? AND archived = 0').get(idCol);
+  } else if (role === 'coach_leader' && session.coach_leader_id) {
+    table = 'coach_leaders'; idCol = session.coach_leader_id;
+    currentRow = db.prepare('SELECT pin FROM coach_leaders WHERE id = ? AND archived = 0').get(idCol);
+  } else {
+    return res.status(403).json({ error: 'Ton type de compte ne permet pas de changer le code en autonomie. Demande à l\'admin.' });
+  }
+  if (table !== 'admin') {
+    if (!currentRow) return res.status(404).json({ error: 'Compte introuvable' });
+    if (currentRow.pin !== current) return res.status(401).json({ error: 'Code actuel incorrect' });
+  }
+
+  // Unicité du nouveau code sur l'ensemble des tables (hors propre ligne)
+  const adminRow = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('admin_pin');
+  const adminPinActuel = (adminRow && adminRow.value) || process.env.ADMIN_PIN || 'ginkgo';
+  if (table !== 'admin' && next === adminPinActuel) {
+    return res.status(409).json({ error: 'Ce code est déjà utilisé' });
+  }
+  const takenSr = db.prepare('SELECT id FROM sales_reps WHERE pin = ? AND archived = 0' + (table === 'sales_reps' ? ' AND id != ?' : '')).get(...(table === 'sales_reps' ? [next, idCol] : [next]));
+  const takenC  = db.prepare('SELECT id FROM coaches WHERE pin = ? AND archived = 0'    + (table === 'coaches'    ? ' AND id != ?' : '')).get(...(table === 'coaches'    ? [next, idCol] : [next]));
+  const takenCl = db.prepare('SELECT id FROM coach_leaders WHERE pin = ? AND archived = 0' + (table === 'coach_leaders' ? ' AND id != ?' : '')).get(...(table === 'coach_leaders' ? [next, idCol] : [next]));
+  if (takenSr || takenC || takenCl) return res.status(409).json({ error: 'Ce code est déjà utilisé' });
+
+  // Update
+  if (table === 'admin') {
+    db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run('admin_pin', next);
+  } else if (table === 'sales_reps') {
+    db.prepare('UPDATE sales_reps SET pin = ? WHERE id = ?').run(next, idCol);
+  } else if (table === 'coaches') {
+    db.prepare('UPDATE coaches SET pin = ? WHERE id = ?').run(next, idCol);
+  } else if (table === 'coach_leaders') {
+    db.prepare('UPDATE coach_leaders SET pin = ? WHERE id = ?').run(next, idCol);
+  }
+  res.json({ ok: true });
+});
+
 app.get('/api/auth/me', (req, res) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

@@ -670,6 +670,138 @@ nav {
   border-color: rgba(239,68,68,.2);
 }
 
+/* Bouton « Changer mon code » dans le header — discret, à côté de Sortir */
+.btn-change-pin {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: .72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: all .2s var(--ease);
+  font-family: inherit;
+}
+.btn-change-pin:hover {
+  background: rgba(99,102,241,0.08);
+  color: var(--primary, #6366F1);
+  border-color: rgba(99,102,241,0.3);
+}
+.btn-change-pin.hidden { display: none; }
+
+/* Modale changer le code PIN */
+#change-pin-overlay .change-pin-modal {
+  width: 100%;
+  max-width: 380px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 20px 50px rgba(15,23,42,0.18);
+  overflow: hidden;
+}
+.change-pin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #F1F5F9;
+}
+.change-pin-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+}
+.change-pin-close {
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+  color: #94A3B8;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  line-height: 1;
+}
+.change-pin-close:hover { background: #F1F5F9; color: #0F172A; }
+.change-pin-form {
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.change-pin-field { display: flex; flex-direction: column; gap: 6px; }
+.change-pin-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.1px;
+}
+.change-pin-form input {
+  padding: 10px 12px;
+  border: 1px solid #CBD5E1;
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: inherit;
+  background: #fff;
+  color: #0F172A;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  letter-spacing: 2px;
+}
+.change-pin-form input:focus {
+  border-color: #6366F1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+}
+.change-pin-error {
+  background: #FEE2E2;
+  color: #B91C1C;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.change-pin-error.hidden { display: none; }
+.change-pin-success {
+  background: #D1FAE5;
+  color: #047857;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.change-pin-success.hidden { display: none; }
+.change-pin-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.change-pin-cancel,
+.change-pin-submit {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 120ms ease;
+}
+.change-pin-cancel {
+  background: #fff;
+  border: 1px solid #CBD5E1;
+  color: #475569;
+}
+.change-pin-cancel:hover { background: #F8FAFC; }
+.change-pin-submit {
+  background: #0F172A;
+  border: 0;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.change-pin-submit:hover { background: #1E293B; }
+
 /* Header widgets (Histoire Sportive + Énergie) */
 .header-widgets {
   display: flex;

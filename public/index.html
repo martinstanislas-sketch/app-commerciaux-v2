@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-std-mob2">
+  <link rel="stylesheet" href="style.css?v=ds-changepin1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -100,6 +100,7 @@
       <span id="user-name"></span>
       <span id="user-role-badge" class="user-role-badge"></span>
       <a href="/coach/" id="btn-goto-coach" class="btn-goto-coach hidden" title="Acc&eacute;der &agrave; l'app Coaching">🏋️ Coaching</a>
+      <button id="btn-change-pin" class="btn-change-pin hidden" title="Changer mon code">🔑 Code</button>
       <button id="btn-logout" class="btn-logout" title="Se d&eacute;connecter">Sortir</button>
     </div>
   </header>
@@ -882,6 +883,36 @@
       </div>
     </div>
 
+    <!-- Modale : changer son code PIN (visible pour les salariés connectés) -->
+    <div id="change-pin-overlay" class="modal-overlay hidden">
+      <div class="modal change-pin-modal">
+        <div class="change-pin-header">
+          <h2>🔑 Changer mon code</h2>
+          <button class="change-pin-close" id="change-pin-close" type="button" aria-label="Fermer">✕</button>
+        </div>
+        <form id="change-pin-form" class="change-pin-form" autocomplete="off">
+          <label class="change-pin-field">
+            <span class="change-pin-label">Code actuel</span>
+            <input type="password" id="change-pin-current" required minlength="3" inputmode="text">
+          </label>
+          <label class="change-pin-field">
+            <span class="change-pin-label">Nouveau code</span>
+            <input type="password" id="change-pin-new" required minlength="4" maxlength="32" inputmode="text">
+          </label>
+          <label class="change-pin-field">
+            <span class="change-pin-label">Confirmer le nouveau code</span>
+            <input type="password" id="change-pin-confirm" required minlength="4" maxlength="32" inputmode="text">
+          </label>
+          <div id="change-pin-error" class="change-pin-error hidden"></div>
+          <div id="change-pin-success" class="change-pin-success hidden">Code mis à jour ✓</div>
+          <div class="change-pin-actions">
+            <button type="button" class="change-pin-cancel" id="change-pin-cancel">Annuler</button>
+            <button type="submit" class="change-pin-submit">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- COCKPIT (admin uniquement) — Tableau de bord mensuel KPIs par club -->
     <section id="tab-cockpit" class="tab-content">
       <div class="cockpit-banner">
@@ -1012,6 +1043,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-stdadmin1"></script>
+  <script src="app.js?v=ds-changepin1"></script>
 </body>
 </html>

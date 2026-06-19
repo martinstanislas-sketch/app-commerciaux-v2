@@ -218,6 +218,56 @@ function hideLogin() {
   document.getElementById('login-overlay').classList.add('hidden');
 }
 
+// ─── Change PIN modal ───────────────────────────────────────
+function openChangePinModal() {
+  const overlay = document.getElementById('change-pin-overlay');
+  if (!overlay) return;
+  // Reset
+  ['change-pin-current', 'change-pin-new', 'change-pin-confirm'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('change-pin-error')?.classList.add('hidden');
+  document.getElementById('change-pin-success')?.classList.add('hidden');
+  overlay.classList.remove('hidden');
+  setTimeout(() => document.getElementById('change-pin-current')?.focus(), 60);
+}
+function closeChangePinModal() {
+  document.getElementById('change-pin-overlay')?.classList.add('hidden');
+}
+async function submitChangePin(e) {
+  e.preventDefault();
+  const current = document.getElementById('change-pin-current').value.trim();
+  const next = document.getElementById('change-pin-new').value.trim();
+  const confirm = document.getElementById('change-pin-confirm').value.trim();
+  const errEl = document.getElementById('change-pin-error');
+  const okEl = document.getElementById('change-pin-success');
+  errEl?.classList.add('hidden');
+  okEl?.classList.add('hidden');
+  if (!current || !next || !confirm) { errEl.textContent = 'Tous les champs sont requis'; errEl.classList.remove('hidden'); return; }
+  if (next.length < 4) { errEl.textContent = 'Le nouveau code doit faire au moins 4 caractères'; errEl.classList.remove('hidden'); return; }
+  if (next !== confirm) { errEl.textContent = 'Les deux nouveaux codes ne correspondent pas'; errEl.classList.remove('hidden'); return; }
+  if (next === current) { errEl.textContent = 'Le nouveau code doit être différent de l\'ancien'; errEl.classList.remove('hidden'); return; }
+  try {
+    const res = await fetch('/api/auth/change-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+      body: JSON.stringify({ current_pin: current, new_pin: next }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Erreur';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    okEl.classList.remove('hidden');
+    setTimeout(closeChangePinModal, 1400);
+  } catch (_) {
+    errEl.textContent = 'Erreur réseau';
+    errEl.classList.remove('hidden');
+  }
+}
+
 function updateUserUI() {
   const infoDiv = document.getElementById('user-info');
   const nameSpan = document.getElementById('user-name');
@@ -250,6 +300,16 @@ function updateUserUI() {
                       : 'Commercial';
       roleBadge.textContent = roleLabel;
       roleBadge.className = 'user-role-badge' + (currentUser.role === 'admin' ? ' admin' : '');
+    }
+    // Bouton « Changer mon code » : visible pour les rôles dont le PIN
+    // est stocké en base (admin, sales_reps, coaches, coach_leaders).
+    // Masqué pour les rôles éphémères (guest) ou hardcodés (consultant,
+    // academy, director, standards_admin).
+    const changePinBtn = document.getElementById('btn-change-pin');
+    if (changePinBtn) {
+      const allowed = ['admin', 'commercial', 'phoneur', 'coach', 'coach-leader', 'coach_leader'];
+      if (allowed.includes(currentUser.role)) changePinBtn.classList.remove('hidden');
+      else changePinBtn.classList.add('hidden');
     }
     infoDiv.classList.remove('hidden');
     // Si consultant : restreint l'interface à l'onglet Pilotage et passe en lecture seule
@@ -683,6 +743,16 @@ function initAuthUI() {
       }
     });
   }
+
+  // Change PIN button + modal
+  const changePinBtn = document.getElementById('btn-change-pin');
+  if (changePinBtn) changePinBtn.addEventListener('click', openChangePinModal);
+  document.getElementById('change-pin-close')?.addEventListener('click', closeChangePinModal);
+  document.getElementById('change-pin-cancel')?.addEventListener('click', closeChangePinModal);
+  document.getElementById('change-pin-overlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'change-pin-overlay') closeChangePinModal();
+  });
+  document.getElementById('change-pin-form')?.addEventListener('submit', submitChangePin);
 
   // Logout button
   document.getElementById('btn-logout').addEventListener('click', async () => {
