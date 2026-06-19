@@ -14430,6 +14430,23 @@ function standardsBuildSelectors() {
 async function standardsRender() {
   const dateLabel = document.getElementById('std-month-label');
   if (dateLabel) dateLabel.textContent = standardsFormatDate(standardsDate);
+  // Désactive la flèche « suivant » quand on est sur aujourd'hui :
+  // on ne navigue pas vers le futur (les photos n'existent pas encore).
+  const nextBtn = document.getElementById('std-month-next');
+  if (nextBtn) {
+    const today = standardsTodayDate();
+    if (standardsDate >= today) {
+      nextBtn.disabled = true;
+      nextBtn.style.opacity = '0.3';
+      nextBtn.style.cursor = 'not-allowed';
+      nextBtn.title = 'Pas de navigation vers le futur';
+    } else {
+      nextBtn.disabled = false;
+      nextBtn.style.opacity = '';
+      nextBtn.style.cursor = '';
+      nextBtn.title = '';
+    }
+  }
   const container = document.getElementById('std-categories');
   const scoreEl = document.getElementById('std-score-display');
   if (scoreEl) scoreEl.innerHTML = '';
