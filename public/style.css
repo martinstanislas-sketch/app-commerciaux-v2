@@ -18910,6 +18910,64 @@ body.tk-dragging-active #tab-tasks .tk-card {
 }
 
 /* ── Nouvelles cards : 2 créneaux photo par jour ─── */
+/* ── Lightbox photo (s'affiche par-dessus la page) ─── */
+.std-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  cursor: zoom-out;
+  animation: stdLightboxIn 180ms ease;
+}
+@keyframes stdLightboxIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.std-lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  cursor: default;
+}
+.std-lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  border: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1E293B;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  transition: all 120ms ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.std-lightbox-close:hover {
+  background: #fff;
+  transform: scale(1.05);
+}
+@media (max-width: 600px) {
+  .std-lightbox { padding: 14px 8px; }
+  .std-lightbox-close {
+    top: 10px; right: 10px;
+    width: 42px; height: 42px;
+    font-size: 19px;
+  }
+}
+
 /* ── Section par coach ─── */
 #tab-standards .std-group {
   margin-bottom: 22px;

@@ -14559,26 +14559,57 @@ async function standardsUploadDailyPhoto(slot, file) {
 }
 
 async function standardsViewDailyPhoto(slot) {
-  let win = null;
   try {
-    win = window.open('', '_blank');
     const url = `/api/standards/daily/photo?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
     const res = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const blob = await res.blob();
     const blobUrl = URL.createObjectURL(blob);
-    if (win && !win.closed) {
-      win.location.href = blobUrl;
-    } else {
-      const a = document.createElement('a');
-      a.href = blobUrl; a.target = '_blank'; a.rel = 'noopener';
-      document.body.appendChild(a); a.click(); a.remove();
-    }
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+    openStandardsLightbox(blobUrl);
   } catch (err) {
-    if (win && !win.closed) win.close();
     alert('Erreur affichage photo : ' + (err.message || err));
   }
+}
+
+// Lightbox interne : la photo s'affiche en plein écran par-dessus la page,
+// pas de nouvel onglet. Fermable par : clic sur le fond, croix, Echap.
+function openStandardsLightbox(src) {
+  // Ferme une éventuelle lightbox précédente (et libère son blob URL)
+  closeStandardsLightbox();
+  const overlay = document.createElement('div');
+  overlay.id = 'std-lightbox';
+  overlay.className = 'std-lightbox';
+  overlay.innerHTML = `
+    <button type="button" class="std-lightbox-close" aria-label="Fermer">✕</button>
+    <img class="std-lightbox-img" src="${escapeHtml(src)}" alt="Photo">
+  `;
+  overlay.dataset.blobUrl = src;
+  document.body.appendChild(overlay);
+  // Empêche le scroll de la page en arrière-plan
+  document.body.style.overflow = 'hidden';
+  // Fermeture : clic sur le fond OU sur la croix (mais pas sur l'image elle-même)
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay || e.target.classList.contains('std-lightbox-close')) {
+      closeStandardsLightbox();
+    }
+  });
+  // Touche Echap
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      closeStandardsLightbox();
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+}
+
+function closeStandardsLightbox() {
+  const existing = document.getElementById('std-lightbox');
+  if (!existing) return;
+  const blobUrl = existing.dataset.blobUrl;
+  if (blobUrl) URL.revokeObjectURL(blobUrl);
+  existing.remove();
+  document.body.style.overflow = '';
 }
 
 async function standardsDeleteDailyPhoto(slot) {
