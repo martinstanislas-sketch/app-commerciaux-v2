@@ -524,6 +524,7 @@ function initAuthUI() {
       // mois mémorisé depuis la session précédente.
       if (typeof cockpitMonth !== 'undefined') cockpitMonth = null;
       if (typeof standardsMonth !== 'undefined') standardsMonth = null;
+      if (typeof standardsDate !== 'undefined') standardsDate = null;
       if (typeof standardsBooted !== 'undefined') standardsBooted = false;
       if (typeof cockpitBooted !== 'undefined') cockpitBooted = false;
 
@@ -14091,32 +14092,39 @@ async function cockpitSaveCell(input) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// STANDARDS — checklist d'évaluation par studio (admin + coach leaders)
+// STANDARDS — 2 créneaux photo par jour (matin / après-midi), par studio
 // ═════════════════════════════════════════════════════════════════════════
 
+const STD_DAYS_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const STD_MONTHS_FR = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
 ];
 let standardsBooted = false;
-let standardsCriteria = [];        // [{ category, items: [{ id, label }] }]
 let standardsStudios = [];         // pour admin : liste des studios distincts
 let standardsStudio = null;        // studio courant
-let standardsMonth = null;         // YYYY-MM-01
+let standardsDate = null;          // YYYY-MM-DD (jour courant affiché)
 
-function standardsTodayMonth() {
+// Backwards-compat : ces variables ne sont plus utilisées mais référencées
+// ailleurs dans le code (reset au login). On les laisse à null.
+let standardsMonth = null;
+let standardsCriteria = [];
+
+function standardsTodayDate() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-function standardsFormatMonth(iso) {
+function standardsFormatDate(iso) {
   if (!iso) return '—';
-  const [y, m] = iso.split('-').map(Number);
-  return `${STD_MONTHS_FR[m - 1] || '?'} ${y}`;
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = STD_DAYS_FR[dt.getUTCDay()];
+  return `${dow} ${String(d).padStart(2, '0')} ${(STD_MONTHS_FR[m - 1] || '').toLowerCase()} ${y}`;
 }
-function standardsShiftMonth(iso, delta) {
-  const [y, m] = iso.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1 + delta, 1));
-  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-01`;
+function standardsShiftDate(iso, delta) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + delta));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
 }
 
 async function loadStandardsTab() {
@@ -14124,15 +14132,6 @@ async function loadStandardsTab() {
   if (!standardsBooted) {
     standardsBooted = true;
     const headers = { 'Authorization': `Bearer ${authToken}` };
-    // Charge les critères (commun) + studios si admin
-    try {
-      const critRes = await fetch('/api/standards/criteria', { headers });
-      if (critRes.ok) {
-        const data = await critRes.json();
-        standardsCriteria = data.categories || [];
-      }
-    } catch (_) { standardsCriteria = []; }
-
     if (isAdmin()) {
       try {
         const stRes = await fetch('/api/standards/studios', { headers });
@@ -14141,24 +14140,21 @@ async function loadStandardsTab() {
           standardsStudios = data.studios || [];
         }
       } catch (_) { standardsStudios = []; }
-      // Bouton « Gérer les coach leaders »
       const manageBtn = document.getElementById('std-manage-leaders');
       if (manageBtn) {
         manageBtn.style.display = '';
         manageBtn.addEventListener('click', openCoachLeadersModal);
       }
     } else {
-      // Coach leader : son studio est fixé, pas de sélecteur
       standardsStudios = getMyStudio() ? [getMyStudio()] : [];
     }
 
-    // Init état
     standardsStudio = standardsStudios[0] || null;
-    standardsMonth = standardsTodayMonth();
+    standardsDate = standardsTodayDate();
     standardsBuildSelectors();
-    // Bindings
-    document.getElementById('std-month-prev')?.addEventListener('click', () => { standardsMonth = standardsShiftMonth(standardsMonth, -1); standardsRender(); });
-    document.getElementById('std-month-next')?.addEventListener('click', () => { standardsMonth = standardsShiftMonth(standardsMonth, +1); standardsRender(); });
+    // Bindings nav jour
+    document.getElementById('std-month-prev')?.addEventListener('click', () => { standardsDate = standardsShiftDate(standardsDate, -1); standardsRender(); });
+    document.getElementById('std-month-next')?.addEventListener('click', () => { standardsDate = standardsShiftDate(standardsDate, +1); standardsRender(); });
     document.getElementById('std-studio-select')?.addEventListener('change', (e) => {
       standardsStudio = e.target.value;
       standardsRender();
@@ -14170,6 +14166,8 @@ async function loadStandardsTab() {
     });
     document.getElementById('std-leaders-form')?.addEventListener('submit', onCreateCoachLeader);
   }
+  // Si on revient sur l'onglet plus tard, on refresh la date au today
+  if (!standardsDate) standardsDate = standardsTodayDate();
   standardsRender();
 }
 
@@ -14187,10 +14185,11 @@ function standardsBuildSelectors() {
 }
 
 async function standardsRender() {
-  const monthLabel = document.getElementById('std-month-label');
-  if (monthLabel) monthLabel.textContent = standardsFormatMonth(standardsMonth);
+  const dateLabel = document.getElementById('std-month-label');
+  if (dateLabel) dateLabel.textContent = standardsFormatDate(standardsDate);
   const container = document.getElementById('std-categories');
   const scoreEl = document.getElementById('std-score-display');
+  if (scoreEl) scoreEl.innerHTML = '';
   if (!container) return;
   if (!standardsStudio) {
     if (isAdmin()) {
@@ -14198,7 +14197,7 @@ async function standardsRender() {
         <div class="std-empty-cta">
           <div class="std-empty-icon">👥</div>
           <h3 class="std-empty-title">Aucun coach leader configuré</h3>
-          <p class="std-empty-text">Crée un coach leader (nom + studio + PIN), il pourra ensuite se connecter avec son code et remplir sa checklist mensuelle.</p>
+          <p class="std-empty-text">Crée un coach leader (nom + studio + PIN), il pourra ensuite se connecter avec son code et remplir ses photos quotidiennes.</p>
           <button type="button" class="std-empty-action" id="std-empty-create">＋ Créer un coach leader</button>
         </div>`;
       const action = document.getElementById('std-empty-create');
@@ -14206,19 +14205,155 @@ async function standardsRender() {
     } else {
       container.innerHTML = `<div class="std-empty">Aucun studio attribué.</div>`;
     }
-    if (scoreEl) scoreEl.innerHTML = '';
     return;
   }
   container.innerHTML = `<div class="std-loading">Chargement…</div>`;
   try {
     const headers = { 'Authorization': `Bearer ${authToken}` };
-    const url = `/api/standards/evaluations?studio=${encodeURIComponent(standardsStudio)}&month=${encodeURIComponent(standardsMonth)}`;
+    const url = `/api/standards/daily?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}`;
     const data = await fetch(url, { headers }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
-    standardsRenderCategories(data);
-    standardsRenderScore(data);
+    standardsRenderDaily(data);
   } catch (err) {
     container.innerHTML = `<div class="std-error">Erreur : ${escapeHtml(String(err.message || err))}</div>`;
-    if (scoreEl) scoreEl.innerHTML = '';
+  }
+}
+
+function standardsRenderDaily(data) {
+  const container = document.getElementById('std-categories');
+  if (!container) return;
+  const slots = data.slots || {};
+  const renderSlot = (slotKey, label, icon) => {
+    const s = slots[slotKey];
+    const filled = s && s.has_photo;
+    const fmtDateTime = (iso) => {
+      if (!iso) return '';
+      const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+      return m ? `${m[3]}/${m[2]} à ${m[4]}:${m[5]}` : iso;
+    };
+    return `
+      <article class="std-slot ${filled ? 'std-slot-filled' : 'std-slot-empty'}" data-slot="${slotKey}">
+        <header class="std-slot-head">
+          <div class="std-slot-icon">${icon}</div>
+          <div class="std-slot-title">${escapeHtml(label)}</div>
+        </header>
+        <div class="std-slot-body">
+          ${filled ? `
+            <div class="std-slot-meta">
+              <div class="std-slot-by">Par <strong>${escapeHtml(s.uploaded_by || '?')}</strong></div>
+              <div class="std-slot-when">${escapeHtml(fmtDateTime(s.uploaded_at))}</div>
+            </div>
+            <div class="std-slot-actions">
+              <button type="button" class="std-slot-btn std-slot-view" data-slot-action="view" data-slot-key="${slotKey}">📷 Voir la photo</button>
+              <button type="button" class="std-slot-btn std-slot-replace" data-slot-action="replace" data-slot-key="${slotKey}">↻ Remplacer</button>
+              <button type="button" class="std-slot-btn std-slot-delete" data-slot-action="delete" data-slot-key="${slotKey}">✕ Supprimer</button>
+            </div>
+          ` : `
+            <div class="std-slot-placeholder">Aucune photo pour ce créneau.</div>
+            <button type="button" class="std-slot-btn std-slot-upload" data-slot-action="upload" data-slot-key="${slotKey}">📷 Ajouter une photo</button>
+          `}
+          <input type="file" accept="image/*" class="std-slot-input" data-slot-key="${slotKey}" style="display:none">
+        </div>
+      </article>
+    `;
+  };
+  container.innerHTML = `
+    <div class="std-slots-grid">
+      ${renderSlot('morning', 'Matin', '🌅')}
+      ${renderSlot('afternoon', 'Après-midi', '🌇')}
+    </div>
+  `;
+  // Bindings
+  container.querySelectorAll('[data-slot-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.slotAction;
+      const slotKey = btn.dataset.slotKey;
+      if (action === 'upload' || action === 'replace') {
+        const input = container.querySelector(`.std-slot-input[data-slot-key="${slotKey}"]`);
+        if (input) input.click();
+      } else if (action === 'view') {
+        standardsViewDailyPhoto(slotKey);
+      } else if (action === 'delete') {
+        if (confirm('Supprimer la photo de ce créneau ?')) standardsDeleteDailyPhoto(slotKey);
+      }
+    });
+  });
+  container.querySelectorAll('.std-slot-input').forEach(input => {
+    input.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const slotKey = input.dataset.slotKey;
+      await standardsUploadDailyPhoto(slotKey, file);
+      input.value = '';
+    });
+  });
+}
+
+async function standardsUploadDailyPhoto(slot, file) {
+  if (!file.type.startsWith('image/')) {
+    alert('Format non supporté — image requise.');
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    alert('Photo trop lourde (max 8 Mo).');
+    return;
+  }
+  try {
+    const b64 = await fileToBase64(file);
+    const res = await fetch('/api/standards/daily/photo', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        studio: standardsStudio,
+        date: standardsDate,
+        slot,
+        photo_base64: b64,
+        mime: file.type,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    await standardsRender();
+  } catch (err) {
+    alert('Erreur upload photo : ' + (err.message || err));
+  }
+}
+
+async function standardsViewDailyPhoto(slot) {
+  let win = null;
+  try {
+    win = window.open('', '_blank');
+    const url = `/api/standards/daily/photo?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    if (win && !win.closed) {
+      win.location.href = blobUrl;
+    } else {
+      const a = document.createElement('a');
+      a.href = blobUrl; a.target = '_blank'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+  } catch (err) {
+    if (win && !win.closed) win.close();
+    alert('Erreur affichage photo : ' + (err.message || err));
+  }
+}
+
+async function standardsDeleteDailyPhoto(slot) {
+  try {
+    const url = `/api/standards/daily/photo?studio=${encodeURIComponent(standardsStudio)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
+    const res = await fetch(url, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await standardsRender();
+  } catch (err) {
+    alert('Erreur suppression photo : ' + (err.message || err));
   }
 }
 

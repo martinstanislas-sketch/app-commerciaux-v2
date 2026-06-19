@@ -4505,6 +4505,106 @@ app.get('/api/standards/evaluation/photo', requireAuth, (req, res) => {
   res.send(row.photo_blob);
 });
 
+// ─── STANDARDS daily (matin / après-midi) ───────────────────
+// Format quotidien : par studio + jour + créneau, une photo libre.
+
+const STANDARDS_DAILY_SLOTS = ['morning', 'afternoon'];
+function isValidStandardsDate(s) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+}
+
+app.get('/api/standards/daily', requireAuth, (req, res) => {
+  const studio = String(req.query.studio || '').trim();
+  const date = String(req.query.date || '').trim();
+  if (!studio) return res.status(400).json({ error: 'studio requis' });
+  if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT slot, photo_size, photo_mime, uploaded_by, uploaded_at,
+           (photo_blob IS NOT NULL AND photo_size > 0) AS has_photo_flag
+    FROM standards_daily WHERE studio = ? AND date = ?
+  `).all(studio, date);
+  const bySlot = { morning: null, afternoon: null };
+  rows.forEach(r => {
+    bySlot[r.slot] = {
+      has_photo: !!r.has_photo_flag,
+      photo_size: r.photo_size || 0,
+      photo_mime: r.photo_mime || null,
+      uploaded_by: r.uploaded_by || null,
+      uploaded_at: r.uploaded_at || null,
+    };
+  });
+  res.json({ studio, date, slots: bySlot });
+});
+
+app.put('/api/standards/daily/photo', requireAuth, (req, res) => {
+  const studio = String((req.body && req.body.studio) || '').trim();
+  const date = String((req.body && req.body.date) || '').trim();
+  const slot = String((req.body && req.body.slot) || '').trim();
+  const photo_base64 = (req.body && req.body.photo_base64) || '';
+  let mime = (req.body && req.body.mime) || 'image/jpeg';
+  if (!studio || !slot) return res.status(400).json({ error: 'studio + slot requis' });
+  if (!STANDARDS_DAILY_SLOTS.includes(slot)) return res.status(400).json({ error: 'slot doit être morning | afternoon' });
+  if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!photo_base64) return res.status(400).json({ error: 'photo_base64 requis' });
+  let buf;
+  try {
+    const clean = String(photo_base64).replace(/^data:[^,]*,/, '');
+    buf = Buffer.from(clean, 'base64');
+  } catch (e) {
+    return res.status(400).json({ error: 'base64 invalide' });
+  }
+  if (!buf.length) return res.status(400).json({ error: 'photo vide' });
+  if (buf.length > 8 * 1024 * 1024) return res.status(413).json({ error: 'photo trop lourde (max 8 Mo)' });
+  if (!/^image\//.test(mime)) mime = 'image/jpeg';
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO standards_daily (studio, date, slot, photo_blob, photo_size, photo_mime, uploaded_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(studio, date, slot) DO UPDATE SET
+      photo_blob = excluded.photo_blob,
+      photo_size = excluded.photo_size,
+      photo_mime = excluded.photo_mime,
+      uploaded_by = excluded.uploaded_by,
+      uploaded_at = datetime('now','localtime')
+  `).run(studio, date, slot, buf, buf.length, mime, req.session.name || 'inconnu');
+  res.json({ ok: true, size: buf.length, mime });
+});
+
+app.get('/api/standards/daily/photo', requireAuth, (req, res) => {
+  const studio = String(req.query.studio || '').trim();
+  const date = String(req.query.date || '').trim();
+  const slot = String(req.query.slot || '').trim();
+  if (!studio || !slot) return res.status(400).json({ error: 'studio + slot requis' });
+  if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT photo_blob, photo_size, photo_mime FROM standards_daily
+    WHERE studio = ? AND date = ? AND slot = ?
+  `).get(studio, date, slot);
+  if (!row || !row.photo_blob) return res.status(404).json({ error: 'Photo introuvable' });
+  res.setHeader('Content-Type', row.photo_mime || 'image/jpeg');
+  res.setHeader('Content-Length', String(row.photo_size || row.photo_blob.length));
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  res.send(row.photo_blob);
+});
+
+app.delete('/api/standards/daily/photo', requireAuth, (req, res) => {
+  const studio = String((req.body && req.body.studio) || req.query.studio || '').trim();
+  const date = String((req.body && req.body.date) || req.query.date || '').trim();
+  const slot = String((req.body && req.body.slot) || req.query.slot || '').trim();
+  if (!studio || !slot) return res.status(400).json({ error: 'studio + slot requis' });
+  if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  const db = getDb();
+  db.prepare(`DELETE FROM standards_daily WHERE studio = ? AND date = ? AND slot = ?`)
+    .run(studio, date, slot);
+  res.json({ ok: true });
+});
+
 // Supprime la photo d'un critère donné.
 app.delete('/api/standards/evaluation/photo', requireAuth, (req, res) => {
   const studio = String((req.body && req.body.studio) || req.query.studio || '').trim();

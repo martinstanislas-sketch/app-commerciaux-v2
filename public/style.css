@@ -18906,6 +18906,135 @@ body.tk-dragging-active #tab-tasks .tk-card {
   box-shadow: 0 6px 16px rgba(15, 118, 110, 0.25);
 }
 
+/* ── Nouvelles cards : 2 créneaux photo par jour ─── */
+#tab-standards .std-slots-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+@media (max-width: 720px) {
+  #tab-standards .std-slots-grid { grid-template-columns: 1fr; }
+}
+#tab-standards .std-slot {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #CCFBF1;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+#tab-standards .std-slot-filled {
+  border-color: #14B8A6;
+}
+#tab-standards .std-slot-empty {
+  border-style: dashed;
+}
+#tab-standards .std-slot-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #0F766E;
+  color: #fff;
+}
+#tab-standards .std-slot-filled .std-slot-head {
+  background: #0F766E;
+}
+#tab-standards .std-slot-empty .std-slot-head {
+  background: #94A3B8;
+}
+#tab-standards .std-slot-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+#tab-standards .std-slot-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+#tab-standards .std-slot-body {
+  padding: 18px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+#tab-standards .std-slot-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94A3B8;
+  font-size: 13px;
+  font-style: italic;
+  padding: 16px 0;
+  text-align: center;
+}
+#tab-standards .std-slot-meta {
+  background: #F0FDFA;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #1E293B;
+}
+#tab-standards .std-slot-by strong { color: #0F766E; }
+#tab-standards .std-slot-when {
+  font-size: 11px;
+  color: #6A7392;
+  margin-top: 2px;
+}
+#tab-standards .std-slot-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#tab-standards .std-slot-btn {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 14px;
+  border-radius: 9px;
+  border: 1px solid #CBD5E1;
+  background: #fff;
+  color: #1E293B;
+  cursor: pointer;
+  text-align: center;
+  transition: all 120ms ease;
+}
+#tab-standards .std-slot-upload {
+  background: linear-gradient(135deg, #14B8A6 0%, #0F766E 100%);
+  color: #fff;
+  border-color: transparent;
+  font-weight: 700;
+  padding: 11px 16px;
+  font-size: 14px;
+}
+#tab-standards .std-slot-upload:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.18);
+}
+#tab-standards .std-slot-view {
+  background: #0F766E;
+  color: #fff;
+  border-color: #0F766E;
+}
+#tab-standards .std-slot-view:hover { background: #115E59; }
+#tab-standards .std-slot-replace:hover {
+  background: #F0FDFA;
+  border-color: #14B8A6;
+  color: #0F766E;
+}
+#tab-standards .std-slot-delete {
+  border-color: rgba(239,68,68,0.3);
+  color: #EF4444;
+}
+#tab-standards .std-slot-delete:hover {
+  background: rgba(239,68,68,0.08);
+  border-color: #EF4444;
+}
+
+/* ─ Anciens styles category/items (legacy, plus utilisés) ─ */
 #tab-standards .std-category {
   background: #fff;
   border-radius: 12px;

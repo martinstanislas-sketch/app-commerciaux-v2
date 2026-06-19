@@ -488,6 +488,24 @@ function initSchema() {
     db.exec(`ALTER TABLE standards_evaluations ADD COLUMN photo_size INTEGER NOT NULL DEFAULT 0;`);
   }
 
+  // ─── STANDARDS daily (matin / après-midi) ───────────────────
+  // Format quotidien : par studio + jour + créneau (matin/après-midi),
+  // une photo libre (sans notation, sans commentaire).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS standards_daily (
+      studio TEXT NOT NULL,
+      date TEXT NOT NULL,            -- YYYY-MM-DD
+      slot TEXT NOT NULL,            -- 'morning' | 'afternoon'
+      photo_blob BLOB,
+      photo_mime TEXT,
+      photo_size INTEGER NOT NULL DEFAULT 0,
+      uploaded_by TEXT,
+      uploaded_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      PRIMARY KEY (studio, date, slot)
+    );
+    CREATE INDEX IF NOT EXISTS idx_standards_daily_date ON standards_daily(date, studio);
+  `);
+
   // ─── COCKPIT : suivi mensuel KPIs par club ──────────────────
   // Équivalent SQLite des tables kpi_objectives / kpi_values décrites
   // dans le brief Supabase. Upsert immédiat à la saisie.
