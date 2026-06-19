@@ -18942,10 +18942,12 @@ body.tk-dragging-active #tab-tasks .tk-card {
 #tab-standards .std-slot-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
+  gap: 10px;
+  padding: 14px 16px;
   background: #0F766E;
   color: #fff;
+  min-height: 64px;
+  flex-shrink: 0;
 }
 #tab-standards .std-slot-filled .std-slot-head {
   background: #0F766E;
@@ -18954,13 +18956,20 @@ body.tk-dragging-active #tab-tasks .tk-card {
   background: #94A3B8;
 }
 #tab-standards .std-slot-icon {
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1;
+  flex-shrink: 0;
 }
 #tab-standards .std-slot-title {
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 #tab-standards .std-slot-body {
   padding: 18px;
