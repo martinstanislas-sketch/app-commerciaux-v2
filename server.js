@@ -4965,19 +4965,9 @@ app.put('/api/standards/daily/photo', requireAuth, (req, res) => {
   if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
   if (!standardsCanModify(req, date)) return res.status(403).json({ error: "Modification autorisée uniquement pour le jour en cours" });
-  // Gating : un check-in (mood + tâches) doit exister pour la rangée
-  // avant tout upload photo. Exemptés :
-  //   - admin
-  //   - guest (coach de passage)
-  //   - coach sportif (coach_leader avec can_view_history=false)
-  // Seul le coach leader complet et le coach historique sont gatés.
-  const isCoachSportifSrv = req.session.role === 'coach_leader' && req.session.can_view_history === false;
-  if (req.session.role !== 'admin' && req.session.role !== 'guest' && !isCoachSportifSrv) {
-    const coachNum = slotToCoachNum(slot);
-    if (coachNum && !checkinExists(studio, date, coachNum)) {
-      return res.status(412).json({ error: "Fais ton check-in du jour avant d'envoyer une photo" });
-    }
-  }
+  // Plus de gating sur le check-in d'énergie : le rituel est optionnel
+  // pour tous les rôles. Le formulaire reste affiché pour celles et ceux
+  // qui veulent renseigner leur humeur, mais ne bloque jamais l'upload.
   if (!photo_base64) return res.status(400).json({ error: 'photo_base64 requis' });
   let buf;
   try {

@@ -14876,22 +14876,13 @@ function standardsRenderDaily(data) {
       return slotLabel(g.num); // mélange → titre générique
     };
     bodyHtml = groups.map(g => {
-      const checkinDone = !!standardsCheckinBySlot[g.num];
-      // Le check-in d'énergie ne bloque PAS les photos pour :
-      // - l'admin
-      // - les guests (coach de passage)
-      // - le Coach Sportif (coach_leader sans accès aux jours passés)
-      // Seul le Coach Leader complet (full = can_view_history=true)
-      // est tenu de faire son check-in avant d'uploader des photos.
-      const isCoachSportif = currentUser && currentUser.role === 'coach_leader' && currentUser.can_view_history === false;
-      const isSelfFiller = !readOnly && !isAdmin() && !isGuest() && !isCoachSportif;
-      const locked = isSelfFiller && !checkinDone;
+      // Le check-in d'énergie est désormais purement optionnel pour
+      // tous les rôles — plus de verrou ni de bandeau de blocage.
       // Plus de titre « Matin / Après-midi » → on enchaîne directement
       // les photos puis le check-in d'énergie, dans cet ordre.
       return `
-        <section class="std-group ${locked ? 'std-group-locked' : ''}">
-          ${locked ? `<div class="std-group-lock">🔒 Remplis ton check-in pour débloquer les photos</div>` : ''}
-          <div class="std-slots-grid${locked ? ' std-slots-grid-locked' : ''}">${g.defs.map(renderSlot).join('')}</div>
+        <section class="std-group">
+          <div class="std-slots-grid">${g.defs.map(renderSlot).join('')}</div>
           ${renderCheckinPanel(g.num, groupTitle(g), readOnly)}
         </section>
       `;
