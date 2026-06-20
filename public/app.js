@@ -14898,8 +14898,8 @@ function standardsRenderDaily(data) {
           : 'tu peux consulter les photos mais pas les modifier pour les jours passés.'}
       </div>
     ` : ''}
-    ${renderKpiPanel(readOnly)}
     ${bodyHtml}
+    ${renderKpiPanel(readOnly)}
   `;
   // Charge les miniatures pour les slots remplis
   container.querySelectorAll('.std-slot-thumb-img').forEach(img => {
