@@ -849,7 +849,10 @@ function updateTabVisibility() {
   const persoBtn = document.querySelector('[data-tab="perso"]');
   const pilotageFunnelBtn = document.querySelector('[data-tab="pilotage-funnel"]');
   const prelBtn = document.querySelector('[data-tab="prel"]');
+  const prelSuiviBtn = document.querySelector('[data-tab="prel-suivi"]');
   const newsBtn = document.querySelector('[data-tab="news"]');
+  // Suivi prél. : admin uniquement → masqué par défaut, réaffiché dans la branche admin.
+  if (prelSuiviBtn) prelSuiviBtn.style.display = 'none';
   const cockpitBtn = document.querySelector('[data-tab="cockpit"]');
   const standardsBtn = document.querySelector('[data-tab="standards"]');
 
@@ -918,6 +921,7 @@ function updateTabVisibility() {
     if (persoBtn) persoBtn.style.display = '';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
     if (prelBtn) prelBtn.style.display = ''; // P.R.E.L : admin uniquement
+    if (prelSuiviBtn) prelSuiviBtn.style.display = ''; // Suivi prél. : admin uniquement
     if (newsBtn) newsBtn.style.display = ''; // NEWS : admin uniquement
     if (cockpitBtn) cockpitBtn.style.display = ''; // Cockpit : admin uniquement
     if (standardsBtn) standardsBtn.style.display = ''; // Standards : admin + coach leaders
@@ -2854,6 +2858,7 @@ function initTabs() {
       if (btn.dataset.tab === 'tasks') loadTasksBoard();
       if (btn.dataset.tab === 'pilotage-funnel') loadPilotageFunnel();
       if (btn.dataset.tab === 'prel') loadPrelTab();
+      if (btn.dataset.tab === 'prel-suivi') loadPrelSuiviTab();
       if (btn.dataset.tab === 'news') loadNewsTab();
       if (btn.dataset.tab === 'cockpit') loadCockpitTab();
       if (btn.dataset.tab === 'standards') loadStandardsTab();
@@ -12780,6 +12785,269 @@ function prelFormatWeek(iso) {
 function prelFormatEur(v) {
   if (v == null || Number.isNaN(Number(v))) return '—';
   return Number(v).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SUIVI DES PRÉLÈVEMENTS — vue de pilotage hebdo par studio (admin uniquement)
+//  Lit /api/prel/suivi (qui relit prel_rows) : aucune ré-importation de CSV,
+//  aucune donnée bancaire. Réutilise l'auth et le design de l'app.
+// ═══════════════════════════════════════════════════════════════════════════
+const PSV = { week: null, studio: 'all', view: 'week', statusFilter: 'all', data: null, booted: false };
+
+function psvEsc(s) {
+  return (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+function psvEur(n) {
+  return Number(n || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
+}
+function psvEur2(n) {
+  return Number(n || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+function psvDateFr(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return '—';
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
+}
+function psvPct(a, b) { return b > 0 ? Math.round(a / b * 100) + '%' : '0%'; }
+const PSV_BADGE = { paye: 'psv-b-green', impaye: 'psv-b-red', suspendu: 'psv-b-orange', controle: 'psv-b-blue' };
+function psvAction(code) {
+  switch (code) {
+    case 'paye': return { text: 'Rien à faire', cls: '' };
+    case 'impaye': return { text: 'Relancer le client', cls: 'psv-todo-red' };
+    case 'suspendu': return { text: 'Vérifier le motif de suspension', cls: 'psv-todo-orange' };
+    default: return { text: 'Contrôler l’encaissement', cls: 'psv-todo-blue' };
+  }
+}
+function psvOrder(code) { return { impaye: 0, controle: 1, suspendu: 2, paye: 3 }[code] ?? 9; }
+
+async function loadPrelSuiviTab() {
+  if (!isAdmin()) return;
+  if (!PSV.booted) {
+    PSV.booted = true;
+    document.getElementById('psv-week-select')?.addEventListener('change', (e) => { PSV.week = e.target.value; psvFetchAndRender(); });
+    document.getElementById('psv-studio-select')?.addEventListener('change', (e) => { PSV.studio = e.target.value; psvRender(); });
+    document.querySelectorAll('.psv-tab').forEach(t => t.addEventListener('click', () => {
+      PSV.view = t.dataset.psvView;
+      document.querySelectorAll('.psv-tab').forEach(x => x.classList.toggle('active', x === t));
+      psvRender();
+    }));
+  }
+  // Charge la liste des semaines (réutilise l'endpoint existant)
+  try {
+    const { weeks } = await api('/prel/weeks');
+    const sel = document.getElementById('psv-week-select');
+    if (!weeks || !weeks.length) {
+      sel.innerHTML = '';
+      document.getElementById('psv-kpis').innerHTML = '';
+      document.getElementById('psv-quickf').innerHTML = '';
+      document.getElementById('psv-content').innerHTML = '<div class="psv-empty">Aucune donnée de prélèvement. Importez d’abord un fichier depuis l’onglet <strong>P.R.E.L</strong>.</div>';
+      return;
+    }
+    sel.innerHTML = weeks.map(w => `<option value="${w.week_start}">${psvEsc(prelFormatWeek(w.week_start))}</option>`).join('');
+    if (!PSV.week || !weeks.some(w => w.week_start === PSV.week)) PSV.week = weeks[0].week_start;
+    sel.value = PSV.week;
+    await psvFetchAndRender();
+  } catch (e) {
+    document.getElementById('psv-content').innerHTML = `<div class="psv-empty">Erreur de chargement : ${psvEsc(e.message)}</div>`;
+  }
+}
+
+async function psvFetchAndRender() {
+  const content = document.getElementById('psv-content');
+  content.innerHTML = '<div class="psv-empty">Chargement…</div>';
+  try {
+    PSV.data = await api(`/prel/suivi?week=${encodeURIComponent(PSV.week)}`);
+    psvBuildStudioFilter();
+    psvRender();
+  } catch (e) {
+    content.innerHTML = `<div class="psv-empty">Erreur : ${psvEsc(e.message)}</div>`;
+  }
+}
+
+function psvBuildStudioFilter() {
+  const sel = document.getElementById('psv-studio-select');
+  const clubs = (PSV.data?.clubs || []).map(c => c.club);
+  const cur = PSV.studio;
+  sel.innerHTML = '<option value="all">Tous les studios</option>' + clubs.map(c => `<option value="${psvEsc(c)}">${psvEsc(c)}</option>`).join('');
+  sel.value = clubs.includes(cur) ? cur : 'all';
+  PSV.studio = sel.value;
+}
+
+// Renvoie les clubs filtrés selon le studio sélectionné, avec totaux recalculés.
+function psvSelectedClubs() {
+  const all = PSV.data?.clubs || [];
+  return PSV.studio === 'all' ? all : all.filter(c => c.club === PSV.studio);
+}
+function psvTotalsFor(clubs) {
+  const t = { attendu: 0, paye: 0, impaye: 0, suspendu: 0, controle: 0, count: 0 };
+  clubs.forEach(c => {
+    t.attendu += c.attendu; t.paye += c.paye; t.impaye += c.impaye;
+    t.suspendu += c.suspendu; t.controle += c.controle; t.count += c.count;
+  });
+  t.taux = t.attendu > 0 ? t.paye / t.attendu : 0;
+  return t;
+}
+
+function psvRender() {
+  if (!PSV.data) return;
+  const clubs = psvSelectedClubs();
+  const totals = psvTotalsFor(clubs);
+  psvRenderKpis(totals);
+  if (PSV.view === 'week') { psvRenderQuickFilters(clubs); psvRenderStudios(clubs); }
+  else { document.getElementById('psv-quickf').innerHTML = ''; psvRenderAnomalies(clubs); }
+}
+
+function psvRenderKpis(s) {
+  const rate = Math.round(s.taux * 100);
+  document.getElementById('psv-kpis').innerHTML = `
+    <div class="psv-kpi"><div class="psv-k-lab"><i class="psv-dot psv-d-total"></i>Total attendu</div><div class="psv-k-val">${psvEur(s.attendu)}</div><div class="psv-k-sub">${s.count} prélèvement${s.count > 1 ? 's' : ''}</div></div>
+    <div class="psv-kpi"><div class="psv-k-lab"><i class="psv-dot psv-d-green"></i>Payé</div><div class="psv-k-val psv-green">${psvEur(s.paye)}</div><div class="psv-k-sub">${psvPct(s.paye, s.attendu)} du total</div></div>
+    <div class="psv-kpi"><div class="psv-k-lab"><i class="psv-dot psv-d-red"></i>Impayé</div><div class="psv-k-val psv-red">${psvEur(s.impaye)}</div><div class="psv-k-sub">${psvPct(s.impaye, s.attendu)} du total</div></div>
+    <div class="psv-kpi"><div class="psv-k-lab"><i class="psv-dot psv-d-orange"></i>Suspendu</div><div class="psv-k-val psv-orange">${psvEur(s.suspendu)}</div><div class="psv-k-sub">${psvPct(s.suspendu, s.attendu)} du total</div></div>
+    <div class="psv-kpi"><div class="psv-k-lab"><i class="psv-dot psv-d-blue"></i>À contrôler</div><div class="psv-k-val psv-blue">${psvEur(s.controle)}</div><div class="psv-k-sub">non encaissé / à vérifier</div></div>
+    <div class="psv-kpi psv-kpi-rate"><div class="psv-k-lab">📈 Taux d’encaissement</div><div class="psv-k-val">${rate}%</div><div class="psv-rate-bar"><div class="psv-rate-fill" style="width:${Math.min(rate, 100)}%"></div></div></div>`;
+}
+
+function psvAllLines(clubs) { return clubs.flatMap(c => c.lines.map(l => ({ ...l, club: c.club }))); }
+
+function psvRenderQuickFilters(clubs) {
+  const lines = psvAllLines(clubs);
+  const counts = { all: lines.length, paye: 0, impaye: 0, suspendu: 0, controle: 0 };
+  lines.forEach(l => counts[l.status]++);
+  const defs = [['all', 'Tous'], ['paye', 'Payés'], ['impaye', 'Impayés'], ['suspendu', 'Suspendus'], ['controle', 'À contrôler']];
+  document.getElementById('psv-quickf').innerHTML = defs.map(([k, label]) =>
+    `<button class="psv-chip ${PSV.statusFilter === k ? 'active' : ''}" data-f="${k}">${label}<span class="psv-cnt">${counts[k]}</span></button>`
+  ).join('');
+  document.querySelectorAll('#psv-quickf .psv-chip').forEach(c => c.addEventListener('click', () => { PSV.statusFilter = c.dataset.f; psvRender(); }));
+}
+
+function psvRowMatches(l) { return PSV.statusFilter === 'all' || l.status === PSV.statusFilter; }
+
+function psvTable(lines) {
+  const body = lines.map(l => {
+    const act = psvAction(l.status);
+    const flag = l.anomaly ? '<span class="psv-flag">échéance dépassée</span>' : '';
+    return `<tr class="${l.anomaly ? 'psv-anom-row' : ''}">
+      <td class="psv-client">${psvEsc(l.membre)}</td>
+      <td class="psv-muted">${psvEsc(l.prestation)}</td>
+      <td class="psv-amount">${psvEur2(l.ttc)}</td>
+      <td class="psv-muted">${psvDateFr(l.echeance)}</td>
+      <td><span class="psv-badge ${PSV_BADGE[l.status]}">${psvEsc(l.statusLabel)}</span>${flag}</td>
+      <td class="psv-muted">${psvEsc(l.vendeur)}</td>
+      <td class="psv-muted">${psvEsc(l.raison) || '—'}</td>
+      <td><span class="psv-action ${act.cls}">${act.text}</span></td>
+    </tr>`;
+  }).join('');
+  return `<div class="psv-tbl-scroll"><table class="psv-tbl">
+    <thead><tr><th>Client</th><th>Prestation</th><th>Montant TTC</th><th>Échéance</th><th>Statut</th><th>Vendeur</th><th>Raison</th><th>Action recommandée</th></tr></thead>
+    <tbody>${body}</tbody></table></div>`;
+}
+
+function psvRenderStudios(clubs) {
+  const head = prelFormatWeek(PSV.week);
+  if (!clubs.length || psvAllLines(clubs).length === 0) {
+    document.getElementById('psv-content').innerHTML = `<div class="psv-section-title">${psvEsc(head)}</div><div class="psv-empty">Aucun prélèvement pour cette sélection.</div>`;
+    return;
+  }
+  let html = `<div class="psv-section-title">${psvEsc(head)}</div>`;
+  clubs.forEach(c => {
+    const visible = c.lines.filter(psvRowMatches).slice().sort((a, b) => psvOrder(a.status) - psvOrder(b.status) || String(a.echeance).localeCompare(String(b.echeance)));
+    html += `<div class="psv-studio">
+      <div class="psv-studio-head">
+        <div class="psv-studio-name"><span class="psv-pin">📍</span><h3>${psvEsc(c.club)}</h3><span class="psv-pill">${c.count} prélèvement${c.count > 1 ? 's' : ''}</span></div>
+        <div class="psv-studio-stats">
+          <div class="psv-stat"><span class="psv-s-lab">Attendu</span><span class="psv-s-val">${psvEur(c.attendu)}</span></div>
+          <div class="psv-stat"><span class="psv-s-lab">Payé</span><span class="psv-s-val psv-green">${psvEur(c.paye)}</span></div>
+          <div class="psv-stat"><span class="psv-s-lab">Impayé</span><span class="psv-s-val psv-red">${psvEur(c.impaye)}</span></div>
+          <div class="psv-stat"><span class="psv-s-lab">Suspendu</span><span class="psv-s-val psv-orange">${psvEur(c.suspendu)}</span></div>
+          <div class="psv-stat"><span class="psv-s-lab">Taux</span><span class="psv-s-val psv-rate">${Math.round(c.taux * 100)}%</span></div>
+        </div>
+      </div>
+      ${visible.length ? psvTable(visible) : '<div class="psv-empty">Aucune ligne pour ce filtre.</div>'}
+    </div>`;
+  });
+  document.getElementById('psv-content').innerHTML = html;
+}
+
+// Anomalies = impayés + suspendus + échéances à contrôler (en retard).
+function psvAnomalyGroups(clubs) {
+  return clubs.map(c => ({
+    club: c.club,
+    lines: c.lines.filter(l => l.status === 'impaye' || l.status === 'suspendu' || (l.status === 'controle' && l.anomaly))
+  })).filter(g => g.lines.length);
+}
+
+function psvRenderAnomalies(clubs) {
+  const head = 'Anomalies — ' + prelFormatWeek(PSV.week);
+  const groups = psvAnomalyGroups(clubs);
+  const flat = groups.flatMap(g => g.lines);
+  const nbImp = flat.filter(l => l.status === 'impaye').length;
+  const nbSus = flat.filter(l => l.status === 'suspendu').length;
+  const nbCtl = flat.filter(l => l.status === 'controle').length;
+  const montant = flat.reduce((a, l) => a + (l.ttc || 0), 0);
+
+  let html = `<div class="psv-section-title">${psvEsc(head)}</div>`;
+  html += `<div class="psv-anom-banner">
+    <div><div class="psv-big">${flat.length}</div><div class="psv-big-lab">dossier${flat.length > 1 ? 's' : ''} à traiter</div></div>
+    <div class="psv-sep"></div>
+    <div><div class="psv-big psv-red">${nbImp}</div><div class="psv-big-lab">impayé${nbImp > 1 ? 's' : ''}</div></div>
+    <div class="psv-sep"></div>
+    <div><div class="psv-big psv-orange">${nbSus}</div><div class="psv-big-lab">suspendu${nbSus > 1 ? 's' : ''}</div></div>
+    <div class="psv-sep"></div>
+    <div><div class="psv-big psv-blue">${nbCtl}</div><div class="psv-big-lab">à contrôler</div></div>
+    <div class="psv-sep"></div>
+    <div><div class="psv-big psv-accent">${psvEur(montant)}</div><div class="psv-big-lab">montant concerné</div></div>
+    ${flat.length ? '<button type="button" class="psv-export-btn" id="psv-export-anom">⬇ Exporter (CSV)</button>' : ''}
+  </div>`;
+  if (!flat.length) {
+    html += '<div class="psv-empty">✅ Aucune anomalie sur cette sélection. Tout est sous contrôle.</div>';
+    document.getElementById('psv-content').innerHTML = html;
+    return;
+  }
+  groups.forEach(g => {
+    const lines = g.lines.slice().sort((a, b) => psvOrder(a.status) - psvOrder(b.status));
+    html += `<div class="psv-studio">
+      <div class="psv-studio-head"><div class="psv-studio-name"><span class="psv-pin">📍</span><h3>${psvEsc(g.club)}</h3><span class="psv-pill">${g.lines.length} à traiter</span></div></div>
+      ${psvTable(lines)}</div>`;
+  });
+  document.getElementById('psv-content').innerHTML = html;
+  document.getElementById('psv-export-anom')?.addEventListener('click', psvExportAnomaliesCsv);
+}
+
+// Export CSV de la to-do anomalies (semaine + studio sélectionnés).
+// Séparateur ; + BOM UTF-8 → ouverture directe propre dans Excel FR.
+function psvExportAnomaliesCsv() {
+  const groups = psvAnomalyGroups(psvSelectedClubs());
+  const rows = groups.flatMap(g => g.lines
+    .slice().sort((a, b) => psvOrder(a.status) - psvOrder(b.status))
+    .map(l => ({ ...l, club: g.club })));
+  if (!rows.length) { showToast('Aucune anomalie à exporter', 'info', 2000); return; }
+
+  const cell = (v) => {
+    const s = (v == null ? '' : String(v));
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const ttcFr = (n) => Number(n || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const headers = ['Studio', 'Client', 'Prestation', 'Montant TTC', 'Échéance', 'Statut', 'Vendeur', 'Raison', 'Action recommandée'];
+  const lines = [headers.join(';')];
+  rows.forEach(l => {
+    lines.push([
+      l.club, l.membre, l.prestation, ttcFr(l.ttc), psvDateFr(l.echeance),
+      l.statusLabel + (l.anomaly ? ' (échéance dépassée)' : ''),
+      l.vendeur, l.raison, psvAction(l.status).text,
+    ].map(cell).join(';'));
+  });
+  const csv = '﻿' + lines.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `anomalies-prelevements-${PSV.week}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`${rows.length} anomalie${rows.length > 1 ? 's' : ''} exportée${rows.length > 1 ? 's' : ''}`, 'success', 2200);
 }
 
 let prelTabBooted = false;

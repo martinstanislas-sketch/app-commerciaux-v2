@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi des prélèvements — My Coach by Ginkgo</title>
+<style>
+  :root{
+    --bg:#f5f6f8;
+    --surface:#ffffff;
+    --border:#e6e8ec;
+    --text:#1a1d24;
+    --muted:#6b7280;
+    --muted-soft:#9aa1ad;
+    --brand:#ea580c;
+    --brand-dark:#d94a07;
+    --green:#15803d;  --green-bg:#e7f6ec; --green-bd:#bfe6cc;
+    --red:#b91c1c;    --red-bg:#fdeaea;   --red-bd:#f4c6c6;
+    --orange:#b45309; --orange-bg:#fdf2e3;--orange-bd:#f3dcb0;
+    --blue:#1d4ed8;   --blue-bg:#eaf0fe;  --blue-bd:#c8d8fa;
+    --gray:#4b5563;   --gray-bg:#eef0f3;  --gray-bd:#dfe2e8;
+    --shadow:0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    --shadow-lg:0 4px 16px rgba(16,24,40,.08);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 20px 80px}
+
+  /* Header */
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .mark{
+    width:42px;height:42px;border-radius:11px;flex:none;
+    background:linear-gradient(135deg,var(--brand),var(--brand-dark));
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;
+    box-shadow:0 4px 12px rgba(234,88,12,.28);
+  }
+  .brand h1{font-size:18px;font-weight:700;letter-spacing:-.2px}
+  .brand p{font-size:12.5px;color:var(--muted)}
+  .top-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+  .btn{
+    border:1px solid var(--border);background:var(--surface);color:var(--text);
+    padding:9px 14px;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;transition:.15s;white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--muted-soft);background:#fafbfc}
+  .btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand-dark));border:none;color:#fff;box-shadow:0 3px 10px rgba(234,88,12,.25)}
+  .btn-primary:hover{background:linear-gradient(135deg,var(--brand-dark),#c13f05);color:#fff}
+
+  /* Import screen */
+  .import-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:18px;
+    padding:48px 40px;text-align:center;box-shadow:var(--shadow);margin-top:30px;
+  }
+  .dropzone{
+    border:2px dashed var(--border);border-radius:16px;padding:46px 24px;cursor:pointer;
+    transition:.18s;background:#fcfcfd;
+  }
+  .dropzone:hover,.dropzone.drag{border-color:var(--brand);background:#fff7f1}
+  .dropzone .ico{font-size:40px;margin-bottom:8px}
+  .dropzone h2{font-size:18px;margin-bottom:6px}
+  .dropzone p{color:var(--muted);font-size:13.5px}
+  .dropzone .pick{color:var(--brand);font-weight:700;text-decoration:underline}
+  .import-note{margin-top:20px;font-size:12.5px;color:var(--muted-soft);max-width:560px;margin-left:auto;margin-right:auto}
+  .import-note b{color:var(--muted)}
+  .err{margin-top:16px;color:var(--red);font-size:13.5px;background:var(--red-bg);border:1px solid var(--red-bd);padding:10px 14px;border-radius:10px;display:inline-block}
+
+  /* Controls bar */
+  .controls{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px 16px;box-shadow:var(--shadow);margin-bottom:18px;
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  }
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted-soft)}
+  select{
+    border:1px solid var(--border);background:var(--surface);color:var(--text);
+    padding:8px 30px 8px 11px;border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;
+    appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;min-width:150px;
+  }
+  select:focus{outline:none;border-color:var(--brand)}
+  .spacer{flex:1}
+
+  .tabs{display:inline-flex;background:var(--gray-bg);border-radius:10px;padding:3px;gap:2px}
+  .tab{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--muted)}
+  .tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+
+  /* KPI grid */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:8px}
+  .kpi{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:15px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+  }
+  .kpi .lab{font-size:11.5px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:7px}
+  .kpi .val{font-size:21px;font-weight:800;letter-spacing:-.5px}
+  .kpi .sub{font-size:11.5px;color:var(--muted-soft);margin-top:3px}
+  .kpi .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .kpi.accent{border-color:var(--brand-bd,#f3dcb0)}
+  .dot-total{background:var(--text)}
+  .dot-green{background:var(--green)} .dot-red{background:var(--red)}
+  .dot-orange{background:var(--orange)} .dot-blue{background:var(--blue)}
+  .kpi-rate .val{color:var(--brand)}
+  .rate-bar{height:6px;border-radius:4px;background:var(--gray-bg);margin-top:9px;overflow:hidden}
+  .rate-fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-dark));border-radius:4px;transition:width .4s}
+
+  .section-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:26px 2px 12px}
+
+  /* Quick filters */
+  .quickf{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .chip{
+    border:1px solid var(--border);background:var(--surface);padding:7px 13px;border-radius:999px;
+    font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;gap:7px;transition:.13s;
+  }
+  .chip:hover{border-color:var(--muted-soft)}
+  .chip.active{background:var(--text);color:#fff;border-color:var(--text)}
+  .chip .cnt{font-size:11.5px;opacity:.75;font-weight:700}
+
+  /* Studio block */
+  .studio{
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden;
+  }
+  .studio-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .studio-head .name{display:flex;align-items:center;gap:10px}
+  .studio-head .name h3{font-size:16px;font-weight:700}
+  .studio-head .name .pin{width:30px;height:30px;border-radius:8px;background:var(--brand);opacity:.12;display:flex;align-items:center;justify-content:center}
+  .studio-head .name .pin span{font-size:15px;opacity:1}
+  .pill-count{font-size:12px;color:var(--muted);background:var(--gray-bg);padding:4px 10px;border-radius:999px;font-weight:600}
+  .studio-stats{display:flex;gap:22px;flex-wrap:wrap}
+  .stat{display:flex;flex-direction:column}
+  .stat .s-lab{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted-soft);font-weight:700}
+  .stat .s-val{font-size:15px;font-weight:800;margin-top:2px}
+  .stat.green .s-val{color:var(--green)} .stat.red .s-val{color:var(--red)}
+  .stat.orange .s-val{color:var(--orange)} .stat.rate .s-val{color:var(--brand)}
+
+  /* Table */
+  .tbl-scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{
+    text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted-soft);
+    font-weight:700;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap;background:#fcfcfd;
+  }
+  tbody td{padding:11px 14px;border-bottom:1px solid #f0f1f4;vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#fafbfc}
+  td.amount{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  td.client{font-weight:600}
+  td.muted{color:var(--muted)}
+  .anomaly-row{background:#fffaf3}
+  .anomaly-row:hover{background:#fff5e9}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:7px;white-space:nowrap}
+  .badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .b-green{color:var(--green);background:var(--green-bg);border:1px solid var(--green-bd)}
+  .b-red{color:var(--red);background:var(--red-bg);border:1px solid var(--red-bd)}
+  .b-orange{color:var(--orange);background:var(--orange-bg);border:1px solid var(--orange-bd)}
+  .b-blue{color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-bd)}
+  .b-gray{color:var(--gray);background:var(--gray-bg);border:1px solid var(--gray-bd)}
+  .flag{font-size:10.5px;font-weight:700;color:var(--red);margin-left:7px;background:var(--red-bg);border:1px solid var(--red-bd);padding:1px 6px;border-radius:5px}
+
+  .action{font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+  .action.todo-red{color:var(--red);font-weight:600}
+  .action.todo-orange{color:var(--orange);font-weight:600}
+  .action.todo-blue{color:var(--blue);font-weight:600}
+
+  .empty{padding:40px;text-align:center;color:var(--muted-soft);font-size:14px}
+
+  /* Anomalies summary banner */
+  .anom-banner{
+    background:linear-gradient(135deg,#fff7f1,#fdeaea);border:1px solid var(--orange-bd);
+    border-radius:14px;padding:16px 18px;margin-bottom:18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  }
+  .anom-banner .big{font-size:24px;font-weight:800}
+  .anom-banner .lab{font-size:12.5px;color:var(--muted);font-weight:600}
+  .anom-banner .sep{width:1px;height:34px;background:var(--orange-bd)}
+
+  @media (max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:720px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .controls{gap:10px}
+    .studio-stats{gap:14px}
+  }
+  @media print{
+    body{background:#fff}
+    .controls,.quickf,.top-actions,.dropzone{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="mark">MC</div>
+      <div>
+        <h1>Suivi des prélèvements</h1>
+        <p>My Coach by Ginkgo — pilotage hebdomadaire</p>
+      </div>
+    </div>
+    <div class="top-actions" id="topActions" style="display:none">
+      <span id="fileInfo" style="font-size:12.5px;color:var(--muted)"></span>
+      <button class="btn" id="reimportBtn">↻ Réimporter un fichier</button>
+    </div>
+  </header>
+
+  <!-- IMPORT SCREEN -->
+  <section id="importScreen">
+    <div class="import-card">
+      <div class="dropzone" id="dropzone">
+        <div class="ico">📂</div>
+        <h2>Importez votre fichier de prélèvements</h2>
+        <p>Glissez-déposez votre fichier CSV ici, ou <span class="pick">parcourez vos fichiers</span></p>
+      </div>
+      <input type="file" id="fileInput" accept=".csv,text/csv" hidden>
+      <p class="import-note">
+        Format attendu : CSV avec séparateur <b>point-virgule (;)</b>, dates au format <b>JJ/MM/AAAA</b>,
+        montants en euros (<b>69,00</b>).<br>
+        🔒 Tout est traité <b>localement dans votre navigateur</b>. Les données bancaires (IBAN, BIC, RUM…) ne sont jamais lues ni affichées.
+      </p>
+      <div id="importErr"></div>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section id="dashboard" style="display:none">
+
+    <div class="controls">
+      <div class="field">
+        <label>Semaine</label>
+        <select id="weekSelect"></select>
+      </div>
+      <div class="field">
+        <label>Studio</label>
+        <select id="studioSelect"></select>
+      </div>
+      <div class="spacer"></div>
+      <div class="tabs">
+        <button class="tab active" data-view="week" id="tabWeek">Vue semaine</button>
+        <button class="tab" data-view="anom" id="tabAnom">Anomalies à traiter</button>
+      </div>
+    </div>
+
+    <div id="kpiWrap"></div>
+
+    <div id="quickFilters" class="quickf"></div>
+
+    <div id="content"></div>
+
+  </section>
+</div>
+
+<script>
+/* ============================================================
+   1.  CSV PARSING  (semicolon-separated, quote-aware)
+   ============================================================ */
+function parseCSV(text){
+  // strip BOM
+  text = text.replace(/^﻿/,'');
+  const rows=[]; let row=[]; let field=''; let i=0; let inQ=false;
+  const pushField=()=>{ row.push(field); field=''; };
+  const pushRow=()=>{ rows.push(row); row=[]; };
+  while(i<text.length){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){
+        if(text[i+1]==='"'){ field+='"'; i+=2; continue; }
+        inQ=false; i++; continue;
+      }
+      field+=c; i++; continue;
+    }
+    if(c==='"'){ inQ=true; i++; continue; }
+    if(c===';'){ pushField(); i++; continue; }
+    if(c==='\r'){ i++; continue; }
+    if(c==='\n'){ pushField(); pushRow(); i++; continue; }
+    field+=c; i++;
+  }
+  // last field/row
+  if(field.length>0 || row.length>0){ pushField(); pushRow(); }
+  return rows.filter(r=> r.length>1 || (r.length===1 && r[0].trim()!==''));
+}
+
+/* normalise a header / value : lowercase, remove accents, trim */
+function norm(s){
+  return (s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toLowerCase().trim();
+}
+
+/* Map header names -> the column we want. We ONLY whitelist these.
+   Everything else (IBAN, BIC, RUM, account no…) is ignored entirely. */
+const COLMAP = {
+  echeance:   ['echeance'],
+  civilite:   ['civilite'],
+  membre:     ['membre','client','nom'],
+  prestation: ['prestation'],
+  ttc:        ['ttc','montant ttc','montant'],
+  vendeur:    ['vendeur'],
+  etat:       ['etat','statut'],
+  raison:     ['raison','raison si impaye','motif'],
+  site:       ['site','studio'],
+};
+
+function buildColIndex(header){
+  const H = header.map(norm);
+  const idx={};
+  for(const key in COLMAP){
+    for(const alias of COLMAP[key]){
+      const p = H.indexOf(alias);
+      if(p!==-1){ idx[key]=p; break; }
+    }
+  }
+  return idx;
+}
+
+/* French amount "1 234,56" / "69,00" -> Number */
+function parseAmount(s){
+  if(s==null) return 0;
+  let v = s.toString().trim().replace(/\s|€/g,'').replace(/ /g,'');
+  v = v.replace(/\./g,'').replace(',', '.'); // FR thousands "." then decimal ","
+  const n = parseFloat(v);
+  return isNaN(n)?0:n;
+}
+
+/* French date "01/06/2026" -> Date (local, midday to avoid TZ slips) */
+function parseDate(s){
+  if(!s) return null;
+  const m = s.toString().trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(!m) return null;
+  let [_,d,mo,y]=m; d=+d;mo=+mo;y=+y; if(y<100)y+=2000;
+  const dt=new Date(y,mo-1,d,12,0,0);
+  return isNaN(dt)?null:dt;
+}
+
+/* ============================================================
+   2.  WEEK (ISO) helpers
+   ============================================================ */
+function isoWeekKey(date){
+  // returns {year, week, key, monday, sunday}
+  const d=new Date(date); d.setHours(12,0,0,0);
+  const day=(d.getDay()+6)%7;               // Mon=0..Sun=6
+  const monday=new Date(d); monday.setDate(d.getDate()-day);
+  const sunday=new Date(monday); sunday.setDate(monday.getDate()+6);
+  // ISO week number
+  const thu=new Date(monday); thu.setDate(monday.getDate()+3);
+  const yearStart=new Date(thu.getFullYear(),0,1);
+  const week=Math.ceil((((thu-yearStart)/86400000)+1)/7);
+  const key=thu.getFullYear()+'-W'+String(week).padStart(2,'0');
+  return {year:thu.getFullYear(),week,key,monday,sunday};
+}
+const MONTHS=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+function fmtDate(d){ return d?String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear():'—'; }
+function fmtDayShort(d){ return d.getDate()+' '+MONTHS[d.getMonth()]; }
+function fmtEur(n){ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+function fmtEur0(n){ return Math.round(n).toLocaleString('fr-FR')+' €'; }
+
+/* ============================================================
+   3.  STATUS classification
+   ============================================================ */
+function classify(etatRaw, echeance){
+  const e=norm(etatRaw);
+  const today=new Date(); today.setHours(12,0,0,0);
+  const overdue = echeance ? echeance < today : false;
+
+  if(e.includes('encaiss')) return {code:'paye',  label:'Payé',       badge:'b-green', dot:'green'};
+  if(e.includes('impaye'))  return {code:'impaye',label:'Impayé',     badge:'b-red',   dot:'red'};
+  if(e.includes('suspend')) return {code:'suspendu',label:'Suspendu', badge:'b-orange',dot:'orange'};
+
+  // Envoyé / A faire / autres états en attente
+  const pending = e.includes('envoy')||e.includes('a faire')||e.includes('faire')||e.includes('attente')||e==='';
+  if(pending){
+    if(overdue) return {code:'controle',label:'À contrôler',badge:'b-red',  dot:'red', anomaly:true};
+    return {code:'controle',label:'En attente',badge:'b-blue', dot:'blue'};
+  }
+  // fallback : unknown state -> à contrôler
+  return {code:'controle',label:'À contrôler',badge:'b-gray',dot:'gray', anomaly:overdue};
+}
+
+function recommendedAction(st){
+  switch(st.code){
+    case 'paye':     return {text:'Rien à faire', cls:''};
+    case 'impaye':   return {text:'Relancer le client', cls:'todo-red'};
+    case 'suspendu': return {text:'Vérifier le motif de suspension', cls:'todo-orange'};
+    default:         return {text:'Contrôler l’encaissement', cls:'todo-blue'};
+  }
+}
+
+/* ============================================================
+   4.  STATE
+   ============================================================ */
+const APP = {
+  rows:[],            // all parsed records
+  weeks:[],           // sorted week meta list
+  view:'week',        // 'week' | 'anom'
+  currentWeek:null,
+  studio:'all',
+  statusFilter:'all',
+};
+
+/* ============================================================
+   5.  IMPORT FLOW
+   ============================================================ */
+const $=id=>document.getElementById(id);
+const dz=$('dropzone'), fileInput=$('fileInput');
+
+dz.addEventListener('click',()=>fileInput.click());
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);});
+fileInput.addEventListener('change',e=>{ if(e.target.files.length) handleFile(e.target.files[0]); });
+$('reimportBtn').addEventListener('click',()=>{ $('importScreen').style.display='';$('dashboard').style.display='none';$('topActions').style.display='none';$('importErr').innerHTML='';fileInput.value=''; });
+
+function showErr(msg){ $('importErr').innerHTML='<div class="err">⚠️ '+msg+'</div>'; }
+
+function handleFile(file){
+  $('importErr').innerHTML='';
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{ ingest(reader.result, file.name); }
+    catch(err){ console.error(err); showErr('Impossible de lire ce fichier : '+err.message); }
+  };
+  reader.onerror=()=>showErr('Erreur de lecture du fichier.');
+  reader.readAsText(file,'utf-8');
+}
+
+function ingest(text, filename){
+  const rows=parseCSV(text);
+  if(rows.length<2){ showErr('Le fichier semble vide ou mal formaté.'); return; }
+  const header=rows[0];
+  const idx=buildColIndex(header);
+  if(idx.echeance===undefined && idx.ttc===undefined){
+    showErr('Colonnes attendues introuvables (Echeance, TTC…). Vérifiez que le séparateur est bien le point-virgule.');
+    return;
+  }
+  const records=[];
+  for(let r=1;r<rows.length;r++){
+    const line=rows[r];
+    const get=k=> idx[k]!==undefined ? (line[idx[k]]||'').trim() : '';
+    const ech=parseDate(get('echeance'));
+    const ttc=parseAmount(get('ttc'));
+    const membre=get('membre'); const civ=get('civilite');
+    // skip totally empty lines
+    if(!membre && !ttc && !ech && !get('prestation')) continue;
+    const wk = ech ? isoWeekKey(ech) : null;
+    const st = classify(get('etat'), ech);
+    records.push({
+      client: (civ?civ+' ':'')+membre || '—',
+      prestation:get('prestation')||'—',
+      ttc, echeance:ech,
+      etatRaw:get('etat'),
+      vendeur:get('vendeur')||'—',
+      raison:get('raison')||'',
+      studio:get('site')||'Studio non précisé',
+      weekKey: wk?wk.key:'__nodate__',
+      week: wk,
+      status:st,
+    });
+  }
+  if(!records.length){ showErr('Aucune ligne de prélèvement exploitable trouvée.'); return; }
+
+  APP.rows=records;
+  // build week list
+  const wkMap={};
+  records.forEach(x=>{ if(x.week) wkMap[x.week.key]=x.week; });
+  APP.weeks=Object.values(wkMap).sort((a,b)=> a.monday-b.monday);
+  APP.currentWeek = APP.weeks.length? APP.weeks[APP.weeks.length-1].key : '__nodate__';
+  APP.studio='all'; APP.statusFilter='all'; APP.view='week';
+
+  // UI switch
+  $('importScreen').style.display='none';
+  $('dashboard').style.display='';
+  $('topActions').style.display='';
+  $('fileInfo').textContent='📄 '+filename+' · '+records.length+' lignes';
+  buildControls();
+  render();
+}
+
+/* ============================================================
+   6.  CONTROLS
+   ============================================================ */
+function buildControls(){
+  // weeks
+  const ws=$('weekSelect'); ws.innerHTML='';
+  APP.weeks.slice().reverse().forEach(w=>{
+    const o=document.createElement('option');
+    o.value=w.key;
+    o.textContent='Sem. '+w.week+' — '+fmtDayShort(w.monday)+' au '+fmtDayShort(w.sunday)+' '+w.sunday.getFullYear();
+    ws.appendChild(o);
+  });
+  const noDate=APP.rows.some(r=>r.weekKey==='__nodate__');
+  if(noDate){ const o=document.createElement('option');o.value='__nodate__';o.textContent='Sans date d’échéance';ws.appendChild(o); }
+  ws.value=APP.currentWeek;
+  ws.onchange=()=>{ APP.currentWeek=ws.value; render(); };
+
+  // studios (within whole file)
+  const ss=$('studioSelect'); ss.innerHTML='';
+  const all=document.createElement('option'); all.value='all'; all.textContent='Tous les studios'; ss.appendChild(all);
+  [...new Set(APP.rows.map(r=>r.studio))].sort().forEach(s=>{
+    const o=document.createElement('option');o.value=s;o.textContent=s;ss.appendChild(o);
+  });
+  ss.value=APP.studio;
+  ss.onchange=()=>{ APP.studio=ss.value; render(); };
+
+  // tabs
+  $('tabWeek').onclick=()=>{ APP.view='week'; setTabs(); render(); };
+  $('tabAnom').onclick=()=>{ APP.view='anom'; setTabs(); render(); };
+}
+function setTabs(){
+  $('tabWeek').classList.toggle('active',APP.view==='week');
+  $('tabAnom').classList.toggle('active',APP.view==='anom');
+}
+
+/* ============================================================
+   7.  DATA SELECTORS
+   ============================================================ */
+function weekRows(){
+  return APP.rows.filter(r=> r.weekKey===APP.currentWeek
+    && (APP.studio==='all'||r.studio===APP.studio));
+}
+function sums(list){
+  const s={attendu:0,paye:0,impaye:0,suspendu:0,controle:0,count:list.length};
+  list.forEach(r=>{ s.attendu+=r.ttc;
+    if(r.status.code==='paye')s.paye+=r.ttc;
+    else if(r.status.code==='impaye')s.impaye+=r.ttc;
+    else if(r.status.code==='suspendu')s.suspendu+=r.ttc;
+    else s.controle+=r.ttc;
+  });
+  s.taux = s.attendu>0 ? s.paye/s.attendu : 0;
+  return s;
+}
+
+/* ============================================================
+   8.  RENDER
+   ============================================================ */
+function render(){
+  const rows=weekRows();
+  renderKPIs(sums(rows));
+  if(APP.view==='week'){ renderQuickFilters(rows); renderStudios(rows); }
+  else { $('quickFilters').innerHTML=''; renderAnomalies(rows); }
+}
+
+function renderKPIs(s){
+  const ratePct=Math.round(s.taux*100);
+  $('kpiWrap').innerHTML=`
+   <div class="kpis">
+    <div class="kpi">
+      <div class="lab"><span class="dot dot-total"></span>Total attendu</div>
+      <div class="val">${fmtEur0(s.attendu)}</div>
+      <div class="sub">${s.count} prélèvement${s.count>1?'s':''}</div>
+    </div>
+    <div class="kpi">
+      <div class="lab"><span class="dot dot-green"></span>Payé</div>
+      <div class="val" style="color:var(--green)">${fmtEur0(s.paye)}</div>
+      <div class="sub">${pct(s.paye,s.attendu)} du total</div>
+    </div>
+    <div class="kpi">
+      <div class="lab"><span class="dot dot-red"></span>Impayé</div>
+      <div class="val" style="color:var(--red)">${fmtEur0(s.impaye)}</div>
+      <div class="sub">${pct(s.impaye,s.attendu)} du total</div>
+    </div>
+    <div class="kpi">
+      <div class="lab"><span class="dot dot-orange"></span>Suspendu</div>
+      <div class="val" style="color:var(--orange)">${fmtEur0(s.suspendu)}</div>
+      <div class="sub">${pct(s.suspendu,s.attendu)} du total</div>
+    </div>
+    <div class="kpi">
+      <div class="lab"><span class="dot dot-blue"></span>À contrôler</div>
+      <div class="val" style="color:var(--blue)">${fmtEur0(s.controle)}</div>
+      <div class="sub">non encaissé / à vérifier</div>
+    </div>
+    <div class="kpi kpi-rate">
+      <div class="lab">📈 Taux d’encaissement</div>
+      <div class="val">${ratePct}%</div>
+      <div class="rate-bar"><div class="rate-fill" style="width:${Math.min(ratePct,100)}%"></div></div>
+    </div>
+   </div>`;
+}
+function pct(a,b){ return b>0?Math.round(a/b*100)+'%':'0%'; }
+
+function renderQuickFilters(rows){
+  const counts={all:rows.length,paye:0,impaye:0,suspendu:0,controle:0};
+  rows.forEach(r=>counts[r.status.code]++);
+  const defs=[
+    {k:'all',label:'Tous'},
+    {k:'paye',label:'Payés'},
+    {k:'impaye',label:'Impayés'},
+    {k:'suspendu',label:'Suspendus'},
+    {k:'controle',label:'À contrôler'},
+  ];
+  $('quickFilters').innerHTML=defs.map(d=>
+    `<button class="chip ${APP.statusFilter===d.k?'active':''}" data-f="${d.k}">${d.label}<span class="cnt">${counts[d.k]}</span></button>`
+  ).join('');
+  $('quickFilters').querySelectorAll('.chip').forEach(c=>{
+    c.onclick=()=>{ APP.statusFilter=c.dataset.f; render(); };
+  });
+}
+
+function rowMatchesFilter(r){
+  return APP.statusFilter==='all' || r.status.code===APP.statusFilter;
+}
+
+function renderStudios(rows){
+  const wk=APP.weeks.find(w=>w.key===APP.currentWeek);
+  const head = wk
+    ? `Semaine ${wk.week} · du ${fmtDate(wk.monday)} au ${fmtDate(wk.sunday)}`
+    : 'Lignes sans date d’échéance';
+
+  if(!rows.length){
+    $('content').innerHTML=`<div class="section-title">${head}</div><div class="studio"><div class="empty">Aucun prélèvement pour cette sélection.</div></div>`;
+    return;
+  }
+  // group by studio
+  const groups={};
+  rows.forEach(r=>{ (groups[r.studio]=groups[r.studio]||[]).push(r); });
+  const studioNames=Object.keys(groups).sort();
+
+  let html=`<div class="section-title">${head}</div>`;
+  studioNames.forEach(name=>{
+    const list=groups[name];
+    const s=sums(list);
+    const visible=list.filter(rowMatchesFilter)
+      .sort((a,b)=> order(a.status.code)-order(b.status.code) || (a.echeance-b.echeance));
+    html+=`
+    <div class="studio">
+      <div class="studio-head">
+        <div class="name">
+          <div class="pin"><span>📍</span></div>
+          <h3>${esc(name)}</h3>
+          <span class="pill-count">${s.count} prélèvement${s.count>1?'s':''}</span>
+        </div>
+        <div class="studio-stats">
+          <div class="stat"><span class="s-lab">Attendu</span><span class="s-val">${fmtEur0(s.attendu)}</span></div>
+          <div class="stat green"><span class="s-lab">Payé</span><span class="s-val">${fmtEur0(s.paye)}</span></div>
+          <div class="stat red"><span class="s-lab">Impayé</span><span class="s-val">${fmtEur0(s.impaye)}</span></div>
+          <div class="stat orange"><span class="s-lab">Suspendu</span><span class="s-val">${fmtEur0(s.suspendu)}</span></div>
+          <div class="stat rate"><span class="s-lab">Taux</span><span class="s-val">${Math.round(s.taux*100)}%</span></div>
+        </div>
+      </div>
+      ${ visible.length ? tableHTML(visible) : '<div class="empty">Aucune ligne pour ce filtre.</div>' }
+    </div>`;
+  });
+  $('content').innerHTML=html;
+}
+function order(code){ return {impaye:0,controle:1,suspendu:2,paye:3}[code] ?? 9; }
+
+function tableHTML(list){
+  let rows=list.map(r=>{
+    const st=r.status; const act=recommendedAction(st);
+    const flag = st.anomaly ? '<span class="flag">échéance dépassée</span>' : '';
+    return `<tr class="${st.anomaly?'anomaly-row':''}">
+      <td class="client">${esc(r.client)}</td>
+      <td class="muted">${esc(r.prestation)}</td>
+      <td class="amount">${fmtEur(r.ttc)}</td>
+      <td class="muted">${fmtDate(r.echeance)}</td>
+      <td><span class="badge ${st.badge}">${st.label}</span>${flag}</td>
+      <td class="muted">${esc(r.vendeur)}</td>
+      <td class="muted">${esc(r.raison)||'—'}</td>
+      <td><span class="action ${act.cls}">${act.text}</span></td>
+    </tr>`;
+  }).join('');
+  return `<div class="tbl-scroll"><table>
+    <thead><tr>
+      <th>Client</th><th>Prestation</th><th>Montant TTC</th><th>Échéance</th>
+      <th>Statut</th><th>Vendeur</th><th>Raison</th><th>Action recommandée</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/* ---- Anomalies view ---- */
+function renderAnomalies(rows){
+  const anom=rows.filter(r=> r.status.code==='impaye'||r.status.code==='suspendu'
+    || (r.status.code==='controle' && r.status.anomaly) );
+  const nbImp=anom.filter(r=>r.status.code==='impaye').length;
+  const nbSus=anom.filter(r=>r.status.code==='suspendu').length;
+  const nbCtl=anom.filter(r=>r.status.code==='controle').length;
+  const montant=anom.reduce((a,r)=>a+r.ttc,0);
+
+  const wk=APP.weeks.find(w=>w.key===APP.currentWeek);
+  const head = wk?`Anomalies — semaine ${wk.week} (${fmtDate(wk.monday)} au ${fmtDate(wk.sunday)})`:'Anomalies à traiter';
+
+  let html=`<div class="section-title">${head}</div>`;
+  html+=`<div class="anom-banner">
+    <div><div class="big" style="color:var(--text)">${anom.length}</div><div class="lab">dossier${anom.length>1?'s':''} à traiter</div></div>
+    <div class="sep"></div>
+    <div><div class="big" style="color:var(--red)">${nbImp}</div><div class="lab">impayé${nbImp>1?'s':''}</div></div>
+    <div class="sep"></div>
+    <div><div class="big" style="color:var(--orange)">${nbSus}</div><div class="lab">suspendu${nbSus>1?'s':''}</div></div>
+    <div class="sep"></div>
+    <div><div class="big" style="color:var(--blue)">${nbCtl}</div><div class="lab">à contrôler</div></div>
+    <div class="sep"></div>
+    <div><div class="big" style="color:var(--brand)">${fmtEur0(montant)}</div><div class="lab">montant concerné</div></div>
+  </div>`;
+
+  if(!anom.length){
+    html+=`<div class="studio"><div class="empty">✅ Aucune anomalie sur cette sélection. Tout est sous contrôle.</div></div>`;
+    $('content').innerHTML=html; return;
+  }
+  // group anomalies by studio too
+  const groups={};
+  anom.forEach(r=>{ (groups[r.studio]=groups[r.studio]||[]).push(r); });
+  Object.keys(groups).sort().forEach(name=>{
+    const list=groups[name].sort((a,b)=>order(a.status.code)-order(b.status.code));
+    html+=`<div class="studio">
+      <div class="studio-head"><div class="name"><div class="pin"><span>📍</span></div><h3>${esc(name)}</h3>
+      <span class="pill-count">${list.length} à traiter</span></div></div>
+      ${tableHTML(list)}</div>`;
+  });
+  $('content').innerHTML=html;
+}
+
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+</script>
+</body>
+</html>

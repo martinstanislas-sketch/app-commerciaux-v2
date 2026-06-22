@@ -89,6 +89,7 @@
       <button class="tab-btn" data-tab="perso">Perso</button>
       <button class="tab-btn" data-tab="pilotage-funnel">Pilotage</button>
       <button class="tab-btn" data-tab="prel">P.R.E.L</button>
+      <button class="tab-btn" data-tab="prel-suivi">Suivi pr&eacute;l.</button>
       <button class="tab-btn" data-tab="news">NEWS</button>
       <button class="tab-btn" data-tab="cockpit">Cockpit</button>
       <button class="tab-btn" data-tab="standards">Standards</button>
@@ -781,6 +782,35 @@
             </div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- SUIVI PRÉLÈVEMENTS (admin uniquement) — pilotage hebdo par studio -->
+    <section id="tab-prel-suivi" class="tab-content">
+      <div class="psv-wrap">
+        <header class="psv-header">
+          <div>
+            <h2 class="psv-title">Suivi des pr&eacute;l&egrave;vements</h2>
+            <p class="psv-subtitle">Qui devait payer, qui a pay&eacute;, qui n'a pas pay&eacute; &mdash; semaine par semaine, studio par studio.</p>
+          </div>
+          <div class="psv-toolbar">
+            <label class="psv-field">
+              <span>Semaine</span>
+              <select id="psv-week-select"></select>
+            </label>
+            <label class="psv-field">
+              <span>Studio</span>
+              <select id="psv-studio-select"></select>
+            </label>
+            <div class="psv-tabs">
+              <button type="button" class="psv-tab active" id="psv-tab-week" data-psv-view="week">Vue semaine</button>
+              <button type="button" class="psv-tab" id="psv-tab-anom" data-psv-view="anom">Anomalies &agrave; traiter</button>
+            </div>
+          </div>
+        </header>
+        <div class="psv-kpis" id="psv-kpis"></div>
+        <div class="psv-quickf" id="psv-quickf"></div>
+        <div class="psv-content" id="psv-content"></div>
       </div>
     </section>
 

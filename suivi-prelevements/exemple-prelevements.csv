@@ -1,0 +1,11 @@
+Echeance;Civilité;Membre;Email;Prestation;TTC;Mode;Num/Note;Vendeur;Etat;Raison;Message erreur;Id_client;Site;Id SEPA;IBAN;BIC;RUM
+01/06/2026;Mme;Dupont Marie;marie@mail.fr;Coaching Premium;69,00;SEPA;N123;Marvin;Encaisse;;;C001;Studio Lyon;S1;FR7612345678901234567890123;BNPAFRPP;RUM001
+01/06/2026;M.;Bernard Paul;paul@mail.fr;Coaching Standard;49,00;SEPA;N124;Magali;Impaye;Compte clôturé;AC04;C002;Studio Lyon;S2;FR7600000000000000000000000;CEPAFRPP;RUM002
+02/06/2026;Mme;Petit Sophie;sophie@mail.fr;Coaching Premium;69,00;SEPA;N125;Fabian;Suspendu;Demande client;;C003;Studio Paris;S3;FR7611111111111111111111111;SOGEFRPP;RUM003
+03/06/2026;M.;Durand Luc;luc@mail.fr;Pack Nutrition;120,00;SEPA;N126;Marvin;Envoyé;;;C004;Studio Paris;S4;FR7622222222222222222222222;BNPAFRPP;RUM004
+04/06/2026;Mme;Moreau Anne;anne@mail.fr;Coaching Standard;49,00;SEPA;N127;Magali;Encaisse;;;C005;Studio Lyon;S5;FR7633333333333333333333333;CEPAFRPP;RUM005
+05/06/2026;M.;Simon Marc;marc@mail.fr;Coaching Premium;69,00;SEPA;N128;Fabian;A faire;;;C006;Studio Marseille;S6;FR7644444444444444444444444;SOGEFRPP;RUM006
+08/06/2026;Mme;Laurent Eva;eva@mail.fr;Pack Nutrition;120,00;SEPA;N129;Marvin;Encaisse;;;C007;Studio Paris;S7;FR7655555555555555555555555;BNPAFRPP;RUM007
+09/06/2026;M.;Roux Jean;jean@mail.fr;Coaching Standard;49,00;SEPA;N130;Magali;Impaye;Provision insuffisante;AC01;C008;Studio Marseille;S8;FR7666666666666666666666666;CEPAFRPP;RUM008
+10/06/2026;Mme;Girard Lea;lea@mail.fr;Coaching Premium;69,00;SEPA;N131;Fabian;Suspendu;Déménagement;;C009;Studio Lyon;S9;FR7677777777777777777777777;SOGEFRPP;RUM009
+11/06/2026;M.;Fontaine Tom;tom@mail.fr;Coaching Premium;69,00;SEPA;N132;Marvin;Encaisse;;;C010;Studio Paris;S10;FR7688888888888888888888888;BNPAFRPP;RUM010

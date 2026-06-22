@@ -474,6 +474,69 @@ app.get('/api/prel/weeks', requireAuth, requireAdmin, (req, res) => {
   res.json({ weeks: rows });
 });
 
+// Suivi hebdomadaire des prélèvements — vue de pilotage dirigeant.
+// Lit les données DÉJÀ stockées dans prel_rows (aucune donnée bancaire n'y est
+// persistée) et les agrège par club + statut pour une semaine donnée.
+// Aucune ré-importation : on relit simplement l'existant.
+app.get('/api/prel/suivi', requireAuth, requireAdmin, (req, res) => {
+  const week = String(req.query.week || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return res.status(400).json({ error: 'week=YYYY-MM-DD requis' });
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT club, membre, prestation, ttc, echeance, etat, vendeur, raison
+    FROM prel_rows
+    WHERE week_start = ?
+    ORDER BY club ASC, membre ASC
+  `).all(week);
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const normEtat = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  function classify(etat, echeance) {
+    const e = normEtat(etat);
+    let overdue = false;
+    if (echeance && /^\d{4}-\d{2}-\d{2}$/.test(echeance)) {
+      overdue = new Date(echeance + 'T00:00:00') < today;
+    }
+    if (e.includes('encaiss') || e === 'ok') return { code: 'paye', label: 'Payé' };
+    if (e.includes('impay')) return { code: 'impaye', label: 'Impayé' };
+    if (e.includes('suspend')) return { code: 'suspendu', label: 'Suspendu' };
+    // Envoyé / A faire / état inconnu / vide → à contrôler
+    if (overdue) return { code: 'controle', label: 'À contrôler', anomaly: true };
+    return { code: 'controle', label: 'En attente' };
+  }
+
+  const clubsMap = {};
+  const totals = { attendu: 0, paye: 0, impaye: 0, suspendu: 0, controle: 0, count: 0 };
+  for (const r of rows) {
+    const st = classify(r.etat, r.echeance);
+    const ttc = (typeof r.ttc === 'number' && !Number.isNaN(r.ttc)) ? r.ttc : 0;
+    const club = r.club || 'Studio non précisé';
+    if (!clubsMap[club]) clubsMap[club] = { club, lines: [], attendu: 0, paye: 0, impaye: 0, suspendu: 0, controle: 0, count: 0 };
+    const c = clubsMap[club];
+    c.lines.push({
+      membre: r.membre || '—',
+      prestation: r.prestation || '—',
+      ttc,
+      echeance: r.echeance || null,
+      etat: r.etat || '',
+      status: st.code,
+      statusLabel: st.label,
+      anomaly: !!st.anomaly,
+      vendeur: r.vendeur || '—',
+      raison: r.raison || '',
+    });
+    c.count++; c.attendu += ttc; totals.count++; totals.attendu += ttc;
+    if (st.code === 'paye') { c.paye += ttc; totals.paye += ttc; }
+    else if (st.code === 'impaye') { c.impaye += ttc; totals.impaye += ttc; }
+    else if (st.code === 'suspendu') { c.suspendu += ttc; totals.suspendu += ttc; }
+    else { c.controle += ttc; totals.controle += ttc; }
+  }
+  const clubs = Object.values(clubsMap).sort((a, b) => a.club.localeCompare(b.club));
+  clubs.forEach(c => { c.taux = c.attendu > 0 ? c.paye / c.attendu : 0; });
+  totals.taux = totals.attendu > 0 ? totals.paye / totals.attendu : 0;
+  res.json({ week_start: week, totals, clubs });
+});
+
 app.get('/api/prel/uploads', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const rows = db.prepare(`SELECT * FROM prel_uploads ORDER BY uploaded_at DESC LIMIT 100`).all();

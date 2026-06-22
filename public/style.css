@@ -21012,3 +21012,89 @@ body.tk-dragging-active #tab-tasks .tk-card {
   #tab-standards .std-toolbar { gap: 10px; padding: 12px 14px; }
   #tab-standards .std-score { margin-left: 0; width: 100%; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   SUIVI DES PRÉLÈVEMENTS (onglet « Suivi prél. ») — vue de pilotage hebdo
+   Styles scopés .psv-* pour ne pas entrer en collision avec l'existant.
+   ════════════════════════════════════════════════════════════════════════ */
+.psv-wrap { padding: 22px 24px 70px; max-width: 1280px; margin: 0 auto; }
+.psv-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-bottom: 20px; }
+.psv-title { font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -.3px; }
+.psv-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 3px; max-width: 540px; }
+.psv-toolbar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.psv-field { display: flex; flex-direction: column; gap: 4px; }
+.psv-field > span { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
+.psv-field select { border: 1px solid var(--border); background: var(--card-solid); color: var(--text); padding: 8px 12px; border-radius: 10px; font-size: 13.5px; font-weight: 600; cursor: pointer; min-width: 200px; }
+.psv-field select:focus { outline: none; border-color: var(--primary); }
+.psv-tabs { display: inline-flex; background: var(--bg-subtle); border-radius: 11px; padding: 3px; gap: 2px; }
+.psv-tab { padding: 8px 15px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); }
+.psv-tab.active { background: var(--card-solid); color: var(--text); box-shadow: 0 1px 3px rgba(16,24,40,.10); }
+
+.psv-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 18px; }
+.psv-kpi { background: var(--card-solid); border: 1px solid var(--border); border-radius: 14px; padding: 15px 16px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.psv-k-lab { font-size: 11.5px; color: var(--text-secondary); font-weight: 600; display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+.psv-k-val { font-size: 21px; font-weight: 800; letter-spacing: -.5px; color: var(--text); }
+.psv-k-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; }
+.psv-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+.psv-d-total { background: var(--text); } .psv-d-green { background: var(--success); }
+.psv-d-red { background: var(--danger); } .psv-d-orange { background: var(--warning); } .psv-d-blue { background: var(--blue); }
+.psv-green { color: var(--success) !important; } .psv-red { color: var(--danger) !important; }
+.psv-orange { color: var(--warning) !important; } .psv-blue { color: var(--blue) !important; }
+.psv-rate { color: var(--primary) !important; } .psv-accent { color: var(--primary) !important; }
+.psv-kpi-rate .psv-k-val { color: var(--primary); }
+.psv-rate-bar { height: 6px; border-radius: 4px; background: var(--bg-subtle); margin-top: 9px; overflow: hidden; }
+.psv-rate-fill { height: 100%; background: var(--grad-indigo); border-radius: 4px; transition: width .4s; }
+
+.psv-quickf { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.psv-chip { border: 1px solid var(--border); background: var(--card-solid); padding: 7px 13px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 7px; transition: .13s; }
+.psv-chip:hover { border-color: var(--text-muted); }
+.psv-chip.active { background: var(--text); color: #fff; border-color: var(--text); }
+.psv-cnt { font-size: 11.5px; opacity: .75; font-weight: 700; }
+
+.psv-section-title { font-size: 12.5px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .6px; margin: 8px 2px 12px; }
+.psv-empty { padding: 38px; text-align: center; color: var(--text-muted); font-size: 14px; background: var(--card-solid); border: 1px solid var(--border); border-radius: 14px; }
+
+.psv-studio { background: var(--card-solid); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.04); margin-bottom: 16px; overflow: hidden; }
+.psv-studio-head { padding: 15px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.psv-studio-name { display: flex; align-items: center; gap: 10px; }
+.psv-studio-name h3 { font-size: 16px; font-weight: 700; color: var(--text); }
+.psv-pin { font-size: 15px; }
+.psv-pill { font-size: 12px; color: var(--text-secondary); background: var(--bg-subtle); padding: 4px 10px; border-radius: 999px; font-weight: 600; }
+.psv-studio-stats { display: flex; gap: 22px; flex-wrap: wrap; }
+.psv-stat { display: flex; flex-direction: column; }
+.psv-s-lab { font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); font-weight: 700; }
+.psv-s-val { font-size: 15px; font-weight: 800; margin-top: 2px; color: var(--text); }
+
+.psv-tbl-scroll { overflow-x: auto; }
+table.psv-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.psv-tbl thead th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); font-weight: 700; padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--bg-subtle); }
+table.psv-tbl tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border-light); vertical-align: middle; color: var(--text); }
+table.psv-tbl tbody tr:last-child td { border-bottom: none; }
+table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
+.psv-tbl .psv-amount { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.psv-tbl .psv-client { font-weight: 600; }
+.psv-tbl .psv-muted { color: var(--text-secondary); }
+.psv-anom-row { background: var(--warning-light); }
+.psv-anom-row:hover { background: rgba(245,158,11,.14); }
+
+.psv-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 7px; white-space: nowrap; }
+.psv-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.psv-b-green { color: #15803d; background: rgba(16,185,129,.12); }
+.psv-b-red { color: #b91c1c; background: rgba(239,68,68,.12); }
+.psv-b-orange { color: #b45309; background: rgba(245,158,11,.14); }
+.psv-b-blue { color: #1d4ed8; background: rgba(59,130,246,.12); }
+.psv-flag { font-size: 10px; font-weight: 700; color: #b91c1c; margin-left: 7px; background: rgba(239,68,68,.10); border: 1px solid rgba(239,68,68,.25); padding: 1px 6px; border-radius: 5px; }
+.psv-action { font-size: 12.5px; color: var(--text-secondary); }
+.psv-todo-red { color: var(--danger); font-weight: 600; }
+.psv-todo-orange { color: #b45309; font-weight: 600; }
+.psv-todo-blue { color: #1d4ed8; font-weight: 600; }
+
+.psv-anom-banner { background: linear-gradient(135deg, rgba(245,158,11,.10), rgba(239,68,68,.08)); border: 1px solid rgba(245,158,11,.30); border-radius: 14px; padding: 16px 18px; margin-bottom: 18px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.psv-big { font-size: 24px; font-weight: 800; color: var(--text); }
+.psv-big-lab { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+.psv-sep { width: 1px; height: 34px; background: rgba(245,158,11,.30); }
+.psv-export-btn { margin-left: auto; border: 1px solid var(--border); background: var(--card-solid); color: var(--text); padding: 9px 15px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: .13s; }
+.psv-export-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-ghost); }
+
+@media (max-width: 1100px) { .psv-kpis { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 720px) { .psv-kpis { grid-template-columns: repeat(2, 1fr); } .psv-studio-stats { gap: 14px; } .psv-field select { min-width: 150px; } }
