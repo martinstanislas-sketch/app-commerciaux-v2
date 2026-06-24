@@ -1244,6 +1244,20 @@ function init() {
   $('#avanceForm').addEventListener('submit', (e) => { e.preventDefault(); appliquerAvance(); });
   $('#btnAgenda').addEventListener('click', exportIcs);
 
+  // Demande d'aide alimentaire (accompagnement coach)
+  $('#btnHelp').addEventListener('click', openHelp);
+  $('#btnHelpFromSuivi').addEventListener('click', () => { closeSuivi(); openHelp(); });
+  $('#helpClose').addEventListener('click', closeHelp);
+  $('#helpDoneClose').addEventListener('click', closeHelp);
+  $('#helpPanel').addEventListener('click', (e) => { if (e.target.id === 'helpPanel') closeHelp(); });
+  $('#helpOptions').addEventListener('click', (e) => { const b = e.target.closest('.help-opt'); if (b) b.classList.toggle('selected'); });
+  $('#helpSubmit').addEventListener('click', submitHelp);
+  // Vue coach
+  $('#btnHelpAdmin').addEventListener('click', openHelpAdmin);
+  $('#helpAdminClose').addEventListener('click', closeHelpAdmin);
+  $('#helpAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'helpAdminPanel') closeHelpAdmin(); });
+  setupHelpAccess();
+
   // Complements : "Non" est exclusif ; le champ detail apparait des qu'un "Oui" est coche.
   const compSet = $('.chip-set[data-multifield="complements"]');
   if (compSet) compSet.addEventListener('click', (e) => {
@@ -1272,7 +1286,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); } });
 
   if (loadLocal()) {
     $('#portValue').textContent = state.portions;
@@ -1281,6 +1295,140 @@ function init() {
     $('#saveState').innerHTML = icSvg('check') + ' Plan restaure';
     showScreen('result');
   }
+}
+
+// ---------- Demande d'aide alimentaire (accompagnement coach) ----------
+const HELP_OPTIONS = [
+  { key: 'plan', label: "J'ai du mal a respecter mon plan" },
+  { key: 'faim', label: "J'ai trop faim" },
+  { key: 'grignote', label: 'Je grignote' },
+  { key: 'idees', label: "Je manque d'idees de repas" },
+  { key: 'exterieur', label: "Je mange souvent a l'exterieur" },
+  { key: 'quantites', label: "Je n'arrive pas a gerer les quantites" },
+  { key: 'sucre', label: "J'ai des envies de sucre" },
+  { key: 'temps', label: "Je n'ai pas le temps de cuisiner" },
+  { key: 'demotive', label: 'Je suis demotive(e)' },
+  { key: 'autre', label: 'Autre' },
+];
+const HELP_STATUS = { a_traiter: 'A traiter', en_cours: 'En cours', traite: 'Traite' };
+
+// Utilisateur de l'app principale (meme origine) — pour le nom client + l'acces coach.
+function mainAppUser() {
+  try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch (_) { return null; }
+}
+function helpClientName() {
+  const u = mainAppUser();
+  return (u && u.name) || (state.profil && (state.profil.prenom || state.profil.nom)) || 'Client';
+}
+function isCoachOrAdmin() {
+  const u = mainAppUser();
+  if (!u) return false;
+  const perms = u.permissions || [];
+  return u.role === 'admin' || (Array.isArray(perms) && perms.includes('can_access_nutrition_module'));
+}
+
+function renderHelpOptions() {
+  $('#helpOptions').innerHTML = HELP_OPTIONS.map((o) =>
+    `<button type="button" class="help-opt" data-key="${o.key}">${o.label}</button>`).join('');
+}
+function resetHelpForm() {
+  renderHelpOptions();
+  $('#helpMessage').value = '';
+  $('#helpForm').classList.remove('hidden');
+  $('#helpDone').classList.add('hidden');
+}
+function openHelp() { resetHelpForm(); $('#helpPanel').classList.remove('hidden'); }
+function closeHelp() { $('#helpPanel').classList.add('hidden'); }
+
+async function submitHelp() {
+  const selected = $$('#helpOptions .help-opt.selected').map((b) => {
+    const o = HELP_OPTIONS.find((x) => x.key === b.dataset.key); return o ? o.label : b.dataset.key;
+  });
+  const message = $('#helpMessage').value.trim();
+  if (!selected.length && !message) { alert('Indique au moins une difficulte ou un petit message.'); return; }
+  const btn = $('#helpSubmit'); btn.disabled = true;
+  try {
+    const res = await fetch(apiUrl('/api/help-request'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ clientName: helpClientName(), difficultes: selected, message }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Erreur');
+    $('#helpForm').classList.add('hidden');
+    $('#helpDone').classList.remove('hidden');
+  } catch (e) {
+    alert("Oups, l'envoi n'a pas fonctionne. Reessaie dans un instant.");
+  } finally { btn.disabled = false; }
+}
+
+// --- Vue coach : liste des demandes ---
+async function openHelpAdmin() { $('#helpAdminPanel').classList.remove('hidden'); await renderHelpAdmin(); }
+function closeHelpAdmin() { $('#helpAdminPanel').classList.add('hidden'); }
+
+async function renderHelpAdmin() {
+  const body = $('#helpAdminBody');
+  body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/help-requests'), { headers: nutriAuthHeaders() });
+    const data = await res.json();
+    if (!data.ok) throw new Error();
+    const list = data.demandes || [];
+    updateHelpBadge(list);
+    if (!list.length) { body.innerHTML = '<p class="help-empty">Aucune demande pour le moment.</p>'; return; }
+    body.innerHTML = list.map((d) => {
+      const date = new Date(d.createdAt);
+      const dateStr = isNaN(date.getTime()) ? '' :
+        date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) + ' a ' +
+        date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const tags = (d.difficultes || []).map((t) => `<span class="help-tag">${escapeHtml(t)}</span>`).join('');
+      const opts = Object.entries(HELP_STATUS).map(([k, lbl]) =>
+        `<option value="${k}" ${d.statut === k ? 'selected' : ''}>${lbl}</option>`).join('');
+      return `<div class="help-req statut-${d.statut}">
+        <div class="help-req-head">
+          <strong>${escapeHtml(d.clientName || 'Client')}</strong>
+          <span class="help-status-badge statut-${d.statut}">${HELP_STATUS[d.statut] || d.statut}</span>
+        </div>
+        <div class="help-req-date">${dateStr}</div>
+        <div class="help-req-tags">${tags || '<span class="help-tag muted">—</span>'}</div>
+        ${d.message ? `<p class="help-req-msg">${escapeHtml(d.message)}</p>` : ''}
+        <label class="help-status-set">Statut
+          <select data-id="${d.id}">${opts}</select>
+        </label>
+      </div>`;
+    }).join('');
+    $$('#helpAdminBody select[data-id]').forEach((sel) =>
+      sel.addEventListener('change', () => setHelpStatus(sel.dataset.id, sel.value)));
+  } catch (e) {
+    body.innerHTML = '<p class="help-empty">Lecture impossible. Reessaie.</p>';
+  }
+}
+async function setHelpStatus(id, statut) {
+  try {
+    await fetch(apiUrl('/api/help-requests/' + id), {
+      method: 'PATCH', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ statut }),
+    });
+    await renderHelpAdmin();
+  } catch (_) { /* ignore */ }
+}
+function updateHelpBadge(list) {
+  const n = (list || []).filter((d) => d.statut === 'a_traiter').length;
+  const badge = $('#helpAdminBadge');
+  if (!badge) return;
+  badge.textContent = n;
+  badge.classList.toggle('hidden', n === 0);
+}
+
+// Affiche la carte coach + precharge le badge si l'utilisateur est coach/admin.
+async function setupHelpAccess() {
+  if (!isCoachOrAdmin()) return;
+  const card = $('#btnHelpAdmin');
+  if (card) card.classList.remove('hidden');
+  try {
+    const res = await fetch(apiUrl('/api/help-requests'), { headers: nutriAuthHeaders() });
+    const data = await res.json();
+    if (data.ok) updateHelpBadge(data.demandes || []);
+  } catch (_) { /* ignore */ }
 }
 
 document.addEventListener('DOMContentLoaded', init);

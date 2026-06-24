@@ -74,6 +74,9 @@
       <symbol id="ic-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.94 14.06 12 21l2.06-6.94L21 12l-6.94-2.06L12 3l-2.06 6.94L3 12Z"/></symbol>
       <symbol id="ic-pill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></symbol>
       <symbol id="ic-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></symbol>
+      <symbol id="ic-life-buoy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></symbol>
+      <symbol id="ic-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+      <symbol id="ic-heart-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 14h2a2 2 0 0 0 2-2 2 2 0 0 0-2-2H8.5a3 3 0 0 0-2.1.9L3 14"/><path d="m7 18 2.5-1.5L13 18l5-4.5a2 2 0 0 0-2.8-2.8l-1.7 1.5"/><path d="M18 6.5a2.5 2.5 0 0 0-5 0c0 1.7 2.5 3.5 2.5 3.5S18 8.2 18 6.5Z"/></symbol>
     </defs>
   </svg>
   <header class="topbar">
@@ -332,7 +335,18 @@
     <section id="screen-result" class="screen">
       <div id="needsCard" class="needs-card"></div>
 
+      <!-- Accompagnement : demander de l'aide à son coach (toujours visible) -->
+      <button type="button" id="btnHelp" class="help-cta">
+        <span class="help-cta-ic"><svg class="ic"><use href="#ic-life-buoy"/></svg></span>
+        <span class="help-cta-text">
+          <strong>J'ai besoin d'aide sur mon alimentation cette semaine</strong>
+          <small>Une difficulté ? Ton coach est là pour t'aider à ajuster — sans jugement.</small>
+        </span>
+        <span class="help-cta-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span>
+      </button>
+
       <div class="actions-grid">
+        <button class="action-card action-card-admin hidden" id="btnHelpAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-inbox"/></svg></span>Demandes d'aide<span id="helpAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card" id="btnShopping"><span class="action-ic"><svg class="ic"><use href="#ic-cart"/></svg></span>Liste de courses</button>
         <button class="action-card" id="btnNewPlan"><span class="action-ic"><svg class="ic"><use href="#ic-refresh"/></svg></span>Recalculer le plan</button>
         <button class="action-card action-card-accent" id="btnAvance"><span class="action-ic"><svg class="ic"><use href="#ic-sliders"/></svg></span>Affiner mon plan</button>
@@ -413,7 +427,45 @@
         <button class="modal-close" id="suiviClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
       <p class="panel-sub">Votre adherence au plan, repas par repas.</p>
+      <button type="button" id="btnHelpFromSuivi" class="btn btn-outline" style="margin-bottom:14px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide cette semaine</button>
       <div id="suiviBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU DEMANDE D'AIDE (client) ============ -->
+  <div id="helpPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-life-buoy"/></svg> Besoin d'un coup de main</h2>
+        <button class="modal-close" id="helpClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <div id="helpForm">
+        <p class="panel-sub">Sur quoi as-tu besoin d'aide cette semaine ? Choisis ce qui te parle — ton coach s'en servira pour t'accompagner, sans jugement.</p>
+        <div id="helpOptions" class="help-options"></div>
+        <label class="field" style="margin-top:6px"><span>Explique rapidement ta difficulte (optionnel)</span>
+          <textarea id="helpMessage" rows="4" placeholder="Ex : le soir apres le travail je n'ai plus le courage de cuisiner..."></textarea>
+        </label>
+        <p class="help-disclaimer">Cet espace ne remplace pas un avis medical ou nutritionnel specialise. Il sert a ce que ton coach repere tes difficultes et t'accompagne ou te reoriente si besoin.</p>
+        <button type="button" id="helpSubmit" class="btn btn-primary btn-lg" style="width:100%"><svg class="ic"><use href="#ic-heart-hand"/></svg> Envoyer ma demande</button>
+      </div>
+      <div id="helpDone" class="help-done hidden">
+        <div class="help-done-ic"><svg class="ic"><use href="#ic-check-circle"/></svg></div>
+        <h3>Merci, ta demande a bien ete prise en compte.</h3>
+        <p>Ton coach pourra t'aider a ajuster ton alimentation cette semaine. Tu n'es pas seul(e) — on avance ensemble.</p>
+        <button type="button" id="helpDoneClose" class="btn btn-outline">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU COACH : DEMANDES D'AIDE ============ -->
+  <div id="helpAdminPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-inbox"/></svg> Demandes d'aide alimentaire</h2>
+        <button class="modal-close" id="helpAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Les difficultes signalees par tes clients. Reprends contact pour les accompagner.</p>
+      <div id="helpAdminBody"></div>
     </div>
   </div>
 

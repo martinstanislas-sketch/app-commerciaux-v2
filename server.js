@@ -50,8 +50,87 @@ function requireAdmin(req, res, next) {
 //    requireAuth + requireAdmin (token Bearer admin obligatoire).
 // Permission évolutive : aujourd'hui = rôle 'admin' ; ouvrable plus tard à
 // d'autres profils via une permission 'can_access_nutrition_module'.
+// Accès au module nutrition : admin OU permission can_access_nutrition_module
+// (évolutif : aujourd'hui seul l'admin a un compte avec accès, mais le jour où
+// les sessions porteront des permissions, un client/coach pourra soumettre).
+function requireNutritionAccess(req, res, next) {
+  const s = req.session;
+  const perms = (s && s.permissions) || [];
+  if (s && (s.role === 'admin' || (Array.isArray(perms) && perms.includes('can_access_nutrition_module')))) return next();
+  return res.status(403).json({ error: 'Accès réservé au module nutrition' });
+}
+
+// Table des demandes d'aide alimentaire (accompagnement client <-> coach).
+function ensureNutritionHelpTable() {
+  getDb().exec(`
+    CREATE TABLE IF NOT EXISTS nutrition_help_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      difficultes TEXT NOT NULL DEFAULT '[]',
+      message TEXT NOT NULL DEFAULT '',
+      statut TEXT NOT NULL DEFAULT 'a_traiter'
+    );
+  `);
+}
+
 try {
   const nutritionApp = require('./nutrition-app/server');
+  ensureNutritionHelpTable();
+
+  // --- Demandes d'aide alimentaire ---
+  // Soumission : tout utilisateur ayant accès au module (client inclus à terme).
+  app.post('/nutrition/api/help-request', requireAuth, requireNutritionAccess, (req, res) => {
+    try {
+      const { clientName, difficultes, message } = req.body || {};
+      const nom = String(clientName || req.session.name || 'Client').slice(0, 120);
+      const diffs = Array.isArray(difficultes) ? difficultes.map(d => String(d).slice(0, 120)).slice(0, 20) : [];
+      const msg = String(message || '').slice(0, 2000);
+      if (!diffs.length && !msg.trim()) {
+        return res.status(400).json({ ok: false, error: 'Indiquez au moins une difficulté ou un message.' });
+      }
+      const info = getDb().prepare(
+        'INSERT INTO nutrition_help_requests (client_name, created_at, difficultes, message, statut) VALUES (?, ?, ?, ?, ?)'
+      ).run(nom, new Date().toISOString(), JSON.stringify(diffs), msg, 'a_traiter');
+      res.json({ ok: true, id: info.lastInsertRowid });
+    } catch (e) {
+      console.error('Erreur help-request POST :', e);
+      res.status(500).json({ ok: false, error: 'Enregistrement impossible.' });
+    }
+  });
+
+  // Vue coach : liste des demandes (admin uniquement pour l'instant).
+  app.get('/nutrition/api/help-requests', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const rows = getDb().prepare('SELECT * FROM nutrition_help_requests ORDER BY id DESC').all();
+      const demandes = rows.map(r => ({
+        id: r.id, clientName: r.client_name, createdAt: r.created_at,
+        difficultes: (() => { try { return JSON.parse(r.difficultes); } catch (_) { return []; } })(),
+        message: r.message, statut: r.statut,
+      }));
+      res.json({ ok: true, demandes });
+    } catch (e) {
+      console.error('Erreur help-requests GET :', e);
+      res.status(500).json({ ok: false, error: 'Lecture impossible.' });
+    }
+  });
+
+  // Changement de statut (admin/coach).
+  app.patch('/nutrition/api/help-requests/:id', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const statut = String((req.body || {}).statut || '');
+      if (!['a_traiter', 'en_cours', 'traite'].includes(statut)) {
+        return res.status(400).json({ ok: false, error: 'Statut invalide.' });
+      }
+      const info = getDb().prepare('UPDATE nutrition_help_requests SET statut = ? WHERE id = ?').run(statut, Number(req.params.id));
+      res.json({ ok: info.changes > 0 });
+    } catch (e) {
+      console.error('Erreur help-requests PATCH :', e);
+      res.status(500).json({ ok: false, error: 'Mise à jour impossible.' });
+    }
+  });
+
+  // Le reste de l'API nutrition : admin uniquement.
   app.use('/nutrition/api', requireAuth, requireAdmin); // protège l'API du module
   app.use('/nutrition', nutritionApp);                  // sert le module (pages + statique)
 } catch (e) {
