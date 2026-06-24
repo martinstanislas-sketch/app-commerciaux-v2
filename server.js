@@ -60,7 +60,7 @@ function requireNutritionAccess(req, res, next) {
   return res.status(403).json({ error: 'Accès réservé au module nutrition' });
 }
 
-// Table des demandes d'aide alimentaire (accompagnement client <-> coach).
+// Tables du module nutrition : demandes d'aide + scans produits + avis coach.
 function ensureNutritionHelpTable() {
   getDb().exec(`
     CREATE TABLE IF NOT EXISTS nutrition_help_requests (
@@ -68,6 +68,25 @@ function ensureNutritionHelpTable() {
       client_name TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       difficultes TEXT NOT NULL DEFAULT '[]',
+      message TEXT NOT NULL DEFAULT '',
+      statut TEXT NOT NULL DEFAULT 'a_traiter'
+    );
+    CREATE TABLE IF NOT EXISTS nutrition_scans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      barcode TEXT NOT NULL DEFAULT '',
+      product_name TEXT NOT NULL DEFAULT '',
+      brand TEXT NOT NULL DEFAULT '',
+      nutriscore TEXT NOT NULL DEFAULT '',
+      coherence TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS nutrition_scan_advice (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      barcode TEXT NOT NULL DEFAULT '',
+      product_name TEXT NOT NULL DEFAULT '',
       message TEXT NOT NULL DEFAULT '',
       statut TEXT NOT NULL DEFAULT 'a_traiter'
     );
@@ -126,6 +145,84 @@ try {
       res.json({ ok: info.changes > 0 });
     } catch (e) {
       console.error('Erreur help-requests PATCH :', e);
+      res.status(500).json({ ok: false, error: 'Mise à jour impossible.' });
+    }
+  });
+
+  // --- Scan de produits (code-barres -> Open Food Facts) ---
+  // Journalise un scan (pour les stats coach "produits les plus scannés").
+  app.post('/nutrition/api/scan', requireAuth, requireNutritionAccess, (req, res) => {
+    try {
+      const { clientName, barcode, productName, brand, nutriscore, coherence } = req.body || {};
+      const coh = ['compatible', 'moderation', 'a_eviter'].includes(coherence) ? coherence : '';
+      getDb().prepare(
+        'INSERT INTO nutrition_scans (client_name, created_at, barcode, product_name, brand, nutriscore, coherence) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(
+        String(clientName || req.session.name || 'Client').slice(0, 120), new Date().toISOString(),
+        String(barcode || '').slice(0, 40), String(productName || '').slice(0, 200),
+        String(brand || '').slice(0, 120), String(nutriscore || '').slice(0, 2), coh
+      );
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('Erreur scan POST :', e);
+      res.status(500).json({ ok: false, error: 'Enregistrement impossible.' });
+    }
+  });
+
+  // Demande d'avis du coach sur un produit scanné.
+  app.post('/nutrition/api/scan-advice', requireAuth, requireNutritionAccess, (req, res) => {
+    try {
+      const { clientName, barcode, productName, message } = req.body || {};
+      const info = getDb().prepare(
+        'INSERT INTO nutrition_scan_advice (client_name, created_at, barcode, product_name, message, statut) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(
+        String(clientName || req.session.name || 'Client').slice(0, 120), new Date().toISOString(),
+        String(barcode || '').slice(0, 40), String(productName || '').slice(0, 200),
+        String(message || '').slice(0, 2000), 'a_traiter'
+      );
+      res.json({ ok: true, id: info.lastInsertRowid });
+    } catch (e) {
+      console.error('Erreur scan-advice POST :', e);
+      res.status(500).json({ ok: false, error: 'Enregistrement impossible.' });
+    }
+  });
+
+  // Vue coach : demandes d'avis + produits les plus scannés + scans récents.
+  app.get('/nutrition/api/scans', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const db = getDb();
+      const advice = db.prepare('SELECT * FROM nutrition_scan_advice ORDER BY id DESC').all().map(r => ({
+        id: r.id, clientName: r.client_name, createdAt: r.created_at,
+        barcode: r.barcode, productName: r.product_name, message: r.message, statut: r.statut,
+      }));
+      const topProducts = db.prepare(`
+        SELECT barcode, product_name AS productName, COUNT(*) AS count,
+               MAX(coherence) AS coherence
+        FROM nutrition_scans WHERE barcode != ''
+        GROUP BY barcode ORDER BY count DESC, MAX(id) DESC LIMIT 20
+      `).all();
+      const recent = db.prepare('SELECT * FROM nutrition_scans ORDER BY id DESC LIMIT 40').all().map(r => ({
+        id: r.id, clientName: r.client_name, createdAt: r.created_at, barcode: r.barcode,
+        productName: r.product_name, brand: r.brand, nutriscore: r.nutriscore, coherence: r.coherence,
+      }));
+      res.json({ ok: true, advice, topProducts, recent });
+    } catch (e) {
+      console.error('Erreur scans GET :', e);
+      res.status(500).json({ ok: false, error: 'Lecture impossible.' });
+    }
+  });
+
+  // Changement de statut d'une demande d'avis (admin/coach).
+  app.patch('/nutrition/api/scan-advice/:id', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const statut = String((req.body || {}).statut || '');
+      if (!['a_traiter', 'en_cours', 'traite'].includes(statut)) {
+        return res.status(400).json({ ok: false, error: 'Statut invalide.' });
+      }
+      const info = getDb().prepare('UPDATE nutrition_scan_advice SET statut = ? WHERE id = ?').run(statut, Number(req.params.id));
+      res.json({ ok: info.changes > 0 });
+    } catch (e) {
+      console.error('Erreur scan-advice PATCH :', e);
       res.status(500).json({ ok: false, error: 'Mise à jour impossible.' });
     }
   });

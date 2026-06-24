@@ -1258,6 +1258,21 @@ function init() {
   $('#helpAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'helpAdminPanel') closeHelpAdmin(); });
   setupHelpAccess();
 
+  // Scan de produit
+  $('#btnScan').addEventListener('click', openScan);
+  $('#btnScanFromShopping').addEventListener('click', () => { closeShopping(); openScan(); });
+  $('#btnScanFromSuivi').addEventListener('click', () => { closeSuivi(); openScan(); });
+  $('#scanClose').addEventListener('click', closeScan);
+  $('#scanModal').addEventListener('click', (e) => { if (e.target.id === 'scanModal') closeScan(); });
+  $('#scanManualToggle').addEventListener('click', () => $('#scanManual').classList.toggle('hidden'));
+  $('#scanManualGo').addEventListener('click', () => { const v = $('#scanManualInput').value.trim(); if (v) { stopCamera(); lookupBarcode(v); } });
+  $('#scanManualInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const v = e.target.value.trim(); if (v) { stopCamera(); lookupBarcode(v); } } });
+  $('#scanRetry').addEventListener('click', () => { scanShowStage('camera'); startCamera(); });
+  $('#btnScanAdmin').addEventListener('click', openScanAdmin);
+  $('#scanAdminClose').addEventListener('click', closeScanAdmin);
+  $('#scanAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'scanAdminPanel') closeScanAdmin(); });
+  setupScanAccess();
+
   // Complements : "Non" est exclusif ; le champ detail apparait des qu'un "Oui" est coche.
   const compSet = $('.chip-set[data-multifield="complements"]');
   if (compSet) compSet.addEventListener('click', (e) => {
@@ -1286,7 +1301,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); } });
 
   if (loadLocal()) {
     $('#portValue').textContent = state.portions;
@@ -1429,6 +1444,280 @@ async function setupHelpAccess() {
     const data = await res.json();
     if (data.ok) updateHelpBadge(data.demandes || []);
   } catch (_) { /* ignore */ }
+}
+
+// ---------- Scan de produit (code-barres -> Open Food Facts) ----------
+let scanReader = null;     // instance ZXing
+let scanActive = false;    // un scan camera est en cours
+let lastScanned = null;    // dernier produit affiche
+const SCAN_FAV_KEY = 'mycoach-scan-favoris-v1';
+
+function scanShowStage(stage) {
+  ['Camera', 'Loading', 'Error', 'Result'].forEach((s) =>
+    $('#scanStage' + s).classList.toggle('hidden', s.toLowerCase() !== stage));
+}
+function openScan() {
+  $('#scanModal').classList.remove('hidden');
+  $('#scanManual').classList.add('hidden');
+  $('#scanManualInput').value = '';
+  scanShowStage('camera');
+  startCamera();
+}
+function closeScan() {
+  if ($('#scanModal').classList.contains('hidden')) return;
+  stopCamera();
+  $('#scanModal').classList.add('hidden');
+}
+function stopCamera() {
+  scanActive = false;
+  try { if (scanReader) scanReader.reset(); } catch (_) { /* ignore */ }
+}
+
+async function startCamera() {
+  const hint = $('#scanHint');
+  if (typeof ZXing === 'undefined' || !ZXing.BrowserMultiFormatReader) {
+    hint.textContent = 'Lecteur indisponible — saisis le code manuellement.';
+    $('#scanManual').classList.remove('hidden'); return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    hint.textContent = "La camera n'est pas disponible ici — saisis le code manuellement.";
+    $('#scanManual').classList.remove('hidden'); return;
+  }
+  hint.textContent = 'Initialisation de la camera…';
+  scanActive = true;
+  try {
+    if (!scanReader) scanReader = new ZXing.BrowserMultiFormatReader();
+    await scanReader.decodeFromVideoDevice(null, $('#scanVideo'), (result) => {
+      if (result && scanActive) {
+        scanActive = false; stopCamera();
+        lookupBarcode(result.getText());
+      }
+    });
+    hint.textContent = 'Place le code-barres dans le cadre.';
+  } catch (e) {
+    scanActive = false;
+    const name = (e && e.name) || '';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+      showScanError("Autorise l'acces a la camera pour scanner ton produit.");
+    } else {
+      hint.textContent = 'Camera indisponible — saisis le code manuellement.';
+      $('#scanManual').classList.remove('hidden');
+    }
+  }
+}
+function showScanError(html) {
+  scanShowStage('error');
+  $('#scanErrorBox').innerHTML = html;
+}
+
+// Niveau de coherence avec l'objectif (Nutri-Score + ultra-transformation NOVA),
+// nuance selon l'objectif. Simple et bienveillant — pas un avis medical.
+function evaluerCoherence(p) {
+  const objectif = (state.profil && state.profil.objectif) || 'maintien';
+  const ns = p.nutriscore, nova = p.nova;
+  let score = 2; // par defaut : moderation (donnees incompletes)
+  if (ns === 'a' || ns === 'b') score = 1;
+  else if (ns === 'c') score = 2;
+  else if (ns === 'd' || ns === 'e') score = 3;
+  if (nova === 4) score = Math.max(score, 3);
+  else if (nova === 3) score = Math.max(score, 2);
+  if (objectif === 'perte') {
+    const sucres = Number(p.nutriments['sugars_100g'] || 0);
+    const gras = Number(p.nutriments['saturated-fat_100g'] || 0);
+    if ((sucres >= 22 || gras >= 8) && score < 3) score = score + 1;
+  }
+  const niveau = score <= 1 ? 'compatible' : score === 2 ? 'moderation' : 'a_eviter';
+  return Object.assign({ niveau }, messageCoherence(niveau, objectif));
+}
+function messageCoherence(niveau, objectif) {
+  const map = {
+    compatible: { titre: 'Compatible avec ton objectif',
+      reco: objectif === 'perte'
+        ? 'Bon choix si tu cherches une option simple et pratique — respecte juste les portions.'
+        : "Ce produit peut s'integrer dans ton plan, surtout si tu respectes les portions." },
+    moderation: { titre: 'A consommer avec moderation',
+      reco: 'Ce produit est possible occasionnellement, mais privilegie une alternative plus simple au quotidien.' },
+    a_eviter: { titre: 'A eviter regulierement',
+      reco: objectif === 'perte'
+        ? 'A limiter si ton objectif est la perte de poids. Il peut depanner, mais ne doit pas devenir une base quotidienne.'
+        : "Ce produit risque de compliquer ton objectif si tu le consommes souvent. Demande l'avis de ton coach en cas de doute." },
+  };
+  return map[niveau] || map.moderation;
+}
+
+const ALLERGEN_FR = {
+  milk: 'lait', gluten: 'gluten', eggs: 'oeufs', nuts: 'fruits a coque', peanuts: 'arachides',
+  soybeans: 'soja', fish: 'poisson', crustaceans: 'crustaces', molluscs: 'mollusques',
+  celery: 'celeri', mustard: 'moutarde', 'sesame-seeds': 'sesame', sesame: 'sesame', lupin: 'lupin',
+  'sulphur-dioxide-and-sulphites': 'sulfites',
+};
+function translateAllergen(tag) {
+  const key = String(tag).replace(/^[a-z]{2}:/, '');
+  return ALLERGEN_FR[key] || key.replace(/-/g, ' ');
+}
+
+async function lookupBarcode(code) {
+  const barcode = String(code || '').replace(/\D/g, '');
+  if (!barcode) { showScanError('Code-barres invalide. Reessaie.'); return; }
+  scanShowStage('loading');
+  try {
+    const fields = 'product_name,product_name_fr,brands,image_front_url,image_url,ingredients_text,ingredients_text_fr,allergens_tags,nutriments,nutriscore_grade,nova_group,quantity';
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=${fields}`);
+    const data = await res.json();
+    const found = data && data.product && data.status !== 0 &&
+      (data.product.product_name || data.product.product_name_fr || data.product.brands || data.product.nutriments);
+    if (!found) {
+      // Produit absent de la base : on n'enregistre pas (vue coach propre).
+      showScanError("Ce produit n'est pas encore reference. Tu peux l'ajouter manuellement ou demander l'avis de ton coach.");
+      return;
+    }
+    const pr = data.product;
+    const produit = {
+      barcode,
+      name: pr.product_name_fr || pr.product_name || 'Produit',
+      brand: (pr.brands || '').split(',')[0].trim(),
+      image: pr.image_front_url || pr.image_url || '',
+      ingredients: pr.ingredients_text_fr || pr.ingredients_text || '',
+      allergens: (pr.allergens_tags || []).map(translateAllergen),
+      nutriscore: (pr.nutriscore_grade || '').toLowerCase(),
+      nova: pr.nova_group || null,
+      quantity: pr.quantity || '',
+      nutriments: pr.nutriments || {},
+    };
+    produit.coherence = evaluerCoherence(produit);
+    lastScanned = produit;
+    renderScanResult(produit);
+    logScan({ barcode, productName: produit.name, brand: produit.brand, nutriscore: produit.nutriscore, coherence: produit.coherence.niveau });
+  } catch (e) {
+    showScanError("Produit non reconnu, tu peux l'ajouter manuellement.");
+  }
+}
+
+function renderScanResult(p) {
+  scanShowStage('result');
+  const allerg = (p.allergens || []).filter(Boolean).slice(0, 6);
+  const ns = p.nutriscore && 'abcde'.includes(p.nutriscore)
+    ? `<span class="nutriscore ns-${p.nutriscore}">Nutri-Score ${p.nutriscore.toUpperCase()}</span>` : '';
+  const isFav = scanFavoris().some((f) => f.barcode === p.barcode);
+  $('#scanResultBody').innerHTML = `
+    <div class="scan-product">
+      ${p.image
+        ? `<img class="scan-img" src="${escapeHtml(p.image)}" alt="" onerror="this.style.display='none'">`
+        : `<div class="scan-img scan-img-empty"><svg class="ic"><use href="#ic-barcode"/></svg></div>`}
+      <div class="scan-product-info">
+        <h3>${escapeHtml(p.name)}</h3>
+        ${p.brand ? `<p class="scan-brand">${escapeHtml(p.brand)}</p>` : ''}
+        ${p.quantity ? `<p class="scan-qty">${escapeHtml(p.quantity)}</p>` : ''}
+        ${ns}
+      </div>
+    </div>
+    <div class="coherence coherence-${p.coherence.niveau}">
+      <strong>${p.coherence.titre}</strong>
+      <p>${p.coherence.reco}</p>
+    </div>
+    ${allerg.length ? `<div class="scan-allerg"><span class="scan-allerg-label">Allergenes</span> ${allerg.map((a) => `<span class="help-tag">${escapeHtml(a)}</span>`).join('')}</div>` : ''}
+    <p class="help-disclaimer">Cette indication est une aide a la decision, pas un avis medical. En cas de doute, demande a ton coach ou a un professionnel de sante.</p>
+    <label class="field" style="margin:2px 0 10px"><span>Un mot pour ton coach (optionnel)</span>
+      <textarea id="scanCoachMsg" rows="2" placeholder="Ex : est-ce que je peux en prendre le matin ?"></textarea></label>
+    <div class="scan-actions">
+      <button type="button" class="btn btn-outline" id="scanFav"><svg class="ic"><use href="#ic-star"/></svg> ${isFav ? 'Dans tes favoris' : 'Ajouter a mes favoris'}</button>
+      <button type="button" class="btn btn-primary" id="scanAskCoach"><svg class="ic"><use href="#ic-heart-hand"/></svg> Demander l'avis de mon coach</button>
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" id="scanAnother" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-scan"/></svg> Scanner un autre produit</button>
+  `;
+  $('#scanFav').addEventListener('click', toggleScanFav);
+  $('#scanAskCoach').addEventListener('click', askCoachAboutProduct);
+  $('#scanAnother').addEventListener('click', () => { scanShowStage('camera'); $('#scanManual').classList.add('hidden'); startCamera(); });
+}
+
+function scanFavoris() { try { return JSON.parse(localStorage.getItem(SCAN_FAV_KEY) || '[]'); } catch (_) { return []; } }
+function toggleScanFav() {
+  if (!lastScanned) return;
+  const favs = scanFavoris();
+  const i = favs.findIndex((f) => f.barcode === lastScanned.barcode);
+  if (i >= 0) favs.splice(i, 1);
+  else favs.unshift({ barcode: lastScanned.barcode, name: lastScanned.name, brand: lastScanned.brand, image: lastScanned.image, coherence: lastScanned.coherence.niveau });
+  localStorage.setItem(SCAN_FAV_KEY, JSON.stringify(favs.slice(0, 100)));
+  renderScanResult(lastScanned);
+}
+
+async function logScan(payload) {
+  try {
+    await fetch(apiUrl('/api/scan'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(Object.assign({ clientName: helpClientName() }, payload)) });
+  } catch (_) { /* best-effort */ }
+}
+async function askCoachAboutProduct() {
+  if (!lastScanned) return;
+  const message = ($('#scanCoachMsg') && $('#scanCoachMsg').value.trim()) || '';
+  const btn = $('#scanAskCoach'); btn.disabled = true;
+  try {
+    const res = await fetch(apiUrl('/api/scan-advice'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ clientName: helpClientName(), barcode: lastScanned.barcode, productName: lastScanned.name, message }) });
+    const data = await res.json();
+    if (!data.ok) throw new Error();
+    btn.innerHTML = 'Demande envoyee a ton coach ✓';
+  } catch (e) { btn.disabled = false; alert("L'envoi n'a pas fonctionne. Reessaie."); }
+}
+
+// --- Vue coach : scans produits ---
+function cohBadge(c) {
+  const m = { compatible: 'Compatible', moderation: 'Moderation', a_eviter: 'A eviter' };
+  return m[c] ? `<span class="coh-badge coh-${c}">${m[c]}</span>` : '';
+}
+async function openScanAdmin() { $('#scanAdminPanel').classList.remove('hidden'); await renderScanAdmin(); }
+function closeScanAdmin() { $('#scanAdminPanel').classList.add('hidden'); }
+function updateScanBadge(advice) {
+  const n = (advice || []).filter((a) => a.statut === 'a_traiter').length;
+  const b = $('#scanAdminBadge'); if (!b) return;
+  b.textContent = n; b.classList.toggle('hidden', n === 0);
+}
+async function renderScanAdmin() {
+  const body = $('#scanAdminBody');
+  body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/scans'), { headers: nutriAuthHeaders() });
+    const data = await res.json();
+    if (!data.ok) throw new Error();
+    const advice = data.advice || [], top = data.topProducts || [], recent = data.recent || [];
+    updateScanBadge(advice);
+    const flagged = recent.filter((r) => r.coherence === 'a_eviter');
+    const adviceHtml = advice.length ? advice.map((a) => {
+      const date = new Date(a.createdAt);
+      const ds = isNaN(date.getTime()) ? '' : date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+      const opts = Object.entries(HELP_STATUS).map(([k, l]) => `<option value="${k}" ${a.statut === k ? 'selected' : ''}>${l}</option>`).join('');
+      return `<div class="help-req statut-${a.statut}">
+        <div class="help-req-head"><strong>${escapeHtml(a.clientName)}</strong><span class="help-status-badge statut-${a.statut}">${HELP_STATUS[a.statut]}</span></div>
+        <div class="help-req-date">${ds}${a.barcode ? ' · ' + escapeHtml(a.barcode) : ''}</div>
+        <div class="help-req-tags"><span class="help-tag">${escapeHtml(a.productName || 'Produit')}</span></div>
+        ${a.message ? `<p class="help-req-msg">${escapeHtml(a.message)}</p>` : ''}
+        <label class="help-status-set">Statut <select data-advice-id="${a.id}">${opts}</select></label>
+      </div>`;
+    }).join('') : '<p class="help-empty">Aucune demande d\'avis.</p>';
+    const topHtml = top.length ? top.map((t) =>
+      `<div class="scan-top-row"><span class="scan-top-count">${t.count}×</span><span class="scan-top-name">${escapeHtml(t.productName || t.barcode)}</span>${cohBadge(t.coherence)}</div>`).join('')
+      : '<p class="help-empty">Aucun scan pour le moment.</p>';
+    const flaggedHtml = flagged.length ? flagged.slice(0, 12).map((f) =>
+      `<div class="scan-top-row"><span class="scan-top-name">${escapeHtml(f.productName || f.barcode)}</span><span class="scan-top-client">${escapeHtml(f.clientName)}</span></div>`).join('')
+      : '<p class="help-empty">Rien a signaler.</p>';
+    body.innerHTML =
+      `<div class="scan-admin-sec"><h3>Demandes d'avis</h3>${adviceHtml}</div>`
+      + `<div class="scan-admin-sec"><h3>Produits les plus scannes</h3>${topHtml}</div>`
+      + `<div class="scan-admin-sec"><h3>Produits a surveiller</h3>${flaggedHtml}</div>`;
+    $$('#scanAdminBody select[data-advice-id]').forEach((sel) =>
+      sel.addEventListener('change', () => setScanAdviceStatus(sel.dataset.adviceId, sel.value)));
+  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible. Reessaie.</p>'; }
+}
+async function setScanAdviceStatus(id, statut) {
+  try {
+    await fetch(apiUrl('/api/scan-advice/' + id), { method: 'PATCH', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ statut }) });
+    await renderScanAdmin();
+  } catch (_) { /* ignore */ }
+}
+async function setupScanAccess() {
+  if (!isCoachOrAdmin()) return;
+  const card = $('#btnScanAdmin'); if (card) card.classList.remove('hidden');
+  try { const res = await fetch(apiUrl('/api/scans'), { headers: nutriAuthHeaders() }); const data = await res.json(); if (data.ok) updateScanBadge(data.advice || []); } catch (_) { /* ignore */ }
 }
 
 document.addEventListener('DOMContentLoaded', init);
