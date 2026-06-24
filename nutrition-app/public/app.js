@@ -1473,8 +1473,23 @@ function stopCamera() {
   try { if (scanReader) scanReader.reset(); } catch (_) { /* ignore */ }
 }
 
+// Lecteur ZXing cible sur les formats de codes-barres ALIMENTAIRES (EAN/UPC...)
+// + TRY_HARDER -> decodage bien plus fiable et rapide qu'en "tous formats".
+function makeScanReader() {
+  try {
+    const hints = new Map();
+    const F = ZXing.BarcodeFormat;
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    return new ZXing.BrowserMultiFormatReader(hints, 250);
+  } catch (_) {
+    return new ZXing.BrowserMultiFormatReader();
+  }
+}
+
 async function startCamera() {
   const hint = $('#scanHint');
+  const video = $('#scanVideo');
   if (typeof ZXing === 'undefined' || !ZXing.BrowserMultiFormatReader) {
     hint.textContent = 'Lecteur indisponible — saisis le code manuellement.';
     $('#scanManual').classList.remove('hidden'); return;
@@ -1483,17 +1498,25 @@ async function startCamera() {
     hint.textContent = "La camera n'est pas disponible ici — saisis le code manuellement.";
     $('#scanManual').classList.remove('hidden'); return;
   }
+  // Reglages indispensables pour mobile (iOS/Android).
+  video.setAttribute('playsinline', 'true');
+  video.setAttribute('autoplay', 'true');
+  video.muted = true;
   hint.textContent = 'Initialisation de la camera…';
   scanActive = true;
+  const onResult = (result) => {
+    if (result && scanActive) { scanActive = false; stopCamera(); lookupBarcode(result.getText()); }
+  };
   try {
-    if (!scanReader) scanReader = new ZXing.BrowserMultiFormatReader();
-    await scanReader.decodeFromVideoDevice(null, $('#scanVideo'), (result) => {
-      if (result && scanActive) {
-        scanActive = false; stopCamera();
-        lookupBarcode(result.getText());
-      }
-    });
-    hint.textContent = 'Place le code-barres dans le cadre.';
+    if (!scanReader) scanReader = makeScanReader();
+    // Camera ARRIERE en haute resolution -> indispensable pour lire un code sur telephone.
+    const constraints = { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } };
+    if (typeof scanReader.decodeFromConstraints === 'function') {
+      await scanReader.decodeFromConstraints(constraints, video, onResult);
+    } else {
+      await scanReader.decodeFromVideoDevice(null, video, onResult);
+    }
+    hint.textContent = 'Approche le code-barres, bien net dans le cadre.';
   } catch (e) {
     scanActive = false;
     const name = (e && e.name) || '';
