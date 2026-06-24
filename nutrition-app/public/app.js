@@ -1473,13 +1473,18 @@ function closeScan() {
   stopCamera();
   $('#scanModal').classList.add('hidden');
 }
+let nativeStream = null;   // MediaStream du scanner natif
+let nativeTimer = 0;       // boucle de detection native
+
 function stopCamera() {
   scanActive = false;
   try { if (scanReader) scanReader.reset(); } catch (_) { /* ignore */ }
+  if (nativeTimer) { clearTimeout(nativeTimer); nativeTimer = 0; }
+  if (nativeStream) { try { nativeStream.getTracks().forEach((t) => t.stop()); } catch (_) { /* ignore */ } nativeStream = null; }
+  const v = $('#scanVideo'); if (v) { try { v.srcObject = null; } catch (_) { /* ignore */ } }
 }
 
 // Lecteur ZXing cible sur les formats de codes-barres ALIMENTAIRES (EAN/UPC...)
-// + TRY_HARDER -> decodage bien plus fiable et rapide qu'en "tous formats".
 function makeScanReader() {
   try {
     const hints = new Map();
@@ -1492,46 +1497,82 @@ function makeScanReader() {
   }
 }
 
+const CAM_CONSTRAINTS = { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } };
+
+// Scanner natif (API BarcodeDetector) : tres fiable sur Android Chrome.
+async function startNativeScanner(video, hint) {
+  let formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
+  try {
+    const avail = await window.BarcodeDetector.getSupportedFormats();
+    const inter = formats.filter((f) => avail.includes(f));
+    formats = inter.length ? inter : avail;
+  } catch (_) { /* on garde la liste par defaut */ }
+  const detector = new window.BarcodeDetector({ formats });
+  const stream = await navigator.mediaDevices.getUserMedia(CAM_CONSTRAINTS);
+  nativeStream = stream;
+  video.srcObject = stream;
+  await video.play().catch(() => {});
+  hint.textContent = 'Approche le code-barres, bien net dans le cadre.';
+  const loop = async () => {
+    if (!scanActive) return;
+    try {
+      const codes = await detector.detect(video);
+      if (codes && codes.length && scanActive) {
+        scanActive = false; stopCamera(); lookupBarcode(codes[0].rawValue); return;
+      }
+    } catch (_) { /* image pas encore prete */ }
+    nativeTimer = setTimeout(loop, 150);
+  };
+  nativeTimer = setTimeout(loop, 300);
+}
+
 async function startCamera() {
   const hint = $('#scanHint');
   const video = $('#scanVideo');
-  if (typeof ZXing === 'undefined' || !ZXing.BrowserMultiFormatReader) {
-    hint.textContent = 'Lecteur indisponible — saisis le code manuellement.';
-    $('#scanManual').classList.remove('hidden'); return;
-  }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     hint.textContent = "La camera n'est pas disponible ici — saisis le code manuellement.";
     $('#scanManual').classList.remove('hidden'); return;
   }
-  // Reglages indispensables pour mobile (iOS/Android).
   video.setAttribute('playsinline', 'true');
   video.setAttribute('autoplay', 'true');
   video.muted = true;
   hint.textContent = 'Initialisation de la camera…';
   scanActive = true;
-  const onResult = (result) => {
-    if (result && scanActive) { scanActive = false; stopCamera(); lookupBarcode(result.getText()); }
-  };
-  try {
-    if (!scanReader) scanReader = makeScanReader();
-    // Camera ARRIERE en haute resolution -> indispensable pour lire un code sur telephone.
-    const constraints = { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } };
-    if (typeof scanReader.decodeFromConstraints === 'function') {
-      await scanReader.decodeFromConstraints(constraints, video, onResult);
-    } else {
-      await scanReader.decodeFromVideoDevice(null, video, onResult);
-    }
-    hint.textContent = 'Approche le code-barres, bien net dans le cadre.';
-  } catch (e) {
-    scanActive = false;
-    const name = (e && e.name) || '';
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      showScanError("Autorise l'acces a la camera pour scanner ton produit.");
-    } else {
-      hint.textContent = 'Camera indisponible — saisis le code manuellement.';
-      $('#scanManual').classList.remove('hidden');
+
+  // 1) API native BarcodeDetector (Android Chrome) — la plus fiable.
+  if ('BarcodeDetector' in window) {
+    try {
+      await startNativeScanner(video, hint);
+      return;
+    } catch (e) {
+      if (e && (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError')) {
+        scanActive = false; showScanError("Autorise l'acces a la camera pour scanner ton produit."); return;
+      }
+      stopCamera(); scanActive = true; // on tente ZXing en repli
     }
   }
+
+  // 2) Repli ZXing (iOS Safari, navigateurs sans BarcodeDetector).
+  if (typeof ZXing !== 'undefined' && ZXing.BrowserMultiFormatReader) {
+    const onResult = (result) => { if (result && scanActive) { scanActive = false; stopCamera(); lookupBarcode(result.getText()); } };
+    try {
+      if (!scanReader) scanReader = makeScanReader();
+      if (typeof scanReader.decodeFromConstraints === 'function') await scanReader.decodeFromConstraints(CAM_CONSTRAINTS, video, onResult);
+      else await scanReader.decodeFromVideoDevice(null, video, onResult);
+      hint.textContent = 'Approche le code-barres, bien net dans le cadre.';
+      return;
+    } catch (e) {
+      scanActive = false;
+      if (e && (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError')) {
+        showScanError("Autorise l'acces a la camera pour scanner ton produit."); return;
+      }
+    }
+  }
+
+  // 3) Rien ne fonctionne -> saisie manuelle.
+  scanActive = false;
+  hint.textContent = 'Camera indisponible — saisis le code manuellement.';
+  $('#scanManual').classList.remove('hidden');
 }
 function showScanError(html) {
   scanShowStage('error');
