@@ -90,6 +90,18 @@ function ensureNutritionHelpTable() {
       message TEXT NOT NULL DEFAULT '',
       statut TEXT NOT NULL DEFAULT 'a_traiter'
     );
+    CREATE TABLE IF NOT EXISTS nutrition_adherence (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_name TEXT NOT NULL DEFAULT '',
+      date TEXT NOT NULL,
+      suivi INTEGER NOT NULL DEFAULT 0,
+      adapte INTEGER NOT NULL DEFAULT 0,
+      autre INTEGER NOT NULL DEFAULT 0,
+      saute INTEGER NOT NULL DEFAULT 0,
+      score INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_nutrition_adherence_client_date ON nutrition_adherence(client_name, date);
   `);
 }
 
@@ -224,6 +236,73 @@ try {
     } catch (e) {
       console.error('Erreur scan-advice PATCH :', e);
       res.status(500).json({ ok: false, error: 'Mise à jour impossible.' });
+    }
+  });
+
+  // --- Suivi d'adherence au plan (resume quotidien par client) ---
+  // Enregistrement (upsert) du resume d'une journee.
+  app.post('/nutrition/api/adherence', requireAuth, requireNutritionAccess, (req, res) => {
+    try {
+      const { clientName, date, suivi, adapte, autre, saute, score } = req.body || {};
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : new Date().toISOString().slice(0, 10);
+      const nom = String(clientName || req.session.name || 'Client').slice(0, 120);
+      const n = (v) => Math.max(0, Math.min(50, parseInt(v, 10) || 0));
+      const sc = Math.max(0, Math.min(100, parseInt(score, 10) || 0));
+      getDb().prepare(`INSERT INTO nutrition_adherence (client_name, date, suivi, adapte, autre, saute, score, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(client_name, date) DO UPDATE SET
+          suivi = excluded.suivi, adapte = excluded.adapte, autre = excluded.autre,
+          saute = excluded.saute, score = excluded.score, updated_at = excluded.updated_at`)
+        .run(nom, d, n(suivi), n(adapte), n(autre), n(saute), sc, new Date().toISOString());
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('Erreur adherence POST :', e);
+      res.status(500).json({ ok: false, error: 'Enregistrement impossible.' });
+    }
+  });
+
+  // Vue coach : adherence des clients sur 7 jours + alertes (admin).
+  app.get('/nutrition/api/adherence/coach', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const db = getDb();
+      const today = new Date().toISOString().slice(0, 10);
+      const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+      const rows = db.prepare('SELECT * FROM nutrition_adherence WHERE date >= ? ORDER BY date DESC').all(since);
+      const helps = db.prepare("SELECT client_name, created_at, difficultes, statut FROM nutrition_help_requests WHERE created_at >= ?").all(since + 'T00:00:00.000Z');
+      const byClient = {};
+      rows.forEach((r) => {
+        const c = byClient[r.client_name] || (byClient[r.client_name] = { clientName: r.client_name, suivi: 0, adapte: 0, autre: 0, saute: 0, days: 0, scoreSum: 0, lastDate: '' });
+        c.suivi += r.suivi; c.adapte += r.adapte; c.autre += r.autre; c.saute += r.saute; c.days += 1; c.scoreSum += r.score;
+        if (r.date > c.lastDate) c.lastDate = r.date;
+      });
+      const helpByClient = {};
+      helps.forEach((h) => { (helpByClient[h.client_name] || (helpByClient[h.client_name] = [])).push(h); });
+      const parseDiff = (h) => { try { return JSON.parse(h.difficultes); } catch (_) { return []; } };
+      const build = (c) => {
+        const help = helpByClient[c.clientName] || [];
+        const aTraiter = help.some((h) => h.statut === 'a_traiter');
+        const score = c.days ? Math.round(c.scoreSum / c.days) : 0;
+        const daysSince = c.lastDate ? Math.round((Date.parse(today) - Date.parse(c.lastDate)) / 864e5) : 99;
+        const alerts = [];
+        if (aTraiter) alerts.push("Demande d'aide en attente");
+        if (c.days && score < 50) alerts.push('Adherence faible (< 50%)');
+        if ((c.autre + c.saute) >= 3) alerts.push('Plusieurs repas a reprendre');
+        if (c.days && daysSince >= 3) alerts.push('Aucun suivi depuis ' + daysSince + ' j');
+        if (!c.days && !aTraiter) alerts.push('Aucun suivi cette semaine');
+        const statut = aTraiter ? 'besoin_aide' : (alerts.length ? 'a_surveiller' : 'ok');
+        const lastHelp = help[0] ? { difficultes: parseDiff(help[0]), createdAt: help[0].created_at, statut: help[0].statut } : null;
+        return { clientName: c.clientName, suivi: c.suivi, adapte: c.adapte, autre: c.autre, saute: c.saute, days: c.days, score, lastDate: c.lastDate, alerts, statut, lastHelp };
+      };
+      const clients = Object.values(byClient).map(build);
+      Object.keys(helpByClient).forEach((name) => {
+        if (!byClient[name]) clients.push(build({ clientName: name, suivi: 0, adapte: 0, autre: 0, saute: 0, days: 0, scoreSum: 0, lastDate: '' }));
+      });
+      const rank = { besoin_aide: 0, a_surveiller: 1, ok: 2 };
+      clients.sort((a, b) => (rank[a.statut] - rank[b.statut]) || (a.score - b.score));
+      res.json({ ok: true, clients });
+    } catch (e) {
+      console.error('Erreur adherence coach GET :', e);
+      res.status(500).json({ ok: false, error: 'Lecture impossible.' });
     }
   });
 

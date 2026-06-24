@@ -81,6 +81,9 @@
       <symbol id="ic-barcode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"/><path d="M7.5 5v14"/><path d="M12 5v14"/><path d="M16.5 5v14"/><path d="M21 5v14"/></symbol>
       <symbol id="ic-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
       <symbol id="ic-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+      <symbol id="ic-calendar-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></symbol>
+      <symbol id="ic-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+      <symbol id="ic-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
     </defs>
   </svg>
   <header class="topbar">
@@ -350,7 +353,9 @@
       </button>
 
       <div class="actions-grid">
+        <button class="action-card action-card-accent" id="btnSuiviPlan"><span class="action-ic"><svg class="ic"><use href="#ic-calendar-check"/></svg></span>Suivi de mon plan</button>
         <button class="action-card action-card-accent" id="btnScan"><span class="action-ic"><svg class="ic"><use href="#ic-scan"/></svg></span>Scanner un produit</button>
+        <button class="action-card action-card-admin hidden" id="btnAdhAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-users"/></svg></span>Adherence clients<span id="adhAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card action-card-admin hidden" id="btnHelpAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-inbox"/></svg></span>Demandes d'aide<span id="helpAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card action-card-admin hidden" id="btnScanAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-barcode"/></svg></span>Scans clients<span id="scanAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card" id="btnShopping"><span class="action-ic"><svg class="ic"><use href="#ic-cart"/></svg></span>Liste de courses</button>
@@ -526,6 +531,30 @@
       </div>
       <p class="panel-sub">Ce que scannent tes clients : demandes d'avis, produits frequents, produits a surveiller.</p>
       <div id="scanAdminBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU SUIVI DE MON PLAN (client) ============ -->
+  <div id="suiviPlanPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-calendar-check"/></svg> Suivi de mon plan</h2>
+        <button class="modal-close" id="suiviPlanClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Ton plan reste la reference. Dis-nous simplement comment s'est passe chaque repas — l'objectif est la regularite, pas la perfection.</p>
+      <div id="suiviPlanBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU COACH : ADHERENCE CLIENTS ============ -->
+  <div id="adhAdminPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-users"/></svg> Adherence clients</h2>
+        <button class="modal-close" id="adhAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Repere les clients qui decrochent (7 derniers jours), sans analyser chaque repas.</p>
+      <div id="adhAdminBody"></div>
     </div>
   </div>
 

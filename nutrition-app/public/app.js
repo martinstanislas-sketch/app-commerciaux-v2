@@ -1277,6 +1277,18 @@ function init() {
   $('#scanAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'scanAdminPanel') closeScanAdmin(); });
   setupScanAccess();
 
+  // Suivi de mon plan (adherence)
+  $('#btnSuiviPlan').addEventListener('click', openSuiviPlan);
+  $('#suiviPlanClose').addEventListener('click', closeSuiviPlan);
+  $('#suiviPlanPanel').addEventListener('click', (e) => { if (e.target.id === 'suiviPlanPanel') closeSuiviPlan(); });
+  $('#suiviPlanBody').addEventListener('click', onSuiviPlanClick);
+  $('#suiviPlanBody').addEventListener('input', onSuiviPlanInput);
+  // Vue coach adherence
+  $('#btnAdhAdmin').addEventListener('click', openAdhAdmin);
+  $('#adhAdminClose').addEventListener('click', closeAdhAdmin);
+  $('#adhAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'adhAdminPanel') closeAdhAdmin(); });
+  setupAdhAccess();
+
   // Complements : "Non" est exclusif ; le champ detail apparait des qu'un "Oui" est coche.
   const compSet = $('.chip-set[data-multifield="complements"]');
   if (compSet) compSet.addEventListener('click', (e) => {
@@ -1305,7 +1317,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); } });
 
   if (loadLocal()) {
     $('#portValue').textContent = state.portions;
@@ -2009,6 +2021,205 @@ function applyScanReplace(p) {
   renderPlan();
   closeScan();
   openRecipe(recette, ctx.di, ctx.mi);
+}
+
+// ---------- Suivi de mon plan (adherence) ----------
+let suiviPlanDay = 0;
+const SUIVI_STATUSES = [
+  { k: 'suivi', label: "J'ai suivi mon plan", ic: 'check' },
+  { k: 'adapte', label: "J'ai adapte legerement", ic: 'edit' },
+  { k: 'autre', label: "J'ai mange autre chose", ic: 'swap' },
+  { k: 'saute', label: "J'ai saute ce repas", ic: 'x' },
+];
+const SUIVI_SCORE = { suivi: 100, adapte: 75, autre: 50, saute: 0 };
+const SUIVI_NIVEAU = { suivi: 'coherent', adapte: 'correct', autre: 'reprendre', saute: 'reprendre' };
+const NIVEAU_LABEL = { coherent: 'Coherent avec ton objectif', correct: 'Correct, a ajuster', reprendre: 'A reprendre au prochain repas' };
+const ADAPTE_CHIPS = ["J'ai change l'accompagnement", "Portion plus grande", "J'ai remplace un aliment", "Mange plus tard que prevu"];
+const SAUTE_CHIPS = ['Pas faim', 'Pas le temps', 'Oubli', 'Stress', 'Organisation compliquee', 'Autre'];
+const SUIVI_DETAIL = { adapte: { field: 'modif', label: "Qu'as-tu modifie ?", ph: "Ex : j'ai change l'accompagnement", chips: ADAPTE_CHIPS },
+  autre: { field: 'repas', label: "Qu'as-tu mange a la place ?", ph: 'Ex : sandwich, salade, repas au restaurant...', chips: null },
+  saute: { field: 'raison', label: 'Pourquoi as-tu saute ce repas ?', ph: 'Optionnel', chips: SAUTE_CHIPS } };
+function feedbackFor(statut) {
+  return ({
+    suivi: "Parfait, tu as suivi ton plan sur ce repas. Continue comme ca, la regularite est ce qui cree les resultats.",
+    adapte: "Ton adaptation reste coherente avec ton objectif. Garde simplement une source de proteines et une portion de legumes pour rester proche de ton plan.",
+    autre: "Ce repas peut arriver. L'important est de ne pas transformer un ecart en abandon — reprends simplement ton plan au prochain repas.",
+    saute: "Ce n'est pas grave ponctuellement. Si cela se repete, essaie de prevoir une option simple la prochaine fois. L'objectif est la regularite, pas la perfection.",
+  })[statut] || '';
+}
+function normStatut(s) { return s === 'respecte' ? 'suivi' : (s === 'non' ? 'saute' : s); }
+function suiviEntry(di, mi) {
+  const e = state.suivi[trackKey(di, mi)];
+  if (!e || !e.statut) return null;
+  const statut = normStatut(e.statut);
+  if (!SUIVI_SCORE.hasOwnProperty(statut)) return null;
+  return { statut, detail: e.detail || (e.autre ? { repas: e.autre.repas } : {}) };
+}
+function dayMeals(di) { return ((state.plan && state.plan.jours[di] && state.plan.jours[di].repas) || []).map((rp, mi) => ({ rp, mi })).filter((x) => !x.rp.exterieur); }
+function dayStats(di) {
+  const counts = { suivi: 0, adapte: 0, autre: 0, saute: 0 };
+  let reported = 0, sum = 0;
+  const meals = dayMeals(di);
+  meals.forEach(({ mi }) => { const e = suiviEntry(di, mi); if (!e) return; counts[e.statut]++; reported++; sum += SUIVI_SCORE[e.statut]; });
+  return { counts, reported, total: meals.length, score: reported ? Math.round(sum / reported) : null };
+}
+function dayStatusKey(st) {
+  if (!st.reported) return 'vide';
+  if (st.score >= 75) return 'valide';
+  if (st.score >= 50) return 'partiel';
+  return 'difficile';
+}
+const DAY_STATUS_LABEL = { valide: 'Validee', partiel: 'Partielle', difficile: 'Difficile', vide: 'Non renseigne' };
+function dailyPhrase(st) {
+  if (!st.reported) return 'Indique tes repas du jour pour voir ton suivi.';
+  if (st.score >= 75) return 'Bonne journee dans l\'ensemble — tu es reste proche de ton plan.';
+  if (st.score >= 50) return 'Journee correcte. Tu peux ameliorer un point demain.';
+  return 'Journee plus irreguliere, mais tu peux reprendre demain. L\'objectif est la regularite, pas la perfection.';
+}
+function mondayThisWeek() { const now = new Date(); const d = (now.getDay() + 6) % 7; const m = new Date(now); m.setDate(now.getDate() - d); return m; }
+function dateForDay(di) { const m = mondayThisWeek(); const d = new Date(m); d.setDate(m.getDate() + di); return d.toISOString().slice(0, 10); }
+const CRENEAU_LABEL = { 'petit-dejeuner': 'petit-dejeuner', dejeuner: 'dejeuner', collation: 'collation', diner: 'diner' };
+function axeAmelioration() {
+  const bad = {};
+  (state.plan ? state.plan.jours : []).forEach((j, di) => (j.repas || []).forEach((rp, mi) => {
+    if (rp.exterieur) return; const e = suiviEntry(di, mi); if (!e) return;
+    if (e.statut === 'autre' || e.statut === 'saute') { const c = rp.creneau || rp.label; bad[c] = (bad[c] || 0) + 1; }
+  }));
+  const worst = Object.entries(bad).sort((a, b) => b[1] - a[1])[0];
+  return worst ? (CRENEAU_LABEL[worst[0]] || worst[0]) : null;
+}
+
+function openSuiviPlan() {
+  if (!state.plan) { alert('Genere d\'abord ton plan de la semaine.'); return; }
+  const wd = (new Date().getDay() + 6) % 7;
+  suiviPlanDay = Math.min(wd, state.plan.jours.length - 1);
+  $('#suiviPlanPanel').classList.remove('hidden');
+  renderSuiviPlan();
+}
+function closeSuiviPlan() { $('#suiviPlanPanel').classList.add('hidden'); }
+
+function renderSuiviPlan() {
+  const di = suiviPlanDay;
+  const jours = state.plan.jours;
+  // Bande semaine (selecteur + statut)
+  const strip = jours.map((j, i) => {
+    const st = dayStats(i); const key = dayStatusKey(st);
+    const lbl = (j.jour || ('J' + (i + 1))).slice(0, 3);
+    return `<button class="week-day status-${key} ${i === di ? 'cur' : ''}" data-act="day" data-di="${i}"><span class="wd-label">${escapeHtml(lbl)}</span><span class="wd-dot"></span></button>`;
+  }).join('');
+
+  // Repas du jour selectionne
+  const meals = dayMeals(di).map(({ rp, mi }) => {
+    const e = suiviEntry(di, mi);
+    const recipeName = rp.recette ? rp.recette.nom : 'Repas libre';
+    const opts = SUIVI_STATUSES.map((s) =>
+      `<button class="suivi-opt opt-${s.k} ${e && e.statut === s.k ? 'on' : ''}" data-act="status" data-mi="${mi}" data-k="${s.k}">${icSvg(s.ic)} ${s.label}</button>`).join('');
+    let detailHtml = '';
+    if (e && SUIVI_DETAIL[e.statut]) {
+      const cfg = SUIVI_DETAIL[e.statut];
+      const val = (e.detail && e.detail[cfg.field]) || '';
+      const chips = cfg.chips ? `<div class="suivi-chips">${cfg.chips.map((c) =>
+        `<button class="suivi-chip ${val === c ? 'on' : ''}" data-act="chip" data-mi="${mi}" data-field="${cfg.field}" data-val="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('')}</div>` : '';
+      detailHtml = `<div class="suivi-detail"><label>${cfg.label}</label>${chips}
+        <input type="text" data-detail="${cfg.field}" data-mi="${mi}" value="${escapeHtml(val)}" placeholder="${escapeHtml(cfg.ph)}"></div>`;
+    }
+    const fb = e ? `<div class="suivi-feedback niveau-${SUIVI_NIVEAU[e.statut]}"><span class="suivi-niveau">${NIVEAU_LABEL[SUIVI_NIVEAU[e.statut]]}</span><p>${feedbackFor(e.statut)}</p></div>` : '';
+    return `<div class="suivi-meal">
+      <div class="suivi-meal-head"><span class="suivi-meal-label">${escapeHtml(rp.label || rp.creneau || 'Repas')}</span><span class="suivi-meal-recipe">${escapeHtml(recipeName)}</span></div>
+      <div class="suivi-opts">${opts}</div>${detailHtml}${fb}</div>`;
+  }).join('');
+
+  const st = dayStats(di);
+  const key = dayStatusKey(st);
+  const scoreCard = `<div class="suivi-day-score score-${key}">
+    <div class="sds-ring">${st.score != null ? st.score + '%' : '—'}</div>
+    <div class="sds-txt"><strong>${dailyPhrase(st)}</strong>
+      <span>${st.reported}/${st.total} repas renseignes${st.reported ? ' · ' + st.counts.suivi + ' suivi(s), ' + st.counts.adapte + ' adapte(s), ' + st.counts.autre + ' autre(s), ' + st.counts.saute + ' saute(s)' : ''}</span></div>
+  </div>`;
+
+  // Resume semaine
+  const wk = jours.map((j, i) => dayStatusKey(dayStats(i)));
+  const nb = (k) => wk.filter((x) => x === k).length;
+  const axe = axeAmelioration();
+  const weekTxt = `Cette semaine : ${nb('valide')} jour(s) bien suivi(s), ${nb('partiel')} partiel(s), ${nb('difficile')} difficile(s), ${nb('vide')} non renseigne(s).` + (axe ? ` Ton principal axe : la regularite au ${axe}.` : ' Continue, la regularite paie.');
+
+  $('#suiviPlanBody').innerHTML = `
+    <div class="week-strip">${strip}</div>
+    <h3 class="suivi-day-title">${escapeHtml(jours[di].jour || ('Jour ' + (di + 1)))}</h3>
+    ${meals || '<p class="help-empty">Aucun repas ce jour-la.</p>'}
+    ${scoreCard}
+    <button type="button" class="btn btn-primary btn-lg" data-act="save" style="width:100%"><svg class="ic"><use href="#ic-check-circle"/></svg> Enregistrer mon suivi</button>
+    <div class="suivi-week"><h3><svg class="ic"><use href="#ic-trend"/></svg> Ma semaine nutrition</h3><p class="week-summary">${escapeHtml(weekTxt)}</p></div>
+    <button type="button" class="btn btn-outline" data-act="help" style="width:100%;margin-top:6px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide sur mon alimentation cette semaine</button>`;
+}
+function setSuiviPlanStatus(di, mi, statut) {
+  const key = trackKey(di, mi);
+  const cur = state.suivi[key] || {};
+  if (normStatut(cur.statut) === statut) { delete state.suivi[key]; } // re-clic = annule
+  else { state.suivi[key] = { statut, detail: cur.detail || (cur.autre ? { repas: cur.autre.repas } : {}) }; }
+  saveLocal(); renderSuiviPlan(); renderPlan();
+}
+function setSuiviDetail(di, mi, field, value, rerender) {
+  const key = trackKey(di, mi);
+  const e = state.suivi[key]; if (!e) return;
+  e.detail = e.detail || {}; e.detail[field] = value;
+  saveLocal();
+  if (rerender) renderSuiviPlan();
+}
+async function saveSuiviDay(di, btn) {
+  const st = dayStats(di);
+  if (btn) { btn.disabled = true; }
+  try {
+    await fetch(apiUrl('/api/adherence'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ clientName: helpClientName(), date: dateForDay(di), suivi: st.counts.suivi, adapte: st.counts.adapte, autre: st.counts.autre, saute: st.counts.saute, score: st.score || 0 }) });
+    if (btn) { btn.innerHTML = 'Suivi enregistre ✓'; setTimeout(() => { btn.disabled = false; renderSuiviPlan(); }, 1400); }
+  } catch (e) { if (btn) { btn.disabled = false; } alert("L'enregistrement n'a pas fonctionne, mais ton suivi reste garde sur l'appareil."); }
+}
+function onSuiviPlanClick(e) {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'day') { suiviPlanDay = Number(b.dataset.di); renderSuiviPlan(); }
+  else if (act === 'status') setSuiviPlanStatus(suiviPlanDay, Number(b.dataset.mi), b.dataset.k);
+  else if (act === 'chip') setSuiviDetail(suiviPlanDay, Number(b.dataset.mi), b.dataset.field, b.dataset.val, true);
+  else if (act === 'save') saveSuiviDay(suiviPlanDay, b);
+  else if (act === 'help') { closeSuiviPlan(); openHelp(); }
+}
+function onSuiviPlanInput(e) {
+  const t = e.target.closest('[data-detail]'); if (!t) return;
+  setSuiviDetail(suiviPlanDay, Number(t.dataset.mi), t.dataset.detail, t.value, false);
+}
+
+// --- Vue coach : adherence des clients ---
+const ADH_STATUT = { ok: 'OK', a_surveiller: 'A surveiller', besoin_aide: 'Besoin d\'aide' };
+async function openAdhAdmin() { $('#adhAdminPanel').classList.remove('hidden'); await renderAdhAdmin(); }
+function closeAdhAdmin() { $('#adhAdminPanel').classList.add('hidden'); }
+function updateAdhBadge(clients) {
+  const n = (clients || []).filter((c) => c.statut !== 'ok').length;
+  const b = $('#adhAdminBadge'); if (!b) return; b.textContent = n; b.classList.toggle('hidden', n === 0);
+}
+async function renderAdhAdmin() {
+  const body = $('#adhAdminBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/adherence/coach'), { headers: nutriAuthHeaders() });
+    const data = await res.json(); if (!data.ok) throw new Error();
+    const clients = data.clients || []; updateAdhBadge(clients);
+    if (!clients.length) { body.innerHTML = '<p class="help-empty">Aucun suivi client pour le moment.</p>'; return; }
+    body.innerHTML = clients.map((c) => {
+      const alerts = (c.alerts || []).map((a) => `<span class="adh-alert">${escapeHtml(a)}</span>`).join('');
+      return `<div class="adh-client statut-${c.statut}">
+        <div class="adh-head"><strong>${escapeHtml(c.clientName)}</strong><span class="adh-statut statut-${c.statut}">${ADH_STATUT[c.statut] || c.statut}</span></div>
+        <div class="adh-row"><span class="adh-score">${c.days ? c.score + '%' : '—'}</span>
+          <span class="adh-counts">${c.suivi} suivi · ${c.adapte} adapte · ${c.autre} autre · ${c.saute} saute</span></div>
+        ${alerts ? `<div class="adh-alerts">${alerts}</div>` : ''}
+        ${c.lastHelp ? `<div class="adh-help">${icSvg('life-buoy')} Aide : ${escapeHtml((c.lastHelp.difficultes || []).slice(0, 3).join(', ') || 'demande recue')}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible. Reessaie.</p>'; }
+}
+async function setupAdhAccess() {
+  if (!isCoachOrAdmin()) return;
+  const card = $('#btnAdhAdmin'); if (card) card.classList.remove('hidden');
+  try { const res = await fetch(apiUrl('/api/adherence/coach'), { headers: nutriAuthHeaders() }); const data = await res.json(); if (data.ok) updateAdhBadge(data.clients || []); } catch (_) { /* ignore */ }
 }
 
 document.addEventListener('DOMContentLoaded', init);
