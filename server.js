@@ -102,7 +102,32 @@ function ensureNutritionHelpTable() {
       updated_at TEXT NOT NULL
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_nutrition_adherence_client_date ON nutrition_adherence(client_name, date);
+    CREATE TABLE IF NOT EXISTS nutrition_demo (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      code TEXT NOT NULL DEFAULT 'MYCOACH-DEMO-CLIENT-2026',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      expires_at TEXT DEFAULT NULL,
+      uses INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS nutrition_demo_access (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      accessed_at TEXT NOT NULL
+    );
   `);
+  // Seed config démo (une seule ligne).
+  getDb().prepare("INSERT OR IGNORE INTO nutrition_demo (id, code, enabled) VALUES (1, 'MYCOACH-DEMO-CLIENT-2026', 1)").run();
+}
+function getDemoConfig() {
+  return getDb().prepare('SELECT code, enabled, expires_at, uses FROM nutrition_demo WHERE id = 1').get()
+    || { code: 'MYCOACH-DEMO-CLIENT-2026', enabled: 1, expires_at: null, uses: 0 };
+}
+// Accès au module nutrition pour USAGE client (admin OU session démo).
+// Les routes coach restent en requireAdmin (declarees avant le catch-all).
+function requireNutritionUse(req, res, next) {
+  const s = req.session;
+  const perms = (s && s.permissions) || [];
+  if (s && (s.role === 'admin' || s.role === 'nutrition_demo' || (Array.isArray(perms) && perms.includes('can_access_nutrition_module')))) return next();
+  return res.status(403).json({ error: 'Accès réservé au module nutrition' });
 }
 
 try {
@@ -306,8 +331,55 @@ try {
     }
   });
 
-  // Le reste de l'API nutrition : admin uniquement.
-  app.use('/nutrition/api', requireAuth, requireAdmin); // protège l'API du module
+  // --- Mode démonstration client ---
+  // Démarrage d'une session démo via le code unique (PUBLIC, sans auth).
+  app.post('/nutrition/demo/start', (req, res) => {
+    try {
+      const code = String((req.body || {}).code || '').trim();
+      const cfg = getDemoConfig();
+      if (!cfg.enabled) return res.json({ ok: false, reason: 'disabled' });
+      if (cfg.expires_at && Date.now() > Date.parse(cfg.expires_at + 'T23:59:59')) return res.json({ ok: false, reason: 'expired' });
+      if (!code || code.toLowerCase() !== String(cfg.code).toLowerCase()) return res.json({ ok: false, reason: 'invalid' });
+      const token = crypto.randomUUID();
+      const until = Date.now() + 4 * 3600 * 1000; // session démo de 4 h
+      sessions.set(token, { role: 'nutrition_demo', name: 'Démo', demo: true });
+      getDb().prepare('UPDATE nutrition_demo SET uses = uses + 1 WHERE id = 1').run();
+      getDb().prepare('INSERT INTO nutrition_demo_access (accessed_at) VALUES (?)').run(new Date().toISOString());
+      res.json({ ok: true, token, until });
+    } catch (e) {
+      console.error('Erreur demo/start :', e);
+      res.status(500).json({ ok: false, reason: 'error' });
+    }
+  });
+
+  // Gestion du code démo (administrateur principal).
+  app.get('/nutrition/api/demo-config', requireAuth, requireAdmin, (req, res) => {
+    const cfg = getDemoConfig();
+    const accesses = getDb().prepare('SELECT accessed_at FROM nutrition_demo_access ORDER BY id DESC LIMIT 10').all().map((r) => r.accessed_at);
+    res.json({ ok: true, code: cfg.code, enabled: !!cfg.enabled, expiresAt: cfg.expires_at, uses: cfg.uses, accesses });
+  });
+  app.post('/nutrition/api/demo-config', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const cur = getDemoConfig();
+      const code = b.code != null ? String(b.code).trim().slice(0, 60) : cur.code;
+      if (!code) return res.status(400).json({ ok: false, error: 'Code requis.' });
+      const enabled = b.enabled != null ? (b.enabled ? 1 : 0) : cur.enabled;
+      const expires = ('expiresAt' in b) ? (b.expiresAt ? String(b.expiresAt).slice(0, 10) : null) : cur.expires_at;
+      getDb().prepare('UPDATE nutrition_demo SET code = ?, enabled = ?, expires_at = ? WHERE id = 1').run(code, enabled, expires || null);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ ok: false, error: 'Mise à jour impossible.' }); }
+  });
+  app.post('/nutrition/api/demo-reset', requireAuth, requireAdmin, (req, res) => {
+    getDb().prepare('UPDATE nutrition_demo SET uses = 0 WHERE id = 1').run();
+    getDb().prepare('DELETE FROM nutrition_demo_access').run();
+    res.json({ ok: true });
+  });
+
+  // Génération / lecture du module : admin OU session démo (les routes coach
+  // ci-dessus restent en requireAdmin). Les écritures client (help/scan/adherence)
+  // sont en requireNutritionAccess et ne sont jamais appelées en mode démo.
+  app.use('/nutrition/api', requireAuth, requireNutritionUse);
   app.use('/nutrition', nutritionApp);                  // sert le module (pages + statique)
 } catch (e) {
   console.warn('Module Nutrition non chargé :', e.message);

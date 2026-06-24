@@ -11,17 +11,21 @@ const NUTRI_BASE = (function () {
   return p || '/';
 })();
 function apiUrl(path) { return NUTRI_BASE + String(path).replace(/^\//, ''); }
-// En contexte app principale, l'API /nutrition/api/* est protégée (admin) : on joint
-// le token Bearer stocké par l'app principale (même origine). En autonome : pas de token.
+// Mode démonstration client (session démo validée par code) : tout est isolé.
+function isDemo() { return !!window.__NUTRI_DEMO; }
+function demoToken() { return (window.__NUTRI_DEMO && window.__NUTRI_DEMO.token) || null; }
+// En contexte app principale, l'API /nutrition/api/* est protégée : on joint le token
+// Bearer. En mode démo, on utilise le jeton de session démo (jamais le token admin).
 function nutriAuthHeaders(base) {
   const h = Object.assign({}, base || {});
-  let t = null;
-  try { t = localStorage.getItem('authToken'); } catch (_) { /* ignore */ }
+  let t = demoToken();
+  if (!t) { try { t = localStorage.getItem('authToken'); } catch (_) { /* ignore */ } }
   if (t) h['Authorization'] = 'Bearer ' + t;
   return h;
 }
 
-const STORE_KEY = 'mycoach-nutrition-v1';
+// Stockage isolé en mode démo (les données démo ne touchent jamais les vraies).
+const STORE_KEY = isDemo() ? 'mycoach-nutrition-demo-v1' : 'mycoach-nutrition-v1';
 const TOTAL_STEPS = 5;
 
 const state = {
@@ -715,7 +719,12 @@ const PRINT_CSS = `
 function printDocument(title, innerHTML) {
   const w = window.open('', '_blank');
   if (!w) { alert('Autorisez les fenetres pop-up pour exporter en PDF.'); return; }
-  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${PRINT_CSS}</style></head><body>${innerHTML}</body></html>`);
+  const t = isDemo() ? 'DEMO — ' + title : title;
+  const demoBanner = isDemo()
+    ? '<div style="background:#0B3D91;color:#fff;text-align:center;font-weight:700;padding:8px;border-radius:8px;margin-bottom:16px;font-family:Arial,sans-serif;">MODE DEMONSTRATION — document fictif</div>'
+    : '';
+  const demoCss = isDemo() ? 'body::before{content:"DEMO";position:fixed;top:40%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:120px;color:rgba(11,61,145,.07);font-weight:800;z-index:-1;}' : '';
+  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>${escapeHtml(t)}</title><style>${PRINT_CSS}${demoCss}</style></head><body>${demoBanner}${innerHTML}</body></html>`);
   w.document.close();
   w.focus();
   setTimeout(() => { w.print(); }, 350);
@@ -1205,6 +1214,7 @@ async function refreshModeBadge() {
 // ---------- Init ----------
 function init() {
   if (window.__NUTRI_BLOCKED) return; // accès refusé (gate app principale)
+  setupDemoMode(); // bannière + actions si session démo
   initSelections();
   goToStep(1);
   refreshModeBadge();
@@ -1288,6 +1298,11 @@ function init() {
   $('#adhAdminClose').addEventListener('click', closeAdhAdmin);
   $('#adhAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'adhAdminPanel') closeAdhAdmin(); });
   setupAdhAccess();
+  // Gestion du mode démo (admin principal)
+  $('#btnDemoAdmin').addEventListener('click', openDemoAdmin);
+  $('#demoAdminClose').addEventListener('click', closeDemoAdmin);
+  $('#demoAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'demoAdminPanel') closeDemoAdmin(); });
+  setupDemoAdminAccess();
 
   // Complements : "Non" est exclusif ; le champ detail apparait des qu'un "Oui" est coche.
   const compSet = $('.chip-set[data-multifield="complements"]');
@@ -1317,7 +1332,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); } });
 
   if (loadLocal()) {
     $('#portValue').textContent = state.portions;
@@ -1325,6 +1340,8 @@ function init() {
     renderPlan();
     $('#saveState').innerHTML = icSvg('check') + ' Plan restaure';
     showScreen('result');
+  } else if (isDemo()) {
+    showScreen('demo-welcome'); // accueil démo avant le parcours client
   }
 }
 
@@ -1352,6 +1369,7 @@ function helpClientName() {
   return (u && u.name) || (state.profil && (state.profil.prenom || state.profil.nom)) || 'Client';
 }
 function isCoachOrAdmin() {
+  if (isDemo()) return false; // démo = expérience client pure, pas de vues coach
   const u = mainAppUser();
   if (!u) return false;
   const perms = u.permissions || [];
@@ -1378,6 +1396,9 @@ async function submitHelp() {
   const message = $('#helpMessage').value.trim();
   if (!selected.length && !message) { alert('Indique au moins une difficulte ou un petit message.'); return; }
   const btn = $('#helpSubmit'); btn.disabled = true;
+  if (isDemo()) { // démo : aucune vraie demande envoyée
+    $('#helpForm').classList.add('hidden'); $('#helpDone').classList.remove('hidden'); btn.disabled = false; return;
+  }
   try {
     const res = await fetch(apiUrl('/api/help-request'), {
       method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
@@ -1466,7 +1487,7 @@ async function setupHelpAccess() {
 let scanReader = null;     // instance ZXing
 let scanActive = false;    // un scan camera est en cours
 let lastScanned = null;    // dernier produit affiche
-const SCAN_FAV_KEY = 'mycoach-scan-favoris-v1';
+const SCAN_FAV_KEY = isDemo() ? 'mycoach-scan-favoris-demo-v1' : 'mycoach-scan-favoris-v1';
 
 function scanShowStage(stage) {
   ['Camera', 'Loading', 'Error', 'Result'].forEach((s) =>
@@ -1748,6 +1769,7 @@ function toggleScanFav() {
 }
 
 async function logScan(payload) {
+  if (isDemo()) return; // démo : pas de journalisation serveur
   try {
     await fetch(apiUrl('/api/scan'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(Object.assign({ clientName: helpClientName() }, payload)) });
@@ -1757,6 +1779,7 @@ async function askCoachAboutProduct() {
   if (!lastScanned) return;
   const message = ($('#scanCoachMsg') && $('#scanCoachMsg').value.trim()) || '';
   const btn = $('#scanAskCoach'); btn.disabled = true;
+  if (isDemo()) { btn.innerHTML = 'Demande envoyee (demo) ✓'; return; }
   try {
     const res = await fetch(apiUrl('/api/scan-advice'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ clientName: helpClientName(), barcode: lastScanned.barcode, productName: lastScanned.name, message }) });
@@ -2169,6 +2192,10 @@ function setSuiviDetail(di, mi, field, value, rerender) {
 async function saveSuiviDay(di, btn) {
   const st = dayStats(di);
   if (btn) { btn.disabled = true; }
+  if (isDemo()) { // démo : suivi garde en local, rien envoye au serveur
+    if (btn) { btn.innerHTML = 'Suivi enregistre ✓'; setTimeout(() => { btn.disabled = false; renderSuiviPlan(); }, 1400); }
+    return;
+  }
   try {
     await fetch(apiUrl('/api/adherence'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ clientName: helpClientName(), date: dateForDay(di), suivi: st.counts.suivi, adapte: st.counts.adapte, autre: st.counts.autre, saute: st.counts.saute, score: st.score || 0 }) });
@@ -2220,6 +2247,85 @@ async function setupAdhAccess() {
   if (!isCoachOrAdmin()) return;
   const card = $('#btnAdhAdmin'); if (card) card.classList.remove('hidden');
   try { const res = await fetch(apiUrl('/api/adherence/coach'), { headers: nutriAuthHeaders() }); const data = await res.json(); if (data.ok) updateAdhBadge(data.clients || []); } catch (_) { /* ignore */ }
+}
+
+// ---------- Mode démonstration client ----------
+function isMainAdmin() { const u = mainAppUser(); return !!u && u.role === 'admin'; }
+
+// Active la bannière + actions du mode démo (appelé au boot si isDemo()).
+function setupDemoMode() {
+  if (!isDemo()) return;
+  document.body.classList.add('is-demo');
+  const banner = $('#demoBanner'); if (banner) banner.classList.remove('hidden');
+  const restart = $('#demoRestart');
+  if (restart) restart.addEventListener('click', () => {
+    if (!confirm('Recommencer la demo depuis le debut ? Les donnees de demo seront effacees.')) return;
+    try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(SCAN_FAV_KEY); } catch (_) { /* ignore */ }
+    location.reload();
+  });
+  const quit = $('#demoQuit');
+  if (quit) quit.addEventListener('click', () => {
+    if (!confirm('Quitter le mode demo ?')) return;
+    try { localStorage.removeItem('mc-nutri-demo'); } catch (_) { /* ignore */ }
+    location.reload();
+  });
+  const ds = $('#demoStart');
+  if (ds) ds.addEventListener('click', () => showScreen('landing'));
+}
+
+// --- Gestion du code démo (administrateur principal) ---
+function openDemoAdmin() { $('#demoAdminPanel').classList.remove('hidden'); renderDemoAdmin(); }
+function closeDemoAdmin() { $('#demoAdminPanel').classList.add('hidden'); }
+async function renderDemoAdmin() {
+  const body = $('#demoAdminBody');
+  body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/demo-config'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    const accesses = (d.accesses || []).map((a) => {
+      const dt = new Date(a); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) + ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    }).filter(Boolean);
+    body.innerHTML = `
+      <div class="demo-admin-code">
+        <label>Code de demonstration</label>
+        <input type="text" id="demoCfgCode" value="${escapeHtml(d.code)}" autocomplete="off">
+        <button type="button" class="link-copy" id="demoCfgCopy">Copier</button>
+      </div>
+      <label class="demo-toggle"><input type="checkbox" id="demoCfgEnabled" ${d.enabled ? 'checked' : ''}> Mode demo active</label>
+      <label class="field"><span>Date d'expiration (optionnel)</span>
+        <input type="date" id="demoCfgExpires" value="${escapeHtml(d.expiresAt || '')}"></label>
+      <div class="demo-stats">
+        <div class="demo-stat"><strong>${d.uses}</strong><span>acces au total</span></div>
+        <div class="demo-stat"><strong>${accesses.length}</strong><span>recents</span></div>
+      </div>
+      ${accesses.length ? `<div class="demo-accesses"><label>Derniers acces</label>${accesses.map((a) => `<span class="demo-access">${a}</span>`).join('')}</div>` : ''}
+      <button type="button" class="btn btn-primary btn-lg" id="demoCfgSave" style="width:100%;margin-top:6px"><svg class="ic"><use href="#ic-check"/></svg> Enregistrer</button>
+      <button type="button" class="btn btn-outline" id="demoCfgReset" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-refresh"/></svg> Reinitialiser les statistiques demo</button>`;
+    $('#demoCfgCopy').addEventListener('click', () => { try { navigator.clipboard.writeText($('#demoCfgCode').value); $('#demoCfgCopy').textContent = 'Copie ✓'; } catch (_) {} });
+    $('#demoCfgSave').addEventListener('click', saveDemoConfig);
+    $('#demoCfgReset').addEventListener('click', resetDemoData);
+  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+async function saveDemoConfig() {
+  const code = $('#demoCfgCode').value.trim();
+  if (!code) { alert('Le code ne peut pas etre vide.'); return; }
+  const btn = $('#demoCfgSave'); btn.disabled = true;
+  try {
+    const res = await fetch(apiUrl('/api/demo-config'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ code, enabled: $('#demoCfgEnabled').checked, expiresAt: $('#demoCfgExpires').value || null }) });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    btn.innerHTML = 'Enregistre ✓'; setTimeout(() => { btn.disabled = false; btn.innerHTML = '<svg class="ic"><use href="#ic-check"/></svg> Enregistrer'; }, 1400);
+  } catch (e) { btn.disabled = false; alert("L'enregistrement n'a pas fonctionne."); }
+}
+async function resetDemoData() {
+  if (!confirm('Reinitialiser les statistiques du mode demo (compteur d\'acces) ?')) return;
+  try { await fetch(apiUrl('/api/demo-reset'), { method: 'POST', headers: nutriAuthHeaders() }); renderDemoAdmin(); } catch (_) { /* ignore */ }
+}
+function setupDemoAdminAccess() {
+  if (!isMainAdmin()) return;
+  const card = $('#btnDemoAdmin'); if (card) card.classList.remove('hidden');
 }
 
 document.addEventListener('DOMContentLoaded', init);

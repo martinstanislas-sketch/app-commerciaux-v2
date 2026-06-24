@@ -11,31 +11,58 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script>
-  // ---- Gate d'accès (module intégré à l'app principale My Coach) ----
-  // Actif uniquement quand le module est servi sous "/nutrition" (dans l'app
-  // principale). En autonome (servi à la racine), aucun blocage.
+  // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
+  // Actif uniquement quand le module est servi sous "/nutrition".
+  //  - Admin / permission  -> accès complet.
+  //  - Session démo valide -> mode démo client (window.__NUTRI_DEMO).
+  //  - Sinon -> écran de saisie du code démo (pour les coachs).
   (function () {
     if (location.pathname.indexOf('/nutrition') === -1) return; // mode autonome -> ouvert
-    var ok = false;
-    try {
-      var u = JSON.parse(localStorage.getItem('currentUser') || 'null');
-      var perms = (u && u.permissions) || [];
-      ok = !!u && (u.role === 'admin' || perms.indexOf('can_access_nutrition_module') !== -1);
-    } catch (e) { ok = false; }
-    if (ok) return;
-    window.__NUTRI_BLOCKED = true; // app.js s'abstient de démarrer
+    var u = null; try { u = JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch (e) {}
+    var perms = (u && u.permissions) || [];
+    if (!!u && (u.role === 'admin' || perms.indexOf('can_access_nutrition_module') !== -1)) return; // accès complet
+
+    var demo = null; try { demo = JSON.parse(localStorage.getItem('mc-nutri-demo') || 'null'); } catch (e) {}
+    if (demo && demo.token && demo.until && Date.now() < demo.until) { window.__NUTRI_DEMO = demo; return; } // démo OK
+
+    window.__NUTRI_BLOCKED = true;
+    var base = location.pathname.replace(/[^/]*$/, '');
     document.addEventListener('DOMContentLoaded', function () {
       document.body.innerHTML =
         '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;'
-        + 'font-family:Inter,system-ui,sans-serif;background:#F7F3EC;color:#1F2328;text-align:center;padding:24px;">'
-        + '<div style="max-width:380px;"><div style="width:64px;height:64px;margin:0 auto 16px;border-radius:50%;'
-        + 'background:#EAF2FF;display:flex;align-items:center;justify-content:center;">'
-        + '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0B3D91" stroke-width="2" '
-        + 'stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/>'
-        + '<path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>'
-        + '<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;">Accès non autorisé</h1>'
-        + '<p style="margin:0;color:#6B7280;font-size:15px;line-height:1.5;">Ce module est réservé à '
-        + "l'administrateur principal My Coach.</p></div></div>";
+        + 'font-family:Inter,system-ui,sans-serif;background:#F7F3EC;color:#1F2328;padding:24px;">'
+        + '<div style="max-width:400px;width:100%;text-align:center;">'
+        + '<div style="width:64px;height:64px;margin:0 auto 16px;border-radius:18px;background:#0B3D91;'
+        + 'display:flex;align-items:center;justify-content:center;box-shadow:0 10px 26px rgba(11,61,145,.22);">'
+        + '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        + '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></div>'
+        + '<h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#1F2328;">Espace My Coach Nutrition</h1>'
+        + '<p style="margin:0 0 20px;color:#6B7280;font-size:14.5px;line-height:1.5;">Coach ? Entrez votre code de démonstration pour tester l\'expérience client de bout en bout.</p>'
+        + '<input id="demoCode" type="text" autocomplete="off" placeholder="MYCOACH-DEMO-CLIENT-2026" '
+        + 'style="width:100%;padding:13px 16px;border:1.5px solid #D4E2F7;border-radius:14px;font-size:15px;'
+        + 'text-align:center;letter-spacing:.5px;color:#1F2328;background:#fff;font-family:inherit;box-sizing:border-box;" />'
+        + '<button id="demoGo" style="width:100%;margin-top:10px;padding:14px;border:none;border-radius:14px;cursor:pointer;'
+        + 'background:linear-gradient(135deg,#0B3D91,#072B63);color:#fff;font-size:15px;font-weight:700;font-family:inherit;">'
+        + 'Accéder à la démonstration</button>'
+        + '<p id="demoErr" style="margin:10px 0 0;color:#C0492F;font-size:13px;min-height:16px;"></p>'
+        + '<p style="margin:16px 0 0;color:#9AA0A6;font-size:12px;">Accès complet réservé à l\'administrateur principal.</p>'
+        + '</div></div>';
+      var input = document.getElementById('demoCode'), btn = document.getElementById('demoGo'), err = document.getElementById('demoErr');
+      function go() {
+        var code = (input.value || '').trim();
+        if (!code) { err.textContent = 'Entre ton code démo.'; return; }
+        btn.disabled = true; err.textContent = 'Verification…';
+        fetch(base + 'demo/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code }) })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d && d.ok) { localStorage.setItem('mc-nutri-demo', JSON.stringify({ token: d.token, until: d.until })); location.reload(); }
+            else { btn.disabled = false; err.textContent = (d && d.reason === 'disabled') ? 'Le mode démo est desactive pour le moment.' : ((d && d.reason === 'expired') ? 'Ce code a expire.' : 'Code invalide.'); }
+          })
+          .catch(function () { btn.disabled = false; err.textContent = 'Erreur, reessaie.'; });
+      }
+      btn.addEventListener('click', go);
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+      input.focus();
     });
   })();
   </script>
@@ -86,6 +113,16 @@
       <symbol id="ic-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
     </defs>
   </svg>
+
+  <!-- Bandeau permanent du mode démonstration client -->
+  <div id="demoBanner" class="demo-banner hidden">
+    <span class="demo-banner-txt"><svg class="ic"><use href="#ic-eye"/></svg> Mode démonstration client activé — données fictives</span>
+    <span class="demo-banner-actions">
+      <button id="demoRestart" class="demo-banner-btn" title="Recommencer le parcours démo">Recommencer</button>
+      <button id="demoQuit" class="demo-banner-btn" title="Quitter la démo">Quitter</button>
+    </span>
+  </div>
+
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark"><svg class="ic"><use href="#ic-leaf"/></svg></span>
@@ -101,6 +138,17 @@
   </header>
 
   <main id="app">
+
+    <!-- ============ ACCUEIL MODE DEMO CLIENT ============ -->
+    <section id="screen-demo-welcome" class="screen">
+      <div class="demo-welcome">
+        <div class="demo-welcome-ic"><svg class="ic"><use href="#ic-leaf"/></svg></div>
+        <h1>Bienvenue dans la demonstration My Coach Nutrition</h1>
+        <p>Ce mode vous permet de tester l'application comme si vous etiez un client. Les donnees utilisees ici sont fictives et n'impactent pas les vrais utilisateurs.</p>
+        <p class="demo-welcome-sub">Vous allez vivre le parcours complet, du questionnaire jusqu'a la generation du plan alimentaire et au suivi — exactement comme un client.</p>
+        <button class="btn btn-primary btn-lg" id="demoStart">Commencer la demonstration client <svg class="ic"><use href="#ic-arrow-right"/></svg></button>
+      </div>
+    </section>
 
     <!-- ============ LANDING ============ -->
     <section id="screen-landing" class="screen active">
@@ -356,6 +404,7 @@
         <button class="action-card action-card-accent" id="btnSuiviPlan"><span class="action-ic"><svg class="ic"><use href="#ic-calendar-check"/></svg></span>Suivi de mon plan</button>
         <button class="action-card action-card-accent" id="btnScan"><span class="action-ic"><svg class="ic"><use href="#ic-scan"/></svg></span>Scanner un produit</button>
         <button class="action-card action-card-admin hidden" id="btnAdhAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-users"/></svg></span>Adherence clients<span id="adhAdminBadge" class="action-badge hidden">0</span></button>
+        <button class="action-card action-card-admin hidden" id="btnDemoAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-eye"/></svg></span>Mode demo client</button>
         <button class="action-card action-card-admin hidden" id="btnHelpAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-inbox"/></svg></span>Demandes d'aide<span id="helpAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card action-card-admin hidden" id="btnScanAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-barcode"/></svg></span>Scans clients<span id="scanAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card" id="btnShopping"><span class="action-ic"><svg class="ic"><use href="#ic-cart"/></svg></span>Liste de courses</button>
@@ -555,6 +604,18 @@
       </div>
       <p class="panel-sub">Repere les clients qui decrochent (7 derniers jours), sans analyser chaque repas.</p>
       <div id="adhAdminBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU ADMIN : GESTION DU MODE DEMO ============ -->
+  <div id="demoAdminPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-eye"/></svg> Gestion du mode demo client</h2>
+        <button class="modal-close" id="demoAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Donne ce code a tes coachs pour qu'ils testent l'experience client. Les donnees de demo sont fictives et isolees des vrais clients.</p>
+      <div id="demoAdminBody"></div>
     </div>
   </div>
 
