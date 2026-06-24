@@ -322,6 +322,7 @@ function renderMealCard(repas, di, mi) {
       <img class="meal-img" src="images/recipes/${r.id}.jpg" alt="${escapeHtml(r.nom)}" loading="lazy" onerror="this.remove()" />
       <span class="meal-creneau">${escapeHtml(repas.label)}</span>
       ${isFav ? `<span class="meal-fav">${icSvg('heart')}</span>` : ''}
+      ${r.adapte ? `<span class="meal-adapte">${icSvg('swap')} Adapte</span>` : ''}
       ${icSvg(glyph)}
     </div>
     <div class="meal-body">
@@ -439,7 +440,9 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
     const q = fmtQty((Number(i.quantite) || 0) * state.portions);
     const swapBtn = inPlan && trouverAlternatives(i.nom).length
       ? `<button class="ing-swap" title="Remplacer cet ingredient" aria-label="Remplacer ${escapeHtml(i.nom)}" data-ing="${idx}">${icSvg('swap')}</button>` : '';
-    return `<li><span class="ing-left">${escapeHtml(i.nom)}${swapBtn}</span><span class="q">${q} ${i.unite}</span></li>`;
+    const scanBtn = inPlan
+      ? `<button class="ing-scan" title="Remplacer en scannant un produit" aria-label="Scanner pour remplacer ${escapeHtml(i.nom)}" data-ing="${idx}">${icSvg('scan')}</button>` : '';
+    return `<li><span class="ing-left">${escapeHtml(i.nom)}${swapBtn}${scanBtn}</span><span class="q">${q} ${i.unite}</span></li>`;
   }).join('');
 
   const portionsNote = state.portions > 1
@@ -454,7 +457,7 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
     </div>
     <h2 class="recipe-title">${escapeHtml(r.nom)}</h2>`;
   $('#modalBody').innerHTML += `
-    <div class="macro-chips">${(r.cuisines || []).map((c) => `<span class="macro-chip">${c}</span>`).join('')}<span class="macro-chip time">${icSvg('clock')} ${r.tempsMinutes} min</span></div>
+    <div class="macro-chips">${r.adapte ? `<span class="macro-chip adapte">${icSvg('swap')} Adapte avec tes produits</span>` : ''}${(r.cuisines || []).map((c) => `<span class="macro-chip">${c}</span>`).join('')}<span class="macro-chip time">${icSvg('clock')} ${r.tempsMinutes} min</span></div>
     ${actions}
     ${macros}
     ${portionsNote}
@@ -469,6 +472,7 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
   if (inPlan) {
     $('#recipeExclude').addEventListener('click', () => excludeRecipe(di, mi));
     $$('#modalBody .ing-swap').forEach((b) => b.addEventListener('click', () => swapIngredient(di, mi, Number(b.dataset.ing))));
+    $$('#modalBody .ing-scan').forEach((b) => b.addEventListener('click', () => openScanForReplace(di, mi, Number(b.dataset.ing))));
   }
   $('#recipeModal').scrollTop = 0;
   $('#recipeModal').classList.remove('hidden');
@@ -1258,10 +1262,10 @@ function init() {
   $('#helpAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'helpAdminPanel') closeHelpAdmin(); });
   setupHelpAccess();
 
-  // Scan de produit
-  $('#btnScan').addEventListener('click', openScan);
-  $('#btnScanFromShopping').addEventListener('click', () => { closeShopping(); openScan(); });
-  $('#btnScanFromSuivi').addEventListener('click', () => { closeSuivi(); openScan(); });
+  // Scan de produit (mode normal : on repart sans contexte de remplacement)
+  $('#btnScan').addEventListener('click', () => { scanReplaceCtx = null; openScan(); });
+  $('#btnScanFromShopping').addEventListener('click', () => { scanReplaceCtx = null; closeShopping(); openScan(); });
+  $('#btnScanFromSuivi').addEventListener('click', () => { scanReplaceCtx = null; closeSuivi(); openScan(); });
   $('#scanClose').addEventListener('click', closeScan);
   $('#scanModal').addEventListener('click', (e) => { if (e.target.id === 'scanModal') closeScan(); });
   $('#scanManualToggle').addEventListener('click', () => $('#scanManual').classList.toggle('hidden'));
@@ -1464,6 +1468,7 @@ function openScan() {
   startCamera();
 }
 function closeScan() {
+  scanReplaceCtx = null;
   if ($('#scanModal').classList.contains('hidden')) return;
   stopCamera();
   $('#scanModal').classList.add('hidden');
@@ -1609,8 +1614,9 @@ async function lookupBarcode(code) {
     };
     produit.coherence = evaluerCoherence(produit);
     lastScanned = produit;
-    renderScanResult(produit);
     logScan({ barcode, productName: produit.name, brand: produit.brand, nutriscore: produit.nutriscore, coherence: produit.coherence.niveau });
+    if (scanReplaceCtx) renderScanReplace(produit);
+    else renderScanResult(produit);
   } catch (e) {
     showScanError("Produit non reconnu, tu peux l'ajouter manuellement.");
   }
@@ -1741,6 +1747,203 @@ async function setupScanAccess() {
   if (!isCoachOrAdmin()) return;
   const card = $('#btnScanAdmin'); if (card) card.classList.remove('hidden');
   try { const res = await fetch(apiUrl('/api/scans'), { headers: nutriAuthHeaders() }); const data = await res.json(); if (data.ok) updateScanBadge(data.advice || []); } catch (_) { /* ignore */ }
+}
+
+// ---------- Remplacer un ingredient par un produit scanne ----------
+let scanReplaceCtx = null; // { di, mi, idx, oldIng }
+
+// Table nutritionnelle generique (pour 100 g / 100 ml) : sert a ESTIMER la
+// contribution de l'ANCIEN ingredient (la banque ne stocke que les totaux).
+const FOOD_NUTRITION = [
+  { k: ['pates', 'spaghetti', 'penne', 'macaroni', 'tagliatelle', 'coquillettes'], v: { kcal: 350, p: 12, g: 70, l: 2 } },
+  { k: ['riz'], v: { kcal: 350, p: 7, g: 78, l: 1 } },
+  { k: ['semoule', 'couscous'], v: { kcal: 350, p: 12, g: 73, l: 1 } },
+  { k: ['quinoa'], v: { kcal: 360, p: 14, g: 64, l: 6 } },
+  { k: ['boulgour'], v: { kcal: 345, p: 12, g: 76, l: 1 } },
+  { k: ['patate douce'], v: { kcal: 90, p: 1.5, g: 21, l: 0 } },
+  { k: ['pomme de terre', 'pommes de terre'], v: { kcal: 80, p: 2, g: 18, l: 0 } },
+  { k: ['flocons', 'avoine', 'muesli', 'cereales'], v: { kcal: 370, p: 12, g: 62, l: 7 } },
+  { k: ['pain', 'baguette', 'tartine', 'biscotte'], v: { kcal: 260, p: 9, g: 50, l: 2 } },
+  { k: ['poulet'], v: { kcal: 150, p: 30, g: 0, l: 4 } },
+  { k: ['dinde'], v: { kcal: 120, p: 26, g: 0, l: 2 } },
+  { k: ['boeuf', 'steak'], v: { kcal: 160, p: 26, g: 0, l: 6 } },
+  { k: ['jambon'], v: { kcal: 120, p: 20, g: 1, l: 4 } },
+  { k: ['saumon'], v: { kcal: 200, p: 22, g: 0, l: 13 } },
+  { k: ['thon'], v: { kcal: 110, p: 26, g: 0, l: 1 } },
+  { k: ['cabillaud', 'colin', 'poisson blanc'], v: { kcal: 80, p: 18, g: 0, l: 1 } },
+  { k: ['crevette'], v: { kcal: 85, p: 18, g: 0, l: 1 } },
+  { k: ['oeuf'], v: { kcal: 145, p: 13, g: 1, l: 10 } },
+  { k: ['tofu'], v: { kcal: 120, p: 12, g: 3, l: 7 } },
+  { k: ['pois chiche'], v: { kcal: 150, p: 8, g: 23, l: 3 } },
+  { k: ['lentille'], v: { kcal: 115, p: 8, g: 20, l: 0.5 } },
+  { k: ['haricot rouge', 'haricots rouges'], v: { kcal: 110, p: 8, g: 20, l: 0.5 } },
+  { k: ['feta'], v: { kcal: 260, p: 14, g: 1, l: 21 } },
+  { k: ['mozzarella'], v: { kcal: 250, p: 18, g: 1, l: 19 } },
+  { k: ['fromage', 'gruyere', 'emmental', 'comte'], v: { kcal: 370, p: 25, g: 1, l: 30 } },
+  { k: ['yaourt', 'skyr', 'fromage blanc'], v: { kcal: 60, p: 6, g: 5, l: 1.5 } },
+  { k: ['lait de coco'], v: { kcal: 180, p: 2, g: 3, l: 18 } },
+  { k: ['lait'], v: { kcal: 47, p: 3.4, g: 5, l: 1.6 } },
+  { k: ['beurre'], v: { kcal: 740, p: 1, g: 1, l: 81 } },
+  { k: ['huile'], v: { kcal: 880, p: 0, g: 0, l: 100 } },
+  { k: ['pesto'], v: { kcal: 450, p: 5, g: 6, l: 45 } },
+  { k: ['sauce tomate', 'coulis', 'passata'], v: { kcal: 40, p: 1.5, g: 7, l: 1 } },
+  { k: ['sauce soja'], v: { kcal: 60, p: 8, g: 6, l: 0 } },
+  { k: ['tahin', 'puree de sesame'], v: { kcal: 600, p: 17, g: 10, l: 54 } },
+  { k: ['mayonnaise'], v: { kcal: 680, p: 1, g: 2, l: 75 } },
+  { k: ['brocoli'], v: { kcal: 34, p: 2.8, g: 4, l: 0.4 } },
+  { k: ['courgette'], v: { kcal: 17, p: 1.2, g: 3, l: 0.3 } },
+  { k: ['poivron'], v: { kcal: 30, p: 1, g: 6, l: 0.3 } },
+  { k: ['epinard'], v: { kcal: 23, p: 2.9, g: 1, l: 0.4 } },
+  { k: ['haricot vert', 'haricots verts'], v: { kcal: 31, p: 1.8, g: 5, l: 0.2 } },
+  { k: ['tomate'], v: { kcal: 18, p: 0.9, g: 3, l: 0.2 } },
+  { k: ['carotte'], v: { kcal: 40, p: 0.9, g: 9, l: 0.2 } },
+  { k: ['champignon'], v: { kcal: 22, p: 3, g: 1, l: 0.3 } },
+  { k: ['salade', 'laitue', 'roquette', 'mache'], v: { kcal: 15, p: 1.4, g: 1.5, l: 0.2 } },
+  { k: ['concombre'], v: { kcal: 15, p: 0.7, g: 2, l: 0.1 } },
+  { k: ['banane'], v: { kcal: 90, p: 1.1, g: 21, l: 0.3 } },
+  { k: ['pomme', 'poire'], v: { kcal: 55, p: 0.3, g: 13, l: 0.2 } },
+  { k: ['fruits rouges', 'myrtille', 'framboise', 'fraise'], v: { kcal: 50, p: 1, g: 9, l: 0.4 } },
+  { k: ['orange', 'clementine'], v: { kcal: 47, p: 1, g: 9, l: 0.1 } },
+  { k: ['amande', 'noix', 'noisette', 'cajou'], v: { kcal: 600, p: 20, g: 12, l: 52 } },
+  { k: ['miel', 'sirop'], v: { kcal: 300, p: 0, g: 80, l: 0 } },
+  { k: ['chocolat'], v: { kcal: 540, p: 6, g: 50, l: 33 } },
+  { k: ['sucre', 'confiture'], v: { kcal: 300, p: 0, g: 75, l: 0 } },
+];
+function lookupFood(nom) {
+  const n = normTxt(nom);
+  for (const e of FOOD_NUTRITION) if (e.k.some((k) => n.includes(k))) return e.v;
+  return null;
+}
+function ingredientGrams(ing) {
+  const q = Number(ing.quantite) || 0;
+  const u = normTxt(ing.unite || '');
+  if (u === 'g' || u === 'ml' || u === '') return q;
+  if (u.includes('soupe')) return q * 15;
+  if (u.includes('cafe')) return q * 5;
+  if (u.includes('piece') || u.includes('unite')) {
+    const n = normTxt(ing.nom);
+    if (n.includes('oeuf')) return q * 55;
+    if (n.includes('tranche')) return q * 30;
+    if (n.includes('banane')) return q * 120;
+    if (n.includes('pomme') || n.includes('poire') || n.includes('orange')) return q * 130;
+    return q * 100;
+  }
+  return q;
+}
+function macrosForGrams(per100, grams) {
+  const f = grams / 100;
+  return { kcal: (per100.kcal || 0) * f, p: (per100.p || 0) * f, g: (per100.g || 0) * f, l: (per100.l || 0) * f };
+}
+// Estimation des macros d'un ingredient de la banque (best effort).
+function estimateIngredientMacros(ing) {
+  const food = lookupFood(ing.nom);
+  const grams = ingredientGrams(ing);
+  if (food) return Object.assign(macrosForGrams(food, grams), { estimated: false });
+  return { kcal: grams * 1.3, p: grams * 0.06, g: grams * 0.15, l: grams * 0.04, estimated: true };
+}
+// Macros d'un produit OFF pour une quantite (g/ml), depuis les valeurs /100 g.
+function productMacrosForIngredient(product, grams) {
+  const nu = product.nutriments || {};
+  const kcal100 = Number(nu['energy-kcal_100g'] != null ? nu['energy-kcal_100g'] : (nu['energy-kcal'] || 0));
+  const per100 = { kcal: kcal100, p: Number(nu['proteins_100g'] || 0), g: Number(nu['carbohydrates_100g'] || 0), l: Number(nu['fat_100g'] || 0) };
+  const known = kcal100 > 0 || per100.p || per100.g || per100.l;
+  return Object.assign(macrosForGrams(per100, grams), { known });
+}
+
+function openScanForReplace(di, mi, idx) {
+  if (!state.plan || !state.plan.jours[di] || !state.plan.jours[di].repas[mi]) return;
+  const recette = state.plan.jours[di].repas[mi].recette;
+  const oldIng = recette && recette.ingredients && recette.ingredients[idx];
+  if (!oldIng) return;
+  scanReplaceCtx = { di, mi, idx, oldIng: Object.assign({}, oldIng) };
+  closeRecipe();
+  openScan();
+}
+
+function computeReplace(p) {
+  const ctx = scanReplaceCtx;
+  const recette = state.plan.jours[ctx.di].repas[ctx.mi].recette;
+  const qtyInput = $('#replaceQty');
+  const newQty = Number(qtyInput ? qtyInput.value : ctx.oldIng.quantite) || 0;
+  const oldEst = estimateIngredientMacros(ctx.oldIng);
+  const grams = ingredientGrams({ quantite: newQty, unite: ctx.oldIng.unite, nom: p.name });
+  const newM = productMacrosForIngredient(p, grams);
+  return {
+    newQty, grams, newM, oldEst,
+    estimated: oldEst.estimated || !newM.known,
+    kcal: Math.max(0, Math.round(recette.kcal - oldEst.kcal + newM.kcal)),
+    p: Math.max(0, Math.round(recette.proteines - oldEst.p + newM.p)),
+    g: Math.max(0, Math.round(recette.glucides - oldEst.g + newM.g)),
+    l: Math.max(0, Math.round(recette.lipides - oldEst.l + newM.l)),
+  };
+}
+function macroDelta(label, oldV, newV, unit) {
+  const diff = newV - oldV;
+  const cls = diff > 0 ? 'up' : (diff < 0 ? 'down' : 'flat');
+  const txt = diff === 0 ? '=' : (diff > 0 ? '+' : '') + diff + unit;
+  return `<div class="rm"><span class="rm-l">${label}</span><span class="rm-v">${newV}${unit}</span><span class="rm-d ${cls}">${txt}</span></div>`;
+}
+function renderReplacePreview(p) {
+  const r = computeReplace(p);
+  const recette = state.plan.jours[scanReplaceCtx.di].repas[scanReplaceCtx.mi].recette;
+  $('#replacePreview').innerHTML = `
+    <div class="replace-macros">
+      ${macroDelta('kcal', recette.kcal, r.kcal, '')}
+      ${macroDelta('P', recette.proteines, r.p, 'g')}
+      ${macroDelta('G', recette.glucides, r.g, 'g')}
+      ${macroDelta('L', recette.lipides, r.l, 'g')}
+    </div>
+    <p class="replace-note">${r.estimated ? '≈ ' : ''}Nouveau total du repas${r.estimated ? ' (estimation)' : ''}</p>`;
+}
+function renderScanReplace(p) {
+  scanShowStage('result');
+  const oldIng = scanReplaceCtx.oldIng;
+  const defQty = Number(oldIng.quantite) || 0;
+  const unit = oldIng.unite || 'g';
+  $('#scanResultBody').innerHTML = `
+    <div class="scan-product">
+      ${p.image ? `<img class="scan-img" src="${escapeHtml(p.image)}" alt="" onerror="this.style.display='none'">`
+        : `<div class="scan-img scan-img-empty"><svg class="ic"><use href="#ic-barcode"/></svg></div>`}
+      <div class="scan-product-info"><h3>${escapeHtml(p.name)}</h3>${p.brand ? `<p class="scan-brand">${escapeHtml(p.brand)}</p>` : ''}</div>
+    </div>
+    <div class="replace-box">
+      <p class="replace-line">Remplacer <strong>${escapeHtml(oldIng.nom)}</strong> par <strong>${escapeHtml(p.name)}</strong> dans ce repas.</p>
+      <label class="replace-qty">Quantite utilisee
+        <span><input type="number" id="replaceQty" min="0" step="1" value="${defQty}"> ${escapeHtml(unit)}</span>
+      </label>
+      <div id="replacePreview" class="replace-preview"></div>
+    </div>
+    <p class="help-disclaimer">Valeurs du nouveau produit issues d'Open Food Facts ; le recalcul des macros est une estimation.</p>
+    <div class="scan-actions">
+      <button type="button" class="btn btn-ghost" id="replaceCancel">Annuler</button>
+      <button type="button" class="btn btn-primary" id="replaceConfirm"><svg class="ic"><use href="#ic-swap"/></svg> Remplacer</button>
+    </div>`;
+  $('#replaceQty').addEventListener('input', () => renderReplacePreview(p));
+  renderReplacePreview(p);
+  $('#replaceConfirm').addEventListener('click', () => applyScanReplace(p));
+  $('#replaceCancel').addEventListener('click', () => {
+    const c = scanReplaceCtx; closeScan();
+    if (c) openRecipe(state.plan.jours[c.di].repas[c.mi].recette, c.di, c.mi);
+  });
+}
+function applyScanReplace(p) {
+  const ctx = scanReplaceCtx;
+  if (!ctx) return;
+  const recette = state.plan.jours[ctx.di].repas[ctx.mi].recette;
+  const ing = recette.ingredients[ctx.idx];
+  if (!ing) { closeScan(); return; }
+  const r = computeReplace(p);
+  const ancien = ing.nom;
+  ing.nom = p.name + (p.brand ? ` (${p.brand})` : '');
+  ing.quantite = r.newQty;
+  recette.kcal = r.kcal; recette.proteines = r.p; recette.glucides = r.g; recette.lipides = r.l;
+  recette.adapte = true;
+  recette.adaptations = (recette.adaptations || []).concat([{ ancien, nouveau: ing.nom }]);
+  if (!state.ia) recette.etapes = (recette.etapes || []).map((s) => remplacerMot(s, ancien, p.name));
+  saveLocal();
+  renderPlan();
+  closeScan();
+  openRecipe(recette, ctx.di, ctx.mi);
 }
 
 document.addEventListener('DOMContentLoaded', init);
