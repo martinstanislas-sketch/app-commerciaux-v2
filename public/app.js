@@ -30,6 +30,23 @@ function loadNutritionFrame() {
   if (frame && !frame.getAttribute('src')) frame.src = '/nutrition/';
 }
 
+// Si le code saisi à la connexion est le code de démo nutrition, démarre la
+// session démo et redirige vers le module (parcours client, données fictives).
+async function tryNutritionDemo(code) {
+  const c = (code || '').trim();
+  if (!c) return false;
+  try {
+    const r = await fetch('/nutrition/demo/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: c }) });
+    const d = await r.json();
+    if (d && d.ok && d.token) {
+      try { localStorage.setItem('mc-nutri-demo', JSON.stringify({ token: d.token, until: d.until })); } catch (_) { /* ignore */ }
+      window.location.href = '/nutrition/';
+      return true;
+    }
+  } catch (_) { /* réseau indisponible -> on retombe sur le message d'erreur normal */ }
+  return false;
+}
+
 // Accès consultant : lecture seule de l'onglet Pilotage + envoi de commentaires
 function isConsultant() {
   return currentUser && currentUser.role === 'consultant';
@@ -630,6 +647,9 @@ function initAuthUI() {
       const data = await res.json();
 
       if (!res.ok) {
+        // Le code saisi est peut-être le code de démonstration My Coach Nutrition :
+        // on tente de démarrer une session démo et, si valide, on redirige.
+        if (await tryNutritionDemo(pinInput.value)) return;
         errorDiv.textContent = data.error || 'Code incorrect';
         errorDiv.classList.remove('hidden');
         const card = document.querySelector('.login-card');
