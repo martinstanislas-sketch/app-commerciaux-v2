@@ -842,6 +842,7 @@ async function bootApp() {
   // Show/hide tabs based on role
   updateTabVisibility();
   applyNutritionAccess(); // onglet Nutrition : admin uniquement (après updateTabVisibility)
+  renderBottomNav();      // rafraîchit la barre mobile pour inclure l'onglet Nutrition révélé
   applyVentesRoleVisibility();
 
   // Show header widgets for commercials
