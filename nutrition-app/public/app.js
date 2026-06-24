@@ -234,11 +234,18 @@ async function fetchPlan(seed) {
   return data;
 }
 
+// Tous les ids de recettes deja presents dans le plan (pour eviter les doublons
+// quand on regenere un seul repas).
+function planRecipeIds() {
+  const ids = [];
+  (state.plan && state.plan.jours || []).forEach((j) => (j.repas || []).forEach((rp) => { if (rp.recette && rp.recette.id) ids.push(rp.recette.id); }));
+  return ids;
+}
 async function fetchMeal(creneau, kcalCible, exclureId) {
   const res = await fetch(apiUrl('/api/meal'), {
     method: 'POST',
     headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ profil: state.profil, preferences: prefsForServer(), creneau, kcalCible, exclureId }),
+    body: JSON.stringify({ profil: state.profil, preferences: prefsForServer(), creneau, kcalCible, exclureId, exclus: planRecipeIds() }),
   });
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || 'Erreur');

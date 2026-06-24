@@ -192,24 +192,64 @@ function scoreRecette(r, ctx) {
   return score;
 }
 
-// Choix pondere parmi les meilleurs candidats (variete sans pur hasard fige).
-// On evite de reprendre la meme recette que la veille pour le meme creneau.
-function choisirRecette(candidats, ctx, dejaUtilisees, exclureId) {
-  let pool = candidats.filter((r) => r.id !== exclureId);
+// ---- Variete : detection proteine / feculent / style pour eviter les
+// doublons (exacts ET deguises) et alterner les sources sur la semaine. ----
+const PROTEINES_KEYS = ['poulet', 'dinde', 'boeuf', 'steak', 'veau', 'saumon', 'thon', 'cabillaud', 'colin', 'truite', 'sardine', 'crevette', 'gambas', 'oeuf', 'tofu', 'pois chiche', 'lentille', 'haricot rouge', 'feta', 'mozzarella', 'jambon', 'skyr', 'fromage blanc'];
+const FECULENTS_KEYS = ['riz', 'pates', 'spaghetti', 'penne', 'quinoa', 'semoule', 'couscous', 'boulgour', 'patate douce', 'pomme de terre', 'baguette', 'tortilla', 'wrap', 'pita', 'avoine', 'flocons', 'muesli', 'pain'];
+const STYLE_KEYS = [
+  ['bowl', /bowl/], ['salade', /salade|salad/], ['wrap', /wrap|tortilla|burrito|tacos|pita|fajita/],
+  ['gratin', /gratin/], ['wok', /\bwok\b|saute a l asiat/], ['omelette', /omelette|frittata/],
+  ['soupe', /soupe|veloute|potage/], ['four', /au four|roti|enfourn/], ['pates', /pates|spaghetti|penne|lasagne|tagliatelle/],
+];
+function champRecette(r) {
+  return norm(r.nom + ' ' + (r.motsCles || []).join(' ') + ' ' + (r.ingredients || []).map((i) => i.nom).join(' '));
+}
+function proteinesOf(r) { const c = champRecette(r); return PROTEINES_KEYS.filter((p) => c.includes(p)); }
+function feculentsOf(r) { const c = champRecette(r); return FECULENTS_KEYS.filter((p) => c.includes(p)); }
+function styleOf(r) { const c = champRecette(r); for (const [name, re] of STYLE_KEYS) if (re.test(c)) return name; return 'assiette'; }
+// Signature(s) "proteine|feculent" : deux plats partageant une meme combinaison
+// sont consideres comme trop proches (doublon deguise). Vide si pas de feculent.
+function signaturesOf(r) {
+  const prots = proteinesOf(r); const fecs = feculentsOf(r);
+  const sigs = [];
+  (prots.length ? prots : []).forEach((p) => fecs.forEach((f) => sigs.push(p + '|' + f)));
+  return sigs;
+}
+
+// Choix pondere parmi les meilleurs candidats, avec EXCLUSION DURE des plats deja
+// utilises dans la semaine (et de leurs equivalents) + penalites de variete.
+function choisirRecette(candidats, ctx, st, exclureId, type) {
+  const usedCount = (id) => (st.usedIds.get(id) || 0);
+  // 1. Filtre DUR pour la variete de la semaine.
+  let pool = candidats.filter((r) => {
+    if (r.id === exclureId) return false;
+    if (type === 'plat') {
+      if (usedCount(r.id) > 0) return false;                                  // jamais 2x le meme plat
+      if (signaturesOf(r).some((s) => st.usedSig.has(s))) return false;       // pas de doublon deguise
+    } else if (type === 'petit-dejeuner') {
+      if (usedCount(r.id) >= 2) return false;                                 // max 2x le meme petit-dej
+    } else if (usedCount(r.id) >= 3) return false;                            // collation : tolerance un peu plus large
+    return true;
+  });
+  // 2. Replis progressifs si trop restrictif (petit catalogue / contraintes serrees).
+  if (!pool.length && type === 'plat') pool = candidats.filter((r) => r.id !== exclureId && usedCount(r.id) === 0);
+  if (!pool.length) pool = candidats.filter((r) => r.id !== exclureId);
   if (!pool.length) pool = candidats.slice();
   if (!pool.length) return null;
 
-  // Penalise legerement les recettes deja vues recemment.
-  const note = pool
-    .map((r) => ({
-      r,
-      s: scoreRecette(r, ctx) - (dejaUtilisees.get(r.id) || 0) * 12,
-    }))
-    .sort((a, b) => b.s - a.s);
+  // 3. Score + penalites de variete (proteines, feculents, style deja vus).
+  const note = pool.map((r) => {
+    let s = scoreRecette(r, ctx);
+    proteinesOf(r).forEach((p) => { s -= (st.protCount.get(p) || 0) * 9; });
+    feculentsOf(r).forEach((f) => { s -= (st.fecCount.get(f) || 0) * 6; });
+    s -= (st.styleCount.get(styleOf(r)) || 0) * 5;
+    s -= usedCount(r.id) * 14;
+    return { r, s };
+  }).sort((a, b) => b.s - a.s);
 
-  // Top 4 candidats, tirage pondere par le rang.
+  // 4. Top 4 candidats, tirage pondere par le rang.
   const top = note.slice(0, Math.min(4, note.length));
-  const poids = top.map((_, i) => top.length - i); // 4,3,2,1
+  const poids = top.map((_, i) => top.length - i);
   const total = poids.reduce((a, b) => a + b, 0);
   let seuil = (ctx.rand() % 1000) / 1000 * total;
   for (let i = 0; i < top.length; i++) {
@@ -217,6 +257,18 @@ function choisirRecette(candidats, ctx, dejaUtilisees, exclureId) {
     if (seuil <= 0) return top[i].r;
   }
   return top[0].r;
+}
+
+// Enregistre une recette choisie dans l'etat de variete de la semaine.
+function marquerVariete(st, r, type) {
+  st.usedIds.set(r.id, (st.usedIds.get(r.id) || 0) + 1);
+  if (type === 'plat') signaturesOf(r).forEach((s) => st.usedSig.add(s));
+  proteinesOf(r).forEach((p) => st.protCount.set(p, (st.protCount.get(p) || 0) + 1));
+  feculentsOf(r).forEach((f) => st.fecCount.set(f, (st.fecCount.get(f) || 0) + 1));
+  const sty = styleOf(r); st.styleCount.set(sty, (st.styleCount.get(sty) || 0) + 1);
+}
+function nouvelEtatVariete() {
+  return { usedIds: new Map(), usedSig: new Set(), protCount: new Map(), fecCount: new Map(), styleCount: new Map() };
 }
 
 // PRNG deterministe simple (pour des plans reproductibles selon une graine).
@@ -256,7 +308,7 @@ function genererPlanDemo(profil, prefs, seed) {
     collation: compatibles.filter((r) => r.type === 'collation'),
   };
 
-  const dejaUtilisees = new Map(); // id -> nombre d'utilisations (variete)
+  const st = nouvelEtatVariete(); // variete sur toute la semaine
   const jours = [];
 
   for (let d = 0; d < nbJours; d++) {
@@ -270,10 +322,10 @@ function genererPlanDemo(profil, prefs, seed) {
       if (cap) { const rapides = candidats.filter((r) => r.tempsMinutes <= cap); if (rapides.length >= 3) candidats = rapides; }
       const ctx = { kcalCible: creneau.kcal, prefs, rand, rassasiant: rassasiantCreneau.has(creneau.type) };
       const exclure = creneau.type === 'diner' ? recetteVeillePlat : null;
-      const recette = choisirRecette(candidats, ctx, dejaUtilisees, exclure);
+      const recette = choisirRecette(candidats, ctx, st, exclure, typePool);
       if (creneau.type === 'dejeuner' && recette) recetteVeillePlat = recette.id;
 
-      if (recette) dejaUtilisees.set(recette.id, (dejaUtilisees.get(recette.id) || 0) + 1);
+      if (recette) marquerVariete(st, recette, typePool);
 
       repasDuJour.push({
         creneau: creneau.type,
@@ -293,17 +345,24 @@ function genererPlanDemo(profil, prefs, seed) {
   };
 }
 
-// Regenere UN seul repas (creneau d'un jour donne), en excluant la recette actuelle.
-function regenererRepas(profil, prefs, creneauType, kcalCible, exclureId, seed) {
+// Regenere UN seul repas (creneau d'un jour donne), en excluant la recette
+// actuelle ET les autres recettes deja presentes dans la semaine (exclusIds),
+// pour ne pas reintroduire un doublon. Regenere uniquement ce repas.
+function regenererRepas(profil, prefs, creneauType, kcalCible, exclureId, seed, exclusIds) {
   const rand = makeRand(seed || 999);
   const compatibles = recettesCompatibles(RECIPES, prefs);
   const typePool = creneauType === 'dejeuner' || creneauType === 'diner' ? 'plat' : creneauType;
-  const candidats = compatibles.filter((r) => {
-    if (typePool === 'plat') return r.type === 'plat';
-    return r.type === typePool;
+  const candidats = compatibles.filter((r) => (typePool === 'plat' ? r.type === 'plat' : r.type === typePool));
+  // Etat de variete reconstruit a partir des repas deja dans la semaine.
+  const st = nouvelEtatVariete();
+  const dejaLa = [exclureId, ...(exclusIds || [])].filter(Boolean);
+  dejaLa.forEach((id) => {
+    const r = RECIPES.find((x) => x.id === id);
+    if (r) marquerVariete(st, r, r.type === 'plat' ? 'plat' : creneauType);
+    else st.usedIds.set(id, 1);
   });
   const ctx = { kcalCible: kcalCible || 500, prefs, rand };
-  const recette = choisirRecette(candidats, ctx, new Map(), exclureId);
+  const recette = choisirRecette(candidats, ctx, st, exclureId, typePool);
   return recette ? formaterRecette(recette) : null;
 }
 

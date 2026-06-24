@@ -105,8 +105,9 @@ app.post('/api/plan', async (req, res) => {
 
 // Regenere UN repas precis.
 app.post('/api/meal', async (req, res) => {
-  const { profil = {}, preferences = {}, creneau, kcalCible, exclureId } = req.body || {};
+  const { profil = {}, preferences = {}, creneau, kcalCible, exclureId, exclus = [] } = req.body || {};
   const seed = seedFromRequest(req.body);
+  const exclusIds = Array.isArray(exclus) ? exclus : [];
   try {
     let recette;
     if (iaPourPlan()) {
@@ -114,10 +115,10 @@ app.post('/api/meal', async (req, res) => {
         recette = await regenererRepasIA(profil, preferences, creneau, kcalCible, exclureId, seed);
       } catch (e) {
         console.warn('Regeneration IA echouee, repli demo :', e.message);
-        recette = regenererRepas(profil, preferences, creneau, kcalCible, exclureId, seed);
+        recette = regenererRepas(profil, preferences, creneau, kcalCible, exclureId, seed, exclusIds);
       }
     } else {
-      recette = regenererRepas(profil, preferences, creneau, kcalCible, exclureId, seed);
+      recette = regenererRepas(profil, preferences, creneau, kcalCible, exclureId, seed, exclusIds);
     }
     res.json({ ok: true, recette });
   } catch (e) {
