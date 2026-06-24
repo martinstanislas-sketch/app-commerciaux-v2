@@ -778,3 +778,13 @@ body.is-demo { padding-bottom: 54px; }
 .demo-accesses { margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
 .demo-accesses label { width: 100%; }
 .demo-access { font-size: 12px; background: var(--mc-blue-soft); color: var(--mc-blue-dark); border-radius: 999px; padding: 4px 10px; }
+
+/* ============ Fiche recette guidee (sections detaillees) ============ */
+.recipe-section-title .ic { width: 15px; height: 15px; vertical-align: -2px; margin-right: 3px; color: var(--mc-blue); }
+.mat-set { display: flex; flex-wrap: wrap; gap: 8px; }
+.mat-chip { background: var(--mc-blue-soft); border-color: var(--green-100); color: var(--mc-blue-dark); }
+.prep-list, .reperes-list, .ajust-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.prep-list li, .reperes-list li, .ajust-list li { font-size: 14px; line-height: 1.55; padding: 10px 14px; border-radius: 12px; border-left: 3px solid; }
+.prep-list li { background: var(--gray-50); border-left-color: var(--mc-blue-secondary); color: var(--ink-2); }
+.reperes-list li { background: var(--mc-blue-soft); border-left-color: var(--mc-blue); color: var(--ink-2); }
+.ajust-list li { background: rgba(184,146,74,.10); border-left-color: var(--warn); color: var(--ink-2); }

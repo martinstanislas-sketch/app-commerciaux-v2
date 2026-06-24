@@ -467,10 +467,11 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
     ${portionsNote}
     <div class="recipe-section-title">Ingredients</div>
     <ul class="ing-list">${ingredients}</ul>
-    <div id="recipePrep">
-      <div class="recipe-section-title">Preparation</div>
-      <ol class="steps-list">${(r.etapes || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ol>
-    </div>`;
+    <div id="recipePrep"></div>`;
+
+  // Fiche guidee complete (locale, immediate) : materiel, prep, etapes,
+  // reperes, ajustements, dressage. Claude l'enrichit ensuite si actif.
+  renderGuidedRecipe(r, buildLocalRecipeDetail(r));
 
   $('#recipeFav').addEventListener('click', () => { toggleFavori(r); openRecipe(state.plan && inPlan ? state.plan.jours[di].repas[mi].recette : r, di, mi); });
   if (inPlan) {
@@ -505,35 +506,28 @@ async function fetchRecipeDetail(r) {
 }
 
 async function enrichRecipe(r, di, mi, recompute) {
-  const prep = $('#recipePrep');
-  if (!prep) return;
-  if (!recipeDetailCache.has(detailKey(r))) {
-    prep.innerHTML = `<div class="recipe-section-title">Preparation guidee</div>
-      <div class="prep-loading">${icSvg('spark')} On prepare votre recette guidee, etape par etape…</div>`;
-  }
+  if (!$('#recipePrep')) return;
+  // La fiche guidee locale est deja affichee : on enrichit en silence si Claude repond.
   let detail = null;
   try { detail = await fetchRecipeDetail(r); } catch (e) { detail = null; }
   if (modalContext.recipe !== r) return; // l'utilisateur a change de recette entre-temps
-  if (!detail) { // repli : etapes statiques existantes
-    prep.innerHTML = `<div class="recipe-section-title">Preparation</div>
-      <ol class="steps-list">${(r.etapes || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ol>`;
-    return;
-  }
+  if (!detail) return; // on garde la fiche locale complete
   applyDetailToModal(detail, r, di, mi, recompute);
 }
 
 function applyDetailToModal(detail, r, di, mi, recompute) {
-  const prep = $('#recipePrep');
-  if (prep) {
-    const materiel = (detail.materiel || []).map((m) => `<span class="mat-chip">${escapeHtml(m)}</span>`).join('');
-    const etapes = (detail.etapes || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('');
-    const dressage = detail.dressage
-      ? `<div class="recipe-section-title">Dressage</div><p class="dressage">${escapeHtml(detail.dressage)}</p>` : '';
-    prep.innerHTML = `
-      ${materiel ? `<div class="recipe-section-title">Materiel</div><div class="mat-set">${materiel}</div>` : ''}
-      <div class="recipe-section-title">Preparation guidee</div>
-      <ol class="steps-list">${etapes}</ol>
-      ${dressage}`;
+  if ($('#recipePrep')) {
+    // On fusionne : Claude fournit materiel/etapes/dressage plus precis ; on garde
+    // la preparation des ingredients, les reperes visuels et les ajustements locaux.
+    const local = buildLocalRecipeDetail(r);
+    renderGuidedRecipe(r, {
+      materiel: (detail.materiel && detail.materiel.length) ? detail.materiel : local.materiel,
+      preparation: local.preparation,
+      etapes: (detail.etapes && detail.etapes.length) ? detail.etapes : local.etapes,
+      reperes: local.reperes,
+      ajustements: local.ajustements,
+      dressage: detail.dressage || local.dressage,
+    });
   }
   // Macros recalculees uniquement apres un remplacement d'ingredient.
   if (recompute && detail.kcal != null && di !== null && mi !== null) {
@@ -547,6 +541,96 @@ function applyDetailToModal(detail, r, di, mi, recompute) {
     renderPlan();
     saveLocal();
   }
+}
+
+// ---------- Fiche recette guidee (locale, sans IA) ----------
+function listeNoms(arr) {
+  const n = arr.map((i) => i.nom.toLowerCase());
+  if (n.length === 1) return n[0];
+  return n.slice(0, -1).join(', ') + ' et ' + n[n.length - 1];
+}
+// Construit une fiche complete et pedagogique a partir des ingredients + etapes.
+function buildLocalRecipeDetail(r) {
+  const ings = r.ingredients || [];
+  const txt = ((r.etapes || []).join(' ') + ' ' + ings.map((i) => i.nom).join(' ')).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const has = (re) => re.test(txt);
+  const norm = (s) => normTxt(s);
+
+  // Materiel (deduit des actions et des ingredients)
+  const mat = [];
+  const add = (m) => { if (!mat.includes(m)) mat.push(m); };
+  if (has(/poel|saisir|dorer|revenir|sauter|omelette|au plat/)) { add('Poele'); add('Spatule'); }
+  if (has(/casserole|bouillir|eau bouillante|\briz\b|pates|quinoa|semoule|boulgour|lentille|soupe|mijoter|cuire .* min/)) add('Casserole');
+  if (has(/four|rotir|enfourner|gratin/)) add('Four');
+  if (has(/mixer|mixeur|smoothie|veloute|mouline|blender/)) add('Mixeur');
+  if (has(/couper|eminc|\bdes\b|tranche|hach|decoup/)) { add('Couteau'); add('Planche a decouper'); }
+  if (has(/egoutter|rincer|passoire/) || has(/\briz\b|pates/)) add('Passoire');
+  if (has(/salade|bowl|saladier|crudite|melanger/)) add('Saladier');
+  if (has(/fouet|battre|monter en neige/)) add('Fouet');
+  if (has(/rap|zeste/)) add('Rape');
+  if (!mat.length) add('Bol');
+  add('Bol');
+
+  // Preparation des ingredients
+  const prep = [];
+  const sortir = ings.map((i) => `${fmtQty((Number(i.quantite) || 0) * state.portions)} ${i.unite} de ${i.nom.toLowerCase()}`);
+  if (sortir.length) prep.push('Sortir et peser : ' + sortir.join(', ') + '.');
+  const noms = (arr) => arr.map((i) => i.nom.toLowerCase()).join(', ');
+  const legumes = ings.filter((i) => /fruits & legumes|legume/.test(norm(i.rayon || '')) || /brocoli|courgette|poivron|epinard|haricot|tomate|carotte|champignon|salade|concombre|oignon|\bail\b|aubergine|chou/.test(norm(i.nom)));
+  if (legumes.length) prep.push('Laver les legumes : ' + noms(legumes) + '.');
+  const aCouper = ings.filter((i) => /poulet|dinde|boeuf|steak|saumon|cabillaud|filet|escalope|tofu|courgette|poivron|carotte|oignon|tomate|champignon|patate|pomme de terre|aubergine/.test(norm(i.nom)));
+  if (aCouper.length) prep.push('Couper en morceaux reguliers : ' + noms(aCouper.slice(0, 3)) + '.');
+  const aRincer = ings.filter((i) => /\briz\b|quinoa|boulgour|pois chiche|lentille|haricot rouge|mais|\bthon\b/.test(norm(i.nom)));
+  if (aRincer.length) prep.push('Rincer et egoutter : ' + noms(aRincer) + '.');
+  if (mat.includes('Four')) prep.push('Prechauffer le four a 200 C.');
+
+  // Reperes visuels
+  const reperes = [];
+  if (has(/poulet|dinde/)) reperes.push('La volaille ne doit plus etre rosee a coeur.');
+  if (has(/saumon|cabillaud|poisson|crevette/)) reperes.push("Le poisson doit s'effeuiller facilement a la fourchette.");
+  if (has(/boeuf|steak/)) reperes.push('Vise une belle coloration exterieure en saisissant a feu vif.');
+  if (has(/\briz\b/)) reperes.push('Le riz doit etre tendre mais pas collant.');
+  if (has(/pates/)) reperes.push('Les pates doivent rester al dente (encore un peu fermes).');
+  if (legumes.length) reperes.push('Les legumes doivent rester legerement croquants, bien colores.');
+  if (has(/sauce|coulis|creme|pesto|coco|tomate/)) reperes.push('La sauce doit napper la cuillere sans etre liquide.');
+  if (has(/oeuf/)) reperes.push('Le blanc doit etre pris, le jaune encore coulant selon ton gout.');
+  if (!reperes.length) reperes.push("Goute en fin de cuisson et ajuste l'assaisonnement.");
+
+  // Ajustements
+  const ajust = ['Si le plat manque de gout, ajoute des herbes, des epices ou un filet de citron.'];
+  if (has(/sauce|creme|coco|pesto|coulis|tomate/)) ajust.push('Sauce trop liquide ? Prolonge la cuisson 1 a 2 minutes. Trop epaisse ? Detends avec un peu d\'eau ou de lait.');
+  if (has(/poel|saisir|sauter/) || legumes.length) ajust.push("Si ca accroche dans la poele, ajoute un fond d'eau ou un filet d'huile.");
+  if (has(/\briz\b|pates|quinoa|semoule/)) ajust.push('Feculent encore ferme ? Prolonge de 2 a 3 minutes avec un peu d\'eau chaude.');
+
+  // Dressage
+  const feculent = ings.find((i) => /\briz\b|pates|quinoa|semoule|boulgour|patate|pomme de terre|pain/.test(norm(i.nom)));
+  const proteine = ings.find((i) => /poulet|dinde|boeuf|saumon|thon|cabillaud|crevette|oeuf|tofu|pois chiche|lentille|feta|jambon/.test(norm(i.nom)));
+  const legume = legumes[0];
+  let dressage;
+  if (feculent && proteine) {
+    dressage = `Dispose ${feculent.nom.toLowerCase()} au fond de l'assiette, ajoute ${proteine.nom.toLowerCase()} par-dessus${legume ? `, puis ${legume.nom.toLowerCase()} sur le cote` : ''}. Sers chaud, et ajoute un filet de citron ou des herbes fraiches au dernier moment.`;
+  } else if (r.type === 'petit-dejeuner') {
+    dressage = 'Dresse dans un bol ou une assiette et ajoute les toppings au dernier moment pour garder le croquant. Sers aussitot.';
+  } else if (r.type === 'collation') {
+    dressage = 'Sers frais, dans un petit bol ou a emporter.';
+  } else {
+    dressage = "Dresse harmonieusement dans l'assiette et sers aussitot, tant que c'est chaud.";
+  }
+
+  return { materiel: mat, preparation: prep, etapes: r.etapes || [], reperes, ajustements: ajust, dressage };
+}
+function renderGuidedRecipe(r, d) {
+  const prep = $('#recipePrep'); if (!prep) return;
+  const sec = (title, ic, inner) => `<div class="recipe-section-title">${ic ? icSvg(ic) + ' ' : ''}${title}</div>${inner}`;
+  const liste = (arr, cls) => `<ul class="${cls}">${arr.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul>`;
+  let html = '';
+  if (d.materiel && d.materiel.length) html += sec('Materiel necessaire', 'check-circle', `<div class="mat-set">${d.materiel.map((m) => `<span class="mat-chip">${escapeHtml(m)}</span>`).join('')}</div>`);
+  if (d.preparation && d.preparation.length) html += sec('Preparation des ingredients', 'edit', liste(d.preparation, 'prep-list'));
+  html += sec('Preparation, etape par etape', 'clock', `<ol class="steps-list">${(d.etapes || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ol>`);
+  if (d.reperes && d.reperes.length) html += sec('Reperes visuels', 'eye', liste(d.reperes, 'reperes-list'));
+  if (d.ajustements && d.ajustements.length) html += sec('Ajustements', 'sliders', liste(d.ajustements, 'ajust-list'));
+  if (d.dressage) html += sec('Dressage', 'spark', `<p class="dressage">${escapeHtml(d.dressage)}</p>`);
+  prep.innerHTML = html;
 }
 
 // ---------- Favoris ----------

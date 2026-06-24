@@ -58,17 +58,24 @@ const FR_EN = {
   miso: 'miso', edamame: 'edamame', coco: 'coconut',
 };
 
-// Construit une requete EN appetissante a partir des mots-cles de la recette.
+// Contexte par type de repas -> homogeneise le style des photos.
+const TYPE_CTX = { 'petit-dejeuner': 'breakfast', collation: 'snack bowl', plat: 'bowl plate' };
+
+// Construit une requete EN specifique ET stylistiquement homogene a partir des
+// mots-cles de la recette (et, a defaut, de son nom).
 function buildQuery(r) {
   const seen = new Set();
   const terms = [];
-  for (const m of r.motsCles || []) {
-    const en = FR_EN[m.toLowerCase()];
-    if (en && !seen.has(en)) { seen.add(en); terms.push(en); }
-    if (terms.length >= 3) break;
+  const push = (en) => { if (en && !seen.has(en)) { seen.add(en); terms.push(en); } };
+  for (const m of r.motsCles || []) { push(FR_EN[m.toLowerCase()]); if (terms.length >= 3) break; }
+  if (!terms.length) { // repli : extraire des aliments depuis le nom de la recette
+    const nom = (r.nom || '').toLowerCase();
+    for (const [fr, en] of Object.entries(FR_EN)) { if (nom.includes(fr)) { push(en); if (terms.length >= 2) break; } }
   }
-  if (!terms.length) terms.push('healthy meal');
-  return terms.join(' ') + ' food';
+  if (!terms.length) terms.push('healthy');
+  const ctx = TYPE_CTX[r.type] || 'meal';
+  // suffixe constant -> style coherent et appetissant d'une recette a l'autre
+  return `${terms.join(' ')} ${ctx} healthy fresh food`;
 }
 
 function getJSON(url, headers) {
@@ -103,7 +110,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const list = RECIPES.slice(0, LIMIT);
-  console.log(`\n  Provider : ${PROVIDER} | ${list.length} recette(s)\n`);
+  const present = RECIPES.filter((r) => fs.existsSync(path.join(OUT_DIR, r.id + '.jpg'))).length;
+  console.log(`\n  Provider : ${PROVIDER} | ${RECIPES.length} recettes (${present} avec photo, ${RECIPES.length - present} sans)`);
+  console.log(`  ${FORCE ? 'Mode --force : toutes re-telechargees (homogeneisation).' : 'Telechargement des photos manquantes uniquement.'}\n`);
   let ok = 0, skip = 0, fail = 0;
   for (const r of list) {
     const dest = path.join(OUT_DIR, r.id + '.jpg');
