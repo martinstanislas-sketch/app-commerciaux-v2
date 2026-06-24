@@ -6,6 +6,30 @@ function isAdmin() {
   return currentUser && currentUser.role === 'admin';
 }
 
+// ─── Module Nutrition (My Coach Nutrition) ──────────────────
+// Accès réservé à l'administrateur principal pour l'instant. Logique évolutive :
+// pour ouvrir plus tard à d'autres profils (coachs, franchisés…), il suffira
+// d'attribuer la permission 'can_access_nutrition_module' au compte concerné.
+function canAccessNutrition() {
+  if (!currentUser) return false;
+  if (currentUser.role === 'admin') return true;
+  const perms = currentUser.permissions || [];
+  return Array.isArray(perms) && perms.includes('can_access_nutrition_module');
+}
+
+// Affiche/masque l'onglet selon la permission (appelé après updateTabVisibility).
+function applyNutritionAccess() {
+  const btn = document.querySelector('#main-nav .tab-btn[data-tab="nutrition"]');
+  if (btn) btn.style.display = canAccessNutrition() ? '' : 'none';
+}
+
+// Charge l'app nutrition dans l'iframe au premier affichage de l'onglet.
+function loadNutritionFrame() {
+  if (!canAccessNutrition()) return; // double sécurité côté client
+  const frame = document.getElementById('nutrition-frame');
+  if (frame && !frame.getAttribute('src')) frame.src = '/nutrition/';
+}
+
 // Accès consultant : lecture seule de l'onglet Pilotage + envoi de commentaires
 function isConsultant() {
   return currentUser && currentUser.role === 'consultant';
@@ -326,6 +350,7 @@ function applyConsultantRestrictions() {
   const consultant = isConsultant();
   // Onglets : ne garder que Pilotage
   document.querySelectorAll('#main-nav .tab-btn').forEach(btn => {
+    if (btn.dataset.tab === 'nutrition') return; // visibilité gérée par applyNutritionAccess()
     if (!consultant) { btn.style.display = ''; return; }
     if (btn.dataset.tab === 'pilotage-funnel') {
       btn.style.display = '';
@@ -816,6 +841,7 @@ async function bootApp() {
   renderBottomNav();
   // Show/hide tabs based on role
   updateTabVisibility();
+  applyNutritionAccess(); // onglet Nutrition : admin uniquement (après updateTabVisibility)
   applyVentesRoleVisibility();
 
   // Show header widgets for commercials
@@ -2760,7 +2786,8 @@ const TAB_ICONS = {
   'pilotage-funnel': '🔻',
   controle: '🔍',
   'admin-actions': '⚡',
-  notes: '📝'
+  notes: '📝',
+  nutrition: '🥗'
 };
 const TAB_SHORT_LABELS = {
   today: 'Jour',
@@ -2772,7 +2799,8 @@ const TAB_SHORT_LABELS = {
   'pilotage-funnel': 'Pilotage',
   controle: 'Contrôle',
   'admin-actions': 'Actions',
-  notes: 'Notes'
+  notes: 'Notes',
+  nutrition: 'Nutrition'
 };
 
 // Construit / met à jour la barre de navigation du bas (mobile)
@@ -2841,6 +2869,7 @@ function initTabs() {
         widgets.classList.toggle('hidden', btn.dataset.tab !== 'today');
       }
 
+      if (btn.dataset.tab === 'nutrition') loadNutritionFrame();
       if (btn.dataset.tab === 'today') loadTodayTab();
       if (btn.dataset.tab === 'ventes') loadSales();
       if (btn.dataset.tab === 'mensuel') loadMonthlySummary();

@@ -42,6 +42,22 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// ─── Module Nutrition (My Coach Nutrition) ──────────────────
+// Monté sous /nutrition. Réservé à l'administrateur principal.
+//  - Les PAGES (/nutrition/...) sont servies en statique ; le blocage d'accès
+//    se fait côté page (script qui vérifie le rôle admin via la session locale).
+//  - Les DONNÉES/API (/nutrition/api/*) sont protégées côté serveur par
+//    requireAuth + requireAdmin (token Bearer admin obligatoire).
+// Permission évolutive : aujourd'hui = rôle 'admin' ; ouvrable plus tard à
+// d'autres profils via une permission 'can_access_nutrition_module'.
+try {
+  const nutritionApp = require('./nutrition-app/server');
+  app.use('/nutrition/api', requireAuth, requireAdmin); // protège l'API du module
+  app.use('/nutrition', nutritionApp);                  // sert le module (pages + statique)
+} catch (e) {
+  console.warn('Module Nutrition non chargé :', e.message);
+}
+
 // ─── Week-Month Majority Helper ─────────────────────────────
 // A week (Mon-Sun) belongs to the month where the majority of its 7 days fall.
 // e.g. March 30 → April 5 = 2 days in March, 5 in April → counts as April.

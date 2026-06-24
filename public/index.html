@@ -93,6 +93,8 @@
       <button class="tab-btn" data-tab="news">NEWS</button>
       <button class="tab-btn" data-tab="cockpit">Cockpit</button>
       <button class="tab-btn" data-tab="standards">Standards</button>
+      <!-- Module Nutrition : admin uniquement, masqu&eacute; par d&eacute;faut (g&eacute;r&eacute; par applyNutritionAccess) -->
+      <button class="tab-btn tab-btn-nutrition" data-tab="nutrition" style="display:none">My Coach Nutrition</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
       <button class="tab-btn" data-tab="phoning-recap">Récap</button> -->
     </nav>
@@ -110,6 +112,12 @@
     <!-- AUJOURD'HUI -->
     <section id="tab-today" class="tab-content">
       <div id="today-standalone"></div>
+    </section>
+
+    <!-- MY COACH NUTRITION (admin uniquement) - module integre via iframe meme-origine -->
+    <section id="tab-nutrition" class="tab-content">
+      <iframe id="nutrition-frame" title="My Coach Nutrition" loading="lazy"
+        style="width:100%;height:calc(100vh - 150px);min-height:560px;border:0;border-radius:16px;background:#F7F3EC;"></iframe>
     </section>
 
     <!-- PHONING (désactivé) -->
