@@ -1499,6 +1499,23 @@ function makeScanReader() {
 
 const CAM_CONSTRAINTS = { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } };
 
+// Dessine l'image de la video tournee de `deg` degres dans un canvas reutilise,
+// pour pouvoir scanner un code-barres quelle que soit son orientation.
+let scanCanvas = null;
+function rotatedFrame(video, deg) {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w || !h) return null;
+  if (!scanCanvas) scanCanvas = document.createElement('canvas');
+  const c = scanCanvas, ctx = c.getContext('2d');
+  if (deg === 90 || deg === 270) { c.width = h; c.height = w; } else { c.width = w; c.height = h; }
+  ctx.save();
+  ctx.translate(c.width / 2, c.height / 2);
+  ctx.rotate(deg * Math.PI / 180);
+  ctx.drawImage(video, -w / 2, -h / 2);
+  ctx.restore();
+  return c;
+}
+
 // Scanner natif (API BarcodeDetector) : tres fiable sur Android Chrome.
 async function startNativeScanner(video, hint) {
   let formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
@@ -1512,16 +1529,23 @@ async function startNativeScanner(video, hint) {
   nativeStream = stream;
   video.srcObject = stream;
   await video.play().catch(() => {});
-  hint.textContent = 'Approche le code-barres, bien net dans le cadre.';
+  hint.textContent = 'Vise le code-barres — peu importe le sens.';
+  // On essaie l'image brute (0/180 deg) puis une rotation differente a chaque
+  // cycle (90, 45, 135) -> le code est lu quelle que soit son orientation.
+  const EXTRA = [90, 45, 135];
+  let ai = 0;
+  const detect = async (src) => { try { return await detector.detect(src); } catch (_) { return null; } };
   const loop = async () => {
     if (!scanActive) return;
-    try {
-      const codes = await detector.detect(video);
-      if (codes && codes.length && scanActive) {
-        scanActive = false; stopCamera(); lookupBarcode(codes[0].rawValue); return;
-      }
-    } catch (_) { /* image pas encore prete */ }
-    nativeTimer = setTimeout(loop, 150);
+    let codes = await detect(video);
+    if ((!codes || !codes.length) && scanActive) {
+      const rot = rotatedFrame(video, EXTRA[ai++ % EXTRA.length]);
+      if (rot) codes = await detect(rot);
+    }
+    if (codes && codes.length && scanActive) {
+      scanActive = false; stopCamera(); lookupBarcode(codes[0].rawValue); return;
+    }
+    nativeTimer = setTimeout(loop, 120);
   };
   nativeTimer = setTimeout(loop, 300);
 }
