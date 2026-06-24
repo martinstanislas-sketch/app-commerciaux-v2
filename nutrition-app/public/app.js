@@ -279,7 +279,7 @@ function renderPlan() {
     title.innerHTML = `${jour.jour}${kcalTag}<button class="day-regen" data-day="${di}">${icSvg('refresh')} Toute la journee</button>`;
     card.appendChild(title);
     const row = document.createElement('div');
-    row.className = 'meals-row';
+    row.className = 'meals-row meals-n' + jour.repas.length; // colonnes nettes selon le nombre de repas
     jour.repas.forEach((repas, mi) => row.appendChild(renderMealCard(repas, di, mi)));
     card.appendChild(row);
     grid.appendChild(card);
