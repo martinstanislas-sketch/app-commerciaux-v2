@@ -56,6 +56,27 @@ function fmtQty(q) {
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+// Libelle d'unite propre et accentue (gere le pluriel des unites comptables).
+function uniteLabel(unite, qty) {
+  const u = normTxt(unite);
+  const n = Number(qty) || 0;
+  const map = {
+    'piece': n > 1 ? 'pièces' : 'pièce',
+    'tranche': n > 1 ? 'tranches' : 'tranche',
+    'poignee': n > 1 ? 'poignées' : 'poignée',
+    'c. a cafe': 'c. à café', 'cuillere a cafe': 'c. à café', 'cac': 'c. à café',
+    'c. a soupe': 'c. à soupe', 'cuillere a soupe': 'c. à soupe', 'cas': 'c. à soupe',
+    'g': 'g', 'ml': 'ml', 'cl': 'cl', 'l': 'l',
+  };
+  return map[u] || unite;
+}
+// Affichage accentue des cuisines (les donnees restent des slugs sans accent).
+const CUISINE_LABELS = {
+  francaise: 'Française', italienne: 'Italienne', mediterraneenne: 'Méditerranéenne',
+  asiatique: 'Asiatique', indienne: 'Indienne', mexicaine: 'Mexicaine', americaine: 'Américaine',
+  orientale: 'Orientale', africaine: 'Africaine', anglaise: 'Anglaise', espagnole: 'Espagnole',
+};
+function cuisineLabel(c) { return CUISINE_LABELS[normTxt(c)] || (c ? c.charAt(0).toUpperCase() + c.slice(1) : c); }
 // Icone SVG depuis le sprite (#ic-...) — pas d'emoji dans l'UI.
 function icSvg(name) { return `<svg class="ic" aria-hidden="true"><use href="#ic-${name}"/></svg>`; }
 
@@ -268,7 +289,7 @@ function renderNeeds() {
     <p class="needs-sub">Vos besoins estimes pour atteindre votre objectif, repartis sur la journee.</p>
     <div class="needs-stats">
       ${kcalBlock}
-      <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Proteines</div>${bar(pk)}</div>
+      <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div>${bar(pk)}</div>
       <div class="needs-stat"><div class="num">${b.macros.glucides} g</div><div class="lbl">Glucides</div>${bar(gk)}</div>
       <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl">Lipides</div>${bar(lk)}</div>
     </div>`;
@@ -435,7 +456,7 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
   const macros = state.masquerCalories ? ''
     : `<div class="recipe-macros" id="recipeMacros">
         <div class="m"><div class="n">${r.kcal}</div><div class="l">kcal</div></div>
-        <div class="m"><div class="n">${r.proteines} g</div><div class="l">Proteines</div></div>
+        <div class="m"><div class="n">${r.proteines} g</div><div class="l">Protéines</div></div>
         <div class="m"><div class="n">${r.glucides} g</div><div class="l">Glucides</div></div>
         <div class="m"><div class="n">${r.lipides} g</div><div class="l">Lipides</div></div>
       </div>`;
@@ -455,7 +476,7 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
       ? `<button class="ing-swap" title="Remplacer cet ingredient" aria-label="Remplacer ${escapeHtml(i.nom)}" data-ing="${idx}">${icSvg('swap')}</button>` : '';
     const scanBtn = inPlan
       ? `<button class="ing-scan" title="Remplacer en scannant un produit" aria-label="Scanner pour remplacer ${escapeHtml(i.nom)}" data-ing="${idx}">${icSvg('scan')}</button>` : '';
-    return `<li><span class="ing-left">${escapeHtml(i.nom)}${swapBtn}${scanBtn}</span><span class="q">${q} ${i.unite}</span></li>`;
+    return `<li><span class="ing-left">${escapeHtml(i.nom)}${swapBtn}${scanBtn}</span><span class="q">${q} ${uniteLabel(i.unite, (Number(i.quantite) || 0) * state.portions)}</span></li>`;
   }).join('');
 
   const portionsNote = state.portions > 1
@@ -470,11 +491,11 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
     </div>
     <h2 class="recipe-title">${escapeHtml(r.nom)}</h2>`;
   $('#modalBody').innerHTML += `
-    <div class="macro-chips">${r.adapte ? `<span class="macro-chip adapte">${icSvg('swap')} Adapte avec tes produits</span>` : ''}${(r.cuisines || []).map((c) => `<span class="macro-chip">${c}</span>`).join('')}<span class="macro-chip time">${icSvg('clock')} ${r.tempsMinutes} min</span></div>
+    <div class="macro-chips">${r.adapte ? `<span class="macro-chip adapte">${icSvg('swap')} Adapté avec tes produits</span>` : ''}${(r.cuisines || []).map((c) => `<span class="macro-chip">${escapeHtml(cuisineLabel(c))}</span>`).join('')}<span class="macro-chip time">${icSvg('clock')} ${r.tempsMinutes} min</span></div>
     ${actions}
     ${macros}
     ${portionsNote}
-    <div class="recipe-section-title">Ingredients</div>
+    <div class="recipe-section-title">Ingrédients</div>
     <ul class="ing-list">${ingredients}</ul>
     <div id="recipePrep"></div>`;
 
@@ -559,71 +580,129 @@ function listeNoms(arr) {
   return n.slice(0, -1).join(', ') + ' et ' + n[n.length - 1];
 }
 // Construit une fiche complete et pedagogique a partir des ingredients + etapes.
+// Construit une fiche guidee COHERENTE avec la vraie recette : aucune phrase
+// generique hors-sujet (pas de "legumes" pour un fruit, pas de "poele" sans
+// cuisson, pas de "toppings/croquant" sans ingredient croquant).
 function buildLocalRecipeDetail(r) {
   const ings = r.ingredients || [];
   const txt = ((r.etapes || []).join(' ') + ' ' + ings.map((i) => i.nom).join(' ')).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const has = (re) => re.test(txt);
   const norm = (s) => normTxt(s);
 
-  // Materiel (deduit des actions et des ingredients)
+  // --- La recette comporte-t-elle une CUISSON ? (sinon : pas de poele/four/feu) ---
+  const poele = has(/poel|saisir|dorer|revenir|sauter|omelette|au plat|brouill|\bsaute|frire|\bgrill/);
+  const four = has(/\bfour\b|rotir|enfourn|gratin|\broti\b/);
+  const casserole = has(/casserole|bouillir|eau bouillante|mijot|\bcuire\b|vapeur|pocher|oeufs? poche|\bsoupe\b|porridge|\briz\b|pates\b|quinoa|semoule|boulgour|lentille/);
+  const cuisson = poele || four || casserole || has(/cuisson|\bcuit|chauff|rechauff|\bfeu\b|mijote|\bblanchir/);
+
+  // --- Classification des ingredients (fruit != legume) ---
+  const estFruit = (i) => /banane|orange|pomme\b|poire|fraise|framboise|myrtille|fruits rouges|mangue|ananas|kiwi|raisin|\bpeche|abricot|cerise|melon|pasteque|clementine|mandarine|grenade|figue|datte|fruits de saison|fruits frais|fruits secs|compote|avocat/.test(norm(i.nom));
+  const estLegume = (i) => /brocoli|courgette|poivron|epinard|haricot vert|\btomate|carotte|champignon|salade|concombre|oignon|\bail\b|aubergine|\bchou|poireau|courge|patate douce|betterave|radis|fenouil|asperge|petit pois|\bmais\b|roquette|mache|endive|navet|celeri|blette|crudite/.test(norm(i.nom));
+  const estCroquant = (i) => /granola|\bnoix|amande|noisette|graine|muesli|crouton|cereales|cacahuete|pignon|pistache|cajou|\bchia\b/.test(norm(i.nom));
+  const estLaitier = (i) => /yaourt|\bskyr|fromage blanc|petit-suisse|fromage frais|cottage|faisselle/.test(norm(i.nom));
+  const estProteine = (i) => /poulet|dinde|\bboeuf|steak|\bveau|agneau|\bporc|jambon|saumon|\bthon|cabillaud|colin|merlu|truite|sardine|crevette|gambas|\boeuf|\btofu|tempeh|pois chiche|lentille|haricot rouge|\bfeta|mozzarella/.test(norm(i.nom));
+  const estFeculent = (i) => /\briz\b|pates\b|quinoa|semoule|boulgour|patate|pomme de terre|\bpain\b|wrap|tortilla|galette|flocons|avoine|polenta|blini|muffin|\bpita\b/.test(norm(i.nom));
+  const aJus = has(/\bjus\b|presse|pressee/) && ings.some((i) => /orange|citron|pamplemousse|clementine/.test(norm(i.nom)));
+
+  const fruits = ings.filter((i) => estFruit(i) && !estLegume(i));
+  const legumes = ings.filter((i) => estLegume(i) && !estFruit(i));
+  const croquants = ings.filter(estCroquant);
+  const laitiers = ings.filter(estLaitier);
+  const proteines = ings.filter(estProteine);
+  const feculents = ings.filter(estFeculent);
+  const noms = (arr) => arr.map((i) => i.nom.toLowerCase()).join(', ');
+
+  // --- Materiel REELLEMENT utilise ---
   const mat = [];
   const add = (m) => { if (!mat.includes(m)) mat.push(m); };
-  if (has(/poel|saisir|dorer|revenir|sauter|omelette|au plat/)) { add('Poele'); add('Spatule'); }
-  if (has(/casserole|bouillir|eau bouillante|\briz\b|pates|quinoa|semoule|boulgour|lentille|soupe|mijoter|cuire .* min/)) add('Casserole');
-  if (has(/four|rotir|enfourner|gratin/)) add('Four');
-  if (has(/mixer|mixeur|smoothie|veloute|mouline|blender/)) add('Mixeur');
-  if (has(/couper|eminc|\bdes\b|tranche|hach|decoup/)) { add('Couteau'); add('Planche a decouper'); }
-  if (has(/egoutter|rincer|passoire/) || has(/\briz\b|pates/)) add('Passoire');
-  if (has(/salade|bowl|saladier|crudite|melanger/)) add('Saladier');
+  if (poele) { add('Poêle'); add('Spatule'); }
+  if (four) add('Four');
+  if (casserole) add('Casserole');
+  if (has(/mixer|mixeur|smoothie|veloute|mouline|blender|\bmixe/)) add('Blender');
+  if (aJus) add('Presse-agrumes');
+  const aDecouper = proteines.length || legumes.length || fruits.some((i) => /orange|pomme|poire|mangue|ananas|kiwi|banane|avocat|\bpeche|melon/.test(norm(i.nom))) || has(/couper|eminc|tranche|hach|decoup/);
+  if (aDecouper) { add('Couteau'); add('Planche à découper'); }
+  if (casserole || has(/egoutter|rincer|passoire|filtrer/)) add('Passoire');
   if (has(/fouet|battre|monter en neige/)) add('Fouet');
-  if (has(/rap|zeste/)) add('Rape');
-  if (!mat.length) add('Bol');
+  if (has(/\brap|zeste/)) add('Râpe');
+  if (laitiers.length || r.type === 'petit-dejeuner' || r.type === 'collation') add('Cuillère');
   add('Bol');
+  if (!cuisson) add('Assiette');
 
-  // Preparation des ingredients
+  // --- Preparation des ingredients ---
   const prep = [];
-  const sortir = ings.map((i) => `${fmtQty((Number(i.quantite) || 0) * state.portions)} ${i.unite} de ${i.nom.toLowerCase()}`);
+  const sortir = ings.map((i) => `${fmtQty((Number(i.quantite) || 0) * state.portions)} ${uniteLabel(i.unite, (Number(i.quantite) || 0) * state.portions)} de ${i.nom.toLowerCase()}`);
   if (sortir.length) prep.push('Sortir et peser : ' + sortir.join(', ') + '.');
-  const noms = (arr) => arr.map((i) => i.nom.toLowerCase()).join(', ');
-  const legumes = ings.filter((i) => /fruits & legumes|legume/.test(norm(i.rayon || '')) || /brocoli|courgette|poivron|epinard|haricot|tomate|carotte|champignon|salade|concombre|oignon|\bail\b|aubergine|chou/.test(norm(i.nom)));
-  if (legumes.length) prep.push('Laver les legumes : ' + noms(legumes) + '.');
-  const aCouper = ings.filter((i) => /poulet|dinde|boeuf|steak|saumon|cabillaud|filet|escalope|tofu|courgette|poivron|carotte|oignon|tomate|champignon|patate|pomme de terre|aubergine/.test(norm(i.nom)));
-  if (aCouper.length) prep.push('Couper en morceaux reguliers : ' + noms(aCouper.slice(0, 3)) + '.');
-  const aRincer = ings.filter((i) => /\briz\b|quinoa|boulgour|pois chiche|lentille|haricot rouge|mais|\bthon\b/.test(norm(i.nom)));
-  if (aRincer.length) prep.push('Rincer et egoutter : ' + noms(aRincer) + '.');
-  if (mat.includes('Four')) prep.push('Prechauffer le four a 200 C.');
+  if (legumes.length) prep.push('Laver et parer les légumes : ' + noms(legumes) + '.');
+  if (fruits.length) {
+    const aEplucher = fruits.filter((i) => /orange|banane|kiwi|mangue|ananas|clementine|mandarine|pamplemousse|avocat/.test(norm(i.nom)));
+    if (aJus) prep.push('Couper puis presser les agrumes pour recueillir le jus.');
+    else if (aEplucher.length) prep.push('Rincer puis éplucher les fruits : ' + noms(fruits) + '.');
+    else prep.push('Rincer les fruits : ' + noms(fruits) + '.');
+  }
+  if (cuisson) {
+    const aCouper = [...proteines, ...legumes];
+    if (aCouper.length) prep.push('Couper en morceaux réguliers : ' + noms(aCouper.slice(0, 3)) + '.');
+  }
+  const aRincer = ings.filter((i) => /\briz\b|quinoa|boulgour|pois chiche|lentille|haricot rouge|\bmais\b|\bthon\b/.test(norm(i.nom)));
+  if (aRincer.length) prep.push('Rincer et égoutter : ' + noms(aRincer) + '.');
+  if (four) prep.push('Préchauffer le four à 200 °C.');
 
-  // Reperes visuels
+  // --- Reperes visuels (adaptes : cuisson vs assemblage) ---
   const reperes = [];
-  if (has(/poulet|dinde/)) reperes.push('La volaille ne doit plus etre rosee a coeur.');
-  if (has(/saumon|cabillaud|poisson|crevette/)) reperes.push("Le poisson doit s'effeuiller facilement a la fourchette.");
-  if (has(/boeuf|steak/)) reperes.push('Vise une belle coloration exterieure en saisissant a feu vif.');
-  if (has(/\briz\b/)) reperes.push('Le riz doit etre tendre mais pas collant.');
-  if (has(/pates/)) reperes.push('Les pates doivent rester al dente (encore un peu fermes).');
-  if (legumes.length) reperes.push('Les legumes doivent rester legerement croquants, bien colores.');
-  if (has(/sauce|coulis|creme|pesto|coco|tomate/)) reperes.push('La sauce doit napper la cuillere sans etre liquide.');
-  if (has(/oeuf/)) reperes.push('Le blanc doit etre pris, le jaune encore coulant selon ton gout.');
-  if (!reperes.length) reperes.push("Goute en fin de cuisson et ajuste l'assaisonnement.");
-
-  // Ajustements
-  const ajust = ['Si le plat manque de gout, ajoute des herbes, des epices ou un filet de citron.'];
-  if (has(/sauce|creme|coco|pesto|coulis|tomate/)) ajust.push('Sauce trop liquide ? Prolonge la cuisson 1 a 2 minutes. Trop epaisse ? Detends avec un peu d\'eau ou de lait.');
-  if (has(/poel|saisir|sauter/) || legumes.length) ajust.push("Si ca accroche dans la poele, ajoute un fond d'eau ou un filet d'huile.");
-  if (has(/\briz\b|pates|quinoa|semoule/)) ajust.push('Feculent encore ferme ? Prolonge de 2 a 3 minutes avec un peu d\'eau chaude.');
-
-  // Dressage
-  const feculent = ings.find((i) => /\briz\b|pates|quinoa|semoule|boulgour|patate|pomme de terre|pain/.test(norm(i.nom)));
-  const proteine = ings.find((i) => /poulet|dinde|boeuf|saumon|thon|cabillaud|crevette|oeuf|tofu|pois chiche|lentille|feta|jambon/.test(norm(i.nom)));
-  const legume = legumes[0];
-  let dressage;
-  if (feculent && proteine) {
-    dressage = `Dispose ${feculent.nom.toLowerCase()} au fond de l'assiette, ajoute ${proteine.nom.toLowerCase()} par-dessus${legume ? `, puis ${legume.nom.toLowerCase()} sur le cote` : ''}. Sers chaud, et ajoute un filet de citron ou des herbes fraiches au dernier moment.`;
-  } else if (r.type === 'petit-dejeuner') {
-    dressage = 'Dresse dans un bol ou une assiette et ajoute les toppings au dernier moment pour garder le croquant. Sers aussitot.';
-  } else if (r.type === 'collation') {
-    dressage = 'Sers frais, dans un petit bol ou a emporter.';
+  if (cuisson) {
+    if (has(/poulet|dinde/)) reperes.push('La volaille ne doit plus être rosée à cœur.');
+    if (has(/saumon|cabillaud|\bthon|poisson|crevette/)) reperes.push("Le poisson doit s'effeuiller facilement à la fourchette.");
+    if (has(/\bboeuf|steak/)) reperes.push('Vise une belle coloration extérieure en saisissant à feu vif.');
+    if (has(/\briz\b/)) reperes.push('Le riz doit être tendre mais pas collant.');
+    if (has(/pates\b/)) reperes.push('Les pâtes doivent rester al dente.');
+    if (legumes.length) reperes.push('Les légumes doivent rester légèrement croquants et bien colorés.');
+    if (has(/oeuf/)) reperes.push('Le blanc doit être pris, le jaune encore coulant selon ton goût.');
+    if (has(/sauce|coulis|creme|pesto|coco/)) reperes.push('La sauce doit napper la cuillère sans être liquide.');
+    if (!reperes.length) reperes.push("Goûte en fin de cuisson et ajuste l'assaisonnement.");
   } else {
-    dressage = "Dresse harmonieusement dans l'assiette et sers aussitot, tant que c'est chaud.";
+    if (laitiers.length) reperes.push('Le skyr (ou fromage blanc) doit être lisse et bien frais.');
+    if (fruits.length) reperes.push('Les fruits doivent être frais, juteux et bien colorés.');
+    if (has(/\bpain\b|tartine|wrap|galette|biscotte/)) reperes.push('Le pain doit être bien croustillant à l\'extérieur.');
+    if (croquants.length) reperes.push('Le granola et les graines doivent rester croquants.');
+    if (!reperes.length) reperes.push('Soigne la présentation : des ingrédients frais et nets donnent tout de suite envie.');
+  }
+
+  // --- Ajustements (adaptes au type, a la cuisson et a l'objectif) ---
+  const ajust = [];
+  const sucre = r.type === 'petit-dejeuner' || r.type === 'collation';
+  if (cuisson) {
+    ajust.push('Si le plat manque de goût, ajoute des herbes, des épices ou un filet de citron.');
+    if (has(/sauce|creme|coco|pesto|coulis/)) ajust.push("Sauce trop liquide ? Prolonge la cuisson 1 à 2 minutes. Trop épaisse ? Détends avec un peu d'eau.");
+    if (poele) ajust.push("Si ça accroche dans la poêle, ajoute un fond d'eau ou un filet d'huile.");
+    if (has(/\briz\b|pates\b|quinoa|semoule/)) ajust.push("Féculent encore ferme ? Prolonge de 2 à 3 minutes avec un peu d'eau chaude.");
+  } else if (sucre) {
+    ajust.push('Pour plus de protéines et de satiété, ajoute du skyr ou du fromage blanc.');
+    if (has(/miel|sucre|sirop|confiture|chocolat|pate a tartiner/)) ajust.push('Tu surveilles les sucres ? Réduis le miel/sucre ou remplace par un fruit frais.');
+    if (aJus) ajust.push('Pour limiter les sucres liquides, préfère le fruit entier au jus.');
+    ajust.push("Trop léger à ton goût ? Ajoute une poignée de flocons, de fruits ou d'oléagineux.");
+  } else {
+    ajust.push('Assaisonne à ton goût : sel, poivre, herbes fraîches ou filet de citron.');
+    ajust.push("Pour plus de satiété, accompagne d'une portion de légumes ou d'un féculent complet.");
+  }
+
+  // --- Dressage (concret, sans "toppings/croquant" si rien de croquant) ---
+  let dressage;
+  const fec = feculents[0], prot = proteines[0], leg = legumes[0];
+  if (cuisson && fec && prot) {
+    dressage = `Dispose ${fec.nom.toLowerCase()} au fond de l'assiette, ajoute ${prot.nom.toLowerCase()} par-dessus${leg ? `, puis ${leg.nom.toLowerCase()} sur le côté` : ''}. Sers chaud, avec un filet de citron ou des herbes fraîches.`;
+  } else if (sucre) {
+    if (laitiers.length) {
+      dressage = `Dépose ${laitiers[0].nom.toLowerCase()} dans un bol${fruits.length ? `, dispose ${noms(fruits)} dessus` : ''}${croquants.length ? ` et ajoute ${noms(croquants)} au dernier moment pour garder le croquant` : ''}. Sers aussitôt.`;
+    } else if (has(/\bpain\b|tartine|wrap|galette|biscotte/)) {
+      dressage = 'Dresse sur une assiette, coupe en deux si besoin et sers aussitôt.';
+    } else {
+      dressage = `Dresse dans un bol ou une assiette${fruits.length ? `, avec ${noms(fruits)} bien visibles` : ''}. Sers frais.`;
+    }
+  } else if (cuisson) {
+    dressage = "Dresse harmonieusement dans l'assiette et sers aussitôt, tant que c'est chaud.";
+  } else {
+    dressage = 'Dresse joliment dans une assiette et sers aussitôt.';
   }
 
   return { materiel: mat, preparation: prep, etapes: r.etapes || [], reperes, ajustements: ajust, dressage };
@@ -633,10 +712,10 @@ function renderGuidedRecipe(r, d) {
   const sec = (title, ic, inner) => `<div class="recipe-section-title">${ic ? icSvg(ic) + ' ' : ''}${title}</div>${inner}`;
   const liste = (arr, cls) => `<ul class="${cls}">${arr.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul>`;
   let html = '';
-  if (d.materiel && d.materiel.length) html += sec('Materiel necessaire', 'check-circle', `<div class="mat-set">${d.materiel.map((m) => `<span class="mat-chip">${escapeHtml(m)}</span>`).join('')}</div>`);
-  if (d.preparation && d.preparation.length) html += sec('Preparation des ingredients', 'edit', liste(d.preparation, 'prep-list'));
-  html += sec('Preparation, etape par etape', 'clock', `<ol class="steps-list">${(d.etapes || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ol>`);
-  if (d.reperes && d.reperes.length) html += sec('Reperes visuels', 'eye', liste(d.reperes, 'reperes-list'));
+  if (d.materiel && d.materiel.length) html += sec('Matériel nécessaire', 'check-circle', `<div class="mat-set">${d.materiel.map((m) => `<span class="mat-chip">${escapeHtml(m)}</span>`).join('')}</div>`);
+  if (d.preparation && d.preparation.length) html += sec('Préparation des ingrédients', 'edit', liste(d.preparation, 'prep-list'));
+  html += sec('Préparation, étape par étape', 'clock', `<ol class="steps-list">${(d.etapes || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ol>`);
+  if (d.reperes && d.reperes.length) html += sec('Repères visuels', 'eye', liste(d.reperes, 'reperes-list'));
   if (d.ajustements && d.ajustements.length) html += sec('Ajustements', 'sliders', liste(d.ajustements, 'ajust-list'));
   if (d.dressage) html += sec('Dressage', 'spark', `<p class="dressage">${escapeHtml(d.dressage)}</p>`);
   prep.innerHTML = html;
