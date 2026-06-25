@@ -307,9 +307,21 @@
         <div class="step" data-step="5">
           <h2>Vos contraintes</h2>
           <p class="step-help">Important pour votre securite et votre confort.</p>
+          <span class="field-title">⚠️ Allergies ou intolerances <em>(jamais proposees)</em></span>
+          <div class="chip-set" data-multifield="allergiesCourantes">
+            <button type="button" class="chip" data-value="gluten">Gluten</button>
+            <button type="button" class="chip" data-value="lactose">Lactose</button>
+            <button type="button" class="chip" data-value="oeufs">Oeufs</button>
+            <button type="button" class="chip" data-value="arachide">Arachide</button>
+            <button type="button" class="chip" data-value="noix">Fruits a coque</button>
+            <button type="button" class="chip" data-value="poisson">Poisson</button>
+            <button type="button" class="chip" data-value="crustace">Crustaces</button>
+            <button type="button" class="chip" data-value="soja">Soja</button>
+            <button type="button" class="chip" data-value="sesame">Sesame</button>
+          </div>
           <label class="field field-allergies">
-            <span>⚠️ Allergies ou intolerances <em>(jamais proposees)</em></span>
-            <input type="text" name="allergies" placeholder="ex. arachide, gluten, lactose" />
+            <span>Autre allergie / intolerance <em>(separees par des virgules)</em></span>
+            <input type="text" name="allergies" placeholder="ex. kiwi, moutarde, celeri" />
           </label>
           <span class="field-title">Regime</span>
           <div class="chip-set" data-multifield="regime">

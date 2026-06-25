@@ -194,7 +194,7 @@ function collectProfile() {
     matinGout: ($('.choice-grid[data-field="matinGout"]') || {}).dataset ? ($('.choice-grid[data-field="matinGout"]').dataset.selected || 'les-deux') : 'les-deux',
     aimes: parseCsv(fd.get('aimes')),
     deteste: parseCsv(fd.get('deteste')),
-    allergies: parseCsv(fd.get('allergies')),
+    allergies: [...getMultiValues('allergiesCourantes'), ...parseCsv(fd.get('allergies'))],
     regime: getMultiValues('regime'),
     budget: fd.get('budget'),
     temps_max: Number(fd.get('temps_max')),
