@@ -191,6 +191,7 @@ function collectProfile() {
   };
   state.preferences = {
     cuisines: getMultiValues('cuisines'),
+    matinGout: ($('.choice-grid[data-field="matinGout"]') || {}).dataset ? ($('.choice-grid[data-field="matinGout"]').dataset.selected || 'les-deux') : 'les-deux',
     aimes: parseCsv(fd.get('aimes')),
     deteste: parseCsv(fd.get('deteste')),
     allergies: parseCsv(fd.get('allergies')),

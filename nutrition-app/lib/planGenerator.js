@@ -204,6 +204,13 @@ const STYLE_KEYS = [
 function champRecette(r) {
   return norm(r.nom + ' ' + (r.motsCles || []).join(' ') + ' ' + (r.ingredients || []).map((i) => i.nom).join(' '));
 }
+// Petit-dejeuner : plutot sucre ou sale ? (pour adapter selon le gout du matin)
+function petitDejGout(r) {
+  const c = champRecette(r);
+  if (/oeuf|omelette|jambon|bacon|avocat|saumon|\bfeta\b|charcuterie|saucisse|thon/.test(c)) return 'sale';
+  if (/muesli|granola|flocons|avoine|porridge|banane|fruit|miel|confiture|chocolat|pancake|crepe|gaufre|smoothie|compote|brioche|chia|cereales|marmelade|cacao|yaourt|skyr|fromage blanc/.test(c)) return 'sucre';
+  return 'neutre';
+}
 function proteinesOf(r) { const c = champRecette(r); return PROTEINES_KEYS.filter((p) => c.includes(p)); }
 function feculentsOf(r) { const c = champRecette(r); return FECULENTS_KEYS.filter((p) => c.includes(p)); }
 function styleOf(r) { const c = champRecette(r); for (const [name, re] of STYLE_KEYS) if (re.test(c)) return name; return 'assiette'; }
@@ -320,6 +327,11 @@ function genererPlanDemo(profil, prefs, seed) {
       // Temps max sur ce creneau (ex. pas le temps le midi -> recettes rapides).
       const cap = tempsMaxCreneau[creneau.type];
       if (cap) { const rapides = candidats.filter((r) => r.tempsMinutes <= cap); if (rapides.length >= 3) candidats = rapides; }
+      // Gout du matin : sucre ou sale (les neutres restent compatibles avec les deux).
+      if (typePool === 'petit-dejeuner' && (prefs.matinGout === 'sucre' || prefs.matinGout === 'sale')) {
+        const pref = candidats.filter((r) => { const g = petitDejGout(r); return g === prefs.matinGout || g === 'neutre'; });
+        if (pref.length >= 3) candidats = pref;
+      }
       const ctx = { kcalCible: creneau.kcal, prefs, rand, rassasiant: rassasiantCreneau.has(creneau.type) };
       const exclure = creneau.type === 'diner' ? recetteVeillePlat : null;
       const recette = choisirRecette(candidats, ctx, st, exclure, typePool);
@@ -352,7 +364,11 @@ function regenererRepas(profil, prefs, creneauType, kcalCible, exclureId, seed, 
   const rand = makeRand(seed || 999);
   const compatibles = recettesCompatibles(RECIPES, prefs);
   const typePool = creneauType === 'dejeuner' || creneauType === 'diner' ? 'plat' : creneauType;
-  const candidats = compatibles.filter((r) => (typePool === 'plat' ? r.type === 'plat' : r.type === typePool));
+  let candidats = compatibles.filter((r) => (typePool === 'plat' ? r.type === 'plat' : r.type === typePool));
+  if (typePool === 'petit-dejeuner' && (prefs.matinGout === 'sucre' || prefs.matinGout === 'sale')) {
+    const pref = candidats.filter((r) => { const g = petitDejGout(r); return g === prefs.matinGout || g === 'neutre'; });
+    if (pref.length >= 3) candidats = pref;
+  }
   // Etat de variete reconstruit a partir des repas deja dans la semaine.
   const st = nouvelEtatVariete();
   const dejaLa = [exclureId, ...(exclusIds || [])].filter(Boolean);
