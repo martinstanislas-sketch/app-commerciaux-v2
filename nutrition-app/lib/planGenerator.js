@@ -296,6 +296,17 @@ function genererPlanDemo(profil, prefs, seed) {
   const rand = makeRand(seed || 12345);
   const nbJours = Math.min(Math.max(Number(profil.jours) || 7, 1), 7);
 
+  // "Je ne mange pas le matin" : on retire le petit-dejeuner et on redistribue
+  // ses calories sur les autres repas (proportionnellement).
+  if (prefs.matinGout === 'aucun') {
+    const sansPdej = besoins.repartitionRepas.filter((r) => r.type !== 'petit-dejeuner');
+    if (sansPdej.length) {
+      besoins.repartitionRepas = sansPdej;
+      const tot = besoins.repartitionRepas.reduce((s, r) => s + r.part, 0) || 1;
+      besoins.repartitionRepas.forEach((r) => { r.part /= tot; r.kcal = Math.round((besoins.kcalCible * r.part) / 10) * 10; });
+    }
+  }
+
   // Personnalisation avancee (Niveau 2) : multiplicateurs de repartition kcal
   // (ex. faim le soir -> diner +), temps max et "rassasiant" par creneau.
   const aj = prefs.ajustements || {};
