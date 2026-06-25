@@ -4,8 +4,11 @@
 // Sans ANTHROPIC_API_KEY -> mode DEMO (recettes locales). Avec cle -> Claude.
 
 // Charge .env (depuis le dossier de ce fichier, quel que soit le cwd) si dotenv est installe.
+// override:true -> la config NUTRITION du module (cle, modele, NUTRITION_AI) prime
+// sur d'eventuelles valeurs deja presentes dans l'environnement (ex. placeholder du
+// .env racine). En prod (pas de .env ici), sans effet : on utilise les vars Railway.
 try {
-  require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+  require('dotenv').config({ path: require('path').join(__dirname, '.env'), override: true });
 } catch (_) {
   /* dotenv non installe : on lit process.env directement */
 }
