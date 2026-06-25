@@ -159,6 +159,17 @@ const NUTRI = {
   'poivron': { kcal: 31, p: 1, g: 6, l: 0.3 }, 'epinard': { kcal: 23, p: 2.9, g: 3.6, l: 0.4 },
   'miel': { kcal: 304, p: 0.3, g: 82, l: 0 }, 'sirop d erable': { kcal: 260, p: 0, g: 67, l: 0 }, 'sucre': { kcal: 400, p: 0, g: 100, l: 0 },
   'sauce teriyaki': { kcal: 130, p: 5, g: 26, l: 0 }, 'tamari': { kcal: 60, p: 10, g: 5, l: 0 }, 'sauce soja': { kcal: 60, p: 8, g: 6, l: 0 },
+  // Viandes (valeurs crues, par 100 g)
+  'dinde hachee': { kcal: 150, p: 18, g: 0, l: 8 },
+  'escalope de dinde': { kcal: 110, p: 24, g: 0, l: 1.5 }, 'steak de dinde': { kcal: 110, p: 24, g: 0, l: 1.5 }, 'emince de dinde': { kcal: 110, p: 24, g: 0, l: 1.5 },
+  'boeuf hache': { kcal: 200, p: 20, g: 0, l: 13 }, 'steak de boeuf': { kcal: 180, p: 26, g: 0, l: 8 }, 'boeuf a griller emince': { kcal: 180, p: 26, g: 0, l: 8 },
+  'hache vegetal': { kcal: 170, p: 17, g: 5, l: 9 },
+  // Feculents (valeurs crues sauf "cuit", par 100 g)
+  'pates completes': { kcal: 340, p: 13, g: 66, l: 2.5 }, 'pates': { kcal: 350, p: 12, g: 70, l: 1.5 },
+  'riz': { kcal: 350, p: 7, g: 77, l: 0.6 }, 'semoule': { kcal: 350, p: 12, g: 72, l: 1 },
+  'boulgour': { kcal: 340, p: 12, g: 76, l: 1.3 }, 'quinoa': { kcal: 368, p: 14, g: 64, l: 6 },
+  'lentilles cuites': { kcal: 116, p: 9, g: 20, l: 0.4 },
+  'patate douce': { kcal: 86, p: 1.6, g: 20, l: 0.1 }, 'courge': { kcal: 26, p: 1, g: 6, l: 0.1 },
 };
 const PIECE_G = { banane: 120, pomme: 150, poire: 160, oeuf: 50 };
 const nettoyerNom = (s) => normTxt(s).replace(/['’]/g, ' ').replace(/\s+/g, ' ').trim();
