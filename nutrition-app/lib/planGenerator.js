@@ -108,6 +108,15 @@ function satisfaitRegime(recette, regime) {
   return true;
 }
 
+// La recette CONTREDIT-elle un regime requis, d'apres ses ingredients/nom ?
+// Contrairement a satisfaitRegime, n'exige PAS le tag "regime" declare : sert a
+// verifier des recettes IA (qui n'ont pas ce champ) sans tout rejeter a tort.
+function regimeContredit(recette, regime) {
+  if (regime === 'sans-gluten') return famillesDetectees(segmentsDeRecette(recette)).has('gluten');
+  const re = REGIME_INTERDITS[regime];
+  return Boolean(re && re.test(champRecette(recette)));
+}
+
 // Une recette contient-elle un mot interdit (allergie OU aliment deteste) ?
 function contientMotInterdit(recette, motsInterdits) {
   if (!motsInterdits.length) return false;
@@ -204,6 +213,13 @@ function scoreRecette(r, ctx) {
   // Proximite calorique (max ~50 pts, decroit avec l'ecart).
   const ecart = Math.abs(r.kcal - kcalCible) / Math.max(kcalCible, 1);
   score += Math.max(0, 50 - ecart * 100);
+
+  // Priorite proteines (objectifs perte / prise de muscle) : favorise les recettes
+  // denses en proteines pour mieux atteindre la cible proteique apres mise a l'echelle.
+  if (ctx.protPrioritaire) {
+    const densiteProt = (Number(r.proteines) || 0) / Math.max(r.kcal / 100, 1); // g prot / 100 kcal
+    score += densiteProt * 4;
+  }
 
   // Cuisines aimees (+15 par match).
   const cuisinesAimees = (prefs.cuisines || []).map(norm);
@@ -410,7 +426,7 @@ function genererPlanDemo(profil, prefs, seed) {
         const pref = candidats.filter((r) => { const g = petitDejGout(r); return g === prefs.matinGout || g === 'neutre'; });
         if (pref.length >= 3) candidats = pref;
       }
-      const ctx = { kcalCible: creneau.kcal, prefs, rand, rassasiant: rassasiantCreneau.has(creneau.type) };
+      const ctx = { kcalCible: creneau.kcal, prefs, rand, rassasiant: rassasiantCreneau.has(creneau.type), protPrioritaire: ['perte', 'muscle'].includes(norm(profil.objectif || '')) };
       const exclure = creneau.type === 'diner' ? recetteVeillePlat : null;
       const recette = choisirRecette(candidats, ctx, st, exclure, typePool);
       if (creneau.type === 'dejeuner' && recette) recetteVeillePlat = recette.id;
@@ -421,7 +437,7 @@ function genererPlanDemo(profil, prefs, seed) {
         creneau: creneau.type,
         label: creneau.label,
         kcalCible: creneau.kcal,
-        recette: recette ? formaterRecette(recette) : null,
+        recette: recette ? formaterRecette(recette, creneau.kcal) : null,
       });
     }
     jours.push({ jour: JOURS[d] || `Jour ${d + 1}`, repas: repasDuJour });
@@ -455,24 +471,50 @@ function regenererRepas(profil, prefs, creneauType, kcalCible, exclureId, seed, 
     if (r) marquerVariete(st, r, r.type === 'plat' ? 'plat' : creneauType);
     else st.usedIds.set(id, 1);
   });
-  const ctx = { kcalCible: kcalCible || 500, prefs, rand };
+  const ctx = { kcalCible: kcalCible || 500, prefs, rand, protPrioritaire: ['perte', 'muscle'].includes(norm((profil || {}).objectif || '')) };
   const recette = choisirRecette(candidats, ctx, st, exclureId, typePool);
-  return recette ? formaterRecette(recette) : null;
+  return recette ? formaterRecette(recette, kcalCible) : null;
+}
+
+// Mise a l'echelle des portions : facteur borne pour ne pas obtenir de quantites
+// absurdes, tout en permettant d'atteindre des cibles elevees (prise de masse).
+const SCALE_MIN = 0.6;
+const SCALE_MAX = 3;
+
+// Arrondi "propre" d'une quantite selon l'unite (g/ml au pas de 5, le reste au 0,5).
+function arrondiQuantite(q, unite) {
+  const u = norm(unite || '');
+  if (u === 'g' || u === 'ml') return Math.max(5, Math.round(q / 5) * 5);
+  return Math.max(0.5, Math.round(q * 2) / 2);
 }
 
 // Recopie la recette dans le format expose au front (sans champs internes lourds).
-function formaterRecette(r) {
+// Si kcalCible est fourni, met la recette A L'ECHELLE pour s'approcher de la cible
+// calorique du creneau : kcal, macros ET quantites d'ingredients sont multiplies
+// par le MEME facteur borne -> coherence macros/kcal et liste de courses correcte.
+function formaterRecette(r, kcalCible) {
+  let facteur = 1;
+  if (kcalCible && Number(r.kcal) > 0) {
+    facteur = Math.min(SCALE_MAX, Math.max(SCALE_MIN, kcalCible / r.kcal));
+  }
+  const sc = (x) => Math.round((Number(x) || 0) * facteur);
   return {
     id: r.id,
     nom: r.nom,
     type: r.type,
     cuisines: r.cuisines,
     tempsMinutes: r.tempsMinutes,
-    kcal: r.kcal,
-    proteines: r.proteines,
-    glucides: r.glucides,
-    lipides: r.lipides,
-    ingredients: r.ingredients,
+    kcal: sc(r.kcal),
+    proteines: sc(r.proteines),
+    glucides: sc(r.glucides),
+    lipides: sc(r.lipides),
+    portionFacteur: Math.round(facteur * 100) / 100,
+    ingredients: (r.ingredients || []).map((i) => ({
+      ...i,
+      quantite: facteur === 1
+        ? i.quantite
+        : arrondiQuantite((Number(i.quantite) || 0) * facteur, i.unite),
+    })),
     etapes: r.etapes,
   };
 }
@@ -482,6 +524,7 @@ module.exports = {
   familiesFromUserAllergies,
   allergenesEffectifs,
   satisfaitRegime,
+  regimeContredit,
   petitDejGout,
   recettesCompatibles,
   genererPlanDemo,

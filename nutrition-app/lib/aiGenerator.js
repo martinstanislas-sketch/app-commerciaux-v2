@@ -6,7 +6,7 @@
 // rester leger), puis re-filtre allergies/regime (ceinture + bretelles).
 
 const { calculerBesoins } = require('./nutrition');
-const { recettesCompatibles, familiesFromUserAllergies, norm } = require('./planGenerator');
+const { recettesCompatibles, familiesFromUserAllergies, allergenesEffectifs, regimeContredit, norm } = require('./planGenerator');
 
 let Anthropic = null;
 try {
@@ -48,7 +48,12 @@ function contraintesTexte(profil, prefs, besoins) {
   const interdits = [...(prefs.allergies || []), ...(prefs.deteste || [])].filter(Boolean);
   if (interdits.length) {
     lignes.push(
-      `INTERDITS ABSOLUS (ne JAMAIS inclure, meme en trace) : ${interdits.join(', ')}.`
+      `INTERDITS ABSOLUS (ne JAMAIS inclure, meme en trace, ni aucun derive ou synonyme) : ${interdits.join(', ')}.`
+    );
+    lignes.push(
+      'Rappels synonymes a exclure aussi : arachide = cacahuete / beurre de cacahuete / sauce satay ; ' +
+      'fruits a coque = noix, amande, noisette, cajou, pistache, pignon ; lactose = lait, fromage, yaourt, creme, beurre ; ' +
+      'gluten = ble, pain, pates, semoule, couscous, avoine ; soja = tofu, edamame, sauce soja, miso ; sesame = tahin, houmous.'
     );
   }
   return lignes.join('\n');
@@ -124,20 +129,50 @@ function validerPlan(obj) {
   return obj;
 }
 
-// Verifie qu'aucune recette IA ne contient un interdit ; sinon -> exception
-// pour declencher une nouvelle tentative ou le repli demo.
-function verifierInterdits(plan, prefs) {
+// Detecte un interdit dans UNE recette IA. Deux niveaux, comme le mode demo :
+//  a) familles d'allergenes via les memes detecteurs (cacahuete = arachide,
+//     noix/amande = fruits-a-coque, lait/fromage = lactose...) -> attrape les
+//     synonymes que l'utilisateur n'a pas tapes ("arachide" coche, "cacahuete" servie).
+//  b) mots bruts (aliments detestes + libelles d'allergie) dans nom/ingredients/mots-cles.
+// Renvoie la raison (string) si interdit, sinon null.
+function raisonInterdit(r, prefs) {
+  if (!r) return null;
+  const famillesInterdites = familiesFromUserAllergies(prefs.allergies);
+  if (famillesInterdites.size) {
+    const presentes = allergenesEffectifs(r);
+    for (const fam of famillesInterdites) {
+      if (presentes.has(fam)) return `allergene ${fam}`;
+    }
+  }
   const motsInterdits = [...(prefs.allergies || []), ...(prefs.deteste || [])]
     .map(norm)
     .filter(Boolean);
-  if (!motsInterdits.length) return;
+  if (motsInterdits.length) {
+    const champ = [
+      norm(r.nom),
+      ...(r.ingredients || []).map((i) => norm(i.nom)),
+      ...(r.motsCles || []).map(norm),
+    ].join(' | ');
+    const hit = motsInterdits.find((m) => champ.includes(m));
+    if (hit) return `mot interdit "${hit}"`;
+  }
+  // Regime (vegan, vegetarien, sans-porc, sans-gluten) : la recette IA ne doit pas
+  // le contredire par ses ingredients (l'IA n'ayant pas de tag "regime" fiable).
+  const regimesRequis = (prefs.regime || []).map(norm).filter(Boolean);
+  for (const reg of regimesRequis) {
+    if (regimeContredit(r, reg)) return `regime ${reg} non respecte`;
+  }
+  return null;
+}
+
+// Verifie qu'aucune recette IA ne contient un interdit ; sinon -> exception
+// pour declencher une nouvelle tentative ou le repli demo.
+function verifierInterdits(plan, prefs) {
   for (const jour of plan.jours) {
     for (const repas of jour.repas) {
-      const r = repas.recette;
-      if (!r) continue;
-      const champ = [norm(r.nom), ...(r.ingredients || []).map((i) => norm(i.nom))].join(' | ');
-      if (motsInterdits.some((m) => champ.includes(m))) {
-        throw new Error(`Interdit detecte dans une recette IA : ${r.nom}`);
+      const raison = raisonInterdit(repas.recette, prefs);
+      if (raison) {
+        throw new Error(`Interdit (${raison}) dans une recette IA : ${repas.recette.nom}`);
       }
     }
   }
@@ -187,9 +222,8 @@ Reponds UNIQUEMENT avec l'objet JSON "recette" (memes champs que le format plan,
   const r = extraireJSON(texte);
   // Validation minimale + controle interdits.
   if (typeof r.nom !== 'string') throw new Error('Recette IA invalide.');
-  const champ = [norm(r.nom), ...((r.ingredients || []).map((i) => norm(i.nom)))].join(' | ');
-  const motsInterdits = interdits.map(norm).filter(Boolean);
-  if (motsInterdits.some((m) => champ.includes(m))) throw new Error('Interdit dans la recette IA.');
+  const raison = raisonInterdit(r, prefs);
+  if (raison) throw new Error(`Interdit (${raison}) dans la recette IA.`);
   return r;
 }
 
