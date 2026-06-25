@@ -2824,7 +2824,9 @@ function isMainAdmin() { const u = mainAppUser(); return !!u && u.role === 'admi
 function setupDemoMode() {
   if (!isDemo()) return;
   document.body.classList.add('is-demo');
-  const banner = $('#demoBanner'); if (banner) banner.classList.remove('hidden');
+  // Le bandeau du bas est masque (CSS) pour une lecture plein ecran ; ses actions
+  // (Recommencer / Quitter) sont reprises dans l'ecran Profil > "Demonstration".
+  $$('#view-profil .profil-demo').forEach((el) => el.classList.remove('hidden'));
   const restart = $('#demoRestart');
   if (restart) restart.addEventListener('click', () => {
     if (!confirm('Recommencer la demo depuis le debut ? Les donnees de demo seront effacees.')) return;

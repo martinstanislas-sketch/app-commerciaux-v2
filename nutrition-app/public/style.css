@@ -1060,3 +1060,10 @@ body.is-demo { padding-bottom: 54px; }
 body.lecture .topbar,
 body.lecture .demo-banner { display: none !important; }
 body.lecture #app { padding-top: 52px; }
+
+/* Mode demo client = experience plein ecran : on retire les bandeaux de demo.
+   Le bandeau du bas (qui recouvrait la barre de navigation) disparait ; le haut
+   ne garde que le logo. "Recommencer / Quitter la demo" passent dans l'ecran Profil. */
+.demo-banner { display: none !important; }
+body.is-demo #modeBadge,
+body.is-demo #navRestart { display: none !important; }
