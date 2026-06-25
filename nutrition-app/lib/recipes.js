@@ -3407,9 +3407,7 @@ const RECIPES = [
     "cuisines": [
       "francaise"
     ],
-    "regime": [
-      "sans-porc"
-    ],
+    "regime": [],
     "budget": "normal",
     "allergenes": [
       "gluten",

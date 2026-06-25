@@ -47,6 +47,52 @@ function familiesFromUserAllergies(allergies) {
   return familles;
 }
 
+// Detecteurs HAUTE PRECISION : reperent une famille d'allergene directement dans
+// les ingredients/nom/mots-cles, meme si la recette a oublie de la declarer.
+// Les "faux amis" sont exclus (lait de coco, beurre de cacahuete, noix de coco,
+// nouilles de riz, tortilla espagnole, pate de curry...) pour ne PAS exclure a tort.
+const ALLERGENES_DETECTEURS = {
+  arachide: /\b(arachide|cacahuete|cacahouete|peanut)/,
+  'fruits-a-coque': /(amande|noisette|\bcajou|pistache|noix de pecan|noix de grenoble|cerneau|pignon de pin|\bnoix\b(?! de coco)(?! de muscade))/,
+  lactose: /(\blait\b(?! de coco)(?! d.amande)(?! de soja)(?! vegetal)(?! d.avoine)(?! de riz)(?! de noisette)|fromage|yaourt|\bskyr|mozzarella|parmesan|\bfeta\b|ricotta|mascarpone|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|emmental|gruyere|cheddar|\bchevre\b|burrata|\bcomte\b|petit-suisse|mozzar|raclette|reblochon|feta)/,
+  oeuf: /(\boeuf|omelette|\bmayonnaise|meringue|frittata|brouillade)/,
+  gluten: /(\bble\b|\bpain\b|\bpates\b|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|lasagne|gnocchi|raviol|spaghetti|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|\bavoine|flocons d.avoine|muesli|granola|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b)/,
+  poisson: /(saumon|\bthon\b|cabillaud|\bcolin\b|\bmerlu|truite|sardine|maquereau|hareng|lieu noir|dorade|\bsole\b|anchois|surimi|nuoc.?mam|\bbar\b|\blotte\b|eglefin|haddock)/,
+  crustaces: /(crevette|gambas|\bcrabe|homard|langoustine|ecrevisse|\bscampi)/,
+  soja: /(\bsoja\b|\btofu\b|tempeh|edamame|\btamari\b|\bmiso\b)/,
+  sesame: /(sesame|\btahin|houmous|gomasio)/,
+};
+// Familles d'allergenes EFFECTIVEMENT presentes : declarees U detectees.
+function allergenesEffectifs(recette) {
+  const champ = [
+    norm(recette.nom),
+    ...(recette.motsCles || []).map(norm),
+    ...(recette.ingredients || []).map((i) => norm(i.nom)),
+  ].join(' | ');
+  const fams = new Set(recette.allergenes || []);
+  for (const [fam, re] of Object.entries(ALLERGENES_DETECTEURS)) {
+    if (re.test(champ)) fams.add(fam);
+  }
+  return fams;
+}
+
+// Ingredients qui CONTREDISENT un regime : si presents, la recette ne respecte
+// pas ce regime meme si elle l'a (a tort) declare. Blinde les preferences au
+// meme titre que les allergies. ("jambon de dinde" reste autorise en sans-porc.)
+const REGIME_INTERDITS = {
+  vegan: /(poulet|\bboeuf|\bporc\b|jambon|dinde|\bveau\b|agneau|lardon|bacon|chorizo|saucisse|merguez|steak|escalope|magret|canard|charcuterie|viande|gelatine|saumon|\bthon\b|cabillaud|colin|merlu|truite|sardine|maquereau|hareng|dorade|anchois|surimi|poisson|crevette|gambas|\bcrabe|\boeuf|omelette|\blait\b(?! de coco)(?! d.amande)(?! vegetal)(?! de soja)(?! de riz)(?! d.avoine)(?! de noisette)|fromage|yaourt|\bskyr|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bmiel\b|mascarpone|mozzar|parmesan|\bfeta\b|ricotta)/,
+  vegetarien: /(poulet|\bboeuf|\bporc\b|jambon|dinde|\bveau\b|agneau|lardon|bacon|chorizo|saucisse|merguez|steak|escalope|magret|canard|charcuterie|viande|gelatine|saumon|\bthon\b|cabillaud|colin|merlu|truite|sardine|maquereau|hareng|dorade|anchois|surimi|poisson|crevette|gambas|\bcrabe|nuoc.?mam)/,
+  'sans-porc': /(\bporc\b|jambon(?! de (?:dinde|volaille|poulet))|lardon|bacon|chorizo|\bcochon|saucisse(?! de volaille)(?! de poulet))/,
+  'sans-gluten': null, // utilise ALLERGENES_DETECTEURS.gluten
+};
+// La recette respecte-t-elle reellement un regime requis ? (declare ET non contredit)
+function satisfaitRegime(recette, regime) {
+  if (!(recette.regime || []).map(norm).includes(regime)) return false;
+  const re = regime === 'sans-gluten' ? ALLERGENES_DETECTEURS.gluten : REGIME_INTERDITS[regime];
+  if (re && re.test(champRecette(recette))) return false;
+  return true;
+}
+
 // Une recette contient-elle un mot interdit (allergie OU aliment deteste) ?
 function contientMotInterdit(recette, motsInterdits) {
   if (!motsInterdits.length) return false;
@@ -114,14 +160,17 @@ function recettesCompatibles(pool, prefs) {
   return pool.filter((r) => {
     // 0. Recettes explicitement bannies par l'utilisateur.
     if (exclus.has(r.id)) return false;
-    // 1. Allergenes : aucune famille interdite presente.
-    if ((r.allergenes || []).some((a) => famillesAllergenes.has(a))) return false;
+    // 1. Allergenes : aucune famille interdite presente (tags declares U detectes).
+    if (famillesAllergenes.size) {
+      const presentes = allergenesEffectifs(r);
+      for (const fam of famillesAllergenes) { if (presentes.has(fam)) return false; }
+    }
     // 2. Aucun mot interdit (allergie/deteste) dans nom/ingredients/mots-cles.
     if (contientMotInterdit(r, motsInterdits)) return false;
-    // 3. Regime : la recette doit declarer TOUS les regimes requis.
+    // 3. Regime : la recette doit reellement respecter TOUS les regimes requis
+    //    (declare ET non contredit par un ingredient).
     if (regimesRequis.length) {
-      const tags = (r.regime || []).map(norm);
-      if (!regimesRequis.every((req) => tags.includes(req))) return false;
+      if (!regimesRequis.every((req) => satisfaitRegime(r, req))) return false;
     }
     // 4. Temps de preparation.
     if (r.tempsMinutes > tempsMax) return false;
