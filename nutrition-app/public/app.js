@@ -651,7 +651,12 @@ function buildLocalRecipeDetail(r) {
     const aCouper = [...proteines, ...legumes];
     if (aCouper.length) prep.push('Couper en morceaux réguliers : ' + noms(aCouper.slice(0, 3)) + '.');
   }
-  const aRincer = ings.filter((i) => /(?<!farine de )(?<!lait de )\briz\b|quinoa|boulgour|pois chiche|lentille|haricot rouge|\bmais\b|\bthon\b/.test(norm(i.nom)));
+  const aRincer = ings.filter((i) => {
+    const n = norm(i.nom);
+    if (/pois chiche|lentille|haricot rouge|\bmais\b|\bthon\b/.test(n)) return true; // conserves : rincer
+    if (/(?<!farine de )(?<!lait de )\briz\b|quinoa|boulgour/.test(n) && !/cuit/.test(n)) return true; // cereale crue
+    return false;
+  });
   if (aRincer.length) prep.push('Rincer et égoutter : ' + noms(aRincer) + '.');
   if (four) prep.push('Préchauffer le four à 200 °C.');
 
