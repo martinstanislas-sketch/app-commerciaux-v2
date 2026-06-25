@@ -129,6 +129,65 @@ function trouverAlternatives(nom) {
   return [];
 }
 
+// ---------- Valeurs nutritionnelles des ingredients echangeables ----------
+// Pour 100 g / 100 ml. Sert a recalculer les macros d'une recette quand on
+// remplace un ingredient (mode hors-ligne), via la DIFFERENCE old -> new.
+// Cles "propres" : minuscules, sans accent ni apostrophe. Les plus specifiques
+// d'abord (ex. "beurre de cacahuete" avant "beurre").
+const NUTRI = {
+  'pave de saumon': { kcal: 200, p: 20, g: 0, l: 13 }, 'saumon': { kcal: 200, p: 20, g: 0, l: 13 },
+  'dos de cabillaud': { kcal: 80, p: 18, g: 0, l: 1 }, 'cabillaud': { kcal: 80, p: 18, g: 0, l: 1 },
+  'filet de colin': { kcal: 80, p: 17, g: 0, l: 1 }, 'colin': { kcal: 80, p: 17, g: 0, l: 1 },
+  'filet de truite': { kcal: 140, p: 20, g: 0, l: 6 }, 'truite': { kcal: 140, p: 20, g: 0, l: 6 },
+  'filet de poulet': { kcal: 110, p: 23, g: 0, l: 2 }, 'poulet': { kcal: 110, p: 23, g: 0, l: 2 },
+  'tofu': { kcal: 145, p: 16, g: 3, l: 8 }, 'pois chiches': { kcal: 165, p: 9, g: 27, l: 3 },
+  'boisson vegetale (avoine)': { kcal: 45, p: 1, g: 7, l: 1.5 },
+  'boisson vegetale (amande)': { kcal: 24, p: 0.5, g: 3, l: 1.1 },
+  'boisson vegetale': { kcal: 35, p: 1, g: 5, l: 1.3 }, 'lait demi-ecreme': { kcal: 47, p: 3.3, g: 5, l: 1.6 },
+  'yaourt grec': { kcal: 97, p: 9, g: 4, l: 5 }, 'yaourt nature': { kcal: 61, p: 3.5, g: 5, l: 3.3 },
+  'skyr': { kcal: 63, p: 11, g: 4, l: 0.2 }, 'fromage blanc': { kcal: 75, p: 8, g: 4, l: 3 },
+  'beurre de cacahuete': { kcal: 590, p: 25, g: 20, l: 50 },
+  'puree d amande': { kcal: 630, p: 21, g: 13, l: 55 }, 'puree de noisette': { kcal: 650, p: 15, g: 12, l: 62 },
+  'huile d olive': { kcal: 884, p: 0, g: 0, l: 100 }, 'margarine': { kcal: 720, p: 0, g: 0, l: 80 },
+  'beurre': { kcal: 717, p: 0.9, g: 0.1, l: 81 },
+  'amande': { kcal: 580, p: 21, g: 22, l: 49 }, 'noisette': { kcal: 628, p: 15, g: 17, l: 61 }, 'noix': { kcal: 654, p: 15, g: 14, l: 65 },
+  'banane': { kcal: 89, p: 1.1, g: 23, l: 0.3 }, 'pomme': { kcal: 52, p: 0.3, g: 14, l: 0.2 },
+  'poire': { kcal: 57, p: 0.4, g: 15, l: 0.1 }, 'ananas': { kcal: 50, p: 0.5, g: 13, l: 0.1 },
+  'fruits de saison': { kcal: 60, p: 0.7, g: 14, l: 0.3 }, 'fruits': { kcal: 60, p: 0.7, g: 14, l: 0.3 },
+  'courgette': { kcal: 17, p: 1.2, g: 3, l: 0.3 }, 'aubergine': { kcal: 25, p: 1, g: 6, l: 0.2 },
+  'brocoli': { kcal: 34, p: 2.8, g: 7, l: 0.4 }, 'haricots verts': { kcal: 31, p: 1.8, g: 7, l: 0.1 },
+  'poivron': { kcal: 31, p: 1, g: 6, l: 0.3 }, 'epinard': { kcal: 23, p: 2.9, g: 3.6, l: 0.4 },
+  'miel': { kcal: 304, p: 0.3, g: 82, l: 0 }, 'sirop d erable': { kcal: 260, p: 0, g: 67, l: 0 }, 'sucre': { kcal: 400, p: 0, g: 100, l: 0 },
+  'sauce teriyaki': { kcal: 130, p: 5, g: 26, l: 0 }, 'tamari': { kcal: 60, p: 10, g: 5, l: 0 }, 'sauce soja': { kcal: 60, p: 8, g: 6, l: 0 },
+};
+const PIECE_G = { banane: 120, pomme: 150, poire: 160, oeuf: 50 };
+const nettoyerNom = (s) => normTxt(s).replace(/['’]/g, ' ').replace(/\s+/g, ' ').trim();
+
+// Convertit une quantite + unite en grammes (approximations usuelles).
+function grammesIngredient(nom, qty, unite) {
+  const u = normTxt(unite || '');
+  const q = Number(qty) || 0;
+  if (u === 'g' || u === 'ml') return q;
+  if (u === 'piece') { const n = nettoyerNom(nom); const k = Object.keys(PIECE_G).find((x) => n.includes(x)); return q * (k ? PIECE_G[k] : 100); }
+  if (u === 'c. a soupe') return q * 15;
+  if (u === 'c. a cafe') return q * 5;
+  if (u === 'gousse') return q * 5;
+  if (u === 'pincee') return q * 1;
+  if (u === 'tranche') return q * 20;
+  if (u === 'poignee') return q * 30;
+  return q;
+}
+
+// Macros apportees par un ingredient (selon sa quantite). null si inconnu.
+function macrosIngredient(nom, qty, unite) {
+  const n = nettoyerNom(nom);
+  const key = Object.keys(NUTRI).find((k) => n.includes(k));
+  if (!key) return null;
+  const per = NUTRI[key];
+  const f = grammesIngredient(nom, qty, unite) / 100;
+  return { kcal: per.kcal * f, p: per.p * f, g: per.g * f, l: per.l * f };
+}
+
 // ---------- Navigation entre ecrans ----------
 function showScreen(id) {
   $$('.screen').forEach((s) => s.classList.remove('active'));
@@ -856,6 +915,16 @@ function swapIngredient(di, mi, idx) {
   if (!choix) { alert('Aucune alternative compatible avec vos contraintes pour cet ingredient.'); return; }
   const ancien = ing.nom;
   ing.nom = choix; // on conserve quantite/unite ; le rayon reste indicatif
+  // Recalcul des macros par DIFFERENCE (old -> new) a partir de la table NUTRI.
+  // Marche en mode demo comme en IA ; l'IA pourra affiner ensuite via recompute.
+  const mOld = macrosIngredient(ancien, ing.quantite, ing.unite);
+  const mNew = macrosIngredient(choix, ing.quantite, ing.unite);
+  if (mOld && mNew) {
+    recette.kcal = Math.max(0, Math.round((recette.kcal || 0) + mNew.kcal - mOld.kcal));
+    recette.proteines = Math.max(0, Math.round((recette.proteines || 0) + mNew.p - mOld.p));
+    recette.glucides = Math.max(0, Math.round((recette.glucides || 0) + mNew.g - mOld.g));
+    recette.lipides = Math.max(0, Math.round((recette.lipides || 0) + mNew.l - mOld.l));
+  }
   // Hors-ligne (sans IA) : on remplace l'ancien nom dans les etapes statiques
   // pour eviter l'incoherence (ex. "banane" -> "fruits rouges" dans le dressage).
   if (!state.ia) recette.etapes = (recette.etapes || []).map((s) => remplacerMot(s, ancien, choix));
