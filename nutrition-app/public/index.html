@@ -492,11 +492,11 @@
       <div id="plateStageInput" class="scan-stage">
         <h2 class="scan-title"><svg class="ic"><use href="#ic-camera"/></svg> Analyser mon assiette</h2>
         <p class="panel-sub">Prends ou importe une photo de ton repas pour une estimation visuelle des calories et des macros.</p>
-        <label class="plate-drop" id="plateDrop">
-          <input type="file" id="plateFile" accept="image/*" capture="environment" hidden>
-          <div id="plateDropEmpty" class="plate-drop-empty"><svg class="ic"><use href="#ic-camera"/></svg><span>Prendre une photo ou importer</span></div>
+        <div class="plate-drop" id="plateDrop" role="button" tabindex="0">
+          <input type="file" id="plateFile" accept="image/*" hidden>
+          <div id="plateDropEmpty" class="plate-drop-empty"><svg class="ic"><use href="#ic-camera"/></svg><span>Prendre une photo ou importer<small>Appareil photo ou galerie</small></span></div>
           <img id="platePreview" class="plate-preview hidden" alt="Apercu de l'assiette">
-        </label>
+        </div>
         <label class="field" style="margin-top:10px"><span>Ajoute une precision si besoin (sauce, huile, boisson, dessert, quantite, cuisson...)</span>
           <textarea id="platePrecision" rows="2" placeholder="Ex : avec un filet d'huile d'olive et un verre de jus"></textarea>
         </label>

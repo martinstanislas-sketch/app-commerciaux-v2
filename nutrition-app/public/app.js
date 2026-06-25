@@ -1400,6 +1400,9 @@ function init() {
   $('#btnPlateFromSuivi').addEventListener('click', () => { closeSuivi(); openPlate(); });
   $('#plateClose').addEventListener('click', closePlate);
   $('#plateModal').addEventListener('click', (e) => { if (e.target.id === 'plateModal') closePlate(); });
+  // Taper la zone ouvre l'appareil photo / la galerie (declencheur explicite, fiable mobile).
+  $('#plateDrop').addEventListener('click', () => $('#plateFile').click());
+  $('#plateDrop').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#plateFile').click(); } });
   $('#plateFile').addEventListener('change', onPlateFile);
   $('#plateAnalyze').addEventListener('click', analyzePlate);
   $('#plateRetry').addEventListener('click', () => plateShowStage('input'));

@@ -853,3 +853,6 @@ body.is-demo { padding-bottom: 54px; }
 .plate-req-thumb { width: 72px; height: 72px; border-radius: 12px; object-fit: cover; flex: 0 0 auto; border: 1px solid var(--mc-border); }
 .plate-req-info { min-width: 0; flex: 1; }
 .plate-req-macros { font-size: 13px; color: var(--ink-2); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.plate-drop-empty span { display: flex; flex-direction: column; gap: 3px; }
+.plate-drop-empty small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.plate-drop { -webkit-tap-highlight-color: transparent; }
