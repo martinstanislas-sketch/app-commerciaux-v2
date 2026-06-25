@@ -588,17 +588,23 @@ function buildLocalRecipeDetail(r) {
   const txt = ((r.etapes || []).join(' ') + ' ' + ings.map((i) => i.nom).join(' ')).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const has = (re) => re.test(txt);
   const norm = (s) => normTxt(s);
+  // Riz CUIT (pour distinguer "farine de riz", "lait de riz", "galette de riz").
+  const rizCuit = /(?<!farine de )(?<!lait de )(?<!galette de )(?<!nouilles de )\briz\b/.test(txt);
 
   // --- La recette comporte-t-elle une CUISSON ? (sinon : pas de poele/four/feu) ---
   const poele = has(/poel|saisir|dorer|revenir|sauter|omelette|au plat|brouill|\bsaute|frire|\bgrill/);
   const four = has(/\bfour\b|rotir|enfourn|gratin|\broti\b/);
-  const casserole = has(/casserole|bouillir|eau bouillante|mijot|\bcuire\b|vapeur|pocher|oeufs? poche|\bsoupe\b|porridge|\briz\b|pates\b|quinoa|semoule|boulgour|lentille/);
-  const cuisson = poele || four || casserole || has(/cuisson|\bcuit|chauff|rechauff|\bfeu\b|mijote|\bblanchir/);
+  const casserole = has(/casserole|bouillir|eau bouillante|mijot|vapeur|pocher|oeufs? poche|\bsoupe\b|porridge|pates\b|quinoa|semoule|boulgour|lentille/) || rizCuit;
+  const cuisson = poele || four || casserole || has(/\bcuire\b|cuisson|\bcuit|chauff|rechauff|\bfeu\b|mijote|\bblanchir/);
+  // Recette plutot sucree ? (priorite au champ explicite r.gout, sinon deduction)
+  const sucreType = r.type === 'petit-dejeuner' || r.type === 'collation';
+  const salePetitDej = has(/oeuf|omelette|jambon|bacon|avocat|saumon|\bfeta\b|charcuterie|saucisse|\bthon|\btofu\b/);
+  const doux = r.gout === 'sucre' || (r.gout !== 'sale' && sucreType && !salePetitDej);
 
   // --- Classification des ingredients (fruit != legume) ---
   const estFruit = (i) => /banane|orange|pomme\b|poire|fraise|framboise|myrtille|fruits rouges|mangue|ananas|kiwi|raisin|\bpeche|abricot|cerise|melon|pasteque|clementine|mandarine|grenade|figue|datte|fruits de saison|fruits frais|fruits secs|compote|avocat/.test(norm(i.nom));
   const estLegume = (i) => /brocoli|courgette|poivron|epinard|haricot vert|\btomate|carotte|champignon|salade|concombre|oignon|\bail\b|aubergine|\bchou|poireau|courge|patate douce|betterave|radis|fenouil|asperge|petit pois|\bmais\b|roquette|mache|endive|navet|celeri|blette|crudite/.test(norm(i.nom));
-  const estCroquant = (i) => /granola|\bnoix|amande|noisette|graine|muesli|crouton|cereales|cacahuete|pignon|pistache|cajou|\bchia\b/.test(norm(i.nom));
+  const estCroquant = (i) => { const n = norm(i.nom); if (/lait|boisson|puree|creme|huile|sirop/.test(n)) return false; return /granola|\bnoix|amande|noisette|\bgraine|muesli|crouton|cereales|cacahuete|pignon|pistache|cajou|\bchia\b/.test(n); };
   const estLaitier = (i) => /yaourt|\bskyr|fromage blanc|petit-suisse|fromage frais|cottage|faisselle/.test(norm(i.nom));
   const estProteine = (i) => /poulet|dinde|\bboeuf|steak|\bveau|agneau|\bporc|jambon|saumon|\bthon|cabillaud|colin|merlu|truite|sardine|crevette|gambas|\boeuf|\btofu|tempeh|pois chiche|lentille|haricot rouge|\bfeta|mozzarella/.test(norm(i.nom));
   const estFeculent = (i) => /\briz\b|pates\b|quinoa|semoule|boulgour|patate|pomme de terre|\bpain\b|wrap|tortilla|galette|flocons|avoine|polenta|blini|muffin|\bpita\b/.test(norm(i.nom));
@@ -611,6 +617,7 @@ function buildLocalRecipeDetail(r) {
   const proteines = ings.filter(estProteine);
   const feculents = ings.filter(estFeculent);
   const noms = (arr) => arr.map((i) => i.nom.toLowerCase()).join(', ');
+  const elide = (n) => { const t = n.trim(); if (/^(haricot|hareng|homard)/i.test(t)) return 'de ' + t; return /^[aeiouyàâäéèêëîïôöûùœh]/i.test(t) ? "d'" + t : 'de ' + t; };
 
   // --- Materiel REELLEMENT utilise ---
   const mat = [];
@@ -631,7 +638,7 @@ function buildLocalRecipeDetail(r) {
 
   // --- Preparation des ingredients ---
   const prep = [];
-  const sortir = ings.map((i) => `${fmtQty((Number(i.quantite) || 0) * state.portions)} ${uniteLabel(i.unite, (Number(i.quantite) || 0) * state.portions)} de ${i.nom.toLowerCase()}`);
+  const sortir = ings.map((i) => `${fmtQty((Number(i.quantite) || 0) * state.portions)} ${uniteLabel(i.unite, (Number(i.quantite) || 0) * state.portions)} ${elide(i.nom.toLowerCase())}`);
   if (sortir.length) prep.push('Sortir et peser : ' + sortir.join(', ') + '.');
   if (legumes.length) prep.push('Laver et parer les légumes : ' + noms(legumes) + '.');
   if (fruits.length) {
@@ -644,7 +651,7 @@ function buildLocalRecipeDetail(r) {
     const aCouper = [...proteines, ...legumes];
     if (aCouper.length) prep.push('Couper en morceaux réguliers : ' + noms(aCouper.slice(0, 3)) + '.');
   }
-  const aRincer = ings.filter((i) => /\briz\b|quinoa|boulgour|pois chiche|lentille|haricot rouge|\bmais\b|\bthon\b/.test(norm(i.nom)));
+  const aRincer = ings.filter((i) => /(?<!farine de )(?<!lait de )\briz\b|quinoa|boulgour|pois chiche|lentille|haricot rouge|\bmais\b|\bthon\b/.test(norm(i.nom)));
   if (aRincer.length) prep.push('Rincer et égoutter : ' + noms(aRincer) + '.');
   if (four) prep.push('Préchauffer le four à 200 °C.');
 
@@ -654,33 +661,33 @@ function buildLocalRecipeDetail(r) {
     if (has(/poulet|dinde/)) reperes.push('La volaille ne doit plus être rosée à cœur.');
     if (has(/saumon|cabillaud|\bthon|poisson|crevette/)) reperes.push("Le poisson doit s'effeuiller facilement à la fourchette.");
     if (has(/\bboeuf|steak/)) reperes.push('Vise une belle coloration extérieure en saisissant à feu vif.');
-    if (has(/\briz\b/)) reperes.push('Le riz doit être tendre mais pas collant.');
+    if (rizCuit) reperes.push('Le riz doit être tendre mais pas collant.');
     if (has(/pates\b/)) reperes.push('Les pâtes doivent rester al dente.');
     if (legumes.length) reperes.push('Les légumes doivent rester légèrement croquants et bien colorés.');
     if (has(/oeuf/)) reperes.push('Le blanc doit être pris, le jaune encore coulant selon ton goût.');
     if (has(/sauce|coulis|creme|pesto|coco/)) reperes.push('La sauce doit napper la cuillère sans être liquide.');
-    if (!reperes.length) reperes.push("Goûte en fin de cuisson et ajuste l'assaisonnement.");
+    if (!reperes.length) reperes.push(doux ? 'La préparation doit être dorée et bien moelleuse.' : "Goûte en fin de cuisson et ajuste l'assaisonnement.");
   } else {
     if (laitiers.length) reperes.push('Le skyr (ou fromage blanc) doit être lisse et bien frais.');
     if (fruits.length) reperes.push('Les fruits doivent être frais, juteux et bien colorés.');
     if (has(/\bpain\b|tartine|wrap|galette|biscotte/)) reperes.push('Le pain doit être bien croustillant à l\'extérieur.');
-    if (croquants.length) reperes.push('Le granola et les graines doivent rester croquants.');
+    if (croquants.length) reperes.push('Les fruits secs et les graines doivent rester croquants.');
     if (!reperes.length) reperes.push('Soigne la présentation : des ingrédients frais et nets donnent tout de suite envie.');
   }
 
   // --- Ajustements (adaptes au type, a la cuisson et a l'objectif) ---
   const ajust = [];
-  const sucre = r.type === 'petit-dejeuner' || r.type === 'collation';
-  if (cuisson) {
+  if (doux) {
+    ajust.push('Pour plus de protéines et de satiété, ajoute du skyr ou du fromage blanc.');
+    if (has(/miel|sucre|sirop|confiture|chocolat|pate a tartiner/)) ajust.push('Tu surveilles les sucres ? Réduis le miel/sucre ou remplace par un fruit frais.');
+    if (aJus) ajust.push('Pour limiter les sucres liquides, préfère le fruit entier au jus.');
+    if (poele) ajust.push("Si ça accroche dans la poêle, ajoute un filet d'huile ou un peu de lait végétal.");
+    ajust.push("Trop léger à ton goût ? Ajoute une poignée de flocons, de fruits ou d'oléagineux.");
+  } else if (cuisson) {
     ajust.push('Si le plat manque de goût, ajoute des herbes, des épices ou un filet de citron.');
     if (has(/sauce|creme|coco|pesto|coulis/)) ajust.push("Sauce trop liquide ? Prolonge la cuisson 1 à 2 minutes. Trop épaisse ? Détends avec un peu d'eau.");
     if (poele) ajust.push("Si ça accroche dans la poêle, ajoute un fond d'eau ou un filet d'huile.");
     if (has(/\briz\b|pates\b|quinoa|semoule/)) ajust.push("Féculent encore ferme ? Prolonge de 2 à 3 minutes avec un peu d'eau chaude.");
-  } else if (sucre) {
-    ajust.push('Pour plus de protéines et de satiété, ajoute du skyr ou du fromage blanc.');
-    if (has(/miel|sucre|sirop|confiture|chocolat|pate a tartiner/)) ajust.push('Tu surveilles les sucres ? Réduis le miel/sucre ou remplace par un fruit frais.');
-    if (aJus) ajust.push('Pour limiter les sucres liquides, préfère le fruit entier au jus.');
-    ajust.push("Trop léger à ton goût ? Ajoute une poignée de flocons, de fruits ou d'oléagineux.");
   } else {
     ajust.push('Assaisonne à ton goût : sel, poivre, herbes fraîches ou filet de citron.');
     ajust.push("Pour plus de satiété, accompagne d'une portion de légumes ou d'un féculent complet.");
@@ -689,9 +696,9 @@ function buildLocalRecipeDetail(r) {
   // --- Dressage (concret, sans "toppings/croquant" si rien de croquant) ---
   let dressage;
   const fec = feculents[0], prot = proteines[0], leg = legumes[0];
-  if (cuisson && fec && prot) {
+  if (cuisson && fec && prot && !doux) {
     dressage = `Dispose ${fec.nom.toLowerCase()} au fond de l'assiette, ajoute ${prot.nom.toLowerCase()} par-dessus${leg ? `, puis ${leg.nom.toLowerCase()} sur le côté` : ''}. Sers chaud, avec un filet de citron ou des herbes fraîches.`;
-  } else if (sucre) {
+  } else if (sucreType && !cuisson) {
     if (laitiers.length) {
       dressage = `Dépose ${laitiers[0].nom.toLowerCase()} dans un bol${fruits.length ? `, dispose ${noms(fruits)} dessus` : ''}${croquants.length ? ` et ajoute ${noms(croquants)} au dernier moment pour garder le croquant` : ''}. Sers aussitôt.`;
     } else if (has(/\bpain\b|tartine|wrap|galette|biscotte/)) {
@@ -699,6 +706,8 @@ function buildLocalRecipeDetail(r) {
     } else {
       dressage = `Dresse dans un bol ou une assiette${fruits.length ? `, avec ${noms(fruits)} bien visibles` : ''}. Sers frais.`;
     }
+  } else if (doux && cuisson) {
+    dressage = 'Dresse dans une assiette et sers tiède, bien doré.';
   } else if (cuisson) {
     dressage = "Dresse harmonieusement dans l'assiette et sers aussitôt, tant que c'est chaud.";
   } else {

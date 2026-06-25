@@ -54,7 +54,7 @@ function familiesFromUserAllergies(allergies) {
 const ALLERGENES_DETECTEURS = {
   arachide: /\b(arachide|cacahuete|cacahouete|peanut)/,
   'fruits-a-coque': /(amande|noisette|\bcajou|pistache|noix de pecan|noix de grenoble|cerneau|pignon de pin|\bnoix\b(?! de coco)(?! de muscade))/,
-  lactose: /(\blait\b(?! de coco)(?! d.amande)(?! de soja)(?! vegetal)(?! d.avoine)(?! de riz)(?! de noisette)|fromage|yaourt|\bskyr|mozzarella|parmesan|\bfeta\b|ricotta|mascarpone|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|emmental|gruyere|cheddar|\bchevre\b|burrata|\bcomte\b|petit-suisse|mozzar|raclette|reblochon|feta)/,
+  lactose: /(\blait\b(?! de coco)(?! d.amande)(?! de soja)(?! vegetal)(?! d.avoine)(?! de riz)(?! de noisette)|fromage(?! vegetal)(?! vegan)|yaourt(?! vegetal)(?! de soja)(?! de coco)(?! d.amande)(?! d.avoine)(?! vegan)|\bskyr|mozzarella|parmesan|\bfeta\b|ricotta|mascarpone|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|emmental|gruyere|cheddar|\bchevre\b|burrata|\bcomte\b|petit-suisse|mozzar|raclette|reblochon|feta)/,
   oeuf: /(\boeuf|omelette|\bmayonnaise|meringue|frittata|brouillade)/,
   gluten: /(\bble\b|\bpain\b|\bpates\b|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|lasagne|gnocchi|raviol|spaghetti|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|\bavoine|flocons d.avoine|muesli|granola|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b)/,
   poisson: /(saumon|\bthon\b|cabillaud|\bcolin\b|\bmerlu|truite|sardine|maquereau|hareng|lieu noir|dorade|\bsole\b|anchois|surimi|nuoc.?mam|\bbar\b|\blotte\b|eglefin|haddock)/,
@@ -62,17 +62,34 @@ const ALLERGENES_DETECTEURS = {
   soja: /(\bsoja\b|\btofu\b|tempeh|edamame|\btamari\b|\bmiso\b)/,
   sesame: /(sesame|\btahin|houmous|gomasio)/,
 };
-// Familles d'allergenes EFFECTIVEMENT presentes : declarees U detectees.
-function allergenesEffectifs(recette) {
-  const champ = [
+// Sources de gluten AUTRES que l'avoine/les flocons (pour gerer l'avoine certifiee
+// sans gluten : si la seule source est l'avoine et que "sans gluten" est mentionne,
+// on ne marque pas la recette comme contenant du gluten).
+const GLUTEN_HORS_AVOINE = /(\bble\b|\bpain\b|\bpates\b|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|lasagne|gnocchi|raviol|spaghetti|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b|tortilla de ble|wrap)/;
+
+// Familles d'allergenes DETECTEES dans un champ texte (avec exceptions fines).
+function famillesDetectees(champ) {
+  const fams = new Set();
+  for (const [fam, re] of Object.entries(ALLERGENES_DETECTEURS)) {
+    if (re.test(champ)) fams.add(fam);
+  }
+  // Avoine certifiee sans gluten : pas de gluten si aucune autre source de gluten.
+  if (fams.has('gluten') && /sans gluten/.test(champ) && !GLUTEN_HORS_AVOINE.test(champ)) {
+    fams.delete('gluten');
+  }
+  return fams;
+}
+function champDeRecette(recette) {
+  return [
     norm(recette.nom),
     ...(recette.motsCles || []).map(norm),
     ...(recette.ingredients || []).map((i) => norm(i.nom)),
   ].join(' | ');
-  const fams = new Set(recette.allergenes || []);
-  for (const [fam, re] of Object.entries(ALLERGENES_DETECTEURS)) {
-    if (re.test(champ)) fams.add(fam);
-  }
+}
+// Familles d'allergenes EFFECTIVEMENT presentes : declarees U detectees.
+function allergenesEffectifs(recette) {
+  const fams = famillesDetectees(champDeRecette(recette));
+  for (const a of recette.allergenes || []) fams.add(a);
   return fams;
 }
 
@@ -80,7 +97,7 @@ function allergenesEffectifs(recette) {
 // pas ce regime meme si elle l'a (a tort) declare. Blinde les preferences au
 // meme titre que les allergies. ("jambon de dinde" reste autorise en sans-porc.)
 const REGIME_INTERDITS = {
-  vegan: /(poulet|\bboeuf|\bporc\b|jambon|dinde|\bveau\b|agneau|lardon|bacon|chorizo|saucisse|merguez|steak|escalope|magret|canard|charcuterie|viande|gelatine|saumon|\bthon\b|cabillaud|colin|merlu|truite|sardine|maquereau|hareng|dorade|anchois|surimi|poisson|crevette|gambas|\bcrabe|\boeuf|omelette|\blait\b(?! de coco)(?! d.amande)(?! vegetal)(?! de soja)(?! de riz)(?! d.avoine)(?! de noisette)|fromage|yaourt|\bskyr|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bmiel\b|mascarpone|mozzar|parmesan|\bfeta\b|ricotta)/,
+  vegan: /(poulet|\bboeuf|\bporc\b|jambon|dinde|\bveau\b|agneau|lardon|bacon|chorizo|saucisse|merguez|steak|escalope|magret|canard|charcuterie|viande|gelatine|saumon|\bthon\b|cabillaud|colin|merlu|truite|sardine|maquereau|hareng|dorade|anchois|surimi|poisson|crevette|gambas|\bcrabe|\boeuf|omelette|\blait\b(?! de coco)(?! d.amande)(?! vegetal)(?! de soja)(?! de riz)(?! d.avoine)(?! de noisette)|fromage(?! vegetal)(?! vegan)|yaourt(?! vegetal)(?! de soja)(?! de coco)(?! d.amande)(?! d.avoine)(?! vegan)|\bskyr|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bmiel\b|mascarpone|mozzar|parmesan|\bfeta\b|ricotta)/,
   vegetarien: /(poulet|\bboeuf|\bporc\b|jambon|dinde|\bveau\b|agneau|lardon|bacon|chorizo|saucisse|merguez|steak|escalope|magret|canard|charcuterie|viande|gelatine|saumon|\bthon\b|cabillaud|colin|merlu|truite|sardine|maquereau|hareng|dorade|anchois|surimi|poisson|crevette|gambas|\bcrabe|nuoc.?mam)/,
   'sans-porc': /(\bporc\b|jambon(?! de (?:dinde|volaille|poulet))|lardon|bacon|chorizo|\bcochon|saucisse(?! de volaille)(?! de poulet))/,
   'sans-gluten': null, // utilise ALLERGENES_DETECTEURS.gluten
@@ -88,7 +105,8 @@ const REGIME_INTERDITS = {
 // La recette respecte-t-elle reellement un regime requis ? (declare ET non contredit)
 function satisfaitRegime(recette, regime) {
   if (!(recette.regime || []).map(norm).includes(regime)) return false;
-  const re = regime === 'sans-gluten' ? ALLERGENES_DETECTEURS.gluten : REGIME_INTERDITS[regime];
+  if (regime === 'sans-gluten') return !famillesDetectees(champDeRecette(recette)).has('gluten');
+  const re = REGIME_INTERDITS[regime];
   if (re && re.test(champRecette(recette))) return false;
   return true;
 }
@@ -255,6 +273,7 @@ function champRecette(r) {
 }
 // Petit-dejeuner : plutot sucre ou sale ? (pour adapter selon le gout du matin)
 function petitDejGout(r) {
+  if (r.gout === 'sucre' || r.gout === 'sale') return r.gout; // champ explicite prioritaire
   const c = champRecette(r);
   if (/oeuf|omelette|jambon|bacon|avocat|saumon|\bfeta\b|charcuterie|saucisse|thon/.test(c)) return 'sale';
   if (/muesli|granola|flocons|avoine|porridge|banane|fruit|miel|confiture|chocolat|pancake|crepe|gaufre|smoothie|compote|brioche|chia|cereales|marmelade|cacao|yaourt|skyr|fromage blanc/.test(c)) return 'sucre';
@@ -464,6 +483,9 @@ function formaterRecette(r) {
 module.exports = {
   norm,
   familiesFromUserAllergies,
+  allergenesEffectifs,
+  satisfaitRegime,
+  petitDejGout,
   recettesCompatibles,
   genererPlanDemo,
   regenererRepas,
