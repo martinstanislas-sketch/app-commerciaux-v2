@@ -697,8 +697,10 @@ function buildLocalRecipeDetail(r) {
   let dressage;
   const fec = feculents[0], prot = proteines[0], leg = legumes[0];
   const estTartine = has(/\bpain\b|tartine|\bwrap\b|galette|biscotte|tortilla|burrito|socca/);
-  const estMoule = four || has(/frittata|muffin|\bcake\b|gratin|gaufre/);
-  if (sucreType && !cuisson) {
+  const estMoule = four || has(/frittata|muffin|\bcake\b|gratin|banana bread|terrine/);
+  if (/smoothie|\bshake\b/.test(norm(r.nom)) || has(/smoothie/)) {
+    dressage = 'Verse dans un grand verre (ou un bol) et sers bien frais.';
+  } else if (sucreType && !cuisson) {
     if (laitiers.length) {
       dressage = `Dépose ${laitiers[0].nom.toLowerCase()} dans un bol${fruits.length ? `, dispose ${noms(fruits)} dessus` : ''}${croquants.length ? ` et ajoute ${noms(croquants)} au dernier moment pour garder le croquant` : ''}. Sers aussitôt.`;
     } else if (estTartine) {
@@ -713,7 +715,7 @@ function buildLocalRecipeDetail(r) {
   } else if (cuisson && fec && prot && !doux) {
     dressage = `Dispose ${fec.nom.toLowerCase()} au fond de l'assiette, ajoute ${prot.nom.toLowerCase()} par-dessus${leg ? `, puis ${leg.nom.toLowerCase()} sur le côté` : ''}. Sers chaud, avec un filet de citron ou des herbes fraîches.`;
   } else if (doux && cuisson) {
-    dressage = 'Dresse dans une assiette et sers tiède, bien doré.';
+    dressage = 'Dresse dans un bol ou une assiette et sers tiède.';
   } else if (cuisson) {
     dressage = "Dresse harmonieusement dans l'assiette et sers aussitôt, tant que c'est chaud.";
   } else {
