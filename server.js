@@ -104,7 +104,7 @@ function ensureNutritionHelpTable() {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_nutrition_adherence_client_date ON nutrition_adherence(client_name, date);
     CREATE TABLE IF NOT EXISTS nutrition_demo (
       id INTEGER PRIMARY KEY CHECK (id = 1),
-      code TEXT NOT NULL DEFAULT 'MYCOACH-DEMO-CLIENT-2026',
+      code TEXT NOT NULL DEFAULT '2026',
       enabled INTEGER NOT NULL DEFAULT 1,
       expires_at TEXT DEFAULT NULL,
       uses INTEGER NOT NULL DEFAULT 0
@@ -141,11 +141,13 @@ function ensureNutritionHelpTable() {
     );
   `);
   // Seed config démo (une seule ligne).
-  getDb().prepare("INSERT OR IGNORE INTO nutrition_demo (id, code, enabled) VALUES (1, 'MYCOACH-DEMO-CLIENT-2026', 1)").run();
+  getDb().prepare("INSERT OR IGNORE INTO nutrition_demo (id, code, enabled) VALUES (1, '2026', 1)").run();
+  // Migration : bascule l'ancien code par défaut vers '2026' (sans écraser un code personnalisé saisi par l'admin).
+  getDb().prepare("UPDATE nutrition_demo SET code = '2026' WHERE id = 1 AND code = 'MYCOACH-DEMO-CLIENT-2026'").run();
 }
 function getDemoConfig() {
   return getDb().prepare('SELECT code, enabled, expires_at, uses FROM nutrition_demo WHERE id = 1').get()
-    || { code: 'MYCOACH-DEMO-CLIENT-2026', enabled: 1, expires_at: null, uses: 0 };
+    || { code: '2026', enabled: 1, expires_at: null, uses: 0 };
 }
 // Accès au module nutrition pour USAGE client (admin OU session démo).
 // Les routes coach restent en requireAdmin (declarees avant le catch-all).
