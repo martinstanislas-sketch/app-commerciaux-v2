@@ -130,6 +130,15 @@ function ensureNutritionHelpTable() {
       client_message TEXT NOT NULL DEFAULT '',
       advice_statut TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS nutrition_google_token (
+      client_name TEXT PRIMARY KEY,
+      access_token TEXT NOT NULL DEFAULT '',
+      refresh_token TEXT NOT NULL DEFAULT '',
+      expiry INTEGER NOT NULL DEFAULT 0,
+      calendar_id TEXT NOT NULL DEFAULT '',
+      calendar_name TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
   `);
   // Seed config démo (une seule ligne).
   getDb().prepare("INSERT OR IGNORE INTO nutrition_demo (id, code, enabled) VALUES (1, 'MYCOACH-DEMO-CLIENT-2026', 1)").run();
@@ -145,6 +154,75 @@ function requireNutritionUse(req, res, next) {
   const perms = (s && s.permissions) || [];
   if (s && (s.role === 'admin' || s.role === 'nutrition_demo' || (Array.isArray(perms) && perms.includes('can_access_nutrition_module')))) return next();
   return res.status(403).json({ error: 'Accès réservé au module nutrition' });
+}
+
+// ─── Google Agenda (OAuth + synchronisation) ────────────────
+// Scope minimal : calendar.app.created -> l'app ne gere QUE son propre calendrier
+// "My Coach Nutrition", sans acceder a l'agenda personnel du client.
+const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
+function googleCfg() { return { id: process.env.GOOGLE_CLIENT_ID, secret: process.env.GOOGLE_CLIENT_SECRET, redirect: process.env.GOOGLE_REDIRECT_URI }; }
+function googleConfigured() { const c = googleCfg(); return !!(c.id && c.secret && c.redirect); }
+function googleClientKey(req) { return (req.session && req.session.name) || 'Client'; }
+function gPad(n) { return String(n).padStart(2, '0'); }
+function isoLocal(d) {
+  const off = -d.getTimezoneOffset(); const sign = off >= 0 ? '+' : '-';
+  return d.getFullYear() + '-' + gPad(d.getMonth() + 1) + '-' + gPad(d.getDate()) + 'T' + gPad(d.getHours()) + ':' + gPad(d.getMinutes()) + ':00' + sign + gPad(Math.floor(Math.abs(off) / 60)) + ':' + gPad(Math.abs(off) % 60);
+}
+function signState(payload) {
+  const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', process.env.GOOGLE_CLIENT_SECRET || 'mcn-secret').update(data).digest('base64url');
+  return data + '.' + sig;
+}
+function verifyState(state) {
+  const parts = String(state || '').split('.'); if (parts.length !== 2) return null;
+  const exp = crypto.createHmac('sha256', process.env.GOOGLE_CLIENT_SECRET || 'mcn-secret').update(parts[0]).digest('base64url');
+  if (exp !== parts[1]) return null;
+  try { return JSON.parse(Buffer.from(parts[0], 'base64url').toString()); } catch (_) { return null; }
+}
+async function googleTokenRequest(params) {
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params) });
+  return r.json();
+}
+// Renvoie une ligne token a jour (rafraichit si expire), ou null.
+async function googleValidToken(clientName) {
+  const row = getDb().prepare('SELECT * FROM nutrition_google_token WHERE client_name = ?').get(clientName);
+  if (!row) return null;
+  if (Date.now() < row.expiry - 60000 && row.access_token) return row;
+  const c = googleCfg();
+  const tok = await googleTokenRequest({ client_id: c.id, client_secret: c.secret, refresh_token: row.refresh_token, grant_type: 'refresh_token' });
+  if (!tok.access_token) return null;
+  const expiry = Date.now() + (tok.expires_in || 3600) * 1000;
+  getDb().prepare('UPDATE nutrition_google_token SET access_token = ?, expiry = ?, updated_at = ? WHERE client_name = ?').run(tok.access_token, expiry, new Date().toISOString(), clientName);
+  row.access_token = tok.access_token; row.expiry = expiry;
+  return row;
+}
+async function gcal(token, method, path, body) {
+  const r = await fetch('https://www.googleapis.com/calendar/v3' + path, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  let json = {}; try { json = await r.json(); } catch (_) { /* no body */ }
+  return { status: r.status, json };
+}
+// Construit les evenements Google a partir du plan (anti-doublon par id deterministe).
+const GHEURES = { 'petit-dejeuner': [8, 0, 30], dejeuner: [12, 30, 45], collation: [16, 0, 15], diner: [19, 30, 45] };
+function buildPlanEvents(plan, scope, planId) {
+  if (!plan || !Array.isArray(plan.jours)) return [];
+  const base = new Date(); base.setHours(0, 0, 0, 0);
+  const jours = scope === 'jour' ? plan.jours.slice(0, 1) : plan.jours;
+  const out = [];
+  jours.forEach((jour, di) => {
+    (jour.repas || []).forEach((repas) => {
+      const r = repas.recette; if (!r) return;
+      if (scope === 'rappels' && repas.creneau === 'collation') return; // rappels = repas principaux
+      const [hh, mm, dur] = GHEURES[repas.creneau] || [12, 0, 30];
+      const start = new Date(base); start.setDate(base.getDate() + di); start.setHours(hh, mm, 0, 0);
+      const end = new Date(start); end.setMinutes(start.getMinutes() + dur);
+      const dateKey = start.getFullYear() + gPad(start.getMonth() + 1) + gPad(start.getDate());
+      const id = 'mcn' + crypto.createHash('sha1').update(String(planId) + dateKey + repas.creneau).digest('hex').slice(0, 26);
+      const ingr = (r.ingredients || []).slice(0, 5).map((i) => i.nom).join(', ');
+      const desc = `${r.nom}\n${r.kcal} kcal · ${r.proteines} g proteines\nIngredients : ${ingr}\n\nMy Coach Nutrition`;
+      out.push({ id, summary: `My Coach Nutrition · ${repas.label}`, description: desc, start: { dateTime: isoLocal(start) }, end: { dateTime: isoLocal(end) } });
+    });
+  });
+  return out;
 }
 
 try {
@@ -433,6 +511,65 @@ try {
       const info = getDb().prepare('UPDATE nutrition_plate_analysis SET advice_statut = ? WHERE id = ?').run(statut, Number(req.params.id));
       res.json({ ok: info.changes > 0 });
     } catch (e) { res.status(500).json({ ok: false, error: 'Mise à jour impossible.' }); }
+  });
+
+  // --- Google Agenda : statut / connexion OAuth / sync / deconnexion ---
+  app.get('/nutrition/api/google/status', requireAuth, requireNutritionUse, (req, res) => {
+    const row = getDb().prepare('SELECT calendar_name FROM nutrition_google_token WHERE client_name = ?').get(googleClientKey(req));
+    res.json({ ok: true, configured: googleConfigured(), connected: !!row, calendarName: row ? row.calendar_name : '' });
+  });
+  app.get('/nutrition/api/google/connect', requireAuth, requireNutritionUse, (req, res) => {
+    if (!googleConfigured()) return res.json({ ok: false, configured: false });
+    const c = googleCfg();
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+      client_id: c.id, redirect_uri: c.redirect, response_type: 'code', scope: GOOGLE_SCOPE,
+      access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true',
+      state: signState({ n: googleClientKey(req), t: Date.now() }),
+    });
+    res.json({ ok: true, configured: true, url });
+  });
+  // Retour OAuth (navigation navigateur -> pas de Bearer). Page qui se referme.
+  app.get('/nutrition/api/google/callback', async (req, res) => {
+    const page = (msg, ok) => `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:Inter,system-ui,sans-serif;background:#F7F3EC;color:#1F2328;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;margin:0"><div style="max-width:320px;padding:24px"><div style="width:60px;height:60px;border-radius:50%;margin:0 auto 14px;background:${ok ? '#E7F7EE' : '#FDECEC'};display:flex;align-items:center;justify-content:center;font-size:28px">${ok ? '✓' : '×'}</div><h2 style="margin:0 0 6px;font-size:19px">${msg}</h2><p style="color:#6B7280;font-size:14px;margin:0">Vous pouvez fermer cette fenetre.</p></div><script>try{if(window.opener)window.opener.postMessage('mcn-google-${ok ? 'connected' : 'error'}','*')}catch(e){}setTimeout(function(){window.close()},1400)</script></body></html>`;
+    try {
+      if (req.query.error || !req.query.code) return res.send(page('Connexion annulee.', false));
+      const st = verifyState(req.query.state); if (!st) return res.send(page('Lien invalide ou expire.', false));
+      const c = googleCfg();
+      const tok = await googleTokenRequest({ code: req.query.code, client_id: c.id, client_secret: c.secret, redirect_uri: c.redirect, grant_type: 'authorization_code' });
+      if (!tok.access_token) return res.send(page('La connexion a echoue.', false));
+      const expiry = Date.now() + (tok.expires_in || 3600) * 1000;
+      let calId = '', calName = 'My Coach Nutrition';
+      try { const cr = await gcal(tok.access_token, 'POST', '/calendars', { summary: 'My Coach Nutrition' }); if (cr.status < 300 && cr.json.id) { calId = cr.json.id; calName = cr.json.summary || calName; } } catch (_) { /* fallback */ }
+      if (!calId) { calId = 'primary'; calName = 'Agenda principal'; }
+      getDb().prepare(`INSERT INTO nutrition_google_token (client_name, access_token, refresh_token, expiry, calendar_id, calendar_name, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(client_name) DO UPDATE SET access_token = excluded.access_token,
+          refresh_token = CASE WHEN excluded.refresh_token != '' THEN excluded.refresh_token ELSE nutrition_google_token.refresh_token END,
+          expiry = excluded.expiry, calendar_id = excluded.calendar_id, calendar_name = excluded.calendar_name, updated_at = excluded.updated_at`)
+        .run(st.n, tok.access_token, tok.refresh_token || '', expiry, calId, calName, new Date().toISOString());
+      res.send(page('Google Agenda connecte !', true));
+    } catch (e) { console.error('google callback :', e); res.send(page('Erreur de connexion.', false)); }
+  });
+  app.post('/nutrition/api/google/sync', requireAuth, requireNutritionUse, async (req, res) => {
+    try {
+      const { scope = 'semaine', plan, planId } = req.body || {};
+      const tokRow = await googleValidToken(googleClientKey(req));
+      if (!tokRow) return res.json({ ok: false, error: 'not_connected' });
+      const events = buildPlanEvents(plan, scope, planId || 'plan');
+      if (!events.length) return res.json({ ok: false, error: 'empty' });
+      let count = 0, fail = 0;
+      for (const ev of events) {
+        const calPath = '/calendars/' + encodeURIComponent(tokRow.calendar_id) + '/events';
+        const ins = await gcal(tokRow.access_token, 'POST', calPath, ev);
+        if (ins.status === 409) { const up = await gcal(tokRow.access_token, 'PUT', calPath + '/' + ev.id, ev); if (up.status < 300) count++; else fail++; }
+        else if (ins.status < 300) count++; else fail++;
+      }
+      res.json({ ok: count > 0, count, fail, calendarName: tokRow.calendar_name });
+    } catch (e) { console.error('google sync :', e); res.status(500).json({ ok: false, error: 'sync' }); }
+  });
+  app.post('/nutrition/api/google/disconnect', requireAuth, requireNutritionUse, (req, res) => {
+    getDb().prepare('DELETE FROM nutrition_google_token WHERE client_name = ?').run(googleClientKey(req));
+    res.json({ ok: true });
   });
 
   // Génération / lecture du module : admin OU session démo (les routes coach

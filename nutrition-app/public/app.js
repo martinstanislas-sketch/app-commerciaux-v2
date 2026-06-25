@@ -1347,7 +1347,9 @@ function init() {
   $('#avanceClose').addEventListener('click', closeAvance);
   $('#avancePanel').addEventListener('click', (e) => { if (e.target.id === 'avancePanel') closeAvance(); });
   $('#avanceForm').addEventListener('submit', (e) => { e.preventDefault(); appliquerAvance(); });
-  $('#btnAgenda').addEventListener('click', exportIcs);
+  $('#btnAgenda').addEventListener('click', openAgenda);
+  $('#agendaClose').addEventListener('click', closeAgenda);
+  $('#agendaModal').addEventListener('click', (e) => { if (e.target.id === 'agendaModal') closeAgenda(); });
 
   // Demande d'aide alimentaire (accompagnement coach)
   $('#btnHelp').addEventListener('click', openHelp);
@@ -1439,7 +1441,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); } });
 
   if (loadLocal()) {
     $('#portValue').textContent = state.portions;
@@ -2627,6 +2629,89 @@ async function resetDemoData() {
 function setupDemoAdminAccess() {
   if (!isMainAdmin()) return;
   const card = $('#btnDemoAdmin'); if (card) card.classList.remove('hidden');
+}
+
+// ---------- Google Agenda ----------
+// Identifiant stable du plan (pour l'anti-doublon cote Google) : derive du contenu.
+function planIdFor(plan) {
+  const s = ((plan && plan.jours) || []).map((j) => (j.repas || []).map((rp) => (rp.recette && rp.recette.id) || '').join('-')).join('|');
+  let h = 0; for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+  return 'p' + h.toString(36);
+}
+function openAgenda() {
+  if (!state.plan) { alert('Genere d\'abord ton plan de la semaine.'); return; }
+  $('#agendaModal').classList.remove('hidden');
+  $('#agendaBody').innerHTML = '<div class="scan-loader"></div><p class="scan-loading-text">Verification de la connexion…</p>';
+  refreshAgenda();
+}
+function closeAgenda() { $('#agendaModal').classList.add('hidden'); }
+async function refreshAgenda() {
+  let status = { configured: false, connected: false };
+  try { const r = await fetch(apiUrl('/api/google/status'), { headers: nutriAuthHeaders() }); const d = await r.json(); if (d.ok) status = d; } catch (_) { /* ignore */ }
+  renderAgenda(status);
+}
+function renderAgenda(status) {
+  const icsBtn = '<button type="button" class="btn btn-ghost" id="agendaIcs" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-file"/></svg> Telecharger le fichier calendrier (.ics)</button>';
+  const privacy = '<p class="help-disclaimer">My Coach Nutrition utilise cette connexion uniquement pour ajouter tes repas a ton agenda.</p>';
+  if (status.connected) {
+    $('#agendaBody').innerHTML = `
+      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Google Agenda connecte</h2>
+      <p class="agenda-state"><span class="agenda-dot on"></span> Connecte${status.calendarName ? ` · calendrier « ${escapeHtml(status.calendarName)} »` : ''}.</p>
+      <p class="panel-sub">Que souhaites-tu ajouter a ton agenda ?</p>
+      <div class="agenda-choices">
+        <button type="button" class="btn btn-outline agenda-sync" data-scope="jour">Ajouter le plan du jour</button>
+        <button type="button" class="btn btn-primary agenda-sync" data-scope="semaine">Ajouter toute la semaine</button>
+        <button type="button" class="btn btn-outline agenda-sync" data-scope="rappels">Ajouter les rappels principaux</button>
+      </div>
+      <p id="agendaSyncMsg" class="agenda-msg"></p>
+      ${privacy}
+      <button type="button" class="btn btn-ghost btn-sm" id="agendaDisconnect" style="width:100%">Deconnecter Google Agenda</button>
+      ${icsBtn}`;
+    $$('#agendaBody .agenda-sync').forEach((b) => b.addEventListener('click', () => syncAgenda(b.dataset.scope, b)));
+    $('#agendaDisconnect').addEventListener('click', disconnectAgenda);
+  } else {
+    const note = status.configured ? '' : '<p class="agenda-msg agenda-warn">La connexion Google Agenda n\'est pas encore configuree. Tu peux telecharger le fichier .ics en attendant.</p>';
+    $('#agendaBody').innerHTML = `
+      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter a Google Agenda</h2>
+      <p class="panel-sub">Ajoute ton plan alimentaire directement dans Google Agenda, sans telecharger de fichier.</p>
+      <p class="agenda-state"><span class="agenda-dot off"></span> Ton Google Agenda n'est pas encore connecte.</p>
+      <button type="button" class="btn btn-primary btn-lg" id="agendaConnect" style="width:100%" ${status.configured ? '' : 'disabled'}><svg class="ic"><use href="#ic-calendar"/></svg> Connecter Google Agenda</button>
+      ${note}
+      ${privacy}
+      ${icsBtn}`;
+    const cb = $('#agendaConnect'); if (cb) cb.addEventListener('click', connectAgenda);
+  }
+  $('#agendaIcs').addEventListener('click', () => { exportIcs(); $('#agendaIcs').innerHTML = 'Fichier telecharge ✓'; });
+}
+async function connectAgenda() {
+  const btn = $('#agendaConnect'); if (btn) btn.disabled = true;
+  let url = null;
+  try { const r = await fetch(apiUrl('/api/google/connect'), { headers: nutriAuthHeaders() }); const d = await r.json(); if (d.ok && d.url) url = d.url; } catch (_) { /* ignore */ }
+  if (!url) { renderAgenda({ configured: false, connected: false }); return; }
+  const popup = window.open(url, 'mcn-google', 'width=480,height=660');
+  let done = false;
+  const finish = (ok) => { if (done) return; done = true; window.removeEventListener('message', onMsg); clearInterval(poll); refreshAgenda(); };
+  const onMsg = (e) => { if (e.data === 'mcn-google-connected') finish(true); else if (e.data === 'mcn-google-error') finish(false); };
+  window.addEventListener('message', onMsg);
+  const poll = setInterval(() => { if (popup && popup.closed) finish(false); }, 1000);
+}
+async function syncAgenda(scope, btn) {
+  const old = btn.innerHTML; btn.disabled = true; const msg = $('#agendaSyncMsg'); msg.textContent = '';
+  const label = scope === 'jour' ? 'Le plan du jour a' : (scope === 'semaine' ? 'Ta semaine a' : 'Les rappels ont');
+  if (isDemo()) { msg.innerHTML = `<span class="agenda-success">✓ ${label} ete ajoute(s) a ton agenda (demo).</span>`; btn.disabled = false; btn.innerHTML = old; return; }
+  try {
+    const r = await fetch(apiUrl('/api/google/sync'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ scope, plan: state.plan, planId: planIdFor(state.plan) }) });
+    const d = await r.json();
+    if (d.ok) msg.innerHTML = `<span class="agenda-success">✓ ${d.count} evenement(s) ajoute(s) a ton agenda${d.fail ? ` (${d.fail} non ajoutes)` : ''}.</span>`;
+    else if (d.error === 'not_connected') { msg.textContent = 'Reconnecte ton Google Agenda.'; refreshAgenda(); }
+    else msg.textContent = "La synchronisation n'a pas fonctionne. Reessaie dans quelques instants.";
+  } catch (e) { msg.textContent = "La synchronisation n'a pas fonctionne. Reessaie dans quelques instants."; }
+  btn.disabled = false; btn.innerHTML = old;
+}
+async function disconnectAgenda() {
+  if (!confirm('Deconnecter Google Agenda ? Ton plan reste dans l\'application.')) return;
+  try { await fetch(apiUrl('/api/google/disconnect'), { method: 'POST', headers: nutriAuthHeaders() }); } catch (_) { /* ignore */ }
+  refreshAgenda();
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -856,3 +856,14 @@ body.is-demo { padding-bottom: 54px; }
 .plate-drop-empty span { display: flex; flex-direction: column; gap: 3px; }
 .plate-drop-empty small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .plate-drop { -webkit-tap-highlight-color: transparent; }
+
+/* ============ Google Agenda ============ */
+.agenda-state { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); margin: 4px 0 14px; }
+.agenda-dot { width: 9px; height: 9px; border-radius: 50%; background: #D6DAE0; flex: none; }
+.agenda-dot.on { background: var(--success); }
+.agenda-dot.off { background: var(--warn); }
+.agenda-choices { display: grid; gap: 10px; margin: 6px 0 4px; }
+.agenda-choices .btn { width: 100%; }
+.agenda-msg { font-size: 13px; color: var(--ink-2); margin: 8px 0; min-height: 18px; }
+.agenda-success { color: #15803D; font-weight: 600; }
+.agenda-warn { background: rgba(184,146,74,.12); color: var(--warn); border-radius: 10px; padding: 9px 12px; font-size: 12.5px; }
