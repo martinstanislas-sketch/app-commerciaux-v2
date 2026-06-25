@@ -1395,6 +1395,19 @@ function init() {
   $('#demoAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'demoAdminPanel') closeDemoAdmin(); });
   setupDemoAdminAccess();
 
+  // Analyser mon assiette en photo
+  $('#btnPlate').addEventListener('click', openPlate);
+  $('#btnPlateFromSuivi').addEventListener('click', () => { closeSuivi(); openPlate(); });
+  $('#plateClose').addEventListener('click', closePlate);
+  $('#plateModal').addEventListener('click', (e) => { if (e.target.id === 'plateModal') closePlate(); });
+  $('#plateFile').addEventListener('change', onPlateFile);
+  $('#plateAnalyze').addEventListener('click', analyzePlate);
+  $('#plateRetry').addEventListener('click', () => plateShowStage('input'));
+  $('#btnPlateAdmin').addEventListener('click', openPlateAdmin);
+  $('#plateAdminClose').addEventListener('click', closePlateAdmin);
+  $('#plateAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'plateAdminPanel') closePlateAdmin(); });
+  setupPlateAccess();
+
   // Complements : "Non" est exclusif ; le champ detail apparait des qu'un "Oui" est coche.
   const compSet = $('.chip-set[data-multifield="complements"]');
   if (compSet) compSet.addEventListener('click', (e) => {
@@ -1423,7 +1436,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); } });
 
   if (loadLocal()) {
     $('#portValue').textContent = state.portions;
@@ -2264,7 +2277,8 @@ function renderSuiviPlan() {
     ${scoreCard}
     <button type="button" class="btn btn-primary btn-lg" data-act="save" style="width:100%"><svg class="ic"><use href="#ic-check-circle"/></svg> Enregistrer mon suivi</button>
     <div class="suivi-week"><h3><svg class="ic"><use href="#ic-trend"/></svg> Ma semaine nutrition</h3><p class="week-summary">${escapeHtml(weekTxt)}</p></div>
-    <button type="button" class="btn btn-outline" data-act="help" style="width:100%;margin-top:6px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide sur mon alimentation cette semaine</button>`;
+    <button type="button" class="btn btn-outline" data-act="plate" style="width:100%;margin-top:10px"><svg class="ic"><use href="#ic-camera"/></svg> J'ai mange autre chose — analyser mon assiette</button>
+    <button type="button" class="btn btn-outline" data-act="help" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide sur mon alimentation cette semaine</button>`;
 }
 function setSuiviPlanStatus(di, mi, statut) {
   const key = trackKey(di, mi);
@@ -2301,6 +2315,7 @@ function onSuiviPlanClick(e) {
   else if (act === 'chip') setSuiviDetail(suiviPlanDay, Number(b.dataset.mi), b.dataset.field, b.dataset.val, true);
   else if (act === 'save') saveSuiviDay(suiviPlanDay, b);
   else if (act === 'help') { closeSuiviPlan(); openHelp(); }
+  else if (act === 'plate') { closeSuiviPlan(); openPlate(); }
 }
 function onSuiviPlanInput(e) {
   const t = e.target.closest('[data-detail]'); if (!t) return;
@@ -2338,6 +2353,198 @@ async function setupAdhAccess() {
   if (!isCoachOrAdmin()) return;
   const card = $('#btnAdhAdmin'); if (card) card.classList.remove('hidden');
   try { const res = await fetch(apiUrl('/api/adherence/coach'), { headers: nutriAuthHeaders() }); const data = await res.json(); if (data.ok) updateAdhBadge(data.clients || []); } catch (_) { /* ignore */ }
+}
+
+// ---------- Analyser mon assiette en photo (Claude vision) ----------
+let plateImage = null;   // image compressee envoyee a l'analyse
+let plateThumb = null;   // miniature pour le suivi coach
+let plateBase = null;    // estimation IA de base (avant ajustements)
+let plateAdj = { portion: 'normale' };
+let platePrecisionUsed = '';
+const PLATE_PORTION = { petite: 0.78, normale: 1, genereuse: 1.28 };
+
+function plateShowStage(s) {
+  ['Input', 'Loading', 'Error', 'Result'].forEach((x) => $('#plateStage' + x).classList.toggle('hidden', x.toLowerCase() !== s));
+}
+function planContextStr() {
+  if (!state.plan || !state.plan.jours[0]) return '';
+  const noms = (state.plan.jours[0].repas || []).filter((rp) => rp.recette).map((rp) => rp.recette.nom);
+  return noms.length ? 'Plats prevus aujourd\'hui : ' + noms.slice(0, 4).join(', ') : '';
+}
+function plateMealLabel() {
+  const h = new Date().getHours();
+  if (h < 11) return 'Petit-dejeuner'; if (h < 15) return 'Dejeuner'; if (h < 18) return 'Collation'; return 'Diner';
+}
+function cohClass(n) { return n === 'coherent' ? 'compatible' : (n === 'reprendre' ? 'a_eviter' : 'moderation'); }
+
+function openPlate() {
+  plateImage = null; plateThumb = null; plateBase = null; plateAdj = { portion: 'normale' }; platePrecisionUsed = '';
+  $('#platePreview').classList.add('hidden'); $('#plateDropEmpty').classList.remove('hidden');
+  $('#platePrecision').value = ''; $('#plateAnalyze').disabled = true; $('#plateFile').value = '';
+  $('#plateModal').classList.remove('hidden');
+  if (!state.ia) {
+    plateShowStage('error');
+    $('#plateErrorBox').innerHTML = "L'analyse d'assiette en photo necessite le Mode Claude, qui n'est pas active pour le moment. Ton coach peut l'activer.";
+    $('#plateRetry').style.display = 'none';
+    return;
+  }
+  $('#plateRetry').style.display = ''; plateShowStage('input');
+}
+function closePlate() { $('#plateModal').classList.add('hidden'); }
+
+// Compresse une image (canvas) -> data URL JPEG, pour limiter upload et cout.
+function compressImage(file, maxSize, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > h && w > maxSize) { h = Math.round(h * maxSize / w); w = maxSize; }
+      else if (h >= w && h > maxSize) { w = Math.round(w * maxSize / h); h = maxSize; }
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(cv.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image')); };
+    img.src = url;
+  });
+}
+async function onPlateFile(e) {
+  const file = e.target.files && e.target.files[0]; if (!file) return;
+  try {
+    plateImage = await compressImage(file, 1024, 0.72);
+    plateThumb = await compressImage(file, 480, 0.5);
+    const img = $('#platePreview'); img.src = plateImage; img.classList.remove('hidden');
+    $('#plateDropEmpty').classList.add('hidden'); $('#plateAnalyze').disabled = false;
+  } catch (_) { alert('Impossible de lire cette image, essaie-en une autre.'); }
+}
+function plateError(html, allowRetry) {
+  plateShowStage('error'); $('#plateErrorBox').innerHTML = html; $('#plateRetry').style.display = allowRetry ? '' : 'none';
+}
+async function analyzePlate() {
+  if (!plateImage) return;
+  platePrecisionUsed = $('#platePrecision').value.trim();
+  plateShowStage('loading');
+  try {
+    const res = await fetch(apiUrl('/api/plate-analyze'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ imageDataUrl: plateImage, precision: platePrecisionUsed, objectif: state.profil && state.profil.objectif, planContext: planContextStr() }),
+    });
+    const data = await res.json();
+    if (!data.ia) return plateError("L'analyse d'assiette necessite le Mode Claude (a activer par ton coach).", false);
+    if (!data.ok || !data.analyse) return plateError("L'analyse n'a pas pu etre realisee. Reessaie dans quelques instants.", true);
+    if (data.analyse.lisible === false) return plateError("Je n'arrive pas a identifier clairement ton repas. Reprends une photo plus nette, ou ajoute une precision en texte.", true);
+    plateBase = data.analyse; plateAdj = { portion: 'normale' };
+    renderPlateResult();
+  } catch (e) { plateError("L'analyse n'a pas pu etre realisee. Reessaie dans quelques instants.", true); }
+}
+function plateAdjusted() {
+  const b = plateBase; const f = PLATE_PORTION[plateAdj.portion] || 1;
+  let k = b.kcal * f, p = b.proteines * f, g = b.glucides * f, l = b.lipides * f;
+  if (plateAdj.sauce) { k += 110; l += 12; }
+  if (plateAdj.boisson) { k += 90; g += 21; }
+  if (plateAdj.dessert) { k += 190; g += 28; l += 6; p += 3; }
+  return { kcal: Math.round(k), proteines: Math.round(p), glucides: Math.round(g), lipides: Math.round(l) };
+}
+function renderPlateResult() {
+  const b = plateBase, m = plateAdjusted();
+  const portChip = (v, lbl) => `<button class="plate-chip ${(plateAdj.portion || 'normale') === v ? 'on' : ''}" data-pport="${v}">${lbl}</button>`;
+  const addChip = (k, lbl) => `<button class="plate-chip ${plateAdj[k] ? 'on' : ''}" data-padd="${k}">${lbl}</button>`;
+  $('#plateResultBody').innerHTML = `
+    <h2 class="scan-title"><svg class="ic"><use href="#ic-spark"/></svg> Estimation de ton assiette</h2>
+    ${b.aliments && b.aliments.length ? `<div class="scan-allerg"><span class="scan-allerg-label">Detecte</span> ${b.aliments.slice(0, 8).map((a) => `<span class="help-tag">${escapeHtml(a)}</span>`).join('')}</div>` : ''}
+    <div class="plate-macros">
+      <div class="pm pm-kcal"><span class="pm-v">${m.kcal}</span><span class="pm-l">kcal estimees</span></div>
+      <div class="pm"><span class="pm-v">${m.proteines} g</span><span class="pm-l">Proteines</span></div>
+      <div class="pm"><span class="pm-v">${m.glucides} g</span><span class="pm-l">Glucides</span></div>
+      <div class="pm"><span class="pm-v">${m.lipides} g</span><span class="pm-l">Lipides</span></div>
+    </div>
+    <p class="help-disclaimer">Estimation visuelle a utiliser comme repere. Les quantites peuvent varier selon les portions, la cuisson et les ingredients.</p>
+    <div class="plate-adjust">
+      <label>Cette estimation te semble correcte ? Ajuste si besoin :</label>
+      <div class="plate-chips">${portChip('petite', 'Portion petite')}${portChip('normale', 'Portion normale')}${portChip('genereuse', 'Portion genereuse')}</div>
+      <div class="plate-chips">${addChip('sauce', 'Sauce / huile')}${addChip('boisson', 'Boisson')}${addChip('dessert', 'Dessert')}</div>
+    </div>
+    <div class="coherence coherence-${cohClass(b.niveau)}">
+      <strong>${NIVEAU_LABEL[b.niveau] || NIVEAU_LABEL.correct}</strong>
+      ${b.coherencePlan ? `<p>${escapeHtml(b.coherencePlan)}</p>` : ''}
+    </div>
+    ${b.pointPositif ? `<div class="plate-coach"><span class="pc-l">Point positif</span><p>${escapeHtml(b.pointPositif)}</p></div>` : ''}
+    ${b.axe ? `<div class="plate-coach"><span class="pc-l">A ameliorer</span><p>${escapeHtml(b.axe)}</p></div>` : ''}
+    ${b.action ? `<div class="plate-coach pc-action"><span class="pc-l">Au prochain repas</span><p>${escapeHtml(b.action)}</p></div>` : ''}
+    <label class="field" style="margin:6px 0 10px"><span>Un mot pour ton coach (optionnel)</span><textarea id="plateCoachMsg" rows="2"></textarea></label>
+    <div class="scan-actions">
+      <button type="button" class="btn btn-outline" id="plateSave"><svg class="ic"><use href="#ic-check"/></svg> Enregistrer</button>
+      <button type="button" class="btn btn-primary" id="plateAskCoach"><svg class="ic"><use href="#ic-heart-hand"/></svg> Demander l'avis de mon coach</button>
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" id="plateAnother" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-camera"/></svg> Analyser une autre assiette</button>`;
+  plateShowStage('result');
+  $$('#plateResultBody [data-pport]').forEach((b2) => b2.addEventListener('click', () => { plateAdj.portion = b2.dataset.pport; renderPlateResult(); }));
+  $$('#plateResultBody [data-padd]').forEach((b2) => b2.addEventListener('click', () => { plateAdj[b2.dataset.padd] = !plateAdj[b2.dataset.padd]; renderPlateResult(); }));
+  $('#plateSave').addEventListener('click', () => savePlate(false, $('#plateSave')));
+  $('#plateAskCoach').addEventListener('click', () => savePlate(true, $('#plateAskCoach')));
+  $('#plateAnother').addEventListener('click', openPlate);
+}
+async function savePlate(askCoach, btn) {
+  const b = plateBase, m = plateAdjusted();
+  const msg = ($('#plateCoachMsg') && $('#plateCoachMsg').value.trim()) || '';
+  if (btn) btn.disabled = true;
+  if (isDemo()) { if (btn) btn.innerHTML = askCoach ? 'Demande envoyee (demo) ✓' : 'Enregistre (demo) ✓'; return; }
+  try {
+    const res = await fetch(apiUrl('/api/plate-save'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ clientName: helpClientName(), mealLabel: plateMealLabel(), precision: platePrecisionUsed, aliments: b.aliments,
+        kcal: m.kcal, proteines: m.proteines, glucides: m.glucides, lipides: m.lipides, coherence: b.niveau,
+        pointPositif: b.pointPositif, axe: b.axe, action: b.action, coherencePlan: b.coherencePlan,
+        thumb: plateThumb, askCoach: !!askCoach, clientMessage: msg }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error();
+    if (btn) btn.innerHTML = askCoach ? 'Demande envoyee a ton coach ✓' : 'Enregistre dans ton suivi ✓';
+  } catch (e) { if (btn) btn.disabled = false; alert("L'enregistrement n'a pas fonctionne. Reessaie."); }
+}
+
+// --- Vue coach : analyses d'assiettes ---
+async function openPlateAdmin() { $('#plateAdminPanel').classList.remove('hidden'); await renderPlateAdmin(); }
+function closePlateAdmin() { $('#plateAdminPanel').classList.add('hidden'); }
+function updatePlateBadge(items) { const n = (items || []).filter((i) => i.adviceStatut === 'a_traiter').length; const b = $('#plateAdminBadge'); if (!b) return; b.textContent = n; b.classList.toggle('hidden', n === 0); }
+async function renderPlateAdmin() {
+  const body = $('#plateAdminBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/plate-analyses'), { headers: nutriAuthHeaders() });
+    const data = await res.json(); if (!data.ok) throw new Error();
+    const items = data.items || []; updatePlateBadge(items);
+    if (!items.length) { body.innerHTML = '<p class="help-empty">Aucune analyse d\'assiette pour le moment.</p>'; return; }
+    body.innerHTML = items.map((it) => {
+      const d = new Date(it.createdAt);
+      const ds = isNaN(d.getTime()) ? '' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const badge = it.adviceStatut ? `<span class="help-status-badge statut-${it.adviceStatut}">${HELP_STATUS[it.adviceStatut] || it.adviceStatut}</span>` : '';
+      const adv = it.adviceStatut ? `<label class="help-status-set">Avis <select data-plate-id="${it.id}">${Object.entries(HELP_STATUS).map(([k, l]) => `<option value="${k}" ${it.adviceStatut === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : '';
+      return `<div class="plate-req">
+        <div class="plate-req-top">
+          ${it.thumb ? `<img class="plate-req-thumb" src="${escapeHtml(it.thumb)}" alt="" loading="lazy">` : ''}
+          <div class="plate-req-info">
+            <div class="help-req-head"><strong>${escapeHtml(it.clientName)}</strong>${badge}</div>
+            <div class="help-req-date">${ds}${it.mealLabel ? ' · ' + escapeHtml(it.mealLabel) : ''}</div>
+            <div class="plate-req-macros">${it.kcal} kcal · ${it.proteines}P · ${it.glucides}G · ${it.lipides}L ${cohBadge(cohClass(it.coherence))}</div>
+          </div>
+        </div>
+        ${it.aliments && it.aliments.length ? `<div class="help-req-tags">${it.aliments.slice(0, 6).map((a) => `<span class="help-tag">${escapeHtml(a)}</span>`).join('')}</div>` : ''}
+        ${it.clientMessage ? `<p class="help-req-msg">${escapeHtml(it.clientMessage)}</p>` : ''}
+        ${adv}
+      </div>`;
+    }).join('');
+    $$('#plateAdminBody select[data-plate-id]').forEach((sel) => sel.addEventListener('change', () => setPlateStatus(sel.dataset.plateId, sel.value)));
+  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible. Reessaie.</p>'; }
+}
+async function setPlateStatus(id, statut) {
+  try { await fetch(apiUrl('/api/plate-advice/' + id), { method: 'PATCH', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ statut }) }); await renderPlateAdmin(); } catch (_) { /* ignore */ }
+}
+async function setupPlateAccess() {
+  if (!isCoachOrAdmin()) return;
+  const c = $('#btnPlateAdmin'); if (c) c.classList.remove('hidden');
+  try { const res = await fetch(apiUrl('/api/plate-analyses'), { headers: nutriAuthHeaders() }); const data = await res.json(); if (data.ok) updatePlateBadge(data.items || []); } catch (_) { /* ignore */ }
 }
 
 // ---------- Mode démonstration client ----------

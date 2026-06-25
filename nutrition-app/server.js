@@ -20,7 +20,7 @@ const {
   recettesCompatibles,
   familiesFromUserAllergies,
 } = require('./lib/planGenerator');
-const { genererPlanIA, regenererRepasIA, genererRecetteDetail, iaDisponible } = require('./lib/aiGenerator');
+const { genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, iaDisponible } = require('./lib/aiGenerator');
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -150,6 +150,28 @@ app.post('/api/recipe-detail', async (req, res) => {
   } catch (e) {
     console.warn('Recette detaillee IA echouee :', e.message);
     res.json({ ok: true, ia: false, error: e.message });
+  }
+});
+
+// Analyse d'une assiette en photo (Claude vision) : ESTIMATION, pas calcul exact.
+// 1 seul appel IA ; les ajustements de portion sont recalcules cote front.
+app.post('/api/plate-analyze', async (req, res) => {
+  const { imageDataUrl, precision, objectif, planContext } = req.body || {};
+  if (!iaDisponible()) return res.json({ ok: true, ia: false });
+  if (!imageDataUrl || typeof imageDataUrl !== 'string' || imageDataUrl.length < 100) {
+    return res.status(400).json({ ok: false, error: 'Photo manquante.' });
+  }
+  try {
+    const analyse = await analyserAssietteIA({
+      imageDataUrl,
+      precision: String(precision || '').slice(0, 300),
+      objectif,
+      planContext: String(planContext || '').slice(0, 160),
+    });
+    res.json({ ok: true, ia: true, analyse });
+  } catch (e) {
+    console.warn('Analyse assiette echouee :', e.message);
+    res.json({ ok: false, ia: true, error: 'analyse' });
   }
 });
 

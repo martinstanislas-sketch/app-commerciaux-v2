@@ -113,6 +113,23 @@ function ensureNutritionHelpTable() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       accessed_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS nutrition_plate_analysis (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      meal_label TEXT NOT NULL DEFAULT '',
+      precision_txt TEXT NOT NULL DEFAULT '',
+      aliments TEXT NOT NULL DEFAULT '[]',
+      kcal INTEGER NOT NULL DEFAULT 0,
+      proteines INTEGER NOT NULL DEFAULT 0,
+      glucides INTEGER NOT NULL DEFAULT 0,
+      lipides INTEGER NOT NULL DEFAULT 0,
+      coherence TEXT NOT NULL DEFAULT '',
+      ia_comment TEXT NOT NULL DEFAULT '{}',
+      thumb TEXT NOT NULL DEFAULT '',
+      client_message TEXT NOT NULL DEFAULT '',
+      advice_statut TEXT NOT NULL DEFAULT ''
+    );
   `);
   // Seed config démo (une seule ligne).
   getDb().prepare("INSERT OR IGNORE INTO nutrition_demo (id, code, enabled) VALUES (1, 'MYCOACH-DEMO-CLIENT-2026', 1)").run();
@@ -374,6 +391,48 @@ try {
     getDb().prepare('UPDATE nutrition_demo SET uses = 0 WHERE id = 1').run();
     getDb().prepare('DELETE FROM nutrition_demo_access').run();
     res.json({ ok: true });
+  });
+
+  // --- Analyse d'assiette en photo : sauvegarde + vue coach ---
+  app.post('/nutrition/api/plate-save', requireAuth, requireNutritionAccess, (req, res) => {
+    try {
+      const b = req.body || {};
+      const n = (v) => { const x = Math.round(Number(v)); return (isFinite(x) && x >= 0) ? x : 0; };
+      const coh = ['coherent', 'correct', 'reprendre'].includes(b.coherence) ? b.coherence : '';
+      const thumb = (typeof b.thumb === 'string' && b.thumb.startsWith('data:image')) ? b.thumb.slice(0, 400000) : '';
+      const info = getDb().prepare(`INSERT INTO nutrition_plate_analysis
+        (client_name, created_at, meal_label, precision_txt, aliments, kcal, proteines, glucides, lipides, coherence, ia_comment, thumb, client_message, advice_statut)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        String(b.clientName || req.session.name || 'Client').slice(0, 120), new Date().toISOString(),
+        String(b.mealLabel || '').slice(0, 80), String(b.precision || '').slice(0, 300),
+        JSON.stringify(Array.isArray(b.aliments) ? b.aliments.slice(0, 12) : []),
+        n(b.kcal), n(b.proteines), n(b.glucides), n(b.lipides), coh,
+        JSON.stringify({ pointPositif: String(b.pointPositif || '').slice(0, 240), axe: String(b.axe || '').slice(0, 240), action: String(b.action || '').slice(0, 240), coherencePlan: String(b.coherencePlan || '').slice(0, 240) }),
+        thumb, String(b.clientMessage || '').slice(0, 500), b.askCoach ? 'a_traiter' : ''
+      );
+      res.json({ ok: true, id: info.lastInsertRowid });
+    } catch (e) { console.error('Erreur plate-save :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+  app.get('/nutrition/api/plate-analyses', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const rows = getDb().prepare('SELECT * FROM nutrition_plate_analysis ORDER BY id DESC LIMIT 100').all();
+      const items = rows.map((r) => ({
+        id: r.id, clientName: r.client_name, createdAt: r.created_at, mealLabel: r.meal_label,
+        precision: r.precision_txt, aliments: (() => { try { return JSON.parse(r.aliments); } catch (_) { return []; } })(),
+        kcal: r.kcal, proteines: r.proteines, glucides: r.glucides, lipides: r.lipides, coherence: r.coherence,
+        iaComment: (() => { try { return JSON.parse(r.ia_comment); } catch (_) { return {}; } })(),
+        thumb: r.thumb, clientMessage: r.client_message, adviceStatut: r.advice_statut,
+      }));
+      res.json({ ok: true, items });
+    } catch (e) { console.error('Erreur plate-analyses :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  app.patch('/nutrition/api/plate-advice/:id', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const statut = String((req.body || {}).statut || '');
+      if (!['a_traiter', 'en_cours', 'traite'].includes(statut)) return res.status(400).json({ ok: false, error: 'Statut invalide.' });
+      const info = getDb().prepare('UPDATE nutrition_plate_analysis SET advice_statut = ? WHERE id = ?').run(statut, Number(req.params.id));
+      res.json({ ok: info.changes > 0 });
+    } catch (e) { res.status(500).json({ ok: false, error: 'Mise à jour impossible.' }); }
   });
 
   // Génération / lecture du module : admin OU session démo (les routes coach

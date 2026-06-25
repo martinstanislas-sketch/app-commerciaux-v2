@@ -817,3 +817,39 @@ body.is-demo { padding-bottom: 54px; }
 .prep-list li { background: var(--gray-50); border-left-color: var(--mc-blue-secondary); color: var(--ink-2); }
 .reperes-list li { background: var(--mc-blue-soft); border-left-color: var(--mc-blue); color: var(--ink-2); }
 .ajust-list li { background: rgba(184,146,74,.10); border-left-color: var(--warn); color: var(--ink-2); }
+
+/* ============ Analyser mon assiette en photo ============ */
+.plate-drop { display: block; width: 100%; border: 2px dashed var(--green-100); border-radius: 16px; background: var(--mc-blue-soft);
+  cursor: pointer; overflow: hidden; min-height: 150px; transition: border-color .15s var(--ease); }
+.plate-drop:hover { border-color: var(--mc-blue-secondary); }
+.plate-drop-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 150px;
+  color: var(--mc-blue-dark); font-weight: 600; font-size: 14px; padding: 20px; text-align: center; }
+.plate-drop-empty .ic { width: 34px; height: 34px; color: var(--mc-blue); }
+.plate-preview { width: 100%; max-height: 280px; object-fit: cover; display: block; }
+
+.plate-macros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 4px 0 10px; }
+.pm { background: var(--card); border: 1px solid var(--mc-border); border-radius: 14px; padding: 12px 6px; text-align: center; }
+.pm-v { display: block; font-size: 17px; font-weight: 800; color: var(--ink); }
+.pm-l { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.pm-kcal { background: linear-gradient(135deg, var(--mc-blue) 0%, var(--mc-blue-dark) 100%); border: none; }
+.pm-kcal .pm-v, .pm-kcal .pm-l { color: #fff; }
+
+.plate-adjust { margin: 6px 0 12px; }
+.plate-adjust > label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+.plate-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.plate-chip { cursor: pointer; border: 1.5px solid var(--green-100); background: var(--card); color: var(--ink-2); border-radius: 999px;
+  padding: 9px 14px; font-size: 13px; font-weight: 500; font-family: inherit; min-height: 40px; transition: all .15s var(--ease); }
+.plate-chip.on { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; font-weight: 600; }
+
+.plate-coach { background: var(--gray-50); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; }
+.plate-coach .pc-l { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .3px; color: var(--mc-blue); margin-bottom: 2px; }
+.plate-coach p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--ink-2); }
+.plate-coach.pc-action { background: var(--mc-blue-soft); }
+.plate-coach.pc-action .pc-l { color: var(--mc-blue-dark); }
+
+/* vue coach analyses d'assiettes */
+.plate-req { background: var(--card); border: 1px solid var(--mc-border); border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow-xs); }
+.plate-req-top { display: flex; gap: 12px; }
+.plate-req-thumb { width: 72px; height: 72px; border-radius: 12px; object-fit: cover; flex: 0 0 auto; border: 1px solid var(--mc-border); }
+.plate-req-info { min-width: 0; flex: 1; }
+.plate-req-macros { font-size: 13px; color: var(--ink-2); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

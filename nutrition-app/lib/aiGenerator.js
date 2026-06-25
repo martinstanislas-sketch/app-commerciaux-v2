@@ -260,4 +260,63 @@ async function genererRecetteDetail(payload) {
   throw derniereErreur || new Error('Recette detaillee invalide.');
 }
 
-module.exports = { iaDisponible, genererPlanIA, regenererRepasIA, genererRecetteDetail };
+// ----------------------------------------------------------------------
+// Analyse d'assiette en photo (Claude vision) : ESTIMATION bienveillante des
+// calories et macros + retour coaching. Jamais presentee comme exacte.
+// ----------------------------------------------------------------------
+function promptAssiette({ precision, objectif, planContext }) {
+  return `Tu es un coach nutrition bienveillant et non culpabilisant. Analyse cette photo de repas/assiette et ESTIME (sans jamais pretendre etre exact) les calories et les macronutriments.
+Objectif du client : ${objectif || 'equilibre'}.${planContext ? '\nRepas prevu dans son plan : ' + planContext + '.' : ''}
+${precision ? 'Precision donnee par le client : ' + precision + '.' : ''}
+
+Si la photo est trop floue, sombre, ou ne montre pas clairement un repas, renvoie {"lisible": false}.
+Sinon, reponds UNIQUEMENT avec un objet JSON valide, sans texte autour, au format exact :
+{
+  "lisible": true,
+  "aliments": ["aliment visible", "..."],
+  "kcal": 0, "proteines": 0, "glucides": 0, "lipides": 0,
+  "niveau": "coherent",
+  "pointPositif": "un point positif concret et bienveillant",
+  "axe": "un axe d'amelioration, en douceur",
+  "action": "une action simple pour le prochain repas",
+  "coherencePlan": "phrase courte sur la coherence avec le plan prevu (si fourni)"
+}
+
+Regles :
+- "niveau" : "coherent" (cohérent avec l'objectif), "correct" (correct, a ajuster) ou "reprendre" (a reprendre au prochain repas).
+- Estimations REALISTES pour la portion visible (nombres entiers). Si incertain, reste prudent.
+- Ton bienveillant, oriente coaching. N'utilise JAMAIS "mauvais repas", "echec", "rate", "interdit", "compenser". Prefere "a ajuster", "bonne base", "reprends simplement au prochain repas", "la regularite avant la perfection".`;
+}
+function validerAssiette(o) {
+  if (!o || typeof o !== 'object') throw new Error('Analyse invalide.');
+  if (o.lisible === false) return { lisible: false };
+  const out = { lisible: true };
+  out.aliments = Array.isArray(o.aliments) ? o.aliments.map((x) => String(x).slice(0, 60)).slice(0, 12) : [];
+  ['kcal', 'proteines', 'glucides', 'lipides'].forEach((k) => { const n = Math.round(Number(o[k])); out[k] = (isFinite(n) && n >= 0) ? n : 0; });
+  out.niveau = ['coherent', 'correct', 'reprendre'].includes(o.niveau) ? o.niveau : 'correct';
+  out.pointPositif = String(o.pointPositif || '').slice(0, 240);
+  out.axe = String(o.axe || '').slice(0, 240);
+  out.action = String(o.action || '').slice(0, 240);
+  out.coherencePlan = String(o.coherencePlan || '').slice(0, 240);
+  return out;
+}
+async function analyserAssietteIA({ imageDataUrl, precision, objectif, planContext }) {
+  const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/i.exec(imageDataUrl || '');
+  if (!m) throw new Error('Image invalide.');
+  const c = client();
+  const msg = await c.messages.create({
+    model: MODEL,
+    max_tokens: 700,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: m[1].toLowerCase(), data: m[2] } },
+        { type: 'text', text: promptAssiette({ precision, objectif, planContext }) },
+      ],
+    }],
+  });
+  const texte = (msg.content || []).map((b) => b.text || '').join('');
+  return validerAssiette(extraireJSON(texte));
+}
+
+module.exports = { iaDisponible, genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA };

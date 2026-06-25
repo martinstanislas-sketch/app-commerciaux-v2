@@ -403,6 +403,8 @@
       <div class="actions-grid">
         <button class="action-card action-card-accent" id="btnSuiviPlan"><span class="action-ic"><svg class="ic"><use href="#ic-calendar-check"/></svg></span>Suivi de mon plan</button>
         <button class="action-card action-card-accent" id="btnScan"><span class="action-ic"><svg class="ic"><use href="#ic-scan"/></svg></span>Scanner un produit</button>
+        <button class="action-card action-card-accent" id="btnPlate"><span class="action-ic"><svg class="ic"><use href="#ic-camera"/></svg></span>Analyser mon assiette</button>
+        <button class="action-card action-card-admin hidden" id="btnPlateAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-camera"/></svg></span>Analyses d'assiettes<span id="plateAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card action-card-admin hidden" id="btnAdhAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-users"/></svg></span>Adherence clients<span id="adhAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card action-card-admin hidden" id="btnDemoAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-eye"/></svg></span>Mode demo client</button>
         <button class="action-card action-card-admin hidden" id="btnHelpAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-inbox"/></svg></span>Demandes d'aide<span id="helpAdminBadge" class="action-badge hidden">0</span></button>
@@ -482,6 +484,42 @@
     </div>
   </div>
 
+  <!-- ============ MODALE ANALYSE D'ASSIETTE ============ -->
+  <div id="plateModal" class="modal-overlay hidden">
+    <div class="modal scan-modal" role="dialog" aria-modal="true">
+      <button class="modal-close" id="plateClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+
+      <div id="plateStageInput" class="scan-stage">
+        <h2 class="scan-title"><svg class="ic"><use href="#ic-camera"/></svg> Analyser mon assiette</h2>
+        <p class="panel-sub">Prends ou importe une photo de ton repas pour une estimation visuelle des calories et des macros.</p>
+        <label class="plate-drop" id="plateDrop">
+          <input type="file" id="plateFile" accept="image/*" capture="environment" hidden>
+          <div id="plateDropEmpty" class="plate-drop-empty"><svg class="ic"><use href="#ic-camera"/></svg><span>Prendre une photo ou importer</span></div>
+          <img id="platePreview" class="plate-preview hidden" alt="Apercu de l'assiette">
+        </label>
+        <label class="field" style="margin-top:10px"><span>Ajoute une precision si besoin (sauce, huile, boisson, dessert, quantite, cuisson...)</span>
+          <textarea id="platePrecision" rows="2" placeholder="Ex : avec un filet d'huile d'olive et un verre de jus"></textarea>
+        </label>
+        <p class="help-disclaimer">Estimation visuelle a utiliser comme repere. Les quantites peuvent varier selon les portions, la cuisson et les ingredients utilises.</p>
+        <button type="button" class="btn btn-primary btn-lg" id="plateAnalyze" style="width:100%" disabled><svg class="ic"><use href="#ic-spark"/></svg> Analyser mon assiette</button>
+      </div>
+
+      <div id="plateStageLoading" class="scan-stage hidden">
+        <div class="scan-loader"></div>
+        <p class="scan-loading-text">On analyse ton assiette…</p>
+      </div>
+
+      <div id="plateStageError" class="scan-stage hidden">
+        <div id="plateErrorBox" class="scan-error"></div>
+        <button type="button" class="btn btn-outline" id="plateRetry"><svg class="ic"><use href="#ic-refresh"/></svg> Reprendre une photo</button>
+      </div>
+
+      <div id="plateStageResult" class="scan-stage hidden">
+        <div id="plateResultBody"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ PANNEAU LISTE DE COURSES ============ -->
   <div id="shoppingPanel" class="panel hidden">
     <div class="panel-inner">
@@ -529,7 +567,8 @@
       </div>
       <p class="panel-sub">Votre adherence au plan, repas par repas.</p>
       <button type="button" id="btnHelpFromSuivi" class="btn btn-outline" style="margin-bottom:10px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide cette semaine</button>
-      <button type="button" id="btnScanFromSuivi" class="btn btn-outline" style="margin-bottom:14px"><svg class="ic"><use href="#ic-scan"/></svg> J'ai mange autre chose — scanner</button>
+      <button type="button" id="btnScanFromSuivi" class="btn btn-outline" style="margin-bottom:10px"><svg class="ic"><use href="#ic-scan"/></svg> J'ai mange autre chose — scanner</button>
+      <button type="button" id="btnPlateFromSuivi" class="btn btn-outline" style="margin-bottom:14px"><svg class="ic"><use href="#ic-camera"/></svg> Analyser mon assiette en photo</button>
       <div id="suiviBody"></div>
     </div>
   </div>
@@ -580,6 +619,18 @@
       </div>
       <p class="panel-sub">Ce que scannent tes clients : demandes d'avis, produits frequents, produits a surveiller.</p>
       <div id="scanAdminBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU COACH : ANALYSES D'ASSIETTES ============ -->
+  <div id="plateAdminPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-camera"/></svg> Analyses d'assiettes</h2>
+        <button class="modal-close" id="plateAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Les photos de repas analysees par tes clients : estimation, coherence, demandes d'avis.</p>
+      <div id="plateAdminBody"></div>
     </div>
   </div>
 
