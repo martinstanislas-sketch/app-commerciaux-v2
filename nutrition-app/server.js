@@ -136,11 +136,19 @@ function cacheKey(nom, ingredients) {
   return nom + '|' + (ingredients || []).map((i) => `${i.quantite}${i.unite}${i.nom}`).join(';').toLowerCase();
 }
 
+// Enrichissement des recettes par Claude : opt-in SEPARE (NUTRITION_AI_RECIPES=on).
+// Par defaut OFF meme si NUTRITION_AI est actif -> les recettes restent sur la
+// fiche guidee LOCALE (gratuite, deja complete) et Claude est reserve a l'analyse
+// d'assiette. Maitrise du cout.
+function recettesIA() {
+  return iaDisponible() && ['on', '1', 'true', 'yes'].includes(String(process.env.NUTRITION_AI_RECIPES || '').toLowerCase());
+}
+
 // Recette guidee detaillee, reconstruite a partir des ingredients ACTUELS.
-// Si l'IA est coupee, renvoie ia:false -> le front garde les etapes statiques.
+// Si l'IA est coupee, renvoie ia:false -> le front garde la fiche locale.
 app.post('/api/recipe-detail', async (req, res) => {
   const { nom, objectif, tempsMinutes, cuisines, ingredients } = req.body || {};
-  if (!iaDisponible()) return res.json({ ok: true, ia: false });
+  if (!recettesIA()) return res.json({ ok: true, ia: false });
   if (!nom || !Array.isArray(ingredients) || !ingredients.length) {
     return res.status(400).json({ ok: false, error: 'Recette invalide.' });
   }
