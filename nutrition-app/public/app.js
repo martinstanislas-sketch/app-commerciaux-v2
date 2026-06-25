@@ -134,6 +134,8 @@ function showScreen(id) {
   $$('.screen').forEach((s) => s.classList.remove('active'));
   $(`#screen-${id}`).classList.add('active');
   $('#navRestart').classList.toggle('hidden', id === 'landing');
+  // Active la "coque" (sidebar desktop + decalage du contenu) uniquement sur l'ecran plan.
+  document.body.classList.toggle('app-shell', id === 'result');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -299,10 +301,23 @@ function renderNeeds() {
 function renderPlan() {
   const grid = $('#planGrid');
   grid.innerHTML = '';
-  state.plan.jours.forEach((jour, di) => {
+  const jours = state.plan.jours || [];
+  let active = Number.isInteger(state.activeDay) ? state.activeDay : 0;
+  if (active < 0 || active >= jours.length) active = 0;
+  state.activeDay = active;
+
+  // Selecteur de jours horizontal (mobile : un jour a la fois ; desktop : masque, semaine entiere)
+  const sel = document.createElement('div');
+  sel.className = 'day-selector';
+  sel.innerHTML = jours.map((j, i) =>
+    `<button type="button" class="day-pill${i === active ? ' on' : ''}" data-day-pill="${i}">${String(j.jour || '').slice(0, 3)}</button>`).join('');
+  grid.appendChild(sel);
+
+  jours.forEach((jour, di) => {
     const dayKcal = jour.repas.reduce((sum, r) => sum + (r.recette && !r.exterieur ? r.recette.kcal : 0), 0);
     const card = document.createElement('div');
-    card.className = 'day-card';
+    card.className = 'day-card' + (di === active ? ' is-active' : '');
+    card.dataset.dayIndex = di;
     const kcalTag = state.masquerCalories ? '' : `<span class="day-kcal">${dayKcal} kcal</span>`;
     const title = document.createElement('div');
     title.className = 'day-title';
@@ -315,6 +330,35 @@ function renderPlan() {
     grid.appendChild(card);
   });
   $$('.day-regen').forEach((b) => b.addEventListener('click', () => regenerateDay(Number(b.dataset.day))));
+  $$('#planGrid .day-pill').forEach((p) => p.addEventListener('click', () => setDay(Number(p.dataset.dayPill))));
+  setupPlanSwipe();
+}
+
+// Affiche un jour donne (mobile) ; sur desktop tous les jours restent visibles.
+function setDay(i) {
+  const jours = (state.plan && state.plan.jours) || [];
+  i = Math.max(0, Math.min(jours.length - 1, i));
+  state.activeDay = i;
+  $$('#planGrid .day-card').forEach((c) => c.classList.toggle('is-active', Number(c.dataset.dayIndex) === i));
+  $$('#planGrid .day-pill').forEach((p) => p.classList.toggle('on', Number(p.dataset.dayPill) === i));
+  const ap = document.querySelector(`#planGrid .day-pill[data-day-pill="${i}"]`);
+  if (ap) ap.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+}
+// Navigation par swipe horizontal sur le plan (mobile).
+function setupPlanSwipe() {
+  const grid = $('#planGrid');
+  if (!grid || grid._swipeBound) return;
+  grid._swipeBound = true;
+  let x0 = null, y0 = null;
+  grid.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  grid.addEventListener('touchend', (e) => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    const dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy)) return; // ignore les gestes verticaux
+    setDay((state.activeDay || 0) + (dx < 0 ? 1 : -1));
+  }, { passive: true });
 }
 
 function renderMealCard(repas, di, mi) {
@@ -801,8 +845,9 @@ function swapIngredient(di, mi, idx) {
   const ing = recette.ingredients[idx];
   if (!ing) return;
   const alts = trouverAlternatives(ing.nom);
-  // Choisir une alternative qui ne reintroduit pas un aliment interdit.
-  const interdits = [...(state.preferences.allergies || []), ...(state.preferences.deteste || [])].map(normTxt);
+  // Choisir une alternative qui ne reintroduit pas un aliment interdit
+  // (allergies etendues aux synonymes/familles + aliments detestes).
+  const interdits = motsAllergenesInterdits();
   const courant = normTxt(ing.nom);
   const choix = alts.find((a) => {
     const na = normTxt(a);
@@ -840,7 +885,7 @@ function buildShoppingList() {
     jour.repas.forEach((repas) => {
       if (!repas.recette) return;
       (repas.recette.ingredients || []).forEach((ing) => {
-        const key = `${ing.nom.toLowerCase()}|${ing.unite}`;
+        const key = `${normTxt(ing.nom).replace(/\s+/g, ' ')}|${normTxt(ing.unite)}`;
         if (!agg[key]) agg[key] = { nom: ing.nom, unite: ing.unite, rayon: ing.rayon || 'Epicerie', quantite: 0 };
         agg[key].quantite += (Number(ing.quantite) || 0) * state.portions;
       });
@@ -1462,6 +1507,19 @@ function init() {
   // Demande d'aide alimentaire (accompagnement coach)
   $('#btnHelp').addEventListener('click', openHelp);
   $('#btnHelpFromSuivi').addEventListener('click', () => { closeSuivi(); openHelp(); });
+
+  // SOS coach : bouton flottant + feuille
+  $('#sosFab').addEventListener('click', openSos);
+  $('#sosSend').addEventListener('click', submitSos);
+  $('#sosChips').addEventListener('click', (e) => {
+    const c = e.target.closest('.sos-chip'); if (c) c.classList.toggle('on');
+  });
+  $$('#sosSheet [data-sos-close]').forEach((b) => b.addEventListener('click', closeSos));
+
+  // Nouvelle navigation : barre basse + lignes de l'ecran Profil (delegue aux boutons existants)
+  setupProfilCoach();
+  $$('#bottom-nav .nav-i').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  $$('#view-profil .profil-row').forEach((r) => r.addEventListener('click', () => { const t = $('#' + r.dataset.go); if (t) t.click(); }));
   $('#helpClose').addEventListener('click', closeHelp);
   $('#helpDoneClose').addEventListener('click', closeHelp);
   $('#helpPanel').addEventListener('click', (e) => { if (e.target.id === 'helpPanel') closeHelp(); });
@@ -1549,7 +1607,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); } });
 
   if (loadLocal()) {
     $('#portValue').textContent = state.portions;
@@ -1628,6 +1686,65 @@ async function submitHelp() {
   } catch (e) {
     alert("Oups, l'envoi n'a pas fonctionne. Reessaie dans un instant.");
   } finally { btn.disabled = false; }
+}
+
+// ---------- SOS coach : bouton flottant + feuille (reutilise /api/help-request) ----------
+const SOS_DIFFICULTES = ['Manque de temps', 'Fringales', 'Budget', 'Repas dehors', 'Motivation'];
+function renderSosChips() {
+  $('#sosChips').innerHTML = SOS_DIFFICULTES.map((l) =>
+    `<button type="button" class="sos-chip" data-l="${l}">${l}</button>`).join('');
+}
+function openSos() {
+  renderSosChips();
+  $('#sosMessage').value = '';
+  $('#sosChips').classList.remove('hidden');
+  $('#sosMessage').classList.remove('hidden');
+  $('#sosSend').classList.remove('hidden');
+  $('#sosDone').classList.add('hidden');
+  $('#sosSheet').classList.remove('hidden');
+}
+function closeSos() { $('#sosSheet').classList.add('hidden'); }
+async function submitSos() {
+  const selected = $$('#sosChips .sos-chip.on').map((b) => b.dataset.l);
+  const message = $('#sosMessage').value.trim();
+  if (!selected.length && !message) { alert('Indique une difficulté ou un petit mot.'); return; }
+  const btn = $('#sosSend'); btn.disabled = true;
+  const showDone = () => {
+    $('#sosChips').classList.add('hidden');
+    $('#sosMessage').classList.add('hidden');
+    $('#sosSend').classList.add('hidden');
+    $('#sosDone').classList.remove('hidden');
+    btn.disabled = false;
+  };
+  if (isDemo()) { showDone(); return; } // démo : pas de vraie demande
+  try {
+    const res = await fetch(apiUrl('/api/help-request'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ clientName: helpClientName(), difficultes: selected, message }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Erreur');
+    showDone();
+  } catch (e) {
+    alert("Oups, l'envoi n'a pas fonctionné. Réessaie dans un instant.");
+    btn.disabled = false;
+  }
+}
+
+// ---------- Navigation (barre basse mobile / sidebar desktop) ----------
+function setTab(tab) {
+  // Courses & Suivi ouvrent les panneaux existants (overlays) sans changer la vue de fond.
+  if (tab === 'courses') { $('#btnShopping').click(); return; }
+  if (tab === 'suivi') { $('#btnSuiviPlan').click(); return; }
+  const screen = $('#screen-result');
+  if (screen) screen.setAttribute('data-tab', tab);
+  $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  window.scrollTo(0, 0);
+}
+// Affiche l'« Espace coach » de l'ecran Profil uniquement pour coach/admin.
+function setupProfilCoach() {
+  if (!isCoachOrAdmin()) return;
+  $$('#view-profil .profil-coach').forEach((el) => el.classList.remove('hidden'));
 }
 
 // --- Vue coach : liste des demandes ---
@@ -1937,9 +2054,48 @@ async function lookupBarcode(code) {
   }
 }
 
+// Synonymes d'allergenes cote front : "arachide" coche doit exclure "cacahuete",
+// "fruits a coque" doit exclure "amande/noix/noisette", etc. Miroir (volontairement
+// large, on prefere sur-exclure que laisser passer) de la logique serveur.
+const ALLERG_SYNONYMES_FRONT = {
+  arachide: ['arachide', 'cacahuete', 'cacahouete', 'satay', 'peanut'],
+  'fruits a coque': ['fruits a coque', 'noix', 'amande', 'noisette', 'cajou', 'pistache', 'pignon', 'pecan', 'cerneau', 'macadamia'],
+  lactose: ['lactose', 'lait', 'fromage', 'yaourt', 'creme', 'beurre', 'skyr', 'mozzar', 'parmesan', 'feta', 'ricotta', 'mascarpone', 'emmental', 'gruyere', 'cheddar', 'chevre'],
+  gluten: ['gluten', 'ble', 'pain', 'pates', 'semoule', 'couscous', 'avoine', 'orge', 'seigle', 'epeautre', 'chapelure', 'biscotte', 'naan', 'pita', 'brioche'],
+  oeuf: ['oeuf', 'omelette', 'mayonnaise', 'meringue', 'frittata'],
+  poisson: ['poisson', 'saumon', 'thon', 'cabillaud', 'colin', 'merlu', 'truite', 'sardine', 'maquereau', 'hareng', 'anchois', 'surimi', 'dorade'],
+  crustaces: ['crustace', 'crevette', 'gambas', 'crabe', 'homard', 'langoustine', 'ecrevisse'],
+  soja: ['soja', 'tofu', 'edamame', 'miso', 'tamari', 'tempeh'],
+  sesame: ['sesame', 'tahin', 'houmous', 'gomasio'],
+};
+
+// Liste des mots a exclure pour l'utilisateur courant : allergies (etendues aux
+// synonymes/familles) + aliments detestes (mots bruts).
+function motsAllergenesInterdits() {
+  const out = new Set();
+  for (const a of (state.preferences.allergies || [])) {
+    const na = normTxt(a);
+    if (!na) continue;
+    out.add(na);
+    for (const [fam, syns] of Object.entries(ALLERG_SYNONYMES_FRONT)) {
+      const match = na.includes(normTxt(fam)) || normTxt(fam).includes(na)
+        || syns.some((s) => na.includes(normTxt(s)) || normTxt(s).includes(na));
+      if (match) syns.forEach((s) => out.add(normTxt(s)));
+    }
+  }
+  for (const d of (state.preferences.deteste || [])) { const nd = normTxt(d); if (nd) out.add(nd); }
+  return [...out].filter(Boolean);
+}
+
 function renderScanResult(p) {
   scanShowStage('result');
   const allerg = (p.allergens || []).filter(Boolean).slice(0, 6);
+  // Croisement avec les allergies de l'utilisateur : on signale clairement les conflits.
+  const interditsUser = motsAllergenesInterdits();
+  const conflits = (p.allergens || []).filter((a) => {
+    const na = normTxt(a);
+    return interditsUser.some((m) => m && (na.includes(m) || m.includes(na)));
+  });
   const ns = p.nutriscore && 'abcde'.includes(p.nutriscore)
     ? `<span class="nutriscore ns-${p.nutriscore}">Nutri-Score ${p.nutriscore.toUpperCase()}</span>` : '';
   const isFav = scanFavoris().some((f) => f.barcode === p.barcode);
@@ -1959,7 +2115,8 @@ function renderScanResult(p) {
       <strong>${p.coherence.titre}</strong>
       <p>${p.coherence.reco}</p>
     </div>
-    ${allerg.length ? `<div class="scan-allerg"><span class="scan-allerg-label">Allergenes</span> ${allerg.map((a) => `<span class="help-tag">${escapeHtml(a)}</span>`).join('')}</div>` : ''}
+    ${conflits.length ? `<div class="scan-warning" style="display:flex;gap:8px;align-items:flex-start;background:rgba(248,113,113,0.14);border:1px solid rgba(248,113,113,0.45);color:#F87171;border-radius:12px;padding:11px 14px;font-size:13.5px;font-weight:600;margin-bottom:10px;line-height:1.4;">⚠️ Contient un de tes allergenes : ${conflits.map(escapeHtml).join(', ')}. A eviter — demande a ton coach en cas de doute.</div>` : ''}
+    ${allerg.length ? `<div class="scan-allerg"><span class="scan-allerg-label">Allergenes</span> ${allerg.map((a) => { const danger = conflits.includes(a); return `<span class="help-tag"${danger ? ' style="background:rgba(248,113,113,0.18);color:#F87171;border:1px solid rgba(248,113,113,0.5);"' : ''}>${escapeHtml(a)}</span>`; }).join('')}</div>` : ''}
     <p class="help-disclaimer">Cette indication est une aide a la decision, pas un avis medical. En cas de doute, demande a ton coach ou a un professionnel de sante.</p>
     <label class="field" style="margin:2px 0 10px"><span>Un mot pour ton coach (optionnel)</span>
       <textarea id="scanCoachMsg" rows="2" placeholder="Ex : est-ce que je peux en prendre le matin ?"></textarea></label>
