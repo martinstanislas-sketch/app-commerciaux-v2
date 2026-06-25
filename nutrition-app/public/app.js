@@ -696,8 +696,8 @@ function buildLocalRecipeDetail(r) {
   // --- Dressage (concret, sans "toppings/croquant" si rien de croquant) ---
   let dressage;
   const fec = feculents[0], prot = proteines[0], leg = legumes[0];
-  const estTartine = has(/\bpain\b|tartine|\bwrap\b|galette|biscotte|tortilla|burrito|socca/);
-  const estMoule = four || has(/frittata|muffin|\bcake\b|gratin|banana bread|terrine/);
+  const estTartine = has(/\bpain\b|tartine|\bwrap\b|galette|biscotte|tortilla|burrito|socca|muffin anglais/);
+  const estMoule = !has(/muffin anglais/) && (four || has(/frittata|muffin|\bcake\b|gratin|banana bread|terrine/));
   if (/smoothie|\bshake\b/.test(norm(r.nom)) || has(/smoothie/)) {
     dressage = 'Verse dans un grand verre (ou un bol) et sers bien frais.';
   } else if (sucreType && !cuisson) {
