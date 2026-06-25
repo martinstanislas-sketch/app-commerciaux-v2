@@ -589,13 +589,13 @@ function buildLocalRecipeDetail(r) {
   const has = (re) => re.test(txt);
   const norm = (s) => normTxt(s);
   // Riz CUIT (pour distinguer "farine de riz", "lait de riz", "galette de riz").
-  const rizCuit = /(?<!farine de )(?<!lait de )(?<!galette de )(?<!nouilles de )\briz\b/.test(txt);
+  const rizCuit = /(?<!farine de )(?<!lait de )(?<!galettes? de )(?<!nouilles? de )\briz\b/.test(txt);
 
   // --- La recette comporte-t-elle une CUISSON ? (sinon : pas de poele/four/feu) ---
   const poele = has(/poel|saisir|dorer|revenir|sauter|omelette|au plat|brouill|\bsaute|frire|\bgrill/);
   const four = has(/\bfour\b|rotir|enfourn|gratin|\broti\b/);
-  const casserole = has(/casserole|bouillir|eau bouillante|mijot|vapeur|pocher|oeufs? poche|\bsoupe\b|porridge|pates\b|quinoa|semoule|boulgour|lentille/) || rizCuit;
-  const cuisson = poele || four || casserole || has(/\bcuire\b|cuisson|\bcuit|chauff|rechauff|\bfeu\b|mijote|\bblanchir/);
+  const casserole = has(/casserole|bouillir|eau bouillante|mijot|vapeur|pocher|oeufs? poche|\bsoupe\b|porridge|\brisotto/) || rizCuit;
+  const cuisson = poele || four || casserole || has(/\bcuire|\bcuiss|chauff|rechauff|\bfeu\b|mijote|\bblanchir|\bdorer|gratin/);
   // Recette plutot sucree ? (priorite au champ explicite r.gout, sinon deduction)
   const sucreType = r.type === 'petit-dejeuner' || r.type === 'collation';
   const salePetitDej = has(/oeuf|omelette|jambon|bacon|avocat|saumon|\bfeta\b|charcuterie|saucisse|\bthon|\btofu\b/);
@@ -603,12 +603,12 @@ function buildLocalRecipeDetail(r) {
 
   // --- Classification des ingredients (fruit != legume) ---
   const estFruit = (i) => /banane|orange|pomme\b|poire|fraise|framboise|myrtille|fruits rouges|mangue|ananas|kiwi|raisin|\bpeche|abricot|cerise|melon|pasteque|clementine|mandarine|grenade|figue|datte|fruits de saison|fruits frais|fruits secs|compote|avocat/.test(norm(i.nom));
-  const estLegume = (i) => /brocoli|courgette|poivron|epinard|haricot vert|\btomate|carotte|champignon|salade|concombre|oignon|\bail\b|aubergine|\bchou|poireau|courge|patate douce|betterave|radis|fenouil|asperge|petit pois|\bmais\b|roquette|mache|endive|navet|celeri|blette|crudite/.test(norm(i.nom));
+  const estLegume = (i) => { const n = norm(i.nom); if (/graine|farine|lait|huile|\bjus\b/.test(n)) return false; return /brocoli|courgette|poivron|epinard|haricot vert|\btomate|carotte|champignon|salade|concombre|oignon|\bail\b|aubergine|\bchou|poireau|courge|patate douce|betterave|radis|fenouil|asperge|petit pois|\bmais\b|roquette|mache|endive|navet|celeri|blette|crudite/.test(n); };
   const estCroquant = (i) => { const n = norm(i.nom); if (/lait|boisson|puree|creme|huile|sirop/.test(n)) return false; return /granola|\bnoix|amande|noisette|\bgraine|muesli|crouton|cereales|cacahuete|pignon|pistache|cajou|\bchia\b/.test(n); };
   const estLaitier = (i) => /yaourt|\bskyr|fromage blanc|petit-suisse|fromage frais|cottage|faisselle/.test(norm(i.nom));
   const estProteine = (i) => /poulet|dinde|\bboeuf|steak|\bveau|agneau|\bporc|jambon|saumon|\bthon|cabillaud|colin|merlu|truite|sardine|crevette|gambas|\boeuf|\btofu|tempeh|pois chiche|lentille|haricot rouge|\bfeta|mozzarella/.test(norm(i.nom));
   const estFeculent = (i) => /\briz\b|pates\b|quinoa|semoule|boulgour|patate|pomme de terre|\bpain\b|wrap|tortilla|galette|flocons|avoine|polenta|blini|muffin|\bpita\b/.test(norm(i.nom));
-  const aJus = has(/\bjus\b|presse|pressee/) && ings.some((i) => /orange|citron|pamplemousse|clementine/.test(norm(i.nom)));
+  const aJus = has(/presse|presser|pressee/) && ings.some((i) => { const n = norm(i.nom); return /\b(orange|citron|pamplemousse|clementine)\b/.test(n) && !/jus de/.test(n); });
 
   const fruits = ings.filter((i) => estFruit(i) && !estLegume(i));
   const legumes = ings.filter((i) => estLegume(i) && !estFruit(i));
@@ -617,19 +617,19 @@ function buildLocalRecipeDetail(r) {
   const proteines = ings.filter(estProteine);
   const feculents = ings.filter(estFeculent);
   const noms = (arr) => arr.map((i) => i.nom.toLowerCase()).join(', ');
-  const elide = (n) => { const t = n.trim(); if (/^(haricot|hareng|homard)/i.test(t)) return 'de ' + t; return /^[aeiouyàâäéèêëîïôöûùœh]/i.test(t) ? "d'" + t : 'de ' + t; };
+  const elide = (n) => { const t = n.trim(); if (/^(haricot|hareng|homard|yaourt|yuzu)/i.test(t)) return 'de ' + t; return /^[aeiouàâäéèêëîïôöûùœh]/i.test(t) ? "d'" + t : 'de ' + t; };
 
   // --- Materiel REELLEMENT utilise ---
   const mat = [];
   const add = (m) => { if (!mat.includes(m)) mat.push(m); };
   if (poele) { add('Poêle'); add('Spatule'); }
   if (four) add('Four');
-  if (casserole) add('Casserole');
+  if (casserole || (cuisson && has(/\briz\b|pates\b|quinoa|semoule|boulgour|lentille/))) add('Casserole');
   if (has(/mixer|mixeur|smoothie|veloute|mouline|blender|\bmixe/)) add('Blender');
   if (aJus) add('Presse-agrumes');
   const aDecouper = proteines.length || legumes.length || fruits.some((i) => /orange|pomme|poire|mangue|ananas|kiwi|banane|avocat|\bpeche|melon/.test(norm(i.nom))) || has(/couper|eminc|tranche|hach|decoup/);
   if (aDecouper) { add('Couteau'); add('Planche à découper'); }
-  if (casserole || has(/egoutter|rincer|passoire|filtrer/)) add('Passoire');
+  if ((cuisson && has(/\briz\b|pates\b|quinoa|boulgour|lentille/)) || has(/egoutter|rincer|passoire|filtrer/)) add('Passoire');
   if (has(/fouet|battre|monter en neige/)) add('Fouet');
   if (has(/\brap|zeste/)) add('Râpe');
   if (laitiers.length || r.type === 'petit-dejeuner' || r.type === 'collation') add('Cuillère');
@@ -696,16 +696,22 @@ function buildLocalRecipeDetail(r) {
   // --- Dressage (concret, sans "toppings/croquant" si rien de croquant) ---
   let dressage;
   const fec = feculents[0], prot = proteines[0], leg = legumes[0];
-  if (cuisson && fec && prot && !doux) {
-    dressage = `Dispose ${fec.nom.toLowerCase()} au fond de l'assiette, ajoute ${prot.nom.toLowerCase()} par-dessus${leg ? `, puis ${leg.nom.toLowerCase()} sur le côté` : ''}. Sers chaud, avec un filet de citron ou des herbes fraîches.`;
-  } else if (sucreType && !cuisson) {
+  const estTartine = has(/\bpain\b|tartine|\bwrap\b|galette|biscotte|tortilla|burrito|socca/);
+  const estMoule = four || has(/frittata|muffin|\bcake\b|gratin|gaufre/);
+  if (sucreType && !cuisson) {
     if (laitiers.length) {
       dressage = `Dépose ${laitiers[0].nom.toLowerCase()} dans un bol${fruits.length ? `, dispose ${noms(fruits)} dessus` : ''}${croquants.length ? ` et ajoute ${noms(croquants)} au dernier moment pour garder le croquant` : ''}. Sers aussitôt.`;
-    } else if (has(/\bpain\b|tartine|wrap|galette|biscotte/)) {
+    } else if (estTartine) {
       dressage = 'Dresse sur une assiette, coupe en deux si besoin et sers aussitôt.';
     } else {
       dressage = `Dresse dans un bol ou une assiette${fruits.length ? `, avec ${noms(fruits)} bien visibles` : ''}. Sers frais.`;
     }
+  } else if (estMoule) {
+    dressage = 'Laisse tiédir, démoule ou coupe en parts, puis sers.';
+  } else if (estTartine) {
+    dressage = 'Dresse sur une assiette, coupe en deux si besoin et sers aussitôt.';
+  } else if (cuisson && fec && prot && !doux) {
+    dressage = `Dispose ${fec.nom.toLowerCase()} au fond de l'assiette, ajoute ${prot.nom.toLowerCase()} par-dessus${leg ? `, puis ${leg.nom.toLowerCase()} sur le côté` : ''}. Sers chaud, avec un filet de citron ou des herbes fraîches.`;
   } else if (doux && cuisson) {
     dressage = 'Dresse dans une assiette et sers tiède, bien doré.';
   } else if (cuisson) {

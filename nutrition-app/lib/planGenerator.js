@@ -55,40 +55,37 @@ const ALLERGENES_DETECTEURS = {
   arachide: /\b(arachide|cacahuete|cacahouete|peanut)/,
   'fruits-a-coque': /(amande|noisette|\bcajou|pistache|noix de pecan|noix de grenoble|cerneau|pignon de pin|\bnoix\b(?! de coco)(?! de muscade))/,
   lactose: /(\blait\b(?! de coco)(?! d.amande)(?! de soja)(?! vegetal)(?! d.avoine)(?! de riz)(?! de noisette)|fromage(?! vegetal)(?! vegan)|yaourt(?! vegetal)(?! de soja)(?! de coco)(?! d.amande)(?! d.avoine)(?! vegan)|\bskyr|mozzarella|parmesan|\bfeta\b|ricotta|mascarpone|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|emmental|gruyere|cheddar|\bchevre\b|burrata|\bcomte\b|petit-suisse|mozzar|raclette|reblochon|feta)/,
-  oeuf: /(\boeuf|omelette|\bmayonnaise|meringue|frittata|brouillade)/,
+  oeuf: /(\boeuf|omelette|\bmayonnaise|meringue|frittata|brouillade d.?oeuf)/,
   gluten: /(\bble\b|\bpain\b|\bpates\b|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|lasagne|gnocchi|raviol|spaghetti|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|\bavoine|flocons d.avoine|muesli|granola|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b)/,
   poisson: /(saumon|\bthon\b|cabillaud|\bcolin\b|\bmerlu|truite|sardine|maquereau|hareng|lieu noir|dorade|\bsole\b|anchois|surimi|nuoc.?mam|\bbar\b|\blotte\b|eglefin|haddock)/,
   crustaces: /(crevette|gambas|\bcrabe|homard|langoustine|ecrevisse|\bscampi)/,
   soja: /(\bsoja\b|\btofu\b|tempeh|edamame|\btamari\b|\bmiso\b)/,
   sesame: /(sesame|\btahin|houmous|gomasio)/,
 };
-// Sources de gluten AUTRES que l'avoine/les flocons (pour gerer l'avoine certifiee
-// sans gluten : si la seule source est l'avoine et que "sans gluten" est mentionne,
-// on ne marque pas la recette comme contenant du gluten).
-const GLUTEN_HORS_AVOINE = /(\bble\b|\bpain\b|\bpates\b|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|lasagne|gnocchi|raviol|spaghetti|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b|tortilla de ble|wrap)/;
-
-// Familles d'allergenes DETECTEES dans un champ texte (avec exceptions fines).
-function famillesDetectees(champ) {
-  const fams = new Set();
-  for (const [fam, re] of Object.entries(ALLERGENES_DETECTEURS)) {
-    if (re.test(champ)) fams.add(fam);
-  }
-  // Avoine certifiee sans gluten : pas de gluten si aucune autre source de gluten.
-  if (fams.has('gluten') && /sans gluten/.test(champ) && !GLUTEN_HORS_AVOINE.test(champ)) {
-    fams.delete('gluten');
-  }
-  return fams;
-}
-function champDeRecette(recette) {
+// Familles d'allergenes DETECTEES par SEGMENT (nom, mot-cle, ou ingredient).
+// Detecter par segment permet de gerer proprement les produits "sans gluten"
+// (pain sans gluten, flocons d'avoine certifies sans gluten...) : un segment qui
+// mentionne "sans gluten" ne compte pas comme source de gluten.
+function segmentsDeRecette(recette) {
   return [
     norm(recette.nom),
     ...(recette.motsCles || []).map(norm),
     ...(recette.ingredients || []).map((i) => norm(i.nom)),
-  ].join(' | ');
+  ];
+}
+function famillesDetectees(segments) {
+  const fams = new Set();
+  for (const [fam, re] of Object.entries(ALLERGENES_DETECTEURS)) {
+    for (const seg of segments) {
+      if (fam === 'gluten' && /sans gluten/.test(seg)) continue; // produit explicitement sans gluten
+      if (re.test(seg)) { fams.add(fam); break; }
+    }
+  }
+  return fams;
 }
 // Familles d'allergenes EFFECTIVEMENT presentes : declarees U detectees.
 function allergenesEffectifs(recette) {
-  const fams = famillesDetectees(champDeRecette(recette));
+  const fams = famillesDetectees(segmentsDeRecette(recette));
   for (const a of recette.allergenes || []) fams.add(a);
   return fams;
 }
@@ -105,7 +102,7 @@ const REGIME_INTERDITS = {
 // La recette respecte-t-elle reellement un regime requis ? (declare ET non contredit)
 function satisfaitRegime(recette, regime) {
   if (!(recette.regime || []).map(norm).includes(regime)) return false;
-  if (regime === 'sans-gluten') return !famillesDetectees(champDeRecette(recette)).has('gluten');
+  if (regime === 'sans-gluten') return !famillesDetectees(segmentsDeRecette(recette)).has('gluten');
   const re = REGIME_INTERDITS[regime];
   if (re && re.test(champRecette(recette))) return false;
   return true;
