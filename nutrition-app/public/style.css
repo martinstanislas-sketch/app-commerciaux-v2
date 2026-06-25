@@ -501,16 +501,41 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 
 /* ---------- Mobile : < 640px ---------- */
 @media (max-width: 640px) {
-  #app { padding: 20px 14px 64px; }
-  .choice-grid { grid-template-columns: 1fr; }
+  #app { padding: 14px 14px 64px; }
+  .choice-grid { grid-template-columns: 1fr; gap: 9px; }
   .field-row { grid-template-columns: 1fr; }
   .needs-stats { grid-template-columns: repeat(2, 1fr); }
   .recipe-macros { grid-template-columns: repeat(2, 1fr); }
   .panel-inner { width: 100%; padding: 20px 16px; }
   .modal { padding: 22px 18px; }
   .brand-tag { display: none; }
-  .hero { padding-top: 32px; }
   .actions-grid { gap: 12px; }
+
+  /* Onboarding compact : tout visible sans scroller */
+  .progress-wrap { margin: 2px 0 14px; }
+  .step h2 { font-size: 22px; margin-bottom: 4px; line-height: 1.2; }
+  .step-help { font-size: 13.5px; margin: 0 0 14px; line-height: 1.4; }
+  .step-nav { margin-top: 18px; }
+  /* Cartes de choix en LIGNE (icone gauche + label droite) = bien plus compact */
+  .choice { flex-direction: row; align-items: center; gap: 13px; padding: 12px 14px; font-size: 15px; border-radius: var(--r); }
+  .choice-ic { width: 38px; height: 38px; border-radius: 11px; }
+  .choice-ic .ic { width: 20px; height: 20px; }
+
+  /* Accueil (hero) compact */
+  .hero { padding: 14px 10px 8px; }
+  .hero-eyebrow { margin-bottom: 12px; }
+  .hero h1 { font-size: clamp(26px, 8vw, 34px); margin-bottom: 10px; }
+  .hero-sub { font-size: 14.5px; margin-bottom: 14px; line-height: 1.45; }
+  .hero-points { margin: 12px auto 10px; gap: 8px; }
+  .hero-points li { padding: 11px 14px; }
+  .hero-trust { margin-top: 4px; }
+
+  /* Accueil demo compact */
+  .demo-welcome { margin: 12px auto; padding: 20px 18px; }
+  .demo-welcome-ic { width: 52px; height: 52px; margin-bottom: 10px; border-radius: 16px; }
+  .demo-welcome-ic .ic { width: 24px; height: 24px; }
+  .demo-welcome h1 { font-size: 20px; margin-bottom: 9px; }
+  .demo-welcome p { font-size: 13.5px; margin-bottom: 9px; line-height: 1.45; }
 }
 
 /* Tablette (640-1024) : un jour a 4 repas s'affiche en 2x2 (plutot que 3+1). */
