@@ -6,7 +6,9 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "valider": "node tools/valider-recettes.js lib/recipes.js",
+    "valider:v2": "node tools/valider-recettes.js lib/recipes-v2.js"
   },
   "engines": {
     "node": ">=18"

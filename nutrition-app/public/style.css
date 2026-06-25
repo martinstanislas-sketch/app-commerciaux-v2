@@ -1043,3 +1043,20 @@ body.is-demo { padding-bottom: 54px; }
 .agenda-warn { background: rgba(184,146,74,.12); color: var(--warn); border-radius: 10px; padding: 9px 12px; font-size: 12.5px; }
 .choice-grid-3 { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 640px) { .choice-grid-3 { grid-template-columns: 1fr 1fr 1fr; } }
+
+/* ---------- Lecture plein ecran (masque topbar + bandeau demo) ---------- */
+.fullscreen-toggle {
+  position: fixed; top: 12px; right: 12px; z-index: 45;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--gray-200); color: var(--ink-2);
+  display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow-sm);
+  transition: background 0.18s var(--ease), color 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+.fullscreen-toggle:hover { background: var(--green-50); color: var(--green-700); border-color: var(--green-100); }
+.fullscreen-toggle .ic-compress { display: none; }
+.fullscreen-toggle.on { background: var(--green-50); color: var(--green-700); border-color: var(--green-100); }
+.fullscreen-toggle.on .ic-expand { display: none; }
+.fullscreen-toggle.on .ic-compress { display: block; }
+body.lecture .topbar,
+body.lecture .demo-banner { display: none !important; }
+body.lecture #app { padding-top: 52px; }

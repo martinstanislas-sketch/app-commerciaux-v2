@@ -124,6 +124,13 @@
     </span>
   </div>
 
+  <!-- Bouton lecture plein ecran : masque/reaffiche topbar + bandeau demo -->
+  <button id="fullscreenToggle" class="fullscreen-toggle" title="Lecture plein ecran" aria-label="Lecture plein ecran"
+    onclick="document.body.classList.toggle('lecture'); this.classList.toggle('on');">
+    <svg class="ic-expand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13 0h3a2 2 0 0 0 2-2v-3"/></svg>
+    <svg class="ic-compress" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3m13-5h-3a2 2 0 0 0-2 2v3"/></svg>
+  </button>
+
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark"><svg class="ic"><use href="#ic-leaf"/></svg></span>
