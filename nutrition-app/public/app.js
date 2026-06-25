@@ -198,6 +198,7 @@ function collectProfile() {
     regime: getMultiValues('regime'),
     budget: fd.get('budget'),
     temps_max: Number(fd.get('temps_max')),
+    dinerTard: (($('.choice-grid[data-field="dinerTard"]') || {}).dataset || {}).selected || 'non',
     // E2 - Habitudes alimentaires actuelles + aliments frequents.
     frequents: parseCsv(fd.get('frequents')),
     habitudes: {
@@ -1211,6 +1212,11 @@ function renderComplements() {
 
 // ---------- Export agenda (.ics) (E3) ----------
 const CRENEAU_HEURES = { 'petit-dejeuner': [8, 0, 30], dejeuner: [12, 30, 45], collation: [16, 0, 15], diner: [19, 30, 45] };
+// Horaire d'un creneau : le diner passe a 21h00 si le client mange tard le soir.
+function creneauHeures(creneau) {
+  if (creneau === 'diner' && state.preferences && state.preferences.dinerTard === 'oui') return [21, 0, 45];
+  return CRENEAU_HEURES[creneau] || [12, 0, 30];
+}
 
 function icsEscape(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
 function pad2(n) { return String(n).padStart(2, '0'); }
@@ -1225,7 +1231,7 @@ function exportIcs() {
   state.plan.jours.forEach((jour, di) => {
     jour.repas.forEach((repas) => {
       const r = repas.recette; if (!r) return;
-      const [hh, mm, dur] = CRENEAU_HEURES[repas.creneau] || [12, 0, 30];
+      const [hh, mm, dur] = creneauHeures(repas.creneau);
       const start = new Date(base); start.setDate(base.getDate() + di); start.setHours(hh, mm, 0, 0);
       const end = new Date(start); end.setMinutes(start.getMinutes() + dur);
       const titre = `${repas.label} - ${r.nom}`;
@@ -2701,7 +2707,7 @@ async function syncAgenda(scope, btn) {
   const label = scope === 'jour' ? 'Le plan du jour a' : (scope === 'semaine' ? 'Ta semaine a' : 'Les rappels ont');
   if (isDemo()) { msg.innerHTML = `<span class="agenda-success">✓ ${label} ete ajoute(s) a ton agenda (demo).</span>`; btn.disabled = false; btn.innerHTML = old; return; }
   try {
-    const r = await fetch(apiUrl('/api/google/sync'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ scope, plan: state.plan, planId: planIdFor(state.plan) }) });
+    const r = await fetch(apiUrl('/api/google/sync'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ scope, plan: state.plan, planId: planIdFor(state.plan), dinerTard: (state.preferences && state.preferences.dinerTard) === 'oui' }) });
     const d = await r.json();
     if (d.ok) msg.innerHTML = `<span class="agenda-success">✓ ${d.count} evenement(s) ajoute(s) a ton agenda${d.fail ? ` (${d.fail} non ajoutes)` : ''}.</span>`;
     else if (d.error === 'not_connected') { msg.textContent = 'Reconnecte ton Google Agenda.'; refreshAgenda(); }

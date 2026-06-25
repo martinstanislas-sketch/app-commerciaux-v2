@@ -203,7 +203,7 @@ async function gcal(token, method, path, body) {
 }
 // Construit les evenements Google a partir du plan (anti-doublon par id deterministe).
 const GHEURES = { 'petit-dejeuner': [8, 0, 30], dejeuner: [12, 30, 45], collation: [16, 0, 15], diner: [19, 30, 45] };
-function buildPlanEvents(plan, scope, planId) {
+function buildPlanEvents(plan, scope, planId, dinerTard) {
   if (!plan || !Array.isArray(plan.jours)) return [];
   const base = new Date(); base.setHours(0, 0, 0, 0);
   const jours = scope === 'jour' ? plan.jours.slice(0, 1) : plan.jours;
@@ -212,7 +212,7 @@ function buildPlanEvents(plan, scope, planId) {
     (jour.repas || []).forEach((repas) => {
       const r = repas.recette; if (!r) return;
       if (scope === 'rappels' && repas.creneau === 'collation') return; // rappels = repas principaux
-      const [hh, mm, dur] = GHEURES[repas.creneau] || [12, 0, 30];
+      const [hh, mm, dur] = (repas.creneau === 'diner' && dinerTard) ? [21, 0, 45] : (GHEURES[repas.creneau] || [12, 0, 30]);
       const start = new Date(base); start.setDate(base.getDate() + di); start.setHours(hh, mm, 0, 0);
       const end = new Date(start); end.setMinutes(start.getMinutes() + dur);
       const dateKey = start.getFullYear() + gPad(start.getMonth() + 1) + gPad(start.getDate());
@@ -552,10 +552,10 @@ try {
   });
   app.post('/nutrition/api/google/sync', requireAuth, requireNutritionUse, async (req, res) => {
     try {
-      const { scope = 'semaine', plan, planId } = req.body || {};
+      const { scope = 'semaine', plan, planId, dinerTard } = req.body || {};
       const tokRow = await googleValidToken(googleClientKey(req));
       if (!tokRow) return res.json({ ok: false, error: 'not_connected' });
-      const events = buildPlanEvents(plan, scope, planId || 'plan');
+      const events = buildPlanEvents(plan, scope, planId || 'plan', !!dinerTard);
       if (!events.length) return res.json({ ok: false, error: 'empty' });
       let count = 0, fail = 0;
       for (const ev of events) {

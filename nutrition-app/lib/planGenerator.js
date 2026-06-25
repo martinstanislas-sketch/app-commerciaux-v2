@@ -317,6 +317,8 @@ function genererPlanDemo(profil, prefs, seed) {
   }
   const tempsMaxCreneau = aj.tempsMaxCreneau || {};
   const rassasiantCreneau = new Set(aj.rassasiantCreneau || []);
+  // Diner tard -> on privilegie un diner plus rassasiant (proteines + volume).
+  if (prefs.dinerTard === 'oui') rassasiantCreneau.add('diner');
 
   const compatibles = recettesCompatibles(RECIPES, prefs);
   // On segmente le pool par type de creneau. "plat" sert dejeuner ET diner.
