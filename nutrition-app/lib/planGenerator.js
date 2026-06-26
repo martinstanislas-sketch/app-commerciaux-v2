@@ -6,7 +6,7 @@
 // Securite allergies = ceinture + bretelles : on filtre ici, et server.js
 // repasse un filtre final apres toute generation (IA comprise).
 
-const { RECIPES } = require('./recipes');
+const { RECIPES } = require('./recipes-v2');
 const { calculerBesoins } = require('./nutrition');
 
 // Normalise une chaine (minuscules, sans accents) pour comparer gouts/allergies.

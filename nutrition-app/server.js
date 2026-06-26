@@ -41,7 +41,7 @@ function seedFromRequest(body) {
 // CEINTURE + BRETELLES : retire toute recette qui contiendrait malgre tout un
 // allergene/aliment interdit (utile surtout pour les sorties IA).
 function filtreSecuriteFinal(plan, prefs) {
-  const compatiblesIds = new Set(recettesCompatibles(require('./lib/recipes').RECIPES, prefs).map((r) => r.id));
+  const compatiblesIds = new Set(recettesCompatibles(require('./lib/recipes-v2').RECIPES, prefs).map((r) => r.id));
   const familles = familiesFromUserAllergies(prefs.allergies);
   let retirees = 0;
   for (const jour of plan.jours || []) {

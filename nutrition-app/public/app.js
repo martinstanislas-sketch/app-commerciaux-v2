@@ -957,7 +957,7 @@ function remplacerMot(texte, ancien, nouveau) {
 }
 
 // ---------- Liste de courses ----------
-const RAYON_ORDRE = ['Fruits & legumes', 'Boucherie', 'Poissonnerie', 'Cremerie', 'Boulangerie', 'Epicerie', 'Surgeles', 'Rayon frais', 'Rayon vegetal'];
+const RAYON_ORDRE = ['Fruits & légumes', 'Fruits & legumes', 'Boucherie', 'Poissonnerie', 'Crèmerie', 'Cremerie', 'Boulangerie', 'Épicerie', 'Epicerie', 'Surgelés', 'Surgeles', 'Rayon frais', 'Rayon vegetal'];
 
 function buildShoppingList() {
   const agg = {};
