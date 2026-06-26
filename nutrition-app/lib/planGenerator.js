@@ -28,6 +28,7 @@ const SYNONYMES_ALLERGENES = {
   'fruits-a-coque': ['fruits a coque', 'noix', 'amande', 'amandes', 'noisette', 'pignon'],
   poisson: ['poisson', 'saumon', 'cabillaud', 'thon'],
   crustaces: ['crustace', 'crevette', 'gambas', 'crabe'],
+  mollusques: ['mollusque', 'mollusques', 'coquillage', 'moule', 'moules', 'palourde', 'huitre', 'seiche', 'calamar', 'calmar', 'poulpe', 'saint-jacques', 'coque', 'coques', 'encornet', 'bulot', 'escargot'],
   soja: ['soja', 'tofu', 'sauce soja'],
   sesame: ['sesame', 'tahin', 'houmous'],
 };
@@ -53,12 +54,13 @@ function familiesFromUserAllergies(allergies) {
 // nouilles de riz, tortilla espagnole, pate de curry...) pour ne PAS exclure a tort.
 const ALLERGENES_DETECTEURS = {
   arachide: /\b(arachide|cacahuete|cacahouete|peanut)/,
-  'fruits-a-coque': /(amande|noisette|\bcajou|pistache|noix de pecan|noix de grenoble|cerneau|pignon de pin|\bnoix\b(?! de coco)(?! de muscade))/,
+  'fruits-a-coque': /(amande|noisette|\bcajou|pistache|noix de pecan|noix de grenoble|cerneau|pignon de pin|\bnoix\b(?! de coco)(?! de muscade)(?! de saint))/,
   lactose: /(\blait\b(?! de coco)(?! d.amande)(?! de soja)(?! vegetal)(?! d.avoine)(?! de riz)(?! de noisette)|fromage(?! vegetal)(?! vegan)|yaourt(?! vegetal)(?! (?:de )?soja)(?! (?:de )?coco)(?! (?:d.)?amande)(?! (?:d.)?avoine)(?! vegan)|\bskyr|mozzarella|parmesan|\bfeta\b|ricotta|mascarpone|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|emmental|gruyere|cheddar|\bchevre\b|burrata|\bcomte\b|petit-suisse|mozzar|raclette|reblochon|feta)/,
   oeuf: /(\boeuf|omelette|\bmayonnaise|meringue|frittata|brouillade d.?oeuf)/,
-  gluten: /(\bble\b|\bpain\b|\bpates\b(?! de (?:mais|lentille|pois|sarrasin|riz|quinoa|legumineuse))|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|(?<!facon )lasagne|gnocchi|raviol|(?<!courgettes? )(?<!legumes? )spaghetti|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|\bavoine|flocons d.avoine|muesli|granola|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b)/,
+  gluten: /(\bble\b|\bpain\b|\bpates\b(?! de (?:mais|lentille|pois|sarrasin|riz|quinoa|legumineuse))|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|(?<!facon )lasagne|gnocchi|raviol|(?<!courgettes? )(?<!legumes? )\bspaghettis?\b(?! de (?:courgette|legume))|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|\bavoine|flocons d.avoine|muesli|granola|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b)/,
   poisson: /(saumon|\bthon\b|cabillaud|\bcolin\b|\bmerlu|truite|sardine|maquereau|hareng|lieu noir|dorade|\bsole\b|anchois|surimi|nuoc.?mam|\bbar\b|\blotte\b|eglefin|haddock)/,
   crustaces: /(crevette|gambas|\bcrabe|homard|langoustine|ecrevisse|\bscampi)/,
+  mollusques: /(palourde|seiche|calam[ae]r|encornet|poulpe|saint.?jacques|petoncle|\bbulot|bigorneau|\bormeau|\bpraire\b|telline|\bhuitre|\bmoules?\b(?! a )|(?<!a la )\bcoques?\b|\bcouteaux?\b|escargot)/,
   soja: /(\bsoja\b|\btofu\b|tempeh|edamame|\btamari\b|\bmiso\b)/,
   sesame: /(sesame|\btahin|houmous|gomasio)/,
 };
@@ -75,7 +77,7 @@ function segmentsDeRecette(recette) {
 }
 // Sources de gluten AUTRES que l'avoine/les flocons (pour gerer l'avoine certifiee
 // sans gluten meme quand "avoine" apparait dans le NOM sans la mention SG).
-const GLUTEN_HORS_AVOINE = /(\bble\b|\bpain\b|\bpates\b(?! de (?:mais|lentille|pois|sarrasin|riz|quinoa|legumineuse))|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|(?<!facon )lasagne|gnocchi|raviol|(?<!courgettes? )(?<!legumes? )spaghetti|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b)/;
+const GLUTEN_HORS_AVOINE = /(\bble\b|\bpain\b|\bpates\b(?! de (?:mais|lentille|pois|sarrasin|riz|quinoa|legumineuse))|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|(?<!facon )lasagne|gnocchi|raviol|(?<!courgettes? )(?<!legumes? )\bspaghettis?\b(?! de (?:courgette|legume))|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b)/;
 function famillesDetectees(segments) {
   const fams = new Set();
   for (const [fam, re] of Object.entries(ALLERGENES_DETECTEURS)) {
