@@ -178,8 +178,14 @@ function extraireMotsHabitudes(prefs) {
 // Filtre DUR : ne renvoie que les recettes 100 % compatibles.
 function recettesCompatibles(pool, prefs) {
   const famillesAllergenes = familiesFromUserAllergies(prefs.allergies);
+  // Les allergies-familles (gluten, lactose, oeuf, soja...) sont gerees par le
+  // detecteur de familles (etape 1), qui respecte les faux-amis ("certifie sans
+  // gluten", "lait de riz", "yaourt soja"...). On ne garde en correspondance texte
+  // BRUTE que les allergies HORS-famille (kiwi, moutarde, celeri, mollusques...)
+  // et les aliments detestes : sinon le mot "gluten" matcherait le label "sans
+  // gluten" et exclurait a tort les produits justement sans gluten.
   const motsInterdits = [
-    ...(prefs.allergies || []),
+    ...(prefs.allergies || []).filter((a) => familiesFromUserAllergies([a]).size === 0),
     ...(prefs.deteste || []),
   ]
     .map(norm)
