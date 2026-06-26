@@ -203,6 +203,7 @@
             <button type="button" class="choice" data-value="maintien"><span class="choice-ic"><svg class="ic"><use href="#ic-scale"/></svg></span><span class="choice-txt">Maintenir mon poids</span></button>
             <button type="button" class="choice" data-value="muscle"><span class="choice-ic"><svg class="ic"><use href="#ic-muscle"/></svg></span><span class="choice-txt">Prendre du muscle</span></button>
             <button type="button" class="choice" data-value="energie"><span class="choice-ic"><svg class="ic"><use href="#ic-bolt"/></svg></span><span class="choice-txt">Avoir plus d'energie</span></button>
+            <button type="button" class="choice" data-value="challenge"><span class="choice-ic"><svg class="ic"><use href="#ic-flame"/></svg></span><span class="choice-txt">Challenge 6/6</span></button>
           </div>
         </div>
 
@@ -244,6 +245,41 @@
               <option value="tres_actif">Tres actif (travail physique + sport)</option>
             </select>
           </label>
+
+          <!-- Donnees de pesee (optionnel) : affinent le calcul (surtout Challenge 6/6) -->
+          <details class="pesee-block">
+            <summary><span class="field-title">Donnees de pesee <em>(optionnel, pour un calcul plus precis)</em></span></summary>
+            <p class="step-help">Si votre balance connectee les donne. Utilisees en priorite pour le Challenge 6/6.</p>
+            <div class="field-row">
+              <label class="field">
+                <span>Metabolisme basal (kcal)</span>
+                <input type="number" name="metabolisme_basal" min="600" max="4000" placeholder="ex. 1450" />
+              </label>
+              <label class="field">
+                <span>Masse grasse (kg)</span>
+                <input type="number" name="masse_grasse" min="1" max="150" step="0.1" placeholder="ex. 22" />
+              </label>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span>Masse musculaire (kg)</span>
+                <input type="number" name="masse_musculaire" min="1" max="120" step="0.1" placeholder="ex. 28" />
+              </label>
+              <label class="field">
+                <span>Seances de sport / semaine</span>
+                <input type="number" name="seances_sport" min="0" max="14" placeholder="ex. 3" />
+              </label>
+            </div>
+            <label class="field">
+              <span>Type de journee</span>
+              <select name="type_journee">
+                <option value="">Non precise</option>
+                <option value="assis">Plutot assis (bureau)</option>
+                <option value="debout">Plutot debout / en mouvement</option>
+                <option value="physique">Travail physique</option>
+              </select>
+            </label>
+          </details>
         </div>
 
         <!-- Etape 3 : Gouts -->
@@ -389,6 +425,7 @@
             <label class="field">
               <span>Repas par jour</span>
               <select name="repas_par_jour">
+                <option value="2">2 repas</option>
                 <option value="3" selected>3 repas</option>
                 <option value="4">3 repas + 1 collation</option>
                 <option value="5">3 repas + 2 collations</option>

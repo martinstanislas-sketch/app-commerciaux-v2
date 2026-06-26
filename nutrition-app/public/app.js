@@ -278,6 +278,14 @@ function collectProfile() {
     activite: fd.get('activite'),
     repas_par_jour: Number(fd.get('repas_par_jour')),
     jours: Number(fd.get('jours')),
+    // Donnees de pesee (optionnel) : affinent le calcul, surtout Challenge 6/6.
+    metabolisme_basal: Number(fd.get('metabolisme_basal')) || undefined,
+    masse_grasse: Number(fd.get('masse_grasse')) || undefined,
+    masse_musculaire: Number(fd.get('masse_musculaire')) || undefined,
+    type_journee: fd.get('type_journee') || undefined,
+    seances_sport: Number(fd.get('seances_sport')) || undefined,
+    // Dine tard : repercute sur la repartition (diner plus leger).
+    dinerTard: (($('.choice-grid[data-field="dinerTard"]') || {}).dataset || {}).selected || 'non',
     // Complements alimentaires (enregistres dans le profil, reutilisables).
     complements: getMultiValues('complements'),
     complementsDetail: (fd.get('complementsDetail') || '').trim(),
@@ -350,21 +358,34 @@ async function fetchMeal(creneau, kcalCible, exclureId) {
 // ---------- Rendu : besoins ----------
 function renderNeeds() {
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie', challenge: 'Challenge 6/6' };
   const pk = b.macros.proteines * 4, gk = b.macros.glucides * 4, lk = b.macros.lipides * 9;
   const tot = pk + gk + lk || 1;
   const bar = (v) => `<div class="macbar"><i style="width:${Math.round((v / tot) * 100)}%"></i></div>`;
   const kcalBlock = state.masquerCalories ? ''
     : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl">kcal / jour</div></div>`;
+  const isChallenge = state.profil.objectif === 'challenge';
+  const row = (l, v) => `<div class="ne-row"><span>${l}</span><b>${v}</b></div>`;
+  const challengeBlock = (isChallenge && b.poidsCible) ? `
+    <div class="needs-extra">
+      ${state.masquerCalories ? '' : row('Déficit estimé', `${b.deficit} kcal/jour`)}
+      ${row('Perte estimée (6 sem.)', `${b.perteEstimee.min} à ${b.perteEstimee.max} kg`)}
+      ${row('Poids actuel → objectif', `${b.poidsActuel} → ${b.poidsCible} kg`)}
+      ${state.masquerCalories ? '' : row('Métabolisme basal', `${b.bmr} kcal <em>(${b.bmrSource})</em>`)}
+      ${state.masquerCalories ? '' : row('Maintien estimé', `${b.maintenance} kcal/jour`)}
+    </div>
+    ${b.ambitieux ? `<p class="needs-note">Objectif ambitieux : votre plan vise une perte forte mais raisonnable. Le résultat final dépendra aussi de l'activité, du sommeil, de l'adhérence et du suivi coach.</p>` : ''}
+    <p class="needs-disclaimer">Ce plan est une estimation personnalisée. En cas de pathologie, grossesse, traitement médical ou trouble alimentaire, demandez l'avis d'un professionnel de santé.</p>` : '';
   $('#needsCard').innerHTML = `
-    <div class="needs-head"><span class="needs-ic">${icSvg('target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2></div>
+    <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2></div>
     <p class="needs-sub">Votre objectif, résumé en chiffres.</p>
     <div class="needs-stats">
       ${kcalBlock}
       <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div>${bar(pk)}</div>
       <div class="needs-stat"><div class="num">${b.macros.glucides} g</div><div class="lbl">Glucides</div>${bar(gk)}</div>
       <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl">Lipides</div>${bar(lk)}</div>
-    </div>`;
+    </div>
+    ${challengeBlock}`;
 }
 
 // ---------- Rendu : grille du plan ----------
@@ -1051,7 +1072,7 @@ function printDocument(title, innerHTML) {
 
 function exportPlanPdf() {
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie', challenge: 'Challenge 6/6' };
   let html = `<h1>Mon plan de repas — My Coach Nutrition</h1>
     <p class="sub">Objectif : ${objLabels[state.profil.objectif] || ''} · ~${b.kcalCible} kcal/jour · ${state.portions} personne(s) · Estimations a titre indicatif.</p>`;
   state.plan.jours.forEach((jour) => {
@@ -1090,7 +1111,7 @@ function closeFiche() { $('#fichePanel').classList.add('hidden'); }
 
 function renderFiche() {
   const p = state.profil, pr = state.preferences, b = state.plan ? state.plan.besoins : null;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie', challenge: 'Challenge 6/6' };
   const comps = (p.complements || []).filter((c) => c !== 'aucun' && c !== 'non').map((c) => COMPLEMENT_LABELS[c] || c);
   const compStr = comps.length ? comps.filter((c) => c !== 'Autre').join(', ') + (p.complementsDetail ? ' — ' + p.complementsDetail : '') : 'Aucun';
   const hab = pr.habitudes || {};
