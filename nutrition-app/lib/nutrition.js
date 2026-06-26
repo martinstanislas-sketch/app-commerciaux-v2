@@ -157,15 +157,21 @@ function calculerBesoins(profil) {
   let extra = {};
 
   if (estChallenge) {
-    // Deficit "challenge" securise (650 kcal, jamais sous le plancher).
-    let deficit = 650;
-    kcalCible = maintenance - deficit;
+    // Parametres ajustables (defauts : -650 kcal, objectif -6 kg sur 6 semaines).
+    const deficitVise = clampNumber(nb(profil.deficit_cible) || 650, 400, 750);
+    const perteObjectif = clampNumber(nb(profil.perte_objectif_kg) || 6, 1, 30);
+    // Ajustement hebdomadaire cumule (issu du suivi de pesee), borne pour la securite.
+    const ajustement = clampNumber(nb(profil.ajustementKcal) || 0, -400, 400);
+
+    // Deficit securise (jamais sous le plancher), + ajustement du suivi.
+    let deficit = deficitVise;
+    kcalCible = maintenance - deficit + ajustement;
     if (kcalCible < plancher) kcalCible = plancher;
     deficit = Math.round(maintenance - kcalCible);
     kcalCible = Math.round(kcalCible / 10) * 10;
 
-    // Poids cible du challenge : -6 kg (borne a 35 kg mini).
-    const poidsCible = Math.max(35, Math.round((poids_kg - 6) * 10) / 10);
+    // Poids cible : -perteObjectif kg (borne a 35 kg mini).
+    const poidsCible = Math.max(35, Math.round((poids_kg - perteObjectif) * 10) / 10);
     const masseGrasse = nb(profil.masse_grasse);
     const msg = (masseGrasse > 0 && poids_kg > masseGrasse) ? poids_kg - masseGrasse : null;
 
@@ -178,17 +184,20 @@ function calculerBesoins(profil) {
     const glucides = Math.max(0, Math.round((kcalCible - proteines * 4 - lipides * 9) / 4));
     macros = { proteines, glucides, lipides };
 
-    // Estimations (perte basse = appliquee au deficit, haute = objectif -6 kg).
+    // Deficit theorique pour atteindre l'objectif en 6 semaines (42 jours).
+    const deficitTheorique = (perteObjectif * 7700) / 42;
     const perteMin = Math.round((deficit * 42 / 7700) * 10) / 10;
     extra = {
       maintenance: Math.round(maintenance),
       deficit,
+      ajustement,
       poidsActuel: poids_kg,
       poidsCible,
-      perteEstimee: { min: perteMin, max: 6 },
-      // Le deficit theorique pour -6 kg/6 sem (~1100 kcal/j) depasse le deficit
-      // securise applique -> on signale un objectif ambitieux mais raisonnable.
-      ambitieux: deficit < 1100,
+      perteObjectif,
+      perteEstimee: { min: perteMin, max: perteObjectif },
+      // Si le deficit applique reste sous le deficit theorique necessaire,
+      // l'objectif est ambitieux mais raisonnable.
+      ambitieux: deficit < deficitTheorique * 0.95,
     };
   } else {
     kcalCible = maintenance * (1 + OBJECTIF_AJUSTEMENT[objectif]);
@@ -223,6 +232,46 @@ function calculerBesoins(profil) {
   };
 }
 
+// Ajustement hebdomadaire automatique (Challenge 6/6).
+// A partir de l'historique de pesee + de l'etat physique declare, propose une
+// variation de calories (delta a appliquer a l'ajustement cumule).
+//   pesees : [{ ts (ms), poids, masse_musculaire? }] tri chronologique.
+//   opts   : { deficit, sexe, fatigue (bool) }.
+function calculerAjustementHebdo(pesees, opts = {}) {
+  const list = (pesees || []).filter((p) => p && Number(p.poids) > 0).slice().sort((a, b) => a.ts - b.ts);
+  if (list.length < 2) {
+    return { delta: 0, statut: 'attente', message: "Ajoutez votre poids chaque semaine : l'ajustement se fera automatiquement des 2 pesees." };
+  }
+  const deficit = clampNumber(nb(opts.deficit) || 650, 200, 1200);
+  const attenduHebdo = (deficit * 7) / 7700; // kg/semaine theoriques
+
+  // Tendance sur les ~2 dernieres semaines (jusqu'a 3 derniers points).
+  const recent = list.slice(-3);
+  const jours = Math.max(1, (recent[recent.length - 1].ts - recent[0].ts) / 86400000);
+  const perte = recent[0].poids - recent[recent.length - 1].poids; // > 0 = perte
+  const semaines = Math.max(0.5, jours / 7);
+  const perteHebdo = perte / semaines;
+
+  // Masse musculaire : baisse marquee entre deux pesees ?
+  const mm = list.filter((p) => Number(p.masse_musculaire) > 0);
+  const baisseMuscle = mm.length >= 2 && (mm[mm.length - 2].masse_musculaire - mm[mm.length - 1].masse_musculaire) >= 0.5;
+
+  // Regles (priorite securite : fatigue / perte trop rapide / muscle, puis perte lente).
+  if (opts.fatigue) {
+    return { delta: +125, statut: 'remonte', message: "Fatigue signalee : on remonte de 125 kcal pour preserver l'energie et l'adherence." };
+  }
+  if (perteHebdo > 1.2 || perteHebdo > attenduHebdo * 1.6) {
+    return { delta: +125, statut: 'remonte', message: "Perte rapide : on remonte de 125 kcal pour une perte forte mais durable." };
+  }
+  if (baisseMuscle) {
+    return { delta: +100, statut: 'muscle', message: "Masse musculaire en baisse : on reduit le deficit (+100 kcal) et on garde les proteines hautes." };
+  }
+  if (perteHebdo < attenduHebdo * 0.5) {
+    return { delta: -125, statut: 'reduit', message: "Perte sous l'objectif : on reduit de 125 kcal (ou augmentez l'activite cette semaine)." };
+  }
+  return { delta: 0, statut: 'ok', message: "Vous etes dans la cible : on garde le meme plan cette semaine." };
+}
+
 module.exports = {
   ACTIVITE_FACTEURS,
   ACTIVITE_FACTEURS_CHALLENGE,
@@ -231,4 +280,5 @@ module.exports = {
   REPARTITION_REPAS,
   calculerBMR,
   calculerBesoins,
+  calculerAjustementHebdo,
 };

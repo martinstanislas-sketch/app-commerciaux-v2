@@ -279,6 +279,21 @@
                 <option value="physique">Travail physique</option>
               </select>
             </label>
+            <span class="field-title" style="margin-top:6px">Reglages Challenge 6/6</span>
+            <div class="field-row">
+              <label class="field">
+                <span>Objectif de perte (kg)</span>
+                <input type="number" name="perte_objectif_kg" min="1" max="30" value="6" />
+              </label>
+              <label class="field">
+                <span>Intensite du deficit</span>
+                <select name="deficit_cible">
+                  <option value="500">Moderee (-500 kcal)</option>
+                  <option value="650" selected>Standard (-650 kcal)</option>
+                  <option value="750">Intensive (-750 kcal)</option>
+                </select>
+              </label>
+            </div>
           </details>
         </div>
 
@@ -785,6 +800,18 @@
       </div>
       <p class="panel-sub">Ton plan reste la reference. Dis-nous simplement comment s'est passe chaque repas — l'objectif est la regularite, pas la perfection.</p>
       <div id="suiviPlanBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU PESEE HEBDO + AJUSTEMENT (Challenge 6/6) ============ -->
+  <div id="peseePanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-scale"/></svg> Pesee de la semaine</h2>
+        <button class="modal-close" id="peseeClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Enregistre ton poids chaque semaine : ton plan s'ajuste automatiquement selon ta progression reelle.</p>
+      <div id="peseeBody"></div>
     </div>
   </div>
 

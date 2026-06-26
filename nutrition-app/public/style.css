@@ -274,6 +274,30 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .ne-row b em { font-style: normal; font-weight: 500; opacity: 0.66; font-size: 12px; }
 .needs-note { position: relative; margin-top: 14px; font-size: 12.5px; color: #fff; background: rgba(182,232,79,0.16); border: 1px solid rgba(182,232,79,0.30); border-radius: 12px; padding: 10px 13px; line-height: 1.45; }
 .needs-disclaimer { position: relative; margin-top: 10px; font-size: 11px; color: rgba(255,255,255,0.62); line-height: 1.4; }
+.needs-cta { position: relative; margin-top: 16px; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--mc-gold); color: #1a2b00; border: none; border-radius: var(--pill); padding: 12px 16px; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 6px 16px rgba(182,232,79,0.30); transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease); }
+.needs-cta:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(182,232,79,0.40); }
+.needs-cta .ic { width: 18px; height: 18px; }
+
+/* Panneau pesee hebdomadaire + ajustement */
+.pesee-form { display: grid; gap: 12px; margin-bottom: 16px; }
+.pesee-check { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+.pesee-check input { width: 18px; height: 18px; accent-color: var(--green); }
+.pesee-reco { border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; font-size: 14px; line-height: 1.45; border: 1px solid var(--gray-200); background: var(--gray-50); }
+.pesee-reco p { margin: 0 0 10px; color: var(--ink); }
+.pesee-reco .btn { width: 100%; }
+.pesee-reco.st-reduit { background: rgba(245,158,11,0.10); border-color: rgba(245,158,11,0.32); }
+.pesee-reco.st-remonte, .pesee-reco.st-muscle { background: rgba(59,130,246,0.10); border-color: rgba(59,130,246,0.32); }
+.pesee-reco.st-ok { background: rgba(34,197,94,0.10); border-color: rgba(34,197,94,0.32); }
+.pesee-cumul { font-size: 13px; color: var(--muted); margin: 6px 0 14px; }
+.pesee-cumul b { color: var(--ink); }
+.pesee-histo { border-top: 1px solid var(--gray-200); padding-top: 12px; }
+.pesee-histo-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 8px; }
+.pesee-line { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--gray-100); font-size: 14px; }
+.pesee-line span { color: var(--muted); min-width: 64px; }
+.pesee-line b { color: var(--ink); }
+.pesee-delta { margin-left: auto; font-size: 13px; font-weight: 700; }
+.pesee-delta.down { color: var(--green-700); }
+.pesee-delta.up { color: var(--danger); }
 
 /* ---------- Actions rapides (cartes) ---------- */
 .actions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 14px; margin-bottom: 18px; }

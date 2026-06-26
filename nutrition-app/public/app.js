@@ -284,12 +284,18 @@ function collectProfile() {
     masse_musculaire: Number(fd.get('masse_musculaire')) || undefined,
     type_journee: fd.get('type_journee') || undefined,
     seances_sport: Number(fd.get('seances_sport')) || undefined,
+    // Reglages Challenge 6/6 (objectif de perte + intensite du deficit, ajustables).
+    perte_objectif_kg: Number(fd.get('perte_objectif_kg')) || 6,
+    deficit_cible: Number(fd.get('deficit_cible')) || 650,
+    // Ajustement hebdomadaire cumule (modifie par le suivi de pesee).
+    ajustementKcal: 0,
     // Dine tard : repercute sur la repartition (diner plus leger).
     dinerTard: (($('.choice-grid[data-field="dinerTard"]') || {}).dataset || {}).selected || 'non',
     // Complements alimentaires (enregistres dans le profil, reutilisables).
     complements: getMultiValues('complements'),
     complementsDetail: (fd.get('complementsDetail') || '').trim(),
   };
+  state.pesees = [];
   state.preferences = {
     cuisines: getMultiValues('cuisines'),
     matinGout: ($('.choice-grid[data-field="matinGout"]') || {}).dataset ? ($('.choice-grid[data-field="matinGout"]').dataset.selected || 'les-deux') : 'les-deux',
@@ -375,7 +381,8 @@ function renderNeeds() {
       ${state.masquerCalories ? '' : row('Maintien estimé', `${b.maintenance} kcal/jour`)}
     </div>
     ${b.ambitieux ? `<p class="needs-note">Objectif ambitieux : votre plan vise une perte forte mais raisonnable. Le résultat final dépendra aussi de l'activité, du sommeil, de l'adhérence et du suivi coach.</p>` : ''}
-    <p class="needs-disclaimer">Ce plan est une estimation personnalisée. En cas de pathologie, grossesse, traitement médical ou trouble alimentaire, demandez l'avis d'un professionnel de santé.</p>` : '';
+    <p class="needs-disclaimer">Ce plan est une estimation personnalisée. En cas de pathologie, grossesse, traitement médical ou trouble alimentaire, demandez l'avis d'un professionnel de santé.</p>
+    <button type="button" class="needs-cta" onclick="openPesee()">${icSvg('scale')} Pesée &amp; ajustement de la semaine</button>` : '';
   $('#needsCard').innerHTML = `
     <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2></div>
     <p class="needs-sub">Votre objectif, résumé en chiffres.</p>
@@ -386,6 +393,80 @@ function renderNeeds() {
       <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl">Lipides</div>${bar(lk)}</div>
     </div>
     ${challengeBlock}`;
+}
+
+// ---------- Pesee hebdomadaire + ajustement automatique (Challenge 6/6) ----------
+function openPesee() { renderPesee(); $('#peseePanel').classList.remove('hidden'); }
+function closePesee() { $('#peseePanel').classList.add('hidden'); }
+
+function renderPesee() {
+  const pesees = (state.pesees || []).slice().sort((a, b) => a.ts - b.ts);
+  const aj = Math.round(Number((state.profil || {}).ajustementKcal) || 0);
+  const reco = state.lastAjustement;
+  const fmtDate = (ts) => new Date(ts).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  let histo = '';
+  if (pesees.length) {
+    const rev = pesees.slice().reverse();
+    histo = '<div class="pesee-histo"><div class="pesee-histo-title">Historique</div>' + rev.map((p, i) => {
+      const prev = rev[i + 1];
+      const d = prev ? (p.poids - prev.poids) : null;
+      const dTxt = d === null ? '' : `<span class="pesee-delta ${d < 0 ? 'down' : (d > 0 ? 'up' : '')}">${d > 0 ? '+' : ''}${d.toFixed(1)} kg</span>`;
+      return `<div class="pesee-line"><span>${fmtDate(p.ts)}</span><b>${p.poids} kg</b>${dTxt}</div>`;
+    }).join('') + '</div>';
+  }
+  let recoBlock = '';
+  if (reco) {
+    recoBlock = `<div class="pesee-reco st-${reco.statut}">
+      <p>${escapeHtml(reco.message)}</p>
+      ${reco.delta !== 0 ? `<button type="button" class="btn btn-primary" id="peseeApply">Appliquer ${reco.delta > 0 ? '+' : ''}${reco.delta} kcal et régénérer</button>` : ''}
+    </div>`;
+  }
+  $('#peseeBody').innerHTML = `
+    <div class="pesee-form">
+      <div class="field-row">
+        <label class="field"><span>Poids du jour (kg)</span><input type="number" id="peseePoids" min="35" max="250" step="0.1" placeholder="ex. 74.2" /></label>
+        <label class="field"><span>Masse musculaire (kg) <em>(opt.)</em></span><input type="number" id="peseeMuscle" min="1" max="120" step="0.1" placeholder="ex. 29" /></label>
+      </div>
+      <label class="pesee-check"><input type="checkbox" id="peseeFatigue" /> <span>Je me sens fatigué(e) cette semaine</span></label>
+      <button type="button" class="btn btn-primary" id="peseeSave">Enregistrer la pesée</button>
+    </div>
+    ${recoBlock}
+    <p class="pesee-cumul">Ajustement actuel : <b>${aj >= 0 ? '+' : ''}${aj} kcal/jour</b></p>
+    ${histo}`;
+  $('#peseeSave').addEventListener('click', savePesee);
+  const applyBtn = $('#peseeApply');
+  if (applyBtn) applyBtn.addEventListener('click', applyAjustement);
+}
+
+async function savePesee() {
+  const poids = Number($('#peseePoids').value);
+  if (!poids || poids < 35 || poids > 250) { alert('Entrez un poids valide (en kg).'); return; }
+  const muscle = Number($('#peseeMuscle').value) || undefined;
+  const fatigue = $('#peseeFatigue').checked;
+  state.pesees = state.pesees || [];
+  state.pesees.push({ ts: Date.now(), poids, masse_musculaire: muscle, fatigue });
+  saveLocal();
+  const deficit = (state.plan && state.plan.besoins && state.plan.besoins.deficit)
+    || (state.profil && state.profil.deficit_cible) || 650;
+  try {
+    const res = await fetch(apiUrl('/api/ajustement'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ pesees: state.pesees, deficit, sexe: (state.profil || {}).sexe, fatigue }),
+    });
+    const data = await res.json();
+    state.lastAjustement = data.ok ? data.ajustement : null;
+  } catch (_) { state.lastAjustement = null; }
+  renderPesee();
+}
+
+async function applyAjustement() {
+  if (!state.lastAjustement) return;
+  const delta = Number(state.lastAjustement.delta) || 0;
+  state.profil.ajustementKcal = Math.max(-400, Math.min(400, (Number(state.profil.ajustementKcal) || 0) + delta));
+  state.lastAjustement = null;
+  saveLocal();
+  closePesee();
+  await generateAndShow(Math.floor(Math.random() * 1e6) + 1);
 }
 
 // ---------- Rendu : grille du plan ----------
@@ -1504,7 +1585,7 @@ function saveLocal() {
       profil: state.profil, preferences: state.preferences, plan: state.plan,
       source: state.source, masquerCalories: state.masquerCalories,
       portions: state.portions, favoris: state.favoris, exclus: state.exclus,
-      suivi: state.suivi, avance: state.avance,
+      suivi: state.suivi, avance: state.avance, pesees: state.pesees,
       savedAt: new Date().toISOString(),
     }));
     $('#saveState').innerHTML = icSvg('check') + ' Plan sauvegarde';
@@ -1525,6 +1606,7 @@ function loadLocal() {
     state.exclus = data.exclus || [];
     state.suivi = data.suivi || {};
     state.avance = data.avance || {};
+    state.pesees = data.pesees || [];
     state.plan = data.plan || null;
     return !!data.plan;
   } catch (_) { return false; }
@@ -1653,6 +1735,8 @@ function init() {
   $('#suiviPlanPanel').addEventListener('click', (e) => { if (e.target.id === 'suiviPlanPanel') closeSuiviPlan(); });
   $('#suiviPlanBody').addEventListener('click', onSuiviPlanClick);
   $('#suiviPlanBody').addEventListener('input', onSuiviPlanInput);
+  $('#peseeClose').addEventListener('click', closePesee);
+  $('#peseePanel').addEventListener('click', (e) => { if (e.target.id === 'peseePanel') closePesee(); });
   // Vue coach adherence
   $('#btnAdhAdmin').addEventListener('click', openAdhAdmin);
   $('#adhAdminClose').addEventListener('click', closeAdhAdmin);
