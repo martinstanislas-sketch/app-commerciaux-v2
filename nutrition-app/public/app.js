@@ -1622,7 +1622,10 @@ async function generateAndShow(seed) {
     renderPlan();
     saveLocal();
     showScreen('result');
-  } catch (e) { alert('Desole, la generation a echoue. Reessayez dans un instant.'); }
+  } catch (e) {
+    const detail = (e && e.message && !/^Erreur$/.test(e.message)) ? '\n(' + e.message + ')' : '';
+    alert('Desole, la generation a echoue. Reessayez dans un instant.' + detail);
+  }
   finally { hideLoader(); }
 }
 

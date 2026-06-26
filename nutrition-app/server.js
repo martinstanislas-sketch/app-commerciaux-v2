@@ -41,6 +41,7 @@ function seedFromRequest(body) {
 // CEINTURE + BRETELLES : retire toute recette qui contiendrait malgre tout un
 // allergene/aliment interdit (utile surtout pour les sorties IA).
 function filtreSecuriteFinal(plan, prefs) {
+  if (!plan || !Array.isArray(plan.jours)) return plan;
   const compatiblesIds = new Set(recettesCompatibles(require('./lib/recipes-v2').RECIPES, prefs).map((r) => r.id));
   const familles = familiesFromUserAllergies(prefs.allergies);
   let retirees = 0;
@@ -95,25 +96,35 @@ app.post('/api/plan', async (req, res) => {
   const { profil = {}, preferences = {} } = req.body || {};
   const seed = seedFromRequest(req.body);
   try {
-    let plan;
+    let plan = null;
     let source = 'demo';
+    // 1. Tentative IA (si activee). Toute defaillance -> repli demo, jamais d'erreur.
     if (iaPourPlan()) {
       try {
-        plan = await genererPlanIA(profil, preferences, seed);
+        // Borne le temps IA (sinon un appel lent peut depasser le timeout du proxy
+        // -> erreur cote client). Au-dela -> repli demo instantane.
+        plan = await Promise.race([
+          genererPlanIA(profil, preferences, seed),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout generation IA (22s)')), 22000)),
+        ]);
+        if (!plan || !Array.isArray(plan.jours) || !plan.jours.length) throw new Error('Plan IA vide');
         source = 'ia';
       } catch (e) {
-        console.warn('Generation IA echouee, repli sur le mode demo :', e.message);
-        plan = genererPlanDemo(profil, preferences, seed);
+        console.warn('Generation IA echouee, repli sur le mode demo :', e && e.message);
+        plan = null;
         source = 'demo-repli';
       }
-    } else {
-      plan = genererPlanDemo(profil, preferences, seed);
     }
-    plan = filtreSecuriteFinal(plan, preferences);
+    // 2. Repli/mode demo (hors du catch IA pour ne jamais double-fauter).
+    if (!plan) {
+      plan = genererPlanDemo(profil, preferences, seed);
+      if (source !== 'demo-repli') source = 'demo';
+    }
+    plan = filtreSecuriteFinal(plan, preferences) || plan;
     res.json({ ok: true, source, seed, plan });
   } catch (e) {
     console.error('Erreur /api/plan :', e);
-    res.status(500).json({ ok: false, error: 'Generation impossible.' });
+    res.status(500).json({ ok: false, error: 'Generation impossible : ' + (e && e.message ? e.message : 'erreur inconnue') });
   }
 });
 
