@@ -703,7 +703,7 @@ function buildLocalRecipeDetail(r) {
   const has = (re) => re.test(txt);
   const norm = (s) => normTxt(s);
   // Riz CUIT (pour distinguer "farine de riz", "lait de riz", "galette de riz").
-  const rizCuit = /(?<!farine de )(?<!lait de )(?<!galettes? de )(?<!nouilles? de )\briz\b/.test(txt);
+  const rizCuit = /(?<!farine de )(?<!lait de )(?<!galettes? de )(?<!nouilles? de )(?<!pois-)(?<!pois )\briz\b/.test(txt);
 
   // --- La recette comporte-t-elle une CUISSON ? (sinon : pas de poele/four/feu) ---
   const poele = has(/poel|saisir|dorer|revenir|sauter|omelette|au plat|brouill|\bsaute|frire|\bgrill/);

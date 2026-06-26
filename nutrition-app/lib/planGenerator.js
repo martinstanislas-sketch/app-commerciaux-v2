@@ -54,9 +54,9 @@ function familiesFromUserAllergies(allergies) {
 const ALLERGENES_DETECTEURS = {
   arachide: /\b(arachide|cacahuete|cacahouete|peanut)/,
   'fruits-a-coque': /(amande|noisette|\bcajou|pistache|noix de pecan|noix de grenoble|cerneau|pignon de pin|\bnoix\b(?! de coco)(?! de muscade))/,
-  lactose: /(\blait\b(?! de coco)(?! d.amande)(?! de soja)(?! vegetal)(?! d.avoine)(?! de riz)(?! de noisette)|fromage(?! vegetal)(?! vegan)|yaourt(?! vegetal)(?! de soja)(?! de coco)(?! d.amande)(?! d.avoine)(?! vegan)|\bskyr|mozzarella|parmesan|\bfeta\b|ricotta|mascarpone|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|emmental|gruyere|cheddar|\bchevre\b|burrata|\bcomte\b|petit-suisse|mozzar|raclette|reblochon|feta)/,
+  lactose: /(\blait\b(?! de coco)(?! d.amande)(?! de soja)(?! vegetal)(?! d.avoine)(?! de riz)(?! de noisette)|fromage(?! vegetal)(?! vegan)|yaourt(?! vegetal)(?! (?:de )?soja)(?! (?:de )?coco)(?! (?:d.)?amande)(?! (?:d.)?avoine)(?! vegan)|\bskyr|mozzarella|parmesan|\bfeta\b|ricotta|mascarpone|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|emmental|gruyere|cheddar|\bchevre\b|burrata|\bcomte\b|petit-suisse|mozzar|raclette|reblochon|feta)/,
   oeuf: /(\boeuf|omelette|\bmayonnaise|meringue|frittata|brouillade d.?oeuf)/,
-  gluten: /(\bble\b|\bpain\b|\bpates\b|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|lasagne|gnocchi|raviol|spaghetti|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|\bavoine|flocons d.avoine|muesli|granola|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b)/,
+  gluten: /(\bble\b|\bpain\b|\bpates\b|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|(?<!facon )lasagne|gnocchi|raviol|(?<!courgettes? )(?<!legumes? )spaghetti|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|\bavoine|flocons d.avoine|muesli|granola|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b)/,
   poisson: /(saumon|\bthon\b|cabillaud|\bcolin\b|\bmerlu|truite|sardine|maquereau|hareng|lieu noir|dorade|\bsole\b|anchois|surimi|nuoc.?mam|\bbar\b|\blotte\b|eglefin|haddock)/,
   crustaces: /(crevette|gambas|\bcrabe|homard|langoustine|ecrevisse|\bscampi)/,
   soja: /(\bsoja\b|\btofu\b|tempeh|edamame|\btamari\b|\bmiso\b)/,
@@ -73,6 +73,9 @@ function segmentsDeRecette(recette) {
     ...(recette.ingredients || []).map((i) => norm(i.nom)),
   ];
 }
+// Sources de gluten AUTRES que l'avoine/les flocons (pour gerer l'avoine certifiee
+// sans gluten meme quand "avoine" apparait dans le NOM sans la mention SG).
+const GLUTEN_HORS_AVOINE = /(\bble\b|\bpain\b|\bpates\b|semoule|couscous|boulg|\borge\b|seigle|epeautre|chapelure|biscotte|\bpita\b|\bnaan\b|brioche|(?<!facon )lasagne|gnocchi|raviol|(?<!courgettes? )(?<!legumes? )spaghetti|\bpenne|tagliatelle|macaroni|farine de ble|farine de froment|baguette|\bbiscuit|croissant|crouton|\bblini|\budon\b|\bramen\b)/;
 function famillesDetectees(segments) {
   const fams = new Set();
   for (const [fam, re] of Object.entries(ALLERGENES_DETECTEURS)) {
@@ -80,6 +83,11 @@ function famillesDetectees(segments) {
       if (fam === 'gluten' && /sans gluten/.test(seg)) continue; // produit explicitement sans gluten
       if (re.test(seg)) { fams.add(fam); break; }
     }
+  }
+  // Avoine/flocons certifies sans gluten : si "sans gluten" est mentionne quelque
+  // part et qu'aucune AUTRE source de gluten n'est presente, on retire le gluten.
+  if (fams.has('gluten') && segments.some((s) => /sans gluten/.test(s)) && !segments.some((s) => GLUTEN_HORS_AVOINE.test(s))) {
+    fams.delete('gluten');
   }
   return fams;
 }
@@ -94,8 +102,8 @@ function allergenesEffectifs(recette) {
 // pas ce regime meme si elle l'a (a tort) declare. Blinde les preferences au
 // meme titre que les allergies. ("jambon de dinde" reste autorise en sans-porc.)
 const REGIME_INTERDITS = {
-  vegan: /(poulet|\bboeuf|\bporc\b|jambon|dinde|\bveau\b|agneau|lardon|bacon|chorizo|saucisse|merguez|steak|escalope|magret|canard|charcuterie|viande|gelatine|saumon|\bthon\b|cabillaud|colin|merlu|truite|sardine|maquereau|hareng|dorade|anchois|surimi|poisson|crevette|gambas|\bcrabe|\boeuf|omelette|\blait\b(?! de coco)(?! d.amande)(?! vegetal)(?! de soja)(?! de riz)(?! d.avoine)(?! de noisette)|fromage(?! vegetal)(?! vegan)|yaourt(?! vegetal)(?! de soja)(?! de coco)(?! d.amande)(?! d.avoine)(?! vegan)|\bskyr|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bmiel\b|mascarpone|mozzar|parmesan|\bfeta\b|ricotta)/,
-  vegetarien: /(poulet|\bboeuf|\bporc\b|jambon|dinde|\bveau\b|agneau|lardon|bacon|chorizo|saucisse|merguez|steak|escalope|magret|canard|charcuterie|viande|gelatine|saumon|\bthon\b|cabillaud|colin|merlu|truite|sardine|maquereau|hareng|dorade|anchois|surimi|poisson|crevette|gambas|\bcrabe|nuoc.?mam)/,
+  vegan: /(poulet|\bboeuf|\bporc\b|jambon|dinde|\bveau\b|agneau|lardon|bacon|chorizo|saucisse|merguez|steak(?!s? veget)|escalope|magret|canard|charcuterie|\bviande|gelatine|saumon|\bthon\b|cabillaud|colin|merlu|truite|sardine|maquereau|hareng|dorade|anchois|surimi|poisson|crevette|gambas|\bcrabe|\boeuf|omelette|\blait\b(?! de coco)(?! d.amande)(?! vegetal)(?! de soja)(?! de riz)(?! d.avoine)(?! de noisette)|fromage(?! vegetal)(?! vegan)|yaourt(?! vegetal)(?! (?:de )?soja)(?! (?:de )?coco)(?! (?:d.)?amande)(?! (?:d.)?avoine)(?! vegan)|\bskyr|\bbeurre\b(?! de cacahuete)(?! de cacao)(?! d.amande)|\bcreme (?:fraiche|legere|liquide|epaisse|entiere)|\bmiel\b|mascarpone|mozzar|parmesan|\bfeta\b|ricotta)/,
+  vegetarien: /(poulet|\bboeuf|\bporc\b|jambon|dinde|\bveau\b|agneau|lardon|bacon|chorizo|saucisse|merguez|steak(?!s? veget)|escalope|magret|canard|charcuterie|\bviande|gelatine|saumon|\bthon\b|cabillaud|colin|merlu|truite|sardine|maquereau|hareng|dorade|anchois|surimi|poisson|crevette|gambas|\bcrabe|nuoc.?mam)/,
   'sans-porc': /(\bporc\b|jambon(?! de (?:dinde|volaille|poulet))|lardon|bacon|chorizo|\bcochon|saucisse(?! de volaille)(?! de poulet))/,
   'sans-gluten': null, // utilise ALLERGENES_DETECTEURS.gluten
 };
