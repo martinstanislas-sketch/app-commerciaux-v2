@@ -280,7 +280,12 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .action-ic { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; background: var(--green-50); color: var(--green-700); box-shadow: inset 0 0 0 1px rgba(30,90,168,0.06); transition: all 0.2s var(--ease); }
 .action-card:hover .action-ic { background: var(--grad-blue); color: #fff; box-shadow: var(--shadow-green); transform: scale(1.04); }
 
-.result-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 24px; }
+/* Ecran resultat (plan) epure : on masque la topbar (logo + texte), le bouton
+   plein ecran et la barre Portions/sauvegarde pour maximiser l'espace vertical
+   utile. Le contenu (carte Objectif) remonte automatiquement (topbar sticky). */
+.result-toolbar { display: none; }
+body.app-shell .topbar,
+body.app-shell .fullscreen-toggle { display: none; }
 .save-state { font-size: 13px; color: var(--muted); margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
 
 .portions-ctrl { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--gray-200); border-radius: var(--pill); padding: 6px 8px 6px 16px; font-size: 13px; font-weight: 600; color: var(--muted); box-shadow: var(--shadow-xs); }

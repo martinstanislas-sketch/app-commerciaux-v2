@@ -358,7 +358,7 @@ function renderNeeds() {
     : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl">kcal / jour</div></div>`;
   $('#needsCard').innerHTML = `
     <div class="needs-head"><span class="needs-ic">${icSvg('target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2></div>
-    <p class="needs-sub">Vos besoins estimes pour atteindre votre objectif, repartis sur la journee.</p>
+    <p class="needs-sub">Votre objectif, résumé en chiffres.</p>
     <div class="needs-stats">
       ${kcalBlock}
       <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div>${bar(pk)}</div>
