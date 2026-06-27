@@ -2778,7 +2778,7 @@ function renderSuiviPlan() {
     ${scoreCard}
     <button type="button" class="btn btn-primary btn-lg" data-act="save" style="width:100%"><svg class="ic"><use href="#ic-check-circle"/></svg> Enregistrer mon suivi</button>
     <div class="suivi-week"><h3><svg class="ic"><use href="#ic-trend"/></svg> Ma semaine nutrition</h3><p class="week-summary">${escapeHtml(weekTxt)}</p></div>
-    <button type="button" class="btn btn-outline" data-act="plate" style="width:100%;margin-top:10px"><svg class="ic"><use href="#ic-camera"/></svg> J'ai mange autre chose — analyser mon assiette</button>
+    <button type="button" class="btn btn-outline is-soon" data-act="plate" style="width:100%;margin-top:10px"><svg class="ic"><use href="#ic-camera"/></svg> J'ai mange autre chose — analyser mon assiette<span class="soon-badge">Bientôt</span></button>
     <button type="button" class="btn btn-outline" data-act="help" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide sur mon alimentation cette semaine</button>`;
 }
 function setSuiviPlanStatus(di, mi, statut) {
@@ -2878,7 +2878,22 @@ function plateMealLabel() {
 }
 function cohClass(n) { return n === 'coherent' ? 'compatible' : (n === 'reprendre' ? 'a_eviter' : 'moderation'); }
 
+// Petit toast premium (message bref auto-disparaissant en bas de l'ecran).
+function showToast(msg, opts) {
+  opts = opts || {};
+  let t = document.getElementById('mcToast');
+  if (!t) { t = document.createElement('div'); t.id = 'mcToast'; t.className = 'mc-toast'; document.body.appendChild(t); }
+  t.innerHTML = `<span class="mc-toast-ic">${icSvg(opts.icon || 'clock')}</span><span>${escapeHtml(msg)}</span>`;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), opts.duration || 3400);
+}
+
 function openPlate() {
+  // Fonctionnalite "Analyser mon assiette" en cours de developpement : on informe
+  // l'utilisateur via un toast propre et on n'ouvre pas (encore) le module.
+  showToast('Cette fonctionnalité est en cours de développement et sera bientôt disponible.');
+  return;
   plateImage = null; plateThumb = null; plateBase = null; plateAdj = { portion: 'normale' }; platePrecisionUsed = '';
   $('#platePreview').classList.add('hidden'); $('#plateDropEmpty').classList.remove('hidden');
   $('#platePrecision').value = ''; $('#plateAnalyze').disabled = true; $('#plateFile').value = '';
