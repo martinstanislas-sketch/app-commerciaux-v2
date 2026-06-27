@@ -320,6 +320,29 @@ function petitDejGout(r) {
   if (/muesli|granola|flocons|avoine|porridge|banane|fruit|miel|confiture|chocolat|pancake|crepe|gaufre|smoothie|compote|brioche|chia|cereales|marmelade|cacao|yaourt|skyr|fromage blanc/.test(c)) return 'sucre';
   return 'neutre';
 }
+// Affine le choix d'une collation selon le type voulu (sucree/salee/proteines/
+// rapide), la raison declaree (entrainement/faim -> proteines), l'objectif
+// (perte/muscle/challenge -> proteines, pour ne pas baisser l'apport proteique)
+// et le creneau (apres sport -> proteines). Filtres SOUPLES : appliques seulement
+// s'il reste assez de candidats (>= 3), pour ne jamais bloquer la generation.
+function prefererCollation(candidats, prefs, profil, creneau) {
+  let pref = candidats;
+  const types = new Set((prefs.collationType || []).map(norm));
+  const raisons = new Set((prefs.collationRaison || []).map(norm));
+  const obj = norm(profil.objectif || '');
+  const apresSport = /sport/.test(norm((creneau && creneau.label) || ''));
+  const wantSucre = types.has('sucree') && !types.has('salee');
+  const wantSale = types.has('salee') && !types.has('sucree');
+  const wantRapide = types.has('rapide');
+  const wantProt = types.has('proteines') || raisons.has('entrainement') || raisons.has('faim')
+    || apresSport || ['perte', 'muscle', 'challenge'].includes(obj);
+  const apply = (fn) => { const f = pref.filter(fn); if (f.length >= 3) pref = f; };
+  if (wantSucre) apply((r) => norm(r.gout) !== 'sale');
+  if (wantSale) apply((r) => norm(r.gout) !== 'sucre');
+  if (wantRapide) apply((r) => (Number(r.tempsMinutes) || 0) <= 6);
+  if (wantProt) apply((r) => (Number(r.proteines) || 0) >= 14);
+  return pref;
+}
 function proteinesOf(r) { const c = champRecette(r); return PROTEINES_KEYS.filter((p) => c.includes(p)); }
 function feculentsOf(r) { const c = champRecette(r); return FECULENTS_KEYS.filter((p) => c.includes(p)); }
 function styleOf(r) { const c = champRecette(r); for (const [name, re] of STYLE_KEYS) if (re.test(c)) return name; return 'assiette'; }
@@ -454,7 +477,8 @@ function genererPlanDemo(profil, prefs, seed) {
         const pref = candidats.filter((r) => { const g = petitDejGout(r); return g === prefs.matinGout || g === 'neutre'; });
         if (pref.length >= 3) candidats = pref;
       }
-      const ctx = { kcalCible: creneau.kcal, prefs, rand, rassasiant: rassasiantCreneau.has(creneau.type), protPrioritaire: ['perte', 'muscle'].includes(norm(profil.objectif || '')) };
+      if (typePool === 'collation') candidats = prefererCollation(candidats, prefs, profil, creneau);
+      const ctx = { kcalCible: creneau.kcal, prefs, rand, rassasiant: rassasiantCreneau.has(creneau.type), protPrioritaire: ['perte', 'muscle', 'challenge'].includes(norm(profil.objectif || '')) };
       const exclure = creneau.type === 'diner' ? recetteVeillePlat : null;
       const recette = choisirRecette(candidats, ctx, st, exclure, typePool);
       if (creneau.type === 'dejeuner' && recette) recetteVeillePlat = recette.id;
@@ -491,6 +515,7 @@ function regenererRepas(profil, prefs, creneauType, kcalCible, exclureId, seed, 
     const pref = candidats.filter((r) => { const g = petitDejGout(r); return g === prefs.matinGout || g === 'neutre'; });
     if (pref.length >= 3) candidats = pref;
   }
+  if (typePool === 'collation') candidats = prefererCollation(candidats, prefs, profil, { label: creneauType });
   // Etat de variete reconstruit a partir des repas deja dans la semaine.
   const st = nouvelEtatVariete();
   const dejaLa = [exclureId, ...(exclusIds || [])].filter(Boolean);

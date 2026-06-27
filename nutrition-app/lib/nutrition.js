@@ -101,6 +101,7 @@ function construireRepartition(profil) {
   if (col.has('matin')) slots.push({ type: 'collation', label: 'Collation du matin', w: 9 });
   slots.push({ type: 'dejeuner', label: 'Dejeuner', w: 34 });
   if (col.has('apres-midi')) slots.push({ type: 'collation', label: "Collation de l'apres-midi", w: 9 });
+  if (col.has('apres-sport')) slots.push({ type: 'collation', label: 'Collation apres sport', w: 10 });
   slots.push({ type: 'diner', label: 'Diner', w: 28 });
   if (col.has('soir')) slots.push({ type: 'collation', label: 'Collation du soir', w: 8 });
   const totalW = slots.reduce((s, x) => s + x.w, 0) || 1;

@@ -260,8 +260,18 @@ function initSelections() {
       const chip = e.target.closest('.chip');
       if (!chip) return;
       chip.classList.toggle('selected');
+      if (set.dataset.multifield === 'collations') updateCollationDetails();
     });
   });
+}
+
+// Affiche les precisions sur les collations (type + raison) uniquement si au
+// moins un moment de collation est selectionne (hors "non").
+function updateCollationDetails() {
+  const box = $('#collationDetails');
+  if (!box) return;
+  const moments = getMultiValues('collations').filter((c) => c !== 'non');
+  box.classList.toggle('hidden', moments.length === 0);
 }
 
 function getMultiValues(field) {
@@ -336,6 +346,10 @@ function collectProfile() {
   state.preferences = {
     cuisines: getMultiValues('cuisines'),
     matinGout,
+    // Precisions collations : type (sucree/salee/proteines/rapide/peu-importe) +
+    // raison (faim/energie/grignoter/entrainement/habitude) -> oriente le choix.
+    collationType: getMultiValues('collationType'),
+    collationRaison: getMultiValues('collationRaison'),
     aimes: parseCsv(fd.get('aimes')),
     deteste: parseCsv(fd.get('deteste')),
     allergies: [...getMultiValues('allergiesCourantes'), ...parseCsv(fd.get('allergies'))],
