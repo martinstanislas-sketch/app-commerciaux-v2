@@ -532,16 +532,18 @@
       </div>
 
       <div id="planGrid" class="plan-grid"></div>
+
+      <!-- Zone secondaire du plan : ajuster / regenerer (deplacees depuis Profil) -->
+      <div class="plan-tools">
+        <button type="button" class="plan-tool" data-go="btnAvance"><svg class="ic"><use href="#ic-sliders"/></svg> Affiner mon plan</button>
+        <button type="button" class="plan-tool-link" data-go="btnNewPlan"><svg class="ic"><use href="#ic-refresh"/></svg> Recalculer le plan</button>
+      </div>
       </div><!-- /#view-plan -->
 
       <!-- ÉCRAN PROFIL : options secondaires triées (délègue aux boutons existants) -->
       <div id="view-profil">
         <h2 class="profil-title">Profil &amp; plus</h2>
 
-        <div class="profil-sec">MON PLAN</div>
-        <button type="button" class="profil-row" data-go="btnShopping"><svg class="ic pr-blue"><use href="#ic-cart"/></svg>Liste de courses<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row" data-go="btnAvance"><svg class="ic pr-blue"><use href="#ic-sliders"/></svg>Affiner mon plan<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row" data-go="btnNewPlan"><svg class="ic pr-blue"><use href="#ic-refresh"/></svg>Recalculer le plan<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnExportPlan"><svg class="ic pr-blue"><use href="#ic-file"/></svg>Plan PDF<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
         <div class="profil-sec">MOI</div>

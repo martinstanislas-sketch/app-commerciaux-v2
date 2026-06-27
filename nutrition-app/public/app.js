@@ -1936,7 +1936,7 @@ function init() {
   // Nouvelle navigation : barre basse + lignes de l'ecran Profil (delegue aux boutons existants)
   setupProfilCoach();
   $$('#bottom-nav .nav-i').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
-  $$('#view-profil .profil-row').forEach((r) => r.addEventListener('click', () => { const t = $('#' + r.dataset.go); if (t) t.click(); }));
+  $$('[data-go]').forEach((r) => r.addEventListener('click', () => { const t = $('#' + r.dataset.go); if (t) t.click(); }));
   $('#helpClose').addEventListener('click', closeHelp);
   $('#helpDoneClose').addEventListener('click', closeHelp);
   $('#helpPanel').addEventListener('click', (e) => { if (e.target.id === 'helpPanel') closeHelp(); });
