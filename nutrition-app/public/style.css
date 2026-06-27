@@ -204,6 +204,15 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .choice-ic .ic { width: 24px; height: 24px; }
 .choice.selected { border-color: var(--green); background: var(--green-50); box-shadow: var(--shadow-green); transform: translateY(-2px); }
 .choice.selected .choice-ic { background: var(--grad-blue); color: #fff; box-shadow: var(--shadow-green); }
+/* Carte "featured" (Challenge 6/6) : pleine largeur + layout horizontal, pour
+   eviter le vide quand elle est seule sur la derniere ligne et la traiter comme
+   un programme a part. */
+.choice.choice-feature { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 16px; }
+.choice-feature .choice-body { display: flex; flex-direction: column; gap: 3px; }
+.choice-feature .choice-sub { font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.choice-feature .choice-ic { background: rgba(245, 158, 11, 0.14); color: var(--mc-gold); }
+.choice-feature:hover .choice-ic { background: rgba(245, 158, 11, 0.22); }
+.choice-feature.selected .choice-ic { background: linear-gradient(150deg, #f59e0b, #ef7a0c); color: #fff; }
 
 .field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 18px; }
 .field > span { font-size: 14px; font-weight: 600; color: var(--ink); }
