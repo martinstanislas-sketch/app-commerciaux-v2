@@ -56,7 +56,9 @@ const state = {
   communauteUnlocked: false, // espace Communauté débloqué (plan généré au moins une fois)
   communauteJoined: false, // l'utilisateur a rejoint son groupe de challenge
   communauteVue: false, // message d'intro Communauté déjà affiché
-  communautePosts: [], // partages de l'utilisateur dans le feed du groupe
+  communautePosts: [], // (obsolète) anciens partages locaux
+  communauteMessages: [], // cache du mur collectif (chargé depuis le serveur)
+  communauteMembers: 0, // taille du groupe (clients inscrits)
 };
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -2713,12 +2715,7 @@ const COMMUNAUTE_COACH = [
   'Bravo au groupe : 82 % des repas validés hier. On garde le rythme cette semaine ! 💪',
   'Pensez à votre collation protéinée de l’après-midi : c’est elle qui coupe les fringales de 18 h.',
 ];
-const COMMUNAUTE_FEED = [
-  { who: 'Camille', txt: 'Journée validée ✅ Première semaine bouclée, trop fière !', when: 'il y a 2 h' },
-  { who: 'Yanis', txt: 'Petit-déj œufs-avocat au top, merci pour l’idée 🙌', when: 'il y a 4 h' },
-  { who: 'Sofia', txt: 'Dur de tenir le soir, mais le groupe motive 🔥', when: 'hier' },
-  { who: 'Marc', txt: '3 séances cette semaine, objectif atteint !', when: 'hier' },
-];
+// Le mur du groupe (« Encouragements ») est chargé en temps réel depuis le serveur.
 
 // Affiche l'onglet Communauté dans la barre une fois le plan généré.
 function revealCommunaute() {
@@ -2757,10 +2754,81 @@ function joinCommunaute() {
   state.communauteJoined = true;
   saveLocal();
   renderCommunaute();
+  fetchCommunaute();
   showToast('Bienvenue dans votre groupe de challenge 🎉', { icon: 'check' });
 }
 
-// Partage la journée du jour si elle est validée.
+// --- Mur collectif (messages réels, partagés via le serveur) ---
+function commTimeAgo(iso) {
+  const t = Date.parse(iso || '');
+  if (!t) return '';
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return 'à l’instant';
+  const m = Math.floor(s / 60); if (m < 60) return 'il y a ' + m + ' min';
+  const h = Math.floor(m / 60); if (h < 24) return 'il y a ' + h + ' h';
+  const d = Math.floor(h / 24); if (d < 7) return 'il y a ' + d + ' j';
+  return new Date(t).toLocaleDateString('fr-FR');
+}
+
+let _commPoll = null;
+function startCommunautePoll() {
+  stopCommunautePoll();
+  _commPoll = setInterval(() => {
+    const screen = $('#screen-result');
+    if (screen && screen.getAttribute('data-tab') === 'communaute' && state.communauteJoined) fetchCommunaute();
+    else stopCommunautePoll();
+  }, 15000);
+}
+function stopCommunautePoll() { if (_commPoll) { clearInterval(_commPoll); _commPoll = null; } }
+
+async function fetchCommunaute() {
+  try {
+    const res = await fetch(apiUrl('/api/community/messages?limit=40'), { headers: nutriAuthHeaders() });
+    const data = await res.json();
+    if (data && data.ok) {
+      state.communauteMessages = data.messages || [];
+      state.communauteMembers = data.members || 0;
+      renderCommunauteWall();
+      const mb = $('#commMembers'); if (mb) mb.textContent = state.communauteMembers || '—';
+    }
+  } catch (_) { /* hors-ligne : on garde l'affichage courant */ }
+}
+
+async function postCommunaute(text, kind) {
+  const msg = String(text || '').trim();
+  if (!msg) return false;
+  try {
+    const res = await fetch(apiUrl('/api/community/messages'), {
+      method: 'POST',
+      headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ message: msg, kind: kind || 'message' }),
+    });
+    const data = await res.json();
+    if (data && data.ok && data.message) {
+      state.communauteMessages = [data.message].concat(state.communauteMessages || []);
+      renderCommunauteWall();
+      return true;
+    }
+    showToast((data && data.error) || 'Publication impossible.', { icon: 'info' });
+  } catch (_) { showToast('Connexion requise pour publier au groupe.', { icon: 'info' }); }
+  return false;
+}
+
+function renderCommunauteWall() {
+  const wall = $('#commWall');
+  if (!wall) return;
+  const msgs = state.communauteMessages || [];
+  if (!msgs.length) { wall.innerHTML = '<p class="comm-empty">Soyez le premier à écrire au groupe 👋</p>'; return; }
+  wall.innerHTML = msgs.map((m) =>
+    '<div class="comm-msg comm-post ' + (m.mine ? 'me' : '') + '">' +
+      '<div class="comm-av">' + escapeHtml((m.who || '?').charAt(0)) + '</div>' +
+      '<div class="comm-bub"><b>' + escapeHtml(m.who || 'Client') + '</b> <span class="when">· ' + escapeHtml(commTimeAgo(m.when)) + '</span>' +
+        (m.kind === 'partage' ? ' <span class="comm-tag">journée validée</span>' : '') +
+        '<p>' + escapeHtml(m.text || '') + '</p></div></div>'
+  ).join('');
+}
+
+// Partage la journée du jour si elle est validée -> message réel sur le mur.
 function partagerJournee() {
   const di = (typeof indexJourActuel === 'function') ? indexJourActuel() : 0;
   if (typeof dayIsComplete === 'function' && !dayIsComplete(di)) {
@@ -2769,10 +2837,7 @@ function partagerJournee() {
   }
   const j = state.plan && state.plan.jours && state.plan.jours[di];
   const label = (j && (j.libelle || j.label)) ? (j.libelle || j.label) : 'Ma journée';
-  state.communautePosts.unshift({ who: 'Vous', txt: label + ' validée 💯 On continue !', when: 'à l’instant', me: true });
-  saveLocal();
-  renderCommunaute();
-  showToast('Journée partagée au groupe 🎉', { icon: 'check' });
+  postCommunaute(label + ' validée 💯 On continue !', 'partage').then((ok) => { if (ok) showToast('Journée partagée au groupe 🎉', { icon: 'check' }); });
 }
 
 function renderCommunaute() {
@@ -2782,9 +2847,9 @@ function renderCommunaute() {
     host.innerHTML =
       '<div class="comm-hero">' +
         '<h2>La communauté du challenge</h2>' +
-        '<p>Rejoignez votre groupe pour avancer ensemble, partager vos journées validées et garder la motivation.</p>' +
+        '<p>Rejoignez votre groupe pour avancer ensemble, partager vos journées validées et discuter sur le mur collectif.</p>' +
         '<div class="comm-hero-row">' +
-          '<div class="comm-stat"><b>24</b> membres</div>' +
+          '<div class="comm-stat"><b id="commMembers">' + (state.communauteMembers || '—') + '</b> membres</div>' +
           '<div class="comm-stat"><b>6/6</b> challenge</div>' +
           '<div class="comm-stat"><b>82%</b> repas validés</div>' +
         '</div>' +
@@ -2792,16 +2857,15 @@ function renderCommunaute() {
       '<button type="button" class="btn btn-primary comm-join" id="commJoin">Rejoindre mon groupe</button>';
     const j = $('#commJoin');
     if (j) j.addEventListener('click', joinCommunaute);
+    fetchCommunaute();
     return;
   }
-  const posts = (state.communautePosts || []).concat(COMMUNAUTE_FEED);
-  const av = (who) => '<div class="comm-av">' + escapeHtml((who || '?').charAt(0)) + '</div>';
   host.innerHTML =
     '<div class="comm-hero">' +
       '<h2>Groupe Challenge 6/6</h2>' +
-      '<p>Vous avancez avec 24 membres. Continuez, le groupe vous suit !</p>' +
+      '<p>Vous avancez avec le groupe. Écrivez sur le mur, partagez vos journées : on se motive ensemble !</p>' +
       '<div class="comm-hero-row">' +
-        '<div class="comm-stat"><b>24</b> membres</div>' +
+        '<div class="comm-stat"><b id="commMembers">' + (state.communauteMembers || '—') + '</b> membres</div>' +
         '<div class="comm-stat"><b>3</b> challenges actifs</div>' +
         '<div class="comm-stat"><b>82%</b> repas validés</div>' +
       '</div>' +
@@ -2814,11 +2878,26 @@ function renderCommunaute() {
       COMMUNAUTE_COACH.map((m) => '<div class="comm-msg"><div class="comm-av coach">C</div><div class="comm-bub"><b>Coach</b><p>' + escapeHtml(m) + '</p></div></div>').join('') +
     '</div>' +
     '<button type="button" class="btn btn-primary comm-share" id="commShare">' + icSvg('check') + ' Partager ma journée validée</button>' +
-    '<div class="comm-card" style="margin-top:14px"><h3>' + icSvg('heart') + ' Encouragements du groupe</h3>' +
-      posts.map((p) => '<div class="comm-msg comm-post ' + (p.me ? 'me' : '') + '">' + av(p.who) + '<div class="comm-bub"><b>' + escapeHtml(p.who) + '</b> <span class="when">· ' + escapeHtml(p.when || '') + '</span><p>' + escapeHtml(p.txt) + '</p></div></div>').join('') +
+    '<div class="comm-card" style="margin-top:14px"><h3>' + icSvg('users') + ' Mur du groupe</h3>' +
+      '<form id="commForm" class="comm-compose">' +
+        '<textarea id="commInput" rows="1" maxlength="500" placeholder="Écris un message au groupe…" autocomplete="off"></textarea>' +
+        '<button type="submit" class="comm-send" aria-label="Publier">' + icSvg('send') + '</button>' +
+      '</form>' +
+      '<div id="commWall" class="comm-wall"><p class="comm-empty">Chargement…</p></div>' +
     '</div>';
   const s = $('#commShare');
   if (s) s.addEventListener('click', partagerJournee);
+  const form = $('#commForm');
+  if (form) form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const inp = $('#commInput');
+    const v = inp ? inp.value : '';
+    if (!v.trim()) return;
+    postCommunaute(v, 'message').then((ok) => { if (ok && inp) inp.value = ''; });
+  });
+  renderCommunauteWall();
+  fetchCommunaute();
+  startCommunautePoll();
 }
 
 function setTab(tab) {

@@ -186,6 +186,14 @@ function ensureNutritionHelpTable() {
       created_at TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS nutrition_community_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL DEFAULT '',
+      author TEXT NOT NULL DEFAULT '',
+      message TEXT NOT NULL DEFAULT '',
+      kind TEXT NOT NULL DEFAULT 'message',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
   `);
   // Seed config démo (une seule ligne).
   getDb().prepare("INSERT OR IGNORE INTO nutrition_demo (id, code, enabled) VALUES (1, '2026', 1)").run();
@@ -327,6 +335,47 @@ try {
     } catch (e) {
       console.error('Erreur help-requests PATCH :', e);
       res.status(500).json({ ok: false, error: 'Mise à jour impossible.' });
+    }
+  });
+
+  // --- Mur collectif de la communauté (challenge) ---
+  // Derniers messages du groupe + taille du groupe (clients inscrits).
+  app.get('/nutrition/api/community/messages', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const me = (req.session && req.session.email) || '';
+      const limit = Math.min(Math.max(Number(req.query.limit) || 40, 1), 100);
+      const rows = getDb().prepare(
+        'SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages ORDER BY id DESC LIMIT ?'
+      ).all(limit);
+      const messages = rows.map((r) => ({
+        id: r.id, who: r.author || 'Client', when: r.created_at,
+        text: r.message, kind: r.kind || 'message', mine: !!me && r.email === me,
+      }));
+      let members = 0;
+      try { members = getDb().prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n; } catch (_) { /* ignore */ }
+      res.json({ ok: true, messages, members });
+    } catch (e) {
+      console.error('Erreur community/messages GET :', e);
+      res.status(500).json({ ok: false, error: 'Lecture impossible.' });
+    }
+  });
+
+  // Publier un message sur le mur collectif (client / coach / démo connecté).
+  app.post('/nutrition/api/community/messages', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const author = String((req.session && req.session.name) || 'Client').slice(0, 80);
+      const email = (req.session && req.session.email) || '';
+      const kind = ((req.body || {}).kind === 'partage') ? 'partage' : 'message';
+      const msg = String((req.body || {}).message || '').slice(0, 500).trim();
+      if (!msg) return res.status(400).json({ ok: false, error: 'Message vide.' });
+      const now = new Date().toISOString();
+      const info = getDb().prepare(
+        'INSERT INTO nutrition_community_messages (email, author, message, kind, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run(email, author, msg, kind, now);
+      res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind, mine: true } });
+    } catch (e) {
+      console.error('Erreur community/messages POST :', e);
+      res.status(500).json({ ok: false, error: 'Publication impossible.' });
     }
   });
 
