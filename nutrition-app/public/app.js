@@ -3412,15 +3412,24 @@ function renderAgenda(status, opts) {
       ${icsBtn}`;
     $$('#agendaBody .agenda-sync').forEach((b) => b.addEventListener('click', () => syncAgenda(b.dataset.scope, b)));
     $('#agendaDisconnect').addEventListener('click', disconnectAgenda);
+  } else if (!status.configured) {
+    // Connexion directe pas encore activee cote serveur (identifiants Google absents).
+    // On n'affiche PAS de bouton "Connecter" inactif (un clic sans effet trouble
+    // l'utilisateur) : on met en avant le fichier .ics, qui fonctionne tout de suite.
+    $('#agendaBody').innerHTML = `
+      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter a mon agenda</h2>
+      <p class="panel-sub">Ajoute ton plan alimentaire a ton agenda en un clic.</p>
+      <p class="agenda-state"><span class="agenda-dot off"></span> La connexion directe Google Agenda n'est pas encore activee.</p>
+      <p class="agenda-msg agenda-warn">La connexion automatique a Google Agenda arrive bientot. En attendant, telecharge le fichier calendrier ci-dessous : il s'ajoute en un clic a Google Agenda, Apple Calendrier ou Outlook.</p>
+      <button type="button" class="btn btn-primary btn-lg" id="agendaIcs" style="width:100%"><svg class="ic"><use href="#ic-file"/></svg> Telecharger le fichier calendrier (.ics)</button>
+      ${privacy}`;
   } else {
-    const note = status.configured ? '' : '<p class="agenda-msg agenda-warn">La connexion directe a Google Agenda n\'est pas encore activee sur ce compte. En attendant, ajoutez votre plan via le fichier calendrier (.ics) ci-dessous — compatible Google, Apple et Outlook.</p>';
     $('#agendaBody').innerHTML = `
       <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter a Google Agenda</h2>
       <p class="panel-sub">Ajoute ton plan alimentaire directement dans Google Agenda, sans telecharger de fichier.</p>
       <p class="agenda-state"><span class="agenda-dot off"></span> Ton Google Agenda n'est pas encore connecte.</p>
-      <button type="button" class="btn btn-primary btn-lg" id="agendaConnect" style="width:100%" ${status.configured ? '' : 'disabled'}><svg class="ic"><use href="#ic-calendar"/></svg> Connecter Google Agenda</button>
+      <button type="button" class="btn btn-primary btn-lg" id="agendaConnect" style="width:100%"><svg class="ic"><use href="#ic-calendar"/></svg> Connecter Google Agenda</button>
       <p class="agenda-msg" id="agendaConnectMsg"></p>
-      ${note}
       ${privacy}
       ${icsBtn}`;
     const cb = $('#agendaConnect'); if (cb) cb.addEventListener('click', connectAgenda);

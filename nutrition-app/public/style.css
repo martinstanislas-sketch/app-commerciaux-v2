@@ -143,6 +143,8 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
   transition: background 0.2s var(--ease), box-shadow 0.2s var(--ease), color 0.2s var(--ease), border-color 0.2s var(--ease), transform 0.06s var(--ease);
 }
 .btn:active { transform: scale(0.985); }
+.btn:disabled, .btn[disabled] { opacity: 0.45; cursor: not-allowed; box-shadow: none; filter: grayscale(0.3); }
+.btn:disabled:active, .btn[disabled]:active { transform: none; }
 .btn-primary { background: linear-gradient(135deg, var(--mc-blue) 0%, var(--mc-blue-dark) 100%); color: #fff; box-shadow: var(--shadow-green); }
 .btn-primary:hover { box-shadow: 0 14px 30px rgba(11, 61, 145, 0.30); }
 .btn-lg { padding: 16px 30px; font-size: 17px; border-radius: 18px; }
