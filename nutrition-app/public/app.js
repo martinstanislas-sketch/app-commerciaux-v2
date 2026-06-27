@@ -631,6 +631,10 @@ function ancrerDemarragePlan(forceAujourdhui) {
   return premiere;
 }
 
+// Animation d'apparition des cartes : seulement au 1er rendu du plan (pas a
+// chaque clic de suivi qui re-render). Les appelants peuvent la reactiver.
+let _animateMeals = true;
+
 // ---------- Rendu : grille du plan ----------
 function renderPlan() {
   const grid = $('#planGrid');
@@ -686,6 +690,8 @@ function renderPlan() {
   $$('#planGrid .comp-day').forEach((b) => b.addEventListener('click', () => toggleComplementPris(Number(b.dataset.compDi), b.dataset.compCle)));
   $$('#planGrid .day-pill').forEach((p) => p.addEventListener('click', () => setDay(Number(p.dataset.dayPill))));
   setupPlanSwipe();
+  _animateMeals = false;   // l'entree ne joue qu'une fois
+  state._swappedKey = null; // le flash de remplacement n'est consomme qu'une fois
 }
 
 // Affiche un jour donne (mobile) ; sur desktop tous les jours restent visibles.
@@ -715,6 +721,19 @@ function setupPlanSwipe() {
   }, { passive: true });
 }
 
+// Un seul badge mis en avant par recette (priorite regime > proteines > glucides).
+function recipeBadge(r) {
+  const reg = (r.regime || []).map((x) => normTxt(x));
+  if (reg.includes('vegan')) return { txt: 'Vegan', cls: 'b-veg' };
+  if (reg.includes('sans-gluten')) return { txt: 'Sans gluten', cls: 'b-gf' };
+  const p = Number(r.proteines) || 0, g = Number(r.glucides) || 0, k = Number(r.kcal) || 0;
+  if (p >= 22) return { txt: 'Riche en protéines', cls: 'b-prot' };
+  if (g <= 15 && k > 150) return { txt: 'Faible en glucides', cls: 'b-low' };
+  if (reg.includes('vegetarien')) return { txt: 'Végétarien', cls: 'b-veg' };
+  if (p >= 18) return { txt: 'Riche en protéines', cls: 'b-prot' };
+  return null;
+}
+
 function renderMealCard(repas, di, mi) {
   const el = document.createElement('div');
   el.className = 'meal-card';
@@ -722,11 +741,12 @@ function renderMealCard(repas, di, mi) {
   if (repas.exterieur) {
     el.innerHTML = `
       <div class="meal-photo" data-cat="exterieur">
-        <span class="meal-creneau">${escapeHtml(repas.label)}</span>
         ${icSvg('bowl')}
+        <div class="meal-grad"></div>
+        <div class="meal-toprow"><span class="meal-creneau">${escapeHtml(creneauCourt(repas.label))}</span></div>
+        <div class="meal-overlay"><h3 class="meal-name">À l'extérieur — options équilibrées</h3></div>
       </div>
       <div class="meal-body">
-        <span class="meal-name">A l'exterieur — options equilibrees</span>
         <div class="ext-suggestions">
           <div>${icSvg('check')} Restaurant : une proteine (poulet/poisson) + legumes + un feculent.</div>
           <div>${icSvg('check')} Boulangerie : sandwich complet poulet-crudites + un fruit.</div>
@@ -748,26 +768,41 @@ function renderMealCard(repas, di, mi) {
   const altLine = st === 'autre' && suivi.autre
     ? `<div class="meal-alt">${icSvg('edit')} ${escapeHtml(suivi.autre.repas || '')}${suivi.autre.quantite ? ' (' + escapeHtml(suivi.autre.quantite) + ')' : ''}</div>`
     : '';
+  const badge = recipeBadge(r);
+  const badgeHTML = badge ? `<span class="meal-badge ${badge.cls}">${escapeHtml(badge.txt)}</span>` : '';
+  const kcalMeta = state.masquerCalories ? '' : `<span class="mm-kcal">${icSvg('flame')} ${r.kcal} kcal</span>`;
+  // Animations : entree au 1er rendu (stagger via --mi) ; flash si remplacee.
+  if (_animateMeals) { el.classList.add('meal-in'); el.style.setProperty('--mi', mi); }
+  if (state._swappedKey === trackKey(di, mi)) el.classList.add('meal-swapped');
   el.innerHTML = `
     <div class="meal-photo" data-cat="${cat}">
-      <img class="meal-img" src="images/recipes/${r.id}.jpg" alt="${escapeHtml(r.nom)}" loading="lazy" onerror="this.remove()" />
+      <img class="meal-img" src="images/recipes/${r.id}.jpg" alt="${escapeHtml(r.nom)}" loading="lazy" onload="this.classList.add('loaded')" onerror="this.remove()" />
+      ${icSvg(glyph)}
+      <div class="meal-grad"></div>
       <div class="meal-toprow">
         <span class="meal-creneau">${escapeHtml(creneauCourt(repas.label))}</span>
-        <span class="meal-time-pill">${icSvg('clock')} ${r.tempsMinutes} min</span>
+        <span class="meal-toprow-right">
+          ${badgeHTML}
+          ${r.adapte ? `<span class="meal-adapte">${icSvg('swap')} Adapté</span>` : ''}
+          ${isFav ? `<span class="meal-fav">${icSvg('heart')}</span>` : ''}
+        </span>
       </div>
-      ${isFav ? `<span class="meal-fav">${icSvg('heart')}</span>` : ''}
-      ${r.adapte ? `<span class="meal-adapte">${icSvg('swap')} Adapte</span>` : ''}
-      ${icSvg(glyph)}
+      <div class="meal-overlay">
+        <h3 class="meal-name" data-act="open">${escapeHtml(r.nom)}</h3>
+        <div class="meal-meta">
+          <span class="mm-time">${icSvg('clock')} ${r.tempsMinutes} min</span>
+          ${kcalMeta}
+        </div>
+      </div>
     </div>
     <div class="meal-body">
-      <span class="meal-name" data-act="open">${escapeHtml(r.nom)}</span>
       <div class="meal-actions">
-        <button class="mini-btn" data-act="open">${icSvg('eye')} Voir</button>
+        <button class="mini-btn mini-btn-main" data-act="open">${icSvg('eye')} Voir la recette</button>
         <button class="mini-btn" data-act="swap">${icSvg('refresh')} Remplacer</button>
       </div>
       <div class="meal-track">
-        <button class="track-btn ${st === 'respecte' ? 'on-ok' : ''}" data-act="t-ok" title="Respecte" aria-label="Respecte">${icSvg('check')}</button>
-        <button class="track-btn ${st === 'non' ? 'on-no' : ''}" data-act="t-no" title="Non respecte" aria-label="Non respecte">${icSvg('x')}</button>
+        <button class="track-btn ${st === 'respecte' ? 'on-ok' : ''}" data-act="t-ok" title="Repas suivi" aria-label="Repas suivi">${icSvg('check')}</button>
+        <button class="track-btn ${st === 'non' ? 'on-no' : ''}" data-act="t-no" title="Non suivi" aria-label="Non suivi">${icSvg('x')}</button>
         <button class="track-btn ${st === 'autre' ? 'on-alt' : ''}" data-act="t-alt" title="Modifier ce repas" aria-label="Modifier ce repas">${icSvg('edit')}</button>
       </div>
       ${altLine}
@@ -930,7 +965,7 @@ async function swapMeal(di, mi) {
   showLoader('On vous trouve une autre idee…');
   try {
     const nouvelle = await fetchMeal(repas.creneau, repas.kcalCible, repas.recette ? repas.recette.id : null);
-    if (nouvelle) { repas.recette = nouvelle; clearTrack(di, mi); renderPlan(); saveLocal(); }
+    if (nouvelle) { repas.recette = nouvelle; clearTrack(di, mi); state._swappedKey = trackKey(di, mi); renderPlan(); saveLocal(); }
     else alert('Pas d\'autre recette compatible disponible pour ce creneau.');
   } catch (e) { alert('Impossible de remplacer ce repas pour le moment.'); }
   finally { hideLoader(); }
