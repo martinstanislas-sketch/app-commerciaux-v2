@@ -1407,6 +1407,22 @@ function exportShoppingPdf() {
 // ---------- Ma fiche (E1 + E6 : recap perso) ----------
 const COMPLEMENT_LABELS = { non: 'Aucun', aucun: 'Aucun', proteines: 'Proteines', creatine: 'Creatine', vitamines: 'Vitamines / mineraux', multivitamines: 'Vitamines / mineraux', omega3: 'Omega 3', magnesium: 'Magnesium', bruleur: 'Bruleur de graisse', collagene: 'Collagene', preworkout: 'Pre-workout', autre: 'Autre' };
 
+// Lien boutique (Biloba Nutrition) par complement recommande : un clic -> la fiche produit.
+// On NE met PAS de lien pour le bruleur (deconseille) ni les fibres (pas de produit dedie).
+const SHOP_BASE = 'https://bilobanutrition.fr/products/';
+const SHOP_UTM = '?utm_source=mycoach&utm_medium=app&utm_campaign=complements';
+const COMPLEMENT_SHOP = {
+  proteines: 'whey-isolate-native-nutripure',
+  creatine: 'creatine-nutripure',
+  magnesium: 'magnesium-bisglycinate',
+  omega3: 'mega-omega3',
+  vitamineD: 'multivitamines-copie',
+  vitamines: 'vitamines-1',
+  multivitamines: 'vitamines-1',
+  collagene: 'collagene-marin-sauvage',
+  preworkout: 'abe-ultimate-pre-workout-375g',
+};
+
 function openFiche() { renderFiche(); $('#fichePanel').classList.remove('hidden'); }
 function closeFiche() { $('#fichePanel').classList.add('hidden'); }
 
@@ -1742,14 +1758,23 @@ function closeComplements() { $('#complementsPanel').classList.add('hidden'); }
 function renderComplements() {
   const data = recommanderComplements(state.profil, state.preferences);
   const alertes = data.alertes.map((a) => `<div class="comp-alert">${icSvg('spark')} ${escapeHtml(a)}</div>`).join('');
-  const reco = data.reco.map((r) => `
+  const reco = data.reco.map((r) => {
+    const handle = COMPLEMENT_SHOP[r.cle];
+    const shopBtn = handle
+      ? `<a class="comp-shop" href="${SHOP_BASE}${handle}${SHOP_UTM}" target="_blank" rel="noopener noreferrer"
+           style="display:inline-flex;align-items:center;gap:7px;margin-top:11px;background:var(--green);color:#fff;font-size:13px;font-weight:700;padding:9px 15px;border-radius:11px;text-decoration:none;box-shadow:var(--shadow-green);">
+           ${icSvg('cart')} Voir le produit</a>`
+      : '';
+    return `
     <div class="comp-item">
       <div class="comp-item-head">
         <span class="comp-name">${escapeHtml(r.nom)}${r.dejaPris ? ' <span class="comp-deja">deja pris</span>' : ''}</span>
         <span class="comp-prio prio-${r.priorite}">${PRIORITE_LABEL[r.priorite] || r.priorite}</span>
       </div>
       <div class="comp-role">${escapeHtml(r.role)}</div>
-    </div>`).join('');
+      ${shopBtn}
+    </div>`;
+  }).join('');
   $('#complementsBody').innerHTML = `
     <div class="comp-resume">${escapeHtml(data.resume)}</div>
     ${alertes ? `<div class="recipe-section-title">A noter</div>${alertes}` : ''}
