@@ -2256,6 +2256,7 @@ async function submitSos() {
 // ---------- Navigation (barre basse mobile / sidebar desktop) ----------
 function setTab(tab) {
   // Courses & Suivi ouvrent les panneaux existants (overlays) sans changer la vue de fond.
+  if (tab === 'complements') { $('#btnComplements').click(); return; }
   if (tab === 'courses') { $('#btnShopping').click(); return; }
   if (tab === 'suivi') { $('#btnSuiviPlan').click(); return; }
   const screen = $('#screen-result');
