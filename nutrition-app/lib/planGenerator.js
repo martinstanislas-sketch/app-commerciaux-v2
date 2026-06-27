@@ -223,6 +223,10 @@ function recettesCompatibles(pool, prefs) {
 // Score d'une recette pour un creneau : plus c'est haut, mieux ca colle.
 const RASSASIANT_KEYS = /legume|brocoli|courgette|salade|haricot|epinard|lentille|pois chiche|quinoa|patate douce|avoine|flocons|oeuf/;
 
+// Ingredients "specialises" (pas dans un placard courant) : legerement penalises
+// pour coller au positionnement "manger facile". (Compare sur nom normalise sans accents.)
+const INGREDIENTS_SPECIALISES = /proteine (de pois|de soja|vegetale)|\bwhey\b|isolate|tofu (soyeux|fume)|tempeh|edamame|\blupin|sarrasin|\bmillet\b|psyllium|levure maltee|spiruline|graines de chanvre|\bagar\b|konjac|matcha|farine de pois chiche|farine de riz/;
+
 function scoreRecette(r, ctx) {
   const { kcalCible, prefs } = ctx;
   let score = 0;
@@ -236,6 +240,14 @@ function scoreRecette(r, ctx) {
     const densiteProt = (Number(r.proteines) || 0) / Math.max(r.kcal / 100, 1); // g prot / 100 kcal
     score += densiteProt * 4;
   }
+
+  // Simplicite ("manger facile") : on favorise les recettes a peu d'ingredients,
+  // on penalise les recettes chargees et les ingredients trop specialises.
+  const nbIng = (r.ingredients || []).length;
+  score += (6 - Math.min(nbIng, 12)) * 9; // <=5 ingr -> bonus, >=7 -> malus croissant
+  let nbSpe = 0;
+  (r.ingredients || []).forEach((i) => { if (INGREDIENTS_SPECIALISES.test(norm(i.nom))) nbSpe++; });
+  score -= nbSpe * 8;
 
   // Cuisines aimees (+15 par match).
   const cuisinesAimees = (prefs.cuisines || []).map(norm);
