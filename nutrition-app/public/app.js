@@ -300,6 +300,7 @@ function collectProfile() {
   const form = $('#onboardingForm');
   const fd = new FormData(form);
   const objectif = $('.choice-grid[data-field="objectif"]').dataset.selected || 'maintien';
+  const matinGout = ($('.choice-grid[data-field="matinGout"]') || {}).dataset ? ($('.choice-grid[data-field="matinGout"]').dataset.selected || 'les-deux') : 'les-deux';
   state.masquerCalories = $('input[name="masquerCalories"]').checked;
 
   state.profil = {
@@ -309,8 +310,11 @@ function collectProfile() {
     taille_cm: Number(fd.get('taille_cm')),
     poids_kg: Number(fd.get('poids_kg')),
     activite: fd.get('activite'),
-    repas_par_jour: Number(fd.get('repas_par_jour')),
     jours: Number(fd.get('jours')),
+    // Repas de la journee pilotes par les vraies habitudes : petit-dejeuner
+    // (sauf "je ne mange pas le matin") + collations cochees (matin/aprem/soir).
+    mangeMatin: matinGout !== 'aucun',
+    collations: getMultiValues('collations').filter((c) => c !== 'non'),
     // Donnees de pesee (optionnel) : affinent le calcul, surtout Challenge 6/6.
     metabolisme_basal: Number(fd.get('metabolisme_basal')) || undefined,
     masse_grasse: Number(fd.get('masse_grasse')) || undefined,
@@ -331,7 +335,7 @@ function collectProfile() {
   state.pesees = [];
   state.preferences = {
     cuisines: getMultiValues('cuisines'),
-    matinGout: ($('.choice-grid[data-field="matinGout"]') || {}).dataset ? ($('.choice-grid[data-field="matinGout"]').dataset.selected || 'les-deux') : 'les-deux',
+    matinGout,
     aimes: parseCsv(fd.get('aimes')),
     deteste: parseCsv(fd.get('deteste')),
     allergies: [...getMultiValues('allergiesCourantes'), ...parseCsv(fd.get('allergies'))],

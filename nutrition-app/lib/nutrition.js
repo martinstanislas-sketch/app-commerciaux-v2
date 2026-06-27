@@ -86,6 +86,27 @@ function appliquerDinerLeger(repartition) {
   });
 }
 
+// Construit les creneaux de la journee a partir des VRAIES habitudes de l'utilisateur :
+//  - petit-dejeuner sauf "je ne mange pas le matin" (profil.mangeMatin === false) ;
+//  - collations cochees (profil.collations : 'matin' / 'apres-midi' / 'soir') ;
+//  - dejeuner et diner toujours presents.
+// Renvoie des creneaux ponderes (part = fraction des calories) deja normalises ->
+// les collations sont INTEGREES dans la repartition (les autres repas baissent
+// proportionnellement), le total journalier reste coherent.
+function construireRepartition(profil) {
+  const mangeMatin = profil.mangeMatin === undefined ? true : !!profil.mangeMatin;
+  const col = new Set((profil.collations || []).map((c) => String(c).toLowerCase()));
+  const slots = [];
+  if (mangeMatin) slots.push({ type: 'petit-dejeuner', label: 'Petit-dejeuner', w: 26 });
+  if (col.has('matin')) slots.push({ type: 'collation', label: 'Collation du matin', w: 9 });
+  slots.push({ type: 'dejeuner', label: 'Dejeuner', w: 34 });
+  if (col.has('apres-midi')) slots.push({ type: 'collation', label: "Collation de l'apres-midi", w: 9 });
+  slots.push({ type: 'diner', label: 'Diner', w: 28 });
+  if (col.has('soir')) slots.push({ type: 'collation', label: 'Collation du soir', w: 8 });
+  const totalW = slots.reduce((s, x) => s + x.w, 0) || 1;
+  return slots.map((s) => ({ type: s.type, label: s.label, part: s.w / totalW }));
+}
+
 // Metabolisme de base (BMR) - formule Mifflin-St Jeor.
 function calculerBMR({ sexe, age, taille_cm, poids_kg }) {
   const base = 10 * poids_kg + 6.25 * taille_cm - 5 * age;
@@ -211,10 +232,18 @@ function calculerBesoins(profil) {
     };
   }
 
-  // Repartition des repas (+ allegement du diner si diner tardif).
-  let repas = REPARTITION_REPAS[profil.repas_par_jour] || REPARTITION_REPAS[3];
+  // Repartition des repas : pilotee par les vraies habitudes (petit-dej +
+  // collations cochees) si renseignees, sinon fallback sur le nombre de repas/jour.
+  let repas;
+  if (Array.isArray(profil.collations) || profil.mangeMatin !== undefined) {
+    repas = construireRepartition(profil);
+  } else {
+    repas = REPARTITION_REPAS[profil.repas_par_jour] || REPARTITION_REPAS[3];
+  }
   const dinerTard = String(profil.dinerTard) === 'oui' || profil.dinerTard === true;
   if (dinerTard) repas = appliquerDinerLeger(repas);
+  // Renormalisation : garantit que les parts somment a 1 (total journalier coherent).
+  const totalPart = repas.reduce((s, r) => s + (r.part || 0), 0) || 1;
 
   return {
     bmr: Math.round(bmr),
@@ -225,10 +254,10 @@ function calculerBesoins(profil) {
     macros,
     objectif,
     ...extra,
-    repartitionRepas: repas.map((r) => ({
-      ...r,
-      kcal: Math.round((kcalCible * r.part) / 10) * 10,
-    })),
+    repartitionRepas: repas.map((r) => {
+      const p = (r.part || 0) / totalPart;
+      return { ...r, part: p, kcal: Math.round((kcalCible * p) / 10) * 10 };
+    }),
   };
 }
 

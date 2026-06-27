@@ -301,6 +301,13 @@
             <button type="button" class="choice selected" data-value="les-deux"><span class="choice-ic"><svg class="ic"><use href="#ic-swap"/></svg></span><span class="choice-txt">Peu importe</span></button>
             <button type="button" class="choice" data-value="aucun"><span class="choice-ic"><svg class="ic"><use href="#ic-x"/></svg></span><span class="choice-txt">Je ne mange pas le matin</span></button>
           </div>
+          <span class="field-title">Prenez-vous des collations dans la journée ? <em>(plusieurs choix possibles)</em></span>
+          <div class="chip-set" data-multifield="collations">
+            <button type="button" class="chip" data-value="matin">Oui, le matin</button>
+            <button type="button" class="chip" data-value="apres-midi">Oui, l'après-midi</button>
+            <button type="button" class="chip" data-value="soir">Oui, tard le soir</button>
+            <button type="button" class="chip" data-value="non">Non, pas de collation</button>
+          </div>
           <label class="field">
             <span>Aliments que vous adorez <em>(séparés par des virgules)</em></span>
             <input type="text" name="aimes" placeholder="ex. poulet, avocat, chocolat" />
@@ -419,25 +426,14 @@
         <div class="step" data-step="7">
           <h2>Votre semaine</h2>
           <p class="step-help">Derniere etape, on y est presque !</p>
-          <div class="field-row">
-            <label class="field">
-              <span>Repas par jour</span>
-              <select name="repas_par_jour">
-                <option value="2">2 repas</option>
-                <option value="3" selected>3 repas</option>
-                <option value="4">3 repas + 1 collation</option>
-                <option value="5">3 repas + 2 collations</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Nombre de jours</span>
-              <select name="jours">
-                <option value="3">3 jours</option>
-                <option value="5">5 jours</option>
-                <option value="7" selected>7 jours</option>
-              </select>
-            </label>
-          </div>
+          <label class="field">
+            <span>Nombre de jours</span>
+            <select name="jours">
+              <option value="3">3 jours</option>
+              <option value="5">5 jours</option>
+              <option value="7" selected>7 jours</option>
+            </select>
+          </label>
           <label class="toggle-line">
             <input type="checkbox" name="masquerCalories" />
             <span>Masquer les calories (affichage plus doux)</span>
