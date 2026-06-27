@@ -372,10 +372,9 @@ function collectProfile() {
   state.preferences = {
     cuisines: getMultiValues('cuisines'),
     matinGout,
-    // Precisions collations : type (sucree/salee/proteines/rapide/peu-importe) +
-    // raison (faim/energie/grignoter/entrainement/habitude) -> oriente le choix.
-    collationType: getMultiValues('collationType'),
-    collationRaison: getMultiValues('collationRaison'),
+    // Categories de collations preferees (fruits-laitiers, oleagineux, proteinees,
+    // tartines, smoothies, emporter) -> le moteur alterne parmi celles choisies.
+    collationCategories: getMultiValues('collationCategories'),
     aimes: parseCsv(fd.get('aimes')),
     deteste: parseCsv(fd.get('deteste')),
     allergies: [...getMultiValues('allergiesCourantes'), ...parseCsv(fd.get('allergies'))],
@@ -427,8 +426,7 @@ function prefillOnboarding() {
   // --- Preferences ---
   setChips('cuisines', pr.cuisines);
   setGrid('matinGout', pr.matinGout);
-  setChips('collationType', pr.collationType);
-  setChips('collationRaison', pr.collationRaison);
+  setChips('collationCategories', pr.collationCategories);
   setVal('aimes', (pr.aimes || []).join(', '));
   setVal('deteste', (pr.deteste || []).join(', '));
   setChips('regime', pr.regime);

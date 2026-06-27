@@ -320,27 +320,41 @@ function petitDejGout(r) {
   if (/muesli|granola|flocons|avoine|porridge|banane|fruit|miel|confiture|chocolat|pancake|crepe|gaufre|smoothie|compote|brioche|chia|cereales|marmelade|cacao|yaourt|skyr|fromage blanc/.test(c)) return 'sucre';
   return 'neutre';
 }
-// Affine le choix d'une collation selon le type voulu (sucree/salee/proteines/
-// rapide), la raison declaree (entrainement/faim -> proteines), l'objectif
-// (perte/muscle/challenge -> proteines, pour ne pas baisser l'apport proteique)
-// et le creneau (apres sport -> proteines). Filtres SOUPLES : appliques seulement
-// s'il reste assez de candidats (>= 3), pour ne jamais bloquer la generation.
+// Categories de collations (memes intitules que le questionnaire). Une recette
+// peut appartenir a plusieurs categories. Detection par ingredients/nom/mots-cles.
+const COLLATION_CAT = {
+  'fruits-laitiers': /skyr|fromage blanc|yaourt|yogourt|faisselle|petit.?suisse|compote|cottage|fromage frais|\bfruit|pomme|poire|banane|fraise|myrtille|framboise|ananas|peche|abricot|kiwi|raisin|orange|clementine|mangue|melon/,
+  oleagineux: /amande|\bnoix|noisette|\bcajou|pistache|fruits secs|oleagineux|beurre de cacahuete|beurre d.amande|puree d.amande|melange montagnard|granola|graines/,
+  proteinees: /proteine|\bwhey|barre proteinee|skyr proteine|\bshake/,
+  tartines: /tartine|galette de riz|\bpain|crackers?|biscotte|toast|houmous|\bblini|avocat/,
+  smoothies: /smoothie|\bshake|milkshake|protein water|boisson|frappe|lassi/,
+  emporter: /wrap|sandwich|energy ball|\bbarre|\bmini|a emporter|nomade/,
+};
+function collationCategorie(r) {
+  const seg = [norm(r.nom), ...(r.motsCles || []).map(norm), ...(r.ingredients || []).map((i) => norm(i.nom))].join(' | ');
+  const cats = new Set();
+  for (const [cat, re] of Object.entries(COLLATION_CAT)) if (re.test(seg)) cats.add(cat);
+  if ((Number(r.proteines) || 0) >= 18) cats.add('proteinees'); // protéinée par la macro
+  return cats;
+}
+// Affine le choix d'une collation selon les CATEGORIES choisies (filtre souple :
+// applique seulement s'il reste >= 3 candidats, pour ne jamais bloquer la
+// generation). Si plusieurs categories, la variete du moteur fait alterner.
 function prefererCollation(candidats, prefs, profil, creneau) {
   let pref = candidats;
-  const types = new Set((prefs.collationType || []).map(norm));
-  const raisons = new Set((prefs.collationRaison || []).map(norm));
+  const cats = (prefs.collationCategories || []).map(norm).filter(Boolean);
   const obj = norm(profil.objectif || '');
   const apresSport = /sport/.test(norm((creneau && creneau.label) || ''));
-  const wantSucre = types.has('sucree') && !types.has('salee');
-  const wantSale = types.has('salee') && !types.has('sucree');
-  const wantRapide = types.has('rapide');
-  const wantProt = types.has('proteines') || raisons.has('entrainement') || raisons.has('faim')
-    || apresSport || ['perte', 'muscle', 'challenge'].includes(obj);
   const apply = (fn) => { const f = pref.filter(fn); if (f.length >= 3) pref = f; };
-  if (wantSucre) apply((r) => norm(r.gout) !== 'sale');
-  if (wantSale) apply((r) => norm(r.gout) !== 'sucre');
-  if (wantRapide) apply((r) => (Number(r.tempsMinutes) || 0) <= 6);
-  if (wantProt) apply((r) => (Number(r.proteines) || 0) >= 14);
+  // Priorite aux categories selectionnees par l'utilisateur.
+  if (cats.length) {
+    const want = new Set(cats);
+    apply((r) => { for (const x of collationCategorie(r)) if (want.has(x)) return true; return false; });
+  }
+  // Apres sport / objectifs proteiques : pousser un peu les collations riches en proteines.
+  if (apresSport || ['perte', 'muscle', 'challenge'].includes(obj)) {
+    apply((r) => (Number(r.proteines) || 0) >= 14);
+  }
   return pref;
 }
 function proteinesOf(r) { const c = champRecette(r); return PROTEINES_KEYS.filter((p) => c.includes(p)); }
