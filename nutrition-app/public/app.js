@@ -52,6 +52,20 @@ const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 function normTxt(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 }
+// Libelle COURT du creneau pour le badge des cartes (evite les retours a la ligne
+// et harmonise l'affichage). N'affecte que l'affichage du badge, pas la donnee.
+const CRENEAU_COURT = {
+  'petit-dejeuner': 'Petit-déj',
+  'collation du matin': 'Collation matin',
+  "collation de l'apres-midi": 'Collation après-midi',
+  'collation apres sport': 'Collation sport',
+  'collation du soir': 'Collation soir',
+  'dejeuner': 'Déjeuner',
+  'diner': 'Dîner',
+};
+function creneauCourt(label) {
+  return CRENEAU_COURT[normTxt(label)] || label;
+}
 function fmtQty(q) {
   const n = Math.round((Number(q) || 0) * 100) / 100;
   return Number.isInteger(n) ? String(n) : String(n).replace('.', ',');
@@ -670,7 +684,7 @@ function renderMealCard(repas, di, mi) {
     <div class="meal-photo" data-cat="${cat}">
       <img class="meal-img" src="images/recipes/${r.id}.jpg" alt="${escapeHtml(r.nom)}" loading="lazy" onerror="this.remove()" />
       <div class="meal-toprow">
-        <span class="meal-creneau">${escapeHtml(repas.label)}</span>
+        <span class="meal-creneau">${escapeHtml(creneauCourt(repas.label))}</span>
         <span class="meal-time-pill">${icSvg('clock')} ${r.tempsMinutes} min</span>
       </div>
       ${isFav ? `<span class="meal-fav">${icSvg('heart')}</span>` : ''}
