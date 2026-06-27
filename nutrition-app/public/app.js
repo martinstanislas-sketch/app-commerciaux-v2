@@ -3468,8 +3468,9 @@ async function connectAgenda() {
 }
 async function syncAgenda(scope, btn) {
   const old = btn.innerHTML; btn.disabled = true; const msg = $('#agendaSyncMsg'); msg.textContent = '';
-  const label = scope === 'jour' ? 'Le plan du jour a' : (scope === 'semaine' ? 'Ta semaine a' : 'Les rappels ont');
-  if (isDemo()) { msg.innerHTML = `<span class="agenda-success">✓ ${label} ete ajoute(s) a ton agenda (demo).</span>`; btn.disabled = false; btn.innerHTML = old; return; }
+  // La synchro est REELLE des qu'un agenda est connecte (la connexion exige une
+  // vraie autorisation Google) : on appelle l'API meme en session demo.
+  msg.innerHTML = '<span class="agenda-msg">Ajout en cours…</span>';
   try {
     const r = await fetch(apiUrl('/api/google/sync'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ scope, plan: state.plan, planId: planIdFor(state.plan), dinerTard: (state.preferences && state.preferences.dinerTard) === 'oui' }) });
     const d = await r.json();
