@@ -549,6 +549,29 @@ try {
     }
   });
 
+  // Liste des clients inscrits (administrateur principal).
+  app.get('/nutrition/api/clients', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const rows = getDb().prepare("SELECT email, prenom, nom, data, created_at, updated_at FROM nutrition_clients ORDER BY datetime(CASE WHEN updated_at != '' THEN updated_at ELSE created_at END) DESC").all();
+      const clients = rows.map((r) => {
+        let objectif = '', hasPlan = false, savedAt = '';
+        try {
+          const d = r.data ? JSON.parse(r.data) : null;
+          if (d) {
+            hasPlan = !!d.plan;
+            objectif = (d.profil && (d.profil.objectif || d.profil.but)) || '';
+            savedAt = d.savedAt || '';
+          }
+        } catch (_) { /* données illisibles -> ignorées */ }
+        return { email: r.email, prenom: r.prenom, nom: r.nom, createdAt: r.created_at, updatedAt: r.updated_at, objectif, hasPlan, savedAt };
+      });
+      res.json({ ok: true, total: clients.length, clients });
+    } catch (e) {
+      console.error('Erreur /nutrition/api/clients :', e);
+      res.status(500).json({ ok: false, error: 'Lecture impossible.' });
+    }
+  });
+
   // Gestion du code démo (administrateur principal).
   app.get('/nutrition/api/demo-config', requireAuth, requireAdmin, (req, res) => {
     const cfg = getDemoConfig();
