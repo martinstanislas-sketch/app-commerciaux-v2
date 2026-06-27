@@ -188,7 +188,7 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .step { display: none; max-width: 720px; margin: 0 auto; }
 .step.active { display: block; animation: fadeUp 0.4s var(--ease); }
 .step h2 { font-size: clamp(24px, 5vw, 30px); margin-bottom: 8px; }
-.step-help { color: var(--muted); margin: 0 0 26px; font-size: 16px; }
+.step-help { color: var(--muted); margin: 0 0 18px; font-size: 16px; }
 
 .choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .choice {
@@ -214,7 +214,7 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .choice-feature:hover .choice-ic { background: rgba(245, 158, 11, 0.22); }
 .choice-feature.selected .choice-ic { background: linear-gradient(150deg, #f59e0b, #ef7a0c); color: #fff; }
 
-.field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 18px; }
+.field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 15px; }
 .field > span { font-size: 14px; font-weight: 600; color: var(--ink); }
 .field > span em { font-weight: 400; color: var(--muted); font-style: normal; }
 .field input, .field select {
@@ -229,7 +229,7 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .field-allergies input:focus { border-color: var(--warn); box-shadow: 0 0 0 4px rgba(229,181,103,0.18); }
 .field-title { display: block; font-size: 14px; font-weight: 600; color: var(--ink); margin: 4px 0 12px; }
 
-.chip-set { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+.chip-set { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
 .chip {
   background: var(--card); border: 1.5px solid var(--gray-200); border-radius: var(--pill);
   padding: 10px 18px; font-size: 14px; font-weight: 600; color: var(--ink-2);
@@ -238,6 +238,14 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 }
 .chip:hover { border-color: var(--green-100); background: var(--green-50); }
 .chip.selected { background: var(--green); color: #fff; border-color: var(--green); box-shadow: var(--shadow-green); }
+
+/* Etape "Vos gouts" plus compacte : cuisines centrees (wrap symetrique, pas de
+   chip isole a gauche) + choix du matin sur une seule ligne (4 cartes compactes). */
+.chip-set[data-multifield="cuisines"] { justify-content: center; }
+.choice-grid[data-field="matinGout"] { grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
+.choice-grid[data-field="matinGout"] .choice { align-items: center; justify-content: center; text-align: center; gap: 9px; padding: 15px 12px; font-size: 13.5px; line-height: 1.25; }
+.choice-grid[data-field="matinGout"] .choice-ic { width: 36px; height: 36px; border-radius: 11px; }
+.choice-grid[data-field="matinGout"] .choice-ic .ic { width: 19px; height: 19px; }
 
 .toggle-line { display: flex; align-items: center; gap: 12px; font-size: 15px; color: var(--ink-2); margin-top: 10px; cursor: pointer; }
 .toggle-line input { width: 20px; height: 20px; accent-color: var(--green); }
@@ -590,6 +598,7 @@ body.app-shell .fullscreen-toggle { display: none; }
 @media (max-width: 640px) {
   #app { padding: 14px 14px 64px; }
   .choice-grid { grid-template-columns: 1fr; gap: 9px; }
+  .choice-grid[data-field="matinGout"] { grid-template-columns: repeat(2, 1fr); }
   .field-row { grid-template-columns: 1fr; }
   .needs-stats { grid-template-columns: repeat(2, 1fr); }
   .recipe-macros { grid-template-columns: repeat(2, 1fr); }
