@@ -663,7 +663,6 @@ function renderMealCard(repas, di, mi) {
   const glyph = cat === 'petit-dejeuner' ? 'sun' : (cat === 'collation' ? 'apple' : 'bowl');
   const suivi = state.suivi[trackKey(di, mi)] || {};
   const st = suivi.statut;
-  const kcalChip = state.masquerCalories ? '' : `<span class="macro-chip kcal">${r.kcal} kcal</span>`;
   const altLine = st === 'autre' && suivi.autre
     ? `<div class="meal-alt">${icSvg('edit')} ${escapeHtml(suivi.autre.repas || '')}${suivi.autre.quantite ? ' (' + escapeHtml(suivi.autre.quantite) + ')' : ''}</div>`
     : '';
@@ -678,10 +677,6 @@ function renderMealCard(repas, di, mi) {
     <div class="meal-body">
       <span class="meal-name" data-act="open">${escapeHtml(r.nom)}</span>
       <div class="macro-chips">
-        ${kcalChip}
-        <span class="macro-chip prot">${r.proteines} g P</span>
-        <span class="macro-chip gluc">${r.glucides} g G</span>
-        <span class="macro-chip lip">${r.lipides} g L</span>
         <span class="macro-chip time">${icSvg('clock')} ${r.tempsMinutes} min</span>
       </div>
       <div class="meal-actions">
