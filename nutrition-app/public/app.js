@@ -404,18 +404,6 @@ function renderNeeds() {
   const kcalBlock = state.masquerCalories ? ''
     : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl">kcal / jour</div></div>`;
   const isChallenge = state.profil.objectif === 'challenge';
-  const row = (l, v) => `<div class="ne-row"><span>${l}</span><b>${v}</b></div>`;
-  const challengeBlock = (isChallenge && b.poidsCible) ? `
-    <div class="needs-extra">
-      ${state.masquerCalories ? '' : row('Déficit estimé', `${b.deficit} kcal/jour`)}
-      ${row('Perte estimée (6 sem.)', `${b.perteEstimee.min} à ${b.perteEstimee.max} kg`)}
-      ${row('Poids actuel → objectif', `${b.poidsActuel} → ${b.poidsCible} kg`)}
-      ${state.masquerCalories ? '' : row('Métabolisme basal', `${b.bmr} kcal <em>(${b.bmrSource})</em>`)}
-      ${state.masquerCalories ? '' : row('Maintien estimé', `${b.maintenance} kcal/jour`)}
-    </div>
-    ${b.ambitieux ? `<p class="needs-note">Objectif ambitieux : votre plan vise une perte forte mais raisonnable. Le résultat final dépendra aussi de l'activité, du sommeil, de l'adhérence et du suivi coach.</p>` : ''}
-    <p class="needs-disclaimer">Ce plan est une estimation personnalisée. En cas de pathologie, grossesse, traitement médical ou trouble alimentaire, demandez l'avis d'un professionnel de santé.</p>
-    <button type="button" class="needs-cta" onclick="openPesee()">${icSvg('scale')} Pesée &amp; ajustement de la semaine</button>` : '';
   $('#needsCard').innerHTML = `
     <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2></div>
     <p class="needs-sub">Votre objectif, résumé en chiffres.</p>
@@ -424,8 +412,7 @@ function renderNeeds() {
       <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div>${bar(pk)}</div>
       <div class="needs-stat"><div class="num">${b.macros.glucides} g</div><div class="lbl">Glucides</div>${bar(gk)}</div>
       <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl">Lipides</div>${bar(lk)}</div>
-    </div>
-    ${challengeBlock}`;
+    </div>`;
 }
 
 // ---------- Pesee hebdomadaire + ajustement automatique (Challenge 6/6) ----------
