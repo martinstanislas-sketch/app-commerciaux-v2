@@ -241,7 +241,11 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 
 /* Etape "Vos gouts" plus compacte : cuisines centrees (wrap symetrique, pas de
    chip isole a gauche) + choix du matin sur une seule ligne (4 cartes compactes). */
-.chip-set[data-multifield="cuisines"] { justify-content: center; }
+/* Cuisines : toutes sur une seule ligne sur desktop (chips compactes, sans
+   retour a la ligne ; scroll horizontal discret en secours). Wrap propre sur mobile. */
+.chip-set[data-multifield="cuisines"] { flex-wrap: nowrap; gap: 7px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.chip-set[data-multifield="cuisines"]::-webkit-scrollbar { display: none; }
+.chip-set[data-multifield="cuisines"] .chip { padding: 8px 12px; font-size: 13px; white-space: nowrap; flex: 0 0 auto; }
 .choice-grid[data-field="matinGout"] { grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
 .choice-grid[data-field="matinGout"] .choice { align-items: center; justify-content: center; text-align: center; gap: 9px; padding: 15px 12px; font-size: 13.5px; line-height: 1.25; }
 .choice-grid[data-field="matinGout"] .choice-ic { width: 36px; height: 36px; border-radius: 11px; }
@@ -616,6 +620,7 @@ body.app-shell .fullscreen-toggle { display: none; }
   #app { padding: 14px 14px 64px; }
   .choice-grid { grid-template-columns: 1fr; gap: 9px; }
   .choice-grid[data-field="matinGout"] { grid-template-columns: repeat(2, 1fr); }
+  .chip-set[data-multifield="cuisines"] { flex-wrap: wrap; overflow-x: visible; }
   .field-row { grid-template-columns: 1fr; }
   .needs-stats { grid-template-columns: repeat(2, 1fr); }
   .recipe-macros { grid-template-columns: repeat(2, 1fr); }
