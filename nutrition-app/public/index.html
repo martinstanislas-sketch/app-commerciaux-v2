@@ -598,23 +598,20 @@
       </button>
       <div id="sosSheet" class="sos-wrap hidden" role="dialog" aria-modal="true" aria-label="SOS coach">
         <div class="sos-overlay" data-sos-close></div>
-        <div class="sos-sheet">
+        <div class="sos-sheet sos-chat">
           <div class="sos-grip"></div>
           <div class="sos-head">
-            <span class="sos-ic"><svg class="ic"><use href="#ic-life-buoy"/></svg></span>
-            <span class="sos-t">SOS coach</span>
+            <span class="sos-ic"><svg class="ic"><use href="#ic-spark"/></svg></span>
+            <span class="sos-t">Coach IA<small>ton coach nutrition</small></span>
             <button type="button" class="sos-x" data-sos-close aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
           </div>
-          <p class="sos-sub">Une difficulté cette semaine ? Ton coach t'aide à ajuster — sans jugement.</p>
-          <div class="sos-chips" id="sosChips"></div>
-          <textarea id="sosMessage" class="sos-ta" rows="2" placeholder="Explique en un mot ce qui coince…"></textarea>
-          <button type="button" id="sosSend" class="sos-send"><svg class="ic"><use href="#ic-send"/></svg> Envoyer à mon coach</button>
-          <div id="sosDone" class="sos-done hidden">
-            <span class="sos-done-ic"><svg class="ic"><use href="#ic-check-circle"/></svg></span>
-            <strong>Envoyé !</strong>
-            <p>Ton coach a bien reçu ta demande et reviendra vers toi pour ajuster ta semaine.</p>
-            <button type="button" class="sos-send" data-sos-close>Fermer</button>
-          </div>
+          <div id="coachMessages" class="coach-msgs" aria-live="polite"></div>
+          <div id="coachChips" class="coach-chips"></div>
+          <form id="coachForm" class="coach-input">
+            <textarea id="coachInput" rows="1" placeholder="Pose ta question à ton coach…" autocomplete="off"></textarea>
+            <button type="submit" id="coachSend" class="coach-send" aria-label="Envoyer"><svg class="ic"><use href="#ic-send"/></svg></button>
+          </form>
+          <button type="button" id="coachHuman" class="coach-human"><svg class="ic"><use href="#ic-life-buoy"/></svg> Une vraie difficulté ? Prévenir mon coach</button>
         </div>
       </div>
 

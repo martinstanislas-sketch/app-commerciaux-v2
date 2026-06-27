@@ -23,7 +23,7 @@ const {
   recettesCompatibles,
   familiesFromUserAllergies,
 } = require('./lib/planGenerator');
-const { genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, iaDisponible } = require('./lib/aiGenerator');
+const { genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, iaDisponible, coachRepondre } = require('./lib/aiGenerator');
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -205,6 +205,28 @@ app.post('/api/plate-analyze', async (req, res) => {
   } catch (e) {
     console.warn('Analyse assiette echouee :', e.message);
     res.json({ ok: false, ia: true, error: 'analyse' });
+  }
+});
+
+// Coach IA conversationnel : recoit l'historique + le contexte profil/plan,
+// renvoie une reponse personnalisee. Sans IA -> ia:false (le front bascule sur un
+// message + l'aide coach humain).
+app.post('/api/coach', async (req, res) => {
+  if (!iaDisponible()) return res.json({ ok: false, ia: false });
+  const { messages = [], contexte = '' } = req.body || {};
+  if (!Array.isArray(messages) || !messages.length) {
+    return res.status(400).json({ ok: false, error: 'Message manquant.' });
+  }
+  try {
+    const reponse = await Promise.race([
+      coachRepondre({ contexte, messages }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout coach (30s)')), 30000)),
+    ]);
+    if (!reponse) return res.status(502).json({ ok: false, error: 'Reponse vide.' });
+    res.json({ ok: true, reponse });
+  } catch (e) {
+    console.warn('Coach IA echoue :', e && e.message);
+    res.status(500).json({ ok: false, error: 'coach' });
   }
 });
 

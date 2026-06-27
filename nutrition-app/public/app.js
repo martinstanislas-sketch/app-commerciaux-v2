@@ -50,6 +50,8 @@ const state = {
   weekDone: false, // recap de semaine deja affiche pour ce plan
   complementsSuivis: [], // cles des complements ajoutes au plan (suivi quotidien)
   suiviComp: {}, // "di-cle" -> true : complement pris ce jour-la
+  coachMessages: [], // memoire de conversation du Coach IA
+  coachBusy: false,
   startDate: null, // date "YYYY-MM-DD" du 1er affichage = jour 0 du plan
 };
 
@@ -399,6 +401,7 @@ function collectProfile() {
   // Il pourra en ajouter/retirer depuis la section Complements.
   state.complementsSuivis = (state.profil.complements || []).filter((c) => c && c !== 'non' && c !== 'aucun' && c !== 'autre');
   state.suiviComp = {};
+  state.coachMessages = []; // nouveau profil = nouvelle conversation coach
 }
 
 // Pre-remplit le questionnaire avec le profil + preferences deja enregistres
@@ -2171,6 +2174,7 @@ function saveLocal() {
     suivi: state.suivi, avance: state.avance, pesees: state.pesees,
     celebratedDays: state.celebratedDays, weekDone: state.weekDone,
     complementsSuivis: state.complementsSuivis, suiviComp: state.suiviComp,
+    coachMessages: (state.coachMessages || []).slice(-40),
     startDate: state.startDate,
     savedAt: new Date().toISOString(),
   };
@@ -2216,6 +2220,7 @@ function loadLocal() {
     state.startDate = data.startDate || null;
     state.complementsSuivis = data.complementsSuivis || (state.profil.complements || []).filter((c) => c && c !== 'non' && c !== 'aucun' && c !== 'autre');
     state.suiviComp = data.suiviComp || {};
+    state.coachMessages = data.coachMessages || [];
     state.plan = data.plan || null;
     return !!data.plan;
   } catch (_) { return false; }
@@ -2312,12 +2317,15 @@ function init() {
   $('#btnHelp').addEventListener('click', openHelp);
   $('#btnHelpFromSuivi').addEventListener('click', () => { closeSuivi(); openHelp(); });
 
-  // SOS coach : bouton flottant + feuille
+  // Coach IA : bouton flottant + chat
   $('#sosFab').addEventListener('click', openSos);
-  $('#sosSend').addEventListener('click', submitSos);
-  $('#sosChips').addEventListener('click', (e) => {
-    const c = e.target.closest('.sos-chip'); if (c) c.classList.toggle('on');
+  $('#coachForm').addEventListener('submit', (e) => { e.preventDefault(); sendCoach($('#coachInput').value); });
+  $('#coachInput').addEventListener('input', autoGrowCoach);
+  $('#coachInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCoach($('#coachInput').value); }
   });
+  $('#coachChips').addEventListener('click', (e) => { const c = e.target.closest('.coach-chip'); if (c) sendCoach(c.dataset.q || c.textContent); });
+  $('#coachHuman').addEventListener('click', coachHumanRequest);
   $$('#sosSheet [data-sos-close]').forEach((b) => b.addEventListener('click', closeSos));
 
   // Nouvelle navigation : barre basse + lignes de l'ecran Profil (delegue aux boutons existants)
@@ -2504,46 +2512,171 @@ async function submitHelp() {
 }
 
 // ---------- SOS coach : bouton flottant + feuille (reutilise /api/help-request) ----------
-const SOS_DIFFICULTES = ['Manque de temps', 'Fringales', 'Budget', 'Repas dehors', 'Motivation'];
-function renderSosChips() {
-  $('#sosChips').innerHTML = SOS_DIFFICULTES.map((l) =>
-    `<button type="button" class="sos-chip" data-l="${l}">${l}</button>`).join('');
+// ---------- Coach IA conversationnel ----------
+const OBJ_LABELS = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
+const ACT_LABELS = { sedentaire: 'sédentaire', leger: 'léger', modere: 'modéré', actif: 'actif', tres_actif: 'très actif' };
+const COACH_CHIPS = [
+  'Puis-je manger une pizza ce soir ?',
+  'Que manger après le sport ?',
+  'Comment atteindre mes protéines aujourd\'hui ?',
+  'J\'ai fait un écart, comment je rattrape ?',
+  'Propose-moi une version plus rapide de mon dîner',
+];
+
+// Macros du jour : cible / consomme (repas valides) / restant.
+function coachMacrosJour() {
+  const b = state.plan && state.plan.besoins;
+  if (!b || !b.macros) return null;
+  const di = (typeof indexJourActuel === 'function') ? indexJourActuel() : 0;
+  const jour = state.plan.jours && state.plan.jours[di];
+  let kcal = 0, prot = 0, gluc = 0, lip = 0;
+  (jour ? jour.repas : []).forEach((rp, mi) => {
+    const s = state.suivi[trackKey(di, mi)];
+    if (s && s.statut === 'respecte' && rp.recette) {
+      kcal += rp.recette.kcal || 0; prot += rp.recette.proteines || 0; gluc += rp.recette.glucides || 0; lip += rp.recette.lipides || 0;
+    }
+  });
+  const r = (a, c) => Math.max(0, Math.round(a - c));
+  return {
+    cible: { kcal: b.kcalCible, prot: b.macros.proteines, gluc: b.macros.glucides, lip: b.macros.lipides },
+    consomme: { kcal, prot, gluc, lip },
+    restant: { kcal: r(b.kcalCible, kcal), prot: r(b.macros.proteines, prot), gluc: r(b.macros.glucides, gluc), lip: r(b.macros.lipides, lip) },
+  };
+}
+
+// Assemble TOUT le contexte client en texte pour le coach (jamais redemande).
+function coachContext() {
+  const p = state.profil || {}, pr = state.preferences || {};
+  const L = [];
+  const nom = (typeof helpClientName === 'function' && helpClientName()) || '';
+  if (nom && nom !== 'Client') L.push('Prénom : ' + nom.split(' ')[0]);
+  L.push('Objectif : ' + (OBJ_LABELS[p.objectif] || p.objectif || '—'));
+  const ident = [];
+  if (p.sexe) ident.push(p.sexe); if (p.age) ident.push(p.age + ' ans');
+  if (p.taille_cm) ident.push(p.taille_cm + ' cm'); if (p.poids_kg) ident.push(p.poids_kg + ' kg');
+  if (ident.length) L.push('Profil : ' + ident.join(', '));
+  const compo = [];
+  if (p.masse_grasse) compo.push('masse grasse ' + p.masse_grasse + ' %');
+  if (p.masse_musculaire) compo.push('masse musculaire ' + p.masse_musculaire + ' kg');
+  if (p.metabolisme_basal) compo.push('métabolisme basal ~' + p.metabolisme_basal + ' kcal');
+  if (compo.length) L.push('Composition : ' + compo.join(', '));
+  if (p.activite) L.push('Niveau d\'activité : ' + (ACT_LABELS[p.activite] || p.activite));
+  if ((pr.allergies || []).length) L.push('Allergies : ' + pr.allergies.join(', '));
+  if ((pr.regime || []).length) L.push('Régime : ' + pr.regime.join(', '));
+  if ((pr.aimes || []).length) L.push('Aime : ' + pr.aimes.join(', '));
+  if ((pr.deteste || []).length) L.push('N\'aime pas : ' + pr.deteste.join(', '));
+  const m = coachMacrosJour();
+  if (m) {
+    L.push(`Objectif du jour : ${m.cible.kcal} kcal, ${m.cible.prot} g protéines, ${m.cible.gluc} g glucides, ${m.cible.lip} g lipides`);
+    L.push(`Déjà consommé (repas validés) : ${m.consomme.kcal} kcal, ${m.consomme.prot} g P`);
+    L.push(`RESTANT aujourd'hui : ~${m.restant.kcal} kcal, ~${m.restant.prot} g protéines, ~${m.restant.gluc} g glucides, ~${m.restant.lip} g lipides`);
+  }
+  const di = (typeof indexJourActuel === 'function') ? indexJourActuel() : 0;
+  const jour = state.plan && state.plan.jours && state.plan.jours[di];
+  if (jour) {
+    L.push(`\nRepas prévus aujourd'hui (${jour.jour}) :`);
+    jour.repas.forEach((rp, mi) => {
+      const s = state.suivi[trackKey(di, mi)];
+      const etat = s ? ({ respecte: 'validé', non: 'sauté', autre: 'remplacé/autre' }[s.statut] || s.statut) : 'à faire';
+      const r = rp.recette;
+      L.push(`- ${rp.label} : ${r ? `${r.nom} (${r.kcal} kcal, ${r.proteines} g P)` : '—'} [${etat}]`);
+      if (s && s.statut === 'autre' && s.autre && s.autre.repas) L.push(`   (a mangé à la place : ${s.autre.repas})`);
+    });
+  }
+  const comps = (typeof complementsActifs === 'function') ? complementsActifs() : [];
+  if (comps.length) L.push('\nCompléments suivis : ' + comps.map((c) => `${c.nom} (${c.moment})`).join(', '));
+  if ((state.pesees || []).length) {
+    const last = state.pesees.slice(-3).map((x) => `${x.date || ''} ${x.poids || x.poids_kg || x.valeur || '?'} kg`).join(' ; ');
+    L.push('Pesées récentes : ' + last);
+  }
+  if (state.masquerCalories) L.push('\n(Le client a masqué les calories : reste qualitatif sur les chiffres si possible.)');
+  return L.join('\n');
+}
+
+function autoGrowCoach() {
+  const t = $('#coachInput'); if (!t) return;
+  t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px';
+}
+function coachMd(s) {
+  // Rendu leger : on echappe le HTML puis on gere **gras** et les retours ligne.
+  return escapeHtml(s).replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+}
+function coachBubble(m) {
+  if (m.role === 'user') return `<div class="cm cm-user"><div class="cm-b">${escapeHtml(m.content)}</div></div>`;
+  const html = coachMd(m.content);
+  const humanBtn = m.human ? `<button type="button" class="cm-human-link" data-coach-human>Prévenir mon coach humain</button>` : '';
+  return `<div class="cm cm-ai"><span class="cm-av">${icSvg('spark')}</span><div class="cm-b">${html}${humanBtn}</div></div>`;
+}
+function renderCoach(scroll) {
+  const box = $('#coachMessages'); if (!box) return;
+  let html = (state.coachMessages || []).map(coachBubble).join('');
+  if (state.coachBusy) html += `<div class="cm cm-ai"><span class="cm-av">${icSvg('spark')}</span><div class="cm-b cm-typing"><span></span><span></span><span></span></div></div>`;
+  box.innerHTML = html;
+  $$('#coachMessages [data-coach-human]').forEach((b) => b.addEventListener('click', coachHumanRequest));
+  if (scroll) box.scrollTop = box.scrollHeight;
+}
+function renderCoachChips() {
+  const box = $('#coachChips'); if (!box) return;
+  box.innerHTML = COACH_CHIPS.map((q) => `<button type="button" class="coach-chip" data-q="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join('');
 }
 function openSos() {
-  renderSosChips();
-  $('#sosMessage').value = '';
-  $('#sosChips').classList.remove('hidden');
-  $('#sosMessage').classList.remove('hidden');
-  $('#sosSend').classList.remove('hidden');
-  $('#sosDone').classList.add('hidden');
+  if (!state.coachMessages) state.coachMessages = [];
+  if (!state.coachMessages.length) {
+    const nom = (typeof helpClientName === 'function' && helpClientName()) || '';
+    const prenom = (nom && nom !== 'Client') ? ' ' + nom.split(' ')[0] : '';
+    const obj = OBJ_LABELS[state.profil && state.profil.objectif];
+    const m = coachMacrosJour();
+    let g = `Salut${prenom} ! Je suis ton coach nutrition.`;
+    g += obj ? ` Je connais ton objectif (${obj.toLowerCase()}) et ton plan du jour.` : ' Je connais ton profil et ton plan.';
+    if (m && m.restant && !state.masquerCalories) g += ` Il te reste environ ${m.restant.prot} g de protéines aujourd'hui.`;
+    g += ' Pose-moi tes questions : un repas, un écart, quoi manger avant/après le sport…';
+    state.coachMessages.push({ role: 'assistant', content: g });
+    saveLocal();
+  }
+  renderCoachChips();
+  renderCoach(true);
   $('#sosSheet').classList.remove('hidden');
+  setTimeout(() => { const i = $('#coachInput'); if (i) i.focus(); }, 60);
 }
 function closeSos() { $('#sosSheet').classList.add('hidden'); }
-async function submitSos() {
-  const selected = $$('#sosChips .sos-chip.on').map((b) => b.dataset.l);
-  const message = $('#sosMessage').value.trim();
-  if (!selected.length && !message) { alert('Indique une difficulté ou un petit mot.'); return; }
-  const btn = $('#sosSend'); btn.disabled = true;
-  const showDone = () => {
-    $('#sosChips').classList.add('hidden');
-    $('#sosMessage').classList.add('hidden');
-    $('#sosSend').classList.add('hidden');
-    $('#sosDone').classList.remove('hidden');
-    btn.disabled = false;
-  };
-  if (isDemo()) { showDone(); return; } // démo : pas de vraie demande
+async function sendCoach(text) {
+  text = (text || '').trim();
+  if (!text || state.coachBusy) return;
+  if (!state.coachMessages) state.coachMessages = [];
+  state.coachMessages.push({ role: 'user', content: text });
+  state.coachBusy = true;
+  const inp = $('#coachInput'); if (inp) { inp.value = ''; }
+  autoGrowCoach();
+  $('#coachChips').innerHTML = ''; // les suggestions disparaissent des qu'on discute
+  renderCoach(true); saveLocal();
+  try {
+    const res = await fetch(apiUrl('/api/coach'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ messages: state.coachMessages.slice(-18), contexte: coachContext() }),
+    });
+    const d = await res.json();
+    if (d && d.ok && d.reponse) state.coachMessages.push({ role: 'assistant', content: d.reponse });
+    else if (d && d.ia === false) state.coachMessages.push({ role: 'assistant', content: "Ton coach IA n'est pas encore activé sur ce compte. En attendant, tu peux prévenir ton coach humain — il pourra ajuster ta semaine.", human: true });
+    else state.coachMessages.push({ role: 'assistant', content: "Je n'ai pas réussi à répondre à l'instant. Réessaie dans un moment 🙏" });
+  } catch (e) {
+    state.coachMessages.push({ role: 'assistant', content: 'Connexion difficile pour le moment. Réessaie dans un instant.' });
+  }
+  state.coachBusy = false;
+  renderCoach(true); saveLocal();
+}
+async function coachHumanRequest() {
+  const message = window.prompt('Un mot pour ton coach (il reviendra vers toi pour ajuster ta semaine) :', '');
+  if (message == null || !message.trim()) return;
+  if (isDemo()) { showToast('Message transmis à ton coach (démo).', { icon: 'check' }); return; }
   try {
     const res = await fetch(apiUrl('/api/help-request'), {
       method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ clientName: helpClientName(), difficultes: selected, message }),
+      body: JSON.stringify({ clientName: helpClientName(), difficultes: [], message: message.trim() }),
     });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Erreur');
-    showDone();
-  } catch (e) {
-    alert("Oups, l'envoi n'a pas fonctionné. Réessaie dans un instant.");
-    btn.disabled = false;
-  }
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    showToast('Ton coach a bien reçu ta demande 💬', { icon: 'check' });
+  } catch (e) { showToast("L'envoi n'a pas fonctionné, réessaie dans un instant."); }
 }
 
 // ---------- Navigation (barre basse mobile / sidebar desktop) ----------
