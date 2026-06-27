@@ -611,7 +611,7 @@ function renderMealCard(repas, di, mi) {
       <div class="meal-track">
         <button class="track-btn ${st === 'respecte' ? 'on-ok' : ''}" data-act="t-ok" title="Respecte" aria-label="Respecte">${icSvg('check')}</button>
         <button class="track-btn ${st === 'non' ? 'on-no' : ''}" data-act="t-no" title="Non respecte" aria-label="Non respecte">${icSvg('x')}</button>
-        <button class="track-btn ${st === 'autre' ? 'on-alt' : ''}" data-act="t-alt" title="J'ai mange autre chose" aria-label="J'ai mange autre chose">${icSvg('edit')}</button>
+        <button class="track-btn ${st === 'autre' ? 'on-alt' : ''}" data-act="t-alt" title="Modifier ce repas" aria-label="Modifier ce repas">${icSvg('edit')}</button>
       </div>
       ${altLine}
     </div>`;
@@ -622,7 +622,7 @@ function renderMealCard(repas, di, mi) {
     if (act === 'swap') swapMeal(di, mi);
     if (act === 't-ok') setMealStatus(di, mi, 'respecte');
     if (act === 't-no') setMealStatus(di, mi, 'non');
-    if (act === 't-alt') openAutreForm(di, mi);
+    if (act === 't-alt') openSuiviForMeal(di, mi);
   });
   return el;
 }
@@ -2704,6 +2704,27 @@ function openSuiviPlan() {
   renderSuiviPlan();
 }
 function closeSuiviPlan() { $('#suiviPlanPanel').classList.add('hidden'); }
+
+// Ouvre le suivi/modification (panneau existant) directement sur un repas precis,
+// declenche par le bouton crayon "Modifier" d'une carte repas.
+function openSuiviForMeal(di, mi) {
+  if (!state.plan) { alert('Genere d\'abord ton plan de la semaine.'); return; }
+  suiviPlanDay = Math.min(Math.max(Number(di) || 0, 0), state.plan.jours.length - 1);
+  $('#suiviPlanPanel').classList.remove('hidden');
+  renderSuiviPlan();
+  // Scroll vers le repas concerne + surbrillance breve.
+  requestAnimationFrame(() => {
+    const body = $('#suiviPlanBody');
+    const meals = body ? body.querySelectorAll('.suivi-meal') : [];
+    const idx = dayMeals(suiviPlanDay).findIndex((m) => m.mi === mi);
+    const target = meals[idx >= 0 ? idx : 0];
+    if (target) {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      target.classList.add('suivi-meal-focus');
+      setTimeout(() => target.classList.remove('suivi-meal-focus'), 1800);
+    }
+  });
+}
 
 function renderSuiviPlan() {
   const di = suiviPlanDay;

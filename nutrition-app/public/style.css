@@ -993,7 +993,9 @@ input[type="checkbox"]:focus-visible { outline: 3px solid rgba(47, 123, 255, 0.4
 .week-day.status-vide .wd-dot { background: #D6DAE0; }
 
 .suivi-day-title { font-size: 16px; color: var(--ink); margin: 4px 0 10px; text-transform: capitalize; }
-.suivi-meal { background: var(--card); border: 1px solid var(--mc-border); border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow-xs); }
+.suivi-meal { background: var(--card); border: 1px solid var(--mc-border); border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow-xs); transition: box-shadow 0.3s var(--ease), border-color 0.3s var(--ease); }
+/* Repas cible apres clic sur le crayon "Modifier" d'une carte : surbrillance breve. */
+.suivi-meal-focus { border-color: var(--mc-blue); box-shadow: 0 0 0 2px var(--mc-blue-soft, rgba(47,123,255,0.35)), var(--shadow-md); }
 .suivi-meal-head { display: flex; flex-direction: column; margin-bottom: 10px; }
 .suivi-meal-label { font-size: 12px; font-weight: 700; color: var(--mc-blue); text-transform: uppercase; letter-spacing: .3px; }
 .suivi-meal-recipe { font-size: 15px; color: var(--ink); font-weight: 600; }
