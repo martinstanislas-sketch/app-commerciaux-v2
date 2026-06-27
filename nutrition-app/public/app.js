@@ -669,16 +669,16 @@ function renderMealCard(repas, di, mi) {
   el.innerHTML = `
     <div class="meal-photo" data-cat="${cat}">
       <img class="meal-img" src="images/recipes/${r.id}.jpg" alt="${escapeHtml(r.nom)}" loading="lazy" onerror="this.remove()" />
-      <span class="meal-creneau">${escapeHtml(repas.label)}</span>
+      <div class="meal-toprow">
+        <span class="meal-creneau">${escapeHtml(repas.label)}</span>
+        <span class="meal-time-pill">${icSvg('clock')} ${r.tempsMinutes} min</span>
+      </div>
       ${isFav ? `<span class="meal-fav">${icSvg('heart')}</span>` : ''}
       ${r.adapte ? `<span class="meal-adapte">${icSvg('swap')} Adapte</span>` : ''}
       ${icSvg(glyph)}
     </div>
     <div class="meal-body">
       <span class="meal-name" data-act="open">${escapeHtml(r.nom)}</span>
-      <div class="macro-chips">
-        <span class="macro-chip time">${icSvg('clock')} ${r.tempsMinutes} min</span>
-      </div>
       <div class="meal-actions">
         <button class="mini-btn" data-act="open">${icSvg('eye')} Voir</button>
         <button class="mini-btn" data-act="swap">${icSvg('refresh')} Remplacer</button>
