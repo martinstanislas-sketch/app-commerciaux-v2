@@ -15,9 +15,48 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Static serving for COACH app at /coach
 app.use('/coach', express.static(path.join(__dirname, 'public', 'coach')));
 
-// ─── Sessions (in-memory) ───────────────────────────────────
+// ─── Sessions (persistantes : cache memoire + SQLite) ───────
+// Stockees en base (table `sessions`) pour SURVIVRE aux redeploiements (le
+// process redemarre et viderait une Map memoire -> "Session expiree"). On garde
+// un cache memoire pour la vitesse, avec ecriture immediate en base (write-through)
+// et rehydratation au demarrage. Interface compatible Map (get/set/delete).
 
-const sessions = new Map();
+const sessions = (() => {
+  const cache = new Map();
+  let ready = false;
+  function db() { try { return getDb(); } catch (_) { return null; } }
+  function ensure() {
+    if (ready) return;
+    const d = db();
+    if (!d) return; // base pas encore prete : on reessaiera au prochain appel
+    try {
+      d.exec('CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, data TEXT NOT NULL, created_at INTEGER NOT NULL)');
+      d.prepare('DELETE FROM sessions WHERE created_at < ?').run(Date.now() - 90 * 86400000); // purge > 90 j
+      for (const row of d.prepare('SELECT token, data FROM sessions').all()) {
+        try { cache.set(row.token, JSON.parse(row.data)); } catch (_) { /* ligne corrompue ignoree */ }
+      }
+      ready = true;
+    } catch (_) { /* on reessaiera au prochain appel */ }
+  }
+  return {
+    get(token) { ensure(); return cache.get(token); },
+    has(token) { ensure(); return cache.has(token); },
+    set(token, data) {
+      ensure();
+      cache.set(token, data);
+      const d = db();
+      if (d) { try { d.prepare('INSERT OR REPLACE INTO sessions (token, data, created_at) VALUES (?, ?, ?)').run(token, JSON.stringify(data), Date.now()); } catch (_) {} }
+      return this;
+    },
+    delete(token) {
+      ensure();
+      cache.delete(token);
+      const d = db();
+      if (d) { try { d.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (_) {} }
+      return true;
+    },
+  };
+})();
 
 // ─── Auth Middleware ────────────────────────────────────────
 
