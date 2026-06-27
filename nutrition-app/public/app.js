@@ -38,7 +38,9 @@ const state = {
   plan: null,
   source: 'demo',
   masquerCalories: false,
-  portions: 1, // nombre de personnes (multiplie la liste de courses)
+  portions: 1, // multiplicateur de la liste de courses = adultes + 0,5 x enfants
+  adultes: 1, // nb d'adultes pour qui on cuisine (liste de courses)
+  enfants: 0, // nb d'enfants (0,5 portion chacun)
   favoris: [], // recettes favorites (objets complets) -> reproposees en priorite
   exclus: [], // ids de recettes "ne plus me proposer"
   suivi: {}, // adherence : cle "di-mi" -> { statut, autre:{repas,quantite,commentaire} }
@@ -1348,7 +1350,35 @@ function remplacerMot(texte, ancien, nouveau) {
 // ---------- Liste de courses ----------
 const RAYON_ORDRE = ['Fruits & légumes', 'Fruits & legumes', 'Boucherie', 'Poissonnerie', 'Crèmerie', 'Cremerie', 'Boulangerie', 'Épicerie', 'Epicerie', 'Surgelés', 'Surgeles', 'Rayon frais', 'Rayon vegetal'];
 
+// ----- Cuisiner pour plusieurs : portions = adultes + 0,5 x enfants -----
+// N'affecte QUE la liste de courses / quantites a preparer, jamais le plan
+// nutritionnel personnel (kcal/macros restent par personne).
+function totalPortions() { return (state.adultes || 1) + 0.5 * (state.enfants || 0); }
+function syncPortions() { state.portions = totalPortions() || 1; }
+function personnesResume() {
+  const a = state.adultes || 1, e = state.enfants || 0;
+  const parts = [`${a} adulte${a > 1 ? 's' : ''}`];
+  if (e > 0) parts.push(`${e} enfant${e > 1 ? 's' : ''}`);
+  return parts.join(' + ');
+}
+function setAdultes(n) { state.adultes = Math.min(Math.max(Math.round(n), 1), 20); syncPortions(); saveLocal(); renderShopping(); }
+function setEnfants(n) { state.enfants = Math.min(Math.max(Math.round(n), 0), 20); syncPortions(); saveLocal(); renderShopping(); }
+
+// Arrondi PRATIQUE pour les courses : evite 237 g -> 240 g ; entiers pour les
+// unites comptables (piece, tranche, oeuf...).
+function arrondiCourses(q, unite) {
+  if (!(q > 0)) return 0;
+  const u = normTxt(unite || '');
+  const comptable = /piece|unite|tranche|oeuf|gousse|sachet|boite|pot|cuillere|\bcs\b|\bcc\b|pincee|feuille|branche|filet|steak|poignee|verre|portion|\bbol\b|barquette/.test(u);
+  if (comptable) return Math.max(1, Math.round(q));
+  if (q >= 100) return Math.round(q / 10) * 10;
+  if (q >= 20) return Math.round(q / 5) * 5;
+  if (q >= 10) return Math.round(q);
+  return Math.round(q * 2) / 2; // < 10 g/ml : au demi
+}
+
 function buildShoppingList() {
+  syncPortions();
   const agg = {};
   state.plan.jours.forEach((jour) => {
     jour.repas.forEach((repas) => {
@@ -1361,7 +1391,10 @@ function buildShoppingList() {
     });
   });
   const parRayon = {};
-  Object.values(agg).forEach((item) => { (parRayon[item.rayon] = parRayon[item.rayon] || []).push(item); });
+  Object.values(agg).forEach((item) => {
+    item.quantite = arrondiCourses(item.quantite, item.unite); // arrondi pratique
+    (parRayon[item.rayon] = parRayon[item.rayon] || []).push(item);
+  });
   return parRayon;
 }
 
@@ -1372,12 +1405,35 @@ function rayonsTries(parRayon) {
   });
 }
 
+// Reglage "Cuisiner pour" (adultes + enfants) en haut de la liste de courses.
+function personnesControlHTML() {
+  const a = state.adultes || 1, e = state.enfants || 0;
+  const pills = (cur, presets, kind) => {
+    const vals = presets.includes(cur) ? presets : [...presets, cur].sort((x, y) => x - y);
+    return vals.map((v) => `<button type="button" class="pers-pill${v === cur ? ' on' : ''}" data-pers="${kind}" data-val="${v}">${v}</button>`).join('')
+      + `<button type="button" class="pers-pill pers-plus" data-pers="${kind}" data-val="plus" aria-label="Personnaliser">+</button>`;
+  };
+  return `
+    <div class="pers-ctrl">
+      <div class="pers-title">${icSvg('users')} Cuisiner pour</div>
+      <div class="pers-row"><span class="pers-lbl">Adultes</span><div class="pers-pills">${pills(a, [1, 2, 3, 4], 'adultes')}</div></div>
+      <div class="pers-row"><span class="pers-lbl">Enfants</span><div class="pers-pills">${pills(e, [0, 1, 2, 3], 'enfants')}</div></div>
+      <div class="pers-resume">Liste calculée pour : <strong>${escapeHtml(personnesResume())}</strong><span class="pers-tot">Total portions : ${fmtQty(totalPortions())}</span></div>
+      <p class="pers-note">Ajuste seulement les quantités à acheter — votre plan, vos calories et vos macros restent inchangés.</p>
+    </div>`;
+}
+
 function renderShopping() {
   const parRayon = buildShoppingList();
   const cont = $('#shoppingList');
-  cont.innerHTML = '';
+  cont.innerHTML = personnesControlHTML();
   $('#shoppingDays').textContent = state.plan.jours.length;
-  $('#shoppingPortions').textContent = state.portions;
+  const portSpan = $('#shoppingPortions'); if (portSpan) portSpan.textContent = fmtQty(state.portions);
+  $$('#shoppingList .pers-pill').forEach((b) => b.addEventListener('click', () => {
+    const kind = b.dataset.pers, val = b.dataset.val;
+    if (kind === 'adultes') setAdultes(val === 'plus' ? (state.adultes || 1) + 1 : Number(val));
+    else setEnfants(val === 'plus' ? (state.enfants || 0) + 1 : Number(val));
+  }));
   rayonsTries(parRayon).forEach((rayon) => {
     const group = document.createElement('div');
     group.className = 'rayon-group';
@@ -1986,7 +2042,7 @@ function saveLocal() {
   const payload = {
     profil: state.profil, preferences: state.preferences, plan: state.plan,
     source: state.source, masquerCalories: state.masquerCalories,
-    portions: state.portions, favoris: state.favoris, exclus: state.exclus,
+    portions: state.portions, adultes: state.adultes, enfants: state.enfants, favoris: state.favoris, exclus: state.exclus,
     suivi: state.suivi, avance: state.avance, pesees: state.pesees,
     celebratedDays: state.celebratedDays, weekDone: state.weekDone,
     complementsSuivis: state.complementsSuivis, suiviComp: state.suiviComp,
@@ -2022,7 +2078,9 @@ function loadLocal() {
     state.preferences = data.preferences || {};
     state.source = data.source || 'demo';
     state.masquerCalories = !!data.masquerCalories;
-    state.portions = data.portions || 1;
+    state.adultes = data.adultes || (Math.max(1, Math.round(data.portions || 1)));
+    state.enfants = data.enfants || 0;
+    state.portions = (state.adultes + 0.5 * state.enfants) || 1;
     state.favoris = data.favoris || [];
     state.exclus = data.exclus || [];
     state.suivi = data.suivi || {};
@@ -2185,6 +2243,12 @@ function init() {
   $('#demoAdminClose').addEventListener('click', closeDemoAdmin);
   $('#demoAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'demoAdminPanel') closeDemoAdmin(); });
   setupDemoAdminAccess();
+
+  // Clients inscrits (admin principal)
+  $('#btnClientsAdmin').addEventListener('click', openClientsAdmin);
+  $('#clientsAdminClose').addEventListener('click', closeClientsAdmin);
+  $('#clientsAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'clientsAdminPanel') closeClientsAdmin(); });
+  setupClientsAdminAccess();
 
   // Analyser mon assiette en photo
   $('#btnPlate').addEventListener('click', openPlate);
@@ -3578,6 +3642,52 @@ async function resetDemoData() {
 function setupDemoAdminAccess() {
   if (!isMainAdmin()) return;
   const card = $('#btnDemoAdmin'); if (card) card.classList.remove('hidden');
+}
+
+// ---------- Clients inscrits (vue administrateur) ----------
+function openClientsAdmin() { $('#clientsAdminPanel').classList.remove('hidden'); renderClientsAdmin(); }
+function closeClientsAdmin() { $('#clientsAdminPanel').classList.add('hidden'); }
+async function renderClientsAdmin() {
+  const body = $('#clientsAdminBody');
+  body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/clients'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    const clients = d.clients || [];
+    if (!clients.length) { body.innerHTML = '<p class="help-empty">Aucun client inscrit pour le moment.</p>'; return; }
+    const OBJ = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de masse', energie: 'Énergie' };
+    const fmt = (s) => { const dt = new Date(s); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' }); };
+    const rows = clients.map((c) => {
+      const nom = [c.prenom, c.nom].filter(Boolean).join(' ') || '(sans nom)';
+      const obj = c.objectif ? (OBJ[c.objectif] || c.objectif) : '—';
+      const etat = c.hasPlan
+        ? '<span style="display:inline-block;padding:1px 8px;border-radius:999px;background:rgba(47,123,255,.18);color:#7FB0FF;font-weight:600;">Plan actif</span>'
+        : '<span style="display:inline-block;padding:1px 8px;border-radius:999px;background:rgba(255,255,255,.08);color:#9AA0A6;">Sans plan</span>';
+      return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+        <div style="min-width:0;">
+          <div style="font-weight:700;">${escapeHtml(nom)}</div>
+          <div style="font-size:12.5px;color:#8B94A3;word-break:break-all;">${escapeHtml(c.email)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;font-size:12px;color:#8B94A3;line-height:1.7;">
+          <div>${etat}</div>
+          <div>${escapeHtml(obj)}</div>
+          <div>Inscrit le ${fmt(c.createdAt)}</div>
+        </div>
+      </div>`;
+    }).join('');
+    const emails = clients.map((c) => c.email).join(', ');
+    body.innerHTML = `
+      <div style="margin:0 0 10px;font-size:14px;"><strong style="font-size:20px;">${d.total}</strong> client${d.total > 1 ? 's' : ''} inscrit${d.total > 1 ? 's' : ''}</div>
+      <button type="button" class="btn btn-outline" id="clientsCopyEmails" style="width:100%;margin:0 0 12px">Copier tous les emails</button>
+      <div>${rows}</div>`;
+    const cp = $('#clientsCopyEmails');
+    if (cp) cp.addEventListener('click', () => { try { navigator.clipboard.writeText(emails); cp.textContent = 'Copié ✓'; setTimeout(() => { cp.textContent = 'Copier tous les emails'; }, 1400); } catch (_) { /* ignore */ } });
+  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+function setupClientsAdminAccess() {
+  if (!isMainAdmin()) return;
+  const card = $('#btnClientsAdmin'); if (card) card.classList.remove('hidden');
 }
 
 // ---------- Google Agenda ----------

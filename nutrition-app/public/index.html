@@ -529,6 +529,7 @@
         <button class="action-card action-card-accent" id="btnScan"><span class="action-ic"><svg class="ic"><use href="#ic-scan"/></svg></span>Scanner un produit</button>
         <button class="action-card action-card-accent is-soon" id="btnPlate"><span class="action-ic"><svg class="ic"><use href="#ic-camera"/></svg></span>Analyser mon assiette<span class="soon-badge">Bientôt</span></button>
         <button class="action-card action-card-admin hidden" id="btnPlateAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-camera"/></svg></span>Analyses d'assiettes<span id="plateAdminBadge" class="action-badge hidden">0</span></button>
+        <button class="action-card action-card-admin hidden" id="btnClientsAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-users"/></svg></span>Clients inscrits<span id="clientsAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card action-card-admin hidden" id="btnAdhAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-users"/></svg></span>Adherence clients<span id="adhAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card action-card-admin hidden" id="btnDemoAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-eye"/></svg></span>Mode demo client</button>
         <button class="action-card action-card-admin hidden" id="btnHelpAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-inbox"/></svg></span>Demandes d'aide<span id="helpAdminBadge" class="action-badge hidden">0</span></button>
@@ -579,6 +580,7 @@
         <button type="button" class="profil-row" data-go="btnAnalyse"><svg class="ic pr-muted"><use href="#ic-chart"/></svg>Analyse des écarts<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
         <div class="profil-sec profil-coach hidden">ESPACE COACH</div>
+        <button type="button" class="profil-row profil-coach hidden" data-go="btnClientsAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Clients inscrits<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnAdhAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Adhérence clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnScanAdmin"><svg class="ic pr-lime"><use href="#ic-barcode"/></svg>Scans clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnPlateAdmin"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Analyses d'assiettes<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -727,7 +729,7 @@
         <h2><svg class="ic"><use href="#ic-cart"/></svg> Liste de courses</h2>
         <button class="modal-close" id="shoppingClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Pour <span id="shoppingDays">7</span> jour(s), <span id="shoppingPortions">1</span> personne(s). Cochez au fur et a mesure.</p>
+      <p class="panel-sub">Pour <span id="shoppingDays">7</span> jour(s). Choisissez pour combien de personnes, puis cochez au fur et a mesure.<span id="shoppingPortions" hidden></span></p>
       <button class="btn btn-outline" id="btnExportShopping" style="margin-bottom:10px"><svg class="ic"><use href="#ic-file"/></svg> Exporter la liste (PDF)</button>
       <button class="btn btn-outline" id="btnScanFromShopping" style="margin-bottom:14px"><svg class="ic"><use href="#ic-scan"/></svg> Scanner un produit</button>
       <div id="shoppingList"></div>
@@ -871,6 +873,17 @@
   </div>
 
   <!-- ============ PANNEAU ADMIN : GESTION DU MODE DEMO ============ -->
+  <div id="clientsAdminPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-users"/></svg> Clients inscrits</h2>
+        <button class="modal-close" id="clientsAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Toutes les personnes inscrites sur l'application, avec leur objectif et leur dernière activité.</p>
+      <div id="clientsAdminBody"></div>
+    </div>
+  </div>
+
   <div id="demoAdminPanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">

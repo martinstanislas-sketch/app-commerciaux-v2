@@ -499,6 +499,23 @@ body.app-shell .fullscreen-toggle { display: none; }
 .panel-head h2 { font-size: 22px; color: var(--ink); display: flex; align-items: center; gap: 10px; }
 .panel-head h2 .ic { color: var(--green); }
 .panel-sub { color: var(--muted); font-size: 14px; margin: 4px 0 18px; }
+/* "Cuisiner pour" : reglage adultes + enfants en haut de la liste de courses */
+.pers-ctrl { background: var(--card); border: 1px solid var(--gray-200); border-radius: var(--r); padding: 14px 15px; margin-bottom: 16px; box-shadow: var(--shadow-xs); }
+.pers-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink); margin-bottom: 11px; }
+.pers-title .ic { width: 16px; height: 16px; color: var(--green-700); }
+.pers-row { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
+.pers-lbl { flex: none; width: 64px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.pers-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pers-pill { min-width: 38px; min-height: 38px; padding: 8px 12px; border-radius: 11px; border: 1px solid var(--gray-200); background: var(--gray-50);
+  color: var(--ink-2); font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s var(--ease); }
+.pers-pill:hover { border-color: var(--green-100); }
+.pers-pill.on { background: var(--green); border-color: var(--green); color: #fff; box-shadow: var(--shadow-green); }
+.pers-pill.pers-plus { color: var(--muted); font-weight: 800; }
+.pers-resume { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--gray-200); font-size: 13.5px; color: var(--ink-2); }
+.pers-resume strong { color: var(--green-700); font-weight: 800; }
+.pers-tot { color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.pers-note { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin: 8px 0 0; }
+
 .rayon-group { margin-bottom: 20px; }
 .rayon-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--green-700); margin-bottom: 9px; }
 .shop-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--card); border: 1px solid var(--gray-100); border-radius: 13px; margin-bottom: 7px; font-size: 14px; transition: background 0.16s var(--ease); }
