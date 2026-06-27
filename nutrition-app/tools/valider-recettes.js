@@ -20,7 +20,7 @@ const BUDGETS = ['eco', 'normal'];
 const GOUTS = ['sucre', 'sale']; // facultatif (catalogue v2)
 const OBJECTIFS = ['perte', 'maintien', 'muscle', 'energie'];
 const REGIMES = ['vegetarien', 'vegan', 'sans-porc', 'sans-gluten', 'sans-lactose'];
-const ALLERGENES = ['gluten', 'lactose', 'oeuf', 'arachide', 'fruits-a-coque', 'poisson', 'crustaces', 'soja', 'sesame'];
+const ALLERGENES = ['gluten', 'lactose', 'oeuf', 'arachide', 'fruits-a-coque', 'poisson', 'crustaces', 'mollusques', 'soja', 'sesame'];
 const UNITES = ['g', 'ml', 'piece', 'c. a cafe', 'c. a soupe', 'gousse', 'pincee', 'tranche', 'poignee'];
 const RAYONS = ['Fruits & legumes', 'Boucherie', 'Poissonnerie', 'Cremerie', 'Boulangerie', 'Epicerie', 'Surgeles', 'Rayon frais', 'Rayon vegetal'];
 // Comparaison insensible aux accents/casse (ex. "Épicerie" == "Epicerie").
