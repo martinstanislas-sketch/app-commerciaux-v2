@@ -24,11 +24,8 @@ function nutriAuthHeaders(base) {
   return h;
 }
 
-// Stockage isolé : par compte client (suivi par email), sinon démo, sinon normal.
-// Le namespacing par email evite que deux clients sur un meme navigateur se melangent.
-const STORE_KEY = (window.__NUTRI_USER && window.__NUTRI_USER.email)
-  ? ('mc-nutri-state-' + window.__NUTRI_USER.email)
-  : (isDemo() ? 'mycoach-nutrition-demo-v1' : 'mycoach-nutrition-v1');
+// Stockage isolé en mode démo (les données démo ne touchent jamais les vraies).
+const STORE_KEY = isDemo() ? 'mycoach-nutrition-demo-v1' : 'mycoach-nutrition-v1';
 const TOTAL_STEPS = 5;
 
 const state = {
@@ -44,11 +41,6 @@ const state = {
   suivi: {}, // adherence : cle "di-mi" -> { statut, autre:{repas,quantite,commentaire} }
   ia: false, // Claude actif ? (recettes guidees dynamiques) - renseigne par /api/status
   avance: {}, // analyse avancee niveau 2 (faim, grignotage, sport, etat...)
-  celebratedDays: [], // index des jours deja felicites (une seule fois par jour/plan)
-  weekDone: false, // recap de semaine deja affiche pour ce plan
-  complementsSuivis: [], // cles des complements ajoutes au plan (suivi quotidien)
-  suiviComp: {}, // "di-cle" -> true : complement pris ce jour-la
-  startDate: null, // date "YYYY-MM-DD" du 1er affichage = jour 0 du plan
 };
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -56,20 +48,6 @@ const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
 function normTxt(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-}
-// Libelle COURT du creneau pour le badge des cartes (evite les retours a la ligne
-// et harmonise l'affichage). N'affecte que l'affichage du badge, pas la donnee.
-const CRENEAU_COURT = {
-  'petit-dejeuner': 'Petit-déj',
-  'collation du matin': 'Collation matin',
-  "collation de l'apres-midi": 'Collation après-midi',
-  'collation apres sport': 'Collation sport',
-  'collation du soir': 'Collation soir',
-  'dejeuner': 'Déjeuner',
-  'diner': 'Dîner',
-};
-function creneauCourt(label) {
-  return CRENEAU_COURT[normTxt(label)] || label;
 }
 function fmtQty(q) {
   const n = Math.round((Number(q) || 0) * 100) / 100;
@@ -151,83 +129,11 @@ function trouverAlternatives(nom) {
   return [];
 }
 
-// ---------- Valeurs nutritionnelles des ingredients echangeables ----------
-// Pour 100 g / 100 ml. Sert a recalculer les macros d'une recette quand on
-// remplace un ingredient (mode hors-ligne), via la DIFFERENCE old -> new.
-// Cles "propres" : minuscules, sans accent ni apostrophe. Les plus specifiques
-// d'abord (ex. "beurre de cacahuete" avant "beurre").
-const NUTRI = {
-  'pave de saumon': { kcal: 200, p: 20, g: 0, l: 13 }, 'saumon': { kcal: 200, p: 20, g: 0, l: 13 },
-  'dos de cabillaud': { kcal: 80, p: 18, g: 0, l: 1 }, 'cabillaud': { kcal: 80, p: 18, g: 0, l: 1 },
-  'filet de colin': { kcal: 80, p: 17, g: 0, l: 1 }, 'colin': { kcal: 80, p: 17, g: 0, l: 1 },
-  'filet de truite': { kcal: 140, p: 20, g: 0, l: 6 }, 'truite': { kcal: 140, p: 20, g: 0, l: 6 },
-  'filet de poulet': { kcal: 110, p: 23, g: 0, l: 2 }, 'poulet': { kcal: 110, p: 23, g: 0, l: 2 },
-  'tofu': { kcal: 145, p: 16, g: 3, l: 8 }, 'pois chiches': { kcal: 165, p: 9, g: 27, l: 3 },
-  'boisson vegetale (avoine)': { kcal: 45, p: 1, g: 7, l: 1.5 },
-  'boisson vegetale (amande)': { kcal: 24, p: 0.5, g: 3, l: 1.1 },
-  'boisson vegetale': { kcal: 35, p: 1, g: 5, l: 1.3 }, 'lait demi-ecreme': { kcal: 47, p: 3.3, g: 5, l: 1.6 },
-  'yaourt grec': { kcal: 97, p: 9, g: 4, l: 5 }, 'yaourt nature': { kcal: 61, p: 3.5, g: 5, l: 3.3 },
-  'skyr': { kcal: 63, p: 11, g: 4, l: 0.2 }, 'fromage blanc': { kcal: 75, p: 8, g: 4, l: 3 },
-  'beurre de cacahuete': { kcal: 590, p: 25, g: 20, l: 50 },
-  'puree d amande': { kcal: 630, p: 21, g: 13, l: 55 }, 'puree de noisette': { kcal: 650, p: 15, g: 12, l: 62 },
-  'huile d olive': { kcal: 884, p: 0, g: 0, l: 100 }, 'margarine': { kcal: 720, p: 0, g: 0, l: 80 },
-  'beurre': { kcal: 717, p: 0.9, g: 0.1, l: 81 },
-  'amande': { kcal: 580, p: 21, g: 22, l: 49 }, 'noisette': { kcal: 628, p: 15, g: 17, l: 61 }, 'noix': { kcal: 654, p: 15, g: 14, l: 65 },
-  'banane': { kcal: 89, p: 1.1, g: 23, l: 0.3 }, 'pomme': { kcal: 52, p: 0.3, g: 14, l: 0.2 },
-  'poire': { kcal: 57, p: 0.4, g: 15, l: 0.1 }, 'ananas': { kcal: 50, p: 0.5, g: 13, l: 0.1 },
-  'fruits de saison': { kcal: 60, p: 0.7, g: 14, l: 0.3 }, 'fruits': { kcal: 60, p: 0.7, g: 14, l: 0.3 },
-  'courgette': { kcal: 17, p: 1.2, g: 3, l: 0.3 }, 'aubergine': { kcal: 25, p: 1, g: 6, l: 0.2 },
-  'brocoli': { kcal: 34, p: 2.8, g: 7, l: 0.4 }, 'haricots verts': { kcal: 31, p: 1.8, g: 7, l: 0.1 },
-  'poivron': { kcal: 31, p: 1, g: 6, l: 0.3 }, 'epinard': { kcal: 23, p: 2.9, g: 3.6, l: 0.4 },
-  'miel': { kcal: 304, p: 0.3, g: 82, l: 0 }, 'sirop d erable': { kcal: 260, p: 0, g: 67, l: 0 }, 'sucre': { kcal: 400, p: 0, g: 100, l: 0 },
-  'sauce teriyaki': { kcal: 130, p: 5, g: 26, l: 0 }, 'tamari': { kcal: 60, p: 10, g: 5, l: 0 }, 'sauce soja': { kcal: 60, p: 8, g: 6, l: 0 },
-  // Viandes (valeurs crues, par 100 g)
-  'dinde hachee': { kcal: 150, p: 18, g: 0, l: 8 },
-  'escalope de dinde': { kcal: 110, p: 24, g: 0, l: 1.5 }, 'steak de dinde': { kcal: 110, p: 24, g: 0, l: 1.5 }, 'emince de dinde': { kcal: 110, p: 24, g: 0, l: 1.5 },
-  'boeuf hache': { kcal: 200, p: 20, g: 0, l: 13 }, 'steak de boeuf': { kcal: 180, p: 26, g: 0, l: 8 }, 'boeuf a griller emince': { kcal: 180, p: 26, g: 0, l: 8 },
-  'hache vegetal': { kcal: 170, p: 17, g: 5, l: 9 },
-  // Feculents (valeurs crues sauf "cuit", par 100 g)
-  'pates completes': { kcal: 340, p: 13, g: 66, l: 2.5 }, 'pates': { kcal: 350, p: 12, g: 70, l: 1.5 },
-  'riz': { kcal: 350, p: 7, g: 77, l: 0.6 }, 'semoule': { kcal: 350, p: 12, g: 72, l: 1 },
-  'boulgour': { kcal: 340, p: 12, g: 76, l: 1.3 }, 'quinoa': { kcal: 368, p: 14, g: 64, l: 6 },
-  'lentilles cuites': { kcal: 116, p: 9, g: 20, l: 0.4 },
-  'patate douce': { kcal: 86, p: 1.6, g: 20, l: 0.1 }, 'courge': { kcal: 26, p: 1, g: 6, l: 0.1 },
-};
-const PIECE_G = { banane: 120, pomme: 150, poire: 160, oeuf: 50 };
-const nettoyerNom = (s) => normTxt(s).replace(/['’]/g, ' ').replace(/\s+/g, ' ').trim();
-
-// Convertit une quantite + unite en grammes (approximations usuelles).
-function grammesIngredient(nom, qty, unite) {
-  const u = normTxt(unite || '');
-  const q = Number(qty) || 0;
-  if (u === 'g' || u === 'ml') return q;
-  if (u === 'piece') { const n = nettoyerNom(nom); const k = Object.keys(PIECE_G).find((x) => n.includes(x)); return q * (k ? PIECE_G[k] : 100); }
-  if (u === 'c. a soupe') return q * 15;
-  if (u === 'c. a cafe') return q * 5;
-  if (u === 'gousse') return q * 5;
-  if (u === 'pincee') return q * 1;
-  if (u === 'tranche') return q * 20;
-  if (u === 'poignee') return q * 30;
-  return q;
-}
-
-// Macros apportees par un ingredient (selon sa quantite). null si inconnu.
-function macrosIngredient(nom, qty, unite) {
-  const n = nettoyerNom(nom);
-  const key = Object.keys(NUTRI).find((k) => n.includes(k));
-  if (!key) return null;
-  const per = NUTRI[key];
-  const f = grammesIngredient(nom, qty, unite) / 100;
-  return { kcal: per.kcal * f, p: per.p * f, g: per.g * f, l: per.l * f };
-}
-
 // ---------- Navigation entre ecrans ----------
 function showScreen(id) {
   $$('.screen').forEach((s) => s.classList.remove('active'));
   $(`#screen-${id}`).classList.add('active');
   $('#navRestart').classList.toggle('hidden', id === 'landing');
-  // Active la "coque" (sidebar desktop + decalage du contenu) uniquement sur l'ecran plan.
-  document.body.classList.toggle('app-shell', id === 'result');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -236,35 +142,6 @@ function showLoader(text) {
   $('#loader').classList.remove('hidden');
 }
 function hideLoader() { $('#loader').classList.add('hidden'); }
-
-// Loader premium : revele le plan etape par etape (coches progressives) sur
-// ~10 s. Renvoie une promesse resolue a la fin de l'animation. La generation
-// reelle tourne en parallele (instantanee en mode demo).
-function runPlanReveal(durationMs) {
-  durationMs = durationMs || 10000;
-  const loader = $('#planLoader');
-  const steps = Array.prototype.slice.call(loader.querySelectorAll('.pl-step'));
-  const bar = loader.querySelector('.pl-bar > i');
-  steps.forEach((s) => s.classList.remove('active', 'done'));
-  bar.style.transition = 'none';
-  bar.style.width = '0%';
-  loader.classList.remove('hidden');
-  loader.setAttribute('aria-hidden', 'false');
-  void loader.offsetWidth; // reflow pour relancer la transition de la barre
-  bar.style.transition = 'width ' + durationMs + 'ms linear';
-  bar.style.width = '100%';
-  const per = durationMs / steps.length;
-  steps.forEach((s, i) => {
-    setTimeout(() => s.classList.add('active'), Math.round(i * per) + 60);
-    setTimeout(() => { s.classList.remove('active'); s.classList.add('done'); }, Math.max(0, Math.round((i + 1) * per) - 220));
-  });
-  return new Promise((resolve) => setTimeout(resolve, durationMs));
-}
-function hidePlanLoader() {
-  const loader = $('#planLoader');
-  loader.classList.add('hidden');
-  loader.setAttribute('aria-hidden', 'true');
-}
 
 // ---------- Onboarding : selections ----------
 function initSelections() {
@@ -282,18 +159,8 @@ function initSelections() {
       const chip = e.target.closest('.chip');
       if (!chip) return;
       chip.classList.toggle('selected');
-      if (set.dataset.multifield === 'collations') updateCollationDetails();
     });
   });
-}
-
-// Affiche les precisions sur les collations (type + raison) uniquement si au
-// moins un moment de collation est selectionne (hors "non").
-function updateCollationDetails() {
-  const box = $('#collationDetails');
-  if (!box) return;
-  const moments = getMultiValues('collations').filter((c) => c !== 'non');
-  box.classList.toggle('hidden', moments.length === 0);
 }
 
 function getMultiValues(field) {
@@ -314,10 +181,6 @@ function goToStep(n) {
   $('#btnPrev').classList.toggle('hidden', state.step === 1);
   $('#btnNext').classList.toggle('hidden', state.step === TOTAL_STEPS);
   $('#btnFinish').classList.toggle('hidden', state.step !== TOTAL_STEPS);
-  // A chaque changement d'etape (Continuer / Retour), on revient tout en haut
-  // pour que l'utilisateur voie toutes les questions dans l'ordre.
-  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
 }
 
 function validateStep() {
@@ -332,7 +195,6 @@ function collectProfile() {
   const form = $('#onboardingForm');
   const fd = new FormData(form);
   const objectif = $('.choice-grid[data-field="objectif"]').dataset.selected || 'maintien';
-  const matinGout = ($('.choice-grid[data-field="matinGout"]') || {}).dataset ? ($('.choice-grid[data-field="matinGout"]').dataset.selected || 'les-deux') : 'les-deux';
   state.masquerCalories = $('input[name="masquerCalories"]').checked;
 
   state.profil = {
@@ -342,36 +204,15 @@ function collectProfile() {
     taille_cm: Number(fd.get('taille_cm')),
     poids_kg: Number(fd.get('poids_kg')),
     activite: fd.get('activite'),
+    repas_par_jour: Number(fd.get('repas_par_jour')),
     jours: Number(fd.get('jours')),
-    // Repas de la journee pilotes par les vraies habitudes : petit-dejeuner
-    // (sauf "je ne mange pas le matin") + collations cochees (matin/aprem/soir).
-    mangeMatin: matinGout !== 'aucun',
-    collations: getMultiValues('collations').filter((c) => c !== 'non'),
-    // Donnees de pesee (optionnel) : affinent le calcul, surtout Challenge 6/6.
-    metabolisme_basal: Number(fd.get('metabolisme_basal')) || undefined,
-    masse_grasse: Number(fd.get('masse_grasse')) || undefined,
-    masse_musculaire: Number(fd.get('masse_musculaire')) || undefined,
-    type_journee: fd.get('type_journee') || undefined,
-    seances_sport: Number(fd.get('seances_sport')) || undefined,
-    // Reglages Challenge 6/6 (objectif de perte + intensite du deficit, ajustables).
-    perte_objectif_kg: Number(fd.get('perte_objectif_kg')) || 6,
-    deficit_cible: Number(fd.get('deficit_cible')) || 650,
-    // Ajustement hebdomadaire cumule (modifie par le suivi de pesee).
-    ajustementKcal: 0,
-    // Dine tard : repercute sur la repartition (diner plus leger).
-    dinerTard: (($('.choice-grid[data-field="dinerTard"]') || {}).dataset || {}).selected || 'non',
     // Complements alimentaires (enregistres dans le profil, reutilisables).
     complements: getMultiValues('complements'),
     complementsDetail: (fd.get('complementsDetail') || '').trim(),
   };
-  state.pesees = [];
   state.preferences = {
     cuisines: getMultiValues('cuisines'),
-    matinGout,
-    // Precisions collations : type (sucree/salee/proteines/rapide/peu-importe) +
-    // raison (faim/energie/grignoter/entrainement/habitude) -> oriente le choix.
-    collationType: getMultiValues('collationType'),
-    collationRaison: getMultiValues('collationRaison'),
+    matinGout: ($('.choice-grid[data-field="matinGout"]') || {}).dataset ? ($('.choice-grid[data-field="matinGout"]').dataset.selected || 'les-deux') : 'les-deux',
     aimes: parseCsv(fd.get('aimes')),
     deteste: parseCsv(fd.get('deteste')),
     allergies: [...getMultiValues('allergiesCourantes'), ...parseCsv(fd.get('allergies'))],
@@ -389,54 +230,8 @@ function collectProfile() {
       boissons: (fd.get('hab_boissons') || '').trim(),
     },
   };
-  // Nouveau profil = nouveau suivi (et felicitations remises a zero).
+  // Nouveau profil = nouveau suivi.
   state.suivi = {};
-  state.celebratedDays = [];
-  state.weekDone = false;
-  // Complements suivis = ce que l'utilisateur a declare prendre (questionnaire).
-  // Il pourra en ajouter/retirer depuis la section Complements.
-  state.complementsSuivis = (state.profil.complements || []).filter((c) => c && c !== 'non' && c !== 'aucun' && c !== 'autre');
-  state.suiviComp = {};
-}
-
-// Pre-remplit le questionnaire avec le profil + preferences deja enregistres
-// (inverse de collectProfile), pour "Refaire mon plan" sans repartir de zero.
-function prefillOnboarding() {
-  const p = state.profil || {};
-  const pr = state.preferences || {};
-  const form = $('#onboardingForm'); if (!form) return;
-  const setVal = (name, v) => { const el = form.querySelector(`[name="${name}"]`); if (el && v != null && v !== '' && !(typeof v === 'number' && Number.isNaN(v))) el.value = v; };
-  const setChk = (name, v) => { const el = form.querySelector(`[name="${name}"]`); if (el) el.checked = !!v; };
-  const setGrid = (field, v) => { const g = $(`.choice-grid[data-field="${field}"]`); if (!g || v == null || v === '') return; g.dataset.selected = v; $$('.choice', g).forEach((b) => b.classList.toggle('selected', b.dataset.value === v)); };
-  const setChips = (field, arr) => { const s = $(`.chip-set[data-multifield="${field}"]`); if (!s) return; const set = new Set(arr || []); $$('.chip', s).forEach((c) => c.classList.toggle('selected', set.has(c.dataset.value))); };
-  // --- Profil ---
-  setGrid('objectif', p.objectif);
-  setVal('sexe', p.sexe); setVal('age', p.age); setVal('taille_cm', p.taille_cm); setVal('poids_kg', p.poids_kg);
-  setVal('activite', p.activite); setVal('jours', p.jours);
-  setVal('metabolisme_basal', p.metabolisme_basal); setVal('masse_grasse', p.masse_grasse);
-  setVal('masse_musculaire', p.masse_musculaire); setVal('type_journee', p.type_journee);
-  setGrid('dinerTard', p.dinerTard);
-  setChips('collations', p.collations);
-  setChips('complements', p.complements);
-  setVal('complementsDetail', p.complementsDetail);
-  // --- Preferences ---
-  setChips('cuisines', pr.cuisines);
-  setGrid('matinGout', pr.matinGout);
-  setChips('collationType', pr.collationType);
-  setChips('collationRaison', pr.collationRaison);
-  setVal('aimes', (pr.aimes || []).join(', '));
-  setVal('deteste', (pr.deteste || []).join(', '));
-  setChips('regime', pr.regime);
-  setVal('budget', pr.budget); setVal('temps_max', pr.temps_max);
-  // Allergies : on coche les puces connues, le reste va dans le champ libre.
-  const allergSet = $('.chip-set[data-multifield="allergiesCourantes"]');
-  const chipVals = allergSet ? $$('.chip', allergSet).map((c) => c.dataset.value) : [];
-  const allerg = pr.allergies || [];
-  setChips('allergiesCourantes', allerg.filter((a) => chipVals.includes(a)));
-  setVal('allergies', allerg.filter((a) => !chipVals.includes(a)).join(', '));
-  setChk('masquerCalories', state.masquerCalories);
-  // Revele le bloc collations (type/raison) si des collations sont cochees.
-  if (typeof updateCollationDetails === 'function') updateCollationDetails();
 }
 
 // Fusionne favoris/exclus dans les preferences envoyees au serveur.
@@ -483,16 +278,15 @@ async function fetchMeal(creneau, kcalCible, exclureId) {
 // ---------- Rendu : besoins ----------
 function renderNeeds() {
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie', challenge: 'Challenge 6/6' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie' };
   const pk = b.macros.proteines * 4, gk = b.macros.glucides * 4, lk = b.macros.lipides * 9;
   const tot = pk + gk + lk || 1;
   const bar = (v) => `<div class="macbar"><i style="width:${Math.round((v / tot) * 100)}%"></i></div>`;
   const kcalBlock = state.masquerCalories ? ''
     : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl">kcal / jour</div></div>`;
-  const isChallenge = state.profil.objectif === 'challenge';
   $('#needsCard').innerHTML = `
-    <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2></div>
-    <p class="needs-sub">Votre objectif, résumé en chiffres.</p>
+    <div class="needs-head"><span class="needs-ic">${icSvg('target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2></div>
+    <p class="needs-sub">Vos besoins estimes pour atteindre votre objectif, repartis sur la journee.</p>
     <div class="needs-stats">
       ${kcalBlock}
       <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div>${bar(pk)}</div>
@@ -501,216 +295,26 @@ function renderNeeds() {
     </div>`;
 }
 
-// ---------- Pesee hebdomadaire + ajustement automatique (Challenge 6/6) ----------
-function openPesee() { renderPesee(); $('#peseePanel').classList.remove('hidden'); }
-function closePesee() { $('#peseePanel').classList.add('hidden'); }
-
-function renderPesee() {
-  const pesees = (state.pesees || []).slice().sort((a, b) => a.ts - b.ts);
-  const aj = Math.round(Number((state.profil || {}).ajustementKcal) || 0);
-  const reco = state.lastAjustement;
-  const fmtDate = (ts) => new Date(ts).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-  let histo = '';
-  if (pesees.length) {
-    const rev = pesees.slice().reverse();
-    histo = '<div class="pesee-histo"><div class="pesee-histo-title">Historique</div>' + rev.map((p, i) => {
-      const prev = rev[i + 1];
-      const d = prev ? (p.poids - prev.poids) : null;
-      const dTxt = d === null ? '' : `<span class="pesee-delta ${d < 0 ? 'down' : (d > 0 ? 'up' : '')}">${d > 0 ? '+' : ''}${d.toFixed(1)} kg</span>`;
-      return `<div class="pesee-line"><span>${fmtDate(p.ts)}</span><b>${p.poids} kg</b>${dTxt}</div>`;
-    }).join('') + '</div>';
-  }
-  let recoBlock = '';
-  if (reco) {
-    recoBlock = `<div class="pesee-reco st-${reco.statut}">
-      <p>${escapeHtml(reco.message)}</p>
-      ${reco.delta !== 0 ? `<button type="button" class="btn btn-primary" id="peseeApply">Appliquer ${reco.delta > 0 ? '+' : ''}${reco.delta} kcal et régénérer</button>` : ''}
-    </div>`;
-  }
-  $('#peseeBody').innerHTML = `
-    <div class="pesee-form">
-      <div class="field-row">
-        <label class="field"><span>Poids du jour (kg)</span><input type="number" id="peseePoids" min="35" max="250" step="0.1" placeholder="ex. 74.2" /></label>
-        <label class="field"><span>Masse musculaire (kg) <em>(opt.)</em></span><input type="number" id="peseeMuscle" min="1" max="120" step="0.1" placeholder="ex. 29" /></label>
-      </div>
-      <label class="pesee-check"><input type="checkbox" id="peseeFatigue" /> <span>Je me sens fatigué(e) cette semaine</span></label>
-      <button type="button" class="btn btn-primary" id="peseeSave">Enregistrer la pesée</button>
-    </div>
-    ${recoBlock}
-    <p class="pesee-cumul">Ajustement actuel : <b>${aj >= 0 ? '+' : ''}${aj} kcal/jour</b></p>
-    ${histo}`;
-  $('#peseeSave').addEventListener('click', savePesee);
-  const applyBtn = $('#peseeApply');
-  if (applyBtn) applyBtn.addEventListener('click', applyAjustement);
-}
-
-async function savePesee() {
-  const poids = Number($('#peseePoids').value);
-  if (!poids || poids < 35 || poids > 250) { alert('Entrez un poids valide (en kg).'); return; }
-  const muscle = Number($('#peseeMuscle').value) || undefined;
-  const fatigue = $('#peseeFatigue').checked;
-  state.pesees = state.pesees || [];
-  state.pesees.push({ ts: Date.now(), poids, masse_musculaire: muscle, fatigue });
-  saveLocal();
-  const deficit = (state.plan && state.plan.besoins && state.plan.besoins.deficit)
-    || (state.profil && state.profil.deficit_cible) || 650;
-  try {
-    const res = await fetch(apiUrl('/api/ajustement'), {
-      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ pesees: state.pesees, deficit, sexe: (state.profil || {}).sexe, fatigue }),
-    });
-    const data = await res.json();
-    state.lastAjustement = data.ok ? data.ajustement : null;
-  } catch (_) { state.lastAjustement = null; }
-  renderPesee();
-}
-
-async function applyAjustement() {
-  if (!state.lastAjustement) return;
-  const delta = Number(state.lastAjustement.delta) || 0;
-  state.profil.ajustementKcal = Math.max(-400, Math.min(400, (Number(state.profil.ajustementKcal) || 0) + delta));
-  state.lastAjustement = null;
-  saveLocal();
-  closePesee();
-  await generateAndShow(Math.floor(Math.random() * 1e6) + 1);
-}
-
-// ---------- Alignement du plan sur le jour reel ----------
-// Le plan demarre au jour ou il est genere (state.startDate). On NE reordonne
-// JAMAIS le tableau jours[] (les cles de suivi "di-mi" restent stables) : on se
-// contente de renommer chaque jour (startDate + index) et d'ouvrir l'app sur la
-// bonne journee. A chaque reconnexion, l'index "aujourd'hui" est recalcule.
-const JOURS_SEMAINE = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-
-function todayMidnight() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-function ymd(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-function startMidnight() {
-  if (!state.startDate) return todayMidnight();
-  const [y, m, j] = String(state.startDate).split('-').map(Number);
-  const d = new Date(y, (m || 1) - 1, j || 1);
-  return isNaN(d.getTime()) ? todayMidnight() : d;
-}
-// Jours ecoules depuis le demarrage (>= 0).
-function joursDepuisDemarrage() {
-  return Math.max(0, Math.round((todayMidnight().getTime() - startMidnight().getTime()) / 86400000));
-}
-// Index du jour "aujourd'hui" DANS le plan (borne au dernier jour si depasse).
-function indexJourActuel() {
-  const n = (state.plan && state.plan.jours && state.plan.jours.length) || 1;
-  return Math.min(joursDepuisDemarrage(), n - 1);
-}
-// Aujourd'hui est-il encore dans la fenetre du plan ? (sinon : plan termine)
-function jourActuelDansPlan() {
-  const n = (state.plan && state.plan.jours && state.plan.jours.length) || 0;
-  return joursDepuisDemarrage() < n;
-}
-// Renomme chaque jour avec le jour de semaine reel (startDate + index).
-function appliquerLabelsCalendaires() {
-  if (!state.plan || !Array.isArray(state.plan.jours)) return;
-  const base = startMidnight();
-  state.plan.jours.forEach((j, i) => {
-    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-    j.jour = JOURS_SEMAINE[d.getDay()];
-  });
-}
-// Ancre la date de demarrage (la cree si absente = 1er affichage = aujourd'hui),
-// aligne les libelles et ouvre sur la journee du jour. Renvoie true si c'etait
-// le tout premier affichage (date creee a l'instant).
-function ancrerDemarragePlan(forceAujourdhui) {
-  const premiere = forceAujourdhui || !state.startDate;
-  if (forceAujourdhui || !state.startDate) state.startDate = ymd(todayMidnight());
-  appliquerLabelsCalendaires();
-  state.activeDay = indexJourActuel();
-  return premiere;
-}
-
 // ---------- Rendu : grille du plan ----------
 function renderPlan() {
   const grid = $('#planGrid');
   grid.innerHTML = '';
-  const jours = state.plan.jours || [];
-  let active = Number.isInteger(state.activeDay) ? state.activeDay : 0;
-  if (active < 0 || active >= jours.length) active = 0;
-  state.activeDay = active;
-
-  const todayIdx = jourActuelDansPlan() ? indexJourActuel() : -1;
-
-  // Selecteur de jours horizontal (mobile : un jour a la fois ; desktop : masque, semaine entiere)
-  const sel = document.createElement('div');
-  sel.className = 'day-selector';
-  sel.innerHTML = jours.map((j, i) =>
-    `<button type="button" class="day-pill${i === active ? ' on' : ''}${i === todayIdx ? ' is-today' : ''}" data-day-pill="${i}">${String(j.jour || '').slice(0, 3)}</button>`).join('');
-  grid.appendChild(sel);
-
-  jours.forEach((jour, di) => {
+  state.plan.jours.forEach((jour, di) => {
     const dayKcal = jour.repas.reduce((sum, r) => sum + (r.recette && !r.exterieur ? r.recette.kcal : 0), 0);
     const card = document.createElement('div');
-    card.className = 'day-card' + (di === active ? ' is-active' : '');
-    card.dataset.dayIndex = di;
+    card.className = 'day-card';
     const kcalTag = state.masquerCalories ? '' : `<span class="day-kcal">${dayKcal} kcal</span>`;
     const title = document.createElement('div');
     title.className = 'day-title';
-    const nowTag = di === todayIdx ? '<span class="day-now">Jour en cours</span>' : '';
-    title.innerHTML = `${jour.jour}${nowTag}${kcalTag}<button class="day-regen" data-day="${di}">${icSvg('refresh')} Toute la journee</button>`;
+    title.innerHTML = `${jour.jour}${kcalTag}<button class="day-regen" data-day="${di}">${icSvg('refresh')} Toute la journee</button>`;
     card.appendChild(title);
     const row = document.createElement('div');
     row.className = 'meals-row meals-n' + jour.repas.length; // colonnes nettes selon le nombre de repas
     jour.repas.forEach((repas, mi) => row.appendChild(renderMealCard(repas, di, mi)));
     card.appendChild(row);
-    // Bloc "Complements du jour" : meme liste chaque jour, suivi (pris/non) par jour.
-    const comps = complementsActifs();
-    if (comps.length) {
-      const cb = document.createElement('div');
-      cb.className = 'day-comps';
-      cb.innerHTML = `<div class="day-comps-title">${icSvg('pill')} Compléments du jour</div>` +
-        comps.map((c) => {
-          const pris = !!state.suiviComp[di + '-' + c.cle];
-          return `<button type="button" class="comp-day${pris ? ' is-pris' : ''}" data-comp-di="${di}" data-comp-cle="${c.cle}">
-            <span class="comp-day-check">${pris ? icSvg('check') : ''}</span>
-            <span class="comp-day-txt"><strong>${escapeHtml(c.nom)}</strong><span>${escapeHtml(c.moment)}</span></span>
-            <span class="comp-day-state">${pris ? 'Pris ✓' : 'À prendre'}</span>
-          </button>`;
-        }).join('');
-      card.appendChild(cb);
-    }
     grid.appendChild(card);
   });
   $$('.day-regen').forEach((b) => b.addEventListener('click', () => regenerateDay(Number(b.dataset.day))));
-  $$('#planGrid .comp-day').forEach((b) => b.addEventListener('click', () => toggleComplementPris(Number(b.dataset.compDi), b.dataset.compCle)));
-  $$('#planGrid .day-pill').forEach((p) => p.addEventListener('click', () => setDay(Number(p.dataset.dayPill))));
-  setupPlanSwipe();
-}
-
-// Affiche un jour donne (mobile) ; sur desktop tous les jours restent visibles.
-function setDay(i) {
-  const jours = (state.plan && state.plan.jours) || [];
-  i = Math.max(0, Math.min(jours.length - 1, i));
-  state.activeDay = i;
-  $$('#planGrid .day-card').forEach((c) => c.classList.toggle('is-active', Number(c.dataset.dayIndex) === i));
-  $$('#planGrid .day-pill').forEach((p) => p.classList.toggle('on', Number(p.dataset.dayPill) === i));
-  const ap = document.querySelector(`#planGrid .day-pill[data-day-pill="${i}"]`);
-  if (ap) ap.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-}
-// Navigation par swipe horizontal sur le plan (mobile).
-function setupPlanSwipe() {
-  const grid = $('#planGrid');
-  if (!grid || grid._swipeBound) return;
-  grid._swipeBound = true;
-  let x0 = null, y0 = null;
-  grid.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
-  grid.addEventListener('touchend', (e) => {
-    if (x0 === null) return;
-    const dx = e.changedTouches[0].clientX - x0;
-    const dy = e.changedTouches[0].clientY - y0;
-    x0 = null;
-    if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy)) return; // ignore les gestes verticaux
-    setDay((state.activeDay || 0) + (dx < 0 ? 1 : -1));
-  }, { passive: true });
 }
 
 function renderMealCard(repas, di, mi) {
@@ -743,22 +347,27 @@ function renderMealCard(repas, di, mi) {
   const glyph = cat === 'petit-dejeuner' ? 'sun' : (cat === 'collation' ? 'apple' : 'bowl');
   const suivi = state.suivi[trackKey(di, mi)] || {};
   const st = suivi.statut;
+  const kcalChip = state.masquerCalories ? '' : `<span class="macro-chip kcal">${r.kcal} kcal</span>`;
   const altLine = st === 'autre' && suivi.autre
     ? `<div class="meal-alt">${icSvg('edit')} ${escapeHtml(suivi.autre.repas || '')}${suivi.autre.quantite ? ' (' + escapeHtml(suivi.autre.quantite) + ')' : ''}</div>`
     : '';
   el.innerHTML = `
     <div class="meal-photo" data-cat="${cat}">
       <img class="meal-img" src="images/recipes/${r.id}.jpg" alt="${escapeHtml(r.nom)}" loading="lazy" onerror="this.remove()" />
-      <div class="meal-toprow">
-        <span class="meal-creneau">${escapeHtml(creneauCourt(repas.label))}</span>
-        <span class="meal-time-pill">${icSvg('clock')} ${r.tempsMinutes} min</span>
-      </div>
+      <span class="meal-creneau">${escapeHtml(repas.label)}</span>
       ${isFav ? `<span class="meal-fav">${icSvg('heart')}</span>` : ''}
       ${r.adapte ? `<span class="meal-adapte">${icSvg('swap')} Adapte</span>` : ''}
       ${icSvg(glyph)}
     </div>
     <div class="meal-body">
       <span class="meal-name" data-act="open">${escapeHtml(r.nom)}</span>
+      <div class="macro-chips">
+        ${kcalChip}
+        <span class="macro-chip prot">${r.proteines} g P</span>
+        <span class="macro-chip gluc">${r.glucides} g G</span>
+        <span class="macro-chip lip">${r.lipides} g L</span>
+        <span class="macro-chip time">${icSvg('clock')} ${r.tempsMinutes} min</span>
+      </div>
       <div class="meal-actions">
         <button class="mini-btn" data-act="open">${icSvg('eye')} Voir</button>
         <button class="mini-btn" data-act="swap">${icSvg('refresh')} Remplacer</button>
@@ -766,10 +375,9 @@ function renderMealCard(repas, di, mi) {
       <div class="meal-track">
         <button class="track-btn ${st === 'respecte' ? 'on-ok' : ''}" data-act="t-ok" title="Respecte" aria-label="Respecte">${icSvg('check')}</button>
         <button class="track-btn ${st === 'non' ? 'on-no' : ''}" data-act="t-no" title="Non respecte" aria-label="Non respecte">${icSvg('x')}</button>
-        <button class="track-btn ${st === 'autre' ? 'on-alt' : ''}" data-act="t-alt" title="Modifier ce repas" aria-label="Modifier ce repas">${icSvg('edit')}</button>
+        <button class="track-btn ${st === 'autre' ? 'on-alt' : ''}" data-act="t-alt" title="J'ai mange autre chose" aria-label="J'ai mange autre chose">${icSvg('edit')}</button>
       </div>
       ${altLine}
-      ${collationOptionHTML(repas)}
     </div>`;
   el.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-act]');
@@ -778,7 +386,7 @@ function renderMealCard(repas, di, mi) {
     if (act === 'swap') swapMeal(di, mi);
     if (act === 't-ok') setMealStatus(di, mi, 'respecte');
     if (act === 't-no') setMealStatus(di, mi, 'non');
-    if (act === 't-alt') openSuiviForMeal(di, mi);
+    if (act === 't-alt') openAutreForm(di, mi);
   });
   return el;
 }
@@ -794,117 +402,6 @@ function setMealStatus(di, mi, statut) {
   else { state.suivi[key] = { ...cur, statut }; }
   saveLocal();
   renderPlan();
-  // Felicitations si cette action vient de completer la journee (tous "respecte").
-  if (statut === 'respecte') checkDayCompletion(di);
-}
-
-// ---------- Valorisation : journee complete + recap de semaine ----------
-// Une journee est "validee" quand TOUS ses repas (ayant une recette) sont
-// marques "respecte". Les creneaux sans recette sont ignores.
-function dayIsComplete(di) {
-  const jour = state.plan && state.plan.jours && state.plan.jours[di];
-  if (!jour || !Array.isArray(jour.repas)) return false;
-  const reels = jour.repas.filter((rp) => rp && rp.recette);
-  if (!reels.length) return false;
-  return jour.repas.every((rp, mi) => {
-    if (!rp || !rp.recette) return true;
-    const s = state.suivi[trackKey(di, mi)];
-    return s && s.statut === 'respecte';
-  });
-}
-
-// Appele apres chaque passage d'un repas en "respecte" : si la journee vient
-// d'etre completee (et n'a pas deja ete felicitee), on celebre une seule fois.
-function checkDayCompletion(di) {
-  if (!dayIsComplete(di)) return;
-  if (state.celebratedDays.includes(di)) return;
-  state.celebratedDays.push(di);
-  const total = state.plan.jours.length;
-  const doneDays = state.plan.jours.reduce((n, _, i) => n + (dayIsComplete(i) ? 1 : 0), 0);
-  const semaineComplete = doneDays >= total && total >= 1 && !state.weekDone;
-  if (semaineComplete) state.weekDone = true;
-  saveLocal();
-  celebrateDay(di, { doneDays, total, lastOfWeek: semaineComplete });
-}
-
-const DAY_MESSAGES = [
-  'Bravo, journée validée !',
-  'Belle régularité aujourd\'hui.',
-  'Objectif du jour atteint.',
-  'Super, vous avancez dans la bonne direction.',
-  'Journée complète validée, continuez comme ça.',
-];
-
-// Overlay premium et sobre : coche animee + halo + confettis discrets.
-function celebrateDay(di, info) {
-  info = info || {};
-  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const msg = DAY_MESSAGES[di % DAY_MESSAGES.length];
-  const done = info.doneDays || 1;
-  const total = info.total || 7;
-  const prog = `${done} jour${done > 1 ? 's' : ''} sur ${total} validé${done > 1 ? 's' : ''} cette semaine`;
-  const sub = info.lastOfWeek
-    ? 'Semaine complète — un instant, on vous prépare le résumé…'
-    : 'La régularité se construit jour après jour. Continuez !';
-  const confetti = reduceMotion ? '' :
-    Array.from({ length: 16 }, (_, i) => `<i class="dc-cf dc-cf-${i % 4}" style="left:${(i * 6 + 3) % 100}%;animation-delay:${(i % 6) * 70}ms"></i>`).join('');
-  const ov = document.createElement('div');
-  ov.className = 'day-celebrate';
-  ov.innerHTML = `
-    <div class="dc-confetti" aria-hidden="true">${confetti}</div>
-    <div class="dc-card" role="status">
-      <div class="dc-badge">
-        <svg class="dc-check" viewBox="0 0 52 52" aria-hidden="true"><circle class="dc-circle" cx="26" cy="26" r="23"/><path class="dc-tick" d="M15 27l7.5 7.5L38 19"/></svg>
-      </div>
-      <h3 class="dc-title">${escapeHtml(msg)}</h3>
-      <p class="dc-prog">${escapeHtml(prog)}</p>
-      <p class="dc-sub">${escapeHtml(sub)}</p>
-      <button class="dc-btn" type="button">Continuer</button>
-    </div>`;
-  document.body.appendChild(ov);
-  requestAnimationFrame(() => ov.classList.add('show'));
-  const close = () => {
-    if (ov._closed) return; ov._closed = true;
-    clearTimeout(ov._timer);
-    ov.classList.remove('show');
-    setTimeout(() => { ov.remove(); if (info.lastOfWeek) showWeekRecap(info); }, 320);
-  };
-  ov.querySelector('.dc-btn').addEventListener('click', close);
-  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-  ov._timer = setTimeout(close, info.lastOfWeek ? 2600 : 4600);
-}
-
-// Recap simple, positif et non technique apres une semaine complete validee.
-function showWeekRecap(info) {
-  info = info || {};
-  const total = info.total || 7;
-  const lignes = [
-    `${total} jours sur ${total} validés`,
-    'Excellente régularité cette semaine',
-    'Vous avez bien suivi votre plan sur l\'ensemble de la semaine',
-    'Votre constance est votre meilleur levier de progression',
-  ];
-  const items = lignes.map((l) => `<li><span class="wr-ic">${icSvg('check')}</span><span>${escapeHtml(l)}</span></li>`).join('');
-  const ov = document.createElement('div');
-  ov.className = 'week-recap';
-  ov.innerHTML = `
-    <div class="wr-card" role="dialog" aria-label="Récapitulatif de la semaine">
-      <div class="wr-badge">${icSvg('star')}</div>
-      <h3 class="wr-title">Votre semaine est validée</h3>
-      <p class="wr-sub">Voici un résumé simple de votre régularité cette semaine.</p>
-      <ul class="wr-list">${items}</ul>
-      <div class="wr-tip"><span class="wr-ic">${icSvg('flame')}</span><span>Continuez sur ce rythme et gardez des repas simples à préparer.</span></div>
-      <button class="wr-btn" type="button">Continuer</button>
-    </div>`;
-  document.body.appendChild(ov);
-  requestAnimationFrame(() => ov.classList.add('show'));
-  const close = () => {
-    if (ov._closed) return; ov._closed = true;
-    ov.classList.remove('show');
-    setTimeout(() => ov.remove(), 320);
-  };
-  ov.querySelector('.wr-btn').addEventListener('click', close);
-  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
 }
 
 function openAutreForm(di, mi) {
@@ -1092,7 +589,7 @@ function buildLocalRecipeDetail(r) {
   const has = (re) => re.test(txt);
   const norm = (s) => normTxt(s);
   // Riz CUIT (pour distinguer "farine de riz", "lait de riz", "galette de riz").
-  const rizCuit = /(?<!farine de )(?<!lait de )(?<!galettes? de )(?<!nouilles? de )(?<!pois-)(?<!pois )\briz\b/.test(txt);
+  const rizCuit = /(?<!farine de )(?<!lait de )(?<!galettes? de )(?<!nouilles? de )\briz\b/.test(txt);
 
   // --- La recette comporte-t-elle une CUISSON ? (sinon : pas de poele/four/feu) ---
   const poele = has(/poel|saisir|dorer|revenir|sauter|omelette|au plat|brouill|\bsaute|frire|\bgrill/);
@@ -1304,9 +801,8 @@ function swapIngredient(di, mi, idx) {
   const ing = recette.ingredients[idx];
   if (!ing) return;
   const alts = trouverAlternatives(ing.nom);
-  // Choisir une alternative qui ne reintroduit pas un aliment interdit
-  // (allergies etendues aux synonymes/familles + aliments detestes).
-  const interdits = motsAllergenesInterdits();
+  // Choisir une alternative qui ne reintroduit pas un aliment interdit.
+  const interdits = [...(state.preferences.allergies || []), ...(state.preferences.deteste || [])].map(normTxt);
   const courant = normTxt(ing.nom);
   const choix = alts.find((a) => {
     const na = normTxt(a);
@@ -1315,16 +811,6 @@ function swapIngredient(di, mi, idx) {
   if (!choix) { alert('Aucune alternative compatible avec vos contraintes pour cet ingredient.'); return; }
   const ancien = ing.nom;
   ing.nom = choix; // on conserve quantite/unite ; le rayon reste indicatif
-  // Recalcul des macros par DIFFERENCE (old -> new) a partir de la table NUTRI.
-  // Marche en mode demo comme en IA ; l'IA pourra affiner ensuite via recompute.
-  const mOld = macrosIngredient(ancien, ing.quantite, ing.unite);
-  const mNew = macrosIngredient(choix, ing.quantite, ing.unite);
-  if (mOld && mNew) {
-    recette.kcal = Math.max(0, Math.round((recette.kcal || 0) + mNew.kcal - mOld.kcal));
-    recette.proteines = Math.max(0, Math.round((recette.proteines || 0) + mNew.p - mOld.p));
-    recette.glucides = Math.max(0, Math.round((recette.glucides || 0) + mNew.g - mOld.g));
-    recette.lipides = Math.max(0, Math.round((recette.lipides || 0) + mNew.l - mOld.l));
-  }
   // Hors-ligne (sans IA) : on remplace l'ancien nom dans les etapes statiques
   // pour eviter l'incoherence (ex. "banane" -> "fruits rouges" dans le dressage).
   if (!state.ia) recette.etapes = (recette.etapes || []).map((s) => remplacerMot(s, ancien, choix));
@@ -1346,7 +832,7 @@ function remplacerMot(texte, ancien, nouveau) {
 }
 
 // ---------- Liste de courses ----------
-const RAYON_ORDRE = ['Fruits & légumes', 'Fruits & legumes', 'Boucherie', 'Poissonnerie', 'Crèmerie', 'Cremerie', 'Boulangerie', 'Épicerie', 'Epicerie', 'Surgelés', 'Surgeles', 'Rayon frais', 'Rayon vegetal'];
+const RAYON_ORDRE = ['Fruits & legumes', 'Boucherie', 'Poissonnerie', 'Cremerie', 'Boulangerie', 'Epicerie', 'Surgeles', 'Rayon frais', 'Rayon vegetal'];
 
 function buildShoppingList() {
   const agg = {};
@@ -1354,7 +840,7 @@ function buildShoppingList() {
     jour.repas.forEach((repas) => {
       if (!repas.recette) return;
       (repas.recette.ingredients || []).forEach((ing) => {
-        const key = `${normTxt(ing.nom).replace(/\s+/g, ' ')}|${normTxt(ing.unite)}`;
+        const key = `${ing.nom.toLowerCase()}|${ing.unite}`;
         if (!agg[key]) agg[key] = { nom: ing.nom, unite: ing.unite, rayon: ing.rayon || 'Epicerie', quantite: 0 };
         agg[key].quantite += (Number(ing.quantite) || 0) * state.portions;
       });
@@ -1440,7 +926,7 @@ function printDocument(title, innerHTML) {
 
 function exportPlanPdf() {
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie', challenge: 'Challenge 6/6' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie' };
   let html = `<h1>Mon plan de repas — My Coach Nutrition</h1>
     <p class="sub">Objectif : ${objLabels[state.profil.objectif] || ''} · ~${b.kcalCible} kcal/jour · ${state.portions} personne(s) · Estimations a titre indicatif.</p>`;
   state.plan.jours.forEach((jour) => {
@@ -1472,72 +958,14 @@ function exportShoppingPdf() {
 }
 
 // ---------- Ma fiche (E1 + E6 : recap perso) ----------
-const COMPLEMENT_LABELS = { non: 'Aucun', aucun: 'Aucun', proteines: 'Proteines', creatine: 'Creatine', vitamines: 'Vitamines / mineraux', multivitamines: 'Vitamines / mineraux', omega3: 'Omega 3', magnesium: 'Magnesium', fibres: 'Fibres', electrolytes: 'Electrolytes', vitamineD: 'Vitamine D', bruleur: 'Bruleur de graisse', collagene: 'Collagene', preworkout: 'Pre-workout', autre: 'Autre' };
-
-// Lien boutique (Biloba Nutrition) par complement recommande : un clic -> la fiche produit.
-// On NE met PAS de lien pour le bruleur (deconseille) ni les fibres (pas de produit dedie).
-const SHOP_BASE = 'https://bilobanutrition.fr/products/';
-const SHOP_UTM = '?utm_source=mycoach&utm_medium=app&utm_campaign=complements';
-const COMPLEMENT_SHOP = {
-  proteines: 'whey-isolate-native-nutripure',
-  creatine: 'creatine-nutripure',
-  magnesium: 'magnesium-bisglycinate',
-  omega3: 'mega-omega3',
-  vitamineD: 'multivitamines-copie',
-  vitamines: 'vitamines-1',
-  multivitamines: 'vitamines-1',
-  collagene: 'collagene-marin-sauvage',
-  preworkout: 'abe-ultimate-pre-workout-375g',
-};
-
-// ---------- Option produit boutique sur les creneaux "collation" ----------
-// 1 produit MAX par moment de collation, presente comme alternative PRATIQUE
-// (jamais en remplacement de la recette : la recette reste l'option principale).
-// Lien = recherche boutique (toujours valide) ; remplacez `q` par `handle`
-// (slug produit exact, ex. 'raw-barre-bio') des que vous l'avez pour pointer la
-// fiche produit directe.
-const COLLATION_PRODUIT_UTM = 'utm_source=app&utm_medium=nutrition&utm_campaign=collations&utm_content=option_produit_collation';
-const COLLATION_PRODUITS = {
-  matin: { nom: 'Raw Barre Bio', tag: 'snack simple', q: 'raw barre bio' },
-  'apres-midi': { nom: 'Barre protéinée', tag: 'satiété', q: 'barre proteinee' },
-  'apres-sport': { nom: 'Protein Water', tag: 'après l\'effort', q: 'protein water' },
-  soir: { nom: 'Raw Barre Bio', tag: 'option légère', q: 'raw barre bio' },
-};
-function collationMomentKey(label) {
-  const n = normTxt(label);
-  if (n.includes('sport')) return 'apres-sport';
-  if (n.includes('matin')) return 'matin';
-  if (n.includes('soir')) return 'soir';
-  return 'apres-midi';
-}
-function collationProduitUrl(p) {
-  return p.handle
-    ? SHOP_BASE + p.handle + '?' + COLLATION_PRODUIT_UTM
-    : 'https://bilobanutrition.fr/search?q=' + encodeURIComponent(p.q) + '&' + COLLATION_PRODUIT_UTM;
-}
-// Zone "Option rapide" (1 produit) pour une carte collation ; '' sinon.
-function collationOptionHTML(repas) {
-  if (!repas || repas.creneau !== 'collation') return '';
-  const p = COLLATION_PRODUITS[collationMomentKey(repas.label)];
-  if (!p) return '';
-  return `
-      <div class="meal-option">
-        <div class="meal-option-head">${icSvg('spark')} Option rapide</div>
-        <p class="meal-option-sub">Vous pouvez aussi choisir une collation prête à consommer.</p>
-        <a class="meal-option-prod" href="${collationProduitUrl(p)}" target="_blank" rel="noopener noreferrer">
-          <span class="mop-info"><strong>${escapeHtml(p.nom)}</strong><em>${escapeHtml(p.tag)}</em></span>
-          <span class="mop-cta">${icSvg('cart')} Commander</span>
-        </a>
-        <p class="meal-option-note">Option pratique issue de notre boutique. L'alimentation reste la base de votre plan.</p>
-      </div>`;
-}
+const COMPLEMENT_LABELS = { non: 'Aucun', aucun: 'Aucun', proteines: 'Proteines', creatine: 'Creatine', vitamines: 'Vitamines / mineraux', multivitamines: 'Vitamines / mineraux', omega3: 'Omega 3', magnesium: 'Magnesium', bruleur: 'Bruleur de graisse', collagene: 'Collagene', preworkout: 'Pre-workout', autre: 'Autre' };
 
 function openFiche() { renderFiche(); $('#fichePanel').classList.remove('hidden'); }
 function closeFiche() { $('#fichePanel').classList.add('hidden'); }
 
 function renderFiche() {
   const p = state.profil, pr = state.preferences, b = state.plan ? state.plan.besoins : null;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie', challenge: 'Challenge 6/6' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie' };
   const comps = (p.complements || []).filter((c) => c !== 'aucun' && c !== 'non').map((c) => COMPLEMENT_LABELS[c] || c);
   const compStr = comps.length ? comps.filter((c) => c !== 'Autre').join(', ') + (p.complementsDetail ? ' — ' + p.complementsDetail : '') : 'Aucun';
   const hab = pr.habitudes || {};
@@ -1796,45 +1224,8 @@ const COMPLEMENT_ROLES = {
   vitamines: 'filet de securite si votre alimentation est parfois desequilibree.',
   vitamineD: 'souvent un peu basse en hiver ou avec peu d\'exposition au soleil.',
   fibres: 'aident a la satiete et au transit.',
-  electrolytes: 'utiles pour s\'hydrater lors d\'efforts longs ou par forte chaleur.',
   bruleur: 'effet tres limite : ce n\'est pas un levier prioritaire.',
 };
-// Moment de prise suggere (general, non medical) — affiche dans "Complements du jour".
-const COMPLEMENT_MOMENT = {
-  proteines: 'après l\'entraînement ou en collation',
-  creatine: 'chaque jour, au même moment',
-  magnesium: 'le soir',
-  omega3: 'pendant un repas',
-  fibres: 'avant un repas, avec un grand verre d\'eau',
-  vitamines: 'le matin, au petit-déjeuner',
-  vitamineD: 'le matin, au repas',
-  electrolytes: 'pendant ou après l\'effort',
-};
-function complementMoment(cle) { return COMPLEMENT_MOMENT[cle] || 'selon recommandation'; }
-// Liste des complements que l'utilisateur suit (a integrer au plan quotidien).
-function complementsActifs() {
-  const seen = new Set();
-  return (state.complementsSuivis || [])
-    .filter((c) => c && c !== 'non' && c !== 'aucun' && c !== 'autre' && !seen.has(c) && seen.add(c))
-    .map((cle) => ({ cle, nom: COMPLEMENT_LABELS[cle] || cle, moment: complementMoment(cle) }));
-}
-function estComplementSuivi(cle) { return (state.complementsSuivis || []).includes(cle); }
-// Ajoute / retire un complement du plan (bouton "Ajouter a mon plan" / "Retirer").
-function toggleComplementSuivi(cle) {
-  state.complementsSuivis = state.complementsSuivis || [];
-  const i = state.complementsSuivis.indexOf(cle);
-  if (i >= 0) state.complementsSuivis.splice(i, 1); else state.complementsSuivis.push(cle);
-  saveLocal();
-  renderComplements();
-  if (state.plan) renderPlan(); // met a jour le bloc "Complements du jour"
-}
-// Coche / decoche un complement comme pris pour un jour donne (suivi quotidien).
-function toggleComplementPris(di, cle) {
-  const key = di + '-' + cle;
-  if (state.suiviComp[key]) delete state.suiviComp[key]; else state.suiviComp[key] = true;
-  saveLocal();
-  renderPlan();
-}
 
 function mangeAssezPoisson(prefs) {
   const txt = [...(prefs.frequents || []), ...(prefs.aimes || []), ...Object.values(prefs.habitudes || {})].join(' ').toLowerCase();
@@ -1860,12 +1251,10 @@ function recommanderComplements(profil, prefs) {
     dejaPris: pris.has(cle),
   });
 
-  if (objectif === 'perte' || objectif === 'challenge') {
-    const intense = objectif === 'challenge';
-    add('proteines', 'utile', intense ? 'En perte acceleree, pour proteger vos muscles et tenir la satiete :' : 'En perte de poids, surtout si vos apports sont justes :');
-    add('fibres', (faimGrignote || intense) ? 'utile' : 'optionnel', faimGrignote ? 'Vous avez signale de la faim / des grignotages :' : 'Pour la satiete et le transit :');
-    add('magnesium', (stressFatigue || intense) ? 'utile' : 'optionnel', stressFatigue ? 'Vous avez signale du stress, de la fatigue ou un sommeil difficile :' : 'Si vous vous sentez stresse, fatigue ou dormez mal :');
-    if (intense && actif) add('electrolytes', 'optionnel', 'Si vous transpirez beaucoup a l\'effort :');
+  if (objectif === 'perte') {
+    add('proteines', 'utile', 'En perte de poids, surtout si vos apports sont justes :');
+    add('fibres', faimGrignote ? 'utile' : 'optionnel', faimGrignote ? 'Vous avez signale de la faim / des grignotages :' : 'Si vous avez souvent faim :');
+    add('magnesium', stressFatigue ? 'utile' : 'optionnel', stressFatigue ? 'Vous avez signale du stress, de la fatigue ou un sommeil difficile :' : 'Si vous vous sentez stresse, fatigue ou dormez mal :');
   } else if (objectif === 'muscle') {
     add('proteines', 'utile', 'A privilegier seulement si l\'alimentation ne couvre pas vos besoins :');
     add('creatine', actif ? 'utile' : 'optionnel', 'Si vous vous entrainez regulierement :');
@@ -1906,39 +1295,20 @@ function closeComplements() { $('#complementsPanel').classList.add('hidden'); }
 function renderComplements() {
   const data = recommanderComplements(state.profil, state.preferences);
   const alertes = data.alertes.map((a) => `<div class="comp-alert">${icSvg('spark')} ${escapeHtml(a)}</div>`).join('');
-  const reco = data.reco.map((r) => {
-    const handle = COMPLEMENT_SHOP[r.cle];
-    const suivi = estComplementSuivi(r.cle);
-    const shopBtn = handle
-      ? `<a class="comp-shop" href="${SHOP_BASE}${handle}${SHOP_UTM}" target="_blank" rel="noopener noreferrer">${icSvg('cart')} Voir le produit</a>`
-      : '';
-    const actionBtn = `<button type="button" class="comp-add${suivi ? ' is-on' : ''}" data-comp-toggle="${r.cle}">${icSvg(suivi ? 'check' : 'plus')} ${suivi ? 'Dans mon plan' : 'Ajouter à mon plan'}</button>`;
-    return `
-    <div class="comp-item${suivi ? ' is-suivi' : ''}">
+  const reco = data.reco.map((r) => `
+    <div class="comp-item">
       <div class="comp-item-head">
-        <span class="comp-name">${escapeHtml(r.nom)}${r.dejaPris ? ' <span class="comp-deja">déjà pris</span>' : ''}</span>
+        <span class="comp-name">${escapeHtml(r.nom)}${r.dejaPris ? ' <span class="comp-deja">deja pris</span>' : ''}</span>
         <span class="comp-prio prio-${r.priorite}">${PRIORITE_LABEL[r.priorite] || r.priorite}</span>
       </div>
       <div class="comp-role">${escapeHtml(r.role)}</div>
-      <div class="comp-moment">${icSvg('clock')} Quand : ${escapeHtml(complementMoment(r.cle))}</div>
-      <div class="comp-actions">${actionBtn}${shopBtn}</div>
-    </div>`;
-  }).join('');
-  // Section "Vos complements suivis" : tout ce qui est dans le plan, meme hors reco.
-  const actifs = complementsActifs();
-  const suivisBlock = actifs.length ? `
-    <div class="recipe-section-title">Dans votre plan</div>
-    <div class="comp-suivis">${actifs.map((c) =>
-      `<span class="comp-chip"><strong>${escapeHtml(c.nom)}</strong><em>${escapeHtml(c.moment)}</em><button type="button" class="comp-chip-x" data-comp-toggle="${c.cle}" aria-label="Retirer">${icSvg('x')}</button></span>`).join('')}</div>` : '';
+    </div>`).join('');
   $('#complementsBody').innerHTML = `
-    <p class="comp-rappel">Les compléments peuvent être une aide complémentaire. Ils ne remplacent pas une alimentation équilibrée ni l'avis d'un professionnel de santé.</p>
     <div class="comp-resume">${escapeHtml(data.resume)}</div>
-    ${suivisBlock}
-    ${alertes ? `<div class="recipe-section-title">À noter</div>${alertes}` : ''}
+    ${alertes ? `<div class="recipe-section-title">A noter</div>${alertes}` : ''}
     <div class="recipe-section-title">Recommandation selon votre objectif</div>
     ${reco}
-    <p class="panel-sub" style="margin-top:16px">Informations générales, non médicales. Les compléments sont une aide secondaire, jamais la base du résultat. Ajoutez-en à votre plan pour les retrouver chaque jour et suivre leur prise.</p>`;
-  $$('#complementsBody [data-comp-toggle]').forEach((b) => b.addEventListener('click', () => toggleComplementSuivi(b.dataset.compToggle)));
+    <p class="panel-sub" style="margin-top:16px">Informations generales, non medicales : elles ne remplacent pas l'avis d'un professionnel de sante. Les complements sont une aide secondaire, jamais la base du resultat.</p>`;
 }
 
 // ---------- Export agenda (.ics) (E3) ----------
@@ -1983,34 +1353,16 @@ function exportIcs() {
 
 // ---------- Sauvegarde locale ----------
 function saveLocal() {
-  const payload = {
-    profil: state.profil, preferences: state.preferences, plan: state.plan,
-    source: state.source, masquerCalories: state.masquerCalories,
-    portions: state.portions, favoris: state.favoris, exclus: state.exclus,
-    suivi: state.suivi, avance: state.avance, pesees: state.pesees,
-    celebratedDays: state.celebratedDays, weekDone: state.weekDone,
-    complementsSuivis: state.complementsSuivis, suiviComp: state.suiviComp,
-    startDate: state.startDate,
-    savedAt: new Date().toISOString(),
-  };
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(payload));
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      profil: state.profil, preferences: state.preferences, plan: state.plan,
+      source: state.source, masquerCalories: state.masquerCalories,
+      portions: state.portions, favoris: state.favoris, exclus: state.exclus,
+      suivi: state.suivi, avance: state.avance,
+      savedAt: new Date().toISOString(),
+    }));
     $('#saveState').innerHTML = icSvg('check') + ' Plan sauvegarde';
   } catch (_) { /* quota / mode prive */ }
-  pushAccountSave(payload); // compte client -> copie serveur (suit l'utilisateur sur tous ses appareils)
-}
-
-// Sauvegarde serveur du compte client (anti-rebond : on regroupe les changements rapprochés).
-function pushAccountSave(payload) {
-  if (!window.__NUTRI_USER) return; // pas de compte (coach/démo) -> rien à pousser
-  clearTimeout(pushAccountSave._t);
-  pushAccountSave._t = setTimeout(() => {
-    fetch(apiUrl('/account/save'), {
-      method: 'POST',
-      headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ data: payload }),
-    }).catch(() => { /* hors-ligne : la copie locale suffit, resync au prochain enregistrement */ });
-  }, 1200);
 }
 
 function loadLocal() {
@@ -2027,12 +1379,6 @@ function loadLocal() {
     state.exclus = data.exclus || [];
     state.suivi = data.suivi || {};
     state.avance = data.avance || {};
-    state.pesees = data.pesees || [];
-    state.celebratedDays = data.celebratedDays || [];
-    state.weekDone = !!data.weekDone;
-    state.startDate = data.startDate || null;
-    state.complementsSuivis = data.complementsSuivis || (state.profil.complements || []).filter((c) => c && c !== 'non' && c !== 'aucun' && c !== 'autre');
-    state.suiviComp = data.suiviComp || {};
     state.plan = data.plan || null;
     return !!data.plan;
   } catch (_) { return false; }
@@ -2040,25 +1386,16 @@ function loadLocal() {
 
 // ---------- Generation + affichage resultat ----------
 async function generateAndShow(seed) {
-  // Animation premium ~10 s (revelation pas-a-pas) EN PARALLELE de la generation
-  // reelle : on n'affiche le plan qu'une fois les deux termines.
-  const reveal = runPlanReveal(10000);
+  showLoader('On prepare votre plan…');
   try {
-    await Promise.all([fetchPlan(seed), reveal]);
+    await fetchPlan(seed);
     postProcessExterieur();
-    // Nouveau plan = la semaine demarre AUJOURD'HUI : on (re)cale la date de
-    // demarrage sur ce jour, on renomme les jours et on ouvre sur aujourd'hui.
-    ancrerDemarragePlan(true);
     renderNeeds();
     renderPlan();
     saveLocal();
     showScreen('result');
-    showToast('Votre plan commence aujourd’hui — nous l’avons adapté à votre jour de démarrage.', { icon: 'calendar', duration: 4600 });
-  } catch (e) {
-    const detail = (e && e.message && !/^Erreur$/.test(e.message)) ? '\n(' + e.message + ')' : '';
-    alert('Desole, la generation a echoue. Reessayez dans un instant.' + detail);
-  }
-  finally { hidePlanLoader(); }
+  } catch (e) { alert('Desole, la generation a echoue. Reessayez dans un instant.'); }
+  finally { hideLoader(); }
 }
 
 // ---------- Badge mode (IA / demo) ----------
@@ -2076,9 +1413,6 @@ async function refreshModeBadge() {
 // ---------- Init ----------
 function init() {
   if (window.__NUTRI_BLOCKED) return; // accès refusé (gate app principale)
-  // Compte client : on attend le rafraîchissement serveur (token frais + dernières
-  // données du client) avant de démarrer, pour charger SON plan à jour.
-  if (window.__NUTRI_REFRESH) { const p = window.__NUTRI_REFRESH; window.__NUTRI_REFRESH = null; p.then(init); return; }
   setupDemoMode(); // bannière + actions si session démo
   initSelections();
   goToStep(1);
@@ -2128,19 +1462,6 @@ function init() {
   // Demande d'aide alimentaire (accompagnement coach)
   $('#btnHelp').addEventListener('click', openHelp);
   $('#btnHelpFromSuivi').addEventListener('click', () => { closeSuivi(); openHelp(); });
-
-  // SOS coach : bouton flottant + feuille
-  $('#sosFab').addEventListener('click', openSos);
-  $('#sosSend').addEventListener('click', submitSos);
-  $('#sosChips').addEventListener('click', (e) => {
-    const c = e.target.closest('.sos-chip'); if (c) c.classList.toggle('on');
-  });
-  $$('#sosSheet [data-sos-close]').forEach((b) => b.addEventListener('click', closeSos));
-
-  // Nouvelle navigation : barre basse + lignes de l'ecran Profil (delegue aux boutons existants)
-  setupProfilCoach();
-  $$('#bottom-nav .nav-i').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
-  $$('[data-go]').forEach((r) => r.addEventListener('click', () => { const t = $('#' + r.dataset.go); if (t) t.click(); }));
   $('#helpClose').addEventListener('click', closeHelp);
   $('#helpDoneClose').addEventListener('click', closeHelp);
   $('#helpPanel').addEventListener('click', (e) => { if (e.target.id === 'helpPanel') closeHelp(); });
@@ -2173,8 +1494,6 @@ function init() {
   $('#suiviPlanPanel').addEventListener('click', (e) => { if (e.target.id === 'suiviPlanPanel') closeSuiviPlan(); });
   $('#suiviPlanBody').addEventListener('click', onSuiviPlanClick);
   $('#suiviPlanBody').addEventListener('input', onSuiviPlanInput);
-  $('#peseeClose').addEventListener('click', closePesee);
-  $('#peseePanel').addEventListener('click', (e) => { if (e.target.id === 'peseePanel') closePesee(); });
   // Vue coach adherence
   $('#btnAdhAdmin').addEventListener('click', openAdhAdmin);
   $('#adhAdminClose').addEventListener('click', closeAdhAdmin);
@@ -2220,7 +1539,7 @@ function init() {
 
   $('#btnExportPlan').addEventListener('click', exportPlanPdf);
   $('#btnNewPlan').addEventListener('click', () => generateAndShow(Math.floor(Math.random() * 1e6) + 1));
-  $('#btnEditProfile').addEventListener('click', () => { prefillOnboarding(); showScreen('onboarding'); goToStep(1); });
+  $('#btnEditProfile').addEventListener('click', () => { showScreen('onboarding'); goToStep(1); });
 
   $('#portMinus').addEventListener('click', () => setPortions(state.portions - 1));
   $('#portPlus').addEventListener('click', () => setPortions(state.portions + 1));
@@ -2230,13 +1549,10 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); } });
 
   if (loadLocal()) {
     $('#portValue').textContent = state.portions;
-    // Reconnexion : on garde la date de demarrage (ne pas reinitialiser le plan),
-    // on recalcule juste ou en est l'utilisateur et on ouvre sur la journee du jour.
-    ancrerDemarragePlan(false);
     renderNeeds();
     renderPlan();
     $('#saveState').innerHTML = icSvg('check') + ' Plan restaure';
@@ -2312,66 +1628,6 @@ async function submitHelp() {
   } catch (e) {
     alert("Oups, l'envoi n'a pas fonctionne. Reessaie dans un instant.");
   } finally { btn.disabled = false; }
-}
-
-// ---------- SOS coach : bouton flottant + feuille (reutilise /api/help-request) ----------
-const SOS_DIFFICULTES = ['Manque de temps', 'Fringales', 'Budget', 'Repas dehors', 'Motivation'];
-function renderSosChips() {
-  $('#sosChips').innerHTML = SOS_DIFFICULTES.map((l) =>
-    `<button type="button" class="sos-chip" data-l="${l}">${l}</button>`).join('');
-}
-function openSos() {
-  renderSosChips();
-  $('#sosMessage').value = '';
-  $('#sosChips').classList.remove('hidden');
-  $('#sosMessage').classList.remove('hidden');
-  $('#sosSend').classList.remove('hidden');
-  $('#sosDone').classList.add('hidden');
-  $('#sosSheet').classList.remove('hidden');
-}
-function closeSos() { $('#sosSheet').classList.add('hidden'); }
-async function submitSos() {
-  const selected = $$('#sosChips .sos-chip.on').map((b) => b.dataset.l);
-  const message = $('#sosMessage').value.trim();
-  if (!selected.length && !message) { alert('Indique une difficulté ou un petit mot.'); return; }
-  const btn = $('#sosSend'); btn.disabled = true;
-  const showDone = () => {
-    $('#sosChips').classList.add('hidden');
-    $('#sosMessage').classList.add('hidden');
-    $('#sosSend').classList.add('hidden');
-    $('#sosDone').classList.remove('hidden');
-    btn.disabled = false;
-  };
-  if (isDemo()) { showDone(); return; } // démo : pas de vraie demande
-  try {
-    const res = await fetch(apiUrl('/api/help-request'), {
-      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ clientName: helpClientName(), difficultes: selected, message }),
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Erreur');
-    showDone();
-  } catch (e) {
-    alert("Oups, l'envoi n'a pas fonctionné. Réessaie dans un instant.");
-    btn.disabled = false;
-  }
-}
-
-// ---------- Navigation (barre basse mobile / sidebar desktop) ----------
-function setTab(tab) {
-  // Courses & Suivi ouvrent les panneaux existants (overlays) sans changer la vue de fond.
-  if (tab === 'complements') { $('#btnComplements').click(); return; }
-  if (tab === 'courses') { $('#btnShopping').click(); return; }
-  if (tab === 'suivi') { $('#btnSuiviPlan').click(); return; }
-  const screen = $('#screen-result');
-  if (screen) screen.setAttribute('data-tab', tab);
-  $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-  window.scrollTo(0, 0);
-}
-// Affiche l'« Espace coach » de l'ecran Profil uniquement pour coach/admin.
-function setupProfilCoach() {
-  if (!isCoachOrAdmin()) return;
-  $$('#view-profil .profil-coach').forEach((el) => el.classList.remove('hidden'));
 }
 
 // --- Vue coach : liste des demandes ---
@@ -2681,48 +1937,9 @@ async function lookupBarcode(code) {
   }
 }
 
-// Synonymes d'allergenes cote front : "arachide" coche doit exclure "cacahuete",
-// "fruits a coque" doit exclure "amande/noix/noisette", etc. Miroir (volontairement
-// large, on prefere sur-exclure que laisser passer) de la logique serveur.
-const ALLERG_SYNONYMES_FRONT = {
-  arachide: ['arachide', 'cacahuete', 'cacahouete', 'satay', 'peanut'],
-  'fruits a coque': ['fruits a coque', 'noix', 'amande', 'noisette', 'cajou', 'pistache', 'pignon', 'pecan', 'cerneau', 'macadamia'],
-  lactose: ['lactose', 'lait', 'fromage', 'yaourt', 'creme', 'beurre', 'skyr', 'mozzar', 'parmesan', 'feta', 'ricotta', 'mascarpone', 'emmental', 'gruyere', 'cheddar', 'chevre'],
-  gluten: ['gluten', 'ble', 'pain', 'pates', 'semoule', 'couscous', 'avoine', 'orge', 'seigle', 'epeautre', 'chapelure', 'biscotte', 'naan', 'pita', 'brioche'],
-  oeuf: ['oeuf', 'omelette', 'mayonnaise', 'meringue', 'frittata'],
-  poisson: ['poisson', 'saumon', 'thon', 'cabillaud', 'colin', 'merlu', 'truite', 'sardine', 'maquereau', 'hareng', 'anchois', 'surimi', 'dorade'],
-  crustaces: ['crustace', 'crevette', 'gambas', 'crabe', 'homard', 'langoustine', 'ecrevisse'],
-  soja: ['soja', 'tofu', 'edamame', 'miso', 'tamari', 'tempeh'],
-  sesame: ['sesame', 'tahin', 'houmous', 'gomasio'],
-};
-
-// Liste des mots a exclure pour l'utilisateur courant : allergies (etendues aux
-// synonymes/familles) + aliments detestes (mots bruts).
-function motsAllergenesInterdits() {
-  const out = new Set();
-  for (const a of (state.preferences.allergies || [])) {
-    const na = normTxt(a);
-    if (!na) continue;
-    out.add(na);
-    for (const [fam, syns] of Object.entries(ALLERG_SYNONYMES_FRONT)) {
-      const match = na.includes(normTxt(fam)) || normTxt(fam).includes(na)
-        || syns.some((s) => na.includes(normTxt(s)) || normTxt(s).includes(na));
-      if (match) syns.forEach((s) => out.add(normTxt(s)));
-    }
-  }
-  for (const d of (state.preferences.deteste || [])) { const nd = normTxt(d); if (nd) out.add(nd); }
-  return [...out].filter(Boolean);
-}
-
 function renderScanResult(p) {
   scanShowStage('result');
   const allerg = (p.allergens || []).filter(Boolean).slice(0, 6);
-  // Croisement avec les allergies de l'utilisateur : on signale clairement les conflits.
-  const interditsUser = motsAllergenesInterdits();
-  const conflits = (p.allergens || []).filter((a) => {
-    const na = normTxt(a);
-    return interditsUser.some((m) => m && (na.includes(m) || m.includes(na)));
-  });
   const ns = p.nutriscore && 'abcde'.includes(p.nutriscore)
     ? `<span class="nutriscore ns-${p.nutriscore}">Nutri-Score ${p.nutriscore.toUpperCase()}</span>` : '';
   const isFav = scanFavoris().some((f) => f.barcode === p.barcode);
@@ -2742,8 +1959,7 @@ function renderScanResult(p) {
       <strong>${p.coherence.titre}</strong>
       <p>${p.coherence.reco}</p>
     </div>
-    ${conflits.length ? `<div class="scan-warning" style="display:flex;gap:8px;align-items:flex-start;background:rgba(248,113,113,0.14);border:1px solid rgba(248,113,113,0.45);color:#F87171;border-radius:12px;padding:11px 14px;font-size:13.5px;font-weight:600;margin-bottom:10px;line-height:1.4;">⚠️ Contient un de tes allergenes : ${conflits.map(escapeHtml).join(', ')}. A eviter — demande a ton coach en cas de doute.</div>` : ''}
-    ${allerg.length ? `<div class="scan-allerg"><span class="scan-allerg-label">Allergenes</span> ${allerg.map((a) => { const danger = conflits.includes(a); return `<span class="help-tag"${danger ? ' style="background:rgba(248,113,113,0.18);color:#F87171;border:1px solid rgba(248,113,113,0.5);"' : ''}>${escapeHtml(a)}</span>`; }).join('')}</div>` : ''}
+    ${allerg.length ? `<div class="scan-allerg"><span class="scan-allerg-label">Allergenes</span> ${allerg.map((a) => `<span class="help-tag">${escapeHtml(a)}</span>`).join('')}</div>` : ''}
     <p class="help-disclaimer">Cette indication est une aide a la decision, pas un avis medical. En cas de doute, demande a ton coach ou a un professionnel de sante.</p>
     <label class="field" style="margin:2px 0 10px"><span>Un mot pour ton coach (optionnel)</span>
       <textarea id="scanCoachMsg" rows="2" placeholder="Ex : est-ce que je peux en prendre le matin ?"></textarea></label>
@@ -3115,34 +2331,12 @@ function axeAmelioration() {
 
 function openSuiviPlan() {
   if (!state.plan) { alert('Genere d\'abord ton plan de la semaine.'); return; }
-  // Le suivi s'ouvre toujours sur la journee actuelle (calculee depuis la date
-  // de demarrage du plan, et non sur une hypothese de depart le lundi).
-  suiviPlanDay = indexJourActuel();
+  const wd = (new Date().getDay() + 6) % 7;
+  suiviPlanDay = Math.min(wd, state.plan.jours.length - 1);
   $('#suiviPlanPanel').classList.remove('hidden');
   renderSuiviPlan();
 }
 function closeSuiviPlan() { $('#suiviPlanPanel').classList.add('hidden'); }
-
-// Ouvre le suivi/modification (panneau existant) directement sur un repas precis,
-// declenche par le bouton crayon "Modifier" d'une carte repas.
-function openSuiviForMeal(di, mi) {
-  if (!state.plan) { alert('Genere d\'abord ton plan de la semaine.'); return; }
-  suiviPlanDay = Math.min(Math.max(Number(di) || 0, 0), state.plan.jours.length - 1);
-  $('#suiviPlanPanel').classList.remove('hidden');
-  renderSuiviPlan();
-  // Scroll vers le repas concerne + surbrillance breve.
-  requestAnimationFrame(() => {
-    const body = $('#suiviPlanBody');
-    const meals = body ? body.querySelectorAll('.suivi-meal') : [];
-    const idx = dayMeals(suiviPlanDay).findIndex((m) => m.mi === mi);
-    const target = meals[idx >= 0 ? idx : 0];
-    if (target) {
-      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      target.classList.add('suivi-meal-focus');
-      setTimeout(() => target.classList.remove('suivi-meal-focus'), 1800);
-    }
-  });
-}
 
 function renderSuiviPlan() {
   const di = suiviPlanDay;
@@ -3191,12 +2385,12 @@ function renderSuiviPlan() {
 
   $('#suiviPlanBody').innerHTML = `
     <div class="week-strip">${strip}</div>
-    <h3 class="suivi-day-title">${escapeHtml(jours[di].jour || ('Jour ' + (di + 1)))}${(jourActuelDansPlan() && di === indexJourActuel()) ? '<span class="day-now">Jour en cours</span>' : ''}</h3>
+    <h3 class="suivi-day-title">${escapeHtml(jours[di].jour || ('Jour ' + (di + 1)))}</h3>
     ${meals || '<p class="help-empty">Aucun repas ce jour-la.</p>'}
     ${scoreCard}
     <button type="button" class="btn btn-primary btn-lg" data-act="save" style="width:100%"><svg class="ic"><use href="#ic-check-circle"/></svg> Enregistrer mon suivi</button>
     <div class="suivi-week"><h3><svg class="ic"><use href="#ic-trend"/></svg> Ma semaine nutrition</h3><p class="week-summary">${escapeHtml(weekTxt)}</p></div>
-    <button type="button" class="btn btn-outline is-soon" data-act="plate" style="width:100%;margin-top:10px"><svg class="ic"><use href="#ic-camera"/></svg> J'ai mange autre chose — analyser mon assiette<span class="soon-badge">Bientôt</span></button>
+    <button type="button" class="btn btn-outline" data-act="plate" style="width:100%;margin-top:10px"><svg class="ic"><use href="#ic-camera"/></svg> J'ai mange autre chose — analyser mon assiette</button>
     <button type="button" class="btn btn-outline" data-act="help" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide sur mon alimentation cette semaine</button>`;
 }
 function setSuiviPlanStatus(di, mi, statut) {
@@ -3296,22 +2490,7 @@ function plateMealLabel() {
 }
 function cohClass(n) { return n === 'coherent' ? 'compatible' : (n === 'reprendre' ? 'a_eviter' : 'moderation'); }
 
-// Petit toast premium (message bref auto-disparaissant en bas de l'ecran).
-function showToast(msg, opts) {
-  opts = opts || {};
-  let t = document.getElementById('mcToast');
-  if (!t) { t = document.createElement('div'); t.id = 'mcToast'; t.className = 'mc-toast'; document.body.appendChild(t); }
-  t.innerHTML = `<span class="mc-toast-ic">${icSvg(opts.icon || 'clock')}</span><span>${escapeHtml(msg)}</span>`;
-  t.classList.add('show');
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), opts.duration || 3400);
-}
-
 function openPlate() {
-  // Fonctionnalite "Analyser mon assiette" en cours de developpement : on informe
-  // l'utilisateur via un toast propre et on n'ouvre pas (encore) le module.
-  showToast('Cette fonctionnalité est en cours de développement et sera bientôt disponible.');
-  return;
   plateImage = null; plateThumb = null; plateBase = null; plateAdj = { portion: 'normale' }; platePrecisionUsed = '';
   $('#platePreview').classList.add('hidden'); $('#plateDropEmpty').classList.remove('hidden');
   $('#platePrecision').value = ''; $('#plateAnalyze').disabled = true; $('#plateFile').value = '';
@@ -3488,39 +2667,19 @@ function isMainAdmin() { const u = mainAppUser(); return !!u && u.role === 'admi
 function setupDemoMode() {
   if (!isDemo()) return;
   document.body.classList.add('is-demo');
-  // Le bandeau du bas est masque (CSS) pour une lecture plein ecran ; ses actions
-  // (Recommencer / Quitter) sont reprises dans l'ecran Profil > "Demonstration".
-  $$('#view-profil .profil-demo').forEach((el) => el.classList.remove('hidden'));
-  const isClient = !!window.__NUTRI_USER; // vrai compte client (vs simple démo coach)
+  const banner = $('#demoBanner'); if (banner) banner.classList.remove('hidden');
   const restart = $('#demoRestart');
-  if (restart) {
-    if (isClient) restart.textContent = 'Réinitialiser mon plan';
-    restart.addEventListener('click', () => {
-      const msg = isClient
-        ? 'Réinitialiser ton plan et refaire le questionnaire ? Tes réponses actuelles seront effacées.'
-        : 'Recommencer la demo depuis le debut ? Les donnees de demo seront effacees.';
-      if (!confirm(msg)) return;
-      try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(SCAN_FAV_KEY); } catch (_) { /* ignore */ }
-      // Compte client : on vide aussi la copie serveur pour repartir sur l'onboarding.
-      if (isClient) pushAccountSave({});
-      location.reload();
-    });
-  }
+  if (restart) restart.addEventListener('click', () => {
+    if (!confirm('Recommencer la demo depuis le debut ? Les donnees de demo seront effacees.')) return;
+    try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(SCAN_FAV_KEY); } catch (_) { /* ignore */ }
+    location.reload();
+  });
   const quit = $('#demoQuit');
-  if (quit) {
-    if (isClient) quit.textContent = 'Se déconnecter';
-    quit.addEventListener('click', () => {
-      if (!confirm(isClient ? 'Se déconnecter de ton espace ?' : 'Quitter le mode demo ?')) return;
-      try {
-        localStorage.removeItem('mc-nutri-demo');
-        if (window.__NUTRI_USER && window.__NUTRI_USER.email) {
-          localStorage.removeItem('mc-nutri-state-' + window.__NUTRI_USER.email);
-        }
-        localStorage.removeItem('mc-nutri-account');
-      } catch (_) { /* ignore */ }
-      location.reload();
-    });
-  }
+  if (quit) quit.addEventListener('click', () => {
+    if (!confirm('Quitter le mode demo ?')) return;
+    try { localStorage.removeItem('mc-nutri-demo'); } catch (_) { /* ignore */ }
+    location.reload();
+  });
   const ds = $('#demoStart');
   if (ds) ds.addEventListener('click', () => showScreen('landing'));
 }
@@ -3596,27 +2755,10 @@ function openAgenda() {
 function closeAgenda() { $('#agendaModal').classList.add('hidden'); }
 async function refreshAgenda() {
   let status = { configured: false, connected: false };
-  let fetchError = false;
-  try {
-    const r = await fetch(apiUrl('/api/google/status'), { headers: nutriAuthHeaders() });
-    const d = await r.json();
-    if (d && d.ok) status = d; else fetchError = true;
-  } catch (_) { fetchError = true; }
-  renderAgenda(status, { fetchError });
+  try { const r = await fetch(apiUrl('/api/google/status'), { headers: nutriAuthHeaders() }); const d = await r.json(); if (d.ok) status = d; } catch (_) { /* ignore */ }
+  renderAgenda(status);
 }
-function renderAgenda(status, opts) {
-  opts = opts || {};
-  // Erreur de verification du statut : on ne laisse jamais l'utilisateur sans retour.
-  if (opts.fetchError) {
-    $('#agendaBody').innerHTML = `
-      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Agenda</h2>
-      <p class="agenda-msg agenda-warn">Impossible de verifier l'etat de votre agenda pour le moment. Verifiez votre connexion, puis reessayez.</p>
-      <button type="button" class="btn btn-outline" id="agendaRetry" style="width:100%">Reessayer</button>
-      <button type="button" class="btn btn-ghost" id="agendaIcs" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-file"/></svg> Telecharger le fichier calendrier (.ics)</button>`;
-    $('#agendaRetry').addEventListener('click', () => { $('#agendaBody').innerHTML = '<div class="scan-loader"></div><p class="scan-loading-text">Verification de la connexion…</p>'; refreshAgenda(); });
-    $('#agendaIcs').addEventListener('click', () => { exportIcs(); $('#agendaIcs').innerHTML = 'Fichier telecharge ✓'; });
-    return;
-  }
+function renderAgenda(status) {
   const icsBtn = '<button type="button" class="btn btn-ghost" id="agendaIcs" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-file"/></svg> Telecharger le fichier calendrier (.ics)</button>';
   const privacy = '<p class="help-disclaimer">My Coach Nutrition utilise cette connexion uniquement pour ajouter tes repas a ton agenda.</p>';
   if (status.connected) {
@@ -3635,24 +2777,14 @@ function renderAgenda(status, opts) {
       ${icsBtn}`;
     $$('#agendaBody .agenda-sync').forEach((b) => b.addEventListener('click', () => syncAgenda(b.dataset.scope, b)));
     $('#agendaDisconnect').addEventListener('click', disconnectAgenda);
-  } else if (!status.configured) {
-    // Connexion directe pas encore activee cote serveur (identifiants Google absents).
-    // On n'affiche PAS de bouton "Connecter" inactif (un clic sans effet trouble
-    // l'utilisateur) : on met en avant le fichier .ics, qui fonctionne tout de suite.
-    $('#agendaBody').innerHTML = `
-      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter a mon agenda</h2>
-      <p class="panel-sub">Ajoute ton plan alimentaire a ton agenda en un clic.</p>
-      <p class="agenda-state"><span class="agenda-dot off"></span> La connexion directe Google Agenda n'est pas encore activee.</p>
-      <p class="agenda-msg agenda-warn">La connexion automatique a Google Agenda arrive bientot. En attendant, telecharge le fichier calendrier ci-dessous : il s'ajoute en un clic a Google Agenda, Apple Calendrier ou Outlook.</p>
-      <button type="button" class="btn btn-primary btn-lg" id="agendaIcs" style="width:100%"><svg class="ic"><use href="#ic-file"/></svg> Telecharger le fichier calendrier (.ics)</button>
-      ${privacy}`;
   } else {
+    const note = status.configured ? '' : '<p class="agenda-msg agenda-warn">La connexion Google Agenda n\'est pas encore configuree. Tu peux telecharger le fichier .ics en attendant.</p>';
     $('#agendaBody').innerHTML = `
       <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter a Google Agenda</h2>
       <p class="panel-sub">Ajoute ton plan alimentaire directement dans Google Agenda, sans telecharger de fichier.</p>
       <p class="agenda-state"><span class="agenda-dot off"></span> Ton Google Agenda n'est pas encore connecte.</p>
-      <button type="button" class="btn btn-primary btn-lg" id="agendaConnect" style="width:100%"><svg class="ic"><use href="#ic-calendar"/></svg> Connecter Google Agenda</button>
-      <p class="agenda-msg" id="agendaConnectMsg"></p>
+      <button type="button" class="btn btn-primary btn-lg" id="agendaConnect" style="width:100%" ${status.configured ? '' : 'disabled'}><svg class="ic"><use href="#ic-calendar"/></svg> Connecter Google Agenda</button>
+      ${note}
       ${privacy}
       ${icsBtn}`;
     const cb = $('#agendaConnect'); if (cb) cb.addEventListener('click', connectAgenda);
@@ -3660,40 +2792,21 @@ function renderAgenda(status, opts) {
   $('#agendaIcs').addEventListener('click', () => { exportIcs(); $('#agendaIcs').innerHTML = 'Fichier telecharge ✓'; });
 }
 async function connectAgenda() {
-  const btn = $('#agendaConnect');
-  const showErr = (t) => { const m = $('#agendaConnectMsg'); if (m) m.innerHTML = `<span class="agenda-warn">${escapeHtml(t)}</span>`; if (btn) btn.disabled = false; };
-  if (btn) btn.disabled = true;
-  const m0 = $('#agendaConnectMsg'); if (m0) m0.innerHTML = '';
-  // 1. Demande de l'URL d'autorisation au serveur.
-  let url = null, notConfigured = false;
-  try {
-    const r = await fetch(apiUrl('/api/google/connect'), { headers: nutriAuthHeaders() });
-    const d = await r.json();
-    if (d && d.ok && d.url) url = d.url;
-    else if (d && d.configured === false) notConfigured = true;
-  } catch (_) { /* reseau */ }
-  if (notConfigured) { refreshAgenda(); return; }
-  if (!url) { showErr("La connexion a votre agenda n'a pas abouti. Veuillez reessayer."); return; }
-  // 2. Ouverture de la fenetre d'autorisation Google (popup).
+  const btn = $('#agendaConnect'); if (btn) btn.disabled = true;
+  let url = null;
+  try { const r = await fetch(apiUrl('/api/google/connect'), { headers: nutriAuthHeaders() }); const d = await r.json(); if (d.ok && d.url) url = d.url; } catch (_) { /* ignore */ }
+  if (!url) { renderAgenda({ configured: false, connected: false }); return; }
   const popup = window.open(url, 'mcn-google', 'width=480,height=660');
-  if (!popup) { showErr('Veuillez autoriser les fenetres pop-up pour connecter votre agenda, puis reessayez.'); return; }
-  // 3. Attente du retour : message du callback OU fermeture de la fenetre.
   let done = false;
-  const finish = (ok) => {
-    if (done) return; done = true;
-    window.removeEventListener('message', onMsg); clearInterval(poll);
-    if (ok) { refreshAgenda(); showToast('Agenda connecte ✓', { icon: 'calendar' }); }
-    else { showErr('Autorisation refusee ou interrompue. Vous pouvez recommencer si vous souhaitez connecter votre agenda.'); }
-  };
+  const finish = (ok) => { if (done) return; done = true; window.removeEventListener('message', onMsg); clearInterval(poll); refreshAgenda(); };
   const onMsg = (e) => { if (e.data === 'mcn-google-connected') finish(true); else if (e.data === 'mcn-google-error') finish(false); };
   window.addEventListener('message', onMsg);
   const poll = setInterval(() => { if (popup && popup.closed) finish(false); }, 1000);
 }
 async function syncAgenda(scope, btn) {
   const old = btn.innerHTML; btn.disabled = true; const msg = $('#agendaSyncMsg'); msg.textContent = '';
-  // La synchro est REELLE des qu'un agenda est connecte (la connexion exige une
-  // vraie autorisation Google) : on appelle l'API meme en session demo.
-  msg.innerHTML = '<span class="agenda-msg">Ajout en cours…</span>';
+  const label = scope === 'jour' ? 'Le plan du jour a' : (scope === 'semaine' ? 'Ta semaine a' : 'Les rappels ont');
+  if (isDemo()) { msg.innerHTML = `<span class="agenda-success">✓ ${label} ete ajoute(s) a ton agenda (demo).</span>`; btn.disabled = false; btn.innerHTML = old; return; }
   try {
     const r = await fetch(apiUrl('/api/google/sync'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ scope, plan: state.plan, planId: planIdFor(state.plan), dinerTard: (state.preferences && state.preferences.dinerTard) === 'oui' }) });
     const d = await r.json();

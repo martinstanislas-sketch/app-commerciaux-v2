@@ -1,0 +1,223 @@
+const fs = require('fs');
+
+const beta = [
+  ["1",  "Cédric Demanze",         "Vieux Lille", "3,6 ans", "Perte de poids (à conf.)", "128 achats · formule à conf.",  "🟢"],
+  ["2",  "Thierry Delavalle",      "Vieux Lille", "3,4 ans", "Perte de poids (à conf.)", "164 achats · formule à conf.",  "🟢"],
+  ["3",  "Jacques Houssin",        "Vieux Lille", "2,9 ans", "Perte de poids (à conf.)", "127 achats · formule à conf.",  "🟢"],
+  ["4",  "Tom Gobart",             "Vieux Lille", "2,8 ans", "Perte de poids (à conf.)", "133 achats · Challenge 7 mois", "🟢"],
+  ["5",  "Claire Bontemps",        "Vieux Lille", "3,4 ans", "Perte de poids (à conf.)", "162 achats · formule à conf.",  "🟢"],
+  ["6",  "Claude Gardanne",        "Vieux Lille", "2,9 ans", "Perte de poids (à conf.)", "145 achats · Challenge 7 mois", "🟢"],
+  ["7",  "Aurélie Vermesse",       "Vieux Lille", "3,9 ans", "Perte de poids (à conf.)", "50 achats · formule à conf.",   "🟢"],
+  ["8",  "Yannick Skrzypacz",      "Vieux Lille", "2,9 ans", "Perte de poids (à conf.)", "145 achats · Challenge 4 mois", "🟢"],
+  ["9",  "Alexandre Mikolajczak",  "Vieux Lille", "3,9 ans", "Perte de poids (à conf.)", "50 achats · formule à conf.",   "🟡"],
+  ["10", "Mickaël Buffard",        "Vieux Lille", "1,6 an",  "Perte de poids (à conf.)", "82 achats · Challenge 7 mois",  "🟢"],
+];
+
+function tbl(headers, rows) {
+  let h = "<table><thead><tr>" + headers.map(x=>`<th>${x}</th>`).join("") + "</tr></thead><tbody>";
+  h += rows.map(r=>"<tr>"+r.map(c=>`<td>${c}</td>`).join("")+"</tr>").join("");
+  return h + "</tbody></table>";
+}
+
+const css = `
+:root{ --orange:#EA580C; --orange-dark:#C13F05; --alt:#FBEDE4; --note:#FFF4E6; }
+*{ box-sizing:border-box; }
+body{ font-family:'Helvetica Neue',Arial,sans-serif; color:#222; font-size:11pt; line-height:1.5; margin:0; }
+h1{ color:var(--orange); font-size:21pt; border-bottom:2px solid var(--orange); padding-bottom:5px; margin:26px 0 14px; page-break-after:avoid; }
+h2{ color:var(--orange-dark); font-size:15pt; margin:18px 0 9px; page-break-after:avoid; }
+h3{ color:#333; font-size:12.5pt; margin:14px 0 6px; page-break-after:avoid; }
+p{ margin:0 0 9px; }
+ul,ol{ margin:0 0 10px; padding-left:22px; }
+li{ margin:3px 0; }
+table{ border-collapse:collapse; width:100%; margin:10px 0 14px; font-size:9.5pt; page-break-inside:auto; }
+th,td{ border:1px solid #ccc; padding:6px 8px; vertical-align:top; text-align:left; }
+th{ background:var(--orange); color:#fff; font-weight:bold; }
+tbody tr:nth-child(even){ background:var(--alt); }
+.note{ background:var(--note); border:1px solid var(--orange); border-left:6px solid var(--orange); padding:10px 14px; margin:12px 0; border-radius:3px; }
+.muted{ color:#666; font-size:9pt; font-style:italic; }
+.lead{ font-style:italic; color:#555; }
+strong{ color:#111; }
+.cover{ text-align:center; height:9.2in; display:flex; flex-direction:column; justify-content:center; page-break-after:always; }
+.cover .brand{ color:var(--orange); font-weight:800; font-size:52pt; letter-spacing:2px; }
+.cover .sub{ font-size:18pt; font-weight:700; color:#333; margin-top:8px; }
+.cover .sub2{ font-size:14pt; color:#666; margin-top:14px; }
+.cover .tag{ font-size:11pt; color:#888; font-style:italic; margin-top:10px; }
+.cover .rule{ border-top:3px solid var(--orange); width:60%; margin:30px auto 0; padding-top:14px; font-size:9.5pt; color:#999; }
+.pb{ page-break-before:always; }
+@page{ size:Letter; margin:18mm 16mm 16mm; }
+`;
+
+const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>MyCoach — Méthode Hormozy</title><style>${css}</style></head><body>
+
+<div class="cover">
+  <div class="brand">MYCOACH</div>
+  <div class="sub">Méthode Hormozy — Architecture &amp; Déploiement</div>
+  <div class="sub2">Les 4 livrables clé en main</div>
+  <div class="tag">Document opérationnel — coachs &amp; studios</div>
+  <div class="rule">Architecture d'offres · Offre core (Défi 6 sem.) · Plan de délivrance · Lancement interne</div>
+</div>
+
+<h1>Le système en bref</h1>
+<p>Le marché du fitness s'est polarisé : low price (Basic Fit, Fitness Park) d'un côté, premium de l'autre. Le mid-market se fait écraser. La méthode Hormozy consiste à arrêter de courir après le volume de leads et à basculer sur la marge via une offre premium.</p>
+<p><strong>Inversion des priorités :</strong> Offre → Produit → Vente → Pub (et non l'inverse).</p>
+<p>La chaîne complète (les 4 livrables) :</p>
+<ol>
+<li>Livrable 1 — L'architecture d'offres : les 4 niveaux de la value ladder.</li>
+<li>Livrable 2 — Le descriptif complet de l'offre core (le Défi 6 semaines).</li>
+<li>Livrable 3 — Le plan de délivrance semaine par semaine, utilisable par les coachs.</li>
+<li>Livrable 4 — Le plan de lancement interne sur la base existante.</li>
+</ol>
+<div class="note"><strong>Règle de la chaîne de vélo :</strong> un seul maillon cassé (rappel trop lent, lead magnet faible, pas de filtrage, vente high-ticket non maîtrisée, suivi absent) et tout le système s'arrête. Il faut tout mettre en place, dans l'ordre.</div>
+
+<h1 class="pb">Livrable 1 — Architecture d'offres MyCoach</h1>
+<p>Quatre niveaux. On attire par le Défi (N1), on upsell immédiatement vers le Premium (N2), on maximise le cash en comptant (N3), et on garde un filet de secours jamais mis en avant (N4).</p>
+${tbl(["Niveau","Nom de l'offre","Rôle dans le système","Inclus","Prix"],[
+["<strong>N1 — Le Défi</strong>","« Métamorphose 42 » (-10% de masse grasse en 6 sem.)","Front-end / aimant. Remplace la séance d'essai. Crée l'opportunité de vente, filtre les touristes, encaisse cash d'avance. Tremplin vers le N2.","Bilan corporel entrée + sortie · 3 séances small group/sem · Nutrition pilotée (appli) · Accountability quotidienne · Communauté · Garantie résultat","497 € (déductible du N2)"],
+["<strong>N2 — Le Premium</strong>","« Programme Signature MyCoach »","Cœur de marge. Cible de l'upsell immédiat, puis relances S4 et S6.","Tout le N1 · Coaching small group personnalisé · Programmation individualisée · Nutrition pilotée par le coach · Bilans mensuels · Coach référent + events","297–320 €/mois (12 mois)"],
+["<strong>N3 — Le VIP comptant</strong>","« Pack Transformation Annuel VIP »","Maximisation trésorerie. Encaisser comptant (Client Financed Acquisition).","Tout le N2 sur 12 mois · Bonus séances individuelles · Suivi composition corporelle renforcé · Place event + goodies · Payé comptant","~3 200 € comptant"],
+["<strong>N4 — L'Essentiel</strong>","« Accès Essentiel »","Downsell / filet. Jamais présenté d'emblée. Sert d'ancrage. À garder seulement si rentable.","Accès séances collectives/plateau · Sans accompagnement perso · Sans nutrition · Sans accountability","49–69 €/mois (sortie)"],
+])}
+<h3>Comment ça s'enchaîne (le shift mental de la vente)</h3>
+<ol>
+<li>Le prospect vient pour le Défi (N1) → on vend ça.</li>
+<li>Au closing : « Ce défi, je peux te l'offrir : on le recrédite sur le Programme Signature, et je t'ajoute X. » → upsell N2.</li>
+<li>S'il dit oui au mensuel → on tente le comptant N3 (cash tout de suite).</li>
+<li>S'il bloque sur le premium → downsell vers le défi seul, puis re-tentatives S4 et S6.</li>
+<li>Vraiment rien ne passe → N4 en dernier recours (jamais en vitrine).</li>
+</ol>
+
+<h1 class="pb">Livrable 2 — Descriptif de l'offre core (Défi 6 semaines)</h1>
+<p>Le moteur du système : l'offre qui attire, filtre et finance l'acquisition. Construite sur les leviers Hormozy : résultat réel + certitude + rapidité + facilité, dépôt de confiance, scarcity.</p>
+<h3>Nom de l'offre</h3>
+<p><strong>« Métamorphose 42 — Le défi qui transforme ton corps en 6 semaines »</strong></p>
+<h3>Promesse principale (1 phrase)</h3>
+<div class="note"><strong>En 6 semaines, perds jusqu'à 10% de ta masse grasse — accompagné·e, nourri·e et suivi·e chaque jour — ou on te rembourse.</strong></div>
+<h3>Les 3 dimensions détaillées</h3>
+<p>Le prospect veut un résultat, pas un accès à une salle. On vend les 3 piliers qui produisent ce résultat :</p>
+${tbl(["Dimension","Ce que c'est","Pourquoi ça vend"],[
+["<strong>1. L'Entraînement encadré</strong>","3 séances/sem en small group, programmées et corrigées par un coach (fitness/fight), progressives.","Il a essayé seul et a échoué → ici il est pris en main, ça devient facile."],
+["<strong>2. La Nutrition pilotée</strong>","Plan personnalisé via appli : recettes selon ses goûts, liste de courses, macros/déficit calculés, ajusté par le coach.","« Si tu suis, c'est mathématique » → apporte la certitude du résultat."],
+["<strong>3. Accountability + Communauté</strong>","Photos repas + check-in quotidien, relance dès qu'il décroche, groupe de challengers qui s'encouragent.","On ne quitte pas une famille → c'est ce qui retient et fait venir."],
+])}
+<h3>Les inclus (liste complète)</h3>
+<ul>
+<li>Bilan corporel d'entrée et de sortie (masse grasse / musculaire / mensurations)</li>
+<li>3 séances coaching small group / semaine (18 séances au total)</li>
+<li>Accès appli nutrition personnalisée (recettes + liste de courses + macros)</li>
+<li>Suivi nutrition piloté par le coach</li>
+<li>Check-in quotidien + relances accountability (WhatsApp / appli)</li>
+<li>Accès au groupe communauté privé des challengers</li>
+<li>Photo avant / après + débrief des résultats en fin de défi</li>
+<li>Coach référent identifié pendant toute la durée</li>
+</ul>
+<h3>La garantie choisie</h3>
+<p><strong>Garantie résultat « satisfait ou remboursé » :</strong> si tu suis le protocole (présence aux séances + plan nutrition + check-ins) et que tu n'atteins pas ton objectif, on te rembourse intégralement.</p>
+<p class="lead">Renverse le risque sur le club, pas sur le client. Conditionnée au sérieux → filtre les touristes et protège juridiquement (conditions écrites au contrat → pas de publicité trompeuse).</p>
+<h3>Le dépôt de confiance (montant + conditions)</h3>
+<p><strong>Montant : 497 €</strong> encaissés à l'inscription.</p>
+<ul>
+<li>Objectif atteint + envie de continuer → recrédité à 100% sur le Programme Signature (N2) → le défi devient « gratuit ».</li>
+<li>Objectif atteint + veut s'arrêter → remboursé (≈ 20-30% des cas).</li>
+<li>Protocole non suivi → conservé (le client a choisi de ne pas jouer le jeu).</li>
+</ul>
+<h3>Les bonus (liste avec valeur perçue)</h3>
+<p class="muted">À annoncer « uniquement si tu signes aujourd'hui » (scarcity / urgence) :</p>
+${tbl(["Bonus","Valeur perçue"],[
+["Accès à vie à l'appli nutrition + bibliothèque de recettes","149 €"],
+["1 séance bilan individuelle avec le coach référent","80 €"],
+["Guide « Maintenir tes résultats après le défi » (PDF/vidéos)","49 €"],
+["Place pour le challenge inter-clubs de l'été","39 €"],
+["<strong>Valeur bonus totale</strong>","<strong>317 € offerts</strong>"],
+])}
+<h3>Prix et modalités de paiement</h3>
+<ul>
+<li>Prix affiché : 497 € (face à une valeur réelle &gt; 1 000 € avec les bonus).</li>
+<li>Comptant 497 € (CB / RIB sur place) → option mise en avant.</li>
+<li>Facilité 3 × 169 € sans frais (pour lever l'objection cash).</li>
+<li>Engagement : aucun au-delà des 6 semaines → la date de fin certaine est ce qui fait signer.</li>
+</ul>
+<div class="note"><strong>Point d'attention :</strong> le test précédent a échoué sur le prix (3 participants / 100 leads). Ici la valeur perçue (3 dimensions + bonus + garantie) est ce qui débloque ça. Le reste se joue sur le produit et la vente émotionnelle.</div>
+
+<h1 class="pb">Livrable 3 — Plan de délivrance semaine par semaine</h1>
+<p>Document opérationnel : chaque coach peut le suivre tel quel pour piloter un challenger de J-1 à S6. Objectif double = résultats (rétention + bouche-à-oreille) et conversion vers le Programme Signature (3 fenêtres d'upsell : J0, S4, S6).</p>
+<div class="note"><strong>Règle d'or :</strong> chaque point de contact où le challenger ne répond pas = relance dans les 24h. L'accountability, c'est le produit.</div>
+<h2>Onboarding (J-1 et J0)</h2>
+<h3>J-1 — Avant la 1re séance</h3>
+<ul>
+<li>Message de bienvenue perso (vocal &gt; texte) : « Hâte de te voir demain, voici ton créneau + ce qu'il faut prévoir ».</li>
+<li>Envoi accès appli nutrition + ajout au groupe communauté des challengers.</li>
+<li>Présentation publique dans le groupe : « On accueille [Prénom] qui démarre le défi 💪 ».</li>
+<li>Rappel J-1 du RDV bilan (réduit le no-show).</li>
+</ul>
+<h3>J0 — Bilan d'entrée + 1re séance</h3>
+<ul>
+<li>Bilan corporel complet (masse grasse / musculaire / mensurations / photo départ).</li>
+<li>Fixer l'objectif chiffré ensemble (ex. -X kg / -10% MG) → engagement écrit.</li>
+<li>Paramétrer le plan nutrition dans l'appli (goûts, contraintes).</li>
+<li>Expliquer le deal accountability : « Tu m'envoies tes repas en photo + check-in chaque jour, et je te relance si tu décroches — c'est pour ça que ça marche ».</li>
+<li>1re séance encadrée (qu'il/elle réussisse et reparte fier·e).</li>
+<li>Programmer dès maintenant les RDV S4 et S6 dans l'agenda.</li>
+</ul>
+<h2>S1 — Lancement &amp; habitudes</h2>
+<p><strong>Actions coach :</strong> corriger technique + ajuster intensité (réussite = motivation) ; valider la prise en main de l'appli nutrition.</p>
+<p><strong>Points de contact :</strong> 3 séances small group ; check-in quotidien (photos repas validées dans le groupe) ; 1 message de feedback en milieu de semaine ; relance immédiate à la moindre absence.</p>
+<h2>S2–S3 — Premiers résultats &amp; relances</h2>
+<p><strong>Actions coach :</strong> faire constater les 1ers résultats (énergie, vêtements, balance) → ancrer le « ça marche » ; ajuster nutrition ; mettre en avant un challenger qui progresse (preuve sociale).</p>
+<p><strong>Relances (cœur de la rétention) :</strong> repérer les décrocheurs → appel, pas SMS. Script : « Je n'ai pas vu ton repas hier, tout va bien ? On ne lâche pas, t'es exactement là où il faut être. » Réinscrire les absents au prochain créneau.</p>
+<h2>S4–S5 — Bilan intermédiaire + 1re conversation de continuation</h2>
+<p><strong>Actions coach :</strong> RDV bilan S4 (déjà calé à J0) : mesures + comparaison à l'objectif ; ajuster le plan pour la dernière ligne droite.</p>
+<p><strong>Conversation de continuation (1er upsell) :</strong> « T'as déjà perdu X. Il te reste 2 semaines. Mais le vrai changement, c'est sur la durée. Je peux te recréditer ton défi (497 €) sur le Programme Signature — du coup il te revient à 0, et je t'offre 2 mois. Mais c'est valable aujourd'hui. » Si oui → bascule N2 (et tenter le comptant N3). Si non → « On en reparle à la fin » + noter pour S6.</p>
+<h2>S6 — Bilan final + conversion</h2>
+<p><strong>Actions coach :</strong> bilan de sortie complet (mesures finales, photo après, comparatif avant/après) ; célébration publique dans le groupe + recueil témoignage (texte/vidéo → réutilisé en pub) ; statuer sur la garantie (remboursement OU recrédit).</p>
+<p><strong>Conversion (2e upsell — fenêtre décisive) :</strong> émotionnel d'abord (« Regarde d'où tu pars. Tu veux t'arrêter là ou aller au bout ? ») ; proposer le Programme Signature (défi recrédité = quasi offert s'il a réussi) ; tenter le comptant VIP (N3) ; refus premium → downsell vers l'Essentiel (N4), jamais avant ; refus total → garder dans le groupe communauté (reste chaud).</p>
+<h3>Récap des points de contact (à cocher par coach)</h3>
+${tbl(["Moment","Séances","Check-in quotidien","RDV / Appel clé","Upsell"],[
+["J-1 / J0","1re séance","démarrage","Bilan entrée","(semer)"],
+["S1","3","Oui","feedback mi-semaine","—"],
+["S2–3","6","Oui","relance décrocheurs","—"],
+["S4–5","6","Oui","Bilan S4","#1"],
+["S6","3","Oui","Bilan final","#2 + comptant"],
+])}
+
+<h1 class="pb">Livrable 4 — Plan de Lancement Interne (base existante)</h1>
+<p>Avant de dépenser 1 € en pub, on monétise la base chaude. Les membres actuels te connaissent déjà → ils signent plus vite, donnent du cash immédiat et les premiers témoignages avant/après (le carburant des futures pubs). Logique en 3 vagues à prix croissant = rareté réelle + urgence.</p>
+<h3>Liste des 10 meilleurs clients à contacter en Beta 1</h3>
+<p class="muted">Sélection issue de l'export adhérents (154 membres, My Coach Vieux Lille), classée par score : assiduité récente + ancienneté + engagement (nb de transactions), comptes gratuits/influenceurs et impayés écartés.</p>
+${tbl(["#","Prénom Nom","Studio","Ancienneté","Objectif","Engagement / Panier","Proba."], beta)}
+<p class="muted">À confirmer en RDV : l'objectif précis et le panier mensuel exact ne figurent pas dans l'export (déduits du programme suivi). « Achats » = nombre de transactions enregistrées, proxy d'engagement et d'ancienneté de consommation.</p>
+<h3>Pitch du Lancement Interne (3 phrases)</h3>
+<p class="lead">À envoyer en vocal/message perso, jamais en masse :</p>
+<ol>
+<li>« [Prénom], on lance un nouveau programme d'accompagnement premium — résultat garanti en 6 semaines, nutrition + coaching + suivi quotidien — et je pense direct à toi vu ton objectif. »</li>
+<li>« Comme tu fais partie de mes membres les plus fidèles, je t'offre la place fondateur : le meilleur tarif, qu'on ne refera jamais, avant l'ouverture au public. »</li>
+<li>« Il n'y a que 10 places à ce prix, je te réserve la tienne ? On en parle 10 min cette semaine. »</li>
+</ol>
+<h3>Prix des 3 vagues</h3>
+<p class="muted">(base : Programme Signature N2 = ~300 €/mois public)</p>
+${tbl(["Vague","Qui","Positionnement","Prix","Places"],[
+["<strong>Beta 1 — Fondateurs</strong>","Top 10 base chaude","Tarif « jamais revu », contre témoignage avant/après","197 €/mois (ou 1 997 € comptant/an)","10"],
+["<strong>Vague 2 — Pionniers</strong>","Reste de la base","Tarif de lancement","247 €/mois","15–20"],
+["<strong>Vague 3 — Public</strong>","Nouveaux (pub)","Tarif normal","297–320 €/mois","ouvert"],
+])}
+<p class="lead">Le prix monte à chaque vague → ceux qui hésitent voient le train partir (scarcity vraie). Les Fondateurs deviennent ambassadeurs et preuves sociales.</p>
+<h3>Objectif de CA (nombre de clients × prix)</h3>
+<p><strong>Hypothèse Beta 1 (à valider sur ta base) :</strong></p>
+${tbl(["Scénario","Clients signés","Prix","CA mensuel récurrent","CA annualisé"],[
+["Prudent","5 / 10","197 €","985 €/mois","11 820 €"],
+["Réaliste","7 / 10","197 €","1 379 €/mois","16 548 €"],
+["<strong>Si comptant</strong>","7 × 1 997 €","—","<strong>13 979 € cash immédiat</strong>","—"],
+])}
+<p><strong>En ajoutant la Vague 2</strong> (réaliste, 12 signés à 247 €) → +2 964 €/mois récurrent → base totale ≈ 4 300 €/mois de récurrent neuf, sans 1 € de pub.</p>
+<h3>Séquence d'exécution (7 jours)</h3>
+<ol>
+<li>J1 : sélectionner les 10 (critères ci-dessus).</li>
+<li>J2-3 : vocaux persos + caler les RDV.</li>
+<li>J4-6 : RDV de présentation (vente émotionnelle, closing).</li>
+<li>J7 : clôturer Beta 1, annoncer Vague 2 dans la communauté.</li>
+<li>Récolter témoignages avant/après → alimente la pub.</li>
+</ol>
+
+</body></html>`;
+
+fs.writeFileSync("MyCoach-Methode-Hormozy-4-Livrables.html", html);
+console.log("HTML écrit:", html.length, "chars");

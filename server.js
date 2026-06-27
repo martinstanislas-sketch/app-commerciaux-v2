@@ -178,6 +178,14 @@ function ensureNutritionHelpTable() {
       calendar_name TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS nutrition_clients (
+      email TEXT PRIMARY KEY,
+      prenom TEXT NOT NULL DEFAULT '',
+      nom TEXT NOT NULL DEFAULT '',
+      data TEXT,
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
   `);
   // Seed config démo (une seule ligne).
   getDb().prepare("INSERT OR IGNORE INTO nutrition_demo (id, code, enabled) VALUES (1, '2026', 1)").run();
@@ -485,6 +493,59 @@ try {
     } catch (e) {
       console.error('Erreur demo/start :', e);
       res.status(500).json({ ok: false, reason: 'error' });
+    }
+  });
+
+  // --- Comptes clients (inscription simple : email + prenom + nom) ---
+  // PUBLIC : cree OU identifie un client et ouvre une session "usage nutrition"
+  // (meme niveau d'acces que la demo -> reutilise toute la plomberie cliente).
+  // Pas de mot de passe : identification simple, comme demande.
+  app.post('/nutrition/account/login', (req, res) => {
+    try {
+      const email = String((req.body || {}).email || '').trim().toLowerCase().slice(0, 160);
+      const prenom = String((req.body || {}).prenom || '').trim().slice(0, 80);
+      const nom = String((req.body || {}).nom || '').trim().slice(0, 80);
+      if (!email || email.indexOf('@') < 1 || !prenom || !nom) {
+        return res.status(400).json({ ok: false, error: 'Email, prénom et nom requis.' });
+      }
+      const now = new Date().toISOString();
+      const row = getDb().prepare('SELECT * FROM nutrition_clients WHERE email = ?').get(email);
+      let data = null, isNew = true;
+      if (row) {
+        getDb().prepare('UPDATE nutrition_clients SET prenom = ?, nom = ?, updated_at = ? WHERE email = ?').run(prenom, nom, now, email);
+        try { data = row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
+        isNew = !data; // "nouveau" = pas encore de plan/profil enregistre -> onboarding
+      } else {
+        getDb().prepare('INSERT INTO nutrition_clients (email, prenom, nom, data, created_at, updated_at) VALUES (?,?,?,?,?,?)').run(email, prenom, nom, null, now, now);
+      }
+      const token = crypto.randomUUID();
+      const until = Date.now() + 30 * 24 * 3600 * 1000; // session 30 jours
+      sessions.set(token, { role: 'nutrition_demo', name: prenom, demo: true, client: true, email });
+      res.json({ ok: true, isNew, token, until, prenom, nom, data });
+    } catch (e) {
+      console.error('Erreur /nutrition/account/login :', e);
+      res.status(500).json({ ok: false, error: 'Connexion impossible.' });
+    }
+  });
+
+  // Sauvegarde des donnees du client connecte (profil + plan + suivi).
+  // Protege par le token de session client (requireAuth).
+  app.post('/nutrition/account/save', requireAuth, (req, res) => {
+    try {
+      const email = req.session && req.session.email;
+      if (!email || !req.session.client) return res.status(403).json({ ok: false, error: 'Session client requise.' });
+      let dataStr = '';
+      try { dataStr = JSON.stringify((req.body || {}).data || {}); } catch (_) { return res.status(400).json({ ok: false, error: 'Données invalides.' }); }
+      if (dataStr.length > 2000000) return res.status(413).json({ ok: false, error: 'Trop volumineux.' });
+      const now = new Date().toISOString();
+      const upd = getDb().prepare('UPDATE nutrition_clients SET data = ?, updated_at = ? WHERE email = ?').run(dataStr, now, email);
+      if (!upd.changes) {
+        getDb().prepare('INSERT OR IGNORE INTO nutrition_clients (email, prenom, nom, data, created_at, updated_at) VALUES (?,?,?,?,?,?)').run(email, req.session.name || '', '', dataStr, now, now);
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('Erreur /nutrition/account/save :', e);
+      res.status(500).json({ ok: false, error: 'Sauvegarde impossible.' });
     }
   });
 
