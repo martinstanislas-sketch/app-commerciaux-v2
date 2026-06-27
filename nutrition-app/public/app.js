@@ -1941,6 +1941,56 @@ function mangeAssezPoisson(prefs) {
 }
 
 // Renvoie { resume, reco:[{cle,nom,priorite,role,dejaPris}], alertes:[] }.
+// Genere une explication 100% personnalisee pour un complement, a partir des
+// donnees reelles du profil (objectif, proteines visees, activite, regime,
+// signaux, complement deja dans le plan). Ton coach : rassurant, pedagogique,
+// jamais medical ni commercial. c = contexte calcule dans recommanderComplements.
+function complementExplication(cle, c) {
+  const prot = c.prot;
+  const obj = {
+    perte: 'perdre du poids', challenge: 'une perte accélérée tout en préservant vos muscles',
+    muscle: 'développer votre masse musculaire', energie: 'retrouver de l\'énergie au quotidien',
+    maintien: 'maintenir votre forme',
+  }[c.objectif] || 'votre objectif';
+  const dietNote = c.vegan ? ' Avec une alimentation vegan, atteindre ce total demande un peu d\'organisation.'
+    : (c.vegetarien ? ' Avec une alimentation végétarienne, les sources concentrées de protéines sont moins nombreuses.' : '');
+  const suivi = (typeof estComplementSuivi === 'function' && estComplementSuivi(cle)) || (c.pris && c.pris.has(cle));
+  let t;
+  switch (cle) {
+    case 'proteines':
+      t = `Votre objectif est de ${obj}${prot ? `, avec un besoin d'environ ${prot} g de protéines par jour` : ''}. Atteindre cette quantité par l'alimentation seule peut être exigeant${c.objectif === 'muscle' || c.objectif === 'challenge' ? ', surtout les jours d\'entraînement' : ''}.${dietNote} Une protéine en poudre vous aide à compléter facilement vos apports, notamment après l'entraînement ou en collation.`;
+      if (!c.actif && c.objectif !== 'muscle') t += ' Si vos repas couvrent déjà ce total, gardez-la simplement en dépannage.';
+      break;
+    case 'creatine':
+      t = c.actif
+        ? `Vous vous entraînez régulièrement avec un objectif de ${obj}. La créatine est l'un des compléments les plus étudiés : elle peut soutenir votre force, vos performances et une progression plus régulière.${c.poids ? ` Pour ${c.poids} kg, environ 3 g par jour suffisent.` : ''}`
+        : `La créatine est l'un des compléments les plus étudiés pour la force et la performance. Elle devient vraiment pertinente dès que vous vous entraînez régulièrement — à garder en tête si vous augmentez votre activité.`;
+      break;
+    case 'magnesium':
+      t = `Votre rythme est ${c.activiteLabel}.${c.stressFatigue ? ' Vous avez signalé du stress, de la fatigue ou un sommeil difficile :' : ' Si vous ressentez fatigue, crampes ou récupération difficile,'} un apport en magnésium peut soutenir le fonctionnement musculaire et nerveux et favoriser une meilleure récupération.`;
+      break;
+    case 'omega3':
+      t = `${c.poissonOk ? 'Pour compléter vos apports en bons acides gras,' : 'Vous semblez manger peu de poisson gras :'} les oméga-3 soutiennent l'équilibre cardiovasculaire et la récupération. 1 à 2 portions de poisson gras par semaine restent l'idéal ; un complément prend le relais sinon.`;
+      break;
+    case 'vitamineD':
+      t = `Selon la saison et votre exposition au soleil, la vitamine D est souvent un peu basse en hiver. Un apport peut soutenir vos os, vos muscles et votre tonus${c.objectif === 'energie' ? ', utile pour votre objectif d\'énergie' : ''}.`;
+      break;
+    case 'fibres':
+      t = `${c.faimGrignote ? 'Vous avez signalé de la faim ou des grignotages :' : `Dans un objectif de ${obj},`} les fibres aident à se sentir rassasié plus longtemps et soutiennent le transit — un vrai plus pour tenir vos repas sans frustration.`;
+      break;
+    case 'electrolytes':
+      t = `Avec des séances intenses ou longues, vous perdez des minéraux en transpirant. Les électrolytes aident à rester bien hydraté et à limiter les coups de fatigue à l'effort.`;
+      break;
+    case 'vitamines': case 'multivitamines':
+      t = `Un multivitamines sert de filet de sécurité si votre alimentation est parfois déséquilibrée${c.vegan ? ', ce qui peut arriver avec une alimentation vegan' : ''}. Rien d'indispensable si vos repas sont variés, mais cela rassure les semaines chargées.`;
+      break;
+    default:
+      t = COMPLEMENT_ROLES[cle] ? ('Ce complément ' + COMPLEMENT_ROLES[cle]) : 'Peut être un complément utile selon vos besoins.';
+  }
+  if (suivi) t += ' C\'est déjà dans votre plan : cette recommandation est donc déjà appliquée.';
+  return t;
+}
+
 function recommanderComplements(profil, prefs) {
   const objectif = profil.objectif || 'maintien';
   const prisRaw = (profil.complements || []).filter((c) => c && c !== 'non' && c !== 'aucun');
@@ -1951,11 +2001,27 @@ function recommanderComplements(profil, prefs) {
   const etat = new Set(prefs.etat || []);
   const stressFatigue = etat.has('stress') || etat.has('fatigue') || etat.has('sommeil');
   const faimGrignote = !!(prefs.faimSoir || prefs.grignote);
+  // Contexte pour generer des explications 100% personnalisees (proteines visees,
+  // regime, activite...). Besoins issus du plan ; sinon estimation depuis le poids.
+  const besoins = (state.plan && state.plan.besoins) || null;
+  const protPerKg = objectif === 'muscle' ? 2.0 : (objectif === 'perte' || objectif === 'challenge') ? 1.8 : 1.4;
+  const prot = (besoins && besoins.macros && besoins.macros.proteines)
+    ? Math.round(besoins.macros.proteines)
+    : (profil.poids_kg ? Math.round(profil.poids_kg * protPerKg) : null);
+  const regime = (prefs.regime || []).map((x) => normTxt(x));
+  const vegan = regime.includes('vegan');
+  const activiteLabel = { sedentaire: 'plutôt calme', leger: 'légèrement actif', modere: 'modéré', actif: 'soutenu', tres_actif: 'très soutenu' }[profil.activite] || 'actif';
+  const ctx = {
+    objectif, prot, kcal: besoins ? besoins.kcalCible : null, vegan, vegetarien: vegan || regime.includes('vegetarien'),
+    poids: profil.poids_kg, age: profil.age, sexe: profil.sexe, activiteLabel, actif, stressFatigue, faimGrignote, poissonOk, pris,
+  };
   const reco = [];
   const alertes = [];
-  const add = (cle, priorite, roleExtra) => reco.push({
+  // role = explication dynamique personnalisee (le 3e argument est ignore : conserve
+  // pour la lisibilite du contexte de chaque recommandation).
+  const add = (cle, priorite) => reco.push({
     cle, nom: COMPLEMENT_LABELS[cle] || cle, priorite,
-    role: (roleExtra ? roleExtra + ' ' : '') + (COMPLEMENT_ROLES[cle] || ''),
+    role: complementExplication(cle, ctx),
     dejaPris: pris.has(cle),
   });
 
