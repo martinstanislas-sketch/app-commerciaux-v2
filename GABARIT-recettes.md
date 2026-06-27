@@ -17,9 +17,9 @@ Objectif du lot : **70 petits-déjeuners + 60 collations + 200 plats = 330 recet
 | 3 | `categorie` | 🟠 | **petit-déj** : `bol` · `tartine` · `oeufs` · `pancake-porridge` · `emporter` · `smoothie`  •  **collation** : `fruits-laitiers` · `oleagineux` · `proteinees` · `tartines` · `smoothies` · `emporter`  •  **plat** : laisser vide | PD + collation |
 | 4 | `gout` | 🟠 | `sucre` · `sale` | PD + collation |
 | 5 | `cuisines` | 🟠 | `francaise` · `italienne` · `mediterraneenne` · `asiatique` · **origine réelle du monde** : `indienne` `mexicaine` `orientale` `americaine` `anglaise`… (plusieurs possibles, séparées par virgule) — **ne pas écrire « monde »** | plat |
-| 6 | `regime` | 🟢 | `vegan` `vegetarien` `sans-gluten` `sans-porc` (virgule ; vide si aucun) | tous |
+| 6 | `regime` | 🔴 | `vegan` `vegetarien` `sans-gluten` `sans-porc` (virgule ; vide si aucun) — **déclarer TOUS les régimes réellement respectés** (cf. règle critique) | tous |
 | 7 | `budget` | 🟠 | `eco` · `normal` | tous |
-| 8 | `allergenes` | 🟢 | `gluten` `lactose` `oeuf` `fruits-a-coque` `arachide` `poisson` `crustaces` `mollusques` `soja` `sesame` (virgule ; vide si aucun) — *détecté auto via ingrédients, c'est un filet de sécurité* | tous |
+| 8 | `allergenes` | 🟠 | clés EXACTES : `gluten` `lactose` `oeuf` `fruits-a-coque` `arachide` `poisson` `crustaces` `mollusques` `soja` `sesame` (virgule ; vide si aucun). **Pas `lait` → `lactose` ; pas `arachides` → `arachide`.** *Auto-détecté aussi via ingrédients (filet de sécurité).* | tous |
 | 9 | `kcal` | 🔴 | nombre entier (par **1 portion**) | tous |
 | 10 | `proteines` | 🔴 | grammes (entier) | tous |
 | 11 | `glucides` | 🔴 | grammes (entier) | tous |
@@ -30,6 +30,18 @@ Objectif du lot : **70 petits-déjeuners + 60 collations + 200 plats = 330 recet
 | 16 | `etapes` | 🟢 | étapes séparées par ` \| ` (vide → générées par l'IA) | tous |
 
 🔴 obligatoire · 🟠 fortement recommandé · 🟢 optionnel (je complète sinon)
+
+> ### ⚠️ Règle CRITIQUE — `regime`
+> Le moteur **exige le tag déclaré** : il ne devine PAS le régime depuis les
+> ingrédients. Une recette sans le bon tag est **invisible** pour ce profil.
+> → Déclare **tous** les régimes que la recette respecte vraiment :
+> - Pas de viande/poisson → **`vegetarien`**
+> - Ni viande/poisson, ni produit animal (œuf, lait, fromage, miel) → **`vegan`** *(implique aussi `vegetarien`)*
+> - Pas de porc/charcuterie → **`sans-porc`**
+> - Aucun gluten (ni blé, pâtes, pain, muesli, céréales, semoule, boulgour…) → **`sans-gluten`**
+>
+> Exemple — un bol skyr + banane + muesli : `["vegetarien", "sans-porc"]`
+> *(pas vegan = laitage/miel ; pas sans-gluten = muesli).*
 
 > **Le plus important : colonnes 9-12 (kcal + protéines/glucides/lipides) et 15
 > (ingrédients chiffrés).** Sans ça, impossible d'adapter aux 4 objectifs, de dire

@@ -39,6 +39,15 @@ function familiesFromUserAllergies(allergies) {
   for (const a of allergies || []) {
     const na = norm(a);
     if (!na) continue;
+    // 1. Correspondance EXACTE avec une cle de famille canonique (valeurs du
+    //    questionnaire : "fruits-a-coque", "lactose", "gluten"...). Prioritaire
+    //    pour eviter qu'un substring trop permissif ne devie vers la mauvaise
+    //    famille (ex. "fruits-a-COQUE" matchait "coque" -> mollusques).
+    if (Object.prototype.hasOwnProperty.call(SYNONYMES_ALLERGENES, na)) {
+      familles.add(na);
+      continue;
+    }
+    // 2. Sinon, correspondance par synonymes (saisie libre : "kiwi", "moutarde"...).
     for (const [famille, mots] of Object.entries(SYNONYMES_ALLERGENES)) {
       if (mots.some((m) => na.includes(norm(m)) || norm(m).includes(na))) {
         familles.add(famille);
