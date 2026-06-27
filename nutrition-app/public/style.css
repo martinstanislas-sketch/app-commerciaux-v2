@@ -551,6 +551,47 @@ body.app-shell .fullscreen-toggle { display: none; }
 .prio-utile { background: rgba(47,123,255,0.18); color: #A9C9FF; }
 .prio-optionnel { background: var(--gray-100); color: var(--muted); }
 .comp-role { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+/* Phrase de rappel (prudence, non medical) */
+.comp-rappel { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 0 14px; padding: 11px 14px; border-radius: 12px; background: var(--gray-50); border: 1px solid var(--gray-200); }
+/* Moment de prise + actions dans la fiche complement */
+.comp-moment { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--green-700); margin-top: 9px; }
+.comp-moment .ic { width: 14px; height: 14px; color: var(--green-700); }
+.comp-item.is-suivi { border-color: var(--green-100); box-shadow: 0 0 0 1px var(--green-100), var(--shadow-xs); }
+.comp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 12px; }
+.comp-add { display: inline-flex; align-items: center; gap: 7px; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  padding: 9px 15px; border-radius: 11px; border: 1px solid var(--green-100); background: var(--green-50); color: var(--green-700); transition: all 0.16s var(--ease); }
+.comp-add .ic { width: 15px; height: 15px; }
+.comp-add:hover { background: var(--green-100); }
+.comp-add.is-on { background: var(--green); border-color: var(--green); color: #fff; box-shadow: var(--shadow-green); }
+.comp-shop { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; text-decoration: none;
+  padding: 9px 15px; border-radius: 11px; border: 1px solid var(--gray-200); background: var(--card); color: var(--ink-2); transition: all 0.16s var(--ease); }
+.comp-shop .ic { width: 15px; height: 15px; }
+.comp-shop:hover { border-color: var(--green-100); color: var(--green-700); }
+/* "Dans votre plan" : chips des complements suivis */
+.comp-suivis { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.comp-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--green-50); border: 1px solid var(--green-100); border-radius: var(--pill); padding: 7px 7px 7px 13px; }
+.comp-chip strong { font-size: 13px; font-weight: 700; color: var(--green-700); }
+.comp-chip em { font-size: 11.5px; font-style: normal; color: var(--muted); }
+.comp-chip-x { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: none; cursor: pointer; background: rgba(255,255,255,0.06); color: var(--muted); transition: all 0.16s var(--ease); }
+.comp-chip-x .ic { width: 13px; height: 13px; }
+.comp-chip-x:hover { background: rgba(248,113,113,0.18); color: var(--error); }
+
+/* Bloc "Complements du jour" dans le plan */
+.day-comps { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--gray-200); display: grid; gap: 9px; }
+.day-comps-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; color: var(--green-700); }
+.day-comps-title .ic { width: 16px; height: 16px; }
+.comp-day { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer; font-family: inherit;
+  padding: 11px 13px; border-radius: 13px; border: 1px solid var(--gray-200); background: var(--card); transition: all 0.16s var(--ease); }
+.comp-day:hover { border-color: var(--green-100); }
+.comp-day-check { flex: none; width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; border: 2px solid var(--gray-300); color: #fff; }
+.comp-day-check .ic { width: 15px; height: 15px; }
+.comp-day-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.comp-day-txt strong { font-size: 14px; font-weight: 700; color: var(--ink); }
+.comp-day-txt span { font-size: 12px; color: var(--muted); }
+.comp-day-state { flex: none; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.comp-day.is-pris { border-color: rgba(52,211,153,0.45); background: rgba(52,211,153,0.08); }
+.comp-day.is-pris .comp-day-check { background: var(--success); border-color: var(--success); }
+.comp-day.is-pris .comp-day-state { color: var(--success); }
 
 /* Analyse des ecarts */
 .ana-block { border-radius: var(--r); padding: 18px; margin-bottom: 14px; border: 1px solid transparent; }

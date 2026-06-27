@@ -43,6 +43,8 @@ const state = {
   avance: {}, // analyse avancee niveau 2 (faim, grignotage, sport, etat...)
   celebratedDays: [], // index des jours deja felicites (une seule fois par jour/plan)
   weekDone: false, // recap de semaine deja affiche pour ce plan
+  complementsSuivis: [], // cles des complements ajoutes au plan (suivi quotidien)
+  suiviComp: {}, // "di-cle" -> true : complement pris ce jour-la
   startDate: null, // date "YYYY-MM-DD" du 1er affichage = jour 0 du plan
 };
 
@@ -388,6 +390,10 @@ function collectProfile() {
   state.suivi = {};
   state.celebratedDays = [];
   state.weekDone = false;
+  // Complements suivis = ce que l'utilisateur a declare prendre (questionnaire).
+  // Il pourra en ajouter/retirer depuis la section Complements.
+  state.complementsSuivis = (state.profil.complements || []).filter((c) => c && c !== 'non' && c !== 'aucun' && c !== 'autre');
+  state.suiviComp = {};
 }
 
 // Fusionne favoris/exclus dans les preferences envoyees au serveur.
@@ -613,9 +619,26 @@ function renderPlan() {
     row.className = 'meals-row meals-n' + jour.repas.length; // colonnes nettes selon le nombre de repas
     jour.repas.forEach((repas, mi) => row.appendChild(renderMealCard(repas, di, mi)));
     card.appendChild(row);
+    // Bloc "Complements du jour" : meme liste chaque jour, suivi (pris/non) par jour.
+    const comps = complementsActifs();
+    if (comps.length) {
+      const cb = document.createElement('div');
+      cb.className = 'day-comps';
+      cb.innerHTML = `<div class="day-comps-title">${icSvg('pill')} Compléments du jour</div>` +
+        comps.map((c) => {
+          const pris = !!state.suiviComp[di + '-' + c.cle];
+          return `<button type="button" class="comp-day${pris ? ' is-pris' : ''}" data-comp-di="${di}" data-comp-cle="${c.cle}">
+            <span class="comp-day-check">${pris ? icSvg('check') : ''}</span>
+            <span class="comp-day-txt"><strong>${escapeHtml(c.nom)}</strong><span>${escapeHtml(c.moment)}</span></span>
+            <span class="comp-day-state">${pris ? 'Pris ✓' : 'À prendre'}</span>
+          </button>`;
+        }).join('');
+      card.appendChild(cb);
+    }
     grid.appendChild(card);
   });
   $$('.day-regen').forEach((b) => b.addEventListener('click', () => regenerateDay(Number(b.dataset.day))));
+  $$('#planGrid .comp-day').forEach((b) => b.addEventListener('click', () => toggleComplementPris(Number(b.dataset.compDi), b.dataset.compCle)));
   $$('#planGrid .day-pill').forEach((p) => p.addEventListener('click', () => setDay(Number(p.dataset.dayPill))));
   setupPlanSwipe();
 }
@@ -1405,7 +1428,7 @@ function exportShoppingPdf() {
 }
 
 // ---------- Ma fiche (E1 + E6 : recap perso) ----------
-const COMPLEMENT_LABELS = { non: 'Aucun', aucun: 'Aucun', proteines: 'Proteines', creatine: 'Creatine', vitamines: 'Vitamines / mineraux', multivitamines: 'Vitamines / mineraux', omega3: 'Omega 3', magnesium: 'Magnesium', bruleur: 'Bruleur de graisse', collagene: 'Collagene', preworkout: 'Pre-workout', autre: 'Autre' };
+const COMPLEMENT_LABELS = { non: 'Aucun', aucun: 'Aucun', proteines: 'Proteines', creatine: 'Creatine', vitamines: 'Vitamines / mineraux', multivitamines: 'Vitamines / mineraux', omega3: 'Omega 3', magnesium: 'Magnesium', fibres: 'Fibres', electrolytes: 'Electrolytes', vitamineD: 'Vitamine D', bruleur: 'Bruleur de graisse', collagene: 'Collagene', preworkout: 'Pre-workout', autre: 'Autre' };
 
 // Lien boutique (Biloba Nutrition) par complement recommande : un clic -> la fiche produit.
 // On NE met PAS de lien pour le bruleur (deconseille) ni les fibres (pas de produit dedie).
@@ -1687,8 +1710,45 @@ const COMPLEMENT_ROLES = {
   vitamines: 'filet de securite si votre alimentation est parfois desequilibree.',
   vitamineD: 'souvent un peu basse en hiver ou avec peu d\'exposition au soleil.',
   fibres: 'aident a la satiete et au transit.',
+  electrolytes: 'utiles pour s\'hydrater lors d\'efforts longs ou par forte chaleur.',
   bruleur: 'effet tres limite : ce n\'est pas un levier prioritaire.',
 };
+// Moment de prise suggere (general, non medical) — affiche dans "Complements du jour".
+const COMPLEMENT_MOMENT = {
+  proteines: 'après l\'entraînement ou en collation',
+  creatine: 'chaque jour, au même moment',
+  magnesium: 'le soir',
+  omega3: 'pendant un repas',
+  fibres: 'avant un repas, avec un grand verre d\'eau',
+  vitamines: 'le matin, au petit-déjeuner',
+  vitamineD: 'le matin, au repas',
+  electrolytes: 'pendant ou après l\'effort',
+};
+function complementMoment(cle) { return COMPLEMENT_MOMENT[cle] || 'selon recommandation'; }
+// Liste des complements que l'utilisateur suit (a integrer au plan quotidien).
+function complementsActifs() {
+  const seen = new Set();
+  return (state.complementsSuivis || [])
+    .filter((c) => c && c !== 'non' && c !== 'aucun' && c !== 'autre' && !seen.has(c) && seen.add(c))
+    .map((cle) => ({ cle, nom: COMPLEMENT_LABELS[cle] || cle, moment: complementMoment(cle) }));
+}
+function estComplementSuivi(cle) { return (state.complementsSuivis || []).includes(cle); }
+// Ajoute / retire un complement du plan (bouton "Ajouter a mon plan" / "Retirer").
+function toggleComplementSuivi(cle) {
+  state.complementsSuivis = state.complementsSuivis || [];
+  const i = state.complementsSuivis.indexOf(cle);
+  if (i >= 0) state.complementsSuivis.splice(i, 1); else state.complementsSuivis.push(cle);
+  saveLocal();
+  renderComplements();
+  if (state.plan) renderPlan(); // met a jour le bloc "Complements du jour"
+}
+// Coche / decoche un complement comme pris pour un jour donne (suivi quotidien).
+function toggleComplementPris(di, cle) {
+  const key = di + '-' + cle;
+  if (state.suiviComp[key]) delete state.suiviComp[key]; else state.suiviComp[key] = true;
+  saveLocal();
+  renderPlan();
+}
 
 function mangeAssezPoisson(prefs) {
   const txt = [...(prefs.frequents || []), ...(prefs.aimes || []), ...Object.values(prefs.habitudes || {})].join(' ').toLowerCase();
@@ -1714,10 +1774,12 @@ function recommanderComplements(profil, prefs) {
     dejaPris: pris.has(cle),
   });
 
-  if (objectif === 'perte') {
-    add('proteines', 'utile', 'En perte de poids, surtout si vos apports sont justes :');
-    add('fibres', faimGrignote ? 'utile' : 'optionnel', faimGrignote ? 'Vous avez signale de la faim / des grignotages :' : 'Si vous avez souvent faim :');
-    add('magnesium', stressFatigue ? 'utile' : 'optionnel', stressFatigue ? 'Vous avez signale du stress, de la fatigue ou un sommeil difficile :' : 'Si vous vous sentez stresse, fatigue ou dormez mal :');
+  if (objectif === 'perte' || objectif === 'challenge') {
+    const intense = objectif === 'challenge';
+    add('proteines', 'utile', intense ? 'En perte acceleree, pour proteger vos muscles et tenir la satiete :' : 'En perte de poids, surtout si vos apports sont justes :');
+    add('fibres', (faimGrignote || intense) ? 'utile' : 'optionnel', faimGrignote ? 'Vous avez signale de la faim / des grignotages :' : 'Pour la satiete et le transit :');
+    add('magnesium', (stressFatigue || intense) ? 'utile' : 'optionnel', stressFatigue ? 'Vous avez signale du stress, de la fatigue ou un sommeil difficile :' : 'Si vous vous sentez stresse, fatigue ou dormez mal :');
+    if (intense && actif) add('electrolytes', 'optionnel', 'Si vous transpirez beaucoup a l\'effort :');
   } else if (objectif === 'muscle') {
     add('proteines', 'utile', 'A privilegier seulement si l\'alimentation ne couvre pas vos besoins :');
     add('creatine', actif ? 'utile' : 'optionnel', 'Si vous vous entrainez regulierement :');
@@ -1760,27 +1822,37 @@ function renderComplements() {
   const alertes = data.alertes.map((a) => `<div class="comp-alert">${icSvg('spark')} ${escapeHtml(a)}</div>`).join('');
   const reco = data.reco.map((r) => {
     const handle = COMPLEMENT_SHOP[r.cle];
+    const suivi = estComplementSuivi(r.cle);
     const shopBtn = handle
-      ? `<a class="comp-shop" href="${SHOP_BASE}${handle}${SHOP_UTM}" target="_blank" rel="noopener noreferrer"
-           style="display:inline-flex;align-items:center;gap:7px;margin-top:11px;background:var(--green);color:#fff;font-size:13px;font-weight:700;padding:9px 15px;border-radius:11px;text-decoration:none;box-shadow:var(--shadow-green);">
-           ${icSvg('cart')} Voir le produit</a>`
+      ? `<a class="comp-shop" href="${SHOP_BASE}${handle}${SHOP_UTM}" target="_blank" rel="noopener noreferrer">${icSvg('cart')} Voir le produit</a>`
       : '';
+    const actionBtn = `<button type="button" class="comp-add${suivi ? ' is-on' : ''}" data-comp-toggle="${r.cle}">${icSvg(suivi ? 'check' : 'plus')} ${suivi ? 'Dans mon plan' : 'Ajouter à mon plan'}</button>`;
     return `
-    <div class="comp-item">
+    <div class="comp-item${suivi ? ' is-suivi' : ''}">
       <div class="comp-item-head">
-        <span class="comp-name">${escapeHtml(r.nom)}${r.dejaPris ? ' <span class="comp-deja">deja pris</span>' : ''}</span>
+        <span class="comp-name">${escapeHtml(r.nom)}${r.dejaPris ? ' <span class="comp-deja">déjà pris</span>' : ''}</span>
         <span class="comp-prio prio-${r.priorite}">${PRIORITE_LABEL[r.priorite] || r.priorite}</span>
       </div>
       <div class="comp-role">${escapeHtml(r.role)}</div>
-      ${shopBtn}
+      <div class="comp-moment">${icSvg('clock')} Quand : ${escapeHtml(complementMoment(r.cle))}</div>
+      <div class="comp-actions">${actionBtn}${shopBtn}</div>
     </div>`;
   }).join('');
+  // Section "Vos complements suivis" : tout ce qui est dans le plan, meme hors reco.
+  const actifs = complementsActifs();
+  const suivisBlock = actifs.length ? `
+    <div class="recipe-section-title">Dans votre plan</div>
+    <div class="comp-suivis">${actifs.map((c) =>
+      `<span class="comp-chip"><strong>${escapeHtml(c.nom)}</strong><em>${escapeHtml(c.moment)}</em><button type="button" class="comp-chip-x" data-comp-toggle="${c.cle}" aria-label="Retirer">${icSvg('x')}</button></span>`).join('')}</div>` : '';
   $('#complementsBody').innerHTML = `
+    <p class="comp-rappel">Les compléments peuvent être une aide complémentaire. Ils ne remplacent pas une alimentation équilibrée ni l'avis d'un professionnel de santé.</p>
     <div class="comp-resume">${escapeHtml(data.resume)}</div>
-    ${alertes ? `<div class="recipe-section-title">A noter</div>${alertes}` : ''}
+    ${suivisBlock}
+    ${alertes ? `<div class="recipe-section-title">À noter</div>${alertes}` : ''}
     <div class="recipe-section-title">Recommandation selon votre objectif</div>
     ${reco}
-    <p class="panel-sub" style="margin-top:16px">Informations generales, non medicales : elles ne remplacent pas l'avis d'un professionnel de sante. Les complements sont une aide secondaire, jamais la base du resultat.</p>`;
+    <p class="panel-sub" style="margin-top:16px">Informations générales, non médicales. Les compléments sont une aide secondaire, jamais la base du résultat. Ajoutez-en à votre plan pour les retrouver chaque jour et suivre leur prise.</p>`;
+  $$('#complementsBody [data-comp-toggle]').forEach((b) => b.addEventListener('click', () => toggleComplementSuivi(b.dataset.compToggle)));
 }
 
 // ---------- Export agenda (.ics) (E3) ----------
@@ -1832,6 +1904,7 @@ function saveLocal() {
       portions: state.portions, favoris: state.favoris, exclus: state.exclus,
       suivi: state.suivi, avance: state.avance, pesees: state.pesees,
       celebratedDays: state.celebratedDays, weekDone: state.weekDone,
+      complementsSuivis: state.complementsSuivis, suiviComp: state.suiviComp,
       startDate: state.startDate,
       savedAt: new Date().toISOString(),
     }));
@@ -1857,6 +1930,8 @@ function loadLocal() {
     state.celebratedDays = data.celebratedDays || [];
     state.weekDone = !!data.weekDone;
     state.startDate = data.startDate || null;
+    state.complementsSuivis = data.complementsSuivis || (state.profil.complements || []).filter((c) => c && c !== 'non' && c !== 'aucun' && c !== 'autre');
+    state.suiviComp = data.suiviComp || {};
     state.plan = data.plan || null;
     return !!data.plan;
   } catch (_) { return false; }
