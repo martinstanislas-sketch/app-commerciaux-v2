@@ -1580,6 +1580,14 @@ const COMPLEMENT_SHOP = {
   collagene: 'collagene-marin-sauvage',
   preworkout: 'abe-ultimate-pre-workout-375g',
 };
+// Visuel produit par complement. Par defaut on tente une image LOCALE
+// (public/images/complements/<cle>.jpg) ; sinon, renseignez ici l'URL exacte de
+// l'image officielle Biloba (ex. CDN Shopify). A defaut -> fallback elegant.
+const COMPLEMENT_IMG = {
+  // proteines: 'https://bilobanutrition.fr/cdn/shop/products/xxxx.jpg',
+  // creatine: '...', magnesium: '...', omega3: '...', vitamineD: '...',
+};
+function complementImgSrc(cle) { return COMPLEMENT_IMG[cle] || `images/complements/${cle}.jpg`; }
 
 // ---------- Option produit boutique sur les creneaux "collation" ----------
 // 1 produit MAX par moment de collation, presente comme alternative PRATIQUE
@@ -2004,15 +2012,25 @@ function renderComplements() {
       ? `<a class="comp-shop" href="${SHOP_BASE}${handle}${SHOP_UTM}" target="_blank" rel="noopener noreferrer">${icSvg('cart')} Voir le produit</a>`
       : '';
     const actionBtn = `<button type="button" class="comp-add${suivi ? ' is-on' : ''}" data-comp-toggle="${r.cle}">${icSvg(suivi ? 'check' : 'plus')} ${suivi ? 'Dans mon plan' : 'Ajouter à mon plan'}</button>`;
+    // Vignette produit : cliquable -> fiche produit si dispo. Fallback elegant
+    // (degrade + icone) si pas d'image. onerror retire l'img -> le fallback apparait.
+    const shopUrl = handle ? `${SHOP_BASE}${handle}${SHOP_UTM}` : '';
+    const thumbInner = `<span class="comp-thumb-fallback">${icSvg('pill')}</span><img src="${complementImgSrc(r.cle)}" alt="${escapeHtml(r.nom)}" loading="lazy" onload="this.classList.add('loaded')" onerror="this.remove()" />`;
+    const thumb = shopUrl
+      ? `<a class="comp-thumb" href="${shopUrl}" target="_blank" rel="noopener noreferrer" aria-label="Voir ${escapeHtml(r.nom)}">${thumbInner}</a>`
+      : `<div class="comp-thumb">${thumbInner}</div>`;
     return `
     <div class="comp-item${suivi ? ' is-suivi' : ''}">
-      <div class="comp-item-head">
-        <span class="comp-name">${escapeHtml(r.nom)}${r.dejaPris ? ' <span class="comp-deja">déjà pris</span>' : ''}</span>
-        <span class="comp-prio prio-${r.priorite}">${PRIORITE_LABEL[r.priorite] || r.priorite}</span>
+      ${thumb}
+      <div class="comp-main">
+        <div class="comp-item-head">
+          <span class="comp-name">${escapeHtml(r.nom)}${r.dejaPris ? ' <span class="comp-deja">déjà pris</span>' : ''}</span>
+          <span class="comp-prio prio-${r.priorite}">${PRIORITE_LABEL[r.priorite] || r.priorite}</span>
+        </div>
+        <div class="comp-role">${escapeHtml(r.role)}</div>
+        <div class="comp-moment">${icSvg('clock')} Quand : ${escapeHtml(complementMoment(r.cle))}</div>
+        <div class="comp-actions">${actionBtn}${shopBtn}</div>
       </div>
-      <div class="comp-role">${escapeHtml(r.role)}</div>
-      <div class="comp-moment">${icSvg('clock')} Quand : ${escapeHtml(complementMoment(r.cle))}</div>
-      <div class="comp-actions">${actionBtn}${shopBtn}</div>
     </div>`;
   }).join('');
   // Section "Vos complements suivis" : tout ce qui est dans le plan, meme hors reco.
