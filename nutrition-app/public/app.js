@@ -215,6 +215,35 @@ function showLoader(text) {
 }
 function hideLoader() { $('#loader').classList.add('hidden'); }
 
+// Loader premium : revele le plan etape par etape (coches progressives) sur
+// ~10 s. Renvoie une promesse resolue a la fin de l'animation. La generation
+// reelle tourne en parallele (instantanee en mode demo).
+function runPlanReveal(durationMs) {
+  durationMs = durationMs || 10000;
+  const loader = $('#planLoader');
+  const steps = Array.prototype.slice.call(loader.querySelectorAll('.pl-step'));
+  const bar = loader.querySelector('.pl-bar > i');
+  steps.forEach((s) => s.classList.remove('active', 'done'));
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  loader.classList.remove('hidden');
+  loader.setAttribute('aria-hidden', 'false');
+  void loader.offsetWidth; // reflow pour relancer la transition de la barre
+  bar.style.transition = 'width ' + durationMs + 'ms linear';
+  bar.style.width = '100%';
+  const per = durationMs / steps.length;
+  steps.forEach((s, i) => {
+    setTimeout(() => s.classList.add('active'), Math.round(i * per) + 60);
+    setTimeout(() => { s.classList.remove('active'); s.classList.add('done'); }, Math.max(0, Math.round((i + 1) * per) - 220));
+  });
+  return new Promise((resolve) => setTimeout(resolve, durationMs));
+}
+function hidePlanLoader() {
+  const loader = $('#planLoader');
+  loader.classList.add('hidden');
+  loader.setAttribute('aria-hidden', 'true');
+}
+
 // ---------- Onboarding : selections ----------
 function initSelections() {
   $$('.choice-grid').forEach((grid) => {
@@ -1614,9 +1643,11 @@ function loadLocal() {
 
 // ---------- Generation + affichage resultat ----------
 async function generateAndShow(seed) {
-  showLoader('On prepare votre plan…');
+  // Animation premium ~10 s (revelation pas-a-pas) EN PARALLELE de la generation
+  // reelle : on n'affiche le plan qu'une fois les deux termines.
+  const reveal = runPlanReveal(10000);
   try {
-    await fetchPlan(seed);
+    await Promise.all([fetchPlan(seed), reveal]);
     postProcessExterieur();
     renderNeeds();
     renderPlan();
@@ -1626,7 +1657,7 @@ async function generateAndShow(seed) {
     const detail = (e && e.message && !/^Erreur$/.test(e.message)) ? '\n(' + e.message + ')' : '';
     alert('Desole, la generation a echoue. Reessayez dans un instant.' + detail);
   }
-  finally { hideLoader(); }
+  finally { hidePlanLoader(); }
 }
 
 // ---------- Badge mode (IA / demo) ----------
