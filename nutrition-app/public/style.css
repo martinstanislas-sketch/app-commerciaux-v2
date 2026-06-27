@@ -152,14 +152,7 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .btn-outline:hover { background: var(--green-50); }
 
 /* ---------- Landing / Hero ---------- */
-.hero { text-align: center; padding: 48px 12px 28px; max-width: 720px; margin: 0 auto; }
-.hero-eyebrow {
-  display: inline-flex; align-items: center; gap: 7px;
-  background: var(--green-50); color: var(--green-700);
-  font-size: 13px; font-weight: 700; padding: 7px 14px; border-radius: var(--pill);
-  border: 1px solid var(--green-100); margin-bottom: 22px;
-}
-.hero-eyebrow .ic { width: 15px; height: 15px; }
+.hero { text-align: center; padding: 30px 12px 28px; max-width: 720px; margin: 0 auto; }
 .hero h1 { font-size: clamp(32px, 7vw, 44px); margin-bottom: 18px; }
 .hero-sub { font-size: 18px; color: var(--muted); margin: 0 auto 28px; max-width: 560px; line-height: 1.6; }
 .hero-sub strong { color: var(--ink-2); font-weight: 700; }
@@ -608,7 +601,6 @@ body.app-shell .fullscreen-toggle { display: none; }
 
   /* Accueil (hero) compact */
   .hero { padding: 14px 10px 8px; }
-  .hero-eyebrow { margin-bottom: 12px; }
   .hero h1 { font-size: clamp(26px, 8vw, 34px); margin-bottom: 10px; }
   .hero-sub { font-size: 14.5px; margin-bottom: 14px; line-height: 1.45; }
   .hero-points { margin: 12px auto 10px; gap: 8px; }
@@ -1155,11 +1147,13 @@ body.is-demo { padding-bottom: 54px; }
 @media (max-width: 640px) { .choice-grid-3 { grid-template-columns: 1fr 1fr 1fr; } }
 
 /* ---------- Lecture plein ecran (masque topbar + bandeau demo) ---------- */
+/* Bouton "lecture plein ecran" retire de l'interface (element parasite). */
 .fullscreen-toggle {
+  display: none;
   position: fixed; top: 12px; right: 12px; z-index: 45;
   width: 40px; height: 40px; border-radius: 50%;
   background: var(--card); border: 1px solid var(--gray-200); color: var(--ink-2);
-  display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow-sm);
+  place-items: center; cursor: pointer; box-shadow: var(--shadow-sm);
   transition: background 0.18s var(--ease), color 0.18s var(--ease), border-color 0.18s var(--ease);
 }
 .fullscreen-toggle:hover { background: var(--green-50); color: var(--green-700); border-color: var(--green-100); }
