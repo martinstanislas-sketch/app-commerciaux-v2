@@ -41,6 +41,8 @@ const state = {
   suivi: {}, // adherence : cle "di-mi" -> { statut, autre:{repas,quantite,commentaire} }
   ia: false, // Claude actif ? (recettes guidees dynamiques) - renseigne par /api/status
   avance: {}, // analyse avancee niveau 2 (faim, grignotage, sport, etat...)
+  celebratedDays: [], // index des jours deja felicites (une seule fois par jour/plan)
+  weekDone: false, // recap de semaine deja affiche pour ce plan
 };
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -367,8 +369,10 @@ function collectProfile() {
       boissons: (fd.get('hab_boissons') || '').trim(),
     },
   };
-  // Nouveau profil = nouveau suivi.
+  // Nouveau profil = nouveau suivi (et felicitations remises a zero).
   state.suivi = {};
+  state.celebratedDays = [];
+  state.weekDone = false;
 }
 
 // Fusionne favoris/exclus dans les preferences envoyees au serveur.
@@ -656,6 +660,117 @@ function setMealStatus(di, mi, statut) {
   else { state.suivi[key] = { ...cur, statut }; }
   saveLocal();
   renderPlan();
+  // Felicitations si cette action vient de completer la journee (tous "respecte").
+  if (statut === 'respecte') checkDayCompletion(di);
+}
+
+// ---------- Valorisation : journee complete + recap de semaine ----------
+// Une journee est "validee" quand TOUS ses repas (ayant une recette) sont
+// marques "respecte". Les creneaux sans recette sont ignores.
+function dayIsComplete(di) {
+  const jour = state.plan && state.plan.jours && state.plan.jours[di];
+  if (!jour || !Array.isArray(jour.repas)) return false;
+  const reels = jour.repas.filter((rp) => rp && rp.recette);
+  if (!reels.length) return false;
+  return jour.repas.every((rp, mi) => {
+    if (!rp || !rp.recette) return true;
+    const s = state.suivi[trackKey(di, mi)];
+    return s && s.statut === 'respecte';
+  });
+}
+
+// Appele apres chaque passage d'un repas en "respecte" : si la journee vient
+// d'etre completee (et n'a pas deja ete felicitee), on celebre une seule fois.
+function checkDayCompletion(di) {
+  if (!dayIsComplete(di)) return;
+  if (state.celebratedDays.includes(di)) return;
+  state.celebratedDays.push(di);
+  const total = state.plan.jours.length;
+  const doneDays = state.plan.jours.reduce((n, _, i) => n + (dayIsComplete(i) ? 1 : 0), 0);
+  const semaineComplete = doneDays >= total && total >= 1 && !state.weekDone;
+  if (semaineComplete) state.weekDone = true;
+  saveLocal();
+  celebrateDay(di, { doneDays, total, lastOfWeek: semaineComplete });
+}
+
+const DAY_MESSAGES = [
+  'Bravo, journée validée !',
+  'Belle régularité aujourd\'hui.',
+  'Objectif du jour atteint.',
+  'Super, vous avancez dans la bonne direction.',
+  'Journée complète validée, continuez comme ça.',
+];
+
+// Overlay premium et sobre : coche animee + halo + confettis discrets.
+function celebrateDay(di, info) {
+  info = info || {};
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const msg = DAY_MESSAGES[di % DAY_MESSAGES.length];
+  const done = info.doneDays || 1;
+  const total = info.total || 7;
+  const prog = `${done} jour${done > 1 ? 's' : ''} sur ${total} validé${done > 1 ? 's' : ''} cette semaine`;
+  const sub = info.lastOfWeek
+    ? 'Semaine complète — un instant, on vous prépare le résumé…'
+    : 'La régularité se construit jour après jour. Continuez !';
+  const confetti = reduceMotion ? '' :
+    Array.from({ length: 16 }, (_, i) => `<i class="dc-cf dc-cf-${i % 4}" style="left:${(i * 6 + 3) % 100}%;animation-delay:${(i % 6) * 70}ms"></i>`).join('');
+  const ov = document.createElement('div');
+  ov.className = 'day-celebrate';
+  ov.innerHTML = `
+    <div class="dc-confetti" aria-hidden="true">${confetti}</div>
+    <div class="dc-card" role="status">
+      <div class="dc-badge">
+        <svg class="dc-check" viewBox="0 0 52 52" aria-hidden="true"><circle class="dc-circle" cx="26" cy="26" r="23"/><path class="dc-tick" d="M15 27l7.5 7.5L38 19"/></svg>
+      </div>
+      <h3 class="dc-title">${escapeHtml(msg)}</h3>
+      <p class="dc-prog">${escapeHtml(prog)}</p>
+      <p class="dc-sub">${escapeHtml(sub)}</p>
+      <button class="dc-btn" type="button">Continuer</button>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add('show'));
+  const close = () => {
+    if (ov._closed) return; ov._closed = true;
+    clearTimeout(ov._timer);
+    ov.classList.remove('show');
+    setTimeout(() => { ov.remove(); if (info.lastOfWeek) showWeekRecap(info); }, 320);
+  };
+  ov.querySelector('.dc-btn').addEventListener('click', close);
+  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+  ov._timer = setTimeout(close, info.lastOfWeek ? 2600 : 4600);
+}
+
+// Recap simple, positif et non technique apres une semaine complete validee.
+function showWeekRecap(info) {
+  info = info || {};
+  const total = info.total || 7;
+  const lignes = [
+    `${total} jours sur ${total} validés`,
+    'Excellente régularité cette semaine',
+    'Vous avez bien suivi votre plan sur l\'ensemble de la semaine',
+    'Votre constance est votre meilleur levier de progression',
+  ];
+  const items = lignes.map((l) => `<li><span class="wr-ic">${icSvg('check')}</span><span>${escapeHtml(l)}</span></li>`).join('');
+  const ov = document.createElement('div');
+  ov.className = 'week-recap';
+  ov.innerHTML = `
+    <div class="wr-card" role="dialog" aria-label="Récapitulatif de la semaine">
+      <div class="wr-badge">${icSvg('star')}</div>
+      <h3 class="wr-title">Votre semaine est validée</h3>
+      <p class="wr-sub">Voici un résumé simple de votre régularité cette semaine.</p>
+      <ul class="wr-list">${items}</ul>
+      <div class="wr-tip"><span class="wr-ic">${icSvg('flame')}</span><span>Continuez sur ce rythme et gardez des repas simples à préparer.</span></div>
+      <button class="wr-btn" type="button">Continuer</button>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add('show'));
+  const close = () => {
+    if (ov._closed) return; ov._closed = true;
+    ov.classList.remove('show');
+    setTimeout(() => ov.remove(), 320);
+  };
+  ov.querySelector('.wr-btn').addEventListener('click', close);
+  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
 }
 
 function openAutreForm(di, mi) {
@@ -1624,6 +1739,7 @@ function saveLocal() {
       source: state.source, masquerCalories: state.masquerCalories,
       portions: state.portions, favoris: state.favoris, exclus: state.exclus,
       suivi: state.suivi, avance: state.avance, pesees: state.pesees,
+      celebratedDays: state.celebratedDays, weekDone: state.weekDone,
       savedAt: new Date().toISOString(),
     }));
     $('#saveState').innerHTML = icSvg('check') + ' Plan sauvegarde';
@@ -1645,6 +1761,8 @@ function loadLocal() {
     state.suivi = data.suivi || {};
     state.avance = data.avance || {};
     state.pesees = data.pesees || [];
+    state.celebratedDays = data.celebratedDays || [];
+    state.weekDone = !!data.weekDone;
     state.plan = data.plan || null;
     return !!data.plan;
   } catch (_) { return false; }

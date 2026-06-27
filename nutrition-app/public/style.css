@@ -598,6 +598,86 @@ body.app-shell .fullscreen-toggle { display: none; }
   .pl-step.active .pl-status { animation: none; }
 }
 
+/* ---------- Valorisation : journee validee + recap de semaine ---------- */
+.day-celebrate, .week-recap {
+  position: fixed; inset: 0; z-index: 130; display: grid; place-items: center; padding: 24px;
+  background: radial-gradient(120% 90% at 50% 0%, rgba(30,90,168,0.30), rgba(0,0,0,0) 55%), rgba(6,9,13,0.72);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  opacity: 0; pointer-events: none; transition: opacity 0.3s var(--ease);
+}
+.day-celebrate.show, .week-recap.show { opacity: 1; pointer-events: auto; }
+
+/* Carte de felicitations (journee) */
+.dc-card {
+  position: relative; z-index: 2; width: 100%; max-width: 360px; text-align: center;
+  padding: 30px 26px 24px; border-radius: var(--r-xl);
+  background: linear-gradient(180deg, #1b222e 0%, #141a23 100%);
+  border: 1px solid rgba(255,255,255,0.09); box-shadow: var(--shadow-md);
+  transform: translateY(14px) scale(0.96); opacity: 0; transition: transform 0.42s var(--ease), opacity 0.42s var(--ease);
+}
+.day-celebrate.show .dc-card { transform: none; opacity: 1; }
+.dc-badge { width: 96px; height: 96px; margin: 0 auto 18px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 40%, rgba(52,211,153,0.22), rgba(52,211,153,0) 70%); }
+.dc-check { width: 84px; height: 84px; }
+.dc-circle { fill: none; stroke: var(--success); stroke-width: 2.5; opacity: 0.45;
+  stroke-dasharray: 145; stroke-dashoffset: 145; }
+.dc-tick { fill: none; stroke: var(--success); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 40; stroke-dashoffset: 40; }
+.day-celebrate.show .dc-circle { animation: dcCircle 0.5s var(--ease) 0.1s forwards; }
+.day-celebrate.show .dc-tick { animation: dcTick 0.4s var(--ease) 0.45s forwards; }
+@keyframes dcCircle { to { stroke-dashoffset: 0; opacity: 0.6; } }
+@keyframes dcTick { to { stroke-dashoffset: 0; } }
+.dc-title { color: #fff; font-size: 21px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 8px; }
+.dc-prog { color: var(--gold); font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+.dc-sub { color: rgba(255,255,255,0.6); font-size: 13.5px; line-height: 1.45; margin: 0 0 20px; }
+.dc-btn, .wr-btn { width: 100%; min-height: 48px; border: none; border-radius: var(--pill); cursor: pointer;
+  background: var(--grad-blue); color: #fff; font-size: 15px; font-weight: 700; box-shadow: var(--shadow-green);
+  transition: filter 0.2s var(--ease), transform 0.1s var(--ease); }
+.dc-btn:hover, .wr-btn:hover { filter: brightness(1.07); }
+.dc-btn:active, .wr-btn:active { transform: translateY(1px); }
+
+/* Confettis discrets (chute douce) */
+.dc-confetti { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+.dc-cf { position: absolute; top: -8%; width: 8px; height: 8px; border-radius: 2px; opacity: 0;
+  animation: dcFall 2.4s var(--ease) forwards; }
+.dc-cf-0 { background: var(--mc-blue-secondary); }
+.dc-cf-1 { background: var(--gold); }
+.dc-cf-2 { background: var(--success); }
+.dc-cf-3 { background: #fff; width: 6px; height: 6px; border-radius: 50%; }
+@keyframes dcFall {
+  0% { opacity: 0; transform: translateY(-10px) rotate(0deg); }
+  12% { opacity: 0.95; }
+  100% { opacity: 0; transform: translateY(78vh) rotate(420deg); }
+}
+
+/* Recap de semaine */
+.wr-card { position: relative; z-index: 2; width: 100%; max-width: 380px;
+  padding: 28px 26px 24px; border-radius: var(--r-xl);
+  background: linear-gradient(180deg, #1b222e 0%, #141a23 100%);
+  border: 1px solid rgba(255,255,255,0.09); box-shadow: var(--shadow-md);
+  transform: translateY(14px) scale(0.96); opacity: 0; transition: transform 0.42s var(--ease), opacity 0.42s var(--ease); }
+.week-recap.show .wr-card { transform: none; opacity: 1; }
+.wr-badge { width: 60px; height: 60px; margin: 0 auto 16px; border-radius: 18px; display: grid; place-items: center; color: #14210a;
+  background: linear-gradient(150deg, var(--gold) 0%, #93c93b 100%); box-shadow: 0 10px 26px rgba(182,232,79,0.4); }
+.wr-badge .ic { width: 30px; height: 30px; }
+.wr-title { color: #fff; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; text-align: center; margin: 0 0 6px; }
+.wr-sub { color: rgba(255,255,255,0.6); font-size: 13.5px; line-height: 1.45; text-align: center; margin: 0 0 20px; }
+.wr-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 11px; }
+.wr-list li { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); color: rgba(255,255,255,0.92); font-size: 14px; font-weight: 600; line-height: 1.35; }
+.wr-ic { flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+  background: rgba(52,211,153,0.16); color: var(--success); }
+.wr-ic .ic { width: 16px; height: 16px; }
+.wr-tip { display: flex; align-items: center; gap: 12px; padding: 14px; margin-bottom: 20px; border-radius: 14px;
+  background: rgba(182,232,79,0.10); border: 1px solid rgba(182,232,79,0.22); color: #eaf6cf; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.wr-tip .wr-ic { background: rgba(182,232,79,0.18); color: var(--gold); }
+
+@media (prefers-reduced-motion: reduce) {
+  .day-celebrate .dc-card, .week-recap .wr-card { transition: opacity 0.2s var(--ease); transform: none; }
+  .dc-circle, .dc-tick { animation: none !important; stroke-dashoffset: 0 !important; opacity: 1; }
+  .dc-cf { display: none; }
+}
+
 /* ---------- Footer ---------- */
 .footer { text-align: center; padding: 28px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--gray-200); margin-top: 36px; }
 
