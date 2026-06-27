@@ -1959,23 +1959,25 @@ function recommanderComplements(profil, prefs) {
     dejaPris: pris.has(cle),
   });
 
+  // Niveaux : 'essentiel' (tres pertinent pour le profil) > 'aide' (vrai benefice,
+  // pas indispensable) > 'envisager' (optimisation / confort / bien-etre).
   if (objectif === 'perte' || objectif === 'challenge') {
     const intense = objectif === 'challenge';
-    add('proteines', 'utile', intense ? 'En perte acceleree, pour proteger vos muscles et tenir la satiete :' : 'En perte de poids, surtout si vos apports sont justes :');
-    add('fibres', (faimGrignote || intense) ? 'utile' : 'optionnel', faimGrignote ? 'Vous avez signale de la faim / des grignotages :' : 'Pour la satiete et le transit :');
-    add('magnesium', (stressFatigue || intense) ? 'utile' : 'optionnel', stressFatigue ? 'Vous avez signale du stress, de la fatigue ou un sommeil difficile :' : 'Si vous vous sentez stresse, fatigue ou dormez mal :');
-    if (intense && actif) add('electrolytes', 'optionnel', 'Si vous transpirez beaucoup a l\'effort :');
+    add('proteines', 'essentiel', intense ? 'En perte acceleree, pour proteger vos muscles et tenir la satiete :' : 'En perte de poids, surtout si vos apports sont justes :');
+    add('fibres', (faimGrignote || intense) ? 'aide' : 'envisager', faimGrignote ? 'Vous avez signale de la faim / des grignotages :' : 'Pour la satiete et le transit :');
+    add('magnesium', stressFatigue ? 'aide' : 'envisager', stressFatigue ? 'Vous avez signale du stress, de la fatigue ou un sommeil difficile :' : 'Si vous vous sentez stresse, fatigue ou dormez mal :');
+    if (intense && actif) add('electrolytes', 'essentiel', 'Seances intenses : si vous transpirez beaucoup a l\'effort :');
   } else if (objectif === 'muscle') {
-    add('proteines', 'utile', 'A privilegier seulement si l\'alimentation ne couvre pas vos besoins :');
-    add('creatine', actif ? 'utile' : 'optionnel', 'Si vous vous entrainez regulierement :');
-    add('magnesium', stressFatigue ? 'utile' : 'optionnel', stressFatigue ? 'Vous avez signale une recuperation difficile :' : 'Si la recuperation est difficile :');
+    add('proteines', 'essentiel', 'Pour couvrir vos besoins eleves en proteines si l\'alimentation ne suffit pas :');
+    add('creatine', actif ? 'essentiel' : 'envisager', 'Si vous vous entrainez regulierement :');
+    add('magnesium', stressFatigue ? 'aide' : 'envisager', stressFatigue ? 'Vous avez signale une recuperation difficile :' : 'Si la recuperation est difficile :');
   } else if (objectif === 'energie') {
-    add('magnesium', 'utile', 'Pour le tonus au quotidien :');
-    add('omega3', poissonOk ? 'optionnel' : 'utile', poissonOk ? '' : 'Vous semblez manger peu de poisson :');
-    add('vitamineD', 'optionnel', 'Selon la saison et votre exposition au soleil :');
+    add('magnesium', 'aide', 'Pour le tonus au quotidien :');
+    add('omega3', 'aide', poissonOk ? '' : 'Vous semblez manger peu de poisson :');
+    add('vitamineD', 'aide', 'Selon la saison et votre exposition au soleil :');
   } else { // maintien
-    add('omega3', poissonOk ? 'optionnel' : 'utile', poissonOk ? '' : 'Vous semblez manger peu de poisson :');
-    add('magnesium', 'optionnel', 'En cas de fatigue ou de stress :');
+    add('omega3', 'aide', poissonOk ? '' : 'Vous semblez manger peu de poisson :');
+    add('magnesium', stressFatigue ? 'aide' : 'envisager', 'En cas de fatigue ou de stress :');
   }
 
   // Alertes douces.
@@ -1986,7 +1988,7 @@ function recommanderComplements(profil, prefs) {
     alertes.push('Vitamines/mineraux et magnesium peuvent se recouper : verifiez les doses pour ne pas cumuler inutilement.');
   }
   if (prisRaw.length >= 4) {
-    alertes.push('Vous prenez deja plusieurs complements. Vous pourriez simplifier en gardant surtout ceux marques "utile" pour votre objectif, et eviter l\'accumulation.');
+    alertes.push('Vous prenez deja plusieurs complements. Vous pourriez simplifier en gardant surtout ceux marques « essentiel pour vous », et eviter l\'accumulation.');
   }
 
   const labels = prisRaw.map((c) => COMPLEMENT_LABELS[c] || c);
@@ -1997,7 +1999,11 @@ function recommanderComplements(profil, prefs) {
   return { resume, reco, alertes };
 }
 
-const PRIORITE_LABEL = { indispensable: 'Indispensable', utile: 'Utile', optionnel: 'Optionnel' };
+const PRIORITE_LABEL = {
+  essentiel: 'Essentiel pour vous', aide: 'Peut vous aider', envisager: 'À envisager',
+  // compat retro (anciens niveaux)
+  indispensable: 'Essentiel pour vous', utile: 'Essentiel pour vous', optionnel: 'À envisager',
+};
 
 function openComplements() { renderComplements(); $('#complementsPanel').classList.remove('hidden'); }
 function closeComplements() { $('#complementsPanel').classList.add('hidden'); }
