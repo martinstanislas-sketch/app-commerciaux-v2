@@ -245,10 +245,13 @@
             </select>
           </label>
 
-          <!-- Donnees de pesee (optionnel) : affinent le calcul (surtout Challenge 6/6) -->
+          <!-- Donnees de pesee (optionnel) : affinent le calcul. Les reglages du
+               Challenge 6/6 (objectif de perte, intensite du deficit) sont geres
+               automatiquement cote app (defauts : -6 kg, -650 kcal) et ne sont
+               volontairement PAS exposes a l'utilisateur. -->
           <details class="pesee-block">
             <summary><span class="field-title">Donnees de pesee <em>(optionnel, pour un calcul plus precis)</em></span></summary>
-            <p class="step-help">Si votre balance connectee les donne. Utilisees en priorite pour le Challenge 6/6.</p>
+            <p class="step-help">Si vous ne disposez pas de ces informations, vous pouvez les demander à votre conseiller forme ou à votre coach sportif.</p>
             <div class="field-row">
               <label class="field">
                 <span>Metabolisme basal (kcal)</span>
@@ -265,31 +268,12 @@
                 <input type="number" name="masse_musculaire" min="1" max="120" step="0.1" placeholder="ex. 28" />
               </label>
               <label class="field">
-                <span>Seances de sport / semaine</span>
-                <input type="number" name="seances_sport" min="0" max="14" placeholder="ex. 3" />
-              </label>
-            </div>
-            <label class="field">
-              <span>Type de journee</span>
-              <select name="type_journee">
-                <option value="">Non precise</option>
-                <option value="assis">Plutot assis (bureau)</option>
-                <option value="debout">Plutot debout / en mouvement</option>
-                <option value="physique">Travail physique</option>
-              </select>
-            </label>
-            <span class="field-title" style="margin-top:6px">Reglages Challenge 6/6</span>
-            <div class="field-row">
-              <label class="field">
-                <span>Objectif de perte (kg)</span>
-                <input type="number" name="perte_objectif_kg" min="1" max="30" value="6" />
-              </label>
-              <label class="field">
-                <span>Intensite du deficit</span>
-                <select name="deficit_cible">
-                  <option value="500">Moderee (-500 kcal)</option>
-                  <option value="650" selected>Standard (-650 kcal)</option>
-                  <option value="750">Intensive (-750 kcal)</option>
+                <span>Type de journee</span>
+                <select name="type_journee">
+                  <option value="">Non precise</option>
+                  <option value="assis">Plutot assis (bureau)</option>
+                  <option value="debout">Plutot debout / en mouvement</option>
+                  <option value="physique">Travail physique</option>
                 </select>
               </label>
             </div>
