@@ -282,6 +282,10 @@ function goToStep(n) {
   $('#btnPrev').classList.toggle('hidden', state.step === 1);
   $('#btnNext').classList.toggle('hidden', state.step === TOTAL_STEPS);
   $('#btnFinish').classList.toggle('hidden', state.step !== TOTAL_STEPS);
+  // A chaque changement d'etape (Continuer / Retour), on revient tout en haut
+  // pour que l'utilisateur voie toutes les questions dans l'ordre.
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
 }
 
 function validateStep() {
