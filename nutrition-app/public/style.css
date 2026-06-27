@@ -872,6 +872,16 @@ body.app-shell .fullscreen-toggle { display: none; }
 }
 .day-pill:hover { color: var(--ink-2); }
 .day-pill.on { background: var(--mc-blue); border-color: var(--mc-blue); color: #fff; }
+/* Pastille "aujourd'hui" sur le selecteur de jours */
+.day-pill.is-today { position: relative; }
+.day-pill.is-today::after { content: ''; position: absolute; top: 5px; right: 7px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px var(--card); }
+.day-pill.on.is-today::after { box-shadow: 0 0 0 2px var(--mc-blue); }
+/* Badge "Jour en cours" (titre du jour + titre du suivi) */
+.day-now { display: inline-flex; align-items: center; margin-left: 8px; font-size: 11px; font-weight: 800;
+  letter-spacing: 0.01em; text-transform: none; color: #14210a; background: var(--gold);
+  padding: 4px 10px; border-radius: var(--pill); white-space: nowrap; vertical-align: middle; }
+.day-title .day-now { margin-left: 0; }
 /* Mobile : un seul jour affiche a la fois */
 @media (max-width: 760px) {
   #planGrid .day-card { display: none; }

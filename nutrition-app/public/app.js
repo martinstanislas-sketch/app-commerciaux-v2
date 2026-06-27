@@ -43,6 +43,7 @@ const state = {
   avance: {}, // analyse avancee niveau 2 (faim, grignotage, sport, etat...)
   celebratedDays: [], // index des jours deja felicites (une seule fois par jour/plan)
   weekDone: false, // recap de semaine deja affiche pour ce plan
+  startDate: null, // date "YYYY-MM-DD" du 1er affichage = jour 0 du plan
 };
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -511,6 +512,60 @@ async function applyAjustement() {
   await generateAndShow(Math.floor(Math.random() * 1e6) + 1);
 }
 
+// ---------- Alignement du plan sur le jour reel ----------
+// Le plan demarre au jour ou il est genere (state.startDate). On NE reordonne
+// JAMAIS le tableau jours[] (les cles de suivi "di-mi" restent stables) : on se
+// contente de renommer chaque jour (startDate + index) et d'ouvrir l'app sur la
+// bonne journee. A chaque reconnexion, l'index "aujourd'hui" est recalcule.
+const JOURS_SEMAINE = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+
+function todayMidnight() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function ymd(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function startMidnight() {
+  if (!state.startDate) return todayMidnight();
+  const [y, m, j] = String(state.startDate).split('-').map(Number);
+  const d = new Date(y, (m || 1) - 1, j || 1);
+  return isNaN(d.getTime()) ? todayMidnight() : d;
+}
+// Jours ecoules depuis le demarrage (>= 0).
+function joursDepuisDemarrage() {
+  return Math.max(0, Math.round((todayMidnight().getTime() - startMidnight().getTime()) / 86400000));
+}
+// Index du jour "aujourd'hui" DANS le plan (borne au dernier jour si depasse).
+function indexJourActuel() {
+  const n = (state.plan && state.plan.jours && state.plan.jours.length) || 1;
+  return Math.min(joursDepuisDemarrage(), n - 1);
+}
+// Aujourd'hui est-il encore dans la fenetre du plan ? (sinon : plan termine)
+function jourActuelDansPlan() {
+  const n = (state.plan && state.plan.jours && state.plan.jours.length) || 0;
+  return joursDepuisDemarrage() < n;
+}
+// Renomme chaque jour avec le jour de semaine reel (startDate + index).
+function appliquerLabelsCalendaires() {
+  if (!state.plan || !Array.isArray(state.plan.jours)) return;
+  const base = startMidnight();
+  state.plan.jours.forEach((j, i) => {
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    j.jour = JOURS_SEMAINE[d.getDay()];
+  });
+}
+// Ancre la date de demarrage (la cree si absente = 1er affichage = aujourd'hui),
+// aligne les libelles et ouvre sur la journee du jour. Renvoie true si c'etait
+// le tout premier affichage (date creee a l'instant).
+function ancrerDemarragePlan(forceAujourdhui) {
+  const premiere = forceAujourdhui || !state.startDate;
+  if (forceAujourdhui || !state.startDate) state.startDate = ymd(todayMidnight());
+  appliquerLabelsCalendaires();
+  state.activeDay = indexJourActuel();
+  return premiere;
+}
+
 // ---------- Rendu : grille du plan ----------
 function renderPlan() {
   const grid = $('#planGrid');
@@ -520,11 +575,13 @@ function renderPlan() {
   if (active < 0 || active >= jours.length) active = 0;
   state.activeDay = active;
 
+  const todayIdx = jourActuelDansPlan() ? indexJourActuel() : -1;
+
   // Selecteur de jours horizontal (mobile : un jour a la fois ; desktop : masque, semaine entiere)
   const sel = document.createElement('div');
   sel.className = 'day-selector';
   sel.innerHTML = jours.map((j, i) =>
-    `<button type="button" class="day-pill${i === active ? ' on' : ''}" data-day-pill="${i}">${String(j.jour || '').slice(0, 3)}</button>`).join('');
+    `<button type="button" class="day-pill${i === active ? ' on' : ''}${i === todayIdx ? ' is-today' : ''}" data-day-pill="${i}">${String(j.jour || '').slice(0, 3)}</button>`).join('');
   grid.appendChild(sel);
 
   jours.forEach((jour, di) => {
@@ -535,7 +592,8 @@ function renderPlan() {
     const kcalTag = state.masquerCalories ? '' : `<span class="day-kcal">${dayKcal} kcal</span>`;
     const title = document.createElement('div');
     title.className = 'day-title';
-    title.innerHTML = `${jour.jour}${kcalTag}<button class="day-regen" data-day="${di}">${icSvg('refresh')} Toute la journee</button>`;
+    const nowTag = di === todayIdx ? '<span class="day-now">Jour en cours</span>' : '';
+    title.innerHTML = `${jour.jour}${nowTag}${kcalTag}<button class="day-regen" data-day="${di}">${icSvg('refresh')} Toute la journee</button>`;
     card.appendChild(title);
     const row = document.createElement('div');
     row.className = 'meals-row meals-n' + jour.repas.length; // colonnes nettes selon le nombre de repas
@@ -1740,6 +1798,7 @@ function saveLocal() {
       portions: state.portions, favoris: state.favoris, exclus: state.exclus,
       suivi: state.suivi, avance: state.avance, pesees: state.pesees,
       celebratedDays: state.celebratedDays, weekDone: state.weekDone,
+      startDate: state.startDate,
       savedAt: new Date().toISOString(),
     }));
     $('#saveState').innerHTML = icSvg('check') + ' Plan sauvegarde';
@@ -1763,6 +1822,7 @@ function loadLocal() {
     state.pesees = data.pesees || [];
     state.celebratedDays = data.celebratedDays || [];
     state.weekDone = !!data.weekDone;
+    state.startDate = data.startDate || null;
     state.plan = data.plan || null;
     return !!data.plan;
   } catch (_) { return false; }
@@ -1776,10 +1836,14 @@ async function generateAndShow(seed) {
   try {
     await Promise.all([fetchPlan(seed), reveal]);
     postProcessExterieur();
+    // Nouveau plan = la semaine demarre AUJOURD'HUI : on (re)cale la date de
+    // demarrage sur ce jour, on renomme les jours et on ouvre sur aujourd'hui.
+    ancrerDemarragePlan(true);
     renderNeeds();
     renderPlan();
     saveLocal();
     showScreen('result');
+    showToast('Votre plan commence aujourd’hui — nous l’avons adapté à votre jour de démarrage.', { icon: 'calendar', duration: 4600 });
   } catch (e) {
     const detail = (e && e.message && !/^Erreur$/.test(e.message)) ? '\n(' + e.message + ')' : '';
     alert('Desole, la generation a echoue. Reessayez dans un instant.' + detail);
@@ -1957,6 +2021,9 @@ function init() {
 
   if (loadLocal()) {
     $('#portValue').textContent = state.portions;
+    // Reconnexion : on garde la date de demarrage (ne pas reinitialiser le plan),
+    // on recalcule juste ou en est l'utilisateur et on ouvre sur la journee du jour.
+    ancrerDemarragePlan(false);
     renderNeeds();
     renderPlan();
     $('#saveState').innerHTML = icSvg('check') + ' Plan restaure';
@@ -2834,8 +2901,9 @@ function axeAmelioration() {
 
 function openSuiviPlan() {
   if (!state.plan) { alert('Genere d\'abord ton plan de la semaine.'); return; }
-  const wd = (new Date().getDay() + 6) % 7;
-  suiviPlanDay = Math.min(wd, state.plan.jours.length - 1);
+  // Le suivi s'ouvre toujours sur la journee actuelle (calculee depuis la date
+  // de demarrage du plan, et non sur une hypothese de depart le lundi).
+  suiviPlanDay = indexJourActuel();
   $('#suiviPlanPanel').classList.remove('hidden');
   renderSuiviPlan();
 }
@@ -2909,7 +2977,7 @@ function renderSuiviPlan() {
 
   $('#suiviPlanBody').innerHTML = `
     <div class="week-strip">${strip}</div>
-    <h3 class="suivi-day-title">${escapeHtml(jours[di].jour || ('Jour ' + (di + 1)))}</h3>
+    <h3 class="suivi-day-title">${escapeHtml(jours[di].jour || ('Jour ' + (di + 1)))}${(jourActuelDansPlan() && di === indexJourActuel()) ? '<span class="day-now">Jour en cours</span>' : ''}</h3>
     ${meals || '<p class="help-empty">Aucun repas ce jour-la.</p>'}
     ${scoreCard}
     <button type="button" class="btn btn-primary btn-lg" data-act="save" style="width:100%"><svg class="ic"><use href="#ic-check-circle"/></svg> Enregistrer mon suivi</button>
