@@ -396,6 +396,46 @@ function collectProfile() {
   state.suiviComp = {};
 }
 
+// Pre-remplit le questionnaire avec le profil + preferences deja enregistres
+// (inverse de collectProfile), pour "Refaire mon plan" sans repartir de zero.
+function prefillOnboarding() {
+  const p = state.profil || {};
+  const pr = state.preferences || {};
+  const form = $('#onboardingForm'); if (!form) return;
+  const setVal = (name, v) => { const el = form.querySelector(`[name="${name}"]`); if (el && v != null && v !== '' && !(typeof v === 'number' && Number.isNaN(v))) el.value = v; };
+  const setChk = (name, v) => { const el = form.querySelector(`[name="${name}"]`); if (el) el.checked = !!v; };
+  const setGrid = (field, v) => { const g = $(`.choice-grid[data-field="${field}"]`); if (!g || v == null || v === '') return; g.dataset.selected = v; $$('.choice', g).forEach((b) => b.classList.toggle('selected', b.dataset.value === v)); };
+  const setChips = (field, arr) => { const s = $(`.chip-set[data-multifield="${field}"]`); if (!s) return; const set = new Set(arr || []); $$('.chip', s).forEach((c) => c.classList.toggle('selected', set.has(c.dataset.value))); };
+  // --- Profil ---
+  setGrid('objectif', p.objectif);
+  setVal('sexe', p.sexe); setVal('age', p.age); setVal('taille_cm', p.taille_cm); setVal('poids_kg', p.poids_kg);
+  setVal('activite', p.activite); setVal('jours', p.jours);
+  setVal('metabolisme_basal', p.metabolisme_basal); setVal('masse_grasse', p.masse_grasse);
+  setVal('masse_musculaire', p.masse_musculaire); setVal('type_journee', p.type_journee);
+  setGrid('dinerTard', p.dinerTard);
+  setChips('collations', p.collations);
+  setChips('complements', p.complements);
+  setVal('complementsDetail', p.complementsDetail);
+  // --- Preferences ---
+  setChips('cuisines', pr.cuisines);
+  setGrid('matinGout', pr.matinGout);
+  setChips('collationType', pr.collationType);
+  setChips('collationRaison', pr.collationRaison);
+  setVal('aimes', (pr.aimes || []).join(', '));
+  setVal('deteste', (pr.deteste || []).join(', '));
+  setChips('regime', pr.regime);
+  setVal('budget', pr.budget); setVal('temps_max', pr.temps_max);
+  // Allergies : on coche les puces connues, le reste va dans le champ libre.
+  const allergSet = $('.chip-set[data-multifield="allergiesCourantes"]');
+  const chipVals = allergSet ? $$('.chip', allergSet).map((c) => c.dataset.value) : [];
+  const allerg = pr.allergies || [];
+  setChips('allergiesCourantes', allerg.filter((a) => chipVals.includes(a)));
+  setVal('allergies', allerg.filter((a) => !chipVals.includes(a)).join(', '));
+  setChk('masquerCalories', state.masquerCalories);
+  // Revele le bloc collations (type/raison) si des collations sont cochees.
+  if (typeof updateCollationDetails === 'function') updateCollationDetails();
+}
+
 // Fusionne favoris/exclus dans les preferences envoyees au serveur.
 function prefsForServer() {
   return {
@@ -2116,7 +2156,7 @@ function init() {
 
   $('#btnExportPlan').addEventListener('click', exportPlanPdf);
   $('#btnNewPlan').addEventListener('click', () => generateAndShow(Math.floor(Math.random() * 1e6) + 1));
-  $('#btnEditProfile').addEventListener('click', () => { showScreen('onboarding'); goToStep(1); });
+  $('#btnEditProfile').addEventListener('click', () => { prefillOnboarding(); showScreen('onboarding'); goToStep(1); });
 
   $('#portMinus').addEventListener('click', () => setPortions(state.portions - 1));
   $('#portPlus').addEventListener('click', () => setPortions(state.portions + 1));
