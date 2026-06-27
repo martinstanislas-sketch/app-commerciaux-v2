@@ -133,5 +133,39 @@ nutrition-app/
 
 ---
 
+## Connexion Google Agenda — activation
+
+La fonctionnalite « Connecter Google Agenda » est **entierement codee** (OAuth + API
+Calendar, dans le `server.js` **racine** de l'app principale, routes
+`/nutrition/api/google/*`). Elle reste **desactivee** tant que les identifiants Google
+ne sont pas fournis : sans eux, le bouton « Connecter » est grise et l'interface
+propose le fichier `.ics` en repli (compatible Google, Apple, Outlook).
+
+Pour l'activer, definir **3 variables d'environnement** sur l'app **racine**
+(Railway → Variables, pas dans `nutrition-app/`) :
+
+| Variable | Valeur |
+| --- | --- |
+| `GOOGLE_CLIENT_ID` | ID client OAuth 2.0 (type « Application Web ») |
+| `GOOGLE_CLIENT_SECRET` | Secret client associe |
+| `GOOGLE_REDIRECT_URI` | `https://<domaine-prod>/nutrition/api/google/callback` |
+
+Cote **Google Cloud Console** :
+
+1. Creer un projet, **activer l'API Google Calendar**.
+2. Configurer l'**ecran de consentement OAuth** (externe), ajouter le scope
+   `https://www.googleapis.com/auth/calendar.app.created` (scope **minimal** : l'app ne
+   gere QUE son propre calendrier « My Coach Nutrition », sans toucher a l'agenda perso).
+3. Creer un **ID client OAuth « Application Web »** et ajouter l'**URI de redirection
+   autorisee** identique a `GOOGLE_REDIRECT_URI` ci-dessus.
+4. Reporter `client_id` / `client_secret` dans les variables Railway, puis redeployer.
+
+Une fois ces variables posees : le bouton devient actif, le parcours d'autorisation
+s'ouvre en popup, l'etat passe a « Google Agenda connecte » avec synchronisation
+(jour / semaine / rappels) et deconnexion. Les erreurs (refus, popup bloquee, statut
+indisponible) sont affichees clairement a l'utilisateur.
+
+---
+
 *Estimations a titre indicatif. Cette application ne remplace pas l'avis d'un
 professionnel de sante.*

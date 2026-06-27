@@ -3373,10 +3373,27 @@ function openAgenda() {
 function closeAgenda() { $('#agendaModal').classList.add('hidden'); }
 async function refreshAgenda() {
   let status = { configured: false, connected: false };
-  try { const r = await fetch(apiUrl('/api/google/status'), { headers: nutriAuthHeaders() }); const d = await r.json(); if (d.ok) status = d; } catch (_) { /* ignore */ }
-  renderAgenda(status);
+  let fetchError = false;
+  try {
+    const r = await fetch(apiUrl('/api/google/status'), { headers: nutriAuthHeaders() });
+    const d = await r.json();
+    if (d && d.ok) status = d; else fetchError = true;
+  } catch (_) { fetchError = true; }
+  renderAgenda(status, { fetchError });
 }
-function renderAgenda(status) {
+function renderAgenda(status, opts) {
+  opts = opts || {};
+  // Erreur de verification du statut : on ne laisse jamais l'utilisateur sans retour.
+  if (opts.fetchError) {
+    $('#agendaBody').innerHTML = `
+      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Agenda</h2>
+      <p class="agenda-msg agenda-warn">Impossible de verifier l'etat de votre agenda pour le moment. Verifiez votre connexion, puis reessayez.</p>
+      <button type="button" class="btn btn-outline" id="agendaRetry" style="width:100%">Reessayer</button>
+      <button type="button" class="btn btn-ghost" id="agendaIcs" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-file"/></svg> Telecharger le fichier calendrier (.ics)</button>`;
+    $('#agendaRetry').addEventListener('click', () => { $('#agendaBody').innerHTML = '<div class="scan-loader"></div><p class="scan-loading-text">Verification de la connexion…</p>'; refreshAgenda(); });
+    $('#agendaIcs').addEventListener('click', () => { exportIcs(); $('#agendaIcs').innerHTML = 'Fichier telecharge ✓'; });
+    return;
+  }
   const icsBtn = '<button type="button" class="btn btn-ghost" id="agendaIcs" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-file"/></svg> Telecharger le fichier calendrier (.ics)</button>';
   const privacy = '<p class="help-disclaimer">My Coach Nutrition utilise cette connexion uniquement pour ajouter tes repas a ton agenda.</p>';
   if (status.connected) {
@@ -3396,12 +3413,13 @@ function renderAgenda(status) {
     $$('#agendaBody .agenda-sync').forEach((b) => b.addEventListener('click', () => syncAgenda(b.dataset.scope, b)));
     $('#agendaDisconnect').addEventListener('click', disconnectAgenda);
   } else {
-    const note = status.configured ? '' : '<p class="agenda-msg agenda-warn">La connexion Google Agenda n\'est pas encore configuree. Tu peux telecharger le fichier .ics en attendant.</p>';
+    const note = status.configured ? '' : '<p class="agenda-msg agenda-warn">La connexion directe a Google Agenda n\'est pas encore activee sur ce compte. En attendant, ajoutez votre plan via le fichier calendrier (.ics) ci-dessous — compatible Google, Apple et Outlook.</p>';
     $('#agendaBody').innerHTML = `
       <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter a Google Agenda</h2>
       <p class="panel-sub">Ajoute ton plan alimentaire directement dans Google Agenda, sans telecharger de fichier.</p>
       <p class="agenda-state"><span class="agenda-dot off"></span> Ton Google Agenda n'est pas encore connecte.</p>
       <button type="button" class="btn btn-primary btn-lg" id="agendaConnect" style="width:100%" ${status.configured ? '' : 'disabled'}><svg class="ic"><use href="#ic-calendar"/></svg> Connecter Google Agenda</button>
+      <p class="agenda-msg" id="agendaConnectMsg"></p>
       ${note}
       ${privacy}
       ${icsBtn}`;
@@ -3410,13 +3428,31 @@ function renderAgenda(status) {
   $('#agendaIcs').addEventListener('click', () => { exportIcs(); $('#agendaIcs').innerHTML = 'Fichier telecharge ✓'; });
 }
 async function connectAgenda() {
-  const btn = $('#agendaConnect'); if (btn) btn.disabled = true;
-  let url = null;
-  try { const r = await fetch(apiUrl('/api/google/connect'), { headers: nutriAuthHeaders() }); const d = await r.json(); if (d.ok && d.url) url = d.url; } catch (_) { /* ignore */ }
-  if (!url) { renderAgenda({ configured: false, connected: false }); return; }
+  const btn = $('#agendaConnect');
+  const showErr = (t) => { const m = $('#agendaConnectMsg'); if (m) m.innerHTML = `<span class="agenda-warn">${escapeHtml(t)}</span>`; if (btn) btn.disabled = false; };
+  if (btn) btn.disabled = true;
+  const m0 = $('#agendaConnectMsg'); if (m0) m0.innerHTML = '';
+  // 1. Demande de l'URL d'autorisation au serveur.
+  let url = null, notConfigured = false;
+  try {
+    const r = await fetch(apiUrl('/api/google/connect'), { headers: nutriAuthHeaders() });
+    const d = await r.json();
+    if (d && d.ok && d.url) url = d.url;
+    else if (d && d.configured === false) notConfigured = true;
+  } catch (_) { /* reseau */ }
+  if (notConfigured) { refreshAgenda(); return; }
+  if (!url) { showErr("La connexion a votre agenda n'a pas abouti. Veuillez reessayer."); return; }
+  // 2. Ouverture de la fenetre d'autorisation Google (popup).
   const popup = window.open(url, 'mcn-google', 'width=480,height=660');
+  if (!popup) { showErr('Veuillez autoriser les fenetres pop-up pour connecter votre agenda, puis reessayez.'); return; }
+  // 3. Attente du retour : message du callback OU fermeture de la fenetre.
   let done = false;
-  const finish = (ok) => { if (done) return; done = true; window.removeEventListener('message', onMsg); clearInterval(poll); refreshAgenda(); };
+  const finish = (ok) => {
+    if (done) return; done = true;
+    window.removeEventListener('message', onMsg); clearInterval(poll);
+    if (ok) { refreshAgenda(); showToast('Agenda connecte ✓', { icon: 'calendar' }); }
+    else { showErr('Autorisation refusee ou interrompue. Vous pouvez recommencer si vous souhaitez connecter votre agenda.'); }
+  };
   const onMsg = (e) => { if (e.data === 'mcn-google-connected') finish(true); else if (e.data === 'mcn-google-error') finish(false); };
   window.addEventListener('message', onMsg);
   const poll = setInterval(() => { if (popup && popup.closed) finish(false); }, 1000);
