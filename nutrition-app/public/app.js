@@ -2180,6 +2180,8 @@ function saveLocal() {
     celebratedDays: state.celebratedDays, weekDone: state.weekDone,
     complementsSuivis: state.complementsSuivis, suiviComp: state.suiviComp,
     coachMessages: (state.coachMessages || []).slice(-40),
+    communauteUnlocked: state.communauteUnlocked, communauteJoined: state.communauteJoined,
+    communauteVue: state.communauteVue, communautePosts: (state.communautePosts || []).slice(0, 30),
     startDate: state.startDate,
     savedAt: new Date().toISOString(),
   };
@@ -2451,6 +2453,9 @@ function init() {
     ancrerDemarragePlan(false);
     renderNeeds();
     renderPlan();
+    // Un plan existe deja (genere avant ou apres l'ajout de la communaute) =>
+    // la partie alimentation est terminee, on debloque l'espace Communaute.
+    if (!state.communauteUnlocked) { state.communauteUnlocked = true; saveLocal(); }
     revealCommunaute();
     renderCommunaute();
     showCommunauteIntro();
