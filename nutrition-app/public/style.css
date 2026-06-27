@@ -1067,12 +1067,13 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 
 /* ---------- Plan jour par jour (mobile) ---------- */
 .day-selector {
-  display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 12px; margin-bottom: 2px;
-  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  /* Les 7 jours tiennent sur une seule ligne, sans scroll horizontal. */
+  display: flex; gap: 5px; padding: 2px 0 12px; margin-bottom: 2px;
 }
-.day-selector::-webkit-scrollbar { display: none; }
 .day-pill {
-  flex: none; font-size: 12.5px; font-weight: 600; padding: 8px 15px; min-height: 38px;
+  flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap;
+  font-size: 13px; font-weight: 600; padding: 9px 4px; min-height: 42px;
+  display: inline-flex; align-items: center; justify-content: center;
   border-radius: var(--pill); background: var(--card); border: 1px solid var(--mc-border);
   color: var(--muted); cursor: pointer; font-family: inherit; transition: background .15s var(--ease), color .15s var(--ease);
 }
