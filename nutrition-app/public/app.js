@@ -53,6 +53,10 @@ const state = {
   coachMessages: [], // memoire de conversation du Coach IA
   coachBusy: false,
   startDate: null, // date "YYYY-MM-DD" du 1er affichage = jour 0 du plan
+  communauteUnlocked: false, // espace Communauté débloqué (plan généré au moins une fois)
+  communauteJoined: false, // l'utilisateur a rejoint son groupe de challenge
+  communauteVue: false, // message d'intro Communauté déjà affiché
+  communautePosts: [], // partages de l'utilisateur dans le feed du groupe
 };
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -2222,6 +2226,10 @@ function loadLocal() {
     state.complementsSuivis = data.complementsSuivis || (state.profil.complements || []).filter((c) => c && c !== 'non' && c !== 'aucun' && c !== 'autre');
     state.suiviComp = data.suiviComp || {};
     state.coachMessages = data.coachMessages || [];
+    state.communauteUnlocked = !!data.communauteUnlocked;
+    state.communauteJoined = !!data.communauteJoined;
+    state.communauteVue = !!data.communauteVue;
+    state.communautePosts = data.communautePosts || [];
     state.plan = data.plan || null;
     return !!data.plan;
   } catch (_) { return false; }
@@ -2243,6 +2251,12 @@ async function generateAndShow(seed) {
     saveLocal();
     showScreen('result');
     showToast('Votre plan commence aujourd’hui — nous l’avons adapté à votre jour de démarrage.', { icon: 'calendar', duration: 4600 });
+    // Plan généré : on débloque l'espace Communauté et on propose de le découvrir.
+    state.communauteUnlocked = true;
+    revealCommunaute();
+    renderCommunaute();
+    showCommunauteIntro();
+    saveLocal();
   } catch (e) {
     const detail = (e && e.message && !/^Erreur$/.test(e.message)) ? '\n(' + e.message + ')' : '';
     alert('Desole, la generation a echoue. Reessayez dans un instant.' + detail);
@@ -2437,6 +2451,9 @@ function init() {
     ancrerDemarragePlan(false);
     renderNeeds();
     renderPlan();
+    revealCommunaute();
+    renderCommunaute();
+    showCommunauteIntro();
     $('#saveState').innerHTML = icSvg('check') + ' Plan restaure';
     showScreen('result');
   } else if (isDemo()) {
@@ -2681,11 +2698,130 @@ async function coachHumanRequest() {
 }
 
 // ---------- Navigation (barre basse mobile / sidebar desktop) ----------
+// ---------- Espace Communauté (débloqué après génération du plan) ----------
+const COMMUNAUTE_CHALLENGES = [
+  { ic: 'spark', t: 'Semaine sans sucre ajouté', d: 'Jour 3 / 7 · 18 membres en lice' },
+  { ic: 'chart', t: '5 séances d’activité', d: 'Cette semaine · 21 participants' },
+  { ic: 'calendar', t: 'Hydratation 2 L / jour', d: 'Objectif quotidien du groupe' },
+];
+const COMMUNAUTE_COACH = [
+  'Bravo au groupe : 82 % des repas validés hier. On garde le rythme cette semaine ! 💪',
+  'Pensez à votre collation protéinée de l’après-midi : c’est elle qui coupe les fringales de 18 h.',
+];
+const COMMUNAUTE_FEED = [
+  { who: 'Camille', txt: 'Journée validée ✅ Première semaine bouclée, trop fière !', when: 'il y a 2 h' },
+  { who: 'Yanis', txt: 'Petit-déj œufs-avocat au top, merci pour l’idée 🙌', when: 'il y a 4 h' },
+  { who: 'Sofia', txt: 'Dur de tenir le soir, mais le groupe motive 🔥', when: 'hier' },
+  { who: 'Marc', txt: '3 séances cette semaine, objectif atteint !', when: 'hier' },
+];
+
+// Affiche l'onglet Communauté dans la barre une fois le plan généré.
+function revealCommunaute() {
+  if (!state.communauteUnlocked) return;
+  const btn = $('#navCommunaute');
+  if (btn) btn.classList.remove('hidden');
+}
+
+// Bandeau d'introduction une seule fois, en haut de l'écran plan.
+function showCommunauteIntro() {
+  if (!state.communauteUnlocked || state.communauteVue) return;
+  const host = $('#view-plan');
+  if (!host || $('#commIntro')) return;
+  const el = document.createElement('div');
+  el.id = 'commIntro';
+  el.className = 'comm-intro';
+  el.innerHTML =
+    '<div class="comm-intro-ic">' + icSvg('users') + '</div>' +
+    '<div class="comm-intro-tx"><strong>Votre plan alimentaire est prêt.</strong> Rejoignez la communauté du challenge pour avancer avec le groupe.</div>' +
+    '<div class="comm-intro-act">' +
+      '<button type="button" class="btn btn-primary" id="commIntroGo">Découvrir la communauté</button>' +
+      '<button type="button" class="comm-intro-x" id="commIntroX" aria-label="Fermer">' + icSvg('x') + '</button>' +
+    '</div>';
+  host.insertBefore(el, host.firstChild);
+  $('#commIntroGo').addEventListener('click', () => { dismissCommunauteIntro(); setTab('communaute'); });
+  $('#commIntroX').addEventListener('click', dismissCommunauteIntro);
+}
+function dismissCommunauteIntro() {
+  state.communauteVue = true;
+  saveLocal();
+  const el = $('#commIntro');
+  if (el) el.remove();
+}
+
+function joinCommunaute() {
+  state.communauteJoined = true;
+  saveLocal();
+  renderCommunaute();
+  showToast('Bienvenue dans votre groupe de challenge 🎉', { icon: 'check' });
+}
+
+// Partage la journée du jour si elle est validée.
+function partagerJournee() {
+  const di = (typeof indexJourActuel === 'function') ? indexJourActuel() : 0;
+  if (typeof dayIsComplete === 'function' && !dayIsComplete(di)) {
+    showToast('Validez d’abord tous vos repas du jour pour le partager au groupe.', { icon: 'info' });
+    return;
+  }
+  const j = state.plan && state.plan.jours && state.plan.jours[di];
+  const label = (j && (j.libelle || j.label)) ? (j.libelle || j.label) : 'Ma journée';
+  state.communautePosts.unshift({ who: 'Vous', txt: label + ' validée 💯 On continue !', when: 'à l’instant', me: true });
+  saveLocal();
+  renderCommunaute();
+  showToast('Journée partagée au groupe 🎉', { icon: 'check' });
+}
+
+function renderCommunaute() {
+  const host = $('#view-communaute');
+  if (!host) return;
+  if (!state.communauteJoined) {
+    host.innerHTML =
+      '<div class="comm-hero">' +
+        '<h2>La communauté du challenge</h2>' +
+        '<p>Rejoignez votre groupe pour avancer ensemble, partager vos journées validées et garder la motivation.</p>' +
+        '<div class="comm-hero-row">' +
+          '<div class="comm-stat"><b>24</b> membres</div>' +
+          '<div class="comm-stat"><b>6/6</b> challenge</div>' +
+          '<div class="comm-stat"><b>82%</b> repas validés</div>' +
+        '</div>' +
+      '</div>' +
+      '<button type="button" class="btn btn-primary comm-join" id="commJoin">Rejoindre mon groupe</button>';
+    const j = $('#commJoin');
+    if (j) j.addEventListener('click', joinCommunaute);
+    return;
+  }
+  const posts = (state.communautePosts || []).concat(COMMUNAUTE_FEED);
+  const av = (who) => '<div class="comm-av">' + escapeHtml((who || '?').charAt(0)) + '</div>';
+  host.innerHTML =
+    '<div class="comm-hero">' +
+      '<h2>Groupe Challenge 6/6</h2>' +
+      '<p>Vous avancez avec 24 membres. Continuez, le groupe vous suit !</p>' +
+      '<div class="comm-hero-row">' +
+        '<div class="comm-stat"><b>24</b> membres</div>' +
+        '<div class="comm-stat"><b>3</b> challenges actifs</div>' +
+        '<div class="comm-stat"><b>82%</b> repas validés</div>' +
+      '</div>' +
+      '<div class="comm-prog"><span style="width:82%"></span></div>' +
+    '</div>' +
+    '<div class="comm-card"><h3>' + icSvg('spark') + ' Challenges en cours</h3>' +
+      COMMUNAUTE_CHALLENGES.map((c) => '<div class="comm-item"><div class="comm-item-ic">' + icSvg(c.ic) + '</div><div class="comm-item-tx"><b>' + escapeHtml(c.t) + '</b><span>' + escapeHtml(c.d) + '</span></div></div>').join('') +
+    '</div>' +
+    '<div class="comm-card"><h3>' + icSvg('spark') + ' Messages du coach</h3>' +
+      COMMUNAUTE_COACH.map((m) => '<div class="comm-msg"><div class="comm-av coach">C</div><div class="comm-bub"><b>Coach</b><p>' + escapeHtml(m) + '</p></div></div>').join('') +
+    '</div>' +
+    '<button type="button" class="btn btn-primary comm-share" id="commShare">' + icSvg('check') + ' Partager ma journée validée</button>' +
+    '<div class="comm-card" style="margin-top:14px"><h3>' + icSvg('heart') + ' Encouragements du groupe</h3>' +
+      posts.map((p) => '<div class="comm-msg comm-post ' + (p.me ? 'me' : '') + '">' + av(p.who) + '<div class="comm-bub"><b>' + escapeHtml(p.who) + '</b> <span class="when">· ' + escapeHtml(p.when || '') + '</span><p>' + escapeHtml(p.txt) + '</p></div></div>').join('') +
+    '</div>';
+  const s = $('#commShare');
+  if (s) s.addEventListener('click', partagerJournee);
+}
+
 function setTab(tab) {
   // Courses & Suivi ouvrent les panneaux existants (overlays) sans changer la vue de fond.
   if (tab === 'complements') { $('#btnComplements').click(); return; }
   if (tab === 'courses') { $('#btnShopping').click(); return; }
   if (tab === 'suivi') { $('#btnSuiviPlan').click(); return; }
+  if (tab === 'communaute') { renderCommunaute(); if (!state.communauteVue) dismissCommunauteIntro(); }
   const screen = $('#screen-result');
   if (screen) screen.setAttribute('data-tab', tab);
   $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
