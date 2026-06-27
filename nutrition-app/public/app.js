@@ -424,7 +424,10 @@ function prefillOnboarding() {
   setChips('complements', p.complements);
   setVal('complementsDetail', p.complementsDetail);
   // --- Preferences ---
-  setChips('cuisines', pr.cuisines);
+  // Cuisines : on remappe les anciennes valeurs granulaires vers les 5 categories
+  // (indienne/mexicaine/americaine/orientale... -> monde) pour le prereremplissage.
+  const cuisines5 = new Set(['francaise', 'italienne', 'mediterraneenne', 'asiatique', 'monde']);
+  setChips('cuisines', (pr.cuisines || []).map((c) => (cuisines5.has(c) ? c : 'monde')));
   setGrid('matinGout', pr.matinGout);
   setChips('collationCategories', pr.collationCategories);
   setVal('aimes', (pr.aimes || []).join(', '));

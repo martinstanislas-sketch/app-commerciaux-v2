@@ -144,6 +144,19 @@ function contientMotInterdit(recette, motsInterdits) {
 const CUISINES_FAMILIERES = new Set(['francaise', 'italienne', 'americaine']);
 const CUISINES_EXOTIQUES = new Set(['asiatique', 'indienne', 'thailandaise', 'japonaise', 'mexicaine']);
 
+// Categories du questionnaire : 5 cuisines, dont "monde" qui regroupe toutes les
+// origines hors francaise/italienne/mediterraneenne/asiatique. On etend "monde"
+// vers les cuisines reelles des recettes pour le matching.
+const CUISINES_MONDE = new Set(['indienne', 'mexicaine', 'americaine', 'orientale', 'anglaise', 'suisse', 'vegetale', 'thailandaise', 'japonaise']);
+function expandCuisines(cuisines) {
+  const out = new Set();
+  (cuisines || []).map(norm).forEach((c) => {
+    if (c === 'monde') CUISINES_MONDE.forEach((x) => out.add(x));
+    else if (c) out.add(c);
+  });
+  return out;
+}
+
 const STOPWORDS = new Set([
   'avec', 'sans', 'pour', 'dans', 'plus', 'tres', 'mais', 'des', 'les', 'une', 'un',
   'du', 'de', 'la', 'le', 'et', 'ou', 'au', 'aux', 'mon', 'ma', 'mes', 'son', 'sa',
@@ -249,11 +262,11 @@ function scoreRecette(r, ctx) {
   (r.ingredients || []).forEach((i) => { if (INGREDIENTS_SPECIALISES.test(norm(i.nom))) nbSpe++; });
   score -= nbSpe * 8;
 
-  // Cuisines aimees (+15 par match).
-  const cuisinesAimees = (prefs.cuisines || []).map(norm);
-  if (cuisinesAimees.length) {
+  // Cuisines aimees (+15 par match) — "monde" etendu aux cuisines reelles.
+  const cuisinesAimees = expandCuisines(prefs.cuisines);
+  if (cuisinesAimees.size) {
     const c = (r.cuisines || []).map(norm);
-    score += c.filter((x) => cuisinesAimees.includes(x)).length * 15;
+    score += c.filter((x) => cuisinesAimees.has(x)).length * 15;
   }
 
   // Aliments aimes (+10 par match dans nom/mots-cles).
@@ -280,7 +293,7 @@ function scoreRecette(r, ctx) {
 
   // Transition douce : favoriser les cuisines familieres, freiner l'exotique,
   // SAUF si l'utilisateur a explicitement choisi cette cuisine (deja bonifiee plus haut).
-  const cuisinesChoisies = new Set((prefs.cuisines || []).map(norm));
+  const cuisinesChoisies = expandCuisines(prefs.cuisines);
   (r.cuisines || []).map(norm).forEach((c) => {
     if (cuisinesChoisies.has(c)) return;
     if (CUISINES_FAMILIERES.has(c)) score += 8;
