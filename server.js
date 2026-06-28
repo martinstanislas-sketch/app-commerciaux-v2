@@ -195,6 +195,13 @@ function ensureNutritionHelpTable() {
       created_at TEXT NOT NULL DEFAULT ''
     );
   `);
+  // Migration : attribution d'un coach sportif à un client nutrition (socle des espaces par rôle).
+  try {
+    const ncCols = getDb().prepare('PRAGMA table_info(nutrition_clients)').all();
+    if (!ncCols.some((c) => c.name === 'coach_id')) {
+      getDb().exec('ALTER TABLE nutrition_clients ADD COLUMN coach_id INTEGER DEFAULT NULL');
+    }
+  } catch (e) { console.error('Migration nutrition_clients.coach_id :', e && e.message); }
   // Seed config démo (une seule ligne).
   getDb().prepare("INSERT OR IGNORE INTO nutrition_demo (id, code, enabled) VALUES (1, '2026', 1)").run();
   // Migration : bascule l'ancien code par défaut vers '2026' (sans écraser un code personnalisé saisi par l'admin).
@@ -211,6 +218,20 @@ function requireNutritionUse(req, res, next) {
   const perms = (s && s.permissions) || [];
   if (s && (s.role === 'admin' || s.role === 'nutrition_demo' || (Array.isArray(perms) && perms.includes('can_access_nutrition_module')))) return next();
   return res.status(403).json({ error: 'Accès réservé au module nutrition' });
+}
+
+// Coach sportif OU admin (pour les vues coach de la nutrition). Expose le
+// périmètre dans req.nutritionScope : { isAdmin, coachId } -> les requêtes
+// filtrent ensuite par coachId (un coach ne voit QUE ses clients ; admin = tout).
+function requireCoachOrAdmin(req, res, next) {
+  const s = req.session;
+  if (!s) return res.status(401).json({ error: 'Non connecté' });
+  if (s.role === 'admin') { req.nutritionScope = { isAdmin: true, coachId: null }; return next(); }
+  if ((s.role === 'coach' || s.role === 'coach-leader') && s.coach_id) {
+    req.nutritionScope = { isAdmin: false, coachId: s.coach_id };
+    return next();
+  }
+  return res.status(403).json({ error: 'Accès réservé aux coachs et administrateurs' });
 }
 
 // ─── Google Agenda (OAuth + synchronisation) ────────────────
@@ -601,7 +622,9 @@ try {
   // Liste des clients inscrits (administrateur principal).
   app.get('/nutrition/api/clients', requireAuth, requireAdmin, (req, res) => {
     try {
-      const rows = getDb().prepare("SELECT email, prenom, nom, data, created_at, updated_at FROM nutrition_clients ORDER BY datetime(CASE WHEN updated_at != '' THEN updated_at ELSE created_at END) DESC").all();
+      const rows = getDb().prepare("SELECT email, prenom, nom, data, coach_id, created_at, updated_at FROM nutrition_clients ORDER BY datetime(CASE WHEN updated_at != '' THEN updated_at ELSE created_at END) DESC").all();
+      const coachMap = {};
+      try { getDb().prepare('SELECT id, name FROM coaches WHERE archived = 0').all().forEach((c) => { coachMap[c.id] = c.name; }); } catch (_) { /* table absente */ }
       const clients = rows.map((r) => {
         let objectif = '', hasPlan = false, savedAt = '';
         try {
@@ -612,11 +635,69 @@ try {
             savedAt = d.savedAt || '';
           }
         } catch (_) { /* données illisibles -> ignorées */ }
-        return { email: r.email, prenom: r.prenom, nom: r.nom, createdAt: r.created_at, updatedAt: r.updated_at, objectif, hasPlan, savedAt };
+        return { email: r.email, prenom: r.prenom, nom: r.nom, createdAt: r.created_at, updatedAt: r.updated_at, objectif, hasPlan, savedAt, coachId: r.coach_id || null, coachName: (r.coach_id && coachMap[r.coach_id]) || null };
       });
       res.json({ ok: true, total: clients.length, clients });
     } catch (e) {
       console.error('Erreur /nutrition/api/clients :', e);
+      res.status(500).json({ ok: false, error: 'Lecture impossible.' });
+    }
+  });
+
+  // Liste des coachs sportifs (pour l'attribution coach -> client). Admin seulement.
+  app.get('/nutrition/api/coaches', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const rows = getDb().prepare('SELECT id, name, studio FROM coaches WHERE archived = 0 ORDER BY name COLLATE NOCASE').all();
+      res.json({ ok: true, coaches: rows });
+    } catch (e) {
+      console.error('Erreur /nutrition/api/coaches :', e);
+      res.status(500).json({ ok: false, error: 'Lecture impossible.' });
+    }
+  });
+
+  // Attribue (ou retire avec coach_id=null) le coach sportif d'un client nutrition. Admin seulement.
+  app.post('/nutrition/api/clients/:email/coach', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const email = String(req.params.email || '').trim();
+      if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
+      let coachId = (req.body || {}).coach_id;
+      coachId = (coachId === null || coachId === '' || coachId === undefined) ? null : Number(coachId);
+      if (coachId !== null) {
+        if (!Number.isInteger(coachId)) return res.status(400).json({ ok: false, error: 'Coach invalide.' });
+        const exists = getDb().prepare('SELECT id FROM coaches WHERE id = ? AND archived = 0').get(coachId);
+        if (!exists) return res.status(400).json({ ok: false, error: 'Coach inconnu.' });
+      }
+      const upd = getDb().prepare('UPDATE nutrition_clients SET coach_id = ? WHERE email = ?').run(coachId, email);
+      if (!upd.changes) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
+      res.json({ ok: true, coachId });
+    } catch (e) {
+      console.error('Erreur attribution coach :', e);
+      res.status(500).json({ ok: false, error: 'Attribution impossible.' });
+    }
+  });
+
+  // Clients du coach connecté (admin = tous). Scopé par coach_id côté serveur.
+  app.get('/nutrition/api/coach/clients', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const order = " ORDER BY datetime(CASE WHEN updated_at != '' THEN updated_at ELSE created_at END) DESC";
+      const cols = 'SELECT email, prenom, nom, data, coach_id, created_at, updated_at FROM nutrition_clients';
+      const rows = sc.isAdmin
+        ? getDb().prepare(cols + order).all()
+        : getDb().prepare(cols + ' WHERE coach_id = ?' + order).all(sc.coachId);
+      const coachMap = {};
+      try { getDb().prepare('SELECT id, name FROM coaches WHERE archived = 0').all().forEach((c) => { coachMap[c.id] = c.name; }); } catch (_) { /* ignore */ }
+      const clients = rows.map((r) => {
+        let objectif = '', hasPlan = false, savedAt = '';
+        try {
+          const d = r.data ? JSON.parse(r.data) : null;
+          if (d) { hasPlan = !!d.plan; objectif = (d.profil && (d.profil.objectif || d.profil.but)) || ''; savedAt = d.savedAt || ''; }
+        } catch (_) { /* illisible */ }
+        return { email: r.email, prenom: r.prenom, nom: r.nom, createdAt: r.created_at, updatedAt: r.updated_at, objectif, hasPlan, savedAt, coachId: r.coach_id || null, coachName: (r.coach_id && coachMap[r.coach_id]) || null };
+      });
+      res.json({ ok: true, total: clients.length, scope: sc.isAdmin ? 'admin' : 'coach', clients });
+    } catch (e) {
+      console.error('Erreur /nutrition/api/coach/clients :', e);
       res.status(500).json({ ok: false, error: 'Lecture impossible.' });
     }
   });

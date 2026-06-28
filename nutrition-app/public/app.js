@@ -4327,6 +4327,10 @@ async function renderClientsAdmin() {
     if (!clients.length) { body.innerHTML = '<p class="help-empty">Aucun client inscrit pour le moment.</p>'; return; }
     const OBJ = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de masse', energie: 'Énergie' };
     const fmt = (s) => { const dt = new Date(s); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' }); };
+    // Coachs disponibles pour l'attribution (chargés une fois).
+    let coaches = [];
+    try { const cr = await fetch(apiUrl('/api/coaches'), { headers: nutriAuthHeaders() }); const cd = await cr.json(); if (cd.ok) coaches = cd.coaches || []; } catch (_) { /* ignore */ }
+    const coachOptions = (selId) => '<option value="">— Aucun coach —</option>' + coaches.map((co) => `<option value="${co.id}"${Number(selId) === co.id ? ' selected' : ''}>${escapeHtml(co.name)}${co.studio ? ' · ' + escapeHtml(co.studio) : ''}</option>`).join('');
     const rows = clients.map((c) => {
       const nom = [c.prenom, c.nom].filter(Boolean).join(' ') || '(sans nom)';
       const obj = c.objectif ? (OBJ[c.objectif] || c.objectif) : '—';
@@ -4337,6 +4341,10 @@ async function renderClientsAdmin() {
         <div style="min-width:0;">
           <div style="font-weight:700;">${escapeHtml(nom)}</div>
           <div style="font-size:12.5px;color:#8B94A3;word-break:break-all;">${escapeHtml(c.email)}</div>
+          <div style="margin-top:7px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#8B94A3;text-transform:uppercase;letter-spacing:.3px;">Coach</span>
+            <select class="coach-assign" data-email="${escapeHtml(c.email)}" data-prev="${c.coachId || ''}" style="background:#1B212C;color:#E8EDF2;border:1px solid #2C333F;border-radius:8px;padding:4px 8px;font-size:12.5px;max-width:190px;">${coachOptions(c.coachId)}</select>
+          </div>
         </div>
         <div style="text-align:right;flex-shrink:0;font-size:12px;color:#8B94A3;line-height:1.7;">
           <div>${etat}</div>
@@ -4346,13 +4354,28 @@ async function renderClientsAdmin() {
       </div>`;
     }).join('');
     const emails = clients.map((c) => c.email).join(', ');
+    const coachHint = coaches.length ? '' : '<p class="panel-sub" style="margin:0 0 10px;color:#F59E0B;">Aucun coach en base — ajoute des coachs (espace coaching) pour pouvoir les attribuer.</p>';
     body.innerHTML = `
       <div style="margin:0 0 10px;font-size:14px;"><strong style="font-size:20px;">${d.total}</strong> client${d.total > 1 ? 's' : ''} inscrit${d.total > 1 ? 's' : ''}</div>
+      ${coachHint}
       <button type="button" class="btn btn-outline" id="clientsCopyEmails" style="width:100%;margin:0 0 12px">Copier tous les emails</button>
       <div>${rows}</div>`;
     const cp = $('#clientsCopyEmails');
     if (cp) cp.addEventListener('click', () => { try { navigator.clipboard.writeText(emails); cp.textContent = 'Copié ✓'; setTimeout(() => { cp.textContent = 'Copier tous les emails'; }, 1400); } catch (_) { /* ignore */ } });
+    body.querySelectorAll('.coach-assign').forEach((sel) => sel.addEventListener('change', () => assignCoach(sel.dataset.email, sel.value, sel)));
   } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+// Attribue/retire le coach d'un client (admin). Le serveur valide le coach et le client.
+async function assignCoach(email, coachId, sel) {
+  try {
+    const res = await fetch(apiUrl('/api/clients/' + encodeURIComponent(email) + '/coach'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ coach_id: coachId || null }),
+    });
+    const d = await res.json();
+    if (d.ok) { if (sel) sel.dataset.prev = coachId || ''; showToast(coachId ? 'Coach attribué ✓' : 'Coach retiré', { icon: 'check' }); }
+    else { showToast(d.error || 'Attribution impossible.', { icon: 'info' }); if (sel) sel.value = sel.dataset.prev || ''; }
+  } catch (_) { showToast('Attribution impossible.', { icon: 'info' }); if (sel) sel.value = sel.dataset.prev || ''; }
 }
 function setupClientsAdminAccess() {
   if (!isMainAdmin()) return;
