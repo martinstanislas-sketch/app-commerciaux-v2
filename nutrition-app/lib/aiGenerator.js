@@ -26,6 +26,16 @@ function iaDisponible() {
   return Boolean(Anthropic && process.env.ANTHROPIC_API_KEY && optIn);
 }
 
+// Le Coach IA conversationnel peut être activé INDÉPENDAMMENT de la génération de
+// plans IA : soit via NUTRITION_AI=on (tout l'IA), soit via son propre interrupteur
+// NUTRITION_COACH_IA=on. Cela permet d'ouvrir le chat (coût faible) sans basculer
+// la génération de plans sur l'IA.
+function coachIaDisponible() {
+  if (iaDisponible()) return true;
+  const optIn = ['on', '1', 'true', 'yes'].includes(String(process.env.NUTRITION_COACH_IA || '').toLowerCase());
+  return Boolean(Anthropic && process.env.ANTHROPIC_API_KEY && optIn);
+}
+
 function client() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 }
@@ -375,11 +385,17 @@ STYLE
 - Chaleureux, naturel, bienveillant, motivant, pédagogue, professionnel. Tutoiement. Français. Utilise son prénom si tu le connais.
 - Réponses HUMAINES, jamais robotiques. Concises et directement applicables (vise 2 à 6 phrases ; une courte liste si utile). Pas de markdown lourd ni de titres.
 
-INTERDITS
-- Jamais : culpabiliser, juger, répondre de façon générique, inventer des informations, donner un avis médical ou poser un diagnostic.
-- En cas de doute ou de situation médicale (douleur, pathologie, trouble alimentaire, traitement…), oriente avec bienveillance vers un professionnel de santé.
+INTERDITS (sécurité — ne JAMAIS franchir)
+- Jamais : culpabiliser, juger, répondre de façon générique, inventer des informations (si une donnée manque, dis-le simplement et donne un conseil général adapté).
+- Jamais de diagnostic ni d'avis médical : tu ne remplaces ni un médecin, ni un diététicien, ni un professionnel de santé.
+- Jamais de restrictions extrêmes, de jeûnes prolongés/dangereux, de régimes très basses calories, ni de compléments à risque ou dosages excessifs.
+- Femme enceinte ou allaitante, pathologie (diabète, thyroïde, cœur…), traitement médicamenteux, ou trouble du comportement alimentaire (anorexie, boulimie, hyperphagie…) : ne donne AUCUN conseil risqué ; reste prudent, bienveillant, et oriente clairement vers un professionnel de santé / le coach humain.
+- Devant douleur, malaise, perte de poids anormale ou tout signal inquiétant : oriente vers un professionnel de santé.
 
-OBJECTIF : à la fin de l'échange, le client doit avoir le sentiment d'avoir parlé à un vrai coach qui connaît parfaitement son profil et lui donne des réponses concrètes et personnalisées.`;
+QUAND PASSER LA MAIN AU COACH HUMAIN
+- Si la situation demande un vrai suivi personnalisé (ajustement durable du plan, blocage qui dure, contexte médical), propose simplement de prévenir le coach humain — il pourra ajuster la semaine. Tu complètes le coach humain, tu ne le remplaces pas.
+
+OBJECTIF : à la fin de l'échange, le client doit avoir le sentiment d'avoir parlé à un vrai coach qui connaît parfaitement son profil et lui donne des réponses concrètes, sûres et personnalisées.`;
 
 async function coachRepondre({ contexte, messages }) {
   const c = client();
@@ -393,4 +409,4 @@ async function coachRepondre({ contexte, messages }) {
   return (r.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
 }
 
-module.exports = { iaDisponible, genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, coachRepondre };
+module.exports = { iaDisponible, coachIaDisponible, genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, coachRepondre };

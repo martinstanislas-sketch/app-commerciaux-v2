@@ -2799,6 +2799,13 @@ function coachContext() {
   const nom = (typeof helpClientName === 'function' && helpClientName()) || '';
   if (nom && nom !== 'Client') L.push('Prénom : ' + nom.split(' ')[0]);
   L.push('Objectif : ' + (OBJ_LABELS[p.objectif] || p.objectif || '—'));
+  if (p.objectif === 'challenge') {
+    const ch = ['Inscrit au Challenge 6/6 (perte accélérée sur 6 semaines)'];
+    if (p.deficit_cible) ch.push('déficit visé ~' + p.deficit_cible + ' kcal/jour');
+    const aj = Math.round(Number(p.ajustementKcal) || 0);
+    if (aj) ch.push('ajustement auto en cours : ' + (aj > 0 ? '+' : '') + aj + ' kcal');
+    L.push(ch.join(' — '));
+  }
   const ident = [];
   if (p.sexe) ident.push(p.sexe); if (p.age) ident.push(p.age + ' ans');
   if (p.taille_cm) ident.push(p.taille_cm + ' cm'); if (p.poids_kg) ident.push(p.poids_kg + ' kg');

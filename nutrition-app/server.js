@@ -23,7 +23,7 @@ const {
   recettesCompatibles,
   familiesFromUserAllergies,
 } = require('./lib/planGenerator');
-const { genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, iaDisponible, coachRepondre } = require('./lib/aiGenerator');
+const { genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, iaDisponible, coachIaDisponible, coachRepondre } = require('./lib/aiGenerator');
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -212,7 +212,7 @@ app.post('/api/plate-analyze', async (req, res) => {
 // renvoie une reponse personnalisee. Sans IA -> ia:false (le front bascule sur un
 // message + l'aide coach humain).
 app.post('/api/coach', async (req, res) => {
-  if (!iaDisponible()) return res.json({ ok: false, ia: false });
+  if (!coachIaDisponible()) return res.json({ ok: false, ia: false });
   const { messages = [], contexte = '' } = req.body || {};
   if (!Array.isArray(messages) || !messages.length) {
     return res.status(400).json({ ok: false, error: 'Message manquant.' });
@@ -232,7 +232,7 @@ app.post('/api/coach', async (req, res) => {
 
 // Indique au front si l'IA est active (pour un petit badge).
 app.get('/api/status', (req, res) => {
-  res.json({ ok: true, ia: iaDisponible(), demo: !iaDisponible() });
+  res.json({ ok: true, ia: iaDisponible(), coachIa: coachIaDisponible(), demo: !iaDisponible() });
 });
 
 // Demarre un serveur autonome UNIQUEMENT si ce fichier est lance directement
