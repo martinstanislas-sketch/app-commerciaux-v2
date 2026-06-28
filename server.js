@@ -194,6 +194,24 @@ function ensureNutritionHelpTable() {
       kind TEXT NOT NULL DEFAULT 'message',
       created_at TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS nutrition_conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_email TEXT NOT NULL,
+      coach_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT '',
+      last_message_at TEXT NOT NULL DEFAULT '',
+      statut TEXT NOT NULL DEFAULT 'active',
+      UNIQUE(client_email, coach_id)
+    );
+    CREATE TABLE IF NOT EXISTS nutrition_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      sender_role TEXT NOT NULL,
+      sender_label TEXT NOT NULL DEFAULT '',
+      contenu TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT '',
+      lu INTEGER NOT NULL DEFAULT 0
+    );
   `);
   // Migration : attribution d'un coach sportif à un client nutrition (socle des espaces par rôle).
   try {
@@ -398,6 +416,109 @@ try {
       console.error('Erreur community/messages POST :', e);
       res.status(500).json({ ok: false, error: 'Publication impossible.' });
     }
+  });
+
+  // ====== Messagerie privée client <-> coach (jamais client <-> client) ======
+  // Helpers : résout le coach attribué d'un client (par email).
+  function coachOf(email) {
+    if (!email) return null;
+    const cli = getDb().prepare('SELECT coach_id FROM nutrition_clients WHERE email = ?').get(email);
+    if (!cli || !cli.coach_id) return null;
+    return getDb().prepare('SELECT id, name FROM coaches WHERE id = ? AND archived = 0').get(cli.coach_id) || null;
+  }
+
+  // CLIENT : sa conversation avec SON coach (le destinataire n'est jamais choisi par le client).
+  app.get('/nutrition/api/messages/coach', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = req.session && req.session.email;
+      if (!email) return res.json({ ok: true, coach: null, conversationId: null, messages: [] });
+      const coach = coachOf(email);
+      if (!coach) return res.json({ ok: true, coach: null, conversationId: null, messages: [] });
+      const conv = getDb().prepare('SELECT id FROM nutrition_conversations WHERE client_email = ? AND coach_id = ?').get(email, coach.id);
+      let messages = [];
+      if (conv) {
+        messages = getDb().prepare('SELECT id, sender_role, sender_label, contenu, created_at FROM nutrition_messages WHERE conversation_id = ? ORDER BY id ASC LIMIT 300').all(conv.id)
+          .map((m) => ({ id: m.id, role: m.sender_role, who: m.sender_label, text: m.contenu, when: m.created_at, mine: m.sender_role === 'client' }));
+        getDb().prepare("UPDATE nutrition_messages SET lu = 1 WHERE conversation_id = ? AND sender_role != 'client' AND lu = 0").run(conv.id);
+      }
+      res.json({ ok: true, coach: { id: coach.id, name: coach.name }, conversationId: conv ? conv.id : null, messages });
+    } catch (e) { console.error('messages/coach GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+
+  // CLIENT : envoyer un message à SON coach (crée la conversation au besoin).
+  app.post('/nutrition/api/messages/coach', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = req.session && req.session.email;
+      if (!email) return res.status(403).json({ ok: false, error: 'Compte client requis.' });
+      const coach = coachOf(email);
+      if (!coach) return res.status(409).json({ ok: false, error: 'no_coach' });
+      const msg = String((req.body || {}).message || '').slice(0, 2000).trim();
+      if (!msg) return res.status(400).json({ ok: false, error: 'Message vide.' });
+      const now = new Date().toISOString();
+      let conv = getDb().prepare('SELECT id FROM nutrition_conversations WHERE client_email = ? AND coach_id = ?').get(email, coach.id);
+      if (!conv) {
+        const info = getDb().prepare('INSERT INTO nutrition_conversations (client_email, coach_id, created_at, last_message_at, statut) VALUES (?,?,?,?,?)').run(email, coach.id, now, now, 'active');
+        conv = { id: info.lastInsertRowid };
+      }
+      const label = String((req.session && req.session.name) || 'Client').slice(0, 80);
+      const info = getDb().prepare('INSERT INTO nutrition_messages (conversation_id, sender_role, sender_label, contenu, created_at, lu) VALUES (?,?,?,?,?,0)').run(conv.id, 'client', label, msg, now);
+      getDb().prepare('UPDATE nutrition_conversations SET last_message_at = ? WHERE id = ?').run(now, conv.id);
+      res.json({ ok: true, message: { id: info.lastInsertRowid, role: 'client', who: label, text: msg, when: now, mine: true } });
+    } catch (e) { console.error('messages/coach POST :', e); res.status(500).json({ ok: false, error: 'Envoi impossible.' }); }
+  });
+
+  // COACH/ADMIN : liste des conversations (scopée par coach_id ; admin = toutes).
+  app.get('/nutrition/api/coach/conversations', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const base = `SELECT c.id, c.client_email, c.coach_id, c.last_message_at,
+        (SELECT contenu FROM nutrition_messages m WHERE m.conversation_id = c.id ORDER BY m.id DESC LIMIT 1) AS last_text,
+        (SELECT sender_role FROM nutrition_messages m WHERE m.conversation_id = c.id ORDER BY m.id DESC LIMIT 1) AS last_role,
+        (SELECT COUNT(*) FROM nutrition_messages m WHERE m.conversation_id = c.id AND m.sender_role = 'client' AND m.lu = 0) AS unread
+        FROM nutrition_conversations c`;
+      const rows = sc.isAdmin
+        ? getDb().prepare(base + ' ORDER BY c.last_message_at DESC').all()
+        : getDb().prepare(base + ' WHERE c.coach_id = ? ORDER BY c.last_message_at DESC').all(sc.coachId);
+      const conversations = rows.map((r) => {
+        const cli = getDb().prepare('SELECT prenom, nom FROM nutrition_clients WHERE email = ?').get(r.client_email);
+        const clientName = cli ? ([cli.prenom, cli.nom].filter(Boolean).join(' ') || r.client_email) : r.client_email;
+        return { id: r.id, clientEmail: r.client_email, clientName, coachId: r.coach_id, lastText: r.last_text || '', lastRole: r.last_role || '', lastAt: r.last_message_at, unread: r.unread };
+      });
+      res.json({ ok: true, scope: sc.isAdmin ? 'admin' : 'coach', conversations });
+    } catch (e) { console.error('coach/conversations GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+
+  // COACH/ADMIN : messages d'une conversation (uniquement la sienne ; admin = support).
+  app.get('/nutrition/api/coach/conversations/:id/messages', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const conv = getDb().prepare('SELECT id, client_email, coach_id FROM nutrition_conversations WHERE id = ?').get(Number(req.params.id));
+      if (!conv) return res.status(404).json({ ok: false, error: 'Conversation introuvable.' });
+      if (!sc.isAdmin && conv.coach_id !== sc.coachId) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
+      const messages = getDb().prepare('SELECT id, sender_role, sender_label, contenu, created_at FROM nutrition_messages WHERE conversation_id = ? ORDER BY id ASC LIMIT 400').all(conv.id)
+        .map((m) => ({ id: m.id, role: m.sender_role, who: m.sender_label, text: m.contenu, when: m.created_at, mine: m.sender_role !== 'client' }));
+      if (!sc.isAdmin) getDb().prepare("UPDATE nutrition_messages SET lu = 1 WHERE conversation_id = ? AND sender_role = 'client' AND lu = 0").run(conv.id);
+      const cli = getDb().prepare('SELECT prenom, nom FROM nutrition_clients WHERE email = ?').get(conv.client_email);
+      res.json({ ok: true, clientEmail: conv.client_email, clientName: cli ? ([cli.prenom, cli.nom].filter(Boolean).join(' ') || conv.client_email) : conv.client_email, messages });
+    } catch (e) { console.error('coach conv messages GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+
+  // COACH/ADMIN : répondre dans une conversation (uniquement la sienne ; admin = support).
+  app.post('/nutrition/api/coach/conversations/:id/reply', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const conv = getDb().prepare('SELECT id, coach_id FROM nutrition_conversations WHERE id = ?').get(Number(req.params.id));
+      if (!conv) return res.status(404).json({ ok: false, error: 'Conversation introuvable.' });
+      if (!sc.isAdmin && conv.coach_id !== sc.coachId) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
+      const msg = String((req.body || {}).message || '').slice(0, 2000).trim();
+      if (!msg) return res.status(400).json({ ok: false, error: 'Message vide.' });
+      const now = new Date().toISOString();
+      const label = String((req.session && req.session.name) || 'Coach').slice(0, 80);
+      const role = (sc.isAdmin && conv.coach_id !== sc.coachId) ? 'super_admin' : 'coach';
+      const info = getDb().prepare('INSERT INTO nutrition_messages (conversation_id, sender_role, sender_label, contenu, created_at, lu) VALUES (?,?,?,?,?,0)').run(conv.id, role, label, msg, now);
+      getDb().prepare('UPDATE nutrition_conversations SET last_message_at = ? WHERE id = ?').run(now, conv.id);
+      res.json({ ok: true, message: { id: info.lastInsertRowid, role, who: label, text: msg, when: now, mine: true } });
+    } catch (e) { console.error('coach reply POST :', e); res.status(500).json({ ok: false, error: 'Envoi impossible.' }); }
   });
 
   // --- Scan de produits (code-barres -> Open Food Facts) ---

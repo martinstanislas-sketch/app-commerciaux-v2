@@ -566,6 +566,7 @@
         <button type="button" class="profil-row" data-go="btnExportPlan"><svg class="ic pr-blue"><use href="#ic-file"/></svg>Plan PDF<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
         <div class="profil-sec">MOI</div>
+        <button type="button" class="profil-row" id="btnContactCoach"><svg class="ic pr-blue"><use href="#ic-send"/></svg>Contacter mon coach<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnFiche"><svg class="ic pr-muted"><use href="#ic-user"/></svg>Ma fiche<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnEditProfile"><svg class="ic pr-muted"><use href="#ic-edit"/></svg>Refaire mon plan<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnFavoris"><svg class="ic pr-muted"><use href="#ic-heart"/></svg>Favoris<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -574,6 +575,7 @@
         <button type="button" class="profil-row" data-go="btnAnalyse"><svg class="ic pr-muted"><use href="#ic-chart"/></svg>Analyse des écarts<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
         <div class="profil-sec profil-coach hidden">ESPACE COACH</div>
+        <button type="button" class="profil-row profil-coach hidden" id="btnMessagesCoach"><svg class="ic pr-lime"><use href="#ic-send"/></svg>Mes messages<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnClientsAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Clients inscrits<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnAdhAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Adhérence clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnScanAdmin"><svg class="ic pr-lime"><use href="#ic-barcode"/></svg>Scans clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -804,6 +806,33 @@
       </div>
       <p class="panel-sub">Les difficultes signalees par tes clients. Reprends contact pour les accompagner.</p>
       <div id="helpAdminBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ CLIENT : CONVERSATION PRIVÉE AVEC SON COACH ============ -->
+  <div id="coachChatPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-send"/></svg> <span id="coachChatTitle">Mon coach</span></h2>
+        <button class="modal-close" id="coachChatClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <div id="coachChatWall" class="comm-wall"><p class="comm-empty">Chargement…</p></div>
+      <form id="coachChatForm" class="comm-compose">
+        <textarea id="coachChatInput" rows="1" maxlength="2000" placeholder="Écris à ton coach…" autocomplete="off"></textarea>
+        <button type="submit" class="comm-send" aria-label="Envoyer"><svg class="ic"><use href="#ic-send"/></svg></button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ COACH : MES MESSAGES (conversations avec mes clients) ============ -->
+  <div id="messagesCoachPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-send"/></svg> Mes messages</h2>
+        <button class="modal-close" id="messagesCoachClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Tes conversations privées avec tes clients attribués.</p>
+      <div id="messagesCoachBody"></div>
     </div>
   </div>
 

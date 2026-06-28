@@ -2592,6 +2592,15 @@ function init() {
   $('#clientsAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'clientsAdminPanel') closeClientsAdmin(); });
   setupClientsAdminAccess();
 
+  // Messagerie privée client <-> coach
+  const _bContact = $('#btnContactCoach'); if (_bContact) _bContact.addEventListener('click', openCoachChat);
+  $('#coachChatClose').addEventListener('click', closeCoachChat);
+  $('#coachChatPanel').addEventListener('click', (e) => { if (e.target.id === 'coachChatPanel') closeCoachChat(); });
+  $('#coachChatForm').addEventListener('submit', (e) => { e.preventDefault(); const inp = $('#coachChatInput'); const v = inp ? inp.value : ''; if (!v.trim()) return; sendCoachChat(v).then((ok) => { if (ok && inp) inp.value = ''; }); });
+  const _bMsgCoach = $('#btnMessagesCoach'); if (_bMsgCoach) _bMsgCoach.addEventListener('click', openMessagesCoach);
+  $('#messagesCoachClose').addEventListener('click', closeMessagesCoach);
+  $('#messagesCoachPanel').addEventListener('click', (e) => { if (e.target.id === 'messagesCoachPanel') closeMessagesCoach(); });
+
   // Analyser mon assiette en photo
   $('#btnPlate').addEventListener('click', openPlate);
   $('#btnPlateFromSuivi').addEventListener('click', () => { closeSuivi(); openPlate(); });
@@ -2636,7 +2645,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); } });
 
   if (loadLocal()) {
     $('#portValue').textContent = state.portions;
@@ -3088,6 +3097,103 @@ function renderCommunaute() {
   renderCommunauteWall();
   fetchCommunaute();
   startCommunautePoll();
+}
+
+// ===== Messagerie privée client <-> coach =====
+function chatBubble(m) {
+  return '<div class="comm-msg comm-post ' + (m.mine ? 'me' : '') + '"><div class="comm-av">' + escapeHtml((m.who || '?').charAt(0)) + '</div>' +
+    '<div class="comm-bub"><b>' + escapeHtml(m.who || '') + '</b> <span class="when">· ' + escapeHtml(m.when ? commTimeAgo(m.when) : 'à l’instant') + '</span><p>' + escapeHtml(m.text || '') + '</p></div></div>';
+}
+
+// --- Côté client : conversation avec SON coach ---
+async function openCoachChat() {
+  $('#coachChatPanel').classList.remove('hidden');
+  const wall = $('#coachChatWall'); wall.innerHTML = '<p class="comm-empty">Chargement…</p>';
+  const form = $('#coachChatForm'); form.style.display = '';
+  try {
+    const res = await fetch(apiUrl('/api/messages/coach'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    if (!d.coach) {
+      $('#coachChatTitle').textContent = 'Mon coach';
+      wall.innerHTML = '<p class="comm-empty">Aucun coach n’est encore attribué à ton suivi. L’équipe My Coach va revenir vers toi.</p>';
+      form.style.display = 'none';
+      return;
+    }
+    $('#coachChatTitle').textContent = d.coach.name;
+    const msgs = d.messages || [];
+    wall.innerHTML = msgs.length ? msgs.map(chatBubble).join('') : '<p class="comm-empty">Pose ta première question à ton coach 👋</p>';
+    wall.scrollTop = wall.scrollHeight;
+  } catch (_) { wall.innerHTML = '<p class="comm-empty">Lecture impossible.</p>'; }
+}
+function closeCoachChat() { $('#coachChatPanel').classList.add('hidden'); }
+async function sendCoachChat(text) {
+  const msg = String(text || '').trim(); if (!msg) return false;
+  try {
+    const res = await fetch(apiUrl('/api/messages/coach'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ message: msg }) });
+    const d = await res.json();
+    if (d.ok && d.message) {
+      const wall = $('#coachChatWall'); const empty = wall.querySelector('.comm-empty'); if (empty) wall.innerHTML = '';
+      wall.insertAdjacentHTML('beforeend', chatBubble(d.message)); wall.scrollTop = wall.scrollHeight; return true;
+    }
+    if (d.error === 'no_coach') showToast('Aucun coach n’est encore attribué à ton suivi.', { icon: 'info' });
+    else showToast(d.error || 'Envoi impossible.', { icon: 'info' });
+  } catch (_) { showToast('Envoi impossible.', { icon: 'info' }); }
+  return false;
+}
+
+// --- Côté coach/admin : inbox "Mes messages" ---
+async function openMessagesCoach() {
+  $('#messagesCoachPanel').classList.remove('hidden');
+  renderMessagesCoachList();
+}
+function closeMessagesCoach() { $('#messagesCoachPanel').classList.add('hidden'); }
+async function renderMessagesCoachList() {
+  const body = $('#messagesCoachBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/coach/conversations'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    const conv = d.conversations || [];
+    if (!conv.length) { body.innerHTML = '<p class="help-empty">Aucune conversation pour le moment.</p>'; return; }
+    body.innerHTML = conv.map((c) =>
+      '<button type="button" class="conv-row" data-conv="' + c.id + '">' +
+        '<div class="conv-main"><div class="conv-name">' + escapeHtml(c.clientName) + (c.unread ? ' <span class="conv-unread">' + c.unread + '</span>' : '') + '</div>' +
+        '<div class="conv-last">' + (c.lastRole === 'client' ? '' : 'Toi : ') + escapeHtml((c.lastText || '').slice(0, 70)) + '</div></div>' +
+        '<div class="conv-when">' + escapeHtml(c.lastAt ? commTimeAgo(c.lastAt) : '') + '</div>' +
+      '</button>'
+    ).join('');
+    body.querySelectorAll('.conv-row').forEach((b) => b.addEventListener('click', () => openCoachConversation(Number(b.dataset.conv))));
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+async function openCoachConversation(id) {
+  const body = $('#messagesCoachBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/coach/conversations/' + id + '/messages'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    body.innerHTML =
+      '<button type="button" class="btn btn-outline" id="convBack" style="margin:0 0 12px">← Toutes les conversations</button>' +
+      '<div style="font-weight:700;margin:0 0 8px;">' + escapeHtml(d.clientName) + '</div>' +
+      '<div id="convWall" class="comm-wall">' + ((d.messages || []).length ? (d.messages).map(chatBubble).join('') : '<p class="comm-empty">Pas encore de message.</p>') + '</div>' +
+      '<form id="convForm" class="comm-compose"><textarea id="convInput" rows="1" maxlength="2000" placeholder="Répondre à ' + escapeHtml(d.clientName) + '…" autocomplete="off"></textarea><button type="submit" class="comm-send" aria-label="Envoyer">' + icSvg('send') + '</button></form>';
+    const w = $('#convWall'); if (w) w.scrollTop = w.scrollHeight;
+    $('#convBack').addEventListener('click', renderMessagesCoachList);
+    $('#convForm').addEventListener('submit', (e) => { e.preventDefault(); const inp = $('#convInput'); const v = inp ? inp.value : ''; if (!v.trim()) return; replyCoachConversation(id, v).then((ok) => { if (ok && inp) inp.value = ''; }); });
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+async function replyCoachConversation(id, text) {
+  const msg = String(text || '').trim(); if (!msg) return false;
+  try {
+    const res = await fetch(apiUrl('/api/coach/conversations/' + id + '/reply'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ message: msg }) });
+    const d = await res.json();
+    if (d.ok && d.message) {
+      const wall = $('#convWall'); const empty = wall.querySelector('.comm-empty'); if (empty) wall.innerHTML = '';
+      wall.insertAdjacentHTML('beforeend', chatBubble(d.message)); wall.scrollTop = wall.scrollHeight; return true;
+    }
+    showToast(d.error || 'Envoi impossible.', { icon: 'info' });
+  } catch (_) { showToast('Envoi impossible.', { icon: 'info' }); }
+  return false;
 }
 
 function setTab(tab) {
