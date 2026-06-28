@@ -2601,6 +2601,10 @@ function init() {
   $('#messagesCoachClose').addEventListener('click', closeMessagesCoach);
   $('#messagesCoachPanel').addEventListener('click', (e) => { if (e.target.id === 'messagesCoachPanel') closeMessagesCoach(); });
 
+  // Dashboard coach
+  const _coachMsgs = $('#coachOpenMessages'); if (_coachMsgs) _coachMsgs.addEventListener('click', openMessagesCoach);
+  const _coachBack = $('#coachBack'); if (_coachBack) _coachBack.addEventListener('click', () => { location.href = '/coach/'; });
+
   // Analyser mon assiette en photo
   $('#btnPlate').addEventListener('click', openPlate);
   $('#btnPlateFromSuivi').addEventListener('click', () => { closeSuivi(); openPlate(); });
@@ -2647,7 +2651,11 @@ function init() {
 
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); } });
 
-  if (loadLocal()) {
+  if (window.__NUTRI_COACH) {
+    // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
+    bootCoachDashboard();
+    showScreen('coach');
+  } else if (loadLocal()) {
     $('#portValue').textContent = state.portions;
     // Reconnexion : on garde la date de demarrage (ne pas reinitialiser le plan),
     // on recalcule juste ou en est l'utilisateur et on ouvre sur la journee du jour.
@@ -3194,6 +3202,54 @@ async function replyCoachConversation(id, text) {
     showToast(d.error || 'Envoi impossible.', { icon: 'info' });
   } catch (_) { showToast('Envoi impossible.', { icon: 'info' }); }
   return false;
+}
+
+// ===== Espace coach : dashboard "Mes clients" + accès messagerie =====
+async function bootCoachDashboard() {
+  const nm = $('#coachDashName');
+  if (nm) nm.textContent = (window.__NUTRI_COACH && window.__NUTRI_COACH.name) || 'Coach';
+  const list = $('#coachClientsList');
+  if (list) {
+    list.innerHTML = '<p class="panel-sub">Chargement…</p>';
+    try {
+      const res = await fetch(apiUrl('/api/coach/clients'), { headers: nutriAuthHeaders() });
+      const d = await res.json();
+      if (d.ok) {
+        const cs = d.clients || [];
+        list.innerHTML = cs.length ? cs.map(coachClientRow).join('') : '<p class="help-empty">Aucun client ne t’est attribué pour le moment.</p>';
+        list.querySelectorAll('.conv-row[data-email]').forEach((b) => b.addEventListener('click', () => coachOpenClientConversation(b.dataset.email)));
+      } else list.innerHTML = '<p class="help-empty">Lecture impossible.</p>';
+    } catch (_) { list.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+  }
+  refreshCoachMsgBadge();
+}
+function coachClientRow(c) {
+  const nom = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
+  const OBJ = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de masse', energie: 'Énergie' };
+  const obj = c.objectif ? (OBJ[c.objectif] || c.objectif) : '—';
+  const etat = c.hasPlan ? 'Plan actif' : 'Sans plan';
+  return '<button type="button" class="conv-row" data-email="' + escapeHtml(c.email) + '">' +
+    '<div class="conv-main"><div class="conv-name">' + escapeHtml(nom) + '</div>' +
+    '<div class="conv-last">' + escapeHtml(obj) + ' · ' + etat + '</div></div>' +
+    '<div class="conv-when">' + icSvg('send') + '</div></button>';
+}
+async function refreshCoachMsgBadge() {
+  try {
+    const res = await fetch(apiUrl('/api/coach/conversations'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    const b = $('#coachMsgBadge'); if (!b) return;
+    const n = d.ok ? (d.conversations || []).reduce((s, c) => s + (c.unread || 0), 0) : 0;
+    b.textContent = n ? String(n) : '';
+    b.style.display = n ? '' : 'none';
+  } catch (_) { /* ignore */ }
+}
+async function coachOpenClientConversation(email) {
+  try {
+    const res = await fetch(apiUrl('/api/coach/conversations'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ client_email: email }) });
+    const d = await res.json();
+    if (d.ok && d.conversationId) { openMessagesCoach(); openCoachConversation(d.conversationId); }
+    else showToast(d.error || 'Impossible d’ouvrir la conversation.', { icon: 'info' });
+  } catch (_) { showToast('Impossible d’ouvrir la conversation.', { icon: 'info' }); }
 }
 
 function setTab(tab) {

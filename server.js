@@ -521,6 +521,24 @@ try {
     } catch (e) { console.error('coach reply POST :', e); res.status(500).json({ ok: false, error: 'Envoi impossible.' }); }
   });
 
+  // COACH/ADMIN : ouvrir (ou créer) la conversation avec un client attribué.
+  app.post('/nutrition/api/coach/conversations', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const email = String((req.body || {}).client_email || '').trim();
+      if (!email) return res.status(400).json({ ok: false, error: 'Client manquant.' });
+      const cli = getDb().prepare('SELECT coach_id FROM nutrition_clients WHERE email = ?').get(email);
+      if (!cli) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
+      if (!sc.isAdmin && cli.coach_id !== sc.coachId) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
+      const coachId = sc.isAdmin ? cli.coach_id : sc.coachId;
+      if (!coachId) return res.status(409).json({ ok: false, error: 'Ce client n’a pas de coach attribué.' });
+      const now = new Date().toISOString();
+      let conv = getDb().prepare('SELECT id FROM nutrition_conversations WHERE client_email = ? AND coach_id = ?').get(email, coachId);
+      if (!conv) { const i = getDb().prepare('INSERT INTO nutrition_conversations (client_email, coach_id, created_at, last_message_at, statut) VALUES (?,?,?,?,?)').run(email, coachId, now, now, 'active'); conv = { id: i.lastInsertRowid }; }
+      res.json({ ok: true, conversationId: conv.id });
+    } catch (e) { console.error('coach conv create POST :', e); res.status(500).json({ ok: false, error: 'Impossible.' }); }
+  });
+
   // --- Scan de produits (code-barres -> Open Food Facts) ---
   // Journalise un scan (pour les stats coach "produits les plus scannés").
   app.post('/nutrition/api/scan', requireAuth, requireNutritionAccess, (req, res) => {

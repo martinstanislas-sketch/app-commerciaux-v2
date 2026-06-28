@@ -39,6 +39,8 @@
     var u = null; try { u = JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch (e) {}
     var perms = (u && u.permissions) || [];
     if (!!u && (u.role === 'admin' || perms.indexOf('can_access_nutrition_module') !== -1)) return; // accès complet
+    // Coach sportif -> dashboard coach (ses clients + sa messagerie). Son token (authToken) porte coach_id.
+    if (!!u && (u.role === 'coach' || u.role === 'coach-leader')) { window.__NUTRI_COACH = { name: u.name || 'Coach', coachId: u.coach_id || null }; return; }
 
     // ---- Compte client : inscription / connexion simple (email + prénom + nom) ----
     // Données stockées sur le serveur -> le plan suit le client sur tous ses appareils.
@@ -200,6 +202,22 @@
     </section>
 
     <!-- ============ LANDING ============ -->
+    <!-- ÉCRAN COACH : dashboard (clients attribués + messagerie). Affiché si window.__NUTRI_COACH. -->
+    <section id="screen-coach" class="screen">
+      <div class="coach-dash">
+        <div class="coach-dash-head">
+          <div>
+            <div class="coach-dash-kicker">Espace coach</div>
+            <h1 id="coachDashName">Coach</h1>
+          </div>
+          <button type="button" id="coachBack" class="btn btn-outline">← Coaching</button>
+        </div>
+        <button type="button" id="coachOpenMessages" class="coach-dash-cta"><svg class="ic"><use href="#ic-send"/></svg> Mes messages <span id="coachMsgBadge" class="conv-unread" style="display:none"></span></button>
+        <h2 class="coach-dash-sec">Mes clients</h2>
+        <div id="coachClientsList"></div>
+      </div>
+    </section>
+
     <section id="screen-landing" class="screen active">
       <div class="hero">
         <h1>Mangez mieux,<br />sans y penser.</h1>
