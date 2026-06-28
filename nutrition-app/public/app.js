@@ -60,6 +60,7 @@ const state = {
   communauteMessages: [], // cache du mur collectif (chargé depuis le serveur)
   communauteMembers: 0, // taille du groupe (clients inscrits)
   communauteOverview: null, // stats de groupe (chargées depuis le serveur)
+  quickOptions: null, // options rapides boutique (slot -> {nom,url,actif,...}), gérées par l'admin
   challengesParticipe: [], // ids des défis auxquels je participe
   challengesValides: {}, // id défi -> date (YYYY-MM-DD) de dernière validation
   conseilsJour: {}, // "ymd-id" -> { statut: compris|ajoute|snooze, until } (conseils du jour)
@@ -1820,14 +1821,26 @@ function collationProduitUrl(p) {
 // du plan reste l'option principale ; cette ligne prend très peu de hauteur.
 function collationOptionHTML(repas) {
   if (!repas || repas.creneau !== 'collation') return '';
-  const p = COLLATION_PRODUITS[collationMomentKey(repas.label)];
-  if (!p || p.actif === false) return '';
+  const slot = collationMomentKey(repas.label);
+  let nom = '', url = '';
+  const qo = state.quickOptions && state.quickOptions[slot];
+  if (qo) { if (!qo.actif) return ''; nom = qo.nom; url = qo.url; }      // géré par l'admin
+  else { const p = COLLATION_PRODUITS[slot]; if (!p || p.actif === false) return ''; nom = p.nom; url = collationProduitUrl(p); } // repli
+  if (!nom || !url) return '';
   return `
-      <a class="meal-quickopt" href="${collationProduitUrl(p)}" target="_blank" rel="noopener noreferrer" title="Option rapide : ${escapeHtml(p.nom)}">
+      <a class="meal-quickopt" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="Option rapide : ${escapeHtml(nom)}">
         <span class="mqo-ic">${icSvg('spark')}</span>
-        <span class="mqo-txt"><strong>${escapeHtml(p.nom)}</strong><span class="mqo-tag"> · option rapide</span></span>
+        <span class="mqo-txt"><strong>${escapeHtml(nom)}</strong><span class="mqo-tag"> · option rapide</span></span>
         <span class="mqo-cta">${icSvg('cart')} Commander</span>
       </a>`;
+}
+// Charge les options rapides (gérées par l'admin) ; re-render le plan si présent.
+async function fetchQuickOptions() {
+  try {
+    const res = await fetch(apiUrl('/api/quick-options'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) { state.quickOptions = {}; (d.options || []).forEach((o) => { state.quickOptions[o.slot] = o; }); if (state.plan && typeof renderPlan === 'function') renderPlan(); }
+  } catch (_) { /* repli sur le catalogue codé */ }
 }
 
 function openFiche() { renderFiche(); $('#fichePanel').classList.remove('hidden'); }
@@ -2614,6 +2627,7 @@ function init() {
   // Gestion des photos de plats (admin/coach) + chargement de l'index (clients voient les photos)
   const _bPlatsPhotos = $('#btnPlatsPhotos'); if (_bPlatsPhotos) _bPlatsPhotos.addEventListener('click', openPlatsPhotos);
   const _bCoachIa = $('#btnCoachIaAdmin'); if (_bCoachIa) _bCoachIa.addEventListener('click', openCoachIaAdmin);
+  const _bQuickOpt = $('#btnQuickOptions'); if (_bQuickOpt) _bQuickOpt.addEventListener('click', openQuickOptions);
   const _coachPhotos = $('#coachOpenPhotos'); if (_coachPhotos) _coachPhotos.addEventListener('click', openPlatsPhotos);
   const _coachAdh = $('#coachOpenAdh'); if (_coachAdh) _coachAdh.addEventListener('click', openAdhAdmin);
   const _coachHelp = $('#coachOpenHelp'); if (_coachHelp) _coachHelp.addEventListener('click', openHelpAdmin);
@@ -2623,9 +2637,12 @@ function init() {
   $('#platsPhotosPanel').addEventListener('click', (e) => { if (e.target.id === 'platsPhotosPanel') closePlatsPhotos(); });
   $('#coachIaClose').addEventListener('click', closeCoachIaAdmin);
   $('#coachIaPanel').addEventListener('click', (e) => { if (e.target.id === 'coachIaPanel') closeCoachIaAdmin(); });
+  $('#quickOptClose').addEventListener('click', closeQuickOptions);
+  $('#quickOptPanel').addEventListener('click', (e) => { if (e.target.id === 'quickOptPanel') closeQuickOptions(); });
   $('#coachFicheClose').addEventListener('click', closeCoachFiche);
   $('#coachFichePanel').addEventListener('click', (e) => { if (e.target.id === 'coachFichePanel') closeCoachFiche(); });
   fetchPhotoIndex();
+  fetchQuickOptions();
 
   // Analyser mon assiette en photo
   $('#btnPlate').addEventListener('click', openPlate);
@@ -2671,7 +2688,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -3683,6 +3700,52 @@ async function refreshCoachIaBadge() {
     const d = await res.json();
     if (d && d.ok) updateCoachIaBadge(d);
   } catch (_) { /* ignore */ }
+}
+
+// ===== Admin : gestion des options rapides boutique =====
+function closeQuickOptions() { const p = $('#quickOptPanel'); if (p) p.classList.add('hidden'); }
+async function openQuickOptions() {
+  const panel = $('#quickOptPanel'); if (!panel) return;
+  panel.classList.remove('hidden');
+  const body = $('#quickOptBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/quick-options'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    renderQuickOptions(d.options || []);
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+function renderQuickOptions(options) {
+  const body = $('#quickOptBody'); if (!body) return;
+  body.innerHTML = options.map((o) =>
+    '<div class="qopt" data-slot="' + escapeHtml(o.slot) + '">' +
+      '<div class="qopt-head"><span class="qopt-label">' + escapeHtml(o.label) + '</span>' +
+        '<label class="qopt-switch"><input type="checkbox" data-qo="actif"' + (o.actif ? ' checked' : '') + '><span>Active</span></label></div>' +
+      '<label class="qopt-field"><span>Nom du produit</span><input data-qo="nom" maxlength="80" value="' + escapeHtml(o.nom || '') + '" placeholder="Ex : Raw Barre Bio"></label>' +
+      '<label class="qopt-field"><span>Description courte (optionnel)</span><input data-qo="description" maxlength="160" value="' + escapeHtml(o.description || '') + '" placeholder="Ex : vegan, sans gluten"></label>' +
+      '<label class="qopt-field"><span>Lien de commande</span><input data-qo="url" maxlength="400" value="' + escapeHtml(o.url || '') + '" placeholder="https://…"></label>' +
+      '<div class="qopt-foot"><button type="button" class="btn btn-primary qopt-save" data-slot="' + escapeHtml(o.slot) + '">Enregistrer</button><span class="qopt-msg"></span></div>' +
+    '</div>'
+  ).join('');
+  body.querySelectorAll('.qopt-save').forEach((b) => b.addEventListener('click', () => saveQuickOption(b.dataset.slot)));
+}
+async function saveQuickOption(slot) {
+  const card = document.querySelector('.qopt[data-slot="' + slot + '"]'); if (!card) return;
+  const val = (k) => { const el = card.querySelector('[data-qo="' + k + '"]'); return el ? (el.type === 'checkbox' ? el.checked : el.value) : ''; };
+  const msg = card.querySelector('.qopt-msg'); if (msg) msg.textContent = 'Enregistrement…';
+  try {
+    const res = await fetch(apiUrl('/api/quick-options/' + encodeURIComponent(slot)), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ nom: val('nom'), description: val('description'), url: val('url'), actif: val('actif') }),
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'Échec');
+    // Met à jour le cache client pour refléter aussitôt dans le plan.
+    state.quickOptions = {}; (d.options || []).forEach((o) => { state.quickOptions[o.slot] = o; });
+    if (state.plan && typeof renderPlan === 'function') renderPlan();
+    if (msg) msg.textContent = '✓ Enregistré';
+    showToast('Option rapide mise à jour.', { icon: 'check' });
+  } catch (e) { if (msg) msg.textContent = '✗ ' + (e.message || 'réessaie'); }
 }
 
 // ===== Photos de plats : affichage client + gestion admin/coach =====

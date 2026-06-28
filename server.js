@@ -201,6 +201,14 @@ function ensureNutritionHelpTable() {
       created_at TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (message_id, email)
     );
+    CREATE TABLE IF NOT EXISTS nutrition_quick_options (
+      slot TEXT PRIMARY KEY,
+      nom TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      url TEXT NOT NULL DEFAULT '',
+      actif INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
     CREATE TABLE IF NOT EXISTS nutrition_conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_email TEXT NOT NULL,
@@ -614,6 +622,50 @@ try {
       console.error('Erreur community/overview :', e);
       res.status(500).json({ ok: false, error: 'Lecture impossible.' });
     }
+  });
+
+  // ====== Options rapides boutique (alternatives pratiques sur les collations) ======
+  // Catalogue des créneaux gérables + valeurs par défaut (fusionnées avec la base).
+  const QUICK_OPTION_SLOTS = [
+    { slot: 'matin', label: 'Collation du matin', nom: 'Raw Barre Bio', url: 'https://bilobanutrition.fr/search?q=raw+barre+bio' },
+    { slot: 'apres-midi', label: 'Collation de l’après-midi', nom: 'Barre protéinée', url: 'https://bilobanutrition.fr/search?q=barre+proteinee' },
+    { slot: 'apres-sport', label: 'Collation après le sport', nom: 'Protein Water', url: 'https://bilobanutrition.fr/search?q=protein+water' },
+    { slot: 'soir', label: 'Collation du soir', nom: 'Raw Barre Bio', url: 'https://bilobanutrition.fr/search?q=raw+barre+bio' },
+  ];
+  function quickOptionsEffectif() {
+    const rows = {};
+    try { getDb().prepare('SELECT slot, nom, description, url, actif FROM nutrition_quick_options').all().forEach((r) => { rows[r.slot] = r; }); } catch (_) { /* table absente */ }
+    return QUICK_OPTION_SLOTS.map((d) => {
+      const r = rows[d.slot];
+      return {
+        slot: d.slot, label: d.label,
+        nom: (r && r.nom) || d.nom,
+        description: (r && r.description) || '',
+        url: (r && r.url) || d.url,
+        actif: r ? !!r.actif : true,
+      };
+    });
+  }
+  // Lecture : tout utilisateur du module (le client filtre les actives à l'affichage).
+  app.get('/nutrition/api/quick-options', requireAuth, requireNutritionUse, (req, res) => {
+    try { res.json({ ok: true, options: quickOptionsEffectif() }); }
+    catch (e) { console.error('quick-options GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  // Gestion : super-admin uniquement (le coach ne gère pas en V1).
+  app.post('/nutrition/api/quick-options/:slot', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const slot = String(req.params.slot || '');
+      if (!QUICK_OPTION_SLOTS.some((s) => s.slot === slot)) return res.status(404).json({ ok: false, error: 'Créneau inconnu.' });
+      const b = req.body || {};
+      const nom = String(b.nom || '').slice(0, 80).trim();
+      const description = String(b.description || '').slice(0, 160).trim();
+      let url = String(b.url || '').slice(0, 400).trim();
+      if (url && !/^https?:\/\//i.test(url)) return res.status(400).json({ ok: false, error: 'Le lien doit commencer par http(s)://.' });
+      const actif = b.actif ? 1 : 0;
+      getDb().prepare("INSERT INTO nutrition_quick_options (slot, nom, description, url, actif, updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(slot) DO UPDATE SET nom = excluded.nom, description = excluded.description, url = excluded.url, actif = excluded.actif, updated_at = excluded.updated_at")
+        .run(slot, nom, description, url, actif, new Date().toISOString());
+      res.json({ ok: true, options: quickOptionsEffectif() });
+    } catch (e) { console.error('quick-options POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
 
   // ====== Messagerie privée client <-> coach (jamais client <-> client) ======
