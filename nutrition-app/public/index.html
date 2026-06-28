@@ -611,6 +611,8 @@
         <button type="button" class="profil-row" data-go="btnComplements"><svg class="ic pr-muted"><use href="#ic-pill"/></svg>Compléments<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnAgenda"><svg class="ic pr-muted"><use href="#ic-calendar"/></svg>Agenda<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnAnalyse"><svg class="ic pr-muted"><use href="#ic-chart"/></svg>Analyse des écarts<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-client hidden" id="btnChangePin"><svg class="ic pr-muted"><use href="#ic-shield"/></svg>Changer mon code PIN<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-client hidden" id="btnLogout"><svg class="ic pr-muted"><use href="#ic-x"/></svg>Se déconnecter<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
         <div class="profil-sec profil-coach hidden">ESPACE COACH</div>
         <button type="button" class="profil-row profil-coach hidden" id="btnMessagesCoach"><svg class="ic pr-lime"><use href="#ic-send"/></svg>Mes messages<span class="pr-badge conv-unread" id="messagesCoachBadge" style="display:none"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -923,6 +925,21 @@
       </div>
       <p class="panel-sub">Complète les pesées officielles et les photos d'évolution du client (Départ, Semaine 3, Semaine 6).</p>
       <div id="coachParcoursBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ CLIENT : CHANGER SON CODE PIN ============ -->
+  <div id="changePinPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-shield"/></svg> Changer mon code PIN</h2>
+        <button class="modal-close" id="changePinClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Ton code PIN protège l'accès à ton espace (suivi, photos).</p>
+      <label class="qopt-field"><span>Code PIN actuel</span><input id="cpCurrent" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Code actuel"></label>
+      <label class="qopt-field"><span>Nouveau code PIN (4 à 6 chiffres)</span><input id="cpNew" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Nouveau code"></label>
+      <div class="pc-step-btns"><button type="button" class="pc-btn primary" id="cpSave">Enregistrer</button></div>
+      <p class="pc-msg" id="cpMsg"></p>
     </div>
   </div>
 

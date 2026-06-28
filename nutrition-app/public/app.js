@@ -2642,6 +2642,11 @@ function init() {
   $('#quickOptPanel').addEventListener('click', (e) => { if (e.target.id === 'quickOptPanel') closeQuickOptions(); });
   $('#parcoursPeseeClose').addEventListener('click', closeParcoursPesee);
   $('#parcoursPeseePanel').addEventListener('click', (e) => { if (e.target.id === 'parcoursPeseePanel') closeParcoursPesee(); });
+  const _bChangePin = $('#btnChangePin'); if (_bChangePin) _bChangePin.addEventListener('click', openChangePin);
+  const _bLogout = $('#btnLogout'); if (_bLogout) _bLogout.addEventListener('click', logoutClient);
+  const _cpClose = $('#changePinClose'); if (_cpClose) _cpClose.addEventListener('click', closeChangePin);
+  const _cpSave = $('#cpSave'); if (_cpSave) _cpSave.addEventListener('click', saveChangePin);
+  const _cpPanel = $('#changePinPanel'); if (_cpPanel) _cpPanel.addEventListener('click', (e) => { if (e.target.id === 'changePinPanel') closeChangePin(); });
   $('#coachParcoursClose').addEventListener('click', closeCoachParcours);
   $('#coachParcoursPanel').addEventListener('click', (e) => { if (e.target.id === 'coachParcoursPanel') closeCoachParcours(); });
   $('#coachFicheClose').addEventListener('click', closeCoachFiche);
@@ -2693,7 +2698,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeParcoursPesee(); closeCoachParcours(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeParcoursPesee(); closeCoachParcours(); closeChangePin(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -4282,10 +4287,45 @@ function setTab(tab) {
 }
 // Affiche l'« Espace coach » de l'ecran Profil uniquement pour coach/admin.
 function setupProfilCoach() {
+  // Lignes réservées aux vrais comptes clients (PIN/déconnexion) : pas en démo/coach/admin.
+  if (window.__NUTRI_USER && window.__NUTRI_USER.email) {
+    $$('#view-profil .profil-client').forEach((el) => el.classList.remove('hidden'));
+  }
   if (!isCoachOrAdmin()) return;
   $$('#view-profil .profil-coach').forEach((el) => el.classList.remove('hidden'));
   // Lignes réservées au super-admin (config sensible : Coach IA…).
   if (isMainAdmin()) $$('#view-profil .profil-admin').forEach((el) => el.classList.remove('hidden'));
+}
+// --- Client : changer son code PIN / se déconnecter ---
+function closeChangePin() { const p = $('#changePinPanel'); if (p) p.classList.add('hidden'); }
+function openChangePin() {
+  const p = $('#changePinPanel'); if (!p) return;
+  p.classList.remove('hidden');
+  const c = $('#cpCurrent'); if (c) c.value = ''; const n = $('#cpNew'); if (n) n.value = '';
+  const m = $('#cpMsg'); if (m) m.textContent = '';
+  setTimeout(() => { if (c) c.focus(); }, 60);
+}
+async function saveChangePin() {
+  const current = ($('#cpCurrent') || {}).value || '';
+  const nouveau = ($('#cpNew') || {}).value || '';
+  const m = $('#cpMsg');
+  if (!/^[0-9]{4,6}$/.test(nouveau)) { if (m) m.textContent = 'Le nouveau code doit comporter 4 à 6 chiffres.'; return; }
+  try {
+    const res = await fetch(apiUrl('/account/set-pin'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ current, pin: nouveau }) });
+    const d = await res.json();
+    if (d && d.ok) { closeChangePin(); showToast('Code PIN modifié ✅', { icon: 'check' }); }
+    else if (m) m.textContent = (d && d.error) || 'Échec.';
+  } catch (_) { if (m) m.textContent = 'Connexion requise.'; }
+}
+async function logoutClient() {
+  if (!confirm('Te déconnecter de ton espace ?')) return;
+  try { await fetch(apiUrl('/account/logout'), { method: 'POST', headers: nutriAuthHeaders() }); } catch (_) { /* on déconnecte quand même côté client */ }
+  try {
+    const email = (window.__NUTRI_USER && window.__NUTRI_USER.email) || '';
+    localStorage.removeItem('mc-nutri-account');
+    if (email) localStorage.removeItem('mc-nutri-state-' + email);
+  } catch (_) { /* ignore */ }
+  location.reload();
 }
 
 // --- Vue coach : liste des demandes ---
@@ -5531,6 +5571,7 @@ async function renderClientsAdmin() {
           <div>${etat}</div>
           <div>${escapeHtml(obj)}</div>
           <div>Inscrit le ${fmt(c.createdAt)}</div>
+          <button type="button" class="pin-reset" data-email="${escapeHtml(c.email)}" style="margin-top:5px;background:none;border:1px solid #2C333F;color:#9AA0A6;border-radius:8px;padding:4px 9px;font-size:11.5px;font-family:inherit;cursor:pointer;">Réinitialiser le PIN</button>
         </div>
       </div>`;
     }).join('');
@@ -5544,7 +5585,18 @@ async function renderClientsAdmin() {
     const cp = $('#clientsCopyEmails');
     if (cp) cp.addEventListener('click', () => { try { navigator.clipboard.writeText(emails); cp.textContent = 'Copié ✓'; setTimeout(() => { cp.textContent = 'Copier tous les emails'; }, 1400); } catch (_) { /* ignore */ } });
     body.querySelectorAll('.coach-assign').forEach((sel) => sel.addEventListener('change', () => assignCoach(sel.dataset.email, sel.value, sel)));
+    body.querySelectorAll('.pin-reset').forEach((b) => b.addEventListener('click', () => resetClientPin(b.dataset.email, b)));
   } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+// Réinitialise le PIN d'un client (admin/support). Le client en pose un nouveau à sa prochaine connexion.
+async function resetClientPin(email, btn) {
+  if (!confirm('Réinitialiser le code PIN de ' + email + ' ?\nLe client devra en définir un nouveau à sa prochaine connexion.')) return;
+  try {
+    const res = await fetch(apiUrl('/api/clients/' + encodeURIComponent(email) + '/reset-pin'), { method: 'POST', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d.ok) { if (btn) { btn.textContent = 'PIN réinitialisé ✓'; btn.disabled = true; } showToast('Code PIN réinitialisé.', { icon: 'check' }); }
+    else showToast(d.error || 'Échec.', { icon: 'info' });
+  } catch (_) { showToast('Échec.', { icon: 'info' }); }
 }
 // Attribue/retire le coach d'un client (admin). Le serveur valide le coach et le client.
 async function assignCoach(email, coachId, sel) {

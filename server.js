@@ -1404,6 +1404,15 @@ try {
     } catch (e) { console.error('set-pin :', e); res.status(500).json({ ok: false, error: 'Modification impossible.' }); }
   });
 
+  // Déconnexion : invalide le token côté serveur (mémoire + DB).
+  app.post('/nutrition/account/logout', requireAuth, (req, res) => {
+    try {
+      const authHeader = req.headers['authorization'] || '';
+      if (authHeader.startsWith('Bearer ')) sessions.delete(authHeader.slice(7));
+      res.json({ ok: true });
+    } catch (e) { console.error('logout :', e); res.status(500).json({ ok: false }); }
+  });
+
   // Sauvegarde des donnees du client connecte (profil + plan + suivi).
   // Protege par le token de session client (requireAuth).
   app.post('/nutrition/account/save', requireAuth, (req, res) => {
@@ -1480,6 +1489,18 @@ try {
       console.error('Erreur attribution coach :', e);
       res.status(500).json({ ok: false, error: 'Attribution impossible.' });
     }
+  });
+
+  // Réinitialise le code PIN d'un client (support). Le client en définit un nouveau
+  // à sa prochaine connexion. Admin uniquement.
+  app.post('/nutrition/api/clients/:email/reset-pin', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const email = String(req.params.email || '').trim();
+      if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
+      const upd = getDb().prepare("UPDATE nutrition_clients SET pin_hash = '', updated_at = ? WHERE email = ?").run(new Date().toISOString(), email);
+      if (!upd.changes) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
+      res.json({ ok: true });
+    } catch (e) { console.error('reset-pin :', e); res.status(500).json({ ok: false, error: 'Réinitialisation impossible.' }); }
   });
 
   // Clients du coach connecté (admin = tous). Scopé par coach_id côté serveur.
