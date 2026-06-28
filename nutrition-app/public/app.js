@@ -2642,6 +2642,8 @@ function init() {
   $('#quickOptPanel').addEventListener('click', (e) => { if (e.target.id === 'quickOptPanel') closeQuickOptions(); });
   $('#parcoursPeseeClose').addEventListener('click', closeParcoursPesee);
   $('#parcoursPeseePanel').addEventListener('click', (e) => { if (e.target.id === 'parcoursPeseePanel') closeParcoursPesee(); });
+  $('#coachParcoursClose').addEventListener('click', closeCoachParcours);
+  $('#coachParcoursPanel').addEventListener('click', (e) => { if (e.target.id === 'coachParcoursPanel') closeCoachParcours(); });
   $('#coachFicheClose').addEventListener('click', closeCoachFiche);
   $('#coachFichePanel').addEventListener('click', (e) => { if (e.target.id === 'coachFichePanel') closeCoachFiche(); });
   fetchPhotoIndex();
@@ -2691,7 +2693,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeParcoursPesee(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeParcoursPesee(); closeCoachParcours(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -3696,6 +3698,74 @@ async function deleteParcoursPhoto(id) {
   } catch (_) { showToast('Suppression impossible.', { icon: 'info' }); }
 }
 
+// ----- Coach/admin : compléter le parcours d'un client (pesées + photos) -----
+let _coachParcoursEmail = null;
+async function openCoachParcours(email) {
+  _coachParcoursEmail = email;
+  const panel = $('#coachParcoursPanel'); if (!panel) return;
+  panel.classList.remove('hidden');
+  $('#coachParcoursBody').innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/coach/parcours/' + encodeURIComponent(email)), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || '');
+    renderCoachParcours(d.parcours);
+  } catch (_) { $('#coachParcoursBody').innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+function closeCoachParcours() { const p = $('#coachParcoursPanel'); if (p) p.classList.add('hidden'); }
+function renderCoachParcours(p) {
+  const body = $('#coachParcoursBody'); if (!body) return;
+  body.innerHTML =
+    '<p class="pc-priv warn">' + icSvg('eye') + ' Ces photos sont privées et ne doivent jamais être partagées sans accord du client.</p>' +
+    PARCOURS_JALONS_INFO.map((jal) => {
+      const pes = p.pesees[jal.key];
+      return '<div class="cpc-jalon"><div class="cpc-jalon-h">' + escapeHtml(jal.titre) + '</div>' +
+        '<div class="cpc-pesee"><input type="number" step="0.1" inputmode="decimal" id="cpcP-' + jal.key + '" value="' + (pes ? pes.poids : '') + '" placeholder="Poids (kg)">' +
+        '<input id="cpcC-' + jal.key + '" maxlength="400" value="' + escapeHtml((pes && pes.commentaire) || '') + '" placeholder="Commentaire (optionnel)">' +
+        '<button type="button" class="pc-btn primary" data-cpc-pesee="' + jal.key + '">Enregistrer</button></div>' +
+        '<div class="pc-photos-row">' + PARCOURS_PHOTO_TYPES.map((t) => {
+          const ph = (p.photos || []).find((x) => x.jalon === jal.key && x.type === t.key);
+          if (ph) return '<div class="pc-slot filled"><img data-cpc-imgid="' + ph.id + '"><button type="button" class="pc-slot-del" data-cpc-delphoto="' + ph.id + '" aria-label="Supprimer">' + icSvg('x') + '</button><span class="pc-slot-lbl">' + t.label + '</span></div>';
+          return '<label class="pc-slot empty"><input type="file" accept="image/*" data-cpc-up="' + jal.key + ':' + t.key + '" hidden><span class="pc-slot-add">+</span><span class="pc-slot-lbl">' + t.label + '</span></label>';
+        }).join('') + '</div></div>';
+    }).join('');
+  body.querySelectorAll('[data-cpc-pesee]').forEach((b) => b.addEventListener('click', () => coachSavePesee(b.dataset.cpcPesee)));
+  body.querySelectorAll('[data-cpc-up]').forEach((inp) => inp.addEventListener('change', (e) => { const [j, t] = inp.dataset.cpcUp.split(':'); coachUploadPhoto(j, t, e.target.files && e.target.files[0]); }));
+  body.querySelectorAll('[data-cpc-delphoto]').forEach((b) => b.addEventListener('click', () => coachDeletePhoto(Number(b.dataset.cpcDelphoto))));
+  body.querySelectorAll('[data-cpc-imgid]').forEach((img) => loadParcoursPhoto(Number(img.dataset.cpcImgid), img));
+}
+async function coachSavePesee(type) {
+  const poids = Number(($('#cpcP-' + type) || {}).value);
+  const commentaire = (($('#cpcC-' + type) || {}).value) || '';
+  if (!(poids > 0 && poids < 400)) { showToast('Poids invalide.', { icon: 'info' }); return; }
+  try {
+    const res = await fetch(apiUrl('/api/parcours/pesee'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ email: _coachParcoursEmail, type, poids, commentaire }) });
+    const d = await res.json();
+    if (d && d.ok) { renderCoachParcours(d.parcours); showToast('Pesée enregistrée.', { icon: 'check' }); }
+    else showToast((d && d.error) || 'Échec.', { icon: 'info' });
+  } catch (_) { showToast('Échec.', { icon: 'info' }); }
+}
+async function coachUploadPhoto(jalon, type, file) {
+  if (!file) return;
+  showToast('Ajout de la photo…', { icon: 'info' });
+  try {
+    const data = await compressImage(file, 1100, 0.8);
+    const res = await fetch(apiUrl('/api/parcours/photo'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ email: _coachParcoursEmail, jalon, type, data }) });
+    const d = await res.json();
+    if (d && d.ok) { renderCoachParcours(d.parcours); showToast('Photo ajoutée.', { icon: 'check' }); }
+    else showToast((d && d.error) || 'Échec.', { icon: 'info' });
+  } catch (_) { showToast('Échec.', { icon: 'info' }); }
+}
+async function coachDeletePhoto(id) {
+  if (!confirm('Es-tu sûr de vouloir supprimer cette photo ?')) return;
+  try {
+    const res = await fetch(apiUrl('/api/parcours/photo/' + id), { method: 'DELETE', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) { delete _parcoursPhotoUrls[id]; renderCoachParcours(d.parcours); showToast('Photo supprimée.', { icon: 'check' }); }
+    else showToast((d && d.error) || 'Échec.', { icon: 'info' });
+  } catch (_) { showToast('Échec.', { icon: 'info' }); }
+}
+
 // ===== Messagerie privée client <-> coach =====
 function chatBubble(m) {
   return '<div class="comm-msg comm-post ' + (m.mine ? 'me' : '') + '"><div class="comm-av">' + escapeHtml((m.who || '?').charAt(0)) + '</div>' +
@@ -3930,6 +4000,7 @@ async function openCoachFiche(email) {
     if (!d.ok) { body.innerHTML = '<p class="help-empty">' + escapeHtml(d.error || 'Lecture impossible.') + '</p>'; return; }
     renderCoachFiche(d.client);
     const btn = $('#coachFicheMsg'); if (btn) btn.addEventListener('click', () => coachOpenClientConversation(email));
+    const pb = $('#coachFicheParcours'); if (pb) pb.addEventListener('click', () => openCoachParcours(email));
   } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
 }
 function renderCoachFiche(c) {
@@ -3994,6 +4065,7 @@ function renderCoachFiche(c) {
     tagLine('Régimes', regimes) +
     '<div class="fiche-sec"><h3>Suivi récent</h3>' + bars + '</div>' +
     helpBlock +
+    (c.objectif === 'challenge' ? '<button type="button" id="coachFicheParcours" class="btn btn-outline fiche-msg-btn" style="margin-bottom:10px"><svg class="ic"><use href="#ic-flame"/></svg> Parcours Challenge 6 sem.</button>' : '') +
     '<button type="button" id="coachFicheMsg" class="btn btn-primary fiche-msg-btn"><svg class="ic"><use href="#ic-send"/></svg> Contacter ce client</button>';
 }
 
