@@ -1029,6 +1029,88 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 
 /* --- Espace Communauté (débloqué après le plan) --- */
 #view-communaute { max-width: 760px; margin: 0 auto; }
+
+/* === Communauté v2 (refonte motivante) === */
+.comm2 { display: flex; flex-direction: column; gap: 16px; }
+.comm2-join { text-align: center; padding: 28px 18px; }
+.comm2-join-ic { width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 18px; display: grid; place-items: center; background: var(--grad-blue); box-shadow: var(--shadow-green); }
+.comm2-join-ic .ic { width: 28px; height: 28px; color: #fff; }
+.comm2-join h2 { margin: 0 0 6px; font-size: 22px; color: var(--ink); }
+.comm2-join p { margin: 0 auto 18px; font-size: 14px; color: var(--muted); line-height: 1.5; max-width: 420px; }
+/* 1. Progression du groupe */
+.comm2-hero { padding: 20px; border-radius: var(--r-lg); background: var(--grad-blue); color: #fff; box-shadow: var(--shadow-green); }
+.comm2-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.comm2-kicker { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.85; }
+.comm2-hero h2 { margin: 2px 0 0; font-size: 21px; color: #fff; line-height: 1.15; }
+.comm2-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
+.comm2-join .comm2-stats { grid-template-columns: repeat(3, 1fr); margin: 0 0 20px; }
+.comm2-stat { background: rgba(255,255,255,0.14); border-radius: 14px; padding: 11px 6px; text-align: center; }
+.comm2-join .comm2-stat { background: var(--gray-100); }
+.comm2-stat b { display: block; font-size: 19px; font-weight: 800; color: #fff; line-height: 1.1; }
+.comm2-join .comm2-stat b { color: var(--ink); }
+.comm2-stat span { display: block; font-size: 10.5px; font-weight: 600; opacity: 0.9; margin-top: 3px; }
+.comm2-join .comm2-stat span { color: var(--muted); opacity: 1; }
+.comm2-prog { height: 9px; border-radius: 99px; background: rgba(255,255,255,0.25); overflow: hidden; margin-top: 16px; }
+.comm2-prog span { display: block; height: 100%; border-radius: 99px; background: #fff; transition: width 0.5s var(--ease); }
+.comm2-phrase { margin: 12px 0 0; font-size: 13.5px; font-weight: 600; line-height: 1.45; opacity: 0.96; }
+/* 4 & 5. Actions */
+.comm2-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.comm2-cta { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 12px; border-radius: var(--r); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; border: 1.5px solid transparent; transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease); }
+.comm2-cta .ic { width: 18px; height: 18px; }
+.comm2-cta.primary { background: var(--grad-blue); color: #fff; box-shadow: var(--shadow-green); }
+.comm2-cta.ghost { background: var(--card); color: var(--ink); border-color: var(--gray-200); }
+.comm2-cta:hover { transform: translateY(-1px); }
+.comm2-sharebox, .comm2-helpbox { background: var(--card); border: 1px solid var(--gray-200); border-radius: var(--r); padding: 12px; box-shadow: var(--shadow-xs); }
+.comm2-sharebox { display: flex; gap: 8px; }
+.comm2-sharebox input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--gray-200); background: var(--mc-cream); color: var(--ink); font: inherit; font-size: 14px; }
+.comm2-sharebox .btn { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.comm2-sharebox .btn .ic { width: 16px; height: 16px; }
+.comm2-help-t { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.comm2-help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.comm2-help-opt { display: flex; align-items: center; gap: 9px; text-align: left; background: var(--mc-cream); border: 1px solid var(--gray-200); border-radius: 12px; padding: 11px 12px; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; transition: border-color 0.15s var(--ease); }
+.comm2-help-opt:hover { border-color: var(--mc-blue); }
+.comm2-help-emo { font-size: 17px; }
+/* sections */
+.comm2-sec { background: var(--card); border: 1px solid var(--gray-200); border-radius: var(--r-lg); padding: 16px; box-shadow: var(--shadow-xs); }
+.comm2-sec h3 { margin: 0 0 12px; font-size: 15px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.comm2-sec h3 .ic { width: 18px; height: 18px; color: var(--mc-blue); }
+/* 2. Défis */
+.comm2-challenges { display: flex; flex-direction: column; gap: 10px; }
+.comm2-chal { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--gray-200); border-radius: var(--r); background: var(--mc-cream); }
+.comm2-chal.done { border-color: rgba(52,211,153,0.5); }
+.comm2-chal-ic { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--mc-blue-soft); }
+.comm2-chal-ic .ic { width: 20px; height: 20px; color: var(--mc-blue); }
+.comm2-chal-main { flex: 1; min-width: 0; }
+.comm2-chal-main b { display: block; font-size: 14px; color: var(--ink); }
+.comm2-chal-main span { display: block; font-size: 12px; color: var(--muted); margin: 1px 0 7px; }
+.comm2-chal-prog { height: 6px; border-radius: 99px; background: var(--gray-200); overflow: hidden; }
+.comm2-chal-prog span { display: block; height: 100%; background: var(--mc-blue); border-radius: 99px; transition: width 0.4s var(--ease); }
+.comm2-chal.done .comm2-chal-prog span { background: var(--success); }
+.comm2-chal-main small { display: block; font-size: 11px; color: var(--muted); margin-top: 5px; }
+.comm2-chal-btn { flex: 0 0 auto; align-self: center; font: inherit; font-size: 12.5px; font-weight: 700; padding: 9px 13px; border-radius: var(--pill); border: 1.5px solid var(--mc-blue); background: var(--card); color: var(--mc-blue); cursor: pointer; white-space: nowrap; }
+.comm2-chal-btn.go { background: var(--mc-blue); color: #fff; }
+.comm2-chal-btn.done { border-color: var(--success); color: var(--success); background: rgba(52,211,153,0.12); display: inline-flex; align-items: center; gap: 5px; cursor: default; }
+.comm2-chal-btn .ic { width: 14px; height: 14px; }
+/* 3. Coach */
+.comm2-coach .comm-msg:first-child { border-top: none; padding-top: 0; }
+.comm2-coachform { margin-top: 12px; }
+/* 6. Mur + système */
+.comm2-system { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.comm2-system:empty { display: none; }
+.comm2-sys { display: flex; align-items: center; gap: 9px; background: var(--mc-blue-soft); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; font-weight: 600; color: var(--mc-blue); }
+.comm2-sys .ic { width: 16px; height: 16px; flex: 0 0 auto; }
+.comm-msg.is-coach .comm-bub { background: var(--mc-blue-soft); border-radius: 12px; padding: 8px 12px; }
+.comm-tag.coach { background: var(--mc-blue); color: #fff; }
+/* réactions */
+.comm2-reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.comm2-react { font-size: 13px; line-height: 1; padding: 5px 9px; border-radius: 99px; border: 1px solid var(--gray-200); background: var(--card); color: var(--ink-2); cursor: pointer; font-family: inherit; transition: border-color 0.12s var(--ease), background 0.12s var(--ease); }
+.comm2-react:hover { border-color: var(--mc-blue); }
+.comm2-react.on { background: var(--mc-blue-soft); border-color: var(--mc-blue); color: var(--mc-blue); font-weight: 700; }
+.comm2-react-n { font-size: 11px; font-weight: 700; }
+@media (max-width: 420px) {
+  .comm2-stats { grid-template-columns: repeat(2, 1fr); }
+  .comm2-actions { grid-template-columns: 1fr; }
+}
 .comm-intro { display: flex; align-items: center; gap: 12px; margin: 0 0 16px; padding: 14px 16px; border-radius: 18px; background: var(--mc-blue-soft); border: 1px solid rgba(47,123,255,.28); }
 .comm-intro-ic { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--grad-blue); color: #fff; }
 .comm-intro-ic .ic { width: 22px; height: 22px; }

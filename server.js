@@ -194,6 +194,13 @@ function ensureNutritionHelpTable() {
       kind TEXT NOT NULL DEFAULT 'message',
       created_at TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS nutrition_community_reactions (
+      message_id INTEGER NOT NULL,
+      email TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (message_id, email)
+    );
     CREATE TABLE IF NOT EXISTS nutrition_conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_email TEXT NOT NULL,
@@ -459,6 +466,9 @@ try {
 
   // --- Mur collectif de la communauté (challenge) ---
   // Derniers messages du groupe + taille du groupe (clients inscrits).
+  // Réactions autorisées sur le mur (libellés non sensibles, encouragements).
+  const COMMUNITY_REACTIONS = ['bravo', 'force', 'moi-aussi', 'bien-joue', 'courage', 'aide'];
+
   app.get('/nutrition/api/community/messages', requireAuth, requireNutritionUse, (req, res) => {
     try {
       const me = (req.session && req.session.email) || '';
@@ -466,9 +476,25 @@ try {
       const rows = getDb().prepare(
         'SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages ORDER BY id DESC LIMIT ?'
       ).all(limit);
+      // Réactions agrégées par message (compteurs + ma réaction).
+      const reacByMsg = {};
+      try {
+        const ids = rows.map((r) => r.id);
+        if (ids.length) {
+          const ph = ids.map(() => '?').join(',');
+          getDb().prepare('SELECT message_id, type, email FROM nutrition_community_reactions WHERE message_id IN (' + ph + ')').all(...ids)
+            .forEach((x) => {
+              const e = reacByMsg[x.message_id] || (reacByMsg[x.message_id] = { counts: {}, mine: null });
+              e.counts[x.type] = (e.counts[x.type] || 0) + 1;
+              if (me && x.email === me) e.mine = x.type;
+            });
+        }
+      } catch (_) { /* table absente -> pas de réactions */ }
       const messages = rows.map((r) => ({
         id: r.id, who: r.author || 'Client', when: r.created_at,
         text: r.message, kind: r.kind || 'message', mine: !!me && r.email === me,
+        reactions: (reacByMsg[r.id] && reacByMsg[r.id].counts) || {},
+        myReaction: (reacByMsg[r.id] && reacByMsg[r.id].mine) || null,
       }));
       let members = 0;
       try { members = getDb().prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n; } catch (_) { /* ignore */ }
@@ -480,21 +506,113 @@ try {
   });
 
   // Publier un message sur le mur collectif (client / coach / démo connecté).
+  // kind='coach' réservé aux coachs/admin (message du coach épinglé visuellement).
   app.post('/nutrition/api/community/messages', requireAuth, requireNutritionUse, (req, res) => {
     try {
-      const author = String((req.session && req.session.name) || 'Client').slice(0, 80);
+      const role = (req.session && req.session.role) || '';
+      const isCoach = ['admin', 'coach', 'coach-leader'].includes(role);
+      const author = isCoach ? 'Coach' : String((req.session && req.session.name) || 'Client').slice(0, 80);
       const email = (req.session && req.session.email) || '';
-      const kind = ((req.body || {}).kind === 'partage') ? 'partage' : 'message';
+      let kind = String((req.body || {}).kind || 'message');
+      if (kind === 'coach' && !isCoach) kind = 'message';
+      if (!['message', 'partage', 'coach'].includes(kind)) kind = 'message';
       const msg = String((req.body || {}).message || '').slice(0, 500).trim();
       if (!msg) return res.status(400).json({ ok: false, error: 'Message vide.' });
       const now = new Date().toISOString();
       const info = getDb().prepare(
         'INSERT INTO nutrition_community_messages (email, author, message, kind, created_at) VALUES (?, ?, ?, ?, ?)'
       ).run(email, author, msg, kind, now);
-      res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind, mine: true } });
+      res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind, mine: true, reactions: {}, myReaction: null } });
     } catch (e) {
       console.error('Erreur community/messages POST :', e);
       res.status(500).json({ ok: false, error: 'Publication impossible.' });
+    }
+  });
+
+  // Réagir à un message (toggle : re-cliquer la même réaction l'enlève).
+  app.post('/nutrition/api/community/messages/:id/react', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false, error: 'Connexion requise.' });
+      const id = Number(req.params.id);
+      const type = String((req.body || {}).type || '');
+      if (!Number.isInteger(id) || !COMMUNITY_REACTIONS.includes(type)) return res.status(400).json({ ok: false, error: 'Réaction invalide.' });
+      const exists = getDb().prepare('SELECT type FROM nutrition_community_reactions WHERE message_id = ? AND email = ?').get(id, email);
+      if (exists && exists.type === type) {
+        getDb().prepare('DELETE FROM nutrition_community_reactions WHERE message_id = ? AND email = ?').run(id, email);
+      } else {
+        getDb().prepare("INSERT INTO nutrition_community_reactions (message_id, email, type, created_at) VALUES (?,?,?,?) ON CONFLICT(message_id, email) DO UPDATE SET type = excluded.type, created_at = excluded.created_at").run(id, email, type, new Date().toISOString());
+      }
+      const counts = {};
+      getDb().prepare('SELECT type, COUNT(*) AS n FROM nutrition_community_reactions WHERE message_id = ? GROUP BY type').all(id).forEach((x) => { counts[x.type] = x.n; });
+      const mine = getDb().prepare('SELECT type FROM nutrition_community_reactions WHERE message_id = ? AND email = ?').get(id, email);
+      res.json({ ok: true, id, reactions: counts, myReaction: mine ? mine.type : null });
+    } catch (e) {
+      console.error('Erreur community react POST :', e);
+      res.status(500).json({ ok: false, error: 'Réaction impossible.' });
+    }
+  });
+
+  // Vue d'ensemble du groupe : statistiques RÉELLES (agrégées depuis nutrition_adherence
+  // + partages) + messages coach auto-générés + posts système. Aucune donnée sensible
+  // individuelle (poids, calories, santé) : uniquement de l'agrégé positif.
+  app.get('/nutrition/api/community/overview', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const db = getDb();
+      const today = new Date().toISOString().slice(0, 10);
+      const since = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
+      let members = 0;
+      try { members = db.prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n; } catch (_) { /* ignore */ }
+
+      // Repas validés/adaptés/sautés sur 7 jours (table d'adhérence existante).
+      let sv = { v: 0, a: 0, o: 0, s: 0 };
+      try {
+        const r = db.prepare('SELECT COALESCE(SUM(suivi),0) v, COALESCE(SUM(adapte),0) a, COALESCE(SUM(autre),0) o, COALESCE(SUM(saute),0) s FROM nutrition_adherence WHERE date >= ?').get(since);
+        if (r) sv = { v: r.v || 0, a: r.a || 0, o: r.o || 0, s: r.s || 0 };
+      } catch (_) { /* table absente */ }
+      const repasValides = sv.v;
+      const repasTotal = sv.v + sv.a + sv.o + sv.s;
+      const pctValides = repasTotal ? Math.round((repasValides / repasTotal) * 100) : 0;
+
+      // Journées validées partagées cette semaine + membres actifs aujourd'hui.
+      let journeesValidees = 0, actifsAujourdhui = 0;
+      try { journeesValidees = db.prepare("SELECT COUNT(*) n FROM nutrition_community_messages WHERE kind = 'partage' AND created_at >= ?").get(since + 'T00:00:00.000Z').n; } catch (_) { /* ignore */ }
+      try { actifsAujourdhui = db.prepare('SELECT COUNT(DISTINCT client_email) n FROM nutrition_adherence WHERE date = ? AND client_email != \'\'').get(today).n; } catch (_) { /* ignore */ }
+
+      // Objectif collectif de la semaine = semaine pleine (3 repas x 7 j x membres).
+      const objectifRepas = Math.max(members, 1) * 21;
+      const restant = Math.max(0, objectifRepas - repasValides);
+      const pctObjectif = Math.min(100, Math.round((repasValides / objectifRepas) * 100));
+
+      let phrase;
+      if (repasValides === 0) phrase = 'C’est parti pour la semaine — validez vos repas pour faire avancer le groupe ensemble !';
+      else if (restant === 0) phrase = 'Objectif de la semaine atteint, bravo le groupe ! 🎉';
+      else phrase = `Le groupe avance bien, encore ${restant} repas à valider pour l’objectif de la semaine.`;
+
+      // Messages du coach auto-générés selon les données (non sensibles).
+      const coachAuto = [];
+      if (pctValides >= 80) coachAuto.push(`Bravo au groupe : ${pctValides}% des repas validés cette semaine. On garde le rythme ! 💪`);
+      else if (pctValides > 0 && pctValides < 50) coachAuto.push(`Léger relâchement cette semaine (${pctValides}% de repas validés). On se remotive, un repas à la fois 🙌`);
+      if (pctObjectif >= 80 && pctObjectif < 100) coachAuto.push(`Plus que ${restant} repas validés pour l’objectif collectif — on y est presque !`);
+      coachAuto.push('Pensez à votre collation protéinée de l’après-midi : c’est elle qui coupe les fringales de 18 h.');
+
+      // Posts système (mur) calculés, non persistés.
+      const systemPosts = [];
+      if (repasValides > 0) systemPosts.push(`Le groupe a validé ${repasValides} repas cette semaine. 💪`);
+      if (journeesValidees > 0) systemPosts.push(`${journeesValidees} journée${journeesValidees > 1 ? 's' : ''} validée${journeesValidees > 1 ? 's' : ''} partagée${journeesValidees > 1 ? 's' : ''} cette semaine.`);
+      if (actifsAujourdhui > 0) systemPosts.push(`${actifsAujourdhui} membre${actifsAujourdhui > 1 ? 's ont' : ' a'} avancé sur leur plan aujourd’hui.`);
+
+      res.json({
+        ok: true,
+        groupe: 'Groupe Challenge 6/6',
+        members,
+        stats: { repasValides, repasTotal, pctValides, journeesValidees, actifsAujourdhui },
+        objectif: { cible: objectifRepas, restant, pct: pctObjectif },
+        phrase, coachAuto, systemPosts,
+      });
+    } catch (e) {
+      console.error('Erreur community/overview :', e);
+      res.status(500).json({ ok: false, error: 'Lecture impossible.' });
     }
   });
 

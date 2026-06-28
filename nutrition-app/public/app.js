@@ -59,6 +59,9 @@ const state = {
   communautePosts: [], // (obsolète) anciens partages locaux
   communauteMessages: [], // cache du mur collectif (chargé depuis le serveur)
   communauteMembers: 0, // taille du groupe (clients inscrits)
+  communauteOverview: null, // stats de groupe (chargées depuis le serveur)
+  challengesParticipe: [], // ids des défis auxquels je participe
+  challengesValides: {}, // id défi -> date (YYYY-MM-DD) de dernière validation
   conseilsJour: {}, // "ymd-id" -> { statut: compris|ajoute|snooze, until } (conseils du jour)
   conseilsAjouts: {}, // "ymd" -> [ { nom, kcal, prot } ] options ajoutées via un conseil
   conseilsSug: {}, // "ymd-id" -> index de suggestion (cyclage "voir d'autres options")
@@ -2372,6 +2375,7 @@ function saveLocal() {
     coachMessages: (state.coachMessages || []).slice(-40),
     communauteUnlocked: state.communauteUnlocked, communauteJoined: state.communauteJoined,
     communauteVue: state.communauteVue, communautePosts: (state.communautePosts || []).slice(0, 30),
+    challengesParticipe: state.challengesParticipe || [], challengesValides: state.challengesValides || {},
     conseilsJour: state.conseilsJour, conseilsAjouts: state.conseilsAjouts,
     startDate: state.startDate,
     savedAt: new Date().toISOString(),
@@ -2423,6 +2427,8 @@ function loadLocal() {
     state.communauteJoined = !!data.communauteJoined;
     state.communauteVue = !!data.communauteVue;
     state.communautePosts = data.communautePosts || [];
+    state.challengesParticipe = Array.isArray(data.challengesParticipe) ? data.challengesParticipe : [];
+    state.challengesValides = data.challengesValides || {};
     state.conseilsJour = data.conseilsJour || {};
     state.conseilsAjouts = data.conseilsAjouts || {};
     state.plan = data.plan || null;
@@ -2940,16 +2946,32 @@ async function coachHumanRequest() {
 
 // ---------- Navigation (barre basse mobile / sidebar desktop) ----------
 // ---------- Espace Communauté (débloqué après génération du plan) ----------
+// Catalogue des défis du groupe (participation/validation stockées côté client).
 const COMMUNAUTE_CHALLENGES = [
-  { ic: 'spark', t: 'Semaine sans sucre ajouté', d: 'Jour 3 / 7 · 18 membres en lice' },
-  { ic: 'chart', t: '5 séances d’activité', d: 'Cette semaine · 21 participants' },
-  { ic: 'calendar', t: 'Hydratation 2 L / jour', d: 'Objectif quotidien du groupe' },
+  { id: 'hydra', ic: 'leaf', t: 'Hydratation 2 L / jour', obj: 'Boire 2 L d’eau chaque jour', part: 0.72 },
+  { id: 'sport', ic: 'flame', t: '5 séances d’activité', obj: '5 séances cette semaine', part: 0.48 },
+  { id: 'sucre', ic: 'spark', t: 'Semaine sans sucre ajouté', obj: '7 jours sans sucre ajouté', part: 0.55 },
+  { id: 'pas', ic: 'chart', t: '10 000 pas par jour', obj: '10 000 pas chaque jour', part: 0.4 },
 ];
-const COMMUNAUTE_COACH = [
-  'Bravo au groupe : 82 % des repas validés hier. On garde le rythme cette semaine ! 💪',
-  'Pensez à votre collation protéinée de l’après-midi : c’est elle qui coupe les fringales de 18 h.',
+// Réactions rapides du mur (libellés positifs et non sensibles).
+const COMMUNAUTE_REACTIONS = [
+  { type: 'bravo', label: 'Bravo', emo: '👏' },
+  { type: 'force', label: 'Force', emo: '💪' },
+  { type: 'moi-aussi', label: 'Moi aussi', emo: '🙌' },
+  { type: 'bien-joue', label: 'Bien joué', emo: '🔥' },
+  { type: 'courage', label: 'Courage', emo: '✊' },
+  { type: 'aide', label: 'Besoin d’aide', emo: '🆘' },
 ];
-// Le mur du groupe (« Encouragements ») est chargé en temps réel depuis le serveur.
+// Choix du bouton « J'ai besoin d'aide » -> Coach IA (ia) ou alerte coach humain (coach).
+const COMMUNAUTE_AIDE = [
+  { key: 'faim', label: 'J’ai faim', emo: '🍽️', dest: 'ia', q: 'J’ai faim là, qu’est-ce que tu me conseilles de manger ?' },
+  { key: 'craque', label: 'J’ai craqué', emo: '😔', dest: 'coach', diff: 'J’ai craqué sur un écart' },
+  { key: 'quoi', label: 'Je ne sais pas quoi manger', emo: '🤔', dest: 'ia', q: 'Je ne sais pas quoi manger maintenant, une idée simple ?' },
+  { key: 'remplacer', label: 'Remplacer un aliment', emo: '🔁', dest: 'ia', q: 'Je veux remplacer un aliment de mon plan, par quoi ?' },
+  { key: 'motivation', label: 'Je manque de motivation', emo: '🔋', dest: 'coach', diff: 'Je manque de motivation' },
+  { key: 'question', label: 'Une question nutrition', emo: '💬', dest: 'ia', q: '' },
+];
+// Le mur du groupe et les stats sont chargés en temps réel depuis le serveur.
 
 // Affiche l'onglet Communauté dans la barre une fois le plan généré.
 function revealCommunaute() {
@@ -3009,7 +3031,7 @@ function startCommunautePoll() {
   stopCommunautePoll();
   _commPoll = setInterval(() => {
     const screen = $('#screen-result');
-    if (screen && screen.getAttribute('data-tab') === 'communaute' && state.communauteJoined) fetchCommunaute();
+    if (screen && screen.getAttribute('data-tab') === 'communaute' && state.communauteJoined) { fetchCommunaute(); fetchCommunauteOverview(); }
     else stopCommunautePoll();
   }, 15000);
 }
@@ -3048,30 +3070,169 @@ async function postCommunaute(text, kind) {
   return false;
 }
 
+function commReactBar(m) {
+  // Barre de réactions rapides sous chaque message (sauf les miens).
+  const counts = m.reactions || {};
+  const mine = m.myReaction || null;
+  return '<div class="comm2-reacts">' + COMMUNAUTE_REACTIONS.map((r) => {
+    const n = counts[r.type] || 0;
+    const on = mine === r.type ? ' on' : '';
+    return '<button type="button" class="comm2-react' + on + '" data-react-id="' + m.id + '" data-react-type="' + r.type + '" title="' + r.label + '">' +
+      r.emo + (n ? ' <span class="comm2-react-n">' + n + '</span>' : '') + '</button>';
+  }).join('') + '</div>';
+}
 function renderCommunauteWall() {
   const wall = $('#commWall');
   if (!wall) return;
   const msgs = state.communauteMessages || [];
   if (!msgs.length) { wall.innerHTML = '<p class="comm-empty">Soyez le premier à écrire au groupe 👋</p>'; return; }
-  wall.innerHTML = msgs.map((m) =>
-    '<div class="comm-msg comm-post ' + (m.mine ? 'me' : '') + '">' +
-      '<div class="comm-av">' + escapeHtml((m.who || '?').charAt(0)) + '</div>' +
-      '<div class="comm-bub"><b>' + escapeHtml(m.who || 'Client') + '</b> <span class="when">· ' + escapeHtml(commTimeAgo(m.when)) + '</span>' +
-        (m.kind === 'partage' ? ' <span class="comm-tag">journée validée</span>' : '') +
-        '<p>' + escapeHtml(m.text || '') + '</p></div></div>'
-  ).join('');
+  wall.innerHTML = msgs.map((m) => {
+    const isCoach = m.kind === 'coach';
+    const av = isCoach ? '<div class="comm-av coach">C</div>' : '<div class="comm-av">' + escapeHtml((m.who || '?').charAt(0)) + '</div>';
+    const tag = m.kind === 'partage' ? ' <span class="comm-tag">journée validée</span>' : (isCoach ? ' <span class="comm-tag coach">coach</span>' : '');
+    return '<div class="comm-msg comm-post ' + (m.mine ? 'me' : '') + (isCoach ? ' is-coach' : '') + '">' + av +
+      '<div class="comm-bub"><b>' + escapeHtml(m.who || 'Client') + '</b> <span class="when">· ' + escapeHtml(commTimeAgo(m.when)) + '</span>' + tag +
+        '<p>' + escapeHtml(m.text || '') + '</p>' + commReactBar(m) + '</div></div>';
+  }).join('');
+  wall.querySelectorAll('.comm2-react').forEach((b) => b.addEventListener('click', () => reactCommunaute(Number(b.dataset.reactId), b.dataset.reactType)));
 }
 
-// Partage la journée du jour si elle est validée -> message réel sur le mur.
+// Toggle d'une réaction sur un message du mur.
+async function reactCommunaute(id, type) {
+  try {
+    const res = await fetch(apiUrl('/api/community/messages/' + id + '/react'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ type }),
+    });
+    const d = await res.json();
+    if (d && d.ok) {
+      const m = (state.communauteMessages || []).find((x) => x.id === id);
+      if (m) { m.reactions = d.reactions || {}; m.myReaction = d.myReaction || null; renderCommunauteWall(); }
+    }
+  } catch (_) { /* silencieux */ }
+}
+
+// ----- Bloc 4 : partage de la journée validée (avec mot personnel facultatif) -----
 function partagerJournee() {
   const di = (typeof indexJourActuel === 'function') ? indexJourActuel() : 0;
   if (typeof dayIsComplete === 'function' && !dayIsComplete(di)) {
     showToast('Validez d’abord tous vos repas du jour pour le partager au groupe.', { icon: 'info' });
     return;
   }
-  const j = state.plan && state.plan.jours && state.plan.jours[di];
-  const label = (j && (j.libelle || j.label)) ? (j.libelle || j.label) : 'Ma journée';
-  postCommunaute(label + ' validée 💯 On continue !', 'partage').then((ok) => { if (ok) showToast('Journée partagée au groupe 🎉', { icon: 'check' }); });
+  const box = $('#commShareBox');
+  if (box) {
+    box.classList.toggle('hidden');
+    if (!box.classList.contains('hidden')) { const i = $('#commShareInput'); if (i) setTimeout(() => i.focus(), 50); }
+  }
+}
+function confirmPartage() {
+  const inp = $('#commShareInput');
+  const perso = inp ? inp.value.trim() : '';
+  const txt = 'Journée validée aujourd’hui.' + (perso ? ' ' + perso : '');
+  postCommunaute(txt, 'partage').then((ok) => {
+    if (ok) { showToast('Journée partagée au groupe 🎉', { icon: 'check' }); const b = $('#commShareBox'); if (b) b.classList.add('hidden'); if (inp) inp.value = ''; fetchCommunauteOverview(); }
+  });
+}
+
+// ----- Bloc 2 : défis (participation/validation côté client) -----
+function challengeCard(c) {
+  const today = (typeof ymd === 'function' && typeof todayMidnight === 'function') ? ymd(todayMidnight()) : new Date().toISOString().slice(0, 10);
+  const participe = (state.challengesParticipe || []).includes(c.id);
+  const valideToday = (state.challengesValides || {})[c.id] === today;
+  const members = (state.communauteOverview && state.communauteOverview.members) || state.communauteMembers || 0;
+  const part = Math.max(1, Math.round(members * c.part)) + (participe ? 1 : 0);
+  const pct = valideToday ? 100 : (participe ? 45 : 8);
+  let btn;
+  if (valideToday) btn = '<button type="button" class="comm2-chal-btn done" disabled>' + icSvg('check') + ' Validé</button>';
+  else if (participe) btn = '<button type="button" class="comm2-chal-btn go" data-chal-go="' + c.id + '">Valider aujourd’hui</button>';
+  else btn = '<button type="button" class="comm2-chal-btn" data-chal-join="' + c.id + '">Je participe</button>';
+  return '<div class="comm2-chal' + (valideToday ? ' done' : '') + '">' +
+    '<div class="comm2-chal-ic">' + icSvg(c.ic) + '</div>' +
+    '<div class="comm2-chal-main"><b>' + escapeHtml(c.t) + '</b><span>' + escapeHtml(c.obj) + '</span>' +
+      '<div class="comm2-chal-prog"><span style="width:' + pct + '%"></span></div>' +
+      '<small>' + part + ' participant' + (part > 1 ? 's' : '') + '</small></div>' + btn + '</div>';
+}
+function joinChallenge(id) {
+  const a = state.challengesParticipe || (state.challengesParticipe = []);
+  if (!a.includes(id)) a.push(id);
+  saveLocal(); showToast('Tu participes au défi 💪', { icon: 'check' }); renderCommunaute();
+}
+function validateChallenge(id) {
+  const today = (typeof ymd === 'function' && typeof todayMidnight === 'function') ? ymd(todayMidnight()) : new Date().toISOString().slice(0, 10);
+  state.challengesValides = state.challengesValides || {};
+  state.challengesValides[id] = today;
+  if (!(state.challengesParticipe || []).includes(id)) (state.challengesParticipe || (state.challengesParticipe = [])).push(id);
+  saveLocal(); showToast('Défi validé pour aujourd’hui 🔥', { icon: 'check' }); renderCommunaute();
+}
+
+// ----- Bloc 5 : besoin d'aide -> Coach IA ou alerte coach humain -----
+function commHelpBoxHtml() {
+  return '<p class="comm2-help-t">Comment peut-on t’aider ?</p><div class="comm2-help-grid">' +
+    COMMUNAUTE_AIDE.map((o) => '<button type="button" class="comm2-help-opt" data-aide="' + o.key + '"><span class="comm2-help-emo">' + o.emo + '</span>' + escapeHtml(o.label) + '</button>').join('') +
+    '</div>';
+}
+function openCommHelp() { const b = $('#commHelpBox'); if (b) b.classList.toggle('hidden'); }
+function commHelpChoice(key) {
+  const o = COMMUNAUTE_AIDE.find((x) => x.key === key); if (!o) return;
+  const b = $('#commHelpBox'); if (b) b.classList.add('hidden');
+  if (o.dest === 'ia') { openCoachIaAvec(o.q); return; }
+  // Alerte au coach humain (réutilise les demandes d'aide existantes).
+  fetch(apiUrl('/api/help-request'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ difficultes: [o.diff], message: '' }) })
+    .then((r) => r.json())
+    .then((d) => showToast(d && d.ok ? 'Ton coach a été prévenu, il revient vers toi 💬' : 'Envoi impossible, réessaie.', { icon: d && d.ok ? 'check' : 'info' }))
+    .catch(() => showToast('Connexion requise pour prévenir ton coach.', { icon: 'info' }));
+}
+function openCoachIaAvec(q) {
+  if (typeof openSos === 'function') openSos();
+  if (q && typeof sendCoach === 'function') sendCoach(q);
+}
+
+// ----- Bloc 3 : messages du coach (auto + publiés) & posts système -----
+function renderCommCoachHtml() {
+  const ov = state.communauteOverview;
+  const msgs = (ov && ov.coachAuto && ov.coachAuto.length) ? ov.coachAuto : ['Bienvenue dans ton groupe ! Valide tes repas chaque jour, on avance ensemble. 💪'];
+  return msgs.map((m) => '<div class="comm-msg"><div class="comm-av coach">C</div><div class="comm-bub"><b>Coach</b><p>' + escapeHtml(m) + '</p></div></div>').join('');
+}
+function renderCommSystemHtml() {
+  const ov = state.communauteOverview;
+  const posts = (ov && ov.systemPosts) || [];
+  if (!posts.length) return '';
+  return posts.map((p) => '<div class="comm2-sys">' + icSvg('spark') + '<span>' + escapeHtml(p) + '</span></div>').join('');
+}
+function coachPublishHtml() {
+  return '<form id="commCoachForm" class="comm-compose comm2-coachform">' +
+    '<textarea id="commCoachInput" rows="1" maxlength="500" placeholder="Publier un message au groupe (coach)…"></textarea>' +
+    '<button type="submit" class="comm-send" aria-label="Publier">' + icSvg('send') + '</button></form>';
+}
+
+// Charge les stats de groupe réelles + messages auto + posts système.
+async function fetchCommunauteOverview() {
+  try {
+    const res = await fetch(apiUrl('/api/community/overview'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) { state.communauteOverview = d; applyOverview(); }
+  } catch (_) { /* hors-ligne */ }
+}
+function applyOverview() {
+  const ov = state.communauteOverview; if (!ov) return;
+  const set = (id, v) => { const el = $('#' + id); if (el) el.textContent = v; };
+  set('commStatMembers', ov.members || 0);
+  set('commStatPct', (ov.stats ? ov.stats.pctValides : 0) + '%');
+  set('commStatJours', ov.stats ? ov.stats.journeesValidees : 0);
+  const bar = $('#commProgBar'); if (bar && ov.objectif) bar.style.width = (ov.objectif.pct || 0) + '%';
+  const ph = $('#commPhrase'); if (ph && ov.phrase) ph.textContent = ov.phrase;
+  const cl = $('#commCoachList'); if (cl) cl.innerHTML = renderCommCoachHtml();
+  const sl = $('#commSystemList'); if (sl) sl.innerHTML = renderCommSystemHtml();
+  // Recalcule les défis avec le vrai nombre de membres + re-câble les boutons.
+  const ch = $('#commChallenges');
+  if (ch) {
+    ch.innerHTML = COMMUNAUTE_CHALLENGES.map(challengeCard).join('');
+    ch.querySelectorAll('[data-chal-join]').forEach((b) => b.addEventListener('click', () => joinChallenge(b.dataset.chalJoin)));
+    ch.querySelectorAll('[data-chal-go]').forEach((b) => b.addEventListener('click', () => validateChallenge(b.dataset.chalGo)));
+  }
+}
+
+function commStatTile(id, val, label) {
+  return '<div class="comm2-stat"><b id="' + id + '">' + val + '</b><span>' + label + '</span></div>';
 }
 
 function renderCommunaute() {
@@ -3079,48 +3240,72 @@ function renderCommunaute() {
   if (!host) return;
   if (!state.communauteJoined) {
     host.innerHTML =
-      '<div class="comm-hero">' +
+      '<div class="comm2-join">' +
+        '<div class="comm2-join-ic">' + icSvg('users') + '</div>' +
         '<h2>La communauté du challenge</h2>' +
-        '<p>Rejoignez votre groupe pour avancer ensemble, partager vos journées validées et discuter sur le mur collectif.</p>' +
-        '<div class="comm-hero-row">' +
-          '<div class="comm-stat"><b id="commMembers">' + (state.communauteMembers || '—') + '</b> membres</div>' +
-          '<div class="comm-stat"><b>6/6</b> challenge</div>' +
-          '<div class="comm-stat"><b>82%</b> repas validés</div>' +
+        '<p>Rejoins ton groupe pour avancer ensemble : défis collectifs, journées validées, messages du coach et entraide.</p>' +
+        '<div class="comm2-stats">' +
+          commStatTile('commJoinMembers', state.communauteMembers || '—', 'membres') +
+          commStatTile('commJoinChal', COMMUNAUTE_CHALLENGES.length, 'défis actifs') +
+          commStatTile('commJoinObj', '6/6', 'challenge') +
         '</div>' +
-      '</div>' +
-      '<button type="button" class="btn btn-primary comm-join" id="commJoin">Rejoindre mon groupe</button>';
+        '<button type="button" class="btn btn-primary comm-join" id="commJoin">Rejoindre mon groupe</button>' +
+      '</div>';
     const j = $('#commJoin');
     if (j) j.addEventListener('click', joinCommunaute);
     fetchCommunaute();
     return;
   }
+  const ov = state.communauteOverview;
+  const members = (ov && ov.members) || state.communauteMembers || '—';
+  const pct = ov && ov.stats ? ov.stats.pctValides : 0;
+  const jours = ov && ov.stats ? ov.stats.journeesValidees : 0;
+  const pctObj = ov && ov.objectif ? ov.objectif.pct : 0;
+  const phrase = (ov && ov.phrase) || 'Avance avec ton groupe : valide tes repas et participe aux défis !';
   host.innerHTML =
-    '<div class="comm-hero">' +
-      '<h2>Groupe Challenge 6/6</h2>' +
-      '<p>Vous avancez avec le groupe. Écrivez sur le mur, partagez vos journées : on se motive ensemble !</p>' +
-      '<div class="comm-hero-row">' +
-        '<div class="comm-stat"><b id="commMembers">' + (state.communauteMembers || '—') + '</b> membres</div>' +
-        '<div class="comm-stat"><b>3</b> challenges actifs</div>' +
-        '<div class="comm-stat"><b>82%</b> repas validés</div>' +
+    '<div class="comm2">' +
+      // 1. Progression du groupe
+      '<div class="comm2-hero">' +
+        '<div class="comm2-hero-top"><div><div class="comm2-kicker">Communauté</div><h2>' + escapeHtml((ov && ov.groupe) || 'Groupe Challenge 6/6') + '</h2></div></div>' +
+        '<div class="comm2-stats">' +
+          commStatTile('commStatMembers', members, 'membres') +
+          commStatTile('commStatChal', COMMUNAUTE_CHALLENGES.length, 'défis actifs') +
+          commStatTile('commStatPct', pct + '%', 'repas validés') +
+          commStatTile('commStatJours', jours, 'jours validés') +
+        '</div>' +
+        '<div class="comm2-prog"><span id="commProgBar" style="width:' + pctObj + '%"></span></div>' +
+        '<p class="comm2-phrase" id="commPhrase">' + escapeHtml(phrase) + '</p>' +
       '</div>' +
-      '<div class="comm-prog"><span style="width:82%"></span></div>' +
-    '</div>' +
-    '<div class="comm-card"><h3>' + icSvg('spark') + ' Challenges en cours</h3>' +
-      COMMUNAUTE_CHALLENGES.map((c) => '<div class="comm-item"><div class="comm-item-ic">' + icSvg(c.ic) + '</div><div class="comm-item-tx"><b>' + escapeHtml(c.t) + '</b><span>' + escapeHtml(c.d) + '</span></div></div>').join('') +
-    '</div>' +
-    '<div class="comm-card"><h3>' + icSvg('spark') + ' Messages du coach</h3>' +
-      COMMUNAUTE_COACH.map((m) => '<div class="comm-msg"><div class="comm-av coach">C</div><div class="comm-bub"><b>Coach</b><p>' + escapeHtml(m) + '</p></div></div>').join('') +
-    '</div>' +
-    '<button type="button" class="btn btn-primary comm-share" id="commShare">' + icSvg('check') + ' Partager ma journée validée</button>' +
-    '<div class="comm-card" style="margin-top:14px"><h3>' + icSvg('users') + ' Mur du groupe</h3>' +
-      '<form id="commForm" class="comm-compose">' +
-        '<textarea id="commInput" rows="1" maxlength="500" placeholder="Écris un message au groupe…" autocomplete="off"></textarea>' +
-        '<button type="submit" class="comm-send" aria-label="Publier">' + icSvg('send') + '</button>' +
-      '</form>' +
-      '<div id="commWall" class="comm-wall"><p class="comm-empty">Chargement…</p></div>' +
+      // 4 & 5. Actions principales
+      '<div class="comm2-actions">' +
+        '<button type="button" class="comm2-cta primary" id="commShare">' + icSvg('check') + ' Partager ma journée validée</button>' +
+        '<button type="button" class="comm2-cta ghost" id="commHelp">' + icSvg('heart-hand') + ' J’ai besoin d’aide</button>' +
+      '</div>' +
+      '<div id="commShareBox" class="comm2-sharebox hidden"><input id="commShareInput" maxlength="200" placeholder="Ajoute un mot au groupe (facultatif)…" autocomplete="off"><button type="button" class="btn btn-primary" id="commShareGo">' + icSvg('send') + ' Publier</button></div>' +
+      '<div id="commHelpBox" class="comm2-helpbox hidden">' + commHelpBoxHtml() + '</div>' +
+      // 2. Défis en cours
+      '<section class="comm2-sec"><h3>' + icSvg('flame') + ' Défis en cours</h3><div class="comm2-challenges" id="commChallenges">' + COMMUNAUTE_CHALLENGES.map(challengeCard).join('') + '</div></section>' +
+      // 3. Messages du coach
+      '<section class="comm2-sec"><h3>' + icSvg('spark') + ' Messages du coach</h3><div id="commCoachList" class="comm2-coach">' + renderCommCoachHtml() + '</div>' + (isCoachOrAdmin() ? coachPublishHtml() : '') + '</section>' +
+      // 6. Mur du groupe
+      '<section class="comm2-sec"><h3>' + icSvg('users') + ' Mur du groupe</h3>' +
+        '<div id="commSystemList" class="comm2-system">' + renderCommSystemHtml() + '</div>' +
+        '<form id="commForm" class="comm-compose">' +
+          '<textarea id="commInput" rows="1" maxlength="500" placeholder="Écris un message au groupe…" autocomplete="off"></textarea>' +
+          '<button type="submit" class="comm-send" aria-label="Publier">' + icSvg('send') + '</button>' +
+        '</form>' +
+        '<div id="commWall" class="comm-wall"><p class="comm-empty">Chargement…</p></div>' +
+      '</section>' +
     '</div>';
-  const s = $('#commShare');
-  if (s) s.addEventListener('click', partagerJournee);
+  // Câblage
+  const s = $('#commShare'); if (s) s.addEventListener('click', partagerJournee);
+  const sg = $('#commShareGo'); if (sg) sg.addEventListener('click', confirmPartage);
+  const h = $('#commHelp'); if (h) h.addEventListener('click', openCommHelp);
+  host.querySelectorAll('#commHelpBox [data-aide]').forEach((b) => b.addEventListener('click', () => commHelpChoice(b.dataset.aide)));
+  host.querySelectorAll('[data-chal-join]').forEach((b) => b.addEventListener('click', () => joinChallenge(b.dataset.chalJoin)));
+  host.querySelectorAll('[data-chal-go]').forEach((b) => b.addEventListener('click', () => validateChallenge(b.dataset.chalGo)));
+  const cf = $('#commCoachForm');
+  if (cf) cf.addEventListener('submit', (e) => { e.preventDefault(); const i = $('#commCoachInput'); const v = i ? i.value : ''; if (!v.trim()) return; postCommunaute(v, 'coach').then((ok) => { if (ok && i) i.value = ''; }); });
   const form = $('#commForm');
   if (form) form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -3131,6 +3316,7 @@ function renderCommunaute() {
   });
   renderCommunauteWall();
   fetchCommunaute();
+  fetchCommunauteOverview();
   startCommunautePoll();
 }
 
