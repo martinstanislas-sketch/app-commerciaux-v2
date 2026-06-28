@@ -3177,32 +3177,92 @@ async function renderMessagesCoachList() {
     const d = await res.json();
     if (!d.ok) throw new Error();
     const conv = d.conversations || [];
-    if (!conv.length) { body.innerHTML = '<p class="help-empty">Aucune conversation pour le moment.</p>'; return; }
-    body.innerHTML = conv.map((c) =>
-      '<button type="button" class="conv-row" data-conv="' + c.id + '">' +
-        '<div class="conv-main"><div class="conv-name">' + escapeHtml(c.clientName) + (c.unread ? ' <span class="conv-unread">' + c.unread + '</span>' : '') + '</div>' +
-        '<div class="conv-last">' + (c.lastRole === 'client' ? '' : 'Toi : ') + escapeHtml((c.lastText || '').slice(0, 70)) + '</div></div>' +
-        '<div class="conv-when">' + escapeHtml(c.lastAt ? commTimeAgo(c.lastAt) : '') + '</div>' +
-      '</button>'
-    ).join('');
+    const isAdmin = d.scope === 'admin';
+    if (!conv.length) { body.innerHTML = (isAdmin ? msgAuditHeader() : '') + '<p class="help-empty">Aucune conversation pour le moment.</p>'; if (isAdmin) wireAuditBtn(); return; }
+    if (isAdmin) {
+      // Supervision : métadonnées uniquement (participants, volume, activité). Pas de contenu.
+      body.innerHTML = msgAuditHeader() + conv.map((c) =>
+        '<button type="button" class="conv-row" data-conv="' + c.id + '">' +
+          '<div class="conv-main"><div class="conv-name">' + escapeHtml(c.clientName) + '</div>' +
+          '<div class="conv-last">' + escapeHtml(c.coachName || 'Coach non attribué') + ' · ' + (c.total || 0) + ' message' + ((c.total || 0) > 1 ? 's' : '') + '</div></div>' +
+          '<div class="conv-when">' + escapeHtml(c.lastAt ? commTimeAgo(c.lastAt) : '') + '</div>' +
+        '</button>'
+      ).join('');
+      wireAuditBtn();
+    } else {
+      body.innerHTML = conv.map((c) =>
+        '<button type="button" class="conv-row" data-conv="' + c.id + '">' +
+          '<div class="conv-main"><div class="conv-name">' + escapeHtml(c.clientName) + (c.unread ? ' <span class="conv-unread">' + c.unread + '</span>' : '') + '</div>' +
+          '<div class="conv-last">' + (c.lastRole === 'client' ? '' : 'Toi : ') + escapeHtml((c.lastText || '').slice(0, 70)) + '</div></div>' +
+          '<div class="conv-when">' + escapeHtml(c.lastAt ? commTimeAgo(c.lastAt) : '') + '</div>' +
+        '</button>'
+      ).join('');
+    }
     body.querySelectorAll('.conv-row').forEach((b) => b.addEventListener('click', () => openCoachConversation(Number(b.dataset.conv))));
   } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
 }
-async function openCoachConversation(id) {
+function msgAuditHeader() {
+  return '<div class="msg-superv"><svg class="ic"><use href="#ic-eye"/></svg><div><strong>Supervision</strong> — tu vois qui échange avec qui, le volume et l’activité. ' +
+    'Le <strong>contenu reste privé</strong> ; il n’est révélé qu’en mode support (tracé).</div>' +
+    '<button type="button" id="msgAuditBtn" class="msg-audit-link">Journal d’audit</button></div>';
+}
+function wireAuditBtn() { const b = $('#msgAuditBtn'); if (b) b.addEventListener('click', openMsgAudit); }
+async function openMsgAudit() {
   const body = $('#messagesCoachBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
   try {
-    const res = await fetch(apiUrl('/api/coach/conversations/' + id + '/messages'), { headers: nutriAuthHeaders() });
+    const res = await fetch(apiUrl('/api/admin/message-audit'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    const list = (d.entries || []);
+    const ACT = { reveal: 'Contenu révélé (support)', reply: 'Réponse super-admin' };
+    body.innerHTML = '<button type="button" class="btn btn-outline" id="auditBack" style="margin:0 0 12px">← Conversations</button>' +
+      '<h3 style="margin:0 0 10px">Journal d’audit</h3>' +
+      (list.length ? list.map((e) =>
+        '<div class="audit-row"><div class="audit-act">' + escapeHtml(ACT[e.action] || e.action) + '</div>' +
+        '<div class="audit-meta">' + escapeHtml(e.adminLabel || 'Admin') + ' · ' + escapeHtml(e.clientName || '—') + '</div>' +
+        '<div class="audit-when">' + escapeHtml(e.when ? commTimeAgo(e.when) : '') + '</div></div>'
+      ).join('') : '<p class="help-empty">Aucun accès au contenu enregistré.</p>');
+    $('#auditBack').addEventListener('click', renderMessagesCoachList);
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+async function openCoachConversation(id, support) {
+  const body = $('#messagesCoachBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const url = '/api/coach/conversations/' + id + '/messages' + (support ? '?support=1' : '');
+    const res = await fetch(apiUrl(url), { headers: nutriAuthHeaders() });
     const d = await res.json();
     if (!d.ok) throw new Error();
-    body.innerHTML =
-      '<button type="button" class="btn btn-outline" id="convBack" style="margin:0 0 12px">← Toutes les conversations</button>' +
-      '<div style="font-weight:700;margin:0 0 8px;">' + escapeHtml(d.clientName) + '</div>' +
+    const back = '<button type="button" class="btn btn-outline" id="convBack" style="margin:0 0 12px">← Toutes les conversations</button>';
+    const head = '<div style="font-weight:700;margin:0 0 8px;">' + escapeHtml(d.clientName) + '</div>';
+    if (d.redacted) {
+      // Admin en supervision : on montre la FORME de l'échange (qui, quand), pas le texte.
+      const wall = (d.messages || []).length ? (d.messages).map(redactedBubble).join('') : '<p class="comm-empty">Pas encore de message.</p>';
+      body.innerHTML = back + head +
+        '<div class="msg-redact-note"><svg class="ic"><use href="#ic-eye"/></svg> Contenu masqué — supervision. Révéler le contenu nécessite le mode support et sera <strong>enregistré dans le journal d’audit</strong>.</div>' +
+        '<div id="convWall" class="comm-wall comm-wall-redacted">' + wall + '</div>' +
+        '<button type="button" id="convReveal" class="btn btn-outline msg-reveal-btn">Révéler le contenu (mode support)</button>';
+      $('#convBack').addEventListener('click', renderMessagesCoachList);
+      $('#convReveal').addEventListener('click', () => {
+        if (confirm('Accéder au contenu de cette conversation en mode support ? Cet accès sera enregistré dans le journal d’audit.')) openCoachConversation(id, true);
+      });
+      return;
+    }
+    const supportBanner = d.support ? '<div class="msg-support-banner"><svg class="ic"><use href="#ic-eye"/></svg> Mode support — accès au contenu <strong>enregistré dans le journal d’audit</strong>.</div>' : '';
+    body.innerHTML = back + head + supportBanner +
       '<div id="convWall" class="comm-wall">' + ((d.messages || []).length ? (d.messages).map(chatBubble).join('') : '<p class="comm-empty">Pas encore de message.</p>') + '</div>' +
       '<form id="convForm" class="comm-compose"><textarea id="convInput" rows="1" maxlength="2000" placeholder="Répondre à ' + escapeHtml(d.clientName) + '…" autocomplete="off"></textarea><button type="submit" class="comm-send" aria-label="Envoyer">' + icSvg('send') + '</button></form>';
     const w = $('#convWall'); if (w) w.scrollTop = w.scrollHeight;
     $('#convBack').addEventListener('click', renderMessagesCoachList);
     $('#convForm').addEventListener('submit', (e) => { e.preventDefault(); const inp = $('#convInput'); const v = inp ? inp.value : ''; if (!v.trim()) return; replyCoachConversation(id, v).then((ok) => { if (ok && inp) inp.value = ''; }); });
   } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+// Bulle "masquée" : montre l'émetteur et l'heure, contenu remplacé par des barres.
+function redactedBubble(m) {
+  const who = m.role === 'client' ? 'Client' : (m.role === 'super_admin' ? 'Super-admin' : 'Coach');
+  const n = Math.max(1, Math.min(6, Math.round((m.len || 12) / 14)));
+  const bars = Array.from({ length: n }, () => '<span class="redact-bar"></span>').join('');
+  return '<div class="comm-msg comm-post ' + (m.mine ? 'me' : '') + '"><div class="comm-av">' + escapeHtml(who.charAt(0)) + '</div>' +
+    '<div class="comm-bub"><b>' + escapeHtml(who) + '</b> <span class="when">· ' + escapeHtml(m.when ? commTimeAgo(m.when) : '') + '</span>' +
+    '<div class="redact-bars">' + bars + '</div></div></div>';
 }
 async function replyCoachConversation(id, text) {
   const msg = String(text || '').trim(); if (!msg) return false;

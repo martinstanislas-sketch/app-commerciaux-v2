@@ -212,6 +212,13 @@ function ensureNutritionHelpTable() {
       created_at TEXT NOT NULL DEFAULT '',
       lu INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS nutrition_message_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      admin_label TEXT NOT NULL DEFAULT '',
+      conversation_id INTEGER NOT NULL,
+      action TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
     CREATE TABLE IF NOT EXISTS nutrition_recipe_photos (
       recipe_id TEXT PRIMARY KEY,
       data TEXT NOT NULL DEFAULT '',
@@ -534,15 +541,23 @@ try {
       const base = `SELECT c.id, c.client_email, c.coach_id, c.last_message_at,
         (SELECT contenu FROM nutrition_messages m WHERE m.conversation_id = c.id ORDER BY m.id DESC LIMIT 1) AS last_text,
         (SELECT sender_role FROM nutrition_messages m WHERE m.conversation_id = c.id ORDER BY m.id DESC LIMIT 1) AS last_role,
+        (SELECT COUNT(*) FROM nutrition_messages m WHERE m.conversation_id = c.id) AS total,
         (SELECT COUNT(*) FROM nutrition_messages m WHERE m.conversation_id = c.id AND m.sender_role = 'client' AND m.lu = 0) AS unread
         FROM nutrition_conversations c`;
       const rows = sc.isAdmin
         ? getDb().prepare(base + ' ORDER BY c.last_message_at DESC').all()
         : getDb().prepare(base + ' WHERE c.coach_id = ? ORDER BY c.last_message_at DESC').all(sc.coachId);
+      const coachMap = {};
+      if (sc.isAdmin) { try { getDb().prepare('SELECT id, name FROM coaches WHERE archived = 0').all().forEach((c) => { coachMap[c.id] = c.name; }); } catch (_) { /* ignore */ } }
       const conversations = rows.map((r) => {
         const cli = getDb().prepare('SELECT prenom, nom FROM nutrition_clients WHERE email = ?').get(r.client_email);
         const clientName = cli ? ([cli.prenom, cli.nom].filter(Boolean).join(' ') || r.client_email) : r.client_email;
-        return { id: r.id, clientEmail: r.client_email, clientName, coachId: r.coach_id, lastText: r.last_text || '', lastRole: r.last_role || '', lastAt: r.last_message_at, unread: r.unread };
+        // Super_admin : supervision = métadonnées seulement (participants, volume, activité),
+        // JAMAIS le contenu. Le coach (propriétaire) voit l'aperçu de SA conversation.
+        if (sc.isAdmin) {
+          return { id: r.id, clientEmail: r.client_email, clientName, coachId: r.coach_id, coachName: (r.coach_id && coachMap[r.coach_id]) || null, lastRole: r.last_role || '', lastAt: r.last_message_at, total: r.total, redacted: true };
+        }
+        return { id: r.id, clientEmail: r.client_email, clientName, coachId: r.coach_id, lastText: r.last_text || '', lastRole: r.last_role || '', lastAt: r.last_message_at, total: r.total, unread: r.unread };
       });
       res.json({ ok: true, scope: sc.isAdmin ? 'admin' : 'coach', conversations });
     } catch (e) { console.error('coach/conversations GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
@@ -555,11 +570,22 @@ try {
       const conv = getDb().prepare('SELECT id, client_email, coach_id FROM nutrition_conversations WHERE id = ?').get(Number(req.params.id));
       if (!conv) return res.status(404).json({ ok: false, error: 'Conversation introuvable.' });
       if (!sc.isAdmin && conv.coach_id !== sc.coachId) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
-      const messages = getDb().prepare('SELECT id, sender_role, sender_label, contenu, created_at FROM nutrition_messages WHERE conversation_id = ? ORDER BY id ASC LIMIT 400').all(conv.id)
-        .map((m) => ({ id: m.id, role: m.sender_role, who: m.sender_label, text: m.contenu, when: m.created_at, mine: m.sender_role !== 'client' }));
+      // Super_admin : par défaut supervision = on voit la FORME de l'échange (qui, quand)
+      // mais PAS le contenu. Le contenu n'est révélé qu'en mode support EXPLICITE
+      // (?support=1), tracé dans le journal d'audit.
+      const support = sc.isAdmin && String((req.query || {}).support || '') === '1';
+      const redacted = sc.isAdmin && !support;
+      const rawMsgs = getDb().prepare('SELECT id, sender_role, sender_label, contenu, created_at FROM nutrition_messages WHERE conversation_id = ? ORDER BY id ASC LIMIT 400').all(conv.id);
+      const messages = rawMsgs.map((m) => ({
+        id: m.id, role: m.sender_role, who: m.sender_label, when: m.created_at, mine: m.sender_role !== 'client',
+        text: redacted ? '' : m.contenu, len: redacted ? (m.contenu ? m.contenu.length : 0) : undefined,
+      }));
       if (!sc.isAdmin) getDb().prepare("UPDATE nutrition_messages SET lu = 1 WHERE conversation_id = ? AND sender_role = 'client' AND lu = 0").run(conv.id);
+      if (support) {
+        try { getDb().prepare('INSERT INTO nutrition_message_audit (admin_label, conversation_id, action, created_at) VALUES (?,?,?,?)').run(String((req.session && req.session.name) || 'Admin').slice(0, 80), conv.id, 'reveal', new Date().toISOString()); } catch (_) { /* audit best-effort */ }
+      }
       const cli = getDb().prepare('SELECT prenom, nom FROM nutrition_clients WHERE email = ?').get(conv.client_email);
-      res.json({ ok: true, clientEmail: conv.client_email, clientName: cli ? ([cli.prenom, cli.nom].filter(Boolean).join(' ') || conv.client_email) : conv.client_email, messages });
+      res.json({ ok: true, clientEmail: conv.client_email, clientName: cli ? ([cli.prenom, cli.nom].filter(Boolean).join(' ') || conv.client_email) : conv.client_email, messages, redacted, support: !!support });
     } catch (e) { console.error('coach conv messages GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
   });
 
@@ -577,6 +603,9 @@ try {
       const role = (sc.isAdmin && conv.coach_id !== sc.coachId) ? 'super_admin' : 'coach';
       const info = getDb().prepare('INSERT INTO nutrition_messages (conversation_id, sender_role, sender_label, contenu, created_at, lu) VALUES (?,?,?,?,?,0)').run(conv.id, role, label, msg, now);
       getDb().prepare('UPDATE nutrition_conversations SET last_message_at = ? WHERE id = ?').run(now, conv.id);
+      if (role === 'super_admin') {
+        try { getDb().prepare('INSERT INTO nutrition_message_audit (admin_label, conversation_id, action, created_at) VALUES (?,?,?,?)').run(label, conv.id, 'reply', now); } catch (_) { /* audit best-effort */ }
+      }
       res.json({ ok: true, message: { id: info.lastInsertRowid, role, who: label, text: msg, when: now, mine: true } });
     } catch (e) { console.error('coach reply POST :', e); res.status(500).json({ ok: false, error: 'Envoi impossible.' }); }
   });
@@ -597,6 +626,23 @@ try {
       if (!conv) { const i = getDb().prepare('INSERT INTO nutrition_conversations (client_email, coach_id, created_at, last_message_at, statut) VALUES (?,?,?,?,?)').run(email, coachId, now, now, 'active'); conv = { id: i.lastInsertRowid }; }
       res.json({ ok: true, conversationId: conv.id });
     } catch (e) { console.error('coach conv create POST :', e); res.status(500).json({ ok: false, error: 'Impossible.' }); }
+  });
+
+  // SUPER_ADMIN : journal d'audit des accès au contenu des messageries (révélation
+  // en mode support + réponses admin). Transparence sur l'usage du mode support.
+  app.get('/nutrition/api/admin/message-audit', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const rows = getDb().prepare(`SELECT a.id, a.admin_label, a.conversation_id, a.action, a.created_at,
+        c.client_email, c.coach_id FROM nutrition_message_audit a
+        LEFT JOIN nutrition_conversations c ON c.id = a.conversation_id
+        ORDER BY a.id DESC LIMIT 200`).all();
+      const entries = rows.map((r) => {
+        const cli = r.client_email ? getDb().prepare('SELECT prenom, nom FROM nutrition_clients WHERE email = ?').get(r.client_email) : null;
+        return { id: r.id, adminLabel: r.admin_label, action: r.action, when: r.created_at, conversationId: r.conversation_id,
+          clientName: cli ? ([cli.prenom, cli.nom].filter(Boolean).join(' ') || r.client_email) : (r.client_email || '—') };
+      });
+      res.json({ ok: true, entries });
+    } catch (e) { console.error('message-audit GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
   });
 
   // ====== Photos de plats (admin/coach ajoutent ; clients voient) ======
