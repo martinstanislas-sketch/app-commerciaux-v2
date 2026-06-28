@@ -59,6 +59,9 @@ const state = {
   communautePosts: [], // (obsolète) anciens partages locaux
   communauteMessages: [], // cache du mur collectif (chargé depuis le serveur)
   communauteMembers: 0, // taille du groupe (clients inscrits)
+  conseilsJour: {}, // "ymd-id" -> { statut: compris|ajoute|snooze, until } (conseils du jour)
+  conseilsAjouts: {}, // "ymd" -> [ { nom, kcal, prot } ] options ajoutées via un conseil
+  conseilsSug: {}, // "ymd-id" -> index de suggestion (cyclage "voir d'autres options")
 };
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -702,6 +705,190 @@ function renderPlan() {
   setupPlanSwipe();
   _animateMeals = false;   // l'entree ne joue qu'une fois
   state._swappedKey = null; // le flash de remplacement n'est consomme qu'une fois
+  if (typeof renderConseils === 'function') renderConseils();
+}
+
+// ===== Conseils du jour : moteur d'astuces contextuelles (évolutif) =====
+// Pour AJOUTER une astuce : pousser un objet dans CONSEILS (id, categorie,
+// priorite, condition(ctx), message(ctx), suggestion...). Rien d'autre à toucher.
+// Les conditions lisent le contexte RÉEL du jour (macros, repas validés, heure).
+// Les signaux non encore captés (séance/eau/resto) restent dormants -> il suffira
+// de renseigner le champ correspondant dans conseilsContext() pour les activer.
+const CONSEIL_CAT_LABEL = {
+  proteines: 'Protéines', hydratation: 'Hydratation', faim: 'Faim', sport: 'Sport',
+  recuperation: 'Récupération', calories: 'Calories', sucre: 'Plaisir', organisation: 'Organisation',
+  courses: 'Courses', restaurant: 'Restaurant', sommeil: 'Sommeil', motivation: 'Motivation',
+};
+const CONSEIL_SUGGESTIONS = {
+  proteinee: [
+    { nom: 'Shake protéiné à l’eau', kcal: 120, prot: 24 },
+    { nom: 'Skyr nature (150 g)', kcal: 95, prot: 17 },
+    { nom: 'Œufs durs (2)', kcal: 156, prot: 13 },
+  ],
+  hydratation: [
+    { nom: 'Eau citron-menthe', kcal: 5, prot: 0 },
+    { nom: 'Thé glacé sans sucre', kcal: 0, prot: 0 },
+    { nom: 'Eau pétillante + citron', kcal: 0, prot: 0 },
+  ],
+  'plaisir-light': [
+    { nom: 'Yaourt 0 % + cannelle', kcal: 90, prot: 10 },
+    { nom: 'Carré de chocolat noir 85 %', kcal: 55, prot: 1 },
+    { nom: 'Un fruit frais', kcal: 75, prot: 1 },
+  ],
+  'sport-recuperation': [
+    { nom: 'Banane + shake protéiné', kcal: 230, prot: 25 },
+    { nom: 'Skyr + fruits rouges', kcal: 180, prot: 18 },
+  ],
+};
+const CONSEILS = [
+  { id: 'retard-proteines', categorie: 'proteines', priorite: 1, suggestionType: 'aliment', suggestionCategorie: 'proteinee', actionPrincipale: 'ajouter', actionSecondaire: 'autres', tags: ['proteines', 'collation'],
+    titre: 'Petit coup de pouce protéines',
+    condition: (c) => c.repasValides >= 1 && c.cibleProt > 0 && c.consoProt < 0.8 * c.cibleProt,
+    message: (c) => `Tu es à ${c.consoProt} g sur ${c.cibleProt} g de protéines aujourd’hui. Une option simple peut t’aider à atteindre ton objectif sans ajouter un gros repas.` },
+  { id: 'seance-recup', categorie: 'recuperation', priorite: 2, suggestionType: 'aliment', suggestionCategorie: 'sport-recuperation', actionPrincipale: 'ajouter', actionSecondaire: 'compris', tags: ['sport', 'recuperation'],
+    titre: 'Pense à ta récupération',
+    condition: (c) => c.seanceAujourdhui === true,
+    message: () => `Tu as une séance aujourd’hui. Pense à bien t’hydrater et à prévoir une option adaptée après l’entraînement.` },
+  { id: 'hydratation', categorie: 'hydratation', priorite: 3, suggestionType: 'boisson', suggestionCategorie: 'hydratation', actionPrincipale: 'ajouter', actionSecondaire: 'compris', tags: ['hydratation'],
+    titre: 'Objectif hydratation',
+    condition: (c) => c.eauConsommee != null && c.eauConsommee < 1.5,
+    message: (c) => `Tu es à ${c.eauConsommee} L d’eau aujourd’hui. Une eau aromatisée peut t’aider à boire plus facilement.` },
+  { id: 'calories-restantes', categorie: 'calories', priorite: 4, suggestionType: 'boisson', suggestionCategorie: 'hydratation', actionPrincipale: 'ajouter', actionSecondaire: 'compris', tags: ['calories', 'grignotage'],
+    titre: 'Envie de grignoter ?',
+    condition: (c) => c.consoKcal > 0 && c.restantKcal < 150,
+    message: (c) => `Il te reste ${c.restantKcal} kcal aujourd’hui. Une boisson légère peut t’aider à gérer l’envie sans dépasser ton plan.` },
+  { id: 'envie-sucre', categorie: 'sucre', priorite: 5, suggestionType: 'aliment', suggestionCategorie: 'plaisir-light', actionPrincipale: 'ajouter', actionSecondaire: 'autres', tags: ['sucre', 'plaisir'],
+    titre: 'Alternative plaisir',
+    condition: (c) => c.envieSucre || (c.restantKcal >= 150 && c.restantKcal <= 250),
+    message: () => `Une envie de sucré ? Cette option peut t’aider à te faire plaisir tout en restant dans ton objectif.` },
+  { id: 'legumes', categorie: 'organisation', priorite: 6, suggestionType: null, suggestionCategorie: null, actionPrincipale: 'compris', actionSecondaire: 'snooze', tags: ['legumes', 'satiete'],
+    titre: 'Ajoute du volume à ton assiette',
+    condition: (c) => c.repasValides >= 1 && c.legumesValides === false,
+    message: () => `Tu n’as pas encore beaucoup de légumes aujourd’hui. En ajouter peut t’aider à être plus rassasié sans trop augmenter les calories.` },
+  { id: 'journee-basse', categorie: 'calories', priorite: 7, suggestionType: null, suggestionCategorie: null, actionPrincipale: 'compris', actionSecondaire: 'snooze', tags: ['calories', 'soir'],
+    titre: 'Ne termine pas trop bas',
+    condition: (c) => c.heure >= 18 && c.cibleKcal > 0 && c.consoKcal < 0.6 * c.cibleKcal,
+    message: () => `Tu es encore assez bas en calories aujourd’hui. Mieux vaut compléter proprement ton plan plutôt que finir avec une grosse faim le soir.` },
+  { id: 'restaurant', categorie: 'restaurant', priorite: 8, suggestionType: null, suggestionCategorie: null, actionPrincipale: 'compris', actionSecondaire: null, tags: ['restaurant'],
+    titre: 'Repas extérieur',
+    condition: (c) => c.restoPrevu === true,
+    message: () => `Au restaurant, vise une source de protéines, des légumes et une portion de féculents simple. Garde les sauces à part si possible.` },
+];
+
+const CONSEIL_VEG_RE = /courgette|tomate|carotte|brocoli|[ée]pinard|salade|haricot|poivron|champignon|l[ée]gume|concombre|chou|courge|aubergine|betterave|poireau|fenouil|petits? pois|ratatouille|crudit|m[aâ]che|roquette|navet|radis/i;
+
+// Contexte réel du jour pour évaluer les conditions.
+function conseilsContext() {
+  const m = (typeof coachMacrosJour === 'function') ? coachMacrosJour() : null;
+  const av = state.avance || {};
+  const di = (typeof indexJourActuel === 'function') ? indexJourActuel() : 0;
+  const jour = state.plan && state.plan.jours && state.plan.jours[di];
+  let repasValides = 0, legumesValides = false;
+  (jour ? jour.repas : []).forEach((rp, mi) => {
+    const s = state.suivi[trackKey(di, mi)];
+    if (s && s.statut === 'respecte' && rp.recette) {
+      repasValides++;
+      const txt = (rp.recette.nom || '') + ' ' + (rp.recette.ingredients || []).map((i) => (i && i.nom) || i || '').join(' ');
+      if (CONSEIL_VEG_RE.test(txt)) legumesValides = true;
+    }
+  });
+  return {
+    cibleProt: m ? m.cible.prot : 0, consoProt: m ? m.consomme.prot : 0,
+    cibleKcal: m ? m.cible.kcal : 0, consoKcal: m ? m.consomme.kcal : 0, restantKcal: m ? m.restant.kcal : 0,
+    repasValides, legumesValides, heure: new Date().getHours(),
+    envieSucre: false,        // pas de déclaration ponctuelle d'envie pour l'instant
+    eauConsommee: null,       // pas de suivi d'hydratation pour l'instant -> conseil dormant
+    seanceAujourdhui: false,  // pas d'info séance par jour pour l'instant -> conseil dormant
+    restoPrevu: false,        // pas d'info repas extérieur par jour pour l'instant -> conseil dormant
+  };
+}
+
+function conseilSuggestion(t, today) {
+  if (!t.suggestionCategorie) return null;
+  const list = CONSEIL_SUGGESTIONS[t.suggestionCategorie] || [];
+  if (!list.length) return null;
+  return list[(state.conseilsSug[today + '-' + t.id] || 0) % list.length];
+}
+
+// Sélectionne ≤ 2 conseils : conditions vraies, par priorité, sans doublon d'action.
+function evaluerConseils() {
+  const c = conseilsContext();
+  const today = ymd(new Date());
+  const elig = CONSEILS.filter((t) => {
+    let ok = false;
+    try { ok = !!t.condition(c); } catch (_) { ok = false; }
+    if (!ok) return false;
+    const st = state.conseilsJour[today + '-' + t.id];
+    if (st) {
+      if (st.statut === 'compris' || st.statut === 'ajoute') return false;
+      if (st.statut === 'snooze' && st.until && Date.now() < st.until) return false;
+    }
+    return true;
+  }).sort((a, b) => a.priorite - b.priorite);
+  const chosen = [], usedActions = new Set();
+  for (const t of elig) {
+    const actKey = t.suggestionCategorie || ('advice-' + t.id);
+    if (usedActions.has(actKey)) continue; // éviter deux conseils qui proposent la même action
+    chosen.push(t); usedActions.add(actKey);
+    if (chosen.length >= 2) break; // maximum 2 conseils par jour
+  }
+  return { ctx: c, conseils: chosen, today };
+}
+
+const CONSEIL_ACT_LABEL = { ajouter: 'Ajouter à ma journée', autres: 'Voir d’autres options', compris: 'J’ai compris', snooze: 'Me le rappeler plus tard' };
+
+function conseilCardHTML(t, today, ctx) {
+  const sug = conseilSuggestion(t, today);
+  const sugHTML = sug ? (
+    '<div class="conseil-sug"><div class="conseil-sug-nom">' + escapeHtml(sug.nom) + '</div>' +
+    '<div class="conseil-sug-nut">' + (sug.kcal != null ? (sug.kcal + ' kcal') : '') + (sug.prot ? (' · ' + sug.prot + ' g protéines') : '') + '</div></div>'
+  ) : '';
+  const prim = '<button type="button" class="btn btn-primary conseil-prim" data-conseil="' + t.id + '" data-act="' + t.actionPrincipale + '">' + CONSEIL_ACT_LABEL[t.actionPrincipale] + '</button>';
+  const sec = t.actionSecondaire ? '<button type="button" class="conseil-sec" data-conseil="' + t.id + '" data-act="' + t.actionSecondaire + '">' + CONSEIL_ACT_LABEL[t.actionSecondaire] + '</button>' : '';
+  return '<div class="conseil-card">' +
+    '<div class="conseil-top"><span class="conseil-cat">' + (CONSEIL_CAT_LABEL[t.categorie] || t.categorie) + '</span></div>' +
+    '<div class="conseil-titre">' + escapeHtml(t.titre) + '</div>' +
+    '<div class="conseil-msg">' + escapeHtml(t.message(ctx)) + '</div>' +
+    sugHTML +
+    '<div class="conseil-acts">' + prim + sec + '</div>' +
+  '</div>';
+}
+
+function renderConseils() {
+  const host = $('#conseilsJour');
+  if (!host) return;
+  if (!state.plan || !state.plan.besoins) { host.innerHTML = ''; return; }
+  const { ctx, conseils, today } = evaluerConseils();
+  if (!conseils.length) { host.innerHTML = ''; return; }
+  host.innerHTML = '<div class="conseils-head">' + icSvg('spark') + ' Conseils du jour</div>' +
+    conseils.map((t) => conseilCardHTML(t, today, ctx)).join('');
+  host.querySelectorAll('[data-conseil]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const t = CONSEILS.find((x) => x.id === btn.dataset.conseil);
+      if (t) conseilAction(t, today, btn.dataset.act);
+    });
+  });
+}
+
+function conseilAction(t, today, action) {
+  const key = today + '-' + t.id;
+  if (action === 'ajouter') {
+    const item = conseilSuggestion(t, today);
+    state.conseilsJour[key] = { statut: 'ajoute' };
+    if (!state.conseilsAjouts[today]) state.conseilsAjouts[today] = [];
+    if (item) state.conseilsAjouts[today].push({ nom: item.nom, kcal: item.kcal, prot: item.prot });
+    saveLocal(); renderConseils();
+    showToast('Ajouté à ta journée : ' + (item ? item.nom : 'option') + ' ✓', { icon: 'check' });
+  } else if (action === 'autres') {
+    const list = CONSEIL_SUGGESTIONS[t.suggestionCategorie] || [];
+    state.conseilsSug[today + '-' + t.id] = ((state.conseilsSug[today + '-' + t.id] || 0) + 1) % Math.max(1, list.length);
+    renderConseils();
+  } else if (action === 'compris') {
+    state.conseilsJour[key] = { statut: 'compris' }; saveLocal(); renderConseils();
+  } else if (action === 'snooze') {
+    state.conseilsJour[key] = { statut: 'snooze', until: Date.now() + 3 * 3600 * 1000 }; saveLocal(); renderConseils();
+    showToast('On t’en reparle un peu plus tard 👍', { icon: 'info' });
+  }
 }
 
 // Affiche un jour donne (mobile) ; sur desktop tous les jours restent visibles.
@@ -2184,6 +2371,7 @@ function saveLocal() {
     coachMessages: (state.coachMessages || []).slice(-40),
     communauteUnlocked: state.communauteUnlocked, communauteJoined: state.communauteJoined,
     communauteVue: state.communauteVue, communautePosts: (state.communautePosts || []).slice(0, 30),
+    conseilsJour: state.conseilsJour, conseilsAjouts: state.conseilsAjouts,
     startDate: state.startDate,
     savedAt: new Date().toISOString(),
   };
@@ -2234,6 +2422,8 @@ function loadLocal() {
     state.communauteJoined = !!data.communauteJoined;
     state.communauteVue = !!data.communauteVue;
     state.communautePosts = data.communautePosts || [];
+    state.conseilsJour = data.conseilsJour || {};
+    state.conseilsAjouts = data.conseilsAjouts || {};
     state.plan = data.plan || null;
     return !!data.plan;
   } catch (_) { return false; }
