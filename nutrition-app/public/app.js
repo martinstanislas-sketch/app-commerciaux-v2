@@ -2609,6 +2609,10 @@ function init() {
   // Gestion des photos de plats (admin/coach) + chargement de l'index (clients voient les photos)
   const _bPlatsPhotos = $('#btnPlatsPhotos'); if (_bPlatsPhotos) _bPlatsPhotos.addEventListener('click', openPlatsPhotos);
   const _coachPhotos = $('#coachOpenPhotos'); if (_coachPhotos) _coachPhotos.addEventListener('click', openPlatsPhotos);
+  const _coachAdh = $('#coachOpenAdh'); if (_coachAdh) _coachAdh.addEventListener('click', openAdhAdmin);
+  const _coachHelp = $('#coachOpenHelp'); if (_coachHelp) _coachHelp.addEventListener('click', openHelpAdmin);
+  const _coachScans = $('#coachOpenScans'); if (_coachScans) _coachScans.addEventListener('click', openScanAdmin);
+  const _coachPlate = $('#coachOpenPlate'); if (_coachPlate) _coachPlate.addEventListener('click', openPlateAdmin);
   $('#platsPhotosClose').addEventListener('click', closePlatsPhotos);
   $('#platsPhotosPanel').addEventListener('click', (e) => { if (e.target.id === 'platsPhotosPanel') closePlatsPhotos(); });
   $('#coachFicheClose').addEventListener('click', closeCoachFiche);

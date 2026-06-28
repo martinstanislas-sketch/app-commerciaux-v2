@@ -292,6 +292,17 @@ function requireCoachOrAdmin(req, res, next) {
   return res.status(403).json({ error: 'Accès réservé aux coachs et administrateurs' });
 }
 
+// Scope SQL des vues legacy par coach. Admin -> aucune restriction. Coach -> filtre
+// sur les emails de SES clients (via client_email rempli sur les tables historiques) ;
+// un coach sans client (ou des lignes sans email résolu) ne voit rien (1=0).
+function coachLegacyScope(sc, col) {
+  if (sc.isAdmin) return { where: '', and: '', params: [] };
+  const emails = getDb().prepare('SELECT email FROM nutrition_clients WHERE coach_id = ?').all(sc.coachId).map((r) => r.email).filter(Boolean);
+  if (!emails.length) return { where: ' WHERE 1=0', and: ' AND 1=0', params: [] };
+  const ph = emails.map(() => '?').join(',');
+  return { where: ' WHERE ' + col + " != '' AND " + col + ' IN (' + ph + ')', and: ' AND ' + col + " != '' AND " + col + ' IN (' + ph + ')', params: emails };
+}
+
 // ─── Google Agenda (OAuth + synchronisation) ────────────────
 // Scope minimal : calendar.app.created -> l'app ne gere QUE son propre calendrier
 // "My Coach Nutrition", sans acceder a l'agenda personnel du client.
@@ -387,9 +398,10 @@ try {
   });
 
   // Vue coach : liste des demandes (admin uniquement pour l'instant).
-  app.get('/nutrition/api/help-requests', requireAuth, requireAdmin, (req, res) => {
+  app.get('/nutrition/api/help-requests', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
-      const rows = getDb().prepare('SELECT * FROM nutrition_help_requests ORDER BY id DESC').all();
+      const sc = coachLegacyScope(req.nutritionScope, 'client_email');
+      const rows = getDb().prepare('SELECT * FROM nutrition_help_requests' + sc.where + ' ORDER BY id DESC').all(...sc.params);
       const demandes = rows.map(r => ({
         id: r.id, clientName: r.client_name, createdAt: r.created_at,
         difficultes: (() => { try { return JSON.parse(r.difficultes); } catch (_) { return []; } })(),
@@ -402,14 +414,22 @@ try {
     }
   });
 
-  // Changement de statut (admin/coach).
-  app.patch('/nutrition/api/help-requests/:id', requireAuth, requireAdmin, (req, res) => {
+  // Changement de statut (admin = tous ; coach = uniquement les demandes de SES clients).
+  app.patch('/nutrition/api/help-requests/:id', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const statut = String((req.body || {}).statut || '');
       if (!['a_traiter', 'en_cours', 'traite'].includes(statut)) {
         return res.status(400).json({ ok: false, error: 'Statut invalide.' });
       }
-      const info = getDb().prepare('UPDATE nutrition_help_requests SET statut = ? WHERE id = ?').run(statut, Number(req.params.id));
+      const sc = req.nutritionScope;
+      const id = Number(req.params.id);
+      if (!sc.isAdmin) {
+        const row = getDb().prepare('SELECT client_email FROM nutrition_help_requests WHERE id = ?').get(id);
+        if (!row) return res.status(404).json({ ok: false, error: 'Demande introuvable.' });
+        const owned = row.client_email && getDb().prepare('SELECT 1 FROM nutrition_clients WHERE email = ? AND coach_id = ?').get(row.client_email, sc.coachId);
+        if (!owned) return res.status(403).json({ ok: false, error: 'Demande non attribuée.' });
+      }
+      const info = getDb().prepare('UPDATE nutrition_help_requests SET statut = ? WHERE id = ?').run(statut, id);
       res.json({ ok: info.changes > 0 });
     } catch (e) {
       console.error('Erreur help-requests PATCH :', e);
@@ -679,20 +699,22 @@ try {
   });
 
   // Vue coach : demandes d'avis + produits les plus scannés + scans récents.
-  app.get('/nutrition/api/scans', requireAuth, requireAdmin, (req, res) => {
+  app.get('/nutrition/api/scans', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const db = getDb();
-      const advice = db.prepare('SELECT * FROM nutrition_scan_advice ORDER BY id DESC').all().map(r => ({
+      const scA = coachLegacyScope(req.nutritionScope, 'client_email');
+      const advice = db.prepare('SELECT * FROM nutrition_scan_advice' + scA.where + ' ORDER BY id DESC').all(...scA.params).map(r => ({
         id: r.id, clientName: r.client_name, createdAt: r.created_at,
         barcode: r.barcode, productName: r.product_name, message: r.message, statut: r.statut,
       }));
+      const scS = coachLegacyScope(req.nutritionScope, 'client_email');
       const topProducts = db.prepare(`
         SELECT barcode, product_name AS productName, COUNT(*) AS count,
                MAX(coherence) AS coherence
-        FROM nutrition_scans WHERE barcode != ''
+        FROM nutrition_scans WHERE barcode != ''` + scS.and + `
         GROUP BY barcode ORDER BY count DESC, MAX(id) DESC LIMIT 20
-      `).all();
-      const recent = db.prepare('SELECT * FROM nutrition_scans ORDER BY id DESC LIMIT 40').all().map(r => ({
+      `).all(...scS.params);
+      const recent = db.prepare('SELECT * FROM nutrition_scans' + scS.where + ' ORDER BY id DESC LIMIT 40').all(...scS.params).map(r => ({
         id: r.id, clientName: r.client_name, createdAt: r.created_at, barcode: r.barcode,
         productName: r.product_name, brand: r.brand, nutriscore: r.nutriscore, coherence: r.coherence,
       }));
@@ -703,14 +725,22 @@ try {
     }
   });
 
-  // Changement de statut d'une demande d'avis (admin/coach).
-  app.patch('/nutrition/api/scan-advice/:id', requireAuth, requireAdmin, (req, res) => {
+  // Changement de statut d'une demande d'avis (admin = tous ; coach = SES clients).
+  app.patch('/nutrition/api/scan-advice/:id', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const statut = String((req.body || {}).statut || '');
       if (!['a_traiter', 'en_cours', 'traite'].includes(statut)) {
         return res.status(400).json({ ok: false, error: 'Statut invalide.' });
       }
-      const info = getDb().prepare('UPDATE nutrition_scan_advice SET statut = ? WHERE id = ?').run(statut, Number(req.params.id));
+      const sc = req.nutritionScope;
+      const id = Number(req.params.id);
+      if (!sc.isAdmin) {
+        const row = getDb().prepare('SELECT client_email FROM nutrition_scan_advice WHERE id = ?').get(id);
+        if (!row) return res.status(404).json({ ok: false, error: 'Demande introuvable.' });
+        const owned = row.client_email && getDb().prepare('SELECT 1 FROM nutrition_clients WHERE email = ? AND coach_id = ?').get(row.client_email, sc.coachId);
+        if (!owned) return res.status(403).json({ ok: false, error: 'Demande non attribuée.' });
+      }
+      const info = getDb().prepare('UPDATE nutrition_scan_advice SET statut = ? WHERE id = ?').run(statut, id);
       res.json({ ok: info.changes > 0 });
     } catch (e) {
       console.error('Erreur scan-advice PATCH :', e);
@@ -740,14 +770,15 @@ try {
     }
   });
 
-  // Vue coach : adherence des clients sur 7 jours + alertes (admin).
-  app.get('/nutrition/api/adherence/coach', requireAuth, requireAdmin, (req, res) => {
+  // Vue coach : adherence des clients sur 7 jours + alertes (admin = tous ; coach = SES clients).
+  app.get('/nutrition/api/adherence/coach', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const db = getDb();
+      const sc = coachLegacyScope(req.nutritionScope, 'client_email');
       const today = new Date().toISOString().slice(0, 10);
       const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
-      const rows = db.prepare('SELECT * FROM nutrition_adherence WHERE date >= ? ORDER BY date DESC').all(since);
-      const helps = db.prepare("SELECT client_name, created_at, difficultes, statut FROM nutrition_help_requests WHERE created_at >= ?").all(since + 'T00:00:00.000Z');
+      const rows = db.prepare('SELECT * FROM nutrition_adherence WHERE date >= ?' + sc.and + ' ORDER BY date DESC').all(since, ...sc.params);
+      const helps = db.prepare("SELECT client_name, created_at, difficultes, statut FROM nutrition_help_requests WHERE created_at >= ?" + sc.and).all(since + 'T00:00:00.000Z', ...sc.params);
       const byClient = {};
       rows.forEach((r) => {
         const c = byClient[r.client_name] || (byClient[r.client_name] = { clientName: r.client_name, suivi: 0, adapte: 0, autre: 0, saute: 0, days: 0, scoreSum: 0, lastDate: '' });
@@ -1052,9 +1083,10 @@ try {
       res.json({ ok: true, id: info.lastInsertRowid });
     } catch (e) { console.error('Erreur plate-save :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
-  app.get('/nutrition/api/plate-analyses', requireAuth, requireAdmin, (req, res) => {
+  app.get('/nutrition/api/plate-analyses', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
-      const rows = getDb().prepare('SELECT * FROM nutrition_plate_analysis ORDER BY id DESC LIMIT 100').all();
+      const sc = coachLegacyScope(req.nutritionScope, 'client_email');
+      const rows = getDb().prepare('SELECT * FROM nutrition_plate_analysis' + sc.where + ' ORDER BY id DESC LIMIT 100').all(...sc.params);
       const items = rows.map((r) => ({
         id: r.id, clientName: r.client_name, createdAt: r.created_at, mealLabel: r.meal_label,
         precision: r.precision_txt, aliments: (() => { try { return JSON.parse(r.aliments); } catch (_) { return []; } })(),
@@ -1065,11 +1097,19 @@ try {
       res.json({ ok: true, items });
     } catch (e) { console.error('Erreur plate-analyses :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
   });
-  app.patch('/nutrition/api/plate-advice/:id', requireAuth, requireAdmin, (req, res) => {
+  app.patch('/nutrition/api/plate-advice/:id', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const statut = String((req.body || {}).statut || '');
       if (!['a_traiter', 'en_cours', 'traite'].includes(statut)) return res.status(400).json({ ok: false, error: 'Statut invalide.' });
-      const info = getDb().prepare('UPDATE nutrition_plate_analysis SET advice_statut = ? WHERE id = ?').run(statut, Number(req.params.id));
+      const sc = req.nutritionScope;
+      const id = Number(req.params.id);
+      if (!sc.isAdmin) {
+        const row = getDb().prepare('SELECT client_email FROM nutrition_plate_analysis WHERE id = ?').get(id);
+        if (!row) return res.status(404).json({ ok: false, error: 'Analyse introuvable.' });
+        const owned = row.client_email && getDb().prepare('SELECT 1 FROM nutrition_clients WHERE email = ? AND coach_id = ?').get(row.client_email, sc.coachId);
+        if (!owned) return res.status(403).json({ ok: false, error: 'Analyse non attribuée.' });
+      }
+      const info = getDb().prepare('UPDATE nutrition_plate_analysis SET advice_statut = ? WHERE id = ?').run(statut, id);
       res.json({ ok: info.changes > 0 });
     } catch (e) { res.status(500).json({ ok: false, error: 'Mise à jour impossible.' }); }
   });
