@@ -1,8 +1,8 @@
 // recipes-v2.js — banque My Coach Nutrition reconstruite (refonte complète).
-// 372 recettes validées (82 petits-déj, 63 collations, 227 plats).
+// 382 recettes validées (92 petits-déj, 63 collations, 227 plats).
 // Schéma : id, nom, type, categorie, gout, cuisines[], regime[], budget, allergenes[],
 //          kcal/proteines/glucides/lipides, tempsMinutes, motsCles[], ingredients[{nom,quantite,unite,rayon}], etapes[].
-// Généré automatiquement depuis les lots validés. Ancienne version : recipes-v2.js.bak-avant-refonte
+// Généré automatiquement depuis les lots validés. Ancienne version : recipes-v2.js.bak-avant-lot-pd-eco
 
 const RECIPES = [
   {
@@ -23503,6 +23503,668 @@ const RECIPES = [
       "Ajoute les lentilles et la tomate.",
       "Laisse mijoter quelques minutes.",
       "Sers sur la polenta avec le persil."
+    ]
+  },
+  {
+    "id": "pd-porridge-banane-cannelle",
+    "nom": "Porridge banane cannelle",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 385,
+    "proteines": 10,
+    "glucides": 68,
+    "lipides": 8,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "flocons d'avoine sans gluten",
+      "lait de riz",
+      "banane",
+      "cannelle"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine sans gluten",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait de riz",
+        "quantite": 180,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "compote de pomme sans sucre ajouté",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verse les flocons d'avoine sans gluten et le lait de riz dans une casserole.",
+      "Fais chauffer à feu doux en mélangeant.",
+      "Ajoute la compote et la cannelle.",
+      "Coupe la banane en rondelles.",
+      "Sers le porridge avec la banane."
+    ]
+  },
+  {
+    "id": "pd-chia-pomme-cannelle",
+    "nom": "Chia pomme cannelle",
+    "type": "petit-dejeuner",
+    "categorie": "chia-pudding",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 365,
+    "proteines": 9,
+    "glucides": 52,
+    "lipides": 13,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "graines de chia",
+      "lait de riz",
+      "pomme",
+      "sirop d'agave"
+    ],
+    "ingredients": [
+      {
+        "nom": "graines de chia",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait de riz",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "sirop d'agave",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mélange les graines de chia avec le lait de riz.",
+      "Ajoute le sirop d'agave et la cannelle.",
+      "Laisse épaissir quelques minutes ou toute la nuit.",
+      "Coupe la pomme en petits dés.",
+      "Ajoute la pomme avant de servir."
+    ]
+  },
+  {
+    "id": "pd-pancakes-banane-avoine",
+    "nom": "Pancakes banane avoine",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 410,
+    "proteines": 11,
+    "glucides": 72,
+    "lipides": 9,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "flocons d'avoine sans gluten",
+      "banane",
+      "lait de riz",
+      "fécule de maïs"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine sans gluten",
+        "quantite": 55,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait de riz",
+        "quantite": 100,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "fécule de maïs",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "levure chimique sans gluten",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Écrase la banane dans un bol.",
+      "Ajoute les flocons d'avoine sans gluten, la fécule et la levure.",
+      "Verse le lait de riz et mélange.",
+      "Cuis des petits pancakes dans une poêle chaude.",
+      "Retourne-les quand des bulles apparaissent."
+    ]
+  },
+  {
+    "id": "pd-tartines-compote-chia",
+    "nom": "Tartines compote chia",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 355,
+    "proteines": 8,
+    "glucides": 62,
+    "lipides": 8,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain sans gluten",
+      "compote de pomme",
+      "graines de chia",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain sans gluten",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "compote de pomme sans sucre ajouté",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "graines de chia",
+        "quantite": 12,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais griller les tranches de pain sans gluten.",
+      "Étale la compote sur les tartines.",
+      "Ajoute les graines de chia.",
+      "Coupe la banane en rondelles.",
+      "Ajoute la banane et la cannelle."
+    ]
+  },
+  {
+    "id": "pd-bowl-riz-souffle-pomme",
+    "nom": "Bowl riz soufflé pomme",
+    "type": "petit-dejeuner",
+    "categorie": "bowl",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 370,
+    "proteines": 8,
+    "glucides": 74,
+    "lipides": 6,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "riz soufflé",
+      "lait de riz",
+      "pomme",
+      "graines de chia"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz soufflé nature",
+        "quantite": 45,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait de riz",
+        "quantite": 220,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "graines de chia",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verse le riz soufflé dans un bol.",
+      "Ajoute le lait de riz.",
+      "Coupe la pomme en dés.",
+      "Ajoute la pomme et les graines de chia.",
+      "Termine avec la cannelle."
+    ]
+  },
+  {
+    "id": "pd-smoothie-bowl-banane-coco",
+    "nom": "Smoothie bowl banane coco",
+    "type": "petit-dejeuner",
+    "categorie": "smoothie",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 390,
+    "proteines": 9,
+    "glucides": 66,
+    "lipides": 11,
+    "tempsMinutes": 7,
+    "motsCles": [
+      "banane",
+      "lait de coco",
+      "flocons d'avoine sans gluten",
+      "compote de pomme"
+    ],
+    "ingredients": [
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait de coco",
+        "quantite": 120,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "flocons d'avoine sans gluten",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "compote de pomme sans sucre ajouté",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "graines de chia",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mix la banane avec le lait de coco et la compote.",
+      "Verse dans un bol.",
+      "Ajoute les flocons d'avoine sans gluten.",
+      "Ajoute les graines de chia.",
+      "Laisse reposer quelques minutes avant de manger."
+    ]
+  },
+  {
+    "id": "pd-overnight-avoine-cacahuete",
+    "nom": "Overnight avoine cacahuète",
+    "type": "petit-dejeuner",
+    "categorie": "overnight-oats",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "arachide"
+    ],
+    "kcal": 430,
+    "proteines": 14,
+    "glucides": 62,
+    "lipides": 15,
+    "tempsMinutes": 6,
+    "motsCles": [
+      "flocons d'avoine sans gluten",
+      "lait de riz",
+      "beurre de cacahuète",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine sans gluten",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait de riz",
+        "quantite": 170,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 18,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mélange les flocons d'avoine sans gluten avec le lait de riz.",
+      "Ajoute le beurre de cacahuète.",
+      "Mélange jusqu'à obtenir une texture homogène.",
+      "Laisse reposer au frais quelques heures.",
+      "Ajoute la banane en rondelles avant de servir."
+    ]
+  },
+  {
+    "id": "pd-tartines-cacahuete-banane",
+    "nom": "Tartines cacahuète banane",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "arachide"
+    ],
+    "kcal": 420,
+    "proteines": 13,
+    "glucides": 57,
+    "lipides": 16,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain sans gluten",
+      "beurre de cacahuète",
+      "banane",
+      "cannelle"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain sans gluten",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 22,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais griller les tranches de pain sans gluten.",
+      "Étale le beurre de cacahuète.",
+      "Coupe la banane en rondelles.",
+      "Dépose la banane sur les tartines.",
+      "Ajoute une pincée de cannelle."
+    ]
+  },
+  {
+    "id": "pd-creme-tofu-choco-banane",
+    "nom": "Crème tofu choco banane",
+    "type": "petit-dejeuner",
+    "categorie": "creme",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 360,
+    "proteines": 16,
+    "glucides": 49,
+    "lipides": 11,
+    "tempsMinutes": 6,
+    "motsCles": [
+      "tofu soyeux",
+      "banane",
+      "cacao",
+      "sirop d'agave"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu soyeux",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "cacao non sucré",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "sirop d'agave",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "flocons d'avoine sans gluten",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mix le tofu soyeux avec la banane.",
+      "Ajoute le cacao et le sirop d'agave.",
+      "Mix jusqu'à obtenir une crème lisse.",
+      "Verse dans un bol.",
+      "Ajoute les flocons d'avoine sans gluten dessus."
+    ]
+  },
+  {
+    "id": "pd-porridge-soja-pomme",
+    "nom": "Porridge soja pomme",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 390,
+    "proteines": 15,
+    "glucides": 58,
+    "lipides": 10,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "flocons d'avoine sans gluten",
+      "lait de soja",
+      "pomme",
+      "cannelle"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine sans gluten",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait de soja",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "compote de pomme sans sucre ajouté",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verse les flocons d'avoine sans gluten et le lait de soja dans une casserole.",
+      "Fais chauffer en mélangeant.",
+      "Ajoute la compote et la cannelle.",
+      "Coupe la pomme en petits dés.",
+      "Ajoute la pomme au moment de servir."
     ]
   }
 ];
