@@ -2394,7 +2394,7 @@ function saveLocal() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(payload));
     $('#saveState').innerHTML = icSvg('check') + ' Plan sauvegarde';
-  } catch (_) { /* quota / mode prive */ }
+  } catch (e) { console.warn('Sauvegarde locale échouée (quota / navigation privée) — la copie serveur prend le relais :', e && e.message); }
   pushAccountSave(payload); // compte client -> copie serveur (suit l'utilisateur sur tous ses appareils)
 }
 
@@ -2407,7 +2407,7 @@ function pushAccountSave(payload) {
       method: 'POST',
       headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ data: payload }),
-    }).catch(() => { /* hors-ligne : la copie locale suffit, resync au prochain enregistrement */ });
+    }).catch((e) => { console.warn('Sauvegarde serveur échouée (copie locale conservée, resync au prochain enregistrement) :', e && e.message); });
   }, 1200);
 }
 

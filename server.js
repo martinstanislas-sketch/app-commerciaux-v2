@@ -45,14 +45,14 @@ const sessions = (() => {
       ensure();
       cache.set(token, data);
       const d = db();
-      if (d) { try { d.prepare('INSERT OR REPLACE INTO sessions (token, data, created_at) VALUES (?, ?, ?)').run(token, JSON.stringify(data), Date.now()); } catch (_) {} }
+      if (d) { try { d.prepare('INSERT OR REPLACE INTO sessions (token, data, created_at) VALUES (?, ?, ?)').run(token, JSON.stringify(data), Date.now()); } catch (e) { console.warn('Session non persistée en DB (sera perdue au redéploiement) :', e && e.message); } }
       return this;
     },
     delete(token) {
       ensure();
       cache.delete(token);
       const d = db();
-      if (d) { try { d.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (_) {} }
+      if (d) { try { d.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) { console.warn('Session non supprimée en DB (token reste valide jusqu’à purge) :', e && e.message); } }
       return true;
     },
   };
@@ -984,7 +984,7 @@ try {
       }));
       if (!sc.isAdmin) getDb().prepare("UPDATE nutrition_messages SET lu = 1 WHERE conversation_id = ? AND sender_role = 'client' AND lu = 0").run(conv.id);
       if (support) {
-        try { getDb().prepare('INSERT INTO nutrition_message_audit (admin_label, conversation_id, action, created_at) VALUES (?,?,?,?)').run(String((req.session && req.session.name) || 'Admin').slice(0, 80), conv.id, 'reveal', new Date().toISOString()); } catch (_) { /* audit best-effort */ }
+        try { getDb().prepare('INSERT INTO nutrition_message_audit (admin_label, conversation_id, action, created_at) VALUES (?,?,?,?)').run(String((req.session && req.session.name) || 'Admin').slice(0, 80), conv.id, 'reveal', new Date().toISOString()); } catch (e) { console.warn('Audit messagerie non enregistré :', e && e.message); }
       }
       const cli = getDb().prepare('SELECT prenom, nom FROM nutrition_clients WHERE email = ?').get(conv.client_email);
       res.json({ ok: true, clientEmail: conv.client_email, clientName: cli ? ([cli.prenom, cli.nom].filter(Boolean).join(' ') || conv.client_email) : conv.client_email, messages, redacted, support: !!support });
@@ -1006,7 +1006,7 @@ try {
       const info = getDb().prepare('INSERT INTO nutrition_messages (conversation_id, sender_role, sender_label, contenu, created_at, lu) VALUES (?,?,?,?,?,0)').run(conv.id, role, label, msg, now);
       getDb().prepare('UPDATE nutrition_conversations SET last_message_at = ? WHERE id = ?').run(now, conv.id);
       if (role === 'super_admin') {
-        try { getDb().prepare('INSERT INTO nutrition_message_audit (admin_label, conversation_id, action, created_at) VALUES (?,?,?,?)').run(label, conv.id, 'reply', now); } catch (_) { /* audit best-effort */ }
+        try { getDb().prepare('INSERT INTO nutrition_message_audit (admin_label, conversation_id, action, created_at) VALUES (?,?,?,?)').run(label, conv.id, 'reply', now); } catch (e) { console.warn('Audit messagerie non enregistré :', e && e.message); }
       }
       res.json({ ok: true, message: { id: info.lastInsertRowid, role, who: label, text: msg, when: now, mine: true } });
     } catch (e) { console.error('coach reply POST :', e); res.status(500).json({ ok: false, error: 'Envoi impossible.' }); }
@@ -5461,7 +5461,7 @@ app.get('/api/news', requireAuth, requireAdmin, (req, res) => {
     try {
       const arr = JSON.parse(r.tags);
       if (Array.isArray(arr)) arr.forEach(t => { if (t) allTags.add(String(t)); });
-    } catch (_) {}
+    } catch (_) { /* tag JSON corrompu sur cette ligne -> ignoré (volontaire) */ }
   });
   res.json({
     posts: rows.map(newsRowToJson),
@@ -6150,7 +6150,7 @@ app.get('/api/auth/guest-studios', (req, res) => {
   try {
     db.prepare(`SELECT DISTINCT studio FROM coach_leaders WHERE archived = 0`).all()
       .forEach(r => { if (r.studio) studios.add(r.studio); });
-  } catch (_) {}
+  } catch (_) { /* table coach_leaders absente -> fallback Cockpit ci-dessous (volontaire) */ }
   // Fallback : si aucun coach leader, on propose la liste des clubs Cockpit
   if (studios.size === 0 && typeof COCKPIT_CLUBS !== 'undefined' && Array.isArray(COCKPIT_CLUBS)) {
     COCKPIT_CLUBS.forEach(c => studios.add(c));
