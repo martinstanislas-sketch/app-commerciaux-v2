@@ -209,6 +209,39 @@ function ensureNutritionHelpTable() {
       actif INTEGER NOT NULL DEFAULT 1,
       updated_at TEXT NOT NULL DEFAULT ''
     );
+    -- Challenge 6 semaines « Mon Parcours » : 3 pesées officielles (depart/s3/s6),
+    -- photos d'évolution PRIVÉES (base64 en DB), séances validées.
+    CREATE TABLE IF NOT EXISTS nutrition_parcours_pesees (
+      client_email TEXT NOT NULL,
+      type TEXT NOT NULL,
+      poids REAL NOT NULL DEFAULT 0,
+      date TEXT NOT NULL DEFAULT '',
+      auteur_role TEXT NOT NULL DEFAULT '',
+      auteur_id INTEGER NOT NULL DEFAULT 0,
+      commentaire TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (client_email, type)
+    );
+    CREATE TABLE IF NOT EXISTS nutrition_parcours_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_email TEXT NOT NULL DEFAULT '',
+      jalon TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT '',
+      data TEXT NOT NULL DEFAULT '',
+      mime TEXT NOT NULL DEFAULT '',
+      auteur_role TEXT NOT NULL DEFAULT '',
+      auteur_id INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS nutrition_parcours_seances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_email TEXT NOT NULL DEFAULT '',
+      date TEXT NOT NULL DEFAULT '',
+      auteur_role TEXT NOT NULL DEFAULT '',
+      auteur_id INTEGER NOT NULL DEFAULT 0,
+      type TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
     CREATE TABLE IF NOT EXISTS nutrition_conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_email TEXT NOT NULL,
@@ -666,6 +699,171 @@ try {
         .run(slot, nom, description, url, actif, new Date().toISOString());
       res.json({ ok: true, options: quickOptionsEffectif() });
     } catch (e) { console.error('quick-options POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+
+  // ====== Challenge 6 semaines : « Mon Parcours » ======
+  const PARCOURS_JALONS = ['depart', 's3', 's6'];
+  const PARCOURS_PHOTO_TYPES = ['face', 'profil', 'dos', 'libre'];
+  const JOUR_MS = 864e5;
+
+  function profilDeClient(email) {
+    try {
+      const row = getDb().prepare('SELECT data FROM nutrition_clients WHERE email = ?').get(email);
+      if (row && row.data) { const d = JSON.parse(row.data); return d.profil || {}; }
+    } catch (_) { /* illisible */ }
+    return {};
+  }
+  // Le client peut-il être vu/édité par le requêteur ? (lui-même, son coach, ou admin)
+  function accesParcours(req, email) {
+    const s = req.session || {};
+    if (s.role === 'admin') return { ok: true, role: 'admin', id: 0 };
+    if ((s.role === 'coach' || s.role === 'coach-leader') && s.coach_id) {
+      const cli = getDb().prepare('SELECT coach_id FROM nutrition_clients WHERE email = ?').get(email);
+      if (cli && cli.coach_id === s.coach_id) return { ok: true, role: 'coach', id: s.coach_id };
+      return { ok: false };
+    }
+    if (s.email && s.email === email) return { ok: true, role: 'client', id: 0 };
+    return { ok: false };
+  }
+  // Construit l'objet parcours (données brutes ; les statuts/étapes/badges sont calculés au front).
+  function buildParcours(email) {
+    const db = getDb();
+    const profil = profilDeClient(email);
+    const perte = Math.max(1, Number(profil.perte_objectif_kg) || 6);
+    const peseesRows = db.prepare('SELECT type, poids, date, auteur_role, commentaire FROM nutrition_parcours_pesees WHERE client_email = ?').all(email);
+    const pesees = {};
+    peseesRows.forEach((r) => { pesees[r.type] = { poids: r.poids, date: r.date, auteur: r.auteur_role, commentaire: r.commentaire || '' }; });
+    const depart = pesees.depart || null;
+    const poidsDepart = depart ? depart.poids : (Number(profil.poids || profil.poids_kg) || null);
+    const poidsObjectif = (poidsDepart != null) ? Math.round((poidsDepart - perte) * 10) / 10 : null;
+    const startDate = depart ? depart.date : '';
+    const dStart = startDate ? Date.parse(startDate) : null;
+    const jalons = {
+      depart: { date: startDate || '' },
+      s3: { date: dStart ? new Date(dStart + 21 * JOUR_MS).toISOString().slice(0, 10) : '' },
+      s6: { date: dStart ? new Date(dStart + 42 * JOUR_MS).toISOString().slice(0, 10) : '' },
+    };
+    const today = Date.now();
+    const jourActuel = dStart ? Math.min(42, Math.max(0, Math.floor((today - dStart) / JOUR_MS))) : 0;
+    const finDate = jalons.s6.date;
+
+    const photos = db.prepare('SELECT id, jalon, type, auteur_role, created_at FROM nutrition_parcours_photos WHERE client_email = ? ORDER BY id').all(email)
+      .map((p) => ({ id: p.id, jalon: p.jalon, type: p.type, auteur: p.auteur_role, createdAt: p.created_at }));
+    const seances = db.prepare('SELECT date FROM nutrition_parcours_seances WHERE client_email = ? ORDER BY date').all(email).map((r) => r.date);
+
+    // Régularité : agrégée depuis nutrition_adherence depuis le départ (sinon 7 derniers jours).
+    let reg = { journeesValidees: 0, repasValides: 0, repasTotal: 0, pct: 0 };
+    try {
+      const since = startDate || new Date(today - 6 * JOUR_MS).toISOString().slice(0, 10);
+      const rows = db.prepare('SELECT suivi, adapte, autre, saute FROM nutrition_adherence WHERE client_email = ? AND date >= ?').all(email, since);
+      let v = 0, tot = 0, jours = 0;
+      rows.forEach((r) => { v += r.suivi; tot += r.suivi + r.adapte + r.autre + r.saute; if (r.suivi > 0) jours += 1; });
+      reg = { journeesValidees: jours, repasValides: v, repasTotal: tot, pct: tot ? Math.round((v / tot) * 100) : 0 };
+    } catch (_) { /* table absente */ }
+
+    return {
+      objectifPerte: perte, poidsDepart, poidsObjectif, startDate, jourActuel, dureeJours: 42, finDate,
+      pesees, jalons, photos, seances, regularite: reg,
+      seancesObjHebdo: 4, seancesObjTotal: 24,
+    };
+  }
+
+  // CLIENT : son propre parcours.
+  app.get('/nutrition/api/parcours', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.json({ ok: true, parcours: null, noAccount: true });
+      res.json({ ok: true, parcours: buildParcours(email) });
+    } catch (e) { console.error('parcours GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  // COACH/ADMIN : parcours d'un client attribué.
+  app.get('/nutrition/api/coach/parcours/:email', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const email = String(req.params.email || '');
+      const acc = accesParcours(req, email);
+      if (!acc.ok) return res.status(403).json({ ok: false, error: 'Client non attribué.' });
+      res.json({ ok: true, parcours: buildParcours(email) });
+    } catch (e) { console.error('coach parcours GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+
+  // Enregistrer une pesée officielle (client pour lui-même ; coach/admin pour son client via ?email).
+  app.post('/nutrition/api/parcours/pesee', requireAuth, (req, res) => {
+    try {
+      const b = req.body || {};
+      const email = String(b.email || (req.session && req.session.email) || '');
+      const acc = accesParcours(req, email);
+      if (!acc.ok || !email) return res.status(403).json({ ok: false, error: 'Accès refusé.' });
+      const type = String(b.type || '');
+      if (!PARCOURS_JALONS.includes(type)) return res.status(400).json({ ok: false, error: 'Jalon invalide.' });
+      const poids = Math.round((Number(b.poids) || 0) * 10) / 10;
+      if (!(poids > 0 && poids < 400)) return res.status(400).json({ ok: false, error: 'Poids invalide.' });
+      const commentaire = String(b.commentaire || '').slice(0, 400);
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? b.date : new Date().toISOString().slice(0, 10);
+      getDb().prepare("INSERT INTO nutrition_parcours_pesees (client_email, type, poids, date, auteur_role, auteur_id, commentaire, updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(client_email, type) DO UPDATE SET poids = excluded.poids, date = excluded.date, auteur_role = excluded.auteur_role, auteur_id = excluded.auteur_id, commentaire = excluded.commentaire, updated_at = excluded.updated_at")
+        .run(email, type, poids, date, acc.role, acc.id, commentaire, new Date().toISOString());
+      res.json({ ok: true, parcours: buildParcours(email) });
+    } catch (e) { console.error('parcours pesee POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+
+  // Valider une séance (client ou coach/admin).
+  app.post('/nutrition/api/parcours/seance', requireAuth, (req, res) => {
+    try {
+      const b = req.body || {};
+      const email = String(b.email || (req.session && req.session.email) || '');
+      const acc = accesParcours(req, email);
+      if (!acc.ok || !email) return res.status(403).json({ ok: false, error: 'Accès refusé.' });
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? b.date : new Date().toISOString().slice(0, 10);
+      const type = String(b.type || '').slice(0, 40);
+      // Une seule séance par jour : si déjà validée -> on l'enlève (toggle).
+      const exists = getDb().prepare('SELECT id FROM nutrition_parcours_seances WHERE client_email = ? AND date = ?').get(email, date);
+      if (exists) getDb().prepare('DELETE FROM nutrition_parcours_seances WHERE client_email = ? AND date = ?').run(email, date);
+      else getDb().prepare('INSERT INTO nutrition_parcours_seances (client_email, date, auteur_role, auteur_id, type, created_at) VALUES (?,?,?,?,?,?)').run(email, date, acc.role, acc.id, type, new Date().toISOString());
+      res.json({ ok: true, parcours: buildParcours(email) });
+    } catch (e) { console.error('parcours seance POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+
+  // Ajouter une photo d'évolution (PRIVÉE). Client pour lui ; coach/admin via ?email.
+  app.post('/nutrition/api/parcours/photo', requireAuth, (req, res) => {
+    try {
+      const b = req.body || {};
+      const email = String(b.email || (req.session && req.session.email) || '');
+      const acc = accesParcours(req, email);
+      if (!acc.ok || !email) return res.status(403).json({ ok: false, error: 'Accès refusé.' });
+      const jalon = String(b.jalon || '');
+      const type = String(b.type || '');
+      if (!PARCOURS_JALONS.includes(jalon) || !PARCOURS_PHOTO_TYPES.includes(type)) return res.status(400).json({ ok: false, error: 'Jalon ou type invalide.' });
+      const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(String(b.data || ''));
+      if (!m) return res.status(400).json({ ok: false, error: 'Image invalide (jpg/png/webp).' });
+      if (m[2].length > 4_000_000) return res.status(413).json({ ok: false, error: 'Image trop lourde (max ~3 Mo).' });
+      const info = getDb().prepare('INSERT INTO nutrition_parcours_photos (client_email, jalon, type, data, mime, auteur_role, auteur_id, created_at) VALUES (?,?,?,?,?,?,?,?)')
+        .run(email, jalon, type, b.data, m[1], acc.role, acc.id, new Date().toISOString());
+      res.json({ ok: true, id: info.lastInsertRowid, parcours: buildParcours(email) });
+    } catch (e) { console.error('parcours photo POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+
+  // Servir une photo d'évolution — PRIVÉE : uniquement le client concerné, son coach, ou l'admin.
+  app.get('/nutrition/api/parcours/photo/:id', requireAuth, (req, res) => {
+    try {
+      const row = getDb().prepare('SELECT client_email, data, mime FROM nutrition_parcours_photos WHERE id = ?').get(Number(req.params.id));
+      if (!row) return res.status(404).end();
+      if (!accesParcours(req, row.client_email).ok) return res.status(403).end();
+      const m = /^data:[^;]+;base64,(.+)$/.exec(row.data || '');
+      if (!m) return res.status(404).end();
+      res.setHeader('Content-Type', row.mime || 'image/jpeg');
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.end(Buffer.from(m[1], 'base64'));
+    } catch (e) { console.error('parcours photo GET :', e); res.status(500).end(); }
+  });
+
+  // Supprimer une photo (le client la sienne ; admin tout ; coach celles de ses clients).
+  app.delete('/nutrition/api/parcours/photo/:id', requireAuth, (req, res) => {
+    try {
+      const row = getDb().prepare('SELECT client_email FROM nutrition_parcours_photos WHERE id = ?').get(Number(req.params.id));
+      if (!row) return res.status(404).json({ ok: false, error: 'Photo introuvable.' });
+      if (!accesParcours(req, row.client_email).ok) return res.status(403).json({ ok: false, error: 'Accès refusé.' });
+      getDb().prepare('DELETE FROM nutrition_parcours_photos WHERE id = ?').run(Number(req.params.id));
+      res.json({ ok: true, parcours: buildParcours(row.client_email) });
+    } catch (e) { console.error('parcours photo DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
   });
 
   // ====== Messagerie privée client <-> coach (jamais client <-> client) ======
