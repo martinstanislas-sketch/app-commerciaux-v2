@@ -1,9000 +1,23510 @@
-// recipes-v2.js
-// NOUVEAU catalogue My Coach Nutrition, reconstruit recette par recette pour
-// garantir : cohérence, macros réalistes, allergènes/régimes fiables, couverture
-// complète des combinaisons. Construit À CÔTÉ de recipes.js (qui reste actif)
-// tant que le catalogue n'est pas complet ; on basculera le require quand prêt.
-//
-// Schéma par recette :
-//   id, nom, type (petit-dejeuner | plat | collation), gout (sucre | sale),
-//   cuisines[], regime[] (vegetarien/vegan/sans-porc/sans-gluten...),
-//   objectifs[] (perte/maintien/muscle/energie), budget (eco|normal),
-//   allergenes[] (gluten/lactose/oeuf/arachide/fruits-a-coque/poisson/
-//                 crustaces/soja/sesame),
-//   motsCles[], kcal/proteines/glucides/lipides (par portion), tempsMinutes,
-//   ingredients[{nom, quantite, unite, rayon}] (POUR 1 PERSONNE), etapes[].
+// recipes-v2.js — banque My Coach Nutrition reconstruite (refonte complète).
+// 372 recettes validées (82 petits-déj, 63 collations, 227 plats).
+// Schéma : id, nom, type, categorie, gout, cuisines[], regime[], budget, allergenes[],
+//          kcal/proteines/glucides/lipides, tempsMinutes, motsCles[], ingredients[{nom,quantite,unite,rayon}], etapes[].
+// Généré automatiquement depuis les lots validés. Ancienne version : recipes-v2.js.bak-avant-refonte
 
 const RECIPES = [
-  // ==================== PETITS-DÉJEUNERS ====================
   {
-    id: 'pd-porridge-sarrasin-pomme',
-    nom: 'Porridge de sarrasin pomme-cannelle',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['francaise'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'energie'],
-    budget: 'normal',
-    allergenes: ['fruits-a-coque'],
-    motsCles: ['sarrasin', 'pomme', 'cannelle', 'chia', 'proteine de pois', 'lait d amande'],
-    kcal: 390, proteines: 23, glucides: 52, lipides: 10,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Flocons de sarrasin", quantite: 50, unite: 'g', rayon: 'Épicerie' },
-      { nom: "Lait d'amande", quantite: 200, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Pomme', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Protéine de pois', quantite: 15, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Graines de chia', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Cannelle', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Verser les flocons de sarrasin, le lait d'amande et la cannelle dans une petite casserole.",
-      'Faire chauffer 5 minutes à feu doux en remuant régulièrement.',
-      'Ajouter la protéine de pois hors du feu et mélanger jusqu\'à obtenir une texture crémeuse.',
-      'Couper la pomme en petits dés.',
-      'Servir le porridge avec les dés de pomme et les graines de chia.',
-    ],
-  },
-  {
-    id: 'pd-omelette-epinards-feta',
-    nom: 'Omelette moelleuse aux épinards, tomate et feta',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['mediterraneenne'],
-    regime: ['vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['oeuf', 'lactose'],
-    motsCles: ['oeufs', 'epinards', 'tomate', 'feta'],
-    kcal: 310, proteines: 31, glucides: 6, lipides: 18,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: 'Œufs', quantite: 2, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: "Blancs d'œufs", quantite: 100, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Épinards frais', quantite: 70, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Feta', quantite: 20, unite: 'g', rayon: 'Crèmerie' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Battre les œufs avec les blancs d'œufs dans un bol.",
-      'Couper la tomate en petits dés.',
-      "Faire chauffer l'huile d'olive dans une poêle, puis ajouter les épinards pendant 1 minute.",
-      "Verser les œufs battus et cuire à feu doux jusqu'à ce que l'omelette soit prise.",
-      'Ajouter la tomate et la feta émiettée avant de plier l\'omelette.',
-    ],
-  },
-  {
-    id: 'pd-bowl-skyr-fruits-rouges',
-    nom: 'Bowl skyr, fruits rouges et amandes',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['francaise'],
-    regime: ['vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['lactose', 'fruits-a-coque'],
-    motsCles: ['skyr', 'fruits rouges', 'amandes', 'chia', 'miel'],
-    kcal: 295, proteines: 27, glucides: 23, lipides: 11,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: 'Skyr nature', quantite: 200, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Fruits rouges', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Amandes', quantite: 15, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Graines de chia', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Miel', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Verser le skyr dans un bol.',
-      'Ajouter les fruits rouges sur le dessus.',
-      'Concasser légèrement les amandes.',
-      'Parsemer avec les amandes et les graines de chia.',
-      'Ajouter le miel en filet juste avant de servir.',
-    ],
-  },
-  {
-    id: 'pd-tofu-brouille-mediterraneen',
-    nom: 'Tofu brouillé méditerranéen aux champignons',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['mediterraneenne'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['soja'],
-    motsCles: ['tofu', 'champignons', 'tomate', 'epinards', 'curcuma'],
-    kcal: 314, proteines: 24, glucides: 14, lipides: 18,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Tofu ferme', quantite: 180, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Champignons', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Épinards frais', quantite: 60, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Curcuma', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Émietter le tofu à la fourchette pour obtenir une texture de brouillade.',
-      'Couper les champignons et la tomate en petits morceaux.',
-      "Faire chauffer l'huile d'olive dans une poêle, puis ajouter les champignons pendant 3 minutes.",
-      'Ajouter le tofu, le curcuma, la tomate et les épinards.',
-      "Cuire 5 minutes en mélangeant jusqu'à ce que l'ensemble soit chaud et fondant.",
-    ],
-  },
-  {
-    id: 'pd-pancakes-farine-riz-banane',
-    nom: 'Pancakes légers à la farine de riz et banane',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['americaine'],
-    regime: ['vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['maintien', 'energie'],
-    budget: 'normal',
-    allergenes: ['oeuf', 'fruits-a-coque'],
-    motsCles: ['farine de riz', 'banane', 'oeuf', 'puree d amande'],
-    kcal: 420, proteines: 14, glucides: 64, lipides: 12,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Farine de riz', quantite: 50, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Banane', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Lait d'amande", quantite: 100, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: "Purée d'amande", quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Levure chimique', quantite: 5, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Écraser la banane dans un bol.',
-      "Ajouter l'œuf, le lait d'amande et la purée d'amande, puis mélanger.",
-      'Incorporer la farine de riz et la levure chimique.',
-      'Faire cuire de petites portions de pâte dans une poêle chaude, 2 minutes par face.',
-      'Servir les pancakes encore tièdes.',
-    ],
-  },
-  {
-    id: 'pd-tartines-saumon-avocat-oeuf',
-    nom: 'Tartines complètes saumon, avocat et œuf',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['francaise'],
-    regime: ['sans-porc'],
-    objectifs: ['maintien', 'energie'],
-    budget: 'normal',
-    allergenes: ['gluten', 'poisson', 'oeuf'],
-    motsCles: ['pain complet', 'saumon fume', 'avocat', 'oeuf'],
-    kcal: 416, proteines: 24, glucides: 35, lipides: 20,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: 'Pain complet', quantite: 2, unite: 'tranche', rayon: 'Boulangerie' },
-      { nom: 'Saumon fumé', quantite: 60, unite: 'g', rayon: 'Poissonnerie' },
-      { nom: 'Avocat', quantite: 50, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Jus de citron', quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Ciboulette', quantite: 1, unite: 'c. à café', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      "Faire cuire l'œuf 6 minutes dans l'eau frémissante, puis l'écaler.",
-      "Écraser l'avocat avec le jus de citron.",
-      'Griller légèrement les tranches de pain complet.',
-      "Étaler l'avocat sur le pain.",
-      "Ajouter le saumon fumé, l'œuf coupé en deux et la ciboulette.",
-    ],
-  },
-  {
-    id: 'pd-chia-pudding-coco-mangue',
-    nom: 'Chia pudding coco, mangue et citron vert',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['mediterraneenne'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['maintien', 'energie'],
-    budget: 'normal',
-    allergenes: [],
-    motsCles: ['chia', 'lait de coco', 'yaourt vegetal', 'mangue'],
-    kcal: 339, proteines: 12, glucides: 30, lipides: 19,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: 'Graines de chia', quantite: 30, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Lait de coco', quantite: 120, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Yaourt végétal nature', quantite: 100, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Mangue', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Jus de citron vert', quantite: 1, unite: 'c. à café', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      'Mélanger les graines de chia avec le lait de coco et le yaourt végétal.',
-      'Laisser épaissir au réfrigérateur au moins 30 minutes.',
-      'Couper la mangue en petits dés.',
-      'Ajouter le jus de citron vert dans le pudding.',
-      'Servir avec les dés de mangue sur le dessus.',
-    ],
-  },
-  {
-    id: 'pd-galette-pois-chiches-socca',
-    nom: 'Galette de pois chiches façon socca et tomates fraîches',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['mediterraneenne'],
-    regime: ['vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['oeuf'],
-    motsCles: ['pois chiches', 'socca', 'tomates cerises', 'roquette'],
-    kcal: 326, proteines: 25, glucides: 34, lipides: 10,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Farine de pois chiches', quantite: 50, unite: 'g', rayon: 'Épicerie' },
-      { nom: "Blancs d'œufs", quantite: 100, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Tomates cerises', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Roquette', quantite: 50, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Mélanger la farine de pois chiches avec 100 ml d'eau et les blancs d'œufs.",
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      'Verser la pâte et cuire la galette 3 minutes par face.',
-      'Couper les tomates cerises en deux.',
-      'Servir la galette avec la roquette et les tomates fraîches.',
-    ],
-  },
-  {
-    id: 'pd-overnight-oats-poire-cacao',
-    nom: 'Overnight oats poire, cacao et skyr',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['francaise'],
-    regime: ['vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['muscle', 'energie'],
-    budget: 'normal',
-    allergenes: ['lactose', 'fruits-a-coque'],
-    motsCles: ['avoine sans gluten', 'skyr', 'poire', 'cacao'],
-    kcal: 384, proteines: 25, glucides: 62, lipides: 4,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Flocons d'avoine certifiés sans gluten", quantite: 50, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Skyr nature', quantite: 150, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Poire', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Cacao non sucré', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Miel', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: "Lait d'amande", quantite: 50, unite: 'ml', rayon: 'Crèmerie' },
-    ],
-    etapes: [
-      "Mélanger les flocons d'avoine, le skyr, le lait d'amande et le cacao.",
-      'Couper la poire en petits dés.',
-      'Incorporer la moitié de la poire dans la préparation.',
-      'Placer au réfrigérateur au moins 2 heures.',
-      'Ajouter le reste de poire et le miel au moment de servir.',
-    ],
-  },
-  {
-    id: 'pd-burrito-oeufs-haricots-noirs',
-    nom: 'Breakfast burrito aux œufs et haricots noirs',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['mexicaine'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['muscle', 'energie'],
-    budget: 'normal',
-    allergenes: ['gluten', 'oeuf'],
-    motsCles: ['tortilla', 'oeufs', 'haricots noirs', 'avocat'],
-    kcal: 523, proteines: 24, glucides: 55, lipides: 23,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Tortilla de blé', quantite: 1, unite: 'pièce', rayon: 'Boulangerie' },
-      { nom: 'Œufs', quantite: 2, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Haricots noirs cuits', quantite: 80, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Avocat', quantite: 50, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 60, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Salsa', quantite: 1, unite: 'c. à soupe', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Battre les œufs dans un bol.',
-      'Faire cuire les œufs brouillés dans une poêle chaude.',
-      'Réchauffer les haricots noirs pendant 2 minutes.',
-      'Garnir la tortilla avec les œufs, les haricots, l\'avocat, la tomate et la salsa.',
-      'Rouler fermement le burrito avant de servir.',
-    ],
-  },
-  {
-    id: 'pd-bowl-soja-kiwi-chanvre',
-    nom: 'Bowl protéiné soja, kiwi et graines de chanvre',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['francaise'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['soja'],
-    motsCles: ['yaourt de soja', 'proteine de pois', 'kiwi', 'chia', 'chanvre'],
-    kcal: 386, proteines: 31, glucides: 34, lipides: 14,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: 'Yaourt de soja nature', quantite: 160, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Protéine de pois', quantite: 20, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Kiwi', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Flocons d'avoine certifiés sans gluten", quantite: 15, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Graines de chia', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Graines de chanvre', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Mélanger le yaourt de soja avec la protéine de pois jusqu\'à obtenir une texture lisse.',
-      'Couper le kiwi en petits morceaux.',
-      'Verser la préparation dans un bol.',
-      'Ajouter les flocons d\'avoine, les graines de chia et les graines de chanvre.',
-      'Disposer le kiwi sur le dessus et servir frais.',
-    ],
-  },
-  {
-    id: 'pd-brouillade-tofu-courgette-poivron',
-    nom: 'Brouillade de tofu au curcuma, courgette et poivron',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['mediterraneenne'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['soja'],
-    motsCles: ['tofu', 'courgette', 'poivron', 'epinards', 'curcuma'],
-    kcal: 371, proteines: 28, glucides: 17, lipides: 21,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Tofu ferme', quantite: 180, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Courgette', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Poivron rouge', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Épinards frais', quantite: 50, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Graines de courge', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Curcuma', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Émietter le tofu à la fourchette.',
-      'Couper la courgette et le poivron en petits dés.',
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      'Ajouter la courgette, le poivron, les épinards, le tofu et le curcuma.',
-      'Cuire 6 minutes en remuant, puis terminer avec les graines de courge.',
-    ],
-  },
-  {
-    id: 'pd-pancakes-vegan-sarrasin-myrtilles',
-    nom: 'Pancakes vegan sarrasin, myrtilles et vanille',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['americaine'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'energie'],
-    budget: 'normal',
-    allergenes: ['soja'],
-    motsCles: ['sarrasin', 'proteine de soja', 'myrtilles', 'compote'],
-    kcal: 411, proteines: 27, glucides: 60, lipides: 7,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Farine de sarrasin', quantite: 45, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Protéine de soja', quantite: 20, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Lait de soja', quantite: 120, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Compote de pomme sans sucres ajoutés', quantite: 80, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Myrtilles', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Levure chimique', quantite: 5, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Mélanger la farine de sarrasin, la protéine de soja et la levure chimique.',
-      'Ajouter le lait de soja et la compote de pomme.',
-      'Mélanger jusqu\'à obtenir une pâte épaisse.',
-      'Faire cuire de petits pancakes dans une poêle chaude, 2 minutes par face.',
-      'Servir avec les myrtilles sur le dessus.',
-    ],
-  },
-  {
-    id: 'pd-tartines-tempeh-avocat',
-    nom: 'Tartines sans gluten au tempeh doré et avocat',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['mediterraneenne'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['maintien', 'energie'],
-    budget: 'normal',
-    allergenes: ['soja', 'sesame'],
-    motsCles: ['pain sans gluten', 'tempeh', 'avocat', 'tomate', 'sesame'],
-    kcal: 455, proteines: 23, glucides: 48, lipides: 19,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: 'Pain sans gluten', quantite: 2, unite: 'tranche', rayon: 'Boulangerie' },
-      { nom: 'Tempeh nature', quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Avocat', quantite: 50, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Graines de sésame', quantite: 5, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Jus de citron', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper le tempeh en fines lamelles.',
-      'Faire dorer le tempeh 3 minutes dans une poêle chaude.',
-      "Écraser l'avocat avec le jus de citron.",
-      'Griller les tranches de pain sans gluten.',
-      "Garnir avec l'avocat, la tomate, le tempeh et les graines de sésame.",
-    ],
-  },
-  {
-    id: 'pd-pudding-chia-cacao-fraise-soja',
-    nom: 'Pudding chia cacao, fraise et soja protéiné',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['francaise'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['soja', 'fruits-a-coque'],
-    motsCles: ['chia', 'lait de soja', 'proteine de pois', 'cacao', 'fraises', 'cajou'],
-    kcal: 360, proteines: 29, glucides: 25, lipides: 16,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: 'Graines de chia', quantite: 25, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Lait de soja', quantite: 200, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Protéine de pois', quantite: 20, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Cacao non sucré', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Fraises', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Purée de cajou', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Mélanger les graines de chia, le lait de soja, la protéine de pois et le cacao.',
-      'Laisser épaissir au réfrigérateur au moins 30 minutes.',
-      'Couper les fraises en morceaux.',
-      'Mélanger à nouveau le pudding pour lisser la texture.',
-      'Ajouter les fraises et la purée de cajou au moment de servir.',
-    ],
-  },
-  {
-    id: 'pd-crepe-pois-chiches-tofu-soyeux',
-    nom: 'Crêpe de pois chiches aux champignons et tofu soyeux',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['indienne'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['soja'],
-    motsCles: ['pois chiches', 'tofu soyeux', 'champignons', 'roquette', 'curry'],
-    kcal: 337, proteines: 21, glucides: 34, lipides: 13,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Farine de pois chiches', quantite: 50, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Tofu soyeux', quantite: 100, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Champignons', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Roquette', quantite: 50, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Curry doux', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Mélanger la farine de pois chiches avec 100 ml d'eau et le curry doux.",
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      'Verser la pâte et cuire la crêpe 3 minutes par face.',
-      'Faire revenir les champignons 3 minutes dans la même poêle.',
-      'Garnir la crêpe avec le tofu soyeux, les champignons et la roquette.',
-    ],
-  },
-  {
-    id: 'pd-bowl-quinoa-edamame-tofu-fume',
-    nom: 'Bowl asiatique quinoa, edamame et tofu fumé',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['asiatique'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['soja'],
-    motsCles: ['quinoa', 'edamame', 'tofu fume', 'concombre', 'tamari'],
-    kcal: 444, proteines: 26, glucides: 40, lipides: 20,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: 'Quinoa cuit', quantite: 100, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Edamame', quantite: 80, unite: 'g', rayon: 'Surgelés' },
-      { nom: 'Tofu fumé', quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Concombre', quantite: 60, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Avocat', quantite: 40, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Sauce tamari sans gluten', quantite: 1, unite: 'c. à soupe', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Déposer le quinoa cuit dans un bol.',
-      'Couper le tofu fumé, le concombre et l\'avocat en morceaux.',
-      'Ajouter les edamame sur le quinoa.',
-      'Disposer le tofu fumé, le concombre et l\'avocat.',
-      'Assaisonner avec la sauce tamari sans gluten.',
-    ],
-  },
-  {
-    id: 'pd-muffins-sales-saumon-epinards',
-    nom: 'Muffins salés saumon, épinards et farine de riz',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['francaise'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['oeuf', 'poisson'],
-    motsCles: ['saumon fume', 'epinards', 'farine de riz', 'oeufs'],
-    kcal: 347, proteines: 35, glucides: 18, lipides: 15,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: 'Œufs', quantite: 2, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: "Blancs d'œufs", quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Saumon fumé', quantite: 50, unite: 'g', rayon: 'Poissonnerie' },
-      { nom: 'Épinards frais', quantite: 60, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Farine de riz', quantite: 20, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Levure chimique', quantite: 5, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Battre les œufs avec les blancs d'œufs.",
-      'Ajouter la farine de riz et la levure chimique.',
-      'Couper le saumon fumé en petits morceaux.',
-      'Incorporer le saumon et les épinards à la préparation.',
-      'Verser dans deux petits moules et cuire 12 minutes au four.',
-    ],
-  },
-  {
-    id: 'pd-porridge-millet-poire-soja',
-    nom: 'Porridge de millet, poire et lait de soja',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['francaise'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'energie'],
-    budget: 'normal',
-    allergenes: ['soja'],
-    motsCles: ['millet', 'lait de soja', 'proteine de pois', 'poire', 'lin'],
-    kcal: 446, proteines: 31, glucides: 58, lipides: 10,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: 'Flocons de millet', quantite: 45, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Lait de soja', quantite: 200, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Protéine de pois', quantite: 20, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Poire', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Graines de lin moulues', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Cannelle', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Faire chauffer les flocons de millet avec le lait de soja et la cannelle.',
-      'Remuer 5 minutes à feu doux jusqu\'à obtenir une texture crémeuse.',
-      'Ajouter la protéine de pois hors du feu.',
-      'Couper la poire en petits dés.',
-      'Servir avec la poire et les graines de lin moulues.',
-    ],
-  },
-  {
-    id: 'pd-frittata-dinde-pdt-epinards',
-    nom: 'Frittata légère dinde, pomme de terre et épinards',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['italienne'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['oeuf'],
-    motsCles: ['oeufs', 'dinde', 'pomme de terre', 'epinards'],
-    kcal: 381, proteines: 40, glucides: 17, lipides: 17,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Œufs', quantite: 2, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: "Blancs d'œufs", quantite: 100, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Pomme de terre cuite', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Blanc de dinde', quantite: 60, unite: 'g', rayon: 'Boucherie' },
-      { nom: 'Épinards frais', quantite: 50, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Battre les œufs avec les blancs d'œufs.",
-      'Couper la pomme de terre cuite et le blanc de dinde en petits morceaux.',
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      'Ajouter les épinards, la pomme de terre et le blanc de dinde.',
-      "Verser les œufs battus et cuire à feu doux jusqu'à ce que la frittata soit prise.",
-    ],
-  },
-  {
-    id: 'pd-pain-perdu-proteine',
-    nom: 'Pain perdu protéiné à la vanille et aux fruits rouges',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['francaise'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['maintien', 'muscle', 'plaisir'],
-    budget: 'eco',
-    allergenes: ['gluten', 'oeuf', 'lactose'],
-    motsCles: ['pain complet', 'oeuf', 'fruits rouges', 'vanille'],
-    kcal: 391, proteines: 29, glucides: 53, lipides: 7,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: 'Pain complet', quantite: 2, unite: 'tranche', rayon: 'Boulangerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: "Blancs d'œufs", quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Lait demi-écrémé', quantite: 80, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Fruits rouges', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Miel', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Vanille', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Battre l'œuf, les blancs d'œufs, le lait demi-écrémé et la vanille dans une assiette creuse.",
-      'Tremper les tranches de pain complet dans le mélange, 30 secondes de chaque côté.',
-      'Faire cuire les tranches dans une poêle chaude, 2 minutes par face.',
-      'Ajouter les fruits rouges sur le pain perdu.',
-      'Terminer avec le miel en filet.',
-    ],
-  },
-  {
-    id: 'pd-gaufres-cottage-avoine',
-    nom: 'Gaufres cottage cheese, avoine et framboises',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['americaine'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['lactose', 'oeuf', 'gluten'],
-    motsCles: ['cottage cheese', 'avoine', 'framboises', 'gaufre'],
-    kcal: 352, proteines: 24, glucides: 43, lipides: 8,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Cottage cheese', quantite: 100, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: "Flocons d'avoine", quantite: 40, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Framboises', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Sirop d'érable", quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Levure chimique', quantite: 5, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Mixer le cottage cheese, l'œuf, les flocons d'avoine et la levure chimique.",
-      'Verser la pâte dans un gaufrier chaud.',
-      'Cuire 4 à 5 minutes jusqu\'à obtenir une gaufre dorée.',
-      'Déposer les framboises sur la gaufre.',
-      'Ajouter le sirop d\'érable juste avant de servir.',
-    ],
-  },
-  {
-    id: 'pd-riz-au-lait-pomme',
-    nom: 'Riz au lait léger cannelle et compotée de pomme',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['francaise'],
-    regime: ['vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['energie', 'plaisir'],
-    budget: 'eco',
-    allergenes: ['lactose', 'fruits-a-coque'],
-    motsCles: ['riz rond', 'pomme', 'raisins secs', 'cannelle', 'amandes'],
-    kcal: 387, proteines: 12, glucides: 65, lipides: 9,
-    tempsMinutes: 9,
-    ingredients: [
-      { nom: 'Riz rond cuit', quantite: 130, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Lait demi-écrémé', quantite: 160, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Pomme', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Raisins secs', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Amandes', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Cannelle', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Faire chauffer le riz rond avec le lait demi-écrémé et la cannelle.',
-      'Remuer 5 minutes à feu doux jusqu\'à obtenir une texture crémeuse.',
-      'Couper la pomme en petits dés.',
-      'Ajouter la pomme et les raisins secs dans la casserole pendant 2 minutes.',
-      'Servir avec les amandes concassées.',
-    ],
-  },
-  {
-    id: 'pd-smoothie-matcha-mangue-tofu',
-    nom: 'Smoothie épais matcha, mangue et tofu soyeux',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['asiatique'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'energie'],
-    budget: 'normal',
-    allergenes: ['soja'],
-    motsCles: ['tofu soyeux', 'mangue', 'lait de soja', 'matcha', 'lin'],
-    kcal: 383, proteines: 30, glucides: 34, lipides: 15,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: 'Tofu soyeux', quantite: 180, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Mangue', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Lait de soja', quantite: 150, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Protéine de pois', quantite: 15, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Graines de lin moulues', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Matcha', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Mettre le tofu soyeux, la mangue et le lait de soja dans un blender.',
-      'Ajouter la protéine de pois, les graines de lin moulues et le matcha.',
-      'Mixer jusqu\'à obtenir une texture épaisse et lisse.',
-      'Verser dans un grand verre ou un bol.',
-      'Servir immédiatement bien frais.',
-    ],
-  },
-  {
-    id: 'pd-baghrir-fromage-blanc',
-    nom: 'Baghrir express au fromage blanc, miel et pistaches',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['orientale'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['maintien', 'plaisir'],
-    budget: 'eco',
-    allergenes: ['gluten', 'lactose', 'fruits-a-coque'],
-    motsCles: ['semoule', 'fromage blanc', 'miel', 'pistaches', 'baghrir'],
-    kcal: 370, proteines: 15, glucides: 58, lipides: 9,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Semoule fine', quantite: 60, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Fromage blanc', quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Miel', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Pistaches', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Levure chimique', quantite: 5, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Mélanger la semoule fine, 80 ml d'eau et la levure chimique jusqu'à obtenir une pâte fluide.",
-      'Laisser reposer 5 minutes.',
-      'Verser la pâte dans une poêle chaude en formant une crêpe épaisse.',
-      'Cuire uniquement sur une face jusqu\'à l\'apparition de petits trous.',
-      'Servir avec le fromage blanc, le miel et les pistaches concassées.',
-    ],
-  },
-  {
-    id: 'pd-toast-ricotta-orange',
-    nom: 'Toast italien ricotta, orange et pistaches',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['italienne'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['maintien', 'plaisir'],
-    budget: 'normal',
-    allergenes: ['gluten', 'lactose', 'fruits-a-coque'],
-    motsCles: ['pain complet', 'ricotta', 'orange', 'pistaches', 'zeste'],
-    kcal: 345, proteines: 15, glucides: 40, lipides: 14,
-    tempsMinutes: 6,
-    ingredients: [
-      { nom: 'Pain complet', quantite: 1, unite: 'tranche', rayon: 'Boulangerie' },
-      { nom: 'Ricotta', quantite: 90, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Orange', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Pistaches', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Miel', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-      { nom: "Zeste d'orange", quantite: 1, unite: 'c. à café', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      'Griller légèrement la tranche de pain complet.',
-      'Mélanger la ricotta avec le zeste d\'orange.',
-      'Étaler la ricotta parfumée sur le pain.',
-      'Ajouter les quartiers d\'orange.',
-      'Terminer avec les pistaches concassées et le miel.',
-    ],
-  },
-  {
-    id: 'pd-banana-bread-skyr-pecan',
-    nom: 'Banana bread express au skyr et noix de pécan',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['americaine'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['energie', 'plaisir'],
-    budget: 'normal',
-    allergenes: ['lactose', 'oeuf', 'gluten', 'fruits-a-coque'],
-    motsCles: ['banane', 'skyr', 'farine complète', 'noix de pecan', 'banana bread'],
-    kcal: 398, proteines: 23, glucides: 47, lipides: 14,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: 'Banane', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Skyr nature', quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Farine complète', quantite: 35, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Noix de pécan', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Levure chimique', quantite: 5, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Écraser la banane dans un bol.',
-      "Ajouter l'œuf et le skyr, puis mélanger.",
-      'Incorporer la farine complète et la levure chimique.',
-      'Verser la pâte dans un petit moule individuel.',
-      'Ajouter les noix de pécan concassées et cuire 12 minutes au four.',
-    ],
-  },
-  {
-    id: 'pd-shakshuka-pois-chiches',
-    nom: 'Shakshuka légère aux œufs et pois chiches',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['orientale'],
-    regime: ['vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['oeuf'],
-    motsCles: ['oeufs', 'tomates', 'pois chiches', 'poivron', 'cumin'],
-    kcal: 396, proteines: 32, glucides: 28, lipides: 17,
-    tempsMinutes: 14,
-    ingredients: [
-      { nom: 'Œufs', quantite: 2, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: "Blancs d'œufs", quantite: 100, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Tomates concassées', quantite: 100, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Pois chiches cuits', quantite: 60, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Poivron rouge', quantite: 60, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Cumin', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper le poivron rouge en petits dés.',
-      "Faire chauffer l'huile d'olive dans une poêle avec le cumin.",
-      'Ajouter le poivron, les tomates concassées et les pois chiches.',
-      'Creuser deux petits espaces, puis ajouter les œufs et les blancs d\'œufs.',
-      'Couvrir et cuire jusqu\'à ce que les œufs soient pris.',
-    ],
-  },
-  {
-    id: 'pd-english-breakfast-leger',
-    nom: 'English breakfast léger aux œufs, haricots et champignons',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['anglaise'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'energie'],
-    budget: 'normal',
-    allergenes: ['oeuf'],
-    motsCles: ['oeufs', 'haricots blancs', 'champignons', 'dinde'],
-    kcal: 421, proteines: 36, glucides: 31, lipides: 17,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Œufs', quantite: 2, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Haricots blancs cuits', quantite: 100, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Champignons', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Blanc de dinde', quantite: 50, unite: 'g', rayon: 'Boucherie' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper les champignons, la tomate et le blanc de dinde en morceaux.',
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      'Ajouter les champignons, la tomate, les haricots blancs et le blanc de dinde.',
-      'Cuire 5 minutes en remuant régulièrement.',
-      'Ajouter les œufs dans la poêle et cuire jusqu\'à ce que les blancs soient pris.',
-    ],
-  },
-  {
-    id: 'pd-wrap-houmous-oeuf-crudites',
-    nom: 'Wrap matinal houmous, œuf et crudités',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['mediterraneenne'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['maintien', 'energie'],
-    budget: 'eco',
-    allergenes: ['gluten', 'oeuf', 'sesame'],
-    motsCles: ['tortilla', 'houmous', 'oeuf', 'carotte', 'concombre'],
-    kcal: 416, proteines: 18, glucides: 48, lipides: 16,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: 'Tortilla de blé', quantite: 1, unite: 'pièce', rayon: 'Boulangerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Houmous', quantite: 60, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Carotte râpée', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Concombre', quantite: 50, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Roquette', quantite: 30, unite: 'g', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      "Faire cuire l'œuf 6 minutes dans l'eau frémissante.",
-      'Étaler le houmous sur la tortilla de blé.',
-      'Ajouter la carotte râpée, le concombre coupé en bâtonnets et la roquette.',
-      "Couper l'œuf en deux et le déposer au centre.",
-      'Rouler la tortilla fermement avant de servir.',
-    ],
-  },
-  {
-    id: 'pd-bircher-muesli-pomme',
-    nom: 'Bircher muesli suisse pomme, skyr et noisettes',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['suisse'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['maintien', 'energie'],
-    budget: 'eco',
-    allergenes: ['gluten', 'lactose', 'fruits-a-coque'],
-    motsCles: ['avoine', 'skyr', 'pomme', 'noisettes', 'raisins secs', 'bircher'],
-    kcal: 455, proteines: 26, glucides: 63, lipides: 11,
-    tempsMinutes: 6,
-    ingredients: [
-      { nom: "Flocons d'avoine", quantite: 45, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Skyr nature', quantite: 150, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Lait demi-écrémé', quantite: 80, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Pomme', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Noisettes', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Raisins secs', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Mélanger les flocons d'avoine avec le skyr et le lait demi-écrémé.",
-      'Râper la pomme directement dans le mélange.',
-      'Incorporer les raisins secs.',
-      'Laisser reposer 5 minutes pour obtenir une texture fondante.',
-      'Ajouter les noisettes concassées avant de servir.',
-    ],
-  },
-  {
-    id: 'pd-acai-bowl-proteine',
-    nom: 'Açaï bowl protéiné banane et fruits rouges',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['americaine'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'energie'],
-    budget: 'normal',
-    allergenes: ['soja'],
-    motsCles: ['acai', 'banane', 'fruits rouges', 'proteine de pois', 'lait de soja'],
-    kcal: 365, proteines: 24, glucides: 38, lipides: 13,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Purée d'açaï", quantite: 100, unite: 'g', rayon: 'Surgelés' },
-      { nom: 'Banane', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Fruits rouges', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Protéine de pois', quantite: 20, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Lait de soja', quantite: 100, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Graines de courge', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Mixer la purée d'açaï avec la banane, les fruits rouges et le lait de soja.",
-      'Ajouter la protéine de pois.',
-      'Mixer à nouveau jusqu\'à obtenir une texture épaisse.',
-      'Verser dans un bol.',
-      'Ajouter les graines de courge sur le dessus.',
-    ],
-  },
-  {
-    id: 'pd-crepes-completes-fromage-blanc',
-    nom: 'Crêpes complètes fromage blanc et chocolat noir',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['francaise'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['maintien', 'energie', 'plaisir'],
-    budget: 'eco',
-    allergenes: ['gluten', 'oeuf', 'lactose'],
-    motsCles: ['farine complète', 'oeuf', 'fromage blanc', 'fraises', 'chocolat'],
-    kcal: 410, proteines: 22, glucides: 48, lipides: 14,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Farine complète', quantite: 45, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Lait demi-écrémé', quantite: 100, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Fromage blanc', quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Fraises', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Chocolat noir', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Mélanger la farine complète, l'œuf et le lait demi-écrémé jusqu'à obtenir une pâte fluide.",
-      'Faire cuire deux crêpes fines dans une poêle chaude, 1 minute par face.',
-      'Étaler le fromage blanc sur les crêpes.',
-      'Couper les fraises en morceaux et les ajouter.',
-      'Râper le chocolat noir sur le dessus avant de servir.',
-    ],
-  },
-  {
-    id: 'pd-granola-yaourt-grec-pomme',
-    nom: 'Granola express au yaourt grec, pomme et cannelle',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['americaine'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['maintien', 'energie', 'plaisir'],
-    budget: 'eco',
-    allergenes: ['gluten', 'lactose', 'fruits-a-coque'],
-    motsCles: ['avoine', 'yaourt grec', 'pomme', 'amandes', 'cannelle', 'granola'],
-    kcal: 380, proteines: 22, glucides: 52, lipides: 8,
-    tempsMinutes: 7,
-    ingredients: [
-      { nom: "Flocons d'avoine", quantite: 35, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Yaourt grec nature', quantite: 150, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Pomme', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Amandes', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Miel', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Cannelle', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Faire chauffer les flocons d'avoine dans une poêle sèche pendant 3 minutes avec la cannelle.",
-      'Couper la pomme en petits dés.',
-      'Verser le yaourt grec dans un bol.',
-      "Ajouter les flocons d'avoine tièdes et les dés de pomme.",
-      'Terminer avec les amandes concassées et le miel.',
-    ],
-  },
-  {
-    id: 'pd-semoule-au-lait-datte',
-    nom: "Semoule au lait, fleur d'oranger et datte",
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['orientale'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['energie', 'plaisir'],
-    budget: 'eco',
-    allergenes: ['gluten', 'lactose', 'fruits-a-coque'],
-    motsCles: ['semoule', 'lait', 'datte', 'fleur d oranger', 'amande'],
-    kcal: 384, proteines: 14, glucides: 59, lipides: 10,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: 'Semoule fine', quantite: 45, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Lait demi-écrémé', quantite: 200, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Datte', quantite: 20, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Purée d'amande", quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: "Fleur d'oranger", quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Faire chauffer le lait demi-écrémé avec la fleur d'oranger.",
-      'Verser la semoule fine en pluie.',
-      'Remuer 5 minutes à feu doux jusqu\'à obtenir une texture crémeuse.',
-      'Couper la datte en petits morceaux.',
-      "Servir avec la datte et la purée d'amande.",
-    ],
-  },
-  {
-    id: 'pd-scone-skyr-myrtilles',
-    nom: 'Scone léger au skyr et aux myrtilles',
-    type: 'petit-dejeuner',
-    gout: 'sucre',
-    cuisines: ['anglaise'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['maintien', 'energie', 'plaisir'],
-    budget: 'normal',
-    allergenes: ['gluten', 'lactose', 'oeuf'],
-    motsCles: ['farine complète', 'skyr', 'myrtilles', 'scone'],
-    kcal: 380, proteines: 22, glucides: 46, lipides: 12,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: 'Farine complète', quantite: 50, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Skyr nature', quantite: 100, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Myrtilles', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Beurre', quantite: 5, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Levure chimique', quantite: 5, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Mélanger la farine complète et la levure chimique.',
-      "Ajouter le skyr, l'œuf et le beurre fondu.",
-      'Incorporer délicatement les myrtilles.',
-      'Former un petit scone individuel sur une plaque.',
-      'Cuire 12 minutes au four jusqu\'à ce que le scone soit doré.',
-    ],
-  },
-  {
-    id: 'pd-muffin-anglais-oeuf-avocat',
-    nom: 'Muffin anglais œuf, avocat et cheddar',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['anglaise'],
-    regime: ['vegetarien', 'sans-porc'],
-    objectifs: ['maintien', 'energie'],
-    budget: 'normal',
-    allergenes: ['gluten', 'oeuf', 'lactose'],
-    motsCles: ['muffin anglais', 'oeuf', 'avocat', 'cheddar', 'tomate'],
-    kcal: 404, proteines: 24, glucides: 36, lipides: 18,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: 'Muffin anglais complet', quantite: 1, unite: 'pièce', rayon: 'Boulangerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: "Blancs d'œufs", quantite: 70, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Avocat', quantite: 40, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Cheddar', quantite: 15, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Tomate', quantite: 50, unite: 'g', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      "Faire cuire l'œuf et les blancs d'œufs dans une poêle chaude.",
-      'Couper le muffin anglais complet en deux et le griller légèrement.',
-      "Écraser l'avocat à la fourchette.",
-      'Garnir le muffin avec l\'avocat, les œufs, la tomate et le cheddar.',
-      'Refermer le muffin et servir chaud.',
-    ],
-  },
-  {
-    id: 'pd-pain-perdu-sale-dinde',
-    nom: 'Pain perdu salé dinde, champignons et parmesan',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['francaise'],
-    regime: ['sans-porc'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['gluten', 'oeuf', 'lactose'],
-    motsCles: ['pain complet', 'dinde', 'champignons', 'parmesan'],
-    kcal: 391, proteines: 39, glucides: 34, lipides: 11,
-    tempsMinutes: 11,
-    ingredients: [
-      { nom: 'Pain complet', quantite: 2, unite: 'tranche', rayon: 'Boulangerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: "Blancs d'œufs", quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Blanc de dinde', quantite: 50, unite: 'g', rayon: 'Boucherie' },
-      { nom: 'Champignons', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Parmesan', quantite: 10, unite: 'g', rayon: 'Crèmerie' },
-    ],
-    etapes: [
-      "Battre l'œuf avec les blancs d'œufs dans une assiette creuse.",
-      'Tremper les tranches de pain complet dans le mélange.',
-      'Couper les champignons et le blanc de dinde en petits morceaux.',
-      'Faire cuire le pain dans une poêle chaude, 2 minutes par face.',
-      'Ajouter les champignons, le blanc de dinde et le parmesan râpé avant de servir.',
-    ],
-  },
-  {
-    id: 'pd-oeufs-benedicte-saumon',
-    nom: 'Œufs bénédicte allégés au saumon et yaourt citronné',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['americaine'],
-    regime: ['sans-porc'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['gluten', 'oeuf', 'poisson', 'lactose'],
-    motsCles: ['pain complet', 'saumon fume', 'yaourt grec', 'epinards', 'oeuf'],
-    kcal: 320, proteines: 30, glucides: 19, lipides: 14,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Pain complet', quantite: 1, unite: 'tranche', rayon: 'Boulangerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Saumon fumé', quantite: 60, unite: 'g', rayon: 'Poissonnerie' },
-      { nom: 'Yaourt grec nature', quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Épinards frais', quantite: 40, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Jus de citron', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Faire cuire l'œuf 6 minutes dans l'eau frémissante.",
-      'Mélanger le yaourt grec avec le jus de citron.',
-      'Griller légèrement la tranche de pain complet.',
-      'Déposer les épinards frais et le saumon fumé sur le pain.',
-      "Ajouter l'œuf coupé en deux et la sauce au yaourt citronné.",
-    ],
-  },
-  {
-    id: 'pd-polenta-cremeuse-oeuf',
-    nom: 'Polenta crémeuse, œuf et tomates au basilic',
-    type: 'petit-dejeuner',
-    gout: 'sale',
-    cuisines: ['italienne'],
-    regime: ['vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['oeuf', 'lactose'],
-    motsCles: ['polenta', 'oeuf', 'tomate', 'parmesan', 'basilic'],
-    kcal: 396, proteines: 25, glucides: 43, lipides: 14,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: 'Polenta', quantite: 50, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: "Blancs d'œufs", quantite: 100, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Tomate', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Parmesan', quantite: 10, unite: 'g', rayon: 'Crèmerie' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Basilic frais', quantite: 1, unite: 'poignée', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      "Faire cuire la polenta avec de l'eau jusqu'à obtenir une texture crémeuse.",
-      "Faire cuire l'œuf et les blancs d'œufs dans une poêle chaude.",
-      'Couper la tomate en petits dés.',
-      'Verser la polenta dans une assiette creuse.',
-      "Ajouter les œufs, la tomate, le parmesan, l'huile d'olive et le basilic.",
-    ],
-  },
-
-  // ==================== PLATS PRINCIPAUX (déjeuner / dîner) ====================
-  {
-    id: 'plat-poulet-herbes-quinoa-legumes',
-    nom: 'Poulet aux herbes, quinoa et légumes du soleil',
-    type: 'plat',
-    cuisines: ['francaise'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: [],
-    motsCles: ['poulet', 'quinoa', 'courgette', 'aubergine', 'poivron'],
-    kcal: 455, proteines: 39, glucides: 39, lipides: 15,
-    tempsMinutes: 22,
-    ingredients: [
-      { nom: 'Filet de poulet', quantite: 140, unite: 'g', rayon: 'Boucherie' },
-      { nom: 'Quinoa cuit', quantite: 120, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Courgette', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Aubergine', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Poivron rouge', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 10, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Herbes de Provence', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Couper la courgette, l'aubergine et le poivron rouge en morceaux réguliers.",
-      "Faire chauffer la moitié de l'huile d'olive dans une poêle.",
-      'Cuire les légumes 10 minutes avec les herbes de Provence.',
-      "Faire dorer le filet de poulet avec le reste d'huile d'olive, 5 à 6 minutes par face.",
-      'Réchauffer le quinoa cuit à feu doux.',
-      'Servir le poulet tranché avec le quinoa et les légumes du soleil.',
-    ],
-  },
-  {
-    id: 'plat-boeuf-pdt-haricots-verts',
-    nom: 'Bœuf maigre, pommes de terre vapeur et haricots verts',
-    type: 'plat',
-    cuisines: ['francaise'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: [],
-    motsCles: ['boeuf', 'pomme de terre', 'haricots verts', 'moutarde'],
-    kcal: 456, proteines: 36, glucides: 50, lipides: 12,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: 'Steak haché de bœuf 5 %', quantite: 130, unite: 'g', rayon: 'Boucherie' },
-      { nom: 'Pomme de terre', quantite: 220, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Haricots verts', quantite: 200, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Moutarde', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-      { nom: 'Persil', quantite: 1, unite: 'c. à café', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      'Couper la pomme de terre en morceaux.',
-      "Cuire la pomme de terre 15 minutes dans l'eau frémissante.",
-      "Cuire les haricots verts 8 minutes dans l'eau frémissante.",
-      'Faire cuire le steak haché dans une poêle chaude.',
-      "Mélanger l'huile d'olive, la moutarde et le persil.",
-      'Servir le bœuf avec les pommes de terre, les haricots verts et la sauce moutarde.',
-    ],
-  },
-  {
-    id: 'plat-pates-dinde-tomate-parmesan',
-    nom: 'Pâtes complètes à la dinde, tomate et parmesan',
-    type: 'plat',
-    cuisines: ['italienne'],
-    regime: ['sans-porc'],
-    objectifs: ['maintien', 'muscle', 'energie'],
-    budget: 'normal',
-    allergenes: ['gluten', 'lactose'],
-    motsCles: ['pates completes', 'dinde', 'tomate', 'parmesan', 'epinards'],
-    kcal: 563, proteines: 47, glucides: 60, lipides: 15,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: 'Pâtes complètes', quantite: 70, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Émincé de dinde', quantite: 130, unite: 'g', rayon: 'Boucherie' },
-      { nom: 'Sauce tomate', quantite: 120, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Épinards frais', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Parmesan', quantite: 20, unite: 'g', rayon: 'Crèmerie' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Basilic', quantite: 1, unite: 'c. à café', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      'Cuire les pâtes complètes selon le temps indiqué.',
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      "Cuire l'émincé de dinde 6 minutes en remuant régulièrement.",
-      'Ajouter la sauce tomate, les épinards frais et le basilic.',
-      'Égoutter les pâtes et les mélanger à la sauce.',
-      'Servir avec le parmesan râpé.',
-    ],
-  },
-  {
-    id: 'plat-saumon-riz-brocoli',
-    nom: 'Saumon citronné, riz complet et brocoli croquant',
-    type: 'plat',
-    cuisines: ['mediterraneenne'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['poisson'],
-    motsCles: ['saumon', 'riz complet', 'brocoli', 'carotte', 'citron'],
-    kcal: 501, proteines: 33, glucides: 45, lipides: 21,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: 'Pavé de saumon', quantite: 120, unite: 'g', rayon: 'Poissonnerie' },
-      { nom: 'Riz complet cuit', quantite: 110, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Brocoli', quantite: 180, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Carotte', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Jus de citron', quantite: 1, unite: 'c. à soupe', rayon: 'Épicerie' },
-      { nom: 'Aneth', quantite: 1, unite: 'c. à café', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      'Couper le brocoli en petits bouquets et la carotte en fines rondelles.',
-      'Cuire le brocoli et la carotte 8 minutes à la vapeur.',
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      'Cuire le pavé de saumon 4 minutes par face.',
-      'Réchauffer le riz complet cuit à feu doux.',
-      'Servir le saumon avec le riz, les légumes, le jus de citron et l\'aneth.',
-    ],
-  },
-  {
-    id: 'plat-bowl-medit-tofu-lentilles',
-    nom: 'Bowl méditerranéen tofu, lentilles et quinoa',
-    type: 'plat',
-    cuisines: ['mediterraneenne'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['soja'],
-    motsCles: ['tofu', 'lentilles', 'quinoa', 'courgette', 'paprika'],
-    kcal: 492, proteines: 35, glucides: 52, lipides: 16,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: 'Tofu ferme', quantite: 150, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Lentilles vertes cuites', quantite: 130, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Quinoa cuit', quantite: 80, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Courgette', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Paprika', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper le tofu ferme en cubes.',
-      'Couper la courgette et la tomate en morceaux.',
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      'Faire dorer le tofu avec le paprika pendant 5 minutes.',
-      'Ajouter la courgette, la tomate, les lentilles vertes cuites et le quinoa cuit.',
-      'Mélanger 4 minutes à feu moyen avant de servir.',
-    ],
-  },
-  {
-    id: 'plat-wok-tempeh-edamame-riz',
-    nom: 'Wok de tempeh, edamame et riz sauce tamari',
-    type: 'plat',
-    cuisines: ['asiatique'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['soja', 'sesame'],
-    motsCles: ['tempeh', 'edamame', 'riz basmati', 'brocoli', 'tamari'],
-    kcal: 520, proteines: 35, glucides: 56, lipides: 16,
-    tempsMinutes: 17,
-    ingredients: [
-      { nom: 'Tempeh nature', quantite: 100, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Edamame', quantite: 80, unite: 'g', rayon: 'Surgelés' },
-      { nom: 'Riz basmati cuit', quantite: 90, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Brocoli', quantite: 150, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Carotte', quantite: 70, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Huile de sésame', quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Sauce tamari sans gluten', quantite: 1, unite: 'c. à soupe', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper le tempeh en cubes.',
-      'Couper le brocoli en petits bouquets et la carotte en fines lamelles.',
-      "Faire chauffer l'huile de sésame dans un wok.",
-      'Faire dorer le tempeh 4 minutes avec les edamame.',
-      'Ajouter le brocoli, la carotte, le riz basmati cuit et la sauce tamari sans gluten.',
-      'Mélanger 5 minutes à feu vif avant de servir.',
-    ],
-  },
-  {
-    id: 'plat-curry-tofu-pois-chiches',
-    nom: 'Curry indien tofu, pois chiches et épinards',
-    type: 'plat',
-    cuisines: ['indienne'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['soja'],
-    motsCles: ['tofu', 'pois chiches', 'riz basmati', 'epinards', 'lait de coco', 'curry'],
-    kcal: 534, proteines: 34, glucides: 50, lipides: 22,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: 'Tofu ferme', quantite: 160, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Pois chiches cuits', quantite: 70, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Riz basmati cuit', quantite: 80, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Épinards frais', quantite: 150, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Lait de coco', quantite: 80, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Curry doux', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper le tofu ferme en cubes.',
-      'Couper la tomate en petits morceaux.',
-      'Faire chauffer le lait de coco avec le curry doux dans une casserole.',
-      'Ajouter le tofu, les pois chiches cuits, la tomate et les épinards frais.',
-      'Laisser mijoter 10 minutes à feu doux.',
-      'Servir avec le riz basmati cuit.',
-    ],
-  },
-  {
-    id: 'plat-chili-dinde-haricots-rouges',
-    nom: 'Chili de dinde, haricots rouges et maïs',
-    type: 'plat',
-    cuisines: ['mexicaine'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: [],
-    motsCles: ['dinde', 'haricots rouges', 'riz complet', 'mais', 'paprika'],
-    kcal: 548, proteines: 47, glucides: 62, lipides: 12,
-    tempsMinutes: 22,
-    ingredients: [
-      { nom: 'Dinde hachée 5 %', quantite: 150, unite: 'g', rayon: 'Boucherie' },
-      { nom: 'Haricots rouges cuits', quantite: 120, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Riz complet cuit', quantite: 100, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Tomate concassée', quantite: 100, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Poivron rouge', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Maïs', quantite: 60, unite: 'g', rayon: 'Épicerie' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Paprika fumé', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper le poivron rouge en petits dés.',
-      "Faire chauffer l'huile d'olive dans une poêle profonde.",
-      'Cuire la dinde hachée 5 minutes avec le paprika fumé.',
-      'Ajouter la tomate concassée, les haricots rouges, le poivron et le maïs.',
-      'Laisser mijoter 10 minutes.',
-      'Servir le chili avec le riz complet cuit.',
-    ],
-  },
-  {
-    id: 'plat-cobb-bowl-poulet-oeuf',
-    nom: 'Cobb bowl léger poulet, œuf et patate douce',
-    type: 'plat',
-    cuisines: ['americaine'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['oeuf'],
-    motsCles: ['poulet', 'oeuf', 'patate douce', 'concombre', 'avocat'],
-    kcal: 449, proteines: 38, glucides: 36, lipides: 17,
-    tempsMinutes: 24,
-    ingredients: [
-      { nom: 'Filet de poulet', quantite: 130, unite: 'g', rayon: 'Boucherie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Patate douce', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Concombre', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Avocat', quantite: 40, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper la patate douce en cubes.',
-      'Cuire la patate douce 15 minutes à la vapeur.',
-      "Faire cuire l'œuf 9 minutes dans l'eau frémissante.",
-      "Faire dorer le filet de poulet dans une poêle avec l'huile d'olive.",
-      'Couper la tomate, le concombre et l\'avocat en morceaux.',
-      "Servir le tout dans un bol avec l'œuf coupé en deux.",
-    ],
-  },
-  {
-    id: 'plat-assiette-orientale-oeufs-lentilles',
-    nom: 'Assiette orientale œufs, lentilles corail et patate douce',
-    type: 'plat',
-    cuisines: ['orientale'],
-    regime: ['vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['oeuf'],
-    motsCles: ['oeufs', 'lentilles corail', 'patate douce', 'oignon', 'cumin'],
-    kcal: 520, proteines: 34, glucides: 55, lipides: 18,
-    tempsMinutes: 24,
-    ingredients: [
-      { nom: 'Œufs', quantite: 2, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: "Blancs d'œufs", quantite: 120, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Lentilles corail cuites', quantite: 100, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Patate douce', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate concassée', quantite: 120, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Oignon', quantite: 60, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Cumin', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Couper la patate douce en petits cubes et l'oignon en fines lamelles.",
-      'Cuire la patate douce 12 minutes à la vapeur.',
-      "Faire chauffer l'huile d'olive dans une poêle avec le cumin.",
-      'Ajouter l\'oignon, la tomate concassée, les lentilles corail cuites et la patate douce.',
-      'Ajouter les œufs et les blancs d\'œufs au centre de la poêle.',
-      'Couvrir et cuire jusqu\'à ce que les œufs soient pris.',
-    ],
-  },
-  {
-    id: 'plat-penne-sg-thon-courgette',
-    nom: 'Penne sans gluten au thon, courgette et tomate basilic',
-    type: 'plat',
-    cuisines: ['italienne'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['poisson', 'lactose'],
-    motsCles: ['penne sans gluten', 'thon', 'courgette', 'tomate', 'parmesan'],
-    kcal: 490, proteines: 39, glucides: 61, lipides: 10,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: 'Penne de maïs sans gluten', quantite: 65, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Thon au naturel', quantite: 120, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Courgette', quantite: 150, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Sauce tomate', quantite: 120, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Parmesan', quantite: 10, unite: 'g', rayon: 'Crèmerie' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Basilic', quantite: 1, unite: 'c. à café', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      'Cuire les penne de maïs sans gluten selon le temps indiqué.',
-      'Couper la courgette en petits dés.',
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      'Cuire la courgette 5 minutes, puis ajouter la sauce tomate et le basilic.',
-      "Égoutter le thon et l'ajouter à la sauce.",
-      'Mélanger les pâtes avec la sauce et servir avec le parmesan râpé.',
-    ],
-  },
-  {
-    id: 'plat-risotto-vegan-champignons',
-    nom: 'Risotto vegan aux champignons, haricots blancs et épinards',
-    type: 'plat',
-    cuisines: ['italienne'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['maintien', 'energie'],
-    budget: 'eco',
-    allergenes: ['soja'],
-    motsCles: ['riz arborio', 'champignons', 'haricots blancs', 'epinards', 'creme de soja', 'risotto'],
-    kcal: 526, proteines: 25, glucides: 76, lipides: 14,
-    tempsMinutes: 24,
-    ingredients: [
-      { nom: 'Riz arborio', quantite: 60, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Haricots blancs cuits', quantite: 120, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Champignons', quantite: 150, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Épinards frais', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Crème de soja', quantite: 50, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Persil', quantite: 1, unite: 'c. à café', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      'Couper les champignons en lamelles.',
-      "Faire chauffer l'huile d'olive dans une casserole.",
-      'Ajouter le riz arborio et les champignons, puis remuer 2 minutes.',
-      "Ajouter progressivement de l'eau chaude jusqu'à ce que le riz soit fondant.",
-      'Incorporer les haricots blancs, les épinards frais et la crème de soja.',
-      'Laisser épaissir 3 minutes, puis terminer avec le persil.',
-    ],
-  },
-  {
-    id: 'plat-crevettes-sicilienne-polenta',
-    nom: 'Crevettes à la sicilienne, polenta et fenouil',
-    type: 'plat',
-    cuisines: ['italienne'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['crustaces'],
-    motsCles: ['crevettes', 'polenta', 'fenouil', 'tomates cerises', 'olives'],
-    kcal: 505, proteines: 43, glucides: 60, lipides: 11,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: 'Crevettes décortiquées', quantite: 150, unite: 'g', rayon: 'Poissonnerie' },
-      { nom: 'Polenta', quantite: 60, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Fenouil', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomates cerises', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Olives noires', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Câpres', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      "Cuire la polenta dans de l'eau chaude en remuant jusqu'à obtenir une texture crémeuse.",
-      'Émincer le fenouil et couper les tomates cerises en deux.',
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      'Cuire le fenouil 5 minutes, puis ajouter les crevettes.',
-      'Ajouter les tomates cerises, les olives noires et les câpres.',
-      'Servir les crevettes et les légumes sur la polenta crémeuse.',
-    ],
-  },
-  {
-    id: 'plat-pad-thai-vegan-tofu',
-    nom: 'Pad thaï vegan tofu, nouilles de riz et cacahuète',
-    type: 'plat',
-    cuisines: ['asiatique'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['maintien', 'energie'],
-    budget: 'normal',
-    allergenes: ['soja', 'arachide', 'sesame'],
-    motsCles: ['tofu', 'nouilles de riz', 'chou chinois', 'cacahuetes', 'tamari', 'pad thai'],
-    kcal: 580, proteines: 32, glucides: 64, lipides: 22,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: 'Tofu ferme', quantite: 160, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Nouilles de riz', quantite: 55, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Chou chinois', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Carotte', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Pousses de soja', quantite: 40, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Cacahuètes', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Huile de sésame', quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Sauce tamari sans gluten', quantite: 1, unite: 'c. à soupe', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Cuire les nouilles de riz selon le temps indiqué.',
-      'Couper le tofu en cubes, la carotte en fines lamelles et le chou chinois en lanières.',
-      "Faire chauffer l'huile de sésame dans un wok.",
-      'Faire dorer le tofu 5 minutes.',
-      'Ajouter la carotte, le chou chinois, les pousses de soja, les nouilles et la sauce tamari sans gluten.',
-      'Mélanger 3 minutes à feu vif, puis servir avec les cacahuètes concassées.',
-    ],
-  },
-  {
-    id: 'plat-poulet-teriyaki-pak-choi',
-    nom: 'Poulet teriyaki léger, riz jasmin et pak choï',
-    type: 'plat',
-    cuisines: ['asiatique'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['sesame', 'soja'],
-    motsCles: ['poulet', 'riz jasmin', 'pak choi', 'carotte', 'teriyaki', 'tamari'],
-    kcal: 470, proteines: 37, glucides: 55, lipides: 11,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: 'Filet de poulet', quantite: 140, unite: 'g', rayon: 'Boucherie' },
-      { nom: 'Riz jasmin cuit', quantite: 130, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Pak choï', quantite: 150, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Carotte', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Huile de sésame', quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Miel', quantite: 10, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Sauce tamari sans gluten', quantite: 1, unite: 'c. à soupe', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper le filet de poulet en lamelles.',
-      'Couper le pak choï et la carotte en morceaux.',
-      'Mélanger la sauce tamari sans gluten avec le miel.',
-      "Faire chauffer l'huile de sésame dans une poêle.",
-      'Cuire le poulet 6 minutes, puis ajouter le pak choï, la carotte et la sauce.',
-      'Servir avec le riz jasmin cuit.',
-    ],
-  },
-  {
-    id: 'plat-soba-sarrasin-tofu-fume',
-    nom: 'Soba 100 % sarrasin, œuf, tofu fumé et concombre',
-    type: 'plat',
-    cuisines: ['asiatique'],
-    regime: ['vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['soja', 'oeuf', 'sesame'],
-    motsCles: ['soba', 'sarrasin', 'tofu fume', 'edamame', 'concombre', 'oeuf'],
-    kcal: 510, proteines: 37, glucides: 54, lipides: 16,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: 'Nouilles soba 100 % sarrasin sans gluten', quantite: 65, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Tofu fumé', quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Œuf', quantite: 1, unite: 'pièce', rayon: 'Crèmerie' },
-      { nom: 'Edamame', quantite: 50, unite: 'g', rayon: 'Surgelés' },
-      { nom: 'Concombre', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Sauce tamari sans gluten', quantite: 1, unite: 'c. à soupe', rayon: 'Épicerie' },
-      { nom: 'Graines de sésame', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Cuire les nouilles soba 100 % sarrasin sans gluten selon le temps indiqué.',
-      "Faire cuire l'œuf 7 minutes dans l'eau frémissante.",
-      'Couper le tofu fumé et le concombre en morceaux.',
-      "Égoutter les nouilles et les rincer à l'eau froide.",
-      'Mélanger les soba avec le tofu fumé, les edamame, le concombre et la sauce tamari sans gluten.',
-      "Ajouter l'œuf coupé en deux et les graines de sésame.",
-    ],
-  },
-  {
-    id: 'plat-dahl-tofu-lentilles-corail',
-    nom: 'Dahl protéiné tofu, lentilles corail et épinards',
-    type: 'plat',
-    cuisines: ['indienne'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['soja'],
-    motsCles: ['tofu', 'lentilles corail', 'riz basmati', 'epinards', 'lait de coco', 'dahl'],
-    kcal: 540, proteines: 36, glucides: 58, lipides: 17,
-    tempsMinutes: 22,
-    ingredients: [
-      { nom: 'Tofu ferme', quantite: 150, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Lentilles corail', quantite: 50, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Riz basmati cuit', quantite: 70, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Épinards frais', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Lait de coco', quantite: 40, unite: 'ml', rayon: 'Crèmerie' },
-      { nom: 'Curry doux', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Rincer les lentilles corail.',
-      'Couper le tofu ferme et la tomate en cubes.',
-      "Faire cuire les lentilles corail 10 minutes dans une casserole avec de l'eau.",
-      'Ajouter le tofu, la tomate, les épinards frais, le lait de coco et le curry doux.',
-      'Laisser mijoter 6 minutes à feu doux.',
-      'Servir avec le riz basmati cuit.',
-    ],
-  },
-  {
-    id: 'plat-burrito-bowl-vegan-tofu',
-    nom: 'Burrito bowl vegan tofu, haricots noirs et quinoa',
-    type: 'plat',
-    cuisines: ['mexicaine'],
-    regime: ['vegan', 'vegetarien', 'sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['soja'],
-    motsCles: ['tofu', 'haricots noirs', 'quinoa', 'mais', 'avocat', 'salsa'],
-    kcal: 480, proteines: 31, glucides: 55, lipides: 14,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: 'Tofu ferme', quantite: 120, unite: 'g', rayon: 'Crèmerie' },
-      { nom: 'Haricots noirs cuits', quantite: 100, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Quinoa cuit', quantite: 80, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Maïs', quantite: 40, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Tomate', quantite: 120, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Laitue', quantite: 50, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Avocat', quantite: 30, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Salsa', quantite: 40, unite: 'g', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper le tofu ferme en cubes.',
-      'Faire dorer le tofu 5 minutes dans une poêle chaude.',
-      "Couper la tomate, la laitue et l'avocat en morceaux.",
-      'Déposer le quinoa cuit dans un bol.',
-      'Ajouter les haricots noirs, le tofu, le maïs, la tomate, la laitue et l\'avocat.',
-      'Terminer avec la salsa avant de servir.',
-    ],
-  },
-  {
-    id: 'plat-cabillaud-vapeur-ratatouille',
-    nom: 'Cabillaud vapeur, patate douce et ratatouille minute',
-    type: 'plat',
-    cuisines: ['francaise'],
-    regime: ['sans-porc', 'sans-gluten'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'normal',
-    allergenes: ['poisson'],
-    motsCles: ['cabillaud', 'patate douce', 'courgette', 'aubergine', 'ratatouille'],
-    kcal: 463, proteines: 39, glucides: 52, lipides: 11,
-    tempsMinutes: 24,
-    ingredients: [
-      { nom: 'Dos de cabillaud', quantite: 160, unite: 'g', rayon: 'Poissonnerie' },
-      { nom: 'Patate douce', quantite: 180, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Courgette', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Aubergine', quantite: 80, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 70, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: "Huile d'olive", quantite: 10, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Herbes de Provence', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-    ],
-    etapes: [
-      'Couper la patate douce en cubes.',
-      'Cuire la patate douce 15 minutes à la vapeur.',
-      "Couper la courgette, l'aubergine et la tomate en morceaux.",
-      "Faire cuire les légumes dans une poêle avec l'huile d'olive et les herbes de Provence.",
-      'Cuire le dos de cabillaud 8 minutes à la vapeur.',
-      'Servir le cabillaud avec la patate douce et la ratatouille minute.',
-    ],
-  },
-  {
-    id: 'plat-kefta-boeuf-boulgour',
-    nom: 'Kefta de bœuf maigre, boulgour et sauce menthe',
-    type: 'plat',
-    cuisines: ['orientale'],
-    regime: ['sans-porc'],
-    objectifs: ['perte', 'maintien'],
-    budget: 'eco',
-    allergenes: ['gluten', 'lactose'],
-    motsCles: ['boeuf', 'boulgour', 'concombre', 'yaourt grec', 'menthe', 'kefta'],
-    kcal: 424, proteines: 42, glucides: 37, lipides: 12,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: 'Bœuf haché 5 %', quantite: 130, unite: 'g', rayon: 'Boucherie' },
-      { nom: 'Boulgour cuit', quantite: 150, unite: 'g', rayon: 'Épicerie' },
-      { nom: 'Concombre', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Tomate', quantite: 100, unite: 'g', rayon: 'Fruits & légumes' },
-      { nom: 'Yaourt grec nature', quantite: 80, unite: 'g', rayon: 'Crèmerie' },
-      { nom: "Huile d'olive", quantite: 5, unite: 'ml', rayon: 'Épicerie' },
-      { nom: 'Cumin', quantite: 1, unite: 'c. à café', rayon: 'Épicerie' },
-      { nom: 'Menthe fraîche', quantite: 1, unite: 'poignée', rayon: 'Fruits & légumes' },
-    ],
-    etapes: [
-      'Mélanger le bœuf haché avec le cumin.',
-      'Former de petites keftas avec les mains.',
-      "Faire chauffer l'huile d'olive dans une poêle.",
-      'Cuire les keftas 8 minutes en les retournant régulièrement.',
-      'Mélanger le yaourt grec avec la menthe fraîche ciselée.',
-      'Servir les keftas avec le boulgour cuit, le concombre, la tomate et la sauce menthe.',
-    ],
-  },
-  {
-    id: "plat-merlan-roti-puree-de-panais-et-epinards-citron",
-    nom: "Merlan rôti, purée de panais et épinards citronnés",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["filet de merlan","panais","pomme de terre","epinards","citron"],
-    kcal: 385, proteines: 38, glucides: 39, lipides: 8,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Filet de merlan", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Panais", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pomme de terre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Épinards", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire le panais et la pomme de terre à l'eau, puis les écraser avec poivre et persil.",
-      "Cuire le merlan au four avec citron et un filet d'huile d'olive.",
-      "Faire tomber les épinards rapidement à la poêle.",
-      "Servir le poisson avec la purée et les épinards citronnés.",
-    ],
-  },
-  {
-    id: "plat-veau-mijote-tomate-olives-et-polenta-legere",
-    nom: "Veau mijoté tomate-olives et polenta légère",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["emince de veau","polenta cuite","tomate concassee","courgette","oignon"],
-    kcal: 455, proteines: 36, glucides: 40, lipides: 17,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Émincé de veau", quantite: 140, unite: "g", rayon: "Boucherie" },
-      { nom: "Polenta cuite", quantite: 160, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Olives vertes", quantite: 15, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir l'oignon, l'ail et le veau avec l'huile d'olive.",
-      "Ajouter tomate, courgette, thym et olives, puis laisser mijoter doucement.",
-      "Réchauffer la polenta avec un peu d'eau pour garder une texture souple.",
-      "Servir le veau sur la polenta.",
-    ],
-  },
-  {
-    id: "plat-socca-complete-aux-lentilles-tomates-et-concom",
-    nom: "Socca complète aux lentilles, tomates et concombre",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["farine de pois chiches","eau","lentilles vertes cuites","tomate","concombre"],
-    kcal: 420, proteines: 24, glucides: 55, lipides: 10,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Farine de pois chiches", quantite: 55, unite: "g", rayon: "Épicerie" },
-      { nom: "Eau", quantite: 90, unite: "ml", rayon: "Fruits & légumes" },
-      { nom: "Lentilles vertes cuites", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Mélanger la farine de pois chiches, l'eau, le cumin et la moitié de l'huile.",
-      "Cuire la socca à la poêle ou au four jusqu'à ce qu'elle soit dorée.",
-      "Mélanger lentilles, tomate, concombre, citron et persil.",
-      "Servir la garniture fraîche sur la socca.",
-    ],
-  },
-  {
-    id: "plat-courgettes-farcies-au-tofu-fume-quinoa-et-herb",
-    nom: "Courgettes farcies au tofu fumé, quinoa et herbes de Provence",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["grosse courgette","tofu fume","quinoa cuit","tomate concassee","oignon"],
-    kcal: 430, proteines: 29, glucides: 38, lipides: 16,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Grosse courgette", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Tofu fumé", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Quinoa cuit", quantite: 110, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Herbes de Provence", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper la courgette en deux et l'évider légèrement.",
-      "Faire revenir oignon, ail, tofu émietté, quinoa et tomate concassée.",
-      "Garnir la courgette avec la préparation.",
-      "Cuire au four jusqu'à ce que la courgette soit tendre.",
-    ],
-  },
-  {
-    id: "plat-assiette-nicoise-au-poulet-uf-et-haricots-vert",
-    nom: "Assiette niçoise au poulet, œuf et haricots verts",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["blanc de poulet","œuf","pommes de terre","haricots verts","tomate"],
-    kcal: 470, proteines: 43, glucides: 36, lipides: 17,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Blanc de poulet", quantite: 120, unite: "g", rayon: "Boucherie" },
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Pommes de terre", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Haricots verts", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Vinaigre balsamique", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Moutarde", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre, les haricots verts et l'œuf.",
-      "Griller le poulet puis le couper en lamelles.",
-      "Mélanger huile d'olive, vinaigre, moutarde et poivre.",
-      "Dresser l'assiette avec tomate, basilic et sauce légère.",
-    ],
-  },
-  {
-    id: "plat-rouget-grille-ecrase-de-haricots-blancs-et-fen",
-    nom: "Rouget grillé, écrasé de haricots blancs et fenouil croquant",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["filet de rouget","haricots blancs cuits","fenouil","tomate cerise","citron"],
-    kcal: 475, proteines: 37, glucides: 38, lipides: 18,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Filet de rouget", quantite: 150, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Haricots blancs cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Fenouil", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate cerise", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser les haricots blancs avec ail, citron, persil et un peu d'eau chaude.",
-      "Griller le rouget avec paprika doux et huile d'olive.",
-      "Émincer le fenouil très finement avec les tomates cerises.",
-      "Servir le tout avec un filet de citron.",
-    ],
-  },
-  {
-    id: "plat-omelette-provencale-ratatouille-et-pain-sans-g",
-    nom: "Omelette provençale, ratatouille et pain sans gluten",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ['oeuf'],
-    motsCles: ["œufs","blancs d'œufs","ratatouille legere","pain sans gluten sans lactose"],
-    kcal: 420, proteines: 32, glucides: 32, lipides: 16,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Blancs d'œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Ratatouille légère", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pain sans gluten sans lactose", quantite: 40, unite: "g", rayon: "Boulangerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Réchauffer la ratatouille à feu doux.",
-      "Battre les œufs avec les blancs d'œufs, le poivre et le basilic.",
-      "Cuire l'omelette dans une poêle légèrement huilée.",
-      "Servir avec la ratatouille et le pain sans gluten.",
-    ],
-  },
-  {
-    id: "plat-navarin-d-agneau-leger-aux-legumes-et-pois-cas",
-    nom: "Navarin d'agneau léger aux légumes et pois cassés",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["agneau maigre","pois casses cuits","carotte","navet","oignon"],
-    kcal: 495, proteines: 35, glucides: 43, lipides: 19,
-    tempsMinutes: 45,
-    ingredients: [
-      { nom: "Agneau maigre", quantite: 120, unite: "g", rayon: "Boucherie" },
-      { nom: "Pois cassés cuits", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Navet", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Laurier", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir l'oignon, l'ail et l'agneau avec l'huile d'olive.",
-      "Ajouter carotte, navet, thym, laurier et un fond d'eau.",
-      "Laisser mijoter jusqu'à tendreté.",
-      "Ajouter les pois cassés en fin de cuisson pour épaissir légèrement le plat.",
-    ],
-  },
-  {
-    id: "plat-sarrasin-mediterraneen-aux-artichauts-haricots",
-    nom: "Sarrasin méditerranéen aux artichauts, haricots blancs et tomates rôties",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["sarrasin cuit certifie sans gluten","haricots blancs cuits","artichauts","tomates cerises","citron"],
-    kcal: 440, proteines: 20, glucides: 62, lipides: 10,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Sarrasin cuit certifié sans gluten", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Haricots blancs cuits", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Artichauts", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomates cerises", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Origan", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Rôtir les tomates cerises avec origan et huile d'olive.",
-      "Réchauffer le sarrasin et les haricots blancs.",
-      "Ajouter les artichauts, le citron et le persil.",
-      "Servir tiède avec les tomates rôties.",
-    ],
-  },
-  {
-    id: "plat-dinde-aux-champignons-moutarde-douce-et-riz-co",
-    nom: "Dinde aux champignons, moutarde douce et riz complet",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["escalope de dinde","riz complet cuit","champignons"],
-    kcal: 445, proteines: 44, glucides: 43, lipides: 9,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Escalope de dinde", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Riz complet cuit", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Champignons", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Échalote", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire ou réchauffer le riz complet.",
-      "Faire revenir l'échalote et les champignons avec l'huile d'olive.",
-      "Ajouter la dinde en lamelles et cuire à feu moyen.",
-      "Incorporer la moutarde en fin de cuisson avec un peu d'eau pour former une sauce légère.",
-    ],
-  },
-  {
-    id: "plat-crevettes-cajun-patate-douce-rotie-et-riz-de-c",
-    nom: "Crevettes cajun, patate douce rôtie et riz de chou-fleur",
-    type: "plat",
-    cuisines: ["americaine"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["crustaces"],
-    motsCles: ["crevettes decortiquees","patate douce","chou-fleur rape","mais","citron vert"],
-    kcal: 385, proteines: 36, glucides: 42, lipides: 7,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Crevettes décortiquées", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Patate douce", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Chou-fleur râpé", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Maïs", quantite: 50, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Épices cajun", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Rôtir la patate douce en cubes avec les épices cajun.",
-      "Faire revenir le chou-fleur râpé avec le maïs.",
-      "Saisir les crevettes avec citron vert et persil.",
-      "Servir chaud avec les légumes.",
-    ],
-  },
-  {
-    id: "plat-poivron-farci-facon-tex-mex-a-la-dinde-et-hari",
-    nom: "Poivron farci façon tex-mex à la dinde et haricots noirs",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["gros poivron","dinde hachee","haricots noirs cuits","quinoa cuit","tomate concassee"],
-    kcal: 470, proteines: 42, glucides: 48, lipides: 10,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Gros poivron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Dinde hachée", quantite: 140, unite: "g", rayon: "Boucherie" },
-      { nom: "Haricots noirs cuits", quantite: 80, unite: "g", rayon: "Épicerie" },
-      { nom: "Quinoa cuit", quantite: 80, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Couper le poivron en deux et le précuire 10 minutes au four.",
-      "Faire revenir la dinde avec oignon, tomate, haricots noirs, quinoa et épices.",
-      "Garnir le poivron avec la préparation.",
-      "Repasser au four jusqu'à ce qu'il soit tendre.",
-    ],
-  },
-  {
-    id: "plat-boulettes-de-dinde-sauce-tomate-fumee-et-courg",
-    nom: "Boulettes de dinde, sauce tomate fumée et courgettes spaghetti",
-    type: "plat",
-    cuisines: ["americaine"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["dinde hachee","courgette","tomate concassee","polenta cuite"],
-    kcal: 405, proteines: 39, glucides: 30, lipides: 13,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Dinde hachée", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Courgette", quantite: 200, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Polenta cuite", quantite: 50, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Paprika fumé", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Former des boulettes avec la dinde, l'ail, le paprika et le poivre.",
-      "Les cuire à la poêle avec l'huile d'olive.",
-      "Ajouter la tomate concassée et laisser mijoter.",
-      "Servir avec les courgettes en spaghetti et la polenta.",
-    ],
-  },
-  {
-    id: "plat-tacos-tinga-vegan-au-jacquier-et-haricots-pint",
-    nom: "Tacos tinga vegan au jacquier et haricots pinto",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["tortillas de mais certifiees sans gluten","jacquier effiloche nature","haricots pinto cuits","tomate concassee","oignon"],
-    kcal: 430, proteines: 15, glucides: 64, lipides: 11,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Tortillas de maïs certifiées sans gluten", quantite: 2, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Jacquier effiloché nature", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Haricots pinto cuits", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Avocat", quantite: 30, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Paprika fumé", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire revenir oignon, tomate, jacquier, cumin et paprika fumé.",
-      "Ajouter les haricots pinto et laisser réduire.",
-      "Réchauffer les tortillas.",
-      "Garnir avec avocat, citron vert et coriandre.",
-    ],
-  },
-  {
-    id: "plat-tempeh-barbecue-maison-salade-croquante-et-wed",
-    nom: "Tempeh barbecue maison, salade croquante et wedges de pomme de terre",
-    type: "plat",
-    cuisines: ["americaine"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["tempeh","pomme de terre","chou rouge","carotte"],
-    kcal: 455, proteines: 27, glucides: 45, lipides: 17,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Tempeh", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pomme de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Chou rouge", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Sauce barbecue maison sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Vinaigre de cidre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper les pommes de terre en wedges et les cuire au four avec paprika.",
-      "Griller le tempeh avec la sauce barbecue maison.",
-      "Mélanger chou rouge, carotte et vinaigre de cidre.",
-      "Servir le tout façon assiette américaine légère.",
-    ],
-  },
-  {
-    id: "plat-cabillaud-veracruz-riz-rouge-et-courgettes",
-    nom: "Cabillaud Veracruz, riz rouge et courgettes",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["cabillaud","riz cuit","tomate concassee","courgette","olives vertes"],
-    kcal: 420, proteines: 39, glucides: 46, lipides: 8,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Cabillaud", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Riz cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Olives vertes", quantite: 15, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Origan", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire mijoter tomate, ail, origan, courgette et olives.",
-      "Ajouter le cabillaud en morceaux et cuire doucement.",
-      "Réchauffer le riz avec un peu de sauce tomate.",
-      "Servir avec citron vert.",
-    ],
-  },
-  {
-    id: "plat-chili-express-au-b-uf-maigre-haricots-rouges-e",
-    nom: "Chili express au bœuf maigre, haricots rouges et pomme de terre",
-    type: "plat",
-    cuisines: ["americaine"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["bœuf hache 5 %","haricots rouges cuits","pomme de terre","tomate concassee","oignon"],
-    kcal: 485, proteines: 35, glucides: 52, lipides: 13,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Bœuf haché 5 %", quantite: 120, unite: "g", rayon: "Boucherie" },
-      { nom: "Haricots rouges cuits", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Pomme de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Piment doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire la pomme de terre en cubes à l'eau ou vapeur.",
-      "Faire revenir oignon, bœuf et épices.",
-      "Ajouter tomate et haricots rouges, puis laisser mijoter.",
-      "Servir avec les pommes de terre.",
-    ],
-  },
-  {
-    id: "plat-tostadas-vegan-aux-champignons-haricots-noirs-",
-    nom: "Tostadas vegan aux champignons, haricots noirs et pico de gallo",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["tostadas de mais certifiees sans gluten","haricots noirs cuits","champignons","tomate","oignon rouge"],
-    kcal: 405, proteines: 19, glucides: 58, lipides: 9,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Tostadas de maïs certifiées sans gluten", quantite: 2, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Haricots noirs cuits", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Champignons", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon rouge", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Piment doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser légèrement les haricots noirs avec cumin et citron vert.",
-      "Faire revenir les champignons avec piment doux.",
-      "Préparer un pico de gallo avec tomate, oignon rouge, citron vert et coriandre.",
-      "Garnir les tostadas juste avant de servir.",
-    ],
-  },
-  {
-    id: "plat-croquettes-de-saumon-au-four-salade-ranch-lege",
-    nom: "Croquettes de saumon au four, salade ranch légère et maïs grillé",
-    type: "plat",
-    cuisines: ["americaine"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","muscle"],
-    budget: "normal",
-    allergenes: ["poisson","lactose"],
-    motsCles: ["saumon cuit emiette","œuf","chapelure sans gluten","mais","laitue"],
-    kcal: 495, proteines: 38, glucides: 34, lipides: 23,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Saumon cuit émietté", quantite: 140, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Chapelure sans gluten", quantite: 20, unite: "g", rayon: "Épicerie" },
-      { nom: "Maïs", quantite: 80, unite: "g", rayon: "Épicerie" },
-      { nom: "Laitue", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Yaourt grec", quantite: 1, unite: "c. à soupe", rayon: "Crèmerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger saumon, œuf, chapelure sans gluten, citron et poivre.",
-      "Former des croquettes et cuire au four.",
-      "Mélanger yaourt grec, ciboulette, moutarde et citron pour la sauce ranch légère.",
-      "Servir avec laitue et maïs grillé.",
-    ],
-  },
-  {
-    id: "plat-poulet-mole-leger-riz-complet-et-brocoli",
-    nom: "Poulet mole léger, riz complet et brocoli",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["blanc de poulet","riz complet cuit","brocoli","tomate concassee","cacao non sucre"],
-    kcal: 455, proteines: 43, glucides: 46, lipides: 9,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Blanc de poulet", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Riz complet cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Brocoli", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cacao non sucré", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Piment doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire le brocoli vapeur.",
-      "Faire mijoter tomate, cacao, ail, cumin, cannelle et piment doux.",
-      "Griller le poulet puis l'enrober dans la sauce mole légère.",
-      "Servir avec riz complet et brocoli.",
-    ],
-  },
-  {
-    id: "plat-rouleaux-de-printemps-au-poulet-vermicelles-de",
-    nom: "Rouleaux de printemps au poulet, vermicelles de riz et sauce citron-tamari",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["feuilles de riz","blanc de poulet","vermicelles de riz cuits","carotte","concombre"],
-    kcal: 405, proteines: 36, glucides: 50, lipides: 6,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Feuilles de riz", quantite: 3, unite: "pièce", rayon: "Épicerie" },
-      { nom: "Blanc de poulet", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Vermicelles de riz cuits", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Salade", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tamari sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Menthe", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Cuire le poulet puis l'émincer finement.",
-      "Réhydrater les feuilles de riz une par une.",
-      "Garnir avec vermicelles, crudités, poulet, menthe et coriandre.",
-      "Servir avec une sauce tamari sans gluten et citron vert.",
-    ],
-  },
-  {
-    id: "plat-kitchari-leger-au-quinoa-lentilles-mungo-et-ep",
-    nom: "Kitchari léger au quinoa, lentilles mungo et épinards",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["quinoa cuit","lentilles mungo cuites","epinards","carotte","oignon"],
-    kcal: 430, proteines: 23, glucides: 62, lipides: 8,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Quinoa cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Lentilles mungo cuites", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Épinards", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire revenir oignon, gingembre, cumin et curcuma avec l'huile.",
-      "Ajouter carotte, lentilles mungo et quinoa.",
-      "Incorporer les épinards en fin de cuisson.",
-      "Servir bien chaud avec coriandre fraîche.",
-    ],
-  },
-  {
-    id: "plat-brochettes-de-crevettes-satay-leger-riz-jasmin",
-    nom: "Brochettes de crevettes satay léger, riz jasmin et concombre",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["crustaces","arachide","soja"],
-    motsCles: ["crevettes","riz jasmin cuit","concombre","carotte","puree de cacahuete"],
-    kcal: 440, proteines: 36, glucides: 48, lipides: 10,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Crevettes", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Riz jasmin cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Purée de cacahuète", quantite: 8, unite: "g", rayon: "Épicerie" },
-      { nom: "Tamari sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Mélanger purée de cacahuète, tamari, citron vert et gingembre pour obtenir une sauce fluide.",
-      "Enrober les crevettes puis les monter en brochettes.",
-      "Griller rapidement les brochettes.",
-      "Servir avec riz jasmin, concombre et carotte.",
-    ],
-  },
-  {
-    id: "plat-saag-tofu-aux-epinards-pommes-de-terre-et-epic",
-    nom: "Saag tofu aux épinards, pommes de terre et épices douces",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["tofu ferme","pommes de terre","epinards","tomate concassee","oignon"],
-    kcal: 445, proteines: 30, glucides: 42, lipides: 15,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Tofu ferme", quantite: 150, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pommes de terre", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Épinards", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Garam masala", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre en cubes à la vapeur.",
-      "Faire revenir oignon, ail, gingembre et épices.",
-      "Ajouter tofu, tomate et épinards, puis laisser mijoter.",
-      "Incorporer les pommes de terre en fin de cuisson.",
-    ],
-  },
-  {
-    id: "plat-b-uf-thai-au-basilic-riz-noir-et-haricots-plat",
-    nom: "Bœuf thaï au basilic, riz noir et haricots plats",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: ["soja","sesame"],
-    motsCles: ["bœuf hache 5 %","riz noir cuit","haricots plats","poivron"],
-    kcal: 460, proteines: 36, glucides: 44, lipides: 14,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Bœuf haché 5 %", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Riz noir cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Haricots plats", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Poivron", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile de sésame", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Tamari sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire revenir le bœuf avec ail et gingembre.",
-      "Ajouter les haricots plats et le poivron.",
-      "Assaisonner avec tamari sans gluten et huile de sésame.",
-      "Servir avec le riz noir et du basilic frais.",
-    ],
-  },
-  {
-    id: "plat-galette-indienne-de-lentilles-corail-legumes-r",
-    nom: "Galette indienne de lentilles corail, légumes râpés et sauce menthe",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["lentilles corail seches trempees","carotte rapee","courgette rapee","yaourt soja nature sans sucres","citron"],
-    kcal: 410, proteines: 24, glucides: 54, lipides: 10,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Lentilles corail sèches trempées", quantite: 70, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte râpée", quantite: 70, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette râpée", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Yaourt soja nature sans sucres", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Menthe", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Mixer les lentilles corail trempées avec un peu d'eau, cumin et curcuma.",
-      "Ajouter les légumes râpés.",
-      "Cuire en galette épaisse à la poêle avec l'huile.",
-      "Servir avec yaourt soja, menthe et citron.",
-    ],
-  },
-  {
-    id: "plat-colin-vapeur-citronnelle-riz-basmati-et-legume",
-    nom: "Colin vapeur citronnelle, riz basmati et légumes verts",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson","sesame"],
-    motsCles: ["filet de colin","riz basmati cuit","brocoli","courgette","citronnelle"],
-    kcal: 405, proteines: 39, glucides: 43, lipides: 8,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Filet de colin", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Riz basmati cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Brocoli", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile de sésame", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citronnelle", quantite: 1, unite: "pièce", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Cuire le colin vapeur avec citronnelle, gingembre et citron vert.",
-      "Cuire ou réchauffer le riz basmati.",
-      "Faire revenir rapidement brocoli et courgette avec l'huile de sésame.",
-      "Servir avec coriandre fraîche.",
-    ],
-  },
-  {
-    id: "plat-ufs-brouilles-masala-pommes-de-terre-et-tomate",
-    nom: "Œufs brouillés masala, pommes de terre et tomates épicées",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["œufs","blancs d'œufs","pommes de terre","tomate","oignon"],
-    kcal: 430, proteines: 31, glucides: 38, lipides: 17,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Blancs d'œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pommes de terre", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Garam masala", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre en cubes à la vapeur.",
-      "Faire revenir oignon, tomate et épices.",
-      "Ajouter les œufs battus avec les blancs d'œufs et cuire doucement.",
-      "Servir avec les pommes de terre et coriandre.",
-    ],
-  },
-  {
-    id: "plat-pad-thai-vegan-au-tofu-nouilles-de-riz-et-tama",
-    nom: "Pad thaï vegan au tofu, nouilles de riz et tamarin",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["tofu ferme","nouilles de riz cuites","pousses de soja","carotte","oignon nouveau"],
-    kcal: 450, proteines: 27, glucides: 55, lipides: 13,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Tofu ferme", quantite: 130, unite: "g", rayon: "Crèmerie" },
-      { nom: "Nouilles de riz cuites", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Pousses de soja", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon nouveau", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tamari sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Purée de tamarin", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Dorer le tofu en cubes dans une poêle antiadhésive.",
-      "Ajouter carotte, pousses de soja et oignon nouveau.",
-      "Incorporer les nouilles de riz, le tamari et le tamarin.",
-      "Servir avec citron vert et coriandre.",
-    ],
-  },
-  {
-    id: "plat-biryani-leger-au-poulet-chou-fleur-et-riz-basm",
-    nom: "Biryani léger au poulet, chou-fleur et riz basmati",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["blanc de poulet","riz basmati cuit","chou-fleur","tomate concassee","oignon"],
-    kcal: 455, proteines: 43, glucides: 47, lipides: 8,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Blanc de poulet", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Riz basmati cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Chou-fleur", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Curry doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire revenir oignon, poulet et épices avec l'huile d'olive.",
-      "Ajouter tomate concassée et chou-fleur, puis laisser cuire doucement.",
-      "Incorporer le riz basmati en fin de cuisson.",
-      "Servir avec coriandre fraîche.",
-    ],
-  },
-  {
-    id: "plat-eglefin-roti-riz-sauvage-et-carottes-persillee",
-    nom: "Églefin rôti, riz sauvage et carottes persillées",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["filet d'eglefin","riz sauvage cuit","carottes","citron"],
-    kcal: 370, proteines: 38, glucides: 42, lipides: 6,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Filet d'églefin", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Riz sauvage cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Carottes", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire ou réchauffer le riz sauvage.",
-      "Cuire les carottes en rondelles à la vapeur puis les mélanger avec persil, ail et citron.",
-      "Rôtir l'églefin au four avec poivre et huile d'olive.",
-      "Servir le poisson avec riz sauvage et carottes persillées.",
-    ],
-  },
-  {
-    id: "plat-spaghetti-sans-gluten-aux-palourdes-courgette-",
-    nom: "Spaghetti sans gluten aux palourdes, courgette et citron",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ['mollusques'],
-    motsCles: ["spaghetti sans gluten cuits","palourdes poids net consommable","courgette","citron"],
-    kcal: 405, proteines: 32, glucides: 52, lipides: 7,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Spaghetti sans gluten cuits", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Palourdes poids net consommable", quantite: 180, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Courgette", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir l'ail et la courgette avec l'huile d'olive.",
-      "Ajouter les palourdes et couvrir jusqu'à ouverture.",
-      "Mélanger avec les spaghetti sans gluten.",
-      "Terminer avec citron, persil et poivre.",
-    ],
-  },
-  {
-    id: "plat-poulet-basquaise-leger-pommes-vapeur-et-poivro",
-    nom: "Poulet basquaise léger, pommes vapeur et poivrons fondants",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["blanc de poulet","pommes de terre","poivron","tomate concassee","oignon"],
-    kcal: 425, proteines: 42, glucides: 43, lipides: 8,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Blanc de poulet", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivron", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre vapeur.",
-      "Faire revenir oignon, ail, poivron et paprika avec l'huile d'olive.",
-      "Ajouter le poulet en morceaux et la tomate concassée.",
-      "Laisser mijoter puis servir avec les pommes vapeur.",
-    ],
-  },
-  {
-    id: "plat-aubergines-facon-lasagnes-aux-lentilles-et-tom",
-    nom: "Aubergines façon lasagnes aux lentilles et tomate basilic",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["aubergine","lentilles cuites","tomate concassee","oignon","creme soja legere"],
-    kcal: 445, proteines: 24, glucides: 48, lipides: 16,
-    tempsMinutes: 40,
-    ingredients: [
-      { nom: "Aubergine", quantite: 220, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Lentilles cuites", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 140, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Crème soja légère", quantite: 60, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Origan", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Couper l'aubergine en longues tranches et les précuire au four.",
-      "Faire mijoter lentilles, tomate, oignon, ail et origan.",
-      "Monter en couches avec aubergine, sauce lentilles et crème soja légère.",
-      "Cuire au four jusqu'à texture fondante.",
-    ],
-  },
-  {
-    id: "plat-flan-sale-de-poisson-blanc-poireaux-et-quinoa",
-    nom: "Flan salé de poisson blanc, poireaux et quinoa",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson","lactose"],
-    motsCles: ["poisson blanc","œuf","blancs d'œufs","poireaux","quinoa cuit"],
-    kcal: 405, proteines: 43, glucides: 30, lipides: 12,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Poisson blanc", quantite: 140, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Blancs d'œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Poireaux", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Quinoa cuit", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Fromage blanc 0 %", quantite: 1, unite: "c. à soupe", rayon: "Crèmerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Aneth", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire fondre les poireaux à feu doux avec un peu d'eau.",
-      "Mélanger œuf, blancs d'œufs, fromage blanc, citron, aneth et poivre.",
-      "Ajouter le poisson émietté et les poireaux.",
-      "Cuire au four dans un petit plat et servir avec quinoa.",
-    ],
-  },
-  {
-    id: "plat-risotto-sans-gluten-a-la-seiche-tomate-et-feno",
-    nom: "Risotto sans gluten à la seiche, tomate et fenouil",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ['mollusques'],
-    motsCles: ["seiche poids net consommable","riz arborio cuit","fenouil","tomate concassee","citron"],
-    kcal: 455, proteines: 36, glucides: 52, lipides: 9,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Seiche poids net consommable", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Riz arborio cuit", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Fenouil", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire revenir le fenouil et l'ail avec l'huile d'olive.",
-      "Ajouter tomate, riz arborio cuit et un peu d'eau chaude pour obtenir une texture crémeuse.",
-      "Ajouter la seiche en morceaux et cuire doucement.",
-      "Terminer avec persil et citron.",
-    ],
-  },
-  {
-    id: "plat-cassoulet-vegetal-leger-aux-haricots-blancs-et",
-    nom: "Cassoulet végétal léger aux haricots blancs et champignons",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["haricots blancs cuits","champignons","carotte","tomate concassee","oignon"],
-    kcal: 435, proteines: 22, glucides: 62, lipides: 9,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Haricots blancs cuits", quantite: 170, unite: "g", rayon: "Épicerie" },
-      { nom: "Champignons", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Laurier", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon, ail, carotte et champignons avec l'huile d'olive.",
-      "Ajouter tomate, thym, laurier et haricots blancs.",
-      "Laisser mijoter jusqu'à texture épaisse.",
-      "Servir bien chaud avec du poivre fraîchement moulu.",
-    ],
-  },
-  {
-    id: "plat-polpette-de-veau-sauce-tomate-et-polenta-creme",
-    nom: "Polpette de veau, sauce tomate et polenta crémeuse légère",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["veau hache maigre","polenta cuite","tomate concassee","oignon"],
-    kcal: 490, proteines: 36, glucides: 45, lipides: 18,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Veau haché maigre", quantite: 140, unite: "g", rayon: "Boucherie" },
-      { nom: "Polenta cuite", quantite: 160, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 140, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Origan", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Former des boulettes avec le veau, l'ail, l'origan et le poivre.",
-      "Les saisir avec l'huile d'olive puis ajouter la tomate et l'oignon.",
-      "Laisser mijoter doucement.",
-      "Servir avec la polenta chaude et le basilic.",
-    ],
-  },
-  {
-    id: "plat-salade-tiede-de-truite-pommes-grenailles-et-ra",
-    nom: "Salade tiède de truite, pommes grenailles et radis croquants",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["filet de truite","pommes grenailles","radis","concombre","citron"],
-    kcal: 465, proteines: 34, glucides: 36, lipides: 18,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Filet de truite", quantite: 140, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes grenailles", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Radis", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes grenailles à la vapeur.",
-      "Saisir la truite puis l'émietter en gros morceaux.",
-      "Mélanger citron, moutarde, ciboulette et huile d'olive.",
-      "Servir avec radis, concombre et pommes tièdes.",
-    ],
-  },
-  {
-    id: "plat-minestrone-proteine-aux-haricots-borlotti-et-r",
-    nom: "Minestrone protéiné aux haricots borlotti et riz complet",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["haricots borlotti cuits","riz complet cuit","courgette","carotte","tomate concassee"],
-    kcal: 420, proteines: 20, glucides: 65, lipides: 8,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Haricots borlotti cuits", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Riz complet cuit", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Courgette", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Céleri", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Origan", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir ail, céleri, carotte et courgette avec l'huile d'olive.",
-      "Ajouter tomate, haricots borlotti et un fond d'eau.",
-      "Laisser mijoter jusqu'à ce que les légumes soient tendres.",
-      "Ajouter le riz complet en fin de cuisson et servir avec basilic.",
-    ],
-  },
-  {
-    id: "plat-bar-grille-sarrasin-citronne-et-salade-tomate-",
-    nom: "Bar grillé, sarrasin citronné et salade tomate-concombre",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["filet de bar","sarrasin cuit certifie sans gluten","tomate","concombre","oignon rouge"],
-    kcal: 420, proteines: 38, glucides: 42, lipides: 10,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Filet de bar", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Sarrasin cuit certifié sans gluten", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 90, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon rouge", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Origan", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire ou réchauffer le sarrasin avec citron, persil et origan.",
-      "Griller le filet de bar avec poivre et un filet d'huile d'olive.",
-      "Préparer la salade avec tomate, concombre et oignon rouge.",
-      "Servir le poisson avec le sarrasin citronné et la salade fraîche.",
-    ],
-  },
-  {
-    id: "plat-crevettes-tandoori-riz-basmati-et-salade-conco",
-    nom: "Crevettes tandoori, riz basmati et salade concombre-coriandre",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["crustaces","soja"],
-    motsCles: ["crevettes decortiquees","riz basmati cuit","concombre","tomate","citron"],
-    kcal: 410, proteines: 36, glucides: 46, lipides: 7,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Crevettes décortiquées", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Riz basmati cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Yaourt soja nature sans sucres", quantite: 1, unite: "c. à soupe", rayon: "Crèmerie" },
-      { nom: "Épices tandoori", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger le yaourt soja avec les épices tandoori, le citron et le gingembre.",
-      "Enrober les crevettes puis les griller rapidement.",
-      "Préparer une salade concombre, tomate et coriandre.",
-      "Servir avec le riz basmati.",
-    ],
-  },
-  {
-    id: "plat-bouillon-vietnamien-aux-crevettes-vermicelles-",
-    nom: "Bouillon vietnamien aux crevettes, vermicelles de riz et pak choï",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: ["crustaces","soja"],
-    motsCles: ["crevettes","vermicelles de riz cuits","pak choi","champignons","citron vert"],
-    kcal: 385, proteines: 34, glucides: 48, lipides: 5,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Crevettes", quantite: 150, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Vermicelles de riz cuits", quantite: 110, unite: "g", rayon: "Épicerie" },
-      { nom: "Pak choï", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tamari sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Bouillon léger", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Porter le bouillon à frémissement avec gingembre, tamari et citron vert.",
-      "Ajouter pak choï, champignons et crevettes.",
-      "Incorporer les vermicelles de riz cuits.",
-      "Servir avec coriandre fraîche.",
-    ],
-  },
-  {
-    id: "plat-falafels-de-feves-au-four-millet-et-salade-men",
-    nom: "Falafels de fèves au four, millet et salade menthe-citron",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["feves cuites","millet cuit","tomate","concombre","citron"],
-    kcal: 430, proteines: 23, glucides: 58, lipides: 10,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Fèves cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Millet cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Menthe", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Mixer les fèves avec ail, cumin, persil et citron.",
-      "Former de petits falafels et les cuire au four jusqu'à coloration.",
-      "Préparer une salade tomate, concombre et menthe.",
-      "Servir avec le millet chaud ou tiède.",
-    ],
-  },
-  {
-    id: "plat-tofu-aubergine-miso-tamari-et-riz-complet",
-    nom: "Tofu aubergine miso-tamari et riz complet",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja","sesame"],
-    motsCles: ["tofu ferme","aubergine","riz complet cuit"],
-    kcal: 465, proteines: 29, glucides: 48, lipides: 17,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Tofu ferme", quantite: 150, unite: "g", rayon: "Crèmerie" },
-      { nom: "Aubergine", quantite: 140, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Riz complet cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Miso de riz certifié sans gluten", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Tamari sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Huile de sésame", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Ciboule", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Dorer le tofu en cubes dans une poêle antiadhésive.",
-      "Faire revenir l'aubergine avec ail, gingembre et huile de sésame.",
-      "Ajouter miso de riz, tamari et un peu d'eau pour créer une sauce.",
-      "Servir avec le riz complet et la ciboule.",
-    ],
-  },
-  {
-    id: "plat-thon-grille-caponata-legere-et-polenta-souple",
-    nom: "Thon grillé, caponata légère et polenta souple",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["steak de thon bien cuit","polenta cuite","aubergine","tomate concassee","celeri"],
-    kcal: 485, proteines: 40, glucides: 43, lipides: 17,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Steak de thon bien cuit", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Polenta cuite", quantite: 160, unite: "g", rayon: "Épicerie" },
-      { nom: "Aubergine", quantite: 140, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Céleri", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Olives vertes", quantite: 15, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire mijoter aubergine, tomate, céleri et olives avec l'huile d'olive.",
-      "Réchauffer la polenta avec un peu d'eau pour une texture souple.",
-      "Griller le thon jusqu'à cuisson complète.",
-      "Servir avec basilic et citron.",
-    ],
-  },
-  {
-    id: "plat-poelee-indienne-de-feves-epinards-et-pommes-de",
-    nom: "Poêlée indienne de fèves, épinards et pommes de terre",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["feves cuites","pommes de terre","epinards","tomate","oignon"],
-    kcal: 420, proteines: 21, glucides: 60, lipides: 9,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Fèves cuites", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Pommes de terre", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Épinards", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Garam masala", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre en cubes à la vapeur.",
-      "Faire revenir oignon, tomate et épices avec l'huile d'olive.",
-      "Ajouter les fèves et les épinards.",
-      "Incorporer les pommes de terre en fin de cuisson et servir avec coriandre.",
-    ],
-  },
-  {
-    id: "plat-cabillaud-tikka-au-four-chou-fleur-roti-et-riz",
-    nom: "Cabillaud tikka au four, chou-fleur rôti et riz basmati",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: ["poisson","soja"],
-    motsCles: ["cabillaud","riz basmati cuit","chou-fleur","citron"],
-    kcal: 405, proteines: 39, glucides: 43, lipides: 7,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Cabillaud", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Riz basmati cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Chou-fleur", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Yaourt soja nature sans sucres", quantite: 1, unite: "c. à soupe", rayon: "Crèmerie" },
-      { nom: "Épices tikka", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Mélanger yaourt soja, citron, ail et épices tikka.",
-      "Enrober le cabillaud avec cette marinade.",
-      "Rôtir le chou-fleur au four, puis ajouter le poisson en fin de cuisson.",
-      "Servir avec le riz basmati et la coriandre.",
-    ],
-  },
-  {
-    id: "plat-riz-saute-facon-nasi-goreng-au-crabe-et-legume",
-    nom: "Riz sauté façon nasi goreng au crabe et légumes croquants",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["crustaces","soja","sesame"],
-    motsCles: ["chair de crabe","riz complet cuit","œuf","carotte","courgette"],
-    kcal: 455, proteines: 34, glucides: 45, lipides: 15,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Chair de crabe", quantite: 120, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Riz complet cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tamari sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Huile de sésame", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire revenir ail, gingembre, carotte et courgette avec l'huile de sésame.",
-      "Ajouter le riz complet et le tamari.",
-      "Incorporer l'œuf battu puis la chair de crabe.",
-      "Servir avec coriandre fraîche.",
-    ],
-  },
-  {
-    id: "plat-paella-vegetale-au-lupin-poivron-et-petits-poi",
-    nom: "Paella végétale au lupin, poivron et petits pois",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["riz rond cuit","lupin cuit","poivron","petits pois","tomate concassee"],
-    kcal: 445, proteines: 25, glucides: 58, lipides: 11,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Riz rond cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Lupin cuit", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Poivron", quantite: 90, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Petits pois", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Safran ou curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire revenir poivron, tomate, paprika et curcuma avec l'huile d'olive.",
-      "Ajouter riz, lupin et petits pois.",
-      "Laisser cuire quelques minutes pour concentrer les saveurs.",
-      "Servir avec persil et citron.",
-    ],
-  },
-  {
-    id: "plat-shakshuka-verte-aux-ufs-pois-chiches-et-epinar",
-    nom: "Shakshuka verte aux œufs, pois chiches et épinards",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["œufs","pois chiches cuits","epinards","tomate concassee","oignon"],
-    kcal: 410, proteines: 25, glucides: 38, lipides: 18,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Pois chiches cuits", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Épinards", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir l'oignon avec l'huile d'olive, le cumin et le paprika.",
-      "Ajouter tomate, pois chiches et épinards, puis laisser réduire.",
-      "Creuser deux petits puits et casser les œufs dedans.",
-      "Couvrir jusqu'à ce que les blancs soient pris.",
-    ],
-  },
-  {
-    id: "plat-lapin-a-la-moutarde-douce-carottes-et-pommes-v",
-    nom: "Lapin à la moutarde douce, carottes et pommes vapeur",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["lapin desosse","pommes de terre","carottes"],
-    kcal: 415, proteines: 38, glucides: 38, lipides: 12,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Lapin désossé", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carottes", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre et les carottes vapeur.",
-      "Faire revenir le lapin avec l'huile d'olive, l'ail et le thym.",
-      "Ajouter la moutarde douce avec un peu d'eau pour former une sauce légère.",
-      "Servir avec les légumes et le persil.",
-    ],
-  },
-  {
-    id: "plat-maquereau-au-four-lentilles-beluga-et-betterav",
-    nom: "Maquereau au four, lentilles beluga et betterave citronnée",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["filet de maquereau","lentilles beluga cuites","betterave cuite","concombre","citron"],
-    kcal: 465, proteines: 35, glucides: 36, lipides: 21,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Filet de maquereau", quantite: 120, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Lentilles beluga cuites", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Betterave cuite", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Aneth", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire le maquereau au four avec citron, aneth et poivre.",
-      "Réchauffer les lentilles ou les servir tièdes.",
-      "Couper la betterave et le concombre en dés.",
-      "Assembler avec l'huile d'olive et un filet de citron.",
-    ],
-  },
-  {
-    id: "plat-harira-vegan-aux-lentilles-pois-chiches-et-riz",
-    nom: "Harira vegan aux lentilles, pois chiches et riz",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["lentilles cuites","pois chiches cuits","riz complet cuit","tomate concassee","carotte"],
-    kcal: 465, proteines: 22, glucides: 72, lipides: 9,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Lentilles cuites", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Pois chiches cuits", quantite: 80, unite: "g", rayon: "Épicerie" },
-      { nom: "Riz complet cuit", quantite: 70, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire revenir l'oignon, la carotte et les épices avec l'huile d'olive.",
-      "Ajouter tomate, lentilles, pois chiches et un peu d'eau.",
-      "Laisser mijoter jusqu'à texture épaisse.",
-      "Ajouter le riz complet en fin de cuisson et servir avec coriandre et persil.",
-    ],
-  },
-  {
-    id: "plat-poulpe-grille-pommes-grenailles-et-fenouil-a-l",
-    nom: "Poulpe grillé, pommes grenailles et fenouil à l'orange",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ['mollusques'],
-    motsCles: ["poulpe cuit poids net consommable","pommes grenailles","fenouil","orange","citron"],
-    kcal: 390, proteines: 33, glucides: 44, lipides: 7,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Poulpe cuit poids net consommable", quantite: 170, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes grenailles", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Fenouil", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Orange", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes grenailles vapeur.",
-      "Griller le poulpe avec paprika, citron et poivre.",
-      "Émincer le fenouil finement et l'associer à l'orange en morceaux.",
-      "Servir avec persil et huile d'olive.",
-    ],
-  },
-  {
-    id: "plat-poulet-jerk-leger-riz-aux-haricots-rouges-et-c",
-    nom: "Poulet jerk léger, riz aux haricots rouges et chou citronné",
-    type: "plat",
-    cuisines: ["americaine"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["blanc de poulet","riz complet cuit","haricots rouges cuits","chou blanc","citron vert"],
-    kcal: 455, proteines: 43, glucides: 50, lipides: 9,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Blanc de poulet", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Riz complet cuit", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Haricots rouges cuits", quantite: 70, unite: "g", rayon: "Épicerie" },
-      { nom: "Chou blanc", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Piment doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mariner le poulet avec citron vert, paprika, thym, ail et piment doux.",
-      "Le griller à la poêle ou au four.",
-      "Réchauffer le riz avec les haricots rouges.",
-      "Servir avec le chou finement émincé et citronné.",
-    ],
-  },
-  {
-    id: "plat-steaks-vegetaux-haricots-rouges-quinoa-et-frit",
-    nom: "Steaks végétaux haricots rouges-quinoa et frites de carotte",
-    type: "plat",
-    cuisines: ["americaine"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["haricots rouges cuits","quinoa cuit","farine de pois chiches","carottes"],
-    kcal: 440, proteines: 20, glucides: 64, lipides: 9,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Haricots rouges cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Quinoa cuit", quantite: 80, unite: "g", rayon: "Épicerie" },
-      { nom: "Farine de pois chiches", quantite: 20, unite: "g", rayon: "Épicerie" },
-      { nom: "Carottes", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Paprika fumé", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser les haricots rouges avec le quinoa, la farine de pois chiches, l'ail et le paprika.",
-      "Former deux petits steaks et les cuire au four ou à la poêle antiadhésive.",
-      "Couper les carottes en frites et les rôtir avec l'huile.",
-      "Servir avec persil frais.",
-    ],
-  },
-  {
-    id: "plat-kefta-de-b-uf-maigre-taboule-de-chou-fleur-et-",
-    nom: "Kefta de bœuf maigre, taboulé de chou-fleur et sauce tomate épicée",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["bœuf hache 5 %","chou-fleur rape","tomate concassee","concombre","oignon rouge"],
-    kcal: 410, proteines: 34, glucides: 34, lipides: 13,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Bœuf haché 5 %", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Chou-fleur râpé", quantite: 200, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon rouge", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Menthe", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Mélanger le bœuf avec cumin, paprika, persil et poivre, puis former des keftas.",
-      "Les cuire à la poêle avec l'huile d'olive.",
-      "Faire mijoter rapidement la tomate concassée avec un peu d'oignon.",
-      "Servir avec le chou-fleur râpé, concombre, menthe et sauce tomate épicée.",
-    ],
-  },
-  {
-    id: "plat-crepe-de-sarrasin-au-tofu-legumes-croquants-et",
-    nom: "Crêpe de sarrasin au tofu, légumes croquants et tamari",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja","sesame"],
-    motsCles: ["farine de sarrasin certifiee sans gluten","tofu ferme","carotte","courgette"],
-    kcal: 430, proteines: 27, glucides: 45, lipides: 15,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Farine de sarrasin certifiée sans gluten", quantite: 55, unite: "g", rayon: "Épicerie" },
-      { nom: "Tofu ferme", quantite: 130, unite: "g", rayon: "Crèmerie" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tamari sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Huile de sésame", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Ciboule", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Mélanger la farine de sarrasin avec de l'eau pour former une pâte fluide.",
-      "Cuire une grande crêpe fine dans une poêle antiadhésive.",
-      "Faire revenir tofu, carotte, courgette, ail et gingembre avec l'huile de sésame.",
-      "Garnir la crêpe et assaisonner avec tamari et ciboule.",
-    ],
-  },
-  {
-    id: "plat-filet-mignon-laque-tamari-miel-riz-noir-et-bro",
-    nom: "Filet mignon laqué tamari-miel, riz noir et brocoli",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["sans-gluten"],
-    objectifs: ["maintien","muscle"],
-    budget: "normal",
-    allergenes: ["soja","sesame"],
-    motsCles: ["filet mignon de porc","riz noir cuit","brocoli","citron vert"],
-    kcal: 475, proteines: 38, glucides: 45, lipides: 14,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Filet mignon de porc", quantite: 140, unite: "g", rayon: "Boucherie" },
-      { nom: "Riz noir cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Brocoli", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tamari sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Miel", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Huile de sésame", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Mélanger tamari, miel, ail, gingembre et citron vert.",
-      "Cuire le filet mignon en lamelles avec la sauce.",
-      "Cuire le brocoli vapeur.",
-      "Servir avec riz noir, brocoli et un filet d'huile de sésame.",
-    ],
-  },
-  {
-    id: "col-verrine-skyr-peche-avoine-vanillee",
-    nom: "Verrine skyr pêche-avoine vanillée",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["lactose"],
-    motsCles: ["skyr nature 0 %","peche","flocons d'avoine certifies sans gluten"],
-    kcal: 200, proteines: 20, glucides: 24, lipides: 3,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Skyr nature 0 %", quantite: 160, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pêche", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Flocons d'avoine certifiés sans gluten", quantite: 10, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Vanille", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Déposer le skyr dans une verrine.",
-      "Couper la pêche en petits morceaux.",
-      "Ajouter les flocons d'avoine certifiés sans gluten.",
-      "Terminer avec vanille et cannelle.",
-    ],
-  },
-  {
-    id: "col-creme-tofu-soyeux-cacao-framboise",
-    nom: "Crème tofu soyeux cacao-framboise",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["tofu soyeux","proteine vegetale chocolat pois-riz","framboises","cacao non sucre","sirop d'erable"],
-    kcal: 175, proteines: 16, glucides: 14, lipides: 6,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Tofu soyeux", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Protéine végétale chocolat pois-riz", quantite: 10, unite: "g", rayon: "Épicerie" },
-      { nom: "Framboises", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cacao non sucré", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Sirop d'érable", quantite: 4, unite: "g", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mixer le tofu soyeux avec la protéine végétale, le cacao et le sirop d'érable.",
-      "Verser dans un petit bol.",
-      "Ajouter les framboises.",
-      "Laisser reposer 15 minutes au frais pour une texture plus ferme.",
-    ],
-  },
-  {
-    id: "col-smoothie-mangue-citron-vert-proteine",
-    nom: "Smoothie mangue-citron vert protéiné",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["boisson soja nature sans sucres","mangue","proteine vegetale vanille pois-riz","citron vert"],
-    kcal: 190, proteines: 18, glucides: 24, lipides: 3,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Boisson soja nature sans sucres", quantite: 150, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Mangue", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Protéine végétale vanille pois-riz", quantite: 15, unite: "g", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Glaçons", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Verser la boisson soja dans un blender.",
-      "Ajouter la mangue, la protéine végétale, le citron vert et les glaçons.",
-      "Mixer jusqu'à texture lisse.",
-      "Servir immédiatement.",
-    ],
-  },
-  {
-    id: "col-mini-overnight-oats-pomme-vanille",
-    nom: "Mini overnight oats pomme-vanille",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["yaourt soja nature enrichi en proteines","flocons d'avoine certifies sans gluten","pomme","graines de chia"],
-    kcal: 235, proteines: 15, glucides: 33, lipides: 5,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Yaourt soja nature enrichi en protéines", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Flocons d'avoine certifiés sans gluten", quantite: 20, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pomme", quantite: 70, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Graines de chia", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Vanille", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger le yaourt soja avec les flocons d'avoine, les graines de chia, la vanille et la cannelle.",
-      "Ajouter la pomme coupée en dés.",
-      "Laisser reposer au frais au moins 30 minutes.",
-      "Mélanger avant dégustation.",
-    ],
-  },
-  {
-    id: "col-compote-poire-whey-et-noisette",
-    nom: "Compote poire-whey et noisette",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["lactose","fruits-a-coque"],
-    motsCles: ["compote de poire sans sucres ajoutes","whey isolate vanille","noisettes concassees"],
-    kcal: 175, proteines: 16, glucides: 17, lipides: 5,
-    tempsMinutes: 3,
-    ingredients: [
-      { nom: "Compote de poire sans sucres ajoutés", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Whey isolate vanille", quantite: 18, unite: "g", rayon: "Crèmerie" },
-      { nom: "Noisettes concassées", quantite: 6, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Verser la compote dans un bol.",
-      "Incorporer progressivement la whey isolate pour éviter les grumeaux.",
-      "Ajouter la cannelle.",
-      "Terminer avec les noisettes concassées.",
-    ],
-  },
-  {
-    id: "col-fromage-blanc-citron-kiwi-et-graines-de-chanvr",
-    nom: "Fromage blanc citron, kiwi et graines de chanvre",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["lactose"],
-    motsCles: ["fromage blanc 0 %","kiwi","graines de chanvre decortiquees","zeste de citron"],
-    kcal: 165, proteines: 16, glucides: 17, lipides: 4,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Fromage blanc 0 %", quantite: 150, unite: "g", rayon: "Crèmerie" },
-      { nom: "Kiwi", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Graines de chanvre décortiquées", quantite: 6, unite: "g", rayon: "Épicerie" },
-      { nom: "Zeste de citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Déposer le fromage blanc dans un bol.",
-      "Couper le kiwi en morceaux.",
-      "Ajouter les graines de chanvre.",
-      "Terminer avec le zeste de citron.",
-    ],
-  },
-  {
-    id: "col-bouchees-cacao-datte-et-proteine-vegetale",
-    nom: "Bouchées cacao-datte et protéine végétale",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["energie","maintien"],
-    budget: "normal",
-    allergenes: ["fruits-a-coque"],
-    motsCles: ["dattes denoyautees","proteine vegetale chocolat pois-riz","poudre d'amande","cacao non sucre"],
-    kcal: 235, proteines: 10, glucides: 29, lipides: 9,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Dattes dénoyautées", quantite: 30, unite: "g", rayon: "Épicerie" },
-      { nom: "Protéine végétale chocolat pois-riz", quantite: 12, unite: "g", rayon: "Épicerie" },
-      { nom: "Poudre d'amande", quantite: 8, unite: "g", rayon: "Épicerie" },
-      { nom: "Cacao non sucré", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Eau", quantite: 1, unite: "c. à café", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Mixer les dattes avec la protéine végétale, la poudre d'amande et le cacao.",
-      "Ajouter un peu d'eau pour obtenir une pâte.",
-      "Former 2 petites bouchées.",
-      "Réserver au frais avant dégustation.",
-    ],
-  },
-  {
-    id: "col-riz-au-lait-vegetal-proteine-cannelle",
-    nom: "Riz au lait végétal protéiné cannelle",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["riz rond cuit","boisson soja nature sans sucres","proteine vegetale vanille pois-riz"],
-    kcal: 225, proteines: 17, glucides: 34, lipides: 3,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Riz rond cuit", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Boisson soja nature sans sucres", quantite: 120, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Protéine végétale vanille pois-riz", quantite: 15, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Vanille", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Chauffer doucement le riz cuit avec la boisson soja, la vanille et la cannelle.",
-      "Hors feu, incorporer la protéine végétale progressivement.",
-      "Mélanger jusqu'à texture crémeuse.",
-      "Servir tiède ou froid.",
-    ],
-  },
-  {
-    id: "col-verrine-tzatziki-proteinee-aux-crevettes",
-    nom: "Verrine tzatziki protéinée aux crevettes",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["lactose","crustaces"],
-    motsCles: ["skyr nature 0 %","crevettes cuites decortiquees","concombre","citron"],
-    kcal: 145, proteines: 25, glucides: 7, lipides: 1,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Skyr nature 0 %", quantite: 100, unite: "g", rayon: "Crèmerie" },
-      { nom: "Crevettes cuites décortiquées", quantite: 70, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Aneth", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Râper ou couper le concombre en petits dés.",
-      "Mélanger le skyr avec citron, aneth, ail et poivre.",
-      "Ajouter les crevettes.",
-      "Servir en verrine bien fraîche.",
-    ],
-  },
-  {
-    id: "col-roules-de-poulet-avocat-citronne-et-crudites",
-    nom: "Roulés de poulet, avocat citronné et crudités",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["blanc de poulet cuit en tranches","avocat","carotte","concombre","citron"],
-    kcal: 180, proteines: 22, glucides: 10, lipides: 6,
-    tempsMinutes: 7,
-    ingredients: [
-      { nom: "Blanc de poulet cuit en tranches", quantite: 90, unite: "g", rayon: "Boucherie" },
-      { nom: "Avocat", quantite: 25, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 70, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Écraser l'avocat avec citron et paprika.",
-      "Couper les crudités en bâtonnets.",
-      "Garnir les tranches de poulet avec avocat et crudités.",
-      "Rouler serré et servir avec coriandre.",
-    ],
-  },
-  {
-    id: "col-lupins-citron-paprika-et-tomates-cerises",
-    nom: "Lupins citron-paprika et tomates cerises",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["lupins egouttes","tomates cerises","citron"],
-    kcal: 160, proteines: 16, glucides: 15, lipides: 4,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Lupins égouttés", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomates cerises", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Paprika fumé", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Rincer les lupins puis les égoutter.",
-      "Les mélanger avec citron, paprika fumé et poivre.",
-      "Ajouter les tomates cerises coupées en deux.",
-      "Terminer avec le persil.",
-    ],
-  },
-  {
-    id: "col-mini-galettes-de-lentilles-corail-au-cumin",
-    nom: "Mini galettes de lentilles corail au cumin",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["lentilles corail seches trempees","carotte rapee"],
-    kcal: 220, proteines: 13, glucides: 31, lipides: 6,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Lentilles corail sèches trempées", quantite: 50, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte râpée", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Sel", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mixer les lentilles corail trempées avec un peu d'eau, cumin et curcuma.",
-      "Ajouter la carotte râpée.",
-      "Former 2 petites galettes.",
-      "Cuire à la poêle avec l'huile d'olive jusqu'à coloration.",
-    ],
-  },
-  {
-    id: "col-cottage-cheese-tomate-basilic-et-crackers-sg",
-    nom: "Cottage cheese tomate-basilic et crackers SG",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["lactose"],
-    motsCles: ["cottage cheese nature","tomate","crackers sans gluten","citron"],
-    kcal: 205, proteines: 15, glucides: 20, lipides: 7,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Cottage cheese nature", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Crackers sans gluten", quantite: 20, unite: "g", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Déposer le cottage cheese dans un bol.",
-      "Ajouter la tomate coupée en dés, le basilic, le citron et le poivre.",
-      "Mélanger légèrement.",
-      "Servir avec les crackers sans gluten.",
-    ],
-  },
-  {
-    id: "col-sardines-citronnees-concombre-et-galette-de-ri",
-    nom: "Sardines citronnées, concombre et galette de riz",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["sardines au naturel egouttees","galette de riz complet sans gluten","concombre","citron"],
-    kcal: 185, proteines: 18, glucides: 10, lipides: 9,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Sardines au naturel égouttées", quantite: 70, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Galette de riz complet sans gluten", quantite: 1, unite: "pièce", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Émietter les sardines avec citron, persil et poivre.",
-      "Couper le concombre en rondelles.",
-      "Servir les sardines sur la galette de riz ou à côté pour garder le croquant.",
-      "Ajouter le concombre frais.",
-    ],
-  },
-  {
-    id: "col-caviar-de-haricots-blancs-citron-confit-et-cru",
-    nom: "Caviar de haricots blancs, citron confit et crudités",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["sesame"],
-    motsCles: ["haricots blancs cuits","batonnets de carotte et concombre","tahini","citron"],
-    kcal: 180, proteines: 8, glucides: 25, lipides: 5,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Haricots blancs cuits", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Bâtonnets de carotte et concombre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tahini", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mixer les haricots blancs avec tahini, citron, cumin et poivre.",
-      "Ajouter un peu d'eau froide pour obtenir une texture crémeuse.",
-      "Parsemer de persil.",
-      "Servir avec les bâtonnets de légumes.",
-    ],
-  },
-  {
-    id: "col-mini-muffin-uf-epinards-et-dinde",
-    nom: "Mini muffin œuf-épinards et dinde",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["œuf","blancs d'œufs","dinde cuite en des","epinards"],
-    kcal: 160, proteines: 24, glucides: 2, lipides: 6,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Blancs d'œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Dinde cuite en dés", quantite: 40, unite: "g", rayon: "Boucherie" },
-      { nom: "Épinards", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Battre l'œuf avec les blancs d'œufs, le poivre, la muscade et la ciboulette.",
-      "Ajouter les épinards et la dinde en dés.",
-      "Verser dans un petit moule.",
-      "Cuire au four jusqu'à ce que le muffin soit pris.",
-    ],
-  },
-  {
-    id: "col-flan-soja-matcha-vanille",
-    nom: "Flan soja-matcha vanillé",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["boisson soja nature sans sucres","proteine vegetale vanille pois-riz","agar-agar"],
-    kcal: 130, proteines: 17, glucides: 6, lipides: 4,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Boisson soja nature sans sucres", quantite: 160, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Protéine végétale vanille pois-riz", quantite: 15, unite: "g", rayon: "Épicerie" },
-      { nom: "Agar-agar", quantite: 1, unite: "g", rayon: "Épicerie" },
-      { nom: "Matcha", quantite: 0.5, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Vanille", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger la boisson soja, la protéine végétale, le matcha et l'agar-agar dans une petite casserole.",
-      "Porter à légère ébullition 1 minute en remuant.",
-      "Verser dans un ramequin.",
-      "Laisser prendre au frais avant dégustation.",
-    ],
-  },
-  {
-    id: "col-yaourt-grec-ananas-coco",
-    nom: "Yaourt grec ananas-coco",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["lactose"],
-    motsCles: ["yaourt grec nature 0 %","ananas frais","noix de coco rapee","zeste de citron vert"],
-    kcal: 175, proteines: 17, glucides: 17, lipides: 5,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Yaourt grec nature 0 %", quantite: 150, unite: "g", rayon: "Crèmerie" },
-      { nom: "Ananas frais", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Noix de coco râpée", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Zeste de citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Déposer le yaourt grec dans un bol.",
-      "Couper l'ananas en petits morceaux.",
-      "Ajouter la noix de coco râpée.",
-      "Terminer avec le zeste de citron vert.",
-    ],
-  },
-  {
-    id: "col-truffes-haricots-rouges-cacao-et-coco",
-    nom: "Truffes haricots rouges, cacao et coco",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["haricots rouges cuits rinces","proteine vegetale chocolat pois-riz","cacao non sucre","noix de coco rapee","sirop d'erable"],
-    kcal: 205, proteines: 17, glucides: 24, lipides: 5,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Haricots rouges cuits rincés", quantite: 80, unite: "g", rayon: "Épicerie" },
-      { nom: "Protéine végétale chocolat pois-riz", quantite: 12, unite: "g", rayon: "Épicerie" },
-      { nom: "Cacao non sucré", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Noix de coco râpée", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Sirop d'érable", quantite: 5, unite: "g", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mixer les haricots rouges avec la protéine, le cacao et le sirop d'érable.",
-      "Former 2 petites truffes.",
-      "Rouler dans la noix de coco râpée.",
-      "Réserver au frais pour raffermir.",
-    ],
-  },
-  {
-    id: "col-toasts-de-patate-douce-au-tofu-citronne",
-    nom: "Toasts de patate douce au tofu citronné",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["patate douce","tofu ferme","tomate","citron"],
-    kcal: 200, proteines: 18, glucides: 16, lipides: 7,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Patate douce", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tofu ferme", quantite: 110, unite: "g", rayon: "Crèmerie" },
-      { nom: "Tomate", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper la patate douce en deux fines tranches et les cuire au grille-pain ou au four.",
-      "Écraser le tofu avec citron, ciboulette, paprika et poivre.",
-      "Tartiner les tranches de patate douce avec le tofu.",
-      "Ajouter les dés de tomate.",
-    ],
-  },
-  {
-    id: "col-gaspacho-proteine-tomate-poivron-et-tofu-soyeu",
-    nom: "Gaspacho protéiné tomate-poivron et tofu soyeux",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["tofu soyeux","tomate","poivron rouge","proteine vegetale nature pois-riz","citron"],
-    kcal: 160, proteines: 16, glucides: 11, lipides: 6,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Tofu soyeux", quantite: 160, unite: "g", rayon: "Crèmerie" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivron rouge", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Protéine végétale nature pois-riz", quantite: 10, unite: "g", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mixer le tofu soyeux avec la tomate, le poivron et la protéine végétale.",
-      "Ajouter citron, basilic, paprika et poivre.",
-      "Mixer de nouveau jusqu'à texture lisse.",
-      "Servir très frais en petite verrine.",
-    ],
-  },
-  {
-    id: "col-rillettes-de-maquereau-radis-et-citron",
-    nom: "Rillettes de maquereau, radis et citron",
-    type: "collation",
-    gout: "sale",
-    cuisines: [],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson","soja"],
-    motsCles: ["maquereau au naturel egoutte","yaourt soja nature sans sucres","radis","citron"],
-    kcal: 165, proteines: 18, glucides: 5, lipides: 8,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Maquereau au naturel égoutté", quantite: 70, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Yaourt soja nature sans sucres", quantite: 40, unite: "g", rayon: "Crèmerie" },
-      { nom: "Radis", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Aneth", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Émietter le maquereau dans un bol.",
-      "Mélanger avec le yaourt soja, le citron, l'aneth et le poivre.",
-      "Couper les radis en rondelles épaisses.",
-      "Utiliser les radis comme support croquant pour les rillettes.",
-    ],
-  },
-  {
-    id: "col-bouchees-bresaola-melon-et-roquette",
-    nom: "Bouchées bresaola, melon et roquette",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["bresaola","melon","roquette","citron"],
-    kcal: 125, proteines: 16, glucides: 9, lipides: 2,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Bresaola", quantite: 50, unite: "g", rayon: "Boucherie" },
-      { nom: "Melon", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Roquette", quantite: 20, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper le melon en petits bâtonnets.",
-      "Déposer un peu de roquette sur chaque tranche de bresaola.",
-      "Ajouter le melon.",
-      "Rouler puis terminer avec citron et poivre.",
-    ],
-  },
-  {
-    id: "col-des-de-feta-pasteque-et-concombre",
-    nom: "Dés de feta, pastèque et concombre",
-    type: "collation",
-    gout: "sucre",
-    cuisines: [],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["lactose","fruits-a-coque"],
-    motsCles: ["feta","pasteque","concombre","noix","citron"],
-    kcal: 180, proteines: 7, glucides: 10, lipides: 12,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Feta", quantite: 40, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pastèque", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Noix", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Menthe", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Couper la feta, la pastèque et le concombre en dés réguliers.",
-      "Mélanger délicatement avec la menthe et le citron.",
-      "Ajouter les noix concassées.",
-      "Servir bien frais.",
-    ],
-  },
-  {
-    id: "plat-blanquette-legere-de-dinde-riz-complet-et-caro",
-    nom: "Blanquette légère de dinde, riz complet et carottes",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["escalope de dinde","riz complet cuit","carottes","champignons","creme soja legere"],
-    kcal: 455, proteines: 43, glucides: 46, lipides: 10,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Escalope de dinde", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Riz complet cuit", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Carottes", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Crème soja légère", quantite: 60, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les carottes à la vapeur.",
-      "Faire revenir la dinde et les champignons avec l'huile d'olive.",
-      "Ajouter crème soja, thym, citron et poivre.",
-      "Servir avec le riz complet.",
-    ],
-  },
-  {
-    id: "plat-parmentier-leger-de-b-uf-maigre-et-patate-douc",
-    nom: "Parmentier léger de bœuf maigre et patate douce",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["bœuf hache 5 %","patate douce","courgette","tomate concassee","oignon"],
-    kcal: 475, proteines: 34, glucides: 48, lipides: 15,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Bœuf haché 5 %", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Patate douce", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire la patate douce puis l'écraser.",
-      "Faire revenir oignon, bœuf, courgette et tomate.",
-      "Déposer la viande dans un plat, couvrir de purée.",
-      "Passer au four quelques minutes.",
-    ],
-  },
-  {
-    id: "plat-filet-de-julienne-carottes-vichy-et-pommes-vap",
-    nom: "Filet de julienne, carottes Vichy et pommes vapeur",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["filet de julienne","pommes de terre","carottes","citron"],
-    kcal: 390, proteines: 38, glucides: 42, lipides: 7,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Filet de julienne", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carottes", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre et les carottes vapeur.",
-      "Cuire le poisson au four avec citron et poivre.",
-      "Mélanger les carottes avec persil et huile d'olive.",
-      "Servir chaud.",
-    ],
-  },
-  {
-    id: "plat-lentilles-vertes-facon-petit-sale-vegan",
-    nom: "Lentilles vertes façon petit salé vegan",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["lentilles vertes cuites","tofu fume","carotte","oignon"],
-    kcal: 455, proteines: 30, glucides: 48, lipides: 15,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Lentilles vertes cuites", quantite: 170, unite: "g", rayon: "Épicerie" },
-      { nom: "Tofu fumé", quantite: 100, unite: "g", rayon: "Crèmerie" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Laurier", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Moutarde douce", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon, carotte et tofu fumé avec l'huile d'olive.",
-      "Ajouter lentilles, thym, laurier et un peu d'eau.",
-      "Laisser mijoter.",
-      "Terminer avec une pointe de moutarde douce.",
-    ],
-  },
-  {
-    id: "plat-omelette-paysanne-aux-pommes-de-terre-champign",
-    nom: "Omelette paysanne aux pommes de terre, champignons et salade verte",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ['oeuf'],
-    motsCles: ["œufs","blancs d'œufs","pommes de terre","champignons","salade verte"],
-    kcal: 430, proteines: 31, glucides: 36, lipides: 17,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Blancs d'œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pommes de terre", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Salade verte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre en dés.",
-      "Faire revenir les champignons.",
-      "Battre œufs, blancs d'œufs, ciboulette et poivre.",
-      "Cuire l'omelette avec pommes de terre et champignons, puis servir avec salade verte.",
-    ],
-  },
-  {
-    id: "plat-poulet-facon-vallee-d-auge-leger-pommes-et-qui",
-    nom: "Poulet façon vallée d'Auge léger, pommes et quinoa",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["blanc de poulet","quinoa cuit","pomme","champignons","creme soja legere"],
-    kcal: 475, proteines: 42, glucides: 44, lipides: 14,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Blanc de poulet", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Quinoa cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Pomme", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Crème soja légère", quantite: 60, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Saisir le poulet avec l'huile d'olive.",
-      "Ajouter champignons, pomme en dés, thym et crème soja.",
-      "Laisser mijoter doucement.",
-      "Servir avec le quinoa.",
-    ],
-  },
-  {
-    id: "plat-galettes-de-pois-casses-poireaux-fondants-et-s",
-    nom: "Galettes de pois cassés, poireaux fondants et salade de betterave",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["pois casses cuits","poireaux","betterave cuite","farine de pois chiches"],
-    kcal: 430, proteines: 24, glucides: 58, lipides: 9,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Pois cassés cuits", quantite: 160, unite: "g", rayon: "Épicerie" },
-      { nom: "Poireaux", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Betterave cuite", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Farine de pois chiches", quantite: 20, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Vinaigre balsamique", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser les pois cassés avec farine de pois chiches, persil et poivre.",
-      "Former deux galettes et les dorer à la poêle.",
-      "Faire fondre les poireaux à feu doux.",
-      "Servir avec betterave vinaigrée.",
-    ],
-  },
-  {
-    id: "plat-truite-aux-amandes-poireaux-et-pommes-grenaill",
-    nom: "Truite aux amandes, poireaux et pommes grenaille",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["poisson","fruits-a-coque"],
-    motsCles: ["filet de truite","pommes grenaille","poireaux","amandes effilees","citron"],
-    kcal: 495, proteines: 35, glucides: 38, lipides: 22,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Filet de truite", quantite: 140, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes grenaille", quantite: 140, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poireaux", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Amandes effilées", quantite: 8, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Aneth", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes grenaille vapeur.",
-      "Faire fondre les poireaux doucement.",
-      "Cuire la truite au four avec citron et aneth.",
-      "Ajouter les amandes effilées en fin de cuisson.",
-    ],
-  },
-  {
-    id: "plat-pot-au-feu-leger-de-veau-et-legumes-racines",
-    nom: "Pot-au-feu léger de veau et légumes racines",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["veau maigre","pommes de terre","carotte","navet","poireau"],
-    kcal: 430, proteines: 38, glucides: 42, lipides: 10,
-    tempsMinutes: 45,
-    ingredients: [
-      { nom: "Veau maigre", quantite: 140, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Navet", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poireau", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Bouquet garni", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Déposer veau, légumes et bouquet garni dans une casserole.",
-      "Couvrir d'eau et laisser mijoter doucement.",
-      "Égoutter puis servir avec un peu de bouillon.",
-      "Ajouter une pointe de moutarde douce au service.",
-    ],
-  },
-  {
-    id: "plat-gratin-leger-de-cabillaud-brocoli-et-pommes-de",
-    nom: "Gratin léger de cabillaud, brocoli et pommes de terre",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson","soja"],
-    motsCles: ["cabillaud","pommes de terre","brocoli","creme soja legere","chapelure sans gluten"],
-    kcal: 420, proteines: 39, glucides: 42, lipides: 9,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Cabillaud", quantite: 150, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes de terre", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Brocoli", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Crème soja légère", quantite: 80, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Chapelure sans gluten", quantite: 10, unite: "g", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre et le brocoli vapeur.",
-      "Déposer dans un plat avec le cabillaud en morceaux.",
-      "Ajouter crème soja, citron, muscade et poivre.",
-      "Parsemer de chapelure sans gluten puis gratiner au four.",
-    ],
-  },
-  {
-    id: "plat-b-uf-bourguignon-leger-carottes-et-pommes-vape",
-    nom: "Bœuf bourguignon léger, carottes et pommes vapeur",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["bœuf maigre a mijoter","pommes de terre","carottes","champignons","oignon"],
-    kcal: 455, proteines: 36, glucides: 44, lipides: 13,
-    tempsMinutes: 50,
-    ingredients: [
-      { nom: "Bœuf maigre à mijoter", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carottes", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Laurier", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir l'oignon, l'ail et le bœuf avec l'huile d'olive.",
-      "Ajouter carottes, champignons, thym, laurier et un fond d'eau.",
-      "Laisser mijoter jusqu'à tendreté.",
-      "Servir avec les pommes de terre vapeur.",
-    ],
-  },
-  {
-    id: "plat-quiche-sans-pate-au-thon-courgette-et-ciboulet",
-    nom: "Quiche sans pâte au thon, courgette et ciboulette",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: ["poisson","soja"],
-    motsCles: ["thon au naturel egoutte","œufs","blancs d'œufs","courgette","creme soja legere"],
-    kcal: 395, proteines: 46, glucides: 10, lipides: 18,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Thon au naturel égoutté", quantite: 120, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Blancs d'œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Courgette", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Crème soja légère", quantite: 40, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Râper la courgette et l'essorer légèrement.",
-      "Mélanger œufs, blancs d'œufs, crème soja, thon, ciboulette et poivre.",
-      "Verser dans un petit plat.",
-      "Cuire au four jusqu'à ce que la quiche soit prise.",
-    ],
-  },
-  {
-    id: "plat-brandade-legere-de-colin-chou-fleur-et-pommes-",
-    nom: "Brandade légère de colin, chou-fleur et pommes de terre",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson","lactose"],
-    motsCles: ["colin","pommes de terre","chou-fleur","citron"],
-    kcal: 405, proteines: 40, glucides: 40, lipides: 8,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Colin", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes de terre", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Chou-fleur", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Fromage blanc 0 %", quantite: 1, unite: "c. à soupe", rayon: "Crèmerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre et le chou-fleur vapeur.",
-      "Cuire le colin avec ail, citron et poivre.",
-      "Écraser le tout avec fromage blanc, huile d'olive et persil.",
-      "Servir chaud.",
-    ],
-  },
-  {
-    id: "plat-tian-provencal-aux-pois-chiches-et-sarrasin",
-    nom: "Tian provençal aux pois chiches et sarrasin",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["pois chiches cuits","sarrasin cuit certifie sans gluten","courgette","aubergine","tomate"],
-    kcal: 440, proteines: 20, glucides: 62, lipides: 11,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Pois chiches cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Sarrasin cuit certifié sans gluten", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Courgette", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Aubergine", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Herbes de Provence", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Couper les légumes en fines rondelles.",
-      "Les disposer dans un plat avec pois chiches, ail et herbes de Provence.",
-      "Cuire au four jusqu'à ce que les légumes soient fondants.",
-      "Servir avec le sarrasin et du basilic.",
-    ],
-  },
-  {
-    id: "plat-moules-marinieres-legeres-pommes-vapeur-et-per",
-    nom: "Moules marinières légères, pommes vapeur et persil",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ['mollusques'],
-    motsCles: ["moules poids net consommable","pommes de terre","oignon","citron"],
-    kcal: 390, proteines: 34, glucides: 40, lipides: 8,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Moules poids net consommable", quantite: 350, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre vapeur.",
-      "Faire revenir oignon et ail avec l'huile d'olive.",
-      "Ajouter les moules, couvrir et cuire jusqu'à ouverture.",
-      "Servir avec persil, citron et pommes vapeur.",
-    ],
-  },
-  {
-    id: "plat-salade-landaise-legere-au-magret-fume-et-lenti",
-    nom: "Salade landaise légère au magret fumé et lentilles",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["fruits-a-coque"],
-    motsCles: ["magret de canard fume degraisse","lentilles vertes cuites","salade verte","tomate","concombre"],
-    kcal: 460, proteines: 30, glucides: 37, lipides: 20,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Magret de canard fumé dégraissé", quantite: 60, unite: "g", rayon: "Boucherie" },
-      { nom: "Lentilles vertes cuites", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Salade verte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile de noix", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Vinaigre balsamique", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Retirer le gras visible du magret.",
-      "Mélanger lentilles, salade, tomate et concombre.",
-      "Assaisonner avec huile de noix, vinaigre et poivre.",
-      "Ajouter le magret en fines tranches.",
-    ],
-  },
-  {
-    id: "plat-gratin-de-courgettes-dinde-et-riz-complet",
-    nom: "Gratin de courgettes, dinde et riz complet",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["dinde hachee","riz complet cuit","courgette","tomate concassee","creme soja legere"],
-    kcal: 455, proteines: 43, glucides: 43, lipides: 10,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Dinde hachée", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Riz complet cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Courgette", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Crème soja légère", quantite: 60, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Chapelure sans gluten", quantite: 10, unite: "g", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir la dinde avec ail, tomate et thym.",
-      "Ajouter le riz complet et la courgette en dés.",
-      "Verser dans un plat avec crème soja.",
-      "Parsemer de chapelure sans gluten et gratiner au four.",
-    ],
-  },
-  {
-    id: "plat-poelee-forestiere-aux-ufs-pommes-de-terre-et-s",
-    nom: "Poêlée forestière aux œufs, pommes de terre et salade verte",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["œufs","blancs d'œufs","pommes de terre","champignons","salade verte"],
-    kcal: 430, proteines: 32, glucides: 36, lipides: 17,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Blancs d'œufs", quantite: 100, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pommes de terre", quantite: 140, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Salade verte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre en dés.",
-      "Faire revenir les champignons avec ail, persil et huile d'olive.",
-      "Ajouter les œufs battus avec les blancs d'œufs.",
-      "Servir avec une salade verte.",
-    ],
-  },
-  {
-    id: "plat-hachis-vegetal-francais-aux-lentilles-et-puree",
-    nom: "Hachis végétal français aux lentilles et purée de céleri",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["lentilles vertes cuites","celeri-rave","pomme de terre","tomate concassee","oignon"],
-    kcal: 435, proteines: 23, glucides: 64, lipides: 8,
-    tempsMinutes: 40,
-    ingredients: [
-      { nom: "Lentilles vertes cuites", quantite: 160, unite: "g", rayon: "Épicerie" },
-      { nom: "Céleri-rave", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pomme de terre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Laurier", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire le céleri-rave et la pomme de terre, puis les écraser avec muscade et poivre.",
-      "Faire mijoter lentilles, tomate, oignon, thym et laurier.",
-      "Déposer les lentilles dans un plat, couvrir de purée.",
-      "Passer au four quelques minutes.",
-    ],
-  },
-  {
-    id: "plat-aiguillettes-de-poulet-estragon-riz-de-camargu",
-    nom: "Aiguillettes de poulet estragon, riz de Camargue et haricots verts",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["aiguillettes de poulet","riz de camargue cuit","haricots verts","creme soja legere"],
-    kcal: 445, proteines: 43, glucides: 44, lipides: 8,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Aiguillettes de poulet", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Riz de Camargue cuit", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Haricots verts", quantite: 170, unite: "g", rayon: "Épicerie" },
-      { nom: "Crème soja légère", quantite: 60, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Estragon", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les haricots verts vapeur.",
-      "Saisir les aiguillettes de poulet.",
-      "Ajouter crème soja, moutarde douce, estragon et poivre.",
-      "Servir avec riz de Camargue et haricots verts.",
-    ],
-  },
-  {
-    id: "plat-tomates-farcies-legeres-a-la-dinde-et-riz-comp",
-    nom: "Tomates farcies légères à la dinde et riz complet",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["grosses tomates","dinde hachee","riz complet cuit","oignon"],
-    kcal: 435, proteines: 42, glucides: 43, lipides: 9,
-    tempsMinutes: 40,
-    ingredients: [
-      { nom: "Grosses tomates", quantite: 2, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Dinde hachée", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Riz complet cuit", quantite: 110, unite: "g", rayon: "Épicerie" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Évider les tomates et conserver la chair.",
-      "Faire revenir oignon, ail, dinde, chair de tomate et thym.",
-      "Mélanger avec le riz complet.",
-      "Garnir les tomates puis cuire au four jusqu'à ce qu'elles soient fondantes.",
-    ],
-  },
-  {
-    id: "plat-dos-de-lieu-jaune-sauce-vierge-et-ratatouille-",
-    nom: "Dos de lieu jaune, sauce vierge et ratatouille au riz rouge",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["dos de lieu jaune","riz rouge cuit","ratatouille legere","tomate fraiche","citron"],
-    kcal: 410, proteines: 39, glucides: 44, lipides: 8,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Dos de lieu jaune", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Riz rouge cuit", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Ratatouille légère", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate fraîche", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Échalote", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire le lieu jaune au four avec citron et poivre.",
-      "Réchauffer la ratatouille et le riz rouge.",
-      "Préparer une sauce vierge avec tomate fraîche, échalote, basilic et huile d'olive.",
-      "Servir le poisson nappé de sauce.",
-    ],
-  },
-  {
-    id: "plat-poulet-chasseur-leger-aux-champignons-et-pomme",
-    nom: "Poulet chasseur léger aux champignons et pommes vapeur",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["blanc de poulet","pommes de terre","champignons","tomate concassee","oignon"],
-    kcal: 425, proteines: 43, glucides: 40, lipides: 8,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Blanc de poulet", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Laurier", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre vapeur.",
-      "Faire revenir oignon, ail, poulet et champignons avec l'huile d'olive.",
-      "Ajouter tomate, thym et laurier.",
-      "Laisser mijoter doucement puis servir avec les pommes vapeur.",
-    ],
-  },
-  {
-    id: "plat-soupe-au-pistou-proteinee-aux-haricots-blancs",
-    nom: "Soupe au pistou protéinée aux haricots blancs",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["haricots blancs cuits","pommes de terre","courgette","carotte","tomate"],
-    kcal: 420, proteines: 22, glucides: 63, lipides: 8,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Haricots blancs cuits", quantite: 160, unite: "g", rayon: "Épicerie" },
-      { nom: "Pommes de terre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire carotte, courgette, tomate et pommes de terre dans un fond d'eau avec thym et poivre.",
-      "Ajouter les haricots blancs en fin de cuisson.",
-      "Mixer basilic, ail et huile d'olive pour faire un pistou léger.",
-      "Servir la soupe avec le pistou.",
-    ],
-  },
-  {
-    id: "plat-aile-de-raie-citron-capres-ecrase-de-pommes-de",
-    nom: "Aile de raie citron-câpres, écrasé de pommes de terre et brocoli",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["aile de raie","pommes de terre","brocoli","capres","citron"],
-    kcal: 395, proteines: 38, glucides: 38, lipides: 8,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Aile de raie", quantite: 170, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes de terre", quantite: 140, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Brocoli", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Câpres", quantite: 10, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Pocher ou cuire la raie vapeur avec citron.",
-      "Cuire pommes de terre et brocoli vapeur.",
-      "Écraser les pommes de terre avec persil, poivre et un peu d'eau de cuisson.",
-      "Servir avec câpres, citron et huile d'olive.",
-    ],
-  },
-  {
-    id: "plat-farcous-legers-aux-epinards-lentilles-vertes-e",
-    nom: "Farçous légers aux épinards, lentilles vertes et salade croquante",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["lentilles vertes cuites","epinards","farine de pois chiches","eau","salade verte"],
-    kcal: 410, proteines: 22, glucides: 53, lipides: 10,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Lentilles vertes cuites", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Épinards", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Farine de pois chiches", quantite: 35, unite: "g", rayon: "Épicerie" },
-      { nom: "Eau", quantite: 80, unite: "ml", rayon: "Fruits & légumes" },
-      { nom: "Salade verte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger farine de pois chiches, eau, ail, persil et poivre.",
-      "Ajouter les épinards hachés et les lentilles.",
-      "Cuire en petites galettes à la poêle avec l'huile d'olive.",
-      "Servir avec salade et concombre.",
-    ],
-  },
-  {
-    id: "plat-escalope-de-veau-forestiere-et-puree-de-celeri",
-    nom: "Escalope de veau forestière et purée de céleri-pomme de terre",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","muscle"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["escalope de veau","celeri-rave","pomme de terre","champignons","creme soja legere"],
-    kcal: 465, proteines: 38, glucides: 40, lipides: 15,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Escalope de veau", quantite: 140, unite: "g", rayon: "Boucherie" },
-      { nom: "Céleri-rave", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pomme de terre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Crème soja légère", quantite: 60, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire le céleri-rave et la pomme de terre, puis les écraser.",
-      "Saisir le veau avec l'huile d'olive.",
-      "Ajouter les champignons et la crème soja légère.",
-      "Servir avec la purée et le persil.",
-    ],
-  },
-  {
-    id: "plat-clafoutis-sale-courgette-saumon-et-herbes-frai",
-    nom: "Clafoutis salé courgette, saumon et herbes fraîches",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson","soja"],
-    motsCles: ["saumon cuit emiette","œuf","blancs d'œufs","courgette","creme soja legere"],
-    kcal: 430, proteines: 36, glucides: 18, lipides: 22,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Saumon cuit émietté", quantite: 120, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Blancs d'œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Courgette", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Crème soja légère", quantite: 40, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Farine de riz", quantite: 10, unite: "g", rayon: "Épicerie" },
-      { nom: "Aneth", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Râper la courgette et l'essorer.",
-      "Mélanger œuf, blancs d'œufs, crème soja, farine de riz, aneth et poivre.",
-      "Ajouter le saumon et la courgette.",
-      "Cuire au four jusqu'à texture prise et dorée.",
-    ],
-  },
-  {
-    id: "plat-salade-tiede-de-lentilles-maquereau-et-pommes-",
-    nom: "Salade tiède de lentilles, maquereau et pommes grenailles",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["maquereau au naturel egoutte","lentilles vertes cuites","pommes grenailles","carotte"],
-    kcal: 490, proteines: 35, glucides: 45, lipides: 19,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Maquereau au naturel égoutté", quantite: 100, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Lentilles vertes cuites", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Pommes grenailles", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Vinaigre de cidre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Moutarde douce", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes grenailles vapeur.",
-      "Réchauffer les lentilles avec la carotte en petits dés.",
-      "Mélanger huile d'olive, vinaigre, moutarde et poivre.",
-      "Ajouter le maquereau émietté et le persil.",
-    ],
-  },
-  {
-    id: "plat-courgettes-rondes-farcies-aux-ufs-champignons-",
-    nom: "Courgettes rondes farcies aux œufs, champignons et quinoa",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["courgettes rondes","œufs","quinoa cuit","champignons","oignon"],
-    kcal: 425, proteines: 28, glucides: 38, lipides: 17,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Courgettes rondes", quantite: 2, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Quinoa cuit", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Champignons", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d'olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Évider les courgettes rondes et les précuire au four.",
-      "Faire revenir oignon et champignons avec l'huile d'olive.",
-      "Mélanger avec quinoa, œufs battus, ciboulette et muscade.",
-      "Garnir les courgettes puis cuire au four.",
-    ],
-  },
-  {
-    id: "plat-omelette-aux-pommes-de-terre-et-epinards",
-    nom: "Omelette aux pommes de terre et épinards",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['oeuf', 'gluten'],
-    motsCles: ["oeufs","blancs d’oeufs","pommes de terre","epinards","pain complet"],
-    kcal: 465, proteines: 29, glucides: 52, lipides: 16,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Blancs d’œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pommes de terre", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Épinards", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pain complet", quantite: 40, unite: "g", rayon: "Boulangerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre en dés.",
-      "Faire tomber les épinards à la poêle.",
-      "Battre œufs et blancs, puis cuire en omelette avec pommes de terre et épinards.",
-      "Servir avec le pain complet.",
-    ],
-  },
-  {
-    id: "plat-semoule-complete-aux-pois-chiches-et-legumes",
-    nom: "Semoule complète aux pois chiches et légumes",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["semoule complete cuite","pois chiches cuits","carotte","courgette","tomate concassee"],
-    kcal: 450, proteines: 18, glucides: 68, lipides: 11,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Semoule complète cuite", quantite: 140, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pois chiches cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les légumes avec tomate et épices.",
-      "Réchauffer les pois chiches dans la sauce.",
-      "Préparer la semoule complète.",
-      "Servir la semoule avec les légumes et les pois chiches.",
-    ],
-  },
-  {
-    id: "plat-galettes-de-thon-et-pomme-de-terre",
-    nom: "Galettes de thon et pomme de terre",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc"],
-    objectifs: ["perte","muscle"],
-    budget: "eco",
-    allergenes: ['poisson', 'oeuf', 'gluten'],
-    motsCles: ["thon au naturel egoutte","pommes de terre","oeuf","farine de ble","salade verte"],
-    kcal: 430, proteines: 38, glucides: 42, lipides: 12,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Thon au naturel égoutté", quantite: 110, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes de terre", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Farine de blé", quantite: 10, unite: "g", rayon: "Épicerie" },
-      { nom: "Salade verte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser les pommes de terre avec le thon, l’œuf, la farine et le persil.",
-      "Former deux galettes.",
-      "Les dorer à la poêle avec l’huile d’olive.",
-      "Servir avec salade, carotte et citron.",
-    ],
-  },
-  {
-    id: "plat-pates-completes-aux-lentilles-et-tomate",
-    nom: "Pâtes complètes aux lentilles et tomate",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["pates completes cuites","lentilles vertes cuites","tomate concassee","oignon","carotte"],
-    kcal: 485, proteines: 26, glucides: 78, lipides: 8,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Pâtes complètes cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Lentilles vertes cuites", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 140, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Origan", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon et carotte avec l’huile d’olive.",
-      "Ajouter tomate, lentilles, basilic et origan.",
-      "Laisser mijoter.",
-      "Mélanger avec les pâtes complètes.",
-    ],
-  },
-  {
-    id: "plat-croque-dinde-leger-tomate-et-salade",
-    nom: "Croque-dinde léger, tomate et salade",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: ['lactose', 'gluten'],
-    motsCles: ["pain complet","blanc de dinde","emmental rape","tomate","salade verte"],
-    kcal: 430, proteines: 34, glucides: 39, lipides: 14,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Pain complet", quantite: 70, unite: "g", rayon: "Boulangerie" },
-      { nom: "Blanc de dinde", quantite: 80, unite: "g", rayon: "Boucherie" },
-      { nom: "Emmental râpé", quantite: 20, unite: "g", rayon: "Crèmerie" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Salade verte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Garnir le pain avec dinde, emmental et moutarde.",
-      "Faire dorer à la poêle ou au four.",
-      "Servir avec tomate, salade verte et poivre.",
-    ],
-  },
-  {
-    id: "plat-oeufs-cocotte-aux-haricots-blancs-et-tomate",
-    nom: "Œufs cocotte aux haricots blancs et tomate",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['oeuf', 'gluten'],
-    motsCles: ["oeufs","haricots blancs cuits","tomate concassee","oignon","pain complet"],
-    kcal: 460, proteines: 27, glucides: 52, lipides: 15,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Haricots blancs cuits", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pain complet", quantite: 40, unite: "g", rayon: "Boulangerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon, tomate, haricots blancs et paprika.",
-      "Creuser deux petits puits et casser les œufs.",
-      "Couvrir jusqu’à cuisson des blancs.",
-      "Servir avec le pain complet.",
-    ],
-  },
-  {
-    id: "plat-pomme-de-terre-farcie-aux-haricots-rouges-et-m",
-    nom: "Pomme de terre farcie aux haricots rouges et maïs",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["pommes de terre","haricots rouges cuits","tomate concassee","mais","oignon"],
-    kcal: 430, proteines: 18, glucides: 72, lipides: 7,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Pommes de terre", quantite: 220, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Haricots rouges cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Maïs", quantite: 60, unite: "g", rayon: "Épicerie" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre au four ou vapeur.",
-      "Faire mijoter haricots rouges, tomate, maïs, oignon et épices.",
-      "Ouvrir les pommes de terre et les garnir avec la préparation.",
-      "Ajouter coriandre.",
-    ],
-  },
-  {
-    id: "plat-dinde-au-boulgour-carottes-et-cumin",
-    nom: "Dinde au boulgour, carottes et cumin",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["sans-porc"],
-    objectifs: ["perte","muscle"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["dinde en morceaux","boulgour cuit","carotte","oignon","citron"],
-    kcal: 455, proteines: 42, glucides: 50, lipides: 8,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Dinde en morceaux", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Boulgour cuit", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire revenir oignon, carotte et dinde avec l’huile d’olive.",
-      "Ajouter cumin et curcuma.",
-      "Réchauffer le boulgour.",
-      "Servir avec persil et citron.",
-    ],
-  },
-  {
-    id: "plat-gratin-de-chou-fleur-et-jambon-de-dinde",
-    nom: "Gratin de chou-fleur et jambon de dinde",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: ['lactose', 'gluten'],
-    motsCles: ["pommes de terre","chou-fleur","jambon de dinde","lait demi-ecreme","farine de ble"],
-    kcal: 460, proteines: 34, glucides: 43, lipides: 15,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Pommes de terre", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Chou-fleur", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Jambon de dinde", quantite: 90, unite: "g", rayon: "Boucherie" },
-      { nom: "Lait demi-écrémé", quantite: 100, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Farine de blé", quantite: 10, unite: "g", rayon: "Épicerie" },
-      { nom: "Emmental râpé", quantite: 15, unite: "g", rayon: "Crèmerie" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire pommes de terre et chou-fleur vapeur.",
-      "Préparer une béchamel légère avec lait, farine, muscade et poivre.",
-      "Ajouter le jambon de dinde.",
-      "Verser dans un plat, parsemer d’emmental et gratiner.",
-    ],
-  },
-  {
-    id: "plat-ragout-de-pois-casses-et-oeuf-poche",
-    nom: "Ragoût de pois cassés et œuf poché",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["oeuf"],
-    motsCles: ["pois casses cuits","oeuf","carotte","poireau"],
-    kcal: 420, proteines: 25, glucides: 56, lipides: 10,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Pois cassés cuits", quantite: 170, unite: "g", rayon: "Épicerie" },
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Carotte", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poireau", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Laurier", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire mijoter pois cassés, carotte, poireau, thym et laurier.",
-      "Cuire l’œuf poché ou mollet à part.",
-      "Servir le ragoût bien chaud avec l’œuf et le persil.",
-    ],
-  },
-  {
-    id: "plat-pates-completes-aux-sardines-et-epinards",
-    nom: "Pâtes complètes aux sardines et épinards",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['poisson', 'gluten'],
-    motsCles: ["pates completes cuites","sardines au naturel egouttees","tomate concassee","epinards"],
-    kcal: 490, proteines: 32, glucides: 60, lipides: 14,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Pâtes complètes cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Sardines au naturel égouttées", quantite: 90, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Tomate concassée", quantite: 140, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Épinards", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pâtes.",
-      "Faire revenir ail, tomate et épinards avec l’huile.",
-      "Ajouter les sardines émiettées.",
-      "Mélanger avec les pâtes et terminer avec basilic.",
-    ],
-  },
-  {
-    id: "plat-rostis-de-legumes-oeufs-et-fromage-blanc",
-    nom: "Röstis de légumes, œufs et fromage blanc",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["oeuf","lactose"],
-    motsCles: ["oeufs","pommes de terre","courgette","fromage blanc 0 %"],
-    kcal: 440, proteines: 29, glucides: 45, lipides: 16,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Fromage blanc 0 %", quantite: 100, unite: "g", rayon: "Crèmerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Râper pomme de terre et courgette puis presser l’excès d’eau.",
-      "Former deux röstis et les cuire à la poêle.",
-      "Cuire les œufs au plat ou brouillés.",
-      "Servir avec fromage blanc aux herbes.",
-    ],
-  },
-  {
-    id: "plat-semoule-complete-aux-pois-casses-et-legumes",
-    nom: "Semoule complète aux pois cassés et légumes",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["semoule complete cuite","pois casses cuits","carotte","tomate concassee","oignon"],
-    kcal: 450, proteines: 22, glucides: 70, lipides: 9,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Semoule complète cuite", quantite: 140, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pois cassés cuits", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon, carotte et épices avec l’huile.",
-      "Ajouter pois cassés et tomate, puis laisser mijoter.",
-      "Préparer la semoule complète.",
-      "Servir avec persil frais.",
-    ],
-  },
-  {
-    id: "plat-wrap-au-thon-et-haricots-blancs",
-    nom: "Wrap au thon et haricots blancs",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc"],
-    objectifs: ["perte","muscle"],
-    budget: "eco",
-    allergenes: ["poisson"],
-    motsCles: ["wrap complet","thon au naturel egoutte","haricots blancs cuits","tomate","salade"],
-    kcal: 455, proteines: 35, glucides: 56, lipides: 10,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Wrap complet", quantite: 1, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Thon au naturel égoutté", quantite: 100, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Haricots blancs cuits", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Salade", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser légèrement les haricots blancs avec citron, moutarde et poivre.",
-      "Garnir le wrap avec salade, tomate, thon et purée de haricots.",
-      "Rouler serré puis couper en deux.",
-    ],
-  },
-  {
-    id: "plat-poulet-grille-chou-et-pommes-de-terre",
-    nom: "Poulet grillé, chou et pommes de terre",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["blanc de poulet","pommes de terre","chou blanc","citron"],
-    kcal: 430, proteines: 43, glucides: 38, lipides: 12,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Blanc de poulet", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Chou blanc", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre vapeur.",
-      "Émincer le chou et le faire revenir avec ail et paprika.",
-      "Griller le poulet en lamelles.",
-      "Servir avec citron, persil et pommes de terre.",
-    ],
-  },
-  {
-    id: "plat-pates-sans-gluten-aux-lentilles-et-tomate",
-    nom: "Pâtes sans gluten aux lentilles et tomate",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["pates de mais ou lentilles corail certifiees sans gluten cuites","lentilles vertes cuites","tomate concassee","carotte","oignon"],
-    kcal: 465, proteines: 22, glucides: 70, lipides: 11,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Pâtes de maïs ou lentilles corail certifiées sans gluten cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Lentilles vertes cuites", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 140, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Origan", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon et carotte avec l’huile.",
-      "Ajouter tomate, lentilles, origan et basilic.",
-      "Laisser réduire.",
-      "Mélanger avec les pâtes sans gluten.",
-    ],
-  },
-  {
-    id: "plat-flan-de-courgette-et-pomme-de-terre",
-    nom: "Flan de courgette et pomme de terre",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: ["oeuf","lactose"],
-    motsCles: ["oeufs","blancs d’oeufs","pommes de terre","courgette","lait demi-ecreme"],
-    kcal: 420, proteines: 28, glucides: 42, lipides: 16,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Blancs d’œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pommes de terre", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Lait demi-écrémé", quantite: 80, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Fécule de maïs", quantite: 10, unite: "g", rayon: "Épicerie" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre en petits dés.",
-      "Mélanger œufs, blancs, lait, fécule et ciboulette.",
-      "Ajouter courgette râpée et pommes de terre.",
-      "Cuire au four jusqu’à texture prise.",
-    ],
-  },
-  {
-    id: "plat-croquettes-de-pois-chiches-a-l-avoine",
-    nom: "Croquettes de pois chiches à l’avoine",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["pois chiches cuits","flocons d’avoine certifies sans gluten","carotte rapee","salade verte","citron"],
-    kcal: 435, proteines: 19, glucides: 60, lipides: 13,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Pois chiches cuits", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Flocons d’avoine certifiés sans gluten", quantite: 25, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte râpée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Salade verte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Mixer grossièrement pois chiches, avoine, ail, cumin et persil.",
-      "Former deux croquettes.",
-      "Les cuire à la poêle avec l’huile.",
-      "Servir avec carotte râpée, salade et citron.",
-    ],
-  },
-  {
-    id: "plat-parmentier-de-thon-aux-legumes",
-    nom: "Parmentier de thon aux légumes",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["poisson"],
-    motsCles: ["thon au naturel egoutte","pommes de terre","carotte","tomate concassee","oignon"],
-    kcal: 425, proteines: 36, glucides: 43, lipides: 12,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Thon au naturel égoutté", quantite: 120, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire pommes de terre et carotte puis les écraser.",
-      "Faire revenir oignon, tomate et thon avec l’huile.",
-      "Déposer le thon dans un plat, couvrir de purée.",
-      "Passer au four quelques minutes.",
-    ],
-  },
-  {
-    id: "plat-tacos-d-oeufs-brouilles-et-haricots-rouges",
-    nom: "Tacos d’œufs brouillés et haricots rouges",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["oeuf"],
-    motsCles: ["tortillas de mais certifiees sans gluten","oeufs","haricots rouges cuits","tomate concassee","poivron"],
-    kcal: 445, proteines: 30, glucides: 47, lipides: 15,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Tortillas de maïs certifiées sans gluten", quantite: 2, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Haricots rouges cuits", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivron", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire mijoter haricots rouges, tomate, poivron et épices.",
-      "Brouiller les œufs à part.",
-      "Réchauffer les tortillas.",
-      "Garnir avec haricots, œufs et coriandre.",
-    ],
-  },
-  {
-    id: "plat-pates-completes-au-poulet-et-courgette",
-    nom: "Pâtes complètes au poulet et courgette",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["sans-porc"],
-    objectifs: ["perte","muscle"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["pates completes cuites","blanc de poulet","courgette","tomate concassee"],
-    kcal: 470, proteines: 39, glucides: 56, lipides: 10,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Pâtes complètes cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Blanc de poulet", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Courgette", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pâtes.",
-      "Faire revenir le poulet avec l’ail et l’huile d’olive.",
-      "Ajouter courgette et tomate concassée.",
-      "Mélanger avec les pâtes et terminer avec basilic.",
-    ],
-  },
-  {
-    id: "plat-dahl-de-lentilles-corail-a-la-patate-douce",
-    nom: "Dahl de lentilles corail à la patate douce",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["lentilles corail cuites","patate douce","epinards","tomate concassee","oignon"],
-    kcal: 430, proteines: 20, glucides: 66, lipides: 8,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Lentilles corail cuites", quantite: 160, unite: "g", rayon: "Épicerie" },
-      { nom: "Patate douce", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Épinards", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Curry", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire la patate douce en cubes.",
-      "Faire revenir oignon, épices et tomate.",
-      "Ajouter lentilles corail, patate douce et épinards.",
-      "Laisser mijoter quelques minutes et servir avec coriandre.",
-    ],
-  },
-  {
-    id: "plat-salade-piemontaise-legere-oeufs-et-pommes-de-t",
-    nom: "Salade piémontaise légère, œufs et pommes de terre",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["oeuf"],
-    motsCles: ["pommes de terre","oeufs","salade verte","cornichons"],
-    kcal: 430, proteines: 19, glucides: 45, lipides: 18,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Pommes de terre", quantite: 220, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Salade verte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cornichons", quantite: 40, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Vinaigre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre et les œufs.",
-      "Couper les pommes de terre tièdes en morceaux.",
-      "Mélanger moutarde, vinaigre, huile et ciboulette.",
-      "Ajouter œufs, cornichons et salade verte.",
-    ],
-  },
-  {
-    id: "plat-poulet-facon-couscous-semoule-et-pois-chiches",
-    nom: "Poulet façon couscous, semoule et pois chiches",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["sans-porc"],
-    objectifs: ["perte","muscle"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["blanc de poulet","semoule complete cuite","pois chiches cuits","carotte","tomate concassee"],
-    kcal: 480, proteines: 42, glucides: 55, lipides: 10,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Blanc de poulet", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Semoule complète cuite", quantite: 130, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pois chiches cuits", quantite: 80, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir le poulet avec les épices.",
-      "Ajouter carotte, tomate et pois chiches.",
-      "Préparer la semoule complète.",
-      "Servir avec citron et persil frais.",
-    ],
-  },
-  {
-    id: "plat-pates-sans-gluten-au-colin-et-courgette",
-    nom: "Pâtes sans gluten au colin et courgette",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["poisson"],
-    motsCles: ["pates sans gluten cuites","colin","tomate concassee","courgette","citron"],
-    kcal: 435, proteines: 35, glucides: 56, lipides: 7,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Pâtes sans gluten cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Colin", quantite: 140, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pâtes sans gluten.",
-      "Cuire le colin à la poêle avec citron et poivre.",
-      "Faire mijoter tomate, courgette et ail.",
-      "Mélanger les pâtes avec la sauce et servir avec le poisson émietté.",
-    ],
-  },
-  {
-    id: "plat-polenta-cremeuse-aux-haricots-rouges",
-    nom: "Polenta crémeuse aux haricots rouges",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["polenta cuite","haricots rouges cuits","tomate concassee","poivron","oignon"],
-    kcal: 445, proteines: 18, glucides: 72, lipides: 9,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Polenta cuite", quantite: 180, unite: "g", rayon: "Épicerie" },
-      { nom: "Haricots rouges cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivron", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon et poivron avec l’huile.",
-      "Ajouter tomate, haricots rouges, cumin et paprika.",
-      "Réchauffer la polenta avec un peu d’eau.",
-      "Servir la poêlée de haricots sur la polenta.",
-    ],
-  },
-  {
-    id: "plat-pain-perdu-sale-a-la-dinde-et-epinards",
-    nom: "Pain perdu salé à la dinde et épinards",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: ['oeuf', 'lactose', 'gluten'],
-    motsCles: ["pain complet","oeuf","blancs d’oeufs","dinde cuite","lait demi-ecreme"],
-    kcal: 435, proteines: 35, glucides: 42, lipides: 14,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Pain complet", quantite: 70, unite: "g", rayon: "Boulangerie" },
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Blancs d’œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Dinde cuite", quantite: 70, unite: "g", rayon: "Boucherie" },
-      { nom: "Lait demi-écrémé", quantite: 60, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Épinards", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Battre l’œuf, les blancs, le lait, la muscade et le poivre.",
-      "Tremper le pain complet dans le mélange.",
-      "Cuire à la poêle antiadhésive avec les épinards et la dinde.",
-      "Servir chaud façon pain perdu salé.",
-    ],
-  },
-  {
-    id: "plat-poelee-de-boeuf-hache-chou-et-pommes-de-terre",
-    nom: "Poêlée de bœuf haché, chou et pommes de terre",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["boeuf hache 5 %","pommes de terre","chou blanc","oignon"],
-    kcal: 455, proteines: 33, glucides: 44, lipides: 17,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Bœuf haché 5 %", quantite: 120, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Chou blanc", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre en cubes.",
-      "Faire revenir oignon, ail, chou et paprika avec l’huile.",
-      "Ajouter le bœuf haché et cuire à feu moyen.",
-      "Mélanger avec les pommes de terre et terminer avec persil.",
-    ],
-  },
-  {
-    id: "plat-crumble-sale-de-legumes-et-pois-chiches",
-    nom: "Crumble salé de légumes et pois chiches",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["pois chiches cuits","courgette","tomate","carotte","flocons d’avoine"],
-    kcal: 430, proteines: 18, glucides: 58, lipides: 12,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Pois chiches cuits", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Courgette", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Flocons d’avoine", quantite: 20, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Herbes de Provence", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper les légumes et les déposer dans un petit plat.",
-      "Ajouter les pois chiches, ail et herbes de Provence.",
-      "Mélanger les flocons d’avoine avec l’huile et le persil.",
-      "Répartir dessus puis cuire au four façon crumble salé.",
-    ],
-  },
-  {
-    id: "plat-tortilla-gratinee-a-la-dinde-et-champignons",
-    nom: "Tortilla gratinée à la dinde et champignons",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: ["lactose"],
-    motsCles: ["tortilla complete","fromage blanc 0 %","dinde cuite","oignon","champignons"],
-    kcal: 430, proteines: 32, glucides: 48, lipides: 10,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Tortilla complète", quantite: 1, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Fromage blanc 0 %", quantite: 100, unite: "g", rayon: "Crèmerie" },
-      { nom: "Dinde cuite", quantite: 80, unite: "g", rayon: "Boucherie" },
-      { nom: "Oignon", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Tartiner la tortilla avec le fromage blanc assaisonné.",
-      "Ajouter dinde, oignon émincé et champignons.",
-      "Cuire au four jusqu’à ce que les bords soient dorés.",
-      "Terminer avec ciboulette.",
-    ],
-  },
-  {
-    id: "pd-porridge-banane-whey-et-beurre-de-cacahuete",
-    nom: "Porridge banane, whey et beurre de cacahuète",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: ['lactose', 'arachide', 'gluten'],
-    motsCles: ["flocons d’avoine","lait demi-ecreme","banane","whey vanille","beurre de cacahuete"],
-    kcal: 390, proteines: 24, glucides: 55, lipides: 10,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Flocons d’avoine", quantite: 50, unite: "g", rayon: "Épicerie" },
-      { nom: "Lait demi-écrémé", quantite: 150, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Banane", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Whey vanille", quantite: 15, unite: "g", rayon: "Crèmerie" },
-      { nom: "Beurre de cacahuète", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Chauffer l’avoine avec le lait et la cannelle.",
-      "Hors feu, ajouter la whey progressivement.",
+    "id": "pd-skyr-banane-muesli",
+    "nom": "Skyr banane muesli",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose",
+      "gluten"
+    ],
+    "kcal": 390,
+    "proteines": 28,
+    "glucides": 52,
+    "lipides": 8,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "skyr",
+      "banane",
+      "muesli"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "muesli",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
       "Ajouter la banane en rondelles.",
-      "Terminer avec le beurre de cacahuète.",
-    ],
+      "Ajouter le muesli."
+    ]
   },
   {
-    id: "pd-fromage-blanc-pomme-et-muesli",
-    nom: "Fromage blanc, pomme et muesli",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['lactose', 'gluten'],
-    motsCles: ["fromage blanc 0 %","pomme","muesli simple","zeste de citron"],
-    kcal: 355, proteines: 28, glucides: 45, lipides: 7,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Fromage blanc 0 %", quantite: 200, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pomme", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Muesli simple", quantite: 30, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Zeste de citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
+    "id": "pd-fromage-blanc-pomme-avoine",
+    "nom": "Fromage blanc pomme avoine",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
     ],
-    etapes: [
-      "Déposer le fromage blanc dans un bol.",
-      "Couper la pomme en petits dés.",
-      "Ajouter le muesli.",
-      "Terminer avec cannelle et zeste de citron.",
+    "budget": "eco",
+    "allergenes": [
+      "lactose",
+      "gluten"
     ],
+    "kcal": 360,
+    "proteines": 24,
+    "glucides": 48,
+    "lipides": 7,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "fromage blanc",
+      "pomme",
+      "avoine"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter la pomme coupée.",
+      "Ajouter l'avoine et le miel."
+    ]
   },
   {
-    id: "pd-omelette-salee-pain-complet-et-crudites",
-    nom: "Omelette salée, pain complet et crudités",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["perte","muscle"],
-    budget: "eco",
-    allergenes: ['oeuf', 'gluten'],
-    motsCles: ["oeufs","blancs d’oeufs","pain complet","tomate","salade verte"],
-    kcal: 430, proteines: 31, glucides: 42, lipides: 16,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Blancs d’œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pain complet", quantite: 60, unite: "g", rayon: "Boulangerie" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Salade verte", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
+    "id": "pd-fromage-blanc-compote-cereales",
+    "nom": "Fromage blanc compote céréales",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
     ],
-    etapes: [
-      "Battre les œufs avec les blancs, la ciboulette et le poivre.",
-      "Cuire en omelette.",
-      "Faire griller le pain complet.",
-      "Servir avec tomate et salade verte.",
+    "budget": "eco",
+    "allergenes": [
+      "lactose",
+      "gluten"
     ],
-  },
-  {
-    id: "pd-pancakes-avoine-banane-au-cacao",
-    nom: "Pancakes avoine-banane au cacao",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["americaine"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: ['oeuf', 'gluten'],
-    motsCles: ["flocons d’avoine","oeuf","blancs d’oeufs","banane","cacao non sucre"],
-    kcal: 405, proteines: 24, glucides: 54, lipides: 11,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Flocons d’avoine", quantite: 45, unite: "g", rayon: "Épicerie" },
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Blancs d’œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Banane", quantite: 70, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cacao non sucré", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
+    "kcal": 340,
+    "proteines": 23,
+    "glucides": 50,
+    "lipides": 5,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "fromage blanc",
+      "compote",
+      "céréales"
     ],
-    etapes: [
-      "Mixer avoine, œuf, blancs, banane, cacao et cannelle.",
-      "Cuire en petits pancakes dans une poêle antiadhésive.",
-      "Retourner à mi-cuisson.",
-      "Servir tiède.",
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "compote sans sucres ajoutés",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "céréales complètes",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
     ],
-  },
-  {
-    id: "pd-semoule-au-lait-whey-et-compote",
-    nom: "Semoule au lait, whey et compote",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: ['lactose', 'gluten'],
-    motsCles: ["semoule fine","lait demi-ecreme","whey vanille","compote de pomme sans sucres ajoutes"],
-    kcal: 395, proteines: 22, glucides: 64, lipides: 6,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Semoule fine", quantite: 60, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Lait demi-écrémé", quantite: 200, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Whey vanille", quantite: 10, unite: "g", rayon: "Crèmerie" },
-      { nom: "Compote de pomme sans sucres ajoutés", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire la semoule dans le lait à feu doux.",
-      "Hors feu, incorporer la whey.",
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
       "Ajouter la compote.",
-      "Terminer avec la cannelle.",
-    ],
+      "Ajouter les céréales."
+    ]
   },
   {
-    id: "pd-tartine-de-thon-concombre-et-tomate",
-    nom: "Tartine de thon, concombre et tomate",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["sans-porc"],
-    objectifs: ["perte","muscle"],
-    budget: "eco",
-    allergenes: ['poisson', 'gluten'],
-    motsCles: ["pain complet","thon au naturel egoutte","concombre","tomate","citron"],
-    kcal: 400, proteines: 32, glucides: 40, lipides: 12,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Pain complet", quantite: 60, unite: "g", rayon: "Boulangerie" },
-      { nom: "Thon au naturel égoutté", quantite: 90, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
+    "id": "pd-yaourt-banane-cereales",
+    "nom": "Yaourt banane céréales",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
     ],
-    etapes: [
-      "Mélanger le thon avec moutarde, citron et poivre.",
-      "Faire griller le pain complet.",
-      "Garnir avec thon, concombre et tomate.",
-      "Servir immédiatement.",
+    "budget": "eco",
+    "allergenes": [
+      "lactose",
+      "gluten"
     ],
-  },
-  {
-    id: "pd-overnight-oats-poire-et-yaourt-soja",
-    nom: "Overnight oats poire et yaourt soja",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['soja', 'gluten'],
-    motsCles: ["flocons d’avoine","yaourt soja nature","poire","graines de chia"],
-    kcal: 370, proteines: 19, glucides: 55, lipides: 9,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Flocons d’avoine", quantite: 45, unite: "g", rayon: "Épicerie" },
-      { nom: "Yaourt soja nature", quantite: 150, unite: "g", rayon: "Crèmerie" },
-      { nom: "Poire", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Graines de chia", quantite: 8, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
+    "kcal": 350,
+    "proteines": 17,
+    "glucides": 55,
+    "lipides": 7,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "yaourt",
+      "banane",
+      "céréales"
     ],
-    etapes: [
-      "Mélanger l’avoine, le yaourt soja et les graines de chia.",
-      "Ajouter la poire en dés.",
-      "Laisser reposer au frais au moins 30 minutes.",
-      "Mélanger avant dégustation.",
+    "ingredients": [
+      {
+        "nom": "yaourt nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "céréales complètes",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
     ],
-  },
-  {
-    id: "pd-tacos-matin-oeufs-et-haricots-rouges",
-    nom: "Tacos matin œufs et haricots rouges",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["mexicaine"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: ["oeuf"],
-    motsCles: ["tortillas de mais certifiees sans gluten","oeufs","haricots rouges cuits","tomate concassee"],
-    kcal: 420, proteines: 29, glucides: 43, lipides: 15,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Tortillas de maïs certifiées sans gluten", quantite: 2, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Haricots rouges cuits", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 70, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire mijoter haricots rouges, tomate, cumin et paprika.",
-      "Brouiller les œufs.",
-      "Réchauffer les tortillas.",
-      "Garnir avec œufs, haricots et coriandre.",
-    ],
-  },
-  {
-    id: "pd-tartine-de-pois-chiches-au-tahini",
-    nom: "Tartine de pois chiches au tahini",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["orientale"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['sesame', 'gluten'],
-    motsCles: ["pain complet","pois chiches cuits","tahini","concombre","citron"],
-    kcal: 385, proteines: 18, glucides: 58, lipides: 10,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Pain complet", quantite: 70, unite: "g", rayon: "Boulangerie" },
-      { nom: "Pois chiches cuits", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Tahini", quantite: 8, unite: "g", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser les pois chiches avec tahini, citron et cumin.",
-      "Faire griller le pain complet.",
-      "Tartiner avec la préparation.",
-      "Ajouter concombre et persil.",
-    ],
-  },
-  {
-    id: "pd-skyr-compote-et-corn-flakes-sans-gluten",
-    nom: "Skyr compote et corn flakes sans gluten",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["lactose"],
-    motsCles: ["skyr nature 0 %","compote de pomme sans sucres ajoutes","corn flakes nature certifies sans gluten"],
-    kcal: 360, proteines: 25, glucides: 43, lipides: 8,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Skyr nature 0 %", quantite: 200, unite: "g", rayon: "Crèmerie" },
-      { nom: "Compote de pomme sans sucres ajoutés", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Corn flakes nature certifiés sans gluten", quantite: 25, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Déposer le skyr dans un bol.",
-      "Ajouter la compote de pomme.",
-      "Parsemer de corn flakes certifiés sans gluten.",
-      "Terminer avec la cannelle.",
-    ],
-  },
-  {
-    id: "pd-oeufs-brouilles-champignons-et-pain-complet",
-    nom: "Œufs brouillés, champignons et pain complet",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['oeuf', 'gluten'],
-    motsCles: ["pain complet","oeufs","champignons","tomate"],
-    kcal: 405, proteines: 29, glucides: 42, lipides: 14,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Pain complet", quantite: 60, unite: "g", rayon: "Boulangerie" },
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Champignons", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire griller le pain complet.",
-      "Poêler les champignons avec un peu d’eau, poivre et ciboulette.",
-      "Brouiller les œufs à feu doux.",
-      "Servir les œufs sur le pain avec tomate et champignons.",
-    ],
-  },
-  {
-    id: "pd-semoule-cremeuse-au-fromage-blanc-et-compote",
-    nom: "Semoule crémeuse au fromage blanc et compote",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: ['lactose', 'gluten'],
-    motsCles: ["semoule fine","lait demi-ecreme","fromage blanc 0 %","compote de pomme sans sucres ajoutes"],
-    kcal: 395, proteines: 24, glucides: 61, lipides: 6,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Semoule fine", quantite: 50, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Lait demi-écrémé", quantite: 180, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Fromage blanc 0 %", quantite: 100, unite: "g", rayon: "Crèmerie" },
-      { nom: "Compote de pomme sans sucres ajoutés", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire la semoule dans le lait à feu doux.",
-      "Ajouter le fromage blanc hors feu pour une texture crémeuse.",
-      "Verser dans un bol.",
-      "Ajouter la compote et la cannelle.",
-    ],
-  },
-  {
-    id: "pd-pancakes-de-sarrasin-a-la-banane",
-    nom: "Pancakes de sarrasin à la banane",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["americaine"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "eco",
-    allergenes: ["oeuf"],
-    motsCles: ["farine de sarrasin certifiee sans gluten","oeuf","blancs d’oeufs","banane"],
-    kcal: 380, proteines: 24, glucides: 53, lipides: 9,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Farine de sarrasin certifiée sans gluten", quantite: 45, unite: "g", rayon: "Épicerie" },
-      { nom: "Œuf", quantite: 1, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Blancs d’œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Banane", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mixer la farine de sarrasin, l’œuf, les blancs, la banane et la cannelle.",
-      "Cuire en pancakes dans une poêle antiadhésive.",
-      "Retourner quand les bords se tiennent.",
-      "Servir tiède.",
-    ],
-  },
-  {
-    id: "pd-tartine-de-sardines-et-crudites",
-    nom: "Tartine de sardines et crudités",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["sans-porc"],
-    objectifs: ["perte","muscle"],
-    budget: "eco",
-    allergenes: ['poisson', 'gluten'],
-    motsCles: ["pain complet","sardines au naturel egouttees","tomate","concombre","citron"],
-    kcal: 410, proteines: 31, glucides: 38, lipides: 15,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Pain complet", quantite: 60, unite: "g", rayon: "Boulangerie" },
-      { nom: "Sardines au naturel égouttées", quantite: 80, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser les sardines avec citron, persil et poivre.",
-      "Faire griller le pain.",
-      "Ajouter les sardines sur le pain.",
-      "Servir avec tomate et concombre.",
-    ],
-  },
-  {
-    id: "pd-overnight-oats-pomme-et-avoine",
-    nom: "Overnight oats pomme et avoine",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["flocons d’avoine","compote de pomme sans sucres ajoutes","boisson avoine sans sucres","graines de chia"],
-    kcal: 385, proteines: 17, glucides: 60, lipides: 9,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Flocons d’avoine", quantite: 45, unite: "g", rayon: "Épicerie" },
-      { nom: "Compote de pomme sans sucres ajoutés", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Boisson avoine sans sucres", quantite: 100, unite: "ml", rayon: "Épicerie" },
-      { nom: "Graines de chia", quantite: 12, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger les flocons d’avoine, la compote, la boisson avoine et les graines de chia.",
-      "Ajouter la cannelle.",
-      "Laisser reposer au frais au moins 30 minutes.",
-      "Mélanger avant dégustation.",
-    ],
-  },
-  {
-    id: "pd-tartine-de-haricots-blancs-au-tahini",
-    nom: "Tartine de haricots blancs au tahini",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["orientale"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['sesame', 'gluten'],
-    motsCles: ["pain complet","haricots blancs cuits","tahini","tomate","citron"],
-    kcal: 400, proteines: 20, glucides: 59, lipides: 10,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Pain complet", quantite: 70, unite: "g", rayon: "Boulangerie" },
-      { nom: "Haricots blancs cuits", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Tahini", quantite: 6, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser les haricots blancs avec tahini, citron, cumin et poivre.",
-      "Faire griller le pain complet.",
-      "Tartiner avec la préparation.",
-      "Ajouter tomate et persil.",
-    ],
-  },
-  {
-    id: "pd-fromage-blanc-banane-cacao-et-corn-flakes",
-    nom: "Fromage blanc banane-cacao et corn flakes",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["lactose"],
-    motsCles: ["fromage blanc 0 %","banane","corn flakes nature certifies sans gluten","cacao non sucre"],
-    kcal: 370, proteines: 28, glucides: 39, lipides: 10,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Fromage blanc 0 %", quantite: 200, unite: "g", rayon: "Crèmerie" },
-      { nom: "Banane", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Corn flakes nature certifiés sans gluten", quantite: 25, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cacao non sucré", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger le fromage blanc avec le cacao et la cannelle.",
-      "Ajouter la banane en rondelles.",
-      "Parsemer de corn flakes certifiés sans gluten.",
-      "Servir frais.",
-    ],
-  },
-  {
-    id: "pd-galettes-de-riz-oeufs-brouilles-et-thon",
-    nom: "Galettes de riz, œufs brouillés et thon",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "eco",
-    allergenes: ["oeuf","poisson"],
-    motsCles: ["galettes de riz complet","oeufs","thon au naturel egoutte","tomate","citron"],
-    kcal: 420, proteines: 34, glucides: 41, lipides: 14,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: "Galettes de riz complet", quantite: 2, unite: "pièce", rayon: "Épicerie" },
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Thon au naturel égoutté", quantite: 70, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Brouiller les œufs avec ciboulette et poivre.",
-      "Émietter le thon avec citron.",
-      "Garnir les galettes de riz avec œufs, thon et tomate.",
-      "Servir immédiatement pour garder le croquant.",
-    ],
-  },
-  {
-    id: "pd-poelee-matin-pommes-de-terre-et-pois-chiches",
-    nom: "Poêlée matin pommes de terre et pois chiches",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["pommes de terre","pois chiches cuits","tomate","poivron"],
-    kcal: 390, proteines: 18, glucides: 63, lipides: 8,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Pommes de terre", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pois chiches cuits", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivron", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre en petits dés.",
-      "Faire revenir tomate, poivron, pois chiches et épices dans une poêle antiadhésive.",
-      "Ajouter les pommes de terre.",
-      "Servir avec coriandre fraîche.",
-    ],
-  },
-  {
-    id: "pd-tartine-sucree-fromage-blanc-poire-et-miel",
-    nom: "Tartine sucrée fromage blanc, poire et miel",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: ['lactose', 'gluten'],
-    motsCles: ["pain complet","fromage blanc 0 %","poire","miel"],
-    kcal: 410, proteines: 23, glucides: 58, lipides: 10,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Pain complet", quantite: 60, unite: "g", rayon: "Boulangerie" },
-      { nom: "Fromage blanc 0 %", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Poire", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Miel", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire griller le pain complet.",
-      "Tartiner avec le fromage blanc.",
-      "Ajouter la poire en fines tranches.",
-      "Terminer avec miel et cannelle.",
-    ],
-  },
-  {
-    id: "col-fromage-blanc-banane-cacao",
-    nom: "Fromage blanc banane-cacao",
-    type: "collation",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["lactose"],
-    motsCles: ["fromage blanc 0 %","banane","cacao non sucre"],
-    kcal: 175, proteines: 16, glucides: 22, lipides: 3,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Fromage blanc 0 %", quantite: 150, unite: "g", rayon: "Crèmerie" },
-      { nom: "Banane", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cacao non sucré", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger le fromage blanc avec le cacao et la cannelle.",
-      "Couper la banane en rondelles.",
-      "Ajouter sur le dessus.",
-      "Servir frais.",
-    ],
-  },
-  {
-    id: "col-oeuf-dur-et-batonnets-de-carotte",
-    nom: "Œuf dur et bâtonnets de carotte",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["oeuf"],
-    motsCles: ["oeuf dur","carotte"],
-    kcal: 135, proteines: 8, glucides: 8, lipides: 7,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Œuf dur", quantite: 1, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire l’œuf dur puis le couper en deux.",
-      "Couper la carotte en bâtonnets.",
-      "Assaisonner avec paprika, persil et poivre.",
-      "Servir froid.",
-    ],
-  },
-  {
-    id: "col-popcorn-maison-paprika-ail",
-    nom: "Popcorn maison paprika-ail",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["energie","maintien"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["mais a popcorn"],
-    kcal: 165, proteines: 5, glucides: 28, lipides: 4,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Maïs à popcorn", quantite: 25, unite: "g", rayon: "Épicerie" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail en poudre", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Sel léger", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire éclater le maïs dans une casserole couverte ou à l’air chaud.",
-      "Ajouter paprika et ail en poudre.",
-      "Mélanger et servir tiède.",
-    ],
-  },
-  {
-    id: "col-yaourt-soja-pomme-et-cannelle",
-    nom: "Yaourt soja, pomme et cannelle",
-    type: "collation",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["soja"],
-    motsCles: ["yaourt soja nature enrichi en proteines","pomme"],
-    kcal: 160, proteines: 9, glucides: 20, lipides: 4,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Yaourt soja nature enrichi en protéines", quantite: 150, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pomme", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper la pomme en petits dés.",
-      "Verser le yaourt soja dans un bol.",
-      "Ajouter la pomme et la cannelle.",
-      "Mélanger légèrement.",
-    ],
-  },
-  {
-    id: "col-houmous-express-et-concombre",
-    nom: "Houmous express et concombre",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: ["sesame"],
-    motsCles: ["pois chiches cuits","tahini","citron","concombre"],
-    kcal: 190, proteines: 9, glucides: 24, lipides: 6,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Pois chiches cuits", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Tahini", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Écraser les pois chiches avec tahini, citron et cumin.",
-      "Couper le concombre en rondelles épaisses.",
-      "Utiliser les rondelles comme support pour la tartinade.",
-    ],
-  },
-  {
-    id: "col-tartine-fromage-frais-et-tomate",
-    nom: "Tartine fromage frais et tomate",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['lactose', 'gluten'],
-    motsCles: ["pain complet","fromage frais 0 %","tomate"],
-    kcal: 180, proteines: 14, glucides: 20, lipides: 5,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Pain complet", quantite: 40, unite: "g", rayon: "Boulangerie" },
-      { nom: "Fromage frais 0 %", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire griller le pain complet.",
-      "Tartiner avec le fromage frais.",
-      "Ajouter la tomate en tranches.",
-      "Terminer avec ciboulette et poivre.",
-    ],
-  },
-  {
-    id: "col-thon-et-tomate-au-citron",
-    nom: "Thon et tomate au citron",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["poisson"],
-    motsCles: ["thon au naturel egoutte","tomate","citron"],
-    kcal: 160, proteines: 19, glucides: 8, lipides: 5,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Thon au naturel égoutté", quantite: 70, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Émietter le thon avec citron, persil et poivre.",
-      "Couper la tomate en quartiers.",
-      "Servir le thon sur la tomate ou à côté.",
-    ],
-  },
-  {
-    id: "col-overnight-oats-compote-et-chia",
-    nom: "Overnight oats compote et chia",
-    type: "collation",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["energie","maintien"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["flocons d’avoine","compote de pomme sans sucres ajoutes","graines de chia"],
-    kcal: 210, proteines: 7, glucides: 32, lipides: 6,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Flocons d’avoine", quantite: 35, unite: "g", rayon: "Épicerie" },
-      { nom: "Compote de pomme sans sucres ajoutés", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Graines de chia", quantite: 8, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger les flocons d’avoine avec la compote.",
-      "Ajouter les graines de chia et la cannelle.",
-      "Laisser reposer quelques minutes avant de déguster.",
-    ],
-  },
-  {
-    id: "col-oeuf-dur-concombre-et-tomate",
-    nom: "Œuf dur, concombre et tomate",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["oeuf"],
-    motsCles: ["oeuf dur","concombre","tomate"],
-    kcal: 145, proteines: 13, glucides: 12, lipides: 5,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Œuf dur", quantite: 1, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Vinaigre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire l’œuf dur puis le couper en morceaux.",
-      "Mélanger avec concombre et tomate.",
-      "Ajouter vinaigre, ciboulette et poivre.",
-      "Servir frais.",
-    ],
-  },
-  {
-    id: "col-skyr-et-compote-de-poire",
-    nom: "Skyr et compote de poire",
-    type: "collation",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["lactose"],
-    motsCles: ["skyr nature 0 %","compote de poire sans sucres ajoutes"],
-    kcal: 195, proteines: 18, glucides: 22, lipides: 4,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Skyr nature 0 %", quantite: 170, unite: "g", rayon: "Crèmerie" },
-      { nom: "Compote de poire sans sucres ajoutés", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Déposer le skyr dans un bol.",
-      "Ajouter la compote de poire.",
-      "Mélanger légèrement.",
-      "Terminer avec la cannelle.",
-    ],
-  },
-  {
-    id: "col-fromage-blanc-et-compote-de-pomme",
-    nom: "Fromage blanc et compote de pomme",
-    type: "collation",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["lactose"],
-    motsCles: ["fromage blanc 0 %","compote de pomme sans sucres ajoutes","zeste de citron"],
-    kcal: 165, proteines: 15, glucides: 18, lipides: 4,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Fromage blanc 0 %", quantite: 150, unite: "g", rayon: "Crèmerie" },
-      { nom: "Compote de pomme sans sucres ajoutés", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Zeste de citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Déposer le fromage blanc dans un bol.",
-      "Ajouter la compote.",
-      "Mélanger légèrement.",
-      "Terminer avec cannelle et zeste de citron.",
-    ],
-  },
-  {
-    id: "col-banane-au-cacao",
-    nom: "Banane au cacao",
-    type: "collation",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["energie","maintien"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["banane moyenne","cacao non sucre"],
-    kcal: 190, proteines: 6, glucides: 32, lipides: 4,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Banane moyenne", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Cacao non sucré", quantite: 10, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper la banane en rondelles.",
-      "Saupoudrer de cacao et cannelle.",
-      "Mélanger délicatement.",
-      "Servir frais ou à température ambiante.",
-    ],
-  },
-  {
-    id: "col-tartine-de-thon-a-la-moutarde",
-    nom: "Tartine de thon à la moutarde",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['poisson', 'gluten'],
-    motsCles: ["petite tranche pain complet","thon au naturel egoutte","citron"],
-    kcal: 155, proteines: 18, glucides: 10, lipides: 4,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Petite tranche pain complet", quantite: 1, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Thon au naturel égoutté", quantite: 60, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger le thon avec moutarde, citron et poivre.",
-      "Faire griller le pain complet.",
-      "Tartiner le thon dessus.",
-      "Servir immédiatement.",
-    ],
-  },
-  {
-    id: "col-tartinade-de-haricots-blancs-et-crudites",
-    nom: "Tartinade de haricots blancs et crudités",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: [],
-    motsCles: ["haricots blancs cuits","carotte","citron"],
-    kcal: 205, proteines: 9, glucides: 25, lipides: 8,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Haricots blancs cuits", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser les haricots blancs avec citron, cumin et huile d’olive.",
-      "Couper la carotte en bâtonnets.",
-      "Servir la tartinade avec les crudités.",
-      "Ajouter le persil.",
-    ],
-  },
-  {
-    id: "col-oeuf-dur-et-tomate-ciboulette",
-    nom: "Œuf dur et tomate ciboulette",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["oeuf"],
-    motsCles: ["oeuf dur","tomate"],
-    kcal: 145, proteines: 12, glucides: 12, lipides: 5,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Œuf dur", quantite: 1, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Vinaigre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire l’œuf dur puis le couper en quartiers.",
-      "Couper la tomate en dés.",
-      "Ajouter vinaigre, ciboulette et poivre.",
-      "Servir frais.",
-    ],
-  },
-  {
-    id: "col-yaourt-avoine-et-poire",
-    nom: "Yaourt, avoine et poire",
-    type: "collation",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc"],
-    objectifs: ["energie","maintien"],
-    budget: "eco",
-    allergenes: ['lactose', 'gluten'],
-    motsCles: ["yaourt nature","flocons d’avoine","poire"],
-    kcal: 220, proteines: 10, glucides: 32, lipides: 6,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Yaourt nature", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Flocons d’avoine", quantite: 25, unite: "g", rayon: "Épicerie" },
-      { nom: "Poire", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
+    "etapes": [
       "Verser le yaourt dans un bol.",
-      "Ajouter les flocons d’avoine.",
-      "Couper la poire en dés.",
-      "Mélanger avec la cannelle.",
-    ],
+      "Ajouter la banane en rondelles.",
+      "Ajouter les céréales."
+    ]
   },
   {
-    id: "col-tartine-de-pois-chiches-au-paprika",
-    nom: "Tartine de pois chiches au paprika",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["orientale"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["pain complet","pois chiches cuits","citron"],
-    kcal: 185, proteines: 8, glucides: 25, lipides: 5,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Pain complet", quantite: 40, unite: "g", rayon: "Boulangerie" },
-      { nom: "Pois chiches cuits", quantite: 70, unite: "g", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
+    "id": "pd-skyr-pomme-cannelle",
+    "nom": "Skyr pomme cannelle",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
     ],
-    etapes: [
-      "Écraser les pois chiches avec citron, paprika et poivre.",
-      "Faire griller le pain complet.",
-      "Tartiner avec les pois chiches.",
-      "Ajouter le persil.",
+    "budget": "eco",
+    "allergenes": [
+      "lactose",
+      "gluten"
     ],
+    "kcal": 355,
+    "proteines": 27,
+    "glucides": 46,
+    "lipides": 6,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "skyr",
+      "pomme",
+      "avoine"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter la pomme coupée.",
+      "Ajouter l'avoine et la cannelle."
+    ]
   },
   {
-    id: "col-skyr-pomme-cacao",
-    nom: "Skyr pomme-cacao",
-    type: "collation",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["lactose"],
-    motsCles: ["skyr nature 0 %","pomme","cacao non sucre"],
-    kcal: 170, proteines: 17, glucides: 14, lipides: 5,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Skyr nature 0 %", quantite: 150, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pomme", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cacao non sucré", quantite: 5, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
+    "id": "pd-fromage-blanc-banane-avoine",
+    "nom": "Fromage blanc banane avoine",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
     ],
-    etapes: [
-      "Mélanger le skyr avec le cacao et la cannelle.",
-      "Couper la pomme en petits dés.",
-      "Ajouter sur le dessus.",
-      "Servir frais.",
+    "budget": "eco",
+    "allergenes": [
+      "lactose",
+      "gluten"
     ],
+    "kcal": 370,
+    "proteines": 24,
+    "glucides": 55,
+    "lipides": 6,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "fromage blanc",
+      "banane",
+      "avoine"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter la banane en rondelles.",
+      "Ajouter l'avoine."
+    ]
   },
   {
-    id: "col-bouchees-avoine-banane-et-chia",
-    nom: "Bouchées avoine-banane et chia",
-    type: "collation",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc"],
-    objectifs: ["maintien","energie"],
-    budget: "eco",
-    allergenes: ['gluten'],
-    motsCles: ["flocons d’avoine","banane","graines de chia"],
-    kcal: 230, proteines: 7, glucides: 36, lipides: 7,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Flocons d’avoine", quantite: 35, unite: "g", rayon: "Épicerie" },
-      { nom: "Banane", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Graines de chia", quantite: 8, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Un peu d’eau", quantite: 1, unite: "pincée", rayon: "Fruits & légumes" },
+    "id": "pd-yaourt-pomme-muesli",
+    "nom": "Yaourt pomme muesli",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
     ],
-    etapes: [
+    "budget": "eco",
+    "allergenes": [
+      "lactose",
+      "gluten"
+    ],
+    "kcal": 345,
+    "proteines": 18,
+    "glucides": 50,
+    "lipides": 7,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "yaourt",
+      "pomme",
+      "muesli"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "muesli",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt dans un bol.",
+      "Ajouter la pomme coupée.",
+      "Ajouter le muesli."
+    ]
+  },
+  {
+    "id": "pd-skyr-compote-corn-flakes",
+    "nom": "Skyr compote corn flakes",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose",
+      "gluten"
+    ],
+    "kcal": 330,
+    "proteines": 27,
+    "glucides": 49,
+    "lipides": 3,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "skyr",
+      "compote",
+      "corn flakes"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "compote sans sucres ajoutés",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "corn flakes",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter la compote.",
+      "Ajouter les corn flakes."
+    ]
+  },
+  {
+    "id": "pd-fromage-blanc-poire-muesli",
+    "nom": "Fromage blanc poire muesli",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose",
+      "gluten"
+    ],
+    "kcal": 360,
+    "proteines": 24,
+    "glucides": 49,
+    "lipides": 7,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "fromage blanc",
+      "poire",
+      "muesli"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "poire",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "muesli",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter la poire coupée.",
+      "Ajouter le muesli."
+    ]
+  },
+  {
+    "id": "pd-yaourt-grec-miel-banane",
+    "nom": "Yaourt grec miel banane",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 370,
+    "proteines": 22,
+    "glucides": 42,
+    "lipides": 12,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "yaourt grec",
+      "miel",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt grec",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt grec dans un bol.",
+      "Ajouter la banane en rondelles.",
+      "Ajouter le miel."
+    ]
+  },
+  {
+    "id": "pd-skyr-fruits-rouges-muesli",
+    "nom": "Skyr fruits rouges muesli",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose",
+      "gluten"
+    ],
+    "kcal": 370,
+    "proteines": 28,
+    "glucides": 45,
+    "lipides": 7,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "skyr",
+      "fruits rouges",
+      "muesli"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fruits rouges",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "muesli",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter les fruits rouges.",
+      "Ajouter le muesli."
+    ]
+  },
+  {
+    "id": "pd-fromage-blanc-fraises-cereales",
+    "nom": "Fromage blanc fraises céréales",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose",
+      "gluten"
+    ],
+    "kcal": 350,
+    "proteines": 24,
+    "glucides": 45,
+    "lipides": 6,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "fromage blanc",
+      "fraises",
+      "céréales"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fraises",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "céréales complètes",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter les fraises coupées.",
+      "Ajouter les céréales."
+    ]
+  },
+  {
+    "id": "pd-skyr-kiwi-avoine",
+    "nom": "Skyr kiwi avoine",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose",
+      "gluten"
+    ],
+    "kcal": 345,
+    "proteines": 27,
+    "glucides": 43,
+    "lipides": 6,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "skyr",
+      "kiwi",
+      "avoine"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "kiwi",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter le kiwi coupé.",
+      "Ajouter l'avoine et le miel."
+    ]
+  },
+  {
+    "id": "pd-yaourt-grec-peche-muesli",
+    "nom": "Yaourt grec pêche muesli",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose",
+      "gluten"
+    ],
+    "kcal": 390,
+    "proteines": 23,
+    "glucides": 46,
+    "lipides": 13,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "yaourt grec",
+      "pêche",
+      "muesli"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt grec",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pêche",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "muesli",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt grec dans un bol.",
+      "Ajouter la pêche coupée.",
+      "Ajouter le muesli."
+    ]
+  },
+  {
+    "id": "pd-fromage-blanc-banane-cacahuete",
+    "nom": "Fromage blanc banane cacahuète",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose",
+      "arachide"
+    ],
+    "kcal": 420,
+    "proteines": 26,
+    "glucides": 42,
+    "lipides": 14,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "fromage blanc",
+      "banane",
+      "cacahuète"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter la banane en rondelles.",
+      "Ajouter le beurre de cacahuète."
+    ]
+  },
+  {
+    "id": "pd-skyr-clementine-cereales",
+    "nom": "Skyr clémentine céréales",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose",
+      "gluten"
+    ],
+    "kcal": 340,
+    "proteines": 27,
+    "glucides": 47,
+    "lipides": 4,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "skyr",
+      "clémentine",
+      "céréales"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "clémentine",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "céréales complètes",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter les quartiers de clémentine.",
+      "Ajouter les céréales."
+    ]
+  },
+  {
+    "id": "pd-yaourt-chocolat-banane",
+    "nom": "Yaourt chocolat banane",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose",
+      "gluten"
+    ],
+    "kcal": 410,
+    "proteines": 20,
+    "glucides": 52,
+    "lipides": 13,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "yaourt",
+      "chocolat",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "chocolat noir",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt dans un bol.",
+      "Ajouter la banane en rondelles.",
+      "Ajouter l'avoine et le chocolat."
+    ]
+  },
+  {
+    "id": "pd-fromage-blanc-fruits-rouges",
+    "nom": "Fromage blanc fruits rouges",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 350,
+    "proteines": 25,
+    "glucides": 34,
+    "lipides": 12,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "fromage blanc",
+      "fruits rouges",
+      "chia"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fruits rouges",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "graines de chia",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter les fruits rouges.",
+      "Ajouter les graines de chia et le miel."
+    ]
+  },
+  {
+    "id": "pd-tartines-beurre-confiture",
+    "nom": "Tartines beurre confiture",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 330,
+    "proteines": 9,
+    "glucides": 48,
+    "lipides": 11,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "pain",
+      "beurre",
+      "confiture"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "beurre",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "confiture",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Faire griller le pain si souhaité.",
+      "Tartiner le beurre.",
+      "Ajouter la confiture."
+    ]
+  },
+  {
+    "id": "pd-tartines-beurre-de-cacahuete-banane",
+    "nom": "Tartines beurre de cacahuète banane",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "arachide"
+    ],
+    "kcal": 420,
+    "proteines": 15,
+    "glucides": 55,
+    "lipides": 16,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain",
+      "cacahuète",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Tartiner le pain avec le beurre de cacahuète.",
+      "Couper la banane en rondelles.",
+      "Déposer la banane sur les tartines."
+    ]
+  },
+  {
+    "id": "pd-toast-fromage-frais-miel",
+    "nom": "Toast fromage frais miel",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 310,
+    "proteines": 12,
+    "glucides": 42,
+    "lipides": 9,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "pain",
+      "fromage frais",
+      "miel"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Faire griller le pain.",
+      "Tartiner le fromage frais.",
+      "Ajouter le miel."
+    ]
+  },
+  {
+    "id": "pd-toast-ricotta-fruits-rouges",
+    "nom": "Toast ricotta fruits rouges",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 340,
+    "proteines": 14,
+    "glucides": 45,
+    "lipides": 11,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain",
+      "ricotta",
+      "fruits rouges"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "ricotta",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fruits rouges",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Faire griller le pain.",
+      "Étaler la ricotta.",
+      "Ajouter les fruits rouges."
+    ]
+  },
+  {
+    "id": "pd-tartines-chocolat-banane",
+    "nom": "Tartines chocolat banane",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 390,
+    "proteines": 9,
+    "glucides": 60,
+    "lipides": 12,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain",
+      "chocolat",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "chocolat noir",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Faire griller le pain.",
+      "Ajouter le chocolat noir en copeaux.",
+      "Ajouter la banane en rondelles."
+    ]
+  },
+  {
+    "id": "pd-tartines-puree-d-amandes-pomme",
+    "nom": "Tartines purée d'amandes pomme",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "fruits-a-coque"
+    ],
+    "kcal": 405,
+    "proteines": 12,
+    "glucides": 48,
+    "lipides": 18,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain",
+      "amande",
+      "pomme"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "purée d'amandes",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Tartiner le pain avec la purée d'amandes.",
+      "Couper la pomme en fines tranches.",
+      "Ajouter la pomme sur les tartines."
+    ]
+  },
+  {
+    "id": "pd-toast-avocat-oeuf",
+    "nom": "Toast avocat oeuf",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "oeuf"
+    ],
+    "kcal": 430,
+    "proteines": 18,
+    "glucides": 35,
+    "lipides": 24,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "pain",
+      "avocat",
+      "oeuf"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "avocat",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oeuf",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Faire cuire les oeufs.",
+      "Écraser l'avocat sur le pain.",
+      "Ajouter les oeufs sur les tartines."
+    ]
+  },
+  {
+    "id": "pd-tartines-jambon-fromage",
+    "nom": "Tartines jambon fromage",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 380,
+    "proteines": 24,
+    "glucides": 36,
+    "lipides": 14,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain",
+      "jambon",
+      "fromage"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "jambon blanc",
+        "quantite": 1,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Déposer le jambon sur le pain.",
+      "Ajouter l'emmental.",
+      "Faire toaster si souhaité."
+    ]
+  },
+  {
+    "id": "pd-toast-fromage-frais-tomate",
+    "nom": "Toast fromage frais tomate",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 300,
+    "proteines": 12,
+    "glucides": 38,
+    "lipides": 10,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain",
+      "fromage frais",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Tartiner le fromage frais sur le pain.",
+      "Couper la tomate en rondelles.",
+      "Ajouter la tomate sur les tartines."
+    ]
+  },
+  {
+    "id": "pd-toast-saumon-fromage-frais",
+    "nom": "Toast saumon fromage frais",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose",
+      "poisson"
+    ],
+    "kcal": 390,
+    "proteines": 25,
+    "glucides": 34,
+    "lipides": 17,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain",
+      "saumon",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "saumon fumé",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le fromage frais sur le pain.",
+      "Ajouter le saumon fumé.",
+      "Servir frais."
+    ]
+  },
+  {
+    "id": "pd-tartines-dinde-fromage-frais",
+    "nom": "Tartines dinde fromage frais",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 340,
+    "proteines": 26,
+    "glucides": 36,
+    "lipides": 10,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain",
+      "dinde",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "blanc de dinde",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le fromage frais sur le pain.",
+      "Ajouter le blanc de dinde.",
+      "Refermer ou servir en tartines."
+    ]
+  },
+  {
+    "id": "pd-toast-mozzarella-tomate",
+    "nom": "Toast mozzarella tomate",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 360,
+    "proteines": 18,
+    "glucides": 36,
+    "lipides": 16,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain",
+      "mozzarella",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "mozzarella",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Couper la tomate et la mozzarella.",
+      "Déposer sur le pain.",
+      "Faire toaster si souhaité."
+    ]
+  },
+  {
+    "id": "pd-toast-oeuf-fromage",
+    "nom": "Toast oeuf fromage",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose",
+      "oeuf"
+    ],
+    "kcal": 400,
+    "proteines": 24,
+    "glucides": 34,
+    "lipides": 18,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "pain",
+      "oeuf",
+      "fromage"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "oeuf",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Faire cuire les oeufs.",
+      "Déposer les oeufs sur le pain.",
+      "Ajouter l'emmental."
+    ]
+  },
+  {
+    "id": "pd-tartines-houmous-concombre",
+    "nom": "Tartines houmous concombre",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "sesame"
+    ],
+    "kcal": 340,
+    "proteines": 12,
+    "glucides": 45,
+    "lipides": 12,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain",
+      "houmous",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "houmous",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Tartiner le houmous sur le pain.",
+      "Couper le concombre.",
+      "Ajouter le concombre sur les tartines."
+    ]
+  },
+  {
+    "id": "pd-tartines-thon-fromage-frais",
+    "nom": "Tartines thon fromage frais",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose",
+      "poisson"
+    ],
+    "kcal": 360,
+    "proteines": 30,
+    "glucides": 34,
+    "lipides": 10,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain",
+      "thon",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Égoutter le thon.",
+      "Mélanger avec le fromage frais.",
+      "Déposer sur le pain."
+    ]
+  },
+  {
+    "id": "pd-toast-avocat-dinde",
+    "nom": "Toast avocat dinde",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 410,
+    "proteines": 24,
+    "glucides": 35,
+    "lipides": 20,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain",
+      "avocat",
+      "dinde"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "avocat",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "blanc de dinde",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      }
+    ],
+    "etapes": [
+      "Écraser l'avocat sur le pain.",
+      "Ajouter le blanc de dinde.",
+      "Servir en tartines."
+    ]
+  },
+  {
+    "id": "pd-tartines-chevre-miel",
+    "nom": "Tartines chèvre miel",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 370,
+    "proteines": 16,
+    "glucides": 42,
+    "lipides": 15,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain",
+      "chèvre",
+      "miel"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "chèvre frais",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le chèvre sur le pain.",
+      "Ajouter le miel.",
+      "Servir tel quel ou toaster légèrement."
+    ]
+  },
+  {
+    "id": "pd-toast-banane-cannelle",
+    "nom": "Toast banane cannelle",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 310,
+    "proteines": 8,
+    "glucides": 58,
+    "lipides": 5,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain",
+      "banane",
+      "cannelle"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Faire griller le pain.",
+      "Écraser ou couper la banane.",
+      "Ajouter la cannelle."
+    ]
+  },
+  {
+    "id": "pd-ufs-brouilles-pain-complet",
+    "nom": "Œufs brouillés pain complet",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 390,
+    "proteines": 24,
+    "glucides": 34,
+    "lipides": 17,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "oeuf",
+      "pain",
+      "beurre"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "beurre",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Battre les oeufs.",
+      "Cuire doucement avec le beurre.",
+      "Servir avec le pain complet."
+    ]
+  },
+  {
+    "id": "pd-omelette-jambon-fromage",
+    "nom": "Omelette jambon fromage",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 360,
+    "proteines": 31,
+    "glucides": 2,
+    "lipides": 25,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "oeuf",
+      "jambon",
+      "fromage"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "jambon blanc",
+        "quantite": 1,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Battre les oeufs.",
+      "Ajouter le jambon en morceaux.",
+      "Cuire avec l'emmental."
+    ]
+  },
+  {
+    "id": "pd-ufs-durs-pain-fromage",
+    "nom": "Œufs durs pain fromage",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 410,
+    "proteines": 26,
+    "glucides": 35,
+    "lipides": 19,
+    "tempsMinutes": 10,
+    "motsCles": [
+      "oeuf",
+      "pain",
+      "fromage"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les oeufs dans l'eau bouillante.",
+      "Écaler les oeufs.",
+      "Servir avec le pain et l'emmental."
+    ]
+  },
+  {
+    "id": "pd-omelette-nature",
+    "nom": "Omelette nature",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 260,
+    "proteines": 19,
+    "glucides": 1,
+    "lipides": 20,
+    "tempsMinutes": 6,
+    "motsCles": [
+      "oeuf",
+      "huile"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Battre les oeufs.",
+      "Chauffer l'huile dans une poêle.",
+      "Cuire l'omelette quelques minutes."
+    ]
+  },
+  {
+    "id": "pd-omelette-champignons",
+    "nom": "Omelette champignons",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 290,
+    "proteines": 22,
+    "glucides": 4,
+    "lipides": 21,
+    "tempsMinutes": 10,
+    "motsCles": [
+      "oeuf",
+      "champignons"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "champignons",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Faire revenir les champignons.",
+      "Battre les oeufs.",
+      "Verser les oeufs et cuire l'omelette."
+    ]
+  },
+  {
+    "id": "pd-ufs-brouilles-tomate",
+    "nom": "Œufs brouillés tomate",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 300,
+    "proteines": 22,
+    "glucides": 5,
+    "lipides": 21,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "oeuf",
+      "tomate",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Couper la tomate.",
+      "Battre les oeufs avec le fromage frais.",
+      "Cuire doucement avec la tomate."
+    ]
+  },
+  {
+    "id": "pd-omelette-fromage",
+    "nom": "Omelette fromage",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 350,
+    "proteines": 27,
+    "glucides": 1,
+    "lipides": 27,
+    "tempsMinutes": 7,
+    "motsCles": [
+      "oeuf",
+      "fromage"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Battre les oeufs.",
+      "Verser dans une poêle chaude.",
+      "Ajouter l'emmental et cuire."
+    ]
+  },
+  {
+    "id": "pd-ufs-au-plat-pain-complet",
+    "nom": "Œufs au plat pain complet",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "gluten"
+    ],
+    "kcal": 360,
+    "proteines": 20,
+    "glucides": 34,
+    "lipides": 16,
+    "tempsMinutes": 6,
+    "motsCles": [
+      "oeuf",
+      "pain"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Chauffer l'huile dans une poêle.",
+      "Cuire les oeufs au plat.",
+      "Servir avec le pain complet."
+    ]
+  },
+  {
+    "id": "pd-omelette-dinde-fromage",
+    "nom": "Omelette dinde fromage",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 365,
+    "proteines": 36,
+    "glucides": 1,
+    "lipides": 23,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "oeuf",
+      "dinde",
+      "fromage"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "blanc de dinde",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Battre les oeufs.",
+      "Ajouter la dinde en morceaux.",
+      "Cuire avec l'emmental."
+    ]
+  },
+  {
+    "id": "pd-ufs-brouilles-avocat",
+    "nom": "Œufs brouillés avocat",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 420,
+    "proteines": 22,
+    "glucides": 8,
+    "lipides": 34,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "oeuf",
+      "avocat",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "avocat",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Battre les oeufs avec le fromage frais.",
+      "Cuire les oeufs brouillés.",
+      "Servir avec l'avocat."
+    ]
+  },
+  {
+    "id": "pd-omelette-epinards-fromage",
+    "nom": "Omelette épinards fromage",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 340,
+    "proteines": 27,
+    "glucides": 4,
+    "lipides": 24,
+    "tempsMinutes": 10,
+    "motsCles": [
+      "oeuf",
+      "épinards",
+      "fromage"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Faire revenir les épinards.",
+      "Ajouter les oeufs battus.",
+      "Ajouter le fromage et cuire."
+    ]
+  },
+  {
+    "id": "pd-ufs-durs-avocat",
+    "nom": "Œufs durs avocat",
+    "type": "petit-dejeuner",
+    "categorie": "oeufs",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 360,
+    "proteines": 18,
+    "glucides": 8,
+    "lipides": 28,
+    "tempsMinutes": 10,
+    "motsCles": [
+      "oeuf",
+      "avocat"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "avocat",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire les oeufs dans l'eau bouillante.",
+      "Écaler les oeufs.",
+      "Servir avec l'avocat."
+    ]
+  },
+  {
+    "id": "pd-porridge-banane",
+    "nom": "Porridge banane",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 385,
+    "proteines": 18,
+    "glucides": 62,
+    "lipides": 8,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "avoine",
+      "banane",
+      "lait"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Chauffer le lait avec les flocons d'avoine.",
+      "Remuer jusqu'à épaississement.",
+      "Ajouter la banane en rondelles."
+    ]
+  },
+  {
+    "id": "pd-porridge-pomme-cannelle",
+    "nom": "Porridge pomme cannelle",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 360,
+    "proteines": 16,
+    "glucides": 58,
+    "lipides": 7,
+    "tempsMinutes": 10,
+    "motsCles": [
+      "avoine",
+      "pomme",
+      "cannelle"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Chauffer le lait avec l'avoine.",
+      "Ajouter la pomme coupée.",
+      "Terminer avec la cannelle."
+    ]
+  },
+  {
+    "id": "pd-porridge-chocolat",
+    "nom": "Porridge chocolat",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 390,
+    "proteines": 17,
+    "glucides": 56,
+    "lipides": 11,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "avoine",
+      "chocolat",
+      "lait"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "chocolat noir",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Chauffer le lait avec les flocons d'avoine.",
+      "Ajouter le chocolat noir.",
+      "Mélanger jusqu'à obtenir une texture crémeuse."
+    ]
+  },
+  {
+    "id": "pd-overnight-oats-banane",
+    "nom": "Overnight oats banane",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 410,
+    "proteines": 24,
+    "glucides": 58,
+    "lipides": 9,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "avoine",
+      "skyr",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 45,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 100,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Mélanger l'avoine, le skyr et le lait.",
+      "Ajouter la banane en rondelles.",
+      "Laisser au frais idéalement toute la nuit."
+    ]
+  },
+  {
+    "id": "pd-overnight-oats-fruits-rouges",
+    "nom": "Overnight oats fruits rouges",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 380,
+    "proteines": 24,
+    "glucides": 48,
+    "lipides": 9,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "avoine",
+      "skyr",
+      "fruits rouges"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 100,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fruits rouges",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Mélanger l'avoine, le skyr et le lait.",
+      "Ajouter les fruits rouges.",
+      "Placer au frais avant de manger."
+    ]
+  },
+  {
+    "id": "pd-pancakes-banane",
+    "nom": "Pancakes banane",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 420,
+    "proteines": 22,
+    "glucides": 58,
+    "lipides": 11,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "banane",
+      "oeuf",
+      "avoine"
+    ],
+    "ingredients": [
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "fromage blanc",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
       "Écraser la banane.",
-      "Mélanger avec les flocons d’avoine, les graines de chia et la cannelle.",
-      "Ajouter un peu d’eau pour lier.",
-      "Former 2 petites bouchées et laisser reposer quelques minutes.",
-    ],
-  },
-  {
-    id: "col-sardines-et-concombre-au-citron",
-    nom: "Sardines et concombre au citron",
-    type: "collation",
-    gout: "sale",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "eco",
-    allergenes: ["poisson"],
-    motsCles: ["sardines au naturel egouttees","concombre","citron"],
-    kcal: 175, proteines: 20, glucides: 6, lipides: 7,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Sardines au naturel égouttées", quantite: 70, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Concombre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Émietter les sardines avec citron, persil et poivre.",
-      "Couper le concombre en rondelles épaisses.",
-      "Déposer les sardines dessus ou servir à côté.",
-    ],
-  },
-  {
-    id: "plat-pates-de-lentilles-tomate-roquette-et-haricots",
-    nom: "Pâtes de lentilles tomate-roquette et haricots blancs",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["pates de lentilles certifiees sans gluten cuites","haricots blancs cuits","tomate concassee","roquette"],
-    kcal: 450, proteines: 25, glucides: 62, lipides: 11,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Pâtes de lentilles certifiées sans gluten cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Haricots blancs cuits", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Roquette", quantite: 30, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Réchauffer la tomate avec ail, basilic et poivre.",
-      "Ajouter les haricots blancs.",
-      "Mélanger avec les pâtes de lentilles certifiées sans gluten.",
-      "Servir avec roquette et huile d’olive.",
-    ],
-  },
-  {
-    id: "plat-tacos-express-tofu-haricots-noirs-et-salsa-fra",
-    nom: "Tacos express tofu-haricots noirs et salsa fraîche",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["tortillas de mais certifiees sans gluten","tofu ferme","haricots noirs cuits","tomate","avocat"],
-    kcal: 480, proteines: 31, glucides: 49, lipides: 18,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Tortillas de maïs certifiées sans gluten", quantite: 2, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Tofu ferme", quantite: 130, unite: "g", rayon: "Crèmerie" },
-      { nom: "Haricots noirs cuits", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Avocat", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Émietter le tofu et le faire revenir avec cumin.",
-      "Réchauffer les haricots noirs.",
-      "Garnir les tortillas de maïs certifiées sans gluten avec tofu, haricots, tomate, avocat, citron vert et coriandre.",
-    ],
-  },
-  {
-    id: "plat-salade-tiede-pommes-de-terre-lupins-et-haricot",
-    nom: "Salade tiède pommes de terre, lupins et haricots verts",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["pommes de terre cuites","lupins egouttes","haricots verts cuits","tomate"],
-    kcal: 425, proteines: 26, glucides: 52, lipides: 13,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: "Pommes de terre cuites", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Lupins égouttés", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Haricots verts cuits", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Vinaigre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper les pommes de terre en morceaux.",
-      "Mélanger avec haricots verts, lupins et tomate.",
-      "Préparer une sauce moutarde, vinaigre, huile d’olive et persil.",
-      "Servir tiède ou froid.",
-    ],
-  },
-  {
-    id: "plat-sarrasin-saute-edamame-champignons-et-tamari",
-    nom: "Sarrasin sauté edamame, champignons et tamari",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja","sesame"],
-    motsCles: ["sarrasin cuit certifie sans gluten","edamame decortiques","champignons","courgette"],
-    kcal: 465, proteines: 28, glucides: 55, lipides: 15,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Sarrasin cuit certifié sans gluten", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Edamame décortiqués", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Champignons", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tamari certifié sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Huile de sésame", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir champignons et courgette avec gingembre.",
-      "Ajouter edamame et sarrasin cuit certifié sans gluten.",
-      "Assaisonner avec tamari certifié sans gluten et huile de sésame.",
-      "Servir chaud.",
-    ],
-  },
-  {
-    id: "plat-galette-minute-pois-chiches-epinards-et-patate",
-    nom: "Galette minute pois chiches-épinards et patate douce",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["farine de pois chiches","eau","patate douce cuite","epinards","tomate"],
-    kcal: 450, proteines: 23, glucides: 62, lipides: 12,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Farine de pois chiches", quantite: 55, unite: "g", rayon: "Épicerie" },
-      { nom: "Eau", quantite: 90, unite: "ml", rayon: "Fruits & légumes" },
-      { nom: "Patate douce cuite", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Épinards", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Curry", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger farine de pois chiches, eau, curry et cumin.",
-      "Ajouter les épinards hachés.",
-      "Cuire en galette à la poêle avec l’huile.",
-      "Servir avec patate douce cuite, tomate et coriandre.",
-    ],
-  },
-  {
-    id: "plat-quinoa-pois-chiches-concombre-et-olives-citron",
-    nom: "Quinoa pois chiches, concombre et olives citronnées",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["quinoa cuit certifie sans gluten","pois chiches cuits","concombre","tomate","olives"],
-    kcal: 430, proteines: 20, glucides: 58, lipides: 13,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Quinoa cuit certifié sans gluten", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Pois chiches cuits", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Olives", quantite: 15, unite: "g", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger quinoa cuit certifié sans gluten, pois chiches, concombre et tomate.",
-      "Ajouter olives, citron, persil et huile d’olive.",
-      "Servir froid façon salade complète.",
-    ],
-  },
-  {
-    id: "plat-taboule-de-sarrasin-aux-feves-carotte-et-menth",
-    nom: "Taboulé de sarrasin aux fèves, carotte et menthe",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["sarrasin cuit certifie sans gluten","feves cuites","carotte rapee","concombre","citron"],
-    kcal: 440, proteines: 23, glucides: 60, lipides: 12,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: "Sarrasin cuit certifié sans gluten", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Fèves cuites", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte râpée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Menthe", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger le sarrasin cuit certifié sans gluten avec les fèves.",
-      "Ajouter carotte râpée, concombre, menthe et persil.",
-      "Assaisonner avec citron et huile d’olive.",
-      "Servir frais.",
-    ],
-  },
-  {
-    id: "plat-quesadillas-vegan-haricots-rouges-epinards",
-    nom: "Quesadillas vegan haricots rouges-épinards",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["tortillas de mais certifiees sans gluten","haricots rouges cuits","epinards","tomate concassee","mais"],
-    kcal: 455, proteines: 22, glucides: 65, lipides: 12,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Tortillas de maïs certifiées sans gluten", quantite: 2, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Haricots rouges cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Épinards", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Maïs", quantite: 40, unite: "g", rayon: "Épicerie" },
-      { nom: "Paprika", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser légèrement les haricots rouges avec tomate, paprika et cumin.",
-      "Garnir les tortillas de maïs certifiées sans gluten avec haricots, épinards et maïs.",
-      "Chauffer à la poêle quelques minutes.",
-      "Ajouter coriandre.",
-    ],
-  },
-  {
-    id: "plat-polenta-cremeuse-aux-lentilles-vertes-et-champ",
-    nom: "Polenta crémeuse aux lentilles vertes et champignons",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["polenta cuite certifiee sans gluten","lentilles vertes cuites","champignons","tomate concassee"],
-    kcal: 445, proteines: 22, glucides: 62, lipides: 12,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Polenta cuite certifiée sans gluten", quantite: 180, unite: "g", rayon: "Épicerie" },
-      { nom: "Lentilles vertes cuites", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Champignons", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Réchauffer la polenta cuite certifiée sans gluten avec un peu d’eau.",
-      "Faire revenir champignons, ail, tomate et lentilles.",
-      "Servir la poêlée sur la polenta avec thym et persil.",
-    ],
-  },
-  {
-    id: "plat-nouilles-de-sarrasin-tempeh-concombre-et-citro",
-    nom: "Nouilles de sarrasin tempeh, concombre et citron vert",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["soja","sesame"],
-    motsCles: ["nouilles soba 100 % sarrasin certifiees sans gluten cuites","tempeh","concombre","carotte","citron vert"],
-    kcal: 485, proteines: 31, glucides: 56, lipides: 15,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: "Nouilles soba 100 % sarrasin certifiées sans gluten cuites", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Tempeh", quantite: 100, unite: "g", rayon: "Crèmerie" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 70, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tamari certifié sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Huile de sésame", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Dorer rapidement le tempeh en lamelles.",
-      "Mélanger les nouilles soba 100 % sarrasin certifiées sans gluten avec concombre, carotte et coriandre.",
-      "Ajouter tempeh, tamari certifié sans gluten, citron vert et huile de sésame.",
-    ],
-  },
-  {
-    id: "plat-salade-poulet-pommes-de-terre-et-haricots-vert",
-    nom: "Salade poulet, pommes de terre et haricots verts",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["blanc de poulet cuit","pommes de terre cuites","haricots verts cuits","tomate"],
-    kcal: 445, proteines: 42, glucides: 47, lipides: 9,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: "Blanc de poulet cuit", quantite: 140, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre cuites", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Haricots verts cuits", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Vinaigre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper le poulet et les pommes de terre.",
-      "Mélanger avec haricots verts et tomate.",
-      "Préparer une sauce moutarde, vinaigre, huile et persil.",
-      "Servir froid ou tiède.",
-    ],
-  },
-  {
-    id: "plat-pates-de-mais-dinde-tomate-et-courgette",
-    nom: "Pâtes de maïs dinde-tomate et courgette",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["pates de mais certifiees sans gluten cuites","dinde cuite en lamelles","courgette","tomate concassee"],
-    kcal: 482, proteines: 40, glucides: 58, lipides: 10,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Pâtes de maïs certifiées sans gluten cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Dinde cuite en lamelles", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Courgette", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Réchauffer la tomate avec ail, courgette et huile d’olive.",
-      "Ajouter la dinde en lamelles.",
-      "Mélanger avec les pâtes de maïs certifiées sans gluten.",
-      "Terminer avec basilic.",
-    ],
-  },
-  {
-    id: "plat-assiette-thon-quinoa-crudites-et-citron",
-    nom: "Assiette thon-quinoa, crudités et citron",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["thon au naturel egoutte","quinoa cuit certifie sans gluten","concombre","tomate","carotte rapee"],
-    kcal: 420, proteines: 36, glucides: 45, lipides: 10,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Thon au naturel égoutté", quantite: 120, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Quinoa cuit certifié sans gluten", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte râpée", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger quinoa cuit certifié sans gluten, concombre, tomate et carotte.",
-      "Ajouter le thon émietté.",
-      "Assaisonner avec citron, persil et huile d’olive.",
-      "Servir froid.",
-    ],
-  },
-  {
-    id: "plat-tostadas-oeufs-brouilles-haricots-noirs-et-sal",
-    nom: "Tostadas œufs brouillés, haricots noirs et salsa",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: ["oeuf"],
-    motsCles: ["tostadas de mais certifiees sans gluten","oeufs","blancs d’oeufs","haricots noirs cuits","tomate"],
-    kcal: 456, proteines: 30, glucides: 48, lipides: 16,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Tostadas de maïs certifiées sans gluten", quantite: 2, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Blancs d’œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Haricots noirs cuits", quantite: 90, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Brouiller les œufs avec les blancs.",
-      "Réchauffer les haricots noirs avec cumin.",
-      "Garnir les tostadas de maïs certifiées sans gluten avec œufs, haricots, tomate, citron vert et coriandre.",
-    ],
-  },
-  {
-    id: "plat-salade-sardines-lentilles-betterave-et-pommes-",
-    nom: "Salade sardines, lentilles, betterave et pommes vapeur",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["sardines au naturel egouttees","lentilles vertes cuites","pommes de terre cuites","betterave cuite"],
-    kcal: 482, proteines: 35, glucides: 45, lipides: 18,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Sardines au naturel égouttées", quantite: 90, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Lentilles vertes cuites", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Pommes de terre cuites", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Betterave cuite", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Vinaigre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper les pommes de terre et la betterave.",
-      "Mélanger avec les lentilles.",
-      "Ajouter les sardines émiettées.",
-      "Assaisonner avec moutarde, vinaigre, persil et poivre.",
-    ],
-  },
-  {
-    id: "plat-boeuf-carottes-leger-aux-pommes-vapeur",
-    nom: "Bœuf-carottes léger aux pommes vapeur",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["boeuf maigre a mijoter","carottes","pommes de terre","oignon"],
-    kcal: 455, proteines: 36, glucides: 42, lipides: 15,
-    tempsMinutes: 40,
-    ingredients: [
-      { nom: "Bœuf maigre à mijoter", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Carottes", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pommes de terre", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Laurier", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon, ail et bœuf avec l’huile.",
-      "Ajouter carottes, thym, laurier et un fond d’eau.",
-      "Laisser mijoter jusqu’à tendreté.",
-      "Servir avec les pommes vapeur.",
-    ],
-  },
-  {
-    id: "plat-steak-hache-5-petits-pois-carottes-et-ecrase-d",
-    nom: "Steak haché 5 %, petits pois-carottes et écrasé de pommes de terre",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["steak hache 5 %","pommes de terre","petits pois","carottes"],
-    kcal: 465, proteines: 37, glucides: 43, lipides: 16,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Steak haché 5 %", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Petits pois", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Carottes", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire pommes de terre, petits pois et carottes.",
-      "Écraser les pommes de terre avec persil et poivre.",
-      "Saisir le steak haché.",
-      "Servir avec les légumes.",
-    ],
-  },
-  {
-    id: "plat-chou-farci-leger-au-boeuf-et-lentilles",
-    nom: "Chou farci léger au bœuf et lentilles",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["boeuf hache 5 %","lentilles vertes cuites","grandes feuilles de chou","tomate concassee","oignon"],
-    kcal: 470, proteines: 35, glucides: 48, lipides: 14,
-    tempsMinutes: 40,
-    ingredients: [
-      { nom: "Bœuf haché 5 %", quantite: 120, unite: "g", rayon: "Boucherie" },
-      { nom: "Lentilles vertes cuites", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Grandes feuilles de chou", quantite: 3, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Blanchir les feuilles de chou.",
-      "Mélanger bœuf, lentilles, oignon, ail et poivre.",
-      "Garnir les feuilles puis les rouler.",
-      "Cuire avec tomate concassée et thym.",
-    ],
-  },
-  {
-    id: "plat-saute-de-veau-aux-petits-pois-et-pommes-grenai",
-    nom: "Sauté de veau aux petits pois et pommes grenailles",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["veau maigre","pommes grenailles","petits pois","carottes","oignon"],
-    kcal: 485, proteines: 38, glucides: 42, lipides: 17,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Veau maigre", quantite: 140, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes grenailles", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Petits pois", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Carottes", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes grenailles vapeur.",
-      "Faire revenir veau et oignon avec l’huile.",
-      "Ajouter carottes, petits pois, thym et un peu d’eau.",
-      "Laisser mijoter puis servir.",
-    ],
-  },
-  {
-    id: "plat-hachis-leger-de-boeuf-au-celeri-et-carotte",
-    nom: "Hachis léger de bœuf au céleri et carotte",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["boeuf hache 5 %","celeri-rave","pomme de terre","carotte","tomate concassee"],
-    kcal: 450, proteines: 34, glucides: 45, lipides: 14,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Bœuf haché 5 %", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Céleri-rave", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pomme de terre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire céleri-rave et pomme de terre puis les écraser avec muscade.",
-      "Faire revenir bœuf, oignon, carotte et tomate.",
-      "Mettre en plat, couvrir de purée et gratiner quelques minutes.",
-    ],
-  },
-  {
-    id: "plat-bavette-minute-a-l-echalote-haricots-verts-et-",
-    nom: "Bavette minute à l’échalote, haricots verts et pommes vapeur",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["bavette","pommes de terre","haricots verts","echalote"],
-    kcal: 460, proteines: 39, glucides: 38, lipides: 17,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: "Bavette", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Haricots verts", quantite: 160, unite: "g", rayon: "Épicerie" },
-      { nom: "Échalote", quantite: 40, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Vinaigre balsamique", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire pommes de terre et haricots verts vapeur.",
-      "Saisir la bavette rapidement.",
-      "Faire revenir l’échalote avec un trait de vinaigre balsamique.",
-      "Servir avec persil.",
-    ],
-  },
-  {
-    id: "plat-boulettes-de-boeuf-a-la-tomate-polenta-et-cour",
-    nom: "Boulettes de bœuf à la tomate, polenta et courgettes",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["boeuf hache 5 %","polenta cuite certifiee sans gluten","courgette","tomate concassee"],
-    kcal: 485, proteines: 35, glucides: 48, lipides: 17,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Bœuf haché 5 %", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Polenta cuite certifiée sans gluten", quantite: 160, unite: "g", rayon: "Épicerie" },
-      { nom: "Courgette", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Former des boulettes avec le bœuf, l’ail et le poivre.",
-      "Les cuire dans la tomate concassée.",
-      "Réchauffer la polenta avec un peu d’eau.",
-      "Servir avec courgette poêlée et basilic.",
-    ],
-  },
-  {
-    id: "plat-veau-aux-champignons-moutarde-douce-et-puree-d",
-    nom: "Veau aux champignons, moutarde douce et purée de carottes",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["veau maigre","carottes","pommes de terre","champignons"],
-    kcal: 455, proteines: 38, glucides: 39, lipides: 15,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Veau maigre", quantite: 140, unite: "g", rayon: "Boucherie" },
-      { nom: "Carottes", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pommes de terre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Moutarde douce", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire carottes et pommes de terre puis les écraser.",
-      "Saisir le veau avec champignons et huile d’olive.",
-      "Ajouter moutarde et un peu d’eau pour lier.",
-      "Servir avec persil.",
-    ],
-  },
-  {
-    id: "plat-poelee-paysanne-boeuf-pommes-de-terre-et-poire",
-    nom: "Poêlée paysanne bœuf, pommes de terre et poireaux",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["boeuf hache 5 %","pommes de terre cuites","poireaux","oignon"],
-    kcal: 470, proteines: 34, glucides: 46, lipides: 16,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Bœuf haché 5 %", quantite: 120, unite: "g", rayon: "Boucherie" },
-      { nom: "Pommes de terre cuites", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poireaux", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon et poireaux avec l’huile.",
-      "Ajouter le bœuf haché et le thym.",
-      "Incorporer les pommes de terre en cubes.",
-      "Faire dorer quelques minutes et servir chaud.",
-    ],
-  },
-  {
-    id: "plat-mijote-de-boeuf-aux-haricots-blancs-facon-terr",
-    nom: "Mijoté de bœuf aux haricots blancs façon terroir",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["boeuf maigre","haricots blancs cuits","carotte","tomate concassee","oignon"],
-    kcal: 490, proteines: 37, glucides: 50, lipides: 16,
-    tempsMinutes: 35,
-    ingredients: [
-      { nom: "Bœuf maigre", quantite: 120, unite: "g", rayon: "Boucherie" },
-      { nom: "Haricots blancs cuits", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Carotte", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Laurier", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon, bœuf et carotte avec l’huile.",
-      "Ajouter tomate, haricots blancs, thym, laurier et un fond d’eau.",
-      "Laisser mijoter jusqu’à texture fondante.",
-    ],
-  },
-  {
-    id: "pd-bowl-quinoa-pomme-courge-et-cannelle",
-    nom: "Bowl quinoa-pomme, courge et cannelle",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["quinoa cuit certifie sans gluten","pomme","proteine vegetale pois-riz","graines de courge","boisson de riz"],
-    kcal: 365, proteines: 17, glucides: 55, lipides: 9,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Quinoa cuit certifié sans gluten", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Pomme", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Protéine végétale pois-riz", quantite: 12, unite: "g", rayon: "Épicerie" },
-      { nom: "Graines de courge", quantite: 8, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Boisson de riz", quantite: 60, unite: "ml", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Réchauffer le quinoa avec la boisson de riz et la cannelle.",
-      "Ajouter la protéine pois-riz hors feu.",
-      "Couper la pomme en dés.",
-      "Servir avec les graines de courge.",
-    ],
-  },
-  {
-    id: "pd-galettes-salees-de-lentilles-corail-et-patate-",
-    nom: "Galettes salées de lentilles corail et patate douce",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["indienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["lentilles corail cuites","patate douce cuite","farine de pois chiches"],
-    kcal: 390, proteines: 18, glucides: 62, lipides: 8,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: "Lentilles corail cuites", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Patate douce cuite", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Farine de pois chiches", quantite: 25, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser les lentilles corail avec la patate douce.",
-      "Ajouter la farine de pois chiches, cumin et coriandre.",
-      "Former deux galettes.",
-      "Cuire à la poêle avec l’huile d’olive.",
-    ],
-  },
-  {
-    id: "pd-porridge-de-sarrasin-poire-cacao",
-    nom: "Porridge de sarrasin poire-cacao",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["sarrasin cuit certifie sans gluten","poire","proteine vegetale pois-riz","cacao non sucre","graines de chia"],
-    kcal: 375, proteines: 18, glucides: 56, lipides: 8,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Sarrasin cuit certifié sans gluten", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Poire", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Protéine végétale pois-riz", quantite: 12, unite: "g", rayon: "Épicerie" },
-      { nom: "Cacao non sucré", quantite: 6, unite: "g", rayon: "Épicerie" },
-      { nom: "Graines de chia", quantite: 6, unite: "g", rayon: "Épicerie" },
-      { nom: "Boisson de riz", quantite: 80, unite: "ml", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Chauffer le sarrasin avec la boisson de riz et le cacao.",
-      "Hors feu, incorporer la protéine pois-riz.",
-      "Ajouter la poire en dés et les graines de chia.",
-      "Servir tiède.",
-    ],
-  },
-  {
-    id: "pd-toasts-de-galettes-de-riz-aux-haricots-blancs-",
-    nom: "Toasts de galettes de riz aux haricots blancs citronnés",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["galettes de riz complet certifiees sans gluten","haricots blancs cuits","tomate","citron","graines de lin moulues"],
-    kcal: 350, proteines: 15, glucides: 57, lipides: 7,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Galettes de riz complet certifiées sans gluten", quantite: 3, unite: "pièce", rayon: "Épicerie" },
-      { nom: "Haricots blancs cuits", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Graines de lin moulues", quantite: 5, unite: "g", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser les haricots blancs avec citron, cumin, persil et graines de lin.",
-      "Tartiner les galettes de riz complet certifiées sans gluten.",
-      "Ajouter les dés de tomate.",
-      "Servir immédiatement.",
-    ],
-  },
-  {
-    id: "pd-creme-de-pois-chiches-cacao-compote",
-    nom: "Crème de pois chiches cacao-compote",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["pois chiches cuits rinces","compote de pomme sans sucres ajoutes","proteine vegetale pois-riz","cacao non sucre","graines de chia"],
-    kcal: 385, proteines: 19, glucides: 58, lipides: 9,
-    tempsMinutes: 6,
-    ingredients: [
-      { nom: "Pois chiches cuits rincés", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Compote de pomme sans sucres ajoutés", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Protéine végétale pois-riz", quantite: 12, unite: "g", rayon: "Épicerie" },
-      { nom: "Cacao non sucré", quantite: 6, unite: "g", rayon: "Épicerie" },
-      { nom: "Graines de chia", quantite: 6, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mixer les pois chiches avec la compote et le cacao.",
-      "Ajouter la protéine pois-riz et les graines de chia.",
-      "Mixer jusqu’à texture lisse.",
-      "Servir frais avec cannelle.",
-    ],
-  },
-  {
-    id: "pd-hash-sale-patate-douce-haricots-rouges-et-toma",
-    nom: "Hash salé patate douce, haricots rouges et tomates",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["mexicaine"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["energie","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["patate douce cuite","haricots rouges cuits","tomate","poivron"],
-    kcal: 405, proteines: 16, glucides: 67, lipides: 9,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Patate douce cuite", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Haricots rouges cuits", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivron", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper la patate douce en cubes.",
-      "Faire revenir tomate, poivron, haricots rouges, paprika et cumin avec l’huile d’olive.",
-      "Ajouter la patate douce.",
-      "Terminer avec coriandre.",
-    ],
-  },
-  {
-    id: "pd-overnight-riz-souffle-pomme-et-chia",
-    nom: "Overnight riz soufflé, pomme et chia",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["riz souffle certifie sans gluten","compote de pomme sans sucres ajoutes","proteine vegetale pois-riz","graines de chia","boisson de riz"],
-    kcal: 340, proteines: 16, glucides: 54, lipides: 7,
-    tempsMinutes: 5,
-    ingredients: [
-      { nom: "Riz soufflé certifié sans gluten", quantite: 30, unite: "g", rayon: "Épicerie" },
-      { nom: "Compote de pomme sans sucres ajoutés", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Protéine végétale pois-riz", quantite: 15, unite: "g", rayon: "Épicerie" },
-      { nom: "Graines de chia", quantite: 8, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Boisson de riz", quantite: 80, unite: "ml", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger la compote avec la protéine pois-riz, les graines de chia, la cannelle et la boisson de riz.",
-      "Ajouter le riz soufflé certifié sans gluten juste avant de servir.",
-      "Mélanger légèrement.",
-    ],
-  },
-  {
-    id: "pd-socca-petit-dej-aux-lentilles-et-tomate-fraich",
-    nom: "Socca petit-déj aux lentilles et tomate fraîche",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["farine de pois chiches","eau","lentilles vertes cuites","tomate"],
-    kcal: 410, proteines: 20, glucides: 61, lipides: 10,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Farine de pois chiches", quantite: 55, unite: "g", rayon: "Épicerie" },
-      { nom: "Eau", quantite: 100, unite: "ml", rayon: "Fruits & légumes" },
-      { nom: "Lentilles vertes cuites", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger farine de pois chiches, eau, cumin et poivre.",
-      "Cuire en grande galette à la poêle avec l’huile d’olive.",
-      "Garnir avec lentilles, tomate et persil.",
-      "Servir tiède.",
-    ],
-  },
-  {
-    id: "pd-quinoa-au-lait-de-riz-banane-et-lin",
-    nom: "Quinoa au lait de riz, banane et lin",
-    type: "petit-dejeuner",
-    gout: "sucre",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["quinoa cuit certifie sans gluten","boisson de riz","banane","proteine vegetale pois-riz","graines de lin moulues"],
-    kcal: 405, proteines: 18, glucides: 64, lipides: 9,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Quinoa cuit certifié sans gluten", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Boisson de riz", quantite: 120, unite: "ml", rayon: "Épicerie" },
-      { nom: "Banane", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Protéine végétale pois-riz", quantite: 12, unite: "g", rayon: "Épicerie" },
-      { nom: "Graines de lin moulues", quantite: 6, unite: "g", rayon: "Épicerie" },
-      { nom: "Cannelle", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Chauffer le quinoa avec la boisson de riz et la cannelle.",
-      "Hors feu, ajouter la protéine pois-riz.",
-      "Ajouter la banane en rondelles et les graines de lin.",
-      "Servir tiède.",
-    ],
-  },
-  {
-    id: "pd-tartines-croquantes-riz-lentilles-concombre-et",
-    nom: "Tartines croquantes riz-lentilles, concombre et herbes",
-    type: "petit-dejeuner",
-    gout: "sale",
-    cuisines: ["orientale"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["galettes de riz complet certifiees sans gluten","lentilles vertes cuites","concombre","citron","graines de courge"],
-    kcal: 355, proteines: 17, glucides: 57, lipides: 7,
-    tempsMinutes: 8,
-    ingredients: [
-      { nom: "Galettes de riz complet certifiées sans gluten", quantite: 3, unite: "pièce", rayon: "Épicerie" },
-      { nom: "Lentilles vertes cuites", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Graines de courge", quantite: 6, unite: "g", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Écraser légèrement les lentilles avec citron, persil, ciboulette et poivre.",
-      "Répartir sur les galettes de riz complet certifiées sans gluten.",
-      "Ajouter concombre et graines de courge.",
-      "Servir aussitôt.",
-    ],
-  },
-  {
-    id: "plat-colin-citronne-puree-carotte-panais-et-epinard",
-    nom: "Colin citronné, purée carotte-panais et épinards",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["colin","carotte","panais","epinards","citron"],
-    kcal: 385, proteines: 38, glucides: 39, lipides: 8,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Colin", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Carotte", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Panais", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Épinards", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire carotte et panais à la vapeur puis les écraser avec poivre et persil.",
-      "Cuire le colin au four ou à la poêle avec citron.",
-      "Faire tomber les épinards rapidement.",
-      "Servir chaud avec l’huile d’olive.",
-    ],
-  },
-  {
-    id: "plat-chili-blanc-leger-dinde-courgette-et-haricots-",
-    nom: "Chili blanc léger dinde, courgette et haricots blancs",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["dinde hachee","haricots blancs cuits","courgette","tomate concassee","oignon"],
-    kcal: 435, proteines: 41, glucides: 41, lipides: 11,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Dinde hachée", quantite: 140, unite: "g", rayon: "Boucherie" },
-      { nom: "Haricots blancs cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Courgette", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Thym", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir oignon et dinde avec l’huile.",
-      "Ajouter courgette, tomate, haricots blancs, paprika et thym.",
-      "Laisser mijoter 10 minutes.",
-      "Servir bien chaud.",
-    ],
-  },
-  {
-    id: "plat-veloute-lentilles-corail-potimarron-et-graines",
-    nom: "Velouté lentilles corail, potimarron et graines de courge",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["lentilles corail cuites","potimarron","tomate concassee","oignon","graines de courge"],
-    kcal: 420, proteines: 20, glucides: 60, lipides: 10,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Lentilles corail cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Potimarron", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Graines de courge", quantite: 8, unite: "g", rayon: "Épicerie" },
-      { nom: "Curry doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire cuire potimarron, oignon, tomate et épices avec un fond d’eau.",
-      "Ajouter les lentilles corail cuites.",
-      "Mixer partiellement pour garder une texture épaisse.",
-      "Servir avec coriandre et graines de courge.",
-    ],
-  },
-  {
-    id: "plat-omelette-legere-poireaux-champignons-et-pommes",
-    nom: "Omelette légère poireaux-champignons et pommes vapeur",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["oeuf"],
-    motsCles: ["oeufs","blancs d’oeufs","pommes de terre","poireaux","champignons"],
-    kcal: 410, proteines: 30, glucides: 34, lipides: 16,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Blancs d’œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Pommes de terre", quantite: 130, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poireaux", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Champignons", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Muscade", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre vapeur.",
-      "Faire revenir poireaux et champignons avec un peu d’eau.",
-      "Battre œufs, blancs, ciboulette et muscade.",
-      "Cuire l’omelette puis servir avec les pommes vapeur.",
-    ],
-  },
-  {
-    id: "plat-courgettes-poelees-tofu-fume-et-lentilles-blon",
-    nom: "Courgettes poêlées, tofu fumé et lentilles blondes",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["tofu fume","lentilles blondes cuites","courgette","tomate"],
-    kcal: 430, proteines: 29, glucides: 42, lipides: 16,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: "Tofu fumé", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Lentilles blondes cuites", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Courgette", quantite: 180, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Herbes de Provence", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper le tofu fumé en dés et le dorer rapidement.",
-      "Ajouter courgette, tomate, ail et herbes de Provence.",
-      "Incorporer les lentilles blondes.",
-      "Réchauffer quelques minutes et servir.",
-    ],
-  },
-  {
-    id: "plat-filet-de-poulet-chou-fleur-roti-et-pommes-gren",
-    nom: "Filet de poulet, chou-fleur rôti et pommes grenaille",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["blanc de poulet","chou-fleur","pommes grenaille","citron"],
-    kcal: 440, proteines: 43, glucides: 40, lipides: 11,
-    tempsMinutes: 30,
-    ingredients: [
-      { nom: "Blanc de poulet", quantite: 150, unite: "g", rayon: "Boucherie" },
-      { nom: "Chou-fleur", quantite: 170, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pommes grenaille", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Cuire les pommes grenaille vapeur.",
-      "Rôtir ou poêler le chou-fleur avec paprika et ail.",
-      "Griller le poulet avec citron.",
-      "Servir avec persil frais.",
-    ],
-  },
-  {
-    id: "plat-galette-de-pois-chiches-aux-legumes-et-salade-",
-    nom: "Galette de pois chiches aux légumes et salade croquante",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["farine de pois chiches","eau","courgette rapee","carotte rapee","salade verte"],
-    kcal: 405, proteines: 19, glucides: 54, lipides: 13,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Farine de pois chiches", quantite: 60, unite: "g", rayon: "Épicerie" },
-      { nom: "Eau", quantite: 100, unite: "ml", rayon: "Fruits & légumes" },
-      { nom: "Courgette râpée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte râpée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Salade verte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger farine de pois chiches, eau, cumin et persil.",
-      "Ajouter courgette et carotte râpées.",
-      "Cuire en grande galette avec l’huile.",
-      "Servir avec salade verte et citron.",
-    ],
-  },
-  {
-    id: "plat-sardines-tiedes-betterave-pommes-vapeur-et-con",
-    nom: "Sardines tièdes, betterave, pommes vapeur et concombre",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["sardines au naturel egouttees","pommes de terre cuites","betterave cuite","concombre","citron"],
-    kcal: 425, proteines: 31, glucides: 36, lipides: 17,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Sardines au naturel égouttées", quantite: 90, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes de terre cuites", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Betterave cuite", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Réchauffer légèrement les pommes de terre et les sardines.",
-      "Couper betterave et concombre.",
-      "Assembler dans une assiette.",
-      "Ajouter citron, persil et poivre.",
-    ],
-  },
-  {
-    id: "plat-poelee-mexicaine-oeufs-haricots-rouges-et-poiv",
-    nom: "Poêlée mexicaine œufs, haricots rouges et poivron",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: ["oeuf"],
-    motsCles: ["oeufs","blancs d’oeufs","haricots rouges cuits","poivron","tomate concassee"],
-    kcal: 440, proteines: 28, glucides: 42, lipides: 18,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: "Œufs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Blancs d’œufs", quantite: 80, unite: "g", rayon: "Crèmerie" },
-      { nom: "Haricots rouges cuits", quantite: 110, unite: "g", rayon: "Épicerie" },
-      { nom: "Poivron", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire mijoter haricots rouges, poivron, tomate et épices.",
-      "Ajouter les œufs battus avec les blancs.",
-      "Cuire doucement en brouillade.",
-      "Servir avec coriandre fraîche.",
-    ],
-  },
-  {
-    id: "plat-salade-tiede-sarrasin-poulet-et-legumes-verts",
-    nom: "Salade tiède sarrasin, poulet et légumes verts",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["sarrasin cuit certifie sans gluten","blanc de poulet cuit","haricots verts","concombre","citron"],
-    kcal: 445, proteines: 39, glucides: 48, lipides: 9,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Sarrasin cuit certifié sans gluten", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Blanc de poulet cuit", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Haricots verts", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Réchauffer le sarrasin certifié sans gluten et les haricots verts.",
-      "Ajouter le poulet en morceaux et le concombre.",
-      "Assaisonner avec citron, huile d’olive, ciboulette et poivre.",
-      "Servir tiède ou froid.",
-    ],
-  },
-  {
-    id: "plat-lunchbox-pates-de-lentilles-poulet-froid-et-po",
-    nom: "Lunchbox pâtes de lentilles, poulet froid et poivrons",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["pates de lentilles certifiees sans gluten cuites","blanc de poulet cuit","poivron","tomate cerise","citron"],
-    kcal: 470, proteines: 42, glucides: 51, lipides: 10,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Pâtes de lentilles certifiées sans gluten cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Blanc de poulet cuit", quantite: 130, unite: "g", rayon: "Boucherie" },
-      { nom: "Poivron", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate cerise", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper le poulet en lamelles.",
-      "Mélanger les pâtes de lentilles certifiées sans gluten avec poivron, tomate et basilic.",
-      "Ajouter le poulet.",
-      "Assaisonner avec citron, huile d’olive et poivre.",
-    ],
-  },
-  {
-    id: "plat-bocal-mexicain-patate-douce-haricots-noirs-et-",
-    nom: "Bocal mexicain patate douce, haricots noirs et maïs",
-    type: "plat",
-    cuisines: ["mexicaine"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["patate douce cuite","haricots noirs cuits","mais","tomate","poivron"],
-    kcal: 455, proteines: 18, glucides: 71, lipides: 11,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Patate douce cuite", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Haricots noirs cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Maïs", quantite: 60, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivron", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper la patate douce en cubes.",
-      "Mélanger haricots noirs, maïs, tomate et poivron.",
-      "Ajouter cumin, citron vert, coriandre et huile d’olive.",
-      "Monter en bocal ou en lunchbox.",
-    ],
-  },
-  {
-    id: "plat-galette-de-sarrasin-roulee-dinde-crudites-et-c",
-    nom: "Galette de sarrasin roulée dinde, crudités et crème légère",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["lactose"],
-    motsCles: ["grande galette de sarrasin certifiee sans gluten","dinde cuite","carotte rapee","concombre","fromage blanc 0 %"],
-    kcal: 445, proteines: 36, glucides: 43, lipides: 13,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Grande galette de sarrasin certifiée sans gluten", quantite: 1, unite: "pièce", rayon: "Boulangerie" },
-      { nom: "Dinde cuite", quantite: 120, unite: "g", rayon: "Boucherie" },
-      { nom: "Carotte râpée", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Fromage blanc 0 %", quantite: 50, unite: "g", rayon: "Crèmerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger fromage blanc, citron, ciboulette et poivre.",
-      "Étaler sur la galette de sarrasin certifiée sans gluten.",
-      "Ajouter dinde, carotte et concombre.",
-      "Rouler serré puis couper en deux.",
-    ],
-  },
-  {
-    id: "plat-salade-froide-pois-casses-pommes-de-terre-et-c",
-    nom: "Salade froide pois cassés, pommes de terre et cornichons",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["pois casses cuits","pommes de terre cuites","cornichons","tomate","oignon rouge"],
-    kcal: 430, proteines: 22, glucides: 65, lipides: 8,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Pois cassés cuits", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Pommes de terre cuites", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Cornichons", quantite: 50, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon rouge", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Vinaigre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper les pommes de terre en cubes.",
-      "Mélanger avec pois cassés, tomate, cornichons et oignon rouge.",
-      "Ajouter vinaigre, huile d’olive, persil et poivre.",
-      "Servir bien frais.",
-    ],
-  },
-  {
-    id: "plat-bento-quinoa-oeufs-durs-betterave-et-concombre",
-    nom: "Bento quinoa, œufs durs, betterave et concombre",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["oeuf"],
-    motsCles: ["quinoa cuit certifie sans gluten","oeufs durs","betterave cuite","concombre","salade verte"],
-    kcal: 455, proteines: 27, glucides: 48, lipides: 17,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Quinoa cuit certifié sans gluten", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Œufs durs", quantite: 2, unite: "pièce", rayon: "Crèmerie" },
-      { nom: "Betterave cuite", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Salade verte", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les œufs puis les refroidir.",
-      "Mélanger quinoa certifié sans gluten, betterave, concombre et salade.",
-      "Ajouter les œufs coupés.",
-      "Assaisonner avec citron, huile d’olive, persil et poivre.",
-    ],
-  },
-  {
-    id: "plat-wraps-de-laitue-au-thon-pommes-de-terre-et-tom",
-    nom: "Wraps de laitue au thon, pommes de terre et tomate",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","muscle"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["grandes feuilles de laitue","thon au naturel egoutte","pommes de terre cuites","tomate","concombre"],
-    kcal: 420, proteines: 35, glucides: 42, lipides: 12,
-    tempsMinutes: 10,
-    ingredients: [
-      { nom: "Grandes feuilles de laitue", quantite: 4, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Thon au naturel égoutté", quantite: 110, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes de terre cuites", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 40, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Émietter le thon avec citron, persil et poivre.",
-      "Couper les pommes de terre et les légumes en petits morceaux.",
-      "Garnir les feuilles de laitue avec thon, pommes de terre et crudités.",
-      "Rouler ou servir façon bouchées.",
-    ],
-  },
-  {
-    id: "plat-taboule-de-quinoa-aux-lentilles-corail-et-legu",
-    nom: "Taboulé de quinoa aux lentilles corail et légumes croquants",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["quinoa cuit certifie sans gluten","lentilles corail cuites","concombre","tomate","carotte rapee"],
-    kcal: 445, proteines: 22, glucides: 67, lipides: 9,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Quinoa cuit certifié sans gluten", quantite: 120, unite: "g", rayon: "Épicerie" },
-      { nom: "Lentilles corail cuites", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte râpée", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Menthe", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger quinoa certifié sans gluten et lentilles corail refroidies.",
-      "Ajouter concombre, tomate et carotte.",
-      "Assaisonner avec citron, menthe, persil et huile d’olive.",
-      "Mettre en bocal ou en boîte hermétique.",
-    ],
-  },
-  {
-    id: "plat-salade-froide-sarrasin-tofu-fume-et-chou-rouge",
-    nom: "Salade froide sarrasin, tofu fumé et chou rouge",
-    type: "plat",
-    cuisines: ["asiatique"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["soja"],
-    motsCles: ["sarrasin cuit certifie sans gluten","tofu fume","chou rouge","carotte","citron vert"],
-    kcal: 475, proteines: 29, glucides: 52, lipides: 17,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: "Sarrasin cuit certifié sans gluten", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Tofu fumé", quantite: 120, unite: "g", rayon: "Crèmerie" },
-      { nom: "Chou rouge", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Carotte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tamari certifié sans gluten", quantite: 1, unite: "c. à soupe", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Gingembre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper le tofu fumé en dés.",
-      "Mélanger sarrasin certifié sans gluten, chou rouge et carotte.",
-      "Ajouter tofu, tamari certifié sans gluten, citron vert, gingembre et coriandre.",
-      "Servir froid.",
-    ],
-  },
-  {
-    id: "plat-lunchbox-polenta-froide-sardines-et-ratatouill",
-    nom: "Lunchbox polenta froide, sardines et ratatouille",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["poisson"],
-    motsCles: ["polenta cuite certifiee sans gluten refroidie","sardines au naturel egouttees","ratatouille legere","citron"],
-    kcal: 485, proteines: 32, glucides: 45, lipides: 19,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Polenta cuite certifiée sans gluten refroidie", quantite: 170, unite: "g", rayon: "Épicerie" },
-      { nom: "Sardines au naturel égouttées", quantite: 90, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Ratatouille légère", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper la polenta certifiée sans gluten refroidie en cubes.",
-      "Ajouter la ratatouille froide ou tiède.",
-      "Émietter les sardines par-dessus.",
-      "Terminer avec citron, basilic et poivre.",
-    ],
-  },
-  {
-    id: "plat-bocal-indien-pois-chiches-millet-et-concombre-",
-    nom: "Bocal indien pois chiches, millet et concombre menthe",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["vegan","vegetarien","sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: [],
-    motsCles: ["millet cuit certifie sans gluten","pois chiches cuits","concombre","tomate","citron"],
-    kcal: 450, proteines: 20, glucides: 66, lipides: 11,
-    tempsMinutes: 12,
-    ingredients: [
-      { nom: "Millet cuit certifié sans gluten", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Pois chiches cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Concombre", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Menthe", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Mélanger millet certifié sans gluten et pois chiches.",
-      "Ajouter concombre, tomate, cumin, menthe et coriandre.",
-      "Assaisonner avec citron et huile d’olive.",
-      "Monter en bocal en gardant les crudités sur le dessus.",
-    ],
-  },
-  {
-    id: "plat-palourdes-ail-persil-pates-de-mais-et-courgett",
-    nom: "Palourdes ail-persil, pâtes de maïs et courgettes",
-    type: "plat",
-    cuisines: ["italienne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["mollusques"],
-    motsCles: ["palourdes poids net consommable","pates de mais certifiees sans gluten cuites","courgette","citron"],
-    kcal: 430, proteines: 32, glucides: 55, lipides: 8,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Palourdes poids net consommable", quantite: 180, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pâtes de maïs certifiées sans gluten cuites", quantite: 150, unite: "g", rayon: "Épicerie" },
-      { nom: "Courgette", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire revenir l’ail et la courgette avec l’huile.",
-      "Ajouter les palourdes et couvrir jusqu’à ouverture.",
-      "Mélanger avec les pâtes de maïs certifiées sans gluten.",
-      "Terminer avec citron, persil et poivre.",
-    ],
-  },
-  {
-    id: "plat-seiche-basquaise-pommes-vapeur-et-poivrons",
-    nom: "Seiche basquaise, pommes vapeur et poivrons",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["mollusques"],
-    motsCles: ["seiche poids net consommable","pommes de terre","poivron","tomate concassee","oignon"],
-    kcal: 405, proteines: 36, glucides: 43, lipides: 9,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Seiche poids net consommable", quantite: 170, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes de terre", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Poivron", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate concassée", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Oignon", quantite: 50, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes de terre vapeur.",
-      "Faire revenir oignon, ail et poivron avec l’huile.",
-      "Ajouter tomate, paprika et seiche en morceaux.",
-      "Laisser mijoter quelques minutes puis servir avec persil.",
-    ],
-  },
-  {
-    id: "plat-moules-curry-coco-leger-et-lentilles-corail",
-    nom: "Moules curry-coco léger et lentilles corail",
-    type: "plat",
-    cuisines: ["indienne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","energie"],
-    budget: "normal",
-    allergenes: ["mollusques"],
-    motsCles: ["moules poids net consommable","lentilles corail cuites","lait de coco leger","epinards","citron vert"],
-    kcal: 445, proteines: 34, glucides: 53, lipides: 9,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Moules poids net consommable", quantite: 250, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Lentilles corail cuites", quantite: 140, unite: "g", rayon: "Épicerie" },
-      { nom: "Lait de coco léger", quantite: 80, unite: "ml", rayon: "Crèmerie" },
-      { nom: "Épinards", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Curry doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Curcuma", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Coriandre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron vert", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire chauffer lentilles corail, lait de coco léger, curry et curcuma.",
-      "Ajouter les épinards.",
-      "Incorporer les moules déjà cuites ou ouvertes à la vapeur.",
-      "Servir avec citron vert et coriandre.",
-    ],
-  },
-  {
-    id: "plat-calamars-sautes-polenta-tomate-et-basilic",
-    nom: "Calamars sautés, polenta tomate et basilic",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["mollusques"],
-    motsCles: ["calamars poids net consommable","polenta cuite certifiee sans gluten","tomate concassee","courgette"],
-    kcal: 435, proteines: 35, glucides: 49, lipides: 10,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Calamars poids net consommable", quantite: 170, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Polenta cuite certifiée sans gluten", quantite: 170, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate concassée", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Courgette", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Réchauffer la polenta certifiée sans gluten avec un peu d’eau.",
-      "Faire revenir ail, tomate et courgette.",
-      "Ajouter les calamars et cuire rapidement.",
-      "Servir avec basilic frais.",
-    ],
-  },
-  {
-    id: "plat-poulpe-paprika-pois-chiches-et-salade-de-tomat",
-    nom: "Poulpe paprika, pois chiches et salade de tomate",
-    type: "plat",
-    cuisines: ["orientale"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["mollusques"],
-    motsCles: ["poulpe cuit poids net consommable","pois chiches cuits","tomate","concombre","citron"],
-    kcal: 485, proteines: 36, glucides: 48, lipides: 17,
-    tempsMinutes: 15,
-    ingredients: [
-      { nom: "Poulpe cuit poids net consommable", quantite: 160, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pois chiches cuits", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Tomate", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Concombre", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Cumin", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper le poulpe en morceaux et le réchauffer avec paprika et cumin.",
-      "Mélanger pois chiches, tomate et concombre.",
-      "Ajouter citron, huile d’olive et persil.",
-      "Servir tiède ou froid.",
-    ],
-  },
-  {
-    id: "plat-coques-citronnees-sarrasin-et-poireaux-fondant",
-    nom: "Coques citronnées, sarrasin et poireaux fondants",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["mollusques"],
-    motsCles: ["coques poids net consommable","sarrasin cuit certifie sans gluten","poireaux","citron"],
-    kcal: 420, proteines: 31, glucides: 52, lipides: 8,
-    tempsMinutes: 25,
-    ingredients: [
-      { nom: "Coques poids net consommable", quantite: 180, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Sarrasin cuit certifié sans gluten", quantite: 130, unite: "g", rayon: "Épicerie" },
-      { nom: "Poireaux", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Faire fondre les poireaux avec l’huile et l’ail.",
-      "Ajouter les coques et couvrir jusqu’à ouverture.",
-      "Réchauffer le sarrasin certifié sans gluten.",
-      "Servir avec citron, persil et poivre.",
-    ],
-  },
-  {
-    id: "plat-encornets-express-patate-douce-et-epinards",
-    nom: "Encornets express, patate douce et épinards",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["mollusques"],
-    motsCles: ["encornets poids net consommable","patate douce cuite","epinards","citron"],
-    kcal: 415, proteines: 34, glucides: 45, lipides: 9,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Encornets poids net consommable", quantite: 170, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Patate douce cuite", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Épinards", quantite: 120, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Paprika doux", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Couper la patate douce cuite en cubes.",
-      "Saisir les encornets rapidement avec ail, paprika et huile.",
-      "Ajouter les épinards pour les faire tomber.",
-      "Servir avec citron et persil.",
-    ],
-  },
-  {
-    id: "plat-couteaux-grilles-pommes-grenailles-et-salade-v",
-    nom: "Couteaux grillés, pommes grenailles et salade verte",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["mollusques"],
-    motsCles: ["couteaux poids net consommable","pommes grenailles","salade verte","tomate","citron"],
-    kcal: 390, proteines: 30, glucides: 42, lipides: 10,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Couteaux poids net consommable", quantite: 180, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Pommes grenailles", quantite: 150, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Salade verte", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomate", quantite: 60, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Persil", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les pommes grenailles vapeur.",
-      "Griller les couteaux avec ail et persil.",
-      "Préparer la salade avec tomate, citron et huile d’olive.",
-      "Servir aussitôt avec les pommes grenailles.",
-    ],
-  },
-  {
-    id: "plat-saint-jacques-poelees-puree-de-carotte-et-quin",
-    nom: "Saint-Jacques poêlées, purée de carotte et quinoa",
-    type: "plat",
-    cuisines: ["francaise"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["maintien","energie"],
-    budget: "normal",
-    allergenes: ["mollusques"],
-    motsCles: ["noix de saint-jacques poids net consommable","carotte","quinoa cuit certifie sans gluten","citron"],
-    kcal: 455, proteines: 32, glucides: 48, lipides: 15,
-    tempsMinutes: 20,
-    ingredients: [
-      { nom: "Noix de Saint-Jacques poids net consommable", quantite: 150, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Carotte", quantite: 160, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Quinoa cuit certifié sans gluten", quantite: 100, unite: "g", rayon: "Épicerie" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-      { nom: "Ciboulette", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Poivre", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-    ],
-    etapes: [
-      "Cuire les carottes puis les écraser avec poivre et citron.",
-      "Saisir rapidement les Saint-Jacques avec l’huile d’olive.",
-      "Servir avec quinoa certifié sans gluten et ciboulette.",
-    ],
-  },
-  {
-    id: "plat-spaghettis-de-courgette-aux-moules-et-tomates-",
-    nom: "Spaghettis de courgette aux moules et tomates cerises",
-    type: "plat",
-    cuisines: ["mediterraneenne"],
-    regime: ["sans-porc","sans-gluten"],
-    objectifs: ["perte","maintien"],
-    budget: "normal",
-    allergenes: ["mollusques"],
-    motsCles: ["moules poids net consommable","spaghettis de courgette","pommes de terre cuites","tomates cerises","citron"],
-    kcal: 380, proteines: 33, glucides: 38, lipides: 10,
-    tempsMinutes: 18,
-    ingredients: [
-      { nom: "Moules poids net consommable", quantite: 230, unite: "g", rayon: "Poissonnerie" },
-      { nom: "Spaghettis de courgette", quantite: 220, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Pommes de terre cuites", quantite: 100, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Tomates cerises", quantite: 80, unite: "g", rayon: "Fruits & légumes" },
-      { nom: "Huile d’olive", quantite: 1, unite: "c. à café", rayon: "Épicerie" },
-      { nom: "Ail", quantite: 1, unite: "gousse", rayon: "Fruits & légumes" },
-      { nom: "Basilic", quantite: 1, unite: "pincée", rayon: "Épicerie" },
-      { nom: "Citron", quantite: 1, unite: "pièce", rayon: "Fruits & légumes" },
-    ],
-    etapes: [
-      "Faire revenir ail, tomates cerises et spaghettis de courgette avec l’huile.",
-      "Ajouter les moules cuites et les pommes de terre en dés.",
-      "Mélanger rapidement.",
-      "Servir avec basilic et citron.",
-    ],
+      "Mélanger avec les oeufs et l'avoine.",
+      "Cuire en petits pancakes et servir avec le fromage blanc."
+    ]
+  },
+  {
+    "id": "pd-pancakes-fromage-blanc",
+    "nom": "Pancakes fromage blanc",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 395,
+    "proteines": 26,
+    "glucides": 45,
+    "lipides": 11,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "oeuf",
+      "fromage blanc",
+      "avoine"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fromage blanc",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mélanger les oeufs, le fromage blanc et l'avoine.",
+      "Cuire en petits pancakes.",
+      "Ajouter le miel avant de servir."
+    ]
+  },
+  {
+    "id": "pd-pancakes-pomme",
+    "nom": "Pancakes pomme",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 405,
+    "proteines": 23,
+    "glucides": 52,
+    "lipides": 11,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "pomme",
+      "oeuf",
+      "avoine"
+    ],
+    "ingredients": [
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "fromage blanc",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Râper ou couper finement la pomme.",
+      "Mélanger avec les oeufs et l'avoine.",
+      "Cuire en petits pancakes et servir avec le fromage blanc."
+    ]
+  },
+  {
+    "id": "pd-porridge-skyr-miel",
+    "nom": "Porridge skyr miel",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 400,
+    "proteines": 28,
+    "glucides": 55,
+    "lipides": 7,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "avoine",
+      "skyr",
+      "miel"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 150,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire l'avoine avec le lait.",
+      "Verser dans un bol.",
+      "Ajouter le skyr et le miel."
+    ]
+  },
+  {
+    "id": "pd-porridge-beurre-de-cacahuete",
+    "nom": "Porridge beurre de cacahuète",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose",
+      "arachide"
+    ],
+    "kcal": 445,
+    "proteines": 21,
+    "glucides": 54,
+    "lipides": 16,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "avoine",
+      "cacahuète",
+      "lait"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire l'avoine avec le lait.",
+      "Ajouter le beurre de cacahuète.",
+      "Servir avec la banane en rondelles."
+    ]
+  },
+  {
+    "id": "pd-wrap-jambon-fromage",
+    "nom": "Wrap jambon fromage",
+    "type": "petit-dejeuner",
+    "categorie": "emporter",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 390,
+    "proteines": 25,
+    "glucides": 42,
+    "lipides": 13,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "wrap",
+      "jambon",
+      "fromage"
+    ],
+    "ingredients": [
+      {
+        "nom": "tortilla de blé",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "jambon blanc",
+        "quantite": 1,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner la tortilla avec le fromage frais.",
+      "Ajouter le jambon et l'emmental.",
+      "Rouler le wrap."
+    ]
+  },
+  {
+    "id": "pd-wrap-dinde-fromage-frais",
+    "nom": "Wrap dinde fromage frais",
+    "type": "petit-dejeuner",
+    "categorie": "emporter",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 360,
+    "proteines": 28,
+    "glucides": 40,
+    "lipides": 9,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "wrap",
+      "dinde",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "tortilla de blé",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "blanc de dinde",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Tartiner la tortilla avec le fromage frais.",
+      "Ajouter la dinde et la tomate.",
+      "Rouler le wrap."
+    ]
+  },
+  {
+    "id": "pd-sandwich-oeuf-fromage",
+    "nom": "Sandwich oeuf fromage",
+    "type": "petit-dejeuner",
+    "categorie": "emporter",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 420,
+    "proteines": 24,
+    "glucides": 42,
+    "lipides": 17,
+    "tempsMinutes": 10,
+    "motsCles": [
+      "pain",
+      "oeuf",
+      "fromage"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Faire cuire les oeufs.",
+      "Déposer les oeufs sur le pain.",
+      "Ajouter l'emmental et refermer."
+    ]
+  },
+  {
+    "id": "pd-bagel-saumon-fromage-frais",
+    "nom": "Bagel saumon fromage frais",
+    "type": "petit-dejeuner",
+    "categorie": "emporter",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose",
+      "poisson"
+    ],
+    "kcal": 440,
+    "proteines": 27,
+    "glucides": 48,
+    "lipides": 15,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "bagel",
+      "saumon",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "bagel nature",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "saumon fumé",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Couper le bagel en deux.",
+      "Tartiner le fromage frais.",
+      "Ajouter le saumon et refermer."
+    ]
+  },
+  {
+    "id": "pd-sandwich-dinde-tomate",
+    "nom": "Sandwich dinde tomate",
+    "type": "petit-dejeuner",
+    "categorie": "emporter",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 370,
+    "proteines": 27,
+    "glucides": 42,
+    "lipides": 10,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain",
+      "dinde",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "blanc de dinde",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Tartiner le pain avec le fromage frais.",
+      "Ajouter la dinde et la tomate.",
+      "Refermer le sandwich."
+    ]
+  },
+  {
+    "id": "pd-wrap-banane-cacahuete",
+    "nom": "Wrap banane cacahuète",
+    "type": "petit-dejeuner",
+    "categorie": "emporter",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "arachide"
+    ],
+    "kcal": 430,
+    "proteines": 13,
+    "glucides": 62,
+    "lipides": 15,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "wrap",
+      "banane",
+      "cacahuète"
+    ],
+    "ingredients": [
+      {
+        "nom": "tortilla de blé",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner la tortilla avec le beurre de cacahuète.",
+      "Ajouter la banane.",
+      "Rouler le wrap."
+    ]
+  },
+  {
+    "id": "pd-sandwich-fromage-frais-miel",
+    "nom": "Sandwich fromage frais miel",
+    "type": "petit-dejeuner",
+    "categorie": "emporter",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 330,
+    "proteines": 13,
+    "glucides": 46,
+    "lipides": 10,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain",
+      "fromage frais",
+      "miel"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le fromage frais sur le pain.",
+      "Ajouter le miel.",
+      "Refermer le sandwich."
+    ]
+  },
+  {
+    "id": "pd-smoothie-banane",
+    "nom": "Smoothie banane",
+    "type": "petit-dejeuner",
+    "categorie": "smoothie",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 330,
+    "proteines": 18,
+    "glucides": 55,
+    "lipides": 5,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "banane",
+      "lait",
+      "skyr"
+    ],
+    "ingredients": [
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "skyr nature",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Mettre la banane dans un blender.",
+      "Ajouter le lait et le skyr.",
+      "Mixer jusqu'à obtenir une texture lisse."
+    ]
+  },
+  {
+    "id": "pd-smoothie-fraise-banane",
+    "nom": "Smoothie fraise banane",
+    "type": "petit-dejeuner",
+    "categorie": "smoothie",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 350,
+    "proteines": 19,
+    "glucides": 58,
+    "lipides": 5,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "fraise",
+      "banane",
+      "lait"
+    ],
+    "ingredients": [
+      {
+        "nom": "fraises",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "skyr nature",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Mettre les fruits dans un blender.",
+      "Ajouter le lait et le skyr.",
+      "Mixer et servir frais."
+    ]
+  },
+  {
+    "id": "pd-shake-chocolat",
+    "nom": "Shake chocolat",
+    "type": "petit-dejeuner",
+    "categorie": "smoothie",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 360,
+    "proteines": 32,
+    "glucides": 38,
+    "lipides": 8,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "whey",
+      "chocolat",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "whey chocolat",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 250,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Mettre le lait dans un shaker ou blender.",
+      "Ajouter la whey et la banane.",
+      "Mixer ou secouer."
+    ]
+  },
+  {
+    "id": "pd-smoothie-mangue",
+    "nom": "Smoothie mangue",
+    "type": "petit-dejeuner",
+    "categorie": "smoothie",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 340,
+    "proteines": 18,
+    "glucides": 54,
+    "lipides": 6,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "mangue",
+      "lait",
+      "skyr"
+    ],
+    "ingredients": [
+      {
+        "nom": "mangue",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "skyr nature",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Mettre la mangue dans un blender.",
+      "Ajouter le lait et le skyr.",
+      "Mixer jusqu'à obtenir une texture lisse."
+    ]
+  },
+  {
+    "id": "pd-smoothie-pomme-banane",
+    "nom": "Smoothie pomme banane",
+    "type": "petit-dejeuner",
+    "categorie": "smoothie",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 345,
+    "proteines": 18,
+    "glucides": 60,
+    "lipides": 4,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pomme",
+      "banane",
+      "lait"
+    ],
+    "ingredients": [
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "skyr nature",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Couper la pomme et la banane.",
+      "Ajouter le lait et le skyr.",
+      "Mixer quelques secondes."
+    ]
+  },
+  {
+    "id": "pd-shake-vanille-avoine",
+    "nom": "Shake vanille avoine",
+    "type": "petit-dejeuner",
+    "categorie": "smoothie",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 420,
+    "proteines": 34,
+    "glucides": 50,
+    "lipides": 8,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "whey",
+      "avoine",
+      "lait"
+    ],
+    "ingredients": [
+      {
+        "nom": "whey vanille",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 250,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "flocons d'avoine",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mettre le lait dans un blender.",
+      "Ajouter la whey et l'avoine.",
+      "Mixer jusqu'à obtenir une texture homogène."
+    ]
+  },
+  {
+    "id": "pd-smoothie-fruits-rouges",
+    "nom": "Smoothie fruits rouges",
+    "type": "petit-dejeuner",
+    "categorie": "smoothie",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 320,
+    "proteines": 19,
+    "glucides": 42,
+    "lipides": 7,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "fruits rouges",
+      "skyr",
+      "lait"
+    ],
+    "ingredients": [
+      {
+        "nom": "fruits rouges",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 150,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mettre les fruits rouges dans un blender.",
+      "Ajouter le skyr, le lait et le miel.",
+      "Mixer et servir frais."
+    ]
+  },
+  {
+    "id": "pd-porridge-sans-gluten-banane",
+    "nom": "Porridge sans gluten banane",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 360,
+    "proteines": 10,
+    "glucides": 62,
+    "lipides": 8,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "avoine sans gluten",
+      "banane",
+      "lait végétal"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine sans gluten",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait d'amande",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Chauffer le lait d'amande avec l'avoine.",
+      "Remuer jusqu'à épaississement.",
+      "Ajouter la banane et la cannelle."
+    ]
+  },
+  {
+    "id": "pd-bol-soja-fruits-rouges",
+    "nom": "Bol soja fruits rouges",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 320,
+    "proteines": 13,
+    "glucides": 42,
+    "lipides": 10,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "yaourt soja",
+      "fruits rouges",
+      "chia"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt soja nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fruits rouges",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "graines de chia",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "sirop d'érable",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt soja dans un bol.",
+      "Ajouter les fruits rouges.",
+      "Ajouter les graines de chia et le sirop d'érable."
+    ]
+  },
+  {
+    "id": "pd-tartines-riz-banane-cacahuete",
+    "nom": "Tartines riz banane cacahuète",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "arachide"
+    ],
+    "kcal": 340,
+    "proteines": 9,
+    "glucides": 48,
+    "lipides": 13,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "galettes de riz",
+      "banane",
+      "cacahuète"
+    ],
+    "ingredients": [
+      {
+        "nom": "galettes de riz",
+        "quantite": 4,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Tartiner les galettes avec le beurre de cacahuète.",
+      "Couper la banane en rondelles.",
+      "Ajouter la banane sur les galettes."
+    ]
+  },
+  {
+    "id": "pd-smoothie-soja-banane",
+    "nom": "Smoothie soja banane",
+    "type": "petit-dejeuner",
+    "categorie": "smoothie",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 310,
+    "proteines": 14,
+    "glucides": 48,
+    "lipides": 7,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "banane",
+      "lait de soja",
+      "avoine sans gluten"
+    ],
+    "ingredients": [
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait de soja",
+        "quantite": 250,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "flocons d'avoine sans gluten",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mettre les ingrédients dans un blender.",
+      "Mixer jusqu'à obtenir une texture lisse.",
+      "Servir frais."
+    ]
+  },
+  {
+    "id": "pd-bol-soja-pomme-cannelle",
+    "nom": "Bol soja pomme cannelle",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 300,
+    "proteines": 12,
+    "glucides": 40,
+    "lipides": 9,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "yaourt soja",
+      "pomme",
+      "chia"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt soja nature",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "graines de chia",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "cannelle",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt soja dans un bol.",
+      "Ajouter la pomme coupée.",
+      "Ajouter les graines de chia et la cannelle."
+    ]
+  },
+  {
+    "id": "pd-porridge-cacao-vegan",
+    "nom": "Porridge cacao vegan",
+    "type": "petit-dejeuner",
+    "categorie": "pancake-porridge",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 370,
+    "proteines": 11,
+    "glucides": 58,
+    "lipides": 10,
+    "tempsMinutes": 8,
+    "motsCles": [
+      "avoine sans gluten",
+      "cacao",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "flocons d'avoine sans gluten",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait d'amande",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "cacao non sucré",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Chauffer le lait d'amande avec l'avoine.",
+      "Ajouter le cacao.",
+      "Servir avec la banane en rondelles."
+    ]
+  },
+  {
+    "id": "pd-tartines-mais-avocat",
+    "nom": "Tartines maïs avocat",
+    "type": "petit-dejeuner",
+    "categorie": "tartine",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 330,
+    "proteines": 7,
+    "glucides": 42,
+    "lipides": 15,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "galettes de maïs",
+      "avocat",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "galettes de maïs",
+        "quantite": 4,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "avocat",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Écraser l'avocat.",
+      "Déposer sur les galettes de maïs.",
+      "Ajouter la tomate coupée."
+    ]
+  },
+  {
+    "id": "pd-bol-compote-avoine",
+    "nom": "Bol compote avoine",
+    "type": "petit-dejeuner",
+    "categorie": "bol",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 290,
+    "proteines": 8,
+    "glucides": 52,
+    "lipides": 5,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "compote",
+      "avoine sans gluten",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "compote sans sucres ajoutés",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "flocons d'avoine sans gluten",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser la compote dans un bol.",
+      "Ajouter l'avoine.",
+      "Ajouter la banane en rondelles."
+    ]
+  },
+  {
+    "id": "pd-wrap-mais-houmous",
+    "nom": "Wrap maïs houmous",
+    "type": "petit-dejeuner",
+    "categorie": "emporter",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "sesame"
+    ],
+    "kcal": 360,
+    "proteines": 11,
+    "glucides": 48,
+    "lipides": 13,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "wrap maïs",
+      "houmous",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "wrap de maïs sans gluten",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "houmous",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Tartiner le wrap avec le houmous.",
+      "Ajouter le concombre coupé.",
+      "Rouler le wrap."
+    ]
+  },
+  {
+    "id": "pd-smoothie-fruits-rouges-vegan",
+    "nom": "Smoothie fruits rouges vegan",
+    "type": "petit-dejeuner",
+    "categorie": "smoothie",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 300,
+    "proteines": 9,
+    "glucides": 45,
+    "lipides": 8,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "fruits rouges",
+      "lait d'amande",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "fruits rouges",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait d'amande",
+        "quantite": 250,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mettre les fruits dans un blender.",
+      "Ajouter le lait d'amande.",
+      "Mixer et servir frais."
+    ]
+  },
+  {
+    "id": "col-skyr-et-amandes",
+    "nom": "Skyr et amandes",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose",
+      "fruits-a-coque"
+    ],
+    "kcal": 230,
+    "proteines": 19,
+    "glucides": 10,
+    "lipides": 12,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "skyr",
+      "amandes"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "amandes",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter les amandes."
+    ]
+  },
+  {
+    "id": "col-fromage-blanc-proteine",
+    "nom": "Fromage blanc protéiné",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 220,
+    "proteines": 27,
+    "glucides": 14,
+    "lipides": 5,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "fromage blanc",
+      "whey vanille"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "whey vanille",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter la whey.",
+      "Mélanger."
+    ]
+  },
+  {
+    "id": "col-shake-chocolat",
+    "nom": "Shake chocolat",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 210,
+    "proteines": 27,
+    "glucides": 12,
+    "lipides": 5,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "whey chocolat",
+      "lait demi-écrémé"
+    ],
+    "ingredients": [
+      {
+        "nom": "whey chocolat",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Verser le lait dans un shaker.",
+      "Ajouter la whey.",
+      "Secouer."
+    ]
+  },
+  {
+    "id": "col-skyr-banane",
+    "nom": "Skyr banane",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 225,
+    "proteines": 17,
+    "glucides": 34,
+    "lipides": 1,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "skyr",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter la banane en rondelles."
+    ]
+  },
+  {
+    "id": "col-ufs-durs",
+    "nom": "Œufs durs",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 210,
+    "proteines": 18,
+    "glucides": 1,
+    "lipides": 15,
+    "tempsMinutes": 10,
+    "motsCles": [
+      "oeufs"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les oeufs dans l'eau bouillante.",
+      "Écaler les oeufs.",
+      "Servir froids ou tièdes."
+    ]
+  },
+  {
+    "id": "col-fromage-blanc-et-noix",
+    "nom": "Fromage blanc et noix",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose",
+      "fruits-a-coque"
+    ],
+    "kcal": 245,
+    "proteines": 16,
+    "glucides": 12,
+    "lipides": 15,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "fromage blanc",
+      "noix"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "noix",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter les noix."
+    ]
+  },
+  {
+    "id": "col-thon-fromage-frais",
+    "nom": "Thon fromage frais",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson",
+      "lactose"
+    ],
+    "kcal": 190,
+    "proteines": 29,
+    "glucides": 3,
+    "lipides": 7,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "thon",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "thon au naturel",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Égoutter le thon.",
+      "Mélanger avec le fromage frais.",
+      "Servir frais."
+    ]
+  },
+  {
+    "id": "col-blanc-de-dinde-fromage-frais",
+    "nom": "Blanc de dinde fromage frais",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 170,
+    "proteines": 24,
+    "glucides": 3,
+    "lipides": 7,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "blanc de dinde",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de dinde",
+        "quantite": 3,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le fromage frais sur la dinde.",
+      "Rouler les tranches.",
+      "Servir frais."
+    ]
+  },
+  {
+    "id": "col-shake-banane-vanille",
+    "nom": "Shake banane vanille",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 310,
+    "proteines": 28,
+    "glucides": 38,
+    "lipides": 5,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "whey vanille",
+      "lait demi-écrémé",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "whey vanille",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Mettre les ingrédients dans un blender.",
+      "Mixer quelques secondes.",
+      "Servir frais."
+    ]
+  },
+  {
+    "id": "col-skyr-miel",
+    "nom": "Skyr miel",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 145,
+    "proteines": 16,
+    "glucides": 17,
+    "lipides": 1,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "skyr",
+      "miel"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter le miel.",
+      "Mélanger."
+    ]
+  },
+  {
+    "id": "col-yaourt-grec-amandes",
+    "nom": "Yaourt grec amandes",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose",
+      "fruits-a-coque"
+    ],
+    "kcal": 260,
+    "proteines": 18,
+    "glucides": 10,
+    "lipides": 16,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "yaourt grec",
+      "amandes"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt grec",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "amandes",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt grec dans un bol.",
+      "Ajouter les amandes."
+    ]
+  },
+  {
+    "id": "col-poulet-froid-tomate",
+    "nom": "Poulet froid tomate",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 165,
+    "proteines": 24,
+    "glucides": 4,
+    "lipides": 5,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "poulet",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet cuit",
+        "quantite": 90,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Couper le poulet.",
+      "Ajouter la tomate coupée.",
+      "Servir frais."
+    ]
+  },
+  {
+    "id": "col-fromage-blanc-cacao",
+    "nom": "Fromage blanc cacao",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 155,
+    "proteines": 15,
+    "glucides": 14,
+    "lipides": 4,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "fromage blanc",
+      "cacao"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "cacao non sucré",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter le cacao.",
+      "Mélanger."
+    ]
+  },
+  {
+    "id": "col-skyr-chocolat",
+    "nom": "Skyr chocolat",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 170,
+    "proteines": 16,
+    "glucides": 18,
+    "lipides": 4,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "skyr",
+      "chocolat noir"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "chocolat noir",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter le chocolat en copeaux.",
+      "Mélanger légèrement."
+    ]
+  },
+  {
+    "id": "col-whey-a-l-eau",
+    "nom": "Whey à l'eau",
+    "type": "collation",
+    "categorie": "proteinees",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 120,
+    "proteines": 24,
+    "glucides": 3,
+    "lipides": 2,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "whey",
+      "eau"
+    ],
+    "ingredients": [
+      {
+        "nom": "whey",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "eau",
+        "quantite": 250,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser l'eau dans un shaker.",
+      "Ajouter la whey.",
+      "Secouer."
+    ]
+  },
+  {
+    "id": "col-galettes-avocat",
+    "nom": "Galettes avocat",
+    "type": "collation",
+    "categorie": "tartines",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 210,
+    "proteines": 4,
+    "glucides": 28,
+    "lipides": 9,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "galettes de riz",
+      "avocat"
+    ],
+    "ingredients": [
+      {
+        "nom": "galettes de riz",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "avocat",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Écraser l'avocat.",
+      "Déposer l'avocat sur les galettes.",
+      "Servir immédiatement."
+    ]
+  },
+  {
+    "id": "col-pain-fromage-frais",
+    "nom": "Pain fromage frais",
+    "type": "collation",
+    "categorie": "tartines",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 190,
+    "proteines": 8,
+    "glucides": 28,
+    "lipides": 5,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "pain complet",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 1,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le fromage frais sur le pain.",
+      "Servir frais."
+    ]
+  },
+  {
+    "id": "col-crackers-houmous",
+    "nom": "Crackers houmous",
+    "type": "collation",
+    "categorie": "tartines",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "sesame"
+    ],
+    "kcal": 230,
+    "proteines": 7,
+    "glucides": 30,
+    "lipides": 9,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "crackers",
+      "houmous"
+    ],
+    "ingredients": [
+      {
+        "nom": "crackers de blé",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "houmous",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Déposer le houmous dans une petite assiette.",
+      "Servir avec les crackers."
+    ]
+  },
+  {
+    "id": "col-galettes-beurre-de-cacahuete",
+    "nom": "Galettes beurre de cacahuète",
+    "type": "collation",
+    "categorie": "tartines",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "arachide"
+    ],
+    "kcal": 235,
+    "proteines": 7,
+    "glucides": 30,
+    "lipides": 10,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "galettes de riz",
+      "beurre de cacahuète"
+    ],
+    "ingredients": [
+      {
+        "nom": "galettes de riz",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner les galettes avec le beurre de cacahuète.",
+      "Servir immédiatement."
+    ]
+  },
+  {
+    "id": "col-pain-avocat-tomate",
+    "nom": "Pain avocat tomate",
+    "type": "collation",
+    "categorie": "tartines",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 250,
+    "proteines": 7,
+    "glucides": 32,
+    "lipides": 10,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain complet",
+      "avocat",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 1,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "avocat",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Écraser l'avocat sur le pain.",
+      "Couper la tomate.",
+      "Ajouter la tomate sur la tartine."
+    ]
+  },
+  {
+    "id": "col-galettes-fromage-frais",
+    "nom": "Galettes fromage frais",
+    "type": "collation",
+    "categorie": "tartines",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 170,
+    "proteines": 7,
+    "glucides": 24,
+    "lipides": 5,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "galettes de riz",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "galettes de riz",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le fromage frais sur les galettes.",
+      "Servir immédiatement."
+    ]
+  },
+  {
+    "id": "col-pain-chevre-miel",
+    "nom": "Pain chèvre miel",
+    "type": "collation",
+    "categorie": "tartines",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 230,
+    "proteines": 9,
+    "glucides": 31,
+    "lipides": 8,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain complet",
+      "chèvre frais",
+      "miel"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 1,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "chèvre frais",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le chèvre frais sur le pain.",
+      "Ajouter le miel.",
+      "Servir."
+    ]
+  },
+  {
+    "id": "col-crackers-fromage-frais",
+    "nom": "Crackers fromage frais",
+    "type": "collation",
+    "categorie": "tartines",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 210,
+    "proteines": 8,
+    "glucides": 28,
+    "lipides": 7,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "crackers",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "crackers de blé",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le fromage frais sur les crackers.",
+      "Servir."
+    ]
+  },
+  {
+    "id": "col-galettes-banane-cacahuete",
+    "nom": "Galettes banane cacahuète",
+    "type": "collation",
+    "categorie": "tartines",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "arachide"
+    ],
+    "kcal": 285,
+    "proteines": 8,
+    "glucides": 42,
+    "lipides": 10,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "galettes de riz",
+      "banane",
+      "beurre de cacahuète"
+    ],
+    "ingredients": [
+      {
+        "nom": "galettes de riz",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner les galettes avec le beurre de cacahuète.",
+      "Couper la banane.",
+      "Ajouter la banane sur les galettes."
+    ]
+  },
+  {
+    "id": "col-pain-houmous-concombre",
+    "nom": "Pain houmous concombre",
+    "type": "collation",
+    "categorie": "tartines",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "sesame"
+    ],
+    "kcal": 240,
+    "proteines": 8,
+    "glucides": 34,
+    "lipides": 8,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "pain complet",
+      "houmous",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 1,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "houmous",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Tartiner le houmous sur le pain.",
+      "Couper le concombre.",
+      "Ajouter le concombre sur la tartine."
+    ]
+  },
+  {
+    "id": "col-amandes",
+    "nom": "Amandes",
+    "type": "collation",
+    "categorie": "oleagineux",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 175,
+    "proteines": 6,
+    "glucides": 6,
+    "lipides": 15,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "amandes"
+    ],
+    "ingredients": [
+      {
+        "nom": "amandes",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Servir les amandes."
+    ]
+  },
+  {
+    "id": "col-noix",
+    "nom": "Noix",
+    "type": "collation",
+    "categorie": "oleagineux",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 200,
+    "proteines": 5,
+    "glucides": 4,
+    "lipides": 20,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "noix"
+    ],
+    "ingredients": [
+      {
+        "nom": "noix",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Servir les noix."
+    ]
+  },
+  {
+    "id": "col-noisettes",
+    "nom": "Noisettes",
+    "type": "collation",
+    "categorie": "oleagineux",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 190,
+    "proteines": 5,
+    "glucides": 5,
+    "lipides": 18,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "noisettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "noisettes",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Servir les noisettes."
+    ]
+  },
+  {
+    "id": "col-melange-de-noix",
+    "nom": "Mélange de noix",
+    "type": "collation",
+    "categorie": "oleagineux",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 190,
+    "proteines": 6,
+    "glucides": 6,
+    "lipides": 17,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "amandes",
+      "noix",
+      "noisettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "amandes",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "noix",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "noisettes",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mélanger les oléagineux.",
+      "Servir."
+    ]
+  },
+  {
+    "id": "col-banane-beurre-de-cacahuete",
+    "nom": "Banane beurre de cacahuète",
+    "type": "collation",
+    "categorie": "oleagineux",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "arachide"
+    ],
+    "kcal": 220,
+    "proteines": 6,
+    "glucides": 28,
+    "lipides": 10,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "banane",
+      "beurre de cacahuète"
+    ],
+    "ingredients": [
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Éplucher la banane.",
+      "Tartiner avec le beurre de cacahuète."
+    ]
+  },
+  {
+    "id": "col-pomme-amandes",
+    "nom": "Pomme amandes",
+    "type": "collation",
+    "categorie": "oleagineux",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 190,
+    "proteines": 5,
+    "glucides": 24,
+    "lipides": 10,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "pomme",
+      "amandes"
+    ],
+    "ingredients": [
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "amandes",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Couper la pomme.",
+      "Servir avec les amandes."
+    ]
+  },
+  {
+    "id": "col-poire-noix",
+    "nom": "Poire noix",
+    "type": "collation",
+    "categorie": "oleagineux",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 205,
+    "proteines": 5,
+    "glucides": 25,
+    "lipides": 11,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "poire",
+      "noix"
+    ],
+    "ingredients": [
+      {
+        "nom": "poire",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "noix",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Couper la poire.",
+      "Servir avec les noix."
+    ]
+  },
+  {
+    "id": "col-raisins-secs-et-noix",
+    "nom": "Raisins secs et noix",
+    "type": "collation",
+    "categorie": "oleagineux",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 215,
+    "proteines": 5,
+    "glucides": 26,
+    "lipides": 11,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "raisins secs",
+      "noix"
+    ],
+    "ingredients": [
+      {
+        "nom": "raisins secs",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "noix",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mélanger les raisins secs et les noix.",
+      "Servir."
+    ]
+  },
+  {
+    "id": "col-wrap-dinde-fromage-frais",
+    "nom": "Wrap dinde fromage frais",
+    "type": "collation",
+    "categorie": "emporter",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 260,
+    "proteines": 19,
+    "glucides": 28,
+    "lipides": 8,
+    "tempsMinutes": 5,
+    "motsCles": [
+      "wrap de blé",
+      "blanc de dinde",
+      "fromage frais"
+    ],
+    "ingredients": [
+      {
+        "nom": "wrap de blé",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "blanc de dinde",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "fromage frais",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le wrap avec le fromage frais.",
+      "Ajouter le blanc de dinde.",
+      "Rouler le wrap."
+    ]
+  },
+  {
+    "id": "col-mini-sandwich-jambon",
+    "nom": "Mini sandwich jambon",
+    "type": "collation",
+    "categorie": "emporter",
+    "gout": "sale",
+    "cuisines": [],
+    "regime": [],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 250,
+    "proteines": 15,
+    "glucides": 30,
+    "lipides": 8,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pain complet",
+      "jambon blanc",
+      "emmental"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 1,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "jambon blanc",
+        "quantite": 1,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Couper la tranche de pain en deux.",
+      "Ajouter le jambon et l'emmental.",
+      "Refermer le mini sandwich."
+    ]
+  },
+  {
+    "id": "col-energy-balls-dattes-cacao",
+    "nom": "Energy balls dattes cacao",
+    "type": "collation",
+    "categorie": "emporter",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 220,
+    "proteines": 5,
+    "glucides": 28,
+    "lipides": 10,
+    "tempsMinutes": 10,
+    "motsCles": [
+      "dattes",
+      "amandes",
+      "cacao"
+    ],
+    "ingredients": [
+      {
+        "nom": "dattes",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "amandes",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "cacao non sucré",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mixer les dattes et les amandes.",
+      "Ajouter le cacao.",
+      "Former des petites boules."
+    ]
+  },
+  {
+    "id": "col-banane-amandes",
+    "nom": "Banane amandes",
+    "type": "collation",
+    "categorie": "emporter",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "fruits-a-coque"
+    ],
+    "kcal": 220,
+    "proteines": 5,
+    "glucides": 30,
+    "lipides": 10,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "banane",
+      "amandes"
+    ],
+    "ingredients": [
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "amandes",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mettre la banane et les amandes dans une boîte.",
+      "Emporter tel quel."
+    ]
+  },
+  {
+    "id": "col-wrap-banane-cacahuete",
+    "nom": "Wrap banane cacahuète",
+    "type": "collation",
+    "categorie": "emporter",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "arachide"
+    ],
+    "kcal": 310,
+    "proteines": 9,
+    "glucides": 44,
+    "lipides": 11,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "wrap de blé",
+      "banane",
+      "beurre de cacahuète"
+    ],
+    "ingredients": [
+      {
+        "nom": "wrap de blé",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Tartiner le wrap avec le beurre de cacahuète.",
+      "Ajouter la banane.",
+      "Rouler le wrap."
+    ]
+  },
+  {
+    "id": "col-skyr-et-pomme",
+    "nom": "Skyr et pomme",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 185,
+    "proteines": 16,
+    "glucides": 28,
+    "lipides": 1,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "skyr",
+      "pomme"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter la pomme coupée."
+    ]
+  },
+  {
+    "id": "col-fromage-blanc-banane",
+    "nom": "Fromage blanc banane",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 220,
+    "proteines": 14,
+    "glucides": 36,
+    "lipides": 2,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "fromage blanc",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter la banane en rondelles."
+    ]
+  },
+  {
+    "id": "col-yaourt-et-compote",
+    "nom": "Yaourt et compote",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 175,
+    "proteines": 8,
+    "glucides": 28,
+    "lipides": 3,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "yaourt nature",
+      "compote sans sucres ajoutés"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt nature",
+        "quantite": 125,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "compote sans sucres ajoutés",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt dans un bol.",
+      "Ajouter la compote."
+    ]
+  },
+  {
+    "id": "col-skyr-fruits-rouges",
+    "nom": "Skyr fruits rouges",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 160,
+    "proteines": 16,
+    "glucides": 20,
+    "lipides": 1,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "skyr",
+      "fruits rouges"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fruits rouges",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter les fruits rouges."
+    ]
+  },
+  {
+    "id": "col-fromage-blanc-fraises",
+    "nom": "Fromage blanc fraises",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 155,
+    "proteines": 13,
+    "glucides": 19,
+    "lipides": 2,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "fromage blanc",
+      "fraises"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fraises",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter les fraises coupées."
+    ]
+  },
+  {
+    "id": "col-yaourt-grec-poire",
+    "nom": "Yaourt grec poire",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 230,
+    "proteines": 14,
+    "glucides": 28,
+    "lipides": 7,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "yaourt grec",
+      "poire"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt grec",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "poire",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt grec dans un bol.",
+      "Ajouter la poire coupée."
+    ]
+  },
+  {
+    "id": "col-skyr-et-compote",
+    "nom": "Skyr et compote",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 165,
+    "proteines": 16,
+    "glucides": 22,
+    "lipides": 1,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "skyr",
+      "compote sans sucres ajoutés"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "compote sans sucres ajoutés",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter la compote."
+    ]
+  },
+  {
+    "id": "col-fromage-blanc-miel",
+    "nom": "Fromage blanc miel",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 150,
+    "proteines": 13,
+    "glucides": 20,
+    "lipides": 2,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "fromage blanc",
+      "miel"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "miel",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter le miel."
+    ]
+  },
+  {
+    "id": "col-yaourt-soja-pomme",
+    "nom": "Yaourt soja pomme",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 170,
+    "proteines": 7,
+    "glucides": 28,
+    "lipides": 4,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "yaourt soja",
+      "pomme"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt soja nature",
+        "quantite": 125,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt soja dans un bol.",
+      "Ajouter la pomme coupée."
+    ]
+  },
+  {
+    "id": "col-compote-et-banane",
+    "nom": "Compote et banane",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 180,
+    "proteines": 1,
+    "glucides": 42,
+    "lipides": 0,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "compote sans sucres ajoutés",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "compote sans sucres ajoutés",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Servir la compote.",
+      "Ajouter la banane à côté."
+    ]
+  },
+  {
+    "id": "col-skyr-ananas",
+    "nom": "Skyr ananas",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 170,
+    "proteines": 16,
+    "glucides": 23,
+    "lipides": 1,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "skyr",
+      "ananas"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "ananas",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter l'ananas coupé."
+    ]
+  },
+  {
+    "id": "col-fromage-blanc-kiwi",
+    "nom": "Fromage blanc kiwi",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 145,
+    "proteines": 13,
+    "glucides": 18,
+    "lipides": 2,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "fromage blanc",
+      "kiwi"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "kiwi",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter le kiwi coupé."
+    ]
+  },
+  {
+    "id": "col-yaourt-peche",
+    "nom": "Yaourt pêche",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 165,
+    "proteines": 8,
+    "glucides": 25,
+    "lipides": 3,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "yaourt nature",
+      "pêche"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt nature",
+        "quantite": 125,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pêche",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt dans un bol.",
+      "Ajouter la pêche coupée."
+    ]
+  },
+  {
+    "id": "col-skyr-raisin",
+    "nom": "Skyr raisin",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 190,
+    "proteines": 16,
+    "glucides": 28,
+    "lipides": 1,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "skyr",
+      "raisin"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "raisin",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter le raisin."
+    ]
+  },
+  {
+    "id": "col-fromage-blanc-clementines",
+    "nom": "Fromage blanc clémentines",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 160,
+    "proteines": 13,
+    "glucides": 23,
+    "lipides": 2,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "fromage blanc",
+      "clémentine"
+    ],
+    "ingredients": [
+      {
+        "nom": "fromage blanc",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "clémentine",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le fromage blanc dans un bol.",
+      "Ajouter les quartiers de clémentine."
+    ]
+  },
+  {
+    "id": "col-yaourt-soja-fruits-rouges",
+    "nom": "Yaourt soja fruits rouges",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 145,
+    "proteines": 6,
+    "glucides": 18,
+    "lipides": 4,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "yaourt soja",
+      "fruits rouges"
+    ],
+    "ingredients": [
+      {
+        "nom": "yaourt soja nature",
+        "quantite": 125,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "fruits rouges",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le yaourt soja dans un bol.",
+      "Ajouter les fruits rouges."
+    ]
+  },
+  {
+    "id": "col-compote-et-poire",
+    "nom": "Compote et poire",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 155,
+    "proteines": 1,
+    "glucides": 36,
+    "lipides": 0,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "compote sans sucres ajoutés",
+      "poire"
+    ],
+    "ingredients": [
+      {
+        "nom": "compote sans sucres ajoutés",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "poire",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Servir la compote.",
+      "Ajouter la poire à côté."
+    ]
+  },
+  {
+    "id": "col-skyr-mangue",
+    "nom": "Skyr mangue",
+    "type": "collation",
+    "categorie": "fruits-laitiers",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 185,
+    "proteines": 16,
+    "glucides": 27,
+    "lipides": 1,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "skyr",
+      "mangue"
+    ],
+    "ingredients": [
+      {
+        "nom": "skyr nature",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "mangue",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Verser le skyr dans un bol.",
+      "Ajouter la mangue coupée."
+    ]
+  },
+  {
+    "id": "col-smoothie-banane",
+    "nom": "Smoothie banane",
+    "type": "collation",
+    "categorie": "smoothies",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 220,
+    "proteines": 10,
+    "glucides": 36,
+    "lipides": 4,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "banane",
+      "lait demi-écrémé"
+    ],
+    "ingredients": [
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Mettre la banane dans un blender.",
+      "Ajouter le lait.",
+      "Mixer et servir frais."
+    ]
+  },
+  {
+    "id": "col-smoothie-fraise-banane",
+    "nom": "Smoothie fraise banane",
+    "type": "collation",
+    "categorie": "smoothies",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 240,
+    "proteines": 10,
+    "glucides": 42,
+    "lipides": 4,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "fraises",
+      "banane",
+      "lait demi-écrémé"
+    ],
+    "ingredients": [
+      {
+        "nom": "fraises",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 150,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Mettre les fraises et la banane dans un blender.",
+      "Ajouter le lait.",
+      "Mixer jusqu'à obtenir une texture lisse."
+    ]
+  },
+  {
+    "id": "col-shake-chocolat-2",
+    "nom": "Shake chocolat",
+    "type": "collation",
+    "categorie": "smoothies",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 210,
+    "proteines": 27,
+    "glucides": 12,
+    "lipides": 5,
+    "tempsMinutes": 2,
+    "motsCles": [
+      "whey chocolat",
+      "lait demi-écrémé"
+    ],
+    "ingredients": [
+      {
+        "nom": "whey chocolat",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 200,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Verser le lait dans un shaker.",
+      "Ajouter la whey.",
+      "Secouer et servir frais."
+    ]
+  },
+  {
+    "id": "col-smoothie-pomme-poire",
+    "nom": "Smoothie pomme poire",
+    "type": "collation",
+    "categorie": "smoothies",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 165,
+    "proteines": 1,
+    "glucides": 38,
+    "lipides": 0,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "pomme",
+      "poire",
+      "eau"
+    ],
+    "ingredients": [
+      {
+        "nom": "pomme",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poire",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "eau",
+        "quantite": 150,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Couper la pomme et la poire.",
+      "Ajouter l'eau.",
+      "Mixer quelques secondes."
+    ]
+  },
+  {
+    "id": "col-smoothie-fruits-rouges",
+    "nom": "Smoothie fruits rouges",
+    "type": "collation",
+    "categorie": "smoothies",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 190,
+    "proteines": 12,
+    "glucides": 26,
+    "lipides": 3,
+    "tempsMinutes": 4,
+    "motsCles": [
+      "fruits rouges",
+      "skyr",
+      "lait demi-écrémé"
+    ],
+    "ingredients": [
+      {
+        "nom": "fruits rouges",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "skyr nature",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 100,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Mettre les fruits rouges dans un blender.",
+      "Ajouter le skyr et le lait.",
+      "Mixer et servir frais."
+    ]
+  },
+  {
+    "id": "col-smoothie-soja-banane",
+    "nom": "Smoothie soja banane",
+    "type": "collation",
+    "categorie": "smoothies",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 210,
+    "proteines": 9,
+    "glucides": 34,
+    "lipides": 5,
+    "tempsMinutes": 3,
+    "motsCles": [
+      "lait de soja",
+      "banane"
+    ],
+    "ingredients": [
+      {
+        "nom": "lait de soja",
+        "quantite": 250,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "banane",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Mettre le lait de soja dans un blender.",
+      "Ajouter la banane.",
+      "Mixer et servir frais."
+    ]
+  },
+  {
+    "id": "col-shake-vanille",
+    "nom": "Shake vanille",
+    "type": "collation",
+    "categorie": "smoothies",
+    "gout": "sucre",
+    "cuisines": [],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 120,
+    "proteines": 24,
+    "glucides": 3,
+    "lipides": 2,
+    "tempsMinutes": 1,
+    "motsCles": [
+      "whey vanille",
+      "eau"
+    ],
+    "ingredients": [
+      {
+        "nom": "whey vanille",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "eau",
+        "quantite": 250,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Verser l'eau dans un shaker.",
+      "Ajouter la whey.",
+      "Secouer."
+    ]
+  },
+  {
+    "id": "plat-poulet-riz-courgettes",
+    "nom": "Poulet riz courgettes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 540,
+    "proteines": 42,
+    "glucides": 58,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "sel",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz dans l'eau bouillante.",
+      "Couper les courgettes en rondelles.",
+      "Cuire le poulet à la poêle avec l'huile.",
+      "Ajouter les courgettes et cuire quelques minutes.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-steak-puree-haricots-verts",
+    "nom": "Steak purée haricots verts",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 590,
+    "proteines": 36,
+    "glucides": 48,
+    "lipides": 27,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "steak haché",
+      "pommes de terre",
+      "haricots verts"
+    ],
+    "ingredients": [
+      {
+        "nom": "steak haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 250,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "haricots verts",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "beurre",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre à l'eau.",
+      "Cuire les haricots verts.",
+      "Écraser les pommes de terre avec le lait et le beurre.",
+      "Cuire le steak à la poêle.",
+      "Servir avec la purée et les haricots verts."
+    ]
+  },
+  {
+    "id": "plat-saumon-riz-brocolis",
+    "nom": "Saumon riz brocolis",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 620,
+    "proteines": 38,
+    "glucides": 55,
+    "lipides": 28,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "saumon",
+      "riz",
+      "brocolis"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de saumon",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocolis",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "citron",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire les brocolis à la vapeur ou à l'eau.",
+      "Cuire le saumon à la poêle avec l'huile.",
+      "Ajouter le citron.",
+      "Servir avec le riz et les brocolis."
+    ]
+  },
+  {
+    "id": "plat-cabillaud-pommes-vapeur",
+    "nom": "Cabillaud pommes vapeur",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 480,
+    "proteines": 35,
+    "glucides": 50,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "cabillaud",
+      "pommes de terre",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de cabillaud",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 250,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "citron",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre et les carottes à l'eau.",
+      "Cuire le cabillaud à la poêle ou vapeur.",
+      "Ajouter l'huile d'olive après cuisson.",
+      "Ajouter le citron.",
+      "Servir chaud."
+    ]
+  },
+  {
+    "id": "plat-omelette-pommes-de-terre-salade",
+    "nom": "Omelette pommes de terre salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 520,
+    "proteines": 26,
+    "glucides": 42,
+    "lipides": 28,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "oeufs",
+      "pommes de terre",
+      "salade"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "vinaigre",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre en dés.",
+      "Battre les oeufs.",
+      "Cuire l'omelette avec les pommes de terre.",
+      "Préparer la salade avec l'huile et le vinaigre.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-dinde-pates-haricots-verts",
+    "nom": "Dinde pâtes haricots verts",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 560,
+    "proteines": 43,
+    "glucides": 62,
+    "lipides": 13,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "pâtes",
+      "haricots verts"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pâtes crues",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "haricots verts",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "ail",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Cuire les haricots verts.",
+      "Couper la dinde en morceaux.",
+      "Cuire la dinde avec l'huile et l'ail.",
+      "Servir avec les pâtes et les haricots verts."
+    ]
+  },
+  {
+    "id": "plat-lentilles-saucisse-de-volaille",
+    "nom": "Lentilles saucisse de volaille",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 610,
+    "proteines": 35,
+    "glucides": 55,
+    "lipides": 26,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "lentilles",
+      "saucisse de volaille",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "lentilles cuites",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "saucisse de volaille",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Couper les carottes et l'oignon.",
+      "Faire revenir l'oignon avec l'huile.",
+      "Ajouter les lentilles et les carottes.",
+      "Cuire la saucisse à part.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-quiche-jambon-salade",
+    "nom": "Quiche jambon salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose",
+      "oeuf"
+    ],
+    "kcal": 620,
+    "proteines": 30,
+    "glucides": 45,
+    "lipides": 34,
+    "tempsMinutes": 40,
+    "motsCles": [
+      "pâte brisée",
+      "jambon",
+      "oeufs"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâte brisée",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "jambon blanc",
+        "quantite": 1,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 60,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Préchauffer le four.",
+      "Mélanger les oeufs et la crème.",
+      "Ajouter le jambon sur la pâte.",
+      "Verser l'appareil et cuire au four.",
+      "Servir avec la salade."
+    ]
+  },
+  {
+    "id": "plat-gratin-de-pates-au-poulet",
+    "nom": "Gratin de pâtes au poulet",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 640,
+    "proteines": 42,
+    "glucides": 62,
+    "lipides": 24,
+    "tempsMinutes": 35,
+    "motsCles": [
+      "pâtes",
+      "poulet",
+      "emmental"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes crues",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "blanc de poulet",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Cuire le poulet en morceaux.",
+      "Ajouter les courgettes.",
+      "Mélanger avec la crème.",
+      "Ajouter l'emmental et gratiner au four."
+    ]
+  },
+  {
+    "id": "plat-riz-thon-tomates",
+    "nom": "Riz thon tomates",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 520,
+    "proteines": 34,
+    "glucides": 62,
+    "lipides": 14,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "riz",
+      "thon",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cru",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "maïs",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Égoutter le thon.",
+      "Couper les tomates.",
+      "Mélanger le riz, le thon, les tomates et le maïs.",
+      "Ajouter l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-boeuf-pommes-de-terre-carottes",
+    "nom": "Boeuf pommes de terre carottes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 610,
+    "proteines": 38,
+    "glucides": 48,
+    "lipides": 28,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "boeuf",
+      "pommes de terre",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Couper les pommes de terre et les carottes.",
+      "Cuire les légumes à l'eau.",
+      "Faire revenir l'oignon.",
+      "Ajouter le boeuf haché et cuire.",
+      "Servir avec les légumes."
+    ]
+  },
+  {
+    "id": "plat-salade-poulet-pommes-de-terre",
+    "nom": "Salade poulet pommes de terre",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 540,
+    "proteines": 40,
+    "glucides": 45,
+    "lipides": 22,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "pommes de terre",
+      "salade"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire le poulet à la poêle.",
+      "Couper la tomate.",
+      "Mettre la salade dans une assiette.",
+      "Ajouter le poulet, les pommes de terre et l'huile."
+    ]
+  },
+  {
+    "id": "plat-galette-oeuf-fromage-salade",
+    "nom": "Galette oeuf fromage salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 560,
+    "proteines": 28,
+    "glucides": 48,
+    "lipides": 28,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "galette de sarrasin",
+      "oeuf",
+      "emmental"
+    ],
+    "ingredients": [
+      {
+        "nom": "galette de sarrasin",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Chauffer la galette dans une poêle.",
+      "Ajouter les oeufs et l'emmental.",
+      "Replier la galette.",
+      "Préparer la salade avec l'huile.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-ratatouille-pois-chiches-riz",
+    "nom": "Ratatouille pois chiches riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 18,
+    "glucides": 82,
+    "lipides": 16,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "ratatouille",
+      "pois chiches",
+      "riz"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper les légumes.",
+      "Faire revenir les légumes avec l'huile.",
+      "Ajouter les pois chiches.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-pommes-de-terre-oeufs-salade",
+    "nom": "Pommes de terre oeufs salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 520,
+    "proteines": 24,
+    "glucides": 48,
+    "lipides": 26,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pommes de terre",
+      "oeufs",
+      "salade"
+    ],
+    "ingredients": [
+      {
+        "nom": "pommes de terre",
+        "quantite": 250,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire les oeufs durs.",
+      "Couper la tomate.",
+      "Assembler avec la salade.",
+      "Ajouter l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-poelee-tofu-pommes-de-terre",
+    "nom": "Poêlée tofu pommes de terre",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 570,
+    "proteines": 28,
+    "glucides": 52,
+    "lipides": 26,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "tofu",
+      "pommes de terre",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu nature",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "herbes de Provence",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Couper les pommes de terre et les courgettes.",
+      "Cuire les pommes de terre à l'eau.",
+      "Couper le tofu en dés.",
+      "Faire revenir le tofu et les courgettes avec l'huile.",
+      "Ajouter les pommes de terre et les herbes."
+    ]
+  },
+  {
+    "id": "plat-hachis-parmentier-leger",
+    "nom": "Hachis parmentier léger",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 630,
+    "proteines": 38,
+    "glucides": 52,
+    "lipides": 28,
+    "tempsMinutes": 40,
+    "motsCles": [
+      "boeuf haché",
+      "pommes de terre",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 260,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Écraser avec le lait.",
+      "Cuire le boeuf avec les carottes.",
+      "Déposer dans un plat.",
+      "Ajouter la purée et l'emmental puis gratiner."
+    ]
+  },
+  {
+    "id": "plat-salade-nicoise-simple",
+    "nom": "Salade niçoise simple",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson",
+      "oeuf"
+    ],
+    "kcal": 540,
+    "proteines": 36,
+    "glucides": 35,
+    "lipides": 28,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "thon",
+      "oeufs",
+      "pommes de terre"
+    ],
+    "ingredients": [
+      {
+        "nom": "thon au naturel",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire les oeufs durs.",
+      "Égoutter le thon.",
+      "Couper la tomate.",
+      "Assembler avec l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-poulet-coquillettes-legumes",
+    "nom": "Poulet coquillettes légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 610,
+    "proteines": 42,
+    "glucides": 65,
+    "lipides": 20,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "coquillettes",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "coquillettes crues",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 40,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les coquillettes.",
+      "Couper les carottes.",
+      "Cuire le poulet avec l'huile.",
+      "Ajouter les carottes et la crème.",
+      "Servir avec les coquillettes."
+    ]
+  },
+  {
+    "id": "plat-bowl-lentilles-oeuf-feta",
+    "nom": "Bowl lentilles oeuf feta",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 560,
+    "proteines": 30,
+    "glucides": 48,
+    "lipides": 26,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "lentilles",
+      "oeuf",
+      "feta"
+    ],
+    "ingredients": [
+      {
+        "nom": "lentilles cuites",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "feta",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les oeufs durs.",
+      "Réchauffer ou rincer les lentilles.",
+      "Couper la tomate.",
+      "Ajouter la feta.",
+      "Assembler avec l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-gratin-chou-fleur-dinde",
+    "nom": "Gratin chou-fleur dinde",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 520,
+    "proteines": 42,
+    "glucides": 30,
+    "lipides": 26,
+    "tempsMinutes": 35,
+    "motsCles": [
+      "chou-fleur",
+      "dinde",
+      "emmental"
+    ],
+    "ingredients": [
+      {
+        "nom": "chou-fleur",
+        "quantite": 300,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "blanc de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 60,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire le chou-fleur et les pommes de terre.",
+      "Cuire la dinde en morceaux.",
+      "Mettre dans un plat.",
+      "Ajouter la crème et l'emmental.",
+      "Gratiner au four."
+    ]
+  },
+  {
+    "id": "plat-riz-legumes-oeufs",
+    "nom": "Riz légumes oeufs",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 560,
+    "proteines": 24,
+    "glucides": 70,
+    "lipides": 20,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "riz",
+      "oeufs",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cru",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "petits pois",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire les carottes et petits pois.",
+      "Battre les oeufs.",
+      "Cuire les oeufs brouillés.",
+      "Mélanger avec le riz et les légumes."
+    ]
+  },
+  {
+    "id": "plat-poisson-pane-salade-pommes-vapeur",
+    "nom": "Poisson pané salade pommes vapeur",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "poisson"
+    ],
+    "kcal": 570,
+    "proteines": 32,
+    "glucides": 58,
+    "lipides": 22,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poisson pané",
+      "pommes de terre",
+      "salade"
+    ],
+    "ingredients": [
+      {
+        "nom": "poisson pané",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 250,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire le poisson pané.",
+      "Couper la tomate.",
+      "Préparer la salade avec l'huile.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-boulgour-poulet-carottes",
+    "nom": "Boulgour poulet carottes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 560,
+    "proteines": 42,
+    "glucides": 58,
+    "lipides": 16,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "boulgour",
+      "poulet",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "boulgour cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le boulgour.",
+      "Couper les carottes et l'oignon.",
+      "Cuire le poulet avec l'huile.",
+      "Ajouter les légumes.",
+      "Servir avec le boulgour."
+    ]
+  },
+  {
+    "id": "plat-pates-thon-courgettes",
+    "nom": "Pâtes thon courgettes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "poisson"
+    ],
+    "kcal": 590,
+    "proteines": 38,
+    "glucides": 68,
+    "lipides": 18,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes",
+      "thon",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes crues",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Couper les courgettes.",
+      "Cuire les courgettes avec l'huile.",
+      "Ajouter le thon et les tomates.",
+      "Mélanger avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-tofu-ratatouille-riz",
+    "nom": "Tofu ratatouille riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 590,
+    "proteines": 29,
+    "glucides": 72,
+    "lipides": 20,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "tofu",
+      "ratatouille",
+      "riz"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu nature",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper les légumes.",
+      "Faire revenir le tofu avec l'huile.",
+      "Ajouter les légumes et cuire.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-poulet-puree-carottes",
+    "nom": "Poulet purée carottes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 560,
+    "proteines": 43,
+    "glucides": 46,
+    "lipides": 20,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "poulet",
+      "pommes de terre",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "beurre",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre et les carottes.",
+      "Écraser avec le lait et le beurre.",
+      "Cuire le poulet à la poêle.",
+      "Assaisonner légèrement.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-salade-pates-poulet",
+    "nom": "Salade pâtes poulet",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 580,
+    "proteines": 41,
+    "glucides": 60,
+    "lipides": 18,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes",
+      "poulet",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes crues",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Cuire le poulet.",
+      "Couper les tomates.",
+      "Mettre la salade dans une assiette.",
+      "Ajouter les pâtes, le poulet et l'huile."
+    ]
+  },
+  {
+    "id": "plat-pois-chiches-pommes-de-terre",
+    "nom": "Pois chiches pommes de terre",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 19,
+    "glucides": 78,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pois chiches",
+      "pommes de terre",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Couper les courgettes et tomates.",
+      "Faire revenir les légumes avec l'huile.",
+      "Ajouter les pois chiches.",
+      "Servir avec les pommes de terre."
+    ]
+  },
+  {
+    "id": "plat-dinde-riz-champignons",
+    "nom": "Dinde riz champignons",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 570,
+    "proteines": 43,
+    "glucides": 58,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "riz",
+      "champignons"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "champignons",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper les champignons.",
+      "Cuire la dinde avec l'huile.",
+      "Ajouter les champignons et la crème.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-boulettes-boeuf-carottes-riz",
+    "nom": "Boulettes boeuf carottes riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 620,
+    "proteines": 38,
+    "glucides": 60,
+    "lipides": 26,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "boeuf haché",
+      "riz",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Former des boulettes avec le boeuf.",
+      "Cuire le riz.",
+      "Faire revenir les boulettes.",
+      "Ajouter les carottes et les tomates.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-poelee-oeufs-legumes-riz",
+    "nom": "Poêlée oeufs légumes riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 540,
+    "proteines": 24,
+    "glucides": 68,
+    "lipides": 18,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "oeufs",
+      "riz",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cru",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper les légumes.",
+      "Faire revenir les légumes avec l'huile.",
+      "Ajouter les oeufs battus.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-filet-de-lieu-riz-epinards",
+    "nom": "Filet de lieu riz épinards",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson",
+      "lactose"
+    ],
+    "kcal": 500,
+    "proteines": 36,
+    "glucides": 55,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "lieu noir",
+      "riz",
+      "épinards"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de lieu noir",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 40,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "citron",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire les épinards.",
+      "Cuire le poisson à la poêle.",
+      "Ajouter la crème aux épinards.",
+      "Servir avec le citron."
+    ]
+  },
+  {
+    "id": "plat-poulet-pates-brocolis",
+    "nom": "Poulet pâtes brocolis",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 610,
+    "proteines": 43,
+    "glucides": 66,
+    "lipides": 19,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "pâtes",
+      "brocolis"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pâtes crues",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocolis",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 40,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Cuire les brocolis.",
+      "Couper le poulet en morceaux.",
+      "Cuire le poulet avec l'huile.",
+      "Ajouter la crème et servir avec les pâtes et brocolis."
+    ]
+  },
+  {
+    "id": "plat-steak-riz-ratatouille",
+    "nom": "Steak riz ratatouille",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 600,
+    "proteines": 36,
+    "glucides": 62,
+    "lipides": 24,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "steak haché",
+      "riz",
+      "ratatouille"
+    ],
+    "ingredients": [
+      {
+        "nom": "steak haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper les légumes.",
+      "Faire revenir les légumes avec l'huile.",
+      "Cuire le steak haché.",
+      "Servir avec le riz et les légumes."
+    ]
+  },
+  {
+    "id": "plat-dinde-pommes-de-terre-epinards",
+    "nom": "Dinde pommes de terre épinards",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 560,
+    "proteines": 43,
+    "glucides": 48,
+    "lipides": 20,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "pommes de terre",
+      "épinards"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 240,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire la dinde avec l'huile.",
+      "Faire revenir les épinards.",
+      "Ajouter la crème aux épinards.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-merlu-riz-carottes",
+    "nom": "Merlu riz carottes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 500,
+    "proteines": 36,
+    "glucides": 58,
+    "lipides": 12,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "merlu",
+      "riz",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de merlu",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "citron",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire les carottes à l'eau.",
+      "Cuire le merlu à la poêle avec l'huile.",
+      "Ajouter le citron.",
+      "Servir avec le riz et les carottes."
+    ]
+  },
+  {
+    "id": "plat-salade-riz-thon-oeuf",
+    "nom": "Salade riz thon oeuf",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson",
+      "oeuf"
+    ],
+    "kcal": 560,
+    "proteines": 38,
+    "glucides": 58,
+    "lipides": 20,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "riz",
+      "thon",
+      "oeuf"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire les oeufs durs.",
+      "Égoutter le thon.",
+      "Couper la tomate.",
+      "Assembler avec l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-omelette-courgettes-fromage",
+    "nom": "Omelette courgettes fromage",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 520,
+    "proteines": 31,
+    "glucides": 30,
+    "lipides": 30,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "oeufs",
+      "courgettes",
+      "emmental"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre en dés.",
+      "Faire revenir les courgettes avec l'huile.",
+      "Battre les oeufs.",
+      "Ajouter les oeufs et l'emmental.",
+      "Servir avec les pommes de terre."
+    ]
+  },
+  {
+    "id": "plat-poulet-lentilles-tomates",
+    "nom": "Poulet lentilles tomates",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 570,
+    "proteines": 48,
+    "glucides": 48,
+    "lipides": 17,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "lentilles",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Couper le poulet.",
+      "Cuire le poulet avec l'huile.",
+      "Ajouter les carottes et tomates.",
+      "Ajouter les lentilles.",
+      "Laisser chauffer quelques minutes."
+    ]
+  },
+  {
+    "id": "plat-boeuf-pates-courgettes",
+    "nom": "Boeuf pâtes courgettes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 630,
+    "proteines": 39,
+    "glucides": 68,
+    "lipides": 24,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "boeuf haché",
+      "pâtes",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pâtes crues",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Couper les courgettes.",
+      "Cuire le boeuf avec l'huile.",
+      "Ajouter les courgettes et les tomates.",
+      "Servir avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-colin-puree-brocolis",
+    "nom": "Colin purée brocolis",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson",
+      "lactose"
+    ],
+    "kcal": 510,
+    "proteines": 36,
+    "glucides": 48,
+    "lipides": 18,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "colin",
+      "pommes de terre",
+      "brocolis"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de colin",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 240,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "brocolis",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "beurre",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire les brocolis.",
+      "Écraser les pommes de terre avec le lait et le beurre.",
+      "Cuire le colin à la poêle.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-gratin-pommes-de-terre-thon",
+    "nom": "Gratin pommes de terre thon",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson",
+      "lactose"
+    ],
+    "kcal": 620,
+    "proteines": 36,
+    "glucides": 50,
+    "lipides": 30,
+    "tempsMinutes": 40,
+    "motsCles": [
+      "pommes de terre",
+      "thon",
+      "emmental"
+    ],
+    "ingredients": [
+      {
+        "nom": "pommes de terre",
+        "quantite": 260,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 60,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre en rondelles.",
+      "Égoutter le thon.",
+      "Couper les courgettes.",
+      "Mettre le tout dans un plat avec la crème.",
+      "Ajouter l'emmental et gratiner."
+    ]
+  },
+  {
+    "id": "plat-poelee-pois-chiches-carottes",
+    "nom": "Poêlée pois chiches carottes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 520,
+    "proteines": 18,
+    "glucides": 70,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pois chiches",
+      "carottes",
+      "pommes de terre"
+    ],
+    "ingredients": [
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Couper les carottes.",
+      "Faire revenir les carottes avec l'huile.",
+      "Ajouter les pois chiches et les tomates.",
+      "Servir avec les pommes de terre."
+    ]
+  },
+  {
+    "id": "plat-escalope-de-poulet-semoule",
+    "nom": "Escalope de poulet semoule",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 570,
+    "proteines": 42,
+    "glucides": 60,
+    "lipides": 16,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "poulet",
+      "semoule",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "semoule crue",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Préparer la semoule avec de l'eau chaude.",
+      "Couper les légumes.",
+      "Cuire le poulet avec l'huile.",
+      "Ajouter les légumes.",
+      "Servir avec la semoule."
+    ]
+  },
+  {
+    "id": "plat-salade-lentilles-poulet",
+    "nom": "Salade lentilles poulet",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 45,
+    "glucides": 45,
+    "lipides": 22,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "lentilles",
+      "poulet",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "lentilles cuites",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le poulet.",
+      "Rincer les lentilles.",
+      "Couper les tomates.",
+      "Mettre la salade dans une assiette.",
+      "Ajouter les lentilles, le poulet et l'huile."
+    ]
+  },
+  {
+    "id": "plat-riz-dinde-petits-pois",
+    "nom": "Riz dinde petits pois",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 43,
+    "glucides": 64,
+    "lipides": 13,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "dinde",
+      "riz",
+      "petits pois"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "petits pois",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper la dinde.",
+      "Cuire la dinde avec l'huile.",
+      "Ajouter les petits pois et les carottes.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-pommes-de-terre-thon-oeuf",
+    "nom": "Pommes de terre thon oeuf",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson",
+      "oeuf"
+    ],
+    "kcal": 560,
+    "proteines": 39,
+    "glucides": 45,
+    "lipides": 24,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pommes de terre",
+      "thon",
+      "oeufs"
+    ],
+    "ingredients": [
+      {
+        "nom": "pommes de terre",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire les oeufs durs.",
+      "Égoutter le thon.",
+      "Couper la tomate.",
+      "Assembler avec l'huile."
+    ]
+  },
+  {
+    "id": "plat-tofu-lentilles-carottes",
+    "nom": "Tofu lentilles carottes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 580,
+    "proteines": 33,
+    "glucides": 55,
+    "lipides": 24,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "tofu",
+      "lentilles",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu nature",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Couper le tofu en dés.",
+      "Couper les carottes.",
+      "Faire revenir le tofu avec l'huile.",
+      "Ajouter les carottes et les tomates.",
+      "Ajouter les lentilles et réchauffer."
+    ]
+  },
+  {
+    "id": "plat-pates-poulet-epinards",
+    "nom": "Pâtes poulet épinards",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 620,
+    "proteines": 44,
+    "glucides": 65,
+    "lipides": 21,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "pâtes",
+      "épinards"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pâtes crues",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Cuire le poulet avec l'huile.",
+      "Faire revenir les épinards.",
+      "Ajouter la crème.",
+      "Mélanger avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-boeuf-riz-haricots-verts",
+    "nom": "Boeuf riz haricots verts",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 600,
+    "proteines": 38,
+    "glucides": 60,
+    "lipides": 24,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "boeuf haché",
+      "riz",
+      "haricots verts"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "haricots verts",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire les haricots verts.",
+      "Cuire le boeuf avec l'huile.",
+      "Ajouter les tomates concassées.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-tortilla-pommes-de-terre-salade",
+    "nom": "Tortilla pommes de terre salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 540,
+    "proteines": 25,
+    "glucides": 45,
+    "lipides": 28,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "oeufs",
+      "pommes de terre",
+      "salade"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre en dés.",
+      "Battre les oeufs.",
+      "Cuire la tortilla à la poêle.",
+      "Préparer la salade et la tomate.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-poelee-vegetarienne-riz",
+    "nom": "Poêlée végétarienne riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 18,
+    "glucides": 82,
+    "lipides": 16,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "riz",
+      "pois chiches",
+      "légumes"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cru",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper les légumes.",
+      "Faire revenir les légumes avec l'huile.",
+      "Ajouter les pois chiches.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-dinde-puree-brocolis",
+    "nom": "Dinde purée brocolis",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 560,
+    "proteines": 43,
+    "glucides": 46,
+    "lipides": 20,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "dinde",
+      "pommes de terre",
+      "brocolis"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "brocolis",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "beurre",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire les brocolis.",
+      "Écraser les pommes de terre avec le lait et le beurre.",
+      "Cuire la dinde.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-salade-quinoa-thon",
+    "nom": "Salade quinoa thon",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 560,
+    "proteines": 35,
+    "glucides": 55,
+    "lipides": 22,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "quinoa",
+      "thon",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "quinoa cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 110,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le quinoa.",
+      "Égoutter le thon.",
+      "Couper les tomates et le concombre.",
+      "Mélanger les ingrédients.",
+      "Ajouter l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-poulet-pommes-de-terre-salade",
+    "nom": "Poulet pommes de terre salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 570,
+    "proteines": 42,
+    "glucides": 48,
+    "lipides": 22,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "pommes de terre",
+      "salade"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 240,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire le poulet.",
+      "Couper le concombre.",
+      "Préparer la salade.",
+      "Servir avec l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-dahl-lentilles-carottes",
+    "nom": "Dahl lentilles carottes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 22,
+    "glucides": 78,
+    "lipides": 16,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "lentilles corail",
+      "riz",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "lentilles corail crues",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 55,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire les lentilles corail avec les tomates.",
+      "Couper et ajouter les carottes.",
+      "Ajouter l'huile.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-veau-riz-courgettes",
+    "nom": "Veau riz courgettes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 590,
+    "proteines": 39,
+    "glucides": 60,
+    "lipides": 22,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "veau",
+      "riz",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de veau",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper les courgettes.",
+      "Cuire le veau avec l'huile.",
+      "Ajouter les courgettes et les tomates.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-pates-oeufs-champignons",
+    "nom": "Pâtes oeufs champignons",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 590,
+    "proteines": 29,
+    "glucides": 66,
+    "lipides": 23,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes",
+      "oeufs",
+      "champignons"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes crues",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "champignons",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 40,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Faire revenir les champignons.",
+      "Cuire les oeufs brouillés.",
+      "Ajouter la crème.",
+      "Mélanger avec les pâtes et l'emmental."
+    ]
+  },
+  {
+    "id": "plat-pois-casses-carottes-oeuf",
+    "nom": "Pois cassés carottes oeuf",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 550,
+    "proteines": 30,
+    "glucides": 65,
+    "lipides": 18,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "pois cassés",
+      "carottes",
+      "oeufs"
+    ],
+    "ingredients": [
+      {
+        "nom": "pois cassés cuits",
+        "quantite": 250,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Réchauffer les pois cassés.",
+      "Faire revenir l'oignon et les carottes avec l'huile.",
+      "Cuire les oeufs durs.",
+      "Assembler les pois cassés et les légumes.",
+      "Servir avec les oeufs."
+    ]
+  },
+  {
+    "id": "plat-filet-de-truite-riz-legumes",
+    "nom": "Filet de truite riz légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 610,
+    "proteines": 38,
+    "glucides": 55,
+    "lipides": 28,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "truite",
+      "riz",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de truite",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "citron",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper les légumes.",
+      "Cuire les légumes à la poêle.",
+      "Cuire la truite.",
+      "Servir avec le citron."
+    ]
+  },
+  {
+    "id": "plat-poulet-haricots-blancs-tomates",
+    "nom": "Poulet haricots blancs tomates",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 580,
+    "proteines": 48,
+    "glucides": 50,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "haricots blancs",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "haricots blancs cuits",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Couper le poulet.",
+      "Cuire le poulet avec l'huile.",
+      "Ajouter les carottes.",
+      "Ajouter les tomates et les haricots blancs.",
+      "Laisser mijoter quelques minutes."
+    ]
+  },
+  {
+    "id": "plat-croque-salade",
+    "nom": "Croque salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 590,
+    "proteines": 31,
+    "glucides": 52,
+    "lipides": 28,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "pain complet",
+      "jambon",
+      "emmental"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain complet",
+        "quantite": 3,
+        "unite": "tranche",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "jambon blanc",
+        "quantite": 2,
+        "unite": "tranche",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Monter le croque avec le pain, le jambon et l'emmental.",
+      "Faire toaster à la poêle ou au four.",
+      "Couper la tomate.",
+      "Préparer la salade.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-riz-oeufs-thon-legumes",
+    "nom": "Riz oeufs thon légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "poisson"
+    ],
+    "kcal": 590,
+    "proteines": 42,
+    "glucides": 62,
+    "lipides": 20,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "riz",
+      "oeufs",
+      "thon"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cru",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "petits pois",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire les oeufs brouillés.",
+      "Égoutter le thon.",
+      "Cuire les petits pois et carottes.",
+      "Mélanger le tout."
+    ]
+  },
+  {
+    "id": "plat-salade-pois-chiches-feta",
+    "nom": "Salade pois chiches feta",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 560,
+    "proteines": 22,
+    "glucides": 55,
+    "lipides": 28,
+    "tempsMinutes": 10,
+    "motsCles": [
+      "pois chiches",
+      "feta",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "feta",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Rincer les pois chiches.",
+      "Couper les tomates et le concombre.",
+      "Ajouter la feta.",
+      "Ajouter l'huile d'olive.",
+      "Mélanger et servir."
+    ]
+  },
+  {
+    "id": "plat-dinde-quinoa-tomates",
+    "nom": "Dinde quinoa tomates",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 580,
+    "proteines": 43,
+    "glucides": 55,
+    "lipides": 20,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "quinoa",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "quinoa cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le quinoa.",
+      "Couper la dinde et les légumes.",
+      "Cuire la dinde avec l'huile.",
+      "Ajouter les légumes.",
+      "Servir avec le quinoa."
+    ]
+  },
+  {
+    "id": "plat-poulet-riz-epinards",
+    "nom": "Poulet riz épinards",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 570,
+    "proteines": 43,
+    "glucides": 58,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "épinards"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire le poulet avec l'huile.",
+      "Faire revenir les épinards.",
+      "Ajouter la crème aux épinards.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-steak-pommes-de-terre-salade",
+    "nom": "Steak pommes de terre salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 590,
+    "proteines": 36,
+    "glucides": 46,
+    "lipides": 28,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "steak haché",
+      "pommes de terre",
+      "salade"
+    ],
+    "ingredients": [
+      {
+        "nom": "steak haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 240,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire le steak haché.",
+      "Couper la tomate.",
+      "Préparer la salade avec l'huile.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-dinde-lentilles-carottes",
+    "nom": "Dinde lentilles carottes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 45,
+    "glucides": 46,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "lentilles",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Couper la dinde.",
+      "Cuire la dinde avec l'huile.",
+      "Ajouter les carottes et les tomates.",
+      "Ajouter les lentilles.",
+      "Réchauffer quelques minutes."
+    ]
+  },
+  {
+    "id": "plat-colin-riz-haricots-verts",
+    "nom": "Colin riz haricots verts",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 500,
+    "proteines": 36,
+    "glucides": 58,
+    "lipides": 12,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "colin",
+      "riz",
+      "haricots verts"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de colin",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "haricots verts",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "citron",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire les haricots verts.",
+      "Cuire le colin à la poêle avec l'huile.",
+      "Ajouter le citron.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-salade-pates-thon-oeuf",
+    "nom": "Salade pâtes thon oeuf",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "poisson",
+      "oeuf"
+    ],
+    "kcal": 610,
+    "proteines": 41,
+    "glucides": 65,
+    "lipides": 22,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes",
+      "thon",
+      "oeuf"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes crues",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Cuire les oeufs durs.",
+      "Égoutter le thon.",
+      "Couper les tomates.",
+      "Mélanger avec l'huile."
+    ]
+  },
+  {
+    "id": "plat-omelette-epinards-pommes-de-terre",
+    "nom": "Omelette épinards pommes de terre",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 520,
+    "proteines": 25,
+    "glucides": 42,
+    "lipides": 28,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "oeufs",
+      "épinards",
+      "pommes de terre"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Faire revenir les épinards avec l'huile.",
+      "Battre les oeufs.",
+      "Cuire l'omelette avec les épinards.",
+      "Servir avec les pommes de terre et la tomate."
+    ]
+  },
+  {
+    "id": "plat-poulet-haricots-rouges-riz",
+    "nom": "Poulet haricots rouges riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 590,
+    "proteines": 45,
+    "glucides": 65,
+    "lipides": 15,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "haricots rouges",
+      "riz"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "haricots rouges cuits",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire le poulet avec l'huile.",
+      "Ajouter les haricots rouges.",
+      "Ajouter les tomates concassées.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-boeuf-puree-brocolis",
+    "nom": "Boeuf purée brocolis",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 610,
+    "proteines": 38,
+    "glucides": 48,
+    "lipides": 29,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "boeuf haché",
+      "pommes de terre",
+      "brocolis"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 240,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "brocolis",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait demi-écrémé",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "beurre",
+        "quantite": 10,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire les brocolis.",
+      "Écraser les pommes de terre avec le lait et le beurre.",
+      "Cuire le boeuf.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-merlu-pates-courgettes",
+    "nom": "Merlu pâtes courgettes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "poisson"
+    ],
+    "kcal": 570,
+    "proteines": 38,
+    "glucides": 68,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "merlu",
+      "pâtes",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de merlu",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "pâtes crues",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Cuire le merlu à la poêle.",
+      "Faire revenir les courgettes avec l'huile.",
+      "Ajouter les tomates.",
+      "Servir avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-gratin-courgettes-boeuf",
+    "nom": "Gratin courgettes boeuf",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 600,
+    "proteines": 39,
+    "glucides": 38,
+    "lipides": 33,
+    "tempsMinutes": 35,
+    "motsCles": [
+      "boeuf haché",
+      "courgettes",
+      "pommes de terre"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 250,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire le boeuf.",
+      "Couper les courgettes.",
+      "Mettre le tout dans un plat avec la crème.",
+      "Ajouter l'emmental et gratiner."
+    ]
+  },
+  {
+    "id": "plat-poelee-haricots-blancs-legumes",
+    "nom": "Poêlée haricots blancs légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 540,
+    "proteines": 19,
+    "glucides": 72,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "haricots blancs",
+      "pommes de terre",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "haricots blancs cuits",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Couper les courgettes.",
+      "Faire revenir les courgettes avec l'huile.",
+      "Ajouter les haricots blancs et les tomates.",
+      "Servir avec les pommes de terre."
+    ]
+  },
+  {
+    "id": "plat-dinde-pates-tomates",
+    "nom": "Dinde pâtes tomates",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 580,
+    "proteines": 43,
+    "glucides": 68,
+    "lipides": 13,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "dinde",
+      "pâtes",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pâtes crues",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Couper la dinde et les courgettes.",
+      "Cuire la dinde avec l'huile.",
+      "Ajouter les courgettes et les tomates.",
+      "Servir avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-salade-riz-poulet-mais",
+    "nom": "Salade riz poulet maïs",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 570,
+    "proteines": 41,
+    "glucides": 65,
+    "lipides": 17,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "riz",
+      "poulet",
+      "maïs"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "maïs",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire le poulet.",
+      "Couper la tomate.",
+      "Mélanger avec le maïs.",
+      "Ajouter l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-oeufs-brouilles-riz-legumes",
+    "nom": "Oeufs brouillés riz légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 560,
+    "proteines": 26,
+    "glucides": 66,
+    "lipides": 22,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "oeufs",
+      "riz",
+      "petits pois"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cru",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "petits pois",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 30,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Cuire les petits pois et carottes.",
+      "Battre les oeufs avec la crème.",
+      "Cuire les oeufs brouillés.",
+      "Servir avec le riz et les légumes."
+    ]
+  },
+  {
+    "id": "plat-tofu-haricots-rouges-riz",
+    "nom": "Tofu haricots rouges riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 590,
+    "proteines": 31,
+    "glucides": 75,
+    "lipides": 19,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "tofu",
+      "haricots rouges",
+      "riz"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu nature",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "haricots rouges cuits",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper le tofu en dés.",
+      "Cuire le tofu avec l'huile.",
+      "Ajouter les haricots rouges et les tomates.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-poulet-quinoa-brocolis",
+    "nom": "Poulet quinoa brocolis",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 580,
+    "proteines": 44,
+    "glucides": 55,
+    "lipides": 20,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "quinoa",
+      "brocolis"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "quinoa cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocolis",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "citron",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire le quinoa.",
+      "Cuire les brocolis.",
+      "Cuire le poulet avec l'huile.",
+      "Ajouter le citron.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-boeuf-lentilles-tomates",
+    "nom": "Boeuf lentilles tomates",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 590,
+    "proteines": 43,
+    "glucides": 48,
+    "lipides": 25,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "boeuf haché",
+      "lentilles",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le boeuf avec l'huile.",
+      "Ajouter les carottes.",
+      "Ajouter les tomates concassées.",
+      "Ajouter les lentilles.",
+      "Réchauffer quelques minutes."
+    ]
+  },
+  {
+    "id": "plat-cabillaud-quinoa-courgettes",
+    "nom": "Cabillaud quinoa courgettes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 520,
+    "proteines": 37,
+    "glucides": 55,
+    "lipides": 16,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "cabillaud",
+      "quinoa",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de cabillaud",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "quinoa cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le quinoa.",
+      "Cuire le cabillaud.",
+      "Couper les courgettes et tomates.",
+      "Faire revenir les légumes avec l'huile.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-salade-pommes-de-terre-dinde",
+    "nom": "Salade pommes de terre dinde",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 43,
+    "glucides": 48,
+    "lipides": 22,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pommes de terre",
+      "dinde",
+      "salade"
+    ],
+    "ingredients": [
+      {
+        "nom": "pommes de terre",
+        "quantite": 240,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire la dinde.",
+      "Couper le concombre.",
+      "Préparer la salade.",
+      "Assembler avec l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-gratin-riz-courgettes-thon",
+    "nom": "Gratin riz courgettes thon",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson",
+      "lactose"
+    ],
+    "kcal": 620,
+    "proteines": 38,
+    "glucides": 60,
+    "lipides": 26,
+    "tempsMinutes": 35,
+    "motsCles": [
+      "riz",
+      "courgettes",
+      "thon"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 60,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Égoutter le thon.",
+      "Couper les courgettes.",
+      "Mélanger avec la crème.",
+      "Ajouter l'emmental et gratiner."
+    ]
+  },
+  {
+    "id": "plat-pois-chiches-riz-epinards",
+    "nom": "Pois chiches riz épinards",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 550,
+    "proteines": 19,
+    "glucides": 78,
+    "lipides": 17,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pois chiches",
+      "riz",
+      "épinards"
+    ],
+    "ingredients": [
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Faire revenir les épinards avec l'huile.",
+      "Ajouter les tomates concassées.",
+      "Ajouter les pois chiches.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-poulet-carottes-petits-pois-riz",
+    "nom": "Poulet carottes petits pois riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 570,
+    "proteines": 43,
+    "glucides": 64,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "carottes",
+      "petits pois"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "petits pois",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper le poulet et les carottes.",
+      "Cuire le poulet avec l'huile.",
+      "Ajouter les légumes.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-veau-pommes-de-terre-carottes",
+    "nom": "Veau pommes de terre carottes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 590,
+    "proteines": 39,
+    "glucides": 48,
+    "lipides": 26,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "veau",
+      "pommes de terre",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de veau",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 240,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre et les carottes.",
+      "Émincer l'oignon.",
+      "Cuire le veau avec l'huile.",
+      "Ajouter l'oignon.",
+      "Servir avec les légumes."
+    ]
+  },
+  {
+    "id": "plat-riz-tofu-legumes",
+    "nom": "Riz tofu légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 570,
+    "proteines": 29,
+    "glucides": 72,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "tofu",
+      "riz",
+      "légumes"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu nature",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Couper le tofu et les légumes.",
+      "Faire revenir le tofu avec l'huile.",
+      "Ajouter les légumes.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-saumon-pommes-de-terre-salade",
+    "nom": "Saumon pommes de terre salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 620,
+    "proteines": 38,
+    "glucides": 45,
+    "lipides": 32,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "saumon",
+      "pommes de terre",
+      "salade"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de saumon",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "salade verte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "citron",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire le saumon.",
+      "Couper le concombre.",
+      "Préparer la salade.",
+      "Servir avec le citron."
+    ]
+  },
+  {
+    "id": "plat-pates-dinde-champignons",
+    "nom": "Pâtes dinde champignons",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 620,
+    "proteines": 44,
+    "glucides": 66,
+    "lipides": 20,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "pâtes",
+      "champignons"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pâtes crues",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "champignons",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pâtes.",
+      "Couper la dinde et les champignons.",
+      "Cuire la dinde avec l'huile.",
+      "Ajouter les champignons et la crème.",
+      "Servir avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-haricots-rouges-riz-legumes",
+    "nom": "Haricots rouges riz légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 540,
+    "proteines": 18,
+    "glucides": 82,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "haricots rouges",
+      "riz",
+      "courgettes"
+    ],
+    "ingredients": [
+      {
+        "nom": "haricots rouges cuits",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Faire revenir les courgettes avec l'huile.",
+      "Ajouter les tomates concassées.",
+      "Ajouter les haricots rouges.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-poulet-gratin-chou-fleur",
+    "nom": "Poulet gratin chou-fleur",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 570,
+    "proteines": 45,
+    "glucides": 32,
+    "lipides": 28,
+    "tempsMinutes": 35,
+    "motsCles": [
+      "poulet",
+      "chou-fleur",
+      "emmental"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "chou-fleur",
+        "quantite": 300,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "emmental",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le chou-fleur et les pommes de terre.",
+      "Cuire le poulet en morceaux.",
+      "Mettre le tout dans un plat.",
+      "Ajouter la crème et l'emmental.",
+      "Gratiner au four."
+    ]
+  },
+  {
+    "id": "plat-truite-pommes-vapeur-brocolis",
+    "nom": "Truite pommes vapeur brocolis",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 590,
+    "proteines": 38,
+    "glucides": 45,
+    "lipides": 28,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "truite",
+      "pommes de terre",
+      "brocolis"
+    ],
+    "ingredients": [
+      {
+        "nom": "filet de truite",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "brocolis",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "citron",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire les brocolis.",
+      "Cuire la truite.",
+      "Ajouter l'huile et le citron.",
+      "Servir ensemble."
+    ]
+  },
+  {
+    "id": "plat-boulettes-dinde-riz-tomates",
+    "nom": "Boulettes dinde riz tomates",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 580,
+    "proteines": 43,
+    "glucides": 62,
+    "lipides": 16,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "dinde",
+      "riz",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "dinde hachée",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Former des boulettes avec la dinde.",
+      "Cuire le riz.",
+      "Cuire les boulettes avec l'huile.",
+      "Ajouter les tomates et carottes.",
+      "Servir avec le riz."
+    ]
+  },
+  {
+    "id": "plat-lentilles-feta-tomates",
+    "nom": "Lentilles feta tomates",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 560,
+    "proteines": 25,
+    "glucides": 55,
+    "lipides": 26,
+    "tempsMinutes": 10,
+    "motsCles": [
+      "lentilles",
+      "feta",
+      "tomates"
+    ],
+    "ingredients": [
+      {
+        "nom": "lentilles cuites",
+        "quantite": 240,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "feta",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Rincer les lentilles.",
+      "Couper les tomates et le concombre.",
+      "Ajouter la feta.",
+      "Ajouter l'huile d'olive.",
+      "Mélanger et servir."
+    ]
+  },
+  {
+    "id": "plat-dinde-haricots-verts-pommes-de-terre",
+    "nom": "Dinde haricots verts pommes de terre",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 540,
+    "proteines": 43,
+    "glucides": 46,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "haricots verts",
+      "pommes de terre"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "haricots verts",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire les pommes de terre.",
+      "Cuire les haricots verts.",
+      "Cuire la dinde avec l'huile.",
+      "Couper la tomate.",
+      "Servir ensemble."
+    ]
   },
+  {
+    "id": "plat-riz-pois-casses-legumes",
+    "nom": "Riz pois cassés légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "francaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 540,
+    "proteines": 21,
+    "glucides": 82,
+    "lipides": 13,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "pois cassés",
+      "riz",
+      "carottes"
+    ],
+    "ingredients": [
+      {
+        "nom": "pois cassés cuits",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz cru",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carottes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgettes",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Cuire le riz.",
+      "Réchauffer les pois cassés.",
+      "Couper les légumes.",
+      "Faire revenir les légumes avec l'huile.",
+      "Assembler et servir."
+    ]
+  },
+  {
+    "id": "plat-poulet-riz-brocoli",
+    "nom": "Poulet riz brocoli",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 585,
+    "proteines": 43,
+    "glucides": 68,
+    "lipides": 16,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "brocoli",
+      "tamari",
+      "huile de colza"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocoli",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "ail",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le poulet en morceaux.",
+      "Fais revenir l'ail et le poulet avec l'huile.",
+      "Ajoute le brocoli en petits bouquets.",
+      "Verse le tamari et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-boeuf-riz-poivrons",
+    "nom": "Boeuf riz poivrons",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 620,
+    "proteines": 39,
+    "glucides": 70,
+    "lipides": 21,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "boeuf",
+      "riz",
+      "poivron",
+      "carotte",
+      "tamari"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf émincé",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le poivron et la carotte.",
+      "Fais revenir le boeuf avec l'huile.",
+      "Ajoute les légumes et laisse cuire.",
+      "Ajoute le tamari et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-crevettes-nouilles-riz",
+    "nom": "Crevettes nouilles riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "crustaces",
+      "soja"
+    ],
+    "kcal": 570,
+    "proteines": 36,
+    "glucides": 76,
+    "lipides": 14,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "crevettes",
+      "nouilles de riz",
+      "courgette",
+      "carotte",
+      "tamari"
+    ],
+    "ingredients": [
+      {
+        "nom": "crevettes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "nouilles de riz",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 90,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les nouilles de riz.",
+      "Coupe la courgette et la carotte.",
+      "Fais revenir les légumes avec l'huile.",
+      "Ajoute les crevettes.",
+      "Mélange avec les nouilles et le tamari."
+    ]
+  },
+  {
+    "id": "plat-saumon-riz-concombre",
+    "nom": "Saumon riz concombre",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson",
+      "soja",
+      "sesame"
+    ],
+    "kcal": 635,
+    "proteines": 36,
+    "glucides": 62,
+    "lipides": 28,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "saumon",
+      "riz",
+      "concombre",
+      "tamari",
+      "graines de sésame"
+    ],
+    "ingredients": [
+      {
+        "nom": "saumon",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "graines de sésame",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais cuire le saumon à la poêle.",
+      "Coupe le concombre en dés.",
+      "Mélange le tamari avec le citron.",
+      "Sers le riz avec le saumon, le concombre et le sésame."
+    ]
+  },
+  {
+    "id": "plat-dinde-nouilles-legumes",
+    "nom": "Dinde nouilles légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 590,
+    "proteines": 43,
+    "glucides": 74,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "nouilles de riz",
+      "brocoli",
+      "poivron",
+      "tamari"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "nouilles de riz",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocoli",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les nouilles de riz.",
+      "Coupe la dinde et les légumes.",
+      "Fais revenir la dinde avec l'huile.",
+      "Ajoute les légumes.",
+      "Mélange avec les nouilles et le tamari."
+    ]
+  },
+  {
+    "id": "plat-riz-saute-tofu-edamame",
+    "nom": "Riz sauté tofu edamame",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 610,
+    "proteines": 32,
+    "glucides": 72,
+    "lipides": 21,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "riz",
+      "tofu ferme",
+      "edamame",
+      "carotte",
+      "tamari"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cuit",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tofu ferme",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "edamame",
+        "quantite": 90,
+        "unite": "g",
+        "rayon": "Surgelés"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 90,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Coupe le tofu en dés.",
+      "Fais dorer le tofu avec l'huile.",
+      "Ajoute la carotte râpée et les edamame.",
+      "Ajoute le riz cuit.",
+      "Verse le tamari et mélange."
+    ]
+  },
+  {
+    "id": "plat-wok-tofu-brocoli",
+    "nom": "Wok tofu brocoli",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja",
+      "sesame"
+    ],
+    "kcal": 575,
+    "proteines": 31,
+    "glucides": 59,
+    "lipides": 24,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "tofu ferme",
+      "riz",
+      "brocoli",
+      "tamari",
+      "graines de sésame"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu ferme",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocoli",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "graines de sésame",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le tofu en cubes.",
+      "Fais dorer le tofu avec l'huile.",
+      "Ajoute le brocoli en petits bouquets.",
+      "Ajoute le tamari et les graines de sésame."
+    ]
+  },
+  {
+    "id": "plat-nouilles-tofu-cacahuete",
+    "nom": "Nouilles tofu cacahuète",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja",
+      "arachide"
+    ],
+    "kcal": 645,
+    "proteines": 31,
+    "glucides": 70,
+    "lipides": 28,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "nouilles de riz",
+      "tofu ferme",
+      "beurre de cacahuète",
+      "tamari",
+      "carotte"
+    ],
+    "ingredients": [
+      {
+        "nom": "nouilles de riz",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tofu ferme",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "beurre de cacahuète",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les nouilles de riz.",
+      "Fais dorer le tofu en dés.",
+      "Ajoute la carotte râpée.",
+      "Mélange le beurre de cacahuète avec le tamari et le citron.",
+      "Mélange les nouilles avec le tofu et la sauce."
+    ]
+  },
+  {
+    "id": "plat-tofu-coco-riz",
+    "nom": "Tofu coco riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 625,
+    "proteines": 30,
+    "glucides": 66,
+    "lipides": 27,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "tofu ferme",
+      "lait de coco",
+      "riz",
+      "courgette",
+      "curry"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu ferme",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait de coco",
+        "quantite": 100,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "curry",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le tofu et la courgette.",
+      "Fais revenir le tofu à la poêle.",
+      "Ajoute la courgette, les épinards, le lait de coco et le curry.",
+      "Laisse mijoter et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-oeufs-riz-legumes",
+    "nom": "Oeufs riz légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "soja"
+    ],
+    "kcal": 560,
+    "proteines": 27,
+    "glucides": 68,
+    "lipides": 20,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "oeufs",
+      "riz",
+      "petits pois",
+      "carotte",
+      "tamari"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "riz cuit",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "petits pois",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 90,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Bats les oeufs dans un bol.",
+      "Fais revenir la carotte et les petits pois avec l'huile.",
+      "Ajoute le riz cuit.",
+      "Verse les oeufs et mélange jusqu'à cuisson.",
+      "Ajoute le tamari avant de servir."
+    ]
+  },
+  {
+    "id": "plat-poulet-nouilles-soja",
+    "nom": "Poulet nouilles soja",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "soja"
+    ],
+    "kcal": 610,
+    "proteines": 43,
+    "glucides": 76,
+    "lipides": 15,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "nouilles de blé",
+      "sauce soja",
+      "carotte",
+      "brocoli"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "nouilles de blé",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocoli",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 90,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "sauce soja",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les nouilles de blé.",
+      "Coupe le poulet et les légumes.",
+      "Fais revenir le poulet avec l'huile.",
+      "Ajoute le brocoli et la carotte.",
+      "Mélange avec les nouilles et la sauce soja."
+    ]
+  },
+  {
+    "id": "plat-cabillaud-riz-coco",
+    "nom": "Cabillaud riz coco",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 575,
+    "proteines": 38,
+    "glucides": 66,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "cabillaud",
+      "riz",
+      "lait de coco",
+      "épinards",
+      "curry"
+    ],
+    "ingredients": [
+      {
+        "nom": "cabillaud",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait de coco",
+        "quantite": 80,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "curry",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Chauffe le lait de coco avec le curry.",
+      "Ajoute les épinards.",
+      "Ajoute le cabillaud en morceaux et laisse cuire.",
+      "Termine avec le citron et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-boeuf-nouilles-riz",
+    "nom": "Boeuf nouilles riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja",
+      "sesame"
+    ],
+    "kcal": 640,
+    "proteines": 38,
+    "glucides": 78,
+    "lipides": 20,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "boeuf",
+      "nouilles de riz",
+      "courgette",
+      "tamari",
+      "graines de sésame"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf émincé",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "nouilles de riz",
+        "quantite": 85,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "graines de sésame",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les nouilles de riz.",
+      "Coupe la courgette en bâtonnets.",
+      "Fais revenir le boeuf avec l'huile.",
+      "Ajoute la courgette et le tamari.",
+      "Mélange avec les nouilles et le sésame."
+    ]
+  },
+  {
+    "id": "plat-dinde-riz-edamame",
+    "nom": "Dinde riz edamame",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 600,
+    "proteines": 45,
+    "glucides": 67,
+    "lipides": 16,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "dinde",
+      "riz",
+      "edamame",
+      "carotte",
+      "tamari"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "edamame",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Surgelés"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe la dinde en morceaux.",
+      "Fais revenir la dinde avec l'huile.",
+      "Ajoute la carotte et les edamame.",
+      "Ajoute le tamari et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-tempeh-riz-legumes",
+    "nom": "Tempeh riz légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 620,
+    "proteines": 34,
+    "glucides": 70,
+    "lipides": 23,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "tempeh",
+      "riz",
+      "brocoli",
+      "poivron",
+      "tamari"
+    ],
+    "ingredients": [
+      {
+        "nom": "tempeh",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocoli",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le tempeh en dés.",
+      "Fais dorer le tempeh avec l'huile.",
+      "Ajoute le brocoli et le poivron.",
+      "Verse le tamari et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-riz-tofu-ananas",
+    "nom": "Riz tofu ananas",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "asiatique"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 590,
+    "proteines": 29,
+    "glucides": 79,
+    "lipides": 18,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "riz",
+      "tofu ferme",
+      "ananas",
+      "poivron",
+      "tamari"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz cuit",
+        "quantite": 210,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tofu ferme",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "ananas",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Coupe le tofu, l'ananas et le poivron.",
+      "Fais dorer le tofu avec l'huile.",
+      "Ajoute le poivron.",
+      "Ajoute le riz cuit et l'ananas.",
+      "Verse le tamari et mélange."
+    ]
+  },
+  {
+    "id": "plat-poulet-citron-riz",
+    "nom": "Poulet citron riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 585,
+    "proteines": 43,
+    "glucides": 66,
+    "lipides": 17,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "courgette",
+      "citron",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "herbes de Provence",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le poulet et la courgette.",
+      "Fais revenir le poulet avec l'huile d'olive.",
+      "Ajoute la courgette et les herbes.",
+      "Termine avec le jus de citron et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-poulet-ratatouille-riz",
+    "nom": "Poulet ratatouille riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 610,
+    "proteines": 44,
+    "glucides": 68,
+    "lipides": 18,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "ratatouille",
+      "tomate",
+      "aubergine"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "aubergine",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le poulet et les légumes.",
+      "Fais dorer le poulet avec l'huile.",
+      "Ajoute les légumes et les tomates concassées.",
+      "Laisse mijoter et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-dinde-pois-chiches-tomate",
+    "nom": "Dinde pois chiches tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 570,
+    "proteines": 45,
+    "glucides": 52,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "pois chiches",
+      "tomate",
+      "poivron",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "paprika",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Coupe la dinde et le poivron.",
+      "Fais revenir la dinde avec l'huile.",
+      "Ajoute le poivron et le paprika.",
+      "Ajoute les pois chiches et la tomate.",
+      "Laisse mijoter quelques minutes."
+    ]
+  },
+  {
+    "id": "plat-boulettes-boeuf-riz",
+    "nom": "Boulettes boeuf riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 630,
+    "proteines": 40,
+    "glucides": 66,
+    "lipides": 22,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "boeuf haché",
+      "riz",
+      "oeuf",
+      "tomate",
+      "courgette"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeuf",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Mélange le boeuf avec l'oeuf.",
+      "Forme des boulettes.",
+      "Fais cuire les boulettes avec la tomate et la courgette.",
+      "Sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-kefta-boeuf-semoule",
+    "nom": "Kefta boeuf semoule",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 640,
+    "proteines": 39,
+    "glucides": 72,
+    "lipides": 21,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "boeuf haché",
+      "semoule",
+      "tomate",
+      "concombre",
+      "menthe"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "semoule",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "menthe",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Prépare la semoule avec de l'eau chaude.",
+      "Forme des petites keftas avec le boeuf.",
+      "Fais cuire les keftas à la poêle.",
+      "Coupe la tomate et le concombre.",
+      "Sers avec la semoule et les légumes."
+    ]
+  },
+  {
+    "id": "plat-poulet-boulgour-legumes",
+    "nom": "Poulet boulgour légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 600,
+    "proteines": 43,
+    "glucides": 67,
+    "lipides": 17,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "boulgour",
+      "poivron",
+      "courgette",
+      "citron"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "boulgour",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le boulgour.",
+      "Coupe le poulet et les légumes.",
+      "Fais revenir le poulet avec l'huile.",
+      "Ajoute les légumes.",
+      "Ajoute le citron et sers avec le boulgour."
+    ]
+  },
+  {
+    "id": "plat-agneau-riz-aubergine",
+    "nom": "Agneau riz aubergine",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 645,
+    "proteines": 35,
+    "glucides": 64,
+    "lipides": 27,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "agneau",
+      "riz",
+      "aubergine",
+      "tomate",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "agneau haché",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "aubergine",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir l'oignon et l'agneau.",
+      "Ajoute l'aubergine en dés.",
+      "Verse les tomates concassées.",
+      "Laisse mijoter et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-saumon-pois-chiches",
+    "nom": "Saumon pois chiches",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 640,
+    "proteines": 39,
+    "glucides": 45,
+    "lipides": 34,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "saumon",
+      "pois chiches",
+      "épinards",
+      "citron",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "saumon",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le saumon à la poêle.",
+      "Fais revenir les pois chiches.",
+      "Ajoute les épinards et les tomates.",
+      "Verse le jus de citron.",
+      "Sers avec le saumon."
+    ]
+  },
+  {
+    "id": "plat-cabillaud-pommes-olives",
+    "nom": "Cabillaud pommes olives",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 520,
+    "proteines": 40,
+    "glucides": 55,
+    "lipides": 16,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "cabillaud",
+      "pommes de terre",
+      "olives",
+      "tomate",
+      "haricots verts"
+    ],
+    "ingredients": [
+      {
+        "nom": "cabillaud",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "haricots verts",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "olives noires",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pommes de terre.",
+      "Fais cuire les haricots verts.",
+      "Chauffe la tomate avec les olives.",
+      "Fais cuire le cabillaud à la poêle.",
+      "Sers avec les pommes de terre et les légumes."
+    ]
+  },
+  {
+    "id": "plat-thon-patate-salade",
+    "nom": "Thon patate salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 560,
+    "proteines": 37,
+    "glucides": 62,
+    "lipides": 18,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "thon",
+      "pommes de terre",
+      "tomate",
+      "concombre",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "thon au naturel",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 250,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "olives noires",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pommes de terre.",
+      "Égoutte le thon.",
+      "Coupe la tomate et le concombre.",
+      "Mélange avec les pommes de terre.",
+      "Ajoute le thon, les olives et l'huile."
+    ]
+  },
+  {
+    "id": "plat-crevettes-riz-courgettes",
+    "nom": "Crevettes riz courgettes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "crustaces"
+    ],
+    "kcal": 555,
+    "proteines": 36,
+    "glucides": 68,
+    "lipides": 15,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "crevettes",
+      "riz",
+      "courgette",
+      "citron",
+      "ail"
+    ],
+    "ingredients": [
+      {
+        "nom": "crevettes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "ail",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe la courgette en dés.",
+      "Fais revenir l'ail et la courgette.",
+      "Ajoute les crevettes.",
+      "Ajoute le citron et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-sardines-riz-tomate",
+    "nom": "Sardines riz tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 590,
+    "proteines": 35,
+    "glucides": 65,
+    "lipides": 21,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "sardines",
+      "riz",
+      "tomate",
+      "poivron",
+      "citron"
+    ],
+    "ingredients": [
+      {
+        "nom": "sardines au naturel",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe la tomate et le poivron.",
+      "Égoutte les sardines.",
+      "Mélange le riz avec les légumes.",
+      "Ajoute les sardines, le citron et l'huile."
+    ]
+  },
+  {
+    "id": "plat-merlu-lentilles-tomate",
+    "nom": "Merlu lentilles tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 525,
+    "proteines": 43,
+    "glucides": 46,
+    "lipides": 16,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "merlu",
+      "lentilles",
+      "tomate",
+      "épinards",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "merlu",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "ail",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais revenir l'ail avec l'huile.",
+      "Ajoute les lentilles et la tomate.",
+      "Ajoute les épinards.",
+      "Fais cuire le merlu à la poêle.",
+      "Sers le poisson avec les lentilles."
+    ]
+  },
+  {
+    "id": "plat-shakshuka-pois-chiches",
+    "nom": "Shakshuka pois chiches",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 520,
+    "proteines": 28,
+    "glucides": 54,
+    "lipides": 22,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "oeufs",
+      "pois chiches",
+      "tomate",
+      "poivron",
+      "paprika"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "paprika",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais revenir le poivron avec l'huile.",
+      "Ajoute la tomate et les pois chiches.",
+      "Assaisonne avec le paprika.",
+      "Casse les oeufs dans la sauce.",
+      "Couvre jusqu'à cuisson des oeufs."
+    ]
+  },
+  {
+    "id": "plat-omelette-feta-courgette",
+    "nom": "Omelette feta courgette",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 540,
+    "proteines": 31,
+    "glucides": 40,
+    "lipides": 30,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "oeufs",
+      "feta",
+      "courgette",
+      "pommes de terre",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "feta",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "persil",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pommes de terre en dés.",
+      "Fais revenir la courgette.",
+      "Bats les oeufs avec la feta.",
+      "Verse dans la poêle avec les légumes.",
+      "Cuis à feu doux et ajoute le persil."
+    ]
+  },
+  {
+    "id": "plat-salade-lentilles-feta",
+    "nom": "Salade lentilles feta",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 560,
+    "proteines": 31,
+    "glucides": 54,
+    "lipides": 24,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "lentilles",
+      "feta",
+      "oeuf",
+      "tomate",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "lentilles cuites",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeuf",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "feta",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire l'oeuf.",
+      "Rince les lentilles.",
+      "Coupe la tomate et le concombre.",
+      "Mélange les lentilles avec les légumes.",
+      "Ajoute l'oeuf, la feta et l'huile."
+    ]
+  },
+  {
+    "id": "plat-quinoa-feta-pois-chiches",
+    "nom": "Quinoa feta pois chiches",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 610,
+    "proteines": 28,
+    "glucides": 72,
+    "lipides": 24,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "quinoa",
+      "feta",
+      "pois chiches",
+      "tomates cerises",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "quinoa",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "feta",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le quinoa.",
+      "Rince les pois chiches.",
+      "Coupe les tomates et le concombre.",
+      "Mélange le quinoa avec les légumes.",
+      "Ajoute la feta et l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-riz-halloumi-legumes",
+    "nom": "Riz halloumi légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 640,
+    "proteines": 27,
+    "glucides": 65,
+    "lipides": 30,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "riz",
+      "halloumi",
+      "courgette",
+      "poivron",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "halloumi",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe les légumes.",
+      "Fais revenir les légumes avec l'huile.",
+      "Fais dorer le halloumi en tranches.",
+      "Sers le riz avec les légumes et le halloumi."
+    ]
+  },
+  {
+    "id": "plat-aubergine-lentilles-feta",
+    "nom": "Aubergine lentilles feta",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 555,
+    "proteines": 27,
+    "glucides": 55,
+    "lipides": 25,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "aubergine",
+      "lentilles",
+      "feta",
+      "tomate",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "aubergine",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 210,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "feta",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "persil",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Coupe l'aubergine en dés.",
+      "Fais revenir l'aubergine avec l'huile.",
+      "Ajoute les lentilles et la tomate.",
+      "Laisse mijoter quelques minutes.",
+      "Ajoute la feta et le persil."
+    ]
+  },
+  {
+    "id": "plat-wrap-falafel-feta",
+    "nom": "Wrap falafel feta",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose",
+      "sesame"
+    ],
+    "kcal": 620,
+    "proteines": 26,
+    "glucides": 76,
+    "lipides": 24,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "wrap",
+      "falafels",
+      "feta",
+      "tahini",
+      "crudités"
+    ],
+    "ingredients": [
+      {
+        "nom": "wrap de blé",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "falafels",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "feta",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tahini",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Réchauffe les falafels.",
+      "Coupe la tomate et le concombre.",
+      "Garnis le wrap avec les crudités.",
+      "Ajoute les falafels et la feta.",
+      "Ajoute le tahini et roule le wrap."
+    ]
+  },
+  {
+    "id": "plat-falafels-riz-salade",
+    "nom": "Falafels riz salade",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "sesame"
+    ],
+    "kcal": 590,
+    "proteines": 25,
+    "glucides": 78,
+    "lipides": 20,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "falafels",
+      "riz",
+      "tomate",
+      "concombre",
+      "tahini"
+    ],
+    "ingredients": [
+      {
+        "nom": "falafels sans gluten",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tahini",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Réchauffe les falafels.",
+      "Coupe la tomate et le concombre.",
+      "Mélange le tahini avec le citron.",
+      "Sers le tout avec la sauce."
+    ]
+  },
+  {
+    "id": "plat-pois-chiches-quinoa",
+    "nom": "Pois chiches quinoa",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 575,
+    "proteines": 25,
+    "glucides": 82,
+    "lipides": 17,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pois chiches",
+      "quinoa",
+      "courgette",
+      "tomates cerises",
+      "citron"
+    ],
+    "ingredients": [
+      {
+        "nom": "quinoa",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 190,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le quinoa.",
+      "Fais revenir la courgette en dés.",
+      "Ajoute les pois chiches.",
+      "Ajoute les tomates cerises.",
+      "Mélange avec le quinoa, le citron et l'huile."
+    ]
+  },
+  {
+    "id": "plat-lentilles-riz-legumes",
+    "nom": "Lentilles riz légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 545,
+    "proteines": 25,
+    "glucides": 87,
+    "lipides": 11,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "lentilles",
+      "riz",
+      "carotte",
+      "tomate",
+      "épinards"
+    ],
+    "ingredients": [
+      {
+        "nom": "lentilles cuites",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 55,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir la carotte avec l'huile.",
+      "Ajoute les lentilles et la tomate.",
+      "Ajoute les épinards.",
+      "Sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-haricots-blancs-tomate",
+    "nom": "Haricots blancs tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 520,
+    "proteines": 27,
+    "glucides": 76,
+    "lipides": 12,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "haricots blancs",
+      "tomate",
+      "épinards",
+      "pommes de terre",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "haricots blancs cuits",
+        "quantite": 240,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "ail",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pommes de terre.",
+      "Fais revenir l'ail avec l'huile.",
+      "Ajoute les haricots blancs et la tomate.",
+      "Ajoute les épinards.",
+      "Sers avec les pommes de terre."
+    ]
+  },
+  {
+    "id": "plat-pois-chiches-aubergine",
+    "nom": "Pois chiches aubergine",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 550,
+    "proteines": 25,
+    "glucides": 70,
+    "lipides": 19,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pois chiches",
+      "aubergine",
+      "riz",
+      "tomate",
+      "paprika"
+    ],
+    "ingredients": [
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "aubergine",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "riz",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "paprika",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe l'aubergine en dés.",
+      "Fais revenir l'aubergine avec l'huile.",
+      "Ajoute les pois chiches, la tomate et le paprika.",
+      "Sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-ragout-lentilles-courgette",
+    "nom": "Ragoût lentilles courgette",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 500,
+    "proteines": 25,
+    "glucides": 72,
+    "lipides": 12,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "lentilles",
+      "courgette",
+      "patate douce",
+      "tomate",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "lentilles cuites",
+        "quantite": 240,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "patate douce",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "cumin",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Coupe la courgette et la patate douce.",
+      "Fais revenir les légumes avec l'huile.",
+      "Ajoute les lentilles et la tomate.",
+      "Assaisonne avec le cumin.",
+      "Laisse mijoter jusqu'à cuisson tendre."
+    ]
+  },
+  {
+    "id": "plat-taboule-quinoa-pois-chiches",
+    "nom": "Taboulé quinoa pois chiches",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 25,
+    "glucides": 80,
+    "lipides": 17,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "quinoa",
+      "pois chiches",
+      "tomate",
+      "concombre",
+      "menthe"
+    ],
+    "ingredients": [
+      {
+        "nom": "quinoa",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "menthe",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le quinoa.",
+      "Rince les pois chiches.",
+      "Coupe la tomate et le concombre.",
+      "Mélange tous les ingrédients.",
+      "Ajoute l'huile et la menthe."
+    ]
+  },
+  {
+    "id": "plat-boulgour-lentilles-tomate",
+    "nom": "Boulgour lentilles tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 570,
+    "proteines": 26,
+    "glucides": 89,
+    "lipides": 13,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "boulgour",
+      "lentilles",
+      "tomate",
+      "poivron",
+      "persil"
+    ],
+    "ingredients": [
+      {
+        "nom": "boulgour",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 190,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "persil",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le boulgour.",
+      "Fais revenir le poivron avec l'huile.",
+      "Ajoute les lentilles et la tomate.",
+      "Laisse mijoter quelques minutes.",
+      "Sers avec le boulgour et le persil."
+    ]
+  },
+  {
+    "id": "plat-couscous-pois-chiches",
+    "nom": "Couscous pois chiches",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 590,
+    "proteines": 25,
+    "glucides": 93,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "semoule",
+      "pois chiches",
+      "carotte",
+      "courgette",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "semoule",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 190,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Prépare la semoule avec de l'eau chaude.",
+      "Coupe la carotte et la courgette.",
+      "Fais mijoter les légumes avec la tomate.",
+      "Ajoute les pois chiches.",
+      "Sers avec la semoule."
+    ]
+  },
+  {
+    "id": "plat-riz-pois-chiches-epinards",
+    "nom": "Riz pois chiches épinards",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 540,
+    "proteines": 25,
+    "glucides": 82,
+    "lipides": 13,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "riz",
+      "pois chiches",
+      "épinards",
+      "tomate",
+      "ail"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "ail",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir l'ail avec l'huile.",
+      "Ajoute les pois chiches et la tomate.",
+      "Ajoute les épinards.",
+      "Sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-patates-pois-chiches",
+    "nom": "Patates pois chiches",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 25,
+    "glucides": 80,
+    "lipides": 17,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pommes de terre",
+      "pois chiches",
+      "poivron",
+      "tomate",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "pommes de terre",
+        "quantite": 250,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 190,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "paprika",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pommes de terre en dés.",
+      "Fais revenir le poivron avec l'huile.",
+      "Ajoute les pois chiches et la tomate.",
+      "Assaisonne avec le paprika.",
+      "Mélange avec les pommes de terre."
+    ]
+  },
+  {
+    "id": "plat-pates-aubergine-pois-chiches",
+    "nom": "Pâtes aubergine pois chiches",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 620,
+    "proteines": 25,
+    "glucides": 94,
+    "lipides": 17,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pâtes",
+      "aubergine",
+      "pois chiches",
+      "tomate",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "aubergine",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "basilic",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes.",
+      "Coupe l'aubergine en dés.",
+      "Fais revenir l'aubergine avec l'huile.",
+      "Ajoute les pois chiches et la tomate.",
+      "Mélange avec les pâtes et le basilic."
+    ]
+  },
+  {
+    "id": "plat-salade-haricots-quinoa",
+    "nom": "Salade haricots quinoa",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 555,
+    "proteines": 26,
+    "glucides": 78,
+    "lipides": 16,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "haricots rouges",
+      "quinoa",
+      "tomate",
+      "concombre",
+      "citron"
+    ],
+    "ingredients": [
+      {
+        "nom": "haricots rouges cuits",
+        "quantite": 210,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "quinoa",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le quinoa.",
+      "Rince les haricots rouges.",
+      "Coupe la tomate et le concombre.",
+      "Mélange tous les ingrédients.",
+      "Ajoute le citron et l'huile."
+    ]
+  },
+  {
+    "id": "plat-mijote-haricots-poivron",
+    "nom": "Mijoté haricots poivron",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 515,
+    "proteines": 26,
+    "glucides": 72,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "haricots blancs",
+      "poivron",
+      "riz",
+      "tomate",
+      "oignon"
+    ],
+    "ingredients": [
+      {
+        "nom": "haricots blancs cuits",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir l'oignon et le poivron.",
+      "Ajoute les haricots blancs.",
+      "Verse les tomates concassées.",
+      "Sers chaud avec le riz."
+    ]
+  },
+  {
+    "id": "plat-riz-lentilles-olives",
+    "nom": "Riz lentilles olives",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 535,
+    "proteines": 25,
+    "glucides": 83,
+    "lipides": 13,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "riz",
+      "lentilles",
+      "olives",
+      "tomate",
+      "courgette"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "olives noires",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir la courgette.",
+      "Ajoute les lentilles.",
+      "Ajoute la tomate et les olives.",
+      "Mélange avec le riz."
+    ]
+  },
+  {
+    "id": "plat-pita-poulet-crudites",
+    "nom": "Pita poulet crudités",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 610,
+    "proteines": 44,
+    "glucides": 58,
+    "lipides": 22,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pain pita",
+      "poulet",
+      "yaourt grec",
+      "tomate",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "pain pita",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "yaourt grec",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le poulet en morceaux.",
+      "Coupe la tomate et le concombre.",
+      "Mélange le yaourt avec un peu d'herbes.",
+      "Garnis le pain pita avec le poulet.",
+      "Ajoute les crudités et la sauce."
+    ]
+  },
+  {
+    "id": "plat-bowl-poulet-houmous",
+    "nom": "Bowl poulet houmous",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "sesame"
+    ],
+    "kcal": 640,
+    "proteines": 43,
+    "glucides": 55,
+    "lipides": 28,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "poulet",
+      "houmous",
+      "riz",
+      "tomate",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 55,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "houmous",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais cuire le poulet en morceaux.",
+      "Coupe la tomate et le concombre.",
+      "Dépose le riz dans un bol.",
+      "Ajoute le poulet, le houmous et les crudités."
+    ]
+  },
+  {
+    "id": "plat-dinde-patate-douce",
+    "nom": "Dinde patate douce",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 585,
+    "proteines": 43,
+    "glucides": 61,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "patate douce",
+      "poivron",
+      "tomate",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "patate douce",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "paprika",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Coupe la patate douce en dés.",
+      "Fais cuire la patate douce à la poêle.",
+      "Ajoute la dinde en morceaux.",
+      "Ajoute le poivron et la tomate.",
+      "Assaisonne avec le paprika."
+    ]
+  },
+  {
+    "id": "plat-poulet-lentilles-citron",
+    "nom": "Poulet lentilles citron",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 575,
+    "proteines": 45,
+    "glucides": 48,
+    "lipides": 21,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "poulet",
+      "lentilles",
+      "tomate",
+      "citron",
+      "roquette"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 190,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "roquette",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le poulet en morceaux.",
+      "Rince les lentilles.",
+      "Coupe la tomate.",
+      "Mélange les lentilles avec la tomate et la roquette.",
+      "Ajoute le poulet, le citron et l'huile."
+    ]
+  },
+  {
+    "id": "plat-semoule-thon-legumes",
+    "nom": "Semoule thon légumes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "poisson"
+    ],
+    "kcal": 560,
+    "proteines": 36,
+    "glucides": 74,
+    "lipides": 13,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "semoule",
+      "thon",
+      "tomate",
+      "concombre",
+      "citron"
+    ],
+    "ingredients": [
+      {
+        "nom": "semoule",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Prépare la semoule avec de l'eau chaude.",
+      "Égoutte le thon.",
+      "Coupe la tomate et le concombre.",
+      "Mélange la semoule avec les légumes.",
+      "Ajoute le thon, le citron et l'huile."
+    ]
+  },
+  {
+    "id": "plat-riz-saumon-concombre",
+    "nom": "Riz saumon concombre",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson",
+      "lactose"
+    ],
+    "kcal": 630,
+    "proteines": 36,
+    "glucides": 59,
+    "lipides": 29,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "saumon",
+      "riz",
+      "concombre",
+      "yaourt grec",
+      "citron"
+    ],
+    "ingredients": [
+      {
+        "nom": "saumon",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "yaourt grec",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "aneth",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais cuire le saumon à la poêle.",
+      "Coupe le concombre.",
+      "Mélange le yaourt avec le citron et l'aneth.",
+      "Sers le saumon avec le riz, le concombre et la sauce."
+    ]
+  },
+  {
+    "id": "plat-oeufs-pommes-tomate",
+    "nom": "Oeufs pommes tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 500,
+    "proteines": 26,
+    "glucides": 52,
+    "lipides": 21,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "oeufs",
+      "pommes de terre",
+      "tomate",
+      "épinards",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "paprika",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pommes de terre en dés.",
+      "Ajoute la tomate et les épinards.",
+      "Assaisonne avec le paprika.",
+      "Casse les oeufs dans la poêle.",
+      "Couvre jusqu'à cuisson des oeufs."
+    ]
+  },
+  {
+    "id": "plat-pates-dinde-courgette",
+    "nom": "Pâtes dinde courgette",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 625,
+    "proteines": 43,
+    "glucides": 74,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pâtes",
+      "dinde",
+      "courgette",
+      "feta",
+      "citron"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "escalope de dinde",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "feta",
+        "quantite": 35,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes.",
+      "Coupe la dinde et la courgette.",
+      "Fais revenir la dinde avec l'huile.",
+      "Ajoute la courgette.",
+      "Mélange avec les pâtes, la feta et le citron."
+    ]
+  },
+  {
+    "id": "plat-riz-crevettes-pois-chiches",
+    "nom": "Riz crevettes pois chiches",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "crustaces"
+    ],
+    "kcal": 600,
+    "proteines": 39,
+    "glucides": 75,
+    "lipides": 16,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "crevettes",
+      "riz",
+      "pois chiches",
+      "tomate",
+      "poivron"
+    ],
+    "ingredients": [
+      {
+        "nom": "crevettes",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 110,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir le poivron avec l'huile.",
+      "Ajoute les pois chiches et la tomate.",
+      "Ajoute les crevettes.",
+      "Sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-bowl-thon-houmous",
+    "nom": "Bowl thon houmous",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mediterraneenne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson",
+      "sesame"
+    ],
+    "kcal": 610,
+    "proteines": 39,
+    "glucides": 55,
+    "lipides": 28,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "thon",
+      "houmous",
+      "riz",
+      "tomate",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "thon au naturel",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz cuit",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "houmous",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Égoutte le thon.",
+      "Coupe la tomate et le concombre.",
+      "Dépose le riz dans un bol.",
+      "Ajoute le thon et les crudités.",
+      "Ajoute le houmous et le citron."
+    ]
+  },
+  {
+    "id": "plat-poulet-curry-riz",
+    "nom": "Poulet curry riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "indienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 610,
+    "proteines": 43,
+    "glucides": 68,
+    "lipides": 19,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "lait de coco",
+      "curry",
+      "épinards"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait de coco",
+        "quantite": 100,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "curry",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le poulet en morceaux.",
+      "Fais revenir le poulet à la poêle.",
+      "Ajoute la tomate, le lait de coco, le curry et les épinards.",
+      "Laisse mijoter puis sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-dal-lentilles-riz",
+    "nom": "Dal lentilles riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "indienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 555,
+    "proteines": 27,
+    "glucides": 88,
+    "lipides": 11,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "lentilles corail",
+      "riz",
+      "tomate",
+      "lait de coco",
+      "curry"
+    ],
+    "ingredients": [
+      {
+        "nom": "lentilles corail",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 55,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait de coco",
+        "quantite": 80,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "curry",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Rince les lentilles corail.",
+      "Fais cuire les lentilles avec la tomate et le curry.",
+      "Ajoute le lait de coco et les épinards.",
+      "Sers le dal avec le riz."
+    ]
+  },
+  {
+    "id": "plat-pois-chiches-curry",
+    "nom": "Pois chiches curry",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "indienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 570,
+    "proteines": 25,
+    "glucides": 82,
+    "lipides": 17,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pois chiches",
+      "riz",
+      "tomate",
+      "épinards",
+      "curry"
+    ],
+    "ingredients": [
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 55,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "curry",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais chauffer l'huile avec le curry.",
+      "Ajoute les pois chiches et la tomate.",
+      "Ajoute les épinards.",
+      "Laisse mijoter et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-tofu-tikka-riz",
+    "nom": "Tofu tikka riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "indienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 620,
+    "proteines": 32,
+    "glucides": 67,
+    "lipides": 25,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "tofu ferme",
+      "riz",
+      "tomate",
+      "lait de coco",
+      "curry"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu ferme",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait de coco",
+        "quantite": 90,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "curry",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le tofu en dés.",
+      "Fais dorer le tofu à la poêle.",
+      "Ajoute la courgette, la tomate, le lait de coco et le curry.",
+      "Laisse mijoter puis sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-dinde-curry-patate",
+    "nom": "Dinde curry patate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "indienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 590,
+    "proteines": 43,
+    "glucides": 60,
+    "lipides": 19,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "patate douce",
+      "lait de coco",
+      "épinards",
+      "curry"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "patate douce",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lait de coco",
+        "quantite": 90,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "curry",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Coupe la dinde et la patate douce.",
+      "Fais cuire la patate douce en dés.",
+      "Ajoute la dinde et fais dorer.",
+      "Ajoute la tomate, le lait de coco, les épinards et le curry.",
+      "Laisse mijoter quelques minutes."
+    ]
+  },
+  {
+    "id": "plat-chili-boeuf-riz",
+    "nom": "Chili boeuf riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mexicaine"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 630,
+    "proteines": 40,
+    "glucides": 77,
+    "lipides": 18,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "boeuf haché",
+      "riz",
+      "haricots rouges",
+      "tomate",
+      "maïs"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "haricots rouges cuits",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "maïs",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "paprika",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir le boeuf haché.",
+      "Ajoute les haricots rouges, le maïs et la tomate.",
+      "Assaisonne avec le paprika.",
+      "Laisse mijoter puis sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-chili-sin-carne",
+    "nom": "Chili sin carne",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mexicaine"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 26,
+    "glucides": 91,
+    "lipides": 11,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "haricots rouges",
+      "riz",
+      "maïs",
+      "tomate",
+      "poivron"
+    ],
+    "ingredients": [
+      {
+        "nom": "haricots rouges cuits",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 55,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "maïs",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "paprika",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le poivron en dés.",
+      "Fais mijoter la tomate avec le poivron.",
+      "Ajoute les haricots rouges, le maïs et le paprika.",
+      "Sers le chili avec le riz."
+    ]
+  },
+  {
+    "id": "plat-bowl-poulet-mexicain",
+    "nom": "Bowl poulet mexicain",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mexicaine"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 610,
+    "proteines": 44,
+    "glucides": 70,
+    "lipides": 18,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "haricots rouges",
+      "maïs",
+      "avocat"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "haricots rouges cuits",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "maïs",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "avocat",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais cuire le poulet en morceaux.",
+      "Rince les haricots rouges.",
+      "Mélange le riz avec le maïs et les haricots.",
+      "Ajoute le poulet, l'avocat et le citron."
+    ]
+  },
+  {
+    "id": "plat-tacos-dinde-haricots",
+    "nom": "Tacos dinde haricots",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mexicaine"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 600,
+    "proteines": 42,
+    "glucides": 62,
+    "lipides": 21,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "tortillas de maïs",
+      "dinde",
+      "haricots rouges",
+      "tomate",
+      "avocat"
+    ],
+    "ingredients": [
+      {
+        "nom": "tortillas de maïs",
+        "quantite": 2,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "escalope de dinde",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "haricots rouges cuits",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "avocat",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "paprika",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Coupe la dinde en petits morceaux.",
+      "Fais revenir la dinde avec le paprika.",
+      "Réchauffe les tortillas de maïs.",
+      "Ajoute les haricots, la tomate et l'avocat.",
+      "Garnis les tortillas avec la dinde."
+    ]
+  },
+  {
+    "id": "plat-burrito-bowl-tofu",
+    "nom": "Burrito bowl tofu",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "mexicaine"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 620,
+    "proteines": 33,
+    "glucides": 74,
+    "lipides": 22,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "tofu ferme",
+      "riz",
+      "haricots rouges",
+      "maïs",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu ferme",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "haricots rouges cuits",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "maïs",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "paprika",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le tofu en dés.",
+      "Fais dorer le tofu avec le paprika.",
+      "Mélange le riz avec les haricots, le maïs et la tomate.",
+      "Ajoute le tofu par-dessus."
+    ]
+  },
+  {
+    "id": "plat-poulet-shawarma-riz",
+    "nom": "Poulet shawarma riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "orientale"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 610,
+    "proteines": 45,
+    "glucides": 62,
+    "lipides": 22,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "yaourt grec",
+      "concombre",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "yaourt grec",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "cumin",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le poulet en morceaux.",
+      "Fais revenir le poulet avec le cumin.",
+      "Coupe la tomate et le concombre.",
+      "Sers avec le riz, les crudités et le yaourt."
+    ]
+  },
+  {
+    "id": "plat-kefta-riz-tomate",
+    "nom": "Kefta riz tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "orientale"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 630,
+    "proteines": 40,
+    "glucides": 66,
+    "lipides": 22,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "boeuf haché",
+      "riz",
+      "oeuf",
+      "tomate",
+      "courgette"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeuf",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "cumin",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Mélange le boeuf avec l'oeuf et le cumin.",
+      "Forme des petites keftas.",
+      "Fais cuire les keftas avec la tomate et la courgette.",
+      "Sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-falafels-houmous-riz",
+    "nom": "Falafels houmous riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "orientale"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "sesame"
+    ],
+    "kcal": 610,
+    "proteines": 25,
+    "glucides": 78,
+    "lipides": 23,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "falafels sans gluten",
+      "houmous",
+      "riz",
+      "tomate",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "falafels sans gluten",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "houmous",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Réchauffe les falafels.",
+      "Coupe la tomate et le concombre.",
+      "Dépose le riz dans une assiette.",
+      "Ajoute les falafels, le houmous et les crudités."
+    ]
+  },
+  {
+    "id": "plat-tajine-poulet-pois-chiches",
+    "nom": "Tajine poulet pois chiches",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "orientale"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 590,
+    "proteines": 44,
+    "glucides": 55,
+    "lipides": 21,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "poulet",
+      "pois chiches",
+      "carotte",
+      "courgette",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Coupe le poulet et les légumes.",
+      "Fais dorer le poulet avec l'huile.",
+      "Ajoute la carotte et la courgette.",
+      "Ajoute les pois chiches et la tomate.",
+      "Laisse mijoter jusqu'à cuisson tendre."
+    ]
+  },
+  {
+    "id": "plat-mujadara-lentilles-riz",
+    "nom": "Mujadara lentilles riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "orientale"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 540,
+    "proteines": 25,
+    "glucides": 86,
+    "lipides": 12,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "lentilles",
+      "riz",
+      "oignon",
+      "tomate",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "lentilles cuites",
+        "quantite": 230,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir l'oignon avec l'huile.",
+      "Ajoute les lentilles et le riz.",
+      "Mélange quelques minutes à feu doux.",
+      "Sers avec la tomate et le concombre."
+    ]
+  },
+  {
+    "id": "plat-poulet-coco-thai",
+    "nom": "Poulet coco thaï",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "thailandaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 620,
+    "proteines": 43,
+    "glucides": 64,
+    "lipides": 23,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "lait de coco",
+      "courgette",
+      "curry"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait de coco",
+        "quantite": 110,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "curry",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le poulet et les légumes.",
+      "Fais revenir le poulet.",
+      "Ajoute les légumes, le lait de coco et le curry.",
+      "Laisse mijoter puis sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-tofu-coco-thai",
+    "nom": "Tofu coco thaï",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "thailandaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 625,
+    "proteines": 31,
+    "glucides": 66,
+    "lipides": 27,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "tofu ferme",
+      "riz",
+      "lait de coco",
+      "brocoli",
+      "curry"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu ferme",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lait de coco",
+        "quantite": 100,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocoli",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 90,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "curry",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le tofu et les légumes.",
+      "Fais dorer le tofu à la poêle.",
+      "Ajoute les légumes, le lait de coco et le curry.",
+      "Laisse mijoter puis sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-pad-thai-crevettes",
+    "nom": "Pad thaï crevettes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "thailandaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "crustaces",
+      "oeuf",
+      "soja",
+      "arachide"
+    ],
+    "kcal": 640,
+    "proteines": 38,
+    "glucides": 75,
+    "lipides": 22,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "crevettes",
+      "nouilles de riz",
+      "oeuf",
+      "tamari",
+      "cacahuètes"
+    ],
+    "ingredients": [
+      {
+        "nom": "crevettes",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "nouilles de riz",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeuf",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "cacahuètes",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les nouilles de riz.",
+      "Fais revenir les crevettes et la carotte.",
+      "Ajoute l'oeuf battu et mélange.",
+      "Ajoute les nouilles et le tamari.",
+      "Termine avec les cacahuètes."
+    ]
+  },
+  {
+    "id": "plat-boeuf-basilic-riz",
+    "nom": "Boeuf basilic riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "thailandaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 620,
+    "proteines": 40,
+    "glucides": 70,
+    "lipides": 20,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "boeuf émincé",
+      "riz",
+      "poivron",
+      "tamari",
+      "basilic"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf émincé",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "basilic",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe les légumes.",
+      "Fais revenir le boeuf à feu vif.",
+      "Ajoute les légumes et le tamari.",
+      "Ajoute le basilic et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-saumon-teriyaki-riz",
+    "nom": "Saumon teriyaki riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "japonaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson",
+      "soja",
+      "sesame"
+    ],
+    "kcal": 640,
+    "proteines": 36,
+    "glucides": 64,
+    "lipides": 29,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "saumon",
+      "riz",
+      "tamari",
+      "brocoli",
+      "graines de sésame"
+    ],
+    "ingredients": [
+      {
+        "nom": "saumon",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocoli",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "graines de sésame",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais cuire le brocoli.",
+      "Fais dorer le saumon à la poêle.",
+      "Ajoute le tamari et le citron.",
+      "Sers avec le riz, le brocoli et le sésame."
+    ]
+  },
+  {
+    "id": "plat-poulet-donburi",
+    "nom": "Poulet donburi",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "japonaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "soja"
+    ],
+    "kcal": 610,
+    "proteines": 45,
+    "glucides": 68,
+    "lipides": 17,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "oeuf",
+      "tamari",
+      "courgette"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "oeuf",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le poulet et la courgette.",
+      "Fais revenir le poulet avec l'huile.",
+      "Ajoute la courgette et le tamari.",
+      "Ajoute l'oeuf battu et sers sur le riz."
+    ]
+  },
+  {
+    "id": "plat-tofu-edamame-riz",
+    "nom": "Tofu edamame riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "japonaise"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 600,
+    "proteines": 33,
+    "glucides": 72,
+    "lipides": 20,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "tofu ferme",
+      "edamame",
+      "riz",
+      "tamari",
+      "concombre"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu ferme",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "edamame",
+        "quantite": 90,
+        "unite": "g",
+        "rayon": "Surgelés"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le tofu en dés.",
+      "Fais dorer le tofu avec l'huile.",
+      "Ajoute les edamame et le tamari.",
+      "Sers avec le riz et le concombre."
+    ]
+  },
+  {
+    "id": "plat-thon-riz-avocat",
+    "nom": "Thon riz avocat",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "japonaise"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson",
+      "soja",
+      "sesame"
+    ],
+    "kcal": 610,
+    "proteines": 39,
+    "glucides": 62,
+    "lipides": 25,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "thon",
+      "riz",
+      "avocat",
+      "tamari",
+      "graines de sésame"
+    ],
+    "ingredients": [
+      {
+        "nom": "thon au naturel",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz cuit",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "avocat",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "concombre",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tamari",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "graines de sésame",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Égoutte le thon.",
+      "Coupe l'avocat et le concombre.",
+      "Dépose le riz cuit dans un bol.",
+      "Ajoute le thon, l'avocat et le concombre.",
+      "Ajoute le tamari et les graines de sésame."
+    ]
+  },
+  {
+    "id": "plat-burger-boeuf-patate",
+    "nom": "Burger boeuf patate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "americaine"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 650,
+    "proteines": 40,
+    "glucides": 58,
+    "lipides": 28,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "boeuf haché",
+      "pommes de terre",
+      "cheddar",
+      "tomate",
+      "salade"
+    ],
+    "ingredients": [
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 250,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "cheddar",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "salade",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile de colza",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Coupe les pommes de terre en quartiers.",
+      "Fais cuire les pommes de terre à la poêle.",
+      "Forme un steak avec le boeuf.",
+      "Fais cuire le steak et ajoute le cheddar.",
+      "Sers avec la tomate, la salade et les pommes de terre."
+    ]
+  },
+  {
+    "id": "plat-pates-poulet-tomate",
+    "nom": "Pâtes poulet tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 610,
+    "proteines": 43,
+    "glucides": 72,
+    "lipides": 17,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pâtes",
+      "poulet",
+      "tomate",
+      "parmesan",
+      "courgette"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "blanc de poulet",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "parmesan",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes.",
+      "Coupe le poulet et la courgette.",
+      "Fais revenir le poulet avec l'huile d'olive.",
+      "Ajoute la courgette et les tomates concassées.",
+      "Mélange avec les pâtes et ajoute le parmesan."
+    ]
+  },
+  {
+    "id": "plat-risotto-poulet-champignons",
+    "nom": "Risotto poulet champignons",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 620,
+    "proteines": 42,
+    "glucides": 69,
+    "lipides": 18,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "riz arborio",
+      "poulet",
+      "champignons",
+      "parmesan",
+      "bouillon de légumes"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz arborio",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "blanc de poulet",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "champignons",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "bouillon de légumes",
+        "quantite": 300,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "parmesan",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais revenir le poulet en morceaux.",
+      "Ajoute les champignons émincés.",
+      "Verse le riz et mélange une minute.",
+      "Ajoute le bouillon petit à petit.",
+      "Termine avec le parmesan."
+    ]
+  },
+  {
+    "id": "plat-pates-thon-tomate",
+    "nom": "Pâtes thon tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "poisson"
+    ],
+    "kcal": 560,
+    "proteines": 36,
+    "glucides": 75,
+    "lipides": 12,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes",
+      "thon",
+      "tomate",
+      "olives",
+      "basilic"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "olives noires",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "basilic",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes.",
+      "Chauffe les tomates concassées.",
+      "Ajoute le thon égoutté et les olives.",
+      "Mélange la sauce avec les pâtes.",
+      "Ajoute le basilic avant de servir."
+    ]
+  },
+  {
+    "id": "plat-bolognaise-boeuf",
+    "nom": "Bolognaise boeuf",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 640,
+    "proteines": 40,
+    "glucides": 73,
+    "lipides": 18,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "spaghetti",
+      "boeuf haché",
+      "tomate",
+      "carotte",
+      "oignon"
+    ],
+    "ingredients": [
+      {
+        "nom": "spaghetti",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les spaghetti.",
+      "Fais revenir l'oignon et la carotte.",
+      "Ajoute le boeuf haché.",
+      "Verse les tomates concassées.",
+      "Laisse mijoter puis mélange avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-pates-boulettes-tomate",
+    "nom": "Pâtes boulettes tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "oeuf"
+    ],
+    "kcal": 650,
+    "proteines": 41,
+    "glucides": 74,
+    "lipides": 19,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "pâtes",
+      "boeuf haché",
+      "oeuf",
+      "tomate",
+      "persil"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "oeuf",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Mélange le boeuf avec l'oeuf et forme des boulettes.",
+      "Fais dorer les boulettes à la poêle.",
+      "Ajoute l'oignon et les tomates concassées.",
+      "Fais cuire les pâtes.",
+      "Mélange les pâtes avec la sauce et les boulettes."
+    ]
+  },
+  {
+    "id": "plat-escalope-tomate-mozzarella",
+    "nom": "Escalope tomate mozzarella",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 570,
+    "proteines": 45,
+    "glucides": 48,
+    "lipides": 21,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "mozzarella",
+      "tomate",
+      "riz",
+      "basilic"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "mozzarella",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomate",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "riz",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "basilic",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais dorer le poulet à la poêle.",
+      "Ajoute la tomate en dés.",
+      "Dépose la mozzarella sur le poulet.",
+      "Couvre quelques minutes et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-risotto-crevettes-courgettes",
+    "nom": "Risotto crevettes courgettes",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "crustaces",
+      "lactose"
+    ],
+    "kcal": 595,
+    "proteines": 36,
+    "glucides": 70,
+    "lipides": 17,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "riz arborio",
+      "crevettes",
+      "courgette",
+      "parmesan",
+      "citron"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz arborio",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "crevettes",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "bouillon de légumes",
+        "quantite": 300,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "parmesan",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais revenir la courgette en dés.",
+      "Ajoute le riz et mélange.",
+      "Verse le bouillon petit à petit.",
+      "Ajoute les crevettes en fin de cuisson.",
+      "Termine avec le parmesan."
+    ]
+  },
+  {
+    "id": "plat-saumon-pesto-riz",
+    "nom": "Saumon pesto riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson",
+      "lactose",
+      "fruits-a-coque"
+    ],
+    "kcal": 640,
+    "proteines": 35,
+    "glucides": 50,
+    "lipides": 32,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "saumon",
+      "pesto",
+      "riz",
+      "haricots verts",
+      "parmesan"
+    ],
+    "ingredients": [
+      {
+        "nom": "saumon",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "haricots verts",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "pesto",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz et les haricots verts.",
+      "Fais cuire le saumon à la poêle.",
+      "Ajoute le jus de citron.",
+      "Mélange le riz avec le pesto.",
+      "Sers avec le saumon et les haricots verts."
+    ]
+  },
+  {
+    "id": "plat-cabillaud-polenta-tomate",
+    "nom": "Cabillaud polenta tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson",
+      "lactose"
+    ],
+    "kcal": 530,
+    "proteines": 38,
+    "glucides": 58,
+    "lipides": 15,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "cabillaud",
+      "polenta",
+      "tomate",
+      "parmesan",
+      "épinards"
+    ],
+    "ingredients": [
+      {
+        "nom": "cabillaud",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "polenta",
+        "quantite": 65,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "parmesan",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire la polenta.",
+      "Ajoute le parmesan dans la polenta.",
+      "Fais cuire le cabillaud à la poêle.",
+      "Chauffe les tomates avec les épinards.",
+      "Sers le cabillaud avec la polenta et la sauce."
+    ]
+  },
+  {
+    "id": "plat-dinde-arrabbiata-riz",
+    "nom": "Dinde arrabbiata riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 555,
+    "proteines": 42,
+    "glucides": 64,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "dinde",
+      "riz",
+      "tomate",
+      "piment",
+      "courgette"
+    ],
+    "ingredients": [
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "piment doux",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe la dinde et la courgette.",
+      "Fais revenir la dinde avec l'huile.",
+      "Ajoute la courgette, la tomate et le piment.",
+      "Sers la sauce avec le riz."
+    ]
+  },
+  {
+    "id": "plat-pates-poulet-pesto",
+    "nom": "Pâtes poulet pesto",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose",
+      "fruits-a-coque"
+    ],
+    "kcal": 650,
+    "proteines": 43,
+    "glucides": 68,
+    "lipides": 23,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes",
+      "poulet",
+      "pesto",
+      "tomates cerises",
+      "roquette"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "blanc de poulet",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pesto",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "roquette",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes.",
+      "Fais dorer le poulet en morceaux.",
+      "Coupe les tomates cerises.",
+      "Mélange les pâtes avec le pesto.",
+      "Ajoute le poulet, les tomates et la roquette."
+    ]
+  },
+  {
+    "id": "plat-lasagnes-courgette-boeuf",
+    "nom": "Lasagnes courgette boeuf",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 645,
+    "proteines": 42,
+    "glucides": 58,
+    "lipides": 25,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "feuilles de lasagne",
+      "boeuf haché",
+      "courgette",
+      "tomate",
+      "mozzarella"
+    ],
+    "ingredients": [
+      {
+        "nom": "feuilles de lasagne",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "mozzarella",
+        "quantite": 45,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais revenir le boeuf avec la courgette.",
+      "Ajoute les tomates concassées.",
+      "Monte les lasagnes dans un petit plat.",
+      "Ajoute la mozzarella dessus.",
+      "Fais gratiner au four."
+    ]
+  },
+  {
+    "id": "plat-frittata-legumes-ricotta",
+    "nom": "Frittata légumes ricotta",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "oeuf",
+      "lactose"
+    ],
+    "kcal": 510,
+    "proteines": 30,
+    "glucides": 42,
+    "lipides": 24,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "oeufs",
+      "ricotta",
+      "pommes de terre",
+      "épinards",
+      "tomates cerises"
+    ],
+    "ingredients": [
+      {
+        "nom": "oeufs",
+        "quantite": 3,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "ricotta",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "pommes de terre",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pommes de terre en dés.",
+      "Fais revenir les épinards et les tomates.",
+      "Bats les oeufs avec la ricotta.",
+      "Verse dans la poêle avec les légumes.",
+      "Cuis à feu doux jusqu'à prise."
+    ]
+  },
+  {
+    "id": "plat-risotto-epinards-ricotta",
+    "nom": "Risotto épinards ricotta",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 590,
+    "proteines": 25,
+    "glucides": 76,
+    "lipides": 20,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "riz arborio",
+      "épinards",
+      "ricotta",
+      "parmesan",
+      "bouillon de légumes"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz arborio",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "ricotta",
+        "quantite": 90,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "parmesan",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "bouillon de légumes",
+        "quantite": 320,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais revenir le riz avec l'huile.",
+      "Ajoute le bouillon petit à petit.",
+      "Ajoute les épinards en fin de cuisson.",
+      "Incorpore la ricotta.",
+      "Termine avec le parmesan."
+    ]
+  },
+  {
+    "id": "plat-pates-lentilles-tomate",
+    "nom": "Pâtes lentilles tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten"
+    ],
+    "kcal": 580,
+    "proteines": 27,
+    "glucides": 92,
+    "lipides": 10,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pâtes",
+      "lentilles",
+      "tomate",
+      "carotte",
+      "oignon"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "oignon",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes.",
+      "Fais revenir l'oignon et la carotte.",
+      "Ajoute les lentilles et la tomate.",
+      "Laisse mijoter quelques minutes.",
+      "Mélange avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-polenta-pois-chiches-tomate",
+    "nom": "Polenta pois chiches tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 550,
+    "proteines": 25,
+    "glucides": 82,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "polenta",
+      "pois chiches",
+      "tomate",
+      "épinards",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "polenta",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "ail",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire la polenta.",
+      "Fais revenir l'ail avec l'huile.",
+      "Ajoute les pois chiches et la tomate.",
+      "Ajoute les épinards.",
+      "Sers la sauce sur la polenta."
+    ]
+  },
+  {
+    "id": "plat-riz-facon-caponata",
+    "nom": "Riz façon caponata",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 545,
+    "proteines": 25,
+    "glucides": 86,
+    "lipides": 13,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "riz",
+      "aubergine",
+      "pois chiches",
+      "tomate",
+      "olives"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "aubergine",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "olives vertes",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe l'aubergine en dés.",
+      "Fais revenir l'aubergine avec l'huile.",
+      "Ajoute les pois chiches, la tomate et les olives.",
+      "Sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-pates-ricotta-epinards",
+    "nom": "Pâtes ricotta épinards",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 610,
+    "proteines": 30,
+    "glucides": 80,
+    "lipides": 18,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes",
+      "ricotta",
+      "épinards",
+      "tomates cerises",
+      "parmesan"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 85,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "ricotta",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "parmesan",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes.",
+      "Fais tomber les épinards à la poêle.",
+      "Ajoute la ricotta et un peu d'eau de cuisson.",
+      "Mélange avec les pâtes.",
+      "Ajoute les tomates et le parmesan."
+    ]
+  },
+  {
+    "id": "plat-pates-pois-chiches-pesto",
+    "nom": "Pâtes pois chiches pesto",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose",
+      "fruits-a-coque"
+    ],
+    "kcal": 650,
+    "proteines": 26,
+    "glucides": 87,
+    "lipides": 22,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes",
+      "pois chiches",
+      "pesto",
+      "courgette",
+      "tomates cerises"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pesto",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes.",
+      "Fais revenir la courgette.",
+      "Ajoute les pois chiches.",
+      "Mélange les pâtes avec le pesto.",
+      "Ajoute les tomates cerises."
+    ]
+  },
+  {
+    "id": "plat-risotto-tomates-mozzarella",
+    "nom": "Risotto tomates mozzarella",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 600,
+    "proteines": 25,
+    "glucides": 73,
+    "lipides": 23,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "riz arborio",
+      "mozzarella",
+      "tomates cerises",
+      "basilic",
+      "bouillon de légumes"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz arborio",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "mozzarella",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "bouillon de légumes",
+        "quantite": 320,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "basilic",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais revenir le riz avec l'huile.",
+      "Ajoute le bouillon petit à petit.",
+      "Ajoute les tomates cerises coupées.",
+      "Incorpore la mozzarella en morceaux.",
+      "Ajoute le basilic avant de servir."
+    ]
+  },
+  {
+    "id": "plat-aubergine-lentilles-mozzarella",
+    "nom": "Aubergine lentilles mozzarella",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 560,
+    "proteines": 28,
+    "glucides": 55,
+    "lipides": 24,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "aubergine",
+      "lentilles",
+      "mozzarella",
+      "tomate",
+      "riz"
+    ],
+    "ingredients": [
+      {
+        "nom": "aubergine",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "mozzarella",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "riz",
+        "quantite": 45,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir l'aubergine en dés.",
+      "Ajoute les lentilles et la tomate.",
+      "Dépose la mozzarella dessus.",
+      "Couvre pour faire fondre et sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-pates-sans-gluten-ricotta",
+    "nom": "Pâtes sans gluten ricotta",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 600,
+    "proteines": 26,
+    "glucides": 78,
+    "lipides": 19,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes sans gluten",
+      "ricotta",
+      "brocoli",
+      "parmesan",
+      "citron"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes sans gluten",
+        "quantite": 85,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "ricotta",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "brocoli",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "parmesan",
+        "quantite": 15,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes sans gluten.",
+      "Fais cuire le brocoli.",
+      "Mélange la ricotta avec le citron.",
+      "Ajoute les pâtes et le brocoli.",
+      "Termine avec le parmesan."
+    ]
+  },
+  {
+    "id": "plat-pizza-wrap-vegetarienne",
+    "nom": "Pizza wrap végétarienne",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "sans-porc"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 540,
+    "proteines": 27,
+    "glucides": 56,
+    "lipides": 22,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "wrap",
+      "mozzarella",
+      "tomate",
+      "champignons",
+      "poivron"
+    ],
+    "ingredients": [
+      {
+        "nom": "wrap de blé",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Boulangerie"
+      },
+      {
+        "nom": "mozzarella",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "champignons",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "roquette",
+        "quantite": 30,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Étale la tomate sur le wrap.",
+      "Ajoute les champignons et le poivron.",
+      "Ajoute la mozzarella.",
+      "Passe au four jusqu'à ce que le fromage fonde.",
+      "Ajoute la roquette avant de servir."
+    ]
+  },
+  {
+    "id": "plat-minestrone-haricots-riz",
+    "nom": "Minestrone haricots riz",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 500,
+    "proteines": 25,
+    "glucides": 83,
+    "lipides": 9,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "haricots rouges",
+      "riz",
+      "courgette",
+      "carotte",
+      "tomate"
+    ],
+    "ingredients": [
+      {
+        "nom": "haricots rouges cuits",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 55,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 90,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "bouillon de légumes",
+        "quantite": 250,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe les légumes en petits dés.",
+      "Chauffe le bouillon avec la tomate.",
+      "Ajoute les légumes et les haricots.",
+      "Ajoute le riz au moment de servir."
+    ]
+  },
+  {
+    "id": "plat-pates-sans-gluten-thon",
+    "nom": "Pâtes sans gluten thon",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 565,
+    "proteines": 36,
+    "glucides": 76,
+    "lipides": 12,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes sans gluten",
+      "thon",
+      "tomate",
+      "courgette",
+      "olives"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes sans gluten",
+        "quantite": 85,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "olives noires",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes sans gluten.",
+      "Fais revenir la courgette.",
+      "Ajoute la tomate et le thon.",
+      "Ajoute les olives.",
+      "Mélange avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-pates-saumon-epinards",
+    "nom": "Pâtes saumon épinards",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "poisson",
+      "lactose"
+    ],
+    "kcal": 645,
+    "proteines": 39,
+    "glucides": 68,
+    "lipides": 24,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pâtes",
+      "saumon",
+      "épinards",
+      "crème légère",
+      "citron"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "saumon",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "crème légère",
+        "quantite": 50,
+        "unite": "ml",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes.",
+      "Fais cuire le saumon à la poêle.",
+      "Ajoute les épinards.",
+      "Verse la crème légère et le citron.",
+      "Mélange avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-poulet-polenta-parmesan",
+    "nom": "Poulet polenta parmesan",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "lactose"
+    ],
+    "kcal": 585,
+    "proteines": 43,
+    "glucides": 57,
+    "lipides": 19,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "polenta",
+      "parmesan",
+      "tomate",
+      "brocoli"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "polenta",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "brocoli",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "parmesan",
+        "quantite": 20,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire la polenta.",
+      "Ajoute le parmesan dans la polenta.",
+      "Fais cuire le brocoli.",
+      "Fais dorer le poulet avec la tomate.",
+      "Sers le poulet avec la polenta et le brocoli."
+    ]
+  },
+  {
+    "id": "plat-gnocchi-poulet-tomate",
+    "nom": "Gnocchi poulet tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "lactose"
+    ],
+    "kcal": 625,
+    "proteines": 41,
+    "glucides": 78,
+    "lipides": 16,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "gnocchi",
+      "poulet",
+      "tomate",
+      "mozzarella",
+      "épinards"
+    ],
+    "ingredients": [
+      {
+        "nom": "gnocchi",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "blanc de poulet",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "mozzarella",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les gnocchi.",
+      "Fais dorer le poulet en morceaux.",
+      "Ajoute la tomate et les épinards.",
+      "Mélange avec les gnocchi.",
+      "Ajoute la mozzarella et laisse fondre."
+    ]
+  },
+  {
+    "id": "plat-pates-crevettes-ail",
+    "nom": "Pâtes crevettes ail",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "gluten",
+      "crustaces"
+    ],
+    "kcal": 570,
+    "proteines": 35,
+    "glucides": 76,
+    "lipides": 13,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes",
+      "crevettes",
+      "ail",
+      "tomates cerises",
+      "courgette"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "crevettes",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "ail",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes.",
+      "Fais revenir l'ail avec l'huile.",
+      "Ajoute les crevettes.",
+      "Ajoute la courgette et les tomates.",
+      "Mélange avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-riz-boulettes-tomate",
+    "nom": "Riz boulettes tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "oeuf"
+    ],
+    "kcal": 620,
+    "proteines": 39,
+    "glucides": 66,
+    "lipides": 21,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "riz",
+      "boeuf haché",
+      "oeuf",
+      "tomate",
+      "courgette"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "oeuf",
+        "quantite": 0.5,
+        "unite": "piece",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Mélange le boeuf avec l'oeuf.",
+      "Forme des boulettes.",
+      "Fais cuire les boulettes avec la tomate et la courgette.",
+      "Sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-riz-poulet-cacciatore",
+    "nom": "Riz poulet cacciatore",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 595,
+    "proteines": 43,
+    "glucides": 66,
+    "lipides": 16,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "poulet",
+      "riz",
+      "tomate",
+      "poivron",
+      "champignons"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "champignons",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe le poulet et les légumes.",
+      "Fais dorer le poulet avec l'huile.",
+      "Ajoute les légumes et la tomate.",
+      "Laisse mijoter puis sers avec le riz."
+    ]
+  },
+  {
+    "id": "plat-polenta-tofu-tomate",
+    "nom": "Polenta tofu tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 555,
+    "proteines": 31,
+    "glucides": 58,
+    "lipides": 21,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "polenta",
+      "tofu",
+      "tomate",
+      "courgette",
+      "basilic"
+    ],
+    "ingredients": [
+      {
+        "nom": "polenta",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tofu ferme",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "basilic",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire la polenta.",
+      "Coupe le tofu en dés.",
+      "Fais dorer le tofu avec l'huile.",
+      "Ajoute la courgette et la tomate.",
+      "Sers avec la polenta et le basilic."
+    ]
+  },
+  {
+    "id": "plat-pates-sans-gluten-tofu",
+    "nom": "Pâtes sans gluten tofu",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 590,
+    "proteines": 32,
+    "glucides": 74,
+    "lipides": 18,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "pâtes sans gluten",
+      "tofu",
+      "tomate",
+      "épinards",
+      "ail"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes sans gluten",
+        "quantite": 85,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tofu ferme",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "ail",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes sans gluten.",
+      "Fais dorer le tofu en dés.",
+      "Ajoute l'ail, la tomate et les épinards.",
+      "Laisse mijoter quelques minutes.",
+      "Mélange avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-risotto-pois-chiches-citron",
+    "nom": "Risotto pois chiches citron",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 570,
+    "proteines": 25,
+    "glucides": 89,
+    "lipides": 13,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "riz arborio",
+      "pois chiches",
+      "courgette",
+      "citron",
+      "bouillon de légumes"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz arborio",
+        "quantite": 75,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "bouillon de légumes",
+        "quantite": 320,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "jus de citron",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais revenir le riz avec l'huile.",
+      "Ajoute le bouillon petit à petit.",
+      "Ajoute la courgette en dés.",
+      "Ajoute les pois chiches.",
+      "Termine avec le jus de citron."
+    ]
+  },
+  {
+    "id": "plat-chili-blanc-italien",
+    "nom": "Chili blanc italien",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 520,
+    "proteines": 26,
+    "glucides": 78,
+    "lipides": 11,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "haricots blancs",
+      "riz",
+      "tomate",
+      "épinards",
+      "carotte"
+    ],
+    "ingredients": [
+      {
+        "nom": "haricots blancs cuits",
+        "quantite": 220,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz",
+        "quantite": 50,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir la carotte avec l'huile.",
+      "Ajoute les haricots blancs et la tomate.",
+      "Ajoute les épinards.",
+      "Sers le tout avec le riz."
+    ]
+  },
+  {
+    "id": "plat-salade-riz-mozzarella-thon",
+    "nom": "Salade riz mozzarella thon",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "poisson",
+      "lactose"
+    ],
+    "kcal": 600,
+    "proteines": 37,
+    "glucides": 60,
+    "lipides": 22,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "riz",
+      "thon",
+      "mozzarella",
+      "tomates cerises",
+      "roquette"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 110,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "mozzarella",
+        "quantite": 60,
+        "unite": "g",
+        "rayon": "Crèmerie"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "roquette",
+        "quantite": 40,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz puis laisse tiédir.",
+      "Égoutte le thon.",
+      "Coupe les tomates et la mozzarella.",
+      "Mélange le riz avec tous les ingrédients.",
+      "Ajoute l'huile d'olive avant de servir."
+    ]
+  },
+  {
+    "id": "plat-salade-pois-chiches-antipasti",
+    "nom": "Salade pois chiches antipasti",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 545,
+    "proteines": 25,
+    "glucides": 69,
+    "lipides": 19,
+    "tempsMinutes": 15,
+    "motsCles": [
+      "pois chiches",
+      "riz",
+      "poivron",
+      "tomates cerises",
+      "olives"
+    ],
+    "ingredients": [
+      {
+        "nom": "pois chiches cuits",
+        "quantite": 210,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "riz cuit",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "poivron",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "olives noires",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Rince les pois chiches.",
+      "Coupe le poivron et les tomates.",
+      "Mélange le riz avec les pois chiches.",
+      "Ajoute les légumes et les olives.",
+      "Assaisonne avec l'huile d'olive."
+    ]
+  },
+  {
+    "id": "plat-aubergine-tofu-tomate",
+    "nom": "Aubergine tofu tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "soja"
+    ],
+    "kcal": 535,
+    "proteines": 30,
+    "glucides": 52,
+    "lipides": 22,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "aubergine",
+      "tofu",
+      "riz",
+      "tomate",
+      "basilic"
+    ],
+    "ingredients": [
+      {
+        "nom": "tofu ferme",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "aubergine",
+        "quantite": 200,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "riz",
+        "quantite": 55,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 170,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "basilic",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Coupe l'aubergine et le tofu en dés.",
+      "Fais dorer le tofu avec l'huile.",
+      "Ajoute l'aubergine et la tomate.",
+      "Sers avec le riz et le basilic."
+    ]
+  },
+  {
+    "id": "plat-pates-sans-gluten-boeuf",
+    "nom": "Pâtes sans gluten boeuf",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [],
+    "kcal": 625,
+    "proteines": 40,
+    "glucides": 78,
+    "lipides": 16,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "pâtes sans gluten",
+      "boeuf haché",
+      "tomate",
+      "carotte",
+      "champignons"
+    ],
+    "ingredients": [
+      {
+        "nom": "pâtes sans gluten",
+        "quantite": 85,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "boeuf haché 5%",
+        "quantite": 130,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 180,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "carotte",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "champignons",
+        "quantite": 100,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire les pâtes sans gluten.",
+      "Fais revenir le boeuf haché.",
+      "Ajoute la carotte et les champignons.",
+      "Verse les tomates concassées.",
+      "Mélange la sauce avec les pâtes."
+    ]
+  },
+  {
+    "id": "plat-risotto-thon-tomate",
+    "nom": "Risotto thon tomate",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [
+      "poisson"
+    ],
+    "kcal": 570,
+    "proteines": 36,
+    "glucides": 77,
+    "lipides": 11,
+    "tempsMinutes": 30,
+    "motsCles": [
+      "riz arborio",
+      "thon",
+      "tomate",
+      "courgette",
+      "bouillon de légumes"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz arborio",
+        "quantite": 80,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "thon au naturel",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Poissonnerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "bouillon de légumes",
+        "quantite": 320,
+        "unite": "ml",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais revenir le riz avec l'huile.",
+      "Ajoute le bouillon petit à petit.",
+      "Ajoute la courgette et la tomate.",
+      "Ajoute le thon égoutté.",
+      "Mélange et sers chaud."
+    ]
+  },
+  {
+    "id": "plat-poulet-haricots-blancs",
+    "nom": "Poulet haricots blancs",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 560,
+    "proteines": 44,
+    "glucides": 52,
+    "lipides": 17,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "poulet",
+      "haricots blancs",
+      "tomate",
+      "épinards",
+      "huile d'olive"
+    ],
+    "ingredients": [
+      {
+        "nom": "blanc de poulet",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "haricots blancs cuits",
+        "quantite": 190,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 160,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "épinards",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "ail",
+        "quantite": 1,
+        "unite": "piece",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Coupe le poulet en morceaux.",
+      "Fais revenir l'ail et le poulet.",
+      "Ajoute les haricots blancs et la tomate.",
+      "Ajoute les épinards.",
+      "Laisse mijoter quelques minutes."
+    ]
+  },
+  {
+    "id": "plat-riz-dinde-pesto-rouge",
+    "nom": "Riz dinde pesto rouge",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "normal",
+    "allergenes": [
+      "lactose",
+      "fruits-a-coque"
+    ],
+    "kcal": 610,
+    "proteines": 43,
+    "glucides": 63,
+    "lipides": 20,
+    "tempsMinutes": 20,
+    "motsCles": [
+      "riz",
+      "dinde",
+      "pesto rouge",
+      "courgette",
+      "tomates cerises"
+    ],
+    "ingredients": [
+      {
+        "nom": "riz",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "escalope de dinde",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Boucherie"
+      },
+      {
+        "nom": "pesto rouge",
+        "quantite": 25,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "courgette",
+        "quantite": 140,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates cerises",
+        "quantite": 120,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à café",
+        "rayon": "Épicerie"
+      }
+    ],
+    "etapes": [
+      "Fais cuire le riz.",
+      "Fais revenir la dinde en morceaux.",
+      "Ajoute la courgette et les tomates.",
+      "Mélange le riz avec le pesto rouge.",
+      "Sers avec la dinde et les légumes."
+    ]
+  },
+  {
+    "id": "plat-polenta-lentilles-champignons",
+    "nom": "Polenta lentilles champignons",
+    "type": "plat",
+    "categorie": "",
+    "gout": "",
+    "cuisines": [
+      "italienne"
+    ],
+    "regime": [
+      "vegetarien",
+      "vegan",
+      "sans-porc",
+      "sans-gluten"
+    ],
+    "budget": "eco",
+    "allergenes": [],
+    "kcal": 540,
+    "proteines": 26,
+    "glucides": 76,
+    "lipides": 14,
+    "tempsMinutes": 25,
+    "motsCles": [
+      "polenta",
+      "lentilles",
+      "champignons",
+      "tomate",
+      "persil"
+    ],
+    "ingredients": [
+      {
+        "nom": "polenta",
+        "quantite": 70,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "lentilles cuites",
+        "quantite": 190,
+        "unite": "g",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "champignons",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "tomates concassées",
+        "quantite": 150,
+        "unite": "g",
+        "rayon": "Fruits & légumes"
+      },
+      {
+        "nom": "huile d'olive",
+        "quantite": 1,
+        "unite": "c. à soupe",
+        "rayon": "Épicerie"
+      },
+      {
+        "nom": "persil",
+        "quantite": 1,
+        "unite": "pincée",
+        "rayon": "Fruits & légumes"
+      }
+    ],
+    "etapes": [
+      "Fais cuire la polenta.",
+      "Fais revenir les champignons avec l'huile.",
+      "Ajoute les lentilles et la tomate.",
+      "Laisse mijoter quelques minutes.",
+      "Sers sur la polenta avec le persil."
+    ]
+  }
 ];
 
-// Plats simples (<=5 ingredients) ajoutes pour renforcer le "manger facile".
-const RECIPES_SIMPLES = require('./recipes-simples').RECIPES;
-
-module.exports = { RECIPES: RECIPES.concat(RECIPES_SIMPLES) };
+module.exports = { RECIPES };
