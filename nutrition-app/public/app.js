@@ -1815,21 +1815,19 @@ function collationProduitUrl(p) {
     ? SHOP_BASE + p.handle + '?' + COLLATION_PRODUIT_UTM
     : 'https://bilobanutrition.fr/search?q=' + encodeURIComponent(p.q) + '&' + COLLATION_PRODUIT_UTM;
 }
-// Zone "Option rapide" (1 produit) pour une carte collation ; '' sinon.
+// Ligne compacte "Option rapide" (alternative boutique SECONDAIRE) — uniquement sur
+// les collations, et seulement si une option active existe pour ce créneau. La recette
+// du plan reste l'option principale ; cette ligne prend très peu de hauteur.
 function collationOptionHTML(repas) {
   if (!repas || repas.creneau !== 'collation') return '';
   const p = COLLATION_PRODUITS[collationMomentKey(repas.label)];
-  if (!p) return '';
+  if (!p || p.actif === false) return '';
   return `
-      <div class="meal-option">
-        <div class="meal-option-head">${icSvg('spark')} Option rapide</div>
-        <p class="meal-option-sub">Vous pouvez aussi choisir une collation prête à consommer.</p>
-        <a class="meal-option-prod" href="${collationProduitUrl(p)}" target="_blank" rel="noopener noreferrer">
-          <span class="mop-info"><strong>${escapeHtml(p.nom)}</strong><em>${escapeHtml(p.tag)}</em></span>
-          <span class="mop-cta">${icSvg('cart')} Commander</span>
-        </a>
-        <p class="meal-option-note">Option pratique issue de notre boutique. L'alimentation reste la base de votre plan.</p>
-      </div>`;
+      <a class="meal-quickopt" href="${collationProduitUrl(p)}" target="_blank" rel="noopener noreferrer" title="Option rapide : ${escapeHtml(p.nom)}">
+        <span class="mqo-ic">${icSvg('spark')}</span>
+        <span class="mqo-txt"><strong>${escapeHtml(p.nom)}</strong><span class="mqo-tag"> · option rapide</span></span>
+        <span class="mqo-cta">${icSvg('cart')} Commander</span>
+      </a>`;
 }
 
 function openFiche() { renderFiche(); $('#fichePanel').classList.remove('hidden'); }
