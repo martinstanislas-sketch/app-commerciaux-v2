@@ -1093,6 +1093,26 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .coach-dash-cta .ic { width: 18px; height: 18px; }
 .coach-dash-cta .conv-unread { background: #fff; color: var(--mc-blue); }
 .coach-dash-sec { font-size: 13px; font-weight: 700; color: var(--mc-muted); text-transform: uppercase; letter-spacing: .3px; margin: 0 2px 10px; }
+.coach-dash-link { display: inline-block; margin: -14px 0 24px; background: none; border: none; color: var(--mc-blue); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; text-decoration: underline; }
+
+/* --- Gestion des photos de plats --- */
+.plats-filters { margin-bottom: 12px; }
+.plats-filters input[type=search] { width: 100%; padding: 11px 13px; border-radius: 12px; border: 1px solid var(--mc-border); background: var(--mc-cream); color: var(--ink); font: inherit; font-size: 14px; margin-bottom: 10px; box-sizing: border-box; }
+.plats-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.plats-chip { font-size: 12.5px; font-weight: 600; color: var(--mc-muted); background: var(--mc-white); border: 1px solid var(--mc-border); border-radius: 99px; padding: 6px 12px; cursor: pointer; font-family: inherit; }
+.plats-chip.on { background: var(--mc-blue-soft); color: var(--mc-blue); border-color: var(--mc-blue); }
+.plats-list { max-height: 60vh; overflow-y: auto; margin-top: 12px; }
+.plat-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--mc-border); }
+.plat-thumb { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; flex-shrink: 0; background: var(--mc-cream); }
+.plat-thumb-empty { display: grid; place-items: center; color: var(--mc-muted); border: 1px dashed var(--mc-border); }
+.plat-thumb-empty .ic { width: 20px; height: 20px; }
+.plat-info { flex: 1; min-width: 0; }
+.plat-nom { font-weight: 700; font-size: 14px; color: var(--ink); }
+.plat-type { font-size: 12px; color: var(--mc-muted); }
+.plat-acts { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.plat-add { font-size: 12.5px; font-weight: 700; color: #fff; background: var(--grad-blue); padding: 7px 12px; border-radius: 10px; cursor: pointer; }
+.plat-del { font-size: 12.5px; font-weight: 600; color: var(--mc-muted); background: none; border: none; cursor: pointer; font-family: inherit; }
+.plat-del:hover { color: var(--error); }
 
 /* --- Conseils du jour --- */
 .conseils-jour { margin: 2px 0 4px; }

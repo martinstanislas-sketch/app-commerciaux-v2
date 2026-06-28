@@ -62,6 +62,7 @@ const state = {
   conseilsJour: {}, // "ymd-id" -> { statut: compris|ajoute|snooze, until } (conseils du jour)
   conseilsAjouts: {}, // "ymd" -> [ { nom, kcal, prot } ] options ajoutées via un conseil
   conseilsSug: {}, // "ymd-id" -> index de suggestion (cyclage "voir d'autres options")
+  photoMap: null, // id de recette -> version : plats AYANT une photo (chargé depuis le serveur)
 };
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -973,7 +974,7 @@ function renderMealCard(repas, di, mi) {
   if (state._swappedKey === trackKey(di, mi)) el.classList.add('meal-swapped');
   el.innerHTML = `
     <div class="meal-photo" data-cat="${cat}">
-      <img class="meal-img" src="images/recipes/${r.id}.jpg" alt="${escapeHtml(r.nom)}" loading="lazy" onload="this.classList.add('loaded')" onerror="this.remove()" />
+      ${recipePhotoImg(r, 'meal-img')}
       ${icSvg(glyph)}
       <div class="meal-grad"></div>
       <div class="meal-toprow">
@@ -1223,7 +1224,7 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
   const photoGlyph = photoCat === 'petit-dejeuner' ? 'sun' : (photoCat === 'collation' ? 'apple' : 'bowl');
   $('#modalBody').innerHTML = `
     <div class="recipe-photo" data-cat="${photoCat}">
-      <img src="images/recipes/${r.id}.jpg" alt="${escapeHtml(r.nom)}" loading="lazy" onerror="this.remove()" />
+      ${recipePhotoImg(r, '')}
       ${icSvg(photoGlyph)}
     </div>
     <h2 class="recipe-title">${escapeHtml(r.nom)}</h2>`;
@@ -2605,6 +2606,13 @@ function init() {
   const _coachMsgs = $('#coachOpenMessages'); if (_coachMsgs) _coachMsgs.addEventListener('click', openMessagesCoach);
   const _coachBack = $('#coachBack'); if (_coachBack) _coachBack.addEventListener('click', () => { location.href = '/coach/'; });
 
+  // Gestion des photos de plats (admin/coach) + chargement de l'index (clients voient les photos)
+  const _bPlatsPhotos = $('#btnPlatsPhotos'); if (_bPlatsPhotos) _bPlatsPhotos.addEventListener('click', openPlatsPhotos);
+  const _coachPhotos = $('#coachOpenPhotos'); if (_coachPhotos) _coachPhotos.addEventListener('click', openPlatsPhotos);
+  $('#platsPhotosClose').addEventListener('click', closePlatsPhotos);
+  $('#platsPhotosPanel').addEventListener('click', (e) => { if (e.target.id === 'platsPhotosPanel') closePlatsPhotos(); });
+  fetchPhotoIndex();
+
   // Analyser mon assiette en photo
   $('#btnPlate').addEventListener('click', openPlate);
   $('#btnPlateFromSuivi').addEventListener('click', () => { closeSuivi(); openPlate(); });
@@ -2649,7 +2657,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -3250,6 +3258,93 @@ async function coachOpenClientConversation(email) {
     if (d.ok && d.conversationId) { openMessagesCoach(); openCoachConversation(d.conversationId); }
     else showToast(d.error || 'Impossible d’ouvrir la conversation.', { icon: 'info' });
   } catch (_) { showToast('Impossible d’ouvrir la conversation.', { icon: 'info' }); }
+}
+
+// ===== Photos de plats : affichage client + gestion admin/coach =====
+async function fetchPhotoIndex() {
+  try {
+    const res = await fetch(apiUrl('/api/recipe-photos-index'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) { state.photoMap = d.photos || {}; if (state.plan && typeof renderPlan === 'function') renderPlan(); }
+  } catch (_) { if (!state.photoMap) state.photoMap = {}; }
+}
+function recipePhotoImg(r, cls) {
+  const ver = state.photoMap && r && state.photoMap[r.id];
+  if (!ver) return '';
+  return '<img' + (cls ? ' class="' + cls + '"' : '') + ' src="api/recipe-photo/' + encodeURIComponent(r.id) + '?v=' + encodeURIComponent(ver) + '" alt="' + escapeHtml(r.nom || '') + '" loading="lazy" onload="this.classList.add(\'loaded\')" onerror="this.remove()" />';
+}
+
+let _platsPhotosCache = [];
+let _platsPhotosFilter = 'tous';
+async function openPlatsPhotos() {
+  $('#platsPhotosPanel').classList.remove('hidden');
+  const body = $('#platsPhotosBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/recipes-list'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    _platsPhotosCache = d.recipes || [];
+    renderPlatsPhotos();
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+function closePlatsPhotos() { $('#platsPhotosPanel').classList.add('hidden'); }
+function renderPlatsPhotos() {
+  const body = $('#platsPhotosBody'); if (!body) return;
+  const sEl = $('#platsPhotosSearch');
+  const q = ((sEl && sEl.value) || '').toLowerCase().trim();
+  const list = _platsPhotosCache.filter((r) => {
+    if (_platsPhotosFilter === 'avec' && !r.hasPhoto) return false;
+    if (_platsPhotosFilter === 'sans' && r.hasPhoto) return false;
+    if (q && (r.nom || '').toLowerCase().indexOf(q) === -1) return false;
+    return true;
+  });
+  const TYPE = { 'petit-dejeuner': 'Petit-déj', collation: 'Collation', plat: 'Plat' };
+  const isAdmin = (typeof isMainAdmin === 'function') && isMainAdmin();
+  const nbSans = _platsPhotosCache.filter((r) => !r.hasPhoto).length;
+  const rows = list.map((r) => {
+    const thumb = r.hasPhoto
+      ? '<img src="api/recipe-photo/' + encodeURIComponent(r.id) + '?v=' + Date.now() + '" class="plat-thumb" alt="" />'
+      : '<div class="plat-thumb plat-thumb-empty">' + icSvg('camera') + '</div>';
+    const delBtn = (r.hasPhoto && isAdmin) ? '<button type="button" class="plat-del" data-id="' + escapeHtml(r.id) + '">Supprimer</button>' : '';
+    return '<div class="plat-row">' + thumb +
+      '<div class="plat-info"><div class="plat-nom">' + escapeHtml(r.nom) + '</div><div class="plat-type">' + (TYPE[r.type] || r.type) + (r.cuisines && r.cuisines[0] ? ' · ' + escapeHtml(r.cuisines[0]) : '') + '</div></div>' +
+      '<div class="plat-acts"><label class="plat-add">' + (r.hasPhoto ? 'Changer' : 'Ajouter') + '<input type="file" accept="image/jpeg,image/png,image/webp" data-id="' + escapeHtml(r.id) + '" hidden></label>' + delBtn + '</div></div>';
+  }).join('');
+  body.innerHTML =
+    '<div class="plats-filters">' +
+      '<input id="platsPhotosSearch" type="search" placeholder="Rechercher un plat…" value="' + escapeHtml(q) + '" />' +
+      '<div class="plats-chips">' +
+        ['tous', 'sans', 'avec'].map((f) => '<button type="button" class="plats-chip ' + (_platsPhotosFilter === f ? 'on' : '') + '" data-f="' + f + '">' + (f === 'tous' ? 'Tous' : f === 'sans' ? ('Sans photo (' + nbSans + ')') : 'Avec photo') + '</button>').join('') +
+      '</div></div>' +
+    '<div class="plats-list">' + (rows || '<p class="help-empty">Aucun plat.</p>') + '</div>';
+  const search = $('#platsPhotosSearch');
+  if (search) { search.addEventListener('input', () => { clearTimeout(renderPlatsPhotos._t); renderPlatsPhotos._t = setTimeout(renderPlatsPhotos, 200); }); }
+  body.querySelectorAll('.plats-chip').forEach((c) => c.addEventListener('click', () => { _platsPhotosFilter = c.dataset.f; renderPlatsPhotos(); }));
+  body.querySelectorAll('.plat-add input[type=file]').forEach((inp) => inp.addEventListener('change', (e) => uploadPlatPhoto(inp.dataset.id, e.target.files && e.target.files[0])));
+  body.querySelectorAll('.plat-del').forEach((b) => b.addEventListener('click', () => deletePlatPhoto(b.dataset.id)));
+}
+async function uploadPlatPhoto(id, file) {
+  if (!file) return;
+  try {
+    const dataUrl = await compressImage(file, 1000, 0.78);
+    const res = await fetch(apiUrl('/api/recipes/' + encodeURIComponent(id) + '/photo'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ imageDataUrl: dataUrl }) });
+    const d = await res.json();
+    if (d.ok) {
+      const r = _platsPhotosCache.find((x) => x.id === id); if (r) r.hasPhoto = true;
+      if (!state.photoMap) state.photoMap = {};
+      state.photoMap[id] = d.updatedAt || String(Date.now());
+      showToast('Photo enregistrée ✓', { icon: 'check' });
+      renderPlatsPhotos();
+    } else showToast(d.error || 'Enregistrement impossible.', { icon: 'info' });
+  } catch (_) { showToast('Image illisible.', { icon: 'info' }); }
+}
+async function deletePlatPhoto(id) {
+  try {
+    const res = await fetch(apiUrl('/api/recipes/' + encodeURIComponent(id) + '/photo'), { method: 'DELETE', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d.ok) { const r = _platsPhotosCache.find((x) => x.id === id); if (r) r.hasPhoto = false; if (state.photoMap) delete state.photoMap[id]; showToast('Photo supprimée', { icon: 'check' }); renderPlatsPhotos(); }
+    else showToast(d.error || 'Suppression impossible.', { icon: 'info' });
+  } catch (_) { showToast('Suppression impossible.', { icon: 'info' }); }
 }
 
 function setTab(tab) {

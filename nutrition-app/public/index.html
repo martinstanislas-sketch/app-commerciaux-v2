@@ -213,6 +213,7 @@
           <button type="button" id="coachBack" class="btn btn-outline">← Coaching</button>
         </div>
         <button type="button" id="coachOpenMessages" class="coach-dash-cta"><svg class="ic"><use href="#ic-send"/></svg> Mes messages <span id="coachMsgBadge" class="conv-unread" style="display:none"></span></button>
+        <button type="button" id="coachOpenPhotos" class="coach-dash-link">Photos des plats</button>
         <h2 class="coach-dash-sec">Mes clients</h2>
         <div id="coachClientsList"></div>
       </div>
@@ -594,6 +595,7 @@
 
         <div class="profil-sec profil-coach hidden">ESPACE COACH</div>
         <button type="button" class="profil-row profil-coach hidden" id="btnMessagesCoach"><svg class="ic pr-lime"><use href="#ic-send"/></svg>Mes messages<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-coach hidden" id="btnPlatsPhotos"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Photos des plats<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnClientsAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Clients inscrits<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnAdhAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Adhérence clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnScanAdmin"><svg class="ic pr-lime"><use href="#ic-barcode"/></svg>Scans clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -851,6 +853,18 @@
       </div>
       <p class="panel-sub">Tes conversations privées avec tes clients attribués.</p>
       <div id="messagesCoachBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ ADMIN/COACH : PHOTOS DES PLATS ============ -->
+  <div id="platsPhotosPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-camera"/></svg> Photos des plats</h2>
+        <button class="modal-close" id="platsPhotosClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Ajoute une photo aux plats pour les rendre plus appétissants dans le plan des clients.</p>
+      <div id="platsPhotosBody"></div>
     </div>
   </div>
 

@@ -212,6 +212,14 @@ function ensureNutritionHelpTable() {
       created_at TEXT NOT NULL DEFAULT '',
       lu INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS nutrition_recipe_photos (
+      recipe_id TEXT PRIMARY KEY,
+      data TEXT NOT NULL DEFAULT '',
+      mime TEXT NOT NULL DEFAULT '',
+      auteur_role TEXT NOT NULL DEFAULT '',
+      auteur_id INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
   `);
   // Migration : attribution d'un coach sportif à un client nutrition (socle des espaces par rôle).
   try {
@@ -537,6 +545,67 @@ try {
       if (!conv) { const i = getDb().prepare('INSERT INTO nutrition_conversations (client_email, coach_id, created_at, last_message_at, statut) VALUES (?,?,?,?,?)').run(email, coachId, now, now, 'active'); conv = { id: i.lastInsertRowid }; }
       res.json({ ok: true, conversationId: conv.id });
     } catch (e) { console.error('coach conv create POST :', e); res.status(500).json({ ok: false, error: 'Impossible.' }); }
+  });
+
+  // ====== Photos de plats (admin/coach ajoutent ; clients voient) ======
+  function getRecipesCatalogue() { try { return require('./nutrition-app/lib/recipes-v2').RECIPES || []; } catch (_) { return []; } }
+
+  // Index des plats AYANT une photo (public) -> le front n'affiche l'<img> que pour ceux-là.
+  app.get('/nutrition/api/recipe-photos-index', (req, res) => {
+    try {
+      const photos = {};
+      getDb().prepare('SELECT recipe_id, updated_at FROM nutrition_recipe_photos').all().forEach((r) => { photos[r.recipe_id] = r.updated_at || '1'; });
+      res.set('Cache-Control', 'no-cache');
+      res.json({ ok: true, photos });
+    } catch (e) { res.json({ ok: true, photos: {} }); }
+  });
+
+  // Sert la photo d'un plat (PUBLIC : un <img> n'envoie pas de token).
+  app.get('/nutrition/api/recipe-photo/:id', (req, res) => {
+    try {
+      const row = getDb().prepare('SELECT data FROM nutrition_recipe_photos WHERE recipe_id = ?').get(String(req.params.id));
+      const m = row && row.data && /^data:(image\/[a-zA-Z+]+);base64,(.+)$/.exec(row.data);
+      if (!m) return res.status(404).end();
+      res.set('Content-Type', m[1]);
+      res.set('Cache-Control', 'public, max-age=300');
+      res.send(Buffer.from(m[2], 'base64'));
+    } catch (e) { res.status(404).end(); }
+  });
+
+  // Liste des plats avec statut photo (gestion admin/coach).
+  app.get('/nutrition/api/recipes-list', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const withPhoto = new Set(getDb().prepare('SELECT recipe_id FROM nutrition_recipe_photos').all().map((r) => r.recipe_id));
+      const recipes = getRecipesCatalogue().map((r) => ({ id: r.id, nom: r.nom, type: r.type, cuisines: r.cuisines || [], hasPhoto: withPhoto.has(r.id) }));
+      res.json({ ok: true, total: recipes.length, recipes });
+    } catch (e) { console.error('recipes-list GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+
+  // Ajoute/remplace la photo d'un plat. Coach : seulement si le plat n'a PAS de photo. Admin : toujours.
+  app.post('/nutrition/api/recipes/:id/photo', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const id = String(req.params.id);
+      if (!getRecipesCatalogue().some((r) => r.id === id)) return res.status(404).json({ ok: false, error: 'Plat inconnu.' });
+      const url = String((req.body || {}).imageDataUrl || '');
+      if (url.length > 3000000) return res.status(413).json({ ok: false, error: 'Image trop lourde (compresse-la).' });
+      const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(url);
+      if (!m) return res.status(400).json({ ok: false, error: 'Format non supporté (jpg, png, webp).' });
+      const sc = req.nutritionScope;
+      const existing = getDb().prepare('SELECT recipe_id FROM nutrition_recipe_photos WHERE recipe_id = ?').get(id);
+      if (existing && !sc.isAdmin) return res.status(403).json({ ok: false, error: 'Ce plat a déjà une photo — seul un admin peut la remplacer.' });
+      const now = new Date().toISOString();
+      getDb().prepare('INSERT INTO nutrition_recipe_photos (recipe_id, data, mime, auteur_role, auteur_id, updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(recipe_id) DO UPDATE SET data=excluded.data, mime=excluded.mime, auteur_role=excluded.auteur_role, auteur_id=excluded.auteur_id, updated_at=excluded.updated_at')
+        .run(id, url, m[1], sc.isAdmin ? 'super_admin' : 'coach', (req.session && req.session.coach_id) || 0, now);
+      res.json({ ok: true, updatedAt: now });
+    } catch (e) { console.error('recipe photo POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+
+  // Supprime la photo d'un plat (admin seulement).
+  app.delete('/nutrition/api/recipes/:id/photo', requireAuth, requireAdmin, (req, res) => {
+    try {
+      getDb().prepare('DELETE FROM nutrition_recipe_photos WHERE recipe_id = ?').run(String(req.params.id));
+      res.json({ ok: true });
+    } catch (e) { console.error('recipe photo DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
   });
 
   // --- Scan de produits (code-barres -> Open Food Facts) ---
