@@ -228,6 +228,38 @@ function ensureNutritionHelpTable() {
       getDb().exec('ALTER TABLE nutrition_clients ADD COLUMN coach_id INTEGER DEFAULT NULL');
     }
   } catch (e) { console.error('Migration nutrition_clients.coach_id :', e && e.message); }
+  // Migration : unification de l'identité client sur l'email. Les tables historiques
+  // (aide/scans/avis/adhérence/assiettes) lient un client par `client_name` (texte libre
+  // = nom de session) ≠ email -> impossible à scoper proprement par coach. On ajoute une
+  // colonne `client_email` (remplie en avant par les routes), puis on backfill sans risque :
+  // uniquement quand le nom correspond à UN SEUL client (sinon on laisse vide).
+  try {
+    const legacyTables = ['nutrition_help_requests', 'nutrition_scans', 'nutrition_scan_advice', 'nutrition_adherence', 'nutrition_plate_analysis'];
+    legacyTables.forEach((t) => {
+      const cols = getDb().prepare('PRAGMA table_info(' + t + ')').all();
+      if (!cols.some((c) => c.name === 'client_email')) {
+        getDb().exec("ALTER TABLE " + t + " ADD COLUMN client_email TEXT NOT NULL DEFAULT ''");
+      }
+    });
+    // Carte nom -> email, en marquant les noms ambigus (plusieurs clients) comme non résolubles.
+    const nameToEmail = {};
+    const ambiguous = new Set();
+    const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    getDb().prepare("SELECT email, prenom, nom FROM nutrition_clients").all().forEach((c) => {
+      const keys = [norm((c.prenom || '') + ' ' + (c.nom || '')), norm(c.prenom)];
+      keys.forEach((k) => {
+        if (!k) return;
+        if (ambiguous.has(k)) return;
+        if (nameToEmail[k] && nameToEmail[k] !== c.email) { ambiguous.add(k); delete nameToEmail[k]; }
+        else nameToEmail[k] = c.email;
+      });
+    });
+    legacyTables.forEach((t) => {
+      const rows = getDb().prepare("SELECT DISTINCT client_name FROM " + t + " WHERE client_email = '' AND client_name != ''").all();
+      const upd = getDb().prepare("UPDATE " + t + " SET client_email = ? WHERE client_name = ? AND client_email = ''");
+      rows.forEach((r) => { const e2 = nameToEmail[norm(r.client_name)]; if (e2) upd.run(e2, r.client_name); });
+    });
+  } catch (e) { console.error('Migration unification client_email :', e && e.message); }
   // Seed config démo (une seule ligne).
   getDb().prepare("INSERT OR IGNORE INTO nutrition_demo (id, code, enabled) VALUES (1, '2026', 1)").run();
   // Migration : bascule l'ancien code par défaut vers '2026' (sans écraser un code personnalisé saisi par l'admin).
@@ -345,8 +377,8 @@ try {
         return res.status(400).json({ ok: false, error: 'Indiquez au moins une difficulté ou un message.' });
       }
       const info = getDb().prepare(
-        'INSERT INTO nutrition_help_requests (client_name, created_at, difficultes, message, statut) VALUES (?, ?, ?, ?, ?)'
-      ).run(nom, new Date().toISOString(), JSON.stringify(diffs), msg, 'a_traiter');
+        'INSERT INTO nutrition_help_requests (client_name, client_email, created_at, difficultes, message, statut) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(nom, (req.session && req.session.email) || '', new Date().toISOString(), JSON.stringify(diffs), msg, 'a_traiter');
       res.json({ ok: true, id: info.lastInsertRowid });
     } catch (e) {
       console.error('Erreur help-request POST :', e);
@@ -615,9 +647,9 @@ try {
       const { clientName, barcode, productName, brand, nutriscore, coherence } = req.body || {};
       const coh = ['compatible', 'moderation', 'a_eviter'].includes(coherence) ? coherence : '';
       getDb().prepare(
-        'INSERT INTO nutrition_scans (client_name, created_at, barcode, product_name, brand, nutriscore, coherence) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO nutrition_scans (client_name, client_email, created_at, barcode, product_name, brand, nutriscore, coherence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       ).run(
-        String(clientName || req.session.name || 'Client').slice(0, 120), new Date().toISOString(),
+        String(clientName || req.session.name || 'Client').slice(0, 120), (req.session && req.session.email) || '', new Date().toISOString(),
         String(barcode || '').slice(0, 40), String(productName || '').slice(0, 200),
         String(brand || '').slice(0, 120), String(nutriscore || '').slice(0, 2), coh
       );
@@ -633,9 +665,9 @@ try {
     try {
       const { clientName, barcode, productName, message } = req.body || {};
       const info = getDb().prepare(
-        'INSERT INTO nutrition_scan_advice (client_name, created_at, barcode, product_name, message, statut) VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO nutrition_scan_advice (client_name, client_email, created_at, barcode, product_name, message, statut) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).run(
-        String(clientName || req.session.name || 'Client').slice(0, 120), new Date().toISOString(),
+        String(clientName || req.session.name || 'Client').slice(0, 120), (req.session && req.session.email) || '', new Date().toISOString(),
         String(barcode || '').slice(0, 40), String(productName || '').slice(0, 200),
         String(message || '').slice(0, 2000), 'a_traiter'
       );
@@ -695,12 +727,12 @@ try {
       const nom = String(clientName || req.session.name || 'Client').slice(0, 120);
       const n = (v) => Math.max(0, Math.min(50, parseInt(v, 10) || 0));
       const sc = Math.max(0, Math.min(100, parseInt(score, 10) || 0));
-      getDb().prepare(`INSERT INTO nutrition_adherence (client_name, date, suivi, adapte, autre, saute, score, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      getDb().prepare(`INSERT INTO nutrition_adherence (client_name, client_email, date, suivi, adapte, autre, saute, score, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(client_name, date) DO UPDATE SET
-          suivi = excluded.suivi, adapte = excluded.adapte, autre = excluded.autre,
+          client_email = excluded.client_email, suivi = excluded.suivi, adapte = excluded.adapte, autre = excluded.autre,
           saute = excluded.saute, score = excluded.score, updated_at = excluded.updated_at`)
-        .run(nom, d, n(suivi), n(adapte), n(autre), n(saute), sc, new Date().toISOString());
+        .run(nom, (req.session && req.session.email) || '', d, n(suivi), n(adapte), n(autre), n(saute), sc, new Date().toISOString());
       res.json({ ok: true });
     } catch (e) {
       console.error('Erreur adherence POST :', e);
@@ -910,6 +942,72 @@ try {
     }
   });
 
+  // Fiche détaillée d'un client (coach = uniquement SES clients ; admin = tous). Identité
+  // par email : profil/objectif/pesées viennent du blob `data` (clé email, propre) ; le suivi
+  // récent (adhérence/aide) est scopé via `client_email` désormais rempli sur les tables legacy.
+  app.get('/nutrition/api/coach/clients/:email', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const email = String(req.params.email || '').trim();
+      if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
+      const row = getDb().prepare('SELECT email, prenom, nom, data, coach_id, created_at, updated_at FROM nutrition_clients WHERE email = ?').get(email);
+      if (!row) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
+      if (!sc.isAdmin && row.coach_id !== sc.coachId) return res.status(403).json({ ok: false, error: 'Client non attribué.' });
+
+      let profil = {}, objectif = '', hasPlan = false, planJours = 0, savedAt = '', startDate = '';
+      let pesees = [];
+      try {
+        const d = row.data ? JSON.parse(row.data) : null;
+        if (d) {
+          profil = d.profil || {};
+          objectif = (profil.objectif || profil.but) || '';
+          hasPlan = !!d.plan;
+          planJours = (d.plan && Array.isArray(d.plan.jours) && d.plan.jours.length) || 0;
+          savedAt = d.savedAt || '';
+          startDate = d.startDate || '';
+          pesees = Array.isArray(d.pesees) ? d.pesees.slice(-12).map((p) => ({ ts: p.ts || 0, poids: p.poids, masse_musculaire: p.masse_musculaire, fatigue: p.fatigue })) : [];
+        }
+      } catch (_) { /* data illisible -> fiche minimale */ }
+
+      // Profil épuré (on ne renvoie que des champs d'affichage, pas tout le blob).
+      const profilPublic = {
+        sexe: profil.sexe || '', age: profil.age || '', taille: profil.taille || '',
+        poidsDepart: profil.poids || profil.poids_depart || '', poidsCible: profil.poids_cible || profil.objectif_poids || '',
+        activite: profil.activite || '', allergies: Array.isArray(profil.allergies) ? profil.allergies : [],
+        regimes: Array.isArray(profil.regimes) ? profil.regimes : (Array.isArray(profil.regime) ? profil.regime : []),
+        ajustementKcal: Math.round(Number(profil.ajustementKcal) || 0),
+      };
+
+      const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+      let adherence = [], help = [], scansCount = 0;
+      try {
+        adherence = getDb().prepare("SELECT date, suivi, adapte, autre, saute, score FROM nutrition_adherence WHERE client_email = ? AND date >= ? ORDER BY date DESC LIMIT 14").all(email, since);
+      } catch (_) { /* ignore */ }
+      try {
+        help = getDb().prepare("SELECT created_at, difficultes, message, statut FROM nutrition_help_requests WHERE client_email = ? ORDER BY id DESC LIMIT 5").all(email)
+          .map((h) => ({ createdAt: h.created_at, statut: h.statut, message: h.message, difficultes: (() => { try { return JSON.parse(h.difficultes); } catch (_) { return []; } })() }));
+      } catch (_) { /* ignore */ }
+      try { scansCount = getDb().prepare("SELECT COUNT(*) AS n FROM nutrition_scans WHERE client_email = ?").get(email).n; } catch (_) { /* ignore */ }
+
+      const adhDays = adherence.length;
+      const adhScore = adhDays ? Math.round(adherence.reduce((s, a) => s + (a.score || 0), 0) / adhDays) : null;
+
+      res.json({
+        ok: true,
+        client: {
+          email: row.email, prenom: row.prenom, nom: row.nom, coachId: row.coach_id || null,
+          createdAt: row.created_at, updatedAt: row.updated_at,
+          objectif, hasPlan, planJours, savedAt, startDate,
+          profil: profilPublic, pesees, adherence, adhScore, adhDays,
+          help, scansCount,
+        },
+      });
+    } catch (e) {
+      console.error('Erreur fiche client :', e);
+      res.status(500).json({ ok: false, error: 'Lecture impossible.' });
+    }
+  });
+
   // Gestion du code démo (administrateur principal).
   app.get('/nutrition/api/demo-config', requireAuth, requireAdmin, (req, res) => {
     const cfg = getDemoConfig();
@@ -942,9 +1040,9 @@ try {
       const coh = ['coherent', 'correct', 'reprendre'].includes(b.coherence) ? b.coherence : '';
       const thumb = (typeof b.thumb === 'string' && b.thumb.startsWith('data:image')) ? b.thumb.slice(0, 400000) : '';
       const info = getDb().prepare(`INSERT INTO nutrition_plate_analysis
-        (client_name, created_at, meal_label, precision_txt, aliments, kcal, proteines, glucides, lipides, coherence, ia_comment, thumb, client_message, advice_statut)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-        String(b.clientName || req.session.name || 'Client').slice(0, 120), new Date().toISOString(),
+        (client_name, client_email, created_at, meal_label, precision_txt, aliments, kcal, proteines, glucides, lipides, coherence, ia_comment, thumb, client_message, advice_statut)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        String(b.clientName || req.session.name || 'Client').slice(0, 120), (req.session && req.session.email) || '', new Date().toISOString(),
         String(b.mealLabel || '').slice(0, 80), String(b.precision || '').slice(0, 300),
         JSON.stringify(Array.isArray(b.aliments) ? b.aliments.slice(0, 12) : []),
         n(b.kcal), n(b.proteines), n(b.glucides), n(b.lipides), coh,

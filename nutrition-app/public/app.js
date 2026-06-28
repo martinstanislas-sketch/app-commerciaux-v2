@@ -2611,6 +2611,8 @@ function init() {
   const _coachPhotos = $('#coachOpenPhotos'); if (_coachPhotos) _coachPhotos.addEventListener('click', openPlatsPhotos);
   $('#platsPhotosClose').addEventListener('click', closePlatsPhotos);
   $('#platsPhotosPanel').addEventListener('click', (e) => { if (e.target.id === 'platsPhotosPanel') closePlatsPhotos(); });
+  $('#coachFicheClose').addEventListener('click', closeCoachFiche);
+  $('#coachFichePanel').addEventListener('click', (e) => { if (e.target.id === 'coachFichePanel') closeCoachFiche(); });
   fetchPhotoIndex();
 
   // Analyser mon assiette en photo
@@ -2657,7 +2659,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -3225,7 +3227,7 @@ async function bootCoachDashboard() {
       if (d.ok) {
         const cs = d.clients || [];
         list.innerHTML = cs.length ? cs.map(coachClientRow).join('') : '<p class="help-empty">Aucun client ne t’est attribué pour le moment.</p>';
-        list.querySelectorAll('.conv-row[data-email]').forEach((b) => b.addEventListener('click', () => coachOpenClientConversation(b.dataset.email)));
+        list.querySelectorAll('.conv-row[data-email]').forEach((b) => b.addEventListener('click', () => openCoachFiche(b.dataset.email)));
       } else list.innerHTML = '<p class="help-empty">Lecture impossible.</p>';
     } catch (_) { list.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
   }
@@ -3258,6 +3260,85 @@ async function coachOpenClientConversation(email) {
     if (d.ok && d.conversationId) { openMessagesCoach(); openCoachConversation(d.conversationId); }
     else showToast(d.error || 'Impossible d’ouvrir la conversation.', { icon: 'info' });
   } catch (_) { showToast('Impossible d’ouvrir la conversation.', { icon: 'info' }); }
+}
+
+// ===== Coach : fiche détaillée d'un client (suivi, identité par email) =====
+function closeCoachFiche() { const p = $('#coachFichePanel'); if (p) p.classList.add('hidden'); }
+async function openCoachFiche(email) {
+  const panel = $('#coachFichePanel'); if (!panel) return;
+  panel.classList.remove('hidden');
+  const body = $('#coachFicheBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/coach/clients/' + encodeURIComponent(email)), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) { body.innerHTML = '<p class="help-empty">' + escapeHtml(d.error || 'Lecture impossible.') + '</p>'; return; }
+    renderCoachFiche(d.client);
+    const btn = $('#coachFicheMsg'); if (btn) btn.addEventListener('click', () => coachOpenClientConversation(email));
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+function renderCoachFiche(c) {
+  const body = $('#coachFicheBody'); if (!body) return;
+  const OBJ = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de masse', energie: 'Énergie', challenge: 'Challenge' };
+  const nom = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
+  const p = c.profil || {};
+  const pes = (c.pesees || []).slice().sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  const last = pes[pes.length - 1];
+  const first = pes[0];
+  let poidsLine = '—';
+  if (last && last.poids != null) {
+    poidsLine = (+last.poids).toFixed(1).replace('.0', '') + ' kg';
+    if (first && first !== last && first.poids != null) {
+      const delta = (+last.poids) - (+first.poids);
+      const sign = delta > 0 ? '+' : '';
+      poidsLine += ' <span class="fiche-delta ' + (delta <= 0 ? 'down' : 'up') + '">' + sign + delta.toFixed(1).replace('.0', '') + ' kg</span>';
+    }
+  } else if (p.poidsDepart) { poidsLine = p.poidsDepart + ' kg'; }
+
+  const stat = (label, val) => '<div class="fiche-stat"><div class="fiche-stat-val">' + val + '</div><div class="fiche-stat-lbl">' + label + '</div></div>';
+  const scoreTxt = (c.adhScore == null) ? '—' : c.adhScore + '%';
+  const planTxt = c.hasPlan ? ('Actif · ' + (c.planJours || 0) + ' j') : 'Sans plan';
+
+  // Mini barres d'adhérence (chronologique)
+  const adh = (c.adherence || []).slice().reverse();
+  const bars = adh.length ? '<div class="fiche-bars">' + adh.map((a) => {
+    const sc = Math.max(0, Math.min(100, a.score || 0));
+    const cls = sc >= 70 ? 'good' : (sc >= 50 ? 'mid' : 'low');
+    return '<div class="fiche-bar"><div class="fiche-bar-fill ' + cls + '" style="height:' + Math.max(6, sc) + '%"></div></div>';
+  }).join('') + '</div><div class="fiche-bars-cap">Adhérence sur ' + adh.length + ' jour' + (adh.length > 1 ? 's' : '') + '</div>' : '<p class="fiche-empty">Aucun suivi d’adhérence enregistré.</p>';
+
+  const allerg = (p.allergies || []).filter(Boolean);
+  const regimes = (p.regimes || []).filter(Boolean);
+  const tagLine = (label, arr) => arr.length ? '<div class="fiche-tags"><span class="fiche-tags-lbl">' + label + '</span>' + arr.map((x) => '<span class="fiche-tag">' + escapeHtml(String(x)) + '</span>').join('') + '</div>' : '';
+
+  const help = (c.help || []);
+  const helpBlock = help.length ? '<div class="fiche-sec"><h3>Demandes d’aide récentes</h3>' + help.map((h) => {
+    const when = h.createdAt ? new Date(h.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '';
+    const badge = h.statut === 'a_traiter' ? '<span class="fiche-pill warn">À traiter</span>' : '<span class="fiche-pill">Traitée</span>';
+    const diff = (h.difficultes || []).slice(0, 3).map((x) => escapeHtml(String(x))).join(', ');
+    return '<div class="fiche-help"><div class="fiche-help-top">' + badge + '<span class="fiche-help-when">' + when + '</span></div>' +
+      (diff ? '<div class="fiche-help-diff">' + diff + '</div>' : '') +
+      (h.message ? '<div class="fiche-help-msg">' + escapeHtml(h.message) + '</div>' : '') + '</div>';
+  }).join('') + '</div>' : '';
+
+  const aj = p.ajustementKcal ? (p.ajustementKcal > 0 ? '+' : '') + p.ajustementKcal + ' kcal' : null;
+
+  body.innerHTML =
+    '<div class="fiche-hero"><div class="fiche-avatar">' + escapeHtml((nom[0] || '?').toUpperCase()) + '</div>' +
+    '<div><div class="fiche-name">' + escapeHtml(nom) + '</div>' +
+    '<div class="fiche-obj">' + escapeHtml(OBJ[c.objectif] || c.objectif || 'Objectif non défini') + '</div>' +
+    '<div class="fiche-mail">' + escapeHtml(c.email) + '</div></div></div>' +
+    '<div class="fiche-stats">' +
+      stat('Poids', poidsLine) +
+      stat('Plan', planTxt) +
+      stat('Adhérence', scoreTxt) +
+      stat('Scans', c.scansCount || 0) +
+    '</div>' +
+    (aj ? '<div class="fiche-adjust">Ajustement calorique : <strong>' + aj + '</strong></div>' : '') +
+    tagLine('Allergies', allerg) +
+    tagLine('Régimes', regimes) +
+    '<div class="fiche-sec"><h3>Suivi récent</h3>' + bars + '</div>' +
+    helpBlock +
+    '<button type="button" id="coachFicheMsg" class="btn btn-primary fiche-msg-btn"><svg class="ic"><use href="#ic-send"/></svg> Contacter ce client</button>';
 }
 
 // ===== Photos de plats : affichage client + gestion admin/coach =====
