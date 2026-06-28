@@ -81,6 +81,20 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// --- Code PIN client (protège l'accès au compte nutrition) ---
+const PIN_RE = /^\d{4,6}$/;
+function hashPin(pin) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return salt + ':' + crypto.scryptSync(String(pin), salt, 32).toString('hex');
+}
+function verifyPin(pin, stored) {
+  if (!stored || stored.indexOf(':') < 0 || !PIN_RE.test(String(pin || ''))) return false;
+  const [salt, h] = stored.split(':');
+  const a = Buffer.from(h, 'hex');
+  const b = crypto.scryptSync(String(pin), salt, 32);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 // ─── Module Nutrition (My Coach Nutrition) ──────────────────
 // Monté sous /nutrition. Réservé à l'administrateur principal.
 //  - Les PAGES (/nutrition/...) sont servies en statique ; le blocage d'accès
@@ -283,6 +297,13 @@ function ensureNutritionHelpTable() {
       getDb().exec('ALTER TABLE nutrition_clients ADD COLUMN coach_id INTEGER DEFAULT NULL');
     }
   } catch (e) { console.error('Migration nutrition_clients.coach_id :', e && e.message); }
+  // Migration : code PIN par client (protège l'accès au compte = photos, poids, messages).
+  try {
+    const ncCols = getDb().prepare('PRAGMA table_info(nutrition_clients)').all();
+    if (!ncCols.some((c) => c.name === 'pin_hash')) {
+      getDb().exec("ALTER TABLE nutrition_clients ADD COLUMN pin_hash TEXT NOT NULL DEFAULT ''");
+    }
+  } catch (e) { console.error('Migration nutrition_clients.pin_hash :', e && e.message); }
   // Migration : unification de l'identité client sur l'email. Les tables historiques
   // (aide/scans/avis/adhérence/assiettes) lient un client par `client_name` (texte libre
   // = nom de session) ≠ email -> impossible à scoper proprement par coach. On ajoute une
@@ -1305,27 +1326,41 @@ try {
     }
   });
 
-  // --- Comptes clients (inscription simple : email + prenom + nom) ---
-  // PUBLIC : cree OU identifie un client et ouvre une session "usage nutrition"
-  // (meme niveau d'acces que la demo -> reutilise toute la plomberie cliente).
-  // Pas de mot de passe : identification simple, comme demande.
+  // --- Comptes clients (email + prenom + nom + CODE PIN) ---
+  // PUBLIC : cree OU identifie un client et ouvre une session "usage nutrition".
+  // Le PIN protege l'acces au compte (photos d'evolution, poids, messages). 1re
+  // connexion -> le PIN saisi devient le PIN du compte ; ensuite il est exige.
   app.post('/nutrition/account/login', (req, res) => {
     try {
       const email = String((req.body || {}).email || '').trim().toLowerCase().slice(0, 160);
       const prenom = String((req.body || {}).prenom || '').trim().slice(0, 80);
       const nom = String((req.body || {}).nom || '').trim().slice(0, 80);
+      const pin = String((req.body || {}).pin || '').trim();
       if (!email || email.indexOf('@') < 1 || !prenom || !nom) {
         return res.status(400).json({ ok: false, error: 'Email, prénom et nom requis.' });
       }
       const now = new Date().toISOString();
       const row = getDb().prepare('SELECT * FROM nutrition_clients WHERE email = ?').get(email);
       let data = null, isNew = true;
-      if (row) {
+
+      if (row && row.pin_hash) {
+        // Compte protégé : le PIN est obligatoire et doit correspondre.
+        if (!pin) return res.status(401).json({ ok: false, needPin: true });
+        if (!verifyPin(pin, row.pin_hash)) return res.status(401).json({ ok: false, needPin: true, error: 'Code PIN incorrect.' });
         getDb().prepare('UPDATE nutrition_clients SET prenom = ?, nom = ?, updated_at = ? WHERE email = ?').run(prenom, nom, now, email);
         try { data = row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
-        isNew = !data; // "nouveau" = pas encore de plan/profil enregistre -> onboarding
+        isNew = !data;
       } else {
-        getDb().prepare('INSERT INTO nutrition_clients (email, prenom, nom, data, created_at, updated_at) VALUES (?,?,?,?,?,?)').run(email, prenom, nom, null, now, now);
+        // Compte nouveau OU ancien sans PIN : on EXIGE de définir un PIN maintenant.
+        if (!PIN_RE.test(pin)) return res.status(400).json({ ok: false, setPin: true, error: 'Choisis un code PIN de 4 à 6 chiffres pour protéger ton espace.' });
+        const ph = hashPin(pin);
+        if (row) {
+          getDb().prepare('UPDATE nutrition_clients SET prenom = ?, nom = ?, pin_hash = ?, updated_at = ? WHERE email = ?').run(prenom, nom, ph, now, email);
+          try { data = row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
+          isNew = !data;
+        } else {
+          getDb().prepare('INSERT INTO nutrition_clients (email, prenom, nom, data, pin_hash, created_at, updated_at) VALUES (?,?,?,?,?,?,?)').run(email, prenom, nom, null, ph, now, now);
+        }
       }
       const token = crypto.randomUUID();
       const until = Date.now() + 30 * 24 * 3600 * 1000; // session 30 jours
@@ -1335,6 +1370,38 @@ try {
       console.error('Erreur /nutrition/account/login :', e);
       res.status(500).json({ ok: false, error: 'Connexion impossible.' });
     }
+  });
+
+  // Restaure la session depuis un token valide (sans re-saisir le PIN) : le token
+  // EST la preuve d'authentification. Utilisé au démarrage de l'app.
+  app.get('/nutrition/account/me', requireAuth, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      const row = getDb().prepare('SELECT prenom, nom, data FROM nutrition_clients WHERE email = ?').get(email);
+      let data = null; try { data = row && row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
+      res.json({ ok: true, email, prenom: (row && row.prenom) || req.session.name || '', nom: (row && row.nom) || '', data });
+    } catch (e) {
+      console.error('Erreur /nutrition/account/me :', e);
+      res.status(500).json({ ok: false });
+    }
+  });
+
+  // Changer son code PIN (client connecté). Requiert le PIN actuel s'il existe.
+  app.post('/nutrition/account/set-pin', requireAuth, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false, error: 'Connexion requise.' });
+      const b = req.body || {};
+      const nouveau = String(b.pin || '').trim();
+      if (!PIN_RE.test(nouveau)) return res.status(400).json({ ok: false, error: 'Le code PIN doit comporter 4 à 6 chiffres.' });
+      const row = getDb().prepare('SELECT pin_hash FROM nutrition_clients WHERE email = ?').get(email);
+      if (row && row.pin_hash && !verifyPin(String(b.current || ''), row.pin_hash)) {
+        return res.status(401).json({ ok: false, error: 'Code PIN actuel incorrect.' });
+      }
+      getDb().prepare('UPDATE nutrition_clients SET pin_hash = ?, updated_at = ? WHERE email = ?').run(hashPin(nouveau), new Date().toISOString(), email);
+      res.json({ ok: true });
+    } catch (e) { console.error('set-pin :', e); res.status(500).json({ ok: false, error: 'Modification impossible.' }); }
   });
 
   // Sauvegarde des donnees du client connecte (profil + plan + suivi).

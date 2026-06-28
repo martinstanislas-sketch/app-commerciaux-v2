@@ -47,21 +47,26 @@
     var base = location.pathname.replace(/[^/]*$/, '');
     var acc = null; try { acc = JSON.parse(localStorage.getItem('mc-nutri-account') || 'null'); } catch (e) {}
     if (acc && acc.email && acc.token) {
-      // Déjà connecté : accès immédiat avec le token stocké + rafraîchissement en
-      // arrière-plan (token frais + dernières données serveur) avant le démarrage de l'app.
+      // Déjà connecté : le TOKEN est la preuve d'authentification (obtenu avec le PIN).
+      // On le valide via /account/me — PAS de re-login sans PIN. Token expiré -> on
+      // efface et on renvoie vers l'écran de connexion (PIN à nouveau requis).
       window.__NUTRI_USER = acc;
       window.__NUTRI_DEMO = { token: acc.token };
-      window.__NUTRI_REFRESH = fetch(base + 'account/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: acc.email, prenom: acc.prenom || '', nom: acc.nom || '' })
-      }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d && d.ok) {
-          acc.token = d.token; acc.prenom = d.prenom; acc.nom = d.nom;
-          window.__NUTRI_USER = acc; window.__NUTRI_DEMO = { token: d.token };
-          try { localStorage.setItem('mc-nutri-account', JSON.stringify(acc)); } catch (e) {}
-          try { if (d.data) localStorage.setItem('mc-nutri-state-' + acc.email, JSON.stringify(d.data)); } catch (e) {}
-        }
-      }).catch(function () { /* hors-ligne : on garde le token + les données locales */ });
+      window.__NUTRI_REFRESH = fetch(base + 'account/me', { headers: { 'Authorization': 'Bearer ' + acc.token } })
+        .then(function (r) { if (r.status === 401 || r.status === 403) { throw new Error('expired'); } return r.json(); })
+        .then(function (d) {
+          if (d && d.ok) {
+            acc.prenom = d.prenom || acc.prenom; acc.nom = d.nom || acc.nom;
+            window.__NUTRI_USER = acc;
+            try { localStorage.setItem('mc-nutri-account', JSON.stringify(acc)); } catch (e) {}
+            try { if (d.data) localStorage.setItem('mc-nutri-state-' + acc.email, JSON.stringify(d.data)); } catch (e) {}
+          }
+        }).catch(function (e) {
+          if (e && e.message === 'expired') {
+            try { localStorage.removeItem('mc-nutri-account'); } catch (_) {}
+            location.reload();
+          } /* sinon hors-ligne : on garde le token + les données locales */
+        });
       return;
     }
 
@@ -77,35 +82,42 @@
         + '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
         + '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></div>'
         + '<h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">My Coach Nutrition</h1>'
-        + '<p style="margin:0 0 20px;color:#8B94A3;font-size:14.5px;line-height:1.5;">Crée ton espace pour recevoir ton plan de repas personnalisé. Tu le retrouveras à chaque connexion.</p>'
+        + '<p style="margin:0 0 20px;color:#8B94A3;font-size:14.5px;line-height:1.5;">Crée ton espace pour recevoir ton plan personnalisé. Un code PIN protège tes données (suivi, photos).</p>'
         + '<input id="rPrenom" type="text" autocomplete="given-name" placeholder="Prénom" style="' + IN + '" />'
         + '<input id="rNom" type="text" autocomplete="family-name" placeholder="Nom" style="' + IN + 'margin-top:10px;" />'
         + '<input id="rEmail" type="email" autocomplete="email" inputmode="email" placeholder="Email" style="' + IN + 'margin-top:10px;" />'
+        + '<input id="rPin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="Code PIN (4 à 6 chiffres)" style="' + IN + 'margin-top:10px;letter-spacing:4px;text-align:center;" />'
+        + '<p style="margin:7px 0 0;color:#6E7886;font-size:11.5px;line-height:1.4;">1re connexion : choisis ton code. Ensuite, il te sera demandé à chaque connexion.</p>'
         + '<button id="rGo" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:14px;cursor:pointer;'
         + 'background:linear-gradient(135deg,#2F7BFF,#1A56C4);color:#fff;font-size:15px;font-weight:700;font-family:inherit;">'
-        + 'Accéder à mon plan</button>'
+        + 'Accéder à mon espace</button>'
         + '<p id="rErr" style="margin:10px 0 0;color:#F87171;font-size:13px;min-height:16px;"></p>'
-        + '<p style="margin:16px 0 0;color:#6E7886;font-size:12px;line-height:1.5;">Tes informations servent uniquement à personnaliser ton plan. Tu pourras te déconnecter à tout moment.</p>'
+        + '<p style="margin:16px 0 0;color:#6E7886;font-size:12px;line-height:1.5;">Tes données sont privées et visibles uniquement par toi et ton coach.</p>'
         + '</div></div>';
-      var pr = document.getElementById('rPrenom'), no = document.getElementById('rNom'), em = document.getElementById('rEmail');
+      var pr = document.getElementById('rPrenom'), no = document.getElementById('rNom'), em = document.getElementById('rEmail'), pn = document.getElementById('rPin');
       var btn = document.getElementById('rGo'), err = document.getElementById('rErr');
       function go() {
-        var prenom = (pr.value || '').trim(), nom = (no.value || '').trim(), email = (em.value || '').trim().toLowerCase();
+        var prenom = (pr.value || '').trim(), nom = (no.value || '').trim(), email = (em.value || '').trim().toLowerCase(), pin = (pn.value || '').trim();
         if (!prenom || !nom || email.indexOf('@') < 1) { err.textContent = 'Renseigne ton prénom, ton nom et un email valide.'; return; }
+        if (!/^[0-9]{4,6}$/.test(pin)) { err.textContent = 'Choisis un code PIN de 4 à 6 chiffres.'; return; }
         btn.disabled = true; err.textContent = 'Connexion…';
-        fetch(base + 'account/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, prenom: prenom, nom: nom }) })
+        fetch(base + 'account/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, prenom: prenom, nom: nom, pin: pin }) })
           .then(function (r) { return r.json(); })
           .then(function (d) {
             if (d && d.ok) {
               try { localStorage.setItem('mc-nutri-account', JSON.stringify({ email: email, token: d.token, prenom: d.prenom, nom: d.nom })); } catch (e) {}
               try { if (d.data) localStorage.setItem('mc-nutri-state-' + email, JSON.stringify(d.data)); else localStorage.removeItem('mc-nutri-state-' + email); } catch (e) {}
               location.reload();
-            } else { btn.disabled = false; err.textContent = (d && d.error) || 'Connexion impossible.'; }
+            } else {
+              btn.disabled = false;
+              err.textContent = (d && d.error) || (d && d.needPin ? 'Saisis ton code PIN.' : 'Connexion impossible.');
+              if (d && (d.needPin || d.setPin)) { pn.focus(); }
+            }
           })
           .catch(function () { btn.disabled = false; err.textContent = 'Erreur réseau, réessaie.'; });
       }
       btn.addEventListener('click', go);
-      [pr, no, em].forEach(function (i) { i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); }); });
+      [pr, no, em, pn].forEach(function (i) { i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); }); });
       pr.focus();
     });
   })();
