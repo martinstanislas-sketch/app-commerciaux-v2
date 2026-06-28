@@ -222,6 +222,8 @@ function updateUserUI() {
     nameSpan.textContent = currentUser.role === 'admin' ? 'Admin' : currentUser.role === 'director' ? 'Directeur' : currentUser.name || 'Academy';
     infoDiv.classList.remove('hidden');
     if (appTitle) appTitle.textContent = isAcademy() ? 'Academy' : isDirector() ? 'Réseau' : 'Coach';
+    const nutBtn = document.getElementById('btn-nutrition');
+    if (nutBtn) nutBtn.style.display = (currentUser.role === 'coach' || currentUser.role === 'coach-leader') ? '' : 'none';
   } else {
     infoDiv.classList.add('hidden');
     if (appTitle) appTitle.textContent = 'Coach';
@@ -279,6 +281,17 @@ function initAuthUI() {
       errorDiv.textContent = 'Erreur de connexion';
       errorDiv.classList.remove('hidden');
     }
+  });
+
+  const nutBtn = document.getElementById('btn-nutrition');
+  if (nutBtn) nutBtn.addEventListener('click', () => {
+    // Copie la session coach vers les cles principales lues par le gate /nutrition
+    // (marche meme si le coach s'est connecte directement via /coach/).
+    try {
+      if (authToken) localStorage.setItem('authToken', authToken);
+      if (currentUser) localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    } catch (_) { /* ignore */ }
+    window.location.href = '/nutrition';
   });
 
   document.getElementById('btn-logout').addEventListener('click', async () => {

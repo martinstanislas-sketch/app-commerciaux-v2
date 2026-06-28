@@ -248,6 +248,12 @@ nav::-webkit-scrollbar { display: none; }
   cursor: pointer; transition: all .2s var(--ease); font-family: inherit; text-transform: uppercase;
 }
 .btn-logout:hover { background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
+.btn-nutrition {
+  padding: 6px 14px; background: var(--bg-subtle); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-muted); font-size: .75rem; font-weight: 700;
+  cursor: pointer; transition: all .2s var(--ease); font-family: inherit; text-transform: uppercase;
+}
+.btn-nutrition:hover { background: #2F7BFF; border-color: #1A56C4; color: #fff; }
 
 /* ─── Main & Tabs ────────────────────────────────── */
 main { max-width: 1400px; margin: 0 auto; padding: 20px; }
