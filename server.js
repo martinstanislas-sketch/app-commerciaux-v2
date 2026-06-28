@@ -645,6 +645,29 @@ try {
     } catch (e) { console.error('message-audit GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
   });
 
+  // Compteur de notifications non-lues, selon le rôle : client = messages reçus de
+  // SON coach ; coach = messages reçus de SES clients ; admin = supervision (0).
+  app.get('/nutrition/api/notifications', requireAuth, (req, res) => {
+    try {
+      const s = req.session || {};
+      let messages = 0;
+      if (s.role === 'coach' || s.role === 'coach-leader') {
+        if (s.coach_id) {
+          const r = getDb().prepare(`SELECT COUNT(*) AS n FROM nutrition_messages m
+            JOIN nutrition_conversations c ON c.id = m.conversation_id
+            WHERE c.coach_id = ? AND m.sender_role = 'client' AND m.lu = 0`).get(s.coach_id);
+          messages = (r && r.n) || 0;
+        }
+      } else if (s.role !== 'admin' && s.email) {
+        const r = getDb().prepare(`SELECT COUNT(*) AS n FROM nutrition_messages m
+          JOIN nutrition_conversations c ON c.id = m.conversation_id
+          WHERE c.client_email = ? AND m.sender_role != 'client' AND m.lu = 0`).get(s.email);
+        messages = (r && r.n) || 0;
+      }
+      res.json({ ok: true, messages, total: messages });
+    } catch (e) { console.error('notifications GET :', e); res.json({ ok: true, messages: 0, total: 0 }); }
+  });
+
   // ====== Photos de plats (admin/coach ajoutent ; clients voient) ======
   function getRecipesCatalogue() { try { return require('./nutrition-app/lib/recipes-v2').RECIPES || []; } catch (_) { return []; } }
 

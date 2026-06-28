@@ -2669,6 +2669,7 @@ function init() {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
     bootCoachDashboard();
     showScreen('coach');
+    refreshNotifications();
   } else if (loadLocal()) {
     $('#portValue').textContent = state.portions;
     // Reconnexion : on garde la date de demarrage (ne pas reinitialiser le plan),
@@ -2684,6 +2685,7 @@ function init() {
     showCommunauteIntro();
     $('#saveState').innerHTML = icSvg('check') + ' Plan restaure';
     showScreen('result');
+    refreshNotifications();
   } else if (isDemo()) {
     showScreen('demo-welcome'); // accueil démo avant le parcours client
   }
@@ -3146,6 +3148,7 @@ async function openCoachChat() {
     const msgs = d.messages || [];
     wall.innerHTML = msgs.length ? msgs.map(chatBubble).join('') : '<p class="comm-empty">Pose ta première question à ton coach 👋</p>';
     wall.scrollTop = wall.scrollHeight;
+    refreshNotifications(); // l'ouverture marque les messages du coach comme lus
   } catch (_) { wall.innerHTML = '<p class="comm-empty">Lecture impossible.</p>'; }
 }
 function closeCoachChat() { $('#coachChatPanel').classList.add('hidden'); }
@@ -3253,6 +3256,7 @@ async function openCoachConversation(id, support) {
     const w = $('#convWall'); if (w) w.scrollTop = w.scrollHeight;
     $('#convBack').addEventListener('click', renderMessagesCoachList);
     $('#convForm').addEventListener('submit', (e) => { e.preventDefault(); const inp = $('#convInput'); const v = inp ? inp.value : ''; if (!v.trim()) return; replyCoachConversation(id, v).then((ok) => { if (ok && inp) inp.value = ''; }); });
+    refreshNotifications(); // l'ouverture (coach) marque les messages du client comme lus
   } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
 }
 // Bulle "masquée" : montre l'émetteur et l'heure, contenu remplacé par des barres.
@@ -3315,6 +3319,21 @@ async function refreshCoachMsgBadge() {
     const n = d.ok ? (d.conversations || []).reduce((s, c) => s + (c.unread || 0), 0) : 0;
     b.textContent = n ? String(n) : '';
     b.style.display = n ? '' : 'none';
+  } catch (_) { /* ignore */ }
+}
+// Badge global de notifications non-lues (messages). Source unique : /api/notifications,
+// qui renvoie le bon compte selon le rôle (client = reçus du coach ; coach = reçus des
+// clients ; admin = 0). Met à jour tous les ancrages présents (seul le pertinent est visible).
+function setNotifBadge(el, n) { if (!el) return; el.textContent = n ? String(n > 99 ? '99+' : n) : ''; el.style.display = n ? '' : 'none'; }
+async function refreshNotifications() {
+  try {
+    const res = await fetch(apiUrl('/api/notifications'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    const n = (d && d.ok) ? (d.total || 0) : 0;
+    setNotifBadge($('#coachMsgBadge'), n);
+    setNotifBadge($('#messagesCoachBadge'), n);
+    setNotifBadge($('#contactCoachBadge'), n);
+    const dot = $('#navProfilDot'); if (dot) dot.style.display = n > 0 ? '' : 'none';
   } catch (_) { /* ignore */ }
 }
 async function coachOpenClientConversation(email) {
