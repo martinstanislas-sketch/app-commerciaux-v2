@@ -2466,6 +2466,7 @@ async function generateAndShow(seed) {
     // Plan généré : on débloque l'espace Communauté et on propose de le découvrir.
     state.communauteUnlocked = true;
     revealCommunaute();
+    revealParcours();
     renderCommunaute();
     showCommunauteIntro();
     saveLocal();
@@ -2639,6 +2640,8 @@ function init() {
   $('#coachIaPanel').addEventListener('click', (e) => { if (e.target.id === 'coachIaPanel') closeCoachIaAdmin(); });
   $('#quickOptClose').addEventListener('click', closeQuickOptions);
   $('#quickOptPanel').addEventListener('click', (e) => { if (e.target.id === 'quickOptPanel') closeQuickOptions(); });
+  $('#parcoursPeseeClose').addEventListener('click', closeParcoursPesee);
+  $('#parcoursPeseePanel').addEventListener('click', (e) => { if (e.target.id === 'parcoursPeseePanel') closeParcoursPesee(); });
   $('#coachFicheClose').addEventListener('click', closeCoachFiche);
   $('#coachFichePanel').addEventListener('click', (e) => { if (e.target.id === 'coachFichePanel') closeCoachFiche(); });
   fetchPhotoIndex();
@@ -2688,7 +2691,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeParcoursPesee(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -2706,6 +2709,7 @@ function init() {
     // la partie alimentation est terminee, on debloque l'espace Communaute.
     if (!state.communauteUnlocked) { state.communauteUnlocked = true; saveLocal(); }
     revealCommunaute();
+    revealParcours();
     renderCommunaute();
     showCommunauteIntro();
     $('#saveState').innerHTML = icSvg('check') + ' Plan restaure';
@@ -3335,6 +3339,363 @@ function renderCommunaute() {
   startCommunautePoll();
 }
 
+// ===== Mon Parcours (Challenge 6 semaines) =====
+const PARCOURS_PHOTO_TYPES = [
+  { key: 'face', label: 'Face' }, { key: 'profil', label: 'Profil' },
+  { key: 'dos', label: 'Dos' }, { key: 'libre', label: 'Libre' },
+];
+const PARCOURS_JALONS_INFO = [
+  { key: 'depart', titre: 'Départ', court: 'Départ' },
+  { key: 's3', titre: 'Mi-parcours — Semaine 3', court: 'Semaine 3' },
+  { key: 's6', titre: 'Final — Semaine 6', court: 'Semaine 6' },
+];
+let _parcoursPhotoUrls = {}; // cache id -> objectURL (photos privées chargées avec auth)
+let _parcoursPhotoBusy = false;
+
+function revealParcours() {
+  const isCh = state.profil && state.profil.objectif === 'challenge';
+  const btn = $('#navParcours'); if (btn) btn.classList.toggle('hidden', !isCh);
+}
+function fmtKg(v) { return (v == null || v === '') ? '—' : (Math.round(v * 10) / 10).toString().replace('.', ',') + ' kg'; }
+function joursAvant(dateStr) { if (!dateStr) return null; const d = Date.parse(dateStr); if (isNaN(d)) return null; return Math.ceil((d - Date.now()) / 864e5); }
+function dateCourte(dateStr) { if (!dateStr) return ''; const d = new Date(dateStr); return isNaN(d) ? '' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }); }
+
+async function fetchParcours() {
+  try {
+    const res = await fetch(apiUrl('/api/parcours'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok && d.parcours) { state.parcours = d.parcours; renderParcours(); return d.parcours; }
+    if (d && d.noAccount) { state.parcours = null; renderParcours(); }
+  } catch (_) { /* hors-ligne */ }
+  return null;
+}
+// Phase courante du challenge -> pilote la « prochaine étape ».
+function parcoursPhase(p) {
+  if (!p.pesees.depart) return 'avant-depart';
+  if (!p.pesees.s3) return (joursAvant(p.jalons.s3.date) <= 0) ? 's3-due' : 'depart-s3';
+  if (!p.pesees.s6) return (joursAvant(p.jalons.s6.date) <= 0) ? 's6-due' : 's3-s6';
+  return 'termine';
+}
+function jalonStatut(p, key) {
+  if (p.pesees[key]) return 'valide';
+  if (key === 'depart') return 'encours';
+  const j = joursAvant(p.jalons[key].date);
+  if (j == null) return 'avenir';
+  if (j > 0) return 'avenir';
+  return j < -3 ? 'retard' : 'encours';
+}
+const STATUT_INFO = {
+  valide: { ic: 'check', cls: 'ok', txt: 'Validé' },
+  encours: { ic: 'flame', cls: 'now', txt: 'En cours' },
+  avenir: { ic: 'calendar', cls: 'soon', txt: 'À venir' },
+  retard: { ic: 'flame', cls: 'late', txt: 'En retard' },
+};
+
+// Courbe simple à 3 points (Départ / S3 / S6) + ligne vers l'objectif.
+function parcoursCourbeSVG(p) {
+  const dep = p.poidsDepart, obj = p.poidsObjectif;
+  if (dep == null || obj == null) return '';
+  const top = 22, bottom = 104, W = 300;
+  const xs = { depart: 46, s3: 150, s6: 254 };
+  const span = Math.max(0.1, dep - obj);
+  const yFor = (w) => bottom - ((w - obj) / span) * (bottom - top);
+  const pts = {
+    depart: { x: xs.depart, y: yFor(dep), val: fmtKg(dep), lbl: 'Départ', done: true },
+    s3: p.pesees.s3 ? { x: xs.s3, y: yFor(p.pesees.s3.poids), val: fmtKg(p.pesees.s3.poids), lbl: 'Sem. 3', done: true } : { x: xs.s3, y: (top + bottom) / 2, val: 'à venir', lbl: 'Sem. 3', done: false },
+    s6: p.pesees.s6 ? { x: xs.s6, y: yFor(p.pesees.s6.poids), val: fmtKg(p.pesees.s6.poids), lbl: 'Sem. 6', done: true } : { x: xs.s6, y: yFor(obj), val: 'objectif ' + fmtKg(obj), lbl: 'Sem. 6', done: false },
+  };
+  const done = [pts.depart, pts.s3, pts.s6].filter((q) => q.done);
+  const solid = done.map((q, i) => (i ? 'L' : 'M') + q.x + ' ' + q.y).join(' ');
+  const cible = 'M' + pts.depart.x + ' ' + pts.depart.y + ' L' + xs.s6 + ' ' + yFor(obj);
+  const dot = (q) => `<circle cx="${q.x}" cy="${q.y}" r="${q.done ? 6 : 5}" class="pc-dot ${q.done ? 'on' : 'off'}"/>`;
+  const lab = (q) => `<text x="${q.x}" y="${bottom + 16}" class="pc-x">${escapeHtml(q.lbl)}</text><text x="${q.x}" y="${(q.done ? q.y - 11 : q.y - 11)}" class="pc-v ${q.done ? '' : 'soft'}">${escapeHtml(q.val)}</text>`;
+  return `<svg viewBox="0 0 ${W} 128" class="pc-svg" preserveAspectRatio="xMidYMid meet">
+    <path d="${cible}" class="pc-target"/>
+    ${solid ? `<path d="${solid}" class="pc-line"/>` : ''}
+    ${dot(pts.depart)}${dot(pts.s3)}${dot(pts.s6)}
+    ${lab(pts.depart)}${lab(pts.s3)}${lab(pts.s6)}
+  </svg>`;
+}
+
+// Prochaine étape (titre + boutons) selon la phase.
+function parcoursEtape(p) {
+  const phase = parcoursPhase(p);
+  const jS3 = joursAvant(p.jalons.s3.date), jS6 = joursAvant(p.jalons.s6.date);
+  const B = (label, act, primary) => ({ label, act, primary });
+  switch (phase) {
+    case 'avant-depart': return { t: 'Fais ta pesée de départ et ajoute tes photos.', b: [B('Faire ma pesée', 'pesee:depart', true), B('Ajouter mes photos', 'photos:depart')] };
+    case 'depart-s3': return { t: 'Reste régulier jusqu’à la pesée mi-parcours.', sub: jS3 != null ? 'Prochaine pesée dans ' + jS3 + ' jour' + (jS3 > 1 ? 's' : '') + '.' : '', b: [B('Valider ma séance', 'seance', true), B('Voir ma régularité', 'scroll:reg'), B('Contacter mon coach', 'coach')] };
+    case 's3-due': return { t: 'Fais ta pesée mi-parcours et ajoute tes photos.', b: [B('Faire ma pesée', 'pesee:s3', true), B('Ajouter mes photos', 'photos:s3')] };
+    case 's3-s6': return { t: 'Dernière ligne droite jusqu’au bilan final.', sub: jS6 != null ? 'Prochaine pesée dans ' + jS6 + ' jour' + (jS6 > 1 ? 's' : '') + '.' : '', b: [B('Valider ma séance', 'seance', true), B('Voir ma progression', 'scroll:courbe'), B('Contacter mon coach', 'coach')] };
+    case 's6-due': return { t: 'Fais ta pesée finale, ajoute tes photos et découvre ton bilan.', b: [B('Faire ma pesée finale', 'pesee:s6', true), B('Ajouter mes photos', 'photos:s6'), B('Voir mon bilan', 'scroll:bilan')] };
+    default: return { t: 'Challenge terminé — bravo ! Découvre ton bilan.', b: [B('Voir mon bilan', 'scroll:bilan', true), B('Contacter mon coach', 'coach')] };
+  }
+}
+
+function lundiDeCetteSemaine() { const d = new Date(); const j = (d.getDay() + 6) % 7; d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - j); return d; }
+function parcoursSeancesSemaine(p) {
+  const lundi = lundiDeCetteSemaine();
+  const jours = [];
+  for (let i = 0; i < 7; i++) { const d = new Date(lundi.getTime() + i * 864e5); jours.push({ ymd: d.toISOString().slice(0, 10), lbl: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'][i] }); }
+  const set = new Set(p.seances || []);
+  jours.forEach((j) => { j.done = set.has(j.ymd); });
+  return jours;
+}
+
+function parcoursBadges(p) {
+  const sem = parcoursSeancesSemaine(p).filter((j) => j.done).length;
+  const r = p.regularite || {};
+  return [
+    { label: 'Pesée de départ', got: !!p.pesees.depart },
+    { label: 'Photos de départ', got: (p.photos || []).some((x) => x.jalon === 'depart') },
+    { label: 'Semaine 3 validée', got: !!p.pesees.s3 },
+    { label: 'Photos mi-parcours', got: (p.photos || []).some((x) => x.jalon === 's3') },
+    { label: '3 séances / semaine', got: sem >= 3 },
+    { label: '10 séances', got: (p.seances || []).length >= 10 },
+    { label: '20 repas validés', got: (r.repasValides || 0) >= 20 },
+    { label: 'Pesée finale', got: !!p.pesees.s6 },
+    { label: 'Challenge terminé', got: !!p.pesees.s6 },
+  ];
+}
+
+function renderParcours() {
+  const host = $('#view-parcours'); if (!host) return;
+  const p = state.parcours;
+  if (!p) {
+    host.innerHTML = '<div class="pc-empty"><h2>Mon Parcours</h2><p>Disponible une fois ton compte créé et ton plan généré.</p></div>';
+    return;
+  }
+  const phase = parcoursPhase(p);
+  const perdu = (p.poidsDepart != null && p.poidsActuel != null) ? Math.round((p.poidsDepart - p.poidsActuel) * 10) / 10 : null;
+  const dernierPoids = p.pesees.s6 ? p.pesees.s6.poids : (p.pesees.s3 ? p.pesees.s3.poids : p.poidsDepart);
+  const perduReel = (p.poidsDepart != null && dernierPoids != null) ? Math.round((p.poidsDepart - dernierPoids) * 10) / 10 : 0;
+  const restant = (dernierPoids != null && p.poidsObjectif != null) ? Math.max(0, Math.round((dernierPoids - p.poidsObjectif) * 10) / 10) : null;
+  const pctObj = (p.objectifPerte && perduReel > 0) ? Math.min(100, Math.round((perduReel / p.objectifPerte) * 100)) : 0;
+  const prochaine = phase === 'avant-depart' ? { lbl: 'Pesée de départ', j: null } :
+    !p.pesees.s3 ? { lbl: 'Semaine 3', j: joursAvant(p.jalons.s3.date) } :
+    !p.pesees.s6 ? { lbl: 'Semaine 6', j: joursAvant(p.jalons.s6.date) } : null;
+  const etape = parcoursEtape(p);
+  const seancesSem = parcoursSeancesSemaine(p);
+  const seancesSemN = seancesSem.filter((j) => j.done).length;
+  const seancesTot = (p.seances || []).length;
+  const r = p.regularite || {};
+  const joursRestants = p.startDate ? Math.max(0, p.dureeJours - p.jourActuel) : p.dureeJours;
+  const badges = parcoursBadges(p);
+
+  // --- Carte principale ---
+  const poidsActuelTxt = p.pesees.s6 || p.pesees.s3 ? fmtKg(dernierPoids) : fmtKg(p.poidsDepart);
+  const carte =
+    '<div class="pc-hero">' +
+      '<div class="pc-hero-top"><div><div class="pc-kicker">Challenge 6 semaines</div>' +
+        '<h2>Objectif : −' + (p.objectifPerte || 6) + ' kg</h2></div>' +
+        (p.startDate ? '<span class="pc-day">Jour ' + p.jourActuel + ' / 42</span>' : '<span class="pc-day soon">À démarrer</span>') + '</div>' +
+      '<div class="pc-weights">' +
+        '<div class="pc-w"><span>Départ</span><b>' + fmtKg(p.poidsDepart) + '</b></div>' +
+        '<div class="pc-w-arrow">→</div>' +
+        '<div class="pc-w"><span>Actuel</span><b>' + poidsActuelTxt + '</b></div>' +
+        '<div class="pc-w-arrow">→</div>' +
+        '<div class="pc-w"><span>Objectif</span><b>' + fmtKg(p.poidsObjectif) + '</b></div>' +
+      '</div>' +
+      '<div class="pc-bar"><span style="width:' + pctObj + '%"></span></div>' +
+      (prochaine ? '<p class="pc-next">' + (prochaine.j != null ? 'Prochaine pesée : ' + prochaine.lbl + ' · dans ' + Math.max(0, prochaine.j) + ' jour' + (Math.abs(prochaine.j) > 1 ? 's' : '') : 'Prochaine pesée : ' + prochaine.lbl) + '</p>' : '') +
+      (!p.pesees.s3 && p.pesees.depart ? '<p class="pc-next soft">Prochaine mise à jour du poids à la pesée mi-parcours.</p>' : '') +
+    '</div>';
+
+  // --- Prochaine étape ---
+  const etapeBlock =
+    '<div class="pc-step"><div class="pc-step-h">' + icSvg('flame') + ' Ma prochaine étape</div>' +
+      '<p class="pc-step-t">' + escapeHtml(etape.t) + '</p>' +
+      (etape.sub ? '<p class="pc-step-sub">' + escapeHtml(etape.sub) + '</p>' : '') +
+      '<div class="pc-step-btns">' + etape.b.map((b) => '<button type="button" class="pc-btn' + (b.primary ? ' primary' : '') + '" data-pc-act="' + b.act + '">' + escapeHtml(b.label) + '</button>').join('') + '</div>' +
+    '</div>';
+
+  // --- Courbe ---
+  const courbe =
+    '<section class="pc-sec"><h3>' + icSvg('chart') + ' Ma progression</h3>' +
+      parcoursCourbeSVG(p) +
+      '<div class="pc-mini">' +
+        '<div><b>' + (perduReel > 0 ? '−' + fmtKg(perduReel) : '0 kg') + '</b><span>perdus</span></div>' +
+        '<div><b>' + (restant != null ? fmtKg(restant) : '—') + '</b><span>restants</span></div>' +
+        '<div><b>' + pctObj + '%</b><span>objectif</span></div>' +
+      '</div></section>';
+
+  // --- Timeline ---
+  const timeline =
+    '<section class="pc-sec"><h3>' + icSvg('calendar-check') + ' Mes jalons</h3><div class="pc-timeline">' +
+      PARCOURS_JALONS_INFO.map((jal) => {
+        const st = jalonStatut(p, jal.key); const si = STATUT_INFO[st];
+        const pes = p.pesees[jal.key];
+        const nbPhotos = (p.photos || []).filter((x) => x.jalon === jal.key).length;
+        const dt = p.jalons[jal.key].date;
+        return '<div class="pc-jalon ' + si.cls + '"><div class="pc-jalon-ic">' + icSvg(si.ic) + '</div>' +
+          '<div class="pc-jalon-main"><div class="pc-jalon-top"><b>' + escapeHtml(jal.titre) + '</b><span class="pc-jalon-st ' + si.cls + '">' + si.txt + '</span></div>' +
+          '<div class="pc-jalon-meta">' + (dt ? dateCourte(dt) + ' · ' : '') + (pes ? 'Pesée ' + fmtKg(pes.poids) : 'Pesée à faire') + (nbPhotos ? ' · ' + nbPhotos + ' photo' + (nbPhotos > 1 ? 's' : '') : '') + '</div>' +
+          (pes && pes.commentaire ? '<div class="pc-jalon-coach">' + icSvg('spark') + ' ' + escapeHtml(pes.commentaire) + '</div>' : '') +
+          '</div></div>';
+      }).join('') +
+    '</div></section>';
+
+  // --- Photos d'évolution (slots par jalon x type) ---
+  const photoBlock =
+    '<section class="pc-sec"><h3>' + icSvg('eye') + ' Mes photos d’évolution</h3>' +
+      '<p class="pc-priv">' + icSvg('check') + ' Tes photos sont privées, visibles uniquement par toi et ton coach.</p>' +
+      PARCOURS_JALONS_INFO.map((jal) =>
+        '<div class="pc-photos-jalon"><div class="pc-photos-lbl">' + escapeHtml(jal.court) + '</div><div class="pc-photos-row">' +
+          PARCOURS_PHOTO_TYPES.map((t) => {
+            const ph = (p.photos || []).find((x) => x.jalon === jal.key && x.type === t.key);
+            if (ph) return '<div class="pc-slot filled" data-pc-photo="' + ph.id + '"><img alt="' + t.label + '" data-pc-imgid="' + ph.id + '"><button type="button" class="pc-slot-del" data-pc-delphoto="' + ph.id + '" aria-label="Supprimer">' + icSvg('x') + '</button><span class="pc-slot-lbl">' + t.label + '</span></div>';
+            return '<label class="pc-slot empty"><input type="file" accept="image/*" data-pc-up="' + jal.key + ':' + t.key + '" hidden><span class="pc-slot-add">+</span><span class="pc-slot-lbl">' + t.label + '</span></label>';
+          }).join('') +
+        '</div></div>').join('') +
+    '</section>';
+
+  // --- Séances ---
+  const pastilles = Array.from({ length: p.seancesObjTotal || 24 }, (_, i) => '<span class="pc-pastille' + (i < seancesTot ? ' on' : '') + '"></span>').join('');
+  const todayY = new Date().toISOString().slice(0, 10);
+  const seancesBlock =
+    '<section class="pc-sec"><h3>' + icSvg('flame') + ' Mes séances validées</h3>' +
+      '<div class="pc-seances-head"><b>' + seancesSemN + ' / ' + (p.seancesObjHebdo || 4) + '</b> séances cette semaine</div>' +
+      '<div class="pc-week">' + seancesSem.map((j) => '<div class="pc-day-cell ' + (j.done ? 'on' : '') + '"><span>' + j.lbl + '</span>' + (j.done ? icSvg('check') : '<i>—</i>') + '</div>').join('') + '</div>' +
+      '<div class="pc-seances-tot">Depuis le départ : <b>' + seancesTot + ' / ' + (p.seancesObjTotal || 24) + '</b></div>' +
+      '<div class="pc-pastilles">' + pastilles + '</div>' +
+      '<button type="button" class="pc-btn primary pc-full" data-pc-act="seance">' + icSvg('check') + ' ' + (seancesSem.find((j) => j.ymd === todayY && j.done) ? 'Séance validée aujourd’hui' : 'Valider une séance') + '</button>' +
+    '</section>';
+
+  // --- Régularité ---
+  let regMsg, regCls;
+  if (r.pct >= 75) { regMsg = 'Très bonne régularité, continue comme ça jusqu’à la prochaine pesée.'; regCls = 'ok'; }
+  else if (r.pct >= 45) { regMsg = 'Tu avances, mais essaie de valider plus de journées complètes cette semaine.'; regCls = 'mid'; }
+  else { regMsg = 'On se remet dans le rythme. Commence par valider ta journée d’aujourd’hui.'; regCls = 'low'; }
+  const regBlock =
+    '<section class="pc-sec"><h3>' + icSvg('heart') + ' Ma régularité</h3>' +
+      '<div class="pc-reg-grid">' +
+        '<div class="pc-reg"><b>' + (r.journeesValidees || 0) + ' / 42</b><span>journées</span></div>' +
+        '<div class="pc-reg"><b>' + (r.repasValides || 0) + '</b><span>repas validés</span></div>' +
+        '<div class="pc-reg"><b>' + (r.pct || 0) + '%</b><span>régularité</span></div>' +
+        '<div class="pc-reg"><b>' + joursRestants + '</b><span>jours restants</span></div>' +
+      '</div>' +
+      '<p class="pc-reg-msg ' + regCls + '">' + escapeHtml(regMsg) + '</p>' +
+    '</section>';
+
+  // --- Badges ---
+  const badgeBlock =
+    '<section class="pc-sec"><h3>' + icSvg('spark') + ' Mes badges</h3><div class="pc-badges">' +
+      badges.map((b) => '<div class="pc-badge' + (b.got ? ' got' : '') + '">' + (b.got ? icSvg('check') : '<span class="pc-badge-dot"></span>') + ' ' + escapeHtml(b.label) + '</div>').join('') +
+    '</div></section>';
+
+  // --- Bilan (si pesée finale) ---
+  let bilan = '';
+  if (p.pesees.s6) {
+    const atteint = perduReel >= (p.objectifPerte || 6);
+    bilan =
+      '<section class="pc-sec pc-bilan" id="pc-bilan"><h3>' + icSvg('check-circle') + ' Bilan du challenge</h3>' +
+        '<div class="pc-bilan-grid">' +
+          '<div><span>Départ</span><b>' + fmtKg(p.poidsDepart) + '</b></div>' +
+          '<div><span>Final</span><b>' + fmtKg(p.pesees.s6.poids) + '</b></div>' +
+          '<div><span>Résultat</span><b class="hl">−' + fmtKg(perduReel) + '</b></div>' +
+          '<div><span>Objectif</span><b>−' + (p.objectifPerte || 6) + ' kg</b></div>' +
+          '<div><span>Séances</span><b>' + seancesTot + ' / ' + (p.seancesObjTotal || 24) + '</b></div>' +
+          '<div><span>Régularité</span><b>' + (r.pct || 0) + '%</b></div>' +
+        '</div>' +
+        '<p class="pc-bilan-msg">' + (atteint ? 'Bravo, objectif atteint ! L’étape suivante est de stabiliser tes résultats.' : 'Beau parcours ! Tu t’es rapproché de ton objectif — on continue pour le stabiliser et le dépasser.') + '</p>' +
+        '<div class="pc-step-btns"><button type="button" class="pc-btn primary" data-pc-act="scroll:photos">Voir mes photos</button><button type="button" class="pc-btn" data-pc-act="coach">Contacter mon coach</button></div>' +
+      '</section>';
+  }
+
+  host.innerHTML =
+    '<div class="pc-head"><h1>Mon Parcours</h1><p>Ton évolution pendant le Challenge 6 semaines</p></div>' +
+    carte + etapeBlock + courbe + timeline + photoBlock + seancesBlock + regBlock + badgeBlock + bilan;
+
+  // Câblage
+  host.querySelectorAll('[data-pc-act]').forEach((b) => b.addEventListener('click', () => parcoursAction(b.dataset.pcAct)));
+  host.querySelectorAll('[data-pc-up]').forEach((inp) => inp.addEventListener('change', (e) => { const [jalon, type] = inp.dataset.pcUp.split(':'); uploadParcoursPhoto(jalon, type, e.target.files && e.target.files[0]); }));
+  host.querySelectorAll('[data-pc-delphoto]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); deleteParcoursPhoto(Number(b.dataset.pcDelphoto)); }));
+  // Charge les vignettes privées (avec auth -> blob)
+  host.querySelectorAll('[data-pc-imgid]').forEach((img) => loadParcoursPhoto(Number(img.dataset.pcImgid), img));
+}
+
+async function loadParcoursPhoto(id, img) {
+  if (_parcoursPhotoUrls[id]) { img.src = _parcoursPhotoUrls[id]; return; }
+  try {
+    const res = await fetch(apiUrl('/api/parcours/photo/' + id), { headers: nutriAuthHeaders() });
+    if (!res.ok) { img.closest('.pc-slot') && img.closest('.pc-slot').classList.add('broken'); return; }
+    const blob = await res.blob(); const url = URL.createObjectURL(blob);
+    _parcoursPhotoUrls[id] = url; img.src = url;
+  } catch (_) { /* ignore */ }
+}
+
+function parcoursAction(act) {
+  const [kind, arg] = act.split(':');
+  if (kind === 'pesee') return openParcoursPesee(arg);
+  if (kind === 'photos') { const el = $('#view-parcours .pc-photos-jalon'); const target = [...$$('#view-parcours .pc-photos-jalon')][['depart', 's3', 's6'].indexOf(arg)] || el; if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  if (kind === 'seance') return validerParcoursSeance();
+  if (kind === 'coach') { if (typeof openCoachChat === 'function') openCoachChat(); return; }
+  if (kind === 'scroll') {
+    const map = { reg: '.pc-reg-grid', courbe: '.pc-svg', bilan: '#pc-bilan', photos: '.pc-photos-jalon' };
+    const node = map[arg] && document.querySelector('#view-parcours ' + map[arg]);
+    if (node) node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+}
+
+async function validerParcoursSeance() {
+  try {
+    const res = await fetch(apiUrl('/api/parcours/seance'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ date: new Date().toISOString().slice(0, 10) }) });
+    const d = await res.json();
+    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Séance enregistrée 🔥', { icon: 'check' }); }
+    else showToast((d && d.error) || 'Impossible.', { icon: 'info' });
+  } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
+}
+
+function openParcoursPesee(type) {
+  const labels = { depart: 'Pesée de départ', s3: 'Pesée mi-parcours (semaine 3)', s6: 'Pesée finale (semaine 6)' };
+  const panel = $('#parcoursPeseePanel'); if (!panel) return;
+  panel.classList.remove('hidden');
+  const cur = state.parcours && state.parcours.pesees[type];
+  $('#parcoursPeseeBody').innerHTML =
+    '<h3 style="margin:0 0 12px">' + escapeHtml(labels[type] || 'Pesée') + '</h3>' +
+    '<label class="qopt-field"><span>Ton poids (kg)</span><input id="pcPeseePoids" type="number" step="0.1" inputmode="decimal" value="' + (cur ? cur.poids : '') + '" placeholder="Ex : 84.2"></label>' +
+    '<div class="pc-step-btns"><button type="button" class="pc-btn primary" id="pcPeseeSave">Enregistrer</button></div>' +
+    '<p class="pc-msg" id="pcPeseeMsg"></p>';
+  $('#pcPeseeSave').addEventListener('click', () => saveParcoursPesee(type));
+  setTimeout(() => { const i = $('#pcPeseePoids'); if (i) i.focus(); }, 60);
+}
+function closeParcoursPesee() { const p = $('#parcoursPeseePanel'); if (p) p.classList.add('hidden'); }
+async function saveParcoursPesee(type) {
+  const poids = Number(($('#pcPeseePoids') || {}).value);
+  const msg = $('#pcPeseeMsg');
+  if (!(poids > 0 && poids < 400)) { if (msg) msg.textContent = 'Poids invalide.'; return; }
+  try {
+    const res = await fetch(apiUrl('/api/parcours/pesee'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ type, poids }) });
+    const d = await res.json();
+    if (d && d.ok) { state.parcours = d.parcours; closeParcoursPesee(); renderParcours(); showToast('Pesée enregistrée ✅', { icon: 'check' }); }
+    else if (msg) msg.textContent = (d && d.error) || 'Échec.';
+  } catch (_) { if (msg) msg.textContent = 'Connexion requise.'; }
+}
+
+async function uploadParcoursPhoto(jalon, type, file) {
+  if (!file || _parcoursPhotoBusy) return;
+  _parcoursPhotoBusy = true;
+  showToast('Ajout de la photo…', { icon: 'info' });
+  try {
+    const data = await compressImage(file, 1100, 0.8);
+    const res = await fetch(apiUrl('/api/parcours/photo'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ jalon, type, data }) });
+    const d = await res.json();
+    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Photo ajoutée 📸', { icon: 'check' }); }
+    else showToast((d && d.error) || 'Ajout impossible.', { icon: 'info' });
+  } catch (_) { showToast('Ajout impossible.', { icon: 'info' }); }
+  _parcoursPhotoBusy = false;
+}
+async function deleteParcoursPhoto(id) {
+  if (!confirm('Es-tu sûr de vouloir supprimer cette photo ?')) return;
+  try {
+    const res = await fetch(apiUrl('/api/parcours/photo/' + id), { method: 'DELETE', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) { delete _parcoursPhotoUrls[id]; state.parcours = d.parcours; renderParcours(); showToast('Photo supprimée.', { icon: 'check' }); }
+    else showToast((d && d.error) || 'Suppression impossible.', { icon: 'info' });
+  } catch (_) { showToast('Suppression impossible.', { icon: 'info' }); }
+}
+
 // ===== Messagerie privée client <-> coach =====
 function chatBubble(m) {
   return '<div class="comm-msg comm-post ' + (m.mine ? 'me' : '') + '"><div class="comm-av">' + escapeHtml((m.who || '?').charAt(0)) + '</div>' +
@@ -3841,6 +4202,7 @@ function setTab(tab) {
   if (tab === 'courses') { $('#btnShopping').click(); return; }
   if (tab === 'suivi') { $('#btnSuiviPlan').click(); return; }
   if (tab === 'communaute') { renderCommunaute(); if (!state.communauteVue) dismissCommunauteIntro(); }
+  if (tab === 'parcours') { if (state.parcours) renderParcours(); fetchParcours(); }
   const screen = $('#screen-result');
   if (screen) screen.setAttribute('data-tab', tab);
   $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
