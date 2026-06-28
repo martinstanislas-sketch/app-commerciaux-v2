@@ -2540,6 +2540,7 @@ function init() {
 
   // Nouvelle navigation : barre basse + lignes de l'ecran Profil (delegue aux boutons existants)
   setupProfilCoach();
+  refreshCoachIaBadge();
   $$('#bottom-nav .nav-i').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $$('[data-go]').forEach((r) => r.addEventListener('click', () => { const t = $('#' + r.dataset.go); if (t) t.click(); }));
   $('#helpClose').addEventListener('click', closeHelp);
@@ -2608,6 +2609,7 @@ function init() {
 
   // Gestion des photos de plats (admin/coach) + chargement de l'index (clients voient les photos)
   const _bPlatsPhotos = $('#btnPlatsPhotos'); if (_bPlatsPhotos) _bPlatsPhotos.addEventListener('click', openPlatsPhotos);
+  const _bCoachIa = $('#btnCoachIaAdmin'); if (_bCoachIa) _bCoachIa.addEventListener('click', openCoachIaAdmin);
   const _coachPhotos = $('#coachOpenPhotos'); if (_coachPhotos) _coachPhotos.addEventListener('click', openPlatsPhotos);
   const _coachAdh = $('#coachOpenAdh'); if (_coachAdh) _coachAdh.addEventListener('click', openAdhAdmin);
   const _coachHelp = $('#coachOpenHelp'); if (_coachHelp) _coachHelp.addEventListener('click', openHelpAdmin);
@@ -2615,6 +2617,8 @@ function init() {
   const _coachPlate = $('#coachOpenPlate'); if (_coachPlate) _coachPlate.addEventListener('click', openPlateAdmin);
   $('#platsPhotosClose').addEventListener('click', closePlatsPhotos);
   $('#platsPhotosPanel').addEventListener('click', (e) => { if (e.target.id === 'platsPhotosPanel') closePlatsPhotos(); });
+  $('#coachIaClose').addEventListener('click', closeCoachIaAdmin);
+  $('#coachIaPanel').addEventListener('click', (e) => { if (e.target.id === 'coachIaPanel') closeCoachIaAdmin(); });
   $('#coachFicheClose').addEventListener('click', closeCoachFiche);
   $('#coachFichePanel').addEventListener('click', (e) => { if (e.target.id === 'coachFichePanel') closeCoachFiche(); });
   fetchPhotoIndex();
@@ -2663,7 +2667,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -3431,6 +3435,72 @@ function renderCoachFiche(c) {
     '<button type="button" id="coachFicheMsg" class="btn btn-primary fiche-msg-btn"><svg class="ic"><use href="#ic-send"/></svg> Contacter ce client</button>';
 }
 
+// ===== Admin : activation du Coach IA =====
+function closeCoachIaAdmin() { const p = $('#coachIaPanel'); if (p) p.classList.add('hidden'); }
+async function openCoachIaAdmin() {
+  const panel = $('#coachIaPanel'); if (!panel) return;
+  panel.classList.remove('hidden');
+  const body = $('#coachIaBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/coach-ia-config'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    renderCoachIaAdmin(d);
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+function renderCoachIaAdmin(d) {
+  const body = $('#coachIaBody'); if (!body) return;
+  const actif = !!d.actif;
+  const noKey = !d.keyPresente;
+  const statut = actif
+    ? '<span class="cia-pill on">● Actif</span>'
+    : '<span class="cia-pill off">● Inactif</span>';
+  const keyLine = noKey
+    ? '<div class="cia-warn"><svg class="ic"><use href="#ic-eye"/></svg> Aucune clé d’API détectée sur le serveur (<code>ANTHROPIC_API_KEY</code>). Le chat ne pourra pas répondre tant qu’elle n’est pas définie, même activé ici.</div>'
+    : '<div class="cia-ok"><svg class="ic"><use href="#ic-check"/></svg> Clé d’API détectée sur le serveur.</div>';
+  const opt = (mode, titre, sous) =>
+    '<button type="button" class="cia-opt' + (d.mode === mode ? ' sel' : '') + '" data-mode="' + mode + '">' +
+      '<div class="cia-opt-t">' + titre + '</div><div class="cia-opt-s">' + sous + '</div></button>';
+  body.innerHTML =
+    '<div class="cia-status">État du Coach IA : ' + statut + '</div>' +
+    keyLine +
+    '<div class="cia-opts">' +
+      opt('on', 'Activé', 'Le chat répond aux clients (nécessite la clé serveur).') +
+      opt('off', 'Désactivé', 'Le chat reste affiché mais propose de prévenir le coach humain.') +
+      opt('auto', 'Auto', 'Suit la configuration serveur (variables d’environnement).') +
+    '</div>' +
+    '<div id="coachIaMsg" class="cia-msg"></div>';
+  body.querySelectorAll('.cia-opt').forEach((b) => b.addEventListener('click', () => saveCoachIaMode(b.dataset.mode)));
+}
+async function saveCoachIaMode(mode) {
+  const msg = $('#coachIaMsg'); if (msg) msg.textContent = 'Enregistrement…';
+  try {
+    const res = await fetch(apiUrl('/api/coach-ia-config'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ mode }),
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || '');
+    renderCoachIaAdmin(d);
+    updateCoachIaBadge(d);
+    showToast(d.actif ? 'Coach IA activé.' : 'Coach IA désactivé.', { icon: d.actif ? 'check' : 'info' });
+  } catch (e) {
+    const m = $('#coachIaMsg'); if (m) m.textContent = 'Échec : ' + (e.message || 'réessaie.');
+  }
+}
+function updateCoachIaBadge(d) {
+  const b = $('#coachIaStateBadge'); if (!b) return;
+  b.textContent = d && d.actif ? 'Actif' : 'Inactif';
+  b.className = 'pr-badge cia-badge ' + (d && d.actif ? 'on' : 'off');
+}
+async function refreshCoachIaBadge() {
+  if (!isMainAdmin || !isMainAdmin()) return;
+  try {
+    const res = await fetch(apiUrl('/api/coach-ia-config'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) updateCoachIaBadge(d);
+  } catch (_) { /* ignore */ }
+}
+
 // ===== Photos de plats : affichage client + gestion admin/coach =====
 async function fetchPhotoIndex() {
   try {
@@ -3533,6 +3603,8 @@ function setTab(tab) {
 function setupProfilCoach() {
   if (!isCoachOrAdmin()) return;
   $$('#view-profil .profil-coach').forEach((el) => el.classList.remove('hidden'));
+  // Lignes réservées au super-admin (config sensible : Coach IA…).
+  if (isMainAdmin()) $$('#view-profil .profil-admin').forEach((el) => el.classList.remove('hidden'));
 }
 
 // --- Vue coach : liste des demandes ---

@@ -26,14 +26,32 @@ function iaDisponible() {
   return Boolean(Anthropic && process.env.ANTHROPIC_API_KEY && optIn);
 }
 
+// Override piloté depuis le panneau admin (persisté en base par le root server.js,
+// poussé ici via setCoachIaOverride). null = "auto" (suit les variables d'env),
+// true = forcé ON, false = forcé OFF. Dans tous les cas, la CLÉ reste requise :
+// sans ANTHROPIC_API_KEY, le chat ne peut pas répondre quel que soit l'override.
+let coachIaOverride = null;
+function setCoachIaOverride(v) { coachIaOverride = (v === true || v === false) ? v : null; }
+
+function coachIaKeyPresente() { return Boolean(Anthropic && process.env.ANTHROPIC_API_KEY); }
+function coachIaEnvOptIn() {
+  const on = (k) => ['on', '1', 'true', 'yes'].includes(String(process.env[k] || '').toLowerCase());
+  return on('NUTRITION_AI') || on('NUTRITION_COACH_IA');
+}
+
 // Le Coach IA conversationnel peut être activé INDÉPENDAMMENT de la génération de
-// plans IA : soit via NUTRITION_AI=on (tout l'IA), soit via son propre interrupteur
-// NUTRITION_COACH_IA=on. Cela permet d'ouvrir le chat (coût faible) sans basculer
-// la génération de plans sur l'IA.
+// plans IA. Priorité : override admin (ON/OFF) > variables d'env (auto).
 function coachIaDisponible() {
-  if (iaDisponible()) return true;
-  const optIn = ['on', '1', 'true', 'yes'].includes(String(process.env.NUTRITION_COACH_IA || '').toLowerCase());
-  return Boolean(Anthropic && process.env.ANTHROPIC_API_KEY && optIn);
+  if (!coachIaKeyPresente()) return false;          // sans clé, impossible
+  if (coachIaOverride === true) return true;
+  if (coachIaOverride === false) return false;
+  return iaDisponible() || coachIaEnvOptIn();        // auto : suit l'environnement
+}
+
+// État détaillé pour le panneau admin.
+function coachIaInfos() {
+  const mode = coachIaOverride === true ? 'on' : (coachIaOverride === false ? 'off' : 'auto');
+  return { mode, keyPresente: coachIaKeyPresente(), envOptIn: coachIaEnvOptIn(), actif: coachIaDisponible() };
 }
 
 function client() {
@@ -409,4 +427,4 @@ async function coachRepondre({ contexte, messages }) {
   return (r.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
 }
 
-module.exports = { iaDisponible, coachIaDisponible, genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, coachRepondre };
+module.exports = { iaDisponible, coachIaDisponible, setCoachIaOverride, coachIaInfos, genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, coachRepondre };

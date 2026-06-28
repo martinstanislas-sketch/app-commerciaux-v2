@@ -383,6 +383,19 @@ try {
   const nutritionApp = require('./nutrition-app/server');
   ensureNutritionHelpTable();
 
+  // Coach IA : on charge le module IA (même instance que celle utilisée par la route
+  // /nutrition/api/coach montée plus bas) pour pouvoir piloter son activation depuis
+  // l'app. Au boot, on applique le réglage admin persisté (app_settings).
+  const nutritionAi = require('./nutrition-app/lib/aiGenerator');
+  const applyCoachIaSetting = () => {
+    try {
+      const row = getDb().prepare('SELECT value FROM app_settings WHERE key = ?').get('nutrition_coach_ia');
+      const v = row && row.value;
+      nutritionAi.setCoachIaOverride(v === 'on' ? true : (v === 'off' ? false : null));
+    } catch (_) { /* table absente au tout premier boot -> auto */ }
+  };
+  applyCoachIaSetting();
+
   // --- Demandes d'aide alimentaire ---
   // Soumission : tout utilisateur ayant accès au module (client inclus à terme).
   app.post('/nutrition/api/help-request', requireAuth, requireNutritionAccess, (req, res) => {
@@ -666,6 +679,24 @@ try {
       }
       res.json({ ok: true, messages, total: messages });
     } catch (e) { console.error('notifications GET :', e); res.json({ ok: true, messages: 0, total: 0 }); }
+  });
+
+  // SUPER_ADMIN : état + pilotage de l'activation du Coach IA depuis l'app.
+  // mode = 'on' (forcé actif) | 'off' (forcé inactif) | 'auto' (suit les variables d'env).
+  // La CLÉ ANTHROPIC_API_KEY reste obligatoire et 100% serveur (jamais exposée).
+  app.get('/nutrition/api/coach-ia-config', requireAuth, requireAdmin, (req, res) => {
+    try { res.json({ ok: true, ...nutritionAi.coachIaInfos() }); }
+    catch (e) { console.error('coach-ia-config GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  app.post('/nutrition/api/coach-ia-config', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const mode = String((req.body || {}).mode || '').toLowerCase();
+      if (!['on', 'off', 'auto'].includes(mode)) return res.status(400).json({ ok: false, error: 'Mode invalide.' });
+      if (mode === 'auto') getDb().prepare('DELETE FROM app_settings WHERE key = ?').run('nutrition_coach_ia');
+      else getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('nutrition_coach_ia', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").run(mode);
+      nutritionAi.setCoachIaOverride(mode === 'on' ? true : (mode === 'off' ? false : null));
+      res.json({ ok: true, ...nutritionAi.coachIaInfos() });
+    } catch (e) { console.error('coach-ia-config POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
 
   // ====== Photos de plats (admin/coach ajoutent ; clients voient) ======

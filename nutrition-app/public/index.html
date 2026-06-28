@@ -608,6 +608,7 @@
         <button type="button" class="profil-row profil-coach hidden" data-go="btnScanAdmin"><svg class="ic pr-lime"><use href="#ic-barcode"/></svg>Scans clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnPlateAdmin"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Analyses d'assiettes<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnDemoAdmin"><svg class="ic pr-lime"><use href="#ic-eye"/></svg>Mode démo client<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" id="btnCoachIaAdmin"><svg class="ic pr-lime"><use href="#ic-spark"/></svg>Coach IA<span class="pr-badge" id="coachIaStateBadge"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnHelpAdmin"><svg class="ic pr-lime"><use href="#ic-inbox"/></svg>Demandes d'aide<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
         <div class="profil-sec profil-demo hidden">DÉMONSTRATION</div>
@@ -883,6 +884,18 @@
         <button class="modal-close" id="coachFicheClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
       <div id="coachFicheBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ ADMIN : ACTIVATION DU COACH IA ============ -->
+  <div id="coachIaPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-spark"/></svg> Coach IA</h2>
+        <button class="modal-close" id="coachIaClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Active ou désactive le chat « Coach IA » pour tes clients. La clé d'API reste côté serveur (jamais exposée).</p>
+      <div id="coachIaBody"></div>
     </div>
   </div>
 
