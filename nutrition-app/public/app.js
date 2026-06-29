@@ -2999,7 +2999,23 @@ async function coachHumanRequest() {
 }
 
 // ---------- Navigation (barre basse mobile / sidebar desktop) ----------
-// ---------- Espace Communauté (débloqué après génération du plan) ----------
+// ---------- Espace Communauté : FIL D'ACTIVITÉ (auto-alimenté) ----------
+// Réactions du fil (emoji) — alignées sur le backend (love/fire/muscle/clap).
+const FEED_REACTIONS = [
+  { type: 'love', emo: '❤️', label: 'J’aime' },
+  { type: 'fire', emo: '🔥', label: 'Bravo' },
+  { type: 'muscle', emo: '💪', label: 'Force' },
+  { type: 'clap', emo: '👏', label: 'Bien joué' },
+];
+// Exemples illustratifs affichés UNIQUEMENT en mode démo (présentation commerciale) :
+// jamais montrés à un vrai client (le fil réel ne contient que de l'activité réelle).
+const FEED_DEMO = [
+  { id: 'demo1', who: 'Paul', emoji: '🔥', text: 'Paul a validé 5 journées d’affilée', when: new Date(Date.now() - 12 * 60000).toISOString(), reactions: { fire: 4, muscle: 2 }, myReaction: null },
+  { id: 'demo2', who: 'Julie', emoji: '💧', text: 'Julie a atteint son objectif d’hydratation aujourd’hui', when: new Date(Date.now() - 95 * 60000).toISOString(), reactions: { love: 3 }, myReaction: null },
+  { id: 'demo3', who: 'Le groupe', emoji: '🔥', text: 'Le groupe a dépassé 100 repas validés cette semaine', when: new Date(Date.now() - 3 * 3600000).toISOString(), reactions: { clap: 6, fire: 5 }, myReaction: null },
+  { id: 'demo4', who: 'Thomas', emoji: '💪', text: 'Thomas a terminé sa 3e séance de la semaine', when: new Date(Date.now() - 5 * 3600000).toISOString(), reactions: { muscle: 3, clap: 2 }, myReaction: null },
+  { id: 'demo5', who: 'Sophie', emoji: '👋', text: 'Bienvenue à Sophie dans le groupe', when: new Date(Date.now() - 26 * 3600000).toISOString(), reactions: { love: 5 }, myReaction: null },
+];
 // Catalogue des défis du groupe (participation/validation stockées côté client).
 const COMMUNAUTE_CHALLENGES = [
   { id: 'hydra', ic: 'leaf', t: 'Hydratation 2 L / jour', obj: 'Boire 2 L d’eau chaque jour', part: 0.72 },
@@ -3085,7 +3101,7 @@ function startCommunautePoll() {
   stopCommunautePoll();
   _commPoll = setInterval(() => {
     const screen = $('#screen-result');
-    if (screen && screen.getAttribute('data-tab') === 'communaute' && state.communauteJoined) { fetchCommunaute(); fetchCommunauteOverview(); }
+    if (screen && screen.getAttribute('data-tab') === 'communaute' && state.communauteJoined) { fetchCommunauteFeed(); fetchCommunauteOverview(); fetchCommunaute(); }
     else stopCommunautePoll();
   }, 15000);
 }
@@ -3099,6 +3115,7 @@ async function fetchCommunaute() {
       state.communauteMessages = data.messages || [];
       state.communauteMembers = data.members || 0;
       renderCommunauteWall();
+      applyCoachTip();
       const mb = $('#commMembers'); if (mb) mb.textContent = state.communauteMembers || '—';
     }
   } catch (_) { /* hors-ligne : on garde l'affichage courant */ }
@@ -3268,26 +3285,97 @@ async function fetchCommunauteOverview() {
 }
 function applyOverview() {
   const ov = state.communauteOverview; if (!ov) return;
-  const set = (id, v) => { const el = $('#' + id); if (el) el.textContent = v; };
-  set('commStatMembers', ov.members || 0);
-  set('commStatPct', (ov.stats ? ov.stats.pctValides : 0) + '%');
-  set('commStatJours', ov.stats ? ov.stats.journeesValidees : 0);
-  const bar = $('#commProgBar'); if (bar && ov.objectif) bar.style.width = (ov.objectif.pct || 0) + '%';
-  const ph = $('#commPhrase'); if (ph && ov.phrase) ph.textContent = ov.phrase;
-  const cl = $('#commCoachList'); if (cl) cl.innerHTML = renderCommCoachHtml();
-  const sl = $('#commSystemList'); if (sl) sl.innerHTML = renderCommSystemHtml();
-  // Recalcule les défis avec le vrai nombre de membres + re-câble les boutons.
-  const ch = $('#commChallenges');
-  if (ch) {
-    ch.innerHTML = COMMUNAUTE_CHALLENGES.map(challengeCard).join('');
-    ch.querySelectorAll('[data-chal-join]').forEach((b) => b.addEventListener('click', () => joinChallenge(b.dataset.chalJoin)));
-    ch.querySelectorAll('[data-chal-go]').forEach((b) => b.addEventListener('click', () => validateChallenge(b.dataset.chalGo)));
-  }
+  const mb = $('#commMembers'); if (mb) mb.textContent = ov.members || 0;
+  const pctObj = (ov.objectif && ov.objectif.pct) || 0;
+  const bar = $('#commProgBar'); if (bar) bar.style.width = pctObj + '%';
+  const pp = $('#commProgPct'); if (pp) pp.textContent = pctObj + '%';
+  applyCoachTip();
+}
+// Conseil du coach (compact) : dernier message publié par le coach, sinon conseil auto.
+function applyCoachTip() {
+  const el = $('#commCoachTip'); if (!el) return;
+  const ov = state.communauteOverview;
+  const coachMsg = (state.communauteMessages || []).find((m) => m.kind === 'coach');
+  el.textContent = (coachMsg && coachMsg.text)
+    || (ov && ov.coachAuto && ov.coachAuto[0])
+    || 'Ta collation protéinée de l’après-midi aide à éviter les fringales du soir.';
 }
 
 function commStatTile(id, val, label) {
   return '<div class="comm2-stat"><b id="' + id + '">' + val + '</b><span>' + label + '</span></div>';
 }
+
+// ===== Fil d'activité (auto-alimenté) : rendu + réactions =====
+function avatarColor(name) {
+  let h = 0; const s = String(name || '?'); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return 'hsl(' + h + ', 42%, 50%)';
+}
+function feedAvatar(item) {
+  if (item.who === 'Le groupe') return '<div class="feed-av group">' + (item.emoji || '👥') + '</div>';
+  const ch = ((item.who || '?').trim().charAt(0) || '?').toUpperCase();
+  return '<div class="feed-av" style="background:' + avatarColor(item.who) + '">' + escapeHtml(ch) + '</div>';
+}
+function feedReactBar(item) {
+  const counts = item.reactions || {}; const mine = item.myReaction || null;
+  return '<div class="feed-reacts">' + FEED_REACTIONS.map((r) => {
+    const n = counts[r.type] || 0; const on = mine === r.type ? ' on' : '';
+    return '<button type="button" class="feed-react' + on + '" data-fid="' + escapeHtml(item.id) + '" data-ftype="' + r.type + '" title="' + r.label + '" aria-label="' + r.label + '">' +
+      '<span class="feed-react-emo">' + r.emo + '</span>' + (n ? '<span class="feed-react-n">' + n + '</span>' : '') + '</button>';
+  }).join('') + '</div>';
+}
+function feedCard(item) {
+  return '<article class="feed-card' + (item.kind === 'post' ? ' is-post' : '') + '">' +
+    feedAvatar(item) +
+    '<div class="feed-body">' +
+      '<div class="feed-meta"><b class="feed-who">' + escapeHtml(item.who || 'Un membre') + '</b>' +
+        '<span class="feed-when">· ' + escapeHtml(commTimeAgo(item.when)) + '</span></div>' +
+      '<p class="feed-text">' + (item.emoji ? '<span class="feed-emo">' + item.emoji + '</span> ' : '') + escapeHtml(item.text || '') + '</p>' +
+      feedReactBar(item) +
+    '</div></article>';
+}
+function renderCommunauteFeed() {
+  const list = $('#feedList'); if (!list) return;
+  let items = (state.communauteFeed || []).slice();
+  // Démo (présentation commerciale) : on complète avec des exemples illustratifs.
+  if (isDemo()) { items = items.concat(FEED_DEMO); items.sort((a, b) => String(b.when || '').localeCompare(String(a.when || ''))); }
+  if (!items.length) {
+    list.innerHTML = '<div class="feed-empty">' + icSvg('users') +
+      '<b>Le fil est encore calme</b><p>Valide tes repas et tes séances : chaque réussite apparaîtra ici et motivera le groupe. Sois le premier à partager une victoire 💪</p></div>';
+    return;
+  }
+  list.innerHTML = items.map(feedCard).join('');
+  list.querySelectorAll('.feed-react').forEach((b) => b.addEventListener('click', () => reactFeed(b.dataset.fid, b.dataset.ftype)));
+}
+async function fetchCommunauteFeed() {
+  try {
+    const res = await fetch(apiUrl('/api/community/feed?limit=50'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) { state.communauteFeed = d.items || []; renderCommunauteFeed(); }
+  } catch (_) { /* hors-ligne : on garde l'affichage courant */ }
+}
+async function reactFeed(id, type) {
+  const item = (state.communauteFeed || []).find((x) => x.id === id) || FEED_DEMO.find((x) => x.id === id);
+  // Démo / exemples : réaction locale (aucun appel serveur).
+  if (isDemo() || String(id).indexOf('demo') === 0) {
+    if (item) {
+      item.reactions = item.reactions || {};
+      if (item.myReaction === type) { item.myReaction = null; item.reactions[type] = Math.max(0, (item.reactions[type] || 1) - 1); }
+      else { if (item.myReaction) item.reactions[item.myReaction] = Math.max(0, (item.reactions[item.myReaction] || 1) - 1); item.myReaction = type; item.reactions[type] = (item.reactions[type] || 0) + 1; }
+    }
+    renderCommunauteFeed(); return;
+  }
+  try {
+    const res = await fetch(apiUrl('/api/community/react'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ id, type }) });
+    const d = await res.json();
+    if (d && d.ok && item) { item.reactions = d.reactions || {}; item.myReaction = d.myReaction || null; renderCommunauteFeed(); }
+  } catch (_) { showToast('Réaction impossible pour le moment.', { icon: 'info' }); }
+}
+async function postCommunauteFeed(text, kind) {
+  const ok = await postCommunaute(text, kind || 'partage'); // réutilise l'endpoint messages
+  if (ok) { fetchCommunauteFeed(); showToast('Partagé au groupe 🎉', { icon: 'check' }); }
+  return ok;
+}
+function autoGrowEl(el) { if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
 
 function renderCommunaute() {
   const host = $('#view-communaute');
@@ -3296,14 +3384,9 @@ function renderCommunaute() {
     host.innerHTML =
       '<div class="comm2-join">' +
         '<div class="comm2-join-ic">' + icSvg('users') + '</div>' +
-        '<h2>La communauté du challenge</h2>' +
-        '<p>Rejoins ton groupe pour avancer ensemble : défis collectifs, journées validées, messages du coach et entraide.</p>' +
-        '<div class="comm2-stats">' +
-          commStatTile('commJoinMembers', state.communauteMembers || '—', 'membres') +
-          commStatTile('commJoinChal', COMMUNAUTE_CHALLENGES.length, 'défis actifs') +
-          commStatTile('commJoinObj', '6/6', 'challenge') +
-        '</div>' +
-        '<button type="button" class="btn btn-primary comm-join" id="commJoin">Rejoindre mon groupe</button>' +
+        '<h2>Rejoins ton groupe</h2>' +
+        '<p>Avance avec les autres : vois les progrès de chacun en direct, encourage-les, et partage tes victoires. La motivation, c’est l’équipe.</p>' +
+        '<button type="button" class="btn btn-primary comm-join" id="commJoin">Rejoindre le groupe</button>' +
       '</div>';
     const j = $('#commJoin');
     if (j) j.addEventListener('click', joinCommunaute);
@@ -3312,65 +3395,53 @@ function renderCommunaute() {
   }
   const ov = state.communauteOverview;
   const members = (ov && ov.members) || state.communauteMembers || '—';
-  const pct = ov && ov.stats ? ov.stats.pctValides : 0;
-  const jours = ov && ov.stats ? ov.stats.journeesValidees : 0;
   const pctObj = ov && ov.objectif ? ov.objectif.pct : 0;
-  const phrase = (ov && ov.phrase) || 'Avance avec ton groupe : valide tes repas et participe aux défis !';
+  const coachOnly = isCoachOrAdmin();
   host.innerHTML =
-    '<div class="comm2">' +
-      // 1. Progression du groupe
-      '<div class="comm2-hero">' +
-        '<div class="comm2-hero-top"><div><div class="comm2-kicker">Communauté</div><h2>' + escapeHtml((ov && ov.groupe) || 'Groupe Challenge 6/6') + '</h2></div></div>' +
-        '<div class="comm2-stats">' +
-          commStatTile('commStatMembers', members, 'membres') +
-          commStatTile('commStatChal', COMMUNAUTE_CHALLENGES.length, 'défis actifs') +
-          commStatTile('commStatPct', pct + '%', 'repas validés') +
-          commStatTile('commStatJours', jours, 'jours validés') +
+    '<div class="feed">' +
+      // 1. En-tête compact (nom du groupe, membres, progression de la semaine)
+      '<header class="feed-head">' +
+        '<div class="feed-head-row">' +
+          '<h2 class="feed-title">' + escapeHtml((ov && ov.groupe) || 'Groupe Challenge 6/6') + '</h2>' +
+          '<span class="feed-members"><b id="commMembers">' + members + '</b> membres</span>' +
         '</div>' +
-        '<div class="comm2-prog"><span id="commProgBar" style="width:' + pctObj + '%"></span></div>' +
-        '<p class="comm2-phrase" id="commPhrase">' + escapeHtml(phrase) + '</p>' +
-      '</div>' +
-      // 4 & 5. Actions principales
-      '<div class="comm2-actions">' +
-        '<button type="button" class="comm2-cta primary" id="commShare">' + icSvg('check') + ' Partager ma journée validée</button>' +
-        '<button type="button" class="comm2-cta ghost" id="commHelp">' + icSvg('heart-hand') + ' J’ai besoin d’aide</button>' +
-      '</div>' +
-      '<div id="commShareBox" class="comm2-sharebox hidden"><input id="commShareInput" maxlength="200" placeholder="Ajoute un mot au groupe (facultatif)…" autocomplete="off"><button type="button" class="btn btn-primary" id="commShareGo">' + icSvg('send') + ' Publier</button></div>' +
+        '<div class="feed-prog"><span id="commProgBar" style="width:' + pctObj + '%"></span></div>' +
+        '<div class="feed-prog-foot"><span>Progression du groupe cette semaine</span><b id="commProgPct">' + pctObj + '%</b></div>' +
+      '</header>' +
+      // 2. Fil d'activité (élément central)
+      '<div id="feedList" class="feed-list"><p class="comm-empty">Chargement du fil…</p></div>' +
+      // 4. Zone de publication personnelle (discrète)
+      '<form id="commForm" class="feed-compose">' +
+        '<textarea id="commInput" rows="1" maxlength="500" placeholder="Partager une réussite, une difficulté ou une victoire…" autocomplete="off"></textarea>' +
+        '<button type="submit" class="comm-send" aria-label="Partager">' + icSvg('send') + '</button>' +
+      '</form>' +
+      '<button type="button" class="feed-help-link" id="commHelp">' + icSvg('heart-hand') + ' Besoin d’aide ?</button>' +
       '<div id="commHelpBox" class="comm2-helpbox hidden">' + commHelpBoxHtml() + '</div>' +
-      // 2. Défis en cours
-      '<section class="comm2-sec"><h3>' + icSvg('flame') + ' Défis en cours</h3><div class="comm2-challenges" id="commChallenges">' + COMMUNAUTE_CHALLENGES.map(challengeCard).join('') + '</div></section>' +
-      // 3. Messages du coach
-      '<section class="comm2-sec"><h3>' + icSvg('spark') + ' Messages du coach</h3><div id="commCoachList" class="comm2-coach">' + renderCommCoachHtml() + '</div>' + (isCoachOrAdmin() ? coachPublishHtml() : '') + '</section>' +
-      // 6. Mur du groupe
-      '<section class="comm2-sec"><h3>' + icSvg('users') + ' Mur du groupe</h3>' +
-        '<div id="commSystemList" class="comm2-system">' + renderCommSystemHtml() + '</div>' +
-        '<form id="commForm" class="comm-compose">' +
-          '<textarea id="commInput" rows="1" maxlength="500" placeholder="Écris un message au groupe…" autocomplete="off"></textarea>' +
-          '<button type="submit" class="comm-send" aria-label="Publier">' + icSvg('send') + '</button>' +
-        '</form>' +
-        '<div id="commWall" class="comm-wall"><p class="comm-empty">Chargement…</p></div>' +
-      '</section>' +
+      // 3. Conseil du coach (compact)
+      '<div class="feed-coach"><span class="feed-coach-ic">💡</span><div class="feed-coach-body"><b>Conseil du coach</b><p id="commCoachTip">' +
+        escapeHtml((ov && ov.coachAuto && ov.coachAuto[0]) || 'Ta collation protéinée de l’après-midi aide à éviter les fringales du soir.') + '</p></div></div>' +
+      (coachOnly ? '<form id="commCoachForm" class="feed-compose feed-coachform"><textarea id="commCoachInput" rows="1" maxlength="500" placeholder="Publier un conseil au groupe (coach)…"></textarea><button type="submit" class="comm-send" aria-label="Publier">' + icSvg('send') + '</button></form>' : '') +
     '</div>';
   // Câblage
-  const s = $('#commShare'); if (s) s.addEventListener('click', partagerJournee);
-  const sg = $('#commShareGo'); if (sg) sg.addEventListener('click', confirmPartage);
   const h = $('#commHelp'); if (h) h.addEventListener('click', openCommHelp);
   host.querySelectorAll('#commHelpBox [data-aide]').forEach((b) => b.addEventListener('click', () => commHelpChoice(b.dataset.aide)));
-  host.querySelectorAll('[data-chal-join]').forEach((b) => b.addEventListener('click', () => joinChallenge(b.dataset.chalJoin)));
-  host.querySelectorAll('[data-chal-go]').forEach((b) => b.addEventListener('click', () => validateChallenge(b.dataset.chalGo)));
-  const cf = $('#commCoachForm');
-  if (cf) cf.addEventListener('submit', (e) => { e.preventDefault(); const i = $('#commCoachInput'); const v = i ? i.value : ''; if (!v.trim()) return; postCommunaute(v, 'coach').then((ok) => { if (ok && i) i.value = ''; }); });
   const form = $('#commForm');
-  if (form) form.addEventListener('submit', (e) => {
-    e.preventDefault();
+  if (form) {
     const inp = $('#commInput');
-    const v = inp ? inp.value : '';
-    if (!v.trim()) return;
-    postCommunaute(v, 'message').then((ok) => { if (ok && inp) inp.value = ''; });
-  });
-  renderCommunauteWall();
-  fetchCommunaute();
+    if (inp) inp.addEventListener('input', () => autoGrowEl(inp));
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = inp ? inp.value : '';
+      if (!v.trim()) return;
+      postCommunauteFeed(v, 'partage').then((ok) => { if (ok && inp) { inp.value = ''; autoGrowEl(inp); } });
+    });
+  }
+  const cf = $('#commCoachForm');
+  if (cf) cf.addEventListener('submit', (e) => { e.preventDefault(); const i = $('#commCoachInput'); const v = i ? i.value : ''; if (!v.trim()) return; postCommunaute(v, 'coach').then((ok) => { if (ok && i) { i.value = ''; fetchCommunaute(); fetchCommunauteOverview(); } }); });
+  renderCommunauteFeed();
+  fetchCommunauteFeed();
   fetchCommunauteOverview();
+  fetchCommunaute(); // messages (compteur membres + dernier conseil coach publié)
   startCommunautePoll();
 }
 

@@ -299,6 +299,24 @@ function ensureNutritionHelpTable() {
       actif INTEGER NOT NULL DEFAULT 1,
       updated_at TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS nutrition_community_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL DEFAULT '',
+      actor_email TEXT NOT NULL DEFAULT '',
+      actor_name TEXT NOT NULL DEFAULT '',
+      emoji TEXT NOT NULL DEFAULT '',
+      text TEXT NOT NULL DEFAULT '',
+      dedup_key TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_comm_events_dedup ON nutrition_community_events(dedup_key);
+    CREATE TABLE IF NOT EXISTS nutrition_community_event_reactions (
+      event_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (event_id, email)
+    );
   `);
   // Coach « réponses préenregistrées » (gratuit) : graine VERSIONNÉE.
   // - table vide      -> on insère tout (1re installation).
@@ -709,6 +727,128 @@ try {
       console.error('Erreur community/overview :', e);
       res.status(500).json({ ok: false, error: 'Lecture impossible.' });
     }
+  });
+
+  // ====== Fil d'activité de la communauté : événements AUTO-générés (réels) ======
+  // Détecte les réussites réelles des membres et publie des « moments » dans le fil :
+  // bienvenues, séries de jours validés, séances de la semaine, jalons collectifs.
+  // 100% calculé depuis les données existantes (adhérence, séances, inscriptions) ;
+  // aucun événement fabriqué. Persisté (id stable) -> réactions possibles ; idempotent
+  // via dedup_key (chaque palier ne se publie qu'une fois).
+  const FEED_REACTIONS = ['love', 'fire', 'muscle', 'clap'];
+  function isoWeekStart(d) {
+    const dt = new Date(d); const day = (dt.getUTCDay() + 6) % 7; // lundi = 0
+    dt.setUTCDate(dt.getUTCDate() - day); return dt.toISOString().slice(0, 10);
+  }
+  function prenomDe(c) { return ((c && (c.prenom || c.nom)) || 'Un membre').toString().trim().split(' ')[0] || 'Un membre'; }
+  function insertEvent(db, ev) {
+    try {
+      db.prepare('INSERT OR IGNORE INTO nutrition_community_events (type, actor_email, actor_name, emoji, text, dedup_key, created_at) VALUES (?,?,?,?,?,?,?)')
+        .run(ev.type, ev.email || '', ev.name || '', ev.emoji || '', ev.text, ev.dedup, ev.when || new Date().toISOString());
+    } catch (_) { /* doublon -> ignoré */ }
+  }
+  function genererEvenementsCommunaute(db) {
+    const now = new Date();
+    const weekStart = isoWeekStart(now);
+    const todayStr = now.toISOString().slice(0, 10);
+    let clients = [];
+    try { clients = db.prepare('SELECT email, prenom, nom, created_at FROM nutrition_clients').all(); } catch (_) { return; }
+    const byEmail = {}; clients.forEach((c) => { if (c.email) byEmail[c.email] = c; });
+    // 1) Bienvenue (membres inscrits < 30 j) — une fois par membre.
+    const since30 = new Date(now.getTime() - 30 * 864e5).toISOString();
+    for (const c of clients) {
+      if (!c.email || !c.created_at || c.created_at < since30) continue;
+      insertEvent(db, { type: 'welcome', email: c.email, name: prenomDe(c), emoji: '👋', text: `Bienvenue à ${prenomDe(c)} dans le groupe`, dedup: 'welcome:' + c.email, when: c.created_at });
+    }
+    // 2) Séries de jours validés d'affilée (paliers).
+    const STREAK_MILESTONES = [3, 5, 7, 10, 14, 21, 30];
+    try {
+      for (const c of clients) {
+        if (!c.email) continue;
+        const dates = db.prepare('SELECT date FROM nutrition_adherence WHERE client_email = ? AND suivi > 0 ORDER BY date DESC LIMIT 60').all(c.email).map((r) => r.date);
+        if (!dates.length) continue;
+        // streak récent uniquement (dernier jour = aujourd'hui ou hier).
+        if (Date.parse(todayStr + 'T00:00:00Z') - Date.parse(dates[0] + 'T00:00:00Z') > 864e5) continue;
+        let streak = 1;
+        for (let i = 1; i < dates.length; i++) {
+          if (Math.round((Date.parse(dates[i - 1] + 'T00:00:00Z') - Date.parse(dates[i] + 'T00:00:00Z')) / 864e5) === 1) streak++; else break;
+        }
+        const top = STREAK_MILESTONES.filter((m) => streak >= m).pop();
+        if (top) insertEvent(db, { type: 'streak', email: c.email, name: prenomDe(c), emoji: '🔥', text: `${prenomDe(c)} a validé ${top} journées d'affilée`, dedup: 'streak:' + c.email + ':' + top });
+      }
+    } catch (_) { /* ignore */ }
+    // 3) Séances de la semaine (paliers par nombre de séances).
+    try {
+      const rows = db.prepare('SELECT client_email, COUNT(*) n FROM nutrition_parcours_seances WHERE date >= ? AND client_email != \'\' GROUP BY client_email').all(weekStart);
+      for (const r of rows) {
+        const c = byEmail[r.client_email]; if (!c || r.n < 1) continue;
+        const ord = r.n === 1 ? '1re' : (r.n + 'e');
+        insertEvent(db, { type: 'session', email: r.client_email, name: prenomDe(c), emoji: '💪', text: `${prenomDe(c)} a terminé sa ${ord} séance de la semaine`, dedup: 'session:' + r.client_email + ':' + weekStart + ':' + r.n });
+      }
+    } catch (_) { /* ignore */ }
+    // 4) Jalons collectifs : repas validés cette semaine.
+    try {
+      const sum = db.prepare('SELECT COALESCE(SUM(suivi),0) v FROM nutrition_adherence WHERE date >= ?').get(weekStart).v || 0;
+      const top = [50, 100, 200, 300, 500].filter((m) => sum >= m).pop();
+      if (top) insertEvent(db, { type: 'group_meals', email: '', name: 'Le groupe', emoji: '🔥', text: `Le groupe a dépassé ${top} repas validés cette semaine`, dedup: 'group_meals:' + weekStart + ':' + top });
+    } catch (_) { /* ignore */ }
+  }
+
+  // Fil = événements auto + publications des membres (message/partage), triés par date.
+  app.get('/nutrition/api/community/feed', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const db = getDb();
+      const me = (req.session && req.session.email) || '';
+      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+      try { genererEvenementsCommunaute(db); } catch (e) { console.warn('genEvents :', e && e.message); }
+      const evs = db.prepare('SELECT id, type, actor_name, emoji, text, created_at FROM nutrition_community_events ORDER BY created_at DESC, id DESC LIMIT ?').all(limit);
+      const evReac = {}; const evIds = evs.map((e) => e.id);
+      if (evIds.length) {
+        const ph = evIds.map(() => '?').join(',');
+        db.prepare('SELECT event_id, type, email FROM nutrition_community_event_reactions WHERE event_id IN (' + ph + ')').all(...evIds)
+          .forEach((x) => { const e = evReac[x.event_id] || (evReac[x.event_id] = { counts: {}, mine: null }); e.counts[x.type] = (e.counts[x.type] || 0) + 1; if (me && x.email === me) e.mine = x.type; });
+      }
+      const posts = db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage') ORDER BY id DESC LIMIT ?").all(limit);
+      const postReac = {}; const postIds = posts.map((p) => p.id);
+      if (postIds.length) {
+        const ph = postIds.map(() => '?').join(',');
+        db.prepare('SELECT message_id, type, email FROM nutrition_community_reactions WHERE message_id IN (' + ph + ')').all(...postIds)
+          .forEach((x) => { const e = postReac[x.message_id] || (postReac[x.message_id] = { counts: {}, mine: null }); e.counts[x.type] = (e.counts[x.type] || 0) + 1; if (me && x.email === me) e.mine = x.type; });
+      }
+      const items = [];
+      for (const e of evs) items.push({ id: 'e' + e.id, kind: 'event', subkind: e.type, who: e.actor_name || 'Le groupe', emoji: e.emoji || '', text: e.text, when: e.created_at, reactions: (evReac[e.id] && evReac[e.id].counts) || {}, myReaction: (evReac[e.id] && evReac[e.id].mine) || null, mine: false });
+      for (const p of posts) items.push({ id: 'p' + p.id, kind: 'post', subkind: p.kind, who: p.author || 'Un membre', emoji: p.kind === 'partage' ? '✅' : '💬', text: p.message, when: p.created_at, reactions: (postReac[p.id] && postReac[p.id].counts) || {}, myReaction: (postReac[p.id] && postReac[p.id].mine) || null, mine: !!me && p.email === me });
+      items.sort((a, b) => String(b.when || '').localeCompare(String(a.when || '')));
+      res.json({ ok: true, items: items.slice(0, limit), reactions: FEED_REACTIONS });
+    } catch (e) { console.error('community/feed :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+
+  // Réagir à un élément du fil (événement « e123 » ou publication « p45 »), toggle.
+  app.post('/nutrition/api/community/react', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const db = getDb();
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false, error: 'Connexion requise.' });
+      const id = String((req.body || {}).id || '');
+      const type = String((req.body || {}).type || '');
+      if (!FEED_REACTIONS.includes(type)) return res.status(400).json({ ok: false, error: 'Réaction invalide.' });
+      const m = id.match(/^([ep])(\d+)$/);
+      if (!m) return res.status(400).json({ ok: false, error: 'Élément invalide.' });
+      const num = Number(m[2]);
+      const T = m[1] === 'e'
+        ? { table: 'nutrition_community_event_reactions', col: 'event_id' }
+        : { table: 'nutrition_community_reactions', col: 'message_id' };
+      const ex = db.prepare('SELECT type FROM ' + T.table + ' WHERE ' + T.col + ' = ? AND email = ?').get(num, email);
+      if (ex && ex.type === type) {
+        db.prepare('DELETE FROM ' + T.table + ' WHERE ' + T.col + ' = ? AND email = ?').run(num, email);
+      } else {
+        db.prepare('INSERT INTO ' + T.table + ' (' + T.col + ', email, type, created_at) VALUES (?,?,?,?) ON CONFLICT(' + T.col + ', email) DO UPDATE SET type = excluded.type, created_at = excluded.created_at').run(num, email, type, new Date().toISOString());
+      }
+      const counts = {};
+      db.prepare('SELECT type, COUNT(*) n FROM ' + T.table + ' WHERE ' + T.col + ' = ? GROUP BY type').all(num).forEach((x) => { counts[x.type] = x.n; });
+      const mine = db.prepare('SELECT type FROM ' + T.table + ' WHERE ' + T.col + ' = ? AND email = ?').get(num, email);
+      res.json({ ok: true, id, reactions: counts, myReaction: mine ? mine.type : null });
+    } catch (e) { console.error('community/react :', e); res.status(500).json({ ok: false, error: 'Réaction impossible.' }); }
   });
 
   // ====== Options rapides boutique (alternatives pratiques sur les collations) ======
