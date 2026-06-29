@@ -2628,6 +2628,7 @@ function init() {
   // Gestion des photos de plats (admin/coach) + chargement de l'index (clients voient les photos)
   const _bPlatsPhotos = $('#btnPlatsPhotos'); if (_bPlatsPhotos) _bPlatsPhotos.addEventListener('click', openPlatsPhotos);
   const _bCoachIa = $('#btnCoachIaAdmin'); if (_bCoachIa) _bCoachIa.addEventListener('click', openCoachIaAdmin);
+  const _bCoachFaq = $('#btnCoachFaq'); if (_bCoachFaq) _bCoachFaq.addEventListener('click', openCoachFaq);
   const _bQuickOpt = $('#btnQuickOptions'); if (_bQuickOpt) _bQuickOpt.addEventListener('click', openQuickOptions);
   const _coachPhotos = $('#coachOpenPhotos'); if (_coachPhotos) _coachPhotos.addEventListener('click', openPlatsPhotos);
   const _coachAdh = $('#coachOpenAdh'); if (_coachAdh) _coachAdh.addEventListener('click', openAdhAdmin);
@@ -2638,6 +2639,8 @@ function init() {
   $('#platsPhotosPanel').addEventListener('click', (e) => { if (e.target.id === 'platsPhotosPanel') closePlatsPhotos(); });
   $('#coachIaClose').addEventListener('click', closeCoachIaAdmin);
   $('#coachIaPanel').addEventListener('click', (e) => { if (e.target.id === 'coachIaPanel') closeCoachIaAdmin(); });
+  const _faqClose = $('#coachFaqClose'); if (_faqClose) _faqClose.addEventListener('click', closeCoachFaq);
+  const _faqPanel = $('#coachFaqPanel'); if (_faqPanel) _faqPanel.addEventListener('click', (e) => { if (e.target.id === 'coachFaqPanel') closeCoachFaq(); });
   $('#quickOptClose').addEventListener('click', closeQuickOptions);
   $('#quickOptPanel').addEventListener('click', (e) => { if (e.target.id === 'quickOptPanel') closeQuickOptions(); });
   $('#parcoursPeseeClose').addEventListener('click', closeParcoursPesee);
@@ -2799,12 +2802,14 @@ async function submitHelp() {
 // ---------- Coach IA conversationnel ----------
 const OBJ_LABELS = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
 const ACT_LABELS = { sedentaire: 'sédentaire', leger: 'léger', modere: 'modéré', actif: 'actif', tres_actif: 'très actif' };
+// Suggestions par défaut (alignées sur les réponses préenregistrées) ; remplacées
+// au chargement par les questions réelles renvoyées par le serveur (/coach-faq/suggest).
 const COACH_CHIPS = [
-  'Puis-je manger une pizza ce soir ?',
-  'Que manger après le sport ?',
-  'Comment atteindre mes protéines aujourd\'hui ?',
-  'J\'ai fait un écart, comment je rattrape ?',
-  'Propose-moi une version plus rapide de mon dîner',
+  'J\'ai faim entre les repas, que faire ?',
+  'Quoi manger après le sport ?',
+  'J\'ai fait un écart, c\'est grave ?',
+  'Une envie de sucre, je fais quoi ?',
+  'Je ne sais pas quoi manger',
 ];
 
 // Macros du jour : cible / consomme (repas valides) / restant.
@@ -2908,7 +2913,13 @@ function renderCoach(scroll) {
 }
 function renderCoachChips() {
   const box = $('#coachChips'); if (!box) return;
-  box.innerHTML = COACH_CHIPS.map((q) => `<button type="button" class="coach-chip" data-q="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join('');
+  const paint = (list) => { box.innerHTML = (list && list.length ? list : COACH_CHIPS).map((q) => `<button type="button" class="coach-chip" data-q="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join(''); };
+  paint(COACH_CHIPS); // affichage immédiat
+  // Remplace par les questions réelles du serveur (garanties d'avoir une réponse).
+  fetch(apiUrl('/api/coach-faq/suggest'), { headers: nutriAuthHeaders() })
+    .then((r) => r.json())
+    .then((d) => { if (d && d.ok && Array.isArray(d.questions) && d.questions.length) paint(d.questions); })
+    .catch(() => {});
 }
 function openSos() {
   if (!state.coachMessages) state.coachMessages = [];
@@ -2941,14 +2952,31 @@ async function sendCoach(text) {
   $('#coachChips').innerHTML = ''; // les suggestions disparaissent des qu'on discute
   renderCoach(true); saveLocal();
   try {
-    const res = await fetch(apiUrl('/api/coach'), {
-      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ messages: state.coachMessages.slice(-18), contexte: coachContext() }),
-    });
-    const d = await res.json();
-    if (d && d.ok && d.reponse) state.coachMessages.push({ role: 'assistant', content: d.reponse });
-    else if (d && d.ia === false) state.coachMessages.push({ role: 'assistant', content: "Ton coach IA n'est pas encore activé sur ce compte. En attendant, tu peux prévenir ton coach humain — il pourra ajuster ta semaine.", human: true });
-    else state.coachMessages.push({ role: 'assistant', content: "Je n'ai pas réussi à répondre à l'instant. Réessaie dans un moment 🙏" });
+    // 1) Réponses préenregistrées (GRATUIT) — priorité : instantané, 0 coût.
+    //    human:true -> le client garde le lien « Prévenir mon coach » si ça ne lui convient pas.
+    let answered = false;
+    try {
+      const fr = await fetch(apiUrl('/api/coach-faq/match'), {
+        method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ question: text }),
+      });
+      const fd = await fr.json();
+      if (fd && fd.ok && fd.match && fd.match.reponse) {
+        state.coachMessages.push({ role: 'assistant', content: fd.match.reponse, human: true });
+        answered = true;
+      }
+    } catch (_) { /* FAQ indispo -> on tente l'IA / le coach humain ci-dessous */ }
+    // 2) Sinon : Coach IA si activé (payant), sinon bascule coach humain.
+    if (!answered) {
+      const res = await fetch(apiUrl('/api/coach'), {
+        method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ messages: state.coachMessages.slice(-18), contexte: coachContext() }),
+      });
+      const d = await res.json();
+      if (d && d.ok && d.reponse) state.coachMessages.push({ role: 'assistant', content: d.reponse });
+      else if (d && d.ia === false) state.coachMessages.push({ role: 'assistant', content: "Je n'ai pas de réponse toute prête à cette question précise. Tu peux la reformuler plus simplement, ou prévenir ton coach — il reviendra vers toi pour t'aider.", human: true });
+      else state.coachMessages.push({ role: 'assistant', content: "Je n'ai pas réussi à répondre à l'instant. Réessaie dans un moment 🙏" });
+    }
   } catch (e) {
     state.coachMessages.push({ role: 'assistant', content: 'Connexion difficile pour le moment. Réessaie dans un instant.' });
   }
@@ -4138,6 +4166,71 @@ async function refreshCoachIaBadge() {
     const d = await res.json();
     if (d && d.ok) updateCoachIaBadge(d);
   } catch (_) { /* ignore */ }
+}
+
+// ===== Admin : réponses préenregistrées du coach (FAQ gratuite) =====
+let _coachFaqItems = [];
+function closeCoachFaq() { const p = $('#coachFaqPanel'); if (p) p.classList.add('hidden'); }
+async function openCoachFaq() {
+  const panel = $('#coachFaqPanel'); if (!panel) return;
+  panel.classList.remove('hidden');
+  const body = $('#coachFaqBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const res = await fetch(apiUrl('/api/coach-faq'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    _coachFaqItems = d.items || [];
+    renderCoachFaq();
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+function coachFaqCard(o) {
+  const id = o.id ? String(o.id) : 'new';
+  return '<div class="qopt-card" data-faq="' + id + '">' +
+      '<div class="qopt-card-head"><strong>' + (o.id ? escapeHtml(o.categorie || 'réponse') : 'Nouvelle réponse') + '</strong>' +
+        '<label class="qopt-switch"><input type="checkbox" data-f="actif"' + (o.actif === 0 ? '' : ' checked') + '><span>Active</span></label></div>' +
+      '<label class="qopt-field"><span>Question type</span><input data-f="question" maxlength="160" value="' + escapeHtml(o.question || '') + '" placeholder="Ex : J\'ai faim entre les repas ?"></label>' +
+      '<label class="qopt-field"><span>Mots-clés (séparés par des virgules)</span><input data-f="mots_cles" value="' + escapeHtml(o.mots_cles || '') + '" placeholder="faim, fringale, grignoter"></label>' +
+      '<label class="qopt-field"><span>Réponse</span><textarea data-f="reponse" rows="4" placeholder="La réponse affichée au client…">' + escapeHtml(o.reponse || '') + '</textarea></label>' +
+      '<div class="qopt-card-foot"><label class="qopt-field qopt-inline"><span>Catégorie</span><input data-f="categorie" maxlength="40" value="' + escapeHtml(o.categorie || '') + '" placeholder="faim, sport…"></label>' +
+        '<div class="faq-actions">' +
+          (o.id ? '<button type="button" class="btn btn-ghost faq-del" data-del="' + o.id + '">Supprimer</button>' : '') +
+          '<button type="button" class="btn btn-primary faq-save">' + (o.id ? 'Enregistrer' : 'Ajouter') + '</button>' +
+        '</div></div>' +
+    '</div>';
+}
+function renderCoachFaq() {
+  const body = $('#coachFaqBody'); if (!body) return;
+  body.innerHTML =
+    '<div class="faq-count">' + _coachFaqItems.length + ' réponse(s) — gratuites, modifiables.</div>' +
+    '<div id="faqList">' + _coachFaqItems.map(coachFaqCard).join('') + '</div>' +
+    '<div class="faq-new-wrap"><h3 class="faq-new-title">Ajouter une réponse</h3>' + coachFaqCard({}) + '</div>';
+  body.querySelectorAll('.qopt-card').forEach((card) => {
+    const saveBtn = card.querySelector('.faq-save'); if (saveBtn) saveBtn.addEventListener('click', () => saveCoachFaqItem(card));
+    const delBtn = card.querySelector('.faq-del'); if (delBtn) delBtn.addEventListener('click', () => deleteCoachFaqItem(delBtn.dataset.del));
+  });
+}
+async function saveCoachFaqItem(card) {
+  const val = (k) => { const el = card.querySelector('[data-f="' + k + '"]'); return el ? (el.type === 'checkbox' ? el.checked : el.value) : ''; };
+  const id = card.dataset.faq && card.dataset.faq !== 'new' ? Number(card.dataset.faq) : null;
+  const payload = { id, question: val('question'), reponse: val('reponse'), mots_cles: val('mots_cles'), categorie: val('categorie'), actif: val('actif') ? 1 : 0 };
+  if (!payload.question.trim() || !payload.reponse.trim()) { showToast('Question et réponse obligatoires.'); return; }
+  try {
+    const res = await fetch(apiUrl('/api/coach-faq'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || '');
+    showToast('Réponse enregistrée.', { icon: 'check' });
+    openCoachFaq();
+  } catch (e) { showToast('Échec : ' + (e.message || 'réessaie.')); }
+}
+async function deleteCoachFaqItem(id) {
+  if (!confirm('Supprimer cette réponse ?')) return;
+  try {
+    const res = await fetch(apiUrl('/api/coach-faq/' + encodeURIComponent(id)), { method: 'DELETE', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || '');
+    showToast('Réponse supprimée.', { icon: 'info' });
+    openCoachFaq();
+  } catch (e) { showToast('Échec : ' + (e.message || 'réessaie.')); }
 }
 
 // ===== Admin : gestion des options rapides boutique =====

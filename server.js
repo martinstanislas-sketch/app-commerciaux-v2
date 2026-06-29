@@ -289,7 +289,28 @@ function ensureNutritionHelpTable() {
       auteur_id INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS nutrition_coach_faq (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      question TEXT NOT NULL DEFAULT '',
+      reponse TEXT NOT NULL DEFAULT '',
+      mots_cles TEXT NOT NULL DEFAULT '',
+      categorie TEXT NOT NULL DEFAULT '',
+      ordre INTEGER NOT NULL DEFAULT 0,
+      actif INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
   `);
+  // Coach « réponses préenregistrées » (gratuit) : graine initiale si la table est vide.
+  // Idempotent : on ne ré-injecte jamais par-dessus le contenu édité par l'admin.
+  try {
+    const { COACH_FAQ_SEED } = require('./nutrition-app/lib/coachFaq');
+    const n = getDb().prepare('SELECT COUNT(*) AS n FROM nutrition_coach_faq').get().n;
+    if (!n) {
+      const ins = getDb().prepare("INSERT INTO nutrition_coach_faq (question, reponse, mots_cles, categorie, ordre, actif, updated_at) VALUES (?,?,?,?,?,1,datetime('now','localtime'))");
+      COACH_FAQ_SEED.forEach((e, i) => ins.run(e.q, e.r, e.k, e.c || '', i + 1));
+      console.warn('Coach FAQ : graine initiale insérée (' + COACH_FAQ_SEED.length + ' réponses).');
+    }
+  } catch (e) { console.error('Seed coach FAQ :', e && e.message); }
   // Migration : attribution d'un coach sportif à un client nutrition (socle des espaces par rôle).
   try {
     const ncCols = getDb().prepare('PRAGMA table_info(nutrition_clients)').all();
@@ -1087,6 +1108,61 @@ try {
       nutritionAi.setCoachIaOverride(mode === 'on' ? true : (mode === 'off' ? false : null));
       res.json({ ok: true, ...nutritionAi.coachIaInfos() });
     } catch (e) { console.error('coach-ia-config POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+
+  // ====== Coach « réponses préenregistrées » (GRATUIT, aucun appel IA) ======
+  // match/suggest = PUBLIC (texte générique, aucune donnée perso) -> marche aussi
+  // en démo. Gestion du contenu = admin uniquement. Routes AVANT le portail
+  // d'auth global (app.use('/nutrition/api', requireAuth...)).
+  const coachFaq = require('./nutrition-app/lib/coachFaq');
+  // Le client pose une question -> meilleure réponse préenregistrée (ou rien).
+  app.post('/nutrition/api/coach-faq/match', (req, res) => {
+    try {
+      const question = String((req.body || {}).question || '');
+      if (question.trim().length < 2) return res.json({ ok: true, match: null });
+      const rows = getDb().prepare('SELECT id, question, reponse, mots_cles, actif FROM nutrition_coach_faq WHERE actif = 1').all();
+      const m = coachFaq.matchFaq(question, rows);
+      if (!m) return res.json({ ok: true, match: null });
+      res.json({ ok: true, match: { id: m.row.id, question: m.row.question, reponse: m.row.reponse } });
+    } catch (e) { console.error('coach-faq/match :', e); res.status(500).json({ ok: false, error: 'Recherche impossible.' }); }
+  });
+  // Suggestions affichées en « chips » (questions garanties d'avoir une réponse).
+  app.get('/nutrition/api/coach-faq/suggest', (req, res) => {
+    try {
+      const rows = getDb().prepare('SELECT question FROM nutrition_coach_faq WHERE actif = 1 ORDER BY ordre ASC, id ASC LIMIT 6').all();
+      res.json({ ok: true, questions: rows.map((r) => r.question) });
+    } catch (e) { res.json({ ok: true, questions: [] }); }
+  });
+  // ADMIN : liste complète (gestion).
+  app.get('/nutrition/api/coach-faq', requireAuth, requireAdmin, (req, res) => {
+    try { res.json({ ok: true, items: getDb().prepare('SELECT id, question, reponse, mots_cles, categorie, ordre, actif FROM nutrition_coach_faq ORDER BY ordre ASC, id ASC').all() }); }
+    catch (e) { console.error('coach-faq GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  // ADMIN : créer (sans id) ou mettre à jour (avec id) une réponse.
+  app.post('/nutrition/api/coach-faq', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const question = String(b.question || '').trim();
+      const reponse = String(b.reponse || '').trim();
+      if (!question || !reponse) return res.status(400).json({ ok: false, error: 'Question et réponse requises.' });
+      const mots = String(b.mots_cles || '').trim();
+      const cat = String(b.categorie || '').trim().slice(0, 40);
+      const ordre = Number.isFinite(Number(b.ordre)) ? Number(b.ordre) : 0;
+      const actif = (b.actif === 0 || b.actif === false || b.actif === '0') ? 0 : 1;
+      if (b.id) {
+        getDb().prepare("UPDATE nutrition_coach_faq SET question=?, reponse=?, mots_cles=?, categorie=?, ordre=?, actif=?, updated_at=datetime('now','localtime') WHERE id=?")
+          .run(question, reponse, mots, cat, ordre, actif, Number(b.id));
+      } else {
+        getDb().prepare("INSERT INTO nutrition_coach_faq (question, reponse, mots_cles, categorie, ordre, actif, updated_at) VALUES (?,?,?,?,?,?,datetime('now','localtime'))")
+          .run(question, reponse, mots, cat, ordre, actif);
+      }
+      res.json({ ok: true });
+    } catch (e) { console.error('coach-faq POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+  // ADMIN : supprimer une réponse.
+  app.delete('/nutrition/api/coach-faq/:id', requireAuth, requireAdmin, (req, res) => {
+    try { getDb().prepare('DELETE FROM nutrition_coach_faq WHERE id = ?').run(Number(req.params.id)); res.json({ ok: true }); }
+    catch (e) { console.error('coach-faq DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
   });
 
   // ====== Photos de plats (admin/coach ajoutent ; clients voient) ======

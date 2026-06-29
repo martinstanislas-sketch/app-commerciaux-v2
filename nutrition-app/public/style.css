@@ -1421,6 +1421,20 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .qopt-save { padding: 8px 16px; font-size: 13px; }
 .qopt-msg { font-size: 12px; color: var(--muted); }
 
+/* --- Admin : réponses du coach (FAQ gratuite) --- */
+.qopt-card { background: var(--card); border: 1px solid var(--gray-200); border-radius: var(--r); padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow-xs); }
+.qopt-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.qopt-card-head strong { font-size: 13px; font-weight: 800; color: var(--ink); text-transform: capitalize; }
+.qopt-field textarea { width: 100%; box-sizing: border-box; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--gray-200); background: var(--mc-cream); color: var(--ink); font: inherit; font-size: 13.5px; line-height: 1.5; resize: vertical; }
+.qopt-field textarea:focus { border-color: var(--mc-blue); outline: none; }
+.qopt-card-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+.qopt-inline { margin-bottom: 0; flex: 1; min-width: 130px; }
+.faq-actions { display: inline-flex; align-items: center; gap: 8px; }
+.faq-actions .btn { padding: 8px 15px; font-size: 13px; }
+.faq-count { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+.faq-new-wrap { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--gray-300); }
+.faq-new-title { font-size: 14px; font-weight: 800; color: var(--ink); margin: 0 0 10px; }
+
 /* --- Fiche client (coach) --- */
 .fiche-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
 .fiche-avatar { width: 52px; height: 52px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: #fff; background: var(--grad-blue); box-shadow: var(--shadow-green); flex-shrink: 0; }
