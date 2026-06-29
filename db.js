@@ -823,9 +823,9 @@ function seed() {
     updatePin.run(pin, rep.name);
   }
 
-  // Refresh list to show current PINs
+  // On NE logue PAS les codes PIN (les logs sont conservés/visibles côté hébergeur).
   const finalReps = db.prepare('SELECT name, pin, role, default_hours FROM sales_reps WHERE archived = 0 ORDER BY id').all();
-  console.log(`[SEED] ${finalReps.length} utilisateurs — codes: ${finalReps.map(r => r.name + ':' + r.pin + ' (' + r.role + ', ' + r.default_hours + 'h)').join(', ')}`);
+  console.log(`[SEED] ${finalReps.length} utilisateurs — ${finalReps.map(r => r.name + ' (' + r.role + ', ' + r.default_hours + 'h)').join(', ')}`);
 }
 
 /**

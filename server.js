@@ -866,8 +866,9 @@ try {
   app.get('/nutrition/api/parcours/photo/:id', requireAuth, (req, res) => {
     try {
       const row = getDb().prepare('SELECT client_email, data, mime FROM nutrition_parcours_photos WHERE id = ?').get(Number(req.params.id));
-      if (!row) return res.status(404).end();
-      if (!accesParcours(req, row.client_email).ok) return res.status(403).end();
+      // 404 si introuvable OU si pas le droit : on ne révèle jamais l'existence d'une photo
+      // d'un autre client (pas d'oracle d'énumération par id).
+      if (!row || !accesParcours(req, row.client_email).ok) return res.status(404).end();
       const m = /^data:[^;]+;base64,(.+)$/.exec(row.data || '');
       if (!m) return res.status(404).end();
       res.setHeader('Content-Type', row.mime || 'image/jpeg');
@@ -880,8 +881,8 @@ try {
   app.delete('/nutrition/api/parcours/photo/:id', requireAuth, (req, res) => {
     try {
       const row = getDb().prepare('SELECT client_email FROM nutrition_parcours_photos WHERE id = ?').get(Number(req.params.id));
-      if (!row) return res.status(404).json({ ok: false, error: 'Photo introuvable.' });
-      if (!accesParcours(req, row.client_email).ok) return res.status(403).json({ ok: false, error: 'Accès refusé.' });
+      // 404 pour introuvable ET pour non-autorisé (pas d'oracle d'existence).
+      if (!row || !accesParcours(req, row.client_email).ok) return res.status(404).json({ ok: false, error: 'Photo introuvable.' });
       getDb().prepare('DELETE FROM nutrition_parcours_photos WHERE id = ?').run(Number(req.params.id));
       res.json({ ok: true, parcours: buildParcours(row.client_email) });
     } catch (e) { console.error('parcours photo DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
