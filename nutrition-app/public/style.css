@@ -5,6 +5,9 @@
    ============================================================ */
 
 :root {
+  /* La page est CLAIRE uniquement -> empêche le navigateur (Chrome/Samsung "auto dark
+     mode") d'assombrir algorithmiquement la page sur mobile. */
+  color-scheme: only light;
   /* ============================================================
      THEME "CLAIR PREMIUM CHALEUREUX" — source de vérité.
      Base claire/sable, BLEU en accent only, vert SAUGE = validé,
