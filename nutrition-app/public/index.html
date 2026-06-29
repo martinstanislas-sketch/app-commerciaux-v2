@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link rel="stylesheet" href="style.css?v=8" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -641,7 +641,7 @@
         <button type="button" class="profil-row" data-go="btnAgenda"><svg class="ic pr-muted"><use href="#ic-calendar"/></svg>Agenda<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnAnalyse"><svg class="ic pr-muted"><use href="#ic-chart"/></svg>Analyse des écarts<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-client hidden" id="btnChangePin"><svg class="ic pr-muted"><use href="#ic-shield"/></svg>Changer mon code PIN<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row profil-logout profil-client hidden" id="btnLogout"><svg class="ic"><use href="#ic-logout"/></svg>Se déconnecter</button>
+        <button type="button" class="profil-row profil-logout hidden" id="btnLogout"><svg class="ic"><use href="#ic-logout"/></svg>Se déconnecter</button>
 
         <div class="profil-sec profil-coach hidden">ESPACE COACH</div>
         <button type="button" class="profil-row profil-coach hidden" id="btnMessagesCoach"><svg class="ic pr-lime"><use href="#ic-send"/></svg>Mes messages<span class="pr-badge conv-unread" id="messagesCoachBadge" style="display:none"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -1213,6 +1213,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

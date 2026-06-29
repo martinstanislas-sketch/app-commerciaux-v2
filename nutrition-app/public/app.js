@@ -4380,9 +4380,14 @@ function setTab(tab) {
 }
 // Affiche l'« Espace coach » de l'ecran Profil uniquement pour coach/admin.
 function setupProfilCoach() {
-  // Lignes réservées aux vrais comptes clients (PIN/déconnexion) : pas en démo/coach/admin.
+  // Lignes réservées aux vrais comptes clients (changer le PIN) : pas en démo/coach/admin.
   if (window.__NUTRI_USER && window.__NUTRI_USER.email) {
     $$('#view-profil .profil-client').forEach((el) => el.classList.remove('hidden'));
+  }
+  // « Se déconnecter » est universel : visible dès qu'il y a une session (client OU
+  // coach/admin de l'app principale). logoutClient() route ensuite selon le type.
+  if ((window.__NUTRI_USER && window.__NUTRI_USER.email) || isCoachOrAdmin()) {
+    const lo = $('#btnLogout'); if (lo) lo.classList.remove('hidden');
   }
   if (!isCoachOrAdmin()) return;
   $$('#view-profil .profil-coach').forEach((el) => el.classList.remove('hidden'));
@@ -4411,14 +4416,30 @@ async function saveChangePin() {
   } catch (_) { if (m) m.textContent = 'Connexion requise.'; }
 }
 async function logoutClient() {
-  if (!confirm('Te déconnecter de ton espace ?')) return;
-  try { await fetch(apiUrl('/account/logout'), { method: 'POST', headers: nutriAuthHeaders() }); } catch (_) { /* on déconnecte quand même côté client */ }
+  const isClient = !!(window.__NUTRI_USER && window.__NUTRI_USER.email);
+  if (!confirm(isClient ? 'Te déconnecter de ton espace ?' : "Te déconnecter de l'application ?")) return;
+  if (isClient) {
+    // Compte client (PIN) : invalide le token client + purge l'état local.
+    try { await fetch(apiUrl('/account/logout'), { method: 'POST', headers: nutriAuthHeaders() }); } catch (_) { /* on déconnecte quand même côté client */ }
+    try {
+      const email = window.__NUTRI_USER.email || '';
+      localStorage.removeItem('mc-nutri-account');
+      if (email) localStorage.removeItem('mc-nutri-state-' + email);
+    } catch (_) { /* ignore */ }
+    location.reload();
+    return;
+  }
+  // Admin / coach : session de l'APP PRINCIPALE (token Bearer). On l'invalide côté
+  // serveur, on purge les clés (y compris coaching), puis retour à l'écran de connexion.
   try {
-    const email = (window.__NUTRI_USER && window.__NUTRI_USER.email) || '';
-    localStorage.removeItem('mc-nutri-account');
-    if (email) localStorage.removeItem('mc-nutri-state-' + email);
+    const t = localStorage.getItem('authToken');
+    await fetch('/api/auth/logout', { method: 'POST', headers: t ? { 'Authorization': 'Bearer ' + t } : {} });
+  } catch (_) { /* on déconnecte quand même côté client */ }
+  try {
+    localStorage.removeItem('authToken'); localStorage.removeItem('currentUser');
+    localStorage.removeItem('authToken_coach'); localStorage.removeItem('currentUser_coach');
   } catch (_) { /* ignore */ }
-  location.reload();
+  window.location.href = '/';
 }
 
 // --- Vue coach : liste des demandes ---
