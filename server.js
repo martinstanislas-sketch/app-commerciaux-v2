@@ -1268,18 +1268,26 @@ try {
       const today = new Date().toISOString().slice(0, 10);
       const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
       const rows = db.prepare('SELECT * FROM nutrition_adherence WHERE date >= ?' + sc.and + ' ORDER BY date DESC').all(since, ...sc.params);
-      const helps = db.prepare("SELECT client_name, created_at, difficultes, statut FROM nutrition_help_requests WHERE created_at >= ?" + sc.and).all(since + 'T00:00:00.000Z', ...sc.params);
+      const helps = db.prepare("SELECT client_name, client_email, created_at, difficultes, statut FROM nutrition_help_requests WHERE created_at >= ?" + sc.and).all(since + 'T00:00:00.000Z', ...sc.params);
+      // Identité stable : email si présent (sinon nom legacy). Le nom affiché est résolu
+      // depuis nutrition_clients quand l'email est connu -> deux clients de même nom ne
+      // fusionnent plus, et adhérence + aide se joignent par la même clé.
+      const nomParEmail = {};
+      try { db.prepare("SELECT email, prenom, nom FROM nutrition_clients").all().forEach((c) => { nomParEmail[c.email] = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email; }); } catch (_) { /* table absente */ }
+      const cleId = (r) => (r.client_email ? 'e:' + r.client_email : 'n:' + r.client_name);
+      const nomAff = (r) => (r.client_email && nomParEmail[r.client_email]) || r.client_name || r.client_email || 'Client';
       const byClient = {};
       rows.forEach((r) => {
-        const c = byClient[r.client_name] || (byClient[r.client_name] = { clientName: r.client_name, suivi: 0, adapte: 0, autre: 0, saute: 0, days: 0, scoreSum: 0, lastDate: '' });
+        const k = cleId(r);
+        const c = byClient[k] || (byClient[k] = { key: k, clientName: nomAff(r), suivi: 0, adapte: 0, autre: 0, saute: 0, days: 0, scoreSum: 0, lastDate: '' });
         c.suivi += r.suivi; c.adapte += r.adapte; c.autre += r.autre; c.saute += r.saute; c.days += 1; c.scoreSum += r.score;
         if (r.date > c.lastDate) c.lastDate = r.date;
       });
       const helpByClient = {};
-      helps.forEach((h) => { (helpByClient[h.client_name] || (helpByClient[h.client_name] = [])).push(h); });
+      helps.forEach((h) => { (helpByClient[cleId(h)] || (helpByClient[cleId(h)] = [])).push(h); });
       const parseDiff = (h) => { try { return JSON.parse(h.difficultes); } catch (_) { return []; } };
       const build = (c) => {
-        const help = helpByClient[c.clientName] || [];
+        const help = helpByClient[c.key] || [];
         const aTraiter = help.some((h) => h.statut === 'a_traiter');
         const score = c.days ? Math.round(c.scoreSum / c.days) : 0;
         const daysSince = c.lastDate ? Math.round((Date.parse(today) - Date.parse(c.lastDate)) / 864e5) : 99;
@@ -1294,8 +1302,9 @@ try {
         return { clientName: c.clientName, suivi: c.suivi, adapte: c.adapte, autre: c.autre, saute: c.saute, days: c.days, score, lastDate: c.lastDate, alerts, statut, lastHelp };
       };
       const clients = Object.values(byClient).map(build);
-      Object.keys(helpByClient).forEach((name) => {
-        if (!byClient[name]) clients.push(build({ clientName: name, suivi: 0, adapte: 0, autre: 0, saute: 0, days: 0, scoreSum: 0, lastDate: '' }));
+      // Clients ayant une demande d'aide mais aucune adhérence cette semaine.
+      Object.keys(helpByClient).forEach((k) => {
+        if (!byClient[k]) clients.push(build({ key: k, clientName: nomAff(helpByClient[k][0]), suivi: 0, adapte: 0, autre: 0, saute: 0, days: 0, scoreSum: 0, lastDate: '' }));
       });
       const rank = { besoin_aide: 0, a_surveiller: 1, ok: 2 };
       clients.sort((a, b) => (rank[a.statut] - rank[b.statut]) || (a.score - b.score));
