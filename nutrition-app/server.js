@@ -27,7 +27,14 @@ const { genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteI
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// HTML toujours revalidé (pour voir la dernière version des assets versionnés ?v=) ;
+// les assets (css/js/img) peuvent être cachés — leur URL change via ?v= à chaque MAJ.
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+    else res.setHeader('Cache-Control', 'public, max-age=86400');
+  },
+}));
 
 const PORT = process.env.PORT || 3000;
 
