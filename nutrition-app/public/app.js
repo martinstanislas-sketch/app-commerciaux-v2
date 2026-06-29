@@ -3315,13 +3315,86 @@ function feedAvatar(item) {
   const ch = ((item.who || '?').trim().charAt(0) || '?').toUpperCase();
   return '<div class="feed-av" style="background:' + avatarColor(item.who) + '">' + escapeHtml(ch) + '</div>';
 }
+// État transient du fil (NON persisté) : commentaires ouverts + cache par élément.
+let _feedOpenComments = new Set();
+let _feedComments = {};
+function feedReactBtn(id, r, n, on) {
+  return '<button type="button" class="feed-react' + (on ? ' on' : '') + '" data-fid="' + escapeHtml(id) + '" data-ftype="' + r.type + '" title="' + r.label + '" aria-label="' + r.label + '">' +
+    '<span class="feed-react-emo">' + r.emo + '</span>' + (n ? '<span class="feed-react-n">' + n + '</span>' : '') + '</button>';
+}
+// Seul le ❤️ (like) est visible au premier plan ; les autres emojis se choisissent
+// via la palette « + ». Les réactions déjà posées restent visibles (preuve sociale).
 function feedReactBar(item) {
-  const counts = item.reactions || {}; const mine = item.myReaction || null;
-  return '<div class="feed-reacts">' + FEED_REACTIONS.map((r) => {
-    const n = counts[r.type] || 0; const on = mine === r.type ? ' on' : '';
-    return '<button type="button" class="feed-react' + on + '" data-fid="' + escapeHtml(item.id) + '" data-ftype="' + r.type + '" title="' + r.label + '" aria-label="' + r.label + '">' +
-      '<span class="feed-react-emo">' + r.emo + '</span>' + (n ? '<span class="feed-react-n">' + n + '</span>' : '') + '</button>';
-  }).join('') + '</div>';
+  const counts = item.reactions || {}; const mine = item.myReaction || null; const id = item.id;
+  let html = '<div class="feed-reacts">';
+  html += feedReactBtn(id, FEED_REACTIONS[0], counts.love || 0, mine === 'love'); // ❤️ like
+  FEED_REACTIONS.slice(1).forEach((r) => { if ((counts[r.type] || 0) > 0 || mine === r.type) html += feedReactBtn(id, r, counts[r.type] || 0, mine === r.type); });
+  html += '<button type="button" class="feed-more-btn" data-more="' + escapeHtml(id) + '" aria-label="Plus de réactions">' + icSvg('plus') + '</button>';
+  html += '<div class="feed-palette hidden" data-palette="' + escapeHtml(id) + '">' +
+    FEED_REACTIONS.map((r) => '<button type="button" class="feed-pal-btn' + (mine === r.type ? ' on' : '') + '" data-fid="' + escapeHtml(id) + '" data-ftype="' + r.type + '" title="' + r.label + '">' + r.emo + '</button>').join('') + '</div>';
+  return html + '</div>';
+}
+function togglePalette(id) {
+  document.querySelectorAll('.feed-palette').forEach((p) => { if (p.dataset.palette === id) p.classList.toggle('hidden'); else p.classList.add('hidden'); });
+}
+// ----- Commentaires d'un élément du fil -----
+function feedCommentBar(item) {
+  const n = item.comments || 0;
+  return '<button type="button" class="feed-cbtn" data-ctoggle="' + escapeHtml(item.id) + '">' + icSvg('message') +
+    '<span>' + (n > 0 ? (n + (n > 1 ? ' commentaires' : ' commentaire')) : 'Commenter') + '</span></button>';
+}
+function feedCommentRow(c) {
+  const ch = ((c.who || '?').trim().charAt(0) || '?').toUpperCase();
+  return '<div class="feed-c-row"><div class="feed-c-av" style="background:' + avatarColor(c.who) + '">' + escapeHtml(ch) + '</div>' +
+    '<div class="feed-c-bub"><span class="feed-c-head"><b>' + escapeHtml(c.who || 'Un membre') + '</b><span class="feed-c-when">' + escapeHtml(commTimeAgo(c.when)) + '</span></span>' +
+    '<p>' + escapeHtml(c.text || '') + '</p></div></div>';
+}
+function feedCommentThread(item) {
+  const list = (_feedComments && _feedComments[item.id]) || null;
+  const body = list == null ? '<p class="feed-c-empty">Chargement…</p>'
+    : (list.length ? list.map(feedCommentRow).join('') : '<p class="feed-c-empty">Sois le premier à commenter 💬</p>');
+  return '<div class="feed-comments">' + body +
+    '<form class="feed-c-form" data-cform="' + escapeHtml(item.id) + '"><input type="text" class="feed-c-input" maxlength="500" placeholder="Écrire un commentaire…" autocomplete="off"><button type="submit" class="feed-c-send" aria-label="Envoyer">' + icSvg('send') + '</button></form>' +
+    '</div>';
+}
+function toggleComments(id) {
+  if (!_feedOpenComments) _feedOpenComments = new Set();
+  if (!_feedComments) _feedComments = {};
+  if (_feedOpenComments.has(id)) { _feedOpenComments.delete(id); renderCommunauteFeed(); return; }
+  _feedOpenComments.add(id);
+  if (_feedComments[id] == null) {
+    if (isDemo() || String(id).indexOf('demo') === 0) { _feedComments[id] = []; renderCommunauteFeed(); }
+    else fetchComments(id); // affiche « Chargement… » puis remplit
+  }
+  renderCommunauteFeed();
+}
+async function fetchComments(id) {
+  try {
+    const res = await fetch(apiUrl('/api/community/comments?item=' + encodeURIComponent(id)), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!_feedComments) _feedComments = {};
+    _feedComments[id] = (d && d.ok) ? (d.comments || []) : [];
+  } catch (_) { if (!_feedComments) _feedComments = {}; _feedComments[id] = _feedComments[id] || []; }
+  renderCommunauteFeed();
+}
+async function postComment(id, text) {
+  text = String(text || '').trim(); if (!text) return;
+  if (!_feedComments) _feedComments = {};
+  const it = (state.communauteFeed || []).find((x) => x.id === id) || (typeof FEED_DEMO !== 'undefined' && FEED_DEMO.find((x) => x.id === id));
+  if (isDemo() || String(id).indexOf('demo') === 0) {
+    _feedComments[id] = (_feedComments[id] || []).concat([{ id: 'l' + (_feedComments[id] || []).length, who: 'Moi', text: text, when: new Date().toISOString(), mine: true }]);
+    if (it) it.comments = (it.comments || 0) + 1;
+    renderCommunauteFeed(); return;
+  }
+  try {
+    const res = await fetch(apiUrl('/api/community/comments'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ item: id, text: text }) });
+    const d = await res.json();
+    if (d && d.ok && d.comment) {
+      _feedComments[id] = (_feedComments[id] || []).concat([d.comment]);
+      if (it) it.comments = (it.comments || 0) + 1;
+      renderCommunauteFeed();
+    } else { showToast((d && d.error) || 'Commentaire impossible.', { icon: 'info' }); }
+  } catch (_) { showToast('Connexion requise pour commenter.', { icon: 'info' }); }
 }
 function feedCard(item) {
   // Texte épuré : on évite de répéter le prénom déjà affiché en gras (« Paul » + « Paul a validé… »).
@@ -3338,7 +3411,8 @@ function feedCard(item) {
       '<div class="feed-meta"><b class="feed-who">' + escapeHtml(who) + '</b>' +
         '<span class="feed-when">' + escapeHtml(commTimeAgo(item.when)) + '</span></div>' +
       '<p class="feed-text">' + escapeHtml(txt) + '</p>' +
-      feedReactBar(item) +
+      '<div class="feed-actions">' + feedReactBar(item) + feedCommentBar(item) + '</div>' +
+      ((_feedOpenComments && _feedOpenComments.has(item.id)) ? feedCommentThread(item) : '') +
     '</div></article>';
 }
 function renderCommunauteFeed() {
@@ -3352,7 +3426,10 @@ function renderCommunauteFeed() {
     return;
   }
   list.innerHTML = items.map(feedCard).join('');
-  list.querySelectorAll('.feed-react').forEach((b) => b.addEventListener('click', () => reactFeed(b.dataset.fid, b.dataset.ftype)));
+  list.querySelectorAll('.feed-react, .feed-pal-btn').forEach((b) => b.addEventListener('click', () => reactFeed(b.dataset.fid, b.dataset.ftype)));
+  list.querySelectorAll('.feed-more-btn').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); togglePalette(b.dataset.more); }));
+  list.querySelectorAll('.feed-cbtn').forEach((b) => b.addEventListener('click', () => toggleComments(b.dataset.ctoggle)));
+  list.querySelectorAll('.feed-c-form').forEach((f) => f.addEventListener('submit', (e) => { e.preventDefault(); const inp = f.querySelector('.feed-c-input'); const v = inp ? inp.value : ''; if (!v.trim()) return; postComment(f.dataset.cform, v); }));
 }
 async function fetchCommunauteFeed() {
   try {
@@ -3425,16 +3502,16 @@ function renderCommunaute() {
           '</div>' +
         '</div>' +
       '</header>' +
-      // 2. Fil d'activité (élément central)
-      '<div class="feed-section-head"><h3>Le fil de l’équipe</h3></div>' +
-      '<div id="feedList" class="feed-list"><p class="comm-empty">Chargement du fil…</p></div>' +
-      // 4. Zone de publication personnelle (discrète)
+      // Zone de publication personnelle — ENTRE la progression du groupe et le fil.
       '<form id="commForm" class="feed-compose">' +
         '<textarea id="commInput" rows="1" maxlength="500" placeholder="Partager une réussite, une difficulté ou une victoire…" autocomplete="off"></textarea>' +
         '<button type="submit" class="comm-send" aria-label="Partager">' + icSvg('send') + '</button>' +
       '</form>' +
       '<button type="button" class="feed-help-link" id="commHelp">' + icSvg('heart-hand') + ' Besoin d’aide ?</button>' +
       '<div id="commHelpBox" class="comm2-helpbox hidden">' + commHelpBoxHtml() + '</div>' +
+      // Fil d'activité (élément central)
+      '<div class="feed-section-head"><h3>Le fil de l’équipe</h3></div>' +
+      '<div id="feedList" class="feed-list"><p class="comm-empty">Chargement du fil…</p></div>' +
       // 3. Conseil du coach (compact)
       '<div class="feed-coach"><span class="feed-coach-ic">💡</span><div class="feed-coach-body"><b>Conseil du coach</b><p id="commCoachTip">' +
         escapeHtml((ov && ov.coachAuto && ov.coachAuto[0]) || 'Ta collation protéinée de l’après-midi aide à éviter les fringales du soir.') + '</p></div></div>' +

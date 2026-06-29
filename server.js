@@ -317,6 +317,15 @@ function ensureNutritionHelpTable() {
       created_at TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (event_id, email)
     );
+    CREATE TABLE IF NOT EXISTS nutrition_community_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      author TEXT NOT NULL DEFAULT '',
+      text TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_comm_comments_item ON nutrition_community_comments(item_id);
   `);
   // Coach « réponses préenregistrées » (gratuit) : graine VERSIONNÉE.
   // - table vide      -> on insère tout (1re installation).
@@ -819,7 +828,18 @@ try {
       for (const e of evs) items.push({ id: 'e' + e.id, kind: 'event', subkind: e.type, who: e.actor_name || 'Le groupe', emoji: e.emoji || '', text: e.text, when: e.created_at, reactions: (evReac[e.id] && evReac[e.id].counts) || {}, myReaction: (evReac[e.id] && evReac[e.id].mine) || null, mine: false });
       for (const p of posts) items.push({ id: 'p' + p.id, kind: 'post', subkind: p.kind, who: p.author || 'Un membre', emoji: p.kind === 'partage' ? '✅' : '💬', text: p.message, when: p.created_at, reactions: (postReac[p.id] && postReac[p.id].counts) || {}, myReaction: (postReac[p.id] && postReac[p.id].mine) || null, mine: !!me && p.email === me });
       items.sort((a, b) => String(b.when || '').localeCompare(String(a.when || '')));
-      res.json({ ok: true, items: items.slice(0, limit), reactions: FEED_REACTIONS });
+      const out = items.slice(0, limit);
+      // Nombre de commentaires par élément (badge sur la carte).
+      try {
+        const ids = out.map((i) => i.id);
+        if (ids.length) {
+          const ph = ids.map(() => '?').join(',');
+          const cc = {};
+          db.prepare('SELECT item_id, COUNT(*) n FROM nutrition_community_comments WHERE item_id IN (' + ph + ') GROUP BY item_id').all(...ids).forEach((x) => { cc[x.item_id] = x.n; });
+          out.forEach((i) => { i.comments = cc[i.id] || 0; });
+        }
+      } catch (_) { out.forEach((i) => { i.comments = 0; }); }
+      res.json({ ok: true, items: out, reactions: FEED_REACTIONS });
     } catch (e) { console.error('community/feed :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
   });
 
@@ -849,6 +869,35 @@ try {
       const mine = db.prepare('SELECT type FROM ' + T.table + ' WHERE ' + T.col + ' = ? AND email = ?').get(num, email);
       res.json({ ok: true, id, reactions: counts, myReaction: mine ? mine.type : null });
     } catch (e) { console.error('community/react :', e); res.status(500).json({ ok: false, error: 'Réaction impossible.' }); }
+  });
+
+  // Commentaires d'un élément du fil (événement ou publication). id = « e123 » / « p45 ».
+  app.get('/nutrition/api/community/comments', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const me = (req.session && req.session.email) || '';
+      const item = String((req.query || {}).item || '');
+      if (!/^[ep]\d+$/.test(item)) return res.status(400).json({ ok: false, error: 'Élément invalide.' });
+      const rows = getDb().prepare('SELECT id, email, author, text, created_at FROM nutrition_community_comments WHERE item_id = ? ORDER BY id ASC LIMIT 200').all(item);
+      const comments = rows.map((r) => ({ id: r.id, who: r.author || 'Un membre', text: r.text, when: r.created_at, mine: !!me && r.email === me }));
+      res.json({ ok: true, item, comments });
+    } catch (e) { console.error('community/comments GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  app.post('/nutrition/api/community/comments', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const b = req.body || {};
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false, error: 'Connexion requise.' });
+      const item = String(b.item || '');
+      if (!/^[ep]\d+$/.test(item)) return res.status(400).json({ ok: false, error: 'Élément invalide.' });
+      const role = (req.session && req.session.role) || '';
+      const isCoach = ['admin', 'coach', 'coach-leader'].includes(role);
+      const author = isCoach ? 'Coach' : String((req.session && req.session.name) || 'Un membre').slice(0, 80);
+      const text = String(b.text || '').slice(0, 500).trim();
+      if (!text) return res.status(400).json({ ok: false, error: 'Commentaire vide.' });
+      const now = new Date().toISOString();
+      const info = getDb().prepare('INSERT INTO nutrition_community_comments (item_id, email, author, text, created_at) VALUES (?,?,?,?,?)').run(item, email, author, text, now);
+      res.json({ ok: true, comment: { id: info.lastInsertRowid, who: author, text, when: now, mine: true } });
+    } catch (e) { console.error('community/comments POST :', e); res.status(500).json({ ok: false, error: 'Publication impossible.' }); }
   });
 
   // ====== Options rapides boutique (alternatives pratiques sur les collations) ======
