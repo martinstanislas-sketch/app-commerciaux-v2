@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=4" />
+  <link rel="stylesheet" href="style.css?v=5" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -60,6 +60,7 @@
             acc.prenom = d.prenom || acc.prenom; acc.nom = d.nom || acc.nom;
             window.__NUTRI_USER = acc;
             try { localStorage.setItem('mc-nutri-account', JSON.stringify(acc)); } catch (e) {}
+            try { localStorage.setItem('mc-nutri-id', JSON.stringify({ email: acc.email, prenom: acc.prenom, nom: acc.nom })); } catch (e) {}
             try { if (d.data) localStorage.setItem('mc-nutri-state-' + acc.email, JSON.stringify(d.data)); } catch (e) {}
           }
         }).catch(function (e) {
@@ -72,54 +73,80 @@
     }
 
     window.__NUTRI_BLOCKED = true;
+    // Identité mémorisée sur CET appareil (après la 1re connexion) -> connexion
+    // simplifiée : on n'affiche que le PIN, l'email/nom sont déjà connus.
+    var idr = null; try { idr = JSON.parse(localStorage.getItem('mc-nutri-id') || 'null'); } catch (e) {}
+    function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&amp;'; }); }
     document.addEventListener('DOMContentLoaded', function () {
       var IN = 'width:100%;padding:13px 16px;border:1px solid #ECEAE4;border-radius:14px;font-size:15px;color:#1F2430;background:#FBFAF7;font-family:inherit;box-sizing:border-box;';
-      document.body.innerHTML =
+      var BTN = 'width:100%;margin-top:14px;padding:14px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#fff;font-size:15px;font-weight:700;font-family:inherit;';
+      var simple = !!(idr && idr.email && idr.prenom);
+      var head =
         '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;'
         + 'font-family:Inter,system-ui,sans-serif;background:#F6F5F2;color:#1F2430;padding:24px;">'
         + '<div style="max-width:400px;width:100%;text-align:center;">'
         + '<div style="width:64px;height:64px;margin:0 auto 16px;border-radius:18px;background:#2563EB;'
         + 'display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(37,99,235,.28);">'
         + '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-        + '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></div>'
-        + '<h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">My Coach Nutrition</h1>'
-        + '<p style="margin:0 0 20px;color:#6B6B63;font-size:14.5px;line-height:1.5;">Crée ton espace pour recevoir ton plan personnalisé. Un code PIN protège tes données (suivi, photos).</p>'
-        + '<input id="rPrenom" type="text" autocomplete="given-name" placeholder="Prénom" style="' + IN + '" />'
-        + '<input id="rNom" type="text" autocomplete="family-name" placeholder="Nom" style="' + IN + 'margin-top:10px;" />'
-        + '<input id="rEmail" type="email" autocomplete="email" inputmode="email" placeholder="Email" style="' + IN + 'margin-top:10px;" />'
-        + '<input id="rPin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="Code PIN (4 à 6 chiffres)" style="' + IN + 'margin-top:10px;letter-spacing:4px;text-align:center;" />'
-        + '<p style="margin:7px 0 0;color:#9A9890;font-size:11.5px;line-height:1.4;">1re connexion : choisis ton code. Ensuite, il te sera demandé à chaque connexion.</p>'
-        + '<button id="rGo" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:14px;cursor:pointer;'
-        + 'background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#fff;font-size:15px;font-weight:700;font-family:inherit;">'
-        + 'Accéder à mon espace</button>'
-        + '<p id="rErr" style="margin:10px 0 0;color:#DC4C44;font-size:13px;min-height:16px;"></p>'
-        + '<p style="margin:16px 0 0;color:#9A9890;font-size:12px;line-height:1.5;">Tes données sont privées et visibles uniquement par toi et ton coach.</p>'
-        + '</div></div>';
-      var pr = document.getElementById('rPrenom'), no = document.getElementById('rNom'), em = document.getElementById('rEmail'), pn = document.getElementById('rPin');
-      var btn = document.getElementById('rGo'), err = document.getElementById('rErr');
+        + '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></div>';
+      var body;
+      if (simple) {
+        body = head
+          + '<h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Bon retour, ' + esc(idr.prenom) + ' 👋</h1>'
+          + '<p style="margin:0 0 20px;color:#6B6B63;font-size:14.5px;line-height:1.5;">Entre ton code PIN pour accéder à ton espace.</p>'
+          + '<input id="rPin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="Code PIN" style="' + IN + 'letter-spacing:6px;text-align:center;font-size:20px;" />'
+          + '<button id="rGo" style="' + BTN + '">Se connecter</button>'
+          + '<p id="rErr" style="margin:10px 0 0;color:#DC4C44;font-size:13px;min-height:16px;"></p>'
+          + '<button id="rOther" style="margin:14px 0 0;background:none;border:none;color:#6B6B63;font-size:13px;font-family:inherit;cursor:pointer;text-decoration:underline;">Ce n’est pas moi / changer de compte</button>'
+          + '</div></div>';
+      } else {
+        body = head
+          + '<h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">My Coach Nutrition</h1>'
+          + '<p style="margin:0 0 20px;color:#6B6B63;font-size:14.5px;line-height:1.5;">Crée ton espace pour recevoir ton plan personnalisé. Un code PIN protège tes données (suivi, photos).</p>'
+          + '<input id="rPrenom" type="text" autocomplete="given-name" placeholder="Prénom" style="' + IN + '" />'
+          + '<input id="rNom" type="text" autocomplete="family-name" placeholder="Nom" style="' + IN + 'margin-top:10px;" />'
+          + '<input id="rEmail" type="email" autocomplete="email" inputmode="email" placeholder="Email" style="' + IN + 'margin-top:10px;" />'
+          + '<input id="rPin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="Code PIN (4 à 6 chiffres)" style="' + IN + 'margin-top:10px;letter-spacing:4px;text-align:center;" />'
+          + '<p style="margin:7px 0 0;color:#9A9890;font-size:11.5px;line-height:1.4;">1re connexion : choisis ton code. Ensuite, il te sera demandé à chaque connexion.</p>'
+          + '<button id="rGo" style="' + BTN + '">Accéder à mon espace</button>'
+          + '<p id="rErr" style="margin:10px 0 0;color:#DC4C44;font-size:13px;min-height:16px;"></p>'
+          + '<p style="margin:16px 0 0;color:#9A9890;font-size:12px;line-height:1.5;">Tes données sont privées et visibles uniquement par toi et ton coach.</p>'
+          + '</div></div>';
+      }
+      document.body.innerHTML = body;
+      var pn = document.getElementById('rPin'), btn = document.getElementById('rGo'), err = document.getElementById('rErr');
+      var pr = document.getElementById('rPrenom'), no = document.getElementById('rNom'), em = document.getElementById('rEmail');
       function go() {
-        var prenom = (pr.value || '').trim(), nom = (no.value || '').trim(), email = (em.value || '').trim().toLowerCase(), pin = (pn.value || '').trim();
-        if (!prenom || !nom || email.indexOf('@') < 1) { err.textContent = 'Renseigne ton prénom, ton nom et un email valide.'; return; }
-        if (!/^[0-9]{4,6}$/.test(pin)) { err.textContent = 'Choisis un code PIN de 4 à 6 chiffres.'; return; }
+        var pin = (pn.value || '').trim();
+        var prenom, nom, email;
+        if (simple) { prenom = idr.prenom; nom = idr.nom || ''; email = idr.email; }
+        else {
+          prenom = (pr.value || '').trim(); nom = (no.value || '').trim(); email = (em.value || '').trim().toLowerCase();
+          if (!prenom || !nom || email.indexOf('@') < 1) { err.textContent = 'Renseigne ton prénom, ton nom et un email valide.'; return; }
+        }
+        if (!/^[0-9]{4,6}$/.test(pin)) { err.textContent = 'Saisis ton code PIN (4 à 6 chiffres).'; return; }
         btn.disabled = true; err.textContent = 'Connexion…';
         fetch(base + 'account/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, prenom: prenom, nom: nom, pin: pin }) })
           .then(function (r) { return r.json(); })
           .then(function (d) {
             if (d && d.ok) {
               try { localStorage.setItem('mc-nutri-account', JSON.stringify({ email: email, token: d.token, prenom: d.prenom, nom: d.nom })); } catch (e) {}
+              try { localStorage.setItem('mc-nutri-id', JSON.stringify({ email: email, prenom: d.prenom || prenom, nom: d.nom || nom })); } catch (e) {}
               try { if (d.data) localStorage.setItem('mc-nutri-state-' + email, JSON.stringify(d.data)); else localStorage.removeItem('mc-nutri-state-' + email); } catch (e) {}
               location.reload();
             } else {
               btn.disabled = false;
-              err.textContent = (d && d.error) || (d && d.needPin ? 'Saisis ton code PIN.' : 'Connexion impossible.');
-              if (d && (d.needPin || d.setPin)) { pn.focus(); }
+              err.textContent = (d && d.error) || (d && d.needPin ? 'Code PIN incorrect.' : 'Connexion impossible.');
+              if (pn) pn.focus();
             }
           })
           .catch(function () { btn.disabled = false; err.textContent = 'Erreur réseau, réessaie.'; });
       }
       btn.addEventListener('click', go);
-      [pr, no, em, pn].forEach(function (i) { i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); }); });
-      pr.focus();
+      [pr, no, em, pn].forEach(function (i) { if (i) i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); }); });
+      var other = document.getElementById('rOther');
+      if (other) other.addEventListener('click', function () { try { localStorage.removeItem('mc-nutri-id'); } catch (e) {} location.reload(); });
+      if (pn) pn.focus();
     });
   })();
   </script>
@@ -1173,6 +1200,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
