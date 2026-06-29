@@ -300,16 +300,28 @@ function ensureNutritionHelpTable() {
       updated_at TEXT NOT NULL DEFAULT ''
     );
   `);
-  // Coach « réponses préenregistrées » (gratuit) : graine initiale si la table est vide.
-  // Idempotent : on ne ré-injecte jamais par-dessus le contenu édité par l'admin.
+  // Coach « réponses préenregistrées » (gratuit) : graine VERSIONNÉE.
+  // - table vide      -> on insère tout (1re installation).
+  // - version montée  -> on COMPLÈTE : on ajoute uniquement les nouvelles entrées
+  //   (question encore absente). On ne touche jamais au contenu édité par l'admin,
+  //   et une entrée d'un lot déjà appliqué supprimée par l'admin ne « revient » pas
+  //   (le complément ne se rejoue qu'au prochain bump de version).
   try {
-    const { COACH_FAQ_SEED } = require('./nutrition-app/lib/coachFaq');
+    const { COACH_FAQ_SEED, SEED_VERSION } = require('./nutrition-app/lib/coachFaq');
     const n = getDb().prepare('SELECT COUNT(*) AS n FROM nutrition_coach_faq').get().n;
+    const verRow = getDb().prepare("SELECT value FROM app_settings WHERE key = 'nutrition_coach_faq_seed_v'").get();
+    const storedV = verRow ? (Number(verRow.value) || 0) : 0;
+    const ins = getDb().prepare("INSERT INTO nutrition_coach_faq (question, reponse, mots_cles, categorie, ordre, actif, updated_at) VALUES (?,?,?,?,?,1,datetime('now','localtime'))");
     if (!n) {
-      const ins = getDb().prepare("INSERT INTO nutrition_coach_faq (question, reponse, mots_cles, categorie, ordre, actif, updated_at) VALUES (?,?,?,?,?,1,datetime('now','localtime'))");
       COACH_FAQ_SEED.forEach((e, i) => ins.run(e.q, e.r, e.k, e.c || '', i + 1));
       console.warn('Coach FAQ : graine initiale insérée (' + COACH_FAQ_SEED.length + ' réponses).');
+    } else if (storedV < SEED_VERSION) {
+      const exists = getDb().prepare('SELECT 1 FROM nutrition_coach_faq WHERE question = ? LIMIT 1');
+      let added = 0;
+      COACH_FAQ_SEED.forEach((e, i) => { if (!exists.get(e.q)) { ins.run(e.q, e.r, e.k, e.c || '', i + 1); added++; } });
+      if (added) console.warn('Coach FAQ : complément v' + SEED_VERSION + ' (+' + added + ' réponses).');
     }
+    getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('nutrition_coach_faq_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").run(String(SEED_VERSION));
   } catch (e) { console.error('Seed coach FAQ :', e && e.message); }
   // Migration : attribution d'un coach sportif à un client nutrition (socle des espaces par rôle).
   try {

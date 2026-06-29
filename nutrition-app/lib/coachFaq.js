@@ -96,7 +96,7 @@ const COACH_FAQ_SEED = [
     r: "Beaucoup : mal dormir augmente la faim (surtout de sucre/gras), baisse la motivation et freine la récupération. Vise des horaires réguliers, limite les écrans le soir et la caféine après 16 h. Une bonne nuit fait souvent plus pour ta perte de gras qu'une séance de sport en plus." },
 
   { q: 'Pourquoi manger autant de protéines ?', c: 'proteines',
-    k: "proteines, prot, proteine, pourquoi proteines, combien de proteines, manque de proteines, assez de proteines",
+    k: "proteines, prot, pourquoi des proteines, pourquoi autant de proteines, combien de proteines, manque de proteines, role des proteines",
     r: "Les protéines préservent ton muscle pendant la perte de gras, rassasient le plus longtemps et demandent de l'énergie pour être digérées : ton meilleur allié pour maigrir sans fondre du muscle. Répartis-les sur la journée (un peu à chaque repas) : œufs, viande, poisson, laitages, légumineuses, tofu." },
 
   { q: 'Puis-je sauter un repas / faire du jeûne ?', c: 'organisation',
@@ -134,6 +134,85 @@ const COACH_FAQ_SEED = [
   { q: "J'ai mal quelque part / un souci de santé", c: 'general',
     k: "douleur, blessure, blesse, malaise, vertige, symptome, malade, j ai mal, je suis malade, probleme de sante",
     r: "Là, je ne suis pas le bon interlocuteur : tout ce qui touche à la douleur, à une blessure ou à la santé doit être vu avec un professionnel de santé (médecin, kiné…). N'attends pas, et préviens aussi ton coach pour adapter ton programme en attendant." },
+
+  // ----- Lot 2 (complément) -----
+  { q: 'Combien de repas par jour ?', c: 'organisation',
+    k: "combien de repas, nombre de repas, combien de fois par jour, repas par jour, manger combien de fois, fractionner les repas",
+    r: "Il n'y a pas de nombre magique : 3 repas, ou 3 repas + 1-2 collations, peu importe tant que ton total sur la journée colle à ton objectif. Choisis le rythme qui t'évite d'avoir trop faim et que tu tiens facilement dans la durée. La régularité compte plus que le nombre." },
+
+  { q: 'Manger tard le soir fait grossir ?', c: 'organisation',
+    k: "manger tard, manger le soir tard, diner tard, repas tard, tard le soir fait grossir, heure du diner, manger avant de dormir",
+    r: "Ce n'est pas l'heure qui fait grossir, c'est le total de la journée. Manger tard peut juste gêner le sommeil ou la digestion si le repas est lourd. Si tu dînes tard, vise quelque chose de plus léger et riche en protéines. Pas de panique sur l'horloge." },
+
+  { q: 'Le café / la caféine, c\'est ok ?', c: 'general',
+    k: "cafe, cafeine, the, the vert, expresso, combien de cafe, cafe et regime, boire du cafe",
+    r: "Le café nature (sans sucre) n'apporte quasiment pas de calories et peut même couper un peu la faim. Reste raisonnable, idéalement pas après 16 h pour ne pas gêner ton sommeil, et attention au sucre, sirops et crèmes qui font vite grimper l'addition. Le thé, c'est pareil : parfait nature." },
+
+  { q: 'Les sodas light / édulcorants ?', c: 'sucre',
+    k: "soda light, light, zero, edulcorant, aspartame, stevia, boisson sans sucre, coca zero, sucrette, faux sucre",
+    r: "Les versions « light/zéro » évitent les calories du sucre et peuvent dépanner pour réduire les sodas classiques : sans excès, c'est un compromis acceptable. L'idéal reste de t'habituer petit à petit à moins de goût sucré (eau aromatisée maison, eau pétillante) pour ne plus en dépendre." },
+
+  { q: 'Comment manger plus de légumes ?', c: 'organisation',
+    k: "legumes, plus de legumes, manger des legumes, pas assez de legumes, j aime pas les legumes, comment manger des legumes, manger plus de legumes",
+    r: "Astuces simples : remplis la moitié de ton assiette de légumes, garde des surgelés (zéro perte, prêts en 5 min), glisse-en partout (soupes, poêlées, sauces, gratins) et varie les cuissons — rôtis au four, ils sont bien meilleurs. Commencer le repas par les légumes aide aussi à la satiété." },
+
+  { q: 'Les fruits, c\'est trop de sucre ?', c: 'sucre',
+    k: "fruits, trop de fruits, sucre des fruits, combien de fruits, fruit le soir, fruits font grossir, manger des fruits",
+    r: "Les fruits apportent du sucre, mais aussi des fibres, des vitamines et de l'eau : rien à voir avec un bonbon. 2 à 3 fruits par jour s'intègrent très bien. Si tu surveilles de près, privilégie les fruits entiers (pas en jus) et répartis-les. Et non, pas de souci à en manger le soir." },
+
+  { q: 'Dois-je arrêter le pain ?', c: 'organisation',
+    k: "pain, le pain, arreter le pain, pain complet, supprimer le pain, manger du pain, pain et regime",
+    r: "Pas besoin de supprimer le pain : c'est un féculent comme un autre. Privilégie le complet ou au levain (plus rassasiants) et ajuste la quantité à ta faim et à ton objectif. Ce qui compte, c'est la portion globale de féculents sur la journée, pas d'interdire un aliment." },
+
+  { q: 'Produits laitiers / lactose ?', c: 'general',
+    k: "produits laitiers, lait, lactose, fromage, yaourt, intolerance lactose, sans lactose, laitages",
+    r: "Les produits laitiers sont une bonne source de protéines et de calcium. Si tu les digères bien, garde-les (yaourt, fromage blanc, fromage avec modération). En cas d'inconfort, teste les versions sans lactose ou les alternatives végétales enrichies. Aucune obligation si tu couvres protéines et calcium ailleurs." },
+
+  { q: 'Je mange peut-être trop salé', c: 'general',
+    k: "sel, trop de sel, sale, sodium, retention d eau sel, reduire le sel, trop sale",
+    r: "Trop de sel favorise la rétention d'eau (et fait gonfler le chiffre sur la balance) sans changer ta masse grasse. Limite les plats industriels, charcuteries et sauces, et assaisonne avec des herbes et épices. Pas besoin de traquer chaque gramme : réduire le très salé suffit déjà." },
+
+  { q: 'Les jus de fruits et smoothies ?', c: 'sucre',
+    k: "jus de fruits, jus, smoothie, smoothies, jus d orange, boisson sucree, jus de fruit",
+    r: "Un jus, même « pur jus », concentre le sucre de plusieurs fruits sans les fibres : il rassasie peu et fait vite grimper les calories. Mieux vaut manger le fruit entier. Pour un smoothie, garde la pulpe, ajoute des protéines (yaourt, lait) et compte-le comme une collation, pas comme une boisson libre." },
+
+  { q: 'Je veux prendre du muscle / de la masse', c: 'sport',
+    k: "prendre du muscle, prise de masse, prendre de la masse, grossir en muscle, masse musculaire, me muscler, prendre du poids en muscle",
+    r: "Pour construire du muscle : assez de protéines réparties sur la journée, un léger surplus de calories, et surtout de la musculation régulière avec progression. C'est lent (compte en mois, pas en jours). Si la prise de masse est ton objectif, dis-le à ton coach pour adapter tes calories et ton plan." },
+
+  { q: 'Végétarien / végan : assez de protéines ?', c: 'proteines',
+    k: "vegetarien, vegetarienne, vegan, vegane, vegetalien, proteines vegetales, sans viande, proteine sans viande, je suis vegetarien, je suis vegan, je suis vegetarienne, vegetarien assez de proteines, vegan assez de proteines, proteines sans viande, je ne mange pas de viande",
+    r: "Oui, c'est tout à fait possible : légumineuses (lentilles, pois chiches, haricots), tofu et tempeh, œufs et laitages si tu es végétarien, seitan, et protéines en poudre végétales au besoin. Associe légumineuses + céréales sur la journée pour des protéines complètes, et vise une source de protéines à chaque repas." },
+
+  { q: 'Quoi emporter au travail / à la cantine ?', c: 'organisation',
+    k: "au travail, lunchbox, gamelle, repas au bureau, manger au travail, boite repas, cantine, dejeuner au bureau, emporter au travail",
+    r: "Prépare la veille ou en batch : une base de protéines (poulet, thon, œufs, légumineuses) + des féculents (riz, pâtes complètes, semoule) + des crudités ou légumes. Les salades-bocaux et les restes de la veille marchent très bien. À la cantine : protéines + légumes + un féculent raisonnable, sauces à part." },
+
+  { q: 'Fast-food / livraison, comment limiter la casse ?', c: 'ecarts',
+    k: "fast food, mcdo, burger, livraison, uber eats, junk food, restauration rapide, kebab, tacos",
+    r: "Si tu y vas : choisis un format simple (un burger plutôt qu'un menu XXL), évite les boissons sucrées (eau ou light), et limite ou partage les frites. Privilégie les options avec des protéines et un peu de légumes quand c'est possible. Un fast-food de temps en temps ne casse rien si le reste de la semaine tient." },
+
+  { q: 'Au bout de combien de temps des résultats ?', c: 'motivation',
+    k: "combien de temps, des resultats, voir des resultats, ca prend combien de temps, patience, quand vais je voir, delais, premiers resultats",
+    r: "Les premiers changements (énergie, vêtements, balance) arrivent souvent en 2 à 4 semaines, mais ça varie selon chacun. Une perte saine tourne autour de 0,5 kg par semaine en moyenne. Juge sur la tendance d'un mois, pas sur un jour. La régularité finit toujours par payer — garde le cap." },
+
+  { q: 'Le stress me fait manger', c: 'motivation',
+    k: "stress, stresse, anxiete, manger ses emotions, alimentation emotionnelle, manger par stress, compulsion, je mange quand je suis stresse",
+    r: "Manger sous le coup des émotions est très courant. Avant de te resservir, fais une pause : bois de l'eau, respire, sors deux minutes. Identifie le déclencheur (fatigue, ennui, contrariété) et essaie une autre soupape (marche, appel, douche). Sois indulgent avec toi-même — et si ça revient souvent et te pèse, parles-en à ton coach." },
+
+  { q: 'À quelle fréquence me peser ?', c: 'poids',
+    k: "me peser, peser, balance, frequence pesee, combien de fois me peser, quand se peser, suivi du poids, je me pese tous les jours",
+    r: "Une fois par semaine suffit, le matin à jeun, dans les mêmes conditions. Le poids varie d'un jour à l'autre (eau, sel, digestion, cycle) : te peser tous les jours peut décourager pour rien. Regarde la tendance sur plusieurs semaines, et appuie-toi aussi sur tes mensurations, tes photos et tes sensations." },
+
+  { q: 'Mes règles me donnent faim et me font gonfler', c: 'faim',
+    k: "regles, cycle, syndrome premenstruel, spm, avant les regles, retention d eau cycle, faim avant les regles, hormones, periode des regles",
+    r: "C'est hormonal et tout à fait normal : autour des règles, la faim (surtout de sucre) augmente et le corps retient de l'eau — la balance peut monter de 1 à 2 kg sans que ce soit du gras. Anticipe avec des repas riches en protéines et fibres, bois bien, et ne te juge pas sur le poids ces jours-là. Tout rentre dans l'ordre juste après." },
 ];
 
-module.exports = { norm, tokens, matchFaq, COACH_FAQ_SEED };
+// Version de la graine : incrémentée à chaque AJOUT de réponses. Le serveur
+// l'utilise pour « compléter » la base existante (ajoute les nouvelles entrées
+// absentes) sans ré-injecter ni écraser le contenu déjà en place. v1 = 22 réponses,
+// v2 = +18 (lot 2). À bumper si on ajoute un nouveau lot.
+const SEED_VERSION = 2;
+
+module.exports = { norm, tokens, matchFaq, COACH_FAQ_SEED, SEED_VERSION };

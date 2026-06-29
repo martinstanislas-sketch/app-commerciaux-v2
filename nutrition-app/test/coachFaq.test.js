@@ -10,11 +10,26 @@ const { matchFaq, COACH_FAQ_SEED, norm } = require('../lib/coachFaq');
 const ROWS = COACH_FAQ_SEED.map((e, i) => ({ id: i + 1, question: e.q, reponse: e.r, mots_cles: e.k, categorie: e.c, actif: 1 }));
 function matchedCat(q) { const m = matchFaq(q, ROWS); return m ? m.row.categorie : null; }
 
-test('graine : au moins 20 réponses, schéma complet', () => {
-  assert.ok(COACH_FAQ_SEED.length >= 20, 'attendu >= 20 réponses');
+function matchedQ(q) { const m = matchFaq(q, ROWS); return m ? m.row.question : null; }
+
+test('graine : au moins 40 réponses, questions uniques, schéma complet', () => {
+  assert.ok(COACH_FAQ_SEED.length >= 40, 'attendu >= 40 réponses');
+  const qs = new Set(COACH_FAQ_SEED.map((e) => e.q));
+  assert.strictEqual(qs.size, COACH_FAQ_SEED.length, 'questions toutes uniques');
   for (const e of COACH_FAQ_SEED) {
     assert.ok(e.q && e.r && e.k, 'chaque entrée a question/réponse/mots-clés');
   }
+});
+
+test('lot 2 : nouveaux thèmes routés correctement', () => {
+  assert.strictEqual(matchedCat('combien de repas par jour'), 'organisation');
+  assert.strictEqual(matchedCat('je peux boire du café'), 'general');
+  assert.strictEqual(matchedCat('je me pèse tous les jours'), 'poids');
+  assert.strictEqual(matchedCat('le stress me fait grignoter'), 'motivation');
+  assert.strictEqual(matchedCat('mes règles me donnent faim'), 'faim');
+  // Végétarien -> réponse végé dédiée, PAS la réponse protéines générique.
+  assert.strictEqual(matchedQ("je suis végétarien, est-ce que j'ai assez de protéines ?"), 'Végétarien / végan : assez de protéines ?');
+  assert.strictEqual(matchedQ('pourquoi autant de protéines'), 'Pourquoi manger autant de protéines ?');
 });
 
 test('normalisation : minuscules + sans accents + sans ponctuation', () => {
