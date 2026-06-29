@@ -3288,7 +3288,7 @@ function applyOverview() {
   const mb = $('#commMembers'); if (mb) mb.textContent = ov.members || 0;
   const pctObj = (ov.objectif && ov.objectif.pct) || 0;
   const bar = $('#commProgBar'); if (bar) bar.style.width = pctObj + '%';
-  const pp = $('#commProgPct'); if (pp) pp.textContent = pctObj + '%';
+  const pp = $('#commProgPct'); if (pp) pp.textContent = pctObj; // le « % » est un élément séparé
   applyCoachTip();
 }
 // Conseil du coach (compact) : dernier message publié par le coach, sinon conseil auto.
@@ -3311,7 +3311,7 @@ function avatarColor(name) {
   return 'hsl(' + h + ', 42%, 50%)';
 }
 function feedAvatar(item) {
-  if (item.who === 'Le groupe') return '<div class="feed-av group">' + (item.emoji || '👥') + '</div>';
+  if (item.who === 'Le groupe') return '<div class="feed-av is-group">' + icSvg('users') + '</div>';
   const ch = ((item.who || '?').trim().charAt(0) || '?').toUpperCase();
   return '<div class="feed-av" style="background:' + avatarColor(item.who) + '">' + escapeHtml(ch) + '</div>';
 }
@@ -3324,12 +3324,20 @@ function feedReactBar(item) {
   }).join('') + '</div>';
 }
 function feedCard(item) {
-  return '<article class="feed-card' + (item.kind === 'post' ? ' is-post' : '') + '">' +
-    feedAvatar(item) +
+  // Texte épuré : on évite de répéter le prénom déjà affiché en gras (« Paul » + « Paul a validé… »).
+  let txt = item.text || '';
+  if (item.kind === 'event') {
+    if (item.subkind === 'welcome') txt = 'a rejoint le groupe';
+    else if (item.who && txt.indexOf(item.who + ' ') === 0) txt = txt.slice(item.who.length + 1);
+  }
+  const who = item.who || 'Un membre';
+  const badge = (item.emoji && who !== 'Le groupe') ? '<span class="feed-av-badge">' + item.emoji + '</span>' : '';
+  return '<article class="feed-card' + (item.kind === 'post' ? ' is-post' : '') + '" data-k="' + escapeHtml(item.subkind || (item.kind === 'post' ? 'post' : '')) + '">' +
+    '<div class="feed-av-wrap">' + feedAvatar(item) + badge + '</div>' +
     '<div class="feed-body">' +
-      '<div class="feed-meta"><b class="feed-who">' + escapeHtml(item.who || 'Un membre') + '</b>' +
-        '<span class="feed-when">· ' + escapeHtml(commTimeAgo(item.when)) + '</span></div>' +
-      '<p class="feed-text">' + (item.emoji ? '<span class="feed-emo">' + item.emoji + '</span> ' : '') + escapeHtml(item.text || '') + '</p>' +
+      '<div class="feed-meta"><b class="feed-who">' + escapeHtml(who) + '</b>' +
+        '<span class="feed-when">' + escapeHtml(commTimeAgo(item.when)) + '</span></div>' +
+      '<p class="feed-text">' + escapeHtml(txt) + '</p>' +
       feedReactBar(item) +
     '</div></article>';
 }
@@ -3399,16 +3407,26 @@ function renderCommunaute() {
   const coachOnly = isCoachOrAdmin();
   host.innerHTML =
     '<div class="feed">' +
-      // 1. En-tête compact (nom du groupe, membres, progression de la semaine)
-      '<header class="feed-head">' +
-        '<div class="feed-head-row">' +
-          '<h2 class="feed-title">' + escapeHtml((ov && ov.groupe) || 'Groupe Challenge 6/6') + '</h2>' +
-          '<span class="feed-members"><b id="commMembers">' + members + '</b> membres</span>' +
+      // 1. Carte challenge premium (nom du groupe, membres, progression mise en avant)
+      '<header class="feed-hero">' +
+        '<div class="feed-hero-glow"></div>' +
+        '<div class="feed-hero-top">' +
+          '<div class="feed-hero-id">' +
+            '<span class="feed-hero-kicker">' + icSvg('flame') + ' Défi de la semaine</span>' +
+            '<h2 class="feed-hero-title">' + escapeHtml((ov && ov.groupe) || 'Groupe Challenge 6/6') + '</h2>' +
+          '</div>' +
+          '<span class="feed-hero-members">' + icSvg('users') + ' <b id="commMembers">' + members + '</b></span>' +
         '</div>' +
-        '<div class="feed-prog"><span id="commProgBar" style="width:' + pctObj + '%"></span></div>' +
-        '<div class="feed-prog-foot"><span>Progression du groupe cette semaine</span><b id="commProgPct">' + pctObj + '%</b></div>' +
+        '<div class="feed-hero-prog">' +
+          '<div class="feed-hero-pct"><b id="commProgPct">' + pctObj + '</b><i>%</i></div>' +
+          '<div class="feed-hero-track-wrap">' +
+            '<div class="feed-hero-track"><span id="commProgBar" style="width:' + pctObj + '%"></span></div>' +
+            '<span class="feed-hero-cap">Progression du groupe cette semaine</span>' +
+          '</div>' +
+        '</div>' +
       '</header>' +
       // 2. Fil d'activité (élément central)
+      '<div class="feed-section-head"><h3>Le fil de l’équipe</h3></div>' +
       '<div id="feedList" class="feed-list"><p class="comm-empty">Chargement du fil…</p></div>' +
       // 4. Zone de publication personnelle (discrète)
       '<form id="commForm" class="feed-compose">' +

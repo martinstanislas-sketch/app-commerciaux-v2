@@ -1332,55 +1332,98 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .comm-empty { color: var(--mc-muted); font-size: 13.5px; text-align: center; padding: 16px 0; }
 .comm-tag { display: inline-block; font-size: 10.5px; font-weight: 700; color: var(--mc-blue); background: var(--mc-blue-soft); padding: 1px 7px; border-radius: 99px; margin-left: 4px; vertical-align: middle; }
 
-/* === Communauté : FIL D'ACTIVITÉ (auto-alimenté, style social) === */
-.feed { display: flex; flex-direction: column; gap: 14px; }
-/* 1. En-tête compact */
-.feed-head { background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow-card); }
-.feed-head-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.feed-title { margin: 0; font-size: 17px; font-weight: 800; color: var(--ink); }
-.feed-members { font-size: 13px; color: var(--muted); white-space: nowrap; }
-.feed-members b { color: var(--ink); font-weight: 800; }
-.feed-prog { height: 7px; border-radius: 99px; background: var(--track); overflow: hidden; margin: 11px 0 6px; }
-.feed-prog span { display: block; height: 100%; border-radius: 99px; background: var(--grad-blue); transition: width .5s var(--ease); }
-.feed-prog-foot { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); }
-.feed-prog-foot b { color: var(--blue-c); font-weight: 800; }
-/* 2. Fil : cartes d'activité */
-.feed-list { display: flex; flex-direction: column; gap: 10px; }
-.feed-card { display: flex; gap: 12px; background: var(--surface); border: 1px solid var(--border-c); border-radius: 16px; padding: 13px 14px; box-shadow: var(--shadow-xs); transition: box-shadow .2s var(--ease); }
-.feed-card:hover { box-shadow: var(--shadow-sm); }
-.feed-av { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 16px; }
-.feed-av.group { background: var(--sand-soft); font-size: 20px; }
-.feed-body { flex: 1; min-width: 0; }
-.feed-meta { display: flex; align-items: baseline; gap: 7px; }
-.feed-who { font-size: 14px; font-weight: 800; color: var(--ink); }
-.feed-when { font-size: 11.5px; color: var(--text-soft); }
-.feed-text { margin: 3px 0 9px; font-size: 14.5px; line-height: 1.4; color: var(--ink-2); }
-.feed-emo { font-size: 16px; }
-.feed-reacts { display: flex; gap: 6px; flex-wrap: wrap; }
-.feed-react { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border-c); background: var(--surface-soft); border-radius: 99px; padding: 4px 9px; cursor: pointer; font: inherit; transition: background .15s var(--ease), border-color .15s var(--ease), transform .1s var(--ease); }
-.feed-react:hover { border-color: var(--border-strong); }
+/* === Communauté : FIL D'ACTIVITÉ — « club privé de transformation » === */
+/* Accents énergisants scopés à la communauté (violet marque + vert/orange/indigo). */
+.feed { display: flex; flex-direction: column; gap: 18px;
+  --c-violet: #6C5CE0; --c-violet-soft: #EDEAFB;
+  --c-indigo: #4F6BF0; --c-indigo-soft: #E7ECFD;
+  --c-orange: #E0822A; --c-orange-soft: #FBEEDC;
+  --c-green: #1FA767; --c-green-soft: #E3F4EB; }
+
+/* 1. Carte challenge premium (dégradé de marque, profondeur, % mis en avant) */
+.feed-hero { position: relative; overflow: hidden; border-radius: 22px; padding: 22px 22px 20px; color: #fff;
+  background: linear-gradient(140deg, #6E5BE0 0%, #5A63E6 52%, #4F6BF0 100%);
+  box-shadow: 0 16px 32px -12px rgba(79, 96, 224, .55), 0 4px 10px rgba(28, 30, 60, .12); }
+.feed-hero-glow { position: absolute; top: -70px; right: -50px; width: 220px; height: 220px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, .26), rgba(255, 255, 255, 0) 70%); }
+.feed-hero-top { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.feed-hero-kicker { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: rgba(255, 255, 255, .85); }
+.feed-hero-kicker .ic { width: 14px; height: 14px; }
+.feed-hero-title { margin: 5px 0 0; font-size: 21px; font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
+.feed-hero-members { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #fff; background: rgba(255, 255, 255, .18); padding: 6px 12px; border-radius: 99px; white-space: nowrap; }
+.feed-hero-members .ic { width: 14px; height: 14px; }
+.feed-hero-members b { font-weight: 800; }
+.feed-hero-prog { position: relative; display: flex; align-items: center; gap: 16px; margin-top: 18px; }
+.feed-hero-pct { display: flex; align-items: baseline; gap: 1px; line-height: 1; }
+.feed-hero-pct b { font-size: 42px; font-weight: 800; letter-spacing: -.02em; }
+.feed-hero-pct i { font-size: 18px; font-weight: 700; font-style: normal; opacity: .85; }
+.feed-hero-track-wrap { flex: 1; min-width: 0; }
+.feed-hero-track { height: 9px; border-radius: 99px; background: rgba(255, 255, 255, .22); overflow: hidden; }
+.feed-hero-track span { display: block; height: 100%; border-radius: 99px; background: #fff; box-shadow: 0 0 12px rgba(255, 255, 255, .55); transition: width .6s var(--ease); }
+.feed-hero-cap { display: block; margin-top: 7px; font-size: 12px; color: rgba(255, 255, 255, .82); }
+
+/* Titre de section (hiérarchie « équipe ») */
+.feed-section-head { display: flex; align-items: center; justify-content: space-between; margin: 0 2px -6px; }
+.feed-section-head h3 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
+
+/* 2. Fil : cartes d'activité (arrondies, profondeur douce, accent par type) */
+.feed-list { display: flex; flex-direction: column; gap: 12px; }
+.feed-card { display: flex; gap: 13px; background: var(--surface); border: 1px solid var(--border-c); border-radius: 18px; padding: 15px 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 8px 18px -10px rgba(16, 24, 40, .12);
+  transition: box-shadow .2s var(--ease), transform .2s var(--ease);
+  --accent: var(--c-violet); --accent-soft: var(--c-violet-soft); }
+.feed-card:hover { box-shadow: 0 2px 4px rgba(16, 24, 40, .05), 0 14px 28px -12px rgba(16, 24, 40, .18); transform: translateY(-1px); }
+.feed-card[data-k="streak"] { --accent: var(--c-orange); --accent-soft: var(--c-orange-soft); }
+.feed-card[data-k="group_meals"] { --accent: var(--c-green); --accent-soft: var(--c-green-soft); }
+.feed-card[data-k="session"] { --accent: var(--c-indigo); --accent-soft: var(--c-indigo-soft); }
+.feed-card[data-k="welcome"] { --accent: var(--c-violet); --accent-soft: var(--c-violet-soft); }
+/* Avatar plus humain + badge emoji du type d'événement */
+.feed-av-wrap { position: relative; flex: 0 0 auto; align-self: flex-start; }
+.feed-av { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 18px; box-shadow: 0 0 0 3px var(--accent-soft); }
+.feed-av.is-group { background: linear-gradient(135deg, var(--c-violet), var(--c-indigo)); }
+.feed-av.is-group .ic { width: 22px; height: 22px; color: #fff; }
+.feed-av-badge { position: absolute; right: -3px; bottom: -3px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); border: 2px solid var(--surface); display: grid; place-items: center; font-size: 12px; line-height: 1; }
+.feed-body { flex: 1; min-width: 0; padding-top: 2px; }
+.feed-meta { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.feed-who { font-size: 15px; font-weight: 800; color: var(--ink); }
+.feed-when { font-size: 12px; color: var(--text-soft); }
+.feed-text { margin: 4px 0 11px; font-size: 14.5px; line-height: 1.45; color: var(--ink-2); }
+/* Réactions plus présentes (interaction) */
+.feed-reacts { display: flex; gap: 7px; flex-wrap: wrap; }
+.feed-react { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border-c); background: var(--surface-soft); border-radius: 99px; padding: 5px 11px; cursor: pointer; font: inherit; line-height: 1; transition: background .15s var(--ease), border-color .15s var(--ease), transform .12s var(--ease); }
+.feed-react:hover { border-color: var(--accent); background: #fff; transform: translateY(-1px); }
 .feed-react:active { transform: scale(.92); }
-.feed-react.on { background: var(--blue-soft); border-color: var(--blue-c); }
-.feed-react-emo { font-size: 15px; line-height: 1; }
-.feed-react-n { font-size: 12px; font-weight: 700; color: var(--muted); }
-.feed-react.on .feed-react-n { color: var(--blue-on-soft); }
-.feed-empty { text-align: center; padding: 30px 18px; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 16px; color: var(--muted); }
-.feed-empty .ic { width: 30px; height: 30px; color: var(--text-soft); margin-bottom: 8px; }
-.feed-empty b { display: block; font-size: 15px; color: var(--ink); margin-bottom: 4px; }
-.feed-empty p { margin: 0; font-size: 13px; line-height: 1.5; }
+.feed-react.on { background: var(--accent-soft); border-color: var(--accent); }
+.feed-react-emo { font-size: 16px; line-height: 1; }
+.feed-react-n { font-size: 12.5px; font-weight: 800; color: var(--muted); }
+.feed-react.on .feed-react-n { color: var(--accent); }
+/* État vide encourageant */
+.feed-empty { text-align: center; padding: 34px 20px; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 18px; color: var(--muted); }
+.feed-empty .ic { width: 32px; height: 32px; color: var(--c-violet); margin-bottom: 10px; }
+.feed-empty b { display: block; font-size: 15.5px; color: var(--ink); margin-bottom: 5px; }
+.feed-empty p { margin: 0; font-size: 13px; line-height: 1.55; }
 /* 4. Publication perso (discrète) + besoin d'aide */
-.feed-compose { display: flex; gap: 8px; align-items: flex-end; }
-.feed-compose textarea { flex: 1; resize: none; min-height: 44px; max-height: 120px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border-c); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.4; }
-.feed-compose textarea:focus { outline: none; border-color: var(--blue-c); }
+.feed-compose { display: flex; gap: 9px; align-items: flex-end; }
+.feed-compose textarea { flex: 1; resize: none; min-height: 48px; max-height: 120px; padding: 13px 15px; border-radius: 16px; border: 1px solid var(--border-c); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.4; box-shadow: var(--shadow-xs); }
+.feed-compose textarea:focus { outline: none; border-color: var(--c-violet); box-shadow: 0 0 0 3px var(--c-violet-soft); }
+.feed-compose .comm-send { width: 48px; height: 48px; border-radius: 16px; background: linear-gradient(135deg, var(--c-violet), var(--c-indigo)); }
 .feed-help-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; padding: 2px; }
 .feed-help-link .ic { width: 15px; height: 15px; }
-.feed-help-link:hover { color: var(--blue-c); }
-/* 3. Conseil du coach (compact) */
-.feed-coach { display: flex; gap: 11px; align-items: flex-start; background: var(--sage-soft); border: 1px solid var(--sage-soft); border-radius: 16px; padding: 13px 15px; }
-.feed-coach-ic { font-size: 18px; line-height: 1.35; }
-.feed-coach-body b { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; color: var(--sage-on-soft); margin-bottom: 2px; }
-.feed-coach-body p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.feed-help-link:hover { color: var(--c-violet); }
+/* 3. Conseil du coach (compact, chaleureux) */
+.feed-coach { display: flex; gap: 13px; align-items: flex-start; background: linear-gradient(135deg, var(--c-green-soft), #EFF7F1); border: 1px solid #D7EBDD; border-radius: 18px; padding: 15px 17px; }
+.feed-coach-ic { font-size: 20px; line-height: 1.3; }
+.feed-coach-body b { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--c-green); margin-bottom: 3px; }
+.feed-coach-body p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--ink-2); }
 .feed-coachform { margin-top: 2px; }
+.feed-coachform .comm-send { background: linear-gradient(135deg, var(--c-violet), var(--c-indigo)); }
+@media (max-width: 480px) {
+  .feed-hero { padding: 18px 18px 16px; border-radius: 20px; }
+  .feed-hero-title { font-size: 19px; }
+  .feed-hero-pct b { font-size: 36px; }
+  .feed-card { padding: 14px; border-radius: 16px; }
+  .feed-av { width: 44px; height: 44px; }
+}
 
 /* --- Messagerie : liste des conversations (inbox coach) --- */
 .conv-row { width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; text-align: left; background: var(--mc-white); border: 1px solid var(--mc-border); border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; font: inherit; }
