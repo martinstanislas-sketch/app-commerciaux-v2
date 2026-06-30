@@ -97,7 +97,7 @@
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; background: #F6F5F2; color-scheme: only light; }
 
 body {
   margin: 0;

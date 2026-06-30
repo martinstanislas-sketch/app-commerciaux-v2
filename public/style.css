@@ -129,6 +129,7 @@
 html {
   color-scheme: light only;
   -webkit-color-scheme: light only;
+  background: #F0F4FA;
 }
 html, body, * {
   forced-color-adjust: none;
