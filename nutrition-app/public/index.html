@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=32" />
+  <link rel="stylesheet" href="style.css?v=34" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -255,14 +255,6 @@
           <button type="button" id="coachBack" class="btn btn-outline">← Coaching</button>
         </div>
         <button type="button" id="coachOpenMessages" class="coach-dash-cta"><svg class="ic"><use href="#ic-send"/></svg> Mes messages <span id="coachMsgBadge" class="conv-unread" style="display:none"></span></button>
-        <h2 class="coach-dash-sec">Suivi de mes clients</h2>
-        <div class="coach-tools">
-          <button type="button" id="coachOpenAdh" class="coach-tool"><svg class="ic"><use href="#ic-chart"/></svg><span>Adhérence &amp; alertes</span></button>
-          <button type="button" id="coachOpenHelp" class="coach-tool"><svg class="ic"><use href="#ic-heart-hand"/></svg><span>Demandes d’aide</span></button>
-          <button type="button" id="coachOpenScans" class="coach-tool"><svg class="ic"><use href="#ic-barcode"/></svg><span>Scans produits</span></button>
-          <button type="button" id="coachOpenPlate" class="coach-tool"><svg class="ic"><use href="#ic-camera"/></svg><span>Analyses d’assiette</span></button>
-          <button type="button" id="coachOpenPhotos" class="coach-tool"><svg class="ic"><use href="#ic-camera"/></svg><span>Photos des plats</span></button>
-        </div>
         <h2 class="coach-dash-sec">Mes clients</h2>
         <div id="coachClientsList"></div>
       </div>
@@ -647,17 +639,17 @@
 
         <div class="profil-sec profil-coach hidden">ESPACE COACH</div>
         <button type="button" class="profil-row profil-coach hidden" id="btnMessagesCoach"><svg class="ic pr-lime"><use href="#ic-send"/></svg>Mes messages<span class="pr-badge conv-unread" id="messagesCoachBadge" style="display:none"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row profil-coach hidden" id="btnPlatsPhotos"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Photos des plats<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" id="btnPlatsPhotos"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Photos des plats<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnClientsAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Clients inscrits<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row profil-coach hidden" data-go="btnAdhAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Adhérence clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row profil-coach hidden" data-go="btnScanAdmin"><svg class="ic pr-lime"><use href="#ic-barcode"/></svg>Scans clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row profil-coach hidden" data-go="btnPlateAdmin"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Analyses d'assiettes<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" data-go="btnAdhAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Adhérence clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" data-go="btnScanAdmin"><svg class="ic pr-lime"><use href="#ic-barcode"/></svg>Scans clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" data-go="btnPlateAdmin"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Analyses d'assiettes<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnDemoAdmin"><svg class="ic pr-lime"><use href="#ic-eye"/></svg>Mode démo client<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnCoachIaAdmin"><svg class="ic pr-lime"><use href="#ic-spark"/></svg>Coach IA<span class="pr-badge" id="coachIaStateBadge"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnCoachFaq"><svg class="ic pr-lime"><use href="#ic-file"/></svg>Réponses du coach (gratuit)<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnQuickOptions"><svg class="ic pr-lime"><use href="#ic-cart"/></svg>Options rapides boutique<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin profil-danger hidden" id="btnResetClients"><svg class="ic"><use href="#ic-refresh"/></svg>Réinitialiser les données clients (test)</button>
-        <button type="button" class="profil-row profil-coach hidden" data-go="btnHelpAdmin"><svg class="ic pr-lime"><use href="#ic-inbox"/></svg>Demandes d'aide<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" data-go="btnHelpAdmin"><svg class="ic pr-lime"><use href="#ic-inbox"/></svg>Demandes d'aide<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
         <div class="profil-sec profil-demo hidden">DÉMONSTRATION</div>
         <button type="button" class="profil-row profil-demo hidden" data-go="demoRestart"><svg class="ic pr-muted"><use href="#ic-refresh"/></svg>Recommencer la démo<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -1215,6 +1207,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=33"></script>
+  <script src="app.js?v=34"></script>
 </body>
 </html>

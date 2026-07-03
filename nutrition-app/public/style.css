@@ -1483,6 +1483,12 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .conv-last { font-size: 12.5px; color: var(--mc-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
 .conv-when { font-size: 11.5px; color: var(--mc-muted); flex-shrink: 0; white-space: nowrap; }
 .conv-unread { display: inline-block; min-width: 18px; text-align: center; font-size: 11px; font-weight: 700; color: #fff; background: var(--mc-blue); padding: 0 6px; border-radius: 99px; margin-left: 6px; vertical-align: middle; }
+/* Client ayant écrit au coach (message non lu) : carte en surbrillance bleue. */
+.conv-row.has-unread { background: var(--blue-soft); border-color: var(--blue-c); box-shadow: inset 3px 0 0 var(--blue-c); }
+.conv-row.has-unread .conv-name { color: var(--blue-on-soft); }
+.conv-row.has-unread .conv-when .ic { color: var(--blue-c); }
+.conv-msg-flag { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 11.5px; font-weight: 700; color: var(--blue-on-soft); background: rgba(255,255,255,0.7); border: 1px solid var(--blue-c); border-radius: 99px; padding: 2px 9px; }
+.conv-msg-flag .ic { width: 13px; height: 13px; }
 #coachChatWall { max-height: 52vh; overflow-y: auto; margin-bottom: 12px; }
 #convWall { max-height: 46vh; overflow-y: auto; margin-bottom: 12px; }
 

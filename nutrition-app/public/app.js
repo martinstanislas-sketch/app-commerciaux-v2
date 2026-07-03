@@ -4181,25 +4181,36 @@ async function bootCoachDashboard() {
   if (list) {
     list.innerHTML = '<p class="panel-sub">Chargement…</p>';
     try {
-      const res = await fetch(apiUrl('/api/coach/clients'), { headers: nutriAuthHeaders() });
+      // Clients + conversations en parallèle : on met en surbrillance les clients
+      // qui ont écrit au coach (message non lu).
+      const [res, resConv] = await Promise.all([
+        fetch(apiUrl('/api/coach/clients'), { headers: nutriAuthHeaders() }),
+        fetch(apiUrl('/api/coach/conversations'), { headers: nutriAuthHeaders() }).catch(() => null),
+      ]);
       const d = await res.json();
+      const unread = new Set();
+      try {
+        const dc = resConv && await resConv.json();
+        if (dc && dc.ok) (dc.conversations || []).forEach((c) => { if ((c.unread || 0) > 0 && c.clientEmail) unread.add(c.clientEmail); });
+      } catch (_) { /* pas de conversations -> aucune surbrillance */ }
       if (d.ok) {
         const cs = d.clients || [];
-        list.innerHTML = cs.length ? cs.map(coachClientRow).join('') : '<p class="help-empty">Aucun client ne t’est attribué pour le moment.</p>';
+        list.innerHTML = cs.length ? cs.map((c) => coachClientRow(c, unread.has(c.email))).join('') : '<p class="help-empty">Aucun client ne t’est attribué pour le moment.</p>';
         list.querySelectorAll('.conv-row[data-email]').forEach((b) => b.addEventListener('click', () => openCoachFiche(b.dataset.email)));
       } else list.innerHTML = '<p class="help-empty">Lecture impossible.</p>';
     } catch (_) { list.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
   }
   refreshCoachMsgBadge();
 }
-function coachClientRow(c) {
+function coachClientRow(c, hasUnread) {
   const nom = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
   const OBJ = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de masse', energie: 'Énergie' };
   const obj = c.objectif ? (OBJ[c.objectif] || c.objectif) : '—';
   const etat = c.hasPlan ? 'Plan actif' : 'Sans plan';
-  return '<button type="button" class="conv-row" data-email="' + escapeHtml(c.email) + '">' +
+  const flag = hasUnread ? '<span class="conv-msg-flag">' + icSvg('send') + ' Nouveau message</span>' : '';
+  return '<button type="button" class="conv-row' + (hasUnread ? ' has-unread' : '') + '" data-email="' + escapeHtml(c.email) + '">' +
     '<div class="conv-main"><div class="conv-name">' + escapeHtml(nom) + '</div>' +
-    '<div class="conv-last">' + escapeHtml(obj) + ' · ' + etat + '</div></div>' +
+    '<div class="conv-last">' + escapeHtml(obj) + ' · ' + etat + '</div>' + flag + '</div>' +
     '<div class="conv-when">' + icSvg('send') + '</div></button>';
 }
 async function refreshCoachMsgBadge() {
