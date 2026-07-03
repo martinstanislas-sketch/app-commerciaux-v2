@@ -12,7 +12,11 @@ const NUTRI_BASE = (function () {
 })();
 function apiUrl(path) { return NUTRI_BASE + String(path).replace(/^\//, ''); }
 // Mode démonstration client (session démo validée par code) : tout est isolé.
-function isDemo() { return !!window.__NUTRI_DEMO; }
+// Démo = session SANS vrai compte client. Un client connecté (email présent) n'est
+// JAMAIS en démo — même si son token de session est transporté via __NUTRI_DEMO. Ça
+// évite qu'un vrai client tombe sur l'écran/bandeau « Mode démonstration » ou voie des
+// données fictives. (Le token continue d'être envoyé via demoToken(), indépendant d'ici.)
+function isDemo() { return !!window.__NUTRI_DEMO && !(window.__NUTRI_USER && window.__NUTRI_USER.email); }
 function demoToken() { return (window.__NUTRI_DEMO && window.__NUTRI_DEMO.token) || null; }
 // En contexte app principale, l'API /nutrition/api/* est protégée : on joint le token
 // Bearer. En mode démo, on utilise le jeton de session démo (jamais le token admin).
@@ -2484,6 +2488,10 @@ async function refreshModeBadge() {
     const data = await res.json();
     state.ia = !!data.ia;
     const badge = $('#modeBadge');
+    if (!badge) return;
+    // Indicateur technique (backend de génération) : réservé à l'admin, jamais devant un client.
+    if (!(typeof isMainAdmin === 'function' && isMainAdmin())) { badge.classList.add('hidden'); return; }
+    badge.classList.remove('hidden');
     if (data.ia) { badge.textContent = 'Mode Claude'; badge.className = 'badge badge-ia'; }
     else { badge.textContent = 'Mode demo'; badge.className = 'badge badge-demo'; }
   } catch (_) { /* ignore */ }
