@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=37" />
+  <link rel="stylesheet" href="style.css?v=43" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -252,7 +252,10 @@
             <div class="coach-dash-kicker">Espace coach</div>
             <h1 id="coachDashName">Coach</h1>
           </div>
-          <button type="button" id="coachBack" class="btn btn-outline">← Coaching</button>
+          <div class="coach-dash-actions">
+            <button type="button" id="coachBack" class="btn btn-outline">← Coaching</button>
+            <button type="button" id="coachLogout" class="coach-logout"><svg class="ic"><use href="#ic-logout"/></svg> Se déconnecter</button>
+          </div>
         </div>
         <button type="button" id="coachOpenMessages" class="coach-dash-cta"><svg class="ic"><use href="#ic-send"/></svg> Mes messages <span id="coachMsgBadge" class="conv-unread" style="display:none"></span></button>
         <button type="button" id="coachOpenWall" class="coach-dash-cta coach-dash-cta-alt"><svg class="ic"><use href="#ic-users"/></svg> Mur collectif</button>
@@ -1224,6 +1227,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=37"></script>
+  <script src="app.js?v=43"></script>
 </body>
 </html>

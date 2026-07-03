@@ -265,6 +265,15 @@ function ensureNutritionHelpTable() {
       statut TEXT NOT NULL DEFAULT 'active',
       UNIQUE(client_email, coach_id)
     );
+    -- Multi-coach : coachs SUPPLÉMENTAIRES attribués à un client (au-delà du référent
+    -- nutrition_clients.coach_id). Fil de messagerie PARTAGÉ : le client écrit une fois
+    -- (au référent) ; tout coach listé ici — ou le référent — voit et répond.
+    CREATE TABLE IF NOT EXISTS nutrition_client_coaches (
+      client_email TEXT NOT NULL,
+      coach_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (client_email, coach_id)
+    );
     CREATE TABLE IF NOT EXISTS nutrition_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       conversation_id INTEGER NOT NULL,
@@ -433,7 +442,11 @@ function requireCoachOrAdmin(req, res, next) {
 // un coach sans client (ou des lignes sans email résolu) ne voit rien (1=0).
 function coachLegacyScope(sc, col) {
   if (sc.isAdmin) return { where: '', and: '', params: [] };
-  const emails = getDb().prepare('SELECT email FROM nutrition_clients WHERE coach_id = ?').all(sc.coachId).map((r) => r.email).filter(Boolean);
+  // Multi-coach : clients suivis en tant que référent OU coach supplémentaire.
+  const set = new Set();
+  try { getDb().prepare('SELECT email FROM nutrition_clients WHERE coach_id = ?').all(sc.coachId).forEach((r) => set.add(r.email)); } catch (_) { /* ignore */ }
+  try { getDb().prepare('SELECT client_email FROM nutrition_client_coaches WHERE coach_id = ?').all(sc.coachId).forEach((r) => set.add(r.client_email)); } catch (_) { /* ignore */ }
+  const emails = [...set].filter(Boolean);
   if (!emails.length) return { where: ' WHERE 1=0', and: ' AND 1=0', params: [] };
   const ph = emails.map(() => '?').join(',');
   return { where: ' WHERE ' + col + " != '' AND " + col + ' IN (' + ph + ')', and: ' AND ' + col + " != '' AND " + col + ' IN (' + ph + ')', params: emails };
@@ -590,7 +603,7 @@ try {
       if (!sc.isAdmin) {
         const row = getDb().prepare('SELECT client_email FROM nutrition_help_requests WHERE id = ?').get(id);
         if (!row) return res.status(404).json({ ok: false, error: 'Demande introuvable.' });
-        const owned = row.client_email && getDb().prepare('SELECT 1 FROM nutrition_clients WHERE email = ? AND coach_id = ?').get(row.client_email, sc.coachId);
+        const owned = row.client_email && coachSeesClient(sc.coachId, row.client_email);
         if (!owned) return res.status(403).json({ ok: false, error: 'Demande non attribuée.' });
       }
       const info = getDb().prepare('UPDATE nutrition_help_requests SET statut = ? WHERE id = ?').run(statut, id);
@@ -856,7 +869,7 @@ try {
         db.prepare('SELECT event_id, type, email FROM nutrition_community_event_reactions WHERE event_id IN (' + ph + ')').all(...evIds)
           .forEach((x) => { const e = evReac[x.event_id] || (evReac[x.event_id] = { counts: {}, mine: null }); e.counts[x.type] = (e.counts[x.type] || 0) + 1; if (me && x.email === me) e.mine = x.type; });
       }
-      const posts = db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage') ORDER BY id DESC LIMIT ?").all(limit);
+      const posts = db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') ORDER BY id DESC LIMIT ?").all(limit);
       const postReac = {}; const postIds = posts.map((p) => p.id);
       if (postIds.length) {
         const ph = postIds.map(() => '?').join(',');
@@ -865,7 +878,7 @@ try {
       }
       const items = [];
       for (const e of evs) items.push({ id: 'e' + e.id, kind: 'event', subkind: e.type, who: e.actor_name || 'Le groupe', emoji: e.emoji || '', text: e.text, when: e.created_at, reactions: (evReac[e.id] && evReac[e.id].counts) || {}, myReaction: (evReac[e.id] && evReac[e.id].mine) || null, mine: false });
-      for (const p of posts) items.push({ id: 'p' + p.id, kind: 'post', subkind: p.kind, who: p.author || 'Un membre', emoji: p.kind === 'partage' ? '✅' : '💬', text: p.message, when: p.created_at, reactions: (postReac[p.id] && postReac[p.id].counts) || {}, myReaction: (postReac[p.id] && postReac[p.id].mine) || null, mine: !!me && p.email === me });
+      for (const p of posts) items.push({ id: 'p' + p.id, kind: 'post', subkind: p.kind, who: p.author || 'Un membre', emoji: p.kind === 'partage' ? '✅' : (p.kind === 'coach' ? '📣' : '💬'), text: p.message, when: p.created_at, reactions: (postReac[p.id] && postReac[p.id].counts) || {}, myReaction: (postReac[p.id] && postReac[p.id].mine) || null, mine: !!me && p.email === me });
       items.sort((a, b) => String(b.when || '').localeCompare(String(a.when || '')));
       const out = items.slice(0, limit);
       // Nombre de commentaires par élément (badge sur la carte).
@@ -1000,8 +1013,7 @@ try {
     const s = req.session || {};
     if (s.role === 'admin') return { ok: true, role: 'admin', id: 0 };
     if ((s.role === 'coach' || s.role === 'coach-leader') && s.coach_id) {
-      const cli = getDb().prepare('SELECT coach_id FROM nutrition_clients WHERE email = ?').get(email);
-      if (cli && cli.coach_id === s.coach_id) return { ok: true, role: 'coach', id: s.coach_id };
+      if (coachSeesClient(s.coach_id, email)) return { ok: true, role: 'coach', id: s.coach_id };
       return { ok: false };
     }
     if (s.email && s.email === email) return { ok: true, role: 'client', id: 0 };
@@ -1157,6 +1169,38 @@ try {
     if (!cli || !cli.coach_id) return null;
     return getDb().prepare('SELECT id, name FROM coaches WHERE id = ? AND archived = 0').get(cli.coach_id) || null;
   }
+  // ── Multi-coach : tous les coachs d'un client = référent (nutrition_clients.coach_id)
+  // ∪ coachs supplémentaires (nutrition_client_coaches). Le fil de messagerie reste
+  // UNIQUE (clé sur le référent) ; l'ACCÈS est élargi à tous ces coachs (fil partagé).
+  function coachIdsForClient(email) {
+    if (!email) return [];
+    const ids = new Set();
+    try {
+      const cli = getDb().prepare('SELECT coach_id FROM nutrition_clients WHERE email = ?').get(email);
+      if (cli && cli.coach_id) ids.add(cli.coach_id);
+    } catch (_) { /* ignore */ }
+    try {
+      getDb().prepare('SELECT coach_id FROM nutrition_client_coaches WHERE client_email = ?').all(email).forEach((r) => ids.add(r.coach_id));
+    } catch (_) { /* table absente */ }
+    return [...ids];
+  }
+  function coachSeesClient(coachId, email) {
+    return !!coachId && !!email && coachIdsForClient(email).includes(coachId);
+  }
+  // Emails des clients qu'un coach suit (référent OU coach supplémentaire).
+  function clientEmailsForCoach(coachId) {
+    const s = new Set();
+    try { getDb().prepare('SELECT email FROM nutrition_clients WHERE coach_id = ?').all(coachId).forEach((r) => s.add(r.email)); } catch (_) { /* ignore */ }
+    try { getDb().prepare('SELECT client_email FROM nutrition_client_coaches WHERE coach_id = ?').all(coachId).forEach((r) => s.add(r.client_email)); } catch (_) { /* ignore */ }
+    return [...s].filter(Boolean);
+  }
+  // Fragment SQL "client_email IN (...)" scopé à un coach (ou pas de restriction pour l'admin).
+  function coachEmailsInClause(sc, col) {
+    if (sc.isAdmin) return { clause: '', params: [] };
+    const emails = clientEmailsForCoach(sc.coachId);
+    if (!emails.length) return { clause: ' AND 1=0', params: [] };
+    return { clause: ' AND ' + col + ' IN (' + emails.map(() => '?').join(',') + ')', params: emails };
+  }
 
   // CLIENT : sa conversation avec SON coach (le destinataire n'est jamais choisi par le client).
   app.get('/nutrition/api/messages/coach', requireAuth, requireNutritionUse, (req, res) => {
@@ -1208,9 +1252,16 @@ try {
         (SELECT COUNT(*) FROM nutrition_messages m WHERE m.conversation_id = c.id) AS total,
         (SELECT COUNT(*) FROM nutrition_messages m WHERE m.conversation_id = c.id AND m.sender_role = 'client' AND m.lu = 0) AS unread
         FROM nutrition_conversations c`;
-      const rows = sc.isAdmin
-        ? getDb().prepare(base + ' ORDER BY c.last_message_at DESC').all()
-        : getDb().prepare(base + ' WHERE c.coach_id = ? ORDER BY c.last_message_at DESC').all(sc.coachId);
+      let rows;
+      if (sc.isAdmin) {
+        rows = getDb().prepare(base + ' ORDER BY c.last_message_at DESC').all();
+      } else {
+        // Fil partagé : le coach voit les conversations de TOUS ses clients (référent + supplémentaires).
+        const emails = clientEmailsForCoach(sc.coachId);
+        rows = emails.length
+          ? getDb().prepare(base + ' WHERE c.client_email IN (' + emails.map(() => '?').join(',') + ') ORDER BY c.last_message_at DESC').all(...emails)
+          : [];
+      }
       const coachMap = {};
       if (sc.isAdmin) { try { getDb().prepare('SELECT id, name FROM coaches WHERE archived = 0').all().forEach((c) => { coachMap[c.id] = c.name; }); } catch (_) { /* ignore */ } }
       const conversations = rows.map((r) => {
@@ -1233,7 +1284,7 @@ try {
       const sc = req.nutritionScope;
       const conv = getDb().prepare('SELECT id, client_email, coach_id FROM nutrition_conversations WHERE id = ?').get(Number(req.params.id));
       if (!conv) return res.status(404).json({ ok: false, error: 'Conversation introuvable.' });
-      if (!sc.isAdmin && conv.coach_id !== sc.coachId) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
+      if (!sc.isAdmin && !coachSeesClient(sc.coachId, conv.client_email)) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
       // Super_admin : par défaut supervision = on voit la FORME de l'échange (qui, quand)
       // mais PAS le contenu. Le contenu n'est révélé qu'en mode support EXPLICITE
       // (?support=1), tracé dans le journal d'audit.
@@ -1257,14 +1308,17 @@ try {
   app.post('/nutrition/api/coach/conversations/:id/reply', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const sc = req.nutritionScope;
-      const conv = getDb().prepare('SELECT id, coach_id FROM nutrition_conversations WHERE id = ?').get(Number(req.params.id));
+      const conv = getDb().prepare('SELECT id, client_email, coach_id FROM nutrition_conversations WHERE id = ?').get(Number(req.params.id));
       if (!conv) return res.status(404).json({ ok: false, error: 'Conversation introuvable.' });
-      if (!sc.isAdmin && conv.coach_id !== sc.coachId) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
+      const coachIsAssigned = coachSeesClient(sc.coachId, conv.client_email);
+      if (!sc.isAdmin && !coachIsAssigned) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
       const msg = String((req.body || {}).message || '').slice(0, 2000).trim();
       if (!msg) return res.status(400).json({ ok: false, error: 'Message vide.' });
       const now = new Date().toISOString();
       const label = String((req.session && req.session.name) || 'Coach').slice(0, 80);
-      const role = (sc.isAdmin && conv.coach_id !== sc.coachId) ? 'super_admin' : 'coach';
+      // Un coach attribué (référent OU supplémentaire) répond en tant que 'coach' ;
+      // l'admin non attribué qui intervient est tracé comme 'super_admin' (support).
+      const role = (sc.isAdmin && !coachIsAssigned) ? 'super_admin' : 'coach';
       const info = getDb().prepare('INSERT INTO nutrition_messages (conversation_id, sender_role, sender_label, contenu, created_at, lu) VALUES (?,?,?,?,?,0)').run(conv.id, role, label, msg, now);
       getDb().prepare('UPDATE nutrition_conversations SET last_message_at = ? WHERE id = ?').run(now, conv.id);
       if (role === 'super_admin') {
@@ -1282,8 +1336,10 @@ try {
       if (!email) return res.status(400).json({ ok: false, error: 'Client manquant.' });
       const cli = getDb().prepare('SELECT coach_id FROM nutrition_clients WHERE email = ?').get(email);
       if (!cli) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
-      if (!sc.isAdmin && cli.coach_id !== sc.coachId) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
-      const coachId = sc.isAdmin ? cli.coach_id : sc.coachId;
+      if (!sc.isAdmin && !coachSeesClient(sc.coachId, email)) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
+      // Fil PARTAGÉ : la conversation est toujours celle du référent du client (coach_id),
+      // quel que soit le coach qui l'ouvre. Tous les coachs attribués y accèdent.
+      const coachId = cli.coach_id;
       if (!coachId) return res.status(409).json({ ok: false, error: 'Ce client n’a pas de coach attribué.' });
       const now = new Date().toISOString();
       let conv = getDb().prepare('SELECT id FROM nutrition_conversations WHERE client_email = ? AND coach_id = ?').get(email, coachId);
@@ -1317,10 +1373,14 @@ try {
       let messages = 0;
       if (s.role === 'coach' || s.role === 'coach-leader') {
         if (s.coach_id) {
-          const r = getDb().prepare(`SELECT COUNT(*) AS n FROM nutrition_messages m
-            JOIN nutrition_conversations c ON c.id = m.conversation_id
-            WHERE c.coach_id = ? AND m.sender_role = 'client' AND m.lu = 0`).get(s.coach_id);
-          messages = (r && r.n) || 0;
+          // Fil partagé : messages non lus des clients suivis (référent OU supplémentaire).
+          const emails = clientEmailsForCoach(s.coach_id);
+          if (emails.length) {
+            const r = getDb().prepare(`SELECT COUNT(*) AS n FROM nutrition_messages m
+              JOIN nutrition_conversations c ON c.id = m.conversation_id
+              WHERE c.client_email IN (${emails.map(() => '?').join(',')}) AND m.sender_role = 'client' AND m.lu = 0`).get(...emails);
+            messages = (r && r.n) || 0;
+          }
         }
       } else if (s.role !== 'admin' && s.email) {
         const r = getDb().prepare(`SELECT COUNT(*) AS n FROM nutrition_messages m
@@ -1543,7 +1603,7 @@ try {
       if (!sc.isAdmin) {
         const row = getDb().prepare('SELECT client_email FROM nutrition_scan_advice WHERE id = ?').get(id);
         if (!row) return res.status(404).json({ ok: false, error: 'Demande introuvable.' });
-        const owned = row.client_email && getDb().prepare('SELECT 1 FROM nutrition_clients WHERE email = ? AND coach_id = ?').get(row.client_email, sc.coachId);
+        const owned = row.client_email && coachSeesClient(sc.coachId, row.client_email);
         if (!owned) return res.status(403).json({ ok: false, error: 'Demande non attribuée.' });
       }
       const info = getDb().prepare('UPDATE nutrition_scan_advice SET statut = ? WHERE id = ?').run(statut, id);
@@ -1782,6 +1842,9 @@ try {
       const rows = getDb().prepare("SELECT email, prenom, nom, data, coach_id, created_at, updated_at FROM nutrition_clients ORDER BY datetime(CASE WHEN updated_at != '' THEN updated_at ELSE created_at END) DESC").all();
       const coachMap = {};
       try { getDb().prepare('SELECT id, name FROM coaches WHERE archived = 0').all().forEach((c) => { coachMap[c.id] = c.name; }); } catch (_) { /* table absente */ }
+      // Coachs supplémentaires (multi-coach) groupés par client, en une requête.
+      const extraByEmail = {};
+      try { getDb().prepare('SELECT client_email, coach_id FROM nutrition_client_coaches').all().forEach((x) => { (extraByEmail[x.client_email] = extraByEmail[x.client_email] || []).push(x.coach_id); }); } catch (_) { /* table absente */ }
       const clients = rows.map((r) => {
         let objectif = '', hasPlan = false, savedAt = '';
         try {
@@ -1792,7 +1855,10 @@ try {
             savedAt = d.savedAt || '';
           }
         } catch (_) { /* données illisibles -> ignorées */ }
-        return { email: r.email, prenom: r.prenom, nom: r.nom, createdAt: r.created_at, updatedAt: r.updated_at, objectif, hasPlan, savedAt, coachId: r.coach_id || null, coachName: (r.coach_id && coachMap[r.coach_id]) || null };
+        const coachIds = [...new Set([...(r.coach_id ? [r.coach_id] : []), ...(extraByEmail[r.email] || [])])];
+        return { email: r.email, prenom: r.prenom, nom: r.nom, createdAt: r.created_at, updatedAt: r.updated_at, objectif, hasPlan, savedAt,
+          coachId: r.coach_id || null, coachName: (r.coach_id && coachMap[r.coach_id]) || null,
+          coachIds, coachNames: coachIds.map((id) => coachMap[id]).filter(Boolean) };
       });
       res.json({ ok: true, total: clients.length, clients });
     } catch (e) {
@@ -1812,21 +1878,34 @@ try {
     }
   });
 
-  // Attribue (ou retire avec coach_id=null) le coach sportif d'un client nutrition. Admin seulement.
+  // Attribue le(s) coach(s) sportif(s) d'un client nutrition. Admin seulement.
+  // Accepte `coach_ids: [id,...]` (multi) OU `coach_id` (single, rétro-compat). Le
+  // `primary` (sinon le 1er) devient le RÉFÉRENT (nutrition_clients.coach_id) — c'est
+  // lui qui porte le fil de messagerie ; les autres sont des coachs SUPPLÉMENTAIRES
+  // (nutrition_client_coaches) qui voient et répondent au même fil (partagé).
   app.post('/nutrition/api/clients/:email/coach', requireAuth, requireAdmin, (req, res) => {
     try {
       const email = String(req.params.email || '').trim();
       if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
-      let coachId = (req.body || {}).coach_id;
-      coachId = (coachId === null || coachId === '' || coachId === undefined) ? null : Number(coachId);
-      if (coachId !== null) {
-        if (!Number.isInteger(coachId)) return res.status(400).json({ ok: false, error: 'Coach invalide.' });
-        const exists = getDb().prepare('SELECT id FROM coaches WHERE id = ? AND archived = 0').get(coachId);
-        if (!exists) return res.status(400).json({ ok: false, error: 'Coach inconnu.' });
+      const db = getDb();
+      if (!db.prepare('SELECT email FROM nutrition_clients WHERE email = ?').get(email)) {
+        return res.status(404).json({ ok: false, error: 'Client introuvable.' });
       }
-      const upd = getDb().prepare('UPDATE nutrition_clients SET coach_id = ? WHERE email = ?').run(coachId, email);
-      if (!upd.changes) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
-      res.json({ ok: true, coachId });
+      const b = req.body || {};
+      let ids = Array.isArray(b.coach_ids)
+        ? b.coach_ids
+        : ((b.coach_id === null || b.coach_id === '' || b.coach_id === undefined) ? [] : [b.coach_id]);
+      ids = ids.map((x) => Number(x)).filter((x) => Number.isInteger(x));
+      // Ne garde que les coachs existants et actifs, sans doublon (ordre préservé).
+      const uniq = [...new Set(ids)].filter((id) => db.prepare('SELECT id FROM coaches WHERE id = ? AND archived = 0').get(id));
+      let primary = Number(b.primary);
+      if (!uniq.includes(primary)) primary = uniq.length ? uniq[0] : null;
+      db.prepare('UPDATE nutrition_clients SET coach_id = ? WHERE email = ?').run(primary, email);
+      db.prepare('DELETE FROM nutrition_client_coaches WHERE client_email = ?').run(email);
+      const now = new Date().toISOString();
+      const insert = db.prepare('INSERT OR IGNORE INTO nutrition_client_coaches (client_email, coach_id, created_at) VALUES (?,?,?)');
+      uniq.forEach((id) => { if (id !== primary) insert.run(email, id, now); });
+      res.json({ ok: true, coachId: primary, primary, coachIds: uniq });
     } catch (e) {
       console.error('Erreur attribution coach :', e);
       res.status(500).json({ ok: false, error: 'Attribution impossible.' });
@@ -1851,9 +1930,15 @@ try {
       const sc = req.nutritionScope;
       const order = " ORDER BY datetime(CASE WHEN updated_at != '' THEN updated_at ELSE created_at END) DESC";
       const cols = 'SELECT email, prenom, nom, data, coach_id, created_at, updated_at FROM nutrition_clients';
-      const rows = sc.isAdmin
-        ? getDb().prepare(cols + order).all()
-        : getDb().prepare(cols + ' WHERE coach_id = ?' + order).all(sc.coachId);
+      let rows;
+      if (sc.isAdmin) {
+        rows = getDb().prepare(cols + order).all();
+      } else {
+        const emails = clientEmailsForCoach(sc.coachId); // référent + supplémentaires
+        rows = emails.length
+          ? getDb().prepare(cols + ' WHERE email IN (' + emails.map(() => '?').join(',') + ')' + order).all(...emails)
+          : [];
+      }
       const coachMap = {};
       try { getDb().prepare('SELECT id, name FROM coaches WHERE archived = 0').all().forEach((c) => { coachMap[c.id] = c.name; }); } catch (_) { /* ignore */ }
       const clients = rows.map((r) => {
@@ -1881,7 +1966,7 @@ try {
       if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
       const row = getDb().prepare('SELECT email, prenom, nom, data, coach_id, created_at, updated_at FROM nutrition_clients WHERE email = ?').get(email);
       if (!row) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
-      if (!sc.isAdmin && row.coach_id !== sc.coachId) return res.status(403).json({ ok: false, error: 'Client non attribué.' });
+      if (!sc.isAdmin && !coachSeesClient(sc.coachId, email)) return res.status(403).json({ ok: false, error: 'Client non attribué.' });
 
       let profil = {}, objectif = '', hasPlan = false, planJours = 0, savedAt = '', startDate = '';
       let pesees = [];
@@ -2036,7 +2121,7 @@ try {
       if (!sc.isAdmin) {
         const row = getDb().prepare('SELECT client_email FROM nutrition_plate_analysis WHERE id = ?').get(id);
         if (!row) return res.status(404).json({ ok: false, error: 'Analyse introuvable.' });
-        const owned = row.client_email && getDb().prepare('SELECT 1 FROM nutrition_clients WHERE email = ? AND coach_id = ?').get(row.client_email, sc.coachId);
+        const owned = row.client_email && coachSeesClient(sc.coachId, row.client_email);
         if (!owned) return res.status(403).json({ ok: false, error: 'Analyse non attribuée.' });
       }
       const info = getDb().prepare('UPDATE nutrition_plate_analysis SET advice_statut = ? WHERE id = ?').run(statut, id);

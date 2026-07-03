@@ -34,6 +34,12 @@ const STORE_KEY = (window.__NUTRI_USER && window.__NUTRI_USER.email)
   ? ('mc-nutri-state-' + window.__NUTRI_USER.email)
   : (isDemo() ? 'mycoach-nutrition-demo-v1' : 'mycoach-nutrition-v1');
 const TOTAL_STEPS = 5;
+// ⚙️ FORCE_CHALLENGE : au lancement, tout nouvel inscrit démarre en « Challenge 6/6 ».
+// On MASQUE l'étape 1 « Quel est votre objectif ? » et on pré-sélectionne 'challenge'.
+// Pour RÉACTIVER le choix libre de l'objectif : repasser cette constante à false
+// (aucune autre modification nécessaire — l'étape et son choix reviennent tels quels).
+const FORCE_CHALLENGE = true;
+const FIRST_STEP = FORCE_CHALLENGE ? 2 : 1;
 
 const state = {
   step: 1,
@@ -309,6 +315,19 @@ function initSelections() {
   });
 }
 
+// Si FORCE_CHALLENGE : pré-sélectionne l'objectif « Challenge 6/6 » et masque
+// l'étape 1 (« Quel est votre objectif ? »). Réversible via la constante FORCE_CHALLENGE.
+function applyForcedObjectif() {
+  if (!FORCE_CHALLENGE) return;
+  const g = $('.choice-grid[data-field="objectif"]');
+  if (g) {
+    g.dataset.selected = 'challenge';
+    $$('.choice', g).forEach((b) => b.classList.toggle('selected', b.dataset.value === 'challenge'));
+  }
+  const s1 = $('.step[data-step="1"]');
+  if (s1) s1.classList.remove('active'); // l'étape ne s'affichera jamais (goToStep démarre à FIRST_STEP)
+}
+
 // Affiche les precisions sur les collations (type + raison) uniquement si au
 // moins un moment de collation est selectionne (hors "non").
 function updateCollationDetails() {
@@ -329,11 +348,15 @@ function parseCsv(value) {
 
 // ---------- Onboarding : pas a pas ----------
 function goToStep(n) {
-  state.step = Math.min(Math.max(n, 1), TOTAL_STEPS);
+  state.step = Math.min(Math.max(n, FIRST_STEP), TOTAL_STEPS);
   $$('.step').forEach((s) => s.classList.toggle('active', Number(s.dataset.step) === state.step));
-  $('#progressFill').style.width = `${(state.step / TOTAL_STEPS) * 100}%`;
-  $('#stepNum').textContent = state.step;
-  $('#btnPrev').classList.toggle('hidden', state.step === 1);
+  // Compteur relatif au 1er pas visible (si l'étape objectif est masquée, on démarre à 1/N).
+  const shownNum = state.step - FIRST_STEP + 1;
+  const shownTotal = TOTAL_STEPS - FIRST_STEP + 1;
+  $('#progressFill').style.width = `${(shownNum / shownTotal) * 100}%`;
+  $('#stepNum').textContent = shownNum;
+  const stTot = $('#stepTotal'); if (stTot) stTot.textContent = shownTotal;
+  $('#btnPrev').classList.toggle('hidden', state.step === FIRST_STEP);
   $('#btnNext').classList.toggle('hidden', state.step === TOTAL_STEPS);
   $('#btnFinish').classList.toggle('hidden', state.step !== TOTAL_STEPS);
   // A chaque changement d'etape (Continuer / Retour), on revient tout en haut
@@ -353,7 +376,7 @@ function validateStep() {
 function collectProfile() {
   const form = $('#onboardingForm');
   const fd = new FormData(form);
-  const objectif = $('.choice-grid[data-field="objectif"]').dataset.selected || 'maintien';
+  const objectif = $('.choice-grid[data-field="objectif"]').dataset.selected || (FORCE_CHALLENGE ? 'challenge' : 'maintien');
   const matinGout = ($('.choice-grid[data-field="matinGout"]') || {}).dataset ? ($('.choice-grid[data-field="matinGout"]').dataset.selected || 'les-deux') : 'les-deux';
   state.masquerCalories = $('input[name="masquerCalories"]').checked;
 
@@ -514,10 +537,12 @@ function renderNeeds() {
   const kcalBlock = state.masquerCalories ? ''
     : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl">kcal / jour</div></div>`;
   const isChallenge = state.profil.objectif === 'challenge';
+  const prenom = clientPrenom();
   $('#needsCard').innerHTML = `
+    ${prenom ? `<p class="needs-kicker">Le programme de ${escapeHtml(prenom)}</p>` : ''}
     <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2>
       <button type="button" class="needs-agenda" title="Ajouter mes menus à mon agenda" aria-label="Ajouter à mon agenda">${icSvg('calendar')}<span>Agenda</span></button></div>
-    <p class="needs-sub">Votre objectif, résumé en chiffres.</p>
+    <p class="needs-sub">${prenom ? escapeHtml(prenom) + ', ton objectif, résumé en chiffres.' : 'Votre objectif, résumé en chiffres.'}</p>
     <div class="needs-stats">
       ${kcalBlock}
       <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div>${bar(pk)}</div>
@@ -2565,7 +2590,9 @@ function init() {
   if (window.__NUTRI_REFRESH) { const p = window.__NUTRI_REFRESH; window.__NUTRI_REFRESH = null; p.then(init); return; }
   setupDemoMode(); // bannière + actions si session démo
   initSelections();
-  goToStep(1);
+  applyForcedObjectif(); // masque l'étape objectif + force 'challenge' si FORCE_CHALLENGE
+  personalizeStaticUI(); // prénom du client/coach dans les libellés statiques
+  goToStep(FIRST_STEP);
   refreshModeBadge();
 
   $('#ctaStart').addEventListener('click', () => showScreen('onboarding'));
@@ -2695,6 +2722,7 @@ function init() {
   const _coachMsgs = $('#coachOpenMessages'); if (_coachMsgs) _coachMsgs.addEventListener('click', openMessagesCoach);
   const _coachWall = $('#coachOpenWall'); if (_coachWall) _coachWall.addEventListener('click', openCoachWall);
   const _coachBack = $('#coachBack'); if (_coachBack) _coachBack.addEventListener('click', () => { location.href = '/coach/'; });
+  const _coachLogout = $('#coachLogout'); if (_coachLogout) _coachLogout.addEventListener('click', logoutClient);
 
   // Gestion des photos de plats (admin/coach) + chargement de l'index (clients voient les photos)
   const _bPlatsPhotos = $('#btnPlatsPhotos'); if (_bPlatsPhotos) _bPlatsPhotos.addEventListener('click', openPlatsPhotos);
@@ -2825,6 +2853,27 @@ function mainAppUser() {
 function helpClientName() {
   const u = mainAppUser();
   return (u && u.name) || (state.profil && (state.profil.prenom || state.profil.nom)) || 'Client';
+}
+// Prénom du CLIENT (saisi à l'inscription) — pour personnaliser l'app « c'est TON programme ».
+// Source : compte client (window.__NUTRI_USER), sinon le profil. Vide si inconnu (démo/coach).
+function clientPrenom() {
+  const u = window.__NUTRI_USER;
+  const p = (u && u.prenom) || (state.profil && state.profil.prenom) || '';
+  return String(p || '').trim().split(' ')[0];
+}
+// Prénom du COACH connecté (pour personnaliser son espace).
+function coachPrenom() {
+  const c = (window.__NUTRI_COACH && window.__NUTRI_COACH.name) || (mainAppUser() && mainAppUser().name) || '';
+  return String(c || '').trim().split(' ')[0];
+}
+// Personnalise les libellés STATIQUES avec le prénom (titre du profil, etc.).
+function personalizeStaticUI() {
+  const pt = $('#view-profil .profil-title');
+  if (pt) {
+    const cp = clientPrenom();
+    if (cp) pt.textContent = 'Ton espace, ' + cp;
+    else if (window.__NUTRI_COACH && coachPrenom()) pt.textContent = 'Bonjour ' + coachPrenom();
+  }
 }
 function isCoachOrAdmin() {
   if (isDemo()) return false; // démo = expérience client pure, pas de vues coach
@@ -3133,7 +3182,7 @@ function showCommunauteIntro() {
   el.className = 'comm-intro';
   el.innerHTML =
     '<div class="comm-intro-ic">' + icSvg('users') + '</div>' +
-    '<div class="comm-intro-tx"><strong>Votre plan alimentaire est prêt.</strong> Rejoignez la communauté du challenge pour avancer avec le groupe.</div>' +
+    '<div class="comm-intro-tx"><strong>' + (clientPrenom() ? escapeHtml(clientPrenom()) + ', ton plan est prêt.' : 'Votre plan alimentaire est prêt.') + '</strong> Rejoignez la communauté du challenge pour avancer avec le groupe.</div>' +
     '<div class="comm-intro-act">' +
       '<button type="button" class="btn btn-primary" id="commIntroGo">Découvrir la communauté</button>' +
       '<button type="button" class="comm-intro-x" id="commIntroX" aria-label="Fermer">' + icSvg('x') + '</button>' +
@@ -3364,13 +3413,12 @@ function applyOverview() {
   const pp = $('#commProgPct'); if (pp) pp.textContent = pctObj; // le « % » est un élément séparé
   applyCoachTip();
 }
-// Conseil du coach (compact) : dernier message publié par le coach, sinon conseil auto.
+// Conseil du coach (compact) : conseil AUTO contextuel. Les messages publiés par le
+// coach apparaissent désormais dans le fil de l'équipe (mis en valeur), pas ici.
 function applyCoachTip() {
   const el = $('#commCoachTip'); if (!el) return;
   const ov = state.communauteOverview;
-  const coachMsg = (state.communauteMessages || []).find((m) => m.kind === 'coach');
-  el.textContent = (coachMsg && coachMsg.text)
-    || (ov && ov.coachAuto && ov.coachAuto[0])
+  el.textContent = (ov && ov.coachAuto && ov.coachAuto[0])
     || 'Ta collation protéinée de l’après-midi aide à éviter les fringales du soir.';
 }
 
@@ -3477,11 +3525,13 @@ function feedCard(item) {
     else if (item.who && txt.indexOf(item.who + ' ') === 0) txt = txt.slice(item.who.length + 1);
   }
   const who = item.who || 'Un membre';
+  const isCoachPost = item.kind === 'post' && item.subkind === 'coach';
   const badge = (item.emoji && who !== 'Le groupe') ? '<span class="feed-av-badge">' + item.emoji + '</span>' : '';
-  return '<article class="feed-card' + (item.kind === 'post' ? ' is-post' : '') + '" data-k="' + escapeHtml(item.subkind || (item.kind === 'post' ? 'post' : '')) + '">' +
+  const coachTag = isCoachPost ? '<span class="feed-coach-tag">' + icSvg('spark') + ' Coach</span>' : '';
+  return '<article class="feed-card' + (item.kind === 'post' ? ' is-post' : '') + (isCoachPost ? ' is-coach-post' : '') + '" data-k="' + escapeHtml(item.subkind || (item.kind === 'post' ? 'post' : '')) + '">' +
     '<div class="feed-av-wrap">' + feedAvatar(item) + badge + '</div>' +
     '<div class="feed-body">' +
-      '<div class="feed-meta"><b class="feed-who">' + escapeHtml(who) + '</b>' +
+      '<div class="feed-meta"><b class="feed-who">' + escapeHtml(who) + '</b>' + coachTag +
         '<span class="feed-when">' + escapeHtml(commTimeAgo(item.when)) + '</span></div>' +
       '<p class="feed-text">' + escapeHtml(txt) + '</p>' +
       '<div class="feed-actions">' + feedReactBar(item) + feedCommentBar(item) + '</div>' +
@@ -4184,6 +4234,7 @@ async function replyCoachConversation(id, text) {
 async function bootCoachDashboard() {
   const nm = $('#coachDashName');
   if (nm) nm.textContent = (window.__NUTRI_COACH && window.__NUTRI_COACH.name) || 'Coach';
+  const kick = $('#screen-coach .coach-dash-kicker'); if (kick) kick.textContent = 'Bonjour 👋';
   const list = $('#coachClientsList');
   if (list) {
     list.innerHTML = '<p class="panel-sub">Chargement…</p>';
@@ -5988,7 +6039,7 @@ async function renderClientsAdmin() {
     // Coachs disponibles pour l'attribution (chargés une fois).
     let coaches = [];
     try { const cr = await fetch(apiUrl('/api/coaches'), { headers: nutriAuthHeaders() }); const cd = await cr.json(); if (cd.ok) coaches = cd.coaches || []; } catch (_) { /* ignore */ }
-    const coachOptions = (selId) => '<option value="">— Aucun coach —</option>' + coaches.map((co) => `<option value="${co.id}"${Number(selId) === co.id ? ' selected' : ''}>${escapeHtml(co.name)}${co.studio ? ' · ' + escapeHtml(co.studio) : ''}</option>`).join('');
+    window.__coachesCache = coaches; // pour coachPickerHTML / saveClientCoaches
     const rows = clients.map((c) => {
       const nom = [c.prenom, c.nom].filter(Boolean).join(' ') || '(sans nom)';
       const obj = c.objectif ? (OBJ[c.objectif] || c.objectif) : '—';
@@ -5999,9 +6050,9 @@ async function renderClientsAdmin() {
         <div style="min-width:0;">
           <div style="font-weight:700;">${escapeHtml(nom)}</div>
           <div style="font-size:12.5px;color:#8B94A3;word-break:break-all;">${escapeHtml(c.email)}</div>
-          <div style="margin-top:7px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <span style="font-size:11px;color:#8B94A3;text-transform:uppercase;letter-spacing:.3px;">Coach</span>
-            <select class="coach-assign" data-email="${escapeHtml(c.email)}" data-prev="${c.coachId || ''}" style="background:#1B212C;color:#E8EDF2;border:1px solid #2C333F;border-radius:8px;padding:4px 8px;font-size:12.5px;max-width:190px;">${coachOptions(c.coachId)}</select>
+          <div style="margin-top:7px;">
+            <span style="font-size:11px;color:#8B94A3;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:4px;">Coachs</span>
+            ${coachPickerHTML(c, coaches)}
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0;font-size:12px;color:#8B94A3;line-height:1.7;">
@@ -6021,7 +6072,12 @@ async function renderClientsAdmin() {
       <div>${rows}</div>`;
     const cp = $('#clientsCopyEmails');
     if (cp) cp.addEventListener('click', () => { try { navigator.clipboard.writeText(emails); cp.textContent = 'Copié ✓'; setTimeout(() => { cp.textContent = 'Copier tous les emails'; }, 1400); } catch (_) { /* ignore */ } });
-    body.querySelectorAll('.coach-assign').forEach((sel) => sel.addEventListener('change', () => assignCoach(sel.dataset.email, sel.value, sel)));
+    body.querySelectorAll('.coach-multi').forEach((cm) => {
+      cm.addEventListener('change', (e) => {
+        if (e.target.classList.contains('cm-assign')) refreshCoachPickerRef(cm);
+        saveClientCoaches(cm);
+      });
+    });
     body.querySelectorAll('.pin-reset').forEach((b) => b.addEventListener('click', () => resetClientPin(b.dataset.email, b)));
   } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
 }
@@ -6035,17 +6091,47 @@ async function resetClientPin(email, btn) {
     else showToast(d.error || 'Échec.', { icon: 'info' });
   } catch (_) { showToast('Échec.', { icon: 'info' }); }
 }
-// Attribue/retire le coach d'un client (admin). Le serveur valide le coach et le client.
-async function assignCoach(email, coachId, sel) {
+// --- Multi-coach : sélecteur d'attribution (admin) ---
+// Cases à cocher pour chaque coach + un « référent » (le coach qui porte le fil de
+// messagerie ; tous les coachs cochés voient et répondent au même fil partagé).
+function coachPickerHTML(c, coaches) {
+  const assigned = new Set((c.coachIds && c.coachIds.length ? c.coachIds : (c.coachId ? [c.coachId] : [])).map(Number));
+  const primary = Number(c.coachId) || (c.coachIds && c.coachIds[0]) || '';
+  const checks = coaches.map((co) => `<label class="cm-check${assigned.has(co.id) ? ' on' : ''}"><input type="checkbox" class="cm-assign" value="${co.id}"${assigned.has(co.id) ? ' checked' : ''}><span>${escapeHtml(co.name)}</span></label>`).join('');
+  const refOpts = coaches.filter((co) => assigned.has(co.id)).map((co) => `<option value="${co.id}"${Number(primary) === co.id ? ' selected' : ''}>${escapeHtml(co.name)}</option>`).join('');
+  return `<div class="coach-multi" data-email="${escapeHtml(c.email)}">
+    <div class="cm-checks">${checks || '<span style="color:#8B94A3;font-size:12px;">Aucun coach en base</span>'}</div>
+    <div class="cm-refrow"${assigned.size > 1 ? '' : ' style="display:none"'}>Référent : <select class="cm-ref">${refOpts}</select></div>
+  </div>`;
+}
+// Reconstruit la ligne « référent » (choix limité aux coachs cochés) après un (dé)cochage.
+function refreshCoachPickerRef(cm) {
+  const prevRef = cm.querySelector('.cm-ref') ? Number(cm.querySelector('.cm-ref').value) : null;
+  const checked = [...cm.querySelectorAll('.cm-assign:checked')].map((c) => ({ id: Number(c.value), name: c.parentElement.querySelector('span').textContent }));
+  cm.querySelectorAll('.cm-check').forEach((l) => l.classList.toggle('on', l.querySelector('input').checked));
+  const refrow = cm.querySelector('.cm-refrow'); const sel = cm.querySelector('.cm-ref');
+  if (checked.length > 1) {
+    refrow.style.display = '';
+    const keepRef = checked.some((c) => c.id === prevRef) ? prevRef : checked[0].id;
+    sel.innerHTML = checked.map((c) => `<option value="${c.id}"${c.id === keepRef ? ' selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+  } else { refrow.style.display = 'none'; }
+}
+// Enregistre l'ensemble des coachs d'un client (+ le référent) auprès du serveur.
+async function saveClientCoaches(cm) {
+  const email = cm.dataset.email;
+  const ids = [...cm.querySelectorAll('.cm-assign:checked')].map((c) => Number(c.value));
+  const refSel = cm.querySelector('.cm-ref');
+  let primary = refSel && refSel.value ? Number(refSel.value) : (ids[0] || null);
+  if (!ids.includes(primary)) primary = ids[0] || null;
   try {
     const res = await fetch(apiUrl('/api/clients/' + encodeURIComponent(email) + '/coach'), {
       method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ coach_id: coachId || null }),
+      body: JSON.stringify({ coach_ids: ids, primary }),
     });
     const d = await res.json();
-    if (d.ok) { if (sel) sel.dataset.prev = coachId || ''; showToast(coachId ? 'Coach attribué ✓' : 'Coach retiré', { icon: 'check' }); }
-    else { showToast(d.error || 'Attribution impossible.', { icon: 'info' }); if (sel) sel.value = sel.dataset.prev || ''; }
-  } catch (_) { showToast('Attribution impossible.', { icon: 'info' }); if (sel) sel.value = sel.dataset.prev || ''; }
+    if (d.ok) showToast(ids.length > 1 ? ids.length + ' coachs attribués ✓' : (ids.length ? 'Coach attribué ✓' : 'Coachs retirés'), { icon: 'check' });
+    else showToast(d.error || 'Attribution impossible.', { icon: 'info' });
+  } catch (_) { showToast('Attribution impossible.', { icon: 'info' }); }
 }
 function setupClientsAdminAccess() {
   if (!isMainAdmin()) return;
