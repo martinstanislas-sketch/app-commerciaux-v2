@@ -4196,7 +4196,12 @@ async function bootCoachDashboard() {
       if (d.ok) {
         const cs = d.clients || [];
         list.innerHTML = cs.length ? cs.map((c) => coachClientRow(c, unread.has(c.email))).join('') : '<p class="help-empty">Aucun client ne t’est attribué pour le moment.</p>';
-        list.querySelectorAll('.conv-row[data-email]').forEach((b) => b.addEventListener('click', () => openCoachFiche(b.dataset.email)));
+        // Un client qui a écrit (message non lu) : le clic ouvre DIRECTEMENT la
+        // conversation pour répondre. Sinon, il ouvre la fiche de suivi du client.
+        list.querySelectorAll('.conv-row[data-email]').forEach((b) => b.addEventListener('click', () => {
+          if (b.classList.contains('has-unread')) coachOpenClientConversation(b.dataset.email);
+          else openCoachFiche(b.dataset.email);
+        }));
       } else list.innerHTML = '<p class="help-empty">Lecture impossible.</p>';
     } catch (_) { list.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
   }
@@ -4208,10 +4213,13 @@ function coachClientRow(c, hasUnread) {
   const obj = c.objectif ? (OBJ[c.objectif] || c.objectif) : '—';
   const etat = c.hasPlan ? 'Plan actif' : 'Sans plan';
   const flag = hasUnread ? '<span class="conv-msg-flag">' + icSvg('send') + ' Nouveau message</span>' : '';
+  const right = hasUnread
+    ? '<span class="conv-reply-pill">' + icSvg('send') + ' Répondre</span>'
+    : '<div class="conv-when">' + icSvg('send') + '</div>';
   return '<button type="button" class="conv-row' + (hasUnread ? ' has-unread' : '') + '" data-email="' + escapeHtml(c.email) + '">' +
     '<div class="conv-main"><div class="conv-name">' + escapeHtml(nom) + '</div>' +
     '<div class="conv-last">' + escapeHtml(obj) + ' · ' + etat + '</div>' + flag + '</div>' +
-    '<div class="conv-when">' + icSvg('send') + '</div></button>';
+    right + '</button>';
 }
 async function refreshCoachMsgBadge() {
   try {

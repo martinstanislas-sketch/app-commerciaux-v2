@@ -1489,6 +1489,10 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .conv-row.has-unread .conv-when .ic { color: var(--blue-c); }
 .conv-msg-flag { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 11.5px; font-weight: 700; color: var(--blue-on-soft); background: rgba(255,255,255,0.7); border: 1px solid var(--blue-c); border-radius: 99px; padding: 2px 9px; }
 .conv-msg-flag .ic { width: 13px; height: 13px; }
+/* Bouton d'action "Répondre" sur la carte d'un client ayant écrit (ouvre la conversation). */
+.conv-reply-pill { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; align-self: center; font-size: 12.5px; font-weight: 700; color: #fff; background: var(--blue-c); border-radius: 99px; padding: 7px 13px; white-space: nowrap; box-shadow: 0 4px 12px -3px rgba(37,99,235,0.5); }
+.conv-row.has-unread:hover .conv-reply-pill { background: var(--blue-hover); }
+.conv-reply-pill .ic { width: 14px; height: 14px; }
 #coachChatWall { max-height: 52vh; overflow-y: auto; margin-bottom: 12px; }
 #convWall { max-height: 46vh; overflow-y: auto; margin-bottom: 12px; }
 
