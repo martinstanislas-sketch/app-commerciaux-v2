@@ -304,6 +304,18 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
   border: 1px solid var(--border-c);
 }
 .needs-kicker { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--blue-c); margin: 0 0 8px; position: relative; }
+/* Objectif poids chiffré, toujours visible en tête du plan (Challenge). */
+.needs-goal { position: relative; margin: 0 0 18px; padding: 12px 14px; border-radius: 14px; background: var(--blue-soft); border: 1px solid var(--green-100); }
+.needs-goal-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.needs-goal-ic { display: inline-flex; flex: none; }
+.needs-goal-ic .ic { width: 19px; height: 19px; color: var(--blue-c); }
+.needs-goal-lbl { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted-c); }
+.needs-goal-val { font-size: 20px; font-weight: 800; color: var(--blue-on-soft); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.needs-goal-cible { font-size: 12.5px; font-weight: 600; color: var(--text-muted-c); margin-left: auto; }
+.needs-goal-bar { height: 8px; border-radius: 999px; background: rgba(37,99,235,.14); overflow: hidden; margin: 11px 0 6px; }
+.needs-goal-bar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--blue-c), var(--success)); transition: width .6s var(--ease); }
+.needs-goal-prog { font-size: 12.5px; color: var(--ink-2); }
+.needs-goal-prog b { color: var(--blue-on-soft); font-weight: 800; }
 .needs-head { display: flex; align-items: center; gap: 13px; margin-bottom: 4px; position: relative; }
 .needs-head .needs-ic { width: 44px; height: 44px; border-radius: 13px; background: var(--blue-soft); border: 1px solid var(--green-100); display: grid; place-items: center; }
 .needs-head .needs-ic .ic { color: var(--blue-c); }

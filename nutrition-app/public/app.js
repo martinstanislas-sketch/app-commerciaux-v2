@@ -538,11 +538,35 @@ function renderNeeds() {
     : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl">kcal / jour</div></div>`;
   const isChallenge = state.profil.objectif === 'challenge';
   const prenom = clientPrenom();
+  // Objectif POIDS chiffré, toujours visible (Challenge) + progression si pesées officielles.
+  let goalStrip = '';
+  if (isChallenge) {
+    const perte = Math.max(1, Number(state.profil.perte_objectif_kg) || 6);
+    const pc = state.parcours;
+    const poidsDepart = (pc && pc.pesees && pc.pesees.depart && pc.pesees.depart.poids > 0)
+      ? pc.pesees.depart.poids
+      : (Number(state.profil.poids || state.profil.poids_depart || state.profil.poids_kg) || null);
+    const poidsCible = (poidsDepart != null) ? Math.round((poidsDepart - perte) * 10) / 10 : null;
+    let actuel = null;
+    if (pc && pc.pesees) actuel = (pc.pesees.s6 && pc.pesees.s6.poids) || (pc.pesees.s3 && pc.pesees.s3.poids) || (pc.pesees.depart && pc.pesees.depart.poids) || null;
+    const perdu = (poidsDepart != null && actuel != null) ? Math.max(0, Math.round((poidsDepart - actuel) * 10) / 10) : null;
+    const pct = (perdu != null) ? Math.min(100, Math.round((perdu / perte) * 100)) : 0;
+    const progBlock = (perdu != null) ? `
+      <div class="needs-goal-bar"><i style="width:${pct}%"></i></div>
+      <div class="needs-goal-prog">${perdu > 0 ? '<b>−' + frKg(perdu) + ' kg</b> parcourus · reste ' + frKg(Math.max(0, Math.round((perte - perdu) * 10) / 10)) + ' kg' : '<b>C’est parti</b> — ta première pesée se fait avec ton coach'}</div>` : '';
+    goalStrip = `
+      <div class="needs-goal">
+        <div class="needs-goal-top"><span class="needs-goal-ic">${icSvg('target')}</span><span class="needs-goal-lbl">Objectif</span>
+          <span class="needs-goal-val">−${frKg(perte)} kg</span>${poidsCible != null ? `<span class="needs-goal-cible">cible ${frKg(poidsCible)} kg</span>` : ''}</div>
+        ${progBlock}
+      </div>`;
+  }
   $('#needsCard').innerHTML = `
     ${prenom ? `<p class="needs-kicker">Le programme de ${escapeHtml(prenom)}</p>` : ''}
     <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2>
       <button type="button" class="needs-agenda" title="Ajouter mes menus à mon agenda" aria-label="Ajouter à mon agenda">${icSvg('calendar')}<span>Agenda</span></button></div>
     <p class="needs-sub">${prenom ? escapeHtml(prenom) + ', ton objectif, résumé en chiffres.' : 'Ton objectif, résumé en chiffres.'}</p>
+    ${goalStrip}
     <div class="needs-stats">
       ${kcalBlock}
       <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div>${bar(pk)}</div>
@@ -567,6 +591,7 @@ async function checkOfficialAdjustment() {
     if (!state.parcours) {
       try { const r = await fetch(apiUrl('/api/parcours'), { headers: nutriAuthHeaders() }); const d = await r.json(); if (d && d.ok) state.parcours = d.parcours; } catch (_) { /* réessaiera plus tard */ }
     }
+    if (state.parcours && state.plan && $('#needsCard')) renderNeeds(); // affiche la progression poids dans l'objectif
     await maybeApplyOfficialAdjustment();
     await maybeShowCelebration();
   } finally { _officialAdjBusy = false; }
