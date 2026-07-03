@@ -1162,6 +1162,34 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .pc-pesee-note { display: flex; gap: 11px; align-items: flex-start; background: var(--blue-soft); border: 1px solid var(--green-100); border-radius: 14px; padding: 13px 15px; margin: 4px 0 6px; }
 .pc-pesee-note .ic { width: 20px; height: 20px; color: var(--blue-c); flex: none; margin-top: 1px; }
 .pc-pesee-note p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+
+/* ===== Animation de célébration (perte à une pesée officielle S3/S6) ===== */
+.celebr { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: radial-gradient(120% 100% at 50% 30%, rgba(37,99,235,.30), rgba(9,18,38,.78)); backdrop-filter: blur(3px);
+  animation: celebrIn .28s var(--ease) both; }
+.celebr.celebr-strong { background: radial-gradient(120% 100% at 50% 30%, rgba(245,158,11,.34), rgba(9,18,38,.80)); }
+.celebr.celebr-out { animation: celebrOut .3s var(--ease) both; }
+.celebr-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.celebr-card { position: relative; background: var(--surface); border-radius: 24px; padding: 30px 26px 24px; width: min(360px, 100%);
+  text-align: center; box-shadow: 0 24px 60px -18px rgba(0,0,0,.5); animation: celebrPop .5s cubic-bezier(.18,.9,.32,1.4) both; }
+.celebr-emoji { font-size: 52px; line-height: 1; animation: celebrBounce 1.4s ease-in-out infinite; }
+.celebr-kg { margin-top: 10px; font-size: 64px; font-weight: 800; line-height: 1; color: var(--blue-c); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.celebr-strong .celebr-kg { color: #E08A00; }
+.celebr-kg-u { font-size: 26px; font-weight: 700; color: var(--muted); }
+.celebr-ctx { font-size: 12.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-top: 5px; }
+.celebr-title { margin-top: 14px; font-size: 21px; font-weight: 800; color: var(--ink); text-wrap: balance; }
+.celebr-sub { margin-top: 7px; font-size: 14.5px; color: var(--muted); line-height: 1.45; }
+.celebr-close { margin-top: 20px; width: 100%; border: none; border-radius: 14px; padding: 13px; font: inherit; font-size: 15px; font-weight: 700; color: #fff; background: var(--blue-c); cursor: pointer; }
+.celebr-strong .celebr-close { background: linear-gradient(135deg, #F59E0B, #E08A00); }
+.celebr-close:hover { filter: brightness(1.06); }
+@keyframes celebrIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes celebrOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes celebrPop { 0% { opacity: 0; transform: scale(.7) translateY(16px); } 60% { opacity: 1; } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes celebrBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@media (prefers-reduced-motion: reduce) {
+  .celebr, .celebr .celebr-card { animation: celebrIn .2s ease both !important; }
+  .celebr-emoji { animation: none !important; }
+}
 /* photos */
 .pc-priv { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin: 0 0 12px; }
 .pc-priv .ic { width: 14px; height: 14px; color: var(--success); }

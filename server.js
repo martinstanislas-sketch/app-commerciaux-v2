@@ -256,6 +256,13 @@ function ensureNutritionHelpTable() {
       type TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT ''
     );
+    -- Célébration de perte (S3/S6) déjà VUE par le client (affichée une seule fois).
+    CREATE TABLE IF NOT EXISTS nutrition_parcours_celebrations_seen (
+      client_email TEXT NOT NULL,
+      jalon TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (client_email, jalon)
+    );
     CREATE TABLE IF NOT EXISTS nutrition_conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_email TEXT NOT NULL,
@@ -1055,10 +1062,35 @@ try {
       reg = { journeesValidees: jours, repasValides: v, repasTotal: tot, pct: tot ? Math.round((v / tot) * 100) : 0 };
     } catch (_) { /* table absente */ }
 
+    // Célébration : à afficher UNE fois côté client si la dernière pesée officielle
+    // (S3 puis S6) montre une PERTE vs la précédente. Jamais en cas de stagnation/hausse
+    // (le coach gère ça en bilan). Flag "vu" en base -> ne réapparaît plus.
+    let celebration = null;
+    try {
+      const seen = new Set(db.prepare('SELECT jalon FROM nutrition_parcours_celebrations_seen WHERE client_email = ?').all(email).map((r) => r.jalon));
+      const candidats = [];
+      if (pesees.s6 && pesees.s6.poids > 0) candidats.push({ jalon: 's6', prev: (pesees.s3 && pesees.s3.poids > 0) ? pesees.s3 : depart });
+      if (pesees.s3 && pesees.s3.poids > 0) candidats.push({ jalon: 's3', prev: depart });
+      for (const c of candidats) {
+        if (seen.has(c.jalon) || !c.prev || !(c.prev.poids > 0)) continue;
+        if (!(pesees[c.jalon].poids < c.prev.poids)) continue; // perte uniquement
+        const kgPerdu = (poidsDepart != null) ? Math.round((poidsDepart - pesees[c.jalon].poids) * 10) / 10 : 0;
+        if (!(kgPerdu > 0)) continue;
+        celebration = {
+          jalon: c.jalon,
+          kgPerdu,
+          objectifPerte: perte,
+          objectifAtteint: c.jalon === 's6' && kgPerdu >= perte,
+          pctObjectif: perte > 0 ? kgPerdu / perte : 0,
+        };
+        break; // la plus récente non vue
+      }
+    } catch (_) { /* table absente */ }
+
     return {
       objectifPerte: perte, poidsDepart, poidsObjectif, startDate, jourActuel, dureeJours: 42, finDate,
       pesees, jalons, photos, seances, regularite: reg,
-      seancesObjHebdo: 4, seancesObjTotal: 24,
+      seancesObjHebdo: 4, seancesObjTotal: 24, celebration,
     };
   }
 
@@ -1069,6 +1101,16 @@ try {
       if (!email) return res.json({ ok: true, parcours: null, noAccount: true });
       res.json({ ok: true, parcours: buildParcours(email) });
     } catch (e) { console.error('parcours GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  // CLIENT : marque la célébration d'un jalon comme VUE (animation affichée une seule fois).
+  app.post('/nutrition/api/parcours/celebration-seen', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      const jalon = String((req.body || {}).jalon || '');
+      if (!email || !['s3', 's6'].includes(jalon)) return res.status(400).json({ ok: false, error: 'Requête invalide.' });
+      getDb().prepare('INSERT OR IGNORE INTO nutrition_parcours_celebrations_seen (client_email, jalon, created_at) VALUES (?,?,?)').run(email, jalon, new Date().toISOString());
+      res.json({ ok: true });
+    } catch (e) { console.error('celebration-seen :', e); res.status(500).json({ ok: false }); }
   });
   // COACH/ADMIN : parcours d'un client attribué.
   app.get('/nutrition/api/coach/parcours/:email', requireAuth, requireCoachOrAdmin, (req, res) => {

@@ -568,7 +568,89 @@ async function checkOfficialAdjustment() {
       try { const r = await fetch(apiUrl('/api/parcours'), { headers: nutriAuthHeaders() }); const d = await r.json(); if (d && d.ok) state.parcours = d.parcours; } catch (_) { /* réessaiera plus tard */ }
     }
     await maybeApplyOfficialAdjustment();
+    await maybeShowCelebration();
   } finally { _officialAdjBusy = false; }
+}
+
+// ---------- Animation de célébration (perte à une pesée officielle S3/S6) ----------
+let _celebrationShown = false;
+function frKg(n) { const v = Math.round(Number(n) * 10) / 10; return Number.isInteger(v) ? String(v) : v.toFixed(1).replace('.', ','); }
+function celebrationMessage(c) {
+  if (c.jalon === 's3') {
+    const moitie = c.pctObjectif >= 0.5;
+    return { emoji: '🔥', title: moitie ? 'Déjà plus de la moitié du chemin !' : 'Tu es sur la bonne voie !',
+      sub: moitie ? 'Tu avances vite — continue comme ça.' : 'Beau parcours à mi-chemin. On continue !', context: 'à mi-parcours', strong: false };
+  }
+  if (c.objectifAtteint) {
+    return { emoji: '🏆', title: 'Objectif atteint !', sub: 'Ton certificat de fin de challenge t’attend 🎓', context: 'en 6 semaines', strong: true };
+  }
+  return { emoji: '🎉', title: 'Bravo pour ta transformation !', sub: 'Un vrai changement en 6 semaines. Fier de toi 💪', context: 'en 6 semaines', strong: false };
+}
+async function maybeShowCelebration() {
+  const c = state.parcours && state.parcours.celebration;
+  if (!c || _celebrationShown) return;
+  _celebrationShown = true;
+  // Marque VUE tout de suite (une seule fois, même si l'utilisateur ferme aussitôt).
+  try { await fetch(apiUrl('/api/parcours/celebration-seen'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ jalon: c.jalon }) }); } catch (_) { /* réessaiera au prochain chargement */ }
+  if (state.parcours) state.parcours.celebration = null;
+  showCelebration(c);
+}
+function showCelebration(c) {
+  const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const doux = !!state.masquerCalories; // affichage doux : on garde l'animation mais sans chiffres
+  const m = celebrationMessage(c);
+  const ov = document.createElement('div');
+  ov.className = 'celebr' + (m.strong ? ' celebr-strong' : '') + (reduce ? ' celebr-reduce' : '');
+  ov.setAttribute('role', 'dialog');
+  ov.innerHTML =
+    (reduce ? '' : '<canvas class="celebr-canvas" aria-hidden="true"></canvas>') +
+    '<div class="celebr-card">' +
+      '<div class="celebr-emoji">' + m.emoji + '</div>' +
+      (doux ? '' : '<div class="celebr-kg"><span class="celebr-kg-val">' + (reduce ? '−' + frKg(c.kgPerdu) : '−0') + '</span><span class="celebr-kg-u"> kg</span></div>' +
+        '<div class="celebr-ctx">' + m.context + '</div>') +
+      '<div class="celebr-title">' + escapeHtml(m.title) + '</div>' +
+      '<div class="celebr-sub">' + escapeHtml(m.sub) + '</div>' +
+      '<button type="button" class="celebr-close">Continuer</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+  try { if (navigator.vibrate) navigator.vibrate(m.strong ? [45, 60, 45] : 30); } catch (_) { /* non supporté */ }
+  let stopConfetti = null;
+  if (!reduce) { const cv = ov.querySelector('.celebr-canvas'); if (cv) stopConfetti = celebrationConfetti(cv, m.strong); }
+  // Compteur animé 0 -> valeur réelle (sauf reduced-motion / affichage doux).
+  if (!reduce && !doux) {
+    const el = ov.querySelector('.celebr-kg-val'); const target = c.kgPerdu; const t0 = performance.now(); const dur = 1200;
+    const tick = (t) => { const p = Math.min(1, (t - t0) / dur); const v = target * (1 - Math.pow(1 - p, 3)); if (el) el.textContent = '−' + frKg(v); if (p < 1) requestAnimationFrame(tick); else if (el) el.textContent = '−' + frKg(target); };
+    requestAnimationFrame(tick);
+  }
+  let closed = false;
+  const close = () => { if (closed) return; closed = true; if (stopConfetti) stopConfetti(); ov.classList.add('celebr-out'); setTimeout(() => ov.remove(), 320); };
+  ov.addEventListener('click', close);
+  const btn = ov.querySelector('.celebr-close'); if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); close(); });
+  setTimeout(close, reduce ? 4200 : 3200); // auto ~3 s (un peu plus en reduced-motion pour laisser lire)
+}
+// Confettis légers en canvas (aucune dépendance externe, CSP-safe).
+function celebrationConfetti(canvas, strong) {
+  const ctx = canvas.getContext('2d'); if (!ctx) return null;
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = window.innerWidth * DPR; canvas.height = window.innerHeight * DPR;
+  const colors = ['#2563EB', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+  const N = strong ? 170 : 120;
+  const parts = [];
+  for (let i = 0; i < N; i++) {
+    parts.push({ x: canvas.width * (0.5 + (Math.random() - 0.5) * 0.25), y: canvas.height * 0.34 + (Math.random() - 0.5) * 40 * DPR,
+      vx: (Math.random() - 0.5) * 11 * DPR, vy: (Math.random() * -6 - 3) * DPR, g: (0.16 + Math.random() * 0.12) * DPR,
+      s: (5 + Math.random() * 6) * DPR, rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.32, c: colors[i % colors.length] });
+  }
+  let raf = 0, start = 0; const dur = 2600;
+  const frame = (t) => {
+    if (!start) start = t; const elapsed = t - start; const life = Math.max(0, 1 - elapsed / dur);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    parts.forEach((p) => { p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      ctx.save(); ctx.globalAlpha = life; ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.62); ctx.restore(); });
+    if (elapsed < dur) raf = requestAnimationFrame(frame); else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+  raf = requestAnimationFrame(frame);
+  return () => { if (raf) cancelAnimationFrame(raf); };
 }
 // Applique l'ajustement lié à la dernière pesée officielle non encore prise en compte.
 async function maybeApplyOfficialAdjustment() {
