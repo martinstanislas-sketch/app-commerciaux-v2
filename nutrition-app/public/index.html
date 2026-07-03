@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=44" />
+  <link rel="stylesheet" href="style.css?v=45" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -999,16 +999,7 @@
     </div>
   </div>
 
-  <!-- ============ MON PARCOURS : SAISIE D'UNE PESÉE OFFICIELLE ============ -->
-  <div id="parcoursPeseePanel" class="panel hidden">
-    <div class="panel-inner">
-      <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-scale"/></svg> Pesée officielle</h2>
-        <button class="modal-close" id="parcoursPeseeClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
-      </div>
-      <div id="parcoursPeseeBody"></div>
-    </div>
-  </div>
+  <!-- Saisie de pesée côté client RETIRÉE : pesées officielles saisies par le coach uniquement. -->
 
   <!-- ============ ADMIN : OPTIONS RAPIDES BOUTIQUE ============ -->
   <div id="quickOptPanel" class="panel hidden">
@@ -1058,17 +1049,8 @@
     </div>
   </div>
 
-  <!-- ============ PANNEAU PESEE HEBDO + AJUSTEMENT (Challenge 6/6) ============ -->
-  <div id="peseePanel" class="panel hidden">
-    <div class="panel-inner">
-      <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-scale"/></svg> Pesée de la semaine</h2>
-        <button class="modal-close" id="peseeClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
-      </div>
-      <p class="panel-sub">Enregistre ton poids chaque semaine : ton plan s'ajuste automatiquement selon ta progression réelle.</p>
-      <div id="peseeBody"></div>
-    </div>
-  </div>
+  <!-- Fonctionnalité « Pesée de la semaine » RETIRÉE : le client ne se pèse plus lui-même.
+       L'ajustement du plan est piloté par les pesées officielles (S3/S6) saisies par le coach. -->
 
   <!-- ============ PANNEAU COACH : ADHERENCE CLIENTS ============ -->
   <div id="adhAdminPanel" class="panel hidden">
@@ -1227,6 +1209,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=44"></script>
+  <script src="app.js?v=45"></script>
 </body>
 </html>

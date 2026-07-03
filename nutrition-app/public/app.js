@@ -552,78 +552,60 @@ function renderNeeds() {
   const ag = $('#needsCard .needs-agenda'); if (ag) ag.addEventListener('click', openAgenda);
 }
 
-// ---------- Pesee hebdomadaire + ajustement automatique (Challenge 6/6) ----------
-function openPesee() { renderPesee(); $('#peseePanel').classList.remove('hidden'); }
-function closePesee() { $('#peseePanel').classList.add('hidden'); }
-
-function renderPesee() {
-  const pesees = (state.pesees || []).slice().sort((a, b) => a.ts - b.ts);
-  const aj = Math.round(Number((state.profil || {}).ajustementKcal) || 0);
-  const reco = state.lastAjustement;
-  const fmtDate = (ts) => new Date(ts).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-  let histo = '';
-  if (pesees.length) {
-    const rev = pesees.slice().reverse();
-    histo = '<div class="pesee-histo"><div class="pesee-histo-title">Historique</div>' + rev.map((p, i) => {
-      const prev = rev[i + 1];
-      const d = prev ? (p.poids - prev.poids) : null;
-      const dTxt = d === null ? '' : `<span class="pesee-delta ${d < 0 ? 'down' : (d > 0 ? 'up' : '')}">${d > 0 ? '+' : ''}${d.toFixed(1)} kg</span>`;
-      return `<div class="pesee-line"><span>${fmtDate(p.ts)}</span><b>${p.poids} kg</b>${dTxt}</div>`;
-    }).join('') + '</div>';
-  }
-  let recoBlock = '';
-  if (reco) {
-    recoBlock = `<div class="pesee-reco st-${reco.statut}">
-      <p>${escapeHtml(reco.message)}</p>
-      ${reco.delta !== 0 ? `<button type="button" class="btn btn-primary" id="peseeApply">Appliquer ${reco.delta > 0 ? '+' : ''}${reco.delta} kcal et régénérer</button>` : ''}
-    </div>`;
-  }
-  $('#peseeBody').innerHTML = `
-    <div class="pesee-form">
-      <div class="field-row">
-        <label class="field"><span>Poids du jour (kg)</span><input type="number" id="peseePoids" min="35" max="250" step="0.1" placeholder="ex. 74.2" /></label>
-        <label class="field"><span>Masse musculaire (kg) <em>(opt.)</em></span><input type="number" id="peseeMuscle" min="1" max="120" step="0.1" placeholder="ex. 29" /></label>
-      </div>
-      <label class="pesee-check"><input type="checkbox" id="peseeFatigue" /> <span>Je me sens fatigué(e) cette semaine</span></label>
-      <button type="button" class="btn btn-primary" id="peseeSave">Enregistrer la pesée</button>
-    </div>
-    ${recoBlock}
-    <p class="pesee-cumul">Ajustement actuel : <b>${aj >= 0 ? '+' : ''}${aj} kcal/jour</b></p>
-    ${histo}`;
-  $('#peseeSave').addEventListener('click', savePesee);
-  const applyBtn = $('#peseeApply');
-  if (applyBtn) applyBtn.addEventListener('click', applyAjustement);
-}
-
-async function savePesee() {
-  const poids = Number($('#peseePoids').value);
-  if (!poids || poids < 35 || poids > 250) { alert('Entre un poids valide (en kg).'); return; }
-  const muscle = Number($('#peseeMuscle').value) || undefined;
-  const fatigue = $('#peseeFatigue').checked;
-  state.pesees = state.pesees || [];
-  state.pesees.push({ ts: Date.now(), poids, masse_musculaire: muscle, fatigue });
-  saveLocal();
-  const deficit = (state.plan && state.plan.besoins && state.plan.besoins.deficit)
-    || (state.profil && state.profil.deficit_cible) || 650;
+// ---------- Ajustement automatique du plan (Challenge 6/6) ----------
+// Le client ne se pèse PLUS lui-même (fonctionnalité « Pesée de la semaine » retirée).
+// L'ajustement du plan est désormais piloté par les PESÉES OFFICIELLES du Parcours,
+// saisies par le COACH (Départ / Semaine 3 / Semaine 6). À l'enregistrement de la
+// Semaine 3 (puis de la Semaine 6), le plan est recalculé UNE SEULE FOIS ; entre deux
+// pesées, il reste stable. Les anciennes pesées hebdo (state.pesees) sont conservées
+// en base mais ne sont plus ni affichées ni modifiables (archivées).
+let _officialAdjBusy = false;
+async function checkOfficialAdjustment() {
+  if (_officialAdjBusy || !state.plan || !(window.__NUTRI_USER && window.__NUTRI_USER.email)) return;
+  _officialAdjBusy = true;
   try {
-    const res = await fetch(apiUrl('/api/ajustement'), {
-      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ pesees: state.pesees, deficit, sexe: (state.profil || {}).sexe, fatigue }),
-    });
-    const data = await res.json();
-    state.lastAjustement = data.ok ? data.ajustement : null;
-  } catch (_) { state.lastAjustement = null; }
-  renderPesee();
+    if (!state.parcours) {
+      try { const r = await fetch(apiUrl('/api/parcours'), { headers: nutriAuthHeaders() }); const d = await r.json(); if (d && d.ok) state.parcours = d.parcours; } catch (_) { /* réessaiera plus tard */ }
+    }
+    await maybeApplyOfficialAdjustment();
+  } finally { _officialAdjBusy = false; }
 }
-
-async function applyAjustement() {
-  if (!state.lastAjustement) return;
-  const delta = Number(state.lastAjustement.delta) || 0;
-  state.profil.ajustementKcal = Math.max(-400, Math.min(400, (Number(state.profil.ajustementKcal) || 0) + delta));
-  state.lastAjustement = null;
-  saveLocal();
-  closePesee();
-  await generateAndShow(Math.floor(Math.random() * 1e6) + 1);
+// Applique l'ajustement lié à la dernière pesée officielle non encore prise en compte.
+async function maybeApplyOfficialAdjustment() {
+  const pc = state.parcours;
+  if (!pc || !pc.pesees || !state.plan) return;
+  const p = state.profil || (state.profil = {});
+  const applied = Array.isArray(p.officialAdjApplied) ? p.officialAdjApplied : [];
+  const depart = pc.pesees.depart;
+  if (!depart || !(depart.poids > 0)) return;
+  let jalon = null, serie = null;
+  if (pc.pesees.s6 && pc.pesees.s6.poids > 0 && !applied.includes('s6')) {
+    jalon = 's6';
+    const mid = (pc.pesees.s3 && pc.pesees.s3.poids > 0) ? pc.pesees.s3 : depart;
+    serie = [{ ts: Date.parse(mid.date) || 0, poids: mid.poids }, { ts: Date.parse(pc.pesees.s6.date) || 1, poids: pc.pesees.s6.poids }];
+  } else if (pc.pesees.s3 && pc.pesees.s3.poids > 0 && !applied.includes('s3')) {
+    jalon = 's3';
+    serie = [{ ts: Date.parse(depart.date) || 0, poids: depart.poids }, { ts: Date.parse(pc.pesees.s3.date) || 1, poids: pc.pesees.s3.poids }];
+  }
+  if (!jalon) return;
+  const deficit = (state.plan.besoins && state.plan.besoins.deficit) || p.deficit_cible || 650;
+  let delta = 0;
+  try {
+    const res = await fetch(apiUrl('/api/ajustement'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ pesees: serie, deficit, sexe: p.sexe }) });
+    const d = await res.json();
+    if (d && d.ok && d.ajustement) delta = Number(d.ajustement.delta) || 0;
+  } catch (_) { return; } // hors-ligne : rien n'est marqué -> nouvel essai au prochain chargement
+  p.officialAdjApplied = [...applied, jalon];
+  const lbl = jalon === 's3' ? 'de mi-parcours (semaine 3)' : 'finale (semaine 6)';
+  if (delta !== 0) {
+    p.ajustementKcal = Math.max(-400, Math.min(400, (Number(p.ajustementKcal) || 0) + delta));
+    saveLocal();
+    await generateAndShow(Math.floor(Math.random() * 1e6) + 1);
+    showToast('Ton plan a été recalculé suite à ta pesée ' + lbl + ' avec ton coach.', { icon: 'check', duration: 4800 });
+  } else {
+    // Sur la cible : le plan reste inchangé, on note simplement la pesée comme prise en compte.
+    saveLocal();
+  }
 }
 
 // ---------- Alignement du plan sur le jour reel ----------
@@ -2688,8 +2670,7 @@ function init() {
   $('#suiviPlanPanel').addEventListener('click', (e) => { if (e.target.id === 'suiviPlanPanel') closeSuiviPlan(); });
   $('#suiviPlanBody').addEventListener('click', onSuiviPlanClick);
   $('#suiviPlanBody').addEventListener('input', onSuiviPlanInput);
-  $('#peseeClose').addEventListener('click', closePesee);
-  $('#peseePanel').addEventListener('click', (e) => { if (e.target.id === 'peseePanel') closePesee(); });
+  // Panneau « Pesée de la semaine » retiré (le client ne se pèse plus lui-même).
   // Vue coach adherence
   $('#btnAdhAdmin').addEventListener('click', openAdhAdmin);
   $('#adhAdminClose').addEventListener('click', closeAdhAdmin);
@@ -2743,8 +2724,7 @@ function init() {
   const _faqPanel = $('#coachFaqPanel'); if (_faqPanel) _faqPanel.addEventListener('click', (e) => { if (e.target.id === 'coachFaqPanel') closeCoachFaq(); });
   $('#quickOptClose').addEventListener('click', closeQuickOptions);
   $('#quickOptPanel').addEventListener('click', (e) => { if (e.target.id === 'quickOptPanel') closeQuickOptions(); });
-  $('#parcoursPeseeClose').addEventListener('click', closeParcoursPesee);
-  $('#parcoursPeseePanel').addEventListener('click', (e) => { if (e.target.id === 'parcoursPeseePanel') closeParcoursPesee(); });
+  // Panneau de saisie de pesée client retiré (pesées officielles saisies par le coach).
   const _bChangePin = $('#btnChangePin'); if (_bChangePin) _bChangePin.addEventListener('click', openChangePin);
   const _bLogout = $('#btnLogout'); if (_bLogout) _bLogout.addEventListener('click', logoutClient);
   const _navLogout = $('#navLogout'); if (_navLogout) _navLogout.addEventListener('click', logoutClient);
@@ -2802,7 +2782,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le début ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closeCoachWall(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeParcoursPesee(); closeCoachParcours(); closeChangePin(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closeCoachWall(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeCoachParcours(); closeChangePin(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -2826,6 +2806,7 @@ function init() {
     $('#saveState').innerHTML = icSvg('check') + ' Plan restaure';
     showScreen('result');
     refreshNotifications();
+    checkOfficialAdjustment(); // recalcul du plan si une pesée officielle S3/S6 vient d'être enregistrée par le coach
   } else if (isDemo()) {
     showScreen('demo-welcome'); // accueil démo avant le parcours client
   }
@@ -3726,11 +3707,11 @@ function parcoursEtape(p) {
   const jS3 = joursAvant(p.jalons.s3.date), jS6 = joursAvant(p.jalons.s6.date);
   const B = (label, act, primary) => ({ label, act, primary });
   switch (phase) {
-    case 'avant-depart': return { t: 'Fais ta pesée de départ et ajoute tes photos.', b: [B('Faire ma pesée', 'pesee:depart', true), B('Ajouter mes photos', 'photos:depart')] };
-    case 'depart-s3': return { t: 'Reste régulier jusqu’à la pesée mi-parcours.', sub: jS3 != null ? 'Prochaine pesée dans ' + jS3 + ' jour' + (jS3 > 1 ? 's' : '') + '.' : '', b: [B('Valider ma séance', 'seance', true), B('Voir ma régularité', 'scroll:reg'), B('Contacter mon coach', 'coach')] };
-    case 's3-due': return { t: 'Fais ta pesée mi-parcours et ajoute tes photos.', b: [B('Faire ma pesée', 'pesee:s3', true), B('Ajouter mes photos', 'photos:s3')] };
-    case 's3-s6': return { t: 'Dernière ligne droite jusqu’au bilan final.', sub: jS6 != null ? 'Prochaine pesée dans ' + jS6 + ' jour' + (jS6 > 1 ? 's' : '') + '.' : '', b: [B('Valider ma séance', 'seance', true), B('Voir ma progression', 'scroll:courbe'), B('Contacter mon coach', 'coach')] };
-    case 's6-due': return { t: 'Fais ta pesée finale, ajoute tes photos et découvre ton bilan.', b: [B('Faire ma pesée finale', 'pesee:s6', true), B('Ajouter mes photos', 'photos:s6'), B('Voir mon bilan', 'scroll:bilan')] };
+    case 'avant-depart': return { t: 'Ta pesée de départ se fait avec ton coach. En attendant, ajoute tes photos.', b: [B('Ajouter mes photos', 'photos:depart', true), B('Contacter mon coach', 'coach')] };
+    case 'depart-s3': return { t: 'Reste régulier jusqu’au bilan mi-parcours avec ton coach.', sub: jS3 != null ? 'Bilan mi-parcours dans ' + jS3 + ' jour' + (jS3 > 1 ? 's' : '') + '.' : '', b: [B('Valider ma séance', 'seance', true), B('Voir ma régularité', 'scroll:reg'), B('Contacter mon coach', 'coach')] };
+    case 's3-due': return { t: 'Ton bilan mi-parcours se fait avec ton coach. Pense à ajouter tes photos.', b: [B('Ajouter mes photos', 'photos:s3', true), B('Contacter mon coach', 'coach')] };
+    case 's3-s6': return { t: 'Dernière ligne droite jusqu’au bilan final avec ton coach.', sub: jS6 != null ? 'Bilan final dans ' + jS6 + ' jour' + (jS6 > 1 ? 's' : '') + '.' : '', b: [B('Valider ma séance', 'seance', true), B('Voir ma progression', 'scroll:courbe'), B('Contacter mon coach', 'coach')] };
+    case 's6-due': return { t: 'Ton bilan final se fait avec ton coach. Ajoute tes photos et découvre ton bilan.', b: [B('Ajouter mes photos', 'photos:s6', true), B('Voir mon bilan', 'scroll:bilan'), B('Contacter mon coach', 'coach')] };
     default: return { t: 'Challenge terminé — bravo ! Découvre ton bilan.', b: [B('Voir mon bilan', 'scroll:bilan', true), B('Contacter mon coach', 'coach')] };
   }
 }
@@ -3832,7 +3813,7 @@ function renderParcours() {
         const dt = p.jalons[jal.key].date;
         return '<div class="pc-jalon ' + si.cls + '"><div class="pc-jalon-ic">' + icSvg(si.ic) + '</div>' +
           '<div class="pc-jalon-main"><div class="pc-jalon-top"><b>' + escapeHtml(jal.titre) + '</b><span class="pc-jalon-st ' + si.cls + '">' + si.txt + '</span></div>' +
-          '<div class="pc-jalon-meta">' + (dt ? dateCourte(dt) + ' · ' : '') + (pes ? 'Pesée ' + fmtKg(pes.poids) : 'Pesée à faire') + (nbPhotos ? ' · ' + nbPhotos + ' photo' + (nbPhotos > 1 ? 's' : '') : '') + '</div>' +
+          '<div class="pc-jalon-meta">' + (dt ? dateCourte(dt) + ' · ' : '') + (pes ? 'Pesée ' + fmtKg(pes.poids) : 'Pesée avec ton coach') + (nbPhotos ? ' · ' + nbPhotos + ' photo' + (nbPhotos > 1 ? 's' : '') : '') + '</div>' +
           (pes && pes.commentaire ? '<div class="pc-jalon-coach">' + icSvg('spark') + ' ' + escapeHtml(pes.commentaire) + '</div>' : '') +
           '</div></div>';
       }).join('') +
@@ -3905,9 +3886,14 @@ function renderParcours() {
       '</section>';
   }
 
+  const peseeNote =
+    '<div class="pc-pesee-note">' + icSvg('scale') +
+    '<p>Tes pesées sont faites avec ton coach : au départ, à mi-parcours et au bilan final. ' +
+    'Pas besoin de te peser entre-temps — concentre-toi sur la régularité.</p></div>';
+
   host.innerHTML =
     '<div class="pc-head"><h1>Mon Parcours</h1><p>Ton évolution pendant le Challenge 6 semaines</p></div>' +
-    carte + etapeBlock + courbe + timeline + photoBlock + seancesBlock + regBlock + badgeBlock + bilan;
+    carte + etapeBlock + peseeNote + courbe + timeline + photoBlock + seancesBlock + regBlock + badgeBlock + bilan;
 
   // Câblage
   host.querySelectorAll('[data-pc-act]').forEach((b) => b.addEventListener('click', () => parcoursAction(b.dataset.pcAct)));
@@ -3929,7 +3915,7 @@ async function loadParcoursPhoto(id, img) {
 
 function parcoursAction(act) {
   const [kind, arg] = act.split(':');
-  if (kind === 'pesee') return openParcoursPesee(arg);
+  // Le client ne saisit plus de poids : les pesées officielles sont faites par le coach.
   if (kind === 'photos') { const el = $('#view-parcours .pc-photos-jalon'); const target = [...$$('#view-parcours .pc-photos-jalon')][['depart', 's3', 's6'].indexOf(arg)] || el; if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   if (kind === 'seance') return validerParcoursSeance();
   if (kind === 'coach') { if (typeof openCoachChat === 'function') openCoachChat(); return; }
@@ -3950,31 +3936,9 @@ async function validerParcoursSeance() {
   } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
 }
 
-function openParcoursPesee(type) {
-  const labels = { depart: 'Pesée de départ', s3: 'Pesée mi-parcours (semaine 3)', s6: 'Pesée finale (semaine 6)' };
-  const panel = $('#parcoursPeseePanel'); if (!panel) return;
-  panel.classList.remove('hidden');
-  const cur = state.parcours && state.parcours.pesees[type];
-  $('#parcoursPeseeBody').innerHTML =
-    '<h3 style="margin:0 0 12px">' + escapeHtml(labels[type] || 'Pesée') + '</h3>' +
-    '<label class="qopt-field"><span>Ton poids (kg)</span><input id="pcPeseePoids" type="number" step="0.1" inputmode="decimal" value="' + (cur ? cur.poids : '') + '" placeholder="Ex : 84.2"></label>' +
-    '<div class="pc-step-btns"><button type="button" class="pc-btn primary" id="pcPeseeSave">Enregistrer</button></div>' +
-    '<p class="pc-msg" id="pcPeseeMsg"></p>';
-  $('#pcPeseeSave').addEventListener('click', () => saveParcoursPesee(type));
-  setTimeout(() => { const i = $('#pcPeseePoids'); if (i) i.focus(); }, 60);
-}
+// Saisie de pesée côté client RETIRÉE : les pesées officielles (Départ / S3 / S6) sont
+// saisies exclusivement par le coach depuis l'espace coach. Le client les voit en lecture seule.
 function closeParcoursPesee() { const p = $('#parcoursPeseePanel'); if (p) p.classList.add('hidden'); }
-async function saveParcoursPesee(type) {
-  const poids = Number(($('#pcPeseePoids') || {}).value);
-  const msg = $('#pcPeseeMsg');
-  if (!(poids > 0 && poids < 400)) { if (msg) msg.textContent = 'Poids invalide.'; return; }
-  try {
-    const res = await fetch(apiUrl('/api/parcours/pesee'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ type, poids }) });
-    const d = await res.json();
-    if (d && d.ok) { state.parcours = d.parcours; closeParcoursPesee(); renderParcours(); showToast('Pesée enregistrée ✅', { icon: 'check' }); }
-    else if (msg) msg.textContent = (d && d.error) || 'Échec.';
-  } catch (_) { if (msg) msg.textContent = 'Connexion requise.'; }
-}
 
 async function uploadParcoursPhoto(jalon, type, file) {
   if (!file || _parcoursPhotoBusy) return;
