@@ -1493,6 +1493,12 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .conv-reply-pill { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; align-self: center; font-size: 12.5px; font-weight: 700; color: #fff; background: var(--blue-c); border-radius: 99px; padding: 7px 13px; white-space: nowrap; box-shadow: 0 4px 12px -3px rgba(37,99,235,0.5); }
 .conv-row.has-unread:hover .conv-reply-pill { background: var(--blue-hover); }
 .conv-reply-pill .ic { width: 14px; height: 14px; }
+/* En-tête de conversation : nom du client + bouton « Profil » (ouvre la fiche). */
+.conv-head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
+.conv-head-name { font-weight: 800; font-size: 16px; color: var(--ink); }
+.conv-profil-btn { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; font: inherit; font-size: 13px; font-weight: 700; color: var(--blue-c); background: var(--blue-soft); border: 1px solid var(--blue-c); border-radius: 99px; padding: 6px 13px; cursor: pointer; transition: background 0.15s var(--ease), color 0.15s var(--ease); }
+.conv-profil-btn:hover { background: var(--blue-c); color: #fff; }
+.conv-profil-btn .ic { width: 14px; height: 14px; }
 #coachChatWall { max-height: 52vh; overflow-y: auto; margin-bottom: 12px; }
 #convWall { max-height: 46vh; overflow-y: auto; margin-bottom: 12px; }
 

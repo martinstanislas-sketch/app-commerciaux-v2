@@ -4126,7 +4126,9 @@ async function openCoachConversation(id, support) {
     const d = await res.json();
     if (!d.ok) throw new Error();
     const back = '<button type="button" class="btn btn-outline" id="convBack" style="margin:0 0 12px">← Toutes les conversations</button>';
-    const head = '<div style="font-weight:700;margin:0 0 8px;">' + escapeHtml(d.clientName) + '</div>';
+    // En-tête : nom du client + bouton « Profil » (ouvre sa fiche de suivi par-dessus).
+    const profilBtn = d.clientEmail ? '<button type="button" class="conv-profil-btn" id="convProfil">' + icSvg('user') + ' Profil</button>' : '';
+    const head = '<div class="conv-head-row"><span class="conv-head-name">' + escapeHtml(d.clientName) + '</span>' + profilBtn + '</div>';
     if (d.redacted) {
       // Admin en supervision : on montre la FORME de l'échange (qui, quand), pas le texte.
       const wall = (d.messages || []).length ? (d.messages).map(redactedBubble).join('') : '<p class="comm-empty">Pas encore de message.</p>';
@@ -4134,6 +4136,7 @@ async function openCoachConversation(id, support) {
         '<div class="msg-redact-note"><svg class="ic"><use href="#ic-eye"/></svg> Contenu masqué — supervision. Révéler le contenu nécessite le mode support et sera <strong>enregistré dans le journal d’audit</strong>.</div>' +
         '<div id="convWall" class="comm-wall comm-wall-redacted">' + wall + '</div>' +
         '<button type="button" id="convReveal" class="btn btn-outline msg-reveal-btn">Révéler le contenu (mode support)</button>';
+      { const _cp = $('#convProfil'); if (_cp) _cp.addEventListener('click', () => openCoachFiche(d.clientEmail)); }
       $('#convBack').addEventListener('click', renderMessagesCoachList);
       $('#convReveal').addEventListener('click', () => {
         if (confirm('Accéder au contenu de cette conversation en mode support ? Cet accès sera enregistré dans le journal d’audit.')) openCoachConversation(id, true);
@@ -4145,6 +4148,7 @@ async function openCoachConversation(id, support) {
       '<div id="convWall" class="comm-wall">' + ((d.messages || []).length ? (d.messages).map(chatBubble).join('') : '<p class="comm-empty">Pas encore de message.</p>') + '</div>' +
       '<form id="convForm" class="comm-compose"><textarea id="convInput" rows="1" maxlength="2000" placeholder="Répondre à ' + escapeHtml(d.clientName) + '…" autocomplete="off"></textarea><button type="submit" class="comm-send" aria-label="Envoyer">' + icSvg('send') + '</button></form>';
     const w = $('#convWall'); if (w) w.scrollTop = w.scrollHeight;
+    { const _cp = $('#convProfil'); if (_cp) _cp.addEventListener('click', () => openCoachFiche(d.clientEmail)); }
     $('#convBack').addEventListener('click', renderMessagesCoachList);
     $('#convForm').addEventListener('submit', (e) => { e.preventDefault(); const inp = $('#convInput'); const v = inp ? inp.value : ''; if (!v.trim()) return; replyCoachConversation(id, v).then((ok) => { if (ok && inp) inp.value = ''; }); });
     refreshNotifications(); // l'ouverture (coach) marque les messages du client comme lus
@@ -4196,12 +4200,10 @@ async function bootCoachDashboard() {
       if (d.ok) {
         const cs = d.clients || [];
         list.innerHTML = cs.length ? cs.map((c) => coachClientRow(c, unread.has(c.email))).join('') : '<p class="help-empty">Aucun client ne t’est attribué pour le moment.</p>';
-        // Un client qui a écrit (message non lu) : le clic ouvre DIRECTEMENT la
-        // conversation pour répondre. Sinon, il ouvre la fiche de suivi du client.
-        list.querySelectorAll('.conv-row[data-email]').forEach((b) => b.addEventListener('click', () => {
-          if (b.classList.contains('has-unread')) coachOpenClientConversation(b.dataset.email);
-          else openCoachFiche(b.dataset.email);
-        }));
+        // Le clic sur un client ouvre DIRECTEMENT la conversation (pour répondre
+        // facilement). Le profil/suivi reste accessible via le bouton « Profil »
+        // dans l'en-tête de la conversation.
+        list.querySelectorAll('.conv-row[data-email]').forEach((b) => b.addEventListener('click', () => coachOpenClientConversation(b.dataset.email)));
       } else list.innerHTML = '<p class="help-empty">Lecture impossible.</p>';
     } catch (_) { list.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
   }
@@ -4266,7 +4268,7 @@ async function openCoachFiche(email) {
     const d = await res.json();
     if (!d.ok) { body.innerHTML = '<p class="help-empty">' + escapeHtml(d.error || 'Lecture impossible.') + '</p>'; return; }
     renderCoachFiche(d.client);
-    const btn = $('#coachFicheMsg'); if (btn) btn.addEventListener('click', () => coachOpenClientConversation(email));
+    const btn = $('#coachFicheMsg'); if (btn) btn.addEventListener('click', () => { closeCoachFiche(); coachOpenClientConversation(email); });
     const pb = $('#coachFicheParcours'); if (pb) pb.addEventListener('click', () => openCoachParcours(email));
   } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
 }
