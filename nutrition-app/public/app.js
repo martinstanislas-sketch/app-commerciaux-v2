@@ -2638,6 +2638,7 @@ function init() {
   const _bCoachIa = $('#btnCoachIaAdmin'); if (_bCoachIa) _bCoachIa.addEventListener('click', openCoachIaAdmin);
   const _bCoachFaq = $('#btnCoachFaq'); if (_bCoachFaq) _bCoachFaq.addEventListener('click', openCoachFaq);
   const _bQuickOpt = $('#btnQuickOptions'); if (_bQuickOpt) _bQuickOpt.addEventListener('click', openQuickOptions);
+  const _bReset = $('#btnResetClients'); if (_bReset) _bReset.addEventListener('click', resetClientsData);
   const _coachPhotos = $('#coachOpenPhotos'); if (_coachPhotos) _coachPhotos.addEventListener('click', openPlatsPhotos);
   const _coachAdh = $('#coachOpenAdh'); if (_coachAdh) _coachAdh.addEventListener('click', openAdhAdmin);
   const _coachHelp = $('#coachOpenHelp'); if (_coachHelp) _coachHelp.addEventListener('click', openHelpAdmin);
@@ -4614,6 +4615,22 @@ async function logoutClient() {
     localStorage.removeItem('authToken_coach'); localStorage.removeItem('currentUser_coach');
   } catch (_) { /* ignore */ }
   window.location.href = '/';
+}
+
+// --- Admin : réinitialiser toutes les données clients (lancement propre) ---
+async function resetClientsData() {
+  if (!confirm('⚠️ Effacer TOUTES les données clients de la nutrition (comptes, plans, suivi, communauté, messages) ?\n\nLe contenu est conservé (réponses du coach, options boutique, photos des plats). Les apps commerciale et coaching ne sont pas touchées.\n\nAction IRRÉVERSIBLE.')) return;
+  const typed = window.prompt('Pour confirmer, tape exactement : RESET');
+  if (typed !== 'RESET') { showToast('Réinitialisation annulée.', { icon: 'info' }); return; }
+  try {
+    const res = await fetch(apiUrl('/api/admin/reset-clients'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ confirm: 'RESET' }),
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || '');
+    showToast('Données clients réinitialisées ✅ (' + (d.total || 0) + ' lignes effacées)', { icon: 'check' });
+  } catch (e) { showToast('Échec : ' + (e.message || 'réessaie.'), { icon: 'info' }); }
 }
 
 // --- Vue coach : liste des demandes ---

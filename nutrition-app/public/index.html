@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=16" />
+  <link rel="stylesheet" href="style.css?v=17" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -655,6 +655,7 @@
         <button type="button" class="profil-row profil-admin hidden" id="btnCoachIaAdmin"><svg class="ic pr-lime"><use href="#ic-spark"/></svg>Coach IA<span class="pr-badge" id="coachIaStateBadge"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnCoachFaq"><svg class="ic pr-lime"><use href="#ic-file"/></svg>Réponses du coach (gratuit)<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnQuickOptions"><svg class="ic pr-lime"><use href="#ic-cart"/></svg>Options rapides boutique<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin profil-danger hidden" id="btnResetClients"><svg class="ic"><use href="#ic-refresh"/></svg>Réinitialiser les données clients (test)</button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnHelpAdmin"><svg class="ic pr-lime"><use href="#ic-inbox"/></svg>Demandes d'aide<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
         <div class="profil-sec profil-demo hidden">DÉMONSTRATION</div>
@@ -1214,6 +1215,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

@@ -1676,6 +1676,10 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   color: var(--error); background: var(--surface); border-color: var(--border-c); }
 .profil-logout .ic { color: var(--error); }
 .profil-logout:hover { background: rgba(220,76,68,0.07); border-color: rgba(220,76,68,0.35); }
+/* Action destructive (réinitialisation) : rouge, distincte. */
+.profil-danger { color: var(--error); }
+.profil-danger .ic { color: var(--error); }
+.profil-danger:hover { background: rgba(220,76,68,0.07); border-color: rgba(220,76,68,0.35); }
 
 /* ---------- Plan jour par jour (mobile) ---------- */
 .day-selector {

@@ -1906,6 +1906,38 @@ try {
     res.json({ ok: true });
   });
 
+  // ⚠️ DESTRUCTIF : réinitialise TOUTES les données clients de la nutrition (pour un
+  // lancement propre). Efface les comptes clients + tout leur suivi/communauté/messages.
+  // GARDE le CONTENU/CONFIG : réponses du coach (FAQ), options rapides, photos des plats,
+  // code démo. Ne touche RIEN des apps commerciale/coaching. Admin uniquement + double
+  // garde (body.confirm === 'RESET').
+  app.post('/nutrition/api/admin/reset-clients', requireAuth, requireAdmin, (req, res) => {
+    try {
+      if (String((req.body || {}).confirm || '') !== 'RESET') {
+        return res.status(400).json({ ok: false, error: 'Confirmation requise (RESET).' });
+      }
+      const db = getDb();
+      const tables = [
+        'nutrition_clients', 'nutrition_adherence', 'nutrition_help_requests',
+        'nutrition_scans', 'nutrition_scan_advice', 'nutrition_plate_analysis',
+        'nutrition_google_token', 'nutrition_parcours_pesees', 'nutrition_parcours_photos',
+        'nutrition_parcours_seances', 'nutrition_community_messages', 'nutrition_community_reactions',
+        'nutrition_community_events', 'nutrition_community_event_reactions', 'nutrition_community_comments',
+        'nutrition_conversations', 'nutrition_messages', 'nutrition_message_audit', 'nutrition_demo_access',
+      ];
+      const counts = {};
+      const tx = db.transaction(() => {
+        for (const t of tables) {
+          try { counts[t] = db.prepare('DELETE FROM ' + t).run().changes; } catch (_) { counts[t] = 0; }
+        }
+      });
+      tx();
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      console.warn('RESET données clients nutrition (admin) : ' + total + ' lignes supprimées.');
+      res.json({ ok: true, total, counts });
+    } catch (e) { console.error('reset-clients :', e); res.status(500).json({ ok: false, error: 'Réinitialisation impossible.' }); }
+  });
+
   // --- Analyse d'assiette en photo : sauvegarde + vue coach ---
   app.post('/nutrition/api/plate-save', requireAuth, requireNutritionAccess, (req, res) => {
     try {
