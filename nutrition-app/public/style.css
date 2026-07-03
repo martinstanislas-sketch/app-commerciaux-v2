@@ -1363,6 +1363,12 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .comm-intro .btn { white-space: nowrap; }
 .comm-intro-x { background: none; border: none; color: var(--mc-muted); cursor: pointer; padding: 4px; border-radius: 8px; }
 .comm-intro-x .ic { width: 18px; height: 18px; }
+/* Mobile : le bouton passe en pleine largeur sous le texte (évite le débordement). */
+@media (max-width: 560px) {
+  .comm-intro { flex-wrap: wrap; }
+  .comm-intro-act { width: 100%; margin-top: 4px; }
+  .comm-intro-act .btn { flex: 1; }
+}
 .comm-hero { padding: 20px; border-radius: 22px; background: var(--grad-blue); color: #fff; box-shadow: var(--shadow-green); margin-bottom: 16px; }
 .comm-hero h2 { margin: 0 0 4px; font-size: 22px; color: #fff; }
 .comm-hero p { margin: 0; opacity: .92; font-size: 14px; line-height: 1.45; }

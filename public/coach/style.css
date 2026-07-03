@@ -4,6 +4,11 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Thème clair verrouillé : empêche l'inversion « dark mode » forcée des navigateurs
+   mobiles (Chrome auto-dark, Samsung Internet) qui rendait l'app noire/bleue. */
+html { color-scheme: light only; -webkit-color-scheme: light only; background: #F2EDE4; }
+:root { color-scheme: light only; }
+
 :root {
   --bg: #F2EDE4;
   --bg-subtle: #E8E1D6;
