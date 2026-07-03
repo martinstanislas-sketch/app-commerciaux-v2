@@ -868,6 +868,8 @@ function renderConseils() {
   if (!host) return;
   if (!state.plan || !state.plan.besoins) { host.innerHTML = ''; return; }
   const { ctx, conseils, today } = evaluerConseils();
+  // Dès qu'un repas de la journée est validé, on retire les Conseils du jour.
+  if (ctx && ctx.repasValides >= 1) { host.innerHTML = ''; return; }
   if (!conseils.length) { host.innerHTML = ''; return; }
   host.innerHTML = '<div class="conseils-head">' + icSvg('spark') + ' Conseils du jour</div>' +
     conseils.map((t) => conseilCardHTML(t, today, ctx)).join('');
@@ -971,8 +973,12 @@ function renderMealCard(repas, di, mi) {
   const glyph = cat === 'petit-dejeuner' ? 'sun' : (cat === 'collation' ? 'apple' : 'bowl');
   const suivi = state.suivi[trackKey(di, mi)] || {};
   const st = suivi.statut;
-  const altLine = st === 'autre' && suivi.autre
-    ? `<div class="meal-alt">${icSvg('edit')} ${escapeHtml(suivi.autre.repas || '')}${suivi.autre.quantite ? ' (' + escapeHtml(suivi.autre.quantite) + ')' : ''}</div>`
+  // Texte « mangé autre chose » : saisi via le crayon (detail.repas) ou via le formulaire (autre.repas).
+  const autreTxt = (suivi.autre && suivi.autre.repas) || (suivi.detail && suivi.detail.repas) || '';
+  const autreQte = (suivi.autre && suivi.autre.quantite) || '';
+  // Pour « autre » : le texte s'affiche SUR l'image (photo rendue transparente), plus de ligne en dessous.
+  const autreNote = st === 'autre'
+    ? `<div class="meal-autre-note">${icSvg('edit')}<span>${escapeHtml(autreTxt || 'Repas remplacé')}${autreQte ? ' (' + escapeHtml(autreQte) + ')' : ''}</span></div>`
     : '';
   const badge = recipeBadge(r);
   const badgeHTML = badge ? `<span class="meal-badge ${badge.cls}">${escapeHtml(badge.txt)}</span>` : '';
@@ -1000,6 +1006,7 @@ function renderMealCard(repas, di, mi) {
           ${kcalMeta}
         </div>
       </div>
+      ${autreNote}
     </div>
     <div class="meal-body">
       <div class="meal-actions">
@@ -1007,13 +1014,14 @@ function renderMealCard(repas, di, mi) {
         <button class="mini-btn" data-act="swap">${icSvg('refresh')} Remplacer</button>
       </div>
       <div class="meal-track">
-        <button class="track-btn ${st === 'respecte' ? 'on-ok' : ''}" data-act="t-ok" title="Repas suivi" aria-label="Repas suivi">${icSvg('check')}</button>
-        <button class="track-btn ${st === 'non' ? 'on-no' : ''}" data-act="t-no" title="Non suivi" aria-label="Non suivi">${icSvg('x')}</button>
-        <button class="track-btn ${st === 'autre' ? 'on-alt' : ''}" data-act="t-alt" title="Modifier ce repas" aria-label="Modifier ce repas">${icSvg('edit')}</button>
+        <button class="track-btn ${st === 'respecte' ? 'on-ok' : ''}" data-act="t-ok" title="J'ai suivi mon plan" aria-label="J'ai suivi mon plan">${icSvg('check')}</button>
+        <button class="track-btn ${st === 'non' ? 'on-no' : ''}" data-act="t-no" title="J'ai sauté ce repas" aria-label="J'ai sauté ce repas">${icSvg('x')}</button>
+        <button class="track-btn ${(st === 'adapte' || st === 'autre') ? 'on-alt' : ''}" data-act="t-alt" title="J'ai adapté / mangé autre chose" aria-label="Adapter ce repas">${icSvg('edit')}</button>
       </div>
-      ${altLine}
       ${collationOptionHTML(repas)}
     </div>`;
+  el.classList.toggle('is-autre', st === 'autre');
+  el.classList.toggle('is-adapte', st === 'adapte');
   el.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-act]');
     const act = btn && btn.dataset.act;
@@ -1693,8 +1701,16 @@ function renderShopping() {
   });
 }
 
-function openShopping() { renderShopping(); $('#shoppingPanel').classList.remove('hidden'); }
-function closeShopping() { $('#shoppingPanel').classList.add('hidden'); }
+function openShopping() {
+  renderShopping(); $('#shoppingPanel').classList.remove('hidden');
+  // Comportement « page » : l'onglet Courses s'allume dans la sidebar.
+  $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === 'courses'));
+}
+function closeShopping() {
+  $('#shoppingPanel').classList.add('hidden');
+  const cur = ($('#screen-result') && $('#screen-result').getAttribute('data-tab')) || 'plan';
+  $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === cur));
+}
 
 // ---------- Portions ----------
 function setPortions(n) {
@@ -1769,22 +1785,25 @@ function exportShoppingPdf() {
 }
 
 // ---------- Ma fiche (E1 + E6 : recap perso) ----------
-const COMPLEMENT_LABELS = { non: 'Aucun', aucun: 'Aucun', proteines: 'Proteines', creatine: 'Creatine', vitamines: 'Vitamines / mineraux', multivitamines: 'Vitamines / mineraux', omega3: 'Omega 3', magnesium: 'Magnesium', fibres: 'Fibres', electrolytes: 'Electrolytes', vitamineD: 'Vitamine D', bruleur: 'Bruleur de graisse', collagene: 'Collagene', preworkout: 'Pre-workout', autre: 'Autre' };
+const COMPLEMENT_LABELS = { non: 'Aucun', aucun: 'Aucun', proteines: 'Protéine (whey)', proteines_vegetales: 'Protéine végétale', creatine: 'Créatine', vitamines: 'Multivitamines', multivitamines: 'Multivitamines', omega3: 'Oméga 3', magnesium: 'Magnésium', fibres: 'Fibres', electrolytes: 'Électrolytes', vitamineD: 'Vitamine D3', ashwagandha: 'Ashwagandha', bruleur: 'Bruleur de graisse', collagene: 'Collagène', preworkout: 'Pre-workout', autre: 'Autre' };
 
 // Lien boutique (Biloba Nutrition) par complement recommande : un clic -> la fiche produit.
 // On NE met PAS de lien pour le bruleur (deconseille) ni les fibres (pas de produit dedie).
 const SHOP_BASE = 'https://bilobanutrition.fr/products/';
 const SHOP_UTM = '?utm_source=mycoach&utm_medium=app&utm_campaign=complements';
+// Handles RÉELS du catalogue Biloba Nutrition (vérifiés via products.json, 2026-07).
 const COMPLEMENT_SHOP = {
-  proteines: 'whey-isolate-native-nutripure',
-  creatine: 'creatine-nutripure',
-  magnesium: 'magnesium-bisglycinate',
-  omega3: 'mega-omega3',
-  vitamineD: 'multivitamines-copie',
-  vitamines: 'vitamines-1',
-  multivitamines: 'vitamines-1',
-  collagene: 'collagene-marin-sauvage',
-  preworkout: 'abe-ultimate-pre-workout-375g',
+  proteines: 'iso-whey-clear-1',                         // Iso Whey Clear
+  proteines_vegetales: 'proteine-vegetale',              // Protéine Végétale (vegan)
+  creatine: 'creatine-100-monohydrate-biotechusa',       // Créatine 100% monohydrate
+  magnesium: 'magnesium-bisglycinate',                   // Magnésium Bisglycinate (en stock)
+  omega3: 'mega-omega3',                                 // Mega OMEGA3
+  vitamineD: 'multivitamines-copie',                     // Vitamine D3 K2-MK7 1000 UI
+  vitamines: 'multivitamines-complex',                   // Multivitamines complex
+  multivitamines: 'multivitamines-complex',
+  collagene: 'inlead-collagene-peptides-type-i-ii-et-iii', // INLEAD Collagène peptides
+  electrolytes: 'electrolytes-comprimes-effervescents',  // Électrolytes effervescents
+  ashwagandha: 'ashwagandha-ksm66-bio',                  // Ashwagandha KSM66 bio
 };
 // Visuel produit par complement. Par defaut on tente une image LOCALE
 // (public/images/complements/<cle>.jpg) ; sinon, renseignez ici l'URL exacte de
@@ -2112,6 +2131,10 @@ const COMPLEMENT_ROLES = {
   vitamineD: 'souvent un peu basse en hiver ou avec peu d\'exposition au soleil.',
   fibres: 'aident a la satiete et au transit.',
   electrolytes: 'utiles pour s\'hydrater lors d\'efforts longs ou par forte chaleur.',
+  proteines_vegetales: 'source de protéines végétales pour compléter vos apports (idéal en alimentation végétale).',
+  multivitamines: 'filet de sécurité si votre alimentation est parfois déséquilibrée.',
+  collagene: 'soutient la peau, les articulations et les tissus, utile en perte de poids ou avec l\'âge.',
+  ashwagandha: 'plante adaptogène : peut aider à mieux gérer le stress et à favoriser un sommeil réparateur.',
   bruleur: 'effet tres limite : ce n\'est pas un levier prioritaire.',
 };
 // Moment de prise suggere (general, non medical) — affiche dans "Complements du jour".
@@ -2124,6 +2147,10 @@ const COMPLEMENT_MOMENT = {
   vitamines: 'le matin, au petit-déjeuner',
   vitamineD: 'le matin, au repas',
   electrolytes: 'pendant ou après l\'effort',
+  proteines_vegetales: 'après l\'entraînement ou en collation',
+  multivitamines: 'le matin, au petit-déjeuner',
+  collagene: 'chaque jour, à distance des repas ou le soir',
+  ashwagandha: 'le soir, avant le coucher',
 };
 function complementMoment(cle) { return COMPLEMENT_MOMENT[cle] || 'selon recommandation'; }
 // Liste des complements que l'utilisateur suit (a integrer au plan quotidien).
@@ -2173,6 +2200,7 @@ function complementExplication(cle, c) {
   const suivi = (typeof estComplementSuivi === 'function' && estComplementSuivi(cle)) || (c.pris && c.pris.has(cle));
   let t;
   switch (cle) {
+    case 'proteines_vegetales':
     case 'proteines':
       t = `Votre objectif est de ${obj}${prot ? `, avec un besoin d'environ ${prot} g de protéines par jour` : ''}. Atteindre cette quantité par l'alimentation seule peut être exigeant${c.objectif === 'muscle' || c.objectif === 'challenge' ? ', surtout les jours d\'entraînement' : ''}.${dietNote} Une protéine en poudre vous aide à compléter facilement vos apports, notamment après l'entraînement ou en collation.`;
       if (!c.actif && c.objectif !== 'muscle') t += ' Si vos repas couvrent déjà ce total, gardez-la simplement en dépannage.';
@@ -2199,6 +2227,12 @@ function complementExplication(cle, c) {
       break;
     case 'vitamines': case 'multivitamines':
       t = `Un multivitamines sert de filet de sécurité si votre alimentation est parfois déséquilibrée${c.vegan ? ', ce qui peut arriver avec une alimentation vegan' : ''}. Rien d'indispensable si vos repas sont variés, mais cela rassure les semaines chargées.`;
+      break;
+    case 'collagene':
+      t = `${c.objectif === 'perte' || c.objectif === 'challenge' ? 'En perte de poids, ' : ''}le collagène soutient la peau, les articulations et les tissus — un plus pour la souplesse et le confort articulaire, surtout si vous êtes actif ou avec l'âge. À voir comme un confort, pas un indispensable.`;
+      break;
+    case 'ashwagandha':
+      t = `${c.stressFatigue ? 'Vous avez signalé du stress, de la fatigue ou un sommeil difficile : ' : 'Si vous vous sentez souvent sous pression ou dormez mal, '}l'ashwagandha est une plante adaptogène qui peut aider à mieux gérer le stress et à favoriser un sommeil plus réparateur. C'est un coup de pouce bien-être, jamais un traitement.`;
       break;
     default:
       t = COMPLEMENT_ROLES[cle] ? ('Ce complément ' + COMPLEMENT_ROLES[cle]) : 'Peut être un complément utile selon vos besoins.';
@@ -2241,26 +2275,30 @@ function recommanderComplements(profil, prefs) {
     dejaPris: pris.has(cle),
   });
 
-  // Niveaux : 'essentiel' (tres pertinent pour le profil) > 'aide' (vrai benefice,
-  // pas indispensable) > 'envisager' (optimisation / confort / bien-etre).
-  if (objectif === 'perte' || objectif === 'challenge') {
-    const intense = objectif === 'challenge';
-    add('proteines', 'essentiel', intense ? 'En perte acceleree, pour proteger vos muscles et tenir la satiete :' : 'En perte de poids, surtout si vos apports sont justes :');
-    add('fibres', (faimGrignote || intense) ? 'aide' : 'envisager', faimGrignote ? 'Vous avez signale de la faim / des grignotages :' : 'Pour la satiete et le transit :');
-    add('magnesium', stressFatigue ? 'aide' : 'envisager', stressFatigue ? 'Vous avez signale du stress, de la fatigue ou un sommeil difficile :' : 'Si vous vous sentez stresse, fatigue ou dormez mal :');
-    if (intense && actif) add('electrolytes', 'essentiel', 'Seances intenses : si vous transpirez beaucoup a l\'effort :');
-  } else if (objectif === 'muscle') {
-    add('proteines', 'essentiel', 'Pour couvrir vos besoins eleves en proteines si l\'alimentation ne suffit pas :');
-    add('creatine', actif ? 'essentiel' : 'envisager', 'Si vous vous entrainez regulierement :');
-    add('magnesium', stressFatigue ? 'aide' : 'envisager', stressFatigue ? 'Vous avez signale une recuperation difficile :' : 'Si la recuperation est difficile :');
+  // 3 niveaux, chacun garanti avec AU MOINS 2 produits (tous liés à un vrai produit
+  // Biloba). Ordre voulu : Les essentiels > À envisager > Peut vous aider.
+  const protKey = vegan ? 'proteines_vegetales' : 'proteines';
+  let ess, env, aide;
+  if (objectif === 'muscle') {
+    ess = [protKey, 'creatine']; env = ['multivitamines', 'collagene']; aide = ['magnesium', 'omega3'];
+  } else if (objectif === 'challenge' || objectif === 'perte') {
+    ess = [protKey, 'omega3']; env = ['multivitamines', 'collagene'];
+    aide = ['magnesium', (actif && objectif === 'challenge') ? 'electrolytes' : 'vitamineD'];
   } else if (objectif === 'energie') {
-    add('magnesium', 'aide', 'Pour le tonus au quotidien :');
-    add('omega3', 'aide', poissonOk ? '' : 'Vous semblez manger peu de poisson :');
-    add('vitamineD', 'aide', 'Selon la saison et votre exposition au soleil :');
+    ess = ['omega3', 'vitamineD']; env = ['multivitamines', 'collagene']; aide = ['magnesium', 'ashwagandha'];
   } else { // maintien
-    add('omega3', 'aide', poissonOk ? '' : 'Vous semblez manger peu de poisson :');
-    add('magnesium', stressFatigue ? 'aide' : 'envisager', 'En cas de fatigue ou de stress :');
+    ess = [protKey, 'omega3']; env = ['multivitamines', 'collagene']; aide = ['magnesium', 'vitamineD'];
   }
+  if (stressFatigue) aide[1] = 'ashwagandha'; // signal stress/fatigue/sommeil -> ashwagandha
+  const seen = new Set();
+  const pushTier = (keys, niveau) => keys.forEach((cle) => { if (seen.has(cle)) return; seen.add(cle); add(cle, niveau); });
+  pushTier(ess, 'essentiel'); pushTier(env, 'envisager'); pushTier(aide, 'aide');
+  // Filet de sécurité : complète chaque niveau à 2 minimum depuis un pool à vrais produits.
+  const POOL = { essentiel: [protKey, 'omega3', 'creatine'], envisager: ['multivitamines', 'collagene', 'vitamineD'], aide: ['magnesium', 'electrolytes', 'ashwagandha'] };
+  ['essentiel', 'envisager', 'aide'].forEach((niveau) => {
+    let n = reco.filter((r) => r.priorite === niveau).length;
+    for (const cle of POOL[niveau]) { if (n >= 2) break; if (seen.has(cle)) continue; seen.add(cle); add(cle, niveau); n++; }
+  });
 
   // Alertes douces.
   if (pris.has('bruleur')) {
@@ -2276,7 +2314,7 @@ function recommanderComplements(profil, prefs) {
   const labels = prisRaw.map((c) => COMPLEMENT_LABELS[c] || c);
   const resume = labels.length
     ? 'Vous prenez actuellement : ' + labels.join(', ') + (profil.complementsDetail ? ` (${profil.complementsDetail}).` : '.')
-    : 'Vous ne prenez aucun complement pour le moment — c\'est tout a fait possible : l\'alimentation reste la base.';
+    : '';
 
   return { resume, reco, alertes };
 }
@@ -2287,54 +2325,68 @@ const PRIORITE_LABEL = {
   indispensable: 'Essentiel pour vous', utile: 'Essentiel pour vous', optionnel: 'À envisager',
 };
 
-function openComplements() { renderComplements(); $('#complementsPanel').classList.remove('hidden'); }
-function closeComplements() { $('#complementsPanel').classList.add('hidden'); }
+function openComplements() {
+  renderComplements(); $('#complementsPanel').classList.remove('hidden');
+  // Comportement « page » : l'onglet Compléments s'allume dans la sidebar.
+  $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === 'complements'));
+}
+function closeComplements() {
+  $('#complementsPanel').classList.add('hidden');
+  // Rend la surbrillance à l'onglet de fond réellement affiché.
+  const cur = ($('#screen-result') && $('#screen-result').getAttribute('data-tab')) || 'plan';
+  $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === cur));
+}
 
-function renderComplements() {
-  const data = recommanderComplements(state.profil, state.preferences);
-  const alertes = data.alertes.map((a) => `<div class="comp-alert">${icSvg('spark')} ${escapeHtml(a)}</div>`).join('');
-  const reco = data.reco.map((r) => {
-    const handle = COMPLEMENT_SHOP[r.cle];
-    const suivi = estComplementSuivi(r.cle);
-    const shopBtn = handle
-      ? `<a class="comp-shop" href="${SHOP_BASE}${handle}${SHOP_UTM}" target="_blank" rel="noopener noreferrer">${icSvg('cart')} Voir le produit</a>`
-      : '';
-    const actionBtn = `<button type="button" class="comp-add${suivi ? ' is-on' : ''}" data-comp-toggle="${r.cle}">${icSvg(suivi ? 'check' : 'plus')} ${suivi ? 'Dans mon plan' : 'Ajouter à mon plan'}</button>`;
-    // Vignette produit : cliquable -> fiche produit si dispo. Fallback elegant
-    // (degrade + icone) si pas d'image. onerror retire l'img -> le fallback apparait.
-    const shopUrl = handle ? `${SHOP_BASE}${handle}${SHOP_UTM}` : '';
-    const thumbInner = `<span class="comp-thumb-fallback">${icSvg('pill')}</span><img src="${complementImgSrc(r.cle)}" alt="${escapeHtml(r.nom)}" loading="lazy" onload="this.classList.add('loaded')" onerror="this.remove()" />`;
-    const thumb = shopUrl
-      ? `<a class="comp-thumb" href="${shopUrl}" target="_blank" rel="noopener noreferrer" aria-label="Voir ${escapeHtml(r.nom)}">${thumbInner}</a>`
-      : `<div class="comp-thumb">${thumbInner}</div>`;
-    return `
+// Une carte produit du niveau.
+function complementCarte(r) {
+  const handle = COMPLEMENT_SHOP[r.cle];
+  const suivi = estComplementSuivi(r.cle);
+  const shopUrl = handle ? `${SHOP_BASE}${handle}${SHOP_UTM}` : '';
+  const shopBtn = shopUrl
+    ? `<a class="comp-shop" href="${shopUrl}" target="_blank" rel="noopener noreferrer">${icSvg('cart')} Voir le produit</a>` : '';
+  const actionBtn = `<button type="button" class="comp-add${suivi ? ' is-on' : ''}" data-comp-toggle="${r.cle}">${icSvg(suivi ? 'check' : 'plus')} ${suivi ? 'Dans mon plan' : 'Ajouter à mon plan'}</button>`;
+  const thumbInner = `<span class="comp-thumb-fallback">${icSvg('pill')}</span><img src="${complementImgSrc(r.cle)}" alt="${escapeHtml(r.nom)}" loading="lazy" onload="this.classList.add('loaded')" onerror="this.remove()" />`;
+  const thumb = shopUrl
+    ? `<a class="comp-thumb" href="${shopUrl}" target="_blank" rel="noopener noreferrer" aria-label="Voir ${escapeHtml(r.nom)}">${thumbInner}</a>`
+    : `<div class="comp-thumb">${thumbInner}</div>`;
+  return `
     <div class="comp-item${suivi ? ' is-suivi' : ''}">
       ${thumb}
       <div class="comp-main">
         <div class="comp-item-head">
           <span class="comp-name">${escapeHtml(r.nom)}${r.dejaPris ? ' <span class="comp-deja">déjà pris</span>' : ''}</span>
-          <span class="comp-prio prio-${r.priorite}">${PRIORITE_LABEL[r.priorite] || r.priorite}</span>
         </div>
         <div class="comp-role">${escapeHtml(r.role)}</div>
         <div class="comp-moment">${icSvg('clock')} Quand : ${escapeHtml(complementMoment(r.cle))}</div>
         <div class="comp-actions">${actionBtn}${shopBtn}</div>
       </div>
     </div>`;
+}
+function renderComplements() {
+  const data = recommanderComplements(state.profil, state.preferences);
+  const alertes = data.alertes.map((a) => `<div class="comp-alert">${icSvg('spark')} ${escapeHtml(a)}</div>`).join('');
+  // 3 niveaux affichés en haut, dans l'ordre voulu.
+  const NIVEAUX = [
+    { key: 'essentiel', titre: 'Les essentiels', sous: 'Le socle pour votre objectif.' },
+    { key: 'envisager', titre: 'À envisager', sous: 'Des optimisations utiles, sans être indispensables.' },
+    { key: 'aide', titre: 'Peut vous aider', sous: 'Un coup de pouce selon votre ressenti.' },
+  ];
+  const sections = NIVEAUX.map((niv) => {
+    const items = data.reco.filter((r) => r.priorite === niv.key);
+    if (!items.length) return '';
+    return `<div class="comp-tier"><div class="comp-tier-head"><h3 class="comp-tier-title comp-tier-${niv.key}">${niv.titre}</h3><span class="comp-tier-sub">${niv.sous}</span></div>${items.map(complementCarte).join('')}</div>`;
   }).join('');
-  // Section "Vos complements suivis" : tout ce qui est dans le plan, meme hors reco.
   const actifs = complementsActifs();
   const suivisBlock = actifs.length ? `
     <div class="recipe-section-title">Dans votre plan</div>
     <div class="comp-suivis">${actifs.map((c) =>
       `<span class="comp-chip"><strong>${escapeHtml(c.nom)}</strong><em>${escapeHtml(c.moment)}</em><button type="button" class="comp-chip-x" data-comp-toggle="${c.cle}" aria-label="Retirer">${icSvg('x')}</button></span>`).join('')}</div>` : '';
   $('#complementsBody').innerHTML = `
-    <p class="comp-rappel">Les compléments peuvent être une aide complémentaire. Ils ne remplacent pas une alimentation équilibrée ni l'avis d'un professionnel de santé.</p>
-    <div class="comp-resume">${escapeHtml(data.resume)}</div>
+    ${data.resume ? `<div class="comp-resume">${escapeHtml(data.resume)}</div>` : ''}
+    ${sections}
     ${suivisBlock}
     ${alertes ? `<div class="recipe-section-title">À noter</div>${alertes}` : ''}
-    <div class="recipe-section-title">Recommandation selon votre objectif</div>
-    ${reco}
-    <p class="panel-sub" style="margin-top:16px">Informations générales, non médicales. Les compléments sont une aide secondaire, jamais la base du résultat. Ajoutez-en à votre plan pour les retrouver chaque jour et suivre leur prise.</p>`;
+    <p class="panel-sub" style="margin-top:16px">Informations générales, non médicales. Produits proposés par Biloba Nutrition. Les compléments sont une aide secondaire, jamais la base du résultat. Ajoutez-en à votre plan pour les retrouver chaque jour et suivre leur prise.</p>`;
   $$('#complementsBody [data-comp-toggle]').forEach((b) => b.addEventListener('click', () => toggleComplementSuivi(b.dataset.compToggle)));
 }
 
@@ -2582,7 +2634,7 @@ function init() {
 
   // Scan de produit (mode normal : on repart sans contexte de remplacement)
   $('#btnScan').addEventListener('click', () => { scanReplaceCtx = null; openScan(); });
-  $('#btnScanFromShopping').addEventListener('click', () => { scanReplaceCtx = null; closeShopping(); openScan(); });
+  // (Bouton « Scanner un produit » retiré de la liste de courses.)
   $('#btnScanFromSuivi').addEventListener('click', () => { scanReplaceCtx = null; closeSuivi(); openScan(); });
   $('#scanClose').addEventListener('click', closeScan);
   $('#scanModal').addEventListener('click', (e) => { if (e.target.id === 'scanModal') closeScan(); });
@@ -3493,25 +3545,8 @@ function renderCommunaute() {
   const coachOnly = isCoachOrAdmin();
   host.innerHTML =
     '<div class="feed">' +
-      // 1. Carte challenge premium (nom du groupe, membres, progression mise en avant)
-      '<header class="feed-hero">' +
-        '<div class="feed-hero-glow"></div>' +
-        '<div class="feed-hero-top">' +
-          '<div class="feed-hero-id">' +
-            '<span class="feed-hero-kicker">' + icSvg('flame') + ' Défi de la semaine</span>' +
-            '<h2 class="feed-hero-title">' + escapeHtml((ov && ov.groupe) || 'Groupe Challenge 6/6') + '</h2>' +
-          '</div>' +
-          '<span class="feed-hero-members">' + icSvg('users') + ' <b id="commMembers">' + members + '</b></span>' +
-        '</div>' +
-        '<div class="feed-hero-prog">' +
-          '<div class="feed-hero-pct"><b id="commProgPct">' + pctObj + '</b><i>%</i></div>' +
-          '<div class="feed-hero-track-wrap">' +
-            '<div class="feed-hero-track"><span id="commProgBar" style="width:' + pctObj + '%"></span></div>' +
-            '<span class="feed-hero-cap">Progression du groupe cette semaine</span>' +
-          '</div>' +
-        '</div>' +
-      '</header>' +
-      // Zone de publication personnelle — ENTRE la progression du groupe et le fil.
+      // (Bloc « Défi / Groupe Challenge / progression » retiré — on garde uniquement la discussion collective.)
+      // Zone de publication personnelle.
       '<form id="commForm" class="feed-compose">' +
         '<textarea id="commInput" rows="1" maxlength="500" placeholder="Partager une réussite, une difficulté ou une victoire…" autocomplete="off"></textarea>' +
         '<button type="submit" class="comm-send" aria-label="Partager">' + icSvg('send') + '</button>' +
@@ -4542,6 +4577,9 @@ async function deletePlatPhoto(id) {
 }
 
 function setTab(tab) {
+  // On quitte Compléments / Courses -> on ferme leur page (sinon elle resterait par-dessus).
+  if (tab !== 'complements') { const cp = $('#complementsPanel'); if (cp && !cp.classList.contains('hidden')) cp.classList.add('hidden'); }
+  if (tab !== 'courses') { const sp = $('#shoppingPanel'); if (sp && !sp.classList.contains('hidden')) sp.classList.add('hidden'); }
   // Courses & Suivi ouvrent les panneaux existants (overlays) sans changer la vue de fond.
   if (tab === 'complements') { $('#btnComplements').click(); return; }
   if (tab === 'courses') { $('#btnShopping').click(); return; }
@@ -5429,9 +5467,11 @@ function renderSuiviPlan() {
         <input type="text" data-detail="${cfg.field}" data-mi="${mi}" value="${escapeHtml(val)}" placeholder="${escapeHtml(cfg.ph)}"></div>`;
     }
     const fb = e ? `<div class="suivi-feedback niveau-${SUIVI_NIVEAU[e.statut]}"><span class="suivi-niveau">${NIVEAU_LABEL[SUIVI_NIVEAU[e.statut]]}</span><p>${feedbackFor(e.statut)}</p></div>` : '';
+    // Bouton d'enregistrement directement sous le repas dès qu'il est renseigné.
+    const saveBtn = e ? `<button type="button" class="btn btn-primary suivi-save-inline" data-act="save"><svg class="ic"><use href="#ic-check-circle"/></svg> Enregistrer mon suivi</button>` : '';
     return `<div class="suivi-meal">
       <div class="suivi-meal-head"><span class="suivi-meal-label">${escapeHtml(rp.label || rp.creneau || 'Repas')}</span><span class="suivi-meal-recipe">${escapeHtml(recipeName)}</span></div>
-      <div class="suivi-opts">${opts}</div>${detailHtml}${fb}</div>`;
+      <div class="suivi-opts">${opts}</div>${detailHtml}${fb}${saveBtn}</div>`;
   }).join('');
 
   const st = dayStats(di);
@@ -5453,16 +5493,23 @@ function renderSuiviPlan() {
     <h3 class="suivi-day-title">${escapeHtml(jours[di].jour || ('Jour ' + (di + 1)))}${(jourActuelDansPlan() && di === indexJourActuel()) ? '<span class="day-now">Jour en cours</span>' : ''}</h3>
     ${meals || '<p class="help-empty">Aucun repas ce jour-la.</p>'}
     ${scoreCard}
-    <button type="button" class="btn btn-primary btn-lg" data-act="save" style="width:100%"><svg class="ic"><use href="#ic-check-circle"/></svg> Enregistrer mon suivi</button>
     <div class="suivi-week"><h3><svg class="ic"><use href="#ic-trend"/></svg> Ma semaine nutrition</h3><p class="week-summary">${escapeHtml(weekTxt)}</p></div>
     <button type="button" class="btn btn-outline is-soon" data-act="plate" style="width:100%;margin-top:10px"><svg class="ic"><use href="#ic-camera"/></svg> J'ai mange autre chose — analyser mon assiette<span class="soon-badge">Bientôt</span></button>
     <button type="button" class="btn btn-outline" data-act="help" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide sur mon alimentation cette semaine</button>`;
 }
-function setSuiviPlanStatus(di, mi, statut) {
+// Le panneau parle en « suivi/adapte/autre/saute » ; la carte du plan et tous les
+// calculs (journée validée, adhérence…) parlent en « respecte/adapte/autre/non ».
+// On stocke TOUJOURS le vocabulaire canonique -> le ✓/✗/crayon s'affichent bien.
+const PANEL_TO_STATUT = { suivi: 'respecte', adapte: 'adapte', autre: 'autre', saute: 'non' };
+function setSuiviPlanStatus(di, mi, panelKey) {
   const key = trackKey(di, mi);
   const cur = state.suivi[key] || {};
-  if (normStatut(cur.statut) === statut) { delete state.suivi[key]; } // re-clic = annule
-  else { state.suivi[key] = { statut, detail: cur.detail || (cur.autre ? { repas: cur.autre.repas } : {}) }; }
+  if (normStatut(cur.statut) === panelKey) { delete state.suivi[key]; } // re-clic = annule
+  else {
+    const statut = PANEL_TO_STATUT[panelKey] || panelKey;
+    state.suivi[key] = { statut, detail: cur.detail || (cur.autre ? { repas: cur.autre.repas } : {}), autre: cur.autre };
+    if (statut === 'respecte') checkDayCompletion(di);
+  }
   saveLocal(); renderSuiviPlan(); renderPlan();
 }
 function setSuiviDetail(di, mi, field, value, rerender) {

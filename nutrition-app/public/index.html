@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=17" />
+  <link rel="stylesheet" href="style.css?v=29" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -620,8 +620,9 @@
 
       <div id="planGrid" class="plan-grid"></div>
 
-      <!-- Zone secondaire du plan : ajuster / regenerer (deplacees depuis Profil) -->
+      <!-- Zone secondaire du plan : agenda / ajuster / regenerer -->
       <div class="plan-tools">
+        <button type="button" class="plan-tool" data-go="btnAgenda"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter à mon agenda</button>
         <button type="button" class="plan-tool" data-go="btnAvance"><svg class="ic"><use href="#ic-sliders"/></svg> Affiner mon plan</button>
         <button type="button" class="plan-tool-link" data-go="btnNewPlan"><svg class="ic"><use href="#ic-refresh"/></svg> Recalculer le plan</button>
       </div>
@@ -695,7 +696,6 @@
         <button type="button" class="nav-i on" data-tab="plan"><svg class="ic"><use href="#ic-calendar"/></svg><span>Plan</span></button>
         <button type="button" class="nav-i" data-tab="complements"><svg class="ic"><use href="#ic-pill"/></svg><span>Compléments</span></button>
         <button type="button" class="nav-i" data-tab="courses"><svg class="ic"><use href="#ic-cart"/></svg><span>Courses</span></button>
-        <button type="button" class="nav-i" data-tab="suivi"><svg class="ic"><use href="#ic-chart"/></svg><span>Suivi</span></button>
         <button type="button" class="nav-i hidden" id="navParcours" data-tab="parcours"><svg class="ic"><use href="#ic-flame"/></svg><span>Parcours</span></button>
         <button type="button" class="nav-i hidden" id="navCommunaute" data-tab="communaute"><svg class="ic"><use href="#ic-users"/></svg><span>Communauté</span></button>
         <button type="button" class="nav-i" data-tab="profil"><svg class="ic"><use href="#ic-user"/></svg><span>Profil</span><span class="nav-dot" id="navProfilDot" style="display:none"></span></button>
@@ -804,8 +804,7 @@
         <button class="modal-close" id="shoppingClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
       <p class="panel-sub">Pour <span id="shoppingDays">7</span> jour(s). Choisissez pour combien de personnes, puis cochez au fur et a mesure.<span id="shoppingPortions" hidden></span></p>
-      <button class="btn btn-outline" id="btnExportShopping" style="margin-bottom:10px"><svg class="ic"><use href="#ic-file"/></svg> Exporter la liste (PDF)</button>
-      <button class="btn btn-outline" id="btnScanFromShopping" style="margin-bottom:14px"><svg class="ic"><use href="#ic-scan"/></svg> Scanner un produit</button>
+      <button class="btn btn-outline" id="btnExportShopping" style="margin-bottom:14px"><svg class="ic"><use href="#ic-file"/></svg> Exporter la liste (PDF)</button>
       <div id="shoppingList"></div>
     </div>
   </div>
@@ -1215,6 +1214,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>
