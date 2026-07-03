@@ -606,40 +606,64 @@ try {
   // Réactions autorisées sur le mur (libellés non sensibles, encouragements).
   const COMMUNITY_REACTIONS = ['bravo', 'force', 'moi-aussi', 'bien-joue', 'courage', 'aide'];
 
+  // Payload du mur collectif (messages + réactions agrégées + taille du groupe).
+  // Factorisé pour être réutilisé par la vue CLIENT et la vue COACH.
+  function communityWallPayload(meEmail, limit) {
+    const db = getDb();
+    const rows = db.prepare('SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages ORDER BY id DESC LIMIT ?').all(limit);
+    const reacByMsg = {};
+    try {
+      const ids = rows.map((r) => r.id);
+      if (ids.length) {
+        const ph = ids.map(() => '?').join(',');
+        db.prepare('SELECT message_id, type, email FROM nutrition_community_reactions WHERE message_id IN (' + ph + ')').all(...ids)
+          .forEach((x) => {
+            const e = reacByMsg[x.message_id] || (reacByMsg[x.message_id] = { counts: {}, mine: null });
+            e.counts[x.type] = (e.counts[x.type] || 0) + 1;
+            if (meEmail && x.email === meEmail) e.mine = x.type;
+          });
+      }
+    } catch (_) { /* table absente -> pas de réactions */ }
+    const messages = rows.map((r) => ({
+      id: r.id, who: r.author || 'Client', when: r.created_at,
+      text: r.message, kind: r.kind || 'message', mine: !!meEmail && r.email === meEmail,
+      reactions: (reacByMsg[r.id] && reacByMsg[r.id].counts) || {},
+      myReaction: (reacByMsg[r.id] && reacByMsg[r.id].mine) || null,
+    }));
+    let members = 0;
+    try { members = db.prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n; } catch (_) { /* ignore */ }
+    return { messages, members };
+  }
+
   app.get('/nutrition/api/community/messages', requireAuth, requireNutritionUse, (req, res) => {
     try {
       const me = (req.session && req.session.email) || '';
       const limit = Math.min(Math.max(Number(req.query.limit) || 40, 1), 100);
-      const rows = getDb().prepare(
-        'SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages ORDER BY id DESC LIMIT ?'
-      ).all(limit);
-      // Réactions agrégées par message (compteurs + ma réaction).
-      const reacByMsg = {};
-      try {
-        const ids = rows.map((r) => r.id);
-        if (ids.length) {
-          const ph = ids.map(() => '?').join(',');
-          getDb().prepare('SELECT message_id, type, email FROM nutrition_community_reactions WHERE message_id IN (' + ph + ')').all(...ids)
-            .forEach((x) => {
-              const e = reacByMsg[x.message_id] || (reacByMsg[x.message_id] = { counts: {}, mine: null });
-              e.counts[x.type] = (e.counts[x.type] || 0) + 1;
-              if (me && x.email === me) e.mine = x.type;
-            });
-        }
-      } catch (_) { /* table absente -> pas de réactions */ }
-      const messages = rows.map((r) => ({
-        id: r.id, who: r.author || 'Client', when: r.created_at,
-        text: r.message, kind: r.kind || 'message', mine: !!me && r.email === me,
-        reactions: (reacByMsg[r.id] && reacByMsg[r.id].counts) || {},
-        myReaction: (reacByMsg[r.id] && reacByMsg[r.id].mine) || null,
-      }));
-      let members = 0;
-      try { members = getDb().prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n; } catch (_) { /* ignore */ }
-      res.json({ ok: true, messages, members });
+      res.json({ ok: true, ...communityWallPayload(me, limit) });
     } catch (e) {
       console.error('Erreur community/messages GET :', e);
       res.status(500).json({ ok: false, error: 'Lecture impossible.' });
     }
+  });
+
+  // Mur collectif — accès COACH/ADMIN. Le coach passe requireCoachOrAdmin (il n'a
+  // pas la permission nutrition qui gate requireNutritionUse). Lecture du mur +
+  // publication d'un message « coach » (épinglé côté client), signé de son prénom.
+  app.get('/nutrition/api/coach/community', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const limit = Math.min(Math.max(Number(req.query.limit) || 40, 1), 100);
+      res.json({ ok: true, ...communityWallPayload('', limit) });
+    } catch (e) { console.error('coach community GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  app.post('/nutrition/api/coach/community', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const author = String((req.session && req.session.name) || 'Coach').slice(0, 80);
+      const msg = String((req.body || {}).message || '').slice(0, 500).trim();
+      if (!msg) return res.status(400).json({ ok: false, error: 'Message vide.' });
+      const now = new Date().toISOString();
+      const info = getDb().prepare('INSERT INTO nutrition_community_messages (email, author, message, kind, created_at) VALUES (?, ?, ?, ?, ?)').run('', author, msg, 'coach', now);
+      res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind: 'coach', mine: true, reactions: {}, myReaction: null } });
+    } catch (e) { console.error('coach community POST :', e); res.status(500).json({ ok: false, error: 'Publication impossible.' }); }
   });
 
   // Publier un message sur le mur collectif (client / coach / démo connecté).

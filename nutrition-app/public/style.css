@@ -1510,7 +1510,15 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .coach-dash-cta { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 15px; border: none; border-radius: 16px; background: var(--grad-blue); color: #fff; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-green); margin-bottom: 24px; }
 .coach-dash-cta .ic { width: 18px; height: 18px; }
 .coach-dash-cta .conv-unread { background: #fff; color: var(--mc-blue); }
+/* Second CTA (Mur collectif) : style secondaire, collé sous "Mes messages". */
+.coach-dash-cta-alt { background: var(--blue-soft); color: var(--blue-on-soft); box-shadow: none; border: 1px solid var(--blue-c); }
+.coach-dash-cta + .coach-dash-cta-alt { margin-top: -16px; }
 .coach-dash-sec { font-size: 13px; font-weight: 700; color: var(--mc-muted); text-transform: uppercase; letter-spacing: .3px; margin: 0 2px 10px; }
+/* Mur collectif (coach) : ligne d'info + résumé de réactions en lecture seule. */
+.coach-wall-meta { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--mc-muted); margin: 2px 2px 14px; }
+.coach-wall-meta .ic { width: 15px; height: 15px; color: var(--blue-c); }
+.comm-react-ro { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.comm-react-ro span { font-size: 12px; font-weight: 700; color: var(--mc-muted); background: var(--surface-soft); border-radius: 99px; padding: 2px 9px; }
 .coach-dash-link { display: inline-block; margin: -14px 0 24px; background: none; border: none; color: var(--mc-blue); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; text-decoration: underline; }
 
 /* --- Outils de suivi (dashboard coach) --- */

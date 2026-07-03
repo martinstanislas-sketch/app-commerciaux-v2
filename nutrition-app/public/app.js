@@ -2688,9 +2688,12 @@ function init() {
   const _bMsgCoach = $('#btnMessagesCoach'); if (_bMsgCoach) _bMsgCoach.addEventListener('click', openMessagesCoach);
   $('#messagesCoachClose').addEventListener('click', closeMessagesCoach);
   $('#messagesCoachPanel').addEventListener('click', (e) => { if (e.target.id === 'messagesCoachPanel') closeMessagesCoach(); });
+  { const wc = $('#coachWallClose'); if (wc) wc.addEventListener('click', closeCoachWall); }
+  { const wp = $('#coachWallPanel'); if (wp) wp.addEventListener('click', (e) => { if (e.target.id === 'coachWallPanel') closeCoachWall(); }); }
 
   // Dashboard coach
   const _coachMsgs = $('#coachOpenMessages'); if (_coachMsgs) _coachMsgs.addEventListener('click', openMessagesCoach);
+  const _coachWall = $('#coachOpenWall'); if (_coachWall) _coachWall.addEventListener('click', openCoachWall);
   const _coachBack = $('#coachBack'); if (_coachBack) _coachBack.addEventListener('click', () => { location.href = '/coach/'; });
 
   // Gestion des photos de plats (admin/coach) + chargement de l'index (clients voient les photos)
@@ -2771,7 +2774,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeParcoursPesee(); closeCoachParcours(); closeChangePin(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closeCoachWall(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeParcoursPesee(); closeCoachParcours(); closeChangePin(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -4255,6 +4258,61 @@ async function coachOpenClientConversation(email) {
     if (d.ok && d.conversationId) { openMessagesCoach(); openCoachConversation(d.conversationId); }
     else showToast(d.error || 'Impossible d’ouvrir la conversation.', { icon: 'info' });
   } catch (_) { showToast('Impossible d’ouvrir la conversation.', { icon: 'info' }); }
+}
+
+// ===== Espace coach : mur collectif (communauté du groupe) =====
+async function openCoachWall() {
+  const p = $('#coachWallPanel'); if (!p) return;
+  p.classList.remove('hidden');
+  const body = $('#coachWallBody'); if (body) body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  const form = $('#coachWallForm');
+  if (form && !form.dataset.wired) {
+    form.dataset.wired = '1';
+    form.addEventListener('submit', (e) => { e.preventDefault(); postCoachWall(); });
+  }
+  loadCoachWall();
+}
+function closeCoachWall() { const p = $('#coachWallPanel'); if (p) p.classList.add('hidden'); }
+async function loadCoachWall() {
+  const body = $('#coachWallBody'); if (!body) return;
+  try {
+    const res = await fetch(apiUrl('/api/coach/community?limit=40'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d.ok) throw new Error();
+    renderCoachWall(d.messages || [], d.members || 0);
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+// Résumé des réactions (lecture seule) : emoji + total.
+function commReactSummary(reactions) {
+  const entries = Object.entries(reactions || {}).filter(([, n]) => n > 0);
+  if (!entries.length) return '';
+  const emo = {}; COMMUNAUTE_REACTIONS.forEach((r) => { emo[r.type] = r.emo; });
+  return '<div class="comm-react-ro">' + entries.map(([t, n]) => '<span>' + (emo[t] || '•') + ' ' + n + '</span>').join('') + '</div>';
+}
+function renderCoachWall(msgs, members) {
+  const body = $('#coachWallBody'); if (!body) return;
+  const meta = '<div class="coach-wall-meta">' + icSvg('users') + ' ' + members + ' membre' + (members > 1 ? 's' : '') + ' dans la communauté</div>';
+  if (!msgs.length) { body.innerHTML = meta + '<p class="comm-empty">Aucun message pour le moment. Lance la discussion 👋</p>'; return; }
+  body.innerHTML = meta + '<div class="comm-wall">' + msgs.map((m) => {
+    const isCoach = m.kind === 'coach';
+    const av = isCoach ? '<div class="comm-av coach">C</div>' : '<div class="comm-av">' + escapeHtml((m.who || '?').charAt(0)) + '</div>';
+    const tag = m.kind === 'partage' ? ' <span class="comm-tag">journée validée</span>' : (isCoach ? ' <span class="comm-tag coach">coach</span>' : '');
+    return '<div class="comm-msg comm-post ' + (m.mine ? 'me ' : '') + (isCoach ? 'is-coach' : '') + '">' + av +
+      '<div class="comm-bub"><b>' + escapeHtml(m.who || 'Client') + '</b> <span class="when">· ' + escapeHtml(commTimeAgo(m.when)) + '</span>' + tag +
+      '<p>' + escapeHtml(m.text || '') + '</p>' + commReactSummary(m.reactions) + '</div></div>';
+  }).join('') + '</div>';
+}
+async function postCoachWall() {
+  const inp = $('#coachWallInput'); const v = inp ? inp.value.trim() : '';
+  if (!v) return;
+  const btn = $('#coachWallForm .comm-send'); if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(apiUrl('/api/coach/community'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ message: v }) });
+    const d = await res.json();
+    if (d.ok) { if (inp) inp.value = ''; loadCoachWall(); showToast('Message publié au groupe ✓', { icon: 'check' }); }
+    else showToast(d.error || 'Publication impossible.', { icon: 'info' });
+  } catch (_) { showToast('Publication impossible.', { icon: 'info' }); }
+  if (btn) btn.disabled = false;
 }
 
 // ===== Coach : fiche détaillée d'un client (suivi, identité par email) =====

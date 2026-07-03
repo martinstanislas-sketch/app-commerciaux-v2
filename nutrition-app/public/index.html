@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=36" />
+  <link rel="stylesheet" href="style.css?v=37" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -255,6 +255,7 @@
           <button type="button" id="coachBack" class="btn btn-outline">← Coaching</button>
         </div>
         <button type="button" id="coachOpenMessages" class="coach-dash-cta"><svg class="ic"><use href="#ic-send"/></svg> Mes messages <span id="coachMsgBadge" class="conv-unread" style="display:none"></span></button>
+        <button type="button" id="coachOpenWall" class="coach-dash-cta coach-dash-cta-alt"><svg class="ic"><use href="#ic-users"/></svg> Mur collectif</button>
         <h2 class="coach-dash-sec">Mes clients</h2>
         <div id="coachClientsList"></div>
       </div>
@@ -905,6 +906,22 @@
     </div>
   </div>
 
+  <!-- ============ COACH : MUR COLLECTIF (communauté du groupe) ============ -->
+  <div id="coachWallPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-users"/></svg> Mur collectif</h2>
+        <button class="modal-close" id="coachWallClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Publie un message au groupe — il apparaît épinglé dans la communauté de tes clients.</p>
+      <form id="coachWallForm" class="comm-compose">
+        <textarea id="coachWallInput" rows="2" maxlength="500" placeholder="Écris un message à toute la communauté…" autocomplete="off"></textarea>
+        <button type="submit" class="comm-send" aria-label="Publier"><svg class="ic"><use href="#ic-send"/></svg></button>
+      </form>
+      <div id="coachWallBody"></div>
+    </div>
+  </div>
+
   <!-- ============ ADMIN/COACH : PHOTOS DES PLATS ============ -->
   <div id="platsPhotosPanel" class="panel hidden">
     <div class="panel-inner">
@@ -1207,6 +1224,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=36"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>
