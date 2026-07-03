@@ -414,6 +414,7 @@ function initTabs() {
       const t = btn.dataset.tab;
       if (t === 'dashboard') loadDashboard();
       else if (t === 'today') loadTodayTab();
+      else if (t === 'challenge') loadChallengeTab();
       else if (t === 'recap') loadRecapTab();
       else if (t === 'notes') loadNotes();
       else if (t === 'controle') loadControlTab();
@@ -459,6 +460,7 @@ function updateTabVisibility() {
 
   const tabs = {
     today:          document.querySelector('[data-tab="today"]'),
+    challenge:      document.querySelector('[data-tab="challenge"]'),
     dashboard:      document.querySelector('[data-tab="dashboard"]'),
     recap:          document.querySelector('[data-tab="recap"]'),
     notes:          document.querySelector('[data-tab="notes"]'),
@@ -517,6 +519,7 @@ function updateTabVisibility() {
     // Coach / Leader: Journée + Succès + Team + ACADEMY + Calendrier (+ Accompagnement pour leaders)
     Object.values(tabs).forEach(t => { if (t) t.style.display = 'none'; });
     if (tabs.today)      tabs.today.style.display = '';
+    if (tabs.challenge)  tabs.challenge.style.display = '';
     if (tabs.recap)      tabs.recap.style.display = '';
     if (tabs.community)  tabs.community.style.display = '';
     if (tabs.validation) tabs.validation.style.display = '';
@@ -8315,5 +8318,353 @@ function renderDrReadView(container, report, allReports) {
       const { reports } = await api('/dr-weekly/list');
       renderDrReadView(container, nr || { week: e.target.value }, reports);
     } catch(err) { console.error(err); }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CHALLENGE (Coach) — suivi des clients nutrition attribués
+// Lit les routes /nutrition/api/coach/* avec le token coach (Bearer).
+// Aucune photo privée n'est affichée ici (choix explicite).
+// ═══════════════════════════════════════════════════════════════════
+
+// Client HTTP dédié aux routes nutrition (l'`api()` global préfixe /api/coach).
+async function nutriApi(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const res = await fetch(`/nutrition/api${path}`, {
+    headers, ...options,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Erreur ${res.status}`);
+  }
+  return res.json();
+}
+
+function chEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+function chInitials(p, n) {
+  const a = ((p || '').trim()[0] || '');
+  const b = ((n || '').trim()[0] || '');
+  return (a + b).toUpperCase() || '?';
+}
+function chDateFr(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+const CH_OBJ_LABEL = {
+  challenge: 'Challenge 6/6', perte: 'Perte de poids', 'perte-poids': 'Perte de poids',
+  muscle: 'Prise de muscle', 'prise-de-muscle': 'Prise de muscle', 'prise-muscle': 'Prise de muscle',
+  forme: 'Forme & énergie', recomposition: 'Recomposition', maintien: 'Maintien', seche: 'Sèche',
+};
+function chObjLabel(o) {
+  if (!o) return 'Objectif non défini';
+  return CH_OBJ_LABEL[o] || (o.charAt(0).toUpperCase() + o.slice(1));
+}
+function chIsChallenge(o) { return String(o || '').toLowerCase() === 'challenge'; }
+
+function chInjectStyles() {
+  if (document.getElementById('challenge-styles')) return;
+  const st = document.createElement('style');
+  st.id = 'challenge-styles';
+  st.textContent = `
+    #challenge-container { max-width: 960px; margin: 0 auto; padding: 4px 2px 40px; }
+    .ch-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 4px 16px; flex-wrap: wrap; }
+    .ch-head h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+    .ch-head .ch-count { font-size: 13px; color: #6b7280; font-weight: 600; }
+    .ch-muted { color: #6b7280; }
+    .ch-loading, .ch-empty { text-align: center; padding: 48px 16px; color: #6b7280; }
+    .ch-empty p { margin: 4px 0; }
+    .ch-list { display: grid; gap: 10px; }
+    .ch-card { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+      background: #fff; border: 1px solid #eceef1; border-radius: 16px; padding: 14px 16px; cursor: pointer;
+      box-shadow: 0 1px 2px rgba(16,24,40,.04); transition: box-shadow .18s, border-color .18s, transform .06s; }
+    .ch-card:hover { box-shadow: 0 6px 18px rgba(16,24,40,.08); border-color: #dfe3e8; }
+    .ch-card:active { transform: scale(.995); }
+    .ch-ava { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+      font-weight: 800; font-size: 15px; color: #fff; background: linear-gradient(135deg, #3B82F6, #2F8F5B); }
+    .ch-card.is-ch .ch-ava { background: linear-gradient(135deg, #F59E0B, #EF4444); }
+    .ch-card-main { flex: 1 1 auto; min-width: 0; }
+    .ch-card-name { font-weight: 700; font-size: 15.5px; color: #111827; }
+    .ch-card-sub { font-size: 12.5px; color: #6b7280; margin-top: 2px; }
+    .ch-badge { flex: 0 0 auto; font-size: 12px; font-weight: 800; color: #b45309; background: #fef3c7;
+      border: 1px solid #fde68a; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+    .ch-chev { flex: 0 0 auto; color: #b6bcc4; font-size: 22px; line-height: 1; }
+    .ch-back { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer;
+      color: #3B82F6; font-weight: 700; font-size: 14px; padding: 6px 4px; margin-bottom: 10px; }
+    .ch-detail-head { display: flex; align-items: center; gap: 14px; margin: 2px 2px 18px; }
+    .ch-detail-head .ch-ava { width: 52px; height: 52px; font-size: 18px; }
+    .ch-detail-head h2 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
+    .ch-detail-head .ch-obj { font-size: 13px; color: #6b7280; font-weight: 600; margin-top: 2px; }
+    .ch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+    .ch-panel { background: #fff; border: 1px solid #eceef1; border-radius: 16px; padding: 16px 18px;
+      box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+    .ch-panel h3 { margin: 0 0 12px; font-size: 13px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .05em; color: #6b7280; }
+    .ch-kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 14px; border-bottom: 1px solid #f3f4f6; }
+    .ch-kv:last-child { border-bottom: none; }
+    .ch-kv .k { color: #6b7280; }
+    .ch-kv .v { font-weight: 700; color: #111827; text-align: right; }
+    .ch-jalons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .ch-jalon { text-align: center; background: #f8fafc; border: 1px solid #eef1f4; border-radius: 12px; padding: 12px 6px; }
+    .ch-jalon .lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
+    .ch-jalon .w { font-size: 20px; font-weight: 800; color: #111827; margin-top: 4px; }
+    .ch-jalon .w small { font-size: 12px; font-weight: 700; color: #6b7280; }
+    .ch-jalon .d { font-size: 11px; color: #9aa0a6; margin-top: 2px; }
+    .ch-jalon.done { background: #ecfdf3; border-color: #d1fadf; }
+    .ch-delta { font-size: 13px; font-weight: 800; margin-top: 10px; text-align: center; }
+    .ch-delta.down { color: #059669; } .ch-delta.up { color: #d97706; }
+    .ch-progress { height: 8px; border-radius: 999px; background: #eef1f4; overflow: hidden; margin: 8px 0 6px; }
+    .ch-progress > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #3B82F6, #2F8F5B); }
+    .ch-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ch-chip { font-size: 12px; font-weight: 600; background: #f3f4f6; color: #374151; border-radius: 999px; padding: 4px 10px; }
+    .ch-actions { margin-top: 16px; display: grid; gap: 14px; }
+    .ch-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+    .ch-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #6b7280; }
+    .ch-form select, .ch-form input, .ch-form textarea { font: inherit; padding: 8px 10px; border: 1px solid #d7dbe0;
+      border-radius: 10px; background: #fff; color: #111827; }
+    .ch-form textarea { width: 100%; min-height: 64px; resize: vertical; }
+    .ch-btn { font: inherit; font-weight: 700; cursor: pointer; border: none; border-radius: 10px; padding: 9px 16px;
+      background: #3B82F6; color: #fff; }
+    .ch-btn:hover { background: #2f6fd6; }
+    .ch-btn:disabled { opacity: .55; cursor: default; }
+    .ch-btn.sec { background: #eef2ff; color: #3730a3; }
+    .ch-btn.sec.on { background: #dcfce7; color: #166534; }
+    .ch-msg { font-size: 12.5px; font-weight: 700; margin-top: 4px; }
+    .ch-msg.ok { color: #059669; } .ch-msg.err { color: #dc2626; }
+    @media (max-width: 560px) { .ch-form { flex-direction: column; align-items: stretch; } }
+  `;
+  document.head.appendChild(st);
+}
+
+async function loadChallengeTab() {
+  chInjectStyles();
+  const host = document.getElementById('challenge-container');
+  if (!host) return;
+  host.innerHTML = '<div class="ch-loading">Chargement de vos clients…</div>';
+  try {
+    const { clients } = await nutriApi('/coach/clients');
+    renderChallengeList(host, clients || []);
+  } catch (e) {
+    host.innerHTML = `<div class="ch-empty"><p>Impossible de charger vos clients.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
+  }
+}
+
+function renderChallengeList(host, clients) {
+  // Challenge 6/6 en premier, puis le reste.
+  const sorted = clients.slice().sort((a, b) => (chIsChallenge(b.objectif) ? 1 : 0) - (chIsChallenge(a.objectif) ? 1 : 0));
+  const nbChallenge = clients.filter((c) => chIsChallenge(c.objectif)).length;
+  if (!sorted.length) {
+    host.innerHTML = `<div class="ch-head"><h2>🔥 Challenge</h2></div>
+      <div class="ch-empty"><p>Aucun client ne vous est attribué pour le moment.</p>
+      <p class="ch-muted">Vos clients apparaîtront ici dès que le super-administrateur vous les aura assignés.</p></div>`;
+    return;
+  }
+  const cards = sorted.map((c) => {
+    const name = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
+    const isCh = chIsChallenge(c.objectif);
+    const sub = `${chEsc(chObjLabel(c.objectif))} · ${c.hasPlan ? 'plan actif' : 'plan en attente'}`;
+    return `<button class="ch-card${isCh ? ' is-ch' : ''}" data-email="${chEsc(c.email)}">
+      <span class="ch-ava">${chEsc(chInitials(c.prenom, c.nom))}</span>
+      <span class="ch-card-main">
+        <span class="ch-card-name">${chEsc(name)}</span>
+        <span class="ch-card-sub">${sub}</span>
+      </span>
+      ${isCh ? '<span class="ch-badge">🔥 6/6</span>' : ''}
+      <span class="ch-chev">›</span>
+    </button>`;
+  }).join('');
+  host.innerHTML = `
+    <div class="ch-head">
+      <h2>🔥 Challenge — mes clients</h2>
+      <span class="ch-count">${sorted.length} client${sorted.length > 1 ? 's' : ''}${nbChallenge ? ` · ${nbChallenge} en Challenge 6/6` : ''}</span>
+    </div>
+    <div class="ch-list">${cards}</div>`;
+  host.querySelectorAll('.ch-card').forEach((el) => {
+    el.addEventListener('click', () => openChallengeClient(host, el.dataset.email));
+  });
+}
+
+async function openChallengeClient(host, email) {
+  host.innerHTML = '<div class="ch-loading">Chargement de la fiche…</div>';
+  try {
+    const [ficheRes, parcRes] = await Promise.all([
+      nutriApi(`/coach/clients/${encodeURIComponent(email)}`),
+      nutriApi(`/coach/parcours/${encodeURIComponent(email)}`).catch(() => ({ parcours: null })),
+    ]);
+    renderChallengeDetail(host, ficheRes.client, parcRes.parcours);
+  } catch (e) {
+    host.innerHTML = `<button class="ch-back" data-act="back">‹ Retour</button>
+      <div class="ch-empty"><p>Impossible de charger cette fiche.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
+    const b = host.querySelector('[data-act="back"]');
+    if (b) b.addEventListener('click', () => loadChallengeTab());
+  }
+}
+
+function renderChallengeDetail(host, c, pc) {
+  const name = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
+  const p = c.profil || {};
+  const isCh = chIsChallenge(c.objectif);
+
+  // ── Profil & objectif
+  const kv = (k, v) => (v || v === 0) && String(v).trim() !== '' ? `<div class="ch-kv"><span class="k">${k}</span><span class="v">${chEsc(v)}</span></div>` : '';
+  const allerg = (p.allergies || []).length ? `<div style="margin-top:10px"><div class="ch-kv" style="border:none;padding-bottom:4px"><span class="k">Allergies</span></div><div class="ch-chips">${p.allergies.map((a) => `<span class="ch-chip">${chEsc(a)}</span>`).join('')}</div></div>` : '';
+  const regimes = (p.regimes || []).length ? `<div style="margin-top:10px"><div class="ch-kv" style="border:none;padding-bottom:4px"><span class="k">Régimes</span></div><div class="ch-chips">${p.regimes.map((a) => `<span class="ch-chip">${chEsc(a)}</span>`).join('')}</div></div>` : '';
+  const profilPanel = `
+    <div class="ch-panel">
+      <h3>Profil & objectif</h3>
+      ${kv('Objectif', chObjLabel(c.objectif))}
+      ${kv('Sexe', p.sexe === 'h' ? 'Homme' : p.sexe === 'f' ? 'Femme' : p.sexe)}
+      ${kv('Âge', p.age ? p.age + ' ans' : '')}
+      ${kv('Taille', p.taille ? p.taille + ' cm' : '')}
+      ${kv('Poids de départ', p.poidsDepart ? p.poidsDepart + ' kg' : '')}
+      ${kv('Poids cible', p.poidsCible ? p.poidsCible + ' kg' : '')}
+      ${kv('Activité', p.activite)}
+      ${p.ajustementKcal ? kv('Ajustement', (p.ajustementKcal > 0 ? '+' : '') + p.ajustementKcal + ' kcal') : ''}
+      ${kv('Plan', c.hasPlan ? (c.planJours ? c.planJours + ' jours' : 'actif') : 'en attente')}
+      ${allerg}${regimes}
+    </div>`;
+
+  // ── Pesées & évolution
+  let peseePanel;
+  if (pc) {
+    const jal = (key, lbl) => {
+      const j = (pc.pesees || {})[key];
+      const done = j && j.poids;
+      return `<div class="ch-jalon${done ? ' done' : ''}">
+        <div class="lbl">${lbl}</div>
+        <div class="w">${done ? j.poids + '<small> kg</small>' : '—'}</div>
+        <div class="d">${done ? chDateFr(j.date) : 'à venir'}</div>
+      </div>`;
+    };
+    const dep = (pc.pesees || {}).depart;
+    const last = ((pc.pesees || {}).s6 && pc.pesees.s6.poids) ? pc.pesees.s6 : (((pc.pesees || {}).s3 && pc.pesees.s3.poids) ? pc.pesees.s3 : null);
+    let deltaHtml = '';
+    if (dep && dep.poids && last && last.poids) {
+      const d = Math.round((last.poids - dep.poids) * 10) / 10;
+      deltaHtml = `<div class="ch-delta ${d <= 0 ? 'down' : 'up'}">${d <= 0 ? '▼' : '▲'} ${Math.abs(d)} kg depuis le départ</div>`;
+    } else if (pc.poidsObjectif != null) {
+      deltaHtml = `<div class="ch-delta down">🎯 Objectif : ${pc.poidsObjectif} kg</div>`;
+    }
+    peseePanel = `<div class="ch-panel">
+      <h3>Pesées & évolution</h3>
+      <div class="ch-jalons">${jal('depart', 'Départ')}${jal('s3', 'Semaine 3')}${jal('s6', 'Semaine 6')}</div>
+      ${deltaHtml}
+    </div>`;
+  } else {
+    peseePanel = '<div class="ch-panel"><h3>Pesées & évolution</h3><p class="ch-muted" style="font-size:13px">Aucune donnée de parcours pour ce client.</p></div>';
+  }
+
+  // ── Séances, régularité & adhérence
+  let suiviPanel = '<div class="ch-panel"><h3>Séances & régularité</h3>';
+  if (pc) {
+    const nbSeances = (pc.seances || []).length;
+    const objTot = pc.seancesObjTotal || 24;
+    const pctSeance = Math.min(100, Math.round((nbSeances / objTot) * 100));
+    const reg = pc.regularite || {};
+    suiviPanel += `
+      <div class="ch-kv"><span class="k">Séances validées</span><span class="v">${nbSeances} / ${objTot}</span></div>
+      <div class="ch-progress"><i style="width:${pctSeance}%"></i></div>
+      <div class="ch-kv"><span class="k">Adhérence repas</span><span class="v">${reg.pct || 0}%</span></div>
+      <div class="ch-progress"><i style="width:${reg.pct || 0}%"></i></div>
+      <div class="ch-kv"><span class="k">Repas suivis</span><span class="v">${reg.repasValides || 0} / ${reg.repasTotal || 0}</span></div>
+      <div class="ch-kv"><span class="k">Journées validées</span><span class="v">${reg.journeesValidees || 0}</span></div>`;
+    if (c.adhScore != null) suiviPanel += `<div class="ch-kv"><span class="k">Score adhérence (30 j)</span><span class="v">${c.adhScore}/100</span></div>`;
+  } else {
+    suiviPanel += '<p class="ch-muted" style="font-size:13px">Aucune donnée de suivi.</p>';
+  }
+  suiviPanel += '</div>';
+
+  // ── Actions
+  const today = new Date().toISOString().slice(0, 10);
+  const seanceToday = pc && (pc.seances || []).includes(today);
+  const actionsPanel = `
+    <div class="ch-panel ch-actions">
+      <h3>Actions</h3>
+      <form class="ch-form" id="ch-pesee-form">
+        <label>Pesée
+          <select name="type">
+            <option value="depart">Départ</option>
+            <option value="s3">Semaine 3</option>
+            <option value="s6">Semaine 6</option>
+          </select>
+        </label>
+        <label>Poids (kg)<input type="number" name="poids" step="0.1" min="20" max="300" required></label>
+        <label>Date<input type="date" name="date" value="${today}"></label>
+        <button type="submit" class="ch-btn">Enregistrer la pesée</button>
+      </form>
+      <div>
+        <button type="button" class="ch-btn sec${seanceToday ? ' on' : ''}" id="ch-seance-btn">${seanceToday ? '✓ Séance validée aujourd’hui' : '+ Valider une séance aujourd’hui'}</button>
+      </div>
+      <form class="ch-form" id="ch-msg-form" style="flex-direction:column;align-items:stretch">
+        <label style="width:100%">Message au client<textarea name="message" placeholder="Écris un message à ${chEsc(c.prenom || name)}…"></textarea></label>
+        <button type="submit" class="ch-btn" style="align-self:flex-start">Envoyer le message</button>
+      </form>
+      <div class="ch-msg" id="ch-action-msg"></div>
+    </div>`;
+
+  host.innerHTML = `
+    <button class="ch-back" data-act="back">‹ Tous mes clients</button>
+    <div class="ch-detail-head">
+      <span class="ch-ava">${chEsc(chInitials(c.prenom, c.nom))}</span>
+      <div>
+        <h2>${chEsc(name)} ${isCh ? '<span class="ch-badge">🔥 6/6</span>' : ''}</h2>
+        <div class="ch-obj">${chEsc(chObjLabel(c.objectif))} · ${chEsc(c.email)}</div>
+      </div>
+    </div>
+    <div class="ch-grid">${profilPanel}${peseePanel}${suiviPanel}</div>
+    ${actionsPanel}`;
+
+  // ── Wiring
+  const email = c.email;
+  host.querySelector('[data-act="back"]').addEventListener('click', () => loadChallengeTab());
+  const msgBox = host.querySelector('#ch-action-msg');
+  const setMsg = (txt, ok) => { msgBox.textContent = txt; msgBox.className = 'ch-msg ' + (ok ? 'ok' : 'err'); };
+
+  host.querySelector('#ch-pesee-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const btn = f.querySelector('button');
+    const type = f.type.value;
+    const poids = parseFloat(f.poids.value);
+    const date = f.date.value || today;
+    if (!(poids > 0)) { setMsg('Poids invalide.', false); return; }
+    btn.disabled = true;
+    try {
+      await nutriApi('/parcours/pesee', { method: 'POST', body: { email, type, poids, date } });
+      setMsg('Pesée enregistrée ✓', true);
+      openChallengeClient(host, email);
+    } catch (err) { setMsg(err.message || 'Erreur.', false); btn.disabled = false; }
+  });
+
+  host.querySelector('#ch-seance-btn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      await nutriApi('/parcours/seance', { method: 'POST', body: { email, date: today } });
+      openChallengeClient(host, email);
+    } catch (err) { setMsg(err.message || 'Erreur.', false); btn.disabled = false; }
+  });
+
+  host.querySelector('#ch-msg-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const btn = f.querySelector('button');
+    const message = f.message.value.trim();
+    if (!message) { setMsg('Message vide.', false); return; }
+    btn.disabled = true;
+    try {
+      const { conversationId } = await nutriApi('/coach/conversations', { method: 'POST', body: { client_email: email } });
+      await nutriApi(`/coach/conversations/${conversationId}/reply`, { method: 'POST', body: { message } });
+      f.message.value = '';
+      setMsg('Message envoyé ✓', true);
+    } catch (err) { setMsg(err.message || 'Erreur.', false); }
+    btn.disabled = false;
   });
 }

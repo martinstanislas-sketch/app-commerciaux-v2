@@ -485,7 +485,22 @@ async function gcal(token, method, path, body) {
   return { status: r.status, json };
 }
 // Construit les evenements Google a partir du plan (anti-doublon par id deterministe).
-const GHEURES = { 'petit-dejeuner': [8, 0, 30], dejeuner: [12, 30, 45], collation: [16, 0, 15], diner: [19, 30, 45] };
+// Horaires FIXES des repas (aligne avec le client / export .ics) : petit-dej 7h,
+// collation du matin 10h, dejeuner 12h, collation de l'apres-midi 15h30, diner 19h,
+// collation du soir 21h ; collation « apres sport » a 17h par defaut. [h, min, duree_min].
+const GHEURES = { 'petit-dejeuner': [7, 0, 30], dejeuner: [12, 0, 45], diner: [19, 0, 45] };
+const GCOLLATION_HEURES = { matin: [10, 0, 15], 'apres-midi': [15, 30, 15], 'apres-sport': [17, 0, 15], soir: [21, 0, 15] };
+function gCollationMoment(label) {
+  const n = String(label || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (n.includes('sport')) return 'apres-sport';
+  if (n.includes('matin')) return 'matin';
+  if (n.includes('soir')) return 'soir';
+  return 'apres-midi';
+}
+function gCreneauHeures(creneau, label) {
+  if (creneau === 'collation') return GCOLLATION_HEURES[gCollationMoment(label)] || GCOLLATION_HEURES['apres-midi'];
+  return GHEURES[creneau] || [12, 0, 30];
+}
 function buildPlanEvents(plan, scope, planId, dinerTard) {
   if (!plan || !Array.isArray(plan.jours)) return [];
   const base = new Date(); base.setHours(0, 0, 0, 0);
@@ -495,7 +510,7 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
     (jour.repas || []).forEach((repas) => {
       const r = repas.recette; if (!r) return;
       if (scope === 'rappels' && repas.creneau === 'collation') return; // rappels = repas principaux
-      const [hh, mm, dur] = (repas.creneau === 'diner' && dinerTard) ? [21, 0, 45] : (GHEURES[repas.creneau] || [12, 0, 30]);
+      const [hh, mm, dur] = gCreneauHeures(repas.creneau, repas.label);
       const start = new Date(base); start.setDate(base.getDate() + di); start.setHours(hh, mm, 0, 0);
       const end = new Date(start); end.setMinutes(start.getMinutes() + dur);
       const dateKey = start.getFullYear() + gPad(start.getMonth() + 1) + gPad(start.getDate());
@@ -1617,6 +1632,22 @@ try {
   // PUBLIC : cree OU identifie un client et ouvre une session "usage nutrition".
   // Le PIN protege l'acces au compte (photos d'evolution, poids, messages). 1re
   // connexion -> le PIN saisi devient le PIN du compte ; ensuite il est exige.
+  // Coach attribué PAR DÉFAUT à tout nouveau client nutrition : Quentin (Lille), PIN « quen ».
+  // Résolu dynamiquement (et non par ID en dur) pour rester valable quelle que soit la base
+  // (dev vs prod) : par PIN d'abord — l'identifiant unique fourni —, puis nom+studio en secours.
+  // Renvoie null si ce coach n'existe pas encore (le client est alors créé sans coach, comme avant).
+  function defaultNutritionCoachId() {
+    try {
+      const db = getDb();
+      const byPin = db.prepare("SELECT id FROM coaches WHERE pin = 'quen' AND archived = 0").get();
+      if (byPin) return byPin.id;
+      const byNameStudio = db.prepare("SELECT id FROM coaches WHERE name = 'Quentin' AND studio = 'Lille' AND archived = 0").get();
+      if (byNameStudio) return byNameStudio.id;
+      const byName = db.prepare("SELECT id FROM coaches WHERE name = 'Quentin' AND archived = 0").get();
+      return byName ? byName.id : null;
+    } catch (_) { return null; }
+  }
+
   app.post('/nutrition/account/login', (req, res) => {
     try {
       const email = String((req.body || {}).email || '').trim().toLowerCase().slice(0, 160);
@@ -1646,7 +1677,7 @@ try {
           try { data = row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
           isNew = !data;
         } else {
-          getDb().prepare('INSERT INTO nutrition_clients (email, prenom, nom, data, pin_hash, created_at, updated_at) VALUES (?,?,?,?,?,?,?)').run(email, prenom, nom, null, ph, now, now);
+          getDb().prepare('INSERT INTO nutrition_clients (email, prenom, nom, data, pin_hash, coach_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)').run(email, prenom, nom, null, ph, defaultNutritionCoachId(), now, now);
         }
       }
       const token = crypto.randomUUID();
@@ -1712,7 +1743,7 @@ try {
       const now = new Date().toISOString();
       const upd = getDb().prepare('UPDATE nutrition_clients SET data = ?, updated_at = ? WHERE email = ?').run(dataStr, now, email);
       if (!upd.changes) {
-        getDb().prepare('INSERT OR IGNORE INTO nutrition_clients (email, prenom, nom, data, created_at, updated_at) VALUES (?,?,?,?,?,?)').run(email, req.session.name || '', '', dataStr, now, now);
+        getDb().prepare('INSERT OR IGNORE INTO nutrition_clients (email, prenom, nom, data, coach_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?)').run(email, req.session.name || '', '', dataStr, defaultNutritionCoachId(), now, now);
       }
       res.json({ ok: true });
     } catch (e) {

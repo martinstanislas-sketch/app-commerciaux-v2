@@ -515,7 +515,8 @@ function renderNeeds() {
     : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl">kcal / jour</div></div>`;
   const isChallenge = state.profil.objectif === 'challenge';
   $('#needsCard').innerHTML = `
-    <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2></div>
+    <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2>
+      <button type="button" class="needs-agenda" title="Ajouter mes menus à mon agenda" aria-label="Ajouter à mon agenda">${icSvg('calendar')}<span>Agenda</span></button></div>
     <p class="needs-sub">Votre objectif, résumé en chiffres.</p>
     <div class="needs-stats">
       ${kcalBlock}
@@ -523,6 +524,7 @@ function renderNeeds() {
       <div class="needs-stat"><div class="num">${b.macros.glucides} g</div><div class="lbl">Glucides</div>${bar(gk)}</div>
       <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl">Lipides</div>${bar(lk)}</div>
     </div>`;
+  const ag = $('#needsCard .needs-agenda'); if (ag) ag.addEventListener('click', openAgenda);
 }
 
 // ---------- Pesee hebdomadaire + ajustement automatique (Challenge 6/6) ----------
@@ -2391,10 +2393,16 @@ function renderComplements() {
 }
 
 // ---------- Export agenda (.ics) (E3) ----------
-const CRENEAU_HEURES = { 'petit-dejeuner': [8, 0, 30], dejeuner: [12, 30, 45], collation: [16, 0, 15], diner: [19, 30, 45] };
-// Horaire d'un creneau : le diner passe a 21h00 si le client mange tard le soir.
-function creneauHeures(creneau) {
-  if (creneau === 'diner' && state.preferences && state.preferences.dinerTard === 'oui') return [21, 0, 45];
+// Horaires FIXES des repas dans l'agenda (demande client) : petit-dej 7h,
+// collation du matin 10h, dejeuner 12h, collation de l'apres-midi 15h30,
+// diner 19h, collation du soir 21h. La collation « apres sport » (sans heure
+// planifiee) est placee a 17h par defaut. Format [heure, minute, duree_min].
+const COLLATION_HEURES = { matin: [10, 0, 15], 'apres-midi': [15, 30, 15], 'apres-sport': [17, 0, 15], soir: [21, 0, 15] };
+const CRENEAU_HEURES = { 'petit-dejeuner': [7, 0, 30], dejeuner: [12, 0, 45], diner: [19, 0, 45] };
+// Horaire d'un creneau. Les collations sont differenciees par leur libelle
+// (matin / apres-midi / apres-sport / soir) via collationMomentKey.
+function creneauHeures(creneau, label) {
+  if (creneau === 'collation') return COLLATION_HEURES[collationMomentKey(label)] || COLLATION_HEURES['apres-midi'];
   return CRENEAU_HEURES[creneau] || [12, 0, 30];
 }
 
@@ -2411,7 +2419,7 @@ function exportIcs() {
   state.plan.jours.forEach((jour, di) => {
     jour.repas.forEach((repas) => {
       const r = repas.recette; if (!r) return;
-      const [hh, mm, dur] = creneauHeures(repas.creneau);
+      const [hh, mm, dur] = creneauHeures(repas.creneau, repas.label);
       const start = new Date(base); start.setDate(base.getDate() + di); start.setHours(hh, mm, 0, 0);
       const end = new Date(start); end.setMinutes(start.getMinutes() + dur);
       const titre = `${repas.label} - ${r.nom}`;
@@ -2606,7 +2614,7 @@ function init() {
   $('#btnHelpFromSuivi').addEventListener('click', () => { closeSuivi(); openHelp(); });
 
   // Coach IA : bouton flottant + chat
-  $('#sosFab').addEventListener('click', openSos);
+  $('#sosFab').addEventListener('click', openCoachChat); // SOS coach -> discussion privée avec le coach identifié
   $('#coachForm').addEventListener('submit', (e) => { e.preventDefault(); sendCoach($('#coachInput').value); });
   $('#coachInput').addEventListener('input', autoGrowCoach);
   $('#coachInput').addEventListener('keydown', (e) => {
@@ -2708,6 +2716,7 @@ function init() {
   $('#parcoursPeseePanel').addEventListener('click', (e) => { if (e.target.id === 'parcoursPeseePanel') closeParcoursPesee(); });
   const _bChangePin = $('#btnChangePin'); if (_bChangePin) _bChangePin.addEventListener('click', openChangePin);
   const _bLogout = $('#btnLogout'); if (_bLogout) _bLogout.addEventListener('click', logoutClient);
+  const _navLogout = $('#navLogout'); if (_navLogout) _navLogout.addEventListener('click', logoutClient);
   const _cpClose = $('#changePinClose'); if (_cpClose) _cpClose.addEventListener('click', closeChangePin);
   const _cpSave = $('#cpSave'); if (_cpSave) _cpSave.addEventListener('click', saveChangePin);
   const _cpPanel = $('#changePinPanel'); if (_cpPanel) _cpPanel.addEventListener('click', (e) => { if (e.target.id === 'changePinPanel') closeChangePin(); });
@@ -3551,8 +3560,6 @@ function renderCommunaute() {
         '<textarea id="commInput" rows="1" maxlength="500" placeholder="Partager une réussite, une difficulté ou une victoire…" autocomplete="off"></textarea>' +
         '<button type="submit" class="comm-send" aria-label="Partager">' + icSvg('send') + '</button>' +
       '</form>' +
-      '<button type="button" class="feed-help-link" id="commHelp">' + icSvg('heart-hand') + ' Besoin d’aide ?</button>' +
-      '<div id="commHelpBox" class="comm2-helpbox hidden">' + commHelpBoxHtml() + '</div>' +
       // Fil d'activité (élément central)
       '<div class="feed-section-head"><h3>Le fil de l’équipe</h3></div>' +
       '<div id="feedList" class="feed-list"><p class="comm-empty">Chargement du fil…</p></div>' +
@@ -3562,8 +3569,6 @@ function renderCommunaute() {
       (coachOnly ? '<form id="commCoachForm" class="feed-compose feed-coachform"><textarea id="commCoachInput" rows="1" maxlength="500" placeholder="Publier un conseil au groupe (coach)…"></textarea><button type="submit" class="comm-send" aria-label="Publier">' + icSvg('send') + '</button></form>' : '') +
     '</div>';
   // Câblage
-  const h = $('#commHelp'); if (h) h.addEventListener('click', openCommHelp);
-  host.querySelectorAll('#commHelpBox [data-aide]').forEach((b) => b.addEventListener('click', () => commHelpChoice(b.dataset.aide)));
   const form = $('#commForm');
   if (form) {
     const inp = $('#commInput');
@@ -4601,6 +4606,7 @@ function setupProfilCoach() {
   // coach/admin de l'app principale). logoutClient() route ensuite selon le type.
   if ((window.__NUTRI_USER && window.__NUTRI_USER.email) || isCoachOrAdmin()) {
     const lo = $('#btnLogout'); if (lo) lo.classList.remove('hidden');
+    const nlo = $('#navLogout'); if (nlo) nlo.classList.remove('hidden'); // aussi dans la sidebar (desktop)
   }
   if (!isCoachOrAdmin()) return;
   $$('#view-profil .profil-coach').forEach((el) => el.classList.remove('hidden'));

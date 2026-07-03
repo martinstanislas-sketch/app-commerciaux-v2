@@ -306,6 +306,12 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .needs-head { display: flex; align-items: center; gap: 13px; margin-bottom: 4px; position: relative; }
 .needs-head .needs-ic { width: 44px; height: 44px; border-radius: 13px; background: var(--blue-soft); border: 1px solid var(--green-100); display: grid; place-items: center; }
 .needs-head .needs-ic .ic { color: var(--blue-c); }
+/* Bouton Agenda bleu (visible à côté de l'objectif) — ordinateur uniquement */
+.needs-agenda { display: none; margin-left: auto; align-items: center; gap: 8px; background: var(--blue-c); color: #fff; border: none; border-radius: 12px; padding: 10px 16px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 6px 16px -4px rgba(37, 99, 235, 0.5); transition: background 0.15s var(--ease), transform 0.1s var(--ease); }
+.needs-agenda .ic { width: 18px; height: 18px; }
+.needs-agenda:hover { background: var(--blue-hover); }
+.needs-agenda:active { transform: scale(0.96); }
+@media (min-width: 1024px) { .needs-agenda { display: inline-flex; } }
 .needs-card h2 { color: var(--text-c); font-size: 23px; letter-spacing: -0.025em; }
 .needs-sub { color: var(--text-muted-c); font-size: 13px; margin: 3px 0 22px; position: relative; }
 .needs-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; position: relative; }
@@ -1661,6 +1667,8 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 }
 .bottom-nav .nav-i { position: relative; }
 .bottom-nav .nav-i .ic { width: 22px; height: 22px; }
+/* « Se déconnecter » : jamais dans la barre du bas mobile (réservé à la sidebar desktop) */
+.bottom-nav .nav-i.nav-logout { display: none; }
 .nav-dot { position: absolute; top: 4px; right: 50%; transform: translateX(14px); width: 9px; height: 9px; border-radius: 50%; background: var(--error); box-shadow: 0 0 0 2px var(--mc-cream); }
 .profil-row .pr-badge { margin-left: auto; }
 .profil-row .pr-badge + .pr-arrow { margin-left: 8px; }
@@ -1752,6 +1760,10 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   body.app-shell .bottom-nav .nav-i.on .ic { color: var(--blue-c); }
   body.app-shell .bottom-nav .nav-i:hover { background: var(--surface-soft); color: var(--ink-2); }
   body.app-shell .bottom-nav .nav-i.on:hover { background: var(--blue-soft); color: var(--blue-on-soft); }
+  /* « Se déconnecter » : en bas de la sidebar (desktop), en rouge, seulement si session */
+  body.app-shell .bottom-nav .nav-i.nav-logout:not(.hidden) { display: flex; margin-top: auto; color: var(--error); }
+  body.app-shell .bottom-nav .nav-i.nav-logout .ic { color: var(--error); }
+  body.app-shell .bottom-nav .nav-i.nav-logout:hover { background: rgba(220, 76, 68, 0.08); color: var(--error); }
   /* Le contenu de l'ecran plan se decale a droite de la sidebar */
   body.app-shell #app { max-width: none; margin: 0; padding-left: 266px; padding-right: 40px; }
   body.app-shell #view-plan, body.app-shell #view-profil, body.app-shell #view-communaute { padding-bottom: 28px; }
