@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;0,9..144,900;1,9..144,900&family=Inter+Tight:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20260423a">
+  <link rel="stylesheet" href="style.css?v=20260703b">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -30,7 +30,7 @@
   <div id="club-select-overlay" class="login-overlay hidden">
     <div class="login-card club-select-card">
       <div class="club-select-icon">📍</div>
-      <h2 class="club-select-title">Ton studio aujourd'hui</h2>
+      <h2 class="club-select-title">Ton studio aujourd’hui</h2>
       <p class="club-select-subtitle">Sélectionne le club sur lequel tu travailles</p>
       <div id="club-select-grid" class="club-select-grid"></div>
     </div>
@@ -93,7 +93,7 @@
       </button>
       <button class="tab-btn tab-btn-vue-ensemble" data-tab="vue-ensemble">
         <span class="tab-icon">🏢</span>
-        <span class="tab-label">Vue d'ensemble</span>
+        <span class="tab-label">Vue d’ensemble</span>
       </button>
       <button class="tab-btn" data-tab="pilotage">
         <span class="tab-icon">🎯</span>
@@ -126,7 +126,7 @@
     </nav>
     <div id="user-info" class="user-info hidden">
       <span id="user-name"></span>
-      <button id="btn-nutrition" class="btn-nutrition" title="Accéder à l'espace nutrition de mes clients" style="display:none">Nutrition</button>
+      <button id="btn-nutrition" class="btn-nutrition" title="Accéder à l’espace nutrition de mes clients" style="display:none">Nutrition</button>
       <button id="btn-logout" class="btn-logout" title="Se déconnecter">Déconnexion</button>
     </div>
   </header>
@@ -186,13 +186,13 @@
       <div class="comm-container">
         <div class="comm-header">
           <h2>💬 Espace Team</h2>
-          <p class="comm-subtitle">Échangez entre Coachs — CR & messages Team</p>
+          <p class="comm-subtitle">Échange entre Coachs — CR & messages Team</p>
           <div id="comm-club-filters" class="comm-club-filters"></div>
         </div>
         <div id="comm-messages" class="comm-messages"></div>
         <div class="comm-input-bar" id="comm-input-bar">
           <div class="comm-text-input" id="comm-text-input-wrap">
-            <input type="text" id="comm-text" placeholder="Écrire un message..." maxlength="500">
+            <input type="text" id="comm-text" placeholder="Écrire un message…" maxlength="500">
             <button id="comm-send-text" class="comm-send-btn" title="Envoyer">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
             </button>
@@ -319,7 +319,7 @@
         <div id="cal-add-form" class="cal-add-form hidden">
           <h3 class="cal-form-title">➕ Ajouter un événement</h3>
           <div class="cal-form-row">
-            <input type="text" id="cal-input-title" placeholder="Titre de l'événement *" class="cal-input" maxlength="100">
+            <input type="text" id="cal-input-title" placeholder="Titre de l’événement *" class="cal-input" maxlength="100">
             <input type="date" id="cal-input-date" class="cal-input cal-input-date">
           </div>
           <div class="cal-form-row">
@@ -356,7 +356,7 @@
       <div class="val-container">
         <div class="val-header">
           <h2>🏅 Parcours des coachs</h2>
-          <p class="val-subtitle">Niveau et progression de toute l'équipe</p>
+          <p class="val-subtitle">Niveau et progression de toute l’équipe</p>
         </div>
         <div id="parcours-content"></div>
       </div>
@@ -490,8 +490,8 @@
           <h3>💪 Ajouter un exercice</h3>
           <div class="perso-row">
             <div class="perso-field perso-field-auto">
-              <label>Nom de l'exercice</label>
-              <input type="text" id="perso-ex-name" placeholder="Ex: Développé couché" autocomplete="off">
+              <label>Nom de l’exercice</label>
+              <input type="text" id="perso-ex-name" placeholder="Ex : Développé couché" autocomplete="off">
               <div id="perso-ex-suggestions" class="perso-suggestions hidden"></div>
             </div>
             <div class="perso-field">
@@ -526,14 +526,14 @@
             </div>
           </div>
           <div id="perso-ex-perf" class="perso-perf hidden"></div>
-          <button id="perso-add-set" class="btn-primary">➕ Enregistrer l'exercice</button>
+          <button id="perso-add-set" class="btn-primary">➕ Enregistrer l’exercice</button>
         </div>
 
         <!-- Exercices du jour -->
         <div class="perso-card">
           <h3>📋 Exercices du jour</h3>
           <div id="perso-sets-today" class="perso-sets-today">
-            <p style="color:var(--text-muted);text-align:center;padding:20px;">Aucun exercice enregistré aujourd'hui.</p>
+            <p style="color:var(--text-muted);text-align:center;padding:20px;">Aucun exercice enregistré aujourd’hui.</p>
           </div>
         </div>
 
@@ -546,11 +546,11 @@
             </div>
             <div class="perso-field" style="margin-bottom:12px;">
               <label>Nom de la séance</label>
-              <input type="text" id="perso-session-name" placeholder="Ex: PUSH, PULL, Jambes...">
+              <input type="text" id="perso-session-name" placeholder="Ex : PUSH, PULL, Jambes…">
             </div>
             <div class="perso-field" style="margin-bottom:12px;position:relative;">
               <label>Ajouter un exercice</label>
-              <input type="text" id="perso-session-ex-input" placeholder="Rechercher un exercice..." autocomplete="off">
+              <input type="text" id="perso-session-ex-input" placeholder="Rechercher un exercice…" autocomplete="off">
               <div id="perso-session-ex-suggestions" class="perso-suggestions hidden"></div>
             </div>
             <div id="perso-session-ex-list" class="perso-session-ex-list"></div>
@@ -631,6 +631,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260703a"></script>
+  <script src="app.js?v=20260703b"></script>
 </body>
 </html>

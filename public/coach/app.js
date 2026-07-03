@@ -574,7 +574,7 @@ async function loadTodayTab() {
       return `
       <div class="td-studio-group" data-prefix="${prefix}">
         <div class="td-block td-block-centered">
-          <h3 class="td-block-title">Comment tu te sens aujourd'hui ?</h3>
+          <h3 class="td-block-title">Comment tu te sens aujourd’hui ?</h3>
           <div class="td-smileys-row td-smileys-big">
             <button class="td-smiley td-energy-5 ${energy === 5 ? 'active' : ''}" data-energy="5" data-prefix="${prefix}">
               <span class="td-smiley-emoji">🔥</span><span class="td-smiley-label">En feu !</span>
@@ -1232,7 +1232,7 @@ function openEditCoach(coachId) {
           <input type="text" id="edit-coach-pin" value="${coach.pin || ''}" maxlength="6" placeholder="ex: mari">
         </div>
         <div class="modal-field">
-          <label>Club d'appartenance</label>
+          <label>Club d’appartenance</label>
           <select id="edit-coach-studio">
             <option value="">— Aucun —</option>
             ${CLUBS.map(club => `<option value="${club}" ${coach.studio === club ? 'selected' : ''}>${club}</option>`).join('')}
@@ -1853,7 +1853,7 @@ function renderStudiosTable(studiosSummary, objectifs) {
 
   return `
   <div class="recap-section studios-table-section">
-    <h3 class="recap-section-title">🏢 Vue d'ensemble des studios</h3>
+    <h3 class="recap-section-title">🏢 Vue d’ensemble des studios</h3>
     <div class="studios-table-wrap">
       <table class="studios-table sortable-table">
         <thead>
@@ -2653,7 +2653,7 @@ async function loadControlTab() {
 async function runAIAnalysis(month, coachId) {
   const resultDiv = document.getElementById('ai-analysis-result');
   if (!resultDiv) return;
-  resultDiv.innerHTML = '<p style="color:var(--text-muted);">Analyse en cours...</p>';
+  resultDiv.innerHTML = '<p style="color:var(--text-muted);">Analyse en cours…</p>';
 
   try {
     const data = await api(`/months/${month}/recap/${coachId}`);
@@ -2807,7 +2807,7 @@ async function loadVueEnsembleTab() {
     const saveCol = canEdit ? '<th></th>' : '';
     container.innerHTML = `
       <div class="recap-section studios-table-section">
-        <h3 class="recap-section-title">🏢 Vue d'ensemble des studios — ${formatMonthLabel(vueEnsembleMonth)}</h3>
+        <h3 class="recap-section-title">🏢 Vue d’ensemble des studios — ${formatMonthLabel(vueEnsembleMonth)}</h3>
         <div class="studios-table-wrap">
           <table class="studios-table" id="vue-ensemble-table">
             <thead>
@@ -2906,7 +2906,7 @@ async function loadVueEnsembleTab() {
         } catch(e) {
           const msg = e.message || 'Erreur';
           const isAuth = msg.includes('401') || msg.includes('403') || msg.includes('autorisé');
-          btn.textContent = isAuth ? '⚠ Session expirée — reconnectez-vous' : '⚠ ' + msg;
+          btn.textContent = isAuth ? '⚠ Session expirée — reconnecte-toi' : '⚠ ' + msg;
           btn.style.color = '#ef4444';
           setTimeout(() => { btn.textContent = 'Enregistrer'; btn.style.color = ''; btn.disabled = false; }, 5000);
         }
@@ -2937,14 +2937,14 @@ async function loadNotes() {
       list.innerHTML = `<div class="empty-state">
         <span class="empty-icon">📝</span>
         <h3>Aucune remarque pour le moment</h3>
-        <p>Ajoutez des notes pour suivre vos observations sur l'équipe.</p>
+        <p>Ajoute des notes pour suivre tes observations sur l’équipe.</p>
       </div>`;
       return;
     }
     list.innerHTML = notes.map(n => {
       const date = new Date(n.updated_at);
       const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' à ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      const preview = n.content.length > 120 ? n.content.slice(0, 120) + '...' : n.content;
+      const preview = n.content.length > 120 ? n.content.slice(0, 120) + '…' : n.content;
       return `
       <div class="note-card" data-note-id="${n.id}">
         <div class="note-preview">${preview.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, ' ')}</div>
@@ -2980,7 +2980,7 @@ async function loadNotes() {
         if (card.classList.contains('expanded')) {
           preview.innerHTML = note.content.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
         } else {
-          const short = note.content.length > 120 ? note.content.slice(0, 120) + '...' : note.content;
+          const short = note.content.length > 120 ? note.content.slice(0, 120) + '…' : note.content;
           preview.innerHTML = short.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, ' ');
         }
       });
@@ -3000,7 +3000,7 @@ function openNoteEditor(existingNote) {
   overlay.innerHTML = `
     <div class="modal note-modal">
       <h2>${existingNote ? 'Modifier la remarque' : 'Nouvelle remarque'}</h2>
-      <textarea id="note-editor-content" rows="8" placeholder="Écrire votre remarque...">${existingNote ? existingNote.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') : ''}</textarea>
+      <textarea id="note-editor-content" rows="8" placeholder="Écrire ta remarque…">${existingNote ? existingNote.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') : ''}</textarea>
       <div class="form-actions">
         <button id="note-editor-save" class="btn-primary">Enregistrer</button>
         <button id="note-editor-cancel" class="btn-secondary">Annuler</button>
@@ -3246,7 +3246,7 @@ async function loadCommunityMessages() {
     if (data.messages.length === 0) {
       container.innerHTML = `<div class="empty-state">
         <span class="empty-icon">💬</span>
-        <h3>L'espace Team est calme</h3>
+        <h3>L’espace Team est calme</h3>
         <p>Sois le premier à partager un message ou un CR de journée !</p>
       </div>`;
     } else {
@@ -3346,7 +3346,7 @@ function appendCommunityMessage(msg, checkDuplicate = true) {
   const likeCount = msg.likes_count || 0;
   const likedByMe = msg.liked_by_me || false;
   const likeBtn = canLike ? `
-    <button class="comm-like-btn ${likedByMe ? 'liked' : ''}" data-msg-id="${msg.id}" title="J'aime">
+    <button class="comm-like-btn ${likedByMe ? 'liked' : ''}" data-msg-id="${msg.id}" title="J’aime">
       <span class="comm-like-heart">${likedByMe ? '❤️' : '🤍'}</span>
       <span class="comm-like-count">${likeCount > 0 ? likeCount : ''}</span>
     </button>` : (likeCount > 0 ? `<span class="comm-like-display">❤️ ${likeCount}</span>` : '');
@@ -3897,7 +3897,7 @@ async function loadCalFocus() {
           </div>
           <div id="cal-focus-view" class="cal-focus-content">${content ? content.replace(/\n/g, '<br>') : '<em class="cal-focus-empty">Aucun focus défini pour ce mois.</em>'}</div>
           <div id="cal-focus-edit" class="cal-focus-edit-zone hidden">
-            <textarea id="cal-focus-textarea" class="cal-focus-textarea" rows="5" placeholder="Décris le focus de ce mois pour l'équipe…">${content}</textarea>
+            <textarea id="cal-focus-textarea" class="cal-focus-textarea" rows="5" placeholder="Décris le focus de ce mois pour l’équipe…">${content}</textarea>
             <div class="cal-focus-actions">
               <button class="btn-primary cal-focus-save-btn" id="cal-focus-save">Enregistrer</button>
               <button class="btn-secondary cal-focus-cancel-btn" id="cal-focus-cancel">Annuler</button>
@@ -4641,7 +4641,7 @@ async function openQuiz(formationId, formationName) {
   const content = document.getElementById('quiz-content');
   overlay.classList.remove('hidden');
 
-  content.innerHTML = '<div class="quiz-loading">Chargement du quiz...</div>';
+  content.innerHTML = '<div class="quiz-loading">Chargement du quiz…</div>';
 
   try {
     const data = await api(`/quiz/${formationId}/questions`);
@@ -4692,7 +4692,7 @@ async function openQuiz(formationId, formationName) {
 
 async function submitQuiz() {
   const btn = document.querySelector('.quiz-submit-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Correction...'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Correction…'; }
 
   try {
     const result = await api(`/quiz/${currentQuizFormationId}/submit`, {
@@ -4810,7 +4810,7 @@ async function openQuizEditor(formationId, formationName) {
   const content = document.getElementById('quiz-editor-content');
   overlay.classList.remove('hidden');
 
-  content.innerHTML = '<div class="quiz-loading">Chargement...</div>';
+  content.innerHTML = '<div class="quiz-loading">Chargement…</div>';
 
   try {
     const data = await api(`/quiz/${formationId}/questions`);
@@ -4858,9 +4858,9 @@ function renderQuizEditor(formationId, formationName, questions) {
   // AI Generation block
   html += `
     <div class="quiz-editor-ai">
-      <h3>🤖 Générer avec l'IA</h3>
-      <p class="quiz-ai-desc">Collez un transcript et l'IA génère automatiquement les questions QCM.</p>
-      <textarea id="qe-transcript" class="val-input quiz-ai-textarea" rows="4" placeholder="Collez le transcript ici..."></textarea>
+      <h3>🤖 Générer avec l’IA</h3>
+      <p class="quiz-ai-desc">Collez un transcript et l’IA génère automatiquement les questions QCM.</p>
+      <textarea id="qe-transcript" class="val-input quiz-ai-textarea" rows="4" placeholder="Collez le transcript ici…"></textarea>
       <div style="display:flex;gap:10px;margin-top:8px;align-items:center;flex-wrap:wrap">
         <select id="qe-ai-count" class="val-input" style="flex:0 0 auto;min-width:140px">
           <option value="4">4 questions</option>
@@ -4953,8 +4953,8 @@ async function generateQuizAI(formationId, formationName) {
   }
 
   btn.disabled = true;
-  btn.textContent = 'Génération...';
-  if (status) status.textContent = '⏳ L\'IA analyse le transcript...';
+  btn.textContent = 'Génération…';
+  if (status) status.textContent = '⏳ L’IA analyse le transcript…';
 
   try {
     const result = await api(`/quiz/${formationId}/generate`, {
@@ -5032,7 +5032,7 @@ async function loadAcademyFormations(targetId) {
         const description = document.getElementById(descId)?.value.trim() || '';
         const video_url = document.getElementById(videoId)?.value.trim() || '';
         if (!name) return alert('Nom du module requis');
-        addBtn.disabled = true; addBtn.textContent = '...';
+        addBtn.disabled = true; addBtn.textContent = '…';
         try {
           await api('/formations', { method: 'POST', body: { name, category, description, video_url } });
           document.getElementById(nameId).value = '';
@@ -5330,23 +5330,23 @@ function generateBodyCheck() { return; // supprimé
   // Messages coach (3 lignes)
   let msg1 = '', msg2 = '', msg3 = '';
   if (score >= 70) {
-    msg1 = `${prenom}, ton bilan montre une base solide. Score de ${score}/100, c'est un bon point de départ.`;
+    msg1 = `${prenom}, ton bilan montre une base solide. Score de ${score}/100, c’est un bon point de départ.`;
   } else {
-    msg1 = `${prenom}, ton bilan est posé. Score de ${score}/100 — on sait exactement où on en est, et c'est ça qui compte.`;
+    msg1 = `${prenom}, ton bilan est posé. Score de ${score}/100 — on sait exactement où on en est, et c’est ça qui compte.`;
   }
 
   if (pctGraisse > normeGraisse.haut && qualiteMusc < 55) {
-    msg2 = `On va travailler sur deux fronts : réduire la masse grasse et améliorer la qualité de ton muscle. Pas juste le volume — l'efficacité.`;
+    msg2 = `On va travailler sur deux fronts : réduire la masse grasse et améliorer la qualité de ton muscle. Pas juste le volume — l’efficacité.`;
   } else if (pctGraisse > normeGraisse.haut) {
-    msg2 = `L'objectif principal : faire baisser ta masse grasse. Le muscle est là, il faut le révéler.`;
+    msg2 = `L’objectif principal : faire baisser ta masse grasse. Le muscle est là, il faut le révéler.`;
   } else if (qualiteMusc < 55) {
-    msg2 = `Ton point clé : la qualité musculaire (${qualiteMusc}/100). On va transformer ton muscle pour qu'il soit vraiment fonctionnel.`;
+    msg2 = `Ton point clé : la qualité musculaire (${qualiteMusc}/100). On va transformer ton muscle pour qu’il soit vraiment fonctionnel.`;
   } else {
     msg2 = `Ton profil est équilibré. On va affiner et pousser la qualité musculaire encore plus haut.`;
   }
 
   if (graissePerdre > 0) {
-    msg3 = `Objectif ${poidsCible} kg, c'est ${graissePerdre} kg de graisse à perdre. C'est faisable, c'est chiffré, on y va ensemble.`;
+    msg3 = `Objectif ${poidsCible} kg, c’est ${graissePerdre} kg de graisse à perdre. C’est faisable, c’est chiffré, on y va ensemble.`;
   } else {
     msg3 = `On a les chiffres, on a le plan. Maintenant on exécute.`;
   }
@@ -6061,9 +6061,9 @@ function computeAxesPrioritaires(evalData, accompScore) {
 
   // Traduction catégorie → axe managérial
   const AXES = {
-    succes:     "Renforcer l'impact business du leader",
-    team:       "Structurer le management d'équipe",
-    eclat:      "Faire remonter l'image et les standards",
+    succes:     "Renforcer l’impact business du leader",
+    team:       "Structurer le management d’équipe",
+    eclat:      "Faire remonter l’image et les standards",
     infos:      "Mieux exploiter la connaissance client",
     engagement: "Maîtriser la rétention clients",
     loyal:      "Renforcer la fidélisation client",
@@ -6235,7 +6235,7 @@ async function loadPilotageTab() {
 
   const studio = getMyStudio();
   if (!studio) {
-    container.innerHTML = '<p class="empty-state">Studio non défini pour votre compte.</p>';
+    container.innerHTML = '<p class="empty-state">Studio non défini pour ton compte.</p>';
     return;
   }
 
@@ -6581,7 +6581,7 @@ async function renderPilotageContent(studio, month) {
     </div>
 
     <div class="pilotage-section">
-      <h3 class="pilotage-section-title">👥 Contribution de l'équipe</h3>
+      <h3 class="pilotage-section-title">👥 Contribution de l’équipe</h3>
       ${contribHtml}
     </div>
 
@@ -7064,7 +7064,7 @@ function renderAcademyOperationalRate(data) {
   else if (rate >= 60) phrase = `Plusieurs coachs ne sont pas encore opérationnels sur les Essentiels.`;
   else phrase = `Le niveau Academy du réseau est encore insuffisant sur le socle minimum.`;
   if (nonOp > 0 && rate < 100) {
-    phrase += ` ${nonOp} coach${nonOp>1?'s':''} bloque${nonOp>1?'nt':''} encore l'homogénéité du réseau.`;
+    phrase += ` ${nonOp} coach${nonOp>1?'s':''} bloque${nonOp>1?'nt':''} encore l’homogénéité du réseau.`;
   }
 
   // Filtre studio — toujours la liste complète des clubs (pas celle des coachs filtrés)
@@ -7193,7 +7193,7 @@ async function loadRevueTab() {
 
   const studio = getMyAssignedStudio();
   if (!studio) {
-    container.innerHTML = '<p class="empty-state">Studio non défini pour votre compte.</p>';
+    container.innerHTML = '<p class="empty-state">Studio non défini pour ton compte.</p>';
     return;
   }
 
@@ -7524,7 +7524,7 @@ function buildRevueForm(data) {
           ${radioGroup('rv-crq', [{v:'oui',l:'✅ Oui'},{v:'non',l:'❌ Non'}], get('cr_quotidiens'))}
         </div>
         <div class="revue-check-item">
-          <span class="revue-check-label">Ponctualité de l'équipe</span>
+          <span class="revue-check-label">Ponctualité de l’équipe</span>
           ${radioGroup('rv-ponct', [{v:'bonne',l:'✅ Bonne'},{v:'moyenne',l:'🟡 Moyenne'},{v:'insuffisante',l:'❌ Insuffisante'}], get('ponctualite'))}
         </div>
       </div>
@@ -7599,7 +7599,7 @@ function buildRevueForm(data) {
 
     <!-- 4. PLAN D'ACTION -->
     <div class="revue-section">
-      <h3 class="revue-section-title">🎯 Plan d'action — mois suivant</h3>
+      <h3 class="revue-section-title">🎯 Plan d’action — mois suivant</h3>
       <p class="revue-plan-hint">Court et concret. 3 champs maximum.</p>
       <div class="revue-plan-grid">
         <div class="revue-plan-field">
@@ -7965,7 +7965,7 @@ function buildDrrDetail(r) {
     <!-- PLAN D'ACTION -->
     ${(r.plan_sujet || r.plan_action) ? `
     <div class="drr-detail-section">
-      <h4 class="drr-detail-title">🎯 Plan d'action</h4>
+      <h4 class="drr-detail-title">🎯 Plan d’action</h4>
       <div class="drr-plan-row">
         ${r.plan_sujet  ? `<div><span class="drr-plan-lbl">Sujet</span> ${r.plan_sujet}</div>` : ''}
         ${r.plan_action ? `<div><span class="drr-plan-lbl">Action</span> ${r.plan_action}</div>` : ''}
@@ -8151,20 +8151,20 @@ function renderDrEditView(container, report, allReports) {
         <div class="dr-sublabel dr-sublabel-top"><span class="dr-pill dr-pill-top">TOP 2</span></div>
         <div class="dr-row">
           <select class="dr-select" data-field="top_club_1">${_drClubOpts(r.top_club_1)}</select>
-          ${_drInput('top_club_1_comment', r.top_club_1_comment, 'Commentaire...')}
+          ${_drInput('top_club_1_comment', r.top_club_1_comment, 'Commentaire…')}
         </div>
         <div class="dr-row">
           <select class="dr-select" data-field="top_club_2">${_drClubOpts(r.top_club_2)}</select>
-          ${_drInput('top_club_2_comment', r.top_club_2_comment, 'Commentaire...')}
+          ${_drInput('top_club_2_comment', r.top_club_2_comment, 'Commentaire…')}
         </div>
         <div class="dr-sublabel dr-sublabel-flop"><span class="dr-pill dr-pill-flop">FLOP 2</span></div>
         <div class="dr-row">
           <select class="dr-select" data-field="flop_club_1">${_drClubOpts(r.flop_club_1)}</select>
-          ${_drInput('flop_club_1_comment', r.flop_club_1_comment, 'Commentaire...')}
+          ${_drInput('flop_club_1_comment', r.flop_club_1_comment, 'Commentaire…')}
         </div>
         <div class="dr-row">
           <select class="dr-select" data-field="flop_club_2">${_drClubOpts(r.flop_club_2)}</select>
-          ${_drInput('flop_club_2_comment', r.flop_club_2_comment, 'Commentaire...')}
+          ${_drInput('flop_club_2_comment', r.flop_club_2_comment, 'Commentaire…')}
         </div>
       </div>
     </div>
@@ -8176,9 +8176,9 @@ function renderDrEditView(container, report, allReports) {
         <span class="dr-card-title">Priorités semaine prochaine</span>
       </div>
       <div class="dr-card-body">
-        <div class="dr-prio-row"><span class="dr-prio-num">1</span>${_drInput('priority_1', r.priority_1, 'Action prioritaire...', 100)}</div>
-        <div class="dr-prio-row"><span class="dr-prio-num">2</span>${_drInput('priority_2', r.priority_2, 'Action prioritaire...', 100)}</div>
-        <div class="dr-prio-row"><span class="dr-prio-num">3</span>${_drInput('priority_3', r.priority_3, 'Action prioritaire...', 100)}</div>
+        <div class="dr-prio-row"><span class="dr-prio-num">1</span>${_drInput('priority_1', r.priority_1, 'Action prioritaire…', 100)}</div>
+        <div class="dr-prio-row"><span class="dr-prio-num">2</span>${_drInput('priority_2', r.priority_2, 'Action prioritaire…', 100)}</div>
+        <div class="dr-prio-row"><span class="dr-prio-num">3</span>${_drInput('priority_3', r.priority_3, 'Action prioritaire…', 100)}</div>
       </div>
     </div>
 
@@ -8186,7 +8186,7 @@ function renderDrEditView(container, report, allReports) {
     <div class="dr-card dr-card-orange">
       <div class="dr-card-head">
         <span class="dr-dot dr-dot-orange"></span>
-        <span class="dr-card-title">Besoin d'aide / Arbitrage</span>
+        <span class="dr-card-title">Besoin d’aide / Arbitrage</span>
       </div>
       <div class="dr-card-body">
         ${_drInput('arbitrage', r.arbitrage, 'Ce que j\'attends de Stan cette semaine…', 150)}
@@ -8255,7 +8255,7 @@ function renderDrReadView(container, report, allReports) {
     <div class="dr-empty">
       <div class="dr-empty-icon">📭</div>
       <div class="dr-empty-title">Aucun rapport</div>
-      <div class="dr-empty-sub">Marvin n'a pas encore rempli cette semaine</div>
+      <div class="dr-empty-sub">Marvin n’a pas encore rempli cette semaine</div>
     </div>
   ` : `
     <div class="dr-read-cards">
@@ -8299,7 +8299,7 @@ function renderDrReadView(container, report, allReports) {
 
       ${r.arbitrage ? `
       <div class="dr-read-card dr-read-card-arb">
-        <div class="dr-read-head dr-head-orange"><span>🆘</span><span>Besoin d'aide</span></div>
+        <div class="dr-read-head dr-head-orange"><span>🆘</span><span>Besoin d’aide</span></div>
         <div class="dr-read-body">
           <div class="dr-read-arb">${r.arbitrage}</div>
         </div>
@@ -8447,12 +8447,12 @@ async function loadChallengeTab() {
   chInjectStyles();
   const host = document.getElementById('challenge-container');
   if (!host) return;
-  host.innerHTML = '<div class="ch-loading">Chargement de vos clients…</div>';
+  host.innerHTML = '<div class="ch-loading">Chargement de tes clients…</div>';
   try {
     const { clients } = await nutriApi('/coach/clients');
     renderChallengeList(host, clients || []);
   } catch (e) {
-    host.innerHTML = `<div class="ch-empty"><p>Impossible de charger vos clients.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
+    host.innerHTML = `<div class="ch-empty"><p>Impossible de charger tes clients.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
   }
 }
 
@@ -8462,8 +8462,8 @@ function renderChallengeList(host, clients) {
   const nbChallenge = clients.filter((c) => chIsChallenge(c.objectif)).length;
   if (!sorted.length) {
     host.innerHTML = `<div class="ch-head"><h2>🔥 Challenge</h2></div>
-      <div class="ch-empty"><p>Aucun client ne vous est attribué pour le moment.</p>
-      <p class="ch-muted">Vos clients apparaîtront ici dès que le super-administrateur vous les aura assignés.</p></div>`;
+      <div class="ch-empty"><p>Aucun client ne t’est attribué pour le moment.</p>
+      <p class="ch-muted">Tes clients apparaîtront ici dès que le super-administrateur te les aura assignés.</p></div>`;
     return;
   }
   const cards = sorted.map((c) => {

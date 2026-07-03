@@ -41,26 +41,26 @@ const MACRO_SPLIT = {
 // Repartition des calories par repas selon le nombre de repas/jour.
 const REPARTITION_REPAS = {
   2: [
-    { type: 'dejeuner', label: 'Dejeuner', part: 0.55 },
-    { type: 'diner', label: 'Diner', part: 0.45 },
+    { type: 'dejeuner', label: 'Déjeuner', part: 0.55 },
+    { type: 'diner', label: 'Dîner', part: 0.45 },
   ],
   3: [
-    { type: 'petit-dejeuner', label: 'Petit-dejeuner', part: 0.3 },
-    { type: 'dejeuner', label: 'Dejeuner', part: 0.4 },
-    { type: 'diner', label: 'Diner', part: 0.3 },
+    { type: 'petit-dejeuner', label: 'Petit-déjeuner', part: 0.3 },
+    { type: 'dejeuner', label: 'Déjeuner', part: 0.4 },
+    { type: 'diner', label: 'Dîner', part: 0.3 },
   ],
   4: [
-    { type: 'petit-dejeuner', label: 'Petit-dejeuner', part: 0.25 },
-    { type: 'dejeuner', label: 'Dejeuner', part: 0.35 },
+    { type: 'petit-dejeuner', label: 'Petit-déjeuner', part: 0.25 },
+    { type: 'dejeuner', label: 'Déjeuner', part: 0.35 },
     { type: 'collation', label: 'Collation', part: 0.1 },
-    { type: 'diner', label: 'Diner', part: 0.3 },
+    { type: 'diner', label: 'Dîner', part: 0.3 },
   ],
   5: [
-    { type: 'petit-dejeuner', label: 'Petit-dejeuner', part: 0.22 },
+    { type: 'petit-dejeuner', label: 'Petit-déjeuner', part: 0.22 },
     { type: 'collation', label: 'Collation du matin', part: 0.1 },
-    { type: 'dejeuner', label: 'Dejeuner', part: 0.33 },
-    { type: 'collation', label: 'Collation de l\'apres-midi', part: 0.1 },
-    { type: 'diner', label: 'Diner', part: 0.25 },
+    { type: 'dejeuner', label: 'Déjeuner', part: 0.33 },
+    { type: 'collation', label: 'Collation de l\'après-midi', part: 0.1 },
+    { type: 'diner', label: 'Dîner', part: 0.25 },
   ],
 };
 
@@ -97,12 +97,12 @@ function construireRepartition(profil) {
   const mangeMatin = profil.mangeMatin === undefined ? true : !!profil.mangeMatin;
   const col = new Set((profil.collations || []).map((c) => String(c).toLowerCase()));
   const slots = [];
-  if (mangeMatin) slots.push({ type: 'petit-dejeuner', label: 'Petit-dejeuner', w: 26 });
+  if (mangeMatin) slots.push({ type: 'petit-dejeuner', label: 'Petit-déjeuner', w: 26 });
   if (col.has('matin')) slots.push({ type: 'collation', label: 'Collation du matin', w: 9 });
-  slots.push({ type: 'dejeuner', label: 'Dejeuner', w: 34 });
+  slots.push({ type: 'dejeuner', label: 'Déjeuner', w: 34 });
   if (col.has('apres-midi')) slots.push({ type: 'collation', label: "Collation de l'apres-midi", w: 9 });
-  if (col.has('apres-sport')) slots.push({ type: 'collation', label: 'Collation apres sport', w: 10 });
-  slots.push({ type: 'diner', label: 'Diner', w: 28 });
+  if (col.has('apres-sport')) slots.push({ type: 'collation', label: 'Collation après sport', w: 10 });
+  slots.push({ type: 'diner', label: 'Dîner', w: 28 });
   if (col.has('soir')) slots.push({ type: 'collation', label: 'Collation du soir', w: 8 });
   const totalW = slots.reduce((s, x) => s + x.w, 0) || 1;
   return slots.map((s) => ({ type: s.type, label: s.label, part: s.w / totalW }));

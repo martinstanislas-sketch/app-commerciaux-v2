@@ -4,16 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light" />
-  <title>My Coach Nutrition — Manger facile, selon vos gouts</title>
-  <meta name="description" content="Repondez a quelques questions, recevez un plan de repas de la semaine adapte a vos gouts et votre objectif, avec liste de courses." />
+  <title>My Coach Nutrition — Manger facile, selon tes goûts</title>
+  <meta name="description" content="Réponds à quelques questions, reçois un plan de repas de la semaine adapté à tes goûts et à ton objectif, avec liste de courses." />
   <meta name="theme-color" content="#F6F5F2" />
 
   <!-- Apercu de lien (Open Graph / Twitter) : miniature affichee au partage -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="My Coach Nutrition" />
   <meta property="og:url" content="https://app.stanmartinapp.cloud/nutrition/" />
-  <meta property="og:title" content="My Coach Nutrition — Manger facile, selon vos gouts" />
-  <meta property="og:description" content="Recois un plan de repas de la semaine adapte a tes gouts et ton objectif, avec liste de courses." />
+  <meta property="og:title" content="My Coach Nutrition — Manger facile, selon tes goûts" />
+  <meta property="og:description" content="Reçois un plan de repas de la semaine adapté à tes goûts et à ton objectif, avec liste de courses." />
   <meta property="og:image" content="https://app.stanmartinapp.cloud/nutrition/images/og-cover.jpg" />
   <meta property="og:image:secure_url" content="https://app.stanmartinapp.cloud/nutrition/images/og-cover.jpg" />
   <meta property="og:image:type" content="image/jpeg" />
@@ -22,13 +22,13 @@
   <meta property="og:image:alt" content="My Coach Nutrition — Manger facile" />
   <meta property="og:locale" content="fr_FR" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="My Coach Nutrition — Manger facile, selon vos gouts" />
-  <meta name="twitter:description" content="Ton plan de repas de la semaine, adapte a ton objectif." />
+  <meta name="twitter:title" content="My Coach Nutrition — Manger facile, selon tes goûts" />
+  <meta name="twitter:description" content="Ton plan de repas de la semaine, adapté à ton objectif." />
   <meta name="twitter:image" content="https://app.stanmartinapp.cloud/nutrition/images/og-cover.jpg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=43" />
+  <link rel="stylesheet" href="style.css?v=44" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -211,7 +211,7 @@
   </div>
 
   <!-- Bouton lecture plein ecran : masque/reaffiche topbar + bandeau demo -->
-  <button id="fullscreenToggle" class="fullscreen-toggle" title="Lecture plein ecran" aria-label="Lecture plein ecran"
+  <button id="fullscreenToggle" class="fullscreen-toggle" title="Lecture plein écran" aria-label="Lecture plein écran"
     onclick="document.body.classList.toggle('lecture'); this.classList.toggle('on');">
     <svg class="ic-expand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13 0h3a2 2 0 0 0 2-2v-3"/></svg>
     <svg class="ic-compress" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3m13-5h-3a2 2 0 0 0-2 2v3"/></svg>
@@ -222,11 +222,11 @@
       <span class="brand-mark"><svg class="ic"><use href="#ic-leaf"/></svg></span>
       <div>
         <div class="brand-name">My Coach <strong>Nutrition</strong></div>
-        <div class="brand-tag">Manger facile, selon vos gouts</div>
+        <div class="brand-tag">Manger facile, selon tes goûts</div>
       </div>
     </div>
     <div class="topbar-right">
-      <span id="modeBadge" class="badge badge-demo hidden" title="Mode de generation">Mode demo</span>
+      <span id="modeBadge" class="badge badge-demo hidden" title="Mode de génération">Mode démo</span>
       <button id="navRestart" class="link-btn hidden">Recommencer</button>
     </div>
   </header>
@@ -238,7 +238,7 @@
       <div class="demo-welcome">
         <div class="demo-welcome-ic"><svg class="ic"><use href="#ic-leaf"/></svg></div>
         <h1>Mode démonstration</h1>
-        <p>Testez l'app exactement comme un client — données fictives. Vous vivez tout le parcours : questionnaire, plan de la semaine et suivi.</p>
+        <p>Teste l'app exactement comme un client — données fictives. Tu vis tout le parcours : questionnaire, plan de la semaine et suivi.</p>
         <button class="btn btn-primary btn-lg" id="demoStart">Commencer la démo <svg class="ic"><use href="#ic-arrow-right"/></svg></button>
       </div>
     </section>
@@ -266,26 +266,26 @@
 
     <section id="screen-landing" class="screen active">
       <div class="hero">
-        <h1>Mangez mieux,<br />sans y penser.</h1>
+        <h1>Mange mieux,<br />sans y penser.</h1>
         <p class="hero-sub">
-          Quelques questions, et recevez un plan de la semaine adapté à vos goûts —
-          avec liste de courses. <strong>Aucun calcul de votre côté.</strong>
+          Quelques questions, et reçois un plan de la semaine adapté à tes goûts —
+          avec liste de courses. <strong>Aucun calcul de ton côté.</strong>
         </p>
         <button class="btn btn-primary btn-lg" id="ctaStart">
-          Creer mon plan <svg class="ic"><use href="#ic-arrow-right"/></svg>
+          Créer mon plan <svg class="ic"><use href="#ic-arrow-right"/></svg>
         </button>
         <ul class="hero-points">
-          <li><svg class="ic"><use href="#ic-check"/></svg> Plan personnalise en 2 minutes</li>
+          <li><svg class="ic"><use href="#ic-check"/></svg> Plan personnalisé en 2 minutes</li>
           <li><svg class="ic"><use href="#ic-check"/></svg> Liste de courses automatique</li>
-          <li><svg class="ic"><use href="#ic-check"/></svg> Recettes adaptees a vos gouts</li>
+          <li><svg class="ic"><use href="#ic-check"/></svg> Recettes adaptées à tes goûts</li>
         </ul>
         <div class="hero-trust">
           <div class="trust-avatars"><span></span><span></span><span></span><span></span></div>
-          <span>Pense pour les actifs qui veulent retrouver energie et equilibre.</span>
+          <span>Pensé pour les actifs qui veulent retrouver énergie et équilibre.</span>
         </div>
         <p class="disclaimer">
-          Estimations a titre indicatif. Cette application ne remplace pas l'avis
-          d'un professionnel de sante.
+          Estimations à titre indicatif. Cette application ne remplace pas l'avis
+          d'un professionnel de santé.
         </p>
       </div>
     </section>
@@ -301,32 +301,32 @@
 
         <!-- Etape 1 : Objectif -->
         <div class="step active" data-step="1">
-          <h2>Quel est votre objectif ?</h2>
-          <p class="step-help">Choisissez ce qui vous ressemble le plus aujourd'hui.</p>
+          <h2>Quel est ton objectif ?</h2>
+          <p class="step-help">Choisis ce qui te ressemble le plus aujourd'hui.</p>
           <div class="choice-grid" data-field="objectif">
             <button type="button" class="choice" data-value="perte"><span class="choice-ic"><svg class="ic"><use href="#ic-target"/></svg></span><span class="choice-txt">Perdre du poids</span></button>
             <button type="button" class="choice" data-value="maintien"><span class="choice-ic"><svg class="ic"><use href="#ic-scale"/></svg></span><span class="choice-txt">Maintenir mon poids</span></button>
             <button type="button" class="choice" data-value="muscle"><span class="choice-ic"><svg class="ic"><use href="#ic-muscle"/></svg></span><span class="choice-txt">Prendre du muscle</span></button>
-            <button type="button" class="choice" data-value="energie"><span class="choice-ic"><svg class="ic"><use href="#ic-bolt"/></svg></span><span class="choice-txt">Avoir plus d'energie</span></button>
-            <button type="button" class="choice choice-feature" data-value="challenge"><span class="choice-ic"><svg class="ic"><use href="#ic-flame"/></svg></span><span class="choice-body"><span class="choice-txt">Challenge 6/6</span><span class="choice-sub">Programme intensif — perte acceleree</span></span></button>
+            <button type="button" class="choice" data-value="energie"><span class="choice-ic"><svg class="ic"><use href="#ic-bolt"/></svg></span><span class="choice-txt">Avoir plus d'énergie</span></button>
+            <button type="button" class="choice choice-feature" data-value="challenge"><span class="choice-ic"><svg class="ic"><use href="#ic-flame"/></svg></span><span class="choice-body"><span class="choice-txt">Challenge 6/6</span><span class="choice-sub">Programme intensif — perte accélérée</span></span></button>
           </div>
         </div>
 
         <!-- Etape 2 : Infos corps -->
         <div class="step" data-step="2">
-          <h2>Quelques infos sur vous</h2>
-          <p class="step-help">Pour estimer vos besoins. Vos donnees restent sur votre appareil.</p>
+          <h2>Quelques infos sur toi</h2>
+          <p class="step-help">Pour estimer tes besoins. Tes données restent sur ton appareil.</p>
           <div class="field-row">
             <label class="field">
               <span>Sexe</span>
               <select name="sexe">
                 <option value="femme">Femme</option>
                 <option value="homme">Homme</option>
-                <option value="autre">Autre / je prefere ne pas dire</option>
+                <option value="autre">Autre / je préfère ne pas dire</option>
               </select>
             </label>
             <label class="field">
-              <span>Age</span>
+              <span>Âge</span>
               <input type="number" name="age" min="14" max="100" value="30" />
             </label>
           </div>
@@ -341,13 +341,13 @@
             </label>
           </div>
           <label class="field">
-            <span>Niveau d'activite</span>
+            <span>Niveau d'activité</span>
             <select name="activite">
-              <option value="sedentaire">Sedentaire (peu de mouvement)</option>
-              <option value="leger">Leger (1-3 fois/semaine)</option>
-              <option value="modere" selected>Modere (3-5 fois/semaine)</option>
+              <option value="sedentaire">Sédentaire (peu de mouvement)</option>
+              <option value="leger">Léger (1-3 fois/semaine)</option>
+              <option value="modere" selected>Modéré (3-5 fois/semaine)</option>
               <option value="actif">Actif (6-7 fois/semaine)</option>
-              <option value="tres_actif">Tres actif (travail physique + sport)</option>
+              <option value="tres_actif">Très actif (travail physique + sport)</option>
             </select>
           </label>
 
@@ -356,11 +356,11 @@
                automatiquement cote app (defauts : -6 kg, -650 kcal) et ne sont
                volontairement PAS exposes a l'utilisateur. -->
           <details class="pesee-block">
-            <summary><span class="field-title">Donnees de pesee <em>(optionnel, pour un calcul plus precis)</em></span></summary>
-            <p class="step-help">Si vous ne disposez pas de ces informations, vous pouvez les demander à votre conseiller forme ou à votre coach sportif.</p>
+            <summary><span class="field-title">Données de pesée <em>(optionnel, pour un calcul plus précis)</em></span></summary>
+            <p class="step-help">Si tu ne disposes pas de ces informations, tu peux les demander à ton conseiller forme ou à ton coach sportif.</p>
             <div class="field-row">
               <label class="field">
-                <span>Metabolisme basal (kcal)</span>
+                <span>Métabolisme basal (kcal)</span>
                 <input type="number" name="metabolisme_basal" min="600" max="4000" placeholder="ex. 1450" />
               </label>
               <label class="field">
@@ -374,11 +374,11 @@
                 <input type="number" name="masse_musculaire" min="1" max="120" step="0.1" placeholder="ex. 28" />
               </label>
               <label class="field">
-                <span>Type de journee</span>
+                <span>Type de journée</span>
                 <select name="type_journee">
-                  <option value="">Non precise</option>
-                  <option value="assis">Plutot assis (bureau)</option>
-                  <option value="debout">Plutot debout / en mouvement</option>
+                  <option value="">Non précisé</option>
+                  <option value="assis">Plutôt assis (bureau)</option>
+                  <option value="debout">Plutôt debout / en mouvement</option>
                   <option value="physique">Travail physique</option>
                 </select>
               </label>
@@ -388,9 +388,9 @@
 
         <!-- Etape 3 : Gouts -->
         <div class="step" data-step="3">
-          <h2>Vos gouts</h2>
-          <p class="step-help">On privilegiera ce que vous aimez. Tout est optionnel.</p>
-          <span class="field-title">Cuisines que vous aimez <em>(plusieurs choix possibles)</em></span>
+          <h2>Tes goûts</h2>
+          <p class="step-help">On privilégiera ce que tu aimes. Tout est optionnel.</p>
+          <span class="field-title">Cuisines que tu aimes <em>(plusieurs choix possibles)</em></span>
           <div class="chip-set" data-multifield="cuisines">
             <button type="button" class="chip" data-value="francaise">🇫🇷 Française</button>
             <button type="button" class="chip" data-value="italienne">🍝 Italienne</button>
@@ -398,14 +398,14 @@
             <button type="button" class="chip" data-value="asiatique">🍜 Asiatique</button>
             <button type="button" class="chip" data-value="monde">🌍 Cuisine du monde</button>
           </div>
-          <span class="field-title">Le matin, vous mangez plutot...</span>
+          <span class="field-title">Le matin, tu manges plutôt...</span>
           <div class="choice-grid" data-field="matinGout">
             <button type="button" class="choice" data-value="sucre"><span class="choice-ic"><svg class="ic"><use href="#ic-apple"/></svg></span><span class="choice-txt">Sucré</span></button>
             <button type="button" class="choice" data-value="sale"><span class="choice-ic"><svg class="ic"><use href="#ic-bowl"/></svg></span><span class="choice-txt">Salé</span></button>
             <button type="button" class="choice selected" data-value="les-deux"><span class="choice-ic"><svg class="ic"><use href="#ic-swap"/></svg></span><span class="choice-txt">Peu importe</span></button>
             <button type="button" class="choice" data-value="aucun"><span class="choice-ic"><svg class="ic"><use href="#ic-x"/></svg></span><span class="choice-txt">Je ne mange pas le matin</span></button>
           </div>
-          <span class="field-title">Prenez-vous des collations dans la journée ? <em>(plusieurs choix possibles)</em></span>
+          <span class="field-title">Prends-tu des collations dans la journée ? <em>(plusieurs choix possibles)</em></span>
           <div class="chip-set" data-multifield="collations">
             <button type="button" class="chip" data-value="matin">Oui, le matin</button>
             <button type="button" class="chip" data-value="apres-midi">Oui, l'après-midi</button>
@@ -414,7 +414,7 @@
             <button type="button" class="chip" data-value="non">Non, pas de collation</button>
           </div>
           <div id="collationDetails" class="hidden">
-            <span class="field-title">Quels types de collations préférez-vous ? <em>(plusieurs choix possibles)</em></span>
+            <span class="field-title">Quels types de collations préfères-tu ? <em>(plusieurs choix possibles)</em></span>
             <div class="chip-set" data-multifield="collationCategories">
               <button type="button" class="chip" data-value="fruits-laitiers">🍎 Fruits & produits laitiers</button>
               <button type="button" class="chip" data-value="oleagineux">🥜 Oléagineux & énergie</button>
@@ -425,30 +425,30 @@
             </div>
           </div>
           <label class="field">
-            <span>Aliments que vous adorez <em>(séparés par des virgules)</em></span>
+            <span>Aliments que tu adores <em>(séparés par des virgules)</em></span>
             <input type="text" name="aimes" placeholder="ex. poulet, avocat, chocolat" />
           </label>
           <label class="field">
-            <span>Aliments que vous n'aimez pas</span>
+            <span>Aliments que tu n'aimes pas</span>
             <input type="text" name="deteste" placeholder="ex. champignons, tofu" />
           </label>
         </div>
 
         <!-- Etape 4 : Habitudes actuelles -->
         <div class="step" data-step="4">
-          <h2>Comment mangez-vous aujourd'hui ?</h2>
-          <p class="step-help">Decrivez une journee type, avec vos mots. Ca nous aide a vous proposer un plan qui vous ressemble (rien d'oblige).</p>
+          <h2>Comment manges-tu aujourd'hui ?</h2>
+          <p class="step-help">Décris une journée type, avec tes mots. Ça nous aide à te proposer un plan qui te ressemble (rien d'obligé).</p>
           <label class="field">
-            <span>Petit-dejeuner habituel</span>
-            <input type="text" name="hab_petitDej" placeholder="ex. cafe, tartines beurre, jus d'orange" />
+            <span>Petit-déjeuner habituel</span>
+            <input type="text" name="hab_petitDej" placeholder="ex. café, tartines beurre, jus d'orange" />
           </label>
           <label class="field">
-            <span>Dejeuner habituel</span>
-            <input type="text" name="hab_dejeuner" placeholder="ex. pates au poulet, ou sandwich" />
+            <span>Déjeuner habituel</span>
+            <input type="text" name="hab_dejeuner" placeholder="ex. pâtes au poulet, ou sandwich" />
           </label>
           <label class="field">
-            <span>Diner habituel</span>
-            <input type="text" name="hab_diner" placeholder="ex. riz, legumes, viande" />
+            <span>Dîner habituel</span>
+            <input type="text" name="hab_diner" placeholder="ex. riz, légumes, viande" />
           </label>
           <div class="field-row">
             <label class="field">
@@ -457,19 +457,19 @@
             </label>
             <label class="field">
               <span>Boissons habituelles</span>
-              <input type="text" name="hab_boissons" placeholder="ex. eau, soda, the" />
+              <input type="text" name="hab_boissons" placeholder="ex. eau, soda, thé" />
             </label>
           </div>
           <label class="field">
-            <span>Aliments que vous mangez presque tous les jours <em>(separes par des virgules)</em></span>
-            <input type="text" name="frequents" placeholder="ex. poulet, pates, yaourt, pain" />
+            <span>Aliments que tu manges presque tous les jours <em>(séparés par des virgules)</em></span>
+            <input type="text" name="frequents" placeholder="ex. poulet, pâtes, yaourt, pain" />
           </label>
         </div>
 
         <!-- Etape 5 : Contraintes -->
         <div class="step" data-step="5">
-          <h2>Vos contraintes</h2>
-          <p class="step-help">Important pour votre sécurité et votre confort.</p>
+          <h2>Tes contraintes</h2>
+          <p class="step-help">Important pour ta sécurité et ton confort.</p>
           <span class="field-title">Allergies ou intolérances <em>(jamais proposées)</em></span>
           <div class="chip-set" data-multifield="allergiesCourantes">
             <button type="button" class="chip" data-value="gluten">Gluten</button>
@@ -511,7 +511,7 @@
               </select>
             </label>
           </div>
-          <span class="field-title">Vous mangez plutôt tard le soir ?</span>
+          <span class="field-title">Tu manges plutôt tard le soir ?</span>
           <div class="choice-grid" data-field="dinerTard">
             <button type="button" class="choice selected" data-value="non"><span class="choice-ic"><svg class="ic"><use href="#ic-check"/></svg></span><span class="choice-txt">Non, horaires classiques</span></button>
             <button type="button" class="choice" data-value="oui"><span class="choice-ic"><svg class="ic"><use href="#ic-clock"/></svg></span><span class="choice-txt">Oui, je dîne tard</span></button>
@@ -520,28 +520,28 @@
 
         <!-- Etape 6 : Complements alimentaires -->
         <div class="step" data-step="6">
-          <h2>Complements alimentaires</h2>
-          <p class="step-help">Prenez-vous actuellement des complements alimentaires ? (plusieurs choix possibles)</p>
+          <h2>Compléments alimentaires</h2>
+          <p class="step-help">Prends-tu actuellement des compléments alimentaires ? (plusieurs choix possibles)</p>
           <div class="chip-set" data-multifield="complements">
             <button type="button" class="chip" data-value="non">Non</button>
-            <button type="button" class="chip" data-value="proteines">Oui, proteines</button>
-            <button type="button" class="chip" data-value="creatine">Oui, creatine</button>
-            <button type="button" class="chip" data-value="vitamines">Oui, vitamines / mineraux</button>
-            <button type="button" class="chip" data-value="bruleur">Oui, bruleur de graisse</button>
-            <button type="button" class="chip" data-value="omega3">Oui, omega 3</button>
-            <button type="button" class="chip" data-value="magnesium">Oui, magnesium</button>
+            <button type="button" class="chip" data-value="proteines">Oui, protéines</button>
+            <button type="button" class="chip" data-value="creatine">Oui, créatine</button>
+            <button type="button" class="chip" data-value="vitamines">Oui, vitamines / minéraux</button>
+            <button type="button" class="chip" data-value="bruleur">Oui, brûleur de graisse</button>
+            <button type="button" class="chip" data-value="omega3">Oui, oméga 3</button>
+            <button type="button" class="chip" data-value="magnesium">Oui, magnésium</button>
             <button type="button" class="chip" data-value="autre">Oui, autre</button>
           </div>
           <label class="field hidden" id="complementsDetailWrap">
-            <span>Lesquels prenez-vous, a quelle dose et a quelle frequence ?</span>
-            <input type="text" name="complementsDetail" placeholder="ex. whey 30 g apres le sport, magnesium 300 mg le soir" />
+            <span>Lesquels prends-tu, à quelle dose et à quelle fréquence ?</span>
+            <input type="text" name="complementsDetail" placeholder="ex. whey 30 g après le sport, magnésium 300 mg le soir" />
           </label>
         </div>
 
         <!-- Etape 7 : Format -->
         <div class="step" data-step="7">
-          <h2>Votre semaine</h2>
-          <p class="step-help">Derniere etape, on y est presque !</p>
+          <h2>Ta semaine</h2>
+          <p class="step-help">Dernière étape, on y est presque !</p>
           <label class="field">
             <span>Nombre de jours</span>
             <select name="jours">
@@ -588,14 +588,14 @@
         <button class="action-card action-card-accent is-soon" id="btnPlate"><span class="action-ic"><svg class="ic"><use href="#ic-camera"/></svg></span>Analyser mon assiette<span class="soon-badge">Bientôt</span></button>
         <button class="action-card action-card-admin hidden" id="btnPlateAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-camera"/></svg></span>Analyses d'assiettes<span id="plateAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card action-card-admin hidden" id="btnClientsAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-users"/></svg></span>Clients inscrits<span id="clientsAdminBadge" class="action-badge hidden">0</span></button>
-        <button class="action-card action-card-admin hidden" id="btnAdhAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-users"/></svg></span>Adherence clients<span id="adhAdminBadge" class="action-badge hidden">0</span></button>
-        <button class="action-card action-card-admin hidden" id="btnDemoAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-eye"/></svg></span>Mode demo client</button>
+        <button class="action-card action-card-admin hidden" id="btnAdhAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-users"/></svg></span>Adhérence clients<span id="adhAdminBadge" class="action-badge hidden">0</span></button>
+        <button class="action-card action-card-admin hidden" id="btnDemoAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-eye"/></svg></span>Mode démo client</button>
         <button class="action-card action-card-admin hidden" id="btnHelpAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-inbox"/></svg></span>Demandes d'aide<span id="helpAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card action-card-admin hidden" id="btnScanAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-barcode"/></svg></span>Scans clients<span id="scanAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card" id="btnShopping"><span class="action-ic"><svg class="ic"><use href="#ic-cart"/></svg></span>Liste de courses</button>
         <button class="action-card" id="btnNewPlan"><span class="action-ic"><svg class="ic"><use href="#ic-refresh"/></svg></span>Recalculer le plan</button>
         <button class="action-card action-card-accent" id="btnAvance"><span class="action-ic"><svg class="ic"><use href="#ic-sliders"/></svg></span>Affiner mon plan</button>
-        <button class="action-card" id="btnComplements"><span class="action-ic"><svg class="ic"><use href="#ic-pill"/></svg></span>Complements</button>
+        <button class="action-card" id="btnComplements"><span class="action-ic"><svg class="ic"><use href="#ic-pill"/></svg></span>Compléments</button>
         <button class="action-card" id="btnExportPlan"><span class="action-ic"><svg class="ic"><use href="#ic-file"/></svg></span>Plan PDF</button>
         <button class="action-card" id="btnFavoris"><span class="action-ic"><svg class="ic"><use href="#ic-heart"/></svg></span>Favoris</button>
         <button class="action-card" id="btnFiche"><span class="action-ic"><svg class="ic"><use href="#ic-user"/></svg></span>Ma fiche</button>
@@ -717,12 +717,12 @@
       <!-- Etape : camera -->
       <div id="scanStageCamera" class="scan-stage">
         <h2 class="scan-title"><svg class="ic"><use href="#ic-scan"/></svg> Scanner un produit</h2>
-        <p class="panel-sub">Vise le code-barres du produit avec ta camera.</p>
+        <p class="panel-sub">Vise le code-barres du produit avec ta caméra.</p>
         <div class="scan-viewport">
           <video id="scanVideo" playsinline muted></video>
           <div class="scan-frame"></div>
         </div>
-        <p id="scanHint" class="scan-hint">Initialisation de la camera…</p>
+        <p id="scanHint" class="scan-hint">Initialisation de la caméra…</p>
         <button type="button" class="btn btn-ghost btn-sm" id="scanManualToggle">Saisir le code manuellement</button>
         <div id="scanManual" class="scan-manual hidden">
           <input type="text" id="scanManualInput" inputmode="numeric" autocomplete="off" placeholder="Ex : 3017620422003" />
@@ -739,7 +739,7 @@
       <!-- Etape : erreur -->
       <div id="scanStageError" class="scan-stage hidden">
         <div id="scanErrorBox" class="scan-error"></div>
-        <button type="button" class="btn btn-outline" id="scanRetry"><svg class="ic"><use href="#ic-refresh"/></svg> Reessayer</button>
+        <button type="button" class="btn btn-outline" id="scanRetry"><svg class="ic"><use href="#ic-refresh"/></svg> Réessayer</button>
       </div>
 
       <!-- Etape : resultat produit -->
@@ -760,12 +760,12 @@
         <div class="plate-drop" id="plateDrop" role="button" tabindex="0">
           <input type="file" id="plateFile" accept="image/*" hidden>
           <div id="plateDropEmpty" class="plate-drop-empty"><svg class="ic"><use href="#ic-camera"/></svg><span>Prendre une photo ou importer<small>Appareil photo ou galerie</small></span></div>
-          <img id="platePreview" class="plate-preview hidden" alt="Apercu de l'assiette">
+          <img id="platePreview" class="plate-preview hidden" alt="Aperçu de l'assiette">
         </div>
-        <label class="field" style="margin-top:10px"><span>Ajoute une precision si besoin (sauce, huile, boisson, dessert, quantite, cuisson...)</span>
+        <label class="field" style="margin-top:10px"><span>Ajoute une précision si besoin (sauce, huile, boisson, dessert, quantité, cuisson...)</span>
           <textarea id="platePrecision" rows="2" placeholder="Ex : avec un filet d'huile d'olive et un verre de jus"></textarea>
         </label>
-        <p class="help-disclaimer">Estimation visuelle a utiliser comme repere. Les quantites peuvent varier selon les portions, la cuisson et les ingredients utilises.</p>
+        <p class="help-disclaimer">Estimation visuelle à utiliser comme repère. Les quantités peuvent varier selon les portions, la cuisson et les ingrédients utilisés.</p>
         <button type="button" class="btn btn-primary btn-lg" id="plateAnalyze" style="width:100%" disabled><svg class="ic"><use href="#ic-spark"/></svg> Analyser mon assiette</button>
       </div>
 
@@ -800,7 +800,7 @@
         <h2><svg class="ic"><use href="#ic-cart"/></svg> Liste de courses</h2>
         <button class="modal-close" id="shoppingClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Pour <span id="shoppingDays">7</span> jour(s). Choisissez pour combien de personnes, puis cochez au fur et a mesure.<span id="shoppingPortions" hidden></span></p>
+      <p class="panel-sub">Pour <span id="shoppingDays">7</span> jour(s). Choisis pour combien de personnes, puis coche au fur et à mesure.<span id="shoppingPortions" hidden></span></p>
       <button class="btn btn-outline" id="btnExportShopping" style="margin-bottom:14px"><svg class="ic"><use href="#ic-file"/></svg> Exporter la liste (PDF)</button>
       <div id="shoppingList"></div>
     </div>
@@ -813,7 +813,7 @@
         <h2><svg class="ic"><use href="#ic-heart"/></svg> Mes recettes favorites</h2>
         <button class="modal-close" id="favorisClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Vos favoris sont reproposes en priorite dans les prochains plans.</p>
+      <p class="panel-sub">Tes favoris sont reproposés en priorité dans les prochains plans.</p>
       <div id="favorisList"></div>
     </div>
   </div>
@@ -825,7 +825,7 @@
         <h2><svg class="ic"><use href="#ic-user"/></svg> Ma fiche</h2>
         <button class="modal-close" id="ficheClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Recapitulatif de votre profil, vos complements et vos habitudes.</p>
+      <p class="panel-sub">Récapitulatif de ton profil, tes compléments et tes habitudes.</p>
       <div id="ficheBody"></div>
     </div>
   </div>
@@ -837,9 +837,9 @@
         <h2><svg class="ic"><use href="#ic-check-circle"/></svg> Mon suivi alimentaire</h2>
         <button class="modal-close" id="suiviClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Votre adherence au plan, repas par repas.</p>
+      <p class="panel-sub">Ton adhérence au plan, repas par repas.</p>
       <button type="button" id="btnHelpFromSuivi" class="btn btn-outline" style="margin-bottom:10px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide cette semaine</button>
-      <button type="button" id="btnScanFromSuivi" class="btn btn-outline" style="margin-bottom:10px"><svg class="ic"><use href="#ic-scan"/></svg> J'ai mange autre chose — scanner</button>
+      <button type="button" id="btnScanFromSuivi" class="btn btn-outline" style="margin-bottom:10px"><svg class="ic"><use href="#ic-scan"/></svg> J'ai mangé autre chose — scanner</button>
       <button type="button" id="btnPlateFromSuivi" class="btn btn-outline is-soon" style="margin-bottom:14px"><svg class="ic"><use href="#ic-camera"/></svg> Analyser mon assiette en photo<span class="soon-badge">Bientôt</span></button>
       <div id="suiviBody"></div>
     </div>
@@ -855,16 +855,16 @@
       <div id="helpForm">
         <p class="panel-sub">Sur quoi as-tu besoin d'aide cette semaine ? Choisis ce qui te parle — ton coach s'en servira pour t'accompagner, sans jugement.</p>
         <div id="helpOptions" class="help-options"></div>
-        <label class="field" style="margin-top:6px"><span>Explique rapidement ta difficulte (optionnel)</span>
-          <textarea id="helpMessage" rows="4" placeholder="Ex : le soir apres le travail je n'ai plus le courage de cuisiner..."></textarea>
+        <label class="field" style="margin-top:6px"><span>Explique rapidement ta difficulté (optionnel)</span>
+          <textarea id="helpMessage" rows="4" placeholder="Ex : le soir après le travail je n'ai plus le courage de cuisiner..."></textarea>
         </label>
-        <p class="help-disclaimer">Cet espace ne remplace pas un avis medical ou nutritionnel specialise. Il sert a ce que ton coach repere tes difficultes et t'accompagne ou te reoriente si besoin.</p>
+        <p class="help-disclaimer">Cet espace ne remplace pas un avis médical ou nutritionnel spécialisé. Il sert à ce que ton coach repère tes difficultés et t'accompagne ou te réoriente si besoin.</p>
         <button type="button" id="helpSubmit" class="btn btn-primary btn-lg" style="width:100%"><svg class="ic"><use href="#ic-heart-hand"/></svg> Envoyer ma demande</button>
       </div>
       <div id="helpDone" class="help-done hidden">
         <div class="help-done-ic"><svg class="ic"><use href="#ic-check-circle"/></svg></div>
-        <h3>Merci, ta demande a bien ete prise en compte.</h3>
-        <p>Ton coach pourra t'aider a ajuster ton alimentation cette semaine. Tu n'es pas seul(e) — on avance ensemble.</p>
+        <h3>Merci, ta demande a bien été prise en compte.</h3>
+        <p>Ton coach pourra t'aider à ajuster ton alimentation cette semaine. Tu n'es pas seul(e) — on avance ensemble.</p>
         <button type="button" id="helpDoneClose" class="btn btn-outline">Fermer</button>
       </div>
     </div>
@@ -877,7 +877,7 @@
         <h2><svg class="ic"><use href="#ic-inbox"/></svg> Demandes d'aide alimentaire</h2>
         <button class="modal-close" id="helpAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Les difficultes signalees par tes clients. Reprends contact pour les accompagner.</p>
+      <p class="panel-sub">Les difficultés signalées par tes clients. Reprends contact pour les accompagner.</p>
       <div id="helpAdminBody"></div>
     </div>
   </div>
@@ -1029,7 +1029,7 @@
         <h2><svg class="ic"><use href="#ic-barcode"/></svg> Scans produits</h2>
         <button class="modal-close" id="scanAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Ce que scannent tes clients : demandes d'avis, produits frequents, produits a surveiller.</p>
+      <p class="panel-sub">Ce que scannent tes clients : demandes d'avis, produits fréquents, produits à surveiller.</p>
       <div id="scanAdminBody"></div>
     </div>
   </div>
@@ -1041,7 +1041,7 @@
         <h2><svg class="ic"><use href="#ic-camera"/></svg> Analyses d'assiettes</h2>
         <button class="modal-close" id="plateAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Les photos de repas analysees par tes clients : estimation, coherence, demandes d'avis.</p>
+      <p class="panel-sub">Les photos de repas analysées par tes clients : estimation, cohérence, demandes d'avis.</p>
       <div id="plateAdminBody"></div>
     </div>
   </div>
@@ -1053,7 +1053,7 @@
         <h2><svg class="ic"><use href="#ic-calendar-check"/></svg> Suivi de mon plan</h2>
         <button class="modal-close" id="suiviPlanClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Ton plan reste la reference. Dis-nous simplement comment s'est passe chaque repas — l'objectif est la regularite, pas la perfection.</p>
+      <p class="panel-sub">Ton plan reste la référence. Dis-nous simplement comment s'est passé chaque repas — l'objectif est la régularité, pas la perfection.</p>
       <div id="suiviPlanBody"></div>
     </div>
   </div>
@@ -1062,10 +1062,10 @@
   <div id="peseePanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-scale"/></svg> Pesee de la semaine</h2>
+        <h2><svg class="ic"><use href="#ic-scale"/></svg> Pesée de la semaine</h2>
         <button class="modal-close" id="peseeClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Enregistre ton poids chaque semaine : ton plan s'ajuste automatiquement selon ta progression reelle.</p>
+      <p class="panel-sub">Enregistre ton poids chaque semaine : ton plan s'ajuste automatiquement selon ta progression réelle.</p>
       <div id="peseeBody"></div>
     </div>
   </div>
@@ -1074,10 +1074,10 @@
   <div id="adhAdminPanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-users"/></svg> Adherence clients</h2>
+        <h2><svg class="ic"><use href="#ic-users"/></svg> Adhérence clients</h2>
         <button class="modal-close" id="adhAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Repere les clients qui decrochent (7 derniers jours), sans analyser chaque repas.</p>
+      <p class="panel-sub">Repère les clients qui décrochent (7 derniers jours), sans analyser chaque repas.</p>
       <div id="adhAdminBody"></div>
     </div>
   </div>
@@ -1097,10 +1097,10 @@
   <div id="demoAdminPanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-eye"/></svg> Gestion du mode demo client</h2>
+        <h2><svg class="ic"><use href="#ic-eye"/></svg> Gestion du mode démo client</h2>
         <button class="modal-close" id="demoAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Donne ce code a tes coachs pour qu'ils testent l'experience client. Les donnees de demo sont fictives et isolees des vrais clients.</p>
+      <p class="panel-sub">Donne ce code à tes coachs pour qu'ils testent l'expérience client. Les données de démo sont fictives et isolées des vrais clients.</p>
       <div id="demoAdminBody"></div>
     </div>
   </div>
@@ -1112,7 +1112,7 @@
         <h2><svg class="ic"><use href="#ic-chart"/></svg> Analyse de mes habitudes</h2>
         <button class="modal-close" id="analyseClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Vos points forts et vos pistes d'amelioration, sans jugement.</p>
+      <p class="panel-sub">Tes points forts et tes pistes d'amélioration, sans jugement.</p>
       <div id="analyseBody"></div>
     </div>
   </div>
@@ -1124,57 +1124,57 @@
         <h2><svg class="ic"><use href="#ic-sliders"/></svg> Affiner mon plan</h2>
         <button class="modal-close" id="avanceClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Plus vous etes precis, plus le plan colle a votre quotidien. Tout est optionnel — repondez seulement a ce qui vous parle.</p>
+      <p class="panel-sub">Plus tu es précis, plus le plan colle à ton quotidien. Tout est optionnel — réponds seulement à ce qui te parle.</p>
       <form id="avanceForm" autocomplete="off">
-        <label class="field"><span>Quand avez-vous le plus faim ?</span>
+        <label class="field"><span>Quand as-tu le plus faim ?</span>
           <select name="faim">
-            <option value="equilibre">Equilibre dans la journee</option>
+            <option value="equilibre">Équilibré dans la journée</option>
             <option value="matin">Surtout le matin</option>
             <option value="midi">Surtout le midi</option>
             <option value="soir">Surtout le soir</option>
           </select></label>
-        <label class="field"><span>Avez-vous faim le matin ?</span>
+        <label class="field"><span>As-tu faim le matin ?</span>
           <select name="appetitMatin">
-            <option value="oui">Oui, appetit normal</option>
-            <option value="non">Non, peu d'appetit le matin</option>
+            <option value="oui">Oui, appétit normal</option>
+            <option value="non">Non, peu d'appétit le matin</option>
           </select></label>
-        <label class="field"><span>Grignotez-vous dans la journee ?</span>
+        <label class="field"><span>Grignotes-tu dans la journée ?</span>
           <select name="grignotage">
             <option value="non">Non / rarement</option>
-            <option value="aprem">Oui, surtout en fin d'apres-midi (apres le travail)</option>
+            <option value="aprem">Oui, surtout en fin d'après-midi (après le travail)</option>
             <option value="soir">Oui, surtout le soir</option>
           </select></label>
-        <label class="field"><span>Avez-vous des envies de sucre ?</span>
+        <label class="field"><span>As-tu des envies de sucre ?</span>
           <select name="sucre">
             <option value="non">Non</option>
             <option value="soir">Surtout le soir</option>
-            <option value="aprem">Surtout l'apres-midi</option>
+            <option value="aprem">Surtout l'après-midi</option>
           </select></label>
-        <label class="field"><span>Le midi, avez-vous le temps de cuisiner ?</span>
+        <label class="field"><span>Le midi, as-tu le temps de cuisiner ?</span>
           <select name="midi">
             <option value="oui">Oui</option>
             <option value="rapide">Peu de temps</option>
-            <option value="exterieur">Je mange souvent a l'exterieur</option>
+            <option value="exterieur">Je mange souvent à l'extérieur</option>
           </select></label>
-        <label class="field"><span>Le soir, avez-vous l'energie de cuisiner ?</span>
+        <label class="field"><span>Le soir, as-tu l'énergie de cuisiner ?</span>
           <select name="soirCuisine">
             <option value="oui">Oui</option>
-            <option value="fatigue">Non, fatigue(e) : je veux des repas simples</option>
+            <option value="fatigue">Non, fatigué(e) : je veux des repas simples</option>
           </select></label>
-        <label class="field"><span>Faites-vous du sport ?</span>
+        <label class="field"><span>Fais-tu du sport ?</span>
           <select name="sport">
             <option value="non">Non</option>
             <option value="matin">Oui, le matin</option>
             <option value="midi">Oui, le midi</option>
             <option value="soir">Oui, le soir</option>
           </select></label>
-        <span class="field-title">Ressenti general (plusieurs choix possibles)</span>
+        <span class="field-title">Ressenti général (plusieurs choix possibles)</span>
         <div class="chip-set" data-multifield="etat">
           <button type="button" class="chip" data-value="sommeil">Sommeil difficile</button>
           <button type="button" class="chip" data-value="stress">Stress</button>
           <button type="button" class="chip" data-value="fatigue">Fatigue</button>
         </div>
-        <button type="submit" class="btn btn-primary" style="width:100%">Recalculer mon plan personnalise</button>
+        <button type="submit" class="btn btn-primary" style="width:100%">Recalculer mon plan personnalisé</button>
       </form>
       <div id="ajustementsBody"></div>
     </div>
@@ -1184,10 +1184,10 @@
   <div id="complementsPanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-pill"/></svg> Complements alimentaires</h2>
+        <h2><svg class="ic"><use href="#ic-pill"/></svg> Compléments alimentaires</h2>
         <button class="modal-close" id="complementsClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Une aide secondaire, jamais la base du resultat. Informations generales, non medicales.</p>
+      <p class="panel-sub">Une aide secondaire, jamais la base du résultat. Informations générales, non médicales.</p>
       <div id="complementsBody"></div>
     </div>
   </div>
@@ -1196,7 +1196,7 @@
   <div id="loader" class="loader hidden">
     <div class="loader-card">
       <div class="spinner"></div>
-      <p id="loaderText">On prepare votre plan…</p>
+      <p id="loaderText">On prépare ton plan…</p>
     </div>
   </div>
 
@@ -1206,27 +1206,27 @@
       <div class="pl-head">
         <span class="pl-mark"><svg class="ic"><use href="#ic-leaf"/></svg></span>
         <div>
-          <div class="pl-title">On personnalise votre plan</div>
-          <div class="pl-sub">On adapte chaque repas a vous, un instant…</div>
+          <div class="pl-title">On personnalise ton plan</div>
+          <div class="pl-sub">On adapte chaque repas à toi, un instant…</div>
         </div>
       </div>
       <ul class="pl-steps">
-        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-target"/></svg></span><span class="pl-label">Analyse de votre objectif</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
-        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-heart"/></svg></span><span class="pl-label">Prise en compte de vos gouts</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
-        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-shield"/></svg></span><span class="pl-label">Verification de vos contraintes</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
-        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-scale"/></svg></span><span class="pl-label">Calcul de vos besoins</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
-        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-bowl"/></svg></span><span class="pl-label">Equilibrage de vos repas</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
-        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-cart"/></svg></span><span class="pl-label">Creation de la liste de courses</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-target"/></svg></span><span class="pl-label">Analyse de ton objectif</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-heart"/></svg></span><span class="pl-label">Prise en compte de tes goûts</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-shield"/></svg></span><span class="pl-label">Vérification de tes contraintes</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-scale"/></svg></span><span class="pl-label">Calcul de tes besoins</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-bowl"/></svg></span><span class="pl-label">Équilibrage de tes repas</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-cart"/></svg></span><span class="pl-label">Création de la liste de courses</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
       </ul>
       <div class="pl-bar"><i></i></div>
     </div>
   </div>
 
   <footer class="footer">
-    <p>My Coach Nutrition · Estimations a titre indicatif, ne remplace pas un avis medical.</p>
+    <p>My Coach Nutrition · Estimations à titre indicatif, ne remplace pas un avis médical.</p>
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=43"></script>
+  <script src="app.js?v=44"></script>
 </body>
 </html>

@@ -260,7 +260,7 @@ function showScreen(id) {
 }
 
 function showLoader(text) {
-  $('#loaderText').textContent = text || 'On prepare votre plan…';
+  $('#loaderText').textContent = text || 'On prépare ton plan…';
   $('#loader').classList.remove('hidden');
 }
 function hideLoader() { $('#loader').classList.add('hidden'); }
@@ -368,7 +368,7 @@ function goToStep(n) {
 function validateStep() {
   if (state.step === 1) {
     const objectif = $('.choice-grid[data-field="objectif"]').dataset.selected;
-    if (!objectif) { alert('Choisissez un objectif pour continuer.'); return false; }
+    if (!objectif) { alert('Choisis un objectif pour continuer.'); return false; }
   }
   return true;
 }
@@ -530,7 +530,7 @@ async function fetchMeal(creneau, kcalCible, exclureId) {
 // ---------- Rendu : besoins ----------
 function renderNeeds() {
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie', challenge: 'Challenge 6/6' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
   const pk = b.macros.proteines * 4, gk = b.macros.glucides * 4, lk = b.macros.lipides * 9;
   const tot = pk + gk + lk || 1;
   const bar = (v) => `<div class="macbar"><i style="width:${Math.round((v / tot) * 100)}%"></i></div>`;
@@ -542,7 +542,7 @@ function renderNeeds() {
     ${prenom ? `<p class="needs-kicker">Le programme de ${escapeHtml(prenom)}</p>` : ''}
     <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2>
       <button type="button" class="needs-agenda" title="Ajouter mes menus à mon agenda" aria-label="Ajouter à mon agenda">${icSvg('calendar')}<span>Agenda</span></button></div>
-    <p class="needs-sub">${prenom ? escapeHtml(prenom) + ', ton objectif, résumé en chiffres.' : 'Votre objectif, résumé en chiffres.'}</p>
+    <p class="needs-sub">${prenom ? escapeHtml(prenom) + ', ton objectif, résumé en chiffres.' : 'Ton objectif, résumé en chiffres.'}</p>
     <div class="needs-stats">
       ${kcalBlock}
       <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div>${bar(pk)}</div>
@@ -597,7 +597,7 @@ function renderPesee() {
 
 async function savePesee() {
   const poids = Number($('#peseePoids').value);
-  if (!poids || poids < 35 || poids > 250) { alert('Entrez un poids valide (en kg).'); return; }
+  if (!poids || poids < 35 || poids > 250) { alert('Entre un poids valide (en kg).'); return; }
   const muscle = Number($('#peseeMuscle').value) || undefined;
   const fatigue = $('#peseeFatigue').checked;
   state.pesees = state.pesees || [];
@@ -711,7 +711,7 @@ function renderPlan() {
     const title = document.createElement('div');
     title.className = 'day-title';
     const nowTag = di === todayIdx ? '<span class="day-now">Jour en cours</span>' : '';
-    title.innerHTML = `${jour.jour}${nowTag}${kcalTag}<button class="day-regen" data-day="${di}">${icSvg('refresh')} Toute la journee</button>`;
+    title.innerHTML = `${jour.jour}${nowTag}${kcalTag}<button class="day-regen" data-day="${di}">${icSvg('refresh')} Toute la journée</button>`;
     card.appendChild(title);
     const row = document.createElement('div');
     row.className = 'meals-row meals-n' + jour.repas.length; // colonnes nettes selon le nombre de repas
@@ -983,16 +983,16 @@ function renderMealCard(repas, di, mi) {
       </div>
       <div class="meal-body">
         <div class="ext-suggestions">
-          <div>${icSvg('check')} Restaurant : une proteine (poulet/poisson) + legumes + un feculent.</div>
-          <div>${icSvg('check')} Boulangerie : sandwich complet poulet-crudites + un fruit.</div>
-          <div>${icSvg('check')} A emporter : salade composee ou wrap, eau plutot que soda.</div>
+          <div>${icSvg('check')} Restaurant : une protéine (poulet/poisson) + légumes + un féculent.</div>
+          <div>${icSvg('check')} Boulangerie : sandwich complet poulet-crudités + un fruit.</div>
+          <div>${icSvg('check')} À emporter : salade composée ou wrap, eau plutôt que soda.</div>
         </div>
       </div>`;
     return el;
   }
   const r = repas.recette;
   if (!r) {
-    el.innerHTML = `<div class="meal-body"><span class="meal-empty">${escapeHtml(repas.label)} — aucune recette compatible. Assouplissez un filtre.</span></div>`;
+    el.innerHTML = `<div class="meal-body"><span class="meal-empty">${escapeHtml(repas.label)} — aucune recette compatible. Assouplis un filtre.</span></div>`;
     return el;
   }
   const isFav = state.favoris.some((f) => f.id === r.id);
@@ -1109,8 +1109,8 @@ const DAY_MESSAGES = [
   'Bravo, journée validée !',
   'Belle régularité aujourd\'hui.',
   'Objectif du jour atteint.',
-  'Super, vous avancez dans la bonne direction.',
-  'Journée complète validée, continuez comme ça.',
+  'Super, tu avances dans la bonne direction.',
+  'Journée complète validée, continue comme ça.',
 ];
 
 // Overlay premium et sobre : coche animee + halo + confettis discrets.
@@ -1122,8 +1122,8 @@ function celebrateDay(di, info) {
   const total = info.total || 7;
   const prog = `${done} jour${done > 1 ? 's' : ''} sur ${total} validé${done > 1 ? 's' : ''} cette semaine`;
   const sub = info.lastOfWeek
-    ? 'Semaine complète — un instant, on vous prépare le résumé…'
-    : 'La régularité se construit jour après jour. Continuez !';
+    ? 'Semaine complète — un instant, on te prépare le résumé…'
+    : 'La régularité se construit jour après jour. Continue !';
   const confetti = reduceMotion ? '' :
     Array.from({ length: 16 }, (_, i) => `<i class="dc-cf dc-cf-${i % 4}" style="left:${(i * 6 + 3) % 100}%;animation-delay:${(i % 6) * 70}ms"></i>`).join('');
   const ov = document.createElement('div');
@@ -1159,8 +1159,8 @@ function showWeekRecap(info) {
   const lignes = [
     `${total} jours sur ${total} validés`,
     'Excellente régularité cette semaine',
-    'Vous avez bien suivi votre plan sur l\'ensemble de la semaine',
-    'Votre constance est votre meilleur levier de progression',
+    'Tu as bien suivi ton plan sur l\'ensemble de la semaine',
+    'Ta constance est ton meilleur levier de progression',
   ];
   const items = lignes.map((l) => `<li><span class="wr-ic">${icSvg('check')}</span><span>${escapeHtml(l)}</span></li>`).join('');
   const ov = document.createElement('div');
@@ -1168,10 +1168,10 @@ function showWeekRecap(info) {
   ov.innerHTML = `
     <div class="wr-card" role="dialog" aria-label="Récapitulatif de la semaine">
       <div class="wr-badge">${icSvg('star')}</div>
-      <h3 class="wr-title">Votre semaine est validée</h3>
-      <p class="wr-sub">Voici un résumé simple de votre régularité cette semaine.</p>
+      <h3 class="wr-title">Ta semaine est validée</h3>
+      <p class="wr-sub">Voici un résumé simple de ta régularité cette semaine.</p>
       <ul class="wr-list">${items}</ul>
-      <div class="wr-tip"><span class="wr-ic">${icSvg('flame')}</span><span>Continuez sur ce rythme et gardez des repas simples à préparer.</span></div>
+      <div class="wr-tip"><span class="wr-ic">${icSvg('flame')}</span><span>Continue sur ce rythme et garde des repas simples à préparer.</span></div>
       <button class="wr-btn" type="button">Continuer</button>
     </div>`;
   document.body.appendChild(ov);
@@ -1188,9 +1188,9 @@ function showWeekRecap(info) {
 function openAutreForm(di, mi) {
   const key = trackKey(di, mi);
   const cur = (state.suivi[key] && state.suivi[key].autre) || {};
-  const repas = window.prompt('Qu\'avez-vous mange a la place ?', cur.repas || '');
+  const repas = window.prompt('Qu\'as-tu mangé à la place ?', cur.repas || '');
   if (repas === null) return; // annule
-  const quantite = window.prompt('Quantite approximative ? (optionnel)', cur.quantite || '') || '';
+  const quantite = window.prompt('Quantité approximative ? (optionnel)', cur.quantite || '') || '';
   const commentaire = window.prompt('Un commentaire ? (optionnel)', cur.commentaire || '') || '';
   state.suivi[key] = { statut: 'autre', autre: { repas: repas.trim(), quantite: quantite.trim(), commentaire: commentaire.trim() } };
   saveLocal();
@@ -1203,11 +1203,11 @@ function clearTrack(di, mi) { delete state.suivi[trackKey(di, mi)]; }
 // ---------- Remplacer un repas ----------
 async function swapMeal(di, mi) {
   const repas = state.plan.jours[di].repas[mi];
-  showLoader('On vous trouve une autre idee…');
+  showLoader('On te trouve une autre idée…');
   try {
     const nouvelle = await fetchMeal(repas.creneau, repas.kcalCible, repas.recette ? repas.recette.id : null);
     if (nouvelle) { repas.recette = nouvelle; clearTrack(di, mi); state._swappedKey = trackKey(di, mi); renderPlan(); saveLocal(); }
-    else alert('Pas d\'autre recette compatible disponible pour ce creneau.');
+    else alert('Pas d\'autre recette compatible disponible pour ce créneau.');
   } catch (e) { alert('Impossible de remplacer ce repas pour le moment.'); }
   finally { hideLoader(); }
 }
@@ -1215,7 +1215,7 @@ async function swapMeal(di, mi) {
 // ---------- Regenerer TOUTE une journee ----------
 async function regenerateDay(di) {
   const jour = state.plan.jours[di];
-  showLoader(`On regenere ${jour.jour}…`);
+  showLoader(`On régénère ${jour.jour}…`);
   try {
     for (let mi = 0; mi < jour.repas.length; mi++) {
       const repas = jour.repas[mi];
@@ -1224,7 +1224,7 @@ async function regenerateDay(di) {
     }
     renderPlan();
     saveLocal();
-  } catch (e) { alert('Impossible de regenerer la journee pour le moment.'); }
+  } catch (e) { alert('Impossible de régénérer la journée pour le moment.'); }
   finally { hideLoader(); }
 }
 
@@ -1261,7 +1261,7 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
   }).join('');
 
   const portionsNote = state.portions > 1
-    ? `<p class="panel-sub">Quantites pour ${state.portions} personnes (macros affichees par portion).</p>` : '';
+    ? `<p class="panel-sub">Quantités pour ${state.portions} personnes (macros affichées par portion).</p>` : '';
 
   const photoCat = r.type === 'petit-dejeuner' ? 'petit-dejeuner' : (r.type === 'collation' ? 'collation' : 'plat');
   const photoGlyph = photoCat === 'petit-dejeuner' ? 'sun' : (photoCat === 'collation' ? 'apple' : 'bowl');
@@ -1346,7 +1346,7 @@ function applyDetailToModal(detail, r, di, mi, recompute) {
     const mc = $('#recipeMacros');
     if (mc) mc.innerHTML = `
       <div class="m"><div class="n">${r.kcal}</div><div class="l">kcal</div></div>
-      <div class="m"><div class="n">${r.proteines} g</div><div class="l">Proteines</div></div>
+      <div class="m"><div class="n">${r.proteines} g</div><div class="l">Protéines</div></div>
       <div class="m"><div class="n">${r.glucides} g</div><div class="l">Glucides</div></div>
       <div class="m"><div class="n">${r.lipides} g</div><div class="l">Lipides</div></div>`;
     renderPlan();
@@ -1539,7 +1539,7 @@ function closeFavoris() { $('#favorisPanel').classList.add('hidden'); }
 function renderFavoris() {
   const cont = $('#favorisList');
   if (!state.favoris.length) {
-    cont.innerHTML = '<p class="panel-empty">Aucun favori pour le moment. Ouvrez une recette et ajoutez-la a vos favoris.</p>';
+    cont.innerHTML = '<p class="panel-empty">Aucun favori pour le moment. Ouvre une recette et ajoute-la à tes favoris.</p>';
     return;
   }
   cont.innerHTML = '';
@@ -1590,7 +1590,7 @@ function swapIngredient(di, mi, idx) {
     const na = normTxt(a);
     return na !== courant && !interdits.some((m) => m && na.includes(m));
   });
-  if (!choix) { alert('Aucune alternative compatible avec vos contraintes pour cet ingredient.'); return; }
+  if (!choix) { alert('Aucune alternative compatible avec tes contraintes pour cet ingrédient.'); return; }
   const ancien = ing.nom;
   ing.nom = choix; // on conserve quantite/unite ; le rayon reste indicatif
   // Recalcul des macros par DIFFERENCE (old -> new) a partir de la table NUTRI.
@@ -1695,7 +1695,7 @@ function personnesControlHTML() {
       <div class="pers-row"><span class="pers-lbl">Adultes</span><div class="pers-pills">${pills(a, [1, 2, 3, 4], 'adultes')}</div></div>
       <div class="pers-row"><span class="pers-lbl">Enfants</span><div class="pers-pills">${pills(e, [0, 1, 2, 3], 'enfants')}</div></div>
       <div class="pers-resume">Liste calculée pour : <strong>${escapeHtml(personnesResume())}</strong><span class="pers-tot">Total portions : ${fmtQty(totalPortions())}</span></div>
-      <p class="pers-note">Ajuste seulement les quantités à acheter — votre plan, vos calories et vos macros restent inchangés.</p>
+      <p class="pers-note">Ajuste seulement les quantités à acheter — ton plan, tes calories et tes macros restent inchangés.</p>
     </div>`;
 }
 
@@ -1766,7 +1766,7 @@ const PRINT_CSS = `
 
 function printDocument(title, innerHTML) {
   const w = window.open('', '_blank');
-  if (!w) { alert('Autorisez les fenetres pop-up pour exporter en PDF.'); return; }
+  if (!w) { alert('Autorise les fenêtres pop-up pour exporter en PDF.'); return; }
   const t = isDemo() ? 'DEMO — ' + title : title;
   const demoBanner = isDemo()
     ? '<div style="background:#0B3D91;color:#fff;text-align:center;font-weight:700;padding:8px;border-radius:8px;margin-bottom:16px;font-family:Arial,sans-serif;">MODE DEMONSTRATION — document fictif</div>'
@@ -1780,9 +1780,9 @@ function printDocument(title, innerHTML) {
 
 function exportPlanPdf() {
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie', challenge: 'Challenge 6/6' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
   let html = `<h1>Mon plan de repas — My Coach Nutrition</h1>
-    <p class="sub">Objectif : ${objLabels[state.profil.objectif] || ''} · ~${b.kcalCible} kcal/jour · ${state.portions} personne(s) · Estimations a titre indicatif.</p>`;
+    <p class="sub">Objectif : ${objLabels[state.profil.objectif] || ''} · ~${b.kcalCible} kcal/jour · ${state.portions} personne(s) · Estimations à titre indicatif.</p>`;
   state.plan.jours.forEach((jour) => {
     html += `<div class="day"><h2>${jour.jour}</h2>`;
     jour.repas.forEach((repas) => {
@@ -1812,7 +1812,7 @@ function exportShoppingPdf() {
 }
 
 // ---------- Ma fiche (E1 + E6 : recap perso) ----------
-const COMPLEMENT_LABELS = { non: 'Aucun', aucun: 'Aucun', proteines: 'Protéine (whey)', proteines_vegetales: 'Protéine végétale', creatine: 'Créatine', vitamines: 'Multivitamines', multivitamines: 'Multivitamines', omega3: 'Oméga 3', magnesium: 'Magnésium', fibres: 'Fibres', electrolytes: 'Électrolytes', vitamineD: 'Vitamine D3', ashwagandha: 'Ashwagandha', bruleur: 'Bruleur de graisse', collagene: 'Collagène', preworkout: 'Pre-workout', autre: 'Autre' };
+const COMPLEMENT_LABELS = { non: 'Aucun', aucun: 'Aucun', proteines: 'Protéine (whey)', proteines_vegetales: 'Protéine végétale', creatine: 'Créatine', vitamines: 'Multivitamines', multivitamines: 'Multivitamines', omega3: 'Oméga 3', magnesium: 'Magnésium', fibres: 'Fibres', electrolytes: 'Électrolytes', vitamineD: 'Vitamine D3', ashwagandha: 'Ashwagandha', bruleur: 'Brûleur de graisse', collagene: 'Collagène', preworkout: 'Pré-workout', autre: 'Autre' };
 
 // Lien boutique (Biloba Nutrition) par complement recommande : un clic -> la fiche produit.
 // On NE met PAS de lien pour le bruleur (deconseille) ni les fibres (pas de produit dedie).
@@ -1898,7 +1898,7 @@ function closeFiche() { $('#fichePanel').classList.add('hidden'); }
 
 function renderFiche() {
   const p = state.profil, pr = state.preferences, b = state.plan ? state.plan.besoins : null;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'energie', challenge: 'Challenge 6/6' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
   const comps = (p.complements || []).filter((c) => c !== 'aucun' && c !== 'non').map((c) => COMPLEMENT_LABELS[c] || c);
   const compStr = comps.length ? comps.filter((c) => c !== 'Autre').join(', ') + (p.complementsDetail ? ' — ' + p.complementsDetail : '') : 'Aucun';
   const hab = pr.habitudes || {};
@@ -1908,34 +1908,34 @@ function renderFiche() {
     <div class="fiche-block">
       <h3>Profil</h3>
       <div class="fiche-row"><span>Objectif</span><b>${objLabels[p.objectif] || '—'}</b></div>
-      <div class="fiche-row"><span>Sexe / Age</span><b>${p.sexe || '—'} · ${p.age || '—'} ans</b></div>
+      <div class="fiche-row"><span>Sexe / Âge</span><b>${p.sexe || '—'} · ${p.age || '—'} ans</b></div>
       <div class="fiche-row"><span>Taille / Poids</span><b>${p.taille_cm || '—'} cm · ${p.poids_kg || '—'} kg</b></div>
-      ${b && !state.masquerCalories ? `<div class="fiche-row"><span>Besoin estime</span><b>~${b.kcalCible} kcal/jour</b></div>` : ''}
+      ${b && !state.masquerCalories ? `<div class="fiche-row"><span>Besoin estimé</span><b>~${b.kcalCible} kcal/jour</b></div>` : ''}
     </div>
     <div class="fiche-block">
-      <h3>Complements alimentaires</h3>
+      <h3>Compléments alimentaires</h3>
       <div class="fiche-tags">${escapeHtml(compStr)}</div>
     </div>
     <div class="fiche-block">
-      <h3>Gouts & contraintes</h3>
-      ${pr.cuisines && pr.cuisines.length ? `<div class="fiche-row"><span>Cuisines aimees</span><b>${pr.cuisines.join(', ')}</b></div>` : ''}
+      <h3>Goûts & contraintes</h3>
+      ${pr.cuisines && pr.cuisines.length ? `<div class="fiche-row"><span>Cuisines aimées</span><b>${pr.cuisines.join(', ')}</b></div>` : ''}
       ${pr.aimes && pr.aimes.length ? `<div class="fiche-row"><span>Aime</span><b>${escapeHtml(pr.aimes.join(', '))}</b></div>` : ''}
       ${pr.deteste && pr.deteste.length ? `<div class="fiche-row"><span>N'aime pas</span><b>${escapeHtml(pr.deteste.join(', '))}</b></div>` : ''}
       ${pr.allergies && pr.allergies.length ? `<div class="fiche-row"><span>Allergies</span><b style="color:var(--danger)">${escapeHtml(pr.allergies.join(', '))}</b></div>` : ''}
-      ${pr.regime && pr.regime.length ? `<div class="fiche-row"><span>Regime</span><b>${pr.regime.join(', ')}</b></div>` : ''}
+      ${pr.regime && pr.regime.length ? `<div class="fiche-row"><span>Régime</span><b>${pr.regime.join(', ')}</b></div>` : ''}
     </div>
     <div class="fiche-block">
       <h3>Habitudes actuelles</h3>
-      ${habRow('Petit-dejeuner', hab.petitDej)}
-      ${habRow('Dejeuner', hab.dejeuner)}
-      ${habRow('Diner', hab.diner)}
+      ${habRow('Petit-déjeuner', hab.petitDej)}
+      ${habRow('Déjeuner', hab.dejeuner)}
+      ${habRow('Dîner', hab.diner)}
       ${habRow('Collations', hab.collations)}
       ${habRow('Boissons', hab.boissons)}
       ${pr.frequents && pr.frequents.length ? `<div class="fiche-row"><span>Presque tous les jours</span><b>${escapeHtml(pr.frequents.join(', '))}</b></div>` : ''}
     </div>
     <div class="fiche-block">
       <h3>Suivi</h3>
-      <div class="fiche-row"><span>Adherence</span><b>${ad.prevus ? ad.taux + ' %' : '—'}</b></div>
+      <div class="fiche-row"><span>Adhérence</span><b>${ad.prevus ? ad.taux + ' %' : '—'}</b></div>
       <div class="fiche-row"><span>Favoris</span><b>${state.favoris.length}</b></div>
     </div>`;
 }
@@ -1973,15 +1973,15 @@ function renderSuivi() {
         </svg>
         <div class="adh-num">${a.prevus ? a.taux : 0}%</div>
       </div>
-      <div class="adh-lbl">d'adherence</div>
+      <div class="adh-lbl">d'adhérence</div>
     </div>
     <div class="adh-stats">
-      <div class="adh-stat"><b>${a.prevus}</b><span>prevus</span></div>
-      <div class="adh-stat ok"><b>${a.respectes}</b><span>respectes</span></div>
-      <div class="adh-stat alt"><b>${a.modifies}</b><span>modifies</span></div>
-      <div class="adh-stat no"><b>${a.nonRespectes}</b><span>non respectes</span></div>
+      <div class="adh-stat"><b>${a.prevus}</b><span>prévus</span></div>
+      <div class="adh-stat ok"><b>${a.respectes}</b><span>respectés</span></div>
+      <div class="adh-stat alt"><b>${a.modifies}</b><span>modifiés</span></div>
+      <div class="adh-stat no"><b>${a.nonRespectes}</b><span>non respectés</span></div>
     </div>
-    <p class="panel-sub">${nonRenseignes > 0 ? nonRenseignes + ' repas pas encore renseignes. Marquez chaque repas (respecte / non / modifie) sur le plan.' : 'Tous vos repas sont renseignes, bravo !'}</p>`;
+    <p class="panel-sub">${nonRenseignes > 0 ? nonRenseignes + ' repas pas encore renseignés. Marque chaque repas (respecté / non / modifié) sur le plan.' : 'Tous tes repas sont renseignés, bravo !'}</p>`;
 }
 
 // ---------- Analyse des ecarts (E5) ----------
@@ -1992,14 +1992,14 @@ function openAnalyse() { renderAnalyse(); $('#analysePanel').classList.remove('h
 function closeAnalyse() { $('#analysePanel').classList.add('hidden'); }
 
 function renderAnalyse() {
-  if (!state.plan) { $('#analyseBody').innerHTML = '<p class="panel-empty">Generez un plan pour obtenir une analyse.</p>'; return; }
+  if (!state.plan) { $('#analyseBody').innerHTML = '<p class="panel-empty">Génère un plan pour obtenir une analyse.</p>'; return; }
   const forts = [], axes = [];
   const b = state.plan.besoins;
   const a = computeAdherence();
 
   // 1. Adherence / repas sautes
-  if (a.prevus && a.respectes / a.prevus >= 0.8) forts.push('Tres bonne regularite : vous suivez la majorite de vos repas.');
-  else if (a.nonRespectes >= 2) axes.push(`${a.nonRespectes} repas non pris : essayez de ne sauter aucun repas, meme leger.`);
+  if (a.prevus && a.respectes / a.prevus >= 0.8) forts.push('Très bonne régularité : tu suis la majorité de tes repas.');
+  else if (a.nonRespectes >= 2) axes.push(`${a.nonRespectes} repas non pris : essaie de ne sauter aucun repas, même léger.`);
 
   // 2. Proteines (moyenne du plan vs cible)
   let totProt = 0, vegMeals = 0, totMeals = 0;
@@ -2011,13 +2011,13 @@ function renderAnalyse() {
     if (VEG_KEYS.some((k) => champ.includes(k))) vegMeals++;
   }));
   const protJour = nbJours ? Math.round(totProt / nbJours) : 0;
-  if (b && protJour >= b.macros.proteines * 0.9) forts.push(`Apport proteique solide (~${protJour} g/jour).`);
-  else if (b) axes.push(`Proteines un peu justes (~${protJour} g/jour vs ~${b.macros.proteines} g vises) : ajoutez oeufs, volaille, legumineuses ou laitages.`);
+  if (b && protJour >= b.macros.proteines * 0.9) forts.push(`Apport protéique solide (~${protJour} g/jour).`);
+  else if (b) axes.push(`Protéines un peu justes (~${protJour} g/jour vs ~${b.macros.proteines} g visés) : ajoute œufs, volaille, légumineuses ou laitages.`);
 
   // 3. Legumes
   const vegRatio = totMeals ? vegMeals / totMeals : 0;
-  if (vegRatio >= 0.5) forts.push('Belle presence de legumes dans vos repas.');
-  else axes.push('Peu de legumes : visez au moins une portion de legumes a chaque repas principal.');
+  if (vegRatio >= 0.5) forts.push('Belle présence de légumes dans tes repas.');
+  else axes.push('Peu de légumes : vise au moins une portion de légumes à chaque repas principal.');
 
   // 4. Aliments ultra-transformes (habitudes declarees + ecarts "autre")
   const textes = [];
@@ -2025,22 +2025,22 @@ function renderAnalyse() {
   Object.values(state.suivi).forEach((s) => { if (s.autre && s.autre.repas) textes.push(s.autre.repas); });
   const blob = textes.join(' ').toLowerCase();
   const junkHits = JUNK_KEYS.filter((k) => blob.includes(k));
-  if (junkHits.length >= 2) axes.push('Aliments plaisir / ultra-transformes assez frequents (' + junkHits.slice(0, 3).join(', ') + ') : gardez-les, mais en quantite raisonnee.');
-  else if (textes.length) forts.push('Peu d\'aliments ultra-transformes reperes : continuez ainsi.');
+  if (junkHits.length >= 2) axes.push('Aliments plaisir / ultra-transformés assez fréquents (' + junkHits.slice(0, 3).join(', ') + ') : garde-les, mais en quantité raisonnée.');
+  else if (textes.length) forts.push('Peu d\'aliments ultra-transformés repérés : continue ainsi.');
 
-  if (!forts.length) forts.push('Vous demarrez votre suivi : chaque repas renseigne ameliore l\'analyse.');
-  if (!axes.length) axes.push('Rien a signaler pour l\'instant : continuez sur cette lancee !');
+  if (!forts.length) forts.push('Tu démarres ton suivi : chaque repas renseigné améliore l\'analyse.');
+  if (!axes.length) axes.push('Rien à signaler pour l\'instant : continue sur cette lancée !');
 
   $('#analyseBody').innerHTML = `
     <div class="ana-block ana-forts">
-      <h3>${icSvg('check-circle')} Vos points forts</h3>
+      <h3>${icSvg('check-circle')} Tes points forts</h3>
       <ul>${forts.map((t) => `<li>${escapeHtml(t)}</li>`).join('')}</ul>
     </div>
     <div class="ana-block ana-axes">
-      <h3>${icSvg('leaf')} Pistes d'amelioration</h3>
+      <h3>${icSvg('leaf')} Pistes d'amélioration</h3>
       <ul>${axes.map((t) => `<li>${escapeHtml(t)}</li>`).join('')}</ul>
     </div>
-    <p class="panel-sub">Rappel bienveillant : ce sont des reperes, pas des regles. Avancez a votre rythme.</p>`;
+    <p class="panel-sub">Rappel bienveillant : ce sont des repères, pas des règles. Avance à ton rythme.</p>`;
 }
 
 // ---------- Analyse avancee (Niveau 2) : reponses detaillees -> decisions concretes ----------
@@ -2053,37 +2053,37 @@ function calculerAjustements(av, profil) {
 
   if (av.faim === 'soir' || av.sucre === 'soir') {
     m('diner', 1.18); m('petit-dejeuner', 0.88); rass.push('diner'); bumpSnack();
-    expl.push({ t: 'Faim / envies plus fortes le soir', d: 'Diner plus rassasiant (plus de proteines et de legumes) et collation cadree dans l\'apres-midi, pour eviter le creux du soir.' });
+    expl.push({ t: 'Faim / envies plus fortes le soir', d: 'Dîner plus rassasiant (plus de protéines et de légumes) et collation cadrée dans l\'après-midi, pour éviter le creux du soir.' });
   }
   if (av.appetitMatin === 'non' || av.faim === 'midi') {
     m('petit-dejeuner', 0.8); m('dejeuner', 1.1); m('diner', 1.08);
-    expl.push({ t: 'Peu d\'appetit le matin', d: 'Petit-dejeuner plus leger et apports reportes sur le dejeuner et le diner.' });
+    expl.push({ t: 'Peu d\'appétit le matin', d: 'Petit-déjeuner plus léger et apports reportés sur le déjeuner et le dîner.' });
   }
   if (av.grignotage === 'aprem' || av.sucre === 'aprem') {
     bumpSnack();
-    expl.push({ t: 'Grignotage en fin d\'apres-midi', d: 'Une collation est prevue dans l\'apres-midi pour cadrer la faim, au lieu de laisser un vide qui pousse au grignotage.' });
+    expl.push({ t: 'Grignotage en fin d\'après-midi', d: 'Une collation est prévue dans l\'après-midi pour cadrer la faim, au lieu de laisser un vide qui pousse au grignotage.' });
   }
   if (av.midi === 'rapide') {
     tempsMax['dejeuner'] = 15;
-    expl.push({ t: 'Peu de temps le midi', d: 'Dejeuners rapides (15 min max), faciles a preparer ou a emporter.' });
+    expl.push({ t: 'Peu de temps le midi', d: 'Déjeuners rapides (15 min max), faciles à préparer ou à emporter.' });
   }
   if (av.midi === 'exterieur') {
     exterieur.dejeuner = true;
-    expl.push({ t: 'Dejeuner souvent a l\'exterieur', d: 'Le midi : des suggestions compatibles restaurant / boulangerie / repas froid, plutot qu\'une recette a cuisiner.' });
+    expl.push({ t: 'Déjeuner souvent à l\'extérieur', d: 'Le midi : des suggestions compatibles restaurant / boulangerie / repas froid, plutôt qu\'une recette à cuisiner.' });
   }
   if (av.soirCuisine === 'fatigue') {
     tempsMax['diner'] = 20;
-    expl.push({ t: 'Peu d\'energie pour cuisiner le soir', d: 'Diners simples et rapides (20 min max), faciles a preparer a l\'avance.' });
+    expl.push({ t: 'Peu d\'énergie pour cuisiner le soir', d: 'Dîners simples et rapides (20 min max), faciles à préparer à l\'avance.' });
   }
   if (av.sport === 'matin') {
     bumpSnack(); m('petit-dejeuner', 1.05);
-    expl.push({ t: 'Sport le matin', d: 'Petit-dejeuner oriente proteines + glucides pour la recuperation, et collation possible autour de la seance.' });
+    expl.push({ t: 'Sport le matin', d: 'Petit-déjeuner orienté protéines + glucides pour la récupération, et collation possible autour de la séance.' });
   }
   if (av.sucre === 'soir') {
-    expl.push({ t: 'Envie de sucre le soir', d: 'Diner plus rassasiant et possibilite d\'un dessert maitrise, pour calmer l\'envie sans exces.' });
+    expl.push({ t: 'Envie de sucre le soir', d: 'Dîner plus rassasiant et possibilité d\'un dessert maîtrisé, pour calmer l\'envie sans excès.' });
   }
   if ((av.etat || []).length) {
-    expl.push({ t: 'Sommeil / stress / fatigue', d: 'Le magnesium est mis en avant dans vos recommandations de complements ; on privilegie aussi des repas reguliers.' });
+    expl.push({ t: 'Sommeil / stress / fatigue', d: 'Le magnésium est mis en avant dans tes recommandations de compléments ; on privilégie aussi des repas réguliers.' });
   }
   return { serverAjustements: { repartitionMult: mult, tempsMaxCreneau: tempsMax, rassasiantCreneau: rass }, repasParJour, exterieur, explications: expl };
 }
@@ -2107,7 +2107,7 @@ async function appliquerAvance() {
   state.preferences.faimSoir = state.avance.faim === 'soir' || state.avance.sucre === 'soir';
   state.avance._exterieur = aj.exterieur;
 
-  showLoader('On personnalise votre plan…');
+  showLoader('On personnalise ton plan…');
   try {
     await fetchPlan(Math.floor(Math.random() * 1e6) + 1);
     postProcessExterieur();
@@ -2130,10 +2130,10 @@ function renderAjustements(explications) {
   const cont = $('#ajustementsBody');
   if (!cont) return;
   if (!explications || !explications.length) {
-    cont.innerHTML = '<div class="aj-done">Plan recalcule. Ajoutez des precisions ci-dessus pour l\'adapter encore plus finement.</div>';
+    cont.innerHTML = '<div class="aj-done">Plan recalculé. Ajoute des précisions ci-dessus pour l\'adapter encore plus finement.</div>';
     return;
   }
-  cont.innerHTML = `<div class="recipe-section-title">Ce qu'on a adapte pour vous</div>${
+  cont.innerHTML = `<div class="recipe-section-title">Ce qu'on a adapté pour toi</div>${
     explications.map((e) => `<div class="aj-item"><b>${escapeHtml(e.t)}</b><span>${escapeHtml(e.d)}</span></div>`).join('')}`;
 }
 
@@ -2150,19 +2150,19 @@ function closeAvance() { $('#avancePanel').classList.add('hidden'); }
 
 // ---------- Complements alimentaires : recommandation prudente (a regles) ----------
 const COMPLEMENT_ROLES = {
-  proteines: 'aident a couvrir vos besoins en proteines et a tenir la satiete.',
-  creatine: 'soutient la force et la performance a l\'entrainement.',
-  magnesium: 'contribue a reduire la fatigue et au fonctionnement normal des muscles et des nerfs.',
-  omega3: 'interessant si vous mangez peu de poissons gras (sardine, maquereau, saumon).',
-  vitamines: 'filet de securite si votre alimentation est parfois desequilibree.',
+  proteines: 'aident à couvrir tes besoins en protéines et à tenir la satiété.',
+  creatine: 'soutient la force et la performance à l\'entraînement.',
+  magnesium: 'contribue à réduire la fatigue et au fonctionnement normal des muscles et des nerfs.',
+  omega3: 'intéressant si tu manges peu de poissons gras (sardine, maquereau, saumon).',
+  vitamines: 'filet de sécurité si ton alimentation est parfois déséquilibrée.',
   vitamineD: 'souvent un peu basse en hiver ou avec peu d\'exposition au soleil.',
-  fibres: 'aident a la satiete et au transit.',
+  fibres: 'aident à la satiété et au transit.',
   electrolytes: 'utiles pour s\'hydrater lors d\'efforts longs ou par forte chaleur.',
-  proteines_vegetales: 'source de protéines végétales pour compléter vos apports (idéal en alimentation végétale).',
-  multivitamines: 'filet de sécurité si votre alimentation est parfois déséquilibrée.',
+  proteines_vegetales: 'source de protéines végétales pour compléter tes apports (idéal en alimentation végétale).',
+  multivitamines: 'filet de sécurité si ton alimentation est parfois déséquilibrée.',
   collagene: 'soutient la peau, les articulations et les tissus, utile en perte de poids ou avec l\'âge.',
   ashwagandha: 'plante adaptogène : peut aider à mieux gérer le stress et à favoriser un sommeil réparateur.',
-  bruleur: 'effet tres limite : ce n\'est pas un levier prioritaire.',
+  bruleur: 'effet très limité : ce n\'est pas un levier prioritaire.',
 };
 // Moment de prise suggere (general, non medical) — affiche dans "Complements du jour".
 const COMPLEMENT_MOMENT = {
@@ -2218,10 +2218,10 @@ function mangeAssezPoisson(prefs) {
 function complementExplication(cle, c) {
   const prot = c.prot;
   const obj = {
-    perte: 'perdre du poids', challenge: 'une perte accélérée tout en préservant vos muscles',
-    muscle: 'développer votre masse musculaire', energie: 'retrouver de l\'énergie au quotidien',
-    maintien: 'maintenir votre forme',
-  }[c.objectif] || 'votre objectif';
+    perte: 'perdre du poids', challenge: 'une perte accélérée tout en préservant tes muscles',
+    muscle: 'développer ta masse musculaire', energie: 'retrouver de l\'énergie au quotidien',
+    maintien: 'maintenir ta forme',
+  }[c.objectif] || 'ton objectif';
   const dietNote = c.vegan ? ' Avec une alimentation vegan, atteindre ce total demande un peu d\'organisation.'
     : (c.vegetarien ? ' Avec une alimentation végétarienne, les sources concentrées de protéines sont moins nombreuses.' : '');
   const suivi = (typeof estComplementSuivi === 'function' && estComplementSuivi(cle)) || (c.pris && c.pris.has(cle));
@@ -2229,42 +2229,42 @@ function complementExplication(cle, c) {
   switch (cle) {
     case 'proteines_vegetales':
     case 'proteines':
-      t = `Votre objectif est de ${obj}${prot ? `, avec un besoin d'environ ${prot} g de protéines par jour` : ''}. Atteindre cette quantité par l'alimentation seule peut être exigeant${c.objectif === 'muscle' || c.objectif === 'challenge' ? ', surtout les jours d\'entraînement' : ''}.${dietNote} Une protéine en poudre vous aide à compléter facilement vos apports, notamment après l'entraînement ou en collation.`;
-      if (!c.actif && c.objectif !== 'muscle') t += ' Si vos repas couvrent déjà ce total, gardez-la simplement en dépannage.';
+      t = `Ton objectif est de ${obj}${prot ? `, avec un besoin d'environ ${prot} g de protéines par jour` : ''}. Atteindre cette quantité par l'alimentation seule peut être exigeant${c.objectif === 'muscle' || c.objectif === 'challenge' ? ', surtout les jours d\'entraînement' : ''}.${dietNote} Une protéine en poudre t'aide à compléter facilement tes apports, notamment après l'entraînement ou en collation.`;
+      if (!c.actif && c.objectif !== 'muscle') t += ' Si tes repas couvrent déjà ce total, garde-la simplement en dépannage.';
       break;
     case 'creatine':
       t = c.actif
-        ? `Vous vous entraînez régulièrement avec un objectif de ${obj}. La créatine est l'un des compléments les plus étudiés : elle peut soutenir votre force, vos performances et une progression plus régulière.${c.poids ? ` Pour ${c.poids} kg, environ 3 g par jour suffisent.` : ''}`
-        : `La créatine est l'un des compléments les plus étudiés pour la force et la performance. Elle devient vraiment pertinente dès que vous vous entraînez régulièrement — à garder en tête si vous augmentez votre activité.`;
+        ? `Tu t'entraînes régulièrement avec un objectif de ${obj}. La créatine est l'un des compléments les plus étudiés : elle peut soutenir ta force, tes performances et une progression plus régulière.${c.poids ? ` Pour ${c.poids} kg, environ 3 g par jour suffisent.` : ''}`
+        : `La créatine est l'un des compléments les plus étudiés pour la force et la performance. Elle devient vraiment pertinente dès que tu t'entraînes régulièrement — à garder en tête si tu augmentes ton activité.`;
       break;
     case 'magnesium':
-      t = `Votre rythme est ${c.activiteLabel}.${c.stressFatigue ? ' Vous avez signalé du stress, de la fatigue ou un sommeil difficile :' : ' Si vous ressentez fatigue, crampes ou récupération difficile,'} un apport en magnésium peut soutenir le fonctionnement musculaire et nerveux et favoriser une meilleure récupération.`;
+      t = `Ton rythme est ${c.activiteLabel}.${c.stressFatigue ? ' Tu as signalé du stress, de la fatigue ou un sommeil difficile :' : ' Si tu ressens fatigue, crampes ou récupération difficile,'} un apport en magnésium peut soutenir le fonctionnement musculaire et nerveux et favoriser une meilleure récupération.`;
       break;
     case 'omega3':
-      t = `${c.poissonOk ? 'Pour compléter vos apports en bons acides gras,' : 'Vous semblez manger peu de poisson gras :'} les oméga-3 soutiennent l'équilibre cardiovasculaire et la récupération. 1 à 2 portions de poisson gras par semaine restent l'idéal ; un complément prend le relais sinon.`;
+      t = `${c.poissonOk ? 'Pour compléter tes apports en bons acides gras,' : 'Tu sembles manger peu de poisson gras :'} les oméga-3 soutiennent l'équilibre cardiovasculaire et la récupération. 1 à 2 portions de poisson gras par semaine restent l'idéal ; un complément prend le relais sinon.`;
       break;
     case 'vitamineD':
-      t = `Selon la saison et votre exposition au soleil, la vitamine D est souvent un peu basse en hiver. Un apport peut soutenir vos os, vos muscles et votre tonus${c.objectif === 'energie' ? ', utile pour votre objectif d\'énergie' : ''}.`;
+      t = `Selon la saison et ton exposition au soleil, la vitamine D est souvent un peu basse en hiver. Un apport peut soutenir tes os, tes muscles et ton tonus${c.objectif === 'energie' ? ', utile pour ton objectif d\'énergie' : ''}.`;
       break;
     case 'fibres':
-      t = `${c.faimGrignote ? 'Vous avez signalé de la faim ou des grignotages :' : `Dans un objectif de ${obj},`} les fibres aident à se sentir rassasié plus longtemps et soutiennent le transit — un vrai plus pour tenir vos repas sans frustration.`;
+      t = `${c.faimGrignote ? 'Tu as signalé de la faim ou des grignotages :' : `Dans un objectif de ${obj},`} les fibres aident à se sentir rassasié plus longtemps et soutiennent le transit — un vrai plus pour tenir tes repas sans frustration.`;
       break;
     case 'electrolytes':
-      t = `Avec des séances intenses ou longues, vous perdez des minéraux en transpirant. Les électrolytes aident à rester bien hydraté et à limiter les coups de fatigue à l'effort.`;
+      t = `Avec des séances intenses ou longues, tu perds des minéraux en transpirant. Les électrolytes aident à rester bien hydraté et à limiter les coups de fatigue à l'effort.`;
       break;
     case 'vitamines': case 'multivitamines':
-      t = `Un multivitamines sert de filet de sécurité si votre alimentation est parfois déséquilibrée${c.vegan ? ', ce qui peut arriver avec une alimentation vegan' : ''}. Rien d'indispensable si vos repas sont variés, mais cela rassure les semaines chargées.`;
+      t = `Un multivitamines sert de filet de sécurité si ton alimentation est parfois déséquilibrée${c.vegan ? ', ce qui peut arriver avec une alimentation vegan' : ''}. Rien d'indispensable si tes repas sont variés, mais cela rassure les semaines chargées.`;
       break;
     case 'collagene':
-      t = `${c.objectif === 'perte' || c.objectif === 'challenge' ? 'En perte de poids, ' : ''}le collagène soutient la peau, les articulations et les tissus — un plus pour la souplesse et le confort articulaire, surtout si vous êtes actif ou avec l'âge. À voir comme un confort, pas un indispensable.`;
+      t = `${c.objectif === 'perte' || c.objectif === 'challenge' ? 'En perte de poids, ' : ''}le collagène soutient la peau, les articulations et les tissus — un plus pour la souplesse et le confort articulaire, surtout si tu es actif ou avec l'âge. À voir comme un confort, pas un indispensable.`;
       break;
     case 'ashwagandha':
-      t = `${c.stressFatigue ? 'Vous avez signalé du stress, de la fatigue ou un sommeil difficile : ' : 'Si vous vous sentez souvent sous pression ou dormez mal, '}l'ashwagandha est une plante adaptogène qui peut aider à mieux gérer le stress et à favoriser un sommeil plus réparateur. C'est un coup de pouce bien-être, jamais un traitement.`;
+      t = `${c.stressFatigue ? 'Tu as signalé du stress, de la fatigue ou un sommeil difficile : ' : 'Si tu te sens souvent sous pression ou dors mal, '}l'ashwagandha est une plante adaptogène qui peut aider à mieux gérer le stress et à favoriser un sommeil plus réparateur. C'est un coup de pouce bien-être, jamais un traitement.`;
       break;
     default:
-      t = COMPLEMENT_ROLES[cle] ? ('Ce complément ' + COMPLEMENT_ROLES[cle]) : 'Peut être un complément utile selon vos besoins.';
+      t = COMPLEMENT_ROLES[cle] ? ('Ce complément ' + COMPLEMENT_ROLES[cle]) : 'Peut être un complément utile selon tes besoins.';
   }
-  if (suivi) t += ' C\'est déjà dans votre plan : cette recommandation est donc déjà appliquée.';
+  if (suivi) t += ' C\'est déjà dans ton plan : cette recommandation est donc déjà appliquée.';
   return t;
 }
 
@@ -2329,27 +2329,27 @@ function recommanderComplements(profil, prefs) {
 
   // Alertes douces.
   if (pris.has('bruleur')) {
-    alertes.push('Vous mentionnez un bruleur de graisse : son effet est tres limite et ce n\'est pas une priorite. L\'essentiel reste votre alimentation et votre activite — vous pouvez tout a fait vous en passer.');
+    alertes.push('Tu mentionnes un brûleur de graisse : son effet est très limité et ce n\'est pas une priorité. L\'essentiel reste ton alimentation et ton activité — tu peux tout à fait t\'en passer.');
   }
   if (pris.has('vitamines') && pris.has('magnesium')) {
-    alertes.push('Vitamines/mineraux et magnesium peuvent se recouper : verifiez les doses pour ne pas cumuler inutilement.');
+    alertes.push('Vitamines/minéraux et magnésium peuvent se recouper : vérifie les doses pour ne pas cumuler inutilement.');
   }
   if (prisRaw.length >= 4) {
-    alertes.push('Vous prenez deja plusieurs complements. Vous pourriez simplifier en gardant surtout ceux marques « essentiel pour vous », et eviter l\'accumulation.');
+    alertes.push('Tu prends déjà plusieurs compléments. Tu pourrais simplifier en gardant surtout ceux marqués « essentiel pour toi », et éviter l\'accumulation.');
   }
 
   const labels = prisRaw.map((c) => COMPLEMENT_LABELS[c] || c);
   const resume = labels.length
-    ? 'Vous prenez actuellement : ' + labels.join(', ') + (profil.complementsDetail ? ` (${profil.complementsDetail}).` : '.')
+    ? 'Tu prends actuellement : ' + labels.join(', ') + (profil.complementsDetail ? ` (${profil.complementsDetail}).` : '.')
     : '';
 
   return { resume, reco, alertes };
 }
 
 const PRIORITE_LABEL = {
-  essentiel: 'Essentiel pour vous', aide: 'Peut vous aider', envisager: 'À envisager',
+  essentiel: 'Essentiel pour toi', aide: 'Peut t\'aider', envisager: 'À envisager',
   // compat retro (anciens niveaux)
-  indispensable: 'Essentiel pour vous', utile: 'Essentiel pour vous', optionnel: 'À envisager',
+  indispensable: 'Essentiel pour toi', utile: 'Essentiel pour toi', optionnel: 'À envisager',
 };
 
 function openComplements() {
@@ -2394,9 +2394,9 @@ function renderComplements() {
   const alertes = data.alertes.map((a) => `<div class="comp-alert">${icSvg('spark')} ${escapeHtml(a)}</div>`).join('');
   // 3 niveaux affichés en haut, dans l'ordre voulu.
   const NIVEAUX = [
-    { key: 'essentiel', titre: 'Les essentiels', sous: 'Le socle pour votre objectif.' },
+    { key: 'essentiel', titre: 'Les essentiels', sous: 'Le socle pour ton objectif.' },
     { key: 'envisager', titre: 'À envisager', sous: 'Des optimisations utiles, sans être indispensables.' },
-    { key: 'aide', titre: 'Peut vous aider', sous: 'Un coup de pouce selon votre ressenti.' },
+    { key: 'aide', titre: 'Peut t\'aider', sous: 'Un coup de pouce selon ton ressenti.' },
   ];
   const sections = NIVEAUX.map((niv) => {
     const items = data.reco.filter((r) => r.priorite === niv.key);
@@ -2405,7 +2405,7 @@ function renderComplements() {
   }).join('');
   const actifs = complementsActifs();
   const suivisBlock = actifs.length ? `
-    <div class="recipe-section-title">Dans votre plan</div>
+    <div class="recipe-section-title">Dans ton plan</div>
     <div class="comp-suivis">${actifs.map((c) =>
       `<span class="comp-chip"><strong>${escapeHtml(c.nom)}</strong><em>${escapeHtml(c.moment)}</em><button type="button" class="comp-chip-x" data-comp-toggle="${c.cle}" aria-label="Retirer">${icSvg('x')}</button></span>`).join('')}</div>` : '';
   $('#complementsBody').innerHTML = `
@@ -2413,7 +2413,7 @@ function renderComplements() {
     ${sections}
     ${suivisBlock}
     ${alertes ? `<div class="recipe-section-title">À noter</div>${alertes}` : ''}
-    <p class="panel-sub" style="margin-top:16px">Informations générales, non médicales. Produits proposés par Biloba Nutrition. Les compléments sont une aide secondaire, jamais la base du résultat. Ajoutez-en à votre plan pour les retrouver chaque jour et suivre leur prise.</p>`;
+    <p class="panel-sub" style="margin-top:16px">Informations générales, non médicales. Produits proposés par Biloba Nutrition. Les compléments sont une aide secondaire, jamais la base du résultat. Ajoutes-en à ton plan pour les retrouver chaque jour et suivre leur prise.</p>`;
   $$('#complementsBody [data-comp-toggle]').forEach((b) => b.addEventListener('click', () => toggleComplementSuivi(b.dataset.compToggle)));
 }
 
@@ -2551,7 +2551,7 @@ async function generateAndShow(seed) {
     renderPlan();
     saveLocal();
     showScreen('result');
-    showToast('Votre plan commence aujourd’hui — nous l’avons adapté à votre jour de démarrage.', { icon: 'calendar', duration: 4600 });
+    showToast('Ton plan commence aujourd’hui — nous l’avons adapté à ton jour de démarrage.', { icon: 'calendar', duration: 4600 });
     // Plan généré : on débloque l'espace Communauté et on propose de le découvrir.
     state.communauteUnlocked = true;
     revealCommunaute();
@@ -2561,7 +2561,7 @@ async function generateAndShow(seed) {
     saveLocal();
   } catch (e) {
     const detail = (e && e.message && !/^Erreur$/.test(e.message)) ? '\n(' + e.message + ')' : '';
-    alert('Desole, la generation a echoue. Reessayez dans un instant.' + detail);
+    alert('Désolé, la génération a échoué. Réessaie dans un instant.' + detail);
   }
   finally { hidePlanLoader(); }
 }
@@ -2800,7 +2800,7 @@ function init() {
   $('#modalClose').addEventListener('click', closeRecipe);
   $('#recipeModal').addEventListener('click', (e) => { if (e.target.id === 'recipeModal') closeRecipe(); });
 
-  $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le debut ?')) showScreen('landing'); });
+  $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le début ?')) showScreen('landing'); });
 
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closeCoachWall(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeParcoursPesee(); closeCoachParcours(); closeChangePin(); } });
 
@@ -2833,18 +2833,18 @@ function init() {
 
 // ---------- Demande d'aide alimentaire (accompagnement coach) ----------
 const HELP_OPTIONS = [
-  { key: 'plan', label: "J'ai du mal a respecter mon plan" },
+  { key: 'plan', label: "J'ai du mal à respecter mon plan" },
   { key: 'faim', label: "J'ai trop faim" },
   { key: 'grignote', label: 'Je grignote' },
-  { key: 'idees', label: "Je manque d'idees de repas" },
-  { key: 'exterieur', label: "Je mange souvent a l'exterieur" },
-  { key: 'quantites', label: "Je n'arrive pas a gerer les quantites" },
+  { key: 'idees', label: "Je manque d'idées de repas" },
+  { key: 'exterieur', label: "Je mange souvent à l'extérieur" },
+  { key: 'quantites', label: "Je n'arrive pas à gérer les quantités" },
   { key: 'sucre', label: "J'ai des envies de sucre" },
   { key: 'temps', label: "Je n'ai pas le temps de cuisiner" },
-  { key: 'demotive', label: 'Je suis demotive(e)' },
+  { key: 'demotive', label: 'Je suis démotivé(e)' },
   { key: 'autre', label: 'Autre' },
 ];
-const HELP_STATUS = { a_traiter: 'A traiter', en_cours: 'En cours', traite: 'Traite' };
+const HELP_STATUS = { a_traiter: 'À traiter', en_cours: 'En cours', traite: 'Traité' };
 
 // Utilisateur de l'app principale (meme origine) — pour le nom client + l'acces coach.
 function mainAppUser() {
@@ -2901,7 +2901,7 @@ async function submitHelp() {
     const o = HELP_OPTIONS.find((x) => x.key === b.dataset.key); return o ? o.label : b.dataset.key;
   });
   const message = $('#helpMessage').value.trim();
-  if (!selected.length && !message) { alert('Indique au moins une difficulte ou un petit message.'); return; }
+  if (!selected.length && !message) { alert('Indique au moins une difficulté ou un petit message.'); return; }
   const btn = $('#helpSubmit'); btn.disabled = true;
   if (isDemo()) { // démo : aucune vraie demande envoyée
     $('#helpForm').classList.add('hidden'); $('#helpDone').classList.remove('hidden'); btn.disabled = false; return;
@@ -2916,7 +2916,7 @@ async function submitHelp() {
     $('#helpForm').classList.add('hidden');
     $('#helpDone').classList.remove('hidden');
   } catch (e) {
-    alert("Oups, l'envoi n'a pas fonctionne. Reessaie dans un instant.");
+    alert("Oups, l'envoi n'a pas fonctionné. Réessaie dans un instant.");
   } finally { btn.disabled = false; }
 }
 
@@ -3182,7 +3182,7 @@ function showCommunauteIntro() {
   el.className = 'comm-intro';
   el.innerHTML =
     '<div class="comm-intro-ic">' + icSvg('users') + '</div>' +
-    '<div class="comm-intro-tx"><strong>' + (clientPrenom() ? escapeHtml(clientPrenom()) + ', ton plan est prêt.' : 'Votre plan alimentaire est prêt.') + '</strong> Rejoignez la communauté du challenge pour avancer avec le groupe.</div>' +
+    '<div class="comm-intro-tx"><strong>' + (clientPrenom() ? escapeHtml(clientPrenom()) + ', ton plan est prêt.' : 'Ton plan alimentaire est prêt.') + '</strong> Rejoins la communauté du challenge pour avancer avec le groupe.</div>' +
     '<div class="comm-intro-act">' +
       '<button type="button" class="btn btn-primary" id="commIntroGo">Découvrir la communauté</button>' +
       '<button type="button" class="comm-intro-x" id="commIntroX" aria-label="Fermer">' + icSvg('x') + '</button>' +
@@ -3203,7 +3203,7 @@ function joinCommunaute() {
   saveLocal();
   renderCommunaute();
   fetchCommunaute();
-  showToast('Bienvenue dans votre groupe de challenge 🎉', { icon: 'check' });
+  showToast('Bienvenue dans ton groupe de challenge 🎉', { icon: 'check' });
 }
 
 // --- Mur collectif (messages réels, partagés via le serveur) ---
@@ -3278,7 +3278,7 @@ function renderCommunauteWall() {
   const wall = $('#commWall');
   if (!wall) return;
   const msgs = state.communauteMessages || [];
-  if (!msgs.length) { wall.innerHTML = '<p class="comm-empty">Soyez le premier à écrire au groupe 👋</p>'; return; }
+  if (!msgs.length) { wall.innerHTML = '<p class="comm-empty">Sois le premier à écrire au groupe 👋</p>'; return; }
   wall.innerHTML = msgs.map((m) => {
     const isCoach = m.kind === 'coach';
     const av = isCoach ? '<div class="comm-av coach">C</div>' : '<div class="comm-av">' + escapeHtml((m.who || '?').charAt(0)) + '</div>';
@@ -3308,7 +3308,7 @@ async function reactCommunaute(id, type) {
 function partagerJournee() {
   const di = (typeof indexJourActuel === 'function') ? indexJourActuel() : 0;
   if (typeof dayIsComplete === 'function' && !dayIsComplete(di)) {
-    showToast('Validez d’abord tous vos repas du jour pour le partager au groupe.', { icon: 'info' });
+    showToast('Valide d’abord tous tes repas du jour pour le partager au groupe.', { icon: 'info' });
     return;
   }
   const box = $('#commShareBox');
@@ -4824,7 +4824,7 @@ async function renderHelpAdmin() {
     body.innerHTML = list.map((d) => {
       const date = new Date(d.createdAt);
       const dateStr = isNaN(date.getTime()) ? '' :
-        date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) + ' a ' +
+        date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) + ' à ' +
         date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       const tags = (d.difficultes || []).map((t) => `<span class="help-tag">${escapeHtml(t)}</span>`).join('');
       const opts = Object.entries(HELP_STATUS).map(([k, lbl]) =>
@@ -4845,7 +4845,7 @@ async function renderHelpAdmin() {
     $$('#helpAdminBody select[data-id]').forEach((sel) =>
       sel.addEventListener('change', () => setHelpStatus(sel.dataset.id, sel.value)));
   } catch (e) {
-    body.innerHTML = '<p class="help-empty">Lecture impossible. Reessaie.</p>';
+    body.innerHTML = '<p class="help-empty">Lecture impossible. Réessaie.</p>';
   }
 }
 async function setHelpStatus(id, statut) {
@@ -4981,13 +4981,13 @@ async function startCamera() {
   const hint = $('#scanHint');
   const video = $('#scanVideo');
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    hint.textContent = "La camera n'est pas disponible ici — saisis le code manuellement.";
+    hint.textContent = "La caméra n'est pas disponible ici — saisis le code manuellement.";
     $('#scanManual').classList.remove('hidden'); return;
   }
   video.setAttribute('playsinline', 'true');
   video.setAttribute('autoplay', 'true');
   video.muted = true;
-  hint.textContent = 'Initialisation de la camera…';
+  hint.textContent = 'Initialisation de la caméra…';
   scanActive = true;
 
   // 1) API native BarcodeDetector (Android Chrome) — la plus fiable.
@@ -4997,7 +4997,7 @@ async function startCamera() {
       return;
     } catch (e) {
       if (e && (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError')) {
-        scanActive = false; showScanError("Autorise l'acces a la camera pour scanner ton produit."); return;
+        scanActive = false; showScanError("Autorise l'accès à la caméra pour scanner ton produit."); return;
       }
       stopCamera(); scanActive = true; // on tente ZXing en repli
     }
@@ -5015,14 +5015,14 @@ async function startCamera() {
     } catch (e) {
       scanActive = false;
       if (e && (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError')) {
-        showScanError("Autorise l'acces a la camera pour scanner ton produit."); return;
+        showScanError("Autorise l'accès à la caméra pour scanner ton produit."); return;
       }
     }
   }
 
   // 3) Rien ne fonctionne -> saisie manuelle.
   scanActive = false;
-  hint.textContent = 'Camera indisponible — saisis le code manuellement.';
+  hint.textContent = 'Caméra indisponible — saisis le code manuellement.';
   $('#scanManual').classList.remove('hidden');
 }
 function showScanError(html) {
@@ -5054,12 +5054,12 @@ function messageCoherence(niveau, objectif) {
     compatible: { titre: 'Compatible avec ton objectif',
       reco: objectif === 'perte'
         ? 'Bon choix si tu cherches une option simple et pratique — respecte juste les portions.'
-        : "Ce produit peut s'integrer dans ton plan, surtout si tu respectes les portions." },
-    moderation: { titre: 'A consommer avec moderation',
-      reco: 'Ce produit est possible occasionnellement, mais privilegie une alternative plus simple au quotidien.' },
-    a_eviter: { titre: 'A eviter regulierement',
+        : "Ce produit peut s'intégrer dans ton plan, surtout si tu respectes les portions." },
+    moderation: { titre: 'À consommer avec modération',
+      reco: 'Ce produit est possible occasionnellement, mais privilégie une alternative plus simple au quotidien.' },
+    a_eviter: { titre: 'À éviter régulièrement',
       reco: objectif === 'perte'
-        ? 'A limiter si ton objectif est la perte de poids. Il peut depanner, mais ne doit pas devenir une base quotidienne.'
+        ? 'À limiter si ton objectif est la perte de poids. Il peut dépanner, mais ne doit pas devenir une base quotidienne.'
         : "Ce produit risque de compliquer ton objectif si tu le consommes souvent. Demande l'avis de ton coach en cas de doute." },
   };
   return map[niveau] || map.moderation;
@@ -5078,7 +5078,7 @@ function translateAllergen(tag) {
 
 async function lookupBarcode(code) {
   const barcode = String(code || '').replace(/\D/g, '');
-  if (!barcode) { showScanError('Code-barres invalide. Reessaie.'); return; }
+  if (!barcode) { showScanError('Code-barres invalide. Réessaie.'); return; }
   scanShowStage('loading');
   try {
     const fields = 'product_name,product_name_fr,brands,image_front_url,image_url,ingredients_text,ingredients_text_fr,allergens_tags,nutriments,nutriscore_grade,nova_group,quantity';
@@ -5088,7 +5088,7 @@ async function lookupBarcode(code) {
       (data.product.product_name || data.product.product_name_fr || data.product.brands || data.product.nutriments);
     if (!found) {
       // Produit absent de la base : on n'enregistre pas (vue coach propre).
-      showScanError("Ce produit n'est pas encore reference. Tu peux l'ajouter manuellement ou demander l'avis de ton coach.");
+      showScanError("Ce produit n'est pas encore référencé. Tu peux l'ajouter manuellement ou demander l'avis de ton coach.");
       return;
     }
     const pr = data.product;
@@ -5175,13 +5175,13 @@ function renderScanResult(p) {
       <strong>${p.coherence.titre}</strong>
       <p>${p.coherence.reco}</p>
     </div>
-    ${conflits.length ? `<div class="scan-warning" style="display:flex;gap:8px;align-items:flex-start;background:rgba(248,113,113,0.14);border:1px solid rgba(248,113,113,0.45);color:#F87171;border-radius:12px;padding:11px 14px;font-size:13.5px;font-weight:600;margin-bottom:10px;line-height:1.4;">⚠️ Contient un de tes allergenes : ${conflits.map(escapeHtml).join(', ')}. A eviter — demande a ton coach en cas de doute.</div>` : ''}
-    ${allerg.length ? `<div class="scan-allerg"><span class="scan-allerg-label">Allergenes</span> ${allerg.map((a) => { const danger = conflits.includes(a); return `<span class="help-tag"${danger ? ' style="background:rgba(248,113,113,0.18);color:#F87171;border:1px solid rgba(248,113,113,0.5);"' : ''}>${escapeHtml(a)}</span>`; }).join('')}</div>` : ''}
-    <p class="help-disclaimer">Cette indication est une aide a la decision, pas un avis medical. En cas de doute, demande a ton coach ou a un professionnel de sante.</p>
+    ${conflits.length ? `<div class="scan-warning" style="display:flex;gap:8px;align-items:flex-start;background:rgba(248,113,113,0.14);border:1px solid rgba(248,113,113,0.45);color:#F87171;border-radius:12px;padding:11px 14px;font-size:13.5px;font-weight:600;margin-bottom:10px;line-height:1.4;">⚠️ Contient un de tes allergènes : ${conflits.map(escapeHtml).join(', ')}. À éviter — demande à ton coach en cas de doute.</div>` : ''}
+    ${allerg.length ? `<div class="scan-allerg"><span class="scan-allerg-label">Allergènes</span> ${allerg.map((a) => { const danger = conflits.includes(a); return `<span class="help-tag"${danger ? ' style="background:rgba(248,113,113,0.18);color:#F87171;border:1px solid rgba(248,113,113,0.5);"' : ''}>${escapeHtml(a)}</span>`; }).join('')}</div>` : ''}
+    <p class="help-disclaimer">Cette indication est une aide à la décision, pas un avis médical. En cas de doute, demande à ton coach ou à un professionnel de santé.</p>
     <label class="field" style="margin:2px 0 10px"><span>Un mot pour ton coach (optionnel)</span>
       <textarea id="scanCoachMsg" rows="2" placeholder="Ex : est-ce que je peux en prendre le matin ?"></textarea></label>
     <div class="scan-actions">
-      <button type="button" class="btn btn-outline" id="scanFav"><svg class="ic"><use href="#ic-star"/></svg> ${isFav ? 'Dans tes favoris' : 'Ajouter a mes favoris'}</button>
+      <button type="button" class="btn btn-outline" id="scanFav"><svg class="ic"><use href="#ic-star"/></svg> ${isFav ? 'Dans tes favoris' : 'Ajouter à mes favoris'}</button>
       <button type="button" class="btn btn-primary" id="scanAskCoach"><svg class="ic"><use href="#ic-heart-hand"/></svg> Demander l'avis de mon coach</button>
     </div>
     <button type="button" class="btn btn-ghost btn-sm" id="scanAnother" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-scan"/></svg> Scanner un autre produit</button>
@@ -5213,19 +5213,19 @@ async function askCoachAboutProduct() {
   if (!lastScanned) return;
   const message = ($('#scanCoachMsg') && $('#scanCoachMsg').value.trim()) || '';
   const btn = $('#scanAskCoach'); btn.disabled = true;
-  if (isDemo()) { btn.innerHTML = 'Demande envoyee (demo) ✓'; return; }
+  if (isDemo()) { btn.innerHTML = 'Demande envoyée (démo) ✓'; return; }
   try {
     const res = await fetch(apiUrl('/api/scan-advice'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ clientName: helpClientName(), barcode: lastScanned.barcode, productName: lastScanned.name, message }) });
     const data = await res.json();
     if (!data.ok) throw new Error();
-    btn.innerHTML = 'Demande envoyee a ton coach ✓';
-  } catch (e) { btn.disabled = false; alert("L'envoi n'a pas fonctionne. Reessaie."); }
+    btn.innerHTML = 'Demande envoyée à ton coach ✓';
+  } catch (e) { btn.disabled = false; alert("L'envoi n'a pas fonctionné. Réessaie."); }
 }
 
 // --- Vue coach : scans produits ---
 function cohBadge(c) {
-  const m = { compatible: 'Compatible', moderation: 'Moderation', a_eviter: 'A eviter' };
+  const m = { compatible: 'Compatible', moderation: 'Modération', a_eviter: 'À éviter' };
   return m[c] ? `<span class="coh-badge coh-${c}">${m[c]}</span>` : '';
 }
 async function openScanAdmin() { $('#scanAdminPanel').classList.remove('hidden'); await renderScanAdmin(); }
@@ -5262,14 +5262,14 @@ async function renderScanAdmin() {
       : '<p class="help-empty">Aucun scan pour le moment.</p>';
     const flaggedHtml = flagged.length ? flagged.slice(0, 12).map((f) =>
       `<div class="scan-top-row"><span class="scan-top-name">${escapeHtml(f.productName || f.barcode)}</span><span class="scan-top-client">${escapeHtml(f.clientName)}</span></div>`).join('')
-      : '<p class="help-empty">Rien a signaler.</p>';
+      : '<p class="help-empty">Rien à signaler.</p>';
     body.innerHTML =
       `<div class="scan-admin-sec"><h3>Demandes d'avis</h3>${adviceHtml}</div>`
-      + `<div class="scan-admin-sec"><h3>Produits les plus scannes</h3>${topHtml}</div>`
-      + `<div class="scan-admin-sec"><h3>Produits a surveiller</h3>${flaggedHtml}</div>`;
+      + `<div class="scan-admin-sec"><h3>Produits les plus scannés</h3>${topHtml}</div>`
+      + `<div class="scan-admin-sec"><h3>Produits à surveiller</h3>${flaggedHtml}</div>`;
     $$('#scanAdminBody select[data-advice-id]').forEach((sel) =>
       sel.addEventListener('change', () => setScanAdviceStatus(sel.dataset.adviceId, sel.value)));
-  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible. Reessaie.</p>'; }
+  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible. Réessaie.</p>'; }
 }
 async function setScanAdviceStatus(id, statut) {
   try {
@@ -5442,7 +5442,7 @@ function renderScanReplace(p) {
     </div>
     <div class="replace-box">
       <p class="replace-line">Remplacer <strong>${escapeHtml(oldIng.nom)}</strong> par <strong>${escapeHtml(p.name)}</strong> dans ce repas.</p>
-      <label class="replace-qty">Quantite utilisee
+      <label class="replace-qty">Quantité utilisée
         <span><input type="number" id="replaceQty" min="0" step="1" value="${defQty}"> ${escapeHtml(unit)}</span>
       </label>
       <div id="replacePreview" class="replace-preview"></div>
@@ -5484,24 +5484,24 @@ function applyScanReplace(p) {
 let suiviPlanDay = 0;
 const SUIVI_STATUSES = [
   { k: 'suivi', label: "J'ai suivi mon plan", ic: 'check' },
-  { k: 'adapte', label: "J'ai adapte legerement", ic: 'edit' },
-  { k: 'autre', label: "J'ai mange autre chose", ic: 'swap' },
-  { k: 'saute', label: "J'ai saute ce repas", ic: 'x' },
+  { k: 'adapte', label: "J'ai adapté légèrement", ic: 'edit' },
+  { k: 'autre', label: "J'ai mangé autre chose", ic: 'swap' },
+  { k: 'saute', label: "J'ai sauté ce repas", ic: 'x' },
 ];
 const SUIVI_SCORE = { suivi: 100, adapte: 75, autre: 50, saute: 0 };
 const SUIVI_NIVEAU = { suivi: 'coherent', adapte: 'correct', autre: 'reprendre', saute: 'reprendre' };
-const NIVEAU_LABEL = { coherent: 'Coherent avec ton objectif', correct: 'Correct, a ajuster', reprendre: 'A reprendre au prochain repas' };
-const ADAPTE_CHIPS = ["J'ai change l'accompagnement", "Portion plus grande", "J'ai remplace un aliment", "Mange plus tard que prevu"];
-const SAUTE_CHIPS = ['Pas faim', 'Pas le temps', 'Oubli', 'Stress', 'Organisation compliquee', 'Autre'];
-const SUIVI_DETAIL = { adapte: { field: 'modif', label: "Qu'as-tu modifie ?", ph: "Ex : j'ai change l'accompagnement", chips: ADAPTE_CHIPS },
-  autre: { field: 'repas', label: "Qu'as-tu mange a la place ?", ph: 'Ex : sandwich, salade, repas au restaurant...', chips: null },
-  saute: { field: 'raison', label: 'Pourquoi as-tu saute ce repas ?', ph: 'Optionnel', chips: SAUTE_CHIPS } };
+const NIVEAU_LABEL = { coherent: 'Cohérent avec ton objectif', correct: 'Correct, à ajuster', reprendre: 'À reprendre au prochain repas' };
+const ADAPTE_CHIPS = ["J'ai changé l'accompagnement", "Portion plus grande", "J'ai remplacé un aliment", "Mangé plus tard que prévu"];
+const SAUTE_CHIPS = ['Pas faim', 'Pas le temps', 'Oubli', 'Stress', 'Organisation compliquée', 'Autre'];
+const SUIVI_DETAIL = { adapte: { field: 'modif', label: "Qu'as-tu modifié ?", ph: "Ex : j'ai changé l'accompagnement", chips: ADAPTE_CHIPS },
+  autre: { field: 'repas', label: "Qu'as-tu mangé à la place ?", ph: 'Ex : sandwich, salade, repas au restaurant...', chips: null },
+  saute: { field: 'raison', label: 'Pourquoi as-tu sauté ce repas ?', ph: 'Optionnel', chips: SAUTE_CHIPS } };
 function feedbackFor(statut) {
   return ({
-    suivi: "Parfait, tu as suivi ton plan sur ce repas. Continue comme ca, la regularite est ce qui cree les resultats.",
-    adapte: "Ton adaptation reste coherente avec ton objectif. Garde simplement une source de proteines et une portion de legumes pour rester proche de ton plan.",
-    autre: "Ce repas peut arriver. L'important est de ne pas transformer un ecart en abandon — reprends simplement ton plan au prochain repas.",
-    saute: "Ce n'est pas grave ponctuellement. Si cela se repete, essaie de prevoir une option simple la prochaine fois. L'objectif est la regularite, pas la perfection.",
+    suivi: "Parfait, tu as suivi ton plan sur ce repas. Continue comme ça, la régularité est ce qui crée les résultats.",
+    adapte: "Ton adaptation reste cohérente avec ton objectif. Garde simplement une source de protéines et une portion de légumes pour rester proche de ton plan.",
+    autre: "Ce repas peut arriver. L'important est de ne pas transformer un écart en abandon — reprends simplement ton plan au prochain repas.",
+    saute: "Ce n'est pas grave ponctuellement. Si cela se répète, essaie de prévoir une option simple la prochaine fois. L'objectif est la régularité, pas la perfection.",
   })[statut] || '';
 }
 function normStatut(s) { return s === 'respecte' ? 'suivi' : (s === 'non' ? 'saute' : s); }
@@ -5526,16 +5526,16 @@ function dayStatusKey(st) {
   if (st.score >= 50) return 'partiel';
   return 'difficile';
 }
-const DAY_STATUS_LABEL = { valide: 'Validee', partiel: 'Partielle', difficile: 'Difficile', vide: 'Non renseigne' };
+const DAY_STATUS_LABEL = { valide: 'Validée', partiel: 'Partielle', difficile: 'Difficile', vide: 'Non renseigné' };
 function dailyPhrase(st) {
   if (!st.reported) return 'Indique tes repas du jour pour voir ton suivi.';
-  if (st.score >= 75) return 'Bonne journee dans l\'ensemble — tu es reste proche de ton plan.';
-  if (st.score >= 50) return 'Journee correcte. Tu peux ameliorer un point demain.';
-  return 'Journee plus irreguliere, mais tu peux reprendre demain. L\'objectif est la regularite, pas la perfection.';
+  if (st.score >= 75) return 'Bonne journée dans l\'ensemble — tu es resté proche de ton plan.';
+  if (st.score >= 50) return 'Journée correcte. Tu peux améliorer un point demain.';
+  return 'Journée plus irrégulière, mais tu peux reprendre demain. L\'objectif est la régularité, pas la perfection.';
 }
 function mondayThisWeek() { const now = new Date(); const d = (now.getDay() + 6) % 7; const m = new Date(now); m.setDate(now.getDate() - d); return m; }
 function dateForDay(di) { const m = mondayThisWeek(); const d = new Date(m); d.setDate(m.getDate() + di); return d.toISOString().slice(0, 10); }
-const CRENEAU_LABEL = { 'petit-dejeuner': 'petit-dejeuner', dejeuner: 'dejeuner', collation: 'collation', diner: 'diner' };
+const CRENEAU_LABEL = { 'petit-dejeuner': 'petit-déjeuner', dejeuner: 'déjeuner', collation: 'collation', diner: 'dîner' };
 function axeAmelioration() {
   const bad = {};
   (state.plan ? state.plan.jours : []).forEach((j, di) => (j.repas || []).forEach((rp, mi) => {
@@ -5547,7 +5547,7 @@ function axeAmelioration() {
 }
 
 function openSuiviPlan() {
-  if (!state.plan) { alert('Genere d\'abord ton plan de la semaine.'); return; }
+  if (!state.plan) { alert('Génère d\'abord ton plan de la semaine.'); return; }
   // Le suivi s'ouvre toujours sur la journee actuelle (calculee depuis la date
   // de demarrage du plan, et non sur une hypothese de depart le lundi).
   suiviPlanDay = indexJourActuel();
@@ -5559,7 +5559,7 @@ function closeSuiviPlan() { $('#suiviPlanPanel').classList.add('hidden'); }
 // Ouvre le suivi/modification (panneau existant) directement sur un repas precis,
 // declenche par le bouton crayon "Modifier" d'une carte repas.
 function openSuiviForMeal(di, mi) {
-  if (!state.plan) { alert('Genere d\'abord ton plan de la semaine.'); return; }
+  if (!state.plan) { alert('Génère d\'abord ton plan de la semaine.'); return; }
   suiviPlanDay = Math.min(Math.max(Number(di) || 0, 0), state.plan.jours.length - 1);
   $('#suiviPlanPanel').classList.remove('hidden');
   renderSuiviPlan();
@@ -5615,22 +5615,22 @@ function renderSuiviPlan() {
   const scoreCard = `<div class="suivi-day-score score-${key}">
     <div class="sds-ring">${st.score != null ? st.score + '%' : '—'}</div>
     <div class="sds-txt"><strong>${dailyPhrase(st)}</strong>
-      <span>${st.reported}/${st.total} repas renseignes${st.reported ? ' · ' + st.counts.suivi + ' suivi(s), ' + st.counts.adapte + ' adapte(s), ' + st.counts.autre + ' autre(s), ' + st.counts.saute + ' saute(s)' : ''}</span></div>
+      <span>${st.reported}/${st.total} repas renseignés${st.reported ? ' · ' + st.counts.suivi + ' suivi(s), ' + st.counts.adapte + ' adapté(s), ' + st.counts.autre + ' autre(s), ' + st.counts.saute + ' sauté(s)' : ''}</span></div>
   </div>`;
 
   // Resume semaine
   const wk = jours.map((j, i) => dayStatusKey(dayStats(i)));
   const nb = (k) => wk.filter((x) => x === k).length;
   const axe = axeAmelioration();
-  const weekTxt = `Cette semaine : ${nb('valide')} jour(s) bien suivi(s), ${nb('partiel')} partiel(s), ${nb('difficile')} difficile(s), ${nb('vide')} non renseigne(s).` + (axe ? ` Ton principal axe : la regularite au ${axe}.` : ' Continue, la regularite paie.');
+  const weekTxt = `Cette semaine : ${nb('valide')} jour(s) bien suivi(s), ${nb('partiel')} partiel(s), ${nb('difficile')} difficile(s), ${nb('vide')} non renseigné(s).` + (axe ? ` Ton principal axe : la régularité au ${axe}.` : ' Continue, la régularité paie.');
 
   $('#suiviPlanBody').innerHTML = `
     <div class="week-strip">${strip}</div>
     <h3 class="suivi-day-title">${escapeHtml(jours[di].jour || ('Jour ' + (di + 1)))}${(jourActuelDansPlan() && di === indexJourActuel()) ? '<span class="day-now">Jour en cours</span>' : ''}</h3>
-    ${meals || '<p class="help-empty">Aucun repas ce jour-la.</p>'}
+    ${meals || '<p class="help-empty">Aucun repas ce jour-là.</p>'}
     ${scoreCard}
     <div class="suivi-week"><h3><svg class="ic"><use href="#ic-trend"/></svg> Ma semaine nutrition</h3><p class="week-summary">${escapeHtml(weekTxt)}</p></div>
-    <button type="button" class="btn btn-outline is-soon" data-act="plate" style="width:100%;margin-top:10px"><svg class="ic"><use href="#ic-camera"/></svg> J'ai mange autre chose — analyser mon assiette<span class="soon-badge">Bientôt</span></button>
+    <button type="button" class="btn btn-outline is-soon" data-act="plate" style="width:100%;margin-top:10px"><svg class="ic"><use href="#ic-camera"/></svg> J'ai mangé autre chose — analyser mon assiette<span class="soon-badge">Bientôt</span></button>
     <button type="button" class="btn btn-outline" data-act="help" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide sur mon alimentation cette semaine</button>`;
 }
 // Le panneau parle en « suivi/adapte/autre/saute » ; la carte du plan et tous les
@@ -5659,14 +5659,14 @@ async function saveSuiviDay(di, btn) {
   const st = dayStats(di);
   if (btn) { btn.disabled = true; }
   if (isDemo()) { // démo : suivi garde en local, rien envoye au serveur
-    if (btn) { btn.innerHTML = 'Suivi enregistre ✓'; setTimeout(() => { btn.disabled = false; renderSuiviPlan(); }, 1400); }
+    if (btn) { btn.innerHTML = 'Suivi enregistré ✓'; setTimeout(() => { btn.disabled = false; renderSuiviPlan(); }, 1400); }
     return;
   }
   try {
     await fetch(apiUrl('/api/adherence'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ clientName: helpClientName(), date: dateForDay(di), suivi: st.counts.suivi, adapte: st.counts.adapte, autre: st.counts.autre, saute: st.counts.saute, score: st.score || 0 }) });
-    if (btn) { btn.innerHTML = 'Suivi enregistre ✓'; setTimeout(() => { btn.disabled = false; renderSuiviPlan(); }, 1400); }
-  } catch (e) { if (btn) { btn.disabled = false; } alert("L'enregistrement n'a pas fonctionne, mais ton suivi reste garde sur l'appareil."); }
+    if (btn) { btn.innerHTML = 'Suivi enregistré ✓'; setTimeout(() => { btn.disabled = false; renderSuiviPlan(); }, 1400); }
+  } catch (e) { if (btn) { btn.disabled = false; } alert("L'enregistrement n'a pas fonctionné, mais ton suivi reste gardé sur l'appareil."); }
 }
 function onSuiviPlanClick(e) {
   const b = e.target.closest('[data-act]'); if (!b) return;
@@ -5684,7 +5684,7 @@ function onSuiviPlanInput(e) {
 }
 
 // --- Vue coach : adherence des clients ---
-const ADH_STATUT = { ok: 'OK', a_surveiller: 'A surveiller', besoin_aide: 'Besoin d\'aide' };
+const ADH_STATUT = { ok: 'OK', a_surveiller: 'À surveiller', besoin_aide: 'Besoin d\'aide' };
 async function openAdhAdmin() { $('#adhAdminPanel').classList.remove('hidden'); await renderAdhAdmin(); }
 function closeAdhAdmin() { $('#adhAdminPanel').classList.add('hidden'); }
 function updateAdhBadge(clients) {
@@ -5703,12 +5703,12 @@ async function renderAdhAdmin() {
       return `<div class="adh-client statut-${c.statut}">
         <div class="adh-head"><strong>${escapeHtml(c.clientName)}</strong><span class="adh-statut statut-${c.statut}">${ADH_STATUT[c.statut] || c.statut}</span></div>
         <div class="adh-row"><span class="adh-score">${c.days ? c.score + '%' : '—'}</span>
-          <span class="adh-counts">${c.suivi} suivi · ${c.adapte} adapte · ${c.autre} autre · ${c.saute} saute</span></div>
+          <span class="adh-counts">${c.suivi} suivi · ${c.adapte} adapté · ${c.autre} autre · ${c.saute} sauté</span></div>
         ${alerts ? `<div class="adh-alerts">${alerts}</div>` : ''}
-        ${c.lastHelp ? `<div class="adh-help">${icSvg('life-buoy')} Aide : ${escapeHtml((c.lastHelp.difficultes || []).slice(0, 3).join(', ') || 'demande recue')}</div>` : ''}
+        ${c.lastHelp ? `<div class="adh-help">${icSvg('life-buoy')} Aide : ${escapeHtml((c.lastHelp.difficultes || []).slice(0, 3).join(', ') || 'demande reçue')}</div>` : ''}
       </div>`;
     }).join('');
-  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible. Reessaie.</p>'; }
+  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible. Réessaie.</p>'; }
 }
 async function setupAdhAccess() {
   if (!isCoachOrAdmin()) return;
@@ -5734,7 +5734,7 @@ function planContextStr() {
 }
 function plateMealLabel() {
   const h = new Date().getHours();
-  if (h < 11) return 'Petit-dejeuner'; if (h < 15) return 'Dejeuner'; if (h < 18) return 'Collation'; return 'Diner';
+  if (h < 11) return 'Petit-déjeuner'; if (h < 15) return 'Déjeuner'; if (h < 18) return 'Collation'; return 'Dîner';
 }
 function cohClass(n) { return n === 'coherent' ? 'compatible' : (n === 'reprendre' ? 'a_eviter' : 'moderation'); }
 
@@ -5760,7 +5760,7 @@ function openPlate() {
   $('#plateModal').classList.remove('hidden');
   if (!state.ia) {
     plateShowStage('error');
-    $('#plateErrorBox').innerHTML = "L'analyse d'assiette en photo necessite le Mode Claude, qui n'est pas active pour le moment. Ton coach peut l'activer.";
+    $('#plateErrorBox').innerHTML = "L'analyse d'assiette en photo nécessite le Mode Claude, qui n'est pas activé pour le moment. Ton coach peut l'activer.";
     $('#plateRetry').style.display = 'none';
     return;
   }
@@ -5808,12 +5808,12 @@ async function analyzePlate() {
       body: JSON.stringify({ imageDataUrl: plateImage, precision: platePrecisionUsed, objectif: state.profil && state.profil.objectif, planContext: planContextStr() }),
     });
     const data = await res.json();
-    if (!data.ia) return plateError("L'analyse d'assiette necessite le Mode Claude (a activer par ton coach).", false);
-    if (!data.ok || !data.analyse) return plateError("L'analyse n'a pas pu etre realisee. Reessaie dans quelques instants.", true);
-    if (data.analyse.lisible === false) return plateError("Je n'arrive pas a identifier clairement ton repas. Reprends une photo plus nette, ou ajoute une precision en texte.", true);
+    if (!data.ia) return plateError("L'analyse d'assiette nécessite le Mode Claude (à activer par ton coach).", false);
+    if (!data.ok || !data.analyse) return plateError("L'analyse n'a pas pu être réalisée. Réessaie dans quelques instants.", true);
+    if (data.analyse.lisible === false) return plateError("Je n'arrive pas à identifier clairement ton repas. Reprends une photo plus nette, ou ajoute une précision en texte.", true);
     plateBase = data.analyse; plateAdj = { portion: 'normale' };
     renderPlateResult();
-  } catch (e) { plateError("L'analyse n'a pas pu etre realisee. Reessaie dans quelques instants.", true); }
+  } catch (e) { plateError("L'analyse n'a pas pu être réalisée. Réessaie dans quelques instants.", true); }
 }
 function plateAdjusted() {
   const b = plateBase; const f = PLATE_PORTION[plateAdj.portion] || 1;
@@ -5829,17 +5829,17 @@ function renderPlateResult() {
   const addChip = (k, lbl) => `<button class="plate-chip ${plateAdj[k] ? 'on' : ''}" data-padd="${k}">${lbl}</button>`;
   $('#plateResultBody').innerHTML = `
     <h2 class="scan-title"><svg class="ic"><use href="#ic-spark"/></svg> Estimation de ton assiette</h2>
-    ${b.aliments && b.aliments.length ? `<div class="scan-allerg"><span class="scan-allerg-label">Detecte</span> ${b.aliments.slice(0, 8).map((a) => `<span class="help-tag">${escapeHtml(a)}</span>`).join('')}</div>` : ''}
+    ${b.aliments && b.aliments.length ? `<div class="scan-allerg"><span class="scan-allerg-label">Détecté</span> ${b.aliments.slice(0, 8).map((a) => `<span class="help-tag">${escapeHtml(a)}</span>`).join('')}</div>` : ''}
     <div class="plate-macros">
-      <div class="pm pm-kcal"><span class="pm-v">${m.kcal}</span><span class="pm-l">kcal estimees</span></div>
-      <div class="pm"><span class="pm-v">${m.proteines} g</span><span class="pm-l">Proteines</span></div>
+      <div class="pm pm-kcal"><span class="pm-v">${m.kcal}</span><span class="pm-l">kcal estimées</span></div>
+      <div class="pm"><span class="pm-v">${m.proteines} g</span><span class="pm-l">Protéines</span></div>
       <div class="pm"><span class="pm-v">${m.glucides} g</span><span class="pm-l">Glucides</span></div>
       <div class="pm"><span class="pm-v">${m.lipides} g</span><span class="pm-l">Lipides</span></div>
     </div>
-    <p class="help-disclaimer">Estimation visuelle a utiliser comme repere. Les quantites peuvent varier selon les portions, la cuisson et les ingredients.</p>
+    <p class="help-disclaimer">Estimation visuelle à utiliser comme repère. Les quantités peuvent varier selon les portions, la cuisson et les ingrédients.</p>
     <div class="plate-adjust">
       <label>Cette estimation te semble correcte ? Ajuste si besoin :</label>
-      <div class="plate-chips">${portChip('petite', 'Portion petite')}${portChip('normale', 'Portion normale')}${portChip('genereuse', 'Portion genereuse')}</div>
+      <div class="plate-chips">${portChip('petite', 'Portion petite')}${portChip('normale', 'Portion normale')}${portChip('genereuse', 'Portion généreuse')}</div>
       <div class="plate-chips">${addChip('sauce', 'Sauce / huile')}${addChip('boisson', 'Boisson')}${addChip('dessert', 'Dessert')}</div>
     </div>
     <div class="coherence coherence-${cohClass(b.niveau)}">
@@ -5847,7 +5847,7 @@ function renderPlateResult() {
       ${b.coherencePlan ? `<p>${escapeHtml(b.coherencePlan)}</p>` : ''}
     </div>
     ${b.pointPositif ? `<div class="plate-coach"><span class="pc-l">Point positif</span><p>${escapeHtml(b.pointPositif)}</p></div>` : ''}
-    ${b.axe ? `<div class="plate-coach"><span class="pc-l">A ameliorer</span><p>${escapeHtml(b.axe)}</p></div>` : ''}
+    ${b.axe ? `<div class="plate-coach"><span class="pc-l">À améliorer</span><p>${escapeHtml(b.axe)}</p></div>` : ''}
     ${b.action ? `<div class="plate-coach pc-action"><span class="pc-l">Au prochain repas</span><p>${escapeHtml(b.action)}</p></div>` : ''}
     <label class="field" style="margin:6px 0 10px"><span>Un mot pour ton coach (optionnel)</span><textarea id="plateCoachMsg" rows="2"></textarea></label>
     <div class="scan-actions">
@@ -5866,7 +5866,7 @@ async function savePlate(askCoach, btn) {
   const b = plateBase, m = plateAdjusted();
   const msg = ($('#plateCoachMsg') && $('#plateCoachMsg').value.trim()) || '';
   if (btn) btn.disabled = true;
-  if (isDemo()) { if (btn) btn.innerHTML = askCoach ? 'Demande envoyee (demo) ✓' : 'Enregistre (demo) ✓'; return; }
+  if (isDemo()) { if (btn) btn.innerHTML = askCoach ? 'Demande envoyée (démo) ✓' : 'Enregistré (démo) ✓'; return; }
   try {
     const res = await fetch(apiUrl('/api/plate-save'), {
       method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
@@ -5877,8 +5877,8 @@ async function savePlate(askCoach, btn) {
     });
     const data = await res.json();
     if (!data.ok) throw new Error();
-    if (btn) btn.innerHTML = askCoach ? 'Demande envoyee a ton coach ✓' : 'Enregistre dans ton suivi ✓';
-  } catch (e) { if (btn) btn.disabled = false; alert("L'enregistrement n'a pas fonctionne. Reessaie."); }
+    if (btn) btn.innerHTML = askCoach ? 'Demande envoyée à ton coach ✓' : 'Enregistré dans ton suivi ✓';
+  } catch (e) { if (btn) btn.disabled = false; alert("L'enregistrement n'a pas fonctionné. Réessaie."); }
 }
 
 // --- Vue coach : analyses d'assiettes ---
@@ -5912,7 +5912,7 @@ async function renderPlateAdmin() {
       </div>`;
     }).join('');
     $$('#plateAdminBody select[data-plate-id]').forEach((sel) => sel.addEventListener('change', () => setPlateStatus(sel.dataset.plateId, sel.value)));
-  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible. Reessaie.</p>'; }
+  } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible. Réessaie.</p>'; }
 }
 async function setPlateStatus(id, statut) {
   try { await fetch(apiUrl('/api/plate-advice/' + id), { method: 'PATCH', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ statut }) }); await renderPlateAdmin(); } catch (_) { /* ignore */ }
@@ -5940,7 +5940,7 @@ function setupDemoMode() {
     restart.addEventListener('click', () => {
       const msg = isClient
         ? 'Réinitialiser ton plan et refaire le questionnaire ? Tes réponses actuelles seront effacées.'
-        : 'Recommencer la demo depuis le debut ? Les donnees de demo seront effacees.';
+        : 'Recommencer la démo depuis le début ? Les données de démo seront effacées.';
       if (!confirm(msg)) return;
       try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(SCAN_FAV_KEY); } catch (_) { /* ignore */ }
       // Compte client : on vide aussi la copie serveur pour repartir sur l'onboarding.
@@ -5952,7 +5952,7 @@ function setupDemoMode() {
   if (quit) {
     if (isClient) quit.textContent = 'Se déconnecter';
     quit.addEventListener('click', () => {
-      if (!confirm(isClient ? 'Se déconnecter de ton espace ?' : 'Quitter le mode demo ?')) return;
+      if (!confirm(isClient ? 'Se déconnecter de ton espace ?' : 'Quitter le mode démo ?')) return;
       try {
         localStorage.removeItem('mc-nutri-demo');
         if (window.__NUTRI_USER && window.__NUTRI_USER.email) {
@@ -5982,20 +5982,20 @@ async function renderDemoAdmin() {
     }).filter(Boolean);
     body.innerHTML = `
       <div class="demo-admin-code">
-        <label>Code de demonstration</label>
+        <label>Code de démonstration</label>
         <input type="text" id="demoCfgCode" value="${escapeHtml(d.code)}" autocomplete="off">
         <button type="button" class="link-copy" id="demoCfgCopy">Copier</button>
       </div>
-      <label class="demo-toggle"><input type="checkbox" id="demoCfgEnabled" ${d.enabled ? 'checked' : ''}> Mode demo active</label>
+      <label class="demo-toggle"><input type="checkbox" id="demoCfgEnabled" ${d.enabled ? 'checked' : ''}> Mode démo activé</label>
       <label class="field"><span>Date d'expiration (optionnel)</span>
         <input type="date" id="demoCfgExpires" value="${escapeHtml(d.expiresAt || '')}"></label>
       <div class="demo-stats">
-        <div class="demo-stat"><strong>${d.uses}</strong><span>acces au total</span></div>
-        <div class="demo-stat"><strong>${accesses.length}</strong><span>recents</span></div>
+        <div class="demo-stat"><strong>${d.uses}</strong><span>accès au total</span></div>
+        <div class="demo-stat"><strong>${accesses.length}</strong><span>récents</span></div>
       </div>
-      ${accesses.length ? `<div class="demo-accesses"><label>Derniers acces</label>${accesses.map((a) => `<span class="demo-access">${a}</span>`).join('')}</div>` : ''}
+      ${accesses.length ? `<div class="demo-accesses"><label>Derniers accès</label>${accesses.map((a) => `<span class="demo-access">${a}</span>`).join('')}</div>` : ''}
       <button type="button" class="btn btn-primary btn-lg" id="demoCfgSave" style="width:100%;margin-top:6px"><svg class="ic"><use href="#ic-check"/></svg> Enregistrer</button>
-      <button type="button" class="btn btn-outline" id="demoCfgReset" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-refresh"/></svg> Reinitialiser les statistiques demo</button>`;
+      <button type="button" class="btn btn-outline" id="demoCfgReset" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-refresh"/></svg> Réinitialiser les statistiques démo</button>`;
     $('#demoCfgCopy').addEventListener('click', () => { try { navigator.clipboard.writeText($('#demoCfgCode').value); $('#demoCfgCopy').textContent = 'Copie ✓'; } catch (_) {} });
     $('#demoCfgSave').addEventListener('click', saveDemoConfig);
     $('#demoCfgReset').addEventListener('click', resetDemoData);
@@ -6003,18 +6003,18 @@ async function renderDemoAdmin() {
 }
 async function saveDemoConfig() {
   const code = $('#demoCfgCode').value.trim();
-  if (!code) { alert('Le code ne peut pas etre vide.'); return; }
+  if (!code) { alert('Le code ne peut pas être vide.'); return; }
   const btn = $('#demoCfgSave'); btn.disabled = true;
   try {
     const res = await fetch(apiUrl('/api/demo-config'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ code, enabled: $('#demoCfgEnabled').checked, expiresAt: $('#demoCfgExpires').value || null }) });
     const d = await res.json();
     if (!d.ok) throw new Error();
-    btn.innerHTML = 'Enregistre ✓'; setTimeout(() => { btn.disabled = false; btn.innerHTML = '<svg class="ic"><use href="#ic-check"/></svg> Enregistrer'; }, 1400);
-  } catch (e) { btn.disabled = false; alert("L'enregistrement n'a pas fonctionne."); }
+    btn.innerHTML = 'Enregistré ✓'; setTimeout(() => { btn.disabled = false; btn.innerHTML = '<svg class="ic"><use href="#ic-check"/></svg> Enregistrer'; }, 1400);
+  } catch (e) { btn.disabled = false; alert("L'enregistrement n'a pas fonctionné."); }
 }
 async function resetDemoData() {
-  if (!confirm('Reinitialiser les statistiques du mode demo (compteur d\'acces) ?')) return;
+  if (!confirm('Réinitialiser les statistiques du mode démo (compteur d\'accès) ?')) return;
   try { await fetch(apiUrl('/api/demo-reset'), { method: 'POST', headers: nutriAuthHeaders() }); renderDemoAdmin(); } catch (_) { /* ignore */ }
 }
 function setupDemoAdminAccess() {
@@ -6146,9 +6146,9 @@ function planIdFor(plan) {
   return 'p' + h.toString(36);
 }
 function openAgenda() {
-  if (!state.plan) { alert('Genere d\'abord ton plan de la semaine.'); return; }
+  if (!state.plan) { alert('Génère d\'abord ton plan de la semaine.'); return; }
   $('#agendaModal').classList.remove('hidden');
-  $('#agendaBody').innerHTML = '<div class="scan-loader"></div><p class="scan-loading-text">Verification de la connexion…</p>';
+  $('#agendaBody').innerHTML = '<div class="scan-loader"></div><p class="scan-loading-text">Vérification de la connexion…</p>';
   refreshAgenda();
 }
 function closeAgenda() { $('#agendaModal').classList.add('hidden'); }
@@ -6168,20 +6168,20 @@ function renderAgenda(status, opts) {
   if (opts.fetchError) {
     $('#agendaBody').innerHTML = `
       <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Agenda</h2>
-      <p class="agenda-msg agenda-warn">Impossible de verifier l'etat de votre agenda pour le moment. Verifiez votre connexion, puis reessayez.</p>
-      <button type="button" class="btn btn-outline" id="agendaRetry" style="width:100%">Reessayer</button>
-      <button type="button" class="btn btn-ghost" id="agendaIcs" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-file"/></svg> Telecharger le fichier calendrier (.ics)</button>`;
-    $('#agendaRetry').addEventListener('click', () => { $('#agendaBody').innerHTML = '<div class="scan-loader"></div><p class="scan-loading-text">Verification de la connexion…</p>'; refreshAgenda(); });
-    $('#agendaIcs').addEventListener('click', () => { exportIcs(); $('#agendaIcs').innerHTML = 'Fichier telecharge ✓'; });
+      <p class="agenda-msg agenda-warn">Impossible de vérifier l'état de ton agenda pour le moment. Vérifie ta connexion, puis réessaie.</p>
+      <button type="button" class="btn btn-outline" id="agendaRetry" style="width:100%">Réessayer</button>
+      <button type="button" class="btn btn-ghost" id="agendaIcs" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-file"/></svg> Télécharger le fichier calendrier (.ics)</button>`;
+    $('#agendaRetry').addEventListener('click', () => { $('#agendaBody').innerHTML = '<div class="scan-loader"></div><p class="scan-loading-text">Vérification de la connexion…</p>'; refreshAgenda(); });
+    $('#agendaIcs').addEventListener('click', () => { exportIcs(); $('#agendaIcs').innerHTML = 'Fichier téléchargé ✓'; });
     return;
   }
-  const icsBtn = '<button type="button" class="btn btn-ghost" id="agendaIcs" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-file"/></svg> Telecharger le fichier calendrier (.ics)</button>';
-  const privacy = '<p class="help-disclaimer">My Coach Nutrition utilise cette connexion uniquement pour ajouter tes repas a ton agenda.</p>';
+  const icsBtn = '<button type="button" class="btn btn-ghost" id="agendaIcs" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-file"/></svg> Télécharger le fichier calendrier (.ics)</button>';
+  const privacy = '<p class="help-disclaimer">My Coach Nutrition utilise cette connexion uniquement pour ajouter tes repas à ton agenda.</p>';
   if (status.connected) {
     $('#agendaBody').innerHTML = `
-      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Google Agenda connecte</h2>
-      <p class="agenda-state"><span class="agenda-dot on"></span> Connecte${status.calendarName ? ` · calendrier « ${escapeHtml(status.calendarName)} »` : ''}.</p>
-      <p class="panel-sub">Que souhaites-tu ajouter a ton agenda ?</p>
+      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Google Agenda connecté</h2>
+      <p class="agenda-state"><span class="agenda-dot on"></span> Connecté${status.calendarName ? ` · calendrier « ${escapeHtml(status.calendarName)} »` : ''}.</p>
+      <p class="panel-sub">Que souhaites-tu ajouter à ton agenda ?</p>
       <div class="agenda-choices">
         <button type="button" class="btn btn-outline agenda-sync" data-scope="jour">Ajouter le plan du jour</button>
         <button type="button" class="btn btn-primary agenda-sync" data-scope="semaine">Ajouter toute la semaine</button>
@@ -6189,7 +6189,7 @@ function renderAgenda(status, opts) {
       </div>
       <p id="agendaSyncMsg" class="agenda-msg"></p>
       ${privacy}
-      <button type="button" class="btn btn-ghost btn-sm" id="agendaDisconnect" style="width:100%">Deconnecter Google Agenda</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="agendaDisconnect" style="width:100%">Déconnecter Google Agenda</button>
       ${icsBtn}`;
     $$('#agendaBody .agenda-sync').forEach((b) => b.addEventListener('click', () => syncAgenda(b.dataset.scope, b)));
     $('#agendaDisconnect').addEventListener('click', disconnectAgenda);
@@ -6198,24 +6198,24 @@ function renderAgenda(status, opts) {
     // On n'affiche PAS de bouton "Connecter" inactif (un clic sans effet trouble
     // l'utilisateur) : on met en avant le fichier .ics, qui fonctionne tout de suite.
     $('#agendaBody').innerHTML = `
-      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter a mon agenda</h2>
-      <p class="panel-sub">Ajoute ton plan alimentaire a ton agenda en un clic.</p>
-      <p class="agenda-state"><span class="agenda-dot off"></span> La connexion directe Google Agenda n'est pas encore activee.</p>
-      <p class="agenda-msg agenda-warn">La connexion automatique a Google Agenda arrive bientot. En attendant, telecharge le fichier calendrier ci-dessous : il s'ajoute en un clic a Google Agenda, Apple Calendrier ou Outlook.</p>
-      <button type="button" class="btn btn-primary btn-lg" id="agendaIcs" style="width:100%"><svg class="ic"><use href="#ic-file"/></svg> Telecharger le fichier calendrier (.ics)</button>
+      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter à mon agenda</h2>
+      <p class="panel-sub">Ajoute ton plan alimentaire à ton agenda en un clic.</p>
+      <p class="agenda-state"><span class="agenda-dot off"></span> La connexion directe Google Agenda n'est pas encore activée.</p>
+      <p class="agenda-msg agenda-warn">La connexion automatique à Google Agenda arrive bientôt. En attendant, télécharge le fichier calendrier ci-dessous : il s'ajoute en un clic à Google Agenda, Apple Calendrier ou Outlook.</p>
+      <button type="button" class="btn btn-primary btn-lg" id="agendaIcs" style="width:100%"><svg class="ic"><use href="#ic-file"/></svg> Télécharger le fichier calendrier (.ics)</button>
       ${privacy}`;
   } else {
     $('#agendaBody').innerHTML = `
-      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter a Google Agenda</h2>
-      <p class="panel-sub">Ajoute ton plan alimentaire directement dans Google Agenda, sans telecharger de fichier.</p>
-      <p class="agenda-state"><span class="agenda-dot off"></span> Ton Google Agenda n'est pas encore connecte.</p>
+      <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter à Google Agenda</h2>
+      <p class="panel-sub">Ajoute ton plan alimentaire directement dans Google Agenda, sans télécharger de fichier.</p>
+      <p class="agenda-state"><span class="agenda-dot off"></span> Ton Google Agenda n'est pas encore connecté.</p>
       <button type="button" class="btn btn-primary btn-lg" id="agendaConnect" style="width:100%"><svg class="ic"><use href="#ic-calendar"/></svg> Connecter Google Agenda</button>
       <p class="agenda-msg" id="agendaConnectMsg"></p>
       ${privacy}
       ${icsBtn}`;
     const cb = $('#agendaConnect'); if (cb) cb.addEventListener('click', connectAgenda);
   }
-  $('#agendaIcs').addEventListener('click', () => { exportIcs(); $('#agendaIcs').innerHTML = 'Fichier telecharge ✓'; });
+  $('#agendaIcs').addEventListener('click', () => { exportIcs(); $('#agendaIcs').innerHTML = 'Fichier téléchargé ✓'; });
 }
 async function connectAgenda() {
   const btn = $('#agendaConnect');
@@ -6231,17 +6231,17 @@ async function connectAgenda() {
     else if (d && d.configured === false) notConfigured = true;
   } catch (_) { /* reseau */ }
   if (notConfigured) { refreshAgenda(); return; }
-  if (!url) { showErr("La connexion a votre agenda n'a pas abouti. Veuillez reessayer."); return; }
+  if (!url) { showErr("La connexion à ton agenda n'a pas abouti. Réessaie."); return; }
   // 2. Ouverture de la fenetre d'autorisation Google (popup).
   const popup = window.open(url, 'mcn-google', 'width=480,height=660');
-  if (!popup) { showErr('Veuillez autoriser les fenetres pop-up pour connecter votre agenda, puis reessayez.'); return; }
+  if (!popup) { showErr('Autorise les fenêtres pop-up pour connecter ton agenda, puis réessaie.'); return; }
   // 3. Attente du retour : message du callback OU fermeture de la fenetre.
   let done = false;
   const finish = (ok) => {
     if (done) return; done = true;
     window.removeEventListener('message', onMsg); clearInterval(poll);
-    if (ok) { refreshAgenda(); showToast('Agenda connecte ✓', { icon: 'calendar' }); }
-    else { showErr('Autorisation refusee ou interrompue. Vous pouvez recommencer si vous souhaitez connecter votre agenda.'); }
+    if (ok) { refreshAgenda(); showToast('Agenda connecté ✓', { icon: 'calendar' }); }
+    else { showErr('Autorisation refusée ou interrompue. Tu peux recommencer si tu souhaites connecter ton agenda.'); }
   };
   const onMsg = (e) => { if (e.data === 'mcn-google-connected') finish(true); else if (e.data === 'mcn-google-error') finish(false); };
   window.addEventListener('message', onMsg);
@@ -6255,14 +6255,14 @@ async function syncAgenda(scope, btn) {
   try {
     const r = await fetch(apiUrl('/api/google/sync'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ scope, plan: state.plan, planId: planIdFor(state.plan), dinerTard: (state.preferences && state.preferences.dinerTard) === 'oui' }) });
     const d = await r.json();
-    if (d.ok) msg.innerHTML = `<span class="agenda-success">✓ ${d.count} evenement(s) ajoute(s) a ton agenda${d.fail ? ` (${d.fail} non ajoutes)` : ''}.</span>`;
+    if (d.ok) msg.innerHTML = `<span class="agenda-success">✓ ${d.count} événement(s) ajouté(s) à ton agenda${d.fail ? ` (${d.fail} non ajoutés)` : ''}.</span>`;
     else if (d.error === 'not_connected') { msg.textContent = 'Reconnecte ton Google Agenda.'; refreshAgenda(); }
-    else msg.textContent = "La synchronisation n'a pas fonctionne. Reessaie dans quelques instants.";
-  } catch (e) { msg.textContent = "La synchronisation n'a pas fonctionne. Reessaie dans quelques instants."; }
+    else msg.textContent = "La synchronisation n'a pas fonctionné. Réessaie dans quelques instants.";
+  } catch (e) { msg.textContent = "La synchronisation n'a pas fonctionné. Réessaie dans quelques instants."; }
   btn.disabled = false; btn.innerHTML = old;
 }
 async function disconnectAgenda() {
-  if (!confirm('Deconnecter Google Agenda ? Ton plan reste dans l\'application.')) return;
+  if (!confirm('Déconnecter Google Agenda ? Ton plan reste dans l\'application.')) return;
   try { await fetch(apiUrl('/api/google/disconnect'), { method: 'POST', headers: nutriAuthHeaders() }); } catch (_) { /* ignore */ }
   refreshAgenda();
 }

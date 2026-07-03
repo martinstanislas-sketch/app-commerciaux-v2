@@ -432,8 +432,8 @@ function openConsultantCommentModal() {
             <input type="text" id="pf-comment-target" maxlength="200" placeholder="Le chiffre, la cellule, le club, la période…">
           </label>
           <label class="pf-comment-field">
-            <span>Votre commentaire</span>
-            <textarea id="pf-comment-text" rows="6" maxlength="5000" placeholder="Décrivez ce que vous voulez signaler à l'administrateur…"></textarea>
+            <span>Ton commentaire</span>
+            <textarea id="pf-comment-text" rows="6" maxlength="5000" placeholder="Décris ce que tu veux signaler à l'administrateur…"></textarea>
           </label>
           <div class="pf-comment-modal-info">L'administrateur recevra ce message dans sa page Pilotage.</div>
         </div>
@@ -1427,7 +1427,7 @@ function openNoteEditor(existingNote) {
   overlay.innerHTML = `
     <div class="modal note-modal">
       <h2>${existingNote ? 'Modifier la remarque' : 'Nouvelle remarque'}</h2>
-      <textarea id="note-editor-content" rows="8" placeholder="Écrire votre remarque...">${existingNote ? existingNote.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') : ''}</textarea>
+      <textarea id="note-editor-content" rows="8" placeholder="Écris ta remarque...">${existingNote ? existingNote.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') : ''}</textarea>
       <div class="form-actions">
         <button id="note-editor-save" class="btn-primary">Enregistrer</button>
         <button id="note-editor-cancel" class="btn-secondary">Annuler</button>
@@ -1912,8 +1912,8 @@ async function loadControlTab() {
   if (!repId) {
     container.innerHTML = `<div class="empty-state">
       <span class="empty-state-icon">&mdash;</span>
-      <span class="empty-state-title">Sélectionnez un commercial</span>
-      <span class="empty-state-desc">Choisissez un commercial dans la liste ci-dessus pour consulter son contrôle hebdomadaire.</span>
+      <span class="empty-state-title">Sélectionne un commercial</span>
+      <span class="empty-state-desc">Choisis un commercial dans la liste ci-dessus pour consulter son contrôle hebdomadaire.</span>
     </div>`;
     return;
   }
@@ -5035,7 +5035,7 @@ function renderAdminRepList() {
     listDiv.innerHTML = `<div class="empty-state">
       <span class="empty-state-icon">&mdash;</span>
       <span class="empty-state-title">Aucun commercial</span>
-      <span class="empty-state-desc">Ajoutez un commercial via le formulaire ci-dessus.</span>
+      <span class="empty-state-desc">Ajoute un commercial via le formulaire ci-dessus.</span>
     </div>`;
     return;
   }
@@ -6903,7 +6903,7 @@ function renderViewBanner() {
   if (!banner) return;
   if (tasksIsViewingOther) {
     banner.innerHTML = `
-      👁️ Vous consultez le tableau de <strong>${escapeHtml(tasksViewingUserName)}</strong>
+      👁️ Tu consultes le tableau de <strong>${escapeHtml(tasksViewingUserName)}</strong>
       <button class="tk-banner-back" id="tk-banner-back">↩ Retour à mon tableau</button>
     `;
     banner.classList.remove('hidden');
@@ -7958,7 +7958,7 @@ function openCardContextMenu(taskId, x, y) {
 
 function addTaskInline(columnId, btn) {
   if (tasksIsViewingOther) {
-    showToast('Lecture seule — vous consultez le tableau d\'un autre utilisateur', 'error');
+    showToast('Lecture seule — tu consultes le tableau d\'un autre utilisateur', 'error');
     return;
   }
   // Textarea (au lieu d'un simple input) → permet le multi-lignes via

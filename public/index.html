@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds-nolock1">
+  <link rel="stylesheet" href="style.css?v=ds2-nolock1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -33,7 +33,7 @@
       </div>
       <div class="login-headline">
         <h2 class="login-title">Bienvenue</h2>
-        <p class="login-subtitle">Entrez votre code PIN pour accéder à votre espace</p>
+        <p class="login-subtitle">Entre ton code PIN pour accéder à ton espace</p>
       </div>
       <form id="login-form" class="login-form">
         <div class="login-field">
@@ -48,7 +48,7 @@
       </form>
       <!-- Sous-formulaire Guest (affiché automatiquement après saisie du code guest) -->
       <form id="login-guest-form" class="login-guest-form hidden">
-        <div class="login-guest-welcome">Bienvenue ! Dis-nous où tu es et qui tu es</div>
+        <div class="login-guest-welcome">Bienvenue&nbsp;! Dis-nous où tu es et qui tu es</div>
         <div class="login-field">
           <select id="guest-studio" required>
             <option value="">Choisis ton studio…</option>
@@ -60,7 +60,7 @@
         </div>
         <div class="login-field">
           <select id="guest-slot" required>
-            <option value="">Tu fais le matin ou l'après-midi ?</option>
+            <option value="">Tu fais le matin ou l’après-midi&nbsp;?</option>
             <option value="1">Matin</option>
             <option value="2">Après-midi</option>
           </select>
@@ -348,9 +348,9 @@
               <label class="tk-settings-label">Image de fond</label>
               <div class="tk-settings-dropzone" id="tk-settings-dropzone">
                 <input type="file" id="tk-settings-file" accept="image/*" hidden>
-                <span>Glissez une image ici ou <strong>cliquez pour choisir</strong></span>
+                <span>Glisse une image ici ou <strong>clique pour choisir</strong></span>
               </div>
-              <button class="tk-settings-remove" id="tk-settings-remove">Retirer l'image</button>
+              <button class="tk-settings-remove" id="tk-settings-remove">Retirer l’image</button>
             </div>
             <div class="tk-settings-section">
               <label class="tk-settings-label">Opacit&eacute; du voile blanc <span id="tk-settings-veil-val">60%</span></label>
@@ -455,7 +455,7 @@
               <div class="p-catalog-header" id="perso-catalog-toggle">
                 <div class="p-catalog-title">
                   <span class="p-catalog-chevron">▸</span>
-                  <h2>Catalogue d'exercices</h2>
+                  <h2>Catalogue d’exercices</h2>
                   <span class="p-catalog-count" id="perso-catalog-count">0</span>
                 </div>
                 <button type="button" id="perso-btn-add-exercise" class="p-btn-ghost">+ Créer un exercice</button>
@@ -482,7 +482,7 @@
               <!-- Message de coaching automatique -->
               <div id="perso-coaching-msg" class="p-coaching-msg">
                 <span class="p-coaching-icon">💬</span>
-                <span class="p-coaching-text">Démarre ta première séance de la semaine !</span>
+                <span class="p-coaching-text">Démarre ta première séance de la semaine&nbsp;!</span>
               </div>
 
               <!-- Objectif de la semaine -->
@@ -541,7 +541,7 @@
               <div id="perso-calendar" class="p-calendar"></div>
               <div class="p-cal-legend">
                 <span><i class="p-dot p-dot-green"></i> Entraîné</span>
-                <span><i class="p-dot p-dot-blue"></i> Aujourd'hui</span>
+                <span><i class="p-dot p-dot-blue"></i> Aujourd’hui</span>
               </div>
             </div>
 
@@ -785,8 +785,8 @@
           <div class="prel-empty">
             <div class="prel-empty-icon" aria-hidden="true">📥</div>
             <div class="prel-empty-text">
-              Importe deux fichiers d'échéances : un pour la <strong>semaine précédente (S-1)</strong> et un pour la <strong>semaine en cours (S)</strong>.<br>
-              L'analyse comparera automatiquement les deux dès qu'ils seront chargés.
+              Importe deux fichiers d’échéances : un pour la <strong>semaine précédente (S-1)</strong> et un pour la <strong>semaine en cours (S)</strong>.<br>
+              L’analyse comparera automatiquement les deux dès qu’ils seront chargés.
             </div>
           </div>
         </div>
@@ -799,7 +799,7 @@
         <header class="psv-header">
           <div>
             <h2 class="psv-title">Suivi des pr&eacute;l&egrave;vements</h2>
-            <p class="psv-subtitle">Qui devait payer, qui a pay&eacute;, qui n'a pas pay&eacute; &mdash; semaine par semaine, studio par studio.</p>
+            <p class="psv-subtitle">Qui devait payer, qui a pay&eacute;, qui n’a pas pay&eacute; &mdash; semaine par semaine, studio par studio.</p>
           </div>
           <div class="psv-toolbar">
             <label class="psv-field">
@@ -828,7 +828,7 @@
         <header class="news-header">
           <div>
             <h2 class="news-title">NEWS · Contrats signés</h2>
-            <p class="news-subtitle">Dépose les PDF des contrats. L'app extrait la date, le nom, le club, et croise avec P.R.E.L pour détecter les contrats non prélevés.</p>
+            <p class="news-subtitle">Dépose les PDF des contrats. L’app extrait la date, le nom, le club, et croise avec P.R.E.L pour détecter les contrats non prélevés.</p>
           </div>
           <div class="news-toolbar">
             <button class="news-btn-primary" id="news-upload-trigger" type="button">
@@ -846,7 +846,7 @@
           <div class="news-empty">
             <div class="news-empty-icon" aria-hidden="true">📄</div>
             <div class="news-empty-text">
-              Aucun contrat importé pour l'instant.<br>
+              Aucun contrat importé pour l’instant.<br>
               Clique sur <strong>📂 Importer des contrats</strong> et sélectionne les PDF (un ou plusieurs).<br>
               <span class="news-empty-hint">Format de nom attendu : <code>YYMMDDX-prenom-nom-contrat-Studio.pdf</code></span>
             </div>
@@ -1081,6 +1081,6 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds-kpi-bottom1"></script>
+  <script src="app.js?v=ds2-kpi-bottom1"></script>
 </body>
 </html>
