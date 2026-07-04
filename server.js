@@ -550,6 +550,35 @@ try {
   // Notifications push (Web Push / VAPID) : moteur + routes + scénarios.
   const push = require('./nutrition-app/lib/push')({ app, getDb, mw: { requireAuth, requireNutritionUse, requireCoachOrAdmin } });
 
+  // COACH : taux d'ouverture des notifications par type (sur ses clients).
+  app.get('/nutrition/api/coach/push-stats', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const agg = "SELECT type, COUNT(*) sent, SUM(CASE WHEN opened_at!='' THEN 1 ELSE 0 END) opened FROM nutrition_push_log";
+      let rows;
+      if (sc.isAdmin) rows = getDb().prepare(agg + ' GROUP BY type').all();
+      else { const em = clientEmailsForCoach(sc.coachId); rows = em.length ? getDb().prepare(agg + ' WHERE client_email IN (' + em.map(() => '?').join(',') + ') GROUP BY type').all(...em) : []; }
+      const LABEL = { messages: 'Messages coach', recap: 'Récap hebdo', photos: 'Photos parcours', seances: 'Rappels séance' };
+      const stats = rows.map((r) => ({ type: r.type, label: LABEL[r.type] || r.type, sent: r.sent, opened: r.opened || 0, rate: r.sent ? Math.round((r.opened || 0) / r.sent * 100) : 0 }));
+      res.json({ ok: true, stats });
+    } catch (e) { console.error('push-stats:', e); res.status(500).json({ ok: false }); }
+  });
+  // COACH : alertes (client n'a pas ajouté ses photos malgré relance).
+  app.get('/nutrition/api/coach/push-alerts', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const base = "SELECT id, client_email, type, message, created_at FROM nutrition_push_coach_alerts WHERE seen=0";
+      let rows;
+      if (sc.isAdmin) rows = getDb().prepare(base + ' ORDER BY id DESC LIMIT 100').all();
+      else { const em = clientEmailsForCoach(sc.coachId); rows = em.length ? getDb().prepare(base + ' AND client_email IN (' + em.map(() => '?').join(',') + ') ORDER BY id DESC LIMIT 100').all(...em) : []; }
+      res.json({ ok: true, alerts: rows });
+    } catch (e) { res.status(500).json({ ok: false }); }
+  });
+  app.post('/nutrition/api/coach/push-alerts/:id/seen', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try { getDb().prepare('UPDATE nutrition_push_coach_alerts SET seen=1 WHERE id=?').run(Number(req.params.id)); res.json({ ok: true }); }
+    catch (e) { res.status(500).json({ ok: false }); }
+  });
+
   // Coach IA : on charge le module IA (même instance que celle utilisée par la route
   // /nutrition/api/coach montée plus bas) pour pouvoir piloter son activation depuis
   // l'app. Au boot, on applique le réglage admin persisté (app_settings).

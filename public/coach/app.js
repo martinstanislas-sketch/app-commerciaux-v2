@@ -8375,6 +8375,14 @@ function chInjectStyles() {
   st.id = 'challenge-styles';
   st.textContent = `
     #challenge-container { max-width: 960px; margin: 0 auto; padding: 4px 2px 40px; }
+    .ch-pushstrip { background: #fff; border: 1px solid #eceef1; border-radius: 16px; padding: 12px 14px; margin: 0 4px 14px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+    .ch-ps-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin-bottom: 8px; }
+    .ch-ps-alerts { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+    .ch-ps-alert { display: flex; align-items: center; gap: 10px; justify-content: space-between; background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px; padding: 8px 11px; font-size: 13px; color: #92400e; }
+    .ch-ps-seen { flex: none; background: #fff; border: 1px solid #d9a441; color: #92400e; border-radius: 8px; padding: 3px 12px; font: inherit; font-weight: 700; font-size: 12px; cursor: pointer; }
+    .ch-ps-stats { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ch-ps-stat { font-size: 12px; color: #374151; background: #f3f4f6; border-radius: 999px; padding: 4px 10px; }
+    .ch-ps-stat b { color: #2563EB; } .ch-ps-stat em { color: #9aa0a6; font-style: normal; }
     .ch-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 4px 16px; flex-wrap: wrap; }
     .ch-head h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
     .ch-head .ch-count { font-size: 13px; color: #6b7280; font-weight: 600; }
@@ -8451,9 +8459,29 @@ async function loadChallengeTab() {
   try {
     const { clients } = await nutriApi('/coach/clients');
     renderChallengeList(host, clients || []);
+    loadPushStrip(host); // notifications : alertes photos + taux d'ouverture
   } catch (e) {
     host.innerHTML = `<div class="ch-empty"><p>Impossible de charger tes clients.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
   }
+}
+
+// Bandeau notifications (coach) : alertes photos en attente + taux d'ouverture par type.
+async function loadPushStrip(host) {
+  let stats = [], alerts = [];
+  try { const s = await nutriApi('/coach/push-stats'); if (s.ok) stats = s.stats || []; } catch (_) { /* ignore */ }
+  try { const a = await nutriApi('/coach/push-alerts'); if (a.ok) alerts = a.alerts || []; } catch (_) { /* ignore */ }
+  if (!stats.length && !alerts.length) return;
+  const strip = document.createElement('div');
+  strip.className = 'ch-pushstrip';
+  const alertsHtml = alerts.length ? '<div class="ch-ps-alerts">' + alerts.map((a) =>
+    `<div class="ch-ps-alert"><span>📸 ${chEsc(a.message)}</span><button type="button" class="ch-ps-seen" data-id="${a.id}">OK</button></div>`).join('') + '</div>' : '';
+  const statsHtml = stats.length ? '<div class="ch-ps-stats">' + stats.map((s) =>
+    `<span class="ch-ps-stat"><b>${s.rate}%</b> ${chEsc(s.label)} <em>${s.opened}/${s.sent}</em></span>`).join('') + '</div>' : '';
+  strip.innerHTML = '<div class="ch-ps-title">🔔 Notifications</div>' + alertsHtml + statsHtml;
+  host.insertBefore(strip, host.firstChild);
+  strip.querySelectorAll('.ch-ps-seen').forEach((b) => b.addEventListener('click', async () => {
+    try { await nutriApi('/coach/push-alerts/' + b.dataset.id + '/seen', { method: 'POST' }); b.closest('.ch-ps-alert').remove(); } catch (_) { /* ignore */ }
+  }));
 }
 
 function renderChallengeList(host, clients) {
