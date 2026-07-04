@@ -2648,6 +2648,8 @@ async function generateAndShow(seed) {
     renderCommunaute();
     showCommunauteIntro();
     saveLocal();
+    // Moment pertinent pour proposer les notifications (après création du plan).
+    setTimeout(() => { try { maybeShowPushBanner(); } catch (_) { /* ignore */ } }, 5200);
   } catch (e) {
     const detail = (e && e.message && !/^Erreur$/.test(e.message)) ? '\n(' + e.message + ')' : '';
     alert('Désolé, la génération a échoué. Réessaie dans un instant.' + detail);
@@ -2835,6 +2837,9 @@ function init() {
   const _bChangePin = $('#btnChangePin'); if (_bChangePin) _bChangePin.addEventListener('click', openChangePin);
   const _bLogout = $('#btnLogout'); if (_bLogout) _bLogout.addEventListener('click', logoutClient);
   const _navLogout = $('#navLogout'); if (_navLogout) _navLogout.addEventListener('click', logoutClient);
+  const _bPush = $('#btnPushPrefs'); if (_bPush) _bPush.addEventListener('click', openPushPrefs);
+  const _pushClose = $('#pushPrefsClose'); if (_pushClose) _pushClose.addEventListener('click', closePushPrefs);
+  const _pushPanel = $('#pushPrefsPanel'); if (_pushPanel) _pushPanel.addEventListener('click', (e) => { if (e.target.id === 'pushPrefsPanel') closePushPrefs(); });
   const _cpClose = $('#changePinClose'); if (_cpClose) _cpClose.addEventListener('click', closeChangePin);
   const _cpSave = $('#cpSave'); if (_cpSave) _cpSave.addEventListener('click', saveChangePin);
   const _cpPanel = $('#changePinPanel'); if (_cpPanel) _cpPanel.addEventListener('click', (e) => { if (e.target.id === 'changePinPanel') closeChangePin(); });
@@ -2860,6 +2865,9 @@ function init() {
   $('#plateAdminClose').addEventListener('click', closePlateAdmin);
   $('#plateAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'plateAdminPanel') closePlateAdmin(); });
   setupPlateAccess();
+
+  // Notifications push : SW + deep links + re-souscription silencieuse (jamais de demande ici).
+  bootPush();
 
   // Complements : "Non" est exclusif ; le champ detail apparait des qu'un "Oui" est coche.
   const compSet = $('.chip-set[data-multifield="complements"]');
@@ -2889,7 +2897,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le début ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closeCoachWall(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeCoachParcours(); closeChangePin(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closeCoachWall(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeCoachParcours(); closeChangePin(); closePushPrefs(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -4038,7 +4046,8 @@ async function validerParcoursSeance() {
   try {
     const res = await fetch(apiUrl('/api/parcours/seance'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ date: new Date().toISOString().slice(0, 10) }) });
     const d = await res.json();
-    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Séance enregistrée 🔥', { icon: 'check' }); }
+    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Séance enregistrée 🔥', { icon: 'check' });
+      setTimeout(() => { try { maybeShowPushBanner(); } catch (_) { /* ignore */ } }, 1200); } // 1re séance = moment pertinent
     else showToast((d && d.error) || 'Impossible.', { icon: 'info' });
   } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
 }
@@ -6336,6 +6345,113 @@ async function disconnectAgenda() {
   if (!confirm('Déconnecter Google Agenda ? Ton plan reste dans l\'application.')) return;
   try { await fetch(apiUrl('/api/google/disconnect'), { method: 'POST', headers: nutriAuthHeaders() }); } catch (_) { /* ignore */ }
   refreshAgenda();
+}
+
+// ===== Notifications push (Web Push) — client =====
+const PUSH = { vapidKey: null, bannerShown: false };
+function pushSupported() { return ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window); }
+function urlB64ToUint8(base64) {
+  const pad = '='.repeat((4 - base64.length % 4) % 4);
+  const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64); const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+async function pushRegisterSW() {
+  if (!pushSupported()) return null;
+  try { return await navigator.serviceWorker.register('/nutrition/sw.js', { scope: '/nutrition/' }); } catch (_) { return null; }
+}
+async function pushVapidKey() {
+  if (PUSH.vapidKey) return PUSH.vapidKey;
+  try { const d = await (await fetch(apiUrl('/api/push/vapid-public'))).json(); if (d && d.ok) PUSH.vapidKey = d.key; } catch (_) { /* ignore */ }
+  return PUSH.vapidKey;
+}
+async function pushSubscribe() {
+  const reg = await pushRegisterSW(); if (!reg) return false;
+  const key = await pushVapidKey(); if (!key) return false;
+  try {
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(key) });
+    const res = await fetch(apiUrl('/api/push/subscribe'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ subscription: sub }) });
+    return (await res.json()).ok === true;
+  } catch (_) { return false; }
+}
+function pushEligibleForPrompt() {
+  if (!(window.__NUTRI_USER && window.__NUTRI_USER.email)) return false; // vrai compte client uniquement
+  if (!pushSupported()) return false;
+  if (Notification.permission !== 'default') return false;             // déjà accordé / refusé
+  const dis = Number(localStorage.getItem('mc-push-dismissed') || 0);
+  if (dis && Date.now() - dis < 7 * 864e5) return false;               // pas avant 7 j après un refus
+  return true;
+}
+// Bannière contextuelle — JAMAIS à la 1re ouverture ; appelée après le plan / la 1re séance.
+function maybeShowPushBanner() {
+  if (PUSH.bannerShown || $('#pushBanner')) return;
+  if (!pushEligibleForPrompt()) return;
+  PUSH.bannerShown = true;
+  const el = document.createElement('div');
+  el.id = 'pushBanner'; el.className = 'push-banner';
+  el.innerHTML = '<span class="pb-tx">🔔 Active les notifications pour ne rien rater de ton challenge</span>' +
+    '<span class="pb-act"><button type="button" class="pb-no">Plus tard</button><button type="button" class="pb-yes">Activer</button></span>';
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  const close = () => { el.classList.remove('show'); setTimeout(() => el.remove(), 250); };
+  el.querySelector('.pb-no').addEventListener('click', () => { localStorage.setItem('mc-push-dismissed', String(Date.now())); close(); });
+  el.querySelector('.pb-yes').addEventListener('click', async () => {
+    close();
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') { const ok = await pushSubscribe(); showToast(ok ? 'Notifications activées 🔔' : 'Activation impossible pour le moment.', { icon: ok ? 'check' : 'info' }); }
+      else localStorage.setItem('mc-push-dismissed', String(Date.now()));
+    } catch (_) { /* ignore */ }
+  });
+}
+async function bootPush() {
+  if (!pushSupported()) return;
+  pushRegisterSW();
+  handlePushDeepLink();
+  try { if (window.__NUTRI_USER && window.__NUTRI_USER.email && Notification.permission === 'granted') pushSubscribe(); } catch (_) { /* ignore */ }
+}
+function handlePushDeepLink() {
+  let params; try { params = new URLSearchParams(location.search); } catch (_) { return; }
+  const plog = params.get('plog');
+  if (plog) { try { fetch(apiUrl('/api/push/opened'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ logId: Number(plog) }) }); } catch (_) { /* ignore */ } }
+  const p = params.get('push');
+  if (p) setTimeout(() => {
+    if (p === 'message') { if (typeof openCoachChat === 'function') openCoachChat(); }
+    else if (typeof setTab === 'function') setTab('parcours'); // recap / photos / seance -> Parcours (Phase 2 affinera)
+  }, 900);
+  if (plog || p) { try { history.replaceState(null, '', location.pathname); } catch (_) { /* ignore */ } }
+}
+function closePushPrefs() { const p = $('#pushPrefsPanel'); if (p) p.classList.add('hidden'); }
+async function openPushPrefs() {
+  const p = $('#pushPrefsPanel'); if (!p) return;
+  p.classList.remove('hidden');
+  const body = $('#pushPrefsBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  let prefs = { messages: 1, recap: 1, photos: 1, seances: 1 };
+  try { const d = await (await fetch(apiUrl('/api/push/prefs'), { headers: nutriAuthHeaders() })).json(); if (d && d.ok) prefs = d.prefs; } catch (_) { /* défauts */ }
+  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  const permNote = perm === 'granted' ? ''
+    : (perm === 'denied'
+      ? '<p class="pushpref-warn">Les notifications sont bloquées dans les réglages de ton navigateur — réactive-les pour ce site.</p>'
+      : '<button type="button" class="btn btn-primary" id="pushEnableBtn" style="width:100%;margin:0 0 12px">Activer les notifications</button>');
+  const ROWS = [
+    ['messages', '💬 Messages du coach', 'Quand ton coach t\'écrit'],
+    ['recap', '📊 Récap de la semaine', 'Ton bilan chaque dimanche'],
+    ['photos', '📸 Photos du parcours', 'Rappels mi-parcours et bilan'],
+    ['seances', '💪 Rappels de séance', 'Lundi, mercredi, vendredi'],
+  ];
+  body.innerHTML = permNote + '<div class="pushpref-list">' + ROWS.map(([k, t, s]) =>
+    '<label class="pushpref-row"><span class="pushpref-txt"><b>' + t + '</b><span>' + s + '</span></span>' +
+    '<input type="checkbox" class="pushpref-tog" data-k="' + k + '"' + (prefs[k] ? ' checked' : '') + '></label>').join('') + '</div>' +
+    (perm === 'granted' ? '<button type="button" class="btn btn-outline" id="pushTestBtn" style="width:100%;margin-top:12px">Envoyer une notification test</button>' : '');
+  const eb = $('#pushEnableBtn'); if (eb) eb.addEventListener('click', async () => { try { const perm2 = await Notification.requestPermission(); if (perm2 === 'granted') { await pushSubscribe(); openPushPrefs(); } } catch (_) {} });
+  body.querySelectorAll('.pushpref-tog').forEach((t) => t.addEventListener('change', () => savePushPrefs(body)));
+  const tb = $('#pushTestBtn'); if (tb) tb.addEventListener('click', async () => { tb.disabled = true; try { await fetch(apiUrl('/api/push/test'), { method: 'POST', headers: nutriAuthHeaders() }); showToast('Test envoyé 🔔', { icon: 'check' }); } catch (_) {} tb.disabled = false; });
+}
+async function savePushPrefs(body) {
+  const b = {}; body.querySelectorAll('.pushpref-tog').forEach((t) => { b[t.dataset.k] = t.checked; });
+  try { await fetch(apiUrl('/api/push/prefs'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(b) }); } catch (_) { /* ignore */ }
 }
 
 document.addEventListener('DOMContentLoaded', init);

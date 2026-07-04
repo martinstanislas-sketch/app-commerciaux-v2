@@ -1,0 +1,15 @@
+{
+  "name": "My Coach Nutrition",
+  "short_name": "My Coach",
+  "description": "Ton plan de repas de la semaine et ton Challenge 6 semaines.",
+  "start_url": "/nutrition/",
+  "scope": "/nutrition/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6F5F2",
+  "theme_color": "#F6F5F2",
+  "icons": [
+    { "src": "/nutrition/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/nutrition/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

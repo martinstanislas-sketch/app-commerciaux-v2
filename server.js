@@ -547,6 +547,9 @@ try {
   const nutritionApp = require('./nutrition-app/server');
   ensureNutritionHelpTable();
 
+  // Notifications push (Web Push / VAPID) : moteur + routes + scénarios.
+  const push = require('./nutrition-app/lib/push')({ app, getDb, mw: { requireAuth, requireNutritionUse, requireCoachOrAdmin } });
+
   // Coach IA : on charge le module IA (même instance que celle utilisée par la route
   // /nutrition/api/coach montée plus bas) pour pouvoir piloter son activation depuis
   // l'app. Au boot, on applique le réglage admin persisté (app_settings).
@@ -1366,6 +1369,8 @@ try {
       if (role === 'super_admin') {
         try { getDb().prepare('INSERT INTO nutrition_message_audit (admin_label, conversation_id, action, created_at) VALUES (?,?,?,?)').run(label, conv.id, 'reply', now); } catch (e) { console.warn('Audit messagerie non enregistré :', e && e.message); }
       }
+      // Scénario A : notifie le client du message de son coach (immédiat + regroupement).
+      try { push.notifyCoachMessage(conv.client_email, label, conv.id, msg); } catch (e) { console.warn('push coach msg :', e && e.message); }
       res.json({ ok: true, message: { id: info.lastInsertRowid, role, who: label, text: msg, when: now, mine: true } });
     } catch (e) { console.error('coach reply POST :', e); res.status(500).json({ ok: false, error: 'Envoi impossible.' }); }
   });
