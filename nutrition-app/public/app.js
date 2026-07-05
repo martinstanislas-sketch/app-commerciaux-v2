@@ -983,6 +983,8 @@ function conseilCardHTML(t, today, ctx) {
 function renderConseils() {
   const host = $('#conseilsJour');
   if (!host) return;
+  host.innerHTML = ''; host.classList.add('hidden'); return; // Section « Conseils du jour » retirée (à la demande).
+  /* eslint-disable no-unreachable */
   if (!state.plan || !state.plan.besoins) { host.innerHTML = ''; return; }
   const { ctx, conseils, today } = evaluerConseils();
   // Dès qu'un repas de la journée est validé, on retire les Conseils du jour.
