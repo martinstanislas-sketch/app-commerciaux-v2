@@ -257,6 +257,7 @@ function showScreen(id) {
   // Active la "coque" (sidebar desktop + decalage du contenu) uniquement sur l'ecran plan.
   document.body.classList.toggle('app-shell', id === 'result');
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (id === 'result') { try { renderGuideDuJour(); } catch (_) { /* ignore */ } }
 }
 
 function showLoader(text) {
@@ -6469,25 +6470,45 @@ async function openEbooks() {
   try {
     const d = await (await fetch(apiUrl('/api/ebooks'), { headers: nutriAuthHeaders() })).json();
     if (!d.ok) throw new Error();
-    renderEbooks(body, d.ebooks || []);
+    renderEbooks(body, d.ebooks || [], d.day);
   } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
 }
-function ebookCard(e) {
+function ebookCard(e, day) {
   const cover = e.cover ? ` style="background-image:url('${e.cover}')"` : '';
   const lock = e.locked ? `<span class="ebk-lock">${icSvg('lock')} ${escapeHtml(e.unlockLabel || 'À venir')}</span>` : '';
+  const isNew = !e.locked && Number(e.unlockDay) === Number(day); // débloqué aujourd'hui
+  const badge = isNew ? '<span class="ebk-new">Nouveau</span>' : '';
   return `<button type="button" class="ebk-card${e.locked ? ' locked' : ''}" data-id="${e.id}" data-locked="${e.locked ? 1 : 0}" data-unlock="${escapeHtml(e.unlockLabel || '')}">
-    <span class="ebk-cover"${cover}>${e.cover ? '' : '<span class="ebk-cover-ic">' + icSvg('book') + '</span>'}${lock}</span>
+    <span class="ebk-cover"${cover}>${e.cover ? '' : '<span class="ebk-cover-ic">' + icSvg('book') + '</span>'}${badge}${lock}</span>
     <span class="ebk-info"><b class="ebk-title">${escapeHtml(e.title)}</b>${e.description ? '<span class="ebk-desc">' + escapeHtml(e.description) + '</span>' : ''}</span>
   </button>`;
 }
-function renderEbooks(body, list) {
+function renderEbooks(body, list, day) {
   if (!list.length) { body.innerHTML = '<p class="help-empty">Aucun guide pour le moment. Reviens bientôt 📚</p>'; return; }
   const cats = {}; list.forEach((e) => { const c = e.category || 'Guides'; (cats[c] = cats[c] || []).push(e); });
-  body.innerHTML = Object.keys(cats).map((cat) => '<div class="ebk-cat">' + escapeHtml(cat) + '</div><div class="ebk-grid">' + cats[cat].map(ebookCard).join('') + '</div>').join('');
+  body.innerHTML = Object.keys(cats).map((cat) => '<div class="ebk-cat">' + escapeHtml(cat) + '</div><div class="ebk-grid">' + cats[cat].map((e) => ebookCard(e, day)).join('') + '</div>').join('');
   body.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
     if (c.dataset.locked === '1') { showToast('🔒 Débloqué en ' + (c.dataset.unlock || 'cours de challenge'), { icon: 'info' }); return; }
     openEbook(Number(c.dataset.id));
   }));
+}
+// Carte « Guide du jour » sur le plan : l'ebook débloqué aujourd'hui (unlock_day = jour actuel).
+async function renderGuideDuJour() {
+  const host = $('#guideDuJourCard'); if (!host) return;
+  if (!(window.__NUTRI_USER && window.__NUTRI_USER.email)) { host.classList.add('hidden'); return; }
+  try {
+    const d = await (await fetch(apiUrl('/api/ebooks'), { headers: nutriAuthHeaders() })).json();
+    if (!d.ok) { host.classList.add('hidden'); return; }
+    const jourGuides = (d.ebooks || []).filter((e) => !e.locked && Number(e.unlockDay) === Number(d.day));
+    const g = jourGuides[jourGuides.length - 1]; // le plus récent si plusieurs le même jour
+    if (!g) { host.classList.add('hidden'); host.innerHTML = ''; return; }
+    host.classList.remove('hidden');
+    host.innerHTML = `<button type="button" class="gdj-inner" data-id="${g.id}">
+      <span class="gdj-ic">${icSvg('book')}</span>
+      <span class="gdj-main"><span class="gdj-kicker">Ton guide du jour<span class="gdj-new">Nouveau</span></span><span class="gdj-title">${escapeHtml(g.title)}</span>${g.description ? '<span class="gdj-desc">' + escapeHtml(g.description) + '</span>' : ''}</span>
+      <span class="gdj-cta">${icSvg('arrow-right')}</span></button>`;
+    host.querySelector('.gdj-inner').addEventListener('click', () => openEbook(g.id));
+  } catch (_) { host.classList.add('hidden'); }
 }
 async function openEbook(id) {
   const win = window.open('', '_blank'); // fenêtre synchrone (geste user) -> anti popup-blocker
