@@ -565,6 +565,7 @@ function renderNeeds() {
   $('#needsCard').innerHTML = `
     ${prenom ? `<p class="needs-kicker">Le programme de ${escapeHtml(prenom)}</p>` : ''}
     <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2>
+      <button type="button" class="needs-guide hidden" id="guideDuJourBtn" title="Ton guide du jour">${icSvg('book')}<span class="ng-lbl">Guide du jour</span><span class="ng-new">Nouveau</span></button>
       <button type="button" class="needs-agenda" title="Ajouter mes menus à mon agenda" aria-label="Ajouter à mon agenda">${icSvg('calendar')}<span>Agenda</span></button></div>
     <p class="needs-sub">${prenom ? escapeHtml(prenom) + ', ton objectif, résumé en chiffres.' : 'Ton objectif, résumé en chiffres.'}</p>
     ${goalStrip}
@@ -575,6 +576,8 @@ function renderNeeds() {
       <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl">Lipides</div>${bar(lk)}</div>
     </div>`;
   const ag = $('#needsCard .needs-agenda'); if (ag) ag.addEventListener('click', openAgenda);
+  const gb = $('#guideDuJourBtn'); if (gb) gb.addEventListener('click', openGuideDuJour);
+  renderGuideDuJour(); // met à jour le bouton « Guide du jour » (affiché + « Nouveau » si non lu)
 }
 
 // ---------- Ajustement automatique du plan (Challenge 6/6) ----------
@@ -6494,23 +6497,25 @@ function renderEbooks(body, list, day) {
     openEbook(Number(c.dataset.id));
   }));
 }
-// Carte « Guide du jour » sur le plan : l'ebook débloqué aujourd'hui (unlock_day = jour actuel).
+// Bouton « Guide du jour » (logo dans l'en-tête de l'objectif) : l'ebook débloqué
+// aujourd'hui. Visible seulement s'il existe un guide du jour ; badge « Nouveau »
+// (avec pulsation) tant qu'il n'est pas lu. Clic -> ouverture directe.
+let _guideDuJour = undefined;
+function openGuideDuJour() { if (_guideDuJour) openEbook(_guideDuJour.id); else openEbooks(); }
 async function renderGuideDuJour() {
-  const host = $('#guideDuJourCard'); if (!host) return;
-  if (!(window.__NUTRI_USER && window.__NUTRI_USER.email)) { host.classList.add('hidden'); return; }
+  const btn = $('#guideDuJourBtn'); if (!btn) return;
+  if (!(window.__NUTRI_USER && window.__NUTRI_USER.email)) { btn.classList.add('hidden'); return; }
   try {
     const d = await (await fetch(apiUrl('/api/ebooks'), { headers: nutriAuthHeaders() })).json();
-    if (!d.ok) { host.classList.add('hidden'); return; }
-    const jourGuides = (d.ebooks || []).filter((e) => !e.locked && Number(e.unlockDay) === Number(d.day) && !e.read);
-    const g = jourGuides[jourGuides.length - 1]; // le plus récent si plusieurs le même jour, non lu
-    if (!g) { host.classList.add('hidden'); host.innerHTML = ''; return; }
-    host.classList.remove('hidden');
-    host.innerHTML = `<button type="button" class="gdj-inner" data-id="${g.id}">
-      <span class="gdj-ic">${icSvg('book')}</span>
-      <span class="gdj-main"><span class="gdj-kicker">Ton guide du jour<span class="gdj-new">Nouveau</span></span><span class="gdj-title">${escapeHtml(g.title)}</span>${g.description ? '<span class="gdj-desc">' + escapeHtml(g.description) + '</span>' : ''}</span>
-      <span class="gdj-cta">${icSvg('arrow-right')}</span></button>`;
-    host.querySelector('.gdj-inner').addEventListener('click', () => openEbook(g.id));
-  } catch (_) { host.classList.add('hidden'); }
+    if (!d.ok) { btn.classList.add('hidden'); return; }
+    const jour = (d.ebooks || []).filter((e) => !e.locked && Number(e.unlockDay) === Number(d.day));
+    const g = jour[jour.length - 1] || null; // le guide du jour (lu ou non)
+    _guideDuJour = g;
+    if (!g) { btn.classList.add('hidden'); return; }
+    btn.classList.remove('hidden');
+    btn.classList.toggle('is-new', !g.read); // « Nouveau » + pulsation tant que non lu
+    btn.title = g.title;
+  } catch (_) { btn.classList.add('hidden'); }
 }
 async function openEbook(id) {
   const win = window.open('', '_blank'); // fenêtre synchrone (geste user) -> anti popup-blocker
