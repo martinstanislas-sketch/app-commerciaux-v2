@@ -346,6 +346,11 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .ebka-acts { display: flex; gap: 6px; flex: none; }
 .ebka-btn { font: inherit; font-size: 12px; font-weight: 700; border: 1px solid var(--border-c); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 .ebka-btn.danger { color: var(--error); border-color: rgba(220,76,68,.4); }
+.ebka-btn.primary { background: var(--blue-c); color: #fff; border-color: var(--blue-c); }
+.ebka-row.editing { flex-direction: column; align-items: stretch; }
+.ebka-edit { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.ebka-edit input[type=text], .ebka-edit input[type=number], .ebka-edit textarea { font: inherit; padding: 9px 11px; border: 1px solid var(--border-c); border-radius: 10px; background: var(--surface); color: var(--ink); }
+.ebka-edit-btns { display: flex; gap: 8px; justify-content: flex-end; }
 /* Guide du jour (carte sur le plan) + badges « Nouveau » */
 #guideDuJourCard { margin: 0 0 18px; }
 .gdj-inner { width: 100%; display: flex; align-items: center; gap: 13px; text-align: left; background: linear-gradient(135deg, var(--blue-soft), var(--surface)); border: 1px solid var(--blue-c); border-radius: 16px; padding: 14px 16px; cursor: pointer; box-shadow: 0 6px 18px -10px rgba(37,99,235,.4); }

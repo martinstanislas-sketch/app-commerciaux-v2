@@ -6526,14 +6526,16 @@ async function openEbook(id) {
 function closeEbooksAdmin() { const p = $('#ebooksAdminPanel'); if (p) p.classList.add('hidden'); }
 function openEbooksAdmin() { const p = $('#ebooksAdminPanel'); if (!p) return; p.classList.remove('hidden'); renderEbooksAdmin(); }
 function ebkDayLabel(unlockDay) { return (Number(unlockDay) + 1) <= 1 ? 'Jour 1 (départ)' : 'Jour ' + (Number(unlockDay) + 1); }
+let _ebooksAdminList = [];
 async function renderEbooksAdmin() {
   const body = $('#ebooksAdminBody'); if (!body) return;
   body.innerHTML = '<p class="panel-sub">Chargement…</p>';
   let list = [];
   try { const d = await (await fetch(apiUrl('/api/admin/ebooks'), { headers: nutriAuthHeaders() })).json(); if (d.ok) list = d.ebooks || []; } catch (_) { /* ignore */ }
+  _ebooksAdminList = list;
   const rows = list.map((e) => `<div class="ebka-row" data-id="${e.id}" data-active="${e.active}">
     <div class="ebka-main"><b>${escapeHtml(e.title)}</b><span>${escapeHtml(e.category || '—')} · ${ebkDayLabel(e.unlockDay)} · ${e.sizeKo} Ko${e.active ? '' : ' · masqué'}</span></div>
-    <div class="ebka-acts"><button type="button" class="ebka-btn" data-act="toggle">${e.active ? 'Masquer' : 'Afficher'}</button><button type="button" class="ebka-btn danger" data-act="del">Suppr.</button></div>
+    <div class="ebka-acts"><button type="button" class="ebka-btn" data-act="edit">Éditer</button><button type="button" class="ebka-btn" data-act="toggle">${e.active ? 'Masquer' : 'Afficher'}</button><button type="button" class="ebka-btn danger" data-act="del">Suppr.</button></div>
   </div>`).join('');
   body.innerHTML = `
     <form id="ebkAddForm" class="ebka-form">
@@ -6549,9 +6551,50 @@ async function renderEbooksAdmin() {
     <div class="ebka-list">${rows || '<p class="help-empty">Aucun guide pour le moment.</p>'}</div>`;
   $('#ebkAddForm').addEventListener('submit', addEbook);
   body.querySelectorAll('.ebka-row').forEach((r) => {
+    r.querySelector('[data-act="edit"]').addEventListener('click', () => editEbook(r.dataset.id));
     r.querySelector('[data-act="toggle"]').addEventListener('click', () => toggleEbook(r.dataset.id, r));
     r.querySelector('[data-act="del"]').addEventListener('click', () => delEbook(r.dataset.id));
   });
+}
+// Édition d'un guide : transforme la ligne en formulaire pré-rempli.
+function editEbook(id) {
+  const e = _ebooksAdminList.find((x) => x.id === Number(id));
+  const row = document.querySelector('.ebka-row[data-id="' + id + '"]');
+  if (!e || !row) return;
+  row.classList.add('editing');
+  row.innerHTML = `<div class="ebka-edit">
+    <input type="text" class="ebke-title" value="${escapeHtml(e.title)}" maxlength="160" placeholder="Titre">
+    <input type="text" class="ebke-cat" value="${escapeHtml(e.category || '')}" maxlength="60" placeholder="Catégorie">
+    <textarea class="ebke-desc" rows="2" maxlength="600" placeholder="Description">${escapeHtml(e.description || '')}</textarea>
+    <label class="ebka-lbl">Jour de déblocage <em>(1 à 42)</em><input type="number" class="ebke-day" min="1" max="42" value="${Number(e.unlockDay) + 1}"></label>
+    <label class="ebka-file">Remplacer le PDF <em>(optionnel)</em><input type="file" class="ebke-pdf" accept="application/pdf"></label>
+    <label class="ebka-file">Remplacer la couverture <em>(optionnel)</em><input type="file" class="ebke-cover" accept="image/*"></label>
+    <div class="ebka-edit-btns"><button type="button" class="ebka-btn" data-act="cancel">Annuler</button><button type="button" class="ebka-btn primary" data-act="save">Enregistrer</button></div>
+    <p class="pc-msg ebke-msg"></p>
+  </div>`;
+  row.querySelector('[data-act="cancel"]').addEventListener('click', renderEbooksAdmin);
+  row.querySelector('[data-act="save"]').addEventListener('click', () => saveEbookEdit(id, row));
+}
+async function saveEbookEdit(id, row) {
+  const msg = row.querySelector('.ebke-msg'), btn = row.querySelector('[data-act="save"]');
+  const body = {
+    title: row.querySelector('.ebke-title').value.trim(),
+    category: row.querySelector('.ebke-cat').value.trim(),
+    description: row.querySelector('.ebke-desc').value.trim(),
+    unlockDay: Math.max(0, Math.min(41, (Number(row.querySelector('.ebke-day').value) || 1) - 1)),
+  };
+  if (!body.title) { msg.textContent = 'Titre requis.'; return; }
+  btn.disabled = true; msg.textContent = 'Enregistrement…';
+  try {
+    const pf = row.querySelector('.ebke-pdf').files[0];
+    if (pf) { if (pf.size > 10 * 1024 * 1024) { msg.textContent = 'PDF trop lourd (max 10 Mo).'; btn.disabled = false; return; } body.pdfData = await fileToDataUrl(pf); }
+    const cf = row.querySelector('.ebke-cover').files[0];
+    if (cf) { try { body.coverData = await compressImage(cf, 640, 0.82); } catch (_) { /* ignore */ } }
+    const d = await (await fetch(apiUrl('/api/admin/ebooks/' + id), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) })).json();
+    if (d.ok) { showToast('Guide modifié ✓', { icon: 'check' }); renderEbooksAdmin(); }
+    else msg.textContent = d.error || 'Échec.';
+  } catch (_) { msg.textContent = 'Échec de l\'enregistrement.'; }
+  btn.disabled = false;
 }
 function fileToDataUrl(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); }); }
 async function addEbook(e) {
