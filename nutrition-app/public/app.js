@@ -6476,7 +6476,7 @@ async function openEbooks() {
 function ebookCard(e, day) {
   const cover = e.cover ? ` style="background-image:url('${e.cover}')"` : '';
   const lock = e.locked ? `<span class="ebk-lock">${icSvg('lock')} ${escapeHtml(e.unlockLabel || 'À venir')}</span>` : '';
-  const isNew = !e.locked && Number(e.unlockDay) === Number(day); // débloqué aujourd'hui
+  const isNew = !e.locked && Number(e.unlockDay) === Number(day) && !e.read; // débloqué aujourd'hui + pas encore lu
   const badge = isNew ? '<span class="ebk-new">Nouveau</span>' : '';
   return `<button type="button" class="ebk-card${e.locked ? ' locked' : ''}" data-id="${e.id}" data-locked="${e.locked ? 1 : 0}" data-unlock="${escapeHtml(e.unlockLabel || '')}">
     <span class="ebk-cover"${cover}>${e.cover ? '' : '<span class="ebk-cover-ic">' + icSvg('book') + '</span>'}${badge}${lock}</span>
@@ -6499,8 +6499,8 @@ async function renderGuideDuJour() {
   try {
     const d = await (await fetch(apiUrl('/api/ebooks'), { headers: nutriAuthHeaders() })).json();
     if (!d.ok) { host.classList.add('hidden'); return; }
-    const jourGuides = (d.ebooks || []).filter((e) => !e.locked && Number(e.unlockDay) === Number(d.day));
-    const g = jourGuides[jourGuides.length - 1]; // le plus récent si plusieurs le même jour
+    const jourGuides = (d.ebooks || []).filter((e) => !e.locked && Number(e.unlockDay) === Number(d.day) && !e.read);
+    const g = jourGuides[jourGuides.length - 1]; // le plus récent si plusieurs le même jour, non lu
     if (!g) { host.classList.add('hidden'); host.innerHTML = ''; return; }
     host.classList.remove('hidden');
     host.innerHTML = `<button type="button" class="gdj-inner" data-id="${g.id}">
@@ -6514,8 +6514,11 @@ async function openEbook(id) {
   const win = window.open('', '_blank'); // fenêtre synchrone (geste user) -> anti popup-blocker
   try {
     const d = await (await fetch(apiUrl('/api/ebooks/' + id + '/open'), { method: 'POST', headers: nutriAuthHeaders() })).json();
-    if (d.ok && d.url) { if (win) win.location = d.url; else window.location = d.url; }
-    else { if (win) win.close(); showToast(d.locked ? 'Ce guide n\'est pas encore débloqué.' : 'Ouverture impossible.', { icon: 'info' }); }
+    if (d.ok && d.url) {
+      if (win) win.location = d.url; else window.location = d.url;
+      // Le guide est marqué lu -> on retire le badge « Nouveau » et la carte du jour.
+      setTimeout(() => { try { renderGuideDuJour(); const ep = $('#ebooksPanel'); if (ep && !ep.classList.contains('hidden')) openEbooks(); } catch (_) { /* ignore */ } }, 500);
+    } else { if (win) win.close(); showToast(d.locked ? 'Ce guide n\'est pas encore débloqué.' : 'Ouverture impossible.', { icon: 'info' }); }
   } catch (_) { if (win) win.close(); showToast('Ouverture impossible.', { icon: 'info' }); }
 }
 

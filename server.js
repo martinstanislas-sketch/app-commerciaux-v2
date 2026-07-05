@@ -593,6 +593,12 @@ try {
       sort_order INTEGER NOT NULL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS nutrition_ebook_reads (
+      client_email TEXT NOT NULL,
+      ebook_id INTEGER NOT NULL,
+      opened_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (client_email, ebook_id)
     );`);
   } catch (e) { console.error('ebooks schema:', e && e.message); }
 
@@ -641,7 +647,9 @@ try {
       const email = (req.session && req.session.email) || '';
       const day = clientChallengeDay(email);
       const rows = getDb().prepare('SELECT id, title, description, category, cover_data, unlock_day FROM nutrition_ebooks WHERE active=1 ORDER BY unlock_day ASC, id ASC').all();
-      const ebooks = rows.map((r) => ({ id: r.id, title: r.title, description: r.description, category: r.category, cover: r.cover_data || '', unlockDay: r.unlock_day, locked: day < r.unlock_day, unlockLabel: ebookUnlockLabel(r.unlock_day) }));
+      const readSet = new Set();
+      try { getDb().prepare('SELECT ebook_id FROM nutrition_ebook_reads WHERE client_email=?').all(email).forEach((r) => readSet.add(r.ebook_id)); } catch (_) { /* table absente */ }
+      const ebooks = rows.map((r) => ({ id: r.id, title: r.title, description: r.description, category: r.category, cover: r.cover_data || '', unlockDay: r.unlock_day, locked: day < r.unlock_day, unlockLabel: ebookUnlockLabel(r.unlock_day), read: readSet.has(r.id) }));
       res.json({ ok: true, ebooks, day });
     } catch (e) { console.error('ebooks GET:', e); res.status(500).json({ ok: false }); }
   });
@@ -653,6 +661,8 @@ try {
       const eb = getDb().prepare('SELECT id, unlock_day FROM nutrition_ebooks WHERE id=? AND active=1').get(id);
       if (!eb) return res.status(404).json({ ok: false });
       if (clientChallengeDay(email) < eb.unlock_day) return res.status(403).json({ ok: false, locked: true });
+      // Marque le guide comme lu -> le badge « Nouveau » disparaît ensuite.
+      try { getDb().prepare('INSERT OR IGNORE INTO nutrition_ebook_reads (client_email, ebook_id, opened_at) VALUES (?,?,?)').run(email, id, new Date().toISOString()); } catch (_) { /* ignore */ }
       res.json({ ok: true, url: '/nutrition/api/ebooks/' + id + '/file?k=' + encodeURIComponent(signEbookToken(id, email)) });
     } catch (e) { res.status(500).json({ ok: false }); }
   });
