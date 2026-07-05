@@ -9,7 +9,7 @@ const { sendEmail, verifyConnection } = require('./email');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '10mb' })); // 10mb pour audio messages communauté
+app.use(express.json({ limit: '20mb' })); // 20mb : audio communauté + upload ebooks (PDF base64)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Static serving for COACH app at /coach
@@ -576,6 +576,146 @@ try {
   });
   app.post('/nutrition/api/coach/push-alerts/:id/seen', requireAuth, requireCoachOrAdmin, (req, res) => {
     try { getDb().prepare('UPDATE nutrition_push_coach_alerts SET seen=1 WHERE id=?').run(Number(req.params.id)); res.json({ ok: true }); }
+    catch (e) { res.status(500).json({ ok: false }); }
+  });
+
+  // ============ EBOOKS / GUIDES (débloqués selon la progression du challenge) ============
+  try {
+    getDb().exec(`CREATE TABLE IF NOT EXISTS nutrition_ebooks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT '',
+      cover_data TEXT NOT NULL DEFAULT '',
+      pdf_data TEXT NOT NULL DEFAULT '',
+      pdf_mime TEXT NOT NULL DEFAULT 'application/pdf',
+      unlock_day INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT ''
+    );`);
+  } catch (e) { console.error('ebooks schema:', e && e.message); }
+
+  function ebookSecret() {
+    const row = getDb().prepare("SELECT value FROM app_settings WHERE key='ebook_secret'").get();
+    if (row && row.value) return row.value;
+    const s = crypto.randomBytes(32).toString('hex');
+    getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('ebook_secret', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(s);
+    return s;
+  }
+  // Jour de challenge du client (depuis la pesée de départ, sinon startDate) ; 0 si pas démarré.
+  function clientChallengeDay(email) {
+    if (!email) return 0;
+    const dep = getDb().prepare("SELECT date FROM nutrition_parcours_pesees WHERE client_email=? AND type='depart'").get(email);
+    let sd = dep && dep.date;
+    if (!sd) { try { const r = getDb().prepare('SELECT data FROM nutrition_clients WHERE email=?').get(email); const d = r && r.data ? JSON.parse(r.data) : {}; sd = d.startDate; } catch (_) { /* ignore */ } }
+    if (!sd) return 0;
+    const t = Date.parse(sd); if (isNaN(t)) return 0;
+    return Math.max(0, Math.floor((Date.now() - t) / 86400000));
+  }
+  function ebookUnlockLabel(day) { return day <= 0 ? '' : (day <= 14 ? 'Semaine 3' : (day <= 35 ? 'Semaine 6' : 'Jour ' + day)); }
+  function signEbookToken(ebookId, email) {
+    const exp = Date.now() + 5 * 60000;
+    const payload = ebookId + ':' + email + ':' + exp;
+    const sig = crypto.createHmac('sha256', ebookSecret()).update(payload).digest('base64url');
+    return Buffer.from(payload).toString('base64url') + '.' + sig;
+  }
+  function verifyEbookToken(token) {
+    try {
+      const [p, sig] = String(token || '').split('.');
+      if (!p || !sig) return null;
+      const payload = Buffer.from(p, 'base64url').toString();
+      const expect = crypto.createHmac('sha256', ebookSecret()).update(payload).digest('base64url');
+      if (sig.length !== expect.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) return null;
+      const parts = payload.split(':'); const exp = Number(parts[2]);
+      if (!(exp > Date.now())) return null;
+      return { ebookId: Number(parts[0]), email: parts[1] };
+    } catch (_) { return null; }
+  }
+
+  // CLIENT : liste des guides (verrouillés/déverrouillés selon la progression).
+  app.get('/nutrition/api/ebooks', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      const day = clientChallengeDay(email);
+      const rows = getDb().prepare('SELECT id, title, description, category, cover_data, unlock_day FROM nutrition_ebooks WHERE active=1 ORDER BY sort_order ASC, id ASC').all();
+      const ebooks = rows.map((r) => ({ id: r.id, title: r.title, description: r.description, category: r.category, cover: r.cover_data || '', unlockDay: r.unlock_day, locked: day < r.unlock_day, unlockLabel: ebookUnlockLabel(r.unlock_day) }));
+      res.json({ ok: true, ebooks, day });
+    } catch (e) { console.error('ebooks GET:', e); res.status(500).json({ ok: false }); }
+  });
+  // CLIENT : demande d'ouverture -> URL signée (5 min) si débloqué.
+  app.post('/nutrition/api/ebooks/:id/open', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      const id = Number(req.params.id);
+      const eb = getDb().prepare('SELECT id, unlock_day FROM nutrition_ebooks WHERE id=? AND active=1').get(id);
+      if (!eb) return res.status(404).json({ ok: false });
+      if (clientChallengeDay(email) < eb.unlock_day) return res.status(403).json({ ok: false, locked: true });
+      res.json({ ok: true, url: '/nutrition/api/ebooks/' + id + '/file?k=' + encodeURIComponent(signEbookToken(id, email)) });
+    } catch (e) { res.status(500).json({ ok: false }); }
+  });
+  // Fichier PDF via URL signée (navigation directe -> visionneuse native ; jamais d'URL publique).
+  app.get('/nutrition/api/ebooks/:id/file', (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const v = verifyEbookToken(req.query.k);
+      if (!v || v.ebookId !== id) return res.status(403).end();
+      const eb = getDb().prepare('SELECT title, pdf_data, pdf_mime, unlock_day FROM nutrition_ebooks WHERE id=? AND active=1').get(id);
+      if (!eb || !eb.pdf_data) return res.status(404).end();
+      if (clientChallengeDay(v.email) < eb.unlock_day) return res.status(403).end();
+      const m = /^data:[^;]+;base64,(.+)$/.exec(eb.pdf_data);
+      const buf = Buffer.from(m ? m[1] : eb.pdf_data, 'base64');
+      res.setHeader('Content-Type', eb.pdf_mime || 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="guide-' + id + '.pdf"');
+      res.send(buf);
+    } catch (e) { console.error('ebook file:', e); res.status(500).end(); }
+  });
+
+  // ADMIN : gestion des guides.
+  app.get('/nutrition/api/admin/ebooks', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const rows = getDb().prepare("SELECT id, title, description, category, unlock_day, sort_order, active, length(pdf_data) pdflen, CASE WHEN cover_data!='' THEN 1 ELSE 0 END hascover FROM nutrition_ebooks ORDER BY sort_order ASC, id ASC").all();
+      res.json({ ok: true, ebooks: rows.map((r) => ({ id: r.id, title: r.title, description: r.description, category: r.category, unlockDay: r.unlock_day, sortOrder: r.sort_order, active: r.active, hasCover: !!r.hascover, sizeKo: Math.round((r.pdflen || 0) * 0.75 / 1024) })) });
+    } catch (e) { res.status(500).json({ ok: false }); }
+  });
+  app.post('/nutrition/api/admin/ebooks', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const title = String(b.title || '').trim().slice(0, 160);
+      if (!title) return res.status(400).json({ ok: false, error: 'Titre requis.' });
+      const pdf = String(b.pdfData || '');
+      if (!/^data:application\/pdf;base64,/.test(pdf)) return res.status(400).json({ ok: false, error: 'PDF requis.' });
+      if (pdf.length > 14000000) return res.status(413).json({ ok: false, error: 'PDF trop lourd (max ~10 Mo).' });
+      const cover = String(b.coverData || '');
+      const cd = /^data:image\/(png|jpeg|webp);base64,/.test(cover) ? cover.slice(0, 400000) : '';
+      const unlock = [0, 14, 35].includes(Number(b.unlockDay)) ? Number(b.unlockDay) : 0;
+      const maxOrder = getDb().prepare('SELECT COALESCE(MAX(sort_order),0) m FROM nutrition_ebooks').get().m;
+      const info = getDb().prepare('INSERT INTO nutrition_ebooks (title, description, category, cover_data, pdf_data, pdf_mime, unlock_day, sort_order, active, created_at) VALUES (?,?,?,?,?,?,?,?,1,?)')
+        .run(title, String(b.description || '').slice(0, 600), String(b.category || '').slice(0, 60), cd, pdf, 'application/pdf', unlock, maxOrder + 1, new Date().toISOString());
+      res.json({ ok: true, id: info.lastInsertRowid });
+    } catch (e) { console.error('ebook create:', e); res.status(500).json({ ok: false, error: 'Création impossible.' }); }
+  });
+  app.post('/nutrition/api/admin/ebooks/:id', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const id = Number(req.params.id); const b = req.body || {};
+      if (!getDb().prepare('SELECT id FROM nutrition_ebooks WHERE id=?').get(id)) return res.status(404).json({ ok: false });
+      const sets = [], vals = [];
+      if ('title' in b) { sets.push('title=?'); vals.push(String(b.title).slice(0, 160)); }
+      if ('description' in b) { sets.push('description=?'); vals.push(String(b.description).slice(0, 600)); }
+      if ('category' in b) { sets.push('category=?'); vals.push(String(b.category).slice(0, 60)); }
+      if ('unlockDay' in b) { sets.push('unlock_day=?'); vals.push([0, 14, 35].includes(Number(b.unlockDay)) ? Number(b.unlockDay) : 0); }
+      if ('active' in b) { sets.push('active=?'); vals.push(b.active ? 1 : 0); }
+      if ('sortOrder' in b) { sets.push('sort_order=?'); vals.push(Number(b.sortOrder) || 0); }
+      if (b.pdfData && /^data:application\/pdf;base64,/.test(b.pdfData)) { if (b.pdfData.length > 14000000) return res.status(413).json({ ok: false, error: 'PDF trop lourd.' }); sets.push('pdf_data=?'); vals.push(b.pdfData); }
+      if ('coverData' in b) { sets.push('cover_data=?'); vals.push(/^data:image\/(png|jpeg|webp);base64,/.test(b.coverData || '') ? String(b.coverData).slice(0, 400000) : ''); }
+      if (!sets.length) return res.json({ ok: true });
+      vals.push(id);
+      getDb().prepare('UPDATE nutrition_ebooks SET ' + sets.join(', ') + ' WHERE id=?').run(...vals);
+      res.json({ ok: true });
+    } catch (e) { console.error('ebook update:', e); res.status(500).json({ ok: false }); }
+  });
+  app.delete('/nutrition/api/admin/ebooks/:id', requireAuth, requireAdmin, (req, res) => {
+    try { getDb().prepare('DELETE FROM nutrition_ebooks WHERE id=?').run(Number(req.params.id)); res.json({ ok: true }); }
     catch (e) { res.status(500).json({ ok: false }); }
   });
 

@@ -320,6 +320,32 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .pushpref-txt span { font-size: 12.5px; color: var(--text-muted-c); }
 .pushpref-tog { width: 20px; height: 20px; flex: none; accent-color: var(--blue-c); cursor: pointer; }
 .pushpref-warn { font-size: 13px; color: var(--error); background: rgba(220,76,68,.1); border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; }
+/* Mes guides (ebooks) — bibliothèque client */
+.ebk-cat { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted-c); margin: 14px 2px 8px; }
+.ebk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.ebk-card { text-align: left; background: none; border: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; gap: 8px; }
+.ebk-cover { position: relative; aspect-ratio: 3/4; border-radius: 14px; background: linear-gradient(150deg, var(--blue-soft), var(--surface-soft)); background-size: cover; background-position: center; border: 1px solid var(--border-c); display: grid; place-items: center; overflow: hidden; box-shadow: 0 6px 16px -8px rgba(16,24,40,.25); }
+.ebk-cover-ic .ic { width: 40px; height: 40px; color: var(--blue-c); opacity: .6; }
+.ebk-card.locked .ebk-cover { filter: grayscale(.5); }
+.ebk-card.locked .ebk-cover::after { content: ''; position: absolute; inset: 0; background: rgba(9,18,38,.34); }
+.ebk-lock { position: absolute; z-index: 1; bottom: 8px; left: 8px; right: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 11.5px; font-weight: 800; color: #fff; background: rgba(9,18,38,.62); border-radius: 999px; padding: 4px 8px; }
+.ebk-lock .ic { width: 12px; height: 12px; }
+.ebk-info { display: flex; flex-direction: column; gap: 2px; }
+.ebk-title { font-size: 13.5px; font-weight: 700; color: var(--ink); line-height: 1.25; }
+.ebk-desc { font-size: 11.5px; color: var(--text-muted-c); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* Admin — gestion des guides */
+.ebka-form { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--border-c); border-radius: 14px; margin: 0 0 16px; }
+.ebka-form input[type=text], .ebka-form textarea, .ebka-form select { font: inherit; padding: 9px 11px; border: 1px solid var(--border-c); border-radius: 10px; background: var(--surface); color: var(--ink); }
+.ebka-lbl, .ebka-file { font-size: 12.5px; color: var(--text-muted-c); display: flex; flex-direction: column; gap: 4px; }
+.ebka-file em, .ebka-lbl em { font-style: normal; opacity: .75; }
+.ebka-list { display: flex; flex-direction: column; gap: 8px; }
+.ebka-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; border: 1px solid var(--border-c); border-radius: 12px; background: var(--surface); }
+.ebka-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ebka-main b { font-size: 14px; color: var(--ink); }
+.ebka-main span { font-size: 12px; color: var(--text-muted-c); }
+.ebka-acts { display: flex; gap: 6px; flex: none; }
+.ebka-btn { font: inherit; font-size: 12px; font-weight: 700; border: 1px solid var(--border-c); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.ebka-btn.danger { color: var(--error); border-color: rgba(220,76,68,.4); }
 .needs-kicker { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--blue-c); margin: 0 0 8px; position: relative; }
 /* Objectif poids chiffré, toujours visible en tête du plan (Challenge). */
 .needs-goal { position: relative; margin: 0 0 18px; padding: 12px 14px; border-radius: 14px; background: var(--blue-soft); border: 1px solid var(--green-100); }

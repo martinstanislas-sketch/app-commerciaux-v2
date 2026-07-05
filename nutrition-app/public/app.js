@@ -2840,6 +2840,12 @@ function init() {
   const _bPush = $('#btnPushPrefs'); if (_bPush) _bPush.addEventListener('click', openPushPrefs);
   const _pushClose = $('#pushPrefsClose'); if (_pushClose) _pushClose.addEventListener('click', closePushPrefs);
   const _pushPanel = $('#pushPrefsPanel'); if (_pushPanel) _pushPanel.addEventListener('click', (e) => { if (e.target.id === 'pushPrefsPanel') closePushPrefs(); });
+  const _bEbooks = $('#btnEbooks'); if (_bEbooks) _bEbooks.addEventListener('click', openEbooks);
+  const _ebkClose = $('#ebooksClose'); if (_ebkClose) _ebkClose.addEventListener('click', closeEbooks);
+  const _ebkPanel = $('#ebooksPanel'); if (_ebkPanel) _ebkPanel.addEventListener('click', (e) => { if (e.target.id === 'ebooksPanel') closeEbooks(); });
+  const _bEbooksAdmin = $('#btnEbooksAdmin'); if (_bEbooksAdmin) _bEbooksAdmin.addEventListener('click', openEbooksAdmin);
+  const _ebkAClose = $('#ebooksAdminClose'); if (_ebkAClose) _ebkAClose.addEventListener('click', closeEbooksAdmin);
+  const _ebkAPanel = $('#ebooksAdminPanel'); if (_ebkAPanel) _ebkAPanel.addEventListener('click', (e) => { if (e.target.id === 'ebooksAdminPanel') closeEbooksAdmin(); });
   const _cpClose = $('#changePinClose'); if (_cpClose) _cpClose.addEventListener('click', closeChangePin);
   const _cpSave = $('#cpSave'); if (_cpSave) _cpSave.addEventListener('click', saveChangePin);
   const _cpPanel = $('#changePinPanel'); if (_cpPanel) _cpPanel.addEventListener('click', (e) => { if (e.target.id === 'changePinPanel') closeChangePin(); });
@@ -2897,7 +2903,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le début ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closeCoachWall(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeCoachParcours(); closeChangePin(); closePushPrefs(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closeCoachWall(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeCoachParcours(); closeChangePin(); closePushPrefs(); closeEbooks(); closeEbooksAdmin(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -6452,6 +6458,104 @@ async function openPushPrefs() {
 async function savePushPrefs(body) {
   const b = {}; body.querySelectorAll('.pushpref-tog').forEach((t) => { b[t.dataset.k] = t.checked; });
   try { await fetch(apiUrl('/api/push/prefs'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(b) }); } catch (_) { /* ignore */ }
+}
+
+// ===== Mes guides (ebooks) — client =====
+function closeEbooks() { const p = $('#ebooksPanel'); if (p) p.classList.add('hidden'); }
+async function openEbooks() {
+  const p = $('#ebooksPanel'); if (!p) return;
+  p.classList.remove('hidden');
+  const body = $('#ebooksBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const d = await (await fetch(apiUrl('/api/ebooks'), { headers: nutriAuthHeaders() })).json();
+    if (!d.ok) throw new Error();
+    renderEbooks(body, d.ebooks || []);
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+function ebookCard(e) {
+  const cover = e.cover ? ` style="background-image:url('${e.cover}')"` : '';
+  const lock = e.locked ? `<span class="ebk-lock">${icSvg('lock')} ${escapeHtml(e.unlockLabel || 'À venir')}</span>` : '';
+  return `<button type="button" class="ebk-card${e.locked ? ' locked' : ''}" data-id="${e.id}" data-locked="${e.locked ? 1 : 0}" data-unlock="${escapeHtml(e.unlockLabel || '')}">
+    <span class="ebk-cover"${cover}>${e.cover ? '' : '<span class="ebk-cover-ic">' + icSvg('book') + '</span>'}${lock}</span>
+    <span class="ebk-info"><b class="ebk-title">${escapeHtml(e.title)}</b>${e.description ? '<span class="ebk-desc">' + escapeHtml(e.description) + '</span>' : ''}</span>
+  </button>`;
+}
+function renderEbooks(body, list) {
+  if (!list.length) { body.innerHTML = '<p class="help-empty">Aucun guide pour le moment. Reviens bientôt 📚</p>'; return; }
+  const cats = {}; list.forEach((e) => { const c = e.category || 'Guides'; (cats[c] = cats[c] || []).push(e); });
+  body.innerHTML = Object.keys(cats).map((cat) => '<div class="ebk-cat">' + escapeHtml(cat) + '</div><div class="ebk-grid">' + cats[cat].map(ebookCard).join('') + '</div>').join('');
+  body.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
+    if (c.dataset.locked === '1') { showToast('🔒 Débloqué en ' + (c.dataset.unlock || 'cours de challenge'), { icon: 'info' }); return; }
+    openEbook(Number(c.dataset.id));
+  }));
+}
+async function openEbook(id) {
+  const win = window.open('', '_blank'); // fenêtre synchrone (geste user) -> anti popup-blocker
+  try {
+    const d = await (await fetch(apiUrl('/api/ebooks/' + id + '/open'), { method: 'POST', headers: nutriAuthHeaders() })).json();
+    if (d.ok && d.url) { if (win) win.location = d.url; else window.location = d.url; }
+    else { if (win) win.close(); showToast(d.locked ? 'Ce guide n\'est pas encore débloqué.' : 'Ouverture impossible.', { icon: 'info' }); }
+  } catch (_) { if (win) win.close(); showToast('Ouverture impossible.', { icon: 'info' }); }
+}
+
+// ===== Guides (ebooks) — admin =====
+function closeEbooksAdmin() { const p = $('#ebooksAdminPanel'); if (p) p.classList.add('hidden'); }
+function openEbooksAdmin() { const p = $('#ebooksAdminPanel'); if (!p) return; p.classList.remove('hidden'); renderEbooksAdmin(); }
+const EBK_UNLOCK = { 0: 'Dès le départ', 14: 'Semaine 3', 35: 'Semaine 6' };
+async function renderEbooksAdmin() {
+  const body = $('#ebooksAdminBody'); if (!body) return;
+  body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  let list = [];
+  try { const d = await (await fetch(apiUrl('/api/admin/ebooks'), { headers: nutriAuthHeaders() })).json(); if (d.ok) list = d.ebooks || []; } catch (_) { /* ignore */ }
+  const rows = list.map((e) => `<div class="ebka-row" data-id="${e.id}" data-active="${e.active}">
+    <div class="ebka-main"><b>${escapeHtml(e.title)}</b><span>${escapeHtml(e.category || '—')} · ${EBK_UNLOCK[e.unlockDay] || ('Jour ' + e.unlockDay)} · ${e.sizeKo} Ko${e.active ? '' : ' · masqué'}</span></div>
+    <div class="ebka-acts"><button type="button" class="ebka-btn" data-act="toggle">${e.active ? 'Masquer' : 'Afficher'}</button><button type="button" class="ebka-btn danger" data-act="del">Suppr.</button></div>
+  </div>`).join('');
+  body.innerHTML = `
+    <form id="ebkAddForm" class="ebka-form">
+      <input type="text" id="ebkTitle" placeholder="Titre du guide" maxlength="160" required>
+      <input type="text" id="ebkCat" placeholder="Catégorie (ex. Nutrition, Recettes…)" maxlength="60">
+      <textarea id="ebkDesc" rows="2" placeholder="Courte description (optionnel)" maxlength="600"></textarea>
+      <label class="ebka-lbl">Débloqué : <select id="ebkUnlock"><option value="0">Dès le départ</option><option value="14">Semaine 3</option><option value="35">Semaine 6</option></select></label>
+      <label class="ebka-file">Couverture <em>(image, optionnel)</em><input type="file" id="ebkCover" accept="image/*"></label>
+      <label class="ebka-file">Fichier PDF <em>(requis, max 10 Mo)</em><input type="file" id="ebkPdf" accept="application/pdf" required></label>
+      <button type="submit" class="btn btn-primary" id="ebkAddBtn">Ajouter le guide</button>
+      <p class="pc-msg" id="ebkMsg"></p>
+    </form>
+    <div class="ebka-list">${rows || '<p class="help-empty">Aucun guide pour le moment.</p>'}</div>`;
+  $('#ebkAddForm').addEventListener('submit', addEbook);
+  body.querySelectorAll('.ebka-row').forEach((r) => {
+    r.querySelector('[data-act="toggle"]').addEventListener('click', () => toggleEbook(r.dataset.id, r));
+    r.querySelector('[data-act="del"]').addEventListener('click', () => delEbook(r.dataset.id));
+  });
+}
+function fileToDataUrl(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); }); }
+async function addEbook(e) {
+  e.preventDefault();
+  const msg = $('#ebkMsg'), btn = $('#ebkAddBtn');
+  const title = $('#ebkTitle').value.trim(), pdfFile = $('#ebkPdf').files[0];
+  if (!title || !pdfFile) { msg.textContent = 'Titre et PDF requis.'; return; }
+  if (pdfFile.size > 10 * 1024 * 1024) { msg.textContent = 'PDF trop lourd (max 10 Mo).'; return; }
+  btn.disabled = true; msg.textContent = 'Envoi…';
+  try {
+    const pdfData = await fileToDataUrl(pdfFile);
+    let coverData = '';
+    const cf = $('#ebkCover').files[0];
+    if (cf) { try { coverData = await compressImage(cf, 640, 0.82); } catch (_) { coverData = ''; } }
+    const d = await (await fetch(apiUrl('/api/admin/ebooks'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ title, category: $('#ebkCat').value.trim(), description: $('#ebkDesc').value.trim(), unlockDay: Number($('#ebkUnlock').value), pdfData, coverData }) })).json();
+    if (d.ok) { showToast('Guide ajouté ✓', { icon: 'check' }); renderEbooksAdmin(); }
+    else msg.textContent = d.error || 'Échec.';
+  } catch (_) { msg.textContent = 'Échec de l\'envoi.'; }
+  btn.disabled = false;
+}
+async function toggleEbook(id, row) {
+  const active = row.dataset.active === '1' ? 0 : 1;
+  try { await fetch(apiUrl('/api/admin/ebooks/' + id), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ active }) }); renderEbooksAdmin(); } catch (_) { /* ignore */ }
+}
+async function delEbook(id) {
+  if (!confirm('Supprimer ce guide définitivement ?')) return;
+  try { await fetch(apiUrl('/api/admin/ebooks/' + id), { method: 'DELETE', headers: nutriAuthHeaders() }); renderEbooksAdmin(); } catch (_) { /* ignore */ }
 }
 
 document.addEventListener('DOMContentLoaded', init);
