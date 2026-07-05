@@ -20,6 +20,11 @@ const ACTIVITE_FACTEURS_CHALLENGE = {
   tres_actif: 1.8,
 };
 
+// Ordre croissant des niveaux d'activite : sert a NE JAMAIS sous-estimer
+// l'activite reelle (on ne descend jamais sous le niveau declare par l'utilisateur).
+const ORDRE_ACTIVITE = ['sedentaire', 'leger', 'modere', 'actif', 'tres_actif'];
+const rangActivite = (n) => Math.max(0, ORDRE_ACTIVITE.indexOf(n));
+
 const OBJECTIF_AJUSTEMENT = {
   perte: -0.15, // deficit doux ~15 %
   maintien: 0,
@@ -162,10 +167,17 @@ function calculerBesoins(profil) {
   const bmr = bmrInfo.bmr;
 
   // Niveau d'activite + facteur (jeu de facteurs dedie au challenge).
+  // Le selecteur "Niveau d'activite" du questionnaire reflete deja la frequence de
+  // sport declaree (de "sedentaire" a "tres actif") : c'est le niveau de reference.
+  const niveauDeclare = ACTIVITE_FACTEURS[profil.activite] ? profil.activite : 'sedentaire';
+  // Les donnees de pesee (type de journee + seances) ne peuvent qu'AFFINER VERS LE
+  // HAUT : on ne sous-estime jamais l'activite reelle. Sinon un client actif ayant un
+  // travail de bureau serait traite comme sedentaire -> maintenance trop basse ->
+  // deficit trop important (le client mange trop peu par rapport a sa depense).
   const niveauPesee = niveauActiviteDepuisPesee(profil);
-  const niveau = (estChallenge && niveauPesee)
+  const niveau = (estChallenge && niveauPesee && rangActivite(niveauPesee) > rangActivite(niveauDeclare))
     ? niveauPesee
-    : (ACTIVITE_FACTEURS[profil.activite] ? profil.activite : 'sedentaire');
+    : niveauDeclare;
   const facteur = estChallenge
     ? (ACTIVITE_FACTEURS_CHALLENGE[niveau] || ACTIVITE_FACTEURS_CHALLENGE.leger)
     : (ACTIVITE_FACTEURS[niveau] || ACTIVITE_FACTEURS.sedentaire);

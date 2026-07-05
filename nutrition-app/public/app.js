@@ -33,7 +33,7 @@ function nutriAuthHeaders(base) {
 const STORE_KEY = (window.__NUTRI_USER && window.__NUTRI_USER.email)
   ? ('mc-nutri-state-' + window.__NUTRI_USER.email)
   : (isDemo() ? 'mycoach-nutrition-demo-v1' : 'mycoach-nutrition-v1');
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 // ⚙️ FORCE_CHALLENGE : au lancement, tout nouvel inscrit démarre en « Challenge 6/6 ».
 // On MASQUE l'étape 1 « Quel est votre objectif ? » et on pré-sélectionne 'challenge'.
 // Pour RÉACTIVER le choix libre de l'objectif : repasser cette constante à false
@@ -1559,8 +1559,19 @@ function buildLocalRecipeDetail(r) {
   // --- Ajustements (adaptes au type, a la cuisson et a l'objectif) ---
   const ajust = [];
   if (doux) {
-    ajust.push('Pour plus de protéines et de satiété, ajoute du skyr ou du fromage blanc.');
-    if (has(/miel|sucre|sirop|confiture|chocolat|pate a tartiner/)) ajust.push('Tu surveilles les sucres ? Réduis le miel/sucre ou remplace par un fruit frais.');
+    // Levier proteines/satiete : contextualise selon ce que la recette contient DEJA.
+    const aBaseLaitiere = laitiers.length > 0;                       // skyr / fromage blanc / yaourt deja present
+    const aWhey = has(/\bwhey\b|proteines? en poudre|isolat/);
+    const aSucre = has(/miel|sucre|sirop|confiture|chocolat|pate a tartiner/);
+    if (!aBaseLaitiere) {
+      ajust.push('Pour plus de protéines et de satiété, ajoute du skyr ou du fromage blanc.');
+    } else {
+      // La recette tourne deja autour du skyr / fromage blanc -> autres alternatives.
+      if (!aWhey) ajust.push('Base laitière déjà présente : pour encore plus de protéines, ajoute une dose de whey (protéine en poudre) si tu en as.');
+      if (!aSucre) ajust.push('Envie d\'un petit goût sucré ? Un filet de miel fait le job — ça reste du sucre naturel, à doser avec modération.');
+      if (aWhey && aSucre) ajust.push('Pour varier, ajoute quelques oléagineux ou des fruits rouges : plus de satiété sans alourdir.');
+    }
+    if (aSucre) ajust.push('Tu surveilles les sucres ? Réduis le miel/sucre ou remplace par un fruit frais.');
     if (aJus) ajust.push('Pour limiter les sucres liquides, préfère le fruit entier au jus.');
     if (poele) ajust.push("Si ça accroche dans la poêle, ajoute un filet d'huile ou un peu de lait végétal.");
     ajust.push("Trop léger à ton goût ? Ajoute une poignée de flocons, de fruits ou d'oléagineux.");
@@ -2848,6 +2859,8 @@ function init() {
   const _pushPanel = $('#pushPrefsPanel'); if (_pushPanel) _pushPanel.addEventListener('click', (e) => { if (e.target.id === 'pushPrefsPanel') closePushPrefs(); });
   const _bEbooks = $('#btnEbooks'); if (_bEbooks) _bEbooks.addEventListener('click', openEbooks);
   const _ebkClose = $('#ebooksClose'); if (_ebkClose) _ebkClose.addEventListener('click', closeEbooks);
+  const _ebkRClose = $('#ebookReaderClose'); if (_ebkRClose) _ebkRClose.addEventListener('click', closeEbookReader);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeEbookReader(); });
   const _ebkPanel = $('#ebooksPanel'); if (_ebkPanel) _ebkPanel.addEventListener('click', (e) => { if (e.target.id === 'ebooksPanel') closeEbooks(); });
   const _bEbooksAdmin = $('#btnEbooksAdmin'); if (_bEbooksAdmin) _bEbooksAdmin.addEventListener('click', openEbooksAdmin);
   const _ebkAClose = $('#ebooksAdminClose'); if (_ebkAClose) _ebkAClose.addEventListener('click', closeEbooksAdmin);
@@ -3966,7 +3979,16 @@ function renderParcours() {
   const seancesBlock =
     '<section class="pc-sec"><h3>' + icSvg('flame') + ' Mes séances validées</h3>' +
       '<div class="pc-seances-head"><b>' + seancesSemN + ' / ' + (p.seancesObjHebdo || 4) + '</b> séances cette semaine</div>' +
-      '<div class="pc-week">' + seancesSem.map((j) => '<div class="pc-day-cell ' + (j.done ? 'on' : '') + '"><span>' + j.lbl + '</span>' + (j.done ? icSvg('check') : '<i>—</i>') + '</div>').join('') + '</div>' +
+      '<div class="pc-week">' + seancesSem.map((j) => {
+        const inner = '<span>' + j.lbl + '</span>' + (j.done ? icSvg('check') : '<i>—</i>');
+        const cls = 'pc-day-cell' + (j.done ? ' on' : '');
+        // Jour a venir : on ne peut pas valider une seance pas encore faite.
+        if (j.ymd > todayY) return '<div class="' + cls + ' is-future">' + inner + '</div>';
+        // Jour passe ou aujourd'hui : cliquable pour valider / retirer une seance ce jour-la.
+        const titre = j.done ? 'Retirer la séance de ' + j.lbl : 'Valider une séance le ' + j.lbl;
+        return '<button type="button" class="' + cls + ' is-clic" data-pc-day="' + j.ymd + '" title="' + titre + '">' + inner + '</button>';
+      }).join('') + '</div>' +
+      '<p class="pc-week-hint">Un oubli ? Touche le jour concerné pour valider (ou retirer) une séance passée.</p>' +
       '<div class="pc-seances-tot">Depuis le départ : <b>' + seancesTot + ' / ' + (p.seancesObjTotal || 24) + '</b></div>' +
       '<div class="pc-pastilles">' + pastilles + '</div>' +
       '<button type="button" class="pc-btn primary pc-full" data-pc-act="seance">' + icSvg('check') + ' ' + (seancesSem.find((j) => j.ymd === todayY && j.done) ? 'Séance validée aujourd’hui' : 'Valider une séance') + '</button>' +
@@ -4024,6 +4046,7 @@ function renderParcours() {
 
   // Câblage
   host.querySelectorAll('[data-pc-act]').forEach((b) => b.addEventListener('click', () => parcoursAction(b.dataset.pcAct)));
+  host.querySelectorAll('[data-pc-day]').forEach((b) => b.addEventListener('click', () => validerParcoursSeance(b.dataset.pcDay)));
   host.querySelectorAll('[data-pc-up]').forEach((inp) => inp.addEventListener('change', (e) => { const [jalon, type] = inp.dataset.pcUp.split(':'); uploadParcoursPhoto(jalon, type, e.target.files && e.target.files[0]); }));
   host.querySelectorAll('[data-pc-delphoto]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); deleteParcoursPhoto(Number(b.dataset.pcDelphoto)); }));
   // Charge les vignettes privées (avec auth -> blob)
@@ -4054,12 +4077,22 @@ function parcoursAction(act) {
   }
 }
 
-async function validerParcoursSeance() {
+// Valide (ou retire) une seance pour une date donnee. Sans argument -> aujourd'hui.
+// Permet de rattraper une seance oubliee en touchant le jour concerne dans la grille.
+async function validerParcoursSeance(date) {
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const jour = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : aujourdhui;
+  if (jour > aujourdhui) return; // pas de validation d'un jour a venir
   try {
-    const res = await fetch(apiUrl('/api/parcours/seance'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ date: new Date().toISOString().slice(0, 10) }) });
+    const res = await fetch(apiUrl('/api/parcours/seance'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ date: jour }) });
     const d = await res.json();
-    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Séance enregistrée 🔥', { icon: 'check' });
-      setTimeout(() => { try { maybeShowPushBanner(); } catch (_) { /* ignore */ } }, 1200); } // 1re séance = moment pertinent
+    if (d && d.ok) {
+      state.parcours = d.parcours; renderParcours();
+      // Le serveur fait un toggle : on relit l'etat pour afficher le bon message.
+      const done = !!(d.parcours && (d.parcours.seances || []).includes(jour));
+      showToast(done ? 'Séance enregistrée 🔥' : 'Séance retirée', { icon: done ? 'check' : 'info' });
+      if (done && jour === aujourdhui) setTimeout(() => { try { maybeShowPushBanner(); } catch (_) { /* ignore */ } }, 1200); // 1re séance = moment pertinent
+    }
     else showToast((d && d.error) || 'Impossible.', { icon: 'info' });
   } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
 }
@@ -6483,7 +6516,7 @@ function ebookCard(e, day) {
   const lock = e.locked ? `<span class="ebk-lock">${icSvg('lock')} ${escapeHtml(e.unlockLabel || 'À venir')}</span>` : '';
   const isNew = !e.locked && Number(e.unlockDay) === Number(day) && !e.read; // débloqué aujourd'hui + pas encore lu
   const badge = isNew ? '<span class="ebk-new">Nouveau</span>' : '';
-  return `<button type="button" class="ebk-card${e.locked ? ' locked' : ''}" data-id="${e.id}" data-locked="${e.locked ? 1 : 0}" data-unlock="${escapeHtml(e.unlockLabel || '')}">
+  return `<button type="button" class="ebk-card${e.locked ? ' locked' : ''}" data-id="${e.id}" data-title="${escapeHtml(e.title)}" data-locked="${e.locked ? 1 : 0}" data-unlock="${escapeHtml(e.unlockLabel || '')}">
     <span class="ebk-cover"${cover}>${e.cover ? '' : '<span class="ebk-cover-ic">' + icSvg('book') + '</span>'}${badge}${lock}</span>
     <span class="ebk-info"><b class="ebk-title">${escapeHtml(e.title)}</b>${e.description ? '<span class="ebk-desc">' + escapeHtml(e.description) + '</span>' : ''}</span>
   </button>`;
@@ -6494,14 +6527,14 @@ function renderEbooks(body, list, day) {
   body.innerHTML = Object.keys(cats).map((cat) => '<div class="ebk-cat">' + escapeHtml(cat) + '</div><div class="ebk-grid">' + cats[cat].map((e) => ebookCard(e, day)).join('') + '</div>').join('');
   body.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
     if (c.dataset.locked === '1') { showToast('🔒 Débloqué en ' + (c.dataset.unlock || 'cours de challenge'), { icon: 'info' }); return; }
-    openEbook(Number(c.dataset.id));
+    openEbook(Number(c.dataset.id), c.dataset.title);
   }));
 }
 // Bouton « Guide du jour » (logo dans l'en-tête de l'objectif) : l'ebook débloqué
 // aujourd'hui. Visible seulement s'il existe un guide du jour ; badge « Nouveau »
 // (avec pulsation) tant qu'il n'est pas lu. Clic -> ouverture directe.
 let _guideDuJour = undefined;
-function openGuideDuJour() { if (_guideDuJour) openEbook(_guideDuJour.id); else openEbooks(); }
+function openGuideDuJour() { if (_guideDuJour) openEbook(_guideDuJour.id, _guideDuJour.title); else openEbooks(); }
 async function renderGuideDuJour() {
   const btn = $('#guideDuJourBtn'); if (!btn) return;
   if (!(window.__NUTRI_USER && window.__NUTRI_USER.email)) { btn.classList.add('hidden'); return; }
@@ -6517,16 +6550,32 @@ async function renderGuideDuJour() {
     btn.title = g.title;
   } catch (_) { btn.classList.add('hidden'); }
 }
-async function openEbook(id) {
-  const win = window.open('', '_blank'); // fenêtre synchrone (geste user) -> anti popup-blocker
+async function openEbook(id, title) {
   try {
     const d = await (await fetch(apiUrl('/api/ebooks/' + id + '/open'), { method: 'POST', headers: nutriAuthHeaders() })).json();
     if (d.ok && d.url) {
-      if (win) win.location = d.url; else window.location = d.url;
+      // Lecture INTÉGRÉE : le guide s'affiche dans l'app, le client ne sort pas.
+      showEbookReader(d.url, title);
       // Le guide est marqué lu -> on retire le badge « Nouveau » et la carte du jour.
       setTimeout(() => { try { renderGuideDuJour(); const ep = $('#ebooksPanel'); if (ep && !ep.classList.contains('hidden')) openEbooks(); } catch (_) { /* ignore */ } }, 500);
-    } else { if (win) win.close(); showToast(d.locked ? 'Ce guide n\'est pas encore débloqué.' : 'Ouverture impossible.', { icon: 'info' }); }
-  } catch (_) { if (win) win.close(); showToast('Ouverture impossible.', { icon: 'info' }); }
+    } else { showToast(d.locked ? 'Ce guide n\'est pas encore débloqué.' : 'Ouverture impossible.', { icon: 'info' }); }
+  } catch (_) { showToast('Ouverture impossible.', { icon: 'info' }); }
+}
+// Lecteur de guide intégré (overlay plein écran + iframe sur l'URL signée du PDF).
+function showEbookReader(url, title) {
+  const r = $('#ebookReader');
+  if (!r) { window.open(url, '_blank'); return; } // secours très improbable
+  const t = $('#ebookReaderTitle'); if (t) t.textContent = title || 'Guide';
+  const full = $('#ebookReaderFull'); if (full) full.href = url; // porte de sortie « plein écran »
+  const loading = $('#ebookReaderLoading'); if (loading) loading.classList.remove('hidden');
+  const frame = $('#ebookReaderFrame');
+  if (frame) { frame.onload = () => { if (loading) loading.classList.add('hidden'); }; frame.src = url; }
+  r.classList.remove('hidden');
+}
+function closeEbookReader() {
+  const r = $('#ebookReader'); if (!r || r.classList.contains('hidden')) return;
+  r.classList.add('hidden');
+  const frame = $('#ebookReaderFrame'); if (frame) { frame.onload = null; frame.src = 'about:blank'; } // libère le PDF
 }
 
 // ===== Guides (ebooks) — admin =====

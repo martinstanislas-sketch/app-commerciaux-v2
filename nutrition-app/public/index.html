@@ -37,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=56" />
+  <link rel="stylesheet" href="style.css?v=59" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -581,6 +581,16 @@
       <div id="view-plan">
       <div id="needsCard" class="needs-card"></div>
 
+      <!-- Mise en avant : affiner le plan (plus le client précise, plus le plan colle à son quotidien) -->
+      <button type="button" class="refine-cta" data-go="btnAvance">
+        <span class="refine-cta-ic"><svg class="ic"><use href="#ic-sliders"/></svg></span>
+        <span class="refine-cta-text">
+          <strong>Affine ton plan pour qu'il te ressemble</strong>
+          <small>Réponds à quelques questions (faim, sport, grignotage…) — plus tu précises, plus ton plan colle à ton quotidien.</small>
+        </span>
+        <span class="refine-cta-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span>
+      </button>
+
       <!-- Conseils du jour : astuces contextuelles (max 2/jour), remplies par renderConseils() -->
       <div id="conseilsJour" class="conseils-jour hidden"></div>
 
@@ -1023,6 +1033,19 @@
     </div>
   </div>
 
+  <!-- ============ LECTEUR DE GUIDE (intégré : le client ne quitte pas l'app) ============ -->
+  <div id="ebookReader" class="ebk-reader hidden" role="dialog" aria-modal="true" aria-label="Lecture d'un guide">
+    <div class="ebk-reader-head">
+      <button type="button" class="ebk-reader-close" id="ebookReaderClose" aria-label="Fermer le guide"><svg class="ic"><use href="#ic-x"/></svg></button>
+      <b id="ebookReaderTitle" class="ebk-reader-title">Guide</b>
+      <a id="ebookReaderFull" class="ebk-reader-full" target="_blank" rel="noopener" aria-label="Ouvrir en plein écran"><svg class="ic"><use href="#ic-eye"/></svg></a>
+    </div>
+    <div class="ebk-reader-body">
+      <div id="ebookReaderLoading" class="ebk-reader-loading"><span class="ebk-reader-spin"></span>Chargement du guide…</div>
+      <iframe id="ebookReaderFrame" class="ebk-reader-frame" title="Guide" referrerpolicy="no-referrer"></iframe>
+    </div>
+  </div>
+
   <!-- ============ ADMIN : GESTION DES GUIDES ============ -->
   <div id="ebooksAdminPanel" class="panel hidden">
     <div class="panel-inner">
@@ -1260,6 +1283,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=56"></script>
+  <script src="app.js?v=59"></script>
 </body>
 </html>

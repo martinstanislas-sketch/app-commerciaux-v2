@@ -365,6 +365,23 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 @media (max-width: 560px) { .needs-guide .ng-lbl { display: none; } .needs-guide { padding: 8px 10px; } }
 /* Badge « Nouveau » sur les couvertures de la bibliothèque */
 .ebk-new { position: absolute; z-index: 1; top: 8px; left: 8px; background: var(--blue-c); color: #fff; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; border-radius: 999px; padding: 2px 7px; line-height: 1.4; box-shadow: 0 2px 8px rgba(37,99,235,.5); }
+
+/* ============ Lecteur de guide intégré (plein écran, sans quitter l'app) ============ */
+.ebk-reader { position: fixed; inset: 0; z-index: 120; display: flex; flex-direction: column; background: var(--surface, #fff); animation: ebkReaderIn .22s var(--ease); }
+.ebk-reader.hidden { display: none; }
+.ebk-reader-head { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top)) 14px 10px; border-bottom: 1px solid var(--mc-border); background: var(--card); }
+.ebk-reader-close, .ebk-reader-full { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 11px; border: 1px solid var(--mc-border); background: var(--surface-soft, var(--gray-100)); color: var(--ink); cursor: pointer; text-decoration: none; transition: background .15s var(--ease), border-color .15s var(--ease); }
+.ebk-reader-close:hover, .ebk-reader-full:hover { background: var(--blue-soft); border-color: var(--mc-blue-secondary); }
+.ebk-reader-close .ic, .ebk-reader-full .ic { width: 19px; height: 19px; }
+.ebk-reader-title { flex: 1 1 auto; min-width: 0; font-size: 15px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ebk-reader-body { flex: 1 1 auto; position: relative; background: var(--gray-100); min-height: 0; }
+.ebk-reader-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--gray-100); }
+.ebk-reader-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--muted); font-size: 13.5px; }
+.ebk-reader-loading.hidden { display: none; }
+.ebk-reader-spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--gray-300); border-top-color: var(--mc-blue); animation: ebkSpin .8s linear infinite; }
+@keyframes ebkReaderIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes ebkSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ebk-reader { animation: none; } .ebk-reader-spin { animation-duration: 1.6s; } }
 .needs-kicker { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--blue-c); margin: 0 0 8px; position: relative; }
 /* Objectif poids chiffré, toujours visible en tête du plan (Challenge). */
 .needs-goal { position: relative; margin: 0 0 18px; padding: 12px 14px; border-radius: 14px; background: var(--blue-soft); border: 1px solid var(--green-100); }
@@ -1063,6 +1080,28 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   box-shadow: var(--shadow-green); transition: transform .15s var(--ease), box-shadow .15s var(--ease);
 }
 
+/* ============ Mise en avant : Affiner mon plan ============ */
+.refine-cta {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; cursor: pointer;
+  background: linear-gradient(135deg, var(--blue-soft) 0%, var(--sage-soft) 100%);
+  color: var(--ink); border: 1.5px solid var(--mc-blue-secondary);
+  border-radius: 18px; padding: 15px 16px; margin: 0 0 16px;
+  box-shadow: 0 8px 22px -10px rgba(37, 99, 235, .35);
+  transition: transform .15s var(--ease), box-shadow .15s var(--ease);
+}
+.refine-cta:hover { transform: translateY(-1px); box-shadow: 0 14px 30px -10px rgba(37, 99, 235, .45); }
+.refine-cta-ic {
+  flex: 0 0 auto; width: 46px; height: 46px; border-radius: 13px;
+  background: linear-gradient(135deg, var(--mc-blue) 0%, var(--mc-blue-dark) 100%); color: #fff;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px -4px rgba(37, 99, 235, .6);
+}
+.refine-cta-ic .ic { width: 24px; height: 24px; }
+.refine-cta-text { flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.refine-cta-text strong { font-size: 15px; font-weight: 800; line-height: 1.25; color: var(--ink); letter-spacing: -0.01em; }
+.refine-cta-text small { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.refine-cta-arrow { flex: 0 0 auto; color: var(--mc-blue); }
+.refine-cta-arrow .ic { width: 20px; height: 20px; }
+
 /* ---------- SOS coach : bouton flottant + feuille (bottom sheet) ---------- */
 .sos-fab {
   position: fixed; right: 16px; bottom: 22px; z-index: 45;
@@ -1290,6 +1329,12 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .pc-day-cell.on { background: rgba(52,211,153,0.14); border-color: rgba(52,211,153,0.4); }
 .pc-day-cell.on .ic { color: var(--success); }
 .pc-day-cell.on span { color: var(--success); }
+/* Jour cliquable (passe ou aujourd'hui) : on peut valider / retirer une seance. */
+.pc-day-cell.is-clic { cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; transition: background .15s var(--ease), border-color .15s var(--ease), transform .08s var(--ease); }
+.pc-day-cell.is-clic:hover { border-color: var(--mc-blue-secondary); background: var(--blue-soft); }
+.pc-day-cell.is-clic:active { transform: scale(0.95); }
+.pc-day-cell.is-future { opacity: .45; }
+.pc-week-hint { font-size: 11.5px; color: var(--muted); text-align: center; margin: 9px 0 0; }
 .pc-seances-tot { font-size: 13px; color: var(--muted); margin-top: 12px; }
 .pc-seances-tot b { color: var(--ink); }
 .pc-pastilles { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
