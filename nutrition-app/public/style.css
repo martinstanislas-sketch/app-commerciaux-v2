@@ -1942,14 +1942,17 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 /* ---------- Desktop : la barre basse devient une sidebar gauche ---------- */
 @media (min-width: 1024px) {
   body.app-shell .bottom-nav {
-    position: fixed; top: 0; bottom: 0; left: 0; right: auto; width: 234px; z-index: 20;
+    position: fixed; top: 0; bottom: 0; left: 0; right: auto; width: 234px; height: 100vh; z-index: 20;
     flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 4px;
     border-top: none; border-right: 1px solid var(--border-c);
     padding: 84px 14px 20px; background: var(--surface);
     backdrop-filter: none; -webkit-backdrop-filter: none;
+    overflow-y: auto; /* si la liste de nav depasse la hauteur, elle defile dans la sidebar */
   }
-  /* Pas d'animation sur l'ecran plan : evite un bloc englobant qui decalerait la sidebar fixe */
-  body.app-shell #screen-result.active { animation: none; }
+  /* La sidebar reste fixe pendant le scroll : IMPERATIF qu'aucun ancetre (#screen-result)
+     ne cree de bloc conteneur. On coupe l'animation ET tout transform residuel qui
+     transformerait le fixed en absolu (la sidebar se detacherait et scrollerait). */
+  body.app-shell #screen-result.active { animation: none; transform: none; }
   body.app-shell .bottom-nav .nav-i {
     flex: none; flex-direction: row; justify-content: flex-start; gap: 12px; max-width: none;
     font-size: 14px; font-weight: 500; padding: 11px 14px; min-height: 46px; border-radius: 11px;
