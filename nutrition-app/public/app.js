@@ -6501,14 +6501,14 @@ async function openEbook(id) {
 // ===== Guides (ebooks) — admin =====
 function closeEbooksAdmin() { const p = $('#ebooksAdminPanel'); if (p) p.classList.add('hidden'); }
 function openEbooksAdmin() { const p = $('#ebooksAdminPanel'); if (!p) return; p.classList.remove('hidden'); renderEbooksAdmin(); }
-const EBK_UNLOCK = { 0: 'Dès le départ', 14: 'Semaine 3', 35: 'Semaine 6' };
+function ebkDayLabel(unlockDay) { return (Number(unlockDay) + 1) <= 1 ? 'Jour 1 (départ)' : 'Jour ' + (Number(unlockDay) + 1); }
 async function renderEbooksAdmin() {
   const body = $('#ebooksAdminBody'); if (!body) return;
   body.innerHTML = '<p class="panel-sub">Chargement…</p>';
   let list = [];
   try { const d = await (await fetch(apiUrl('/api/admin/ebooks'), { headers: nutriAuthHeaders() })).json(); if (d.ok) list = d.ebooks || []; } catch (_) { /* ignore */ }
   const rows = list.map((e) => `<div class="ebka-row" data-id="${e.id}" data-active="${e.active}">
-    <div class="ebka-main"><b>${escapeHtml(e.title)}</b><span>${escapeHtml(e.category || '—')} · ${EBK_UNLOCK[e.unlockDay] || ('Jour ' + e.unlockDay)} · ${e.sizeKo} Ko${e.active ? '' : ' · masqué'}</span></div>
+    <div class="ebka-main"><b>${escapeHtml(e.title)}</b><span>${escapeHtml(e.category || '—')} · ${ebkDayLabel(e.unlockDay)} · ${e.sizeKo} Ko${e.active ? '' : ' · masqué'}</span></div>
     <div class="ebka-acts"><button type="button" class="ebka-btn" data-act="toggle">${e.active ? 'Masquer' : 'Afficher'}</button><button type="button" class="ebka-btn danger" data-act="del">Suppr.</button></div>
   </div>`).join('');
   body.innerHTML = `
@@ -6516,7 +6516,7 @@ async function renderEbooksAdmin() {
       <input type="text" id="ebkTitle" placeholder="Titre du guide" maxlength="160" required>
       <input type="text" id="ebkCat" placeholder="Catégorie (ex. Nutrition, Recettes…)" maxlength="60">
       <textarea id="ebkDesc" rows="2" placeholder="Courte description (optionnel)" maxlength="600"></textarea>
-      <label class="ebka-lbl">Débloqué : <select id="ebkUnlock"><option value="0">Dès le départ</option><option value="14">Semaine 3</option><option value="35">Semaine 6</option></select></label>
+      <label class="ebka-lbl">Jour de déblocage <em>(1 à 42 ; jour 1 = dès le départ)</em><input type="number" id="ebkUnlock" min="1" max="42" value="1"></label>
       <label class="ebka-file">Couverture <em>(image, optionnel)</em><input type="file" id="ebkCover" accept="image/*"></label>
       <label class="ebka-file">Fichier PDF <em>(requis, max 10 Mo)</em><input type="file" id="ebkPdf" accept="application/pdf" required></label>
       <button type="submit" class="btn btn-primary" id="ebkAddBtn">Ajouter le guide</button>
@@ -6542,8 +6542,9 @@ async function addEbook(e) {
     let coverData = '';
     const cf = $('#ebkCover').files[0];
     if (cf) { try { coverData = await compressImage(cf, 640, 0.82); } catch (_) { coverData = ''; } }
+    const jour = Math.max(1, Math.min(42, Number($('#ebkUnlock').value) || 1));
     const d = await (await fetch(apiUrl('/api/admin/ebooks'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ title, category: $('#ebkCat').value.trim(), description: $('#ebkDesc').value.trim(), unlockDay: Number($('#ebkUnlock').value), pdfData, coverData }) })).json();
+      body: JSON.stringify({ title, category: $('#ebkCat').value.trim(), description: $('#ebkDesc').value.trim(), unlockDay: jour - 1, pdfData, coverData }) })).json();
     if (d.ok) { showToast('Guide ajouté ✓', { icon: 'check' }); renderEbooksAdmin(); }
     else msg.textContent = d.error || 'Échec.';
   } catch (_) { msg.textContent = 'Échec de l\'envoi.'; }

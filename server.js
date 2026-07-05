@@ -613,7 +613,9 @@ try {
     const t = Date.parse(sd); if (isNaN(t)) return 0;
     return Math.max(0, Math.floor((Date.now() - t) / 86400000));
   }
-  function ebookUnlockLabel(day) { return day <= 0 ? '' : (day <= 14 ? 'Semaine 3' : (day <= 35 ? 'Semaine 6' : 'Jour ' + day)); }
+  // unlock_day = seuil de jour de challenge (0 = jour 1 / dès le départ ... 41 = jour 42).
+  function ebookUnlockLabel(day) { return day <= 0 ? '' : 'Jour ' + (day + 1); }
+  function ebookUnlockDay(v) { const n = Number(v); return (Number.isInteger(n) && n >= 0 && n <= 41) ? n : 0; }
   function signEbookToken(ebookId, email) {
     const exp = Date.now() + 5 * 60000;
     const payload = ebookId + ':' + email + ':' + exp;
@@ -638,7 +640,7 @@ try {
     try {
       const email = (req.session && req.session.email) || '';
       const day = clientChallengeDay(email);
-      const rows = getDb().prepare('SELECT id, title, description, category, cover_data, unlock_day FROM nutrition_ebooks WHERE active=1 ORDER BY sort_order ASC, id ASC').all();
+      const rows = getDb().prepare('SELECT id, title, description, category, cover_data, unlock_day FROM nutrition_ebooks WHERE active=1 ORDER BY unlock_day ASC, id ASC').all();
       const ebooks = rows.map((r) => ({ id: r.id, title: r.title, description: r.description, category: r.category, cover: r.cover_data || '', unlockDay: r.unlock_day, locked: day < r.unlock_day, unlockLabel: ebookUnlockLabel(r.unlock_day) }));
       res.json({ ok: true, ebooks, day });
     } catch (e) { console.error('ebooks GET:', e); res.status(500).json({ ok: false }); }
@@ -674,7 +676,7 @@ try {
   // ADMIN : gestion des guides.
   app.get('/nutrition/api/admin/ebooks', requireAuth, requireAdmin, (req, res) => {
     try {
-      const rows = getDb().prepare("SELECT id, title, description, category, unlock_day, sort_order, active, length(pdf_data) pdflen, CASE WHEN cover_data!='' THEN 1 ELSE 0 END hascover FROM nutrition_ebooks ORDER BY sort_order ASC, id ASC").all();
+      const rows = getDb().prepare("SELECT id, title, description, category, unlock_day, sort_order, active, length(pdf_data) pdflen, CASE WHEN cover_data!='' THEN 1 ELSE 0 END hascover FROM nutrition_ebooks ORDER BY unlock_day ASC, id ASC").all();
       res.json({ ok: true, ebooks: rows.map((r) => ({ id: r.id, title: r.title, description: r.description, category: r.category, unlockDay: r.unlock_day, sortOrder: r.sort_order, active: r.active, hasCover: !!r.hascover, sizeKo: Math.round((r.pdflen || 0) * 0.75 / 1024) })) });
     } catch (e) { res.status(500).json({ ok: false }); }
   });
@@ -688,7 +690,7 @@ try {
       if (pdf.length > 14000000) return res.status(413).json({ ok: false, error: 'PDF trop lourd (max ~10 Mo).' });
       const cover = String(b.coverData || '');
       const cd = /^data:image\/(png|jpeg|webp);base64,/.test(cover) ? cover.slice(0, 400000) : '';
-      const unlock = [0, 14, 35].includes(Number(b.unlockDay)) ? Number(b.unlockDay) : 0;
+      const unlock = ebookUnlockDay(b.unlockDay);
       const maxOrder = getDb().prepare('SELECT COALESCE(MAX(sort_order),0) m FROM nutrition_ebooks').get().m;
       const info = getDb().prepare('INSERT INTO nutrition_ebooks (title, description, category, cover_data, pdf_data, pdf_mime, unlock_day, sort_order, active, created_at) VALUES (?,?,?,?,?,?,?,?,1,?)')
         .run(title, String(b.description || '').slice(0, 600), String(b.category || '').slice(0, 60), cd, pdf, 'application/pdf', unlock, maxOrder + 1, new Date().toISOString());
@@ -703,7 +705,7 @@ try {
       if ('title' in b) { sets.push('title=?'); vals.push(String(b.title).slice(0, 160)); }
       if ('description' in b) { sets.push('description=?'); vals.push(String(b.description).slice(0, 600)); }
       if ('category' in b) { sets.push('category=?'); vals.push(String(b.category).slice(0, 60)); }
-      if ('unlockDay' in b) { sets.push('unlock_day=?'); vals.push([0, 14, 35].includes(Number(b.unlockDay)) ? Number(b.unlockDay) : 0); }
+      if ('unlockDay' in b) { sets.push('unlock_day=?'); vals.push(ebookUnlockDay(b.unlockDay)); }
       if ('active' in b) { sets.push('active=?'); vals.push(b.active ? 1 : 0); }
       if ('sortOrder' in b) { sets.push('sort_order=?'); vals.push(Number(b.sortOrder) || 0); }
       if (b.pdfData && /^data:application\/pdf;base64,/.test(b.pdfData)) { if (b.pdfData.length > 14000000) return res.status(413).json({ ok: false, error: 'PDF trop lourd.' }); sets.push('pdf_data=?'); vals.push(b.pdfData); }
