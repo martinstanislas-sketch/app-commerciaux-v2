@@ -683,9 +683,22 @@ body.app-shell .fullscreen-toggle { display: none; }
 .panel-head h2 .ic { color: var(--green); }
 .panel-sub { color: var(--muted); font-size: 14px; margin: 4px 0 18px; }
 /* "Cuisiner pour" : reglage adultes + enfants en haut de la liste de courses */
-.pers-ctrl { background: var(--card); border: 1px solid var(--gray-200); border-radius: var(--r); padding: 14px 15px; margin-bottom: 16px; box-shadow: var(--shadow-xs); }
-.pers-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink); margin-bottom: 11px; }
-.pers-title .ic { width: 16px; height: 16px; color: var(--green-700); }
+.pers-ctrl { background: var(--card); border: 1px solid var(--gray-200); border-radius: var(--r); margin-bottom: 16px; box-shadow: var(--shadow-xs); overflow: hidden; }
+/* Résumé replié : une seule ligne « Pour : … · Modifier » -> la liste apparaît tout de suite. */
+.pers-summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 13px 15px; font-size: 14px; -webkit-tap-highlight-color: transparent; }
+.pers-summary::-webkit-details-marker { display: none; }
+.pers-summary::marker { content: ''; }
+.pers-summary-ic { flex: none; display: inline-flex; }
+.pers-summary-ic .ic { width: 18px; height: 18px; color: var(--green-700); }
+.pers-summary-txt { flex: 1 1 auto; min-width: 0; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pers-summary-txt strong { color: var(--ink); font-weight: 800; }
+.pers-summary-edit { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--blue-c); }
+.pers-summary-edit .ic { width: 15px; height: 15px; }
+.pers-ctrl[open] .pers-summary { border-bottom: 1px solid var(--gray-200); }
+.pers-ctrl[open] .pers-summary-edit { opacity: .55; }
+/* On pilote la visibilité du corps via [open] (le masquage natif échoue quand summary est en flex sous Blink). */
+.pers-body { display: none; padding: 13px 15px 15px; }
+.pers-ctrl[open] .pers-body { display: block; }
 .pers-row { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
 .pers-lbl { flex: none; width: 64px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .pers-pills { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1962,12 +1975,16 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   color: var(--muted); cursor: pointer; font-family: inherit; transition: background .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease);
 }
 .day-pill:hover { color: var(--ink-2); background: var(--surface-soft); }
-.day-pill.on { background: var(--blue-soft); border-color: var(--blue-c); color: var(--blue-on-soft); font-weight: 700; }
-/* Pastille "aujourd'hui" sur le selecteur de jours */
+/* Jour SÉLECTIONNÉ : bleu plein + texte blanc (état clairement dominant). */
+.day-pill.on { background: var(--blue-c); border-color: var(--blue-c); color: #fff; font-weight: 800; box-shadow: 0 4px 12px -5px rgba(37, 99, 235, .55); }
+.day-pill.on:hover { background: var(--blue-hover); border-color: var(--blue-hover); color: #fff; }
+/* « AUJOURD'HUI » : marqueur DISTINCT du sélectionné — contour + point sauge quand le
+   jour n'est pas sélectionné ; point blanc quand il l'est (lisible sur le bleu plein). */
 .day-pill.is-today { position: relative; }
+.day-pill.is-today:not(.on) { border-color: var(--sage); color: var(--sage-on-soft); font-weight: 700; }
 .day-pill.is-today::after { content: ''; position: absolute; top: 5px; right: 7px; width: 6px; height: 6px;
   border-radius: 50%; background: var(--sage); box-shadow: 0 0 0 2px var(--card); }
-.day-pill.on.is-today::after { box-shadow: 0 0 0 2px var(--blue-soft); }
+.day-pill.on.is-today::after { background: #fff; box-shadow: 0 0 0 2px var(--blue-c); }
 /* Badge "Jour en cours" (titre du jour + titre du suivi) */
 .day-now { display: inline-flex; align-items: center; margin-left: 8px; font-size: 11px; font-weight: 800;
   letter-spacing: 0.01em; text-transform: none; color: var(--sage-on-soft); background: var(--sage-soft);

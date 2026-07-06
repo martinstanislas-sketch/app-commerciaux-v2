@@ -1790,7 +1790,9 @@ function rayonsTries(parRayon) {
   });
 }
 
-// Reglage "Cuisiner pour" (adultes + enfants) en haut de la liste de courses.
+// Reglage "Cuisiner pour" (adultes + enfants) en tete de la liste de courses.
+// Replie par defaut (resume 1 ligne) pour montrer la liste tout de suite ; ouvre au tap.
+let _persOpen = false;
 function personnesControlHTML() {
   const a = state.adultes || 1, e = state.enfants || 0;
   const pills = (cur, presets, kind) => {
@@ -1799,13 +1801,19 @@ function personnesControlHTML() {
       + `<button type="button" class="pers-pill pers-plus" data-pers="${kind}" data-val="plus" aria-label="Personnaliser">+</button>`;
   };
   return `
-    <div class="pers-ctrl">
-      <div class="pers-title">${icSvg('users')} Cuisiner pour</div>
-      <div class="pers-row"><span class="pers-lbl">Adultes</span><div class="pers-pills">${pills(a, [1, 2, 3, 4], 'adultes')}</div></div>
-      <div class="pers-row"><span class="pers-lbl">Enfants</span><div class="pers-pills">${pills(e, [0, 1, 2, 3], 'enfants')}</div></div>
-      <div class="pers-resume">Liste calculée pour : <strong>${escapeHtml(personnesResume())}</strong><span class="pers-tot">Total portions : ${fmtQty(totalPortions())}</span></div>
-      <p class="pers-note">Ajuste seulement les quantités à acheter — ton plan, tes calories et tes macros restent inchangés.</p>
-    </div>`;
+    <details class="pers-ctrl"${_persOpen ? ' open' : ''}>
+      <summary class="pers-summary">
+        <span class="pers-summary-ic">${icSvg('users')}</span>
+        <span class="pers-summary-txt">Pour : <strong>${escapeHtml(personnesResume())}</strong></span>
+        <span class="pers-summary-edit">${icSvg('edit')}<span>Modifier</span></span>
+      </summary>
+      <div class="pers-body">
+        <div class="pers-row"><span class="pers-lbl">Adultes</span><div class="pers-pills">${pills(a, [1, 2, 3, 4], 'adultes')}</div></div>
+        <div class="pers-row"><span class="pers-lbl">Enfants</span><div class="pers-pills">${pills(e, [0, 1, 2, 3], 'enfants')}</div></div>
+        <div class="pers-resume">Liste calculée pour : <strong>${escapeHtml(personnesResume())}</strong><span class="pers-tot">Total portions : ${fmtQty(totalPortions())}</span></div>
+        <p class="pers-note">Ajuste seulement les quantités à acheter — ton plan, tes calories et tes macros restent inchangés.</p>
+      </div>
+    </details>`;
 }
 
 function renderShopping() {
@@ -1814,6 +1822,9 @@ function renderShopping() {
   cont.innerHTML = personnesControlHTML();
   $('#shoppingDays').textContent = state.plan.jours.length;
   const portSpan = $('#shoppingPortions'); if (portSpan) portSpan.textContent = fmtQty(state.portions);
+  // Mémorise l'état ouvert/replié pour qu'un clic sur un pill (qui re-render) ne referme pas le bloc.
+  const persDet = $('#shoppingList .pers-ctrl');
+  if (persDet) persDet.addEventListener('toggle', () => { _persOpen = persDet.open; });
   $$('#shoppingList .pers-pill').forEach((b) => b.addEventListener('click', () => {
     const kind = b.dataset.pers, val = b.dataset.val;
     if (kind === 'adultes') setAdultes(val === 'plus' ? (state.adultes || 1) + 1 : Number(val));
