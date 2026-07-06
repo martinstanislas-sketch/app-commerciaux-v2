@@ -37,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=60" />
+  <link rel="stylesheet" href="style.css?v=70" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -580,6 +580,9 @@
     <section id="screen-result" class="screen" data-tab="plan">
       <div id="view-plan">
       <div id="needsCard" class="needs-card"></div>
+
+      <!-- Guide du jour : carte compacte (titre + 1 ligne tronquée) ; clic -> ouvre le guide complet -->
+      <button type="button" id="guideDuJourCard" class="gdj-card hidden"></button>
 
       <!-- Mise en avant : affiner le plan (plus le client précise, plus le plan colle à son quotidien) -->
       <button type="button" class="refine-cta" data-go="btnAvance">
@@ -1283,6 +1286,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=60"></script>
+  <script src="app.js?v=70"></script>
 </body>
 </html>

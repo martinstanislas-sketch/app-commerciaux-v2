@@ -393,11 +393,13 @@ function signaturesOf(r) {
 
 // Choix pondere parmi les meilleurs candidats, avec EXCLUSION DURE des plats deja
 // utilises dans la semaine (et de leurs equivalents) + penalites de variete.
-function choisirRecette(candidats, ctx, st, exclureId, type) {
+function choisirRecette(candidats, ctx, st, exclureId, type, exclureJour) {
   const usedCount = (id) => (st.usedIds.get(id) || 0);
+  const usedToday = (id) => !!(exclureJour && exclureJour.has(id)); // dedup PAR JOUR
   // 1. Filtre DUR pour la variete de la semaine.
   let pool = candidats.filter((r) => {
     if (r.id === exclureId) return false;
+    if (usedToday(r.id)) return false;                                       // jamais 2x la meme recette le meme jour
     if (type === 'plat') {
       if (usedCount(r.id) > 0) return false;                                  // jamais 2x le meme plat
       if (signaturesOf(r).some((s) => st.usedSig.has(s))) return false;       // pas de doublon deguise
@@ -407,9 +409,9 @@ function choisirRecette(candidats, ctx, st, exclureId, type) {
     return true;
   });
   // 2. Replis progressifs si trop restrictif (petit catalogue / contraintes serrees).
-  if (!pool.length && type === 'plat') pool = candidats.filter((r) => r.id !== exclureId && usedCount(r.id) === 0);
-  if (!pool.length) pool = candidats.filter((r) => r.id !== exclureId);
-  if (!pool.length) pool = candidats.slice();
+  if (!pool.length && type === 'plat') pool = candidats.filter((r) => r.id !== exclureId && !usedToday(r.id) && usedCount(r.id) === 0);
+  if (!pool.length) pool = candidats.filter((r) => r.id !== exclureId && !usedToday(r.id));
+  if (!pool.length) pool = candidats.slice(); // dernier recours : evite un repas vide (peut re-autoriser un doublon si catalogue minuscule)
   if (!pool.length) return null;
 
   // 3. Score + penalites de variete (proteines, feculents, style deja vus).
@@ -502,6 +504,7 @@ function genererPlanDemo(profil, prefs, seed) {
   for (let d = 0; d < nbJours; d++) {
     const repasDuJour = [];
     let recetteVeillePlat = null;
+    const idsDuJour = new Set(); // dedup PAR JOUR : jamais 2x la meme recette dans la meme journee
     for (const creneau of besoins.repartitionRepas) {
       const typePool = creneau.type === 'dejeuner' || creneau.type === 'diner' ? 'plat' : creneau.type;
       let candidats = parType[typePool] || [];
@@ -516,10 +519,10 @@ function genererPlanDemo(profil, prefs, seed) {
       if (typePool === 'collation') candidats = prefererCollation(candidats, prefs, profil, creneau);
       const ctx = { kcalCible: creneau.kcal, prefs, rand, rassasiant: rassasiantCreneau.has(creneau.type), protPrioritaire: ['perte', 'muscle', 'challenge'].includes(norm(profil.objectif || '')) };
       const exclure = creneau.type === 'diner' ? recetteVeillePlat : null;
-      const recette = choisirRecette(candidats, ctx, st, exclure, typePool);
+      const recette = choisirRecette(candidats, ctx, st, exclure, typePool, idsDuJour);
       if (creneau.type === 'dejeuner' && recette) recetteVeillePlat = recette.id;
 
-      if (recette) marquerVariete(st, recette, typePool);
+      if (recette) { marquerVariete(st, recette, typePool); idsDuJour.add(recette.id); }
 
       repasDuJour.push({
         creneau: creneau.type,
@@ -561,7 +564,8 @@ function regenererRepas(profil, prefs, creneauType, kcalCible, exclureId, seed, 
     else st.usedIds.set(id, 1);
   });
   const ctx = { kcalCible: kcalCible || 500, prefs, rand, protPrioritaire: ['perte', 'muscle'].includes(norm((profil || {}).objectif || '')) };
-  const recette = choisirRecette(candidats, ctx, st, exclureId, typePool);
+  // Exclusion DURE des recettes déjà présentes -> jamais un doublon réintroduit.
+  const recette = choisirRecette(candidats, ctx, st, exclureId, typePool, new Set(dejaLa));
   return recette ? formaterRecette(recette, kcalCible) : null;
 }
 

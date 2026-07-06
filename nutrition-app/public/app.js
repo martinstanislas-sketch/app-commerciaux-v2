@@ -532,9 +532,6 @@ async function fetchMeal(creneau, kcalCible, exclureId) {
 function renderNeeds() {
   const b = state.plan.besoins;
   const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
-  const pk = b.macros.proteines * 4, gk = b.macros.glucides * 4, lk = b.macros.lipides * 9;
-  const tot = pk + gk + lk || 1;
-  const bar = (v) => `<div class="macbar"><i style="width:${Math.round((v / tot) * 100)}%"></i></div>`;
   const kcalBlock = state.masquerCalories ? ''
     : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl">kcal / jour</div></div>`;
   const isChallenge = state.profil.objectif === 'challenge';
@@ -565,19 +562,17 @@ function renderNeeds() {
   $('#needsCard').innerHTML = `
     ${prenom ? `<p class="needs-kicker">Le programme de ${escapeHtml(prenom)}</p>` : ''}
     <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2>
-      <button type="button" class="needs-guide hidden" id="guideDuJourBtn" title="Ton guide du jour">${icSvg('book')}<span class="ng-lbl">Guide du jour</span><span class="ng-new">Nouveau</span></button>
       <button type="button" class="needs-agenda" title="Ajouter mes menus à mon agenda" aria-label="Ajouter à mon agenda">${icSvg('calendar')}<span>Agenda</span></button></div>
     <p class="needs-sub">${prenom ? escapeHtml(prenom) + ', ton objectif, résumé en chiffres.' : 'Ton objectif, résumé en chiffres.'}</p>
     ${goalStrip}
     <div class="needs-stats">
       ${kcalBlock}
-      <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div>${bar(pk)}</div>
-      <div class="needs-stat"><div class="num">${b.macros.glucides} g</div><div class="lbl">Glucides</div>${bar(gk)}</div>
-      <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl">Lipides</div>${bar(lk)}</div>
+      <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div></div>
+      <div class="needs-stat"><div class="num">${b.macros.glucides} g</div><div class="lbl">Glucides</div></div>
+      <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl">Lipides</div></div>
     </div>`;
   const ag = $('#needsCard .needs-agenda'); if (ag) ag.addEventListener('click', openAgenda);
-  const gb = $('#guideDuJourBtn'); if (gb) gb.addEventListener('click', openGuideDuJour);
-  renderGuideDuJour(); // met à jour le bouton « Guide du jour » (affiché + « Nouveau » si non lu)
+  renderGuideDuJour(); // met à jour la carte « guide du jour » (titre + 1 ligne, « Nouveau » si non lu)
 }
 
 // ---------- Ajustement automatique du plan (Challenge 6/6) ----------
@@ -1132,26 +1127,34 @@ function renderMealCard(repas, di, mi) {
     </div>
     <div class="meal-body">
       <div class="meal-actions">
-        <button class="mini-btn mini-btn-main" data-act="open">${icSvg('eye')} Voir la recette</button>
+        <button class="mini-btn" data-act="open">${icSvg('eye')} Voir la recette</button>
         <button class="mini-btn" data-act="swap">${icSvg('refresh')} Remplacer</button>
       </div>
-      <div class="meal-track">
-        <button class="track-btn ${st === 'respecte' ? 'on-ok' : ''}" data-act="t-ok" title="J'ai suivi mon plan" aria-label="J'ai suivi mon plan">${icSvg('check')}</button>
-        <button class="track-btn ${st === 'non' ? 'on-no' : ''}" data-act="t-no" title="J'ai sauté ce repas" aria-label="J'ai sauté ce repas">${icSvg('x')}</button>
-        <button class="track-btn ${(st === 'adapte' || st === 'autre') ? 'on-alt' : ''}" data-act="t-alt" title="J'ai adapté / mangé autre chose" aria-label="Adapter ce repas">${icSvg('edit')}</button>
+      <div class="meal-track-wrap">
+        <span class="meal-track-lbl">Suivi du repas</span>
+        <div class="meal-track" role="group" aria-label="Suivi du repas">
+          <button class="track-btn ${st === 'respecte' ? 'on-ok' : ''}" data-act="t-ok" title="Repas suivi" aria-label="Repas suivi">${icSvg('check')}</button>
+          <button class="track-btn ${st === 'non' ? 'on-no' : ''}" data-act="t-no" title="Repas sauté" aria-label="Repas sauté">${icSvg('x')}</button>
+          <button class="track-btn ${(st === 'adapte' || st === 'autre') ? 'on-alt' : ''}" data-act="t-alt" title="J'ai mangé autre chose" aria-label="J'ai mangé autre chose">${icSvg('edit')}</button>
+        </div>
       </div>
       ${collationOptionHTML(repas)}
     </div>`;
   el.classList.toggle('is-autre', st === 'autre');
   el.classList.toggle('is-adapte', st === 'adapte');
+  el.classList.add('is-clickable'); // toute la carte ouvre la recette (cf. handler ci-dessous)
   el.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-act]');
     const act = btn && btn.dataset.act;
-    if (act === 'open') openRecipe(r, di, mi);
-    if (act === 'swap') swapMeal(di, mi);
-    if (act === 't-ok') setMealStatus(di, mi, 'respecte');
-    if (act === 't-no') setMealStatus(di, mi, 'non');
-    if (act === 't-alt') openSuiviForMeal(di, mi);
+    if (act === 'open') { openRecipe(r, di, mi); return; }
+    if (act === 'swap') { swapMeal(di, mi); return; }
+    if (act === 't-ok') { setMealStatus(di, mi, 'respecte'); return; }
+    if (act === 't-no') { setMealStatus(di, mi, 'non'); return; }
+    if (act === 't-alt') { openSuiviForMeal(di, mi); return; }
+    // Clic ailleurs sur la carte -> ouvrir la recette, SAUF sur un element interactif
+    // (lien « option rapide » de collation, autre bouton/lien).
+    if (e.target.closest('a, button, input, label, select, textarea')) return;
+    openRecipe(r, di, mi);
   });
   return el;
 }
@@ -6530,25 +6533,33 @@ function renderEbooks(body, list, day) {
     openEbook(Number(c.dataset.id), c.dataset.title);
   }));
 }
-// Bouton « Guide du jour » (logo dans l'en-tête de l'objectif) : l'ebook débloqué
-// aujourd'hui. Visible seulement s'il existe un guide du jour ; badge « Nouveau »
-// (avec pulsation) tant qu'il n'est pas lu. Clic -> ouverture directe.
+// Carte « guide du jour » (compacte, en tête du plan) : l'ebook débloqué aujourd'hui.
+// Titre + UNE ligne de description tronquée (ellipse) ; « Nouveau » tant qu'il n'est
+// pas lu. Visible seulement s'il existe un guide du jour. Clic -> ouverture directe.
 let _guideDuJour = undefined;
 function openGuideDuJour() { if (_guideDuJour) openEbook(_guideDuJour.id, _guideDuJour.title); else openEbooks(); }
 async function renderGuideDuJour() {
-  const btn = $('#guideDuJourBtn'); if (!btn) return;
-  if (!(window.__NUTRI_USER && window.__NUTRI_USER.email)) { btn.classList.add('hidden'); return; }
+  const card = $('#guideDuJourCard'); if (!card) return;
+  if (!(window.__NUTRI_USER && window.__NUTRI_USER.email)) { card.classList.add('hidden'); return; }
   try {
     const d = await (await fetch(apiUrl('/api/ebooks'), { headers: nutriAuthHeaders() })).json();
-    if (!d.ok) { btn.classList.add('hidden'); return; }
+    if (!d.ok) { card.classList.add('hidden'); return; }
     const jour = (d.ebooks || []).filter((e) => !e.locked && Number(e.unlockDay) === Number(d.day));
     const g = jour[jour.length - 1] || null; // le guide du jour (lu ou non)
     _guideDuJour = g;
-    if (!g) { btn.classList.add('hidden'); return; }
-    btn.classList.remove('hidden');
-    btn.classList.toggle('is-new', !g.read); // « Nouveau » + pulsation tant que non lu
-    btn.title = g.title;
-  } catch (_) { btn.classList.add('hidden'); }
+    if (!g) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    card.classList.toggle('is-new', !g.read); // fond bleu plein + badge « Nouveau » tant que non lu
+    const desc = g.description || 'Ton guide du jour — touche pour l’ouvrir.';
+    card.innerHTML = `
+      <span class="gdj-ic">${icSvg('book')}</span>
+      <span class="gdj-text">
+        <span class="gdj-top"><b class="gdj-title">${escapeHtml(g.title)}</b>${!g.read ? '<span class="gdj-new">Nouveau</span>' : ''}</span>
+        <span class="gdj-desc">${escapeHtml(desc)}</span>
+      </span>
+      <span class="gdj-arrow">${icSvg('arrow-right')}</span>`;
+    card.onclick = openGuideDuJour; // idempotent (réécrit à chaque rendu)
+  } catch (_) { card.classList.add('hidden'); }
 }
 async function openEbook(id, title) {
   try {
