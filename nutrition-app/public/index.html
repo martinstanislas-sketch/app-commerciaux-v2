@@ -37,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=70" />
+  <link rel="stylesheet" href="style.css?v=74" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -666,7 +666,6 @@
         <button type="button" class="profil-row" id="btnEbooks"><svg class="ic pr-blue"><use href="#ic-book"/></svg>Mes guides<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-client hidden" id="btnPushPrefs"><svg class="ic pr-muted"><use href="#ic-bell"/></svg>Notifications<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-client hidden" id="btnChangePin"><svg class="ic pr-muted"><use href="#ic-shield"/></svg>Changer mon code PIN<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row profil-logout hidden" id="btnLogout"><svg class="ic"><use href="#ic-logout"/></svg>Se déconnecter</button>
 
         <div class="profil-sec profil-coach hidden">ESPACE COACH</div>
         <button type="button" class="profil-row profil-coach hidden" id="btnMessagesCoach"><svg class="ic pr-lime"><use href="#ic-send"/></svg>Mes messages<span class="pr-badge conv-unread" id="messagesCoachBadge" style="display:none"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -686,6 +685,9 @@
         <div class="profil-sec profil-demo hidden">DÉMONSTRATION</div>
         <button type="button" class="profil-row profil-demo hidden" data-go="demoRestart"><svg class="ic pr-muted"><use href="#ic-refresh"/></svg>Recommencer la démo<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-demo hidden" data-go="demoQuit"><svg class="ic pr-muted"><use href="#ic-x"/></svg>Quitter la démo<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+
+        <!-- Déconnexion : toujours en TOUT DERNIER (après toutes les sections) pour éviter le tap accidentel. -->
+        <button type="button" class="profil-row profil-logout hidden" id="btnLogout"><svg class="ic"><use href="#ic-logout"/></svg>Se déconnecter</button>
       </div>
 
       <!-- ÉCRAN COMMUNAUTÉ : débloqué une fois le plan alimentaire généré -->
@@ -693,8 +695,8 @@
       <div id="view-parcours"></div>
 
       <!-- SOS coach (présent sur tous les onglets) -->
-      <button type="button" id="sosFab" class="sos-fab" aria-haspopup="dialog">
-        <svg class="ic"><use href="#ic-life-buoy"/></svg> SOS coach
+      <button type="button" id="sosFab" class="sos-fab" aria-haspopup="dialog" aria-label="SOS coach" title="SOS coach">
+        <svg class="ic"><use href="#ic-life-buoy"/></svg><span class="sos-fab-lbl">SOS coach</span>
       </button>
       <div id="sosSheet" class="sos-wrap hidden" role="dialog" aria-modal="true" aria-label="SOS coach">
         <div class="sos-overlay" data-sos-close></div>
@@ -1286,6 +1288,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=70"></script>
+  <script src="app.js?v=74"></script>
 </body>
 </html>

@@ -167,6 +167,10 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .screen { display: none; }
 .screen.active { display: block; animation: fadeUp 0.45s var(--ease); }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+/* L'écran plan héberge des éléments position:fixed (SOS coach, feuille coach) : il ne doit
+   JAMAIS avoir de transform (qui les détacherait du viewport). Fondu opacité seule. */
+#screen-result.active { animation: screenFadeIn 0.4s var(--ease); }
+@keyframes screenFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -411,6 +415,7 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .needs-stat:hover { border-color: var(--green-100); transform: translateY(-2px); }
 .needs-stat .num { font-size: 24px; font-weight: 500; color: var(--text-c); letter-spacing: -0.03em; line-height: 1.05; }
 .needs-stat .lbl { font-size: 12px; font-weight: 600; color: var(--text-muted-c); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+.needs-stat .lbl-sm { display: none; } /* label court : uniquement en mode compact mobile (1 rangée) */
 .needs-stat .macbar { height: 6px; border-radius: var(--pill); background: var(--track); margin-top: 11px; overflow: hidden; }
 .needs-stat .macbar > i { display: block; height: 100%; border-radius: var(--pill); background: var(--blue-c); transition: width 0.6s var(--ease); }
 .needs-stat.is-reached .macbar > i { background: var(--sage); } /* objectif atteint -> sauge */
@@ -547,7 +552,8 @@ body.app-shell .fullscreen-toggle { display: none; }
 .meal-photo .meal-fav { z-index: 3; color: #fff; width: 18px; height: 18px; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.45)); }
 .meal-overlay { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding: 14px 15px 14px; display: flex; flex-direction: column; gap: 5px; }
 .meal-overlay .meal-name { margin: 0; font-size: 17px; font-weight: 800; line-height: 1.2; letter-spacing: -0.01em; color: #fff; cursor: pointer;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 1px 4px rgba(0,0,0,0.55), 0 1px 12px rgba(0,0,0,0.30); }
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.55), 0 1px 12px rgba(0,0,0,0.30); }
 .meal-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .meal-meta span { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.65), 0 0 2px rgba(0,0,0,0.4); }
 .meal-meta .ic { width: 13px; height: 13px; }
@@ -563,7 +569,7 @@ body.app-shell .fullscreen-toggle { display: none; }
 .recipe-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .meal-body { padding: 16px 14px 14px; display: flex; flex-direction: column; gap: 11px; flex: 1; } /* + d'air entre la photo et les boutons */
 .meal-name { font-size: 15px; font-weight: 700; color: var(--ink); cursor: pointer; line-height: 1.35;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .meal-name:hover { color: var(--green-700); }
 .meal-overlay .meal-name { transition: opacity 0.16s var(--ease); }
 .meal-overlay .meal-name:hover { opacity: 0.85; }
@@ -703,7 +709,7 @@ body.app-shell .fullscreen-toggle { display: none; }
 .shop-item .q { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 600; }
 
 .fav-item { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--card); border: 1px solid var(--gray-100); border-radius: 14px; margin-bottom: 9px; box-shadow: var(--shadow-xs); }
-.fav-item .fav-name { font-weight: 700; color: var(--ink); cursor: pointer; }
+.fav-item .fav-name { flex: 1; min-width: 0; font-weight: 700; color: var(--ink); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fav-item .fav-name:hover { color: var(--green-700); }
 .fav-item .fav-meta { font-size: 12px; color: var(--muted); margin-left: auto; white-space: nowrap; }
 .fav-item .fav-remove { border: none; background: rgba(248,113,113,0.16); color: var(--error); border-radius: 9px; width: 30px; height: 30px; cursor: pointer; flex: none; font-weight: 700; }
@@ -998,7 +1004,14 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   .choice-grid[data-field="matinGout"] { grid-template-columns: repeat(2, 1fr); }
   .chip-set[data-multifield="cuisines"] { flex-wrap: wrap; overflow-x: visible; }
   .field-row { grid-template-columns: 1fr; }
-  .needs-stats { grid-template-columns: repeat(2, 1fr); }
+  /* Hero compact : 4 mini-stats sur UNE seule rangée (kcal, Prot, Gluc, Lip) -> le plan
+     remonte dans le 1er écran au lieu d'un pavé 2x2 qui prend toute la hauteur. */
+  .needs-stats { grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .needs-stat { padding: 10px 4px; border-radius: 12px; text-align: center; }
+  .needs-stat .num { font-size: 17px; }
+  .needs-stat .lbl { font-size: 10px; margin-top: 2px; letter-spacing: 0.02em; }
+  .needs-stat .lbl-lg { display: none; }
+  .needs-stat .lbl-sm { display: inline; }
   .recipe-macros { grid-template-columns: repeat(2, 1fr); }
   .panel-inner { width: 100%; padding: 20px 16px; }
   .modal { padding: 22px 18px; }
@@ -1132,16 +1145,19 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .gdj-arrow .ic { width: 18px; height: 18px; }
 
 /* ---------- SOS coach : bouton flottant + feuille (bottom sheet) ---------- */
+/* Mobile-first : icône ronde seule (sans texte), en bas à droite au-dessus de la tab bar. */
 .sos-fab {
-  position: fixed; right: 16px; bottom: 22px; z-index: 45;
-  display: inline-flex; align-items: center; gap: 7px;
-  background: var(--blue-c); color: #fff; font-family: inherit;
-  padding: 12px 17px; border: none; border-radius: var(--pill);
+  position: fixed; right: 12px; bottom: 22px; z-index: 45;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0;
+  width: 54px; height: 54px; padding: 0; border-radius: 50%;
+  background: var(--blue-c); color: #fff; font-family: inherit; border: none;
   font-size: 13.5px; font-weight: 700; cursor: pointer;
   box-shadow: var(--shadow-green); transition: transform .15s var(--ease), background .15s var(--ease);
 }
-.sos-fab .ic { width: 18px; height: 18px; }
+.sos-fab .ic { width: 24px; height: 24px; }
+.sos-fab-lbl { display: none; } /* libellé masqué en icône seule (mobile) ; révélé en sidebar desktop */
 .sos-fab:hover { background: var(--blue-hover); transform: translateY(-1px); }
+.sos-fab:active { transform: scale(0.94); }
 .sos-wrap { position: fixed; inset: 0; z-index: 70; }
 .sos-wrap.hidden { display: none; }
 .sos-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.55); animation: sos-fade .25s var(--ease); }
@@ -2003,8 +2019,11 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
      -> plus de chevauchement avec « Toute la journée » ni les cartes à droite. */
   body.app-shell .sos-fab {
     left: max(14px, calc((100vw - 1400px) / 2 + 14px)); right: auto; bottom: 18px;
-    width: 206px; box-sizing: border-box; justify-content: center; z-index: 21;
+    width: 206px; height: auto; padding: 12px 17px; border-radius: var(--pill); gap: 7px;
+    box-sizing: border-box; justify-content: center; z-index: 21;
   }
+  body.app-shell .sos-fab .sos-fab-lbl { display: inline; } /* libellé visible dans la sidebar desktop */
+  body.app-shell .sos-fab .ic { width: 18px; height: 18px; }
   /* L'ecran Profil en colonnes (les sections cote a cote) pour aerer le desktop */
   /* Profil en grille 2 colonnes sur desktop (utilise la largeur, evite le vide a droite). */
   body.app-shell #view-profil {

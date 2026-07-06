@@ -533,7 +533,7 @@ function renderNeeds() {
   const b = state.plan.besoins;
   const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
   const kcalBlock = state.masquerCalories ? ''
-    : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl">kcal / jour</div></div>`;
+    : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl"><span class="lbl-lg">kcal / jour</span><span class="lbl-sm">kcal</span></div></div>`;
   const isChallenge = state.profil.objectif === 'challenge';
   const prenom = clientPrenom();
   // Objectif POIDS chiffré, toujours visible (Challenge) + progression si pesées officielles.
@@ -567,9 +567,9 @@ function renderNeeds() {
     ${goalStrip}
     <div class="needs-stats">
       ${kcalBlock}
-      <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl">Protéines</div></div>
-      <div class="needs-stat"><div class="num">${b.macros.glucides} g</div><div class="lbl">Glucides</div></div>
-      <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl">Lipides</div></div>
+      <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl"><span class="lbl-lg">Protéines</span><span class="lbl-sm">Prot.</span></div></div>
+      <div class="needs-stat"><div class="num">${b.macros.glucides} g</div><div class="lbl"><span class="lbl-lg">Glucides</span><span class="lbl-sm">Gluc.</span></div></div>
+      <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl"><span class="lbl-lg">Lipides</span><span class="lbl-sm">Lip.</span></div></div>
     </div>`;
   const ag = $('#needsCard .needs-agenda'); if (ag) ag.addEventListener('click', openAgenda);
   renderGuideDuJour(); // met à jour la carte « guide du jour » (titre + 1 ligne, « Nouveau » si non lu)
