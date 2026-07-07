@@ -3547,6 +3547,7 @@ function applyOverview() {
   const bar = $('#commProgBar'); if (bar) bar.style.width = pctObj + '%';
   const pp = $('#commProgPct'); if (pp) pp.textContent = pctObj; // le « % » est un élément séparé
   applyCoachTip();
+  if (typeof updateCommunauteAside === 'function') updateCommunauteAside();
 }
 // Conseil du coach (compact) : conseil AUTO contextuel. Les messages publiés par le
 // coach apparaissent désormais dans le fil de l'équipe (mis en valeur), pas ici.
@@ -3688,6 +3689,7 @@ function renderCommunauteFeed() {
   list.querySelectorAll('.feed-more-btn').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); togglePalette(b.dataset.more); }));
   list.querySelectorAll('.feed-cbtn').forEach((b) => b.addEventListener('click', () => toggleComments(b.dataset.ctoggle)));
   list.querySelectorAll('.feed-c-form').forEach((f) => f.addEventListener('submit', (e) => { e.preventDefault(); const inp = f.querySelector('.feed-c-input'); const v = inp ? inp.value : ''; if (!v.trim()) return; postComment(f.dataset.cform, v); }));
+  if (typeof updateCommunauteAside === 'function') updateCommunauteAside(); // maj « posts récents » + « dernières victoires »
 }
 async function fetchCommunauteFeed() {
   try {
@@ -3737,37 +3739,90 @@ function renderCommunaute() {
     return;
   }
   const ov = state.communauteOverview;
-  const members = (ov && ov.members) || state.communauteMembers || '—';
-  const pctObj = ov && ov.objectif ? ov.objectif.pct : 0;
   const coachOnly = isCoachOrAdmin();
+  const prenom = (typeof clientPrenom === 'function' && clientPrenom()) || '';
+  const initiale = (prenom.charAt(0) || '?').toUpperCase();
+  const defi = COMMUNAUTE_DEFIS[new Date().getDay() % COMMUNAUTE_DEFIS.length];
+  const coachTip = escapeHtml((ov && ov.coachAuto && ov.coachAuto[0]) || 'Ta collation protéinée de l’après-midi aide à éviter les fringales du soir.');
+  const asideCoachForm = coachOnly
+    ? '<form id="commCoachForm" class="cmy-coachform"><textarea id="commCoachInput" rows="2" maxlength="500" placeholder="Publier un conseil au groupe (coach)…"></textarea><button type="submit" class="cmy-post-btn sm">' + icSvg('send') + ' Publier</button></form>'
+    : '';
   host.innerHTML =
-    '<div class="feed">' +
-      // (Bloc « Défi / Groupe Challenge / progression » retiré — on garde uniquement la discussion collective.)
-      // Zone de publication personnelle.
-      '<form id="commForm" class="feed-compose">' +
-        '<textarea id="commInput" rows="1" maxlength="500" placeholder="Partager une réussite, une difficulté ou une victoire…" autocomplete="off"></textarea>' +
-        '<button type="submit" class="comm-send" aria-label="Partager">' + icSvg('send') + '</button>' +
-      '</form>' +
-      // Fil d'activité (élément central)
-      '<div class="feed-section-head"><h3>Le fil de l’équipe</h3></div>' +
-      '<div id="feedList" class="feed-list"><p class="comm-empty">Chargement du fil…</p></div>' +
-      // 3. Conseil du coach (compact)
-      '<div class="feed-coach"><span class="feed-coach-ic">💡</span><div class="feed-coach-body"><b>Conseil du coach</b><p id="commCoachTip">' +
-        escapeHtml((ov && ov.coachAuto && ov.coachAuto[0]) || 'Ta collation protéinée de l’après-midi aide à éviter les fringales du soir.') + '</p></div></div>' +
-      (coachOnly ? '<form id="commCoachForm" class="feed-compose feed-coachform"><textarea id="commCoachInput" rows="1" maxlength="500" placeholder="Publier un conseil au groupe (coach)…"></textarea><button type="submit" class="comm-send" aria-label="Publier">' + icSvg('send') + '</button></form>' : '') +
+    '<div class="cmy">' +
+      // ---- Héro inspirant ----
+      '<div class="cmy-hero">' +
+        '<div class="cmy-hero-glow"></div>' +
+        '<span class="cmy-hero-kicker">' + icSvg('users') + ' Groupe Challenge 6/6</span>' +
+        '<h2 class="cmy-hero-title">Le groupe qui avance avec toi</h2>' +
+        '<p class="cmy-hero-sub" id="cmyPhrase">' + escapeHtml((ov && ov.phrase) || 'Chaque victoire partagée motive tout le groupe. Poste la tienne aujourd’hui 💪') + '</p>' +
+        '<div class="cmy-hero-stats">' +
+          '<div class="cmy-hstat"><b id="cmyMembers">' + ((ov && ov.stats && ov.stats.actifsAujourdhui) || (ov && ov.members) || '—') + '</b><span>actifs aujourd’hui</span></div>' +
+          '<div class="cmy-hstat"><b id="cmyVictoires">' + ((ov && ov.stats && ov.stats.journeesValidees) || 0) + '</b><span>victoires cette semaine</span></div>' +
+          '<div class="cmy-hstat"><b id="cmyPosts">' + ((state.communauteFeed || []).length || 0) + '</b><span>posts récents</span></div>' +
+        '</div>' +
+      '</div>' +
+      // ---- Layout : fil principal + aside ----
+      '<div class="cmy-layout">' +
+        '<div class="cmy-main">' +
+          // Composer engageant
+          '<div class="cmy-composer">' +
+            '<div class="cmy-composer-head">' +
+              '<span class="cmy-composer-av">' + escapeHtml(initiale) + '</span>' +
+              '<div class="cmy-composer-hi"><b>' + (prenom ? escapeHtml(prenom) + ', partage ta journée' : 'Partage ta journée') + ' 💬</b><span>Une victoire, une difficulté, un pas en avant — le groupe est là.</span></div>' +
+            '</div>' +
+            '<div class="cmy-quick">' +
+              '<button type="button" class="cmy-quick-btn win" data-starter="🏆 Ma victoire du jour : ">🏆 Partager une victoire</button>' +
+              '<button type="button" class="cmy-quick-btn seance" data-starter="💪 J’ai tenu ma séance aujourd’hui !">💪 J’ai tenu ma séance</button>' +
+              '<button type="button" class="cmy-quick-btn help" data-starter="🆘 J’ai besoin d’un coup de main : ">🆘 J’ai besoin d’aide</button>' +
+            '</div>' +
+            '<form id="commForm" class="cmy-composer-form">' +
+              '<textarea id="commInput" rows="1" maxlength="500" placeholder="Écris ton message au groupe…" autocomplete="off"></textarea>' +
+              '<button type="submit" class="cmy-post-btn">' + icSvg('send') + ' Publier</button>' +
+            '</form>' +
+          '</div>' +
+          '<div class="cmy-feed-head"><h3>Le fil de l’équipe</h3><span class="cmy-live">' + icSvg('bolt') + ' en direct</span></div>' +
+          '<div id="feedList" class="feed-list"><p class="comm-empty">Chargement du fil…</p></div>' +
+        '</div>' +
+        // ---- Aside motivant (desktop) ----
+        '<aside class="cmy-aside">' +
+          '<div class="cmy-card cmy-obj">' +
+            '<div class="cmy-card-h">' + icSvg('target') + ' Objectif de la semaine</div>' +
+            '<div class="cmy-obj-pct"><b id="cmyObjPct">' + ((ov && ov.objectif && ov.objectif.pct) || 0) + '</b><i>%</i></div>' +
+            '<div class="cmy-obj-bar"><span id="cmyObjBar" style="width:' + ((ov && ov.objectif && ov.objectif.pct) || 0) + '%"></span></div>' +
+            '<p class="cmy-obj-cap" id="cmyObjCap">' + escapeHtml((ov && ov.phrase) || 'On avance ensemble, un repas à la fois.') + '</p>' +
+          '</div>' +
+          '<div class="cmy-card cmy-defi">' +
+            '<div class="cmy-card-h">' + icSvg('flame') + ' Défi du jour</div>' +
+            '<div class="cmy-defi-row"><span class="cmy-defi-emo">' + defi.emo + '</span><div class="cmy-defi-txt"><b>' + escapeHtml(defi.t) + '</b><span>' + escapeHtml(defi.d) + '</span></div></div>' +
+          '</div>' +
+          '<div class="cmy-card cmy-wins">' +
+            '<div class="cmy-card-h">' + icSvg('star') + ' Dernières victoires</div>' +
+            '<div id="cmyWins" class="cmy-wins-list"><p class="cmy-muted">Les victoires du groupe apparaîtront ici.</p></div>' +
+          '</div>' +
+          '<div class="cmy-card cmy-coach">' +
+            '<div class="cmy-card-h">' + icSvg('spark') + ' Le mot du coach</div>' +
+            '<p class="cmy-coach-tip" id="cmyCoachTip">' + coachTip + '</p>' +
+            asideCoachForm +
+          '</div>' +
+        '</aside>' +
+      '</div>' +
     '</div>';
-  // Câblage
+  // Câblage composer + boutons rapides
   const form = $('#commForm');
-  if (form) {
-    const inp = $('#commInput');
-    if (inp) inp.addEventListener('input', () => autoGrowEl(inp));
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const v = inp ? inp.value : '';
-      if (!v.trim()) return;
-      postCommunauteFeed(v, 'partage').then((ok) => { if (ok && inp) { inp.value = ''; autoGrowEl(inp); } });
-    });
-  }
+  const inp = $('#commInput');
+  if (inp) inp.addEventListener('input', () => autoGrowEl(inp));
+  $$('.cmy-quick-btn').forEach((b) => b.addEventListener('click', () => {
+    if (!inp) return;
+    inp.value = b.dataset.starter || ''; autoGrowEl(inp); inp.focus();
+    try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (_) { /* ignore */ }
+    inp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }));
+  if (form) form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = inp ? inp.value : '';
+    if (!v.trim()) return;
+    postCommunauteFeed(v, 'partage').then((ok) => { if (ok && inp) { inp.value = ''; autoGrowEl(inp); } });
+  });
   const cf = $('#commCoachForm');
   if (cf) cf.addEventListener('submit', (e) => { e.preventDefault(); const i = $('#commCoachInput'); const v = i ? i.value : ''; if (!v.trim()) return; postCommunaute(v, 'coach').then((ok) => { if (ok && i) { i.value = ''; fetchCommunaute(); fetchCommunauteOverview(); } }); });
   renderCommunauteFeed();
@@ -3775,6 +3830,39 @@ function renderCommunaute() {
   fetchCommunauteOverview();
   fetchCommunaute(); // messages (compteur membres + dernier conseil coach publié)
   startCommunautePoll();
+}
+// Défis du jour (rotatifs par jour de la semaine) : petites cibles motivantes, non médicales.
+const COMMUNAUTE_DEFIS = [
+  { emo: '😴', t: 'Au lit avant 23 h', d: 'Le sommeil booste la récup et coupe les fringales.' },
+  { emo: '💧', t: 'Bois 1,5 L d’eau', d: 'L’hydratation, c’est la moitié du résultat.' },
+  { emo: '🥗', t: 'Un légume à chaque repas', d: 'Volume, fibres et satiété assurés.' },
+  { emo: '🍗', t: 'Protéines au petit-déj', d: 'Tu tiens jusqu’au déjeuner sans craquer.' },
+  { emo: '🚶', t: '10 000 pas', d: 'Le mouvement du quotidien fait la différence.' },
+  { emo: '📵', t: 'Un repas sans écran', d: 'Manger en conscience = manger juste ce qu’il faut.' },
+  { emo: '💪', t: 'Bouge 20 minutes', d: 'Même léger : l’important, c’est la régularité.' },
+];
+// Met à jour l'aside + les stats du héro depuis l'overview et le fil (appelé après chaque fetch).
+function updateCommunauteAside() {
+  const ov = state.communauteOverview;
+  if (ov) {
+    const pct = (ov.objectif && ov.objectif.pct) || 0;
+    const bar = $('#cmyObjBar'); if (bar) bar.style.width = pct + '%';
+    const pc = $('#cmyObjPct'); if (pc) pc.textContent = pct;
+    const cap = $('#cmyObjCap'); if (cap) cap.textContent = ov.phrase || 'On avance ensemble, un repas à la fois.';
+    const ph = $('#cmyPhrase'); if (ph) ph.textContent = ov.phrase || ph.textContent;
+    const tip = $('#cmyCoachTip'); if (tip) tip.textContent = (ov.coachAuto && ov.coachAuto[0]) || tip.textContent;
+    const m = $('#cmyMembers'); if (m) m.textContent = (ov.stats && ov.stats.actifsAujourdhui) || ov.members || 0;
+    const v = $('#cmyVictoires'); if (v) v.textContent = (ov.stats && ov.stats.journeesValidees) || 0;
+  }
+  const feed = state.communauteFeed || [];
+  const pc = $('#cmyPosts'); if (pc) pc.textContent = feed.length;
+  const wins = $('#cmyWins');
+  if (wins) {
+    const vic = feed.filter((it) => it.who && it.who !== 'Le groupe').slice(0, 4);
+    wins.innerHTML = vic.length
+      ? vic.map((it) => '<div class="cmy-win"><span class="cmy-win-emo">' + (it.emoji || '🎉') + '</span><span class="cmy-win-txt"><b>' + escapeHtml(it.who) + '</b> ' + escapeHtml(String(it.text || '').slice(0, 52)) + '</span></div>').join('')
+      : '<p class="cmy-muted">Les victoires du groupe apparaîtront ici. Sois le premier 💪</p>';
+  }
 }
 
 // ===== Mon Parcours (Challenge 6 semaines) =====
