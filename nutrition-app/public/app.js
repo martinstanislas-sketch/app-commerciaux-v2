@@ -133,9 +133,9 @@ function icSvg(name) { return `<svg class="ic" aria-hidden="true"><use href="#ic
 // ---------- Table de substitution d'ingredients (mode demo) ----------
 // Cle = morceau du nom (normalise) -> alternatives proposees au "swap".
 const SUBSTITUTIONS = [
-  { match: 'riz basmati', alts: ['Riz', 'Quinoa', 'Semoule'] },
-  { match: 'riz a risotto', alts: ['Riz', 'Quinoa'] },
-  { match: 'riz', alts: ['Quinoa', 'Semoule', 'Boulgour'] },
+  { match: 'riz basmati', alts: ['Pates', 'Riz', 'Quinoa', 'Semoule'] },
+  { match: 'riz a risotto', alts: ['Riz', 'Pates', 'Quinoa'] },
+  { match: 'riz', alts: ['Pates', 'Quinoa', 'Semoule', 'Boulgour'] },
   { match: 'pates completes', alts: ['Pates', 'Riz complet', 'Quinoa'] },
   { match: 'pates', alts: ['Pates completes', 'Riz', 'Quinoa'] },
   { match: 'semoule', alts: ['Quinoa', 'Boulgour', 'Riz'] },
@@ -1351,11 +1351,14 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
 
   const ingredients = (r.ingredients || []).map((i, idx) => {
     const q = fmtQty((Number(i.quantite) || 0) * state.portions);
-    const swapBtn = inPlan && trouverAlternatives(i.nom).length
-      ? `<button class="ing-swap" title="Remplacer cet ingredient" aria-label="Remplacer ${escapeHtml(i.nom)}" data-ing="${idx}">${icSvg('swap')}</button>` : '';
+    const alts = inPlan ? altsCompatibles(i.nom) : [];
+    const swapBtn = alts.length
+      ? `<button class="ing-swap" title="Remplacer par un équivalent" aria-label="Remplacer ${escapeHtml(i.nom)}" aria-expanded="false" data-ing="${idx}">${icSvg('swap')}</button>` : '';
     const scanBtn = inPlan
       ? `<button class="ing-scan" title="Remplacer en scannant un produit" aria-label="Scanner pour remplacer ${escapeHtml(i.nom)}" data-ing="${idx}">${icSvg('scan')}</button>` : '';
-    return `<li><span class="ing-left">${escapeHtml(i.nom)}${swapBtn}${scanBtn}</span><span class="q">${q} ${uniteLabel(i.unite, (Number(i.quantite) || 0) * state.portions)}</span></li>`;
+    const altsMenu = alts.length
+      ? `<div class="ing-alts hidden" data-altsfor="${idx}"><span class="ing-alts-lbl">Remplacer par</span>${alts.map((a) => `<button type="button" class="ing-alt" data-ing="${idx}" data-alt="${escapeHtml(a)}">${icSvg('swap')} ${escapeHtml(a)}</button>`).join('')}</div>` : '';
+    return `<li><span class="ing-left">${escapeHtml(i.nom)}${swapBtn}${scanBtn}</span><span class="q">${q} ${uniteLabel(i.unite, (Number(i.quantite) || 0) * state.portions)}</span>${altsMenu}</li>`;
   }).join('');
 
   const portionsNote = state.portions > 1
@@ -1385,7 +1388,8 @@ function openRecipe(r, di = null, mi = null, opts = {}) {
   $('#recipeFav').addEventListener('click', () => { toggleFavori(r); openRecipe(state.plan && inPlan ? state.plan.jours[di].repas[mi].recette : r, di, mi); });
   if (inPlan) {
     $('#recipeExclude').addEventListener('click', () => excludeRecipe(di, mi));
-    $$('#modalBody .ing-swap').forEach((b) => b.addEventListener('click', () => swapIngredient(di, mi, Number(b.dataset.ing))));
+    $$('#modalBody .ing-swap').forEach((b) => b.addEventListener('click', () => toggleIngAlts(Number(b.dataset.ing), b)));
+    $$('#modalBody .ing-alt').forEach((b) => b.addEventListener('click', () => applyIngredientSwap(di, mi, Number(b.dataset.ing), b.dataset.alt)));
     $$('#modalBody .ing-scan').forEach((b) => b.addEventListener('click', () => openScanForReplace(di, mi, Number(b.dataset.ing))));
   }
   $('#recipeModal').scrollTop = 0;
@@ -1686,24 +1690,32 @@ async function excludeRecipe(di, mi) {
 }
 
 // ---------- Swap d'un ingredient precis ----------
-function swapIngredient(di, mi, idx) {
-  const recette = state.plan.jours[di].repas[mi].recette;
-  const ing = recette.ingredients[idx];
-  if (!ing) return;
-  const alts = trouverAlternatives(ing.nom);
-  // Choisir une alternative qui ne reintroduit pas un aliment interdit
-  // (allergies etendues aux synonymes/familles + aliments detestes).
+// Alternatives d'un ingredient, filtrees selon les contraintes (allergies/familles + detestes).
+function altsCompatibles(nom) {
   const interdits = motsAllergenesInterdits();
-  const courant = normTxt(ing.nom);
-  const choix = alts.find((a) => {
+  const courant = normTxt(nom);
+  return trouverAlternatives(nom).filter((a) => {
     const na = normTxt(a);
     return na !== courant && !interdits.some((m) => m && na.includes(m));
   });
-  if (!choix) { alert('Aucune alternative compatible avec tes contraintes pour cet ingrédient.'); return; }
+}
+// Ouvre/ferme le petit menu d'equivalents affiche sous un ingredient (un seul ouvert a la fois).
+function toggleIngAlts(idx, btn) {
+  const menu = document.querySelector('#modalBody .ing-alts[data-altsfor="' + idx + '"]');
+  if (!menu) return;
+  const willOpen = menu.classList.contains('hidden');
+  document.querySelectorAll('#modalBody .ing-alts').forEach((m) => m.classList.add('hidden'));
+  document.querySelectorAll('#modalBody .ing-swap').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+  if (willOpen) { menu.classList.remove('hidden'); if (btn) btn.setAttribute('aria-expanded', 'true'); }
+}
+// Remplace l'ingredient idx par "choix" (equivalent choisi) et recalcule kcal/macros
+// par DIFFERENCE (old -> new) via la table NUTRI. Marche en demo comme en IA.
+function applyIngredientSwap(di, mi, idx, choix) {
+  const recette = state.plan.jours[di].repas[mi].recette;
+  const ing = recette.ingredients[idx];
+  if (!ing || !choix || normTxt(ing.nom) === normTxt(choix)) return;
   const ancien = ing.nom;
   ing.nom = choix; // on conserve quantite/unite ; le rayon reste indicatif
-  // Recalcul des macros par DIFFERENCE (old -> new) a partir de la table NUTRI.
-  // Marche en mode demo comme en IA ; l'IA pourra affiner ensuite via recompute.
   const mOld = macrosIngredient(ancien, ing.quantite, ing.unite);
   const mNew = macrosIngredient(choix, ing.quantite, ing.unite);
   if (mOld && mNew) {
@@ -1712,14 +1724,13 @@ function swapIngredient(di, mi, idx) {
     recette.glucides = Math.max(0, Math.round((recette.glucides || 0) + mNew.g - mOld.g));
     recette.lipides = Math.max(0, Math.round((recette.lipides || 0) + mNew.l - mOld.l));
   }
-  // Hors-ligne (sans IA) : on remplace l'ancien nom dans les etapes statiques
-  // pour eviter l'incoherence (ex. "banane" -> "fruits rouges" dans le dressage).
+  // Hors-ligne (sans IA) : on remplace l'ancien nom dans les etapes statiques pour la coherence.
   if (!state.ia) recette.etapes = (recette.etapes || []).map((s) => remplacerMot(s, ancien, choix));
   saveLocal();
-  // Avec IA : openRecipe(recompute) reconstruit la recette ET recalcule les macros
-  // a partir des ingredients actuels (cache invalide car les ingredients ont change).
+  // recompute: reconstruit la fiche et raffine les macros (IA) a partir des ingredients actuels.
   openRecipe(recette, di, mi, { recompute: true });
   renderPlan();
+  showToast(ancien + ' → ' + choix, { icon: 'check' });
 }
 
 function escapeRegExp(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
