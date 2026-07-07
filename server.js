@@ -263,6 +263,15 @@ function ensureNutritionHelpTable() {
       created_at TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (client_email, jalon)
     );
+    -- Mensurations saisies par le client (cm) : une entrée par date (upsert).
+    CREATE TABLE IF NOT EXISTS nutrition_parcours_mensurations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_email TEXT NOT NULL DEFAULT '',
+      date TEXT NOT NULL DEFAULT '',
+      taille REAL, hanches REAL, poitrine REAL, bras REAL, cuisse REAL,
+      created_at TEXT NOT NULL DEFAULT '',
+      UNIQUE (client_email, date)
+    );
     CREATE TABLE IF NOT EXISTS nutrition_conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_email TEXT NOT NULL,
@@ -1235,6 +1244,8 @@ try {
     const photos = db.prepare('SELECT id, jalon, type, auteur_role, created_at FROM nutrition_parcours_photos WHERE client_email = ? ORDER BY id').all(email)
       .map((p) => ({ id: p.id, jalon: p.jalon, type: p.type, auteur: p.auteur_role, createdAt: p.created_at }));
     const seances = db.prepare('SELECT date FROM nutrition_parcours_seances WHERE client_email = ? ORDER BY date').all(email).map((r) => r.date);
+    let mensurations = [];
+    try { mensurations = db.prepare('SELECT id, date, taille, hanches, poitrine, bras, cuisse FROM nutrition_parcours_mensurations WHERE client_email = ? ORDER BY date').all(email); } catch (_) { /* table absente */ }
 
     // Régularité : agrégée depuis nutrition_adherence depuis le départ (sinon 7 derniers jours).
     let reg = { journeesValidees: 0, repasValides: 0, repasTotal: 0, pct: 0 };
@@ -1273,7 +1284,7 @@ try {
 
     return {
       objectifPerte: perte, poidsDepart, poidsObjectif, startDate, jourActuel, dureeJours: 42, finDate,
-      pesees, jalons, photos, seances, regularite: reg,
+      pesees, jalons, photos, seances, mensurations, regularite: reg,
       seancesObjHebdo: 4, seancesObjTotal: 24, celebration,
     };
   }
@@ -1295,6 +1306,32 @@ try {
       getDb().prepare('INSERT OR IGNORE INTO nutrition_parcours_celebrations_seen (client_email, jalon, created_at) VALUES (?,?,?)').run(email, jalon, new Date().toISOString());
       res.json({ ok: true });
     } catch (e) { console.error('celebration-seen :', e); res.status(500).json({ ok: false }); }
+  });
+  // CLIENT : enregistre ses mensurations (cm) pour une date (upsert par date).
+  app.post('/nutrition/api/parcours/mensuration', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false, error: 'Accès refusé.' });
+      const b = req.body || {};
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? b.date : new Date().toISOString().slice(0, 10);
+      const num = (v) => { const n = Number(v); return (Number.isFinite(n) && n > 0 && n < 400) ? Math.round(n * 10) / 10 : null; };
+      const m = { taille: num(b.taille), hanches: num(b.hanches), poitrine: num(b.poitrine), bras: num(b.bras), cuisse: num(b.cuisse) };
+      if (Object.values(m).every((v) => v == null)) return res.status(400).json({ ok: false, error: 'Renseigne au moins une mesure.' });
+      getDb().prepare('INSERT INTO nutrition_parcours_mensurations (client_email, date, taille, hanches, poitrine, bras, cuisse, created_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(client_email, date) DO UPDATE SET taille=excluded.taille, hanches=excluded.hanches, poitrine=excluded.poitrine, bras=excluded.bras, cuisse=excluded.cuisse')
+        .run(email, date, m.taille, m.hanches, m.poitrine, m.bras, m.cuisse, new Date().toISOString());
+      res.json({ ok: true, parcours: buildParcours(email) });
+    } catch (e) { console.error('mensuration POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+  // CLIENT : supprime une de ses entrées de mensurations.
+  app.delete('/nutrition/api/parcours/mensuration/:id', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      const id = Number(req.params.id);
+      const row = getDb().prepare('SELECT client_email FROM nutrition_parcours_mensurations WHERE id = ?').get(id);
+      if (!row || row.client_email !== email) return res.status(403).json({ ok: false, error: 'Accès refusé.' });
+      getDb().prepare('DELETE FROM nutrition_parcours_mensurations WHERE id = ?').run(id);
+      res.json({ ok: true, parcours: buildParcours(email) });
+    } catch (e) { console.error('mensuration DELETE :', e); res.status(500).json({ ok: false }); }
   });
   // COACH/ADMIN : parcours d'un client attribué.
   app.get('/nutrition/api/coach/parcours/:email', requireAuth, requireCoachOrAdmin, (req, res) => {
@@ -2289,7 +2326,7 @@ try {
         'nutrition_clients', 'nutrition_adherence', 'nutrition_help_requests',
         'nutrition_scans', 'nutrition_scan_advice', 'nutrition_plate_analysis',
         'nutrition_google_token', 'nutrition_parcours_pesees', 'nutrition_parcours_photos',
-        'nutrition_parcours_seances', 'nutrition_community_messages', 'nutrition_community_reactions',
+        'nutrition_parcours_seances', 'nutrition_parcours_mensurations', 'nutrition_community_messages', 'nutrition_community_reactions',
         'nutrition_community_events', 'nutrition_community_event_reactions', 'nutrition_community_comments',
         'nutrition_conversations', 'nutrition_messages', 'nutrition_message_audit', 'nutrition_demo_access',
       ];

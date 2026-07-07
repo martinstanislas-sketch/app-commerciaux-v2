@@ -4142,17 +4142,83 @@ function renderParcours() {
     '<p>Tes pesées sont faites avec ton coach : au départ, à mi-parcours et au bilan final. ' +
     'Pas besoin de te peser entre-temps — concentre-toi sur la régularité.</p></div>';
 
+  // --- Mensurations (saisies par le client) ---
+  const mensu = p.mensurations || [];
+  const fmtCm = (v) => (v == null || v === '') ? '—' : (Math.round(v * 10) / 10).toString().replace('.', ',') + ' cm';
+  let mensuEvol = '';
+  if (mensu.length >= 2) {
+    const first = mensu[0], last = mensu[mensu.length - 1];
+    mensuEvol = MENSU_FIELDS.map((f) => {
+      if (last[f.k] == null || first[f.k] == null) return '';
+      const dd = Math.round((last[f.k] - first[f.k]) * 10) / 10;
+      const cls = dd < 0 ? 'down' : (dd > 0 ? 'up' : '');
+      return '<div class="pc-mensu-evol"><span class="pc-mensu-evol-lbl">' + f.lbl + '</span><b>' + fmtCm(last[f.k]) + '</b>' +
+        '<span class="pc-mensu-delta ' + cls + '">' + (dd === 0 ? '—' : (dd > 0 ? '+' : '') + String(dd).replace('.', ',') + ' cm') + '</span></div>';
+    }).join('');
+  }
+  const mensuRows = mensu.slice().reverse().map((m) => {
+    const vals = MENSU_FIELDS.filter((f) => m[f.k] != null).map((f) => '<span class="pc-mensu-v"><i>' + escapeHtml(f.court) + '</i>' + fmtCm(m[f.k]) + '</span>').join('');
+    return '<div class="pc-mensu-row"><span class="pc-mensu-row-date">' + escapeHtml(dateCourte(m.date) || m.date) + '</span>' +
+      '<div class="pc-mensu-row-vals">' + (vals || '<span class="pc-mensu-v">—</span>') + '</div>' +
+      '<button type="button" class="pc-mensu-del" data-pc-delmensu="' + m.id + '" title="Supprimer" aria-label="Supprimer cette mesure">' + icSvg('x') + '</button></div>';
+  }).join('');
+  const mensurationsBlock =
+    '<section class="pc-sec"><h3>' + icSvg('trend') + ' Mes mensurations</h3>' +
+      '<p class="pc-mensu-intro">Suis ton évolution en centimètres — souvent plus parlant que la balance.</p>' +
+      (mensuEvol ? '<div class="pc-mensu-evol-grid">' + mensuEvol + '</div>' : '') +
+      (mensuRows ? '<div class="pc-mensu-list">' + mensuRows + '</div>' : '<p class="pc-mensu-empty">Aucune mesure enregistrée pour l’instant. Ajoute ta première ci-dessous 📏</p>') +
+      '<details class="pc-mensu-add-wrap">' +
+        '<summary class="pc-mensu-add">' + icSvg('plus') + ' Ajouter mes mensurations</summary>' +
+        '<form id="mensuForm" class="pc-mensu-form">' +
+          '<label class="pc-mensu-field"><span>Date</span><input type="date" name="date" value="' + todayY + '" max="' + todayY + '"></label>' +
+          MENSU_FIELDS.map((f) => '<label class="pc-mensu-field"><span>' + escapeHtml(f.lbl) + ' (cm)</span><input type="number" name="' + f.k + '" min="20" max="250" step="0.5" inputmode="decimal" placeholder="ex. ' + f.ex + '"></label>').join('') +
+          '<button type="submit" class="pc-btn primary pc-full">' + icSvg('check') + ' Enregistrer</button>' +
+        '</form>' +
+      '</details>' +
+    '</section>';
+
   host.innerHTML =
     '<div class="pc-head"><h1>Mon Parcours</h1><p>Ton évolution pendant le Challenge 6 semaines</p></div>' +
-    carte + etapeBlock + peseeNote + courbe + timeline + photoBlock + seancesBlock + regBlock + badgeBlock + bilan;
+    carte + etapeBlock + peseeNote + courbe + timeline + photoBlock + mensurationsBlock + seancesBlock + regBlock + badgeBlock + bilan;
 
   // Câblage
   host.querySelectorAll('[data-pc-act]').forEach((b) => b.addEventListener('click', () => parcoursAction(b.dataset.pcAct)));
   host.querySelectorAll('[data-pc-day]').forEach((b) => b.addEventListener('click', () => validerParcoursSeance(b.dataset.pcDay)));
   host.querySelectorAll('[data-pc-up]').forEach((inp) => inp.addEventListener('change', (e) => { const [jalon, type] = inp.dataset.pcUp.split(':'); uploadParcoursPhoto(jalon, type, e.target.files && e.target.files[0]); }));
   host.querySelectorAll('[data-pc-delphoto]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); deleteParcoursPhoto(Number(b.dataset.pcDelphoto)); }));
+  const _mensuForm = $('#mensuForm'); if (_mensuForm) _mensuForm.addEventListener('submit', (e) => { e.preventDefault(); saveMensuration(_mensuForm); });
+  host.querySelectorAll('[data-pc-delmensu]').forEach((b) => b.addEventListener('click', () => deleteMensuration(Number(b.dataset.pcDelmensu))));
   // Charge les vignettes privées (avec auth -> blob)
   host.querySelectorAll('[data-pc-imgid]').forEach((img) => loadParcoursPhoto(Number(img.dataset.pcImgid), img));
+}
+
+// Mensurations : mesures corporelles saisies par le client (cm).
+const MENSU_FIELDS = [
+  { k: 'taille', lbl: 'Tour de taille', court: 'Taille', ex: '82' },
+  { k: 'hanches', lbl: 'Tour de hanches', court: 'Hanches', ex: '98' },
+  { k: 'poitrine', lbl: 'Tour de poitrine', court: 'Poitrine', ex: '96' },
+  { k: 'bras', lbl: 'Tour de bras', court: 'Bras', ex: '34' },
+  { k: 'cuisse', lbl: 'Tour de cuisse', court: 'Cuisse', ex: '56' },
+];
+async function saveMensuration(form) {
+  const fd = new FormData(form);
+  const body = { date: fd.get('date') || undefined };
+  MENSU_FIELDS.forEach((f) => { const v = fd.get(f.k); if (v) body[f.k] = v; });
+  if (!MENSU_FIELDS.some((f) => body[f.k])) { showToast('Renseigne au moins une mesure.', { icon: 'info' }); return; }
+  try {
+    const res = await fetch(apiUrl('/api/parcours/mensuration'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
+    const d = await res.json();
+    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Mensurations enregistrées 📏', { icon: 'check' }); }
+    else showToast((d && d.error) || 'Enregistrement impossible.', { icon: 'info' });
+  } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
+}
+async function deleteMensuration(id) {
+  try {
+    const res = await fetch(apiUrl('/api/parcours/mensuration/' + id), { method: 'DELETE', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Mesure supprimée', { icon: 'info' }); }
+    else showToast((d && d.error) || 'Suppression impossible.', { icon: 'info' });
+  } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
 }
 
 async function loadParcoursPhoto(id, img) {
