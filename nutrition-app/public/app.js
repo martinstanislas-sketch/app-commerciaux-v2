@@ -1819,13 +1819,26 @@ function personnesControlHTML() {
 function renderShopping() {
   const parRayon = buildShoppingList();
   const cont = $('#shoppingList');
-  cont.innerHTML = personnesControlHTML();
+  const totalArticles = Object.values(parRayon).reduce((s, arr) => s + arr.length, 0);
+  const nbRayons = Object.keys(parRayon).length;
+  const aside =
+    '<div class="shop-aside-card">' +
+      '<div class="comp-aside-h">' + icSvg('cart') + ' Ta liste en un coup d’œil</div>' +
+      '<div class="shop-stat-grid">' +
+        '<div class="shop-stat"><b>' + totalArticles + '</b><span>articles</span></div>' +
+        '<div class="shop-stat"><b>' + nbRayons + '</b><span>rayons</span></div>' +
+        '<div class="shop-stat"><b>' + state.plan.jours.length + '</b><span>jours</span></div>' +
+      '</div>' +
+      '<p class="comp-aside-note">Coche les articles au fur et à mesure. La liste s’adapte au nombre de personnes via le bloc « Pour ».</p>' +
+    '</div>';
+  cont.innerHTML = '<div class="shop-layout"><div class="shop-main">' + personnesControlHTML() + '</div><aside class="shop-aside">' + aside + '</aside></div>';
+  const main = cont.querySelector('.shop-main');
   $('#shoppingDays').textContent = state.plan.jours.length;
   const portSpan = $('#shoppingPortions'); if (portSpan) portSpan.textContent = fmtQty(state.portions);
   // Mémorise l'état ouvert/replié pour qu'un clic sur un pill (qui re-render) ne referme pas le bloc.
-  const persDet = $('#shoppingList .pers-ctrl');
+  const persDet = cont.querySelector('.pers-ctrl');
   if (persDet) persDet.addEventListener('toggle', () => { _persOpen = persDet.open; });
-  $$('#shoppingList .pers-pill').forEach((b) => b.addEventListener('click', () => {
+  cont.querySelectorAll('.pers-pill').forEach((b) => b.addEventListener('click', () => {
     const kind = b.dataset.pers, val = b.dataset.val;
     if (kind === 'adultes') setAdultes(val === 'plus' ? (state.adultes || 1) + 1 : Number(val));
     else setEnfants(val === 'plus' ? (state.enfants || 0) + 1 : Number(val));
@@ -1844,7 +1857,7 @@ function renderShopping() {
       row.querySelector('input').addEventListener('change', (e) => row.classList.toggle('checked', e.target.checked));
       group.appendChild(row);
     });
-    cont.appendChild(group);
+    main.appendChild(group);
   });
 }
 
@@ -2524,16 +2537,22 @@ function renderComplements() {
     return `<div class="comp-tier"><div class="comp-tier-head"><h3 class="comp-tier-title comp-tier-${niv.key}">${niv.titre}</h3><span class="comp-tier-sub">${niv.sous}</span></div>${items.map(complementCarte).join('')}</div>`;
   }).join('');
   const actifs = complementsActifs();
-  const suivisBlock = actifs.length ? `
-    <div class="recipe-section-title">Dans ton plan</div>
-    <div class="comp-suivis">${actifs.map((c) =>
-      `<span class="comp-chip"><strong>${escapeHtml(c.nom)}</strong><em>${escapeHtml(c.moment)}</em><button type="button" class="comp-chip-x" data-comp-toggle="${c.cle}" aria-label="Retirer">${icSvg('x')}</button></span>`).join('')}</div>` : '';
+  const suivisChips = actifs.length ? `<div class="comp-suivis">${actifs.map((c) =>
+    `<span class="comp-chip"><strong>${escapeHtml(c.nom)}</strong><em>${escapeHtml(c.moment)}</em><button type="button" class="comp-chip-x" data-comp-toggle="${c.cle}" aria-label="Retirer">${icSvg('x')}</button></span>`).join('')}</div>` : '';
+  const aside =
+    (actifs.length ? `<div class="comp-aside-card comp-aside-plan"><div class="comp-aside-h">${icSvg('check-circle')} Dans ton plan</div>${suivisChips}</div>` : '') +
+    `<div class="comp-aside-card"><div class="comp-aside-h">${icSvg('shield')} Comment lire ces conseils</div>` +
+      `<p>Les compléments sont une <b>aide secondaire</b>, jamais la base du résultat. Commence par « Les essentiels » selon ton objectif, puis ajoute « À envisager » si tu le souhaites.</p>` +
+      `<p class="comp-aside-note">Informations générales, non médicales. Produits proposés par Biloba Nutrition. Ajoute un complément à ton plan pour le retrouver chaque jour et suivre sa prise.</p></div>`;
   $('#complementsBody').innerHTML = `
     ${data.resume ? `<div class="comp-resume">${escapeHtml(data.resume)}</div>` : ''}
-    ${sections}
-    ${suivisBlock}
-    ${alertes ? `<div class="recipe-section-title">À noter</div>${alertes}` : ''}
-    <p class="panel-sub" style="margin-top:16px">Informations générales, non médicales. Produits proposés par Biloba Nutrition. Les compléments sont une aide secondaire, jamais la base du résultat. Ajoutes-en à ton plan pour les retrouver chaque jour et suivre leur prise.</p>`;
+    <div class="comp-layout">
+      <div class="comp-main">
+        ${sections}
+        ${alertes ? `<div class="recipe-section-title">À noter</div>${alertes}` : ''}
+      </div>
+      <aside class="comp-aside">${aside}</aside>
+    </div>`;
   $$('#complementsBody [data-comp-toggle]').forEach((b) => b.addEventListener('click', () => toggleComplementSuivi(b.dataset.compToggle)));
 }
 
