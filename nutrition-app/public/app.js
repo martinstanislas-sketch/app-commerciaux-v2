@@ -2895,6 +2895,9 @@ function init() {
   $('#quickOptClose').addEventListener('click', closeQuickOptions);
   $('#quickOptPanel').addEventListener('click', (e) => { if (e.target.id === 'quickOptPanel') closeQuickOptions(); });
   // Panneau de saisie de pesée client retiré (pesées officielles saisies par le coach).
+  const _pavAdd = $('#pavAdd'); if (_pavAdd) _pavAdd.addEventListener('click', () => { const f = $('#pavFile'); if (f) f.click(); });
+  const _pavFile = $('#pavFile'); if (_pavFile) _pavFile.addEventListener('change', onAvatarFile);
+  const _pavRemove = $('#pavRemove'); if (_pavRemove) _pavRemove.addEventListener('click', removeAvatar);
   const _bChangePin = $('#btnChangePin'); if (_bChangePin) _bChangePin.addEventListener('click', openChangePin);
   const _bLogout = $('#btnLogout'); if (_bLogout) _bLogout.addEventListener('click', logoutClient);
   const _navLogout = $('#navLogout'); if (_navLogout) _navLogout.addEventListener('click', logoutClient);
@@ -3599,6 +3602,7 @@ function avatarColor(name) {
 }
 function feedAvatar(item) {
   if (item.who === 'Le groupe') return '<div class="feed-av is-group">' + icSvg('users') + '</div>';
+  if (item.avatarUrl) return '<div class="feed-av feed-av-img"><img src="' + escapeHtml(item.avatarUrl) + '" alt="' + escapeHtml(item.who || '') + '" loading="lazy" onerror="this.parentNode.classList.remove(\'feed-av-img\');this.remove()"></div>';
   const ch = ((item.who || '?').trim().charAt(0) || '?').toUpperCase();
   return '<div class="feed-av" style="background:' + avatarColor(item.who) + '">' + escapeHtml(ch) + '</div>';
 }
@@ -3632,7 +3636,10 @@ function feedCommentBar(item) {
 }
 function feedCommentRow(c) {
   const ch = ((c.who || '?').trim().charAt(0) || '?').toUpperCase();
-  return '<div class="feed-c-row"><div class="feed-c-av" style="background:' + avatarColor(c.who) + '">' + escapeHtml(ch) + '</div>' +
+  const av = c.avatarUrl
+    ? '<div class="feed-c-av feed-av-img"><img src="' + escapeHtml(c.avatarUrl) + '" alt="" loading="lazy" onerror="this.parentNode.classList.remove(\'feed-av-img\');this.remove()"></div>'
+    : '<div class="feed-c-av" style="background:' + avatarColor(c.who) + '">' + escapeHtml(ch) + '</div>';
+  return '<div class="feed-c-row">' + av +
     '<div class="feed-c-bub"><span class="feed-c-head"><b>' + escapeHtml(c.who || 'Un membre') + '</b><span class="feed-c-when">' + escapeHtml(commTimeAgo(c.when)) + '</span></span>' +
     '<p>' + escapeHtml(c.text || '') + '</p></div></div>';
 }
@@ -3772,6 +3779,10 @@ function renderCommunaute() {
   const coachOnly = isCoachOrAdmin();
   const prenom = (typeof clientPrenom === 'function' && clientPrenom()) || '';
   const initiale = (prenom.charAt(0) || '?').toUpperCase();
+  const myAv = (window.__NUTRI_USER && window.__NUTRI_USER.avatarUrl) || '';
+  const composerAv = myAv
+    ? '<span class="cmy-composer-av cmy-composer-av-img"><img src="' + escapeHtml(myAv) + '" alt=""></span>'
+    : '<span class="cmy-composer-av">' + escapeHtml(initiale) + '</span>';
   const defi = COMMUNAUTE_DEFIS[new Date().getDay() % COMMUNAUTE_DEFIS.length];
   const coachTip = escapeHtml((ov && ov.coachAuto && ov.coachAuto[0]) || 'Ta collation protéinée de l’après-midi aide à éviter les fringales du soir.');
   const asideCoachForm = coachOnly
@@ -3797,7 +3808,7 @@ function renderCommunaute() {
           // Composer engageant
           '<div class="cmy-composer">' +
             '<div class="cmy-composer-head">' +
-              '<span class="cmy-composer-av">' + escapeHtml(initiale) + '</span>' +
+              composerAv +
               '<div class="cmy-composer-hi"><b>' + (prenom ? escapeHtml(prenom) + ', partage ta journée' : 'Partage ta journée') + ' 💬</b><span>Une victoire, une difficulté, un pas en avant — le groupe est là.</span></div>' +
             '</div>' +
             '<div class="cmy-quick">' +
@@ -5054,6 +5065,7 @@ function setupProfilCoach() {
   // Lignes réservées aux vrais comptes clients (changer le PIN) : pas en démo/coach/admin.
   if (window.__NUTRI_USER && window.__NUTRI_USER.email) {
     $$('#view-profil .profil-client').forEach((el) => el.classList.remove('hidden'));
+    renderProfilAvatar();
   }
   // « Se déconnecter » est universel : visible dès qu'il y a une session (client OU
   // coach/admin de l'app principale). logoutClient() route ensuite selon le type.
@@ -5086,6 +5098,86 @@ async function saveChangePin() {
     if (d && d.ok) { closeChangePin(); showToast('Code PIN modifié ✅', { icon: 'check' }); }
     else if (m) m.textContent = (d && d.error) || 'Échec.';
   } catch (_) { if (m) m.textContent = 'Connexion requise.'; }
+}
+// --- Client : photo de profil (avatar communauté) ---
+function renderProfilAvatar() {
+  const pic = $('#pavPic'); if (!pic) return;
+  const url = (window.__NUTRI_USER && window.__NUTRI_USER.avatarUrl) || '';
+  const lbl = $('#pavAddLbl'); const rm = $('#pavRemove');
+  if (url) {
+    pic.innerHTML = '<img src="' + escapeHtml(url) + '" alt="Ma photo">';
+    pic.classList.add('has-img');
+    if (lbl) lbl.textContent = 'Changer la photo';
+    if (rm) rm.classList.remove('hidden');
+  } else {
+    pic.innerHTML = '<svg class="ic"><use href="#ic-user"/></svg>';
+    pic.classList.remove('has-img');
+    if (lbl) lbl.textContent = 'Ajouter une photo';
+    if (rm) rm.classList.add('hidden');
+  }
+}
+// Redimensionne l'image choisie en un carré ~256px (recadrage centré), JPEG léger.
+function resizeImageToSquare(file, size) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('decode'));
+      img.onload = () => {
+        try {
+          const S = size || 256;
+          const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+          const ctx = cv.getContext('2d');
+          const side = Math.min(img.width, img.height);
+          const sx = (img.width - side) / 2; const sy = (img.height - side) / 2;
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, S, S);
+          resolve(cv.toDataURL('image/jpeg', 0.82));
+        } catch (e) { reject(e); }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+async function onAvatarFile(e) {
+  const file = e && e.target && e.target.files && e.target.files[0];
+  if (e && e.target) e.target.value = ''; // permet de re-choisir le même fichier
+  if (!file) return;
+  if (!/^image\//.test(file.type)) { showToast('Choisis une image.', { icon: 'info' }); return; }
+  try {
+    const data = await resizeImageToSquare(file, 256);
+    const res = await fetch(apiUrl('/account/avatar'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ data }) });
+    const d = await res.json();
+    if (d && d.ok) {
+      // Cache-buster : la clé (donc l'URL) est stable ; on force le rafraîchissement de l'image.
+      const bust = d.avatarUrl + (d.avatarUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
+      if (window.__NUTRI_USER) { window.__NUTRI_USER.avatarUrl = bust; persistNutriAccount(); }
+      renderProfilAvatar();
+      showToast('Photo mise à jour ✅', { icon: 'check' });
+      if (state.communauteFeed) { try { renderCommunaute(); } catch (_) { /* pas sur l'onglet */ } }
+    } else { showToast((d && d.error) || 'Échec de l’envoi.', { icon: 'info' }); }
+  } catch (_) { showToast('Image illisible ou trop lourde.', { icon: 'info' }); }
+}
+async function removeAvatar() {
+  if (!confirm('Retirer ta photo de profil ?')) return;
+  try {
+    const res = await fetch(apiUrl('/account/avatar'), { method: 'DELETE', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) {
+      if (window.__NUTRI_USER) { window.__NUTRI_USER.avatarUrl = ''; persistNutriAccount(); }
+      renderProfilAvatar();
+      showToast('Photo retirée.', { icon: 'check' });
+      if (state.communauteFeed) { try { renderCommunaute(); } catch (_) { /* pas sur l'onglet */ } }
+    } else { showToast((d && d.error) || 'Échec.', { icon: 'info' }); }
+  } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
+}
+// Persiste l'identité client (dont avatarUrl) sur cet appareil.
+function persistNutriAccount() {
+  try {
+    if (!window.__NUTRI_USER) return;
+    localStorage.setItem('mc-nutri-account', JSON.stringify(window.__NUTRI_USER));
+  } catch (_) { /* ignore */ }
 }
 async function logoutClient() {
   const isClient = !!(window.__NUTRI_USER && window.__NUTRI_USER.email);

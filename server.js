@@ -389,6 +389,19 @@ function ensureNutritionHelpTable() {
       getDb().exec("ALTER TABLE nutrition_clients ADD COLUMN pin_hash TEXT NOT NULL DEFAULT ''");
     }
   } catch (e) { console.error('Migration nutrition_clients.pin_hash :', e && e.message); }
+  // Migration : photo de profil PUBLIQUE (avatar communauté). `avatar` = data URI base64,
+  // `avatar_key` = clé aléatoire non devinable servant d'URL image (capability URL) :
+  // permet un <img src> direct (une balise image ne peut pas envoyer d'en-tête d'auth)
+  // sans exposer l'email. Le client choisit lui-même de partager sa photo au groupe.
+  try {
+    const ncCols = getDb().prepare('PRAGMA table_info(nutrition_clients)').all();
+    if (!ncCols.some((c) => c.name === 'avatar')) {
+      getDb().exec("ALTER TABLE nutrition_clients ADD COLUMN avatar TEXT NOT NULL DEFAULT ''");
+    }
+    if (!ncCols.some((c) => c.name === 'avatar_key')) {
+      getDb().exec("ALTER TABLE nutrition_clients ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''");
+    }
+  } catch (e) { console.error('Migration nutrition_clients.avatar :', e && e.message); }
   // Migration : unification de l'identité client sur l'email. Les tables historiques
   // (aide/scans/avis/adhérence/assiettes) lient un client par `client_name` (texte libre
   // = nom de session) ≠ email -> impossible à scoper proprement par coach. On ajoute une
@@ -821,6 +834,19 @@ try {
 
   // Payload du mur collectif (messages + réactions agrégées + taille du groupe).
   // Factorisé pour être réutilisé par la vue CLIENT et la vue COACH.
+  // Photo de profil (avatar) par email -> URL image publique (capability URL). Une seule
+  // requête pour tout un lot d'auteurs ; sans photo -> pas d'entrée (le front affiche l'initiale).
+  function avatarUrlsByEmail(db, emails) {
+    const uniq = [...new Set((emails || []).filter(Boolean))];
+    const map = {};
+    if (!uniq.length) return map;
+    try {
+      const ph = uniq.map(() => '?').join(',');
+      db.prepare("SELECT email, avatar_key FROM nutrition_clients WHERE email IN (" + ph + ") AND avatar <> '' AND avatar_key <> ''").all(...uniq)
+        .forEach((r) => { map[r.email] = '/nutrition/api/community/avatar/' + r.avatar_key; });
+    } catch (_) { /* colonnes absentes -> pas d'avatars */ }
+    return map;
+  }
   function communityWallPayload(meEmail, limit) {
     const db = getDb();
     const rows = db.prepare('SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages ORDER BY id DESC LIMIT ?').all(limit);
@@ -837,9 +863,11 @@ try {
           });
       }
     } catch (_) { /* table absente -> pas de réactions */ }
+    const avm = avatarUrlsByEmail(db, rows.map((r) => r.email));
     const messages = rows.map((r) => ({
       id: r.id, who: r.author || 'Client', when: r.created_at,
       text: r.message, kind: r.kind || 'message', mine: !!meEmail && r.email === meEmail,
+      avatarUrl: avm[r.email] || '',
       reactions: (reacByMsg[r.id] && reacByMsg[r.id].counts) || {},
       myReaction: (reacByMsg[r.id] && reacByMsg[r.id].mine) || null,
     }));
@@ -1062,7 +1090,7 @@ try {
       const me = (req.session && req.session.email) || '';
       const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
       try { genererEvenementsCommunaute(db); } catch (e) { console.warn('genEvents :', e && e.message); }
-      const evs = db.prepare('SELECT id, type, actor_name, emoji, text, created_at FROM nutrition_community_events ORDER BY created_at DESC, id DESC LIMIT ?').all(limit);
+      const evs = db.prepare('SELECT id, type, actor_name, actor_email, emoji, text, created_at FROM nutrition_community_events ORDER BY created_at DESC, id DESC LIMIT ?').all(limit);
       const evReac = {}; const evIds = evs.map((e) => e.id);
       if (evIds.length) {
         const ph = evIds.map(() => '?').join(',');
@@ -1076,9 +1104,10 @@ try {
         db.prepare('SELECT message_id, type, email FROM nutrition_community_reactions WHERE message_id IN (' + ph + ')').all(...postIds)
           .forEach((x) => { const e = postReac[x.message_id] || (postReac[x.message_id] = { counts: {}, mine: null }); e.counts[x.type] = (e.counts[x.type] || 0) + 1; if (me && x.email === me) e.mine = x.type; });
       }
+      const avm = avatarUrlsByEmail(db, [...evs.map((e) => e.actor_email), ...posts.map((p) => p.email)]);
       const items = [];
-      for (const e of evs) items.push({ id: 'e' + e.id, kind: 'event', subkind: e.type, who: e.actor_name || 'Le groupe', emoji: e.emoji || '', text: e.text, when: e.created_at, reactions: (evReac[e.id] && evReac[e.id].counts) || {}, myReaction: (evReac[e.id] && evReac[e.id].mine) || null, mine: false });
-      for (const p of posts) items.push({ id: 'p' + p.id, kind: 'post', subkind: p.kind, who: p.author || 'Un membre', emoji: p.kind === 'partage' ? '✅' : (p.kind === 'coach' ? '📣' : '💬'), text: p.message, when: p.created_at, reactions: (postReac[p.id] && postReac[p.id].counts) || {}, myReaction: (postReac[p.id] && postReac[p.id].mine) || null, mine: !!me && p.email === me });
+      for (const e of evs) items.push({ id: 'e' + e.id, kind: 'event', subkind: e.type, who: e.actor_name || 'Le groupe', avatarUrl: avm[e.actor_email] || '', emoji: e.emoji || '', text: e.text, when: e.created_at, reactions: (evReac[e.id] && evReac[e.id].counts) || {}, myReaction: (evReac[e.id] && evReac[e.id].mine) || null, mine: false });
+      for (const p of posts) items.push({ id: 'p' + p.id, kind: 'post', subkind: p.kind, who: p.author || 'Un membre', avatarUrl: avm[p.email] || '', emoji: p.kind === 'partage' ? '✅' : (p.kind === 'coach' ? '📣' : '💬'), text: p.message, when: p.created_at, reactions: (postReac[p.id] && postReac[p.id].counts) || {}, myReaction: (postReac[p.id] && postReac[p.id].mine) || null, mine: !!me && p.email === me });
       items.sort((a, b) => String(b.when || '').localeCompare(String(a.when || '')));
       const out = items.slice(0, limit);
       // Nombre de commentaires par élément (badge sur la carte).
@@ -1130,7 +1159,8 @@ try {
       const item = String((req.query || {}).item || '');
       if (!/^[ep]\d+$/.test(item)) return res.status(400).json({ ok: false, error: 'Élément invalide.' });
       const rows = getDb().prepare('SELECT id, email, author, text, created_at FROM nutrition_community_comments WHERE item_id = ? ORDER BY id ASC LIMIT 200').all(item);
-      const comments = rows.map((r) => ({ id: r.id, who: r.author || 'Un membre', text: r.text, when: r.created_at, mine: !!me && r.email === me }));
+      const avm = avatarUrlsByEmail(getDb(), rows.map((r) => r.email));
+      const comments = rows.map((r) => ({ id: r.id, who: r.author || 'Un membre', text: r.text, when: r.created_at, avatarUrl: avm[r.email] || '', mine: !!me && r.email === me }));
       res.json({ ok: true, item, comments });
     } catch (e) { console.error('community/comments GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
   });
@@ -2045,13 +2075,55 @@ try {
     try {
       const email = (req.session && req.session.email) || '';
       if (!email) return res.status(403).json({ ok: false });
-      const row = getDb().prepare('SELECT prenom, nom, data FROM nutrition_clients WHERE email = ?').get(email);
+      const row = getDb().prepare('SELECT prenom, nom, data, avatar, avatar_key FROM nutrition_clients WHERE email = ?').get(email);
       let data = null; try { data = row && row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
-      res.json({ ok: true, email, prenom: (row && row.prenom) || req.session.name || '', nom: (row && row.nom) || '', data });
+      const avatarUrl = (row && row.avatar && row.avatar_key) ? '/nutrition/api/community/avatar/' + row.avatar_key : '';
+      res.json({ ok: true, email, prenom: (row && row.prenom) || req.session.name || '', nom: (row && row.nom) || '', data, avatarUrl });
     } catch (e) {
       console.error('Erreur /nutrition/account/me :', e);
       res.status(500).json({ ok: false });
     }
+  });
+
+  // Photo de profil : le client (connecté) ajoute / change sa photo (partagée à la communauté).
+  // L'image arrive déjà redimensionnée côté client (carré ~256px, JPEG) -> petite taille.
+  app.post('/nutrition/account/avatar', requireAuth, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      const data = String((req.body && req.body.data) || '');
+      if (!/^data:image\/(jpeg|png|webp);base64,.+/.test(data)) return res.status(400).json({ ok: false, error: 'Image requise (JPEG/PNG/WebP).' });
+      if (data.length > 900000) return res.status(413).json({ ok: false, error: 'Photo trop lourde (max ~600 Ko).' });
+      let key = '';
+      try { const r = getDb().prepare('SELECT avatar_key FROM nutrition_clients WHERE email = ?').get(email); key = (r && r.avatar_key) || ''; } catch (_) { /* ignore */ }
+      if (!key) key = crypto.randomBytes(8).toString('hex');
+      getDb().prepare('UPDATE nutrition_clients SET avatar = ?, avatar_key = ?, updated_at = ? WHERE email = ?').run(data, key, new Date().toISOString(), email);
+      res.json({ ok: true, avatarUrl: '/nutrition/api/community/avatar/' + key });
+    } catch (e) { console.error('account/avatar POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+  // Retirer sa photo de profil.
+  app.delete('/nutrition/account/avatar', requireAuth, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      getDb().prepare("UPDATE nutrition_clients SET avatar = '', updated_at = ? WHERE email = ?").run(new Date().toISOString(), email);
+      res.json({ ok: true });
+    } catch (e) { console.error('account/avatar DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
+  });
+  // Servir un avatar par sa clé (capability URL). PUBLIC volontairement : la clé aléatoire
+  // fait office de secret, et la photo est de toute façon partagée au groupe. Permet un
+  // <img src> direct dans le fil (impossible d'envoyer un en-tête d'auth depuis une balise img).
+  app.get('/nutrition/api/community/avatar/:key', (req, res) => {
+    try {
+      const key = String(req.params.key || '');
+      if (!/^[a-f0-9]{8,32}$/.test(key)) return res.status(404).end();
+      const row = getDb().prepare('SELECT avatar FROM nutrition_clients WHERE avatar_key = ?').get(key);
+      const m = row && row.avatar && /^data:(image\/[^;]+);base64,(.+)$/.exec(row.avatar);
+      if (!m) return res.status(404).end();
+      res.setHeader('Content-Type', m[1]);
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      res.end(Buffer.from(m[2], 'base64'));
+    } catch (e) { console.error('community/avatar GET :', e); res.status(500).end(); }
   });
 
   // Changer son code PIN (client connecté). Requiert le PIN actuel s'il existe.

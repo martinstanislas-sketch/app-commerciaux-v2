@@ -37,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=86" />
+  <link rel="stylesheet" href="style.css?v=87" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -67,6 +67,7 @@
         .then(function (d) {
           if (d && d.ok) {
             acc.prenom = d.prenom || acc.prenom; acc.nom = d.nom || acc.nom;
+            acc.avatarUrl = d.avatarUrl || '';
             window.__NUTRI_USER = acc;
             try { localStorage.setItem('mc-nutri-account', JSON.stringify(acc)); } catch (e) {}
             try { localStorage.setItem('mc-nutri-id', JSON.stringify({ email: acc.email, prenom: acc.prenom, nom: acc.nom })); } catch (e) {}
@@ -656,6 +657,18 @@
         <button type="button" class="profil-row" data-go="btnExportPlan"><svg class="ic pr-blue"><use href="#ic-file"/></svg>Plan PDF<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
         <div class="profil-sec">MOI</div>
+        <div class="profil-avatar profil-client hidden" id="profilAvatarBlock">
+          <div class="pav-pic" id="pavPic"><svg class="ic"><use href="#ic-user"/></svg></div>
+          <div class="pav-txt">
+            <b>Ma photo</b>
+            <span>Elle s'affiche à côté de tes messages dans la communauté.</span>
+            <div class="pav-actions">
+              <button type="button" class="pav-btn" id="pavAdd"><svg class="ic"><use href="#ic-camera"/></svg><span id="pavAddLbl">Ajouter une photo</span></button>
+              <button type="button" class="pav-btn pav-remove hidden" id="pavRemove"><svg class="ic"><use href="#ic-x"/></svg>Retirer</button>
+            </div>
+          </div>
+          <input type="file" id="pavFile" accept="image/*" style="display:none">
+        </div>
         <button type="button" class="profil-row" id="btnContactCoach"><svg class="ic pr-blue"><use href="#ic-send"/></svg>Contacter mon coach<span class="pr-badge conv-unread" id="contactCoachBadge" style="display:none"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnFiche"><svg class="ic pr-muted"><use href="#ic-user"/></svg>Ma fiche<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnEditProfile"><svg class="ic pr-muted"><use href="#ic-edit"/></svg>Refaire mon plan<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -1288,6 +1301,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=86"></script>
+  <script src="app.js?v=87"></script>
 </body>
 </html>
