@@ -3817,7 +3817,7 @@ function renderCommunaute() {
       '<div class="cmy-hero">' +
         '<div class="cmy-hero-glow"></div>' +
         '<span class="cmy-hero-kicker">' + icSvg('users') + ' Groupe Challenge 6/6</span>' +
-        '<h2 class="cmy-hero-title">Le groupe qui avance avec toi</h2>' +
+        '<h2 class="cmy-hero-title">Le groupe avance avec toi</h2>' +
         '<p class="cmy-hero-sub" id="cmyPhrase">' + escapeHtml((ov && ov.phrase) || 'Chaque victoire partagée motive tout le groupe. Poste la tienne aujourd’hui 💪') + '</p>' +
         '<div class="cmy-hero-stats">' +
           '<div class="cmy-hstat"><b id="cmyMembers">' + ((ov && ov.stats && ov.stats.actifsAujourdhui) || (ov && ov.members) || '—') + '</b><span>actifs aujourd’hui</span></div>' +
