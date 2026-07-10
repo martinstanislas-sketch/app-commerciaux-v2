@@ -2706,6 +2706,7 @@ async function generateAndShow(seed) {
     state.communauteUnlocked = true;
     revealCommunaute();
     revealParcours();
+    revealEbooks();
     renderCommunaute();
     showCommunauteIntro();
     saveLocal();
@@ -2988,6 +2989,7 @@ function init() {
     if (!state.communauteUnlocked) { state.communauteUnlocked = true; saveLocal(); }
     revealCommunaute();
     revealParcours();
+    revealEbooks();
     renderCommunaute();
     showCommunauteIntro();
     $('#saveState').innerHTML = icSvg('check') + ' Plan restaure';
@@ -3922,6 +3924,10 @@ let _parcoursPhotoBusy = false;
 function revealParcours() {
   const isCh = state.profil && state.profil.objectif === 'challenge';
   const btn = $('#navParcours'); if (btn) btn.classList.toggle('hidden', !isCh);
+}
+// L'onglet Ebooks est visible pour tout compte client connecté (guides liés à sa progression).
+function revealEbooks() {
+  const btn = $('#navEbooks'); if (btn) btn.classList.toggle('hidden', !(window.__NUTRI_USER && window.__NUTRI_USER.email));
 }
 function fmtKg(v) { return (v == null || v === '') ? '—' : (Math.round(v * 10) / 10).toString().replace('.', ',') + ' kg'; }
 function joursAvant(dateStr) { if (!dateStr) return null; const d = Date.parse(dateStr); if (isNaN(d)) return null; return Math.ceil((d - Date.now()) / 864e5); }
@@ -5055,6 +5061,7 @@ function setTab(tab) {
   if (tab === 'suivi') { $('#btnSuiviPlan').click(); return; }
   if (tab === 'communaute') { renderCommunaute(); if (!state.communauteVue) dismissCommunauteIntro(); }
   if (tab === 'parcours') { if (state.parcours) renderParcours(); fetchParcours(); }
+  if (tab === 'ebooks') renderEbooksView();
   const screen = $('#screen-result');
   if (screen) screen.setAttribute('data-tab', tab);
   $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
@@ -6816,6 +6823,37 @@ function renderEbooks(body, list, day) {
   const cats = {}; list.forEach((e) => { const c = e.category || 'Guides'; (cats[c] = cats[c] || []).push(e); });
   body.innerHTML = Object.keys(cats).map((cat) => '<div class="ebk-cat">' + escapeHtml(cat) + '</div><div class="ebk-grid">' + cats[cat].map((e) => ebookCard(e, day)).join('') + '</div>').join('');
   body.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
+    if (c.dataset.locked === '1') { showToast('🔒 Débloqué en ' + (c.dataset.unlock || 'cours de challenge'), { icon: 'info' }); return; }
+    openEbook(Number(c.dataset.id), c.dataset.title);
+  }));
+}
+// --- Onglet Ebooks (vue plein écran) : guides disponibles + à venir ---
+function ebooksViewHead() {
+  return '<div class="ebv-head"><h2 class="ebv-title">' + icSvg('book') + ' Mes guides</h2>' +
+    '<p class="ebv-sub">Des guides pratiques, débloqués au fil de ta progression.</p></div>';
+}
+async function renderEbooksView() {
+  const host = $('#view-ebooks'); if (!host) return;
+  host.innerHTML = ebooksViewHead() + '<p class="panel-sub">Chargement…</p>';
+  try {
+    const d = await (await fetch(apiUrl('/api/ebooks'), { headers: nutriAuthHeaders() })).json();
+    if (!d.ok) throw new Error();
+    renderEbooksViewBody(host, d.ebooks || [], d.day);
+  } catch (_) { host.innerHTML = ebooksViewHead() + '<p class="help-empty">Lecture impossible pour le moment.</p>'; }
+}
+function renderEbooksViewBody(host, list, day) {
+  if (!list.length) { host.innerHTML = ebooksViewHead() + '<p class="help-empty">Aucun guide pour le moment. Reviens bientôt 📚</p>'; return; }
+  const dispo = list.filter((e) => !e.locked);
+  const avenir = list.filter((e) => e.locked);
+  const section = (titre, arr, emptyMsg) =>
+    '<div class="ebv-sec"><div class="ebv-sec-h"><span class="ebv-sec-t">' + titre + '</span><span class="ebv-count">' + arr.length + '</span></div>' +
+    (arr.length ? '<div class="ebk-grid">' + arr.map((e) => ebookCard(e, day)).join('') + '</div>' : '<p class="ebv-empty">' + emptyMsg + '</p>') +
+    '</div>';
+  let html = ebooksViewHead();
+  html += section('Disponibles', dispo, 'Tes premiers guides arrivent très vite.');
+  if (avenir.length) html += section('Prochainement', avenir, '');
+  host.innerHTML = html;
+  host.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
     if (c.dataset.locked === '1') { showToast('🔒 Débloqué en ' + (c.dataset.unlock || 'cours de challenge'), { icon: 'info' }); return; }
     openEbook(Number(c.dataset.id), c.dataset.title);
   }));

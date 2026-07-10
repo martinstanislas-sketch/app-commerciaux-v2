@@ -1283,6 +1283,24 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 #screen-result[data-tab="parcours"] #view-profil,
 #screen-result[data-tab="parcours"] #view-communaute { display: none; }
 
+/* Vue « Ebooks » : masquée par défaut, affichée seulement sur son onglet. */
+#view-ebooks { display: none; max-width: 760px; margin: 0 auto; padding-bottom: 124px; }
+#screen-result[data-tab="ebooks"] #view-ebooks { display: block; }
+#screen-result[data-tab="ebooks"] #view-plan,
+#screen-result[data-tab="ebooks"] #view-profil,
+#screen-result[data-tab="ebooks"] #view-communaute,
+#screen-result[data-tab="ebooks"] #view-parcours { display: none; }
+/* En-tête + sections de l'onglet Ebooks */
+.ebv-head { margin: 4px 0 18px; }
+.ebv-title { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 26px; color: var(--ink); }
+.ebv-title .ic { width: 24px; height: 24px; color: var(--accent, var(--mc-blue)); }
+.ebv-sub { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+.ebv-sec { margin-top: 22px; }
+.ebv-sec-h { display: flex; align-items: center; gap: 8px; margin: 0 2px 12px; }
+.ebv-sec-t { font-size: 13px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.ebv-count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent-soft, var(--gray-100)); color: var(--accent, var(--mc-blue)); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.ebv-empty { margin: 0 2px; padding: 18px; text-align: center; font-size: 13.5px; color: var(--muted); background: var(--card); border: 1px dashed var(--mc-border); border-radius: 14px; }
+
 /* === Mon Parcours (Challenge 6 semaines) === */
 #view-parcours { display: none; }
 #screen-result[data-tab="parcours"] #view-parcours { display: flex; flex-direction: column; gap: 16px; }
@@ -1839,6 +1857,7 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 /* --- Desktop : 2 colonnes (fil large + aside) --- */
 @media (min-width: 1024px) {
   body.app-shell #view-communaute { max-width: 1160px; margin: 0 auto; }
+  body.app-shell #view-ebooks { max-width: 1160px; margin: 0 auto; }
   .cmy-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: start; }
   .cmy-hero-title { font-size: 30px; }
   .cmy-hero-stats { gap: 12px; }
@@ -2202,7 +2221,7 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   body.app-shell .plan-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 540px), 1fr)); gap: 20px; align-items: start; }
   /* Repas d'un jour : colonnes fluides selon la largeur de la day-card (respirent). */
   body.app-shell .plan-grid .meals-row { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 16px; }
-  body.app-shell #view-plan, body.app-shell #view-profil, body.app-shell #view-communaute { padding-bottom: 28px; }
+  body.app-shell #view-plan, body.app-shell #view-profil, body.app-shell #view-communaute, body.app-shell #view-ebooks { padding-bottom: 28px; }
   /* Mention légale : resserrée en desktop (évite une grande bande vide au-dessus). */
   body.app-shell .footer { margin-top: 12px; padding: 16px 28px 20px; }
   /* SOS coach intégré en bas de la sidebar (aligné sur la colonne, largeur de la sidebar)
