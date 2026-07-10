@@ -126,20 +126,28 @@
   background:rgba(255,255,255,.07);border:1px solid #2c3f72;border-radius:999px;padding:.5em .9em}
 .lp-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--sage);box-shadow:0 0 0 4px rgba(31,143,91,.25)}
 .lp-badge .todo{color:#7fa2ff;font-weight:700}
-.lp-hero__title{font-size:clamp(2.5rem,6.4vw,4.4rem);letter-spacing:-.03em;margin:.5em 0 .4em;color:#fff}
+.lp-hero__title{font-size:clamp(2.3rem,5vw,3.55rem);letter-spacing:-.03em;margin:.15em 0 .4em;color:#fff}
 .lp-hero__title span{color:#7fa2ff}
 .lp-hero__sub{font-size:clamp(1.05rem,1.7vw,1.25rem);color:var(--muted-on-navy);max-width:46ch}
 .lp-hero__ctas{display:flex;flex-wrap:wrap;gap:.8rem;margin:2rem 0 1.2rem}
 .lp-hero__re{display:flex;align-items:center;gap:.5em;font-size:.9rem;color:var(--muted-on-navy)}
 .lp-hero__re svg{stroke:var(--sage);width:18px;height:18px}
-@media (min-width:920px){.lp-hero__grid{grid-template-columns:1.05fr .95fr}}
+@media (min-width:920px){.lp-hero__grid{grid-template-columns:1.18fr .82fr}}
 
 /* Maquette d'app flottante (remplaçable par une vraie capture) */
 .lp-appwrap{position:relative}
 .lp-appwrap::before{content:"";position:absolute;inset:-8% -6% -12% -6%;
   background:radial-gradient(60% 60% at 60% 35%, rgba(37,99,235,.35), transparent 70%);filter:blur(8px);z-index:0}
-.lp-app{position:relative;z-index:1;background:var(--white);color:var(--ink);border-radius:24px;box-shadow:var(--shadow);
-  border:1px solid rgba(255,255,255,.5);overflow:hidden;max-width:390px;margin-inline:auto;width:100%}
+.lp-phone{position:relative;z-index:1;max-width:300px;margin-inline:auto;
+  background:linear-gradient(160deg,#0e1a38,#070f24);border-radius:46px;padding:13px;
+  box-shadow:0 44px 90px -34px rgba(4,10,30,.75),0 0 0 1.5px rgba(255,255,255,.06) inset}
+.lp-app{position:relative;background:var(--white);color:var(--ink);border-radius:34px;overflow:hidden;width:100%}
+.lp-app__isle{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:88px;height:24px;background:#070f24;border-radius:14px;z-index:6}
+.lp-app__status{display:flex;align-items:center;justify-content:space-between;padding:15px 22px 2px;font-size:13px;color:var(--ink)}
+.lp-app__status b{font-weight:700}
+.lp-app__sig{display:inline-flex;align-items:flex-end;gap:2px;height:11px}
+.lp-app__sig i{width:3px;background:var(--ink);border-radius:1px}
+.lp-app__sig i:nth-child(1){height:4px}.lp-app__sig i:nth-child(2){height:6px}.lp-app__sig i:nth-child(3){height:8px}.lp-app__sig i:nth-child(4){height:11px}
 .lp-app__top{display:flex;align-items:center;gap:.6rem;padding:15px 18px;border-bottom:1px solid var(--line)}
 .lp-app__top .av{width:30px;height:30px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:700;font-size:.85rem;margin-left:auto}
 .lp-app__top b{font-size:.92rem}
@@ -326,9 +334,8 @@
 <section class="lp-hero" aria-labelledby="lp-hero-title">
   <div class="lp-wrap lp-hero__grid">
     <div>
-      <span class="lp-badge"><span class="dot"></span>Coaching sportif &amp; nutrition · Lille &amp; Neuilly</span>
-      <h1 class="lp-hero__title" id="lp-hero-title">Ton plan sur-mesure. Et un <span>vrai coach</span> derrière.</h1>
-      <p class="lp-hero__sub">Menus générés, calories et macros calculées pour toi — et un coach humain qui te suit, te motive et ajuste avec toi. Tu n'as plus qu'à suivre le plan.</p>
+      <h1 class="lp-hero__title" id="lp-hero-title">Ton plan sur-mesure.<br>Et un <span>vrai coach</span> derrière.</h1>
+      <p class="lp-hero__sub">Des menus personnalisés, des portions adaptées et un coach qui ajuste ton programme selon tes résultats.</p>
       <div class="lp-hero__ctas">
         <a class="lp-btn lp-btn--primary lp-btn--lg" href="#" data-cta="start">Commencer mon plan</a>
         <a class="lp-btn lp-btn--ghost-navy lp-btn--lg" href="#lp-app">Voir l'app en action</a>
@@ -338,7 +345,10 @@
 
     <!-- Aperçu d'app (maquette CSS — remplaçable par une capture réelle) -->
     <div class="lp-appwrap lp-reveal">
-      <div class="lp-app" role="img" aria-label="Aperçu de l'app My Coach : calories du jour, menus et message du coach.">
+      <div class="lp-phone">
+      <div class="lp-app" role="img" aria-label="Aperçu de l'application mobile My Coach : calories du jour, menus et message du coach.">
+        <span class="lp-app__isle" aria-hidden="true"></span>
+        <div class="lp-app__status"><b>9:41</b><span class="lp-app__sig" aria-hidden="true"><i></i><i></i><i></i><i></i></span></div>
         <div class="lp-app__top">
           <div><b>Bonjour, Sarah 👋</b><small>Semaine 3 · Jeudi</small></div>
           <span class="av">S</span>
@@ -350,17 +360,8 @@
           <div class="lp-coach"><span class="ci"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A2.5 2.5 0 0 1 17.5 18H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5Z"/></svg></span><p><b>Ton coach</b>Tu es en avance sur ton objectif — continue comme ça 💪</p></div>
         </div>
       </div>
+      </div>
     </div>
-  </div>
-</section>
-
-<!-- ===================== BANDE CONFIANCE ===================== -->
-<section class="lp-trust">
-  <div class="lp-wrap lp-trust__row">
-    <span class="lp-trust__item"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5-6.5-10a6.5 6.5 0 0 1 13 0c0 5-6.5 10-6.5 10Z"/><circle cx="12" cy="11" r="2.4"/></svg>2 studios · Lille &amp; Neuilly</span>
-    <span class="lp-trust__item"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5A3.5 3.5 0 0 0 12.5 15h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M18.5 13.5 20 15l2.5-3"/></svg>Coachs diplômés</span>
-    <span class="lp-trust__item"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="m9 15 2 2 4-4"/></svg>App incluse dans l'accompagnement</span>
-    <span class="lp-trust__item"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Sans engagement pour démarrer</span>
   </div>
 </section>
 
@@ -374,7 +375,7 @@
     <div class="lp-features lp-reveal">
       <article class="lp-feature">
         <div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v8a3 3 0 0 0 3 3v7"/><path d="M5 3v4M8 3v4"/><path d="M19 3c-1.5 1-2.5 3-2.5 6 0 2 .5 3 2.5 3v9"/></svg></div>
-        <h3>Menus générés pour toi</h3><p>Ton plan de la semaine adapté à tes goûts, avec la liste de courses. Tu n'as plus à décider quoi manger.</p>
+        <h3>Des menus faits pour toi</h3><p>Des menus personnalisés et des portions adaptées à ton objectif, avec la liste de courses. Tu n'as plus à décider quoi manger.</p>
       </article>
       <article class="lp-feature">
         <div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></div>
