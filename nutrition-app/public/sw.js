@@ -27,10 +27,14 @@ self.addEventListener('notificationclick', (event) => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const c of wins) {
       if (c.url.indexOf('/nutrition') >= 0 && 'focus' in c) {
-        try { await c.navigate(url); } catch (_) { /* certains navigateurs bloquent navigate */ }
-        return c.focus();
+        // App déjà ouverte (ou en arrière-plan) : on demande à la page d'ouvrir la
+        // conversation SANS recharger (postMessage), puis on la met au premier plan.
+        try { c.postMessage({ type: 'mcn-open', url: url }); } catch (_) { /* ignore */ }
+        try { await c.focus(); } catch (_) { /* ignore */ }
+        return;
       }
     }
+    // App fermée : on ouvre une nouvelle fenêtre sur l'URL profonde (le boot ouvre la conv).
     if (self.clients.openWindow) return self.clients.openWindow(url);
   })());
 });

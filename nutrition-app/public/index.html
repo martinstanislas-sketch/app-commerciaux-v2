@@ -89,6 +89,10 @@
     // simplifiée : on n'affiche que le PIN, l'email/nom sont déjà connus.
     var idr = null; try { idr = JSON.parse(localStorage.getItem('mc-nutri-id') || 'null'); } catch (e) {}
     var invToken = ''; try { invToken = new URLSearchParams(location.search).get('inv') || ''; } catch (e) {}
+    // Deep-link notif « nouveau message » sur session expirée : on va droit à la
+    // connexion (pas la landing). Les paramètres ?push/conv survivent au reload post-login
+    // -> après authentification, l'app ouvre automatiquement la conversation concernée.
+    var deepLink = false; try { deepLink = new URLSearchParams(location.search).get('push') === 'message'; } catch (e) {}
     var _landingHTML = null; // HTML de la landing, mis en cache au boot (survit aux swaps de body)
     function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&amp;'; }); }
     // Construit + affiche + câble le formulaire de connexion / création de compte.
@@ -209,7 +213,7 @@
       _landingHTML = tpl ? tpl.innerHTML : '';
       // Filet de sécurité : si la landing échoue, on garantit l'accès à la connexion.
       try {
-        if (invToken) { renderLogin(); return; }   // invitation -> directement le formulaire de création
+        if (invToken || deepLink) { renderLogin(); return; }   // invitation OU deep-link message -> connexion directe
         renderLanding();                            // visiteur -> landing marketing
       } catch (e) { try { renderLogin(); } catch (_) {} }
     });
@@ -1433,6 +1437,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=103"></script>
+  <script src="app.js?v=105"></script>
 </body>
 </html>

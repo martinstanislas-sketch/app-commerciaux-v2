@@ -4472,6 +4472,39 @@ async function sendCoachChat(text) {
   return false;
 }
 
+// --- Deep-link depuis une notification push « nouveau message » ---
+// Ouvre directement la conversation concernée (client -> sa conv coach ; coach -> la
+// conv ciblée par conv=<id>). Fonctionne dans les 3 cas : app fermée / arrière-plan
+// (openWindow ou postMessage du SW) et app déjà ouverte (listener message ci-dessous).
+function openConversationForDeepLink(convId) {
+  try {
+    if (window.__NUTRI_USER && window.__NUTRI_USER.email) {
+      openCoachChat(); // le client n'a qu'une conversation (avec son coach)
+    } else if (window.__NUTRI_COACH || (typeof isCoachOrAdmin === 'function' && isCoachOrAdmin())) {
+      openMessagesCoach();
+      const id = Number(convId);
+      if (id) setTimeout(() => { try { openCoachConversation(id); } catch (_) { /* ignore */ } }, 80);
+    }
+  } catch (_) { /* ignore */ }
+}
+function handlePushDeepLinkUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl, location.href);
+    if (u.searchParams.get('push') === 'message') { openConversationForDeepLink(u.searchParams.get('conv')); return true; }
+  } catch (_) { /* ignore */ }
+  return false;
+}
+// (Le boot depuis une notif est géré par handlePushDeepLink() plus bas, appelé dans bootPush.)
+// App DÉJÀ ouverte (ou en arrière-plan) : le SW nous transmet la cible par postMessage.
+let _pushDeepLinkWired = false;
+function registerPushDeepLinkListener() {
+  if (_pushDeepLinkWired || !('serviceWorker' in navigator)) return;
+  _pushDeepLinkWired = true;
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    const m = e && e.data; if (m && m.type === 'mcn-open' && m.url) handlePushDeepLinkUrl(m.url);
+  });
+}
+
 // --- Côté coach/admin : inbox "Mes messages" ---
 async function openMessagesCoach() {
   $('#messagesCoachPanel').classList.remove('hidden');
@@ -6857,6 +6890,7 @@ function maybeShowPushBanner() {
 async function bootPush() {
   if (!pushSupported()) return;
   pushRegisterSW();
+  registerPushDeepLinkListener(); // app déjà ouverte : réagit aux clics de notif (postMessage du SW)
   handlePushDeepLink();
   try { if (window.__NUTRI_USER && window.__NUTRI_USER.email && Notification.permission === 'granted') pushSubscribe(); } catch (_) { /* ignore */ }
 }
@@ -6866,7 +6900,9 @@ function handlePushDeepLink() {
   if (plog) { try { fetch(apiUrl('/api/push/opened'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ logId: Number(plog) }) }); } catch (_) { /* ignore */ } }
   const p = params.get('push');
   if (p) setTimeout(() => {
-    if (p === 'message') { if (typeof openCoachChat === 'function') openCoachChat(); }
+    // « message » : ouvre DIRECTEMENT la conversation concernée (client -> sa conv coach ;
+    // coach/admin -> la conv ciblée par conv=<id>), prête à répondre.
+    if (p === 'message') openConversationForDeepLink(params.get('conv'));
     else if (typeof setTab === 'function') setTab('parcours'); // recap / photos / seance -> Parcours (Phase 2 affinera)
   }, 900);
   if (plog || p) { try { history.replaceState(null, '', location.pathname); } catch (_) { /* ignore */ } }
