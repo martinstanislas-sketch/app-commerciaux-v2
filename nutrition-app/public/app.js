@@ -2899,6 +2899,10 @@ function init() {
   const _pavAdd = $('#pavAdd'); if (_pavAdd) _pavAdd.addEventListener('click', () => { const f = $('#pavFile'); if (f) f.click(); });
   const _pavFile = $('#pavFile'); if (_pavFile) _pavFile.addEventListener('change', onAvatarFile);
   const _pavRemove = $('#pavRemove'); if (_pavRemove) _pavRemove.addEventListener('click', removeAvatar);
+  const _bInvite = $('#btnInviteClient'); if (_bInvite) _bInvite.addEventListener('click', openInvitePanel);
+  const _invClose = $('#inviteClose'); if (_invClose) _invClose.addEventListener('click', closeInvitePanel);
+  const _invPanel = $('#invitePanel'); if (_invPanel) _invPanel.addEventListener('click', (e) => { if (e.target.id === 'invitePanel') closeInvitePanel(); });
+  const _invGen = $('#invGen'); if (_invGen) _invGen.addEventListener('click', generateInvite);
   const _bChangePin = $('#btnChangePin'); if (_bChangePin) _bChangePin.addEventListener('click', openChangePin);
   const _bLogout = $('#btnLogout'); if (_bLogout) _bLogout.addEventListener('click', logoutClient);
   const _navLogout = $('#navLogout'); if (_navLogout) _navLogout.addEventListener('click', logoutClient);
@@ -5185,6 +5189,79 @@ function persistNutriAccount() {
     if (!window.__NUTRI_USER) return;
     localStorage.setItem('mc-nutri-account', JSON.stringify(window.__NUTRI_USER));
   } catch (_) { /* ignore */ }
+}
+// --- Coach : inviter un client (lien d'invitation sécurisé) ---
+function closeInvitePanel() { const p = $('#invitePanel'); if (p) p.classList.add('hidden'); }
+function openInvitePanel() {
+  const p = $('#invitePanel'); if (!p) return;
+  p.classList.remove('hidden');
+  ['invEmail', 'invPrenom', 'invNom'].forEach((id) => { const el = $('#' + id); if (el) el.value = ''; });
+  const m = $('#invMsg'); if (m) m.textContent = '';
+  const r = $('#inviteResult'); if (r) { r.classList.add('hidden'); r.innerHTML = ''; }
+  renderInviteList();
+  setTimeout(() => { const e = $('#invEmail'); if (e) e.focus(); }, 60);
+}
+async function generateInvite() {
+  const email = (($('#invEmail') || {}).value || '').trim();
+  const prenom = (($('#invPrenom') || {}).value || '').trim();
+  const nom = (($('#invNom') || {}).value || '').trim();
+  const m = $('#invMsg');
+  if (email && email.indexOf('@') < 1) { if (m) m.textContent = 'Email invalide.'; return; }
+  if (m) m.textContent = 'Génération…';
+  try {
+    const res = await fetch(apiUrl('/api/coach/invites'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ email, prenom, nom }) });
+    const d = await res.json();
+    if (d && d.ok) { if (m) m.textContent = ''; showInviteResult(d.url, d.email); renderInviteList(); }
+    else if (m) m.textContent = (d && d.error) || 'Échec.';
+  } catch (_) { if (m) m.textContent = 'Connexion requise.'; }
+}
+function showInviteResult(url, email) {
+  const r = $('#inviteResult'); if (!r) return;
+  r.classList.remove('hidden');
+  r.innerHTML = '<div class="invite-link-row"><input class="invite-link" id="invLinkOut" readonly value="' + escapeHtml(url) + '"><button type="button" class="pc-btn" id="invCopy">Copier</button></div>' +
+    '<p class="invite-hint">Lien valable 21 jours' + (email ? (' · lié à <b>' + escapeHtml(email) + '</b>') : '') + '. Envoie-le à ton client (email, WhatsApp…).</p>';
+  const c = $('#invCopy'); if (c) c.addEventListener('click', () => copyInviteLink(url, c));
+  const out = $('#invLinkOut'); if (out && out.select) out.select();
+}
+async function copyInviteLink(url, btn) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(url); ok = true; }
+  catch (_) {
+    try { const ta = document.createElement('textarea'); ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); document.body.removeChild(ta); } catch (e) { /* ignore */ }
+  }
+  if (btn) { const o = btn.textContent; btn.textContent = ok ? 'Copié ✓' : 'Copie manuelle'; setTimeout(() => { btn.textContent = o; }, 1500); }
+}
+async function renderInviteList() {
+  const host = $('#inviteList'); if (!host) return;
+  host.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const d = await (await fetch(apiUrl('/api/coach/invites'), { headers: nutriAuthHeaders() })).json();
+    if (!d.ok) throw new Error();
+    const list = d.invites || [];
+    if (!list.length) { host.innerHTML = '<p class="help-empty">Aucune invitation pour le moment.</p>'; return; }
+    host.innerHTML = list.map((iv) => {
+      const who = escapeHtml(iv.email || ((iv.prenom || '') + ' ' + (iv.nom || '')).trim() || 'Invitation');
+      let statut, cls;
+      if (iv.used) { statut = 'Utilisée' + (iv.usedEmail && iv.usedEmail !== iv.email ? ' · ' + escapeHtml(iv.usedEmail) : ''); cls = 'used'; }
+      else if (iv.expired) { statut = 'Expirée'; cls = 'expired'; }
+      else { statut = 'En attente'; cls = 'pending'; }
+      const actions = iv.used ? '' :
+        '<button type="button" class="inv-mini" data-copy="' + escapeHtml(iv.url) + '">Copier</button>' +
+        '<button type="button" class="inv-mini danger" data-revoke="' + iv.id + '">Révoquer</button>';
+      return '<div class="invite-item"><div class="invite-item-main"><b>' + who + '</b><span class="invite-badge ' + cls + '">' + statut + '</span></div><div class="invite-item-actions">' + actions + '</div></div>';
+    }).join('');
+    host.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => copyInviteLink(b.dataset.copy, b)));
+    host.querySelectorAll('[data-revoke]').forEach((b) => b.addEventListener('click', () => revokeInvite(Number(b.dataset.revoke))));
+  } catch (_) { host.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+async function revokeInvite(id) {
+  if (!confirm('Révoquer cette invitation ? Le lien ne fonctionnera plus.')) return;
+  try {
+    const res = await fetch(apiUrl('/api/coach/invites/' + id), { method: 'DELETE', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) { showToast('Invitation révoquée.', { icon: 'check' }); renderInviteList(); }
+    else showToast((d && d.error) || 'Échec.', { icon: 'info' });
+  } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
 }
 async function logoutClient() {
   const isClient = !!(window.__NUTRI_USER && window.__NUTRI_USER.email);

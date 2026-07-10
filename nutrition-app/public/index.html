@@ -37,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=88" />
+  <link rel="stylesheet" href="style.css?v=89" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -90,7 +90,8 @@
     document.addEventListener('DOMContentLoaded', function () {
       var IN = 'width:100%;padding:13px 16px;border:1px solid #ECEAE4;border-radius:14px;font-size:15px;color:#1F2430;background:#FBFAF7;font-family:inherit;box-sizing:border-box;';
       var BTN = 'width:100%;margin-top:14px;padding:14px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#fff;font-size:15px;font-weight:700;font-family:inherit;';
-      var simple = !!(idr && idr.email && idr.prenom);
+      var invToken = ''; try { invToken = new URLSearchParams(location.search).get('inv') || ''; } catch (e) {}
+      var simple = !!(idr && idr.email && idr.prenom) && !invToken; // une invitation -> formulaire de création
       var head =
         '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;'
         + 'font-family:Inter,system-ui,sans-serif;background:#F6F5F2;color:#1F2430;padding:24px;">'
@@ -112,7 +113,7 @@
       } else {
         body = head
           + '<h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">My Coach Nutrition</h1>'
-          + '<p style="margin:0 0 20px;color:#6B6B63;font-size:14.5px;line-height:1.5;">Crée ton espace pour recevoir ton plan personnalisé. Un code PIN protège tes données (suivi, photos).</p>'
+          + '<p id="rIntro" style="margin:0 0 20px;color:#6B6B63;font-size:14.5px;line-height:1.5;">Crée ton espace pour recevoir ton plan personnalisé. Un code PIN protège tes données (suivi, photos).</p>'
           + '<input id="rPrenom" type="text" autocomplete="given-name" placeholder="Prénom" style="' + IN + '" />'
           + '<input id="rNom" type="text" autocomplete="family-name" placeholder="Nom" style="' + IN + 'margin-top:10px;" />'
           + '<input id="rEmail" type="email" autocomplete="email" inputmode="email" placeholder="Email" style="' + IN + 'margin-top:10px;" />'
@@ -136,7 +137,7 @@
         }
         if (!/^[0-9]{4,6}$/.test(pin)) { err.textContent = 'Saisis ton code PIN (4 à 6 chiffres).'; return; }
         btn.disabled = true; err.textContent = 'Connexion…';
-        fetch(base + 'account/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, prenom: prenom, nom: nom, pin: pin }) })
+        fetch(base + 'account/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, prenom: prenom, nom: nom, pin: pin, invite: invToken }) })
           .then(function (r) { return r.json(); })
           .then(function (d) {
             if (d && d.ok) {
@@ -156,6 +157,25 @@
       [pr, no, em, pn].forEach(function (i) { if (i) i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); }); });
       var other = document.getElementById('rOther');
       if (other) other.addEventListener('click', function () { try { localStorage.removeItem('mc-nutri-id'); } catch (e) {} location.reload(); });
+      // Invitation présente dans l'URL : on valide le jeton, on pré-remplit et on affiche
+      // le coach invitant. Un jeton invalide/expiré est signalé sans bloquer le formulaire.
+      if (invToken) {
+        fetch(base + 'api/invites/' + encodeURIComponent(invToken))
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            var intro = document.getElementById('rIntro');
+            if (d && d.ok && d.valid) {
+              if (d.prenom && pr && !pr.value) pr.value = d.prenom;
+              if (d.nom && no && !no.value) no.value = d.nom;
+              if (d.email && em) { em.value = d.email; em.readOnly = true; em.style.background = '#F0EFEA'; em.style.color = '#6B6B63'; }
+              if (intro) intro.innerHTML = '✅ Invitation de <b>' + esc(d.coachName || 'ton coach') + '</b>. Crée ton espace en choisissant ton code PIN.';
+              if (pr && !pr.value) { pr.focus(); } else if (pn) { pn.focus(); }
+            } else {
+              if (err) err.textContent = (d && d.reason) || 'Cette invitation n’est plus valable. Demande un nouveau lien à ton coach.';
+            }
+          })
+          .catch(function () { /* hors-ligne : le serveur revalidera à l'envoi */ });
+      }
       if (pn) pn.focus();
     });
   })();
@@ -683,6 +703,7 @@
         <div class="profil-sec profil-coach hidden">ESPACE COACH</div>
         <button type="button" class="profil-row profil-coach hidden" id="btnMessagesCoach"><svg class="ic pr-lime"><use href="#ic-send"/></svg>Mes messages<span class="pr-badge conv-unread" id="messagesCoachBadge" style="display:none"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnPlatsPhotos"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Photos des plats<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-coach hidden" id="btnInviteClient"><svg class="ic pr-lime"><use href="#ic-send"/></svg>Inviter un client<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnClientsAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Clients inscrits<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" data-go="btnAdhAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Adhérence clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" data-go="btnScanAdmin"><svg class="ic pr-lime"><use href="#ic-barcode"/></svg>Scans clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -1096,6 +1117,27 @@
 
   <!-- Saisie de pesée côté client RETIRÉE : pesées officielles saisies par le coach uniquement. -->
 
+  <!-- ============ COACH : INVITER UN CLIENT ============ -->
+  <div id="invitePanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-send"/></svg> Inviter un client</h2>
+        <button class="modal-close" id="inviteClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Génère un lien d'invitation personnel à envoyer à ton client. Sans ce lien, personne ne peut créer un espace — impossible de « prendre » un compte avec juste un email et un nom.</p>
+      <label class="qopt-field"><span>Email du client (recommandé)</span><input id="invEmail" type="email" inputmode="email" autocomplete="off" placeholder="client@email.com"></label>
+      <div style="display:flex;gap:10px;">
+        <label class="qopt-field" style="flex:1"><span>Prénom (optionnel)</span><input id="invPrenom" type="text" autocomplete="off" placeholder="Prénom"></label>
+        <label class="qopt-field" style="flex:1"><span>Nom (optionnel)</span><input id="invNom" type="text" autocomplete="off" placeholder="Nom"></label>
+      </div>
+      <div class="pc-step-btns"><button type="button" class="pc-btn primary" id="invGen">Générer le lien</button></div>
+      <p class="pc-msg" id="invMsg"></p>
+      <div id="inviteResult" class="invite-result hidden"></div>
+      <div class="ebk-cat" style="margin-top:18px;">Invitations récentes</div>
+      <div id="inviteList"></div>
+    </div>
+  </div>
+
   <!-- ============ ADMIN : OPTIONS RAPIDES BOUTIQUE ============ -->
   <div id="quickOptPanel" class="panel hidden">
     <div class="panel-inner">
@@ -1304,6 +1346,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=88"></script>
+  <script src="app.js?v=89"></script>
 </body>
 </html>

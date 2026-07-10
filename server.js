@@ -351,6 +351,24 @@ function ensureNutritionHelpTable() {
       created_at TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_comm_comments_item ON nutrition_community_comments(item_id);
+    -- Invitations client : jeton généré par le coach. Un email INCONNU ne peut créer
+    -- son espace (poser son PIN) qu'avec un jeton valide -> plus de prise de compte
+    -- par simple connaissance de l'email + nom. Les clients déjà inscrits se connectent
+    -- sans invitation (leur PIN existant fait foi).
+    CREATE TABLE IF NOT EXISTS nutrition_invites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL DEFAULT '',        -- si renseigné : l'invitation n'est valable que pour cet email
+      prenom TEXT NOT NULL DEFAULT '',
+      nom TEXT NOT NULL DEFAULT '',
+      coach_id INTEGER DEFAULT NULL,
+      coach_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT '',
+      expires_at TEXT NOT NULL DEFAULT '',
+      used_at TEXT NOT NULL DEFAULT '',
+      used_email TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_invites_email ON nutrition_invites(email);
   `);
   // Coach « réponses préenregistrées » (gratuit) : graine VERSIONNÉE.
   // - table vide      -> on insère tout (1re installation).
@@ -2027,6 +2045,25 @@ try {
     } catch (_) { return null; }
   }
 
+  // URL publique correcte derrière le proxy Railway (TLS terminé en amont) :
+  // on respecte x-forwarded-proto pour ne pas générer un lien http://.
+  function publicBaseUrl(req) {
+    const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || req.protocol || 'https';
+    return proto + '://' + req.get('host');
+  }
+  // Valide un jeton d'invitation pour la CRÉATION d'un compte (email inconnu).
+  // Renvoie { ok:true, invite } ou { ok:false, error }.
+  function validateInvite(token, email) {
+    if (!token) return { ok: false, error: 'Il te faut un lien d’invitation de ton coach pour créer ton espace.' };
+    let inv = null;
+    try { inv = getDb().prepare('SELECT * FROM nutrition_invites WHERE token = ?').get(String(token)); } catch (_) { inv = null; }
+    if (!inv) return { ok: false, error: 'Invitation introuvable. Demande un nouveau lien à ton coach.' };
+    if (inv.used_at) return { ok: false, error: 'Cette invitation a déjà été utilisée.' };
+    if (inv.expires_at && Date.parse(inv.expires_at) < Date.now()) return { ok: false, error: 'Cette invitation a expiré. Demande un nouveau lien à ton coach.' };
+    if (inv.email && inv.email.toLowerCase() !== String(email || '').toLowerCase()) return { ok: false, error: 'Cette invitation est liée à une autre adresse email.' };
+    return { ok: true, invite: inv };
+  }
+
   app.post('/nutrition/account/login', (req, res) => {
     try {
       const email = String((req.body || {}).email || '').trim().toLowerCase().slice(0, 160);
@@ -2052,11 +2089,18 @@ try {
         if (!PIN_RE.test(pin)) return res.status(400).json({ ok: false, setPin: true, error: 'Choisis un code PIN de 4 à 6 chiffres pour protéger ton espace.' });
         const ph = hashPin(pin);
         if (row) {
+          // Compte déjà présent (pré-créé ou hérité, sans PIN) : on pose le PIN maintenant.
+          // Pas d'invitation requise — c'est un client déjà connu du coach.
           getDb().prepare('UPDATE nutrition_clients SET prenom = ?, nom = ?, pin_hash = ?, updated_at = ? WHERE email = ?').run(prenom, nom, ph, now, email);
           try { data = row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
           isNew = !data;
         } else {
-          getDb().prepare('INSERT INTO nutrition_clients (email, prenom, nom, data, pin_hash, coach_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)').run(email, prenom, nom, null, ph, defaultNutritionCoachId(), now, now);
+          // Email INCONNU : création d'un nouvel espace -> invitation OBLIGATOIRE.
+          const check = validateInvite(String((req.body || {}).invite || '').trim(), email);
+          if (!check.ok) return res.status(403).json({ ok: false, needInvite: true, error: check.error });
+          const coachId = check.invite.coach_id || defaultNutritionCoachId();
+          getDb().prepare('INSERT INTO nutrition_clients (email, prenom, nom, data, pin_hash, coach_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)').run(email, prenom, nom, null, ph, coachId, now, now);
+          getDb().prepare('UPDATE nutrition_invites SET used_at = ?, used_email = ? WHERE id = ?').run(now, email, check.invite.id);
         }
       }
       const token = crypto.randomUUID();
@@ -2067,6 +2111,69 @@ try {
       console.error('Erreur /nutrition/account/login :', e);
       res.status(500).json({ ok: false, error: 'Connexion impossible.' });
     }
+  });
+
+  // ---- Invitations client (sécurise la création de compte) ----
+  // Coach/admin : générer un lien d'invitation (optionnellement lié à un email précis).
+  app.post('/nutrition/api/coach/invites', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const email = String(b.email || '').trim().toLowerCase().slice(0, 160);
+      if (email && email.indexOf('@') < 1) return res.status(400).json({ ok: false, error: 'Email invalide.' });
+      const prenom = String(b.prenom || '').trim().slice(0, 80);
+      const nom = String(b.nom || '').trim().slice(0, 80);
+      const sc = req.nutritionScope || {};
+      const coachId = sc.isAdmin ? (b.coachId ? Number(b.coachId) : null) : sc.coachId;
+      const coachName = String((req.session && req.session.name) || '').slice(0, 80);
+      const token = crypto.randomBytes(16).toString('hex');
+      const now = new Date().toISOString();
+      const expires = new Date(Date.now() + 21 * 24 * 3600 * 1000).toISOString(); // 21 jours
+      getDb().prepare('INSERT INTO nutrition_invites (token, email, prenom, nom, coach_id, coach_name, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?)')
+        .run(token, email, prenom, nom, coachId || null, coachName, now, expires);
+      const base = publicBaseUrl(req);
+      res.json({ ok: true, token, url: base + '/nutrition/?inv=' + token, email, prenom, nom, expiresAt: expires });
+    } catch (e) { console.error('coach/invites POST :', e); res.status(500).json({ ok: false, error: 'Création impossible.' }); }
+  });
+  // Coach/admin : lister ses invitations (en attente + utilisées).
+  app.get('/nutrition/api/coach/invites', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope || {};
+      const rows = sc.isAdmin
+        ? getDb().prepare('SELECT id, token, email, prenom, nom, coach_name, created_at, expires_at, used_at, used_email FROM nutrition_invites ORDER BY id DESC LIMIT 100').all()
+        : getDb().prepare('SELECT id, token, email, prenom, nom, coach_name, created_at, expires_at, used_at, used_email FROM nutrition_invites WHERE coach_id = ? ORDER BY id DESC LIMIT 100').all(sc.coachId);
+      const base = publicBaseUrl(req);
+      const now = Date.now();
+      const invites = rows.map((r) => ({
+        id: r.id, email: r.email, prenom: r.prenom, nom: r.nom, coachName: r.coach_name,
+        url: base + '/nutrition/?inv=' + r.token,
+        createdAt: r.created_at, expiresAt: r.expires_at,
+        used: !!r.used_at, usedEmail: r.used_email,
+        expired: !r.used_at && r.expires_at && Date.parse(r.expires_at) < now,
+      }));
+      res.json({ ok: true, invites });
+    } catch (e) { console.error('coach/invites GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  // Coach/admin : révoquer une invitation non utilisée.
+  app.delete('/nutrition/api/coach/invites/:id', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope || {};
+      const id = Number(req.params.id);
+      const row = getDb().prepare('SELECT coach_id, used_at FROM nutrition_invites WHERE id = ?').get(id);
+      if (!row) return res.status(404).json({ ok: false, error: 'Introuvable.' });
+      if (!sc.isAdmin && row.coach_id !== sc.coachId) return res.status(403).json({ ok: false, error: 'Non autorisé.' });
+      getDb().prepare('DELETE FROM nutrition_invites WHERE id = ?').run(id);
+      res.json({ ok: true });
+    } catch (e) { console.error('coach/invites DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
+  });
+  // PUBLIC : valider un jeton pour pré-remplir la page de connexion. Ne révèle que ce
+  // que le coach a saisi (email/prénom pré-remplis) — nécessaire à l'onboarding.
+  app.get('/nutrition/api/invites/:token', (req, res) => {
+    try {
+      const check = validateInvite(String(req.params.token || ''), '');
+      if (!check.ok) return res.json({ ok: true, valid: false, reason: check.error });
+      const inv = check.invite;
+      res.json({ ok: true, valid: true, email: inv.email || '', prenom: inv.prenom || '', nom: inv.nom || '', coachName: inv.coach_name || '' });
+    } catch (e) { console.error('invites GET :', e); res.status(500).json({ ok: false }); }
   });
 
   // Restaure la session depuis un token valide (sans re-saisir le PIN) : le token
@@ -2401,6 +2508,7 @@ try {
         'nutrition_parcours_seances', 'nutrition_parcours_mensurations', 'nutrition_community_messages', 'nutrition_community_reactions',
         'nutrition_community_events', 'nutrition_community_event_reactions', 'nutrition_community_comments',
         'nutrition_conversations', 'nutrition_messages', 'nutrition_message_audit', 'nutrition_demo_access',
+        'nutrition_invites',
       ];
       const counts = {};
       const tx = db.transaction(() => {

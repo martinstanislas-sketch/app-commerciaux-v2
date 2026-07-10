@@ -2124,6 +2124,23 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .pav-btn .ic { width: 16px; height: 16px; }
 .pav-btn.pav-remove { background: var(--card); color: var(--muted); border-color: var(--mc-border); }
 .pav-btn.pav-remove:hover { color: var(--danger, #EF4444); border-color: var(--danger, #EF4444); }
+/* Panneau « Inviter un client » */
+.invite-result { margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--accent-soft, #EAF1FF); border: 1px solid var(--green-100, #D6E6FF); }
+.invite-link-row { display: flex; gap: 8px; align-items: center; }
+.invite-link { flex: 1 1 auto; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--mc-border); background: var(--card); color: var(--ink); font-family: inherit; font-size: 13px; }
+.invite-hint { margin: 9px 2px 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.invite-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; border: 1px solid var(--mc-border); border-radius: 12px; margin-bottom: 8px; background: var(--card); }
+.invite-item-main { display: flex; align-items: center; gap: 9px; min-width: 0; flex-wrap: wrap; }
+.invite-item-main > b { font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.invite-badge { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.invite-badge.pending { background: var(--accent-soft, #EAF1FF); color: var(--mc-blue, #2563EB); }
+.invite-badge.used { background: #E7F6EC; color: #1B7F4B; }
+.invite-badge.expired { background: var(--gray-100, #EFEFEF); color: var(--muted); }
+.invite-item-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.inv-mini { padding: 6px 10px; border-radius: 9px; border: 1px solid var(--mc-border); background: var(--card); color: var(--ink); font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.inv-mini:hover { background: var(--gray-50, #F7F7F5); }
+.inv-mini.danger { color: var(--danger, #EF4444); border-color: transparent; background: transparent; }
+.inv-mini.danger:hover { border-color: var(--danger, #EF4444); }
 .profil-row {
   display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
   background: var(--card); border: 1px solid var(--mc-border); border-radius: 12px;
