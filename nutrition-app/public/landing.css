@@ -116,16 +116,6 @@
 .lp-hero__ctas{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin:28px 0 18px}
 .lp-hero__re{display:flex;align-items:center;gap:.5em;font-size:var(--fs-caption);color:var(--muted-on-navy)}
 .lp-hero__re svg{stroke:var(--sage);width:18px;height:18px}
-/* Pied du héros : réassurance (adhérents, studios, sans CB) + indice de scroll */
-.lp-hero__foot{margin-top:clamp(30px,5vw,52px);display:flex;flex-direction:column;align-items:center;gap:16px}
-.lp-reassure{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 12px}
-.lp-reassure li{display:inline-flex;align-items:center;gap:.5em;font-size:var(--fs-caption);font-weight:600;color:var(--muted-on-navy);
-  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-pill);padding:.5em .9em}
-.lp-reassure li svg{width:16px;height:16px;stroke:#7fa2ff}
-.lp-scroll{display:grid;place-items:center;color:var(--muted-on-navy)}
-.lp-scroll svg{width:24px;height:24px;stroke:currentColor;animation:lp-bounce 1.9s var(--ease) infinite}
-@keyframes lp-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
-@media (prefers-reduced-motion:reduce){.lp-scroll svg{animation:none}}
 @media (min-width:920px){.lp-hero__grid{grid-template-columns:1.15fr .85fr}}
 
 /* Aperçu d'app — présenté dans un cadre de téléphone mobile */
