@@ -37,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=100" />
+  <link rel="stylesheet" href="style.css?v=101" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=100" />
   <script>
@@ -682,20 +682,10 @@
     <!-- ============ RESULTAT ============ -->
     <section id="screen-result" class="screen" data-tab="plan">
       <div id="view-plan">
+      <!-- Haut de l'écran : en-tête programme + rangée de 3 pictos (Guide/Info, Affine,
+           Objectif) + « Jour X/X » discret. Guide & Affine sont maintenant DANS cette
+           rangée (renderNeeds) — leurs anciens blocs séparés ont été retirés. -->
       <div id="needsCard" class="needs-card"></div>
-
-      <!-- Guide du jour : carte compacte (titre + 1 ligne tronquée) ; clic -> ouvre le guide complet -->
-      <button type="button" id="guideDuJourCard" class="gdj-card hidden"></button>
-
-      <!-- Mise en avant : affiner le plan (plus le client précise, plus le plan colle à son quotidien) -->
-      <button type="button" class="refine-cta" data-go="btnAvance">
-        <span class="refine-cta-ic"><svg class="ic"><use href="#ic-sliders"/></svg></span>
-        <span class="refine-cta-text">
-          <strong>Affine ton plan pour qu'il te ressemble</strong>
-          <small>Réponds à quelques questions (faim, sport, grignotage…) — plus tu précises, plus ton plan colle à ton quotidien.</small>
-        </span>
-        <span class="refine-cta-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span>
-      </button>
 
       <!-- Conseils du jour : astuces contextuelles (max 2/jour), remplies par renderConseils() -->
       <div id="conseilsJour" class="conseils-jour hidden"></div>
@@ -1182,6 +1172,21 @@
     </div>
   </div>
 
+  <!-- ============ DÉTAIL DES OBJECTIFS NUTRITIONNELS (ouvert depuis la pastille Objectif) ============ -->
+  <div id="objDetail" class="obj-detail hidden" role="dialog" aria-modal="true" aria-label="Détail de mes objectifs nutritionnels">
+    <div class="obj-detail-card">
+      <button type="button" class="modal-close" id="objDetailClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      <h3 class="obj-detail-title">Tes objectifs du jour</h3>
+      <p class="obj-detail-w" id="objWeight"></p>
+      <div class="obj-macros">
+        <div class="obj-macro"><b id="objKcal">—</b><span>Calories</span></div>
+        <div class="obj-macro"><b id="objProt">—</b><span>Protéines</span></div>
+        <div class="obj-macro"><b id="objGluc">—</b><span>Glucides</span></div>
+        <div class="obj-macro"><b id="objLip">—</b><span>Lipides</span></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ CLIENT : CHANGER SON CODE PIN ============ -->
   <div id="changePinPanel" class="panel hidden">
     <div class="panel-inner">
@@ -1428,6 +1433,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=96"></script>
+  <script src="app.js?v=101"></script>
 </body>
 </html>

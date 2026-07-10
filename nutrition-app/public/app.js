@@ -257,7 +257,7 @@ function showScreen(id) {
   // Active la "coque" (sidebar desktop + decalage du contenu) uniquement sur l'ecran plan.
   document.body.classList.toggle('app-shell', id === 'result');
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  if (id === 'result') { try { renderGuideDuJour(); } catch (_) { /* ignore */ } }
+  if (id === 'result') { try { loadGuideDuJour(); } catch (_) { /* ignore */ } }
 }
 
 function showLoader(text) {
@@ -529,51 +529,65 @@ async function fetchMeal(creneau, kcalCible, exclureId) {
 }
 
 // ---------- Rendu : besoins ----------
+// Haut de l'écran Plan (refonte compacte) : en-tête programme + « Jour X/X » discret,
+// puis une rangée de 3 pictos — Guide du jour (badge +1 si non lu), Affiner (si pas
+// encore rempli) et Objectif de poids (pastille -X kg -> ouvre le détail des macros).
 function renderNeeds() {
+  const card = $('#needsCard'); if (!card || !state.plan || !state.plan.besoins) return;
   const b = state.plan.besoins;
   const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
-  const kcalBlock = state.masquerCalories ? ''
-    : `<div class="needs-stat"><div class="num">${b.kcalCible}</div><div class="lbl"><span class="lbl-lg">kcal / jour</span><span class="lbl-sm">kcal</span></div></div>`;
   const isChallenge = state.profil.objectif === 'challenge';
   const prenom = clientPrenom();
-  // Objectif POIDS chiffré, toujours visible (Challenge) + progression si pesées officielles.
-  let goalStrip = '';
-  if (isChallenge) {
-    const perte = Math.max(1, Number(state.profil.perte_objectif_kg) || 6);
-    const pc = state.parcours;
-    const poidsDepart = (pc && pc.pesees && pc.pesees.depart && pc.pesees.depart.poids > 0)
-      ? pc.pesees.depart.poids
-      : (Number(state.profil.poids || state.profil.poids_depart || state.profil.poids_kg) || null);
-    const poidsCible = (poidsDepart != null) ? Math.round((poidsDepart - perte) * 10) / 10 : null;
-    let actuel = null;
-    if (pc && pc.pesees) actuel = (pc.pesees.s6 && pc.pesees.s6.poids) || (pc.pesees.s3 && pc.pesees.s3.poids) || (pc.pesees.depart && pc.pesees.depart.poids) || null;
-    const perdu = (poidsDepart != null && actuel != null) ? Math.max(0, Math.round((poidsDepart - actuel) * 10) / 10) : null;
-    const pct = (perdu != null) ? Math.min(100, Math.round((perdu / perte) * 100)) : 0;
-    const progBlock = (perdu != null) ? `
-      <div class="needs-goal-bar"><i style="width:${pct}%"></i></div>
-      <div class="needs-goal-prog">${perdu > 0 ? '<b>−' + frKg(perdu) + ' kg</b> parcourus · reste ' + frKg(Math.max(0, Math.round((perte - perdu) * 10) / 10)) + ' kg' : '<b>C’est parti</b> — ta première pesée se fait avec ton coach'}</div>` : '';
-    goalStrip = `
-      <div class="needs-goal">
-        <div class="needs-goal-top"><span class="needs-goal-ic">${icSvg('target')}</span><span class="needs-goal-lbl">Objectif</span>
-          <span class="needs-goal-val">−${frKg(perte)} kg</span>${poidsCible != null ? `<span class="needs-goal-cible">cible ${frKg(poidsCible)} kg</span>` : ''}</div>
-        ${progBlock}
-      </div>`;
+  // Jour X/X (discret)
+  const total = (state.plan.jours && state.plan.jours.length) || 0;
+  const dayIdx = (typeof indexJourActuel === 'function') ? indexJourActuel() : 0;
+  const dayTag = total ? `<span class="pt-day">Jour ${dayIdx + 1}<span>/${total}</span></span>` : '';
+  // Pastille objectif : poids si applicable, sinon kcal cible.
+  const perte = Math.max(0, Number(state.profil.perte_objectif_kg) || 0);
+  const hasWeight = (isChallenge || state.profil.objectif === 'perte') && perte > 0;
+  const objPill = hasWeight ? ('−' + frKg(perte) + '&nbsp;kg') : (state.masquerCalories ? 'Objectif' : (b.kcalCible + '&nbsp;kcal'));
+  // Pictos conditionnels
+  let items = '';
+  if (_guideDuJour && !_guideDuJour.read) {
+    items += `<button type="button" class="pt-item" data-act="guide" aria-label="Guide du jour à découvrir"><span class="pt-ic pt-ic--accent">${icSvg('book')}<span class="pt-plus">+1</span></span><span class="pt-cap">Info</span></button>`;
   }
-  $('#needsCard').innerHTML = `
-    ${prenom ? `<p class="needs-kicker">Le programme de ${escapeHtml(prenom)}</p>` : ''}
-    <div class="needs-head"><span class="needs-ic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2>Objectif : ${objLabels[state.profil.objectif] || ''}</h2>
-      <button type="button" class="needs-agenda" title="Ajouter mes menus à mon agenda" aria-label="Ajouter à mon agenda">${icSvg('calendar')}<span>Agenda</span></button></div>
-    <p class="needs-sub">${prenom ? escapeHtml(prenom) + ', ton objectif, résumé en chiffres.' : 'Ton objectif, résumé en chiffres.'}</p>
-    ${goalStrip}
-    <div class="needs-stats">
-      ${kcalBlock}
-      <div class="needs-stat"><div class="num">${b.macros.proteines} g</div><div class="lbl"><span class="lbl-lg">Protéines</span><span class="lbl-sm">Prot.</span></div></div>
-      <div class="needs-stat"><div class="num">${b.macros.glucides} g</div><div class="lbl"><span class="lbl-lg">Glucides</span><span class="lbl-sm">Gluc.</span></div></div>
-      <div class="needs-stat"><div class="num">${b.macros.lipides} g</div><div class="lbl"><span class="lbl-lg">Lipides</span><span class="lbl-sm">Lip.</span></div></div>
-    </div>`;
-  const ag = $('#needsCard .needs-agenda'); if (ag) ag.addEventListener('click', openAgenda);
-  renderGuideDuJour(); // met à jour la carte « guide du jour » (titre + 1 ligne, « Nouveau » si non lu)
+  const avanceFilled = Object.keys(state.avance || {}).length > 0;
+  if (!avanceFilled) {
+    items += `<button type="button" class="pt-item" data-act="affine" aria-label="Affiner mon plan"><span class="pt-ic">${icSvg('sliders')}</span><span class="pt-cap">Affine</span></button>`;
+  }
+  items += `<button type="button" class="pt-item pt-item--obj" data-act="obj" aria-label="Voir le détail de mes objectifs nutritionnels"><span class="pt-pill">${objPill}</span><span class="pt-cap">Objectif</span></button>`;
+
+  card.innerHTML = `
+    <div class="pt-top">
+      <div class="pt-titles">
+        ${prenom ? `<p class="pt-kicker">Le programme de ${escapeHtml(prenom)}</p>` : ''}
+        <div class="pt-titlerow"><span class="pt-headic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2 class="pt-title">${objLabels[state.profil.objectif] || 'Ton objectif'}</h2></div>
+      </div>
+      ${dayTag}
+    </div>
+    <div class="pt-row">${items}</div>`;
+
+  const gi = card.querySelector('[data-act="guide"]'); if (gi) gi.addEventListener('click', openGuideDuJour);
+  const af = card.querySelector('[data-act="affine"]'); if (af) af.addEventListener('click', function () { const bt = $('#btnAvance'); if (bt) bt.click(); });
+  const ob = card.querySelector('[data-act="obj"]'); if (ob) ob.addEventListener('click', openObjDetail);
+
+  if (_guideDuJour === undefined) loadGuideDuJour(); // charge l'état du guide du jour (async) puis re-render
 }
+// Détail des objectifs nutritionnels (ouvert depuis la pastille Objectif).
+function openObjDetail() {
+  const p = $('#objDetail'); if (!p || !state.plan || !state.plan.besoins) return;
+  const b = state.plan.besoins;
+  const perte = Math.max(0, Number(state.profil.perte_objectif_kg) || 0);
+  const isW = (state.profil.objectif === 'challenge' || state.profil.objectif === 'perte') && perte > 0;
+  const set = (id, v) => { const e = $('#' + id); if (e) e.textContent = v; };
+  set('objKcal', state.masquerCalories ? '—' : (b.kcalCible + ' kcal'));
+  set('objProt', b.macros.proteines + ' g');
+  set('objGluc', b.macros.glucides + ' g');
+  set('objLip', b.macros.lipides + ' g');
+  const w = $('#objWeight'); if (w) w.innerHTML = isW ? ('Objectif <b>−' + frKg(perte) + ' kg</b>') : '';
+  p.classList.remove('hidden');
+}
+function closeObjDetail() { const p = $('#objDetail'); if (p) p.classList.add('hidden'); }
 
 // ---------- Ajustement automatique du plan (Challenge 6/6) ----------
 // Le client ne se pèse PLUS lui-même (fonctionnalité « Pesée de la semaine » retirée).
@@ -2920,6 +2934,9 @@ function init() {
   const _cpClose = $('#changePinClose'); if (_cpClose) _cpClose.addEventListener('click', closeChangePin);
   const _cpSave = $('#cpSave'); if (_cpSave) _cpSave.addEventListener('click', saveChangePin);
   const _cpPanel = $('#changePinPanel'); if (_cpPanel) _cpPanel.addEventListener('click', (e) => { if (e.target.id === 'changePinPanel') closeChangePin(); });
+  const _odClose = $('#objDetailClose'); if (_odClose) _odClose.addEventListener('click', closeObjDetail);
+  const _odPanel = $('#objDetail'); if (_odPanel) _odPanel.addEventListener('click', (e) => { if (e.target.id === 'objDetail') closeObjDetail(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeObjDetail(); });
   $('#coachParcoursClose').addEventListener('click', closeCoachParcours);
   $('#coachParcoursPanel').addEventListener('click', (e) => { if (e.target.id === 'coachParcoursPanel') closeCoachParcours(); });
   $('#coachFicheClose').addEventListener('click', closeCoachFiche);
@@ -6952,28 +6969,20 @@ function renderEbooksViewBody(host, list, day) {
 // pas lu. Visible seulement s'il existe un guide du jour. Clic -> ouverture directe.
 let _guideDuJour = undefined;
 function openGuideDuJour() { if (_guideDuJour) openEbook(_guideDuJour.id, _guideDuJour.title); else openEbooks(); }
-async function renderGuideDuJour() {
-  const card = $('#guideDuJourCard'); if (!card) return;
-  if (!(window.__NUTRI_USER && window.__NUTRI_USER.email)) { card.classList.add('hidden'); return; }
+// Charge le guide du jour (async) et met à jour le picto « Info » du haut du Plan.
+// _guideDuJour = { id, title, read, ... } ou null. Le picto n'apparaît que s'il existe
+// un guide du jour NON lu (renderNeeds gère l'affichage).
+async function loadGuideDuJour() {
+  if (!(window.__NUTRI_USER && window.__NUTRI_USER.email)) { _guideDuJour = null; return; }
   try {
     const d = await (await fetch(apiUrl('/api/ebooks'), { headers: nutriAuthHeaders() })).json();
-    if (!d.ok) { card.classList.add('hidden'); return; }
-    const jour = (d.ebooks || []).filter((e) => !e.locked && Number(e.unlockDay) === Number(d.day));
-    const g = jour[jour.length - 1] || null; // le guide du jour (lu ou non)
-    _guideDuJour = g;
-    if (!g) { card.classList.add('hidden'); return; }
-    card.classList.remove('hidden');
-    card.classList.toggle('is-new', !g.read); // fond bleu plein + badge « Nouveau » tant que non lu
-    const desc = g.description || 'Ton guide du jour — touche pour l’ouvrir.';
-    card.innerHTML = `
-      <span class="gdj-ic">${icSvg('book')}</span>
-      <span class="gdj-text">
-        <span class="gdj-top"><b class="gdj-title">${escapeHtml(g.title)}</b>${!g.read ? '<span class="gdj-new">Nouveau</span>' : ''}</span>
-        <span class="gdj-desc">${escapeHtml(desc)}</span>
-      </span>
-      <span class="gdj-arrow">${icSvg('arrow-right')}</span>`;
-    card.onclick = openGuideDuJour; // idempotent (réécrit à chaque rendu)
-  } catch (_) { card.classList.add('hidden'); }
+    if (!d || !d.ok) { _guideDuJour = null; }
+    else {
+      const jour = (d.ebooks || []).filter((e) => !e.locked && Number(e.unlockDay) === Number(d.day));
+      _guideDuJour = jour[jour.length - 1] || null;
+    }
+  } catch (_) { _guideDuJour = null; }
+  if ($('#needsCard') && state.plan && state.plan.besoins) renderNeeds();
 }
 async function openEbook(id, title) {
   try {
@@ -6982,7 +6991,7 @@ async function openEbook(id, title) {
       // Lecture INTÉGRÉE : le guide s'affiche dans l'app, le client ne sort pas.
       showEbookReader(d.url, title);
       // Le guide est marqué lu -> on retire le badge « Nouveau » et la carte du jour.
-      setTimeout(() => { try { renderGuideDuJour(); const ep = $('#ebooksPanel'); if (ep && !ep.classList.contains('hidden')) openEbooks(); } catch (_) { /* ignore */ } }, 500);
+      setTimeout(() => { try { loadGuideDuJour(); const ep = $('#ebooksPanel'); if (ep && !ep.classList.contains('hidden')) openEbooks(); } catch (_) { /* ignore */ } }, 500);
     } else { showToast(d.locked ? 'Ce guide n\'est pas encore débloqué.' : 'Ouverture impossible.', { icon: 'info' }); }
   } catch (_) { showToast('Ouverture impossible.', { icon: 'info' }); }
 }

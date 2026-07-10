@@ -310,6 +310,38 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
   box-shadow: var(--shadow-card); position: relative; overflow: hidden;
   border: 1px solid var(--border-c);
 }
+/* ===== Haut de l'écran Plan : en-tête compact + rangée de 3 pictos + jour discret ===== */
+.pt-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pt-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mc-blue); margin: 0 0 5px; }
+.pt-titlerow { display: flex; align-items: center; gap: 10px; }
+.pt-headic { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: var(--blue-soft); color: var(--mc-blue); flex: 0 0 auto; }
+.pt-headic .ic { width: 19px; height: 19px; }
+.pt-title { font-size: 19px; font-weight: 800; color: var(--ink); margin: 0; letter-spacing: -0.01em; line-height: 1.15; }
+.pt-day { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--ink-2); background: var(--surface-soft); border: 1px solid var(--border-c); border-radius: 999px; padding: 5px 11px; white-space: nowrap; }
+.pt-day span { color: var(--muted); font-weight: 600; }
+.pt-row { display: flex; justify-content: center; align-items: flex-start; gap: 16px; margin-top: 18px; flex-wrap: wrap; }
+.pt-item { display: flex; flex-direction: column; align-items: center; gap: 8px; background: none; border: none; cursor: pointer; font-family: inherit; padding: 2px; }
+.pt-ic { position: relative; width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--border-c); color: var(--ink-2); box-shadow: var(--shadow-xs); transition: transform 0.16s var(--ease), box-shadow 0.16s var(--ease), border-color 0.16s var(--ease); }
+.pt-item:hover .pt-ic { transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: var(--gray-300); }
+.pt-ic .ic { width: 25px; height: 25px; }
+.pt-ic--accent { background: var(--blue-soft); border-color: transparent; color: var(--mc-blue); }
+.pt-plus { position: absolute; top: -7px; right: -7px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 999px; background: var(--mc-blue); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--surface); box-shadow: 0 4px 10px -2px rgba(37, 99, 235, 0.6); }
+.pt-pill { display: grid; place-items: center; min-width: 58px; height: 58px; padding: 0 18px; border-radius: 18px; background: linear-gradient(135deg, var(--mc-blue), var(--mc-blue-dark)); color: #fff; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; box-shadow: 0 12px 24px -12px rgba(37, 99, 235, 0.7); transition: transform 0.16s var(--ease); }
+.pt-item--obj:hover .pt-pill { transform: translateY(-2px); }
+.pt-cap { font-size: 12px; font-weight: 600; color: var(--muted); }
+
+/* Popover : détail des objectifs nutritionnels (calories + macros) */
+.obj-detail { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: rgba(9, 18, 38, 0.5); backdrop-filter: blur(4px); animation: fadeIn 0.2s var(--ease); }
+.obj-detail.hidden { display: none; }
+.obj-detail-card { position: relative; background: var(--surface); border-radius: 20px; width: 100%; max-width: 360px; padding: 26px 22px 22px; box-shadow: var(--shadow-md); border: 1px solid var(--border-c); animation: fadeIn 0.2s var(--ease); }
+.obj-detail-title { font-size: 18px; font-weight: 800; color: var(--ink); margin: 0 0 5px; }
+.obj-detail-w { font-size: 14px; color: var(--muted); margin: 0 0 16px; }
+.obj-detail-w b { color: var(--mc-blue); }
+.obj-macros { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.obj-macro { background: var(--surface-soft); border: 1px solid var(--border-c); border-radius: 14px; padding: 15px 12px; text-align: center; }
+.obj-macro b { display: block; font-size: 21px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; }
+.obj-macro span { font-size: 12px; color: var(--muted); margin-top: 3px; display: block; }
+
 /* Bannière push (contextuelle) + préférences de notifications */
 .push-banner { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 4000; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   background: var(--mc-white, #fff); border: 1px solid var(--blue-c); border-radius: 16px; padding: 13px 15px;
