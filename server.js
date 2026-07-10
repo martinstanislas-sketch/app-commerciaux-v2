@@ -2074,6 +2074,29 @@ try {
   // Échappement minimal pour l'email (réutilise l'idée de escapeHtml côté serveur).
   function escHtml(s) { return String(s == null ? '' : s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
 
+  // Envoi d'email via l'API HTTPS de Brevo (sortie sur le port 443) — contourne le
+  // blocage des ports SMTP sortants (fréquent sur Railway/PaaS). Nécessite BREVO_API_KEY
+  // + un expéditeur vérifié (BREVO_SENDER, sinon SMTP_USER/SMTP_FROM).
+  async function sendViaBrevo({ to, subject, html, text }) {
+    const key = process.env.BREVO_API_KEY;
+    if (!key) throw new Error('BREVO_API_KEY manquant');
+    // Extrait l'email d'un éventuel « Nom <email> ».
+    const rawFrom = process.env.BREVO_SENDER || process.env.SMTP_FROM || process.env.SMTP_USER || '';
+    const m = /<([^>]+)>/.exec(rawFrom);
+    const senderEmail = (m ? m[1] : rawFrom).trim();
+    const senderName = process.env.BREVO_SENDER_NAME || 'My Coach Nutrition';
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': key, 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ sender: { name: senderName, email: senderEmail }, to: [{ email: to }], subject, htmlContent: html, textContent: text }),
+    });
+    if (!resp.ok) {
+      let body = ''; try { body = await resp.text(); } catch (_) { /* ignore */ }
+      throw new Error('Brevo ' + resp.status + ' ' + body.slice(0, 200));
+    }
+    return { ok: true };
+  }
+
   // Valide un jeton d'invitation pour la CRÉATION d'un compte (email inconnu).
   // Renvoie { ok:true, invite } ou { ok:false, error }.
   function validateInvite(token, email) {
@@ -2161,7 +2184,9 @@ try {
       if (email) {
         try {
           const content = inviteEmailContent(coachName, url, prenom);
-          await sendEmail({ to: email, subject: content.subject, html: content.html, text: content.text });
+          // Priorité à l'API HTTPS Brevo (contourne le blocage SMTP de Railway).
+          if (process.env.BREVO_API_KEY) await sendViaBrevo({ to: email, subject: content.subject, html: content.html, text: content.text });
+          else await sendEmail({ to: email, subject: content.subject, html: content.html, text: content.text });
           emailSent = true;
         } catch (e) {
           const msg = String((e && e.message) || '');
