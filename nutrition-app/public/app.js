@@ -5211,16 +5211,22 @@ async function generateInvite() {
   try {
     const res = await fetch(apiUrl('/api/coach/invites'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ email, prenom, nom }) });
     const d = await res.json();
-    if (d && d.ok) { if (m) m.textContent = ''; showInviteResult(d.url, d.email); renderInviteList(); }
+    if (d && d.ok) { if (m) m.textContent = ''; showInviteResult(d); renderInviteList(); }
     else if (m) m.textContent = (d && d.error) || 'Échec.';
   } catch (_) { if (m) m.textContent = 'Connexion requise.'; }
 }
-function showInviteResult(url, email) {
+function showInviteResult(d) {
   const r = $('#inviteResult'); if (!r) return;
   r.classList.remove('hidden');
-  r.innerHTML = '<div class="invite-link-row"><input class="invite-link" id="invLinkOut" readonly value="' + escapeHtml(url) + '"><button type="button" class="pc-btn" id="invCopy">Copier</button></div>' +
-    '<p class="invite-hint">Lien valable 21 jours' + (email ? (' · lié à <b>' + escapeHtml(email) + '</b>') : '') + '. Envoie-le à ton client (email, WhatsApp…).</p>';
-  const c = $('#invCopy'); if (c) c.addEventListener('click', () => copyInviteLink(url, c));
+  let status = '';
+  if (d.email) {
+    if (d.emailSent) status = '<p class="invite-status ok">📧 Email d’invitation envoyé à <b>' + escapeHtml(d.email) + '</b>.</p>';
+    else status = '<p class="invite-status warn">✉️ Email non envoyé (' + (d.emailError === 'smtp' ? 'envoi email non configuré sur le serveur' : 'erreur d’envoi') + '). Copie le lien ci-dessous et envoie-le toi-même.</p>';
+  }
+  r.innerHTML = status +
+    '<div class="invite-link-row"><input class="invite-link" id="invLinkOut" readonly value="' + escapeHtml(d.url) + '"><button type="button" class="pc-btn" id="invCopy">Copier</button></div>' +
+    '<p class="invite-hint">Lien valable 21 jours' + (d.email ? (' · lié à <b>' + escapeHtml(d.email) + '</b>') : '') + '. Tu peux aussi l’envoyer par WhatsApp/SMS.</p>';
+  const c = $('#invCopy'); if (c) c.addEventListener('click', () => copyInviteLink(d.url, c));
   const out = $('#invLinkOut'); if (out && out.select) out.select();
 }
 async function copyInviteLink(url, btn) {

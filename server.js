@@ -2051,6 +2051,29 @@ try {
     const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || req.protocol || 'https';
     return proto + '://' + req.get('host');
   }
+  // Contenu de l'email d'invitation client (HTML sobre, compatible clients mail).
+  function inviteEmailContent(coachName, url, prenom) {
+    const hello = prenom ? ('Bonjour ' + escHtml(prenom)) : 'Bonjour';
+    const coach = coachName ? escHtml(coachName) : 'Ton coach';
+    const subject = coach + ' t’invite sur My Coach Nutrition';
+    const html = ''
+      + '<div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;color:#1F2430;">'
+      + '<div style="text-align:center;padding:24px 0;">'
+      + '<div style="display:inline-block;width:56px;height:56px;border-radius:16px;background:#2563EB;line-height:56px;color:#fff;font-size:26px;font-weight:800;">🌱</div>'
+      + '<h1 style="font-size:22px;margin:14px 0 0;">My Coach Nutrition</h1></div>'
+      + '<p style="font-size:15px;line-height:1.6;">' + hello + ',</p>'
+      + '<p style="font-size:15px;line-height:1.6;"><b>' + coach + '</b> t’invite à créer ton espace personnel pour recevoir ton plan alimentaire sur mesure, ta liste de courses et ton suivi.</p>'
+      + '<div style="text-align:center;margin:26px 0;">'
+      + '<a href="' + url + '" style="display:inline-block;background:#2563EB;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 26px;border-radius:14px;">Créer mon espace</a></div>'
+      + '<p style="font-size:13px;line-height:1.6;color:#6B6B63;">Tu choisiras un code PIN à la première connexion pour protéger tes données. Ce lien est personnel et valable 21 jours.</p>'
+      + '<p style="font-size:12px;line-height:1.6;color:#9A9890;">Si le bouton ne fonctionne pas, copie ce lien dans ton navigateur :<br>' + url + '</p>'
+      + '</div>';
+    const text = coach + ' t’invite sur My Coach Nutrition.\n\nCrée ton espace ici : ' + url + '\n\nTu choisiras un code PIN à la première connexion. Lien valable 21 jours.';
+    return { subject, html, text };
+  }
+  // Échappement minimal pour l'email (réutilise l'idée de escapeHtml côté serveur).
+  function escHtml(s) { return String(s == null ? '' : s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
+
   // Valide un jeton d'invitation pour la CRÉATION d'un compte (email inconnu).
   // Renvoie { ok:true, invite } ou { ok:false, error }.
   function validateInvite(token, email) {
@@ -2115,7 +2138,7 @@ try {
 
   // ---- Invitations client (sécurise la création de compte) ----
   // Coach/admin : générer un lien d'invitation (optionnellement lié à un email précis).
-  app.post('/nutrition/api/coach/invites', requireAuth, requireCoachOrAdmin, (req, res) => {
+  app.post('/nutrition/api/coach/invites', requireAuth, requireCoachOrAdmin, async (req, res) => {
     try {
       const b = req.body || {};
       const email = String(b.email || '').trim().toLowerCase().slice(0, 160);
@@ -2131,7 +2154,21 @@ try {
       getDb().prepare('INSERT INTO nutrition_invites (token, email, prenom, nom, coach_id, coach_name, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?)')
         .run(token, email, prenom, nom, coachId || null, coachName, now, expires);
       const base = publicBaseUrl(req);
-      res.json({ ok: true, token, url: base + '/nutrition/?inv=' + token, email, prenom, nom, expiresAt: expires });
+      const url = base + '/nutrition/?inv=' + token;
+      // Envoi automatique de l'email si un destinataire est fourni ET que le SMTP est
+      // configuré. Sinon on renvoie quand même le lien (le coach le copie/partage).
+      let emailSent = false, emailError = '';
+      if (email) {
+        try {
+          const content = inviteEmailContent(coachName, url, prenom);
+          await sendEmail({ to: email, subject: content.subject, html: content.html, text: content.text });
+          emailSent = true;
+        } catch (e) {
+          emailError = /SMTP/i.test(e && e.message || '') ? 'smtp' : 'send';
+          console.warn('Invitation email non envoyé :', e && e.message);
+        }
+      }
+      res.json({ ok: true, token, url, email, prenom, nom, expiresAt: expires, emailSent, emailError });
     } catch (e) { console.error('coach/invites POST :', e); res.status(500).json({ ok: false, error: 'Création impossible.' }); }
   });
   // Coach/admin : lister ses invitations (en attente + utilisées).

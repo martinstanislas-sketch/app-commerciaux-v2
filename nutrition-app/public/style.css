@@ -2126,6 +2126,9 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .pav-btn.pav-remove:hover { color: var(--danger, #EF4444); border-color: var(--danger, #EF4444); }
 /* Panneau « Inviter un client » */
 .invite-result { margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--accent-soft, #EAF1FF); border: 1px solid var(--green-100, #D6E6FF); }
+.invite-status { margin: 0 2px 10px; font-size: 13px; line-height: 1.45; padding: 9px 11px; border-radius: 10px; }
+.invite-status.ok { background: #E7F6EC; color: #1B7F4B; }
+.invite-status.warn { background: #FDF2E3; color: #9A6212; }
 .invite-link-row { display: flex; gap: 8px; align-items: center; }
 .invite-link { flex: 1 1 auto; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--mc-border); background: var(--card); color: var(--ink); font-family: inherit; font-size: 13px; }
 .invite-hint { margin: 9px 2px 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
