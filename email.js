@@ -20,6 +20,11 @@ function createTransporter() {
       user: SMTP_USER,
       pass: SMTP_PASS,
     },
+    // Timeouts courts : en cas de blocage réseau/SMTP, on échoue vite (erreur
+    // diagnosticable) au lieu de laisser la requête pendre plusieurs dizaines de secondes.
+    connectionTimeout: 12000,
+    greetingTimeout: 8000,
+    socketTimeout: 15000,
   });
 }
 
