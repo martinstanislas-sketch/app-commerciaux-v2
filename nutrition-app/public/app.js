@@ -7031,21 +7031,82 @@ async function openEbook(id, title) {
     } else { showToast(d.locked ? 'Ce guide n\'est pas encore débloqué.' : 'Ouverture impossible.', { icon: 'info' }); }
   } catch (_) { showToast('Ouverture impossible.', { icon: 'info' }); }
 }
-// Lecteur de guide intégré (overlay plein écran + iframe sur l'URL signée du PDF).
+// Lecteur de guide intégré (overlay plein écran). Le PDF est RENDU dans l'app via
+// PDF.js (canvas) -> il s'affiche directement, sans téléchargement ni visionneuse
+// native (les navigateurs mobiles refusent de rendre un PDF en iframe). L'iframe
+// reste un repli si PDF.js est indisponible ou échoue.
+let _ebookPdfDoc = null;    // document PDF.js courant (pour libérer la mémoire)
+let _ebookRenderSeq = 0;    // jeton anti-course (ouverture rapide d'un autre guide)
+function ensurePdfWorker() {
+  try {
+    const lib = window.pdfjsLib; if (!lib || !lib.GlobalWorkerOptions) return;
+    if (lib.GlobalWorkerOptions.workerSrc) return;
+    const s = document.querySelector('script[src*="vendor/pdf.min.js"]');
+    lib.GlobalWorkerOptions.workerSrc = s ? s.src.replace(/pdf\.min\.js([?#].*)?$/, 'pdf.worker.min.js')
+      : new URL('vendor/pdf.worker.min.js', document.baseURI).href;
+  } catch (_) { /* ignore */ }
+}
+async function renderPdfInReader(url, seq, onFirstPage) {
+  const lib = window.pdfjsLib;
+  const pages = $('#ebookReaderPages');
+  ensurePdfWorker();
+  const doc = await lib.getDocument({ url }).promise;
+  if (seq !== _ebookRenderSeq) { try { doc.destroy(); } catch (_) {} return; } // guide déjà refermé/changé
+  _ebookPdfDoc = doc;
+  pages.innerHTML = '';
+  const dpr = Math.min(window.devicePixelRatio || 1, 2); // net sur écrans HiDPI, sans exploser la mémoire
+  for (let n = 1; n <= doc.numPages; n++) {
+    const page = await doc.getPage(n);
+    if (seq !== _ebookRenderSeq) return; // interrompt si l'utilisateur a fermé/changé
+    const cssW = Math.max(1, pages.clientWidth - 24); // largeur dispo (moins le padding horizontal)
+    const base = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: (cssW / base.width) * dpr });
+    const canvas = document.createElement('canvas');
+    canvas.className = 'ebk-page';
+    canvas.width = Math.floor(vp.width); canvas.height = Math.floor(vp.height);
+    pages.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    if (seq !== _ebookRenderSeq) return;
+    if (n === 1 && onFirstPage) onFirstPage(); // 1re page peinte -> on masque le loader et on annule le filet
+  }
+}
 function showEbookReader(url, title) {
   const r = $('#ebookReader');
   if (!r) { window.open(url, '_blank'); return; } // secours très improbable
   const t = $('#ebookReaderTitle'); if (t) t.textContent = title || 'Guide';
   const full = $('#ebookReaderFull'); if (full) full.href = url; // porte de sortie « plein écran »
   const loading = $('#ebookReaderLoading'); if (loading) loading.classList.remove('hidden');
+  const pages = $('#ebookReaderPages');
   const frame = $('#ebookReaderFrame');
-  if (frame) { frame.onload = () => { if (loading) loading.classList.add('hidden'); }; frame.src = url; }
+  const seq = ++_ebookRenderSeq;
+  if (_ebookPdfDoc) { try { _ebookPdfDoc.destroy(); } catch (_) {} _ebookPdfDoc = null; }
   r.classList.remove('hidden');
+  const useNative = () => { // repli : visionneuse native du navigateur
+    if (seq !== _ebookRenderSeq) return;
+    if (pages) { pages.style.display = 'none'; pages.innerHTML = ''; }
+    if (frame) { frame.style.display = ''; frame.onload = () => { if (loading) loading.classList.add('hidden'); }; frame.src = url; }
+  };
+  if (window.pdfjsLib && pages) {
+    if (frame) { frame.style.display = 'none'; frame.src = 'about:blank'; }
+    pages.style.display = ''; pages.scrollTop = 0; pages.innerHTML = '';
+    let painted = false;
+    // Filet de sécurité : si le rendu intégré ne s'affiche pas (worker/canvas indisponible),
+    // on bascule sur la visionneuse native plutôt que de laisser tourner le loader.
+    const fallbackTimer = setTimeout(() => { if (!painted) useNative(); }, 6000);
+    renderPdfInReader(url, seq, () => { painted = true; clearTimeout(fallbackTimer); if (loading) loading.classList.add('hidden'); })
+      .then(() => { if (seq === _ebookRenderSeq && loading) loading.classList.add('hidden'); })
+      .catch((e) => { clearTimeout(fallbackTimer); if (seq === _ebookRenderSeq) { console.warn('pdf render:', e && e.message); useNative(); } });
+  } else {
+    useNative();
+  }
 }
 function closeEbookReader() {
   const r = $('#ebookReader'); if (!r || r.classList.contains('hidden')) return;
   r.classList.add('hidden');
-  const frame = $('#ebookReaderFrame'); if (frame) { frame.onload = null; frame.src = 'about:blank'; } // libère le PDF
+  _ebookRenderSeq++; // annule tout rendu en cours
+  const frame = $('#ebookReaderFrame'); if (frame) { frame.onload = null; frame.src = 'about:blank'; }
+  const pages = $('#ebookReaderPages'); if (pages) pages.innerHTML = ''; // libère les canvas
+  if (_ebookPdfDoc) { try { _ebookPdfDoc.destroy(); } catch (_) {} _ebookPdfDoc = null; }
 }
 
 // ===== Guides (ebooks) — admin =====
