@@ -16,6 +16,9 @@ function createTransporter() {
     host: SMTP_HOST,
     port: parseInt(SMTP_PORT, 10) || 587,
     secure: SMTP_SECURE === 'true', // true = SSL on 465, false = STARTTLS on 587
+    // Force IPv4 : sur certains hébergeurs (Railway), la résolution IPv6 de
+    // smtp.gmail.com est injoignable (ENETUNREACH) -> on impose IPv4.
+    family: 4,
     auth: {
       user: SMTP_USER,
       pass: SMTP_PASS,
