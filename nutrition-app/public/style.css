@@ -2091,13 +2091,16 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
 }
 .bottom-nav .nav-i {
-  flex: 1; max-width: 120px; background: none; border: none; cursor: pointer; font-family: inherit;
+  flex: 1 1 0; min-width: 0; max-width: 120px; background: none; border: none; cursor: pointer; font-family: inherit;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   color: var(--muted); font-size: 10.5px; font-weight: 600; padding: 5px 4px; min-height: 46px;
   border-radius: 12px; transition: color .15s var(--ease);
 }
 .bottom-nav .nav-i { position: relative; }
-.bottom-nav .nav-i .ic { width: 22px; height: 22px; }
+.bottom-nav .nav-i .ic { width: 22px; height: 22px; flex: 0 0 auto; }
+/* Le libellé ne pousse jamais la barre au-delà de l'écran : il se partage la largeur
+   et s'ellipse si nécessaire (évite que « Profil » soit coupé quand il y a 7 onglets). */
+.bottom-nav .nav-i span:not(.nav-dot) { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
 /* « Se déconnecter » : jamais dans la barre du bas mobile (réservé à la sidebar desktop) */
 .bottom-nav .nav-i.nav-logout { display: none; }
 .nav-dot { position: absolute; top: 4px; right: 50%; transform: translateX(14px); width: 9px; height: 9px; border-radius: 50%; background: var(--error); box-shadow: 0 0 0 2px var(--mc-cream); }
@@ -2106,6 +2109,17 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .bottom-nav .nav-i.on { color: var(--mc-blue); }
 .bottom-nav .nav-i:hover { color: var(--ink-2); }
 .bottom-nav .nav-i.on:hover { color: var(--mc-blue); }
+/* Barre du bas resserrée sur mobile pour que les 7 onglets tiennent sans coupe.
+   (Placé APRÈS les règles de base pour gagner en ordre de cascade.) */
+@media (max-width: 640px) {
+  .bottom-nav { padding: 7px 2px calc(7px + env(safe-area-inset-bottom)); }
+  .bottom-nav .nav-i { font-size: 9.5px; padding: 5px 1px; gap: 2px; max-width: none; }
+  .bottom-nav .nav-i .ic { width: 20px; height: 20px; }
+}
+@media (max-width: 380px) {
+  .bottom-nav .nav-i { font-size: 9px; }
+  .bottom-nav .nav-i .ic { width: 19px; height: 19px; }
+}
 
 /* Bouton SOS coach remonte au-dessus de la barre */
 .sos-fab { bottom: calc(74px + env(safe-area-inset-bottom)); }
