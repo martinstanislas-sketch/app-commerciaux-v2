@@ -105,8 +105,10 @@
 .lp-badge{display:inline-flex;align-items:center;gap:.55em;font-size:.85rem;font-weight:600;color:#d7e2ff;
   background:rgba(255,255,255,.07);border:1px solid #2c3f72;border-radius:999px;padding:.5em .9em}
 .lp-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--sage);box-shadow:0 0 0 4px rgba(31,143,91,.25)}
-.lp-hero__title{font-size:clamp(2.3rem,5vw,3.55rem);letter-spacing:-.03em;margin:.15em 0 .4em;color:#fff}
-.lp-hero__title span{color:#7fa2ff}
+.lp-hero__title{font-size:clamp(2.1rem,4.4vw,3.1rem);letter-spacing:-.03em;margin:.15em 0 .4em;color:#fff}
+.lp-hero__l1{display:block}
+.lp-hero__l2{display:block;font-size:1.5em;line-height:1.02;margin-top:.08em}
+.lp-hero__hl{color:#7fa2ff}
 .lp-hero__sub{font-size:clamp(1.05rem,1.7vw,1.25rem);color:var(--muted-on-navy);max-width:46ch}
 .lp-hero__ctas{display:flex;flex-wrap:wrap;gap:.8rem;margin:2rem 0 1.2rem}
 .lp-hero__re{display:flex;align-items:center;gap:.5em;font-size:.9rem;color:var(--muted-on-navy)}
