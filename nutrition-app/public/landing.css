@@ -49,7 +49,6 @@
 /* Logo image « my COACH GINKGO » (version blanche). Sur fond clair (header collé),
    on l'assombrit via filtre pour rester lisible. Footer = toujours sombre -> blanc. */
 .lp-brand .lp-brand__logo{height:40px;width:auto;display:block}
-.lp-header.is-stuck .lp-brand .lp-brand__logo{filter:brightness(0)}
 @media (max-width:600px){.lp-brand .lp-brand__logo{height:32px}}
 
 /* BOUTONS */
@@ -69,7 +68,7 @@
 /* HEADER */
 .lp-header{position:fixed;inset:0 0 auto 0;z-index:100;transition:background-color .3s var(--ease),box-shadow .3s,border-color .3s;border-bottom:1px solid transparent}
 .lp-header__bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:72px;padding-block:12px}
-.lp-header.is-stuck{background:rgba(247,245,241,.92);background:color-mix(in srgb,var(--cream) 92%,transparent);backdrop-filter:blur(12px);border-bottom-color:var(--line);box-shadow:0 6px 24px -20px rgba(9,20,48,.5)}
+.lp-header.is-stuck{background:rgba(11,24,54,.82);backdrop-filter:blur(12px);border-bottom-color:rgba(255,255,255,.08);box-shadow:0 8px 24px -20px rgba(0,0,0,.6)}
 .lp-header.is-stuck .lp-nav a,.lp-header.is-stuck .lp-login{color:var(--ink)}
 .lp-header.is-stuck .lp-brand__txt{color:var(--ink)}
 .lp-header.is-stuck .lp-brand__txt span{color:var(--blue)}

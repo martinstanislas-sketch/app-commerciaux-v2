@@ -68,7 +68,6 @@
 .lp-brand--light .lp-brand__txt{color:#fff}
 .lp-brand--light .lp-brand__txt span{color:#7fa2ff}
 .lp-brand .lp-brand__logo{height:40px;width:auto;display:block}
-.lp-header.is-stuck .lp-brand .lp-brand__logo{filter:brightness(0)}
 @media (max-width:600px){.lp-brand .lp-brand__logo{height:32px}}
 
 /* ============================ BOUTONS ============================ */
@@ -88,7 +87,7 @@
 /* ============================ HEADER ============================ */
 .lp-header{position:fixed;inset:0 0 auto 0;z-index:100;transition:background-color .3s var(--ease),box-shadow .3s,border-color .3s;border-bottom:1px solid transparent}
 .lp-header__bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:72px;padding-block:12px}
-.lp-header.is-stuck{background:rgba(247,245,241,.92);background:color-mix(in srgb,var(--cream) 92%,transparent);backdrop-filter:blur(12px);border-bottom-color:var(--line);box-shadow:0 6px 24px -20px rgba(9,20,48,.5)}
+.lp-header.is-stuck{background:rgba(11,24,54,.82);backdrop-filter:blur(12px);border-bottom-color:rgba(255,255,255,.08);box-shadow:0 8px 24px -20px rgba(0,0,0,.6)}
 .lp-header.is-stuck .lp-nav a,.lp-header.is-stuck .lp-login{color:var(--ink)}
 .lp-header.is-stuck .lp-brand__txt{color:var(--ink)}
 .lp-header.is-stuck .lp-brand__txt span{color:var(--blue)}
@@ -296,258 +295,48 @@
 
 <body>
 <div class="lp" id="lp">
-<a class="lp-skip" href="#lp-main">Aller au contenu</a>
-
-<!-- ===================== HEADER ===================== -->
-<header class="lp-header" id="lp-header">
-  <div class="lp-wrap lp-header__bar">
-    <a class="lp-brand" href="#lp-top" aria-label="My Coach Ginkgo — accueil">
-      <img class="lp-brand__logo" src="logo-mycoach-blanc.png" alt="My Coach Ginkgo" width="1500" height="750" />
-    </a>
-    <nav class="lp-nav" aria-label="Navigation principale">
-      <a href="#lp-why">Pourquoi</a>
-      <a href="#lp-app">L'app</a>
-      <a href="#lp-steps">Comment ça marche</a>
-      <a href="#lp-diff">La différence</a>
-    </nav>
-    <div class="lp-header__actions">
-      <!-- « Se connecter » : à brancher vers l'écran de code PIN existant. -->
-      <a class="lp-login" href="#" data-cta="login">Se connecter</a>
-      <a class="lp-btn lp-btn--primary" href="#" data-cta="start">Commencer</a>
-      <button class="lp-burger" id="lp-burger" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="lp-mnav"><span></span><span></span><span></span></button>
-    </div>
-  </div>
-  <div class="lp-mnav" id="lp-mnav">
-    <ul>
-      <li><a href="#lp-why">Pourquoi</a></li>
-      <li><a href="#lp-app">L'app</a></li>
-      <li><a href="#lp-steps">Comment ça marche</a></li>
-      <li><a href="#lp-diff">La différence</a></li>
-      <li><a href="#" data-cta="login">Se connecter</a></li>
-      <li><a class="lp-btn lp-btn--primary" href="#" data-cta="start">Commencer mon plan</a></li>
-    </ul>
-  </div>
-</header>
-
-<main id="lp-main">
-<span id="lp-top"></span>
-
-<!-- ===================== HÉROS ===================== -->
-<section class="lp-hero" aria-labelledby="lp-hero-title">
-  <div class="lp-wrap lp-hero__grid">
-    <div>
-      <h1 class="lp-hero__title" id="lp-hero-title"><span class="lp-hero__l1">Ton plan sur-mesure.</span><span class="lp-hero__l2">Et un <span class="lp-hero__hl">vrai coach</span> derrière.</span></h1>
-      <p class="lp-hero__sub">Des menus personnalisés, des portions adaptées et un coach qui ajuste ton programme selon tes résultats.</p>
-      <div class="lp-hero__ctas">
-        <a class="lp-btn lp-btn--primary lp-btn--lg" href="#" data-cta="start">Commencer mon plan</a>
-        <a class="lp-btn lp-btn--ghost-navy lp-btn--lg" href="#lp-app">Voir l'app en action</a>
-      </div>
-      <p class="lp-hero__re"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Configuration en 5 minutes · Un vrai coach, pas seulement un algorithme.</p>
-    </div>
-
-    <!-- Aperçu d'app (maquette CSS — remplaçable par une capture réelle) -->
-    <div class="lp-appwrap lp-reveal">
-      <div class="lp-phone">
-      <div class="lp-app" role="img" aria-label="Aperçu de l'application mobile My Coach : calories du jour, menus et message du coach.">
-        <span class="lp-app__isle" aria-hidden="true"></span>
-        <div class="lp-app__status"><b>9:41</b><span class="lp-app__sig" aria-hidden="true"><i></i><i></i><i></i><i></i></span></div>
-        <div class="lp-app__top">
-          <div><b>Bonjour, Sarah 👋</b><small>Semaine 3 · Jeudi</small></div>
-          <span class="av">S</span>
+      <a class="lp-skip" href="#lp-main">Aller au contenu</a>
+      <header class="lp-header" id="lp-header">
+        <div class="lp-wrap lp-header__bar">
+          <a class="lp-brand" href="#lp-top" aria-label="My Coach Ginkgo — accueil">
+            <img class="lp-brand__logo" src="logo-mycoach-blanc.png?v=94" alt="My Coach Ginkgo" width="1500" height="750" />
+          </a>
+          <div class="lp-header__actions">
+            <a class="lp-btn lp-btn--primary" href="#" data-cta="start">Commencer</a>
+          </div>
         </div>
-        <div class="lp-app__body">
-          <div class="lp-cal"><div class="k">Calories aujourd'hui</div><div class="v">2 100 <span style="font-size:.8rem;font-weight:600;opacity:.9">kcal · 60 %</span></div><div class="bar"><i></i></div></div>
-          <div class="lp-meal"><span class="th" aria-hidden="true"></span><div><div class="t">Déjeuner — Poulet, riz &amp; légumes</div><div class="s">Prêt en 15 min</div></div><span class="kc">542 kcal</span></div>
-          <div class="lp-meal"><span class="th" aria-hidden="true"></span><div><div class="t">Dîner — Saumon &amp; quinoa</div><div class="s">Prêt en 20 min</div></div><span class="kc">498 kcal</span></div>
-          <div class="lp-coach"><span class="ci"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A2.5 2.5 0 0 1 17.5 18H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5Z"/></svg></span><p><b>Ton coach</b>Tu es en avance sur ton objectif — continue comme ça 💪</p></div>
+      </header>
+      <main id="lp-main">
+      <span id="lp-top"></span>
+      <section class="lp-hero" aria-labelledby="lp-hero-title">
+        <div class="lp-wrap lp-hero__grid">
+          <div>
+            <h1 class="lp-hero__title" id="lp-hero-title"><span class="lp-hero__l1">Ton plan sur-mesure.</span><span class="lp-hero__l2">Et un <span class="lp-hero__hl">vrai coach</span> derrière.</span></h1>
+            <p class="lp-hero__sub">Des menus personnalisés, des portions adaptées et un coach qui ajuste ton programme selon tes résultats.</p>
+            <div class="lp-hero__ctas">
+              <a class="lp-btn lp-btn--primary lp-btn--lg" href="#" data-cta="start">Commencer mon plan</a>
+            </div>
+            <p class="lp-hero__re"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Configuration en 5 minutes · Un vrai coach, pas seulement un algorithme.</p>
+          </div>
+          <div class="lp-appwrap lp-reveal">
+            <div class="lp-phone">
+              <div class="lp-app" role="img" aria-label="Aperçu de l'application mobile My Coach : calories du jour, menus et message du coach.">
+                <span class="lp-app__isle" aria-hidden="true"></span>
+                <div class="lp-app__status"><b>9:41</b><span class="lp-app__sig" aria-hidden="true"><i></i><i></i><i></i><i></i></span></div>
+                <div class="lp-app__top"><div><b>Bonjour, Sarah 👋</b><small>Semaine 3 · Jeudi</small></div><span class="av">S</span></div>
+                <div class="lp-app__body">
+                  <div class="lp-cal"><div class="k">Calories aujourd'hui</div><div class="v">2 100 <span style="font-size:.8rem;font-weight:600;opacity:.9">kcal · 60 %</span></div><div class="bar"><i></i></div></div>
+                  <div class="lp-meal"><span class="th" aria-hidden="true"></span><div><div class="t">Déjeuner — Poulet, riz &amp; légumes</div><div class="s">Prêt en 15 min</div></div><span class="kc">542 kcal</span></div>
+                  <div class="lp-meal"><span class="th" aria-hidden="true"></span><div><div class="t">Dîner — Saumon &amp; quinoa</div><div class="s">Prêt en 20 min</div></div><span class="kc">498 kcal</span></div>
+                  <div class="lp-coach"><span class="ci"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A2.5 2.5 0 0 1 17.5 18H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5Z"/></svg></span><p><b>Ton coach</b>Tu es en avance sur ton objectif — continue comme ça 💪</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-      </div>
+      </section>
+      </main>
     </div>
-  </div>
-</section>
-
-<!-- ===================== POURQUOI (fonctionnalités) ===================== -->
-<section class="lp-section lp-why" id="lp-why" aria-labelledby="lp-why-title">
-  <div class="lp-wrap">
-    <div class="lp-head lp-reveal">
-      <span class="lp-eyebrow">Pourquoi My Coach</span>
-      <h2 class="lp-h2" id="lp-why-title">Tout ce qu'il te faut, <span>sans la charge mentale.</span></h2>
-    </div>
-    <div class="lp-features lp-reveal">
-      <article class="lp-feature">
-        <div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v8a3 3 0 0 0 3 3v7"/><path d="M5 3v4M8 3v4"/><path d="M19 3c-1.5 1-2.5 3-2.5 6 0 2 .5 3 2.5 3v9"/></svg></div>
-        <h3>Des menus faits pour toi</h3><p>Des menus personnalisés et des portions adaptées à ton objectif, avec la liste de courses. Tu n'as plus à décider quoi manger.</p>
-      </article>
-      <article class="lp-feature">
-        <div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></div>
-        <h3>Calories &amp; macros calculées</h3><p>Ton métabolisme, ton rythme, ta cible. Tout est suivi automatiquement — fini de compter dans ta tête.</p>
-      </article>
-      <article class="lp-feature">
-        <div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-4.5-7-10a7 7 0 0 1 14 0c0 5.5-7 10-7 10Z"/><path d="M9.5 11.5 11.5 13.5 15 10"/></svg></div>
-        <h3>Adapté à tes goûts</h3><p>L'app retient ce que tu aimes, tes allergies et ce que tu n'aimes pas — et remplace en un geste.</p>
-      </article>
-      <article class="lp-feature is-human">
-        <div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5A3.5 3.5 0 0 0 12.5 15h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M18.5 13.5 20 15l2.5-3"/></svg></div>
-        <h3>Un coach humain</h3><p>Pas seulement une IA : un vrai coach qui te connaît, te suit en studio et te répond quand tu en as besoin.</p>
-        <span class="tag">La vraie différence</span>
-      </article>
-      <article class="lp-feature">
-        <div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M8 16l3.5-4 3 2.5L20 8"/></svg></div>
-        <h3>Progression visualisée</h3><p>Poids, mesures et photos : tu vois ton évolution, semaine après semaine, sans y penser.</p>
-      </article>
-      <article class="lp-feature">
-        <div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="m9 15 2 2 4-4"/></svg></div>
-        <h3>Réservation &amp; présence</h3><p>Réserve ta séance en studio et valide ta présence directement depuis l'app.</p>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ===================== L'APP EN ACTION (sombre) ===================== -->
-<section class="lp-section lp-action" id="lp-app" aria-labelledby="lp-app-title">
-  <div class="lp-wrap">
-    <div class="lp-head lp-reveal">
-      <span class="lp-eyebrow lp-eyebrow--onnavy">L'app en action</span>
-      <h2 class="lp-h2" id="lp-app-title">Tout au même endroit.</h2>
-      <p class="lp-lead">De tes menus à ta progression, l'app centralise ton quotidien — et garde le lien avec ton coach.</p>
-    </div>
-    <div class="lp-cards lp-reveal">
-      <div class="lp-card">
-        <div class="lp-card__h"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v8a3 3 0 0 0 3 3v7M5 3v4M8 3v4M19 3c-1.5 1-2.5 3-2.5 6 0 2 .5 3 2.5 3v9"/></svg>Menus du jour</div>
-        <div class="lp-row">Petit-déjeuner<span class="kc">387 kcal</span></div>
-        <div class="lp-row">Déjeuner<span class="kc">542 kcal</span></div>
-        <div class="lp-row">Dîner<span class="kc">498 kcal</span></div>
-        <div class="lp-row">Collation<span class="kc">210 kcal</span></div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card__h"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>Mon programme</div>
-        <div class="lp-mini-cal"><div class="v">2 100</div><div class="k">kcal / jour</div></div>
-        <div class="lp-macros"><div><div class="mv">157g</div><div class="mk">Prot.</div></div><div><div class="mv">236g</div><div class="mk">Gluc.</div></div><div><div class="mv">58g</div><div class="mk">Lip.</div></div></div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card__h"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.5 3h2l2.2 12a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L21 7H6"/></svg>Liste de courses</div>
-        <div class="lp-row"><span class="ck">✓</span>Filet de poulet<span class="kc">400 g</span></div>
-        <div class="lp-row"><span class="ck">✓</span>Riz complet<span class="kc">200 g</span></div>
-        <div class="lp-row">Saumon<span class="kc">300 g</span></div>
-        <div class="lp-row">Brocoli<span class="kc">250 g</span></div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card__h"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A2.5 2.5 0 0 1 17.5 18H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5Z"/></svg>Mon coach</div>
-        <div class="lp-bubble them">Tu as atteint 60 % de tes calories. Continue comme ça !</div>
-        <div class="lp-bubble me">J'ai moins faim ce soir.</div>
-        <div class="lp-bubble them">Normal en phase d'adaptation — je réduis légèrement le dîner.</div>
-      </div>
-    </div>
-    <p class="lp-lead lp-reveal" style="margin-top:clamp(36px,5vw,52px);font-size:clamp(1.15rem,2vw,1.5rem);color:#fff;font-weight:700;max-width:24ch">L'app te facilite le quotidien. Ce qui te fait avancer, <span style="color:#7fa2ff">c'est ton coach.</span></p>
-  </div>
-</section>
-
-<!-- ===================== COMMENT ÇA MARCHE ===================== -->
-<section class="lp-section" id="lp-steps" aria-labelledby="lp-steps-title" style="background:var(--white)">
-  <div class="lp-wrap">
-    <div class="lp-head lp-reveal">
-      <span class="lp-eyebrow">Comment ça marche</span>
-      <h2 class="lp-h2" id="lp-steps-title">Lancé en 5 minutes.</h2>
-    </div>
-    <div class="lp-steps lp-reveal">
-      <div class="lp-step"><div class="lp-step__n">01</div><h3>Ton bilan de départ</h3><p>Objectif, habitudes, goûts, contraintes : on cerne d'où tu pars, en studio ou en ligne.</p></div>
-      <div class="lp-step"><div class="lp-step__n">02</div><h3>Ton plan est généré</h3><p>Menus, calories et macros calibrés pour toi. Ton coach valide et personnalise.</p></div>
-      <div class="lp-step"><div class="lp-step__n">03</div><h3>Tu es suivi·e</h3><p>Séances, ajustements réguliers et l'app au quotidien. On avance ensemble.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- ===================== LA DIFFÉRENCE (comparatif original) ===================== -->
-<section class="lp-section lp-diff" id="lp-diff" aria-labelledby="lp-diff-title">
-  <div class="lp-wrap">
-    <div class="lp-head lp-reveal">
-      <span class="lp-eyebrow">La différence</span>
-      <h2 class="lp-h2" id="lp-diff-title">Une appli te donne des outils.<br><span>My Coach te donne quelqu'un.</span></h2>
-    </div>
-    <div class="lp-compare lp-reveal">
-      <div class="lp-col lp-col--them">
-        <div class="lp-col__h">Une appli seule</div>
-        <ul>
-          <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Tu te débrouilles seul·e quand ça coince</li>
-          <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Personne ne remarque si tu décroches</li>
-          <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Le même plan pour tout le monde</li>
-          <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>La motivation retombe au bout de 2 semaines</li>
-        </ul>
-      </div>
-      <div class="lp-col lp-col--us">
-        <div class="lp-col__h">My Coach Nutrition</div>
-        <ul>
-          <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><b>Un coach dédié qui te connaît et te suit</b></li>
-          <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><b>Des séances en studio à Lille &amp; Neuilly</b></li>
-          <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><b>Un plan ajusté avec toi, semaine après semaine</b></li>
-          <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><b>Quelqu'un qui te relance et te motive</b></li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===================== RÉSULTATS (placeholders — rien inventé) ===================== -->
-<section class="lp-section lp-results" id="lp-results" aria-labelledby="lp-res-title">
-  <div class="lp-wrap">
-    <div class="lp-head lp-head--center lp-reveal">
-      <span class="lp-eyebrow">Les résultats</span>
-      <h2 class="lp-h2" id="lp-res-title">Des transformations réelles, mesurées avec toi.</h2>
-    </div>
-    <div class="lp-stats lp-reveal">
-      <div class="lp-stat"><div class="v">00</div><div class="l">Libellé du chiffre clé n°1</div><div><span class="lp-todo">à compléter</span></div></div>
-      <div class="lp-stat"><div class="v">00</div><div class="l">Libellé du chiffre clé n°2</div><div><span class="lp-todo">à compléter</span></div></div>
-      <div class="lp-stat"><div class="v">00</div><div class="l">Libellé du chiffre clé n°3</div><div><span class="lp-todo">à compléter</span></div></div>
-    </div>
-    <div class="lp-testis lp-reveal">
-      <article class="lp-testi"><div class="stars">★★★★★</div><blockquote>Témoignage client n°1 — à compléter avec un vrai retour.</blockquote><div class="who"><span class="a" aria-hidden="true"></span><span><b>Prénom — à compléter</b><span>Studio Lille · à compléter</span></span></div></article>
-      <article class="lp-testi"><div class="stars">★★★★★</div><blockquote>Témoignage client n°2 — à compléter avec un vrai retour.</blockquote><div class="who"><span class="a" aria-hidden="true"></span><span><b>Prénom — à compléter</b><span>Studio Neuilly · à compléter</span></span></div></article>
-      <article class="lp-testi"><div class="stars">★★★★★</div><blockquote>Témoignage client n°3 — à compléter avec un vrai retour.</blockquote><div class="who"><span class="a" aria-hidden="true"></span><span><b>Prénom — à compléter</b><span>Studio · à compléter</span></span></div></article>
-    </div>
-  </div>
-</section>
-
-<!-- ===================== CTA FINAL ===================== -->
-<section class="lp-section lp-final" aria-labelledby="lp-final-title">
-  <div class="lp-wrap">
-    <div class="lp-final__box lp-reveal">
-      <h2 id="lp-final-title">Prêt·e à être vraiment suivi·e ?</h2>
-      <p>Crée ton espace, réponds à quelques questions et reçois ton plan. Ton coach fait le reste.</p>
-      <a class="lp-btn lp-btn--primary lp-btn--lg" href="#" data-cta="start">Commencer mon plan</a>
-      <p class="lp-hero__re"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Configuration en 5 minutes · Sans engagement.</p>
-    </div>
-  </div>
-</section>
-</main>
-
-<!-- ===================== FOOTER ===================== -->
-<footer class="lp-footer" aria-labelledby="lp-foot-title">
-  <h2 id="lp-foot-title" class="lp-skip">Pied de page</h2>
-  <div class="lp-wrap">
-    <div class="lp-footer__top">
-      <div>
-        <a class="lp-brand" href="#lp-top" aria-label="My Coach Ginkgo — haut de page">
-          <img class="lp-brand__logo" src="logo-mycoach-blanc.png" alt="My Coach Ginkgo" width="1500" height="750" />
-        </a>
-        <p class="lp-footer__st" style="margin-top:14px"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5-6.5-10a6.5 6.5 0 0 1 13 0c0 5-6.5 10-6.5 10Z"/><circle cx="12" cy="11" r="2.4"/></svg>Studios à Lille &amp; Neuilly-sur-Seine</p>
-      </div>
-      <nav class="lp-footer__right" aria-label="Liens de pied de page">
-        <ul class="lp-footer__nav">
-          <li><a href="#lp-why">Pourquoi</a></li>
-          <li><a href="#lp-app">L'app</a></li>
-          <li><a href="#lp-steps">Comment ça marche</a></li>
-          <li><a href="#lp-diff">La différence</a></li>
-        </ul>
-      </nav>
-    </div>
-    <div class="lp-footer__bot">
-      <span>© 2026 My Coach Nutrition. Tous droits réservés.</span>
-      <a href="#" data-cta="login">Se connecter</a>
-    </div>
-  </div>
-</footer>
-</div>
 
 <script>
 /* JS minimal : header collé, menu mobile, révélation au scroll.
