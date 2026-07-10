@@ -37,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=103" />
+  <link rel="stylesheet" href="style.css?v=104" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=100" />
   <script>
@@ -831,12 +831,11 @@
 
       <!-- Barre de navigation basse (mobile) / latérale (desktop) -->
       <nav id="bottom-nav" class="bottom-nav" aria-label="Navigation principale">
+        <!-- Barre mobile : 5 onglets max (norme). Compléments + Ebooks sont rangés dans le Profil. -->
         <button type="button" class="nav-i on" data-tab="plan"><svg class="ic"><use href="#ic-calendar"/></svg><span>Plan</span></button>
-        <button type="button" class="nav-i" data-tab="complements"><svg class="ic"><use href="#ic-pill"/></svg><span>Compléments</span></button>
         <button type="button" class="nav-i" data-tab="courses"><svg class="ic"><use href="#ic-cart"/></svg><span>Courses</span></button>
         <button type="button" class="nav-i hidden" id="navParcours" data-tab="parcours"><svg class="ic"><use href="#ic-flame"/></svg><span>Parcours</span></button>
         <button type="button" class="nav-i hidden" id="navCommunaute" data-tab="communaute"><svg class="ic"><use href="#ic-users"/></svg><span>Communauté</span></button>
-        <button type="button" class="nav-i hidden" id="navEbooks" data-tab="ebooks"><svg class="ic"><use href="#ic-book"/></svg><span>Ebooks</span></button>
         <button type="button" class="nav-i" data-tab="profil"><svg class="ic"><use href="#ic-user"/></svg><span>Profil</span><span class="nav-dot" id="navProfilDot" style="display:none"></span></button>
         <button type="button" class="nav-i nav-logout hidden" id="navLogout"><svg class="ic"><use href="#ic-logout"/></svg><span>Se déconnecter</span></button>
       </nav>

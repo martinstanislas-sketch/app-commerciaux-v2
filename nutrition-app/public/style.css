@@ -2141,7 +2141,7 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .bottom-nav .nav-i { position: relative; }
 .bottom-nav .nav-i .ic { width: 22px; height: 22px; flex: 0 0 auto; }
 /* Le libellé ne pousse jamais la barre au-delà de l'écran : il se partage la largeur
-   et s'ellipse si nécessaire (évite que « Profil » soit coupé quand il y a 7 onglets). */
+   et s'ellipse si nécessaire (filet de sécurité). */
 .bottom-nav .nav-i span:not(.nav-dot) { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
 /* « Se déconnecter » : jamais dans la barre du bas mobile (réservé à la sidebar desktop) */
 .bottom-nav .nav-i.nav-logout { display: none; }
@@ -2151,16 +2151,16 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .bottom-nav .nav-i.on { color: var(--mc-blue); }
 .bottom-nav .nav-i:hover { color: var(--ink-2); }
 .bottom-nav .nav-i.on:hover { color: var(--mc-blue); }
-/* Barre du bas resserrée sur mobile pour que les 7 onglets tiennent sans coupe.
+/* Barre du bas mobile : 5 onglets max -> libellés confortables (plus de coupe).
    (Placé APRÈS les règles de base pour gagner en ordre de cascade.) */
 @media (max-width: 640px) {
-  .bottom-nav { padding: 7px 2px calc(7px + env(safe-area-inset-bottom)); }
-  .bottom-nav .nav-i { font-size: 9.5px; padding: 5px 1px; gap: 2px; max-width: none; }
-  .bottom-nav .nav-i .ic { width: 20px; height: 20px; }
+  .bottom-nav { padding: 7px 4px calc(7px + env(safe-area-inset-bottom)); }
+  .bottom-nav .nav-i { font-size: 10.5px; padding: 5px 2px; gap: 3px; max-width: none; }
+  .bottom-nav .nav-i .ic { width: 22px; height: 22px; }
 }
-@media (max-width: 380px) {
-  .bottom-nav .nav-i { font-size: 9px; }
-  .bottom-nav .nav-i .ic { width: 19px; height: 19px; }
+@media (max-width: 360px) {
+  .bottom-nav .nav-i { font-size: 10px; }
+  .bottom-nav .nav-i .ic { width: 21px; height: 21px; }
 }
 
 /* Bouton SOS coach remonte au-dessus de la barre */
