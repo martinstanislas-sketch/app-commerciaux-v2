@@ -560,8 +560,8 @@ function renderNeeds() {
   card.innerHTML = `
     <div class="pt-top">
       <div class="pt-titles">
-        ${prenom ? `<p class="pt-kicker">Le programme de ${escapeHtml(prenom)}</p>` : ''}
-        <div class="pt-titlerow"><span class="pt-headic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2 class="pt-title">${objLabels[state.profil.objectif] || 'Ton objectif'}</h2></div>
+        ${prenom ? `<p class="pt-kicker">Bonjour ${escapeHtml(prenom)}</p>` : ''}
+        <div class="pt-titlerow"><span class="pt-headic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2 class="pt-title">${objLabels[state.profil.objectif] || 'Mon plan'}</h2></div>
       </div>
       ${dayTag}
     </div>
