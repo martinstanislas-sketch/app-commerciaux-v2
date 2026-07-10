@@ -5218,14 +5218,20 @@ async function generateInvite() {
 function showInviteResult(d) {
   const r = $('#inviteResult'); if (!r) return;
   r.classList.remove('hidden');
-  let status = '';
-  if (d.email) {
-    if (d.emailSent) status = '<p class="invite-status ok">📧 Email d’invitation envoyé à <b>' + escapeHtml(d.email) + '</b>.</p>';
-    else status = '<p class="invite-status warn">✉️ Email non envoyé (' + (d.emailError === 'smtp' ? 'envoi email non configuré sur le serveur' : 'erreur d’envoi') + '). Copie le lien ci-dessous et envoie-le toi-même.' + (d.emailErrorMsg ? '<br><span class="invite-errdetail">Détail : ' + escapeHtml(d.emailErrorMsg) + '</span>' : '') + '</p>';
-  }
-  r.innerHTML = status +
+  // Message prêt à partager (WhatsApp / email) — envoyé depuis le compte du coach.
+  const prenom = d.prenom ? (d.prenom + ', ') : '';
+  const shareMsg = prenom + 'voici ton invitation pour créer ton espace My Coach Nutrition 🌱\n\n' + d.url + '\n\nTu choisiras un code PIN à la première connexion. Lien valable 21 jours.';
+  const wa = 'https://wa.me/?text=' + encodeURIComponent(shareMsg);
+  const mailto = 'mailto:' + (d.email || '') + '?subject=' + encodeURIComponent('Ton invitation My Coach Nutrition') + '&body=' + encodeURIComponent(shareMsg);
+  // Bannière verte seulement si un email a réellement été envoyé (Brevo configuré).
+  const sent = (d.email && d.emailSent) ? '<p class="invite-status ok">📧 Email envoyé automatiquement à <b>' + escapeHtml(d.email) + '</b>.</p>' : '';
+  r.innerHTML = sent +
+    '<div class="invite-share">' +
+      '<a class="invite-share-btn wa" href="' + escapeHtml(wa) + '" target="_blank" rel="noopener">' + icSvg('message') + ' Envoyer par WhatsApp</a>' +
+      (d.email ? '<a class="invite-share-btn mail" href="' + escapeHtml(mailto) + '">' + icSvg('send') + ' Envoyer par email</a>' : '') +
+    '</div>' +
     '<div class="invite-link-row"><input class="invite-link" id="invLinkOut" readonly value="' + escapeHtml(d.url) + '"><button type="button" class="pc-btn" id="invCopy">Copier</button></div>' +
-    '<p class="invite-hint">Lien valable 21 jours' + (d.email ? (' · lié à <b>' + escapeHtml(d.email) + '</b>') : '') + '. Tu peux aussi l’envoyer par WhatsApp/SMS.</p>';
+    '<p class="invite-hint">Lien valable 21 jours' + (d.email ? (' · lié à <b>' + escapeHtml(d.email) + '</b>') : '') + '. Il part depuis ton compte (WhatsApp / email).</p>';
   const c = $('#invCopy'); if (c) c.addEventListener('click', () => copyInviteLink(d.url, c));
   const out = $('#invLinkOut'); if (out && out.select) out.select();
 }

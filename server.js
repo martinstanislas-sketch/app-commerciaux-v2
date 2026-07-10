@@ -2180,19 +2180,20 @@ try {
       const url = base + '/nutrition/?inv=' + token;
       // Envoi automatique de l'email si un destinataire est fourni ET que le SMTP est
       // configuré. Sinon on renvoie quand même le lien (le coach le copie/partage).
+      // Auto-envoi de l'email UNIQUEMENT via l'API HTTPS Brevo (le SMTP est bloqué sur
+      // Railway et ferait « pendre » la requête ~12 s). Sans Brevo, le coach partage le
+      // lien lui-même (boutons WhatsApp / Email côté client) -> réponse instantanée.
       let emailSent = false, emailError = '', emailErrorMsg = '';
-      if (email) {
+      if (email && process.env.BREVO_API_KEY) {
         try {
           const content = inviteEmailContent(coachName, url, prenom);
-          // Priorité à l'API HTTPS Brevo (contourne le blocage SMTP de Railway).
-          if (process.env.BREVO_API_KEY) await sendViaBrevo({ to: email, subject: content.subject, html: content.html, text: content.text });
-          else await sendEmail({ to: email, subject: content.subject, html: content.html, text: content.text });
+          await sendViaBrevo({ to: email, subject: content.subject, html: content.html, text: content.text });
           emailSent = true;
         } catch (e) {
           const msg = String((e && e.message) || '');
-          emailError = /non configur/i.test(msg) ? 'smtp' : 'send';
-          emailErrorMsg = msg.slice(0, 220); // message brut Gmail/SMTP pour diagnostic
-          console.warn('Invitation email non envoyé :', msg);
+          emailError = 'send';
+          emailErrorMsg = msg.slice(0, 220);
+          console.warn('Invitation email (Brevo) non envoyé :', msg);
         }
       }
       res.json({ ok: true, token, url, email, prenom, nom, expiresAt: expires, emailSent, emailError, emailErrorMsg });
