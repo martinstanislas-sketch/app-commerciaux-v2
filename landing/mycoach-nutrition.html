@@ -67,6 +67,9 @@
 .lp-brand__txt span{color:var(--blue)}
 .lp-brand--light .lp-brand__txt{color:#fff}
 .lp-brand--light .lp-brand__txt span{color:#7fa2ff}
+.lp-brand .lp-brand__logo{height:40px;width:auto;display:block}
+.lp-header.is-stuck .lp-brand .lp-brand__logo{filter:brightness(0)}
+@media (max-width:600px){.lp-brand .lp-brand__logo{height:32px}}
 
 /* ============================ BOUTONS ============================ */
 .lp-btn{--pad:.9em 1.5em;display:inline-flex;align-items:center;justify-content:center;gap:.5em;
@@ -85,7 +88,7 @@
 /* ============================ HEADER ============================ */
 .lp-header{position:fixed;inset:0 0 auto 0;z-index:100;transition:background-color .3s var(--ease),box-shadow .3s,border-color .3s;border-bottom:1px solid transparent}
 .lp-header__bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:72px;padding-block:12px}
-.lp-header.is-stuck{background:color-mix(in srgb,var(--cream) 90%,transparent);backdrop-filter:blur(12px);border-bottom-color:var(--line);box-shadow:0 6px 24px -20px rgba(9,20,48,.5)}
+.lp-header.is-stuck{background:rgba(247,245,241,.92);background:color-mix(in srgb,var(--cream) 92%,transparent);backdrop-filter:blur(12px);border-bottom-color:var(--line);box-shadow:0 6px 24px -20px rgba(9,20,48,.5)}
 .lp-header.is-stuck .lp-nav a,.lp-header.is-stuck .lp-login{color:var(--ink)}
 .lp-header.is-stuck .lp-brand__txt{color:var(--ink)}
 .lp-header.is-stuck .lp-brand__txt span{color:var(--blue)}
@@ -288,9 +291,8 @@
 <!-- ===================== HEADER ===================== -->
 <header class="lp-header" id="lp-header">
   <div class="lp-wrap lp-header__bar">
-    <a class="lp-brand lp-brand--light" href="#lp-top" aria-label="My Coach Nutrition — accueil">
-      <span class="lp-brand__mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></span>
-      <span class="lp-brand__txt">My Coach <span>Nutrition</span></span>
+    <a class="lp-brand" href="#lp-top" aria-label="My Coach Ginkgo — accueil">
+      <img class="lp-brand__logo" src="logo-mycoach-blanc.png" alt="My Coach Ginkgo" width="1500" height="750" />
     </a>
     <nav class="lp-nav" aria-label="Navigation principale">
       <a href="#lp-why">Pourquoi</a>
@@ -522,9 +524,8 @@
   <div class="lp-wrap">
     <div class="lp-footer__top">
       <div>
-        <a class="lp-brand lp-brand--light" href="#lp-top" aria-label="My Coach Nutrition — haut de page">
-          <span class="lp-brand__mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></span>
-          <span class="lp-brand__txt">My Coach <span>Nutrition</span></span>
+        <a class="lp-brand" href="#lp-top" aria-label="My Coach Ginkgo — haut de page">
+          <img class="lp-brand__logo" src="logo-mycoach-blanc.png" alt="My Coach Ginkgo" width="1500" height="750" />
         </a>
         <p class="lp-footer__st" style="margin-top:14px"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5-6.5-10a6.5 6.5 0 0 1 13 0c0 5-6.5 10-6.5 10Z"/><circle cx="12" cy="11" r="2.4"/></svg>Studios à Lille &amp; Neuilly-sur-Seine</p>
       </div>
