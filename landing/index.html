@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Coach by Ginkgo — Tu es réellement suivi · Lille & Neuilly</title>
+<meta name="description" content="Coaching sportif & nutrition à Lille et Neuilly-sur-Seine. Un coach dédié qui te connaît, te suit et ajuste avec toi — l'app t'accompagne au quotidien." />
+
+<!-- ============================================================================
+     MY COACH BY GINKGO — Landing one-page
+     - Un seul fichier autonome (HTML + CSS + un peu de JS non bloquant).
+     - Palette : beige #f4eee8 · crème #faf7f2 · marine #0f2350 · corail #fa6863.
+     - Typos : Fraunces (serif éditorial, titres + accents italiques) / Inter (corps).
+     - Accessibilité : landmarks sémantiques, focus visibles, contrastes AA,
+       prefers-reduced-motion respecté, images à alt descriptif.
+     - PHOTOS : chaque <figure class="ph"> est un EMPLACEMENT à remplacer par ta
+       vraie photo. Voir la note « REMPLACER » à la fin du <head>.
+     ========================================================================= -->
+
+<!-- Google Fonts (fonctionne sur ton hébergement ; en preview interne les polices
+     peuvent retomber sur une serif/sans système sans casser la mise en page). -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,400..600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<style>
+/* =========================================================================
+   1. TOKENS & RESET
+   ========================================================================= */
+:root{
+  --beige:#f4eee8;
+  --cream:#faf7f2;
+  --marine:#0f2350;
+  --marine-70:#3a4d78;         /* marine adouci pour textes secondaires */
+  --coral:#fa6863;             /* corail de marque : fills, icônes, marques */
+  --coral-ink:#e24a44;         /* corail « texte » accessible (accents en grand) */
+  --coral-deep:#c8433d;        /* corail foncé : hover/focus */
+  --white:#ffffff;
+  --line:#e3d8cc;              /* filets sur fond clair */
+  --line-marine:#2a3d6b;       /* filets sur fond marine */
+
+  --ff-serif:"Fraunces", Georgia, "Times New Roman", serif;
+  --ff-sans:"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --maxw:1200px;
+  --gutter:clamp(20px, 5vw, 64px);
+  --radius:18px;
+  --shadow:0 24px 60px -28px rgba(15,35,80,.45);
+  --shadow-sm:0 12px 30px -18px rgba(15,35,80,.4);
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;
+  font-family:var(--ff-sans);
+  color:var(--marine);
+  background:var(--cream);
+  font-size:clamp(16px,1.05vw,17px);
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit}
+h1,h2,h3{margin:0;font-family:var(--ff-serif);font-weight:500;line-height:1.05;letter-spacing:-.01em}
+p{margin:0}
+em{font-style:italic}
+
+/* Accès clavier : anneau de focus net et cohérent */
+:focus-visible{outline:3px solid var(--coral-deep);outline-offset:3px;border-radius:4px}
+
+/* Lien d'évitement */
+.skip{position:absolute;left:-9999px;top:0;background:var(--marine);color:var(--white);
+  padding:12px 18px;border-radius:0 0 10px 0;z-index:200;font-weight:600}
+.skip:focus{left:0}
+
+/* Utilitaires de layout */
+.wrap{max-width:var(--maxw);margin-inline:auto;padding-inline:var(--gutter)}
+.section{padding-block:clamp(64px,9vw,128px)}
+.eyebrow{font-family:var(--ff-sans);font-weight:600;font-size:.8rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--coral-ink);display:inline-flex;align-items:center;gap:.6em}
+.eyebrow--light{color:var(--coral)}
+.lead{font-size:clamp(1.05rem,1.6vw,1.28rem);line-height:1.6;color:var(--marine-70);max-width:52ch}
+
+/* Icônes fines corail */
+.ico{width:24px;height:24px;flex:0 0 auto;stroke:var(--coral);fill:none;
+  stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.ico--sm{width:18px;height:18px}
+
+/* =========================================================================
+   2. LOGO / MARQUE
+   ========================================================================= */
+.brand{display:inline-flex;align-items:center;gap:.55rem;text-decoration:none;color:inherit}
+.brand__mark{width:30px;height:30px;stroke:var(--coral);fill:none;stroke-width:1.6}
+.brand__txt{font-family:var(--ff-sans);line-height:1;letter-spacing:.02em}
+.brand__txt b{display:block;font-weight:700;font-size:1.02rem;letter-spacing:.14em}
+.brand__txt span{display:block;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;
+  color:var(--marine-70);font-weight:600}
+.brand--light .brand__txt span{color:#b9c3da}
+
+/* =========================================================================
+   3. BOUTONS
+   ========================================================================= */
+.btn{
+  --btn-pad:.95em 1.5em;
+  display:inline-flex;align-items:center;justify-content:center;gap:.55em;
+  font-family:var(--ff-sans);font-weight:600;font-size:1rem;line-height:1;
+  padding:var(--btn-pad);border-radius:999px;border:1.5px solid transparent;
+  text-decoration:none;cursor:pointer;transition:transform .2s var(--ease),
+  background-color .2s var(--ease),color .2s var(--ease),border-color .2s var(--ease),box-shadow .2s var(--ease);
+  white-space:nowrap;
+}
+.btn:hover{transform:translateY(-2px)}
+.btn:active{transform:translateY(0)}
+/* Primaire corail — TEXTE MARINE (corail #fa6863 + marine = 5.2:1, conforme AA ;
+   le blanc sur corail échouerait au contraste, choix assumé et accessible). */
+.btn--coral{background:var(--coral);color:var(--marine);box-shadow:var(--shadow-sm)}
+.btn--coral:hover{background:var(--coral-deep);color:var(--white)}
+/* Secondaire : contour marine sur fond clair */
+.btn--ghost{background:transparent;color:var(--marine);border-color:var(--marine)}
+.btn--ghost:hover{background:var(--marine);color:var(--cream)}
+/* Sur fond marine */
+.btn--ghost-light{background:transparent;color:var(--cream);border-color:#6076a6}
+.btn--ghost-light:hover{background:var(--cream);color:var(--marine);border-color:var(--cream)}
+.btn--lg{font-size:1.06rem;--btn-pad:1.1em 1.9em}
+
+/* =========================================================================
+   4. HEADER
+   ========================================================================= */
+.header{position:fixed;inset:0 0 auto 0;z-index:100;transition:background-color .3s var(--ease),
+  box-shadow .3s var(--ease),border-color .3s var(--ease);border-bottom:1px solid transparent}
+.header__bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  min-height:74px;padding-block:12px}
+.header.is-stuck{background:color-mix(in srgb,var(--cream) 88%,transparent);
+  backdrop-filter:blur(12px);border-bottom-color:var(--line);box-shadow:0 6px 24px -20px rgba(15,35,80,.5)}
+.nav{display:none}
+.nav a{text-decoration:none;font-weight:500;color:var(--marine);font-size:.98rem;
+  padding:.4em .2em;position:relative}
+.nav a::after{content:"";position:absolute;left:0;right:100%;bottom:.05em;height:1.5px;
+  background:var(--coral);transition:right .25s var(--ease)}
+.nav a:hover::after,.nav a:focus-visible::after{right:0}
+.header__actions{display:flex;align-items:center;gap:.4rem}
+.header__login{display:none;text-decoration:none;font-weight:500;color:var(--marine);padding:.5em .8em}
+.header__login:hover{color:var(--coral-ink)}
+
+/* Menu mobile */
+.burger{display:inline-flex;flex-direction:column;gap:5px;background:none;border:0;
+  padding:10px;cursor:pointer;margin-left:.2rem}
+.burger span{width:24px;height:2px;background:var(--marine);border-radius:2px;transition:.25s var(--ease)}
+.burger[aria-expanded="true"] span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.burger[aria-expanded="true"] span:nth-child(2){opacity:0}
+.burger[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.mobile-nav{position:fixed;inset:74px 0 auto 0;background:var(--cream);border-bottom:1px solid var(--line);
+  transform:translateY(-12px);opacity:0;visibility:hidden;transition:.28s var(--ease);z-index:99;
+  box-shadow:var(--shadow-sm)}
+.mobile-nav.open{transform:none;opacity:1;visibility:visible}
+.mobile-nav ul{list-style:none;margin:0;padding:14px var(--gutter) 24px;display:grid;gap:2px}
+.mobile-nav a{display:block;text-decoration:none;font-family:var(--ff-serif);font-size:1.4rem;
+  color:var(--marine);padding:.55em 0;border-bottom:1px solid var(--line)}
+.mobile-nav .btn{margin-top:14px;width:100%}
+
+@media (min-width:960px){
+  .burger{display:none}
+  .nav{display:flex;gap:1.6rem}
+  .header__login{display:inline-flex}
+}
+
+/* =========================================================================
+   5. EMPLACEMENTS PHOTO (à remplacer)
+   ========================================================================= */
+/* .ph = cadre d'image. Remplace le contenu par : <img src="…" alt="…" />.
+   Les figures se recadrent en cover et peuvent se superposer. */
+.ph{position:relative;margin:0;border-radius:var(--radius);overflow:hidden;
+  background:
+    linear-gradient(135deg,#efe6db,#e7dccd);
+  border:1px solid var(--line);box-shadow:var(--shadow-sm);isolation:isolate}
+.ph::after{content:attr(data-label);position:absolute;inset:auto 12px 12px 12px;
+  font-family:var(--ff-sans);font-size:.72rem;font-weight:600;letter-spacing:.02em;
+  color:var(--marine);background:color-mix(in srgb,var(--cream) 82%,transparent);
+  padding:.5em .7em;border-radius:9px;line-height:1.35;backdrop-filter:blur(3px);
+  border:1px solid var(--line)}
+.ph > img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ph--marine{background:linear-gradient(135deg,#16295a,#0d1c40);border-color:var(--line-marine)}
+.ph--marine::after{color:var(--cream);background:color-mix(in srgb,var(--marine) 70%,transparent);
+  border-color:var(--line-marine)}
+/* petite pastille corail décorative pour l'ambiance éditoriale */
+.ph::before{content:"";position:absolute;z-index:1;top:14px;right:14px;width:34px;height:34px;
+  border:1.5px solid var(--coral);border-radius:50%;opacity:.85}
+.ph--noflag::before{display:none}
+
+/* =========================================================================
+   6. HÉROS
+   ========================================================================= */
+.hero{position:relative;background:
+    radial-gradient(120% 90% at 85% -10%, #ffffff 0%, rgba(255,255,255,0) 55%),
+    linear-gradient(160deg,var(--beige) 0%, var(--cream) 100%);
+  padding-top:clamp(110px,15vw,150px);padding-bottom:clamp(56px,8vw,110px);overflow:hidden}
+.hero__grid{display:grid;gap:clamp(40px,6vw,64px);align-items:center}
+.hero__title{font-size:clamp(2.6rem,7vw,5rem);line-height:.98;margin:.35em 0 .5em}
+.hero__title em{font-style:italic;color:var(--coral-ink)}
+.hero__sub{max-width:46ch}
+.hero__ctas{display:flex;flex-wrap:wrap;gap:.8rem;margin:2rem 0 1.3rem}
+.reassure{display:flex;align-items:center;gap:.6em;font-size:.92rem;color:var(--marine-70)}
+.reassure svg{stroke:var(--coral)}
+
+/* Composition photo asymétrique (2 images superposées + badge) */
+.hero__media{position:relative;min-height:clamp(320px,52vw,540px)}
+.hero__media .ph-a{position:relative;width:78%;margin-left:auto;aspect-ratio:4/5}
+.hero__media .ph-b{position:absolute;left:0;bottom:6%;width:52%;aspect-ratio:1/1;
+  border:5px solid var(--cream)}
+.hero__badge{position:absolute;z-index:3;left:6%;top:4%;background:var(--marine);color:var(--cream);
+  border-radius:16px;padding:14px 18px;box-shadow:var(--shadow);min-width:132px}
+.hero__badge .num{font-family:var(--ff-serif);font-size:2.1rem;line-height:1;display:block}
+.hero__badge .lbl{font-size:.72rem;letter-spacing:.02em;color:#c3cde3;margin-top:.35em;display:block}
+.hero__badge .todo{color:var(--coral);font-weight:600}
+
+@media (min-width:900px){
+  .hero__grid{grid-template-columns:1.04fr .96fr}
+}
+
+/* =========================================================================
+   7. LE POINT DE DÉPART
+   ========================================================================= */
+.depart{background:var(--beige)}
+.depart__grid{display:grid;gap:clamp(36px,5vw,64px);align-items:center}
+.depart__title{font-size:clamp(2rem,4.6vw,3.3rem);margin-bottom:.5em;max-width:16ch}
+.quote{margin:1.8rem 0 0;padding-left:1.3rem;border-left:2px solid var(--coral);
+  font-family:var(--ff-serif);font-style:italic;font-size:clamp(1.15rem,2vw,1.5rem);
+  line-height:1.35;color:var(--marine)}
+.depart__media .ph{aspect-ratio:5/6}
+@media (min-width:900px){
+  .depart__grid{grid-template-columns:.92fr 1.08fr}
+  .depart__media{order:2}
+}
+
+/* =========================================================================
+   8. L'ACCOMPAGNEMENT (3 moments alternés)
+   ========================================================================= */
+.accompagnement .section__head{max-width:24ch;margin-bottom:clamp(40px,6vw,72px)}
+.accompagnement__title{font-size:clamp(2rem,4.8vw,3.4rem);margin-top:.35em}
+.moment{display:grid;gap:clamp(28px,4vw,60px);align-items:center;padding-block:clamp(30px,4vw,48px)}
+.moment + .moment{border-top:1px solid var(--line)}
+.moment__index{font-family:var(--ff-serif);font-size:clamp(3rem,6vw,4.6rem);line-height:.8;
+  color:var(--coral);opacity:.9}
+.moment__kicker{display:flex;align-items:center;gap:.6em;margin:.6em 0 .5em}
+.moment__kicker .ico{width:20px;height:20px}
+.moment__kicker span{font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:.78rem;color:var(--marine-70)}
+.moment__h{font-size:clamp(1.5rem,3vw,2.15rem);margin-bottom:.4em;max-width:18ch}
+.moment__p{max-width:46ch;color:var(--marine-70)}
+.moment__media .ph{aspect-ratio:4/3}
+@media (min-width:860px){
+  .moment{grid-template-columns:1fr 1fr}
+  .moment:nth-child(even) .moment__media{order:-1}   /* alterne gauche/droite */
+}
+
+/* =========================================================================
+   9. TES OUTILS (fond marine)
+   ========================================================================= */
+.outils{background:var(--marine);color:var(--cream)}
+.outils .eyebrow{color:var(--coral)}
+.outils__title{color:var(--cream);font-size:clamp(2rem,4.6vw,3.3rem);max-width:20ch;margin-top:.35em}
+.outils__intro{color:#c3cde3;max-width:52ch;margin-top:1rem}
+.outils__grid{display:grid;gap:clamp(40px,5vw,64px);margin-top:clamp(40px,6vw,64px);align-items:center}
+.tools{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.tools li{display:grid;grid-template-columns:auto 1fr;gap:1rem;align-items:start;
+  padding:1.1rem 0;border-top:1px solid var(--line-marine)}
+.tools li:last-child{border-bottom:1px solid var(--line-marine)}
+.tools__ic{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;
+  background:rgba(250,104,99,.14);border:1px solid rgba(250,104,99,.4)}
+.tools__ic .ico{width:20px;height:20px}
+.tools h3{font-family:var(--ff-sans);font-weight:600;font-size:1.02rem;color:var(--cream);letter-spacing:0}
+.tools p{color:#a9b5d1;font-size:.92rem;margin-top:.15em}
+.outils__close{margin-top:clamp(40px,6vw,64px);font-family:var(--ff-serif);
+  font-size:clamp(1.3rem,2.6vw,1.9rem);line-height:1.3;max-width:24ch}
+.outils__close em{color:var(--coral);font-style:italic}
+
+/* Aperçu d'app — carte sobre (pas un mockup « téléphone tech ») */
+.appcard{background:var(--cream);color:var(--marine);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden;max-width:420px;margin-inline:auto;width:100%}
+.appcard__top{display:flex;align-items:center;gap:.6rem;padding:14px 18px;border-bottom:1px solid var(--line)}
+.appcard__top .dot{width:9px;height:9px;border-radius:50%;background:var(--coral)}
+.appcard__top b{font-family:var(--ff-sans);font-size:.9rem;letter-spacing:.02em}
+.appcard__top .day{margin-left:auto;font-size:.72rem;color:var(--marine-70);font-weight:600}
+.appcard__body{padding:18px}
+.appcard__meal{display:flex;align-items:center;gap:.8rem;padding:12px;border:1px solid var(--line);
+  border-radius:12px;background:var(--white)}
+.appcard__meal .thumb{width:46px;height:46px;border-radius:9px;background:linear-gradient(135deg,#efe6db,#e6d8c7);flex:0 0 auto}
+.appcard__meal .t{font-weight:600;font-size:.92rem}
+.appcard__meal .s{font-size:.76rem;color:var(--marine-70)}
+.appcard__macros{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.macro{background:var(--white);border:1px solid var(--line);border-radius:11px;padding:10px 12px}
+.macro .k{font-size:.68rem;color:var(--marine-70);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.macro .v{font-family:var(--ff-serif);font-size:1.15rem;margin-top:.1em}
+.macro .bar{height:5px;border-radius:3px;background:var(--line);margin-top:8px;overflow:hidden}
+.macro .bar i{display:block;height:100%;background:var(--coral);border-radius:3px}
+.appcard__row{display:flex;align-items:center;gap:.6rem;margin-top:14px;padding:11px 12px;
+  border:1px solid var(--line);border-radius:11px;background:var(--white);font-size:.86rem}
+.appcard__row .ico{width:18px;height:18px}
+.appcard__row .ok{margin-left:auto;font-weight:600;color:var(--coral-ink);font-size:.8rem}
+@media (min-width:900px){
+  .outils__grid{grid-template-columns:1.05fr .95fr}
+  .outils__grid .appcard-wrap{order:2}
+}
+
+/* =========================================================================
+   10. LES RÉSULTATS
+   ========================================================================= */
+.resultats{background:var(--cream)}
+.resultats__title{font-size:clamp(2rem,4.6vw,3.3rem);max-width:20ch;margin-top:.35em}
+.stats{display:grid;gap:24px;margin:clamp(40px,6vw,64px) 0;grid-template-columns:1fr}
+.stat{background:var(--beige);border:1px solid var(--line);border-radius:var(--radius);padding:28px}
+.stat .num{font-family:var(--ff-serif);font-size:clamp(2.6rem,5vw,3.6rem);line-height:1;color:var(--marine)}
+.stat .num small{color:var(--coral);font-size:.5em;vertical-align:.35em;margin-left:.1em}
+.stat .lbl{margin-top:.5em;color:var(--marine-70);max-width:26ch}
+.badge-todo{display:inline-flex;align-items:center;gap:.4em;margin-top:.9em;font-size:.72rem;
+  font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--coral-ink);
+  background:rgba(226,74,68,.1);border:1px dashed var(--coral);border-radius:999px;padding:.3em .8em}
+
+.beforeafter{display:grid;gap:20px;grid-template-columns:1fr 1fr;margin-bottom:clamp(40px,6vw,64px)}
+.beforeafter .ph{aspect-ratio:3/4}
+.ba-tag{position:absolute;z-index:2;top:12px;left:12px;font-family:var(--ff-sans);font-weight:700;
+  font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--marine);
+  background:var(--cream);padding:.4em .7em;border-radius:8px;border:1px solid var(--line)}
+
+.testis{display:grid;gap:24px;grid-template-columns:1fr}
+.testi{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);
+  padding:28px;box-shadow:var(--shadow-sm)}
+.testi .mark{font-family:var(--ff-serif);font-size:2.4rem;line-height:0;color:var(--coral);display:block;height:.6em}
+.testi blockquote{margin:.4rem 0 1.2rem;font-family:var(--ff-serif);font-size:1.12rem;line-height:1.45;color:var(--marine)}
+.testi__who{display:flex;align-items:center;gap:.7rem}
+.testi__ava{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#efe6db,#e5d7c6);flex:0 0 auto;border:1px solid var(--line)}
+.testi__who b{font-size:.92rem;font-weight:600}
+.testi__who span{font-size:.8rem;color:var(--marine-70);display:block}
+@media (min-width:760px){
+  .stats{grid-template-columns:repeat(3,1fr)}
+  .testis{grid-template-columns:repeat(3,1fr)}
+}
+
+/* =========================================================================
+   11. COMMENT COMMENCER
+   ========================================================================= */
+.commencer{background:var(--beige)}
+.commencer__title{font-size:clamp(2rem,4.8vw,3.4rem);max-width:18ch;margin-top:.35em}
+.steps{display:grid;gap:28px;margin:clamp(40px,6vw,64px) 0;grid-template-columns:1fr;counter-reset:step}
+.step{position:relative;padding-top:22px;border-top:2px solid var(--marine)}
+.step__n{font-family:var(--ff-serif);font-size:2.2rem;color:var(--coral);line-height:1}
+.step h3{font-size:1.3rem;margin:.35em 0 .35em}
+.step p{color:var(--marine-70);max-width:34ch}
+@media (min-width:820px){.steps{grid-template-columns:repeat(3,1fr);gap:40px}}
+
+/* Bloc CTA marine + Golden Ticket */
+.cta-block{background:var(--marine);color:var(--cream);border-radius:calc(var(--radius) + 6px);
+  padding:clamp(32px,5vw,60px);box-shadow:var(--shadow);position:relative;overflow:hidden}
+.cta-block::before{content:"";position:absolute;width:280px;height:280px;border-radius:50%;
+  right:-90px;top:-90px;background:radial-gradient(circle,rgba(250,104,99,.28),transparent 70%)}
+.cta-block__inner{position:relative;display:grid;gap:1.6rem;align-items:center}
+.ticket{display:inline-flex;align-items:center;gap:.6em;align-self:start;font-weight:600;
+  font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--marine);
+  background:linear-gradient(100deg,#f7c877,#fa6863);padding:.6em 1em;border-radius:999px}
+.ticket .ico{stroke:var(--marine);width:17px;height:17px}
+.cta-block h2{font-size:clamp(1.7rem,3.4vw,2.6rem);max-width:16ch}
+.cta-block p{color:#c3cde3;max-width:48ch}
+.cta-block .actions{display:flex;flex-wrap:wrap;gap:.9rem;align-items:center}
+.cta-block .fineprint{font-size:.82rem;color:#9fabca}
+@media (min-width:880px){
+  .cta-block__inner{grid-template-columns:1.2fr .8fr;gap:2.5rem}
+  .cta-block .col-actions{justify-self:end;text-align:right}
+}
+
+/* =========================================================================
+   12. FOOTER
+   ========================================================================= */
+.footer{background:var(--marine);color:#b9c3da;padding-block:clamp(48px,6vw,72px)}
+.footer__top{display:grid;gap:32px;padding-bottom:32px;border-bottom:1px solid var(--line-marine)}
+.footer__studios{display:flex;gap:.6em;align-items:flex-start;color:var(--cream)}
+.footer__studios .ico{stroke:var(--coral);margin-top:2px}
+.footer__nav{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:1.2rem}
+.footer__nav a{text-decoration:none;color:#b9c3da}
+.footer__nav a:hover{color:var(--cream)}
+.footer__bottom{display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;
+  align-items:center;padding-top:24px;font-size:.85rem}
+.footer__bottom a{color:var(--cream);text-decoration:none;font-weight:600}
+.footer__bottom a:hover{color:var(--coral)}
+@media (min-width:820px){
+  .footer__top{grid-template-columns:1.4fr 1fr;align-items:start}
+  .footer__top .footer__right{justify-self:end;text-align:right}
+}
+
+/* =========================================================================
+   13. RÉVÉLATION AU SCROLL (progressive enhancement, coupée si reduced-motion)
+   ========================================================================= */
+@media (prefers-reduced-motion:no-preference){
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+  .reveal.in{opacity:1;transform:none}
+}
+</style>
+</head>
+
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+
+<!-- ===================== HEADER ===================== -->
+<header class="header" id="site-header">
+  <div class="wrap header__bar">
+    <a class="brand" href="#top" aria-label="My Coach Ginkgo — accueil">
+      <!-- feuille de ginkgo stylisée -->
+      <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 21c-4 0-7-2.5-7-6 0-4.5 4-8.5 7-12 3 3.5 7 7.5 7 12 0 3.5-3 6-7 6Z"/>
+        <path d="M12 21V9"/>
+      </svg>
+      <span class="brand__txt"><b>COACH</b><span>my · ginkgo</span></span>
+    </a>
+
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="#accompagnement">L'accompagnement</a>
+      <a href="#app">L'app</a>
+      <a href="#resultats">Résultats</a>
+      <a href="#commencer">Commencer</a>
+    </nav>
+
+    <div class="header__actions">
+      <!-- Pointe « Se connecter » vers ton espace app (ex. /nutrition). -->
+      <a class="header__login" href="#" data-note="lien vers l'espace membre">Se connecter</a>
+      <a class="btn btn--coral" href="#commencer">Commencer</a>
+      <button class="burger" id="burger" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="mobile-nav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="mobile-nav" id="mobile-nav">
+    <ul>
+      <li><a href="#accompagnement">L'accompagnement</a></li>
+      <li><a href="#app">L'app</a></li>
+      <li><a href="#resultats">Résultats</a></li>
+      <li><a href="#commencer">Commencer</a></li>
+      <li><a href="#" data-note="espace membre">Se connecter</a></li>
+      <li><a class="btn btn--coral" href="#commencer">Commencer</a></li>
+    </ul>
+  </div>
+</header>
+
+<main id="main">
+<span id="top"></span>
+
+<!-- ===================== 1. HÉROS ===================== -->
+<section class="hero" aria-labelledby="hero-title">
+  <div class="wrap hero__grid">
+    <div class="hero__copy">
+      <p class="eyebrow"><svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-4 0-7-2.3-7-5.5C5 11.5 8.5 8 12 5c3.5 3 7 6.5 7 10.5 0 3.2-3 5.5-7 5.5Z"/></svg>My Coach by Ginkgo — Lille &amp; Neuilly</p>
+
+      <h1 class="hero__title" id="hero-title">Tu ne suis pas simplement un programme.<br>Tu es <em>réellement suivi.</em></h1>
+
+      <p class="lead hero__sub">Un coach dédié qui te connaît, mesure tes progrès et ajuste avec toi, semaine après semaine. En studio à Lille et Neuilly-sur-Seine — et l'app qui t'accompagne entre deux séances.</p>
+
+      <div class="hero__ctas">
+        <a class="btn btn--coral btn--lg" href="#commencer">Commencer mon accompagnement</a>
+        <a class="btn btn--ghost btn--lg" href="#accompagnement">Voir comment ça marche</a>
+      </div>
+
+      <p class="reassure">
+        <svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        Bilan de départ sans engagement · Un vrai coach, pas un algorithme.
+      </p>
+    </div>
+
+    <!-- Composition photo asymétrique : 2 images superposées + badge marine -->
+    <div class="hero__media">
+      <div class="hero__badge">
+        <span class="num">00</span>
+        <span class="lbl">membres accompagnés<br><span class="todo">à compléter</span></span>
+      </div>
+      <figure class="ph ph-a" data-label="PHOTO — Coaching en studio (cadrage portrait 4:5). Coach + client en séance, lumière chaude.">
+        <!-- REMPLACER : <img src="…" alt="Un coach guide un client pendant une séance en studio."> -->
+      </figure>
+      <figure class="ph ph-b ph--noflag" data-label="PHOTO — Échange coach/client (carré 1:1). Sourire, écoute, proximité.">
+        <!-- REMPLACER : <img src="…" alt="Un coach et une cliente échangent en souriant."> -->
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 2. LE POINT DE DÉPART ===================== -->
+<section class="section depart reveal" aria-labelledby="depart-title">
+  <div class="wrap depart__grid">
+    <div class="depart__copy">
+      <p class="eyebrow">Le point de départ</p>
+      <h2 class="depart__title" id="depart-title">Tu as déjà tout essayé. Seul·e, ça n'a jamais tenu.</h2>
+      <p class="lead">Les applis génériques, les programmes téléchargés, les bonnes résolutions de janvier. Ça démarre fort, puis la vie reprend le dessus. Le problème n'a jamais été ta volonté — c'est de tout porter seul·e, sans personne pour ajuster quand ça coince.</p>
+      <blockquote class="quote">« Ce qui change tout, ce n'est pas un énième plan. C'est quelqu'un qui te suit vraiment. »</blockquote>
+    </div>
+    <div class="depart__media">
+      <figure class="ph" data-label="PHOTO — Démarrage / prise de mesures (cadrage vertical 5:6). Moment sincère : première pesée, mètre ruban, carnet de bilan.">
+        <!-- REMPLACER : <img src="…" alt="Prise de mesures lors du bilan de départ."> -->
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 3. L'ACCOMPAGNEMENT (le cœur) ===================== -->
+<section class="section accompagnement" id="accompagnement" aria-labelledby="acc-title">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <p class="eyebrow">L'accompagnement My Coach</p>
+      <h2 class="accompagnement__title" id="acc-title">Ici, quelqu'un te connaît, te suit et ajuste avec toi.</h2>
+    </div>
+
+    <!-- 01 -->
+    <article class="moment reveal">
+      <div class="moment__copy">
+        <div class="moment__index">01</div>
+        <p class="moment__kicker">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".6" fill="currentColor" stroke="none"/></svg>
+          <span>Le bilan de départ</span>
+        </p>
+        <h3 class="moment__h">On mesure précisément d'où tu pars.</h3>
+        <p class="moment__p">Composition corporelle, habitudes, objectifs, contraintes de vie. On pose des repères concrets et honnêtes — pour savoir exactement où l'on va, et pouvoir mesurer le chemin.</p>
+      </div>
+      <div class="moment__media">
+        <figure class="ph" data-label="PHOTO — Bilan de départ (paysage 4:3). Coach qui mesure / note, ambiance studio.">
+          <!-- REMPLACER : <img src="…" alt="Bilan de départ mené par un coach en studio."> -->
+        </figure>
+      </div>
+    </article>
+
+    <!-- 02 -->
+    <article class="moment reveal">
+      <div class="moment__copy">
+        <div class="moment__index">02</div>
+        <p class="moment__kicker">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5A3.5 3.5 0 0 0 12.5 15h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M18.5 13.5 20 15l2.5-3"/></svg>
+          <span>Ton coach dédié</span>
+        </p>
+        <h3 class="moment__h">Un humain, pas un algorithme.</h3>
+        <p class="moment__p">Toujours la même personne, qui retient ton prénom, ta semaine chargée et ton petit-déj préféré. Un coach qui te motive quand c'est dur et te recadre avec bienveillance quand tu décroches.</p>
+      </div>
+      <div class="moment__media">
+        <figure class="ph" data-label="PHOTO — Coach & client complices (paysage 4:3). Proximité, encouragement.">
+          <!-- REMPLACER : <img src="…" alt="Un coach encourage son client pendant l'effort."> -->
+        </figure>
+      </div>
+    </article>
+
+    <!-- 03 -->
+    <article class="moment reveal">
+      <div class="moment__copy">
+        <div class="moment__index">03</div>
+        <p class="moment__kicker">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 3.5 3.5L21 5"/><path d="M21 10V5h-5"/></svg>
+          <span>L'ajustement continu</span>
+        </p>
+        <h3 class="moment__h">On corrige, semaine après semaine.</h3>
+        <p class="moment__p">Ton corps évolue, ta vie change : ton plan aussi. On relit tes chiffres ensemble, on affine l'entraînement et la nutrition. Rien n'est figé — tout est calibré pour que ça tienne dans la durée.</p>
+      </div>
+      <div class="moment__media">
+        <figure class="ph" data-label="PHOTO — Point d'étape / ajustement (paysage 4:3). Coach + client devant les résultats.">
+          <!-- REMPLACER : <img src="…" alt="Coach et client font un point d'étape sur les progrès."> -->
+        </figure>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== 4. TES OUTILS (fond marine) ===================== -->
+<section class="section outils" id="app" aria-labelledby="outils-title">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <p class="eyebrow">Tes outils au quotidien</p>
+      <h2 class="outils__title" id="outils-title">Et entre deux séances, l'app t'accompagne.</h2>
+      <p class="lead outils__intro">Prolongement de ton coaching, jamais un substitut. L'app garde le cap avec toi entre les rendez-vous — simplement, sans que tu aies à tout calculer.</p>
+    </div>
+
+    <div class="outils__grid">
+      <ul class="tools reveal">
+        <li>
+          <span class="tools__ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v8a3 3 0 0 0 3 3v7"/><path d="M5 3v4M8 3v4"/><path d="M19 3c-1.5 1-2.5 3-2.5 6 0 2 .5 3 2.5 3v9"/></svg></span>
+          <div><h3>Tes menus, prêts</h3><p>Le plan de la semaine adapté à tes goûts, avec la liste de courses.</p></div>
+        </li>
+        <li>
+          <span class="tools__ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></span>
+          <div><h3>Calories &amp; macros</h3><p>Suivies pour toi — plus besoin de compter dans ta tête.</p></div>
+        </li>
+        <li>
+          <span class="tools__ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="m9 15 2 2 4-4"/></svg></span>
+          <div><h3>Réservation &amp; présence</h3><p>Réserve ta séance et valide ta présence en un geste.</p></div>
+        </li>
+        <li>
+          <span class="tools__ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M8 16l3.5-4 3 2.5L20 8"/></svg></span>
+          <div><h3>Ta progression</h3><p>Poids, mesures, photos : tes courbes se construisent toutes seules.</p></div>
+        </li>
+        <li>
+          <span class="tools__ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A2.5 2.5 0 0 1 17.5 18H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5Z"/></svg></span>
+          <div><h3>Messagerie coach</h3><p>Une question, un doute ? Ton coach te répond, directement.</p></div>
+        </li>
+        <li>
+          <span class="tools__ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v18H6.5A1.5 1.5 0 0 1 5 19.5Z"/><path d="M9 7h6M9 11h6"/></svg></span>
+          <div><h3>Guides &amp; contenus</h3><p>Des repères clairs, débloqués au fil de ta progression.</p></div>
+        </li>
+      </ul>
+
+      <!-- Aperçu d'app : carte schématique (remplaçable par une vraie capture) -->
+      <div class="appcard-wrap reveal">
+        <div class="appcard" role="img" aria-label="Aperçu de l'app My Coach : menu du jour, macros suivies et séance réservée.">
+          <div class="appcard__top"><span class="dot"></span><b>Aujourd'hui</b><span class="day">Semaine 3 · Jeudi</span></div>
+          <div class="appcard__body">
+            <div class="appcard__meal">
+              <span class="thumb" aria-hidden="true"></span>
+              <div><div class="t">Déjeuner — Poulet, patate douce &amp; légumes</div><div class="s">520 kcal · prêt en 15 min</div></div>
+            </div>
+            <div class="appcard__macros">
+              <div class="macro"><div class="k">Protéines</div><div class="v">46 g</div><div class="bar"><i style="width:82%"></i></div></div>
+              <div class="macro"><div class="k">Glucides</div><div class="v">54 g</div><div class="bar"><i style="width:60%"></i></div></div>
+              <div class="macro"><div class="k">Lipides</div><div class="v">13 g</div><div class="bar"><i style="width:35%"></i></div></div>
+            </div>
+            <div class="appcard__row">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
+              Séance — Studio Lille, 18h30 <span class="ok">Réservée ✓</span>
+            </div>
+          </div>
+        </div>
+        <!-- Astuce : remplace toute cette carte par <figure class="ph ph--marine"> + capture réelle si tu préfères. -->
+      </div>
+    </div>
+
+    <p class="outils__close reveal">L'app te facilite le quotidien. Ce qui te fait avancer, <em>c'est ton coach.</em></p>
+  </div>
+</section>
+
+<!-- ===================== 5. LES RÉSULTATS ===================== -->
+<section class="section resultats" id="resultats" aria-labelledby="res-title">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <p class="eyebrow">Les résultats</p>
+      <h2 class="resultats__title" id="res-title">Des transformations réelles, mesurées avec toi.</h2>
+    </div>
+
+    <!-- CHIFFRES — placeholders. NE PAS inventer : remplace « 00 » et les libellés par tes vrais chiffres. -->
+    <div class="stats reveal">
+      <div class="stat">
+        <div class="num">00<small>%</small></div>
+        <p class="lbl">Libellé du chiffre clé n°1</p>
+        <span class="badge-todo">à compléter</span>
+      </div>
+      <div class="stat">
+        <div class="num">00</div>
+        <p class="lbl">Libellé du chiffre clé n°2</p>
+        <span class="badge-todo">à compléter</span>
+      </div>
+      <div class="stat">
+        <div class="num">00</div>
+        <p class="lbl">Libellé du chiffre clé n°3</p>
+        <span class="badge-todo">à compléter</span>
+      </div>
+    </div>
+
+    <!-- AVANT / APRÈS — emplacements photo (avec accord écrit du membre). -->
+    <div class="beforeafter reveal">
+      <figure class="ph ph--noflag" data-label="PHOTO — AVANT (portrait 3:4). Transformation réelle, avec accord du membre.">
+        <span class="ba-tag">Avant</span>
+        <!-- REMPLACER : <img src="…" alt="Photo avant transformation (avec accord)."> -->
+      </figure>
+      <figure class="ph ph--noflag" data-label="PHOTO — APRÈS (portrait 3:4). Même personne, même cadrage.">
+        <span class="ba-tag">Après</span>
+        <!-- REMPLACER : <img src="…" alt="Photo après transformation (avec accord)."> -->
+      </figure>
+    </div>
+
+    <!-- TÉMOIGNAGES — placeholders. NE PAS inventer : remplace par de vrais avis. -->
+    <div class="testis reveal">
+      <article class="testi">
+        <span class="mark" aria-hidden="true">&rdquo;</span>
+        <blockquote>Témoignage client n°1 — à compléter avec un vrai retour (2 à 3 phrases).</blockquote>
+        <div class="testi__who"><span class="testi__ava" aria-hidden="true"></span><span><b>Prénom — à compléter</b><span>Studio Lille · à compléter</span></span></div>
+      </article>
+      <article class="testi">
+        <span class="mark" aria-hidden="true">&rdquo;</span>
+        <blockquote>Témoignage client n°2 — à compléter avec un vrai retour (2 à 3 phrases).</blockquote>
+        <div class="testi__who"><span class="testi__ava" aria-hidden="true"></span><span><b>Prénom — à compléter</b><span>Studio Neuilly · à compléter</span></span></div>
+      </article>
+      <article class="testi">
+        <span class="mark" aria-hidden="true">&rdquo;</span>
+        <blockquote>Témoignage client n°3 — à compléter avec un vrai retour (2 à 3 phrases).</blockquote>
+        <div class="testi__who"><span class="testi__ava" aria-hidden="true"></span><span><b>Prénom — à compléter</b><span>Studio · à compléter</span></span></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 6. COMMENT COMMENCER ===================== -->
+<section class="section commencer" id="commencer" aria-labelledby="start-title">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <p class="eyebrow">Comment commencer</p>
+      <h2 class="commencer__title" id="start-title">Ta transformation commence par une conversation.</h2>
+    </div>
+
+    <div class="steps reveal">
+      <div class="step">
+        <div class="step__n">01</div>
+        <h3>Ton bilan de départ</h3>
+        <p>On fait connaissance, on mesure d'où tu pars et on cerne ton objectif. Sans engagement.</p>
+      </div>
+      <div class="step">
+        <div class="step__n">02</div>
+        <h3>On construit ton plan</h3>
+        <p>Entraînement et nutrition calibrés pour toi, ta vie et ton rythme — avec ton coach dédié.</p>
+      </div>
+      <div class="step">
+        <div class="step__n">03</div>
+        <h3>Tu es suivi·e</h3>
+        <p>Séances en studio, ajustements réguliers et l'app au quotidien. On avance ensemble.</p>
+      </div>
+    </div>
+
+    <!-- Bloc CTA marine + Golden Ticket -->
+    <div class="cta-block reveal">
+      <div class="cta-block__inner">
+        <div class="col-copy">
+          <span class="ticket"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h15A1.5 1.5 0 0 1 21 8.5V10a2 2 0 0 0 0 4v1.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 15.5V14a2 2 0 0 0 0-4Z"/><path d="M15 7v10"/></svg>Challenge Transformation — Golden Ticket</span>
+          <h2>Réserve ta place. Les studios de Lille &amp; Neuilly t'attendent.</h2>
+          <p>Un accompagnement premium, un coach dédié et une méthode qui ajuste avec toi. Le premier pas, c'est ton bilan.</p>
+        </div>
+        <div class="col-actions">
+          <div class="actions">
+            <a class="btn btn--coral btn--lg" href="#" data-note="lien vers ta prise de contact / formulaire de bilan">Demander mon bilan</a>
+          </div>
+          <p class="fineprint">Réponse sous 24 h ouvrées · Sans engagement.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ===================== FOOTER ===================== -->
+<footer class="footer" aria-labelledby="footer-title">
+  <h2 id="footer-title" class="skip">Pied de page</h2>
+  <div class="wrap">
+    <div class="footer__top">
+      <div class="footer__left">
+        <a class="brand brand--light" href="#top" aria-label="My Coach Ginkgo — haut de page">
+          <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-4 0-7-2.5-7-6 0-4.5 4-8.5 7-12 3 3.5 7 7.5 7 12 0 3.5-3 6-7 6Z"/><path d="M12 21V9"/></svg>
+          <span class="brand__txt"><b style="color:var(--cream)">COACH</b><span>my · ginkgo</span></span>
+        </a>
+        <p class="footer__studios" style="margin-top:16px">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5-6.5-10a6.5 6.5 0 0 1 13 0c0 5-6.5 10-6.5 10Z"/><circle cx="12" cy="11" r="2.4"/></svg>
+          Studios à Lille &amp; Neuilly-sur-Seine
+        </p>
+      </div>
+      <nav class="footer__right" aria-label="Liens de pied de page">
+        <ul class="footer__nav">
+          <li><a href="#accompagnement">L'accompagnement</a></li>
+          <li><a href="#app">L'app</a></li>
+          <li><a href="#resultats">Résultats</a></li>
+          <li><a href="#commencer">Commencer</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="footer__bottom">
+      <span>© 2026 My Coach by Ginkgo. Tous droits réservés.</span>
+      <!-- Pointe « Se connecter » vers ton espace membre (ex. /nutrition). -->
+      <a href="#" data-note="espace membre">Se connecter</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ---------------------------------------------------------------------------
+   JS minimal & non bloquant : état « collé » du header, menu mobile,
+   révélation au scroll (désactivée si l'utilisateur préfère moins d'animation).
+   --------------------------------------------------------------------------- */
+(function(){
+  var header = document.getElementById('site-header');
+  var burger = document.getElementById('burger');
+  var mnav   = document.getElementById('mobile-nav');
+
+  // Header : fond translucide dès qu'on scrolle
+  var onScroll = function(){ header.classList.toggle('is-stuck', window.scrollY > 12); };
+  onScroll();
+  window.addEventListener('scroll', onScroll, {passive:true});
+
+  // Menu mobile
+  function closeMenu(){ burger.setAttribute('aria-expanded','false'); mnav.classList.remove('open'); burger.setAttribute('aria-label','Ouvrir le menu'); }
+  burger.addEventListener('click', function(){
+    var open = burger.getAttribute('aria-expanded') === 'true';
+    burger.setAttribute('aria-expanded', String(!open));
+    burger.setAttribute('aria-label', open ? 'Ouvrir le menu' : 'Fermer le menu');
+    mnav.classList.toggle('open', !open);
+  });
+  mnav.addEventListener('click', function(e){ if (e.target.closest('a')) closeMenu(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeMenu(); });
+
+  // Révélation au scroll
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var items = document.querySelectorAll('.reveal');
+  if (reduce || !('IntersectionObserver' in window)) {
+    items.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ if (en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
+    }, {rootMargin:'0px 0px -8% 0px', threshold:0.08});
+    items.forEach(function(el){ io.observe(el); });
+  }
+})();
+</script>
+</body>
+</html>

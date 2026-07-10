@@ -36,8 +36,10 @@
   <meta name="twitter:image" content="https://app.stanmartinapp.cloud/nutrition/images/og-cover.jpg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=92" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=93" />
+  <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
+  <link rel="stylesheet" href="landing.css?v=93" />
   <script>
   // ---- Gate d'accès + mode démo (module intégré à l'app principale My Coach) ----
   // Actif uniquement quand le module est servi sous "/nutrition".
@@ -86,16 +88,19 @@
     // Identité mémorisée sur CET appareil (après la 1re connexion) -> connexion
     // simplifiée : on n'affiche que le PIN, l'email/nom sont déjà connus.
     var idr = null; try { idr = JSON.parse(localStorage.getItem('mc-nutri-id') || 'null'); } catch (e) {}
+    var invToken = ''; try { invToken = new URLSearchParams(location.search).get('inv') || ''; } catch (e) {}
+    var _landingHTML = null; // HTML de la landing, mis en cache au boot (survit aux swaps de body)
     function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&amp;'; }); }
-    document.addEventListener('DOMContentLoaded', function () {
+    // Construit + affiche + câble le formulaire de connexion / création de compte.
+    function renderLogin() {
       var IN = 'width:100%;padding:13px 16px;border:1px solid #ECEAE4;border-radius:14px;font-size:15px;color:#1F2430;background:#FBFAF7;font-family:inherit;box-sizing:border-box;';
       var BTN = 'width:100%;margin-top:14px;padding:14px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#fff;font-size:15px;font-weight:700;font-family:inherit;';
-      var invToken = ''; try { invToken = new URLSearchParams(location.search).get('inv') || ''; } catch (e) {}
       var simple = !!(idr && idr.email && idr.prenom) && !invToken; // une invitation -> formulaire de création
       var head =
         '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;'
         + 'font-family:Inter,system-ui,sans-serif;background:#F6F5F2;color:#1F2430;padding:24px;">'
         + '<div style="max-width:400px;width:100%;text-align:center;">'
+        + '<div style="text-align:left;margin-bottom:6px;"><button id="rBackHome" type="button" style="background:none;border:none;color:#6B6B63;font-size:13px;font-family:inherit;cursor:pointer;padding:6px 0;display:inline-flex;align-items:center;gap:5px;">&#8592; Retour à l\'accueil</button></div>'
         + '<div style="width:64px;height:64px;margin:0 auto 16px;border-radius:18px;background:#2563EB;'
         + 'display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(37,99,235,.28);">'
         + '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
@@ -155,6 +160,8 @@
       }
       btn.addEventListener('click', go);
       [pr, no, em, pn].forEach(function (i) { if (i) i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); }); });
+      var back = document.getElementById('rBackHome');
+      if (back) back.addEventListener('click', function () { renderLanding(); });
       var other = document.getElementById('rOther');
       if (other) other.addEventListener('click', function () { try { localStorage.removeItem('mc-nutri-id'); } catch (e) {} location.reload(); });
       // Invitation présente dans l'URL : on valide le jeton, on pré-remplit et on affiche
@@ -177,11 +184,216 @@
           .catch(function () { /* hors-ligne : le serveur revalidera à l'envoi */ });
       }
       if (pn) pn.focus();
+    }
+    // Affiche la landing marketing (visiteur non connecté) puis câble ses CTA -> connexion.
+    function renderLanding() {
+      if (!_landingHTML) { renderLogin(); return; }
+      document.body.innerHTML = _landingHTML;
+      initLandingUI();
+      Array.prototype.forEach.call(document.querySelectorAll('[data-cta]'), function (a) {
+        a.addEventListener('click', function (e) { e.preventDefault(); window.scrollTo(0, 0); renderLogin(); });
+      });
+    }
+    // (Ré)initialise le JS de la landing après injection : header collé, menu mobile, révélation.
+    function initLandingUI() {
+      var header = document.getElementById('lp-header'), burger = document.getElementById('lp-burger'), mnav = document.getElementById('lp-mnav');
+      if (header) { var onScroll = function () { header.classList.toggle('is-stuck', window.scrollY > 12); }; onScroll(); window.addEventListener('scroll', onScroll, { passive: true }); }
+      if (burger && mnav) {
+        burger.addEventListener('click', function () { var o = burger.getAttribute('aria-expanded') === 'true'; burger.setAttribute('aria-expanded', String(!o)); mnav.classList.toggle('open', !o); });
+        mnav.addEventListener('click', function (e) { if (e.target.closest('a')) { burger.setAttribute('aria-expanded', 'false'); mnav.classList.remove('open'); } });
+      }
+      var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var items = document.querySelectorAll('.lp-reveal');
+      if (reduce || !('IntersectionObserver' in window)) { Array.prototype.forEach.call(items, function (el) { el.classList.add('in'); }); }
+      else { var io = new IntersectionObserver(function (es) { es.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } }); }, { rootMargin: '0px 0px -8% 0px', threshold: .08 }); Array.prototype.forEach.call(items, function (el) { io.observe(el); }); }
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+      var tpl = document.getElementById('lp-template');
+      _landingHTML = tpl ? tpl.innerHTML : '';
+      // Filet de sécurité : si la landing échoue, on garantit l'accès à la connexion.
+      try {
+        if (invToken) { renderLogin(); return; }   // invitation -> directement le formulaire de création
+        renderLanding();                            // visiteur -> landing marketing
+      } catch (e) { try { renderLogin(); } catch (_) {} }
     });
   })();
   </script>
 </head>
 <body>
+  <!-- ============ LANDING D'ACCUEIL (visiteurs non connectés) ============
+       Inerte tant que non injecté par le gate (renderLanding). Styles = landing.css.
+       CTA [data-cta] -> ouvre le formulaire de connexion/création (renderLogin). -->
+  <template id="lp-template">
+    <div class="lp" id="lp">
+      <a class="lp-skip" href="#lp-main">Aller au contenu</a>
+      <header class="lp-header" id="lp-header">
+        <div class="lp-wrap lp-header__bar">
+          <a class="lp-brand lp-brand--light" href="#lp-top" aria-label="My Coach Nutrition — accueil">
+            <span class="lp-brand__mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></span>
+            <span class="lp-brand__txt">My Coach <span>Nutrition</span></span>
+          </a>
+          <nav class="lp-nav" aria-label="Navigation principale">
+            <a href="#lp-why">Pourquoi</a><a href="#lp-app">L'app</a><a href="#lp-steps">Comment ça marche</a><a href="#lp-diff">La différence</a>
+          </nav>
+          <div class="lp-header__actions">
+            <a class="lp-login" href="#" data-cta="login">Se connecter</a>
+            <a class="lp-btn lp-btn--primary" href="#" data-cta="start">Commencer</a>
+            <button class="lp-burger" id="lp-burger" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="lp-mnav"><span></span><span></span><span></span></button>
+          </div>
+        </div>
+        <div class="lp-mnav" id="lp-mnav">
+          <ul>
+            <li><a href="#lp-why">Pourquoi</a></li><li><a href="#lp-app">L'app</a></li><li><a href="#lp-steps">Comment ça marche</a></li><li><a href="#lp-diff">La différence</a></li>
+            <li><a href="#" data-cta="login">Se connecter</a></li>
+            <li><a class="lp-btn lp-btn--primary" href="#" data-cta="start">Commencer mon plan</a></li>
+          </ul>
+        </div>
+      </header>
+
+      <main id="lp-main">
+      <span id="lp-top"></span>
+      <section class="lp-hero" aria-labelledby="lp-hero-title">
+        <div class="lp-wrap lp-hero__grid">
+          <div>
+            <span class="lp-badge"><span class="dot"></span>Coaching sportif &amp; nutrition · Lille &amp; Neuilly</span>
+            <h1 class="lp-hero__title" id="lp-hero-title">Ton plan sur-mesure. Et un <span>vrai coach</span> derrière.</h1>
+            <p class="lp-hero__sub">Menus générés, calories et macros calculées pour toi — et un coach humain qui te suit, te motive et ajuste avec toi. Tu n'as plus qu'à suivre le plan.</p>
+            <div class="lp-hero__ctas">
+              <a class="lp-btn lp-btn--primary lp-btn--lg" href="#" data-cta="start">Commencer mon plan</a>
+              <a class="lp-btn lp-btn--ghost-navy lp-btn--lg" href="#lp-app">Voir l'app en action</a>
+            </div>
+            <p class="lp-hero__re"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Configuration en 5 minutes · Un vrai coach, pas seulement un algorithme.</p>
+          </div>
+          <div class="lp-appwrap lp-reveal">
+            <div class="lp-app" role="img" aria-label="Aperçu de l'app My Coach : calories du jour, menus et message du coach.">
+              <div class="lp-app__top"><div><b>Bonjour, Sarah 👋</b><small>Semaine 3 · Jeudi</small></div><span class="av">S</span></div>
+              <div class="lp-app__body">
+                <div class="lp-cal"><div class="k">Calories aujourd'hui</div><div class="v">2 100 <span style="font-size:.8rem;font-weight:600;opacity:.9">kcal · 60 %</span></div><div class="bar"><i></i></div></div>
+                <div class="lp-meal"><span class="th" aria-hidden="true"></span><div><div class="t">Déjeuner — Poulet, riz &amp; légumes</div><div class="s">Prêt en 15 min</div></div><span class="kc">542 kcal</span></div>
+                <div class="lp-meal"><span class="th" aria-hidden="true"></span><div><div class="t">Dîner — Saumon &amp; quinoa</div><div class="s">Prêt en 20 min</div></div><span class="kc">498 kcal</span></div>
+                <div class="lp-coach"><span class="ci"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A2.5 2.5 0 0 1 17.5 18H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5Z"/></svg></span><p><b>Ton coach</b>Tu es en avance sur ton objectif — continue comme ça 💪</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-trust">
+        <div class="lp-wrap lp-trust__row">
+          <span class="lp-trust__item"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5-6.5-10a6.5 6.5 0 0 1 13 0c0 5-6.5 10-6.5 10Z"/><circle cx="12" cy="11" r="2.4"/></svg>2 studios · Lille &amp; Neuilly</span>
+          <span class="lp-trust__item"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5A3.5 3.5 0 0 0 12.5 15h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M18.5 13.5 20 15l2.5-3"/></svg>Coachs diplômés</span>
+          <span class="lp-trust__item"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="m9 15 2 2 4-4"/></svg>App incluse dans l'accompagnement</span>
+          <span class="lp-trust__item"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Sans engagement pour démarrer</span>
+        </div>
+      </section>
+
+      <section class="lp-section lp-why" id="lp-why" aria-labelledby="lp-why-title">
+        <div class="lp-wrap">
+          <div class="lp-head lp-reveal"><span class="lp-eyebrow">Pourquoi My Coach</span><h2 class="lp-h2" id="lp-why-title">Tout ce qu'il te faut, <span>sans la charge mentale.</span></h2></div>
+          <div class="lp-features lp-reveal">
+            <article class="lp-feature"><div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v8a3 3 0 0 0 3 3v7"/><path d="M5 3v4M8 3v4"/><path d="M19 3c-1.5 1-2.5 3-2.5 6 0 2 .5 3 2.5 3v9"/></svg></div><h3>Menus générés pour toi</h3><p>Ton plan de la semaine adapté à tes goûts, avec la liste de courses. Tu n'as plus à décider quoi manger.</p></article>
+            <article class="lp-feature"><div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></div><h3>Calories &amp; macros calculées</h3><p>Ton métabolisme, ton rythme, ta cible. Tout est suivi automatiquement — fini de compter dans ta tête.</p></article>
+            <article class="lp-feature"><div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-4.5-7-10a7 7 0 0 1 14 0c0 5.5-7 10-7 10Z"/><path d="M9.5 11.5 11.5 13.5 15 10"/></svg></div><h3>Adapté à tes goûts</h3><p>L'app retient ce que tu aimes, tes allergies et ce que tu n'aimes pas — et remplace en un geste.</p></article>
+            <article class="lp-feature is-human"><div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5A3.5 3.5 0 0 0 12.5 15h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M18.5 13.5 20 15l2.5-3"/></svg></div><h3>Un coach humain</h3><p>Pas seulement une IA : un vrai coach qui te connaît, te suit en studio et te répond quand tu en as besoin.</p><span class="tag">La vraie différence</span></article>
+            <article class="lp-feature"><div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M8 16l3.5-4 3 2.5L20 8"/></svg></div><h3>Progression visualisée</h3><p>Poids, mesures et photos : tu vois ton évolution, semaine après semaine, sans y penser.</p></article>
+            <article class="lp-feature"><div class="lp-feature__ic"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="m9 15 2 2 4-4"/></svg></div><h3>Réservation &amp; présence</h3><p>Réserve ta séance en studio et valide ta présence directement depuis l'app.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-section lp-action" id="lp-app" aria-labelledby="lp-app-title">
+        <div class="lp-wrap">
+          <div class="lp-head lp-reveal"><span class="lp-eyebrow lp-eyebrow--onnavy">L'app en action</span><h2 class="lp-h2" id="lp-app-title">Tout au même endroit.</h2><p class="lp-lead">De tes menus à ta progression, l'app centralise ton quotidien — et garde le lien avec ton coach.</p></div>
+          <div class="lp-cards lp-reveal">
+            <div class="lp-card"><div class="lp-card__h"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v8a3 3 0 0 0 3 3v7M5 3v4M8 3v4M19 3c-1.5 1-2.5 3-2.5 6 0 2 .5 3 2.5 3v9"/></svg>Menus du jour</div><div class="lp-row">Petit-déjeuner<span class="kc">387 kcal</span></div><div class="lp-row">Déjeuner<span class="kc">542 kcal</span></div><div class="lp-row">Dîner<span class="kc">498 kcal</span></div><div class="lp-row">Collation<span class="kc">210 kcal</span></div></div>
+            <div class="lp-card"><div class="lp-card__h"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>Mon programme</div><div class="lp-mini-cal"><div class="v">2 100</div><div class="k">kcal / jour</div></div><div class="lp-macros"><div><div class="mv">157g</div><div class="mk">Prot.</div></div><div><div class="mv">236g</div><div class="mk">Gluc.</div></div><div><div class="mv">58g</div><div class="mk">Lip.</div></div></div></div>
+            <div class="lp-card"><div class="lp-card__h"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.5 3h2l2.2 12a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L21 7H6"/></svg>Liste de courses</div><div class="lp-row"><span class="ck">✓</span>Filet de poulet<span class="kc">400 g</span></div><div class="lp-row"><span class="ck">✓</span>Riz complet<span class="kc">200 g</span></div><div class="lp-row">Saumon<span class="kc">300 g</span></div><div class="lp-row">Brocoli<span class="kc">250 g</span></div></div>
+            <div class="lp-card"><div class="lp-card__h"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A2.5 2.5 0 0 1 17.5 18H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5Z"/></svg>Mon coach</div><div class="lp-bubble them">Tu as atteint 60 % de tes calories. Continue comme ça !</div><div class="lp-bubble me">J'ai moins faim ce soir.</div><div class="lp-bubble them">Normal en phase d'adaptation — je réduis légèrement le dîner.</div></div>
+          </div>
+          <p class="lp-lead lp-reveal" style="margin-top:clamp(36px,5vw,52px);font-size:clamp(1.15rem,2vw,1.5rem);color:#fff;font-weight:700;max-width:24ch">L'app te facilite le quotidien. Ce qui te fait avancer, <span style="color:#7fa2ff">c'est ton coach.</span></p>
+        </div>
+      </section>
+
+      <section class="lp-section" id="lp-steps" aria-labelledby="lp-steps-title" style="background:#ffffff">
+        <div class="lp-wrap">
+          <div class="lp-head lp-reveal"><span class="lp-eyebrow">Comment ça marche</span><h2 class="lp-h2" id="lp-steps-title">Lancé en 5 minutes.</h2></div>
+          <div class="lp-steps lp-reveal">
+            <div class="lp-step"><div class="lp-step__n">01</div><h3>Ton bilan de départ</h3><p>Objectif, habitudes, goûts, contraintes : on cerne d'où tu pars, en studio ou en ligne.</p></div>
+            <div class="lp-step"><div class="lp-step__n">02</div><h3>Ton plan est généré</h3><p>Menus, calories et macros calibrés pour toi. Ton coach valide et personnalise.</p></div>
+            <div class="lp-step"><div class="lp-step__n">03</div><h3>Tu es suivi·e</h3><p>Séances, ajustements réguliers et l'app au quotidien. On avance ensemble.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-section lp-diff" id="lp-diff" aria-labelledby="lp-diff-title">
+        <div class="lp-wrap">
+          <div class="lp-head lp-reveal"><span class="lp-eyebrow">La différence</span><h2 class="lp-h2" id="lp-diff-title">Une appli te donne des outils.<br><span>My Coach te donne quelqu'un.</span></h2></div>
+          <div class="lp-compare lp-reveal">
+            <div class="lp-col lp-col--them"><div class="lp-col__h">Une appli seule</div><ul>
+              <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Tu te débrouilles seul·e quand ça coince</li>
+              <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Personne ne remarque si tu décroches</li>
+              <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Le même plan pour tout le monde</li>
+              <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>La motivation retombe au bout de 2 semaines</li>
+            </ul></div>
+            <div class="lp-col lp-col--us"><div class="lp-col__h">My Coach Nutrition</div><ul>
+              <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><b>Un coach dédié qui te connaît et te suit</b></li>
+              <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><b>Des séances en studio à Lille &amp; Neuilly</b></li>
+              <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><b>Un plan ajusté avec toi, semaine après semaine</b></li>
+              <li><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><b>Quelqu'un qui te relance et te motive</b></li>
+            </ul></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-section lp-results" id="lp-results" aria-labelledby="lp-res-title">
+        <div class="lp-wrap">
+          <div class="lp-head lp-head--center lp-reveal"><span class="lp-eyebrow">Les résultats</span><h2 class="lp-h2" id="lp-res-title">Des transformations réelles, mesurées avec toi.</h2></div>
+          <div class="lp-stats lp-reveal">
+            <div class="lp-stat"><div class="v">00</div><div class="l">Libellé du chiffre clé n°1</div><div><span class="lp-todo">à compléter</span></div></div>
+            <div class="lp-stat"><div class="v">00</div><div class="l">Libellé du chiffre clé n°2</div><div><span class="lp-todo">à compléter</span></div></div>
+            <div class="lp-stat"><div class="v">00</div><div class="l">Libellé du chiffre clé n°3</div><div><span class="lp-todo">à compléter</span></div></div>
+          </div>
+          <div class="lp-testis lp-reveal">
+            <article class="lp-testi"><div class="stars">★★★★★</div><blockquote>Témoignage client n°1 — à compléter avec un vrai retour.</blockquote><div class="who"><span class="a" aria-hidden="true"></span><span><b>Prénom — à compléter</b><span>Studio Lille · à compléter</span></span></div></article>
+            <article class="lp-testi"><div class="stars">★★★★★</div><blockquote>Témoignage client n°2 — à compléter avec un vrai retour.</blockquote><div class="who"><span class="a" aria-hidden="true"></span><span><b>Prénom — à compléter</b><span>Studio Neuilly · à compléter</span></span></div></article>
+            <article class="lp-testi"><div class="stars">★★★★★</div><blockquote>Témoignage client n°3 — à compléter avec un vrai retour.</blockquote><div class="who"><span class="a" aria-hidden="true"></span><span><b>Prénom — à compléter</b><span>Studio · à compléter</span></span></div></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-section lp-final" aria-labelledby="lp-final-title">
+        <div class="lp-wrap">
+          <div class="lp-final__box lp-reveal">
+            <h2 id="lp-final-title">Prêt·e à être vraiment suivi·e ?</h2>
+            <p>Crée ton espace, réponds à quelques questions et reçois ton plan. Ton coach fait le reste.</p>
+            <a class="lp-btn lp-btn--primary lp-btn--lg" href="#" data-cta="start">Commencer mon plan</a>
+            <p class="lp-hero__re"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Configuration en 5 minutes · Sans engagement.</p>
+          </div>
+        </div>
+      </section>
+      </main>
+
+      <footer class="lp-footer" aria-labelledby="lp-foot-title">
+        <h2 id="lp-foot-title" class="lp-skip">Pied de page</h2>
+        <div class="lp-wrap">
+          <div class="lp-footer__top">
+            <div>
+              <a class="lp-brand lp-brand--light" href="#lp-top" aria-label="My Coach Nutrition — haut de page">
+                <span class="lp-brand__mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></span>
+                <span class="lp-brand__txt">My Coach <span>Nutrition</span></span>
+              </a>
+              <p class="lp-footer__st" style="margin-top:14px"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5-6.5-10a6.5 6.5 0 0 1 13 0c0 5-6.5 10-6.5 10Z"/><circle cx="12" cy="11" r="2.4"/></svg>Studios à Lille &amp; Neuilly-sur-Seine</p>
+            </div>
+            <nav class="lp-footer__right" aria-label="Liens de pied de page">
+              <ul class="lp-footer__nav"><li><a href="#lp-why">Pourquoi</a></li><li><a href="#lp-app">L'app</a></li><li><a href="#lp-steps">Comment ça marche</a></li><li><a href="#lp-diff">La différence</a></li></ul>
+            </nav>
+          </div>
+          <div class="lp-footer__bot"><span>© 2026 My Coach Nutrition. Tous droits réservés.</span><a href="#" data-cta="login">Se connecter</a></div>
+        </div>
+      </footer>
+    </div>
+  </template>
+
   <!-- Sprite d'icones SVG (style Lucide) - utilise via <svg class="ic"><use href="#ic-..."/></svg> -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
     <defs>
@@ -1346,6 +1558,6 @@
   </footer>
 
   <script src="vendor/zxing.min.js"></script>
-  <script src="app.js?v=92"></script>
+  <script src="app.js?v=93"></script>
 </body>
 </html>
