@@ -2239,9 +2239,11 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   body.app-shell .bottom-nav .nav-i.on .ic { color: var(--blue-c); }
   body.app-shell .bottom-nav .nav-i:hover { background: var(--surface-soft); color: var(--ink-2); }
   body.app-shell .bottom-nav .nav-i.on:hover { background: var(--blue-soft); color: var(--blue-on-soft); }
-  /* « Se déconnecter » : conservé UNIQUEMENT dans la page Profil (tout en bas).
-     On masque le doublon de la sidebar sur desktop. */
-  body.app-shell .bottom-nav .nav-i.nav-logout { display: none; }
+  /* « Se déconnecter » : affiché dans la sidebar desktop, sous Profil, une fois connecté
+     (la barre mobile reste sans, elle est déjà pleine ; le logout y reste dans Profil). */
+  body.app-shell .bottom-nav .nav-i.nav-logout:not(.hidden) { display: flex; margin-top: 10px; }
+  body.app-shell .bottom-nav .nav-i.nav-logout:not(.hidden):hover { background: rgba(220, 76, 68, 0.10); color: #DC4C44; }
+  body.app-shell .bottom-nav .nav-i.nav-logout:not(.hidden):hover .ic { color: #DC4C44; }
   /* Le contenu de l'ecran plan se decale a droite de la sidebar */
   /* Layout pleine largeur (dashboard) : plus de cap 1400 -> le contenu exploite tout
      l'espace à droite de la sidebar, sans bandes vides. */
