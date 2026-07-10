@@ -2157,18 +2157,20 @@ try {
       const url = base + '/nutrition/?inv=' + token;
       // Envoi automatique de l'email si un destinataire est fourni ET que le SMTP est
       // configuré. Sinon on renvoie quand même le lien (le coach le copie/partage).
-      let emailSent = false, emailError = '';
+      let emailSent = false, emailError = '', emailErrorMsg = '';
       if (email) {
         try {
           const content = inviteEmailContent(coachName, url, prenom);
           await sendEmail({ to: email, subject: content.subject, html: content.html, text: content.text });
           emailSent = true;
         } catch (e) {
-          emailError = /SMTP/i.test(e && e.message || '') ? 'smtp' : 'send';
-          console.warn('Invitation email non envoyé :', e && e.message);
+          const msg = String((e && e.message) || '');
+          emailError = /non configur/i.test(msg) ? 'smtp' : 'send';
+          emailErrorMsg = msg.slice(0, 220); // message brut Gmail/SMTP pour diagnostic
+          console.warn('Invitation email non envoyé :', msg);
         }
       }
-      res.json({ ok: true, token, url, email, prenom, nom, expiresAt: expires, emailSent, emailError });
+      res.json({ ok: true, token, url, email, prenom, nom, expiresAt: expires, emailSent, emailError, emailErrorMsg });
     } catch (e) { console.error('coach/invites POST :', e); res.status(500).json({ ok: false, error: 'Création impossible.' }); }
   });
   // Coach/admin : lister ses invitations (en attente + utilisées).

@@ -5221,7 +5221,7 @@ function showInviteResult(d) {
   let status = '';
   if (d.email) {
     if (d.emailSent) status = '<p class="invite-status ok">📧 Email d’invitation envoyé à <b>' + escapeHtml(d.email) + '</b>.</p>';
-    else status = '<p class="invite-status warn">✉️ Email non envoyé (' + (d.emailError === 'smtp' ? 'envoi email non configuré sur le serveur' : 'erreur d’envoi') + '). Copie le lien ci-dessous et envoie-le toi-même.</p>';
+    else status = '<p class="invite-status warn">✉️ Email non envoyé (' + (d.emailError === 'smtp' ? 'envoi email non configuré sur le serveur' : 'erreur d’envoi') + '). Copie le lien ci-dessous et envoie-le toi-même.' + (d.emailErrorMsg ? '<br><span class="invite-errdetail">Détail : ' + escapeHtml(d.emailErrorMsg) + '</span>' : '') + '</p>';
   }
   r.innerHTML = status +
     '<div class="invite-link-row"><input class="invite-link" id="invLinkOut" readonly value="' + escapeHtml(d.url) + '"><button type="button" class="pc-btn" id="invCopy">Copier</button></div>' +
