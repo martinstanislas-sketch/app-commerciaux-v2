@@ -541,7 +541,10 @@ function renderNeeds() {
   // Jour X/X (discret)
   const total = (state.plan.jours && state.plan.jours.length) || 0;
   const dayIdx = (typeof indexJourActuel === 'function') ? indexJourActuel() : 0;
-  const dayTag = total ? `<span class="pt-day">Jour ${dayIdx + 1}<span>/${total}</span></span>` : '';
+  // Challenge = 42 jours (6 semaines) : le compteur va sur 42, pas sur les 7 jours du plan.
+  const dayTag = isChallenge
+    ? `<span class="pt-day">Jour ${jourChallenge()}<span>/${CHALLENGE_DUREE}</span></span>`
+    : (total ? `<span class="pt-day">Jour ${dayIdx + 1}<span>/${total}</span></span>` : '');
   // Pastille objectif : poids si applicable, sinon kcal cible.
   const perte = Math.max(0, Number(state.profil.perte_objectif_kg) || 0);
   const hasWeight = (isChallenge || state.profil.objectif === 'perte') && perte > 0;
@@ -763,6 +766,20 @@ function indexJourActuel() {
 function jourActuelDansPlan() {
   const n = (state.plan && state.plan.jours && state.plan.jours.length) || 0;
   return joursDepuisDemarrage() < n;
+}
+// Jour courant DU CHALLENGE (1..42, 6 semaines). Ancre stable = pesée de départ
+// officielle si dispo (le plan est régénéré à S3/S6, donc state.startDate bouge),
+// sinon le démarrage du plan.
+const CHALLENGE_DUREE = 42;
+function jourChallenge() {
+  let anchorTs = NaN;
+  const dep = state.parcours && state.parcours.pesees && state.parcours.pesees.depart && state.parcours.pesees.depart.date;
+  if (dep) anchorTs = Date.parse(dep);
+  if (isNaN(anchorTs)) anchorTs = startMidnight().getTime();
+  const a = new Date(anchorTs);
+  const anchorMid = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime();
+  const days = Math.round((todayMidnight().getTime() - anchorMid) / 86400000);
+  return Math.min(CHALLENGE_DUREE, Math.max(1, days + 1));
 }
 // Renomme chaque jour avec le jour de semaine reel (startDate + index).
 function appliquerLabelsCalendaires() {
