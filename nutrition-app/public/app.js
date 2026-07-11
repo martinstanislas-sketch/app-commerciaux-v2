@@ -1956,7 +1956,41 @@ function exportPlanPdf() {
   printDocument('Plan de repas', html);
 }
 
-function exportShoppingPdf() {
+// Détection mobile : sur mobile l'impression via window.open est bloquée/inopérante,
+// on privilégie le partage natif / le téléchargement de fichier.
+function isMobileDevice() {
+  try {
+    if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return true;
+    if (navigator.maxTouchPoints > 1 && !(window.matchMedia && window.matchMedia('(min-width: 1024px)').matches)) return true;
+  } catch (_) { /* ignore */ }
+  return false;
+}
+// Liste de courses en texte simple (partageable / imprimable partout).
+function shoppingListText() {
+  const parRayon = buildShoppingList();
+  let out = 'Liste de courses — My Coach Nutrition\n';
+  out += `Pour ${state.plan.jours.length} jour(s) · ${state.portions} personne(s)\n\n`;
+  rayonsTries(parRayon).forEach((rayon) => {
+    out += rayon.toUpperCase() + '\n';
+    parRayon[rayon].sort((a, b) => a.nom.localeCompare(b.nom)).forEach((item) => {
+      out += `- ${item.nom} — ${fmtQty(item.quantite)} ${item.unite}\n`;
+    });
+    out += '\n';
+  });
+  return out.trim() + '\n';
+}
+function downloadTextFile(filename, text) {
+  try {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  } catch (_) { showToast('Export impossible sur cet appareil.', { icon: 'info' }); }
+}
+// Version imprimable (PDF via l'impression du navigateur) — fiable sur ordinateur.
+function printShoppingList() {
   const parRayon = buildShoppingList();
   let html = `<h1>Liste de courses — My Coach Nutrition</h1>
     <p class="sub">Pour ${state.plan.jours.length} jour(s) · ${state.portions} personne(s)</p>`;
@@ -1967,6 +2001,35 @@ function exportShoppingPdf() {
     });
   });
   printDocument('Liste de courses', html);
+}
+// Export de la liste : mobile -> partage natif (Fichiers / WhatsApp / Notes) puis
+// téléchargement fichier ; ordinateur -> impression (PDF). window.print sur mobile
+// est bloqué par le navigateur, d'où l'impossibilité de « télécharger » constatée.
+function exportShoppingPdf() {
+  if (!isMobileDevice()) { printShoppingList(); return; } // ordinateur : PDF via impression (inchangé)
+  const filename = 'liste-de-courses.txt';
+  const text = shoppingListText();
+  // 1) Partage natif — appelé DANS le geste utilisateur (obligatoire pour navigator.share)
+  if (navigator.share) {
+    try {
+      let payload;
+      if (navigator.canShare) {
+        const file = new File([text], filename, { type: 'text/plain' });
+        payload = navigator.canShare({ files: [file] })
+          ? { files: [file], title: 'Liste de courses' }
+          : { title: 'Liste de courses', text };
+      } else {
+        payload = { title: 'Liste de courses', text };
+      }
+      navigator.share(payload).catch((e) => {
+        // Annulé par l'utilisateur -> on ne fait rien ; échec réel -> téléchargement.
+        if (!e || e.name !== 'AbortError') downloadTextFile(filename, text);
+      });
+      return;
+    } catch (_) { /* partage indisponible -> téléchargement */ }
+  }
+  // 2) Téléchargement direct du fichier (Android, ou pas de partage natif)
+  downloadTextFile(filename, text);
 }
 
 // ---------- Ma fiche (E1 + E6 : recap perso) ----------
