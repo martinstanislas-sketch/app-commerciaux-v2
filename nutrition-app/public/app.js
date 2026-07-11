@@ -2002,34 +2002,108 @@ function printShoppingList() {
   });
   printDocument('Liste de courses', html);
 }
-// Export de la liste : mobile -> partage natif (Fichiers / WhatsApp / Notes) puis
-// téléchargement fichier ; ordinateur -> impression (PDF). window.print sur mobile
-// est bloqué par le navigateur, d'où l'impossibilité de « télécharger » constatée.
-function exportShoppingPdf() {
-  if (!isMobileDevice()) { printShoppingList(); return; } // ordinateur : PDF via impression (inchangé)
-  const filename = 'liste-de-courses.txt';
-  const text = shoppingListText();
-  // 1) Partage natif — appelé DANS le geste utilisateur (obligatoire pour navigator.share)
-  if (navigator.share) {
-    try {
-      let payload;
-      if (navigator.canShare) {
-        const file = new File([text], filename, { type: 'text/plain' });
-        payload = navigator.canShare({ files: [file] })
-          ? { files: [file], title: 'Liste de courses' }
-          : { title: 'Liste de courses', text };
-      } else {
-        payload = { title: 'Liste de courses', text };
-      }
-      navigator.share(payload).catch((e) => {
-        // Annulé par l'utilisateur -> on ne fait rien ; échec réel -> téléchargement.
-        if (!e || e.name !== 'AbortError') downloadTextFile(filename, text);
-      });
-      return;
-    } catch (_) { /* partage indisponible -> téléchargement */ }
+function downloadBlob(filename, blob) {
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  } catch (_) { showToast('Export impossible sur cet appareil.', { icon: 'info' }); }
+}
+
+// --- Génération d'un vrai PDF de la liste, sans dépendance (police standard
+//     Helvetica + WinAnsiEncoding pour les accents, cases à cocher vectorielles,
+//     pagination A4). Renvoie un Blob application/pdf. ---
+const _CP1252 = { 0x20AC: 0x80, 0x201A: 0x82, 0x0192: 0x83, 0x201E: 0x84, 0x2026: 0x85, 0x2020: 0x86, 0x2021: 0x87, 0x02C6: 0x88, 0x2030: 0x89, 0x0160: 0x8A, 0x2039: 0x8B, 0x0152: 0x8C, 0x017D: 0x8E, 0x2018: 0x91, 0x2019: 0x92, 0x201C: 0x93, 0x201D: 0x94, 0x2022: 0x95, 0x2013: 0x96, 0x2014: 0x97, 0x02DC: 0x98, 0x2122: 0x99, 0x0161: 0x9A, 0x203A: 0x9B, 0x0153: 0x9C, 0x017E: 0x9E, 0x0178: 0x9F };
+function _pdfStr(s) {
+  let out = '';
+  for (const ch of String(s)) {
+    let c = ch.codePointAt(0);
+    if (c > 0xFF) c = (_CP1252[c] != null) ? _CP1252[c] : 0x3F; // hors Latin-1 -> mappe CP1252 sinon '?'
+    if (c === 0x28 || c === 0x29 || c === 0x5C) out += '\\'; // échappe ( ) \
+    out += String.fromCharCode(c);
   }
-  // 2) Téléchargement direct du fichier (Android, ou pas de partage natif)
-  downloadTextFile(filename, text);
+  return out;
+}
+function buildShoppingPdfBlob() {
+  const parRayon = buildShoppingList();
+  const W = 595, H = 842, ML = 50, MB = 55, TOP = H - 50;
+  const pages = []; let cur = ''; let y = TOP;
+  const newPage = () => { pages.push(cur); cur = ''; y = TOP; };
+  const ensure = (space) => { if (y - space < MB) newPage(); };
+  const text = (str, x, size, bold, rgb) => {
+    const c = rgb || [0, 0, 0];
+    cur += `BT /${bold ? 'F2' : 'F1'} ${size} Tf ${c[0]} ${c[1]} ${c[2]} rg 1 0 0 1 ${x} ${y} Tm (${_pdfStr(str)}) Tj ET\n`;
+  };
+  const checkbox = (x, boxY, s) => { cur += `0.55 0.6 0.7 RG 1 w ${x} ${boxY} ${s} ${s} re S\n`; };
+  // En-tête
+  text('Liste de courses', ML, 20, true, [0.09, 0.11, 0.13]); y -= 26;
+  text('My Coach Nutrition · Pour ' + state.plan.jours.length + ' jour(s) · ' + state.portions + ' personne(s)', ML, 10.5, false, [0.42, 0.45, 0.5]); y -= 26;
+  rayonsTries(parRayon).forEach((rayon) => {
+    ensure(40);
+    y -= 4;
+    text(rayon, ML, 13, true, [0.231, 0.510, 0.965]); y -= 19;
+    parRayon[rayon].sort((a, b) => a.nom.localeCompare(b.nom)).forEach((item) => {
+      ensure(17);
+      let label = item.nom + ' — ' + fmtQty(item.quantite) + ' ' + item.unite;
+      if (label.length > 78) label = label.slice(0, 77) + '…';
+      checkbox(ML + 1, y - 1, 9);
+      text(label, ML + 18, 11, false, [0.12, 0.14, 0.18]);
+      y -= 17;
+    });
+    y -= 8;
+  });
+  pages.push(cur);
+  // Assemblage (objets + xref)
+  const fontReg = 3, fontBold = 4;
+  let num = 5; const pageNums = [], contentNums = [];
+  for (let i = 0; i < pages.length; i++) { contentNums.push(num++); pageNums.push(num++); }
+  const objs = {};
+  objs[1] = '<</Type/Catalog/Pages 2 0 R>>';
+  objs[2] = `<</Type/Pages/Kids[${pageNums.map((n) => n + ' 0 R').join(' ')}]/Count ${pages.length}>>`;
+  objs[fontReg] = '<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>';
+  objs[fontBold] = '<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>';
+  for (let i = 0; i < pages.length; i++) {
+    const content = pages[i];
+    objs[contentNums[i]] = `<</Length ${content.length}>>\nstream\n${content}\nendstream`;
+    objs[pageNums[i]] = `<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${W} ${H}]/Resources<</Font<</F1 ${fontReg} 0 R/F2 ${fontBold} 0 R>>>>/Contents ${contentNums[i]} 0 R>>`;
+  }
+  const maxNum = num - 1;
+  let pdf = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+  const off = [];
+  for (let n = 1; n <= maxNum; n++) { off[n] = pdf.length; pdf += `${n} 0 obj\n${objs[n]}\nendobj\n`; }
+  const xrefPos = pdf.length;
+  pdf += `xref\n0 ${maxNum + 1}\n0000000000 65535 f \n`;
+  for (let n = 1; n <= maxNum; n++) pdf += String(off[n]).padStart(10, '0') + ' 00000 n \n';
+  pdf += `trailer\n<</Size ${maxNum + 1}/Root 1 0 R>>\nstartxref\n${xrefPos}\n%%EOF`;
+  const bytes = Uint8Array.from(pdf, (c) => c.charCodeAt(0) & 0xFF);
+  return new Blob([bytes], { type: 'application/pdf' });
+}
+// Export de la liste : mobile -> partage natif (Fichiers / WhatsApp / Mail…) du PDF,
+// repli téléchargement ; ordinateur -> téléchargement direct du PDF. Plus de window.print
+// (bloqué sur mobile), d'où l'impossibilité de « télécharger » constatée auparavant.
+function exportShoppingPdf() {
+  let blob = null;
+  try { blob = buildShoppingPdfBlob(); } catch (_) { blob = null; }
+  if (!blob) { // repli extrême : ancien comportement selon l'appareil
+    if (isMobileDevice()) downloadTextFile('liste-de-courses.txt', shoppingListText());
+    else printShoppingList();
+    return;
+  }
+  const filename = 'liste-de-courses.pdf';
+  if (isMobileDevice() && navigator.share) {
+    try {
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: 'Liste de courses' }).catch((e) => {
+          if (!e || e.name !== 'AbortError') downloadBlob(filename, blob); // annulé -> rien ; échec -> download
+        });
+        return;
+      }
+    } catch (_) { /* -> téléchargement */ }
+  }
+  downloadBlob(filename, blob);
 }
 
 // ---------- Ma fiche (E1 + E6 : recap perso) ----------
