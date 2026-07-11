@@ -546,15 +546,17 @@ function renderNeeds() {
   const perte = Math.max(0, Number(state.profil.perte_objectif_kg) || 0);
   const hasWeight = (isChallenge || state.profil.objectif === 'perte') && perte > 0;
   const objPill = hasWeight ? ('−' + frKg(perte) + '&nbsp;kg') : (state.masquerCalories ? 'Objectif' : (b.kcalCible + '&nbsp;kcal'));
-  // Pictos conditionnels
+  // Pictos : Affine (si pas encore rempli), Ebook du jour (toujours, à droite d'Affine),
+  // puis Objectif de poids.
   let items = '';
-  if (_guideDuJour && !_guideDuJour.read) {
-    items += `<button type="button" class="pt-item" data-act="guide" aria-label="Guide du jour à découvrir"><span class="pt-ic pt-ic--accent">${icSvg('book')}<span class="pt-plus">+1</span></span><span class="pt-cap">Info</span></button>`;
-  }
   const avanceFilled = Object.keys(state.avance || {}).length > 0;
   if (!avanceFilled) {
     items += `<button type="button" class="pt-item" data-act="affine" aria-label="Affiner mon plan"><span class="pt-ic">${icSvg('sliders')}</span><span class="pt-cap">Affine</span></button>`;
   }
+  // Ebook du jour : ouvre le guide du jour (ou la bibliothèque à défaut) ; badge +1 si un
+  // ebook du jour vient d'être débloqué et n'a pas encore été lu.
+  const ebookNew = !!(_guideDuJour && !_guideDuJour.read);
+  items += `<button type="button" class="pt-item" data-act="ebook" aria-label="Ebook du jour"><span class="pt-ic${ebookNew ? ' pt-ic--accent' : ''}">${icSvg('book')}${ebookNew ? '<span class="pt-plus">+1</span>' : ''}</span><span class="pt-cap">Ebook</span></button>`;
   items += `<button type="button" class="pt-item pt-item--obj" data-act="obj" aria-label="Voir le détail de mes objectifs nutritionnels"><span class="pt-pill">${objPill}</span><span class="pt-cap">Objectif</span></button>`;
 
   card.innerHTML = `
@@ -567,7 +569,7 @@ function renderNeeds() {
     </div>
     <div class="pt-row">${items}</div>`;
 
-  const gi = card.querySelector('[data-act="guide"]'); if (gi) gi.addEventListener('click', openGuideDuJour);
+  const gi = card.querySelector('[data-act="ebook"]'); if (gi) gi.addEventListener('click', openGuideDuJour);
   const af = card.querySelector('[data-act="affine"]'); if (af) af.addEventListener('click', function () { const bt = $('#btnAvance'); if (bt) bt.click(); });
   const ob = card.querySelector('[data-act="obj"]'); if (ob) ob.addEventListener('click', openObjDetail);
 
