@@ -482,6 +482,13 @@ function updateTabVisibility() {
     data:           document.querySelector('[data-tab="data"]'),
   };
 
+  // Espace /coach/ recentré sur le Challenge : on ne laisse que l'onglet « Challenge »
+  // visible et actif (tous rôles). Les autres onglets restent dans le code mais masqués
+  // — retirer ce bloc pour rétablir la navigation complète par rôle ci-dessous.
+  Object.values(tabs).forEach((t) => { if (t) t.style.display = 'none'; });
+  if (tabs.challenge) { tabs.challenge.style.display = ''; tabs.challenge.click(); }
+  return;
+
   if (isAdmin()) {
     // Hide everything, then show only what admin needs
     Object.values(tabs).forEach(t => { if (t) t.style.display = 'none'; });
