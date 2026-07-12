@@ -8508,25 +8508,44 @@ async function loadPushStrip(host) {
   }));
 }
 
-// Pastille d'état d'un client (une seule, la plus prioritaire) : rouge = décroche,
-// orange = pesée officielle à faire, vert = tout va bien. Rien si le plan n'est pas encore prêt.
+// Signaux d'attention d'un client (base commune à la pastille ET au tri).
 function chDaysSince(dateStr) { if (!dateStr) return null; const t = Date.parse(dateStr); if (isNaN(t)) return null; return Math.floor((Date.now() - t) / 864e5); }
+function chSignals(c, unread) {
+  const inact = chDaysSince(c.updatedAt || c.savedAt || c.createdAt);
+  const red = !!c.hasPlan && ((inact != null && inact >= 6) || (c.adhScore != null && c.adhScore < 50));
+  let orange = false;
+  if (c.hasPlan && chIsChallenge(c.objectif)) {
+    const p = c.pesees || {};
+    orange = !p.depart || (c.challengeDay >= 42 && !p.s6) || (c.challengeDay >= 21 && !p.s3);
+  }
+  return { inact, red, orange, noPlan: !c.hasPlan, unread: unread || 0 };
+}
+// Pastille d'état (une seule, la plus prioritaire) : rouge = décroche, orange = pesée
+// officielle à faire, vert = tout va bien. Rien si le plan n'est pas encore prêt.
 function chStatusPill(c) {
   if (!c.hasPlan) return null; // « plan en attente » est déjà écrit dans le sous-titre
-  const inact = chDaysSince(c.updatedAt || c.savedAt || c.createdAt);
-  if (inact != null && inact >= 6) return { cls: 'red', txt: 'Inactif ' + inact + ' j' };
-  if (c.adhScore != null && c.adhScore < 50) return { cls: 'red', txt: 'À relancer' };
-  if (chIsChallenge(c.objectif)) {
+  const s = chSignals(c, 0);
+  if (s.red) return { cls: 'red', txt: (s.inact != null && s.inact >= 6) ? 'Inactif ' + s.inact + ' j' : 'À relancer' };
+  if (s.orange) {
     const p = c.pesees || {};
     if (!p.depart) return { cls: 'orange', txt: 'Pesée départ' };
     if (c.challengeDay >= 42 && !p.s6) return { cls: 'orange', txt: 'Pesée S6' };
-    if (c.challengeDay >= 21 && !p.s3) return { cls: 'orange', txt: 'Pesée S3' };
+    return { cls: 'orange', txt: 'Pesée S3' };
   }
   return { cls: 'green', txt: 'Sur les rails' };
 }
+// Score d'urgence -> tri « les plus à traiter en haut ». Rouge (décroche) > message
+// non lu > pesée due > plan en attente > sur les rails ; les signaux se cumulent.
+function chUrgency(c, unread) {
+  const s = chSignals(c, unread);
+  return (s.red ? 4 : 0) + (s.unread > 0 ? 3 : 0) + (s.orange ? 2 : 0) + (s.noPlan ? 1 : 0)
+    + Math.min(s.unread, 3) * 0.1 // + de messages -> un peu plus haut
+    + (s.red && c.adhScore != null ? (100 - c.adhScore) / 1000 : 0); // adhérence plus basse -> plus haut
+}
 function renderChallengeList(host, clients, unreadMap) {
-  // Challenge 6/6 en premier, puis le reste.
-  const sorted = clients.slice().sort((a, b) => (chIsChallenge(b.objectif) ? 1 : 0) - (chIsChallenge(a.objectif) ? 1 : 0));
+  const urg = (c) => chUrgency(c, unreadMap && unreadMap[c.email]);
+  // Les clients à traiter d'abord (urgence décroissante), puis Challenge, puis ordre serveur.
+  const sorted = clients.slice().sort((a, b) => (urg(b) - urg(a)) || ((chIsChallenge(b.objectif) ? 1 : 0) - (chIsChallenge(a.objectif) ? 1 : 0)));
   const nbChallenge = clients.filter((c) => chIsChallenge(c.objectif)).length;
   if (!sorted.length) {
     host.innerHTML = `<div class="ch-head"><h2>🔥 Challenge</h2></div>
@@ -8559,7 +8578,7 @@ function renderChallengeList(host, clients, unreadMap) {
   host.innerHTML = `
     <div class="ch-head">
       <h2>🔥 Challenge — mes clients</h2>
-      <span class="ch-count">${sorted.length} client${sorted.length > 1 ? 's' : ''}${nbChallenge ? ` · ${nbChallenge} en Challenge 6/6` : ''}</span>
+      <span class="ch-count">${sorted.length} client${sorted.length > 1 ? 's' : ''}${nbChallenge ? ` · ${nbChallenge} en Challenge 6/6` : ''}${sorted.length > 1 ? ' · triés par priorité' : ''}</span>
     </div>
     <div class="ch-list">${cards}</div>`;
   host.querySelectorAll('.ch-card').forEach((el) => {
