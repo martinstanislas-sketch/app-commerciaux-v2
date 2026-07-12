@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Mes Projets</title>
+<style>
+  :root {
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #64748b;
+    --accent: #6366f1;
+    --shadow: 0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.04);
+    --shadow-lg: 0 10px 30px rgba(15,23,42,.12);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1120; --surface: #131c2e; --surface-2: #0f172a;
+      --border: #1e293b; --text: #e2e8f0; --muted: #94a3b8;
+      --shadow: 0 1px 3px rgba(0,0,0,.4); --shadow-lg: 0 12px 40px rgba(0,0,0,.5);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5;
+    -webkit-font-smoothing: antialiased; padding-bottom: 40px;
+  }
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+  }
+  .header-inner { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 20px; font-weight: 700; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; }
+  h1 .dot { width: 12px; height: 12px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #a855f7); }
+  .stats { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  .stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 6px 12px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .stat b { color: var(--text); font-size: 15px; }
+  .stat.warn b { color: #ef4444; }
+  .btn {
+    border: none; border-radius: 10px; padding: 9px 16px; font-size: 14px; font-weight: 600;
+    cursor: pointer; background: var(--accent); color: #fff; transition: transform .08s, filter .15s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: scale(.97); }
+  .btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+
+  main { max-width: 1400px; margin: 0 auto; padding: 20px; }
+  .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .board { grid-template-columns: 1fr; } }
+  .column { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; min-height: 120px; transition: background .15s, border-color .15s; }
+  .column.drop-target { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface-2)); }
+  .column-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px 12px; font-weight: 700; font-size: 14px; }
+  .column-head .count { margin-left: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1px 9px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .col-todo .dot2 { background: #94a3b8; } .col-doing .dot2 { background: #f59e0b; } .col-done .dot2 { background: #22c55e; }
+  .dot2 { width: 9px; height: 9px; border-radius: 50%; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow); cursor: grab;
+    border-left: 4px solid var(--accent); transition: box-shadow .15s, transform .08s;
+  }
+  .card:hover { box-shadow: var(--shadow-lg); }
+  .card.dragging { opacity: .5; cursor: grabbing; }
+  .card-title { font-weight: 650; font-size: 15px; margin-bottom: 4px; letter-spacing: -.01em; }
+  .card-desc { font-size: 13px; color: var(--muted); margin-bottom: 8px; white-space: pre-wrap; word-break: break-word; }
+  .card-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; display: inline-flex; align-items: center; gap: 4px; }
+  .chip.prio-low { background: rgba(148,163,184,.18); color: #64748b; }
+  .chip.prio-medium { background: rgba(59,130,246,.15); color: #3b82f6; }
+  .chip.prio-high { background: rgba(239,68,68,.15); color: #ef4444; }
+  .chip.due { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+  .chip.due.overdue { background: rgba(239,68,68,.15); color: #ef4444; border-color: transparent; }
+  .chip.tasks { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+  .progress { height: 5px; background: var(--surface-2); border-radius: 4px; margin-top: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .progress > i { display: block; height: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 4px; transition: width .3s; }
+
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: rgba(2,6,23,.55); backdrop-filter: blur(3px); display: none; align-items: flex-start; justify-content: center; padding: 24px; z-index: 50; overflow-y: auto; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-lg); width: 100%; max-width: 520px; margin: auto; overflow: hidden; }
+  .modal-head { padding: 18px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .modal-head h2 { font-size: 17px; }
+  .modal-head .close { margin-left: auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; width: 32px; height: 32px; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; }
+  .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  label { font-size: 13px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 6px; }
+  input[type=text], input[type=date], textarea, select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface-2); color: var(--text); font-size: 14px; font-family: inherit; outline: none; transition: border-color .15s;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 72px; }
+  .row { display: flex; gap: 12px; } .row > div { flex: 1; }
+  .swatches { display: flex; gap: 8px; }
+  .swatch { width: 28px; height: 28px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; }
+  .swatch.sel { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface); }
+  .modal-foot { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; }
+  .modal-foot .btn { flex: 1; justify-content: center; }
+  .btn.danger { background: transparent; color: #ef4444; border: 1px solid var(--border); flex: 0 0 auto; }
+
+  /* Tâches dans le modal */
+  .tasks-box { border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); overflow: hidden; }
+  .task-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  .task-row:last-child { border-bottom: none; }
+  .task-row input[type=checkbox] { width: 18px; height: 18px; accent-color: #22c55e; cursor: pointer; flex: 0 0 auto; }
+  .task-row .tt { flex: 1; font-size: 14px; }
+  .task-row.done .tt { text-decoration: line-through; color: var(--muted); }
+  .task-row .del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; opacity: .6; }
+  .task-row .del:hover { opacity: 1; color: #ef4444; }
+  .task-due { font-size: 11px; color: var(--muted); }
+  .add-task { display: flex; gap: 8px; padding: 10px 12px; background: var(--surface); }
+  .add-task input { padding: 7px 10px; }
+  .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 20px 8px; }
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+  .toolbar .btn { }
+  .link { background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <h1><span class="dot"></span> Mes Projets</h1>
+    <div class="stats" id="stats"></div>
+    <button class="btn" onclick="openNew()">+ Nouveau projet</button>
+  </div>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button class="link" id="archiveToggle" onclick="toggleArchived()">Voir les archives</button>
+  </div>
+  <div class="board" id="board"></div>
+</main>
+
+<!-- Modal projet -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modalTitle">Nouveau projet</h2>
+      <button class="close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <label>Titre</label>
+        <input type="text" id="f-title" placeholder="Nom du projet" maxlength="120">
+      </div>
+      <div>
+        <label>Description</label>
+        <textarea id="f-desc" placeholder="Détails, objectif, notes…"></textarea>
+      </div>
+      <div class="row">
+        <div>
+          <label>Statut</label>
+          <select id="f-status">
+            <option value="todo">À faire</option>
+            <option value="doing">En cours</option>
+            <option value="done">Terminé</option>
+          </select>
+        </div>
+        <div>
+          <label>Priorité</label>
+          <select id="f-priority">
+            <option value="low">Basse</option>
+            <option value="medium">Moyenne</option>
+            <option value="high">Haute</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Échéance</label>
+          <input type="date" id="f-due">
+        </div>
+        <div>
+          <label>Couleur</label>
+          <div class="swatches" id="swatches"></div>
+        </div>
+      </div>
+
+      <div id="tasksSection" style="display:none">
+        <label>Tâches</label>
+        <div class="tasks-box">
+          <div id="taskList"></div>
+          <div class="add-task">
+            <input type="text" id="newTask" placeholder="Ajouter une tâche…" onkeydown="if(event.key==='Enter')addTask()">
+            <button class="btn ghost" onclick="addTask()">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn danger" id="deleteBtn" onclick="delProject()" style="display:none">Supprimer</button>
+      <button class="btn ghost" id="archiveBtn" onclick="toggleArchive()" style="display:none">Archiver</button>
+      <button class="btn" onclick="saveProject()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/projets';
+const COLORS = ['#6366f1','#a855f7','#ec4899','#ef4444','#f59e0b','#22c55e','#06b6d4','#64748b'];
+const COLS = [
+  { key: 'todo',  label: 'À faire',  cls: 'col-todo' },
+  { key: 'doing', label: 'En cours', cls: 'col-doing' },
+  { key: 'done',  label: 'Terminé',  cls: 'col-done' },
+];
+let state = { projects: [], editing: null, color: COLORS[0], showArchived: false };
+
+async function api(path, opts) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || 'Erreur'); }
+  return r.status === 204 ? null : r.json();
+}
+
+const esc = s => String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const todayStr = () => new Date().toISOString().slice(0, 10);
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
+async function load() {
+  const [projects, stats] = await Promise.all([
+    api(`${API}?archived=${state.showArchived ? 1 : 0}`),
+    api('/api/projets-stats'),
+  ]);
+  state.projects = projects;
+  renderStats(stats);
+  render();
+}
+
+function renderStats(s) {
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><b>${s.total}</b> projets</div>
+    <div class="stat"><b>${s.byStatus.doing}</b> en cours</div>
+    <div class="stat"><b>${s.byStatus.done}</b> terminés</div>
+    ${s.overdue ? `<div class="stat warn"><b>${s.overdue}</b> en retard</div>` : ''}`;
+}
+
+function render() {
+  const board = document.getElementById('board');
+  board.innerHTML = COLS.map(col => {
+    const items = state.projects.filter(p => p.status === col.key);
+    return `<div class="column ${col.cls}" data-status="${col.key}"
+              ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${col.key}')">
+      <div class="column-head"><span class="dot2"></span>${col.label}<span class="count">${items.length}</span></div>
+      <div class="cards">${items.map(cardHtml).join('') || `<div class="empty">Aucun projet</div>`}</div>
+    </div>`;
+  }).join('');
+}
+
+function cardHtml(p) {
+  const prioLabel = { low: 'Basse', medium: 'Moyenne', high: 'Haute' }[p.priority];
+  const overdue = p.due_date && p.status !== 'done' && p.due_date < todayStr();
+  const pct = p.taskCount ? Math.round(p.taskDone / p.taskCount * 100) : 0;
+  return `<div class="card" draggable="true" style="border-left-color:${esc(p.color)}"
+            data-id="${p.id}" ondragstart="onDragStart(event,${p.id})" ondragend="onDragEnd(event)"
+            onclick="openEdit(${p.id})">
+    <div class="card-title">${esc(p.title)}</div>
+    ${p.description ? `<div class="card-desc">${esc(p.description)}</div>` : ''}
+    <div class="card-meta">
+      <span class="chip prio-${p.priority}">${prioLabel}</span>
+      ${p.due_date ? `<span class="chip due ${overdue ? 'overdue' : ''}">📅 ${fmtDate(p.due_date)}</span>` : ''}
+      ${p.taskCount ? `<span class="chip tasks">✓ ${p.taskDone}/${p.taskCount}</span>` : ''}
+    </div>
+    ${p.taskCount ? `<div class="progress"><i style="width:${pct}%"></i></div>` : ''}
+  </div>`;
+}
+
+/* ── Drag & drop ── */
+let dragId = null;
+function onDragStart(e, id) { dragId = id; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+function onDragEnd(e) { e.currentTarget.classList.remove('dragging'); document.querySelectorAll('.column').forEach(c=>c.classList.remove('drop-target')); }
+function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drop-target'); }
+function onDragLeave(e) { e.currentTarget.classList.remove('drop-target'); }
+async function onDrop(e, status) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drop-target');
+  const p = state.projects.find(x => x.id === dragId);
+  if (!p || p.status === status) return;
+  p.status = status;
+  render();
+  const items = state.projects.filter(x => x.status === status);
+  const order = items.map((x, i) => ({ id: x.id, status, position: i + 1 }));
+  try { await api(`${API}/reorder`, { method: 'POST', body: JSON.stringify({ order }) }); await load(); }
+  catch (err) { alert(err.message); load(); }
+}
+
+/* ── Modal ── */
+function renderSwatches() {
+  document.getElementById('swatches').innerHTML = COLORS.map(c =>
+    `<div class="swatch ${c === state.color ? 'sel' : ''}" style="background:${c}" onclick="pickColor('${c}')"></div>`
+  ).join('');
+}
+function pickColor(c) { state.color = c; renderSwatches(); }
+
+function openNew() {
+  state.editing = null; state.color = COLORS[0];
+  document.getElementById('modalTitle').textContent = 'Nouveau projet';
+  document.getElementById('f-title').value = '';
+  document.getElementById('f-desc').value = '';
+  document.getElementById('f-status').value = 'todo';
+  document.getElementById('f-priority').value = 'medium';
+  document.getElementById('f-due').value = '';
+  document.getElementById('deleteBtn').style.display = 'none';
+  document.getElementById('archiveBtn').style.display = 'none';
+  document.getElementById('tasksSection').style.display = 'none';
+  renderSwatches();
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(() => document.getElementById('f-title').focus(), 50);
+}
+
+function openEdit(id) {
+  const p = state.projects.find(x => x.id === id);
+  if (!p) return;
+  state.editing = p; state.color = p.color;
+  document.getElementById('modalTitle').textContent = 'Modifier le projet';
+  document.getElementById('f-title').value = p.title;
+  document.getElementById('f-desc').value = p.description;
+  document.getElementById('f-status').value = p.status;
+  document.getElementById('f-priority').value = p.priority;
+  document.getElementById('f-due').value = p.due_date || '';
+  document.getElementById('deleteBtn').style.display = '';
+  const ab = document.getElementById('archiveBtn');
+  ab.style.display = ''; ab.textContent = p.archived ? 'Désarchiver' : 'Archiver';
+  document.getElementById('tasksSection').style.display = '';
+  renderSwatches();
+  renderTasks();
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+document.getElementById('overlay').addEventListener('click', e => { if (e.target.id === 'overlay') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function formData() {
+  return {
+    title: document.getElementById('f-title').value.trim(),
+    description: document.getElementById('f-desc').value.trim(),
+    status: document.getElementById('f-status').value,
+    priority: document.getElementById('f-priority').value,
+    due_date: document.getElementById('f-due').value || null,
+    color: state.color,
+  };
+}
+
+async function saveProject() {
+  const data = formData();
+  if (!data.title) { alert('Le titre est requis.'); return; }
+  try {
+    if (state.editing) await api(`${API}/${state.editing.id}`, { method: 'PATCH', body: JSON.stringify(data) });
+    else await api(API, { method: 'POST', body: JSON.stringify(data) });
+    closeModal(); await load();
+  } catch (err) { alert(err.message); }
+}
+
+async function delProject() {
+  if (!state.editing || !confirm('Supprimer ce projet et ses tâches ?')) return;
+  try { await api(`${API}/${state.editing.id}`, { method: 'DELETE' }); closeModal(); await load(); }
+  catch (err) { alert(err.message); }
+}
+
+async function toggleArchive() {
+  if (!state.editing) return;
+  try {
+    await api(`${API}/${state.editing.id}`, { method: 'PATCH', body: JSON.stringify({ archived: state.editing.archived ? 0 : 1 }) });
+    closeModal(); await load();
+  } catch (err) { alert(err.message); }
+}
+
+function toggleArchived() {
+  state.showArchived = !state.showArchived;
+  document.getElementById('archiveToggle').textContent = state.showArchived ? '← Retour aux projets actifs' : 'Voir les archives';
+  load();
+}
+
+/* ── Tâches ── */
+function renderTasks() {
+  const p = state.editing;
+  const el = document.getElementById('taskList');
+  if (!p.tasks || !p.tasks.length) { el.innerHTML = `<div class="empty">Aucune tâche</div>`; return; }
+  el.innerHTML = p.tasks.map(t => `
+    <div class="task-row ${t.done ? 'done' : ''}">
+      <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked)">
+      <span class="tt">${esc(t.title)}${t.due_date ? ` <span class="task-due">· ${fmtDate(t.due_date)}</span>` : ''}</span>
+      <button class="del" onclick="delTask(${t.id})">🗑</button>
+    </div>`).join('');
+}
+
+async function addTask() {
+  const inp = document.getElementById('newTask');
+  const title = inp.value.trim();
+  if (!title || !state.editing) return;
+  try {
+    const t = await api(`${API}/${state.editing.id}/taches`, { method: 'POST', body: JSON.stringify({ title }) });
+    state.editing.tasks.push(t); inp.value = ''; renderTasks(); refreshCard();
+  } catch (err) { alert(err.message); }
+}
+async function toggleTask(id, done) {
+  try {
+    await api(`/api/taches/${id}`, { method: 'PATCH', body: JSON.stringify({ done }) });
+    const t = state.editing.tasks.find(x => x.id === id); if (t) t.done = done ? 1 : 0;
+    renderTasks(); refreshCard();
+  } catch (err) { alert(err.message); }
+}
+async function delTask(id) {
+  try {
+    await api(`/api/taches/${id}`, { method: 'DELETE' });
+    state.editing.tasks = state.editing.tasks.filter(x => x.id !== id);
+    renderTasks(); refreshCard();
+  } catch (err) { alert(err.message); }
+}
+// Met à jour les compteurs de la carte sans tout recharger
+function refreshCard() {
+  const p = state.editing;
+  p.taskCount = p.tasks.length;
+  p.taskDone = p.tasks.filter(t => t.done).length;
+  render();
+}
+
+load().catch(err => { document.getElementById('board').innerHTML = `<div class="empty">Erreur de chargement : ${esc(err.message)}</div>`; });
+</script>
+</body>
+</html>
