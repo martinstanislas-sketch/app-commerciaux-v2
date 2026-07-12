@@ -8537,7 +8537,13 @@ function renderChallengeList(host, clients, unreadMap) {
   const cards = sorted.map((c) => {
     const name = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
     const isCh = chIsChallenge(c.objectif);
-    const sub = `${chEsc(chObjLabel(c.objectif))} · ${c.hasPlan ? 'plan actif' : 'plan en attente'}`;
+    // Donnée-clé directement sur la carte : jour de challenge + adhérence, pour scanner
+    // la progression sans ouvrir la fiche.
+    const adhTxt = (c.adhScore != null) ? ` · adhérence ${c.adhScore}%` : '';
+    let sub;
+    if (c.hasPlan && isCh && c.challengeDay) sub = `Jour ${c.challengeDay}/42${adhTxt}`;
+    else if (c.hasPlan) sub = `${chEsc(chObjLabel(c.objectif))} · plan actif${adhTxt}`;
+    else sub = `${chEsc(chObjLabel(c.objectif))} · plan en attente`;
     const unread = (unreadMap && unreadMap[c.email]) || 0;
     const pill = chStatusPill(c);
     return `<button class="ch-card${isCh ? ' is-ch' : ''}" data-email="${chEsc(c.email)}">
