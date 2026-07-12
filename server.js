@@ -2458,6 +2458,30 @@ try {
         } catch (_) { /* illisible */ }
         return { email: r.email, prenom: r.prenom, nom: r.nom, createdAt: r.created_at, updatedAt: r.updated_at, objectif, hasPlan, savedAt, coachId: r.coach_id || null, coachName: (r.coach_id && coachMap[r.coach_id]) || null };
       });
+      // ── Signaux pour la pastille d'état (requêtes GROUPÉES, jamais une par client) :
+      //    pesées officielles présentes + jour de challenge + adhérence moyenne 14 j.
+      const emailsList = clients.map((c) => c.email);
+      if (emailsList.length) {
+        const inClause = '(' + emailsList.map(() => '?').join(',') + ')';
+        const peseeMap = {};
+        try {
+          getDb().prepare("SELECT client_email, type, date FROM nutrition_parcours_pesees WHERE type IN ('depart','s3','s6') AND client_email IN " + inClause).all(...emailsList)
+            .forEach((r) => { const m = peseeMap[r.client_email] || (peseeMap[r.client_email] = {}); m[r.type] = true; if (r.type === 'depart') m.departDate = r.date; });
+        } catch (_) { /* pas de pesées -> pas de signal pesée */ }
+        const adhMap = {};
+        try {
+          const since = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
+          getDb().prepare("SELECT client_email, ROUND(AVG(score)) score FROM nutrition_adherence WHERE date >= ? AND client_email IN " + inClause + ' GROUP BY client_email').all(since, ...emailsList)
+            .forEach((r) => { adhMap[r.client_email] = r.score; });
+        } catch (_) { /* pas d'adhérence -> score null */ }
+        const jourChallenge = (dateStr) => { const t = Date.parse(dateStr); if (isNaN(t)) return null; return Math.min(42, Math.max(1, Math.floor((Date.now() - t) / 864e5) + 1)); };
+        clients.forEach((c) => {
+          const pm = peseeMap[c.email] || {};
+          c.pesees = { depart: !!pm.depart, s3: !!pm.s3, s6: !!pm.s6 };
+          c.challengeDay = pm.departDate ? jourChallenge(pm.departDate) : null;
+          c.adhScore = (c.email in adhMap) ? adhMap[c.email] : null;
+        });
+      }
       res.json({ ok: true, total: clients.length, scope: sc.isAdmin ? 'admin' : 'coach', clients });
     } catch (e) {
       console.error('Erreur /nutrition/api/coach/clients :', e);

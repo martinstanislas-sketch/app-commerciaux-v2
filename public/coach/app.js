@@ -8411,6 +8411,16 @@ function chInjectStyles() {
     .ch-badge { flex: 0 0 auto; font-size: 12px; font-weight: 800; color: #b45309; background: #fef3c7;
       border: 1px solid #fde68a; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
     .ch-chev { flex: 0 0 auto; color: #b6bcc4; font-size: 22px; line-height: 1; }
+    /* Nom + marqueurs inline (🔥 challenge, 💬 nouveau message) */
+    .ch-card-name { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .ch-badge.sm { padding: 2px 6px; font-size: 11px; }
+    .ch-unread { flex: 0 0 auto; font-size: 11px; font-weight: 800; color: #1D4ED8; background: #E8F0FE;
+      border: 1px solid #cfe0fd; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+    /* Pastille d'état (une par client) */
+    .ch-pill { flex: 0 0 auto; font-size: 11.5px; font-weight: 800; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
+    .ch-pill.red { color: #B42318; background: #FEF3F2; border: 1px solid #FECDCA; }
+    .ch-pill.orange { color: #B54708; background: #FFFAEB; border: 1px solid #FEDF89; }
+    .ch-pill.green { color: #067647; background: #ECFDF3; border: 1px solid #ABEFC6; }
     .ch-back { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer;
       color: #3B82F6; font-weight: 700; font-size: 14px; padding: 6px 4px; margin-bottom: 10px; }
     .ch-detail-head { display: flex; align-items: center; gap: 14px; margin: 2px 2px 18px; }
@@ -8464,8 +8474,15 @@ async function loadChallengeTab() {
   if (!host) return;
   host.innerHTML = '<div class="ch-loading">Chargement de tes clients…</div>';
   try {
-    const { clients } = await nutriApi('/coach/clients');
-    renderChallengeList(host, clients || []);
+    // Clients + conversations en parallèle : la liste affiche une pastille d'état par client
+    // (dont « nouveau message », qui vient des conversations).
+    const [cRes, convRes] = await Promise.all([
+      nutriApi('/coach/clients'),
+      nutriApi('/coach/conversations').catch(() => ({ conversations: [] })),
+    ]);
+    const unread = {};
+    (convRes.conversations || []).forEach((cv) => { if (cv.clientEmail) unread[cv.clientEmail] = (unread[cv.clientEmail] || 0) + (cv.unread || 0); });
+    renderChallengeList(host, cRes.clients || [], unread);
     loadPushStrip(host); // notifications : alertes photos + taux d'ouverture
   } catch (e) {
     host.innerHTML = `<div class="ch-empty"><p>Impossible de charger tes clients.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
@@ -8491,7 +8508,23 @@ async function loadPushStrip(host) {
   }));
 }
 
-function renderChallengeList(host, clients) {
+// Pastille d'état d'un client (une seule, la plus prioritaire) : rouge = décroche,
+// orange = pesée officielle à faire, vert = tout va bien. Rien si le plan n'est pas encore prêt.
+function chDaysSince(dateStr) { if (!dateStr) return null; const t = Date.parse(dateStr); if (isNaN(t)) return null; return Math.floor((Date.now() - t) / 864e5); }
+function chStatusPill(c) {
+  if (!c.hasPlan) return null; // « plan en attente » est déjà écrit dans le sous-titre
+  const inact = chDaysSince(c.updatedAt || c.savedAt || c.createdAt);
+  if (inact != null && inact >= 6) return { cls: 'red', txt: 'Inactif ' + inact + ' j' };
+  if (c.adhScore != null && c.adhScore < 50) return { cls: 'red', txt: 'À relancer' };
+  if (chIsChallenge(c.objectif)) {
+    const p = c.pesees || {};
+    if (!p.depart) return { cls: 'orange', txt: 'Pesée départ' };
+    if (c.challengeDay >= 42 && !p.s6) return { cls: 'orange', txt: 'Pesée S6' };
+    if (c.challengeDay >= 21 && !p.s3) return { cls: 'orange', txt: 'Pesée S3' };
+  }
+  return { cls: 'green', txt: 'Sur les rails' };
+}
+function renderChallengeList(host, clients, unreadMap) {
   // Challenge 6/6 en premier, puis le reste.
   const sorted = clients.slice().sort((a, b) => (chIsChallenge(b.objectif) ? 1 : 0) - (chIsChallenge(a.objectif) ? 1 : 0));
   const nbChallenge = clients.filter((c) => chIsChallenge(c.objectif)).length;
@@ -8505,13 +8538,15 @@ function renderChallengeList(host, clients) {
     const name = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
     const isCh = chIsChallenge(c.objectif);
     const sub = `${chEsc(chObjLabel(c.objectif))} · ${c.hasPlan ? 'plan actif' : 'plan en attente'}`;
+    const unread = (unreadMap && unreadMap[c.email]) || 0;
+    const pill = chStatusPill(c);
     return `<button class="ch-card${isCh ? ' is-ch' : ''}" data-email="${chEsc(c.email)}">
       <span class="ch-ava">${chEsc(chInitials(c.prenom, c.nom))}</span>
       <span class="ch-card-main">
-        <span class="ch-card-name">${chEsc(name)}</span>
+        <span class="ch-card-name">${chEsc(name)}${isCh ? '<span class="ch-badge sm">🔥</span>' : ''}${unread ? `<span class="ch-unread" title="Nouveau message">💬 ${unread}</span>` : ''}</span>
         <span class="ch-card-sub">${sub}</span>
       </span>
-      ${isCh ? '<span class="ch-badge">🔥 6/6</span>' : ''}
+      ${pill ? `<span class="ch-pill ${pill.cls}">${chEsc(pill.txt)}</span>` : ''}
       <span class="ch-chev">›</span>
     </button>`;
   }).join('');
