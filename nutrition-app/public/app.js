@@ -1955,7 +1955,8 @@ function printDocument(title, innerHTML) {
   setTimeout(() => { w.print(); }, 350);
 }
 
-function exportPlanPdf() {
+// Version imprimable du plan (repli ordinateur si la génération PDF échoue).
+function printPlanPdf() {
   const b = state.plan.besoins;
   const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
   let html = `<h1>Mon plan de repas — My Coach Nutrition</h1>
@@ -1973,6 +1974,27 @@ function exportPlanPdf() {
     html += '</div>';
   });
   printDocument('Plan de repas', html);
+}
+// Export du plan : mobile -> partage natif du PDF (Fichiers / WhatsApp / Mail…),
+// repli téléchargement ; ordinateur -> téléchargement direct du PDF. (Même correctif
+// que la liste de courses : window.print est bloqué sur mobile.)
+function exportPlanPdf() {
+  let blob = null;
+  try { blob = buildPlanPdfBlob(); } catch (_) { blob = null; }
+  if (!blob) { printPlanPdf(); return; }
+  const filename = 'mon-plan-repas.pdf';
+  if (isMobileDevice() && navigator.share) {
+    try {
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: 'Mon plan de repas' }).catch((e) => {
+          if (!e || e.name !== 'AbortError') downloadBlob(filename, blob);
+        });
+        return;
+      }
+    } catch (_) { /* -> téléchargement */ }
+  }
+  downloadBlob(filename, blob);
 }
 
 // Détection mobile : sur mobile l'impression via window.open est bloquée/inopérante,
@@ -2074,7 +2096,12 @@ function buildShoppingPdfBlob() {
     y -= 8;
   });
   pages.push(cur);
-  // Assemblage (objets + xref)
+  return _assemblePdf(pages, W, H);
+}
+// Assemble des flux de pages (chaînes de contenu PDF) en un Blob application/pdf
+// (catalogue + 2 polices Helvetica/Bold WinAnsi + pages + xref). Partagé par les
+// exports Liste de courses et Plan.
+function _assemblePdf(pages, W, H) {
   const fontReg = 3, fontBold = 4;
   let num = 5; const pageNums = [], contentNums = [];
   for (let i = 0; i < pages.length; i++) { contentNums.push(num++); pageNums.push(num++); }
@@ -2098,6 +2125,59 @@ function buildShoppingPdfBlob() {
   pdf += `trailer\n<</Size ${maxNum + 1}/Root 1 0 R>>\nstartxref\n${xrefPos}\n%%EOF`;
   const bytes = Uint8Array.from(pdf, (c) => c.charCodeAt(0) & 0xFF);
   return new Blob([bytes], { type: 'application/pdf' });
+}
+// Découpe un texte en lignes d'au plus maxChars caractères (aux espaces).
+function _wrapText(str, maxChars) {
+  const words = String(str).split(/\s+/).filter(Boolean);
+  const lines = []; let line = '';
+  for (const w of words) {
+    if (!line) line = w;
+    else if ((line + ' ' + w).length <= maxChars) line += ' ' + w;
+    else { lines.push(line); line = w; }
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [''];
+}
+// PDF du plan de repas (jours -> repas -> ingrédients + étapes), même moteur.
+function buildPlanPdfBlob() {
+  const W = 595, H = 842, ML = 50, MB = 55, TOP = H - 50, WRAP = 92;
+  const pages = []; let cur = ''; let y = TOP;
+  const newPage = () => { pages.push(cur); cur = ''; y = TOP; };
+  const ensure = (space) => { if (y - space < MB) newPage(); };
+  const text = (str, x, size, bold, rgb) => {
+    const c = rgb || [0, 0, 0];
+    cur += `BT /${bold ? 'F2' : 'F1'} ${size} Tf ${c[0]} ${c[1]} ${c[2]} rg 1 0 0 1 ${x} ${y} Tm (${_pdfStr(str)}) Tj ET\n`;
+  };
+  const para = (str, x, size, bold, rgb, hang) => {
+    _wrapText(str, WRAP).forEach((ln, i) => { ensure(size + 3); text(i && hang ? hang + ln : ln, x, size, bold, rgb); y -= size + 3; });
+  };
+  const b = state.plan.besoins;
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
+  text('Mon plan de repas — My Coach Nutrition', ML, 19, true, [0.09, 0.11, 0.13]); y -= 24;
+  const sub = 'Objectif : ' + (objLabels[state.profil.objectif] || '—') + (state.masquerCalories ? '' : ' · ~' + (b.kcalCible || '') + ' kcal/jour') + ' · ' + state.portions + ' personne(s) · Estimations indicatives';
+  text(sub, ML, 10, false, [0.42, 0.45, 0.5]); y -= 24;
+  (state.plan.jours || []).forEach((jour) => {
+    ensure(60);
+    y -= 6;
+    text(jour.jour, ML, 15, true, [0.231, 0.510, 0.965]); y -= 21;
+    (jour.repas || []).forEach((repas) => {
+      const r = repas.recette; if (!r) return;
+      ensure(46);
+      text(repas.label + ' — ' + r.nom, ML, 12, true, [0.12, 0.14, 0.18]); y -= 15;
+      text((state.masquerCalories ? '' : (r.kcal + ' kcal · ')) + r.tempsMinutes + ' min', ML, 9.5, false, [0.5, 0.53, 0.58]); y -= 16;
+      (r.ingredients || []).forEach((i) => {
+        para('•  ' + i.nom + ' — ' + fmtQty((Number(i.quantite) || 0) * state.portions) + ' ' + i.unite, ML + 6, 10.5, false, [0.2, 0.22, 0.26], '    ');
+      });
+      y -= 4;
+      (r.etapes || []).forEach((s, si) => {
+        para((si + 1) + '. ' + s, ML + 6, 10, false, [0.34, 0.36, 0.4], '   ');
+      });
+      y -= 12;
+    });
+    y -= 6;
+  });
+  pages.push(cur);
+  return _assemblePdf(pages, W, H);
 }
 // Export de la liste : mobile -> partage natif (Fichiers / WhatsApp / Mail…) du PDF,
 // repli téléchargement ; ordinateur -> téléchargement direct du PDF. Plus de window.print
