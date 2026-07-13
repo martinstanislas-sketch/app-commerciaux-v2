@@ -8531,7 +8531,7 @@ async function loadChallengeTab() {
     const unread = {};
     (convRes.conversations || []).forEach((cv) => { if (cv.clientEmail) unread[cv.clientEmail] = (unread[cv.clientEmail] || 0) + (cv.unread || 0); });
     renderChallengeList(host, cRes.clients || [], unread);
-    loadPushStrip(host); // notifications : alertes photos + taux d'ouverture
+    // (Bandeau « 🔔 Notifications » retiré à la demande — moins de bruit dans l'onglet.)
   } catch (e) {
     host.innerHTML = `<div class="ch-empty"><p>Impossible de charger tes clients.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
   }
