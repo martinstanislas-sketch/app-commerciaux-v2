@@ -59,6 +59,26 @@ html { color-scheme: light only; -webkit-color-scheme: light only; background: #
   --text-xl: 1.3rem;
   --text-2xl: 1.6rem;
 
+  /* ===== My Coach — design tokens (identité noir / doré / crème) ===== */
+  --mc-black: #11110F;
+  --mc-anthracite: #1D1D1A;
+  --mc-gold: #C7A45A;
+  --mc-gold-light: #E3CD98;
+  --mc-gold-soft: rgba(199,164,90,0.12);
+  --mc-cream: #F6F2E9;
+  --mc-cream-dark: #ECE5D8;
+  --mc-white: #FFFFFF;
+  --mc-text: #20211F;
+  --mc-text-muted: #70746F;
+  --mc-border: #E5E0D7;
+  --mc-success: #24835B; --mc-success-bg: #EAF6EF;
+  --mc-warning: #B76A19; --mc-warning-bg: #FFF3DF;
+  --mc-danger: #C6473D;  --mc-danger-bg: #FFF0EE;
+  --mc-info: #356FA8;    --mc-info-bg: #EDF5FC;
+  --mc-shadow-sm: 0 1px 2px rgba(17,17,15,.05);
+  --mc-shadow-md: 0 6px 22px -12px rgba(17,17,15,.22);
+  --mc-shadow-lg: 0 24px 60px -24px rgba(17,17,15,.4);
+
   /* Studio colors */
   --studio-marcq: #f59e0b;
   --studio-wasquehal: #3b82f6;
@@ -234,9 +254,11 @@ nav::-webkit-scrollbar { display: none; }
   font-family: inherit; text-transform: uppercase;
   letter-spacing: 0.12em; position: relative;
 }
-.tab-btn .tab-icon { font-size: .95rem; }
-.tab-btn:hover { color: var(--text); background: none; border-bottom-color: rgba(201,169,97,0.3); }
-.tab-btn.active { color: var(--primary); background: none; box-shadow: none; border-bottom-color: var(--primary); }
+.tab-btn .tab-icon { font-size: .95rem; display: inline-flex; }
+.tab-btn .tab-icon svg { width: 16px; height: 16px; display: block; }
+.tab-btn:hover { color: #E8E2D5; background: rgba(201,169,97,0.06); border-bottom-color: rgba(201,169,97,0.35); }
+.tab-btn.active { color: var(--mc-white); background: rgba(201,169,97,0.08); box-shadow: none; border-bottom-color: var(--mc-gold); }
+.tab-btn:focus-visible { outline: 2px solid var(--mc-gold); outline-offset: -2px; }
 /* Academy tab */
 .tab-btn-academy { color: rgba(245,158,11,.6); }
 .tab-btn-academy:hover { color: #f59e0b; border-bottom-color: rgba(245,158,11,.4); }
