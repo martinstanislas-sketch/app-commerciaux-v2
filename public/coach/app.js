@@ -222,8 +222,10 @@ function updateUserUI() {
     nameSpan.textContent = currentUser.role === 'admin' ? 'Admin' : currentUser.role === 'director' ? 'Directeur' : currentUser.name || 'Academy';
     infoDiv.classList.remove('hidden');
     if (appTitle) appTitle.textContent = isAcademy() ? 'Academy' : isDirector() ? 'Réseau' : 'Coach';
+    // Bouton « Nutrition » masqué : les 3 onglets (Challenge / Groupes / Messages)
+    // remplacent l'ancien tableau de bord nutrition côté coach.
     const nutBtn = document.getElementById('btn-nutrition');
-    if (nutBtn) nutBtn.style.display = (currentUser.role === 'coach' || currentUser.role === 'coach-leader') ? '' : 'none';
+    if (nutBtn) nutBtn.style.display = 'none';
   } else {
     infoDiv.classList.add('hidden');
     if (appTitle) appTitle.textContent = 'Coach';
