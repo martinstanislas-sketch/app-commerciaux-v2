@@ -2492,6 +2492,27 @@ try {
   // Fiche détaillée d'un client (coach = uniquement SES clients ; admin = tous). Identité
   // par email : profil/objectif/pesées viennent du blob `data` (clé email, propre) ; le suivi
   // récent (adhérence/aide) est scopé via `client_email` désormais rempli sur les tables legacy.
+  // Coach/admin : supprimer définitivement un client (compte + toutes ses données).
+  app.delete('/nutrition/api/coach/clients/:email', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const email = String(req.params.email || '').trim().toLowerCase();
+      if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
+      if (!sc.isAdmin && !coachSeesClient(sc.coachId, email)) return res.status(403).json({ ok: false, error: 'Client non attribué.' });
+      const db = getDb();
+      const del = (sql, ...args) => { try { db.prepare(sql).run(...args); } catch (_) { /* table absente -> on ignore */ } };
+      // Messages (via les conversations du client) puis le reste des données personnelles.
+      del('DELETE FROM nutrition_messages WHERE conversation_id IN (SELECT id FROM nutrition_conversations WHERE client_email = ?)', email);
+      ['nutrition_conversations', 'nutrition_client_coaches', 'nutrition_ebook_reads',
+        'nutrition_parcours_celebrations_seen', 'nutrition_parcours_mensurations', 'nutrition_parcours_pesees',
+        'nutrition_parcours_photos', 'nutrition_parcours_seances', 'nutrition_adherence', 'nutrition_scans',
+        'nutrition_help_requests', 'nutrition_push_subscriptions', 'nutrition_push_prefs', 'nutrition_push_queue',
+        'nutrition_push_log', 'nutrition_push_flags', 'nutrition_push_coach_alerts',
+      ].forEach((t) => del('DELETE FROM ' + t + ' WHERE client_email = ?', email));
+      del('DELETE FROM nutrition_clients WHERE email = ?', email); // le compte (clé = email)
+      res.json({ ok: true });
+    } catch (e) { console.error('coach client DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
+  });
   app.get('/nutrition/api/coach/clients/:email', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const sc = req.nutritionScope;

@@ -8463,7 +8463,45 @@ function chInjectStyles() {
     .ch-btn.sec.on { background: #dcfce7; color: #166534; }
     .ch-msg { font-size: 12.5px; font-weight: 700; margin-top: 4px; }
     .ch-msg.ok { color: #059669; } .ch-msg.err { color: #dc2626; }
-    @media (max-width: 560px) { .ch-form { flex-direction: column; align-items: stretch; } }
+    /* En-tête : titre + bouton inviter */
+    .ch-head-l { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .ch-invite-btn { flex: 0 0 auto; background: #111827; }
+    .ch-invite-btn:hover { background: #000; }
+    /* Carte : colonne droite, adhérence colorée, barre de progression, nouveau message */
+    .ch-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
+    .ch-adh { font-weight: 800; }
+    .ch-adh.good { color: #059669; } .ch-adh.warn { color: #B54708; } .ch-adh.bad { color: #B42318; }
+    .ch-bar { display: block; height: 5px; border-radius: 999px; background: #eef1f4; overflow: hidden; margin-top: 8px; max-width: 220px; }
+    .ch-bar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #3B82F6, #2F8F5B); }
+    .ch-newmsg { font-size: 12px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #3B82F6, #2563EB);
+      padding: 5px 12px; border-radius: 999px; white-space: nowrap; box-shadow: 0 4px 10px -3px rgba(37,99,235,.55); }
+    .ch-card.has-unread { border-color: #B9D3FF; background: #F5F9FF; box-shadow: 0 1px 2px rgba(16,24,40,.04), inset 4px 0 0 #3B82F6; }
+    .ch-card.has-unread:hover { border-color: #93b8fb; }
+    @media (prefers-reduced-motion: no-preference) { .ch-newmsg { animation: chPulse 1.9s ease-in-out infinite; } }
+    @keyframes chPulse { 0%,100% { box-shadow: 0 4px 10px -3px rgba(37,99,235,.55); } 50% { box-shadow: 0 5px 16px -1px rgba(37,99,235,.9); } }
+    /* Modale invitation */
+    .ch-modal { position: fixed; inset: 0; z-index: 9000; background: rgba(15,23,42,.5); display: flex; align-items: center; justify-content: center; padding: 18px; }
+    .ch-modal-card { background: #fff; border-radius: 18px; padding: 22px; width: 100%; max-width: 440px; box-shadow: 0 24px 60px -20px rgba(0,0,0,.5); }
+    .ch-modal-card h3 { margin: 0 0 4px; font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
+    .ch-modal-card p.sub { margin: 0 0 16px; font-size: 13px; color: #6b7280; }
+    .ch-modal-close { float: right; background: none; border: none; font-size: 22px; color: #9aa0a6; cursor: pointer; line-height: 1; }
+    .ch-link-box { display: flex; gap: 8px; margin-top: 12px; }
+    .ch-link-box input { flex: 1; font: inherit; font-size: 12.5px; padding: 9px 11px; border: 1px solid #d7dbe0; border-radius: 10px; background: #f8fafc; color: #111827; }
+    .ch-share-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .ch-share-row a, .ch-share-row button { flex: 1; min-width: 120px; text-align: center; text-decoration: none; font: inherit; font-weight: 700; font-size: 13px; padding: 10px; border-radius: 10px; cursor: pointer; border: none; }
+    .ch-share-wa { background: #25D366; color: #fff; }
+    .ch-share-mail { background: #eef2ff; color: #3730a3; }
+    /* Danger (supprimer un client) */
+    .ch-btn.danger { background: #FEF3F2; color: #B42318; border: 1px solid #FECDCA; }
+    .ch-btn.danger:hover { background: #FEE4E2; }
+    /* Conversation dans la fiche */
+    .ch-conv { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; padding: 4px 2px; margin-bottom: 12px; }
+    .ch-bubble { max-width: 82%; padding: 9px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.4; word-wrap: break-word; }
+    .ch-bubble.them { align-self: flex-start; background: #f1f3f5; color: #111827; border-bottom-left-radius: 5px; }
+    .ch-bubble.me { align-self: flex-end; background: #3B82F6; color: #fff; border-bottom-right-radius: 5px; }
+    .ch-bubble .t { display: block; font-size: 10.5px; opacity: .65; margin-top: 3px; }
+    .ch-conv-empty { text-align: center; color: #9aa0a6; font-size: 13px; padding: 18px; }
+    @media (max-width: 560px) { .ch-form { flex-direction: column; align-items: stretch; } .ch-head { flex-direction: column; align-items: stretch; gap: 10px; } .ch-invite-btn { width: 100%; } }
   `;
   document.head.appendChild(st);
 }
@@ -8556,44 +8594,118 @@ function renderChallengeList(host, clients, unreadMap) {
   const cards = sorted.map((c) => {
     const name = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
     const isCh = chIsChallenge(c.objectif);
-    // Donnée-clé directement sur la carte : jour de challenge + adhérence, pour scanner
-    // la progression sans ouvrir la fiche.
-    const adhTxt = (c.adhScore != null) ? ` · adhérence ${c.adhScore}%` : '';
-    let sub;
-    if (c.hasPlan && isCh && c.challengeDay) sub = `Jour ${c.challengeDay}/42${adhTxt}`;
-    else if (c.hasPlan) sub = `${chEsc(chObjLabel(c.objectif))} · plan actif${adhTxt}`;
-    else sub = `${chEsc(chObjLabel(c.objectif))} · plan en attente`;
     const unread = (unreadMap && unreadMap[c.email]) || 0;
     const pill = chStatusPill(c);
-    return `<button class="ch-card${isCh ? ' is-ch' : ''}" data-email="${chEsc(c.email)}">
+    // Donnée-clé sur la carte : jour de challenge (barre) + adhérence colorée.
+    const adhCls = c.adhScore == null ? '' : (c.adhScore >= 70 ? 'good' : c.adhScore >= 50 ? 'warn' : 'bad');
+    const adhHtml = (c.adhScore != null) ? `<span class="ch-adh ${adhCls}">adhérence ${c.adhScore}%</span>` : '';
+    let sub;
+    if (c.hasPlan && isCh && c.challengeDay) sub = `Jour ${c.challengeDay}/42${adhHtml ? ' · ' + adhHtml : ''}`;
+    else if (c.hasPlan) sub = adhHtml || chEsc(c.email);
+    else sub = 'Plan en attente';
+    const bar = (c.hasPlan && isCh && c.challengeDay)
+      ? `<span class="ch-bar"><i style="width:${Math.round(Math.min(42, c.challengeDay) / 42 * 100)}%"></i></span>` : '';
+    const newMsg = unread ? `<span class="ch-newmsg">💬 ${unread === 1 ? 'Nouveau message' : unread + ' nouveaux messages'}</span>` : '';
+    return `<button class="ch-card${isCh ? ' is-ch' : ''}${unread ? ' has-unread' : ''}" data-email="${chEsc(c.email)}">
       <span class="ch-ava">${chEsc(chInitials(c.prenom, c.nom))}</span>
       <span class="ch-card-main">
-        <span class="ch-card-name">${chEsc(name)}${isCh ? '<span class="ch-badge sm">🔥</span>' : ''}${unread ? `<span class="ch-unread" title="Nouveau message">💬 ${unread}</span>` : ''}</span>
+        <span class="ch-card-name">${chEsc(name)}${isCh ? '<span class="ch-badge sm">🔥</span>' : ''}</span>
         <span class="ch-card-sub">${sub}</span>
+        ${bar}
       </span>
-      ${pill ? `<span class="ch-pill ${pill.cls}">${chEsc(pill.txt)}</span>` : ''}
+      <span class="ch-card-right">
+        ${newMsg}
+        ${pill ? `<span class="ch-pill ${pill.cls}">${chEsc(pill.txt)}</span>` : ''}
+      </span>
       <span class="ch-chev">›</span>
     </button>`;
   }).join('');
   host.innerHTML = `
     <div class="ch-head">
-      <h2>🔥 Challenge — mes clients</h2>
-      <span class="ch-count">${sorted.length} client${sorted.length > 1 ? 's' : ''}${nbChallenge ? ` · ${nbChallenge} en Challenge 6/6` : ''}${sorted.length > 1 ? ' · triés par priorité' : ''}</span>
+      <div class="ch-head-l">
+        <h2>🔥 Mes clients</h2>
+        <span class="ch-count">${sorted.length} client${sorted.length > 1 ? 's' : ''}${sorted.length > 1 ? ' · triés par priorité' : ''}</span>
+      </div>
+      <button type="button" class="ch-btn ch-invite-btn" id="ch-invite-open">+ Inviter un client</button>
     </div>
     <div class="ch-list">${cards}</div>`;
   host.querySelectorAll('.ch-card').forEach((el) => {
     el.addEventListener('click', () => openChallengeClient(host, el.dataset.email));
+  });
+  const inv = host.querySelector('#ch-invite-open');
+  if (inv) inv.addEventListener('click', () => openInvitePanel());
+}
+
+// Modale « Inviter un client » : génère un lien d'invitation (email facultatif) + partage.
+function openInvitePanel() {
+  document.querySelectorAll('.ch-modal').forEach((m) => m.remove());
+  const modal = document.createElement('div');
+  modal.className = 'ch-modal';
+  modal.innerHTML = `
+    <div class="ch-modal-card">
+      <button type="button" class="ch-modal-close" aria-label="Fermer">×</button>
+      <h3>Inviter un client</h3>
+      <p class="sub">Génère un lien d'invitation. Le client crée son espace et choisit son code PIN. Lien valable 21 jours.</p>
+      <form class="ch-form" id="ch-inv-form" style="flex-direction:column;align-items:stretch">
+        <label>Prénom (facultatif)<input type="text" name="prenom" placeholder="Ex. Marie"></label>
+        <label>Email (facultatif)<input type="email" name="email" placeholder="Ex. marie@email.com"></label>
+        <button type="submit" class="ch-btn" style="align-self:flex-start">Générer le lien</button>
+      </form>
+      <div id="ch-inv-result"></div>
+      <div class="ch-msg" id="ch-inv-msg"></div>
+    </div>`;
+  document.body.appendChild(modal);
+  const close = () => modal.remove();
+  modal.querySelector('.ch-modal-close').addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  const msg = modal.querySelector('#ch-inv-msg');
+  modal.querySelector('#ch-inv-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target; const btn = f.querySelector('button');
+    const body = { prenom: f.prenom.value.trim(), email: f.email.value.trim() };
+    btn.disabled = true; msg.textContent = 'Génération…'; msg.className = 'ch-msg';
+    try {
+      const r = await nutriApi('/coach/invites', { method: 'POST', body });
+      const url = r.url;
+      const waText = encodeURIComponent(`Salut${body.prenom ? ' ' + body.prenom : ''} ! Voici ton accès à My Coach Nutrition : ${url}`);
+      const mailSub = encodeURIComponent('Ton accès My Coach Nutrition');
+      const mailBody = encodeURIComponent(`Bonjour${body.prenom ? ' ' + body.prenom : ''},\n\nVoici ton lien pour créer ton espace : ${url}\n\nÀ bientôt !`);
+      modal.querySelector('#ch-inv-result').innerHTML = `
+        <div class="ch-link-box">
+          <input type="text" readonly value="${chEsc(url)}" id="ch-inv-url">
+          <button type="button" class="ch-btn" id="ch-inv-copy">Copier</button>
+        </div>
+        <div class="ch-share-row">
+          <a class="ch-share-wa" href="https://wa.me/?text=${waText}" target="_blank" rel="noopener">Partager sur WhatsApp</a>
+          <a class="ch-share-mail" href="mailto:${encodeURIComponent(body.email)}?subject=${mailSub}&body=${mailBody}">Par email</a>
+        </div>`;
+      msg.textContent = r.emailSent ? 'Email envoyé au client ✓' : 'Lien prêt — partage-le au client.';
+      msg.className = 'ch-msg ok';
+      const copyBtn = modal.querySelector('#ch-inv-copy');
+      copyBtn.addEventListener('click', () => {
+        const inp = modal.querySelector('#ch-inv-url'); inp.select();
+        try { navigator.clipboard.writeText(inp.value); } catch (_) { try { document.execCommand('copy'); } catch (__) {} }
+        copyBtn.textContent = 'Copié ✓';
+      });
+    } catch (err) { msg.textContent = err.message || 'Erreur.'; msg.className = 'ch-msg err'; }
+    btn.disabled = false;
   });
 }
 
 async function openChallengeClient(host, email) {
   host.innerHTML = '<div class="ch-loading">Chargement de la fiche…</div>';
   try {
-    const [ficheRes, parcRes] = await Promise.all([
+    const [ficheRes, parcRes, convRes] = await Promise.all([
       nutriApi(`/coach/clients/${encodeURIComponent(email)}`),
       nutriApi(`/coach/parcours/${encodeURIComponent(email)}`).catch(() => ({ parcours: null })),
+      nutriApi(`/coach/conversations`).catch(() => ({ conversations: [] })),
     ]);
-    renderChallengeDetail(host, ficheRes.client, parcRes.parcours);
+    const conv = (convRes.conversations || []).find((cv) => cv.clientEmail === email) || null;
+    let messages = [];
+    if (conv && conv.id) {
+      try { const m = await nutriApi(`/coach/conversations/${conv.id}/messages`); messages = m.messages || []; } catch (_) { /* fil vide si erreur */ }
+    }
+    renderChallengeDetail(host, ficheRes.client, parcRes.parcours, { convId: conv && conv.id, messages });
   } catch (e) {
     host.innerHTML = `<button class="ch-back" data-act="back">‹ Retour</button>
       <div class="ch-empty"><p>Impossible de charger cette fiche.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
@@ -8602,7 +8714,8 @@ async function openChallengeClient(host, email) {
   }
 }
 
-function renderChallengeDetail(host, c, pc) {
+function chConvTime(iso) { const d = new Date(iso); if (isNaN(d.getTime())) return ''; return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
+function renderChallengeDetail(host, c, pc, msgData) {
   const name = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
   const p = c.profil || {};
   const isCh = chIsChallenge(c.objectif);
@@ -8679,6 +8792,22 @@ function renderChallengeDetail(host, c, pc) {
   // ── Actions
   const today = new Date().toISOString().slice(0, 10);
   const seanceToday = pc && (pc.seances || []).includes(today);
+  // ── Conversation (fil + composeur) : le coach voit et répond directement.
+  const msgs = (msgData && msgData.messages) || [];
+  const thread = msgs.length
+    ? msgs.map((m) => `<div class="ch-bubble ${m.mine ? 'me' : 'them'}"><span>${chEsc(m.text || '')}</span><span class="t">${chEsc(m.who || '')} · ${chConvTime(m.when)}</span></div>`).join('')
+    : '<div class="ch-conv-empty">Aucun message pour l’instant. Écris le premier ci-dessous.</div>';
+  const convPanel = `
+    <div class="ch-panel">
+      <h3>💬 Conversation</h3>
+      <div class="ch-conv" id="ch-conv">${thread}</div>
+      <form class="ch-form" id="ch-msg-form" style="flex-direction:column;align-items:stretch">
+        <label style="width:100%">Répondre à ${chEsc(c.prenom || name)}<textarea name="message" placeholder="Ton message…"></textarea></label>
+        <button type="submit" class="ch-btn" style="align-self:flex-start">Envoyer</button>
+      </form>
+      <div class="ch-msg" id="ch-msg-status"></div>
+    </div>`;
+
   const actionsPanel = `
     <div class="ch-panel ch-actions">
       <h3>Actions</h3>
@@ -8697,11 +8826,8 @@ function renderChallengeDetail(host, c, pc) {
       <div>
         <button type="button" class="ch-btn sec${seanceToday ? ' on' : ''}" id="ch-seance-btn">${seanceToday ? '✓ Séance validée aujourd’hui' : '+ Valider une séance aujourd’hui'}</button>
       </div>
-      <form class="ch-form" id="ch-msg-form" style="flex-direction:column;align-items:stretch">
-        <label style="width:100%">Message au client<textarea name="message" placeholder="Écris un message à ${chEsc(c.prenom || name)}…"></textarea></label>
-        <button type="submit" class="ch-btn" style="align-self:flex-start">Envoyer le message</button>
-      </form>
       <div class="ch-msg" id="ch-action-msg"></div>
+      <div><button type="button" class="ch-btn danger" id="ch-delete-btn">Supprimer ce client</button></div>
     </div>`;
 
   host.innerHTML = `
@@ -8709,11 +8835,12 @@ function renderChallengeDetail(host, c, pc) {
     <div class="ch-detail-head">
       <span class="ch-ava">${chEsc(chInitials(c.prenom, c.nom))}</span>
       <div>
-        <h2>${chEsc(name)} ${isCh ? '<span class="ch-badge">🔥 6/6</span>' : ''}</h2>
-        <div class="ch-obj">${chEsc(chObjLabel(c.objectif))} · ${chEsc(c.email)}</div>
+        <h2>${chEsc(name)} ${isCh ? '<span class="ch-badge">🔥</span>' : ''}</h2>
+        <div class="ch-obj">${chEsc(c.email)}</div>
       </div>
     </div>
     <div class="ch-grid">${profilPanel}${peseePanel}${suiviPanel}</div>
+    ${convPanel}
     ${actionsPanel}`;
 
   // ── Wiring
@@ -8747,19 +8874,30 @@ function renderChallengeDetail(host, c, pc) {
     } catch (err) { setMsg(err.message || 'Erreur.', false); btn.disabled = false; }
   });
 
+  const convStatus = host.querySelector('#ch-msg-status');
+  const setConvMsg = (txt, ok) => { convStatus.textContent = txt; convStatus.className = 'ch-msg ' + (ok ? 'ok' : 'err'); };
+  const convEl = host.querySelector('#ch-conv'); if (convEl) convEl.scrollTop = convEl.scrollHeight; // fil déroulé en bas
+
   host.querySelector('#ch-msg-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
     const btn = f.querySelector('button');
     const message = f.message.value.trim();
-    if (!message) { setMsg('Message vide.', false); return; }
+    if (!message) { setConvMsg('Message vide.', false); return; }
     btn.disabled = true;
     try {
       const { conversationId } = await nutriApi('/coach/conversations', { method: 'POST', body: { client_email: email } });
       await nutriApi(`/coach/conversations/${conversationId}/reply`, { method: 'POST', body: { message } });
-      f.message.value = '';
-      setMsg('Message envoyé ✓', true);
-    } catch (err) { setMsg(err.message || 'Erreur.', false); }
-    btn.disabled = false;
+      openChallengeClient(host, email); // recharge le fil avec le nouveau message
+    } catch (err) { setConvMsg(err.message || 'Erreur.', false); btn.disabled = false; }
+  });
+
+  host.querySelector('#ch-delete-btn').addEventListener('click', async () => {
+    if (!window.confirm(`Supprimer définitivement ${name} et toutes ses données ?\n\nCette action est irréversible.`)) return;
+    setMsg('Suppression…', true);
+    try {
+      await nutriApi(`/coach/clients/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      loadChallengeTab();
+    } catch (err) { setMsg(err.message || 'Suppression impossible.', false); }
   });
 }
