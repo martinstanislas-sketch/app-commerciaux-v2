@@ -929,6 +929,15 @@ try {
           });
       }
     } catch (_) { /* table absente -> pas de réactions */ }
+    const cmtByMsg = {}; // nombre de commentaires par message (item_id = 'p'+id)
+    try {
+      const ids = rows.map((r) => 'p' + r.id);
+      if (ids.length) {
+        const ph = ids.map(() => '?').join(',');
+        db.prepare('SELECT item_id, COUNT(*) AS n FROM nutrition_community_comments WHERE item_id IN (' + ph + ') GROUP BY item_id').all(...ids)
+          .forEach((x) => { cmtByMsg[x.item_id] = x.n; });
+      }
+    } catch (_) { /* table absente -> pas de commentaires */ }
     const avm = avatarUrlsByEmail(db, rows.map((r) => r.email));
     const messages = rows.map((r) => ({
       id: r.id, who: r.author || 'Client', when: r.created_at,
@@ -936,6 +945,7 @@ try {
       avatarUrl: avm[r.email] || '',
       reactions: (reacByMsg[r.id] && reacByMsg[r.id].counts) || {},
       myReaction: (reacByMsg[r.id] && reacByMsg[r.id].mine) || null,
+      commentCount: cmtByMsg['p' + r.id] || 0,
     }));
     let members = 0;
     try {
@@ -1004,6 +1014,29 @@ try {
       const mine = getDb().prepare('SELECT type FROM nutrition_community_reactions WHERE message_id = ? AND email = ?').get(id, key);
       res.json({ ok: true, id, reactions: counts, myReaction: mine ? mine.type : null });
     } catch (e) { console.error('coach community react POST :', e); res.status(500).json({ ok: false, error: 'Réaction impossible.' }); }
+  });
+  // Coach/admin : lire les commentaires sous un message du mur (item_id = 'p'+id).
+  app.get('/nutrition/api/coach/community/comments', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const item = String((req.query || {}).item || '');
+      if (!/^[ep]\d+$/.test(item)) return res.status(400).json({ ok: false, error: 'Élément invalide.' });
+      const rows = getDb().prepare('SELECT id, author, text, created_at FROM nutrition_community_comments WHERE item_id = ? ORDER BY id ASC LIMIT 200').all(item);
+      res.json({ ok: true, item, comments: rows.map((r) => ({ id: r.id, who: r.author || 'Un membre', text: r.text, when: r.created_at })) });
+    } catch (e) { console.error('coach community comments GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  // Coach/admin : répondre (commenter) sous un message du mur.
+  app.post('/nutrition/api/coach/community/comments', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const item = String(b.item || '');
+      if (!/^[ep]\d+$/.test(item)) return res.status(400).json({ ok: false, error: 'Élément invalide.' });
+      const author = String((req.session && req.session.name) || 'Coach').slice(0, 80);
+      const text = String(b.text || '').slice(0, 500).trim();
+      if (!text) return res.status(400).json({ ok: false, error: 'Commentaire vide.' });
+      const now = new Date().toISOString();
+      const info = getDb().prepare('INSERT INTO nutrition_community_comments (item_id, email, author, text, created_at) VALUES (?,?,?,?,?)').run(item, '', author, text, now);
+      res.json({ ok: true, comment: { id: info.lastInsertRowid, who: author, text, when: now } });
+    } catch (e) { console.error('coach community comments POST :', e); res.status(500).json({ ok: false, error: 'Publication impossible.' }); }
   });
 
   // Publier un message sur le mur collectif (client / coach / démo connecté).

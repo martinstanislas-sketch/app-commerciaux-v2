@@ -8506,6 +8506,14 @@ function chInjectStyles() {
     .grp-react .rx:hover { background: #e9ebee; }
     .grp-react .rx.on { background: #e0edff; border-color: #b9d3ff; }
     .grp-react .rx span { font-size: 11px; font-weight: 800; color: #374151; }
+    /* Commentaires (réponses) sous un message du mur */
+    .grp-cmt-toggle { background: none; border: none; color: #3B82F6; font: inherit; font-weight: 700; font-size: 12px; cursor: pointer; padding: 1px 2px; }
+    .grp-cmts { align-self: stretch; display: flex; flex-direction: column; gap: 6px; margin: 4px 0 2px; }
+    .grp-cmt { background: #f7f8fa; border: 1px solid #eceef1; border-radius: 10px; padding: 6px 10px; font-size: 12.5px; color: #111827; }
+    .grp-cmt b { color: #374151; margin-right: 4px; }
+    .grp-cmt-form { display: flex; gap: 6px; }
+    .grp-cmt-form input { flex: 1; font: inherit; font-size: 12.5px; padding: 6px 9px; border: 1px solid #d7dbe0; border-radius: 8px; }
+    .grp-cmt-form button { background: #3B82F6; color: #fff; border: none; border-radius: 8px; padding: 6px 12px; font: inherit; font-weight: 700; font-size: 12px; cursor: pointer; }
     @media (prefers-reduced-motion: no-preference) { .ch-newmsg { animation: chPulse 1.9s ease-in-out infinite; } }
     @keyframes chPulse { 0%,100% { box-shadow: 0 4px 10px -3px rgba(37,99,235,.55); } 50% { box-shadow: 0 5px 16px -1px rgba(37,99,235,.9); } }
     /* Modale invitation */
@@ -8585,6 +8593,28 @@ function chReactBar(m) {
     return `<button type="button" class="rx${on ? ' on' : ''}" data-type="${type}" title="${type}">${emo}${n ? ` <span>${n}</span>` : ''}</button>`;
   }).join('') + '</div>';
 }
+// Charge + affiche les commentaires (réponses) d'un message du mur + le champ de réponse.
+async function grpLoadComments(box, id) {
+  box.innerHTML = '<div class="ch-muted" style="font-size:12px;padding:4px 2px">Chargement…</div>';
+  try {
+    const d = await nutriApi(`/coach/community/comments?item=p${id}`);
+    const list = (d.comments || []).map((c) => `<div class="grp-cmt"><b>${chEsc(c.who)}</b> ${chEsc(c.text)}</div>`).join('');
+    box.innerHTML = `${list}<form class="grp-cmt-form"><input type="text" maxlength="500" placeholder="Écrire une réponse…" autocomplete="off"><button type="submit">Envoyer</button></form>`;
+    const n = (d.comments || []).length;
+    const tg = box.parentElement.querySelector('.grp-cmt-toggle');
+    if (tg) tg.textContent = '💬 ' + (n ? n + (n > 1 ? ' réponses' : ' réponse') : 'Répondre');
+    box.querySelector('.grp-cmt-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const inp = e.target.querySelector('input'); const text = inp.value.trim();
+      if (!text) return;
+      const b = e.target.querySelector('button'); b.disabled = true;
+      try {
+        await nutriApi('/coach/community/comments', { method: 'POST', body: { item: 'p' + id, text } });
+        grpLoadComments(box, id); // recharge la liste + met à jour le compteur
+      } catch (_) { b.disabled = false; }
+    });
+  } catch (e) { box.innerHTML = '<div class="ch-muted" style="font-size:12px;padding:4px 2px">Indisponible.</div>'; }
+}
 let _grpActive = null; // { ville, no } du mur affiché
 async function loadGroupesTab() {
   chInjectStyles();
@@ -8634,9 +8664,12 @@ async function renderGroupWall(el, grp) {
     const thread = msgs.length
       ? msgs.map((m) => {
         const side = m.kind === 'coach' ? 'me' : 'them';
+        const cc = m.commentCount || 0;
         return `<div class="grp-msg ${side}">
           <div class="ch-bubble ${side}"><span>${chEsc(m.text || '')}</span><span class="t">${chEsc(m.who || 'Client')} · ${chConvTime(m.when)}</span></div>
           ${chReactBar(m)}
+          <button type="button" class="grp-cmt-toggle" data-id="${m.id}">💬 ${cc ? cc + (cc > 1 ? ' réponses' : ' réponse') : 'Répondre'}</button>
+          <div class="grp-cmts" data-id="${m.id}" hidden></div>
         </div>`;
       }).join('')
       : '<div class="ch-conv-empty">Aucun message sur ce mur. Écris le premier ci-dessous.</div>';
@@ -8666,6 +8699,15 @@ async function renderGroupWall(el, grp) {
         });
       } catch (_) { /* ignore */ }
       btn.disabled = false;
+    }));
+    // Commentaires (réponses) : déplier / replier sous chaque message.
+    el.querySelectorAll('.grp-cmt-toggle').forEach((btn) => btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const box = el.querySelector(`.grp-cmts[data-id="${id}"]`);
+      if (!box) return;
+      if (!box.hidden) { box.hidden = true; return; }
+      box.hidden = false;
+      grpLoadComments(box, id);
     }));
     el.querySelector('#grp-form').addEventListener('submit', async (e) => {
       e.preventDefault();
