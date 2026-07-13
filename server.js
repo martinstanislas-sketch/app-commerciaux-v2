@@ -963,7 +963,11 @@ try {
   app.get('/nutrition/api/coach/community', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const limit = Math.min(Math.max(Number(req.query.limit) || 40, 1), 100);
-      res.json({ ok: true, ...communityWallPayload('', limit) });
+      // Mur d'UN groupe précis (ville + n°) si fourni ; sinon vue globale (tous les murs).
+      const ville = String((req.query || {}).ville || '').trim().toLowerCase();
+      const no = Math.round(Number((req.query || {}).challengeNo) || 0);
+      const groupKey = (ville && no) ? (ville + '#' + no) : null;
+      res.json({ ok: true, groupKey: groupKey || '', ...communityWallPayload('', limit, groupKey) });
     } catch (e) { console.error('coach community GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
   });
   app.post('/nutrition/api/coach/community', requireAuth, requireCoachOrAdmin, (req, res) => {

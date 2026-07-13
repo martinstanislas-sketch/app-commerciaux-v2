@@ -415,6 +415,8 @@ function initTabs() {
       if (t === 'dashboard') loadDashboard();
       else if (t === 'today') loadTodayTab();
       else if (t === 'challenge') loadChallengeTab();
+      else if (t === 'groupes') loadGroupesTab();
+      else if (t === 'messages') loadMessagesInbox();
       else if (t === 'recap') loadRecapTab();
       else if (t === 'notes') loadNotes();
       else if (t === 'controle') loadControlTab();
@@ -482,11 +484,11 @@ function updateTabVisibility() {
     data:           document.querySelector('[data-tab="data"]'),
   };
 
-  // Espace /coach/ recentré sur le Challenge : on ne laisse que l'onglet « Challenge »
-  // visible et actif (tous rôles). Les autres onglets restent dans le code mais masqués
-  // — retirer ce bloc pour rétablir la navigation complète par rôle ci-dessous.
+  // Espace /coach/ : 3 onglets — Challenge (clients), Groupes (murs collectifs),
+  // Messages (conversations privées). Les autres onglets restent dans le code, masqués.
   Object.values(tabs).forEach((t) => { if (t) t.style.display = 'none'; });
-  if (tabs.challenge) { tabs.challenge.style.display = ''; tabs.challenge.click(); }
+  ['challenge', 'groupes', 'messages'].forEach((k) => { const b = document.querySelector('[data-tab="' + k + '"]'); if (b) b.style.display = ''; });
+  if (tabs.challenge) tabs.challenge.click();
   return;
 
   if (isAdmin()) {
@@ -8487,6 +8489,13 @@ function chInjectStyles() {
     .ch-group-n { background: #eef1f4; color: #6b7280; border-radius: 999px; padding: 1px 8px; font-size: 11px; text-transform: none; letter-spacing: 0; }
     .ch-group-write { flex: 0 0 auto; background: #eef2ff; color: #3730a3; border: 1px solid #dfe3ff; border-radius: 10px; padding: 6px 12px; font: inherit; font-weight: 700; font-size: 12px; cursor: pointer; }
     .ch-group-write:hover { background: #e0e7ff; }
+    /* Onglet Groupes : sélecteur de mur (chips) */
+    .grp-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 4px 16px; }
+    .grp-chip { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #eceef1; border-radius: 999px; padding: 7px 13px; font: inherit; font-weight: 700; font-size: 13px; color: #374151; cursor: pointer; }
+    .grp-chip:hover { border-color: #dfe3e8; }
+    .grp-chip.on { background: #111827; color: #fff; border-color: #111827; }
+    .grp-chip span { background: rgba(0,0,0,.08); border-radius: 999px; padding: 0 7px; font-size: 11px; }
+    .grp-chip.on span { background: rgba(255,255,255,.22); }
     @media (prefers-reduced-motion: no-preference) { .ch-newmsg { animation: chPulse 1.9s ease-in-out infinite; } }
     @keyframes chPulse { 0%,100% { box-shadow: 0 4px 10px -3px rgba(37,99,235,.55); } 50% { box-shadow: 0 5px 16px -1px rgba(37,99,235,.9); } }
     /* Modale invitation */
@@ -8554,6 +8563,163 @@ async function loadPushStrip(host) {
   strip.querySelectorAll('.ch-ps-seen').forEach((b) => b.addEventListener('click', async () => {
     try { await nutriApi('/coach/push-alerts/' + b.dataset.id + '/seen', { method: 'POST' }); b.closest('.ch-ps-alert').remove(); } catch (_) { /* ignore */ }
   }));
+}
+
+// ===== Onglet GROUPES : murs collectifs par groupe (ville + n° de challenge) =====
+let _grpActive = null; // { ville, no } du mur affiché
+async function loadGroupesTab() {
+  chInjectStyles();
+  const host = document.getElementById('groupes-container');
+  if (!host) return;
+  host.innerHTML = '<div class="ch-loading">Chargement des groupes…</div>';
+  try {
+    const { clients } = await nutriApi('/coach/clients');
+    const map = {};
+    (clients || []).forEach((c) => {
+      if ((c.ville || '').trim() && c.challengeNo) {
+        const k = c.ville.trim().toLowerCase() + '#' + c.challengeNo;
+        if (!map[k]) map[k] = { ville: c.ville.trim(), no: c.challengeNo, count: 0 };
+        map[k].count++;
+      }
+    });
+    const groups = Object.values(map).sort((a, b) => (b.no - a.no) || a.ville.localeCompare(b.ville));
+    if (!groups.length) {
+      host.innerHTML = `<div class="ch-head"><div class="ch-head-l"><h2>📣 Groupes</h2></div></div>
+        <div class="ch-empty"><p>Aucun groupe pour l'instant.</p><p class="ch-muted">Range tes clients (Ville + N° de challenge) dans l'onglet Challenge pour créer des murs de groupe.</p></div>`;
+      return;
+    }
+    if (!_grpActive || !groups.some((g) => g.ville.toLowerCase() === _grpActive.ville.toLowerCase() && g.no === _grpActive.no)) {
+      _grpActive = { ville: groups[0].ville, no: groups[0].no };
+    }
+    const chips = groups.map((g) => {
+      const on = g.ville.toLowerCase() === _grpActive.ville.toLowerCase() && g.no === _grpActive.no;
+      return `<button type="button" class="grp-chip${on ? ' on' : ''}" data-ville="${chEsc(g.ville)}" data-no="${g.no}">📍 ${chEsc(g.ville)} · Chall. ${g.no} <span>${g.count}</span></button>`;
+    }).join('');
+    host.innerHTML = `
+      <div class="ch-head"><div class="ch-head-l"><h2>📣 Groupes</h2><span class="ch-count">${groups.length} mur${groups.length > 1 ? 's' : ''} collectif${groups.length > 1 ? 's' : ''}</span></div></div>
+      <div class="grp-chips">${chips}</div>
+      <div id="grp-wall"></div>`;
+    host.querySelectorAll('.grp-chip').forEach((b) => b.addEventListener('click', () => { _grpActive = { ville: b.dataset.ville, no: Number(b.dataset.no) }; loadGroupesTab(); }));
+    renderGroupWall(host.querySelector('#grp-wall'), _grpActive);
+  } catch (e) {
+    host.innerHTML = `<div class="ch-empty"><p>Chargement impossible.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
+  }
+}
+async function renderGroupWall(el, grp) {
+  if (!el) return;
+  el.innerHTML = '<div class="ch-loading">Chargement du mur…</div>';
+  const label = `${grp.ville} · Challenge n°${grp.no}`;
+  try {
+    const d = await nutriApi(`/coach/community?ville=${encodeURIComponent(grp.ville)}&challengeNo=${grp.no}&limit=60`);
+    const msgs = (d.messages || []).slice().reverse(); // du plus ancien au plus récent
+    const thread = msgs.length
+      ? msgs.map((m) => `<div class="ch-bubble ${m.kind === 'coach' ? 'me' : 'them'}"><span>${chEsc(m.text || '')}</span><span class="t">${chEsc(m.who || 'Client')} · ${chConvTime(m.when)}</span></div>`).join('')
+      : '<div class="ch-conv-empty">Aucun message sur ce mur. Écris le premier ci-dessous.</div>';
+    el.innerHTML = `
+      <div class="ch-panel">
+        <h3>Mur de ${chEsc(label)} · ${d.members || 0} membre${(d.members || 0) > 1 ? 's' : ''}</h3>
+        <div class="ch-conv" id="grp-thread">${thread}</div>
+        <form class="ch-form" id="grp-form" style="flex-direction:column;align-items:stretch">
+          <label style="width:100%">Écrire sur le mur de ${chEsc(label)}<textarea name="message" placeholder="Ex. Bravo à tous, belle semaine 💪"></textarea></label>
+          <button type="submit" class="ch-btn" style="align-self:flex-start">Publier sur le mur</button>
+        </form>
+        <div class="ch-msg" id="grp-status"></div>
+      </div>`;
+    const t = el.querySelector('#grp-thread'); if (t) t.scrollTop = t.scrollHeight;
+    const status = el.querySelector('#grp-status');
+    el.querySelector('#grp-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target; const btn = f.querySelector('button');
+      const message = f.message.value.trim();
+      if (!message) { status.textContent = 'Message vide.'; status.className = 'ch-msg err'; return; }
+      btn.disabled = true;
+      try {
+        await nutriApi('/coach/community', { method: 'POST', body: { message, ville: grp.ville, challengeNo: grp.no } });
+        renderGroupWall(el, grp); // recharge le mur avec le nouveau message
+      } catch (err) { status.textContent = err.message || 'Erreur.'; status.className = 'ch-msg err'; btn.disabled = false; }
+    });
+  } catch (e) {
+    el.innerHTML = `<div class="ch-empty"><p>Mur indisponible.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
+  }
+}
+
+// ===== Onglet MESSAGES : conversations privées (envoyées/reçues) =====
+async function loadMessagesInbox() {
+  chInjectStyles();
+  const host = document.getElementById('messages-container');
+  if (!host) return;
+  host.innerHTML = '<div class="ch-loading">Chargement des messages…</div>';
+  try {
+    const d = await nutriApi('/coach/conversations');
+    const convs = (d.conversations || []).slice().sort((a, b) => ((b.unread || 0) - (a.unread || 0)) || (Date.parse(b.lastAt || 0) - Date.parse(a.lastAt || 0)));
+    if (!convs.length) {
+      host.innerHTML = `<div class="ch-head"><div class="ch-head-l"><h2>✉️ Messages</h2></div></div>
+        <div class="ch-empty"><p>Aucune conversation pour l'instant.</p><p class="ch-muted">Les échanges privés avec tes clients apparaîtront ici.</p></div>`;
+      return;
+    }
+    const totalUnread = convs.reduce((s, c) => s + (c.unread || 0), 0);
+    const rows = convs.map((c) => {
+      const name = c.clientName || c.clientEmail;
+      const parts = String(name).split(' ');
+      const preview = c.lastText ? ((c.lastRole && c.lastRole !== 'client' ? 'Toi : ' : '') + c.lastText) : '';
+      return `<button type="button" class="ch-card${c.unread ? ' has-unread' : ''}" data-id="${c.id}" data-email="${chEsc(c.clientEmail)}" data-name="${chEsc(name)}">
+        <span class="ch-ava">${chEsc(chInitials(parts[0] || '', parts[1] || ''))}</span>
+        <span class="ch-card-main">
+          <span class="ch-card-name">${chEsc(name)}</span>
+          <span class="ch-card-sub">${chEsc(preview.slice(0, 64))}</span>
+        </span>
+        <span class="ch-card-right">
+          ${c.unread ? `<span class="ch-newmsg">💬 ${c.unread}</span>` : (c.lastAt ? `<span class="ch-muted" style="font-size:11px">${chConvTime(c.lastAt)}</span>` : '')}
+        </span>
+        <span class="ch-chev">›</span>
+      </button>`;
+    }).join('');
+    host.innerHTML = `
+      <div class="ch-head"><div class="ch-head-l"><h2>✉️ Messages</h2><span class="ch-count">${convs.length} conversation${convs.length > 1 ? 's' : ''}${totalUnread ? ` · ${totalUnread} non lu${totalUnread > 1 ? 's' : ''}` : ''}</span></div></div>
+      <div class="ch-list">${rows}</div>`;
+    host.querySelectorAll('.ch-card').forEach((el) => el.addEventListener('click', () => openInboxConversation(host, el.dataset.id, el.dataset.email, el.dataset.name)));
+  } catch (e) {
+    host.innerHTML = `<div class="ch-empty"><p>Chargement impossible.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
+  }
+}
+async function openInboxConversation(host, id, email, name) {
+  host.innerHTML = '<div class="ch-loading">Chargement de la conversation…</div>';
+  const parts = String(name).split(' ');
+  try {
+    const d = await nutriApi(`/coach/conversations/${id}/messages`);
+    const msgs = d.messages || [];
+    const thread = msgs.length
+      ? msgs.map((m) => `<div class="ch-bubble ${m.mine ? 'me' : 'them'}"><span>${chEsc(m.text || '')}</span><span class="t">${chEsc(m.who || '')} · ${chConvTime(m.when)}</span></div>`).join('')
+      : '<div class="ch-conv-empty">Aucun message. Écris le premier ci-dessous.</div>';
+    host.innerHTML = `
+      <button class="ch-back" data-act="back">‹ Tous les messages</button>
+      <div class="ch-detail-head"><span class="ch-ava">${chEsc(chInitials(parts[0] || '', parts[1] || ''))}</span><div><h2>${chEsc(name)}</h2><div class="ch-obj">${chEsc(email)}</div></div></div>
+      <div class="ch-panel">
+        <div class="ch-conv" id="inbox-thread">${thread}</div>
+        <form class="ch-form" id="inbox-form" style="flex-direction:column;align-items:stretch">
+          <label style="width:100%">Répondre à ${chEsc(parts[0] || name)}<textarea name="message" placeholder="Ton message…"></textarea></label>
+          <button type="submit" class="ch-btn" style="align-self:flex-start">Envoyer</button>
+        </form>
+        <div class="ch-msg" id="inbox-status"></div>
+      </div>`;
+    host.querySelector('[data-act="back"]').addEventListener('click', () => loadMessagesInbox());
+    const t = host.querySelector('#inbox-thread'); if (t) t.scrollTop = t.scrollHeight;
+    const status = host.querySelector('#inbox-status');
+    host.querySelector('#inbox-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target; const btn = f.querySelector('button');
+      const message = f.message.value.trim();
+      if (!message) { status.textContent = 'Message vide.'; status.className = 'ch-msg err'; return; }
+      btn.disabled = true;
+      try {
+        await nutriApi(`/coach/conversations/${id}/reply`, { method: 'POST', body: { message } });
+        openInboxConversation(host, id, email, name); // recharge le fil
+      } catch (err) { status.textContent = err.message || 'Erreur.'; status.className = 'ch-msg err'; btn.disabled = false; }
+    });
+  } catch (e) {
+    host.innerHTML = `<button class="ch-back" data-act="back">‹ Retour</button><div class="ch-empty"><p>Conversation indisponible.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
+    const b = host.querySelector('[data-act="back"]'); if (b) b.addEventListener('click', () => loadMessagesInbox());
+  }
 }
 
 // Signaux d'attention d'un client (base commune à la pastille ET au tri).
