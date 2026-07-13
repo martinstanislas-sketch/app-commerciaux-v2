@@ -967,7 +967,8 @@ try {
       const ville = String((req.query || {}).ville || '').trim().toLowerCase();
       const no = Math.round(Number((req.query || {}).challengeNo) || 0);
       const groupKey = (ville && no) ? (ville + '#' + no) : null;
-      res.json({ ok: true, groupKey: groupKey || '', ...communityWallPayload('', limit, groupKey) });
+      const coachKey = 'coach:' + (req.session.coach_id || req.session.name || 'staff'); // identité du coach pour « ma réaction »
+      res.json({ ok: true, groupKey: groupKey || '', ...communityWallPayload(coachKey, limit, groupKey) });
     } catch (e) { console.error('coach community GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
   });
   app.post('/nutrition/api/coach/community', requireAuth, requireCoachOrAdmin, (req, res) => {
@@ -984,6 +985,25 @@ try {
       const info = getDb().prepare('INSERT INTO nutrition_community_messages (email, author, message, kind, created_at, group_key) VALUES (?, ?, ?, ?, ?, ?)').run('', author, msg, 'coach', now, groupKey);
       res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind: 'coach', groupKey, mine: true, reactions: {}, myReaction: null } });
     } catch (e) { console.error('coach community POST :', e); res.status(500).json({ ok: false, error: 'Publication impossible.' }); }
+  });
+  // Coach/admin : réagir à un message du mur (toggle). Identité = clé coach (pas un email client).
+  app.post('/nutrition/api/coach/community/:id/react', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const key = 'coach:' + (req.session.coach_id || req.session.name || 'staff');
+      const id = Number(req.params.id);
+      const type = String((req.body || {}).type || '');
+      if (!Number.isInteger(id) || !COMMUNITY_REACTIONS.includes(type)) return res.status(400).json({ ok: false, error: 'Réaction invalide.' });
+      const exists = getDb().prepare('SELECT type FROM nutrition_community_reactions WHERE message_id = ? AND email = ?').get(id, key);
+      if (exists && exists.type === type) {
+        getDb().prepare('DELETE FROM nutrition_community_reactions WHERE message_id = ? AND email = ?').run(id, key);
+      } else {
+        getDb().prepare("INSERT INTO nutrition_community_reactions (message_id, email, type, created_at) VALUES (?,?,?,?) ON CONFLICT(message_id, email) DO UPDATE SET type = excluded.type, created_at = excluded.created_at").run(id, key, type, new Date().toISOString());
+      }
+      const counts = {};
+      getDb().prepare('SELECT type, COUNT(*) AS n FROM nutrition_community_reactions WHERE message_id = ? GROUP BY type').all(id).forEach((x) => { counts[x.type] = x.n; });
+      const mine = getDb().prepare('SELECT type FROM nutrition_community_reactions WHERE message_id = ? AND email = ?').get(id, key);
+      res.json({ ok: true, id, reactions: counts, myReaction: mine ? mine.type : null });
+    } catch (e) { console.error('coach community react POST :', e); res.status(500).json({ ok: false, error: 'Réaction impossible.' }); }
   });
 
   // Publier un message sur le mur collectif (client / coach / démo connecté).

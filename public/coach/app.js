@@ -8498,6 +8498,14 @@ function chInjectStyles() {
     .grp-chip.on { background: #111827; color: #fff; border-color: #111827; }
     .grp-chip span { background: rgba(0,0,0,.08); border-radius: 999px; padding: 0 7px; font-size: 11px; }
     .grp-chip.on span { background: rgba(255,255,255,.22); }
+    /* Réactions du coach sur le mur */
+    .grp-msg { display: flex; flex-direction: column; gap: 4px; }
+    .grp-msg.them { align-items: flex-start; } .grp-msg.me { align-items: flex-end; }
+    .grp-react { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 2px; }
+    .grp-react .rx { background: #f1f3f5; border: 1px solid #e6e8eb; border-radius: 999px; padding: 2px 8px; font-size: 13px; cursor: pointer; line-height: 1.5; display: inline-flex; align-items: center; gap: 3px; }
+    .grp-react .rx:hover { background: #e9ebee; }
+    .grp-react .rx.on { background: #e0edff; border-color: #b9d3ff; }
+    .grp-react .rx span { font-size: 11px; font-weight: 800; color: #374151; }
     @media (prefers-reduced-motion: no-preference) { .ch-newmsg { animation: chPulse 1.9s ease-in-out infinite; } }
     @keyframes chPulse { 0%,100% { box-shadow: 0 4px 10px -3px rgba(37,99,235,.55); } 50% { box-shadow: 0 5px 16px -1px rgba(37,99,235,.9); } }
     /* Modale invitation */
@@ -8568,6 +8576,15 @@ async function loadPushStrip(host) {
 }
 
 // ===== Onglet GROUPES : murs collectifs par groupe (ville + n° de challenge) =====
+// Réactions disponibles (mêmes que côté client) : [clé, emoji].
+const CH_REACTIONS = [['bravo', '👏'], ['force', '💪'], ['bien-joue', '🔥'], ['courage', '🌟'], ['moi-aussi', '🙌'], ['aide', '🤝']];
+function chReactBar(m) {
+  return `<div class="grp-react" data-id="${m.id}">` + CH_REACTIONS.map(([type, emo]) => {
+    const n = (m.reactions && m.reactions[type]) || 0;
+    const on = m.myReaction === type;
+    return `<button type="button" class="rx${on ? ' on' : ''}" data-type="${type}" title="${type}">${emo}${n ? ` <span>${n}</span>` : ''}</button>`;
+  }).join('') + '</div>';
+}
 let _grpActive = null; // { ville, no } du mur affiché
 async function loadGroupesTab() {
   chInjectStyles();
@@ -8615,7 +8632,13 @@ async function renderGroupWall(el, grp) {
     const d = await nutriApi(`/coach/community?ville=${encodeURIComponent(grp.ville)}&challengeNo=${grp.no}&limit=60`);
     const msgs = (d.messages || []).slice().reverse(); // du plus ancien au plus récent
     const thread = msgs.length
-      ? msgs.map((m) => `<div class="ch-bubble ${m.kind === 'coach' ? 'me' : 'them'}"><span>${chEsc(m.text || '')}</span><span class="t">${chEsc(m.who || 'Client')} · ${chConvTime(m.when)}</span></div>`).join('')
+      ? msgs.map((m) => {
+        const side = m.kind === 'coach' ? 'me' : 'them';
+        return `<div class="grp-msg ${side}">
+          <div class="ch-bubble ${side}"><span>${chEsc(m.text || '')}</span><span class="t">${chEsc(m.who || 'Client')} · ${chConvTime(m.when)}</span></div>
+          ${chReactBar(m)}
+        </div>`;
+      }).join('')
       : '<div class="ch-conv-empty">Aucun message sur ce mur. Écris le premier ci-dessous.</div>';
     el.innerHTML = `
       <div class="ch-panel">
@@ -8629,6 +8652,21 @@ async function renderGroupWall(el, grp) {
       </div>`;
     const t = el.querySelector('#grp-thread'); if (t) t.scrollTop = t.scrollHeight;
     const status = el.querySelector('#grp-status');
+    // Réactions du coach (toggle) — mise à jour de la barre en place.
+    el.querySelectorAll('.grp-react .rx').forEach((btn) => btn.addEventListener('click', async () => {
+      const bar = btn.closest('.grp-react'); const id = bar.dataset.id; const type = btn.dataset.type;
+      btn.disabled = true;
+      try {
+        const r = await nutriApi(`/coach/community/${id}/react`, { method: 'POST', body: { type } });
+        CH_REACTIONS.forEach(([tp, emo]) => {
+          const b = bar.querySelector(`.rx[data-type="${tp}"]`); if (!b) return;
+          const n = (r.reactions && r.reactions[tp]) || 0;
+          b.classList.toggle('on', r.myReaction === tp);
+          b.innerHTML = emo + (n ? ` <span>${n}</span>` : '');
+        });
+      } catch (_) { /* ignore */ }
+      btn.disabled = false;
+    }));
     el.querySelector('#grp-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = e.target; const btn = f.querySelector('button');
