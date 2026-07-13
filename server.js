@@ -2418,6 +2418,8 @@ try {
       // Coachs supplémentaires (multi-coach) groupés par client, en une requête.
       const extraByEmail = {};
       try { getDb().prepare('SELECT client_email, coach_id FROM nutrition_client_coaches').all().forEach((x) => { (extraByEmail[x.client_email] = extraByEmail[x.client_email] || []).push(x.coach_id); }); } catch (_) { /* table absente */ }
+      const metaByEmail = {};
+      try { getDb().prepare('SELECT client_email, ville, challenge_no FROM nutrition_client_meta').all().forEach((m) => { metaByEmail[m.client_email] = { ville: m.ville || '', challengeNo: m.challenge_no || 0 }; }); } catch (_) { /* table absente */ }
       const clients = rows.map((r) => {
         let objectif = '', hasPlan = false, savedAt = '';
         try {
@@ -2429,9 +2431,11 @@ try {
           }
         } catch (_) { /* données illisibles -> ignorées */ }
         const coachIds = [...new Set([...(r.coach_id ? [r.coach_id] : []), ...(extraByEmail[r.email] || [])])];
+        const mm = metaByEmail[r.email] || {};
         return { email: r.email, prenom: r.prenom, nom: r.nom, createdAt: r.created_at, updatedAt: r.updated_at, objectif, hasPlan, savedAt,
           coachId: r.coach_id || null, coachName: (r.coach_id && coachMap[r.coach_id]) || null,
-          coachIds, coachNames: coachIds.map((id) => coachMap[id]).filter(Boolean) };
+          coachIds, coachNames: coachIds.map((id) => coachMap[id]).filter(Boolean),
+          ville: mm.ville || '', challengeNo: mm.challengeNo || 0 };
       });
       res.json({ ok: true, total: clients.length, clients });
     } catch (e) {

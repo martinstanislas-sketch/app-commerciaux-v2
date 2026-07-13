@@ -6851,6 +6851,14 @@ async function renderClientsAdmin() {
             <span style="font-size:11px;color:#8B94A3;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:4px;">Coachs</span>
             ${coachPickerHTML(c, coaches)}
           </div>
+          <div style="margin-top:9px;">
+            <span style="font-size:11px;color:#8B94A3;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:4px;">Groupe (ville + n° de challenge)</span>
+            <div class="client-range" data-email="${escapeHtml(c.email)}" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <input type="text" class="cr-ville" value="${escapeHtml(c.ville || '')}" placeholder="Ville" style="width:120px;background:#12161d;border:1px solid #2C333F;color:#E7ECF3;border-radius:8px;padding:5px 8px;font:inherit;font-size:12.5px;">
+              <input type="number" class="cr-no" value="${c.challengeNo || ''}" min="0" max="999" placeholder="N°" style="width:60px;background:#12161d;border:1px solid #2C333F;color:#E7ECF3;border-radius:8px;padding:5px 8px;font:inherit;font-size:12.5px;">
+              <button type="button" class="cr-save" style="background:none;border:1px solid #2C333F;color:#9AA0A6;border-radius:8px;padding:5px 11px;font-size:11.5px;font-family:inherit;cursor:pointer;">Ranger</button>
+            </div>
+          </div>
         </div>
         <div style="text-align:right;flex-shrink:0;font-size:12px;color:#8B94A3;line-height:1.7;">
           <div>${etat}</div>
@@ -6878,7 +6886,21 @@ async function renderClientsAdmin() {
     });
     body.querySelectorAll('.pin-reset').forEach((b) => b.addEventListener('click', () => resetClientPin(b.dataset.email, b)));
     body.querySelectorAll('.client-del').forEach((b) => b.addEventListener('click', () => deleteClientAdmin(b.dataset.email, b)));
+    body.querySelectorAll('.client-range').forEach((row) => { const b = row.querySelector('.cr-save'); if (b) b.addEventListener('click', () => rangeClientAdmin(row, b)); });
   } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+// Range un client dans un groupe (ville + n° de challenge) depuis la vue admin.
+async function rangeClientAdmin(row, btn) {
+  const email = row.dataset.email;
+  const ville = (row.querySelector('.cr-ville').value || '').trim();
+  const challengeNo = Number(row.querySelector('.cr-no').value) || 0;
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(apiUrl('/api/coach/clients/' + encodeURIComponent(email) + '/meta'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ville, challengeNo }) });
+    const d = await res.json();
+    if (d.ok) { if (btn) { btn.textContent = 'Rangé ✓'; setTimeout(() => { btn.textContent = 'Ranger'; btn.disabled = false; }, 1400); } showToast('Client rangé.', { icon: 'check' }); }
+    else { showToast(d.error || 'Échec.', { icon: 'info' }); if (btn) btn.disabled = false; }
+  } catch (_) { showToast('Échec.', { icon: 'info' }); if (btn) btn.disabled = false; }
 }
 // Supprime définitivement un client (admin). Coupe immédiatement son accès (session purgée).
 async function deleteClientAdmin(email, btn) {
