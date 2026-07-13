@@ -290,6 +290,12 @@ function ensureNutritionHelpTable() {
       created_at TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (client_email, coach_id)
     );
+    CREATE TABLE IF NOT EXISTS nutrition_client_meta (
+      client_email TEXT PRIMARY KEY,
+      ville TEXT NOT NULL DEFAULT '',
+      challenge_no INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
     CREATE TABLE IF NOT EXISTS nutrition_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       conversation_id INTEGER NOT NULL,
@@ -2474,12 +2480,20 @@ try {
           getDb().prepare("SELECT client_email, ROUND(AVG(score)) score FROM nutrition_adherence WHERE date >= ? AND client_email IN " + inClause + ' GROUP BY client_email').all(since, ...emailsList)
             .forEach((r) => { adhMap[r.client_email] = r.score; });
         } catch (_) { /* pas d'adhérence -> score null */ }
+        const metaMap = {};
+        try {
+          getDb().prepare('SELECT client_email, ville, challenge_no FROM nutrition_client_meta WHERE client_email IN ' + inClause).all(...emailsList)
+            .forEach((r) => { metaMap[r.client_email] = { ville: r.ville || '', challengeNo: r.challenge_no || 0 }; });
+        } catch (_) { /* pas de meta -> valeurs par défaut */ }
         const jourChallenge = (dateStr) => { const t = Date.parse(dateStr); if (isNaN(t)) return null; return Math.min(42, Math.max(1, Math.floor((Date.now() - t) / 864e5) + 1)); };
         clients.forEach((c) => {
           const pm = peseeMap[c.email] || {};
           c.pesees = { depart: !!pm.depart, s3: !!pm.s3, s6: !!pm.s6 };
           c.challengeDay = pm.departDate ? jourChallenge(pm.departDate) : null;
           c.adhScore = (c.email in adhMap) ? adhMap[c.email] : null;
+          const mm = metaMap[c.email] || {};
+          c.ville = mm.ville || '';
+          c.challengeNo = mm.challengeNo || 0;
         });
       }
       res.json({ ok: true, total: clients.length, scope: sc.isAdmin ? 'admin' : 'coach', clients });
@@ -2503,7 +2517,7 @@ try {
       const del = (sql, ...args) => { try { db.prepare(sql).run(...args); } catch (_) { /* table absente -> on ignore */ } };
       // Messages (via les conversations du client) puis le reste des données personnelles.
       del('DELETE FROM nutrition_messages WHERE conversation_id IN (SELECT id FROM nutrition_conversations WHERE client_email = ?)', email);
-      ['nutrition_conversations', 'nutrition_client_coaches', 'nutrition_ebook_reads',
+      ['nutrition_conversations', 'nutrition_client_coaches', 'nutrition_client_meta', 'nutrition_ebook_reads',
         'nutrition_parcours_celebrations_seen', 'nutrition_parcours_mensurations', 'nutrition_parcours_pesees',
         'nutrition_parcours_photos', 'nutrition_parcours_seances', 'nutrition_adherence', 'nutrition_scans',
         'nutrition_help_requests', 'nutrition_push_subscriptions', 'nutrition_push_prefs', 'nutrition_push_queue',
@@ -2512,6 +2526,21 @@ try {
       del('DELETE FROM nutrition_clients WHERE email = ?', email); // le compte (clé = email)
       res.json({ ok: true });
     } catch (e) { console.error('coach client DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
+  });
+  // Coach/admin : ranger un client (ville + n° de challenge).
+  app.post('/nutrition/api/coach/clients/:email/meta', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const email = String(req.params.email || '').trim().toLowerCase();
+      if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
+      if (!sc.isAdmin && !coachSeesClient(sc.coachId, email)) return res.status(403).json({ ok: false, error: 'Client non attribué.' });
+      const b = req.body || {};
+      const ville = String(b.ville || '').trim().slice(0, 80);
+      const challengeNo = Math.max(0, Math.min(999, Math.round(Number(b.challengeNo) || 0)));
+      getDb().prepare('INSERT INTO nutrition_client_meta (client_email, ville, challenge_no, updated_at) VALUES (?,?,?,?) ON CONFLICT(client_email) DO UPDATE SET ville = excluded.ville, challenge_no = excluded.challenge_no, updated_at = excluded.updated_at')
+        .run(email, ville, challengeNo, new Date().toISOString());
+      res.json({ ok: true, ville, challengeNo });
+    } catch (e) { console.error('coach client meta POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
   app.get('/nutrition/api/coach/clients/:email', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
@@ -2560,6 +2589,8 @@ try {
       const adhDays = adherence.length;
       const adhScore = adhDays ? Math.round(adherence.reduce((s, a) => s + (a.score || 0), 0) / adhDays) : null;
 
+      let ville = '', challengeNo = 0;
+      try { const mm = getDb().prepare('SELECT ville, challenge_no FROM nutrition_client_meta WHERE client_email = ?').get(email); if (mm) { ville = mm.ville || ''; challengeNo = mm.challenge_no || 0; } } catch (_) { /* pas de meta */ }
       res.json({
         ok: true,
         client: {
@@ -2567,7 +2598,7 @@ try {
           createdAt: row.created_at, updatedAt: row.updated_at,
           objectif, hasPlan, planJours, savedAt, startDate,
           profil: profilPublic, pesees, adherence, adhScore, adhDays,
-          help, scansCount,
+          help, scansCount, ville, challengeNo,
         },
       });
     } catch (e) {

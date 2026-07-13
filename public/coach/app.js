@@ -8477,6 +8477,13 @@ function chInjectStyles() {
       padding: 5px 12px; border-radius: 999px; white-space: nowrap; box-shadow: 0 4px 10px -3px rgba(37,99,235,.55); }
     .ch-card.has-unread { border-color: #B9D3FF; background: #F5F9FF; box-shadow: 0 1px 2px rgba(16,24,40,.04), inset 4px 0 0 #3B82F6; }
     .ch-card.has-unread:hover { border-color: #93b8fb; }
+    .ch-city { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: #3730a3; background: #eef2ff; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+    /* Filtres (ville + n° de challenge) + regroupement */
+    .ch-filters { display: flex; gap: 10px; margin: 0 4px 16px; flex-wrap: wrap; }
+    .ch-filters select { font: inherit; font-weight: 600; font-size: 13px; padding: 8px 12px; border: 1px solid #d7dbe0; border-radius: 10px; background: #fff; color: #111827; cursor: pointer; }
+    .ch-group { margin-bottom: 18px; }
+    .ch-group-h { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin: 0 4px 9px; display: flex; align-items: center; gap: 8px; }
+    .ch-group-h span { background: #eef1f4; color: #6b7280; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
     @media (prefers-reduced-motion: no-preference) { .ch-newmsg { animation: chPulse 1.9s ease-in-out infinite; } }
     @keyframes chPulse { 0%,100% { box-shadow: 0 4px 10px -3px rgba(37,99,235,.55); } 50% { box-shadow: 0 5px 16px -1px rgba(37,99,235,.9); } }
     /* Modale invitation */
@@ -8580,60 +8587,92 @@ function chUrgency(c, unread) {
     + Math.min(s.unread, 3) * 0.1 // + de messages -> un peu plus haut
     + (s.red && c.adhScore != null ? (100 - c.adhScore) / 1000 : 0); // adhérence plus basse -> plus haut
 }
+// Carte d'un client (liste). Utilise l'état des messages non lus mémorisé.
+function chCardHtml(c) {
+  const name = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
+  const isCh = chIsChallenge(c.objectif);
+  const unread = _chUnread[c.email] || 0;
+  const pill = chStatusPill(c);
+  const adhCls = c.adhScore == null ? '' : (c.adhScore >= 70 ? 'good' : c.adhScore >= 50 ? 'warn' : 'bad');
+  const adhHtml = (c.adhScore != null) ? `<span class="ch-adh ${adhCls}">adhérence ${c.adhScore}%</span>` : '';
+  let sub;
+  if (c.hasPlan && isCh && c.challengeDay) sub = `Jour ${c.challengeDay}/42${adhHtml ? ' · ' + adhHtml : ''}`;
+  else if (c.hasPlan) sub = adhHtml || chEsc(c.email);
+  else sub = 'Plan en attente';
+  const bar = (c.hasPlan && isCh && c.challengeDay)
+    ? `<span class="ch-bar"><i style="width:${Math.round(Math.min(42, c.challengeDay) / 42 * 100)}%"></i></span>` : '';
+  const newMsg = unread ? `<span class="ch-newmsg">💬 ${unread === 1 ? 'Nouveau message' : unread + ' nouveaux messages'}</span>` : '';
+  const city = c.ville ? `<span class="ch-city">📍 ${chEsc(c.ville)}</span>` : '';
+  return `<button class="ch-card${isCh ? ' is-ch' : ''}${unread ? ' has-unread' : ''}" data-email="${chEsc(c.email)}">
+    <span class="ch-ava">${chEsc(chInitials(c.prenom, c.nom))}</span>
+    <span class="ch-card-main">
+      <span class="ch-card-name">${chEsc(name)}${isCh ? '<span class="ch-badge sm">🔥</span>' : ''}${city}</span>
+      <span class="ch-card-sub">${sub}</span>
+      ${bar}
+    </span>
+    <span class="ch-card-right">
+      ${newMsg}
+      ${pill ? `<span class="ch-pill ${pill.cls}">${chEsc(pill.txt)}</span>` : ''}
+    </span>
+    <span class="ch-chev">›</span>
+  </button>`;
+}
+let _chHost = null, _chClients = [], _chUnread = {}, _chFilter = { ville: '', no: '' };
 function renderChallengeList(host, clients, unreadMap) {
-  const urg = (c) => chUrgency(c, unreadMap && unreadMap[c.email]);
-  // Les clients à traiter d'abord (urgence décroissante), puis Challenge, puis ordre serveur.
-  const sorted = clients.slice().sort((a, b) => (urg(b) - urg(a)) || ((chIsChallenge(b.objectif) ? 1 : 0) - (chIsChallenge(a.objectif) ? 1 : 0)));
-  const nbChallenge = clients.filter((c) => chIsChallenge(c.objectif)).length;
-  if (!sorted.length) {
-    host.innerHTML = `<div class="ch-head"><h2>🔥 Challenge</h2></div>
-      <div class="ch-empty"><p>Aucun client ne t’est attribué pour le moment.</p>
-      <p class="ch-muted">Tes clients apparaîtront ici dès que le super-administrateur te les aura assignés.</p></div>`;
+  _chHost = host; _chClients = clients || []; _chUnread = unreadMap || {};
+  chRenderList();
+}
+// Liste : filtres (ville + n° de challenge) + regroupement par n° de challenge,
+// tri par priorité DANS chaque groupe.
+function chRenderList() {
+  const host = _chHost; if (!host) return;
+  const clients = _chClients;
+  const inviteBtn = '<button type="button" class="ch-btn ch-invite-btn" id="ch-invite-open">+ Inviter un client</button>';
+  const wireCommon = () => {
+    const inv = host.querySelector('#ch-invite-open'); if (inv) inv.addEventListener('click', () => openInvitePanel());
+    host.querySelectorAll('.ch-card').forEach((el) => el.addEventListener('click', () => openChallengeClient(host, el.dataset.email)));
+  };
+  if (!clients.length) {
+    host.innerHTML = `<div class="ch-head"><div class="ch-head-l"><h2>🔥 Mes clients</h2></div>${inviteBtn}</div>
+      <div class="ch-empty"><p>Aucun client pour le moment.</p><p class="ch-muted">Invite un client avec un lien ci-dessus.</p></div>`;
+    wireCommon();
     return;
   }
-  const cards = sorted.map((c) => {
-    const name = [c.prenom, c.nom].filter(Boolean).join(' ') || c.email;
-    const isCh = chIsChallenge(c.objectif);
-    const unread = (unreadMap && unreadMap[c.email]) || 0;
-    const pill = chStatusPill(c);
-    // Donnée-clé sur la carte : jour de challenge (barre) + adhérence colorée.
-    const adhCls = c.adhScore == null ? '' : (c.adhScore >= 70 ? 'good' : c.adhScore >= 50 ? 'warn' : 'bad');
-    const adhHtml = (c.adhScore != null) ? `<span class="ch-adh ${adhCls}">adhérence ${c.adhScore}%</span>` : '';
-    let sub;
-    if (c.hasPlan && isCh && c.challengeDay) sub = `Jour ${c.challengeDay}/42${adhHtml ? ' · ' + adhHtml : ''}`;
-    else if (c.hasPlan) sub = adhHtml || chEsc(c.email);
-    else sub = 'Plan en attente';
-    const bar = (c.hasPlan && isCh && c.challengeDay)
-      ? `<span class="ch-bar"><i style="width:${Math.round(Math.min(42, c.challengeDay) / 42 * 100)}%"></i></span>` : '';
-    const newMsg = unread ? `<span class="ch-newmsg">💬 ${unread === 1 ? 'Nouveau message' : unread + ' nouveaux messages'}</span>` : '';
-    return `<button class="ch-card${isCh ? ' is-ch' : ''}${unread ? ' has-unread' : ''}" data-email="${chEsc(c.email)}">
-      <span class="ch-ava">${chEsc(chInitials(c.prenom, c.nom))}</span>
-      <span class="ch-card-main">
-        <span class="ch-card-name">${chEsc(name)}${isCh ? '<span class="ch-badge sm">🔥</span>' : ''}</span>
-        <span class="ch-card-sub">${sub}</span>
-        ${bar}
-      </span>
-      <span class="ch-card-right">
-        ${newMsg}
-        ${pill ? `<span class="ch-pill ${pill.cls}">${chEsc(pill.txt)}</span>` : ''}
-      </span>
-      <span class="ch-chev">›</span>
-    </button>`;
-  }).join('');
+  const villes = [...new Set(clients.map((c) => (c.ville || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const nos = [...new Set(clients.map((c) => c.challengeNo || 0))].sort((a, b) => b - a);
+  // On assainit le filtre courant (une valeur devenue absente -> « tous »).
+  const fVille = villes.includes(_chFilter.ville) ? _chFilter.ville : '';
+  const fNo = nos.map(String).includes(String(_chFilter.no)) ? String(_chFilter.no) : '';
+  _chFilter.ville = fVille; _chFilter.no = fNo;
+  const shown = clients.filter((c) => (!fVille || (c.ville || '') === fVille) && (!fNo || String(c.challengeNo || 0) === fNo));
+  const urg = (c) => chUrgency(c, _chUnread[c.email]);
+  shown.sort((a, b) => urg(b) - urg(a));
+  // Regroupement par n° de challenge (n° décroissant, « Sans n° » à la fin).
+  const groups = {};
+  shown.forEach((c) => { const k = c.challengeNo || 0; (groups[k] || (groups[k] = [])).push(c); });
+  const groupKeys = Object.keys(groups).map(Number).sort((a, b) => (a === 0 ? 1 : b === 0 ? -1 : b - a));
+  const listHtml = shown.length
+    ? groupKeys.map((k) => {
+      const title = k === 0 ? 'Sans numéro de challenge' : ('Challenge n°' + k);
+      return `<div class="ch-group"><div class="ch-group-h">${chEsc(title)} <span>${groups[k].length}</span></div><div class="ch-list">${groups[k].map(chCardHtml).join('')}</div></div>`;
+    }).join('')
+    : '<div class="ch-empty"><p>Aucun client pour ce filtre.</p></div>';
+  const opt = (val, label, sel) => `<option value="${chEsc(String(val))}"${String(sel) === String(val) ? ' selected' : ''}>${chEsc(label)}</option>`;
+  const villeSel = `<select id="ch-f-ville"><option value="">Toutes les villes</option>${villes.map((v) => opt(v, v, fVille)).join('')}</select>`;
+  const noSel = `<select id="ch-f-no"><option value="">Tous les challenges</option>${nos.map((n) => opt(n, n === 0 ? 'Sans n°' : 'Challenge n°' + n, fNo)).join('')}</select>`;
   host.innerHTML = `
     <div class="ch-head">
       <div class="ch-head-l">
         <h2>🔥 Mes clients</h2>
-        <span class="ch-count">${sorted.length} client${sorted.length > 1 ? 's' : ''}${sorted.length > 1 ? ' · triés par priorité' : ''}</span>
+        <span class="ch-count">${clients.length} client${clients.length > 1 ? 's' : ''}</span>
       </div>
-      <button type="button" class="ch-btn ch-invite-btn" id="ch-invite-open">+ Inviter un client</button>
+      ${inviteBtn}
     </div>
-    <div class="ch-list">${cards}</div>`;
-  host.querySelectorAll('.ch-card').forEach((el) => {
-    el.addEventListener('click', () => openChallengeClient(host, el.dataset.email));
-  });
-  const inv = host.querySelector('#ch-invite-open');
-  if (inv) inv.addEventListener('click', () => openInvitePanel());
+    <div class="ch-filters">${villeSel}${noSel}</div>
+    ${listHtml}`;
+  wireCommon();
+  const fv = host.querySelector('#ch-f-ville'); if (fv) fv.addEventListener('change', () => { _chFilter.ville = fv.value; chRenderList(); });
+  const fn = host.querySelector('#ch-f-no'); if (fn) fn.addEventListener('change', () => { _chFilter.no = fn.value; chRenderList(); });
 }
 
 // Modale « Inviter un client » : génère un lien d'invitation (email facultatif) + partage.
@@ -8811,6 +8850,11 @@ function renderChallengeDetail(host, c, pc, msgData) {
   const actionsPanel = `
     <div class="ch-panel ch-actions">
       <h3>Actions</h3>
+      <form class="ch-form" id="ch-org-form">
+        <label>Ville<input type="text" name="ville" value="${chEsc(c.ville || '')}" placeholder="Ex. Lyon"></label>
+        <label>N° de challenge<input type="number" name="challengeNo" min="0" max="999" value="${c.challengeNo || ''}" placeholder="Ex. 3"></label>
+        <button type="submit" class="ch-btn">Ranger</button>
+      </form>
       <form class="ch-form" id="ch-pesee-form">
         <label>Pesée
           <select name="type">
@@ -8848,6 +8892,17 @@ function renderChallengeDetail(host, c, pc, msgData) {
   host.querySelector('[data-act="back"]').addEventListener('click', () => loadChallengeTab());
   const msgBox = host.querySelector('#ch-action-msg');
   const setMsg = (txt, ok) => { msgBox.textContent = txt; msgBox.className = 'ch-msg ' + (ok ? 'ok' : 'err'); };
+
+  host.querySelector('#ch-org-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target; const btn = f.querySelector('button');
+    btn.disabled = true;
+    try {
+      await nutriApi(`/coach/clients/${encodeURIComponent(email)}/meta`, { method: 'POST', body: { ville: f.ville.value.trim(), challengeNo: Number(f.challengeNo.value) || 0 } });
+      setMsg('Client rangé ✓', true);
+    } catch (err) { setMsg(err.message || 'Erreur.', false); }
+    btn.disabled = false;
+  });
 
   host.querySelector('#ch-pesee-form').addEventListener('submit', async (e) => {
     e.preventDefault();
