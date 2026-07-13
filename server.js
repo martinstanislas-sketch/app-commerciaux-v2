@@ -435,6 +435,13 @@ function ensureNutritionHelpTable() {
       getDb().exec("ALTER TABLE nutrition_clients ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''");
     }
   } catch (e) { console.error('Migration nutrition_clients.avatar :', e && e.message); }
+  // Migration : cloisonnement de la Communauté par groupe (ville + n° de challenge).
+  try {
+    const cmCols = getDb().prepare('PRAGMA table_info(nutrition_community_messages)').all();
+    if (!cmCols.some((c) => c.name === 'group_key')) {
+      getDb().exec("ALTER TABLE nutrition_community_messages ADD COLUMN group_key TEXT NOT NULL DEFAULT ''");
+    }
+  } catch (e) { console.error('Migration community group_key :', e && e.message); }
   // Migration : unification de l'identité client sur l'email. Les tables historiques
   // (aide/scans/avis/adhérence/assiettes) lient un client par `client_name` (texte libre
   // = nom de session) ≠ email -> impossible à scoper proprement par coach. On ajoute une
@@ -865,6 +872,28 @@ try {
   // Réactions autorisées sur le mur (libellés non sensibles, encouragements).
   const COMMUNITY_REACTIONS = ['bravo', 'force', 'moi-aussi', 'bien-joue', 'courage', 'aide'];
 
+  // Clé de groupe d'un client pour cloisonner la Communauté = ville + n° de challenge.
+  // '' = client non rangé (canal « sans groupe »). Les messages coach sont diffusés à tous.
+  function clientGroupKey(email) {
+    if (!email) return '';
+    try {
+      const m = getDb().prepare('SELECT ville, challenge_no FROM nutrition_client_meta WHERE client_email = ?').get(email);
+      if (!m) return '';
+      const ville = String(m.ville || '').trim().toLowerCase();
+      const no = Number(m.challenge_no || 0);
+      if (!ville || !no) return ''; // groupe défini seulement si ville ET n° présents
+      return ville + '#' + no;
+    } catch (_) { return ''; }
+  }
+  // Groupe du visiteur pour une lecture de la Communauté : le groupe du client, ou null
+  // pour coach/admin (voit tout). Le rôle coach/admin n'est jamais cloisonné.
+  function viewerGroupForRead(req) {
+    const s = req.session || {};
+    const isStaff = ['admin', 'coach', 'coach-leader'].includes(s.role || '');
+    if (isStaff || !s.email) return null;
+    return clientGroupKey(s.email);
+  }
+
   // Payload du mur collectif (messages + réactions agrégées + taille du groupe).
   // Factorisé pour être réutilisé par la vue CLIENT et la vue COACH.
   // Photo de profil (avatar) par email -> URL image publique (capability URL). Une seule
@@ -880,9 +909,13 @@ try {
     } catch (_) { /* colonnes absentes -> pas d'avatars */ }
     return map;
   }
-  function communityWallPayload(meEmail, limit) {
+  function communityWallPayload(meEmail, limit, viewerGroup) {
     const db = getDb();
-    const rows = db.prepare('SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages ORDER BY id DESC LIMIT ?').all(limit);
+    // viewerGroup null -> staff (voit tout) ; sinon on ne montre que le groupe du client
+    // (group_key = son groupe) + les messages coach (diffusion à tous).
+    const rows = (viewerGroup == null)
+      ? db.prepare('SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages ORDER BY id DESC LIMIT ?').all(limit)
+      : db.prepare("SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages WHERE (group_key = ? OR kind = 'coach') ORDER BY id DESC LIMIT ?").all(viewerGroup, limit);
     const reacByMsg = {};
     try {
       const ids = rows.map((r) => r.id);
@@ -905,7 +938,11 @@ try {
       myReaction: (reacByMsg[r.id] && reacByMsg[r.id].mine) || null,
     }));
     let members = 0;
-    try { members = db.prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n; } catch (_) { /* ignore */ }
+    try {
+      members = viewerGroup
+        ? db.prepare("SELECT COUNT(*) AS n FROM nutrition_client_meta WHERE (LOWER(TRIM(ville)) || '#' || challenge_no) = ?").get(viewerGroup).n
+        : db.prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n;
+    } catch (_) { /* ignore */ }
     return { messages, members };
   }
 
@@ -913,7 +950,7 @@ try {
     try {
       const me = (req.session && req.session.email) || '';
       const limit = Math.min(Math.max(Number(req.query.limit) || 40, 1), 100);
-      res.json({ ok: true, ...communityWallPayload(me, limit) });
+      res.json({ ok: true, ...communityWallPayload(me, limit, viewerGroupForRead(req)) });
     } catch (e) {
       console.error('Erreur community/messages GET :', e);
       res.status(500).json({ ok: false, error: 'Lecture impossible.' });
@@ -954,9 +991,11 @@ try {
       const msg = String((req.body || {}).message || '').slice(0, 500).trim();
       if (!msg) return res.status(400).json({ ok: false, error: 'Message vide.' });
       const now = new Date().toISOString();
+      // Un post client est cloisonné à SON groupe ; un message coach est diffusé à tous ('').
+      const groupKey = (kind === 'coach') ? '' : clientGroupKey(email);
       const info = getDb().prepare(
-        'INSERT INTO nutrition_community_messages (email, author, message, kind, created_at) VALUES (?, ?, ?, ?, ?)'
-      ).run(email, author, msg, kind, now);
+        'INSERT INTO nutrition_community_messages (email, author, message, kind, created_at, group_key) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(email, author, msg, kind, now, groupKey);
       res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind, mine: true, reactions: {}, myReaction: null } });
     } catch (e) {
       console.error('Erreur community/messages POST :', e);
@@ -996,8 +1035,13 @@ try {
       const db = getDb();
       const today = new Date().toISOString().slice(0, 10);
       const since = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
+      const vgOv = viewerGroupForRead(req); // membres = ceux du groupe du client
       let members = 0;
-      try { members = db.prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n; } catch (_) { /* ignore */ }
+      try {
+        members = vgOv
+          ? db.prepare("SELECT COUNT(*) AS n FROM nutrition_client_meta WHERE (LOWER(TRIM(ville)) || '#' || challenge_no) = ?").get(vgOv).n
+          : db.prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n;
+      } catch (_) { /* ignore */ }
 
       // Repas validés/adaptés/sautés sur 7 jours (table d'adhérence existante).
       let sv = { v: 0, a: 0, o: 0, s: 0 };
@@ -1130,7 +1174,10 @@ try {
         db.prepare('SELECT event_id, type, email FROM nutrition_community_event_reactions WHERE event_id IN (' + ph + ')').all(...evIds)
           .forEach((x) => { const e = evReac[x.event_id] || (evReac[x.event_id] = { counts: {}, mine: null }); e.counts[x.type] = (e.counts[x.type] || 0) + 1; if (me && x.email === me) e.mine = x.type; });
       }
-      const posts = db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') ORDER BY id DESC LIMIT ?").all(limit);
+      const vg = viewerGroupForRead(req); // cloisonnement : le client ne voit que son groupe (+ coach)
+      const posts = (vg == null)
+        ? db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') ORDER BY id DESC LIMIT ?").all(limit)
+        : db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') AND (group_key = ? OR kind = 'coach') ORDER BY id DESC LIMIT ?").all(vg, limit);
       const postReac = {}; const postIds = posts.map((p) => p.id);
       if (postIds.length) {
         const ph = postIds.map(() => '?').join(',');
