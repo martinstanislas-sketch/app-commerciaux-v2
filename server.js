@@ -15,6 +15,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Static serving for COACH app at /coach
 app.use('/coach', express.static(path.join(__dirname, 'public', 'coach')));
 
+// Static serving for the internal "Projets" app at /projets
+app.use('/projets', express.static(path.join(__dirname, 'public', 'projets')));
+
 // ─── Sessions (persistantes : cache memoire + SQLite) ───────
 // Stockees en base (table `sessions`) pour SURVIVRE aux redeploiements (le
 // process redemarre et viderait une Map memoire -> "Session expiree"). On garde
@@ -7926,6 +7929,16 @@ try {
   console.log('✓ Routes coaching montées sous /api/coach/*');
 } catch (e) {
   console.error('✗ Erreur chargement coach-routes:', e.message);
+}
+
+// ─── Mount "Projets" routes under /api/projets/* ────────────
+
+try {
+  const mountProjetsRoutes = require('./projets-routes');
+  mountProjetsRoutes(app);
+  console.log('✓ Routes projets montées sous /api/projets/*');
+} catch (e) {
+  console.error('✗ Erreur chargement projets-routes:', e.message);
 }
 
 // ─── Start ──────────────────────────────────────────────────
