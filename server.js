@@ -915,7 +915,7 @@ try {
     // (group_key = son groupe) + les messages coach (diffusion à tous).
     const rows = (viewerGroup == null)
       ? db.prepare('SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages ORDER BY id DESC LIMIT ?').all(limit)
-      : db.prepare("SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages WHERE (group_key = ? OR kind = 'coach') ORDER BY id DESC LIMIT ?").all(viewerGroup, limit);
+      : db.prepare("SELECT id, email, author, message, kind, created_at FROM nutrition_community_messages WHERE (group_key = ? OR (kind = 'coach' AND group_key = '')) ORDER BY id DESC LIMIT ?").all(viewerGroup, limit);
     const reacByMsg = {};
     try {
       const ids = rows.map((r) => r.id);
@@ -968,12 +968,17 @@ try {
   });
   app.post('/nutrition/api/coach/community', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
+      const b = req.body || {};
       const author = String((req.session && req.session.name) || 'Coach').slice(0, 80);
-      const msg = String((req.body || {}).message || '').slice(0, 500).trim();
+      const msg = String(b.message || '').slice(0, 500).trim();
       if (!msg) return res.status(400).json({ ok: false, error: 'Message vide.' });
+      // Ciblage : ville + n° de challenge -> canal du groupe ; sinon '' = diffusion à tous.
+      const ville = String(b.ville || '').trim().toLowerCase();
+      const no = Math.max(0, Math.round(Number(b.challengeNo) || 0));
+      const groupKey = (ville && no) ? (ville + '#' + no) : '';
       const now = new Date().toISOString();
-      const info = getDb().prepare('INSERT INTO nutrition_community_messages (email, author, message, kind, created_at) VALUES (?, ?, ?, ?, ?)').run('', author, msg, 'coach', now);
-      res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind: 'coach', mine: true, reactions: {}, myReaction: null } });
+      const info = getDb().prepare('INSERT INTO nutrition_community_messages (email, author, message, kind, created_at, group_key) VALUES (?, ?, ?, ?, ?, ?)').run('', author, msg, 'coach', now, groupKey);
+      res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind: 'coach', groupKey, mine: true, reactions: {}, myReaction: null } });
     } catch (e) { console.error('coach community POST :', e); res.status(500).json({ ok: false, error: 'Publication impossible.' }); }
   });
 
@@ -1177,7 +1182,7 @@ try {
       const vg = viewerGroupForRead(req); // cloisonnement : le client ne voit que son groupe (+ coach)
       const posts = (vg == null)
         ? db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') ORDER BY id DESC LIMIT ?").all(limit)
-        : db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') AND (group_key = ? OR kind = 'coach') ORDER BY id DESC LIMIT ?").all(vg, limit);
+        : db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') AND (group_key = ? OR (kind = 'coach' AND group_key = '')) ORDER BY id DESC LIMIT ?").all(vg, limit);
       const postReac = {}; const postIds = posts.map((p) => p.id);
       if (postIds.length) {
         const ph = postIds.map(() => '?').join(',');

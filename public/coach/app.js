@@ -8482,8 +8482,11 @@ function chInjectStyles() {
     .ch-filters { display: flex; gap: 10px; margin: 0 4px 16px; flex-wrap: wrap; }
     .ch-filters select { font: inherit; font-weight: 600; font-size: 13px; padding: 8px 12px; border: 1px solid #d7dbe0; border-radius: 10px; background: #fff; color: #111827; cursor: pointer; }
     .ch-group { margin-bottom: 18px; }
-    .ch-group-h { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin: 0 4px 9px; display: flex; align-items: center; gap: 8px; }
-    .ch-group-h span { background: #eef1f4; color: #6b7280; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+    .ch-group-h { margin: 0 4px 9px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .ch-group-t { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; display: inline-flex; align-items: center; gap: 8px; }
+    .ch-group-n { background: #eef1f4; color: #6b7280; border-radius: 999px; padding: 1px 8px; font-size: 11px; text-transform: none; letter-spacing: 0; }
+    .ch-group-write { flex: 0 0 auto; background: #eef2ff; color: #3730a3; border: 1px solid #dfe3ff; border-radius: 10px; padding: 6px 12px; font: inherit; font-weight: 700; font-size: 12px; cursor: pointer; }
+    .ch-group-write:hover { background: #e0e7ff; }
     @media (prefers-reduced-motion: no-preference) { .ch-newmsg { animation: chPulse 1.9s ease-in-out infinite; } }
     @keyframes chPulse { 0%,100% { box-shadow: 0 4px 10px -3px rgba(37,99,235,.55); } 50% { box-shadow: 0 5px 16px -1px rgba(37,99,235,.9); } }
     /* Modale invitation */
@@ -8647,14 +8650,23 @@ function chRenderList() {
   const shown = clients.filter((c) => (!fVille || (c.ville || '') === fVille) && (!fNo || String(c.challengeNo || 0) === fNo));
   const urg = (c) => chUrgency(c, _chUnread[c.email]);
   shown.sort((a, b) => urg(b) - urg(a));
-  // Regroupement par n° de challenge (n° décroissant, « Sans n° » à la fin).
-  const groups = {};
-  shown.forEach((c) => { const k = c.challengeNo || 0; (groups[k] || (groups[k] = [])).push(c); });
-  const groupKeys = Object.keys(groups).map(Number).sort((a, b) => (a === 0 ? 1 : b === 0 ? -1 : b - a));
+  // Regroupement par CANAL = ville + n° de challenge (le vrai groupe de discussion).
+  const groups = {}; // clé -> { ville, no, clients }
+  shown.forEach((c) => {
+    const ok = !!((c.ville || '').trim() && c.challengeNo);
+    const key = ok ? ((c.ville || '').trim().toLowerCase() + '#' + c.challengeNo) : '';
+    (groups[key] || (groups[key] = { ville: ok ? c.ville.trim() : '', no: ok ? c.challengeNo : 0, clients: [] })).clients.push(c);
+  });
+  const groupKeys = Object.keys(groups).sort((a, b) => {
+    if (a === '') return 1; if (b === '') return -1;
+    return (groups[b].no - groups[a].no) || groups[a].ville.localeCompare(groups[b].ville);
+  });
   const listHtml = shown.length
     ? groupKeys.map((k) => {
-      const title = k === 0 ? 'Sans numéro de challenge' : ('Challenge n°' + k);
-      return `<div class="ch-group"><div class="ch-group-h">${chEsc(title)} <span>${groups[k].length}</span></div><div class="ch-list">${groups[k].map(chCardHtml).join('')}</div></div>`;
+      const g = groups[k];
+      const title = k ? `📍 ${chEsc(g.ville)} · Challenge n°${g.no}` : 'Sans groupe (à ranger)';
+      const writeBtn = k ? `<button type="button" class="ch-group-write" data-ville="${chEsc(g.ville)}" data-no="${g.no}">✍️ Écrire au groupe</button>` : '';
+      return `<div class="ch-group"><div class="ch-group-h"><span class="ch-group-t">${title} <span class="ch-group-n">${g.clients.length}</span></span>${writeBtn}</div><div class="ch-list">${g.clients.map(chCardHtml).join('')}</div></div>`;
     }).join('')
     : '<div class="ch-empty"><p>Aucun client pour ce filtre.</p></div>';
   const opt = (val, label, sel) => `<option value="${chEsc(String(val))}"${String(sel) === String(val) ? ' selected' : ''}>${chEsc(label)}</option>`;
@@ -8673,6 +8685,49 @@ function chRenderList() {
   wireCommon();
   const fv = host.querySelector('#ch-f-ville'); if (fv) fv.addEventListener('change', () => { _chFilter.ville = fv.value; chRenderList(); });
   const fn = host.querySelector('#ch-f-no'); if (fn) fn.addEventListener('change', () => { _chFilter.no = fn.value; chRenderList(); });
+  host.querySelectorAll('.ch-group-write').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openGroupComposer(b.dataset.ville, Number(b.dataset.no)); }));
+}
+
+// Modale « Écrire au groupe » : le coach publie dans le canal Communauté d'UN groupe
+// (ville + n° de challenge) — seuls ses membres le voient — ou en diffusion à tous.
+function openGroupComposer(ville, no) {
+  document.querySelectorAll('.ch-modal').forEach((m) => m.remove());
+  const label = (ville && no) ? `${ville} · Challenge n°${no}` : 'Tous les clients';
+  const modal = document.createElement('div');
+  modal.className = 'ch-modal';
+  modal.innerHTML = `
+    <div class="ch-modal-card">
+      <button type="button" class="ch-modal-close" aria-label="Fermer">×</button>
+      <h3>Écrire au groupe</h3>
+      <p class="sub">Ce message apparaît dans la Communauté de <b>${chEsc(label)}</b>. Les clients des autres groupes ne le voient pas.</p>
+      <form class="ch-form" id="ch-grp-form" style="flex-direction:column;align-items:stretch">
+        <label style="width:100%">Message au groupe<textarea name="message" placeholder="Ex. Bravo pour cette semaine, on garde le rythme 💪" style="min-height:96px"></textarea></label>
+        <label style="display:flex;flex-direction:row;align-items:center;gap:8px;font-weight:600;color:#374151;"><input type="checkbox" name="all" style="width:auto"> Envoyer plutôt à <b>tous les clients</b> (diffusion)</label>
+        <button type="submit" class="ch-btn" style="align-self:flex-start">Publier</button>
+      </form>
+      <div class="ch-msg" id="ch-grp-status"></div>
+    </div>`;
+  document.body.appendChild(modal);
+  const close = () => modal.remove();
+  modal.querySelector('.ch-modal-close').addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  const status = modal.querySelector('#ch-grp-status');
+  modal.querySelector('#ch-grp-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target; const btn = f.querySelector('button[type=submit]');
+    const message = f.message.value.trim();
+    if (!message) { status.textContent = 'Message vide.'; status.className = 'ch-msg err'; return; }
+    const toAll = f.all.checked;
+    btn.disabled = true; status.textContent = 'Publication…'; status.className = 'ch-msg';
+    try {
+      const body = toAll ? { message } : { message, ville, challengeNo: no };
+      await nutriApi('/coach/community', { method: 'POST', body });
+      status.textContent = toAll ? 'Publié pour tous ✓' : `Publié pour ${label} ✓`;
+      status.className = 'ch-msg ok';
+      f.message.value = '';
+      setTimeout(close, 900);
+    } catch (err) { status.textContent = err.message || 'Erreur.'; status.className = 'ch-msg err'; btn.disabled = false; }
+  });
 }
 
 // Modale « Inviter un client » : génère un lien d'invitation (email facultatif) + partage.
