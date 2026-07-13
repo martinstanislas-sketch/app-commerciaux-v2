@@ -55,6 +55,15 @@ const sessions = (() => {
       if (d) { try { d.prepare('DELETE FROM sessions WHERE token = ?').run(token); } catch (e) { console.warn('Session non supprimée en DB (token reste valide jusqu’à purge) :', e && e.message); } }
       return true;
     },
+    // Invalide toutes les sessions d'un client (par email) -> coupe immédiatement son accès.
+    purgeEmail(email) {
+      ensure();
+      if (!email) return 0;
+      const toDel = [];
+      for (const [tok, data] of cache.entries()) { if (data && data.email === email) toDel.push(tok); }
+      toDel.forEach((tok) => this.delete(tok));
+      return toDel.length;
+    },
   };
 })();
 
@@ -2254,6 +2263,8 @@ try {
       const email = (req.session && req.session.email) || '';
       if (!email) return res.status(403).json({ ok: false });
       const row = getDb().prepare('SELECT prenom, nom, data, avatar, avatar_key FROM nutrition_clients WHERE email = ?').get(email);
+      // Compte supprimé (vrai client, hors démo) -> accès révoqué : on force la reconnexion.
+      if (!row && !req.session.demo) return res.status(403).json({ ok: false, deleted: true });
       let data = null; try { data = row && row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
       const avatarUrl = (row && row.avatar && row.avatar_key) ? '/nutrition/api/community/avatar/' + row.avatar_key : '';
       res.json({ ok: true, email, prenom: (row && row.prenom) || req.session.name || '', nom: (row && row.nom) || '', data, avatarUrl });
@@ -2524,6 +2535,7 @@ try {
         'nutrition_push_log', 'nutrition_push_flags', 'nutrition_push_coach_alerts',
       ].forEach((t) => del('DELETE FROM ' + t + ' WHERE client_email = ?', email));
       del('DELETE FROM nutrition_clients WHERE email = ?', email); // le compte (clé = email)
+      try { sessions.purgeEmail(email); } catch (_) { /* accès coupé au plus tard à l'expiration du token */ }
       res.json({ ok: true });
     } catch (e) { console.error('coach client DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
   });

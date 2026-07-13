@@ -6857,6 +6857,7 @@ async function renderClientsAdmin() {
           <div>${escapeHtml(obj)}</div>
           <div>Inscrit le ${fmt(c.createdAt)}</div>
           <button type="button" class="pin-reset" data-email="${escapeHtml(c.email)}" style="margin-top:5px;background:none;border:1px solid #2C333F;color:#9AA0A6;border-radius:8px;padding:4px 9px;font-size:11.5px;font-family:inherit;cursor:pointer;">Réinitialiser le PIN</button>
+          <button type="button" class="client-del" data-email="${escapeHtml(c.email)}" style="margin-top:5px;margin-left:6px;background:none;border:1px solid #6b2b2b;color:#F0938c;border-radius:8px;padding:4px 9px;font-size:11.5px;font-family:inherit;cursor:pointer;">Supprimer</button>
         </div>
       </div>`;
     }).join('');
@@ -6876,7 +6877,19 @@ async function renderClientsAdmin() {
       });
     });
     body.querySelectorAll('.pin-reset').forEach((b) => b.addEventListener('click', () => resetClientPin(b.dataset.email, b)));
+    body.querySelectorAll('.client-del').forEach((b) => b.addEventListener('click', () => deleteClientAdmin(b.dataset.email, b)));
   } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+// Supprime définitivement un client (admin). Coupe immédiatement son accès (session purgée).
+async function deleteClientAdmin(email, btn) {
+  if (!confirm('Supprimer définitivement ' + email + ' et toutes ses données ?\nLe client perdra immédiatement l’accès à l’application. Action irréversible.')) return;
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(apiUrl('/api/coach/clients/' + encodeURIComponent(email)), { method: 'DELETE', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d.ok) { showToast('Client supprimé.', { icon: 'check' }); renderClientsAdmin(); }
+    else { showToast(d.error || 'Suppression impossible.', { icon: 'info' }); if (btn) btn.disabled = false; }
+  } catch (_) { showToast('Suppression impossible.', { icon: 'info' }); if (btn) btn.disabled = false; }
 }
 // Réinitialise le PIN d'un client (admin/support). Le client en pose un nouveau à sa prochaine connexion.
 async function resetClientPin(email, btn) {
