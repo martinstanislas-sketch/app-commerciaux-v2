@@ -52,7 +52,8 @@
 .lp-brand--light .lp-brand__txt span{color:#7fa2ff}
 /* Logo image « my COACH GINKGO » (version blanche). Sur fond clair (header collé),
    on l'assombrit via filtre pour rester lisible. Footer = toujours sombre -> blanc. */
-.lp-brand .lp-brand__logo{height:40px;width:auto;display:block}
+.lp-brand .lp-brand__logo{height:44px;width:auto;display:block}
+@media (min-width:920px){.lp-brand .lp-brand__logo{height:56px}}
 @media (max-width:600px){.lp-brand .lp-brand__logo{height:32px}}
 
 /* BOUTONS */
