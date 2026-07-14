@@ -154,6 +154,30 @@
 .lp-coach p{font-size:var(--fs-body);line-height:1.4;color:var(--ink)}
 .lp-coach b{display:block;font-size:var(--fs-caption);color:var(--blue);margin-bottom:.15em}
 
+/* Cartes flottantes autour du téléphone */
+.lp-floats{position:absolute;inset:0;z-index:3;pointer-events:none}
+.lp-float{position:absolute;display:flex;align-items:center;gap:10px;
+  background:var(--white);border:1px solid var(--line);border-radius:16px;padding:11px 13px;
+  box-shadow:0 22px 46px -20px rgba(4,10,30,.55);pointer-events:auto}
+.lp-float b{display:block;font-size:var(--fs-body);color:var(--ink);line-height:1.2;font-weight:700}
+.lp-float small{display:flex;align-items:center;gap:5px;margin-top:2px;font-size:var(--fs-caption);color:var(--muted)}
+.lp-float__av{width:34px;height:34px;border-radius:50%;background:var(--blue);color:#fff;
+  display:grid;place-items:center;font-weight:700;font-size:.85rem;flex:0 0 auto}
+.lp-float__ck{width:30px;height:30px;border-radius:50%;background:#e3f4ea;
+  display:grid;place-items:center;flex:0 0 auto}
+.lp-float__ck svg{width:16px;height:16px;fill:none;stroke:#1f9d63;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.lp-float__dot{width:7px;height:7px;border-radius:50%;background:#22c55e;flex:0 0 auto}
+.lp-float--coach{top:4%;right:-11%;max-width:224px}
+.lp-float--plan{top:41%;left:-15%}
+.lp-float--prog{bottom:1%;right:-9%;flex-direction:column;align-items:stretch;gap:8px;min-width:154px}
+.lp-float__ph{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.lp-float__badge{font-size:var(--fs-caption);font-weight:700;color:#1f9d63;background:#e3f4ea;border-radius:999px;padding:2px 9px}
+.lp-float__chart{display:flex;align-items:flex-end;gap:5px;height:42px}
+.lp-float__chart i{flex:1;background:var(--blue);border-radius:3px;opacity:.85}
+.lp-float__chart i:nth-child(-n+3){opacity:.38}
+/* Trop étroit pour les cartes flottantes → on les masque */
+@media (max-width:1080px){.lp-floats{display:none}}
+
 /* BANDE CONFIANCE */
 .lp-trust{background:var(--white);border-block:1px solid var(--line)}
 .lp-trust__row{display:flex;flex-wrap:wrap;gap:clamp(18px,4vw,48px);align-items:center;justify-content:space-between;padding-block:26px}
