@@ -486,10 +486,13 @@ function updateTabVisibility() {
     data:           document.querySelector('[data-tab="data"]'),
   };
 
-  // Espace /coach/ : 3 onglets — Challenge (clients), Groupes (murs collectifs),
-  // Messages (conversations privées). Les autres onglets restent dans le code, masqués.
+  // Espace /coach/ : Challenge (clients) · Messagerie (privé + groupes) · Academy
+  // (badges perso). L'admin/academy voit en plus « Validations » pour valider les
+  // formations des coachs. Les autres onglets restent dans le code, masqués.
   Object.values(tabs).forEach((t) => { if (t) t.style.display = 'none'; });
-  ['challenge', 'messagerie', 'academy'].forEach((k) => { const b = document.querySelector('[data-tab="' + k + '"]'); if (b) b.style.display = ''; });
+  const _shown = ['challenge', 'messagerie', 'academy'];
+  if (isFormationAdmin()) _shown.push('validation'); // admin + academy : validation des formations
+  _shown.forEach((k) => { const b = document.querySelector('[data-tab="' + k + '"]'); if (b) b.style.display = ''; });
   if (tabs.challenge) tabs.challenge.click();
   return;
 
