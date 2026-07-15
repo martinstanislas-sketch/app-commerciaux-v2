@@ -63,6 +63,8 @@ const state = {
   coachMessages: [], // memoire de conversation du Coach IA
   coachBusy: false,
   startDate: null, // date "YYYY-MM-DD" du 1er affichage = jour 0 du plan
+  parcoursSub: 'chemin', // onglet Parcours : 'chemin' (parcours gamifié) | 'mesures' (Mon Parcours)
+  challenge: null, // état du Chemin du challenge (nœuds + stats), chargé depuis /api/challenge/state
   communauteUnlocked: false, // espace Communauté débloqué (plan généré au moins une fois)
   communauteJoined: false, // l'utilisateur a rejoint son groupe de challenge
   communauteVue: false, // message d'intro Communauté déjà affiché
@@ -4288,6 +4290,200 @@ function parcoursBadges(p) {
   ];
 }
 
+// ============================================================================
+//  CHEMIN DU CHALLENGE (front) — parcours vertical gamifié type Duolingo.
+//  Réutilise l'onglet "parcours" (renommé « Chemin »), avec un sélecteur interne
+//  Chemin / Mes mesures. La validation des nœuds se fait sur les vrais écrans
+//  de l'app (pesée, ebook, groupe…) : ici on route + on rafraîchit + on félicite.
+// ============================================================================
+function mcpEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+// Dispatcher de l'onglet Parcours : Chemin gamifié (défaut) ou Mon Parcours (mesures).
+function renderParcoursTab() {
+  const view = $('#view-parcours'); if (!view) return;
+  if (state.parcoursSub === 'mesures') {
+    const after = () => injectParcoursSegment();
+    if (state.parcours) { renderParcours(); after(); }
+    else { fetchParcours().then(after).catch(after); }
+  } else {
+    renderChallenge();
+  }
+}
+function parcoursSegmentHTML() {
+  const seg = (id, label, on) => `<button type="button" class="mcpath-seg${on ? ' on' : ''}" data-pseg="${id}">${label}</button>`;
+  const sub = state.parcoursSub === 'mesures' ? 'mesures' : 'chemin';
+  return `<div class="mcpath-segwrap">${seg('chemin', '🚀 Chemin', sub === 'chemin')}${seg('mesures', '📏 Mes mesures', sub === 'mesures')}</div>`;
+}
+function wireParcoursSegment() {
+  $$('#view-parcours .mcpath-seg').forEach((b) => b.addEventListener('click', () => {
+    state.parcoursSub = b.dataset.pseg; renderParcoursTab(); window.scrollTo(0, 0);
+  }));
+}
+function injectParcoursSegment() {
+  const view = $('#view-parcours'); if (!view || view.querySelector('.mcpath-segwrap')) return;
+  view.insertAdjacentHTML('afterbegin', parcoursSegmentHTML());
+  wireParcoursSegment();
+}
+
+async function renderChallenge() {
+  const view = $('#view-parcours'); if (!view) return;
+  const hadSnapshot = !!state._challengeLoaded;
+  const prevDone = new Set(((state.challenge && state.challenge.nodes) || []).filter((n) => n.status === 'done').map((n) => n.day));
+  view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-loading">Chargement du chemin…</div>';
+  wireParcoursSegment();
+  let st = null;
+  try {
+    const r = await fetch(apiUrl('/api/challenge/state'), { headers: nutriAuthHeaders() });
+    const d = await r.json();
+    if (d && d.ok) st = d.state;
+  } catch (_) { /* réseau : on montre un état vide */ }
+  state.challenge = st;
+  if (!st) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">Chemin indisponible pour le moment.</div>'; wireParcoursSegment(); return; }
+  if (!st.enabled) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">🔒 Le Chemin du challenge arrive bientôt pour ton groupe.</div>'; wireParcoursSegment(); return; }
+  if (!st.started) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">✨ Ton chemin démarrera à ta première pesée officielle.</div>'; wireParcoursSegment(); return; }
+  view.innerHTML = parcoursSegmentHTML() + challengeHeaderHTML(st) + challengePathHTML(st);
+  wireParcoursSegment();
+  wireChallengePath();
+  // Toast « au retour » : un nœud validé sur son écran d'origine s'affiche à la revenue.
+  if (hadSnapshot) {
+    const newly = (st.nodes || []).filter((n) => n.status === 'done' && !prevDone.has(n.day));
+    if (newly.length) { const n = newly[newly.length - 1]; rewardToast({ title: n.title, xp: n.xp, gems: n.gems, milestone: n.milestone }); }
+  }
+  state._challengeLoaded = true;
+}
+
+function challengeHeaderHTML(st) {
+  const s = st.stats || {};
+  const stat = (emoji, val, label) => `<div class="mcpath-stat"><span class="mcpath-stat-v">${emoji} ${val}</span><span class="mcpath-stat-l">${label}</span></div>`;
+  const doneCount = (st.nodes || []).filter((n) => n.status === 'done').length;
+  return `<div class="mcpath-head">
+    <div class="mcpath-stats">${stat('🔥', s.streak || 0, 'Série')}${stat('⭐', s.xp || 0, 'XP')}${stat('💎', s.gems || 0, 'Gems')}${stat('🃏', s.jokers || 0, 'Jokers')}</div>
+    <div class="mcpath-progress"><div class="mcpath-progress-bar" style="width:${Math.round(doneCount / (st.totalDays || 42) * 100)}%"></div></div>
+    <div class="mcpath-progress-lbl">${doneCount}/${st.totalDays || 42} étapes · Jour ${st.day}</div>
+  </div>`;
+}
+
+function challengePathHTML(st) {
+  const byWeek = {};
+  (st.nodes || []).forEach((n) => { (byWeek[n.week] = byWeek[n.week] || []).push(n); });
+  let html = '<div class="mcpath">';
+  Object.keys(byWeek).map(Number).sort((a, b) => a - b).forEach((week) => {
+    const title = (st.weekTitles && st.weekTitles[week]) || '';
+    html += `<div class="mcpath-week"><span class="mcpath-week-n">Semaine ${week}/6</span><span class="mcpath-week-t">${mcpEsc(title)}</span></div>`;
+    byWeek[week].forEach((n) => { html += challengeNodeHTML(n, (n.day % 2 === 0) ? 'right' : 'left'); });
+  });
+  html += '</div>';
+  return html;
+}
+
+function challengeNodeHTML(n, side) {
+  const cls = ['mcpath-node', 'mcpath-' + side, 'mcpath-' + n.status];
+  if (n.milestone) cls.push('mcpath-gold');
+  const icon = n.status === 'done' ? '✓' : (n.milestone ? '★' : n.day);
+  const bubble = n.status === 'active' ? `<div class="mcpath-bubble">COMMENCER +${n.xp} XP</div>` : '';
+  const attr = n.status === 'active' ? ` data-node="${n.day}"` : (n.status === 'locked' ? ' disabled' : '');
+  return `<div class="${cls.join(' ')}">
+    <button type="button" class="mcpath-dot"${attr}><span class="mcpath-dot-ic">${icon}</span></button>
+    ${bubble}
+    <div class="mcpath-label">${mcpEsc(n.title)}</div>
+  </div>`;
+}
+
+function wireChallengePath() {
+  $$('#view-parcours .mcpath-dot[data-node]').forEach((b) => b.addEventListener('click', () => openChallengeNode(Number(b.dataset.node))));
+}
+
+function challengeActionLabel(n) {
+  const map = {
+    pesee: ['Aller à ma pesée', 'Ta pesée officielle se saisit dans « Mes mesures ».'],
+    mensurations: ['Saisir mes mensurations', 'Renseigne tes mensurations dans « Mes mesures ».'],
+    photo: ['Ajouter ma photo', 'Dépose ta photo d\'évolution dans « Mes mesures ».'],
+    seance: ['Valider une séance', 'Coche ta séance dans « Mes mesures ».'],
+    groupe: ['Aller au groupe', 'Publie ton message sur le mur de ton groupe.'],
+    coach: ['Écrire à mon coach', 'Envoie un message à ton coach.'],
+    ebook: ['Ouvrir mon ebook', 'Ouvre le guide du jour (2 minutes suffisent).'],
+    nutrition: n.day === 12 ? ['Analyser mon assiette', 'Photographie une assiette de ton plan.'] : ['Partager au groupe', 'Réalise la recette et partage-la au groupe.'],
+    bilan: ['Voir mon bilan', 'Consulte le bilan de ta semaine.'],
+    aventure: ['J\'ai relevé le défi', 'Aventure auto-déclarée : confirme quand c\'est fait.'],
+  };
+  const m = map[n.type] || ['Y aller', ''];
+  return { cta: m[0], sub: m[1] };
+}
+
+function ensureChallengeSheet() {
+  let el = $('#mcpathSheet'); if (el) return el;
+  el = document.createElement('div');
+  el.id = 'mcpathSheet';
+  el.className = 'mcpath-sheet';
+  el.innerHTML = `<div class="mcpath-sheet-backdrop"></div><div class="mcpath-sheet-card">
+    <div class="mcpath-sheet-grip"></div>
+    <div class="mcpath-sheet-badge"></div>
+    <h3 class="mcpath-sheet-title"></h3>
+    <p class="mcpath-sheet-sub"></p>
+    <button type="button" class="mcpath-sheet-btn"></button>
+    <button type="button" class="mcpath-sheet-close">Plus tard</button>
+  </div>`;
+  document.body.appendChild(el);
+  el.querySelector('.mcpath-sheet-backdrop').addEventListener('click', closeChallengeSheet);
+  el.querySelector('.mcpath-sheet-close').addEventListener('click', closeChallengeSheet);
+  return el;
+}
+function closeChallengeSheet() { const el = $('#mcpathSheet'); if (el) el.classList.remove('open'); }
+
+function openChallengeNode(day) {
+  const st = state.challenge; if (!st) return;
+  const n = (st.nodes || []).find((x) => x.day === day); if (!n) return;
+  const sheet = ensureChallengeSheet();
+  const lbl = challengeActionLabel(n);
+  sheet.querySelector('.mcpath-sheet-badge').textContent = `Jour ${n.day} · +${n.xp} XP${n.gems ? ' · +' + n.gems + ' 💎' : ''}`;
+  sheet.querySelector('.mcpath-sheet-title').textContent = n.title;
+  sheet.querySelector('.mcpath-sheet-sub').textContent = lbl.sub;
+  const btn = sheet.querySelector('.mcpath-sheet-btn');
+  btn.textContent = lbl.cta;
+  btn.onclick = () => { closeChallengeSheet(); doChallengeAction(n); };
+  sheet.classList.add('open');
+}
+
+function doChallengeAction(n) {
+  switch (n.type) {
+    case 'pesee': case 'mensurations': case 'photo': case 'seance':
+      state.parcoursSub = 'mesures'; renderParcoursTab(); window.scrollTo(0, 0); break;
+    case 'groupe': setTab('communaute'); break;
+    case 'coach': openCoachChat(); break;
+    case 'ebook': setTab('ebooks'); break;
+    case 'nutrition': if (n.day === 12) openAnalyse(); else setTab('communaute'); break;
+    case 'bilan': challengeOpenBilan(n); break;
+    case 'aventure': challengeDeclareAventure(n); break;
+    default: break;
+  }
+}
+
+async function challengeOpenBilan(n) {
+  state.parcoursSub = 'mesures'; renderParcoursTab();
+  setTimeout(() => { const el = $('#pc-bilan'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 250);
+  try {
+    const r = await fetch(apiUrl('/api/challenge/bilan-seen'), { method: 'POST', headers: { ...nutriAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ week: n.week }) });
+    const d = await r.json();
+    if (d && d.ok) { state.challenge = d.state; if (d.reward) rewardToast(d.reward); }
+  } catch (_) { /* silencieux */ }
+}
+
+async function challengeDeclareAventure(n) {
+  if (!window.confirm('Confirmer : tu as bien relevé le défi « ' + n.title + ' » ?')) return;
+  try {
+    const r = await fetch(apiUrl('/api/challenge/aventure'), { method: 'POST', headers: { ...nutriAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    const d = await r.json();
+    if (d && d.ok) { state.challenge = d.state; if (d.reward) rewardToast(d.reward); if (state.parcoursSub !== 'mesures') renderChallenge(); }
+  } catch (_) { /* silencieux */ }
+}
+
+function rewardToast(r) {
+  if (!r) return;
+  let msg = '+' + r.xp + ' XP';
+  if (r.gems) msg += '  ·  +' + r.gems + ' 💎';
+  showToast((r.milestone ? '⭐ Jalon validé ! ' : '✅ ') + r.title + ' — ' + msg, { icon: 'check' });
+}
+
 function renderParcours() {
   const host = $('#view-parcours'); if (!host) return;
   const p = state.parcours;
@@ -5350,7 +5546,7 @@ function setTab(tab) {
   if (tab === 'courses') { $('#btnShopping').click(); return; }
   if (tab === 'suivi') { $('#btnSuiviPlan').click(); return; }
   if (tab === 'communaute') { renderCommunaute(); if (!state.communauteVue) dismissCommunauteIntro(); }
-  if (tab === 'parcours') { if (state.parcours) renderParcours(); fetchParcours(); }
+  if (tab === 'parcours') renderParcoursTab();
   if (tab === 'ebooks') renderEbooksView();
   const screen = $('#screen-result');
   if (screen) screen.setAttribute('data-tab', tab);
