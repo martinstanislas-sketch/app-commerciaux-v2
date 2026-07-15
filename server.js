@@ -7998,5 +7998,16 @@ try {
 
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur http://localhost:${PORT}`);
-  getDb(); // Init DB on startup
+  const _db = getDb(); // Init DB on startup
+  // Réinitialisation d'un code admin oublié : si la variable d'env
+  // ADMIN_PIN_RESET est définie (Railway → Variables), on force ce code au
+  // démarrage. À utiliser UNE fois pour reprendre la main, puis SUPPRIMER la
+  // variable (sinon le code est ré-imposé à chaque redémarrage).
+  try {
+    const resetPin = String(process.env.ADMIN_PIN_RESET || '').trim();
+    if (resetPin) {
+      _db.prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('admin_pin', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").run(resetPin);
+      console.log('🔑 ADMIN_PIN_RESET actif : code admin réinitialisé. SUPPRIME la variable ADMIN_PIN_RESET après connexion.');
+    }
+  } catch (e) { console.error('ADMIN_PIN_RESET:', e.message); }
 });
