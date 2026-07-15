@@ -419,6 +419,7 @@ function initTabs() {
       else if (t === 'challenge') loadChallengeTab();
       else if (t === 'groupes') loadGroupesTab();
       else if (t === 'messages') loadMessagesInbox();
+      else if (t === 'academy') loadAcademyBadges();
       else if (t === 'recap') loadRecapTab();
       else if (t === 'notes') loadNotes();
       else if (t === 'controle') loadControlTab();
@@ -489,7 +490,7 @@ function updateTabVisibility() {
   // Espace /coach/ : 3 onglets — Challenge (clients), Groupes (murs collectifs),
   // Messages (conversations privées). Les autres onglets restent dans le code, masqués.
   Object.values(tabs).forEach((t) => { if (t) t.style.display = 'none'; });
-  ['challenge', 'groupes', 'messages'].forEach((k) => { const b = document.querySelector('[data-tab="' + k + '"]'); if (b) b.style.display = ''; });
+  ['challenge', 'groupes', 'messages', 'academy'].forEach((k) => { const b = document.querySelector('[data-tab="' + k + '"]'); if (b) b.style.display = ''; });
   if (tabs.challenge) tabs.challenge.click();
   return;
 
@@ -8742,6 +8743,106 @@ async function renderGroupWall(el, grp) {
 }
 
 // ===== Onglet MESSAGES : conversations privées (envoyées/reçues) =====
+// ─── ACADEMY (coach) — vitrine ceinture + badges du coach connecté ──────────
+const ACADEMY_BADGES = [
+  { key: 'essentielles', name: 'Fondations', emoji: '🏗️' },
+  { key: 'signature',    name: 'Signature',  emoji: '✍️' },
+  { key: 'expertise',    name: 'Expert',     emoji: '🧠' },
+  { key: 'leadership',   name: 'Leadership', emoji: '👑' },
+];
+function acaInjectStyles() {
+  if (document.getElementById('academy-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'academy-styles';
+  s.textContent = `
+  #academy-container{max-width:760px;margin:0 auto}
+  .aca-hero{display:flex;align-items:center;gap:20px;background:linear-gradient(150deg,var(--mc-anthracite),var(--mc-black));
+    color:var(--mc-cream);border-radius:20px;padding:22px 24px;box-shadow:var(--mc-shadow-md);margin-bottom:20px}
+  .aca-ring{position:relative;width:120px;height:120px;flex:0 0 auto}
+  .aca-pct{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .aca-pct b{font-size:30px;font-weight:800;color:#fff;line-height:1}
+  .aca-pct span{font-size:11px;color:var(--mc-gold-light);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+  .aca-hero-info h2{margin:0 0 8px;font-size:20px;color:#fff}
+  .aca-belt{display:inline-flex;align-items:center;gap:8px;background:rgba(199,164,90,.16);border:1px solid rgba(199,164,90,.4);
+    color:var(--mc-gold-light);border-radius:999px;padding:6px 14px;font-weight:700;font-size:14px}
+  .aca-hero-sub{color:#b8b3a6;font-size:13px;margin:10px 0 0}
+  .aca-next{color:var(--mc-gold-light);font-size:12.5px;margin-top:6px}
+  .aca-badges-title{font-size:13px;font-weight:700;color:var(--mc-text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 12px}
+  .aca-badges{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .aca-badge{position:relative;background:var(--mc-white);border:1px solid var(--mc-border);border-radius:18px;padding:18px 16px 16px;text-align:center;transition:transform .2s ease,box-shadow .2s ease}
+  .aca-badge.on{border-color:var(--mc-gold);box-shadow:0 12px 30px -14px rgba(199,164,90,.6);background:linear-gradient(160deg,#fffdf7,#fbf6ea)}
+  .aca-badge.on:hover{transform:translateY(-3px)}
+  .aca-badge-emoji{font-size:40px;line-height:1;filter:grayscale(1) opacity(.35)}
+  .aca-badge.on .aca-badge-emoji{filter:none}
+  .aca-badge-name{font-weight:800;color:var(--mc-text);margin:10px 0 3px;font-size:16px}
+  .aca-badge.on .aca-badge-name{color:var(--mc-black)}
+  .aca-badge-state{font-size:12px;color:var(--mc-text-muted)}
+  .aca-badge.on .aca-badge-state{color:var(--mc-gold);font-weight:700}
+  .aca-badge-lock{position:absolute;top:12px;right:14px;font-size:14px;opacity:.55}
+  .aca-mini{height:6px;border-radius:999px;background:var(--mc-cream-dark);margin-top:11px;overflow:hidden}
+  .aca-mini i{display:block;height:100%;background:var(--mc-gold);border-radius:999px}
+  @media (max-width:520px){.aca-hero{flex-direction:column;text-align:center}.aca-badges{grid-template-columns:1fr}}
+  `;
+  document.head.appendChild(s);
+}
+async function loadAcademyBadges() {
+  chInjectStyles();
+  acaInjectStyles();
+  const host = document.getElementById('academy-container');
+  if (!host) return;
+  const coachId = getMyCoachId();
+  if (!coachId) {
+    host.innerHTML = `<div class="ch-head"><div class="ch-head-l"><h2>🎓 Academy</h2></div></div>
+      <div class="ch-empty"><p>Ta progression Academy n'est pas disponible.</p><p class="ch-muted">Connecte-toi avec ton compte coach pour retrouver tes badges.</p></div>`;
+    return;
+  }
+  host.innerHTML = '<div class="ch-loading">Chargement de ta progression…</div>';
+  try {
+    const d = await api('/formations/validations/' + coachId);
+    const pct = d.pct || 0;
+    const belt = d.belt || { name: 'Ceinture Blanche', emoji: '🤍', color: '#e2e8f0', min: 0 };
+    const earned = new Set(d.badges || []);
+    const cat = {};
+    (d.formations || []).forEach((f) => { const k = f.category; if (!cat[k]) cat[k] = { total: 0, ok: 0 }; cat[k].total++; if (f.status === 'validated') cat[k].ok++; });
+    const nextBelt = BELTS.find((b) => b.min > pct);
+    const nextStr = nextBelt ? `Encore ${nextBelt.min - pct}% pour ${nextBelt.emoji} ${nextBelt.name.replace('Ceinture ', '')}` : 'Ceinture maximale atteinte 🎉';
+    const r = 52, circ = 2 * Math.PI * r, off = circ - (pct / 100) * circ;
+    const earnedCount = ACADEMY_BADGES.filter((b) => earned.has(b.key)).length;
+    const badgesHtml = ACADEMY_BADGES.map((b) => {
+      const on = earned.has(b.key);
+      const c = cat[b.key] || { total: 0, ok: 0 };
+      const prog = c.total ? Math.round((c.ok / c.total) * 100) : 0;
+      return `<div class="aca-badge${on ? ' on' : ''}">
+        <span class="aca-badge-lock">${on ? '🏅' : '🔒'}</span>
+        <div class="aca-badge-emoji">${b.emoji}</div>
+        <div class="aca-badge-name">${b.name}</div>
+        <div class="aca-badge-state">${on ? '✓ Débloqué' : (c.total ? `${c.ok}/${c.total} formations` : 'À débloquer')}</div>
+        ${on ? '' : `<div class="aca-mini"><i style="width:${prog}%"></i></div>`}
+      </div>`;
+    }).join('');
+    host.innerHTML = `
+      <div class="aca-hero">
+        <div class="aca-ring">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="9"/>
+            <circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--mc-gold)" stroke-width="9" stroke-linecap="round"
+              stroke-dasharray="${circ}" stroke-dashoffset="${off}" transform="rotate(-90 60 60)" style="transition:stroke-dashoffset .9s ease"/>
+          </svg>
+          <div class="aca-pct"><b>${pct}%</b><span>validé</span></div>
+        </div>
+        <div class="aca-hero-info">
+          <h2>Ma progression</h2>
+          <span class="aca-belt">${belt.emoji} ${belt.name}</span>
+          <p class="aca-hero-sub">${d.validated || 0} formation${(d.validated || 0) > 1 ? 's' : ''} sur ${d.total || 0} validée${(d.validated || 0) > 1 ? 's' : ''}</p>
+          <p class="aca-next">${nextStr}</p>
+        </div>
+      </div>
+      <p class="aca-badges-title">Badges Academy · ${earnedCount}/${ACADEMY_BADGES.length}</p>
+      <div class="aca-badges">${badgesHtml}</div>`;
+  } catch (e) {
+    host.innerHTML = `<div class="ch-empty"><p>Chargement impossible.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
+  }
+}
 async function loadMessagesInbox() {
   chInjectStyles();
   const host = document.getElementById('messages-container');

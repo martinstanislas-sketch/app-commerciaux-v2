@@ -66,6 +66,10 @@
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>
         <span class="tab-label">Messages</span>
       </button>
+      <button class="tab-btn tab-btn-academy2" data-tab="academy">
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span>
+        <span class="tab-label">Academy</span>
+      </button>
       <button class="tab-btn active" data-tab="dashboard">
         <span class="tab-icon">📐</span>
         <span class="tab-label">RH</span>
@@ -161,6 +165,11 @@
     <!-- MESSAGES (Coach) — conversations privées (envoyées/reçues) -->
     <section id="tab-messages" class="tab-content">
       <div id="messages-container"></div>
+    </section>
+
+    <!-- ACADEMY (Coach) — vitrine ceinture + badges du coach connecté -->
+    <section id="tab-academy" class="tab-content">
+      <div id="academy-container"></div>
     </section>
 
     <!-- DASHBOARD (Admin) -->
@@ -652,6 +661,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260711m"></script>
+  <script src="app.js?v=20260715a"></script>
 </body>
 </html>
