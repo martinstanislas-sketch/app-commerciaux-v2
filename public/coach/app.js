@@ -8744,6 +8744,7 @@ async function renderGroupWall(el, grp) {
 
 // ===== Onglet MESSAGES : conversations privées (envoyées/reçues) =====
 // ─── ACADEMY (coach) — vitrine ceinture + badges du coach connecté ──────────
+let _acaData = null;
 const ACADEMY_BADGES = [
   { key: 'essentielles', name: 'Fondations', emoji: '🏗️' },
   { key: 'signature',    name: 'Signature',  emoji: '✍️' },
@@ -8769,9 +8770,32 @@ function acaInjectStyles() {
   .aca-next{color:var(--mc-gold-light);font-size:12.5px;margin-top:6px}
   .aca-badges-title{font-size:13px;font-weight:700;color:var(--mc-text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 12px}
   .aca-badges{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-  .aca-badge{position:relative;background:var(--mc-white);border:1px solid var(--mc-border);border-radius:18px;padding:18px 16px 16px;text-align:center;transition:transform .2s ease,box-shadow .2s ease}
+  .aca-badge{position:relative;background:var(--mc-white);border:1px solid var(--mc-border);border-radius:18px;padding:18px 16px 16px;text-align:center;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+  .aca-badge:hover{transform:translateY(-3px);border-color:var(--mc-gold)}
   .aca-badge.on{border-color:var(--mc-gold);box-shadow:0 12px 30px -14px rgba(199,164,90,.6);background:linear-gradient(160deg,#fffdf7,#fbf6ea)}
-  .aca-badge.on:hover{transform:translateY(-3px)}
+  .aca-badge-more{margin-top:10px;font-size:11.5px;font-weight:700;color:var(--mc-gold);letter-spacing:.02em}
+  /* Vue détail catégorie */
+  .aca-back{display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--mc-text-muted);font-weight:700;font-size:14px;cursor:pointer;padding:4px 0;margin-bottom:14px}
+  .aca-back:hover{color:var(--mc-black)}
+  .aca-cat-head{display:flex;align-items:center;gap:16px;background:var(--mc-white);border:1px solid var(--mc-border);border-radius:18px;padding:18px 20px;margin-bottom:16px}
+  .aca-cat-head.on{border-color:var(--mc-gold);background:linear-gradient(160deg,#fffdf7,#fbf6ea)}
+  .aca-cat-emoji{font-size:44px;line-height:1;flex:0 0 auto}
+  .aca-cat-info{flex:1;min-width:0}
+  .aca-cat-info h2{margin:0 0 3px;font-size:19px;color:var(--mc-black);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .aca-cat-badge{font-size:12px;font-weight:700;color:var(--mc-gold);background:rgba(199,164,90,.14);border:1px solid rgba(199,164,90,.4);border-radius:999px;padding:2px 10px}
+  .aca-cat-sub{margin:0 0 10px;font-size:13px;color:var(--mc-text-muted)}
+  .aca-flist{display:flex;flex-direction:column;gap:10px}
+  .aca-f{display:flex;align-items:center;gap:14px;background:var(--mc-white);border:1px solid var(--mc-border);border-radius:14px;padding:13px 16px}
+  .aca-f-ico{width:28px;height:28px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;background:var(--mc-cream-dark);color:var(--mc-text-muted)}
+  .aca-f.done .aca-f-ico{background:var(--mc-success-bg);color:var(--mc-success)}
+  .aca-f.failed .aca-f-ico{background:var(--mc-danger-bg);color:var(--mc-danger)}
+  .aca-f.awaiting .aca-f-ico{background:var(--mc-warning-bg);color:var(--mc-warning)}
+  .aca-f-main{display:flex;flex-direction:column;min-width:0}
+  .aca-f-name{font-weight:700;color:var(--mc-text);font-size:15px;line-height:1.3}
+  .aca-f.done .aca-f-name{color:var(--mc-black)}
+  .aca-f-state{font-size:12px;color:var(--mc-text-muted);margin-top:1px}
+  .aca-f.done .aca-f-state{color:var(--mc-success);font-weight:600}
+  .aca-f.awaiting .aca-f-state{color:var(--mc-warning);font-weight:600}
   .aca-badge-emoji{font-size:40px;line-height:1;filter:grayscale(1) opacity(.35)}
   .aca-badge.on .aca-badge-emoji{filter:none}
   .aca-badge-name{font-weight:800;color:var(--mc-text);margin:10px 0 3px;font-size:16px}
@@ -8799,6 +8823,7 @@ async function loadAcademyBadges() {
   host.innerHTML = '<div class="ch-loading">Chargement de ta progression…</div>';
   try {
     const d = await api('/formations/validations/' + coachId);
+    _acaData = d;
     const pct = d.pct || 0;
     const belt = d.belt || { name: 'Ceinture Blanche', emoji: '🤍', color: '#e2e8f0', min: 0 };
     const earned = new Set(d.badges || []);
@@ -8812,12 +8837,13 @@ async function loadAcademyBadges() {
       const on = earned.has(b.key);
       const c = cat[b.key] || { total: 0, ok: 0 };
       const prog = c.total ? Math.round((c.ok / c.total) * 100) : 0;
-      return `<div class="aca-badge${on ? ' on' : ''}">
+      return `<div class="aca-badge${on ? ' on' : ''}" data-key="${b.key}" role="button" tabindex="0" aria-label="Voir les formations ${b.name}">
         <span class="aca-badge-lock">${on ? '🏅' : '🔒'}</span>
         <div class="aca-badge-emoji">${b.emoji}</div>
         <div class="aca-badge-name">${b.name}</div>
         <div class="aca-badge-state">${on ? '✓ Débloqué' : (c.total ? `${c.ok}/${c.total} formations` : 'À débloquer')}</div>
         ${on ? '' : `<div class="aca-mini"><i style="width:${prog}%"></i></div>`}
+        <div class="aca-badge-more">Voir les formations →</div>
       </div>`;
     }).join('');
     host.innerHTML = `
@@ -8839,9 +8865,49 @@ async function loadAcademyBadges() {
       </div>
       <p class="aca-badges-title">Badges Academy · ${earnedCount}/${ACADEMY_BADGES.length}</p>
       <div class="aca-badges">${badgesHtml}</div>`;
+    host.querySelectorAll('.aca-badge').forEach((el) => {
+      const open = () => openAcademyCategory(el.dataset.key);
+      el.addEventListener('click', open);
+      el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } });
+    });
   } catch (e) {
     host.innerHTML = `<div class="ch-empty"><p>Chargement impossible.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
   }
+}
+function openAcademyCategory(key) {
+  const host = document.getElementById('academy-container');
+  if (!host || !_acaData) { loadAcademyBadges(); return; }
+  const meta = ACADEMY_BADGES.find((b) => b.key === key) || { name: key, emoji: '🎓' };
+  const items = (_acaData.formations || []).filter((f) => f.category === key);
+  const done = items.filter((f) => f.status === 'validated').length;
+  const pct = items.length ? Math.round((done / items.length) * 100) : 0;
+  const on = new Set(_acaData.badges || []).has(key);
+  const rows = items.length ? items.map((f) => {
+    const isDone = f.status === 'validated';
+    const isFailed = f.status === 'failed';
+    const quizPassed = f.quiz_passed === true || f.quiz_passed === 1;
+    const awaiting = !isDone && !isFailed && quizPassed;
+    const cls = isDone ? 'done' : isFailed ? 'failed' : awaiting ? 'awaiting' : 'pending';
+    const icon = isDone ? '✓' : isFailed ? '✗' : awaiting ? '⏳' : '○';
+    const state = isDone ? 'Validée' : isFailed ? 'À refaire' : awaiting ? 'Quiz réussi · en attente de validation' : 'À valider';
+    const date = (isDone && f.validated_at) ? ' · ' + new Date(f.validated_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    return `<div class="aca-f ${cls}"><span class="aca-f-ico">${icon}</span>
+      <span class="aca-f-main"><span class="aca-f-name">${chEsc(f.name || 'Formation')}</span>
+      <span class="aca-f-state">${state}${date}</span></span></div>`;
+  }).join('') : '<div class="ch-empty"><p>Aucune formation dans cette catégorie pour l\'instant.</p></div>';
+  host.innerHTML = `
+    <button type="button" class="aca-back" id="aca-back">← Retour aux badges</button>
+    <div class="aca-cat-head${on ? ' on' : ''}">
+      <div class="aca-cat-emoji">${meta.emoji}</div>
+      <div class="aca-cat-info">
+        <h2>${meta.name}${on ? ' <span class="aca-cat-badge">🏅 Débloqué</span>' : ''}</h2>
+        <p class="aca-cat-sub">${done}/${items.length} formation${items.length > 1 ? 's' : ''} validée${done > 1 ? 's' : ''}</p>
+        <div class="aca-mini"><i style="width:${pct}%"></i></div>
+      </div>
+    </div>
+    <div class="aca-flist">${rows}</div>`;
+  document.getElementById('aca-back').addEventListener('click', loadAcademyBadges);
+  host.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 async function loadMessagesInbox() {
   chInjectStyles();
