@@ -417,8 +417,7 @@ function initTabs() {
       if (t === 'dashboard') loadDashboard();
       else if (t === 'today') loadTodayTab();
       else if (t === 'challenge') loadChallengeTab();
-      else if (t === 'groupes') loadGroupesTab();
-      else if (t === 'messages') loadMessagesInbox();
+      else if (t === 'messagerie') loadMessagerieTab();
       else if (t === 'academy') loadAcademyBadges();
       else if (t === 'recap') loadRecapTab();
       else if (t === 'notes') loadNotes();
@@ -490,7 +489,7 @@ function updateTabVisibility() {
   // Espace /coach/ : 3 onglets — Challenge (clients), Groupes (murs collectifs),
   // Messages (conversations privées). Les autres onglets restent dans le code, masqués.
   Object.values(tabs).forEach((t) => { if (t) t.style.display = 'none'; });
-  ['challenge', 'groupes', 'messages', 'academy'].forEach((k) => { const b = document.querySelector('[data-tab="' + k + '"]'); if (b) b.style.display = ''; });
+  ['challenge', 'messagerie', 'academy'].forEach((k) => { const b = document.querySelector('[data-tab="' + k + '"]'); if (b) b.style.display = ''; });
   if (tabs.challenge) tabs.challenge.click();
   return;
 
@@ -8632,6 +8631,53 @@ async function grpLoadComments(box, id) {
     });
   } catch (e) { box.innerHTML = '<div class="ch-muted" style="font-size:12px;padding:4px 2px">Indisponible.</div>'; }
 }
+// ─── MESSAGERIE (coach) — fusion Privé (conversations) + Groupes (murs) ──────
+function msgrInjectStyles() {
+  if (document.getElementById('messagerie-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'messagerie-styles';
+  s.textContent = `
+  .msgr-seg{display:inline-flex;background:var(--mc-cream-dark);border:1px solid var(--mc-border);border-radius:12px;padding:4px;gap:4px;margin:0 0 18px}
+  .msgr-seg-btn{border:none;background:none;cursor:pointer;font-weight:700;font-size:14px;color:var(--mc-text-muted);padding:8px 18px;border-radius:9px;display:inline-flex;align-items:center;gap:8px;transition:background .18s ease,color .18s ease}
+  .msgr-seg-btn:hover{color:var(--mc-black)}
+  .msgr-seg-btn.on{background:var(--mc-anthracite);color:var(--mc-cream);box-shadow:var(--mc-shadow-sm)}
+  .msgr-unread{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--mc-gold);color:var(--mc-black);font-size:11px;font-weight:800;align-items:center;justify-content:center;display:none}
+  .msgr-seg-btn.on .msgr-unread{background:var(--mc-gold-light)}
+  `;
+  document.head.appendChild(s);
+}
+function setMsgrUnreadBadge(n) {
+  const b = document.getElementById('msgr-unread');
+  if (!b) return;
+  b.textContent = n > 0 ? (n > 99 ? '99+' : String(n)) : '';
+  b.style.display = n > 0 ? 'inline-flex' : 'none';
+}
+async function loadMessagerieTab() {
+  chInjectStyles();
+  msgrInjectStyles();
+  const host = document.getElementById('messagerie-container');
+  if (!host) return;
+  host.innerHTML = `
+    <div class="msgr-seg" role="tablist">
+      <button type="button" class="msgr-seg-btn on" data-view="prive" role="tab">Privé<span class="msgr-unread" id="msgr-unread"></span></button>
+      <button type="button" class="msgr-seg-btn" data-view="groupes" role="tab">Groupes</button>
+    </div>
+    <div id="messages-container"></div>
+    <div id="groupes-container" style="display:none"></div>`;
+  const segs = host.querySelectorAll('.msgr-seg-btn');
+  const priv = host.querySelector('#messages-container');
+  const grp = host.querySelector('#groupes-container');
+  const loaded = { prive: false, groupes: false };
+  function show(view) {
+    segs.forEach((b) => b.classList.toggle('on', b.dataset.view === view));
+    priv.style.display = view === 'prive' ? '' : 'none';
+    grp.style.display = view === 'groupes' ? '' : 'none';
+    if (view === 'prive' && !loaded.prive) { loaded.prive = true; loadMessagesInbox(); }
+    if (view === 'groupes' && !loaded.groupes) { loaded.groupes = true; loadGroupesTab(); }
+  }
+  segs.forEach((b) => b.addEventListener('click', () => show(b.dataset.view)));
+  show('prive');
+}
 let _grpActive = null; // { ville, no } du mur affiché
 async function loadGroupesTab() {
   chInjectStyles();
@@ -8918,11 +8964,13 @@ async function loadMessagesInbox() {
     const d = await nutriApi('/coach/conversations');
     const convs = (d.conversations || []).slice().sort((a, b) => ((b.unread || 0) - (a.unread || 0)) || (Date.parse(b.lastAt || 0) - Date.parse(a.lastAt || 0)));
     if (!convs.length) {
+      setMsgrUnreadBadge(0);
       host.innerHTML = `<div class="ch-head"><div class="ch-head-l"><h2>✉️ Messages</h2></div></div>
         <div class="ch-empty"><p>Aucune conversation pour l'instant.</p><p class="ch-muted">Les échanges privés avec tes clients apparaîtront ici.</p></div>`;
       return;
     }
     const totalUnread = convs.reduce((s, c) => s + (c.unread || 0), 0);
+    setMsgrUnreadBadge(totalUnread);
     const rows = convs.map((c) => {
       const name = c.clientName || c.clientEmail;
       const parts = String(name).split(' ');
