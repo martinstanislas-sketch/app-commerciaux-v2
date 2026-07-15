@@ -3671,7 +3671,6 @@ async function loadParcoursTab() {
               <span class="parc-count">${c.validated}/${c.total} validées</span>
               <span class="parc-pct">${pct}%</span>
             </div>
-            ${c.pending > 0 ? `<div class="parc-pending">⏳ ${c.pending} en attente</div>` : ''}
           </div>`;
       }).join('');
 
@@ -4304,8 +4303,6 @@ async function loadStudioProgress() {
           </div>
           <div class="stprog-bar-track"><div class="stprog-bar-fill" style="width:${c.pct}%"></div></div>
           <div class="stprog-stats">${c.validated}/${c.total} <span class="stprog-pct">${c.pct}%</span></div>
-          ${c.pending > 0 ? `<div class="stprog-pending">⏳ ${c.pending} en attente</div>` : ''}
-          ${c.quizPassed > 0 && c.pending === 0 && c.validated < c.total ? `<div class="stprog-quiz-info">📝 ${c.quizPassed} QCM faits</div>` : ''}
         </div>
       `;
     }).join('');
