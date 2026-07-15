@@ -4149,9 +4149,11 @@ async function renderCalEvents() {
 }
 
 async function loadPendingValidations() {
+  // QCM retiré : plus de file d'attente de validation par quiz.
   const panel = document.getElementById('val-pending-panel');
-  if (!panel || !isFormationAdmin()) { if (panel) panel.classList.add('hidden'); return; }
-
+  if (panel) { panel.innerHTML = ''; panel.classList.add('hidden'); }
+  return;
+  // eslint-disable-next-line no-unreachable
   try {
     const data = await api('/formations/pending-validations');
     const items = data.pending || [];
@@ -4443,45 +4445,29 @@ function renderSkillTree(formations, qCounts, bestScores, admin, coachId) {
       <div class="skill-path-nodes">`;
 
     items.forEach((f, idx) => {
-      const isDone     = f.status === 'validated';
-      const isFailed   = f.status === 'failed';
-      const quizPassed = f.quiz_passed === true || f.quiz_passed === 1;
-      const hasQuiz    = (qCounts[f.id] || 0) > 0;
+      const isDone   = f.status === 'validated';
+      const isFailed = f.status === 'failed';
 
-      // 3 états : vert validé / orange en attente / gris non fait
-      const nodeClass = isDone ? 'validated' : quizPassed ? 'quiz-done' : 'locked';
-
-      // Icône
-      let nodeIcon = '•';
-      if (isDone) nodeIcon = '✓';
-      else if (isFailed) nodeIcon = '✗';
-      else if (quizPassed) nodeIcon = '⏳';
+      // 3 états : vert validé / rouge refusé / gris à valider
+      const nodeClass = isDone ? 'validated' : isFailed ? 'failed' : 'locked';
+      const nodeIcon = isDone ? '✓' : isFailed ? '✗' : '•';
 
       if (admin) {
-        // Admin : boutons inline directement sur le nœud
-        const quizBadge = hasQuiz && quizPassed
-          ? `<span class="sna-quiz-badge sna-qpassed">✓ QCM</span>`
-          : hasQuiz
-            ? `<span class="sna-quiz-badge">QCM</span>`
-            : '';
+        // Admin : boutons de validation inline directement sur le nœud
         html += `<div class="skill-node ${nodeClass} admin-node" title="${f.name}">
           <div class="skill-node-circle">${nodeIcon}</div>
           <span class="skill-node-label">${f.name}</span>
-          ${quizBadge}
           <div class="skill-node-actions">
             <button class="sna-btn sna-ok ${isDone ? 'active' : ''}" onclick="event.stopPropagation();openValComment(${coachId},${f.id},'validated')" title="Valider">✓</button>
             <button class="sna-btn sna-fail ${isFailed ? 'active' : ''}" onclick="event.stopPropagation();openValComment(${coachId},${f.id},'failed')" title="Refuser">✗</button>
-            <button class="sna-btn sna-reset" onclick="event.stopPropagation();setValidation(${coachId},${f.id},'pending')" title="Remettre en attente">↺</button>
+            <button class="sna-btn sna-reset" onclick="event.stopPropagation();setValidation(${coachId},${f.id},'pending')" title="Remettre à valider">↺</button>
           </div>
           ${f.comment ? `<span class="sna-comment-text" title="${f.comment.replace(/"/g,'&quot;')}">💬 ${f.comment}</span>` : ''}
         </div>`;
       } else {
-        // Coach/leader : clic = ouvrir le quiz
-        const clickable = hasQuiz;
-        html += `<div class="skill-node ${nodeClass}" ${clickable ? `onclick="openQuiz(${f.id},'${f.name.replace(/'/g, "\\'")}')"` : ''} title="${f.name}">
+        html += `<div class="skill-node ${nodeClass}" title="${f.name}">
           <div class="skill-node-circle">${nodeIcon}</div>
           <span class="skill-node-label">${f.name}</span>
-          ${quizPassed && !isDone ? `<span style="font-size:.55rem;color:var(--warning);font-weight:800;text-transform:uppercase;letter-spacing:.03em;">En attente</span>` : ''}
           ${f.comment ? `<span class="sna-comment-text">💬 ${f.comment}</span>` : ''}
         </div>`;
       }
