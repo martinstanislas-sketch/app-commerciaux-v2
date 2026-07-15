@@ -797,7 +797,7 @@ function initAuthUI() {
   document.getElementById('change-pin-overlay')?.addEventListener('click', (e) => {
     if (e.target.id === 'change-pin-overlay') closeChangePinModal();
   });
-  document.getElementById('change-pin-form')?.addEventListener('submit', submitChangePin);
+  document.getElementById('change-pin-form-modal')?.addEventListener('submit', submitChangePin);
 
   // Logout button
   document.getElementById('btn-logout').addEventListener('click', async () => {
