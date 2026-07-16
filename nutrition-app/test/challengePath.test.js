@@ -329,18 +329,90 @@ test('jokers : +1 par semaine complète (S1 = 8 étapes), plafonné à 3', () =>
 });
 
 // --- Streak / rollover Paris ------------------------------------------------
-test('recordEbookOpen : +1 le 1er jour, pas de double le même jour', () => {
+// --- SÉRIE 🔥 alimentée par les REPAS (règles produit 1-2-3) -----------------
+const streakDe = (db, email) => db.prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
+
+test('série : un jour gagné (2 repas) monte la série, en direct', () => {
+  const { engine, email, db } = makeEngine();
+  const r = engine.recordDayWin(email, 2);
+  assert.equal(r.gagne, true);
+  assert.equal(r.nouveau, true, 'la série vient de monter');
+  const s = streakDe(db, email);
+  assert.equal(s.streak_current, 1);
+  assert.equal(s.streak_best, 1);
+  assert.equal(s.last_win_date, pathParisYmd());
+});
+
+test('série : IDEMPOTENT — le même jour ne peut ajouter qu\'une fois', () => {
+  const { engine, email, db } = makeEngine();
+  engine.recordDayWin(email, 2);
+  const r2 = engine.recordDayWin(email, 3); // 3e repas renseigné le même jour
+  assert.equal(r2.gagne, true);
+  assert.equal(r2.nouveau, false, 'la série ne remonte pas une 2e fois');
+  assert.equal(streakDe(db, email).streak_current, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM user_day_wins WHERE client_email=?').get(email).c, 1);
+});
+
+test('série : jours consécutifs -> +1 par jour', () => {
+  const { engine, email, db } = makeEngine();
+  const hier = pathYmdMinusDays(pathParisYmd(), 1);
+  // On simule un jour gagné hier (série à 4).
+  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_win_date, updated_at) VALUES (?,4,4,0,?,'')").run(email, hier);
+  db.prepare('INSERT INTO user_day_wins (client_email, day_ymd, repas, won_at) VALUES (?,?,2,\'\')').run(email, hier);
+  engine.recordDayWin(email, 2);
+  const s = streakDe(db, email);
+  assert.equal(s.streak_current, 5);
+  assert.equal(s.streak_best, 5);
+});
+
+test('série : 1 jour manqué + 1 joker -> la chaîne est préservée', () => {
+  const { engine, email, db } = makeEngine();
+  const avantHier = pathYmdMinusDays(pathParisYmd(), 2); // 1 jour plein manqué (hier)
+  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_win_date, updated_at) VALUES (?,6,6,2,?,'')").run(email, avantHier);
+  engine.recordDayWin(email, 2);
+  const s = streakDe(db, email);
+  assert.equal(s.jokers, 1, '1 joker consommé pour le jour manqué');
+  assert.equal(s.streak_current, 7, 'la chaîne continue');
+});
+
+test('série : jours manqués SANS joker -> la série repart à 1 au prochain jour gagné', () => {
+  const { engine, email, db } = makeEngine();
+  const vieux = pathYmdMinusDays(pathParisYmd(), 4); // 3 jours pleins manqués
+  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_win_date, updated_at) VALUES (?,9,9,0,?,'')").run(email, vieux);
+  engine.recordDayWin(email, 2);
+  const s = streakDe(db, email);
+  assert.equal(s.streak_current, 1, 'la série repart à 1');
+  assert.equal(s.streak_best, 9, 'le record est conservé');
+});
+
+test('série : flag OFF -> aucun gain', () => {
+  const { engine, email, db } = makeEngine({ enabled: false });
+  const r = engine.recordDayWin(email, 3);
+  assert.equal(r.gagne, false);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM user_day_wins WHERE client_email=?').get(email).c, 0);
+});
+
+test('série : dayWon dit si la journée est déjà gagnée (notif du soir)', () => {
+  const { engine, email } = makeEngine();
+  assert.equal(engine.dayWon(email, pathParisYmd()), false);
+  engine.recordDayWin(email, 2);
+  assert.equal(engine.dayWon(email, pathParisYmd()), true);
+  assert.equal(engine.dayWon(email, pathYmdMinusDays(pathParisYmd(), 1)), false);
+});
+
+test('RÉGRESSION : l\'ouverture d\'ebook ne fait PLUS monter la série', () => {
   const { engine, email, db } = makeEngine();
   engine.recordEbookOpen(email, 1);
-  assert.equal(db.prepare('SELECT streak_current FROM user_game_stats WHERE client_email=?').get(email).streak_current, 1);
-  engine.recordEbookOpen(email, 2); // même jour, autre ebook
-  assert.equal(db.prepare('SELECT streak_current FROM user_game_stats WHERE client_email=?').get(email).streak_current, 1);
+  engine.recordEbookOpen(email, 2);
+  assert.equal(engine.pathStatsRow(email).streak_current, 0, 'seuls les repas alimentent la série');
+  // …mais l'ouverture reste journalisée (et valide toujours les étapes ebook).
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM user_ebook_opens WHERE client_email=?').get(email).c, 2);
 });
 
 test('reconcileStreak : jours manqués consomment les jokers puis remettent le streak à 0', () => {
   const { engine, email, db } = makeEngine();
-  const last = pathYmdMinusDays(pathParisYmd(), 3); // dernier open il y a 3 jours -> 2 jours pleins manqués
-  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_ebook_open_date, updated_at) VALUES (?,?,?,?,?,'')")
+  const last = pathYmdMinusDays(pathParisYmd(), 3); // dernier jour gagné il y a 3 jours -> 2 jours pleins manqués
+  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_win_date, updated_at) VALUES (?,?,?,?,?,'')")
     .run(email, 5, 5, 1, last);
   engine.reconcileStreak(email);
   const s = db.prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
@@ -352,7 +424,7 @@ test('reconcileStreak : jours manqués consomment les jokers puis remettent le s
 test('reconcileStreak : un seul jour manqué + 1 joker = streak sauvé', () => {
   const { engine, email, db } = makeEngine();
   const last = pathYmdMinusDays(pathParisYmd(), 2); // 1 jour plein manqué
-  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_ebook_open_date, updated_at) VALUES (?,?,?,?,?,'')")
+  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_win_date, updated_at) VALUES (?,?,?,?,?,'')")
     .run(email, 7, 7, 2, last);
   engine.reconcileStreak(email);
   const s = db.prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);

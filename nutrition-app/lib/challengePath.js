@@ -169,7 +169,8 @@ const CHALLENGE_SCHEMA_SQL = `
     streak_current INTEGER NOT NULL DEFAULT 0,
     streak_best INTEGER NOT NULL DEFAULT 0,
     jokers INTEGER NOT NULL DEFAULT 0,
-    last_ebook_open_date TEXT NOT NULL DEFAULT '',
+    last_ebook_open_date TEXT NOT NULL DEFAULT '', -- legacy : la série venait de l'ebook
+    last_win_date TEXT NOT NULL DEFAULT '',        -- dernier jour GAGNÉ (2 repas renseignés)
     updated_at TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE IF NOT EXISTS user_ebook_opens (
@@ -200,6 +201,17 @@ const CHALLENGE_SCHEMA_SQL = `
     done_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (client_email, node_day, step)
   );
+  -- Jours GAGNÉS (série 🔥) : un jour est gagné dès que le client a renseigné au
+  -- moins 2 repas sur 3, quel que soit le statut (on récompense l'engagement, pas
+  -- la perfection). La PK (email, jour) garantit l'idempotence : un jour ne peut
+  -- alimenter la série qu'une seule fois.
+  CREATE TABLE IF NOT EXISTS user_day_wins (
+    client_email TEXT NOT NULL,
+    day_ymd TEXT NOT NULL,
+    repas INTEGER NOT NULL DEFAULT 0,
+    won_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (client_email, day_ymd)
+  );
 `;
 
 // ---------------------------------------------------------------------------
@@ -216,6 +228,15 @@ function createChallengeEngine({ getDb }) {
   function ensureChallengePathSchema() {
     try {
       getDb().exec(CHALLENGE_SCHEMA_SQL);
+      // Migration : la série est désormais alimentée par les REPAS renseignés et
+      // non plus par l'ouverture d'ebook -> `last_win_date` remplace
+      // `last_ebook_open_date` (conservée telle quelle, devenue inutilisée).
+      // On reprend l'ancienne valeur pour ne casser aucune série en cours.
+      const cols = getDb().prepare('PRAGMA table_info(user_game_stats)').all();
+      if (cols.length && !cols.some((c) => c.name === 'last_win_date')) {
+        getDb().exec("ALTER TABLE user_game_stats ADD COLUMN last_win_date TEXT NOT NULL DEFAULT ''");
+        getDb().exec('UPDATE user_game_stats SET last_win_date = last_ebook_open_date');
+      }
       const seededV = (getDb().prepare("SELECT value FROM app_settings WHERE key='challenge_path_seed_v'").get() || {}).value;
       const count = getDb().prepare('SELECT COUNT(*) c FROM path_nodes').get().c;
       if (count !== CHALLENGE_PATH_NODES.length || String(seededV) !== String(CHALLENGE_PATH_SEED_VERSION)) {
@@ -308,36 +329,58 @@ function createChallengeEngine({ getDb }) {
   }
   // Rattrapage du streak : chaque jour plein manqué depuis la dernière ouverture consomme
   // 1 joker s'il en reste, sinon remet le streak à 0. Idempotent (avance last_open à hier).
+  // Rattrapage de la série : chaque jour plein NON GAGNÉ depuis le dernier jour
+  // gagné consomme 1 joker s'il en reste, sinon la série retombe à 0 (elle
+  // repartira à 1 au prochain jour gagné). Idempotent (avance last_win à hier).
   function reconcileStreak(email) {
     try {
       if (!pathFeatureEnabled()) return pathStatsRow(email);
       const s = pathStatsRow(email);
-      const last = s.last_ebook_open_date || '';
+      const last = s.last_win_date || '';
       if (!last) return s;
       const today = pathParisYmd();
       const missed = pathDaysBetween(last, today) - 1;
       if (missed <= 0) return s;
       const next = applyMissedDays(s.streak_current || 0, s.jokers || 0, missed);
-      getDb().prepare("UPDATE user_game_stats SET streak_current=?, jokers=?, last_ebook_open_date=?, updated_at=datetime('now') WHERE client_email=?")
+      getDb().prepare("UPDATE user_game_stats SET streak_current=?, jokers=?, last_win_date=?, updated_at=datetime('now') WHERE client_email=?")
         .run(next.streak, next.jokers, pathYmdMinusDays(today, 1), email);
       return getDb().prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
     } catch (e) { console.error('reconcileStreak:', e && e.message); return pathStatsRow(email); }
   }
-  // Ouverture d'ebook : log quotidien (streak) + incrément du streak (1×/jour).
+  // Un jour est GAGNÉ dès 2 repas renseignés (quel que soit le statut). Appelé en
+  // direct quand le client renseigne son 2e repas du jour. Idempotent : la PK de
+  // user_day_wins garantit qu'un jour n'alimente la série qu'une seule fois.
+  // Renvoie { gagne, nouveau, stats } — `nouveau` = la série vient de monter.
+  function recordDayWin(email, repas) {
+    const vide = { gagne: false, nouveau: false, stats: null };
+    try {
+      if (!email || !pathFeatureEnabled()) return vide;
+      const today = pathParisYmd();
+      reconcileStreak(email); // solde d'abord les jours manqués (jokers)
+      const deja = getDb().prepare('SELECT 1 FROM user_day_wins WHERE client_email=? AND day_ymd=?').get(email, today);
+      if (deja) return { gagne: true, nouveau: false, stats: pathStatsRow(email) };
+      getDb().prepare('INSERT OR IGNORE INTO user_day_wins (client_email, day_ymd, repas, won_at) VALUES (?,?,?,?)')
+        .run(email, today, Number(repas) || 0, new Date().toISOString());
+      const s = pathStatsRow(email);
+      const streak = streakAfterOpen(s.streak_current || 0, s.last_win_date || '', today);
+      const best = Math.max(streak, s.streak_best || 0);
+      getDb().prepare("UPDATE user_game_stats SET streak_current=?, streak_best=?, last_win_date=?, updated_at=datetime('now') WHERE client_email=?")
+        .run(streak, best, today, email);
+      return { gagne: true, nouveau: true, stats: pathStatsRow(email) };
+    } catch (e) { console.error('recordDayWin:', e && e.message); return vide; }
+  }
+  // Le jour courant est-il déjà gagné ? (utilisé par la notif du soir)
+  function dayWon(email, ymd) {
+    try { return !!getDb().prepare('SELECT 1 FROM user_day_wins WHERE client_email=? AND day_ymd=?').get(email, ymd || pathParisYmd()); } catch (_) { return false; }
+  }
+  // Ouverture d'ebook : log quotidien uniquement. Depuis que la série est
+  // alimentée par les REPAS, l'ebook ne la fait plus monter (il valide toujours
+  // les étapes « ebook » du parcours via awardClientEvent).
   function recordEbookOpen(email, ebookId) {
     try {
       if (!email) return;
-      const today = pathParisYmd();
       getDb().prepare("INSERT OR IGNORE INTO user_ebook_opens (client_email, ebook_id, day_ymd, opened_at) VALUES (?,?,?,?)")
-        .run(email, Number(ebookId) || 0, today, new Date().toISOString());
-      if (!pathFeatureEnabled()) return;
-      reconcileStreak(email); // solde d'abord les jours manqués (jokers)
-      const s = pathStatsRow(email);
-      if ((s.last_ebook_open_date || '') === today) return; // déjà compté aujourd'hui
-      const streak = streakAfterOpen(s.streak_current || 0, s.last_ebook_open_date || '', today);
-      const best = Math.max(streak, s.streak_best || 0);
-      getDb().prepare("UPDATE user_game_stats SET streak_current=?, streak_best=?, last_ebook_open_date=?, updated_at=datetime('now') WHERE client_email=?")
-        .run(streak, best, today, email);
+        .run(email, Number(ebookId) || 0, pathParisYmd(), new Date().toISOString());
     } catch (e) { console.error('recordEbookOpen:', e && e.message); }
   }
   // CŒUR DU MOTEUR : un événement réel valide (si pertinent) le nœud actif.
@@ -404,7 +447,7 @@ function createChallengeEngine({ getDb }) {
   }
 
   return {
-    ensureChallengePathSchema, awardClientEvent, recordEbookOpen, challengePublicState,
+    ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, dayWon, challengePublicState,
     pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
     grantWeekJokerIfComplete, pathStatsRow, pathDoneDays, flowDone,
   };
