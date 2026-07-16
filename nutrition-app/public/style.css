@@ -2747,7 +2747,9 @@ body.is-demo #navRestart { display: none !important; }
 .mcpath-seg.on { background: var(--surface); color: var(--text-c); box-shadow: var(--shadow-sm); }
 
 .mcpath-head { position: sticky; top: 0; z-index: 5; background: var(--app-bg); padding: 8px 0 12px; }
-.mcpath-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+/* 2 compteurs depuis la fusion en Punch (🔥 Série · 👊 Punch) : la grille suit le
+   nombre réel de cartes plutôt qu'un nombre de colonnes figé. */
+.mcpath-stats { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
 /* Compteurs cliquables : un tap explique la règle (voir openStatInfo). */
 .mcpath-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--r-sm); padding: 10px 4px; box-shadow: var(--shadow-xs); font-family: inherit; cursor: pointer; position: relative; transition: border-color .15s var(--ease), transform .1s var(--ease); }
 .mcpath-stat:hover { border-color: var(--blue-c); }
