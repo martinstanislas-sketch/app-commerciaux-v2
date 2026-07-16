@@ -5907,7 +5907,11 @@ function setTab(tab) {
   if (tab === 'courses') { $('#btnShopping').click(); return; }
   if (tab === 'suivi') { $('#btnSuiviPlan').click(); return; }
   if (tab === 'communaute') { renderCommunaute(); if (!state.communauteVue) dismissCommunauteIntro(); }
-  if (tab === 'parcours') renderParcoursTab();
+  // Entrer par l'onglet Chemin ouvre TOUJOURS le chemin, jamais Mesures : sans ce
+  // retour au défaut, un passage par Mesures restait collé au sous-onglet.
+  // (Les actions qui routent vers Mesures appellent renderParcoursTab() en direct,
+  // sans passer par ici : elles ne sont pas affectées.)
+  if (tab === 'parcours') { state.parcoursSub = 'chemin'; renderParcoursTab(); }
   if (tab === 'ebooks') renderEbooksView();
   const screen = $('#screen-result');
   if (screen) screen.setAttribute('data-tab', tab);
