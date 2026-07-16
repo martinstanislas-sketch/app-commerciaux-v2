@@ -4395,6 +4395,7 @@ async function renderChallenge() {
   view.innerHTML = parcoursSegmentHTML() + challengeHeaderHTML(st) + challengePathHTML(st);
   wireParcoursSegment();
   wireChallengePath();
+  mcpathCentrerActif(); // on ouvre sur l'étape du jour, pas en haut du parcours
   // Toast « au retour » : un nœud validé sur son écran d'origine s'affiche à la revenue.
   if (hadSnapshot) {
     const newly = (st.nodes || []).filter((n) => n.status === 'done' && !prevDone.has(n.day));
@@ -4444,6 +4445,22 @@ function challengeNodeHTML(n, side) {
 function wireChallengePath() {
   $$('#view-parcours .mcpath-dot[data-node]').forEach((b) => b.addEventListener('click', () => openChallengeNode(Number(b.dataset.node))));
   $$('#view-parcours .mcpath-stat[data-stat]').forEach((b) => b.addEventListener('click', () => openStatInfo(b.dataset.stat)));
+}
+
+// Le client arrive PILE sur son étape du jour, sans scroller — au jour 30 elle
+// serait sinon très loin. Il reste ensuite libre de remonter voir le chemin
+// parcouru ou d'aller regarder la suite : on ne recentre qu'au (re)rendu.
+function mcpathCentrerActif() {
+  const view = $('#view-parcours');
+  if (!view || !view.offsetParent) return; // onglet pas à l'écran -> on ne touche pas au scroll
+  const cible = view.querySelector('.mcpath-node.mcpath-active')
+    || [...view.querySelectorAll('.mcpath-node.mcpath-done')].pop() // parcours terminé -> on montre la fin
+    || view.querySelector('.mcpath-node');
+  if (!cible) return;
+  // Appel direct : scrollIntoView force lui-même le calcul de mise en page. Surtout,
+  // pas de requestAnimationFrame ici — il ne se déclenche pas quand l'onglet est en
+  // arrière-plan, et le centrage ne serait alors jamais fait.
+  try { cible.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (_) { cible.scrollIntoView(); }
 }
 
 // --- Explication des compteurs (🔥 ⭐ 💎 🃏) --------------------------------
