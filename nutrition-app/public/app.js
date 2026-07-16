@@ -3676,14 +3676,14 @@ async function fetchCommunaute() {
   } catch (_) { /* hors-ligne : on garde l'affichage courant */ }
 }
 
-async function postCommunaute(text, kind) {
+async function postCommunaute(text, kind, photo) {
   const msg = String(text || '').trim();
-  if (!msg) return false;
+  if (!msg && !photo) return false; // un post doit porter au moins un texte ou une photo
   try {
     const res = await fetch(apiUrl('/api/community/messages'), {
       method: 'POST',
       headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ message: msg, kind: kind || 'message' }),
+      body: JSON.stringify({ message: msg, kind: kind || 'message', photo: photo || '' }),
     });
     const data = await res.json();
     if (data && data.ok && data.message) {
@@ -3972,8 +3972,12 @@ function feedCard(item) {
     '<div class="feed-body">' +
       '<div class="feed-meta"><b class="feed-who">' + escapeHtml(who) + '</b>' + coachTag +
         '<span class="feed-when">' + escapeHtml(commTimeAgo(item.when)) + '</span></div>' +
-      '<p class="feed-text">' + escapeHtml(txt) + '</p>' +
-      '<div class="feed-actions">' + feedReactBar(item) + feedCommentBar(item) + '</div>' +
+      (txt ? '<p class="feed-text">' + escapeHtml(txt) + '</p>' : '') +
+      // Pas de loading="lazy" : c'est chargerPhotoPost qui va chercher l'image (fetch
+      // authentifié -> blob). La place est réservée en CSS pour que le fil ne saute pas
+      // quand elle arrive.
+      (item.photoId ? '<button type="button" class="feed-photo" data-photo="' + Number(item.photoId) + '" aria-label="Agrandir la photo"><img alt="Photo partagée par ' + escapeHtml(who) + '"></button>' : '') +
+      '<div class="feed-actions">' + feedReactBar(item) + feedCommentBar(item) + (item.mine ? '<button type="button" class="feed-del" data-del="' + Number(String(item.id).slice(1)) + '" aria-label="Supprimer mon post">' + icSvg('x') + '</button>' : '') + '</div>' +
       ((_feedOpenComments && _feedOpenComments.has(item.id)) ? feedCommentThread(item) : '') +
     '</div></article>';
 }
@@ -3988,6 +3992,12 @@ function renderCommunauteFeed() {
     return;
   }
   list.innerHTML = items.map(feedCard).join('');
+  // Les photos sont servies avec auth (cloisonnées au groupe) -> on les charge en blob.
+  list.querySelectorAll('.feed-photo[data-photo]').forEach((b) => {
+    chargerPhotoPost(Number(b.dataset.photo), b.querySelector('img'));
+    b.addEventListener('click', () => agrandirPhotoPost(Number(b.dataset.photo)));
+  });
+  list.querySelectorAll('.feed-del[data-del]').forEach((b) => b.addEventListener('click', () => supprimerPost(Number(b.dataset.del))));
   list.querySelectorAll('.feed-react, .feed-pal-btn').forEach((b) => b.addEventListener('click', () => reactFeed(b.dataset.fid, b.dataset.ftype)));
   list.querySelectorAll('.feed-more-btn').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); togglePalette(b.dataset.more); }));
   list.querySelectorAll('.feed-cbtn').forEach((b) => b.addEventListener('click', () => toggleComments(b.dataset.ctoggle)));
@@ -4018,9 +4028,75 @@ async function reactFeed(id, type) {
     if (d && d.ok && item) { item.reactions = d.reactions || {}; item.myReaction = d.myReaction || null; renderCommunauteFeed(); }
   } catch (_) { showToast('Réaction impossible pour le moment.', { icon: 'info' }); }
 }
-async function postCommunauteFeed(text, kind) {
-  const ok = await postCommunaute(text, kind || 'partage'); // réutilise l'endpoint messages
-  if (ok) { fetchCommunauteFeed(); showToast('Partagé au groupe 🎉', { icon: 'check' }); }
+// --- Photos des posts : chargement, agrandissement, suppression -------------
+let _commPhotoUrls = {}; // id -> objectURL (évite de re-télécharger à chaque rendu)
+async function chargerPhotoPost(id, img) {
+  if (!img) return;
+  if (_commPhotoUrls[id]) { img.src = _commPhotoUrls[id]; return; }
+  try {
+    const res = await fetch(apiUrl('/api/community/photo/' + id), { headers: nutriAuthHeaders() });
+    if (!res.ok) return;
+    const url = URL.createObjectURL(await res.blob());
+    _commPhotoUrls[id] = url; img.src = url;
+  } catch (_) { /* hors-ligne : la miniature reste vide */ }
+}
+function agrandirPhotoPost(id) {
+  const url = _commPhotoUrls[id]; if (!url) return;
+  let ov = $('#commPhotoZoom');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'commPhotoZoom'; ov.className = 'comm-zoom';
+    ov.innerHTML = '<img alt="Photo agrandie"><button type="button" class="comm-zoom-x" aria-label="Fermer">✕</button>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', () => ov.classList.remove('open'));
+  }
+  ov.querySelector('img').src = url;
+  ov.classList.add('open');
+}
+async function supprimerPost(id) {
+  if (!window.confirm('Supprimer ton post ? Il disparaîtra du fil pour tout le groupe.')) return;
+  try {
+    const res = await fetch(apiUrl('/api/community/messages/' + id), { method: 'DELETE', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d && d.ok) { delete _commPhotoUrls[id]; showToast('Post supprimé.', { icon: 'check' }); fetchCommunauteFeed(); }
+    else showToast((d && d.error) || 'Suppression impossible.', { icon: 'info' });
+  } catch (_) { showToast('Suppression impossible.', { icon: 'info' }); }
+}
+
+// --- Photo jointe à un post communautaire -----------------------------------
+// Même mécanique que les autres uploads de l'app : compressImage -> dataURL jpeg.
+// La photo attend dans state.commPhoto tant que le client n'a pas publié.
+const COMM_PHOTO_FORMATS = ['image/jpeg', 'image/png'];
+function viderCommPhoto() {
+  state.commPhoto = null;
+  const box = $('#commPhotoPreview'); if (box) box.classList.add('hidden');
+  const inp = $('#commPhotoInput'); if (inp) inp.value = ''; // sinon re-choisir le même fichier n'émet rien
+}
+async function choisirCommPhoto(file) {
+  if (!file) return;
+  if (!COMM_PHOTO_FORMATS.includes(file.type)) {
+    showToast('Format non accepté : choisis une photo JPG ou PNG.', { icon: 'info' });
+    viderCommPhoto(); return;
+  }
+  try {
+    const dataUrl = await compressImage(file, 1200, 0.78);
+    state.commPhoto = dataUrl;
+    const box = $('#commPhotoPreview');
+    if (box) { box.querySelector('img').src = dataUrl; box.classList.remove('hidden'); }
+  } catch (_) {
+    showToast('Cette image n\'a pas pu être lue.', { icon: 'info' });
+    viderCommPhoto();
+  }
+}
+function wireCommPhoto() {
+  const inp = $('#commPhotoInput');
+  if (inp) inp.addEventListener('change', (e) => choisirCommPhoto(e.target.files && e.target.files[0]));
+  const del = $('#commPhotoDel');
+  if (del) del.addEventListener('click', viderCommPhoto);
+}
+async function postCommunauteFeed(text, kind, photo) {
+  const ok = await postCommunaute(text, kind || 'partage', photo); // réutilise l'endpoint messages
+  if (ok) { fetchCommunauteFeed(); showToast(photo ? 'Photo partagée au groupe 📷' : 'Partagé au groupe 🎉', { icon: 'check' }); }
   return ok;
 }
 function autoGrowEl(el) { if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
@@ -4082,7 +4158,16 @@ function renderCommunaute() {
               '<button type="button" class="cmy-quick-btn seance" data-starter="💪 J’ai tenu ma séance aujourd’hui !">💪 J’ai tenu ma séance</button>' +
               '<button type="button" class="cmy-quick-btn help" data-starter="🆘 J’ai besoin d’un coup de main : ">🆘 J’ai besoin d’aide</button>' +
             '</div>' +
+            '<div id="commPhotoPreview" class="cmy-photo-preview hidden">' +
+              '<img alt="Photo à publier">' +
+              '<button type="button" id="commPhotoDel" class="cmy-photo-del" aria-label="Retirer la photo">✕</button>' +
+              // Ces photos sont vues par TOUT le groupe : on le dit avant l'envoi, pas après.
+              '<p class="cmy-photo-warn">' + icSvg('users') + ' Visible par tout ton groupe.</p>' +
+            '</div>' +
             '<form id="commForm" class="cmy-composer-form">' +
+              '<label class="cmy-photo-btn" title="Ajouter une photo" aria-label="Ajouter une photo">📷' +
+                '<input type="file" id="commPhotoInput" accept="image/jpeg,image/png" hidden>' +
+              '</label>' +
               '<textarea id="commInput" rows="1" maxlength="500" placeholder="Écris ton message au groupe…" autocomplete="off"></textarea>' +
               '<button type="submit" class="cmy-post-btn">' + icSvg('send') + ' Publier</button>' +
             '</form>' +
@@ -4124,11 +4209,17 @@ function renderCommunaute() {
     try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (_) { /* ignore */ }
     inp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }));
+  wireCommPhoto();
   if (form) form.addEventListener('submit', (e) => {
     e.preventDefault();
     const v = inp ? inp.value : '';
-    if (!v.trim()) return;
-    postCommunauteFeed(v, 'partage').then((ok) => { if (ok && inp) { inp.value = ''; autoGrowEl(inp); } });
+    if (!v.trim() && !state.commPhoto) return; // texte seul, photo seule, ou les deux
+    const photo = state.commPhoto || '';
+    postCommunauteFeed(v, 'partage', photo).then((ok) => {
+      if (!ok) return;
+      if (inp) { inp.value = ''; autoGrowEl(inp); }
+      viderCommPhoto();
+    });
   });
   const cf = $('#commCoachForm');
   if (cf) cf.addEventListener('submit', (e) => { e.preventDefault(); const i = $('#commCoachInput'); const v = i ? i.value : ''; if (!v.trim()) return; postCommunaute(v, 'coach').then((ok) => { if (ok && i) { i.value = ''; fetchCommunaute(); fetchCommunauteOverview(); } }); });
