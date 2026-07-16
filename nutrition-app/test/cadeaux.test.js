@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const cadeaux = require('../lib/cadeaux');
 const punchSeuils = require('../lib/punchSeuils');
+const { VIDEO_LOTS, EBOOK_TIERS, GIFTS, tousLesSeuils, cleSeuil } = punchSeuils;
 const createChallengeEngine = require('../lib/challengePath');
 
 function makeEngine() {
@@ -251,4 +252,67 @@ test('état public : le nom d\'un cadeau vient de lib/cadeaux, jamais d\'une 2e 
   engine.addPunch(email, 2000, 'test');
   const st = engine.challengePublicState(email);
   cadeaux.catalogue().forEach((c) => assert.equal(st.cadeaux[c.seuil].label, c.label, c.id + ' : un seul nom possible'));
+});
+
+// --- Les récompenses posées sur le Chemin ------------------------------------
+// Le Chemin les MATÉRIALISE : les 3 types doivent y être, à leur seuil, avec leur
+// état. Rien n'est recalculé ici — c'est punchSeuils mis en forme.
+test('Chemin : les 3 types de récompense sont exposés, à leur seuil', () => {
+  const { engine, email } = makeEngine();
+  engine.pathStatsRow(email);
+  const rec = engine.challengePublicState(email).recompenses;
+  const parType = rec.reduce((a, r) => { a[r.type] = (a[r.type] || 0) + 1; return a; }, {});
+  assert.deepEqual(parType, { video: VIDEO_LOTS.length, ebook: Object.keys(EBOOK_TIERS).length, gift: Object.keys(GIFTS).length });
+  // Chaque récompense reprend EXACTEMENT un seuil de la config : aucun inventé.
+  const attendus = tousLesSeuils().map(cleSeuil).sort();
+  assert.deepEqual(rec.map((r) => r.seuil + ':' + r.type).sort(), attendus);
+});
+
+test('Chemin : débloqué / verrouillé se lit sur le TOTAL, avec les Punch restants', () => {
+  const { engine, email } = makeEngine();
+  engine.addPunch(email, 800, 'test');
+  const rec = engine.challengePublicState(email).recompenses;
+  const à = (seuil, type) => rec.find((r) => r.seuil === seuil && r.type === type);
+  assert.equal(à(450, 'gift').locked, false, '450 est atteint');
+  assert.equal(à(800, 'gift').locked, false, 'le seuil PILE est atteint');
+  assert.equal(à(2000, 'gift').locked, true);
+  assert.equal(à(2000, 'gift').restant, 1200, 'ce qu\'il reste à faire, en clair');
+  assert.equal(à(800, 'gift').restant, 0, 'rien à faire : c\'est acquis');
+});
+
+test('Chemin : un compte JAMAIS célébré voit quand même ses récompenses', () => {
+  // Le piège : user_unlocks ne dit que ce qui a été CÉLÉBRÉ. Un compte migré depuis
+  // XP+gems y est vide alors qu'il a tout mérité -> il verrait tout grisé.
+  const { engine, db, email } = makeEngine();
+  engine.pathStatsRow(email);
+  db.prepare('UPDATE user_game_stats SET punch=2000 WHERE client_email=?').run(email); // aucun addPunch
+  const st = engine.challengePublicState(email);
+  assert.deepEqual(st.unlocks, [], 'rien n\'a jamais été célébré');
+  assert.equal(st.recompenses.every((r) => !r.locked), true, 'et pourtant TOUT est débloqué');
+});
+
+test('Chemin : franchir un seuil fait passer sa récompense de verrouillée à débloquée', () => {
+  const { engine, email } = makeEngine();
+  engine.addPunch(email, 1990, 'test');
+  const massage = (e) => e.challengePublicState(email).recompenses.find((r) => r.seuil === 2000 && r.type === 'gift');
+  assert.equal(massage(engine).locked, true);
+  assert.equal(massage(engine).restant, 10, 'plus que 10 Punch');
+  engine.addPunch(email, 10, 'test'); // 2000 pile
+  assert.equal(massage(engine).locked, false, 'le marqueur s\'allume');
+  assert.equal(massage(engine).restant, 0);
+});
+
+test('Chemin : chaque récompense est NOMMÉE et sait où se poser', () => {
+  const { engine, email } = makeEngine();
+  engine.pathStatsRow(email);
+  const rec = engine.challengePublicState(email).recompenses;
+  const à = (seuil, type) => rec.find((r) => r.seuil === seuil && r.type === type);
+  assert.equal(à(2000, 'gift').label, 'Un massage sportif', 'le nom vient de lib/cadeaux');
+  assert.equal(à(2000, 'gift').cadeau, 'massage', 'et l\'id, pour ouvrir la boutique dessus');
+  assert.equal(à(150, 'ebook').label, '2 nouveaux guides', 'le nombre réel du palier');
+  assert.equal(à(1300, 'ebook').label, '4 nouveaux guides');
+  assert.equal(à(250, 'video').label, 'Nouvelles séances vidéo');
+  // `ordre` place le marqueur le long du parcours : borné, et croissant avec le seuil.
+  rec.forEach((r) => assert.ok(r.ordre > 0 && r.ordre <= 1, 'ordre hors bornes pour ' + r.seuil));
+  assert.ok(à(150, 'ebook').ordre < à(2000, 'gift').ordre, 'un seuil plus haut se pose plus loin');
 });

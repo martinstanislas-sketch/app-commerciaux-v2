@@ -4843,14 +4843,50 @@ function ascTrace(pts) {
   return d;
 }
 
+// --- Les récompenses, posées le long du Chemin ------------------------------
+// Une récompense tombe à un SEUIL DE PUNCH ; le Chemin, lui, avance en ÉTAPES. On
+// rattache donc chacune à l'étape la plus proche du moment où son seuil tombe, via
+// `ordre` (la part du parcours franchie), calculé par le serveur.
+// ⚠️ C'est une APPROXIMATION assumée : le Punch vient du parcours ET de la série,
+// deux clients au même jour n'ont pas le même total. D'où le seuil écrit en toutes
+// lettres sur le marqueur (« 🎁 2000 ») : il ne prétend jamais « à cette étape »,
+// il dit « à ce Punch ». La position ne fait qu'ordonner.
+function ascRecompensesParEtape(st) {
+  const nodes = st.nodes || [];
+  const par = {};
+  if (!nodes.length) return par;
+  (st.recompenses || []).forEach((r) => {
+    const k = Math.max(0, Math.min(nodes.length - 1, Math.round((Number(r.ordre) || 0) * (nodes.length - 1))));
+    (par[k] = par[k] || []).push(r);
+  });
+  return par;
+}
+// Le marqueur. L'icône vient de DEBLOCAGE_VISUEL — la table qui sert déjà aux
+// célébrations : une récompense doit avoir le MÊME visage partout.
+function ascRecHTML(r) {
+  const v = DEBLOCAGE_VISUEL[r.type] || {};
+  const aria = r.label + ' à ' + r.seuil + ' Punch — ' + (r.locked ? 'verrouillé, encore ' + r.restant + ' Punch' : 'débloqué, appuie pour y aller');
+  return '<button type="button" class="asc-rec' + (r.locked ? ' is-lock' : ' is-ok') + '"'
+    + ' data-rec="' + r.seuil + ':' + r.type + '" title="' + mcpEsc(r.label) + '" aria-label="' + mcpEsc(aria) + '">'
+    + '<span class="asc-rec-ic" aria-hidden="true">' + (v.icon || '🎁') + '</span>'
+    + '<b class="asc-rec-n">' + r.seuil + '</b></button>';
+}
+// Posé du côté LIBRE de l'étape (le serpentin occupe le centre) ; empilé quand deux
+// récompenses tombent au même seuil (800 = guides + cadeau, 1050 = guides + vidéos).
+function ascRecsHTML(recs, x) {
+  if (!recs || !recs.length) return '';
+  return '<span class="asc-recs ' + (x >= 50 ? 'd' : 'g') + '">' + recs.map(ascRecHTML).join('') + '</span>';
+}
+
 function challengePathHTML(st) {
   const byWeek = {};
   (st.nodes || []).forEach((n) => { (byWeek[n.week] = byWeek[n.week] || []).push(n); });
   const semaines = Object.keys(byWeek).map(Number).sort((a, b) => a - b);
+  const recs = ascRecompensesParEtape(st);
   let i = 0; // indice GLOBAL -> le serpentin traverse les chapitres sans rupture
   let html = '<div class="asc">';
   semaines.forEach((week) => {
-    html += ascChapitreHTML(week, byWeek[week], i, st, semaines.length);
+    html += ascChapitreHTML(week, byWeek[week], i, st, semaines.length, recs);
     i += byWeek[week].length;
   });
   html += '</div>';
@@ -4859,7 +4895,7 @@ function challengePathHTML(st) {
 
 // Un chapitre = une semaine = une étape d'altitude. Son état se déduit de ses
 // étapes : conquis, en cours, ou encore devant soi.
-function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines) {
+function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs) {
   const titre = (st.weekTitles && st.weekTitles[week]) || '';
   const done = nodes.filter((n) => n.status === 'done').length;
   const etat = done === nodes.length ? 'done' : (nodes.some((n) => n.status === 'active') ? 'now' : 'soon');
@@ -4891,12 +4927,12 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines) {
         <path class="asc-trail-bg" d="${d}" />
         ${dFait ? `<path class="asc-trail-fill" d="${dFait}" />` : ''}
       </svg>
-      ${nodes.map((n, k) => ascNodeHTML(n, pts[k])).join('')}
+      ${nodes.map((n, k) => ascNodeHTML(n, pts[k], (recs || {})[iOffset + k])).join('')}
     </div>
   </section>`;
 }
 
-function ascNodeHTML(n, pt) {
+function ascNodeHTML(n, pt, recs) {
   const cls = ['asc-nd', 'asc-' + n.status];
   if (n.milestone) cls.push('asc-sommet');
   // Le libellé porte déjà l'état en toutes lettres pour les lecteurs d'écran :
@@ -4916,11 +4952,47 @@ function ascNodeHTML(n, pt) {
     </button>
     <span class="asc-lbl">${mcpEsc(n.title)}</span>
     ${cta}
+    ${ascRecsHTML(recs, pt.x)}
   </div>`;
+}
+
+// Un clic sur une récompense débloquée emmène DESSUS, pas « vers l'écran qui la
+// contient » : c'est toute la différence entre un raccourci et une promesse tenue.
+function ouvrirRecompense(cle) {
+  const [seuil, type] = String(cle).split(':');
+  const r = ((state.challenge || {}).recompenses || []).find((x) => String(x.seuil) === seuil && x.type === type);
+  if (!r) return;
+  // Deux-points plutôt qu'une phrase collée : les libellés n'ont pas tous d'article
+  // (« un massage sportif » mais « Nouvelles séances vidéo »), et « débloquer
+  // nouvelles séances vidéo » se lit mal.
+  if (r.locked) { showToast('Encore ' + r.restant + ' Punch pour débloquer : ' + r.label, { icon: 'info' }); return; }
+  if (r.type === 'gift') { setTab('boutique'); ascAllerA('#view-boutique .btq-card[data-id="' + r.cadeau + '"]'); return; }
+  setTab('ebooks');
+  // Les guides : on vise « À lire » (les nouveaux) et, s'il a déjà tout lu, sa
+  // bibliothèque. Les vidéos ont leur bloc à part. querySelector prend le premier
+  // dans l'ORDRE DU DOCUMENT, donc « À lire » gagne quand il existe.
+  ascAllerA(r.type === 'video'
+    ? '#view-ebooks .ebv-sec[data-sec="seances"]'
+    : '#view-ebooks .ebv-sec[data-sec="alire"], #view-ebooks .ebv-sec[data-sec="lus"]');
+}
+// Ces écrans se peignent après un fetch : on ATTEND que la cible existe plutôt que
+// de parier sur un délai fixe (sur un réseau lent, le scroll tomberait dans le vide).
+function ascAllerA(sel, essais) {
+  const n = Number(essais) || 0;
+  const el = document.querySelector(sel);
+  if (el) {
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('asc-cible'); // un halo bref : on voit où on vient d'atterrir
+    setTimeout(() => el.classList.remove('asc-cible'), 1800);
+    return;
+  }
+  if (n > 20) return; // ~2 s : on renonce sans rien casser, l'écran est ouvert de toute façon
+  setTimeout(() => ascAllerA(sel, n + 1), 100);
 }
 
 function wireChallengePath() {
   $$('#view-parcours .asc-dot[data-node]').forEach((b) => b.addEventListener('click', () => openChallengeNode(Number(b.dataset.node))));
+  $$('#view-parcours .asc-rec[data-rec]').forEach((b) => b.addEventListener('click', () => ouvrirRecompense(b.dataset.rec)));
   $$('#view-parcours .mcpath-stat[data-stat]').forEach((b) => b.addEventListener('click', () => openStatInfo(b.dataset.stat)));
   const _g = $('#mcpathGifts'); if (_g) _g.addEventListener('click', () => setTab('boutique'));
   ascRevelation();
@@ -8650,13 +8722,15 @@ function ebooksSectionsHTML(list, day) {
   // les suivantes, la plus proche en tête.
   const seancesTriees = seances.slice().sort((a, b) =>
     (a.locked ? 1 : 0) - (b.locked ? 1 : 0) || (Number(a.ordre) || 0) - (Number(b.ordre) || 0));
-  const bloc = (titre, arr) => arr.length
-    ? '<div class="ebv-sec"><div class="ebv-sec-h"><span class="ebv-sec-t">' + titre + '</span>'
+  // `data-sec` : l'ancre visée quand on clique une récompense sur le Chemin — sans
+  // elle, on atterrirait en haut de l'écran et il faudrait chercher.
+  const bloc = (titre, arr, sec) => arr.length
+    ? '<div class="ebv-sec" data-sec="' + sec + '"><div class="ebv-sec-h"><span class="ebv-sec-t">' + titre + '</span>'
       + '<span class="ebv-count">' + arr.length + '</span></div>'
       + '<div class="ebk-grid">' + arr.map((e) => ebookCard(e, day)).join('') + '</div></div>'
     : '';
-  return bloc('À lire', par(0)) + bloc('Déjà lus', par(1)) + bloc('À venir', par(2))
-    + bloc('Séances', seancesTriees);
+  return bloc('À lire', par(0), 'alire') + bloc('Déjà lus', par(1), 'lus') + bloc('À venir', par(2), 'avenir')
+    + bloc('Séances', seancesTriees, 'seances');
 }
 // Un seul câblage pour les deux écrans : le clic ne doit pas se comporter
 // différemment selon l'endroit d'où on ouvre le même guide.

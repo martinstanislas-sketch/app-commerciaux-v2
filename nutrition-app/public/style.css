@@ -2964,6 +2964,38 @@ body.is-demo #navRestart { display: none !important; }
 .asc-sommet .asc-lbl { font-weight: 700; color: var(--text-c); }
 .asc-sommet.asc-locked .asc-dot { background: var(--surface); opacity: .75; }
 
+/* --- Les récompenses, posées le long du Chemin ---------------------------
+   Un marqueur dit DEUX choses en un coup d'œil : ce que c'est (🎁 🎬 📗) et à quel
+   Punch ça tombe. Le seuil est écrit : le marqueur ne prétend jamais « à cette
+   étape », il dit « à ce Punch » — sa place ne fait qu'ordonner (cf. ascRecompensesParEtape).
+   Il est petit et posé sur le côté LIBRE : le sentier reste le sujet, pas lui.
+   -------------------------------------------------------------------------- */
+.asc-recs { position: absolute; top: -13px; z-index: 2; display: flex; flex-direction: column; gap: 5px; }
+/* 50% = le centre du rond ; 42px = son rayon + une marge. Le marqueur ne peut donc
+   pas chevaucher l'étape, quelle que soit sa taille (sommet, étape active…). */
+.asc-recs.g { right: calc(50% + 42px); align-items: flex-end; }
+.asc-recs.d { left: calc(50% + 42px); align-items: flex-start; }
+.asc-rec { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: var(--pill); border: 1px solid var(--border-c); background: var(--surface); cursor: pointer; font-family: inherit; white-space: nowrap; box-shadow: var(--shadow-xs); transition: transform .15s var(--ease), border-color .15s var(--ease); }
+.asc-rec-ic { font-size: 12px; line-height: 1; }
+.asc-rec-n { font: 800 10px/1 var(--font); font-variant-numeric: tabular-nums; color: var(--text-muted-c); }
+/* DÉBLOQUÉ : l'or. C'est la seule chose qui brille sur le Chemin avec les sommets —
+   et c'est voulu : les deux se méritent. */
+.asc-rec.is-ok { border-color: var(--gold); background: var(--surface); }
+.asc-rec.is-ok .asc-rec-n { color: var(--gold); }
+.asc-rec.is-ok:hover { transform: scale(1.06); }
+.asc-rec.is-ok:active { transform: scale(.96); }
+/* VERROUILLÉ : creusé, l'icône en retrait. Il reste lisible — on doit avoir envie. */
+.asc-rec.is-lock { background: var(--surface-soft); box-shadow: none; }
+.asc-rec.is-lock .asc-rec-ic { filter: grayscale(1); opacity: .75; }
+
+/* Où l'on vient d'atterrir après un clic sur une récompense : un halo bref, sinon on
+   arrive « quelque part » sans savoir sur quoi. */
+.asc-cible { animation: asc-cible 1.8s var(--ease); border-radius: var(--r); }
+@keyframes asc-cible {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(199, 154, 58, 0); }
+  15%, 55% { box-shadow: 0 0 0 4px rgba(199, 154, 58, .5); }
+}
+
 /* Focus clavier : visible partout, y compris sur les ronds verrouillés. */
 .asc-dot:focus-visible, .asc-stat:focus-visible, .asc-gift:focus-visible, .mcpath-seg:focus-visible { outline: 2px solid var(--blue-c); outline-offset: 3px; }
 
@@ -2987,6 +3019,8 @@ body.is-demo #navRestart { display: none !important; }
   .asc-ch .asc-nd, .asc-ch.is-in .asc-nd { opacity: 1; transform: none; transition: none; }
   .asc-trail-fill { clip-path: none; transition: none; }
   .asc-active .asc-halo { animation: none; }
+  .asc-cible { animation: none; }
+  .asc-rec { transition: none; }
   .asc-bar > span { transition: none; }
 }
 

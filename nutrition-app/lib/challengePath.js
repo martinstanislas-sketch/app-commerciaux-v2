@@ -717,9 +717,44 @@ function createChallengeEngine({ getDb }) {
       // deux listes de noms finiraient par diverger, et le client verrait deux noms
       // pour le même cadeau selon l'écran.
       cadeaux: cadeaux.catalogue().reduce((m, c) => { m[c.seuil] = { id: c.id, label: c.label }; return m; }, {}),
+      // TOUTES les récompenses (vidéos, guides, cadeaux) avec leur seuil : le Chemin
+      // les matérialise le long du parcours. Rien n'est recalculé — c'est
+      // punchSeuils, la source de vérité, qui est simplement mise en forme.
+      recompenses: recompensesPubliques(s.punch || 0),
       weekTitles: CHALLENGE_WEEK_TITLES,
       nodes,
     };
+  }
+
+  // Ce que le front doit savoir de chaque récompense pour la poser sur le Chemin.
+  // ⚠️ `locked` se lit sur le TOTAL de Punch, jamais sur user_unlocks : cette table
+  // ne dit que ce qui a été CÉLÉBRÉ. Un compte migré depuis XP+gems y est vide alors
+  // qu'il a tout mérité — il verrait ses récompenses grisées.
+  function recompensesPubliques(punch) {
+    return punchSeuils.tousLesSeuils().map((s) => ({
+      seuil: s.seuil,
+      type: s.type,                                        // 'video' | 'ebook' | 'gift'
+      cadeau: s.type === 'gift' ? (s.payload || {}).cadeau : '',
+      label: libelleRecompense(s),
+      locked: punch < s.seuil,
+      restant: Math.max(0, s.seuil - punch),
+      // Part du parcours franchie quand le seuil tombe : c'est ce qui permet de
+      // rattacher la récompense à une étape, alors que l'une compte en Punch et
+      // l'autre en jours. Même échelle que l'ordre des guides.
+      ordre: s.seuil / punchSeuils.PUNCH_MAX_THEORIQUE,
+    }));
+  }
+  // Le nom d'une récompense, dit à un seul endroit.
+  function libelleRecompense(s) {
+    if (s.type === 'gift') {
+      const c = cadeaux.cadeau((s.payload || {}).cadeau);
+      return (c && c.label) || (s.payload || {}).cadeau || 'Un cadeau';
+    }
+    if (s.type === 'ebook') {
+      const n = Number((s.payload || {}).nombre) || 0;
+      return n + (n > 1 ? ' nouveaux guides' : ' nouveau guide');
+    }
+    return 'Nouvelles séances vidéo';
   }
 
   return {
