@@ -3350,6 +3350,7 @@ async function submitHelp() {
     if (!data.ok) throw new Error(data.error || 'Erreur');
     $('#helpForm').classList.add('hidden');
     $('#helpDone').classList.remove('hidden');
+    appliquerEnvoiCoach(data); // demande envoyée = message au coach -> étape 6/20
   } catch (e) {
     alert("Oups, l'envoi n'a pas fonctionné. Réessaie dans un instant.");
   } finally { btn.disabled = false; }
@@ -3552,6 +3553,7 @@ async function coachHumanRequest() {
     const d = await res.json();
     if (!d.ok) throw new Error();
     showToast('Ton coach a bien reçu ta demande 💬', { icon: 'check' });
+    appliquerEnvoiCoach(d); // « un mot pour ton coach » = un message envoyé -> étape 6/20
   } catch (e) { showToast("L'envoi n'a pas fonctionné, réessaie dans un instant."); }
 }
 
@@ -3807,7 +3809,10 @@ function commHelpChoice(key) {
   // Alerte au coach humain (réutilise les demandes d'aide existantes).
   fetch(apiUrl('/api/help-request'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ difficultes: [o.diff], message: '' }) })
     .then((r) => r.json())
-    .then((d) => showToast(d && d.ok ? 'Ton coach a été prévenu, il revient vers toi 💬' : 'Envoi impossible, réessaie.', { icon: d && d.ok ? 'check' : 'info' }))
+    .then((d) => {
+      showToast(d && d.ok ? 'Ton coach a été prévenu, il revient vers toi 💬' : 'Envoi impossible, réessaie.', { icon: d && d.ok ? 'check' : 'info' });
+      appliquerEnvoiCoach(d); // prévenir son coach = un envoi -> étape 6/20
+    })
     .catch(() => showToast('Connexion requise pour prévenir ton coach.', { icon: 'info' }));
 }
 function openCoachIaAvec(q) {
@@ -4155,6 +4160,33 @@ function sousTitreDeblocage(type, seuil, etat) {
     return (g && g.label) ? g.label : 'Atteint à ' + seuil + ' Punch.';
   }
   return 'Atteint à ' + seuil + ' Punch.';
+}
+
+// --- ENVOI D'UN MESSAGE AU COACH -> étape « Message coach » (jours 6 et 20) -----
+// L'étape se valide À L'ENVOI, et le serveur l'a déjà fait (awardClientEvent
+// 'coach') au moment où il a enregistré le message : ce que le coach en fait
+// ensuite — lire, répondre, ou rien — n'entre JAMAIS en compte, et le front
+// n'écoute aucun événement côté coach.
+// ⚠️ Ce point de passage existe parce que valider en base ne suffit pas : sans
+// appliquer l'état renvoyé ET redessiner le Chemin, l'étape restait grise à
+// l'écran après l'envoi — le client en concluait qu'elle attendait son coach.
+// L'idempotence est tenue par le serveur (reward = null au 2e envoi) : ici, pas
+// de reward -> pas de toast, et l'état renvoyé est simplement identique.
+function appliquerEnvoiCoach(d) {
+  if (!d || !d.ok) return;
+  appliquerEtatChallenge(d.state);
+  if (d.reward) rewardToast(d.reward);
+  rafraichirCheminSiVisible();
+}
+// Le Chemin n'est redessiné que s'il est SOUS LES YEUX du client : le chat coach
+// s'ouvre depuis n'importe quel onglet (bouton SOS), et rappeler le serveur pour
+// une vue cachée ne sert à rien — l'onglet se reconstruit de toute façon à son
+// ouverture (setTab -> renderParcoursTab -> renderChallenge).
+function rafraichirCheminSiVisible() {
+  const screen = $('#screen-result');
+  if (!screen || screen.getAttribute('data-tab') !== 'parcours') return;
+  if (state.parcoursSub === 'mesures') return; // le sous-onglet Mesures n'affiche pas le chemin
+  if (typeof renderChallenge === 'function') renderChallenge();
 }
 
 // Applique un nouvel état du Chemin et célèbre ce qui vient de se débloquer.
@@ -5576,7 +5608,9 @@ async function sendCoachChat(text) {
     const d = await res.json();
     if (d.ok && d.message) {
       const wall = $('#coachChatWall'); const empty = wall.querySelector('.comm-empty'); if (empty) wall.innerHTML = '';
-      wall.insertAdjacentHTML('beforeend', chatBubble(d.message)); wall.scrollTop = wall.scrollHeight; return true;
+      wall.insertAdjacentHTML('beforeend', chatBubble(d.message)); wall.scrollTop = wall.scrollHeight;
+      appliquerEnvoiCoach(d); // l'étape « Message coach » (6/20) tombe à l'ENVOI
+      return true;
     }
     if (d.error === 'no_coach') showToast('Aucun coach n’est encore attribué à ton suivi.', { icon: 'info' });
     else showToast(d.error || 'Envoi impossible.', { icon: 'info' });

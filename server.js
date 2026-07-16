@@ -1134,8 +1134,11 @@ try {
       // ton coach », besoin d'aide de la communauté). Sans ça, ces envois ne
       // validaient pas les étapes « message coach » (6/20) : le client écrivait
       // vraiment à son coach et son étape restait bloquée.
-      awardClientEvent((req.session && req.session.email) || '', 'coach', info.lastInsertRowid);
-      res.json({ ok: true, id: info.lastInsertRowid });
+      const email = (req.session && req.session.email) || '';
+      const reward = awardClientEvent(email, 'coach', info.lastInsertRowid);
+      // reward + state : même raison que /api/messages/coach — l'étape se valide à
+      // l'ENVOI, encore faut-il que le front puisse l'afficher tout de suite.
+      res.json({ ok: true, id: info.lastInsertRowid, reward, state: email ? challengePublicState(email) : null });
     } catch (e) {
       console.error('Erreur help-request POST :', e);
       res.status(500).json({ ok: false, error: 'Enregistrement impossible.' });
@@ -2078,8 +2081,14 @@ try {
       const label = String((req.session && req.session.name) || 'Client').slice(0, 80);
       const info = getDb().prepare('INSERT INTO nutrition_messages (conversation_id, sender_role, sender_label, contenu, created_at, lu) VALUES (?,?,?,?,?,0)').run(conv.id, 'client', label, msg, now);
       getDb().prepare('UPDATE nutrition_conversations SET last_message_at = ? WHERE id = ?').run(now, conv.id);
-      awardClientEvent(email, 'coach', info.lastInsertRowid); // message CLIENT -> coach valide un nœud
-      res.json({ ok: true, message: { id: info.lastInsertRowid, role: 'client', who: label, text: msg, when: now, mine: true } });
+      // L'ENVOI suffit à valider l'étape « Message coach » (6/20) : ce que le coach
+      // en fait ensuite (lire, répondre, rien) n'entre JAMAIS en compte.
+      const reward = awardClientEvent(email, 'coach', info.lastInsertRowid);
+      // ⚠️ On renvoie reward + state, comme toute route qui valide une étape : sans
+      // eux le front n'a aucun moyen de savoir que l'étape vient de tomber, et le
+      // client voit son étape rester grise après l'envoi — il croit qu'elle attend
+      // son coach. La validation, elle, avait bien eu lieu en base.
+      res.json({ ok: true, message: { id: info.lastInsertRowid, role: 'client', who: label, text: msg, when: now, mine: true }, reward, state: challengePublicState(email) });
     } catch (e) { console.error('messages/coach POST :', e); res.status(500).json({ ok: false, error: 'Envoi impossible.' }); }
   });
 
