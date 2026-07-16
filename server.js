@@ -681,7 +681,8 @@ try {
       const repas = Math.max(0, Math.min(20, Math.round(Number((req.body || {}).repas) || 0)));
       if (repas < 2) return res.status(400).json({ ok: false, error: 'Il faut au moins 2 repas renseignés.' });
       const r = recordDayWin(email, repas);
-      res.json({ ok: true, gagne: r.gagne, nouveau: r.nouveau, state: challengePublicState(email) });
+      // `palier` : le front célèbre AU MOMENT où il tombe (null la plupart du temps).
+      res.json({ ok: true, gagne: r.gagne, nouveau: r.nouveau, palier: r.palier || null, state: challengePublicState(email) });
     } catch (e) { console.error('challenge jour-gagne :', e); res.status(500).json({ ok: false }); }
   });
 

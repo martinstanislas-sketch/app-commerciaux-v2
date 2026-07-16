@@ -4028,6 +4028,33 @@ async function reactFeed(id, type) {
     if (d && d.ok && item) { item.reactions = d.reactions || {}; item.myReaction = d.myReaction || null; renderCommunauteFeed(); }
   } catch (_) { showToast('Réaction impossible pour le moment.', { icon: 'info' }); }
 }
+// --- Célébration d'un palier de série ---------------------------------------
+// Le palier est rare (3, 7, 14… jours d'affilée) et c'est le plus gros gain de
+// Punch de l'app : on s'arrête dessus, au lieu du toast qui file en 3 secondes.
+// Le client ferme quand il veut — rien ne se joue en arrière-plan.
+function celebrerPalierSerie(palier) {
+  let ov = $('#palierOv');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'palierOv'; ov.className = 'palier';
+    ov.innerHTML = `<div class="palier-card">
+      <div class="palier-flamme">🔥</div>
+      <div class="palier-jours"></div>
+      <div class="palier-sub">jours d'affilée</div>
+      <div class="palier-punch"></div>
+      <button type="button" class="palier-ok">Continuer</button>
+    </div>`;
+    document.body.appendChild(ov);
+    const fermer = () => ov.classList.remove('open');
+    ov.querySelector('.palier-ok').addEventListener('click', fermer);
+    ov.addEventListener('click', (e) => { if (e.target === ov) fermer(); });
+  }
+  ov.querySelector('.palier-jours').textContent = palier.jours;
+  ov.querySelector('.palier-punch').textContent = '+' + palier.punch + ' Punch 👊';
+  ov.classList.add('open');
+  try { if (navigator.vibrate) navigator.vibrate([18, 40, 18]); } catch (_) { /* pas de retour haptique */ }
+}
+
 // --- BILAN HEBDO : les CHIFFRES (déterministes, calculés par l'app) ----------
 // L'IA n'invente rien : elle ne fait qu'habiller ce que cette fonction produit.
 // Chaque source est prise là où elle est EXACTE :
@@ -4483,7 +4510,9 @@ async function evaluerStreakRepas(di) {
     state.challenge = d.state;
     if (d.nouveau) {
       const s = (d.state && d.state.stats) || {};
-      showToast('🔥 Série : ' + s.streak + ' jour' + (s.streak > 1 ? 's' : '') + ' — journée validée !', { icon: 'check' });
+      // Un palier de série est un vrai moment : il mérite mieux qu'un toast qui file.
+      if (d.palier) celebrerPalierSerie(d.palier);
+      else showToast('🔥 Série : ' + s.streak + ' jour' + (s.streak > 1 ? 's' : '') + ' — journée validée !', { icon: 'check' });
       if (state.parcoursSub !== 'mesures' && $('#screen-result') && $('#screen-result').dataset.tab === 'parcours') renderChallenge();
     }
   } catch (_) { _streakEnvoiJour = ''; /* réseau : on retentera */ }

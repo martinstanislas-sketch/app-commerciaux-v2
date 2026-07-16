@@ -147,6 +147,21 @@ const JALON_VERS_PARCOURS = { debut: 'depart', mi: 's3', fin: 's6' };
 // de Mon Parcours (« libre ») reste un bonus : il n'entre pas dans le compte.
 const PHOTOS_REQUISES = ['face', 'profil', 'dos'];
 
+// --- PALIERS DE SÉRIE 🔥 -> Punch 👊 ----------------------------------------
+// Barème croissant : plus la série tient, plus le palier vaut. Récompense la
+// SÉRIE EN COURS (pas le record) -> une série cassée repart de 3 jours.
+// Au-delà de 42, on répète +400 tous les 7 jours (42, 49, 56…).
+const PALIERS_SERIE = { 3: 15, 7: 40, 14: 90, 21: 150, 28: 220, 35: 300, 42: 400 };
+const PALIER_AU_DELA = 400;
+// Punch rapportés par une série qui atteint EXACTEMENT `streak` jours. 0 sinon.
+function punchPalier(streak) {
+  const n = Number(streak) || 0;
+  if (n <= 0) return 0;
+  if (PALIERS_SERIE[n]) return PALIERS_SERIE[n];
+  if (n > 42 && n % 7 === 0) return PALIER_AU_DELA;
+  return 0;
+}
+
 // Une étape accepte-t-elle cet événement ? `events` (liste) prime sur `event`
 // (valeur unique) : certaines étapes ont plusieurs façons légitimes d'être faites.
 function nodeAccepteEvent(node, eventType) {
@@ -191,6 +206,7 @@ const CHALLENGE_SCHEMA_SQL = `
     punch INTEGER NOT NULL DEFAULT 0,              -- monnaie unique (ex-XP + ex-gems)
     streak_current INTEGER NOT NULL DEFAULT 0,
     streak_best INTEGER NOT NULL DEFAULT 0,
+    streak_paliers TEXT NOT NULL DEFAULT '',       -- paliers déjà récompensés DANS la série en cours (JSON)
     last_win_date TEXT NOT NULL DEFAULT '',        -- dernier jour GAGNÉ (2 repas renseignés)
     updated_at TEXT NOT NULL DEFAULT ''
   );
@@ -268,6 +284,7 @@ function createChallengeEngine({ getDb }) {
     try {
       ajouterColonne('path_nodes', 'punch', 'INTEGER NOT NULL DEFAULT 0');
       ajouterColonne('user_node_progress', 'punch_awarded', 'INTEGER NOT NULL DEFAULT 0');
+      ajouterColonne('user_game_stats', 'streak_paliers', "TEXT NOT NULL DEFAULT ''");
       const neuve = ajouterColonne('user_game_stats', 'punch', 'INTEGER NOT NULL DEFAULT 0');
       const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='challenge_punch_migrated'").get() || {}).value;
       if (String(fait) === '1') return;
@@ -370,6 +387,12 @@ function createChallengeEngine({ getDb }) {
     try { getDb().prepare('SELECT step FROM user_node_flow WHERE client_email=? AND node_day=?').all(email, day).forEach((r) => set.add(r.step)); } catch (_) { /* table absente */ }
     return set;
   }
+  // Paliers déjà récompensés dans la série EN COURS. Une colonne illisible ne doit
+  // jamais bloquer un gain : on repart d'une liste vide plutôt que de planter.
+  function lirePaliers(brut) {
+    try { const v = JSON.parse(brut || '[]'); return Array.isArray(v) ? v.map(Number).filter((n) => n > 0) : []; }
+    catch (_) { return []; }
+  }
   // Combien des 3 photos exigées le client a-t-il déposées pour ce jalon ?
   // (les doublons d'un même type ne comptent qu'une fois -> DISTINCT).
   function photosFaites(email, jalonChemin) {
@@ -402,7 +425,9 @@ function createChallengeEngine({ getDb }) {
       const today = pathParisYmd();
       const missed = pathDaysBetween(last, today) - 1;
       if (missed <= 0) return s;
-      getDb().prepare("UPDATE user_game_stats SET streak_current=0, last_win_date=?, updated_at=datetime('now') WHERE client_email=?")
+      // La série casse -> les paliers repartent de zéro : une nouvelle série pourra
+      // à nouveau débloquer 3 / 7 / 14…
+      getDb().prepare("UPDATE user_game_stats SET streak_current=0, streak_paliers='', last_win_date=?, updated_at=datetime('now') WHERE client_email=?")
         .run(pathYmdMinusDays(today, 1), email);
       return getDb().prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
     } catch (e) { console.error('reconcileStreak:', e && e.message); return pathStatsRow(email); }
@@ -424,9 +449,20 @@ function createChallengeEngine({ getDb }) {
       const s = pathStatsRow(email);
       const streak = streakAfterOpen(s.streak_current || 0, s.last_win_date || '', today);
       const best = Math.max(streak, s.streak_best || 0);
-      getDb().prepare("UPDATE user_game_stats SET streak_current=?, streak_best=?, last_win_date=?, updated_at=datetime('now') WHERE client_email=?")
-        .run(streak, best, today, email);
-      return { gagne: true, nouveau: true, stats: pathStatsRow(email) };
+      // Une série qui repart de 1 est une NOUVELLE série : ses paliers se remettent
+      // à zéro (le reset de reconcileStreak ne couvre pas la reprise après un trou).
+      let paliers = streak <= 1 ? [] : lirePaliers(s.streak_paliers);
+      // Palier atteint ? Une seule fois par série : la liste tranche, même si un
+      // jour était rejoué.
+      const gainPalier = paliers.includes(streak) ? 0 : punchPalier(streak);
+      if (gainPalier > 0) paliers = paliers.concat(streak);
+      getDb().prepare("UPDATE user_game_stats SET streak_current=?, streak_best=?, streak_paliers=?, last_win_date=?, punch = punch + ?, updated_at=datetime('now') WHERE client_email=?")
+        .run(streak, best, JSON.stringify(paliers), today, gainPalier, email);
+      return {
+        gagne: true, nouveau: true, stats: pathStatsRow(email),
+        // Le front s'en sert pour célébrer AU MOMENT où le palier tombe.
+        palier: gainPalier > 0 ? { jours: streak, punch: gainPalier } : null,
+      };
     } catch (e) { console.error('recordDayWin:', e && e.message); return vide; }
   }
   // Le jour courant est-il déjà gagné ? (utilisé par la notif du soir)
@@ -533,4 +569,6 @@ module.exports.streakAfterOpen = streakAfterOpen;
 module.exports.streakAffiche = streakAffiche;
 module.exports.activeDayFromDone = activeDayFromDone;
 module.exports.nodeAccepteEvent = nodeAccepteEvent;
+module.exports.punchPalier = punchPalier;
+module.exports.PALIERS_SERIE = PALIERS_SERIE;
 module.exports.FLOW_STEP_EVENT = FLOW_STEP_EVENT;

@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
   createChallengeEngine, CHALLENGE_PATH_NODES, FLOW_STEP_EVENT,
-  pathDaysBetween, pathYmdMinusDays, pathParisYmd, streakAfterOpen, streakAffiche, activeDayFromDone,
+  pathDaysBetween, pathYmdMinusDays, pathParisYmd, streakAfterOpen, streakAffiche, activeDayFromDone, punchPalier,
 } = require('../lib/challengePath');
 
 // Fabrique un moteur branché sur une DB in-memory, avec le flag ON et une date de
@@ -353,6 +353,90 @@ test('étapes « groupe » (27/34) : une photo reste un post et les valide', () 
   const r = engine.awardClientEvent(email, 'groupe', 'p'); // le repli du serveur
   assert.ok(r, 'le post valide bien l\'étape 27');
   assert.equal(r.day, 27);
+});
+
+// --- PALIERS DE SÉRIE 🔥 -> Punch 👊 ----------------------------------------
+test('punchPalier : le barème croissant, au jour près', () => {
+  assert.deepEqual([3, 7, 14, 21, 28, 35, 42].map(punchPalier), [15, 40, 90, 150, 220, 300, 400]);
+  // Entre deux paliers : rien.
+  [1, 2, 4, 6, 8, 13, 20, 41].forEach((n) => assert.equal(punchPalier(n), 0, `jour ${n} n'est pas un palier`));
+  // Au-delà de 42 : +400 tous les 7 jours.
+  assert.equal(punchPalier(49), 400);
+  assert.equal(punchPalier(56), 400);
+  assert.equal(punchPalier(50), 0);
+  assert.equal(punchPalier(0), 0);
+  assert.equal(punchPalier(-3), 0);
+});
+
+// Fait gagner `n` jours d'affilée. On simule le temps en posant « gagné hier » +
+// le compteur de la veille : recordDayWin voit alors un jour consécutif.
+function serieDe(engine, db, email, n) {
+  let total = 0;
+  const hier = pathYmdMinusDays(pathParisYmd(), 1);
+  for (let i = 0; i < n; i++) {
+    db.prepare('DELETE FROM user_day_wins WHERE client_email=?').run(email);
+    db.prepare("UPDATE user_game_stats SET streak_current=?, last_win_date=? WHERE client_email=?").run(i, hier, email);
+    const r = engine.recordDayWin(email, 2);
+    if (r.palier) total += r.palier.punch;
+  }
+  return total;
+}
+
+test('paliers : 3 jours d\'affilée rapportent +15 Punch, une seule fois', () => {
+  const { engine, email, db } = makeEngine();
+  engine.pathStatsRow(email);
+  const gagne = serieDe(engine, db, email, 3);
+  assert.equal(gagne, 15, 'le palier 3 tombe une fois');
+  assert.equal(db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch, 15);
+});
+
+test('paliers : une série de 7 jours cumule 3 puis 7 (+15 +40)', () => {
+  const { engine, email, db } = makeEngine();
+  engine.pathStatsRow(email);
+  assert.equal(serieDe(engine, db, email, 7), 55, '15 + 40');
+  assert.equal(db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch, 55);
+});
+
+test('paliers : rejouer le même jour ne redonne pas le palier (idempotent)', () => {
+  const { engine, email, db } = makeEngine();
+  engine.pathStatsRow(email);
+  serieDe(engine, db, email, 3);
+  const punch = db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch;
+  const r = engine.recordDayWin(email, 2); // 2e appel le même jour
+  assert.equal(r.nouveau, false, 'le jour est déjà gagné');
+  assert.equal(db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch, punch, 'aucun Punch en double');
+});
+
+test('paliers : la série cassée REMET les paliers à zéro -> ils se regagnent', () => {
+  const { engine, email, db } = makeEngine();
+  engine.pathStatsRow(email);
+  assert.equal(serieDe(engine, db, email, 3), 15, '1re série : palier 3 touché');
+  // La série casse (jours manqués) -> reconcileStreak remet tout à plat.
+  db.prepare("UPDATE user_game_stats SET last_win_date=? WHERE client_email=?").run(pathYmdMinusDays(pathParisYmd(), 5), email);
+  engine.reconcileStreak(email);
+  const apres = db.prepare('SELECT streak_current, streak_paliers FROM user_game_stats WHERE client_email=?').get(email);
+  assert.equal(apres.streak_current, 0, 'la série est cassée');
+  assert.equal(apres.streak_paliers, '', 'les paliers sont oubliés');
+  // Une NOUVELLE série de 3 jours redonne le palier.
+  db.prepare('DELETE FROM user_day_wins WHERE client_email=?').run(email);
+  assert.equal(serieDe(engine, db, email, 3), 15, '2e série : le palier 3 retombe');
+  assert.equal(db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch, 30, '15 + 15');
+});
+
+test('paliers : les gains du Chemin restent EN PLUS de la série', () => {
+  const { engine, email, db } = makeEngine();
+  doNode(engine, email, 0, db); // étape Commencer = 80 Punch
+  const avant = db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch;
+  assert.equal(avant, 80, 'les actions du Chemin rapportent toujours');
+  serieDe(engine, db, email, 3);
+  assert.equal(db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch, 95, '80 + 15');
+});
+
+test('paliers : une colonne illisible ne bloque pas le gain', () => {
+  const { engine, email, db } = makeEngine();
+  engine.pathStatsRow(email);
+  db.prepare("UPDATE user_game_stats SET streak_paliers='{cassé' WHERE client_email=?").run(email);
+  assert.equal(serieDe(engine, db, email, 3), 15, 'on repart d\'une liste vide plutôt que de planter');
 });
 
 // --- ÉTAPE 27 : encourager = poster OU répondre ------------------------------
