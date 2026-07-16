@@ -35,6 +35,31 @@ function verifyPin(pin, stored) {
 function genAccessCode() { return String(crypto.randomInt(100000, 1000000)); }
 
 function createClientAuth({ getDb, defaultCoachId }) {
+  // Retrouve le GROUPE à partir du seul code du challenge (auto-inscription).
+  // Le code est la porte d'entrée : il détermine la ville + le n° de challenge.
+  // Renvoie { ville, challenge_no } ou null (inconnu, inactif, ou ambigu).
+  function findGroupByCode(code) {
+    const c = String(code || '').trim().toUpperCase();
+    if (!c) return null;
+    let rows = [];
+    try {
+      rows = getDb().prepare('SELECT ville, challenge_no FROM nutrition_access_codes WHERE actif = 1 AND UPPER(TRIM(code)) = ?').all(c);
+    } catch (_) { return null; }
+    if (rows.length !== 1) return null; // 0 = inconnu ; >1 = collision -> on refuse par prudence
+    return rows[0];
+  }
+  // Génère un code qui n'est utilisé par AUCUN autre groupe (le code sert de clé
+  // d'entrée : deux groupes avec le même code rendraient le rattachement ambigu).
+  function genUniqueAccessCode() {
+    for (let i = 0; i < 50; i++) {
+      const c = genAccessCode();
+      let taken = 0;
+      try { taken = getDb().prepare('SELECT COUNT(*) n FROM nutrition_access_codes WHERE code = ?').get(c).n; } catch (_) { taken = 0; }
+      if (!taken) return c;
+    }
+    return genAccessCode(); // improbable : on rend la main plutôt que boucler
+  }
+
   // Valide un jeton d'invitation pour la CRÉATION d'un compte (email inconnu).
   // Renvoie { ok:true, invite } ou { ok:false, error }.
   function validateInvite(token, email) {
@@ -88,16 +113,36 @@ function createClientAuth({ getDb, defaultCoachId }) {
       isNew = !data;
     } else {
       // Compte nouveau OU ancien sans PIN : on EXIGE de définir un PIN maintenant.
-      // Espace PRÉ-CRÉÉ par un coach : on exige EN PLUS le code de sa cohorte (preuve
-      // d'appartenance). Les comptes HÉRITÉS (pre_created = 0, sans PIN) gardent
-      // l'ancien comportement : pas de code.
       const preCree = !!(row && row.pre_created);
-      if (preCree) {
-        const chk = validateAccessCode(email, String(b.code || '').trim());
-        if (!chk.ok) return { ok: false, status: 403, body: { ok: false, needCode: true, error: chk.error } };
+      const code = String(b.code || '').trim();
+      const invite = String(b.invite || '').trim();
+      let groupe = null;     // groupe rejoint via le code (email inconnu)
+      let inviteRow = null;  // secours : invitation par lien
+
+      if (row) {
+        // Espace PRÉ-CRÉÉ par un coach : on exige le code de SA cohorte (preuve
+        // d'appartenance). Les comptes HÉRITÉS (pre_created = 0, sans PIN) gardent
+        // l'ancien comportement : pas de code.
+        if (preCree) {
+          const chk = validateAccessCode(email, code);
+          if (!chk.ok) return { ok: false, status: 403, body: { ok: false, needCode: true, error: chk.error } };
+        }
+      } else {
+        // Email INCONNU : le CODE DU CHALLENGE est la voie normale (auto-inscription :
+        // il détermine le groupe rejoint). Le lien d'invitation reste un secours.
+        if (code) {
+          groupe = findGroupByCode(code);
+          if (!groupe) return { ok: false, status: 403, body: { ok: false, needCode: true, error: 'Code du challenge invalide. Demande-le à ton coach.' } };
+        } else if (invite) {
+          const check = validateInvite(invite, email);
+          if (!check.ok) return { ok: false, status: 403, body: { ok: false, needInvite: true, error: check.error } };
+          inviteRow = check.invite;
+        } else {
+          return { ok: false, status: 403, body: { ok: false, needCode: true, error: 'Entre le code de ton challenge (ton coach te le donne).' } };
+        }
       }
       if (!PIN_RE.test(pin)) {
-        return { ok: false, status: 400, body: { ok: false, setPin: true, needCode: preCree, error: 'Choisis un code PIN de 4 à 6 chiffres pour protéger ton espace.' } };
+        return { ok: false, status: 400, body: { ok: false, setPin: true, needCode: preCree || !!groupe, error: 'Choisis un code PIN de 4 à 6 chiffres pour protéger ton espace.' } };
       }
       const ph = hashPin(pin);
       if (row) {
@@ -107,18 +152,62 @@ function createClientAuth({ getDb, defaultCoachId }) {
         try { data = row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
         isNew = !data;
       } else {
-        // Email INCONNU : création d'un nouvel espace -> invitation OBLIGATOIRE.
-        const check = validateInvite(String(b.invite || '').trim(), email);
-        if (!check.ok) return { ok: false, status: 403, body: { ok: false, needInvite: true, error: check.error } };
-        const coachId = check.invite.coach_id || (typeof defaultCoachId === 'function' ? defaultCoachId() : null);
+        // Création : coach par défaut (les auto-inscrits sont réattribués depuis l'admin).
+        const coachId = (inviteRow && inviteRow.coach_id) || (typeof defaultCoachId === 'function' ? defaultCoachId() : null);
         getDb().prepare('INSERT INTO nutrition_clients (email, prenom, nom, data, pin_hash, coach_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)').run(email, prenom, nom, null, ph, coachId, now, now);
-        getDb().prepare('UPDATE nutrition_invites SET used_at = ?, used_email = ? WHERE id = ?').run(now, email, check.invite.id);
+        // Rattachement au groupe porté par le code -> communauté + classements corrects.
+        if (groupe) {
+          getDb().prepare('INSERT INTO nutrition_client_meta (client_email, ville, challenge_no, updated_at) VALUES (?,?,?,?) ON CONFLICT(client_email) DO UPDATE SET ville = excluded.ville, challenge_no = excluded.challenge_no, updated_at = excluded.updated_at')
+            .run(email, groupe.ville, groupe.challenge_no, now);
+        }
+        if (inviteRow) getDb().prepare('UPDATE nutrition_invites SET used_at = ?, used_email = ? WHERE id = ?').run(now, email, inviteRow.id);
       }
     }
     return { ok: true, status: 200, body: { isNew, prenom, nom, data, email } };
   }
 
-  return { validateInvite, validateAccessCode, genAccessCode, loginClient };
+  // ÉTAPE 1 de la connexion : valide l'identité + le code SANS rien créer, et dit au
+  // front quel écran afficher ensuite. Le PIN est demandé à l'étape 2 (loginClient).
+  //  -> mode 'pin-login' : compte déjà protégé, il n'a qu'à saisir son PIN (pas de code)
+  //  -> mode 'pin-set'   : il va choisir son PIN (1re connexion), `groupe` = groupe rejoint
+  function joinCheck(input) {
+    const b = input || {};
+    const email = String(b.email || '').trim().toLowerCase().slice(0, 160);
+    const prenom = String(b.prenom || '').trim().slice(0, 80);
+    const nom = String(b.nom || '').trim().slice(0, 80);
+    const code = String(b.code || '').trim();
+    if (!email || email.indexOf('@') < 1 || !prenom || !nom) {
+      return { ok: false, status: 400, body: { ok: false, error: 'Email, prénom et nom requis.' } };
+    }
+    const row = getDb().prepare('SELECT email, pin_hash, pre_created FROM nutrition_clients WHERE email = ?').get(email);
+    // Compte déjà protégé : le code ne sert à rien, on va droit au PIN.
+    if (row && row.pin_hash) return { ok: true, status: 200, body: { ok: true, mode: 'pin-login' } };
+    if (row) {
+      // Compte sans PIN : pré-créé -> code de son groupe exigé ; hérité -> rien.
+      if (row.pre_created) {
+        const chk = validateAccessCode(email, code);
+        if (!chk.ok) return { ok: false, status: 403, body: { ok: false, needCode: true, error: chk.error } };
+      }
+      return { ok: true, status: 200, body: { ok: true, mode: 'pin-set' } };
+    }
+    // Email inconnu : le code du challenge décide du groupe rejoint.
+    if (!code) {
+      // Secours : arrivé par un lien d'invitation -> pas de code à saisir.
+      const invite = String(b.invite || '').trim();
+      if (invite) {
+        const chk = validateInvite(invite, email);
+        if (!chk.ok) return { ok: false, status: 403, body: { ok: false, needInvite: true, error: chk.error } };
+        return { ok: true, status: 200, body: { ok: true, mode: 'pin-set' } };
+      }
+      return { ok: false, status: 403, body: { ok: false, needCode: true, error: 'Entre le code de ton challenge (ton coach te le donne).' } };
+    }
+    const g = findGroupByCode(code);
+    if (!g) return { ok: false, status: 403, body: { ok: false, needCode: true, error: 'Code du challenge invalide. Demande-le à ton coach.' } };
+    const label = g.ville + (g.challenge_no ? ' #' + g.challenge_no : '');
+    return { ok: true, status: 200, body: { ok: true, mode: 'pin-set', groupe: label } };
+  }
+
+  return { validateInvite, validateAccessCode, genAccessCode, genUniqueAccessCode, findGroupByCode, joinCheck, loginClient };
 }
 
 module.exports = createClientAuth;

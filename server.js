@@ -2298,7 +2298,39 @@ try {
     getDb, defaultCoachId: defaultNutritionCoachId,
   });
   const validateInvite = clientAuth.validateInvite;
-  const genAccessCode = clientAuth.genAccessCode;
+  const genAccessCode = clientAuth.genUniqueAccessCode; // unique : le code sert de clé d'entrée
+
+  // BACKFILL : le code du challenge est la porte d'entrée -> un groupe SANS code est
+  // un groupe que personne ne peut rejoindre. On équipe donc au démarrage tous les
+  // groupes déjà existants (ville + n° de challenge tirés des fiches clients).
+  // Idempotent : un groupe qui a déjà un code n'est jamais touché.
+  function backfillAccessCodes() {
+    try {
+      const groupes = getDb().prepare("SELECT DISTINCT ville, challenge_no FROM nutrition_client_meta WHERE TRIM(ville) <> ''").all();
+      let crees = 0;
+      groupes.forEach((g) => {
+        const ex = getDb().prepare('SELECT code FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').get(g.ville, g.challenge_no);
+        if (ex && ex.code) return;
+        getDb().prepare('INSERT INTO nutrition_access_codes (ville, challenge_no, code, actif, updated_at) VALUES (?,?,?,1,?) ON CONFLICT(ville, challenge_no) DO UPDATE SET code = excluded.code, actif = 1, updated_at = excluded.updated_at')
+          .run(g.ville, g.challenge_no, clientAuth.genUniqueAccessCode(), new Date().toISOString());
+        crees++;
+      });
+      if (crees) console.log('Codes de challenge : ' + crees + ' groupe(s) équipé(s) automatiquement.');
+    } catch (e) { console.error('backfillAccessCodes :', e && e.message); }
+  }
+  backfillAccessCodes();
+
+  // ÉTAPE 1 de la connexion client : valide identité + code du challenge SANS rien
+  // créer, et indique au front s'il doit faire choisir un PIN ou juste le demander.
+  app.post('/nutrition/account/join-check', (req, res) => {
+    try {
+      const r = clientAuth.joinCheck(req.body || {});
+      return res.status(r.status).json(r.body);
+    } catch (e) {
+      console.error('Erreur /nutrition/account/join-check :', e);
+      res.status(500).json({ ok: false, error: 'Vérification impossible.' });
+    }
+  });
 
   app.post('/nutrition/account/login', (req, res) => {
     try {

@@ -40,7 +40,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=106" />
+  <link rel="stylesheet" href="style.css?v=107" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=102" />
   <script>
@@ -120,21 +120,27 @@
           + '<button id="rOther" style="margin:14px 0 0;background:none;border:none;color:#6B6B63;font-size:13px;font-family:inherit;cursor:pointer;text-decoration:underline;">Ce n’est pas moi / changer de compte</button>'
           + '</div></div>';
       } else {
+        // Connexion en 2 écrans : (1) identité + code du challenge -> (2) choix du PIN.
+        // Le code du challenge est la porte d'entrée : il rattache au bon groupe.
+        var HINT = 'margin:7px 0 0;color:#9A9890;font-size:11.5px;line-height:1.4;';
         body = head
-          + '<h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Crée ton espace</h1>'
-          + '<p id="rIntro" style="margin:0 0 20px;color:#6B6B63;font-size:14.5px;line-height:1.5;">Reçois ton plan personnalisé. Un code PIN protège tes données (suivi, photos).</p>'
+          + '<h1 id="rTitle" style="margin:0 0 8px;font-size:22px;font-weight:800;">Rejoins ton challenge</h1>'
+          + '<p id="rIntro" style="margin:0 0 20px;color:#6B6B63;font-size:14.5px;line-height:1.5;">Entre tes informations et le code que ton coach t\'a donné.</p>'
+          + '<div id="rStep1">'
           + '<input id="rPrenom" type="text" autocomplete="given-name" placeholder="Prénom" style="' + IN + '" />'
           + '<input id="rNom" type="text" autocomplete="family-name" placeholder="Nom" style="' + IN + 'margin-top:10px;" />'
           + '<input id="rEmail" type="email" autocomplete="email" inputmode="email" placeholder="Email" style="' + IN + 'margin-top:10px;" />'
-          + '<input id="rPin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="Code PIN (4 à 6 chiffres)" style="' + IN + 'margin-top:10px;letter-spacing:4px;text-align:center;" />'
-          + '<p style="margin:7px 0 0;color:#9A9890;font-size:11.5px;line-height:1.4;">1re connexion : choisis ton code. Ensuite, il te sera demandé à chaque connexion.</p>'
-          // Code de cohorte : révélé UNIQUEMENT si le serveur le réclame (espace pré-créé
-          // par un coach). Les comptes hérités et les invitations ne le voient jamais.
-          + '<div id="rCodeWrap" style="display:none;">'
-          + '<input id="rCode" type="text" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Code de ton groupe" style="' + IN + 'margin-top:10px;letter-spacing:3px;text-align:center;" />'
-          + '<p style="margin:7px 0 0;color:#9A9890;font-size:11.5px;line-height:1.4;">Ce code t\'est donné par ton coach.</p>'
+          + '<input id="rCode" type="text" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Code du challenge" style="' + IN + 'margin-top:10px;letter-spacing:3px;text-align:center;" />'
+          + '<p style="' + HINT + '">Ton coach te donne ce code. Il est le même pour tout ton groupe. Déjà inscrit ? Laisse-le vide.</p>'
+          + '<button id="rNext" style="' + BTN + '">Continuer</button>'
           + '</div>'
+          + '<div id="rStep2" style="display:none;">'
+          + '<p id="rGroupe" style="margin:0 0 14px;color:#4F6B3E;background:#E7EEDF;border-radius:12px;padding:10px 12px;font-size:13.5px;font-weight:600;"></p>'
+          + '<input id="rPin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="Code PIN (4 à 6 chiffres)" style="' + IN + 'letter-spacing:6px;text-align:center;font-size:20px;" />'
+          + '<p id="rPinHint" style="' + HINT + '"></p>'
           + '<button id="rGo" style="' + BTN + '">Accéder à mon espace</button>'
+          + '<button id="rBack" style="margin:12px 0 0;background:none;border:none;color:#6B6B63;font-size:13px;font-family:inherit;cursor:pointer;">&#8592; Modifier mes informations</button>'
+          + '</div>'
           + '<p id="rErr" style="margin:10px 0 0;color:#DC4C44;font-size:13px;min-height:16px;"></p>'
           + '<p style="margin:16px 0 0;color:#9A9890;font-size:12px;line-height:1.5;">Tes données sont privées et visibles uniquement par toi et ton coach.</p>'
           + '</div></div>';
@@ -142,17 +148,54 @@
       document.body.innerHTML = body;
       var pn = document.getElementById('rPin'), btn = document.getElementById('rGo'), err = document.getElementById('rErr');
       var pr = document.getElementById('rPrenom'), no = document.getElementById('rNom'), em = document.getElementById('rEmail');
+      var cd = document.getElementById('rCode'), nxt = document.getElementById('rNext');
+      var s1 = document.getElementById('rStep1'), s2 = document.getElementById('rStep2');
+      var infos = null; // identité validée à l'étape 1
+
+      // Étape 1 : on valide l'identité + le code AVANT de parler de PIN.
+      function next() {
+        var prenom = (pr.value || '').trim(), nom = (no.value || '').trim();
+        var email = (em.value || '').trim().toLowerCase(), code = (cd.value || '').trim();
+        if (!prenom || !nom || email.indexOf('@') < 1) { err.textContent = 'Renseigne ton prénom, ton nom et un email valide.'; return; }
+        nxt.disabled = true; err.textContent = 'Vérification…';
+        fetch(base + 'account/join-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, prenom: prenom, nom: nom, code: code, invite: invToken }) })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            nxt.disabled = false;
+            if (!d || !d.ok) {
+              err.textContent = (d && d.error) || 'Vérification impossible.';
+              if (d && d.needCode && cd) cd.focus();
+              return;
+            }
+            err.textContent = '';
+            infos = { prenom: prenom, nom: nom, email: email, code: code };
+            var dejaInscrit = d.mode === 'pin-login';
+            document.getElementById('rTitle').textContent = dejaInscrit ? 'Bon retour 👋' : 'Choisis ton code PIN';
+            document.getElementById('rIntro').textContent = dejaInscrit
+              ? 'Entre ton code PIN pour accéder à ton espace.'
+              : 'Il protégera tes données (poids, photos, messages). Note-le bien.';
+            var g = document.getElementById('rGroupe');
+            if (d.groupe) { g.textContent = '✅ Tu rejoins le groupe ' + d.groupe; g.style.display = ''; }
+            else g.style.display = 'none';
+            document.getElementById('rPinHint').textContent = dejaInscrit
+              ? 'C\'est le code que tu as choisi à ta première connexion.'
+              : 'Choisis 4 à 6 chiffres. Il te sera demandé à chaque connexion.';
+            btn.textContent = dejaInscrit ? 'Se connecter' : 'Créer mon espace';
+            s1.style.display = 'none'; s2.style.display = '';
+            pn.focus();
+          })
+          .catch(function () { nxt.disabled = false; err.textContent = 'Erreur réseau, réessaie.'; });
+      }
+      // Étape 2 : le PIN (choisi ou saisi) -> connexion / création effective.
       function go() {
         var pin = (pn.value || '').trim();
-        var prenom, nom, email;
+        var prenom, nom, email, code = '';
         if (simple) { prenom = idr.prenom; nom = idr.nom || ''; email = idr.email; }
         else {
-          prenom = (pr.value || '').trim(); nom = (no.value || '').trim(); email = (em.value || '').trim().toLowerCase();
-          if (!prenom || !nom || email.indexOf('@') < 1) { err.textContent = 'Renseigne ton prénom, ton nom et un email valide.'; return; }
+          if (!infos) { err.textContent = 'Renseigne d\'abord tes informations.'; return; }
+          prenom = infos.prenom; nom = infos.nom; email = infos.email; code = infos.code;
         }
         if (!/^[0-9]{4,6}$/.test(pin)) { err.textContent = 'Saisis ton code PIN (4 à 6 chiffres).'; return; }
-        var codeEl = document.getElementById('rCode');
-        var code = codeEl ? (codeEl.value || '').trim() : '';
         btn.disabled = true; err.textContent = 'Connexion…';
         fetch(base + 'account/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, prenom: prenom, nom: nom, pin: pin, code: code, invite: invToken }) })
           .then(function (r) { return r.json(); })
@@ -165,19 +208,19 @@
             } else {
               btn.disabled = false;
               err.textContent = (d && d.error) || (d && d.needPin ? 'Code PIN incorrect.' : 'Connexion impossible.');
-              // Espace pré-créé par un coach : on révèle le champ « code de ton groupe ».
-              if (d && d.needCode) {
-                var w = document.getElementById('rCodeWrap');
-                if (w) w.style.display = '';
-                if (codeEl) { codeEl.focus(); return; }
-              }
+              // Le code a été refusé (ou manque) : on renvoie à l'étape 1 pour le corriger.
+              if (d && d.needCode && s1 && s2) { s2.style.display = 'none'; s1.style.display = ''; if (cd) cd.focus(); return; }
               if (pn) pn.focus();
             }
           })
           .catch(function () { btn.disabled = false; err.textContent = 'Erreur réseau, réessaie.'; });
       }
-      btn.addEventListener('click', go);
-      [pr, no, em, pn].forEach(function (i) { if (i) i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); }); });
+      if (btn) btn.addEventListener('click', go);
+      if (nxt) nxt.addEventListener('click', next);
+      var bk = document.getElementById('rBack');
+      if (bk) bk.addEventListener('click', function () { s2.style.display = 'none'; s1.style.display = ''; err.textContent = ''; });
+      [pr, no, em, cd].forEach(function (i) { if (i) i.addEventListener('keydown', function (e) { if (e.key === 'Enter') next(); }); });
+      if (pn) pn.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
       var back = document.getElementById('rBackHome');
       if (back) back.addEventListener('click', function () { renderLanding(); });
       var other = document.getElementById('rOther');
@@ -194,7 +237,9 @@
               if (d.nom && no && !no.value) no.value = d.nom;
               if (d.email && em) { em.value = d.email; em.readOnly = true; em.style.background = '#F0EFEA'; em.style.color = '#6B6B63'; }
               if (intro) intro.innerHTML = '✅ Invitation de <b>' + esc(d.coachName || 'ton coach') + '</b>. Crée ton espace en choisissant ton code PIN.';
-              if (pr && !pr.value) { pr.focus(); } else if (pn) { pn.focus(); }
+              // Arrivé par lien : le code du challenge ne le concerne pas.
+              if (cd) { cd.value = ''; cd.style.display = 'none'; if (cd.nextElementSibling) cd.nextElementSibling.style.display = 'none'; }
+              if (pr && !pr.value) pr.focus();
             } else {
               if (err) err.textContent = (d && d.reason) || 'Cette invitation n’est plus valable. Demande un nouveau lien à ton coach.';
             }
@@ -412,6 +457,9 @@
         <!-- Connexion simplifiée : le coach crée l'espace du client sur place (aucun lien
              à envoyer) et lui donne oralement le code de sa cohorte. -->
         <button type="button" id="coachAddClient" class="coach-dash-cta coach-dash-cta-alt"><svg class="ic"><use href="#ic-user"/></svg> Ajouter un client</button>
+        <!-- Le code du challenge est la porte d'entrée des clients : le coach doit
+             pouvoir le lire à tout moment pour le donner à son groupe. -->
+        <button type="button" id="coachCodes" class="coach-dash-cta coach-dash-cta-alt"><svg class="ic"><use href="#ic-lock"/></svg> Codes des groupes</button>
         <h2 class="coach-dash-sec">Mes clients</h2>
         <div id="coachClientsList"></div>
       </div>
@@ -1474,6 +1522,6 @@
 
   <script src="vendor/zxing.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
-  <script src="app.js?v=115"></script>
+  <script src="app.js?v=116"></script>
 </body>
 </html>
