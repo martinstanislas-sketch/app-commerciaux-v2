@@ -18,6 +18,8 @@ function makeEngine({ enabled = true, startDate = '2020-01-01' } = {}) {
     CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT);
     CREATE TABLE nutrition_parcours_pesees (client_email TEXT, type TEXT, date TEXT, PRIMARY KEY(client_email, type));
     CREATE TABLE nutrition_clients (email TEXT PRIMARY KEY, data TEXT);
+    CREATE TABLE nutrition_client_meta (client_email TEXT PRIMARY KEY, ville TEXT DEFAULT '', challenge_no INTEGER DEFAULT 0, updated_at TEXT DEFAULT '');
+    CREATE TABLE nutrition_access_codes (ville TEXT, challenge_no INTEGER, code TEXT, actif INTEGER DEFAULT 1, start_date TEXT NOT NULL DEFAULT '', updated_at TEXT DEFAULT '', PRIMARY KEY (ville, challenge_no));
   `);
   const getDb = () => db;
   const engine = createChallengeEngine({ getDb });
@@ -74,6 +76,60 @@ test('activeDayFromDone : premier jour non validé (séquentiel strict)', () => 
   assert.equal(activeDayFromDone(new Set(), 42), 1);
   assert.equal(activeDayFromDone(new Set([1, 2, 3]), 42), 4);
   assert.equal(activeDayFromDone(new Set(Array.from({ length: 42 }, (_, i) => i + 1)), 42), null);
+});
+
+// --- DATE DE DÉBUT DE LA COHORTE (lance le parcours pour tout le groupe) ------
+// Rattache un client à un groupe daté (ville + n° de challenge + start_date).
+function seedCohorte(db, email, startDate, { ville = 'Lyon', no = 3 } = {}) {
+  db.prepare('INSERT OR REPLACE INTO nutrition_client_meta (client_email, ville, challenge_no) VALUES (?,?,?)').run(email, ville, no);
+  db.prepare('INSERT OR REPLACE INTO nutrition_access_codes (ville, challenge_no, code, actif, start_date) VALUES (?,?,?,1,?)').run(ville, no, '482100', startDate);
+}
+
+test('cohorte : la date du groupe PRIME sur la pesée de départ individuelle', () => {
+  const { db, engine, email } = makeEngine({ startDate: '2020-01-01' });
+  db.prepare("INSERT INTO nutrition_parcours_pesees (client_email, type, date) VALUES (?,'depart','2020-06-01')").run(email);
+  assert.equal(engine.pathStartYmd(email), '2020-06-01', 'sans cohorte : la pesée de départ fait foi');
+  seedCohorte(db, email, '2020-03-15');
+  assert.equal(engine.pathStartYmd(email), '2020-03-15', 'avec cohorte datée : c\'est elle qui fait foi');
+});
+
+test('cohorte : sans date posée, on retombe sur le comportement individuel', () => {
+  const { db, engine, email } = makeEngine({ startDate: '2020-01-01' });
+  seedCohorte(db, email, ''); // groupe SANS date -> aucune régression
+  db.prepare("INSERT INTO nutrition_parcours_pesees (client_email, type, date) VALUES (?,'depart','2020-06-01')").run(email);
+  assert.equal(engine.pathStartYmd(email), '2020-06-01');
+  assert.equal(engine.cohortStartYmd(email), '');
+});
+
+test('cohorte : une date FUTURE tient le chemin verrouillé jusqu\'au jour J', () => {
+  const { db, engine, email } = makeEngine();
+  const demain = pathYmdMinusDays(pathParisYmd(), -1); // +1 jour
+  seedCohorte(db, email, demain);
+  assert.ok(engine.pathCurrentDay(email) <= 0, 'le parcours ne doit pas être démarré');
+  // Aucun événement ne peut valider quoi que ce soit avant le jour J.
+  assert.equal(engine.awardClientEvent(email, 'pesee', 'depart'), null);
+  assert.equal(engine.pathActiveDay(email), 1, 'le nœud 1 reste intact');
+  const st = engine.challengePublicState(email);
+  assert.equal(st.started, false);
+  assert.equal(st.startsOn, demain, 'le front doit pouvoir annoncer la date');
+});
+
+test('cohorte : le jour J, le parcours s\'ouvre (jour 1) et les nœuds se valident', () => {
+  const { db, engine, email } = makeEngine();
+  seedCohorte(db, email, pathParisYmd()); // démarre aujourd'hui
+  assert.equal(engine.pathCurrentDay(email), 1);
+  const r = engine.awardClientEvent(email, 'pesee', 'depart');
+  assert.ok(r, 'le 1er nœud doit être validable le jour J');
+  assert.equal(r.day, 1);
+  assert.equal(engine.challengePublicState(email).started, true);
+});
+
+test('cohorte : tout le groupe partage le même jour de parcours', () => {
+  const { db, engine } = makeEngine({ startDate: null });
+  const j5 = pathYmdMinusDays(pathParisYmd(), 4); // démarré il y a 4 jours -> jour 5
+  ['a1@a.fr', 'a2@a.fr'].forEach((e) => seedCohorte(db, e, j5));
+  assert.equal(engine.pathCurrentDay('a1@a.fr'), 5);
+  assert.equal(engine.pathCurrentDay('a2@a.fr'), 5, 'même cohorte = même jour, quel que soit le client');
 });
 
 // --- Seed ------------------------------------------------------------------

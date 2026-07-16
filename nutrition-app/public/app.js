@@ -4342,7 +4342,19 @@ async function renderChallenge() {
   state.challenge = st;
   if (!st) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">Chemin indisponible pour le moment.</div>'; wireParcoursSegment(); return; }
   if (!st.enabled) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">🔒 Le Chemin du challenge arrive bientôt pour ton groupe.</div>'; wireParcoursSegment(); return; }
-  if (!st.started) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">✨ Ton chemin démarrera à ta première pesée officielle.</div>'; wireParcoursSegment(); return; }
+  if (!st.started) {
+    // Cohorte datée : on annonce le jour J plutôt qu'un vague « à ta 1re pesée ».
+    let msg = '✨ Ton chemin démarrera à ta première pesée officielle.';
+    if (st.startsOn) {
+      const d = new Date(st.startsOn + 'T12:00:00Z');
+      if (!isNaN(d.getTime())) {
+        msg = '🗓️ Ton challenge démarre le <b>' + mcpEsc(d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))
+          + '</b>.<br>Ton chemin s\'ouvrira ce jour-là — prépare-toi !';
+      }
+    }
+    view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">' + msg + '</div>';
+    wireParcoursSegment(); return;
+  }
   view.innerHTML = parcoursSegmentHTML() + challengeHeaderHTML(st) + challengePathHTML(st);
   wireParcoursSegment();
   wireChallengePath();
