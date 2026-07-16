@@ -427,4 +427,16 @@ async function coachRepondre({ contexte, messages }) {
   return (r.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
 }
 
-module.exports = { iaDisponible, coachIaDisponible, setCoachIaOverride, coachIaInfos, genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, coachRepondre };
+// BILAN HEBDO : l'IA ne fait qu'HABILLER des chiffres déjà calculés (le prompt
+// vient de lib/bilanHebdo.js). Renvoie le texte brut, ou '' si l'IA n'est pas
+// disponible — l'appelant retombe alors sur le modèle, jamais sur un écran vide.
+async function redigerBilanIA({ system, user }) {
+  if (!coachIaDisponible()) return '';
+  const r = await client().messages.create({
+    model: MODEL, max_tokens: 700, system: String(system || ''),
+    messages: [{ role: 'user', content: String(user || '') }],
+  });
+  return (r.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+}
+
+module.exports = { redigerBilanIA, iaDisponible, coachIaDisponible, setCoachIaOverride, coachIaInfos, genererPlanIA, regenererRepasIA, genererRecetteDetail, analyserAssietteIA, coachRepondre };

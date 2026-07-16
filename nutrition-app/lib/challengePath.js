@@ -188,6 +188,16 @@ const CHALLENGE_SCHEMA_SQL = `
     opened_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (client_email, ebook_id, day_ymd)
   );
+  -- Texte du bilan hebdo, mis en cache par semaine : un bilan rouvert ne doit pas
+  -- rappeler l'IA (coût) ni changer de mots sous les yeux du client.
+  CREATE TABLE IF NOT EXISTS user_bilan_texte (
+    client_email TEXT NOT NULL,
+    week INTEGER NOT NULL,
+    texte TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',   -- 'ia' | 'modele'
+    created_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (client_email, week)
+  );
   CREATE TABLE IF NOT EXISTS user_bilan_seen (
     client_email TEXT NOT NULL,
     week INTEGER NOT NULL,
