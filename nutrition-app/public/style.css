@@ -2748,7 +2748,15 @@ body.is-demo #navRestart { display: none !important; }
 
 .mcpath-head { position: sticky; top: 0; z-index: 5; background: var(--app-bg); padding: 8px 0 12px; }
 .mcpath-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.mcpath-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--r-sm); padding: 10px 4px; box-shadow: var(--shadow-xs); }
+/* Compteurs cliquables : un tap explique la règle (voir openStatInfo). */
+.mcpath-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--r-sm); padding: 10px 4px; box-shadow: var(--shadow-xs); font-family: inherit; cursor: pointer; position: relative; transition: border-color .15s var(--ease), transform .1s var(--ease); }
+.mcpath-stat:hover { border-color: var(--blue-c); }
+.mcpath-stat:active { transform: scale(.97); }
+/* Petit indice visuel qu'on peut en savoir plus */
+.mcpath-stat::after { content: '?'; position: absolute; top: 3px; right: 5px; font: 700 9px/1 var(--font); color: var(--text-soft); opacity: .5; }
+.mcpath-stat:hover::after { color: var(--blue-c); opacity: 1; }
+.mcpath-stat-txt { margin: 6px 0 18px; color: var(--text-muted-c); font: 400 14.5px/1.6 var(--font); }
+.mcpath-stat-txt b { color: var(--text-c); font-weight: 600; }
 .mcpath-stat-v { font: 700 16px/1 var(--font); color: var(--text-c); white-space: nowrap; }
 .mcpath-stat-l { font: 500 11px/1 var(--font); color: var(--text-soft); }
 .mcpath-progress { height: 8px; background: var(--track); border-radius: var(--pill); margin: 12px 0 4px; overflow: hidden; }
