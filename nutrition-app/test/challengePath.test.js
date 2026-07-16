@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
   createChallengeEngine, CHALLENGE_PATH_NODES, FLOW_STEP_EVENT,
-  pathDaysBetween, pathYmdMinusDays, pathParisYmd, applyMissedDays, streakAfterOpen, activeDayFromDone,
+  pathDaysBetween, pathYmdMinusDays, pathParisYmd, applyMissedDays, streakAfterOpen, streakAffiche, activeDayFromDone,
 } = require('../lib/challengePath');
 
 // Fabrique un moteur branché sur une DB in-memory, avec le flag ON et une date de
@@ -398,6 +398,64 @@ test('série : dayWon dit si la journée est déjà gagnée (notif du soir)', ()
   engine.recordDayWin(email, 2);
   assert.equal(engine.dayWon(email, pathParisYmd()), true);
   assert.equal(engine.dayWon(email, pathYmdMinusDays(pathParisYmd(), 1)), false);
+});
+
+// --- (d) Réconciliation à l'OUVERTURE : filet de sécurité, sans consommation ---
+test('streakAffiche : projection pure (aucun effet de bord)', () => {
+  const t = '2026-07-16';
+  assert.equal(streakAffiche(5, 2, '2026-07-16', t), 5, 'gagné aujourd\'hui : intacte');
+  assert.equal(streakAffiche(5, 2, '2026-07-15', t), 5, 'gagné hier : intacte');
+  assert.equal(streakAffiche(5, 2, '2026-07-14', t), 5, '1 jour manqué, 2 jokers : préservée');
+  assert.equal(streakAffiche(5, 2, '2026-07-13', t), 5, '2 jours manqués, 2 jokers : préservée');
+  assert.equal(streakAffiche(5, 2, '2026-07-12', t), 0, '3 jours manqués, 2 jokers : ROMPUE');
+  assert.equal(streakAffiche(5, 0, '2026-07-14', t), 0, '1 jour manqué, 0 joker : ROMPUE');
+  assert.equal(streakAffiche(0, 3, '2026-07-01', t), 0, 'série déjà à 0');
+  assert.equal(streakAffiche(4, 1, '', t), 4, 'aucun jour gagné connu');
+});
+
+test('ouverture : lire l\'état ne consomme AUCUN joker (règle d)', () => {
+  const { engine, email, db } = makeEngine();
+  const vieux = pathYmdMinusDays(pathParisYmd(), 3); // 2 jours pleins manqués
+  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_win_date, updated_at) VALUES (?,8,8,2,?,'')").run(email, vieux);
+  // Le client ouvre son app plusieurs fois sans rien renseigner.
+  engine.challengePublicState(email);
+  engine.challengePublicState(email);
+  const s = db.prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
+  assert.equal(s.jokers, 2, 'les jokers ne se consomment PAS à la lecture');
+  assert.equal(s.streak_current, 8, 'la série stockée n\'est pas touchée');
+  // …et l'affichage montre bien la chaîne préservée (2 manqués ≤ 2 jokers).
+  assert.equal(engine.challengePublicState(email).stats.streak, 8);
+});
+
+test('ouverture : chaîne rompue -> affiche 🔥 0 sans rien écrire', () => {
+  const { engine, email, db } = makeEngine();
+  const vieux = pathYmdMinusDays(pathParisYmd(), 5); // 4 jours manqués, 1 joker
+  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_win_date, updated_at) VALUES (?,9,9,1,?,'')").run(email, vieux);
+  assert.equal(engine.challengePublicState(email).stats.streak, 0, 'affiche 0');
+  const s = db.prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
+  assert.equal(s.jokers, 1, 'aucun joker brûlé');
+  assert.equal(s.streak_best, 9, 'record conservé');
+});
+
+test('ouverture : longue absence -> 🔥 0, aucun crash', () => {
+  const { engine, email, db } = makeEngine();
+  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_win_date, updated_at) VALUES (?,12,12,3,'2020-01-01','')").run(email);
+  const st = engine.challengePublicState(email);
+  assert.equal(st.stats.streak, 0);
+  assert.equal(st.stats.streakBest, 12);
+  assert.equal(st.stats.jokers, 3, 'les jokers restent disponibles pour la suite');
+});
+
+test('les jokers ne se consomment QU\'au jour gagné (et se voient diminuer)', () => {
+  const { engine, email, db } = makeEngine();
+  const vieux = pathYmdMinusDays(pathParisYmd(), 3); // 2 jours manqués
+  db.prepare("INSERT INTO user_game_stats (client_email, streak_current, streak_best, jokers, last_win_date, updated_at) VALUES (?,8,8,2,?,'')").run(email, vieux);
+  engine.challengePublicState(email); // lecture : rien
+  assert.equal(db.prepare('SELECT jokers FROM user_game_stats WHERE client_email=?').get(email).jokers, 2);
+  engine.recordDayWin(email, 2);      // le client renseigne 2 repas -> MAINTENANT on paie
+  const s = db.prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
+  assert.equal(s.jokers, 0, '2 jokers consommés pour les 2 jours manqués');
+  assert.equal(s.streak_current, 9, 'la chaîne continue');
 });
 
 test('RÉGRESSION : l\'ouverture d\'ebook ne fait PLUS monter la série', () => {

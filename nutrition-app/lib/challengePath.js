@@ -118,7 +118,21 @@ function applyMissedDays(streak, jokers, missed) {
   }
   return { streak: s, jokers: j };
 }
-// Streak après ouverture de l'ebook du jour (réconciliation des jours manqués déjà faite en amont).
+// Série AFFICHÉE — lecture seule, ne consomme RIEN.
+// Filet de sécurité à l'ouverture : si les jours manqués depuis le dernier jour
+// gagné dépassent les jokers disponibles, la chaîne est rompue -> on affiche 0
+// (elle repartira à 1 au prochain jour gagné). Tant que le jour courant n'est
+// pas gagné, AUCUN joker n'est consommé : la consommation n'a lieu que dans
+// recordDayWin, au moment où le jour est effectivement gagné.
+function streakAffiche(streak, jokers, lastWin, today) {
+  const s = streak > 0 ? streak : 0;
+  if (!lastWin || s === 0) return s;
+  const missed = pathDaysBetween(lastWin, today) - 1;
+  if (missed <= 0) return s;              // aujourd'hui ou hier : chaîne intacte
+  return missed <= jokers ? s : 0;        // assez de jokers -> préservée ; sinon rompue
+}
+
+// Streak après un jour gagné (réconciliation des jours manqués déjà faite en amont).
 function streakAfterOpen(streak, last, today) {
   if (last === today) return streak;           // déjà compté aujourd'hui
   if (!last) return 1;                          // toute première ouverture
@@ -423,8 +437,11 @@ function createChallengeEngine({ getDb }) {
     // Date d'ancrage : permet au front d'annoncer « ton chemin démarre le X »
     // quand la cohorte a une date de début encore à venir.
     const startsOn = pathStartYmd(email);
-    if (enabled && started) reconcileStreak(email);
+    // LECTURE PURE : on ne réconcilie PAS ici. Consommer des jokers parce que le
+    // client ouvre son app serait faux — ils ne se consomment qu'au moment où un
+    // jour est GAGNÉ (recordDayWin). Ici on projette seulement l'affichage.
     const s = pathStatsRow(email);
+    const streakVu = streakAffiche(s.streak_current || 0, s.jokers || 0, s.last_win_date || '', pathParisYmd());
     const done = pathDoneDays(email);
     const activeDay = pathActiveDay(email);
     const nodes = CHALLENGE_PATH_NODES.map((n) => ({
@@ -440,7 +457,7 @@ function createChallengeEngine({ getDb }) {
     }));
     return {
       enabled, started, day, activeDay, startsOn, totalDays: CHALLENGE_PATH_NODES.length,
-      stats: { xp: s.xp_total || 0, gems: s.gems || 0, streak: s.streak_current || 0, streakBest: s.streak_best || 0, jokers: s.jokers || 0 },
+      stats: { xp: s.xp_total || 0, gems: s.gems || 0, streak: streakVu, streakBest: s.streak_best || 0, jokers: s.jokers || 0 },
       weekTitles: CHALLENGE_WEEK_TITLES,
       nodes,
     };
@@ -464,5 +481,6 @@ module.exports.pathDaysBetween = pathDaysBetween;
 module.exports.pathYmdMinusDays = pathYmdMinusDays;
 module.exports.applyMissedDays = applyMissedDays;
 module.exports.streakAfterOpen = streakAfterOpen;
+module.exports.streakAffiche = streakAffiche;
 module.exports.activeDayFromDone = activeDayFromDone;
 module.exports.FLOW_STEP_EVENT = FLOW_STEP_EVENT;
