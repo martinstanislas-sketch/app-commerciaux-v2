@@ -125,6 +125,10 @@ function streakAfterOpen(streak, last, today) {
   if (pathDaysBetween(last, today) === 1) return streak + 1; // jour consécutif
   return streak <= 0 ? 1 : streak + 1;          // reprise après reset / trou déjà soldé
 }
+// Sous-étape d'un flow -> événement réel de l'app qui la satisfait.
+// Ordre LIBRE : le client peut poster au groupe avant de faire ses photos.
+const FLOW_STEP_EVENT = { photos: 'photo', mensurations: 'mensurations', groupe: 'groupe' };
+
 // Étape active à partir de l'ensemble des étapes validées (séquentiel strict).
 // Les étapes sont indexées 0 -> total-1 (l'étape 0 = « Commencer »).
 // ⚠️ Renvoie null (et JAMAIS undefined/false) quand tout est fini : l'étape 0
@@ -186,6 +190,15 @@ const CHALLENGE_SCHEMA_SQL = `
     week INTEGER NOT NULL,
     rewarded_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (client_email, week)
+  );
+  -- Sous-étapes des étapes COMPOSITES (0/21/41). L'étape ne passe au vert que
+  -- lorsque TOUTES les sous-étapes de son flow sont faites, dans l'ordre libre.
+  CREATE TABLE IF NOT EXISTS user_node_flow (
+    client_email TEXT NOT NULL,
+    node_day INTEGER NOT NULL,
+    step TEXT NOT NULL,
+    done_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (client_email, node_day, step)
   );
 `;
 
@@ -267,6 +280,12 @@ function createChallengeEngine({ getDb }) {
   function pathActiveDay(email) {
     return activeDayFromDone(pathDoneDays(email), CHALLENGE_PATH_NODES.length);
   }
+  // Sous-étapes déjà faites d'une étape composite (ordre libre).
+  function flowDone(email, day) {
+    const set = new Set();
+    try { getDb().prepare('SELECT step FROM user_node_flow WHERE client_email=? AND node_day=?').all(email, day).forEach((r) => set.add(r.step)); } catch (_) { /* table absente */ }
+    return set;
+  }
   function pathStatsRow(email) {
     let s = getDb().prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
     if (!s) {
@@ -331,7 +350,19 @@ function createChallengeEngine({ getDb }) {
       const activeDay = pathActiveDay(email);
       if (activeDay === null) return null; // terminé (=== null : l'étape 0 est falsy !)
       const node = CHALLENGE_PATH_NODES.find((n) => n.day === activeDay);
-      if (!node || node.event !== eventType) return null; // pas le bon événement -> le retard décale la suite
+      if (!node) return null;
+      if (node.flow && node.flow.length) {
+        // ÉTAPE COMPOSITE : on coche la sous-étape correspondante. L'étape n'est
+        // validée que lorsque TOUT son flow est fait (ordre libre).
+        const step = node.flow.find((s) => FLOW_STEP_EVENT[s] === eventType);
+        if (!step) return null; // événement hors du flow -> ignoré
+        getDb().prepare('INSERT OR IGNORE INTO user_node_flow (client_email, node_day, step, done_at) VALUES (?,?,?,?)')
+          .run(email, activeDay, step, new Date().toISOString());
+        const faits = flowDone(email, activeDay);
+        if (!node.flow.every((s) => faits.has(s))) return null; // il en manque encore
+      } else if (node.event !== eventType) {
+        return null; // pas le bon événement -> le retard décale la suite
+      }
       const ins = getDb().prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at, xp_awarded, gems_awarded, ref_id) VALUES (?,?,?,?,?,?)")
         .run(email, activeDay, new Date().toISOString(), node.xp, node.gems, String(refId == null ? '' : refId));
       if (ins.changes === 0) return null; // déjà validé -> aucune double récompense (idempotence)
@@ -355,10 +386,13 @@ function createChallengeEngine({ getDb }) {
     const activeDay = pathActiveDay(email);
     const nodes = CHALLENGE_PATH_NODES.map((n) => ({
       day: n.day, week: n.week, weekTitle: CHALLENGE_WEEK_TITLES[n.week] || '',
-      type: n.type, title: n.title, action: n.action || '', xp: n.xp, gems: n.gems, milestone: !!n.milestone,
-      // Étapes composites (Commencer / Points mi-parcours et final) : la donnée est
-      // exposée pour la Phase 2 (enchaînement des sous-étapes). Aucun comportement ici.
+      // `event` est exposé : le front route vers l'écran qui produit ce vrai
+      // événement de validation (et non d'après le type d'affichage).
+      type: n.type, event: n.event, title: n.title, action: n.action || '', xp: n.xp, gems: n.gems, milestone: !!n.milestone,
+      // Étapes composites (Commencer / Points mi-parcours et final) : `flow` liste les
+      // sous-étapes et `flowDone` celles déjà faites -> le front affiche les ✓.
       jalon: n.jalon || '', flow: n.flow || null,
+      flowDone: n.flow ? [...flowDone(email, n.day)] : null,
       status: done.has(n.day) ? 'done' : (n.day === activeDay ? 'active' : 'locked'),
     }));
     return {
@@ -372,7 +406,7 @@ function createChallengeEngine({ getDb }) {
   return {
     ensureChallengePathSchema, awardClientEvent, recordEbookOpen, challengePublicState,
     pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
-    grantWeekJokerIfComplete, pathStatsRow, pathDoneDays,
+    grantWeekJokerIfComplete, pathStatsRow, pathDoneDays, flowDone,
   };
 }
 
@@ -388,3 +422,4 @@ module.exports.pathYmdMinusDays = pathYmdMinusDays;
 module.exports.applyMissedDays = applyMissedDays;
 module.exports.streakAfterOpen = streakAfterOpen;
 module.exports.activeDayFromDone = activeDayFromDone;
+module.exports.FLOW_STEP_EVENT = FLOW_STEP_EVENT;

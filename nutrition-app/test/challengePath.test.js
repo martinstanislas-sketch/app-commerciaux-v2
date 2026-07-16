@@ -6,7 +6,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
-  createChallengeEngine, CHALLENGE_PATH_NODES,
+  createChallengeEngine, CHALLENGE_PATH_NODES, FLOW_STEP_EVENT,
   pathDaysBetween, pathYmdMinusDays, pathParisYmd, applyMissedDays, streakAfterOpen, activeDayFromDone,
 } = require('../lib/challengePath');
 
@@ -29,13 +29,19 @@ function makeEngine({ enabled = true, startDate = '2020-01-01' } = {}) {
   return { db, engine, email: 'a@a.fr' };
 }
 function eventFor(day) { return CHALLENGE_PATH_NODES.find((n) => n.day === day).event; }
+// Réalise une étape : pour une étape COMPOSITE, joue toutes ses sous-étapes.
+function doNode(engine, email, day) {
+  const n = CHALLENGE_PATH_NODES.find((x) => x.day === day);
+  if (n.flow) { n.flow.forEach((s) => engine.awardClientEvent(email, FLOW_STEP_EVENT[s], 'ref' + day)); return; }
+  engine.awardClientEvent(email, n.event, 'ref' + day);
+}
 function completeAll(engine, email) {
   let guard = 0;
   while (guard++ < 200) {
     const active = engine.pathActiveDay(email);
     if (active === null) break; // === null : l'étape 0 est falsy
-    const r = engine.awardClientEvent(email, eventFor(active), 'ref' + active);
-    if (!r) break;
+    doNode(engine, email, active);
+    if (engine.pathActiveDay(email) === active) break; // bloqué -> on sort
   }
 }
 
@@ -121,7 +127,9 @@ test('cohorte : le jour J, le parcours s\'ouvre et les étapes se valident', () 
   const { db, engine, email } = makeEngine();
   seedCohorte(db, email, pathParisYmd()); // démarre aujourd'hui
   assert.equal(engine.pathCurrentDay(email), 1);
-  const r = engine.awardClientEvent(email, 'photo', 'x');
+  engine.awardClientEvent(email, 'photo', 'x');
+  engine.awardClientEvent(email, 'mensurations', 'x');
+  const r = engine.awardClientEvent(email, 'groupe', 'x'); // flow complet
   assert.ok(r, 'l\'étape 0 doit être validable le jour J');
   assert.equal(r.day, 0);
   assert.equal(engine.challengePublicState(email).started, true);
@@ -195,26 +203,82 @@ test('étapes composites : flow + jalon présents dans la donnée exposée', () 
 test('déblocage séquentiel : bon événement valide + avance ; mauvais événement ignoré', () => {
   const { engine, email } = makeEngine();
   assert.equal(engine.pathActiveDay(email), 0, 'on démarre à l\'étape 0 « Commencer »');
-  // étape active = Commencer (photo) ; une séance ne doit RIEN valider
+  // étape active = Commencer (composite) ; une séance ne doit RIEN valider
   assert.equal(engine.awardClientEvent(email, 'seance', 1), null);
   assert.equal(engine.pathActiveDay(email), 0);
-  const r = engine.awardClientEvent(email, 'photo', 'x');
+  doNode(engine, email, 0); // flow complet -> validée
+  assert.equal(engine.pathActiveDay(email), 1, 'on avance à l\'étape 1 (Séance)');
+  // étape active = Séance ; un ebook ne doit RIEN valider (le retard décale la suite)
+  assert.equal(engine.awardClientEvent(email, 'ebook', 'x'), null);
+  assert.equal(engine.pathActiveDay(email), 1);
+  const r = engine.awardClientEvent(email, 'seance', 'x');
   assert.ok(r);
+  assert.equal(r.day, 1);
+  assert.equal(r.xp, 25);
+  assert.equal(r.nextDay, 2);
+  assert.equal(engine.pathActiveDay(email), 2);
+});
+
+// --- PHASE 2 : étapes composites, le flow doit être COMPLET ------------------
+test('composite : l\'étape 0 ne se valide QUE si tout son flow est fait', () => {
+  const { engine, email } = makeEngine();
+  // photos + mensurations + groupe requis : chaque sous-étape seule ne suffit pas.
+  assert.equal(engine.awardClientEvent(email, 'photo', 'x'), null, 'photo seule ne valide pas');
+  assert.equal(engine.pathActiveDay(email), 0, 'on reste sur l\'étape 0');
+  assert.equal(engine.awardClientEvent(email, 'mensurations', 'x'), null, 'photo+mensurations ne suffisent pas');
+  assert.equal(engine.pathActiveDay(email), 0);
+  const r = engine.awardClientEvent(email, 'groupe', 'x'); // la 3e complète le flow
+  assert.ok(r, 'le flow complet valide l\'étape');
   assert.equal(r.day, 0);
   assert.equal(r.xp, 30);
-  assert.equal(r.gems, 50);
-  assert.equal(r.nextDay, 1);
   assert.equal(engine.pathActiveDay(email), 1);
 });
 
-test('composite : l\'étape 0 se valide dès la 1re sous-étape (photo) — jamais de gel', () => {
+test('composite : ordre LIBRE — groupe puis mensurations puis photo valide aussi', () => {
   const { engine, email } = makeEngine();
-  // Décision Phase 1 : le flow est de la donnée ; la validation se fait sur la
-  // 1re sous-étape pour que le parcours ne soit jamais bloqué au départ.
-  assert.equal(engine.awardClientEvent(email, 'mensurations', 'x'), null, 'mensurations seules ne valident pas');
-  assert.equal(engine.awardClientEvent(email, 'groupe', 'x'), null, 'un post groupe seul ne valide pas');
-  assert.ok(engine.awardClientEvent(email, 'photo', 'x'), 'la photo (1re du flow) valide');
+  assert.equal(engine.awardClientEvent(email, 'groupe', 'x'), null);
+  assert.equal(engine.awardClientEvent(email, 'mensurations', 'x'), null);
+  assert.ok(engine.awardClientEvent(email, 'photo', 'x'), 'l\'ordre ne doit pas compter');
   assert.equal(engine.pathActiveDay(email), 1);
+});
+
+test('composite : un événement hors du flow est ignoré et ne coche rien', () => {
+  const { engine, email, db } = makeEngine();
+  assert.equal(engine.awardClientEvent(email, 'seance', 'x'), null);
+  assert.equal(engine.awardClientEvent(email, 'ebook', 'x'), null);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM user_node_flow WHERE client_email=?').get(email).c, 0);
+  assert.equal(engine.pathActiveDay(email), 0);
+});
+
+test('composite : répéter la même sous-étape ne fait pas avancer le flow', () => {
+  const { engine, email, db } = makeEngine();
+  engine.awardClientEvent(email, 'photo', 'a');
+  engine.awardClientEvent(email, 'photo', 'b');
+  engine.awardClientEvent(email, 'photo', 'c');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM user_node_flow WHERE client_email=?').get(email).c, 1, 'une seule sous-étape cochée');
+  assert.equal(engine.pathActiveDay(email), 0, 'l\'étape n\'est toujours pas validée');
+});
+
+test('composite : le Point mi-parcours (21) ne demande que photos + mensurations', () => {
+  const { engine, email } = makeEngine();
+  // On amène le parcours jusqu'à l'étape 21.
+  for (let d = 0; d <= 20; d++) doNode(engine, email, d);
+  assert.equal(engine.pathActiveDay(email), 21);
+  assert.equal(engine.awardClientEvent(email, 'photo', 'x'), null);
+  const r = engine.awardClientEvent(email, 'mensurations', 'x'); // pas de 'groupe' attendu ici
+  assert.ok(r, 'photos + mensurations suffisent pour le point mi-parcours');
+  assert.equal(r.day, 21);
+});
+
+test('composite : l\'avancement du flow est exposé au front (flowDone)', () => {
+  const { engine, email } = makeEngine();
+  engine.awardClientEvent(email, 'groupe', 'x');
+  const n0 = engine.challengePublicState(email).nodes.find((n) => n.day === 0);
+  assert.deepEqual(n0.flow, ['photos', 'mensurations', 'groupe']);
+  assert.deepEqual(n0.flowDone, ['groupe'], 'le front doit pouvoir cocher les sous-étapes faites');
+  assert.equal(n0.status, 'active', 'l\'étape reste active tant que le flow est incomplet');
+  // Les étapes simples n'exposent pas de flow.
+  assert.equal(engine.challengePublicState(email).nodes.find((n) => n.day === 1).flowDone, null);
 });
 
 test('flag OFF : aucun événement ne valide', () => {
@@ -248,7 +312,7 @@ test('parcours complet : XP et gems = somme du barème ; ré-émission = aucun d
 
 test('idempotence fine : revalider une étape déjà faite n\'ajoute pas d\'XP', () => {
   const { engine, email, db } = makeEngine();
-  engine.awardClientEvent(email, 'photo', 'x'); // étape 0 -> done
+  doNode(engine, email, 0); // étape 0 -> done
   // La PK (client_email, node_day) bloque tout double-crédit, y compris sur l'étape 0.
   const dup = db.prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at) VALUES (?,?,?)").run(email, 0, 'x');
   assert.equal(dup.changes, 0); // déjà présent -> ignoré
@@ -257,7 +321,7 @@ test('idempotence fine : revalider une étape déjà faite n\'ajoute pas d\'XP',
 test('jokers : +1 par semaine complète (S1 = 8 étapes), plafonné à 3', () => {
   const { engine, email, db } = makeEngine();
   // Compléter S1 (étapes 0..7 : 8 étapes, pas 7)
-  for (let d = 0; d <= 7; d++) engine.awardClientEvent(email, eventFor(d), 'ref' + d);
+  for (let d = 0; d <= 7; d++) doNode(engine, email, d);
   assert.equal(db.prepare('SELECT jokers FROM user_game_stats WHERE client_email=?').get(email).jokers, 1);
   // Tout compléter -> 6 semaines mais plafond 3
   completeAll(engine, email);
