@@ -4571,14 +4571,54 @@ const MCPATH_FLOW = {
   mensurations: { label: 'Saisir tes mensurations', go: 'mesures' },
   groupe: { label: 'Te présenter au groupe', go: 'communaute' },
 };
+
+// --- Ancrage précis dans Mon Parcours ---------------------------------------
+// Une étape du Chemin doit déposer le client PILE sur la section concernée, pas
+// en haut d'un onglet générique où il devrait chercher. Le rendu de Mon Parcours
+// est asynchrone (fetchParcours) : on mémorise la cible, et renderParcours()
+// l'applique une fois le DOM en place (cf. appliquerAncreParcours).
+// ⚠️ Le Chemin nomme ses jalons debut/mi/fin, Mon Parcours depart/s3/s6.
+const JALON_CHEMIN_VERS_PARCOURS = { debut: 'depart', mi: 's3', fin: 's6' };
+function ouvrirParcoursSur(cible, jalonChemin) {
+  state.pcAncre = { cible, jalon: JALON_CHEMIN_VERS_PARCOURS[jalonChemin] || 'depart' };
+  state.parcoursSub = 'mesures';
+  renderParcoursTab(); // surtout PAS de scrollTo(0,0) ici : il écraserait l'ancrage
+}
+function appliquerAncreParcours() {
+  const a = state.pcAncre; if (!a) return;
+  state.pcAncre = null;
+  const vue = $('#view-parcours'); if (!vue) return;
+  let el = null;
+  if (a.cible === 'photos') {
+    const blocs = [...vue.querySelectorAll('.pc-photos-jalon')];
+    el = blocs[['depart', 's3', 's6'].indexOf(a.jalon)] || blocs[0] || null;
+  } else if (a.cible === 'mensurations') {
+    // Le formulaire vit dans un <details> replié : l'ouvrir, sinon on ancrerait sur un titre.
+    const wrap = vue.querySelector('.pc-mensu-add-wrap');
+    if (wrap) wrap.open = true;
+    el = vue.querySelector('#mensuForm') || wrap;
+  } else if (a.cible === 'seance') {
+    // La séance DU JOUR, pas la section : c'est cette case-là qu'il doit toucher.
+    const today = new Date().toISOString().slice(0, 10);
+    el = vue.querySelector('[data-pc-day="' + today + '"]') || vue.querySelector('.pc-week');
+  }
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('pc-ancre-flash'); // un repère visuel : « c'est ici »
+  setTimeout(() => { el.classList.remove('pc-ancre-flash'); }, 1800);
+}
 function challengeFlowHTML(n) {
   if (!n.flow || !n.flow.length) return '';
   const faits = new Set(n.flowDone || []);
   const lignes = n.flow.map((s) => {
     const f = MCPATH_FLOW[s] || { label: s, go: '' };
     const ok = faits.has(s);
+    // Photos : le client doit savoir où il en est, sinon « pas encore validé »
+    // avec 2 photos déjà envoyées ressemble à un bug.
+    let compteur = '';
+    if (s === 'photos' && n.photos && !ok) compteur = `<span class="mcpath-sub-n">${n.photos.fait}/${n.photos.requis} photos ajoutées</span>`;
     return `<button type="button" class="mcpath-sub${ok ? ' done' : ''}" data-sub="${mcpEsc(s)}"${ok ? ' disabled' : ''}>
-      <span class="mcpath-sub-ic">${ok ? '✓' : '○'}</span><span class="mcpath-sub-l">${mcpEsc(f.label)}</span>${ok ? '' : '<span class="mcpath-sub-go">›</span>'}</button>`;
+      <span class="mcpath-sub-ic">${ok ? '✓' : '○'}</span><span class="mcpath-sub-l">${mcpEsc(f.label)}${compteur}</span>${ok ? '' : '<span class="mcpath-sub-go">›</span>'}</button>`;
   }).join('');
   const reste = n.flow.filter((s) => !faits.has(s)).length;
   return `<div class="mcpath-flow">${lignes}</div>`
@@ -4628,7 +4668,7 @@ function openChallengeNode(day) {
       // sous-étape vient d'être validée et s'il en reste à faire.
       state.mcpathRetour = { day: n.day, faits: (n.flowDone || []).length };
       closeChallengeSheet();
-      if (f.go === 'mesures') { state.parcoursSub = 'mesures'; renderParcoursTab(); window.scrollTo(0, 0); }
+      if (f.go === 'mesures') ouvrirParcoursSur(b.dataset.sub, n.jalon); // photos / mensurations -> pile sur la section
       else if (f.go === 'communaute') setTab('communaute');
     }));
   } else {
@@ -4644,8 +4684,11 @@ function openChallengeNode(day) {
 // `event` (et non sur `type`) : c'est lui qui décide de la validation côté serveur.
 function doChallengeAction(n) {
   switch (n.event) {
-    case 'seance': case 'photo': case 'mensurations':
-      state.parcoursSub = 'mesures'; renderParcoursTab(); window.scrollTo(0, 0); break;
+    // Chaque action atterrit sur SA section : la séance du jour, le bloc photos
+    // du bon jalon, ou le formulaire de mensurations — jamais le haut de l'onglet.
+    case 'seance': ouvrirParcoursSur('seance', n.jalon); break;
+    case 'photo': ouvrirParcoursSur('photos', n.jalon); break;
+    case 'mensurations': ouvrirParcoursSur('mensurations', n.jalon); break;
     case 'groupe': setTab('communaute'); break;
     case 'coach': openCoachChat(); break;
     case 'ebook': setTab('ebooks'); break;
@@ -4885,6 +4928,7 @@ function renderParcours() {
   host.querySelectorAll('[data-pc-delmensu]').forEach((b) => b.addEventListener('click', () => deleteMensuration(Number(b.dataset.pcDelmensu))));
   // Charge les vignettes privées (avec auth -> blob)
   host.querySelectorAll('[data-pc-imgid]').forEach((img) => loadParcoursPhoto(Number(img.dataset.pcImgid), img));
+  appliquerAncreParcours(); // une étape du Chemin nous a envoyés ici -> on ancre sur sa section
 }
 
 // Mensurations : mesures corporelles saisies par le client (cm).

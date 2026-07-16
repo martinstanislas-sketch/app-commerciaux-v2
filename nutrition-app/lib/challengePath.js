@@ -132,6 +132,13 @@ function streakAfterOpen(streak, last, today) {
 // Ordre LIBRE : le client peut poster au groupe avant de faire ses photos.
 const FLOW_STEP_EVENT = { photos: 'photo', mensurations: 'mensurations', groupe: 'groupe' };
 
+// ⚠️ Le Chemin nomme ses jalons debut/mi/fin, Mon Parcours les nomme depart/s3/s6.
+// Les photos sont rangées sous les SECONDS : sans cette traduction, on compterait 0.
+const JALON_VERS_PARCOURS = { debut: 'depart', mi: 's3', fin: 's6' };
+// Les 3 photos EXIGÉES pour valider la sous-étape « photos ». Le 4e emplacement
+// de Mon Parcours (« libre ») reste un bonus : il n'entre pas dans le compte.
+const PHOTOS_REQUISES = ['face', 'profil', 'dos'];
+
 // Étape active à partir de l'ensemble des étapes validées (séquentiel strict).
 // Les étapes sont indexées 0 -> total-1 (l'étape 0 = « Commencer »).
 // ⚠️ Renvoie null (et JAMAIS undefined/false) quand tout est fini : l'étape 0
@@ -337,6 +344,18 @@ function createChallengeEngine({ getDb }) {
     try { getDb().prepare('SELECT step FROM user_node_flow WHERE client_email=? AND node_day=?').all(email, day).forEach((r) => set.add(r.step)); } catch (_) { /* table absente */ }
     return set;
   }
+  // Combien des 3 photos exigées le client a-t-il déposées pour ce jalon ?
+  // (les doublons d'un même type ne comptent qu'une fois -> DISTINCT).
+  function photosFaites(email, jalonChemin) {
+    const jal = JALON_VERS_PARCOURS[jalonChemin];
+    if (!jal) return 0;
+    try {
+      const marks = PHOTOS_REQUISES.map(() => '?').join(',');
+      const r = getDb().prepare('SELECT COUNT(DISTINCT type) n FROM nutrition_parcours_photos WHERE client_email=? AND jalon=? AND type IN (' + marks + ')')
+        .get(email, jal, ...PHOTOS_REQUISES);
+      return (r && r.n) || 0;
+    } catch (_) { return 0; } // table absente -> on ne valide pas (on ne devine pas)
+  }
   function pathStatsRow(email) {
     let s = getDb().prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
     if (!s) {
@@ -414,6 +433,9 @@ function createChallengeEngine({ getDb }) {
         // validée que lorsque TOUT son flow est fait (ordre libre).
         const step = node.flow.find((s) => FLOW_STEP_EVENT[s] === eventType);
         if (!step) return null; // événement hors du flow -> ignoré
+        // « photos » exige les 3 prises (face/profil/dos) : une seule photo ne
+        // coche rien. Le client peut donc les déposer en plusieurs fois.
+        if (step === 'photos' && photosFaites(email, node.jalon) < PHOTOS_REQUISES.length) return null;
         getDb().prepare('INSERT OR IGNORE INTO user_node_flow (client_email, node_day, step, done_at) VALUES (?,?,?,?)')
           .run(email, activeDay, step, new Date().toISOString());
         const faits = flowDone(email, activeDay);
@@ -452,6 +474,9 @@ function createChallengeEngine({ getDb }) {
       // sous-étapes et `flowDone` celles déjà faites -> le front affiche les ✓.
       jalon: n.jalon || '', flow: n.flow || null,
       flowDone: n.flow ? [...flowDone(email, n.day)] : null,
+      // Compteur des photos exigées -> le front affiche « 2/3 photos ajoutées »
+      // et le client comprend pourquoi sa sous-étape n'est pas encore cochée.
+      photos: (n.flow || []).includes('photos') ? { fait: photosFaites(email, n.jalon), requis: PHOTOS_REQUISES.length } : null,
       status: done.has(n.day) ? 'done' : (n.day === activeDay ? 'active' : 'locked'),
     }));
     return {
