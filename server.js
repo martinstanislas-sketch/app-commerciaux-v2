@@ -646,11 +646,13 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 
 // Chemin du challenge : moteur gamifié 42 jours (module dédié, testable).
 const {
-  ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, challengePublicState,
+  ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
 // Bilan hebdo : seuils + rédaction par modèles (pur, testable). L'IA est chargée
 // à la demande, pour ne pas dépendre du SDK Anthropic quand elle n'est pas utilisée.
 const bilanHebdo = require('./nutrition-app/lib/bilanHebdo');
+// Seuils de Punch : LA source de vérité des déblocages (vidéos, ebooks, cadeaux).
+const punchSeuils = require('./nutrition-app/lib/punchSeuils');
 function nutritionAiBilan() { return require('./nutrition-app/lib/aiGenerator'); }
 
 try {
@@ -791,6 +793,9 @@ try {
       unlock_day INTEGER NOT NULL DEFAULT 0,
       sort_order INTEGER NOT NULL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1,
+      type TEXT NOT NULL DEFAULT 'ebook',    -- 'ebook' (PDF) | 'video' (YouTube non répertorié)
+      youtube_id TEXT NOT NULL DEFAULT '',   -- vidéo : l'ID extrait, jamais l'URL brute
+      video_lot INTEGER NOT NULL DEFAULT 0,  -- vidéo : 1..5 -> le palier de Punch qui l'ouvre
       created_at TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS nutrition_ebook_reads (
@@ -799,7 +804,41 @@ try {
       opened_at TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (client_email, ebook_id)
     );`);
+    // Migration : la table existe déjà en prod -> ALTER conditionnels.
+    const cols = getDb().prepare('PRAGMA table_info(nutrition_ebooks)').all().map((c) => c.name);
+    if (cols.length && !cols.includes('type')) {
+      getDb().exec("ALTER TABLE nutrition_ebooks ADD COLUMN type TEXT NOT NULL DEFAULT 'ebook'");
+      getDb().exec("ALTER TABLE nutrition_ebooks ADD COLUMN youtube_id TEXT NOT NULL DEFAULT ''");
+      getDb().exec('ALTER TABLE nutrition_ebooks ADD COLUMN video_lot INTEGER NOT NULL DEFAULT 0');
+    }
+    seedVideosSeances();
   } catch (e) { console.error('ebooks schema:', e && e.message); }
+
+  // Les 27 séances vidéo, versionnées : on ne les réimporte pas à chaque démarrage,
+  // et on ne touche JAMAIS aux ebooks PDF existants (type = 'video' uniquement).
+  function seedVideosSeances() {
+    try {
+      const V = require('./nutrition-app/lib/videosSeances');
+      const VERSION = '1';
+      const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='videos_seed_v'").get() || {}).value;
+      const nb = getDb().prepare("SELECT COUNT(*) c FROM nutrition_ebooks WHERE type='video'").get().c;
+      if (String(fait) === VERSION && nb === V.VIDEOS_SEED.length) return;
+      const up = getDb().prepare(`INSERT INTO nutrition_ebooks (title, description, category, cover_data, pdf_data, type, youtube_id, video_lot, sort_order, active, created_at)
+        VALUES (?,?,?,?,'','video',?,?,?,1,?)`);
+      const existe = getDb().prepare("SELECT 1 FROM nutrition_ebooks WHERE type='video' AND youtube_id=?");
+      const now = new Date().toISOString();
+      const tx = getDb().transaction(() => {
+        V.VIDEOS_SEED.forEach((v, i) => {
+          const id = V.extraireYoutubeId(v.url);
+          if (!id || existe.get(id)) return; // lien illisible ou déjà importé
+          up.run(v.titre, 'Séance avec ' + v.coach, 'Séances', V.miniatureYoutube(id), id, v.lot, 1000 + i, now);
+        });
+      });
+      tx();
+      getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('videos_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(VERSION);
+      console.log('[VIDEOS] ' + getDb().prepare("SELECT COUNT(*) c FROM nutrition_ebooks WHERE type='video'").get().c + ' séances vidéo en base');
+    } catch (e) { console.error('seedVideosSeances:', e && e.message); }
+  }
 
   function ebookSecret() {
     const row = getDb().prepare("SELECT value FROM app_settings WHERE key='ebook_secret'").get();
@@ -845,10 +884,36 @@ try {
     try {
       const email = (req.session && req.session.email) || '';
       const day = clientChallengeDay(email);
-      const rows = getDb().prepare('SELECT id, title, description, category, cover_data, unlock_day FROM nutrition_ebooks WHERE active=1 ORDER BY unlock_day ASC, id ASC').all();
+      const rows = getDb().prepare("SELECT id, title, description, category, cover_data, unlock_day, type, youtube_id, video_lot FROM nutrition_ebooks WHERE active=1 ORDER BY type ASC, unlock_day ASC, video_lot ASC, sort_order ASC, id ASC").all();
       const readSet = new Set();
       try { getDb().prepare('SELECT ebook_id FROM nutrition_ebook_reads WHERE client_email=?').all(email).forEach((r) => readSet.add(r.ebook_id)); } catch (_) { /* table absente */ }
-      const ebooks = rows.map((r) => ({ id: r.id, title: r.title, description: r.description, category: r.category, cover: r.cover_data || '', unlockDay: r.unlock_day, locked: day < r.unlock_day, unlockLabel: ebookUnlockLabel(r.unlock_day), read: readSet.has(r.id) }));
+      // Les VIDÉOS ne se débloquent pas au jour du challenge mais au PUNCH cumulé :
+      // rien n'est offert au départ. Les ebooks PDF gardent leur déblocage par
+      // progression, inchangé.
+      // ⚠️ On lit le TOTAL, pas la table des déblocages : celle-ci n'est écrite qu'au
+      // moment d'un gain (evaluateUnlocks), donc un compte qui a déjà du Punch — les
+      // comptes migrés depuis XP+gems, par exemple — ne verrait rien jusqu'à son
+      // prochain gain. Le total est la vérité ; user_unlocks ne sert qu'à savoir ce
+      // qui a DÉJÀ été célébré.
+      let punch = 0;
+      try { punch = (getDb().prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email) || {}).punch || 0; } catch (_) { /* ignore */ }
+      const seuilDuLot = (lot) => punchSeuils.VIDEO_LOTS[Math.max(0, Number(lot) - 1)];
+      const ebooks = rows.map((r) => {
+        const estVideo = r.type === 'video';
+        const seuil = estVideo ? seuilDuLot(r.video_lot) : 0;
+        const locked = estVideo ? (punch < seuil) : (day < r.unlock_day);
+        return {
+          id: r.id, title: r.title, description: r.description, category: r.category,
+          cover: r.cover_data || '', unlockDay: r.unlock_day, locked,
+          unlockLabel: estVideo ? (seuil + ' Punch') : ebookUnlockLabel(r.unlock_day),
+          read: readSet.has(r.id),
+          type: r.type || 'ebook',
+          // L'ID n'est exposé que si la vidéo est débloquée : sinon le lien fuite
+          // et le lot ne veut plus rien dire.
+          videoId: estVideo && !locked ? r.youtube_id : '',
+          videoLot: estVideo ? r.video_lot : 0,
+        };
+      });
       res.json({ ok: true, ebooks, day });
     } catch (e) { console.error('ebooks GET:', e); res.status(500).json({ ok: false }); }
   });
