@@ -872,6 +872,7 @@
         <button type="button" class="profil-row profil-admin hidden" data-go="btnPlateAdmin"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Analyses d'assiettes<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnDemoAdmin"><svg class="ic pr-lime"><use href="#ic-eye"/></svg>Mode démo client<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnCoachIaAdmin"><svg class="ic pr-lime"><use href="#ic-spark"/></svg>Coach IA<span class="pr-badge" id="coachIaStateBadge"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" id="btnCheminAdmin"><svg class="ic pr-lime"><use href="#ic-flame"/></svg>Chemin du challenge<span class="pr-badge" id="cheminStateBadge"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnCoachFaq"><svg class="ic pr-lime"><use href="#ic-file"/></svg>Réponses du coach (gratuit)<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnQuickOptions"><svg class="ic pr-lime"><use href="#ic-cart"/></svg>Options rapides boutique<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnEbooksAdmin"><svg class="ic pr-lime"><use href="#ic-book"/></svg>Guides (ebooks)<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -1187,6 +1188,18 @@
       </div>
       <p class="panel-sub">Active ou désactive le chat « Coach IA » pour tes clients. La clé d'API reste côté serveur (jamais exposée).</p>
       <div id="coachIaBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ ADMIN : CHEMIN DU CHALLENGE (interrupteur) ============ -->
+  <div id="cheminPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-flame"/></svg> Chemin du challenge</h2>
+        <button class="modal-close" id="cheminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">L'onglet « Chemin » : le parcours gamifié de 42 jours, ses étapes, sa série et ses Punch.</p>
+      <div id="cheminBody"></div>
     </div>
   </div>
 
@@ -1528,6 +1541,6 @@
 
   <script src="vendor/zxing.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
-  <script src="app.js?v=147"></script>
+  <script src="app.js?v=149"></script>
 </body>
 </html>

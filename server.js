@@ -746,6 +746,17 @@ try {
       res.json({ ok: true, reward, state: challengePublicState(email) });
     } catch (e) { console.error('challenge bilan-seen :', e); res.status(500).json({ ok: false }); }
   });
+  // ADMIN : lire l'état du Chemin. Sans ça, l'interrupteur du panneau admin ne
+  // saurait pas s'il doit s'afficher allumé ou éteint — et il n'y avait AUCUN moyen
+  // de connaître l'état sans lire la base à la main.
+  app.get('/nutrition/api/challenge/flag', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      if (!req.session || req.session.role !== 'admin') return res.status(403).json({ ok: false, error: 'Admin requis.' });
+      const r = getDb().prepare("SELECT value FROM app_settings WHERE key='challenge_path_enabled'").get();
+      const v = String((r && r.value) || '').toLowerCase();
+      res.json({ ok: true, enabled: ['on', '1', 'true', 'yes'].includes(v) });
+    } catch (e) { console.error('challenge flag GET :', e); res.status(500).json({ ok: false }); }
+  });
   // ADMIN : activer/désactiver le Chemin (feature flag global, activation par cohorte).
   app.post('/nutrition/api/challenge/flag', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {

@@ -3061,6 +3061,7 @@ function init() {
   // Nouvelle navigation : barre basse + lignes de l'ecran Profil (delegue aux boutons existants)
   setupProfilCoach();
   refreshCoachIaBadge();
+  refreshCheminBadge(); // l'admin voit « Actif / Inactif » sans ouvrir le panneau
   $$('#bottom-nav .nav-i').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $$('[data-go]').forEach((r) => r.addEventListener('click', () => { const t = $('#' + r.dataset.go); if (t) t.click(); }));
   $('#helpClose').addEventListener('click', closeHelp);
@@ -3136,6 +3137,7 @@ function init() {
   // Gestion des photos de plats (admin/coach) + chargement de l'index (clients voient les photos)
   const _bPlatsPhotos = $('#btnPlatsPhotos'); if (_bPlatsPhotos) _bPlatsPhotos.addEventListener('click', openPlatsPhotos);
   const _bCoachIa = $('#btnCoachIaAdmin'); if (_bCoachIa) _bCoachIa.addEventListener('click', openCoachIaAdmin);
+  const _bChemin = $('#btnCheminAdmin'); if (_bChemin) _bChemin.addEventListener('click', openCheminAdmin);
   const _bCoachFaq = $('#btnCoachFaq'); if (_bCoachFaq) _bCoachFaq.addEventListener('click', openCoachFaq);
   const _bQuickOpt = $('#btnQuickOptions'); if (_bQuickOpt) _bQuickOpt.addEventListener('click', openQuickOptions);
   const _bReset = $('#btnResetClients'); if (_bReset) _bReset.addEventListener('click', resetClientsData);
@@ -3147,6 +3149,7 @@ function init() {
   $('#platsPhotosClose').addEventListener('click', closePlatsPhotos);
   $('#platsPhotosPanel').addEventListener('click', (e) => { if (e.target.id === 'platsPhotosPanel') closePlatsPhotos(); });
   $('#coachIaClose').addEventListener('click', closeCoachIaAdmin);
+  $('#cheminClose').addEventListener('click', closeCheminAdmin);
   $('#coachIaPanel').addEventListener('click', (e) => { if (e.target.id === 'coachIaPanel') closeCoachIaAdmin(); });
   const _faqClose = $('#coachFaqClose'); if (_faqClose) _faqClose.addEventListener('click', closeCoachFaq);
   const _faqPanel = $('#coachFaqPanel'); if (_faqPanel) _faqPanel.addEventListener('click', (e) => { if (e.target.id === 'coachFaqPanel') closeCoachFaq(); });
@@ -6390,8 +6393,11 @@ function renderCoachIaAdmin(d) {
     ? '<span class="cia-pill on">● Actif</span>'
     : '<span class="cia-pill off">● Inactif</span>';
   const keyLine = noKey
-    ? '<div class="cia-warn"><svg class="ic"><use href="#ic-eye"/></svg> Aucune clé d’API détectée sur le serveur (<code>ANTHROPIC_API_KEY</code>). Le chat ne pourra pas répondre tant qu’elle n’est pas définie, même activé ici.</div>'
-    : '<div class="cia-ok"><svg class="ic"><use href="#ic-check"/></svg> Clé d’API détectée sur le serveur.</div>';
+    // Même piège que le panneau Chemin : `.cia-warn` est un conteneur flex, donc le
+    // <code> au milieu de la phrase en faisait un élément de grille et le texte
+    // s'affichait en colonnes. Tout le texte tient donc dans UN <span>.
+    ? '<div class="cia-warn"><svg class="ic"><use href="#ic-eye"/></svg><span>Aucune clé d’API détectée sur le serveur (<code>ANTHROPIC_API_KEY</code>). Le chat ne pourra pas répondre tant qu’elle n’est pas définie, même activé ici.</span></div>'
+    : '<div class="cia-ok"><svg class="ic"><use href="#ic-check"/></svg><span>Clé d’API détectée sur le serveur.</span></div>';
   const opt = (mode, titre, sous) =>
     '<button type="button" class="cia-opt' + (d.mode === mode ? ' sel' : '') + '" data-mode="' + mode + '">' +
       '<div class="cia-opt-t">' + titre + '</div><div class="cia-opt-s">' + sous + '</div></button>';
@@ -6432,6 +6438,75 @@ async function refreshCoachIaBadge() {
     const res = await fetch(apiUrl('/api/coach-ia-config'), { headers: nutriAuthHeaders() });
     const d = await res.json();
     if (d && d.ok) updateCoachIaBadge(d);
+  } catch (_) { /* ignore */ }
+}
+
+// ===== Admin : interrupteur du Chemin du challenge =====
+// Le Chemin est derrière un drapeau global (app_settings.challenge_path_enabled)
+// pour pouvoir l'ouvrir cohorte par cohorte. Il n'existait AUCUNE interface pour
+// ça : il fallait appeler la route à la main (curl). D'où cet écran.
+// ⚠️ Il réutilise volontairement les styles `.cia-*` du panneau Coach IA : ce sont
+// des styles génériques de réglage admin (un état + des options), pas des styles
+// « Coach IA ». Les redéclarer sous un autre nom aurait dupliqué 20 lignes de CSS
+// pour un rendu identique.
+function closeCheminAdmin() { const p = $('#cheminPanel'); if (p) p.classList.add('hidden'); }
+async function openCheminAdmin() {
+  const panel = $('#cheminPanel'); if (!panel) return;
+  panel.classList.remove('hidden');
+  const body = $('#cheminBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const d = await (await fetch(apiUrl('/api/challenge/flag'), { headers: nutriAuthHeaders() })).json();
+    if (!d.ok) throw new Error();
+    renderCheminAdmin(d);
+  } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+function renderCheminAdmin(d) {
+  const body = $('#cheminBody'); if (!body) return;
+  const on = !!d.enabled;
+  const opt = (mode, titre, sous) =>
+    '<button type="button" class="cia-opt' + ((on ? 'on' : 'off') === mode ? ' sel' : '') + '" data-flag="' + mode + '">' +
+      '<div class="cia-opt-t">' + titre + '</div><div class="cia-opt-s">' + sous + '</div></button>';
+  body.innerHTML =
+    '<div class="cia-status">État du Chemin : ' + (on ? '<span class="cia-pill on">● Actif</span>' : '<span class="cia-pill off">● Inactif</span>') + '</div>' +
+    // Le client doit savoir ce qu'il déclenche : le drapeau est GLOBAL, pas par
+    // cohorte, malgré ce que laisse croire le nom « activation par cohorte ».
+    // ⚠️ Le texte tient dans UN seul <span> : `.cia-warn` est un conteneur flex, donc
+    // chaque <b> deviendrait un élément de la grille et la phrase s'afficherait en
+    // colonnes. C'est le piège dans lequel je suis tombé.
+    '<div class="cia-warn"><svg class="ic"><use href="#ic-eye"/></svg>' +
+      '<span>Ce réglage vaut pour <b>tous</b> tes clients nutrition à la fois. Chacun ne verra son chemin démarrer qu\'à sa <b>première pesée officielle</b> : avant, il lit « ton chemin démarrera à ta première pesée ».</span></div>' +
+    '<div class="cia-opts">' +
+      opt('on', 'Activé', 'L\'onglet « Chemin » apparaît : étapes, série 🔥, Punch 👊 et cadeaux.') +
+      opt('off', 'Désactivé', 'L\'onglet disparaît. Rien n\'est perdu : les Punch et les étapes déjà validés sont conservés.') +
+    '</div>' +
+    '<div id="cheminMsg" class="cia-msg"></div>';
+  body.querySelectorAll('.cia-opt').forEach((b) => b.addEventListener('click', () => saveCheminFlag(b.dataset.flag)));
+}
+async function saveCheminFlag(mode) {
+  const msg = $('#cheminMsg'); if (msg) msg.textContent = 'Enregistrement…';
+  try {
+    const r = await fetch(apiUrl('/api/challenge/flag'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ enabled: mode }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || '');
+    renderCheminAdmin(d);
+    updateCheminBadge(d);
+    showToast(d.enabled ? 'Chemin activé pour tes clients.' : 'Chemin désactivé.', { icon: d.enabled ? 'check' : 'info' });
+  } catch (e) {
+    const m = $('#cheminMsg'); if (m) m.textContent = 'Échec : ' + (e.message || 'réessaie.');
+  }
+}
+function updateCheminBadge(d) {
+  const b = $('#cheminStateBadge'); if (!b) return;
+  b.textContent = d && d.enabled ? 'Actif' : 'Inactif';
+  b.className = 'pr-badge cia-badge ' + (d && d.enabled ? 'on' : 'off');
+}
+async function refreshCheminBadge() {
+  if (!isMainAdmin || !isMainAdmin()) return;
+  try {
+    const d = await (await fetch(apiUrl('/api/challenge/flag'), { headers: nutriAuthHeaders() })).json();
+    if (d && d.ok) updateCheminBadge(d);
   } catch (_) { /* ignore */ }
 }
 
