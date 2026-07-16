@@ -8478,6 +8478,15 @@ function chInjectStyles() {
     .ch-group-n { background: var(--mc-cream-dark); color: var(--mc-text-muted); border-radius: 999px; padding: 1px 9px; font-size: 12px; font-weight: 600; }
     .ch-group-write { flex: 0 0 auto; background: var(--mc-gold-soft); color: #8a6d2a; border: 1px solid rgba(199,164,90,.35); border-radius: 10px; padding: 7px 13px; font: inherit; font-weight: 600; font-size: 12.5px; cursor: pointer; transition: background .15s var(--ease); }
     .ch-group-write:hover { background: rgba(199,164,90,.2); }
+    /* Code du challenge : ce que le coach donne à son groupe pour qu'il s'inscrive. */
+    .ch-group-code { flex: 0 0 auto; margin-left: auto; background: var(--mc-cream-dark); color: var(--mc-text); border: 1px solid rgba(199,164,90,.35); border-radius: 10px; padding: 6px 11px; font-size: 12.5px; cursor: pointer; user-select: all; white-space: nowrap; transition: background .15s var(--ease); }
+    .ch-group-code b { letter-spacing: 2px; font-size: 14px; }
+    .ch-group-code:hover { background: var(--mc-gold-soft); }
+    .ch-group-code.ch-code-copied { background: #DCEFD8; border-color: #8DB37F; }
+    .ch-group-code.ch-code-off { opacity: .6; cursor: default; }
+    .ch-group-code.ch-code-off:hover { background: var(--mc-cream-dark); }
+    .ch-code-regen { flex: 0 0 auto; background: none; border: 1px solid rgba(199,164,90,.35); color: var(--mc-text-muted); border-radius: 9px; width: 30px; height: 30px; font-size: 14px; cursor: pointer; line-height: 1; }
+    .ch-code-regen:hover { background: var(--mc-gold-soft); color: #8a6d2a; }
     /* Onglet Groupes : sélecteur de mur (chips) + fil */
     .grp-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 4px 18px; }
     .grp-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--mc-white); border: 1px solid var(--mc-border); border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 600; font-size: 13px; color: var(--mc-text); cursor: pointer; transition: border-color .15s var(--ease), background .15s var(--ease); }
@@ -9086,9 +9095,43 @@ function chCardHtml(c) {
   </button>`;
 }
 let _chHost = null, _chClients = [], _chUnread = {}, _chFilter = { ville: '', no: '' };
+// Codes des challenges : « ville#n° » -> { code, actif }. C'est LE code que le coach
+// donne à son groupe pour que les clients créent leur espace (auto-inscription).
+let _chCodes = {};
+function chCodeKey(ville, no) { return String(ville || '').trim().toLowerCase() + '#' + (Number(no) || 0); }
+// NB : on n'utilise PAS api() ici — elle préfixe toute route par /api/coach et
+// sérialise elle-même le body. Nos routes vivent sous /nutrition/api/coach/*.
+async function chNutriFetch(path, options) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const res = await fetch(path, { headers, ...(options || {}) });
+  return res.json();
+}
+async function chLoadCodes() {
+  try {
+    const d = await chNutriFetch('/nutrition/api/coach/access-codes');
+    if (!d || !d.ok) return;
+    const m = {};
+    (d.codes || []).forEach((c) => { m[chCodeKey(c.ville, c.challengeNo)] = { code: c.code, actif: c.actif }; });
+    _chCodes = m;
+  } catch (_) { /* pas de codes affichés, le reste de l'écran fonctionne */ }
+}
+// Régénère le code d'un groupe (fuite, changement de cohorte...). L'ancien cesse d'agir.
+async function chRegenCode(ville, no) {
+  if (!window.confirm('Régénérer le code de ' + ville + ' · Challenge n°' + no + ' ?\n\nL\'ancien code ne fonctionnera plus : les clients pas encore inscrits devront recevoir le nouveau.')) return;
+  try {
+    const d = await chNutriFetch('/nutrition/api/coach/access-codes', {
+      method: 'POST', body: JSON.stringify({ ville, challengeNo: Number(no), regenerate: true }),
+    });
+    if (d && d.ok) { await chLoadCodes(); chRenderList(); }
+    else alert((d && d.error) || 'Régénération impossible.');
+  } catch (_) { alert('Erreur réseau.'); }
+}
 function renderChallengeList(host, clients, unreadMap) {
   _chHost = host; _chClients = clients || []; _chUnread = unreadMap || {};
   chRenderList();
+  // Les codes arrivent en asynchrone : on re-rend dès qu'ils sont là.
+  chLoadCodes().then(() => { if (_chHost) chRenderList(); });
 }
 // Liste : filtres (ville + n° de challenge) + regroupement par n° de challenge,
 // tri par priorité DANS chaque groupe.
@@ -9131,7 +9174,20 @@ function chRenderList() {
       const g = groups[k];
       const title = k ? `📍 ${chEsc(g.ville)} · Challenge n°${g.no}` : 'Sans groupe (à ranger)';
       const writeBtn = k ? `<button type="button" class="ch-group-write" data-ville="${chEsc(g.ville)}" data-no="${g.no}">✍️ Écrire au groupe</button>` : '';
-      return `<div class="ch-group"><div class="ch-group-h"><span class="ch-group-t">${title} <span class="ch-group-n">${g.clients.length}</span></span>${writeBtn}</div><div class="ch-list">${g.clients.map(chCardHtml).join('')}</div></div>`;
+      // Code du challenge : c'est avec lui que les clients de CE groupe créent leur
+      // espace. Le coach le lit ici et le donne à l'oral. Clic = copie.
+      let codeHtml = '';
+      if (k) {
+        const cc = _chCodes[chCodeKey(g.ville, g.no)];
+        if (cc && cc.code) {
+          codeHtml = `<span class="ch-group-code${cc.actif ? '' : ' ch-code-off'}" data-code="${chEsc(cc.code)}" title="Clic pour copier — donne ce code à ton groupe">🔑 <b>${chEsc(cc.code)}</b>${cc.actif ? '' : ' <i>désactivé</i>'}</span>`
+            + `<button type="button" class="ch-code-regen" data-ville="${chEsc(g.ville)}" data-no="${g.no}" title="Régénérer le code">↻</button>`;
+        } else {
+          codeHtml = `<span class="ch-group-code ch-code-off" title="Ce groupe n'a pas encore de code : personne ne peut le rejoindre">🔑 <i>aucun code</i></span>`
+            + `<button type="button" class="ch-code-regen" data-ville="${chEsc(g.ville)}" data-no="${g.no}" title="Générer un code">↻</button>`;
+        }
+      }
+      return `<div class="ch-group"><div class="ch-group-h"><span class="ch-group-t">${title} <span class="ch-group-n">${g.clients.length}</span></span>${codeHtml}${writeBtn}</div><div class="ch-list">${g.clients.map(chCardHtml).join('')}</div></div>`;
     }).join('')
     : '<div class="ch-empty"><p>Aucun client pour ce filtre.</p></div>';
   const opt = (val, label, sel) => `<option value="${chEsc(String(val))}"${String(sel) === String(val) ? ' selected' : ''}>${chEsc(label)}</option>`;
@@ -9151,6 +9207,13 @@ function chRenderList() {
   const fv = host.querySelector('#ch-f-ville'); if (fv) fv.addEventListener('change', () => { _chFilter.ville = fv.value; chRenderList(); });
   const fn = host.querySelector('#ch-f-no'); if (fn) fn.addEventListener('change', () => { _chFilter.no = fn.value; chRenderList(); });
   host.querySelectorAll('.ch-group-write').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openGroupComposer(b.dataset.ville, Number(b.dataset.no)); }));
+  // Clic sur le code : copie dans le presse-papier (le coach le dicte ou le colle).
+  host.querySelectorAll('.ch-group-code[data-code]').forEach((s) => s.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const c = s.dataset.code || '';
+    try { navigator.clipboard.writeText(c); s.classList.add('ch-code-copied'); setTimeout(() => s.classList.remove('ch-code-copied'), 1200); } catch (_) { /* pas de presse-papier : il le lit */ }
+  }));
+  host.querySelectorAll('.ch-code-regen').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); chRegenCode(b.dataset.ville, Number(b.dataset.no)); }));
 }
 
 // Modale « Écrire au groupe » : le coach publie dans le canal Communauté d'UN groupe
