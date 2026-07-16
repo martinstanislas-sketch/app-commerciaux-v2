@@ -2944,3 +2944,146 @@ body.is-demo #navRestart { display: none !important; }
 /* 16:9 responsive : l'iframe suit la largeur, sans jamais déborder. */
 .vid-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
 .vid-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+/* ============================================================
+   BOUTIQUE DES CADEAUX + BONS + BADGES DE THÈME
+   Ce que le Punch finit par offrir. On ne dépense rien ici :
+   on constate ce qui est ATTEINT, donc aucun état « acheté ».
+   ============================================================ */
+
+/* Vue « Boutique » : masquée par défaut, affichée seulement sur son onglet. */
+#view-boutique { display: none; max-width: 760px; margin: 0 auto; padding-bottom: 124px; }
+#screen-result[data-tab="boutique"] #view-boutique { display: block; }
+#screen-result[data-tab="boutique"] #view-plan,
+#screen-result[data-tab="boutique"] #view-profil,
+#screen-result[data-tab="boutique"] #view-communaute,
+#screen-result[data-tab="boutique"] #view-ebooks,
+#screen-result[data-tab="boutique"] #view-parcours { display: none; }
+
+.btq-head { margin: 4px 0 18px; }
+.btq-title { margin: 0; font-size: 26px; color: var(--text-c); }
+.btq-sub { margin: 6px 0 0; font-size: 14px; color: var(--text-muted-c); }
+.btq-punch { margin-top: 14px; font: 800 20px/1 var(--font); color: var(--text-c); }
+.btq-next { margin-top: 12px; }
+.btq-next-txt { font-size: 13px; color: var(--text-muted-c); margin-bottom: 6px; }
+.btq-next-txt b { color: var(--text-c); }
+.btq-bar { height: 8px; border-radius: 99px; background: var(--track); overflow: hidden; }
+.btq-bar span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--blue-c), var(--mc-gold)); transition: width .4s ease; }
+.btq-max { margin: 12px 0 0; font: 700 14px/1.4 var(--font); color: var(--mc-gold); }
+
+.btq-grid { display: flex; flex-direction: column; gap: 10px; }
+.btq-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; text-align: left; background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius-card); box-shadow: var(--shadow-card); cursor: pointer; transition: transform .12s ease, border-color .12s ease; }
+.btq-card:hover { transform: translateY(-1px); border-color: var(--border-strong); }
+/* Verrouillé : lisible, mais visiblement pas encore à soi (jamais illisible : c'est
+   ce qu'on vise, il doit donner envie). */
+.btq-card.locked { opacity: .72; }
+.btq-card.locked .btq-ic { filter: grayscale(1); }
+.btq-ic { flex: none; width: 46px; height: 46px; display: grid; place-items: center; font-size: 26px; background: var(--surface-soft); border-radius: 14px; }
+.btq-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.btq-nom { font: 700 15px/1.3 var(--font); color: var(--text-c); }
+.btq-desc { font-size: 12.5px; line-height: 1.35; color: var(--text-muted-c); }
+.btq-seuil { margin-top: 2px; font: 700 11px/1 var(--font); letter-spacing: .04em; text-transform: uppercase; color: var(--text-soft); }
+.btq-right { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.btq-etat { font: 700 11.5px/1 var(--font); padding: 5px 9px; border-radius: 99px; white-space: nowrap; }
+.btq-etat.is-lock { color: var(--sand-on-soft); background: var(--sand-soft); }
+.btq-etat.is-ok { color: var(--sage-on-soft); background: var(--sage-soft); }
+.btq-act { font: 700 11.5px/1 var(--font); color: var(--blue-c); white-space: nowrap; }
+.btq-act.is-done { color: var(--text-soft); }
+.btq-foot { margin: 18px 2px 0; font-size: 12.5px; color: var(--text-soft); text-align: center; }
+
+/* Le rappel du prochain cadeau, sur le Chemin. */
+.mcpath-gifts { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 12px; padding: 10px 12px; background: var(--surface-soft); border: 1px solid var(--border-c); border-radius: 12px; font: 500 13px/1.3 var(--font); color: var(--text-muted-c); cursor: pointer; text-align: left; }
+.mcpath-gifts span:first-of-type { flex: 1; min-width: 0; }
+.mcpath-gifts b { color: var(--text-c); }
+.mcpath-gifts-go { flex: none; font-weight: 800; color: var(--blue-c); }
+
+/* --- Le bon : plein écran, présenté au comptoir --------------------------- */
+.bon-ov { position: fixed; inset: 0; z-index: 90; display: none; place-items: center; padding: 20px; background: rgba(20, 22, 28, .72); backdrop-filter: blur(3px); }
+.bon-ov.open { display: grid; }
+.bon-card { position: relative; width: 100%; max-width: 340px; padding: 26px 20px 20px; text-align: center; background: var(--surface); border-radius: 22px; box-shadow: 0 18px 50px rgba(0, 0, 0, .3); animation: bonIn .22s ease; }
+@keyframes bonIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+.bon-x { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border: none; border-radius: 50%; background: var(--surface-soft); color: var(--text-muted-c); font-size: 14px; cursor: pointer; }
+.bon-ic { font-size: 40px; }
+.bon-cadeau { margin-top: 6px; font: 800 19px/1.25 var(--font); color: var(--text-c); }
+.bon-qui { margin-top: 8px; font: 700 14px/1 var(--font); color: var(--text-c); }
+.bon-date { margin-top: 2px; font-size: 12px; color: var(--text-soft); }
+.bon-qr { margin: 16px auto 10px; width: 220px; height: 220px; display: grid; place-items: center; background: #fff; border: 1px solid var(--border-c); border-radius: 14px; }
+.bon-qr svg { width: 100%; height: 100%; display: block; }
+.bon-qr-ko { font-size: 12px; color: var(--text-soft); padding: 0 12px; }
+/* Le code EST le justificatif : c'est le plus gros élément après le cadeau, et il se
+   sélectionne (un coach peut vouloir le copier). */
+.bon-code { font: 800 22px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; color: var(--text-c); user-select: all; }
+.bon-statut { display: inline-block; margin-top: 10px; padding: 5px 12px; border-radius: 99px; font: 700 12px/1 var(--font); color: var(--sage-on-soft); background: var(--sage-soft); }
+.bon-statut.is-done { color: var(--text-soft); background: var(--gray-100); }
+.bon-mention { margin: 12px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--text-muted-c); }
+/* Bon déjà retiré : le QR et le code s'effacent -> plus rien à présenter. */
+.bon-card.is-done .bon-qr, .bon-card.is-done .bon-code { opacity: .38; }
+
+/* --- Coach : validation d'un bon ----------------------------------------- */
+.cb-code-in { text-transform: uppercase; letter-spacing: .06em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; }
+.cb-res { margin-top: 12px; }
+.cb-bon { padding: 16px; text-align: center; background: var(--surface-soft); border: 1px solid var(--border-c); border-radius: 14px; }
+.cb-bon.is-done { opacity: .75; }
+.cb-b-ic { font-size: 30px; }
+.cb-b-cadeau { margin-top: 4px; font: 800 16px/1.3 var(--font); color: var(--text-c); }
+.cb-b-qui { margin-top: 2px; font-size: 13px; color: var(--text-muted-c); }
+.cb-b-code { margin-top: 8px; font: 800 16px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; color: var(--text-c); }
+.cb-ok { margin-top: 12px; }
+.cb-b-done { margin: 10px 0 0; font: 700 13px/1.4 var(--font); color: var(--sage-on-soft); }
+
+/* --- Badge de thème dans le fil (visible de TOUT le groupe) --------------- */
+/* Purement décoratif : aucun pointeur, aucune action — il se regarde. */
+.feed-tier { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 10px; line-height: 1; flex: none; }
+.feed-tier.is-gold { background: linear-gradient(135deg, #F5D782, #B6892E); box-shadow: 0 0 0 1.5px rgba(182, 137, 46, .35); }
+.feed-tier.is-dark { background: linear-gradient(135deg, #4B5163, #23262F); box-shadow: 0 0 0 1.5px rgba(35, 38, 47, .28); }
+
+/* ============================================================
+   SKINS DÉBLOCABLES (cadeaux digitaux) — 450 Punch = sombre, 1350 = doré.
+   Tout le design system passe par les tokens : un skin ne redéfinit QUE les
+   primitives (surfaces, textes, accent), et le reste suit tout seul. Aucun
+   composant n'est touché — c'est ce qui rend ces thèmes tenables.
+   ⚠️ `html` porte un fond et un color-scheme en dur (anti-dark-mode auto des
+   navigateurs) : sans les reprendre ici, le fond resterait clair sous le skin.
+   ============================================================ */
+html[data-skin="dark"], html[data-skin="gold"] { background: #14161C; color-scheme: only dark; }
+:root[data-skin="dark"], :root[data-skin="gold"] {
+  color-scheme: only dark;
+  /* Surfaces */
+  --app-bg: #14161C; --surface: #1C1F27; --surface-soft: #22262F;
+  --border-c: #2C313C; --border-strong: #3A404E; --track: #2C313C;
+  /* Texte */
+  --text-c: #F2F3F5; --text-muted-c: #A8ADB8; --text-soft: #767C89;
+  --ink-2: #C9CDD6;
+  --gray-100: #262A34;
+  /* Ombres : sur fond sombre, une ombre claire ne se voit pas -> on assombrit. */
+  --shadow-card: 0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.35);
+  --shadow: 0 4px 16px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.3);
+  --shadow-md: 0 14px 34px rgba(0,0,0,.5), 0 5px 12px rgba(0,0,0,.35);
+}
+/* Sombre : l'accent bleu reste, éclairci pour tenir le contraste sur fond foncé. */
+:root[data-skin="dark"] {
+  --blue-c: #5B8DEF; --blue-hover: #7BA5F5; --blue-soft: #22304A; --blue-on-soft: #A8C4FA;
+  --mc-blue: #5B8DEF; --mc-blue-dark: #7BA5F5; --mc-blue-secondary: #7BA5F5;
+  --green-100: #2E4266; --sage-soft: #23301F; --sage-on-soft: #A6C48D;
+  --sand-soft: #2E2820; --sand-on-soft: #C9B896;
+  --shadow-green: 0 6px 16px rgba(91,141,239,.28);
+  --ring-blue: 0 0 0 3px rgba(91,141,239,.34);
+}
+/* Doré : le skin le plus rare de l'app -> l'accent lui-même devient or. */
+:root[data-skin="gold"] {
+  --blue-c: #D8AE55; --blue-hover: #EBC470; --blue-soft: #3A2F18; --blue-on-soft: #F0D492;
+  --mc-blue: #D8AE55; --mc-blue-dark: #EBC470; --mc-blue-secondary: #EBC470;
+  --mc-gold: #EBC470;
+  --green-100: #4D3D1C; --sage-soft: #23301F; --sage-on-soft: #A6C48D;
+  --sand-soft: #3A2F18; --sand-on-soft: #E4CB93;
+  --grad-blue: linear-gradient(135deg, #D8AE55 0%, #B6892E 100%);
+  --shadow-green: 0 6px 16px rgba(216,174,85,.3);
+  --ring-blue: 0 0 0 3px rgba(216,174,85,.34);
+  --app-bg: #16130C; --surface: #1F1B12; --surface-soft: #262117; --border-c: #332C1E; --border-strong: #453B28;
+}
+html[data-skin="gold"] { background: #16130C; }
+/* La barre de nav porte un blanc en dur (le flou translucide ne peut pas passer par
+   un token) : sans ça, elle resterait une bande blanche sous un skin sombre. */
+:root[data-skin="dark"] .bottom-nav { background: rgba(28, 31, 39, .92); }
+:root[data-skin="gold"] .bottom-nav { background: rgba(31, 27, 18, .92); }

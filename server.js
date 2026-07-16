@@ -647,6 +647,7 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 // Chemin du challenge : moteur gamifié 42 jours (module dédié, testable).
 const {
   ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds,
+  assurerCadeaux, bonsDe, bonParCode, retirerBon, themeClient, choisirTheme,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
 // Bilan hebdo : seuils + rédaction par modèles (pur, testable). L'IA est chargée
 // à la demande, pour ne pas dépendre du SDK Anthropic quand elle n'est pas utilisée.
@@ -655,6 +656,8 @@ const bilanHebdo = require('./nutrition-app/lib/bilanHebdo');
 const punchSeuils = require('./nutrition-app/lib/punchSeuils');
 // Répartition des ebooks (intro / Chemin / paliers de Punch), validée par id.
 const ebooksSources = require('./nutrition-app/lib/ebooksSources');
+// Cadeaux : ce qu'est chaque cadeau (nom, digital/physique) + le thème selon le Punch.
+const cadeaux = require('./nutrition-app/lib/cadeaux');
 function nutritionAiBilan() { return require('./nutrition-app/lib/aiGenerator'); }
 
 try {
@@ -1009,6 +1012,93 @@ try {
     catch (e) { res.status(500).json({ ok: false }); }
   });
 
+  // ============ CADEAUX (boutique débloquée par le Punch cumulé) ============
+  // Même règle que les vidéos et les ebooks : le verrou se lit sur le TOTAL de
+  // Punch, jamais sur user_unlocks (qui ne dit que ce qui a été célébré). Cumul
+  // pur : rien n'est débité, donc un cadeau atteint est un cadeau gardé.
+  function punchDuClient(email) {
+    try { return (getDb().prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email) || {}).punch || 0; }
+    catch (_) { return 0; }
+  }
+  // CLIENT : la boutique. La lecture RATTRAPE ce qui est dû (bons, thème) : c'est ce
+  // qui garantit qu'un compte déjà chargé en Punch — migré depuis XP+gems — voit ses
+  // cadeaux sans attendre son prochain gain.
+  app.get('/nutrition/api/gifts', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      assurerCadeaux(email);
+      const punch = punchDuClient(email);
+      const bons = bonsDe(email);
+      const cadeauxListe = cadeaux.catalogue().map((c) => {
+        const locked = punch < c.seuil;
+        return {
+          id: c.id, label: c.label, desc: c.desc, icon: c.icon, nature: c.nature, seuil: c.seuil,
+          locked, restant: locked ? c.seuil - punch : 0,
+          // Le bon n'est jamais exposé tant que le cadeau est verrouillé : un code qui
+          // fuite avant l'heure, c'est un cadeau retiré sans avoir été mérité.
+          bon: (!locked && bons[c.id]) ? bons[c.id] : null,
+        };
+      });
+      const prochain = cadeauxListe.find((c) => c.locked) || null;
+      res.json({
+        ok: true, punch, theme: themeClient(email), tier: cadeaux.themeTier(punch),
+        cadeaux: cadeauxListe,
+        prochain: prochain ? { label: prochain.label, restant: prochain.restant, seuil: prochain.seuil } : null,
+      });
+    } catch (e) { console.error('gifts GET:', e); res.status(500).json({ ok: false }); }
+  });
+  // CLIENT : appliquer un thème débloqué ('' = revenir au thème d'origine).
+  app.post('/nutrition/api/gifts/theme', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      const r = choisirTheme(email, String((req.body || {}).theme || ''));
+      if (!r.ok) return res.status(403).json({ ok: false, error: 'Ce thème n\'est pas encore débloqué.' });
+      res.json({ ok: true, theme: r.theme });
+    } catch (e) { console.error('gifts theme:', e); res.status(500).json({ ok: false }); }
+  });
+
+  // COACH : lire un bon présenté au studio, puis le retirer.
+  // Pas de cloisonnement au portefeuille du coach ici, à la différence des autres
+  // routes coach : au comptoir, c'est le CODE qui fait foi et le client est devant
+  // le coach — un remplaçant doit pouvoir valider. On journalise qui a validé.
+  function bonPourCoach(bon) {
+    if (!bon) return null;
+    const c = cadeaux.cadeau(bon.cadeau);
+    // Le coach doit lire un PRÉNOM : c'est ce qu'il a devant lui au comptoir, et le
+    // seul moyen de vérifier que le bon appartient bien à la personne qui le tend.
+    // Repli sur l'email si le nom manque — jamais rien.
+    let client = bon.client_email;
+    try {
+      const r = getDb().prepare('SELECT prenom, nom FROM nutrition_clients WHERE email=?').get(bon.client_email);
+      const nom = [r && r.prenom, r && r.nom].filter(Boolean).join(' ').trim();
+      if (nom) client = nom;
+    } catch (_) { /* colonnes absentes -> l'email fait l'affaire */ }
+    return {
+      code: bon.code, client, email: bon.client_email,
+      cadeau: (c && c.label) || bon.cadeau, icon: (c && c.icon) || '🎁',
+      statut: bon.statut, date: bon.created_at, retireLe: bon.retire_at || '', retirePar: bon.retire_par || '',
+    };
+  }
+  app.get('/nutrition/api/coach/gifts/:code', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const bon = bonParCode(req.params.code);
+      if (!bon) return res.status(404).json({ ok: false, error: 'Code inconnu.' });
+      res.json({ ok: true, bon: bonPourCoach(bon) });
+    } catch (e) { res.status(500).json({ ok: false }); }
+  });
+  app.post('/nutrition/api/coach/gifts/:code/retirer', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const par = (req.session && (req.session.name || req.session.email)) || 'coach';
+      const r = retirerBon(req.params.code, par);
+      if (r.ok) return res.json({ ok: true, bon: bonPourCoach(r.bon) });
+      if (r.erreur === 'deja') return res.status(409).json({ ok: false, error: 'Ce bon a déjà été retiré.', bon: bonPourCoach(r.bon) });
+      if (r.erreur === 'inconnu') return res.status(404).json({ ok: false, error: 'Code inconnu.' });
+      res.status(500).json({ ok: false, error: 'Validation impossible.' });
+    } catch (e) { console.error('gift retirer:', e); res.status(500).json({ ok: false }); }
+  });
+
   // Coach IA : on charge le module IA (même instance que celle utilisée par la route
   // /nutrition/api/coach montée plus bas) pour pouvoir piloter son activation depuis
   // l'app. Au boot, on applique le réglage admin persisté (app_settings).
@@ -1146,6 +1236,22 @@ try {
       db.prepare("SELECT email, avatar_key FROM nutrition_clients WHERE email IN (" + ph + ") AND avatar <> '' AND avatar_key <> ''").all(...uniq)
         .forEach((r) => { map[r.email] = '/nutrition/api/community/avatar/' + r.avatar_key; });
     } catch (_) { /* colonnes absentes -> pas d'avatars */ }
+    return map;
+  }
+  // Thème de chacun, pour le badge affiché à côté du nom dans le fil. Il se DÉDUIT
+  // du Punch (jamais d'une colonne à tenir à jour) : le badge ne peut donc pas
+  // mentir sur ce que la personne a réellement atteint. Doré > sombre.
+  // Une seule requête pour tout le fil, comme les avatars : un SELECT par post
+  // serait 50 requêtes à chaque rafraîchissement.
+  function themeTiersByEmail(db, emails) {
+    const uniq = [...new Set((emails || []).filter(Boolean))];
+    const map = {};
+    if (!uniq.length) return map;
+    try {
+      const ph = uniq.map(() => '?').join(',');
+      db.prepare('SELECT client_email, punch FROM user_game_stats WHERE client_email IN (' + ph + ')').all(...uniq)
+        .forEach((r) => { const t = cadeaux.themeTier(r.punch); if (t) map[r.client_email] = t; });
+    } catch (_) { /* table absente -> aucun badge, le fil reste lisible */ }
     return map;
   }
   function communityWallPayload(meEmail, limit, viewerGroup) {
@@ -1533,10 +1639,12 @@ try {
         db.prepare('SELECT message_id, type, email FROM nutrition_community_reactions WHERE message_id IN (' + ph + ')').all(...postIds)
           .forEach((x) => { const e = postReac[x.message_id] || (postReac[x.message_id] = { counts: {}, mine: null }); e.counts[x.type] = (e.counts[x.type] || 0) + 1; if (me && x.email === me) e.mine = x.type; });
       }
-      const avm = avatarUrlsByEmail(db, [...evs.map((e) => e.actor_email), ...posts.map((p) => p.email)]);
+      const emails = [...evs.map((e) => e.actor_email), ...posts.map((p) => p.email)];
+      const avm = avatarUrlsByEmail(db, emails);
+      const tiers = themeTiersByEmail(db, emails); // badge de thème : visible de TOUT le groupe
       const items = [];
-      for (const e of evs) items.push({ id: 'e' + e.id, kind: 'event', subkind: e.type, who: e.actor_name || 'Le groupe', avatarUrl: avm[e.actor_email] || '', emoji: e.emoji || '', text: e.text, when: e.created_at, reactions: (evReac[e.id] && evReac[e.id].counts) || {}, myReaction: (evReac[e.id] && evReac[e.id].mine) || null, mine: false });
-      for (const p of posts) items.push({ id: 'p' + p.id, kind: 'post', subkind: p.kind, who: p.author || 'Un membre', avatarUrl: avm[p.email] || '', emoji: p.kind === 'partage' ? '✅' : (p.kind === 'coach' ? '📣' : '💬'), text: p.message, when: p.created_at, reactions: (postReac[p.id] && postReac[p.id].counts) || {}, myReaction: (postReac[p.id] && postReac[p.id].mine) || null, mine: !!me && p.email === me, photoId: p.has_photo ? p.id : null });
+      for (const e of evs) items.push({ id: 'e' + e.id, kind: 'event', subkind: e.type, who: e.actor_name || 'Le groupe', avatarUrl: avm[e.actor_email] || '', tier: tiers[e.actor_email] || '', emoji: e.emoji || '', text: e.text, when: e.created_at, reactions: (evReac[e.id] && evReac[e.id].counts) || {}, myReaction: (evReac[e.id] && evReac[e.id].mine) || null, mine: false });
+      for (const p of posts) items.push({ id: 'p' + p.id, kind: 'post', subkind: p.kind, who: p.author || 'Un membre', avatarUrl: avm[p.email] || '', tier: tiers[p.email] || '', emoji: p.kind === 'partage' ? '✅' : (p.kind === 'coach' ? '📣' : '💬'), text: p.message, when: p.created_at, reactions: (postReac[p.id] && postReac[p.id].counts) || {}, myReaction: (postReac[p.id] && postReac[p.id].mine) || null, mine: !!me && p.email === me, photoId: p.has_photo ? p.id : null });
       items.sort((a, b) => String(b.when || '').localeCompare(String(a.when || '')));
       const out = items.slice(0, limit);
       // Nombre de commentaires par élément (badge sur la carte).

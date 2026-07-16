@@ -3129,6 +3129,7 @@ function init() {
   const _coachWall = $('#coachOpenWall'); if (_coachWall) _coachWall.addEventListener('click', openCoachWall);
   const _coachAdd = $('#coachAddClient'); if (_coachAdd) _coachAdd.addEventListener('click', openCoachAddClient);
   const _coachCodes = $('#coachCodes'); if (_coachCodes) _coachCodes.addEventListener('click', openCoachCodes);
+  const _coachBons = $('#coachBons'); if (_coachBons) _coachBons.addEventListener('click', openCoachBons);
   const _coachBack = $('#coachBack'); if (_coachBack) _coachBack.addEventListener('click', () => { location.href = '/coach/'; });
   const _coachLogout = $('#coachLogout'); if (_coachLogout) _coachLogout.addEventListener('click', logoutClient);
 
@@ -3166,6 +3167,7 @@ function init() {
   const _pushClose = $('#pushPrefsClose'); if (_pushClose) _pushClose.addEventListener('click', closePushPrefs);
   const _pushPanel = $('#pushPrefsPanel'); if (_pushPanel) _pushPanel.addEventListener('click', (e) => { if (e.target.id === 'pushPrefsPanel') closePushPrefs(); });
   const _bEbooks = $('#btnEbooks'); if (_bEbooks) _bEbooks.addEventListener('click', openEbooks);
+  const _bBoutique = $('#btnBoutique'); if (_bBoutique) _bBoutique.addEventListener('click', () => setTab('boutique'));
   const _ebkClose = $('#ebooksClose'); if (_ebkClose) _ebkClose.addEventListener('click', closeEbooks);
   const _ebkRClose = $('#ebookReaderClose'); if (_ebkRClose) _ebkRClose.addEventListener('click', closeEbookReader);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeEbookReader(); });
@@ -3956,6 +3958,18 @@ async function postComment(id, text) {
     } else { showToast((d && d.error) || 'Commentaire impossible.', { icon: 'info' }); }
   } catch (_) { showToast('Connexion requise pour commenter.', { icon: 'info' }); }
 }
+// Badge de thème, à côté du nom dans le fil : la seule récompense que le GROUPE
+// voit. Purement décoratif (un <span>, rien de cliquable) : il se regarde, il ne
+// fait rien. Doré > sombre, aucun badge si rien n'est débloqué — le serveur a déjà
+// tranché (il déduit le palier du Punch), le front ne fait que l'afficher.
+const THEME_TAG = {
+  gold: { cls: 'is-gold', txt: 'Doré', ic: '✨' },
+  dark: { cls: 'is-dark', txt: 'Sombre', ic: '🌙' },
+};
+function themeTag(tier) {
+  const t = THEME_TAG[tier]; if (!t) return '';
+  return '<span class="feed-tier ' + t.cls + '" aria-label="Thème ' + t.txt + ' débloqué">' + t.ic + '</span>';
+}
 function feedCard(item) {
   // Texte épuré : on évite de répéter le prénom déjà affiché en gras (« Paul » + « Paul a validé… »).
   let txt = item.text || '';
@@ -3967,10 +3981,11 @@ function feedCard(item) {
   const isCoachPost = item.kind === 'post' && item.subkind === 'coach';
   const badge = (item.emoji && who !== 'Le groupe') ? '<span class="feed-av-badge">' + item.emoji + '</span>' : '';
   const coachTag = isCoachPost ? '<span class="feed-coach-tag">' + icSvg('spark') + ' Coach</span>' : '';
+  const tierTag = themeTag(item.tier); // thème débloqué : visible de tout le groupe
   return '<article class="feed-card' + (item.kind === 'post' ? ' is-post' : '') + (isCoachPost ? ' is-coach-post' : '') + '" data-k="' + escapeHtml(item.subkind || (item.kind === 'post' ? 'post' : '')) + '">' +
     '<div class="feed-av-wrap">' + feedAvatar(item) + badge + '</div>' +
     '<div class="feed-body">' +
-      '<div class="feed-meta"><b class="feed-who">' + escapeHtml(who) + '</b>' + coachTag +
+      '<div class="feed-meta"><b class="feed-who">' + escapeHtml(who) + '</b>' + tierTag + coachTag +
         '<span class="feed-when">' + escapeHtml(commTimeAgo(item.when)) + '</span></div>' +
       (txt ? '<p class="feed-text">' + escapeHtml(txt) + '</p>' : '') +
       // Pas de loading="lazy" : c'est chargerPhotoPost qui va chercher l'image (fetch
@@ -4125,11 +4140,6 @@ const DEBLOCAGE_VISUEL = {
   ebook: { icon: '📗', titre: 'Nouveaux guides débloqués 🎉' },
   gift: { icon: '🎁', titre: 'Cadeau débloqué 🎉' },
 };
-const CADEAU_LABEL = {
-  theme_dark: 'Thème sombre', ami_semaine: 'Une semaine offerte à un ami',
-  coaching_1to1: 'Un coaching individuel', theme_gold: 'Thème doré',
-  remise_abo: 'Une remise sur ton abonnement', massage: 'Un massage',
-};
 // Célèbre les déblocages tombés (souvent aucun, parfois plusieurs d'un coup).
 function celebrerDeblocages(cles, etat) {
   (cles || []).forEach((cle) => {
@@ -4140,8 +4150,9 @@ function celebrerDeblocages(cles, etat) {
 }
 function sousTitreDeblocage(type, seuil, etat) {
   if (type === 'gift') {
+    // Le nom vient du serveur (lib/cadeaux) : un seul endroit nomme les cadeaux.
     const g = (etat && etat.cadeaux && etat.cadeaux[seuil]) || null;
-    return g ? (CADEAU_LABEL[g] || g) : 'Atteint à ' + seuil + ' Punch.';
+    return (g && g.label) ? g.label : 'Atteint à ' + seuil + ' Punch.';
   }
   return 'Atteint à ' + seuil + ' Punch.';
 }
@@ -4154,6 +4165,9 @@ function appliquerEtatChallenge(st) {
   const avant = new Set(((state.challenge && state.challenge.unlocks) || []));
   const apres = st.unlocks || [];
   state.challenge = st;
+  // Le skin voyage avec le compte : c'est ici qu'il s'applique, au premier état reçu
+  // comme après un déblocage — sans attendre que le client ouvre la boutique.
+  appliquerSkin(st.theme);
   if (avant.size || (state.challenge && state.challenge.unlocks)) {
     celebrerDeblocages(apres.filter((c) => !avant.has(c)), st);
   }
@@ -4698,7 +4712,21 @@ function challengeHeaderHTML(st) {
     <div class="mcpath-stats">${stat('streak', '🔥', s.streak || 0, 'Série')}${stat('punch', '👊', s.punch || 0, 'Punch')}</div>
     <div class="mcpath-progress"><div class="mcpath-progress-bar" style="width:${Math.round(doneCount / (st.totalDays || 42) * 100)}%"></div></div>
     <div class="mcpath-progress-lbl">${doneCount}/${st.totalDays || 42} étapes · Jour ${st.day}</div>
+    ${cadeauTeaserHTML(st)}
   </div>`;
+}
+// Le rappel du prochain cadeau, sur le Chemin : c'est LÀ que le Punch se gagne, donc
+// là qu'il faut rappeler à quoi il sert. Sans ça, la boutique reste un écran que
+// personne n'ouvre.
+function cadeauTeaserHTML(st) {
+  const punch = (st.stats && st.stats.punch) || 0;
+  const seuils = Object.keys(st.cadeaux || {}).map(Number).sort((a, b) => a - b);
+  const prochain = seuils.find((x) => x > punch);
+  const c = prochain ? st.cadeaux[prochain] : null;
+  const txt = prochain
+    ? 'Plus que <b>' + (prochain - punch) + ' Punch</b> avant ' + mcpEsc(((c && c.label) || 'ton cadeau').toLowerCase())
+    : 'Tous tes cadeaux sont débloqués 👑';
+  return '<button type="button" class="mcpath-gifts" id="mcpathGifts">🎁 <span>' + txt + '</span><span class="mcpath-gifts-go">Voir</span></button>';
 }
 
 function challengePathHTML(st) {
@@ -4730,6 +4758,7 @@ function challengeNodeHTML(n, side) {
 function wireChallengePath() {
   $$('#view-parcours .mcpath-dot[data-node]').forEach((b) => b.addEventListener('click', () => openChallengeNode(Number(b.dataset.node))));
   $$('#view-parcours .mcpath-stat[data-stat]').forEach((b) => b.addEventListener('click', () => openStatInfo(b.dataset.stat)));
+  const _g = $('#mcpathGifts'); if (_g) _g.addEventListener('click', () => setTab('boutique'));
 }
 
 // Le client arrive PILE sur son étape du jour, sans scroller — au jour 30 elle
@@ -5788,6 +5817,74 @@ async function submitCoachAddClient() {
 //  clients : le coach doit pouvoir le lire à tout moment pour le leur donner.
 //  Il peut aussi le régénérer (fuite) ou créer le code d'un nouveau groupe.
 // ============================================================================
+// --- COACH : valider un bon cadeau présenté au comptoir ---------------------
+// Validation par CODE, pas par scan : le lecteur de l'app vise les codes-barres
+// alimentaires (EAN), et un vrai scanner QR ici demanderait la caméra pour gagner
+// trois secondes sur un code de 8 caractères. Le QR du bon reste donc visuel — dis-le
+// si tu veux un vrai scan, c'est une brique en plus, pas une reprise de celle-ci.
+function openCoachBons() { const el = ensureCoachBonsSheet(); el.classList.add('open'); el.querySelector('#cbCode').focus(); }
+function ensureCoachBonsSheet() {
+  let el = $('#coachBonsSheet'); if (el) return el;
+  el = document.createElement('div');
+  el.id = 'coachBonsSheet';
+  el.className = 'mcpath-sheet';
+  el.innerHTML = `<div class="mcpath-sheet-backdrop"></div><div class="mcpath-sheet-card">
+    <div class="mcpath-sheet-grip"></div>
+    <h3 class="mcpath-sheet-title">Valider un bon cadeau</h3>
+    <p class="mcpath-sheet-sub">Saisis le code affiché sur le bon de ton client (format MC-XXXX-XXXX). Un bon ne peut être retiré qu'une seule fois.</p>
+    <input id="cbCode" type="text" placeholder="MC-XXXX-XXXX" class="cad-in cb-code-in" autocapitalize="characters" autocomplete="off" />
+    <button type="button" class="mcpath-sheet-btn" id="cbFind">Chercher ce bon</button>
+    <div id="cbRes" class="cb-res"></div>
+    <button type="button" class="mcpath-sheet-close" id="cbClose">Fermer</button>
+  </div>`;
+  document.body.appendChild(el);
+  el.querySelector('.mcpath-sheet-backdrop').addEventListener('click', () => el.classList.remove('open'));
+  el.querySelector('#cbClose').addEventListener('click', () => el.classList.remove('open'));
+  el.querySelector('#cbFind').addEventListener('click', chercherBonCoach);
+  el.querySelector('#cbCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') chercherBonCoach(); });
+  return el;
+}
+async function chercherBonCoach() {
+  const res = $('#cbRes'); const code = ($('#cbCode').value || '').trim().toUpperCase();
+  if (!code) { res.innerHTML = '<p class="cad-err">Saisis un code.</p>'; return; }
+  res.innerHTML = '<p class="panel-sub">Recherche…</p>';
+  try {
+    const r = await fetch(apiUrl('/api/coach/gifts/' + encodeURIComponent(code)), { headers: nutriAuthHeaders() });
+    const d = await r.json();
+    if (!d.ok) { res.innerHTML = '<p class="cad-err">' + mcpEsc(d.error || 'Code inconnu.') + '</p>'; return; }
+    renderBonCoach(d.bon);
+  } catch (_) { res.innerHTML = '<p class="cad-err">Erreur réseau.</p>'; }
+}
+// La fiche du bon : QUI, QUOI, et l'état. Un bon déjà retiré n'offre plus de bouton
+// — le coach ne doit pas avoir à lire une ligne de statut pour comprendre.
+function renderBonCoach(bon) {
+  const res = $('#cbRes'); if (!res) return;
+  const retire = bon.statut === 'retire';
+  res.innerHTML = '<div class="cb-bon' + (retire ? ' is-done' : '') + '">' +
+    '<div class="cb-b-ic">' + bon.icon + '</div>' +
+    '<div class="cb-b-cadeau">' + mcpEsc(bon.cadeau) + '</div>' +
+    '<div class="cb-b-qui">' + mcpEsc(bon.client) + '</div>' +
+    '<div class="cb-b-code">' + mcpEsc(bon.code) + '</div>' +
+    (retire
+      ? '<p class="cb-b-done">✔ Déjà retiré' + (bon.retireLe ? ' le ' + dateCourte(bon.retireLe) : '') + (bon.retirePar ? ' par ' + mcpEsc(bon.retirePar) : '') + '</p>'
+      : '<button type="button" class="mcpath-sheet-btn cb-ok" id="cbRetirer">Valider le retrait</button>') +
+    '</div>';
+  const b = $('#cbRetirer');
+  if (b) b.addEventListener('click', () => retirerBonCoach(bon));
+}
+async function retirerBonCoach(bon) {
+  if (!window.confirm('Valider le retrait de « ' + bon.cadeau + ' » pour ' + bon.client + ' ?\n\nUn bon ne peut être retiré qu\'une seule fois.')) return;
+  try {
+    const r = await fetch(apiUrl('/api/coach/gifts/' + encodeURIComponent(bon.code) + '/retirer'), { method: 'POST', headers: nutriAuthHeaders() });
+    const d = await r.json();
+    // 409 = quelqu'un a validé entre-temps. Ce n'est pas une erreur à cacher : on
+    // réaffiche le bon dans son vrai état (retiré, par qui), et le coach voit pourquoi.
+    if (d.bon) renderBonCoach(d.bon);
+    if (d.ok) showToast('Retrait validé ✔', { icon: 'check' });
+    else showToast(d.error || 'Validation impossible.', { icon: 'info' });
+  } catch (_) { showToast('Erreur réseau.', { icon: 'info' }); }
+}
+
 function ensureCoachCodesSheet() {
   let el = $('#coachCodesSheet'); if (el) return el;
   el = document.createElement('div');
@@ -6355,6 +6452,7 @@ function setTab(tab) {
   // sans passer par ici : elles ne sont pas affectées.)
   if (tab === 'parcours') { state.parcoursSub = 'chemin'; renderParcoursTab(); }
   if (tab === 'ebooks') renderEbooksView();
+  if (tab === 'boutique') renderBoutiqueView();
   const screen = $('#screen-result');
   if (screen) screen.setAttribute('data-tab', tab);
   $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
@@ -8277,6 +8375,165 @@ function renderEbooksViewBody(host, list, day) {
     openEbook(Number(c.dataset.id), c.dataset.title);
   }));
 }
+// ============================================================================
+//  BOUTIQUE DES CADEAUX — ce que le Punch finit par offrir.
+//
+//  Cumul pur : on n'achète RIEN ici, on constate ce qui est atteint. Aucun bouton
+//  « échanger », aucun solde qui descend — un cadeau atteint est gardé.
+//  Deux natures : les thèmes s'activent tout seuls, les cadeaux physiques donnent
+//  un bon à présenter au studio. Le serveur tranche (il lit le Punch total) ; ici
+//  on affiche.
+// ============================================================================
+function boutiqueHead(d) {
+  const p = Number(d.punch) || 0;
+  // La barre vise le PROCHAIN cadeau, pas le dernier palier : la seule question que
+  // le client se pose devant cet écran, c'est « il m'en reste combien ? ».
+  let jauge = '<p class="btq-max">Tu as débloqué TOUS les cadeaux. Respect 👑</p>';
+  if (d.prochain) {
+    const depuis = boutiqueSeuilPrecedent(d.cadeaux, d.prochain.seuil);
+    const pct = Math.max(2, Math.min(100, Math.round(((p - depuis) / (d.prochain.seuil - depuis)) * 100)));
+    jauge = '<div class="btq-next"><div class="btq-next-txt">Plus que <b>' + d.prochain.restant + ' Punch</b> avant ' + escapeHtml(d.prochain.label.toLowerCase()) + '</div>' +
+      '<div class="btq-bar"><span style="width:' + pct + '%"></span></div></div>';
+  }
+  return '<div class="btq-head"><h2 class="btq-title">🎁 Mes cadeaux</h2>' +
+    '<p class="btq-sub">Tes Punch ne se dépensent pas : chaque palier atteint est gardé à vie.</p>' +
+    '<div class="btq-punch">👊 <b>' + p + '</b> Punch</div>' + jauge + '</div>';
+}
+// Le palier d'où part la barre : le cadeau juste en dessous (0 si c'est le premier).
+// Sans ça, la barre repartirait de zéro à chaque palier et paraîtrait reculer.
+function boutiqueSeuilPrecedent(liste, seuil) {
+  const dessous = (liste || []).filter((c) => c.seuil < seuil).map((c) => c.seuil);
+  return dessous.length ? Math.max(...dessous) : 0;
+}
+function boutiqueCard(c) {
+  const etat = c.locked
+    ? '<span class="btq-etat is-lock">🔒 Encore ' + c.restant + ' Punch</span>'
+    : '<span class="btq-etat is-ok">✅ Débloqué</span>';
+  // Ce que le client peut FAIRE de la carte, en un mot : voir son bon, ou rien.
+  let action = '';
+  if (!c.locked && c.nature === 'physique' && c.bon) {
+    const retire = c.bon.statut === 'retire';
+    action = '<span class="btq-act' + (retire ? ' is-done' : '') + '">' + (retire ? '✔ Retiré' : 'Voir mon bon') + '</span>';
+  } else if (!c.locked && c.nature === 'digital') {
+    action = '<span class="btq-act">Choisir ce thème</span>';
+  }
+  return '<button type="button" class="btq-card' + (c.locked ? ' locked' : '') + ' n-' + c.nature + '" data-id="' + escapeHtml(c.id) + '" data-locked="' + (c.locked ? 1 : 0) + '" data-restant="' + c.restant + '">' +
+    '<span class="btq-ic">' + c.icon + '</span>' +
+    '<span class="btq-info"><b class="btq-nom">' + escapeHtml(c.label) + '</b>' +
+      '<span class="btq-desc">' + escapeHtml(c.desc || '') + '</span>' +
+      '<span class="btq-seuil">' + c.seuil + ' Punch</span></span>' +
+    '<span class="btq-right">' + etat + action + '</span></button>';
+}
+async function renderBoutiqueView() {
+  const host = $('#view-boutique'); if (!host) return;
+  host.innerHTML = '<div class="btq-head"><h2 class="btq-title">🎁 Mes cadeaux</h2></div><p class="panel-sub">Chargement…</p>';
+  try {
+    const d = await (await fetch(apiUrl('/api/gifts'), { headers: nutriAuthHeaders() })).json();
+    if (!d.ok) throw new Error();
+    _boutique = d;
+    appliquerSkin(d.theme); // le thème choisi suit le client d'un appareil à l'autre
+    host.innerHTML = boutiqueHead(d) + '<div class="btq-grid">' + (d.cadeaux || []).map(boutiqueCard).join('') + '</div>' +
+      '<p class="btq-foot">Les cadeaux à retirer se présentent à ton coach, au studio.</p>';
+    host.querySelectorAll('.btq-card').forEach((b) => b.addEventListener('click', () => ouvrirCadeau(b.dataset.id)));
+  } catch (_) {
+    host.innerHTML = '<div class="btq-head"><h2 class="btq-title">🎁 Mes cadeaux</h2></div><p class="help-empty">Lecture impossible pour le moment.</p>';
+  }
+}
+let _boutique = null;
+function ouvrirCadeau(id) {
+  const c = ((_boutique && _boutique.cadeaux) || []).find((x) => x.id === id); if (!c) return;
+  if (c.locked) { showToast('🔒 Encore ' + c.restant + ' Punch avant ' + c.label.toLowerCase(), { icon: 'info' }); return; }
+  if (c.nature === 'digital') { basculerSkin(c); return; }
+  if (c.bon) ouvrirBon(c);
+}
+// Thème : un tap applique, un second revient au thème d'origine — c'est un skin,
+// pas un réglage qu'on va cacher dans un menu.
+async function basculerSkin(c) {
+  const actuel = (_boutique && _boutique.theme) || '';
+  const skin = c.id.replace('theme_', ''); // theme_gold -> gold
+  const cible = actuel === skin ? '' : skin;
+  try {
+    const r = await fetch(apiUrl('/api/gifts/theme'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ theme: cible }),
+    });
+    const d = await r.json();
+    if (!d.ok) { showToast(d.error || 'Thème indisponible.', { icon: 'info' }); return; }
+    if (_boutique) _boutique.theme = d.theme;
+    appliquerSkin(d.theme);
+    if (state.challenge) state.challenge.theme = d.theme;
+    showToast(d.theme ? 'Thème appliqué ✨' : 'Thème d\'origine rétabli', { icon: 'check' });
+    renderBoutiqueView();
+  } catch (_) { showToast('Erreur réseau.', { icon: 'info' }); }
+}
+// Le skin est un attribut sur <html> : tout le CSS est en tokens, il suffit de les
+// redéfinir. Rien d'autre à toucher dans l'app.
+function appliquerSkin(theme) {
+  const t = (theme === 'dark' || theme === 'gold') ? theme : '';
+  if (t) document.documentElement.setAttribute('data-skin', t);
+  else document.documentElement.removeAttribute('data-skin');
+}
+
+// --- Le bon : ce qu'on présente au comptoir ---------------------------------
+// Consultable en plein écran, JAMAIS téléchargeable : le bon n'a de valeur que
+// présenté depuis le compte de son propriétaire. Le code fait foi, le QR n'est
+// qu'un raccourci pour le coach.
+function ouvrirBon(c) {
+  const ov = ensureBonOverlay();
+  const u = window.__NUTRI_USER || {};
+  const nom = [u.prenom, u.nom].filter(Boolean).join(' ') || 'Mon compte';
+  const retire = c.bon.statut === 'retire';
+  ov.querySelector('.bon-ic').textContent = c.icon;
+  ov.querySelector('.bon-cadeau').textContent = c.label;
+  ov.querySelector('.bon-qui').textContent = nom;
+  ov.querySelector('.bon-date').textContent = 'Débloqué le ' + dateCourte(c.bon.date);
+  ov.querySelector('.bon-code').textContent = c.bon.code;
+  const st = ov.querySelector('.bon-statut');
+  st.textContent = retire ? '✔ Retiré' + (c.bon.retireLe ? ' le ' + dateCourte(c.bon.retireLe) : '') : 'À retirer';
+  st.className = 'bon-statut' + (retire ? ' is-done' : '');
+  ov.querySelector('.bon-card').classList.toggle('is-done', retire);
+  ov.querySelector('.bon-mention').textContent = retire ? 'Ce bon a déjà été utilisé.' : 'À présenter à ton coach au studio.';
+  dessinerQR(ov.querySelector('.bon-qr'), c.bon.code);
+  ov.classList.add('open');
+}
+// QR du code, via le writer déjà embarqué avec le scanner de codes-barres (ZXing) :
+// aucune dépendance en plus, et rien à charger depuis un CDN — l'app doit marcher
+// dans une salle de sport sans réseau.
+function dessinerQR(host, code) {
+  host.innerHTML = '';
+  try {
+    const svg = new ZXing.BrowserQRCodeSvgWriter().write(code, 220, 220);
+    svg.setAttribute('class', 'bon-qr-svg');
+    host.appendChild(svg);
+  } catch (_) {
+    // Sans QR, le bon reste valable : le code se lit et se retape. On le dit.
+    host.innerHTML = '<p class="bon-qr-ko">Code à lire au comptoir</p>';
+  }
+}
+function ensureBonOverlay() {
+  let ov = $('#bonOv'); if (ov) return ov;
+  ov = document.createElement('div');
+  ov.id = 'bonOv'; ov.className = 'bon-ov';
+  ov.innerHTML = `<div class="bon-card">
+    <button type="button" class="bon-x" aria-label="Fermer">✕</button>
+    <div class="bon-ic"></div>
+    <div class="bon-cadeau"></div>
+    <div class="bon-qui"></div>
+    <div class="bon-date"></div>
+    <div class="bon-qr"></div>
+    <div class="bon-code"></div>
+    <div class="bon-statut"></div>
+    <p class="bon-mention"></p>
+  </div>`;
+  document.body.appendChild(ov);
+  // Fermeture au tap hors carte ou sur la croix — mais PAS sur le bon lui-même :
+  // le client le tient sous les yeux du coach, un tap malheureux le ferait fuir.
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov || e.target.classList.contains('bon-x')) ov.classList.remove('open');
+  });
+  document.body.appendChild(ov);
+  return ov;
+}
+
 // Carte « guide du jour » (compacte, en tête du plan) : l'ebook débloqué aujourd'hui.
 // Titre + UNE ligne de description tronquée (ellipse) ; « Nouveau » tant qu'il n'est
 // pas lu. Visible seulement s'il existe un guide du jour. Clic -> ouverture directe.

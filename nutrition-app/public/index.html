@@ -40,7 +40,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=118" />
+  <link rel="stylesheet" href="style.css?v=120" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=102" />
   <script>
@@ -460,6 +460,9 @@
         <!-- Le code du challenge est la porte d'entrée des clients : le coach doit
              pouvoir le lire à tout moment pour le donner à son groupe. -->
         <button type="button" id="coachCodes" class="coach-dash-cta coach-dash-cta-alt"><svg class="ic"><use href="#ic-lock"/></svg> Codes des groupes</button>
+        <!-- Un client présente son bon cadeau au comptoir : le coach saisit le code
+             et valide le retrait. Une seule fois par bon. -->
+        <button type="button" id="coachBons" class="coach-dash-cta coach-dash-cta-alt"><span class="cta-emo">🎁</span> Valider un bon cadeau</button>
         <h2 class="coach-dash-sec">Mes clients</h2>
         <div id="coachClientsList"></div>
       </div>
@@ -855,6 +858,7 @@
         <button type="button" class="profil-row" data-go="btnAgenda"><svg class="ic pr-muted"><use href="#ic-calendar"/></svg>Agenda<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnAnalyse"><svg class="ic pr-muted"><use href="#ic-chart"/></svg>Analyse des écarts<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" id="btnEbooks"><svg class="ic pr-blue"><use href="#ic-book"/></svg>Mes guides<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-client hidden" id="btnBoutique"><span class="pr-emo">🎁</span>Mes cadeaux<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-client hidden" id="btnPushPrefs"><svg class="ic pr-muted"><use href="#ic-bell"/></svg>Notifications<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-client hidden" id="btnChangePin"><svg class="ic pr-muted"><use href="#ic-shield"/></svg>Changer mon code PIN<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
@@ -887,6 +891,8 @@
       <div id="view-parcours"></div>
       <!-- ÉCRAN EBOOKS : guides disponibles + à venir -->
       <div id="view-ebooks"></div>
+      <!-- ÉCRAN BOUTIQUE : les cadeaux débloqués par le Punch cumulé -->
+      <div id="view-boutique"></div>
 
       <!-- SOS coach (présent sur tous les onglets) -->
       <button type="button" id="sosFab" class="sos-fab" aria-haspopup="dialog" aria-label="SOS coach" title="SOS coach">
@@ -1522,6 +1528,6 @@
 
   <script src="vendor/zxing.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
-  <script src="app.js?v=133"></script>
+  <script src="app.js?v=135"></script>
 </body>
 </html>

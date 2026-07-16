@@ -25,6 +25,7 @@
 //      et non plus par l'écran d'analyse d'assiette (event 'plate').
 // v5 : l'étape 27 accepte AUSSI une réponse à un membre ('groupe_reponse').
 const punchSeuils = require('./punchSeuils');
+const cadeaux = require('./cadeaux');
 
 const CHALLENGE_PATH_SEED_VERSION = 5;
 const CHALLENGE_WEEK_TITLES = {
@@ -210,6 +211,8 @@ const CHALLENGE_SCHEMA_SQL = `
     streak_best INTEGER NOT NULL DEFAULT 0,
     streak_paliers TEXT NOT NULL DEFAULT '',       -- paliers déjà récompensés DANS la série en cours (JSON)
     last_win_date TEXT NOT NULL DEFAULT '',        -- dernier jour GAGNÉ (2 repas renseignés)
+    theme_choisi TEXT NOT NULL DEFAULT '',         -- skin appliqué ('' = d'origine) ; l'ACQUIS se déduit du punch
+    theme_auto TEXT NOT NULL DEFAULT '',           -- dernier palier activé tout seul -> ne l'imposer qu'UNE fois
     updated_at TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE IF NOT EXISTS user_ebook_opens (
@@ -266,6 +269,24 @@ const CHALLENGE_SCHEMA_SQL = `
     won_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (client_email, day_ymd)
   );
+  -- Bons des cadeaux PHYSIQUES (semaine ami, coaching, remise, massage) : le
+  -- justificatif que le client présente au studio. Les cadeaux digitaux (thèmes)
+  -- n'en ont pas — il n'y a rien à remettre en main propre.
+  --   PK (email, cadeau) : un cadeau atteint = UN bon, même si la génération est
+  --     rejouée (elle l'est : on la relance à chaque lecture de la boutique, pour
+  --     que les comptes déjà chargés en Punch aient leur bon sans attendre un gain).
+  --   code UNIQUE : c'est LA preuve présentée au comptoir, jamais deux identiques.
+  --   statut : 'a_retirer' -> 'retire', dans ce sens uniquement (cf. retirerBon).
+  CREATE TABLE IF NOT EXISTS nutrition_gift_bons (
+    client_email TEXT NOT NULL,
+    cadeau TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
+    statut TEXT NOT NULL DEFAULT 'a_retirer',
+    created_at TEXT NOT NULL DEFAULT '',
+    retire_at TEXT NOT NULL DEFAULT '',
+    retire_par TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (client_email, cadeau)
+  );
 `;
 
 // ---------------------------------------------------------------------------
@@ -298,6 +319,11 @@ function createChallengeEngine({ getDb }) {
       ajouterColonne('path_nodes', 'punch', 'INTEGER NOT NULL DEFAULT 0');
       ajouterColonne('user_node_progress', 'punch_awarded', 'INTEGER NOT NULL DEFAULT 0');
       ajouterColonne('user_game_stats', 'streak_paliers', "TEXT NOT NULL DEFAULT ''");
+      // Thème appliqué ('' = celui d'origine). Le thème ACQUIS se déduit du Punch
+      // (cadeaux.themeTier) ; cette colonne ne garde que le CHOIX du client, la
+      // seule chose qui ne se déduit de rien.
+      ajouterColonne('user_game_stats', 'theme_choisi', "TEXT NOT NULL DEFAULT ''");
+      ajouterColonne('user_game_stats', 'theme_auto', "TEXT NOT NULL DEFAULT ''");
       const neuve = ajouterColonne('user_game_stats', 'punch', 'INTEGER NOT NULL DEFAULT 0');
       const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='challenge_punch_migrated'").get() || {}).value;
       if (String(fait) === '1') return;
@@ -448,9 +474,113 @@ function createChallengeEngine({ getDb }) {
     return nouveaux;
   }
 
-  // Hook de déblocage — VOLONTAIREMENT vide : la fondation est prête, les
-  // récompenses (vidéos, ebooks, cadeaux) viendront s'y brancher.
-  function onUnlock(/* type, payload */) { /* à remplir par les prochains lots */ }
+  // Hook de déblocage. Les vidéos et les ebooks n'ont RIEN à faire ici : ils se
+  // lisent depuis le total de Punch (server.js), donc ils sont déjà ouverts. Seuls
+  // les cadeaux ont un effet de bord à poser : un bon à créer, un thème à activer.
+  function onUnlock(type, payload) {
+    if (type !== 'gift' || !payload || !payload.email) return;
+    assurerCadeaux(payload.email);
+  }
+
+  // Pose ce que le total de Punch a déjà mérité : les bons des cadeaux physiques,
+  // l'activation des thèmes. Idempotent, et volontairement rejouable à la lecture :
+  // le déclencheur ne peut pas être le seul onUnlock, qui ne tombe qu'à l'instant
+  // d'un gain — un compte migré depuis XP+gems n'aurait jamais eu son bon.
+  // La vérité est le TOTAL, jamais user_unlocks (qui ne dit que ce qui a été célébré).
+  function assurerCadeaux(email) {
+    const crees = [];
+    try {
+      if (!email) return crees;
+      const punch = (pathStatsRow(email) || {}).punch || 0;
+      cadeaux.catalogue().forEach((c) => {
+        if (punch < c.seuil || !cadeaux.estPhysique(c.id)) return;
+        if (creerBon(email, c.id)) crees.push(c.id);
+      });
+      // Thème : « activation directe ». Un thème qui vient de tomber s'applique tout
+      // seul — c'est le cadeau, il doit se VOIR.
+      // ⚠️ Une seule fois par palier, d'où `theme_auto` : sans lui, on ne saurait pas
+      // distinguer « jamais activé » d'« a choisi de revenir au thème d'origine »
+      // (les deux valent ''), et cette fonction — rejouée à CHAQUE lecture de la
+      // boutique — repositionnerait le skin dans le dos du client à chaque passage.
+      const s = pathStatsRow(email) || {};
+      const tier = cadeaux.themeTier(punch);
+      if (tier && (s.theme_auto || '') !== tier) {
+        getDb().prepare("UPDATE user_game_stats SET theme_choisi=?, theme_auto=?, updated_at=datetime('now') WHERE client_email=?").run(tier, tier, email);
+      }
+    } catch (e) { console.error('assurerCadeaux:', e && e.message); }
+    return crees;
+  }
+
+  // Un bon, une fois.
+  // ⚠️ PAS d'INSERT OR IGNORE ici : il avalerait AUSSI la collision de code (les deux
+  // contraintes sont des UNIQUE aux yeux de SQLite), et le bon serait silencieusement
+  // perdu — le client verrait une carte « Débloqué » qui n'ouvre rien. On teste donc
+  // la présence (la PK) d'abord, et on laisse la collision de code lever pour la
+  // retenter avec un autre tirage.
+  function creerBon(email, cadeauId, essais) {
+    if (getDb().prepare('SELECT 1 FROM nutrition_gift_bons WHERE client_email=? AND cadeau=?').get(email, cadeauId)) return false;
+    try {
+      getDb().prepare('INSERT INTO nutrition_gift_bons (client_email, cadeau, code, statut, created_at) VALUES (?,?,?,?,?)')
+        .run(email, cadeauId, cadeaux.genererCode(), 'a_retirer', new Date().toISOString());
+      return true;
+    } catch (e) {
+      // Deux causes possibles : la PK (le bon vient d'être posé en parallèle -> rien à
+      // faire) ou le code (collision -> on retire au sort). On tranche en relisant.
+      if (getDb().prepare('SELECT 1 FROM nutrition_gift_bons WHERE client_email=? AND cadeau=?').get(email, cadeauId)) return false;
+      const n = Number(essais) || 0;
+      if (n >= 3) { console.error('creerBon:', e && e.message); return false; }
+      return creerBon(email, cadeauId, n + 1);
+    }
+  }
+
+  // Les bons d'un client, indexés par cadeau -> le front colle chacun sur sa carte.
+  function bonsDe(email) {
+    const map = {};
+    try {
+      getDb().prepare('SELECT cadeau, code, statut, created_at, retire_at FROM nutrition_gift_bons WHERE client_email=?').all(email)
+        .forEach((r) => { map[r.cadeau] = { code: r.code, statut: r.statut, date: r.created_at, retireLe: r.retire_at }; });
+    } catch (_) { /* table absente */ }
+    return map;
+  }
+
+  function bonParCode(code) {
+    try { return getDb().prepare('SELECT * FROM nutrition_gift_bons WHERE code=?').get(String(code || '').trim().toUpperCase()) || null; }
+    catch (_) { return null; }
+  }
+
+  // Retrait : UN SEUL possible. Le « WHERE statut='a_retirer' » est ce qui l'empêche
+  // d'être joué deux fois — c'est la condition de l'UPDATE lui-même, atomique, et
+  // non un test lu avant d'écrire (que deux coachs simultanés passeraient tous les
+  // deux). changes === 0 => déjà retiré, et on le dit.
+  function retirerBon(code, parQui) {
+    const c = String(code || '').trim().toUpperCase();
+    try {
+      const bon = bonParCode(c);
+      if (!bon) return { ok: false, erreur: 'inconnu' };
+      const info = getDb().prepare("UPDATE nutrition_gift_bons SET statut='retire', retire_at=?, retire_par=? WHERE code=? AND statut='a_retirer'")
+        .run(new Date().toISOString(), String(parQui || '').slice(0, 120), c);
+      if (info.changes === 0) return { ok: false, erreur: 'deja', bon: bonParCode(c) };
+      return { ok: true, bon: bonParCode(c) };
+    } catch (e) { console.error('retirerBon:', e && e.message); return { ok: false, erreur: 'erreur' }; }
+  }
+
+  // Le thème appliqué. '' = thème d'origine. On le RELIT contre le total : un thème
+  // en base que le Punch ne justifie pas (import douteux, palier retiré du catalogue)
+  // ne doit pas s'afficher — la source de vérité reste le compteur.
+  function themeClient(email) {
+    try {
+      const s = pathStatsRow(email) || {};
+      const choisi = s.theme_choisi || '';
+      return cadeaux.themeAutorise(s.punch || 0, choisi) ? choisi : '';
+    } catch (_) { return ''; }
+  }
+  function choisirTheme(email, theme) {
+    const t = String(theme || '');
+    const punch = (pathStatsRow(email) || {}).punch || 0;
+    if (!cadeaux.themeAutorise(punch, t)) return { ok: false, erreur: 'verrouille' };
+    getDb().prepare("UPDATE user_game_stats SET theme_choisi=?, updated_at=datetime('now') WHERE client_email=?").run(t, email);
+    return { ok: true, theme: t };
+  }
 
   // Combien des 3 photos exigées le client a-t-il déposées pour ce jalon ?
   // (les doublons d'un même type ne comptent qu'une fois -> DISTINCT).
@@ -605,9 +735,15 @@ function createChallengeEngine({ getDb }) {
       enabled, started, day, activeDay, startsOn, totalDays: CHALLENGE_PATH_NODES.length,
       stats: { punch: s.punch || 0, streak: streakVu, streakBest: s.streak_best || 0 },
       // Déblocages : ce qui est acquis + le prochain à viser (« encore X Punch »).
-      // Les récompenses elles-mêmes viendront s'y brancher (vidéos, ebooks, cadeaux).
       unlocks: [...unlockedThresholds(email)],
       prochainSeuil: punchSeuils.prochainSeuil(s.punch || 0),
+      // Seuil -> le cadeau, AVEC son nom : sans ça, la célébration ne sait pas le
+      // NOMMER et retombe sur « Atteint à 2000 Punch » au lieu de « Un massage sportif ».
+      // Le libellé part d'ici (lib/cadeaux) plutôt que d'être recopié dans le front :
+      // deux listes de noms finiraient par diverger, et le client verrait deux noms
+      // pour le même cadeau selon l'écran.
+      cadeaux: cadeaux.catalogue().reduce((m, c) => { m[c.seuil] = { id: c.id, label: c.label }; return m; }, {}),
+      theme: themeClient(email),
       weekTitles: CHALLENGE_WEEK_TITLES,
       nodes,
     };
@@ -617,6 +753,7 @@ function createChallengeEngine({ getDb }) {
     ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, dayWon, challengePublicState,
     pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
     pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds,
+    assurerCadeaux, bonsDe, bonParCode, retirerBon, themeClient, choisirTheme,
   };
 }
 
