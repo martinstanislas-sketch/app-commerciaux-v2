@@ -177,12 +177,22 @@ test('RÉTRO-COMPAT : compte hérité sans PIN -> aucun code exigé', () => {
 });
 
 // --- loginClient : email inconnu -> invitation (secours) ------------------
-test('loginClient : email inconnu sans invitation -> 403 needInvite, aucun compte créé', () => {
+test('loginClient : email inconnu sans code ni invitation -> 403, aucun compte créé', () => {
   const { db, auth } = makeAuth();
   const r = auth.loginClient({ email: 'x@a.fr', prenom: 'X', nom: 'Y', pin: '1234' });
   assert.equal(r.status, 403);
-  assert.equal(r.body.needInvite, true);
+  // Le code du challenge est la voie normale -> c'est lui qu'on réclame (l'invitation
+  // n'est qu'un secours, on ne va pas demander un lien à quelqu'un qui n'en a pas).
+  assert.equal(r.body.needCode, true);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM nutrition_clients').get().c, 0);
+});
+
+test('loginClient : invitation encore acceptée en secours (sans code)', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_invites (token,email,coach_id) VALUES ('tk','',9)").run();
+  const r = auth.loginClient({ email: 'inv2@a.fr', prenom: 'I', nom: 'V', pin: '1234', invite: 'tk' });
+  assert.equal(r.ok, true);
+  assert.equal(db.prepare("SELECT coach_id FROM nutrition_clients WHERE email='inv2@a.fr'").get().coach_id, 9);
 });
 
 test('loginClient : email inconnu avec invitation valide -> compte créé + invitation consommée', () => {
@@ -205,6 +215,113 @@ test('loginClient : invitation sans coach -> coach par défaut', () => {
   db.prepare("INSERT INTO nutrition_invites (token,email,coach_id) VALUES ('t2','',NULL)").run();
   auth.loginClient({ email: 'y@a.fr', prenom: 'Y', nom: 'Y', pin: '1234', invite: 't2' });
   assert.equal(db.prepare("SELECT coach_id FROM nutrition_clients WHERE email='y@a.fr'").get().coach_id, 42);
+});
+
+// --- AUTO-INSCRIPTION par code du challenge (le code est la porte d'entrée) ---
+test('findGroupByCode : inconnu / inactif / ambigu / valide', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_access_codes (ville,challenge_no,code,actif) VALUES ('Lyon',3,'482100',1)").run();
+  assert.equal(auth.findGroupByCode('000000'), null);
+  assert.equal(auth.findGroupByCode(''), null);
+  assert.deepEqual(auth.findGroupByCode('482100'), { ville: 'Lyon', challenge_no: 3 });
+  assert.deepEqual(auth.findGroupByCode('  482100 '), { ville: 'Lyon', challenge_no: 3 }); // tolérant
+  db.prepare("UPDATE nutrition_access_codes SET actif = 0").run();
+  assert.equal(auth.findGroupByCode('482100'), null, 'un code désactivé ne doit plus ouvrir');
+  // Collision : deux groupes avec le même code -> refus (rattachement ambigu)
+  db.prepare("UPDATE nutrition_access_codes SET actif = 1").run();
+  db.prepare("INSERT INTO nutrition_access_codes (ville,challenge_no,code,actif) VALUES ('Paris',1,'482100',1)").run();
+  assert.equal(auth.findGroupByCode('482100'), null, 'un code ambigu doit être refusé');
+});
+
+test('genUniqueAccessCode : ne réutilise jamais un code déjà attribué', () => {
+  const { db, auth } = makeAuth();
+  const c1 = auth.genUniqueAccessCode();
+  db.prepare("INSERT INTO nutrition_access_codes (ville,challenge_no,code,actif) VALUES ('Lyon',1,?,1)").run(c1);
+  for (let i = 0; i < 30; i++) assert.notEqual(auth.genUniqueAccessCode(), c1);
+});
+
+test('loginClient : email inconnu + BON code -> compte créé, rattaché au groupe, coach par défaut', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_access_codes (ville,challenge_no,code,actif) VALUES ('Lyon',3,'482100',1)").run();
+  const r = auth.loginClient({ email: 'neuf@a.fr', prenom: 'Neo', nom: 'Client', pin: '1234', code: '482100' });
+  assert.equal(r.ok, true);
+  const c = db.prepare("SELECT coach_id, pin_hash FROM nutrition_clients WHERE email='neuf@a.fr'").get();
+  assert.equal(c.coach_id, 42, 'les auto-inscrits vont au coach par défaut');
+  assert.ok(verifyPin('1234', c.pin_hash));
+  const m = db.prepare("SELECT ville, challenge_no FROM nutrition_client_meta WHERE client_email='neuf@a.fr'").get();
+  assert.deepEqual(m, { ville: 'Lyon', challenge_no: 3 }, 'le code doit rattacher au bon groupe');
+});
+
+test('loginClient : email inconnu + MAUVAIS code -> 403, aucun compte créé', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_access_codes (ville,challenge_no,code,actif) VALUES ('Lyon',3,'482100',1)").run();
+  const r = auth.loginClient({ email: 'neuf@a.fr', prenom: 'Neo', nom: 'Client', pin: '1234', code: '000000' });
+  assert.equal(r.status, 403);
+  assert.equal(r.body.needCode, true);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM nutrition_clients').get().c, 0);
+});
+
+test('loginClient : email inconnu SANS code ni invitation -> 403 needCode', () => {
+  const { db, auth } = makeAuth();
+  const r = auth.loginClient({ email: 'neuf@a.fr', prenom: 'Neo', nom: 'Client', pin: '1234' });
+  assert.equal(r.status, 403);
+  assert.equal(r.body.needCode, true);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM nutrition_clients').get().c, 0);
+});
+
+test('loginClient : le code reste valable pour tout le groupe (plusieurs clients)', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_access_codes (ville,challenge_no,code,actif) VALUES ('Lyon',3,'482100',1)").run();
+  assert.equal(auth.loginClient({ email: 'a1@a.fr', prenom: 'A', nom: 'Un', pin: '1111', code: '482100' }).ok, true);
+  assert.equal(auth.loginClient({ email: 'a2@a.fr', prenom: 'B', nom: 'Deux', pin: '2222', code: '482100' }).ok, true);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM nutrition_clients').get().c, 2);
+});
+
+// --- joinCheck (étape 1 du front) -----------------------------------------
+test('joinCheck : compte déjà protégé -> pin-login, le code est ignoré', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_clients (email,prenom,nom,pin_hash,pre_created) VALUES ('a@a.fr','A','B',?,0)").run(hashPin('1234'));
+  const r = auth.joinCheck({ email: 'a@a.fr', prenom: 'A', nom: 'B', code: '' });
+  assert.equal(r.ok, true);
+  assert.equal(r.body.mode, 'pin-login');
+});
+
+test('joinCheck : email inconnu + bon code -> pin-set + libellé du groupe', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_access_codes (ville,challenge_no,code,actif) VALUES ('Lyon',3,'482100',1)").run();
+  const r = auth.joinCheck({ email: 'neuf@a.fr', prenom: 'N', nom: 'C', code: '482100' });
+  assert.equal(r.body.mode, 'pin-set');
+  assert.equal(r.body.groupe, 'Lyon #3');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM nutrition_clients').get().c, 0, 'joinCheck ne doit RIEN créer');
+});
+
+test('joinCheck : email inconnu sans code -> 403 needCode', () => {
+  const { auth } = makeAuth();
+  const r = auth.joinCheck({ email: 'neuf@a.fr', prenom: 'N', nom: 'C', code: '' });
+  assert.equal(r.status, 403);
+  assert.equal(r.body.needCode, true);
+});
+
+test('joinCheck : email inconnu avec invitation (sans code) -> pin-set', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_invites (token,email,coach_id) VALUES ('tok','',7)").run();
+  const r = auth.joinCheck({ email: 'inv@a.fr', prenom: 'I', nom: 'V', code: '', invite: 'tok' });
+  assert.equal(r.ok, true);
+  assert.equal(r.body.mode, 'pin-set');
+});
+
+test('joinCheck : pré-créé -> code de SON groupe exigé', () => {
+  const { db, auth } = makeAuth();
+  seedPreCree(db);
+  assert.equal(auth.joinCheck({ email: 'pre@a.fr', prenom: 'Alice', nom: 'Pre', code: '' }).status, 403);
+  assert.equal(auth.joinCheck({ email: 'pre@a.fr', prenom: 'Alice', nom: 'Pre', code: '000000' }).status, 403);
+  assert.equal(auth.joinCheck({ email: 'pre@a.fr', prenom: 'Alice', nom: 'Pre', code: '482100' }).body.mode, 'pin-set');
+});
+
+test('joinCheck : hérité sans PIN -> pin-set sans code', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_clients (email,prenom,nom,pin_hash,pre_created) VALUES ('old@a.fr','B','A','',0)").run();
+  assert.equal(auth.joinCheck({ email: 'old@a.fr', prenom: 'B', nom: 'A', code: '' }).body.mode, 'pin-set');
 });
 
 // --- Normalisation ---------------------------------------------------------

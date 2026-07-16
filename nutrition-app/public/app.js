@@ -3126,6 +3126,7 @@ function init() {
   const _coachMsgs = $('#coachOpenMessages'); if (_coachMsgs) _coachMsgs.addEventListener('click', openMessagesCoach);
   const _coachWall = $('#coachOpenWall'); if (_coachWall) _coachWall.addEventListener('click', openCoachWall);
   const _coachAdd = $('#coachAddClient'); if (_coachAdd) _coachAdd.addEventListener('click', openCoachAddClient);
+  const _coachCodes = $('#coachCodes'); if (_coachCodes) _coachCodes.addEventListener('click', openCoachCodes);
   const _coachBack = $('#coachBack'); if (_coachBack) _coachBack.addEventListener('click', () => { location.href = '/coach/'; });
   const _coachLogout = $('#coachLogout'); if (_coachLogout) _coachLogout.addEventListener('click', logoutClient);
 
@@ -5131,6 +5132,83 @@ async function submitCoachAddClient() {
     $('#cadDone').classList.remove('hidden');
     bootCoachDashboard(); // rafraîchit la liste des clients
   } catch (_) { btn.disabled = false; err.textContent = 'Erreur réseau, réessaie.'; }
+}
+
+// ============================================================================
+//  CODES DES GROUPES (coach) — le code du challenge est la porte d'entrée des
+//  clients : le coach doit pouvoir le lire à tout moment pour le leur donner.
+//  Il peut aussi le régénérer (fuite) ou créer le code d'un nouveau groupe.
+// ============================================================================
+function ensureCoachCodesSheet() {
+  let el = $('#coachCodesSheet'); if (el) return el;
+  el = document.createElement('div');
+  el.id = 'coachCodesSheet';
+  el.className = 'mcpath-sheet';
+  el.innerHTML = `<div class="mcpath-sheet-backdrop"></div><div class="mcpath-sheet-card">
+    <div class="mcpath-sheet-grip"></div>
+    <h3 class="mcpath-sheet-title">Codes des groupes</h3>
+    <p class="mcpath-sheet-sub">Donne ce code à ton groupe : c'est avec lui que tes clients créent leur espace. Le même code vaut pour tout le groupe.</p>
+    <div id="ccList" class="cc-list"></div>
+    <div class="cc-new">
+      <p class="cc-new-t">Nouveau groupe</p>
+      <input id="ccVille" type="text" placeholder="Ville (ex : Lyon)" class="cad-in" />
+      <input id="ccNo" type="number" min="0" max="999" placeholder="N° de challenge (ex : 3)" class="cad-in" />
+      <button type="button" class="mcpath-sheet-btn" id="ccCreate">Créer son code</button>
+      <p id="ccErr" class="cad-err"></p>
+    </div>
+    <button type="button" class="mcpath-sheet-close" id="ccClose">Fermer</button>
+  </div>`;
+  document.body.appendChild(el);
+  el.querySelector('.mcpath-sheet-backdrop').addEventListener('click', () => el.classList.remove('open'));
+  el.querySelector('#ccClose').addEventListener('click', () => el.classList.remove('open'));
+  el.querySelector('#ccCreate').addEventListener('click', createCoachCode);
+  return el;
+}
+function openCoachCodes() { const el = ensureCoachCodesSheet(); el.classList.add('open'); renderCoachCodes(); }
+async function renderCoachCodes() {
+  const list = $('#ccList'); if (!list) return;
+  list.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const r = await fetch(apiUrl('/api/coach/access-codes'), { headers: nutriAuthHeaders() });
+    const d = await r.json();
+    if (!d || !d.ok) { list.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; return; }
+    const codes = d.codes || [];
+    if (!codes.length) { list.innerHTML = '<p class="help-empty">Aucun groupe n’a encore de code. Crée-en un ci-dessous.</p>'; return; }
+    list.innerHTML = codes.map((c) => `<div class="cc-row${c.actif ? '' : ' cc-off'}">
+      <div class="cc-g">${mcpEsc(c.ville)}${c.challengeNo ? ' <span class="cc-no">#' + c.challengeNo + '</span>' : ''}${c.actif ? '' : ' <span class="cc-badge">désactivé</span>'}</div>
+      <div class="cc-code">${mcpEsc(c.code)}</div>
+      <button type="button" class="cc-regen" data-ville="${mcpEsc(c.ville)}" data-no="${c.challengeNo}">Régénérer</button>
+    </div>`).join('');
+    list.querySelectorAll('.cc-regen').forEach((b) => b.addEventListener('click', () => regenCoachCode(b.dataset.ville, Number(b.dataset.no))));
+  } catch (_) { list.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
+}
+async function postCoachCode(body) {
+  const r = await fetch(apiUrl('/api/coach/access-codes'), {
+    method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
+  });
+  return r.json();
+}
+async function regenCoachCode(ville, challengeNo) {
+  if (!window.confirm('Régénérer le code de ' + ville + (challengeNo ? ' #' + challengeNo : '') + ' ?\n\nL’ancien code ne fonctionnera plus : les clients qui ne se sont pas encore inscrits devront recevoir le nouveau.')) return;
+  try {
+    const d = await postCoachCode({ ville, challengeNo, regenerate: true });
+    if (d && d.ok) { renderCoachCodes(); showToast('Nouveau code : ' + d.code, { icon: 'check' }); }
+    else showToast((d && d.error) || 'Régénération impossible.', { icon: 'info' });
+  } catch (_) { showToast('Erreur réseau.', { icon: 'info' }); }
+}
+async function createCoachCode() {
+  const err = $('#ccErr');
+  const ville = ($('#ccVille').value || '').trim();
+  const challengeNo = Number(($('#ccNo').value || '').trim()) || 0;
+  if (!ville) { err.textContent = 'La ville est requise.'; return; }
+  err.textContent = '';
+  try {
+    const d = await postCoachCode({ ville, challengeNo });
+    if (!d || !d.ok) { err.textContent = (d && d.error) || 'Création impossible.'; return; }
+    $('#ccVille').value = ''; $('#ccNo').value = '';
+    renderCoachCodes();
+    showToast('Code créé : ' + d.code, { icon: 'check' });
+  } catch (_) { err.textContent = 'Erreur réseau, réessaie.'; }
 }
 
 async function bootCoachDashboard() {
