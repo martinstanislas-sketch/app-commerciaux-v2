@@ -8487,6 +8487,11 @@ function chInjectStyles() {
     .ch-group-code.ch-code-off:hover { background: var(--mc-cream-dark); }
     .ch-code-regen { flex: 0 0 auto; background: none; border: 1px solid rgba(199,164,90,.35); color: var(--mc-text-muted); border-radius: 9px; width: 30px; height: 30px; font-size: 14px; cursor: pointer; line-height: 1; }
     .ch-code-regen:hover { background: var(--mc-gold-soft); color: #8a6d2a; }
+    /* Date de début du challenge : lance le parcours de tout le groupe. */
+    .ch-group-date { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; background: var(--mc-cream-dark); border: 1px solid rgba(199,164,90,.35); border-radius: 10px; padding: 4px 9px; font-size: 12.5px; cursor: pointer; }
+    .ch-group-date input { border: none; background: none; font: inherit; color: var(--mc-text-muted); cursor: pointer; padding: 2px 0; }
+    .ch-group-date.ch-date-set { background: var(--mc-gold-soft); border-color: rgba(199,164,90,.6); }
+    .ch-group-date.ch-date-set input { color: #8a6d2a; font-weight: 600; }
     /* Onglet Groupes : sélecteur de mur (chips) + fil */
     .grp-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 4px 18px; }
     .grp-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--mc-white); border: 1px solid var(--mc-border); border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 600; font-size: 13px; color: var(--mc-text); cursor: pointer; transition: border-color .15s var(--ease), background .15s var(--ease); }
@@ -9112,9 +9117,20 @@ async function chLoadCodes() {
     const d = await chNutriFetch('/nutrition/api/coach/access-codes');
     if (!d || !d.ok) return;
     const m = {};
-    (d.codes || []).forEach((c) => { m[chCodeKey(c.ville, c.challengeNo)] = { code: c.code, actif: c.actif }; });
+    (d.codes || []).forEach((c) => { m[chCodeKey(c.ville, c.challengeNo)] = { code: c.code, actif: c.actif, startDate: c.startDate || '' }; });
     _chCodes = m;
   } catch (_) { /* pas de codes affichés, le reste de l'écran fonctionne */ }
+}
+// Date de début du groupe : lance le parcours pour TOUT le groupe ce jour-là.
+// Vide = chacun démarre à sa pesée de départ (comportement historique).
+async function chSetStartDate(ville, no, startDate) {
+  try {
+    const d = await chNutriFetch('/nutrition/api/coach/access-codes', {
+      method: 'POST', body: JSON.stringify({ ville, challengeNo: Number(no), startDate }),
+    });
+    if (d && d.ok) { await chLoadCodes(); chRenderList(); }
+    else alert((d && d.error) || 'Enregistrement impossible.');
+  } catch (_) { alert('Erreur réseau.'); }
 }
 // Régénère le code d'un groupe (fuite, changement de cohorte...). L'ancien cesse d'agir.
 async function chRegenCode(ville, no) {
@@ -9186,6 +9202,10 @@ function chRenderList() {
           codeHtml = `<span class="ch-group-code ch-code-off" title="Ce groupe n'a pas encore de code : personne ne peut le rejoindre">🔑 <i>aucun code</i></span>`
             + `<button type="button" class="ch-code-regen" data-ville="${chEsc(g.ville)}" data-no="${g.no}" title="Générer un code">↻</button>`;
         }
+        // Date de début : lance le parcours de TOUT le groupe ce jour-là.
+        // Vide = chacun démarre à sa pesée de départ (comportement historique).
+        const sd = (cc && cc.startDate) || '';
+        codeHtml += `<label class="ch-group-date${sd ? ' ch-date-set' : ''}" title="Date de début du challenge : lance le parcours de tout le groupe ce jour-là. Vide = démarrage individuel (pesée de départ).">📅 <input type="date" class="ch-date-in" value="${chEsc(sd)}" data-ville="${chEsc(g.ville)}" data-no="${g.no}"></label>`;
       }
       return `<div class="ch-group"><div class="ch-group-h"><span class="ch-group-t">${title} <span class="ch-group-n">${g.clients.length}</span></span>${codeHtml}${writeBtn}</div><div class="ch-list">${g.clients.map(chCardHtml).join('')}</div></div>`;
     }).join('')
@@ -9214,6 +9234,10 @@ function chRenderList() {
     try { navigator.clipboard.writeText(c); s.classList.add('ch-code-copied'); setTimeout(() => s.classList.remove('ch-code-copied'), 1200); } catch (_) { /* pas de presse-papier : il le lit */ }
   }));
   host.querySelectorAll('.ch-code-regen').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); chRegenCode(b.dataset.ville, Number(b.dataset.no)); }));
+  host.querySelectorAll('.ch-date-in').forEach((i) => i.addEventListener('change', (e) => {
+    e.stopPropagation();
+    chSetStartDate(i.dataset.ville, Number(i.dataset.no), i.value || '');
+  }));
 }
 
 // Modale « Écrire au groupe » : le coach publie dans le canal Communauté d'UN groupe

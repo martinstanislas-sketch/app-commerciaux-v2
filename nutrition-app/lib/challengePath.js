@@ -208,9 +208,29 @@ function createChallengeEngine({ getDb }) {
     } catch (e) { console.error('ensureChallengePathSchema :', e && e.message); }
   }
 
-  // Date de départ du parcours (YMD Paris) : pesée 'depart' sinon data.startDate. '' si pas démarré.
+  // Date de début de la COHORTE du client (ville + n° de challenge), '' si aucune.
+  // C'est la date collective posée par le coach : elle lance le parcours pour tout
+  // le groupe le même jour.
+  function cohortStartYmd(email) {
+    if (!email) return '';
+    try {
+      const meta = getDb().prepare('SELECT ville, challenge_no FROM nutrition_client_meta WHERE client_email=?').get(email);
+      if (!meta) return '';
+      const row = getDb().prepare('SELECT start_date FROM nutrition_access_codes WHERE ville=? AND challenge_no=?').get(meta.ville, meta.challenge_no);
+      if (row && row.start_date) return pathParisYmd(row.start_date);
+    } catch (_) { /* colonne/table absente : on retombe sur l'individuel */ }
+    return '';
+  }
+  // Date de départ du parcours (YMD Paris), par ordre de priorité :
+  //  1. la date de la COHORTE si le coach en a posé une -> challenge collectif ;
+  //  2. sinon la pesée 'depart' du client ;
+  //  3. sinon data.startDate (1re ouverture du plan).
+  // '' = pas démarré. Une date de cohorte FUTURE donne un jour <= 0 -> chemin
+  // verrouillé jusqu'au jour J (cf. pathCurrentDay / awardClientEvent).
   function pathStartYmd(email) {
     if (!email) return '';
+    const coh = cohortStartYmd(email);
+    if (coh) return coh;
     try {
       const dep = getDb().prepare("SELECT date FROM nutrition_parcours_pesees WHERE client_email=? AND type='depart'").get(email);
       if (dep && dep.date) return pathParisYmd(dep.date);
@@ -315,6 +335,9 @@ function createChallengeEngine({ getDb }) {
     const enabled = pathFeatureEnabled();
     const day = pathCurrentDay(email);
     const started = day > 0;
+    // Date d'ancrage : permet au front d'annoncer « ton chemin démarre le X »
+    // quand la cohorte a une date de début encore à venir.
+    const startsOn = pathStartYmd(email);
     if (enabled && started) reconcileStreak(email);
     const s = pathStatsRow(email);
     const done = pathDoneDays(email);
@@ -325,7 +348,7 @@ function createChallengeEngine({ getDb }) {
       status: done.has(n.day) ? 'done' : (n.day === activeDay ? 'active' : 'locked'),
     }));
     return {
-      enabled, started, day, activeDay, totalDays: CHALLENGE_PATH_NODES.length,
+      enabled, started, day, activeDay, startsOn, totalDays: CHALLENGE_PATH_NODES.length,
       stats: { xp: s.xp_total || 0, gems: s.gems || 0, streak: s.streak_current || 0, streakBest: s.streak_best || 0, jokers: s.jokers || 0 },
       weekTitles: CHALLENGE_WEEK_TITLES,
       nodes,
@@ -334,7 +357,7 @@ function createChallengeEngine({ getDb }) {
 
   return {
     ensureChallengePathSchema, awardClientEvent, recordEbookOpen, challengePublicState,
-    pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, reconcileStreak,
+    pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
     grantWeekJokerIfComplete, pathStatsRow, pathDoneDays,
   };
 }

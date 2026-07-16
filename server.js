@@ -380,11 +380,16 @@ function ensureNutritionHelpTable() {
     -- connexion, le client prouve son appartenance avec ce code puis pose son PIN.
     -- Le code protège la fenêtre de réclamation : sans lui, connaître email+prénom+nom
     -- ne suffit pas à s'emparer d'un compte pré-créé.
+    -- Cette table décrit la COHORTE (ville + n° de challenge) : son code d'entrée
+    -- ET sa date de début. start_date (YYYY-MM-DD) lance le parcours pour tout le
+    -- groupe le même jour ; vide = chacun démarre à sa pesée de départ (comportement
+    -- historique). Une date FUTURE tient le chemin verrouillé jusqu'au jour J.
     CREATE TABLE IF NOT EXISTS nutrition_access_codes (
       ville TEXT NOT NULL DEFAULT '',
       challenge_no INTEGER NOT NULL DEFAULT 0,
       code TEXT NOT NULL DEFAULT '',
       actif INTEGER NOT NULL DEFAULT 1,
+      start_date TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (ville, challenge_no)
     );
@@ -450,6 +455,15 @@ function ensureNutritionHelpTable() {
       getDb().exec('ALTER TABLE nutrition_clients ADD COLUMN pre_created INTEGER NOT NULL DEFAULT 0');
     }
   } catch (e) { console.error('Migration nutrition_clients.pre_created :', e && e.message); }
+  // Migration : date de début de la COHORTE (lance le parcours pour tout le groupe).
+  // Vide = comportement historique (chacun démarre à sa pesée de départ) -> les
+  // groupes existants ne bougent pas tant qu'aucune date n'est posée à la main.
+  try {
+    const acCols = getDb().prepare('PRAGMA table_info(nutrition_access_codes)').all();
+    if (acCols.length && !acCols.some((c) => c.name === 'start_date')) {
+      getDb().exec("ALTER TABLE nutrition_access_codes ADD COLUMN start_date TEXT NOT NULL DEFAULT ''");
+    }
+  } catch (e) { console.error('Migration nutrition_access_codes.start_date :', e && e.message); }
   // Migration : cloisonnement de la Communauté par groupe (ville + n° de challenge).
   try {
     const cmCols = getDb().prepare('PRAGMA table_info(nutrition_community_messages)').all();
@@ -2761,11 +2775,11 @@ try {
       const ville = String(req.query.ville || '').trim().slice(0, 80);
       const challengeNo = Math.max(0, Math.min(999, Math.round(Number(req.query.challengeNo) || 0)));
       if (!ville) {
-        const rows = getDb().prepare('SELECT ville, challenge_no, code, actif FROM nutrition_access_codes ORDER BY ville, challenge_no').all();
-        return res.json({ ok: true, codes: rows.map((r) => ({ ville: r.ville, challengeNo: r.challenge_no, code: r.code, actif: !!r.actif })) });
+        const rows = getDb().prepare('SELECT ville, challenge_no, code, actif, start_date FROM nutrition_access_codes ORDER BY ville, challenge_no').all();
+        return res.json({ ok: true, codes: rows.map((r) => ({ ville: r.ville, challengeNo: r.challenge_no, code: r.code, actif: !!r.actif, startDate: r.start_date || '' })) });
       }
-      const row = getDb().prepare('SELECT code, actif FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').get(ville, challengeNo);
-      res.json({ ok: true, ville, challengeNo, code: (row && row.code) || '', actif: !!(row && row.actif) });
+      const row = getDb().prepare('SELECT code, actif, start_date FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').get(ville, challengeNo);
+      res.json({ ok: true, ville, challengeNo, code: (row && row.code) || '', actif: !!(row && row.actif), startDate: (row && row.start_date) || '' });
     } catch (e) { console.error('access-codes GET :', e); res.status(500).json({ ok: false }); }
   });
 
@@ -2776,11 +2790,24 @@ try {
       const ville = String(b.ville || '').trim().slice(0, 80);
       const challengeNo = Math.max(0, Math.min(999, Math.round(Number(b.challengeNo) || 0)));
       if (!ville) return res.status(400).json({ ok: false, error: 'Ville requise.' });
-      const actif = b.actif === false ? 0 : 1;
-      const code = b.regenerate || !b.code ? genAccessCode() : String(b.code).trim().slice(0, 12);
-      getDb().prepare('INSERT INTO nutrition_access_codes (ville, challenge_no, code, actif, updated_at) VALUES (?,?,?,?,?) ON CONFLICT(ville, challenge_no) DO UPDATE SET code = excluded.code, actif = excluded.actif, updated_at = excluded.updated_at')
-        .run(ville, challengeNo, code, actif, new Date().toISOString());
-      res.json({ ok: true, ville, challengeNo, code, actif: !!actif });
+      const ex = getDb().prepare('SELECT code, actif, start_date FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').get(ville, challengeNo);
+      // NON DESTRUCTIF : on ne régénère le code que si on le demande explicitement
+      // (ou s'il n'en existe pas). Régler une date ne doit JAMAIS changer le code
+      // du groupe — sinon les clients pas encore inscrits seraient largués.
+      const code = b.regenerate ? genAccessCode()
+        : (b.code ? String(b.code).trim().slice(0, 12) : ((ex && ex.code) || genAccessCode()));
+      const actif = (b.actif === undefined) ? (ex ? ex.actif : 1) : (b.actif === false ? 0 : 1);
+      // startDate : 'YYYY-MM-DD' pour lancer le groupe ce jour-là, '' pour retirer la
+      // date (retour au démarrage individuel). Absent = on ne touche pas à l'existant.
+      let startDate = ex ? (ex.start_date || '') : '';
+      if (b.startDate !== undefined) {
+        const s = String(b.startDate || '').trim();
+        if (s && !/^\d{4}-\d{2}-\d{2}$/.test(s)) return res.status(400).json({ ok: false, error: 'Date invalide (attendu AAAA-MM-JJ).' });
+        startDate = s;
+      }
+      getDb().prepare('INSERT INTO nutrition_access_codes (ville, challenge_no, code, actif, start_date, updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(ville, challenge_no) DO UPDATE SET code = excluded.code, actif = excluded.actif, start_date = excluded.start_date, updated_at = excluded.updated_at')
+        .run(ville, challengeNo, code, actif, startDate, new Date().toISOString());
+      res.json({ ok: true, ville, challengeNo, code, actif: !!actif, startDate });
     } catch (e) { console.error('access-codes POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
 
