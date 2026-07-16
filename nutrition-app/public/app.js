@@ -4032,27 +4032,131 @@ async function reactFeed(id, type) {
 // Le palier est rare (3, 7, 14… jours d'affilée) et c'est le plus gros gain de
 // Punch de l'app : on s'arrête dessus, au lieu du toast qui file en 3 secondes.
 // Le client ferme quand il veut — rien ne se joue en arrière-plan.
-function celebrerPalierSerie(palier) {
-  let ov = $('#palierOv');
-  if (!ov) {
-    ov = document.createElement('div');
-    ov.id = 'palierOv'; ov.className = 'palier';
-    ov.innerHTML = `<div class="palier-card">
-      <div class="palier-flamme">🔥</div>
-      <div class="palier-jours"></div>
-      <div class="palier-sub">jours d'affilée</div>
-      <div class="palier-punch"></div>
-      <button type="button" class="palier-ok">Continuer</button>
-    </div>`;
-    document.body.appendChild(ov);
-    const fermer = () => ov.classList.remove('open');
-    ov.querySelector('.palier-ok').addEventListener('click', fermer);
-    ov.addEventListener('click', (e) => { if (e.target === ov) fermer(); });
-  }
-  ov.querySelector('.palier-jours').textContent = palier.jours;
-  ov.querySelector('.palier-punch').textContent = '+' + palier.punch + ' Punch 👊';
+// --- Moteur de célébration réutilisable -------------------------------------
+// UN seul overlay pour tout ce qui se célèbre (palier de série, déblocage d'une
+// vidéo / d'un ebook / d'un cadeau). Le point clé est la FILE : un palier de série
+// peut franchir un seuil de Punch au même instant -> deux célébrations arrivent
+// ensemble et ne doivent JAMAIS se superposer. On les enchaîne.
+const _celebFile = [];
+let _celebEnCours = false;
+
+// { icon, title, subtitle, gain, autoMs } — autoMs 0 = le client ferme lui-même.
+function celebrateUnlock(c) {
+  if (!c) return;
+  _celebFile.push(c);
+  if (!_celebEnCours) celebSuivante();
+}
+function celebSuivante() {
+  const c = _celebFile.shift();
+  if (!c) { _celebEnCours = false; return; }
+  _celebEnCours = true;
+  const ov = ensureCelebOverlay();
+  ov.querySelector('.celeb-ic').textContent = c.icon || '🎉';
+  ov.querySelector('.celeb-title').textContent = c.title || 'Débloqué 🎉';
+  ov.querySelector('.celeb-sub').textContent = c.subtitle || '';
+  const gainEl = ov.querySelector('.celeb-gain');
+  gainEl.style.display = c.gain ? '' : 'none';
   ov.classList.add('open');
+  ov.querySelectorAll('.celeb-etincelle').forEach((e, k) => { e.style.animationDelay = (k * 55) + 'ms'; });
+  if (c.gain) countUp(gainEl, c.gain);
   try { if (navigator.vibrate) navigator.vibrate([18, 40, 18]); } catch (_) { /* pas de retour haptique */ }
+  clearTimeout(ov._t);
+  // Non bloquante : elle s'efface seule (~2 s) — sauf si on veut un vrai temps d'arrêt.
+  if (c.autoMs !== 0) ov._t = setTimeout(fermerCeleb, c.autoMs || 2200);
+}
+function fermerCeleb() {
+  const ov = $('#celebOv'); if (!ov) return;
+  clearTimeout(ov._t);
+  ov.classList.remove('open');
+  // On laisse la sortie se jouer avant d'enchaîner : sinon les deux se chevauchent.
+  setTimeout(celebSuivante, 260);
+}
+// Le compteur grimpe : le gain se VOIT arriver au lieu d'apparaître déjà acquis.
+// ⚠️ On écrit la valeur JUSTE d'abord, l'animation n'est qu'un décor par-dessus :
+// requestAnimationFrame ne tourne pas si l'onglet n'est pas visible, et le client
+// resterait alors bloqué sur « +0 Punch » — le pire affichage possible sur une
+// récompense. Même logique si le téléphone demande moins de mouvement.
+function countUp(el, total) {
+  const fin = Number(total) || 0;
+  el.textContent = '+' + fin + ' Punch 👊';
+  let reduit = false;
+  try { reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { /* ignore */ }
+  if (reduit || document.visibilityState !== 'visible') return; // la bonne valeur est déjà là
+  const t0 = performance.now(), duree = 900;
+  const tick = (t) => {
+    const p = Math.min(1, (t - t0) / duree);
+    const v = Math.round(fin * (1 - Math.pow(1 - p, 3))); // ralentit à l'arrivée
+    el.textContent = '+' + v + ' Punch 👊';
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function ensureCelebOverlay() {
+  let ov = $('#celebOv'); if (ov) return ov;
+  ov = document.createElement('div');
+  ov.id = 'celebOv'; ov.className = 'celeb';
+  const etincelles = Array.from({ length: 8 }, () => '<span class="celeb-etincelle"></span>').join('');
+  ov.innerHTML = `<div class="celeb-card">
+    <div class="celeb-burst">${etincelles}<div class="celeb-ic"></div></div>
+    <div class="celeb-title"></div>
+    <div class="celeb-sub"></div>
+    <div class="celeb-gain"></div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click', fermerCeleb); // fermeture au tap, n'importe où
+  return ov;
+}
+
+// Palier de série : même moteur, contenu dédié. Pas d'auto-fermeture — c'est le
+// plus gros gain de l'app, il mérite qu'on s'y arrête.
+function celebrerPalierSerie(palier) {
+  celebrateUnlock({
+    icon: '🔥',
+    title: palier.jours + ' jours d\'affilée',
+    subtitle: 'Ta série tient — continue comme ça.',
+    gain: palier.punch,
+    autoMs: 0,
+  });
+}
+
+// Visuel par type de déblocage.
+const DEBLOCAGE_VISUEL = {
+  video: { icon: '🎬', titre: 'Nouvelles vidéos débloquées 🎉' },
+  ebook: { icon: '📗', titre: 'Nouveaux guides débloqués 🎉' },
+  gift: { icon: '🎁', titre: 'Cadeau débloqué 🎉' },
+};
+const CADEAU_LABEL = {
+  theme_dark: 'Thème sombre', ami_semaine: 'Une semaine offerte à un ami',
+  coaching_1to1: 'Un coaching individuel', theme_gold: 'Thème doré',
+  remise_abo: 'Une remise sur ton abonnement', massage: 'Un massage',
+};
+// Célèbre les déblocages tombés (souvent aucun, parfois plusieurs d'un coup).
+function celebrerDeblocages(cles, etat) {
+  (cles || []).forEach((cle) => {
+    const [seuil, type] = String(cle).split(':');
+    const v = DEBLOCAGE_VISUEL[type]; if (!v) return;
+    celebrateUnlock({ icon: v.icon, title: v.titre, subtitle: sousTitreDeblocage(type, Number(seuil), etat) });
+  });
+}
+function sousTitreDeblocage(type, seuil, etat) {
+  if (type === 'gift') {
+    const g = (etat && etat.cadeaux && etat.cadeaux[seuil]) || null;
+    return g ? (CADEAU_LABEL[g] || g) : 'Atteint à ' + seuil + ' Punch.';
+  }
+  return 'Atteint à ' + seuil + ' Punch.';
+}
+
+// Applique un nouvel état du Chemin et célèbre ce qui vient de se débloquer.
+// ⚠️ Passe par ICI plutôt que d'écrire state.challenge en direct : c'est le seul
+// moyen qu'aucun déblocage ne soit manqué, quelle que soit l'action à l'origine.
+function appliquerEtatChallenge(st) {
+  if (!st) return;
+  const avant = new Set(((state.challenge && state.challenge.unlocks) || []));
+  const apres = st.unlocks || [];
+  state.challenge = st;
+  if (avant.size || (state.challenge && state.challenge.unlocks)) {
+    celebrerDeblocages(apres.filter((c) => !avant.has(c)), st);
+  }
 }
 
 // --- BILAN HEBDO : les CHIFFRES (déterministes, calculés par l'app) ----------
@@ -4507,7 +4611,7 @@ async function evaluerStreakRepas(di) {
     });
     const d = await r.json();
     if (!d || !d.ok) { _streakEnvoiJour = ''; return; } // on retentera au prochain clic
-    state.challenge = d.state;
+    appliquerEtatChallenge(d.state);
     if (d.nouveau) {
       const s = (d.state && d.state.stats) || {};
       // Un palier de série est un vrai moment : il mérite mieux qu'un toast qui file.
@@ -4678,7 +4782,7 @@ async function mcpathRetourApresAction() {
     const res = await fetch(apiUrl('/api/challenge/state'), { headers: nutriAuthHeaders() });
     const d = await res.json();
     if (!d || !d.ok) return;
-    state.challenge = d.state;
+    appliquerEtatChallenge(d.state);
     const n = (d.state.nodes || []).find((x) => x.day === r.day);
     if (!n) { state.mcpathRetour = null; return; }
     const faits = (n.flowDone || []).length;
@@ -4952,7 +5056,7 @@ async function bilanTerminer(n) {
       body: JSON.stringify({ week: n.week }),
     });
     const d = await r.json();
-    if (d && d.ok) { state.challenge = d.state; if (d.reward) rewardToast(d.reward); }
+    if (d && d.ok) { appliquerEtatChallenge(d.state); if (d.reward) rewardToast(d.reward); }
   } catch (_) { showToast('Connexion requise pour valider ton bilan.', { icon: 'info' }); return; }
   closeBilanSheet();
   if (state.parcoursSub !== 'mesures') renderChallenge();
@@ -4996,7 +5100,7 @@ async function challengeDeclareAventure(n) {
   try {
     const r = await fetch(apiUrl('/api/challenge/aventure'), { method: 'POST', headers: { ...nutriAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
     const d = await r.json();
-    if (d && d.ok) { state.challenge = d.state; if (d.reward) rewardToast(d.reward); if (state.parcoursSub !== 'mesures') renderChallenge(); }
+    if (d && d.ok) { appliquerEtatChallenge(d.state); if (d.reward) rewardToast(d.reward); if (state.parcoursSub !== 'mesures') renderChallenge(); }
   } catch (_) { /* silencieux */ }
 }
 
