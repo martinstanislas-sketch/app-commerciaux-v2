@@ -5,13 +5,13 @@
 //  Principes (cf. ticket) :
 //   - Séquentiel strict : 1 seul nœud actif à la fois (= 1er nœud non validé).
 //     Un nœud non fait ne disparaît jamais ; le retard décale simplement la suite.
-//   - Validation par ÉVÉNEMENT RÉEL de l'app (pesée, séance, ebook ouvert…),
-//     jamais par simple clic. Seul le type « aventure » est auto-déclaré.
+//   - Validation par ÉVÉNEMENT RÉEL de l'app (séance, ebook ouvert, photo…),
+//     jamais par simple clic.
 //   - On récompense les COMPORTEMENTS, jamais le poids perdu.
 //   - Rollover de journée = Europe/Paris.
 //   - Streak (🔥) = jours consécutifs d'ouverture de l'ebook du jour. Un jour
 //     manqué consomme 1 joker s'il en reste, sinon le streak retombe à 0.
-//   - Jokers (🃏) : +1 par semaine dont les 7 nœuds sont validés, max 3.
+//   - Jokers (🃏) : +1 par semaine entièrement validée, max 3.
 //   - XP (⭐) et gems (💎) selon le barème de chaque nœud.
 //
 //  Factory injectable : createChallengeEngine({ getDb }) -> API. `getDb()` doit
@@ -19,63 +19,71 @@
 //  les données de seed sont aussi exportés directement pour les tests unitaires.
 // ============================================================================
 
-const CHALLENGE_PATH_SEED_VERSION = 1;
+const CHALLENGE_PATH_SEED_VERSION = 2;
 const CHALLENGE_WEEK_TITLES = {
   1: 'Lancement', 2: 'Prendre le rythme', 3: 'Mi-parcours',
   4: 'Relance', 5: 'Tenir le cap', 6: 'Dernière ligne droite',
 };
-// Les 42 nœuds. `event` = événement réel qui valide le nœud. meta 'depart'/'s3'/'s6'
-// = jalon de pesée officielle. 3 pesées seulement (J1/J15/J41) : les ex-pesées
-// S2/S4/S5 sont devenues ebook/coach/groupe (décision produit validée).
+// Les 43 étapes, indexées 0 -> 42 (l'étape 0 = « Commencer »), réparties en 6
+// semaines : S1 0–7 (8 étapes), puis 7 par semaine.
+//   `event`  = l'événement réel de l'app qui valide l'étape (cœur du moteur).
+//   `action` = le libellé du bouton présenté au client.
+//   `flow`   = sous-étapes des étapes COMPOSITES (0/21/41) : donnée exposée pour
+//              la Phase 2. En attendant, l'étape se valide dès la 1re sous-étape
+//              (event 'photo') pour ne jamais geler le parcours.
+//   `jalon`  = debut | mi | fin -> ces étapes + le bilan final sont les ★ dorés.
+// Plus aucune étape « pesée » : la pesée reste saisie par le coach dans Mon
+// Parcours et continue d'ancrer la date de départ (cf. pathStartYmd).
 const CHALLENGE_PATH_NODES = [
-  // S1 — Lancement
-  { day: 1,  week: 1, type: 'pesee',        event: 'pesee',        title: 'Pesée de départ',                     xp: 30, gems: 50, milestone: 1, meta: 'depart' },
-  { day: 2,  week: 1, type: 'photo',        event: 'photo',        title: 'Photo « avant »',                     xp: 30, gems: 50, milestone: 1 },
-  { day: 3,  week: 1, type: 'groupe',       event: 'groupe',       title: 'Présente-toi au groupe',              xp: 20, gems: 0,  milestone: 0 },
-  { day: 4,  week: 1, type: 'mensurations', event: 'mensurations', title: 'Mensurations de départ',              xp: 30, gems: 50, milestone: 1 },
-  { day: 5,  week: 1, type: 'ebook',        event: 'ebook',        title: 'Découvre ton ebook (chap. 1)',        xp: 15, gems: 0,  milestone: 0 },
-  { day: 6,  week: 1, type: 'seance',       event: 'seance',       title: 'Valide tes séances de la semaine',    xp: 25, gems: 0,  milestone: 0 },
-  { day: 7,  week: 1, type: 'bilan',        event: 'bilan',        title: 'Consulte ton bilan de la semaine 1',  xp: 20, gems: 0,  milestone: 0 },
-  // S2 — Prendre le rythme
-  { day: 8,  week: 2, type: 'coach',        event: 'coach',        title: 'Message à ton coach : comment ça va ?', xp: 20, gems: 0, milestone: 0 },
-  { day: 9,  week: 2, type: 'seance',       event: 'seance',       title: 'Séance 1',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 10, week: 2, type: 'ebook',        event: 'ebook',        title: 'Lis le chapitre de la semaine',       xp: 15, gems: 0,  milestone: 0 }, // ex-pesée S2
-  { day: 11, week: 2, type: 'seance',       event: 'seance',       title: 'Séance 2',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 12, week: 2, type: 'nutrition',    event: 'plate',        title: 'Défi : photographie une assiette de ton plan', xp: 20, gems: 0, milestone: 0 },
-  { day: 13, week: 2, type: 'seance',       event: 'seance',       title: 'Séance 3',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 14, week: 2, type: 'bilan',        event: 'bilan',        title: 'Bilan de la semaine 2',               xp: 20, gems: 0,  milestone: 0 },
-  // S3 — Mi-parcours
-  { day: 15, week: 3, type: 'pesee',        event: 'pesee',        title: 'Pesée semaine 3',                     xp: 40, gems: 50, milestone: 1, meta: 's3' },
-  { day: 16, week: 3, type: 'seance',       event: 'seance',       title: 'Séance 1',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 17, week: 3, type: 'mensurations', event: 'mensurations', title: 'Mensurations mi-parcours',            xp: 40, gems: 50, milestone: 1 },
-  { day: 18, week: 3, type: 'seance',       event: 'seance',       title: 'Séance 2',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 19, week: 3, type: 'photo',        event: 'photo',        title: 'Photo de progression',                xp: 40, gems: 50, milestone: 1 },
-  { day: 20, week: 3, type: 'seance',       event: 'seance',       title: 'Séance 3',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 21, week: 3, type: 'bilan',        event: 'bilan',        title: 'Bilan mi-parcours (comparatif S1→S3)', xp: 25, gems: 0, milestone: 0 },
-  // S4 — Relance
-  { day: 22, week: 4, type: 'groupe',       event: 'groupe',       title: 'Partage ton ressenti mi-parcours au groupe', xp: 20, gems: 0, milestone: 0 },
-  { day: 23, week: 4, type: 'seance',       event: 'seance',       title: 'Séance 1',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 24, week: 4, type: 'coach',        event: 'coach',        title: 'Message de relance à ton coach',      xp: 20, gems: 0,  milestone: 0 }, // ex-pesée S4
-  { day: 25, week: 4, type: 'seance',       event: 'seance',       title: 'Séance 2',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 26, week: 4, type: 'aventure',     event: 'aventure',     title: 'Aventure : défi hydratation (3 jours)', xp: 30, gems: 20, milestone: 0 },
-  { day: 27, week: 4, type: 'seance',       event: 'seance',       title: 'Séance 3',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 28, week: 4, type: 'bilan',        event: 'bilan',        title: 'Bilan de la semaine 4',               xp: 20, gems: 0,  milestone: 0 },
-  // S5 — Tenir le cap
-  { day: 29, week: 5, type: 'coach',        event: 'coach',        title: 'Message au coach : difficultés et victoires', xp: 20, gems: 0, milestone: 0 },
-  { day: 30, week: 5, type: 'seance',       event: 'seance',       title: 'Séance 1',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 31, week: 5, type: 'groupe',       event: 'groupe',       title: 'Encourage un membre du groupe',       xp: 20, gems: 0,  milestone: 0 }, // ex-pesée S5
-  { day: 32, week: 5, type: 'seance',       event: 'seance',       title: 'Séance 2',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 33, week: 5, type: 'nutrition',    event: 'groupe',       title: 'Recette de la semaine : réalise-la et partage la photo au groupe', xp: 25, gems: 0, milestone: 0 },
-  { day: 34, week: 5, type: 'seance',       event: 'seance',       title: 'Séance 3',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 35, week: 5, type: 'bilan',        event: 'bilan',        title: 'Bilan de la semaine 5',               xp: 20, gems: 0,  milestone: 0 },
-  // S6 — Dernière ligne droite
-  { day: 36, week: 6, type: 'seance',       event: 'seance',       title: 'Séance 1',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 37, week: 6, type: 'mensurations', event: 'mensurations', title: 'Mensurations finales',                xp: 50, gems: 50, milestone: 1 },
-  { day: 38, week: 6, type: 'seance',       event: 'seance',       title: 'Séance 2',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 39, week: 6, type: 'photo',        event: 'photo',        title: 'Photo « après »',                     xp: 50, gems: 50, milestone: 1 },
-  { day: 40, week: 6, type: 'seance',       event: 'seance',       title: 'Séance 3',                            xp: 25, gems: 0,  milestone: 0 },
-  { day: 41, week: 6, type: 'pesee',        event: 'pesee',        title: 'Pesée finale',                        xp: 50, gems: 50, milestone: 1, meta: 's6' },
-  { day: 42, week: 6, type: 'bilan',        event: 'bilan',        title: 'Bilan final : récap complet + badge finisher', xp: 50, gems: 50, milestone: 1 },
+  // S1 — Lancement (index 0–7)
+  { day: 0, week: 1, type: 'commencer', event: 'photo', title: "Commencer", action: "Photos + mensurations + présente-toi au groupe", xp: 30, gems: 50, milestone: 1, jalon: 'debut', flow: ['photos', 'mensurations', 'groupe'] },
+  { day: 1, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 2, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 3, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 4, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 5, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 6, week: 1, type: 'special', event: 'coach', title: "Message coach", action: "Écris un message à ton coach", xp: 20, gems: 0, milestone: 0 },
+  { day: 7, week: 1, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", xp: 20, gems: 0, milestone: 0 },
+  // S2 — Prendre le rythme (index 8–14)
+  { day: 8, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 9, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 10, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 11, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 12, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 13, week: 2, type: 'special', event: 'plate', title: "Photo d'assiette", action: "Envoie une photo de ton assiette du jour", xp: 20, gems: 0, milestone: 0 },
+  { day: 14, week: 2, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", xp: 20, gems: 0, milestone: 0 },
+  // S3 — Mi-parcours (index 15–21)
+  { day: 15, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 16, week: 3, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 17, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 18, week: 3, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 19, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 20, week: 3, type: 'special', event: 'coach', title: "Message coach", action: "Écris un message à ton coach", xp: 20, gems: 0, milestone: 0 },
+  { day: 21, week: 3, type: 'check', event: 'photo', title: "Point mi-parcours", action: "Photos + mensurations mi-parcours", xp: 40, gems: 50, milestone: 1, jalon: 'mi', flow: ['photos', 'mensurations'] },
+  // S4 — Relance (index 22–28)
+  { day: 22, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 23, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 24, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 25, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 26, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 27, week: 4, type: 'special', event: 'groupe', title: "Communauté", action: "Encourage un membre du groupe", xp: 20, gems: 0, milestone: 0 },
+  { day: 28, week: 4, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", xp: 20, gems: 0, milestone: 0 },
+  // S5 — Tenir le cap (index 29–35)
+  { day: 29, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 30, week: 5, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 31, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 32, week: 5, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 33, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 34, week: 5, type: 'special', event: 'groupe', title: "Communauté", action: "Partage-nous ta meilleure recette sur le groupe", xp: 20, gems: 0, milestone: 0 },
+  { day: 35, week: 5, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", xp: 20, gems: 0, milestone: 0 },
+  // S6 — Dernière ligne droite (index 36–42)
+  { day: 36, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 37, week: 6, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 38, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 39, week: 6, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
+  { day: 40, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
+  { day: 41, week: 6, type: 'check', event: 'photo', title: "Point final", action: "Photos + mensurations finales", xp: 50, gems: 50, milestone: 1, jalon: 'fin', flow: ['photos', 'mensurations'] },
+  { day: 42, week: 6, type: 'final', event: 'bilan', title: "Bilan final", action: "Bilan final, recap complet, badge finisher", xp: 50, gems: 50, milestone: 1 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -117,9 +125,12 @@ function streakAfterOpen(streak, last, today) {
   if (pathDaysBetween(last, today) === 1) return streak + 1; // jour consécutif
   return streak <= 0 ? 1 : streak + 1;          // reprise après reset / trou déjà soldé
 }
-// Jour actif (1-based) à partir de l'ensemble des jours validés (séquentiel strict). null si fini.
+// Étape active à partir de l'ensemble des étapes validées (séquentiel strict).
+// Les étapes sont indexées 0 -> total-1 (l'étape 0 = « Commencer »).
+// ⚠️ Renvoie null (et JAMAIS undefined/false) quand tout est fini : l'étape 0
+// étant falsy, tout appelant DOIT tester `=== null` et non `!valeur`.
 function activeDayFromDone(doneSet, total) {
-  for (let d = 1; d <= total; d++) if (!doneSet.has(d)) return d;
+  for (let d = 0; d < total; d++) if (!doneSet.has(d)) return d;
   return null;
 }
 
@@ -200,7 +211,7 @@ function createChallengeEngine({ getDb }) {
           ON CONFLICT(day) DO UPDATE SET week=excluded.week, type=excluded.type, validation_event=excluded.validation_event,
             title=excluded.title, xp=excluded.xp, gems=excluded.gems, is_milestone=excluded.is_milestone, meta=excluded.meta`);
         const tx = getDb().transaction(() => {
-          CHALLENGE_PATH_NODES.forEach((n) => up.run(n.day, n.week, n.type, n.event, n.title, n.xp, n.gems, n.milestone, n.meta || ''));
+          CHALLENGE_PATH_NODES.forEach((n) => up.run(n.day, n.week, n.type, n.event, n.title, n.xp, n.gems, n.milestone, n.jalon || ''));
         });
         tx();
         getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('challenge_path_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at").run(String(CHALLENGE_PATH_SEED_VERSION));
@@ -318,7 +329,7 @@ function createChallengeEngine({ getDb }) {
       if (!email || !pathFeatureEnabled()) return null;
       if (pathCurrentDay(email) <= 0) return null; // parcours non démarré
       const activeDay = pathActiveDay(email);
-      if (!activeDay) return null; // terminé
+      if (activeDay === null) return null; // terminé (=== null : l'étape 0 est falsy !)
       const node = CHALLENGE_PATH_NODES.find((n) => n.day === activeDay);
       if (!node || node.event !== eventType) return null; // pas le bon événement -> le retard décale la suite
       const ins = getDb().prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at, xp_awarded, gems_awarded, ref_id) VALUES (?,?,?,?,?,?)")
@@ -344,7 +355,10 @@ function createChallengeEngine({ getDb }) {
     const activeDay = pathActiveDay(email);
     const nodes = CHALLENGE_PATH_NODES.map((n) => ({
       day: n.day, week: n.week, weekTitle: CHALLENGE_WEEK_TITLES[n.week] || '',
-      type: n.type, title: n.title, xp: n.xp, gems: n.gems, milestone: !!n.milestone,
+      type: n.type, title: n.title, action: n.action || '', xp: n.xp, gems: n.gems, milestone: !!n.milestone,
+      // Étapes composites (Commencer / Points mi-parcours et final) : la donnée est
+      // exposée pour la Phase 2 (enchaînement des sous-étapes). Aucun comportement ici.
+      jalon: n.jalon || '', flow: n.flow || null,
       status: done.has(n.day) ? 'done' : (n.day === activeDay ? 'active' : 'locked'),
     }));
     return {

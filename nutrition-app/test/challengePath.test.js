@@ -33,7 +33,7 @@ function completeAll(engine, email) {
   let guard = 0;
   while (guard++ < 200) {
     const active = engine.pathActiveDay(email);
-    if (!active) break;
+    if (active === null) break; // === null : l'étape 0 est falsy
     const r = engine.awardClientEvent(email, eventFor(active), 'ref' + active);
     if (!r) break;
   }
@@ -72,10 +72,13 @@ test('streakAfterOpen : consécutif +1, même jour inchangé, reprise à 1', () 
   assert.equal(streakAfterOpen(0, '2026-01-01', '2026-01-05'), 1);
 });
 
-test('activeDayFromDone : premier jour non validé (séquentiel strict)', () => {
-  assert.equal(activeDayFromDone(new Set(), 42), 1);
-  assert.equal(activeDayFromDone(new Set([1, 2, 3]), 42), 4);
-  assert.equal(activeDayFromDone(new Set(Array.from({ length: 42 }, (_, i) => i + 1)), 42), null);
+test('activeDayFromDone : première étape non validée (séquentiel strict, 0-based)', () => {
+  assert.equal(activeDayFromDone(new Set(), 43), 0);
+  assert.equal(activeDayFromDone(new Set([0, 1, 2]), 43), 3);
+  assert.equal(activeDayFromDone(new Set(Array.from({ length: 43 }, (_, i) => i)), 43), null);
+  // PIÈGE : l'étape 0 est falsy. « étape 0 » et « terminé » ne doivent JAMAIS
+  // se confondre — tout appelant doit tester === null.
+  assert.notEqual(activeDayFromDone(new Set(), 43), null, 'l\'étape 0 n\'est pas « terminé »');
 });
 
 // --- DATE DE DÉBUT DE LA COHORTE (lance le parcours pour tout le groupe) ------
@@ -107,20 +110,20 @@ test('cohorte : une date FUTURE tient le chemin verrouillé jusqu\'au jour J', (
   seedCohorte(db, email, demain);
   assert.ok(engine.pathCurrentDay(email) <= 0, 'le parcours ne doit pas être démarré');
   // Aucun événement ne peut valider quoi que ce soit avant le jour J.
-  assert.equal(engine.awardClientEvent(email, 'pesee', 'depart'), null);
-  assert.equal(engine.pathActiveDay(email), 1, 'le nœud 1 reste intact');
+  assert.equal(engine.awardClientEvent(email, 'photo', 'x'), null);
+  assert.equal(engine.pathActiveDay(email), 0, 'l\'étape 0 reste intacte');
   const st = engine.challengePublicState(email);
   assert.equal(st.started, false);
   assert.equal(st.startsOn, demain, 'le front doit pouvoir annoncer la date');
 });
 
-test('cohorte : le jour J, le parcours s\'ouvre (jour 1) et les nœuds se valident', () => {
+test('cohorte : le jour J, le parcours s\'ouvre et les étapes se valident', () => {
   const { db, engine, email } = makeEngine();
   seedCohorte(db, email, pathParisYmd()); // démarre aujourd'hui
   assert.equal(engine.pathCurrentDay(email), 1);
-  const r = engine.awardClientEvent(email, 'pesee', 'depart');
-  assert.ok(r, 'le 1er nœud doit être validable le jour J');
-  assert.equal(r.day, 1);
+  const r = engine.awardClientEvent(email, 'photo', 'x');
+  assert.ok(r, 'l\'étape 0 doit être validable le jour J');
+  assert.equal(r.day, 0);
   assert.equal(engine.challengePublicState(email).started, true);
 });
 
@@ -133,35 +136,91 @@ test('cohorte : tout le groupe partage le même jour de parcours', () => {
 });
 
 // --- Seed ------------------------------------------------------------------
-test('seed : 42 nœuds, pesées uniquement J1/J15/J41, 10 jalons dorés', () => {
+test('seed : 43 étapes (0→42), aucune pesée, 4 jalons ★, 6 semaines bien bornées', () => {
   const { db } = makeEngine();
   const rows = db.prepare('SELECT * FROM path_nodes ORDER BY day').all();
-  assert.equal(rows.length, 42);
-  assert.deepEqual(rows.map((r) => r.day), Array.from({ length: 42 }, (_, i) => i + 1));
-  assert.deepEqual(rows.filter((r) => r.type === 'pesee').map((r) => r.day), [1, 15, 41]);
-  assert.equal(rows.filter((r) => r.is_milestone).length, 10);
+  assert.equal(rows.length, 43);
+  assert.deepEqual(rows.map((r) => r.day), Array.from({ length: 43 }, (_, i) => i), 'index 0→42 contigus');
+  assert.equal(rows.filter((r) => r.type === 'pesee').length, 0, 'la pesée ne fait plus partie du parcours');
+  // ★ = les 3 jalons (debut/mi/fin) + le bilan final.
+  assert.deepEqual(rows.filter((r) => r.is_milestone).map((r) => r.day), [0, 21, 41, 42]);
+  assert.deepEqual(rows.filter((r) => r.meta).map((r) => r.day + ':' + r.meta), ['0:debut', '21:mi', '41:fin']);
+  // Découpage : S1 0–7 (8 étapes), puis 7 par semaine.
+  const bornes = { 1: [0, 7], 2: [8, 14], 3: [15, 21], 4: [22, 28], 5: [29, 35], 6: [36, 42] };
+  rows.forEach((r) => {
+    const [a, b] = bornes[r.week];
+    assert.ok(r.day >= a && r.day <= b, `étape ${r.day} hors de la semaine ${r.week}`);
+  });
+  assert.deepEqual(Object.keys(bornes).map((w) => rows.filter((r) => r.week === Number(w)).length), [8, 7, 7, 7, 7, 7]);
+});
+
+test('seed : types et titres conformes à la table de vérité', () => {
+  const { db } = makeEngine();
+  const byDay = {};
+  db.prepare('SELECT * FROM path_nodes').all().forEach((r) => { byDay[r.day] = r; });
+  assert.equal(byDay[0].type, 'commencer');
+  assert.equal(byDay[0].title, 'Commencer');
+  assert.equal(byDay[7].title, 'Bilan de la semaine');
+  assert.equal(byDay[13].title, "Photo d'assiette");
+  assert.equal(byDay[21].type, 'check');
+  assert.equal(byDay[21].title, 'Point mi-parcours');
+  assert.equal(byDay[34].title, 'Communauté');
+  assert.equal(byDay[41].title, 'Point final');
+  assert.equal(byDay[42].type, 'final');
+  assert.equal(byDay[42].title, 'Bilan final');
+  // Répartition des types sur l'ensemble.
+  const n = (t) => Object.values(byDay).filter((r) => r.type === t).length;
+  assert.deepEqual([n('seance'), n('ebook'), n('special'), n('bilan'), n('check')], [18, 12, 5, 4, 2]);
+});
+
+test('étapes composites : flow + jalon présents dans la donnée exposée', () => {
+  const { engine, email } = makeEngine();
+  const nodes = engine.challengePublicState(email).nodes;
+  const at = (d) => nodes.find((n) => n.day === d);
+  assert.deepEqual(at(0).flow, ['photos', 'mensurations', 'groupe']);
+  assert.equal(at(0).jalon, 'debut');
+  assert.deepEqual(at(21).flow, ['photos', 'mensurations']);
+  assert.equal(at(21).jalon, 'mi');
+  assert.deepEqual(at(41).flow, ['photos', 'mensurations']);
+  assert.equal(at(41).jalon, 'fin');
+  // Les étapes simples n'ont pas de flow.
+  assert.equal(at(1).flow, null);
+  assert.equal(at(1).jalon, '');
+  // L'action (libellé du bouton) est exposée pour la Phase 2.
+  assert.equal(at(1).action, 'Valider la séance');
+  assert.equal(at(0).action, 'Photos + mensurations + présente-toi au groupe');
 });
 
 // --- Moteur : déblocage séquentiel -----------------------------------------
 test('déblocage séquentiel : bon événement valide + avance ; mauvais événement ignoré', () => {
   const { engine, email } = makeEngine();
-  assert.equal(engine.pathActiveDay(email), 1);
-  // nœud actif = pesée ; une séance ne doit RIEN valider (le retard décale la suite)
+  assert.equal(engine.pathActiveDay(email), 0, 'on démarre à l\'étape 0 « Commencer »');
+  // étape active = Commencer (photo) ; une séance ne doit RIEN valider
   assert.equal(engine.awardClientEvent(email, 'seance', 1), null);
-  assert.equal(engine.pathActiveDay(email), 1);
-  const r = engine.awardClientEvent(email, 'pesee', 'depart');
+  assert.equal(engine.pathActiveDay(email), 0);
+  const r = engine.awardClientEvent(email, 'photo', 'x');
   assert.ok(r);
-  assert.equal(r.day, 1);
+  assert.equal(r.day, 0);
   assert.equal(r.xp, 30);
   assert.equal(r.gems, 50);
-  assert.equal(r.nextDay, 2);
-  assert.equal(engine.pathActiveDay(email), 2);
+  assert.equal(r.nextDay, 1);
+  assert.equal(engine.pathActiveDay(email), 1);
+});
+
+test('composite : l\'étape 0 se valide dès la 1re sous-étape (photo) — jamais de gel', () => {
+  const { engine, email } = makeEngine();
+  // Décision Phase 1 : le flow est de la donnée ; la validation se fait sur la
+  // 1re sous-étape pour que le parcours ne soit jamais bloqué au départ.
+  assert.equal(engine.awardClientEvent(email, 'mensurations', 'x'), null, 'mensurations seules ne valident pas');
+  assert.equal(engine.awardClientEvent(email, 'groupe', 'x'), null, 'un post groupe seul ne valide pas');
+  assert.ok(engine.awardClientEvent(email, 'photo', 'x'), 'la photo (1re du flow) valide');
+  assert.equal(engine.pathActiveDay(email), 1);
 });
 
 test('flag OFF : aucun événement ne valide', () => {
   const { engine, email } = makeEngine({ enabled: false });
-  assert.equal(engine.awardClientEvent(email, 'pesee', 'x'), null);
-  assert.equal(engine.pathActiveDay(email), 1);
+  assert.equal(engine.awardClientEvent(email, 'photo', 'x'), null);
+  assert.equal(engine.pathActiveDay(email), 0);
 });
 
 test('parcours non démarré (pas de date) : aucun événement ne valide', () => {
@@ -187,19 +246,18 @@ test('parcours complet : XP et gems = somme du barème ; ré-émission = aucun d
   assert.equal(stats2.gems, sumGems);
 });
 
-test('idempotence fine : revalider un nœud déjà fait n\'ajoute pas d\'XP', () => {
+test('idempotence fine : revalider une étape déjà faite n\'ajoute pas d\'XP', () => {
   const { engine, email, db } = makeEngine();
-  engine.awardClientEvent(email, 'pesee', 'depart'); // nœud 1 -> done
-  // forcer le nœud actif à rester 1 en supprimant le 2 du set n'est pas possible ;
-  // on vérifie via l'insertion directe que la PK bloque tout double-crédit :
-  const dup = db.prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at) VALUES (?,?,?)").run(email, 1, 'x');
+  engine.awardClientEvent(email, 'photo', 'x'); // étape 0 -> done
+  // La PK (client_email, node_day) bloque tout double-crédit, y compris sur l'étape 0.
+  const dup = db.prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at) VALUES (?,?,?)").run(email, 0, 'x');
   assert.equal(dup.changes, 0); // déjà présent -> ignoré
 });
 
-test('jokers : +1 par semaine complète (7 nœuds), plafonné à 3', () => {
+test('jokers : +1 par semaine complète (S1 = 8 étapes), plafonné à 3', () => {
   const { engine, email, db } = makeEngine();
-  // Compléter S1 (jours 1..7)
-  for (let d = 1; d <= 7; d++) engine.awardClientEvent(email, eventFor(d), 'ref' + d);
+  // Compléter S1 (étapes 0..7 : 8 étapes, pas 7)
+  for (let d = 0; d <= 7; d++) engine.awardClientEvent(email, eventFor(d), 'ref' + d);
   assert.equal(db.prepare('SELECT jokers FROM user_game_stats WHERE client_email=?').get(email).jokers, 1);
   // Tout compléter -> 6 semaines mais plafond 3
   completeAll(engine, email);
