@@ -2724,6 +2724,9 @@ try {
         'nutrition_parcours_photos', 'nutrition_parcours_seances', 'nutrition_adherence', 'nutrition_scans',
         'nutrition_help_requests', 'nutrition_push_subscriptions', 'nutrition_push_prefs', 'nutrition_push_queue',
         'nutrition_push_log', 'nutrition_push_flags', 'nutrition_push_coach_alerts',
+        // Chemin du challenge : sans ça, un email recréé plus tard hériterait de
+        // l'XP, de la série et des nœuds déjà validés de l'ancien compte.
+        'user_node_progress', 'user_game_stats', 'user_ebook_opens', 'user_bilan_seen', 'user_weeks_rewarded',
       ].forEach((t) => del('DELETE FROM ' + t + ' WHERE client_email = ?', email));
       del('DELETE FROM nutrition_clients WHERE email = ?', email); // le compte (clé = email)
       try { sessions.purgeEmail(email); } catch (_) { /* accès coupé au plus tard à l'expiration du token */ }
