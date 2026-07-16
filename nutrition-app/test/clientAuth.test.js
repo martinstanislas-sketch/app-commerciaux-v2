@@ -277,6 +277,41 @@ test('loginClient : le code reste valable pour tout le groupe (plusieurs clients
   assert.equal(db.prepare('SELECT COUNT(*) c FROM nutrition_clients').get().c, 2);
 });
 
+// --- RÉGÉNÉRATION DU CODE : les clients déjà inscrits ne doivent RIEN subir ---
+test('régénérer le code : un client déjà inscrit se connecte toujours avec son SEUL PIN', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_access_codes (ville,challenge_no,code,actif) VALUES ('Lyon',3,'482100',1)").run();
+  // Il s'inscrit avec l'ancien code.
+  assert.equal(auth.loginClient({ email: 'inscrit@a.fr', prenom: 'D', nom: 'Ejainscrit', pin: '1234', code: '482100' }).ok, true);
+  // Le coach régénère le code du groupe (fuite, nouvelle cohorte...).
+  db.prepare("UPDATE nutrition_access_codes SET code = '999888' WHERE ville='Lyon' AND challenge_no=3").run();
+  // Il se reconnecte SANS code : ça doit passer, le code ne le concerne plus.
+  assert.equal(auth.loginClient({ email: 'inscrit@a.fr', prenom: 'D', nom: 'Ejainscrit', pin: '1234' }).ok, true);
+  // Même avec l'ANCIEN code en poche, aucune gêne (il est simplement ignoré).
+  assert.equal(auth.loginClient({ email: 'inscrit@a.fr', prenom: 'D', nom: 'Ejainscrit', pin: '1234', code: '482100' }).ok, true);
+  // Et l'étape 1 du front l'envoie droit au PIN, sans jamais réclamer de code.
+  assert.equal(auth.joinCheck({ email: 'inscrit@a.fr', prenom: 'D', nom: 'Ejainscrit', code: '' }).body.mode, 'pin-login');
+  // Son rattachement au groupe est intact.
+  assert.deepEqual(
+    db.prepare("SELECT ville, challenge_no FROM nutrition_client_meta WHERE client_email='inscrit@a.fr'").get(),
+    { ville: 'Lyon', challenge_no: 3 },
+  );
+});
+
+test('régénérer le code : seuls les NOUVEAUX sont concernés (ancien code mort, nouveau vivant)', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_access_codes (ville,challenge_no,code,actif) VALUES ('Lyon',3,'482100',1)").run();
+  db.prepare("UPDATE nutrition_access_codes SET code = '999888' WHERE ville='Lyon' AND challenge_no=3").run();
+  // L'ancien code ne doit plus ouvrir.
+  assert.equal(auth.loginClient({ email: 'tard@a.fr', prenom: 'T', nom: 'Ard', pin: '1234', code: '482100' }).status, 403);
+  // Le nouveau, oui — et il rattache au même groupe.
+  assert.equal(auth.loginClient({ email: 'tard@a.fr', prenom: 'T', nom: 'Ard', pin: '1234', code: '999888' }).ok, true);
+  assert.deepEqual(
+    db.prepare("SELECT ville, challenge_no FROM nutrition_client_meta WHERE client_email='tard@a.fr'").get(),
+    { ville: 'Lyon', challenge_no: 3 },
+  );
+});
+
 // --- joinCheck (étape 1 du front) -----------------------------------------
 test('joinCheck : compte déjà protégé -> pin-login, le code est ignoré', () => {
   const { db, auth } = makeAuth();
