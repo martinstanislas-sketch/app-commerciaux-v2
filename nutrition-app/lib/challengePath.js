@@ -23,7 +23,8 @@
 // v3 : XP + gems fusionnés en Punch, jokers retirés.
 // v4 : l'étape 13 se valide par une photo POSTÉE AU GROUPE (event 'groupe_photo')
 //      et non plus par l'écran d'analyse d'assiette (event 'plate').
-const CHALLENGE_PATH_SEED_VERSION = 4;
+// v5 : l'étape 27 accepte AUSSI une réponse à un membre ('groupe_reponse').
+const CHALLENGE_PATH_SEED_VERSION = 5;
 const CHALLENGE_WEEK_TITLES = {
   1: 'Lancement', 2: 'Prendre le rythme', 3: 'Mi-parcours',
   4: 'Relance', 5: 'Tenir le cap', 6: 'Dernière ligne droite',
@@ -70,7 +71,11 @@ const CHALLENGE_PATH_NODES = [
   { day: 24, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
   { day: 25, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
   { day: 26, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 27, week: 4, type: 'special', event: 'groupe', title: "Communauté", action: "Encourage un membre du groupe", punch: 20, milestone: 0 },
+  // Encourager = poster OU répondre à quelqu'un : les deux sont un encouragement.
+  // `events` (au pluriel) = la liste des événements acceptés ; les autres étapes
+  // « groupe » gardent un seul événement (une réponse n'est ni une présentation
+  // ni un partage de recette).
+  { day: 27, week: 4, type: 'special', event: 'groupe', events: ['groupe', 'groupe_reponse'], title: "Communauté", action: "Encourage un membre du groupe : un post ou une réponse", punch: 20, milestone: 0 },
   { day: 28, week: 4, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", punch: 20, milestone: 0 },
   // S5 — Tenir le cap (index 29–35)
   { day: 29, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
@@ -141,6 +146,14 @@ const JALON_VERS_PARCOURS = { debut: 'depart', mi: 's3', fin: 's6' };
 // Les 3 photos EXIGÉES pour valider la sous-étape « photos ». Le 4e emplacement
 // de Mon Parcours (« libre ») reste un bonus : il n'entre pas dans le compte.
 const PHOTOS_REQUISES = ['face', 'profil', 'dos'];
+
+// Une étape accepte-t-elle cet événement ? `events` (liste) prime sur `event`
+// (valeur unique) : certaines étapes ont plusieurs façons légitimes d'être faites.
+function nodeAccepteEvent(node, eventType) {
+  if (!node) return false;
+  if (Array.isArray(node.events) && node.events.length) return node.events.includes(eventType);
+  return node.event === eventType;
+}
 
 // Étape active à partir de l'ensemble des étapes validées (séquentiel strict).
 // Les étapes sont indexées 0 -> total-1 (l'étape 0 = « Commencer »).
@@ -453,7 +466,7 @@ function createChallengeEngine({ getDb }) {
           .run(email, activeDay, step, new Date().toISOString());
         const faits = flowDone(email, activeDay);
         if (!node.flow.every((s) => faits.has(s))) return null; // il en manque encore
-      } else if (node.event !== eventType) {
+      } else if (!nodeAccepteEvent(node, eventType)) {
         return null; // pas le bon événement -> le retard décale la suite
       }
       const ins = getDb().prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at, punch_awarded, ref_id) VALUES (?,?,?,?,?)")
@@ -482,7 +495,7 @@ function createChallengeEngine({ getDb }) {
       day: n.day, week: n.week, weekTitle: CHALLENGE_WEEK_TITLES[n.week] || '',
       // `event` est exposé : le front route vers l'écran qui produit ce vrai
       // événement de validation (et non d'après le type d'affichage).
-      type: n.type, event: n.event, title: n.title, action: n.action || '', punch: n.punch, milestone: !!n.milestone,
+      type: n.type, event: n.event, events: n.events || null, title: n.title, action: n.action || '', punch: n.punch, milestone: !!n.milestone,
       // Étapes composites (Commencer / Points mi-parcours et final) : `flow` liste les
       // sous-étapes et `flowDone` celles déjà faites -> le front affiche les ✓.
       jalon: n.jalon || '', flow: n.flow || null,
@@ -519,4 +532,5 @@ module.exports.pathYmdMinusDays = pathYmdMinusDays;
 module.exports.streakAfterOpen = streakAfterOpen;
 module.exports.streakAffiche = streakAffiche;
 module.exports.activeDayFromDone = activeDayFromDone;
+module.exports.nodeAccepteEvent = nodeAccepteEvent;
 module.exports.FLOW_STEP_EVENT = FLOW_STEP_EVENT;

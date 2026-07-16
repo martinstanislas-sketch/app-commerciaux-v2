@@ -355,6 +355,47 @@ test('étapes « groupe » (27/34) : une photo reste un post et les valide', () 
   assert.equal(r.day, 27);
 });
 
+// --- ÉTAPE 27 : encourager = poster OU répondre ------------------------------
+test('étape 27 : une RÉPONSE à un membre la valide', () => {
+  const { engine, email, db } = makeEngine();
+  for (let d = 0; d < 27; d++) doNode(engine, email, d, db);
+  assert.equal(engine.pathActiveDay(email), 27);
+  const r = engine.awardClientEvent(email, 'groupe_reponse', 'c1');
+  assert.ok(r, 'répondre à quelqu\'un est un encouragement');
+  assert.equal(r.day, 27);
+  assert.equal(engine.pathActiveDay(email), 28);
+});
+
+test('étape 27 : un POST la valide aussi (les deux chemins marchent)', () => {
+  const { engine, email, db } = makeEngine();
+  for (let d = 0; d < 27; d++) doNode(engine, email, d, db);
+  const r = engine.awardClientEvent(email, 'groupe', 'p1');
+  assert.ok(r, 'poster reste valable');
+  assert.equal(r.day, 27);
+});
+
+test('étape 27 : idempotence — une 2e réponse ne revalide pas', () => {
+  const { engine, email, db } = makeEngine();
+  for (let d = 0; d < 27; d++) doNode(engine, email, d, db);
+  engine.awardClientEvent(email, 'groupe_reponse', 'c1');
+  const punch = engine.pathStatsRow(email).punch;
+  assert.equal(engine.awardClientEvent(email, 'groupe_reponse', 'c2'), null);
+  assert.equal(engine.pathStatsRow(email).punch, punch, 'aucun Punch en double');
+});
+
+test('RÉGRESSION : une réponse ne valide PAS les autres étapes « groupe »', () => {
+  // « Présente-toi au groupe » (étape 0) : un commentaire n'est pas une présentation.
+  const a = makeEngine();
+  assert.equal(a.engine.awardClientEvent(a.email, 'groupe_reponse', 'c'), null);
+  assert.equal(a.engine.flowDone(a.email, 0).has('groupe'), false, 'l\'étape 0 exige un vrai post');
+  // « Partage ta recette » (étape 34) : idem.
+  const b = makeEngine();
+  for (let d = 0; d < 34; d++) doNode(b.engine, b.email, d, b.db);
+  assert.equal(b.engine.pathActiveDay(b.email), 34);
+  assert.equal(b.engine.awardClientEvent(b.email, 'groupe_reponse', 'c'), null, 'une réponse ne partage pas une recette');
+  assert.ok(b.engine.awardClientEvent(b.email, 'groupe', 'p'), 'un post la valide bien');
+});
+
 // --- MESSAGE COACH : étapes 6 et 20 -----------------------------------------
 // Ces étapes se valident sur l'ENVOI réel d'un message (l'événement 'coach' n'est
 // émis que par POST /api/messages/coach) — jamais à l'ouverture de la conversation.
