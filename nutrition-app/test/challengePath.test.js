@@ -295,6 +295,66 @@ test('déblocage séquentiel : bon événement valide + avance ; mauvais événe
   assert.equal(engine.pathActiveDay(email), 2);
 });
 
+// --- ÉTAPE 13 : une photo POSTÉE AU GROUPE ----------------------------------
+// L'événement 'groupe_photo' n'est émis que par un post communautaire CONTENANT une
+// image (cf. POST /api/community/messages) — jamais à l'ouverture de la communauté.
+test('étape 13 : un post PHOTO la valide', () => {
+  const { engine, email, db } = makeEngine();
+  for (let d = 0; d < 13; d++) doNode(engine, email, d, db);
+  assert.equal(engine.pathActiveDay(email), 13);
+  const r = engine.awardClientEvent(email, 'groupe_photo', 'post1');
+  assert.ok(r, 'la photo postée valide l\'étape');
+  assert.equal(r.day, 13);
+  assert.equal(r.punch, 20);
+  assert.equal(engine.pathActiveDay(email), 14);
+});
+
+test('étape 13 : un post TEXTE (sans photo) ne la valide PAS', () => {
+  const { engine, email, db } = makeEngine();
+  for (let d = 0; d < 13; d++) doNode(engine, email, d, db);
+  assert.equal(engine.awardClientEvent(email, 'groupe', 'post-texte'), null, 'un post sans photo ne suffit pas');
+  assert.equal(engine.pathActiveDay(email), 13, 'l\'étape reste active');
+});
+
+test('étape 13 : ouvrir la communauté ne valide rien', () => {
+  const { engine, email, db } = makeEngine();
+  for (let d = 0; d < 13; d++) doNode(engine, email, d, db);
+  // Ouvrir n'émet aucun événement : rien ne bouge.
+  assert.equal(engine.pathActiveDay(email), 13);
+  assert.equal(engine.challengePublicState(email).nodes.find((n) => n.day === 13).status, 'active');
+});
+
+test('étape 13 : re-poster une photo ne double PAS la validation', () => {
+  const { engine, email, db } = makeEngine();
+  for (let d = 0; d < 13; d++) doNode(engine, email, d, db);
+  engine.awardClientEvent(email, 'groupe_photo', 'post1');
+  const punch = engine.pathStatsRow(email).punch;
+  const r2 = engine.awardClientEvent(email, 'groupe_photo', 'post2');
+  assert.equal(r2, null, 'aucune seconde validation');
+  assert.equal(engine.pathStatsRow(email).punch, punch, 'aucun Punch en double');
+});
+
+test('étape 13 : l\'ancien événement « plate » ne la valide plus', () => {
+  const { engine, email, db } = makeEngine();
+  for (let d = 0; d < 13; d++) doNode(engine, email, d, db);
+  assert.equal(engine.awardClientEvent(email, 'plate', 'x'), null, 'l\'écran d\'analyse ne valide plus l\'étape 13');
+  assert.equal(engine.pathActiveDay(email), 13);
+  // Plus aucune étape du parcours n'attend « plate ».
+  assert.equal(CHALLENGE_PATH_NODES.filter((n) => n.event === 'plate').length, 0);
+});
+
+test('étapes « groupe » (27/34) : une photo reste un post et les valide', () => {
+  // Le serveur tente groupe_photo puis groupe : une photo ne doit pas bloquer une
+  // étape qui demande simplement de poster.
+  const { engine, email, db } = makeEngine();
+  for (let d = 0; d < 27; d++) doNode(engine, email, d, db);
+  assert.equal(engine.pathActiveDay(email), 27);
+  assert.equal(engine.awardClientEvent(email, 'groupe_photo', 'p'), null, '27 n\'attend pas une photo');
+  const r = engine.awardClientEvent(email, 'groupe', 'p'); // le repli du serveur
+  assert.ok(r, 'le post valide bien l\'étape 27');
+  assert.equal(r.day, 27);
+});
+
 // --- MESSAGE COACH : étapes 6 et 20 -----------------------------------------
 // Ces étapes se valident sur l'ENVOI réel d'un message (l'événement 'coach' n'est
 // émis que par POST /api/messages/coach) — jamais à l'ouverture de la conversation.
