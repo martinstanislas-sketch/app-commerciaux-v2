@@ -347,19 +347,18 @@ module.exports = function initPush({ app, getDb, mw }) {
       enqueue(c.email, 'chemin', { title: '🎯 ' + p + ', ton étape du jour t\'attend', body: n.title, url: '/nutrition/?push=chemin' });
     }
   }
-  // Soir 20h : si l'ebook du jour n'est pas ouvert -> « sauve ta flamme » (streak-critical -> bypassCap).
+  // Soir 20h : si le jour n'est pas GAGNÉ (moins de 2 repas renseignés) ->
+  // « sauve ta flamme » (streak-critical -> bypassCap). La série est alimentée par
+  // les REPAS depuis la v2 (l'ebook ne la fait plus monter).
   function runFlammeSoir() {
     let today = ''; try { today = challengeYmd(); } catch (_) { today = parisParts().ymd; }
     for (const c of subscribedChallengeClients()) {
       try {
         if (!challengeEngine.pathFeatureEnabled()) break;
-        const day = challengeEngine.pathCurrentDay(c.email); if (day <= 0) continue;
-        const hasEbook = getDb().prepare('SELECT COUNT(*) n FROM nutrition_ebooks WHERE active=1 AND unlock_day<=?').get(day - 1).n;
-        if (!hasEbook) continue; // aucun guide encore débloqué -> on ne culpabilise pas
-        const opened = getDb().prepare('SELECT COUNT(*) n FROM user_ebook_opens WHERE client_email=? AND day_ymd=?').get(c.email, today).n;
-        if (opened > 0) continue; // déjà lu aujourd'hui
+        if (challengeEngine.pathCurrentDay(c.email) <= 0) continue; // parcours pas démarré
+        if (challengeEngine.dayWon(c.email, today)) continue; // journée déjà gagnée
         const p = c.prenom || 'toi';
-        enqueue(c.email, 'chemin', { title: '🔥 Sauve ta flamme, ' + p, body: '2 min de lecture suffisent pour garder ta série.', url: '/nutrition/?push=chemin' }, { bypassCap: true });
+        enqueue(c.email, 'chemin', { title: '🔥 Sauve ta flamme, ' + p, body: 'Renseigne 2 repas du jour et ta série est sauvée.', url: '/nutrition/?push=chemin' }, { bypassCap: true });
       } catch (_) { /* client suivant */ }
     }
   }

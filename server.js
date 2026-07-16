@@ -636,7 +636,7 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 
 // Chemin du challenge : moteur gamifié 42 jours (module dédié, testable).
 const {
-  ensureChallengePathSchema, awardClientEvent, recordEbookOpen, challengePublicState,
+  ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, challengePublicState,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
 
 try {
@@ -656,6 +656,21 @@ try {
       res.json({ ok: true, state: challengePublicState(email) });
     } catch (e) { console.error('challenge state :', e); res.status(500).json({ ok: false }); }
   });
+  // SÉRIE 🔥 : le client a renseigné au moins 2 repas de SA journée -> le jour est
+  // gagné. Le serveur reste juge du JOUR (pas d'antidatage), de l'idempotence (un
+  // seul gain par jour) et détient la série + les jokers. Le décompte des repas
+  // vient du client (les statuts vivent dans son blob), on le journalise tel quel.
+  app.post('/nutrition/api/challenge/jour-gagne', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      const repas = Math.max(0, Math.min(20, Math.round(Number((req.body || {}).repas) || 0)));
+      if (repas < 2) return res.status(400).json({ ok: false, error: 'Il faut au moins 2 repas renseignés.' });
+      const r = recordDayWin(email, repas);
+      res.json({ ok: true, gagne: r.gagne, nouveau: r.nouveau, state: challengePublicState(email) });
+    } catch (e) { console.error('challenge jour-gagne :', e); res.status(500).json({ ok: false }); }
+  });
+
   // Nœud « Aventure » : SEUL type auto-déclaré (pas de preuve d'événement possible).
   app.post('/nutrition/api/challenge/aventure', requireAuth, requireNutritionUse, (req, res) => {
     try {

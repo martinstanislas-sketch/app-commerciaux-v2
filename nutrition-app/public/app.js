@@ -1207,6 +1207,7 @@ function setMealStatus(di, mi, statut) {
   renderPlan();
   // Felicitations si cette action vient de completer la journee (tous "respecte").
   if (statut === 'respecte') checkDayCompletion(di);
+  evaluerStreakRepas(di); // série 🔥 : 2 repas renseignés = journée gagnée
 }
 
 // ---------- Valorisation : journee complete + recap de semaine ----------
@@ -4300,6 +4301,40 @@ function parcoursBadges(p) {
 // ============================================================================
 function mcpEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+// ---------- Série 🔥 : alimentée par les REPAS renseignés ----------
+// Règle produit : un jour est GAGNÉ dès 2 repas renseignés, PEU IMPORTE le statut
+// (suivi / adapté / autre / sauté). On récompense l'engagement, pas la perfection.
+// `dayStats(di).reported` compte déjà exactement ça (tout statut ≠ non renseigné).
+function repasRenseignesDuJour(di) { return dayStats(di).reported; }
+function jourGagne(di) { return repasRenseignesDuJour(di) >= 2; }
+
+// Évaluation EN DIRECT, appelée après chaque écriture de statut de repas.
+// Ne concerne que la journée EN COURS : le serveur refuse tout antidatage et
+// garantit l'idempotence (un jour n'alimente la série qu'une seule fois).
+let _streakEnvoiJour = ''; // évite de spammer l'endpoint à chaque clic du même jour
+async function evaluerStreakRepas(di) {
+  try {
+    if (!window.__NUTRI_USER || !window.__NUTRI_USER.email) return; // démo/coach : pas de série
+    if (di !== indexJourActuel()) return;      // seul le jour courant compte
+    if (!jourGagne(di)) return;                // moins de 2 repas renseignés
+    const jour = ymd(todayMidnight());
+    if (_streakEnvoiJour === jour) return;     // déjà signalé aujourd'hui
+    _streakEnvoiJour = jour;
+    const r = await fetch(apiUrl('/api/challenge/jour-gagne'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ repas: repasRenseignesDuJour(di) }),
+    });
+    const d = await r.json();
+    if (!d || !d.ok) { _streakEnvoiJour = ''; return; } // on retentera au prochain clic
+    state.challenge = d.state;
+    if (d.nouveau) {
+      const s = (d.state && d.state.stats) || {};
+      showToast('🔥 Série : ' + s.streak + ' jour' + (s.streak > 1 ? 's' : '') + ' — journée validée !', { icon: 'check' });
+      if (state.parcoursSub !== 'mesures' && $('#screen-result') && $('#screen-result').dataset.tab === 'parcours') renderChallenge();
+    }
+  } catch (_) { _streakEnvoiJour = ''; /* réseau : on retentera */ }
+}
+
 // Dispatcher de l'onglet Parcours : Chemin gamifié (défaut) ou Mon Parcours (mesures).
 function renderParcoursTab() {
   const view = $('#view-parcours'); if (!view) return;
@@ -6849,6 +6884,7 @@ function setSuiviPlanStatus(di, mi, panelKey) {
     if (statut === 'respecte') checkDayCompletion(di);
   }
   saveLocal(); renderSuiviPlan(); renderPlan();
+  evaluerStreakRepas(di); // série 🔥 : 2 repas renseignés = journée gagnée
 }
 function setSuiviDetail(di, mi, field, value, rerender) {
   const key = trackKey(di, mi);
