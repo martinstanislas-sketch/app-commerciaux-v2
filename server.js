@@ -653,6 +653,8 @@ const {
 const bilanHebdo = require('./nutrition-app/lib/bilanHebdo');
 // Seuils de Punch : LA source de vérité des déblocages (vidéos, ebooks, cadeaux).
 const punchSeuils = require('./nutrition-app/lib/punchSeuils');
+// Répartition des ebooks (intro / Chemin / paliers de Punch), validée par id.
+const ebooksSources = require('./nutrition-app/lib/ebooksSources');
 function nutritionAiBilan() { return require('./nutrition-app/lib/aiGenerator'); }
 
 try {
@@ -901,11 +903,21 @@ try {
       const ebooks = rows.map((r) => {
         const estVideo = r.type === 'video';
         const seuil = estVideo ? seuilDuLot(r.video_lot) : 0;
-        const locked = estVideo ? (punch < seuil) : (day < r.unlock_day);
+        // EBOOKS : 3 canaux (intro / Chemin / Punch), répartis par id. Un ebook
+        // inconnu de la répartition retombe sur son unlock_day historique -> jamais
+        // verrouillé à vie, même si l'admin en ajoute un demain.
+        const src = estVideo ? null : ebooksSources.sourceEbook(r.id);
+        let locked, label;
+        if (estVideo) { locked = punch < seuil; label = seuil + ' Punch'; }
+        else if (!src) { locked = day < r.unlock_day; label = ebookUnlockLabel(r.unlock_day); }
+        else if (src.source === 'intro') { locked = false; label = 'Offert'; }
+        else if (src.source === 'chemin') { locked = day < src.jour; label = ebookUnlockLabel(src.jour); }
+        else { locked = punch < src.seuil; label = src.seuil + ' Punch'; }
         return {
           id: r.id, title: r.title, description: r.description, category: r.category,
           cover: r.cover_data || '', unlockDay: r.unlock_day, locked,
-          unlockLabel: estVideo ? (seuil + ' Punch') : ebookUnlockLabel(r.unlock_day),
+          unlockLabel: label,
+          source: estVideo ? 'video' : ((src && src.source) || 'jour'),
           read: readSet.has(r.id),
           type: r.type || 'ebook',
           // L'ID n'est exposé que si la vidéo est débloquée : sinon le lien fuite
