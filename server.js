@@ -1176,7 +1176,14 @@ try {
       const info = getDb().prepare(
         'INSERT INTO nutrition_community_messages (email, author, message, kind, created_at, group_key, photo) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).run(email, author, msg, kind, now, groupKey, photo.data);
-      if (!isCoach) awardClientEvent(email, 'groupe', info.lastInsertRowid); // seuls les posts CLIENT valident un nœud
+      // Seuls les posts CLIENT valident un nœud. Un post AVEC photo peut valider une
+      // étape « photo au groupe » (13) ; sinon c'est un post comme un autre (27, 34).
+      // On tente la photo d'abord et on s'arrête au premier succès : un seul post ne
+      // doit jamais valider deux étapes d'affilée.
+      if (!isCoach) {
+        let valide = photo.data ? awardClientEvent(email, 'groupe_photo', info.lastInsertRowid) : null;
+        if (!valide) awardClientEvent(email, 'groupe', info.lastInsertRowid);
+      }
       res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind, mine: true, reactions: {}, myReaction: null, photoId: photo.data ? info.lastInsertRowid : null } });
     } catch (e) {
       console.error('Erreur community/messages POST :', e);

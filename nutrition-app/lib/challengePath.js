@@ -20,7 +20,10 @@
 //  les données de seed sont aussi exportés directement pour les tests unitaires.
 // ============================================================================
 
-const CHALLENGE_PATH_SEED_VERSION = 3; // v3 : XP + gems fusionnés en Punch, jokers retirés
+// v3 : XP + gems fusionnés en Punch, jokers retirés.
+// v4 : l'étape 13 se valide par une photo POSTÉE AU GROUPE (event 'groupe_photo')
+//      et non plus par l'écran d'analyse d'assiette (event 'plate').
+const CHALLENGE_PATH_SEED_VERSION = 4;
 const CHALLENGE_WEEK_TITLES = {
   1: 'Lancement', 2: 'Prendre le rythme', 3: 'Mi-parcours',
   4: 'Relance', 5: 'Tenir le cap', 6: 'Dernière ligne droite',
@@ -51,7 +54,7 @@ const CHALLENGE_PATH_NODES = [
   { day: 10, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
   { day: 11, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
   { day: 12, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 13, week: 2, type: 'special', event: 'plate', title: "Photo d'assiette", action: "Envoie une photo de ton assiette du jour", punch: 20, milestone: 0 },
+  { day: 13, week: 2, type: 'special', event: 'groupe_photo', title: "Photo d'assiette", action: "Poste une photo de ton assiette au groupe", punch: 20, milestone: 0 },
   { day: 14, week: 2, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", punch: 20, milestone: 0 },
   // S3 — Mi-parcours (index 15–21)
   { day: 15, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },

@@ -4028,6 +4028,25 @@ async function reactFeed(id, type) {
     if (d && d.ok && item) { item.reactions = d.reactions || {}; item.myReaction = d.myReaction || null; renderCommunauteFeed(); }
   } catch (_) { showToast('Réaction impossible pour le moment.', { icon: 'info' }); }
 }
+// --- Ancrage sur le composeur de la Communauté ------------------------------
+// Une étape qui demande de poster doit déposer le client SUR le champ, pas en haut
+// du fil. L'amorce est un simple point de départ : il peut l'effacer.
+function ouvrirCommunauteComposeur(amorce) {
+  setTab('communaute');
+  // ⚠️ setTab finit par window.scrollTo(0, 0) : on ancre APRÈS, sinon il nous écrase.
+  const poser = () => {
+    const form = $('#commForm'); if (!form) return false; // écran « Rejoins ton groupe »
+    const inp = $('#commInput');
+    if (inp && amorce && !inp.value.trim()) { inp.value = amorce; autoGrowEl(inp); }
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const btn = $('.cmy-photo-btn');
+    if (btn) { btn.classList.add('pc-ancre-flash'); setTimeout(() => { btn.classList.remove('pc-ancre-flash'); }, 1800); }
+    if (inp) { try { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } catch (_) { /* ignore */ } }
+    return true;
+  };
+  if (!poser()) setTimeout(poser, 350); // le composeur n'est pas encore là -> 2e essai
+}
+
 // --- Photos des posts : chargement, agrandissement, suppression -------------
 let _commPhotoUrls = {}; // id -> objectURL (évite de re-télécharger à chaque rendu)
 async function chargerPhotoPost(id, img) {
@@ -4781,6 +4800,9 @@ function doChallengeAction(n) {
     case 'photo': ouvrirParcoursSur('photos', n.jalon); break;
     case 'mensurations': ouvrirParcoursSur('mensurations', n.jalon); break;
     case 'groupe': setTab('communaute'); break;
+    // Étape 13 : on veut une photo POSTÉE AU GROUPE -> on dépose le client sur le
+    // composeur, amorce écrite et bouton photo mis en évidence.
+    case 'groupe_photo': ouvrirCommunauteComposeur('Mon assiette du jour 🍽️'); break;
     case 'coach': openCoachChat(); break;
     case 'ebook': setTab('ebooks'); break;
     case 'plate': openAnalyse(); break;
