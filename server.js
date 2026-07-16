@@ -946,7 +946,11 @@ try {
 
   // --- Demandes d'aide alimentaire ---
   // Soumission : tout utilisateur ayant accès au module (client inclus à terme).
-  app.post('/nutrition/api/help-request', requireAuth, requireNutritionAccess, (req, res) => {
+  // ⚠️ requireNutritionUse (et non requireNutritionAccess) : cette route est faite
+  // POUR les clients (SOS coach, « un mot pour ton coach », besoin d'aide de la
+  // communauté). Elle était réservée au staff -> tout client recevait 403 et voyait
+  // « Envoi impossible ». Même contrôle, plus le rôle client.
+  app.post('/nutrition/api/help-request', requireAuth, requireNutritionUse, (req, res) => {
     try {
       const { clientName, difficultes, message } = req.body || {};
       const nom = String(clientName || req.session.name || 'Client').slice(0, 120);
@@ -958,6 +962,11 @@ try {
       const info = getDb().prepare(
         'INSERT INTO nutrition_help_requests (client_name, client_email, created_at, difficultes, message, statut) VALUES (?, ?, ?, ?, ?, ?)'
       ).run(nom, (req.session && req.session.email) || '', new Date().toISOString(), JSON.stringify(diffs), msg, 'a_traiter');
+      // Une demande d'aide EST un message du client à son coach (SOS, « un mot pour
+      // ton coach », besoin d'aide de la communauté). Sans ça, ces envois ne
+      // validaient pas les étapes « message coach » (6/20) : le client écrivait
+      // vraiment à son coach et son étape restait bloquée.
+      awardClientEvent((req.session && req.session.email) || '', 'coach', info.lastInsertRowid);
       res.json({ ok: true, id: info.lastInsertRowid });
     } catch (e) {
       console.error('Erreur help-request POST :', e);
