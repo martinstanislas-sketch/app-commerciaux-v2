@@ -334,7 +334,7 @@ module.exports = function initPush({ app, getDb, mw }) {
       if (!challengeEngine.pathFeatureEnabled()) return null;
       if (challengeEngine.pathCurrentDay(email) <= 0) return null;
       const day = challengeEngine.pathActiveDay(email);
-      if (!day) return null;
+      if (day === null) return null; // === null : l'étape 0 (« Commencer ») est falsy
       const n = getDb().prepare('SELECT title FROM path_nodes WHERE day=?').get(day);
       return n ? { day, title: n.title } : null;
     } catch (_) { return null; }
