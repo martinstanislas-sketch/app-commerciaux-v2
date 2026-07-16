@@ -4723,7 +4723,7 @@ async function renderChallenge() {
     view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">' + msg + '</div>';
     wireParcoursSegment(); return;
   }
-  view.innerHTML = parcoursSegmentHTML() + challengeHeaderHTML(st) + challengePathHTML(st);
+  view.innerHTML = parcoursSegmentHTML() + challengeHeaderHTML(st) + challengeHeroHTML(st) + challengePathHTML(st);
   wireParcoursSegment();
   wireChallengePath();
   mcpathCentrerActif(); // on ouvre sur l'étape du jour, pas en haut du parcours
@@ -4735,15 +4735,82 @@ async function renderChallenge() {
   state._challengeLoaded = true;
 }
 
+// ============================================================================
+//  LE CHEMIN — « L'ASCENSION »
+//
+//  Le parti pris : ce n'est pas une liste d'étapes, c'est un SENTIER qu'on gravit.
+//  Six chapitres d'altitude (les semaines), un tracé qui serpente, quatre sommets
+//  (les jalons). On ne descend jamais : le trait déjà parcouru reste coloré
+//  derrière soi — c'est la preuve visuelle du chemin fait.
+//
+//  La retenue est le sujet : presque tout est en sable et encre. UNE couleur pour
+//  « c'est maintenant » (le bleu), une pour « c'est acquis » (le sauge), l'or
+//  réservé aux 4 sommets. Une étape verrouillée montre son ICÔNE, jamais un
+//  cadenas : on doit avoir envie d'y arriver, pas se sentir dehors.
+//
+//  ⚠️ Zéro appel réseau en plus, zéro champ nouveau : `type`, `event`, `action`,
+//  `punch`, `milestone` et `weekTitle` étaient DÉJÀ exposés par l'API. La refonte
+//  est entièrement dans la présentation.
+// ============================================================================
+
+const ASC_AMP = 20;    // amplitude du serpentin, en % de la largeur
+// 112 px : c'est la place qu'il faut pour que le libellé — et surtout le bouton
+// « Commencer » de l'étape active — ne touche jamais l'étape suivante.
+const ASC_STEP = 112;  // distance verticale entre deux étapes (px)
+const ASC_PAD = 54;    // respiration en haut et en bas de chaque chapitre (px)
+const ASC_AIR_ACTIF = 48; // supplément sous l'étape active : la place de son bouton
+
+// Position horizontale d'une étape (en %). Une onde de période 6 : le sentier
+// serpente en continu, sans jamais repasser par une ligne droite — et l'indice
+// est GLOBAL, donc la vague ne se réinitialise pas à chaque chapitre.
+function ascX(i) { return 50 + ASC_AMP * Math.sin(i * Math.PI / 3); }
+function ascY(k) { return ASC_PAD + k * ASC_STEP; }
+
+// L'icône dit ce qu'on va FAIRE. Le type suffit presque partout ; les étapes
+// « spéciales » se départagent par leur événement (écrire à son coach et poster
+// une photo d'assiette ne sont pas le même geste). Une étape faite porte le ✓ :
+// à ce moment-là, ce qui compte n'est plus la nature de l'étape mais la victoire.
+const ASC_IC_TYPE = { commencer: 'target', seance: 'muscle', ebook: 'book', bilan: 'chart', check: 'scale', final: 'star' };
+const ASC_IC_EVENT = { coach: 'send', groupe_photo: 'camera', groupe: 'users' };
+function ascIcone(n) {
+  if (n.status === 'done') return 'check';
+  return ASC_IC_EVENT[n.event] || ASC_IC_TYPE[n.type] || 'spark';
+}
+const ASC_ETAT_MOT = { done: 'Terminé', active: 'À faire maintenant', locked: 'Pas encore débloqué' };
+
+// En-tête : fin, collant, et il ne dit que l'essentiel — où j'en suis. Le reste
+// (compteurs, cadeau) vit dans le héros, qui a le droit de défiler.
 function challengeHeaderHTML(st) {
+  const nodes = st.nodes || [];
+  const total = st.totalDays || nodes.length || 43;
+  const done = nodes.filter((n) => n.status === 'done').length;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const courant = nodes.find((n) => n.status === 'active') || nodes.filter((n) => n.status === 'done').pop() || nodes[0];
+  const semaine = (courant && courant.week) || 1;
+  const titre = (st.weekTitles && st.weekTitles[semaine]) || '';
+  return `<header class="asc-head">
+    <div class="asc-head-row">
+      <div class="asc-head-txt">
+        <p class="asc-kicker">Jour ${st.day} · Semaine ${semaine}/6</p>
+        <h2 class="asc-titre">${mcpEsc(titre)}</h2>
+      </div>
+      <div class="asc-pct"><b>${pct}</b><span>%</span></div>
+    </div>
+    <div class="asc-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"
+         aria-label="${done} étapes sur ${total}"><span style="width:${pct}%"></span></div>
+  </header>`;
+}
+
+// Héros : les deux compteurs qui donnent envie, et le cadeau qu'ils rapprochent.
+function challengeHeroHTML(st) {
   const s = st.stats || {};
   // Chaque compteur est cliquable : sans explication, ces chiffres sont opaques.
-  const stat = (key, emoji, val, label) => `<button type="button" class="mcpath-stat" data-stat="${key}" aria-label="${label} : en savoir plus"><span class="mcpath-stat-v">${emoji} ${val}</span><span class="mcpath-stat-l">${label}</span></button>`;
-  const doneCount = (st.nodes || []).filter((n) => n.status === 'done').length;
-  return `<div class="mcpath-head">
-    <div class="mcpath-stats">${stat('streak', '🔥', s.streak || 0, 'Série')}${stat('punch', '👊', s.punch || 0, 'Punch')}</div>
-    <div class="mcpath-progress"><div class="mcpath-progress-bar" style="width:${Math.round(doneCount / (st.totalDays || 42) * 100)}%"></div></div>
-    <div class="mcpath-progress-lbl">${doneCount}/${st.totalDays || 42} étapes · Jour ${st.day}</div>
+  // 👊 et 🔥 restent en emoji — c'est la langue du Punch dans TOUTE l'app (toasts,
+  // célébrations, boutique) ; les remplacer ici casserait l'unité pour rien.
+  const stat = (key, emoji, val, label) => `<button type="button" class="asc-stat mcpath-stat" data-stat="${key}" aria-label="${label} : en savoir plus">
+    <span class="asc-stat-v">${emoji} ${val}</span><span class="asc-stat-l">${label}</span></button>`;
+  return `<div class="asc-hero">
+    <div class="asc-stats">${stat('streak', '🔥', s.streak || 0, 'Série')}${stat('punch', '👊', s.punch || 0, 'Punch')}</div>
     ${cadeauTeaserHTML(st)}
   </div>`;
 }
@@ -4758,39 +4825,138 @@ function cadeauTeaserHTML(st) {
   const txt = prochain
     ? 'Plus que <b>' + (prochain - punch) + ' Punch</b> avant ' + mcpEsc(((c && c.label) || 'ton cadeau').toLowerCase())
     : 'Tous tes cadeaux sont débloqués 👑';
-  return '<button type="button" class="mcpath-gifts" id="mcpathGifts">🎁 <span>' + txt + '</span><span class="mcpath-gifts-go">Voir</span></button>';
+  return '<button type="button" class="asc-gift" id="mcpathGifts">' +
+    '<span class="asc-gift-ic" aria-hidden="true">🎁</span>' +
+    '<span class="asc-gift-t">' + txt + '</span>' +
+    '<span class="asc-gift-go" aria-hidden="true">' + icSvg('arrow-right') + '</span></button>';
+}
+
+// Le tracé reliant les étapes : des béziers à tangente VERTICALE en chaque étape
+// (les points de contrôle sont à mi-hauteur, à la verticale du nœud). C'est ce
+// qui donne un S continu et régulier plutôt qu'une ligne brisée.
+function ascTrace(pts) {
+  if (!pts.length) return '';
+  let d = 'M ' + pts[0].x.toFixed(2) + ' ' + pts[0].y;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], dy = (b.y - a.y) / 2;
+    d += ' C ' + a.x.toFixed(2) + ' ' + (a.y + dy) + ', ' + b.x.toFixed(2) + ' ' + (b.y - dy) + ', ' + b.x.toFixed(2) + ' ' + b.y;
+  }
+  return d;
 }
 
 function challengePathHTML(st) {
   const byWeek = {};
   (st.nodes || []).forEach((n) => { (byWeek[n.week] = byWeek[n.week] || []).push(n); });
-  let html = '<div class="mcpath">';
-  Object.keys(byWeek).map(Number).sort((a, b) => a - b).forEach((week) => {
-    const title = (st.weekTitles && st.weekTitles[week]) || '';
-    html += `<div class="mcpath-week"><span class="mcpath-week-n">Semaine ${week}/6</span><span class="mcpath-week-t">${mcpEsc(title)}</span></div>`;
-    byWeek[week].forEach((n) => { html += challengeNodeHTML(n, (n.day % 2 === 0) ? 'right' : 'left'); });
+  const semaines = Object.keys(byWeek).map(Number).sort((a, b) => a - b);
+  let i = 0; // indice GLOBAL -> le serpentin traverse les chapitres sans rupture
+  let html = '<div class="asc">';
+  semaines.forEach((week) => {
+    html += ascChapitreHTML(week, byWeek[week], i, st, semaines.length);
+    i += byWeek[week].length;
   });
   html += '</div>';
   return html;
 }
 
-function challengeNodeHTML(n, side) {
-  const cls = ['mcpath-node', 'mcpath-' + side, 'mcpath-' + n.status];
-  if (n.milestone) cls.push('mcpath-gold');
-  const icon = n.status === 'done' ? '✓' : (n.milestone ? '★' : n.day);
-  const bubble = n.status === 'active' ? `<div class="mcpath-bubble">COMMENCER +${n.punch} Punch</div>` : '';
-  const attr = n.status === 'active' ? ` data-node="${n.day}"` : (n.status === 'locked' ? ' disabled' : '');
-  return `<div class="${cls.join(' ')}">
-    <button type="button" class="mcpath-dot"${attr}><span class="mcpath-dot-ic">${icon}</span></button>
-    ${bubble}
-    <div class="mcpath-label">${mcpEsc(n.title)}</div>
+// Un chapitre = une semaine = une étape d'altitude. Son état se déduit de ses
+// étapes : conquis, en cours, ou encore devant soi.
+function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines) {
+  const titre = (st.weekTitles && st.weekTitles[week]) || '';
+  const done = nodes.filter((n) => n.status === 'done').length;
+  const etat = done === nodes.length ? 'done' : (nodes.some((n) => n.status === 'active') ? 'now' : 'soon');
+  const mot = { done: 'Chapitre franchi', now: 'En cours', soon: 'À venir' }[etat];
+  // L'étape active est plus grande ET porte son bouton : sans ce supplément, le
+  // « Commencer » viendrait mordre sur l'étape suivante. On écarte donc la suite du
+  // chapitre — le tracé étant construit sur ces mêmes points, il suit tout seul.
+  const iAct = nodes.findIndex((n) => n.status === 'active');
+  const air = (k) => (iAct >= 0 && k > iAct ? ASC_AIR_ACTIF : 0);
+  const pts = nodes.map((n, k) => ({ x: ascX(iOffset + k), y: ascY(k) + air(k) }));
+  const h = ASC_PAD * 2 + Math.max(0, nodes.length - 1) * ASC_STEP + air(nodes.length - 1);
+  const d = ascTrace(pts);
+  // Le trait « parcouru » est un tracé RÉELLEMENT plus court : il s'arrête sur la
+  // dernière étape validée, point final.
+  // ⚠️ Surtout pas de tirets pour le raccourcir (stroke-dasharray) : le SVG est
+  // étiré (preserveAspectRatio="none") et son trait ne l'est pas
+  // (non-scaling-stroke) -> les tirets se calculent dans l'espace étiré, où la
+  // longueur rendue n'est plus celle qu'on mesure. Le motif se décalait et peignait
+  // du vert sur des chapitres où AUCUNE étape n'était faite. Deux tracés, zéro calcul.
+  const dFait = done >= 2 ? ascTrace(pts.slice(0, done)) : '';
+  return `<section class="asc-ch asc-ch-${etat}" aria-label="Semaine ${week} sur ${nbSemaines} : ${mcpEsc(titre)} — ${mot}">
+    <div class="asc-ch-head">
+      <span class="asc-ch-n" aria-hidden="true">${String(week).padStart(2, '0')}</span>
+      <span class="asc-ch-txt"><b class="asc-ch-t">${mcpEsc(titre)}</b>
+        <small class="asc-ch-s">${nodes.length} étapes · ${mot}</small></span>
+    </div>
+    <div class="asc-ch-map" style="height:${h}px">
+      <svg class="asc-trail" viewBox="0 0 100 ${h}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <path class="asc-trail-bg" d="${d}" />
+        ${dFait ? `<path class="asc-trail-fill" d="${dFait}" />` : ''}
+      </svg>
+      ${nodes.map((n, k) => ascNodeHTML(n, pts[k])).join('')}
+    </div>
+  </section>`;
+}
+
+function ascNodeHTML(n, pt) {
+  const cls = ['asc-nd', 'asc-' + n.status];
+  if (n.milestone) cls.push('asc-sommet');
+  // Le libellé porte déjà l'état en toutes lettres pour les lecteurs d'écran :
+  // la couleur n'est jamais le seul indice.
+  // Un sommet ne s'ANNONCE pas : il se voit (plus grand, doré). Le mot « Sommet »
+  // en plus ne ferait qu'encombrer le tracé. Il reste dans l'étiquette lue à voix
+  // haute — la taille et la couleur ne sont donc jamais le seul indice.
+  const aria = mcpEsc(n.title) + (n.milestone ? ' — Sommet' : '') + ' — ' + ASC_ETAT_MOT[n.status]
+    + (n.status === 'locked' ? '' : ' — ' + n.punch + ' Punch');
+  // Seule l'étape active est cliquable ; les autres ne mentent pas sur leur état.
+  const attr = n.status === 'active' ? ` data-node="${n.day}"` : ' disabled';
+  const cta = n.status === 'active'
+    ? `<span class="asc-cta">Commencer <b>+${n.punch}</b></span>` : '';
+  return `<div class="${cls.join(' ')}" style="left:${pt.x.toFixed(2)}%;top:${pt.y}px">
+    <button type="button" class="asc-dot"${attr} aria-label="${aria}">
+      ${icSvg(ascIcone(n))}<span class="asc-halo" aria-hidden="true"></span>
+    </button>
+    <span class="asc-lbl">${mcpEsc(n.title)}</span>
+    ${cta}
   </div>`;
 }
 
 function wireChallengePath() {
-  $$('#view-parcours .mcpath-dot[data-node]').forEach((b) => b.addEventListener('click', () => openChallengeNode(Number(b.dataset.node))));
+  $$('#view-parcours .asc-dot[data-node]').forEach((b) => b.addEventListener('click', () => openChallengeNode(Number(b.dataset.node))));
   $$('#view-parcours .mcpath-stat[data-stat]').forEach((b) => b.addEventListener('click', () => openStatInfo(b.dataset.stat)));
   const _g = $('#mcpathGifts'); if (_g) _g.addEventListener('click', () => setTab('boutique'));
+  ascRevelation();
+}
+
+// Le sentier se dessine à mesure qu'on descend : chaque chapitre trace son trait
+// et pose ses étapes quand il entre à l'écran. C'est ce qui donne envie de
+// continuer à défiler — la carte se découvre, elle n'est pas déjà tout entière là.
+// ⚠️ On ne l'anime QUE si le client accepte le mouvement ; sinon tout est posé
+// d'emblée dans son état final (et rien ne dépend d'une animation pour être lu).
+// La barre de l'app est elle-même collante (top:0, z-index 30) : sans lui céder sa
+// hauteur, l'en-tête du Chemin se collerait DERRIÈRE elle et on ne verrait plus que
+// la jauge dépasser. On la mesure plutôt que de la coder en dur — sa hauteur dépend
+// du logo et des paddings, qui peuvent bouger sans prévenir.
+function ascCalerEnTete() {
+  const view = $('#view-parcours'); if (!view) return;
+  const tb = $('.topbar');
+  const h = tb ? Math.round(tb.getBoundingClientRect().height) : 0;
+  view.style.setProperty('--asc-top', h + 'px');
+}
+
+function ascRevelation() {
+  ascCalerEnTete();
+  const chapitres = $$('#view-parcours .asc-ch');
+  if (!chapitres.length) return;
+  let reduit = false;
+  try { reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { /* ignore */ }
+  const poser = (ch) => ch.classList.add('is-in');
+  // Pas d'IntersectionObserver (vieux WebView) ou mouvement refusé -> tout est
+  // affiché tout de suite. La page reste complète, elle perd juste sa mise en scène.
+  if (reduit || typeof IntersectionObserver === 'undefined') { chapitres.forEach(poser); return; }
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e) => { if (e.isIntersecting) { poser(e.target); obs.unobserve(e.target); } });
+  }, { rootMargin: '0px 0px -12% 0px', threshold: 0.06 });
+  chapitres.forEach((ch) => obs.observe(ch));
 }
 
 // Le client arrive PILE sur son étape du jour, sans scroller — au jour 30 elle
@@ -4799,9 +4965,9 @@ function wireChallengePath() {
 function mcpathCentrerActif() {
   const view = $('#view-parcours');
   if (!view || !view.offsetParent) return; // onglet pas à l'écran -> on ne touche pas au scroll
-  const cible = view.querySelector('.mcpath-node.mcpath-active')
-    || [...view.querySelectorAll('.mcpath-node.mcpath-done')].pop() // parcours terminé -> on montre la fin
-    || view.querySelector('.mcpath-node');
+  const cible = view.querySelector('.asc-nd.asc-active')
+    || [...view.querySelectorAll('.asc-nd.asc-done')].pop() // parcours terminé -> on montre la fin
+    || view.querySelector('.asc-nd');
   if (!cible) return;
   // Appel direct : scrollIntoView force lui-même le calcul de mise en page. Surtout,
   // pas de requestAnimationFrame ici — il ne se déclenche pas quand l'onglet est en
