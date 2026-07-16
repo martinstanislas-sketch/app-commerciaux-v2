@@ -9,17 +9,18 @@
 //     jamais par simple clic.
 //   - On récompense les COMPORTEMENTS, jamais le poids perdu.
 //   - Rollover de journée = Europe/Paris.
-//   - Streak (🔥) = jours consécutifs d'ouverture de l'ebook du jour. Un jour
-//     manqué consomme 1 joker s'il en reste, sinon le streak retombe à 0.
-//   - Jokers (🃏) : +1 par semaine entièrement validée, max 3.
-//   - XP (⭐) et gems (💎) selon le barème de chaque nœud.
+//   - Streak (🔥) = jours consécutifs GAGNÉS (2 repas renseignés). Un seul jour
+//     manqué remet la série à 0 : il n'y a plus de protection (les jokers ont
+//     été retirés).
+//   - Punch (👊) : monnaie UNIQUE du parcours, selon le barème de chaque nœud.
+//     Elle remplace les anciens XP (⭐) et gems (💎), fusionnés par addition.
 //
 //  Factory injectable : createChallengeEngine({ getDb }) -> API. `getDb()` doit
 //  renvoyer une instance better-sqlite3. Les helpers purs (dates, réducteurs) et
 //  les données de seed sont aussi exportés directement pour les tests unitaires.
 // ============================================================================
 
-const CHALLENGE_PATH_SEED_VERSION = 2;
+const CHALLENGE_PATH_SEED_VERSION = 3; // v3 : XP + gems fusionnés en Punch, jokers retirés
 const CHALLENGE_WEEK_TITLES = {
   1: 'Lancement', 2: 'Prendre le rythme', 3: 'Mi-parcours',
   4: 'Relance', 5: 'Tenir le cap', 6: 'Dernière ligne droite',
@@ -36,54 +37,54 @@ const CHALLENGE_WEEK_TITLES = {
 // Parcours et continue d'ancrer la date de départ (cf. pathStartYmd).
 const CHALLENGE_PATH_NODES = [
   // S1 — Lancement (index 0–7)
-  { day: 0, week: 1, type: 'commencer', event: 'photo', title: "Commencer", action: "Photos + mensurations + présente-toi au groupe", xp: 30, gems: 50, milestone: 1, jalon: 'debut', flow: ['photos', 'mensurations', 'groupe'] },
-  { day: 1, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 2, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 3, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 4, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 5, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 6, week: 1, type: 'special', event: 'coach', title: "Message coach", action: "Écris un message à ton coach", xp: 20, gems: 0, milestone: 0 },
-  { day: 7, week: 1, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", xp: 20, gems: 0, milestone: 0 },
+  { day: 0, week: 1, type: 'commencer', event: 'photo', title: "Commencer", action: "Photos + mensurations + présente-toi au groupe", punch: 80, milestone: 1, jalon: 'debut', flow: ['photos', 'mensurations', 'groupe'] },
+  { day: 1, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 2, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 3, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 4, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 5, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 6, week: 1, type: 'special', event: 'coach', title: "Message coach", action: "Écris un message à ton coach", punch: 20, milestone: 0 },
+  { day: 7, week: 1, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", punch: 20, milestone: 0 },
   // S2 — Prendre le rythme (index 8–14)
-  { day: 8, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 9, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 10, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 11, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 12, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 13, week: 2, type: 'special', event: 'plate', title: "Photo d'assiette", action: "Envoie une photo de ton assiette du jour", xp: 20, gems: 0, milestone: 0 },
-  { day: 14, week: 2, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", xp: 20, gems: 0, milestone: 0 },
+  { day: 8, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 9, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 10, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 11, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 12, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 13, week: 2, type: 'special', event: 'plate', title: "Photo d'assiette", action: "Envoie une photo de ton assiette du jour", punch: 20, milestone: 0 },
+  { day: 14, week: 2, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", punch: 20, milestone: 0 },
   // S3 — Mi-parcours (index 15–21)
-  { day: 15, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 16, week: 3, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 17, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 18, week: 3, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 19, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 20, week: 3, type: 'special', event: 'coach', title: "Message coach", action: "Écris un message à ton coach", xp: 20, gems: 0, milestone: 0 },
-  { day: 21, week: 3, type: 'check', event: 'photo', title: "Point mi-parcours", action: "Photos + mensurations mi-parcours", xp: 40, gems: 50, milestone: 1, jalon: 'mi', flow: ['photos', 'mensurations'] },
+  { day: 15, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 16, week: 3, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 17, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 18, week: 3, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 19, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 20, week: 3, type: 'special', event: 'coach', title: "Message coach", action: "Écris un message à ton coach", punch: 20, milestone: 0 },
+  { day: 21, week: 3, type: 'check', event: 'photo', title: "Point mi-parcours", action: "Photos + mensurations mi-parcours", punch: 90, milestone: 1, jalon: 'mi', flow: ['photos', 'mensurations'] },
   // S4 — Relance (index 22–28)
-  { day: 22, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 23, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 24, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 25, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 26, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 27, week: 4, type: 'special', event: 'groupe', title: "Communauté", action: "Encourage un membre du groupe", xp: 20, gems: 0, milestone: 0 },
-  { day: 28, week: 4, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", xp: 20, gems: 0, milestone: 0 },
+  { day: 22, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 23, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 24, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 25, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 26, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 27, week: 4, type: 'special', event: 'groupe', title: "Communauté", action: "Encourage un membre du groupe", punch: 20, milestone: 0 },
+  { day: 28, week: 4, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", punch: 20, milestone: 0 },
   // S5 — Tenir le cap (index 29–35)
-  { day: 29, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 30, week: 5, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 31, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 32, week: 5, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 33, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 34, week: 5, type: 'special', event: 'groupe', title: "Communauté", action: "Partage-nous ta meilleure recette sur le groupe", xp: 20, gems: 0, milestone: 0 },
-  { day: 35, week: 5, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", xp: 20, gems: 0, milestone: 0 },
+  { day: 29, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 30, week: 5, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 31, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 32, week: 5, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 33, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 34, week: 5, type: 'special', event: 'groupe', title: "Communauté", action: "Partage-nous ta meilleure recette sur le groupe", punch: 20, milestone: 0 },
+  { day: 35, week: 5, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", punch: 20, milestone: 0 },
   // S6 — Dernière ligne droite (index 36–42)
-  { day: 36, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 37, week: 6, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 38, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 39, week: 6, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", xp: 15, gems: 0, milestone: 0 },
-  { day: 40, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", xp: 25, gems: 0, milestone: 0 },
-  { day: 41, week: 6, type: 'check', event: 'photo', title: "Point final", action: "Photos + mensurations finales", xp: 50, gems: 50, milestone: 1, jalon: 'fin', flow: ['photos', 'mensurations'] },
-  { day: 42, week: 6, type: 'final', event: 'bilan', title: "Bilan final", action: "Bilan final, recap complet, badge finisher", xp: 50, gems: 50, milestone: 1 },
+  { day: 36, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 37, week: 6, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 38, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 39, week: 6, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 40, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
+  { day: 41, week: 6, type: 'check', event: 'photo', title: "Point final", action: "Photos + mensurations finales", punch: 100, milestone: 1, jalon: 'fin', flow: ['photos', 'mensurations'] },
+  { day: 42, week: 6, type: 'final', event: 'bilan', title: "Bilan final", action: "Bilan final, recap complet, badge finisher", punch: 100, milestone: 1 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -109,27 +110,15 @@ function pathYmdMinusDays(ymd, n) {
   if (isNaN(t)) return ymd;
   return pathParisYmd(new Date(t - n * 86400000));
 }
-// Applique `missed` jours manqués à {streak, jokers} : 1 joker sauve 1 jour, sinon reset.
-function applyMissedDays(streak, jokers, missed) {
-  let s = streak, j = jokers;
-  for (let i = 0; i < missed; i++) {
-    if (s <= 0) { s = 0; break; }
-    if (j > 0) j -= 1; else { s = 0; break; }
-  }
-  return { streak: s, jokers: j };
-}
-// Série AFFICHÉE — lecture seule, ne consomme RIEN.
-// Filet de sécurité à l'ouverture : si les jours manqués depuis le dernier jour
-// gagné dépassent les jokers disponibles, la chaîne est rompue -> on affiche 0
-// (elle repartira à 1 au prochain jour gagné). Tant que le jour courant n'est
-// pas gagné, AUCUN joker n'est consommé : la consommation n'a lieu que dans
-// recordDayWin, au moment où le jour est effectivement gagné.
-function streakAffiche(streak, jokers, lastWin, today) {
+// Série AFFICHÉE — lecture seule, n'écrit RIEN.
+// Un seul jour plein manqué depuis le dernier jour gagné rompt la chaîne : on
+// affiche 0 (elle repartira à 1 au prochain jour gagné). Le jour courant, lui,
+// ne compte pas comme manqué tant qu'il n'est pas fini.
+function streakAffiche(streak, lastWin, today) {
   const s = streak > 0 ? streak : 0;
   if (!lastWin || s === 0) return s;
   const missed = pathDaysBetween(lastWin, today) - 1;
-  if (missed <= 0) return s;              // aujourd'hui ou hier : chaîne intacte
-  return missed <= jokers ? s : 0;        // assez de jokers -> préservée ; sinon rompue
+  return missed <= 0 ? s : 0;             // aujourd'hui ou hier : intacte ; sinon rompue
 }
 
 // Streak après un jour gagné (réconciliation des jours manqués déjà faite en amont).
@@ -162,8 +151,7 @@ const CHALLENGE_SCHEMA_SQL = `
     type TEXT NOT NULL,
     validation_event TEXT NOT NULL,
     title TEXT NOT NULL DEFAULT '',
-    xp INTEGER NOT NULL DEFAULT 0,
-    gems INTEGER NOT NULL DEFAULT 0,
+    punch INTEGER NOT NULL DEFAULT 0,
     is_milestone INTEGER NOT NULL DEFAULT 0,
     meta TEXT NOT NULL DEFAULT ''
   );
@@ -171,19 +159,15 @@ const CHALLENGE_SCHEMA_SQL = `
     client_email TEXT NOT NULL,
     node_day INTEGER NOT NULL,
     completed_at TEXT NOT NULL DEFAULT '',
-    xp_awarded INTEGER NOT NULL DEFAULT 0,
-    gems_awarded INTEGER NOT NULL DEFAULT 0,
+    punch_awarded INTEGER NOT NULL DEFAULT 0,
     ref_id TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (client_email, node_day)
   );
   CREATE TABLE IF NOT EXISTS user_game_stats (
     client_email TEXT PRIMARY KEY,
-    xp_total INTEGER NOT NULL DEFAULT 0,
-    gems INTEGER NOT NULL DEFAULT 0,
+    punch INTEGER NOT NULL DEFAULT 0,              -- monnaie unique (ex-XP + ex-gems)
     streak_current INTEGER NOT NULL DEFAULT 0,
     streak_best INTEGER NOT NULL DEFAULT 0,
-    jokers INTEGER NOT NULL DEFAULT 0,
-    last_ebook_open_date TEXT NOT NULL DEFAULT '', -- legacy : la série venait de l'ebook
     last_win_date TEXT NOT NULL DEFAULT '',        -- dernier jour GAGNÉ (2 repas renseignés)
     updated_at TEXT NOT NULL DEFAULT ''
   );
@@ -198,12 +182,6 @@ const CHALLENGE_SCHEMA_SQL = `
     client_email TEXT NOT NULL,
     week INTEGER NOT NULL,
     seen_at TEXT NOT NULL DEFAULT '',
-    PRIMARY KEY (client_email, week)
-  );
-  CREATE TABLE IF NOT EXISTS user_weeks_rewarded (
-    client_email TEXT NOT NULL,
-    week INTEGER NOT NULL,
-    rewarded_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (client_email, week)
   );
   -- Sous-étapes des étapes COMPOSITES (0/21/41). L'étape ne passe au vert que
@@ -239,6 +217,43 @@ function createChallengeEngine({ getDb }) {
     } catch (_) { return false; }
   }
 
+  // Une colonne ne s'ajoute qu'une fois : CREATE TABLE IF NOT EXISTS ne touche pas
+  // les tables déjà en place (prod), d'où ces ALTER conditionnels.
+  function ajouterColonne(table, colonne, definition) {
+    const cols = getDb().prepare('PRAGMA table_info(' + table + ')').all();
+    if (!cols.length || cols.some((c) => c.name === colonne)) return false;
+    getDb().exec('ALTER TABLE ' + table + ' ADD COLUMN ' + colonne + ' ' + definition);
+    return true;
+  }
+  // Fusion XP + gems -> Punch. La somme ne doit être faite QU'UNE FOIS : si on la
+  // rejouait à chaque démarrage, les compteurs doubleraient. D'où le drapeau en
+  // base (et non un simple test « punch == 0 », qu'un compte à 0 ferait rejouer).
+  // Les anciennes colonnes (xp_total, gems, jokers, xp_awarded…) sont laissées en
+  // place mais ne sont plus ni lues ni écrites : la migration reste réversible
+  // (un retour arrière du déploiement retrouve ses données).
+  function migrerVersPunch() {
+    try {
+      ajouterColonne('path_nodes', 'punch', 'INTEGER NOT NULL DEFAULT 0');
+      ajouterColonne('user_node_progress', 'punch_awarded', 'INTEGER NOT NULL DEFAULT 0');
+      const neuve = ajouterColonne('user_game_stats', 'punch', 'INTEGER NOT NULL DEFAULT 0');
+      const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='challenge_punch_migrated'").get() || {}).value;
+      if (String(fait) === '1') return;
+      if (neuve) {
+        // Base existante : le total Punch reprend l'ancien XP + les anciens gems.
+        const anciennes = getDb().prepare('PRAGMA table_info(user_game_stats)').all().map((c) => c.name);
+        if (anciennes.includes('xp_total') && anciennes.includes('gems')) {
+          getDb().exec('UPDATE user_game_stats SET punch = COALESCE(xp_total,0) + COALESCE(gems,0)');
+        }
+        if (anciennes.includes('punch_awarded')) { /* rien : historique par nœud, non recalculé */ }
+      }
+      const pn = getDb().prepare('PRAGMA table_info(user_node_progress)').all().map((c) => c.name);
+      if (pn.includes('xp_awarded') && pn.includes('gems_awarded')) {
+        getDb().exec('UPDATE user_node_progress SET punch_awarded = COALESCE(xp_awarded,0) + COALESCE(gems_awarded,0) WHERE punch_awarded = 0');
+      }
+      getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('challenge_punch_migrated', '1', datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at").run();
+    } catch (e) { console.error('migrerVersPunch :', e && e.message); }
+  }
+
   function ensureChallengePathSchema() {
     try {
       getDb().exec(CHALLENGE_SCHEMA_SQL);
@@ -251,15 +266,16 @@ function createChallengeEngine({ getDb }) {
         getDb().exec("ALTER TABLE user_game_stats ADD COLUMN last_win_date TEXT NOT NULL DEFAULT ''");
         getDb().exec('UPDATE user_game_stats SET last_win_date = last_ebook_open_date');
       }
+      migrerVersPunch();
       const seededV = (getDb().prepare("SELECT value FROM app_settings WHERE key='challenge_path_seed_v'").get() || {}).value;
       const count = getDb().prepare('SELECT COUNT(*) c FROM path_nodes').get().c;
       if (count !== CHALLENGE_PATH_NODES.length || String(seededV) !== String(CHALLENGE_PATH_SEED_VERSION)) {
-        const up = getDb().prepare(`INSERT INTO path_nodes (day, week, type, validation_event, title, xp, gems, is_milestone, meta)
-          VALUES (?,?,?,?,?,?,?,?,?)
+        const up = getDb().prepare(`INSERT INTO path_nodes (day, week, type, validation_event, title, punch, is_milestone, meta)
+          VALUES (?,?,?,?,?,?,?,?)
           ON CONFLICT(day) DO UPDATE SET week=excluded.week, type=excluded.type, validation_event=excluded.validation_event,
-            title=excluded.title, xp=excluded.xp, gems=excluded.gems, is_milestone=excluded.is_milestone, meta=excluded.meta`);
+            title=excluded.title, punch=excluded.punch, is_milestone=excluded.is_milestone, meta=excluded.meta`);
         const tx = getDb().transaction(() => {
-          CHALLENGE_PATH_NODES.forEach((n) => up.run(n.day, n.week, n.type, n.event, n.title, n.xp, n.gems, n.milestone, n.jalon || ''));
+          CHALLENGE_PATH_NODES.forEach((n) => up.run(n.day, n.week, n.type, n.event, n.title, n.punch, n.milestone, n.jalon || ''));
         });
         tx();
         getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('challenge_path_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at").run(String(CHALLENGE_PATH_SEED_VERSION));
@@ -329,23 +345,9 @@ function createChallengeEngine({ getDb }) {
     }
     return s;
   }
-  // +1 joker (max 3) quand les 7 nœuds d'une semaine sont validés (une seule fois par semaine).
-  function grantWeekJokerIfComplete(email, week) {
-    try {
-      const weekDays = CHALLENGE_PATH_NODES.filter((n) => n.week === week).map((n) => n.day);
-      const done = pathDoneDays(email);
-      if (!weekDays.every((d) => done.has(d))) return;
-      const info = getDb().prepare("INSERT OR IGNORE INTO user_weeks_rewarded (client_email, week, rewarded_at) VALUES (?,?,datetime('now'))").run(email, week);
-      if (info.changes === 0) return; // semaine déjà récompensée
-      pathStatsRow(email);
-      getDb().prepare("UPDATE user_game_stats SET jokers = MIN(3, jokers + 1), updated_at=datetime('now') WHERE client_email=?").run(email);
-    } catch (e) { console.error('grantWeekJoker:', e && e.message); }
-  }
-  // Rattrapage du streak : chaque jour plein manqué depuis la dernière ouverture consomme
-  // 1 joker s'il en reste, sinon remet le streak à 0. Idempotent (avance last_open à hier).
-  // Rattrapage de la série : chaque jour plein NON GAGNÉ depuis le dernier jour
-  // gagné consomme 1 joker s'il en reste, sinon la série retombe à 0 (elle
-  // repartira à 1 au prochain jour gagné). Idempotent (avance last_win à hier).
+  // Rattrapage de la série : un seul jour plein NON GAGNÉ depuis le dernier jour
+  // gagné suffit à remettre la série à 0 (elle repartira à 1 au prochain jour
+  // gagné). Idempotent (avance last_win à hier).
   function reconcileStreak(email) {
     try {
       if (!pathFeatureEnabled()) return pathStatsRow(email);
@@ -355,9 +357,8 @@ function createChallengeEngine({ getDb }) {
       const today = pathParisYmd();
       const missed = pathDaysBetween(last, today) - 1;
       if (missed <= 0) return s;
-      const next = applyMissedDays(s.streak_current || 0, s.jokers || 0, missed);
-      getDb().prepare("UPDATE user_game_stats SET streak_current=?, jokers=?, last_win_date=?, updated_at=datetime('now') WHERE client_email=?")
-        .run(next.streak, next.jokers, pathYmdMinusDays(today, 1), email);
+      getDb().prepare("UPDATE user_game_stats SET streak_current=0, last_win_date=?, updated_at=datetime('now') WHERE client_email=?")
+        .run(pathYmdMinusDays(today, 1), email);
       return getDb().prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
     } catch (e) { console.error('reconcileStreak:', e && e.message); return pathStatsRow(email); }
   }
@@ -370,7 +371,7 @@ function createChallengeEngine({ getDb }) {
     try {
       if (!email || !pathFeatureEnabled()) return vide;
       const today = pathParisYmd();
-      reconcileStreak(email); // solde d'abord les jours manqués (jokers)
+      reconcileStreak(email); // solde d'abord les jours manqués
       const deja = getDb().prepare('SELECT 1 FROM user_day_wins WHERE client_email=? AND day_ymd=?').get(email, today);
       if (deja) return { gagne: true, nouveau: false, stats: pathStatsRow(email) };
       getDb().prepare('INSERT OR IGNORE INTO user_day_wins (client_email, day_ymd, repas, won_at) VALUES (?,?,?,?)')
@@ -420,13 +421,12 @@ function createChallengeEngine({ getDb }) {
       } else if (node.event !== eventType) {
         return null; // pas le bon événement -> le retard décale la suite
       }
-      const ins = getDb().prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at, xp_awarded, gems_awarded, ref_id) VALUES (?,?,?,?,?,?)")
-        .run(email, activeDay, new Date().toISOString(), node.xp, node.gems, String(refId == null ? '' : refId));
+      const ins = getDb().prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at, punch_awarded, ref_id) VALUES (?,?,?,?,?)")
+        .run(email, activeDay, new Date().toISOString(), node.punch, String(refId == null ? '' : refId));
       if (ins.changes === 0) return null; // déjà validé -> aucune double récompense (idempotence)
       pathStatsRow(email);
-      getDb().prepare("UPDATE user_game_stats SET xp_total = xp_total + ?, gems = gems + ?, updated_at=datetime('now') WHERE client_email=?").run(node.xp, node.gems, email);
-      grantWeekJokerIfComplete(email, node.week);
-      return { day: activeDay, title: node.title, xp: node.xp, gems: node.gems, milestone: !!node.milestone, nextDay: pathActiveDay(email) };
+      getDb().prepare("UPDATE user_game_stats SET punch = punch + ?, updated_at=datetime('now') WHERE client_email=?").run(node.punch, email);
+      return { day: activeDay, title: node.title, punch: node.punch, milestone: !!node.milestone, nextDay: pathActiveDay(email) };
     } catch (e) { console.error('awardClientEvent:', e && e.message); return null; }
   }
   // État public du Chemin pour le client courant (consommé par l'onglet front).
@@ -437,18 +437,17 @@ function createChallengeEngine({ getDb }) {
     // Date d'ancrage : permet au front d'annoncer « ton chemin démarre le X »
     // quand la cohorte a une date de début encore à venir.
     const startsOn = pathStartYmd(email);
-    // LECTURE PURE : on ne réconcilie PAS ici. Consommer des jokers parce que le
-    // client ouvre son app serait faux — ils ne se consomment qu'au moment où un
-    // jour est GAGNÉ (recordDayWin). Ici on projette seulement l'affichage.
+    // LECTURE PURE : on ne réconcilie PAS ici — ouvrir son app ne doit rien
+    // écrire. On projette seulement l'affichage de la série.
     const s = pathStatsRow(email);
-    const streakVu = streakAffiche(s.streak_current || 0, s.jokers || 0, s.last_win_date || '', pathParisYmd());
+    const streakVu = streakAffiche(s.streak_current || 0, s.last_win_date || '', pathParisYmd());
     const done = pathDoneDays(email);
     const activeDay = pathActiveDay(email);
     const nodes = CHALLENGE_PATH_NODES.map((n) => ({
       day: n.day, week: n.week, weekTitle: CHALLENGE_WEEK_TITLES[n.week] || '',
       // `event` est exposé : le front route vers l'écran qui produit ce vrai
       // événement de validation (et non d'après le type d'affichage).
-      type: n.type, event: n.event, title: n.title, action: n.action || '', xp: n.xp, gems: n.gems, milestone: !!n.milestone,
+      type: n.type, event: n.event, title: n.title, action: n.action || '', punch: n.punch, milestone: !!n.milestone,
       // Étapes composites (Commencer / Points mi-parcours et final) : `flow` liste les
       // sous-étapes et `flowDone` celles déjà faites -> le front affiche les ✓.
       jalon: n.jalon || '', flow: n.flow || null,
@@ -457,7 +456,7 @@ function createChallengeEngine({ getDb }) {
     }));
     return {
       enabled, started, day, activeDay, startsOn, totalDays: CHALLENGE_PATH_NODES.length,
-      stats: { xp: s.xp_total || 0, gems: s.gems || 0, streak: streakVu, streakBest: s.streak_best || 0, jokers: s.jokers || 0 },
+      stats: { punch: s.punch || 0, streak: streakVu, streakBest: s.streak_best || 0 },
       weekTitles: CHALLENGE_WEEK_TITLES,
       nodes,
     };
@@ -466,7 +465,7 @@ function createChallengeEngine({ getDb }) {
   return {
     ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, dayWon, challengePublicState,
     pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
-    grantWeekJokerIfComplete, pathStatsRow, pathDoneDays, flowDone,
+    pathStatsRow, pathDoneDays, flowDone,
   };
 }
 
@@ -479,7 +478,6 @@ module.exports.CHALLENGE_SCHEMA_SQL = CHALLENGE_SCHEMA_SQL;
 module.exports.pathParisYmd = pathParisYmd;
 module.exports.pathDaysBetween = pathDaysBetween;
 module.exports.pathYmdMinusDays = pathYmdMinusDays;
-module.exports.applyMissedDays = applyMissedDays;
 module.exports.streakAfterOpen = streakAfterOpen;
 module.exports.streakAffiche = streakAffiche;
 module.exports.activeDayFromDone = activeDayFromDone;

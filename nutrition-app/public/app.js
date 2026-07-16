@@ -4399,7 +4399,7 @@ async function renderChallenge() {
   // Toast « au retour » : un nœud validé sur son écran d'origine s'affiche à la revenue.
   if (hadSnapshot) {
     const newly = (st.nodes || []).filter((n) => n.status === 'done' && !prevDone.has(n.day));
-    if (newly.length) { const n = newly[newly.length - 1]; rewardToast({ title: n.title, xp: n.xp, gems: n.gems, milestone: n.milestone }); }
+    if (newly.length) { const n = newly[newly.length - 1]; rewardToast({ title: n.title, punch: n.punch, milestone: n.milestone }); }
   }
   state._challengeLoaded = true;
 }
@@ -4410,7 +4410,7 @@ function challengeHeaderHTML(st) {
   const stat = (key, emoji, val, label) => `<button type="button" class="mcpath-stat" data-stat="${key}" aria-label="${label} : en savoir plus"><span class="mcpath-stat-v">${emoji} ${val}</span><span class="mcpath-stat-l">${label}</span></button>`;
   const doneCount = (st.nodes || []).filter((n) => n.status === 'done').length;
   return `<div class="mcpath-head">
-    <div class="mcpath-stats">${stat('streak', '🔥', s.streak || 0, 'Série')}${stat('xp', '⭐', s.xp || 0, 'XP')}${stat('gems', '💎', s.gems || 0, 'Gems')}${stat('jokers', '🃏', s.jokers || 0, 'Jokers')}</div>
+    <div class="mcpath-stats">${stat('streak', '🔥', s.streak || 0, 'Série')}${stat('punch', '👊', s.punch || 0, 'Punch')}</div>
     <div class="mcpath-progress"><div class="mcpath-progress-bar" style="width:${Math.round(doneCount / (st.totalDays || 42) * 100)}%"></div></div>
     <div class="mcpath-progress-lbl">${doneCount}/${st.totalDays || 42} étapes · Jour ${st.day}</div>
   </div>`;
@@ -4433,7 +4433,7 @@ function challengeNodeHTML(n, side) {
   const cls = ['mcpath-node', 'mcpath-' + side, 'mcpath-' + n.status];
   if (n.milestone) cls.push('mcpath-gold');
   const icon = n.status === 'done' ? '✓' : (n.milestone ? '★' : n.day);
-  const bubble = n.status === 'active' ? `<div class="mcpath-bubble">COMMENCER +${n.xp} XP</div>` : '';
+  const bubble = n.status === 'active' ? `<div class="mcpath-bubble">COMMENCER +${n.punch} Punch</div>` : '';
   const attr = n.status === 'active' ? ` data-node="${n.day}"` : (n.status === 'locked' ? ' disabled' : '');
   return `<div class="${cls.join(' ')}">
     <button type="button" class="mcpath-dot"${attr}><span class="mcpath-dot-ic">${icon}</span></button>
@@ -4463,7 +4463,7 @@ function mcpathCentrerActif() {
   try { cible.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (_) { cible.scrollIntoView(); }
 }
 
-// --- Explication des compteurs (🔥 ⭐ 💎 🃏) --------------------------------
+// --- Explication des compteurs (🔥 👊) -------------------------------------
 // Les règles réelles, en clair : un compteur qu'on ne comprend pas ne motive pas.
 function statInfoTexte(key, s) {
   const best = s.streakBest || 0;
@@ -4473,27 +4473,15 @@ function statInfoTexte(key, s) {
       valeur: (s.streak || 0) + ' jour' + ((s.streak || 0) > 1 ? 's' : '') + ' d\'affilée',
       texte: 'Elle monte chaque jour où tu renseignes <b>au moins 2 repas</b> — peu importe le statut : suivi, adapté, autre… ou même sauté. '
         + 'Ce qui compte, c\'est que tu notes ta journée, pas qu\'elle soit parfaite.<br><br>'
-        + 'Si tu rates un jour, un <b>joker 🃏 te protège automatiquement</b>. Sans joker, ta série repart à 1'
+        + 'Un jour sans rien renseigner et <b>ta série repart à 0</b>'
         + (best > 1 ? ' — mais ton record de <b>' + best + ' jours</b> reste acquis.' : '.'),
     };
-    case 'xp': return {
-      emoji: '⭐', titre: 'Tes XP',
-      valeur: (s.xp || 0) + ' XP',
+    case 'punch': return {
+      emoji: '👊', titre: 'Ton Punch',
+      valeur: (s.punch || 0) + ' Punch',
       texte: 'Tu en gagnes en validant les étapes de ton chemin : une séance, un ebook, un message à ton coach…<br><br>'
         + 'Chaque étape a sa valeur, et les <b>grandes étapes ★</b> rapportent davantage. '
-        + 'Les XP récompensent <b>ce que tu fais</b> — jamais ton poids.',
-    };
-    case 'gems': return {
-      emoji: '💎', titre: 'Tes gems',
-      valeur: (s.gems || 0) + ' gems',
-      texte: 'Tu en gagnes sur les <b>grandes étapes ★</b> de ton parcours : le départ, le point mi-parcours, le point final et le bilan final.<br><br>'
-        + 'Pour l\'instant elles s\'accumulent — une boutique pour les dépenser arrivera plus tard.',
-    };
-    case 'jokers': return {
-      emoji: '🃏', titre: 'Tes jokers',
-      valeur: (s.jokers || 0) + ' joker' + ((s.jokers || 0) > 1 ? 's' : '') + ' en réserve',
-      texte: 'Un joker <b>protège ta série</b> le jour où tu n\'as pas renseigné tes repas. Il se consomme tout seul : tu n\'as rien à faire.<br><br>'
-        + 'Tu en gagnes <b>1 par semaine entièrement validée</b>, et tu peux en garder <b>3 maximum</b>.',
+        + 'Le Punch récompense <b>ce que tu fais</b> — jamais ton poids.',
     };
     default: return null;
   }
@@ -4517,7 +4505,7 @@ async function mcpathRetourApresAction() {
     if (n.status === 'done') {
       // Étape complète : on laisse le client où il est, avec sa récompense.
       state.mcpathRetour = null;
-      rewardToast({ title: n.title, xp: n.xp, gems: n.gems, milestone: n.milestone });
+      rewardToast({ title: n.title, punch: n.punch, milestone: n.milestone });
       return;
     }
     // Il reste des sous-étapes : on ramène la liste, à jour.
@@ -4623,7 +4611,7 @@ function openChallengeNode(day) {
   const n = (st.nodes || []).find((x) => x.day === day); if (!n) return;
   const sheet = ensureChallengeSheet();
   const lbl = challengeActionLabel(n);
-  sheet.querySelector('.mcpath-sheet-badge').textContent = `Étape ${n.day} · +${n.xp} XP${n.gems ? ' · +' + n.gems + ' 💎' : ''}`;
+  sheet.querySelector('.mcpath-sheet-badge').textContent = `Étape ${n.day} · +${n.punch} Punch`;
   sheet.querySelector('.mcpath-sheet-title').textContent = n.title;
   sheet.querySelector('.mcpath-sheet-sub').textContent = lbl.sub;
   const btn = sheet.querySelector('.mcpath-sheet-btn');
@@ -4688,9 +4676,7 @@ async function challengeDeclareAventure(n) {
 
 function rewardToast(r) {
   if (!r) return;
-  let msg = '+' + r.xp + ' XP';
-  if (r.gems) msg += '  ·  +' + r.gems + ' 💎';
-  showToast((r.milestone ? '⭐ Jalon validé ! ' : '✅ ') + r.title + ' — ' + msg, { icon: 'check' });
+  showToast((r.milestone ? '⭐ Jalon validé ! ' : '✅ ') + r.title + ' — +' + (r.punch || 0) + ' Punch', { icon: 'check' });
 }
 
 function renderParcours() {

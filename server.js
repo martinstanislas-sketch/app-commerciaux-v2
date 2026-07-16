@@ -658,7 +658,7 @@ try {
   });
   // SÉRIE 🔥 : le client a renseigné au moins 2 repas de SA journée -> le jour est
   // gagné. Le serveur reste juge du JOUR (pas d'antidatage), de l'idempotence (un
-  // seul gain par jour) et détient la série + les jokers. Le décompte des repas
+  // seul gain par jour) et détient la série. Le décompte des repas
   // vient du client (les statuts vivent dans son blob), on le journalise tel quel.
   app.post('/nutrition/api/challenge/jour-gagne', requireAuth, requireNutritionUse, (req, res) => {
     try {
@@ -2739,9 +2739,10 @@ try {
         'nutrition_parcours_photos', 'nutrition_parcours_seances', 'nutrition_adherence', 'nutrition_scans',
         'nutrition_help_requests', 'nutrition_push_subscriptions', 'nutrition_push_prefs', 'nutrition_push_queue',
         'nutrition_push_log', 'nutrition_push_flags', 'nutrition_push_coach_alerts',
-        // Chemin du challenge : sans ça, un email recréé plus tard hériterait de
-        // l'XP, de la série et des nœuds déjà validés de l'ancien compte.
-        'user_node_progress', 'user_game_stats', 'user_ebook_opens', 'user_bilan_seen', 'user_weeks_rewarded',
+        // Chemin du challenge : sans ça, un email recréé plus tard hériterait du
+        // Punch, de la série et des nœuds déjà validés de l'ancien compte.
+        'user_node_progress', 'user_game_stats', 'user_ebook_opens', 'user_bilan_seen',
+        'user_node_flow', 'user_day_wins',
       ].forEach((t) => del('DELETE FROM ' + t + ' WHERE client_email = ?', email));
       del('DELETE FROM nutrition_clients WHERE email = ?', email); // le compte (clé = email)
       try { sessions.purgeEmail(email); } catch (_) { /* accès coupé au plus tard à l'expiration du token */ }
