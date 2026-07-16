@@ -2790,6 +2790,16 @@ body.is-demo #navRestart { display: none !important; }
 .mcpath-sheet-badge { display: inline-block; background: var(--blue-soft); color: var(--blue-on-soft); font: 700 12px/1 var(--font); padding: 6px 10px; border-radius: var(--pill); }
 .mcpath-sheet-title { margin: 12px 0 6px; font: 700 19px/1.25 var(--font); color: var(--text-c); }
 .mcpath-sheet-sub { margin: 0 0 18px; font: 400 14px/1.5 var(--font); color: var(--text-muted-c); }
+/* Étapes composites : liste des sous-étapes (ordre libre) */
+.mcpath-flow { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.mcpath-sub { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; padding: 13px 14px; border: 1px solid var(--border-c); border-radius: var(--r-sm); background: var(--surface-soft); color: var(--text-c); font: 600 14.5px/1.2 var(--font); cursor: pointer; transition: border-color .15s var(--ease), background .15s var(--ease); }
+.mcpath-sub:hover:not(.done) { border-color: var(--blue-c); background: var(--surface); }
+.mcpath-sub-ic { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; background: var(--track); color: var(--text-soft); }
+.mcpath-sub-l { flex: 1; min-width: 0; }
+.mcpath-sub-go { flex: 0 0 auto; color: var(--text-soft); font-size: 18px; }
+.mcpath-sub.done { background: var(--sage-soft); border-color: var(--sage); color: var(--sage-on-soft); cursor: default; }
+.mcpath-sub.done .mcpath-sub-ic { background: var(--sage); color: #fff; }
+.mcpath-flow-hint { margin: 4px 0 16px; color: var(--text-soft); font: 400 12.5px/1.4 var(--font); text-align: center; }
 .mcpath-sheet-btn { width: 100%; border: 0; background: var(--blue-c); color: #fff; font: 700 16px/1 var(--font); padding: 15px; border-radius: var(--r); cursor: pointer; box-shadow: var(--shadow-green); }
 .mcpath-sheet-btn:hover { background: var(--blue-hover); }
 .mcpath-sheet-close { width: 100%; border: 0; background: transparent; color: var(--text-soft); font: 600 14px/1 var(--font); padding: 14px; margin-top: 4px; cursor: pointer; }

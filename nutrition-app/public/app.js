@@ -4407,21 +4407,45 @@ function wireChallengePath() {
   $$('#view-parcours .mcpath-dot[data-node]').forEach((b) => b.addEventListener('click', () => openChallengeNode(Number(b.dataset.node))));
 }
 
+// Libellé du bouton + sous-titre. Le serveur fournit désormais `action` (le
+// libellé exact de la table de vérité) ; on garde un repli par type.
 function challengeActionLabel(n) {
   const map = {
-    pesee: ['Aller à ma pesée', 'Ta pesée officielle se saisit dans « Mes mesures ».'],
+    commencer: ['Commencer', 'Photos, mensurations et présentation au groupe.'],
+    check: ['Faire le point', 'Photos et mensurations.'],
     mensurations: ['Saisir mes mensurations', 'Renseigne tes mensurations dans « Mes mesures ».'],
     photo: ['Ajouter ma photo', 'Dépose ta photo d\'évolution dans « Mes mesures ».'],
     seance: ['Valider une séance', 'Coche ta séance dans « Mes mesures ».'],
     groupe: ['Aller au groupe', 'Publie ton message sur le mur de ton groupe.'],
     coach: ['Écrire à mon coach', 'Envoie un message à ton coach.'],
     ebook: ['Ouvrir mon ebook', 'Ouvre le guide du jour (2 minutes suffisent).'],
-    nutrition: n.day === 12 ? ['Analyser mon assiette', 'Photographie une assiette de ton plan.'] : ['Partager au groupe', 'Réalise la recette et partage-la au groupe.'],
+    special: ['Y aller', ''],
     bilan: ['Voir mon bilan', 'Consulte le bilan de ta semaine.'],
-    aventure: ['J\'ai relevé le défi', 'Aventure auto-déclarée : confirme quand c\'est fait.'],
+    final: ['Voir mon bilan final', 'Ton récap complet et ton badge finisher.'],
   };
   const m = map[n.type] || ['Y aller', ''];
-  return { cta: m[0], sub: m[1] };
+  return { cta: m[0], sub: n.action || m[1] };
+}
+
+// --- Étapes composites : sous-étapes du `flow` (ordre libre) ----------------
+// Chaque sous-étape mène à l'écran qui produit le vrai événement de validation.
+const MCPATH_FLOW = {
+  photos: { label: 'Ajouter tes photos', go: 'mesures' },
+  mensurations: { label: 'Saisir tes mensurations', go: 'mesures' },
+  groupe: { label: 'Te présenter au groupe', go: 'communaute' },
+};
+function challengeFlowHTML(n) {
+  if (!n.flow || !n.flow.length) return '';
+  const faits = new Set(n.flowDone || []);
+  const lignes = n.flow.map((s) => {
+    const f = MCPATH_FLOW[s] || { label: s, go: '' };
+    const ok = faits.has(s);
+    return `<button type="button" class="mcpath-sub${ok ? ' done' : ''}" data-sub="${mcpEsc(s)}"${ok ? ' disabled' : ''}>
+      <span class="mcpath-sub-ic">${ok ? '✓' : '○'}</span><span class="mcpath-sub-l">${mcpEsc(f.label)}</span>${ok ? '' : '<span class="mcpath-sub-go">›</span>'}</button>`;
+  }).join('');
+  const reste = n.flow.filter((s) => !faits.has(s)).length;
+  return `<div class="mcpath-flow">${lignes}</div>`
+    + `<p class="mcpath-flow-hint">${reste ? 'Il te reste ' + reste + ' étape' + (reste > 1 ? 's' : '') + ' — dans l\'ordre que tu veux.' : 'Tout est fait !'}</p>`;
 }
 
 function ensureChallengeSheet() {
@@ -4434,6 +4458,7 @@ function ensureChallengeSheet() {
     <div class="mcpath-sheet-badge"></div>
     <h3 class="mcpath-sheet-title"></h3>
     <p class="mcpath-sheet-sub"></p>
+    <div class="mcpath-sheet-flow"></div>
     <button type="button" class="mcpath-sheet-btn"></button>
     <button type="button" class="mcpath-sheet-close">Plus tard</button>
   </div>`;
@@ -4449,25 +4474,43 @@ function openChallengeNode(day) {
   const n = (st.nodes || []).find((x) => x.day === day); if (!n) return;
   const sheet = ensureChallengeSheet();
   const lbl = challengeActionLabel(n);
-  sheet.querySelector('.mcpath-sheet-badge').textContent = `Jour ${n.day} · +${n.xp} XP${n.gems ? ' · +' + n.gems + ' 💎' : ''}`;
+  sheet.querySelector('.mcpath-sheet-badge').textContent = `Étape ${n.day} · +${n.xp} XP${n.gems ? ' · +' + n.gems + ' 💎' : ''}`;
   sheet.querySelector('.mcpath-sheet-title').textContent = n.title;
   sheet.querySelector('.mcpath-sheet-sub').textContent = lbl.sub;
   const btn = sheet.querySelector('.mcpath-sheet-btn');
-  btn.textContent = lbl.cta;
-  btn.onclick = () => { closeChallengeSheet(); doChallengeAction(n); };
+  const flowBox = sheet.querySelector('.mcpath-sheet-flow');
+  if (n.flow && n.flow.length) {
+    // Étape composite : on liste les sous-étapes (ordre libre) au lieu d'un
+    // bouton unique. Chaque ligne mène à l'écran qui produit sa validation.
+    flowBox.innerHTML = challengeFlowHTML(n);
+    flowBox.style.display = '';
+    btn.style.display = 'none';
+    flowBox.querySelectorAll('.mcpath-sub[data-sub]').forEach((b) => b.addEventListener('click', () => {
+      const f = MCPATH_FLOW[b.dataset.sub]; if (!f) return;
+      closeChallengeSheet();
+      if (f.go === 'mesures') { state.parcoursSub = 'mesures'; renderParcoursTab(); window.scrollTo(0, 0); }
+      else if (f.go === 'communaute') setTab('communaute');
+    }));
+  } else {
+    flowBox.innerHTML = ''; flowBox.style.display = 'none';
+    btn.style.display = '';
+    btn.textContent = lbl.cta;
+    btn.onclick = () => { closeChallengeSheet(); doChallengeAction(n); };
+  }
   sheet.classList.add('open');
 }
 
+// Route vers l'écran qui produit le VRAI événement de validation. On se base sur
+// `event` (et non sur `type`) : c'est lui qui décide de la validation côté serveur.
 function doChallengeAction(n) {
-  switch (n.type) {
-    case 'pesee': case 'mensurations': case 'photo': case 'seance':
+  switch (n.event) {
+    case 'seance': case 'photo': case 'mensurations':
       state.parcoursSub = 'mesures'; renderParcoursTab(); window.scrollTo(0, 0); break;
     case 'groupe': setTab('communaute'); break;
     case 'coach': openCoachChat(); break;
     case 'ebook': setTab('ebooks'); break;
-    case 'nutrition': if (n.day === 12) openAnalyse(); else setTab('communaute'); break;
+    case 'plate': openAnalyse(); break;
     case 'bilan': challengeOpenBilan(n); break;
-    case 'aventure': challengeDeclareAventure(n); break;
     default: break;
   }
 }
