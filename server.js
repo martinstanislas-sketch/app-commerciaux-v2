@@ -648,6 +648,10 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 const {
   ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, challengePublicState,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
+// Bilan hebdo : seuils + rédaction par modèles (pur, testable). L'IA est chargée
+// à la demande, pour ne pas dépendre du SDK Anthropic quand elle n'est pas utilisée.
+const bilanHebdo = require('./nutrition-app/lib/bilanHebdo');
+function nutritionAiBilan() { return require('./nutrition-app/lib/aiGenerator'); }
 
 try {
   const nutritionApp = require('./nutrition-app/server');
@@ -690,7 +694,40 @@ try {
       res.json({ ok: true, reward, state: challengePublicState(email) });
     } catch (e) { console.error('challenge aventure :', e); res.status(500).json({ ok: false }); }
   });
-  // « Bilan consulté » : le client ouvre son bilan hebdo -> événement réel (sinon inexistant).
+  // TEXTE du bilan hebdo. Les CHIFFRES sont calculés par l'app (front) et envoyés
+  // ici ; l'IA ne fait que les habiller. Elle n'est qu'un bonus : sans clé, en
+  // échec ou hors-ligne, on renvoie le texte MODÈLE — l'écran n'est jamais vide et
+  // l'étape reste validable. Le texte est mis en cache par semaine : un bilan
+  // rouvert ne rappelle jamais l'API (coût + réponse qui changerait sous les yeux).
+  app.post('/nutrition/api/challenge/bilan-texte', requireAuth, requireNutritionUse, async (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      const b = req.body || {};
+      const week = Math.max(1, Math.min(6, Number(b.week) || 1));
+      const final = !!b.final;
+      const cache = getDb().prepare('SELECT texte, source FROM user_bilan_texte WHERE client_email=? AND week=?').get(email, week);
+      if (cache && cache.texte) {
+        try { return res.json({ ok: true, texte: JSON.parse(cache.texte), source: cache.source, cache: true }); } catch (_) { /* cache illisible -> on régénère */ }
+      }
+      const stats = b.stats || {};
+      const highlights = bilanHebdo.highlightsSemaine(stats);
+      let texte = null, source = 'modele';
+      try {
+        const p = bilanHebdo.promptBilan(stats, highlights, { final });
+        const brut = await nutritionAiBilan().redigerBilanIA(p); // '' si IA indisponible
+        const parse = bilanHebdo.parseReponseIa(brut);
+        if (parse) { texte = parse; source = 'ia'; }
+      } catch (e) { console.warn('bilan-texte IA :', e && e.message); } // l'IA tombe -> on continue
+      if (!texte) texte = bilanHebdo.texteBilanTemplate(stats, highlights, { final });
+      try {
+        getDb().prepare("INSERT INTO user_bilan_texte (client_email, week, texte, source, created_at) VALUES (?,?,?,?,?) ON CONFLICT(client_email, week) DO UPDATE SET texte=excluded.texte, source=excluded.source")
+          .run(email, week, JSON.stringify(texte), source, new Date().toISOString());
+      } catch (e) { console.warn('bilan-texte cache :', e && e.message); }
+      res.json({ ok: true, texte, highlights, source, cache: false });
+    } catch (e) { console.error('bilan-texte :', e); res.status(500).json({ ok: false, error: 'Bilan indisponible.' }); }
+  });
+  // « Bilan consulté » : le client a cliqué « Terminer ma semaine » -> événement réel.
   app.post('/nutrition/api/challenge/bilan-seen', requireAuth, requireNutritionUse, (req, res) => {
     try {
       const email = (req.session && req.session.email) || '';
@@ -2813,7 +2850,7 @@ try {
         // Chemin du challenge : sans ça, un email recréé plus tard hériterait du
         // Punch, de la série et des nœuds déjà validés de l'ancien compte.
         'user_node_progress', 'user_game_stats', 'user_ebook_opens', 'user_bilan_seen',
-        'user_node_flow', 'user_day_wins',
+        'user_node_flow', 'user_day_wins', 'user_bilan_texte',
       ].forEach((t) => del('DELETE FROM ' + t + ' WHERE client_email = ?', email));
       del('DELETE FROM nutrition_clients WHERE email = ?', email); // le compte (clé = email)
       try { sessions.purgeEmail(email); } catch (_) { /* accès coupé au plus tard à l'expiration du token */ }

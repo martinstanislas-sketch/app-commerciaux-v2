@@ -4028,6 +4028,48 @@ async function reactFeed(id, type) {
     if (d && d.ok && item) { item.reactions = d.reactions || {}; item.myReaction = d.myReaction || null; renderCommunauteFeed(); }
   } catch (_) { showToast('Réaction impossible pour le moment.', { icon: 'info' }); }
 }
+// --- BILAN HEBDO : les CHIFFRES (déterministes, calculés par l'app) ----------
+// L'IA n'invente rien : elle ne fait qu'habiller ce que cette fonction produit.
+// Chaque source est prise là où elle est EXACTE :
+//   - séances : state.parcours.seances = des dates réelles -> fenêtre de 7 jours ;
+//   - repas   : les statuts vivent dans le blob client, indexés par jour de plan ;
+//   - ebooks / communauté : les étapes du Chemin validées cette semaine-là (le front
+//     n'a pas l'historique daté de ces actions, mais il a leur validation).
+// ⚠️ Mapping assumé : jour de plan = jour de challenge - 1.
+function statsSemaine(semaine) {
+  const w = Math.max(1, Math.min(6, Number(semaine) || 1));
+  const di0 = (w - 1) * 7;
+  const nJours = (state.plan && state.plan.jours && state.plan.jours.length) || 0;
+  let joursGagnes = 0, repasRenseignes = 0, repasPossibles = 0;
+  for (let i = 0; i < 7; i++) {
+    const di = di0 + i;
+    if (di >= nJours) break; // la semaine dépasse le plan connu -> on ne devine pas
+    const d = dayStats(di);
+    repasRenseignes += d.reported;
+    repasPossibles += d.total;
+    if (d.reported >= 2) joursGagnes++; // même règle que la série 🔥
+  }
+  // Séances : dates réelles, fenêtre de la semaine (ancre = début du challenge).
+  const p = state.parcours || {};
+  const ancre = startMidnight().getTime();
+  const dep = p.pesees && p.pesees.depart && p.pesees.depart.date ? Date.parse(p.pesees.depart.date) : NaN;
+  const base = isNaN(dep) ? ancre : dep;
+  const debut = base + di0 * 86400000, fin = debut + 7 * 86400000;
+  const seancesValidees = (p.seances || []).filter((ymd) => { const t = Date.parse(ymd); return t >= debut && t < fin; }).length;
+  // Ebooks / communauté : étapes de CETTE semaine déjà validées.
+  const nodes = ((state.challenge && state.challenge.nodes) || []).filter((n) => n.week === w && n.status === 'done');
+  const ebooksLus = nodes.filter((n) => n.type === 'ebook').length;
+  const actionsCommunaute = nodes.filter((n) => n.event === 'groupe' || n.event === 'groupe_photo').length;
+  const st = (state.challenge && state.challenge.stats) || {};
+  return {
+    semaine: w, joursGagnes, repasRenseignes, repasPossibles,
+    // On n'a pas d'historique de la série : on compare au mieux (fin = valeur du jour).
+    streakDebut: 0, streakFin: st.streak || 0,
+    seancesValidees, seancesPrevues: p.seancesObjHebdo || 4,
+    ebooksLus, actionsCommunaute,
+  };
+}
+
 // --- Ancrage sur le composeur de la Communauté ------------------------------
 // Une étape qui demande de poster doit déposer le client SUR le champ, pas en haut
 // du fil. L'amorce est un simple point de départ : il peut l'effacer.
@@ -4811,14 +4853,113 @@ function doChallengeAction(n) {
   }
 }
 
+// Bilan hebdo : écran de lecture plein écran (comme un ebook, sans téléchargement).
+// ⚠️ L'étape N'EST PAS validée à l'ouverture — seulement au clic « Terminer ma
+// semaine ✓ ». Lire n'est pas terminer.
 async function challengeOpenBilan(n) {
-  state.parcoursSub = 'mesures'; renderParcoursTab();
-  setTimeout(() => { const el = $('#pc-bilan'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 250);
+  const final = n.type === 'final';
+  const stats = statsSemaine(n.week);
+  const sheet = ensureBilanSheet();
+  sheet.dataset.week = n.week;
+  sheet.dataset.final = final ? '1' : '';
+  // 1) Les chiffres tout de suite (calcul local, instantané), le texte ensuite.
+  sheet.querySelector('.bh-title').textContent = final ? 'Tes 6 semaines — ton bilan' : `Semaine ${n.week} — ton bilan`;
+  sheet.querySelector('.bh-stats').innerHTML = bilanStatsHTML(stats, final);
+  sheet.querySelector('.bh-texte').innerHTML = '<p class="bh-loading">On prépare ton bilan…</p>';
+  const btn = sheet.querySelector('.bh-done');
+  const dejaFait = n.status === 'done';
+  btn.textContent = dejaFait ? 'Fermer' : (final ? 'Terminer mon challenge ✓' : 'Terminer ma semaine ✓');
+  btn.onclick = () => (dejaFait ? closeBilanSheet() : bilanTerminer(n));
+  sheet.classList.add('open');
+  // 2) Le texte : IA si le serveur en a une, sinon modèle. Jamais d'écran vide.
+  let t = null;
   try {
-    const r = await fetch(apiUrl('/api/challenge/bilan-seen'), { method: 'POST', headers: { ...nutriAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ week: n.week }) });
+    const r = await fetch(apiUrl('/api/challenge/bilan-texte'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ week: n.week, final, stats }),
+    });
+    const d = await r.json();
+    if (d && d.ok && d.texte) t = d.texte;
+  } catch (_) { /* hors-ligne : on écrit le bilan localement ci-dessous */ }
+  if (!t) t = bilanTexteLocal(stats, final); // dernier filet : l'écran doit vivre
+  sheet.querySelector('.bh-texte').innerHTML = bilanTexteHTML(t);
+}
+function bilanStatsHTML(s, final) {
+  const c = (v, l) => `<div class="bh-stat"><b>${v}</b><span>${l}</span></div>`;
+  return c(s.joursGagnes + '/7', 'jours notés')
+    + c(s.seancesValidees + '/' + s.seancesPrevues, 'séances')
+    + c('🔥 ' + s.streakFin, final ? 'série finale' : 'série')
+    + c(s.repasRenseignes, 'repas notés');
+}
+function bilanTexteHTML(t) {
+  const li = (arr) => arr.map((x) => `<li>${mcpEsc(x)}</li>`).join('');
+  return `<p class="bh-intro">${mcpEsc(t.intro || '')}</p>`
+    + `<h4 class="bh-h">Ce que tu as réussi 💪</h4><ul class="bh-list">${li(t.reussites || [])}</ul>`
+    + `<h4 class="bh-h">Ton focus pour la suite 🎯</h4><ul class="bh-list bh-focus">${li(t.focus || [])}</ul>`
+    + `<p class="bh-fin">${mcpEsc(t.motFin || '')}</p>`;
+}
+// Repli 100% local (serveur injoignable) : mêmes règles que le module serveur,
+// en version courte — mieux qu'un écran vide qui bloquerait l'étape.
+function bilanTexteLocal(s, final) {
+  const forts = [];
+  if (s.joursGagnes >= 6) forts.push(`Tu as noté tes repas ${s.joursGagnes} jours sur 7 — belle régularité.`);
+  if (s.seancesValidees >= s.seancesPrevues && s.seancesPrevues > 0) forts.push(`${s.seancesValidees} séances validées : objectif atteint.`);
+  if (s.seancesValidees >= 1 && forts.length < 2) forts.push(`${s.seancesValidees} séance${s.seancesValidees > 1 ? 's' : ''} au compteur.`);
+  if (s.joursGagnes >= 1 && forts.length < 2) forts.push(`Tu as noté ta journée ${s.joursGagnes} fois : chaque jour compte.`);
+  while (forts.length < 2) forts.push('Tu es toujours dans le parcours — c\'est déjà une victoire.');
+  return {
+    intro: final ? 'Six semaines. Tu y es arrivé.' : `Semaine ${s.semaine} bouclée.`,
+    reussites: forts.slice(0, 4),
+    focus: [s.joursGagnes <= 3 ? 'Cette semaine, vise 4 journées notées : le rythme prime sur la perfection.' : 'Continue comme ça : ton rythme est bon.'],
+    motFin: final ? 'Bravo pour ces 6 semaines.' : 'On se retrouve la semaine prochaine.',
+  };
+}
+// LE clic qui valide : l'étape ne bouge que là. Idempotent (le serveur ignore une
+// étape déjà validée) ; rouvrir un bilan terminé ne revalide rien.
+async function bilanTerminer(n) {
+  try {
+    const r = await fetch(apiUrl('/api/challenge/bilan-seen'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ week: n.week }),
+    });
     const d = await r.json();
     if (d && d.ok) { state.challenge = d.state; if (d.reward) rewardToast(d.reward); }
-  } catch (_) { /* silencieux */ }
+  } catch (_) { showToast('Connexion requise pour valider ton bilan.', { icon: 'info' }); return; }
+  closeBilanSheet();
+  if (state.parcoursSub !== 'mesures') renderChallenge();
+}
+function closeBilanSheet() { const el = $('#bilanSheet'); if (el) el.classList.remove('open'); }
+function ensureBilanSheet() {
+  let el = $('#bilanSheet'); if (el) return el;
+  el = document.createElement('div');
+  el.id = 'bilanSheet'; el.className = 'bh';
+  el.innerHTML = `<div class="bh-card">
+    <button type="button" class="bh-x" aria-label="Fermer">✕</button>
+    <div class="bh-scroll">
+      <div class="bh-kicker">Ton bilan</div>
+      <h2 class="bh-title"></h2>
+      <div class="bh-stats"></div>
+      <div class="bh-texte"></div>
+    </div>
+    <div class="bh-foot">
+      <button type="button" class="bh-done"></button>
+      <button type="button" class="bh-pdf">Télécharger en PDF</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+  el.querySelector('.bh-x').addEventListener('click', closeBilanSheet);
+  el.querySelector('.bh-pdf').addEventListener('click', () => bilanPdf(el));
+  return el;
+}
+// PDF : OPTIONNEL. Le bilan se lit d'abord DANS l'app — le téléchargement n'est
+// jamais nécessaire pour valider l'étape. On réutilise printDocument, qui gère
+// déjà les contraintes mobile (window.print y est bloqué).
+function bilanPdf(sheet) {
+  try {
+    const titre = sheet.querySelector('.bh-title').textContent;
+    const html = '<h1>' + escapeHtml(titre) + '</h1>' + sheet.querySelector('.bh-stats').innerHTML + sheet.querySelector('.bh-texte').innerHTML;
+    printDocument('Mon bilan', html);
+  } catch (_) { showToast('Téléchargement impossible.', { icon: 'info' }); }
 }
 
 async function challengeDeclareAventure(n) {
@@ -5041,7 +5182,32 @@ function renderParcours() {
   host.querySelectorAll('[data-pc-delmensu]').forEach((b) => b.addEventListener('click', () => deleteMensuration(Number(b.dataset.pcDelmensu))));
   // Charge les vignettes privées (avec auth -> blob)
   host.querySelectorAll('[data-pc-imgid]').forEach((img) => loadParcoursPhoto(Number(img.dataset.pcImgid), img));
+  injecterMiniRecapS3(host); // jour 21 : un mini-récap ICI, sans étape supplémentaire
   appliquerAncreParcours(); // une étape du Chemin nous a envoyés ici -> on ancre sur sa section
+}
+
+// Jour 21 (Point mi-parcours) : pas de nouvelle étape ni de nouvel écran — on
+// glisse un mini-récap de la semaine 3 (2 réussites + 1 focus) dans l'écran
+// photos/mensurations existant, juste avant le bloc photos.
+function injecterMiniRecapS3(host) {
+  const ch = state.challenge;
+  if (!ch || !ch.enabled) return;
+  const n21 = (ch.nodes || []).find((n) => n.day === 21);
+  if (!n21 || n21.status !== 'active') return; // visible seulement quand on y est
+  if (host.querySelector('.pc-recap3')) return;
+  const s = statsSemaine(3);
+  const t = bilanTexteLocal(s, false); // court : mêmes règles, version locale
+  const forts = t.reussites.slice(0, 2).map((x) => '<li>' + mcpEsc(x) + '</li>').join('');
+  const bloc = document.createElement('section');
+  bloc.className = 'pc-sec pc-recap3';
+  bloc.innerHTML = '<h3>' + icSvg('spark') + ' Ton point mi-parcours</h3>'
+    + '<div class="pc-recap3-stats">' + bilanStatsHTML(s, false) + '</div>'
+    + '<ul class="bh-list">' + forts + '</ul>'
+    + '<ul class="bh-list bh-focus"><li>' + mcpEsc(t.focus[0]) + '</li></ul>';
+  const cible = host.querySelector('.pc-photos-jalon');
+  const section = cible && cible.closest('.pc-sec');
+  if (section && section.parentNode) section.parentNode.insertBefore(bloc, section);
+  else host.appendChild(bloc);
 }
 
 // Mensurations : mesures corporelles saisies par le client (cm).
