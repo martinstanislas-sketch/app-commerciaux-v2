@@ -206,6 +206,7 @@ function ensureNutritionHelpTable() {
       author TEXT NOT NULL DEFAULT '',
       message TEXT NOT NULL DEFAULT '',
       kind TEXT NOT NULL DEFAULT 'message',
+      photo TEXT NOT NULL DEFAULT '', -- dataURL ; visible par TOUT le groupe (≠ photos privées du Parcours)
       created_at TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS nutrition_community_reactions (
@@ -471,6 +472,15 @@ function ensureNutritionHelpTable() {
       getDb().exec("ALTER TABLE nutrition_community_messages ADD COLUMN group_key TEXT NOT NULL DEFAULT ''");
     }
   } catch (e) { console.error('Migration community group_key :', e && e.message); }
+  // Migration : photo jointe à un post communautaire (dataURL base64, comme l'avatar).
+  // ⚠️ Ces photos sont vues par TOUT le groupe — rien à voir avec les photos de Mon
+  // Parcours, qui restent privées (client + coach) dans nutrition_parcours_photos.
+  try {
+    const cmCols = getDb().prepare('PRAGMA table_info(nutrition_community_messages)').all();
+    if (cmCols.length && !cmCols.some((c) => c.name === 'photo')) {
+      getDb().exec("ALTER TABLE nutrition_community_messages ADD COLUMN photo TEXT NOT NULL DEFAULT ''");
+    }
+  } catch (e) { console.error('Migration community photo :', e && e.message); }
   // Migration : unification de l'identité client sur l'email. Les tables historiques
   // (aide/scans/avis/adhérence/assiettes) lient un client par `client_name` (texte libre
   // = nom de session) ≠ email -> impossible à scoper proprement par coach. On ajoute une
@@ -976,6 +986,20 @@ try {
       return ville + '#' + no;
     } catch (_) { return ''; }
   }
+  // Photo d'un post : dataURL jpeg/png uniquement, et plafonnée. Le front compresse
+  // déjà (compressImage -> jpeg), mais le serveur ne fait jamais confiance au client :
+  // il reste seul juge du format et du poids. Renvoie { data } ou { error }.
+  const PHOTO_POST_MAX_OCTETS = 3 * 1024 * 1024; // ~3 Mo décodés : large pour une photo compressée
+  function verifierPhotoPost(brut) {
+    if (brut == null || brut === '') return { data: '' }; // pas de photo : cas normal
+    const s = String(brut);
+    const m = /^data:image\/(jpeg|jpg|png);base64,([A-Za-z0-9+/=]+)$/.exec(s);
+    if (!m) return { error: 'Format non accepté : envoie une photo JPG ou PNG.' };
+    // 4 caractères base64 = 3 octets -> taille réelle sans décoder.
+    const octets = Math.floor(m[2].length * 3 / 4);
+    if (octets > PHOTO_POST_MAX_OCTETS) return { error: 'Photo trop lourde (3 Mo maximum).' };
+    return { data: s };
+  }
   // Groupe du visiteur pour une lecture de la Communauté : le groupe du client, ou null
   // pour coach/admin (voit tout). Le rôle coach/admin n'est jamais cloisonné.
   function viewerGroupForRead(req) {
@@ -1142,19 +1166,59 @@ try {
       if (kind === 'coach' && !isCoach) kind = 'message';
       if (!['message', 'partage', 'coach'].includes(kind)) kind = 'message';
       const msg = String((req.body || {}).message || '').slice(0, 500).trim();
-      if (!msg) return res.status(400).json({ ok: false, error: 'Message vide.' });
+      // Photo jointe (facultative) : un post peut être texte seul, photo seule, ou les deux.
+      const photo = verifierPhotoPost((req.body || {}).photo);
+      if (photo.error) return res.status(400).json({ ok: false, error: photo.error });
+      if (!msg && !photo.data) return res.status(400).json({ ok: false, error: 'Écris un message ou ajoute une photo.' });
       const now = new Date().toISOString();
       // Un post client est cloisonné à SON groupe ; un message coach est diffusé à tous ('').
       const groupKey = (kind === 'coach') ? '' : clientGroupKey(email);
       const info = getDb().prepare(
-        'INSERT INTO nutrition_community_messages (email, author, message, kind, created_at, group_key) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(email, author, msg, kind, now, groupKey);
+        'INSERT INTO nutrition_community_messages (email, author, message, kind, created_at, group_key, photo) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(email, author, msg, kind, now, groupKey, photo.data);
       if (!isCoach) awardClientEvent(email, 'groupe', info.lastInsertRowid); // seuls les posts CLIENT valident un nœud
-      res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind, mine: true, reactions: {}, myReaction: null } });
+      res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind, mine: true, reactions: {}, myReaction: null, photoId: photo.data ? info.lastInsertRowid : null } });
     } catch (e) {
       console.error('Erreur community/messages POST :', e);
       res.status(500).json({ ok: false, error: 'Publication impossible.' });
     }
+  });
+
+  // Photo d'un post : servie aux membres du MÊME groupe (et au coach/admin). On ne
+  // met pas l'image dans le fil JSON — 50 posts photo feraient une réponse énorme.
+  app.get('/nutrition/api/community/photo/:id', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const id = Number(req.params.id) || 0;
+      const row = getDb().prepare('SELECT photo, kind, group_key FROM nutrition_community_messages WHERE id = ?').get(id);
+      if (!row || !row.photo) return res.status(404).end();
+      const vg = viewerGroupForRead(req); // null = coach/admin -> voit tout
+      // Un client ne voit que les photos de son groupe (un post coach est diffusé à tous).
+      if (vg != null && row.kind !== 'coach' && String(row.group_key || '') !== String(vg)) return res.status(403).end();
+      const m = /^data:(image\/[^;]+);base64,(.+)$/.exec(row.photo);
+      if (!m) return res.status(404).end();
+      res.setHeader('Content-Type', m[1]);
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.end(Buffer.from(m[2], 'base64'));
+    } catch (e) { console.error('community/photo GET :', e); res.status(500).end(); }
+  });
+
+  // Supprimer un post : son AUTEUR, ou le coach/admin (modération). Une photo postée
+  // par erreur doit pouvoir disparaître — sinon elle resterait visible du groupe à vie.
+  app.delete('/nutrition/api/community/messages/:id', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const id = Number(req.params.id) || 0;
+      const s = req.session || {};
+      const isStaff = ['admin', 'coach', 'coach-leader'].includes(s.role || '');
+      const email = String(s.email || '');
+      const row = getDb().prepare('SELECT email FROM nutrition_community_messages WHERE id = ?').get(id);
+      if (!row) return res.status(404).json({ ok: false, error: 'Post introuvable.' });
+      if (!isStaff && String(row.email || '') !== email) return res.status(403).json({ ok: false, error: 'Tu ne peux supprimer que tes propres posts.' });
+      getDb().prepare('DELETE FROM nutrition_community_messages WHERE id = ?').run(id);
+      // Les réactions et commentaires orphelins partent avec le post.
+      try { getDb().prepare('DELETE FROM nutrition_community_reactions WHERE message_id = ?').run(id); } catch (_) { /* ignore */ }
+      try { getDb().prepare("DELETE FROM nutrition_community_comments WHERE item_id = ?").run('p' + id); } catch (_) { /* ignore */ }
+      res.json({ ok: true });
+    } catch (e) { console.error('community/messages DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
   });
 
   // Réagir à un message (toggle : re-cliquer la même réaction l'enlève).
@@ -1330,8 +1394,8 @@ try {
       }
       const vg = viewerGroupForRead(req); // cloisonnement : le client ne voit que son groupe (+ coach)
       const posts = (vg == null)
-        ? db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') ORDER BY id DESC LIMIT ?").all(limit)
-        : db.prepare("SELECT id, author, message, kind, email, created_at FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') AND (group_key = ? OR (kind = 'coach' AND group_key = '')) ORDER BY id DESC LIMIT ?").all(vg, limit);
+        ? db.prepare("SELECT id, author, message, kind, email, created_at, (photo != '') AS has_photo FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') ORDER BY id DESC LIMIT ?").all(limit)
+        : db.prepare("SELECT id, author, message, kind, email, created_at, (photo != '') AS has_photo FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') AND (group_key = ? OR (kind = 'coach' AND group_key = '')) ORDER BY id DESC LIMIT ?").all(vg, limit);
       const postReac = {}; const postIds = posts.map((p) => p.id);
       if (postIds.length) {
         const ph = postIds.map(() => '?').join(',');
@@ -1341,7 +1405,7 @@ try {
       const avm = avatarUrlsByEmail(db, [...evs.map((e) => e.actor_email), ...posts.map((p) => p.email)]);
       const items = [];
       for (const e of evs) items.push({ id: 'e' + e.id, kind: 'event', subkind: e.type, who: e.actor_name || 'Le groupe', avatarUrl: avm[e.actor_email] || '', emoji: e.emoji || '', text: e.text, when: e.created_at, reactions: (evReac[e.id] && evReac[e.id].counts) || {}, myReaction: (evReac[e.id] && evReac[e.id].mine) || null, mine: false });
-      for (const p of posts) items.push({ id: 'p' + p.id, kind: 'post', subkind: p.kind, who: p.author || 'Un membre', avatarUrl: avm[p.email] || '', emoji: p.kind === 'partage' ? '✅' : (p.kind === 'coach' ? '📣' : '💬'), text: p.message, when: p.created_at, reactions: (postReac[p.id] && postReac[p.id].counts) || {}, myReaction: (postReac[p.id] && postReac[p.id].mine) || null, mine: !!me && p.email === me });
+      for (const p of posts) items.push({ id: 'p' + p.id, kind: 'post', subkind: p.kind, who: p.author || 'Un membre', avatarUrl: avm[p.email] || '', emoji: p.kind === 'partage' ? '✅' : (p.kind === 'coach' ? '📣' : '💬'), text: p.message, when: p.created_at, reactions: (postReac[p.id] && postReac[p.id].counts) || {}, myReaction: (postReac[p.id] && postReac[p.id].mine) || null, mine: !!me && p.email === me, photoId: p.has_photo ? p.id : null });
       items.sort((a, b) => String(b.when || '').localeCompare(String(a.when || '')));
       const out = items.slice(0, limit);
       // Nombre de commentaires par élément (badge sur la carte).

@@ -1857,6 +1857,30 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .cmy-quick-btn.win { background: rgba(229,181,103,.16); color: #9a6a12; border-color: rgba(229,181,103,.5); }
 .cmy-quick-btn.seance { background: var(--sage-soft); color: var(--sage-on-soft); border-color: rgba(110,139,91,.45); }
 .cmy-quick-btn.help { background: rgba(248,113,113,.12); color: #b3453d; border-color: rgba(248,113,113,.42); }
+/* --- Photo jointe à un post communautaire (mobile-first) --- */
+.cmy-photo-btn { display: flex; align-items: center; justify-content: center; flex: none; width: 46px; height: 46px; border: 1px solid var(--border-c); border-radius: var(--r-sm); background: var(--surface); font-size: 20px; line-height: 1; cursor: pointer; transition: border-color .15s var(--ease), background .15s var(--ease); }
+.cmy-photo-btn:hover { border-color: var(--blue-c); background: var(--surface-soft); }
+.cmy-photo-btn:active { transform: scale(.96); }
+.cmy-photo-preview { position: relative; margin-top: 12px; }
+.cmy-photo-preview.hidden { display: none; }
+.cmy-photo-preview img { display: block; width: 100%; max-height: 260px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--border-c); }
+.cmy-photo-del { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border: none; border-radius: 50%; background: rgba(0,0,0,.62); color: #fff; font: 700 14px/1 var(--font); cursor: pointer; }
+.cmy-photo-warn { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--text-soft); font: 500 12px/1.3 var(--font); }
+.cmy-photo-warn svg { width: 14px; height: 14px; flex: none; }
+/* Miniature dans le fil : on garde la carte lisible, l'agrandissement est au clic. */
+/* min-height : réserve la place AVANT que l'image (chargée en blob) n'arrive, sinon
+   la carte fait 2px puis grandit d'un coup et tout le fil saute sous les doigts. */
+.feed-photo { display: block; width: 100%; min-height: 160px; margin: 8px 0 2px; padding: 0; border: 1px solid var(--border-c); border-radius: var(--r-sm); background: var(--surface-soft); overflow: hidden; cursor: zoom-in; }
+.feed-photo img { display: block; width: 100%; height: 100%; min-height: 158px; max-height: 300px; object-fit: cover; }
+.feed-del { margin-left: auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; border-radius: 50%; background: transparent; color: var(--text-soft); cursor: pointer; }
+.feed-del:hover { background: var(--surface-soft); color: var(--text-c); }
+.feed-del svg { width: 14px; height: 14px; }
+/* Agrandissement plein écran */
+.comm-zoom { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.88); }
+.comm-zoom.open { display: flex; }
+.comm-zoom img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--r-sm); }
+.comm-zoom-x { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border: none; border-radius: 50%; background: rgba(255,255,255,.16); color: #fff; font: 700 17px/1 var(--font); cursor: pointer; }
+
 .cmy-composer-form { display: flex; align-items: flex-end; gap: 10px; margin-top: 12px; }
 .cmy-composer-form textarea { flex: 1; min-width: 0; resize: none; min-height: 46px; max-height: 160px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--mc-border); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.4; }
 .cmy-composer-form textarea:focus { outline: none; border-color: var(--mc-blue); box-shadow: 0 0 0 3px var(--blue-soft); }
