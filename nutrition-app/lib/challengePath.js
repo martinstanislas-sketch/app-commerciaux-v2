@@ -24,6 +24,8 @@
 // v4 : l'étape 13 se valide par une photo POSTÉE AU GROUPE (event 'groupe_photo')
 //      et non plus par l'écran d'analyse d'assiette (event 'plate').
 // v5 : l'étape 27 accepte AUSSI une réponse à un membre ('groupe_reponse').
+const punchSeuils = require('./punchSeuils');
+
 const CHALLENGE_PATH_SEED_VERSION = 5;
 const CHALLENGE_WEEK_TITLES = {
   1: 'Lancement', 2: 'Prendre le rythme', 3: 'Mi-parcours',
@@ -227,6 +229,17 @@ const CHALLENGE_SCHEMA_SQL = `
     created_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (client_email, week)
   );
+  -- Déblocages acquis (vidéos, ebooks, cadeaux) : atteints, jamais repris.
+  -- La PK (email, seuil, type) porte l'idempotence : un seuil qui déclenche deux
+  -- récompenses (800 = ebooks + cadeau) en garde bien deux, mais chacune une fois.
+  CREATE TABLE IF NOT EXISTS user_unlocks (
+    client_email TEXT NOT NULL,
+    seuil INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    payload TEXT NOT NULL DEFAULT '',
+    unlocked_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (client_email, seuil, type)
+  );
   CREATE TABLE IF NOT EXISTS user_bilan_seen (
     client_email TEXT NOT NULL,
     week INTEGER NOT NULL,
@@ -393,6 +406,52 @@ function createChallengeEngine({ getDb }) {
     try { const v = JSON.parse(brut || '[]'); return Array.isArray(v) ? v.map(Number).filter((n) => n > 0) : []; }
     catch (_) { return []; }
   }
+  // --- PUNCH : point de passage UNIQUE -------------------------------------
+  // Toute source de Punch (étape du parcours, palier de série) passe par ici :
+  // c'est le seul endroit où le compteur monte, donc le seul endroit où évaluer
+  // les déblocages. Le compteur est CUMULÉ et n'est jamais débité.
+  // Renvoie les déblocages NOUVELLEMENT obtenus (souvent aucun).
+  function addPunch(email, n, source) {
+    const gain = Math.round(Number(n) || 0);
+    if (!email || gain <= 0) return [];
+    try {
+      pathStatsRow(email); // garantit la ligne
+      getDb().prepare("UPDATE user_game_stats SET punch = punch + ?, updated_at=datetime('now') WHERE client_email=?").run(gain, email);
+      return evaluateUnlocks(email, source);
+    } catch (e) { console.error('addPunch:', e && e.message); return []; }
+  }
+
+  // Déblocages déjà acquis (clés « seuil:type »).
+  function unlockedThresholds(email) {
+    const set = new Set();
+    try { getDb().prepare('SELECT seuil, type FROM user_unlocks WHERE client_email=?').all(email).forEach((r) => set.add(r.seuil + ':' + r.type)); } catch (_) { /* table absente */ }
+    return set;
+  }
+
+  // Compare le total aux seuils et enregistre ce qui vient de tomber. Idempotent
+  // (INSERT OR IGNORE + PK). Chaque déblocage passe par onUnlock : un hook VIDE
+  // pour l'instant, que les prochains lots (vidéos, ebooks, cadeaux) rempliront.
+  function evaluateUnlocks(email, source) {
+    const nouveaux = [];
+    try {
+      const total = (pathStatsRow(email) || {}).punch || 0;
+      const deja = unlockedThresholds(email);
+      const ins = getDb().prepare('INSERT OR IGNORE INTO user_unlocks (client_email, seuil, type, payload, unlocked_at) VALUES (?,?,?,?,?)');
+      punchSeuils.seuilsAtteints(total, deja).forEach((s) => {
+        const info = ins.run(email, s.seuil, s.type, JSON.stringify(s.payload || {}), new Date().toISOString());
+        if (info.changes === 0) return; // déjà acquis (course entre deux appels)
+        nouveaux.push(s);
+        try { onUnlock(s.type, { email, seuil: s.seuil, source: source || '', ...(s.payload || {}) }); }
+        catch (e) { console.error('onUnlock:', e && e.message); } // un hook qui tombe ne doit rien casser
+      });
+    } catch (e) { console.error('evaluateUnlocks:', e && e.message); }
+    return nouveaux;
+  }
+
+  // Hook de déblocage — VOLONTAIREMENT vide : la fondation est prête, les
+  // récompenses (vidéos, ebooks, cadeaux) viendront s'y brancher.
+  function onUnlock(/* type, payload */) { /* à remplir par les prochains lots */ }
+
   // Combien des 3 photos exigées le client a-t-il déposées pour ce jalon ?
   // (les doublons d'un même type ne comptent qu'une fois -> DISTINCT).
   function photosFaites(email, jalonChemin) {
@@ -456,12 +515,14 @@ function createChallengeEngine({ getDb }) {
       // jour était rejoué.
       const gainPalier = paliers.includes(streak) ? 0 : punchPalier(streak);
       if (gainPalier > 0) paliers = paliers.concat(streak);
-      getDb().prepare("UPDATE user_game_stats SET streak_current=?, streak_best=?, streak_paliers=?, last_win_date=?, punch = punch + ?, updated_at=datetime('now') WHERE client_email=?")
-        .run(streak, best, JSON.stringify(paliers), today, gainPalier, email);
+      getDb().prepare("UPDATE user_game_stats SET streak_current=?, streak_best=?, streak_paliers=?, last_win_date=?, updated_at=datetime('now') WHERE client_email=?")
+        .run(streak, best, JSON.stringify(paliers), today, email);
+      const debloques = addPunch(email, gainPalier, 'palier:' + streak); // idem : un seul chemin
       return {
         gagne: true, nouveau: true, stats: pathStatsRow(email),
         // Le front s'en sert pour célébrer AU MOMENT où le palier tombe.
         palier: gainPalier > 0 ? { jours: streak, punch: gainPalier } : null,
+        debloques,
       };
     } catch (e) { console.error('recordDayWin:', e && e.message); return vide; }
   }
@@ -508,8 +569,7 @@ function createChallengeEngine({ getDb }) {
       const ins = getDb().prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at, punch_awarded, ref_id) VALUES (?,?,?,?,?)")
         .run(email, activeDay, new Date().toISOString(), node.punch, String(refId == null ? '' : refId));
       if (ins.changes === 0) return null; // déjà validé -> aucune double récompense (idempotence)
-      pathStatsRow(email);
-      getDb().prepare("UPDATE user_game_stats SET punch = punch + ?, updated_at=datetime('now') WHERE client_email=?").run(node.punch, email);
+      addPunch(email, node.punch, 'etape:' + activeDay); // seul chemin d'ajout -> déblocages évalués
       return { day: activeDay, title: node.title, punch: node.punch, milestone: !!node.milestone, nextDay: pathActiveDay(email) };
     } catch (e) { console.error('awardClientEvent:', e && e.message); return null; }
   }
@@ -544,6 +604,10 @@ function createChallengeEngine({ getDb }) {
     return {
       enabled, started, day, activeDay, startsOn, totalDays: CHALLENGE_PATH_NODES.length,
       stats: { punch: s.punch || 0, streak: streakVu, streakBest: s.streak_best || 0 },
+      // Déblocages : ce qui est acquis + le prochain à viser (« encore X Punch »).
+      // Les récompenses elles-mêmes viendront s'y brancher (vidéos, ebooks, cadeaux).
+      unlocks: [...unlockedThresholds(email)],
+      prochainSeuil: punchSeuils.prochainSeuil(s.punch || 0),
       weekTitles: CHALLENGE_WEEK_TITLES,
       nodes,
     };
@@ -552,7 +616,7 @@ function createChallengeEngine({ getDb }) {
   return {
     ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, dayWon, challengePublicState,
     pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
-    pathStatsRow, pathDoneDays, flowDone,
+    pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds,
   };
 }
 
