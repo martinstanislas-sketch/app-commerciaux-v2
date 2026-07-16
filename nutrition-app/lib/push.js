@@ -8,6 +8,9 @@ const webpush = require('web-push');
 
 module.exports = function initPush({ app, getDb, mw }) {
   const { requireAuth, requireNutritionUse, requireCoachOrAdmin } = mw;
+  // Moteur du Chemin du challenge (lecture seule ici) : nœud actif + date Paris.
+  const challengeEngine = require('./challengePath')({ getDb });
+  const { pathParisYmd: challengeYmd } = require('./challengePath');
 
   // ---- Types de notifications + priorités (1 = plus prioritaire) ----
   // message coach > photos > séance > récap
@@ -324,7 +327,46 @@ module.exports = function initPush({ app, getDb, mw }) {
       enqueue(c.email, 'seances', { title: m.title, body: m.body, url: '/nutrition/?push=seance' });
     }
   }
+  // ---- Chemin du challenge : rappel MATIN (nœud actif) + rappel SOIR (flamme) ----
+  // Ton bienveillant, jamais culpabilisant. Inertes si le flag challenge_path est OFF.
+  function challengeActiveNode(email) {
+    try {
+      if (!challengeEngine.pathFeatureEnabled()) return null;
+      if (challengeEngine.pathCurrentDay(email) <= 0) return null;
+      const day = challengeEngine.pathActiveDay(email);
+      if (!day) return null;
+      const n = getDb().prepare('SELECT title FROM path_nodes WHERE day=?').get(day);
+      return n ? { day, title: n.title } : null;
+    } catch (_) { return null; }
+  }
+  // Matin 8h30 : rappel de l'étape du jour, formulé sur l'action.
+  function runNoeudMatin() {
+    for (const c of subscribedChallengeClients()) {
+      const n = challengeActiveNode(c.email); if (!n) continue;
+      const p = c.prenom || 'toi';
+      enqueue(c.email, 'chemin', { title: '🎯 ' + p + ', ton étape du jour t\'attend', body: n.title, url: '/nutrition/?push=chemin' });
+    }
+  }
+  // Soir 20h : si l'ebook du jour n'est pas ouvert -> « sauve ta flamme » (streak-critical -> bypassCap).
+  function runFlammeSoir() {
+    let today = ''; try { today = challengeYmd(); } catch (_) { today = parisParts().ymd; }
+    for (const c of subscribedChallengeClients()) {
+      try {
+        if (!challengeEngine.pathFeatureEnabled()) break;
+        const day = challengeEngine.pathCurrentDay(c.email); if (day <= 0) continue;
+        const hasEbook = getDb().prepare('SELECT COUNT(*) n FROM nutrition_ebooks WHERE active=1 AND unlock_day<=?').get(day - 1).n;
+        if (!hasEbook) continue; // aucun guide encore débloqué -> on ne culpabilise pas
+        const opened = getDb().prepare('SELECT COUNT(*) n FROM user_ebook_opens WHERE client_email=? AND day_ymd=?').get(c.email, today).n;
+        if (opened > 0) continue; // déjà lu aujourd'hui
+        const p = c.prenom || 'toi';
+        enqueue(c.email, 'chemin', { title: '🔥 Sauve ta flamme, ' + p, body: '2 min de lecture suffisent pour garder ta série.', url: '/nutrition/?push=chemin' }, { bypassCap: true });
+      } catch (_) { /* client suivant */ }
+    }
+  }
+
   function runCrons() {
+    try { if (cronDue('cheminMatin', 8, 30, null)) runNoeudMatin(); } catch (e) { console.warn('cron cheminMatin:', e && e.message); }
+    try { if (cronDue('cheminFlamme', 20, 0, null)) runFlammeSoir(); } catch (e) { console.warn('cron cheminFlamme:', e && e.message); }
     try { if (cronDue('recap', 18, 0, ['Sun'])) runRecap(); } catch (e) { console.warn('cron recap:', e && e.message); }
     try { if (cronDue('recapRelance', 12, 30, ['Mon'])) runRecapRelance(); } catch (e) { console.warn('cron recapRelance:', e && e.message); }
     try { if (cronDue('photos', 9, 0, null)) runPhotos(); } catch (e) { console.warn('cron photos:', e && e.message); }

@@ -605,12 +605,57 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
   return out;
 }
 
+// Chemin du challenge : moteur gamifié 42 jours (module dédié, testable).
+const {
+  ensureChallengePathSchema, awardClientEvent, recordEbookOpen, challengePublicState,
+} = require('./nutrition-app/lib/challengePath')({ getDb });
+
 try {
   const nutritionApp = require('./nutrition-app/server');
   ensureNutritionHelpTable();
+  ensureChallengePathSchema();
 
   // Notifications push (Web Push / VAPID) : moteur + routes + scénarios.
   const push = require('./nutrition-app/lib/push')({ app, getDb, mw: { requireAuth, requireNutritionUse, requireCoachOrAdmin } });
+
+  // --- CHEMIN DU CHALLENGE : état + validations auto-déclarées + flag admin. ---
+  // État complet du parcours pour le client courant (nœuds, statut, stats de jeu).
+  app.get('/nutrition/api/challenge/state', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      res.json({ ok: true, state: challengePublicState(email) });
+    } catch (e) { console.error('challenge state :', e); res.status(500).json({ ok: false }); }
+  });
+  // Nœud « Aventure » : SEUL type auto-déclaré (pas de preuve d'événement possible).
+  app.post('/nutrition/api/challenge/aventure', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      const reward = awardClientEvent(email, 'aventure', 'aventure');
+      res.json({ ok: true, reward, state: challengePublicState(email) });
+    } catch (e) { console.error('challenge aventure :', e); res.status(500).json({ ok: false }); }
+  });
+  // « Bilan consulté » : le client ouvre son bilan hebdo -> événement réel (sinon inexistant).
+  app.post('/nutrition/api/challenge/bilan-seen', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      const week = Math.max(1, Math.min(6, Number((req.body || {}).week) || 1));
+      try { getDb().prepare("INSERT OR IGNORE INTO user_bilan_seen (client_email, week, seen_at) VALUES (?,?,?)").run(email, week, new Date().toISOString()); } catch (_) { /* ignore */ }
+      const reward = awardClientEvent(email, 'bilan', 'week' + week);
+      res.json({ ok: true, reward, state: challengePublicState(email) });
+    } catch (e) { console.error('challenge bilan-seen :', e); res.status(500).json({ ok: false }); }
+  });
+  // ADMIN : activer/désactiver le Chemin (feature flag global, activation par cohorte).
+  app.post('/nutrition/api/challenge/flag', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      if (!req.session || req.session.role !== 'admin') return res.status(403).json({ ok: false, error: 'Admin requis.' });
+      const on = ['on', '1', 'true', 'yes', true].includes((req.body || {}).enabled) ? 'on' : 'off';
+      getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('challenge_path_enabled', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at").run(on);
+      res.json({ ok: true, enabled: on === 'on' });
+    } catch (e) { console.error('challenge flag :', e); res.status(500).json({ ok: false }); }
+  });
 
   // COACH : taux d'ouverture des notifications par type (sur ses clients).
   app.get('/nutrition/api/coach/push-stats', requireAuth, requireCoachOrAdmin, (req, res) => {
@@ -725,6 +770,8 @@ try {
       if (clientChallengeDay(email) < eb.unlock_day) return res.status(403).json({ ok: false, locked: true });
       // Marque le guide comme lu -> le badge « Nouveau » disparaît ensuite.
       try { getDb().prepare('INSERT OR IGNORE INTO nutrition_ebook_reads (client_email, ebook_id, opened_at) VALUES (?,?,?)').run(email, id, new Date().toISOString()); } catch (_) { /* ignore */ }
+      recordEbookOpen(email, id);            // log quotidien + streak (Chemin du challenge)
+      awardClientEvent(email, 'ebook', id);  // valide le nœud ebook actif le cas échéant
       res.json({ ok: true, url: '/nutrition/api/ebooks/' + id + '/file?k=' + encodeURIComponent(signEbookToken(id, email)) });
     } catch (e) { res.status(500).json({ ok: false }); }
   });
@@ -1058,6 +1105,7 @@ try {
       const info = getDb().prepare(
         'INSERT INTO nutrition_community_messages (email, author, message, kind, created_at, group_key) VALUES (?, ?, ?, ?, ?, ?)'
       ).run(email, author, msg, kind, now, groupKey);
+      if (!isCoach) awardClientEvent(email, 'groupe', info.lastInsertRowid); // seuls les posts CLIENT valident un nœud
       res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind, mine: true, reactions: {}, myReaction: null } });
     } catch (e) {
       console.error('Erreur community/messages POST :', e);
@@ -1491,6 +1539,7 @@ try {
       if (Object.values(m).every((v) => v == null)) return res.status(400).json({ ok: false, error: 'Renseigne au moins une mesure.' });
       getDb().prepare('INSERT INTO nutrition_parcours_mensurations (client_email, date, taille, hanches, poitrine, bras, cuisse, created_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(client_email, date) DO UPDATE SET taille=excluded.taille, hanches=excluded.hanches, poitrine=excluded.poitrine, bras=excluded.bras, cuisse=excluded.cuisse')
         .run(email, date, m.taille, m.hanches, m.poitrine, m.bras, m.cuisse, new Date().toISOString());
+      awardClientEvent(email, 'mensurations', date); // Chemin du challenge (inerte si flag OFF)
       res.json({ ok: true, parcours: buildParcours(email) });
     } catch (e) { console.error('mensuration POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
@@ -1530,6 +1579,7 @@ try {
       const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? b.date : new Date().toISOString().slice(0, 10);
       getDb().prepare("INSERT INTO nutrition_parcours_pesees (client_email, type, poids, date, auteur_role, auteur_id, commentaire, updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(client_email, type) DO UPDATE SET poids = excluded.poids, date = excluded.date, auteur_role = excluded.auteur_role, auteur_id = excluded.auteur_id, commentaire = excluded.commentaire, updated_at = excluded.updated_at")
         .run(email, type, poids, date, acc.role, acc.id, commentaire, new Date().toISOString());
+      awardClientEvent(email, 'pesee', type); // valide le nœud pesée du client (même si saisie par le coach)
       res.json({ ok: true, parcours: buildParcours(email) });
     } catch (e) { console.error('parcours pesee POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
@@ -1546,7 +1596,10 @@ try {
       // Une seule séance par jour : si déjà validée -> on l'enlève (toggle).
       const exists = getDb().prepare('SELECT id FROM nutrition_parcours_seances WHERE client_email = ? AND date = ?').get(email, date);
       if (exists) getDb().prepare('DELETE FROM nutrition_parcours_seances WHERE client_email = ? AND date = ?').run(email, date);
-      else getDb().prepare('INSERT INTO nutrition_parcours_seances (client_email, date, auteur_role, auteur_id, type, created_at) VALUES (?,?,?,?,?,?)').run(email, date, acc.role, acc.id, type, new Date().toISOString());
+      else {
+        const info = getDb().prepare('INSERT INTO nutrition_parcours_seances (client_email, date, auteur_role, auteur_id, type, created_at) VALUES (?,?,?,?,?,?)').run(email, date, acc.role, acc.id, type, new Date().toISOString());
+        awardClientEvent(email, 'seance', info.lastInsertRowid); // valide UNIQUEMENT à l'ajout, jamais au retrait (toggle)
+      }
       res.json({ ok: true, parcours: buildParcours(email) });
     } catch (e) { console.error('parcours seance POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
@@ -1566,6 +1619,7 @@ try {
       if (m[2].length > 4_000_000) return res.status(413).json({ ok: false, error: 'Image trop lourde (max ~3 Mo).' });
       const info = getDb().prepare('INSERT INTO nutrition_parcours_photos (client_email, jalon, type, data, mime, auteur_role, auteur_id, created_at) VALUES (?,?,?,?,?,?,?,?)')
         .run(email, jalon, type, b.data, m[1], acc.role, acc.id, new Date().toISOString());
+      awardClientEvent(email, 'photo', info.lastInsertRowid); // Chemin du challenge (inerte si flag OFF)
       res.json({ ok: true, id: info.lastInsertRowid, parcours: buildParcours(email) });
     } catch (e) { console.error('parcours photo POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
@@ -1673,6 +1727,7 @@ try {
       const label = String((req.session && req.session.name) || 'Client').slice(0, 80);
       const info = getDb().prepare('INSERT INTO nutrition_messages (conversation_id, sender_role, sender_label, contenu, created_at, lu) VALUES (?,?,?,?,?,0)').run(conv.id, 'client', label, msg, now);
       getDb().prepare('UPDATE nutrition_conversations SET last_message_at = ? WHERE id = ?').run(now, conv.id);
+      awardClientEvent(email, 'coach', info.lastInsertRowid); // message CLIENT -> coach valide un nœud
       res.json({ ok: true, message: { id: info.lastInsertRowid, role: 'client', who: label, text: msg, when: now, mine: true } });
     } catch (e) { console.error('messages/coach POST :', e); res.status(500).json({ ok: false, error: 'Envoi impossible.' }); }
   });
@@ -2806,6 +2861,7 @@ try {
         JSON.stringify({ pointPositif: String(b.pointPositif || '').slice(0, 240), axe: String(b.axe || '').slice(0, 240), action: String(b.action || '').slice(0, 240), coherencePlan: String(b.coherencePlan || '').slice(0, 240) }),
         thumb, String(b.clientMessage || '').slice(0, 500), b.askCoach ? 'a_traiter' : ''
       );
+      awardClientEvent((req.session && req.session.email) || '', 'plate', info.lastInsertRowid); // nœud "photo d'assiette"
       res.json({ ok: true, id: info.lastInsertRowid });
     } catch (e) { console.error('Erreur plate-save :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
