@@ -2793,3 +2793,12 @@ body.is-demo #navRestart { display: none !important; }
 .mcpath-sheet-btn { width: 100%; border: 0; background: var(--blue-c); color: #fff; font: 700 16px/1 var(--font); padding: 15px; border-radius: var(--r); cursor: pointer; box-shadow: var(--shadow-green); }
 .mcpath-sheet-btn:hover { background: var(--blue-hover); }
 .mcpath-sheet-close { width: 100%; border: 0; background: transparent; color: var(--text-soft); font: 600 14px/1 var(--font); padding: 14px; margin-top: 4px; cursor: pointer; }
+
+/* Coach — « Ajouter un client » (connexion simplifiée, code de cohorte) */
+.cad-in { width: 100%; padding: 12px 14px; margin-bottom: 9px; border: 1px solid var(--border-c); border-radius: var(--r-sm); background: var(--surface-soft); color: var(--text-c); font: 400 15px/1.2 var(--font); box-sizing: border-box; }
+.cad-in:focus { outline: none; border-color: var(--blue-c); box-shadow: var(--ring-blue); }
+.cad-err { margin: 8px 0 0; color: var(--error); font: 500 13px/1.4 var(--font); min-height: 16px; }
+.cad-ok { margin: 0 0 14px; color: var(--sage-on-soft); font: 600 15px/1.4 var(--font); }
+.cad-code-lbl { margin: 0 0 8px; color: var(--text-muted-c); font: 500 13px/1.4 var(--font); }
+.cad-code { font: 800 34px/1 var(--font); letter-spacing: 8px; text-align: center; color: var(--blue-on-soft); background: var(--blue-soft); border-radius: var(--r); padding: 18px 12px; user-select: all; }
+.cad-hint { margin: 12px 0 16px; color: var(--text-soft); font: 400 12.5px/1.5 var(--font); }

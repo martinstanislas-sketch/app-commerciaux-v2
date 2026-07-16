@@ -3125,6 +3125,7 @@ function init() {
   // Dashboard coach
   const _coachMsgs = $('#coachOpenMessages'); if (_coachMsgs) _coachMsgs.addEventListener('click', openMessagesCoach);
   const _coachWall = $('#coachOpenWall'); if (_coachWall) _coachWall.addEventListener('click', openCoachWall);
+  const _coachAdd = $('#coachAddClient'); if (_coachAdd) _coachAdd.addEventListener('click', openCoachAddClient);
   const _coachBack = $('#coachBack'); if (_coachBack) _coachBack.addEventListener('click', () => { location.href = '/coach/'; });
   const _coachLogout = $('#coachLogout'); if (_coachLogout) _coachLogout.addEventListener('click', logoutClient);
 
@@ -5057,6 +5058,81 @@ async function replyCoachConversation(id, text) {
 }
 
 // ===== Espace coach : dashboard "Mes clients" + accès messagerie =====
+// ============================================================================
+//  CONNEXION SIMPLIFIÉE (coach) — créer l'espace d'un client sur place.
+//  Aucun lien à envoyer : le coach crée le compte, l'app affiche le CODE de la
+//  cohorte, le coach le donne oralement. Le client se connecte immédiatement.
+// ============================================================================
+function ensureCoachAddSheet() {
+  let el = $('#coachAddSheet'); if (el) return el;
+  el = document.createElement('div');
+  el.id = 'coachAddSheet';
+  el.className = 'mcpath-sheet';
+  el.innerHTML = `<div class="mcpath-sheet-backdrop"></div><div class="mcpath-sheet-card">
+    <div class="mcpath-sheet-grip"></div>
+    <h3 class="mcpath-sheet-title">Ajouter un client</h3>
+    <p class="mcpath-sheet-sub">Crée son espace ici. Donne-lui ensuite le code affiché — il se connecte tout de suite, sans lien.</p>
+    <div id="cadForm">
+      <input id="cadPrenom" type="text" placeholder="Prénom" class="cad-in" />
+      <input id="cadNom" type="text" placeholder="Nom" class="cad-in" />
+      <input id="cadEmail" type="email" inputmode="email" placeholder="Email" class="cad-in" />
+      <input id="cadVille" type="text" placeholder="Ville (ex : Lyon)" class="cad-in" />
+      <input id="cadNo" type="number" min="0" max="999" placeholder="N° de challenge (ex : 3)" class="cad-in" />
+      <button type="button" class="mcpath-sheet-btn" id="cadGo">Créer l'espace</button>
+      <p id="cadErr" class="cad-err"></p>
+    </div>
+    <div id="cadDone" class="hidden">
+      <p class="cad-ok">✅ Espace créé pour <strong id="cadWho"></strong></p>
+      <p class="cad-code-lbl">Code à lui donner (groupe <span id="cadGroup"></span>) :</p>
+      <div class="cad-code" id="cadCode"></div>
+      <p class="cad-hint">Il saisit son prénom, son nom, son email, choisit son code PIN, puis entre ce code. Le même code vaut pour tout le groupe.</p>
+      <button type="button" class="mcpath-sheet-btn" id="cadAgain">Ajouter un autre client</button>
+    </div>
+    <button type="button" class="mcpath-sheet-close" id="cadClose">Fermer</button>
+  </div>`;
+  document.body.appendChild(el);
+  el.querySelector('.mcpath-sheet-backdrop').addEventListener('click', closeCoachAddSheet);
+  el.querySelector('#cadClose').addEventListener('click', closeCoachAddSheet);
+  el.querySelector('#cadGo').addEventListener('click', submitCoachAddClient);
+  el.querySelector('#cadAgain').addEventListener('click', () => resetCoachAddSheet());
+  return el;
+}
+function closeCoachAddSheet() { const el = $('#coachAddSheet'); if (el) el.classList.remove('open'); }
+function resetCoachAddSheet() {
+  ['cadPrenom', 'cadNom', 'cadEmail'].forEach((id) => { const i = $('#' + id); if (i) i.value = ''; }); // ville/n° conservés : même groupe en général
+  const e = $('#cadErr'); if (e) e.textContent = '';
+  $('#cadForm').classList.remove('hidden');
+  $('#cadDone').classList.add('hidden');
+}
+function openCoachAddClient() { const el = ensureCoachAddSheet(); resetCoachAddSheet(); el.classList.add('open'); }
+async function submitCoachAddClient() {
+  const err = $('#cadErr'); const btn = $('#cadGo');
+  const prenom = ($('#cadPrenom').value || '').trim();
+  const nom = ($('#cadNom').value || '').trim();
+  const email = ($('#cadEmail').value || '').trim().toLowerCase();
+  const ville = ($('#cadVille').value || '').trim();
+  const challengeNo = Number(($('#cadNo').value || '').trim()) || 0;
+  if (!prenom || !nom || email.indexOf('@') < 1) { err.textContent = 'Prénom, nom et email valides requis.'; return; }
+  if (!ville) { err.textContent = 'La ville est requise : elle détermine le code du groupe.'; return; }
+  btn.disabled = true; err.textContent = 'Création…';
+  try {
+    const r = await fetch(apiUrl('/api/coach/clients'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ prenom, nom, email, ville, challengeNo }),
+    });
+    const d = await r.json();
+    btn.disabled = false;
+    if (!d || !d.ok) { err.textContent = (d && d.error) || 'Création impossible.'; return; }
+    err.textContent = '';
+    $('#cadWho').textContent = prenom + ' ' + nom;
+    $('#cadGroup').textContent = d.ville + (d.challengeNo ? ' #' + d.challengeNo : '');
+    $('#cadCode').textContent = d.code;
+    $('#cadForm').classList.add('hidden');
+    $('#cadDone').classList.remove('hidden');
+    bootCoachDashboard(); // rafraîchit la liste des clients
+  } catch (_) { btn.disabled = false; err.textContent = 'Erreur réseau, réessaie.'; }
+}
+
 async function bootCoachDashboard() {
   const nm = $('#coachDashName');
   if (nm) nm.textContent = (window.__NUTRI_COACH && window.__NUTRI_COACH.name) || 'Coach';
