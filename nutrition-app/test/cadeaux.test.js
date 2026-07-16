@@ -65,12 +65,6 @@ test('themeTier : doré prioritaire sur sombre, rien sous 450', () => {
   assert.equal(cadeaux.themeTier(2395), 'gold');
 });
 
-test('themeAutorise : le doré n\'enlève pas le droit au sombre', () => {
-  assert.equal(cadeaux.themeAutorise(1350, 'dark'), true, 'un palier plus haut ne retire rien');
-  assert.equal(cadeaux.themeAutorise(450, 'gold'), false, 'on ne choisit pas ce qu\'on n\'a pas atteint');
-  assert.equal(cadeaux.themeAutorise(0, ''), true, 'revenir au thème d\'origine est toujours permis');
-});
-
 // --- Les codes : lus à voix haute, retapés à la main -------------------------
 test('genererCode : format MC-XXXX-XXXX, sans caractère ambigu', () => {
   for (let i = 0; i < 200; i++) {
@@ -208,48 +202,37 @@ test('retirerBon : chaque cadeau a SON bon (retirer le massage ne retire pas la 
   assert.equal(apres.remise_abo.statut, 'a_retirer', 'les autres cadeaux ne sont pas emportés');
 });
 
-// --- Les thèmes : activation directe ----------------------------------------
-test('thème : atteindre 450 l\'active tout seul (aucun bon à présenter)', () => {
+// --- Les badges : rien à activer, rien à choisir -----------------------------
+// Ils ont commencé en SKINS (toute l'app basculait en sombre/doré) : trop intrusif.
+// Ce ne sont plus que des liserés autour de la photo, dans le fil. Donc : aucun état
+// à stocker, et rien qui puisse dériver entre le compteur et ce que le groupe voit.
+test('badge : atteindre 450 le donne — et ne pose AUCUN bon', () => {
   const { engine, email } = makeEngine();
   engine.addPunch(email, 450, 'test');
-  assert.equal(engine.themeClient(email), 'dark', 'activation directe');
-  assert.deepEqual(engine.bonsDe(email), {}, 'un cadeau digital ne se retire pas au studio');
+  assert.equal(cadeaux.themeTier(450), 'dark');
+  assert.deepEqual(engine.bonsDe(email), {}, 'un badge ne se retire pas au studio');
 });
 
-test('thème : relire la boutique ne repose JAMAIS le skin dans le dos du client', () => {
-  // Le piège : « jamais activé » et « revenu au thème d'origine » valent tous les
-  // deux '' — sans mémoire du palier déjà activé, chaque lecture le rappliquerait.
-  const { engine, email } = makeEngine();
-  engine.addPunch(email, 450, 'test');
-  assert.equal(engine.themeClient(email), 'dark', 'activation directe au déblocage');
-  engine.choisirTheme(email, ''); // il préfère finalement le thème d'origine
-  engine.assurerCadeaux(email); engine.assurerCadeaux(email); // deux passages en boutique
-  assert.equal(engine.themeClient(email), '', 'son choix tient');
-});
-
-test('thème : un NOUVEAU palier s\'active directement, une seule fois', () => {
-  const { engine, email } = makeEngine();
-  engine.addPunch(email, 450, 'test');
-  engine.choisirTheme(email, '');
-  engine.addPunch(email, 900, 'test'); // 1350 -> le doré est un cadeau NEUF : il se montre
-  assert.equal(engine.themeClient(email), 'gold', 'activation directe du doré');
-  engine.choisirTheme(email, 'dark'); // il repasse au sombre
-  engine.assurerCadeaux(email);
-  assert.equal(engine.themeClient(email), 'dark', 'le doré ne se réimpose pas ensuite');
-});
-
-test('thème : on ne peut pas choisir un thème non atteint', () => {
-  const { engine, email } = makeEngine();
-  engine.addPunch(email, 450, 'test');
-  assert.deepEqual(engine.choisirTheme(email, 'gold'), { ok: false, erreur: 'verrouille' });
-  assert.equal(engine.themeClient(email), 'dark', 'le refus ne casse pas le thème en place');
-});
-
-test('thème : un skin en base que le Punch ne justifie pas ne s\'affiche pas', () => {
-  // Le compteur est la vérité : une valeur douteuse en base ne doit rien accorder.
+test('badge : il se déduit du Punch, il ne se stocke pas', () => {
+  // Le seul moyen de le porter est de l'avoir mérité : aucune colonne à falsifier,
+  // aucun choix à forger — le compteur est la seule source.
   const { engine, db, email } = makeEngine();
-  db.prepare("UPDATE user_game_stats SET theme_choisi='gold', punch=100 WHERE client_email=?").run(email);
-  assert.equal(engine.themeClient(email), '', 'le badge doré se mérite');
+  db.prepare('UPDATE user_game_stats SET punch=100 WHERE client_email=?').run(email);
+  assert.equal(cadeaux.themeTier(db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch), '',
+    'à 100 Punch : aucun liseré');
+  engine.addPunch(email, 1250, 'test'); // 1350
+  assert.equal(cadeaux.themeTier(1350), 'gold');
+});
+
+test('badge : relire la boutique ne change RIEN chez le client', () => {
+  // assurerCadeaux est rejoué à chaque lecture : il ne doit toucher qu'aux bons.
+  const { engine, db, email } = makeEngine();
+  engine.addPunch(email, 1350, 'test');
+  const avant = db.prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
+  engine.assurerCadeaux(email); engine.assurerCadeaux(email);
+  const apres = db.prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email);
+  assert.equal(apres.punch, avant.punch, 'le compteur ne bouge pas');
+  assert.equal(engine.challengePublicState(email).theme, undefined, 'plus aucun thème n\'est transporté au front');
 });
 
 // --- L'état public : ce que le front reçoit ---------------------------------
@@ -258,7 +241,6 @@ test('état public : les cadeaux sont NOMMÉS (sinon la célébration dit « Att
   engine.addPunch(email, 2000, 'test');
   const st = engine.challengePublicState(email);
   assert.deepEqual(st.cadeaux[2000], { id: 'massage', label: 'Un massage sportif' });
-  assert.equal(st.theme, 'gold');
   assert.ok(st.unlocks.includes('2000:gift'));
 });
 

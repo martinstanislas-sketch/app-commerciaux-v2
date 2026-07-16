@@ -3963,18 +3963,12 @@ async function postComment(id, text) {
     } else { showToast((d && d.error) || 'Commentaire impossible.', { icon: 'info' }); }
   } catch (_) { showToast('Connexion requise pour commenter.', { icon: 'info' }); }
 }
-// Badge de thème, à côté du nom dans le fil : la seule récompense que le GROUPE
-// voit. Purement décoratif (un <span>, rien de cliquable) : il se regarde, il ne
-// fait rien. Doré > sombre, aucun badge si rien n'est débloqué — le serveur a déjà
-// tranché (il déduit le palier du Punch), le front ne fait que l'afficher.
-const THEME_TAG = {
-  gold: { cls: 'is-gold', txt: 'Doré', ic: '✨' },
-  dark: { cls: 'is-dark', txt: 'Sombre', ic: '🌙' },
-};
-function themeTag(tier) {
-  const t = THEME_TAG[tier]; if (!t) return '';
-  return '<span class="feed-tier ' + t.cls + '" aria-label="Thème ' + t.txt + ' débloqué">' + t.ic + '</span>';
-}
+// Le badge d'un membre : un LISERÉ autour de sa photo dans le fil. C'est la seule
+// récompense que le GROUPE voit — et elle ne touche à rien d'autre : l'app de
+// personne ne change d'apparence (les skins plein écran ont été retirés, trop
+// intrusifs). Doré > noir, rien du tout en dessous de 450 Punch. Le serveur a déjà
+// tranché (il déduit le palier du Punch) ; le front ne fait que le montrer.
+const TIER_MOT = { gold: 'Badge doré', dark: 'Badge noir' };
 function feedCard(item) {
   // Texte épuré : on évite de répéter le prénom déjà affiché en gras (« Paul » + « Paul a validé… »).
   let txt = item.text || '';
@@ -3986,11 +3980,16 @@ function feedCard(item) {
   const isCoachPost = item.kind === 'post' && item.subkind === 'coach';
   const badge = (item.emoji && who !== 'Le groupe') ? '<span class="feed-av-badge">' + item.emoji + '</span>' : '';
   const coachTag = isCoachPost ? '<span class="feed-coach-tag">' + icSvg('spark') + ' Coach</span>' : '';
-  const tierTag = themeTag(item.tier); // thème débloqué : visible de tout le groupe
+  // Le badge du membre : un liseré autour de sa photo. `tier` vient du serveur, qui
+  // le déduit du Punch — on ne peut donc pas porter un liseré qu'on n'a pas mérité.
+  const tier = TIER_MOT[item.tier] ? item.tier : '';
+  // La couleur seule ne dirait rien à un lecteur d'écran : le titre l'énonce.
+  const tierAttr = tier ? ' data-tier="' + tier + '" title="' + TIER_MOT[tier] + '"' : '';
   return '<article class="feed-card' + (item.kind === 'post' ? ' is-post' : '') + (isCoachPost ? ' is-coach-post' : '') + '" data-k="' + escapeHtml(item.subkind || (item.kind === 'post' ? 'post' : '')) + '">' +
-    '<div class="feed-av-wrap">' + feedAvatar(item) + badge + '</div>' +
+    '<div class="feed-av-wrap"' + tierAttr + '>' + feedAvatar(item) + badge +
+      (tier ? '<span class="sr-only">' + TIER_MOT[tier] + '</span>' : '') + '</div>' +
     '<div class="feed-body">' +
-      '<div class="feed-meta"><b class="feed-who">' + escapeHtml(who) + '</b>' + tierTag + coachTag +
+      '<div class="feed-meta"><b class="feed-who">' + escapeHtml(who) + '</b>' + coachTag +
         '<span class="feed-when">' + escapeHtml(commTimeAgo(item.when)) + '</span></div>' +
       (txt ? '<p class="feed-text">' + escapeHtml(txt) + '</p>' : '') +
       // Pas de loading="lazy" : c'est chargerPhotoPost qui va chercher l'image (fetch
@@ -4197,9 +4196,6 @@ function appliquerEtatChallenge(st) {
   const avant = new Set(((state.challenge && state.challenge.unlocks) || []));
   const apres = st.unlocks || [];
   state.challenge = st;
-  // Le skin voyage avec le compte : c'est ici qu'il s'applique, au premier état reçu
-  // comme après un déblocage — sans attendre que le client ouvre la boutique.
-  appliquerSkin(st.theme);
   if (avant.size || (state.challenge && state.challenge.unlocks)) {
     celebrerDeblocages(apres.filter((c) => !avant.has(c)), st);
   }
@@ -8660,7 +8656,9 @@ function boutiqueCard(c) {
     const retire = c.bon.statut === 'retire';
     action = '<span class="btq-act' + (retire ? ' is-done' : '') + '">' + (retire ? '✔ Retiré' : 'Voir mon bon') + '</span>';
   } else if (!c.locked && c.nature === 'digital') {
-    action = '<span class="btq-act">Choisir ce thème</span>';
+    // Rien à choisir ni à activer : le badge est DÉJÀ porté, autour de la photo, dès
+    // le palier atteint. On dit donc où il se voit, pas ce qu'il y aurait à faire.
+    action = '<span class="btq-act is-done">Porté en communauté</span>';
   }
   return '<button type="button" class="btq-card' + (c.locked ? ' locked' : '') + ' n-' + c.nature + '" data-id="' + escapeHtml(c.id) + '" data-locked="' + (c.locked ? 1 : 0) + '" data-restant="' + c.restant + '">' +
     '<span class="btq-ic">' + c.icon + '</span>' +
@@ -8676,7 +8674,6 @@ async function renderBoutiqueView() {
     const d = await (await fetch(apiUrl('/api/gifts'), { headers: nutriAuthHeaders() })).json();
     if (!d.ok) throw new Error();
     _boutique = d;
-    appliquerSkin(d.theme); // le thème choisi suit le client d'un appareil à l'autre
     host.innerHTML = boutiqueHead(d) + '<div class="btq-grid">' + (d.cadeaux || []).map(boutiqueCard).join('') + '</div>' +
       '<p class="btq-foot">Les cadeaux à retirer se présentent à ton coach, au studio.</p>';
     host.querySelectorAll('.btq-card').forEach((b) => b.addEventListener('click', () => ouvrirCadeau(b.dataset.id)));
@@ -8688,34 +8685,14 @@ let _boutique = null;
 function ouvrirCadeau(id) {
   const c = ((_boutique && _boutique.cadeaux) || []).find((x) => x.id === id); if (!c) return;
   if (c.locked) { showToast('🔒 Encore ' + c.restant + ' Punch avant ' + c.label.toLowerCase(), { icon: 'info' }); return; }
-  if (c.nature === 'digital') { basculerSkin(c); return; }
+  // Un badge ne s'active pas : il se PORTE. Il est déjà autour de la photo, dans le
+  // fil, dès le palier atteint. Un tap ne fait donc que le rappeler.
+  if (c.nature === 'digital') {
+    showToast(c.id === 'theme_gold' ? 'Ton liseré doré est visible de tout le groupe 🏅'
+      : 'Ton liseré noir est visible de tout le groupe ⚫', { icon: 'check' });
+    return;
+  }
   if (c.bon) ouvrirBon(c);
-}
-// Thème : un tap applique, un second revient au thème d'origine — c'est un skin,
-// pas un réglage qu'on va cacher dans un menu.
-async function basculerSkin(c) {
-  const actuel = (_boutique && _boutique.theme) || '';
-  const skin = c.id.replace('theme_', ''); // theme_gold -> gold
-  const cible = actuel === skin ? '' : skin;
-  try {
-    const r = await fetch(apiUrl('/api/gifts/theme'), {
-      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ theme: cible }),
-    });
-    const d = await r.json();
-    if (!d.ok) { showToast(d.error || 'Thème indisponible.', { icon: 'info' }); return; }
-    if (_boutique) _boutique.theme = d.theme;
-    appliquerSkin(d.theme);
-    if (state.challenge) state.challenge.theme = d.theme;
-    showToast(d.theme ? 'Thème appliqué ✨' : 'Thème d\'origine rétabli', { icon: 'check' });
-    renderBoutiqueView();
-  } catch (_) { showToast('Erreur réseau.', { icon: 'info' }); }
-}
-// Le skin est un attribut sur <html> : tout le CSS est en tokens, il suffit de les
-// redéfinir. Rien d'autre à toucher dans l'app.
-function appliquerSkin(theme) {
-  const t = (theme === 'dark' || theme === 'gold') ? theme : '';
-  if (t) document.documentElement.setAttribute('data-skin', t);
-  else document.documentElement.removeAttribute('data-skin');
 }
 
 // --- Le bon : ce qu'on présente au comptoir ---------------------------------

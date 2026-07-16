@@ -19,10 +19,16 @@
 const crypto = require('crypto');
 const punchSeuils = require('./punchSeuils');
 
+// ⚠️ Les deux cadeaux « digitaux » sont des BADGES, pas des thèmes d'application.
+// Ils ont commencé leur vie en skins (toute l'app basculait en sombre ou en doré) :
+// c'était trop intrusif — on ne change pas l'écran de quelqu'un dans son dos parce
+// qu'il a passé un palier. Ils ne sont plus qu'un liseré autour de sa photo dans le
+// fil : sa distinction se voit du GROUPE, ce qui est tout l'intérêt, et son app ne
+// bouge pas. Les ids restent (`theme_*`) : ils sont la clé des seuils.
 const CADEAUX = {
   theme_dark: {
-    label: 'Thème sombre', nature: 'digital', icon: '🌙', theme: 'dark',
-    desc: 'Une nouvelle allure pour toute l\'app, et un badge visible du groupe.',
+    label: 'Badge noir', nature: 'digital', icon: '⚫', tier: 'dark',
+    desc: 'Un liseré noir autour de ta photo : tout le groupe voit ton palier.',
   },
   ami_semaine: {
     label: 'Une semaine offerte à un ami', nature: 'physique', icon: '🎟️',
@@ -33,8 +39,8 @@ const CADEAUX = {
     desc: 'Une séance en tête à tête avec ton coach, rien que pour toi.',
   },
   theme_gold: {
-    label: 'Thème doré', nature: 'digital', icon: '✨', theme: 'gold',
-    desc: 'Le thème le plus rare de l\'app, et le badge doré en communauté.',
+    label: 'Badge doré', nature: 'digital', icon: '🏅', tier: 'gold',
+    desc: 'La distinction la plus rare : un liseré doré autour de ta photo.',
   },
   remise_abo: {
     label: 'Une remise sur ton abonnement', nature: 'physique', icon: '🏷️',
@@ -65,23 +71,14 @@ function seuilDe(id) {
   return s === undefined ? null : Number(s);
 }
 
-// Le thème acquis se DÉDUIT du total de Punch : pas de colonne à tenir à jour, donc
-// pas de dérive possible entre le compteur et le badge. Doré > sombre : le doré est
-// plus haut (1350 > 450), il l'emporte toujours.
+// Le badge se DÉDUIT du total de Punch : rien à stocker, rien à choisir, donc aucune
+// dérive possible entre le compteur et ce que le groupe voit. Doré > noir : le doré
+// est plus haut (1350 > 450), il l'emporte toujours.
 function themeTier(punch) {
   const n = Number(punch) || 0;
   if (n >= seuilDe('theme_gold')) return 'gold';
   if (n >= seuilDe('theme_dark')) return 'dark';
   return '';
-}
-// Ce thème est-il permis à ce total ? (le doré autorise aussi le sombre : un palier
-// plus haut ne retire jamais ce qui était acquis en dessous)
-function themeAutorise(punch, theme) {
-  if (!theme) return true; // revenir au thème d'origine est toujours permis
-  const tier = themeTier(punch);
-  if (theme === 'dark') return tier === 'dark' || tier === 'gold';
-  if (theme === 'gold') return tier === 'gold';
-  return false;
 }
 
 // Code d'un bon : MC-XXXX-XXXX. Alphabet SANS 0/O/1/I/L — le code est lu à voix haute
@@ -108,5 +105,5 @@ function codeValide(code) { return /^MC-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(String(co
 
 module.exports = {
   CADEAUX, catalogue, cadeau, estPhysique, seuilDe,
-  themeTier, themeAutorise, genererCode, codeValide,
+  themeTier, genererCode, codeValide,
 };

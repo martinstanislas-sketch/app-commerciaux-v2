@@ -211,8 +211,8 @@ const CHALLENGE_SCHEMA_SQL = `
     streak_best INTEGER NOT NULL DEFAULT 0,
     streak_paliers TEXT NOT NULL DEFAULT '',       -- paliers déjà récompensés DANS la série en cours (JSON)
     last_win_date TEXT NOT NULL DEFAULT '',        -- dernier jour GAGNÉ (2 repas renseignés)
-    theme_choisi TEXT NOT NULL DEFAULT '',         -- skin appliqué ('' = d'origine) ; l'ACQUIS se déduit du punch
-    theme_auto TEXT NOT NULL DEFAULT '',           -- dernier palier activé tout seul -> ne l'imposer qu'UNE fois
+    theme_choisi TEXT NOT NULL DEFAULT '',         -- INUTILISÉE (ex-skin, cf. lib/cadeaux) : laissée en place, jamais lue
+    theme_auto TEXT NOT NULL DEFAULT '',           -- INUTILISÉE (idem) : la supprimer demanderait une migration pour rien
     updated_at TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE IF NOT EXISTS user_ebook_opens (
@@ -496,17 +496,9 @@ function createChallengeEngine({ getDb }) {
         if (punch < c.seuil || !cadeaux.estPhysique(c.id)) return;
         if (creerBon(email, c.id)) crees.push(c.id);
       });
-      // Thème : « activation directe ». Un thème qui vient de tomber s'applique tout
-      // seul — c'est le cadeau, il doit se VOIR.
-      // ⚠️ Une seule fois par palier, d'où `theme_auto` : sans lui, on ne saurait pas
-      // distinguer « jamais activé » d'« a choisi de revenir au thème d'origine »
-      // (les deux valent ''), et cette fonction — rejouée à CHAQUE lecture de la
-      // boutique — repositionnerait le skin dans le dos du client à chaque passage.
-      const s = pathStatsRow(email) || {};
-      const tier = cadeaux.themeTier(punch);
-      if (tier && (s.theme_auto || '') !== tier) {
-        getDb().prepare("UPDATE user_game_stats SET theme_choisi=?, theme_auto=?, updated_at=datetime('now') WHERE client_email=?").run(tier, tier, email);
-      }
+      // Les badges (noir / doré) n'ont RIEN à poser ici : ils se déduisent du total de
+      // Punch au moment de l'affichage (cadeaux.themeTier). Rien à stocker, donc rien
+      // qui puisse dériver.
     } catch (e) { console.error('assurerCadeaux:', e && e.message); }
     return crees;
   }
@@ -562,24 +554,6 @@ function createChallengeEngine({ getDb }) {
       if (info.changes === 0) return { ok: false, erreur: 'deja', bon: bonParCode(c) };
       return { ok: true, bon: bonParCode(c) };
     } catch (e) { console.error('retirerBon:', e && e.message); return { ok: false, erreur: 'erreur' }; }
-  }
-
-  // Le thème appliqué. '' = thème d'origine. On le RELIT contre le total : un thème
-  // en base que le Punch ne justifie pas (import douteux, palier retiré du catalogue)
-  // ne doit pas s'afficher — la source de vérité reste le compteur.
-  function themeClient(email) {
-    try {
-      const s = pathStatsRow(email) || {};
-      const choisi = s.theme_choisi || '';
-      return cadeaux.themeAutorise(s.punch || 0, choisi) ? choisi : '';
-    } catch (_) { return ''; }
-  }
-  function choisirTheme(email, theme) {
-    const t = String(theme || '');
-    const punch = (pathStatsRow(email) || {}).punch || 0;
-    if (!cadeaux.themeAutorise(punch, t)) return { ok: false, erreur: 'verrouille' };
-    getDb().prepare("UPDATE user_game_stats SET theme_choisi=?, updated_at=datetime('now') WHERE client_email=?").run(t, email);
-    return { ok: true, theme: t };
   }
 
   // Combien des 3 photos exigées le client a-t-il déposées pour ce jalon ?
@@ -743,7 +717,6 @@ function createChallengeEngine({ getDb }) {
       // deux listes de noms finiraient par diverger, et le client verrait deux noms
       // pour le même cadeau selon l'écran.
       cadeaux: cadeaux.catalogue().reduce((m, c) => { m[c.seuil] = { id: c.id, label: c.label }; return m; }, {}),
-      theme: themeClient(email),
       weekTitles: CHALLENGE_WEEK_TITLES,
       nodes,
     };
@@ -753,7 +726,7 @@ function createChallengeEngine({ getDb }) {
     ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, dayWon, challengePublicState,
     pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
     pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds,
-    assurerCadeaux, bonsDe, bonParCode, retirerBon, themeClient, choisirTheme,
+    assurerCadeaux, bonsDe, bonParCode, retirerBon,
   };
 }
 

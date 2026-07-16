@@ -647,7 +647,7 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 // Chemin du challenge : moteur gamifié 42 jours (module dédié, testable).
 const {
   ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds,
-  assurerCadeaux, bonsDe, bonParCode, retirerBon, themeClient, choisirTheme,
+  assurerCadeaux, bonsDe, bonParCode, retirerBon,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
 // Bilan hebdo : seuils + rédaction par modèles (pur, testable). L'IA est chargée
 // à la demande, pour ne pas dépendre du SDK Anthropic quand elle n'est pas utilisée.
@@ -1053,23 +1053,12 @@ try {
       });
       const prochain = cadeauxListe.find((c) => c.locked) || null;
       res.json({
-        ok: true, punch, theme: themeClient(email), tier: cadeaux.themeTier(punch),
+        ok: true, punch, tier: cadeaux.themeTier(punch),
         cadeaux: cadeauxListe,
         prochain: prochain ? { label: prochain.label, restant: prochain.restant, seuil: prochain.seuil } : null,
       });
     } catch (e) { console.error('gifts GET:', e); res.status(500).json({ ok: false }); }
   });
-  // CLIENT : appliquer un thème débloqué ('' = revenir au thème d'origine).
-  app.post('/nutrition/api/gifts/theme', requireAuth, requireNutritionUse, (req, res) => {
-    try {
-      const email = (req.session && req.session.email) || '';
-      if (!email) return res.status(403).json({ ok: false });
-      const r = choisirTheme(email, String((req.body || {}).theme || ''));
-      if (!r.ok) return res.status(403).json({ ok: false, error: 'Ce thème n\'est pas encore débloqué.' });
-      res.json({ ok: true, theme: r.theme });
-    } catch (e) { console.error('gifts theme:', e); res.status(500).json({ ok: false }); }
-  });
-
   // COACH : lire un bon présenté au studio, puis le retirer.
   // Pas de cloisonnement au portefeuille du coach ici, à la différence des autres
   // routes coach : au comptoir, c'est le CODE qui fait foi et le client est devant
