@@ -1529,6 +1529,10 @@ try {
       if (!text) return res.status(400).json({ ok: false, error: 'Commentaire vide.' });
       const now = new Date().toISOString();
       const info = getDb().prepare('INSERT INTO nutrition_community_comments (item_id, email, author, text, created_at) VALUES (?,?,?,?,?)').run(item, email, author, text, now);
+      // Répondre à un membre EST un encouragement : ça valide l'étape 27, qui accepte
+      // le post OU la réponse. Événement distinct de 'groupe' pour ne pas valider
+      // « présente-toi au groupe » (0) ni « partage ta recette » (34) avec un commentaire.
+      if (!isCoach) awardClientEvent(email, 'groupe_reponse', info.lastInsertRowid);
       res.json({ ok: true, comment: { id: info.lastInsertRowid, who: author, text, when: now, mine: true } });
     } catch (e) { console.error('community/comments POST :', e); res.status(500).json({ ok: false, error: 'Publication impossible.' }); }
   });
