@@ -2806,6 +2806,15 @@ body.is-demo #navRestart { display: none !important; }
 .mcpath-sub:hover:not(.done) { border-color: var(--blue-c); background: var(--surface); }
 .mcpath-sub-ic { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; background: var(--track); color: var(--text-soft); }
 .mcpath-sub-l { flex: 1; min-width: 0; }
+/* Compteur « 2/3 photos ajoutées » sous le libellé de la sous-étape photos. */
+.mcpath-sub-n { display: block; margin-top: 3px; color: var(--text-soft); font: 500 12px/1.2 var(--font); }
+/* Repère « c'est ici » quand une étape du Chemin ancre sur une section de Mon Parcours. */
+.pc-ancre-flash { animation: pc-ancre 1.8s var(--ease); border-radius: var(--r-sm); }
+@keyframes pc-ancre {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  15%, 60% { box-shadow: 0 0 0 3px var(--blue-c); }
+}
+@media (prefers-reduced-motion: reduce) { .pc-ancre-flash { animation: none; } }
 .mcpath-sub-go { flex: 0 0 auto; color: var(--text-soft); font-size: 18px; }
 .mcpath-sub.done { background: var(--sage-soft); border-color: var(--sage); color: var(--sage-on-soft); cursor: default; }
 .mcpath-sub.done .mcpath-sub-ic { background: var(--sage); color: #fff; }
