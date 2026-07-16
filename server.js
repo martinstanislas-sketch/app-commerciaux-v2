@@ -865,6 +865,10 @@ try {
   // unlock_day = seuil de jour de challenge (0 = jour 1 / dès le départ ... 41 = jour 42).
   function ebookUnlockLabel(day) { return day <= 0 ? '' : 'Jour ' + (day + 1); }
   function ebookUnlockDay(v) { const n = Number(v); return (Number.isInteger(n) && n >= 0 && n <= 41) ? n : 0; }
+  // Longueur du parcours, prise au moteur plutôt que codée en dur : c'est le
+  // dénominateur qui ramène un jour de Chemin sur la même échelle qu'un palier de
+  // Punch (cf. `ordre`). Un parcours qui s'allongerait un jour ne fausserait pas le tri.
+  const JOURS_CHALLENGE = require('./nutrition-app/lib/challengePath').CHALLENGE_PATH_NODES.length - 1;
   function signEbookToken(ebookId, email) {
     const exp = Date.now() + 5 * 60000;
     const payload = ebookId + ':' + email + ':' + exp;
@@ -910,16 +914,23 @@ try {
         // inconnu de la répartition retombe sur son unlock_day historique -> jamais
         // verrouillé à vie, même si l'admin en ajoute un demain.
         const src = estVideo ? null : ebooksSources.sourceEbook(r.id);
-        let locked, label;
-        if (estVideo) { locked = punch < seuil; label = seuil + ' Punch'; }
-        else if (!src) { locked = day < r.unlock_day; label = ebookUnlockLabel(r.unlock_day); }
-        else if (src.source === 'intro') { locked = false; label = 'Offert'; }
-        else if (src.source === 'chemin') { locked = day < src.jour; label = ebookUnlockLabel(src.jour); }
-        else { locked = punch < src.seuil; label = src.seuil + ' Punch'; }
+        let locked, label, ordre;
+        // `ordre` = OÙ, dans le parcours, ce guide tombe. 0 = au départ, 1 = à la toute
+        // fin. C'est ce qui permet de trier « le plus récemment reçu d'abord » alors
+        // que les canaux ne comptent PAS dans la même unité : le Chemin avance en
+        // JOURS, les paliers en PUNCH. Ramenés à une même échelle (la part du parcours
+        // franchie), ils redeviennent comparables — un ebook à 1600 Punch (0,67) et un
+        // ebook du jour 30 (0,71) arrivent bien tous les deux vers les deux tiers.
+        if (estVideo) { locked = punch < seuil; label = seuil + ' Punch'; ordre = seuil / punchSeuils.PUNCH_MAX_THEORIQUE; }
+        else if (!src) { locked = day < r.unlock_day; label = ebookUnlockLabel(r.unlock_day); ordre = r.unlock_day / JOURS_CHALLENGE; }
+        else if (src.source === 'intro') { locked = false; label = 'Offert'; ordre = 0; }
+        else if (src.source === 'chemin') { locked = day < src.jour; label = ebookUnlockLabel(src.jour); ordre = src.jour / JOURS_CHALLENGE; }
+        else { locked = punch < src.seuil; label = src.seuil + ' Punch'; ordre = src.seuil / punchSeuils.PUNCH_MAX_THEORIQUE; }
         return {
           id: r.id, title: r.title, description: r.description, category: r.category,
           cover: r.cover_data || '', unlockDay: r.unlock_day, locked,
           unlockLabel: label,
+          ordre, // part du parcours où le guide tombe -> tri « le plus récent d'abord »
           source: estVideo ? 'video' : ((src && src.source) || 'jour'),
           read: readSet.has(r.id),
           type: r.type || 'ebook',

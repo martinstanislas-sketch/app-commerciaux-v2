@@ -8523,25 +8523,83 @@ async function openEbooks() {
     renderEbooks(body, d.ebooks || [], d.day);
   } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
 }
+// ---------- Ordre d'affichage des guides ----------
+// Ce que le client vient de RECEVOIR doit lui tomber sous les yeux ; ce qu'il ne peut
+// pas encore ouvrir ne doit jamais lui barrer la route.
+//   0. reçu, pas encore lu -> le « nouveau », en tête
+//   1. déjà lu             -> sa bibliothèque
+//   2. pas encore débloqué -> après, toujours
+function ebooksRang(e) { return e.locked ? 2 : (e.read ? 1 : 0); }
+// `ordre` (0 = début du parcours, 1 = fin) vient du serveur : lui seul peut ramener
+// les jours du Chemin et les paliers de Punch sur une même échelle.
+function ebooksTries(list) {
+  return (list || []).slice().sort((a, b) => {
+    const ra = ebooksRang(a), rb = ebooksRang(b);
+    if (ra !== rb) return ra - rb;
+    const oa = Number(a.ordre) || 0, ob = Number(b.ordre) || 0;
+    if (oa !== ob) {
+      // Débloqué : le plus RÉCEMMENT reçu d'abord. Verrouillé : le plus PROCHE
+      // d'abord — c'est celui-là qui donne envie d'aller le chercher.
+      return ra === 2 ? oa - ob : ob - oa;
+    }
+    return Number(a.id) - Number(b.id); // à égalité : un ordre stable, jamais aléatoire
+  });
+}
+
 function ebookCard(e, day) {
   const cover = e.cover ? ` style="background-image:url('${e.cover}')"` : '';
   const lock = e.locked ? `<span class="ebk-lock">${icSvg('lock')} ${escapeHtml(e.unlockLabel || 'À venir')}</span>` : '';
-  const isNew = !e.locked && Number(e.unlockDay) === Number(day) && !e.read; // débloqué aujourd'hui + pas encore lu
+  // « Nouveau » = reçu et pas encore ouvert.
+  // ⚠️ Avant : `unlockDay === day`, ce qui ne marchait QUE pour les ebooks du Chemin —
+  // un guide gagné à un palier de Punch n'a pas de jour de déblocage, il n'était donc
+  // jamais signalé comme neuf.
+  // Jamais sur une séance vidéo : rien ne dit au serveur qu'elle a été regardée, donc
+  // elles seraient TOUTES « nouvelles » à vie — un badge qui ne s'éteint jamais ne
+  // signale plus rien.
+  const isNew = !e.locked && !e.read && e.type !== 'video';
   const badge = isNew ? '<span class="ebk-new">Nouveau</span>' : '';
   return `<button type="button" class="ebk-card${e.locked ? ' locked' : ''}" data-id="${e.id}" data-type="${e.type || 'ebook'}" data-video="${e.videoId || ''}" data-title="${escapeHtml(e.title)}" data-locked="${e.locked ? 1 : 0}" data-unlock="${escapeHtml(e.unlockLabel || '')}">
     <span class="ebk-cover"${cover}>${e.type === 'video' && !e.locked ? '<span class="ebk-play">▶</span>' : ''}${e.cover ? '' : '<span class="ebk-cover-ic">' + icSvg('book') + '</span>'}${badge}${lock}</span>
     <span class="ebk-info"><b class="ebk-title">${escapeHtml(e.title)}</b>${e.description ? '<span class="ebk-desc">' + escapeHtml(e.description) + '</span>' : ''}</span>
   </button>`;
 }
-function renderEbooks(body, list, day) {
-  if (!list.length) { body.innerHTML = '<p class="help-empty">Aucun guide pour le moment. Reviens bientôt 📚</p>'; return; }
-  const cats = {}; list.forEach((e) => { const c = e.category || 'Guides'; (cats[c] = cats[c] || []).push(e); });
-  body.innerHTML = Object.keys(cats).map((cat) => '<div class="ebk-cat">' + escapeHtml(cat) + '</div><div class="ebk-grid">' + cats[cat].map((e) => ebookCard(e, day)).join('') + '</div>').join('');
-  body.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
+// Les sections, dans l'ordre où on veut les lire. Le classement par CATÉGORIE a été
+// retiré : il faisait passer un guide verrouillé de la catégorie A avant un guide
+// disponible de la catégorie B — exactement ce qu'on ne veut pas.
+// ⚠️ Les SÉANCES vidéo gardent leur bloc, à part : ouvrir une vidéo ne prévient pas
+// le serveur, elles ne sont donc JAMAIS marquées lues. Mélangées aux guides, les 27
+// séances squatteraient « À lire » à vie et enterreraient le nouvel ebook — soit
+// précisément ce qu'on cherche à mettre en avant.
+function ebooksSectionsHTML(list, day) {
+  const guides = (list || []).filter((e) => e.type !== 'video');
+  const seances = (list || []).filter((e) => e.type === 'video');
+  const tries = ebooksTries(guides);
+  const par = (rang) => tries.filter((e) => ebooksRang(e) === rang);
+  // Séances : les débloquées d'abord, dans l'ordre du programme (lot 1, 2, 3…), puis
+  // les suivantes, la plus proche en tête.
+  const seancesTriees = seances.slice().sort((a, b) =>
+    (a.locked ? 1 : 0) - (b.locked ? 1 : 0) || (Number(a.ordre) || 0) - (Number(b.ordre) || 0));
+  const bloc = (titre, arr) => arr.length
+    ? '<div class="ebv-sec"><div class="ebv-sec-h"><span class="ebv-sec-t">' + titre + '</span>'
+      + '<span class="ebv-count">' + arr.length + '</span></div>'
+      + '<div class="ebk-grid">' + arr.map((e) => ebookCard(e, day)).join('') + '</div></div>'
+    : '';
+  return bloc('À lire', par(0)) + bloc('Déjà lus', par(1)) + bloc('À venir', par(2))
+    + bloc('Séances', seancesTriees);
+}
+// Un seul câblage pour les deux écrans : le clic ne doit pas se comporter
+// différemment selon l'endroit d'où on ouvre le même guide.
+function wireEbookCards(host) {
+  host.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
     if (c.dataset.locked === '1') { showToast('🔒 Débloqué à ' + (c.dataset.unlock || 'un prochain palier'), { icon: 'info' }); return; }
     if (c.dataset.type === 'video') { ouvrirVideo(c.dataset.video, c.dataset.title); return; } // le PDF garde son lecteur
     openEbook(Number(c.dataset.id), c.dataset.title);
   }));
+}
+function renderEbooks(body, list, day) {
+  if (!list.length) { body.innerHTML = '<p class="help-empty">Aucun guide pour le moment. Reviens bientôt 📚</p>'; return; }
+  body.innerHTML = ebooksSectionsHTML(list, day);
+  wireEbookCards(body);
 }
 // --- Onglet Ebooks (vue plein écran) : guides disponibles + à venir ---
 function ebooksViewHead() {
@@ -8559,21 +8617,8 @@ async function renderEbooksView() {
 }
 function renderEbooksViewBody(host, list, day) {
   if (!list.length) { host.innerHTML = ebooksViewHead() + '<p class="help-empty">Aucun guide pour le moment. Reviens bientôt 📚</p>'; return; }
-  const dispo = list.filter((e) => !e.locked);
-  const avenir = list.filter((e) => e.locked);
-  const section = (titre, arr, emptyMsg) =>
-    '<div class="ebv-sec"><div class="ebv-sec-h"><span class="ebv-sec-t">' + titre + '</span><span class="ebv-count">' + arr.length + '</span></div>' +
-    (arr.length ? '<div class="ebk-grid">' + arr.map((e) => ebookCard(e, day)).join('') + '</div>' : '<p class="ebv-empty">' + emptyMsg + '</p>') +
-    '</div>';
-  let html = ebooksViewHead();
-  html += section('Disponibles', dispo, 'Tes premiers guides arrivent très vite.');
-  if (avenir.length) html += section('Prochainement', avenir, '');
-  host.innerHTML = html;
-  host.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
-    if (c.dataset.locked === '1') { showToast('🔒 Débloqué à ' + (c.dataset.unlock || 'un prochain palier'), { icon: 'info' }); return; }
-    if (c.dataset.type === 'video') { ouvrirVideo(c.dataset.video, c.dataset.title); return; } // le PDF garde son lecteur
-    openEbook(Number(c.dataset.id), c.dataset.title);
-  }));
+  host.innerHTML = ebooksViewHead() + ebooksSectionsHTML(list, day);
+  wireEbookCards(host);
 }
 // ============================================================================
 //  BOUTIQUE DES CADEAUX — ce que le Punch finit par offrir.

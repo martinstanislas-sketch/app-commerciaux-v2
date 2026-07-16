@@ -1344,7 +1344,6 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .ebv-sec-h { display: flex; align-items: center; gap: 8px; margin: 0 2px 12px; }
 .ebv-sec-t { font-size: 13px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 .ebv-count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent-soft, var(--gray-100)); color: var(--accent, var(--mc-blue)); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
-.ebv-empty { margin: 0 2px; padding: 18px; text-align: center; font-size: 13.5px; color: var(--muted); background: var(--card); border: 1px dashed var(--mc-border); border-radius: 14px; }
 
 /* === Mon Parcours (Challenge 6 semaines) === */
 #view-parcours { display: none; }
