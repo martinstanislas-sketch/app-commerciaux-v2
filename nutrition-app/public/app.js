@@ -8230,8 +8230,8 @@ function ebookCard(e, day) {
   const lock = e.locked ? `<span class="ebk-lock">${icSvg('lock')} ${escapeHtml(e.unlockLabel || 'À venir')}</span>` : '';
   const isNew = !e.locked && Number(e.unlockDay) === Number(day) && !e.read; // débloqué aujourd'hui + pas encore lu
   const badge = isNew ? '<span class="ebk-new">Nouveau</span>' : '';
-  return `<button type="button" class="ebk-card${e.locked ? ' locked' : ''}" data-id="${e.id}" data-title="${escapeHtml(e.title)}" data-locked="${e.locked ? 1 : 0}" data-unlock="${escapeHtml(e.unlockLabel || '')}">
-    <span class="ebk-cover"${cover}>${e.cover ? '' : '<span class="ebk-cover-ic">' + icSvg('book') + '</span>'}${badge}${lock}</span>
+  return `<button type="button" class="ebk-card${e.locked ? ' locked' : ''}" data-id="${e.id}" data-type="${e.type || 'ebook'}" data-video="${e.videoId || ''}" data-title="${escapeHtml(e.title)}" data-locked="${e.locked ? 1 : 0}" data-unlock="${escapeHtml(e.unlockLabel || '')}">
+    <span class="ebk-cover"${cover}>${e.type === 'video' && !e.locked ? '<span class="ebk-play">▶</span>' : ''}${e.cover ? '' : '<span class="ebk-cover-ic">' + icSvg('book') + '</span>'}${badge}${lock}</span>
     <span class="ebk-info"><b class="ebk-title">${escapeHtml(e.title)}</b>${e.description ? '<span class="ebk-desc">' + escapeHtml(e.description) + '</span>' : ''}</span>
   </button>`;
 }
@@ -8240,7 +8240,8 @@ function renderEbooks(body, list, day) {
   const cats = {}; list.forEach((e) => { const c = e.category || 'Guides'; (cats[c] = cats[c] || []).push(e); });
   body.innerHTML = Object.keys(cats).map((cat) => '<div class="ebk-cat">' + escapeHtml(cat) + '</div><div class="ebk-grid">' + cats[cat].map((e) => ebookCard(e, day)).join('') + '</div>').join('');
   body.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
-    if (c.dataset.locked === '1') { showToast('🔒 Débloqué en ' + (c.dataset.unlock || 'cours de challenge'), { icon: 'info' }); return; }
+    if (c.dataset.locked === '1') { showToast('🔒 Débloqué à ' + (c.dataset.unlock || 'un prochain palier'), { icon: 'info' }); return; }
+    if (c.dataset.type === 'video') { ouvrirVideo(c.dataset.video, c.dataset.title); return; } // le PDF garde son lecteur
     openEbook(Number(c.dataset.id), c.dataset.title);
   }));
 }
@@ -8271,7 +8272,8 @@ function renderEbooksViewBody(host, list, day) {
   if (avenir.length) html += section('Prochainement', avenir, '');
   host.innerHTML = html;
   host.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
-    if (c.dataset.locked === '1') { showToast('🔒 Débloqué en ' + (c.dataset.unlock || 'cours de challenge'), { icon: 'info' }); return; }
+    if (c.dataset.locked === '1') { showToast('🔒 Débloqué à ' + (c.dataset.unlock || 'un prochain palier'), { icon: 'info' }); return; }
+    if (c.dataset.type === 'video') { ouvrirVideo(c.dataset.video, c.dataset.title); return; } // le PDF garde son lecteur
     openEbook(Number(c.dataset.id), c.dataset.title);
   }));
 }
@@ -8345,6 +8347,35 @@ async function renderPdfInReader(url, seq, onFirstPage) {
     if (n === 1 && onFirstPage) onFirstPage(); // 1re page peinte -> on masque le loader et on annule le filet
   }
 }
+// Lecteur vidéo in-app : iframe 16:9, YouTube en mode nocookie. La séance se
+// regarde DANS l'app — on n'envoie pas le client sur YouTube, où il ne reviendrait
+// pas. L'iframe n'est créée qu'à l'ouverture : aucun appel YouTube avant.
+function ouvrirVideo(videoId, titre) {
+  const id = String(videoId || '').trim();
+  if (!id) { showToast('Cette séance n\'est pas disponible.', { icon: 'info' }); return; }
+  let ov = $('#videoOv');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'videoOv'; ov.className = 'vid';
+    ov.innerHTML = `<div class="vid-card">
+      <div class="vid-head"><b class="vid-title"></b><button type="button" class="vid-x" aria-label="Fermer">✕</button></div>
+      <div class="vid-frame"></div>
+    </div>`;
+    document.body.appendChild(ov);
+    const fermer = () => {
+      ov.classList.remove('open');
+      ov.querySelector('.vid-frame').innerHTML = ''; // coupe la lecture, sinon le son continue
+    };
+    ov.querySelector('.vid-x').addEventListener('click', fermer);
+    ov.addEventListener('click', (e) => { if (e.target === ov) fermer(); });
+  }
+  ov.querySelector('.vid-title').textContent = titre || 'Séance';
+  ov.querySelector('.vid-frame').innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/'
+    + encodeURIComponent(id) + '?rel=0&modestbranding=1&playsinline=1" title="' + escapeHtml(titre || 'Séance')
+    + '" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+  ov.classList.add('open');
+}
+
 function showEbookReader(url, title) {
   const r = $('#ebookReader');
   if (!r) { window.open(url, '_blank'); return; } // secours très improbable
