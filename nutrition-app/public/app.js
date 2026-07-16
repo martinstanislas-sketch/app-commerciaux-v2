@@ -65,6 +65,7 @@ const state = {
   startDate: null, // date "YYYY-MM-DD" du 1er affichage = jour 0 du plan
   parcoursSub: 'chemin', // onglet Parcours : 'chemin' (parcours gamifié) | 'mesures' (Mon Parcours)
   challenge: null, // état du Chemin du challenge (nœuds + stats), chargé depuis /api/challenge/state
+  mcpathRetour: null, // { day, faits } : étape composite quittée pour aller faire une sous-étape
   communauteUnlocked: false, // espace Communauté débloqué (plan généré au moins une fois)
   communauteJoined: false, // l'utilisateur a rejoint son groupe de challenge
   communauteVue: false, // message d'intro Communauté déjà affiché
@@ -3688,6 +3689,7 @@ async function postCommunaute(text, kind) {
     if (data && data.ok && data.message) {
       state.communauteMessages = [data.message].concat(state.communauteMessages || []);
       renderCommunauteWall();
+      mcpathRetourApresAction(); // peut valider la sous-étape « se présenter au groupe »
       return true;
     }
     showToast((data && data.error) || 'Publication impossible.', { icon: 'info' });
@@ -4479,6 +4481,36 @@ function statInfoTexte(key, s) {
     default: return null;
   }
 }
+// --- Boucle de retour des étapes composites --------------------------------
+// Le client part de la fiche vers un écran (photos, mensurations, groupe). Dès
+// que son action est réellement enregistrée, on le ramène ICI, sur les actions
+// qu'il lui reste. Si tout est fait, on ne le dérange pas : il reste où il est.
+// Appelée après CHAQUE succès d'une action pouvant valider une sous-étape.
+async function mcpathRetourApresAction() {
+  const r = state.mcpathRetour; if (!r) return;
+  try {
+    const res = await fetch(apiUrl('/api/challenge/state'), { headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (!d || !d.ok) return;
+    state.challenge = d.state;
+    const n = (d.state.nodes || []).find((x) => x.day === r.day);
+    if (!n) { state.mcpathRetour = null; return; }
+    const faits = (n.flowDone || []).length;
+    if (faits <= r.faits && n.status !== 'done') return; // rien de neuf : on n'importune pas
+    if (n.status === 'done') {
+      // Étape complète : on laisse le client où il est, avec sa récompense.
+      state.mcpathRetour = null;
+      rewardToast({ title: n.title, xp: n.xp, gems: n.gems, milestone: n.milestone });
+      return;
+    }
+    // Il reste des sous-étapes : on ramène la liste, à jour.
+    const reste = (n.flow || []).length - faits;
+    state.mcpathRetour = { day: r.day, faits };
+    showToast('✅ C\'est noté — il te reste ' + reste + ' action' + (reste > 1 ? 's' : ''), { icon: 'check' });
+    openChallengeNode(r.day);
+  } catch (_) { /* réseau : on ne bloque rien */ }
+}
+
 function ensureStatSheet() {
   let el = $('#mcpathStatSheet'); if (el) return el;
   el = document.createElement('div');
@@ -4587,6 +4619,9 @@ function openChallengeNode(day) {
     btn.style.display = 'none';
     flowBox.querySelectorAll('.mcpath-sub[data-sub]').forEach((b) => b.addEventListener('click', () => {
       const f = MCPATH_FLOW[b.dataset.sub]; if (!f) return;
+      // On mémorise d'où l'on part : au retour de l'action, on saura si une
+      // sous-étape vient d'être validée et s'il en reste à faire.
+      state.mcpathRetour = { day: n.day, faits: (n.flowDone || []).length };
       closeChallengeSheet();
       if (f.go === 'mesures') { state.parcoursSub = 'mesures'; renderParcoursTab(); window.scrollTo(0, 0); }
       else if (f.go === 'communaute') setTab('communaute');
@@ -4865,7 +4900,7 @@ async function saveMensuration(form) {
   try {
     const res = await fetch(apiUrl('/api/parcours/mensuration'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
     const d = await res.json();
-    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Mensurations enregistrées 📏', { icon: 'check' }); }
+    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Mensurations enregistrées 📏', { icon: 'check' }); mcpathRetourApresAction(); }
     else showToast((d && d.error) || 'Enregistrement impossible.', { icon: 'info' });
   } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
 }
@@ -4934,7 +4969,7 @@ async function uploadParcoursPhoto(jalon, type, file) {
     const data = await compressImage(file, 1100, 0.8);
     const res = await fetch(apiUrl('/api/parcours/photo'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ jalon, type, data }) });
     const d = await res.json();
-    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Photo ajoutée 📸', { icon: 'check' }); }
+    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Photo ajoutée 📸', { icon: 'check' }); mcpathRetourApresAction(); }
     else showToast((d && d.error) || 'Ajout impossible.', { icon: 'info' });
   } catch (_) { showToast('Ajout impossible.', { icon: 'info' }); }
   _parcoursPhotoBusy = false;
