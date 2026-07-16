@@ -40,7 +40,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=105" />
+  <link rel="stylesheet" href="style.css?v=106" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=102" />
   <script>
@@ -128,6 +128,12 @@
           + '<input id="rEmail" type="email" autocomplete="email" inputmode="email" placeholder="Email" style="' + IN + 'margin-top:10px;" />'
           + '<input id="rPin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="Code PIN (4 à 6 chiffres)" style="' + IN + 'margin-top:10px;letter-spacing:4px;text-align:center;" />'
           + '<p style="margin:7px 0 0;color:#9A9890;font-size:11.5px;line-height:1.4;">1re connexion : choisis ton code. Ensuite, il te sera demandé à chaque connexion.</p>'
+          // Code de cohorte : révélé UNIQUEMENT si le serveur le réclame (espace pré-créé
+          // par un coach). Les comptes hérités et les invitations ne le voient jamais.
+          + '<div id="rCodeWrap" style="display:none;">'
+          + '<input id="rCode" type="text" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Code de ton groupe" style="' + IN + 'margin-top:10px;letter-spacing:3px;text-align:center;" />'
+          + '<p style="margin:7px 0 0;color:#9A9890;font-size:11.5px;line-height:1.4;">Ce code t\'est donné par ton coach.</p>'
+          + '</div>'
           + '<button id="rGo" style="' + BTN + '">Accéder à mon espace</button>'
           + '<p id="rErr" style="margin:10px 0 0;color:#DC4C44;font-size:13px;min-height:16px;"></p>'
           + '<p style="margin:16px 0 0;color:#9A9890;font-size:12px;line-height:1.5;">Tes données sont privées et visibles uniquement par toi et ton coach.</p>'
@@ -145,8 +151,10 @@
           if (!prenom || !nom || email.indexOf('@') < 1) { err.textContent = 'Renseigne ton prénom, ton nom et un email valide.'; return; }
         }
         if (!/^[0-9]{4,6}$/.test(pin)) { err.textContent = 'Saisis ton code PIN (4 à 6 chiffres).'; return; }
+        var codeEl = document.getElementById('rCode');
+        var code = codeEl ? (codeEl.value || '').trim() : '';
         btn.disabled = true; err.textContent = 'Connexion…';
-        fetch(base + 'account/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, prenom: prenom, nom: nom, pin: pin, invite: invToken }) })
+        fetch(base + 'account/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, prenom: prenom, nom: nom, pin: pin, code: code, invite: invToken }) })
           .then(function (r) { return r.json(); })
           .then(function (d) {
             if (d && d.ok) {
@@ -157,6 +165,12 @@
             } else {
               btn.disabled = false;
               err.textContent = (d && d.error) || (d && d.needPin ? 'Code PIN incorrect.' : 'Connexion impossible.');
+              // Espace pré-créé par un coach : on révèle le champ « code de ton groupe ».
+              if (d && d.needCode) {
+                var w = document.getElementById('rCodeWrap');
+                if (w) w.style.display = '';
+                if (codeEl) { codeEl.focus(); return; }
+              }
               if (pn) pn.focus();
             }
           })
@@ -395,6 +409,9 @@
         </div>
         <button type="button" id="coachOpenMessages" class="coach-dash-cta"><svg class="ic"><use href="#ic-send"/></svg> Mes messages <span id="coachMsgBadge" class="conv-unread" style="display:none"></span></button>
         <button type="button" id="coachOpenWall" class="coach-dash-cta coach-dash-cta-alt"><svg class="ic"><use href="#ic-users"/></svg> Mur collectif</button>
+        <!-- Connexion simplifiée : le coach crée l'espace du client sur place (aucun lien
+             à envoyer) et lui donne oralement le code de sa cohorte. -->
+        <button type="button" id="coachAddClient" class="coach-dash-cta coach-dash-cta-alt"><svg class="ic"><use href="#ic-user"/></svg> Ajouter un client</button>
         <h2 class="coach-dash-sec">Mes clients</h2>
         <div id="coachClientsList"></div>
       </div>
@@ -1457,6 +1474,6 @@
 
   <script src="vendor/zxing.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
-  <script src="app.js?v=114"></script>
+  <script src="app.js?v=115"></script>
 </body>
 </html>

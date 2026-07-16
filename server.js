@@ -384,6 +384,19 @@ function ensureNutritionHelpTable() {
       used_email TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_invites_email ON nutrition_invites(email);
+    -- Connexion simplifiée : le coach PRÉ-CRÉE l'espace du client (aucun lien à envoyer),
+    -- et lui donne oralement le CODE de sa cohorte (ville + n° de challenge). À sa 1re
+    -- connexion, le client prouve son appartenance avec ce code puis pose son PIN.
+    -- Le code protège la fenêtre de réclamation : sans lui, connaître email+prénom+nom
+    -- ne suffit pas à s'emparer d'un compte pré-créé.
+    CREATE TABLE IF NOT EXISTS nutrition_access_codes (
+      ville TEXT NOT NULL DEFAULT '',
+      challenge_no INTEGER NOT NULL DEFAULT 0,
+      code TEXT NOT NULL DEFAULT '',
+      actif INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (ville, challenge_no)
+    );
   `);
   // Coach « réponses préenregistrées » (gratuit) : graine VERSIONNÉE.
   // - table vide      -> on insère tout (1re installation).
@@ -435,6 +448,17 @@ function ensureNutritionHelpTable() {
       getDb().exec("ALTER TABLE nutrition_clients ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''");
     }
   } catch (e) { console.error('Migration nutrition_clients.avatar :', e && e.message); }
+  // Migration : espace PRÉ-CRÉÉ par un coach (connexion simplifiée, sans lien d'invitation).
+  // 1 = créé par un coach et pas encore réclamé -> la 1re connexion exigera le CODE de la
+  // cohorte du client (en plus du PIN qu'il choisit). Remis à 0 une fois le compte réclamé.
+  // Les comptes HÉRITÉS (sans PIN, d'avant ce système) gardent pre_created = 0 : leur
+  // comportement actuel est préservé, on ne les bloque pas.
+  try {
+    const ncCols = getDb().prepare('PRAGMA table_info(nutrition_clients)').all();
+    if (!ncCols.some((c) => c.name === 'pre_created')) {
+      getDb().exec('ALTER TABLE nutrition_clients ADD COLUMN pre_created INTEGER NOT NULL DEFAULT 0');
+    }
+  } catch (e) { console.error('Migration nutrition_clients.pre_created :', e && e.message); }
   // Migration : cloisonnement de la Communauté par groupe (ville + n° de challenge).
   try {
     const cmCols = getDb().prepare('PRAGMA table_info(nutrition_community_messages)').all();
@@ -2279,7 +2303,9 @@ try {
   // Valide un jeton d'invitation pour la CRÉATION d'un compte (email inconnu).
   // Renvoie { ok:true, invite } ou { ok:false, error }.
   function validateInvite(token, email) {
-    if (!token) return { ok: false, error: 'Il te faut un lien d’invitation de ton coach pour créer ton espace.' };
+    // Voie normale désormais : le coach PRÉ-CRÉE l'espace (le client se connecte alors
+    // avec le code de sa cohorte). Le lien d'invitation reste un secours (client à distance).
+    if (!token) return { ok: false, error: 'Ton espace n’existe pas encore. Demande à ton coach de te créer un accès.' };
     let inv = null;
     try { inv = getDb().prepare('SELECT * FROM nutrition_invites WHERE token = ?').get(String(token)); } catch (_) { inv = null; }
     if (!inv) return { ok: false, error: 'Invitation introuvable. Demande un nouveau lien à ton coach.' };
@@ -2287,6 +2313,22 @@ try {
     if (inv.expires_at && Date.parse(inv.expires_at) < Date.now()) return { ok: false, error: 'Cette invitation a expiré. Demande un nouveau lien à ton coach.' };
     if (inv.email && inv.email.toLowerCase() !== String(email || '').toLowerCase()) return { ok: false, error: 'Cette invitation est liée à une autre adresse email.' };
     return { ok: true, invite: inv };
+  }
+
+  // Vérifie le CODE de cohorte d'un client PRÉ-CRÉÉ par un coach (connexion simplifiée).
+  // Le code est celui du groupe du client (ville + n° de challenge de sa fiche meta) ;
+  // le coach le donne oralement. Sans lui, connaître email+prénom+nom ne suffit pas à
+  // s'emparer d'un espace pré-créé. Renvoie { ok:true } ou { ok:false, error }.
+  function validateAccessCode(email, code) {
+    if (!code) return { ok: false, error: 'Entre le code de ton groupe (ton coach te le donne).' };
+    let meta = null;
+    try { meta = getDb().prepare('SELECT ville, challenge_no FROM nutrition_client_meta WHERE client_email = ?').get(email); } catch (_) { meta = null; }
+    if (!meta) return { ok: false, error: 'Ton espace n’est pas encore rattaché à un groupe. Préviens ton coach.' };
+    let row = null;
+    try { row = getDb().prepare('SELECT code, actif FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').get(meta.ville, meta.challenge_no); } catch (_) { row = null; }
+    if (!row || !row.actif || !row.code) return { ok: false, error: 'Aucun code actif pour ton groupe. Préviens ton coach.' };
+    if (String(code).trim().toUpperCase() !== String(row.code).trim().toUpperCase()) return { ok: false, error: 'Code incorrect. Demande-le à ton coach.' };
+    return { ok: true };
   }
 
   app.post('/nutrition/account/login', (req, res) => {
@@ -2311,12 +2353,20 @@ try {
         isNew = !data;
       } else {
         // Compte nouveau OU ancien sans PIN : on EXIGE de définir un PIN maintenant.
-        if (!PIN_RE.test(pin)) return res.status(400).json({ ok: false, setPin: true, error: 'Choisis un code PIN de 4 à 6 chiffres pour protéger ton espace.' });
+        // Espace PRÉ-CRÉÉ par un coach : on exige EN PLUS le code de sa cohorte (preuve
+        // d'appartenance) avant de le laisser poser son PIN. Les comptes HÉRITÉS
+        // (pre_created = 0, sans PIN) gardent l'ancien comportement : pas de code.
+        const preCree = !!(row && row.pre_created);
+        if (preCree) {
+          const chk = validateAccessCode(email, String((req.body || {}).code || '').trim());
+          if (!chk.ok) return res.status(403).json({ ok: false, needCode: true, error: chk.error });
+        }
+        if (!PIN_RE.test(pin)) return res.status(400).json({ ok: false, setPin: true, needCode: preCree, error: 'Choisis un code PIN de 4 à 6 chiffres pour protéger ton espace.' });
         const ph = hashPin(pin);
         if (row) {
           // Compte déjà présent (pré-créé ou hérité, sans PIN) : on pose le PIN maintenant.
-          // Pas d'invitation requise — c'est un client déjà connu du coach.
-          getDb().prepare('UPDATE nutrition_clients SET prenom = ?, nom = ?, pin_hash = ?, updated_at = ? WHERE email = ?').run(prenom, nom, ph, now, email);
+          // pre_created repasse à 0 : l'espace est réclamé, le code ne sera plus demandé.
+          getDb().prepare('UPDATE nutrition_clients SET prenom = ?, nom = ?, pin_hash = ?, pre_created = 0, updated_at = ? WHERE email = ?').run(prenom, nom, ph, now, email);
           try { data = row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
           isNew = !data;
         } else {
@@ -2708,6 +2758,74 @@ try {
     } catch (e) { console.error('coach client DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
   });
   // Coach/admin : ranger un client (ville + n° de challenge).
+  // --- CONNEXION SIMPLIFIÉE : pré-création d'un client + codes de cohorte ---
+  // Génère un code parlable à l'oral (6 chiffres, sans ambiguïté à l'énoncé).
+  function genAccessCode() { return String(crypto.randomInt(100000, 1000000)); }
+
+  // COACH/ADMIN : pré-crée l'espace d'un client (aucun lien à envoyer). Le client se
+  // connectera avec email + prénom + nom + le CODE de sa cohorte, puis posera son PIN.
+  app.post('/nutrition/api/coach/clients', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const sc = req.nutritionScope;
+      const b = req.body || {};
+      const email = String(b.email || '').trim().toLowerCase().slice(0, 160);
+      const prenom = String(b.prenom || '').trim().slice(0, 80);
+      const nom = String(b.nom || '').trim().slice(0, 80);
+      if (!email || email.indexOf('@') < 1 || !prenom || !nom) return res.status(400).json({ ok: false, error: 'Email, prénom et nom requis.' });
+      const exists = getDb().prepare('SELECT email FROM nutrition_clients WHERE email = ?').get(email);
+      if (exists) return res.status(409).json({ ok: false, error: 'Ce client a déjà un espace.' });
+      const ville = String(b.ville || '').trim().slice(0, 80);
+      const challengeNo = Math.max(0, Math.min(999, Math.round(Number(b.challengeNo) || 0)));
+      if (!ville) return res.status(400).json({ ok: false, error: 'La ville est requise (elle détermine le code du groupe).' });
+      // Le coach ne peut créer que pour lui-même ; l'admin peut cibler un coach précis.
+      const coachId = sc.isAdmin ? (Math.round(Number(b.coachId) || 0) || defaultNutritionCoachId()) : sc.coachId;
+      const now = new Date().toISOString();
+      // pin_hash vide + pre_created = 1 -> la 1re connexion exigera le code de la cohorte.
+      getDb().prepare('INSERT INTO nutrition_clients (email, prenom, nom, data, pin_hash, coach_id, pre_created, created_at, updated_at) VALUES (?,?,?,?,?,?,1,?,?)')
+        .run(email, prenom, nom, null, '', coachId, now, now);
+      getDb().prepare('INSERT INTO nutrition_client_meta (client_email, ville, challenge_no, updated_at) VALUES (?,?,?,?) ON CONFLICT(client_email) DO UPDATE SET ville = excluded.ville, challenge_no = excluded.challenge_no, updated_at = excluded.updated_at')
+        .run(email, ville, challengeNo, now);
+      // Un code doit exister pour ce groupe, sinon le client ne pourra pas se connecter.
+      let cr = getDb().prepare('SELECT code FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').get(ville, challengeNo);
+      if (!cr || !cr.code) {
+        const code = genAccessCode();
+        getDb().prepare('INSERT INTO nutrition_access_codes (ville, challenge_no, code, actif, updated_at) VALUES (?,?,?,1,?) ON CONFLICT(ville, challenge_no) DO UPDATE SET code = excluded.code, actif = 1, updated_at = excluded.updated_at')
+          .run(ville, challengeNo, code, now);
+        cr = { code };
+      }
+      res.json({ ok: true, email, prenom, nom, ville, challengeNo, code: cr.code });
+    } catch (e) { console.error('coach clients POST :', e); res.status(500).json({ ok: false, error: 'Création impossible.' }); }
+  });
+
+  // COACH/ADMIN : lit (ou crée) le code d'une cohorte, à communiquer oralement au client.
+  app.get('/nutrition/api/coach/access-codes', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const ville = String(req.query.ville || '').trim().slice(0, 80);
+      const challengeNo = Math.max(0, Math.min(999, Math.round(Number(req.query.challengeNo) || 0)));
+      if (!ville) {
+        const rows = getDb().prepare('SELECT ville, challenge_no, code, actif FROM nutrition_access_codes ORDER BY ville, challenge_no').all();
+        return res.json({ ok: true, codes: rows.map((r) => ({ ville: r.ville, challengeNo: r.challenge_no, code: r.code, actif: !!r.actif })) });
+      }
+      const row = getDb().prepare('SELECT code, actif FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').get(ville, challengeNo);
+      res.json({ ok: true, ville, challengeNo, code: (row && row.code) || '', actif: !!(row && row.actif) });
+    } catch (e) { console.error('access-codes GET :', e); res.status(500).json({ ok: false }); }
+  });
+
+  // COACH/ADMIN : (re)génère ou désactive le code d'une cohorte.
+  app.post('/nutrition/api/coach/access-codes', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const ville = String(b.ville || '').trim().slice(0, 80);
+      const challengeNo = Math.max(0, Math.min(999, Math.round(Number(b.challengeNo) || 0)));
+      if (!ville) return res.status(400).json({ ok: false, error: 'Ville requise.' });
+      const actif = b.actif === false ? 0 : 1;
+      const code = b.regenerate || !b.code ? genAccessCode() : String(b.code).trim().slice(0, 12);
+      getDb().prepare('INSERT INTO nutrition_access_codes (ville, challenge_no, code, actif, updated_at) VALUES (?,?,?,?,?) ON CONFLICT(ville, challenge_no) DO UPDATE SET code = excluded.code, actif = excluded.actif, updated_at = excluded.updated_at')
+        .run(ville, challengeNo, code, actif, new Date().toISOString());
+      res.json({ ok: true, ville, challengeNo, code, actif: !!actif });
+    } catch (e) { console.error('access-codes POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+
   app.post('/nutrition/api/coach/clients/:email/meta', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const sc = req.nutritionScope;
