@@ -4284,8 +4284,11 @@ async function chargerPhotoPost(id, img) {
     _commPhotoUrls[id] = url; img.src = url;
   } catch (_) { /* hors-ligne : la miniature reste vide */ }
 }
-function agrandirPhotoPost(id) {
-  const url = _commPhotoUrls[id]; if (!url) return;
+// Visionneuse plein écran GÉNÉRIQUE : toute photo déposée par le client (fil du
+// groupe, photos d'évolution du Parcours, aperçu avant publication) s'agrandit
+// au clic dans le même écran noir. Fermeture : clic n'importe où, ✕ ou Échap.
+function ouvrirPhotoPleinEcran(url) {
+  if (!url) return;
   let ov = $('#commPhotoZoom');
   if (!ov) {
     ov = document.createElement('div');
@@ -4293,9 +4296,13 @@ function agrandirPhotoPost(id) {
     ov.innerHTML = '<img alt="Photo agrandie"><button type="button" class="comm-zoom-x" aria-label="Fermer">✕</button>';
     document.body.appendChild(ov);
     ov.addEventListener('click', () => ov.classList.remove('open'));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ov.classList.remove('open'); });
   }
   ov.querySelector('img').src = url;
   ov.classList.add('open');
+}
+function agrandirPhotoPost(id) {
+  ouvrirPhotoPleinEcran(_commPhotoUrls[id]);
 }
 async function supprimerPost(id) {
   if (!window.confirm('Supprimer ton post ? Il disparaîtra du fil pour tout le groupe.')) return;
@@ -4337,6 +4344,10 @@ function wireCommPhoto() {
   if (inp) inp.addEventListener('change', (e) => choisirCommPhoto(e.target.files && e.target.files[0]));
   const del = $('#commPhotoDel');
   if (del) del.addEventListener('click', viderCommPhoto);
+  // L'aperçu avant publication s'agrandit aussi : on vérifie sa photo en grand
+  // AVANT de l'envoyer au groupe.
+  const prev = $('#commPhotoPreview img');
+  if (prev) prev.addEventListener('click', () => ouvrirPhotoPleinEcran(prev.src));
 }
 async function postCommunauteFeed(text, kind, photo) {
   const ok = await postCommunaute(text, kind || 'partage', photo); // réutilise l'endpoint messages
@@ -5881,8 +5892,12 @@ function renderParcours() {
   host.querySelectorAll('[data-pc-delphoto]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); deleteParcoursPhoto(Number(b.dataset.pcDelphoto)); }));
   const _mensuForm = $('#mensuForm'); if (_mensuForm) _mensuForm.addEventListener('submit', (e) => { e.preventDefault(); saveMensuration(_mensuForm); });
   host.querySelectorAll('[data-pc-delmensu]').forEach((b) => b.addEventListener('click', () => deleteMensuration(Number(b.dataset.pcDelmensu))));
-  // Charge les vignettes privées (avec auth -> blob)
-  host.querySelectorAll('[data-pc-imgid]').forEach((img) => loadParcoursPhoto(Number(img.dataset.pcImgid), img));
+  // Charge les vignettes privées (avec auth -> blob) ; un clic sur la vignette
+  // (pas sur son ✕ de suppression) ouvre la photo en plein écran.
+  host.querySelectorAll('[data-pc-imgid]').forEach((img) => {
+    loadParcoursPhoto(Number(img.dataset.pcImgid), img);
+    img.addEventListener('click', () => ouvrirPhotoPleinEcran(img.src));
+  });
   injecterMiniRecapS3(host); // jour 21 : un mini-récap ICI, sans étape supplémentaire
   appliquerAncreParcours(); // une étape du Chemin nous a envoyés ici -> on ancre sur sa section
 }
