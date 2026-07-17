@@ -45,13 +45,14 @@ const CHALLENGE_WEEK_TITLES = {
 const LIENS_AVIS_GOOGLE = {
   lille: 'https://g.page/r/CTvKa-eHYYRsEBM/review',
 };
+// Barème croissant selon l'effort et la valeur business (total = 1700).
 const MISSIONS_BONUS = {
-  1: { titre: 'Donne ton avis', texte: 'Laisse un avis Google sur ton expérience My Coach.', punch: 50 },
-  2: { titre: 'Partage ta séance', texte: 'Publie une story Instagram pendant ou après ta séance.', punch: 50 },
-  3: { titre: 'Invite un proche', texte: 'Viens avec un proche découvrir le studio.', punch: 50 },
-  4: { titre: 'Raconte ton expérience', texte: 'Fais un témoignage vidéo de 30 secondes.', punch: 50 },
-  5: { titre: 'Passe au micro', texte: 'Participe à un podcast avec ton coach.', punch: 50 },
-  6: { titre: 'Ouvre une opportunité', texte: 'Mets le studio en relation avec une entreprise.', punch: 50 },
+  1: { titre: 'Donne ton avis', texte: 'Laisse un avis Google sur ton expérience My Coach.', punch: 100 },
+  2: { titre: 'Partage ta séance', texte: 'Publie une story Instagram pendant ou après ta séance.', punch: 150 },
+  3: { titre: 'Invite un proche', texte: 'Viens avec un proche découvrir le studio.', punch: 250 },
+  4: { titre: 'Raconte ton expérience', texte: 'Fais un témoignage vidéo de 30 secondes.', punch: 300 },
+  5: { titre: 'Passe au micro', texte: 'Participe à un podcast avec ton coach.', punch: 400 },
+  6: { titre: 'Ouvre une opportunité', texte: 'Mets le studio en relation avec une entreprise.', punch: 500 },
 };
 // Les 43 étapes, indexées 0 -> 42 (l'étape 0 = « Commencer »), réparties en 6
 // semaines : S1 0–7 (8 étapes), puis 7 par semaine.
@@ -174,16 +175,13 @@ const PHOTOS_REQUISES = ['face', 'profil', 'dos'];
 // --- PALIERS DE SÉRIE 🔥 -> Punch 👊 ----------------------------------------
 // Barème croissant : plus la série tient, plus le palier vaut. Récompense la
 // SÉRIE EN COURS (pas le record) -> une série cassée repart de 3 jours.
-// Au-delà de 42, on répète +400 tous les 7 jours (42, 49, 56…).
+// Le challenge s'arrête au jour 42 : aucun palier au-delà.
 const PALIERS_SERIE = { 3: 15, 7: 40, 14: 90, 21: 150, 28: 220, 35: 300, 42: 400 };
-const PALIER_AU_DELA = 400;
 // Punch rapportés par une série qui atteint EXACTEMENT `streak` jours. 0 sinon.
 function punchPalier(streak) {
   const n = Number(streak) || 0;
   if (n <= 0) return 0;
-  if (PALIERS_SERIE[n]) return PALIERS_SERIE[n];
-  if (n > 42 && n % 7 === 0) return PALIER_AU_DELA;
-  return 0;
+  return PALIERS_SERIE[n] || 0;
 }
 
 // Une étape accepte-t-elle cet événement ? `events` (liste) prime sur `event`

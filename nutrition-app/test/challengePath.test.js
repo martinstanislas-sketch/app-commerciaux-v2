@@ -360,9 +360,9 @@ test('punchPalier : le barème croissant, au jour près', () => {
   assert.deepEqual([3, 7, 14, 21, 28, 35, 42].map(punchPalier), [15, 40, 90, 150, 220, 300, 400]);
   // Entre deux paliers : rien.
   [1, 2, 4, 6, 8, 13, 20, 41].forEach((n) => assert.equal(punchPalier(n), 0, `jour ${n} n'est pas un palier`));
-  // Au-delà de 42 : +400 tous les 7 jours.
-  assert.equal(punchPalier(49), 400);
-  assert.equal(punchPalier(56), 400);
+  // Le challenge s'arrête au jour 42 : plus AUCUN palier au-delà.
+  assert.equal(punchPalier(49), 0);
+  assert.equal(punchPalier(56), 0);
   assert.equal(punchPalier(50), 0);
   assert.equal(punchPalier(0), 0);
   assert.equal(punchPalier(-3), 0);
