@@ -3194,7 +3194,12 @@ body.is-demo #navRestart { display: none !important; }
 /* Desktop : on borne la largeur utile. Le sentier a besoin de hauteur, pas de
    largeur — étiré, il perdrait ses courbes et deviendrait un zigzag. */
 @media (min-width: 1140px) {
-  .asc, .asc-head, .asc-hero { max-width: 1000px; margin-left: auto; margin-right: auto; }
+  /* ⚠️ width:100% obligatoire : ces blocs sont des ENFANTS DE FLEX (#view-parcours
+     est en colonne). Des marges auto sur l'axe transversal y annulent l'étirement
+     -> largeur « fit-content » ; or le contenu de .asc-ch-map est entièrement en
+     absolu (max-content = 0) : la colonne du parcours s'effondrait et la carte de
+     l'étape active se posait sur la carte de semaine. */
+  .asc, .asc-head, .asc-hero { width: 100%; max-width: 1000px; margin-left: auto; margin-right: auto; }
   .asc-ch { grid-template-columns: var(--asc-col) minmax(0, 1fr); gap: 34px; }
   .asc-ch-map { max-width: 720px; }
 }
