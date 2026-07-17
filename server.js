@@ -757,7 +757,7 @@ try {
     try {
       const email = (req.session && req.session.email) || '';
       if (!email) return res.status(403).json({ ok: false });
-      const r = declarerMissionBonus(email, (req.body || {}).texte);
+      const r = declarerMissionBonus(email, (req.body || {}).week, (req.body || {}).texte);
       if (r.error) return res.status(400).json({ ok: false, error: r.error });
       res.json({ ok: true, state: challengePublicState(email) });
     } catch (e) { console.error('mission bonus :', e); res.status(500).json({ ok: false }); }

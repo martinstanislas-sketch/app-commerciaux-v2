@@ -764,8 +764,9 @@ function createChallengeEngine({ getDb }) {
       // punchSeuils, la source de vérité, qui est simplement mise en forme.
       recompenses: recompensesPubliques(s.punch || 0),
       weekTitles: CHALLENGE_WEEK_TITLES,
-      // Mission bonus de la semaine : facultative, ne conditionne rien d'autre.
-      missionBonus: missionBonusEtat(email),
+      // Missions bonus OUVERTES (semaines atteintes) : facultatives, les passées
+      // restent rattrapables, les futures ne sont pas exposées.
+      missionsBonus: missionsBonusListe(email),
       nodes,
     };
   }
@@ -780,27 +781,36 @@ function createChallengeEngine({ getDb }) {
     const node = CHALLENGE_PATH_NODES.find((n) => n.day === activeDay);
     return (node && node.week) || 1;
   }
-  function missionBonusEtat(email) {
-    const week = missionBonusWeek(email);
-    const def = MISSIONS_BONUS[week];
-    if (!def) return null;
-    let row = null;
-    try { row = getDb().prepare('SELECT statut, created_at FROM nutrition_missions_bonus WHERE client_email=? AND week=?').get(email, week) || null; }
-    catch (_) { /* table pas encore créée : la mission s'affiche « à faire » */ }
-    return { week, titre: def.titre, texte: def.texte, punch: def.punch, statut: row ? row.statut : '', declaredAt: row ? row.created_at : '' };
+  // Les missions OUVERTES : celles des semaines déjà atteintes, chacune avec son
+  // état. Une mission passée non faite reste rattrapable — le client peut y
+  // revenir plus tard. Les missions des semaines À VENIR ne sont pas exposées.
+  function missionsBonusListe(email) {
+    const semaineActuelle = missionBonusWeek(email);
+    const rows = {};
+    try { getDb().prepare('SELECT week, statut, created_at FROM nutrition_missions_bonus WHERE client_email=?').all(email).forEach((r) => { rows[r.week] = r; }); }
+    catch (_) { /* table pas encore créée : tout s'affiche « à faire » */ }
+    const out = [];
+    for (let w = 1; w <= semaineActuelle; w++) {
+      const def = MISSIONS_BONUS[w]; if (!def) continue;
+      const r = rows[w];
+      out.push({ week: w, titre: def.titre, texte: def.texte, punch: def.punch, statut: r ? r.statut : '', declaredAt: r ? r.created_at : '' });
+    }
+    return out;
   }
   // Déclaration du client : sur parole (aucun justificatif), une seule par
   // mission — l'unicité est portée par la contrainte UNIQUE, pas par une lecture
-  // préalable (deux envois simultanés ne créeraient qu'une ligne).
-  function declarerMissionBonus(email, texteClient) {
-    const week = missionBonusWeek(email);
-    const def = MISSIONS_BONUS[week];
-    if (!def) return { error: 'Pas de mission cette semaine.' };
+  // préalable (deux envois simultanés ne créeraient qu'une ligne). La semaine est
+  // CHOISIE par le client (rattrapage d'une mission passée), jamais une future.
+  function declarerMissionBonus(email, week, texteClient) {
+    const w = Math.round(Number(week) || 0);
+    const def = MISSIONS_BONUS[w];
+    if (!def) return { error: 'Mission inconnue.' };
+    if (w > missionBonusWeek(email)) return { error: 'Cette mission n’est pas encore ouverte.' };
     const texte = String(texteClient || '').trim().slice(0, 1000);
     if (!texte) return { error: 'Dis-nous ce que tu as fait.' };
     try {
       const info = getDb().prepare("INSERT OR IGNORE INTO nutrition_missions_bonus (client_email, week, texte, statut, punch, created_at) VALUES (?,?,?,'declaree',?,?)")
-        .run(email, week, texte, def.punch, new Date().toISOString());
+        .run(email, w, texte, def.punch, new Date().toISOString());
       if (info.changes === 0) return { error: 'Tu as déjà répondu pour cette mission.' };
       return { ok: true };
     } catch (e) { console.error('mission bonus :', e && e.message); return { error: 'Impossible d’enregistrer ta réponse.' }; }
@@ -864,7 +874,7 @@ function createChallengeEngine({ getDb }) {
     pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
     pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds,
     assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier,
-    missionBonusEtat, declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
+    missionsBonusListe, declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
   };
 }
 

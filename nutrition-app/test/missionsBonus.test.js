@@ -27,33 +27,52 @@ function makeEngine() {
   return { db, engine, email: 'a@a.fr' };
 }
 
-test('mission bonus : semaine 1 au départ, sans statut', () => {
+// Fait avancer le parcours jusqu'à la semaine voulue en validant les étapes.
+function avancerJusquaSemaine(db, email, jours) {
+  const ins = db.prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at, punch_awarded) VALUES (?,?,'2020-01-02T00:00:00Z',0)");
+  for (let d = 0; d < jours; d++) ins.run(email, d);
+}
+
+test('mission bonus : seule la semaine 1 est ouverte au départ, sans statut', () => {
   const { engine, email } = makeEngine();
-  const m = engine.missionBonusEtat(email);
-  assert.equal(m.week, 1);
-  assert.equal(m.titre, 'Donne ton avis');
-  assert.ok(m.punch > 0);
-  assert.equal(m.statut, '');
+  const liste = engine.missionsBonusListe(email);
+  assert.equal(liste.length, 1);
+  assert.equal(liste[0].week, 1);
+  assert.equal(liste[0].titre, 'Donne ton avis');
+  assert.ok(liste[0].punch > 0);
+  assert.equal(liste[0].statut, '');
+});
+
+test('missions passées rattrapables, futures masquées', () => {
+  const { db, engine, email } = makeEngine();
+  avancerJusquaSemaine(db, email, 8); // étapes 0-7 faites -> étape active en semaine 2
+  const liste = engine.missionsBonusListe(email);
+  assert.deepEqual(liste.map((m) => m.week), [1, 2], 'semaines 1 et 2 ouvertes, 3+ masquées');
+  // Rattrapage : la mission de la semaine 1, jamais faite, se déclare encore.
+  assert.equal(engine.declarerMissionBonus(email, 1, "Avis Google posté, mieux vaut tard.").ok, true);
+  assert.equal(engine.missionsBonusListe(email).find((m) => m.week === 1).statut, 'declaree');
+  // Une mission future ne se déclare pas.
+  assert.ok(engine.declarerMissionBonus(email, 3, 'Trop tôt !').error, 'semaine 3 pas encore ouverte');
 });
 
 test('mission bonus : exposée dans l’état public du parcours', () => {
   const { engine, email } = makeEngine();
   const st = engine.challengePublicState(email);
-  assert.ok(st.missionBonus);
-  assert.equal(st.missionBonus.week, 1);
+  assert.ok(Array.isArray(st.missionsBonus));
+  assert.equal(st.missionsBonus[0].week, 1);
 });
 
 test('déclaration : une seule réponse par mission, texte requis', () => {
   const { engine, email } = makeEngine();
-  assert.ok(engine.declarerMissionBonus(email, '   ').error, 'texte vide -> refusé');
-  assert.equal(engine.declarerMissionBonus(email, "J'ai laissé un avis Google.").ok, true);
-  assert.equal(engine.missionBonusEtat(email).statut, 'declaree');
-  assert.ok(engine.declarerMissionBonus(email, 'Encore !').error, 'pas de second envoi');
+  assert.ok(engine.declarerMissionBonus(email, 1, '   ').error, 'texte vide -> refusé');
+  assert.equal(engine.declarerMissionBonus(email, 1, "J'ai laissé un avis Google.").ok, true);
+  assert.equal(engine.missionsBonusListe(email)[0].statut, 'declaree');
+  assert.ok(engine.declarerMissionBonus(email, 1, 'Encore !').error, 'pas de second envoi');
 });
 
 test('coach : la liste porte le client, la semaine, la mission, le texte, la date', () => {
   const { engine, email } = makeEngine();
-  engine.declarerMissionBonus(email, "J'ai laissé un avis Google.");
+  engine.declarerMissionBonus(email, 1, "J'ai laissé un avis Google.");
   const rows = engine.missionsBonusDeclarees();
   assert.equal(rows.length, 1);
   assert.equal(rows[0].client_email, email);
@@ -66,7 +85,7 @@ test('coach : la liste porte le client, la semaine, la mission, le texte, la dat
 
 test('valider crédite le Punch (une seule fois), refuser jamais', () => {
   const { engine, email } = makeEngine();
-  engine.declarerMissionBonus(email, 'Fait !');
+  engine.declarerMissionBonus(email, 1, 'Fait !');
   const id = engine.missionsBonusDeclarees()[0].id;
   const avant = engine.pathStatsRow(email).punch || 0;
   const r = engine.deciderMissionBonus(id, 'valider', 'coach@mycoach.fr');
@@ -74,24 +93,24 @@ test('valider crédite le Punch (une seule fois), refuser jamais', () => {
   assert.equal(engine.pathStatsRow(email).punch, avant + r.punch);
   assert.ok(engine.deciderMissionBonus(id, 'valider').error, 'décision finale : pas de double crédit');
   assert.equal(engine.pathStatsRow(email).punch, avant + r.punch);
-  assert.equal(engine.missionBonusEtat(email).statut, 'validee');
+  assert.equal(engine.missionsBonusListe(email)[0].statut, 'validee');
 });
 
 test('refuser : statut refusee et zéro Punch', () => {
   const { engine, email } = makeEngine();
-  engine.declarerMissionBonus(email, 'Fait !');
+  engine.declarerMissionBonus(email, 1, 'Fait !');
   const id = engine.missionsBonusDeclarees()[0].id;
   const avant = engine.pathStatsRow(email).punch || 0;
   const r = engine.deciderMissionBonus(id, 'refuser', 'coach@mycoach.fr');
   assert.equal(r.statut, 'refusee');
   assert.equal(engine.pathStatsRow(email).punch, avant);
-  assert.equal(engine.missionBonusEtat(email).statut, 'refusee');
+  assert.equal(engine.missionsBonusListe(email)[0].statut, 'refusee');
 });
 
 test('la mission ne touche pas au parcours : l’étape active ne bouge pas', () => {
   const { engine, email } = makeEngine();
   const avant = engine.pathActiveDay(email);
-  engine.declarerMissionBonus(email, 'Fait !');
+  engine.declarerMissionBonus(email, 1, 'Fait !');
   const id = engine.missionsBonusDeclarees()[0].id;
   engine.deciderMissionBonus(id, 'valider');
   assert.equal(engine.pathActiveDay(email), avant);
