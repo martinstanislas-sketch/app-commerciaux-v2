@@ -3149,6 +3149,10 @@ body.is-demo #navRestart { display: none !important; }
 #mbTexte { width: 100%; box-sizing: border-box; resize: vertical; min-height: 84px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border-c); background: var(--surface); color: var(--text-c); font: inherit; font-size: 14px; line-height: 1.45; }
 #mbTexte:focus { outline: none; border-color: var(--blue-c); box-shadow: 0 0 0 3px var(--blue-soft); }
 .mb-go, .mb-send { display: flex; width: 100%; margin-top: 12px; justify-content: center; }
+/* Le raccourci de la mission (page d'avis Google du studio) : bouton SECONDAIRE
+   — l'action principale reste « J'ai participé », qui déclenche la déclaration. */
+.mb-lien { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin-top: 12px; padding: 10px 16px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: var(--pill); background: var(--surface); color: var(--text-c); font: 700 13px/1 var(--font); text-decoration: none; transition: border-color .15s var(--ease), background .15s var(--ease); }
+.mb-lien:hover { border-color: var(--blue-c); background: var(--surface-soft); }
 .mb-etat { display: flex; align-items: center; gap: 8px; margin: 4px 0 2px; font: 600 14px/1.4 var(--font); color: var(--text-c); }
 .mb-etat.ok { color: var(--sage-on-soft); }
 .mb-etat.ko { color: var(--text-muted-c); }

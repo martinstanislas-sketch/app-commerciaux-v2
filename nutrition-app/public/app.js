@@ -5369,16 +5369,22 @@ function ouvrirMissionBonus(week) {
   el.querySelector('.mcpath-sheet-badge').textContent = '⭐ Semaine ' + m.week;
   el.querySelector('.mcpath-sheet-title').textContent = m.titre;
   const body = el.querySelector('.mb-body');
+  // Le raccourci de la mission (ex. la page d'avis Google du studio de SA ville) :
+  // visible tant que la mission n'est pas déclarée — un geste au lieu d'une recherche.
+  const lien = m.lien && !m.statut
+    ? '<a class="mb-lien" href="' + escapeHtml(m.lien) + '" target="_blank" rel="noopener">⭐ Laisser mon avis Google</a>'
+    : '';
   let inner = '<p class="mb-desc">' + escapeHtml(m.texte) + '</p>';
   if (m.statut === 'validee') inner += '<p class="mb-etat ok">🎉 Mission validée · +' + (m.punch || 0) + ' PUNCH</p>';
   else if (m.statut === 'refusee') inner += '<p class="mb-etat ko">Mission non validée</p>';
   else if (m.statut === 'declaree') inner += '<p class="mb-etat"><span class="mb-pill">Déclarée</span> Envoyé à ton coach ✅</p>';
-  else inner += '<button type="button" class="asc-card-cta mb-go">J’ai participé</button>';
+  else inner += lien + '<button type="button" class="asc-card-cta mb-go">J’ai participé</button>';
   body.innerHTML = inner;
   const go = body.querySelector('.mb-go');
   if (go) go.addEventListener('click', () => {
     // Déclaratif : le client raconte, c'est tout — aucune capture, aucun justificatif.
-    body.innerHTML = '<label class="mb-lbl" for="mbTexte">Dis-nous ce que tu as fait</label>'
+    body.innerHTML = lien
+      + '<label class="mb-lbl" for="mbTexte">Dis-nous ce que tu as fait</label>'
       + '<textarea id="mbTexte" rows="3" maxlength="1000" placeholder="Raconte en une ou deux phrases…"></textarea>'
       + '<button type="button" class="asc-card-cta mb-send">Envoyer au coach</button>';
     body.querySelector('.mb-send').addEventListener('click', envoyerMissionBonus);

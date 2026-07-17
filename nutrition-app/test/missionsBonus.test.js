@@ -137,3 +137,15 @@ test('récompenses : posées à l’étape où le seuil tombe si tout est valid�
   const ordres = recs.map((r) => r.ordre);
   assert.deepEqual(ordres, [...ordres].sort((a, b) => a - b));
 });
+
+test('mission « avis » : le lien Google suit la ville du challenge', () => {
+  const { db, engine, email } = makeEngine();
+  // Sans meta : pas de lien, la mission reste entière.
+  assert.equal(engine.missionsBonusListe(email)[0].lien, '');
+  // Lille (peu importe la casse) : le lien du studio est servi.
+  db.prepare("INSERT INTO nutrition_client_meta (client_email, ville) VALUES (?, 'Lille')").run(email);
+  assert.equal(engine.missionsBonusListe(email)[0].lien, 'https://g.page/r/CTvKa-eHYYRsEBM/review');
+  // Une autre ville : pas de lien.
+  db.prepare("UPDATE nutrition_client_meta SET ville='Neuilly-sur-Seine' WHERE client_email=?").run(email);
+  assert.equal(engine.missionsBonusListe(email)[0].lien, '');
+});

@@ -39,6 +39,12 @@ const CHALLENGE_WEEK_TITLES = {
 // jamais l'avancement du parcours. Le client DÉCLARE ce qu'il a fait (sur
 // parole, aucun justificatif), le coach tranche ; le Punch n'est crédité qu'à
 // la validation, via addPunch (le point de passage unique).
+// Lien « avis Google » par VILLE de challenge : ouvert d'un geste depuis la
+// mission « Donne ton avis » — moins de friction, plus d'avis. Une ville absente
+// de cette table n'affiche simplement pas de bouton (la mission reste valable).
+const LIENS_AVIS_GOOGLE = {
+  lille: 'https://g.page/r/CTvKa-eHYYRsEBM/review',
+};
 const MISSIONS_BONUS = {
   1: { titre: 'Donne ton avis', texte: 'Laisse un avis Google sur ton expérience My Coach.', punch: 50 },
   2: { titre: 'Partage ta séance', texte: 'Publie une story Instagram pendant ou après ta séance.', punch: 50 },
@@ -789,11 +795,18 @@ function createChallengeEngine({ getDb }) {
     const rows = {};
     try { getDb().prepare('SELECT week, statut, created_at FROM nutrition_missions_bonus WHERE client_email=?').all(email).forEach((r) => { rows[r.week] = r; }); }
     catch (_) { /* table pas encore créée : tout s'affiche « à faire » */ }
+    // La mission « avis » porte le lien Google DU studio du client (sa ville de
+    // challenge) : un geste au lieu d'une recherche.
+    let lienAvis = '';
+    try {
+      const m = getDb().prepare('SELECT ville FROM nutrition_client_meta WHERE client_email=?').get(email);
+      lienAvis = LIENS_AVIS_GOOGLE[String((m && m.ville) || '').trim().toLowerCase()] || '';
+    } catch (_) { /* pas de meta : pas de lien */ }
     const out = [];
     for (let w = 1; w <= semaineActuelle; w++) {
       const def = MISSIONS_BONUS[w]; if (!def) continue;
       const r = rows[w];
-      out.push({ week: w, titre: def.titre, texte: def.texte, punch: def.punch, statut: r ? r.statut : '', declaredAt: r ? r.created_at : '' });
+      out.push({ week: w, titre: def.titre, texte: def.texte, punch: def.punch, lien: w === 1 ? lienAvis : '', statut: r ? r.statut : '', declaredAt: r ? r.created_at : '' });
     }
     return out;
   }
