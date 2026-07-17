@@ -1,0 +1,248 @@
+'use strict';
+// ============================================================================
+//  MOTEUR DE LA LISTE DE COURSES — pur, sans DOM, sans état global.
+//
+//  Chaîne : plan -> agreger() (par ingrédient CANONIQUE, en unité de base)
+//           -> construireListe() (arrondis d'achat, unités d'ACHAT, split
+//              frais / placard, groupes « au choix », repli non-référencés)
+//           -> rendreTexte() (une ligne par article, join — jamais de concat).
+//
+//  `agreger` est LA fonction de vérité, testée seule sur des fixtures : les
+//  quantités s'additionnent par canonique (jamais par libellé), dans l'unité
+//  de base du référentiel ('g' | 'ml' | 'piece').
+//
+//  Fichier UMD : chargé par index.html (window.CoursesEngine) ET requis par les
+//  tests node. Dépend du référentiel public/coursesCatalogue.js.
+// ============================================================================
+
+(function (root, factory) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./coursesCatalogue.js'));
+  else root.CoursesEngine = factory(root.CoursesCatalogue);
+}(typeof self !== 'undefined' ? self : this, function (CAT) {
+
+  const RAYON_PLACARD = 'Placard';
+  const RAYON_A_VERIFIER = 'À vérifier';
+  // Le parcours physique d'un magasin ; Placard et À vérifier ferment la marche.
+  const ORDRE_RAYONS = [...CAT.RAYONS, 'Rayon frais', RAYON_PLACARD, RAYON_A_VERIFIER];
+
+  function fmtNombre(n) {
+    const v = Math.round(n * 100) / 100;
+    return String(v).replace('.', ',');
+  }
+
+  // --- ARRONDIS D'ACHAT (règle centralisée — T3) ---------------------------
+  // `besoin_reel` garde toujours la valeur EXACTE ; seul l'achat est arrondi.
+  const ROUNDING = {
+    // Ce qui se compte ne se coupe pas : toujours l'entier SUPÉRIEUR (9,5 œufs -> 10).
+    piece: (q) => Math.ceil(q - 1e-9),
+    // Viande & poisson : le multiple de 50 g SUPÉRIEUR — ce qu'on demande au comptoir.
+    viande: (q) => Math.ceil(q / 50 - 1e-9) * 50,
+    // Autres poids et volumes : le multiple de 10 supérieur.
+    poids: (q) => Math.ceil(q / 10 - 1e-9) * 10,
+  };
+  function arrondirAchat(q, categorie, uniteBase) {
+    if (!(q > 0)) return 0;
+    if (uniteBase === 'piece') return ROUNDING.piece(q);
+    if (categorie === 'viande' || categorie === 'poisson') return ROUNDING.viande(q);
+    return ROUNDING.poids(q);
+  }
+
+  // --- CONVERSION RECETTE -> UNITÉ DE BASE (T2) ----------------------------
+  // Les cuillères deviennent des g/ml (c. à soupe ≈ 13, c. à café ≈ 5) : la
+  // conversion est INTERNE au calcul — jamais de cuillère sur la liste finale.
+  // null = familles incompatibles (la quantité restera affichée en appoint).
+  function versBase(q, unite, base) {
+    const u = CAT.normaliser(unite || '');
+    if (base === 'g' || base === 'ml') {
+      if (u === 'g' || u === 'ml' || u === '') return q; // g ≈ ml pour nos liquides
+      if (u === 'kg' || u === 'l') return q * 1000;
+      if (u === 'cl') return q * 10;
+      if (/c\.? ?a ?soupe|^cas$|^cs$/.test(u)) return q * 13;
+      if (/c\.? ?a ?cafe|^cac$|^cc$/.test(u)) return q * 5;
+      if (/pincee/.test(u)) return q; // ~1 g la pincée
+      return null;
+    }
+    if (/piece|unite|tranche|oeuf|filet|steak|boule/.test(u) || u === '') return q;
+    return null;
+  }
+
+  // --- AGRÉGATION PURE (T2) -------------------------------------------------
+  // plan = { jours: [{ repas: [{ recette: { ingredients: [{nom, quantite, unite, rayon}] } }] }] }
+  // Renvoie { canoniques: Map<id, {qty, unite_base, autres, varietes}>, libres, warnings }.
+  function agreger(plan, portions) {
+    const mult = portions > 0 ? portions : 1;
+    const canoniques = new Map();
+    const libres = new Map(); // non référencés : clé nom|unité, comme avant
+    const warnings = [];
+    ((plan && plan.jours) || []).forEach((jour) => {
+      (jour.repas || []).forEach((repas) => {
+        if (!repas.recette) return;
+        (repas.recette.ingredients || []).forEach((ing) => {
+          const q = (Number(ing.quantite) || 0) * mult;
+          const r = CAT.resoudre(ing.nom);
+          if (!r) {
+            // Repli (T1) : rien ne casse, rien ne se duplique en silence. On
+            // garde le rayon de la recette s'il existe, sinon « À vérifier » —
+            // et on journalise pour faire grossir le référentiel.
+            const key = CAT.normaliser(ing.nom) + '|' + CAT.normaliser(ing.unite);
+            if (!libres.has(key)) {
+              const rayon = ing.rayon || RAYON_A_VERIFIER;
+              libres.set(key, { nom: ing.nom, unite: ing.unite || '', rayon, qty: 0 });
+              warnings.push('Ingrédient non référencé : ' + ing.nom + ' — rangé en « ' + rayon + ' », à ajouter au référentiel.');
+            }
+            libres.get(key).qty += q;
+            return;
+          }
+          const c = canoniques.get(r.id) || { id: r.id, def: r.def, qty: 0, unite_base: r.def.unite_base, autres: {}, varietes: new Set() };
+          canoniques.set(r.id, c);
+          c.varietes.add(r.def.display_name);
+          const conv = versBase(q, ing.unite, r.def.unite_base);
+          if (conv != null) c.qty += conv;
+          else { const u = String(ing.unite || ''); c.autres[u] = (c.autres[u] || 0) + q; }
+        });
+      });
+    });
+    return { canoniques, libres, warnings };
+  }
+
+  // --- UNITÉ D'ACHAT (T4) ---------------------------------------------------
+  // Ce que le client LIT et prend en magasin. Jamais une unité de recette.
+  function ligneAchat(def, besoin, arrondi) {
+    const sous = [];
+    let achat;
+    if (def.pack_options && def.pack_options.length) {
+      // Conditionnement standard AU-DESSUS du besoin (œufs : boîte de 6 ou 12).
+      const entier = ROUNDING.piece(besoin);
+      const opt = def.pack_options.find((o) => o >= entier) || def.pack_options[def.pack_options.length - 1];
+      const nb = Math.ceil(entier / opt);
+      achat = (nb === 1 ? '1 ' + def.pack_nom : nb + ' ' + def.pack_nom + 's') + ' (' + opt + ')';
+      sous.push('besoin ' + fmtNombre(besoin));
+    } else if (def.pack_size > 0) {
+      // Contenance connue (brique 1 L, boîte 400 g) -> nombre de packs.
+      const nb = Math.max(1, Math.ceil(besoin / def.pack_size));
+      achat = nb === 1 ? def.purchase_unit : nb + ' × ' + def.purchase_unit.replace(/^1\s+/, '');
+      sous.push('besoin ' + fmtNombre(besoin) + ' ' + def.unite_base);
+    } else if (def.category === 'viande' || def.category === 'poisson') {
+      achat = '~' + arrondi + ' g';
+      if (besoin !== arrondi) sous.push('besoin ' + fmtNombre(besoin) + ' g');
+      if (def.purchase_unit) sous.push(def.purchase_unit);
+    } else if (def.is_staple) {
+      // Placard : on achète le contenant, le besoin de la semaine est minuscule.
+      achat = def.purchase_unit;
+      sous.push('besoin ' + fmtNombre(besoin) + (def.unite_base === 'piece' ? '' : ' ' + def.unite_base));
+    } else if (def.unite_base === 'piece') {
+      achat = String(arrondi);
+      if (besoin !== arrondi) sous.push('besoin ' + fmtNombre(besoin));
+      if (def.purchase_unit) sous.push(def.purchase_unit);
+    } else {
+      achat = arrondi + ' ' + def.unite_base;
+      if (besoin !== arrondi) sous.push('besoin ' + fmtNombre(besoin) + ' ' + def.unite_base);
+      if (def.purchase_unit) sous.push(def.purchase_unit);
+    }
+    return { achat, sous };
+  }
+
+  // --- LA LISTE (T1/T3/T4/T5/T6) -------------------------------------------
+  // Renvoie { frais: [...], placard: [...], warnings } ; un article =
+  // { id, nom, rayon, staple, probablement_deja_en_stock, quantite_achat,
+  //   sousTitre, besoin_reel: {quantite, unite} }.
+  function construireListe(plan, portions) {
+    const { canoniques, libres, warnings } = agreger(plan, portions);
+    const frais = [];
+    const placard = [];
+    const groupes = new Map();
+    const pousser = (item, staple) => (staple ? placard : frais).push(item);
+
+    canoniques.forEach((c) => {
+      const g = c.def.interchangeable_group;
+      if (g && CAT.GROUPES[g]) {
+        const acc = groupes.get(g) || { def: CAT.GROUPES[g], qty: 0, unite_base: c.unite_base, varietes: new Set(), achatCtx: c.def.purchase_unit, category: c.def.category };
+        groupes.set(g, acc);
+        acc.qty += c.qty;
+        Object.values(c.autres).forEach((x) => { acc.qty += x; }); // même famille (poids)
+        c.varietes.forEach((v) => acc.varietes.add(v));
+        return;
+      }
+      // Si TOUT est arrivé dans une autre unité que la base (concombre donné en
+      // grammes), cette unité devient la quantité principale — jamais un « 0 ».
+      let besoin = c.qty, unite = c.unite_base, autres = Object.entries(c.autres);
+      if (!(besoin > 0) && autres.length) { [[unite, besoin]] = autres; autres = autres.slice(1); }
+      const arrondi = arrondirAchat(besoin, c.def.category, unite === 'piece' ? 'piece' : (unite === c.unite_base ? c.unite_base : 'g'));
+      const base = (unite === c.unite_base)
+        ? ligneAchat(c.def, besoin, arrondi)
+        : { achat: arrondi + ' ' + unite, sous: ['besoin ' + fmtNombre(besoin) + ' ' + unite, c.def.purchase_unit] };
+      const appoint = autres.map(([u, x]) => '+ ' + fmtNombre(x) + ' ' + u).join(' ');
+      if (appoint) base.sous.push(appoint);
+      pousser({
+        id: c.id, nom: c.def.display_name,
+        // Le rayon vient TOUJOURS du référentiel (T6) : le bloc Placard n'est
+        // qu'une présentation (split par `staple`), pas un rayon.
+        rayon: c.def.rayon,
+        staple: !!c.def.is_staple, probablement_deja_en_stock: !!c.def.is_staple,
+        quantite_achat: base.achat, sousTitre: base.sous.filter(Boolean).join(' · '),
+        besoin_reel: { quantite: besoin, unite },
+      }, c.def.is_staple);
+    });
+
+    // Groupes interchangeables : UNE ligne « au choix », total + variétés (T1).
+    groupes.forEach((gr) => {
+      const arrondi = arrondirAchat(gr.qty, gr.category || 'poisson', gr.unite_base);
+      const sous = [[...gr.varietes].join(', ')];
+      if (gr.qty !== arrondi) sous.push('besoin ' + fmtNombre(gr.qty) + ' ' + gr.unite_base);
+      if (gr.achatCtx) sous.push(gr.achatCtx);
+      frais.push({
+        id: null, nom: gr.def.display_name, rayon: gr.def.rayon, staple: false, probablement_deja_en_stock: false,
+        quantite_achat: '~' + arrondi + ' ' + gr.unite_base, sousTitre: sous.join(' · '),
+        besoin_reel: { quantite: gr.qty, unite: gr.unite_base },
+      });
+    });
+
+    // Non référencés : agrégés par libellé, arrondis « poids », jamais perdus.
+    libres.forEach((l) => {
+      const comptable = versBase(1, l.unite, 'piece') != null;
+      const arrondi = arrondirAchat(l.qty, '', comptable ? 'piece' : 'g');
+      frais.push({
+        id: null, nom: l.nom, rayon: l.rayon, staple: false, probablement_deja_en_stock: false,
+        quantite_achat: arrondi + (comptable ? (l.unite ? ' ' + l.unite : '') : ' ' + (l.unite || 'g')),
+        sousTitre: l.qty !== arrondi ? 'besoin ' + fmtNombre(l.qty) + (l.unite ? ' ' + l.unite : '') : '',
+        besoin_reel: { quantite: l.qty, unite: l.unite },
+      });
+    });
+    return { frais, placard, warnings };
+  }
+
+  function trierRayons(rayons) {
+    return [...rayons].sort((a, b) => {
+      const ia = ORDRE_RAYONS.indexOf(a), ib = ORDRE_RAYONS.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+  }
+
+  // --- RENDU TEXTE (T7) -----------------------------------------------------
+  // UNE ligne par article, assemblées par join('\n') — la concaténation
+  // manuelle perdait des sauts de ligne entre deux items.
+  function rendreTexte(liste, meta) {
+    const lignes = [];
+    lignes.push('Liste de courses — My Coach Nutrition');
+    lignes.push('Pour ' + (meta && meta.jours || '?') + ' jour(s) · ' + (meta && meta.personnes || 1) + ' personne(s)');
+    const parRayon = {};
+    liste.frais.forEach((it) => { (parRayon[it.rayon] = parRayon[it.rayon] || []).push(it); });
+    trierRayons(Object.keys(parRayon)).forEach((rayon) => {
+      lignes.push('');
+      lignes.push(rayon.toUpperCase());
+      parRayon[rayon].sort((a, b) => a.nom.localeCompare(b.nom)).forEach((it) => {
+        lignes.push('- ' + it.nom + ' — ' + it.quantite_achat + (it.sousTitre ? ' (' + it.sousTitre + ')' : ''));
+      });
+    });
+    if (liste.placard.length) {
+      lignes.push('');
+      lignes.push('PLACARD — tu l’as sûrement déjà');
+      liste.placard.sort((a, b) => a.nom.localeCompare(b.nom)).forEach((it) => {
+        lignes.push('- ' + it.nom + ' — ' + it.quantite_achat + (it.sousTitre ? ' (' + it.sousTitre + ')' : ''));
+      });
+    }
+    return lignes.join('\n') + '\n';
+  }
+
+  return { ROUNDING, arrondirAchat, versBase, agreger, construireListe, rendreTexte, trierRayons, ORDRE_RAYONS, RAYON_PLACARD, RAYON_A_VERIFIER };
+}));

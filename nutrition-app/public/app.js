@@ -1801,108 +1801,27 @@ function personnesResume() {
 function setAdultes(n) { state.adultes = Math.min(Math.max(Math.round(n), 1), 20); syncPortions(); saveLocal(); renderShopping(); }
 function setEnfants(n) { state.enfants = Math.min(Math.max(Math.round(n), 0), 20); syncPortions(); saveLocal(); renderShopping(); }
 
-// Arrondi PRATIQUE pour les courses : evite 237 g -> 240 g ; entiers pour les
-// unites comptables (piece, tranche, oeuf...).
-function arrondiCourses(q, unite) {
-  if (!(q > 0)) return 0;
-  const u = normTxt(unite || '');
-  const comptable = /piece|unite|tranche|oeuf|gousse|sachet|boite|pot|cuillere|\bcs\b|\bcc\b|pincee|feuille|branche|filet|steak|poignee|verre|portion|\bbol\b|barquette/.test(u);
-  if (comptable) return Math.max(1, Math.round(q));
-  if (q >= 100) return Math.round(q / 10) * 10;
-  if (q >= 20) return Math.round(q / 5) * 5;
-  if (q >= 10) return Math.round(q);
-  return Math.round(q * 2) / 2; // < 10 g/ml : au demi
-}
-
-// Convertit une quantité de RECETTE vers l'unité de CALCUL du canonique
-// ('g' | 'ml' | 'piece'). Les cuillères deviennent des grammes/ml (c. à soupe
-// ≈ 13, c. à café ≈ 5) : jamais de cuillère sur une liste de courses.
-// Renvoie null si les familles sont incompatibles (ex. des grammes vers une
-// unité comptable) -> la quantité reste alors affichée telle quelle, en appoint.
-function coursesVersBase(q, unite, base) {
-  const u = normTxt(unite || '');
-  if (base === 'g' || base === 'ml') {
-    if (u === 'g' || u === 'ml' || u === '') return q;   // g ≈ ml pour nos liquides
-    if (u === 'kg' || u === 'l') return q * 1000;
-    if (u === 'cl') return q * 10;
-    if (/c\.? ?a ?soupe|^cas$|^cs$/.test(u)) return q * 13;
-    if (/c\.? ?a ?cafe|^cac$|^cc$/.test(u)) return q * 5;
-    if (/pincee/.test(u)) return q; // ~1 g la pincée
-    return null;
-  }
-  if (/piece|unite|tranche|oeuf|filet|steak|boule/.test(u) || u === '') return q;
-  return null;
-}
+// Le calcul vit dans le MOTEUR PUR (public/coursesEngine.js, testé en node) :
+// agrégation par ingrédient canonique, conversion d'unités, arrondis d'achat,
+// unités d'ACHAT, split frais/placard, repli des non-référencés. Ici on ne fait
+// que le brancher sur l'état et regrouper par rayon pour l'affichage.
 
 // Les avertissements du DERNIER build : les ingrédients de recette absents du
 // référentiel (public/coursesCatalogue.js), à y ajouter au fil de l'eau.
 let shoppingWarnings = [];
+let shoppingPlacard = []; // le bloc « Placard » du dernier build (staples)
 
 function buildShoppingList() {
   syncPortions();
-  const cat = (typeof CoursesCatalogue !== 'undefined') ? CoursesCatalogue : null;
-  const canon = {};   // id canonique -> { def, base, autres: {unité: qté} }
-  const libres = {};  // non référencés : même agrégat nom|unité qu'avant
-  shoppingWarnings = [];
-  state.plan.jours.forEach((jour) => {
-    jour.repas.forEach((repas) => {
-      if (!repas.recette) return;
-      (repas.recette.ingredients || []).forEach((ing) => {
-        const q = (Number(ing.quantite) || 0) * state.portions;
-        const r = cat && cat.resoudre(ing.nom);
-        if (!r) {
-          // Repli du référentiel : rien ne casse, rien ne se duplique. On garde
-          // le rayon de la recette s'il existe (mieux que tout entasser), sinon
-          // « À vérifier » — et on journalise pour compléter le référentiel.
-          const key = `${normTxt(ing.nom).replace(/\s+/g, ' ')}|${normTxt(ing.unite)}`;
-          if (!libres[key]) {
-            libres[key] = { nom: ing.nom, unite: ing.unite, rayon: ing.rayon || RAYON_A_VERIFIER, quantite: 0, achat: '', staple: false };
-            shoppingWarnings.push('Ingrédient non référencé : ' + ing.nom + ' — rangé en « ' + libres[key].rayon + ' », à ajouter au référentiel.');
-          }
-          libres[key].quantite += q;
-          return;
-        }
-        const c = canon[r.id] || (canon[r.id] = { def: r.def, base: 0, autres: {} });
-        const conv = coursesVersBase(q, ing.unite, r.def.unite_base);
-        if (conv != null) c.base += conv;
-        else { const u = String(ing.unite || ''); c.autres[u] = (c.autres[u] || 0) + q; }
-      });
-    });
-  });
-  // Groupes interchangeables : UNE ligne « au choix » au total du groupe.
-  const groupes = {};
-  const items = [];
-  Object.values(canon).forEach((c) => {
-    const g = c.def.interchangeable_group;
-    if (g && cat && cat.GROUPES[g]) {
-      const acc = groupes[g] || (groupes[g] = { def: cat.GROUPES[g], base: 0, unite_base: c.def.unite_base, achat: c.def.purchase_unit });
-      acc.base += c.base;
-      Object.values(c.autres).forEach((x) => { acc.base += x; }); // même famille (poids)
-      return;
-    }
-    // L'appoint non convertible (ex. « 2 tranches » sur une base en g) reste
-    // lisible : il rejoint l'indication d'achat plutôt que de fausser le total.
-    // Et si TOUT est arrivé dans une autre unité (base à zéro), c'est elle qui
-    // devient la quantité principale — jamais un « 0 » sur la liste.
-    let quantite = c.base, unite = c.def.unite_base, autres = Object.entries(c.autres);
-    if (!(quantite > 0) && autres.length) { [[unite, quantite]] = autres; autres = autres.slice(1); }
-    const appoint = autres.map(([u, x]) => fmtQty(arrondiCourses(x, u)) + ' ' + u).join(' + ');
-    items.push({
-      nom: c.def.display_name,
-      rayon: c.def.is_staple ? RAYON_PLACARD : c.def.rayon,
-      quantite: arrondiCourses(quantite, unite),
-      unite: unite === 'piece' ? '' : unite,
-      achat: c.def.purchase_unit + (appoint ? ' · + ' + appoint : ''),
-      staple: !!c.def.is_staple,
-    });
-  });
-  Object.values(groupes).forEach((gr) => {
-    items.push({ nom: gr.def.display_name, rayon: gr.def.rayon, quantite: arrondiCourses(gr.base, gr.unite_base), unite: gr.unite_base === 'piece' ? '' : gr.unite_base, achat: gr.achat, staple: false });
-  });
-  Object.values(libres).forEach((item) => { item.quantite = arrondiCourses(item.quantite, item.unite); items.push(item); });
+  const res = CoursesEngine.construireListe(state.plan, state.portions);
+  shoppingWarnings = res.warnings;
+  shoppingPlacard = res.placard;
   if (shoppingWarnings.length) console.warn('[COURSES] ' + shoppingWarnings.length + ' ingrédient(s) hors référentiel :\n- ' + shoppingWarnings.join('\n- '));
   const parRayon = {};
-  items.forEach((item) => { (parRayon[item.rayon] = parRayon[item.rayon] || []).push(item); });
+  res.frais.forEach((item) => { (parRayon[item.rayon] = parRayon[item.rayon] || []).push(item); });
+  // Le placard est une PRÉSENTATION (repliée), pas un rayon : les articles y
+  // gardent leur rayon du référentiel (Épicerie…) pour les exports.
+  if (res.placard.length) parRayon[RAYON_PLACARD] = res.placard;
   return parRayon;
 }
 
@@ -1980,8 +1899,8 @@ function renderShopping() {
       const row = document.createElement('div');
       row.className = 'shop-item';
       row.innerHTML = `<input type="checkbox" id="${id}" />
-        <label for="${id}">${escapeHtml(item.nom)}${item.achat ? `<span class="shop-achat">${escapeHtml(item.achat)}</span>` : ''}</label>
-        <span class="q">${fmtQty(item.quantite)}${item.unite ? ' ' + item.unite : ''}</span>`;
+        <label for="${id}">${escapeHtml(item.nom)}${item.sousTitre ? `<span class="shop-achat">${escapeHtml(item.sousTitre)}</span>` : ''}</label>
+        <span class="q">${escapeHtml(item.quantite_achat)}</span>`;
       row.querySelector('input').addEventListener('change', (e) => row.classList.toggle('checked', e.target.checked));
       group.appendChild(row);
     });
@@ -2092,17 +2011,11 @@ function isMobileDevice() {
 }
 // Liste de courses en texte simple (partageable / imprimable partout).
 function shoppingListText() {
-  const parRayon = buildShoppingList();
-  let out = 'Liste de courses — My Coach Nutrition\n';
-  out += `Pour ${state.plan.jours.length} jour(s) · ${state.portions} personne(s)\n\n`;
-  rayonsTries(parRayon).forEach((rayon) => {
-    out += rayon.toUpperCase() + '\n';
-    parRayon[rayon].sort((a, b) => a.nom.localeCompare(b.nom)).forEach((item) => {
-      out += `- ${item.nom} — ${fmtQty(item.quantite)}${item.unite ? ' ' + item.unite : ''}${item.achat ? ' · ' + item.achat : ''}\n`;
-    });
-    out += '\n';
-  });
-  return out.trim() + '\n';
+  // Rendu par le moteur (une ligne par article, join — T7) : le même que testent
+  // les tests node, donc jamais deux articles collés sur une ligne.
+  syncPortions();
+  const liste = CoursesEngine.construireListe(state.plan, state.portions);
+  return CoursesEngine.rendreTexte(liste, { jours: state.plan.jours.length, personnes: state.portions });
 }
 function downloadTextFile(filename, text) {
   try {
@@ -2122,7 +2035,7 @@ function printShoppingList() {
   rayonsTries(parRayon).forEach((rayon) => {
     html += `<div class="rayon">${rayon}</div>`;
     parRayon[rayon].sort((a, b) => a.nom.localeCompare(b.nom)).forEach((item) => {
-      html += `<div class="shop">☐ ${escapeHtml(item.nom)} — ${fmtQty(item.quantite)}${item.unite ? ' ' + item.unite : ''}${item.achat ? ' <em>· ' + escapeHtml(item.achat) + '</em>' : ''}</div>`;
+      html += `<div class="shop">☐ ${escapeHtml(item.nom)} — ${escapeHtml(item.quantite_achat)}${item.sousTitre ? ' <em>· ' + escapeHtml(item.sousTitre) + '</em>' : ''}</div>`;
     });
   });
   printDocument('Liste de courses', html);
@@ -2171,7 +2084,7 @@ function buildShoppingPdfBlob() {
     text(rayon, ML, 13, true, [0.231, 0.510, 0.965]); y -= 19;
     parRayon[rayon].sort((a, b) => a.nom.localeCompare(b.nom)).forEach((item) => {
       ensure(17);
-      let label = item.nom + ' — ' + fmtQty(item.quantite) + (item.unite ? ' ' + item.unite : '') + (item.achat ? ' · ' + item.achat : '');
+      let label = item.nom + ' — ' + item.quantite_achat + (item.sousTitre ? ' · ' + item.sousTitre : '');
       if (label.length > 78) label = label.slice(0, 77) + '…';
       checkbox(ML + 1, y - 1, 9);
       text(label, ML + 18, 11, false, [0.12, 0.14, 0.18]);
