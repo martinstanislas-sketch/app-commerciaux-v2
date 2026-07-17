@@ -50,7 +50,7 @@ test('missions passées rattrapables, futures masquées', () => {
   assert.deepEqual(liste.map((m) => m.week), [1, 2], 'semaines 1 et 2 ouvertes, 3+ masquées');
   // Rattrapage : la mission de la semaine 1, jamais faite, se déclare encore.
   assert.equal(engine.declarerMissionBonus(email, 1, "Avis Google posté, mieux vaut tard.").ok, true);
-  assert.equal(engine.missionsBonusListe(email).find((m) => m.week === 1).statut, 'declaree');
+  assert.equal(engine.missionsBonusListe(email).find((m) => m.week === 1).statut, 'validee');
   // Une mission future ne se déclare pas.
   assert.ok(engine.declarerMissionBonus(email, 3, 'Trop tôt !').error, 'semaine 3 pas encore ouverte');
 });
@@ -66,7 +66,7 @@ test('déclaration : une seule réponse par mission, texte requis', () => {
   const { engine, email } = makeEngine();
   assert.ok(engine.declarerMissionBonus(email, 1, '   ').error, 'texte vide -> refusé');
   assert.equal(engine.declarerMissionBonus(email, 1, "J'ai laissé un avis Google.").ok, true);
-  assert.equal(engine.missionsBonusListe(email)[0].statut, 'declaree');
+  assert.equal(engine.missionsBonusListe(email)[0].statut, 'validee');
   assert.ok(engine.declarerMissionBonus(email, 1, 'Encore !').error, 'pas de second envoi');
 });
 
@@ -83,36 +83,32 @@ test('coach : la liste porte le client, la semaine, la mission, le texte, la dat
   assert.ok(rows[0].created_at);
 });
 
-test('valider crédite le Punch (une seule fois), refuser jamais', () => {
+test('pur déclaratif : la déclaration crédite le Punch tout de suite (une seule fois)', () => {
   const { engine, email } = makeEngine();
-  engine.declarerMissionBonus(email, 1, 'Fait !');
-  const id = engine.missionsBonusDeclarees()[0].id;
   const avant = engine.pathStatsRow(email).punch || 0;
-  const r = engine.deciderMissionBonus(id, 'valider', 'coach@mycoach.fr');
-  assert.equal(r.statut, 'validee');
-  assert.equal(engine.pathStatsRow(email).punch, avant + r.punch);
-  assert.ok(engine.deciderMissionBonus(id, 'valider').error, 'décision finale : pas de double crédit');
-  assert.equal(engine.pathStatsRow(email).punch, avant + r.punch);
-  assert.equal(engine.missionsBonusListe(email)[0].statut, 'validee');
+  const r = engine.declarerMissionBonus(email, 1, 'Fait !');
+  assert.equal(r.ok, true);
+  assert.ok(r.punch > 0, 'la déclaration renvoie le Punch gagné');
+  assert.equal(engine.pathStatsRow(email).punch, avant + r.punch, 'crédité immédiatement');
+  assert.equal(engine.missionsBonusListe(email)[0].statut, 'validee', 'auto-validée');
+  // Pas de second envoi : ni doublon, ni double crédit.
+  assert.ok(engine.declarerMissionBonus(email, 1, 'Encore !').error, 'déjà déclarée');
+  assert.equal(engine.pathStatsRow(email).punch, avant + r.punch, 'toujours un seul crédit');
 });
 
-test('refuser : statut refusee et zéro Punch', () => {
+test('pur déclaratif : le coach voit la déclaration mais n’a rien à trancher', () => {
   const { engine, email } = makeEngine();
   engine.declarerMissionBonus(email, 1, 'Fait !');
-  const id = engine.missionsBonusDeclarees()[0].id;
-  const avant = engine.pathStatsRow(email).punch || 0;
-  const r = engine.deciderMissionBonus(id, 'refuser', 'coach@mycoach.fr');
-  assert.equal(r.statut, 'refusee');
-  assert.equal(engine.pathStatsRow(email).punch, avant);
-  assert.equal(engine.missionsBonusListe(email)[0].statut, 'refusee');
+  const row = engine.missionsBonusDeclarees()[0];
+  assert.equal(row.statut, 'validee', 'déjà validée dès la déclaration');
+  // La route de décision devient inerte : rien à trancher sur une déclaration validée.
+  assert.ok(engine.deciderMissionBonus(row.id, 'valider').error, 'pas de re-décision');
 });
 
 test('la mission ne touche pas au parcours : l’étape active ne bouge pas', () => {
   const { engine, email } = makeEngine();
   const avant = engine.pathActiveDay(email);
   engine.declarerMissionBonus(email, 1, 'Fait !');
-  const id = engine.missionsBonusDeclarees()[0].id;
-  engine.deciderMissionBonus(id, 'valider');
   assert.equal(engine.pathActiveDay(email), avant);
 });
 

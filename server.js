@@ -759,7 +759,7 @@ try {
       if (!email) return res.status(403).json({ ok: false });
       const r = declarerMissionBonus(email, (req.body || {}).week, (req.body || {}).texte);
       if (r.error) return res.status(400).json({ ok: false, error: r.error });
-      res.json({ ok: true, state: challengePublicState(email) });
+      res.json({ ok: true, reward: { punch: r.punch, title: r.titre }, state: challengePublicState(email) });
     } catch (e) { console.error('mission bonus :', e); res.status(500).json({ ok: false }); }
   });
   // COACH : les déclarations de missions bonus (à trancher d'abord, puis l'historique).

@@ -822,10 +822,15 @@ function createChallengeEngine({ getDb }) {
     const texte = String(texteClient || '').trim().slice(0, 1000);
     if (!texte) return { error: 'Dis-nous ce que tu as fait.' };
     try {
-      const info = getDb().prepare("INSERT OR IGNORE INTO nutrition_missions_bonus (client_email, week, texte, statut, punch, created_at) VALUES (?,?,?,'declaree',?,?)")
-        .run(email, w, texte, def.punch, new Date().toISOString());
+      // Pur déclaratif : la déclaration CRÉDITE directement le Punch (statut
+      // 'validee'). Le coach voit la déclaration dans sa liste (info), mais n'a
+      // rien à trancher. addPunch reste le point de passage unique des déblocages.
+      const now = new Date().toISOString();
+      const info = getDb().prepare("INSERT OR IGNORE INTO nutrition_missions_bonus (client_email, week, texte, statut, punch, created_at, decided_at) VALUES (?,?,?,'validee',?,?,?)")
+        .run(email, w, texte, def.punch, now, now);
       if (info.changes === 0) return { error: 'Tu as déjà répondu pour cette mission.' };
-      return { ok: true };
+      const debloques = addPunch(email, def.punch, 'mission:' + w);
+      return { ok: true, punch: def.punch, titre: def.titre, debloques };
     } catch (e) { console.error('mission bonus :', e && e.message); return { error: 'Impossible d’enregistrer ta réponse.' }; }
   }
   // Côté coach : toutes les déclarations, les « à trancher » d'abord.

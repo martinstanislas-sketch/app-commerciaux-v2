@@ -5405,9 +5405,12 @@ async function envoyerMissionBonus() {
     const d = await res.json();
     if (!d || !d.ok) throw new Error((d && d.error) || 'Envoi impossible pour le moment.');
     if (d.state) state.challenge = d.state;
-    showToast('Envoyé à ton coach ✅', { icon: 'check' });
-    ouvrirMissionBonus(week);      // la fenêtre passe sur l'état « Déclarée »
-    rafraichirCheminSiVisible();   // le nœud gagne sa pastille ⏳
+    // Pur déclaratif : le Punch est crédité tout de suite -> on célèbre le gain.
+    const gagne = (d.reward && d.reward.punch) || 0;
+    if (gagne) rewardToast({ title: (d.reward && d.reward.title) || 'Mission bonus', punch: gagne, milestone: false });
+    else showToast('Mission validée ✅', { icon: 'check' });
+    ouvrirMissionBonus(week);      // la fenêtre passe sur « Mission validée · +X PUNCH »
+    rafraichirCheminSiVisible();   // le nœud gagne sa pastille ✓
   } catch (e) {
     showToast(e.message || 'Envoi impossible pour le moment.', { icon: 'info' });
     if (btn) { btn.disabled = false; btn.textContent = 'Envoyer au coach'; }
