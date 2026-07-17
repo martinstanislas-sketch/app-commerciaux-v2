@@ -8344,6 +8344,11 @@ function chEsc(s) {
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
 }
+// Date calendaire LOCALE (YYYY-MM-DD). Ne jamais utiliser toISOString() pour un
+// jour calendaire : il renvoie la date UTC et décale d'un jour.
+function chYmd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function chInitials(p, n) {
   const a = ((p || '').trim()[0] || '');
   const b = ((n || '').trim()[0] || '');
@@ -9436,7 +9441,9 @@ function renderChallengeDetail(host, c, pc, msgData) {
   suiviPanel += '</div>';
 
   // ── Actions
-  const today = new Date().toISOString().slice(0, 10);
+  // Date LOCALE : toISOString() renvoie la date UTC et décalait la séance d'un
+  // jour en soirée/nuit (minuit local = la veille en UTC).
+  const today = chYmd(new Date());
   const seanceToday = pc && (pc.seances || []).includes(today);
   // ── Conversation (fil + composeur) : le coach voit et répond directement.
   const msgs = (msgData && msgData.messages) || [];

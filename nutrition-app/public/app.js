@@ -4608,7 +4608,9 @@ function lundiDeCetteSemaine() { const d = new Date(); const j = (d.getDay() + 6
 function parcoursSeancesSemaine(p) {
   const lundi = lundiDeCetteSemaine();
   const jours = [];
-  for (let i = 0; i < 7; i++) { const d = new Date(lundi.getTime() + i * 864e5); jours.push({ ymd: d.toISOString().slice(0, 10), lbl: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'][i] }); }
+  // Jours construits en LOCAL (ymd) : toISOString() convertit en UTC et décalait
+  // chaque case d'un jour (minuit local = la veille en UTC).
+  for (let i = 0; i < 7; i++) { const d = new Date(lundi.getFullYear(), lundi.getMonth(), lundi.getDate() + i); jours.push({ ymd: ymd(d), lbl: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'][i] }); }
   const set = new Set(p.seances || []);
   jours.forEach((j) => { j.done = set.has(j.ymd); });
   return jours;
@@ -5366,7 +5368,7 @@ function appliquerAncreParcours() {
     el = vue.querySelector('#mensuForm') || wrap;
   } else if (a.cible === 'seance') {
     // La séance DU JOUR, pas la section : c'est cette case-là qu'il doit toucher.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = ymd(new Date());
     el = vue.querySelector('[data-pc-day="' + today + '"]') || vue.querySelector('.pc-week');
   }
   if (!el) return;
@@ -5684,7 +5686,7 @@ function renderParcours() {
 
   // --- Séances ---
   const pastilles = Array.from({ length: p.seancesObjTotal || 24 }, (_, i) => '<span class="pc-pastille' + (i < seancesTot ? ' on' : '') + '"></span>').join('');
-  const todayY = new Date().toISOString().slice(0, 10);
+  const todayY = ymd(new Date());
   const seancesBlock =
     '<section class="pc-sec"><h3>' + icSvg('flame') + ' Mes séances validées</h3>' +
       '<div class="pc-seances-head"><b>' + seancesSemN + ' / ' + (p.seancesObjHebdo || 4) + '</b> séances cette semaine</div>' +
@@ -5881,7 +5883,7 @@ function parcoursAction(act) {
 // Valide (ou retire) une seance pour une date donnee. Sans argument -> aujourd'hui.
 // Permet de rattraper une seance oubliee en touchant le jour concerne dans la grille.
 async function validerParcoursSeance(date) {
-  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const aujourdhui = ymd(new Date());
   const jour = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : aujourdhui;
   if (jour > aujourdhui) return; // pas de validation d'un jour a venir
   try {
@@ -7974,7 +7976,7 @@ function dailyPhrase(st) {
   return 'Journée plus irrégulière, mais tu peux reprendre demain. L\'objectif est la régularité, pas la perfection.';
 }
 function mondayThisWeek() { const now = new Date(); const d = (now.getDay() + 6) % 7; const m = new Date(now); m.setDate(now.getDate() - d); return m; }
-function dateForDay(di) { const m = mondayThisWeek(); const d = new Date(m); d.setDate(m.getDate() + di); return d.toISOString().slice(0, 10); }
+function dateForDay(di) { const m = mondayThisWeek(); return ymd(new Date(m.getFullYear(), m.getMonth(), m.getDate() + di)); }
 const CRENEAU_LABEL = { 'petit-dejeuner': 'petit-déjeuner', dejeuner: 'déjeuner', collation: 'collation', diner: 'dîner' };
 function axeAmelioration() {
   const bad = {};
