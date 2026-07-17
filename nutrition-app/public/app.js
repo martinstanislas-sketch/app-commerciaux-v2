@@ -538,7 +538,7 @@ async function fetchMeal(creneau, kcalCible, exclureId) {
 function renderNeeds() {
   const card = $('#needsCard'); if (!card || !state.plan || !state.plan.besoins) return;
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6 semaines' };
   const isChallenge = state.profil.objectif === 'challenge';
   const prenom = clientPrenom();
   // Jour X/X (discret)
@@ -557,7 +557,7 @@ function renderNeeds() {
   let items = '';
   const avanceFilled = Object.keys(state.avance || {}).length > 0;
   if (!avanceFilled) {
-    items += `<button type="button" class="pt-item" data-act="affine" aria-label="Affiner mon plan"><span class="pt-ic">${icSvg('sliders')}</span><span class="pt-cap">Affine</span></button>`;
+    items += `<button type="button" class="pt-item" data-act="affine" aria-label="Personnaliser mon plan"><span class="pt-ic">${icSvg('sliders')}</span><span class="pt-cap">Personnaliser</span></button>`;
   }
   // Ebook du jour : ouvre le guide du jour (ou la bibliothèque à défaut) ; badge +1 si un
   // ebook du jour vient d'être débloqué et n'a pas encore été lu.
@@ -1962,7 +1962,7 @@ function printDocument(title, innerHTML) {
 // Version imprimable du plan (repli ordinateur si la génération PDF échoue).
 function printPlanPdf() {
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6 semaines' };
   let html = `<h1>Mon plan de repas — My Coach Nutrition</h1>
     <p class="sub">Objectif : ${objLabels[state.profil.objectif] || ''} · ~${b.kcalCible} kcal/jour · ${state.portions} personne(s) · Estimations à titre indicatif.</p>`;
   state.plan.jours.forEach((jour) => {
@@ -2156,7 +2156,7 @@ function buildPlanPdfBlob() {
     _wrapText(str, WRAP).forEach((ln, i) => { ensure(size + 3); text(i && hang ? hang + ln : ln, x, size, bold, rgb); y -= size + 3; });
   };
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6 semaines' };
   text('Mon plan de repas — My Coach Nutrition', ML, 19, true, [0.09, 0.11, 0.13]); y -= 24;
   const sub = 'Objectif : ' + (objLabels[state.profil.objectif] || '—') + (state.masquerCalories ? '' : ' · ~' + (b.kcalCible || '') + ' kcal/jour') + ' · ' + state.portions + ' personne(s) · Estimations indicatives';
   text(sub, ML, 10, false, [0.42, 0.45, 0.5]); y -= 24;
@@ -2296,7 +2296,7 @@ function closeFiche() { $('#fichePanel').classList.add('hidden'); }
 
 function renderFiche() {
   const p = state.profil, pr = state.preferences, b = state.plan ? state.plan.besoins : null;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6 semaines' };
   const comps = (p.complements || []).filter((c) => c !== 'aucun' && c !== 'non').map((c) => COMPLEMENT_LABELS[c] || c);
   const compStr = comps.length ? comps.filter((c) => c !== 'Autre').join(', ') + (p.complementsDetail ? ' — ' + p.complementsDetail : '') : 'Aucun';
   const hab = pr.habitudes || {};
@@ -3368,7 +3368,7 @@ async function submitHelp() {
 
 // ---------- SOS coach : bouton flottant + feuille (reutilise /api/help-request) ----------
 // ---------- Coach IA conversationnel ----------
-const OBJ_LABELS = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6/6' };
+const OBJ_LABELS = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6 semaines' };
 const ACT_LABELS = { sedentaire: 'sédentaire', leger: 'léger', modere: 'modéré', actif: 'actif', tres_actif: 'très actif' };
 // Suggestions par défaut (alignées sur les réponses préenregistrées) ; remplacées
 // au chargement par les questions réelles renvoyées par le serveur (/coach-faq/suggest).
@@ -3409,7 +3409,7 @@ function coachContext() {
   if (nom && nom !== 'Client') L.push('Prénom : ' + nom.split(' ')[0]);
   L.push('Objectif : ' + (OBJ_LABELS[p.objectif] || p.objectif || '—'));
   if (p.objectif === 'challenge') {
-    const ch = ['Inscrit au Challenge 6/6 (perte accélérée sur 6 semaines)'];
+    const ch = ['Inscrit au Challenge 6 semaines (perte accélérée)'];
     if (p.deficit_cible) ch.push('déficit visé ~' + p.deficit_cible + ' kcal/jour');
     const aj = Math.round(Number(p.ajustementKcal) || 0);
     if (aj) ch.push('ajustement auto en cours : ' + (aj > 0 ? '+' : '') + aj + ' kcal');
@@ -4674,7 +4674,7 @@ function renderParcoursTab() {
 function parcoursSegmentHTML() {
   const seg = (id, label, on) => `<button type="button" class="mcpath-seg${on ? ' on' : ''}" data-pseg="${id}">${label}</button>`;
   const sub = state.parcoursSub === 'mesures' ? 'mesures' : 'chemin';
-  return `<div class="mcpath-segwrap">${seg('chemin', '🚀 Chemin', sub === 'chemin')}${seg('mesures', '📏 Mes mesures', sub === 'mesures')}</div>`;
+  return `<div class="mcpath-segwrap">${seg('chemin', '🚀 Parcours', sub === 'chemin')}${seg('mesures', '📏 Progression', sub === 'mesures')}</div>`;
 }
 function wireParcoursSegment() {
   $$('#view-parcours .mcpath-seg').forEach((b) => b.addEventListener('click', () => {
@@ -4691,7 +4691,7 @@ async function renderChallenge() {
   const view = $('#view-parcours'); if (!view) return;
   const hadSnapshot = !!state._challengeLoaded;
   const prevDone = new Set(((state.challenge && state.challenge.nodes) || []).filter((n) => n.status === 'done').map((n) => n.day));
-  view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-loading">Chargement du chemin…</div>';
+  view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-loading">Chargement du parcours…</div>';
   wireParcoursSegment();
   let st = null;
   try {
@@ -4700,16 +4700,16 @@ async function renderChallenge() {
     if (d && d.ok) st = d.state;
   } catch (_) { /* réseau : on montre un état vide */ }
   state.challenge = st;
-  if (!st) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">Chemin indisponible pour le moment.</div>'; wireParcoursSegment(); return; }
-  if (!st.enabled) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">🔒 Le Chemin du challenge arrive bientôt pour ton groupe.</div>'; wireParcoursSegment(); return; }
+  if (!st) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">Parcours indisponible pour le moment.</div>'; wireParcoursSegment(); return; }
+  if (!st.enabled) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">🔒 Le Parcours du challenge arrive bientôt pour ton groupe.</div>'; wireParcoursSegment(); return; }
   if (!st.started) {
     // Cohorte datée : on annonce le jour J plutôt qu'un vague « à ta 1re pesée ».
-    let msg = '✨ Ton chemin démarrera à ta première pesée officielle.';
+    let msg = '✨ Ton parcours démarrera à ta première pesée officielle.';
     if (st.startsOn) {
       const d = new Date(st.startsOn + 'T12:00:00Z');
       if (!isNaN(d.getTime())) {
         msg = '🗓️ Ton challenge démarre le <b>' + mcpEsc(d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))
-          + '</b>.<br>Ton chemin s\'ouvrira ce jour-là — prépare-toi !';
+          + '</b>.<br>Ton parcours s\'ouvrira ce jour-là — prépare-toi !';
       }
     }
     view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">' + msg + '</div>';
@@ -4857,7 +4857,7 @@ function challengeHeaderHTML(st) {
         <span class="asc-tile-l">Série actuelle</span></button>
       <button type="button" class="asc-tile mcpath-stat" data-stat="punch" aria-label="Ton Punch : en savoir plus">
         <span class="asc-tile-v">👊 ${s.punch || 0}</span>
-        <span class="asc-tile-l">Punch accumulés</span></button>
+        <span class="asc-tile-l">PUNCH cumulés</span></button>
       ${ascJalonTileHTML(ascProchainJalon(st))}
     </div>
   </header>`;
@@ -4867,11 +4867,11 @@ function challengeHeaderHTML(st) {
 function ascJalonTileHTML(j) {
   if (!j) return `<div class="asc-tile asc-tile-flat">
       <span class="asc-tile-v">${icSvg('trophy')} Tout est franchi</span>
-      <span class="asc-tile-l">Plus aucun jalon devant toi</span></div>`;
+      <span class="asc-tile-l">Plus aucune étape clé devant toi</span></div>`;
   const quand = j.reste > 0 ? 'Dans ' + j.reste + ' étape' + (j.reste > 1 ? 's' : '') : 'C\'est maintenant';
   return `<button type="button" class="asc-tile asc-tile-go" data-goto="${j.node.day}"
-      aria-label="Prochain jalon : ${mcpEsc(j.node.title)}, ${quand.toLowerCase()} — aller le voir sur le chemin">
-    <span class="asc-tile-v">${icSvg('target')} Prochain jalon</span>
+      aria-label="Prochaine étape clé : ${mcpEsc(j.node.title)}, ${quand.toLowerCase()} — aller la voir sur le parcours">
+    <span class="asc-tile-v">${icSvg('target')} Prochaine étape clé</span>
     <span class="asc-tile-l"><b>${mcpEsc(j.node.title)}</b><br>${quand}</span>
     <span class="asc-tile-ch" aria-hidden="true">${icSvg('arrow-right')}</span></button>`;
 }
@@ -5042,7 +5042,7 @@ function ascNodeHTML(n, pt, recs, ctx) {
   if (n.type === 'final') cls.push('asc-fin');
   // Le libellé porte déjà l'état en toutes lettres pour les lecteurs d'écran :
   // la couleur n'est jamais le seul indice.
-  const aria = mcpEsc(n.title) + (n.milestone ? ' — Jalon' : '') + ' — ' + ASC_ETAT_MOT[n.status]
+  const aria = mcpEsc(n.title) + (n.milestone ? ' — Étape clé' : '') + ' — ' + ASC_ETAT_MOT[n.status]
     + (n.status === 'locked' ? '' : ' — ' + n.punch + ' Punch');
   // Seule l'étape active est cliquable ; les autres ne mentent pas sur leur état.
   const attr = n.status === 'active' ? ` data-node="${n.day}"` : ' disabled';
@@ -5091,7 +5091,7 @@ function ascActiveCardHTML(n) {
 }
 function ascJalonCardHTML(n) {
   return `<div class="asc-card asc-card-jalon">
-    <p class="asc-card-k">${icSvg('trophy')} Jalon</p>
+    <p class="asc-card-k">${icSvg('trophy')} Étape clé</p>
     <h3 class="asc-card-t">${mcpEsc(n.title)}</h3>
     <p class="asc-card-s">${mcpEsc(n.action || '')}</p>
     <span class="asc-card-p">+${n.punch} Punch</span>
@@ -5105,7 +5105,7 @@ function ascFinalCardHTML(n, ctx) {
   return `<div class="asc-card asc-card-fin">
     <span class="asc-card-glow" aria-hidden="true"></span>
     <p class="asc-card-k">${icSvg('star')} Objectif final</p>
-    <h3 class="asc-card-t">Transformation accomplie</h3>
+    <h3 class="asc-card-t">Objectif atteint !</h3>
     <p class="asc-card-s">${ctx.semaines} semaines · ${ctx.total} étapes</p>
     <span class="asc-card-p">Récompense finale +${n.punch} Punch</span>
     ${cta}
@@ -5232,7 +5232,7 @@ function statInfoTexte(key, s) {
     case 'punch': return {
       emoji: '👊', titre: 'Ton Punch',
       valeur: (s.punch || 0) + ' Punch',
-      texte: 'Tu en gagnes en validant les étapes de ton chemin : une séance, un guide, un message à ton coach…<br><br>'
+      texte: 'Tu en gagnes en validant les étapes de ton parcours : une séance, un guide, un message à ton coach…<br><br>'
         + 'Chaque étape a sa valeur, et les <b>grandes étapes ★</b> rapportent davantage. '
         + 'Le Punch récompense <b>ce que tu fais</b> — jamais ton poids.',
     };
@@ -5303,9 +5303,9 @@ function challengeActionLabel(n) {
   const map = {
     commencer: ['Commencer', 'Photos, mensurations et présentation au groupe.'],
     check: ['Faire le point', 'Photos et mensurations.'],
-    mensurations: ['Saisir mes mensurations', 'Renseigne tes mensurations dans « Mes mesures ».'],
-    photo: ['Ajouter ma photo', 'Dépose ta photo d\'évolution dans « Mes mesures ».'],
-    seance: ['Valider une séance', 'Coche ta séance dans « Mes mesures ».'],
+    mensurations: ['Saisir mes mensurations', 'Renseigne tes mensurations dans « Progression ».'],
+    photo: ['Ajouter ma photo', 'Dépose ta photo d\'évolution dans « Progression ».'],
+    seance: ['Valider une séance', 'Coche ta séance dans « Progression ».'],
     groupe: ['Aller au groupe', 'Publie ton message sur le mur de ton groupe.'],
     coach: ['Écrire à mon coach', 'Envoie un message à ton coach.'],
     ebook: ['Ouvrir mon guide', 'Ouvre le guide du jour (2 minutes suffisent).'],
@@ -5574,7 +5574,7 @@ async function challengeDeclareAventure(n) {
 
 function rewardToast(r) {
   if (!r) return;
-  showToast((r.milestone ? '⭐ Jalon validé ! ' : '✅ ') + r.title + ' — +' + (r.punch || 0) + ' Punch', { icon: 'check' });
+  showToast((r.milestone ? '⭐ Étape clé validée ! ' : '✅ ') + r.title + ' — +' + (r.punch || 0) + ' Punch', { icon: 'check' });
 }
 
 function renderParcours() {
@@ -5640,7 +5640,7 @@ function renderParcours() {
 
   // --- Timeline ---
   const timeline =
-    '<section class="pc-sec"><h3>' + icSvg('calendar-check') + ' Mes jalons</h3><div class="pc-timeline">' +
+    '<section class="pc-sec"><h3>' + icSvg('calendar-check') + ' Mes étapes clés</h3><div class="pc-timeline">' +
       PARCOURS_JALONS_INFO.map((jal) => {
         const st = jalonStatut(p, jal.key); const si = STATUT_INFO[st];
         const pes = p.pesees[jal.key];
@@ -6724,7 +6724,7 @@ function renderCheminAdmin(d) {
     '<button type="button" class="cia-opt' + ((on ? 'on' : 'off') === mode ? ' sel' : '') + '" data-flag="' + mode + '">' +
       '<div class="cia-opt-t">' + titre + '</div><div class="cia-opt-s">' + sous + '</div></button>';
   body.innerHTML =
-    '<div class="cia-status">État du Chemin : ' + (on ? '<span class="cia-pill on">● Actif</span>' : '<span class="cia-pill off">● Inactif</span>') + '</div>' +
+    '<div class="cia-status">État du Parcours : ' + (on ? '<span class="cia-pill on">● Actif</span>' : '<span class="cia-pill off">● Inactif</span>') + '</div>' +
     // Le client doit savoir ce qu'il déclenche : le drapeau est GLOBAL, pas par
     // cohorte, malgré ce que laisse croire le nom « activation par cohorte ».
     // ⚠️ Le texte tient dans UN seul <span> : `.cia-warn` est un conteneur flex, donc
@@ -6733,7 +6733,7 @@ function renderCheminAdmin(d) {
     '<div class="cia-warn"><svg class="ic"><use href="#ic-eye"/></svg>' +
       '<span>Ce réglage vaut pour <b>tous</b> tes clients nutrition à la fois. Chacun ne verra son chemin démarrer qu\'à sa <b>première pesée officielle</b> : avant, il lit « ton chemin démarrera à ta première pesée ».</span></div>' +
     '<div class="cia-opts">' +
-      opt('on', 'Activé', 'L\'onglet « Chemin » apparaît : étapes, série 🔥, Punch 👊 et cadeaux.') +
+      opt('on', 'Activé', 'L\'onglet « Parcours » apparaît : étapes, série 🔥, Punch 👊 et cadeaux.') +
       opt('off', 'Désactivé', 'L\'onglet disparaît. Rien n\'est perdu : les Punch et les étapes déjà validés sont conservés.') +
     '</div>' +
     '<div id="cheminMsg" class="cia-msg"></div>';
@@ -6749,7 +6749,7 @@ async function saveCheminFlag(mode) {
     if (!d.ok) throw new Error(d.error || '');
     renderCheminAdmin(d);
     updateCheminBadge(d);
-    showToast(d.enabled ? 'Chemin activé pour tes clients.' : 'Chemin désactivé.', { icon: d.enabled ? 'check' : 'info' });
+    showToast(d.enabled ? 'Parcours activé pour tes clients.' : 'Parcours désactivé.', { icon: d.enabled ? 'check' : 'info' });
   } catch (e) {
     const m = $('#cheminMsg'); if (m) m.textContent = 'Échec : ' + (e.message || 'réessaie.');
   }

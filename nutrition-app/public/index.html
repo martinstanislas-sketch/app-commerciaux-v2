@@ -40,7 +40,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=134" />
+  <link rel="stylesheet" href="style.css?v=135" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=102" />
   <script>
@@ -514,7 +514,7 @@
             <button type="button" class="choice" data-value="maintien"><span class="choice-ic"><svg class="ic"><use href="#ic-scale"/></svg></span><span class="choice-txt">Maintenir mon poids</span></button>
             <button type="button" class="choice" data-value="muscle"><span class="choice-ic"><svg class="ic"><use href="#ic-muscle"/></svg></span><span class="choice-txt">Prendre du muscle</span></button>
             <button type="button" class="choice" data-value="energie"><span class="choice-ic"><svg class="ic"><use href="#ic-bolt"/></svg></span><span class="choice-txt">Avoir plus d'énergie</span></button>
-            <button type="button" class="choice choice-feature" data-value="challenge"><span class="choice-ic"><svg class="ic"><use href="#ic-flame"/></svg></span><span class="choice-body"><span class="choice-txt">Challenge 6/6</span><span class="choice-sub">Programme intensif — perte accélérée</span></span></button>
+            <button type="button" class="choice choice-feature" data-value="challenge"><span class="choice-ic"><svg class="ic"><use href="#ic-flame"/></svg></span><span class="choice-body"><span class="choice-txt">Challenge 6 semaines</span><span class="choice-sub">Programme intensif — perte accélérée</span></span></button>
           </div>
         </div>
 
@@ -803,11 +803,11 @@
         <button class="action-card action-card-admin hidden" id="btnScanAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-barcode"/></svg></span>Scans clients<span id="scanAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card" id="btnShopping"><span class="action-ic"><svg class="ic"><use href="#ic-cart"/></svg></span>Liste de courses</button>
         <button class="action-card" id="btnNewPlan"><span class="action-ic"><svg class="ic"><use href="#ic-refresh"/></svg></span>Nouveau plan</button>
-        <button class="action-card action-card-accent" id="btnAvance"><span class="action-ic"><svg class="ic"><use href="#ic-sliders"/></svg></span>Affiner mon plan</button>
+        <button class="action-card action-card-accent" id="btnAvance"><span class="action-ic"><svg class="ic"><use href="#ic-sliders"/></svg></span>Personnaliser mon plan</button>
         <button class="action-card" id="btnComplements"><span class="action-ic"><svg class="ic"><use href="#ic-pill"/></svg></span>Compléments</button>
         <button class="action-card" id="btnExportPlan"><span class="action-ic"><svg class="ic"><use href="#ic-file"/></svg></span>Plan PDF</button>
         <button class="action-card" id="btnFavoris"><span class="action-ic"><svg class="ic"><use href="#ic-heart"/></svg></span>Favoris</button>
-        <button class="action-card" id="btnFiche"><span class="action-ic"><svg class="ic"><use href="#ic-user"/></svg></span>Ma fiche</button>
+        <button class="action-card" id="btnFiche"><span class="action-ic"><svg class="ic"><use href="#ic-user"/></svg></span>Mes informations</button>
         <button class="action-card" id="btnSuivi"><span class="action-ic"><svg class="ic"><use href="#ic-check-circle"/></svg></span>Mon suivi</button>
         <button class="action-card" id="btnAnalyse"><span class="action-ic"><svg class="ic"><use href="#ic-chart"/></svg></span>Analyse</button>
         <button class="action-card" id="btnAgenda"><span class="action-ic"><svg class="ic"><use href="#ic-calendar"/></svg></span>Agenda</button>
@@ -828,7 +828,7 @@
       <!-- Zone secondaire du plan : agenda / ajuster / regenerer -->
       <div class="plan-tools">
         <button type="button" class="plan-tool" data-go="btnAgenda"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter à mon agenda</button>
-        <button type="button" class="plan-tool" data-go="btnAvance"><svg class="ic"><use href="#ic-sliders"/></svg> Affiner mon plan</button>
+        <button type="button" class="plan-tool" data-go="btnAvance"><svg class="ic"><use href="#ic-sliders"/></svg> Personnaliser mon plan</button>
         <button type="button" class="plan-tool-link" data-go="btnNewPlan"><svg class="ic"><use href="#ic-refresh"/></svg> Nouveau plan</button>
       </div>
       </div><!-- /#view-plan -->
@@ -853,7 +853,7 @@
           <input type="file" id="pavFile" accept="image/*" style="display:none">
         </div>
         <button type="button" class="profil-row" id="btnContactCoach"><svg class="ic pr-blue"><use href="#ic-send"/></svg>Contacter mon coach<span class="pr-badge conv-unread" id="contactCoachBadge" style="display:none"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row" data-go="btnFiche"><svg class="ic pr-muted"><use href="#ic-user"/></svg>Ma fiche<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row" data-go="btnFiche"><svg class="ic pr-muted"><use href="#ic-user"/></svg>Mes informations<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnEditProfile"><svg class="ic pr-muted"><use href="#ic-edit"/></svg>Modifier mon profil<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnFavoris"><svg class="ic pr-muted"><use href="#ic-heart"/></svg>Favoris<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnComplements"><svg class="ic pr-muted"><use href="#ic-pill"/></svg>Compléments<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -874,7 +874,7 @@
         <button type="button" class="profil-row profil-admin hidden" data-go="btnPlateAdmin"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Analyses d'assiettes<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnDemoAdmin"><svg class="ic pr-lime"><use href="#ic-eye"/></svg>Mode démo client<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnCoachIaAdmin"><svg class="ic pr-lime"><use href="#ic-spark"/></svg>Coach IA<span class="pr-badge" id="coachIaStateBadge"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row profil-admin hidden" id="btnCheminAdmin"><svg class="ic pr-lime"><use href="#ic-flame"/></svg>Chemin du challenge<span class="pr-badge" id="cheminStateBadge"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" id="btnCheminAdmin"><svg class="ic pr-lime"><use href="#ic-flame"/></svg>Parcours du challenge<span class="pr-badge" id="cheminStateBadge"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnCoachFaq"><svg class="ic pr-lime"><use href="#ic-file"/></svg>Réponses du coach (gratuit)<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnQuickOptions"><svg class="ic pr-lime"><use href="#ic-cart"/></svg>Options rapides boutique<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnEbooksAdmin"><svg class="ic pr-lime"><use href="#ic-book"/></svg>Guides PDF<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -923,10 +923,10 @@
       <!-- Barre de navigation basse (mobile) / latérale (desktop) -->
       <nav id="bottom-nav" class="bottom-nav" aria-label="Navigation principale">
         <!-- Barre mobile : 5 onglets max (norme). Compléments + Ebooks sont rangés dans le Profil. -->
-        <button type="button" class="nav-i on" data-tab="plan"><svg class="ic"><use href="#ic-calendar"/></svg><span>Plan</span></button>
+        <button type="button" class="nav-i on" data-tab="plan"><svg class="ic"><use href="#ic-calendar"/></svg><span>Repas</span></button>
         <button type="button" class="nav-i" data-tab="courses"><svg class="ic"><use href="#ic-cart"/></svg><span>Courses</span></button>
-        <button type="button" class="nav-i hidden" id="navParcours" data-tab="parcours"><svg class="ic"><use href="#ic-flame"/></svg><span>Chemin</span></button>
-        <button type="button" class="nav-i hidden" id="navCommunaute" data-tab="communaute"><svg class="ic"><use href="#ic-users"/></svg><span>Communauté</span></button>
+        <button type="button" class="nav-i hidden" id="navParcours" data-tab="parcours"><svg class="ic"><use href="#ic-flame"/></svg><span>Parcours</span></button>
+        <button type="button" class="nav-i hidden" id="navCommunaute" data-tab="communaute"><svg class="ic"><use href="#ic-users"/></svg><span>Groupe</span></button>
         <button type="button" class="nav-i" data-tab="profil"><svg class="ic"><use href="#ic-user"/></svg><span>Profil</span><span class="nav-dot" id="navProfilDot" style="display:none"></span></button>
         <button type="button" class="nav-i nav-logout hidden" id="navLogout"><svg class="ic"><use href="#ic-logout"/></svg><span>Se déconnecter</span></button>
       </nav>
@@ -1055,7 +1055,7 @@
   <div id="fichePanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-user"/></svg> Ma fiche</h2>
+        <h2><svg class="ic"><use href="#ic-user"/></svg> Mes informations</h2>
         <button class="modal-close" id="ficheClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
       <p class="panel-sub">Récapitulatif de ton profil, tes compléments et tes habitudes.</p>
@@ -1197,10 +1197,10 @@
   <div id="cheminPanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-flame"/></svg> Chemin du challenge</h2>
+        <h2><svg class="ic"><use href="#ic-flame"/></svg> Parcours du challenge</h2>
         <button class="modal-close" id="cheminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">L'onglet « Chemin » : le parcours gamifié de 42 jours, ses étapes, sa série et ses Punch.</p>
+      <p class="panel-sub">L'onglet « Parcours » : le parcours gamifié de 42 jours, ses étapes, sa série et ses Punch.</p>
       <div id="cheminBody"></div>
     </div>
   </div>
@@ -1436,7 +1436,7 @@
   <div id="avancePanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-sliders"/></svg> Affiner mon plan</h2>
+        <h2><svg class="ic"><use href="#ic-sliders"/></svg> Personnaliser mon plan</h2>
         <button class="modal-close" id="avanceClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
       <p class="panel-sub">Plus tu es précis, plus le plan colle à ton quotidien. Tout est optionnel — réponds seulement à ce qui te parle.</p>
@@ -1543,6 +1543,6 @@
 
   <script src="vendor/zxing.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
-  <script src="app.js?v=157"></script>
+  <script src="app.js?v=158"></script>
 </body>
 </html>

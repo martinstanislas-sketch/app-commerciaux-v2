@@ -1543,7 +1543,7 @@ try {
       const pctObjectif = Math.min(100, Math.round((repasValides / objectifRepas) * 100));
 
       let phrase;
-      if (repasValides === 0) phrase = 'C’est parti pour la semaine — validez vos repas pour faire avancer le groupe ensemble !';
+      if (repasValides === 0) phrase = 'C’est parti pour la semaine — valide tes repas pour faire avancer le groupe ensemble !';
       else if (restant === 0) phrase = 'Objectif de la semaine atteint, bravo le groupe ! 🎉';
       else phrase = `Le groupe avance bien, encore ${restant} repas à valider pour l’objectif de la semaine.`;
 
@@ -1562,7 +1562,7 @@ try {
 
       res.json({
         ok: true,
-        groupe: 'Groupe Challenge 6/6',
+        groupe: 'Groupe Challenge 6 semaines',
         members,
         stats: { repasValides, repasTotal, pctValides, journeesValidees, actifsAujourdhui },
         objectif: { cible: objectifRepas, restant, pct: pctObjectif },
