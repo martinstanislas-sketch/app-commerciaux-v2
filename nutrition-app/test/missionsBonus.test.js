@@ -115,3 +115,25 @@ test('la mission ne touche pas au parcours : l’étape active ne bouge pas', ()
   engine.deciderMissionBonus(id, 'valider');
   assert.equal(engine.pathActiveDay(email), avant);
 });
+
+// --- Position des récompenses sur le sentier --------------------------------
+// `ordre` doit poser chaque récompense sur l'étape où son seuil tombe dans un
+// déroulé PARFAIT (toutes les étapes validées + jour gagné chaque jour).
+test('récompenses : posées à l’étape où le seuil tombe si tout est validé', () => {
+  const { engine, email } = makeEngine();
+  const { CHALLENGE_PATH_NODES, punchPalier } = require('../lib/challengePath');
+  let c = 0;
+  const cumul = CHALLENGE_PATH_NODES.map((n, i) => { c += n.punch + punchPalier(i + 1); return c; });
+  const dernier = CHALLENGE_PATH_NODES.length - 1;
+  const recs = engine.challengePublicState(email).recompenses;
+  assert.ok(recs.length > 0);
+  for (const r of recs) {
+    const k = Math.round(r.ordre * dernier);
+    assert.equal(r.ordre, k / dernier, 'ordre = un index d’étape exact');
+    assert.ok(cumul[k] >= r.seuil, `seuil ${r.seuil} atteint à l'étape ${k}`);
+    if (k > 0) assert.ok(cumul[k - 1] < r.seuil, `seuil ${r.seuil} pas encore atteint à l'étape ${k - 1}`);
+  }
+  // Monotone : les tris par `ordre` (guides, boutique) restent valides.
+  const ordres = recs.map((r) => r.ordre);
+  assert.deepEqual(ordres, [...ordres].sort((a, b) => a - b));
+});

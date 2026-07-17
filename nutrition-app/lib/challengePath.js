@@ -842,6 +842,22 @@ function createChallengeEngine({ getDb }) {
   // ⚠️ `locked` se lit sur le TOTAL de Punch, jamais sur user_unlocks : cette table
   // ne dit que ce qui a été CÉLÉBRÉ. Un compte migré depuis XP+gems y est vide alors
   // qu'il a tout mérité — il verrait ses récompenses grisées.
+  //
+  // `ordre` : la POSITION de la récompense le long du sentier. On la cale sur le
+  // cumul d'un parcours PARFAIT (chaque étape validée le bon jour + le jour gagné
+  // chaque jour, donc chaque palier de série au passage) — la courbe même sur
+  // laquelle les seuils ont été dessinés : elle finit exactement à
+  // PUNCH_MAX_THEORIQUE. Le marqueur tombe ainsi À CÔTÉ de l'étape où le seuil
+  // serait franchi si tout est validé. « À peu près » assumé : le Punch réel
+  // dépend de la série effective — d'où le seuil écrit en toutes lettres dessus.
+  const CUMUL_PUNCH_PARFAIT = (() => {
+    let cumul = 0;
+    return CHALLENGE_PATH_NODES.map((n, i) => { cumul += n.punch + punchPalier(i + 1); return cumul; });
+  })();
+  function ordreDeblocage(seuil) {
+    const k = CUMUL_PUNCH_PARFAIT.findIndex((c) => c >= seuil);
+    return (k < 0 ? CUMUL_PUNCH_PARFAIT.length - 1 : k) / (CUMUL_PUNCH_PARFAIT.length - 1);
+  }
   function recompensesPubliques(punch) {
     return punchSeuils.tousLesSeuils().map((s) => ({
       seuil: s.seuil,
@@ -850,10 +866,11 @@ function createChallengeEngine({ getDb }) {
       label: libelleRecompense(s),
       locked: punch < s.seuil,
       restant: Math.max(0, s.seuil - punch),
-      // Part du parcours franchie quand le seuil tombe : c'est ce qui permet de
-      // rattacher la récompense à une étape, alors que l'une compte en Punch et
-      // l'autre en jours. Même échelle que l'ordre des guides.
-      ordre: s.seuil / punchSeuils.PUNCH_MAX_THEORIQUE,
+      // Part du parcours franchie quand le seuil tombe dans un déroulé parfait
+      // (cf. CUMUL_PUNCH_PARFAIT) : rattache la récompense à l'étape où elle se
+      // débloquerait, alors que l'une compte en Punch et l'autre en jours.
+      // Reste MONOTONE en seuil -> les tris par `ordre` (guides…) sont préservés.
+      ordre: ordreDeblocage(s.seuil),
     }));
   }
   // Le nom d'une récompense, dit à un seul endroit.
