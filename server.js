@@ -647,7 +647,7 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 // Chemin du challenge : moteur gamifié 42 jours (module dédié, testable).
 const {
   ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds,
-  assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier,
+  assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier, punchProgression,
   declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
 // Bilan hebdo : seuils + rédaction par modèles (pur, testable). L'IA est chargée
@@ -942,13 +942,12 @@ try {
       // Les VIDÉOS ne se débloquent pas au jour du challenge mais au PUNCH cumulé :
       // rien n'est offert au départ. Les ebooks PDF gardent leur déblocage par
       // progression, inchangé.
-      // ⚠️ On lit le TOTAL, pas la table des déblocages : celle-ci n'est écrite qu'au
-      // moment d'un gain (evaluateUnlocks), donc un compte qui a déjà du Punch — les
-      // comptes migrés depuis XP+gems, par exemple — ne verrait rien jusqu'à son
-      // prochain gain. Le total est la vérité ; user_unlocks ne sert qu'à savoir ce
-      // qui a DÉJÀ été célébré.
+      // ⚠️ On lit la PROGRESSION (Punch réel OU étapes validées, cf.
+      // punchProgression), pas la table des déblocages : celle-ci n'est écrite
+      // qu'au moment d'un gain (evaluateUnlocks). La progression est la vérité ;
+      // user_unlocks ne sert qu'à savoir ce qui a DÉJÀ été célébré.
       let punch = 0;
-      try { punch = (getDb().prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email) || {}).punch || 0; } catch (_) { /* ignore */ }
+      try { punch = punchProgression(email); } catch (_) { /* ignore */ }
       const seuilDuLot = (lot) => punchSeuils.VIDEO_LOTS[Math.max(0, Number(lot) - 1)];
       const ebooks = rows.map((r) => {
         const estVideo = r.type === 'video';
@@ -999,7 +998,7 @@ try {
       if (!eb) return res.status(404).json({ ok: false });
       // La MÊME règle que la liste (canaux offert / Chemin / Punch) : un guide
       // débloqué au Punch se lit immédiatement, peu importe le jour du challenge.
-      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(email), punch: punchDuClient(email) })) return res.status(403).json({ ok: false, locked: true });
+      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(email), punch: punchProgression(email) })) return res.status(403).json({ ok: false, locked: true });
       // Marque le guide comme lu -> le badge « Nouveau » disparaît ensuite.
       try { getDb().prepare('INSERT OR IGNORE INTO nutrition_ebook_reads (client_email, ebook_id, opened_at) VALUES (?,?,?)').run(email, id, new Date().toISOString()); } catch (_) { /* ignore */ }
       recordEbookOpen(email, id);            // log quotidien + streak (Chemin du challenge)
@@ -1089,13 +1088,14 @@ try {
       const email = (req.session && req.session.email) || '';
       if (!email) return res.status(403).json({ ok: false });
       assurerCadeaux(email);
-      const punch = punchDuClient(email);
+      const punch = punchDuClient(email);          // AFFICHÉ : le Punch réellement gagné
+      const punchDeb = punchProgression(email);    // DÉVERROUILLE : réel OU étapes validées
       const bons = bonsDe(email);
       const cadeauxListe = cadeaux.catalogue().map((c) => {
-        const locked = punch < c.seuil;
+        const locked = punchDeb < c.seuil;
         return {
           id: c.id, label: c.label, desc: c.desc, icon: c.icon, nature: c.nature, seuil: c.seuil,
-          locked, restant: locked ? c.seuil - punch : 0,
+          locked, restant: locked ? c.seuil - punchDeb : 0,
           // Le bon n'est jamais exposé tant que le cadeau est verrouillé : un code qui
           // fuite avant l'heure, c'est un cadeau retiré sans avoir été mérité.
           bon: (!locked && bons[c.id]) ? bons[c.id] : null,
@@ -1103,7 +1103,7 @@ try {
       });
       const prochain = cadeauxListe.find((c) => c.locked) || null;
       res.json({
-        ok: true, punch, tier: cadeaux.themeTier(punch),
+        ok: true, punch, tier: cadeaux.themeTier(punchDeb),
         cadeaux: cadeauxListe,
         prochain: prochain ? { label: prochain.label, restant: prochain.restant, seuil: prochain.seuil } : null,
       });

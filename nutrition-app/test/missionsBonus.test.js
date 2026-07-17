@@ -149,3 +149,32 @@ test('mission « avis » : le lien Google suit la ville du challenge', () => {
   db.prepare("UPDATE nutrition_client_meta SET ville='Neuilly-sur-Seine' WHERE client_email=?").run(email);
   assert.equal(engine.missionsBonusListe(email)[0].lien, '');
 });
+
+// --- Corrélation étapes validées <-> récompenses ----------------------------
+// Le sentier promet une récompense « à cette étape » : celui qui valide tout le
+// travail jusque-là doit la recevoir, même avec une série 🔥 imparfaite (donc
+// moins de Punch réel que la courbe parfaite).
+test('étapes validées => récompense débloquée, même sans le Punch réel', () => {
+  const { db, engine, email } = makeEngine();
+  const { CHALLENGE_PATH_NODES, punchPalier } = require('../lib/challengePath');
+  let c = 0;
+  const cumul = CHALLENGE_PATH_NODES.map((n, i) => { c += n.punch + punchPalier(i + 1); return c; });
+  // Étape où le seuil 250 (vidéos) est posé sur le sentier.
+  const k250 = cumul.findIndex((x) => x >= 250);
+  // Le client valide les étapes 0..k250 SANS aucun jour gagné : Punch réel = 0 ici
+  // (les étapes sont insérées sans passer par addPunch, comme un compte en retard).
+  avancerJusquaSemaine(db, email, k250 + 1);
+  assert.equal(engine.pathStatsRow(email).punch, 0, 'Punch réel nul dans ce scénario');
+  // La progression déverrouille quand même : le médaillon 250 n'est plus grisé.
+  const st = engine.challengePublicState(email);
+  const r250 = st.recompenses.find((r) => r.seuil === 250);
+  assert.equal(r250.locked, false, 'validé jusqu’au médaillon -> débloqué');
+  assert.equal(r250.restant, 0);
+  // Et un médaillon posé PLUS LOIN reste verrouillé.
+  const suivant = st.recompenses.find((r) => r.seuil === 350);
+  assert.equal(suivant.locked, true);
+  // Au prochain gain, l'enregistrement (célébration/notification) rattrape.
+  engine.addPunch(email, 1, 'test');
+  assert.ok(engine.unlockedThresholds(email).has('250:video'));
+  assert.ok(!engine.unlockedThresholds(email).has('350:ebook'));
+});

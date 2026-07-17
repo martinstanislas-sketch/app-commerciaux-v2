@@ -496,7 +496,9 @@ function createChallengeEngine({ getDb }) {
   function evaluateUnlocks(email, source) {
     const nouveaux = [];
     try {
-      const total = (pathStatsRow(email) || {}).punch || 0;
+      // Progression, pas seulement Punch réel : valider les étapes jusqu'au
+      // médaillon suffit à faire tomber la récompense (cf. punchProgression).
+      const total = punchProgression(email);
       const deja = unlockedThresholds(email);
       const ins = getDb().prepare('INSERT OR IGNORE INTO user_unlocks (client_email, seuil, type, payload, unlocked_at) VALUES (?,?,?,?,?)');
       punchSeuils.seuilsAtteints(total, deja).forEach((s) => {
@@ -539,7 +541,7 @@ function createChallengeEngine({ getDb }) {
     const crees = [];
     try {
       if (!email) return crees;
-      const punch = (pathStatsRow(email) || {}).punch || 0;
+      const punch = punchProgression(email); // les étapes validées comptent aussi
       cadeaux.catalogue().forEach((c) => {
         if (punch < c.seuil || !cadeaux.estPhysique(c.id)) return;
         if (creerBon(email, c.id)) crees.push(c.id);
@@ -758,7 +760,7 @@ function createChallengeEngine({ getDb }) {
       stats: { punch: s.punch || 0, streak: streakVu, streakBest: s.streak_best || 0 },
       // Déblocages : ce qui est acquis + le prochain à viser (« encore X Punch »).
       unlocks: [...unlockedThresholds(email)],
-      prochainSeuil: punchSeuils.prochainSeuil(s.punch || 0),
+      prochainSeuil: punchSeuils.prochainSeuil(punchProgression(email)),
       // Seuil -> le cadeau, AVEC son nom : sans ça, la célébration ne sait pas le
       // NOMMER et retombe sur « Atteint à 2000 Punch » au lieu de « Un massage sportif ».
       // Le libellé part d'ici (lib/cadeaux) plutôt que d'être recopié dans le front :
@@ -768,7 +770,7 @@ function createChallengeEngine({ getDb }) {
       // TOUTES les récompenses (vidéos, guides, cadeaux) avec leur seuil : le Chemin
       // les matérialise le long du parcours. Rien n'est recalculé — c'est
       // punchSeuils, la source de vérité, qui est simplement mise en forme.
-      recompenses: recompensesPubliques(s.punch || 0),
+      recompenses: recompensesPubliques(punchProgression(email)),
       weekTitles: CHALLENGE_WEEK_TITLES,
       // Missions bonus OUVERTES (semaines atteintes) : facultatives, les passées
       // restent rattrapables, les futures ne sont pas exposées.
@@ -852,9 +854,10 @@ function createChallengeEngine({ getDb }) {
   }
 
   // Ce que le front doit savoir de chaque récompense pour la poser sur le Chemin.
-  // ⚠️ `locked` se lit sur le TOTAL de Punch, jamais sur user_unlocks : cette table
-  // ne dit que ce qui a été CÉLÉBRÉ. Un compte migré depuis XP+gems y est vide alors
-  // qu'il a tout mérité — il verrait ses récompenses grisées.
+  // ⚠️ `locked` se lit sur le Punch de PROGRESSION (réel OU étapes validées, cf.
+  // punchProgression), jamais sur user_unlocks : cette table ne dit que ce qui a
+  // été CÉLÉBRÉ. Un compte migré depuis XP+gems y est vide alors qu'il a tout
+  // mérité — il verrait ses récompenses grisées.
   //
   // `ordre` : la POSITION de la récompense le long du sentier. On la cale sur le
   // cumul d'un parcours PARFAIT (chaque étape validée le bon jour + le jour gagné
@@ -870,6 +873,19 @@ function createChallengeEngine({ getDb }) {
   function ordreDeblocage(seuil) {
     const k = CUMUL_PUNCH_PARFAIT.findIndex((c) => c >= seuil);
     return (k < 0 ? CUMUL_PUNCH_PARFAIT.length - 1 : k) / (CUMUL_PUNCH_PARFAIT.length - 1);
+  }
+  // Punch de PROGRESSION : le total réel ou, s'il est plus haut, le cumul parfait
+  // à la dernière étape validée. C'est LUI qui déverrouille (médaillons, guides,
+  // vidéos, bons, boutique) : le sentier promet une récompense « à cette étape »
+  // — celui qui a validé tout le travail jusque-là la reçoit, même si sa série 🔥
+  // n'a pas été parfaite. Le Punch réel (série, missions) reste un ACCÉLÉRATEUR
+  // (il peut débloquer en avance), jamais un frein. Les compteurs AFFICHÉS, eux,
+  // montrent toujours le Punch réellement gagné.
+  function punchProgression(email) {
+    const reel = (pathStatsRow(email) || {}).punch || 0;
+    let derniere = -1;
+    pathDoneDays(email).forEach((d) => { if (d > derniere) derniere = d; });
+    return Math.max(reel, derniere >= 0 ? CUMUL_PUNCH_PARFAIT[derniere] || 0 : 0);
   }
   function recompensesPubliques(punch) {
     return punchSeuils.tousLesSeuils().map((s) => ({
@@ -902,7 +918,7 @@ function createChallengeEngine({ getDb }) {
   return {
     ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, dayWon, challengePublicState,
     pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
-    pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds,
+    pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds, punchProgression,
     assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier,
     missionsBonusListe, declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
   };
