@@ -29,9 +29,11 @@ const punchSeuils = require('./punchSeuils');
 const cadeaux = require('./cadeaux');
 
 const CHALLENGE_PATH_SEED_VERSION = 6;
+/* À la première personne : le client s'y projette (« Je… »), il ne lit pas un
+   programme, il se raconte sa propre progression. */
 const CHALLENGE_WEEK_TITLES = {
-  1: 'Lancement', 2: 'Prendre le rythme', 3: 'Mi-parcours',
-  4: 'Relance', 5: 'Tenir le cap', 6: 'Dernière ligne droite',
+  1: 'Je démarre', 2: 'Je prends le rythme', 3: 'Je progresse',
+  4: 'Je passe un cap', 5: 'Je ne lâche rien', 6: 'J’atteins mon objectif',
 };
 // Les 43 étapes, indexées 0 -> 42 (l'étape 0 = « Commencer »), réparties en 6
 // semaines : S1 0–7 (8 étapes), puis 7 par semaine.
