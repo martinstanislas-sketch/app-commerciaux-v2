@@ -5274,13 +5274,20 @@ function statInfoTexte(key, s) {
         + 'Un jour sans rien renseigner et <b>ta série repart à 0</b>'
         + (best > 1 ? ' — mais ton record de <b>' + best + ' jours</b> reste acquis.' : '.'),
     };
-    case 'punch': return {
-      emoji: '👊', titre: 'Ton Punch',
-      valeur: (s.punch || 0) + ' Punch',
-      texte: 'Tu en gagnes en validant les étapes de ton parcours : une séance, un guide, un message à ton coach…<br><br>'
-        + 'Chaque étape a sa valeur, et les <b>grandes étapes ★</b> rapportent davantage. '
-        + 'Le Punch récompense <b>ce que tu fais</b> — jamais ton poids.',
-    };
+    case 'punch': {
+      // Le prochain déblocage, nommé : un compteur motive quand on sait ce qu'il
+      // prépare. (recompenses est trié par seuil -> le 1er verrouillé est le bon.)
+      const prochaine = ((state.challenge && state.challenge.recompenses) || []).find((r) => r.locked);
+      return {
+        emoji: '👊', titre: 'Ton Punch',
+        valeur: (s.punch || 0) + ' Punch',
+        texte: 'Le Punch, c\'est la monnaie de tes efforts : <b>chaque action validée en rapporte</b> — une séance, un guide lu, un message à ton coach, une photo posée…<br><br>'
+          + 'Les <b>étapes clés ★</b> rapportent le plus gros, ta <b>série 🔥</b> ajoute un bonus à chaque palier (3, 7, 14 jours…), et les <b>missions bonus ⭐</b> en offrent en plus.<br><br>'
+          + 'À quoi ça sert ? À <b>débloquer de vraies récompenses</b> tout au long du parcours : des séances vidéo, des guides et des cadeaux à retirer au studio 🎁'
+          + (prochaine ? '<br><br>Prochain déblocage : <b>' + escapeHtml(prochaine.label) + '</b> à ' + prochaine.seuil + ' Punch — plus que <b>' + prochaine.restant + '</b> 💪' : '')
+          + '<br><br>Et chaque Punch gagné est acquis : ton total ne redescend jamais. Il récompense <b>ce que tu fais</b> — jamais ton poids.',
+      };
+    }
     default: return null;
   }
 }
