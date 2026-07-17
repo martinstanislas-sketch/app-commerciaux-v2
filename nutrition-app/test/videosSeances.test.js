@@ -60,11 +60,23 @@ test('catalogue : il y a un lot par palier de Punch déclaré', () => {
   assert.deepEqual(VIDEO_LOTS, [250, 650, 1050, 1450, 1750]);
 });
 
-test('catalogue : chaque lot mélange les coachs (jamais 5 fois le même)', () => {
-  // Un palier doit ouvrir un entraînement varié, pas « 5 séances de biceps ».
+test('catalogue : chaque lot mélange les visages (jamais plus de 2 fois le même)', () => {
+  // `coach` = la personne SUR la miniature. Un palier doit présenter un maximum
+  // de visages différents — pas 4 fois la même tête, ni « 5 séances de biceps ».
   [1, 2, 3, 4, 5].forEach((l) => {
     const lot = VIDEOS_SEED.filter((v) => v.lot === l);
-    assert.ok(new Set(lot.map((v) => v.coach)).size >= 3, `lot ${l} : trop peu de variété`);
+    assert.ok(new Set(lot.map((v) => v.coach)).size >= 4, `lot ${l} : trop peu de visages différents`);
+    const parCoach = {};
+    lot.forEach((v) => { parCoach[v.coach] = (parCoach[v.coach] || 0) + 1; });
+    Object.entries(parCoach).forEach(([c, n]) => assert.ok(n <= 2, `lot ${l} : ${c} apparaît ${n} fois`));
     assert.equal(new Set(lot.map((v) => v.titre)).size, lot.length, `lot ${l} : deux fois le même titre`);
   });
+  // Personne n'est étiqueté « Générique » : chaque miniature a un visage nommé.
+  assert.equal(VIDEOS_SEED.filter((v) => v.coach === 'Générique').length, 0);
+  // Répartition homogène de chaque visage sur l'ensemble des packs : un coach
+  // très présent (Quentin ×10) est étalé partout au lieu d'être concentré.
+  const lots = (c) => new Set(VIDEOS_SEED.filter((v) => v.coach === c).map((v) => v.lot)).size;
+  assert.equal(lots('Quentin'), 5, 'Quentin présent dans les 5 packs');
+  assert.equal(lots('Alexandre'), 5, 'Alexandre présent dans les 5 packs');
+  assert.equal(lots('Gauthier'), 5, 'Gauthier présent dans les 5 packs');
 });

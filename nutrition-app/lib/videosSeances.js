@@ -34,39 +34,50 @@ function miniatureYoutube(id) { return id ? 'https://img.youtube.com/vi/' + id +
 function lecteurYoutube(id) { return id ? 'https://www.youtube-nocookie.com/embed/' + id + '?rel=0&modestbranding=1&playsinline=1' : ''; }
 
 // Les 27 séances. `lot` 1..5 = le palier qui les ouvre.
+//
+// `coach` = LA PERSONNE SUR LA MINIATURE (vérifiée visuellement, jamais
+// « Générique » : ces gabarits-là montrent tous Quentin). Visages recensés :
+// Quentin ×10, Alexandre ×7, Gauthier ×5, Théo ×2, Mathys ×2, Antton ×1.
+//
+// Répartition des VISAGES, équilibrée sur les 5 lots : chaque lot = 2 Quentin
+// (10/5, impossible de faire moins) + 1-2 Alexandre + 1 Gauthier + 1 invité
+// (Théo / Mathys / Antton) -> jamais plus de 2 fois le même visage dans un lot,
+// 4 visages différents partout (l'ancien lot 5 montrait 4× Quentin). Les groupes
+// musculaires restent mélangés : chaque palier permet un entraînement complet.
 const VIDEOS_SEED = [
   // Lot 1 (250 Punch) — de quoi s'entraîner tout de suite : un full body, du
-  // cardio, du haut, du bas, et une mini session pour les jours courts.
+  // renfo complet, du cardio, une mini session et de la récupération.
   { lot: 1, coach: 'Quentin', titre: 'Full body', url: 'https://youtu.be/qAyrBCA-NQE' },
+  { lot: 1, coach: 'Quentin', titre: 'Renforcement musculaire', url: 'https://youtu.be/Ki6lzNbqviU' },
   { lot: 1, coach: 'Théo', titre: 'Cardio express', url: 'https://youtu.be/wfR-_3Ec-MY' },
-  { lot: 1, coach: 'Alexandre', titre: 'Haut du corps', url: 'https://youtu.be/fs3pg2fo6Ho' },
-  { lot: 1, coach: 'Alexandre', titre: 'Bas du corps', url: 'https://youtu.be/e59hHr0JNu0' },
   { lot: 1, coach: 'Alexandre', titre: 'Mini session', url: 'https://youtu.be/nEvoo47TCuM' },
-  // Lot 2 (650) — on monte en intensité, on ajoute les abdos et le gainage.
-  { lot: 2, coach: 'Générique', titre: 'Tabata', url: 'https://youtu.be/isNbt6B308Y' },
+  { lot: 1, coach: 'Gauthier', titre: 'Stretching', url: 'https://youtu.be/eAWTKxmJV_s' },
+  // Lot 2 (650) — on monte en intensité : tabata, élastiques, abdos, haut, bas.
+  { lot: 2, coach: 'Quentin', titre: 'Tabata', url: 'https://youtu.be/isNbt6B308Y' },
+  { lot: 2, coach: 'Quentin', titre: 'Spéciale élastique', url: 'https://youtu.be/3lWb5YJUuh8' },
   { lot: 2, coach: 'Mathys', titre: 'Abdos', url: 'https://youtu.be/EAd44vWugOk' },
   { lot: 2, coach: 'Gauthier', titre: 'Pectoraux / Trapèzes', url: 'https://youtu.be/z6Br50fxzak' },
-  { lot: 2, coach: 'Alexandre', titre: 'Quadriceps & fessiers', url: 'https://youtu.be/4Vb9UygtQDA' },
-  { lot: 2, coach: 'Théo', titre: 'Gainage', url: 'https://youtu.be/0SmjUiOFfDg' },
-  // Lot 3 (1050) — full body, HIIT, bras, et de la récupération.
-  { lot: 3, coach: 'Générique', titre: 'Full body A', url: 'https://youtu.be/AmRkZ3ohAeo' },
+  { lot: 2, coach: 'Alexandre', titre: 'Bas du corps', url: 'https://youtu.be/e59hHr0JNu0' },
+  // Lot 3 (1050) — full body, amrap, HIIT et du travail des bras.
+  { lot: 3, coach: 'Quentin', titre: 'Full body A', url: 'https://youtu.be/AmRkZ3ohAeo' },
+  { lot: 3, coach: 'Quentin', titre: 'Amrap A', url: 'https://youtu.be/vvfcNl9-3qA' },
   { lot: 3, coach: 'Gauthier', titre: 'HIIT', url: 'https://youtu.be/26q1pYpY0Cg' },
   { lot: 3, coach: 'Alexandre', titre: 'Biceps', url: 'https://youtu.be/RmzmZhk4swU' },
-  { lot: 3, coach: 'Gauthier', titre: 'Stretching', url: 'https://youtu.be/eAWTKxmJV_s' },
   { lot: 3, coach: 'Mathys', titre: 'Full body', url: 'https://youtu.be/AJlUFD4-Aec' },
-  // Lot 4 (1450) — 6 séances : amrap, renforcement, épaules, abdos.
-  { lot: 4, coach: 'Générique', titre: 'Amrap A', url: 'https://youtu.be/vvfcNl9-3qA' },
-  { lot: 4, coach: 'Générique', titre: 'Renforcement musculaire', url: 'https://youtu.be/Ki6lzNbqviU' },
+  // Lot 4 (1450) — 6 séances : amrap, renfo haut, épaules, bas, abdos, gainage.
+  { lot: 4, coach: 'Quentin', titre: 'Amrap B', url: 'https://youtu.be/bbxhBoPhfOo' },
+  { lot: 4, coach: 'Quentin', titre: 'Renfo haut du corps', url: 'https://youtu.be/Llh_g4sSnhM' },
   { lot: 4, coach: 'Alexandre', titre: 'Épaules, bras & gainage', url: 'https://youtu.be/zLL6ZnKcr7o' },
+  { lot: 4, coach: 'Alexandre', titre: 'Quadriceps & fessiers', url: 'https://youtu.be/4Vb9UygtQDA' },
   { lot: 4, coach: 'Gauthier', titre: 'Abdos', url: 'https://youtu.be/3O_N8u_Kaak' },
-  { lot: 4, coach: 'Quentin', titre: 'Spéciale élastique', url: 'https://youtu.be/3lWb5YJUuh8' },
-  { lot: 4, coach: 'Gauthier', titre: 'Cardio 40/20', url: 'https://youtu.be/ZXdD72vpdrY' },
-  // Lot 5 (1750) — 6 séances : le reste, pour ceux qui vont au bout.
-  { lot: 5, coach: 'Générique', titre: 'Full body B', url: 'https://youtu.be/gc4Xbz-27Hw' },
-  { lot: 5, coach: 'Générique', titre: 'Amrap B', url: 'https://youtu.be/bbxhBoPhfOo' },
-  { lot: 5, coach: 'Générique', titre: 'Cardio + renfo + boxe', url: 'https://youtu.be/kL2BbwOCpL0' },
-  { lot: 5, coach: 'Générique', titre: 'Renfo haut du corps', url: 'https://youtu.be/Llh_g4sSnhM' },
+  { lot: 4, coach: 'Théo', titre: 'Gainage', url: 'https://youtu.be/0SmjUiOFfDg' },
+  // Lot 5 (1750) — 6 séances pour ceux qui vont au bout : full body, boxe,
+  // haut du corps, triceps, cardio, abdos.
+  { lot: 5, coach: 'Quentin', titre: 'Full body B', url: 'https://youtu.be/gc4Xbz-27Hw' },
+  { lot: 5, coach: 'Quentin', titre: 'Cardio + renfo + boxe', url: 'https://youtu.be/kL2BbwOCpL0' },
+  { lot: 5, coach: 'Alexandre', titre: 'Haut du corps', url: 'https://youtu.be/fs3pg2fo6Ho' },
   { lot: 5, coach: 'Alexandre', titre: 'Triceps', url: 'https://youtu.be/B1jt8gr25-w' },
+  { lot: 5, coach: 'Gauthier', titre: 'Cardio 40/20', url: 'https://youtu.be/ZXdD72vpdrY' },
   { lot: 5, coach: 'Antton', titre: 'Abdos spéciale', url: 'https://youtu.be/O4tTeQY2Yiw' },
 ];
 

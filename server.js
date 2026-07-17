@@ -867,19 +867,25 @@ try {
   function seedVideosSeances() {
     try {
       const V = require('./nutrition-app/lib/videosSeances');
-      const VERSION = '1';
+      // v2 : lots RÉÉQUILIBRÉS par visage de miniature (jamais plus de 2 fois la
+      // même personne par lot) + « Générique » corrigé en Quentin (c'est lui sur
+      // ces gabarits). Les vidéos déjà en base sont MISES À JOUR (lot, coach,
+      // ordre), jamais dupliquées ni supprimées.
+      const VERSION = '2';
       const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='videos_seed_v'").get() || {}).value;
       const nb = getDb().prepare("SELECT COUNT(*) c FROM nutrition_ebooks WHERE type='video'").get().c;
       if (String(fait) === VERSION && nb === V.VIDEOS_SEED.length) return;
       const up = getDb().prepare(`INSERT INTO nutrition_ebooks (title, description, category, cover_data, pdf_data, type, youtube_id, video_lot, sort_order, active, created_at)
         VALUES (?,?,?,?,'','video',?,?,?,1,?)`);
+      const maj = getDb().prepare("UPDATE nutrition_ebooks SET video_lot=?, description=?, sort_order=? WHERE type='video' AND youtube_id=?");
       const existe = getDb().prepare("SELECT 1 FROM nutrition_ebooks WHERE type='video' AND youtube_id=?");
       const now = new Date().toISOString();
       const tx = getDb().transaction(() => {
         V.VIDEOS_SEED.forEach((v, i) => {
           const id = V.extraireYoutubeId(v.url);
-          if (!id || existe.get(id)) return; // lien illisible ou déjà importé
-          up.run(v.titre, 'Séance avec ' + v.coach, 'Séances', V.miniatureYoutube(id), id, v.lot, 1000 + i, now);
+          if (!id) return; // lien illisible
+          if (existe.get(id)) maj.run(v.lot, 'Séance avec ' + v.coach, 1000 + i, id);
+          else up.run(v.titre, 'Séance avec ' + v.coach, 'Séances', V.miniatureYoutube(id), id, v.lot, 1000 + i, now);
         });
       });
       tx();
