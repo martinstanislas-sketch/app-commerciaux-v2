@@ -28,6 +28,27 @@ test('calculerBesoins : challenge applique un déficit et respecte les planchers
   assert.ok(h.kcalCible >= 1650, 'plancher homme 1650 respecté');
 });
 
+test('calculerBesoins : la cible DÉCROÎT quand le poids baisse (jamais d\'inversion)', () => {
+  const base = { sexe: 'femme', age: 40, taille_cm: 165, objectif: 'challenge', activite: 'modere', perte_objectif_kg: 6 };
+  let prev = Infinity;
+  for (const poids of [100, 99, 98, 97, 96]) {
+    const b = calculerBesoins({ ...base, poids_kg: poids });
+    assert.ok(b.kcalCible <= prev, `baisser le poids ne doit jamais monter la cible (${poids}kg -> ${b.kcalCible} > ${prev})`);
+    prev = b.kcalCible;
+  }
+});
+
+test('calculerBesoins : ajustementKcal (suivi pesée) ne remonte plus la cible', () => {
+  // Regression : un ajustement positif (ex-règle « perte rapide -> +125 ») faisait
+  // remonter la cible et inversait le sens. La cible ne dépend QUE du profil actuel.
+  const base = { sexe: 'femme', age: 40, taille_cm: 165, objectif: 'challenge', poids_kg: 90 };
+  const sans = calculerBesoins({ ...base });
+  const avecPlus = calculerBesoins({ ...base, ajustementKcal: 400 });
+  const avecMoins = calculerBesoins({ ...base, ajustementKcal: -400 });
+  assert.equal(avecPlus.kcalCible, sans.kcalCible, 'un ajustement positif ne change pas la cible');
+  assert.equal(avecMoins.kcalCible, sans.kcalCible, 'un ajustement négatif non plus');
+});
+
 // Génération bout-en-bout : aucun plan généré ne doit contenir un aliment interdit.
 const PROFILS = [
   { profil: { sexe: 'femme', age: 30, taille_cm: 165, poids_kg: 70, objectif: 'perte' }, prefs: { regime: ['vegan', 'sans-gluten'], allergies: [] } },

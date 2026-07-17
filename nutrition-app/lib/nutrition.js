@@ -194,15 +194,18 @@ function calculerBesoins(profil) {
     // Parametres ajustables (defauts : -650 kcal, objectif -6 kg sur 6 semaines).
     const deficitVise = clampNumber(nb(profil.deficit_cible) || 650, 400, 750);
     const perteObjectif = clampNumber(nb(profil.perte_objectif_kg) || 6, 1, 30);
-    // Ajustement hebdomadaire cumule (issu du suivi de pesee), borne pour la securite.
-    const ajustement = clampNumber(nb(profil.ajustementKcal) || 0, -400, 400);
 
-    // Deficit securise (jamais sous le plancher), + ajustement du suivi.
+    // CIBLE MONOTONE : elle ne depend QUE du profil actuel (BMR/TDEE + deficit).
+    // On n'AJOUTE plus l'ajustement cumule de pesee : quand il devenait positif
+    // (regle "perte rapide -> +125 kcal"), il pouvait REMONTER la cible et
+    // inverser le sens attendu (baisser le poids augmentait les calories). Le suivi
+    // de pesee reste un CONSEIL (message), il ne pousse plus le compteur vers le haut.
     let deficit = deficitVise;
-    kcalCible = maintenance - deficit + ajustement;
+    kcalCible = maintenance - deficit;
     if (kcalCible < plancher) kcalCible = plancher;
     deficit = Math.round(maintenance - kcalCible);
     kcalCible = Math.round(kcalCible / 10) * 10;
+    const ajustement = 0;
 
     // Poids cible : -perteObjectif kg (borne a 35 kg mini).
     const poidsCible = Math.max(35, Math.round((poids_kg - perteObjectif) * 10) / 10);
