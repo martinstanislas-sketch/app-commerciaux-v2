@@ -4376,18 +4376,6 @@ function renderCommunaute() {
     : '';
   host.innerHTML =
     '<div class="cmy">' +
-      // ---- Héro inspirant ----
-      '<div class="cmy-hero">' +
-        '<div class="cmy-hero-glow"></div>' +
-        '<span class="cmy-hero-kicker">' + icSvg('users') + ' Groupe Challenge 6/6</span>' +
-        '<h2 class="cmy-hero-title">Le groupe avance avec toi</h2>' +
-        '<p class="cmy-hero-sub" id="cmyPhrase">' + escapeHtml((ov && ov.phrase) || 'Chaque victoire partagée motive tout le groupe. Poste la tienne aujourd’hui 💪') + '</p>' +
-        '<div class="cmy-hero-stats">' +
-          '<div class="cmy-hstat"><b id="cmyMembers">' + ((ov && ov.stats && ov.stats.actifsAujourdhui) || (ov && ov.members) || '—') + '</b><span>actifs aujourd’hui</span></div>' +
-          '<div class="cmy-hstat"><b id="cmyVictoires">' + ((ov && ov.stats && ov.stats.journeesValidees) || 0) + '</b><span>victoires cette semaine</span></div>' +
-          '<div class="cmy-hstat"><b id="cmyPosts">' + ((state.communauteFeed || []).length || 0) + '</b><span>posts récents</span></div>' +
-        '</div>' +
-      '</div>' +
       // ---- Layout : fil principal + aside ----
       '<div class="cmy-layout">' +
         '<div class="cmy-main">' +
@@ -4483,7 +4471,7 @@ const COMMUNAUTE_DEFIS = [
   { emo: '📵', t: 'Un repas sans écran', d: 'Manger en conscience = manger juste ce qu’il faut.' },
   { emo: '💪', t: 'Bouge 20 minutes', d: 'Même léger : l’important, c’est la régularité.' },
 ];
-// Met à jour l'aside + les stats du héro depuis l'overview et le fil (appelé après chaque fetch).
+// Met à jour l'aside depuis l'overview et le fil (appelé après chaque fetch).
 function updateCommunauteAside() {
   const ov = state.communauteOverview;
   if (ov) {
@@ -4491,13 +4479,9 @@ function updateCommunauteAside() {
     const bar = $('#cmyObjBar'); if (bar) bar.style.width = pct + '%';
     const pc = $('#cmyObjPct'); if (pc) pc.textContent = pct;
     const cap = $('#cmyObjCap'); if (cap) cap.textContent = ov.phrase || 'On avance ensemble, un repas à la fois.';
-    const ph = $('#cmyPhrase'); if (ph) ph.textContent = ov.phrase || ph.textContent;
     const tip = $('#cmyCoachTip'); if (tip) tip.textContent = (ov.coachAuto && ov.coachAuto[0]) || tip.textContent;
-    const m = $('#cmyMembers'); if (m) m.textContent = (ov.stats && ov.stats.actifsAujourdhui) || ov.members || 0;
-    const v = $('#cmyVictoires'); if (v) v.textContent = (ov.stats && ov.stats.journeesValidees) || 0;
   }
   const feed = state.communauteFeed || [];
-  const pc = $('#cmyPosts'); if (pc) pc.textContent = feed.length;
   const wins = $('#cmyWins');
   if (wins) {
     const vic = feed.filter((it) => it.who && it.who !== 'Le groupe').slice(0, 4);

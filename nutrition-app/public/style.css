@@ -1817,24 +1817,8 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   .feed-av { width: 44px; height: 44px; }
 }
 
-/* ============ Communauté — refonte premium (héro + fil + aside motivant) ============ */
+/* ============ Communauté — refonte premium (fil + aside motivant) ============ */
 .cmy { display: flex; flex-direction: column; gap: 20px; }
-
-/* --- Héro inspirant --- */
-.cmy-hero { position: relative; overflow: hidden; border-radius: 24px; padding: 26px 26px 24px; color: #fff;
-  background: linear-gradient(135deg, var(--mc-blue) 0%, var(--mc-blue-dark) 58%, #16295e 100%);
-  box-shadow: 0 18px 42px -18px rgba(37, 99, 235, .6); }
-.cmy-hero-glow { position: absolute; inset: 0; pointer-events: none; }
-.cmy-hero-glow::before { content: ''; position: absolute; top: -90px; right: -60px; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.26), transparent 70%); }
-.cmy-hero-glow::after { content: ''; position: absolute; bottom: -150px; left: -70px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle, rgba(110,139,91,.42), transparent 70%); }
-.cmy-hero-kicker { position: relative; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: rgba(255,255,255,.16); padding: 5px 11px; border-radius: 99px; }
-.cmy-hero-kicker .ic { width: 14px; height: 14px; }
-.cmy-hero-title { position: relative; margin: 13px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.08; color: #fff; }
-.cmy-hero-sub { position: relative; margin: 9px 0 0; font-size: 14px; font-weight: 500; line-height: 1.45; color: rgba(255,255,255,.9); max-width: 640px; }
-.cmy-hero-stats { position: relative; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
-.cmy-hstat { flex: 1 1 130px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.18); border-radius: 16px; padding: 12px 14px; }
-.cmy-hstat b { display: block; font-size: 25px; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
-.cmy-hstat span { display: block; font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,.82); margin-top: 5px; }
 
 /* --- Layout --- */
 .cmy-layout { display: block; }
@@ -1946,6 +1930,13 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .cmy-composer-form { display: flex; align-items: flex-end; gap: 10px; margin-top: 12px; }
 .cmy-composer-form textarea { flex: 1; min-width: 0; resize: none; min-height: 46px; max-height: 160px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--mc-border); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.4; }
 .cmy-composer-form textarea:focus { outline: none; border-color: var(--mc-blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+/* Le placeholder tient sur UNE ligne : sur un champ d'une ligne (rows=1), un
+   placeholder qui se replie est rogné par la hauteur — une ellipse vaut mieux
+   qu'un texte coupé au milieu. Le texte saisi, lui, se replie normalement.
+   ⚠️ Chrome ignore text-overflow posé sur ::placeholder d'un textarea : il faut
+   AUSSI le poser sur l'élément (inerte pour le texte saisi, qui se replie). */
+.cmy-composer-form textarea { text-overflow: ellipsis; }
+.cmy-composer-form textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmy-post-btn { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 14px; font-weight: 700; padding: 12px 18px; border-radius: 14px; border: none; cursor: pointer; color: #fff; background: linear-gradient(135deg, var(--mc-blue), var(--mc-blue-dark)); box-shadow: var(--shadow-green); transition: transform .12s var(--ease), filter .15s var(--ease); }
 .cmy-post-btn:hover { transform: translateY(-1px); filter: brightness(1.07); }
 .cmy-post-btn .ic { width: 16px; height: 16px; }
@@ -1990,13 +1981,12 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   body.app-shell #view-communaute { max-width: 1160px; margin: 0 auto; }
   body.app-shell #view-ebooks { max-width: 1160px; margin: 0 auto; }
   .cmy-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: start; }
-  .cmy-hero-title { font-size: 30px; }
-  .cmy-hero-stats { gap: 12px; }
 }
 @media (max-width: 560px) {
-  .cmy-hero { padding: 20px 18px 18px; border-radius: 20px; }
-  .cmy-hero-title { font-size: 22px; }
   .cmy-quick-btn { flex-basis: 100%; }
+  /* Écrans étroits : le bouton Publier se resserre pour laisser sa largeur au champ. */
+  .cmy-composer-form { gap: 8px; }
+  .cmy-composer-form .cmy-post-btn { padding: 12px 13px; }
 }
 
 /* --- Messagerie : liste des conversations (inbox coach) --- */
