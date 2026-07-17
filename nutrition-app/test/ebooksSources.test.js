@@ -16,7 +16,7 @@ test('contrôle : 1 + 12 + 22 = 35, et chaque ebook n\'a QU\'UNE place', () => {
   assert.equal(new Set(tous).size, tous.length, 'un ebook rangé à deux endroits');
 });
 
-test('Chemin : EXACTEMENT les 12 étapes « Découvre ton ebook »', () => {
+test('Chemin : EXACTEMENT les 12 étapes « Découvre ton guide »', () => {
   const jours = Object.keys(EBOOK_CHEMIN).map(Number).sort((a, b) => a - b);
   assert.deepEqual(jours, [2, 4, 9, 11, 16, 18, 23, 25, 30, 32, 37, 39]);
   // Et ces jours SONT bien les étapes ebook du parcours — pas un jour au hasard.
@@ -63,4 +63,39 @@ test('le challenge ne distribue plus que 12 ebooks (contre ~34 avant)', () => {
   // Le cœur du ticket : le Chemin se resserre, le reste passe au Punch.
   assert.equal(Object.keys(EBOOK_CHEMIN).length, 12);
   assert.equal(Object.values(EBOOK_PUNCH).flat().length, 22, 'le reste est distribué par le Punch');
+});
+
+// ---------------------------------------------------------------------------
+//  estVerrouille — LA règle du verrou, partagée par la liste ET les routes de
+//  lecture. Verrou du bug corrigé : un ebook du canal Punch doit se LIRE dès son
+//  seuil atteint, peu importe le jour du challenge.
+// ---------------------------------------------------------------------------
+const { estVerrouille } = require('../lib/ebooksSources');
+
+test('canal Punch : débloqué au seuil, le JOUR n\'a aucun mot à dire', () => {
+  const id = EBOOK_PUNCH[150][0]; // premier ebook du palier 150
+  const eb = { id, type: 'ebook', unlock_day: 40 }; // unlock_day historique tardif : ignoré
+  assert.equal(estVerrouille(eb, { day: 1, punch: 150 }), false, 'lisible dès 150 Punch, même au jour 1');
+  assert.equal(estVerrouille(eb, { day: 42, punch: 149 }), true, 'sans le Punch, même en fin de challenge : fermé');
+});
+
+test('canal Chemin : débloqué au JOUR de son étape, le Punch n\'y change rien', () => {
+  const jour = 16; const eb = { id: EBOOK_CHEMIN[jour], type: 'ebook', unlock_day: 1 };
+  assert.equal(estVerrouille(eb, { day: 15, punch: 9999 }), true);
+  assert.equal(estVerrouille(eb, { day: 16, punch: 0 }), false);
+});
+
+test('offert : jamais verrouillé ; hors répartition : règle historique unlock_day', () => {
+  assert.equal(estVerrouille({ id: EBOOK_INTRO, type: 'ebook', unlock_day: 99 }, { day: 0, punch: 0 }), false);
+  const inconnu = { id: 9999, type: 'ebook', unlock_day: 10 };
+  assert.equal(estVerrouille(inconnu, { day: 9, punch: 9999 }), true);
+  assert.equal(estVerrouille(inconnu, { day: 10, punch: 0 }), false);
+});
+
+test('vidéo : débloquée au Punch de son lot ; lot inconnu -> fermée (jamais ouverte par accident)', () => {
+  const { VIDEO_LOTS } = require('../lib/punchSeuils');
+  const v = { id: 1, type: 'video', video_lot: 1 };
+  assert.equal(estVerrouille(v, { day: 42, punch: VIDEO_LOTS[0] - 1 }), true);
+  assert.equal(estVerrouille(v, { day: 0, punch: VIDEO_LOTS[0] }), false);
+  assert.equal(estVerrouille({ id: 1, type: 'video', video_lot: 99 }, { day: 42, punch: 99999 }), true);
 });

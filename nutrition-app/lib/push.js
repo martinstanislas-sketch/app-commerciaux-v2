@@ -6,16 +6,21 @@
 // ============================================================================
 const webpush = require('web-push');
 
-module.exports = function initPush({ app, getDb, mw }) {
+module.exports = function initPush({ app, getDb, mw, nowFn }) {
   const { requireAuth, requireNutritionUse, requireCoachOrAdmin } = mw;
   // Moteur du Chemin du challenge (lecture seule ici) : nœud actif + date Paris.
   const challengeEngine = require('./challengePath')({ getDb });
-  const { pathParisYmd: challengeYmd } = require('./challengePath');
+  const { pathParisYmd: challengeYmd, streakAffiche } = require('./challengePath');
+  const cadeauxLib = require('./cadeaux'); // le NOM d'un cadeau débloqué, dit à un seul endroit
+  // L'horloge du moteur. Injectable UNIQUEMENT pour les tests (heures calmes,
+  // crons, plafond quotidien dépendent de l'heure de Paris — un test qui tourne à
+  // 23h ne doit pas voir ses envois différés à 8h).
+  const NOW = typeof nowFn === 'function' ? nowFn : () => new Date();
 
   // ---- Types de notifications + priorités (1 = plus prioritaire) ----
-  // message coach > photos > séance > récap
-  const PRIORITY = { messages: 1, photos: 2, seances: 3, recap: 4 };
-  const PREF_TYPES = ['messages', 'recap', 'photos', 'seances'];
+  // message coach > récompense / série (l'enjeu du jour) > photos > séance / repas > récap
+  const PRIORITY = { messages: 1, recompenses: 2, serie: 2, photos: 2, seances: 3, repas: 3, recap: 4 };
+  const PREF_TYPES = ['messages', 'recap', 'photos', 'seances', 'serie', 'repas', 'recompenses'];
 
   // ---- Schéma ----
   function ensureSchema() {
@@ -80,6 +85,15 @@ module.exports = function initPush({ app, getDb, mw }) {
         seen INTEGER NOT NULL DEFAULT 0
       );
     `);
+    // Migration douce : les catégories arrivées après la v1 (série, repas,
+    // récompenses) s'ajoutent aux préférences existantes, ON par défaut — les
+    // réglages déjà posés par les clients ne bougent pas.
+    try {
+      const cols = getDb().prepare('PRAGMA table_info(nutrition_push_prefs)').all().map((c) => c.name);
+      ['serie', 'repas', 'recompenses'].forEach((c) => {
+        if (!cols.includes(c)) getDb().exec('ALTER TABLE nutrition_push_prefs ADD COLUMN ' + c + ' INTEGER NOT NULL DEFAULT 1');
+      });
+    } catch (e) { console.warn('push prefs migration:', e && e.message); }
   }
 
   // ---- VAPID : variables d'env sinon auto-généré et persisté (stable) ----
@@ -107,15 +121,15 @@ module.exports = function initPush({ app, getDb, mw }) {
   }
 
   // ---- Heure de Paris (fuseau Europe/Paris, DST géré) ----
-  function parisParts(d = new Date()) {
+  function parisParts(d = NOW()) {
     const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', hour12: false,
       weekday: 'short', hour: '2-digit', minute: '2-digit', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
     const g = (t) => (parts.find((p) => p.type === t) || {}).value;
     return { weekday: g('weekday'), hour: Number(g('hour')) % 24, minute: Number(g('minute')), ymd: g('year') + '-' + g('month') + '-' + g('day') };
   }
-  function isQuietHours(d = new Date()) { const { hour, minute } = parisParts(d); return hour < 8 || hour > 21 || (hour === 21 && minute >= 30); }
+  function isQuietHours(d = NOW()) { const { hour, minute } = parisParts(d); return hour < 8 || hour > 21 || (hour === 21 && minute >= 30); }
   // Prochaine échéance à 8h00 (Paris) : now + delta jusqu'à 8h. Approx via ISO (suffisant ici).
-  function next8h(d = new Date()) {
+  function next8h(d = NOW()) {
     const { hour, minute } = parisParts(d);
     let addH = (8 - hour); let addM = (0 - minute);
     let deltaMin = addH * 60 + addM;
@@ -125,8 +139,8 @@ module.exports = function initPush({ app, getDb, mw }) {
 
   // ---- Préférences ----
   function getPrefs(email) {
-    const row = getDb().prepare('SELECT messages, recap, photos, seances FROM nutrition_push_prefs WHERE client_email=?').get(email);
-    if (!row) return { messages: 1, recap: 1, photos: 1, seances: 1 };
+    const row = getDb().prepare('SELECT messages, recap, photos, seances, serie, repas, recompenses FROM nutrition_push_prefs WHERE client_email=?').get(email);
+    if (!row) return { messages: 1, recap: 1, photos: 1, seances: 1, serie: 1, repas: 1, recompenses: 1 };
     return row;
   }
   function prefEnabled(email, type) { const p = getPrefs(email); return p[type] !== 0; }
@@ -161,7 +175,7 @@ module.exports = function initPush({ app, getDb, mw }) {
 
   // ---- File d'attente : ajout ----
   function enqueue(email, type, { title, body, url }, opts = {}) {
-    const now = new Date();
+    const now = NOW();
     const priority = PRIORITY[type] || 5;
     const bypassCap = opts.bypassCap ? 1 : 0;
     let notBefore = opts.notBefore || now.toISOString();
@@ -169,12 +183,14 @@ module.exports = function initPush({ app, getDb, mw }) {
     if (isQuietHours(new Date(notBefore))) notBefore = next8h(new Date(notBefore));
     const dedup = opts.dedupKey || '';
     // Regroupement : s'il existe déjà un item PENDING avec la même dedup_key, on incrémente.
+    // `groupedUrl` : quand deux notifs distinctes fusionnent (ex : deux récompenses de
+    // types différents), le lien doit mener à un écran qui montre TOUT — pas au premier.
     if (dedup) {
       const existing = getDb().prepare("SELECT id, count FROM nutrition_push_queue WHERE dedup_key=? AND status='pending'").get(dedup);
       if (existing) {
         const n = (existing.count || 1) + 1;
-        getDb().prepare('UPDATE nutrition_push_queue SET count=?, title=?, body=? WHERE id=?')
-          .run(n, opts.groupedTitle ? opts.groupedTitle(n) : title, opts.groupedBody ? opts.groupedBody(n) : body, existing.id);
+        getDb().prepare('UPDATE nutrition_push_queue SET count=?, title=?, body=?, url=COALESCE(NULLIF(?, \'\'), url) WHERE id=?')
+          .run(n, opts.groupedTitle ? opts.groupedTitle(n) : title, opts.groupedBody ? opts.groupedBody(n) : body, opts.groupedUrl || '', existing.id);
         return existing.id;
       }
     }
@@ -194,7 +210,7 @@ module.exports = function initPush({ app, getDb, mw }) {
   }
   async function processQueue() {
     ensureVapid();
-    const nowIso = new Date().toISOString();
+    const nowIso = NOW().toISOString();
     // Dûs, triés par priorité puis ancienneté.
     const due = getDb().prepare("SELECT * FROM nutrition_push_queue WHERE status='pending' AND not_before<=? ORDER BY priority ASC, id ASC").all(nowIso);
     for (const item of due) {
@@ -208,7 +224,7 @@ module.exports = function initPush({ app, getDb, mw }) {
       if (!prefEnabled(item.client_email, item.type)) { getDb().prepare("UPDATE nutrition_push_queue SET status='skipped_pref' WHERE id=?").run(item.id); continue; }
       // Journalise (avant envoi, pour le compteur + le suivi d'ouverture).
       const log = getDb().prepare('INSERT INTO nutrition_push_log (client_email, type, title, body, url, sent_at) VALUES (?,?,?,?,?,?)')
-        .run(item.client_email, item.type, item.title, item.body, item.url, new Date().toISOString());
+        .run(item.client_email, item.type, item.title, item.body, item.url, NOW().toISOString());
       getDb().prepare("UPDATE nutrition_push_queue SET status='sent' WHERE id=?").run(item.id);
       try { await sendToSubscriptions(item.client_email, { title: item.title, body: item.body, url: item.url, type: item.type, logId: log.lastInsertRowid }); }
       catch (e) { console.warn('processQueue send:', e && e.message); }
@@ -347,25 +363,90 @@ module.exports = function initPush({ app, getDb, mw }) {
       enqueue(c.email, 'chemin', { title: '🎯 ' + p + ', ton étape du jour t\'attend', body: n.title, url: '/nutrition/?push=chemin' });
     }
   }
-  // Soir 20h : si le jour n'est pas GAGNÉ (moins de 2 repas renseignés) ->
-  // « sauve ta flamme » (streak-critical -> bypassCap). La série est alimentée par
-  // les REPAS depuis la v2 (l'ebook ne la fait plus monter).
-  function runFlammeSoir() {
-    let today = ''; try { today = challengeYmd(); } catch (_) { today = parisParts().ymd; }
+  // ======================= Les relances du soir (repas & série) =======================
+  // Un client dont la journée n'est pas validée (< 2 repas renseignés -> dayWon
+  // faux) est éligible aux DEUX relances. Règle anti-spam : UNE seule par soir,
+  // la plus pertinente.
+  //   - série vivante (>= 1) -> l'alerte série à 21h, RIEN à 20h (l'enjeu est la série) ;
+  //   - pas de série         -> le rappel repas à 20h, RIEN à 21h (rien à « sauver »).
+  // Le partage se lit dans les gardes symétriques de runRappelRepas / runSerieDanger.
+  // Remplace l'ancien « Sauve ta flamme » (20h), qui aurait fait doublon.
+
+  // La série TELLE QUE LE CLIENT LA VOIT : streak_current corrigé des jours manqués
+  // (streakAffiche, la même lecture que l'écran Chemin). Un client qui a laissé
+  // passer un jour plein a déjà perdu sa série — lui dire « sauve ta série » serait
+  // un mensonge ; il relève du rappel repas.
+  function streakVive(email) {
+    try {
+      const s = getDb().prepare('SELECT streak_current, last_win_date FROM user_game_stats WHERE client_email=?').get(email);
+      if (!s) return 0;
+      return streakAffiche(s.streak_current || 0, s.last_win_date || '', challengeYmd(NOW()));
+    } catch (_) { return 0; }
+  }
+  // La journée est-elle encore à valider ? (parcours ouvert + jour non gagné)
+  function journeeAValider(email, today) {
+    if (challengeEngine.pathCurrentDay(email) <= 0) return false; // parcours pas démarré
+    return !challengeEngine.dayWon(email, today);
+  }
+
+  // 🍽️ Rappel repas (20h) : journée non validée ET pas de série en jeu.
+  // Ton positif, jamais culpabilisant — on varie pour ne pas lasser.
+  const REPAS_VARIANTS = [
+    (p) => ({ title: '🍽️ ' + (p || 'Hey') + ', il te reste un instant pour valider ta journée 💪', body: 'Renseigne tes repas du jour !' }),
+    () => ({ title: '🍽️ Tes repas du jour t\'attendent', body: '2 minutes suffisent pour valider ta journée.' }),
+    (p) => ({ title: '🍽️ On note ta journée' + (p ? ', ' + p : '') + ' ?', body: 'Renseigne 2 repas et c\'est validé — parfaite ou pas, elle compte.' }),
+  ];
+  function runRappelRepas() {
+    let today = ''; try { today = challengeYmd(NOW()); } catch (_) { today = parisParts().ymd; }
     for (const c of subscribedChallengeClients()) {
       try {
         if (!challengeEngine.pathFeatureEnabled()) break;
-        if (challengeEngine.pathCurrentDay(c.email) <= 0) continue; // parcours pas démarré
-        if (challengeEngine.dayWon(c.email, today)) continue; // journée déjà gagnée
-        const p = c.prenom || 'toi';
-        enqueue(c.email, 'chemin', { title: '🔥 Sauve ta flamme, ' + p, body: 'Renseigne 2 repas du jour et ta série est sauvée.', url: '/nutrition/?push=chemin' }, { bypassCap: true });
+        if (!journeeAValider(c.email, today)) continue;   // déjà validée (ou pas commencé)
+        if (streakVive(c.email) >= 1) continue;           // série en jeu -> l'alerte série s'en charge à 21h
+        let idx = 0;
+        try { idx = getDb().prepare("SELECT COUNT(*) n FROM nutrition_push_log WHERE client_email=? AND type='repas'").get(c.email).n % REPAS_VARIANTS.length; } catch (_) { /* ignore */ }
+        const m = REPAS_VARIANTS[idx](c.prenom);
+        enqueue(c.email, 'repas', { title: m.title, body: m.body, url: '/nutrition/?push=plan' });
       } catch (_) { /* client suivant */ }
     }
   }
 
+  // 🔥 Série en danger (21h) : dernier avertissement avant minuit, si une série
+  // est réellement en jeu. bypassCap : perdre une série de 15 jours parce que le
+  // plafond quotidien était atteint serait impardonnable.
+  function runSerieDanger() {
+    let today = ''; try { today = challengeYmd(NOW()); } catch (_) { today = parisParts().ymd; }
+    for (const c of subscribedChallengeClients()) {
+      try {
+        if (!challengeEngine.pathFeatureEnabled()) break;
+        if (!journeeAValider(c.email, today)) continue;
+        const streak = streakVive(c.email);
+        if (streak < 1) continue;                          // rien à sauver -> le rappel repas a eu lieu à 20h
+        const p = c.prenom || 'toi';
+        const m = streak >= 3
+          ? { title: '🔥 Ta série de ' + streak + ' jours est en jeu !', body: 'Valide ta journée avant minuit — renseigne 2 repas et elle continue.' }
+          : { title: '🔥 ' + p + ', ta série t\'attend', body: 'Renseigne 2 repas du jour et ta journée est validée.' };
+        enqueue(c.email, 'serie', { title: m.title, body: m.body, url: '/nutrition/?push=plan' }, { bypassCap: true });
+      } catch (_) { /* client suivant */ }
+    }
+  }
+
+  // Heure d'une relance, configurable sans redéploiement (app_settings, format « HH:MM »).
+  function heureConfig(key, defH, defM) {
+    try {
+      const r = getDb().prepare('SELECT value FROM app_settings WHERE key=?').get(key);
+      const v = String((r && r.value) || '').trim();
+      if (/^([01]?\d|2[0-3]):[0-5]\d$/.test(v)) { const [h, m] = v.split(':').map(Number); return [h, m]; }
+    } catch (_) { /* défaut */ }
+    return [defH, defM];
+  }
+
   function runCrons() {
+    const [rH, rM] = heureConfig('push_repas_heure', 20, 0);
+    const [sH, sM] = heureConfig('push_serie_heure', 21, 0);
     try { if (cronDue('cheminMatin', 8, 30, null)) runNoeudMatin(); } catch (e) { console.warn('cron cheminMatin:', e && e.message); }
-    try { if (cronDue('cheminFlamme', 20, 0, null)) runFlammeSoir(); } catch (e) { console.warn('cron cheminFlamme:', e && e.message); }
+    try { if (cronDue('rappelRepas', rH, rM, null)) runRappelRepas(); } catch (e) { console.warn('cron rappelRepas:', e && e.message); }
+    try { if (cronDue('serieDanger', sH, sM, null)) runSerieDanger(); } catch (e) { console.warn('cron serieDanger:', e && e.message); }
     try { if (cronDue('recap', 18, 0, ['Sun'])) runRecap(); } catch (e) { console.warn('cron recap:', e && e.message); }
     try { if (cronDue('recapRelance', 12, 30, ['Mon'])) runRecapRelance(); } catch (e) { console.warn('cron recapRelance:', e && e.message); }
     try { if (cronDue('photos', 9, 0, null)) runPhotos(); } catch (e) { console.warn('cron photos:', e && e.message); }
@@ -391,10 +472,41 @@ module.exports = function initPush({ app, getDb, mw }) {
       url: '/nutrition/?push=message&conv=' + convId,
     }, {
       bypassCap: true,                // les messages coach ne comptent pas dans le plafond
-      notBefore: new Date(Date.now() + 20000).toISOString(), // léger délai (20 s) pour regrouper les rafales
+      notBefore: new Date(NOW().getTime() + 20000).toISOString(), // léger délai (20 s) pour regrouper les rafales
       dedupKey: 'coachmsg:' + clientEmail + ':' + convId,
       groupedTitle: (n) => '💬 ' + prenom + ' t\'a envoyé ' + n + ' messages',
       groupedBody: () => 'Ouvre la conversation pour lire.',
+    });
+  }
+
+  // ---- 🎁 Déblocage de récompense : à l'ÉVÉNEMENT (hook onUnlock du moteur Punch) ----
+  // `nouveaux` = les seuils qui viennent de tomber (evaluateUnlocks), souvent un
+  // seul, parfois plusieurs d'un coup (gros gain). Une SEULE notif : nominale si
+  // un déblocage, groupée sinon. Le dedup regroupe aussi deux gains rapprochés du
+  // même jour tant que la première notif n'est pas partie.
+  const UNLOCK_GROUPED = {
+    title: '🎉 Tu as débloqué plusieurs récompenses !',
+    body: 'Ton Punch vient d\'ouvrir plusieurs portes — viens voir.',
+    url: '/nutrition/?push=chemin', // le Chemin est le seul écran qui montre les 3 types
+  };
+  function messageUnlock(s) {
+    if (s.type === 'video') return { title: '🎬 Nouveau lot de séances débloqué !', body: 'De nouvelles vidéos t\'attendent dans Mes guides.', url: '/nutrition/?push=guides' };
+    if (s.type === 'ebook') return { title: '📚 De nouveaux guides t\'attendent !', body: 'Ils t\'attendent dans Mes guides.', url: '/nutrition/?push=guides' };
+    // Cadeau : on le NOMME (lib/cadeaux, la seule source des noms).
+    const id = (s.payload && s.payload.cadeau) || s.cadeau || '';
+    const c = cadeauxLib.cadeau(id);
+    return { title: '🎁 Tu viens de débloquer : ' + ((c && c.label) || 'un cadeau') + ' !', body: 'Il est dans Mes cadeaux — va le voir.', url: '/nutrition/?push=cadeaux' };
+  }
+  function notifyUnlocks(email, nouveaux) {
+    const list = (nouveaux || []).filter(Boolean);
+    if (!email || !list.length) return;
+    const m = list.length > 1 ? UNLOCK_GROUPED : messageUnlock(list[0]);
+    enqueue(email, 'recompenses', { title: m.title, body: m.body, url: m.url }, {
+      bypassCap: true, // un déblocage est rare et mérité : il ne saute jamais pour cause de plafond
+      dedupKey: 'unlock:' + email + ':' + parisParts().ymd,
+      groupedTitle: () => UNLOCK_GROUPED.title,
+      groupedBody: () => UNLOCK_GROUPED.body,
+      groupedUrl: UNLOCK_GROUPED.url,
     });
   }
 
@@ -434,9 +546,10 @@ module.exports = function initPush({ app, getDb, mw }) {
       const b = req.body || {};
       const cur = getPrefs(email);
       const val = (k) => (k in b ? (b[k] ? 1 : 0) : cur[k]);
-      getDb().prepare(`INSERT INTO nutrition_push_prefs (client_email, messages, recap, photos, seances) VALUES (?,?,?,?,?)
-        ON CONFLICT(client_email) DO UPDATE SET messages=excluded.messages, recap=excluded.recap, photos=excluded.photos, seances=excluded.seances`)
-        .run(email, val('messages'), val('recap'), val('photos'), val('seances'));
+      getDb().prepare(`INSERT INTO nutrition_push_prefs (client_email, messages, recap, photos, seances, serie, repas, recompenses) VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(client_email) DO UPDATE SET messages=excluded.messages, recap=excluded.recap, photos=excluded.photos, seances=excluded.seances,
+          serie=excluded.serie, repas=excluded.repas, recompenses=excluded.recompenses`)
+        .run(email, val('messages'), val('recap'), val('photos'), val('seances'), val('serie'), val('repas'), val('recompenses'));
       res.json({ ok: true, prefs: getPrefs(email) });
     } catch (e) { console.error('push prefs:', e); res.status(500).json({ ok: false }); }
   });
@@ -465,6 +578,7 @@ module.exports = function initPush({ app, getDb, mw }) {
   const _timer = setInterval(() => { tick().catch(() => {}); }, 60000);
   if (_timer.unref) _timer.unref();
 
-  return { notifyCoachMessage, enqueue, tick, getPrefs, isQuietHours, parisParts,
-    _internal: { processQueue, next8h, runRecap, runRecapRelance, runPhotos, runSeanceReminders, weekState, subscribedChallengeClients, cronDue, getFlag, setFlag } };
+  return { notifyCoachMessage, notifyUnlocks, enqueue, tick, getPrefs, isQuietHours, parisParts,
+    _internal: { processQueue, next8h, runRecap, runRecapRelance, runPhotos, runSeanceReminders, weekState, subscribedChallengeClients, cronDue, getFlag, setFlag,
+      runRappelRepas, runSerieDanger, streakVive, heureConfig } };
 };

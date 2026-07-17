@@ -647,7 +647,7 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 // Chemin du challenge : moteur gamifié 42 jours (module dédié, testable).
 const {
   ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds,
-  assurerCadeaux, bonsDe, bonParCode, retirerBon,
+  assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
 // Bilan hebdo : seuils + rédaction par modèles (pur, testable). L'IA est chargée
 // à la demande, pour ne pas dépendre du SDK Anthropic quand elle n'est pas utilisée.
@@ -667,6 +667,9 @@ try {
 
   // Notifications push (Web Push / VAPID) : moteur + routes + scénarios.
   const push = require('./nutrition-app/lib/push')({ app, getDb, mw: { requireAuth, requireNutritionUse, requireCoachOrAdmin } });
+  // Déblocage de récompense -> notification (le moteur signale, le push décide :
+  // c'est CE moteur-ci qui écrit le Punch, donc lui seul voit tomber les seuils).
+  try { setUnlockNotifier(push.notifyUnlocks); } catch (e) { console.warn('unlock notifier :', e && e.message); }
 
   // --- CHEMIN DU CHALLENGE : état + validations auto-déclarées + flag admin. ---
   // État complet du parcours pour le client courant (nœuds, statut, stats de jeu).
@@ -925,18 +928,22 @@ try {
         // inconnu de la répartition retombe sur son unlock_day historique -> jamais
         // verrouillé à vie, même si l'admin en ajoute un demain.
         const src = estVideo ? null : ebooksSources.sourceEbook(r.id);
-        let locked, label, ordre;
+        // LE verrou vient de la règle centrale (ebooksSources.estVerrouille) : la
+        // même que celle des routes de lecture — un guide affiché « débloqué » doit
+        // TOUJOURS s'ouvrir au clic.
+        const locked = ebooksSources.estVerrouille(r, { day, punch });
+        let label, ordre;
         // `ordre` = OÙ, dans le parcours, ce guide tombe. 0 = au départ, 1 = à la toute
         // fin. C'est ce qui permet de trier « le plus récemment reçu d'abord » alors
         // que les canaux ne comptent PAS dans la même unité : le Chemin avance en
         // JOURS, les paliers en PUNCH. Ramenés à une même échelle (la part du parcours
         // franchie), ils redeviennent comparables — un ebook à 1600 Punch (0,67) et un
         // ebook du jour 30 (0,71) arrivent bien tous les deux vers les deux tiers.
-        if (estVideo) { locked = punch < seuil; label = seuil + ' Punch'; ordre = seuil / punchSeuils.PUNCH_MAX_THEORIQUE; }
-        else if (!src) { locked = day < r.unlock_day; label = ebookUnlockLabel(r.unlock_day); ordre = r.unlock_day / JOURS_CHALLENGE; }
-        else if (src.source === 'intro') { locked = false; label = 'Offert'; ordre = 0; }
-        else if (src.source === 'chemin') { locked = day < src.jour; label = ebookUnlockLabel(src.jour); ordre = src.jour / JOURS_CHALLENGE; }
-        else { locked = punch < src.seuil; label = src.seuil + ' Punch'; ordre = src.seuil / punchSeuils.PUNCH_MAX_THEORIQUE; }
+        if (estVideo) { label = seuil + ' Punch'; ordre = seuil / punchSeuils.PUNCH_MAX_THEORIQUE; }
+        else if (!src) { label = ebookUnlockLabel(r.unlock_day); ordre = r.unlock_day / JOURS_CHALLENGE; }
+        else if (src.source === 'intro') { label = 'Offert'; ordre = 0; }
+        else if (src.source === 'chemin') { label = ebookUnlockLabel(src.jour); ordre = src.jour / JOURS_CHALLENGE; }
+        else { label = src.seuil + ' Punch'; ordre = src.seuil / punchSeuils.PUNCH_MAX_THEORIQUE; }
         return {
           id: r.id, title: r.title, description: r.description, category: r.category,
           cover: r.cover_data || '', unlockDay: r.unlock_day, locked,
@@ -959,9 +966,11 @@ try {
     try {
       const email = (req.session && req.session.email) || '';
       const id = Number(req.params.id);
-      const eb = getDb().prepare('SELECT id, unlock_day FROM nutrition_ebooks WHERE id=? AND active=1').get(id);
+      const eb = getDb().prepare('SELECT id, unlock_day, type, video_lot FROM nutrition_ebooks WHERE id=? AND active=1').get(id);
       if (!eb) return res.status(404).json({ ok: false });
-      if (clientChallengeDay(email) < eb.unlock_day) return res.status(403).json({ ok: false, locked: true });
+      // La MÊME règle que la liste (canaux offert / Chemin / Punch) : un guide
+      // débloqué au Punch se lit immédiatement, peu importe le jour du challenge.
+      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(email), punch: punchDuClient(email) })) return res.status(403).json({ ok: false, locked: true });
       // Marque le guide comme lu -> le badge « Nouveau » disparaît ensuite.
       try { getDb().prepare('INSERT OR IGNORE INTO nutrition_ebook_reads (client_email, ebook_id, opened_at) VALUES (?,?,?)').run(email, id, new Date().toISOString()); } catch (_) { /* ignore */ }
       recordEbookOpen(email, id);            // log quotidien + streak (Chemin du challenge)
@@ -975,9 +984,10 @@ try {
       const id = Number(req.params.id);
       const v = verifyEbookToken(req.query.k);
       if (!v || v.ebookId !== id) return res.status(403).end();
-      const eb = getDb().prepare('SELECT title, pdf_data, pdf_mime, unlock_day FROM nutrition_ebooks WHERE id=? AND active=1').get(id);
+      const eb = getDb().prepare('SELECT id, title, pdf_data, pdf_mime, unlock_day, type, video_lot FROM nutrition_ebooks WHERE id=? AND active=1').get(id);
       if (!eb || !eb.pdf_data) return res.status(404).end();
-      if (clientChallengeDay(v.email) < eb.unlock_day) return res.status(403).end();
+      // Même règle que la liste et l'ouverture (canaux offert / Chemin / Punch).
+      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(v.email), punch: punchDuClient(v.email) })) return res.status(403).end();
       const m = /^data:[^;]+;base64,(.+)$/.exec(eb.pdf_data);
       const buf = Buffer.from(m ? m[1] : eb.pdf_data, 'base64');
       res.setHeader('Content-Type', eb.pdf_mime || 'application/pdf');

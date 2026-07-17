@@ -802,7 +802,7 @@
         <button class="action-card action-card-admin hidden" id="btnHelpAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-inbox"/></svg></span>Demandes d'aide<span id="helpAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card action-card-admin hidden" id="btnScanAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-barcode"/></svg></span>Scans clients<span id="scanAdminBadge" class="action-badge hidden">0</span></button>
         <button class="action-card" id="btnShopping"><span class="action-ic"><svg class="ic"><use href="#ic-cart"/></svg></span>Liste de courses</button>
-        <button class="action-card" id="btnNewPlan"><span class="action-ic"><svg class="ic"><use href="#ic-refresh"/></svg></span>Recalculer le plan</button>
+        <button class="action-card" id="btnNewPlan"><span class="action-ic"><svg class="ic"><use href="#ic-refresh"/></svg></span>Nouveau plan</button>
         <button class="action-card action-card-accent" id="btnAvance"><span class="action-ic"><svg class="ic"><use href="#ic-sliders"/></svg></span>Affiner mon plan</button>
         <button class="action-card" id="btnComplements"><span class="action-ic"><svg class="ic"><use href="#ic-pill"/></svg></span>Compléments</button>
         <button class="action-card" id="btnExportPlan"><span class="action-ic"><svg class="ic"><use href="#ic-file"/></svg></span>Plan PDF</button>
@@ -829,7 +829,7 @@
       <div class="plan-tools">
         <button type="button" class="plan-tool" data-go="btnAgenda"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter à mon agenda</button>
         <button type="button" class="plan-tool" data-go="btnAvance"><svg class="ic"><use href="#ic-sliders"/></svg> Affiner mon plan</button>
-        <button type="button" class="plan-tool-link" data-go="btnNewPlan"><svg class="ic"><use href="#ic-refresh"/></svg> Recalculer le plan</button>
+        <button type="button" class="plan-tool-link" data-go="btnNewPlan"><svg class="ic"><use href="#ic-refresh"/></svg> Nouveau plan</button>
       </div>
       </div><!-- /#view-plan -->
 
@@ -854,7 +854,7 @@
         </div>
         <button type="button" class="profil-row" id="btnContactCoach"><svg class="ic pr-blue"><use href="#ic-send"/></svg>Contacter mon coach<span class="pr-badge conv-unread" id="contactCoachBadge" style="display:none"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnFiche"><svg class="ic pr-muted"><use href="#ic-user"/></svg>Ma fiche<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row" data-go="btnEditProfile"><svg class="ic pr-muted"><use href="#ic-edit"/></svg>Refaire mon plan<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row" data-go="btnEditProfile"><svg class="ic pr-muted"><use href="#ic-edit"/></svg>Modifier mon profil<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnFavoris"><svg class="ic pr-muted"><use href="#ic-heart"/></svg>Favoris<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnComplements"><svg class="ic pr-muted"><use href="#ic-pill"/></svg>Compléments<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnAgenda"><svg class="ic pr-muted"><use href="#ic-calendar"/></svg>Agenda<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -877,7 +877,7 @@
         <button type="button" class="profil-row profil-admin hidden" id="btnCheminAdmin"><svg class="ic pr-lime"><use href="#ic-flame"/></svg>Chemin du challenge<span class="pr-badge" id="cheminStateBadge"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnCoachFaq"><svg class="ic pr-lime"><use href="#ic-file"/></svg>Réponses du coach (gratuit)<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnQuickOptions"><svg class="ic pr-lime"><use href="#ic-cart"/></svg>Options rapides boutique<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row profil-admin hidden" id="btnEbooksAdmin"><svg class="ic pr-lime"><use href="#ic-book"/></svg>Guides (ebooks)<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" id="btnEbooksAdmin"><svg class="ic pr-lime"><use href="#ic-book"/></svg>Guides PDF<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin profil-danger hidden" id="btnResetClients"><svg class="ic"><use href="#ic-refresh"/></svg>Réinitialiser les données clients (test)</button>
         <button type="button" class="profil-row profil-admin hidden" data-go="btnHelpAdmin"><svg class="ic pr-lime"><use href="#ic-inbox"/></svg>Demandes d'aide<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
@@ -1070,7 +1070,7 @@
         <h2><svg class="ic"><use href="#ic-check-circle"/></svg> Mon suivi alimentaire</h2>
         <button class="modal-close" id="suiviClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Ton adhérence au plan, repas par repas.</p>
+      <p class="panel-sub">Ton suivi du plan, repas par repas.</p>
       <button type="button" id="btnHelpFromSuivi" class="btn btn-outline" style="margin-bottom:10px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide cette semaine</button>
       <button type="button" id="btnScanFromSuivi" class="btn btn-outline" style="margin-bottom:10px"><svg class="ic"><use href="#ic-scan"/></svg> J'ai mangé autre chose — scanner</button>
       <button type="button" id="btnPlateFromSuivi" class="btn btn-outline is-soon" style="margin-bottom:14px"><svg class="ic"><use href="#ic-camera"/></svg> Analyser mon assiette en photo<span class="soon-badge">Bientôt</span></button>
@@ -1489,7 +1489,7 @@
           <button type="button" class="chip" data-value="stress">Stress</button>
           <button type="button" class="chip" data-value="fatigue">Fatigue</button>
         </div>
-        <button type="submit" class="btn btn-primary" style="width:100%">Recalculer mon plan personnalisé</button>
+        <button type="submit" class="btn btn-primary" style="width:100%">Mettre à jour mon plan</button>
       </form>
       <div id="ajustementsBody"></div>
     </div>
@@ -1543,6 +1543,6 @@
 
   <script src="vendor/zxing.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
-  <script src="app.js?v=152"></script>
+  <script src="app.js?v=156"></script>
 </body>
 </html>

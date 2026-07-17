@@ -562,7 +562,7 @@ function renderNeeds() {
   // Ebook du jour : ouvre le guide du jour (ou la bibliothèque à défaut) ; badge +1 si un
   // ebook du jour vient d'être débloqué et n'a pas encore été lu.
   const ebookNew = !!(_guideDuJour && !_guideDuJour.read);
-  items += `<button type="button" class="pt-item" data-act="ebook" aria-label="Ebook du jour"><span class="pt-ic${ebookNew ? ' pt-ic--accent' : ''}">${icSvg('book')}${ebookNew ? '<span class="pt-plus">+1</span>' : ''}</span><span class="pt-cap">Ebook</span></button>`;
+  items += `<button type="button" class="pt-item" data-act="ebook" aria-label="Guide du jour"><span class="pt-ic${ebookNew ? ' pt-ic--accent' : ''}">${icSvg('book')}${ebookNew ? '<span class="pt-plus">+1</span>' : ''}</span><span class="pt-cap">Guide</span></button>`;
   items += `<button type="button" class="pt-item pt-item--obj" data-act="obj" aria-label="Voir le détail de mes objectifs nutritionnels"><span class="pt-pill">${objPill}</span><span class="pt-cap">Objectif</span></button>`;
 
   card.innerHTML = `
@@ -834,7 +834,7 @@ function renderPlan() {
     const kcalTag = state.masquerCalories ? '' : `<span class="day-kcal">${dayKcal} kcal</span>`;
     const title = document.createElement('div');
     title.className = 'day-title';
-    const nowTag = di === todayIdx ? '<span class="day-now">Jour en cours</span>' : '';
+    const nowTag = di === todayIdx ? '<span class="day-now">Aujourd\'hui</span>' : '';
     title.innerHTML = `${jour.jour}${nowTag}${kcalTag}<button class="day-regen" data-day="${di}">${icSvg('refresh')} Toute la journée</button>`;
     card.appendChild(title);
     const row = document.createElement('div');
@@ -2886,7 +2886,7 @@ function saveLocal() {
   };
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(payload));
-    $('#saveState').innerHTML = icSvg('check') + ' Plan sauvegarde';
+    $('#saveState').innerHTML = icSvg('check') + ' Plan sauvegardé';
   } catch (e) { console.warn('Sauvegarde locale échouée (quota / navigation privée) — la copie serveur prend le relais :', e && e.message); }
   pushAccountSave(payload); // compte client -> copie serveur (suit l'utilisateur sur tous ses appareils)
 }
@@ -3260,8 +3260,15 @@ function init() {
     revealEbooks();
     renderCommunaute();
     showCommunauteIntro();
-    $('#saveState').innerHTML = icSvg('check') + ' Plan restaure';
+    $('#saveState').innerHTML = icSvg('check') + ' Plan restauré';
     showScreen('result');
+    // L'écran d'accueil d'un client connecté, c'est le CHEMIN : sa série, son étape
+    // du jour, son Punch — le « où j'en suis » avant le « quoi manger ». Deux gardes :
+    //  - un lien profond (?push=…) route lui-même vers sa cible (handlePushDeepLink),
+    //    on ne pose pas un onglet qu'il écraserait 1 s plus tard ;
+    //  - seuls les VRAIS comptes clients sont concernés (admin/démo n'ont pas de
+    //    chemin : ils garderaient un écran « indisponible » comme accueil).
+    if (window.__NUTRI_USER && window.__NUTRI_USER.email && !/[?&]push=/.test(location.search)) setTab('parcours');
     refreshNotifications();
     checkOfficialAdjustment(); // recalcul du plan si une pesée officielle S3/S6 vient d'être enregistrée par le coach
   } else if (isDemo()) {
@@ -5239,7 +5246,7 @@ function statInfoTexte(key, s) {
     case 'punch': return {
       emoji: '👊', titre: 'Ton Punch',
       valeur: (s.punch || 0) + ' Punch',
-      texte: 'Tu en gagnes en validant les étapes de ton chemin : une séance, un ebook, un message à ton coach…<br><br>'
+      texte: 'Tu en gagnes en validant les étapes de ton chemin : une séance, un guide, un message à ton coach…<br><br>'
         + 'Chaque étape a sa valeur, et les <b>grandes étapes ★</b> rapportent davantage. '
         + 'Le Punch récompense <b>ce que tu fais</b> — jamais ton poids.',
     };
@@ -5315,7 +5322,7 @@ function challengeActionLabel(n) {
     seance: ['Valider une séance', 'Coche ta séance dans « Mes mesures ».'],
     groupe: ['Aller au groupe', 'Publie ton message sur le mur de ton groupe.'],
     coach: ['Écrire à mon coach', 'Envoie un message à ton coach.'],
-    ebook: ['Ouvrir mon ebook', 'Ouvre le guide du jour (2 minutes suffisent).'],
+    ebook: ['Ouvrir mon guide', 'Ouvre le guide du jour (2 minutes suffisent).'],
     special: ['Y aller', ''],
     bilan: ['Voir mon bilan', 'Consulte le bilan de ta semaine.'],
     final: ['Voir mon bilan final', 'Ton récap complet et ton badge finisher.'],
@@ -6047,10 +6054,25 @@ function openConversationForDeepLink(convId) {
     }
   } catch (_) { /* ignore */ }
 }
+// Le routage d'une notification, UNIQUE pour les deux entrées (au boot via l'URL,
+// app ouverte via le postMessage du SW) : une notif doit déposer au même endroit
+// quel que soit l'état de l'app au moment du clic.
+function routePushTarget(p, conv) {
+  if (!p) return false;
+  // « message » : ouvre DIRECTEMENT la conversation concernée (client -> sa conv
+  // coach ; coach/admin -> la conv ciblée par conv=<id>), prête à répondre.
+  if (p === 'message') { openConversationForDeepLink(conv); return true; }
+  if (typeof setTab !== 'function') return false;
+  if (p === 'plan') setTab('plan');             // rappel repas / série en danger
+  else if (p === 'guides') setTab('ebooks');    // vidéos / ebooks débloqués
+  else if (p === 'cadeaux') setTab('boutique'); // cadeau débloqué
+  else setTab('parcours'); // recap / photos / seance / chemin / récompenses groupées
+  return true;
+}
 function handlePushDeepLinkUrl(rawUrl) {
   try {
     const u = new URL(rawUrl, location.href);
-    if (u.searchParams.get('push') === 'message') { openConversationForDeepLink(u.searchParams.get('conv')); return true; }
+    return routePushTarget(u.searchParams.get('push'), u.searchParams.get('conv'));
   } catch (_) { /* ignore */ }
   return false;
 }
@@ -8044,7 +8066,7 @@ function renderSuiviPlan() {
 
   $('#suiviPlanBody').innerHTML = `
     <div class="week-strip">${strip}</div>
-    <h3 class="suivi-day-title">${escapeHtml(jours[di].jour || ('Jour ' + (di + 1)))}${(jourActuelDansPlan() && di === indexJourActuel()) ? '<span class="day-now">Jour en cours</span>' : ''}</h3>
+    <h3 class="suivi-day-title">${escapeHtml(jours[di].jour || ('Jour ' + (di + 1)))}${(jourActuelDansPlan() && di === indexJourActuel()) ? '<span class="day-now">Aujourd\'hui</span>' : ''}</h3>
     ${meals || '<p class="help-empty">Aucun repas ce jour-là.</p>'}
     ${scoreCard}
     <div class="suivi-week"><h3><svg class="ic"><use href="#ic-trend"/></svg> Ma semaine nutrition</h3><p class="week-summary">${escapeHtml(weekTxt)}</p></div>
@@ -8792,12 +8814,9 @@ function handlePushDeepLink() {
   const plog = params.get('plog');
   if (plog) { try { fetch(apiUrl('/api/push/opened'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ logId: Number(plog) }) }); } catch (_) { /* ignore */ } }
   const p = params.get('push');
-  if (p) setTimeout(() => {
-    // « message » : ouvre DIRECTEMENT la conversation concernée (client -> sa conv coach ;
-    // coach/admin -> la conv ciblée par conv=<id>), prête à répondre.
-    if (p === 'message') openConversationForDeepLink(params.get('conv'));
-    else if (typeof setTab === 'function') setTab('parcours'); // recap / photos / seance -> Parcours (Phase 2 affinera)
-  }, 900);
+  // Chaque notif dépose PILE sur l'écran de son action : la relance repas/série
+  // sur le plan du jour, une récompense sur l'écran qui la contient.
+  if (p) setTimeout(() => { routePushTarget(p, params.get('conv')); }, 900);
   if (plog || p) { try { history.replaceState(null, '', location.pathname); } catch (_) { /* ignore */ } }
 }
 function closePushPrefs() { const p = $('#pushPrefsPanel'); if (p) p.classList.add('hidden'); }
@@ -8805,7 +8824,7 @@ async function openPushPrefs() {
   const p = $('#pushPrefsPanel'); if (!p) return;
   p.classList.remove('hidden');
   const body = $('#pushPrefsBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
-  let prefs = { messages: 1, recap: 1, photos: 1, seances: 1 };
+  let prefs = { messages: 1, recap: 1, photos: 1, seances: 1, serie: 1, repas: 1, recompenses: 1 };
   try { const d = await (await fetch(apiUrl('/api/push/prefs'), { headers: nutriAuthHeaders() })).json(); if (d && d.ok) prefs = d.prefs; } catch (_) { /* défauts */ }
   const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
   const permNote = perm === 'granted' ? ''
@@ -8814,6 +8833,9 @@ async function openPushPrefs() {
       : '<button type="button" class="btn btn-primary" id="pushEnableBtn" style="width:100%;margin:0 0 12px">Activer les notifications</button>');
   const ROWS = [
     ['messages', '💬 Messages du coach', 'Quand ton coach t\'écrit'],
+    ['serie', '🔥 Série en danger', 'Le soir, quand ta série risque de tomber'],
+    ['repas', '🍽️ Rappel repas quotidien', 'Le soir, si ta journée n\'est pas validée'],
+    ['recompenses', '🎁 Récompenses débloquées', 'Vidéos, guides et cadeaux gagnés'],
     ['recap', '📊 Récap de la semaine', 'Ton bilan chaque dimanche'],
     ['photos', '📸 Photos du parcours', 'Rappels mi-parcours et bilan'],
     ['seances', '💪 Rappels de séance', 'Lundi, mercredi, vendredi'],
@@ -9194,17 +9216,32 @@ function showEbookReader(url, title) {
   r.classList.remove('hidden');
   const useNative = () => { // repli : visionneuse native du navigateur
     if (seq !== _ebookRenderSeq) return;
-    if (pages) { pages.style.display = 'none'; pages.innerHTML = ''; }
+    // ⚠️ On MASQUE les pages sans les vider : si le rendu intégré aboutit après le
+    // repli (gros PDF, worker au démarrage), sa première page doit encore exister
+    // pour reprendre la main (cf. useIntegre) — vidées, on perdrait la page 1.
+    if (pages) pages.style.display = 'none';
     if (frame) { frame.style.display = ''; frame.onload = () => { if (loading) loading.classList.add('hidden'); }; frame.src = url; }
+  };
+  // Le rendu intégré (re)prend la main — y compris APRÈS un repli : l'iframe
+  // native ne sait pas afficher un PDF sur la plupart des mobiles (c'est la raison
+  // d'être de PDF.js ici), donc dès qu'une page est peinte, c'est elle qui gagne.
+  const useIntegre = () => {
+    if (seq !== _ebookRenderSeq) return;
+    if (frame) { frame.onload = null; frame.style.display = 'none'; frame.src = 'about:blank'; }
+    if (pages) pages.style.display = '';
+    if (loading) loading.classList.add('hidden');
   };
   if (window.pdfjsLib && pages) {
     if (frame) { frame.style.display = 'none'; frame.src = 'about:blank'; }
     pages.style.display = ''; pages.scrollTop = 0; pages.innerHTML = '';
     let painted = false;
-    // Filet de sécurité : si le rendu intégré ne s'affiche pas (worker/canvas indisponible),
-    // on bascule sur la visionneuse native plutôt que de laisser tourner le loader.
-    const fallbackTimer = setTimeout(() => { if (!painted) useNative(); }, 6000);
-    renderPdfInReader(url, seq, () => { painted = true; clearTimeout(fallbackTimer); if (loading) loading.classList.add('hidden'); })
+    // Filet de sécurité : si le rendu intégré ne s'affiche toujours pas (worker/canvas
+    // réellement indisponibles), on tente la visionneuse native plutôt que de laisser
+    // tourner le loader. 12 s et non 6 : un vrai ebook de plusieurs Mo sur un réseau
+    // mobile n'a souvent PAS fini de télécharger en 6 s — basculer si tôt, c'était
+    // remplacer un rendu en cours par une iframe noire (vécu : « je ne vois rien »).
+    const fallbackTimer = setTimeout(() => { if (!painted) useNative(); }, 12000);
+    renderPdfInReader(url, seq, () => { painted = true; clearTimeout(fallbackTimer); useIntegre(); })
       .then(() => { if (seq === _ebookRenderSeq && loading) loading.classList.add('hidden'); })
       .catch((e) => { clearTimeout(fallbackTimer); if (seq === _ebookRenderSeq) { console.warn('pdf render:', e && e.message); useNative(); } });
   } else {

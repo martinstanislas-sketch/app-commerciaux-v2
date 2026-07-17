@@ -24,10 +24,11 @@
 // v4 : l'étape 13 se valide par une photo POSTÉE AU GROUPE (event 'groupe_photo')
 //      et non plus par l'écran d'analyse d'assiette (event 'plate').
 // v5 : l'étape 27 accepte AUSSI une réponse à un membre ('groupe_reponse').
+// v6 : « ebook » devient « guide » dans les libellés (titre + bouton), rien d'autre.
 const punchSeuils = require('./punchSeuils');
 const cadeaux = require('./cadeaux');
 
-const CHALLENGE_PATH_SEED_VERSION = 5;
+const CHALLENGE_PATH_SEED_VERSION = 6;
 const CHALLENGE_WEEK_TITLES = {
   1: 'Lancement', 2: 'Prendre le rythme', 3: 'Mi-parcours',
   4: 'Relance', 5: 'Tenir le cap', 6: 'Dernière ligne droite',
@@ -46,33 +47,33 @@ const CHALLENGE_PATH_NODES = [
   // S1 — Lancement (index 0–7)
   { day: 0, week: 1, type: 'commencer', event: 'photo', title: "Commencer", action: "Photos + mensurations + présente-toi au groupe", punch: 80, milestone: 1, jalon: 'debut', flow: ['photos', 'mensurations', 'groupe'] },
   { day: 1, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 2, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 2, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 3, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 4, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 4, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 5, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
   { day: 6, week: 1, type: 'special', event: 'coach', title: "Message coach", action: "Écris un message à ton coach", punch: 20, milestone: 0 },
   { day: 7, week: 1, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", punch: 20, milestone: 0 },
   // S2 — Prendre le rythme (index 8–14)
   { day: 8, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 9, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 9, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 10, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 11, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 11, week: 2, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 12, week: 2, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
   { day: 13, week: 2, type: 'special', event: 'groupe_photo', title: "Photo d'assiette", action: "Poste une photo de ton assiette au groupe", punch: 20, milestone: 0 },
   { day: 14, week: 2, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", punch: 20, milestone: 0 },
   // S3 — Mi-parcours (index 15–21)
   { day: 15, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 16, week: 3, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 16, week: 3, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 17, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 18, week: 3, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 18, week: 3, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 19, week: 3, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
   { day: 20, week: 3, type: 'special', event: 'coach', title: "Message coach", action: "Écris un message à ton coach", punch: 20, milestone: 0 },
   { day: 21, week: 3, type: 'check', event: 'photo', title: "Point mi-parcours", action: "Photos + mensurations mi-parcours", punch: 90, milestone: 1, jalon: 'mi', flow: ['photos', 'mensurations'] },
   // S4 — Relance (index 22–28)
   { day: 22, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 23, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 23, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 24, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 25, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 25, week: 4, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 26, week: 4, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
   // Encourager = poster OU répondre à quelqu'un : les deux sont un encouragement.
   // `events` (au pluriel) = la liste des événements acceptés ; les autres étapes
@@ -82,17 +83,17 @@ const CHALLENGE_PATH_NODES = [
   { day: 28, week: 4, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", punch: 20, milestone: 0 },
   // S5 — Tenir le cap (index 29–35)
   { day: 29, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 30, week: 5, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 30, week: 5, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 31, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 32, week: 5, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 32, week: 5, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 33, week: 5, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
   { day: 34, week: 5, type: 'special', event: 'groupe', title: "Communauté", action: "Partage-nous ta meilleure recette sur le groupe", punch: 20, milestone: 0 },
   { day: 35, week: 5, type: 'bilan', event: 'bilan', title: "Bilan de la semaine", action: "Ouvre ton bilan", punch: 20, milestone: 0 },
   // S6 — Dernière ligne droite (index 36–42)
   { day: 36, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 37, week: 6, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 37, week: 6, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 38, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
-  { day: 39, week: 6, type: 'ebook', event: 'ebook', title: "Découvre ton ebook", action: "Ouvrir le ebook", punch: 15, milestone: 0 },
+  { day: 39, week: 6, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 40, week: 6, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
   { day: 41, week: 6, type: 'check', event: 'photo', title: "Point final", action: "Photos + mensurations finales", punch: 100, milestone: 1, jalon: 'fin', flow: ['photos', 'mensurations'] },
   { day: 42, week: 6, type: 'final', event: 'bilan', title: "Bilan final", action: "Bilan final, recap complet, badge finisher", punch: 100, milestone: 1 },
@@ -470,9 +471,21 @@ function createChallengeEngine({ getDb }) {
         try { onUnlock(s.type, { email, seuil: s.seuil, source: source || '', ...(s.payload || {}) }); }
         catch (e) { console.error('onUnlock:', e && e.message); } // un hook qui tombe ne doit rien casser
       });
+      // Signale le LOT de déblocages d'un coup (et non un par un) : c'est ce qui
+      // permet à l'abonné (la notif push) d'en faire UNE seule, groupée si besoin.
+      if (nouveaux.length && unlockNotifier) {
+        try { unlockNotifier(email, nouveaux); }
+        catch (e) { console.error('unlockNotifier:', e && e.message); } // idem : jamais bloquant
+      }
     } catch (e) { console.error('evaluateUnlocks:', e && e.message); }
     return nouveaux;
   }
+
+  // Abonné externe aux déblocages (posé par server.js : la notification push).
+  // Un simple setter plutôt qu'un require : push.js dépend déjà de ce module,
+  // l'inverse créerait un cycle.
+  let unlockNotifier = null;
+  function setUnlockNotifier(fn) { unlockNotifier = typeof fn === 'function' ? fn : null; }
 
   // Hook de déblocage. Les vidéos et les ebooks n'ont RIEN à faire ici : ils se
   // lisent depuis le total de Punch (server.js), donc ils sont déjà ouverts. Seuls
@@ -761,7 +774,7 @@ function createChallengeEngine({ getDb }) {
     ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, dayWon, challengePublicState,
     pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
     pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds,
-    assurerCadeaux, bonsDe, bonParCode, retirerBon,
+    assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier,
   };
 }
 

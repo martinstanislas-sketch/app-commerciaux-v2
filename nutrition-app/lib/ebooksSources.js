@@ -17,7 +17,7 @@
 // Offert dès le départ, jamais verrouillé.
 const EBOOK_INTRO = 4; // « Trouve ton rythme même avec une vie chargée » (MINDSET)
 
-// Jour du Chemin -> id. Ce sont EXACTEMENT les étapes « Découvre ton ebook ».
+// Jour du Chemin -> id. Ce sont EXACTEMENT les étapes « Découvre ton guide ».
 // L'ebook s'ouvre quand le client ATTEINT le jour : c'est en l'ouvrant qu'il
 // valide l'étape. L'exiger « étape faite » serait circulaire — l'étape ne peut
 // pas se valider sans avoir ouvert l'ebook qu'elle verrouille.
@@ -63,4 +63,25 @@ function idsRepartis() {
   return [EBOOK_INTRO, ...Object.values(EBOOK_CHEMIN), ...Object.values(EBOOK_PUNCH).flat()];
 }
 
-module.exports = { EBOOK_INTRO, EBOOK_CHEMIN, EBOOK_PUNCH, sourceEbook, idsRepartis };
+// Le VERROU d'un guide, dit UNE seule fois. La liste, l'ouverture et le fichier
+// doivent répondre exactement pareil — sinon un guide affiché « débloqué » reste
+// illisible au clic (vécu : les ebooks du canal Punch restaient bloqués au jour,
+// parce que les routes de lecture ne vérifiaient que unlock_day).
+//   eb  = { id, type, video_lot, unlock_day } (la ligne nutrition_ebooks)
+//   qui = { day, punch } (la progression du client)
+function estVerrouille(eb, { day = 0, punch = 0 } = {}) {
+  const punchSeuils = require('./punchSeuils'); // requis ici : évite tout cycle au chargement
+  if ((eb.type || 'ebook') === 'video') {
+    // Une vidéo se débloque au PUNCH de son lot ; lot inconnu -> jamais ouvert
+    // (plutôt qu'ouvert à tous par accident).
+    const seuil = punchSeuils.VIDEO_LOTS[Math.max(0, Number(eb.video_lot) - 1)];
+    return seuil == null ? true : punch < seuil;
+  }
+  const src = sourceEbook(eb.id);
+  if (!src) return day < (Number(eb.unlock_day) || 0); // hors répartition -> règle historique
+  if (src.source === 'intro') return false;
+  if (src.source === 'chemin') return day < src.jour;
+  return punch < src.seuil; // canal Punch : le jour n'a AUCUN mot à dire
+}
+
+module.exports = { EBOOK_INTRO, EBOOK_CHEMIN, EBOOK_PUNCH, sourceEbook, idsRepartis, estVerrouille };
