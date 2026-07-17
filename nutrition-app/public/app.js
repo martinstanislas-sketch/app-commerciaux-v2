@@ -3971,7 +3971,7 @@ async function postComment(id, text) {
 // personne ne change d'apparence (les skins plein écran ont été retirés, trop
 // intrusifs). Doré > noir, rien du tout en dessous de 450 Punch. Le serveur a déjà
 // tranché (il déduit le palier du Punch) ; le front ne fait que le montrer.
-const TIER_MOT = { gold: 'Badge doré', dark: 'Badge noir' };
+const TIER_MOT = { platine: 'Badge Platine', or: 'Badge Or', argent: 'Badge Argent' };
 function feedCard(item) {
   // Texte épuré : on évite de répéter le prénom déjà affiché en gras (« Paul » + « Paul a validé… »).
   let txt = item.text || '';
@@ -9146,8 +9146,13 @@ function ouvrirCadeau(id) {
   // Un badge ne s'active pas : il se PORTE. Il est déjà autour de la photo, dans le
   // fil, dès le palier atteint. Un tap ne fait donc que le rappeler.
   if (c.nature === 'digital') {
-    showToast(c.id === 'theme_gold' ? 'Ton liseré doré est visible de tout le groupe 🏅'
-      : 'Ton liseré noir est visible de tout le groupe ⚫', { icon: 'check' });
+    const msg = c.id === 'badge_platine' ? 'Ton liseré platine est visible de tout le groupe 💎'
+      : c.id === 'badge_or' ? 'Ton liseré doré est visible de tout le groupe 🏅'
+      : c.id === 'badge_argent' ? 'Ton liseré argent est visible de tout le groupe 🥈'
+      : c.id === 'ambassadeur' ? 'Ton statut Ambassadeur est affiché sur ton profil 🎖️'
+      : c.id === 'acces_prioritaire' ? 'Accès prioritaire aux prochains challenges débloqué ⚡'
+      : c.label + ' débloqué ✅';
+    showToast(msg, { icon: 'check' });
     return;
   }
   if (c.bon) ouvrirBon(c);

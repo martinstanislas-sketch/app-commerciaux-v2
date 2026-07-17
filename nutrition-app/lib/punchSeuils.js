@@ -10,19 +10,34 @@
 //  débité. Un déblocage s'obtient en ATTEIGNANT un seuil, et reste acquis —
 //  il n'y a pas d'achat, donc pas de solde qui redescend.
 //
-//  ⚠️ Plafond : 2395 Punch max sur un challenge (parcours 1180 + série 1215).
+//  ⚠️ Plafond : 4095 Punch max (parcours 1180 + série 1215 + missions bonus 1700).
 //  Un seuil au-dessus serait inatteignable -> PUNCH_MAX_THEORIQUE + un test le
 //  verrouillent.
 // ============================================================================
 
-const PUNCH_MAX_THEORIQUE = 2395;
+const PUNCH_MAX_THEORIQUE = 4095;
 
 // Lots de vidéos : chaque seuil ouvre un lot (le n-ième lot = index + 1).
 const VIDEO_LOTS = [250, 650, 1050, 1450, 1750];
 // Paliers d'ebooks : seuil -> nombre d'ebooks ouverts à ce palier.
 const EBOOK_TIERS = { 150: 2, 350: 3, 550: 3, 800: 3, 1050: 3, 1300: 4, 1600: 4 };
-// Cadeaux : seuil -> identifiant du cadeau.
-const GIFTS = { 450: 'theme_dark', 800: 'ami_semaine', 1200: 'coaching_1to1', 1350: 'theme_gold', 1500: 'remise_abo', 2000: 'massage' };
+// Cadeaux : seuil de Punch -> identifiant du cadeau (paliers, jamais débités).
+const GIFTS = {
+  300: 'bilan_proche',
+  450: 'badge_argent',
+  600: 'chanson',
+  800: 'ambassadeur',
+  1000: 'coaching_individuel',
+  1200: 'acces_prioritaire',
+  1350: 'badge_or',
+  1500: 'deux_semaines_proche',
+  1800: 'coaching_nutrition',
+  2000: 'mois_offert',
+  2500: 'badge_platine',
+  3000: 'remise_abo',
+  3500: 'shooting',
+  4000: 'massage',
+};
 
 // Tous les déblocages, à plat et triés par seuil.
 // ⚠️ Un même seuil peut porter PLUSIEURS récompenses (800 = ebooks + cadeau,

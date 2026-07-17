@@ -864,11 +864,11 @@ function createChallengeEngine({ getDb }) {
   //
   // `ordre` : la POSITION de la récompense le long du sentier. On la cale sur le
   // cumul d'un parcours PARFAIT (chaque étape validée le bon jour + le jour gagné
-  // chaque jour, donc chaque palier de série au passage) — la courbe même sur
-  // laquelle les seuils ont été dessinés : elle finit exactement à
-  // PUNCH_MAX_THEORIQUE. Le marqueur tombe ainsi À CÔTÉ de l'étape où le seuil
-  // serait franchi si tout est validé. « À peu près » assumé : le Punch réel
-  // dépend de la série effective — d'où le seuil écrit en toutes lettres dessus.
+  // chaque jour, donc chaque palier de série au passage) : il finit à 2395
+  // (parcours 1180 + série 1215). Le marqueur tombe À CÔTÉ de l'étape où le seuil
+  // serait franchi. Les cadeaux au-delà de 2395 (qui EXIGENT des missions bonus,
+  // hors du sentier linéaire) se posent en fin de chemin (ordre = 1). « À peu
+  // près » assumé : le Punch réel dépend de la série — d'où le seuil écrit dessus.
   const CUMUL_PUNCH_PARFAIT = (() => {
     let cumul = 0;
     return CHALLENGE_PATH_NODES.map((n, i) => { cumul += n.punch + punchPalier(i + 1); return cumul; });

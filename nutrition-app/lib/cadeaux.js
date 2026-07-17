@@ -26,25 +26,57 @@ const punchSeuils = require('./punchSeuils');
 // fil : sa distinction se voit du GROUPE, ce qui est tout l'intérêt, et son app ne
 // bouge pas. Les ids restent (`theme_*`) : ils sont la clé des seuils.
 const CADEAUX = {
-  theme_dark: {
-    label: 'Badge noir', nature: 'digital', icon: '⚫', tier: 'dark',
-    desc: 'Un liseré noir autour de ta photo : tout le groupe voit ton palier.',
+  bilan_proche: {
+    label: 'Bilan forme offert à un proche', nature: 'physique', icon: '🎁',
+    desc: 'Ton proche bénéficie d\'un rendez-vous coach : objectifs, évaluation et premières recommandations.',
   },
-  ami_semaine: {
-    label: 'Une semaine offerte à un ami', nature: 'physique', icon: '🎟️',
-    desc: 'Un proche s\'entraîne avec toi pendant une semaine, gratuitement.',
+  badge_argent: {
+    label: 'Badge Argent', nature: 'digital', icon: '🥈', tier: 'argent',
+    desc: 'Un liseré argenté autour de ta photo : tout le groupe voit ta progression.',
   },
-  coaching_1to1: {
+  chanson: {
+    label: 'Choisis ta chanson préférée', nature: 'physique', icon: '🎵',
+    desc: 'Ta chanson diffusée pendant ton prochain training au studio.',
+  },
+  ambassadeur: {
+    label: 'Statut Ambassadeur My Coach', nature: 'digital', icon: '🎖️',
+    desc: 'Un statut exclusif sur ton profil pour valoriser ton engagement dans la communauté.',
+  },
+  coaching_individuel: {
     label: 'Un coaching individuel', nature: 'physique', icon: '🏋️',
-    desc: 'Une séance en tête à tête avec ton coach, rien que pour toi.',
+    desc: 'Une séance privée avec ton coach, consacrée à tes objectifs et ta technique.',
   },
-  theme_gold: {
-    label: 'Badge doré', nature: 'digital', icon: '🏅', tier: 'gold',
-    desc: 'La distinction la plus rare : un liseré doré autour de ta photo.',
+  acces_prioritaire: {
+    label: 'Accès prioritaire aux challenges (1 mois)', nature: 'digital', icon: '⚡',
+    desc: 'Pendant 30 jours, réserve ta place aux prochains challenges avant tout le monde.',
+  },
+  badge_or: {
+    label: 'Badge Or', nature: 'digital', icon: '🏅', tier: 'or',
+    desc: 'Un liseré doré, plus visible et prestigieux, autour de ta photo.',
+  },
+  deux_semaines_proche: {
+    label: 'Deux semaines offertes à un proche', nature: 'physique', icon: '🎟️',
+    desc: 'La personne de ton choix découvre le studio gratuitement deux semaines (valeur 150 €).',
+  },
+  coaching_nutrition: {
+    label: 'Coaching nutrition personnalisé en visio', nature: 'physique', icon: '🥗',
+    desc: 'Un rendez-vous à distance pour analyser tes habitudes et adapter ta nutrition.',
+  },
+  mois_offert: {
+    label: 'Un mois offert', nature: 'physique', icon: '🗓️',
+    desc: 'Quatre semaines d\'accompagnement offertes (valeur 300 €).',
+  },
+  badge_platine: {
+    label: 'Badge Platine', nature: 'digital', icon: '💎', tier: 'platine',
+    desc: 'Le liseré le plus prestigieux, réservé à un engagement exceptionnel.',
   },
   remise_abo: {
     label: 'Une remise sur ton abonnement', nature: 'physique', icon: '🏷️',
     desc: 'Ta régularité paie : ton coach applique la remise au studio.',
+  },
+  shooting: {
+    label: 'Shooting photo transformation', nature: 'physique', icon: '📸',
+    desc: 'Une séance photo pour immortaliser ta transformation.',
   },
   massage: {
     label: 'Un massage sportif', nature: 'physique', icon: '💆',
@@ -71,13 +103,14 @@ function seuilDe(id) {
   return s === undefined ? null : Number(s);
 }
 
-// Le badge se DÉDUIT du total de Punch : rien à stocker, rien à choisir, donc aucune
-// dérive possible entre le compteur et ce que le groupe voit. Doré > noir : le doré
-// est plus haut (1350 > 450), il l'emporte toujours.
+// Le liseré se DÉDUIT du total de Punch : rien à stocker, rien à choisir, donc
+// aucune dérive possible entre le compteur et ce que le groupe voit. Trois paliers,
+// le plus haut atteint l'emporte : platine (2500) > or (1350) > argent (450).
 function themeTier(punch) {
   const n = Number(punch) || 0;
-  if (n >= seuilDe('theme_gold')) return 'gold';
-  if (n >= seuilDe('theme_dark')) return 'dark';
+  if (n >= seuilDe('badge_platine')) return 'platine';
+  if (n >= seuilDe('badge_or')) return 'or';
+  if (n >= seuilDe('badge_argent')) return 'argent';
   return '';
 }
 

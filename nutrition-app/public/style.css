@@ -3442,11 +3442,13 @@ body.is-demo #navRestart { display: none !important; }
    dirait rien à un lecteur d'écran, ni à un daltonien.
    -------------------------------------------------------------------------- */
 .feed-av-wrap[data-tier] .feed-av { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--tier-c); }
-/* Noir : franc, mat. Doré : plus chaud, avec un halo qui le fait ressortir — c'est
-   le palier le plus rare de l'app (1350 Punch), il a le droit de se voir. */
-.feed-av-wrap[data-tier="dark"] { --tier-c: #23262F; }
-.feed-av-wrap[data-tier="gold"] { --tier-c: #C79A3A; }
-.feed-av-wrap[data-tier="gold"] .feed-av { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--tier-c), 0 0 10px rgba(199, 154, 58, .45); }
+/* Trois paliers : argent (450), or (1350), platine (2500). Plus le palier est
+   rare, plus il se voit — l'or et le platine ont un halo. */
+.feed-av-wrap[data-tier="argent"] { --tier-c: #AEB4BE; }
+.feed-av-wrap[data-tier="or"] { --tier-c: #C79A3A; }
+.feed-av-wrap[data-tier="or"] .feed-av { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--tier-c), 0 0 10px rgba(199, 154, 58, .45); }
+.feed-av-wrap[data-tier="platine"] { --tier-c: #6FD3E0; }
+.feed-av-wrap[data-tier="platine"] .feed-av { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--tier-c), 0 0 12px rgba(111, 211, 224, .55); }
 /* L'emoji du type d'événement se pose sur le liseré : on l'écarte un peu. */
 .feed-av-wrap[data-tier] .feed-av-badge { right: -5px; bottom: -5px; }
 

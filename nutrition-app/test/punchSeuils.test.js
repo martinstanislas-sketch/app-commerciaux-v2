@@ -29,9 +29,9 @@ function makeEngine() {
 const punchDe = (db, email) => db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch;
 
 // --- La config : source de vérité unique ------------------------------------
-test('seuils : AUCUN ne dépasse le maximum atteignable (2395)', () => {
+test('seuils : AUCUN ne dépasse le maximum atteignable (4095)', () => {
   const max = Math.max(...tousLesSeuils().map((s) => s.seuil));
-  assert.equal(PUNCH_MAX_THEORIQUE, 2395, 'parcours 1180 + série 1215');
+  assert.equal(PUNCH_MAX_THEORIQUE, 4095, 'parcours 1180 + série 1215 + missions bonus 1700');
   assert.ok(max <= PUNCH_MAX_THEORIQUE, `seuil ${max} inatteignable (> ${PUNCH_MAX_THEORIQUE})`);
   tousLesSeuils().forEach((s) => assert.ok(s.seuil > 0 && s.seuil <= PUNCH_MAX_THEORIQUE, `seuil ${s.seuil} hors bornes`));
 });
@@ -59,13 +59,14 @@ test('seuilsAtteints : rend ce qui est atteint et pas encore acquis', () => {
   assert.deepEqual(seuilsAtteints(100, []), [], 'sous le 1er seuil : rien');
   assert.deepEqual(seuilsAtteints(150, []).map(cleSeuil), ['150:ebook']);
   assert.deepEqual(seuilsAtteints(150, ['150:ebook']), [], 'déjà acquis -> plus rien');
-  assert.deepEqual(seuilsAtteints(800, []).map(cleSeuil), ['150:ebook', '250:video', '350:ebook', '450:gift', '550:ebook', '650:video', '800:ebook', '800:gift']);
+  assert.deepEqual(seuilsAtteints(800, []).map(cleSeuil), ['150:ebook', '250:video', '300:gift', '350:ebook', '450:gift', '550:ebook', '600:gift', '650:video', '800:ebook', '800:gift']);
 });
 
 test('prochainSeuil : ce qu\'il reste à viser', () => {
   assert.equal(prochainSeuil(0).seuil, 150);
   assert.equal(prochainSeuil(150).seuil, 250);
-  assert.equal(prochainSeuil(2395), null, 'tout est débloqué au maximum');
+  assert.equal(prochainSeuil(2395).seuil, 2500, 'au-delà de 2395, le cadeau à 2500 reste à viser');
+  assert.equal(prochainSeuil(4095), null, 'tout est débloqué au maximum');
 });
 
 // --- addPunch : le point de passage unique ----------------------------------
@@ -92,7 +93,7 @@ test('addPunch : un gros gain débloque TOUT ce qu\'il franchit d\'un coup', () 
   const { engine, email } = makeEngine();
   engine.pathStatsRow(email);
   const n = engine.addPunch(email, 800, 'test');
-  assert.deepEqual(n.map(cleSeuil), ['150:ebook', '250:video', '350:ebook', '450:gift', '550:ebook', '650:video', '800:ebook', '800:gift']);
+  assert.deepEqual(n.map(cleSeuil), ['150:ebook', '250:video', '300:gift', '350:ebook', '450:gift', '550:ebook', '600:gift', '650:video', '800:ebook', '800:gift']);
   assert.equal(n.filter((s) => s.seuil === 800).length, 2, 'les DEUX récompenses du seuil 800');
 });
 
@@ -137,7 +138,7 @@ test('état public : les déblocages et le prochain seuil sont exposés au front
   engine.pathStatsRow(email);
   engine.addPunch(email, 300, 'test');
   const st = engine.challengePublicState(email);
-  assert.deepEqual(st.unlocks.sort(), ['150:ebook', '250:video']);
+  assert.deepEqual(st.unlocks.sort(), ['150:ebook', '250:video', '300:gift']);
   assert.equal(st.prochainSeuil.seuil, 350, 'le front peut dire « encore 50 Punch »');
   assert.equal(st.stats.punch, 300);
 });

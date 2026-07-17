@@ -126,8 +126,14 @@ test('récompenses : posées à l’étape où le seuil tombe si tout est valid�
   for (const r of recs) {
     const k = Math.round(r.ordre * dernier);
     assert.equal(r.ordre, k / dernier, 'ordre = un index d’étape exact');
-    assert.ok(cumul[k] >= r.seuil, `seuil ${r.seuil} atteint à l'étape ${k}`);
-    if (k > 0) assert.ok(cumul[k - 1] < r.seuil, `seuil ${r.seuil} pas encore atteint à l'étape ${k - 1}`);
+    if (r.seuil <= cumul[dernier]) {
+      // Atteignable par un parcours parfait : posée là où son seuil tombe.
+      assert.ok(cumul[k] >= r.seuil, `seuil ${r.seuil} atteint à l'étape ${k}`);
+      if (k > 0) assert.ok(cumul[k - 1] < r.seuil, `seuil ${r.seuil} pas encore atteint à l'étape ${k - 1}`);
+    } else {
+      // Au-delà du parcours (2395) : ces cadeaux EXIGENT des missions bonus -> posés en fin de chemin.
+      assert.equal(k, dernier, `le cadeau à ${r.seuil} se pose à la fin du chemin`);
+    }
   }
   // Monotone : les tris par `ordre` (guides, boutique) restent valides.
   const ordres = recs.map((r) => r.ordre);

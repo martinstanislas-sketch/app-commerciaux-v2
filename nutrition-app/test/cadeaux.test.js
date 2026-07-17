@@ -40,30 +40,34 @@ test('catalogue : chaque cadeau des seuils a un sens (label + nature)', () => {
   });
 });
 
-test('catalogue : les seuils demandés par Stan, dans l\'ordre', () => {
-  // Le tableau de la commande, verrouillé : massage à 2000, remise à 1500.
+test('catalogue : les 14 cadeaux demandés, dans l\'ordre des paliers', () => {
   assert.deepEqual(cadeaux.catalogue().map((c) => [c.seuil, c.id]), [
-    [450, 'theme_dark'], [800, 'ami_semaine'], [1200, 'coaching_1to1'],
-    [1350, 'theme_gold'], [1500, 'remise_abo'], [2000, 'massage'],
+    [300, 'bilan_proche'], [450, 'badge_argent'], [600, 'chanson'], [800, 'ambassadeur'],
+    [1000, 'coaching_individuel'], [1200, 'acces_prioritaire'], [1350, 'badge_or'],
+    [1500, 'deux_semaines_proche'], [1800, 'coaching_nutrition'], [2000, 'mois_offert'],
+    [2500, 'badge_platine'], [3000, 'remise_abo'], [3500, 'shooting'], [4000, 'massage'],
   ]);
   assert.ok(cadeaux.catalogue().every((c) => c.seuil <= punchSeuils.PUNCH_MAX_THEORIQUE), 'un cadeau inatteignable serait un mensonge');
 });
 
-test('catalogue : les thèmes sont digitaux, tout le reste est physique', () => {
+test('catalogue : badges + statuts digitaux, prestations physiques', () => {
   // C'est ce qui décide bon-ou-pas : une erreur ici et un massage s'« activerait ».
-  assert.equal(cadeaux.estPhysique('theme_dark'), false);
-  assert.equal(cadeaux.estPhysique('theme_gold'), false);
-  ['ami_semaine', 'coaching_1to1', 'remise_abo', 'massage'].forEach((id) => assert.equal(cadeaux.estPhysique(id), true, id + ' se retire au studio'));
+  ['badge_argent', 'badge_or', 'badge_platine', 'ambassadeur', 'acces_prioritaire']
+    .forEach((id) => assert.equal(cadeaux.estPhysique(id), false, id + ' est digital'));
+  ['bilan_proche', 'chanson', 'coaching_individuel', 'deux_semaines_proche', 'coaching_nutrition', 'mois_offert', 'remise_abo', 'shooting', 'massage']
+    .forEach((id) => assert.equal(cadeaux.estPhysique(id), true, id + ' se retire au studio'));
 });
 
-// --- Le thème se DÉDUIT du total -------------------------------------------
-test('themeTier : doré prioritaire sur sombre, rien sous 450', () => {
+// --- Le liseré se DÉDUIT du total ------------------------------------------
+test('themeTier : trois paliers argent < or < platine, rien sous 450', () => {
   assert.equal(cadeaux.themeTier(0), '');
   assert.equal(cadeaux.themeTier(449), '');
-  assert.equal(cadeaux.themeTier(450), 'dark');
-  assert.equal(cadeaux.themeTier(1349), 'dark');
-  assert.equal(cadeaux.themeTier(1350), 'gold', 'le doré l\'emporte dès son seuil');
-  assert.equal(cadeaux.themeTier(2395), 'gold');
+  assert.equal(cadeaux.themeTier(450), 'argent');
+  assert.equal(cadeaux.themeTier(1349), 'argent');
+  assert.equal(cadeaux.themeTier(1350), 'or', 'l\'or l\'emporte dès son seuil');
+  assert.equal(cadeaux.themeTier(2499), 'or');
+  assert.equal(cadeaux.themeTier(2500), 'platine', 'le platine au sommet');
+  assert.equal(cadeaux.themeTier(4095), 'platine');
 });
 
 // --- Les codes : lus à voix haute, retapés à la main -------------------------
@@ -106,39 +110,42 @@ test('creerBon : une collision de code ne fait JAMAIS perdre un bon', () => {
   try {
     // Punch posé en SQL (pas addPunch) : assurerCadeaux ne tournera qu'UNE fois.
     // Sinon un 2e passage repêcherait le bon et masquerait le défaut.
-    db.prepare('UPDATE user_game_stats SET punch=800 WHERE client_email=?').run(email);
+    db.prepare('UPDATE user_game_stats SET punch=300 WHERE client_email=?').run(email);
     engine.assurerCadeaux(email);
     const bons = engine.bonsDe(email);
-    assert.ok(bons.ami_semaine, 'le bon existe malgré la collision');
-    assert.notEqual(bons.ami_semaine.code, pris, 'et il a bien un AUTRE code que celui déjà pris');
+    assert.ok(bons.bilan_proche, 'le bon existe malgré la collision');
+    assert.notEqual(bons.bilan_proche.code, pris, 'et il a bien un AUTRE code que celui déjà pris');
   } finally { cadeaux.genererCode = vrai; }
 });
 
 // --- Les bons : ce que le Punch pose réellement ------------------------------
 test('assurerCadeaux : seuls les cadeaux ATTEINTS et PHYSIQUES donnent un bon', () => {
   const { engine, email } = makeEngine();
-  engine.addPunch(email, 800, 'test'); // franchit 450 (thème) + 800 (ami)
+  engine.addPunch(email, 800, 'test'); // franchit 300+600 (physiques) + 450+800 (digitaux)
   const bons = engine.bonsDe(email);
-  assert.deepEqual(Object.keys(bons), ['ami_semaine'], 'le thème (digital) ne donne PAS de bon');
-  assert.equal(bons.ami_semaine.statut, 'a_retirer');
-  assert.ok(cadeaux.codeValide(bons.ami_semaine.code));
+  assert.deepEqual(Object.keys(bons).sort(), ['bilan_proche', 'chanson'], 'les digitaux (badge, ambassadeur) ne donnent PAS de bon');
+  assert.equal(bons.bilan_proche.statut, 'a_retirer');
+  assert.ok(cadeaux.codeValide(bons.bilan_proche.code));
 });
 
-test('assurerCadeaux : le massage attend 2000, la remise 1500', () => {
+test('assurerCadeaux : le massage attend 4000, la remise 3000', () => {
   const { engine, email } = makeEngine();
-  engine.addPunch(email, 1500, 'test');
-  assert.deepEqual(Object.keys(engine.bonsDe(email)).sort(), ['ami_semaine', 'coaching_1to1', 'remise_abo'], 'pas de massage à 1500');
-  engine.addPunch(email, 500, 'test'); // 2000
-  assert.ok(engine.bonsDe(email).massage, 'le massage tombe à 2000 pile');
+  engine.addPunch(email, 3000, 'test'); // physiques ≤ 3000
+  assert.deepEqual(Object.keys(engine.bonsDe(email)).sort(),
+    ['bilan_proche', 'chanson', 'coaching_individuel', 'coaching_nutrition', 'deux_semaines_proche', 'mois_offert', 'remise_abo'].sort(),
+    'pas de massage à 3000');
+  assert.ok(!engine.bonsDe(email).massage, 'le massage n\'est pas encore là');
+  engine.addPunch(email, 1000, 'test'); // 4000
+  assert.ok(engine.bonsDe(email).massage, 'le massage tombe à 4000 pile');
 });
 
 test('assurerCadeaux : rejouer ne recrée jamais un bon (même code, même statut)', () => {
   const { engine, db, email } = makeEngine();
-  engine.addPunch(email, 2000, 'test');
+  engine.addPunch(email, 2000, 'test'); // physiques ≤ 2000 : 300,600,1000,1500,1800,2000 = 6
   const avant = engine.bonsDe(email);
   engine.assurerCadeaux(email); engine.assurerCadeaux(email); // la boutique relance à chaque lecture
   assert.deepEqual(engine.bonsDe(email), avant, 'un bon relu reste LE même bon');
-  assert.equal(db.prepare('SELECT COUNT(*) c FROM nutrition_gift_bons WHERE client_email=?').get(email).c, 4);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM nutrition_gift_bons WHERE client_email=?').get(email).c, 6);
 });
 
 test('assurerCadeaux : un compte déjà chargé en Punch obtient ses bons à la lecture', () => {
@@ -148,7 +155,7 @@ test('assurerCadeaux : un compte déjà chargé en Punch obtient ses bons à la 
   db.prepare('UPDATE user_game_stats SET punch=2000 WHERE client_email=?').run(email); // pas via addPunch : aucun hook
   assert.deepEqual(engine.bonsDe(email), {}, 'rien tant que la boutique n\'est pas lue');
   engine.assurerCadeaux(email);
-  assert.equal(Object.keys(engine.bonsDe(email)).length, 4, 'la lecture rattrape tout');
+  assert.equal(Object.keys(engine.bonsDe(email)).length, 6, 'la lecture rattrape tout');
 });
 
 test('le Punch ne descend jamais : un bon reste acquis quoi qu\'il arrive', () => {
@@ -156,14 +163,14 @@ test('le Punch ne descend jamais : un bon reste acquis quoi qu\'il arrive', () =
   engine.addPunch(email, 2000, 'test');
   engine.addPunch(email, -2000, 'triche'); // refusé par addPunch
   assert.equal(db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch, 2000);
-  assert.ok(engine.bonsDe(email).massage, 'le massage est acquis, définitivement');
+  assert.ok(engine.bonsDe(email).mois_offert, 'le mois offert (2000) est acquis, définitivement');
 });
 
 // --- Le retrait : UNE seule fois --------------------------------------------
 test('retirerBon : le premier passage retire, le second est refusé', () => {
   const { engine, email } = makeEngine();
   engine.addPunch(email, 2000, 'test');
-  const code = engine.bonsDe(email).massage.code;
+  const code = engine.bonsDe(email).mois_offert.code;
 
   const un = engine.retirerBon(code, 'Quentin');
   assert.equal(un.ok, true);
@@ -182,25 +189,25 @@ test('retirerBon : code inconnu ou vide -> refus net, sans effet de bord', () =>
   engine.addPunch(email, 2000, 'test');
   assert.equal(engine.retirerBon('MC-ZZZZ-ZZZZ', 'Quentin').erreur, 'inconnu');
   assert.equal(engine.retirerBon('', 'Quentin').erreur, 'inconnu');
-  assert.equal(engine.bonsDe(email).massage.statut, 'a_retirer', 'les vrais bons sont intacts');
+  assert.equal(engine.bonsDe(email).mois_offert.statut, 'a_retirer', 'les vrais bons sont intacts');
 });
 
 test('retirerBon : la casse et les espaces ne font pas perdre un cadeau', () => {
   // Le code est retapé par un coach au comptoir : « mc-abcd-efgh » doit marcher.
   const { engine, email } = makeEngine();
   engine.addPunch(email, 2000, 'test');
-  const code = engine.bonsDe(email).massage.code;
+  const code = engine.bonsDe(email).mois_offert.code;
   assert.equal(engine.retirerBon('  ' + code.toLowerCase() + ' ', 'Quentin').ok, true);
 });
 
-test('retirerBon : chaque cadeau a SON bon (retirer le massage ne retire pas la remise)', () => {
+test('retirerBon : chaque cadeau a SON bon (en retirer un ne retire pas les autres)', () => {
   const { engine, email } = makeEngine();
   engine.addPunch(email, 2000, 'test');
   const bons = engine.bonsDe(email);
-  engine.retirerBon(bons.massage.code, 'Quentin');
+  engine.retirerBon(bons.mois_offert.code, 'Quentin');
   const apres = engine.bonsDe(email);
-  assert.equal(apres.massage.statut, 'retire');
-  assert.equal(apres.remise_abo.statut, 'a_retirer', 'les autres cadeaux ne sont pas emportés');
+  assert.equal(apres.mois_offert.statut, 'retire');
+  assert.equal(apres.deux_semaines_proche.statut, 'a_retirer', 'les autres cadeaux ne sont pas emportés');
 });
 
 // --- Les badges : rien à activer, rien à choisir -----------------------------
@@ -209,9 +216,9 @@ test('retirerBon : chaque cadeau a SON bon (retirer le massage ne retire pas la 
 // à stocker, et rien qui puisse dériver entre le compteur et ce que le groupe voit.
 test('badge : atteindre 450 le donne — et ne pose AUCUN bon', () => {
   const { engine, email } = makeEngine();
-  engine.addPunch(email, 450, 'test');
-  assert.equal(cadeaux.themeTier(450), 'dark');
-  assert.deepEqual(engine.bonsDe(email), {}, 'un badge ne se retire pas au studio');
+  engine.addPunch(email, 450, 'test'); // franchit 300 (bilan, physique) + 450 (badge argent)
+  assert.equal(cadeaux.themeTier(450), 'argent');
+  assert.deepEqual(Object.keys(engine.bonsDe(email)), ['bilan_proche'], 'un badge ne se retire pas au studio (mais le bilan à 300, oui)');
 });
 
 test('badge : il se déduit du Punch, il ne se stocke pas', () => {
@@ -222,7 +229,7 @@ test('badge : il se déduit du Punch, il ne se stocke pas', () => {
   assert.equal(cadeaux.themeTier(db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch), '',
     'à 100 Punch : aucun liseré');
   engine.addPunch(email, 1250, 'test'); // 1350
-  assert.equal(cadeaux.themeTier(1350), 'gold');
+  assert.equal(cadeaux.themeTier(1350), 'or');
 });
 
 test('badge : relire la boutique ne change RIEN chez le client', () => {
@@ -241,7 +248,7 @@ test('état public : les cadeaux sont NOMMÉS (sinon la célébration dit « Att
   const { engine, email } = makeEngine();
   engine.addPunch(email, 2000, 'test');
   const st = engine.challengePublicState(email);
-  assert.deepEqual(st.cadeaux[2000], { id: 'massage', label: 'Un massage sportif' });
+  assert.deepEqual(st.cadeaux[2000], { id: 'mois_offert', label: 'Un mois offert' });
   assert.ok(st.unlocks.includes('2000:gift'));
 });
 
@@ -285,7 +292,7 @@ test('Chemin : un compte JAMAIS célébré voit quand même ses récompenses', (
   // XP+gems y est vide alors qu'il a tout mérité -> il verrait tout grisé.
   const { engine, db, email } = makeEngine();
   engine.pathStatsRow(email);
-  db.prepare('UPDATE user_game_stats SET punch=2000 WHERE client_email=?').run(email); // aucun addPunch
+  db.prepare('UPDATE user_game_stats SET punch=4095 WHERE client_email=?').run(email); // aucun addPunch, au max
   const st = engine.challengePublicState(email);
   assert.deepEqual(st.unlocks, [], 'rien n\'a jamais été célébré');
   assert.equal(st.recompenses.every((r) => !r.locked), true, 'et pourtant TOUT est débloqué');
@@ -307,8 +314,8 @@ test('Chemin : chaque récompense est NOMMÉE et sait où se poser', () => {
   engine.pathStatsRow(email);
   const rec = engine.challengePublicState(email).recompenses;
   const à = (seuil, type) => rec.find((r) => r.seuil === seuil && r.type === type);
-  assert.equal(à(2000, 'gift').label, 'Un massage sportif', 'le nom vient de lib/cadeaux');
-  assert.equal(à(2000, 'gift').cadeau, 'massage', 'et l\'id, pour ouvrir la boutique dessus');
+  assert.equal(à(4000, 'gift').label, 'Un massage sportif', 'le nom vient de lib/cadeaux');
+  assert.equal(à(4000, 'gift').cadeau, 'massage', 'et l\'id, pour ouvrir la boutique dessus');
   assert.equal(à(150, 'ebook').label, '2 nouveaux guides', 'le nombre réel du palier');
   assert.equal(à(1300, 'ebook').label, '4 nouveaux guides');
   assert.equal(à(250, 'video').label, 'Nouvelles séances vidéo');
