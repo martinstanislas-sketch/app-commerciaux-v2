@@ -2991,6 +2991,15 @@ body.is-demo #navRestart { display: none !important; }
 .asc-l .asc-out { right: var(--asc-gap); text-align: right; }
 .asc-r .asc-in { right: var(--asc-gap); text-align: right; }
 .asc-l .asc-in { left: var(--asc-gap); text-align: left; }
+/* --asc-gap est taillé pour une bulle ORDINAIRE. L'étape active et les jalons
+   sont plus larges (rayon + anneaux) : sans écart supplémentaire, l'anneau d'un
+   jalon actif mord le bord de la carte posée à côté — flagrant sur mobile, où
+   gap (32px) < rayon d'un jalon actif (~41px). max() garde le plus grand des
+   deux : l'écart n'est donc jamais RÉDUIT là où --asc-gap suffit déjà. */
+.asc-active.asc-r .asc-in { right: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 5px)); }
+.asc-active.asc-l .asc-in { left: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 5px)); }
+.asc-sommet.asc-r .asc-in { right: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
+.asc-sommet.asc-l .asc-in { left: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
 /* Un libellé se centre sur la bulle ; une CARTE s'aligne sur son bord haut et
    coule vers le bas (l'air sous l'étape, réservée côté JS, l'accueille). Centrer
    une carte haute sur la bulle la ferait mordre l'étape du dessus.
