@@ -1882,12 +1882,16 @@ function buildShoppingList() {
     }
     // L'appoint non convertible (ex. « 2 tranches » sur une base en g) reste
     // lisible : il rejoint l'indication d'achat plutôt que de fausser le total.
-    const appoint = Object.entries(c.autres).map(([u, x]) => fmtQty(arrondiCourses(x, u)) + ' ' + u).join(' + ');
+    // Et si TOUT est arrivé dans une autre unité (base à zéro), c'est elle qui
+    // devient la quantité principale — jamais un « 0 » sur la liste.
+    let quantite = c.base, unite = c.def.unite_base, autres = Object.entries(c.autres);
+    if (!(quantite > 0) && autres.length) { [[unite, quantite]] = autres; autres = autres.slice(1); }
+    const appoint = autres.map(([u, x]) => fmtQty(arrondiCourses(x, u)) + ' ' + u).join(' + ');
     items.push({
       nom: c.def.display_name,
       rayon: c.def.is_staple ? RAYON_PLACARD : c.def.rayon,
-      quantite: arrondiCourses(c.base, c.def.unite_base === 'piece' ? 'piece' : c.def.unite_base),
-      unite: c.def.unite_base === 'piece' ? '' : c.def.unite_base,
+      quantite: arrondiCourses(quantite, unite),
+      unite: unite === 'piece' ? '' : unite,
       achat: c.def.purchase_unit + (appoint ? ' · + ' + appoint : ''),
       staple: !!c.def.is_staple,
     });
