@@ -648,6 +648,7 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 const {
   ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds,
   assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier,
+  declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
 // Bilan hebdo : seuils + rédaction par modèles (pur, testable). L'IA est chargée
 // à la demande, pour ne pas dépendre du SDK Anthropic quand elle n'est pas utilisée.
@@ -749,6 +750,34 @@ try {
       res.json({ ok: true, reward, state: challengePublicState(email) });
     } catch (e) { console.error('challenge bilan-seen :', e); res.status(500).json({ ok: false }); }
   });
+  // MISSION BONUS (facultative — ne bloque jamais le parcours) : le client
+  // DÉCLARE ce qu'il a fait (sur parole), le coach tranche depuis son espace ;
+  // les Punch ne sont crédités qu'à la validation.
+  app.post('/nutrition/api/challenge/mission-bonus', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      const r = declarerMissionBonus(email, (req.body || {}).texte);
+      if (r.error) return res.status(400).json({ ok: false, error: r.error });
+      res.json({ ok: true, state: challengePublicState(email) });
+    } catch (e) { console.error('mission bonus :', e); res.status(500).json({ ok: false }); }
+  });
+  // COACH : les déclarations de missions bonus (à trancher d'abord, puis l'historique).
+  app.get('/nutrition/api/coach/missions-bonus', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try { res.json({ ok: true, missions: missionsBonusDeclarees() }); }
+    catch (e) { console.error('missions bonus (coach) :', e); res.status(500).json({ ok: false }); }
+  });
+  app.post('/nutrition/api/coach/missions-bonus/:id/decision', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const action = String((req.body || {}).action || '');
+      if (!['valider', 'refuser'].includes(action)) return res.status(400).json({ ok: false, error: 'Action invalide.' });
+      const par = (req.session && (req.session.email || req.session.name)) || 'coach';
+      const r = deciderMissionBonus(req.params.id, action, par);
+      if (r.error) return res.status(400).json({ ok: false, error: r.error });
+      res.json({ ok: true, statut: r.statut });
+    } catch (e) { console.error('mission bonus décision :', e); res.status(500).json({ ok: false }); }
+  });
+
   // ADMIN : lire l'état du Chemin. Sans ça, l'interrupteur du panneau admin ne
   // saurait pas s'il doit s'afficher allumé ou éteint — et il n'y avait AUCUN moyen
   // de connaître l'état sans lire la base à la main.

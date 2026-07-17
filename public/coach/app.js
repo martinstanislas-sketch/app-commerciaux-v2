@@ -8548,11 +8548,26 @@ function chInjectStyles() {
     .ch-ps-stats { display: flex; flex-wrap: wrap; gap: 6px; }
     .ch-ps-stat { font-size: 12px; color: var(--mc-text); background: var(--mc-cream-dark); border-radius: 999px; padding: 4px 10px; }
     .ch-ps-stat b { color: #8a6d2a; } .ch-ps-stat em { color: var(--mc-text-muted); font-style: normal; }
+    /* Missions bonus déclarées */
+    .ch-mb { margin: 0 0 16px; padding: 14px 16px; background: var(--mc-white); border: 1px solid #EBDCB8; border-radius: 14px; }
+    .ch-mb-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #8a6d2a; margin-bottom: 4px; }
+    .ch-mb-row { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--mc-border); }
+    .ch-mb-row:first-of-type { border-top: 0; }
+    .ch-mb-main { min-width: 0; font-size: 13px; color: var(--mc-text); }
+    .ch-mb-main em { color: var(--mc-text-muted); font-style: normal; margin-left: 6px; font-size: 12px; }
+    .ch-mb-main p { margin: 5px 0 0; color: var(--mc-text-muted); font-size: 13px; line-height: 1.45; white-space: pre-wrap; }
+    .ch-mb-actions { display: flex; gap: 8px; flex: none; }
+    .ch-mb-ok, .ch-mb-ko { border: 0; border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .ch-mb-ok { background: var(--mc-success, #24835B); color: #fff; }
+    .ch-mb-ko { background: var(--mc-cream-dark); color: var(--mc-text); }
+    .ch-mb-chip { flex: none; align-self: center; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--mc-success-bg, #E9F4EE); color: var(--mc-success, #24835B); }
+    .ch-mb-chip.refusee { background: var(--mc-cream-dark); color: var(--mc-text-muted); }
     /* Responsive */
     @media (max-width: 640px) {
       .ch-head h2 { font-size: 23px; }
       .ch-form { flex-direction: column; align-items: stretch; }
       .ch-head { align-items: flex-start; }
+      .ch-mb-row { flex-direction: column; }
       .ch-invite-btn { width: 100%; }
       .ch-filters { flex-direction: column; } .ch-filters select { width: 100%; }
       .ch-grid { grid-template-columns: 1fr; }
@@ -8579,10 +8594,42 @@ async function loadChallengeTab() {
     const unread = {};
     (convRes.conversations || []).forEach((cv) => { if (cv.clientEmail) unread[cv.clientEmail] = (unread[cv.clientEmail] || 0) + (cv.unread || 0); });
     renderChallengeList(host, cRes.clients || [], unread);
+    loadMissionsBonus(host); // section « Missions bonus déclarées », posée en tête
     // (Bandeau « 🔔 Notifications » retiré à la demande — moins de bruit dans l'onglet.)
   } catch (e) {
     host.innerHTML = `<div class="ch-empty"><p>Impossible de charger tes clients.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
   }
+}
+
+// Missions bonus déclarées par les clients : le coach voit qui, quelle semaine,
+// quelle mission, le texte et la date — puis Valide (crédit des PUNCH côté
+// serveur) ou Refuse. La décision est finale ; la liste garde l'historique.
+async function loadMissionsBonus(host) {
+  let missions = [];
+  try { const r = await nutriApi('/coach/missions-bonus'); missions = r.missions || []; } catch (_) { return; }
+  if (!missions.length) return;
+  const dateStr = (iso) => { const d = new Date(iso); return isNaN(d.getTime()) ? '' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }); };
+  const row = (m) => {
+    const nom = [m.prenom, m.nom].filter(Boolean).join(' ') || m.client_email;
+    const actions = m.statut === 'declaree'
+      ? `<div class="ch-mb-actions"><button type="button" class="ch-mb-ok" data-id="${m.id}">Valider</button><button type="button" class="ch-mb-ko" data-id="${m.id}">Refuser</button></div>`
+      : `<span class="ch-mb-chip${m.statut === 'refusee' ? ' refusee' : ''}">${m.statut === 'validee' ? 'Validée · +' + m.punch + ' PUNCH' : 'Refusée'}</span>`;
+    return `<div class="ch-mb-row">
+      <div class="ch-mb-main"><b>${chEsc(nom)}</b> · Semaine ${m.week} · ${chEsc(m.mission)}<em>${chEsc(dateStr(m.created_at))}</em>
+        <p>${chEsc(m.texte)}</p></div>${actions}</div>`;
+  };
+  const sec = document.createElement('div');
+  sec.className = 'ch-mb';
+  sec.innerHTML = '<div class="ch-mb-title">⭐ Missions bonus déclarées</div>' + missions.map(row).join('');
+  host.insertBefore(sec, host.firstChild);
+  sec.querySelectorAll('.ch-mb-ok, .ch-mb-ko').forEach((b) => b.addEventListener('click', async () => {
+    const action = b.classList.contains('ch-mb-ok') ? 'valider' : 'refuser';
+    b.disabled = true;
+    try {
+      await nutriApi('/coach/missions-bonus/' + b.dataset.id + '/decision', { method: 'POST', body: { action } });
+      loadChallengeTab(); // recharge l'onglet : la ligne passe en « Validée / Refusée »
+    } catch (e) { alert(e.message || 'Impossible de trancher.'); b.disabled = false; }
+  }));
 }
 
 // Bandeau notifications (coach) : alertes photos en attente + taux d'ouverture par type.

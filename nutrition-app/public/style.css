@@ -3121,6 +3121,34 @@ body.is-demo #navRestart { display: none !important; }
 .asc-rec.is-lock .asc-rec-ic { filter: grayscale(1); opacity: .55; }
 .asc-rec.is-lock .asc-rec-x b { color: var(--text-muted-c); font-weight: 600; }
 
+/* --- La mission bonus : une étoile FACULTATIVE posée sur le sentier -------
+   Plus petite qu'une étape, cerclée de POINTILLÉS (le code visuel du
+   « en plus ») : elle doit se voir sans jamais se lire comme une étape
+   obligatoire — pas de cadenas, pas de coche de parcours, rien ne dépend d'elle. */
+.asc-mb { z-index: 3; }
+.asc-mb-dot { position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; border: 1.5px dashed var(--gold); background: linear-gradient(160deg, #FDF6E0, #F3E3B8); color: #8A6D28; cursor: pointer; box-shadow: 0 0 0 3px var(--app-bg); transition: transform .15s var(--ease); }
+.asc-mb-dot .ic { width: 17px; height: 17px; }
+.asc-mb-dot:hover { transform: translate(-50%, -50%) scale(1.1); }
+.asc-mb-dot:active { transform: translate(-50%, -50%) scale(.95); }
+.asc-mb-dot:focus-visible { outline: 2px solid var(--blue-c); outline-offset: 3px; }
+.asc-mb-lbl { position: absolute; top: 23px; left: 0; transform: translateX(-50%); white-space: nowrap; font: 700 10px/1 var(--font); letter-spacing: .05em; text-transform: uppercase; color: #8A6D28; }
+/* La pastille d'état : envoyée (⏳), validée (coche sauge), refusée (grisée). */
+.asc-mb-st { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--app-bg); background: var(--gold); color: #fff; font-size: 9px; line-height: 1; }
+.asc-mb-st.ok { background: var(--sage); }
+.asc-mb-st.ko { background: var(--text-soft); }
+.asc-mb-st .ic { width: 9px; height: 9px; stroke-width: 3.4; }
+
+/* La fenêtre de la mission (corps du bottom-sheet) */
+.mb-desc { margin: 0 0 14px; font: 400 14px/1.5 var(--font); color: var(--text-muted-c); }
+.mb-lbl { display: block; margin: 2px 0 8px; font: 700 13px/1.2 var(--font); color: var(--text-c); }
+#mbTexte { width: 100%; box-sizing: border-box; resize: vertical; min-height: 84px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border-c); background: var(--surface); color: var(--text-c); font: inherit; font-size: 14px; line-height: 1.45; }
+#mbTexte:focus { outline: none; border-color: var(--blue-c); box-shadow: 0 0 0 3px var(--blue-soft); }
+.mb-go, .mb-send { display: flex; width: 100%; margin-top: 12px; justify-content: center; }
+.mb-etat { display: flex; align-items: center; gap: 8px; margin: 4px 0 2px; font: 600 14px/1.4 var(--font); color: var(--text-c); }
+.mb-etat.ok { color: var(--sage-on-soft); }
+.mb-etat.ko { color: var(--text-muted-c); }
+.mb-pill { display: inline-block; padding: 5px 10px; border-radius: var(--pill); background: var(--blue-soft); color: var(--blue-on-soft); font: 700 12px/1 var(--font); }
+
 /* --- La légende --------------------------------------------------------- */
 .asc-leg { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; margin-top: 34px; padding: 14px 16px; border: 1px solid var(--border-c); border-radius: var(--pill); background: var(--surface); }
 .asc-leg-i { display: flex; align-items: center; gap: 7px; font: 500 11.5px/1 var(--font); color: var(--text-muted-c); }

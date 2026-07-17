@@ -35,6 +35,18 @@ const CHALLENGE_WEEK_TITLES = {
   1: 'Je démarre', 2: 'Je prends le rythme', 3: 'Je progresse',
   4: 'Je passe un cap', 5: 'Je ne lâche rien', 6: 'J’atteins mon objectif',
 };
+// Missions bonus : UNE par semaine, toujours FACULTATIVE — elle ne conditionne
+// jamais l'avancement du parcours. Le client DÉCLARE ce qu'il a fait (sur
+// parole, aucun justificatif), le coach tranche ; le Punch n'est crédité qu'à
+// la validation, via addPunch (le point de passage unique).
+const MISSIONS_BONUS = {
+  1: { titre: 'Donne ton avis', texte: 'Laisse un avis Google sur ton expérience My Coach.', punch: 50 },
+  2: { titre: 'Partage ta séance', texte: 'Publie une story Instagram pendant ou après ta séance.', punch: 50 },
+  3: { titre: 'Invite un proche', texte: 'Viens avec un proche découvrir le studio.', punch: 50 },
+  4: { titre: 'Raconte ton expérience', texte: 'Fais un témoignage vidéo de 30 secondes.', punch: 50 },
+  5: { titre: 'Passe au micro', texte: 'Participe à un podcast avec ton coach.', punch: 50 },
+  6: { titre: 'Ouvre une opportunité', texte: 'Mets le studio en relation avec une entreprise.', punch: 50 },
+};
 // Les 43 étapes, indexées 0 -> 42 (l'étape 0 = « Commencer »), réparties en 6
 // semaines : S1 0–7 (8 étapes), puis 7 par semaine.
 //   `event`  = l'événement réel de l'app qui valide l'étape (cœur du moteur).
@@ -280,6 +292,21 @@ const CHALLENGE_SCHEMA_SQL = `
   --     que les comptes déjà chargés en Punch aient leur bon sans attendre un gain).
   --   code UNIQUE : c'est LA preuve présentée au comptoir, jamais deux identiques.
   --   statut : 'a_retirer' -> 'retire', dans ce sens uniquement (cf. retirerBon).
+  -- Missions bonus (FACULTATIVES) : le client déclare ce qu'il a fait, le coach
+  -- tranche. UNIQUE (email, week) : une seule réponse par mission — le client ne
+  -- peut pas renvoyer une seconde déclaration pour la même semaine.
+  CREATE TABLE IF NOT EXISTS nutrition_missions_bonus (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_email TEXT NOT NULL,
+    week INTEGER NOT NULL,
+    texte TEXT NOT NULL DEFAULT '',
+    statut TEXT NOT NULL DEFAULT 'declaree',   -- 'declaree' -> 'validee' | 'refusee'
+    punch INTEGER NOT NULL DEFAULT 0,          -- crédité seulement à la validation
+    created_at TEXT NOT NULL DEFAULT '',
+    decided_at TEXT NOT NULL DEFAULT '',
+    decided_by TEXT NOT NULL DEFAULT '',
+    UNIQUE (client_email, week)
+  );
   CREATE TABLE IF NOT EXISTS nutrition_gift_bons (
     client_email TEXT NOT NULL,
     cadeau TEXT NOT NULL,
@@ -737,8 +764,68 @@ function createChallengeEngine({ getDb }) {
       // punchSeuils, la source de vérité, qui est simplement mise en forme.
       recompenses: recompensesPubliques(s.punch || 0),
       weekTitles: CHALLENGE_WEEK_TITLES,
+      // Mission bonus de la semaine : facultative, ne conditionne rien d'autre.
+      missionBonus: missionBonusEtat(email),
       nodes,
     };
+  }
+
+  // --- MISSION BONUS (facultative) -----------------------------------------
+  // La semaine de la mission = celle où le client EST sur le parcours (la
+  // semaine de son étape active), pas la semaine calendaire : c'est le chapitre
+  // qu'il regarde. Parcours terminé -> la mission de la semaine 6 reste lisible.
+  function missionBonusWeek(email) {
+    const activeDay = pathActiveDay(email);
+    if (activeDay === null) return 6;
+    const node = CHALLENGE_PATH_NODES.find((n) => n.day === activeDay);
+    return (node && node.week) || 1;
+  }
+  function missionBonusEtat(email) {
+    const week = missionBonusWeek(email);
+    const def = MISSIONS_BONUS[week];
+    if (!def) return null;
+    let row = null;
+    try { row = getDb().prepare('SELECT statut, created_at FROM nutrition_missions_bonus WHERE client_email=? AND week=?').get(email, week) || null; }
+    catch (_) { /* table pas encore créée : la mission s'affiche « à faire » */ }
+    return { week, titre: def.titre, texte: def.texte, punch: def.punch, statut: row ? row.statut : '', declaredAt: row ? row.created_at : '' };
+  }
+  // Déclaration du client : sur parole (aucun justificatif), une seule par
+  // mission — l'unicité est portée par la contrainte UNIQUE, pas par une lecture
+  // préalable (deux envois simultanés ne créeraient qu'une ligne).
+  function declarerMissionBonus(email, texteClient) {
+    const week = missionBonusWeek(email);
+    const def = MISSIONS_BONUS[week];
+    if (!def) return { error: 'Pas de mission cette semaine.' };
+    const texte = String(texteClient || '').trim().slice(0, 1000);
+    if (!texte) return { error: 'Dis-nous ce que tu as fait.' };
+    try {
+      const info = getDb().prepare("INSERT OR IGNORE INTO nutrition_missions_bonus (client_email, week, texte, statut, punch, created_at) VALUES (?,?,?,'declaree',?,?)")
+        .run(email, week, texte, def.punch, new Date().toISOString());
+      if (info.changes === 0) return { error: 'Tu as déjà répondu pour cette mission.' };
+      return { ok: true };
+    } catch (e) { console.error('mission bonus :', e && e.message); return { error: 'Impossible d’enregistrer ta réponse.' }; }
+  }
+  // Côté coach : toutes les déclarations, les « à trancher » d'abord.
+  function missionsBonusDeclarees() {
+    try {
+      return getDb().prepare(`SELECT m.id, m.client_email, m.week, m.texte, m.statut, m.punch, m.created_at, m.decided_at,
+          COALESCE(c.prenom, '') prenom, COALESCE(c.nom, '') nom
+        FROM nutrition_missions_bonus m LEFT JOIN nutrition_clients c ON c.email = m.client_email
+        ORDER BY (m.statut = 'declaree') DESC, m.id DESC`).all()
+        .map((r) => ({ ...r, mission: (MISSIONS_BONUS[r.week] || {}).titre || ('Semaine ' + r.week) }));
+    } catch (e) { console.error('missions bonus (coach) :', e && e.message); return []; }
+  }
+  // La décision est finale (une déclaration ne se retranche pas) ; le Punch ne
+  // part QUE sur une validation, par addPunch — le point de passage unique.
+  function deciderMissionBonus(id, action, par) {
+    const row = getDb().prepare('SELECT * FROM nutrition_missions_bonus WHERE id=?').get(Number(id) || 0);
+    if (!row) return { error: 'Déclaration introuvable.' };
+    if (row.statut !== 'declaree') return { error: 'Cette déclaration est déjà tranchée.' };
+    const statut = action === 'valider' ? 'validee' : 'refusee';
+    getDb().prepare('UPDATE nutrition_missions_bonus SET statut=?, decided_at=?, decided_by=? WHERE id=?')
+      .run(statut, new Date().toISOString(), String(par || ''), row.id);
+    if (statut === 'validee') addPunch(row.client_email, row.punch, 'mission:' + row.week);
+    return { ok: true, statut, punch: row.punch, email: row.client_email };
   }
 
   // Ce que le front doit savoir de chaque récompense pour la poser sur le Chemin.
@@ -777,6 +864,7 @@ function createChallengeEngine({ getDb }) {
     pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
     pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds,
     assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier,
+    missionBonusEtat, declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
   };
 }
 

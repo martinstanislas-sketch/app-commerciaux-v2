@@ -4999,6 +4999,35 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
   // deux tracés : le raccord traverserait la carte.
   const dLien = next ? ascTrace([pts[last], { x: next.x, y: h + ASC_PAD }]) : '';
   const lienFait = !!next && next.done && nodes[last].status === 'done';
+  // Mission bonus : un petit nœud doré FACULTATIF, posé SUR le sentier au milieu
+  // d'un segment de la semaine courante. Le milieu est exact : la courbe de
+  // Bézier de ascTrace passe par ((x1+x2)/2, (y1+y2)/2) à t=0,5 — aucun calcul
+  // de tracé à refaire. Son design (pointillés, étoile, petit) dit « en plus »,
+  // jamais « obligatoire » : il ne bloque rien et n'a pas de cadenas.
+  let mb = '';
+  const mission = st && st.missionBonus;
+  if (mission && mission.week === week && nodes.length >= 2) {
+    // Segment d'accueil : le plus proche du milieu dont AUCUNE des deux étapes ne
+    // porte de carte (active / jalon / fin) — la carte flotte à côté de sa bulle
+    // et recouvrirait l'étoile posée au milieu du segment voisin.
+    const aCarte = (n) => n && (n.status === 'active' || n.milestone || n.type === 'final');
+    const milieu = Math.min(Math.max(1, Math.floor(nodes.length / 2)), nodes.length - 1);
+    let k = milieu;
+    for (let d = 0; d < nodes.length; d++) {
+      const cand = milieu + (d % 2 ? -(d + 1) / 2 : d / 2); // milieu, +1, -1, +2, -2…
+      if (cand >= 1 && cand <= nodes.length - 1 && !aCarte(nodes[cand - 1]) && !aCarte(nodes[cand])) { k = cand; break; }
+    }
+    const mx = (pts[k - 1].x + pts[k].x) / 2, my = (pts[k - 1].y + pts[k].y) / 2;
+    const badge = mission.statut === 'validee' ? `<span class="asc-mb-st ok" aria-hidden="true">${icSvg('check')}</span>`
+      : mission.statut === 'refusee' ? '<span class="asc-mb-st ko" aria-hidden="true">✕</span>'
+        : mission.statut === 'declaree' ? '<span class="asc-mb-st" aria-hidden="true">⏳</span>' : '';
+    const ariaMb = 'Mission bonus de la semaine — facultative, des PUNCH en plus'
+      + (mission.statut === 'validee' ? ' — validée' : mission.statut === 'refusee' ? ' — non validée' : mission.statut === 'declaree' ? ' — envoyée au coach' : '');
+    mb = `<div class="asc-nd asc-mb" style="left:${mx.toFixed(2)}%;top:${Math.round(my)}px">
+      <button type="button" class="asc-mb-dot" data-mb aria-label="${ariaMb}">${icSvg('star')}${badge}</button>
+      <span class="asc-mb-lbl" aria-hidden="true">Mission bonus</span>
+    </div>`;
+  }
   return `<section class="asc-ch asc-ch-${etat}" aria-label="Semaine ${week} sur ${nbSemaines}">
     ${ascWeekCardHTML(week, nodes, st, nbSemaines, etat, done)}
     <div class="asc-ch-map" style="height:${h}px">
@@ -5011,6 +5040,7 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
         ${dLien ? `<path class="asc-trail-dots asc-lien" d="${dLien}" />` : ''}
       </svg>
       ${nodes.map((n, k) => ascNodeHTML(n, pts[k], (recs || {})[iOffset + k], ctx)).join('')}
+      ${mb}
     </div>
   </section>`;
 }
@@ -5161,6 +5191,7 @@ function wireChallengePath() {
   // La bulle active ET le bouton de sa carte mènent au même endroit : deux portes,
   // une seule serrure.
   $$('#view-parcours [data-node]').forEach((b) => b.addEventListener('click', () => openChallengeNode(Number(b.dataset.node))));
+  $$('#view-parcours [data-mb]').forEach((b) => b.addEventListener('click', ouvrirMissionBonus));
   $$('#view-parcours .asc-rec[data-rec]').forEach((b) => b.addEventListener('click', () => ouvrirRecompense(b.dataset.rec)));
   $$('#view-parcours .mcpath-stat[data-stat]').forEach((b) => b.addEventListener('click', () => openStatInfo(b.dataset.stat)));
   $$('#view-parcours [data-goto]').forEach((b) => b.addEventListener('click', () => ascAllerA('#asc-nd-' + b.dataset.goto)));
@@ -5295,6 +5326,68 @@ function openStatInfo(key) {
   el.querySelector('.mcpath-sheet-title').textContent = info.titre;
   el.querySelector('.mcpath-stat-txt').innerHTML = info.texte;
   el.classList.add('open');
+}
+
+// --- Mission bonus : la fenêtre ---------------------------------------------
+// Même patron que la fiche d'une stat (bottom-sheet), avec un corps qui change
+// selon l'état : à faire -> formulaire déclaratif -> « envoyé » -> décision.
+function ensureMissionSheet() {
+  let el = $('#mcpathMissionSheet'); if (el) return el;
+  el = document.createElement('div');
+  el.id = 'mcpathMissionSheet';
+  el.className = 'mcpath-sheet';
+  el.innerHTML = `<div class="mcpath-sheet-backdrop"></div><div class="mcpath-sheet-card">
+    <div class="mcpath-sheet-grip"></div>
+    <div class="mcpath-sheet-badge"></div>
+    <h3 class="mcpath-sheet-title"></h3>
+    <p class="mcpath-sheet-sub">Mission facultative · Gagne des PUNCH supplémentaires</p>
+    <div class="mb-body"></div>
+  </div>`;
+  document.body.appendChild(el);
+  el.querySelector('.mcpath-sheet-backdrop').addEventListener('click', () => el.classList.remove('open'));
+  return el;
+}
+function ouvrirMissionBonus() {
+  const m = state.challenge && state.challenge.missionBonus; if (!m) return;
+  const el = ensureMissionSheet();
+  el.querySelector('.mcpath-sheet-badge').textContent = '⭐ Semaine ' + m.week;
+  el.querySelector('.mcpath-sheet-title').textContent = m.titre;
+  const body = el.querySelector('.mb-body');
+  let inner = '<p class="mb-desc">' + escapeHtml(m.texte) + '</p>';
+  if (m.statut === 'validee') inner += '<p class="mb-etat ok">🎉 Mission validée · +' + (m.punch || 0) + ' PUNCH</p>';
+  else if (m.statut === 'refusee') inner += '<p class="mb-etat ko">Mission non validée</p>';
+  else if (m.statut === 'declaree') inner += '<p class="mb-etat"><span class="mb-pill">Déclarée</span> Envoyé à ton coach ✅</p>';
+  else inner += '<button type="button" class="asc-card-cta mb-go">J’ai participé</button>';
+  body.innerHTML = inner;
+  const go = body.querySelector('.mb-go');
+  if (go) go.addEventListener('click', () => {
+    // Déclaratif : le client raconte, c'est tout — aucune capture, aucun justificatif.
+    body.innerHTML = '<label class="mb-lbl" for="mbTexte">Dis-nous ce que tu as fait</label>'
+      + '<textarea id="mbTexte" rows="3" maxlength="1000" placeholder="Raconte en une ou deux phrases…"></textarea>'
+      + '<button type="button" class="asc-card-cta mb-send">Envoyer au coach</button>';
+    body.querySelector('.mb-send').addEventListener('click', envoyerMissionBonus);
+    body.querySelector('#mbTexte').focus();
+  });
+  el.classList.add('open');
+}
+async function envoyerMissionBonus() {
+  const ta = $('#mbTexte');
+  const texte = ((ta && ta.value) || '').trim();
+  if (!texte) { showToast('Dis-nous d’abord ce que tu as fait 🙂', { icon: 'info' }); return; }
+  const btn = $('#mcpathMissionSheet .mb-send');
+  if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+  try {
+    const res = await fetch(apiUrl('/api/challenge/mission-bonus'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ texte }) });
+    const d = await res.json();
+    if (!d || !d.ok) throw new Error((d && d.error) || 'Envoi impossible pour le moment.');
+    if (d.state) state.challenge = d.state;
+    showToast('Envoyé à ton coach ✅', { icon: 'check' });
+    ouvrirMissionBonus();          // la fenêtre passe sur l'état « Déclarée »
+    rafraichirCheminSiVisible();   // le nœud gagne sa pastille ⏳
+  } catch (e) {
+    showToast(e.message || 'Envoi impossible pour le moment.', { icon: 'info' });
+    if (btn) { btn.disabled = false; btn.textContent = 'Envoyer au coach'; }
+  }
 }
 
 // Libellé du bouton + sous-titre. Le serveur fournit désormais `action` (le
