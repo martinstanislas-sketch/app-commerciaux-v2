@@ -2981,7 +2981,7 @@ body.is-demo #navRestart { display: none !important; }
 /* Les réglages du Chemin, en un seul endroit. Les mêmes noms que dans le JS
    (ASC_STEP, ASC_AMP…) quand la valeur doit s'accorder des deux côtés. */
 .asc-wrap, #view-parcours {
-  --asc-trail: 12px;          /* épaisseur du sentier */
+  --asc-trail: 14px;          /* épaisseur du sentier */
   /* ⚠️ Les trois diamètres portent la HIÉRARCHIE de l'écran, ils ne sont pas
      décoratifs. À 62/74/82 ils étaient trop proches : sur un sentier de 43
      bulles, l'étape du jour ne se distinguait pas au premier coup d'œil, et un
@@ -2990,10 +2990,11 @@ body.is-demo #navRestart { display: none !important; }
      active est la plus grande de l'écran, sommets compris : il n'y a qu'un
      seul « c'est maintenant ». Bénéfice second : des bulles ordinaires plus
      petites libèrent la largeur des libellés et des récompenses. */
-  --asc-dot: 56px;            /* diamètre d'une bulle ordinaire */
-  --asc-dot-now: 84px;        /* … de l'étape active — la plus grande */
-  --asc-dot-top: 72px;        /* … d'un jalon */
-  --asc-gap: 46px;            /* écart bulle -> ce qui est posé à côté */
+  --asc-dot: 66px;            /* diamètre d'une bulle ordinaire */
+  --asc-dot-now: 82px;        /* … de l'étape active — la plus grande */
+  --asc-dot-top: 76px;        /* … d'un jalon */
+  --asc-rec-d: 64px;          /* … d'une récompense et d'une mission bonus */
+  --asc-gap: 52px;            /* écart bulle -> ce qui est posé à côté */
   --asc-sand: #E8E2D4;        /* le sentier qui reste devant soi */
   --asc-sand-d: #DCD4C2;      /* son liseré */
   --asc-dots: #FBFAF7;        /* la ligne médiane, comme une route */
@@ -3001,7 +3002,7 @@ body.is-demo #navRestart { display: none !important; }
 }
 
 /* --- La carte de progression ------------------------------------------- */
-.asc-head { position: relative; margin: 4px 0 0; padding: 20px 20px 16px; border: 1px solid var(--border-c); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
+.asc-head { position: relative; margin: 2px 0 0; padding: 15px 18px 13px; border: 1px solid var(--border-c); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
 .asc-head-row { display: flex; align-items: center; gap: 14px; }
 /* Le pourcentage vient se poser au bout de la ligne de titre : l'en-tête ne
    répond plus qu'à UNE question, et d'une seule voix. */
@@ -3014,22 +3015,25 @@ body.is-demo #navRestart { display: none !important; }
 .asc-mt-f { fill: var(--sage); opacity: .62; }
 .asc-head-txt { min-width: 0; }
 .asc-kicker { margin: 0; font: 600 11px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted-c); }
-.asc-titre { margin: 7px 0 0; font: 700 27px/1.1 var(--font); letter-spacing: -.025em; color: var(--text-c); }
-.asc-head-sub { margin: 9px 0 0; font: 400 13.5px/1.3 var(--font); color: var(--text-muted-c); }
+.asc-titre { margin: 5px 0 0; font: 700 24px/1.08 var(--font); letter-spacing: -.025em; color: var(--text-c); }
+/* Le décompte d'étapes COMMENTE la barre : il se pose à son bout, pas sur une
+   ligne à lui — c'est autant de hauteur reprise avant le sentier. */
+.asc-head-sub { flex: none; font: 700 14px/1 var(--font); color: var(--text-c); font-variant-numeric: tabular-nums; }
+.asc-head-sub i { font: 500 11.5px/1 var(--font); font-style: normal; color: var(--text-muted-c); }
 
-.asc-prog { display: flex; align-items: center; gap: 14px; margin: 18px 0 0; }
+.asc-prog { display: flex; align-items: center; gap: 12px; margin: 12px 0 0; }
 /* La barre porte le coureur : il déborde en haut, d'où l'absence d'overflow:hidden
    ici — c'est le remplissage seul qui est rogné, par son propre rayon. */
 .asc-bar { position: relative; flex: 1; min-width: 0; height: 10px; border-radius: var(--pill); background: var(--track); }
 .asc-bar > span { display: block; height: 100%; border-radius: var(--pill); background: linear-gradient(90deg, var(--sage) 0%, #86A46E 100%); transition: width .6s var(--ease); }
 .asc-runner { position: absolute; top: 50%; font-size: 21px; line-height: 1; font-style: normal; transform: translate(-50%, -62%); transition: left .6s var(--ease); pointer-events: none; }
-.asc-pct { flex: none; font: 700 22px/1 var(--font); letter-spacing: -.02em; color: var(--text-c); font-variant-numeric: tabular-nums; }
+.asc-pct { flex: none; font: 700 21px/1 var(--font); letter-spacing: -.02em; color: var(--text-c); font-variant-numeric: tabular-nums; }
 .asc-pct span { font: 600 12px/1 var(--font); color: var(--text-muted-c); }
 
 /* La seule action de l'en-tête : aller voir le prochain sommet. Une LIGNE, pas
    une tuile — l'en-tête dit « où j'en suis », il n'a pas à porter un tableau de
    bord (c'est le rail qui s'en charge). */
-.asc-head-go { display: flex; align-items: center; gap: 9px; width: 100%; margin: 16px 0 0; padding: 11px 12px; border: 1px solid var(--border-c); border-radius: var(--r-sm); background: var(--surface-soft); color: var(--text-muted-c); text-align: left; font: 500 12.5px/1.35 var(--font); font-family: inherit; cursor: pointer; transition: border-color .18s var(--ease), background .18s var(--ease); }
+.asc-head-go { display: flex; align-items: center; gap: 9px; width: 100%; margin: 12px 0 0; padding: 9px 11px; border: 1px solid var(--border-c); border-radius: var(--r-sm); background: var(--surface-soft); color: var(--text-muted-c); text-align: left; font: 500 12.5px/1.35 var(--font); font-family: inherit; cursor: pointer; transition: border-color .18s var(--ease), background .18s var(--ease); }
 .asc-head-go:hover { border-color: var(--blue-c); background: var(--surface); }
 .asc-head-go .ic { flex: none; width: 15px; height: 15px; color: var(--gold); }
 .asc-head-go .ic:last-child { color: var(--text-soft); }
@@ -3047,8 +3051,11 @@ body.is-demo #navRestart { display: none !important; }
    la 3e colonne — celle qui, jusqu'ici, était VIDE et ne servait qu'à centrer le
    sentier. Elle fait désormais les deux.
    -------------------------------------------------------------------------- */
-.asc-rail { display: grid; gap: 12px; margin: 14px 0 4px; }
-.asc-rc { padding: 14px 16px; border: 1px solid var(--border-c); border-radius: var(--r); background: var(--surface); box-shadow: var(--shadow-xs); }
+.asc-rail { display: grid; gap: 10px; margin: 12px 0 4px; }
+/* Sous 900 px le rail est une bande sous l'en-tête : on le borne pour qu'il ne
+   s'étire pas en bandeaux pleine largeur sur une tablette. */
+@media (max-width: 899px) { .asc-rail { max-width: 560px; margin-left: auto; margin-right: auto; } }
+.asc-rc { padding: 14px 16px; border: 1px solid var(--border-c); border-radius: var(--r); background: var(--surface); box-shadow: none; }
 .asc-rc-k { display: flex; align-items: center; gap: 6px; margin: 0; font: 700 10px/1 var(--font); letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted-c); }
 .asc-rc-k .ic { width: 13px; height: 13px; color: var(--gold); }
 .asc-rc-t { margin: 10px 0 0; font: 700 16px/1.2 var(--font); letter-spacing: -.02em; color: var(--text-c); }
@@ -3078,8 +3085,27 @@ body.is-demo #navRestart { display: none !important; }
 .asc-rc-cta { display: flex; width: 100%; margin-top: 12px; }
 
 /* Le cadeau visé : le bloc doré .pgift (partagé avec le reste de l'app) EST la
-   carte — pas d'habillage autour, il porte déjà son intitulé et sa jauge. */
+   carte — pas d'habillage autour, il porte déjà son intitulé et sa jauge. On lui
+   impose en revanche le gabarit du rail (même rayon, même marge interne) et on
+   le rend plus DENSE : en ligne, pleine largeur, il avait l'allure d'un bandeau
+   publicitaire plutôt que d'une récompense qu'on vise. */
 .asc-rc-gift { padding: 0; border: 0; background: none; box-shadow: none; }
+.asc-rc-gift .pgift { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 13px; align-items: center;
+  padding: 14px 16px; border-radius: var(--r); border: 1px solid rgba(182, 137, 46, .5);
+  background: linear-gradient(140deg, rgba(182, 137, 46, .18), rgba(182, 137, 46, .05) 62%);
+  box-shadow: 0 8px 20px -14px rgba(182, 137, 46, .8); }
+/* L'illustration prend de la place : c'est elle qui donne envie, pas le texte. */
+.asc-rc-gift .pgift-ic { width: 62px; height: 62px; font-size: 34px; border-radius: 16px; }
+.asc-rc-gift .pgift-main { grid-column: 2; min-width: 0; }
+.asc-rc-gift .pgift-name { white-space: normal; font-size: 15px; }
+/* La jauge et le reste-à-faire passent sous les deux colonnes : ils concernent
+   la carte entière, pas le seul texte. */
+.asc-rc-gift .pgift-bar, .asc-rc-gift .pgift-reste { grid-column: 1 / -1; }
+.asc-rc-gift .pgift-bar { margin: 2px 0 0; }
+.asc-rc-gift .pgift-reste { margin-top: 2px; }
+/* La flèche se pose dans l'angle : une carte de récompense, pas une ligne de
+   liste — mais elle reste, c'est la porte vers la boutique. */
+.asc-rc-gift .pgift-go { position: absolute; top: 12px; right: 12px; }
 
 /* --- LE PROCHAIN CADEAU (carte mise en avant, or) ---------------------- */
 /* L'élément le plus motivant du Chemin : visuel + nom + coût + « il te reste
@@ -3121,11 +3147,13 @@ body.is-demo #navRestart { display: none !important; }
 .asc-wk-a5 { --asc-wk-c: #DCE4EE; }  /* boussole, bleu-gris */
 .asc-wk-a6 { --asc-wk-c: #F3E7CB; }  /* trophée, crème dorée */
 /* Le grand chiffre fantôme : il donne l'échelle et le rythme du récit. */
-.asc-wk-n { position: absolute; top: 6px; left: 16px; font: 800 46px/1 var(--font); letter-spacing: -.05em; color: var(--text-c); opacity: .10; font-variant-numeric: tabular-nums; }
+.asc-wk-n { position: absolute; top: 6px; left: 16px; font: 800 40px/1 var(--font); letter-spacing: -.05em; color: var(--text-c); opacity: .10; font-variant-numeric: tabular-nums; }
 .asc-wk-art { position: absolute; top: 16px; right: 16px; font-size: 22px; line-height: 1; filter: saturate(.85); }
-.asc-wk-k { position: relative; margin: 44px 0 0; font: 600 10px/1 var(--font); letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted-c); }
-.asc-wk-t { position: relative; margin: 8px 0 0; font: 700 19px/1.15 var(--font); letter-spacing: -.02em; color: var(--text-c); }
-.asc-wk-s { position: relative; margin: 6px 0 0; max-width: 30ch; font: 400 13px/1.4 var(--font); color: var(--text-muted-c); }
+.asc-wk-k { position: relative; margin: 38px 0 0; font: 600 10px/1 var(--font); letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted-c); }
+/* L'intitulé de ce que la carte apporte — l'objectif, pas le titre de la
+   semaine, qui est déjà en grand dans l'en-tête juste au-dessus. */
+.asc-wk-o { position: relative; margin: 10px 0 0; font: 600 10px/1 var(--font); letter-spacing: .09em; text-transform: uppercase; color: var(--text-soft); }
+.asc-wk-s { position: relative; margin: 6px 0 0; max-width: 30ch; font: 700 17px/1.25 var(--font); letter-spacing: -.015em; color: var(--text-c); }
 .asc-wk-f { position: relative; display: flex; align-items: center; gap: 7px; margin: 14px 0 0; font: 600 12px/1 var(--font); color: var(--text-muted-c); }
 .asc-wk-fx { flex: 1; }
 .asc-wk-f .ic { width: 14px; height: 14px; flex: none; }
@@ -3137,7 +3165,7 @@ body.is-demo #navRestart { display: none !important; }
 .asc-wk-soon { background: var(--surface-soft); }
 .asc-wk-soon::before { opacity: .28; }
 .asc-wk-soon .asc-wk-art { filter: saturate(.25); opacity: .5; }
-.asc-wk-soon .asc-wk-t { color: var(--text-muted-c); }
+.asc-wk-soon .asc-wk-s { color: var(--text-muted-c); }
 .asc-wk-soon .asc-wk-f .ic { color: var(--text-soft); }
 
 /* --- Le sentier --------------------------------------------------------- */
@@ -3166,7 +3194,7 @@ body.is-demo #navRestart { display: none !important; }
    autour de son centre, donc rien ne peut décaler le point d'ancrage. */
 .asc-nd { position: absolute; width: 0; height: 0; }
 .asc-dot { position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); display: grid; place-items: center; width: var(--asc-dot); height: var(--asc-dot); border-radius: 50%; border: 1.5px solid var(--border-c); background: var(--surface); color: var(--text-soft); box-shadow: var(--shadow-xs), inset 0 1px 0 #fff; cursor: default; transition: transform .18s var(--ease), box-shadow .18s var(--ease), border-color .18s var(--ease); }
-.asc-dot .ic { width: 25px; height: 25px; pointer-events: none; }
+.asc-dot .ic { width: 28px; height: 28px; pointer-events: none; }
 /* L'écusson : la coche (fait) ou le cadenas (fermé). Posé sur le bord haut-droit
    de la bulle, il ne mange jamais l'icône — c'est elle qui dit quoi faire. */
 .asc-ck, .asc-lk { position: absolute; top: calc(var(--asc-dot) / -2 + 3px); left: calc(var(--asc-dot) / 2 - 13px); display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; border: 2px solid var(--app-bg); }
@@ -3200,15 +3228,20 @@ body.is-demo #navRestart { display: none !important; }
    ⚠️ Largeur FIXE, pas max-content : posée en absolu à côté d'une bulle, une carte
    en max-content peut voir sa largeur s'effondrer et son texte s'empiler en une
    colonne très haute qui recouvre alors toute la suite du chapitre. */
-.asc-has-card { transform: none; top: calc(var(--asc-dot) / -2 - 2px); width: 188px; max-width: none; }
+.asc-has-card { transform: none; top: calc(var(--asc-dot) / -2 - 2px); width: 196px; max-width: none; }
+/* L'étape active : la carte remonte pour que sa pointe vise le centre du rond. */
+.asc-active .asc-has-card { top: -34px; }
 .asc-lbl { display: block; font: 500 13px/1.3 var(--font); color: var(--text-muted-c); transition: color .2s var(--ease); }
 
 /* Trois états, trois LECTURES distinctes — et jamais la couleur seule : la
    taille, le fond et l'écusson disent la même chose trois fois.
-   FAIT : un fond sauge PÂLE (pas plein). Le sentier porte déjà le vert vif ;
-   43 pastilles pleines tueraient la retenue de l'écran, mais un rond blanc
-   bordé se lisait « vide », pas « acquis ». La teinte pâle tranche. */
-.asc-done .asc-dot { border-color: var(--sage); color: var(--sage-on-soft); background: var(--sage-soft); box-shadow: none; }
+   FAIT : le vert PLEIN, icône blanche. La teinte pâle essayée d'abord gardait
+   la retenue de l'écran mais laissait le sentier trop uniforme : rien ne disait
+   franchement « c'est acquis ». Le plein le dit, et le vert reste cantonné aux
+   étapes faites — il ne déborde nulle part ailleurs. */
+.asc-done .asc-dot { border-color: var(--sage); color: #fff; background: var(--sage); box-shadow: var(--shadow-xs); }
+/* Sur un rond vert plein, l'écusson s'inverse pour rester lisible. */
+.asc-done .asc-ck { background: #fff; color: var(--sage); }
 .asc-done .asc-lbl { color: var(--text-c); }
 
 /* MAINTENANT : le seul point de couleur pleine de l'écran. Il n'y en a qu'un. */
@@ -3229,21 +3262,44 @@ body.is-demo #navRestart { display: none !important; }
 
 /* PAS ENCORE : creusé, jamais barré. L'icône reste lisible — c'est elle qui donne
    envie (« qu'est-ce qui m'attend ? ») ; le cadenas ne fait que dater la porte. */
-.asc-locked .asc-dot { background: var(--surface-soft); border-color: var(--border-c); color: var(--text-soft); box-shadow: none; }
-/* L'icône s'efface un peu — sans disparaître : c'est elle qui donne envie. */
-.asc-locked .asc-dot .ic { opacity: .6; }
-.asc-locked .asc-lbl { color: var(--text-soft); }
+/* FERMÉ : du sable, pas de la brume. L'étape reste NETTE — icône et libellé
+   pleinement lisibles, en gris moyen : on doit comprendre ce qui attend et avoir
+   envie d'y aller. Une étape délavée se lit « désactivée », donc « pas pour
+   moi ». Le cadenas, lui, est toujours au même endroit (cf. .asc-lk) et un clic
+   dit ce qu'il reste à faire (cf. ascPourquoiFerme). */
+.asc-locked .asc-dot { background: #EFEAE0; border-color: #DCD4C2; color: var(--text-muted-c); box-shadow: none; cursor: pointer; }
+.asc-locked .asc-dot:hover { border-color: var(--border-strong); background: #E9E3D6; }
+.asc-locked .asc-lbl { color: var(--text-muted-c); }
 
-/* --- Le client, sur sa bulle du jour ------------------------------------
-   Un médaillon posé en HAUT de l'étape active, jamais dessus : l'icône de la
-   bulle dit ce qu'il y a à faire, elle ne se laisse pas recouvrir. C'est le seul
-   endroit du Chemin où le client se voit lui-même — et il n'y en a qu'un, comme
-   il n'y a qu'une étape active. */
-.asc-av { position: absolute; top: calc(var(--asc-dot-now) / -2 - 12px); left: 0; transform: translate(-50%, -50%); z-index: 2; width: 42px; height: 42px; border-radius: 50%; overflow: hidden; background: var(--surface); box-shadow: 0 0 0 2.5px var(--app-bg), 0 0 0 4px var(--blue-c), var(--shadow-sm); pointer-events: none; }
-/* ⚠️ Pas de pointe en ::after ici : `overflow: hidden` (qui détoure l'avatar au
-   rond) la rognerait. C'est le double anneau BLEU — la couleur de l'étape
-   active, et d'elle seule — qui le rattache à sa bulle. */
+/* --- Le client, SUR son chemin ------------------------------------------
+   Il ne coiffe plus la bulle comme une icône : il se tient sur le sentier, sur
+   le segment qui monte vers l'étape du jour, tourné vers elle (cf.
+   ascAvatarSurSentierHTML). À 92 px, le buste dessiné par le moteur d'avatar
+   (viewBox 96×96 : tête, cou, tenue) est enfin lisible — à 42 px on ne voyait
+   qu'une tête, donc une icône.
+   ⚠️ Le centrage sur son point d'ancrage se fait par des MARGES NÉGATIVES, pas
+   par un translate(-50%,-50%) : l'animation de déplacement (FLIP) écrit
+   `transform` en style inline, et écraserait un transform de centrage — l'avatar
+   sauterait d'un demi-avatar au moment de partir.
+   -------------------------------------------------------------------------- */
+.asc-wrap, #view-parcours { --asc-av-d: 88px; }
+.asc-avw { position: absolute; z-index: 1; width: var(--asc-av-d); height: var(--asc-av-d);
+  margin-left: calc(var(--asc-av-d) / -2); margin-top: calc(var(--asc-av-d) / -2); pointer-events: none; }
+/* L'ombre au sol : c'est elle qui le POSE sur le sentier. Sans elle, il flotte
+   au-dessus du chemin quelle que soit la qualité du reste. */
+.asc-av-sol { position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); width: 62%; height: 13px; border-radius: 50%; background: rgba(16, 24, 40, .22); filter: blur(4px); }
+.asc-av { position: relative; display: block; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: var(--surface);
+  /* Anneau NEUTRE, pas bleu : accolé à la bulle bleue de l'étape du jour, un
+     liseré bleu fondait les deux en une seule masse. */
+  box-shadow: 0 0 0 3px var(--app-bg), 0 0 0 4.5px rgba(16, 24, 40, .13), 0 12px 22px -8px rgba(16, 24, 40, .45);
+  transform: rotate(3deg); }
+/* Il regarde vers l'étape du jour : miroir discret quand elle est à sa gauche.
+   L'inclinaison, elle, se voit — c'est ce qui dit le mouvement. */
+.asc-avw-g .asc-av { transform: scaleX(-1) rotate(3deg); }
 .asc-av svg { width: 100%; height: 100%; display: block; }
+/* Étape validée : il MARCHE jusqu'à la suivante au lieu d'y réapparaître. */
+.asc-avw-go { transition: transform 1s cubic-bezier(.33, 0, .2, 1); }
+@media (prefers-reduced-motion: reduce) { .asc-avw-go { transition: none; } }
 
 /* JALON : les quatre sommets. Plus hauts, en or, un double anneau — ils se voient
    de loin quand on défile, et c'est ce qui donne envie de continuer à descendre. */
@@ -3275,8 +3331,22 @@ body.is-demo #navRestart { display: none !important; }
 .asc-card-cta:hover { background: var(--blue-hover); }
 .asc-card-cta:active { transform: scale(.97); }
 .asc-card-cta .ic { width: 14px; height: 14px; }
-/* MAINTENANT : la carte la plus forte de l'écran, comme sa bulle. */
+/* MAINTENANT : la carte la plus forte de l'écran, comme sa bulle — et
+   RACCROCHÉE à elle. Sans la pointe, elle a l'air posée à côté du chemin et le
+   lien entre le bouton et le cercle reste une devinette.
+   ⚠️ La pointe est à 34 px du haut de la carte, et la carte commence 34 px
+   au-dessus du centre de la bulle : la pointe vise donc le CENTRE du cercle.
+   On ne centre pas la carte elle-même sur la bulle — haute de ~170 px, elle
+   mordrait l'étape du dessus, qui n'est qu'à ASC_STEP (90 px). */
 .asc-card-now { border-color: var(--blue-c); box-shadow: 0 0 0 3px var(--blue-soft), var(--shadow-sm); }
+.asc-card-tip { position: absolute; top: 34px; width: 12px; height: 12px; transform: rotate(45deg); background: var(--surface); border: 1px solid var(--blue-c); }
+/* Elle pointe vers la bulle : du côté d'où vient le sentier. */
+.asc-r .asc-card-tip { right: -7px; border-left: 0; border-bottom: 0; box-shadow: 3px -3px 0 0 var(--blue-soft); }
+.asc-l .asc-card-tip { left: -7px; border-right: 0; border-top: 0; box-shadow: -3px 3px 0 0 var(--blue-soft); }
+/* Le bouton prend toute la largeur : c'est L'action de l'écran. Le gain passe
+   dessous — à côté, il flottait à droite comme s'il n'appartenait à rien. */
+.asc-card-cta-go { display: flex; width: 100%; margin-top: 13px; padding: 12px 16px; font-size: 14px; }
+.asc-card-gain { display: block; margin-top: 8px; text-align: center; font: 700 11.5px/1 var(--font); color: var(--gold-on-soft, #8A6D28); }
 .asc-card-now .asc-card-k { color: var(--blue-c); }
 .asc-card-now .asc-card-p { background: var(--blue-soft); color: var(--blue-on-soft); }
 /* JALON : l'or, et rien d'autre. */
@@ -3329,11 +3399,11 @@ body.is-demo #navRestart { display: none !important; }
 .asc-l .asc-recs.asc-in .asc-rec, .asc-r .asc-recs.asc-out .asc-rec { flex-direction: row; }
 /* Le trait fin qui l'accroche au sentier. */
 .asc-rec-tie { flex: none; width: calc(var(--asc-gap) - 22px); height: 0; border-top: 1.5px dashed var(--border-strong); opacity: .7; }
-.asc-rec-b { position: relative; flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--border-c), var(--shadow-xs); transition: transform .15s var(--ease); }
-.asc-rec-ic { font-size: 17px; line-height: 1; }
+.asc-rec-b { position: relative; flex: none; display: grid; place-items: center; width: var(--asc-rec-d); height: var(--asc-rec-d); border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--border-c), var(--shadow-xs); transition: transform .15s var(--ease); }
+.asc-rec-ic { font-size: 26px; line-height: 1; }
 /* La pastille d'état, minuscule : débloqué (coche) ou fermé (cadenas). */
-.asc-rec-st { position: absolute; right: -2px; bottom: -2px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--app-bg); background: var(--text-soft); color: #fff; }
-.asc-rec-st .ic { width: 8px; height: 8px; stroke-width: 3.4; }
+.asc-rec-st { position: absolute; right: -1px; bottom: -1px; display: grid; place-items: center; width: 19px; height: 19px; border-radius: 50%; border: 1.5px solid var(--app-bg); background: var(--text-soft); color: #fff; }
+.asc-rec-st .ic { width: 10px; height: 10px; stroke-width: 3.4; }
 /* Le libellé : desktop seulement. Sur mobile, l'icône suffit — le détail s'ouvre
    au clic (cf. ouvrirRecompense). */
 /* ⚠️ Largeur BORNÉE + nombre de lignes plafonné. Les récompenses sont posées en
@@ -3342,7 +3412,12 @@ body.is-demo #navRestart { display: none !important; }
    récompense de l'étape voisine. C'est la cause du chevauchement constaté sur
    ordinateur. La hauteur d'une ligne de récompense est désormais majorée par
    celle de sa pastille (40px). */
-.asc-rec-x { display: none; flex-direction: column; gap: 2px; width: 132px; min-width: 0; }
+/* ⚠️ 104 px, et pas plus : le médaillon est passé de 40 à 64 px, donc l'ENSEMBLE
+   (trait + pastille + libellé) s'est allongé d'autant. À 132 px, une récompense
+   posée vers l'extérieur d'une étape du bord débordait de 38 px de la colonne du
+   sentier et venait mordre le rail — mesuré. Largeur totale visée : ~200 px, la
+   demi-largeur disponible entre l'étape la plus excentrée et le bord. */
+.asc-rec-x { display: none; flex-direction: column; gap: 2px; width: 104px; min-width: 0; }
 .asc-rec-x b { font: 700 12px/1.25 var(--font); color: var(--text-c); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .asc-rec-x i { font: 600 10.5px/1 var(--font); font-style: normal; color: var(--text-muted-c); font-variant-numeric: tabular-nums; }
 /* DÉBLOQUÉ : la couleur du type, et un halo doré. C'est la seule chose qui brille
@@ -3379,14 +3454,17 @@ body.is-demo #navRestart { display: none !important; }
    « en plus ») : elle doit se voir sans jamais se lire comme une étape
    obligatoire — pas de cadenas, pas de coche de parcours, rien ne dépend d'elle. */
 .asc-mb { z-index: 3; }
-.asc-mb-dot { position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; border: 1.5px dashed var(--gold); background: linear-gradient(160deg, #FDF6E0, #F3E3B8); color: #8A6D28; cursor: pointer; box-shadow: 0 0 0 3px var(--app-bg); transition: transform .15s var(--ease); }
-.asc-mb-dot .ic { width: 17px; height: 17px; }
+.asc-mb-dot { position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); display: grid; place-items: center; width: var(--asc-rec-d); height: var(--asc-rec-d); border-radius: 50%; border: 1.5px dashed var(--gold); background: linear-gradient(160deg, #FDF6E0, #F3E3B8); color: #8A6D28; cursor: pointer; box-shadow: 0 0 0 3px var(--app-bg); transition: transform .15s var(--ease); }
+.asc-mb-dot .ic { width: 26px; height: 26px; }
 .asc-mb-dot:hover { transform: translate(-50%, -50%) scale(1.1); }
 .asc-mb-dot:active { transform: translate(-50%, -50%) scale(.95); }
 .asc-mb-dot:focus-visible { outline: 2px solid var(--blue-c); outline-offset: 3px; }
 /* Posé À CÔTÉ de l'étoile, pas dessous : sous elle, il tombait dans le couloir
    vertical du sentier et mordait la bulle suivante. */
-.asc-mb-lbl { position: absolute; top: 0; left: 26px; transform: translateY(-50%); white-space: nowrap; font: 700 10px/1 var(--font); letter-spacing: .05em; text-transform: uppercase; color: #8A6D28; }
+/* Décalée à GAUCHE du sentier, l'étoile porte son libellé à gauche elle aussi :
+   posé à droite, il repasserait en travers du tracé. */
+.asc-mb-g .asc-mb-lbl { left: auto; right: calc(var(--asc-rec-d) / 2 + 7px); }
+.asc-mb-lbl { position: absolute; top: 0; left: calc(var(--asc-rec-d) / 2 + 7px); transform: translateY(-50%); white-space: nowrap; font: 700 10px/1 var(--font); letter-spacing: .05em; text-transform: uppercase; color: #8A6D28; }
 /* La pastille d'état : envoyée (⏳), validée (coche sauge), refusée (grisée). */
 .asc-mb-st { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--app-bg); background: var(--gold); color: #fff; font-size: 9px; line-height: 1; }
 .asc-mb-st.ok { background: var(--sage); }
@@ -3460,20 +3538,21 @@ body.is-demo #navRestart { display: none !important; }
    gauche, le sentier au centre, les cartes à droite. Les deux vivent dans la même
    <section>, donc ils défilent alignés sans une ligne de JS. */
 @media (min-width: 900px) {
-  .asc-head { padding: 24px 26px 20px; }
-  .asc-titre { font-size: 31px; }
-  .asc-head-art { width: 74px; height: 52px; }
+  /* Les six informations tiennent sur DEUX colonnes : l'état à gauche, la
+     prochaine étape clé à droite. Le bloc y gagne encore une ligne de hauteur,
+     et le sentier commence dans le premier écran. */
+  .asc-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 22px; padding: 16px 22px; }
+  .asc-head-go { margin: 0; width: auto; max-width: 300px; }
+  .asc-titre { font-size: 27px; }
+  .asc-head-art { width: 62px; height: 46px; }
   /* Tant que le rail est encore SOUS l'en-tête, ses trois cartes se rangent en
      ligne : empilées, elles repousseraient le sentier hors de l'écran. */
   .asc-rail { grid-template-columns: repeat(3, 1fr); align-items: start; gap: 14px; margin-bottom: 10px; }
-  /* Dès que le rail passe en colonnes étroites (~233 px, qu'il soit en bande
-     sous l'en-tête ou à droite du sentier), le bloc du cadeau se met DEBOUT :
-     en ligne, son nom (« Deux semaines offertes à un proche ») tombait sur
-     quatre lignes de six caractères à côté d'une vignette de 56 px. */
-  .asc-rc-gift .pgift { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; }
-  .asc-rc-gift .pgift-ic { width: 46px; height: 46px; font-size: 25px; }
-  .asc-rc-gift .pgift-main { width: 100%; }
-  .asc-rc-gift .pgift-go { display: none; }
+  /* En colonne étroite (~233 px), la vignette du cadeau et son nom ne tiennent
+     plus côte à côte : le nom passe sous l'illustration. */
+  .asc-rc-gift .pgift { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .asc-rc-gift .pgift-main { grid-column: 1; }
+  .asc-rc-gift .pgift-ic { width: 54px; height: 54px; font-size: 30px; }
 
   .asc-ch { display: grid; grid-template-columns: var(--asc-col) minmax(0, 1fr); gap: 26px; align-items: start; }
   /* La carte de semaine suit le regard le long de son chapitre, sans jamais
@@ -3531,6 +3610,16 @@ body.is-demo #navRestart { display: none !important; }
 .asc-cardm { display: none; position: absolute; left: 0; right: 0; }
 @media (max-width: 640px) {
   .asc-cardm { display: block; }
+  /* ⚠️ La DERNIÈRE étape d'une semaine est toujours un jalon, donc elle porte
+     toujours une carte — et sous la bulle, cette carte est plus haute que l'air
+     réservée sous l'étape (ASC_AIR.milestone + ASC_PAD) : elle débordait sur la
+     carte de la semaine suivante (25 px mesurés). On pousse donc la suite, ici
+     seulement : sur ordinateur la carte est À CÔTÉ et cette hauteur serait du
+     vide pur.
+     ⚠️ Une MARGE, pas un padding : `height` est posée en style inline par le JS
+     et `box-sizing: border-box` est global — un padding serait absorbé dans
+     cette hauteur fixe et ne pousserait rien (essayé, mesuré). */
+  .asc-ch-map { margin-bottom: 56px; }
   .asc-has-card { display: none; }
   /* La carte prend toute la largeur : le titre, l'action et le bouton
      redeviennent lisibles au lieu de s'empiler dans 128 px. */
@@ -3550,23 +3639,25 @@ body.is-demo #navRestart { display: none !important; }
      L'amplitude du serpentin (ASC_AMP, côté JS) est réglée à 15 % : les bulles
      restent entre 35 % et 65 %, ce qui laisse ~150 px libres sur le bord pour ce
      qui est posé à côté — la carte de l'étape active tient dans cette largeur. */
-  /* Les bulles ordinaires rétrécissent PLUS que les autres : c'est ce qui rend
-     leur libellé lisible (il gagne la place que le rond perd) tout en gardant
-     l'étape du jour et les sommets francs. */
-  .asc-wrap, #view-parcours { --asc-dot: 46px; --asc-dot-now: 70px; --asc-dot-top: 62px; --asc-gap: 30px; --asc-trail: 11px; }
-  .asc-side { max-width: 132px; }
+  /* Tout rétrécit ENSEMBLE — bulle, écart, avatar : c'est le seul moyen de
+     garder le libellé à côté de son étape sans jamais mordre le sentier. */
+  .asc-wrap, #view-parcours { --asc-dot: 58px; --asc-dot-now: 72px; --asc-dot-top: 64px; --asc-rec-d: 52px;
+    --asc-gap: 36px; --asc-trail: 12px; --asc-av-d: 72px; }
+  .asc-side { max-width: 124px; }
   .asc-lbl { font-size: 12px; }
-  .asc-av { top: calc(var(--asc-dot-now) / -2 - 15px); width: 34px; height: 34px; }
+  .asc-av-sol { height: 10px; bottom: -5px; }
   .asc-card { padding: 12px 13px; }
   .asc-card-t { font-size: 16px; }
   .asc-card-f { flex-wrap: wrap; gap: 8px; }
   /* Les icônes suivent leur rond — sinon elles le remplissent jusqu'au bord. */
-  .asc-dot .ic { width: 21px; height: 21px; }
+  .asc-dot .ic { width: 24px; height: 24px; }
   .asc-active .asc-dot .ic { width: 28px; height: 28px; }
   .asc-sommet .asc-dot .ic { width: 26px; height: 26px; }
-  .asc-rec-tie { width: calc(var(--asc-gap) - 18px); }
-  .asc-rec-b { width: 34px; height: 34px; }
-  .asc-rec-ic { font-size: 15px; }
+  .asc-rec-tie { width: calc(var(--asc-gap) - 20px); }
+  .asc-rec-ic { font-size: 21px; }
+  .asc-mb-dot .ic { width: 21px; height: 21px; }
+  /* La marge de 16 px du téléphone, tenue partout. */
+  #view-parcours { padding-left: 16px; padding-right: 16px; }
   .asc-leg { gap: 7px 12px; padding: 12px; }
 }
 

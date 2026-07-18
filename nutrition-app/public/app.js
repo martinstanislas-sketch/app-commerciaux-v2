@@ -4844,6 +4844,9 @@ async function renderChallenge() {
     view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">' + msg + '</div>';
     wireParcoursSegment(); return;
   }
+  // Où se tient l'avatar AVANT la repeinte : s'il change d'étape, il ira à sa
+  // nouvelle place au lieu d'y réapparaître (cf. ascAvatarDeplacer).
+  const avAvant = ascAvatarCapturer(view);
   // L'en-tête, puis le corps : le sentier à gauche, le rail de synthèse à droite.
   // Les deux vivent dans la même grille -> le rail occupe RÉELLEMENT la colonne
   // qui, jusqu'ici, n'existait que pour centrer le sentier (cf. .asc-body).
@@ -4852,6 +4855,7 @@ async function renderChallenge() {
   wireParcoursSegment();
   wireChallengePath();
   mcpathCentrerActif(); // on ouvre sur l'étape du jour, pas en haut du parcours
+  ascAvatarDeplacer(view, avAvant); // … et il marche jusqu'à sa nouvelle étape
   // Toast « au retour » : un nœud validé sur son écran d'origine s'affiche à la revenue.
   if (hadSnapshot) {
     const newly = (st.nodes || []).filter((n) => n.status === 'done' && !prevDone.has(n.day));
@@ -4882,14 +4886,21 @@ async function renderChallenge() {
 // ============================================================================
 
 // --- Le thème du Chemin, en un seul endroit --------------------------------
-const ASC_AMP = 15;      // amplitude du serpentin, en % de la largeur de la carte
-const ASC_STEP = 118;    // distance verticale entre deux étapes (px)
-const ASC_PAD = 60;      // respiration en haut et en bas de chaque chapitre (px)
+// ⚠️ Ces trois nombres font le RYTHME du sentier. Ils ont été resserrés (‑24 %
+// sur le pas, ‑27 % sur la respiration, amplitude ramenée de 15 à 12 %) : le
+// parcours était trop étiré — on voyait quatre étapes par écran et de grandes
+// zones vides sur les côtés. Resserrer donne la sensation de progression
+// continue. Toucher ASC_STEP sans revoir les diamètres des bulles (--asc-dot*)
+// est le moyen le plus sûr de faire se chevaucher deux étapes : l'écart
+// bord-à-bord vaut ASC_STEP moins un rayon de chaque côté.
+const ASC_AMP = 12;      // amplitude du serpentin, en % de la largeur de la carte
+const ASC_STEP = 90;     // distance verticale entre deux étapes (px)
+const ASC_PAD = 44;      // respiration en haut et en bas de chaque chapitre (px)
 // L'air SOUS une étape qui porte une CARTE. Sur mobile la carte se pose sous la
 // bulle (il n'y a pas la place à côté) : il lui faut sa hauteur. Sur desktop la
 // carte est à côté, et cette même air devient la respiration qu'un jalon mérite.
 // Une seule valeur, deux bonnes raisons.
-const ASC_AIR = { active: 138, final: 156, milestone: 108 };
+const ASC_AIR = { active: 122, final: 138, milestone: 78 };
 function ascAir(n) {
   if (!n) return 0;
   if (n.type === 'final') return ASC_AIR.final;
@@ -4969,23 +4980,30 @@ function challengeHeaderHTML(st) {
   // dernière ligne. Les compteurs (Punch, série) sont partis au rail : ils
   // répondent à « qu'est-ce que ça me rapporte », pas à « où j'en suis ».
   // L'avatar, lui, est parti SUR le sentier : c'est là qu'il grimpe.
+  // Les six informations tiennent en DEUX colonnes sur ordinateur (l'état à
+  // gauche, la prochaine étape clé à droite) et s'empilent en dessous. Le
+  // décompte d'étapes est passé au bout de la barre : il commente la barre, il
+  // n'a pas besoin d'une ligne à lui. Le bloc perd ~25 % de sa hauteur, et le
+  // début du sentier remonte dans le premier écran.
   return `<header class="asc-head">
-    <div class="asc-head-row">
-      ${ascMassifSVG()}
-      <div class="asc-head-txt">
-        <p class="asc-kicker">Jour ${st.day} · Semaine ${semaine}/6</p>
-        <h2 class="asc-titre">${mcpEsc(titre)}</h2>
+    <div class="asc-head-main">
+      <div class="asc-head-row">
+        ${ascMassifSVG()}
+        <div class="asc-head-txt">
+          <p class="asc-kicker">Jour ${st.day} · Semaine ${semaine}/6</p>
+          <h2 class="asc-titre">${mcpEsc(titre)}</h2>
+        </div>
+        <b class="asc-pct">${pct}<span>%</span></b>
       </div>
-      <b class="asc-pct">${pct}<span>%</span></b>
-    </div>
-    <div class="asc-prog">
-      <div class="asc-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"
-           aria-label="${done} étapes sur ${total}">
-        <span style="width:${pct}%"></span>
-        <i class="asc-runner" style="left:${pct}%" aria-hidden="true">🏃</i>
+      <div class="asc-prog">
+        <div class="asc-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"
+             aria-label="${done} étapes sur ${total}">
+          <span style="width:${pct}%"></span>
+          <i class="asc-runner" style="left:${pct}%" aria-hidden="true">🏃</i>
+        </div>
+        <span class="asc-head-sub">${done}<i>/${total} étapes</i></span>
       </div>
     </div>
-    <p class="asc-head-sub">${done} étape${done > 1 ? 's' : ''} terminée${done > 1 ? 's' : ''} sur ${total}</p>
     ${ascJalonLigneHTML(ascProchainJalon(st))}
   </header>`;
 }
@@ -5170,12 +5188,72 @@ function ascCalerAvatar() {
   const cfg = (window.__NUTRI_USER && window.__NUTRI_USER.avatarConfig) || null;
   _ascAvatarSVG = (cfg && window.MCAvatar) ? window.MCAvatar.rendreSVG(cfg, { alt: '' }) : '';
 }
-// Le médaillon : le client, posé SUR sa bulle du jour. C'est le seul endroit du
-// Chemin où il se voit lui-même — d'où sa place, sur la seule bulle qui compte.
-// Il est décoratif (aria-hidden) : la bulle porte déjà l'état en toutes lettres.
-function ascAvatarHTML() {
+// LE CLIENT SUR SON CHEMIN. Il ne coiffe plus la bulle comme une icône : il se
+// tient SUR le sentier, sur le segment qui monte vers l'étape du jour — donc
+// juste avant elle, tourné vers elle. C'est ce qui le rend physiquement présent
+// plutôt que décoratif, et c'est aussi ce qui rend son déplacement lisible quand
+// une étape est validée (cf. ascAvatarDeplacer).
+// ⚠️ Ce segment est libre par CONSTRUCTION : l'étoile de mission évite tout
+// segment dont une extrémité porte une carte (cf. ascChapitreHTML), et l'étape
+// active en porte toujours une. Rien d'autre ne s'y pose.
+// ⚠️ 0,60 et pas moins : avec ASC_STEP à 90 px, un avatar de 88 px posé plus
+// bas RECOUVRE la bulle du jour et son icône. Il reste malgré tout en partie
+// derrière elle (aucune valeur ne les sépare complètement à ce pas) — d'où le
+// z-index de .asc-avw, sous les bulles : la bulle passe DEVANT, l'avatar en
+// émerge, et on lit « il est arrivé jusque-là » au lieu d'une superposition.
+const ASC_AV_T = 0.60; // où il se tient sur le segment, en partant de l'étape du jour
+function ascAvatarSurSentierHTML(nodes, pts) {
   if (!_ascAvatarSVG) return '';
-  return '<span class="asc-av" aria-hidden="true">' + _ascAvatarSVG + '</span>';
+  const k = nodes.findIndex((n) => n.status === 'active');
+  if (k < 0) return '';
+  // Première étape d'un chapitre : pas de segment amont ici, on le pose au-dessus.
+  const p = pts[k];
+  // … et un peu vers l'EXTÉRIEUR de la vague : à la seule verticale du segment,
+  // il restait encastré dans la bulle. Le côté intérieur est pris par la carte
+  // « Étape actuelle » — l'extérieur est le seul dégagé.
+  const dehors = p.x >= 50 ? 5 : -5;
+  const av = k >= 1
+    ? { x: p.x + (pts[k - 1].x - p.x) * ASC_AV_T + dehors, y: p.y - (p.y - pts[k - 1].y) * ASC_AV_T }
+    : { x: p.x + dehors, y: p.y - 46 };
+  // Il regarde vers l'étape du jour. Le visage est de face : c'est un MIROIR
+  // discret (l'épaule et les accessoires basculent), pas une volte-face — d'où
+  // l'inclinaison qui, elle, se voit et dit le mouvement.
+  const versGauche = p.x < av.x;
+  return `<div class="asc-avw${versGauche ? ' asc-avw-g' : ''}" style="left:${av.x.toFixed(2)}%;top:${Math.round(av.y)}px" aria-hidden="true">
+    <span class="asc-av-sol"></span>
+    <span class="asc-av">${_ascAvatarSVG}</span>
+  </div>`;
+}
+// Quand une étape vient d'être validée, l'avatar ne doit pas RÉAPPARAÎTRE plus
+// bas : il doit y aller. La vue est repeinte entièrement à chaque changement
+// d'état — on capture donc sa position à l'écran AVANT la repeinte, et on le
+// fait partir de là après (technique FLIP : on inverse le déplacement en
+// transform, puis on le relâche). Aucun état à maintenir, rien à défaire si la
+// repeinte n'a finalement pas bougé l'avatar (delta nul = aucune animation).
+function ascAvatarCapturer(view) {
+  const el = view && view.querySelector('.asc-avw');
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return { x: r.left + window.scrollX, y: r.top + window.scrollY };
+}
+function ascAvatarDeplacer(view, avant) {
+  if (!avant) return;
+  const el = view && view.querySelector('.asc-avw');
+  if (!el) return;
+  let reduit = false;
+  try { reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { /* ignore */ }
+  if (reduit) return;
+  const r = el.getBoundingClientRect();
+  const dx = avant.x - (r.left + window.scrollX);
+  const dy = avant.y - (r.top + window.scrollY);
+  if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return; // il n'a pas bougé : pas d'animation pour rien
+  el.style.transition = 'none';
+  el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  void el.offsetWidth; // on force la prise en compte avant de relâcher
+  el.classList.add('asc-avw-go');
+  el.style.transition = '';
+  el.style.transform = '';
+  setTimeout(() => el.classList.remove('asc-avw-go'), 1200);
 }
 function challengePathHTML(st) {
   ascCalerAvatar();
@@ -5248,13 +5326,21 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
       const cand = milieu + (d % 2 ? -(d + 1) / 2 : d / 2); // milieu, +1, -1, +2, -2…
       if (cand >= 1 && cand <= nodes.length - 1 && !aCarte(nodes[cand - 1]) && !aCarte(nodes[cand])) { k = cand; break; }
     }
-    const mx = (pts[k - 1].x + pts[k].x) / 2, my = (pts[k - 1].y + pts[k].y) / 2;
+    // ⚠️ Posée SUR le milieu du segment, l'étoile mordait les deux bulles
+    // voisines dès qu'on l'a agrandie : à ce pas, la moitié d'un segment (45 px)
+    // est plus courte que la somme des rayons (32 + 33). On la décale donc vers
+    // l'EXTÉRIEUR de la vague — le côté intérieur est pris par les cartes. Et
+    // c'est plus juste ainsi : une mission facultative n'a pas à occuper l'axe
+    // du parcours, elle se propose à côté.
+    const mx0 = (pts[k - 1].x + pts[k].x) / 2;
+    const mx = mx0 + (mx0 >= 50 ? 11 : -11);
+    const my = (pts[k - 1].y + pts[k].y) / 2;
     const badge = mission.statut === 'validee' ? `<span class="asc-mb-st ok" aria-hidden="true">${icSvg('check')}</span>`
       : mission.statut === 'refusee' ? '<span class="asc-mb-st ko" aria-hidden="true">✕</span>'
         : mission.statut === 'declaree' ? '<span class="asc-mb-st" aria-hidden="true">⏳</span>' : '';
     const ariaMb = 'Mission bonus de la semaine — facultative, des PUNCH en plus'
       + (mission.statut === 'validee' ? ' — validée' : mission.statut === 'refusee' ? ' — non validée' : mission.statut === 'declaree' ? ' — envoyée au coach' : '');
-    mb = `<div class="asc-nd asc-mb" style="left:${mx.toFixed(2)}%;top:${Math.round(my)}px">
+    mb = `<div class="asc-nd asc-mb${mx0 >= 50 ? '' : ' asc-mb-g'}" style="left:${mx.toFixed(2)}%;top:${Math.round(my)}px">
       <button type="button" class="asc-mb-dot" data-mb="${mission.week}" aria-label="${ariaMb}">${icSvg('star')}${badge}</button>
       <span class="asc-mb-lbl" aria-hidden="true">Mission bonus</span>
     </div>`;
@@ -5272,6 +5358,7 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
       </svg>
       ${nodes.map((n, k) => ascNodeHTML(n, pts[k], (recs || {})[iOffset + k], ctx)).join('')}
       ${nodes.map((n, k) => ascCarteMobileHTML(n, pts[k], ctx)).join('')}
+      ${ascAvatarSurSentierHTML(nodes, pts)}
       ${mb}
     </div>
   </section>`;
@@ -5279,6 +5366,11 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
 
 // La carte de semaine : le grand chiffre donne l'échelle, l'ambiance donne le ton,
 // et l'état se lit sans lire (franchi / en cours / encore fermé).
+// ⚠️ Elle ne REDIT PAS le titre de la semaine : l'en-tête le porte déjà, en
+// grand, à quelques centimètres au-dessus (« Je démarre » écrit deux fois côte à
+// côte). La carte apporte ce que l'en-tête ne dit pas — l'OBJECTIF de la
+// semaine — et son avancement. Le titre reste dans l'aria-label : un lecteur
+// d'écran, lui, ne voit pas les deux blocs d'un même coup d'œil.
 function ascWeekCardHTML(week, nodes, st, nbSemaines, etat, done) {
   const titre = (st.weekTitles && st.weekTitles[week]) || '';
   const mot = { done: 'Chapitre franchi', now: 'En cours', soon: 'À venir' }[etat];
@@ -5289,7 +5381,7 @@ function ascWeekCardHTML(week, nodes, st, nbSemaines, etat, done) {
     <span class="asc-wk-n" aria-hidden="true">${String(week).padStart(2, '0')}</span>
     <span class="asc-wk-art" aria-hidden="true">${ASC_WEEK_ART[week] || '✦'}</span>
     <p class="asc-wk-k">Semaine ${week} sur ${nbSemaines}</p>
-    <h3 class="asc-wk-t">${mcpEsc(titre)}</h3>
+    <p class="asc-wk-o">Objectif de la semaine</p>
     <p class="asc-wk-s">${mcpEsc(ASC_WEEK_SUB[week] || '')}</p>
     <p class="asc-wk-f">${pied}</p>
   </div>`;
@@ -5306,8 +5398,13 @@ function ascNodeHTML(n, pt, recs, ctx) {
   // la couleur n'est jamais le seul indice.
   const aria = mcpEsc(n.title) + (n.milestone ? ' — Étape clé' : '') + ' — ' + ASC_ETAT_MOT[n.status]
     + (n.status === 'locked' ? '' : ' — ' + n.punch + ' Punch');
-  // Seule l'étape active est cliquable ; les autres ne mentent pas sur leur état.
-  const attr = n.status === 'active' ? ` data-node="${n.day}"` : ' disabled';
+  // L'étape active LANCE l'étape ; une étape fermée DIT pourquoi elle l'est
+  // (au clic, un simple message — cf. ascPourquoiFerme). Une porte fermée qui
+  // ne répond pas quand on frappe se lit comme un bug ; elle reste pour autant
+  // non-actionnable, et son libellé le dit aux lecteurs d'écran.
+  // ⚠️ Les étapes DÉJÀ FAITES restent inertes : rien à y relancer.
+  const attr = n.status === 'active' ? ` data-node="${n.day}"`
+    : n.status === 'locked' ? ` data-locked="${n.day}"` : ' disabled';
   const ecusson = n.status === 'done' ? `<span class="asc-ck" aria-hidden="true">${icSvg('check')}</span>`
     : n.status === 'locked' ? `<span class="asc-lk" aria-hidden="true">${icSvg('lock')}</span>` : '';
   // Placement autour de la bulle (à sa hauteur, le sentier ne l'occupe qu'elle :
@@ -5326,7 +5423,6 @@ function ascNodeHTML(n, pt, recs, ctx) {
     <button type="button" class="asc-dot"${attr} aria-label="${aria}">
       ${icSvg(ascIcone(n))}<span class="asc-halo" aria-hidden="true"></span>
     </button>
-    ${n.status === 'active' ? ascAvatarHTML() : ''}
     ${ecusson}
     <div class="${sideCls}">${ascSideHTML(n, ctx)}</div>
     ${ascRecsHTML(recs, aCarte ? 'out' : 'in')}
@@ -5357,15 +5453,19 @@ function ascSideHTML(n, ctx) {
   if (n.milestone) return ascJalonCardHTML(n);
   return `<span class="asc-lbl">${mcpEsc(n.title)}</span>`;
 }
+// L'ACTION PRINCIPALE de l'écran. Trois changements par rapport à une carte
+// ordinaire : une pointe qui la raccroche à SA bulle (sans elle, elle a l'air
+// posée à côté du chemin, et le lien entre le bouton et le cercle n'est qu'une
+// devinette), un bouton pleine largeur, et le gain en Punch sous ce bouton
+// plutôt qu'à côté — flottant à droite, il semblait détaché de la carte.
 function ascActiveCardHTML(n) {
   return `<div class="asc-card asc-card-now">
+    <span class="asc-card-tip" aria-hidden="true"></span>
     <p class="asc-card-k">Étape actuelle</p>
     <h3 class="asc-card-t">${mcpEsc(n.title)}</h3>
     <p class="asc-card-s">${mcpEsc(n.action || '')}</p>
-    <div class="asc-card-f">
-      <button type="button" class="asc-card-cta" data-node="${n.day}">Commencer</button>
-      <span class="asc-card-p">+${n.punch} Punch</span>
-    </div>
+    <button type="button" class="asc-card-cta asc-card-cta-go" data-node="${n.day}">Commencer</button>
+    <span class="asc-card-gain">+${n.punch} Punch à la clé</span>
   </div>`;
 }
 function ascJalonCardHTML(n) {
@@ -5400,6 +5500,25 @@ function ascLegendeHTML() {
     <span class="asc-leg-i"><i class="asc-leg-d asc-leg-rec">🎁</i>Récompense débloquée</span>
     <span class="asc-leg-i"><i class="asc-leg-d asc-leg-lock">${icSvg('lock')}</i>Étape à débloquer</span>
   </div>`;
+}
+
+// Pourquoi cette étape est-elle fermée ? La règle est simple — on avance dans
+// l'ordre — mais elle n'est écrite nulle part sur l'écran. On la dit ici, avec
+// le nombre d'étapes qui restent à franchir : « encore 3 » se comprend et se
+// vise, « verrouillé » ne fait que constater.
+// ⚠️ Purement informatif : aucun déblocage ne passe par là, rien n'est écrit.
+function ascPourquoiFerme(day) {
+  const nodes = (state.challenge && state.challenge.nodes) || [];
+  const n = nodes.find((x) => x.day === day); if (!n) return;
+  const iAct = nodes.findIndex((x) => x.status === 'active');
+  const i = nodes.indexOf(n);
+  const reste = iAct >= 0 ? i - iAct : 0;
+  const quoi = mcpEsc(n.title);
+  if (reste > 0) {
+    showToast('🔒 ' + quoi + ' — encore ' + reste + ' étape' + (reste > 1 ? 's' : '') + ' avant d\'y arriver', { icon: 'info' });
+  } else {
+    showToast('🔒 ' + quoi + ' — termine l\'étape en cours pour l\'ouvrir', { icon: 'info' });
+  }
 }
 
 // Un clic sur une récompense débloquée emmène DESSUS, pas « vers l'écran qui la
@@ -5442,6 +5561,7 @@ function wireChallengePath() {
   $$('#view-parcours [data-node]').forEach((b) => b.addEventListener('click', () => openChallengeNode(Number(b.dataset.node))));
   $$('#view-parcours [data-mb]').forEach((b) => b.addEventListener('click', () => ouvrirMissionBonus(Number(b.dataset.mb))));
   $$('#view-parcours .asc-rec[data-rec]').forEach((b) => b.addEventListener('click', () => ouvrirRecompense(b.dataset.rec)));
+  $$('#view-parcours [data-locked]').forEach((b) => b.addEventListener('click', () => ascPourquoiFerme(Number(b.dataset.locked))));
   $$('#view-parcours .mcpath-stat[data-stat]').forEach((b) => b.addEventListener('click', () => openStatInfo(b.dataset.stat)));
   $$('#view-parcours [data-goto]').forEach((b) => b.addEventListener('click', () => ascAllerA('#asc-nd-' + b.dataset.goto)));
   const _g = $('#mcpathGifts'); if (_g) _g.addEventListener('click', () => setTab('boutique'));
