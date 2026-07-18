@@ -132,6 +132,11 @@ const CUISINE_LABELS = {
 function cuisineLabel(c) { return CUISINE_LABELS[normTxt(c)] || (c ? c.charAt(0).toUpperCase() + c.slice(1) : c); }
 // Icone SVG depuis le sprite (#ic-...) — pas d'emoji dans l'UI.
 function icSvg(name) { return `<svg class="ic" aria-hidden="true"><use href="#ic-${name}"/></svg>`; }
+// Marque MC des en-têtes de page. Un seul helper pour que la tuile soit posée à
+// l'identique sur TOUTES les pages (la barre du haut est masquée en mode app,
+// donc sans ça la marque n'existerait que sur l'écran Repas).
+// Décoratif : alt vide + aria-hidden, le nom de la page est déjà dans le titre.
+function brandMark() { return '<img class="mc-brand" src="logo-mc.png?v=1" alt="" aria-hidden="true" width="256" height="256" />'; }
 
 // ---------- Table de substitution d'ingredients (mode demo) ----------
 // Cle = morceau du nom (normalise) -> alternatives proposees au "swap".
@@ -4437,7 +4442,7 @@ function renderCommunaute() {
   if (!host) return;
   if (!state.communauteJoined) {
     host.innerHTML =
-      '<div class="comm2-join">' +
+      '<div class="comm2-join">' + brandMark() +
         '<div class="comm2-join-ic">' + icSvg('users') + '</div>' +
         '<h2>Rejoins ton groupe</h2>' +
         '<p>Avance avec les autres : vois les progrès de chacun en direct, encourage-les, et partage tes victoires. La motivation, c’est l’équipe.</p>' +
@@ -4462,7 +4467,7 @@ function renderCommunaute() {
     ? '<form id="commCoachForm" class="cmy-coachform"><textarea id="commCoachInput" rows="2" maxlength="500" placeholder="Publier un conseil au groupe (coach)…"></textarea><button type="submit" class="cmy-post-btn sm">' + icSvg('send') + ' Publier</button></form>'
     : '';
   host.innerHTML =
-    '<div class="cmy">' +
+    '<div class="cmy">' + brandMark() +
       // ---- Layout : fil principal + aside ----
       '<div class="cmy-layout">' +
         '<div class="cmy-main">' +
@@ -4761,7 +4766,7 @@ function renderParcoursTab() {
 function parcoursSegmentHTML() {
   const seg = (id, label, on) => `<button type="button" class="mcpath-seg${on ? ' on' : ''}" data-pseg="${id}">${label}</button>`;
   const sub = state.parcoursSub === 'mesures' ? 'mesures' : 'chemin';
-  return `<div class="mcpath-segwrap">${seg('chemin', '🚀 Parcours', sub === 'chemin')}${seg('mesures', '📏 Progression', sub === 'mesures')}</div>`;
+  return brandMark() + `<div class="mcpath-segwrap">${seg('chemin', '🚀 Parcours', sub === 'chemin')}${seg('mesures', '📏 Progression', sub === 'mesures')}</div>`;
 }
 function wireParcoursSegment() {
   $$('#view-parcours .mcpath-seg').forEach((b) => b.addEventListener('click', () => {
@@ -6002,7 +6007,7 @@ function renderParcours() {
     '</section>';
 
   host.innerHTML =
-    '<div class="pc-head"><img class="pc-head-logo" src="logo-mc.png?v=1" alt="My Coach" /><h1>Mon Parcours</h1><p>Ton évolution pendant le Challenge 6 semaines</p></div>' +
+    '<div class="pc-head"><h1>Mon Parcours</h1><p>Ton évolution pendant le Challenge 6 semaines</p></div>' +
     carte + etapeBlock + peseeNote + courbe + timeline + photoBlock + mensurationsBlock + seancesBlock + regBlock + badgeBlock + bilan;
 
   // Câblage
@@ -9166,7 +9171,7 @@ function renderEbooks(body, list, day) {
 }
 // --- Onglet Ebooks (vue plein écran) : guides disponibles + à venir ---
 function ebooksViewHead() {
-  return '<div class="ebv-head"><h2 class="ebv-title">' + icSvg('book') + ' Mes guides</h2>' +
+  return '<div class="ebv-head">' + brandMark() + '<h2 class="ebv-title">' + icSvg('book') + ' Mes guides</h2>' +
     '<p class="ebv-sub">Des guides pratiques, débloqués au fil de ta progression.</p></div>';
 }
 async function renderEbooksView() {
@@ -9203,7 +9208,7 @@ function boutiqueHead(d) {
     jauge = '<div class="btq-next"><div class="btq-next-txt">Plus que <b>' + d.prochain.restant + ' Punch</b> avant ' + escapeHtml(d.prochain.label.toLowerCase()) + '</div>' +
       '<div class="btq-bar"><span style="width:' + pct + '%"></span></div></div>';
   }
-  return '<div class="btq-head"><h2 class="btq-title">🎁 Mes cadeaux</h2>' +
+  return '<div class="btq-head">' + brandMark() + '<h2 class="btq-title">🎁 Mes cadeaux</h2>' +
     '<p class="btq-sub">Tes Punch ne se dépensent pas : chaque palier atteint est gardé à vie.</p>' +
     '<div class="btq-punch">👊 <b>' + p + '</b> Punch</div>' + jauge + '</div>';
 }
@@ -9236,7 +9241,7 @@ function boutiqueCard(c) {
 }
 async function renderBoutiqueView() {
   const host = $('#view-boutique'); if (!host) return;
-  host.innerHTML = '<div class="btq-head"><h2 class="btq-title">🎁 Mes cadeaux</h2></div><p class="panel-sub">Chargement…</p>';
+  host.innerHTML = '<div class="btq-head">' + brandMark() + '<h2 class="btq-title">🎁 Mes cadeaux</h2></div><p class="panel-sub">Chargement…</p>';
   try {
     const d = await (await fetch(apiUrl('/api/gifts'), { headers: nutriAuthHeaders() })).json();
     if (!d.ok) throw new Error();
@@ -9245,7 +9250,7 @@ async function renderBoutiqueView() {
       '<p class="btq-foot">Les cadeaux à retirer se présentent à ton coach, au studio.</p>';
     host.querySelectorAll('.btq-card').forEach((b) => b.addEventListener('click', () => ouvrirCadeau(b.dataset.id)));
   } catch (_) {
-    host.innerHTML = '<div class="btq-head"><h2 class="btq-title">🎁 Mes cadeaux</h2></div><p class="help-empty">Lecture impossible pour le moment.</p>';
+    host.innerHTML = '<div class="btq-head">' + brandMark() + '<h2 class="btq-title">🎁 Mes cadeaux</h2></div><p class="help-empty">Lecture impossible pour le moment.</p>';
   }
 }
 let _boutique = null;

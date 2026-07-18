@@ -1365,8 +1365,14 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 #screen-result[data-tab="parcours"] #view-parcours { display: flex; flex-direction: column; gap: 16px; }
 .pc-empty { text-align: center; padding: 40px 18px; color: var(--muted); }
 .pc-empty h2 { color: var(--ink); margin: 0 0 8px; }
-/* Marque discrète en tête du Parcours : petite tuile au-dessus du titre. */
-.pc-head-logo { width: 34px; height: 34px; border-radius: 9px; display: block; margin: 0 0 10px; }
+/* ── Marque MC des en-têtes de page ─────────────────────────────────────────
+   La barre du haut étant masquée en mode app (body.app-shell), la marque n'est
+   présente que si chaque page la porte. Même tuile, même taille, même position
+   partout : posée au-dessus du titre de la page. Discrète (28px) pour ne pas
+   concurrencer le titre. */
+.mc-brand { width: 28px; height: 28px; border-radius: 8px; display: block; margin: 0 0 10px; }
+/* Variante alignée dans un titre (ex. « Liste de courses »), à la place d'une icône. */
+.mc-brand--inline { display: inline-block; vertical-align: -6px; margin: 0 4px 0 0; width: 26px; height: 26px; border-radius: 7px; }
 .pc-head h1 { margin: 0; font-size: 26px; color: var(--ink); }
 .pc-head p { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
 /* carte principale */

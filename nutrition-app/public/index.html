@@ -40,7 +40,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=143" />
+  <link rel="stylesheet" href="style.css?v=144" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=103" />
   <script>
@@ -835,6 +835,7 @@
 
       <!-- ÉCRAN PROFIL : options secondaires triées (délègue aux boutons existants) -->
       <div id="view-profil">
+        <img class="mc-brand" src="logo-mc.png?v=1" alt="" aria-hidden="true" width="256" height="256" />
         <h2 class="profil-title">Profil &amp; plus</h2>
 
         <button type="button" class="profil-row" data-go="btnExportPlan"><svg class="ic pr-blue"><use href="#ic-file"/></svg>Plan PDF<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -1030,7 +1031,7 @@
   <div id="shoppingPanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-cart"/></svg> Liste de courses</h2>
+        <h2><img class="mc-brand mc-brand--inline" src="logo-mc.png?v=1" alt="" aria-hidden="true" width="256" height="256" /> Liste de courses</h2>
         <button class="modal-close" id="shoppingClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
       <p class="panel-sub">Pour <span id="shoppingDays">7</span> jour(s). Choisis pour combien de personnes, puis coche au fur et à mesure.<span id="shoppingPortions" hidden></span></p>
@@ -1545,6 +1546,6 @@
   <script src="vendor/pdf.min.js"></script>
   <script src="coursesCatalogue.js?v=2"></script>
   <script src="coursesEngine.js?v=1"></script>
-  <script src="app.js?v=171"></script>
+  <script src="app.js?v=173"></script>
 </body>
 </html>
