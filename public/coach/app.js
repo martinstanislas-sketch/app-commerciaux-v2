@@ -8492,6 +8492,12 @@ function chInjectStyles() {
     .ch-group-code.ch-code-off:hover { background: var(--mc-cream-dark); }
     .ch-code-regen { flex: 0 0 auto; background: none; border: 1px solid rgba(199,164,90,.35); color: var(--mc-text-muted); border-radius: 9px; width: 30px; height: 30px; font-size: 14px; cursor: pointer; line-height: 1; }
     .ch-code-regen:hover { background: var(--mc-gold-soft); color: #8a6d2a; }
+    /* Gestion du groupe : renommer / supprimer (même gabarit que ↻). */
+    .ch-group-edit, .ch-group-del { flex: 0 0 auto; background: none; border: 1px solid rgba(199,164,90,.35); color: var(--mc-text-muted); border-radius: 9px; width: 30px; height: 30px; font-size: 13px; cursor: pointer; line-height: 1; }
+    .ch-group-edit:hover { background: var(--mc-gold-soft); color: #8a6d2a; }
+    .ch-group-del:hover { background: #F6DEDE; border-color: #D89A9A; color: #9A3B3B; }
+    /* Groupe créé mais encore sans membre : on l'affiche quand même. */
+    .ch-group-empty { padding: 14px 4px; }
     /* Date de début du challenge : lance le parcours de tout le groupe. */
     .ch-group-date { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; background: var(--mc-cream-dark); border: 1px solid rgba(199,164,90,.35); border-radius: 10px; padding: 4px 9px; font-size: 12.5px; cursor: pointer; }
     .ch-group-date input { border: none; background: none; font: inherit; color: var(--mc-text-muted); cursor: pointer; padding: 2px 0; }
@@ -9155,6 +9161,8 @@ let _chHost = null, _chClients = [], _chUnread = {}, _chFilter = { ville: '', no
 // Codes des challenges : « ville#n° » -> { code, actif }. C'est LE code que le coach
 // donne à son groupe pour que les clients créent leur espace (auto-inscription).
 let _chCodes = {};
+// Registre des groupes (y compris ceux sans aucun membre) : [{ville, challengeNo, code, actif, startDate, membres}]
+let _chGroups = [];
 function chCodeKey(ville, no) { return String(ville || '').trim().toLowerCase() + '#' + (Number(no) || 0); }
 // NB : on n'utilise PAS api() ici — elle préfixe toute route par /api/coach et
 // sérialise elle-même le body. Nos routes vivent sous /nutrition/api/coach/*.
@@ -9166,12 +9174,95 @@ async function chNutriFetch(path, options) {
 }
 async function chLoadCodes() {
   try {
-    const d = await chNutriFetch('/nutrition/api/coach/access-codes');
+    // Registre des groupes : contient AUSSI les groupes encore vides, que la liste
+    // des clients ne peut pas révéler (un groupe naît désormais avant ses membres).
+    const d = await chNutriFetch('/nutrition/api/coach/groups');
     if (!d || !d.ok) return;
     const m = {};
-    (d.codes || []).forEach((c) => { m[chCodeKey(c.ville, c.challengeNo)] = { code: c.code, actif: c.actif, startDate: c.startDate || '' }; });
+    _chGroups = d.groups || [];
+    _chGroups.forEach((g) => { m[chCodeKey(g.ville, g.challengeNo)] = { code: g.code, actif: g.actif, startDate: g.startDate || '' }; });
     _chCodes = m;
   } catch (_) { /* pas de codes affichés, le reste de l'écran fonctionne */ }
+}
+
+// Crée un groupe vide : le serveur lui attribue automatiquement un code unique.
+async function chCreateGroup(ville, challengeNo, startDate) {
+  const d = await chNutriFetch('/nutrition/api/coach/groups', {
+    method: 'POST', body: JSON.stringify({ ville, challengeNo: Number(challengeNo), startDate: startDate || '' }),
+  });
+  if (!d || !d.ok) throw new Error((d && d.error) || 'Création impossible.');
+  await chLoadCodes(); chRenderList();
+  return d.group;
+}
+async function chRenameGroup(ville, no) {
+  const nv = window.prompt('Nouvelle ville du groupe :', ville);
+  if (nv === null) return;
+  const nn = window.prompt('Nouveau n° de challenge :', String(no));
+  if (nn === null) return;
+  try {
+    const d = await chNutriFetch('/nutrition/api/coach/groups/rename', {
+      method: 'POST', body: JSON.stringify({ ville, challengeNo: Number(no), newVille: String(nv).trim(), newChallengeNo: Number(nn) }),
+    });
+    if (d && d.ok) { await chLoadCodes(); loadChallengeTab(); }
+    else alert((d && d.error) || 'Renommage impossible.');
+  } catch (_) { alert('Erreur réseau.'); }
+}
+async function chDeleteGroup(ville, no) {
+  if (!window.confirm('Supprimer le groupe ' + ville + ' · Challenge n°' + no + ' ?\n\nSon code cessera d\'exister.')) return;
+  try {
+    const d = await chNutriFetch('/nutrition/api/coach/groups?ville=' + encodeURIComponent(ville) + '&challengeNo=' + Number(no), { method: 'DELETE' });
+    if (d && d.ok) { await chLoadCodes(); chRenderList(); }
+    else alert((d && d.error) || 'Suppression impossible.');
+  } catch (_) { alert('Erreur réseau.'); }
+}
+// Modale de création : ville + n° de challenge + date de début facultative.
+// Le code n'est PAS saisi — il est généré par le serveur et affiché après coup.
+function openCreateGroupPanel() {
+  document.querySelectorAll('.ch-modal').forEach((m) => m.remove());
+  const modal = document.createElement('div');
+  modal.className = 'ch-modal';
+  modal.innerHTML = `
+    <div class="ch-modal-card">
+      <button type="button" class="ch-modal-close" aria-label="Fermer">×</button>
+      <h3>Nouveau groupe</h3>
+      <p class="sub">Un code de connexion unique est généré automatiquement : c'est lui que tu donnes aux participants pour qu'ils rejoignent ce groupe.</p>
+      <form class="ch-form" id="ch-ng-form" style="flex-direction:column;align-items:stretch">
+        <label>Ville<input type="text" name="ville" placeholder="Ex. Lyon" maxlength="80" required></label>
+        <label>N° de challenge<input type="number" name="no" placeholder="Ex. 3" min="1" max="999" required></label>
+        <label>Date de début (facultatif)<input type="date" name="date"></label>
+        <button type="submit" class="ch-btn" style="align-self:flex-start">Créer le groupe</button>
+      </form>
+      <div id="ch-ng-result"></div>
+      <div class="ch-msg" id="ch-ng-msg"></div>
+    </div>`;
+  document.body.appendChild(modal);
+  const close = () => modal.remove();
+  modal.querySelector('.ch-modal-close').addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  const msg = modal.querySelector('#ch-ng-msg');
+  modal.querySelector('#ch-ng-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target; const btn = f.querySelector('button');
+    const ville = f.ville.value.trim(); const no = Number(f.no.value);
+    msg.className = 'ch-msg';
+    if (!ville || !no) { msg.textContent = 'Ville et n° de challenge sont requis.'; return; }
+    btn.disabled = true; msg.textContent = 'Création…';
+    try {
+      const g = await chCreateGroup(ville, no, f.date.value || '');
+      msg.textContent = '';
+      f.style.display = 'none';
+      modal.querySelector('#ch-ng-result').innerHTML = `
+        <p><b>${chEsc(g.ville)} · Challenge n°${g.challengeNo}</b> est créé.</p>
+        <div class="ch-link-box">
+          <input type="text" readonly value="${chEsc(g.code)}" id="ch-ng-code">
+          <button type="button" class="ch-btn" id="ch-ng-copy">Copier</button>
+        </div>
+        <p class="sub">Donne ce code aux participants : il les rattache automatiquement à ce groupe.</p>`;
+      modal.querySelector('#ch-ng-copy').addEventListener('click', () => {
+        try { navigator.clipboard.writeText(g.code); msg.textContent = 'Code copié.'; } catch (_) { /* il le dicte */ }
+      });
+    } catch (e2) { msg.textContent = e2.message || 'Création impossible.'; btn.disabled = false; }
+  });
 }
 // Date de début du groupe : lance le parcours pour TOUT le groupe ce jour-là.
 // Vide = chacun démarre à sa pesée de départ (comportement historique).
@@ -9206,19 +9297,22 @@ function renderChallengeList(host, clients, unreadMap) {
 function chRenderList() {
   const host = _chHost; if (!host) return;
   const clients = _chClients;
-  const inviteBtn = '<button type="button" class="ch-btn ch-invite-btn" id="ch-invite-open">+ Inviter un client</button>';
+  const inviteBtn = '<button type="button" class="ch-btn ch-group-new" id="ch-group-new">+ Créer un groupe</button>'
+    + '<button type="button" class="ch-btn ch-invite-btn" id="ch-invite-open">+ Inviter un client</button>';
   const wireCommon = () => {
     const inv = host.querySelector('#ch-invite-open'); if (inv) inv.addEventListener('click', () => openInvitePanel());
+    const ng = host.querySelector('#ch-group-new'); if (ng) ng.addEventListener('click', () => openCreateGroupPanel());
     host.querySelectorAll('.ch-card').forEach((el) => el.addEventListener('click', () => openChallengeClient(host, el.dataset.email)));
   };
-  if (!clients.length) {
+  if (!clients.length && !_chGroups.length) {
     host.innerHTML = `<div class="ch-head"><div class="ch-head-l"><h2>🔥 Mes clients</h2></div>${inviteBtn}</div>
       <div class="ch-empty"><p>Aucun client pour le moment.</p><p class="ch-muted">Invite un client avec un lien ci-dessus.</p></div>`;
     wireCommon();
     return;
   }
-  const villes = [...new Set(clients.map((c) => (c.ville || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const nos = [...new Set(clients.map((c) => c.challengeNo || 0))].sort((a, b) => b - a);
+  // Les filtres couvrent aussi les groupes du registre encore sans membre.
+  const villes = [...new Set(clients.map((c) => (c.ville || '').trim()).concat(_chGroups.map((g) => (g.ville || '').trim())).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const nos = [...new Set(clients.map((c) => c.challengeNo || 0).concat(_chGroups.map((g) => g.challengeNo || 0)))].sort((a, b) => b - a);
   // On assainit le filtre courant (une valeur devenue absente -> « tous »).
   const fVille = villes.includes(_chFilter.ville) ? _chFilter.ville : '';
   const fNo = nos.map(String).includes(String(_chFilter.no)) ? String(_chFilter.no) : '';
@@ -9228,6 +9322,15 @@ function chRenderList() {
   shown.sort((a, b) => urg(b) - urg(a));
   // Regroupement par CANAL = ville + n° de challenge (le vrai groupe de discussion).
   const groups = {}; // clé -> { ville, no, clients }
+  // Les groupes VIDES n'apparaissent dans aucune fiche client : on les amorce depuis
+  // le registre, sinon un groupe fraîchement créé serait invisible jusqu'au 1er membre.
+  _chGroups.forEach((g) => {
+    if (!g.ville || !g.challengeNo) return;
+    if (fVille && g.ville !== fVille) return;
+    if (fNo && String(g.challengeNo) !== String(fNo)) return;
+    const key = chCodeKey(g.ville, g.challengeNo);
+    if (!groups[key]) groups[key] = { ville: g.ville, no: g.challengeNo, clients: [] };
+  });
   shown.forEach((c) => {
     const ok = !!((c.ville || '').trim() && c.challengeNo);
     const key = ok ? ((c.ville || '').trim().toLowerCase() + '#' + c.challengeNo) : '';
@@ -9237,7 +9340,7 @@ function chRenderList() {
     if (a === '') return 1; if (b === '') return -1;
     return (groups[b].no - groups[a].no) || groups[a].ville.localeCompare(groups[b].ville);
   });
-  const listHtml = shown.length
+  const listHtml = groupKeys.length
     ? groupKeys.map((k) => {
       const g = groups[k];
       const title = k ? `📍 ${chEsc(g.ville)} · Challenge n°${g.no}` : 'Sans groupe (à ranger)';
@@ -9259,7 +9362,16 @@ function chRenderList() {
         const sd = (cc && cc.startDate) || '';
         codeHtml += `<label class="ch-group-date${sd ? ' ch-date-set' : ''}" title="Date de début du challenge : lance le parcours de tout le groupe ce jour-là. Vide = démarrage individuel (pesée de départ).">📅 <input type="date" class="ch-date-in" value="${chEsc(sd)}" data-ville="${chEsc(g.ville)}" data-no="${g.no}"></label>`;
       }
-      return `<div class="ch-group"><div class="ch-group-h"><span class="ch-group-t">${title} <span class="ch-group-n">${g.clients.length}</span></span>${codeHtml}${writeBtn}</div><div class="ch-list">${g.clients.map(chCardHtml).join('')}</div></div>`;
+      // Gérer le groupe : renommer (faute de frappe sur la ville, mauvais n°) et
+      // supprimer (refusé côté serveur tant qu'il reste des membres).
+      const manageBtns = k
+        ? `<button type="button" class="ch-group-edit" data-ville="${chEsc(g.ville)}" data-no="${g.no}" title="Renommer le groupe">✏️</button>`
+          + `<button type="button" class="ch-group-del" data-ville="${chEsc(g.ville)}" data-no="${g.no}" title="Supprimer le groupe (seulement s'il est vide)">🗑️</button>`
+        : '';
+      const body = g.clients.length
+        ? `<div class="ch-list">${g.clients.map(chCardHtml).join('')}</div>`
+        : '<div class="ch-empty ch-group-empty"><p class="ch-muted">Aucun membre pour le moment — communique le code ci-dessus pour qu\'ils rejoignent ce groupe.</p></div>';
+      return `<div class="ch-group"><div class="ch-group-h"><span class="ch-group-t">${title} <span class="ch-group-n">${g.clients.length}</span></span>${codeHtml}${writeBtn}${manageBtns}</div>${body}</div>`;
     }).join('')
     : '<div class="ch-empty"><p>Aucun client pour ce filtre.</p></div>';
   const opt = (val, label, sel) => `<option value="${chEsc(String(val))}"${String(sel) === String(val) ? ' selected' : ''}>${chEsc(label)}</option>`;
@@ -9286,6 +9398,8 @@ function chRenderList() {
     try { navigator.clipboard.writeText(c); s.classList.add('ch-code-copied'); setTimeout(() => s.classList.remove('ch-code-copied'), 1200); } catch (_) { /* pas de presse-papier : il le lit */ }
   }));
   host.querySelectorAll('.ch-code-regen').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); chRegenCode(b.dataset.ville, Number(b.dataset.no)); }));
+  host.querySelectorAll('.ch-group-edit').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); chRenameGroup(b.dataset.ville, Number(b.dataset.no)); }));
+  host.querySelectorAll('.ch-group-del').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); chDeleteGroup(b.dataset.ville, Number(b.dataset.no)); }));
   host.querySelectorAll('.ch-date-in').forEach((i) => i.addEventListener('change', (e) => {
     e.stopPropagation();
     chSetStartDate(i.dataset.ville, Number(i.dataset.no), i.value || '');

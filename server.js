@@ -3202,6 +3202,110 @@ try {
     } catch (e) { console.error('access-codes POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
 
+  // ── GROUPES (cohortes) ─────────────────────────────────────────────────────
+  // Un groupe = ville + n° de challenge (la clé partout ailleurs : nutrition_client_meta,
+  // group_key des messages de communauté). La table nutrition_access_codes fait office
+  // de registre des groupes : une ligne = un groupe, et son code = la porte d'entrée.
+  // Avant, un groupe n'existait qu'à travers ses clients (il fallait créer un client
+  // pour faire naître un groupe) ; ces routes permettent de le créer d'abord, vide.
+  function groupKeyOf(ville, no) { return String(ville || '').trim().toLowerCase() + '#' + (Number(no) || 0); }
+  function groupMemberCount(ville, no) {
+    try {
+      return getDb().prepare("SELECT COUNT(*) n FROM nutrition_client_meta WHERE LOWER(TRIM(ville)) = ? AND challenge_no = ?")
+        .get(String(ville || '').trim().toLowerCase(), Number(no) || 0).n;
+    } catch (_) { return 0; }
+  }
+
+  // Liste des groupes AVEC leur effectif — y compris les groupes encore vides,
+  // que la liste de clients du coach ne peut pas montrer.
+  app.get('/nutrition/api/coach/groups', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const rows = getDb().prepare('SELECT ville, challenge_no, code, actif, start_date FROM nutrition_access_codes ORDER BY challenge_no DESC, ville').all();
+      const groups = rows.map((r) => ({
+        ville: r.ville,
+        challengeNo: r.challenge_no,
+        code: r.code || '',
+        actif: !!r.actif,
+        startDate: r.start_date || '',
+        membres: groupMemberCount(r.ville, r.challenge_no),
+      }));
+      res.json({ ok: true, groups });
+    } catch (e) { console.error('groups GET :', e); res.status(500).json({ ok: false }); }
+  });
+
+  // Crée un groupe vide + son code de connexion UNIQUE (généré automatiquement).
+  app.post('/nutrition/api/coach/groups', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const ville = String(b.ville || '').trim().slice(0, 80);
+      const challengeNo = Math.max(0, Math.min(999, Math.round(Number(b.challengeNo) || 0)));
+      if (!ville) return res.status(400).json({ ok: false, error: 'Ville requise.' });
+      if (!challengeNo) return res.status(400).json({ ok: false, error: 'Numéro de challenge requis.' });
+      let startDate = String(b.startDate || '').trim();
+      if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return res.status(400).json({ ok: false, error: 'Date invalide (attendu AAAA-MM-JJ).' });
+      // Doublon : on compare sur la clé normalisée, pas sur la casse saisie —
+      // « lyon » et « Lyon » sont le MÊME groupe partout ailleurs.
+      const dup = getDb().prepare("SELECT ville, challenge_no FROM nutrition_access_codes WHERE LOWER(TRIM(ville)) = ? AND challenge_no = ?")
+        .get(ville.toLowerCase(), challengeNo);
+      if (dup) return res.status(409).json({ ok: false, error: 'Ce groupe existe déjà : ' + dup.ville + ' · Challenge n°' + dup.challenge_no + '.' });
+      const code = genAccessCode(); // unique : vérifié contre les codes déjà attribués
+      getDb().prepare('INSERT INTO nutrition_access_codes (ville, challenge_no, code, actif, start_date, updated_at) VALUES (?,?,?,1,?,?)')
+        .run(ville, challengeNo, code, startDate, new Date().toISOString());
+      res.json({ ok: true, group: { ville, challengeNo, code, actif: true, startDate, membres: 0 } });
+    } catch (e) { console.error('groups POST :', e); res.status(500).json({ ok: false, error: 'Création impossible.' }); }
+  });
+
+  // Renomme un groupe (faute de frappe sur la ville, mauvais n°). La clé du groupe
+  // étant recopiée dans les fiches clients ET dans le group_key des messages, il faut
+  // déplacer les trois d'un bloc — sinon les membres se retrouvent orphelins.
+  app.post('/nutrition/api/coach/groups/rename', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const ville = String(b.ville || '').trim().slice(0, 80);
+      const challengeNo = Math.max(0, Math.min(999, Math.round(Number(b.challengeNo) || 0)));
+      const newVille = String(b.newVille || '').trim().slice(0, 80);
+      const newNo = Math.max(0, Math.min(999, Math.round(Number(b.newChallengeNo) || 0)));
+      if (!ville || !newVille) return res.status(400).json({ ok: false, error: 'Ville requise.' });
+      if (!newNo) return res.status(400).json({ ok: false, error: 'Numéro de challenge requis.' });
+      const row = getDb().prepare('SELECT code, actif, start_date FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').get(ville, challengeNo);
+      if (!row) return res.status(404).json({ ok: false, error: 'Groupe introuvable.' });
+      const meme = groupKeyOf(ville, challengeNo) === groupKeyOf(newVille, newNo);
+      if (!meme) {
+        const dup = getDb().prepare("SELECT 1 FROM nutrition_access_codes WHERE LOWER(TRIM(ville)) = ? AND challenge_no = ?")
+          .get(newVille.toLowerCase(), newNo);
+        if (dup) return res.status(409).json({ ok: false, error: 'Un autre groupe porte déjà ce nom.' });
+      }
+      const now = new Date().toISOString();
+      getDb().transaction(() => {
+        getDb().prepare('UPDATE nutrition_access_codes SET ville = ?, challenge_no = ?, updated_at = ? WHERE ville = ? AND challenge_no = ?')
+          .run(newVille, newNo, now, ville, challengeNo);
+        getDb().prepare("UPDATE nutrition_client_meta SET ville = ?, challenge_no = ?, updated_at = ? WHERE LOWER(TRIM(ville)) = ? AND challenge_no = ?")
+          .run(newVille, newNo, now, ville.toLowerCase(), challengeNo);
+        try {
+          getDb().prepare('UPDATE nutrition_community_messages SET group_key = ? WHERE group_key = ?')
+            .run(groupKeyOf(newVille, newNo), groupKeyOf(ville, challengeNo));
+        } catch (_) { /* mur de communauté absent : le renommage reste valide */ }
+      })();
+      res.json({ ok: true, group: { ville: newVille, challengeNo: newNo, code: row.code || '', actif: !!row.actif, startDate: row.start_date || '', membres: groupMemberCount(newVille, newNo) } });
+    } catch (e) { console.error('groups rename :', e); res.status(500).json({ ok: false, error: 'Renommage impossible.' }); }
+  });
+
+  // Supprime un groupe — refusé s'il a encore des membres (on ne largue personne).
+  // Pour fermer un groupe plein : le désactiver (POST access-codes { actif:false }).
+  app.delete('/nutrition/api/coach/groups', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const ville = String(b.ville || req.query.ville || '').trim().slice(0, 80);
+      const challengeNo = Math.max(0, Math.min(999, Math.round(Number(b.challengeNo || req.query.challengeNo) || 0)));
+      if (!ville) return res.status(400).json({ ok: false, error: 'Ville requise.' });
+      const n = groupMemberCount(ville, challengeNo);
+      if (n) return res.status(409).json({ ok: false, error: 'Ce groupe compte ' + n + ' membre(s) : désactive son code plutôt que de le supprimer.' });
+      const info = getDb().prepare('DELETE FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').run(ville, challengeNo);
+      if (!info.changes) return res.status(404).json({ ok: false, error: 'Groupe introuvable.' });
+      res.json({ ok: true });
+    } catch (e) { console.error('groups DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
+  });
+
   app.post('/nutrition/api/coach/clients/:email/meta', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const sc = req.nutritionScope;
