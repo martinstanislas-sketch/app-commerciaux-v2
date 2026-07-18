@@ -2990,6 +2990,10 @@ body.is-demo #navRestart { display: none !important; }
 /* --- La carte de progression ------------------------------------------- */
 .asc-head { position: relative; margin: 4px 0 0; padding: 20px 20px 16px; border: 1px solid var(--border-c); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
 .asc-head-row { display: flex; align-items: center; gap: 14px; }
+/* L'avatar du client dans son propre parcours : c'est lui qui gravit le chemin. */
+.asc-head-av { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px rgba(255,255,255,.5); }
+.asc-head-av svg { width: 100%; height: 100%; display: block; }
+@media (max-width: 400px) { .asc-head-av { width: 38px; height: 38px; } }
 .asc-head-art { flex: none; width: 62px; height: 44px; }
 .asc-head-art svg { width: 100%; height: 100%; display: block; }
 .asc-mt-s { fill: var(--gold); opacity: .22; }

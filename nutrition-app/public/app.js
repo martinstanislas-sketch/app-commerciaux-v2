@@ -4963,9 +4963,15 @@ function challengeHeaderHTML(st) {
   const streak = s.streak || 0;
   // 👊 et 🔥 restent en emoji : c'est la langue du Punch dans TOUTE l'app (toasts,
   // célébrations, boutique). Les remplacer ici casserait l'unité pour rien.
+  // L'avatar du client dans SON parcours : c'est lui qui gravit le chemin.
+  // Rendu localement par le même moteur (pas de requête réseau pour une vignette).
+  const cfgAv = (window.__NUTRI_USER && window.__NUTRI_USER.avatarConfig) || null;
+  const monAvatar = (cfgAv && window.MCAvatar)
+    ? '<span class="asc-head-av">' + window.MCAvatar.rendreSVG(cfgAv, { alt: 'Mon avatar' }) + '</span>' : '';
   return `<header class="asc-head">
     <div class="asc-head-row">
       ${ascMassifSVG()}
+      ${monAvatar}
       <div class="asc-head-txt">
         <p class="asc-kicker">Jour ${st.day} · Semaine ${semaine}/6</p>
         <h2 class="asc-titre">${mcpEsc(titre)}</h2>
