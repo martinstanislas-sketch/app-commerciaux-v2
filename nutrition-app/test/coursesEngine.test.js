@@ -31,18 +31,23 @@ test('T2 — cuillères converties en interne (cs ≈ 13, cc ≈ 5)', () => {
 });
 
 // --- T1 : doublons fusionnés -------------------------------------------------
-// Référentiel v2 : wrap et tortilla sont deux produits distincts (avant ils
-// étaient fusionnés en « wraps_ble »). Chacun s'agrège correctement chez lui.
-// ⚠️ À trancher côté produit : en magasin c'est le même achat.
-test('T1 — wrap et tortilla : deux produits, chacun agrégé sans doublon', () => {
+test('T1 — tortilla + wrap de blé = une seule ligne (même achat en magasin)', () => {
+  const liste = E.construireListe(plan([ing('tortilla de blé', 1, 'piece'), ing('wrap de blé', 1, 'piece')]), 1);
+  const wraps = tous(liste).filter((i) => i.id === 'wrap_de_ble');
+  assert.equal(wraps.length, 1);
+  assert.equal(wraps[0].besoin_reel.quantite, 2);
+  assert.equal(wraps[0].quantite_achat, '2');
+});
+
+// La fusion s'arrête au blé : les versions maïs / sans gluten sont un autre
+// achat, et les confondre enverrait du gluten à un client qui n'en veut pas.
+test('T1 — la fusion wrap/tortilla ne déborde jamais sur le sans gluten', () => {
   const liste = E.construireListe(plan([
-    ing('tortilla de blé', 1, 'piece'), ing('tortilla de blé', 2, 'piece'), ing('wrap de blé', 1, 'piece'),
+    ing('wrap de blé', 2, 'piece'), ing('wrap de maïs sans gluten', 2, 'piece'), ing('tortillas de maïs', 2, 'piece'),
   ]), 1);
-  const tortilla = tous(liste).filter((i) => i.id === 'tortilla_de_ble');
-  const wrap = tous(liste).filter((i) => i.id === 'wrap_de_ble');
-  assert.equal(tortilla.length, 1, 'une seule ligne tortilla');
-  assert.equal(tortilla[0].besoin_reel.quantite, 3, 'les 2 mentions de tortilla sont bien sommées');
-  assert.equal(wrap.length, 1, 'une seule ligne wrap');
+  const ids = tous(liste).map((i) => i.id).sort();
+  assert.deepEqual(ids, ['tortillas_de_mais', 'wrap_de_ble', 'wrap_de_mais_sans_gluten'], 'trois produits distincts');
+  assert.equal(liste.warnings.length, 0);
 });
 
 test('T1 — les 4 poissons blancs = une ligne « au choix » avec les variétés', () => {

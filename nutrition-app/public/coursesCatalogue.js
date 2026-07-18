@@ -124,8 +124,9 @@
     halloumi: { display_name: "halloumi",aliases: ["halloumi"],rayon: "Crèmerie",category: "cremerie",unite_base: "g",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
     pain_complet: { display_name: "pain complet",aliases: ["pain complet"],rayon: "Boulangerie",category: "boulangerie",unite_base: "piece",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
     galettes_de_riz: { display_name: "galettes de riz",aliases: ["galettes de riz"],rayon: "Boulangerie",category: "boulangerie",unite_base: "piece",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
-    wrap_de_ble: { display_name: "wrap de blé",aliases: ["wrap de ble"],rayon: "Boulangerie",category: "boulangerie",unite_base: "piece",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
-    tortilla_de_ble: { display_name: "tortilla de blé",aliases: ["tortilla de ble"],rayon: "Boulangerie",category: "boulangerie",unite_base: "piece",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
+    // Wrap et tortilla de blé = le même achat en magasin : un seul produit.
+    // Les versions maïs / sans gluten restent séparées (enjeu allergène).
+    wrap_de_ble: { display_name: "wraps / tortillas de blé",aliases: ["wrap de ble","tortilla de ble","wraps de ble","tortillas de ble","wrap","wraps"],rayon: "Boulangerie",category: "boulangerie",unite_base: "piece",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
     crackers_de_ble: { display_name: "crackers de blé",aliases: ["crackers de ble"],rayon: "Boulangerie",category: "boulangerie",unite_base: "g",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
     pain_sans_gluten: { display_name: "pain sans gluten",aliases: ["pain sans gluten"],rayon: "Boulangerie",category: "boulangerie",unite_base: "piece",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
     bagel_nature: { display_name: "bagel nature",aliases: ["bagel nature","bagel"],rayon: "Boulangerie",category: "boulangerie",unite_base: "piece",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
