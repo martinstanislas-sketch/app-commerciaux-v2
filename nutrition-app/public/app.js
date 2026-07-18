@@ -4900,11 +4900,19 @@ const ASC_PAD = 44;      // respiration en haut et en bas de chaque chapitre (px
 // bulle (il n'y a pas la place à côté) : il lui faut sa hauteur. Sur desktop la
 // carte est à côté, et cette même air devient la respiration qu'un jalon mérite.
 // Une seule valeur, deux bonnes raisons.
-const ASC_AIR = { active: 122, final: 138, milestone: 78 };
+// ⚠️ Plus d'entrée `active` : l'étape du jour n'a plus de carte à loger sous
+// elle (retirée — la bulle bleue et le personnage disent déjà « c'est ici », et
+// le détail s'ouvre au clic). Lui garder son air, c'eût été un trou de 122 px
+// au point le plus important du sentier.
+const ASC_AIR = { final: 138, milestone: 78 };
+// ⚠️ Ne lire QUE des clés existantes : `acc += undefined` donne NaN, et comme
+// l'accumulateur court sur tout le chapitre, une seule lecture manquante suffit
+// à rendre NaN toutes les ordonnées suivantes — le tracé disparaît et les
+// éléments posés dessus se replient en haut de la carte. (C'est exactement ce
+// qui est arrivé en retirant la carte de l'étape active sans retirer sa ligne.)
 function ascAir(n) {
   if (!n) return 0;
   if (n.type === 'final') return ASC_AIR.final;
-  if (n.status === 'active') return ASC_AIR.active;
   if (n.milestone) return ASC_AIR.milestone;
   return 0;
 }
@@ -5329,6 +5337,8 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
     // Segment d'accueil : le plus proche du milieu dont AUCUNE des deux étapes ne
     // porte de carte (active / jalon / fin) — la carte flotte à côté de sa bulle
     // et recouvrirait l'étoile posée au milieu du segment voisin.
+    // « Occupé » = une carte flotte à côté (jalon, fin) OU le personnage s'y
+    // tient (l'étape active) : dans les deux cas l'étoile y serait recouverte.
     const aCarte = (n) => n && (n.status === 'active' || n.milestone || n.type === 'final');
     const milieu = Math.min(Math.max(1, Math.floor(nodes.length / 2)), nodes.length - 1);
     let k = milieu;
@@ -5427,7 +5437,7 @@ function ascNodeHTML(n, pt, recs, ctx) {
   //    passe alors à l'extérieur pour ne pas la chevaucher.
   // Ces classes le disent au CSS sans qu'il ait à deviner (pas de :has, ignoré des
   // vieux WebView).
-  const aCarte = n.type === 'final' || n.status === 'active' || n.milestone;
+  const aCarte = n.type === 'final' || n.milestone;
   const sideCls = aCarte ? 'asc-side asc-has-card asc-in' : 'asc-side asc-out';
   return `<div class="${cls.join(' ')}" id="asc-nd-${n.day}" style="left:${pt.x.toFixed(2)}%;top:${pt.y}px">
     <button type="button" class="asc-dot"${attr} aria-label="${aria}">
@@ -5449,7 +5459,7 @@ function ascNodeHTML(n, pt, recs, ctx) {
 // -> l'autre sort aussi de l'arbre d'accessibilité, pas de double annonce).
 // L'air sous l'étape, déjà réservée côté JS (ASC_AIR), l'accueille.
 function ascCarteMobileHTML(n, pt, ctx) {
-  const aCarte = n.type === 'final' || n.status === 'active' || n.milestone;
+  const aCarte = n.type === 'final' || n.milestone;
   if (!aCarte) return '';
   return `<div class="asc-cardm" style="top:${pt.y + 46}px">${ascSideHTML(n, ctx)}</div>`;
 }
@@ -5459,24 +5469,14 @@ function ascCarteMobileHTML(n, pt, ctx) {
 // Les cartes doivent rester RARES — sinon plus rien ne ressort.
 function ascSideHTML(n, ctx) {
   if (n.type === 'final') return ascFinalCardHTML(n, ctx);
-  if (n.status === 'active') return ascActiveCardHTML(n);
   if (n.milestone) return ascJalonCardHTML(n);
+  // ⚠️ L'étape ACTIVE ne porte volontairement RIEN : ni carte, ni libellé. La
+  // place autour d'elle est occupée par le personnage, et deux éléments au même
+  // endroit se chevaucheraient. Sa bulle bleue et le bonhomme disent « c'est
+  // ici », son contenu s'ouvre au clic. Son titre n'est pas perdu pour autant :
+  // il est dans l'aria-label du bouton (cf. ascNodeHTML).
+  if (n.status === 'active') return '';
   return `<span class="asc-lbl">${mcpEsc(n.title)}</span>`;
-}
-// L'ACTION PRINCIPALE de l'écran. Trois changements par rapport à une carte
-// ordinaire : une pointe qui la raccroche à SA bulle (sans elle, elle a l'air
-// posée à côté du chemin, et le lien entre le bouton et le cercle n'est qu'une
-// devinette), un bouton pleine largeur, et le gain en Punch sous ce bouton
-// plutôt qu'à côté — flottant à droite, il semblait détaché de la carte.
-function ascActiveCardHTML(n) {
-  return `<div class="asc-card asc-card-now">
-    <span class="asc-card-tip" aria-hidden="true"></span>
-    <p class="asc-card-k">Étape actuelle</p>
-    <h3 class="asc-card-t">${mcpEsc(n.title)}</h3>
-    <p class="asc-card-s">${mcpEsc(n.action || '')}</p>
-    <button type="button" class="asc-card-cta asc-card-cta-go" data-node="${n.day}">Commencer</button>
-    <span class="asc-card-gain">+${n.punch} Punch à la clé</span>
-  </div>`;
 }
 function ascJalonCardHTML(n) {
   return `<div class="asc-card asc-card-jalon">

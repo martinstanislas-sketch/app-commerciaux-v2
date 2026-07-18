@@ -3218,8 +3218,6 @@ body.is-demo #navRestart { display: none !important; }
    jalon actif mord le bord de la carte posée à côté — flagrant sur mobile, où
    gap (32px) < rayon d'un jalon actif (~41px). max() garde le plus grand des
    deux : l'écart n'est donc jamais RÉDUIT là où --asc-gap suffit déjà. */
-.asc-active.asc-r .asc-in { right: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 5px)); }
-.asc-active.asc-l .asc-in { left: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 5px)); }
 .asc-sommet.asc-r .asc-in { right: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
 .asc-sommet.asc-l .asc-in { left: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
 /* Un libellé se centre sur la bulle ; une CARTE s'aligne sur son bord haut et
@@ -3229,8 +3227,6 @@ body.is-demo #navRestart { display: none !important; }
    en max-content peut voir sa largeur s'effondrer et son texte s'empiler en une
    colonne très haute qui recouvre alors toute la suite du chapitre. */
 .asc-has-card { transform: none; top: calc(var(--asc-dot) / -2 - 2px); width: 196px; max-width: none; }
-/* L'étape active : la carte remonte pour que sa pointe vise le centre du rond. */
-.asc-active .asc-has-card { top: -34px; }
 .asc-lbl { display: block; font: 500 13px/1.3 var(--font); color: var(--text-muted-c); transition: color .2s var(--ease); }
 
 /* Trois états, trois LECTURES distinctes — et jamais la couleur seule : la
@@ -3341,24 +3337,6 @@ body.is-demo #navRestart { display: none !important; }
 .asc-card-cta:hover { background: var(--blue-hover); }
 .asc-card-cta:active { transform: scale(.97); }
 .asc-card-cta .ic { width: 14px; height: 14px; }
-/* MAINTENANT : la carte la plus forte de l'écran, comme sa bulle — et
-   RACCROCHÉE à elle. Sans la pointe, elle a l'air posée à côté du chemin et le
-   lien entre le bouton et le cercle reste une devinette.
-   ⚠️ La pointe est à 34 px du haut de la carte, et la carte commence 34 px
-   au-dessus du centre de la bulle : la pointe vise donc le CENTRE du cercle.
-   On ne centre pas la carte elle-même sur la bulle — haute de ~170 px, elle
-   mordrait l'étape du dessus, qui n'est qu'à ASC_STEP (90 px). */
-.asc-card-now { border-color: var(--blue-c); box-shadow: 0 0 0 3px var(--blue-soft), var(--shadow-sm); }
-.asc-card-tip { position: absolute; top: 34px; width: 12px; height: 12px; transform: rotate(45deg); background: var(--surface); border: 1px solid var(--blue-c); }
-/* Elle pointe vers la bulle : du côté d'où vient le sentier. */
-.asc-r .asc-card-tip { right: -7px; border-left: 0; border-bottom: 0; box-shadow: 3px -3px 0 0 var(--blue-soft); }
-.asc-l .asc-card-tip { left: -7px; border-right: 0; border-top: 0; box-shadow: -3px 3px 0 0 var(--blue-soft); }
-/* Le bouton prend toute la largeur : c'est L'action de l'écran. Le gain passe
-   dessous — à côté, il flottait à droite comme s'il n'appartenait à rien. */
-.asc-card-cta-go { display: flex; width: 100%; margin-top: 13px; padding: 12px 16px; font-size: 14px; }
-.asc-card-gain { display: block; margin-top: 8px; text-align: center; font: 700 11.5px/1 var(--font); color: var(--gold-on-soft, #8A6D28); }
-.asc-card-now .asc-card-k { color: var(--blue-c); }
-.asc-card-now .asc-card-p { background: var(--blue-soft); color: var(--blue-on-soft); }
 /* JALON : l'or, et rien d'autre. */
 .asc-card-jalon { border-color: #EBDCB8; background: linear-gradient(150deg, #FDF8ED 0%, var(--surface) 60%); }
 .asc-card-jalon .asc-card-k { color: #8A6D28; }
@@ -3620,9 +3598,6 @@ body.is-demo #navRestart { display: none !important; }
 .asc-cardm { display: none; position: absolute; left: 0; right: 0; }
 @media (max-width: 640px) {
   .asc-cardm { display: block; }
-  /* La pointe ne sert qu'à la carte posée À CÔTÉ de sa bulle : sur la carte
-     pleine largeur, elle n'a plus rien à viser et flotte sur le titre. */
-  .asc-cardm .asc-card-tip { display: none; }
   /* ⚠️ La DERNIÈRE étape d'une semaine est toujours un jalon, donc elle porte
      toujours une carte — et sous la bulle, cette carte est plus haute que l'air
      réservée sous l'étape (ASC_AIR.milestone + ASC_PAD) : elle débordait sur la
