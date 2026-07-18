@@ -94,7 +94,9 @@
         if (!repas.recette) return;
         (repas.recette.ingredients || []).forEach((ing) => {
           const q = (Number(ing.quantite) || 0) * mult;
-          const r = CAT.resoudre(ing.nom);
+          // L'unité est transmise : elle départage les noms qui recouvrent deux
+          // achats différents (150 g de blanc de dinde ≠ 2 tranches).
+          const r = CAT.resoudre(ing.nom, ing.unite);
           if (!r) {
             // Repli (T1) : rien ne casse, rien ne se duplique en silence. On
             // garde le rayon de la recette s'il existe, sinon « À vérifier » —
@@ -170,6 +172,10 @@
     const pousser = (item, staple) => (staple ? placard : frais).push(item);
 
     canoniques.forEach((c) => {
+      // Ingrédient volontairement absent de la LISTE (ex. l'eau du robinet) : il
+      // reste dans les recettes et dans le calcul nutritionnel — on ne le retire
+      // qu'à l'affichage, car personne ne va « acheter de l'eau ».
+      if (c.def.exclude_from_list) return;
       const g = c.def.interchangeable_group;
       if (g && CAT.GROUPES[g]) {
         const acc = groupes.get(g) || { def: CAT.GROUPES[g], qty: 0, unite_base: c.unite_base, varietes: new Set(), achatCtx: c.def.purchase_unit, category: c.def.category };

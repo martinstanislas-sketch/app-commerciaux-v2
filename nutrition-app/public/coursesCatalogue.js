@@ -8,7 +8,8 @@
 //  placard/longue conservation (bloc replié), les groupes d'ingrédients
 //  interchangeables, et la conversion cru->cuit (riz, poulet).
 //
-//  ⚠️ GÉNÉRÉ depuis le référentiel v2 (172 produits) construit sur TOUT le
+//  ⚠️ GÉNÉRÉ depuis le référentiel v2 (172 produits, + « blanc de dinde en
+//  tranches » ajouté à la main -> 173) construit sur TOUT le
 //  catalogue `lib/recipes-v2.js` (382 recettes) — il couvre 100 % des
 //  ingrédients : aucune recette ne doit produire de `warnings`.
 //    - display_name : orthographe ACCENTUÉE reprise des recettes (affichée) ;
@@ -80,7 +81,13 @@
     blanc_de_poulet: { display_name: "blanc de poulet",aliases: ["blanc de poulet","blanc de poulet cuit"],rayon: "Boucherie",category: "viande",unite_base: "g",is_staple: false,purchase_unit: "au poids",interchangeable_group: null,conversion_cru_cuit: {g_cuit_par_g_cru: 0.7} },
     escalope_de_dinde: { display_name: "escalope de dinde",aliases: ["escalope de dinde"],rayon: "Boucherie",category: "viande",unite_base: "g",is_staple: false,purchase_unit: "au poids",interchangeable_group: null },
     boeuf_hache_5: { display_name: "boeuf haché 5%",aliases: ["boeuf hache 5%","boeuf haché","bœuf haché"],rayon: "Boucherie",category: "viande",unite_base: "g",is_staple: false,purchase_unit: "au poids",interchangeable_group: null },
-    blanc_de_dinde: { display_name: "blanc de dinde",aliases: ["blanc de dinde"],rayon: "Boucherie",category: "viande",unite_base: "g",is_staple: false,purchase_unit: "au poids",interchangeable_group: null },
+    // « blanc de dinde » couvre DEUX achats différents selon l'unité de la recette :
+    //   150 g  -> filet cru à cuire, au rayon boucherie ;
+    //   2 tranche -> charcuterie déjà cuite, vendue en barquette.
+    // Sans cette distinction, les tranches des collations étaient absorbées en
+    // appendice de la ligne boucherie et devenaient invisibles dans la liste.
+    blanc_de_dinde: { display_name: "blanc de dinde",aliases: ["blanc de dinde"],rayon: "Boucherie",category: "viande",unite_base: "g",is_staple: false,purchase_unit: "au poids",interchangeable_group: null,variantes_par_unite: { tranche: "blanc_de_dinde_tranches" } },
+    blanc_de_dinde_tranches: { display_name: "blanc de dinde en tranches",aliases: ["blanc de dinde en tranches","tranches de blanc de dinde"],rayon: "Charcuterie / Traiteur",category: "charcuterie",unite_base: "piece",is_staple: false,purchase_unit: "1 barquette",interchangeable_group: null },
     boeuf_emince: { display_name: "boeuf émincé",aliases: ["boeuf emince"],rayon: "Boucherie",category: "viande",unite_base: "g",is_staple: false,purchase_unit: "au poids",interchangeable_group: null },
     steak_hache_5: { display_name: "steak haché 5%",aliases: ["steak hache 5%"],rayon: "Boucherie",category: "viande",unite_base: "g",is_staple: false,purchase_unit: "au poids",interchangeable_group: null },
     escalope_de_veau: { display_name: "escalope de veau",aliases: ["escalope de veau"],rayon: "Boucherie",category: "viande",unite_base: "g",is_staple: false,purchase_unit: "au poids",interchangeable_group: null },
@@ -139,10 +146,10 @@
     huile_d_olive: { display_name: "huile d’olive",aliases: ["huile d'olive","huile d olive","huile"],rayon: "Épicerie",category: "epicerie",unite_base: "ml",is_staple: true,purchase_unit: "1 bouteille",interchangeable_group: null },
     riz: { display_name: "riz",aliases: ["riz","riz cru","riz cuit"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null,conversion_cru_cuit: {g_cuit_par_g_cru: 2.7} },
     tomates_concassees: { display_name: "tomates concassées",aliases: ["tomates concassees","tomate concassée"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte (400 g)",interchangeable_group: null,pack_size: 400 },
-    pois_chiches: { display_name: "pois chiches cuits",aliases: ["pois chiches","pois chiches cuits"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte/bocal (400 g)",interchangeable_group: null },
+    pois_chiches: { display_name: "pois chiches",aliases: ["pois chiches","pois chiches cuits"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte/bocal (400 g)",interchangeable_group: null },
     jus_de_citron: { display_name: "jus de citron",aliases: ["jus de citron"],rayon: "Épicerie",category: "epicerie",unite_base: "ml",is_staple: true,purchase_unit: "1 flacon",interchangeable_group: null },
     pates: { display_name: "pâtes",aliases: ["pates crues","pates"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
-    lentilles: { display_name: "lentilles cuites",aliases: ["lentilles","lentilles cuites"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte/bocal (400 g)",interchangeable_group: null },
+    lentilles: { display_name: "lentilles",aliases: ["lentilles","lentilles cuites"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte/bocal (400 g)",interchangeable_group: null },
     thon_au_naturel: { display_name: "thon au naturel",aliases: ["thon au naturel","thon"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte",interchangeable_group: null },
     tamari: { display_name: "tamari",aliases: ["tamari"],rayon: "Épicerie",category: "epicerie",unite_base: "ml",is_staple: true,purchase_unit: "1 bouteille",interchangeable_group: null },
     flocons_d_avoine: { display_name: "flocons d’avoine",aliases: ["flocons d'avoine","flocons d avoine","avoine"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
@@ -151,7 +158,7 @@
     beurre_de_cacahuete: { display_name: "beurre de cacahuète",aliases: ["beurre de cacahuete"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 pot",interchangeable_group: null },
     cannelle: { display_name: "cannelle",aliases: ["cannelle"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 pot d'épice",interchangeable_group: null },
     flocons_d_avoine_sans_gluten: { display_name: "flocons d’avoine sans gluten",aliases: ["flocons d'avoine sans gluten"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
-    haricots_rouges: { display_name: "haricots rouges cuits",aliases: ["haricots rouges","haricots rouges cuits"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte/bocal (400 g)",interchangeable_group: null },
+    haricots_rouges: { display_name: "haricots rouges",aliases: ["haricots rouges","haricots rouges cuits"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte/bocal (400 g)",interchangeable_group: null },
     paprika: { display_name: "paprika",aliases: ["paprika"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 pot d'épice",interchangeable_group: null },
     curry: { display_name: "curry",aliases: ["curry"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 pot d'épice",interchangeable_group: null },
     lait_de_coco: { display_name: "lait de coco",aliases: ["lait de coco"],rayon: "Épicerie",category: "epicerie",unite_base: "ml",is_staple: true,purchase_unit: "1 brique/boîte",interchangeable_group: null },
@@ -160,7 +167,7 @@
     bouillon_de_legumes: { display_name: "bouillon de légumes",aliases: ["bouillon de legumes"],rayon: "Épicerie",category: "epicerie",unite_base: "ml",is_staple: true,purchase_unit: "1 brique/cube",interchangeable_group: null },
     compote_sans_sucres_ajoutes: { display_name: "compote sans sucres ajoutés",aliases: ["compote sans sucres ajoutes"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
     graines_de_chia: { display_name: "graines de chia",aliases: ["graines de chia"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
-    haricots_blancs: { display_name: "haricots blancs cuits",aliases: ["haricots blancs","haricots blancs cuits"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte/bocal (400 g)",interchangeable_group: null },
+    haricots_blancs: { display_name: "haricots blancs",aliases: ["haricots blancs","haricots blancs cuits"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte/bocal (400 g)",interchangeable_group: null },
     olives_noires: { display_name: "olives noires",aliases: ["olives noires"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
     riz_arborio: { display_name: "riz arborio",aliases: ["riz arborio"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
     graines_de_sesame: { display_name: "graines de sésame",aliases: ["graines de sesame"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
@@ -185,7 +192,7 @@
     herbes_de_provence: { display_name: "herbes de Provence",aliases: ["herbes de Provence"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 pot d'épice",interchangeable_group: null },
     lentilles_corail: { display_name: "lentilles corail",aliases: ["lentilles corail crues","lentilles corail"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
     noisettes: { display_name: "noisettes",aliases: ["noisettes"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
-    pois_casses: { display_name: "pois cassés cuits",aliases: ["pois casses","pois cassés cuits"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte/bocal",interchangeable_group: null },
+    pois_casses: { display_name: "pois cassés",aliases: ["pois casses","pois cassés cuits"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte/bocal",interchangeable_group: null },
     sirop_d_agave: { display_name: "sirop d’agave",aliases: ["sirop d'agave"],rayon: "Épicerie",category: "epicerie",unite_base: "ml",is_staple: true,purchase_unit: "1 flacon",interchangeable_group: null },
     tahini: { display_name: "tahini",aliases: ["tahini"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 pot",interchangeable_group: null },
     cacahuetes: { display_name: "cacahuètes",aliases: ["cacahuetes"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 paquet",interchangeable_group: null },
@@ -211,7 +218,7 @@
     sardines_au_naturel: { display_name: "sardines au naturel",aliases: ["sardines au naturel"],rayon: "Épicerie",category: "epicerie",unite_base: "g",is_staple: true,purchase_unit: "1 boîte",interchangeable_group: null },
     edamame: { display_name: "edamame",aliases: ["edamame"],rayon: "Surgelés",category: "surgele",unite_base: "g",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
     poisson_pane: { display_name: "poisson pané",aliases: ["poisson pane"],rayon: "Surgelés",category: "surgele",unite_base: "g",is_staple: false,purchase_unit: "1 paquet",interchangeable_group: null },
-    eau: { display_name: "eau",aliases: ["eau"],rayon: "Épicerie",category: "epicerie",unite_base: "ml",is_staple: true,purchase_unit: "eau du robinet",interchangeable_group: null },  };
+    eau: { display_name: "eau",aliases: ["eau"],rayon: "Épicerie",category: "epicerie",unite_base: "ml",is_staple: true,purchase_unit: "eau du robinet",interchangeable_group: null,exclude_from_list: true },  };
 
   function normaliser(s) {
     return String(s || '')
@@ -234,9 +241,22 @@
   });
 
   // Le point d'entrée du moteur : nom de recette -> { id, def } ou null.
-  function resoudre(nom) {
+  // `unite` est FACULTATIF (rétro-compatible). Quand un même nom recouvre deux
+  // achats distincts selon l'unité de la recette (blanc de dinde : 150 g au
+  // rayon boucherie vs 2 tranches en charcuterie), `variantes_par_unite`
+  // aiguille vers le bon produit. Sans unité, on garde le produit par défaut.
+  function resoudre(nom, unite) {
     const id = INDEX[normaliser(nom)];
-    return id ? { id, def: INGREDIENTS[id] } : null;
+    if (!id) return null;
+    const def = INGREDIENTS[id];
+    const vars = def && def.variantes_par_unite;
+    if (vars && unite != null) {
+      // « tranche » / « tranches » : on compare sur la forme normalisée sans « s ».
+      const u = normaliser(unite).replace(/s$/, '');
+      const cible = vars[u];
+      if (cible && INGREDIENTS[cible]) return { id: cible, def: INGREDIENTS[cible] };
+    }
+    return { id, def };
   }
 
   return { RAYONS, GROUPES, INGREDIENTS, INDEX, normaliser, resoudre };
