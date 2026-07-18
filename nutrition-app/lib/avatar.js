@@ -320,21 +320,77 @@
   // recouvre proprement les emmanchures et la taille, comme sur le buste.
   const CORPS_H = 176;          // hauteur du viewBox en pied
   const JAMBE = '#2B3444';      // collant sombre : lisible sur le sable du sentier
-  function membresPath(peau, tenueC) {
+  const JAMBE_O = '#222A38';    // sa face à l'ombre
+  // La lumière vient du HAUT-GAUCHE, partout et sans exception : c'est cette
+  // règle unique qui donne du volume. Chaque membre a donc sa face claire et sa
+  // face à l'ombre, du même côté sur toute la silhouette.
+  const OMBRE = 'rgba(15,20,30,.16)';
+
+  function membresPath(peau, tenueC, uid) {
     return [
-      // Bras, le long du corps. Un poil écartés : collés, la silhouette devient
-      // un bloc et on ne lit plus une personne.
-      `<path d="M28 82c-4 3-6 6-6 10v20c0 3 2 5 4.5 5s4.5-2 4.5-5V94z" fill="${peau.c}"/>`,
-      `<path d="M68 82c4 3 6 6 6 10v20c0 3-2 5-4.5 5s-4.5-2-4.5-5V94z" fill="${peau.c}"/>`,
-      // Bassin, puis les deux jambes. L'une est très légèrement avancée : une
-      // silhouette parfaitement symétrique est à l'arrêt, celle-ci est en marche.
-      `<path d="M34 94h28v18c0 4-3 7-7 7H41c-4 0-7-3-7-7z" fill="${JAMBE}"/>`,
-      `<path d="M36 112h10v42c0 3-2 5-5 5s-5-2-5-5z" fill="${JAMBE}"/>`,
-      `<path d="M50 112h10v46c0 3-2 5-5 5s-5-2-5-5z" fill="${JAMBE}"/>`,
-      // Chaussures : la couleur de la tenue, pour que l'ensemble se tienne.
-      `<path d="M35 154h12c1 0 2 1 2 2v4c0 2-1 3-3 3H35c-2 0-3-1-3-3v-3c0-2 1-3 3-3z" fill="${tenueC}"/>`,
-      `<path d="M48 158h12c1 0 2 1 2 2v4c0 2-1 3-3 3H48c-2 0-3-1-3-3v-3c0-2 1-3 3-3z" fill="${tenueC}"/>`,
-      `<path d="M32 161h19M45 165h19" stroke="rgba(255,255,255,.5)" stroke-width="1.6" fill="none"/>`,
+      // ── Bras. Galbés, pas des barres : ils s'affinent au coude puis au
+      // poignet, et la main est une forme à part — sans elle, le bras se
+      // termine en tuyau coupé.
+      // Le bras DROIT (à gauche de l'image) part légèrement en avant, le gauche
+      // en arrière : c'est le balancier de la marche. Une silhouette
+      // rigoureusement symétrique est à l'arrêt, quoi qu'on fasse d'autre.
+      `<path d="M29 82c-5 3-7 7-7 11l-1 17c0 2 1 4 3 4s4-2 4-4l2-16z" fill="${peau.c}"/>`,
+      `<circle cx="24.5" cy="116" r="4.2" fill="${peau.c}"/>`,
+      `<path d="M67 82c5 3 7 7 7 11l2 15c0 2-1 4-3 4s-4-2-4-4l-2-14z" fill="${peau.c}"/>`,
+      `<circle cx="72.5" cy="113" r="4.2" fill="${peau.c}"/>`,
+      // Leur face à l'ombre : une lisière sur le bord droit de chaque bras.
+      `<path d="M27 84c2 2 3 5 3 8l-2 16-2 1 2-17c0-3-1-6-2-8z" fill="${OMBRE}"/>`,
+      `<path d="M72 86c1 2 2 5 2 7l2 15-2 1-2-16c0-2-1-5-2-7z" fill="${OMBRE}"/>`,
+
+      // ── Bassin, puis les jambes. Elles se resserrent au genou et s'écartent
+      // légèrement à la cheville — la jambe avant plus fléchie que l'autre.
+      `<path d="M34 94h28v17c0 5-3 8-8 8H42c-5 0-8-3-8-8z" fill="${JAMBE}"/>`,
+      `<path d="M48 94h14v17c0 5-3 8-8 8h-6z" fill="${JAMBE_O}"/>`,
+      // Jambe avant (celle qui avance) : la cuisse descend, le tibia repart un
+      // peu vers l'avant.
+      `<path d="M37 113h10l-1 22-1 20c0 3-2 4-4.5 4S36 158 36 155l1-20z" fill="${JAMBE}"/>`,
+      // Jambe arrière : plus droite, et dans l'ombre de la première.
+      `<path d="M51 113h10l1 21v24c0 3-2 4-4.5 4S53 161 53 158l-1-24z" fill="${JAMBE_O}"/>`,
+      `<path d="M44 113h3l-1 22-1 20h-3l1-20z" fill="${OMBRE}"/>`,
+
+      // ── Chaussures. Semelle claire + tige colorée : c'est le détail qui les
+      // fait lire comme des baskets et non comme des chaussons.
+      `<path d="M34 152h11c1.5 0 2.5 1 2.5 2.5v5c0 1.5-1 2.5-2.5 2.5H33c-1.5 0-2.5-1-2.5-2.5v-2c0-2 1-3.5 2.5-4.5z" fill="${tenueC}"/>`,
+      `<path d="M30.5 159h17v2c0 1.5-1 2.5-2.5 2.5H33c-1.5 0-2.5-1-2.5-2.5z" fill="#F2F0EA"/>`,
+      `<path d="M50 156h11c1.5 0 2.5 1 2.5 2.5v5c0 1.5-1 2.5-2.5 2.5H49c-1.5 0-2.5-1-2.5-2.5v-2c0-2 1-3.5 2.5-4.5z" fill="${tenueC}"/>`,
+      `<path d="M46.5 163h17v2c0 1.5-1 2.5-2.5 2.5H49c-1.5 0-2.5-1-2.5-2.5z" fill="#F2F0EA"/>`,
+    ].join('');
+  }
+
+  // Le volume du TORSE et du COU, posé PAR-DESSUS le vêtement — donc après lui.
+  // ⚠️ En surcouche, et non dans tenuePath : ce dernier sert aussi au buste des
+  // vignettes rondes, qu'on ne touche pas. Le mode en pied ajoute, il ne
+  // réécrit rien.
+  // Les MANCHES. Sans elles, tout le monde a les bras nus, y compris en sweat :
+  // le vêtement s'arrêtait à l'épaule parce que le buste n'avait pas de bras.
+  // Elles se posent APRÈS le torse, donc par-dessus le haut du bras.
+  function manchesPath(tenue, c) {
+    if (tenue === 'debardeur') return ''; // un débardeur n'a pas de manche, c'est le propos
+    if (tenue === 'hoodie') {
+      // Manches longues jusqu'au poignet — le sweat est le seul vêtement couvrant.
+      return `<path d="M29 82c-5 3-7 7-7 11l-1 15h9l2-15z" fill="${c}"/>`
+        + `<path d="M67 82c5 3 7 7 7 11l2 13h-9l-2-13z" fill="${c}"/>`;
+    }
+    // T-shirt et polo : manches courtes, coupées à mi-biceps.
+    return `<path d="M29 82c-4 2-6 5-6.5 9l-.5 5h9l1.5-9z" fill="${c}"/>`
+      + `<path d="M67 82c4 2 6 5 6.5 9l.5 4h-9l-1.5-8z" fill="${c}"/>`;
+  }
+
+  function volumeTorsePath(peau) {
+    return [
+      // L'ombre portée du menton sur le cou, puis du cou sur le col.
+      `<path d="M42 68h12v5c0 2-3 3-6 3s-6-1-6-3z" fill="${peau.ombre}" opacity=".55"/>`,
+      // ⚠️ PAS d'ombre sur le vêtement lui-même : elle n'est pas détourable sur
+      // sa silhouette (chaque tenue a la sienne, et tenuePath sert aussi au
+      // buste des vignettes rondes, qu'on ne touche pas). Large, elle débordait
+      // en bloc carré à côté du vêtement ; resserrée pour tenir dans la coupe la
+      // plus étroite, elle se lisait comme une tache. Le volume vient des
+      // membres et des manches, qui, eux, sont détourés.
     ].join('');
   }
 
@@ -361,10 +417,12 @@
     const corps = [
       enPied ? '' : `<circle cx="48" cy="48" r="48" fill="${o.fond || '#EFF3FA'}"/>`,
       arriere.map((a) => a.body).join(''),
-      enPied ? membresPath(peau, tenue.c) : '',
+      enPied ? membresPath(peau, tenue.c, uid) : '',
       // Cou puis tenue : le col recouvre proprement la base du cou.
       `<path d="M42 68h12v14H42z" fill="${peau.ombre}"/>`,
       tenuePath(c.tenue, tenue.c),
+      enPied ? manchesPath(c.tenue, tenue.c) : '',
+      enPied ? volumeTorsePath(peau) : '',
       // Visage
       `<path d="${g.d}" fill="${peau.c}"/>`,
       `<ellipse cx="27" cy="54" rx="3" ry="4" fill="${peau.ombre}"/><ellipse cx="69" cy="54" rx="3" ry="4" fill="${peau.ombre}"/>`,
