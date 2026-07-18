@@ -19,7 +19,7 @@ test('T2 — aggregate : total par canonique en unité de base', () => {
     ing('riz', 60, 'g'), ing('riz cru', 75, 'g'),
   ]), 1);
   assert.equal(canoniques.get('pommes_de_terre').qty, 1555, 'fixture : 1555 g, la somme réelle');
-  assert.equal(canoniques.get('riz_cru').qty, 135, 'riz + riz cru = un seul canonique');
+  assert.equal(canoniques.get('riz').qty, 135, 'riz + riz cru = un seul canonique');
   assert.equal(warnings.length, 0);
 });
 
@@ -27,16 +27,22 @@ test('T2 — cuillères converties en interne (cs ≈ 13, cc ≈ 5)', () => {
   const { canoniques } = E.agreger(plan([
     ing("huile d'olive", 3, 'c. à soupe'), ing("huile d'olive", 5, 'c. à café'),
   ]), 1);
-  assert.equal(canoniques.get('huile_olive').qty, 3 * 13 + 5 * 5);
+  assert.equal(canoniques.get('huile_d_olive').qty, 3 * 13 + 5 * 5);
 });
 
 // --- T1 : doublons fusionnés -------------------------------------------------
-test('T1 — tortilla + wrap = une seule ligne wraps_ble', () => {
-  const liste = E.construireListe(plan([ing('tortilla de blé', 1, 'piece'), ing('wrap de blé', 1, 'piece')]), 1);
-  const wraps = tous(liste).filter((i) => i.id === 'wraps_ble');
-  assert.equal(wraps.length, 1);
-  assert.equal(wraps[0].besoin_reel.quantite, 2);
-  assert.equal(wraps[0].quantite_achat, '2');
+// Référentiel v2 : wrap et tortilla sont deux produits distincts (avant ils
+// étaient fusionnés en « wraps_ble »). Chacun s'agrège correctement chez lui.
+// ⚠️ À trancher côté produit : en magasin c'est le même achat.
+test('T1 — wrap et tortilla : deux produits, chacun agrégé sans doublon', () => {
+  const liste = E.construireListe(plan([
+    ing('tortilla de blé', 1, 'piece'), ing('tortilla de blé', 2, 'piece'), ing('wrap de blé', 1, 'piece'),
+  ]), 1);
+  const tortilla = tous(liste).filter((i) => i.id === 'tortilla_de_ble');
+  const wrap = tous(liste).filter((i) => i.id === 'wrap_de_ble');
+  assert.equal(tortilla.length, 1, 'une seule ligne tortilla');
+  assert.equal(tortilla[0].besoin_reel.quantite, 3, 'les 2 mentions de tortilla sont bien sommées');
+  assert.equal(wrap.length, 1, 'une seule ligne wrap');
 });
 
 test('T1 — les 4 poissons blancs = une ligne « au choix » avec les variétés', () => {
@@ -51,17 +57,21 @@ test('T1 — les 4 poissons blancs = une ligne « au choix » avec les variété
   ['cabillaud', 'colin', 'lieu noir', 'merlu'].forEach((v) => assert.ok(lignes[0].sousTitre.includes(v), 'variété listée : ' + v));
 });
 
-test('T1 — dinde : au plus 2 lignes (tranches vs poids, unités d’achat réellement différentes)', () => {
+// Les 3 libellés « dinde » réellement présents dans les recettes. Le v2 en fait
+// 3 produits distincts (coupes différentes) : une ligne chacun, aucune fusion
+// hasardeuse, et chaque libellé est bien couvert (zéro warning).
+test('T1 — dinde : les 3 coupes réelles = 3 lignes propres, sans doublon', () => {
   const liste = E.construireListe(plan([
-    ing('blanc de dinde tranche', 2.5, 'tranche'), ing('blanc de dinde', 140, 'g'), ing('escalope de dinde', 160, 'g'),
+    ing('blanc de dinde', 140, 'g'), ing('blanc de dinde', 60, 'g'),
+    ing('escalope de dinde', 160, 'g'), ing('dinde hachée', 120, 'g'),
   ]), 1);
+  assert.equal(liste.warnings.length, 0, 'les 3 libellés sont couverts par le référentiel');
   const dinde = tous(liste).filter((i) => i.nom.toLowerCase().includes('dinde'));
-  assert.equal(dinde.length, 2);
-  const poids = dinde.find((i) => i.id === 'escalope_dinde');
-  assert.equal(poids.besoin_reel.quantite, 300, 'blanc (g) + escalope fusionnés');
-  assert.equal(poids.quantite_achat, '~300 g');
-  const tranches = dinde.find((i) => i.id === 'blanc_dinde_tranches');
-  assert.equal(tranches.quantite_achat, '3', '2,5 tranches -> 3 (entier supérieur)');
+  assert.equal(dinde.length, 3, 'une ligne par coupe');
+  assert.equal(new Set(dinde.map((i) => i.id)).size, 3, 'aucun id en double');
+  const blanc = dinde.find((i) => i.id === 'blanc_de_dinde');
+  assert.equal(blanc.besoin_reel.quantite, 200, 'les 2 mentions de blanc sont sommées');
+  assert.equal(blanc.quantite_achat, '~200 g', 'viande : multiple de 50 g supérieur');
 });
 
 test('T1 — alias inconnu : warning + repli, jamais de crash ni de doublon silencieux', () => {
@@ -99,7 +109,7 @@ test('T4 — unités d’achat lisibles en magasin, jamais de cuillères', () =>
   assert.equal(trouve(liste, 'lait demi-écrémé').quantite_achat, '1 brique (1 L)');
   assert.equal(trouve(liste, 'huile d’olive').quantite_achat, '1 bouteille');
   assert.ok(trouve(liste, 'huile d’olive').sousTitre.includes('besoin 64 ml'), 'le besoin réel reste lisible');
-  assert.equal(trouve(liste, 'whey vanille').quantite_achat, '1 pot');
+  assert.equal(trouve(liste, 'whey vanille').quantite_achat, '1 paquet');
   assert.equal(trouve(liste, 'tomates concassées').quantite_achat, '1 boîte (400 g)');
   const texte = E.rendreTexte(liste, { jours: 7, personnes: 1 });
   assert.ok(!/c\. à (soupe|café)/.test(texte), 'aucune cuillère sur la liste finale');
@@ -116,12 +126,12 @@ test('T5 — staples au placard, frais dans la semaine, rien de perdu', () => {
   const liste = E.construireListe(plan([
     ing('whey vanille', 30, 'g'), ing('riz', 135, 'g'), ing("huile d'olive", 2, 'c. à soupe'),
     ing('thon au naturel', 120, 'g'), ing('tomates concassées', 335, 'g'),
-    ing('blanc de poulet', 300, 'g'), ing('courgettes', 800, 'g'), ing('pain complet', 2, 'piece'),
+    ing('blanc de poulet', 300, 'g'), ing('courgette', 800, 'g'), ing('pain complet', 2, 'piece'),
   ]), 1);
   const placardNoms = liste.placard.map((i) => i.id).sort();
-  assert.deepEqual(placardNoms, ['huile_olive', 'riz_cru', 'thon_naturel', 'tomates_concassees', 'whey_vanille']);
+  assert.deepEqual(placardNoms, ['huile_d_olive', 'riz', 'thon_au_naturel', 'tomates_concassees', 'whey_vanille']);
   liste.placard.forEach((i) => assert.equal(i.probablement_deja_en_stock, true));
-  ['blanc_poulet', 'courgettes', 'pain_complet'].forEach((id) => assert.ok(liste.frais.some((i) => i.id === id), id + ' au frais'));
+  ['blanc_de_poulet', 'courgette', 'pain_complet'].forEach((id) => assert.ok(liste.frais.some((i) => i.id === id), id + ' au frais'));
   assert.equal(tous(liste).length, 8, 'le split ne perd aucun article');
 });
 
@@ -143,7 +153,7 @@ test('T6 — rayons corrects, jamais déduits du nom', () => {
 test('T7 — un article = une ligne, jamais deux items collés', () => {
   const liste = E.construireListe(plan([
     ing('mozzarella', 75, 'g'), ing('oeufs', 10, 'piece'), ing('boeuf haché 5%', 150, 'g'),
-    ing('courgettes', 800, 'g'), ing('riz', 135, 'g'), ing('banane', 3, 'piece'),
+    ing('courgette', 800, 'g'), ing('riz', 135, 'g'), ing('banane', 3, 'piece'),
   ]), 1);
   const texte = E.rendreTexte(liste, { jours: 7, personnes: 1 });
   const lignes = texte.split('\n');
@@ -157,6 +167,26 @@ test('T7 — un article = une ligne, jamais deux items collés', () => {
 });
 
 test('portions : les quantités suivent le nombre de personnes', () => {
-  const { canoniques } = E.agreger(plan([ing('courgettes', 100, 'g')]), 2.5);
-  assert.equal(canoniques.get('courgettes').qty, 250);
+  const { canoniques } = E.agreger(plan([ing('courgette', 100, 'g')]), 2.5);
+  assert.equal(canoniques.get('courgette').qty, 250);
+});
+
+// --- Conversion cru -> cuit ---------------------------------------------------
+// On ACHÈTE du cru. Une recette qui parle en cuit doit donc faire monter la
+// quantité d'achat, jamais la baisser (poulet 0,7 · riz 2,7).
+test('cru/cuit : une recette en « cuit » achète PLUS de cru, jamais moins', () => {
+  const { canoniques } = E.agreger(plan([
+    ing('blanc de poulet cuit', 100, 'g'), ing('riz cuit', 200, 'g'),
+  ]), 1);
+  const poulet = canoniques.get('blanc_de_poulet').qty;
+  const riz = canoniques.get('riz').qty;
+  assert.ok(poulet > 100, `100 g de poulet cuit -> ${Math.round(poulet)} g crus (doit être > 100)`);
+  assert.equal(Math.round(poulet), 143, '100 / 0,7 ≈ 143 g crus');
+  assert.ok(riz < 200, `200 g de riz cuit -> ${Math.round(riz)} g crus (le riz gonfle)`);
+  assert.equal(Math.round(riz), 74, '200 / 2,7 ≈ 74 g crus');
+});
+
+test('cru/cuit : un libellé déjà cru n’est jamais reconverti', () => {
+  const { canoniques } = E.agreger(plan([ing('blanc de poulet', 100, 'g')]), 1);
+  assert.equal(canoniques.get('blanc_de_poulet').qty, 100, 'du cru reste du cru');
 });

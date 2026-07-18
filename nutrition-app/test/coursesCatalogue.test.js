@@ -24,8 +24,8 @@ test('référentiel : résolution insensible à la casse, aux accents et à œ',
   assert.equal(cat.resoudre('Épinards').id, 'epinards');
   assert.equal(cat.resoudre('EPINARDS').id, 'epinards');
   assert.equal(cat.resoudre('Œufs').id, 'oeufs');
-  assert.equal(cat.resoudre("huile d'olive").id, 'huile_olive');
-  assert.equal(cat.resoudre('huile d’olive').id, 'huile_olive', 'apostrophe typographique acceptée');
+  assert.equal(cat.resoudre("huile d'olive").id, 'huile_d_olive');
+  assert.equal(cat.resoudre('huile d’olive').id, 'huile_d_olive', 'apostrophe typographique acceptée');
   assert.equal(cat.resoudre('  tomates  ').id, 'tomate');
   assert.equal(cat.resoudre('ingrédient inconnu du référentiel'), null, 'inconnu -> null, jamais de crash');
 });
@@ -62,6 +62,12 @@ test('référentiel : les ingrédients les plus fréquents des recettes résolve
 });
 
 test('staples : le placard est bien du longue conservation', () => {
-  const staples = Object.entries(cat.INGREDIENTS).filter(([, d]) => d.is_staple).map(([id]) => id).sort();
-  assert.deepEqual(staples, ['beurre_cacahuete', 'flocons_avoine', 'huile_olive', 'muesli', 'pates_crues', 'riz_cru', 'thon_naturel', 'tomates_concassees', 'whey_vanille']);
+  // L'invariant, pas un snapshot : un produit de placard ne vit jamais dans un
+  // rayon périssable. Le référentiel peut grossir sans casser ce test.
+  const PERISSABLES = ['Fruits & légumes', 'Boucherie', 'Charcuterie / Traiteur', 'Poissonnerie', 'Crèmerie', 'Boulangerie', 'Surgelés'];
+  const staples = Object.entries(cat.INGREDIENTS).filter(([, d]) => d.is_staple);
+  assert.ok(staples.length > 40, 'le placard existe vraiment');
+  staples.forEach(([id, d]) => {
+    assert.ok(!PERISSABLES.includes(d.rayon), `${id} est marqué placard mais rangé en « ${d.rayon} »`);
+  });
 });

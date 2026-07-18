@@ -66,6 +66,21 @@
     return null;
   }
 
+  // --- CONVERSION CRU <-> CUIT ---------------------------------------------
+  // On ACHÈTE du cru. Or les recettes mélangent les deux états pour un même
+  // produit (« riz » et « riz cuit », « blanc de poulet » et « ...cuit ») : additionner
+  // leurs grammes tels quels serait faux, 70 g de riz cru ≠ 70 g de riz cuit.
+  // On ramène donc toute quantité notée « cuit » à son équivalent CRU, via le
+  // facteur du référentiel (g cuit par g cru) :
+  //   riz    ×2,7  -> 200 g cuit  =  74 g à acheter (moins : le riz absorbe l'eau)
+  //   poulet ×0,7  -> 100 g cuit  = 143 g à acheter (plus : la viande en perd)
+  // Le SENS vient du facteur, il n'y a aucun cas particulier ici.
+  function versCru(q, nom, def) {
+    const f = def && def.conversion_cru_cuit && def.conversion_cru_cuit.g_cuit_par_g_cru;
+    if (!(f > 0)) return q;
+    return /\b(cuit|cuite|cuits|cuites)\b/i.test(String(nom || '')) ? q / f : q;
+  }
+
   // --- AGRÉGATION PURE (T2) -------------------------------------------------
   // plan = { jours: [{ repas: [{ recette: { ingredients: [{nom, quantite, unite, rayon}] } }] }] }
   // Renvoie { canoniques: Map<id, {qty, unite_base, autres, varietes}>, libres, warnings }.
@@ -97,7 +112,8 @@
           canoniques.set(r.id, c);
           c.varietes.add(r.def.display_name);
           const conv = versBase(q, ing.unite, r.def.unite_base);
-          if (conv != null) c.qty += conv;
+          // Ramené au CRU avant d'additionner : c'est le cru qu'on achète.
+          if (conv != null) c.qty += versCru(conv, ing.nom, r.def);
           else { const u = String(ing.unite || ''); c.autres[u] = (c.autres[u] || 0) + q; }
         });
       });
