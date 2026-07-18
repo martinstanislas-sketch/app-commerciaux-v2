@@ -359,11 +359,17 @@ input::-webkit-calendar-picker-indicator {
   margin-bottom: 22px;
 }
 .login-logo {
-  width: 132px;
-  height: auto;
+  width: 96px;
+  height: 96px;
+  border-radius: 22px;
   margin: 0;
   display: block;
   filter: drop-shadow(0 4px 16px rgba(0,0,0,0.4));
+}
+/* Marque discrète dans la barre du haut, à gauche du titre. */
+.header-logo {
+  width: 28px; height: 28px; border-radius: 8px;
+  display: block; flex: 0 0 auto; margin-right: 10px;
 }
 
 /* Titre + sous-titre */
@@ -537,7 +543,7 @@ input::-webkit-calendar-picker-indicator {
     padding: 26px 22px 20px;
     border-radius: 22px;
   }
-  .login-logo { width: 120px; }
+  .login-logo { width: 84px; height: 84px; }
   .login-title { font-size: 20px; }
   .login-subtitle { font-size: 12.5px; }
   .login-field input,
@@ -4928,7 +4934,7 @@ body.on-tasks-tab main {
     margin: 0 12px;
     max-width: calc(100vw - 24px);
   }
-  .login-logo { width: 120px; }
+  .login-logo { width: 84px; height: 84px; }
 
   /* ── Week/Month Nav ── */
   .week-nav, .month-nav {

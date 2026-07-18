@@ -8,7 +8,7 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'My Coach Nutrition';
   const opts = {
     body: data.body || '',
-    icon: data.icon || '/nutrition/icon-192.png', // grande image de la notif : icône de marque
+    icon: data.icon || '/nutrition/icon-192.png?v=2', // grande image de la notif : icône de marque
     badge: '/nutrition/icon.svg',                 // petite pastille (silhouette monochrome)
     tag: data.type || 'mcn',
     renotify: true,

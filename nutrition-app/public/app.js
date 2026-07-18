@@ -569,7 +569,7 @@ function renderNeeds() {
     <div class="pt-top">
       <div class="pt-titles">
         ${prenom ? `<p class="pt-kicker">Bonjour ${escapeHtml(prenom)}</p>` : ''}
-        <div class="pt-titlerow"><span class="pt-headic">${icSvg(isChallenge ? 'flame' : 'target')}</span><h2 class="pt-title">${objLabels[state.profil.objectif] || 'Mon plan'}</h2></div>
+        <div class="pt-titlerow"><span class="pt-headic pt-headic--logo"><img src="logo-mc.png?v=1" alt="My Coach" /></span><h2 class="pt-title">${objLabels[state.profil.objectif] || 'Mon plan'}</h2></div>
       </div>
       ${dayTag}
     </div>
@@ -6002,7 +6002,7 @@ function renderParcours() {
     '</section>';
 
   host.innerHTML =
-    '<div class="pc-head"><h1>Mon Parcours</h1><p>Ton évolution pendant le Challenge 6 semaines</p></div>' +
+    '<div class="pc-head"><img class="pc-head-logo" src="logo-mc.png?v=1" alt="My Coach" /><h1>Mon Parcours</h1><p>Ton évolution pendant le Challenge 6 semaines</p></div>' +
     carte + etapeBlock + peseeNote + courbe + timeline + photoBlock + mensurationsBlock + seancesBlock + regBlock + badgeBlock + bilan;
 
   // Câblage

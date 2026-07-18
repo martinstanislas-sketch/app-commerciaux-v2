@@ -149,9 +149,10 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .brand-name { font-size: 16px; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
 .brand-name strong { color: var(--green); }
 .brand-tag { font-size: 12px; color: var(--muted); margin-top: 1px; }
-/* Logo « my COACH GINKGO » dans le topbar (fond sombre) : version blanche. */
-.brand-logo { height: 34px; width: auto; display: block; }
-@media (max-width: 560px) { .brand-logo { height: 30px; } }
+/* Logo MC dans le topbar. Tuile CARRÉE autonome (fond bleu intégré) : on fixe les
+   deux dimensions et on arrondit légèrement pour épouser la forme de la tuile. */
+.brand-logo { height: 32px; width: 32px; display: block; border-radius: 8px; }
+@media (max-width: 560px) { .brand-logo { height: 28px; width: 28px; border-radius: 7px; } }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 
 .badge {
@@ -316,6 +317,10 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .pt-titlerow { display: flex; align-items: center; gap: 10px; }
 .pt-headic { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: var(--blue-soft); color: var(--mc-blue); flex: 0 0 auto; }
 .pt-headic .ic { width: 19px; height: 19px; }
+/* Variante logo : la tuile MC porte son propre fond -> on retire la pastille bleue
+   et on laisse l'image occuper toute la case, coins arrondis comme la tuile. */
+.pt-headic--logo { background: none; border-radius: 10px; overflow: hidden; }
+.pt-headic--logo img { width: 100%; height: 100%; display: block; border-radius: 10px; }
 .pt-title { font-size: 19px; font-weight: 800; color: var(--ink); margin: 0; letter-spacing: -0.01em; line-height: 1.15; }
 .pt-day { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--ink-2); background: var(--surface-soft); border: 1px solid var(--border-c); border-radius: 999px; padding: 5px 11px; white-space: nowrap; }
 .pt-day span { color: var(--muted); font-weight: 600; }
@@ -1360,6 +1365,8 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 #screen-result[data-tab="parcours"] #view-parcours { display: flex; flex-direction: column; gap: 16px; }
 .pc-empty { text-align: center; padding: 40px 18px; color: var(--muted); }
 .pc-empty h2 { color: var(--ink); margin: 0 0 8px; }
+/* Marque discrète en tête du Parcours : petite tuile au-dessus du titre. */
+.pc-head-logo { width: 34px; height: 34px; border-radius: 9px; display: block; margin: 0 0 10px; }
 .pc-head h1 { margin: 0; font-size: 26px; color: var(--ink); }
 .pc-head p { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
 /* carte principale */

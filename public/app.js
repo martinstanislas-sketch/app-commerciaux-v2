@@ -4538,18 +4538,14 @@ async function generateRecapPDF() {
   const ratioGlobal = totalHours > 0 ? data.global.ca / totalHours : 0;
 
   // Load logos as base64 for reliable PDF embedding
-  let logoBlancB64 = '';
-  let logoNoirB64 = '';
+  // Logo MC : tuile carrée autonome, lisible sur l'en-tête sombre comme sur le pied
+  // de page clair — un seul fichier suffit (avant : une version blanche + une noire).
+  let logoB64 = '';
   try {
-    const [blancResp, noirResp] = await Promise.all([
-      fetch('/logo-mycoach-blanc.png'),
-      fetch('/logo-mycoach-noir.png')
-    ]);
-    const [blancBlob, noirBlob] = await Promise.all([blancResp.blob(), noirResp.blob()]);
-    logoBlancB64 = await blobToDataURL(blancBlob);
-    logoNoirB64 = await blobToDataURL(noirBlob);
+    const resp = await fetch('/logo-mc.png?v=1');
+    logoB64 = await blobToDataURL(await resp.blob());
   } catch (e) {
-    console.warn('Impossible de charger les logos:', e);
+    console.warn('Impossible de charger le logo:', e);
   }
 
   // Build a clean HTML document for PDF — My Coach branding — polished single page
@@ -4565,7 +4561,7 @@ async function generateRecapPDF() {
       #pdf-recap .pdf-header::before { content:''; position:absolute; top:-60px; right:-30px; width:180px; height:180px; background:rgba(255,255,255,.04); border-radius:50%; }
       #pdf-recap .pdf-header::after { content:''; position:absolute; bottom:-30px; left:40%; width:120px; height:120px; background:rgba(250,104,99,.08); border-radius:50%; }
       #pdf-recap .pdf-header-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; position:relative; z-index:1; }
-      #pdf-recap .pdf-header-logo img { height: 44px; width: auto; }
+      #pdf-recap .pdf-header-logo img { height: 46px; width: 46px; border-radius: 11px; }
       #pdf-recap .pdf-header h1 { font-family:'Open Sans',sans-serif; font-size:24px; font-weight:800; margin:0; color:#fff; position:relative; z-index:1; letter-spacing:-0.3px; }
       #pdf-recap .pdf-header .pdf-subtitle { font-size:11px; color:rgba(244,238,232,.8); position:relative; z-index:1; letter-spacing:0.5px; }
       #pdf-recap .pdf-header .pdf-badge { display:inline-block; background:rgba(250,104,99,.85); color:#fff; font-family:'Open Sans',sans-serif; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; padding:3px 10px; border-radius:20px; margin-top:6px; position:relative; z-index:1; }
@@ -4635,13 +4631,13 @@ async function generateRecapPDF() {
 
       /* ── Footer ── */
       #pdf-recap .pdf-footer { text-align:center; padding:12px 28px 10px; border-top:2px solid #f4eee8; margin:0 28px; }
-      #pdf-recap .pdf-footer-logo img { height:30px; width:auto; margin-bottom:4px; }
+      #pdf-recap .pdf-footer-logo img { height:30px; width:30px; border-radius:8px; margin-bottom:4px; }
       #pdf-recap .pdf-footer .footer-tagline { font-size:9px; color:#94a3b8; font-style:italic; letter-spacing:0.5px; }
     </style>
 
     <div class="pdf-header">
       <div class="pdf-header-top">
-        ${logoBlancB64 ? `<div class="pdf-header-logo"><img src="${logoBlancB64}" alt="my COACH Ginkgo"></div>` : ''}
+        ${logoB64 ? `<div class="pdf-header-logo"><img src="${logoB64}" alt="My Coach"></div>` : ''}
         <div style="text-align:right;">
           <div style="font-family:'Open Sans',sans-serif;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;opacity:.6;">Suivi Performance</div>
         </div>
@@ -4731,7 +4727,7 @@ async function generateRecapPDF() {
     </div>
 
     <div class="pdf-footer">
-      ${logoNoirB64 ? `<div class="pdf-footer-logo"><img src="${logoNoirB64}" alt="my COACH Ginkgo"></div>` : ''}
+      ${logoB64 ? `<div class="pdf-footer-logo"><img src="${logoB64}" alt="My Coach"></div>` : ''}
       <div class="footer-tagline">Un Challenge, des résultats</div>
     </div>
   `;

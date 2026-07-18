@@ -96,6 +96,8 @@ em{font-style:italic}
    ========================================================================= */
 .brand{display:inline-flex;align-items:center;gap:.55rem;text-decoration:none;color:inherit}
 .brand__mark{width:30px;height:30px;stroke:var(--coral);fill:none;stroke-width:1.6}
+/* Variante image : la tuile MC porte ses propres couleurs (ni stroke ni fill). */
+.brand__mark--img{width:34px;height:34px;border-radius:9px;display:block;stroke:none;fill:none}
 .brand__txt{font-family:var(--ff-sans);line-height:1;letter-spacing:.02em}
 .brand__txt b{display:block;font-weight:700;font-size:1.02rem;letter-spacing:.14em}
 .brand__txt span{display:block;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;
@@ -407,11 +409,7 @@ em{font-style:italic}
 <header class="header" id="site-header">
   <div class="wrap header__bar">
     <a class="brand" href="#top" aria-label="My Coach Ginkgo — accueil">
-      <!-- feuille de ginkgo stylisée -->
-      <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 21c-4 0-7-2.5-7-6 0-4.5 4-8.5 7-12 3 3.5 7 7.5 7 12 0 3.5-3 6-7 6Z"/>
-        <path d="M12 21V9"/>
-      </svg>
+      <img class="brand__mark brand__mark--img" src="logo-mc.png?v=1" alt="" width="256" height="256">
       <span class="brand__txt"><b>COACH</b><span>my · ginkgo</span></span>
     </a>
 
@@ -743,7 +741,7 @@ em{font-style:italic}
     <div class="footer__top">
       <div class="footer__left">
         <a class="brand brand--light" href="#top" aria-label="My Coach Ginkgo — haut de page">
-          <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-4 0-7-2.5-7-6 0-4.5 4-8.5 7-12 3 3.5 7 7.5 7 12 0 3.5-3 6-7 6Z"/><path d="M12 21V9"/></svg>
+          <img class="brand__mark brand__mark--img" src="logo-mc.png?v=1" alt="" width="256" height="256">
           <span class="brand__txt"><b style="color:var(--cream)">COACH</b><span>my · ginkgo</span></span>
         </a>
         <p class="footer__studios" style="margin-top:16px">

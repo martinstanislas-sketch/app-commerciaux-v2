@@ -136,6 +136,11 @@ body {
   box-shadow: var(--shadow-md);
   text-align: center; position: relative; z-index: 1;
 }
+/* Logo MC (tuile carrée) — remplace l'emoji 💪 de l'écran de connexion. */
+.login-logo {
+  width: 64px; height: 64px; border-radius: 16px;
+  display: block; margin: 0 auto 14px;
+}
 .login-title {
   font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
   font-size: 2.2rem; font-weight: 900; color: var(--primary);
@@ -214,6 +219,9 @@ header {
   position: sticky; top: 0; z-index: 50;
 }
 .header-left { display: flex; align-items: center; gap: 14px; }
+/* Marque discrète dans la barre du haut, à gauche du titre « Coach ». */
+.header-logo { width: 30px; height: 30px; border-radius: 8px; display: block; flex: 0 0 auto; }
+@media (max-width: 640px) { .header-logo { width: 26px; height: 26px; border-radius: 7px; } }
 header h1 {
   font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
   font-size: 1.15rem; font-weight: 900; color: var(--primary);

@@ -50,11 +50,11 @@
 .lp-brand__txt span{color:var(--blue)}
 .lp-brand--light .lp-brand__txt{color:#fff}
 .lp-brand--light .lp-brand__txt span{color:#7fa2ff}
-/* Logo image « my COACH GINKGO » (version blanche). Sur fond clair (header collé),
-   on l'assombrit via filtre pour rester lisible. Footer = toujours sombre -> blanc. */
-.lp-brand .lp-brand__logo{height:44px;width:auto;display:block}
-@media (min-width:920px){.lp-brand .lp-brand__logo{height:56px}}
-@media (max-width:600px){.lp-brand .lp-brand__logo{height:32px}}
+/* Logo MC : tuile CARRÉE autonome (fond bleu intégré), lisible sur clair comme sur
+   sombre — aucun filtre à appliquer. Dimensions fixées pour éviter tout écrasement. */
+.lp-brand .lp-brand__logo{height:40px;width:40px;display:block;border-radius:10px}
+@media (min-width:920px){.lp-brand .lp-brand__logo{height:46px;width:46px;border-radius:11px}}
+@media (max-width:600px){.lp-brand .lp-brand__logo{height:34px;width:34px;border-radius:9px}}
 
 /* BOUTONS */
 .lp-btn{--pad:.9em 1.5em;display:inline-flex;align-items:center;justify-content:center;gap:.5em;
