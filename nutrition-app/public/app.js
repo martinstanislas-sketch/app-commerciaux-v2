@@ -4191,6 +4191,10 @@ function ensureGiftChestOverlay() {
   // Le bouton -> ferme ET va au cadeau précis dans la boutique.
   ov.querySelector('.gchest-cta').addEventListener('click', (e) => {
     e.stopPropagation(); fermer();
+    // La destination dépend de ce qui vient d'être débloqué : un cadeau mène à
+    // la boutique, un accessoire ouvre l'éditeur SUR la pièce fraîchement
+    // gagnée, prête à être équipée.
+    if (ov._avatarAcc) { openAvatarEditor(ov._avatarAcc); return; }
     const id = ov._giftId;
     setTab('boutique');
     if (id) ascAllerA('#view-boutique .btq-card[data-id="' + id + '"]');
@@ -4212,6 +4216,9 @@ function celebrateGiftUnlock(seuil, etat) {
   markGiftAnimSeen(id);
   const ov = ensureGiftChestOverlay();
   ov._giftId = (g && g.id) || null;
+  ov._avatarAcc = null;   // l'overlay est partagé : on remet la cible cadeau
+  ov.querySelector('.gchest-kicker').innerHTML = 'Cadeau débloqué&nbsp;!'; // libellé d'origine
+  ov.querySelector('.gchest-cta').textContent = 'Voir mes cadeaux';
   ov.querySelector('.gchest-gift').textContent = (g && g.icon) || '🎁';
   ov.querySelector('.gchest-name').textContent = (g && g.label) || ('Cadeau à ' + seuil + ' Punch');
   const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -4221,6 +4228,36 @@ function celebrateGiftUnlock(seuil, etat) {
   void ov.offsetHeight; // reflow -> l'entrée s'anime
   if (reduce) { ov.classList.add('is-open'); }               // statique : coffre déjà ouvert
   else { clearTimeout(ov._t); ov._t = setTimeout(() => ov.classList.add('is-open'), 560); } // suspense ~0,5 s
+  try { if (navigator.vibrate && !reduce) navigator.vibrate([12, 30, 12]); } catch (_) {}
+  if (ov._sound) playGiftChime();
+}
+
+// Un accessoire d'avatar vient d'être gagné : MÊME animation premium que les
+// cadeaux (cohérence voulue), mais le bouton mène à l'éditeur.
+function celebrateAvatarUnlock(seuil, etat) {
+  const A = window.MCAvatar; if (!A) return;
+  const rec = ((etat && etat.recompenses) || []).find((r) => r.type === 'avatar' && Number(r.seuil) === Number(seuil));
+  const accId = (rec && rec.payload && rec.payload.accessoire)
+    || (A.ACCESSOIRES.find((x) => x.condition.type === 'punch' && Number(x.condition.valeur) === Number(seuil)) || {}).id;
+  const acc = A.ACCESSOIRES.find((x) => x.id === accId);
+  if (!acc) return;
+  const cle = 'avatar:' + acc.id;
+  if (giftAnimSeen().has(cle)) return;   // une seule fois par accessoire, jamais au refresh
+  markGiftAnimSeen(cle);
+  const ov = ensureGiftChestOverlay();
+  ov._giftId = null;
+  ov._avatarAcc = acc.id;
+  ov.querySelector('.gchest-gift').textContent = '🧢';
+  ov.querySelector('.gchest-kicker').textContent = 'Bravo !';
+  ov.querySelector('.gchest-name').textContent = 'Tu viens de débloquer un nouvel accessoire pour ton avatar : ' + acc.nom + '.';
+  ov.querySelector('.gchest-cta').textContent = 'Équiper mon accessoire';
+  const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  ov.classList.toggle('gchest--reduce', reduce);
+  ov.classList.remove('is-open');
+  ov.classList.add('open');
+  void ov.offsetHeight;
+  if (reduce) { ov.classList.add('is-open'); }
+  else { clearTimeout(ov._t); ov._t = setTimeout(() => ov.classList.add('is-open'), 560); }
   try { if (navigator.vibrate && !reduce) navigator.vibrate([12, 30, 12]); } catch (_) {}
   if (ov._sound) playGiftChime();
 }
@@ -4238,6 +4275,7 @@ function celebrerDeblocages(cles, etat) {
     // Les CADEAUX ont leur animation coffre premium (noir & or) ; vidéos/guides
     // gardent la célébration générique.
     if (type === 'gift') { celebrateGiftUnlock(Number(seuil), etat); return; }
+    if (type === 'avatar') { celebrateAvatarUnlock(Number(seuil), etat); return; }
     const v = DEBLOCAGE_VISUEL[type]; if (!v) return;
     celebrateUnlock({ icon: v.icon, title: v.titre, subtitle: sousTitreDeblocage(type, Number(seuil), etat) });
   });

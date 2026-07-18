@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const cadeaux = require('../lib/cadeaux');
 const punchSeuils = require('../lib/punchSeuils');
-const { VIDEO_LOTS, EBOOK_TIERS, GIFTS, tousLesSeuils, cleSeuil } = punchSeuils;
+const { VIDEO_LOTS, EBOOK_TIERS, GIFTS, tousLesSeuils, cleSeuil, avatarSeuils } = punchSeuils;
 const createChallengeEngine = require('../lib/challengePath');
 
 function makeEngine() {
@@ -264,12 +264,17 @@ test('état public : le nom d\'un cadeau vient de lib/cadeaux, jamais d\'une 2e 
 // --- Les récompenses posées sur le Chemin ------------------------------------
 // Le Chemin les MATÉRIALISE : les 3 types doivent y être, à leur seuil, avec leur
 // état. Rien n'est recalculé ici — c'est punchSeuils mis en forme.
-test('Chemin : les 3 types de récompense sont exposés, à leur seuil', () => {
+test('Chemin : les 4 types de récompense sont exposés, à leur seuil', () => {
   const { engine, email } = makeEngine();
   engine.pathStatsRow(email);
   const rec = engine.challengePublicState(email).recompenses;
   const parType = rec.reduce((a, r) => { a[r.type] = (a[r.type] || 0) + 1; return a; }, {});
-  assert.deepEqual(parType, { video: VIDEO_LOTS.length, ebook: Object.keys(EBOOK_TIERS).length, gift: Object.keys(GIFTS).length });
+  assert.deepEqual(parType, {
+    video: VIDEO_LOTS.length, ebook: Object.keys(EBOOK_TIERS).length,
+    gift: Object.keys(GIFTS).length,
+    // 4e type : les accessoires d'avatar, dérivés du catalogue lib/avatar.
+    avatar: avatarSeuils().length,
+  });
   // Chaque récompense reprend EXACTEMENT un seuil de la config : aucun inventé.
   const attendus = tousLesSeuils().map(cleSeuil).sort();
   assert.deepEqual(rec.map((r) => r.seuil + ':' + r.type).sort(), attendus);

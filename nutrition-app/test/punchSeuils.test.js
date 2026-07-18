@@ -56,15 +56,18 @@ test('seuils : un même seuil peut porter DEUX récompenses (800, 1050)', () => 
 });
 
 test('seuilsAtteints : rend ce qui est atteint et pas encore acquis', () => {
-  assert.deepEqual(seuilsAtteints(100, []), [], 'sous le 1er seuil : rien');
-  assert.deepEqual(seuilsAtteints(150, []).map(cleSeuil), ['150:ebook']);
-  assert.deepEqual(seuilsAtteints(150, ['150:ebook']), [], 'déjà acquis -> plus rien');
-  assert.deepEqual(seuilsAtteints(800, []).map(cleSeuil), ['150:ebook', '250:video', '300:gift', '350:ebook', '450:gift', '550:ebook', '600:gift', '650:video', '800:ebook', '800:gift']);
+  assert.deepEqual(seuilsAtteints(50, []), [], 'sous le 1er seuil : rien');
+  // Le 1er palier est désormais un ACCESSOIRE d'avatar à 100 Punch : une
+  // récompense très tôt, avant le 1er guide (150).
+  assert.deepEqual(seuilsAtteints(100, []).map(cleSeuil), ['100:avatar']);
+  assert.deepEqual(seuilsAtteints(150, ['100:avatar']).map(cleSeuil), ['150:ebook']);
+  assert.deepEqual(seuilsAtteints(150, ['100:avatar', '150:ebook']), [], 'déjà acquis -> plus rien');
+  assert.deepEqual(seuilsAtteints(800, []).map(cleSeuil), ['100:avatar', '150:ebook', '200:avatar', '250:video', '300:gift', '350:ebook', '400:avatar', '450:avatar', '450:gift', '500:avatar', '550:ebook', '600:gift', '650:video', '700:avatar', '800:ebook', '800:gift']);
 });
 
 test('prochainSeuil : ce qu\'il reste à viser', () => {
-  assert.equal(prochainSeuil(0).seuil, 150);
-  assert.equal(prochainSeuil(150).seuil, 250);
+  assert.equal(prochainSeuil(0).seuil, 100, 'le 1er objectif est un accessoire d\'avatar');
+  assert.equal(prochainSeuil(150).seuil, 200);
   assert.equal(prochainSeuil(2395).seuil, 2500, 'au-delà de 2395, le cadeau à 2500 reste à viser');
   assert.equal(prochainSeuil(4095), null, 'tout est débloqué au maximum');
 });
@@ -73,7 +76,7 @@ test('prochainSeuil : ce qu\'il reste à viser', () => {
 test('addPunch : incrémente le total et déclenche les déblocages', () => {
   const { engine, db, email } = makeEngine();
   engine.pathStatsRow(email);
-  assert.deepEqual(engine.addPunch(email, 100, 'test'), [], '100 : aucun seuil');
+  assert.deepEqual(engine.addPunch(email, 100, 'test').map(cleSeuil), ['100:avatar'], '100 : 1er accessoire');
   assert.equal(punchDe(db, email), 100);
   const n = engine.addPunch(email, 50, 'test'); // total 150 -> 1er palier ebook
   assert.deepEqual(n.map(cleSeuil), ['150:ebook']);
@@ -83,18 +86,21 @@ test('addPunch : incrémente le total et déclenche les déblocages', () => {
 test('addPunch : chaque seuil ne se débloque QU\'UNE fois', () => {
   const { engine, db, email } = makeEngine();
   engine.pathStatsRow(email);
-  engine.addPunch(email, 150, 'test');
+  engine.addPunch(email, 150, 'test');   // 100:avatar + 150:ebook
   assert.deepEqual(engine.addPunch(email, 10, 'test'), [], 'repasser au-dessus ne redonne rien');
   assert.deepEqual(engine.evaluateUnlocks(email), [], 'ré-évaluer non plus (idempotent)');
-  assert.equal(db.prepare('SELECT COUNT(*) c FROM user_unlocks WHERE client_email=?').get(email).c, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM user_unlocks WHERE client_email=?').get(email).c, 2);
 });
 
 test('addPunch : un gros gain débloque TOUT ce qu\'il franchit d\'un coup', () => {
   const { engine, email } = makeEngine();
   engine.pathStatsRow(email);
   const n = engine.addPunch(email, 800, 'test');
-  assert.deepEqual(n.map(cleSeuil), ['150:ebook', '250:video', '300:gift', '350:ebook', '450:gift', '550:ebook', '600:gift', '650:video', '800:ebook', '800:gift']);
+  assert.deepEqual(n.map(cleSeuil), ['100:avatar', '150:ebook', '200:avatar', '250:video', '300:gift', '350:ebook', '400:avatar', '450:avatar', '450:gift', '500:avatar', '550:ebook', '600:gift', '650:video', '700:avatar', '800:ebook', '800:gift']);
   assert.equal(n.filter((s) => s.seuil === 800).length, 2, 'les DEUX récompenses du seuil 800');
+  // 450 porte lui aussi deux récompenses : le cadeau ET la médaille d'argent
+  // qu'il conditionne — l'identité (seuil, type) les garde distinctes.
+  assert.deepEqual(n.filter((s) => s.seuil === 450).map((s) => s.type).sort(), ['avatar', 'gift']);
 });
 
 test('addPunch : un gain nul ou négatif ne fait rien (le Punch ne descend jamais)', () => {
@@ -138,7 +144,7 @@ test('état public : les déblocages et le prochain seuil sont exposés au front
   engine.pathStatsRow(email);
   engine.addPunch(email, 300, 'test');
   const st = engine.challengePublicState(email);
-  assert.deepEqual(st.unlocks.sort(), ['150:ebook', '250:video', '300:gift']);
+  assert.deepEqual(st.unlocks.sort(), ['100:avatar', '150:ebook', '200:avatar', '250:video', '300:gift']);
   assert.equal(st.prochainSeuil.seuil, 350, 'le front peut dire « encore 50 Punch »');
   assert.equal(st.stats.punch, 300);
 });

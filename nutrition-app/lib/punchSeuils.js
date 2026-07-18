@@ -39,6 +39,25 @@ const GIFTS = {
   4000: 'massage',
 };
 
+// Accessoires d'avatar : la condition est déclarée UNE SEULE FOIS, dans le
+// catalogue de lib/avatar.js (le front en a besoin pour afficher « Encore X
+// PUNCH »). On la DÉRIVE ici plutôt que de la recopier — sinon les deux
+// listes divergeraient au premier ajout d'accessoire.
+// Une condition de type « badge » est ramenée au seuil de Punch du cadeau
+// correspondant : c'est ce Punch-là qui la rend atteignable.
+function avatarSeuils() {
+  let catalogue = [];
+  try { catalogue = require('./avatar').ACCESSOIRES || []; } catch (_) { return []; }
+  const seuilDuCadeau = (id) => {
+    const cle = Object.keys(GIFTS).find((s) => GIFTS[s] === id);
+    return cle ? Number(cle) : null;
+  };
+  return catalogue.map((a) => {
+    const seuil = a.condition.type === 'badge' ? seuilDuCadeau(a.condition.valeur) : Number(a.condition.valeur);
+    return seuil ? { seuil, type: 'avatar', payload: { accessoire: a.id } } : null;
+  }).filter(Boolean);
+}
+
 // Tous les déblocages, à plat et triés par seuil.
 // ⚠️ Un même seuil peut porter PLUSIEURS récompenses (800 = ebooks + cadeau,
 // 1050 = vidéos + ebooks) : la paire (seuil, type) est l'identité, pas le seuil.
@@ -47,6 +66,7 @@ function tousLesSeuils() {
   VIDEO_LOTS.forEach((seuil, i) => out.push({ seuil, type: 'video', payload: { lot: i + 1 } }));
   Object.keys(EBOOK_TIERS).forEach((s) => out.push({ seuil: Number(s), type: 'ebook', payload: { nombre: EBOOK_TIERS[s] } }));
   Object.keys(GIFTS).forEach((s) => out.push({ seuil: Number(s), type: 'gift', payload: { cadeau: GIFTS[s] } }));
+  avatarSeuils().forEach((a) => out.push(a));
   return out.sort((a, b) => a.seuil - b.seuil || a.type.localeCompare(b.type));
 }
 
@@ -68,6 +88,6 @@ function prochainSeuil(total) {
 }
 
 module.exports = {
-  PUNCH_MAX_THEORIQUE, VIDEO_LOTS, EBOOK_TIERS, GIFTS,
+  PUNCH_MAX_THEORIQUE, VIDEO_LOTS, EBOOK_TIERS, GIFTS, avatarSeuils,
   tousLesSeuils, seuilsAtteints, cleSeuil, prochainSeuil,
 };
