@@ -4054,10 +4054,12 @@ async function reactFeed(id, type) {
 const _celebFile = [];
 let _celebEnCours = false;
 
-// { icon, title, subtitle, gain, autoMs, cible } — autoMs 0 = le client ferme
-// lui-même ; `cible` = fonction appelée au clic, pour emmener sur la liste
-// concernée. Une célébration qui ne fait que disparaître laisse le client
-// devant rien : il vient de gagner quelque chose, il doit pouvoir aller le voir.
+// { icon, title, subtitle, gain, cible }
+// ⚠️ AUCUNE fermeture automatique : la fenêtre attend le clic, et ce clic
+// EMMÈNE sur ce qui vient d'être gagné. Elle s'effaçait avant toute seule au
+// bout de 2,2 s — le temps de lever les yeux, la récompense avait disparu et il
+// ne restait rien à en faire. Une récompense mérite qu'on s'arrête dessus.
+// `cible` = où le clic conduit (la liste des cadeaux, la bibliothèque…).
 function celebrateUnlock(c) {
   if (!c) return;
   _celebFile.push(c);
@@ -4080,8 +4082,6 @@ function celebSuivante() {
   if (c.gain) countUp(gainEl, c.gain);
   try { if (navigator.vibrate) navigator.vibrate([18, 40, 18]); } catch (_) { /* pas de retour haptique */ }
   clearTimeout(ov._t);
-  // Non bloquante : elle s'efface seule (~2 s) — sauf si on veut un vrai temps d'arrêt.
-  if (c.autoMs !== 0) ov._t = setTimeout(fermerCeleb, c.autoMs || 2200);
 }
 function fermerCeleb() {
   const ov = $('#celebOv'); if (!ov) return;
@@ -4122,9 +4122,13 @@ function ensureCelebOverlay() {
     <div class="celeb-gain"></div>
   </div>`;
   document.body.appendChild(ov);
-  // Tap n'importe où : on ferme, et s'il y a une destination on y va. C'est ce
-  // que le client attend d'une bannière « tu viens de débloquer quelque chose ».
+  // Tap n'importe où : on ferme, et s'il y a une destination on y va.
   ov.addEventListener('click', () => { const aller = ov._cible; fermerCeleb(); if (aller) aller(); });
+  // ⚠️ Échap ferme SANS emmener nulle part. La fenêtre n'a pas d'autre sortie
+  // que le clic : sans cette porte, un client au clavier — ou une destination
+  // qui échoue — resterait enfermé devant sa récompense.
+  ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerCeleb(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ov.classList.contains('open')) fermerCeleb(); });
   return ov;
 }
 
@@ -4136,7 +4140,6 @@ function celebrerPalierSerie(palier) {
     title: palier.jours + ' jours d\'affilée',
     subtitle: 'Ta série tient — continue comme ça.',
     gain: palier.punch,
-    autoMs: 0,
   });
 }
 
@@ -4205,19 +4208,24 @@ function ensureGiftChestOverlay() {
   const majSound = () => { soundBtn.textContent = ov._sound ? '🔊' : '🔇'; soundBtn.setAttribute('aria-pressed', ov._sound ? 'true' : 'false'); };
   majSound();
   const fermer = () => { ov.classList.remove('open'); ov.classList.remove('is-open'); };
-  // Tap n'importe où (le fond) -> ferme SANS rediriger.
-  ov.addEventListener('click', fermer);
-  // Le bouton -> ferme ET va au cadeau précis dans la boutique.
-  ov.querySelector('.gchest-cta').addEventListener('click', (e) => {
-    e.stopPropagation(); fermer();
-    // La destination dépend de ce qui vient d'être débloqué : un cadeau mène à
-    // la boutique, un accessoire ouvre l'éditeur SUR la pièce fraîchement
-    // gagnée, prête à être équipée.
+  // La destination dépend de ce qui vient d'être débloqué : un cadeau mène à la
+  // boutique, SUR sa fiche ; un accessoire ouvre l'éditeur d'avatar sur la pièce
+  // fraîchement gagnée, prête à être équipée.
+  const allerAuCadeau = () => {
+    fermer();
     if (ov._avatarAcc) { openAvatarEditor(ov._avatarAcc); return; }
     const id = ov._giftId;
     setTab('boutique');
     if (id) ascAllerA('#view-boutique .btq-card[data-id="' + id + '"]');
-  });
+  };
+  // ⚠️ Tap n'importe où -> ferme ET EMMÈNE. Le fond fermait avant sans rien
+  // faire : le client tapait à côté et sa récompense s'évanouissait sans qu'il
+  // ait rien vu d'autre qu'une animation. Le bouton reste, il dit où l'on va.
+  ov.addEventListener('click', allerAuCadeau);
+  ov.querySelector('.gchest-cta').addEventListener('click', (e) => { e.stopPropagation(); allerAuCadeau(); });
+  // Échap : la seule sortie qui n'emmène nulle part (clavier, ou destination en
+  // panne). Sans elle, la fenêtre n'aurait aucune issue.
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ov.classList.contains('open')) fermer(); });
   soundBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     ov._sound = !ov._sound;
@@ -5358,13 +5366,23 @@ function challengePathHTML(st) {
   (st.nodes || []).forEach((n) => { (byWeek[n.week] = byWeek[n.week] || []).push(n); });
   const semaines = Object.keys(byWeek).map(Number).sort((a, b) => a - b);
   const ctx = { semaines: semaines.length, total: st.totalDays || (st.nodes || []).length };
+  // Où se tient le personnage, et donc quels libellés doivent s'écarter de lui :
+  // les deux étapes juste au-dessus de l'étape du jour, D'UN BOUT À L'AUTRE du
+  // parcours (la frontière des semaines n'existe pas pour lui).
+  const tous = st.nodes || [];
+  const gAct = tous.findIndex((n) => n.status === 'active');
+  const ecartGlobal = {};
+  if (gAct > 0) {
+    const versLaGauche = ascX(gAct) >= 50; // personnage à droite -> libellés à gauche
+    [gAct - 1, gAct - 2].forEach((g) => { if (g >= 0) ecartGlobal[g] = versLaGauche ? 'g' : 'd'; });
+  }
   let i = 0; // indice GLOBAL -> le serpentin traverse les chapitres sans rupture
   let html = '<div class="asc">';
   semaines.forEach((week, wi) => {
     const nodes = byWeek[week];
     const suiv = wi + 1 < semaines.length ? byWeek[semaines[wi + 1]][0] : null;
     const next = suiv ? { x: ascX(i + nodes.length), done: suiv.status === 'done' } : null;
-    html += ascChapitreHTML(week, nodes, i, st, semaines.length, next, ctx);
+    html += ascChapitreHTML(week, nodes, i, st, semaines.length, next, ctx, ecartGlobal);
     i += nodes.length;
   });
   html += ascLegendeHTML();
@@ -5375,7 +5393,7 @@ function challengePathHTML(st) {
 // Un chapitre = une semaine : sa carte à gauche, son bout de sentier à droite.
 // Les deux vivent dans la MÊME section — c'est ce qui les garde alignés en
 // défilant, sans une ligne de JS pour les synchroniser.
-function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, next, ctx) {
+function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, next, ctx, ecartGlobal) {
   const done = nodes.filter((n) => n.status === 'done').length;
   const etat = done === nodes.length ? 'done' : (nodes.some((n) => n.status === 'active') ? 'now' : 'soon');
   const ys = ascYs(nodes);
@@ -5397,6 +5415,22 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, next, ctx) {
   // Masqué sur mobile (.asc-lien), où la carte de semaine s'intercale entre les
   // deux tracés : le raccord traverserait la carte.
   const dLien = next ? ascTrace([pts[last], { x: next.x, y: h + ASC_PAD }]) : '';
+  // ⚠️ Le personnage fait 236 px de haut pour un pas de 90 : il traverse les DEUX
+  // étapes au-dessus de lui, quel que soit le côté où on le pose. Mesuré sur les
+  // 41 jours : 27 jours avec du texte traversé côté extérieur, 25 côté intérieur
+  // — les libellés alternent, ils sont des deux côtés. Ce n'est donc pas LUI
+  // qu'il faut déplacer, ce sont les deux libellés qu'il croise : ils passent de
+  // l'autre côté du sentier, là où il n'est pas. Deux libellés sur quarante-deux.
+  // ⚠️ Les indices sont GLOBAUX, pas locaux au chapitre : quand l'étape du jour
+  // est la 1re ou la 2e d'une semaine, les étapes que le personnage traverse
+  // appartiennent à la semaine PRÉCÉDENTE — et ce sont justement les jalons,
+  // dont le libellé est le plus long (« Pesée de la semaine 1 »). Calculé par
+  // chapitre, l'écartement les manquait : 7 jours sur 41 restaient traversés.
+  const ecarte = [];
+  Object.keys(ecartGlobal || {}).forEach((g) => {
+    const k = Number(g) - iOffset;
+    if (k >= 0 && k < nodes.length) ecarte[k] = ecartGlobal[g];
+  });
   const lienFait = !!next && next.done && nodes[last].status === 'done';
   return `<section class="asc-ch asc-ch-${etat}" aria-label="Semaine ${week} sur ${nbSemaines}">
     ${ascWeekCardHTML(week, nodes, st, nbSemaines, etat)}
@@ -5409,7 +5443,7 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, next, ctx) {
         <path class="asc-trail-dots" d="${d}" />
         ${dLien ? `<path class="asc-trail-dots asc-lien" d="${dLien}" />` : ''}
       </svg>
-      ${nodes.map((n, k) => ascNodeHTML(n, pts[k], ctx)).join('')}
+      ${nodes.map((n, k) => ascNodeHTML(n, pts[k], ctx, ecarte[k])).join('')}
       ${nodes.map((n, k) => ascCarteMobileHTML(n, pts[k], ctx)).join('')}
       ${ascAvatarSurSentierHTML(nodes, pts)}
     </div>
@@ -5441,7 +5475,7 @@ function ascWeekCardHTML(week, nodes, st, nbSemaines, etat) {
 // Une étape. Le libellé (ou sa carte) part vers l'EXTÉRIEUR de la vague, les
 // récompenses vers l'intérieur : à la hauteur d'une bulle, le sentier n'occupe que
 // la bulle (sa tangente y est verticale), donc les deux côtés sont libres.
-function ascNodeHTML(n, pt, ctx) {
+function ascNodeHTML(n, pt, ctx, ecarte) {
   const cls = ['asc-nd', 'asc-' + n.status, pt.x >= 50 ? 'asc-r' : 'asc-l'];
   if (n.milestone) cls.push('asc-sommet');
   if (n.type === 'final') cls.push('asc-fin');
@@ -5467,7 +5501,11 @@ function ascNodeHTML(n, pt, ctx) {
   // Ces classes le disent au CSS sans qu'il ait à deviner (pas de :has, ignoré des
   // vieux WebView).
   const aCarte = n.type === 'final';
-  const sideCls = aCarte ? 'asc-side asc-has-card asc-in' : 'asc-side asc-out';
+  // `out` / `in` sont relatifs au côté de la BULLE : pour imposer un côté absolu
+  // (écarter un libellé du personnage), on traduit selon ce côté.
+  const aDroite = pt.x >= 50;
+  const cote = ecarte ? ((ecarte === 'g') === aDroite ? 'asc-in' : 'asc-out') : 'asc-out';
+  const sideCls = aCarte ? 'asc-side asc-has-card asc-in' : 'asc-side ' + cote;
   return `<div class="${cls.join(' ')}" id="asc-nd-${n.day}" style="left:${pt.x.toFixed(2)}%;top:${pt.y}px">
     <button type="button" class="asc-dot"${attr} aria-label="${aria}">
       ${icSvg(ascIcone(n))}<span class="asc-halo" aria-hidden="true"></span>

@@ -3182,7 +3182,11 @@ body.is-demo #navRestart { display: none !important; }
 /* --- Une étape ---------------------------------------------------------- */
 /* Un point d'ancrage sans dimension, posé sur le tracé : tout se positionne
    autour de son centre, donc rien ne peut décaler le point d'ancrage. */
-.asc-nd { position: absolute; width: 0; height: 0; }
+/* ⚠️ z-index explicite : le personnage (z-index 1) est désormais assez grand
+   pour couvrir deux étapes et leurs libellés. Sans ce rang, il passait DEVANT
+   elles — un décor qui masque le parcours. Les étapes gagnent, il passe
+   derrière. (L'étape active monte à 4, les jalons à 2 : voir plus bas.) */
+.asc-nd { position: absolute; width: 0; height: 0; z-index: 2; }
 .asc-dot { position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); display: grid; place-items: center; width: var(--asc-dot); height: var(--asc-dot); border-radius: 50%; border: 1.5px solid var(--border-c); background: var(--surface); color: var(--text-soft); box-shadow: var(--shadow-xs), inset 0 1px 0 #fff; cursor: default; transition: transform .18s var(--ease), box-shadow .18s var(--ease), border-color .18s var(--ease); }
 .asc-dot .ic { width: 28px; height: 28px; pointer-events: none; }
 /* L'écusson : la coche (fait) ou le cadenas (fermé). Posé sur le bord haut-droit
@@ -3217,7 +3221,12 @@ body.is-demo #navRestart { display: none !important; }
    en max-content peut voir sa largeur s'effondrer et son texte s'empiler en une
    colonne très haute qui recouvre alors toute la suite du chapitre. */
 .asc-has-card { transform: none; top: calc(var(--asc-dot) / -2 - 2px); width: 196px; max-width: none; }
-.asc-lbl { display: block; font: 500 13px/1.3 var(--font); color: var(--text-muted-c); transition: color .2s var(--ease); }
+/* ⚠️ Le halo n'est PAS décoratif : le personnage mesure deux fois la hauteur
+   d'une étape et passe derrière les libellés — sans lui, « Séance 3 » s'écrit en
+   sombre sur son sweat sombre et devient illisible. Invisible sur le fond clair
+   (même teinte), il ne se révèle que là où il sert. */
+.asc-lbl { display: block; font: 500 13px/1.3 var(--font); color: var(--text-muted-c); transition: color .2s var(--ease);
+  text-shadow: 0 0 4px var(--app-bg), 0 0 9px var(--app-bg), 0 0 2px var(--app-bg); }
 
 /* Trois états, trois LECTURES distinctes — et jamais la couleur seule : la
    taille, le fond et l'écusson disent la même chose trois fois.
@@ -3272,7 +3281,7 @@ body.is-demo #navRestart { display: none !important; }
    point DU SENTIER, et c'est là qu'il pose le pied. D'où la marge haute d'une
    hauteur entière. Le rapport 96/176 est celui du viewBox en pied — le figer ici
    évite d'écraser le personnage si la hauteur change. */
-.asc-wrap, #view-parcours { --asc-av-h: 118px; }
+.asc-wrap, #view-parcours { --asc-av-h: 236px; }
 .asc-avw { position: absolute; z-index: 1; height: var(--asc-av-h); width: calc(var(--asc-av-h) * 96 / 176);
   margin-top: calc(var(--asc-av-h) * -1); pointer-events: none;
   /* De quoi le sortir entièrement de sa bulle : un rayon + une demi-silhouette. */
@@ -3551,7 +3560,7 @@ body.is-demo #navRestart { display: none !important; }
   /* Tout rétrécit ENSEMBLE — bulle, écart, avatar : c'est le seul moyen de
      garder le libellé à côté de son étape sans jamais mordre le sentier. */
   .asc-wrap, #view-parcours { --asc-dot: 58px; --asc-dot-now: 72px; --asc-dot-top: 64px;
-    --asc-gap: 36px; --asc-trail: 12px; --asc-av-h: 94px; }
+    --asc-gap: 36px; --asc-trail: 12px; --asc-av-h: 188px; }
   /* ⚠️ 96 px, calculé et pas choisi : l'étape la plus excentrée est à 62 % de la
      carte (50 % + ASC_AMP), soit 218 px sur un écran de 375 ; plus l'écart de
      36 px, il reste 97 px jusqu'au bord. Au-delà, le libellé d'un jalon
