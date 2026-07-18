@@ -1337,6 +1337,11 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 #screen-result[data-tab="profil"] #view-plan, #screen-result[data-tab="profil"] #view-communaute { display: none; }
 #screen-result[data-tab="communaute"] #view-plan, #screen-result[data-tab="communaute"] #view-profil { display: none; }
 /* Vue « Mon Parcours » : masquée par défaut, affichée seulement sur son onglet. */
+/* ⚠️ C'est CE plafond qui bridait le Chemin : 760px, quelle que soit la place
+   disponible. Il rendait le parcours étroit ET empêchait la colonne du sentier
+   d'accueillir les récompenses (202px avec leur libellé), qui débordaient sur la
+   carte de semaine. Le plafond desktop est relevé plus bas ; 760px reste la
+   valeur juste sur mobile et tablette. */
 #view-parcours { display: none; max-width: 760px; margin: 0 auto; padding-bottom: 124px; }
 #screen-result[data-tab="parcours"] #view-parcours { display: block; }
 #screen-result[data-tab="parcours"] #view-plan,
@@ -3248,6 +3253,16 @@ body.is-demo #navRestart { display: none !important; }
 .asc-recs { position: absolute; top: 0; transform: translateY(-50%); z-index: 3; display: flex; flex-direction: column; gap: 6px; }
 /* Intérieur (par défaut) ; extérieur seulement quand une carte occupe déjà
    l'intérieur (cf. ascNodeHTML). Le côté se déduit de celui de la bulle. */
+/* --asc-gap est taillé pour une bulle ORDINAIRE ; sur l'étape active (78px) et
+   les jalons (86px) le rayon le dépasse -> la pastille mordrait le cercle. */
+.asc-active.asc-r .asc-recs.asc-in { right: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 8px)); }
+.asc-active.asc-l .asc-recs.asc-in { left: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 8px)); }
+.asc-active.asc-r .asc-recs.asc-out { left: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 8px)); }
+.asc-active.asc-l .asc-recs.asc-out { right: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 8px)); }
+.asc-sommet.asc-r .asc-recs.asc-in { right: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
+.asc-sommet.asc-l .asc-recs.asc-in { left: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
+.asc-sommet.asc-r .asc-recs.asc-out { left: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
+.asc-sommet.asc-l .asc-recs.asc-out { right: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
 .asc-r .asc-recs.asc-in { right: var(--asc-gap); align-items: flex-end; }
 .asc-l .asc-recs.asc-in { left: var(--asc-gap); align-items: flex-start; }
 .asc-r .asc-recs.asc-out { left: var(--asc-gap); align-items: flex-start; }
@@ -3314,7 +3329,9 @@ body.is-demo #navRestart { display: none !important; }
 .asc-mb-dot:hover { transform: translate(-50%, -50%) scale(1.1); }
 .asc-mb-dot:active { transform: translate(-50%, -50%) scale(.95); }
 .asc-mb-dot:focus-visible { outline: 2px solid var(--blue-c); outline-offset: 3px; }
-.asc-mb-lbl { position: absolute; top: 23px; left: 0; transform: translateX(-50%); white-space: nowrap; font: 700 10px/1 var(--font); letter-spacing: .05em; text-transform: uppercase; color: #8A6D28; }
+/* Posé À CÔTÉ de l'étoile, pas dessous : sous elle, il tombait dans le couloir
+   vertical du sentier et mordait la bulle suivante. */
+.asc-mb-lbl { position: absolute; top: 0; left: 26px; transform: translateY(-50%); white-space: nowrap; font: 700 10px/1 var(--font); letter-spacing: .05em; text-transform: uppercase; color: #8A6D28; }
 /* La pastille d'état : envoyée (⏳), validée (coche sauge), refusée (grisée). */
 .asc-mb-st { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--app-bg); background: var(--gold); color: #fff; font-size: 9px; line-height: 1; }
 .asc-mb-st.ok { background: var(--sage); }
@@ -3401,6 +3418,8 @@ body.is-demo #navRestart { display: none !important; }
   .asc-ch-map { grid-column: 2; }
   /* Les tracés se touchent désormais : le raccord entre chapitres peut vivre. */
   .asc-lien { display: block; }
+  /* Largeur resserrée sur desktop : posée du côté INTÉRIEUR, une récompense
+     large traverse le sentier et atteint la bulle d'en face. */
   .asc-rec-x { display: flex; }
   .asc-leg { margin-top: 44px; }
 }
@@ -3413,9 +3432,17 @@ body.is-demo #navRestart { display: none !important; }
      -> largeur « fit-content » ; or le contenu de .asc-ch-map est entièrement en
      absolu (max-content = 0) : la colonne du parcours s'effondrait et la carte de
      l'étape active se posait sur la carte de semaine. */
-  .asc, .asc-head, .asc-hero { width: 100%; max-width: 1000px; margin-left: auto; margin-right: auto; }
-  .asc-ch { grid-template-columns: var(--asc-col) minmax(0, 1fr); gap: 34px; }
-  .asc-ch-map { max-width: 720px; }
+  #view-parcours { max-width: 1080px; }
+  .asc, .asc-head, .asc-hero { width: 100%; max-width: 1080px; margin-left: auto; margin-right: auto; }
+  /* ⚠️ TROIS colonnes, la 1re et la 3e de MÊME largeur. Avec deux colonnes
+     (semaine | sentier), le sentier était poussé à droite du centre : c'est ce
+     qui donnait un parcours décalé, entouré de vide à gauche. La 3e colonne est
+     vide, elle ne sert qu'à rendre le centrage réel.
+     ⚠️ La largeur ne descend PAS sous ~1080px : la colonne du sentier tomberait
+     à ~420px, or une récompense avec son libellé fait 212px — du côté gauche
+     elle déborderait sur la carte de semaine (essayé, mesuré, abandonné). */
+  .asc-ch { grid-template-columns: var(--asc-col) minmax(0, 1fr) var(--asc-col); gap: 30px; }
+  .asc-ch-map { grid-column: 2; max-width: none; }
 }
 
 /* --- Mobile ------------------------------------------------------------- */
