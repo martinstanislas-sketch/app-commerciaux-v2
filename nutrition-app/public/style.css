@@ -3282,20 +3282,30 @@ body.is-demo #navRestart { display: none !important; }
    `transform` en style inline, et écraserait un transform de centrage — l'avatar
    sauterait d'un demi-avatar au moment de partir.
    -------------------------------------------------------------------------- */
-.asc-wrap, #view-parcours { --asc-av-d: 88px; }
-.asc-avw { position: absolute; z-index: 1; width: var(--asc-av-d); height: var(--asc-av-d);
-  margin-left: calc(var(--asc-av-d) / -2); margin-top: calc(var(--asc-av-d) / -2); pointer-events: none; }
+/* ⚠️ Il est ancré PAR LES PIEDS, pas par son centre : son point d'ancrage est un
+   point DU SENTIER, et c'est là qu'il pose le pied. D'où la marge haute d'une
+   hauteur entière. Le rapport 96/176 est celui du viewBox en pied — le figer ici
+   évite d'écraser le personnage si la hauteur change. */
+.asc-wrap, #view-parcours { --asc-av-h: 118px; }
+.asc-avw { position: absolute; z-index: 1; height: var(--asc-av-h); width: calc(var(--asc-av-h) * 96 / 176);
+  margin-top: calc(var(--asc-av-h) * -1); pointer-events: none;
+  /* De quoi le sortir entièrement de sa bulle : un rayon + une demi-silhouette. */
+  --asc-av-dx: calc(var(--asc-dot-now) / 2 + var(--asc-av-h) * 48 / 176 + 4px); }
+/* Centré sur son point d'ancrage, puis poussé du côté EXTÉRIEUR de la vague :
+   le côté intérieur est occupé par la carte « Étape actuelle ». */
+.asc-avw-cd { margin-left: calc(var(--asc-av-h) * -48 / 176 + var(--asc-av-dx)); }
+.asc-avw-cg { margin-left: calc(var(--asc-av-h) * -48 / 176 - var(--asc-av-dx)); }
 /* L'ombre au sol : c'est elle qui le POSE sur le sentier. Sans elle, il flotte
    au-dessus du chemin quelle que soit la qualité du reste. */
-.asc-av-sol { position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); width: 62%; height: 13px; border-radius: 50%; background: rgba(16, 24, 40, .22); filter: blur(4px); }
-.asc-av { position: relative; display: block; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: var(--surface);
-  /* Anneau NEUTRE, pas bleu : accolé à la bulle bleue de l'étape du jour, un
-     liseré bleu fondait les deux en une seule masse. */
-  box-shadow: 0 0 0 3px var(--app-bg), 0 0 0 4.5px rgba(16, 24, 40, .13), 0 12px 22px -8px rgba(16, 24, 40, .45);
-  transform: rotate(3deg); }
+.asc-av-sol { position: absolute; left: 50%; bottom: -3px; transform: translateX(-50%); width: 74%; height: 11px; border-radius: 50%; background: rgba(16, 24, 40, .24); filter: blur(4px); }
+/* Aucun cadre, aucun disque : c'est une SILHOUETTE posée sur le chemin. Le
+   relief vient d'une ombre portée qui épouse la forme (drop-shadow, pas
+   box-shadow — box-shadow suit la boîte rectangulaire, pas le personnage). */
+.asc-av { position: relative; display: block; width: 100%; height: 100%;
+  filter: drop-shadow(0 6px 10px rgba(16, 24, 40, .28)); }
 /* Il regarde vers l'étape du jour : miroir discret quand elle est à sa gauche.
    L'inclinaison, elle, se voit — c'est ce qui dit le mouvement. */
-.asc-avw-g .asc-av { transform: scaleX(-1) rotate(3deg); }
+.asc-avw-g .asc-av { transform: scaleX(-1); }
 .asc-av svg { width: 100%; height: 100%; display: block; }
 /* Étape validée : il MARCHE jusqu'à la suivante au lieu d'y réapparaître. */
 .asc-avw-go { transition: transform 1s cubic-bezier(.33, 0, .2, 1); }
@@ -3610,6 +3620,9 @@ body.is-demo #navRestart { display: none !important; }
 .asc-cardm { display: none; position: absolute; left: 0; right: 0; }
 @media (max-width: 640px) {
   .asc-cardm { display: block; }
+  /* La pointe ne sert qu'à la carte posée À CÔTÉ de sa bulle : sur la carte
+     pleine largeur, elle n'a plus rien à viser et flotte sur le titre. */
+  .asc-cardm .asc-card-tip { display: none; }
   /* ⚠️ La DERNIÈRE étape d'une semaine est toujours un jalon, donc elle porte
      toujours une carte — et sous la bulle, cette carte est plus haute que l'air
      réservée sous l'étape (ASC_AIR.milestone + ASC_PAD) : elle débordait sur la
@@ -3642,10 +3655,21 @@ body.is-demo #navRestart { display: none !important; }
   /* Tout rétrécit ENSEMBLE — bulle, écart, avatar : c'est le seul moyen de
      garder le libellé à côté de son étape sans jamais mordre le sentier. */
   .asc-wrap, #view-parcours { --asc-dot: 58px; --asc-dot-now: 72px; --asc-dot-top: 64px; --asc-rec-d: 52px;
-    --asc-gap: 36px; --asc-trail: 12px; --asc-av-d: 72px; }
+    --asc-gap: 36px; --asc-trail: 12px; --asc-av-h: 94px; }
   .asc-side { max-width: 124px; }
   .asc-lbl { font-size: 12px; }
-  .asc-av-sol { height: 10px; bottom: -5px; }
+  .asc-av-sol { height: 9px; }
+  /* ⚠️ Sur mobile la carte de l'étape se pose SOUS la bulle, sur toute la
+     largeur (cf. .asc-cardm) : le personnage, qui se tient un peu plus bas que
+     sa bulle, lui tombait dessus. On le remonte à hauteur de sa bulle — à
+     côté d'elle, là où la carte ne monte pas. Les 34 px sont la descente que
+     lui donne ASC_AV_T sur un pas de 90 px. */
+  .asc-avw { margin-top: calc(var(--asc-av-h) * -1 - 34px); }
+  /* L'étoile de mission est décalée hors de l'axe du sentier ; sur un écran de
+     375 px, son libellé part alors au-delà du bord et se fait couper. L'étoile
+     dorée en pointillés reste, et le détail s'ouvre au toucher — c'est déjà le
+     parti pris des récompenses sur mobile. */
+  .asc-mb-lbl { display: none; }
   .asc-card { padding: 12px 13px; }
   .asc-card-t { font-size: 16px; }
   .asc-card-f { flex-wrap: wrap; gap: 8px; }

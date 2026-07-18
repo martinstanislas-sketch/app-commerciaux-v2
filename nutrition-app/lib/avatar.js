@@ -308,8 +308,40 @@
     }
   }
 
+  // ── CORPS ENTIER ─────────────────────────────────────────────────────────
+  // Le buste s'arrête à y=96, pile en bas du viewBox : le personnage est fait
+  // pour une VIGNETTE RONDE (profil, fil du groupe, éditeur). Sur le Chemin, il
+  // se tient debout sur le sentier — il lui faut des jambes.
+  // ⚠️ On n'a rien déplacé de ce qui existe : le repère est identique (tête
+  // 25→75, torse jusqu'à 96), seul le viewBox s'allonge vers le BAS et les
+  // membres s'y ajoutent. Tous les accessoires, posés en coordonnées absolues
+  // (médaille en 88, brassard en 84…), tombent donc toujours juste.
+  // Les jambes et les bras se dessinent AVANT le torse : c'est le vêtement qui
+  // recouvre proprement les emmanchures et la taille, comme sur le buste.
+  const CORPS_H = 176;          // hauteur du viewBox en pied
+  const JAMBE = '#2B3444';      // collant sombre : lisible sur le sable du sentier
+  function membresPath(peau, tenueC) {
+    return [
+      // Bras, le long du corps. Un poil écartés : collés, la silhouette devient
+      // un bloc et on ne lit plus une personne.
+      `<path d="M28 82c-4 3-6 6-6 10v20c0 3 2 5 4.5 5s4.5-2 4.5-5V94z" fill="${peau.c}"/>`,
+      `<path d="M68 82c4 3 6 6 6 10v20c0 3-2 5-4.5 5s-4.5-2-4.5-5V94z" fill="${peau.c}"/>`,
+      // Bassin, puis les deux jambes. L'une est très légèrement avancée : une
+      // silhouette parfaitement symétrique est à l'arrêt, celle-ci est en marche.
+      `<path d="M34 94h28v18c0 4-3 7-7 7H41c-4 0-7-3-7-7z" fill="${JAMBE}"/>`,
+      `<path d="M36 112h10v42c0 3-2 5-5 5s-5-2-5-5z" fill="${JAMBE}"/>`,
+      `<path d="M50 112h10v46c0 3-2 5-5 5s-5-2-5-5z" fill="${JAMBE}"/>`,
+      // Chaussures : la couleur de la tenue, pour que l'ensemble se tienne.
+      `<path d="M35 154h12c1 0 2 1 2 2v4c0 2-1 3-3 3H35c-2 0-3-1-3-3v-3c0-2 1-3 3-3z" fill="${tenueC}"/>`,
+      `<path d="M48 158h12c1 0 2 1 2 2v4c0 2-1 3-3 3H48c-2 0-3-1-3-3v-3c0-2 1-3 3-3z" fill="${tenueC}"/>`,
+      `<path d="M32 161h19M45 165h19" stroke="rgba(255,255,255,.5)" stroke-width="1.6" fill="none"/>`,
+    ].join('');
+  }
+
   // Construit le SVG complet. `taille` sert d'attribut width/height ; le viewBox
   // reste fixe -> même rendu de la vignette 34px au grand format du profil.
+  // `corps: 'entier'` allonge le viewBox et pose le personnage debout, sans le
+  // disque de fond : c'est le mode du Chemin, et de lui seul.
   function rendreSVG(config, options) {
     const o = options || {};
     const c = normaliserConfig(config);
@@ -323,9 +355,13 @@
     const arriere = accs.filter((_, i) => c.accessoires[i] === 'aura_platine');
     const devant = accs.filter((_, i) => c.accessoires[i] !== 'aura_platine');
 
+    // En pied, le disque de fond disparaît : le personnage se tient sur le
+    // sentier, il n'est plus une pastille posée dessus.
+    const enPied = o.corps === 'entier';
     const corps = [
-      `<circle cx="48" cy="48" r="48" fill="${o.fond || '#EFF3FA'}"/>`,
+      enPied ? '' : `<circle cx="48" cy="48" r="48" fill="${o.fond || '#EFF3FA'}"/>`,
       arriere.map((a) => a.body).join(''),
+      enPied ? membresPath(peau, tenue.c) : '',
       // Cou puis tenue : le col recouvre proprement la base du cou.
       `<path d="M42 68h12v14H42z" fill="${peau.ombre}"/>`,
       tenuePath(c.tenue, tenue.c),
@@ -342,7 +378,8 @@
 
     const defs = accs.map((a) => a.defs).filter(Boolean).join('');
     const attrs = o.taille ? ` width="${o.taille}" height="${o.taille}"` : '';
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"${attrs} role="img" aria-label="${o.alt || 'Avatar'}">`
+    const vb = enPied ? `0 0 96 ${CORPS_H}` : '0 0 96 96';
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}"${attrs} role="img" aria-label="${o.alt || 'Avatar'}">`
       + (defs ? '<defs>' + defs + '</defs>' : '') + corps + '</svg>';
   }
 

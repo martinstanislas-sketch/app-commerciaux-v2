@@ -5186,13 +5186,19 @@ let _ascNextGiftKey = '';
 let _ascAvatarSVG = '';
 function ascCalerAvatar() {
   const cfg = (window.__NUTRI_USER && window.__NUTRI_USER.avatarConfig) || null;
-  _ascAvatarSVG = (cfg && window.MCAvatar) ? window.MCAvatar.rendreSVG(cfg, { alt: '' }) : '';
+  // `corps: 'entier'` : sur le Chemin il est DEBOUT sur le sentier, pas en
+  // vignette. Les trois autres endroits (profil, fil du groupe, éditeur)
+  // continuent d'appeler le rendu buste — ce mode leur est étranger.
+  _ascAvatarSVG = (cfg && window.MCAvatar) ? window.MCAvatar.rendreSVG(cfg, { alt: '', corps: 'entier' }) : '';
 }
 // LE CLIENT SUR SON CHEMIN. Il ne coiffe plus la bulle comme une icône : il se
-// tient SUR le sentier, sur le segment qui monte vers l'étape du jour — donc
-// juste avant elle, tourné vers elle. C'est ce qui le rend physiquement présent
-// plutôt que décoratif, et c'est aussi ce qui rend son déplacement lisible quand
-// une étape est validée (cf. ascAvatarDeplacer).
+// tient debout SUR le sentier, en pied, juste APRÈS l'étape du jour — sur le
+// segment qui mène à la suivante, celle qu'il va chercher.
+// ⚠️ Après, et non avant : en pied il mesure 118 px pour un pas de 90 px, donc
+// il croise forcément une bulle voisine. Posé AVANT l'étape du jour, il
+// recouvrait l'étape déjà validée au-dessus (93 % de sa surface, mesuré). Posé
+// après, la seule bulle qu'il puisse croiser est la SIENNE — et elle passe
+// devant lui (z-index de .asc-active), ce qui se lit « il est arrivé là ».
 // ⚠️ Ce segment est libre par CONSTRUCTION : l'étoile de mission évite tout
 // segment dont une extrémité porte une carte (cf. ascChapitreHTML), et l'étape
 // active en porte toujours une. Rien d'autre ne s'y pose.
@@ -5201,25 +5207,29 @@ function ascCalerAvatar() {
 // derrière elle (aucune valeur ne les sépare complètement à ce pas) — d'où le
 // z-index de .asc-avw, sous les bulles : la bulle passe DEVANT, l'avatar en
 // émerge, et on lit « il est arrivé jusque-là » au lieu d'une superposition.
-const ASC_AV_T = 0.60; // où il se tient sur le segment, en partant de l'étape du jour
+const ASC_AV_T = 0.38; // où il POSE LES PIEDS sur le segment, en partant de l'étape du jour
 function ascAvatarSurSentierHTML(nodes, pts) {
   if (!_ascAvatarSVG) return '';
   const k = nodes.findIndex((n) => n.status === 'active');
   if (k < 0) return '';
   // Première étape d'un chapitre : pas de segment amont ici, on le pose au-dessus.
   const p = pts[k];
-  // … et un peu vers l'EXTÉRIEUR de la vague : à la seule verticale du segment,
-  // il restait encastré dans la bulle. Le côté intérieur est pris par la carte
-  // « Étape actuelle » — l'extérieur est le seul dégagé.
-  const dehors = p.x >= 50 ? 5 : -5;
-  const av = k >= 1
-    ? { x: p.x + (pts[k - 1].x - p.x) * ASC_AV_T + dehors, y: p.y - (p.y - pts[k - 1].y) * ASC_AV_T }
-    : { x: p.x + dehors, y: p.y - 46 };
-  // Il regarde vers l'étape du jour. Le visage est de face : c'est un MIROIR
-  // discret (l'épaule et les accessoires basculent), pas une volte-face — d'où
-  // l'inclinaison qui, elle, se voit et dit le mouvement.
-  const versGauche = p.x < av.x;
-  return `<div class="asc-avw${versGauche ? ' asc-avw-g' : ''}" style="left:${av.x.toFixed(2)}%;top:${Math.round(av.y)}px" aria-hidden="true">
+  const suivant = pts[k + 1]; // la prochaine étape, s'il en reste une dans la semaine
+  const av = suivant
+    ? { x: p.x + (suivant.x - p.x) * ASC_AV_T, y: p.y + (suivant.y - p.y) * ASC_AV_T }
+    : { x: p.x, y: p.y + 34 };
+  // Il regarde vers là où il VA — la prochaine étape, pas celle qu'il vient de
+  // faire. Le visage est de face : c'est un miroir discret (l'épaule et les
+  // accessoires basculent), pas une volte-face.
+  const cible = suivant || p;
+  const versGauche = cible.x < av.x;
+  // ⚠️ Le décalage LATÉRAL est laissé au CSS (classe -cg / -cd) : il vaut « un
+  // rayon de bulle + une demi-largeur de personnage », deux grandeurs en PIXELS
+  // que le CSS connaît et qui changent selon l'écran. Exprimé en % de la carte
+  // comme ici, il était juste sur ordinateur et trop court sur mobile — le
+  // personnage y était avalé par sa propre bulle (mesuré : 75 % de recouvrement).
+  const cote = p.x >= 50 ? ' asc-avw-cd' : ' asc-avw-cg'; // vers l'extérieur de la vague
+  return `<div class="asc-avw${cote}${versGauche ? ' asc-avw-g' : ''}" style="left:${av.x.toFixed(2)}%;top:${Math.round(av.y)}px" aria-hidden="true">
     <span class="asc-av-sol"></span>
     <span class="asc-av">${_ascAvatarSVG}</span>
   </div>`;
