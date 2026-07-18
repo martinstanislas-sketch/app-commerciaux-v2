@@ -1888,6 +1888,76 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   .celeb-etincelle { display: none; }
 }
 
+/* === DÉBLOCAGE D'UN CADEAU — coffre noir & or (dark luxury) ================= */
+.gchest { position: fixed; inset: 0; z-index: 1200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+  background: radial-gradient(120% 90% at 50% 42%, rgba(26,19,5,.93), rgba(0,0,0,.97));
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .3s ease, visibility .3s; -webkit-tap-highlight-color: transparent; }
+.gchest.open { opacity: 1; visibility: visible; pointer-events: auto; }
+.gchest-scene { position: relative; width: 190px; height: 190px; display: grid; place-items: center; }
+/* Les rayons dorés qui jaillissent quand le coffre s'ouvre. */
+.gchest-rays { position: absolute; width: 300px; height: 300px; border-radius: 50%; opacity: 0; transform: scale(.4) rotate(0deg);
+  background: repeating-conic-gradient(from 0deg, rgba(230,190,90,.5) 0deg 5deg, transparent 5deg 18deg);
+  -webkit-mask: radial-gradient(circle, transparent 34%, #000 36%, #000 60%, transparent 62%);
+          mask: radial-gradient(circle, transparent 34%, #000 36%, #000 60%, transparent 62%); }
+/* Le halo doux et chaud derrière le coffre. */
+.gchest-glow { position: absolute; width: 200px; height: 200px; border-radius: 50%; opacity: 0; transform: scale(.5);
+  background: radial-gradient(circle, rgba(240,205,120,.85), rgba(200,150,50,.35) 42%, transparent 68%); filter: blur(2px); }
+/* Le cadeau révélé, au-dessus du coffre. */
+.gchest-reveal { position: absolute; top: 6px; display: grid; place-items: center; opacity: 0; transform: translateY(18px) scale(.5); }
+.gchest-gift { font-size: 52px; line-height: 1; filter: drop-shadow(0 6px 14px rgba(0,0,0,.5)); }
+/* Le coffre : deux parties CSS (corps + couvercle), or sombre + bande + serrure. */
+.gchest-chest { position: absolute; bottom: 26px; width: 128px; height: 96px; }
+.gchest-body { position: absolute; bottom: 0; left: 0; width: 128px; height: 60px; border-radius: 8px 8px 12px 12px;
+  background: linear-gradient(180deg, #6d5019 0%, #3a2a0d 100%); box-shadow: inset 0 2px 0 rgba(255,220,140,.28), 0 10px 24px rgba(0,0,0,.5); }
+.gchest-body::before { content: ''; position: absolute; left: 50%; top: 0; transform: translateX(-50%); width: 24px; height: 100%; background: linear-gradient(180deg, #f0d488, #b6892e); }
+.gchest-body::after { content: ''; position: absolute; left: 50%; top: 16px; transform: translateX(-50%); width: 22px; height: 20px; border-radius: 5px; background: radial-gradient(circle at 50% 38%, #ffe9a8, #b6892e); box-shadow: 0 0 0 2px #3a2a0d, 0 0 10px rgba(240,205,120,.5); }
+.gchest-lid { position: absolute; top: 0; left: 0; width: 128px; height: 46px; border-radius: 14px 14px 4px 4px; transform-origin: 50% 100%;
+  background: linear-gradient(180deg, #8a6a24, #5a4214); box-shadow: inset 0 2px 0 rgba(255,220,140,.3);
+  transition: transform .55s cubic-bezier(.34, 1.5, .5, 1); }
+.gchest-lid::before { content: ''; position: absolute; left: 50%; top: 0; transform: translateX(-50%); width: 24px; height: 100%; background: linear-gradient(180deg, #f0d488, #b6892e); border-radius: 0 0 3px 3px; }
+/* Poussière d'or qui retombe, sobre. */
+.gchest-dust { position: absolute; inset: 0; pointer-events: none; }
+.gchest-dust i { position: absolute; top: 42%; left: 50%; width: 5px; height: 5px; border-radius: 50%; background: radial-gradient(circle, #ffe9a8, #c89b3c); opacity: 0; }
+
+/* --- État d'attente (à l'ouverture de l'overlay) : le coffre tremble ~0,5 s --- */
+.gchest.open .gchest-chest { animation: gchestShake .5s ease-in-out; }
+.gchest.open .gchest-glow { opacity: .5; transform: scale(.7); animation: gchestGlowIdle 1.6s ease-in-out infinite; }
+/* --- État OUVERT (déclenché ~0,56 s après) --- */
+.gchest.is-open .gchest-lid { transform: rotate(-58deg) translateY(-4px); }
+.gchest.is-open .gchest-chest { animation: none; }
+.gchest.is-open .gchest-rays { animation: gchestRays 2.4s ease-out forwards; }
+.gchest.is-open .gchest-glow { opacity: 1; animation: gchestGlowBurst 1.9s ease-out forwards; }
+.gchest.is-open .gchest-reveal { animation: gchestReveal .7s cubic-bezier(.2,1.5,.4,1) .12s forwards; }
+.gchest.is-open .gchest-dust i { animation: gchestDust 1.5s ease-in calc(.15s + var(--d) * .06s) forwards; }
+/* Le panneau (texte + bouton) apparaît une fois le coffre ouvert. */
+.gchest-panel { text-align: center; padding: 0 24px; max-width: 340px; opacity: 0; transform: translateY(10px); }
+.gchest.is-open .gchest-panel { animation: gchestPanel .5s ease-out .35s forwards; }
+.gchest-kicker { margin: 0 0 4px; font: 800 13px/1.2 var(--font); text-transform: uppercase; letter-spacing: .12em; color: #e6be5a; }
+.gchest-name { margin: 0 0 20px; font: 800 22px/1.25 var(--font); color: #fff; }
+.gchest-cta { display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 0 30px; border: 0; border-radius: 999px; cursor: pointer;
+  font: 800 15px/1 var(--font); color: #241a06; background: linear-gradient(135deg, #f4dc94, #c79a3c); box-shadow: 0 10px 26px rgba(199,154,58,.45); }
+.gchest-cta:active { transform: translateY(1px); }
+.gchest-sound { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); right: 14px; width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid rgba(240,205,120,.35); border-radius: 50%; background: rgba(0,0,0,.35); color: #f0cd78; font-size: 17px; cursor: pointer; }
+
+@keyframes gchestShake { 0%,100% { transform: translateX(0) rotate(0); } 20% { transform: translateX(-4px) rotate(-2deg); } 40% { transform: translateX(4px) rotate(2deg); } 60% { transform: translateX(-3px) rotate(-1.5deg); } 80% { transform: translateX(3px) rotate(1.5deg); } }
+@keyframes gchestRays { 0% { opacity: 0; transform: scale(.4) rotate(0); } 25% { opacity: .9; } 100% { opacity: 0; transform: scale(1.15) rotate(60deg); } }
+@keyframes gchestGlowIdle { 0%,100% { opacity: .4; } 50% { opacity: .6; } }
+@keyframes gchestGlowBurst { 0% { opacity: .4; transform: scale(.6); } 30% { opacity: 1; transform: scale(1.05); } 100% { opacity: .55; transform: scale(1); } }
+@keyframes gchestReveal { 0% { opacity: 0; transform: translateY(20px) scale(.5); } 60% { opacity: 1; transform: translateY(-40px) scale(1.12); } 100% { opacity: 1; transform: translateY(-34px) scale(1); } }
+@keyframes gchestPanel { to { opacity: 1; transform: translateY(0); } }
+@keyframes gchestDust { 0% { opacity: 0; transform: translate(0,0) scale(1); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(calc((var(--d) - 5) * 14px), 90px) scale(.3); } }
+
+/* Reduced-motion : version STATIQUE (coffre déjà ouvert, halo fixe, pas de mouvement). */
+.gchest--reduce .gchest-chest, .gchest--reduce .gchest-rays, .gchest--reduce .gchest-glow,
+.gchest--reduce .gchest-reveal, .gchest--reduce .gchest-lid, .gchest--reduce .gchest-panel,
+.gchest--reduce .gchest-dust i { animation: none !important; transition: none !important; }
+.gchest--reduce .gchest-glow { opacity: 1; transform: scale(1); }
+.gchest--reduce .gchest-rays { opacity: .5; transform: scale(1); }
+.gchest--reduce .gchest-reveal { opacity: 1; transform: translateY(-34px) scale(1); }
+.gchest--reduce .gchest-panel { opacity: 1; transform: none; }
+.gchest--reduce.is-open .gchest-lid { transform: rotate(-58deg) translateY(-4px); }
+.gchest--reduce .gchest-dust { display: none; }
+
 /* --- BILAN HEBDO : lecture in-app, plein écran (mobile-first) ---------------
    Thème CLAIR premium (celui de l'app) + accents DORÉS, l'or étant déjà la
    couleur des jalons ★ du Chemin : le bilan est un moment, pas une rupture. */

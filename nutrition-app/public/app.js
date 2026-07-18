@@ -4129,6 +4129,98 @@ function celebrerPalierSerie(palier) {
   });
 }
 
+// ─── ANIMATION DE DÉBLOCAGE D'UN CADEAU (coffre, noir & or) ─────────────────
+// Séquence premium (~2 s) : fond sombre, coffre qui tremble, s'ouvre avec un halo
+// doré, le cadeau se révèle, « Cadeau débloqué ! » + bouton « Voir mes cadeaux ».
+// Ne se rejoue JAMAIS (marqueur par cadeau, persistant). Respecte reduced-motion
+// (version statique) et le son est OFF par défaut (togglable, généré en WebAudio).
+const GIFT_ANIM_KEY = 'mc-gift-anim-seen';
+const GIFT_SOUND_KEY = 'mc-gift-sound';
+function giftAnimSeen() { try { return new Set(JSON.parse(localStorage.getItem(GIFT_ANIM_KEY) || '[]')); } catch (_) { return new Set(); } }
+function markGiftAnimSeen(id) { try { const s = giftAnimSeen(); s.add(id); localStorage.setItem(GIFT_ANIM_KEY, JSON.stringify([...s].slice(-100))); } catch (_) { /* quota */ } }
+function playGiftChime() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    const ctx = playGiftChime._ac || (playGiftChime._ac = new AC());
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    [880, 1174.7, 1568].forEach((f, i) => {
+      const t = now + i * 0.1, o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.1, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.55);
+    });
+  } catch (_) { /* audio indisponible : silencieux */ }
+}
+function ensureGiftChestOverlay() {
+  let ov = $('#giftChestOv'); if (ov) return ov;
+  ov = document.createElement('div');
+  ov.id = 'giftChestOv';
+  ov.className = 'gchest';
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  ov.setAttribute('aria-label', 'Cadeau débloqué');
+  const dust = Array.from({ length: 10 }, (_, k) => '<i style="--d:' + k + '"></i>').join('');
+  ov.innerHTML =
+    '<div class="gchest-scene" aria-hidden="true">'
+    + '<span class="gchest-rays"></span><span class="gchest-glow"></span>'
+    + '<span class="gchest-reveal"><span class="gchest-gift">🎁</span></span>'
+    + '<span class="gchest-chest"><span class="gchest-lid"></span><span class="gchest-body"></span></span>'
+    + '<span class="gchest-dust">' + dust + '</span>'
+    + '</div>'
+    + '<div class="gchest-panel">'
+    + '<p class="gchest-kicker">Cadeau débloqué&nbsp;!</p>'
+    + '<h3 class="gchest-name"></h3>'
+    + '<button type="button" class="gchest-cta">Voir mes cadeaux</button>'
+    + '</div>'
+    + '<button type="button" class="gchest-sound" aria-pressed="false" aria-label="Activer le son">🔇</button>';
+  document.body.appendChild(ov);
+  ov._sound = localStorage.getItem(GIFT_SOUND_KEY) === '1';
+  const soundBtn = ov.querySelector('.gchest-sound');
+  const majSound = () => { soundBtn.textContent = ov._sound ? '🔊' : '🔇'; soundBtn.setAttribute('aria-pressed', ov._sound ? 'true' : 'false'); };
+  majSound();
+  const fermer = () => { ov.classList.remove('open'); ov.classList.remove('is-open'); };
+  // Tap n'importe où (le fond) -> ferme SANS rediriger.
+  ov.addEventListener('click', fermer);
+  // Le bouton -> ferme ET va au cadeau précis dans la boutique.
+  ov.querySelector('.gchest-cta').addEventListener('click', (e) => {
+    e.stopPropagation(); fermer();
+    const id = ov._giftId;
+    setTab('boutique');
+    if (id) ascAllerA('#view-boutique .btq-card[data-id="' + id + '"]');
+  });
+  soundBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    ov._sound = !ov._sound;
+    try { localStorage.setItem(GIFT_SOUND_KEY, ov._sound ? '1' : '0'); } catch (_) {}
+    majSound();
+    if (ov._sound) playGiftChime(); // aperçu au moment où on l'active
+  });
+  return ov;
+}
+// Joue l'animation coffre pour UN cadeau (une seule fois). etat = state du Chemin.
+function celebrateGiftUnlock(seuil, etat) {
+  const g = (etat && etat.cadeaux && etat.cadeaux[seuil]) || null;
+  const id = (g && g.id) ? g.id : ('seuil-' + seuil);
+  if (giftAnimSeen().has(id)) return; // déjà vu -> jamais rejoué
+  markGiftAnimSeen(id);
+  const ov = ensureGiftChestOverlay();
+  ov._giftId = (g && g.id) || null;
+  ov.querySelector('.gchest-gift').textContent = (g && g.icon) || '🎁';
+  ov.querySelector('.gchest-name').textContent = (g && g.label) || ('Cadeau à ' + seuil + ' Punch');
+  const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  ov.classList.toggle('gchest--reduce', reduce);
+  ov.classList.remove('is-open');
+  ov.classList.add('open');
+  void ov.offsetHeight; // reflow -> l'entrée s'anime
+  if (reduce) { ov.classList.add('is-open'); }               // statique : coffre déjà ouvert
+  else { clearTimeout(ov._t); ov._t = setTimeout(() => ov.classList.add('is-open'), 560); } // suspense ~0,5 s
+  try { if (navigator.vibrate && !reduce) navigator.vibrate([12, 30, 12]); } catch (_) {}
+  if (ov._sound) playGiftChime();
+}
+
 // Visuel par type de déblocage.
 const DEBLOCAGE_VISUEL = {
   video: { icon: '🎬', titre: 'Nouvelles vidéos débloquées 🎉' },
@@ -4139,6 +4231,9 @@ const DEBLOCAGE_VISUEL = {
 function celebrerDeblocages(cles, etat) {
   (cles || []).forEach((cle) => {
     const [seuil, type] = String(cle).split(':');
+    // Les CADEAUX ont leur animation coffre premium (noir & or) ; vidéos/guides
+    // gardent la célébration générique.
+    if (type === 'gift') { celebrateGiftUnlock(Number(seuil), etat); return; }
     const v = DEBLOCAGE_VISUEL[type]; if (!v) return;
     celebrateUnlock({ icon: v.icon, title: v.titre, subtitle: sousTitreDeblocage(type, Number(seuil), etat) });
   });
@@ -5418,7 +5513,9 @@ async function envoyerMissionBonus() {
     const res = await fetch(apiUrl('/api/challenge/mission-bonus'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ week, texte }) });
     const d = await res.json();
     if (!d || !d.ok) throw new Error((d && d.error) || 'Envoi impossible pour le moment.');
-    if (d.state) state.challenge = d.state;
+    // appliquerEtatChallenge (et pas une assignation directe) : le diff déclenche
+    // l'animation coffre si le Punch de la mission vient de débloquer un cadeau.
+    if (d.state) appliquerEtatChallenge(d.state);
     // Pur déclaratif : le Punch est crédité tout de suite -> on célèbre le gain.
     const gagne = (d.reward && d.reward.punch) || 0;
     if (gagne) rewardToast({ title: (d.reward && d.reward.title) || 'Mission bonus', punch: gagne, milestone: false });
