@@ -4054,7 +4054,10 @@ async function reactFeed(id, type) {
 const _celebFile = [];
 let _celebEnCours = false;
 
-// { icon, title, subtitle, gain, autoMs } — autoMs 0 = le client ferme lui-même.
+// { icon, title, subtitle, gain, autoMs, cible } — autoMs 0 = le client ferme
+// lui-même ; `cible` = fonction appelée au clic, pour emmener sur la liste
+// concernée. Une célébration qui ne fait que disparaître laisse le client
+// devant rien : il vient de gagner quelque chose, il doit pouvoir aller le voir.
 function celebrateUnlock(c) {
   if (!c) return;
   _celebFile.push(c);
@@ -4070,6 +4073,8 @@ function celebSuivante() {
   ov.querySelector('.celeb-sub').textContent = c.subtitle || '';
   const gainEl = ov.querySelector('.celeb-gain');
   gainEl.style.display = c.gain ? '' : 'none';
+  ov._cible = typeof c.cible === 'function' ? c.cible : null;
+  ov.classList.toggle('celeb-clic', !!ov._cible); // le curseur dit que c'est cliquable
   ov.classList.add('open');
   ov.querySelectorAll('.celeb-etincelle').forEach((e, k) => { e.style.animationDelay = (k * 55) + 'ms'; });
   if (c.gain) countUp(gainEl, c.gain);
@@ -4117,7 +4122,9 @@ function ensureCelebOverlay() {
     <div class="celeb-gain"></div>
   </div>`;
   document.body.appendChild(ov);
-  ov.addEventListener('click', fermerCeleb); // fermeture au tap, n'importe où
+  // Tap n'importe où : on ferme, et s'il y a une destination on y va. C'est ce
+  // que le client attend d'une bannière « tu viens de débloquer quelque chose ».
+  ov.addEventListener('click', () => { const aller = ov._cible; fermerCeleb(); if (aller) aller(); });
   return ov;
 }
 
@@ -4138,7 +4145,19 @@ function celebrerPalierSerie(palier) {
 // doré, le cadeau se révèle, « Cadeau débloqué ! » + bouton « Voir mes cadeaux ».
 // Ne se rejoue JAMAIS (marqueur par cadeau, persistant). Respecte reduced-motion
 // (version statique) et le son est OFF par défaut (togglable, généré en WebAudio).
+// ⚠️ DEUX marqueurs distincts, et ils ne disent pas la même chose :
+//  · GIFT_ANIM_KEY  = « l'animation coffre a déjà été jouée » -> ne jamais la
+//    rejouer, même au rechargement de la page ;
+//  · GIFT_NEUF_KEY  = « ce cadeau vient de tomber et le client ne l'a pas encore
+//    vu DANS SA LISTE » -> il y brille jusqu'à ce qu'il l'ouvre.
+// Les confondre ferait briller un cadeau pour toujours, ou pas du tout.
 const GIFT_ANIM_KEY = 'mc-gift-anim-seen';
+const GIFT_NEUF_KEY = 'mc-gift-neuf';
+function cadeauxNeufs() { try { return new Set(JSON.parse(localStorage.getItem(GIFT_NEUF_KEY) || '[]')); } catch (_) { return new Set(); } }
+function marquerCadeauNeuf(id) { try { const s = cadeauxNeufs(); s.add(id); localStorage.setItem(GIFT_NEUF_KEY, JSON.stringify([...s].slice(-30))); } catch (_) { /* quota */ } }
+function oublierCadeauxNeufs(ids) {
+  try { const s = cadeauxNeufs(); (ids || []).forEach((x) => s.delete(x)); localStorage.setItem(GIFT_NEUF_KEY, JSON.stringify([...s])); } catch (_) { /* quota */ }
+}
 const GIFT_SOUND_KEY = 'mc-gift-sound';
 function giftAnimSeen() { try { return new Set(JSON.parse(localStorage.getItem(GIFT_ANIM_KEY) || '[]')); } catch (_) { return new Set(); } }
 function markGiftAnimSeen(id) { try { const s = giftAnimSeen(); s.add(id); localStorage.setItem(GIFT_ANIM_KEY, JSON.stringify([...s].slice(-100))); } catch (_) { /* quota */ } }
@@ -4214,6 +4233,7 @@ function celebrateGiftUnlock(seuil, etat) {
   const id = (g && g.id) ? g.id : ('seuil-' + seuil);
   if (giftAnimSeen().has(id)) return; // déjà vu -> jamais rejoué
   markGiftAnimSeen(id);
+  if (g && g.id) marquerCadeauNeuf(g.id); // … et il brillera dans la liste
   const ov = ensureGiftChestOverlay();
   ov._giftId = (g && g.id) || null;
   ov._avatarAcc = null;   // l'overlay est partagé : on remet la cible cadeau
@@ -4277,9 +4297,23 @@ function celebrerDeblocages(cles, etat) {
     if (type === 'gift') { celebrateGiftUnlock(Number(seuil), etat); return; }
     if (type === 'avatar') { celebrateAvatarUnlock(Number(seuil), etat); return; }
     const v = DEBLOCAGE_VISUEL[type]; if (!v) return;
-    celebrateUnlock({ icon: v.icon, title: v.titre, subtitle: sousTitreDeblocage(type, Number(seuil), etat) });
+    celebrateUnlock({
+      icon: v.icon, title: v.titre, subtitle: sousTitreDeblocage(type, Number(seuil), etat),
+      cible: () => allerAuxDeblocages(type),
+    });
   });
 }
+// Où va-t-on quand on tape la célébration d'un guide ou d'une vidéo : sur la
+// section qui vient de s'enrichir. Les guides visent « À lire » (les nouveaux)
+// et, à défaut, la bibliothèque ; querySelector prend le premier dans l'ORDRE DU
+// DOCUMENT, donc « À lire » gagne quand il existe.
+function allerAuxDeblocages(type) {
+  setTab('ebooks');
+  ascAllerA(type === 'video'
+    ? '#view-ebooks .ebv-sec[data-sec="seances"]'
+    : '#view-ebooks .ebv-sec[data-sec="alire"], #view-ebooks .ebv-sec[data-sec="lus"]');
+}
+
 function sousTitreDeblocage(type, seuil, etat) {
   if (type === 'gift') {
     // Le nom vient du serveur (lib/cadeaux) : un seul endroit nomme les cadeaux.
@@ -5143,57 +5177,14 @@ function ascTrace(pts) {
   return d;
 }
 
-// --- Les récompenses, posées le long du Chemin ------------------------------
-// Une récompense tombe à un SEUIL DE PUNCH ; le Chemin, lui, avance en ÉTAPES. On
-// rattache donc chacune à l'étape la plus proche du moment où son seuil tombe, via
-// `ordre` (la part du parcours franchie), calculé par le serveur.
-// ⚠️ C'est une APPROXIMATION assumée : le Punch vient du parcours ET de la série,
-// deux clients au même jour n'ont pas le même total. D'où le seuil écrit en toutes
-// lettres sur le marqueur (« 1 000 Punch ») : il ne prétend jamais « à cette
-// étape », il dit « à ce Punch ». La position ne fait qu'ordonner.
-function ascRecompensesParEtape(st) {
-  const nodes = st.nodes || [];
-  const par = {};
-  if (!nodes.length) return par;
-  (st.recompenses || []).forEach((r) => {
-    const k = Math.max(0, Math.min(nodes.length - 1, Math.round((Number(r.ordre) || 0) * (nodes.length - 1))));
-    (par[k] = par[k] || []).push(r);
-  });
-  return par;
-}
-// Le marqueur : un petit médaillon accroché au sentier par un trait fin. Il est
-// plus petit qu'une étape — le sentier reste le sujet, pas lui. L'icône vient de
-// DEBLOCAGE_VISUEL, la table qui sert déjà aux célébrations : une récompense doit
-// avoir le MÊME visage partout.
-function ascRecHTML(r) {
-  const v = DEBLOCAGE_VISUEL[r.type] || {};
-  const isGift = r.type === 'gift';
-  const isNext = isGift && (r.seuil + ':' + r.type) === _ascNextGiftKey; // le prochain cadeau : mis en avant
-  const cls = 'asc-rec asc-rec-' + r.type + (r.locked ? ' is-lock' : ' is-ok') + (isNext ? ' is-next' : '');
-  // 3 états lisibles : débloqué (coche) / prochain (« il te reste X ») / verrouillé (coût).
-  const etat = !r.locked ? 'débloqué' : (isNext ? 'il te reste ' + r.restant + ' Punch' : 'verrouillé, encore ' + r.restant + ' Punch');
-  const aria = r.label + ' à ' + r.seuil + ' Punch — ' + etat;
-  const sousTitre = !r.locked ? 'Débloqué ✓' : (isNext ? 'Il te reste ' + r.restant + ' Punch' : r.seuil + ' Punch');
-  return '<button type="button" class="' + cls + '"'
-    + ' data-rec="' + r.seuil + ':' + r.type + '" title="' + mcpEsc(r.label) + '" aria-label="' + mcpEsc(aria) + '">'
-    + '<span class="asc-rec-tie" aria-hidden="true"></span>'
-    + '<span class="asc-rec-b" aria-hidden="true"><span class="asc-rec-ic">' + (r.icon || v.icon || '🎁') + '</span>'
-    + '<span class="asc-rec-st">' + icSvg(r.locked ? (isNext ? 'star' : 'lock') : 'check') + '</span></span>'
-    + '<span class="asc-rec-x" aria-hidden="true"><b>' + mcpEsc(r.label) + '</b><i>' + sousTitre + '</i></span>'
-    + '</button>';
-}
-// Empilé quand deux récompenses tombent au même seuil (800 = guides + cadeau,
-// 1050 = guides + vidéos) : un petit groupe, jamais deux gros médaillons côte à côte.
-// `place` = 'in' (vers le centre) ou 'out' (vers l'extérieur) : les récompenses
-// vont vers l'extérieur SEULEMENT quand l'étape porte déjà une carte à l'intérieur,
-// pour ne jamais se marcher dessus.
-function ascRecsHTML(recs, place) {
-  if (!recs || !recs.length) return '';
-  return '<span class="asc-recs asc-' + (place || 'in') + '">' + recs.map(ascRecHTML).join('') + '</span>';
-}
-
+// ⚠️ Les récompenses ne sont PLUS posées le long du sentier. Elles y étaient
+// accrochées par un trait, avec leur libellé — et à 64 px de diamètre elles
+// encombraient l'écran plus qu'elles ne motivaient. Ce qu'elles disaient est
+// dit ailleurs, mieux : le prochain cadeau a sa carte au rail (visible en
+// permanence, avec sa jauge), et un déblocage se célèbre au moment où il tombe
+// (animation coffre) puis se retrouve dans la liste des cadeaux, mis en avant.
+// Rien n'est perdu : c'est le même parcours, débarrassé de son affichage.
 // Le PROCHAIN cadeau (1er cadeau verrouillé) : mis en avant sur le sentier.
-let _ascNextGiftKey = '';
 // L'avatar du client, rendu UNE fois par peinture puis posé sur l'étape active.
 // Rendu localement par le même moteur que partout ailleurs (config SVG, aucune
 // requête réseau pour une vignette) — cf. MCAvatar.
@@ -5281,13 +5272,9 @@ function ascAvatarDeplacer(view, avant) {
 }
 function challengePathHTML(st) {
   ascCalerAvatar();
-  const nextGift = (st.recompenses || []).filter((r) => r.type === 'gift' && r.locked)
-    .reduce((best, r) => (!best || r.seuil < best.seuil ? r : best), null);
-  _ascNextGiftKey = nextGift ? nextGift.seuil + ':gift' : '';
   const byWeek = {};
   (st.nodes || []).forEach((n) => { (byWeek[n.week] = byWeek[n.week] || []).push(n); });
   const semaines = Object.keys(byWeek).map(Number).sort((a, b) => a - b);
-  const recs = ascRecompensesParEtape(st);
   const ctx = { semaines: semaines.length, total: st.totalDays || (st.nodes || []).length };
   let i = 0; // indice GLOBAL -> le serpentin traverse les chapitres sans rupture
   let html = '<div class="asc">';
@@ -5295,7 +5282,7 @@ function challengePathHTML(st) {
     const nodes = byWeek[week];
     const suiv = wi + 1 < semaines.length ? byWeek[semaines[wi + 1]][0] : null;
     const next = suiv ? { x: ascX(i + nodes.length), done: suiv.status === 'done' } : null;
-    html += ascChapitreHTML(week, nodes, i, st, semaines.length, recs, next, ctx);
+    html += ascChapitreHTML(week, nodes, i, st, semaines.length, next, ctx);
     i += nodes.length;
   });
   html += ascLegendeHTML();
@@ -5306,7 +5293,7 @@ function challengePathHTML(st) {
 // Un chapitre = une semaine : sa carte à gauche, son bout de sentier à droite.
 // Les deux vivent dans la MÊME section — c'est ce qui les garde alignés en
 // défilant, sans une ligne de JS pour les synchroniser.
-function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) {
+function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, next, ctx) {
   const done = nodes.filter((n) => n.status === 'done').length;
   const etat = done === nodes.length ? 'done' : (nodes.some((n) => n.status === 'active') ? 'now' : 'soon');
   const ys = ascYs(nodes);
@@ -5390,7 +5377,7 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
         <path class="asc-trail-dots" d="${d}" />
         ${dLien ? `<path class="asc-trail-dots asc-lien" d="${dLien}" />` : ''}
       </svg>
-      ${nodes.map((n, k) => ascNodeHTML(n, pts[k], (recs || {})[iOffset + k], ctx)).join('')}
+      ${nodes.map((n, k) => ascNodeHTML(n, pts[k], ctx)).join('')}
       ${nodes.map((n, k) => ascCarteMobileHTML(n, pts[k], ctx)).join('')}
       ${ascAvatarSurSentierHTML(nodes, pts)}
       ${mb}
@@ -5423,7 +5410,7 @@ function ascWeekCardHTML(week, nodes, st, nbSemaines, etat) {
 // Une étape. Le libellé (ou sa carte) part vers l'EXTÉRIEUR de la vague, les
 // récompenses vers l'intérieur : à la hauteur d'une bulle, le sentier n'occupe que
 // la bulle (sa tangente y est verticale), donc les deux côtés sont libres.
-function ascNodeHTML(n, pt, recs, ctx) {
+function ascNodeHTML(n, pt, ctx) {
   const cls = ['asc-nd', 'asc-' + n.status, pt.x >= 50 ? 'asc-r' : 'asc-l'];
   if (n.milestone) cls.push('asc-sommet');
   if (n.type === 'final') cls.push('asc-fin');
@@ -5446,8 +5433,6 @@ function ascNodeHTML(n, pt, recs, ctx) {
   //  · une CARTE (maintenant / jalon / fin) part vers l'INTÉRIEUR (le centre a le
   //    plus de place — une carte large déborderait vers l'extérieur d'un nœud du
   //    bord) et s'aligne sur le haut de la bulle ;
-  //  · une RÉCOMPENSE va vers l'intérieur, SAUF si la carte y est déjà : elle
-  //    passe alors à l'extérieur pour ne pas la chevaucher.
   // Ces classes le disent au CSS sans qu'il ait à deviner (pas de :has, ignoré des
   // vieux WebView).
   const aCarte = n.type === 'final';
@@ -5458,7 +5443,6 @@ function ascNodeHTML(n, pt, recs, ctx) {
     </button>
     ${ecusson}
     <div class="${sideCls}">${ascSideHTML(n, ctx)}</div>
-    ${ascRecsHTML(recs, aCarte ? 'out' : 'in')}
   </div>`;
 }
 // SUR MOBILE, une carte ne tient pas À CÔTÉ d'une bulle : il restait ~128 px de
@@ -5511,7 +5495,6 @@ function ascLegendeHTML() {
   return `<div class="asc-leg">
     <span class="asc-leg-i"><i class="asc-leg-d asc-leg-done">${icSvg('check')}</i>Étape réalisée</span>
     <span class="asc-leg-i"><i class="asc-leg-d asc-leg-now"></i>Étape actuelle</span>
-    <span class="asc-leg-i"><i class="asc-leg-d asc-leg-rec">🎁</i>Récompense débloquée</span>
     <span class="asc-leg-i"><i class="asc-leg-d asc-leg-lock">${icSvg('lock')}</i>Étape à débloquer</span>
   </div>`;
 }
@@ -5535,25 +5518,6 @@ function ascPourquoiFerme(day) {
   }
 }
 
-// Un clic sur une récompense débloquée emmène DESSUS, pas « vers l'écran qui la
-// contient » : c'est toute la différence entre un raccourci et une promesse tenue.
-function ouvrirRecompense(cle) {
-  const [seuil, type] = String(cle).split(':');
-  const r = ((state.challenge || {}).recompenses || []).find((x) => String(x.seuil) === seuil && x.type === type);
-  if (!r) return;
-  // Deux-points plutôt qu'une phrase collée : les libellés n'ont pas tous d'article
-  // (« un massage sportif » mais « Nouvelles séances vidéo »), et « débloquer
-  // nouvelles séances vidéo » se lit mal.
-  if (r.locked) { showToast('Encore ' + r.restant + ' Punch pour débloquer : ' + r.label, { icon: 'info' }); return; }
-  if (r.type === 'gift') { setTab('boutique'); ascAllerA('#view-boutique .btq-card[data-id="' + r.cadeau + '"]'); return; }
-  setTab('ebooks');
-  // Les guides : on vise « À lire » (les nouveaux) et, s'il a déjà tout lu, sa
-  // bibliothèque. Les vidéos ont leur bloc à part. querySelector prend le premier
-  // dans l'ORDRE DU DOCUMENT, donc « À lire » gagne quand il existe.
-  ascAllerA(r.type === 'video'
-    ? '#view-ebooks .ebv-sec[data-sec="seances"]'
-    : '#view-ebooks .ebv-sec[data-sec="alire"], #view-ebooks .ebv-sec[data-sec="lus"]');
-}
 // Ces écrans se peignent après un fetch : on ATTEND que la cible existe plutôt que
 // de parier sur un délai fixe (sur un réseau lent, le scroll tomberait dans le vide).
 function ascAllerA(sel, essais) {
@@ -5574,7 +5538,6 @@ function wireChallengePath() {
   // une seule serrure.
   $$('#view-parcours [data-node]').forEach((b) => b.addEventListener('click', () => openChallengeNode(Number(b.dataset.node))));
   $$('#view-parcours [data-mb]').forEach((b) => b.addEventListener('click', () => ouvrirMissionBonus(Number(b.dataset.mb))));
-  $$('#view-parcours .asc-rec[data-rec]').forEach((b) => b.addEventListener('click', () => ouvrirRecompense(b.dataset.rec)));
   $$('#view-parcours [data-locked]').forEach((b) => b.addEventListener('click', () => ascPourquoiFerme(Number(b.dataset.locked))));
   $$('#view-parcours .mcpath-stat[data-stat]').forEach((b) => b.addEventListener('click', () => openStatInfo(b.dataset.stat)));
   $$('#view-parcours [data-goto]').forEach((b) => b.addEventListener('click', () => ascAllerA('#asc-nd-' + b.dataset.goto)));
@@ -9598,7 +9561,8 @@ function boutiqueCard(c) {
     // le palier atteint. On dit donc où il se voit, pas ce qu'il y aurait à faire.
     action = '<span class="btq-act is-done">Porté en communauté</span>';
   }
-  return '<button type="button" class="btq-card' + (c.locked ? ' locked' : '') + ' n-' + c.nature + '" data-id="' + escapeHtml(c.id) + '" data-locked="' + (c.locked ? 1 : 0) + '" data-restant="' + c.restant + '">' +
+  const neuf = !c.locked && cadeauxNeufs().has(c.id);
+  return '<button type="button" class="btq-card' + (c.locked ? ' locked' : '') + ' n-' + c.nature + (neuf ? ' btq-neuf' : '') + '" data-id="' + escapeHtml(c.id) + '" data-locked="' + (c.locked ? 1 : 0) + '" data-restant="' + c.restant + '">' +
     '<span class="btq-ic">' + c.icon + '</span>' +
     '<span class="btq-info"><b class="btq-nom">' + escapeHtml(c.label) + '</b>' +
       '<span class="btq-desc">' + escapeHtml(c.desc || '') + '</span>' +
@@ -9615,6 +9579,11 @@ async function renderBoutiqueView() {
     host.innerHTML = boutiqueHead(d) + '<div class="btq-grid">' + (d.cadeaux || []).map(boutiqueCard).join('') + '</div>' +
       '<p class="btq-foot">Les cadeaux à retirer se présentent à ton coach, au studio.</p>';
     host.querySelectorAll('.btq-card').forEach((b) => b.addEventListener('click', () => ouvrirCadeau(b.dataset.id)));
+    // Le liseré a joué son rôle dès que la liste est à l'écran : on le consomme.
+    // ⚠️ Après un délai, pas immédiatement : effacé à la seconde où l'on peint,
+    // un client qui arrive puis revient ne verrait jamais briller son cadeau.
+    const neufs = [...host.querySelectorAll('.btq-neuf')].map((b) => b.dataset.id);
+    if (neufs.length) setTimeout(() => oublierCadeauxNeufs(neufs), 8000);
   } catch (_) {
     host.innerHTML = '<div class="btq-head">' + brandMark() + '<h2 class="btq-title">🎁 Mes cadeaux</h2></div><p class="help-empty">Lecture impossible pour le moment.</p>';
   }

@@ -2993,7 +2993,7 @@ body.is-demo #navRestart { display: none !important; }
   --asc-dot: 66px;            /* diamètre d'une bulle ordinaire */
   --asc-dot-now: 82px;        /* … de l'étape active — la plus grande */
   --asc-dot-top: 76px;        /* … d'un jalon */
-  --asc-rec-d: 64px;          /* … d'une récompense et d'une mission bonus */
+  --asc-rec-d: 64px;          /* … de l'étoile de mission bonus */
   --asc-gap: 52px;            /* écart bulle -> ce qui est posé à côté */
   --asc-sand: #E8E2D4;        /* le sentier qui reste devant soi */
   --asc-sand-d: #DCD4C2;      /* son liseré */
@@ -3342,87 +3342,6 @@ body.is-demo #navRestart { display: none !important; }
 .asc-card-cta-ink { display: flex; width: 100%; margin-top: 12px; background: var(--text-c); box-shadow: var(--shadow-sm); }
 .asc-card-cta-ink:hover { background: #000; }
 
-/* --- Les récompenses, posées le long du Chemin ---------------------------
-   Un médaillon dit DEUX choses en un coup d'œil : ce que c'est (🎁 🎬 📗) et à
-   quel Punch ça tombe. Le seuil est écrit : le marqueur ne prétend jamais « à
-   cette étape », il dit « à ce Punch » — sa place ne fait qu'ordonner (cf.
-   ascRecompensesParEtape). Il est plus PETIT qu'une étape et posé du côté
-   intérieur : le sentier reste le sujet, pas lui.
-   -------------------------------------------------------------------------- */
-.asc-recs { position: absolute; top: 0; transform: translateY(-50%); z-index: 3; display: flex; flex-direction: column; gap: 6px; }
-/* Intérieur (par défaut) ; extérieur seulement quand une carte occupe déjà
-   l'intérieur (cf. ascNodeHTML). Le côté se déduit de celui de la bulle. */
-/* --asc-gap est taillé pour une bulle ORDINAIRE ; sur l'étape active (78px) et
-   les jalons (86px) le rayon le dépasse -> la pastille mordrait le cercle. */
-.asc-active.asc-r .asc-recs.asc-in { right: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 8px)); }
-.asc-active.asc-l .asc-recs.asc-in { left: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 8px)); }
-.asc-active.asc-r .asc-recs.asc-out { left: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 8px)); }
-.asc-active.asc-l .asc-recs.asc-out { right: max(var(--asc-gap), calc(var(--asc-dot-now) / 2 + 8px)); }
-.asc-sommet.asc-r .asc-recs.asc-in { right: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
-.asc-sommet.asc-l .asc-recs.asc-in { left: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
-.asc-sommet.asc-r .asc-recs.asc-out { left: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
-.asc-sommet.asc-l .asc-recs.asc-out { right: max(var(--asc-gap), calc(var(--asc-dot-top) / 2 + 12px)); }
-.asc-r .asc-recs.asc-in { right: var(--asc-gap); align-items: flex-end; }
-.asc-l .asc-recs.asc-in { left: var(--asc-gap); align-items: flex-start; }
-.asc-r .asc-recs.asc-out { left: var(--asc-gap); align-items: flex-start; }
-.asc-l .asc-recs.asc-out { right: var(--asc-gap); align-items: flex-end; }
-.asc-rec { display: flex; align-items: center; gap: 9px; padding: 0; border: 0; background: none; cursor: pointer; font-family: inherit; }
-/* Le trait d'accroche pointe TOUJOURS vers la bulle : on inverse donc l'ordre
-   quand la bulle est du côté opposé au médaillon. */
-.asc-r .asc-recs.asc-in .asc-rec, .asc-l .asc-recs.asc-out .asc-rec { flex-direction: row-reverse; }
-.asc-l .asc-recs.asc-in .asc-rec, .asc-r .asc-recs.asc-out .asc-rec { flex-direction: row; }
-/* Le trait fin qui l'accroche au sentier. */
-.asc-rec-tie { flex: none; width: calc(var(--asc-gap) - 22px); height: 0; border-top: 1.5px dashed var(--border-strong); opacity: .7; }
-.asc-rec-b { position: relative; flex: none; display: grid; place-items: center; width: var(--asc-rec-d); height: var(--asc-rec-d); border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--border-c), var(--shadow-xs); transition: transform .15s var(--ease); }
-.asc-rec-ic { font-size: 26px; line-height: 1; }
-/* La pastille d'état, minuscule : débloqué (coche) ou fermé (cadenas). */
-.asc-rec-st { position: absolute; right: -1px; bottom: -1px; display: grid; place-items: center; width: 19px; height: 19px; border-radius: 50%; border: 1.5px solid var(--app-bg); background: var(--text-soft); color: #fff; }
-.asc-rec-st .ic { width: 10px; height: 10px; stroke-width: 3.4; }
-/* Le libellé : desktop seulement. Sur mobile, l'icône suffit — le détail s'ouvre
-   au clic (cf. ouvrirRecompense). */
-/* ⚠️ Largeur BORNÉE + nombre de lignes plafonné. Les récompenses sont posées en
-   ABSOLU autour de leur étape : sans hauteur prévisible, un libellé long
-   («&nbsp;Deux semaines offertes à un proche&nbsp;») grandit jusqu'à mordre la
-   récompense de l'étape voisine. C'est la cause du chevauchement constaté sur
-   ordinateur. La hauteur d'une ligne de récompense est désormais majorée par
-   celle de sa pastille (40px). */
-/* ⚠️ 104 px, et pas plus : le médaillon est passé de 40 à 64 px, donc l'ENSEMBLE
-   (trait + pastille + libellé) s'est allongé d'autant. À 132 px, une récompense
-   posée vers l'extérieur d'une étape du bord débordait de 38 px de la colonne du
-   sentier et venait mordre le rail — mesuré. Largeur totale visée : ~200 px, la
-   demi-largeur disponible entre l'étape la plus excentrée et le bord. */
-.asc-rec-x { display: none; flex-direction: column; gap: 2px; width: 104px; min-width: 0; }
-.asc-rec-x b { font: 700 12px/1.25 var(--font); color: var(--text-c); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.asc-rec-x i { font: 600 10.5px/1 var(--font); font-style: normal; color: var(--text-muted-c); font-variant-numeric: tabular-nums; }
-/* DÉBLOQUÉ : la couleur du type, et un halo doré. C'est la seule chose qui brille
-   sur le Chemin avec les jalons — et c'est voulu : les deux se méritent. */
-.asc-rec.is-ok .asc-rec-b { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px rgba(199, 154, 58, .45), 0 6px 16px rgba(199, 154, 58, .28); }
-.asc-rec.is-ok .asc-rec-st { background: var(--sage); }
-.asc-rec.is-ok:hover .asc-rec-b { transform: scale(1.08); }
-.asc-rec.is-ok:active .asc-rec-b { transform: scale(.95); }
-.asc-rec-gift.is-ok .asc-rec-b { background: linear-gradient(160deg, #FBF0D8, #F3E3B8); }
-.asc-rec-ebook.is-ok .asc-rec-b { background: linear-gradient(160deg, #E6F0DC, #D3E4C4); }
-.asc-rec-video.is-ok .asc-rec-b { background: linear-gradient(160deg, #F6DEDE, #EFC8C8); }
-/* Les CADEAUX ressortent même verrouillés : liseré doré chaud -> on repère un
-   « cadeau » d'un coup d'œil, distinct d'une vidéo/guide. */
-.asc-rec-gift .asc-rec-b { box-shadow: 0 0 0 1.5px rgba(182,137,46,.45), var(--shadow-xs); }
-.asc-rec-gift .asc-rec-ic { filter: none; }
-/* PROCHAIN cadeau : le plus visible du sentier (après les jalons). Halo doré +
-   pulse doux, agrandi, coche remplacée par une étoile. */
-.asc-rec.is-next .asc-rec-b { transform: scale(1.16); background: linear-gradient(150deg, #FDF6E6, #F6E4BC); box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px rgba(182,137,46,.75), 0 8px 20px rgba(182,137,46,.4); animation: ascGiftPulse 1.9s var(--ease) infinite; }
-.asc-rec.is-next .asc-rec-st { background: var(--mc-gold); }
-.asc-rec.is-next .asc-rec-x b { color: var(--mc-gold); }
-.asc-rec.is-next:hover .asc-rec-b { transform: scale(1.22); }
-@keyframes ascGiftPulse {
-  0%, 100% { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px rgba(182,137,46,.7), 0 8px 20px rgba(182,137,46,.32); }
-  50% { box-shadow: 0 0 0 2px var(--surface), 0 0 0 5.5px rgba(182,137,46,.32), 0 10px 24px rgba(182,137,46,.5); }
-}
-@media (prefers-reduced-motion: reduce) { .asc-rec.is-next .asc-rec-b { animation: none; } }
-/* VERROUILLÉ : creusé, l'icône en retrait. Il reste lisible — on doit avoir envie. */
-.asc-rec.is-lock .asc-rec-b { background: var(--surface-soft); }
-.asc-rec.is-lock .asc-rec-ic { filter: grayscale(1); opacity: .55; }
-.asc-rec.is-lock .asc-rec-x b { color: var(--text-muted-c); font-weight: 600; }
-
 /* --- La mission bonus : une étoile FACULTATIVE posée sur le sentier -------
    Plus petite qu'une étape, cerclée de POINTILLÉS (le code visuel du
    « en plus ») : elle doit se voir sans jamais se lire comme une étape
@@ -3467,7 +3386,6 @@ body.is-demo #navRestart { display: none !important; }
 .asc-leg-d .ic { width: 9px; height: 9px; stroke-width: 3.2; }
 .asc-leg-done { background: var(--sage); color: #fff; }
 .asc-leg-now { background: var(--blue-c); box-shadow: 0 0 0 2px var(--blue-soft); }
-.asc-leg-rec { background: #F3E3B8; box-shadow: 0 0 0 1.5px rgba(199, 154, 58, .4); }
 .asc-leg-lock { background: var(--surface-soft); color: var(--text-soft); box-shadow: inset 0 0 0 1px var(--border-c); }
 
 /* Où l'on vient d'atterrir après un clic sur une récompense : un halo bref, sinon on
@@ -3503,7 +3421,7 @@ body.is-demo #navRestart { display: none !important; }
   .asc-trail-fill { clip-path: none; transition: none; }
   .asc-active .asc-halo { animation: none; }
   .asc-cible { animation: none; }
-  .asc-rec-b, .asc-card-cta { transition: none; }
+  .asc-card-cta { transition: none; }
   .asc-bar > span, .asc-runner { transition: none; }
 }
 
@@ -3547,9 +3465,6 @@ body.is-demo #navRestart { display: none !important; }
   .asc-ch-map { grid-column: 2; }
   /* Les tracés se touchent désormais : le raccord entre chapitres peut vivre. */
   .asc-lien { display: block; }
-  /* Largeur resserrée sur desktop : posée du côté INTÉRIEUR, une récompense
-     large traverse le sentier et atteint la bulle d'en face. */
-  .asc-rec-x { display: flex; }
   .asc-leg { margin-top: 44px; }
 }
 
@@ -3655,8 +3570,6 @@ body.is-demo #navRestart { display: none !important; }
   .asc-dot .ic { width: 24px; height: 24px; }
   .asc-active .asc-dot .ic { width: 28px; height: 28px; }
   .asc-sommet .asc-dot .ic { width: 26px; height: 26px; }
-  .asc-rec-tie { width: calc(var(--asc-gap) - 20px); }
-  .asc-rec-ic { font-size: 21px; }
   .asc-mb-dot .ic { width: 21px; height: 21px; }
   /* La marge de 16 px du téléphone, tenue partout. */
   #view-parcours { padding-left: 16px; padding-right: 16px; }
@@ -3765,6 +3678,24 @@ body.is-demo #navRestart { display: none !important; }
 /* Verrouillé : lisible, mais visiblement pas encore à soi (jamais illisible : c'est
    ce qu'on vise, il doit donner envie). */
 .btq-card.locked { opacity: .72; }
+/* CE CADEAU VIENT DE TOMBER. Il ne suffit pas de l'amener à l'écran : il faut
+   qu'il se DÉSIGNE dans une liste où toutes les cartes se ressemblent. Un liseré
+   doré, un fond réchauffé, et un reflet qui balaie la carte une fois — le
+   brillant dit « c'est celui-là » sans qu'aucun texte n'ait à le dire.
+   ⚠️ Le reflet est en overflow:hidden sur la carte, sinon il déborde sur les
+   voisines. Et il ne boucle pas indéfiniment : trois passages suffisent, au-delà
+   c'est une carte qui clignote. */
+.btq-neuf { position: relative; overflow: hidden; border-color: rgba(182, 137, 46, .75);
+  background: linear-gradient(140deg, rgba(182, 137, 46, .14), var(--surface) 58%);
+  box-shadow: 0 0 0 3px rgba(182, 137, 46, .18), var(--shadow-card); }
+.btq-neuf::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 45%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .72), transparent);
+  transform: skewX(-18deg); animation: btq-brille 2.4s var(--ease) 3; }
+@keyframes btq-brille {
+  0% { left: -60%; } 55%, 100% { left: 130%; }
+}
+@media (prefers-reduced-motion: reduce) { .btq-neuf::after { animation: none; } }
+.celeb-clic .celeb-card { cursor: pointer; }
 .btq-card.locked .btq-ic { filter: grayscale(1); }
 .btq-ic { flex: none; width: 46px; height: 46px; display: grid; place-items: center; font-size: 26px; background: var(--surface-soft); border-radius: 14px; }
 .btq-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
