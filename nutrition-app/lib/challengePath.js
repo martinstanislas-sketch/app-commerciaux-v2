@@ -764,7 +764,7 @@ function createChallengeEngine({ getDb }) {
       // Le libellé part d'ici (lib/cadeaux) plutôt que d'être recopié dans le front :
       // deux listes de noms finiraient par diverger, et le client verrait deux noms
       // pour le même cadeau selon l'écran.
-      cadeaux: cadeaux.catalogue().reduce((m, c) => { m[c.seuil] = { id: c.id, label: c.label }; return m; }, {}),
+      cadeaux: cadeaux.catalogue().reduce((m, c) => { m[c.seuil] = { id: c.id, label: c.label, icon: c.icon }; return m; }, {}),
       // TOUTES les récompenses (vidéos, guides, cadeaux) avec leur seuil : le Chemin
       // les matérialise le long du parcours. Rien n'est recalculé — c'est
       // punchSeuils, la source de vérité, qui est simplement mise en forme.
@@ -896,6 +896,9 @@ function createChallengeEngine({ getDb }) {
       type: s.type,                                        // 'video' | 'ebook' | 'gift'
       cadeau: s.type === 'gift' ? (s.payload || {}).cadeau : '',
       label: libelleRecompense(s),
+      // Icône spécifique du cadeau (le vrai visuel) -> le Chemin distingue un cadeau
+      // d'une vidéo/guide d'un coup d'œil. Vide pour vidéos/ebooks (icône par type).
+      icon: s.type === 'gift' ? ((cadeaux.cadeau((s.payload || {}).cadeau) || {}).icon || '🎁') : '',
       locked: punch < s.seuil,
       restant: Math.max(0, s.seuil - punch),
       // Part du parcours franchie quand le seuil tombe dans un déroulé parfait

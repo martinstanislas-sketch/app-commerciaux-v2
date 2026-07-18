@@ -4872,19 +4872,34 @@ function ascJalonTileHTML(j) {
 // se gagne — donc ici qu'il faut rappeler à quoi il sert. Sans ça, la boutique
 // reste un écran que personne n'ouvre.
 function challengeHeroHTML(st) { return '<div class="asc-hero">' + cadeauTeaserHTML(st) + '</div>'; }
-// Le rappel du prochain cadeau.
+// LE PROCHAIN CADEAU, mis en avant : c'est l'élément le plus motivant du Chemin.
+// Visuel + nom + coût en Punch + barre « il te reste X Punch ». Placé haut (sous
+// l'en-tête) -> visible sans scroller à l'ouverture. Clic -> boutique.
 function cadeauTeaserHTML(st) {
   const punch = (st.stats && st.stats.punch) || 0;
   const seuils = Object.keys(st.cadeaux || {}).map(Number).sort((a, b) => a - b);
   const prochain = seuils.find((x) => x > punch);
-  const c = prochain ? st.cadeaux[prochain] : null;
-  const txt = prochain
-    ? 'Plus que <b>' + (prochain - punch) + ' Punch</b> avant ' + mcpEsc(((c && c.label) || 'ton cadeau').toLowerCase())
-    : 'Tous tes cadeaux sont débloqués 👑';
-  return '<button type="button" class="asc-gift" id="mcpathGifts">' +
-    '<span class="asc-gift-ic" aria-hidden="true">🎁</span>' +
-    '<span class="asc-gift-t">' + txt + '</span>' +
-    '<span class="asc-gift-go" aria-hidden="true">' + icSvg('arrow-right') + '</span></button>';
+  if (!prochain) {
+    return '<button type="button" class="pgift pgift--done" id="mcpathGifts" aria-label="Tous tes cadeaux sont débloqués">'
+      + '<span class="pgift-ic" aria-hidden="true">👑</span>'
+      + '<span class="pgift-main"><span class="pgift-kicker">Bravo</span>'
+      + '<b class="pgift-name">Tous tes cadeaux sont débloqués</b></span>'
+      + '<span class="pgift-go" aria-hidden="true">' + icSvg('arrow-right') + '</span></button>';
+  }
+  const c = st.cadeaux[prochain] || {};
+  const prec = seuils.filter((s) => s <= punch).reduce((a, b) => Math.max(a, b), 0); // palier précédent -> la barre ne recule pas
+  const reste = prochain - punch;
+  const pct = Math.max(4, Math.min(100, Math.round(((punch - prec) / (prochain - prec)) * 100)));
+  return '<button type="button" class="pgift" id="mcpathGifts" aria-label="Prochain cadeau : ' + mcpEsc(c.label || 'ton cadeau') + ', ' + prochain + ' Punch, il te reste ' + reste + ' Punch">'
+    + '<span class="pgift-ic" aria-hidden="true">' + (c.icon || '🎁') + '</span>'
+    + '<span class="pgift-main">'
+    +   '<span class="pgift-kicker">🎁 Prochain cadeau</span>'
+    +   '<b class="pgift-name">' + mcpEsc(c.label || 'Ton cadeau') + '</b>'
+    +   '<span class="pgift-cost">' + prochain + ' Punch</span>'
+    +   '<span class="pgift-bar"><span style="width:' + pct + '%"></span></span>'
+    +   '<span class="pgift-reste">Il te reste <b>' + reste + ' Punch</b></span>'
+    + '</span>'
+    + '<span class="pgift-go" aria-hidden="true">' + icSvg('arrow-right') + '</span></button>';
 }
 
 // Le tracé reliant les étapes : des béziers à tangente VERTICALE en chaque étape
@@ -4926,13 +4941,19 @@ function ascRecompensesParEtape(st) {
 // avoir le MÊME visage partout.
 function ascRecHTML(r) {
   const v = DEBLOCAGE_VISUEL[r.type] || {};
-  const aria = r.label + ' à ' + r.seuil + ' Punch — ' + (r.locked ? 'verrouillé, encore ' + r.restant + ' Punch' : 'débloqué, appuie pour y aller');
-  return '<button type="button" class="asc-rec asc-rec-' + r.type + (r.locked ? ' is-lock' : ' is-ok') + '"'
+  const isGift = r.type === 'gift';
+  const isNext = isGift && (r.seuil + ':' + r.type) === _ascNextGiftKey; // le prochain cadeau : mis en avant
+  const cls = 'asc-rec asc-rec-' + r.type + (r.locked ? ' is-lock' : ' is-ok') + (isNext ? ' is-next' : '');
+  // 3 états lisibles : débloqué (coche) / prochain (« il te reste X ») / verrouillé (coût).
+  const etat = !r.locked ? 'débloqué' : (isNext ? 'il te reste ' + r.restant + ' Punch' : 'verrouillé, encore ' + r.restant + ' Punch');
+  const aria = r.label + ' à ' + r.seuil + ' Punch — ' + etat;
+  const sousTitre = !r.locked ? 'Débloqué ✓' : (isNext ? 'Il te reste ' + r.restant + ' Punch' : r.seuil + ' Punch');
+  return '<button type="button" class="' + cls + '"'
     + ' data-rec="' + r.seuil + ':' + r.type + '" title="' + mcpEsc(r.label) + '" aria-label="' + mcpEsc(aria) + '">'
     + '<span class="asc-rec-tie" aria-hidden="true"></span>'
-    + '<span class="asc-rec-b" aria-hidden="true"><span class="asc-rec-ic">' + (v.icon || '🎁') + '</span>'
-    + '<span class="asc-rec-st">' + icSvg(r.locked ? 'lock' : 'check') + '</span></span>'
-    + '<span class="asc-rec-x" aria-hidden="true"><b>' + mcpEsc(r.label) + '</b><i>' + r.seuil + ' Punch</i></span>'
+    + '<span class="asc-rec-b" aria-hidden="true"><span class="asc-rec-ic">' + (r.icon || v.icon || '🎁') + '</span>'
+    + '<span class="asc-rec-st">' + icSvg(r.locked ? (isNext ? 'star' : 'lock') : 'check') + '</span></span>'
+    + '<span class="asc-rec-x" aria-hidden="true"><b>' + mcpEsc(r.label) + '</b><i>' + sousTitre + '</i></span>'
     + '</button>';
 }
 // Empilé quand deux récompenses tombent au même seuil (800 = guides + cadeau,
@@ -4945,7 +4966,12 @@ function ascRecsHTML(recs, place) {
   return '<span class="asc-recs asc-' + (place || 'in') + '">' + recs.map(ascRecHTML).join('') + '</span>';
 }
 
+// Le PROCHAIN cadeau (1er cadeau verrouillé) : mis en avant sur le sentier.
+let _ascNextGiftKey = '';
 function challengePathHTML(st) {
+  const nextGift = (st.recompenses || []).filter((r) => r.type === 'gift' && r.locked)
+    .reduce((best, r) => (!best || r.seuil < best.seuil ? r : best), null);
+  _ascNextGiftKey = nextGift ? nextGift.seuil + ':gift' : '';
   const byWeek = {};
   (st.nodes || []).forEach((n) => { (byWeek[n.week] = byWeek[n.week] || []).push(n); });
   const semaines = Object.keys(byWeek).map(Number).sort((a, b) => a - b);

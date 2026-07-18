@@ -2911,6 +2911,25 @@ body.is-demo #navRestart { display: none !important; }
 .asc-gift-go { flex: none; display: grid; place-items: center; color: var(--text-soft); }
 .asc-gift-go .ic { width: 16px; height: 16px; }
 
+/* --- LE PROCHAIN CADEAU (carte mise en avant, or) ---------------------- */
+/* L'élément le plus motivant du Chemin : visuel + nom + coût + « il te reste
+   X Punch ». Placé haut -> visible sans scroller. Or franc, ressort du reste. */
+.pgift { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; border-radius: var(--r-md); border: 1.5px solid rgba(182,137,46,.45); background: linear-gradient(135deg, rgba(182,137,46,.12), rgba(182,137,46,.03)); text-align: left; cursor: pointer; font-family: inherit; box-shadow: 0 12px 28px -18px rgba(182,137,46,.65); transition: transform .18s var(--ease), box-shadow .18s var(--ease); }
+.pgift:hover { box-shadow: 0 16px 32px -16px rgba(182,137,46,.75); }
+.pgift:active { transform: translateY(1px); }
+.pgift-ic { flex: none; width: 56px; height: 56px; display: grid; place-items: center; font-size: 31px; line-height: 1; border-radius: 15px; background: rgba(182,137,46,.15); box-shadow: inset 0 0 0 1px rgba(182,137,46,.32); }
+.pgift-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pgift-kicker { font: 700 11px/1.2 var(--font); text-transform: uppercase; letter-spacing: .05em; color: var(--mc-gold); }
+.pgift-name { font: 800 16px/1.25 var(--font); color: var(--text-c); margin: 1px 0; overflow: hidden; text-overflow: ellipsis; }
+.pgift-cost { font: 700 12.5px/1 var(--font); color: var(--text-muted-c); font-variant-numeric: tabular-nums; }
+.pgift-bar { position: relative; height: 8px; border-radius: 999px; background: rgba(182,137,46,.16); overflow: hidden; margin: 7px 0 5px; }
+.pgift-bar > span { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: linear-gradient(90deg, #DCC79A, var(--mc-gold)); }
+.pgift-reste { font: 600 12px/1.2 var(--font); color: var(--text-c); }
+.pgift-reste b { color: var(--mc-gold); font-weight: 800; font-variant-numeric: tabular-nums; }
+.pgift-go { flex: none; display: grid; place-items: center; align-self: center; color: var(--mc-gold); }
+.pgift-go .ic { width: 18px; height: 18px; }
+.pgift--done .pgift-name { margin-top: 3px; }
+
 /* --- La carte ---------------------------------------------------------- */
 .asc { padding: 4px 0 40px; }
 .asc-ch { position: relative; }
@@ -3131,6 +3150,21 @@ body.is-demo #navRestart { display: none !important; }
 .asc-rec-gift.is-ok .asc-rec-b { background: linear-gradient(160deg, #FBF0D8, #F3E3B8); }
 .asc-rec-ebook.is-ok .asc-rec-b { background: linear-gradient(160deg, #E6F0DC, #D3E4C4); }
 .asc-rec-video.is-ok .asc-rec-b { background: linear-gradient(160deg, #F6DEDE, #EFC8C8); }
+/* Les CADEAUX ressortent même verrouillés : liseré doré chaud -> on repère un
+   « cadeau » d'un coup d'œil, distinct d'une vidéo/guide. */
+.asc-rec-gift .asc-rec-b { box-shadow: 0 0 0 1.5px rgba(182,137,46,.45), var(--shadow-xs); }
+.asc-rec-gift .asc-rec-ic { filter: none; }
+/* PROCHAIN cadeau : le plus visible du sentier (après les jalons). Halo doré +
+   pulse doux, agrandi, coche remplacée par une étoile. */
+.asc-rec.is-next .asc-rec-b { transform: scale(1.16); background: linear-gradient(150deg, #FDF6E6, #F6E4BC); box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px rgba(182,137,46,.75), 0 8px 20px rgba(182,137,46,.4); animation: ascGiftPulse 1.9s var(--ease) infinite; }
+.asc-rec.is-next .asc-rec-st { background: var(--mc-gold); }
+.asc-rec.is-next .asc-rec-x b { color: var(--mc-gold); }
+.asc-rec.is-next:hover .asc-rec-b { transform: scale(1.22); }
+@keyframes ascGiftPulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px rgba(182,137,46,.7), 0 8px 20px rgba(182,137,46,.32); }
+  50% { box-shadow: 0 0 0 2px var(--surface), 0 0 0 5.5px rgba(182,137,46,.32), 0 10px 24px rgba(182,137,46,.5); }
+}
+@media (prefers-reduced-motion: reduce) { .asc-rec.is-next .asc-rec-b { animation: none; } }
 /* VERROUILLÉ : creusé, l'icône en retrait. Il reste lisible — on doit avoir envie. */
 .asc-rec.is-lock .asc-rec-b { background: var(--surface-soft); }
 .asc-rec.is-lock .asc-rec-ic { filter: grayscale(1); opacity: .55; }

@@ -248,7 +248,7 @@ test('état public : les cadeaux sont NOMMÉS (sinon la célébration dit « Att
   const { engine, email } = makeEngine();
   engine.addPunch(email, 2000, 'test');
   const st = engine.challengePublicState(email);
-  assert.deepEqual(st.cadeaux[2000], { id: 'mois_offert', label: 'Un mois offert' });
+  assert.deepEqual(st.cadeaux[2000], { id: 'mois_offert', label: 'Un mois offert', icon: '🗓️' });
   assert.ok(st.unlocks.includes('2000:gift'));
 });
 
