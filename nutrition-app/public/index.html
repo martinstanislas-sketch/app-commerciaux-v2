@@ -1544,8 +1544,12 @@
 
   <script src="vendor/zxing.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
-  <script src="coursesCatalogue.js?v=2"></script>
-  <script src="coursesEngine.js?v=1"></script>
+  <!-- ⚠️ Bumper ces ?v= À CHAQUE modification du référentiel ou du moteur : les
+       commits 92d2d05 / f77eae5 (référentiel v2) ont changé ces deux fichiers
+       SANS toucher ces versions -> les navigateurs ayant déjà chargé v=2/v=1
+       continuaient de générer les listes avec l'ANCIEN référentiel. -->
+  <script src="coursesCatalogue.js?v=3"></script>
+  <script src="coursesEngine.js?v=2"></script>
   <script src="app.js?v=173"></script>
 </body>
 </html>
