@@ -4971,7 +4971,7 @@ function ascYs(nodes) {
 // ⚠️ Elle reste la MÊME une fois l'étape passée : c'est la coche en écusson qui
 // annonce la victoire. On doit pouvoir relire son parcours et revoir ce qu'on y a
 // fait — 43 coches identiques n'apprennent rien.
-const ASC_IC_TYPE = { commencer: 'flag', seance: 'muscle', ebook: 'book', bilan: 'file', check: 'trophy', final: 'trophy', special: 'spark' };
+const ASC_IC_TYPE = { commencer: 'flag', seance: 'dumbbell', ebook: 'book', bilan: 'file', check: 'trophy', final: 'trophy', special: 'spark' };
 const ASC_IC_EVENT = { coach: 'message', groupe_photo: 'camera', groupe: 'users' };
 function ascIcone(n) { return ASC_IC_EVENT[n.event] || ASC_IC_TYPE[n.type] || 'spark'; }
 const ASC_ETAT_MOT = { done: 'Terminé', active: 'À faire maintenant', locked: 'Pas encore débloqué' };
@@ -5268,7 +5268,15 @@ function ascCalerAvatar() {
   // `corps: 'entier'` : sur le Chemin il est DEBOUT sur le sentier, pas en
   // vignette. Les trois autres endroits (profil, fil du groupe, éditeur)
   // continuent d'appeler le rendu buste — ce mode leur est étranger.
-  _ascAvatarSVG = (cfg && window.MCAvatar) ? window.MCAvatar.rendreSVG(cfg, { alt: '', corps: 'entier' }) : '';
+  // ⚠️ `avatarConfig` vaut null TANT QUE le client n'a pas créé son avatar (cf.
+  // /account/me). Sans repli, le Chemin n'avait alors personne dessus — c'est
+  // exactement ce qui fait « le bonhomme a disparu ». On retombe donc sur
+  // l'avatar par défaut, celui-là même qu'ouvre l'éditeur : déterministe pour un
+  // e-mail donné, donc toujours le même, et il donne envie de le personnaliser.
+  const A = window.MCAvatar;
+  if (!A) { _ascAvatarSVG = ''; return; }
+  const email = (window.__NUTRI_USER && window.__NUTRI_USER.email) || '';
+  _ascAvatarSVG = A.rendreSVG(cfg || A.configParDefaut(email), { alt: '', corps: 'entier' });
 }
 // LE CLIENT SUR SON CHEMIN. Il ne coiffe plus la bulle comme une icône : il se
 // tient debout SUR le sentier, en pied, juste APRÈS l'étape du jour — sur le
