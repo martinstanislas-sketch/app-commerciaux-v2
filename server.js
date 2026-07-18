@@ -444,6 +444,12 @@ function ensureNutritionHelpTable() {
     if (!ncCols.some((c) => c.name === 'avatar_key')) {
       getDb().exec("ALTER TABLE nutrition_clients ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''");
     }
+    // Avatar personnalisable : on stocke la CONFIG (JSON), jamais une image —
+    // le SVG est reconstruit à la volée. `avatar` (photo importée) est conservé
+    // en REPLI tant que le client n'a pas créé son avatar : rien n'est détruit.
+    if (!ncCols.some((c) => c.name === 'avatar_config')) {
+      getDb().exec("ALTER TABLE nutrition_clients ADD COLUMN avatar_config TEXT NOT NULL DEFAULT ''");
+    }
   } catch (e) { console.error('Migration nutrition_clients.avatar :', e && e.message); }
   // Migration : espace PRÉ-CRÉÉ par un coach (connexion simplifiée, sans lien d'invitation).
   // 1 = créé par un coach et pas encore réclamé -> la 1re connexion exigera le CODE de la
@@ -659,6 +665,9 @@ const punchSeuils = require('./nutrition-app/lib/punchSeuils');
 const ebooksSources = require('./nutrition-app/lib/ebooksSources');
 // Cadeaux : ce qu'est chaque cadeau (nom, digital/physique) + le thème selon le Punch.
 const cadeaux = require('./nutrition-app/lib/cadeaux');
+// Avatar : config -> SVG. Le MÊME module sert au navigateur (aperçu de l'éditeur),
+// donc l'aperçu ne peut pas diverger de ce que voient les autres membres.
+const avatarLib = require('./nutrition-app/lib/avatar');
 function nutritionAiBilan() { return require('./nutrition-app/lib/aiGenerator'); }
 
 try {
@@ -1292,10 +1301,25 @@ try {
     if (!uniq.length) return map;
     try {
       const ph = uniq.map(() => '?').join(',');
-      db.prepare("SELECT email, avatar_key FROM nutrition_clients WHERE email IN (" + ph + ") AND avatar <> '' AND avatar_key <> ''").all(...uniq)
-        .forEach((r) => { map[r.email] = '/nutrition/api/community/avatar/' + r.avatar_key; });
+      // Un avatar personnalisé compte autant qu'une photo : la condition retient
+      // désormais l'un OU l'autre (sinon les avatars n'apparaîtraient pas dans le fil).
+      db.prepare("SELECT email, avatar_key, avatar, avatar_config FROM nutrition_clients WHERE email IN (" + ph + ") AND avatar_key <> '' AND (avatar <> '' OR avatar_config <> '')").all(...uniq)
+        .forEach((r) => {
+          const cfg = lireAvatarConfig(r.avatar_config);
+          // L'empreinte en suffixe rend l'URL auto-invalidante : elle change à
+          // chaque modification de l'avatar, donc le cache ne sert jamais l'ancien.
+          map[r.email] = '/nutrition/api/community/avatar/' + r.avatar_key
+            + (cfg ? '?v=' + avatarLib.hashConfig(cfg).toString(36) : '');
+        });
     } catch (_) { /* colonnes absentes -> pas d'avatars */ }
     return map;
+  }
+  // Lit la config stockée. Renvoie null si absente ou illisible -> on retombe
+  // sur la photo, jamais d'avatar cassé affiché.
+  function lireAvatarConfig(brut) {
+    const s = String(brut || '').trim();
+    if (!s) return null;
+    try { return avatarLib.normaliserConfig(JSON.parse(s)); } catch (_) { return null; }
   }
   // Thème de chacun, pour le badge affiché à côté du nom dans le fil. Il se DÉDUIT
   // du Punch (jamais d'une colonne à tenir à jour) : le badge ne peut donc pas
@@ -2836,12 +2860,22 @@ try {
     try {
       const email = (req.session && req.session.email) || '';
       if (!email) return res.status(403).json({ ok: false });
-      const row = getDb().prepare('SELECT prenom, nom, data, avatar, avatar_key FROM nutrition_clients WHERE email = ?').get(email);
+      const row = getDb().prepare('SELECT prenom, nom, data, avatar, avatar_key, avatar_config FROM nutrition_clients WHERE email = ?').get(email);
       // Compte supprimé (vrai client, hors démo) -> accès révoqué : on force la reconnexion.
       if (!row && !req.session.demo) return res.status(403).json({ ok: false, deleted: true });
       let data = null; try { data = row && row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
-      const avatarUrl = (row && row.avatar && row.avatar_key) ? '/nutrition/api/community/avatar/' + row.avatar_key : '';
-      res.json({ ok: true, email, prenom: (row && row.prenom) || req.session.name || '', nom: (row && row.nom) || '', data, avatarUrl });
+      // L'avatar personnalisé prime ; la photo importée avant la bascule reste
+      // le repli tant qu'aucun avatar n'a été créé.
+      const cfg = lireAvatarConfig(row && row.avatar_config);
+      const cle = (row && row.avatar_key) || '';
+      const avatarUrl = cle && cfg ? '/nutrition/api/community/avatar/' + cle + '?v=' + avatarLib.hashConfig(cfg).toString(36)
+        : ((row && row.avatar && cle) ? '/nutrition/api/community/avatar/' + cle : '');
+      res.json({
+        ok: true, email, prenom: (row && row.prenom) || req.session.name || '', nom: (row && row.nom) || '',
+        data, avatarUrl,
+        avatarConfig: cfg,                       // null tant que l'avatar n'est pas créé
+        aPhoto: !!(row && row.avatar),           // pour proposer « Crée ton avatar » à la migration
+      });
     } catch (e) {
       console.error('Erreur /nutrition/account/me :', e);
       res.status(500).json({ ok: false });
@@ -2873,6 +2907,46 @@ try {
       res.json({ ok: true });
     } catch (e) { console.error('account/avatar DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
   });
+  // AVATAR PERSONNALISABLE : on enregistre la CONFIG, jamais une image.
+  // Le serveur ne fait pas confiance à ce qu'il reçoit : normaliserConfig()
+  // ramène toute valeur inconnue au défaut, et les accessoires non débloqués
+  // sont RETIRÉS ici — un client ne peut pas s'équiper d'une pièce qu'il n'a
+  // pas gagnée en forgeant la requête. Rien n'est achetable, tout se mérite.
+  app.post('/nutrition/account/avatar-config', requireAuth, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      if (!email) return res.status(403).json({ ok: false });
+      const cfg = avatarLib.normaliserConfig((req.body && req.body.config) || {});
+      // Ce que ce client a réellement débloqué, recalculé côté serveur.
+      const punch = punchDuClientPourAvatar(email);
+      const badges = badgesDuClientPourAvatar(email);
+      const autorises = new Set(avatarLib.accessoiresDebloques(punch, badges));
+      const refuses = cfg.accessoires.filter((a) => !autorises.has(a));
+      cfg.accessoires = cfg.accessoires.filter((a) => autorises.has(a));
+
+      let key = '';
+      try { const r = getDb().prepare('SELECT avatar_key FROM nutrition_clients WHERE email = ?').get(email); key = (r && r.avatar_key) || ''; } catch (_) { /* ignore */ }
+      if (!key) key = crypto.randomBytes(8).toString('hex');
+      getDb().prepare('UPDATE nutrition_clients SET avatar_config = ?, avatar_key = ?, updated_at = ? WHERE email = ?')
+        .run(JSON.stringify(cfg), key, new Date().toISOString(), email);
+      res.json({
+        ok: true, config: cfg,
+        avatarUrl: '/nutrition/api/community/avatar/' + key + '?v=' + avatarLib.hashConfig(cfg).toString(36),
+        refuses, // accessoires écartés faute d'être débloqués (le front peut le dire)
+      });
+    } catch (e) { console.error('account/avatar-config POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+  // Punch cumulé servant aux déblocages d'accessoires. On lit la PROGRESSION
+  // (Punch réel ou étapes validées), jamais user_unlocks — cette table ne
+  // retient que ce qui a déjà été célébré.
+  function punchDuClientPourAvatar(email) {
+    try { return Number(punchProgression(email)) || 0; } catch (_) { return 0; }
+  }
+  // Badges = cadeaux déjà atteints (badge_argent / or / platine), déduits du Punch.
+  function badgesDuClientPourAvatar(email) {
+    const p = punchDuClientPourAvatar(email);
+    return Object.keys(punchSeuils.GIFTS).filter((s) => p >= Number(s)).map((s) => punchSeuils.GIFTS[s]);
+  }
   // Servir un avatar par sa clé (capability URL). PUBLIC volontairement : la clé aléatoire
   // fait office de secret, et la photo est de toute façon partagée au groupe. Permet un
   // <img src> direct dans le fil (impossible d'envoyer un en-tête d'auth depuis une balise img).
@@ -2880,8 +2954,21 @@ try {
     try {
       const key = String(req.params.key || '');
       if (!/^[a-f0-9]{8,32}$/.test(key)) return res.status(404).end();
-      const row = getDb().prepare('SELECT avatar FROM nutrition_clients WHERE avatar_key = ?').get(key);
-      const m = row && row.avatar && /^data:(image\/[^;]+);base64,(.+)$/.exec(row.avatar);
+      const row = getDb().prepare('SELECT avatar, avatar_config FROM nutrition_clients WHERE avatar_key = ?').get(key);
+      if (!row) return res.status(404).end();
+      // L'avatar personnalisé PRIME sur la photo. En servant le SVG à cette même
+      // URL, les 4 endroits qui affichent déjà un <img> (fil, commentaires,
+      // composer, profil) et l'anneau de tier fonctionnent sans être touchés.
+      const cfg = lireAvatarConfig(row.avatar_config);
+      if (cfg) {
+        res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+        // Immuable : l'URL porte l'empreinte de la config (?v=), donc une
+        // modification produit une NOUVELLE URL — jamais de vignette périmée.
+        res.setHeader('Cache-Control', req.query.v ? 'public, max-age=31536000, immutable' : 'public, max-age=60');
+        return res.end(avatarLib.rendreSVG(cfg));
+      }
+      // Repli : la photo importée avant la bascule, tant qu'aucun avatar n'existe.
+      const m = row.avatar && /^data:(image\/[^;]+);base64,(.+)$/.exec(row.avatar);
       if (!m) return res.status(404).end();
       res.setHeader('Content-Type', m[1]);
       res.setHeader('Cache-Control', 'public, max-age=60');

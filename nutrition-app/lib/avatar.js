@@ -310,7 +310,7 @@
   function rendreSVG(config, options) {
     const o = options || {};
     const c = normaliserConfig(config);
-    const uid = 'a' + Math.abs(hashConfig(c)).toString(36);
+    const uid = 'a' + hashConfig(c).toString(36);
     const peau = trouve(PEAUX, c.peau, CONFIG_DEFAUT.peau);
     const chev = trouve(CHEVEUX_COULEURS, c.couleur_cheveux, CONFIG_DEFAUT.couleur_cheveux);
     const tenue = trouve(TENUES, c.tenue, CONFIG_DEFAUT.tenue);
@@ -349,7 +349,7 @@
     const s = JSON.stringify(normaliserConfig(config));
     let h = 5381;
     for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) | 0;
-    return h;
+    return h >>> 0; // non signé : l'empreinte part telle quelle dans une URL
   }
 
   return {
