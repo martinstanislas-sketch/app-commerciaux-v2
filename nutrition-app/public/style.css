@@ -3137,7 +3137,7 @@ body.is-demo #navRestart { display: none !important; }
 
 /* --- La carte de semaine ------------------------------------------------ */
 /* Sur mobile elle s'intercale dans le fil, juste avant son bout de sentier. */
-.asc-wk { position: relative; overflow: hidden; margin: 26px 0 2px; padding: 16px 18px 14px; border: 1px solid var(--border-c); border-radius: var(--r); background: var(--surface); box-shadow: var(--shadow-xs); }
+.asc-wk { position: relative; overflow: hidden; display: flex; align-items: center; gap: 11px; margin: 20px 0 2px; padding: 11px 14px; border: 1px solid var(--border-c); border-radius: var(--r); background: var(--surface); box-shadow: var(--shadow-xs); }
 /* L'ambiance : un lavis pastel, jamais un aplat — le texte doit rester lisible. */
 .asc-wk::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .55; background: linear-gradient(135deg, var(--asc-wk-c, transparent) 0%, transparent 62%); }
 .asc-wk-a1 { --asc-wk-c: #DDE9CE; }  /* pousse, lever de soleil */
@@ -3147,26 +3147,17 @@ body.is-demo #navRestart { display: none !important; }
 .asc-wk-a5 { --asc-wk-c: #DCE4EE; }  /* boussole, bleu-gris */
 .asc-wk-a6 { --asc-wk-c: #F3E7CB; }  /* trophée, crème dorée */
 /* Le grand chiffre fantôme : il donne l'échelle et le rythme du récit. */
-.asc-wk-n { position: absolute; top: 6px; left: 16px; font: 800 40px/1 var(--font); letter-spacing: -.05em; color: var(--text-c); opacity: .10; font-variant-numeric: tabular-nums; }
-.asc-wk-art { position: absolute; top: 16px; right: 16px; font-size: 22px; line-height: 1; filter: saturate(.85); }
-.asc-wk-k { position: relative; margin: 38px 0 0; font: 600 10px/1 var(--font); letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted-c); }
-/* L'intitulé de ce que la carte apporte — l'objectif, pas le titre de la
-   semaine, qui est déjà en grand dans l'en-tête juste au-dessus. */
-.asc-wk-o { position: relative; margin: 10px 0 0; font: 600 10px/1 var(--font); letter-spacing: .09em; text-transform: uppercase; color: var(--text-soft); }
-.asc-wk-s { position: relative; margin: 6px 0 0; max-width: 30ch; font: 700 17px/1.25 var(--font); letter-spacing: -.015em; color: var(--text-c); }
-.asc-wk-f { position: relative; display: flex; align-items: center; gap: 7px; margin: 14px 0 0; font: 600 12px/1 var(--font); color: var(--text-muted-c); }
-.asc-wk-fx { flex: 1; }
-.asc-wk-f .ic { width: 14px; height: 14px; flex: none; }
-.asc-wk-done .asc-wk-f, .asc-wk-done .asc-wk-f .ic { color: var(--sage-on-soft); }
+.asc-wk-n { position: relative; flex: none; font: 800 26px/1 var(--font); letter-spacing: -.04em; color: var(--text-c); opacity: .30; font-variant-numeric: tabular-nums; }
+.asc-wk-now .asc-wk-n { opacity: .62; }
+.asc-wk-art { position: relative; flex: none; margin-left: auto; font-size: 19px; line-height: 1; filter: saturate(.85); }
+.asc-wk-s { position: relative; flex: 1; min-width: 0; margin: 0; font: 700 14.5px/1.3 var(--font); letter-spacing: -.015em; color: var(--text-c); }
 .asc-wk-now { border-color: var(--sage); box-shadow: var(--shadow-sm); }
 .asc-wk-now .asc-wk-n { opacity: .16; }
-.asc-wk-now .asc-wk-f, .asc-wk-now .asc-wk-f .ic { color: var(--blue-c); }
 /* À venir : atténué et fermé — mais le titre garde son contraste. */
 .asc-wk-soon { background: var(--surface-soft); }
 .asc-wk-soon::before { opacity: .28; }
 .asc-wk-soon .asc-wk-art { filter: saturate(.25); opacity: .5; }
 .asc-wk-soon .asc-wk-s { color: var(--text-muted-c); }
-.asc-wk-soon .asc-wk-f .ic { color: var(--text-soft); }
 
 /* --- Le sentier --------------------------------------------------------- */
 .asc-trail { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
@@ -3545,7 +3536,19 @@ body.is-demo #navRestart { display: none !important; }
   .asc-ch { display: grid; grid-template-columns: var(--asc-col) minmax(0, 1fr); gap: 26px; align-items: start; }
   /* La carte de semaine suit le regard le long de son chapitre, sans jamais
      dépasser sa section : c'est ce qui garde « où suis-je » à l'écran. */
-  .asc-wk { position: sticky; top: calc(var(--asc-top, 53px) + 16px); margin: 0; padding: 18px 20px 16px; }
+  /* ⚠️ Sur ordinateur la colonne ne fait que 236 px : en une seule ligne, le
+     numéro et l'ambiance ne laissent que 128 px à la phrase, qui repasse alors
+     à deux lignes — exactement ce qu'on cherchait à éviter. Elle descend donc
+     sur sa propre ligne, où elle dispose de toute la largeur. Sur mobile la
+     carte est large : une seule ligne y suffit, et c'est là que la hauteur
+     compte. */
+  .asc-wk { position: sticky; top: calc(var(--asc-top, 53px) + 16px); margin: 0; padding: 13px 16px; flex-wrap: wrap; gap: 8px 10px; }
+  /* ⚠️ `order` obligatoire : la phrase est AVANT l'ambiance dans le balisage
+     (c'est l'ordre de lecture), et un flex-basis de 100 % force un retour à la
+     ligne des DEUX côtés — l'emoji se retrouvait seul sur une 3e ligne, la
+     carte gagnait 30 px. On la renvoie en dernier : numéro et ambiance tiennent
+     la première ligne, la phrase occupe la seconde. */
+  .asc-wk-s { flex-basis: 100%; order: 1; }
   .asc-ch-map { grid-column: 2; }
   /* Les tracés se touchent désormais : le raccord entre chapitres peut vivre. */
   .asc-lien { display: block; }

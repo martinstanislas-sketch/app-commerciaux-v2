@@ -4941,13 +4941,16 @@ const ASC_ETAT_MOT = { done: 'Terminé', active: 'À faire maintenant', locked: 
 // Le récit des six semaines. `weekTitles` vient du serveur (source de vérité) ;
 // le sous-titre et l'ambiance sont de la MISE EN SCÈNE — ils vivent donc ici, et
 // ne prétendent à aucun moment être des données.
+// ⚠️ UNE LIGNE, donc ~24 caractères maximum : c'est ce qui tient dans la
+// colonne de la carte de semaine (236 px). Au-delà, la phrase passe à deux
+// lignes et la carte regagne la hauteur qu'on vient de lui retirer.
 const ASC_WEEK_SUB = {
-  1: 'Créer les premières habitudes.',
-  2: 'Les habitudes commencent à s\'installer.',
-  3: 'Continue, tu es sur la bonne voie.',
+  1: 'On installe les bases.',
+  2: 'Ça devient une habitude.',
+  3: 'Tu es sur la bonne voie.',
   4: 'Dépasse tes limites.',
-  5: 'Reste focus, le résultat se rapproche.',
-  6: 'Finis fort, sois fier de ton parcours.',
+  5: 'Le résultat approche.',
+  6: 'Finis fort, sois fier.',
 };
 const ASC_WEEK_ART = { 1: '🌱', 2: '🔥', 3: '⛰️', 4: '⚡', 5: '🧭', 6: '🏆' };
 
@@ -5366,7 +5369,7 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
     </div>`;
   }
   return `<section class="asc-ch asc-ch-${etat}" aria-label="Semaine ${week} sur ${nbSemaines}">
-    ${ascWeekCardHTML(week, nodes, st, nbSemaines, etat, done)}
+    ${ascWeekCardHTML(week, nodes, st, nbSemaines, etat)}
     <div class="asc-ch-map" style="height:${h}px">
       <svg class="asc-trail" viewBox="0 0 100 ${h}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
         <path class="asc-trail-bg" d="${d}" />
@@ -5386,24 +5389,23 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
 
 // La carte de semaine : le grand chiffre donne l'échelle, l'ambiance donne le ton,
 // et l'état se lit sans lire (franchi / en cours / encore fermé).
-// ⚠️ Elle ne REDIT PAS le titre de la semaine : l'en-tête le porte déjà, en
-// grand, à quelques centimètres au-dessus (« Je démarre » écrit deux fois côte à
-// côte). La carte apporte ce que l'en-tête ne dit pas — l'OBJECTIF de la
-// semaine — et son avancement. Le titre reste dans l'aria-label : un lecteur
-// d'écran, lui, ne voit pas les deux blocs d'un même coup d'œil.
-function ascWeekCardHTML(week, nodes, st, nbSemaines, etat, done) {
+// Trois choses, sur une ligne : le NUMÉRO de la semaine, son ambiance, sa
+// phrase. Elle ne redit ni le titre (l'en-tête le porte déjà en grand, à
+// quelques centimètres au-dessus), ni « Semaine 1 sur 6 » (le numéro le dit),
+// ni le décompte d'étapes (le sentier lui-même le montre, bulle par bulle).
+// ⚠️ Le numéro n'est plus le chiffre FANTÔME décoratif d'avant : sans « Semaine
+// 1 sur 6 » à côté, il est le seul à dire de quelle semaine il s'agit — il doit
+// donc se lire.
+// ⚠️ L'aria-label, lui, garde TOUT (rang, titre, état) : un lecteur d'écran ne
+// voit pas l'en-tête et la carte d'un même coup d'œil, il les parcourt l'un
+// après l'autre. Ce qui est redondant à l'œil ne l'est pas à l'oreille.
+function ascWeekCardHTML(week, nodes, st, nbSemaines, etat) {
   const titre = (st.weekTitles && st.weekTitles[week]) || '';
   const mot = { done: 'Chapitre franchi', now: 'En cours', soon: 'À venir' }[etat];
-  const pied = etat === 'soon'
-    ? `<span class="asc-wk-fx">${nodes.length} étapes</span>${icSvg('lock')}`
-    : `${icSvg('check-circle')}<span class="asc-wk-fx">${etat === 'done' ? nodes.length + ' étapes' : done + '/' + nodes.length + ' étapes'}</span>`;
   return `<div class="asc-wk asc-wk-${etat} asc-wk-a${week}" aria-label="Semaine ${week} sur ${nbSemaines} : ${mcpEsc(titre)} — ${mot}">
     <span class="asc-wk-n" aria-hidden="true">${String(week).padStart(2, '0')}</span>
-    <span class="asc-wk-art" aria-hidden="true">${ASC_WEEK_ART[week] || '✦'}</span>
-    <p class="asc-wk-k">Semaine ${week} sur ${nbSemaines}</p>
-    <p class="asc-wk-o">Objectif de la semaine</p>
     <p class="asc-wk-s">${mcpEsc(ASC_WEEK_SUB[week] || '')}</p>
-    <p class="asc-wk-f">${pied}</p>
+    <span class="asc-wk-art" aria-hidden="true">${ASC_WEEK_ART[week] || '✦'}</span>
   </div>`;
 }
 
