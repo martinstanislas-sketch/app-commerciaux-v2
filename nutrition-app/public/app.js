@@ -4885,7 +4885,8 @@ async function renderChallenge() {
   // Les deux vivent dans la même grille -> le rail occupe RÉELLEMENT la colonne
   // qui, jusqu'ici, n'existait que pour centrer le sentier (cf. .asc-body).
   view.innerHTML = parcoursSegmentHTML() + challengeHeaderHTML(st)
-    + '<div class="asc-body">' + challengeRailHTML(st) + challengePathHTML(st) + '</div>';
+    + '<div class="asc-body">' + challengeRailHTML(st) + challengePathHTML(st) + '</div>'
+    + ascMissionFlottanteHTML(st);
   wireParcoursSegment();
   wireChallengePath();
   mcpathCentrerActif(); // on ouvre sur l'étape du jour, pas en haut du parcours
@@ -5066,6 +5067,79 @@ function ascJalonLigneHTML(j) {
     ${icSvg('target')}
     <span class="asc-head-gx">Prochaine étape clé · <b>${mcpEsc(j.node.title)}</b> — ${quand}</span>
     ${icSvg('arrow-right')}</button>`;
+}
+
+// --- La mission de la semaine : une étoile qui suit le regard ---------------
+// Elle était posée SUR le sentier, au milieu d'un segment : elle disparaissait
+// dès qu'on avait défilé au-delà, alors qu'elle reste ouverte toute la semaine.
+// Elle flotte donc en haut à gauche, présente tout au long de la descente — et
+// s'efface dès que la mission est faite : une fois validée, elle n'a plus rien
+// à proposer.
+// ⚠️ On n'expose QUE la mission encore ouverte la plus récente, comme la carte
+// du rail : deux étoiles pour deux semaines de retard seraient deux fois la même
+// invitation.
+function ascMissionOuverte(st) {
+  const liste = (st && st.missionsBonus) || [];
+  // 'validee' comme 'declaree' valent « c'est fait » : la déclaration crédite le
+  // Punch immédiatement (cf. declarerMissionBonus), il n'y a plus rien à faire.
+  return [...liste].reverse().find((m) => !m.statut || m.statut === 'refusee') || null;
+}
+function ascMissionFlottanteHTML(st) {
+  const m = ascMissionOuverte(st);
+  if (!m) return '';
+  return `<button type="button" class="asc-mf" data-mb="${m.week}"
+      aria-label="Mission bonus de la semaine ${m.week} : ${mcpEsc(m.titre || '')} — facultative, ${m.punch || 0} Punch en plus">
+    <span class="asc-mf-ic" aria-hidden="true">${icSvg('star')}</span>
+    <span class="asc-mf-x" aria-hidden="true">Mission<br><b>+${m.punch || 0} Punch</b></span>
+  </button>`;
+}
+// ⚠️ « Sans jamais masquer une écriture » : un élément fixe passe par définition
+// au-dessus de ce qui défile dessous. On l'efface donc tant qu'un bloc de TEXTE
+// occupe sa place — l'en-tête et les cartes de semaine, les seuls larges assez
+// pour venir sous elle — et on la ramène dès que la zone est dégagée.
+// Passif et bon marché : une lecture de rectangles au défilement, aucun
+// observateur à défaire, et si le calcul échoue l'étoile reste simplement
+// visible (elle ne disparaît jamais par accident).
+function ascMissionVeille() {
+  const btn = $('#view-parcours .asc-mf'); if (!btn) return;
+  // Un rectangle touche-t-il celui de l'étoile, et à quel point ?
+  const recouvrement = (b, r) => {
+    const w = Math.min(b.right, r.right) - Math.max(b.left, r.left);
+    const h = Math.min(b.bottom, r.bottom) - Math.max(b.top, r.top);
+    if (w <= 0 || h <= 0 || !b.width || !b.height) return 0;
+    return (w * h) / (b.width * b.height); // part du BLOC qui passe sous l'étoile
+  };
+  const gene = () => {
+    const r = btn.getBoundingClientRect();
+    if (!r.width) return false;
+    // Les BLOCS de texte — en-tête, cartes du rail, cartes de semaine, carte
+    // finale, légende — s'imposent au moindre contact : ils portent des phrases,
+    // en cacher un morceau les rend illisibles. (Ne surveiller que l'en-tête et
+    // les semaines laissait l'étoile manger le texte des cartes du rail, qui
+    // passent pile sous elle sur mobile.)
+    const marge = 8;
+    const blocs = $$('#view-parcours .asc-head, #view-parcours .asc-rc, #view-parcours .asc-wk,'
+      + ' #view-parcours .asc-card, #view-parcours .asc-leg');
+    if (blocs.some((el) => {
+      const b = el.getBoundingClientRect();
+      return b.width > 0 && b.right > r.left - marge && b.left < r.right + marge
+        && b.bottom > r.top - marge && b.top < r.bottom + marge;
+    })) return true;
+    // ⚠️ Les LIBELLÉS d'étape, eux, ne comptent qu'à partir d'un tiers recouvert.
+    // Au moindre contact, l'étoile disparaissait aux deux tiers du défilement
+    // (33 % de présence mesurés) : elle clignotait au lieu d'accompagner. Un
+    // libellé qui effleure son coin n'est pas masqué pour autant.
+    return $$('#view-parcours .asc-lbl').some((el) => recouvrement(el.getBoundingClientRect(), r) > 0.34);
+  };
+  let attend = false;
+  const maj = () => {
+    attend = false;
+    try { btn.classList.toggle('is-cache', gene()); } catch (_) { /* on la laisse visible */ }
+  };
+  const surDefilement = () => { if (attend) return; attend = true; requestAnimationFrame(maj); };
+  window.addEventListener('scroll', surDefilement, { passive: true });
+  window.addEventListener('resize', surDefilement, { passive: true });
+  maj();
 }
 
 // --- Le rail : ce que le parcours RAPPORTE ----------------------------------
@@ -5316,56 +5390,6 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, next, ctx) {
   // deux tracés : le raccord traverserait la carte.
   const dLien = next ? ascTrace([pts[last], { x: next.x, y: h + ASC_PAD }]) : '';
   const lienFait = !!next && next.done && nodes[last].status === 'done';
-  // Mission bonus : un petit nœud doré FACULTATIF, posé SUR le sentier au milieu
-  // d'un segment de la semaine courante. Le milieu est exact : la courbe de
-  // Bézier de ascTrace passe par ((x1+x2)/2, (y1+y2)/2) à t=0,5 — aucun calcul
-  // de tracé à refaire. Son design (pointillés, étoile, petit) dit « en plus »,
-  // jamais « obligatoire » : il ne bloque rien et n'a pas de cadenas.
-  let mb = '';
-  // La mission de CE chapitre, si sa semaine est déjà ouverte : une mission
-  // passée non faite reste posée sur son chapitre (rattrapable plus tard),
-  // les semaines à venir n'exposent rien.
-  const mission = st && (st.missionsBonus || []).find((m) => m.week === week);
-  if (mission && nodes.length >= 2) {
-    // Segment d'accueil : le plus proche du milieu dont AUCUNE des deux étapes ne
-    // porte de carte (active / jalon / fin) — la carte flotte à côté de sa bulle
-    // et recouvrirait l'étoile posée au milieu du segment voisin.
-    // « Occupé » = le personnage s'y tient (étape active) ou une carte y flotte
-    // (la fin, seule carte restante) : dans les deux cas l'étoile y serait
-    // recouverte. Les jalons, eux, ne portent plus de carte.
-    const aCarte = (n) => n && (n.status === 'active' || n.type === 'final');
-    const milieu = Math.min(Math.max(1, Math.floor(nodes.length / 2)), nodes.length - 1);
-    let k = milieu;
-    for (let d = 0; d < nodes.length; d++) {
-      const cand = milieu + (d % 2 ? -(d + 1) / 2 : d / 2); // milieu, +1, -1, +2, -2…
-      if (cand >= 1 && cand <= nodes.length - 1 && !aCarte(nodes[cand - 1]) && !aCarte(nodes[cand])) { k = cand; break; }
-    }
-    // ⚠️ Posée SUR le milieu du segment, l'étoile mordait les deux bulles
-    // voisines dès qu'on l'a agrandie : à ce pas, la moitié d'un segment (45 px)
-    // est plus courte que la somme des rayons (32 + 33). On la décale donc vers
-    // l'EXTÉRIEUR de la vague — le côté intérieur est pris par les cartes. Et
-    // c'est plus juste ainsi : une mission facultative n'a pas à occuper l'axe
-    // du parcours, elle se propose à côté.
-    // ⚠️ 15 % et pas moins. Le décalage est HORIZONTAL alors que le segment est
-    // oblique : il rapproche donc l'étoile de l'une des deux bulles autant qu'il
-    // l'éloigne de l'autre. Le milieu d'un segment est déjà à ~5 % d'un nœud
-    // (amplitude ASC_AMP), et il faut ~9 % de plus pour dégager la somme des
-    // rayons à une demi-longueur de segment (45 px) : sous 14 %, l'étoile mord
-    // la bulle voisine — 6 px mesurés à 11 %, une fois l'air des jalons retirée
-    // et tous les segments ramenés à la même longueur.
-    const mx0 = (pts[k - 1].x + pts[k].x) / 2;
-    const mx = mx0 + (mx0 >= 50 ? 15 : -15);
-    const my = (pts[k - 1].y + pts[k].y) / 2;
-    const badge = mission.statut === 'validee' ? `<span class="asc-mb-st ok" aria-hidden="true">${icSvg('check')}</span>`
-      : mission.statut === 'refusee' ? '<span class="asc-mb-st ko" aria-hidden="true">✕</span>'
-        : mission.statut === 'declaree' ? '<span class="asc-mb-st" aria-hidden="true">⏳</span>' : '';
-    const ariaMb = 'Mission bonus de la semaine — facultative, des PUNCH en plus'
-      + (mission.statut === 'validee' ? ' — validée' : mission.statut === 'refusee' ? ' — non validée' : mission.statut === 'declaree' ? ' — envoyée au coach' : '');
-    mb = `<div class="asc-nd asc-mb${mx0 >= 50 ? '' : ' asc-mb-g'}" style="left:${mx.toFixed(2)}%;top:${Math.round(my)}px">
-      <button type="button" class="asc-mb-dot" data-mb="${mission.week}" aria-label="${ariaMb}">${icSvg('star')}${badge}</button>
-      <span class="asc-mb-lbl" aria-hidden="true">Mission bonus</span>
-    </div>`;
-  }
   return `<section class="asc-ch asc-ch-${etat}" aria-label="Semaine ${week} sur ${nbSemaines}">
     ${ascWeekCardHTML(week, nodes, st, nbSemaines, etat)}
     <div class="asc-ch-map" style="height:${h}px">
@@ -5380,7 +5404,6 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, next, ctx) {
       ${nodes.map((n, k) => ascNodeHTML(n, pts[k], ctx)).join('')}
       ${nodes.map((n, k) => ascCarteMobileHTML(n, pts[k], ctx)).join('')}
       ${ascAvatarSurSentierHTML(nodes, pts)}
-      ${mb}
     </div>
   </section>`;
 }
@@ -5542,6 +5565,7 @@ function wireChallengePath() {
   $$('#view-parcours .mcpath-stat[data-stat]').forEach((b) => b.addEventListener('click', () => openStatInfo(b.dataset.stat)));
   $$('#view-parcours [data-goto]').forEach((b) => b.addEventListener('click', () => ascAllerA('#asc-nd-' + b.dataset.goto)));
   const _g = $('#mcpathGifts'); if (_g) _g.addEventListener('click', () => setTab('boutique'));
+  ascMissionVeille();
   ascRevelation();
 }
 

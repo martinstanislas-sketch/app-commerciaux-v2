@@ -2993,7 +2993,6 @@ body.is-demo #navRestart { display: none !important; }
   --asc-dot: 66px;            /* diamètre d'une bulle ordinaire */
   --asc-dot-now: 82px;        /* … de l'étape active — la plus grande */
   --asc-dot-top: 76px;        /* … d'un jalon */
-  --asc-rec-d: 64px;          /* … de l'étoile de mission bonus */
   --asc-gap: 52px;            /* écart bulle -> ce qui est posé à côté */
   --asc-sand: #E8E2D4;        /* le sentier qui reste devant soi */
   --asc-sand-d: #DCD4C2;      /* son liseré */
@@ -3342,27 +3341,36 @@ body.is-demo #navRestart { display: none !important; }
 .asc-card-cta-ink { display: flex; width: 100%; margin-top: 12px; background: var(--text-c); box-shadow: var(--shadow-sm); }
 .asc-card-cta-ink:hover { background: #000; }
 
-/* --- La mission bonus : une étoile FACULTATIVE posée sur le sentier -------
-   Plus petite qu'une étape, cerclée de POINTILLÉS (le code visuel du
-   « en plus ») : elle doit se voir sans jamais se lire comme une étape
-   obligatoire — pas de cadenas, pas de coche de parcours, rien ne dépend d'elle. */
-.asc-mb { z-index: 3; }
-.asc-mb-dot { position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); display: grid; place-items: center; width: var(--asc-rec-d); height: var(--asc-rec-d); border-radius: 50%; border: 1.5px dashed var(--gold); background: linear-gradient(160deg, #FDF6E0, #F3E3B8); color: #8A6D28; cursor: pointer; box-shadow: 0 0 0 3px var(--app-bg); transition: transform .15s var(--ease); }
-.asc-mb-dot .ic { width: 26px; height: 26px; }
-.asc-mb-dot:hover { transform: translate(-50%, -50%) scale(1.1); }
-.asc-mb-dot:active { transform: translate(-50%, -50%) scale(.95); }
-.asc-mb-dot:focus-visible { outline: 2px solid var(--blue-c); outline-offset: 3px; }
-/* Posé À CÔTÉ de l'étoile, pas dessous : sous elle, il tombait dans le couloir
-   vertical du sentier et mordait la bulle suivante. */
-/* Décalée à GAUCHE du sentier, l'étoile porte son libellé à gauche elle aussi :
-   posé à droite, il repasserait en travers du tracé. */
-.asc-mb-g .asc-mb-lbl { left: auto; right: calc(var(--asc-rec-d) / 2 + 7px); }
-.asc-mb-lbl { position: absolute; top: 0; left: calc(var(--asc-rec-d) / 2 + 7px); transform: translateY(-50%); white-space: nowrap; font: 700 10px/1 var(--font); letter-spacing: .05em; text-transform: uppercase; color: #8A6D28; }
-/* La pastille d'état : envoyée (⏳), validée (coche sauge), refusée (grisée). */
-.asc-mb-st { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--app-bg); background: var(--gold); color: #fff; font-size: 9px; line-height: 1; }
-.asc-mb-st.ok { background: var(--sage); }
-.asc-mb-st.ko { background: var(--text-soft); }
-.asc-mb-st .ic { width: 9px; height: 9px; stroke-width: 3.4; }
+/* --- La mission de la semaine : une étoile FLOTTANTE ----------------------
+   Elle était posée sur le sentier, au milieu d'un segment : on la perdait de vue
+   dès qu'on avait défilé au-delà, alors qu'elle reste ouverte toute la semaine.
+   Elle flotte donc en haut à gauche, et suit le regard tout du long.
+   Cerclée de POINTILLÉS, le code visuel du « en plus » : elle doit se voir sans
+   jamais se lire comme une étape obligatoire — rien ne dépend d'elle.
+   ⚠️ z-index modeste (40) : elle passe SOUS la barre du bas (50), les toasts
+   (120) et les fenêtres de célébration (1000). Une invitation facultative ne
+   masque jamais ce qui, lui, demande une réponse.
+   -------------------------------------------------------------------------- */
+.asc-mf { position: fixed; z-index: 40; left: 12px; top: calc(var(--asc-top, 53px) + 12px);
+  display: flex; align-items: center; gap: 9px; padding: 8px 13px 8px 9px;
+  border: 1.5px dashed var(--gold); border-radius: var(--pill);
+  background: linear-gradient(150deg, #FDF6E0, #F6E9C8); color: #8A6D28;
+  font-family: inherit; cursor: pointer; box-shadow: 0 8px 20px -10px rgba(138, 109, 40, .55);
+  transition: opacity .25s var(--ease), transform .25s var(--ease); }
+.asc-mf-ic { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255, 255, 255, .7); color: var(--gold); }
+.asc-mf-ic .ic { width: 17px; height: 17px; }
+.asc-mf-x { font: 600 10.5px/1.25 var(--font); letter-spacing: .02em; text-align: left; text-transform: uppercase; }
+.asc-mf-x b { font: 800 12px/1.2 var(--font); font-variant-numeric: tabular-nums; }
+.asc-mf:hover { transform: translateY(-1px); }
+.asc-mf:active { transform: scale(.97); }
+.asc-mf:focus-visible { outline: 2px solid var(--blue-c); outline-offset: 3px; }
+/* Effacée tant qu'un bloc de texte occupe sa place (cf. ascMissionVeille) :
+   elle ne masque jamais une écriture. `visibility` et non `display` — un
+   élément retiré du flux n'a plus de rectangle, et la veille ne saurait plus
+   quand le ramener. */
+.asc-mf.is-cache { opacity: 0; visibility: hidden; transform: translateY(-6px); }
+@media (prefers-reduced-motion: reduce) { .asc-mf { transition: none; } }
 
 /* La fenêtre de la mission (corps du bottom-sheet) */
 .mb-desc { margin: 0 0 14px; font: 400 14px/1.5 var(--font); color: var(--text-muted-c); }
@@ -3542,7 +3550,7 @@ body.is-demo #navRestart { display: none !important; }
      qui est posé à côté — la carte de l'étape active tient dans cette largeur. */
   /* Tout rétrécit ENSEMBLE — bulle, écart, avatar : c'est le seul moyen de
      garder le libellé à côté de son étape sans jamais mordre le sentier. */
-  .asc-wrap, #view-parcours { --asc-dot: 58px; --asc-dot-now: 72px; --asc-dot-top: 64px; --asc-rec-d: 52px;
+  .asc-wrap, #view-parcours { --asc-dot: 58px; --asc-dot-now: 72px; --asc-dot-top: 64px;
     --asc-gap: 36px; --asc-trail: 12px; --asc-av-h: 94px; }
   /* ⚠️ 96 px, calculé et pas choisi : l'étape la plus excentrée est à 62 % de la
      carte (50 % + ASC_AMP), soit 218 px sur un écran de 375 ; plus l'écart de
@@ -3558,11 +3566,9 @@ body.is-demo #navRestart { display: none !important; }
      côté d'elle, là où la carte ne monte pas. Les 34 px sont la descente que
      lui donne ASC_AV_T sur un pas de 90 px. */
   .asc-avw { margin-top: calc(var(--asc-av-h) * -1 - 34px); }
-  /* L'étoile de mission est décalée hors de l'axe du sentier ; sur un écran de
-     375 px, son libellé part alors au-delà du bord et se fait couper. L'étoile
-     dorée en pointillés reste, et le détail s'ouvre au toucher — c'est déjà le
-     parti pris des récompenses sur mobile. */
-  .asc-mb-lbl { display: none; }
+  .asc-mf { left: 10px; padding: 7px 11px 7px 8px; }
+  .asc-mf-ic { width: 27px; height: 27px; }
+  .asc-mf-x { font-size: 10px; }
   .asc-card { padding: 12px 13px; }
   .asc-card-t { font-size: 16px; }
   .asc-card-f { flex-wrap: wrap; gap: 8px; }
@@ -3570,7 +3576,6 @@ body.is-demo #navRestart { display: none !important; }
   .asc-dot .ic { width: 24px; height: 24px; }
   .asc-active .asc-dot .ic { width: 28px; height: 28px; }
   .asc-sommet .asc-dot .ic { width: 26px; height: 26px; }
-  .asc-mb-dot .ic { width: 21px; height: 21px; }
   /* La marge de 16 px du téléphone, tenue partout. */
   #view-parcours { padding-left: 16px; padding-right: 16px; }
   .asc-leg { gap: 7px 12px; padding: 12px; }
