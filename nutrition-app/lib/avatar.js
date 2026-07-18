@@ -180,10 +180,13 @@
         ...a,
         debloque,
         equipe: debloque && eq.has(a.id),
-        // Jamais de nombre nu : l'unité fait partie du libellé.
-        conditionTexte: a.condition.type === 'badge'
-          ? 'Débloqué avec le ' + String(a.condition.valeur).replace(/_/g, ' ')
-          : (debloque ? 'Débloqué' : 'Encore ' + Math.max(0, a.condition.valeur - p) + ' PUNCH'),
+        // Jamais de nombre nu : l'unité fait partie du libellé. Et quand la pièce
+        // est verrouillée, le texte annonce la CONDITION — jamais « Débloqué »,
+        // qui se lisait comme un état acquis sur une carte grisée.
+        conditionTexte: debloque ? 'Débloqué'
+          : (a.condition.type === 'badge'
+            ? 'Avec le ' + String(a.condition.valeur).replace(/_/g, ' ')
+            : 'Encore ' + Math.max(0, a.condition.valeur - p) + ' PUNCH'),
         restant: a.condition.type === 'punch' ? Math.max(0, a.condition.valeur - p) : 0,
       };
     });

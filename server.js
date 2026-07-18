@@ -3644,6 +3644,14 @@ try {
   // ci-dessus restent en requireAdmin). Les écritures client (help/scan/adherence)
   // sont en requireNutritionAccess et ne sont jamais appelées en mode démo.
   app.use('/nutrition/api', requireAuth, requireNutritionUse);
+  // Le moteur d'avatar est servi au navigateur depuis lib/ — PAS de copie dans
+  // public/ : une seule source, donc l'aperçu de l'éditeur ne peut pas dériver
+  // du SVG que le serveur rend pour les autres membres.
+  app.get('/nutrition/avatar.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.sendFile(path.join(__dirname, 'nutrition-app', 'lib', 'avatar.js'));
+  });
   app.use('/nutrition', nutritionApp);                  // sert le module (pages + statique)
 } catch (e) {
   console.warn('Module Nutrition non chargé :', e.message);

@@ -3144,9 +3144,8 @@ function init() {
   $('#quickOptClose').addEventListener('click', closeQuickOptions);
   $('#quickOptPanel').addEventListener('click', (e) => { if (e.target.id === 'quickOptPanel') closeQuickOptions(); });
   // Panneau de saisie de pesée client retiré (pesées officielles saisies par le coach).
-  const _pavAdd = $('#pavAdd'); if (_pavAdd) _pavAdd.addEventListener('click', () => { const f = $('#pavFile'); if (f) f.click(); });
-  const _pavFile = $('#pavFile'); if (_pavFile) _pavFile.addEventListener('change', onAvatarFile);
-  const _pavRemove = $('#pavRemove'); if (_pavRemove) _pavRemove.addEventListener('click', removeAvatar);
+  // L'import de photo est retiré : on ouvre l'éditeur d'avatar à la place.
+  const _pavEdit = $('#pavEdit'); if (_pavEdit) _pavEdit.addEventListener('click', () => openAvatarEditor());
   const _bInvite = $('#btnInviteClient'); if (_bInvite) _bInvite.addEventListener('click', openInvitePanel);
   const _invClose = $('#inviteClose'); if (_invClose) _invClose.addEventListener('click', closeInvitePanel);
   const _invPanel = $('#invitePanel'); if (_invPanel) _invPanel.addEventListener('click', (e) => { if (e.target.id === 'invitePanel') closeInvitePanel(); });
@@ -7264,78 +7263,182 @@ async function saveChangePin() {
   } catch (_) { if (m) m.textContent = 'Connexion requise.'; }
 }
 // --- Client : photo de profil (avatar communauté) ---
+// ── AVATAR PERSONNALISABLE ─────────────────────────────────────────────────
+// La config est la source de vérité ; le SVG est reconstruit par le MÊME moteur
+// que celui du serveur (window.MCAvatar) -> l'aperçu ne peut pas diverger de ce
+// que voient les autres membres.
+let _avatarBrouillon = null; // config en cours d'édition (annulable)
+
+function avatarConfigCourante() {
+  return (window.__NUTRI_USER && window.__NUTRI_USER.avatarConfig) || null;
+}
+// Punch et badges servent à l'affichage des conditions. Le serveur refait le
+// calcul à l'enregistrement : ici c'est de l'information, pas une autorisation.
+function avatarProgression() {
+  const st = state.challenge || {};
+  const punch = Number((st.stats && st.stats.punch) || 0);
+  const badges = Object.keys(st.cadeaux || {})
+    .filter((s) => punch >= Number(s))
+    .map((s) => (st.cadeaux[s] || {}).id)
+    .filter(Boolean);
+  return { punch, badges };
+}
 function renderProfilAvatar() {
   const pic = $('#pavPic'); if (!pic) return;
-  const url = (window.__NUTRI_USER && window.__NUTRI_USER.avatarUrl) || '';
-  const lbl = $('#pavAddLbl'); const rm = $('#pavRemove');
-  if (url) {
-    pic.innerHTML = '<img src="' + escapeHtml(url) + '" alt="Ma photo">';
+  const cfg = avatarConfigCourante();
+  const lbl = $('#pavEditLbl');
+  if (cfg && window.MCAvatar) {
+    pic.innerHTML = window.MCAvatar.rendreSVG(cfg, { alt: 'Mon avatar' });
     pic.classList.add('has-img');
-    if (lbl) lbl.textContent = 'Changer la photo';
-    if (rm) rm.classList.remove('hidden');
-  } else {
-    pic.innerHTML = '<svg class="ic"><use href="#ic-user"/></svg>';
-    pic.classList.remove('has-img');
-    if (lbl) lbl.textContent = 'Ajouter une photo';
-    if (rm) rm.classList.add('hidden');
+    if (lbl) lbl.textContent = 'Modifier mon avatar';
+    return;
+  }
+  // Pas encore d'avatar : on montre la photo existante s'il y en a une (repli),
+  // et on invite à créer l'avatar.
+  const url = (window.__NUTRI_USER && window.__NUTRI_USER.avatarUrl) || '';
+  pic.innerHTML = url ? '<img src="' + escapeHtml(url) + '" alt="Ma photo">' : '<svg class="ic"><use href="#ic-user"/></svg>';
+  pic.classList.toggle('has-img', !!url);
+  if (lbl) lbl.textContent = 'Créer mon avatar';
+}
+
+// Groupes de la personnalisation de base — TOUS gratuits, dès la création.
+const AVATAR_GROUPES = [
+  { cle: 'visage', titre: 'Visage', liste: 'VISAGES' },
+  { cle: 'peau', titre: 'Peau', liste: 'PEAUX', couleur: true },
+  { cle: 'coiffure', titre: 'Coiffure', liste: 'COIFFURES' },
+  { cle: 'couleur_cheveux', titre: 'Couleur des cheveux', liste: 'CHEVEUX_COULEURS', couleur: true },
+  { cle: 'yeux', titre: 'Yeux', liste: 'YEUX' },
+  { cle: 'sourcils', titre: 'Sourcils', liste: 'SOURCILS' },
+  { cle: 'bouche', titre: 'Bouche', liste: 'BOUCHES' },
+  { cle: 'pilosite', titre: 'Barbe / moustache', liste: 'PILOSITES' },
+  { cle: 'tenue', titre: 'Tenue', liste: 'TENUES', couleur: true },
+];
+
+function openAvatarEditor(focusAccessoire) {
+  if (!window.MCAvatar) { toast('Éditeur indisponible.'); return; }
+  const A = window.MCAvatar;
+  _avatarBrouillon = A.normaliserConfig(avatarConfigCourante() || A.configParDefaut((window.__NUTRI_USER || {}).email || ''));
+  let panel = $('#avatarPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'avatarPanel';
+    panel.className = 'panel hidden';
+    panel.innerHTML = '<div class="panel-inner">'
+      + '<div class="panel-head"><h2>' + icSvg('user') + ' Mon avatar</h2>'
+      + '<button class="modal-close" id="avClose" aria-label="Fermer">' + icSvg('x') + '</button></div>'
+      + '<div class="av-preview"><div class="av-pic" id="avPreview"></div>'
+      + '<button type="button" class="btn btn-outline av-hasard" id="avHasard">' + icSvg('refresh') + ' Au hasard</button></div>'
+      + '<div id="avBody"></div>'
+      + '<div class="av-foot"><button type="button" class="btn btn-primary" id="avSave">Enregistrer</button></div>'
+      + '</div>';
+    document.body.appendChild(panel);
+    $('#avClose').addEventListener('click', closeAvatarEditor);
+    panel.addEventListener('click', (e) => { if (e.target === panel) closeAvatarEditor(); });
+    $('#avSave').addEventListener('click', saveAvatar);
+    $('#avHasard').addEventListener('click', () => {
+      _avatarBrouillon = A.normaliserConfig(Object.assign(
+        A.configParDefaut(String(Math.random())), { accessoires: _avatarBrouillon.accessoires }));
+      renderAvatarEditor();
+    });
+  }
+  panel.classList.remove('hidden');
+  renderAvatarEditor();
+  if (focusAccessoire) {
+    setTimeout(() => {
+      const el = panel.querySelector('.av-acc[data-id="' + focusAccessoire + '"]');
+      if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('is-neuf'); }
+    }, 120);
   }
 }
-// Redimensionne l'image choisie en un carré ~256px (recadrage centré), JPEG léger.
-function resizeImageToSquare(file, size) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('read'));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('decode'));
-      img.onload = () => {
-        try {
-          const S = size || 256;
-          const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
-          const ctx = cv.getContext('2d');
-          const side = Math.min(img.width, img.height);
-          const sx = (img.width - side) / 2; const sy = (img.height - side) / 2;
-          ctx.drawImage(img, sx, sy, side, side, 0, 0, S, S);
-          resolve(cv.toDataURL('image/jpeg', 0.82));
-        } catch (e) { reject(e); }
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
+function closeAvatarEditor() { const p = $('#avatarPanel'); if (p) p.classList.add('hidden'); _avatarBrouillon = null; }
+
+function renderAvatarEditor() {
+  const A = window.MCAvatar; const cfg = _avatarBrouillon; if (!A || !cfg) return;
+  const prev = $('#avPreview'); if (prev) prev.innerHTML = A.rendreSVG(cfg, { alt: 'Aperçu de mon avatar' });
+
+  const bloc = (g) => {
+    const items = A[g.liste] || [];
+    const choix = items.map((it) => {
+      const on = cfg[g.cle] === it.id;
+      const pastille = g.couleur && it.c
+        ? '<span class="av-dot" style="background:' + it.c + '"></span>'
+        : '';
+      return '<button type="button" class="av-opt' + (on ? ' on' : '') + '" data-groupe="' + g.cle + '" data-val="' + it.id + '">'
+        + pastille + escapeHtml(it.nom) + '</button>';
+    }).join('');
+    return '<div class="av-sec"><h3>' + escapeHtml(g.titre) + '</h3><div class="av-opts">' + choix + '</div></div>';
+  };
+
+  // Accessoires : les 3 états sont TOUJOURS visibles. On ne masque jamais un
+  // accessoire verrouillé — le voir est ce qui donne envie de progresser.
+  const { punch, badges } = avatarProgression();
+  const accs = A.etatAccessoires({ punch, badges, equipes: cfg.accessoires });
+  const carte = (a) => {
+    const etat = !a.debloque ? 'is-lock' : (a.equipe ? 'is-on' : 'is-ok');
+    const badge = !a.debloque ? escapeHtml(a.conditionTexte) : (a.equipe ? 'Équipé' : 'Débloqué');
+    return '<button type="button" class="av-acc ' + etat + ' t-' + a.tier + '" data-id="' + a.id + '"'
+      + (a.debloque ? '' : ' aria-disabled="true"') + '>'
+      + '<span class="av-acc-nom">' + escapeHtml(a.nom) + '</span>'
+      + '<span class="av-acc-etat">' + badge + '</span></button>';
+  };
+  const html = AVATAR_GROUPES.map(bloc).join('')
+    + '<div class="av-sec"><h3>Accessoires</h3>'
+    + '<p class="av-note">Ils se débloquent avec ta progression. Aucun ne s’achète.</p>'
+    + '<div class="av-accs">' + accs.map(carte).join('') + '</div></div>';
+  const body = $('#avBody'); if (!body) return;
+  body.innerHTML = html;
+
+  body.querySelectorAll('.av-opt').forEach((b) => b.addEventListener('click', () => {
+    cfg[b.dataset.groupe] = b.dataset.val;
+    renderAvatarEditor();
+  }));
+  body.querySelectorAll('.av-acc').forEach((b) => b.addEventListener('click', () => {
+    const a = accs.find((x) => x.id === b.dataset.id);
+    if (!a || !a.debloque) { toast(a ? a.conditionTexte : ''); return; }
+    const dedans = cfg.accessoires.includes(a.id);
+    // Un seul accessoire par emplacement : équiper remplace ce qui l'occupait.
+    let liste = cfg.accessoires.filter((id) => {
+      if (id === a.id) return false;
+      const autre = A.ACCESSOIRES.find((x) => x.id === id);
+      return !(autre && A.EMPLACEMENT_UNIQUE.includes(a.categorie) && autre.categorie === a.categorie);
+    });
+    if (!dedans) liste = liste.concat(a.id);
+    cfg.accessoires = liste;
+    renderAvatarEditor();
+  }));
 }
-async function onAvatarFile(e) {
-  const file = e && e.target && e.target.files && e.target.files[0];
-  if (e && e.target) e.target.value = ''; // permet de re-choisir le même fichier
-  if (!file) return;
-  if (!/^image\//.test(file.type)) { showToast('Choisis une image.', { icon: 'info' }); return; }
+
+async function saveAvatar() {
+  const cfg = _avatarBrouillon; if (!cfg) return;
+  const btn = $('#avSave'); if (btn) btn.disabled = true;
   try {
-    const data = await resizeImageToSquare(file, 256);
-    const res = await fetch(apiUrl('/account/avatar'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ data }) });
-    const d = await res.json();
-    if (d && d.ok) {
-      // Cache-buster : la clé (donc l'URL) est stable ; on force le rafraîchissement de l'image.
-      const bust = d.avatarUrl + (d.avatarUrl.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
-      if (window.__NUTRI_USER) { window.__NUTRI_USER.avatarUrl = bust; persistNutriAccount(); }
-      renderProfilAvatar();
-      showToast('Photo mise à jour ✅', { icon: 'check' });
-      if (state.communauteFeed) { try { renderCommunaute(); } catch (_) { /* pas sur l'onglet */ } }
-    } else { showToast((d && d.error) || 'Échec de l’envoi.', { icon: 'info' }); }
-  } catch (_) { showToast('Image illisible ou trop lourde.', { icon: 'info' }); }
+    const r = await fetch(apiUrl('/account/avatar-config'), {
+      method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ config: cfg }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Enregistrement impossible.');
+    // Le serveur renvoie la config VALIDÉE (accessoires non gagnés retirés) :
+    // on adopte la sienne, jamais la nôtre.
+    if (window.__NUTRI_USER) {
+      window.__NUTRI_USER.avatarConfig = d.config;
+      window.__NUTRI_USER.avatarUrl = d.avatarUrl;
+      if (typeof persistNutriAccount === 'function') persistNutriAccount();
+    }
+    closeAvatarEditor();
+    renderProfilAvatar();
+    // Le fil affiche l'avatar des membres : on le rafraîchit pour voir le sien.
+    if (typeof renderCommunaute === 'function' && state.communauteJoined) renderCommunaute();
+    toast('Avatar enregistré.');
+  } catch (e) {
+    toast(e.message || 'Enregistrement impossible.');
+    if (btn) btn.disabled = false;
+  }
 }
-async function removeAvatar() {
-  if (!confirm('Retirer ta photo de profil ?')) return;
-  try {
-    const res = await fetch(apiUrl('/account/avatar'), { method: 'DELETE', headers: nutriAuthHeaders() });
-    const d = await res.json();
-    if (d && d.ok) {
-      if (window.__NUTRI_USER) { window.__NUTRI_USER.avatarUrl = ''; persistNutriAccount(); }
-      renderProfilAvatar();
-      showToast('Photo retirée.', { icon: 'check' });
-      if (state.communauteFeed) { try { renderCommunaute(); } catch (_) { /* pas sur l'onglet */ } }
-    } else { showToast((d && d.error) || 'Échec.', { icon: 'info' }); }
-  } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
-}
+// L'import de photo a été retiré avec le passage à l'avatar personnalisable :
+// resizeImageToSquare / onAvatarFile / removeAvatar n'avaient plus d'appelant.
+// Les photos déjà en base ne sont PAS supprimées : elles servent de repli
+// tant qu'un client n'a pas créé son avatar (routes serveur conservées).
 // Persiste l'identité client (dont avatarUrl) sur cet appareil.
 function persistNutriAccount() {
   try {

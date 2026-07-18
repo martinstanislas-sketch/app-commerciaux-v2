@@ -40,7 +40,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=144" />
+  <link rel="stylesheet" href="style.css?v=146" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=103" />
   <script>
@@ -73,6 +73,11 @@
           if (d && d.ok) {
             acc.prenom = d.prenom || acc.prenom; acc.nom = d.nom || acc.nom;
             acc.avatarUrl = d.avatarUrl || '';
+            // Config de l'avatar : c'est elle la source de vérité (l'URL n'en est
+            // que le rendu). Sans elle, l'éditeur repartirait de zéro à chaque
+            // chargement au lieu de rouvrir sur l'avatar existant.
+            acc.avatarConfig = d.avatarConfig || null;
+            acc.aPhoto = !!d.aPhoto;
             window.__NUTRI_USER = acc;
             try { localStorage.setItem('mc-nutri-account', JSON.stringify(acc)); } catch (e) {}
             try { localStorage.setItem('mc-nutri-id', JSON.stringify({ email: acc.email, prenom: acc.prenom, nom: acc.nom })); } catch (e) {}
@@ -844,14 +849,12 @@
         <div class="profil-avatar profil-client hidden" id="profilAvatarBlock">
           <div class="pav-pic" id="pavPic"><svg class="ic"><use href="#ic-user"/></svg></div>
           <div class="pav-txt">
-            <b>Ma photo</b>
-            <span>Elle s'affiche à côté de tes messages dans la communauté.</span>
+            <b>Mon avatar</b>
+            <span>Il te représente dans l'application et à côté de tes messages dans la communauté.</span>
             <div class="pav-actions">
-              <button type="button" class="pav-btn" id="pavAdd"><svg class="ic"><use href="#ic-camera"/></svg><span id="pavAddLbl">Ajouter une photo</span></button>
-              <button type="button" class="pav-btn pav-remove hidden" id="pavRemove"><svg class="ic"><use href="#ic-x"/></svg>Retirer</button>
+              <button type="button" class="pav-btn" id="pavEdit"><svg class="ic"><use href="#ic-edit"/></svg><span id="pavEditLbl">Personnaliser mon avatar</span></button>
             </div>
           </div>
-          <input type="file" id="pavFile" accept="image/*" style="display:none">
         </div>
         <button type="button" class="profil-row" id="btnContactCoach"><svg class="ic pr-blue"><use href="#ic-send"/></svg>Contacter mon coach<span class="pr-badge conv-unread" id="contactCoachBadge" style="display:none"></span><span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnFiche"><svg class="ic pr-muted"><use href="#ic-user"/></svg>Mes informations<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -1548,8 +1551,9 @@
        commits 92d2d05 / f77eae5 (référentiel v2) ont changé ces deux fichiers
        SANS toucher ces versions -> les navigateurs ayant déjà chargé v=2/v=1
        continuaient de générer les listes avec l'ANCIEN référentiel. -->
+  <script src="avatar.js?v=2"></script>
   <script src="coursesCatalogue.js?v=5"></script>
   <script src="coursesEngine.js?v=4"></script>
-  <script src="app.js?v=173"></script>
+  <script src="app.js?v=174"></script>
 </body>
 </html>
