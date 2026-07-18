@@ -8568,6 +8568,14 @@ function chInjectStyles() {
     .ch-mb-ko { background: var(--mc-cream-dark); color: var(--mc-text); }
     .ch-mb-chip { flex: none; align-self: center; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--mc-success-bg, #E9F4EE); color: var(--mc-success, #24835B); }
     .ch-mb-chip.refusee { background: var(--mc-cream-dark); color: var(--mc-text-muted); }
+    /* Écran de blocage : répondre aux messages avant de valider les missions. */
+    .ch-mb-lock { padding: 6px 0 2px; }
+    .ch-mb-lock-t { margin: 0; font-size: 14.5px; font-weight: 700; color: var(--mc-text); }
+    .ch-mb-lock-w { margin: 5px 0 0; font-size: 13px; color: var(--mc-text-muted); }
+    .ch-mb-lock-s { margin: 8px 0 0; font-size: 13px; color: #8a6d2a; }
+    .ch-mb-go { margin-top: 12px; border: 0; border-radius: 999px; padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; background: var(--mc-ink, #14110C); color: var(--mc-gold, #C7A45A); }
+    .ch-mb-go:hover { opacity: .9; }
+    .ch-mb-next { margin: 10px 0 0; font-size: 12.5px; color: var(--mc-text-muted); }
     /* Responsive */
     @media (max-width: 640px) {
       .ch-head h2 { font-size: 23px; }
@@ -8599,8 +8607,12 @@ async function loadChallengeTab() {
     ]);
     const unread = {};
     (convRes.conversations || []).forEach((cv) => { if (cv.clientEmail) unread[cv.clientEmail] = (unread[cv.clientEmail] || 0) + (cv.unread || 0); });
+    // Messages EN ATTENTE DE RÉPONSE = le dernier message du fil vient du client.
+    // On ne se fie PAS à « unread » (lu = 0) : ouvrir la conversation suffirait à
+    // faire tomber le compteur sans avoir répondu — donc à débloquer les missions.
+    const attente = (convRes.conversations || []).filter((cv) => cv.lastRole === 'client');
     renderChallengeList(host, cRes.clients || [], unread);
-    loadMissionsBonus(host); // section « Missions bonus déclarées », posée en tête
+    loadMissionsBonus(host, attente); // section « Missions bonus », posée en tête
     // (Bandeau « 🔔 Notifications » retiré à la demande — moins de bruit dans l'onglet.)
   } catch (e) {
     host.innerHTML = `<div class="ch-empty"><p>Impossible de charger tes clients.</p><p class="ch-muted">${chEsc(e.message || '')}</p></div>`;
@@ -8610,14 +8622,22 @@ async function loadChallengeTab() {
 // Missions bonus déclarées par les clients : le coach voit qui, quelle semaine,
 // quelle mission, le texte et la date — puis Valide (crédit des PUNCH côté
 // serveur) ou Refuse. La décision est finale ; la liste garde l'historique.
-async function loadMissionsBonus(host) {
+// RÈGLE : répondre d'abord, valider ensuite. Tant qu'un fil attend une réponse du
+// coach, les missions sont masquées derrière un écran de blocage ; une fois tous les
+// fils traités, elles reviennent et se valident UNE PAR UNE, de la plus ancienne à
+// la plus récente (le coach ne peut pas piocher dans le tas).
+async function loadMissionsBonus(host, attente) {
   let missions = [];
   try { const r = await nutriApi('/coach/missions-bonus'); missions = r.missions || []; } catch (_) { return; }
-  if (!missions.length) return;
+  const enAttente = attente || [];
+  // File d'attente : plus ANCIENNE d'abord (l'API renvoie les plus récentes en tête).
+  const file = missions.filter((m) => m.statut === 'declaree').sort((a, b) => a.id - b.id);
+  const histo = missions.filter((m) => m.statut !== 'declaree');
+  if (!missions.length && !enAttente.length) return;
   const dateStr = (iso) => { const d = new Date(iso); return isNaN(d.getTime()) ? '' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }); };
-  const row = (m) => {
+  const row = (m, actionnable) => {
     const nom = [m.prenom, m.nom].filter(Boolean).join(' ') || m.client_email;
-    const actions = m.statut === 'declaree'
+    const actions = actionnable
       ? `<div class="ch-mb-actions"><button type="button" class="ch-mb-ok" data-id="${m.id}">Valider</button><button type="button" class="ch-mb-ko" data-id="${m.id}">Refuser</button></div>`
       : `<span class="ch-mb-chip${m.statut === 'refusee' ? ' refusee' : ''}">${m.statut === 'validee' ? 'Validée · +' + m.punch + ' PUNCH' : 'Refusée'}</span>`;
     return `<div class="ch-mb-row">
@@ -8626,8 +8646,33 @@ async function loadMissionsBonus(host) {
   };
   const sec = document.createElement('div');
   sec.className = 'ch-mb';
-  sec.innerHTML = '<div class="ch-mb-title">⭐ Missions bonus déclarées</div>' + missions.map(row).join('');
+  let corps;
+  if (enAttente.length) {
+    // Bloqué : on dit COMBIEN de fils attendent, QUI, et ce qui sera débloqué.
+    const noms = enAttente.slice(0, 6).map((cv) => chEsc(cv.clientName || cv.clientEmail || '')).join(', ');
+    const reste = enAttente.length > 6 ? ' et ' + (enAttente.length - 6) + ' autre' + (enAttente.length - 6 > 1 ? 's' : '') : '';
+    corps = `<div class="ch-mb-lock">
+      <p class="ch-mb-lock-t">🔒 ${enAttente.length} message${enAttente.length > 1 ? 's' : ''} en attente de ta réponse</p>
+      <p class="ch-mb-lock-w">${noms}${reste}.</p>
+      <p class="ch-mb-lock-s">${file.length ? file.length + ' mission' + (file.length > 1 ? 's' : '') + ' à valider t\'attend' + (file.length > 1 ? 'ent' : '') + ' juste après.' : 'Les missions à valider réapparaîtront ensuite.'}</p>
+      <button type="button" class="ch-mb-go" id="ch-mb-go">Répondre dans la messagerie</button>
+    </div>`;
+  } else if (file.length) {
+    // Une seule à la fois : la plus ancienne. La suivante apparaît après décision.
+    const suite = file.length > 1 ? `<p class="ch-mb-next">Puis ${file.length - 1} autre${file.length - 1 > 1 ? 's' : ''} mission${file.length - 1 > 1 ? 's' : ''} à traiter.</p>` : '';
+    corps = row(file[0], true) + suite;
+  } else {
+    corps = '<p class="ch-mb-next">Aucune mission en attente de validation.</p>';
+  }
+  const titre = enAttente.length ? '⭐ Missions bonus — en attente' : '⭐ Missions bonus déclarées';
+  sec.innerHTML = `<div class="ch-mb-title">${titre}</div>` + corps
+    + (enAttente.length ? '' : histo.map((m) => row(m, false)).join(''));
   host.insertBefore(sec, host.firstChild);
+  const go = sec.querySelector('#ch-mb-go');
+  if (go) go.addEventListener('click', () => {
+    const b = document.querySelector('.tab-btn[data-tab="messagerie"]');
+    if (b) b.click();
+  });
   sec.querySelectorAll('.ch-mb-ok, .ch-mb-ko').forEach((b) => b.addEventListener('click', async () => {
     const action = b.classList.contains('ch-mb-ok') ? 'valider' : 'refuser';
     b.disabled = true;
