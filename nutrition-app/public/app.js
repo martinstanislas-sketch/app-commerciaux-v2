@@ -4900,11 +4900,15 @@ const ASC_PAD = 44;      // respiration en haut et en bas de chaque chapitre (px
 // bulle (il n'y a pas la place à côté) : il lui faut sa hauteur. Sur desktop la
 // carte est à côté, et cette même air devient la respiration qu'un jalon mérite.
 // Une seule valeur, deux bonnes raisons.
-// ⚠️ Plus d'entrée `active` : l'étape du jour n'a plus de carte à loger sous
-// elle (retirée — la bulle bleue et le personnage disent déjà « c'est ici », et
-// le détail s'ouvre au clic). Lui garder son air, c'eût été un trou de 122 px
-// au point le plus important du sentier.
-const ASC_AIR = { final: 138, milestone: 78 };
+// L'air réservée SOUS une étape, pour la carte qui s'y pose. Il n'en reste
+// qu'une : celle de la toute fin.
+// ⚠️ Ni `active` ni `milestone` ici — ces deux cartes ont été retirées (la bulle
+// et son état parlent d'eux-mêmes, le détail s'ouvre au clic). Leur garder leur
+// air, c'eût été des trous : 122 px au point le plus important du sentier, et
+// 78 px sous chacun des six jalons.
+// ⚠️ Toute clé lue par ascAir DOIT exister : `acc += undefined` donne NaN, et
+// l'accumulateur court sur tout le chapitre.
+const ASC_AIR = { final: 138 };
 // ⚠️ Ne lire QUE des clés existantes : `acc += undefined` donne NaN, et comme
 // l'accumulateur court sur tout le chapitre, une seule lecture manquante suffit
 // à rendre NaN toutes les ordonnées suivantes — le tracé disparaît et les
@@ -4913,7 +4917,6 @@ const ASC_AIR = { final: 138, milestone: 78 };
 function ascAir(n) {
   if (!n) return 0;
   if (n.type === 'final') return ASC_AIR.final;
-  if (n.milestone) return ASC_AIR.milestone;
   return 0;
 }
 
@@ -5340,9 +5343,10 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
     // Segment d'accueil : le plus proche du milieu dont AUCUNE des deux étapes ne
     // porte de carte (active / jalon / fin) — la carte flotte à côté de sa bulle
     // et recouvrirait l'étoile posée au milieu du segment voisin.
-    // « Occupé » = une carte flotte à côté (jalon, fin) OU le personnage s'y
-    // tient (l'étape active) : dans les deux cas l'étoile y serait recouverte.
-    const aCarte = (n) => n && (n.status === 'active' || n.milestone || n.type === 'final');
+    // « Occupé » = le personnage s'y tient (étape active) ou une carte y flotte
+    // (la fin, seule carte restante) : dans les deux cas l'étoile y serait
+    // recouverte. Les jalons, eux, ne portent plus de carte.
+    const aCarte = (n) => n && (n.status === 'active' || n.type === 'final');
     const milieu = Math.min(Math.max(1, Math.floor(nodes.length / 2)), nodes.length - 1);
     let k = milieu;
     for (let d = 0; d < nodes.length; d++) {
@@ -5355,8 +5359,15 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, recs, next, ctx) 
     // l'EXTÉRIEUR de la vague — le côté intérieur est pris par les cartes. Et
     // c'est plus juste ainsi : une mission facultative n'a pas à occuper l'axe
     // du parcours, elle se propose à côté.
+    // ⚠️ 15 % et pas moins. Le décalage est HORIZONTAL alors que le segment est
+    // oblique : il rapproche donc l'étoile de l'une des deux bulles autant qu'il
+    // l'éloigne de l'autre. Le milieu d'un segment est déjà à ~5 % d'un nœud
+    // (amplitude ASC_AMP), et il faut ~9 % de plus pour dégager la somme des
+    // rayons à une demi-longueur de segment (45 px) : sous 14 %, l'étoile mord
+    // la bulle voisine — 6 px mesurés à 11 %, une fois l'air des jalons retirée
+    // et tous les segments ramenés à la même longueur.
     const mx0 = (pts[k - 1].x + pts[k].x) / 2;
-    const mx = mx0 + (mx0 >= 50 ? 11 : -11);
+    const mx = mx0 + (mx0 >= 50 ? 15 : -15);
     const my = (pts[k - 1].y + pts[k].y) / 2;
     const badge = mission.statut === 'validee' ? `<span class="asc-mb-st ok" aria-hidden="true">${icSvg('check')}</span>`
       : mission.statut === 'refusee' ? '<span class="asc-mb-st ko" aria-hidden="true">✕</span>'
@@ -5439,7 +5450,7 @@ function ascNodeHTML(n, pt, recs, ctx) {
   //    passe alors à l'extérieur pour ne pas la chevaucher.
   // Ces classes le disent au CSS sans qu'il ait à deviner (pas de :has, ignoré des
   // vieux WebView).
-  const aCarte = n.type === 'final' || n.milestone;
+  const aCarte = n.type === 'final';
   const sideCls = aCarte ? 'asc-side asc-has-card asc-in' : 'asc-side asc-out';
   return `<div class="${cls.join(' ')}" id="asc-nd-${n.day}" style="left:${pt.x.toFixed(2)}%;top:${pt.y}px">
     <button type="button" class="asc-dot"${attr} aria-label="${aria}">
@@ -5461,7 +5472,7 @@ function ascNodeHTML(n, pt, recs, ctx) {
 // -> l'autre sort aussi de l'arbre d'accessibilité, pas de double annonce).
 // L'air sous l'étape, déjà réservée côté JS (ASC_AIR), l'accueille.
 function ascCarteMobileHTML(n, pt, ctx) {
-  const aCarte = n.type === 'final' || n.milestone;
+  const aCarte = n.type === 'final';
   if (!aCarte) return '';
   return `<div class="asc-cardm" style="top:${pt.y + 46}px">${ascSideHTML(n, ctx)}</div>`;
 }
@@ -5471,7 +5482,6 @@ function ascCarteMobileHTML(n, pt, ctx) {
 // Les cartes doivent rester RARES — sinon plus rien ne ressort.
 function ascSideHTML(n, ctx) {
   if (n.type === 'final') return ascFinalCardHTML(n, ctx);
-  if (n.milestone) return ascJalonCardHTML(n);
   // ⚠️ L'étape ACTIVE ne porte volontairement RIEN : ni carte, ni libellé. La
   // place autour d'elle est occupée par le personnage, et deux éléments au même
   // endroit se chevaucheraient. Sa bulle bleue et le bonhomme disent « c'est
@@ -5479,14 +5489,6 @@ function ascSideHTML(n, ctx) {
   // il est dans l'aria-label du bouton (cf. ascNodeHTML).
   if (n.status === 'active') return '';
   return `<span class="asc-lbl">${mcpEsc(n.title)}</span>`;
-}
-function ascJalonCardHTML(n) {
-  return `<div class="asc-card asc-card-jalon">
-    <p class="asc-card-k">${icSvg('trophy')} Étape clé</p>
-    <h3 class="asc-card-t">${mcpEsc(n.title)}</h3>
-    <p class="asc-card-s">${mcpEsc(n.action || '')}</p>
-    <span class="asc-card-p">+${n.punch} Punch</span>
-  </div>`;
 }
 // La carte finale : la seule qui a le droit d'en faire un peu plus. Son bouton
 // n'apparaît QUE si l'étape est ouverte — une porte fermée ne se peint pas en CTA.

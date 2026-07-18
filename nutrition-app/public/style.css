@@ -3328,11 +3328,6 @@ body.is-demo #navRestart { display: none !important; }
 .asc-card-cta:hover { background: var(--blue-hover); }
 .asc-card-cta:active { transform: scale(.97); }
 .asc-card-cta .ic { width: 14px; height: 14px; }
-/* JALON : l'or, et rien d'autre. */
-.asc-card-jalon { border-color: #EBDCB8; background: linear-gradient(150deg, #FDF8ED 0%, var(--surface) 60%); }
-.asc-card-jalon .asc-card-k { color: #8A6D28; }
-.asc-card-jalon .asc-card-k .ic { color: var(--gold); }
-.asc-card-jalon .asc-card-p { background: #F6ECD6; color: #8A6D28; }
 /* LA FIN : la seule qui a le droit d'en faire un peu plus. */
 .asc-card-fin { overflow: hidden; border-color: #E7D5AB; background: linear-gradient(155deg, #FCF6E8 0%, var(--surface) 70%); box-shadow: 0 14px 34px rgba(199, 154, 58, .16), var(--shadow-sm); }
 /* Les particules : trois points d'or, posés une fois. Rien qui clignote. */
@@ -3601,16 +3596,16 @@ body.is-demo #navRestart { display: none !important; }
 .asc-cardm { display: none; position: absolute; left: 0; right: 0; }
 @media (max-width: 640px) {
   .asc-cardm { display: block; }
-  /* ⚠️ La DERNIÈRE étape d'une semaine est toujours un jalon, donc elle porte
-     toujours une carte — et sous la bulle, cette carte est plus haute que l'air
-     réservée sous l'étape (ASC_AIR.milestone + ASC_PAD) : elle débordait sur la
-     carte de la semaine suivante (25 px mesurés). On pousse donc la suite, ici
-     seulement : sur ordinateur la carte est À CÔTÉ et cette hauteur serait du
-     vide pur.
+  /* La seule carte encore posée sous une bulle est celle de la toute FIN, et
+     elle dépasse l'air réservée sous son étape. Comme rien ne suit le dernier
+     chapitre hormis la légende, une marge modeste suffit.
+     (Elle valait 56 px tant que chaque semaine finissait sur une carte de jalon
+     — carte retirée depuis, la marge était devenue du vide pur entre chaque
+     semaine.)
      ⚠️ Une MARGE, pas un padding : `height` est posée en style inline par le JS
      et `box-sizing: border-box` est global — un padding serait absorbé dans
      cette hauteur fixe et ne pousserait rien (essayé, mesuré). */
-  .asc-ch-map { margin-bottom: 56px; }
+  .asc-ch-map { margin-bottom: 8px; }
   .asc-has-card { display: none; }
   /* La carte prend toute la largeur : le titre, l'action et le bouton
      redeviennent lisibles au lieu de s'empiler dans 128 px. */
@@ -3634,7 +3629,12 @@ body.is-demo #navRestart { display: none !important; }
      garder le libellé à côté de son étape sans jamais mordre le sentier. */
   .asc-wrap, #view-parcours { --asc-dot: 58px; --asc-dot-now: 72px; --asc-dot-top: 64px; --asc-rec-d: 52px;
     --asc-gap: 36px; --asc-trail: 12px; --asc-av-h: 94px; }
-  .asc-side { max-width: 124px; }
+  /* ⚠️ 96 px, calculé et pas choisi : l'étape la plus excentrée est à 62 % de la
+     carte (50 % + ASC_AMP), soit 218 px sur un écran de 375 ; plus l'écart de
+     36 px, il reste 97 px jusqu'au bord. Au-delà, le libellé d'un jalon
+     (« Pesée de la semaine 1 », plus long que « Séance 12 ») mangeait la marge
+     de 16 px et touchait le bord de l'écran. */
+  .asc-side { max-width: 96px; }
   .asc-lbl { font-size: 12px; }
   .asc-av-sol { height: 9px; }
   /* ⚠️ Sur mobile la carte de l'étape se pose SOUS la bulle, sur toute la
