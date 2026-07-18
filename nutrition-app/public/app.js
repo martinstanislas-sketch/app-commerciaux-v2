@@ -698,7 +698,10 @@ function celebrationConfetti(canvas, strong) {
   raf = requestAnimationFrame(frame);
   return () => { if (raf) cancelAnimationFrame(raf); };
 }
-// Applique l'ajustement lié à la dernière pesée officielle non encore prise en compte.
+// Recalcule le plan sur le VRAI poids à la dernière pesée officielle non encore
+// prise en compte. Moins de poids -> cible plus basse (comportement voulu). AUCUN
+// ajustement additif : la cible reste strictement décroissante avec le poids ; la
+// sécurité anti-déficit tient au plancher calorique (cf. lib/nutrition.js).
 async function maybeApplyOfficialAdjustment() {
   const pc = state.parcours;
   if (!pc || !pc.pesees || !state.plan) return;
@@ -706,33 +709,20 @@ async function maybeApplyOfficialAdjustment() {
   const applied = Array.isArray(p.officialAdjApplied) ? p.officialAdjApplied : [];
   const depart = pc.pesees.depart;
   if (!depart || !(depart.poids > 0)) return;
-  let jalon = null, serie = null;
-  if (pc.pesees.s6 && pc.pesees.s6.poids > 0 && !applied.includes('s6')) {
-    jalon = 's6';
-    const mid = (pc.pesees.s3 && pc.pesees.s3.poids > 0) ? pc.pesees.s3 : depart;
-    serie = [{ ts: Date.parse(mid.date) || 0, poids: mid.poids }, { ts: Date.parse(pc.pesees.s6.date) || 1, poids: pc.pesees.s6.poids }];
-  } else if (pc.pesees.s3 && pc.pesees.s3.poids > 0 && !applied.includes('s3')) {
-    jalon = 's3';
-    serie = [{ ts: Date.parse(depart.date) || 0, poids: depart.poids }, { ts: Date.parse(pc.pesees.s3.date) || 1, poids: pc.pesees.s3.poids }];
-  }
+  // Dernière pesée officielle non traitée -> son poids réel devient le poids courant.
+  let jalon = null, poids = 0;
+  if (pc.pesees.s6 && pc.pesees.s6.poids > 0 && !applied.includes('s6')) { jalon = 's6'; poids = pc.pesees.s6.poids; }
+  else if (pc.pesees.s3 && pc.pesees.s3.poids > 0 && !applied.includes('s3')) { jalon = 's3'; poids = pc.pesees.s3.poids; }
   if (!jalon) return;
-  const deficit = (state.plan.besoins && state.plan.besoins.deficit) || p.deficit_cible || 650;
-  let delta = 0;
-  try {
-    const res = await fetch(apiUrl('/api/ajustement'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ pesees: serie, deficit, sexe: p.sexe }) });
-    const d = await res.json();
-    if (d && d.ok && d.ajustement) delta = Number(d.ajustement.delta) || 0;
-  } catch (_) { return; } // hors-ligne : rien n'est marqué -> nouvel essai au prochain chargement
   p.officialAdjApplied = [...applied, jalon];
-  const lbl = jalon === 's3' ? 'de mi-parcours (semaine 3)' : 'finale (semaine 6)';
-  if (delta !== 0) {
-    p.ajustementKcal = Math.max(-400, Math.min(400, (Number(p.ajustementKcal) || 0) + delta));
-    saveLocal();
+  const change = Math.abs((Number(p.poids_kg) || 0) - poids) >= 0.1;
+  p.poids_kg = poids;              // le plan se recalcule sur le poids réel
+  saveLocal();
+  if (change) {
+    // Le toast reste VRAI : il suit le recalcul réel sur le nouveau poids.
     await generateAndShow(Math.floor(Math.random() * 1e6) + 1);
-    showToast('Ton plan a été recalculé suite à ta pesée ' + lbl + ' avec ton coach.', { icon: 'check', duration: 4800 });
-  } else {
-    // Sur la cible : le plan reste inchangé, on note simplement la pesée comme prise en compte.
-    saveLocal();
+    const lbl = jalon === 's3' ? 'de mi-parcours (semaine 3)' : 'finale (semaine 6)';
+    showToast('Ton plan a été recalculé sur ton poids de la pesée ' + lbl + '.', { icon: 'check', duration: 4800 });
   }
 }
 
@@ -3404,8 +3394,6 @@ function coachContext() {
   if (p.objectif === 'challenge') {
     const ch = ['Inscrit au Challenge 6 semaines (perte accélérée)'];
     if (p.deficit_cible) ch.push('déficit visé ~' + p.deficit_cible + ' kcal/jour');
-    const aj = Math.round(Number(p.ajustementKcal) || 0);
-    if (aj) ch.push('ajustement auto en cours : ' + (aj > 0 ? '+' : '') + aj + ' kcal');
     L.push(ch.join(' — '));
   }
   const ident = [];
@@ -6731,7 +6719,6 @@ function renderCoachFiche(c) {
       (h.message ? '<div class="fiche-help-msg">' + escapeHtml(h.message) + '</div>' : '') + '</div>';
   }).join('') + '</div>' : '';
 
-  const aj = p.ajustementKcal ? (p.ajustementKcal > 0 ? '+' : '') + p.ajustementKcal + ' kcal' : null;
 
   body.innerHTML =
     '<div class="fiche-hero"><div class="fiche-avatar">' + escapeHtml((nom[0] || '?').toUpperCase()) + '</div>' +
@@ -6744,7 +6731,6 @@ function renderCoachFiche(c) {
       stat('Adhérence', scoreTxt) +
       stat('Scans', c.scansCount || 0) +
     '</div>' +
-    (aj ? '<div class="fiche-adjust">Ajustement calorique : <strong>' + aj + '</strong></div>' : '') +
     tagLine('Allergies', allerg) +
     tagLine('Régimes', regimes) +
     '<div class="fiche-sec"><h3>Suivi récent</h3>' + bars + '</div>' +

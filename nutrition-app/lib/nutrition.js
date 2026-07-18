@@ -153,6 +153,12 @@ function niveauActiviteDepuisPesee(profil) {
   return 'sedentaire';
 }
 
+// ⚠️⚠️ ZONE SENSIBLE — CALCUL DE LA CIBLE CALORIQUE (stabilisée le 2026-07-18).
+// INVARIANT : la cible ne dépend QUE du profil actuel et reste STRICTEMENT
+// décroissante avec le poids (baisser le poids ne doit JAMAIS monter la cible).
+// Ne jamais réintroduire d'ajustement ADDITIF qui remonterait la cible (cf. le bug
+// d'inversion corrigé). Sécurité déficit = plancher + recalcul sur le vrai poids.
+// Toute modification ici doit être coordonnée (risque d'écrasement d'un fix).
 // Besoins complets : BMR -> maintien -> cible selon objectif -> macros.
 function calculerBesoins(profil) {
   const age = clampNumber(nb(profil.age) || 30, 14, 100);
@@ -205,7 +211,6 @@ function calculerBesoins(profil) {
     if (kcalCible < plancher) kcalCible = plancher;
     deficit = Math.round(maintenance - kcalCible);
     kcalCible = Math.round(kcalCible / 10) * 10;
-    const ajustement = 0;
 
     // Poids cible : -perteObjectif kg (borne a 35 kg mini).
     const poidsCible = Math.max(35, Math.round((poids_kg - perteObjectif) * 10) / 10);
@@ -227,7 +232,6 @@ function calculerBesoins(profil) {
     extra = {
       maintenance: Math.round(maintenance),
       deficit,
-      ajustement,
       poidsActuel: poids_kg,
       poidsCible,
       perteObjectif,
@@ -277,45 +281,13 @@ function calculerBesoins(profil) {
   };
 }
 
-// Ajustement hebdomadaire automatique (Challenge 6/6).
-// A partir de l'historique de pesee + de l'etat physique declare, propose une
-// variation de calories (delta a appliquer a l'ajustement cumule).
-//   pesees : [{ ts (ms), poids, masse_musculaire? }] tri chronologique.
-//   opts   : { deficit, sexe, fatigue (bool) }.
-function calculerAjustementHebdo(pesees, opts = {}) {
-  const list = (pesees || []).filter((p) => p && Number(p.poids) > 0).slice().sort((a, b) => a.ts - b.ts);
-  if (list.length < 2) {
-    return { delta: 0, statut: 'attente', message: "Ajoutez votre poids chaque semaine : l'ajustement se fera automatiquement des 2 pesees." };
-  }
-  const deficit = clampNumber(nb(opts.deficit) || 650, 200, 1200);
-  const attenduHebdo = (deficit * 7) / 7700; // kg/semaine theoriques
-
-  // Tendance sur les ~2 dernieres semaines (jusqu'a 3 derniers points).
-  const recent = list.slice(-3);
-  const jours = Math.max(1, (recent[recent.length - 1].ts - recent[0].ts) / 86400000);
-  const perte = recent[0].poids - recent[recent.length - 1].poids; // > 0 = perte
-  const semaines = Math.max(0.5, jours / 7);
-  const perteHebdo = perte / semaines;
-
-  // Masse musculaire : baisse marquee entre deux pesees ?
-  const mm = list.filter((p) => Number(p.masse_musculaire) > 0);
-  const baisseMuscle = mm.length >= 2 && (mm[mm.length - 2].masse_musculaire - mm[mm.length - 1].masse_musculaire) >= 0.5;
-
-  // Regles (priorite securite : fatigue / perte trop rapide / muscle, puis perte lente).
-  if (opts.fatigue) {
-    return { delta: +125, statut: 'remonte', message: "Fatigue signalee : on remonte de 125 kcal pour preserver l'energie et l'adherence." };
-  }
-  if (perteHebdo > 1.2 || perteHebdo > attenduHebdo * 1.6) {
-    return { delta: +125, statut: 'remonte', message: "Perte rapide : on remonte de 125 kcal pour une perte forte mais durable." };
-  }
-  if (baisseMuscle) {
-    return { delta: +100, statut: 'muscle', message: "Masse musculaire en baisse : on reduit le deficit (+100 kcal) et on garde les proteines hautes." };
-  }
-  if (perteHebdo < attenduHebdo * 0.5) {
-    return { delta: -125, statut: 'reduit', message: "Perte sous l'objectif : on reduit de 125 kcal (ou augmentez l'activite cette semaine)." };
-  }
-  return { delta: 0, statut: 'ok', message: "Vous etes dans la cible : on garde le meme plan cette semaine." };
-}
+// ⚠️ RETIRÉ (2026-07-18) : calculerAjustementHebdo ajoutait ±125 kcal à la cible
+// selon la vitesse de perte. Ce terme s'accumulait et REMONTAIT la cible quand le
+// poids baissait (inversion critique). La sécurité anti-déficit-dangereux passe
+// désormais UNIQUEMENT par : (1) le plancher calorique (homme 1650 / femme 1350 en
+// challenge), (2) le recalcul de la cible sur le VRAI poids à chaque pesée. Aucun
+// ajout ne doit jamais REMONTER la cible : elle reste strictement décroissante
+// avec le poids. Ne pas réintroduire d'ajustement additif sans coordination.
 
 module.exports = {
   ACTIVITE_FACTEURS,
@@ -325,5 +297,4 @@ module.exports = {
   REPARTITION_REPAS,
   calculerBMR,
   calculerBesoins,
-  calculerAjustementHebdo,
 };

@@ -16,7 +16,7 @@ try {
 const path = require('path');
 const express = require('express');
 
-const { calculerBesoins, calculerAjustementHebdo } = require('./lib/nutrition');
+const { calculerBesoins } = require('./lib/nutrition');
 const {
   genererPlanDemo,
   regenererRepas,
@@ -80,16 +80,6 @@ app.post('/api/needs', (req, res) => {
 });
 
 // Ajustement hebdomadaire (Challenge 6/6) a partir de l'historique de pesee.
-app.post('/api/ajustement', (req, res) => {
-  try {
-    const { pesees = [], deficit = 650, sexe = 'autre', fatigue = false } = req.body || {};
-    const ajustement = calculerAjustementHebdo(pesees, { deficit, sexe, fatigue });
-    res.json({ ok: true, ajustement });
-  } catch (e) {
-    res.status(400).json({ ok: false, error: 'Donnees de pesee invalides.' });
-  }
-});
-
 // Generation du PLAN par l'IA : opt-in distinct (NUTRITION_AI_PLAN=on).
 // Par defaut OFF -> les plans viennent de la banque curatee (avec photos),
 // meme quand Claude est actif pour les recettes guidees detaillees.
