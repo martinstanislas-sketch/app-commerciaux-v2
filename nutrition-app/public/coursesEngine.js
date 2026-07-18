@@ -113,7 +113,15 @@
           const c = canoniques.get(r.id) || { id: r.id, def: r.def, qty: 0, unite_base: r.def.unite_base, autres: {}, varietes: new Set() };
           canoniques.set(r.id, c);
           c.varietes.add(r.def.display_name);
-          const conv = versBase(q, ing.unite, r.def.unite_base);
+          // `poids_piece_g` (v3) : une recette qui compte en PIÈCES alors que le
+          // produit se calcule en grammes (« 1 tomate » vs « 150 g de tomate »)
+          // est convertie ici. Sans ça, les deux quantités ne s'additionnaient
+          // pas et la ligne affichait deux unités (« 1220 g + 4,5 piece »).
+          let conv = versBase(q, ing.unite, r.def.unite_base);
+          if (conv == null && r.def.poids_piece_g > 0 && r.def.unite_base === 'g'
+              && /^(piece|unite)s?$/.test(CAT.normaliser(ing.unite || ''))) {
+            conv = q * r.def.poids_piece_g;
+          }
           // Ramené au CRU avant d'additionner : c'est le cru qu'on achète.
           if (conv != null) c.qty += versCru(conv, ing.nom, r.def);
           else { const u = String(ing.unite || ''); c.autres[u] = (c.autres[u] || 0) + q; }
@@ -123,23 +131,65 @@
     return { canoniques, libres, warnings };
   }
 
+  // Meilleur assortiment de conditionnements pour couvrir `besoin` :
+  // le plus petit total >= besoin, et à total égal le moins de boîtes.
+  // Ex. avec [6, 12] : 4 -> 1×6 ; 13 -> 1×12 + 1×6 (18, pas 24) ; 21 -> 2×12.
+  function meilleurAssortiment(besoin, options) {
+    const opts = [...options].sort((a, b) => b - a); // du plus grand au plus petit
+    const max = opts[0];
+    let meilleur = null;
+    // Le nombre de grandes boîtes utiles est borné : au-delà, on dépasse pour rien.
+    for (let gros = Math.ceil(besoin / max) + 1; gros >= 0; gros--) {
+      let reste = besoin - gros * max;
+      const parts = gros > 0 ? [{ taille: max, nb: gros }] : [];
+      let total = gros * max;
+      opts.slice(1).forEach((t) => {
+        if (reste <= 0) return;
+        const nb = Math.ceil(reste / t);
+        parts.push({ taille: t, nb });
+        total += nb * t; reste -= nb * t;
+      });
+      if (reste > 0) { const nb = Math.ceil(reste / max); parts.push({ taille: max, nb }); total += nb * max; }
+      const nbBoites = parts.reduce((s, p) => s + p.nb, 0);
+      if (total < besoin) continue;
+      if (!meilleur || total < meilleur.total || (total === meilleur.total && nbBoites < meilleur.nbBoites)) {
+        meilleur = { parts: parts.filter((p) => p.nb > 0), total, nbBoites };
+      }
+    }
+    return meilleur || { parts: [{ taille: max, nb: 1 }], total: max, nbBoites: 1 };
+  }
+
   // --- UNITÉ D'ACHAT (T4) ---------------------------------------------------
   // Ce que le client LIT et prend en magasin. Jamais une unité de recette.
   function ligneAchat(def, besoin, arrondi) {
     const sous = [];
     let achat;
     if (def.pack_options && def.pack_options.length) {
-      // Conditionnement standard AU-DESSUS du besoin (œufs : boîte de 6 ou 12).
+      // Conditionnements réels (œufs : boîtes de 6 ET de 12). On cherche la
+      // COMBINAISON dont le total couvre le besoin avec le moins de surplus —
+      // avant, on prenait un seul format puis on le multipliait, ce qui faisait
+      // acheter 12 œufs pour un besoin de 4, ou 24 pour 13.
       const entier = ROUNDING.piece(besoin);
-      const opt = def.pack_options.find((o) => o >= entier) || def.pack_options[def.pack_options.length - 1];
-      const nb = Math.ceil(entier / opt);
-      achat = (nb === 1 ? '1 ' + def.pack_nom : nb + ' ' + def.pack_nom + 's') + ' (' + opt + ')';
+      const combo = meilleurAssortiment(entier, def.pack_options);
+      achat = combo.parts
+        .map((p) => (p.nb === 1 ? '1 ' + def.pack_nom : p.nb + ' ' + def.pack_nom + 's') + ' (' + p.taille + ')')
+        .join(' + ');
       sous.push('besoin ' + fmtNombre(besoin));
-    } else if (def.pack_size > 0) {
-      // Contenance connue (brique 1 L, boîte 400 g) -> nombre de packs.
-      const nb = Math.max(1, Math.ceil(besoin / def.pack_size));
+      if (combo.total > entier) sous.push('soit ' + combo.total);
+    } else if (def.conditionnement_g > 0 || def.pack_size > 0) {
+      // Contenance connue (conserve 400 g, brique 1 L) -> nombre de boîtes.
+      // `conditionnement_g` vient du référentiel v3 ; `pack_size` est l'ancien
+      // nom, gardé en repli tant que des entrées ne sont pas régénérées.
+      const contenance = def.conditionnement_g > 0 ? def.conditionnement_g : def.pack_size;
+      const nb = Math.max(1, Math.ceil(besoin / contenance));
       achat = nb === 1 ? def.purchase_unit : nb + ' × ' + def.purchase_unit.replace(/^1\s+/, '');
       sous.push('besoin ' + fmtNombre(besoin) + ' ' + def.unite_base);
+    } else if (def.poids_piece_g > 0 && /unite/.test(CAT.normaliser(def.purchase_unit || ''))) {
+      // Vendu à la pièce mais calculé en grammes (avocat) : on rend des pièces.
+      const nb = Math.max(1, Math.ceil(besoin / def.poids_piece_g));
+      achat = String(nb);
+      sous.push('besoin ' + fmtNombre(besoin) + ' ' + def.unite_base);
+      sous.push(def.purchase_unit);
     } else if (def.category === 'viande' || def.category === 'poisson') {
       achat = '~' + arrondi + ' g';
       if (besoin !== arrondi) sous.push('besoin ' + fmtNombre(besoin) + ' g');
