@@ -2982,9 +2982,17 @@ body.is-demo #navRestart { display: none !important; }
    (ASC_STEP, ASC_AMP…) quand la valeur doit s'accorder des deux côtés. */
 .asc-wrap, #view-parcours {
   --asc-trail: 12px;          /* épaisseur du sentier */
-  --asc-dot: 62px;            /* diamètre d'une bulle */
-  --asc-dot-now: 74px;        /* … de l'étape active */
-  --asc-dot-top: 82px;        /* … d'un jalon */
+  /* ⚠️ Les trois diamètres portent la HIÉRARCHIE de l'écran, ils ne sont pas
+     décoratifs. À 62/74/82 ils étaient trop proches : sur un sentier de 43
+     bulles, l'étape du jour ne se distinguait pas au premier coup d'œil, et un
+     jalon passait pour une bulle un peu grosse. L'écart est désormais net —
+     l'ordinaire RECULE (56), le jour et les sommets AVANCENT — et l'étape
+     active est la plus grande de l'écran, sommets compris : il n'y a qu'un
+     seul « c'est maintenant ». Bénéfice second : des bulles ordinaires plus
+     petites libèrent la largeur des libellés et des récompenses. */
+  --asc-dot: 56px;            /* diamètre d'une bulle ordinaire */
+  --asc-dot-now: 84px;        /* … de l'étape active — la plus grande */
+  --asc-dot-top: 72px;        /* … d'un jalon */
   --asc-gap: 46px;            /* écart bulle -> ce qui est posé à côté */
   --asc-sand: #E8E2D4;        /* le sentier qui reste devant soi */
   --asc-sand-d: #DCD4C2;      /* son liseré */
@@ -2995,10 +3003,10 @@ body.is-demo #navRestart { display: none !important; }
 /* --- La carte de progression ------------------------------------------- */
 .asc-head { position: relative; margin: 4px 0 0; padding: 20px 20px 16px; border: 1px solid var(--border-c); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
 .asc-head-row { display: flex; align-items: center; gap: 14px; }
+/* Le pourcentage vient se poser au bout de la ligne de titre : l'en-tête ne
+   répond plus qu'à UNE question, et d'une seule voix. */
+.asc-head-row .asc-pct { margin-left: auto; }
 /* L'avatar du client dans son propre parcours : c'est lui qui gravit le chemin. */
-.asc-head-av { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px rgba(255,255,255,.5); }
-.asc-head-av svg { width: 100%; height: 100%; display: block; }
-@media (max-width: 400px) { .asc-head-av { width: 38px; height: 38px; } }
 .asc-head-art { flex: none; width: 62px; height: 44px; }
 .asc-head-art svg { width: 100%; height: 100%; display: block; }
 .asc-mt-s { fill: var(--gold); opacity: .22; }
@@ -3007,7 +3015,7 @@ body.is-demo #navRestart { display: none !important; }
 .asc-head-txt { min-width: 0; }
 .asc-kicker { margin: 0; font: 600 11px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted-c); }
 .asc-titre { margin: 7px 0 0; font: 700 27px/1.1 var(--font); letter-spacing: -.025em; color: var(--text-c); }
-.asc-head-sub { margin: 6px 0 0; font: 400 13.5px/1.3 var(--font); color: var(--text-muted-c); }
+.asc-head-sub { margin: 9px 0 0; font: 400 13.5px/1.3 var(--font); color: var(--text-muted-c); }
 
 .asc-prog { display: flex; align-items: center; gap: 14px; margin: 18px 0 0; }
 /* La barre porte le coureur : il déborde en haut, d'où l'absence d'overflow:hidden
@@ -3018,31 +3026,60 @@ body.is-demo #navRestart { display: none !important; }
 .asc-pct { flex: none; font: 700 22px/1 var(--font); letter-spacing: -.02em; color: var(--text-c); font-variant-numeric: tabular-nums; }
 .asc-pct span { font: 600 12px/1 var(--font); color: var(--text-muted-c); }
 
-/* Les trois chiffres qui donnent envie. Chacun est cliquable : sans explication,
-   ces nombres sont opaques. */
-.asc-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border-c); }
-.asc-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 12px; border: 0; border-radius: var(--r-sm); background: transparent; text-align: left; font-family: inherit; cursor: pointer; transition: background .18s var(--ease); }
-.asc-tile + .asc-tile { box-shadow: -1px 0 0 var(--border-c); }
-.asc-tile-flat { cursor: default; }
-.asc-tile:not(.asc-tile-flat):hover { background: var(--surface-soft); }
-.asc-tile-v { display: flex; align-items: center; gap: 6px; font: 700 16px/1.1 var(--font); color: var(--text-c); font-variant-numeric: tabular-nums; }
-.asc-tile-v .ic { width: 15px; height: 15px; color: var(--gold); }
-.asc-tile-l { font: 500 11.5px/1.35 var(--font); color: var(--text-muted-c); }
-.asc-tile-l b { color: var(--text-c); font-weight: 600; }
-.asc-tile-ch { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); display: grid; place-items: center; color: var(--text-soft); }
-.asc-tile-ch .ic { width: 15px; height: 15px; }
-/* La 3e tuile est plus large que les deux compteurs : elle porte une phrase. */
-.asc-tiles > :nth-child(3) { grid-column: 1 / -1; margin-top: 2px; padding-top: 14px; border-top: 1px solid var(--border-c); box-shadow: none; padding-right: 26px; }
+/* La seule action de l'en-tête : aller voir le prochain sommet. Une LIGNE, pas
+   une tuile — l'en-tête dit « où j'en suis », il n'a pas à porter un tableau de
+   bord (c'est le rail qui s'en charge). */
+.asc-head-go { display: flex; align-items: center; gap: 9px; width: 100%; margin: 16px 0 0; padding: 11px 12px; border: 1px solid var(--border-c); border-radius: var(--r-sm); background: var(--surface-soft); color: var(--text-muted-c); text-align: left; font: 500 12.5px/1.35 var(--font); font-family: inherit; cursor: pointer; transition: border-color .18s var(--ease), background .18s var(--ease); }
+.asc-head-go:hover { border-color: var(--blue-c); background: var(--surface); }
+.asc-head-go .ic { flex: none; width: 15px; height: 15px; color: var(--gold); }
+.asc-head-go .ic:last-child { color: var(--text-soft); }
+.asc-head-gx { flex: 1; min-width: 0; }
+.asc-head-gx b { color: var(--text-c); font-weight: 700; }
+.asc-head-go-flat { cursor: default; }
 
-/* Le cadeau visé : discret, mais toujours là — c'est le pourquoi du Punch. */
-.asc-hero { padding: 10px 0 0; }
-.asc-gift { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 50px; padding: 10px 14px; border: 1px solid var(--border-c); border-radius: var(--r-sm); background: var(--surface); text-align: left; cursor: pointer; font-family: inherit; transition: border-color .18s var(--ease), box-shadow .18s var(--ease); }
-.asc-gift:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
-.asc-gift-ic { flex: none; font-size: 17px; line-height: 1; }
-.asc-gift-t { flex: 1; min-width: 0; font: 400 13px/1.35 var(--font); color: var(--text-muted-c); }
-.asc-gift-t b { color: var(--text-c); font-weight: 700; }
-.asc-gift-go { flex: none; display: grid; place-items: center; color: var(--text-soft); }
-.asc-gift-go .ic { width: 16px; height: 16px; }
+/* --- Le rail : ce que le parcours RAPPORTE -------------------------------
+   Trois cartes, en FLUX NORMAL — pas une seule position absolue. C'est ce qui
+   les distingue des récompenses, restées accrochées au sentier parce que leur
+   position EST leur sens (« ce cadeau est à trois étapes devant moi »). Un rail
+   n'a rien à aligner sur quoi que ce soit : aucune géométrie, donc aucun
+   chevauchement possible.
+   Sur mobile/tablette il s'empile sous l'en-tête ; à partir de 1140 px il occupe
+   la 3e colonne — celle qui, jusqu'ici, était VIDE et ne servait qu'à centrer le
+   sentier. Elle fait désormais les deux.
+   -------------------------------------------------------------------------- */
+.asc-rail { display: grid; gap: 12px; margin: 14px 0 4px; }
+.asc-rc { padding: 14px 16px; border: 1px solid var(--border-c); border-radius: var(--r); background: var(--surface); box-shadow: var(--shadow-xs); }
+.asc-rc-k { display: flex; align-items: center; gap: 6px; margin: 0; font: 700 10px/1 var(--font); letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted-c); }
+.asc-rc-k .ic { width: 13px; height: 13px; color: var(--gold); }
+.asc-rc-t { margin: 10px 0 0; font: 700 16px/1.2 var(--font); letter-spacing: -.02em; color: var(--text-c); }
+.asc-rc-s { margin: 5px 0 0; font: 400 12.5px/1.45 var(--font); color: var(--text-muted-c); }
+
+/* Les compteurs : deux lignes cliquables. Sans explication, ces nombres sont
+   opaques — chacune ouvre sa fiche (cf. openStatInfo). */
+.asc-rc-stat { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; margin-top: 10px; padding: 8px 26px 8px 10px; border: 0; border-radius: var(--r-sm); background: var(--surface-soft); text-align: left; font-family: inherit; cursor: pointer; transition: background .18s var(--ease); }
+.asc-rc-stat:hover { background: var(--track); }
+.asc-rc-v { font: 700 18px/1.1 var(--font); color: var(--text-c); font-variant-numeric: tabular-nums; }
+.asc-rc-l { font: 500 11px/1.3 var(--font); color: var(--text-muted-c); }
+.asc-rc-ch { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: grid; place-items: center; color: var(--text-soft); }
+.asc-rc-ch .ic { width: 14px; height: 14px; }
+
+/* La mission bonus : dorée comme son étoile sur le sentier — c'est le même
+   objet, il doit avoir le même visage aux deux endroits. */
+.asc-rc-mb { border-color: #EBDCB8; background: linear-gradient(150deg, #FDF8ED 0%, var(--surface) 62%); }
+.asc-rc-mb .asc-rc-k { color: #8A6D28; }
+.asc-rc-mb.is-ok { border-color: var(--sage); background: var(--surface); }
+.asc-rc-mb.is-ok .asc-rc-k { color: var(--sage-on-soft); }
+.asc-rc-mb.is-ok .asc-rc-k .ic { color: var(--sage); }
+.asc-rc-pill { display: inline-flex; align-items: center; gap: 5px; margin-top: 11px; padding: 5px 10px; border-radius: var(--pill); background: var(--surface-soft); font: 700 11px/1.3 var(--font); color: var(--text-muted-c); }
+.asc-rc-pill .ic { width: 11px; height: 11px; stroke-width: 3.2; }
+.asc-rc-pill.gold { background: #F6ECD6; color: #8A6D28; }
+.asc-rc-pill.ok { background: var(--sage-soft); color: var(--sage-on-soft); }
+.asc-rc-pill.ko { background: var(--surface-soft); color: var(--text-soft); }
+.asc-rc-cta { display: flex; width: 100%; margin-top: 12px; }
+
+/* Le cadeau visé : le bloc doré .pgift (partagé avec le reste de l'app) EST la
+   carte — pas d'habillage autour, il porte déjà son intitulé et sa jauge. */
+.asc-rc-gift { padding: 0; border: 0; background: none; box-shadow: none; }
 
 /* --- LE PROCHAIN CADEAU (carte mise en avant, or) ---------------------- */
 /* L'élément le plus motivant du Chemin : visuel + nom + coût + « il te reste
@@ -3166,15 +3203,20 @@ body.is-demo #navRestart { display: none !important; }
 .asc-has-card { transform: none; top: calc(var(--asc-dot) / -2 - 2px); width: 188px; max-width: none; }
 .asc-lbl { display: block; font: 500 13px/1.3 var(--font); color: var(--text-muted-c); transition: color .2s var(--ease); }
 
-/* FAIT : le rond reste clair, c'est le SENTIER qui porte la couleur — 43 pastilles
-   vertes tueraient la retenue de l'écran. */
-.asc-done .asc-dot { border-color: var(--sage); color: var(--sage); background: var(--surface); }
+/* Trois états, trois LECTURES distinctes — et jamais la couleur seule : la
+   taille, le fond et l'écusson disent la même chose trois fois.
+   FAIT : un fond sauge PÂLE (pas plein). Le sentier porte déjà le vert vif ;
+   43 pastilles pleines tueraient la retenue de l'écran, mais un rond blanc
+   bordé se lisait « vide », pas « acquis ». La teinte pâle tranche. */
+.asc-done .asc-dot { border-color: var(--sage); color: var(--sage-on-soft); background: var(--sage-soft); box-shadow: none; }
 .asc-done .asc-lbl { color: var(--text-c); }
 
 /* MAINTENANT : le seul point de couleur pleine de l'écran. Il n'y en a qu'un. */
 .asc-active { z-index: 4; }
-.asc-active .asc-dot { width: var(--asc-dot-now); height: var(--asc-dot-now); border: 0; background: var(--blue-c); color: #fff; box-shadow: var(--shadow-md); cursor: pointer; }
-.asc-active .asc-dot .ic { width: 30px; height: 30px; }
+/* L'anneau clair la DÉTACHE du sentier : sans lui, la plus grosse bulle de
+   l'écran reste posée sur un trait de 12 px qui la traverse visuellement. */
+.asc-active .asc-dot { width: var(--asc-dot-now); height: var(--asc-dot-now); border: 0; background: var(--blue-c); color: #fff; box-shadow: 0 0 0 5px var(--app-bg), var(--shadow-md); cursor: pointer; }
+.asc-active .asc-dot .ic { width: 32px; height: 32px; }
 .asc-active .asc-dot:hover { transform: translate(-50%, -50%) scale(1.05); }
 .asc-active .asc-dot:active { transform: translate(-50%, -50%) scale(.96); }
 /* Le halo respire — UNE seule animation en boucle sur tout l'écran. */
@@ -3188,7 +3230,20 @@ body.is-demo #navRestart { display: none !important; }
 /* PAS ENCORE : creusé, jamais barré. L'icône reste lisible — c'est elle qui donne
    envie (« qu'est-ce qui m'attend ? ») ; le cadenas ne fait que dater la porte. */
 .asc-locked .asc-dot { background: var(--surface-soft); border-color: var(--border-c); color: var(--text-soft); box-shadow: none; }
+/* L'icône s'efface un peu — sans disparaître : c'est elle qui donne envie. */
+.asc-locked .asc-dot .ic { opacity: .6; }
 .asc-locked .asc-lbl { color: var(--text-soft); }
+
+/* --- Le client, sur sa bulle du jour ------------------------------------
+   Un médaillon posé en HAUT de l'étape active, jamais dessus : l'icône de la
+   bulle dit ce qu'il y a à faire, elle ne se laisse pas recouvrir. C'est le seul
+   endroit du Chemin où le client se voit lui-même — et il n'y en a qu'un, comme
+   il n'y a qu'une étape active. */
+.asc-av { position: absolute; top: calc(var(--asc-dot-now) / -2 - 12px); left: 0; transform: translate(-50%, -50%); z-index: 2; width: 42px; height: 42px; border-radius: 50%; overflow: hidden; background: var(--surface); box-shadow: 0 0 0 2.5px var(--app-bg), 0 0 0 4px var(--blue-c), var(--shadow-sm); pointer-events: none; }
+/* ⚠️ Pas de pointe en ::after ici : `overflow: hidden` (qui détoure l'avatar au
+   rond) la rognerait. C'est le double anneau BLEU — la couleur de l'étape
+   active, et d'elle seule — qui le rattache à sa bulle. */
+.asc-av svg { width: 100%; height: 100%; display: block; }
 
 /* JALON : les quatre sommets. Plus hauts, en or, un double anneau — ils se voient
    de loin quand on défile, et c'est ce qui donne envie de continuer à descendre. */
@@ -3372,14 +3427,14 @@ body.is-demo #navRestart { display: none !important; }
 }
 
 /* Focus clavier : visible partout, y compris sur les ronds verrouillés. */
-.asc-dot:focus-visible, .asc-tile:focus-visible, .asc-gift:focus-visible, .asc-rec:focus-visible, .asc-card-cta:focus-visible, .mcpath-seg:focus-visible { outline: 2px solid var(--blue-c); outline-offset: 3px; border-radius: 12px; }
+.asc-dot:focus-visible, .asc-rc-stat:focus-visible, .asc-head-go:focus-visible, .asc-rec:focus-visible, .asc-card-cta:focus-visible, .mcpath-seg:focus-visible { outline: 2px solid var(--blue-c); outline-offset: 3px; border-radius: 12px; }
 .asc-dot:focus-visible, .asc-rec:focus-visible { border-radius: 50%; }
 
 /* --- Mise en scène ------------------------------------------------------ */
 /* La carte se DÉCOUVRE en défilant : chaque chapitre trace son trait et pose ses
    étapes en arrivant. Rien d'essentiel n'en dépend (cf. ascRevelation). */
-.asc-ch .asc-nd { opacity: 0; transform: translateY(10px); }
-.asc-ch.is-in .asc-nd { opacity: 1; transform: none; transition: opacity .5s var(--ease), transform .5s var(--ease); }
+.asc-ch .asc-nd, .asc-ch .asc-cardm { opacity: 0; transform: translateY(10px); }
+.asc-ch.is-in .asc-nd, .asc-ch.is-in .asc-cardm { opacity: 1; transform: none; transition: opacity .5s var(--ease), transform .5s var(--ease); }
 /* Léger décalage en cascade : le sentier se pose de haut en bas. */
 .asc-ch.is-in .asc-nd:nth-child(2) { transition-delay: .04s; }
 .asc-ch.is-in .asc-nd:nth-child(3) { transition-delay: .08s; }
@@ -3392,7 +3447,7 @@ body.is-demo #navRestart { display: none !important; }
 
 /* Mouvement refusé : tout est là, tout de suite, sans une seule transition. */
 @media (prefers-reduced-motion: reduce) {
-  .asc-ch .asc-nd, .asc-ch.is-in .asc-nd { opacity: 1; transform: none; transition: none; }
+  .asc-ch .asc-nd, .asc-ch.is-in .asc-nd, .asc-ch .asc-cardm { opacity: 1; transform: none; transition: none; }
   .asc-trail-fill { clip-path: none; transition: none; }
   .asc-active .asc-halo { animation: none; }
   .asc-cible { animation: none; }
@@ -3408,8 +3463,17 @@ body.is-demo #navRestart { display: none !important; }
   .asc-head { padding: 24px 26px 20px; }
   .asc-titre { font-size: 31px; }
   .asc-head-art { width: 74px; height: 52px; }
-  .asc-tiles { grid-template-columns: 1fr 1fr 1.5fr; gap: 0; }
-  .asc-tiles > :nth-child(3) { grid-column: auto; margin-top: 0; padding-top: 8px; border-top: 0; box-shadow: -1px 0 0 var(--border-c); }
+  /* Tant que le rail est encore SOUS l'en-tête, ses trois cartes se rangent en
+     ligne : empilées, elles repousseraient le sentier hors de l'écran. */
+  .asc-rail { grid-template-columns: repeat(3, 1fr); align-items: start; gap: 14px; margin-bottom: 10px; }
+  /* Dès que le rail passe en colonnes étroites (~233 px, qu'il soit en bande
+     sous l'en-tête ou à droite du sentier), le bloc du cadeau se met DEBOUT :
+     en ligne, son nom (« Deux semaines offertes à un proche ») tombait sur
+     quatre lignes de six caractères à côté d'une vignette de 56 px. */
+  .asc-rc-gift .pgift { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; }
+  .asc-rc-gift .pgift-ic { width: 46px; height: 46px; font-size: 25px; }
+  .asc-rc-gift .pgift-main { width: 100%; }
+  .asc-rc-gift .pgift-go { display: none; }
 
   .asc-ch { display: grid; grid-template-columns: var(--asc-col) minmax(0, 1fr); gap: 26px; align-items: start; }
   /* La carte de semaine suit le regard le long de son chapitre, sans jamais
@@ -3433,16 +3497,47 @@ body.is-demo #navRestart { display: none !important; }
      absolu (max-content = 0) : la colonne du parcours s'effondrait et la carte de
      l'étape active se posait sur la carte de semaine. */
   #view-parcours { max-width: 1080px; }
-  .asc, .asc-head, .asc-hero { width: 100%; max-width: 1080px; margin-left: auto; margin-right: auto; }
-  /* ⚠️ TROIS colonnes, la 1re et la 3e de MÊME largeur. Avec deux colonnes
-     (semaine | sentier), le sentier était poussé à droite du centre : c'est ce
-     qui donnait un parcours décalé, entouré de vide à gauche. La 3e colonne est
-     vide, elle ne sert qu'à rendre le centrage réel.
+  .asc-head, .asc-body { width: 100%; max-width: 1080px; margin-left: auto; margin-right: auto; }
+  /* ⚠️ Le CENTRAGE du sentier se joue ICI, et non plus dans .asc-ch. Le corps
+     est en deux colonnes — les chapitres, puis le rail — et le rail a
+     exactement la largeur de la carte de semaine (--asc-col). Le sentier, pris
+     entre deux colonnes de MÊME largeur, est donc réellement au centre.
+     C'est ce qu'assurait auparavant une 3e colonne VIDE dans chaque .asc-ch :
+     elle centrait sans rien porter. Elle porte désormais les trois cartes de
+     synthèse, et .asc-ch redevient ce qu'il est — semaine + sentier.
      ⚠️ La largeur ne descend PAS sous ~1080px : la colonne du sentier tomberait
      à ~420px, or une récompense avec son libellé fait 212px — du côté gauche
      elle déborderait sur la carte de semaine (essayé, mesuré, abandonné). */
-  .asc-ch { grid-template-columns: var(--asc-col) minmax(0, 1fr) var(--asc-col); gap: 30px; }
+  .asc-body { display: grid; grid-template-columns: minmax(0, 1fr) var(--asc-col); gap: 30px; align-items: start; }
+  /* Le rail est AVANT les chapitres dans le document (sur mobile il se lit juste
+     sous l'en-tête, à sa place) : on le renvoie explicitement en 2e colonne. */
+  .asc { grid-column: 1; grid-row: 1; min-width: 0; }
+  /* ⚠️ grid-template-columns REMIS à une colonne : la règle de 900px range les
+     trois cartes EN LIGNE (le rail y est encore une bande sous l'en-tête). Sans
+     ce retour, elles se tasseraient à 70 px de large dans la colonne.
+     Il suit ensuite le regard tout le long du défilement, comme la carte de
+     semaine en face : c'est ce qui garde « ce que ça me rapporte » à l'écran. */
+  .asc-rail { grid-column: 2; grid-row: 1; grid-template-columns: 1fr; margin: 0; gap: 14px;
+    position: sticky; top: calc(var(--asc-top, 53px) + 16px); }
+  .asc-ch { grid-template-columns: var(--asc-col) minmax(0, 1fr); gap: 30px; }
   .asc-ch-map { grid-column: 2; max-width: none; }
+}
+
+/* --- La carte posée SOUS la bulle (petits écrans) ------------------------
+   Elle n'existe qu'en dessous de 640 px, là où il n'y a plus la place à côté :
+   au-delà, la carte reprend sa place le long du sentier (cf. .asc-has-card).
+   Les deux existent dans le balisage, une seule est affichée — `display: none`
+   sort l'autre de l'arbre d'accessibilité, donc jamais deux « Commencer ». */
+.asc-cardm { display: none; position: absolute; left: 0; right: 0; }
+@media (max-width: 640px) {
+  .asc-cardm { display: block; }
+  .asc-has-card { display: none; }
+  /* La carte prend toute la largeur : le titre, l'action et le bouton
+     redeviennent lisibles au lieu de s'empiler dans 128 px. */
+  .asc-cardm .asc-card { padding: 14px 16px; }
+  .asc-cardm .asc-card-t { font-size: 17px; }
+  .asc-cardm .asc-card-f { flex-wrap: nowrap; }
+  .asc-cardm .asc-card-cta { padding: 11px 18px; font-size: 14px; }
 }
 
 /* --- Mobile ------------------------------------------------------------- */
@@ -3450,20 +3545,25 @@ body.is-demo #navRestart { display: none !important; }
   .asc-head { padding: 18px 16px 14px; border-radius: var(--r); }
   .asc-titre { font-size: 24px; }
   .asc-head-art { width: 52px; height: 38px; }
-  .asc-tile { padding: 8px 8px; }
-  .asc-tile-v { font-size: 14.5px; }
   /* La bulle et ce qui l'entoure rétrécissent ensemble : c'est le seul moyen de
      garder le libellé et la carte À CÔTÉ sans jamais chevaucher le sentier.
      L'amplitude du serpentin (ASC_AMP, côté JS) est réglée à 15 % : les bulles
      restent entre 35 % et 65 %, ce qui laisse ~150 px libres sur le bord pour ce
      qui est posé à côté — la carte de l'étape active tient dans cette largeur. */
-  .asc-wrap, #view-parcours { --asc-dot: 54px; --asc-dot-now: 64px; --asc-dot-top: 68px; --asc-gap: 32px; --asc-trail: 11px; }
-  .asc-side { max-width: 118px; }
-  .asc-has-card { width: 128px; max-width: none; }
+  /* Les bulles ordinaires rétrécissent PLUS que les autres : c'est ce qui rend
+     leur libellé lisible (il gagne la place que le rond perd) tout en gardant
+     l'étape du jour et les sommets francs. */
+  .asc-wrap, #view-parcours { --asc-dot: 46px; --asc-dot-now: 70px; --asc-dot-top: 62px; --asc-gap: 30px; --asc-trail: 11px; }
+  .asc-side { max-width: 132px; }
   .asc-lbl { font-size: 12px; }
+  .asc-av { top: calc(var(--asc-dot-now) / -2 - 15px); width: 34px; height: 34px; }
   .asc-card { padding: 12px 13px; }
   .asc-card-t { font-size: 16px; }
   .asc-card-f { flex-wrap: wrap; gap: 8px; }
+  /* Les icônes suivent leur rond — sinon elles le remplissent jusqu'au bord. */
+  .asc-dot .ic { width: 21px; height: 21px; }
+  .asc-active .asc-dot .ic { width: 28px; height: 28px; }
+  .asc-sommet .asc-dot .ic { width: 26px; height: 26px; }
   .asc-rec-tie { width: calc(var(--asc-gap) - 18px); }
   .asc-rec-b { width: 34px; height: 34px; }
   .asc-rec-ic { font-size: 15px; }
