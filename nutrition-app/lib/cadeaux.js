@@ -105,7 +105,8 @@ function seuilDe(id) {
 
 // Le liseré se DÉDUIT du total de Punch : rien à stocker, rien à choisir, donc
 // aucune dérive possible entre le compteur et ce que le groupe voit. Trois paliers,
-// le plus haut atteint l'emporte : platine (2500) > or (1350) > argent (450).
+// le plus haut atteint l'emporte : platine > or > argent. Les seuils sont LUS
+// dans punchSeuils (seuilDe), jamais recopiés : ils suivent les étapes du parcours.
 function themeTier(punch) {
   const n = Number(punch) || 0;
   if (n >= seuilDe('badge_platine')) return 'platine';

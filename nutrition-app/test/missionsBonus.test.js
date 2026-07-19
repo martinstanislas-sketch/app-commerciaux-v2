@@ -161,22 +161,25 @@ test('étapes validées => récompense débloquée, même sans le Punch réel', 
   const { CHALLENGE_PATH_NODES, punchPalier } = require('../lib/challengePath');
   let c = 0;
   const cumul = CHALLENGE_PATH_NODES.map((n, i) => { c += n.punch + punchPalier(i + 1); return c; });
-  // Étape où le seuil 250 (vidéos) est posé sur le sentier.
-  const k250 = cumul.findIndex((x) => x >= 250);
-  // Le client valide les étapes 0..k250 SANS aucun jour gagné : Punch réel = 0 ici
+  // ⚠️ Les seuils SUIVENT les étapes (une récompense par action) : on ne les code
+  // plus en dur ici, on prend le 1er lot de vidéos et le seuil juste après.
+  const { VIDEO_LOTS } = require('../lib/punchSeuils');
+  const sLot = VIDEO_LOTS[0];
+  const kLot = cumul.findIndex((x) => x >= sLot);
+  // Le client valide les étapes 0..kLot SANS aucun jour gagné : Punch réel = 0 ici
   // (les étapes sont insérées sans passer par addPunch, comme un compte en retard).
-  avancerJusquaSemaine(db, email, k250 + 1);
+  avancerJusquaSemaine(db, email, kLot + 1);
   assert.equal(engine.pathStatsRow(email).punch, 0, 'Punch réel nul dans ce scénario');
-  // La progression déverrouille quand même : le médaillon 250 n'est plus grisé.
+  // La progression déverrouille quand même : la récompense n'est plus grisée.
   const st = engine.challengePublicState(email);
-  const r250 = st.recompenses.find((r) => r.seuil === 250);
-  assert.equal(r250.locked, false, 'validé jusqu’au médaillon -> débloqué');
-  assert.equal(r250.restant, 0);
-  // Et un médaillon posé PLUS LOIN reste verrouillé.
-  const suivant = st.recompenses.find((r) => r.seuil === 350);
+  const rLot = st.recompenses.find((r) => r.seuil === sLot && r.type === 'video');
+  assert.equal(rLot.locked, false, 'validé jusqu’à la récompense -> débloquée');
+  assert.equal(rLot.restant, 0);
+  // Et une récompense posée PLUS LOIN reste verrouillée.
+  const suivant = st.recompenses.find((r) => r.seuil > cumul[kLot]);
   assert.equal(suivant.locked, true);
   // Au prochain gain, l'enregistrement (célébration/notification) rattrape.
   engine.addPunch(email, 1, 'test');
-  assert.ok(engine.unlockedThresholds(email).has('250:video'));
-  assert.ok(!engine.unlockedThresholds(email).has('350:ebook'));
+  assert.ok(engine.unlockedThresholds(email).has(sLot + ':video'));
+  assert.ok(!engine.unlockedThresholds(email).has(suivant.seuil + ':' + suivant.type));
 });

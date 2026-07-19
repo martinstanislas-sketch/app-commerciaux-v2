@@ -91,18 +91,22 @@
   // La condition de déblocage vit DANS LA DONNÉE, jamais en dur dans le code.
   // type: 'punch' (Punch cumulé) | 'badge' (cadeau déjà débloqué).
   // Aucun accessoire n'est achetable : uniquement débloquable par la progression.
+  // ⚠️ Les seuils de Punch suivent LE PARCOURS : chacun vaut le cumul d'une
+  // étape précise, pour qu'une récompense — et une seule — tombe à chaque
+  // action. Ils sont dérivés (jamais recopiés) par lib/punchSeuils.js : modifier
+  // une valeur ici déplace la récompense sur le Chemin.
   const ACCESSOIRES = [
-    { id: 'bandeau', nom: 'Bandeau de sport', categorie: 'tete', tier: 'base', condition: { type: 'punch', valeur: 100 } },
-    { id: 'casquette', nom: 'Casquette', categorie: 'tete', tier: 'base', condition: { type: 'punch', valeur: 200 } },
-    { id: 'barrette', nom: 'Barrette', categorie: 'tete', tier: 'base', condition: { type: 'punch', valeur: 400 } },
-    { id: 'lunettes', nom: 'Lunettes', categorie: 'visage', tier: 'base', condition: { type: 'punch', valeur: 500 } },
-    { id: 'bonnet', nom: 'Bonnet', categorie: 'tete', tier: 'base', condition: { type: 'punch', valeur: 700 } },
-    { id: 'brassard', nom: 'Brassard', categorie: 'tenue', tier: 'base', condition: { type: 'punch', valeur: 900 } },
+    { id: 'bandeau', nom: 'Bandeau de sport', categorie: 'tete', tier: 'base', condition: { type: 'punch', valeur: 80 } },
+    { id: 'casquette', nom: 'Casquette', categorie: 'tete', tier: 'base', condition: { type: 'punch', valeur: 135 } },
+    { id: 'barrette', nom: 'Barrette', categorie: 'tete', tier: 'base', condition: { type: 'punch', valeur: 280 } },
+    { id: 'lunettes', nom: 'Lunettes', categorie: 'visage', tier: 'base', condition: { type: 'punch', valeur: 385 } },
+    { id: 'bonnet', nom: 'Bonnet', categorie: 'tete', tier: 'base', condition: { type: 'punch', valeur: 555 } },
+    { id: 'brassard', nom: 'Brassard', categorie: 'tenue', tier: 'base', condition: { type: 'punch', valeur: 880 } },
     { id: 'medaille_argent', nom: 'Médaille d’argent', categorie: 'tenue', tier: 'argent', condition: { type: 'badge', valeur: 'badge_argent' } },
-    { id: 'couronne_argent', nom: 'Couronne d’argent', categorie: 'tete', tier: 'argent', condition: { type: 'punch', valeur: 1100 } },
-    { id: 'lunettes_or', nom: 'Lunettes dorées', categorie: 'visage', tier: 'or', condition: { type: 'punch', valeur: 1250 } },
+    { id: 'couronne_argent', nom: 'Couronne d’argent', categorie: 'tete', tier: 'argent', condition: { type: 'punch', valeur: 985 } },
+    { id: 'lunettes_or', nom: 'Lunettes dorées', categorie: 'visage', tier: 'or', condition: { type: 'punch', valeur: 1270 } },
     { id: 'medaille_or', nom: 'Médaille d’or', categorie: 'tenue', tier: 'or', condition: { type: 'badge', valeur: 'badge_or' } },
-    { id: 'couronne_or', nom: 'Couronne d’or', categorie: 'tete', tier: 'or', condition: { type: 'punch', valeur: 1900 } },
+    { id: 'couronne_or', nom: 'Couronne d’or', categorie: 'tete', tier: 'or', condition: { type: 'punch', valeur: 1795 } },
     { id: 'medaille_platine', nom: 'Médaille de platine', categorie: 'tenue', tier: 'platinium', condition: { type: 'badge', valeur: 'badge_platine' } },
     { id: 'aura_platine', nom: 'Aura de platine', categorie: 'aura', tier: 'platinium', condition: { type: 'punch', valeur: 2800 } },
   ];

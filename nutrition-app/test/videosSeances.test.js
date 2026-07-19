@@ -38,9 +38,9 @@ test('miniature et lecteur : construits depuis l\'ID', () => {
 });
 
 // --- Le catalogue -----------------------------------------------------------
-test('catalogue : 27 séances, réparties 5/5/5/6/6', () => {
+test('catalogue : 27 séances, réparties selon TAILLE_LOTS', () => {
   assert.equal(VIDEOS_SEED.length, 27);
-  const parLot = [1, 2, 3, 4, 5].map((l) => VIDEOS_SEED.filter((v) => v.lot === l).length);
+  const parLot = TAILLE_LOTS.map((_, i) => VIDEOS_SEED.filter((v) => v.lot === i + 1).length);
   assert.deepEqual(parLot, TAILLE_LOTS);
   assert.equal(parLot.reduce((a, b) => a + b, 0), 27);
 });
@@ -51,21 +51,29 @@ test('catalogue : chaque lien est exploitable et unique', () => {
   assert.equal(new Set(ids).size, ids.length, 'aucune séance en double');
   VIDEOS_SEED.forEach((v) => {
     assert.ok(v.titre && v.coach, 'titre et coach renseignés');
-    assert.ok(v.lot >= 1 && v.lot <= 5, `lot ${v.lot} hors bornes`);
+    assert.ok(v.lot >= 1 && v.lot <= TAILLE_LOTS.length, `lot ${v.lot} hors bornes`);
   });
 });
 
 test('catalogue : il y a un lot par palier de Punch déclaré', () => {
-  assert.equal(TAILLE_LOTS.length, VIDEO_LOTS.length, '5 lots pour 5 seuils');
-  assert.deepEqual(VIDEO_LOTS, [250, 650, 1050, 1450, 1750]);
+  assert.equal(TAILLE_LOTS.length, VIDEO_LOTS.length, 'un lot par seuil');
+  // ⚠️ Les seuils suivent les étapes du parcours (une récompense par action) et
+  // les lots sont INÉGAUX : les premiers sont chargés pour ne jamais
+  // re-verrouiller une vidéo déjà accessible (test dédié plus bas).
+  assert.deepEqual(VIDEO_LOTS, [175, 305, 360, 540, 790, 945, 1245, 1310, 1690, 1715]);
 });
 
 test('catalogue : chaque lot mélange les visages (jamais plus de 2 fois le même)', () => {
-  // `coach` = la personne SUR la miniature. Un palier doit présenter un maximum
-  // de visages différents — pas 4 fois la même tête, ni « 5 séances de biceps ».
-  [1, 2, 3, 4, 5].forEach((l) => {
+  // `coach` = la personne SUR la miniature. Un lot doit présenter un maximum de
+  // visages différents — pas 4 fois la même tête, ni « 5 séances de biceps ».
+  // ⚠️ La variété ne s'exige QUE des lots d'au moins 3 séances : depuis que les
+  // récompenses tombent une par étape du parcours, certains lots ne contiennent
+  // qu'UNE vidéo (tailles 5/1/1/3/1/4/1/5/1/5). Un lot d'une séance ne peut pas
+  // montrer quatre visages — c'est le prix assumé d'un déblocage à chaque action.
+  TAILLE_LOTS.forEach((taille, i) => {
+    const l = i + 1;
     const lot = VIDEOS_SEED.filter((v) => v.lot === l);
-    assert.ok(new Set(lot.map((v) => v.coach)).size >= 4, `lot ${l} : trop peu de visages différents`);
+    if (taille >= 3) assert.ok(new Set(lot.map((v) => v.coach)).size >= 3, `lot ${l} : trop peu de visages différents`);
     const parCoach = {};
     lot.forEach((v) => { parCoach[v.coach] = (parCoach[v.coach] || 0) + 1; });
     Object.entries(parCoach).forEach(([c, n]) => assert.ok(n <= 2, `lot ${l} : ${c} apparaît ${n} fois`));
@@ -73,10 +81,10 @@ test('catalogue : chaque lot mélange les visages (jamais plus de 2 fois le mêm
   });
   // Personne n'est étiqueté « Générique » : chaque miniature a un visage nommé.
   assert.equal(VIDEOS_SEED.filter((v) => v.coach === 'Générique').length, 0);
-  // Répartition homogène de chaque visage sur l'ensemble des packs : un coach
-  // très présent (Quentin ×10) est étalé partout au lieu d'être concentré.
+  // Répartition homogène : un coach très présent (Quentin ×10) reste étalé sur
+  // l'ensemble du parcours au lieu d'être concentré sur deux lots.
   const lots = (c) => new Set(VIDEOS_SEED.filter((v) => v.coach === c).map((v) => v.lot)).size;
-  assert.equal(lots('Quentin'), 5, 'Quentin présent dans les 5 packs');
-  assert.equal(lots('Alexandre'), 5, 'Alexandre présent dans les 5 packs');
-  assert.equal(lots('Gauthier'), 5, 'Gauthier présent dans les 5 packs');
+  assert.ok(lots('Quentin') >= 4, 'Quentin étalé sur au moins 4 lots');
+  assert.ok(lots('Alexandre') >= 4, 'Alexandre étalé sur au moins 4 lots');
+  assert.ok(lots('Gauthier') >= 4, 'Gauthier étalé sur au moins 4 lots');
 });

@@ -37,14 +37,22 @@ const EBOOK_CHEMIN = {
 };
 
 // Palier de Punch cumulé -> ids ouverts à ce palier (2+3+3+3+3+4+4 = 22).
+// ⚠️ Les seuils suivent le parcours (une récompense par étape) et les paliers
+// sont INÉGAUX pour ne jamais re-verrouiller un guide déjà accessible. L'ORDRE
+// des identifiants est celui d'avant : un client retrouve ses guides dans la
+// même séquence, simplement servis par doses plus petites et plus fréquentes.
 const EBOOK_PUNCH = {
-  150: [8, 31],
-  350: [12, 11, 6],
-  550: [15, 13, 18],
-  800: [20, 25, 28],
-  1050: [19, 26, 33],
-  1300: [23, 32, 30, 37],
-  1600: [34, 35, 38, 7],
+  105: [8, 31],
+  160: [12],
+  260: [11],
+  345: [6],
+  495: [15, 13, 18],
+  580: [20],
+  595: [25, 28],
+  905: [19],
+  960: [26, 33],
+  1285: [23, 32, 30, 37],
+  1325: [34, 35, 38, 7],
 };
 
 // D'où vient cet ebook ? null = inconnu de la répartition (cf. avertissement plus haut).

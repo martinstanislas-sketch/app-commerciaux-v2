@@ -54,34 +54,37 @@ const VIDEOS_SEED = [
   { lot: 1, coach: 'Gauthier', titre: 'Stretching', url: 'https://youtu.be/eAWTKxmJV_s' },
   // Lot 2 (650) — on monte en intensité : tabata, élastiques, abdos, haut, bas.
   { lot: 2, coach: 'Quentin', titre: 'Tabata', url: 'https://youtu.be/isNbt6B308Y' },
-  { lot: 2, coach: 'Quentin', titre: 'Spéciale élastique', url: 'https://youtu.be/3lWb5YJUuh8' },
-  { lot: 2, coach: 'Mathys', titre: 'Abdos', url: 'https://youtu.be/EAd44vWugOk' },
-  { lot: 2, coach: 'Gauthier', titre: 'Pectoraux / Trapèzes', url: 'https://youtu.be/z6Br50fxzak' },
-  { lot: 2, coach: 'Alexandre', titre: 'Bas du corps', url: 'https://youtu.be/e59hHr0JNu0' },
+  { lot: 3, coach: 'Quentin', titre: 'Spéciale élastique', url: 'https://youtu.be/3lWb5YJUuh8' },
+  { lot: 4, coach: 'Mathys', titre: 'Abdos', url: 'https://youtu.be/EAd44vWugOk' },
+  { lot: 4, coach: 'Gauthier', titre: 'Pectoraux / Trapèzes', url: 'https://youtu.be/z6Br50fxzak' },
+  { lot: 4, coach: 'Alexandre', titre: 'Bas du corps', url: 'https://youtu.be/e59hHr0JNu0' },
   // Lot 3 (1050) — full body, amrap, HIIT et du travail des bras.
-  { lot: 3, coach: 'Quentin', titre: 'Full body A', url: 'https://youtu.be/AmRkZ3ohAeo' },
-  { lot: 3, coach: 'Quentin', titre: 'Amrap A', url: 'https://youtu.be/vvfcNl9-3qA' },
-  { lot: 3, coach: 'Gauthier', titre: 'HIIT', url: 'https://youtu.be/26q1pYpY0Cg' },
-  { lot: 3, coach: 'Alexandre', titre: 'Biceps', url: 'https://youtu.be/RmzmZhk4swU' },
-  { lot: 3, coach: 'Mathys', titre: 'Full body', url: 'https://youtu.be/AJlUFD4-Aec' },
+  { lot: 5, coach: 'Quentin', titre: 'Full body A', url: 'https://youtu.be/AmRkZ3ohAeo' },
+  { lot: 6, coach: 'Quentin', titre: 'Amrap A', url: 'https://youtu.be/vvfcNl9-3qA' },
+  { lot: 6, coach: 'Gauthier', titre: 'HIIT', url: 'https://youtu.be/26q1pYpY0Cg' },
+  { lot: 6, coach: 'Alexandre', titre: 'Biceps', url: 'https://youtu.be/RmzmZhk4swU' },
+  { lot: 6, coach: 'Mathys', titre: 'Full body', url: 'https://youtu.be/AJlUFD4-Aec' },
   // Lot 4 (1450) — 6 séances : amrap, renfo haut, épaules, bas, abdos, gainage.
-  { lot: 4, coach: 'Quentin', titre: 'Amrap B', url: 'https://youtu.be/bbxhBoPhfOo' },
-  { lot: 4, coach: 'Quentin', titre: 'Renfo haut du corps', url: 'https://youtu.be/Llh_g4sSnhM' },
-  { lot: 4, coach: 'Alexandre', titre: 'Épaules, bras & gainage', url: 'https://youtu.be/zLL6ZnKcr7o' },
-  { lot: 4, coach: 'Alexandre', titre: 'Quadriceps & fessiers', url: 'https://youtu.be/4Vb9UygtQDA' },
-  { lot: 4, coach: 'Gauthier', titre: 'Abdos', url: 'https://youtu.be/3O_N8u_Kaak' },
-  { lot: 4, coach: 'Théo', titre: 'Gainage', url: 'https://youtu.be/0SmjUiOFfDg' },
+  { lot: 7, coach: 'Quentin', titre: 'Amrap B', url: 'https://youtu.be/bbxhBoPhfOo' },
+  { lot: 8, coach: 'Quentin', titre: 'Renfo haut du corps', url: 'https://youtu.be/Llh_g4sSnhM' },
+  { lot: 8, coach: 'Alexandre', titre: 'Épaules, bras & gainage', url: 'https://youtu.be/zLL6ZnKcr7o' },
+  { lot: 8, coach: 'Alexandre', titre: 'Quadriceps & fessiers', url: 'https://youtu.be/4Vb9UygtQDA' },
+  { lot: 8, coach: 'Gauthier', titre: 'Abdos', url: 'https://youtu.be/3O_N8u_Kaak' },
+  { lot: 8, coach: 'Théo', titre: 'Gainage', url: 'https://youtu.be/0SmjUiOFfDg' },
   // Lot 5 (1750) — 6 séances pour ceux qui vont au bout : full body, boxe,
   // haut du corps, triceps, cardio, abdos.
-  { lot: 5, coach: 'Quentin', titre: 'Full body B', url: 'https://youtu.be/gc4Xbz-27Hw' },
-  { lot: 5, coach: 'Quentin', titre: 'Cardio + renfo + boxe', url: 'https://youtu.be/kL2BbwOCpL0' },
-  { lot: 5, coach: 'Alexandre', titre: 'Haut du corps', url: 'https://youtu.be/fs3pg2fo6Ho' },
-  { lot: 5, coach: 'Alexandre', titre: 'Triceps', url: 'https://youtu.be/B1jt8gr25-w' },
-  { lot: 5, coach: 'Gauthier', titre: 'Cardio 40/20', url: 'https://youtu.be/ZXdD72vpdrY' },
-  { lot: 5, coach: 'Antton', titre: 'Abdos spéciale', url: 'https://youtu.be/O4tTeQY2Yiw' },
+  { lot: 9, coach: 'Quentin', titre: 'Full body B', url: 'https://youtu.be/gc4Xbz-27Hw' },
+  { lot: 10, coach: 'Quentin', titre: 'Cardio + renfo + boxe', url: 'https://youtu.be/kL2BbwOCpL0' },
+  { lot: 10, coach: 'Alexandre', titre: 'Haut du corps', url: 'https://youtu.be/fs3pg2fo6Ho' },
+  { lot: 10, coach: 'Alexandre', titre: 'Triceps', url: 'https://youtu.be/B1jt8gr25-w' },
+  { lot: 10, coach: 'Gauthier', titre: 'Cardio 40/20', url: 'https://youtu.be/ZXdD72vpdrY' },
+  { lot: 10, coach: 'Antton', titre: 'Abdos spéciale', url: 'https://youtu.be/O4tTeQY2Yiw' },
 ];
 
 // Combien de séances par lot -> doit coller à 5/5/5/6/6.
-const TAILLE_LOTS = [5, 5, 5, 6, 6];
+// ⚠️ Tailles INÉGALES, et une par seuil de VIDEO_LOTS. Les premiers lots sont
+// chargés pour qu'aucune vidéo déjà accessible ne se re-verrouille (cf. le
+// commentaire de VIDEO_LOTS dans punchSeuils.js). Un test le vérifie.
+const TAILLE_LOTS = [5, 1, 1, 3, 1, 4, 1, 5, 1, 5];
 
 module.exports = { extraireYoutubeId, miniatureYoutube, lecteurYoutube, VIDEOS_SEED, TAILLE_LOTS };

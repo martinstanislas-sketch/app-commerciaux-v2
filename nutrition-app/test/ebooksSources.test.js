@@ -39,8 +39,8 @@ test('sourceEbook : chaque id est rangé dans le bon canal', () => {
   assert.deepEqual(sourceEbook(EBOOK_INTRO), { source: 'intro' });
   assert.deepEqual(sourceEbook(14), { source: 'chemin', jour: 2 });
   assert.deepEqual(sourceEbook(39), { source: 'chemin', jour: 39 });
-  assert.deepEqual(sourceEbook(8), { source: 'punch', seuil: 150 });
-  assert.deepEqual(sourceEbook(7), { source: 'punch', seuil: 1600 });
+  assert.deepEqual(sourceEbook(8), { source: 'punch', seuil: 105 });
+  assert.deepEqual(sourceEbook(7), { source: 'punch', seuil: 1325 });
   // Un id inconnu -> null : le serveur retombe sur unlock_day, jamais verrouillé à vie.
   assert.equal(sourceEbook(999), null);
   assert.equal(sourceEbook(null), null);
@@ -73,10 +73,10 @@ test('le challenge ne distribue plus que 12 ebooks (contre ~34 avant)', () => {
 const { estVerrouille } = require('../lib/ebooksSources');
 
 test('canal Punch : débloqué au seuil, le JOUR n\'a aucun mot à dire', () => {
-  const id = EBOOK_PUNCH[150][0]; // premier ebook du palier 150
+  const id = EBOOK_PUNCH[105][0]; // premier ebook du 1er palier (105)
   const eb = { id, type: 'ebook', unlock_day: 40 }; // unlock_day historique tardif : ignoré
-  assert.equal(estVerrouille(eb, { day: 1, punch: 150 }), false, 'lisible dès 150 Punch, même au jour 1');
-  assert.equal(estVerrouille(eb, { day: 42, punch: 149 }), true, 'sans le Punch, même en fin de challenge : fermé');
+  assert.equal(estVerrouille(eb, { day: 1, punch: 105 }), false, 'lisible dès 105 Punch, même au jour 1');
+  assert.equal(estVerrouille(eb, { day: 42, punch: 104 }), true, 'sans le Punch, même en fin de challenge : fermé');
 });
 
 test('canal Chemin : débloqué au JOUR de son étape, le Punch n\'y change rien', () => {

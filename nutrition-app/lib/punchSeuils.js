@@ -17,22 +17,36 @@
 
 const PUNCH_MAX_THEORIQUE = 4095;
 
-// Lots de vidéos : chaque seuil ouvre un lot (le n-ième lot = index + 1).
-const VIDEO_LOTS = [250, 650, 1050, 1450, 1750];
+// ⚠️ LES SEUILS SUIVENT LE PARCOURS, ils ne sont pas des nombres ronds choisis
+// à la main. Chacun vaut le cumul de Punch d'un parcours parfait À UNE ÉTAPE
+// PRÉCISE (cf. CUMUL_PUNCH_PARFAIT) : c'est ce qui fait tomber une récompense — et
+// une seule — à chaque action. Avant, les seuils ronds tombaient n'importe où sur
+// la courbe : 23 étapes sur 43 ne débloquaient rien, et une seule en débloquait
+// cinq d'un coup. Déplacer un seuil au hasard casse cette propriété.
+//
+// ⚠️ Les LOTS SONT INÉGAUX (5, 1, 1, 3…) et c'est voulu : à chaque niveau de
+// Punch, le client doit avoir au moins autant de contenu qu'avec l'ancien
+// découpage, sinon des vidéos déjà accessibles disparaîtraient. Les premiers
+// lots sont donc chargés (l'ancien 1er lot donnait 5 vidéos dès 250). Un test
+// verrouille cette non-régression.
+const VIDEO_LOTS = [175, 305, 360, 540, 790, 945, 1245, 1310, 1690, 1715];
 // Paliers d'ebooks : seuil -> nombre d'ebooks ouverts à ce palier.
-const EBOOK_TIERS = { 150: 2, 350: 3, 550: 3, 800: 3, 1050: 3, 1300: 4, 1600: 4 };
+const EBOOK_TIERS = { 105: 2, 160: 1, 260: 1, 345: 1, 495: 3, 580: 1, 595: 2, 905: 1, 960: 2, 1285: 4, 1325: 4 };
 // Cadeaux : seuil de Punch -> identifiant du cadeau (paliers, jamais débités).
+// Les dix premiers tombent sur une étape du parcours. Les quatre derniers sont
+// AU-DESSUS de 2395 (le maximum d'un parcours parfait) : ils exigent des
+// missions bonus, et restent donc une récompense d'exception.
 const GIFTS = {
-  300: 'bilan_proche',
-  450: 'badge_argent',
-  600: 'chanson',
-  800: 'ambassadeur',
-  1000: 'coaching_individuel',
-  1200: 'acces_prioritaire',
+  200: 'bilan_proche',
+  320: 'badge_argent',
+  515: 'chanson',
+  620: 'ambassadeur',
+  920: 'coaching_individuel',
+  1225: 'acces_prioritaire',
   1350: 'badge_or',
-  1500: 'deux_semaines_proche',
-  1800: 'coaching_nutrition',
-  2000: 'mois_offert',
+  1670: 'deux_semaines_proche',
+  1730: 'coaching_nutrition',
+  2295: 'mois_offert',
   2500: 'badge_platine',
   3000: 'remise_abo',
   3500: 'shooting',

@@ -3961,7 +3961,7 @@ async function postComment(id, text) {
 // Le badge d'un membre : un LISERÉ autour de sa photo dans le fil. C'est la seule
 // récompense que le GROUPE voit — et elle ne touche à rien d'autre : l'app de
 // personne ne change d'apparence (les skins plein écran ont été retirés, trop
-// intrusifs). Doré > noir, rien du tout en dessous de 450 Punch. Le serveur a déjà
+// intrusifs). Doré > noir, rien du tout sous le badge Argent. Le serveur a déjà
 // tranché (il déduit le palier du Punch) ; le front ne fait que le montrer.
 const TIER_MOT = { platine: 'Badge Platine', or: 'Badge Or', argent: 'Badge Argent' };
 function feedCard(item) {
@@ -4297,8 +4297,16 @@ const DEBLOCAGE_VISUEL = {
   gift: { icon: '🎁', titre: 'Cadeau débloqué 🎉' },
 };
 // Célèbre les déblocages tombés (souvent aucun, parfois plusieurs d'un coup).
+// Au-delà de ce nombre, on ne fait plus défiler les fenêtres une par une.
+const CELEB_MAX_FILE = 3;
 function celebrerDeblocages(cles, etat) {
-  (cles || []).forEach((cle) => {
+  const liste = cles || [];
+  // ⚠️ Une fenêtre par récompense n'a de sens que pour une poignée. Quand un lot
+  // tombe d'un coup — un rattrapage après un changement de seuils, un gros gain,
+  // un compte migré — le client devrait fermer six fenêtres à la main (elles
+  // attendent le clic). On en fait alors UNE, qui mène à la liste.
+  if (liste.length > CELEB_MAX_FILE) { celebrerEnBloc(liste, etat); return; }
+  liste.forEach((cle) => {
     const [seuil, type] = String(cle).split(':');
     // Les CADEAUX ont leur animation coffre premium (noir & or) ; vidéos/guides
     // gardent la célébration générique.
@@ -4309,6 +4317,38 @@ function celebrerDeblocages(cles, etat) {
       icon: v.icon, title: v.titre, subtitle: sousTitreDeblocage(type, Number(seuil), etat),
       cible: () => allerAuxDeblocages(type),
     });
+  });
+}
+
+// Le lot, annoncé d'une seule voix.
+// ⚠️ On marque quand même CHAQUE récompense comme célébrée : sans ça, l'animation
+// coffre de chaque cadeau se rejouerait une par une au prochain chargement — on
+// aurait juste repoussé le défilé. Et les cadeaux gardent leur liseré dans la
+// liste (cf. marquerCadeauNeuf) : c'est là que le client les découvre un par un.
+function celebrerEnBloc(cles, etat) {
+  let cadeaux = 0;
+  cles.forEach((cle) => {
+    const [seuil, type] = String(cle).split(':');
+    if (type === 'gift') {
+      cadeaux++;
+      const g = (etat && etat.cadeaux && etat.cadeaux[seuil]) || null;
+      const id = (g && g.id) ? g.id : ('seuil-' + seuil);
+      markGiftAnimSeen(id);
+      if (g && g.id) marquerCadeauNeuf(g.id);
+    } else if (type === 'avatar') {
+      const A = window.MCAvatar;
+      const rec = ((etat && etat.recompenses) || []).find((r) => r.type === 'avatar' && String(r.seuil) === String(seuil));
+      const accId = (rec && rec.payload && rec.payload.accessoire)
+        || (A && (A.ACCESSOIRES.find((x) => x.condition.type === 'punch' && String(x.condition.valeur) === String(seuil)) || {}).id);
+      if (accId) markGiftAnimSeen('avatar:' + accId);
+    }
+  });
+  celebrateUnlock({
+    icon: cadeaux ? '🎁' : '🎉',
+    title: cles.length + ' récompenses débloquées',
+    subtitle: cadeaux ? 'Dont ' + cadeaux + (cadeaux > 1 ? ' cadeaux' : ' cadeau') + ' — va les découvrir.' : 'Va les découvrir.',
+    // Un cadeau dans le lot ? on emmène à la boutique, où le liseré les désigne.
+    cible: cadeaux ? () => { setTab('boutique'); } : () => allerAuxDeblocages('ebook'),
   });
 }
 // Où va-t-on quand on tape la célébration d'un guide ou d'une vidéo : sur la
