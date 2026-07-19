@@ -2,9 +2,16 @@
 // ============================================================================
 //  SEUILS DE PUNCH — LA source de vérité des déblocages.
 //
-//  Tout ce qui se débloque dans l'app (vidéos, ebooks, cadeaux) est décrit ICI
-//  et nulle part ailleurs. Les prompts suivants brancheront leurs récompenses sur
-//  ce fichier : personne ne redéclare un seuil dans son coin.
+//  ⚠️ LES SEUILS NE SONT PLUS ÉCRITS ICI. Ils vivent dans la DONNÉE :
+//    - `lib/deblocages.json` = la table de référence (le seed, versionné) ;
+//    - la table `nutrition_deblocages` en base = ce qui fait foi en production,
+//      éditable depuis le panneau admin SANS redéploiement.
+//  Ce fichier ne fait plus que LIRE cette table et en déduire ce dont le moteur
+//  a besoin. Changer un seuil ne demande donc plus de toucher au code.
+//
+//  Le serveur injecte la table de la base au démarrage (et après chaque édition)
+//  via `setTable`. Sans injection — tests, outils hors ligne —, le JSON sert de
+//  repli : le module reste PUR et testable sans base.
 //
 //  Le compteur de référence est `punch` (user_game_stats) : CUMULÉ, jamais
 //  débité. Un déblocage s'obtient en ATTEIGNANT un seuil, et reste acquis —
@@ -13,73 +20,97 @@
 //  ⚠️ Plafond : 4095 Punch max (parcours 1180 + série 1215 + missions bonus 1700).
 //  Un seuil au-dessus serait inatteignable -> PUNCH_MAX_THEORIQUE + un test le
 //  verrouillent.
+//
+//  ⚠️ GRANULARITÉ : une ligne = UN contenu. Les vidéos et les guides tombaient
+//  autrefois par LOTS (10 lots, 11 paliers) ; ils tombent désormais un par un,
+//  chacun avec son seuil. Cadeaux, badges et accessoires n'ont pas bougé d'un
+//  Punch — seule la distribution du contenu a changé.
 // ============================================================================
+
+const REFERENCE = require('./deblocages.json');
 
 const PUNCH_MAX_THEORIQUE = 4095;
 
-// ⚠️ LES SEUILS SUIVENT LE PARCOURS, ils ne sont pas des nombres ronds choisis
-// à la main. Chacun vaut le cumul de Punch d'un parcours parfait À UNE ÉTAPE
-// PRÉCISE (cf. CUMUL_PUNCH_PARFAIT) : c'est ce qui fait tomber une récompense — et
-// une seule — à chaque action. Avant, les seuils ronds tombaient n'importe où sur
-// la courbe : 23 étapes sur 43 ne débloquaient rien, et une seule en débloquait
-// cinq d'un coup. Déplacer un seuil au hasard casse cette propriété.
-//
-// ⚠️ Les LOTS SONT INÉGAUX (5, 1, 1, 3…) et c'est voulu : à chaque niveau de
-// Punch, le client doit avoir au moins autant de contenu qu'avec l'ancien
-// découpage, sinon des vidéos déjà accessibles disparaîtraient. Les premiers
-// lots sont donc chargés (l'ancien 1er lot donnait 5 vidéos dès 250). Un test
-// verrouille cette non-régression.
-const VIDEO_LOTS = [175, 305, 360, 540, 790, 945, 1245, 1310, 1690, 1715];
-// Paliers d'ebooks : seuil -> nombre d'ebooks ouverts à ce palier.
-const EBOOK_TIERS = { 105: 2, 160: 1, 260: 1, 345: 1, 495: 3, 580: 1, 595: 2, 905: 1, 960: 2, 1285: 4, 1325: 4 };
-// Cadeaux : seuil de Punch -> identifiant du cadeau (paliers, jamais débités).
-// Les dix premiers tombent sur une étape du parcours. Les quatre derniers sont
-// AU-DESSUS de 2395 (le maximum d'un parcours parfait) : ils exigent des
-// missions bonus, et restent donc une récompense d'exception.
-const GIFTS = {
-  200: 'bilan_proche',
-  320: 'badge_argent',
-  515: 'chanson',
-  620: 'ambassadeur',
-  920: 'coaching_individuel',
-  1225: 'acces_prioritaire',
-  1350: 'badge_or',
-  1670: 'deux_semaines_proche',
-  1730: 'coaching_nutrition',
-  2295: 'mois_offert',
-  2500: 'badge_platine',
-  3000: 'remise_abo',
-  3500: 'shooting',
-  4000: 'massage',
-};
+// La table courante. Remplacée par la base au boot ; sinon c'est la référence.
+let TABLE = normaliser(REFERENCE.deblocages);
 
-// Accessoires d'avatar : la condition est déclarée UNE SEULE FOIS, dans le
-// catalogue de lib/avatar.js (le front en a besoin pour afficher « Encore X
-// PUNCH »). On la DÉRIVE ici plutôt que de la recopier — sinon les deux
-// listes divergeraient au premier ajout d'accessoire.
-// Une condition de type « badge » est ramenée au seuil de Punch du cadeau
-// correspondant : c'est ce Punch-là qui la rend atteignable.
+// Nettoie et trie : le reste du module suppose une table triée et bien formée.
+// Une ligne inexploitable est ÉCARTÉE plutôt que de faire tomber le moteur —
+// un seuil mal saisi en admin ne doit pas priver tout le monde de récompenses.
+function normaliser(lignes) {
+  return (Array.isArray(lignes) ? lignes : [])
+    .map((d) => ({
+      seuil: Number(d.seuil),
+      type: String(d.type || ''),
+      nom: String(d.nom || ''),
+      rang: d.rang == null ? null : Number(d.rang),
+      ref: d.ref || null,
+      bonus_accessoire: d.bonus_accessoire || null,
+    }))
+    .filter((d) => Number.isFinite(d.seuil) && d.seuil > 0 && d.type)
+    .sort((a, b) => a.seuil - b.seuil || a.type.localeCompare(b.type));
+}
+
+// Le serveur appelle ceci au démarrage et après chaque édition admin.
+// Une table vide est REFUSÉE : mieux vaut la référence que plus rien du tout.
+function setTable(lignes) {
+  const t = normaliser(lignes);
+  if (!t.length) return false;
+  TABLE = t;
+  return true;
+}
+function table() { return TABLE; }
+function tableReference() { return normaliser(REFERENCE.deblocages); }
+
+// ── CE QUE LE MOTEUR EN DÉDUIT ──────────────────────────────────────────────
+// Seuil de la n-ième vidéo / du n-ième guide (n commence à 1).
+// `null` = ce rang n'est pas dans la table -> le contenu reste verrouillé,
+// jamais ouvert à tous par accident.
+function seuilVideo(rang) { return seuilParRang('video', rang); }
+function seuilGuide(rang) { return seuilParRang('guide', rang); }
+function seuilParRang(type, rang) {
+  const n = Number(rang);
+  if (!Number.isFinite(n) || n < 1) return null;
+  const l = TABLE.find((d) => d.type === type && d.rang === n);
+  return l ? l.seuil : null;
+}
+function nbDeType(type) { return TABLE.filter((d) => d.type === type).length; }
+
+// Cadeaux : seuil -> identifiant. Les badges SONT des cadeaux (ils ont leur bon
+// et leur fiche) : ils partagent la même table, seul leur affichage diffère.
+function gifts() {
+  const out = {};
+  TABLE.filter((d) => (d.type === 'cadeau' || d.type === 'badge') && d.ref).forEach((d) => { out[d.seuil] = d.ref; });
+  return out;
+}
+
+// Accessoires d'avatar. Deux origines, une seule sortie :
+//   - les lignes `accessoire` de la table ;
+//   - le `bonus_accessoire` d'un badge — la médaille tombe AVEC son badge, au
+//     même seuil. C'est la règle « un badge débloque aussi sa médaille ».
+// ⚠️ On ne renvoie que des accessoires CONNUS du catalogue (lib/avatar.js) :
+// une référence morte saisie en admin ne peut pas créer un accessoire fantôme.
 function avatarSeuils() {
-  let catalogue = [];
-  try { catalogue = require('./avatar').ACCESSOIRES || []; } catch (_) { return []; }
-  const seuilDuCadeau = (id) => {
-    const cle = Object.keys(GIFTS).find((s) => GIFTS[s] === id);
-    return cle ? Number(cle) : null;
-  };
-  return catalogue.map((a) => {
-    const seuil = a.condition.type === 'badge' ? seuilDuCadeau(a.condition.valeur) : Number(a.condition.valeur);
-    return seuil ? { seuil, type: 'avatar', payload: { accessoire: a.id } } : null;
-  }).filter(Boolean);
+  let connus = new Set();
+  try { connus = new Set((require('./avatar').ACCESSOIRES || []).map((a) => a.id)); } catch (_) { /* catalogue absent */ }
+  const out = [];
+  TABLE.forEach((d) => {
+    if (d.type === 'accessoire' && d.ref) out.push({ seuil: d.seuil, type: 'avatar', payload: { accessoire: d.ref } });
+    if (d.bonus_accessoire) out.push({ seuil: d.seuil, type: 'avatar', payload: { accessoire: d.bonus_accessoire } });
+  });
+  return connus.size ? out.filter((a) => connus.has(a.payload.accessoire)) : out;
 }
 
 // Tous les déblocages, à plat et triés par seuil.
-// ⚠️ Un même seuil peut porter PLUSIEURS récompenses (800 = ebooks + cadeau,
-// 1050 = vidéos + ebooks) : la paire (seuil, type) est l'identité, pas le seuil.
+// ⚠️ Un même seuil peut porter PLUSIEURS récompenses (un badge + sa médaille) :
+// la paire (seuil, type) est l'identité, pas le seuil (cf. cleSeuil).
 function tousLesSeuils() {
   const out = [];
-  VIDEO_LOTS.forEach((seuil, i) => out.push({ seuil, type: 'video', payload: { lot: i + 1 } }));
-  Object.keys(EBOOK_TIERS).forEach((s) => out.push({ seuil: Number(s), type: 'ebook', payload: { nombre: EBOOK_TIERS[s] } }));
-  Object.keys(GIFTS).forEach((s) => out.push({ seuil: Number(s), type: 'gift', payload: { cadeau: GIFTS[s] } }));
+  TABLE.forEach((d) => {
+    if (d.type === 'video') out.push({ seuil: d.seuil, type: 'video', payload: { rang: d.rang, nom: d.nom } });
+    else if (d.type === 'guide') out.push({ seuil: d.seuil, type: 'ebook', payload: { rang: d.rang, nom: d.nom } });
+    else if ((d.type === 'cadeau' || d.type === 'badge') && d.ref) out.push({ seuil: d.seuil, type: 'gift', payload: { cadeau: d.ref } });
+  });
   avatarSeuils().forEach((a) => out.push(a));
   return out.sort((a, b) => a.seuil - b.seuil || a.type.localeCompare(b.type));
 }
@@ -92,16 +123,56 @@ function seuilsAtteints(total, deja) {
   return tousLesSeuils().filter((s) => n >= s.seuil && !vus.has(cleSeuil(s)));
 }
 
-// Identité d'un déblocage : seuil + type (jamais le seuil seul).
+// Identité d'un déblocage : seuil + type. UNE SEULE définition dans toute l'app.
+// ⚠️ C'est aussi la CLÉ PRIMAIRE de user_unlocks (client_email, seuil, type) :
+// y ajouter le rang ici — ce que j'avais fait — créait deux identités
+// divergentes, et la récompense se serait redébloquée à chaque évaluation.
+// La contrepartie : deux lignes de MÊME TYPE au MÊME seuil sont indistinguables.
+// C'est interdit, et `collisions()` le vérifie avant toute écriture admin.
 function cleSeuil(s) { return s.seuil + ':' + s.type; }
 
-// Prochain déblocage à viser -> le front peut afficher « encore X Punch ».
+// Les paires (seuil, type) en double : une seule survivrait en base, l'autre
+// serait perdue en silence. Sert de garde-fou à l'édition des seuils.
+function collisions(lignes) {
+  const t = lignes ? normaliser(lignes) : TABLE;
+  const vus = new Map();
+  const dup = [];
+  t.forEach((d) => {
+    // Un badge et sa médaille partagent le seuil mais pas le type : légitime.
+    const k = d.seuil + ':' + (d.type === 'guide' ? 'ebook' : d.type === 'badge' ? 'cadeau' : d.type);
+    if (vus.has(k)) dup.push({ seuil: d.seuil, type: d.type, avec: vus.get(k) });
+    else vus.set(k, d.nom || d.type);
+  });
+  return dup;
+}
+
+// Prochain déblocage à viser -> le front affiche « Encore X PUNCH ».
 function prochainSeuil(total) {
   const n = Number(total) || 0;
   return tousLesSeuils().find((s) => s.seuil > n) || null;
 }
 
-module.exports = {
-  PUNCH_MAX_THEORIQUE, VIDEO_LOTS, EBOOK_TIERS, GIFTS, avatarSeuils,
+// ── COMPATIBILITÉ ───────────────────────────────────────────────────────────
+// Anciens noms, conservés le temps que tout l'appelant migre. VIDEO_LOTS et
+// EBOOK_TIERS décrivaient des LOTS ; ils sont reconstruits depuis la table pour
+// que rien ne casse, mais ils ne sont plus la source de vérité.
+Object.defineProperty(module.exports, 'VIDEO_LOTS', {
+  enumerable: true,
+  get() { return TABLE.filter((d) => d.type === 'video').map((d) => d.seuil); },
+});
+Object.defineProperty(module.exports, 'EBOOK_TIERS', {
+  enumerable: true,
+  get() {
+    const o = {};
+    TABLE.filter((d) => d.type === 'guide').forEach((d) => { o[d.seuil] = (o[d.seuil] || 0) + 1; });
+    return o;
+  },
+});
+Object.defineProperty(module.exports, 'GIFTS', { enumerable: true, get: gifts });
+
+Object.assign(module.exports, {
+  PUNCH_MAX_THEORIQUE, REFERENCE,
+  setTable, table, tableReference, normaliser,
+  seuilVideo, seuilGuide, nbDeType, gifts, avatarSeuils, collisions,
   tousLesSeuils, seuilsAtteints, cleSeuil, prochainSeuil,
-};
+});

@@ -55,12 +55,24 @@ test('catalogue : chaque lien est exploitable et unique', () => {
   });
 });
 
-test('catalogue : il y a un lot par palier de Punch déclaré', () => {
-  assert.equal(TAILLE_LOTS.length, VIDEO_LOTS.length, 'un lot par seuil');
-  // ⚠️ Les seuils suivent les étapes du parcours (une récompense par action) et
-  // les lots sont INÉGAUX : les premiers sont chargés pour ne jamais
-  // re-verrouiller une vidéo déjà accessible (test dédié plus bas).
-  assert.deepEqual(VIDEO_LOTS, [175, 305, 360, 540, 790, 945, 1245, 1310, 1690, 1715]);
+// Les vidéos ne tombent plus par LOTS : chacune a son seuil dans la table des
+// déblocages. TAILLE_LOTS ne décrit donc plus des paliers, seulement la
+// composition du catalogue semé. Ce qui doit tenir : autant de lignes « video »
+// dans la table que de séances réelles, et pas un seuil inatteignable.
+test('catalogue : une ligne de la table par séance, aucun seuil inatteignable', () => {
+  const punchSeuils = require('../lib/punchSeuils');
+  const total = TAILLE_LOTS.reduce((a, b) => a + b, 0);
+  assert.equal(total, 27, 'le catalogue compte 27 séances');
+  assert.equal(punchSeuils.nbDeType('video'), total, 'une ligne « video » par séance');
+  for (let r = 1; r <= total; r++) {
+    const seuil = punchSeuils.seuilVideo(r);
+    assert.ok(seuil, `la séance de rang ${r} n'a aucun seuil -> elle resterait fermée à vie`);
+    assert.ok(seuil <= punchSeuils.PUNCH_MAX_THEORIQUE, `séance ${r} : seuil ${seuil} inatteignable`);
+  }
+  // Les seuils sont STRICTEMENT croissants : deux séances au même seuil
+  // partageraient une clé de déblocage et l'une serait perdue.
+  const seuils = Array.from({ length: total }, (_, i) => punchSeuils.seuilVideo(i + 1));
+  seuils.forEach((v, i) => { if (i) assert.ok(v > seuils[i - 1], `séances ${i} et ${i + 1} : seuils non croissants`); });
 });
 
 test('catalogue : chaque lot mélange les visages (jamais plus de 2 fois le même)', () => {

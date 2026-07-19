@@ -275,14 +275,19 @@ test('Chemin : les 4 types de récompense sont exposés, à leur seuil', () => {
   engine.pathStatsRow(email);
   const rec = engine.challengePublicState(email).recompenses;
   const parType = rec.reduce((a, r) => { a[r.type] = (a[r.type] || 0) + 1; return a; }, {});
+  const punchSeuils = require('../lib/punchSeuils');
   assert.deepEqual(parType, {
-    video: VIDEO_LOTS.length, ebook: Object.keys(EBOOK_TIERS).length,
+    // Une ligne de la table = UNE récompense : plus de lots ni de paliers groupés.
+    video: punchSeuils.nbDeType('video'), ebook: punchSeuils.nbDeType('guide'),
     gift: Object.keys(GIFTS).length,
-    // 4e type : les accessoires d'avatar, dérivés du catalogue lib/avatar.
+    // 4e type : les accessoires d'avatar (dont les médailles liées aux badges).
     avatar: avatarSeuils().length,
   });
   // Chaque récompense reprend EXACTEMENT un seuil de la config : aucun inventé.
-  const attendus = tousLesSeuils().map(cleSeuil).sort();
+  // ⚠️ On compare des MULTI-ENSEMBLES : deux vidéos peuvent partager un seuil,
+  // seul le rang les distingue (cf. cleSeuil) — comparer des seuils nus ferait
+  // disparaître les doublons légitimes.
+  const attendus = tousLesSeuils().map((s) => s.seuil + ':' + s.type).sort();
   assert.deepEqual(rec.map((r) => r.seuil + ':' + r.type).sort(), attendus);
 });
 
@@ -327,12 +332,12 @@ test('Chemin : chaque récompense est NOMMÉE et sait où se poser', () => {
   const à = (seuil, type) => rec.find((r) => r.seuil === seuil && r.type === type);
   assert.equal(à(4000, 'gift').label, 'Un massage sportif', 'le nom vient de lib/cadeaux');
   assert.equal(à(4000, 'gift').cadeau, 'massage', 'et l\'id, pour ouvrir la boutique dessus');
-  assert.equal(à(105, 'ebook').label, '2 nouveaux guides', 'le nombre réel du palier');
-  assert.equal(à(1285, 'ebook').label, '4 nouveaux guides');
-  assert.equal(à(175, 'video').label, 'Nouvelles séances vidéo');
+  const punchSeuils = require('../lib/punchSeuils');
+  assert.equal(à(punchSeuils.seuilGuide(1), 'ebook').label, 'Un nouveau guide', 'une ligne = un guide');
+  assert.equal(à(punchSeuils.seuilVideo(1), 'video').label, 'Une nouvelle séance vidéo');
   // `ordre` place le marqueur le long du parcours : borné, et croissant avec le seuil.
   // ⚠️ `ordre` peut valoir 0 : une récompense tombe désormais dès la PREMIÈRE
   // étape (« Commencer », 80 Punch), qui est l'origine de l'échelle.
   rec.forEach((r) => assert.ok(r.ordre >= 0 && r.ordre <= 1, 'ordre hors bornes pour ' + r.seuil));
-  assert.ok(à(105, 'ebook').ordre < à(2295, 'gift').ordre, 'un seuil plus haut se pose plus loin');
+  assert.ok(à(punchSeuils.seuilGuide(1), 'ebook').ordre < à(2295, 'gift').ordre, 'un seuil plus haut se pose plus loin');
 });

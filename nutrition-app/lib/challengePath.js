@@ -918,11 +918,10 @@ function createChallengeEngine({ getDb }) {
       const c = cadeaux.cadeau((s.payload || {}).cadeau);
       return (c && c.label) || (s.payload || {}).cadeau || 'Un cadeau';
     }
-    if (s.type === 'ebook') {
-      const n = Number((s.payload || {}).nombre) || 0;
-      return n + (n > 1 ? ' nouveaux guides' : ' nouveau guide');
-    }
-    return 'Nouvelles séances vidéo';
+    // Une ligne = UN contenu depuis le passage aux seuils individuels : plus de
+    // « 4 nouveaux guides », c'est un guide, et un seul.
+    if (s.type === 'ebook') return 'Un nouveau guide';
+    return 'Une nouvelle séance vidéo';
   }
 
   return {

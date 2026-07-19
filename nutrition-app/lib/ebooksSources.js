@@ -36,11 +36,13 @@ const EBOOK_CHEMIN = {
   39: 39, // Trouve ton vrai pourquoi
 };
 
-// Palier de Punch cumulé -> ids ouverts à ce palier (2+3+3+3+3+4+4 = 22).
-// ⚠️ Les seuils suivent le parcours (une récompense par étape) et les paliers
-// sont INÉGAUX pour ne jamais re-verrouiller un guide déjà accessible. L'ORDRE
-// des identifiants est celui d'avant : un client retrouve ses guides dans la
-// même séquence, simplement servis par doses plus petites et plus fréquentes.
+// Les 22 guides du canal Punch, DANS L'ORDRE où le client les reçoit.
+// ⚠️ Les seuils ne sont plus ici : ils vivent dans la table des déblocages
+// (lib/deblocages.json + nutrition_deblocages, éditable en admin). Ce fichier
+// ne dit plus QUAND un guide s'ouvre, seulement DANS QUEL ORDRE : le n-ième
+// guide de cette liste s'ouvre au seuil de la ligne « Guide n » de la table.
+// Le regroupement par paliers est conservé tel quel pour préserver cet ordre —
+// un client retrouve ses guides dans la même séquence qu'avant.
 const EBOOK_PUNCH = {
   105: [8, 31],
   160: [12],
@@ -77,19 +79,43 @@ function idsRepartis() {
 // parce que les routes de lecture ne vérifiaient que unlock_day).
 //   eb  = { id, type, video_lot, unlock_day } (la ligne nutrition_ebooks)
 //   qui = { day, punch } (la progression du client)
+// Le RANG d'un guide du canal Punch (1..22), dans l'ordre de EBOOK_PUNCH.
+// C'est lui qui désigne la ligne « Guide n » de la table des déblocages.
+const RANG_GUIDE = (() => {
+  const m = new Map();
+  let n = 0;
+  Object.keys(EBOOK_PUNCH).map(Number).sort((a, b) => a - b)
+    .forEach((s) => EBOOK_PUNCH[s].forEach((id) => m.set(id, ++n)));
+  return m;
+})();
+
+// Le RANG d'une vidéo (1..27). Les vidéos sont téléversées par l'admin : leur
+// ordre ne peut pas être écrit en dur ici. Le serveur fournit donc le résolveur
+// (id -> rang, calculé une fois puis mis en cache) au démarrage.
+// ⚠️ Sans résolveur, une vidéo reste VERROUILLÉE plutôt qu'ouverte à tous : on
+// échoue du côté qui ne donne rien par accident.
+let rangVideoFn = null;
+function setRangVideo(fn) { rangVideoFn = typeof fn === 'function' ? fn : null; }
+function rangVideo(id) { return rangVideoFn ? rangVideoFn(id) : null; }
+
 function estVerrouille(eb, { day = 0, punch = 0 } = {}) {
   const punchSeuils = require('./punchSeuils'); // requis ici : évite tout cycle au chargement
   if ((eb.type || 'ebook') === 'video') {
-    // Une vidéo se débloque au PUNCH de son lot ; lot inconnu -> jamais ouvert
-    // (plutôt qu'ouvert à tous par accident).
-    const seuil = punchSeuils.VIDEO_LOTS[Math.max(0, Number(eb.video_lot) - 1)];
+    // Une vidéo s'ouvre à SON seuil (plus au seuil de son lot) ; rang inconnu
+    // -> jamais ouvert, plutôt qu'ouvert à tous par accident.
+    const seuil = punchSeuils.seuilVideo(rangVideo(eb.id));
     return seuil == null ? true : punch < seuil;
   }
   const src = sourceEbook(eb.id);
   if (!src) return day < (Number(eb.unlock_day) || 0); // hors répartition -> règle historique
   if (src.source === 'intro') return false;
   if (src.source === 'chemin') return day < src.jour;
-  return punch < src.seuil; // canal Punch : le jour n'a AUCUN mot à dire
+  // Canal Punch : le jour n'a AUCUN mot à dire. Le seuil vient de la table.
+  const seuil = punchSeuils.seuilGuide(RANG_GUIDE.get(Number(eb.id)));
+  return seuil == null ? true : punch < seuil;
 }
 
-module.exports = { EBOOK_INTRO, EBOOK_CHEMIN, EBOOK_PUNCH, sourceEbook, idsRepartis, estVerrouille };
+module.exports = {
+  EBOOK_INTRO, EBOOK_CHEMIN, EBOOK_PUNCH, RANG_GUIDE,
+  sourceEbook, idsRepartis, estVerrouille, setRangVideo, rangVideo,
+};

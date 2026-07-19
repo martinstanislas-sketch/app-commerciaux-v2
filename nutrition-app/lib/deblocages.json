@@ -1,0 +1,449 @@
+{
+  "devise": "PUNCH",
+  "plafond_parcours_parfait": 2395,
+  "plafond_absolu": 4095,
+  "note": "Au-delà de 2395, les déblocages exigent des missions bonus.",
+  "deblocages": [
+    {
+      "seuil": 80,
+      "type": "accessoire",
+      "nom": "Bandeau de sport",
+      "ref": "bandeau"
+    },
+    {
+      "seuil": 100,
+      "type": "video",
+      "nom": "Vidéo 1",
+      "rang": 1
+    },
+    {
+      "seuil": 120,
+      "type": "guide",
+      "nom": "Guide 1",
+      "rang": 1
+    },
+    {
+      "seuil": 135,
+      "type": "accessoire",
+      "nom": "Casquette",
+      "ref": "casquette"
+    },
+    {
+      "seuil": 160,
+      "type": "video",
+      "nom": "Vidéo 2",
+      "rang": 2
+    },
+    {
+      "seuil": 185,
+      "type": "guide",
+      "nom": "Guide 2",
+      "rang": 2
+    },
+    {
+      "seuil": 200,
+      "type": "cadeau",
+      "nom": "Bilan forme offert à un proche",
+      "ref": "bilan_proche"
+    },
+    {
+      "seuil": 235,
+      "type": "video",
+      "nom": "Vidéo 3",
+      "rang": 3
+    },
+    {
+      "seuil": 260,
+      "type": "guide",
+      "nom": "Guide 3",
+      "rang": 3
+    },
+    {
+      "seuil": 280,
+      "type": "accessoire",
+      "nom": "Barrette",
+      "ref": "barrette"
+    },
+    {
+      "seuil": 305,
+      "type": "video",
+      "nom": "Vidéo 4",
+      "rang": 4
+    },
+    {
+      "seuil": 320,
+      "type": "badge",
+      "nom": "Badge Argent",
+      "ref": "badge_argent",
+      "bonus_accessoire": "medaille_argent"
+    },
+    {
+      "seuil": 350,
+      "type": "guide",
+      "nom": "Guide 4",
+      "rang": 4
+    },
+    {
+      "seuil": 385,
+      "type": "accessoire",
+      "nom": "Lunettes",
+      "ref": "lunettes"
+    },
+    {
+      "seuil": 410,
+      "type": "video",
+      "nom": "Vidéo 5",
+      "rang": 5
+    },
+    {
+      "seuil": 440,
+      "type": "guide",
+      "nom": "Guide 5",
+      "rang": 5
+    },
+    {
+      "seuil": 475,
+      "type": "video",
+      "nom": "Vidéo 6",
+      "rang": 6
+    },
+    {
+      "seuil": 515,
+      "type": "cadeau",
+      "nom": "Chanson préférée",
+      "ref": "chanson"
+    },
+    {
+      "seuil": 545,
+      "type": "guide",
+      "nom": "Guide 6",
+      "rang": 6
+    },
+    {
+      "seuil": 555,
+      "type": "accessoire",
+      "nom": "Bonnet",
+      "ref": "bonnet"
+    },
+    {
+      "seuil": 585,
+      "type": "video",
+      "nom": "Vidéo 7",
+      "rang": 7
+    },
+    {
+      "seuil": 620,
+      "type": "cadeau",
+      "nom": "Ambassadeur",
+      "ref": "ambassadeur"
+    },
+    {
+      "seuil": 650,
+      "type": "guide",
+      "nom": "Guide 7",
+      "rang": 7
+    },
+    {
+      "seuil": 685,
+      "type": "video",
+      "nom": "Vidéo 8",
+      "rang": 8
+    },
+    {
+      "seuil": 720,
+      "type": "guide",
+      "nom": "Guide 8",
+      "rang": 8
+    },
+    {
+      "seuil": 760,
+      "type": "video",
+      "nom": "Vidéo 9",
+      "rang": 9
+    },
+    {
+      "seuil": 800,
+      "type": "guide",
+      "nom": "Guide 9",
+      "rang": 9
+    },
+    {
+      "seuil": 880,
+      "type": "accessoire",
+      "nom": "Brassard",
+      "ref": "brassard"
+    },
+    {
+      "seuil": 920,
+      "type": "cadeau",
+      "nom": "Coaching individuel",
+      "ref": "coaching_individuel"
+    },
+    {
+      "seuil": 950,
+      "type": "video",
+      "nom": "Vidéo 10",
+      "rang": 10
+    },
+    {
+      "seuil": 985,
+      "type": "accessoire",
+      "nom": "Couronne d'argent",
+      "ref": "couronne_argent"
+    },
+    {
+      "seuil": 1015,
+      "type": "guide",
+      "nom": "Guide 10",
+      "rang": 10
+    },
+    {
+      "seuil": 1050,
+      "type": "video",
+      "nom": "Vidéo 11",
+      "rang": 11
+    },
+    {
+      "seuil": 1090,
+      "type": "guide",
+      "nom": "Guide 11",
+      "rang": 11
+    },
+    {
+      "seuil": 1130,
+      "type": "video",
+      "nom": "Vidéo 12",
+      "rang": 12
+    },
+    {
+      "seuil": 1180,
+      "type": "guide",
+      "nom": "Guide 12",
+      "rang": 12
+    },
+    {
+      "seuil": 1225,
+      "type": "cadeau",
+      "nom": "Accès prioritaire",
+      "ref": "acces_prioritaire"
+    },
+    {
+      "seuil": 1270,
+      "type": "accessoire",
+      "nom": "Lunettes dorées",
+      "ref": "lunettes_or"
+    },
+    {
+      "seuil": 1300,
+      "type": "video",
+      "nom": "Vidéo 13",
+      "rang": 13
+    },
+    {
+      "seuil": 1350,
+      "type": "badge",
+      "nom": "Badge Or",
+      "ref": "badge_or",
+      "bonus_accessoire": "medaille_or"
+    },
+    {
+      "seuil": 1385,
+      "type": "guide",
+      "nom": "Guide 13",
+      "rang": 13
+    },
+    {
+      "seuil": 1420,
+      "type": "video",
+      "nom": "Vidéo 14",
+      "rang": 14
+    },
+    {
+      "seuil": 1460,
+      "type": "guide",
+      "nom": "Guide 14",
+      "rang": 14
+    },
+    {
+      "seuil": 1500,
+      "type": "video",
+      "nom": "Vidéo 15",
+      "rang": 15
+    },
+    {
+      "seuil": 1545,
+      "type": "guide",
+      "nom": "Guide 15",
+      "rang": 15
+    },
+    {
+      "seuil": 1590,
+      "type": "video",
+      "nom": "Vidéo 16",
+      "rang": 16
+    },
+    {
+      "seuil": 1630,
+      "type": "guide",
+      "nom": "Guide 16",
+      "rang": 16
+    },
+    {
+      "seuil": 1670,
+      "type": "cadeau",
+      "nom": "Deux semaines offertes",
+      "ref": "deux_semaines_proche"
+    },
+    {
+      "seuil": 1730,
+      "type": "cadeau",
+      "nom": "Coaching nutrition visio",
+      "ref": "coaching_nutrition"
+    },
+    {
+      "seuil": 1795,
+      "type": "accessoire",
+      "nom": "Couronne d'or",
+      "ref": "couronne_or"
+    },
+    {
+      "seuil": 1830,
+      "type": "video",
+      "nom": "Vidéo 17",
+      "rang": 17
+    },
+    {
+      "seuil": 1870,
+      "type": "guide",
+      "nom": "Guide 17",
+      "rang": 17
+    },
+    {
+      "seuil": 1910,
+      "type": "video",
+      "nom": "Vidéo 18",
+      "rang": 18
+    },
+    {
+      "seuil": 1955,
+      "type": "guide",
+      "nom": "Guide 18",
+      "rang": 18
+    },
+    {
+      "seuil": 2000,
+      "type": "video",
+      "nom": "Vidéo 19",
+      "rang": 19
+    },
+    {
+      "seuil": 2050,
+      "type": "guide",
+      "nom": "Guide 19",
+      "rang": 19
+    },
+    {
+      "seuil": 2100,
+      "type": "video",
+      "nom": "Vidéo 20",
+      "rang": 20
+    },
+    {
+      "seuil": 2150,
+      "type": "guide",
+      "nom": "Guide 20",
+      "rang": 20
+    },
+    {
+      "seuil": 2200,
+      "type": "video",
+      "nom": "Vidéo 21",
+      "rang": 21
+    },
+    {
+      "seuil": 2250,
+      "type": "guide",
+      "nom": "Guide 21",
+      "rang": 21
+    },
+    {
+      "seuil": 2295,
+      "type": "cadeau",
+      "nom": "Un mois offert",
+      "ref": "mois_offert"
+    },
+    {
+      "seuil": 2340,
+      "type": "video",
+      "nom": "Vidéo 22",
+      "rang": 22
+    },
+    {
+      "seuil": 2380,
+      "type": "guide",
+      "nom": "Guide 22",
+      "rang": 22
+    },
+    {
+      "seuil": 2500,
+      "type": "badge",
+      "nom": "Badge Platine",
+      "ref": "badge_platine",
+      "bonus_accessoire": "medaille_platine"
+    },
+    {
+      "seuil": 2560,
+      "type": "video",
+      "nom": "Vidéo 23",
+      "rang": 23
+    },
+    {
+      "seuil": 2650,
+      "type": "video",
+      "nom": "Vidéo 24",
+      "rang": 24
+    },
+    {
+      "seuil": 2740,
+      "type": "video",
+      "nom": "Vidéo 25",
+      "rang": 25
+    },
+    {
+      "seuil": 2800,
+      "type": "accessoire",
+      "nom": "Aura de platine",
+      "ref": "aura_platine"
+    },
+    {
+      "seuil": 2900,
+      "type": "video",
+      "nom": "Vidéo 26",
+      "rang": 26
+    },
+    {
+      "seuil": 3000,
+      "type": "cadeau",
+      "nom": "Remise abonnement",
+      "ref": "remise_abo"
+    },
+    {
+      "seuil": 3250,
+      "type": "video",
+      "nom": "Vidéo 27",
+      "rang": 27
+    },
+    {
+      "seuil": 3500,
+      "type": "cadeau",
+      "nom": "Shooting photo",
+      "ref": "shooting"
+    },
+    {
+      "seuil": 4000,
+      "type": "cadeau",
+      "nom": "Massage sportif",
+      "ref": "massage"
+    }
+  ]
+}

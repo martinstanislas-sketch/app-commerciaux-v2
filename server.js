@@ -681,6 +681,123 @@ try {
   // c'est CE moteur-ci qui écrit le Punch, donc lui seul voit tomber les seuils).
   try { setUnlockNotifier(push.notifyUnlocks); } catch (e) { console.warn('unlock notifier :', e && e.message); }
 
+  // --- TABLE DES DÉBLOCAGES : la donnée fait foi, plus le code ---------------
+  // Les seuils vivent en base pour être ajustables SANS redéploiement. Le JSON
+  // du dépôt n'est que le seed : il remplit la table au premier démarrage, puis
+  // c'est la base qui gouverne. `setTable` injecte l'ensemble dans le moteur.
+  function ensureDeblocagesSchema() {
+    getDb().prepare(`CREATE TABLE IF NOT EXISTS nutrition_deblocages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      seuil INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      nom TEXT NOT NULL DEFAULT '',
+      rang INTEGER,
+      ref TEXT,
+      bonus_accessoire TEXT,
+      maj_at TEXT
+    )`).run();
+    const n = getDb().prepare('SELECT COUNT(*) c FROM nutrition_deblocages').get().c;
+    if (!n) {
+      const ins = getDb().prepare('INSERT INTO nutrition_deblocages (seuil, type, nom, rang, ref, bonus_accessoire, maj_at) VALUES (?,?,?,?,?,?,?)');
+      const now = new Date().toISOString();
+      getDb().transaction((lignes) => lignes.forEach((d) => ins.run(d.seuil, d.type, d.nom, d.rang, d.ref, d.bonus_accessoire, now)))(punchSeuils.tableReference());
+      console.log('Déblocages : table semée depuis lib/deblocages.json');
+    }
+  }
+  function chargerDeblocages() {
+    try {
+      ensureDeblocagesSchema();
+      const rows = getDb().prepare('SELECT seuil, type, nom, rang, ref, bonus_accessoire FROM nutrition_deblocages ORDER BY seuil').all();
+      // ⚠️ `setTable` REFUSE une table vide : en cas de base vidée par erreur, le
+      // moteur garde la référence du dépôt plutôt que de ne plus rien débloquer.
+      if (!punchSeuils.setTable(rows)) console.warn('Déblocages : table vide en base -> référence du dépôt conservée');
+    } catch (e) { console.error('Déblocages : chargement impossible, référence conservée —', e && e.message); }
+  }
+  chargerDeblocages();
+
+  // Le RANG d'une vidéo (1..27) : les vidéos sont téléversées par l'admin, leur
+  // ordre ne peut pas être écrit en dur. On le calcule une fois — par lot, puis
+  // par id, ce qui reproduit exactement l'ordre historique — et on le met en
+  // cache. Le cache est vidé dès qu'une vidéo est ajoutée ou retirée.
+  let _rangsVideos = null;
+  function rangsVideos() {
+    if (_rangsVideos) return _rangsVideos;
+    const m = new Map();
+    try {
+      getDb().prepare("SELECT id FROM nutrition_ebooks WHERE type = 'video' ORDER BY COALESCE(video_lot, 99), COALESCE(sort_order, 9999), id").all()
+        .forEach((r, i) => m.set(Number(r.id), i + 1));
+    } catch (e) { console.warn('rangs vidéos :', e && e.message); }
+    _rangsVideos = m;
+    return m;
+  }
+  function viderCacheRangsVideos() { _rangsVideos = null; }
+  ebooksSources.setRangVideo((id) => rangsVideos().get(Number(id)) || null);
+
+  // --- ADMIN : lire et ajuster les seuils, sans redéploiement ----------------
+  // GET  -> la table courante + le contexte (plafonds, nb de contenus réels).
+  // PUT  -> remplace la table ENTIÈRE, puis la réinjecte dans le moteur.
+  // ⚠️ Remplacement complet et transactionnel, pas une édition ligne à ligne :
+  // une table partiellement écrite laisserait des clients avec des récompenses
+  // impossibles à atteindre. Tout passe, ou rien ne change.
+  app.get('/nutrition/api/admin/deblocages', requireAuth, requireAdmin, (req, res) => {
+    try {
+      ensureDeblocagesSchema();
+      const lignes = getDb().prepare('SELECT id, seuil, type, nom, rang, ref, bonus_accessoire FROM nutrition_deblocages ORDER BY seuil, type').all();
+      const nbVideos = getDb().prepare("SELECT COUNT(*) c FROM nutrition_ebooks WHERE type='video'").get().c;
+      res.json({
+        ok: true, lignes,
+        plafondParcours: punchSeuils.REFERENCE.plafond_parcours_parfait,
+        plafondAbsolu: punchSeuils.PUNCH_MAX_THEORIQUE,
+        contenus: { videos: nbVideos, guides: ebooksSources.RANG_GUIDE.size },
+      });
+    } catch (e) { console.error('admin deblocages GET :', e); res.status(500).json({ ok: false }); }
+  });
+  app.put('/nutrition/api/admin/deblocages', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const brut = Array.isArray((req.body || {}).lignes) ? req.body.lignes : null;
+      if (!brut) return res.status(400).json({ ok: false, error: 'Liste attendue.' });
+      const lignes = punchSeuils.normaliser(brut); // même nettoyage que le moteur
+      if (!lignes.length) return res.status(400).json({ ok: false, error: 'Aucune ligne exploitable.' });
+      // Un seuil au-dessus du plafond serait INATTEIGNABLE : la récompense
+      // n'existerait que sur le papier. On refuse plutôt que de l'accepter en
+      // silence — c'est exactement le genre d'erreur qu'on ne voit jamais.
+      const trop = lignes.filter((d) => d.seuil > punchSeuils.PUNCH_MAX_THEORIQUE);
+      if (trop.length) {
+        return res.status(400).json({ ok: false, error: trop.length + ' seuil(s) au-dessus du plafond de ' + punchSeuils.PUNCH_MAX_THEORIQUE + ' Punch : ' + trop.map((d) => d.nom || d.type).join(', ') });
+      }
+      // ⚠️ Deux récompenses de même TYPE au même seuil sont indistinguables :
+      // la clé de user_unlocks est (client_email, seuil, type). La seconde ne
+      // serait jamais débloquée, sans le moindre message. On refuse.
+      const dup = punchSeuils.collisions(lignes);
+      if (dup.length) {
+        return res.status(400).json({ ok: false, error: 'Deux récompenses partagent seuil et type — la seconde ne se débloquerait jamais : ' + dup.map((d) => d.seuil + ' (' + d.type + ' / ' + d.avec + ')').join(', ') });
+      }
+      const now = new Date().toISOString();
+      const ins = getDb().prepare('INSERT INTO nutrition_deblocages (seuil, type, nom, rang, ref, bonus_accessoire, maj_at) VALUES (?,?,?,?,?,?,?)');
+      getDb().transaction(() => {
+        getDb().prepare('DELETE FROM nutrition_deblocages').run();
+        lignes.forEach((d) => ins.run(d.seuil, d.type, d.nom, d.rang, d.ref, d.bonus_accessoire, now));
+      })();
+      chargerDeblocages(); // le moteur travaille sur la nouvelle table dès maintenant
+      res.json({ ok: true, lignes: punchSeuils.table().length });
+    } catch (e) { console.error('admin deblocages PUT :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
+  });
+  // Retour à la table du dépôt : la sortie de secours quand une édition a mal
+  // tourné et que plus personne ne sait quelle était la bonne valeur.
+  app.post('/nutrition/api/admin/deblocages/reset', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const ref = punchSeuils.tableReference();
+      const now = new Date().toISOString();
+      const ins = getDb().prepare('INSERT INTO nutrition_deblocages (seuil, type, nom, rang, ref, bonus_accessoire, maj_at) VALUES (?,?,?,?,?,?,?)');
+      getDb().transaction(() => {
+        getDb().prepare('DELETE FROM nutrition_deblocages').run();
+        ref.forEach((d) => ins.run(d.seuil, d.type, d.nom, d.rang, d.ref, d.bonus_accessoire, now));
+      })();
+      chargerDeblocages();
+      res.json({ ok: true, lignes: punchSeuils.table().length });
+    } catch (e) { console.error('admin deblocages reset :', e); res.status(500).json({ ok: false }); }
+  });
+
   // --- CHEMIN DU CHALLENGE : état + validations auto-déclarées + flag admin. ---
   // État complet du parcours pour le client courant (nœuds, statut, stats de jeu).
   app.get('/nutrition/api/challenge/state', requireAuth, requireNutritionUse, (req, res) => {
@@ -899,6 +1016,7 @@ try {
       });
       tx();
       getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('videos_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(VERSION);
+      viderCacheRangsVideos(); // le catalogue vient de bouger -> les rangs sont à refaire
       console.log('[VIDEOS] ' + getDb().prepare("SELECT COUNT(*) c FROM nutrition_ebooks WHERE type='video'").get().c + ' séances vidéo en base');
     } catch (e) { console.error('seedVideosSeances:', e && e.message); }
   }
@@ -1104,7 +1222,7 @@ try {
     } catch (e) { console.error('ebook update:', e); res.status(500).json({ ok: false }); }
   });
   app.delete('/nutrition/api/admin/ebooks/:id', requireAuth, requireAdmin, (req, res) => {
-    try { getDb().prepare('DELETE FROM nutrition_ebooks WHERE id=?').run(Number(req.params.id)); res.json({ ok: true }); }
+    try { getDb().prepare('DELETE FROM nutrition_ebooks WHERE id=?').run(Number(req.params.id)); viderCacheRangsVideos(); res.json({ ok: true }); }
     catch (e) { res.status(500).json({ ok: false }); }
   });
 

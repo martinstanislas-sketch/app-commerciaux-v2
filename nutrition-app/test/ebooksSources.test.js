@@ -24,15 +24,22 @@ test('Chemin : EXACTEMENT les 12 étapes « Découvre ton guide »', () => {
   assert.deepEqual(jours, joursEbookDuChemin, 'un ebook est rangé sur une étape qui n\'en est pas une');
 });
 
-test('Punch : les paliers collent au barème déclaré (2/3/3/3/3/4/4)', () => {
-  Object.keys(EBOOK_TIERS).forEach((seuil) => {
-    const ids = EBOOK_PUNCH[seuil];
-    assert.ok(ids, `le palier ${seuil} n'a aucun ebook`);
-    assert.equal(ids.length, EBOOK_TIERS[seuil], `palier ${seuil} : ${ids.length} ebooks au lieu de ${EBOOK_TIERS[seuil]}`);
-  });
-  assert.deepEqual(Object.keys(EBOOK_PUNCH).map(Number).sort((a, b) => a - b), Object.keys(EBOOK_TIERS).map(Number).sort((a, b) => a - b));
-  // Aucun palier au-dessus du maximum atteignable -> aucun ebook verrouillé à vie.
-  Object.keys(EBOOK_PUNCH).forEach((s) => assert.ok(Number(s) <= PUNCH_MAX_THEORIQUE, `palier ${s} inatteignable`));
+// Les guides ne tombent plus par paliers groupés mais UN PAR UN : chacun a son
+// seuil dans la table des déblocages. Ce qui doit tenir, c'est la BIJECTION —
+// 22 guides rangés, 22 lignes « guide », et pas un seuil inatteignable.
+test('Punch : un guide = une ligne de la table, et aucun seuil inatteignable', () => {
+  const { RANG_GUIDE } = require('../lib/ebooksSources');
+  const punchSeuils = require('../lib/punchSeuils');
+  const ids = Object.values(EBOOK_PUNCH).flat();
+  assert.equal(ids.length, 22, '22 guides passent par le canal Punch');
+  assert.equal(RANG_GUIDE.size, 22, 'chaque guide a un rang, et un seul');
+  assert.equal(new Set(RANG_GUIDE.values()).size, 22, 'deux guides ne peuvent pas partager un rang');
+  assert.equal(punchSeuils.nbDeType('guide'), 22, 'la table déclare autant de guides qu\'il en existe');
+  for (let r = 1; r <= 22; r++) {
+    const seuil = punchSeuils.seuilGuide(r);
+    assert.ok(seuil, `le guide de rang ${r} n'a aucun seuil -> il resterait fermé à vie`);
+    assert.ok(seuil <= PUNCH_MAX_THEORIQUE, `guide ${r} : seuil ${seuil} inatteignable`);
+  }
 });
 
 test('sourceEbook : chaque id est rangé dans le bon canal', () => {
@@ -72,11 +79,14 @@ test('le challenge ne distribue plus que 12 ebooks (contre ~34 avant)', () => {
 // ---------------------------------------------------------------------------
 const { estVerrouille } = require('../lib/ebooksSources');
 
-test('canal Punch : débloqué au seuil, le JOUR n\'a aucun mot à dire', () => {
-  const id = EBOOK_PUNCH[105][0]; // premier ebook du 1er palier (105)
-  const eb = { id, type: 'ebook', unlock_day: 40 }; // unlock_day historique tardif : ignoré
-  assert.equal(estVerrouille(eb, { day: 1, punch: 105 }), false, 'lisible dès 105 Punch, même au jour 1');
-  assert.equal(estVerrouille(eb, { day: 42, punch: 104 }), true, 'sans le Punch, même en fin de challenge : fermé');
+test('canal Punch : débloqué à SON seuil, le JOUR n\'a aucun mot à dire', () => {
+  const { RANG_GUIDE } = require('../lib/ebooksSources');
+  const punchSeuils = require('../lib/punchSeuils');
+  const id = Object.values(EBOOK_PUNCH).flat()[0];   // le tout premier guide servi
+  const seuil = punchSeuils.seuilGuide(RANG_GUIDE.get(id));
+  const eb = { id, type: 'ebook', unlock_day: 40 };  // unlock_day historique tardif : ignoré
+  assert.equal(estVerrouille(eb, { day: 1, punch: seuil }), false, `lisible dès ${seuil} Punch, même au jour 1`);
+  assert.equal(estVerrouille(eb, { day: 42, punch: seuil - 1 }), true, 'sans le Punch, même en fin de challenge : fermé');
 });
 
 test('canal Chemin : débloqué au JOUR de son étape, le Punch n\'y change rien', () => {
@@ -92,10 +102,16 @@ test('offert : jamais verrouillé ; hors répartition : règle historique unlock
   assert.equal(estVerrouille(inconnu, { day: 10, punch: 0 }), false);
 });
 
-test('vidéo : débloquée au Punch de son lot ; lot inconnu -> fermée (jamais ouverte par accident)', () => {
-  const { VIDEO_LOTS } = require('../lib/punchSeuils');
-  const v = { id: 1, type: 'video', video_lot: 1 };
-  assert.equal(estVerrouille(v, { day: 42, punch: VIDEO_LOTS[0] - 1 }), true);
-  assert.equal(estVerrouille(v, { day: 0, punch: VIDEO_LOTS[0] }), false);
-  assert.equal(estVerrouille({ id: 1, type: 'video', video_lot: 99 }, { day: 42, punch: 99999 }), true);
+test('vidéo : débloquée à SON seuil ; rang inconnu -> fermée (jamais ouverte par accident)', () => {
+  const src = require('../lib/ebooksSources');
+  const punchSeuils = require('../lib/punchSeuils');
+  const s1 = punchSeuils.seuilVideo(1);
+  src.setRangVideo((id) => (id === 1 ? 1 : null)); // seule la vidéo 1 est rangée
+  const v = { id: 1, type: 'video' };
+  assert.equal(estVerrouille(v, { day: 42, punch: s1 - 1 }), true);
+  assert.equal(estVerrouille(v, { day: 0, punch: s1 }), false, 'le JOUR n\'a aucun mot à dire sur une vidéo');
+  // Rang inconnu -> fermée. On échoue du côté qui ne donne rien par accident.
+  assert.equal(estVerrouille({ id: 99, type: 'video' }, { day: 42, punch: 99999 }), true);
+  src.setRangVideo(null); // on ne laisse pas de résolveur derrière soi
+  assert.equal(estVerrouille(v, { day: 42, punch: 99999 }), true, 'sans résolveur, tout reste fermé');
 });
