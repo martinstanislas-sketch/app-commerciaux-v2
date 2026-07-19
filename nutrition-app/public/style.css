@@ -3283,13 +3283,19 @@ body.is-demo #navRestart { display: none !important; }
    évite d'écraser le personnage si la hauteur change. */
 .asc-wrap, #view-parcours { --asc-av-h: 236px; }
 .asc-avw { position: absolute; z-index: 1; height: var(--asc-av-h); width: calc(var(--asc-av-h) * 96 / 176);
-  margin-top: calc(var(--asc-av-h) * -1); pointer-events: none;
-  /* De quoi le sortir entièrement de sa bulle : un rayon + une demi-silhouette. */
-  --asc-av-dx: calc(var(--asc-dot-now) / 2 + var(--asc-av-h) * 48 / 176 + 4px); }
-/* Centré sur son point d'ancrage, puis poussé du côté EXTÉRIEUR de la vague :
-   le côté intérieur est occupé par la carte « Étape actuelle ». */
-.asc-avw-cd { margin-left: calc(var(--asc-av-h) * -48 / 176 + var(--asc-av-dx)); }
-.asc-avw-cg { margin-left: calc(var(--asc-av-h) * -48 / 176 - var(--asc-av-dx)); }
+  margin-top: calc(var(--asc-av-h) * -1); margin-left: calc(var(--asc-av-h) * -48 / 176); pointer-events: none; }
+/* ⚠️ Il est posé au bord du SERPENTIN, pas à côté de son étape. L'écart calculé
+   depuis sa propre bulle (un rayon + une demi-silhouette) ne dégageait que
+   celle-là : les étapes du dessus sont à une AUTRE abscisse — la vague les
+   déplace de 12 % de la carte — et il leur passait dessus. Aucun écart relatif
+   à son étape ne peut y suffire : au pire cas il faudrait 163 px, et il sortirait
+   de la colonne.
+   Le bord de la vague, lui, est fixe : 50 % ± ASC_AMP (12 %), plus un rayon de
+   bulle. On s'y adosse, et plus aucune étape ne peut venir sous lui.
+   ⚠️ ASC_AMP est une constante JS : ces 38 % / 62 % doivent la suivre. */
+.asc-avw { --asc-av-mi: calc(var(--asc-av-h) * 48 / 176 + var(--asc-dot) / 2 + var(--asc-av-air, 10px)); }
+.asc-avw-cd { left: calc(62% + var(--asc-av-mi)); }
+.asc-avw-cg { left: calc(38% - var(--asc-av-mi)); }
 /* L'ombre au sol : c'est elle qui le POSE sur le sentier. Sans elle, il flotte
    au-dessus du chemin quelle que soit la qualité du reste. */
 .asc-av-sol { position: absolute; left: 50%; bottom: -3px; transform: translateX(-50%); width: 74%; height: 11px; border-radius: 50%; background: rgba(16, 24, 40, .24); filter: blur(4px); }
@@ -3560,7 +3566,13 @@ body.is-demo #navRestart { display: none !important; }
   /* Tout rétrécit ENSEMBLE — bulle, écart, avatar : c'est le seul moyen de
      garder le libellé à côté de son étape sans jamais mordre le sentier. */
   .asc-wrap, #view-parcours { --asc-dot: 58px; --asc-dot-now: 72px; --asc-dot-top: 64px;
-    --asc-gap: 36px; --asc-trail: 12px; --asc-av-h: 188px; }
+    --asc-gap: 36px; --asc-trail: 12px;
+    /* ⚠️ 176 et pas 188 : entre le bord de la vague et le bord de la carte, il
+       ne reste que 101 px sur un écran de 375. À 188 de haut il en fait 103 de
+       large — il dégageait bien les bulles, mais dépassait alors de 11 px hors
+       de la colonne, mangeant la marge de 16 px. Les deux contraintes se
+       contredisent : c'est la taille qui cède, de 6 %. */
+    --asc-av-h: 176px; --asc-av-air: 3px; }
   /* ⚠️ 96 px, calculé et pas choisi : l'étape la plus excentrée est à 62 % de la
      carte (50 % + ASC_AMP), soit 218 px sur un écran de 375 ; plus l'écart de
      36 px, il reste 97 px jusqu'au bord. Au-delà, le libellé d'un jalon

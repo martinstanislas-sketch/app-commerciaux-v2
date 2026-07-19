@@ -5324,7 +5324,10 @@ function ascAvatarSurSentierHTML(nodes, pts) {
   // comme ici, il était juste sur ordinateur et trop court sur mobile — le
   // personnage y était avalé par sa propre bulle (mesuré : 75 % de recouvrement).
   const cote = p.x >= 50 ? ' asc-avw-cd' : ' asc-avw-cg'; // vers l'extérieur de la vague
-  return `<div class="asc-avw${cote}${versGauche ? ' asc-avw-g' : ''}" style="left:${av.x.toFixed(2)}%;top:${Math.round(av.y)}px" aria-hidden="true">
+  // ⚠️ Seule l'ORDONNÉE vient d'ici : l'abscisse est posée par le CSS, au bord du
+  // serpentin (cf. .asc-avw-cd / -cg). Une abscisse calculée depuis l'étape le
+  // ramenait sur les bulles voisines, qui ne sont pas à la même que la sienne.
+  return `<div class="asc-avw${cote}${versGauche ? ' asc-avw-g' : ''}" style="top:${Math.round(av.y)}px" aria-hidden="true">
     <span class="asc-av-sol"></span>
     <span class="asc-av">${_ascAvatarSVG}</span>
   </div>`;
