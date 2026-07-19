@@ -115,3 +115,24 @@ test('vidéo : débloquée à SON seuil ; rang inconnu -> fermée (jamais ouvert
   src.setRangVideo(null); // on ne laisse pas de résolveur derrière soi
   assert.equal(estVerrouille(v, { day: 42, punch: 99999 }), true, 'sans résolveur, tout reste fermé');
 });
+
+// --- LE VERROU EST LE MÊME PARTOUT ------------------------------------------
+// Vécu : un guide s'affichait « débloqué », son URL signée était bien délivrée,
+// et le téléchargement répondait 403 -> PAGE BLANCHE. Cause : la liste et /open
+// lisaient le Punch de PROGRESSION, /file le Punch RÉEL. Comme la progression
+// est un max() sur le réel, elle lui est toujours supérieure ou égale : tout
+// client ayant validé des étapes sans tous ses bonus de série tombait dedans.
+test('verrou : deux sources de Punch différentes donnent deux réponses — d\'où la page blanche', () => {
+  const punchSeuils = require('../lib/punchSeuils');
+  const { RANG_GUIDE } = require('../lib/ebooksSources');
+  const id = [...RANG_GUIDE.entries()].find(([, r]) => r === 1)[0];
+  const seuil = punchSeuils.seuilGuide(1);
+  const eb = { id, type: 'ebook', unlock_day: 0 };
+  // Le même guide, le même client, deux lectures du Punch : deux verdicts.
+  assert.equal(estVerrouille(eb, { day: 42, punch: seuil - 1 }), true);
+  assert.equal(estVerrouille(eb, { day: 42, punch: seuil }), false);
+  // La règle est donc PUREMENT fonction du Punch qu'on lui passe : c'est à
+  // l'appelant de n'en avoir qu'UN (cf. punchDeverrouille dans server.js).
+  // Ce test verrouille la propriété ; le partage de la source est garanti par
+  // l'unicité de la fonction côté serveur.
+});

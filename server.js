@@ -1079,12 +1079,15 @@ try {
       // punchProgression), pas la table des déblocages : celle-ci n'est écrite
       // qu'au moment d'un gain (evaluateUnlocks). La progression est la vérité ;
       // user_unlocks ne sert qu'à savoir ce qui a DÉJÀ été célébré.
-      let punch = 0;
-      try { punch = punchProgression(email); } catch (_) { /* ignore */ }
-      const seuilDuLot = (lot) => punchSeuils.VIDEO_LOTS[Math.max(0, Number(lot) - 1)];
+      const punch = punchDeverrouille(email);
+      // ⚠️ Le seuil d'une vidéo vient de SON RANG, plus de son lot : depuis le
+      // passage aux seuils individuels, `VIDEO_LOTS[lot-1]` désignait la vidéo
+      // n°lot et affichait donc un seuil faux dès le 2e lot.
+      const seuilVideo = (id) => punchSeuils.seuilVideo(ebooksSources.rangVideo(id));
+      const seuilGuide = (id) => punchSeuils.seuilGuide(ebooksSources.RANG_GUIDE.get(Number(id)));
       const ebooks = rows.map((r) => {
         const estVideo = r.type === 'video';
-        const seuil = estVideo ? seuilDuLot(r.video_lot) : 0;
+        const seuil = estVideo ? seuilVideo(r.id) : 0;
         // EBOOKS : 3 canaux (intro / Chemin / Punch), répartis par id. Un ebook
         // inconnu de la répartition retombe sur son unlock_day historique -> jamais
         // verrouillé à vie, même si l'admin en ajoute un demain.
@@ -1100,11 +1103,16 @@ try {
         // JOURS, les paliers en PUNCH. Ramenés à une même échelle (la part du parcours
         // franchie), ils redeviennent comparables — un ebook à 1600 Punch (0,67) et un
         // ebook du jour 30 (0,71) arrivent bien tous les deux vers les deux tiers.
-        if (estVideo) { label = seuil + ' Punch'; ordre = seuil / punchSeuils.PUNCH_MAX_THEORIQUE; }
+        if (estVideo) { label = (seuil ? seuil + ' Punch' : 'À venir'); ordre = (seuil || 0) / punchSeuils.PUNCH_MAX_THEORIQUE; }
         else if (!src) { label = ebookUnlockLabel(r.unlock_day); ordre = r.unlock_day / JOURS_CHALLENGE; }
         else if (src.source === 'intro') { label = 'Offert'; ordre = 0; }
         else if (src.source === 'chemin') { label = ebookUnlockLabel(src.jour); ordre = src.jour / JOURS_CHALLENGE; }
-        else { label = src.seuil + ' Punch'; ordre = src.seuil / punchSeuils.PUNCH_MAX_THEORIQUE; }
+        else {
+          // ⚠️ `src.seuil` est le PALIER HISTORIQUE de EBOOK_PUNCH, qui ne sert
+          // plus qu'à ordonner les guides. Le vrai seuil est celui de la table.
+          const sg = seuilGuide(r.id) || src.seuil;
+          label = sg + ' Punch'; ordre = sg / punchSeuils.PUNCH_MAX_THEORIQUE;
+        }
         return {
           id: r.id, title: r.title, description: r.description, category: r.category,
           cover: r.cover_data || '', unlockDay: r.unlock_day, locked,
@@ -1131,7 +1139,7 @@ try {
       if (!eb) return res.status(404).json({ ok: false });
       // La MÊME règle que la liste (canaux offert / Chemin / Punch) : un guide
       // débloqué au Punch se lit immédiatement, peu importe le jour du challenge.
-      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(email), punch: punchProgression(email) })) return res.status(403).json({ ok: false, locked: true });
+      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(email), punch: punchDeverrouille(email) })) return res.status(403).json({ ok: false, locked: true });
       // Marque le guide comme lu -> le badge « Nouveau » disparaît ensuite.
       try { getDb().prepare('INSERT OR IGNORE INTO nutrition_ebook_reads (client_email, ebook_id, opened_at) VALUES (?,?,?)').run(email, id, new Date().toISOString()); } catch (_) { /* ignore */ }
       recordEbookOpen(email, id);            // log quotidien + streak (Chemin du challenge)
@@ -1155,7 +1163,7 @@ try {
       if (!eb) return res.status(404).json({ ok: false });
       // Même règle de verrouillage que la liste : on ne marque pas vu ce qui
       // n'est pas encore accessible.
-      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(email), punch: punchProgression(email) })) return res.status(403).json({ ok: false, locked: true });
+      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(email), punch: punchDeverrouille(email) })) return res.status(403).json({ ok: false, locked: true });
       try { getDb().prepare('INSERT OR IGNORE INTO nutrition_ebook_reads (client_email, ebook_id, opened_at) VALUES (?,?,?)').run(email, id, new Date().toISOString()); } catch (_) { /* ignore */ }
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ ok: false }); }
@@ -1169,7 +1177,7 @@ try {
       const eb = getDb().prepare('SELECT id, title, pdf_data, pdf_mime, unlock_day, type, video_lot FROM nutrition_ebooks WHERE id=? AND active=1').get(id);
       if (!eb || !eb.pdf_data) return res.status(404).end();
       // Même règle que la liste et l'ouverture (canaux offert / Chemin / Punch).
-      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(v.email), punch: punchDuClient(v.email) })) return res.status(403).end();
+      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(v.email), punch: punchDeverrouille(v.email) })) return res.status(403).end();
       const m = /^data:[^;]+;base64,(.+)$/.exec(eb.pdf_data);
       const buf = Buffer.from(m ? m[1] : eb.pdf_data, 'base64');
       res.setHeader('Content-Type', eb.pdf_mime || 'application/pdf');
@@ -1230,6 +1238,16 @@ try {
   // Même règle que les vidéos et les ebooks : le verrou se lit sur le TOTAL de
   // Punch, jamais sur user_unlocks (qui ne dit que ce qui a été célébré). Cumul
   // pur : rien n'est débité, donc un cadeau atteint est un cadeau gardé.
+  // ⚠️ LE Punch qui DÉVERROUILLE, dit à un seul endroit. Il avait divergé : la
+  // liste et /open lisaient la progression (Punch réel OU étapes validées),
+  // /file lisait le Punch RÉEL. Un guide affiché « débloqué », dont l'URL signée
+  // était bien délivrée, renvoyait alors 403 au téléchargement -> PAGE BLANCHE.
+  // Trois routes, trois occasions de se tromper : il n'y en a plus qu'une.
+  function punchDeverrouille(email) {
+    try { return Number(punchProgression(email)) || 0; } catch (_) { return 0; }
+  }
+  // Le Punch RÉELLEMENT gagné : ce qu'on AFFICHE au compteur. Ne sert jamais à
+  // déverrouiller quoi que ce soit (cf. punchDeverrouille).
   function punchDuClient(email) {
     try { return (getDb().prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email) || {}).punch || 0; }
     catch (_) { return 0; }
