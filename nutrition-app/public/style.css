@@ -802,6 +802,12 @@ body.app-shell .fullscreen-toggle { display: none; }
 .fiche-block { margin-bottom: 20px; }
 .fiche-block h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--green-700); margin: 0 0 10px; font-weight: 800; }
 .fiche-row { display: flex; justify-content: space-between; gap: 12px; padding: 11px 14px; background: var(--card); border: 1px solid var(--gray-100); border-radius: 12px; margin-bottom: 7px; font-size: 14px; }
+/* Un intertitre DANS un bloc de la fiche : il sépare « ce que tu prends » de
+   « ce qu'on te conseille » sans ouvrir un second bloc pour deux lignes. */
+.fiche-sub { margin: 12px 0 2px; font: 700 11px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted-c); }
+/* Le renvoi vers l'écran qui porte les explications. */
+.fiche-lien { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 13px; border: 1px solid var(--border-c); border-radius: var(--pill); background: var(--surface); color: var(--blue-on-soft); font: 700 12.5px/1 var(--font); font-family: inherit; cursor: pointer; }
+.fiche-lien:hover { border-color: var(--blue-c); background: var(--blue-soft); }
 .fiche-row span { color: var(--muted); }
 .fiche-row b { text-align: right; color: var(--ink); }
 .fiche-tags { background: var(--green-50); color: var(--green-700); border: 1px solid var(--green-100); border-radius: 12px; padding: 12px 16px; font-size: 14px; font-weight: 700; }
@@ -1818,8 +1824,21 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .feed-c-form { display: flex; gap: 8px; align-items: center; }
 .feed-c-input { flex: 1; min-width: 0; border: 1px solid var(--border-c); background: var(--surface); border-radius: 99px; padding: 9px 14px; font: inherit; font-size: 13.5px; color: var(--ink); }
 .feed-c-input:focus { outline: none; border-color: var(--c-violet); box-shadow: 0 0 0 3px var(--c-violet-soft); }
-.feed-c-send { flex: 0 0 auto; width: 34px; height: 34px; border: none; border-radius: 50%; background: linear-gradient(135deg, var(--c-violet), var(--c-indigo)); color: #fff; cursor: pointer; display: grid; place-items: center; }
+/* ⚠️ Le mot « Envoyer » est ÉCRIT, il ne se devine plus. En pastille ronde avec
+   le seul avion en papier, le bouton ne se lisait pas comme un bouton : on
+   écrivait son commentaire sans voir comment le poster. L'icône reste, elle
+   accélère la reconnaissance une fois qu'on sait. */
+.feed-c-send { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: none; border-radius: 99px;
+  background: linear-gradient(135deg, var(--c-violet), var(--c-indigo)); color: #fff; cursor: pointer;
+  font: 700 13px/1 var(--font); font-family: inherit; white-space: nowrap; }
 .feed-c-send .ic { width: 15px; height: 15px; }
+.feed-c-send:active { transform: scale(.97); }
+/* Sur les écrans les plus étroits, le champ passe avant : le libellé s'efface et
+   la pastille reprend sa forme ronde, plutôt que d'écraser la zone de saisie. */
+@media (max-width: 360px) {
+  .feed-c-send { width: 34px; padding: 0; justify-content: center; }
+  .feed-c-send span { display: none; }
+}
 /* État vide encourageant */
 .feed-empty { text-align: center; padding: 34px 20px; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 18px; color: var(--muted); }
 .feed-empty .ic { width: 32px; height: 32px; color: var(--c-violet); margin-bottom: 10px; }

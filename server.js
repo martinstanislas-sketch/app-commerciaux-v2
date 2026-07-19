@@ -1021,6 +1021,24 @@ try {
       res.json({ ok: true, url: '/nutrition/api/ebooks/' + id + '/file?k=' + encodeURIComponent(signEbookToken(id, email)) });
     } catch (e) { res.status(500).json({ ok: false }); }
   });
+  // « Je l'ai vu » — sans AUCUN effet de bord.
+  // ⚠️ Volontairement distinct de /open : celui-ci valide en plus une étape
+  // « ebook » du Chemin et alimente la série. Regarder une séance vidéo ne doit
+  // ni valider un guide, ni compter comme une lecture de guide — il ne reste
+  // donc que la marque « vu », celle qui éteint la pastille « Nouveau ».
+  app.post('/nutrition/api/ebooks/:id/vu', requireAuth, requireNutritionUse, (req, res) => {
+    try {
+      const email = (req.session && req.session.email) || '';
+      const id = Number(req.params.id);
+      const eb = getDb().prepare('SELECT id, unlock_day, type, video_lot FROM nutrition_ebooks WHERE id=? AND active=1').get(id);
+      if (!eb) return res.status(404).json({ ok: false });
+      // Même règle de verrouillage que la liste : on ne marque pas vu ce qui
+      // n'est pas encore accessible.
+      if (ebooksSources.estVerrouille(eb, { day: clientChallengeDay(email), punch: punchProgression(email) })) return res.status(403).json({ ok: false, locked: true });
+      try { getDb().prepare('INSERT OR IGNORE INTO nutrition_ebook_reads (client_email, ebook_id, opened_at) VALUES (?,?,?)').run(email, id, new Date().toISOString()); } catch (_) { /* ignore */ }
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ ok: false }); }
+  });
   // Fichier PDF via URL signée (navigation directe -> visionneuse native ; jamais d'URL publique).
   app.get('/nutrition/api/ebooks/:id/file', (req, res) => {
     try {

@@ -2300,7 +2300,8 @@ function renderFiche() {
     </div>
     <div class="fiche-block">
       <h3>Compléments alimentaires</h3>
-      <div class="fiche-tags">${escapeHtml(compStr)}</div>
+      <div class="fiche-row"><span>Ce que tu prends</span><b>${escapeHtml(compStr)}</b></div>
+      ${ficheComplementsConseilles(p, pr)}
     </div>
     <div class="fiche-block">
       <h3>Goûts & contraintes</h3>
@@ -2324,6 +2325,32 @@ function renderFiche() {
       <div class="fiche-row"><span>Adhérence</span><b>${ad.prevus ? ad.taux + ' %' : '—'}</b></div>
       <div class="fiche-row"><span>Favoris</span><b>${state.favoris.length}</b></div>
     </div>`;
+  // ⚠️ Le câblage global de [data-go] est posé UNE FOIS au démarrage : ce bouton,
+  // lui, naît à chaque construction de la fiche. Sans ce branchement, il serait
+  // muet — le lien vers les explications ne mènerait nulle part.
+  $$('#ficheBody [data-go]').forEach((r) => r.addEventListener('click', () => {
+    const t = $('#' + r.dataset.go); if (t) t.click();
+  }));
+}
+
+// Les compléments CONSEILLÉS, dans la fiche : les noms, groupés par niveau, et
+// rien d'autre.
+// ⚠️ Sans explication ici, volontairement : la fiche est un récapitulatif qu'on
+// parcourt des yeux, et le « pourquoi » de chaque produit fait plusieurs lignes.
+// Il vit à sa place, dans l'écran Compléments — d'où le renvoi en pied de bloc.
+// ⚠️ La liste vient de recommanderComplements, la MÊME fonction que cet écran :
+// deux calculs séparés auraient fini par conseiller deux choses différentes.
+function ficheComplementsConseilles(profil, prefs) {
+  let reco = [];
+  try { reco = (recommanderComplements(profil, prefs) || {}).reco || []; } catch (_) { return ''; }
+  if (!reco.length) return '';
+  const NIVEAUX = [['essentiel', 'Les essentiels'], ['envisager', 'À envisager'], ['aide', 'Peut t\'aider']];
+  const lignes = NIVEAUX.map(([cle, titre]) => {
+    const noms = reco.filter((r) => r.priorite === cle).map((r) => r.nom);
+    return noms.length ? `<div class="fiche-row"><span>${titre}</span><b>${escapeHtml(noms.join(', '))}</b></div>` : '';
+  }).join('');
+  return `<div class="fiche-sub">Conseillés pour toi</div>${lignes}
+    <button type="button" class="fiche-lien" data-go="btnComplements">Voir le détail et les conseils</button>`;
 }
 
 // ---------- Adherence (E4) ----------
@@ -3156,7 +3183,8 @@ function init() {
   const _bPush = $('#btnPushPrefs'); if (_bPush) _bPush.addEventListener('click', openPushPrefs);
   const _pushClose = $('#pushPrefsClose'); if (_pushClose) _pushClose.addEventListener('click', closePushPrefs);
   const _pushPanel = $('#pushPrefsPanel'); if (_pushPanel) _pushPanel.addEventListener('click', (e) => { if (e.target.id === 'pushPrefsPanel') closePushPrefs(); });
-  const _bEbooks = $('#btnEbooks'); if (_bEbooks) _bEbooks.addEventListener('click', openEbooks);
+  const _bEbooks = $('#btnEbooks'); if (_bEbooks) _bEbooks.addEventListener('click', () => openEbooks('guides'));
+  const _bVideos = $('#btnVideos'); if (_bVideos) _bVideos.addEventListener('click', () => openEbooks('videos'));
   const _bBoutique = $('#btnBoutique'); if (_bBoutique) _bBoutique.addEventListener('click', () => setTab('boutique'));
   const _ebkClose = $('#ebooksClose'); if (_ebkClose) _ebkClose.addEventListener('click', closeEbooks);
   const _ebkRClose = $('#ebookReaderClose'); if (_ebkRClose) _ebkRClose.addEventListener('click', closeEbookReader);
@@ -3916,7 +3944,7 @@ function feedCommentThread(item) {
   const body = list == null ? '<p class="feed-c-empty">Chargement…</p>'
     : (list.length ? list.map(feedCommentRow).join('') : '<p class="feed-c-empty">Sois le premier à commenter 💬</p>');
   return '<div class="feed-comments">' + body +
-    '<form class="feed-c-form" data-cform="' + escapeHtml(item.id) + '"><input type="text" class="feed-c-input" maxlength="500" placeholder="Écrire un commentaire…" autocomplete="off"><button type="submit" class="feed-c-send" aria-label="Envoyer">' + icSvg('send') + '</button></form>' +
+    '<form class="feed-c-form" data-cform="' + escapeHtml(item.id) + '"><input type="text" class="feed-c-input" maxlength="500" placeholder="Écrire un commentaire…" autocomplete="off"><button type="submit" class="feed-c-send">' + icSvg('send') + '<span>Envoyer</span></button></form>' +
     '</div>';
 }
 function toggleComments(id) {
@@ -5274,9 +5302,14 @@ function cadeauTeaserHTML(st) {
       + '<span class="pgift-go" aria-hidden="true">' + icSvg('arrow-right') + '</span></button>';
   }
   const c = st.cadeaux[prochain] || {};
-  const prec = seuils.filter((s) => s <= punch).reduce((a, b) => Math.max(a, b), 0); // palier précédent -> la barre ne recule pas
   const reste = prochain - punch;
-  const pct = Math.max(4, Math.min(100, Math.round(((punch - prec) / (prochain - prec)) * 100)));
+  // ⚠️ La barre mesure le PUNCH TOTAL rapporté au coût du cadeau, et non la
+  // progression depuis le cadeau précédent. Les deux sont vraies, mais la
+  // seconde vidait la barre à chaque déblocage : un client à 930 Punch sur les
+  // 1225 du prochain cadeau voyait 4 % — visuellement à zéro, alors qu'il en
+  // tient les trois quarts. Le Punch est cumulé et jamais dépensé : « 930 des
+  // 1225 » est littéralement où il en est, et c'est ce que la barre doit dire.
+  const pct = Math.max(4, Math.min(100, Math.round((punch / prochain) * 100)));
   return '<button type="button" class="pgift" id="mcpathGifts" aria-label="Prochain cadeau : ' + mcpEsc(c.label || 'ton cadeau') + ', ' + prochain + ' Punch, il te reste ' + reste + ' Punch">'
     + '<span class="pgift-ic" aria-hidden="true">' + (c.icon || '🎁') + '</span>'
     + '<span class="pgift-main">'
@@ -9539,14 +9572,30 @@ async function savePushPrefs(body) {
 
 // ===== Mes guides (ebooks) — client =====
 function closeEbooks() { const p = $('#ebooksPanel'); if (p) p.classList.add('hidden'); }
-async function openEbooks() {
+// Un SEUL panneau pour les deux lignes du profil : même liste, même câblage,
+// seul le filtre change. Deux panneaux jumeaux auraient divergé au premier
+// correctif appliqué d'un seul côté.
+const EBK_VUES = {
+  guides: { titre: '<svg class="ic"><use href="#ic-book"/></svg> Mes guides',
+    sous: 'Tes guides et ressources. De nouveaux se débloquent au fil de ta progression.',
+    vide: 'Aucun guide pour le moment. Reviens bientôt 📚' },
+  videos: { titre: '<span class="pr-emo">🎬</span> Mes vidéos',
+    sous: 'Tes séances à faire chez toi. De nouvelles se débloquent au fil de ta progression.',
+    vide: 'Aucune séance vidéo pour le moment. Reviens bientôt 🎬' },
+};
+async function openEbooks(quoi) {
   const p = $('#ebooksPanel'); if (!p) return;
+  const cle = EBK_VUES[quoi] ? quoi : 'guides';
+  const vue = EBK_VUES[cle];
+  p.dataset.vue = cle; // mémorisée : une réouverture reste sur la même vue
+  const t = $('#ebooksTitre'); if (t) t.innerHTML = vue.titre;
+  const st = $('#ebooksSousTitre'); if (st) st.textContent = vue.sous;
   p.classList.remove('hidden');
   const body = $('#ebooksBody'); body.innerHTML = '<p class="panel-sub">Chargement…</p>';
   try {
     const d = await (await fetch(apiUrl('/api/ebooks'), { headers: nutriAuthHeaders() })).json();
     if (!d.ok) throw new Error();
-    renderEbooks(body, d.ebooks || [], d.day);
+    renderEbooks(body, d.ebooks || [], d.day, cle);
   } catch (_) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
 }
 // ---------- Ordre d'affichage des guides ----------
@@ -9579,10 +9628,11 @@ function ebookCard(e, day) {
   // ⚠️ Avant : `unlockDay === day`, ce qui ne marchait QUE pour les ebooks du Chemin —
   // un guide gagné à un palier de Punch n'a pas de jour de déblocage, il n'était donc
   // jamais signalé comme neuf.
-  // Jamais sur une séance vidéo : rien ne dit au serveur qu'elle a été regardée, donc
-  // elles seraient TOUTES « nouvelles » à vie — un badge qui ne s'éteint jamais ne
+  // Les séances vidéo en bénéficient depuis qu'elles savent se marquer VUES à la
+  // fermeture (cf. ouvrirVideo) : avant, rien ne le disait au serveur, elles
+  // seraient restées « nouvelles » à vie — un badge qui ne s'éteint jamais ne
   // signale plus rien.
-  const isNew = !e.locked && !e.read && e.type !== 'video';
+  const isNew = !e.locked && !e.read;
   const badge = isNew ? '<span class="ebk-new">Nouveau</span>' : '';
   return `<button type="button" class="ebk-card${e.locked ? ' locked' : ''}" data-id="${e.id}" data-type="${e.type || 'ebook'}" data-video="${e.videoId || ''}" data-title="${escapeHtml(e.title)}" data-locked="${e.locked ? 1 : 0}" data-unlock="${escapeHtml(e.unlockLabel || '')}">
     <span class="ebk-cover"${cover}>${e.type === 'video' && !e.locked ? '<span class="ebk-play">▶</span>' : ''}${e.cover ? '' : '<span class="ebk-cover-ic">' + icSvg('book') + '</span>'}${badge}${lock}</span>
@@ -9592,13 +9642,16 @@ function ebookCard(e, day) {
 // Les sections, dans l'ordre où on veut les lire. Le classement par CATÉGORIE a été
 // retiré : il faisait passer un guide verrouillé de la catégorie A avant un guide
 // disponible de la catégorie B — exactement ce qu'on ne veut pas.
-// ⚠️ Les SÉANCES vidéo gardent leur bloc, à part : ouvrir une vidéo ne prévient pas
-// le serveur, elles ne sont donc JAMAIS marquées lues. Mélangées aux guides, les 27
+// ⚠️ Les SÉANCES vidéo gardent leur bloc, à part. Mélangées aux guides, les 27
 // séances squatteraient « À lire » à vie et enterreraient le nouvel ebook — soit
 // précisément ce qu'on cherche à mettre en avant.
-function ebooksSectionsHTML(list, day) {
-  const guides = (list || []).filter((e) => e.type !== 'video');
-  const seances = (list || []).filter((e) => e.type === 'video');
+// `quoi` : 'guides' | 'videos' | '' (tout). Le profil ouvre désormais les deux
+// séparément — une ligne qui annonce « Mes guides » ne doit pas contenir aussi
+// les séances vidéo, c'est ce qui rendait les vidéos introuvables. L'onglet
+// Bibliothèque, lui, continue de tout montrer (il ne promet rien de précis).
+function ebooksSectionsHTML(list, day, quoi) {
+  const guides = (quoi === 'videos') ? [] : (list || []).filter((e) => e.type !== 'video');
+  const seances = (quoi === 'guides') ? [] : (list || []).filter((e) => e.type === 'video');
   const tries = ebooksTries(guides);
   const par = (rang) => tries.filter((e) => ebooksRang(e) === rang);
   // Séances : les débloquées d'abord, dans l'ordre du programme (lot 1, 2, 3…), puis
@@ -9615,18 +9668,36 @@ function ebooksSectionsHTML(list, day) {
   return bloc('À lire', par(0), 'alire') + bloc('Déjà lus', par(1), 'lus') + bloc('À venir', par(2), 'avenir')
     + bloc('Séances', seancesTriees, 'seances');
 }
+// Après une lecture, la liste doit se remettre à jour LÀ OÙ ON EST.
+// ⚠️ Deux surfaces montrent les mêmes cartes : le panneau du profil et l'onglet
+// Bibliothèque. On ne rafraîchissait que le panneau — un guide ouvert depuis
+// l'onglet gardait donc sa pastille « Nouveau » jusqu'au rechargement complet.
+function rafraichirListesEbooks() {
+  try {
+    const ep = $('#ebooksPanel');
+    if (ep && !ep.classList.contains('hidden')) openEbooks(ep.dataset.vue);
+    const vue = $('#view-ebooks');
+    if (vue && vue.offsetParent) renderEbooksView();
+  } catch (_) { /* la liste se remettra à jour au prochain affichage */ }
+}
+
 // Un seul câblage pour les deux écrans : le clic ne doit pas se comporter
 // différemment selon l'endroit d'où on ouvre le même guide.
 function wireEbookCards(host) {
   host.querySelectorAll('.ebk-card').forEach((c) => c.addEventListener('click', () => {
     if (c.dataset.locked === '1') { showToast('🔒 Débloqué à ' + (c.dataset.unlock || 'un prochain palier'), { icon: 'info' }); return; }
-    if (c.dataset.type === 'video') { ouvrirVideo(c.dataset.video, c.dataset.title); return; } // le PDF garde son lecteur
+    if (c.dataset.type === 'video') { ouvrirVideo(c.dataset.video, c.dataset.title, c.dataset.id); return; } // le PDF garde son lecteur
     openEbook(Number(c.dataset.id), c.dataset.title);
   }));
 }
-function renderEbooks(body, list, day) {
-  if (!list.length) { body.innerHTML = '<p class="help-empty">Aucun guide pour le moment. Reviens bientôt 📚</p>'; return; }
-  body.innerHTML = ebooksSectionsHTML(list, day);
+function renderEbooks(body, list, day, quoi) {
+  const vue = EBK_VUES[quoi] || EBK_VUES.guides;
+  const html = ebooksSectionsHTML(list, day, quoi);
+  // ⚠️ On teste le HTML PRODUIT, pas la liste brute : la liste peut contenir des
+  // guides alors qu'on affiche les vidéos (et l'inverse). Sans ça, l'écran des
+  // vidéos serait vide, sans un mot pour dire pourquoi.
+  if (!html) { body.innerHTML = '<p class="help-empty">' + vue.vide + '</p>'; return; }
+  body.innerHTML = html;
   wireEbookCards(body);
 }
 // --- Onglet Ebooks (vue plein écran) : guides disponibles + à venir ---
@@ -9803,7 +9874,7 @@ function ensureBonOverlay() {
 // Titre + UNE ligne de description tronquée (ellipse) ; « Nouveau » tant qu'il n'est
 // pas lu. Visible seulement s'il existe un guide du jour. Clic -> ouverture directe.
 let _guideDuJour = undefined;
-function openGuideDuJour() { if (_guideDuJour) openEbook(_guideDuJour.id, _guideDuJour.title); else openEbooks(); }
+function openGuideDuJour() { if (_guideDuJour) openEbook(_guideDuJour.id, _guideDuJour.title); else openEbooks('guides'); }
 // Charge le guide du jour (async) et met à jour le picto « Info » du haut du Plan.
 // _guideDuJour = { id, title, read, ... } ou null. Le picto n'apparaît que s'il existe
 // un guide du jour NON lu (renderNeeds gère l'affichage).
@@ -9826,7 +9897,7 @@ async function openEbook(id, title) {
       // Lecture INTÉGRÉE : le guide s'affiche dans l'app, le client ne sort pas.
       showEbookReader(d.url, title);
       // Le guide est marqué lu -> on retire le badge « Nouveau » et la carte du jour.
-      setTimeout(() => { try { loadGuideDuJour(); const ep = $('#ebooksPanel'); if (ep && !ep.classList.contains('hidden')) openEbooks(); } catch (_) { /* ignore */ } }, 500);
+      setTimeout(() => { try { loadGuideDuJour(); rafraichirListesEbooks(); } catch (_) { /* ignore */ } }, 500);
     } else { showToast(d.locked ? 'Ce guide n\'est pas encore débloqué.' : 'Ouverture impossible.', { icon: 'info' }); }
   } catch (_) { showToast('Ouverture impossible.', { icon: 'info' }); }
 }
@@ -9872,7 +9943,11 @@ async function renderPdfInReader(url, seq, onFirstPage) {
 // Lecteur vidéo in-app : iframe 16:9, YouTube en mode nocookie. La séance se
 // regarde DANS l'app — on n'envoie pas le client sur YouTube, où il ne reviendrait
 // pas. L'iframe n'est créée qu'à l'ouverture : aucun appel YouTube avant.
-function ouvrirVideo(videoId, titre) {
+// `ebookId` : la ligne de la séance en base — c'est elle qui porte le « vu ».
+// ⚠️ On marque à la FERMETURE, pas à l'ouverture : ouvrir puis refermer, c'est
+// l'avoir vue. Marquer à l'ouverture éteindrait la pastille sur un tap
+// accidentel, avant même que la vidéo ait démarré.
+function ouvrirVideo(videoId, titre, ebookId) {
   const id = String(videoId || '').trim();
   if (!id) { showToast('Cette séance n\'est pas disponible.', { icon: 'info' }); return; }
   let ov = $('#videoOv');
@@ -9887,15 +9962,27 @@ function ouvrirVideo(videoId, titre) {
     const fermer = () => {
       ov.classList.remove('open');
       ov.querySelector('.vid-frame').innerHTML = ''; // coupe la lecture, sinon le son continue
+      marquerSeanceVue(ov.dataset.ebook);
     };
     ov.querySelector('.vid-x').addEventListener('click', fermer);
     ov.addEventListener('click', (e) => { if (e.target === ov) fermer(); });
   }
+  ov.dataset.ebook = ebookId || ''; // l'overlay est réutilisé : on réécrit la cible
   ov.querySelector('.vid-title').textContent = titre || 'Séance';
   ov.querySelector('.vid-frame').innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/'
     + encodeURIComponent(id) + '?rel=0&modestbranding=1&playsinline=1" title="' + escapeHtml(titre || 'Séance')
     + '" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
   ov.classList.add('open');
+}
+// Marque une séance comme vue, puis remet la liste à jour pour éteindre sa
+// pastille. Point d'entrée DÉDIÉ (/vu) : celui des guides validerait en plus une
+// étape « ebook » du Chemin et alimenterait la série — regarder une vidéo ne
+// doit faire ni l'un ni l'autre.
+async function marquerSeanceVue(ebookId) {
+  const id = Number(ebookId); if (!id) return;
+  try { await fetch(apiUrl('/api/ebooks/' + id + '/vu'), { method: 'POST', headers: nutriAuthHeaders() }); }
+  catch (_) { return; } // hors ligne : la pastille s'éteindra à la prochaine ouverture réussie
+  rafraichirListesEbooks();
 }
 
 function showEbookReader(url, title) {

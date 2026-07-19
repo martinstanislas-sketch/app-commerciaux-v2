@@ -40,7 +40,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=171" />
+  <link rel="stylesheet" href="style.css?v=173" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=103" />
   <script>
@@ -868,6 +868,7 @@
         <button type="button" class="profil-row" data-go="btnAgenda"><svg class="ic pr-muted"><use href="#ic-calendar"/></svg>Agenda<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" data-go="btnAnalyse"><svg class="ic pr-muted"><use href="#ic-chart"/></svg>Analyse des écarts<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row" id="btnEbooks"><svg class="ic pr-blue"><use href="#ic-book"/></svg>Mes guides<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row" id="btnVideos"><span class="pr-emo">🎬</span>Mes vidéos<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-client hidden" id="btnBoutique"><span class="pr-emo">🎁</span>Mes cadeaux<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-client hidden" id="btnPushPrefs"><svg class="ic pr-muted"><use href="#ic-bell"/></svg>Notifications<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-client hidden" id="btnChangePin"><svg class="ic pr-muted"><use href="#ic-shield"/></svg>Changer mon code PIN<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -1253,10 +1254,10 @@
   <div id="ebooksPanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">
-        <h2><svg class="ic"><use href="#ic-book"/></svg> Mes guides</h2>
+        <h2 id="ebooksTitre"><svg class="ic"><use href="#ic-book"/></svg> Mes guides</h2>
         <button class="modal-close" id="ebooksClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
       </div>
-      <p class="panel-sub">Tes guides et ressources. De nouveaux se débloquent au fil de ton challenge.</p>
+      <p class="panel-sub" id="ebooksSousTitre">Tes guides et ressources. De nouveaux se débloquent au fil de ton challenge.</p>
       <div id="ebooksBody"></div>
     </div>
   </div>
@@ -1558,6 +1559,6 @@
   <script src="avatar.js?v=6"></script>
   <script src="coursesCatalogue.js?v=5"></script>
   <script src="coursesEngine.js?v=4"></script>
-  <script src="app.js?v=195"></script>
+  <script src="app.js?v=200"></script>
 </body>
 </html>
