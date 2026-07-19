@@ -3078,6 +3078,15 @@ function init() {
   refreshCoachIaBadge();
   refreshCheminBadge(); // l'admin voit « Actif / Inactif » sans ouvrir le panneau
   $$('#bottom-nav .nav-i').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  // Le logo MC = le bouton « accueil » : d'où qu'on clique (barre du haut ou en-tête
+  // d'une page), on retombe sur le Chemin. Délégué sur le document car ces logos
+  // sont réinjectés à chaque rendu (brandMark()).
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.brand-logo, .mc-brand')) return;
+    const nav = $('#navParcours');
+    if (!nav || nav.classList.contains('hidden')) return; // Chemin non disponible : on ne fait rien
+    setTab('parcours');
+  });
   $$('[data-go]').forEach((r) => r.addEventListener('click', () => { const t = $('#' + r.dataset.go); if (t) t.click(); }));
   $('#helpClose').addEventListener('click', closeHelp);
   $('#helpDoneClose').addEventListener('click', closeHelp);
@@ -5097,6 +5106,9 @@ function ascMassifSVG() {
 // moins de trois secondes — le titre de la semaine, la barre, et les trois
 // chiffres qui donnent envie de continuer.
 function challengeHeaderHTML(st) {
+  // Le coureur de la barre EST l'avatar du client : on le prépare ici, car
+  // l'en-tête est construit AVANT le sentier (qui, lui, appelle déjà ce cadrage).
+  ascCalerAvatar(); // sans condition : un avatar modifié se voit dès cette peinture
   const nodes = st.nodes || [];
   const total = st.totalDays || nodes.length || 43;
   const done = nodes.filter((n) => n.status === 'done').length;
@@ -5129,7 +5141,7 @@ function challengeHeaderHTML(st) {
         <div class="asc-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"
              aria-label="${done} étapes sur ${total}">
           <span style="width:${pct}%"></span>
-          <i class="asc-runner" style="left:${pct}%" aria-hidden="true">🏃</i>
+          <i class="asc-runner${_ascAvatarPastilleSVG ? '' : ' asc-runner-emo'}" style="left:${pct}%" aria-hidden="true">${_ascAvatarPastilleSVG || '🏃'}</i>
         </div>
         <span class="asc-head-sub">${done}<i>/${total} étapes</i></span>
       </div>
@@ -5142,11 +5154,12 @@ function challengeHeaderHTML(st) {
 function ascJalonLigneHTML(j) {
   if (!j) return `<p class="asc-head-go asc-head-go-flat">${icSvg('trophy')}
       <span class="asc-head-gx">Tout est franchi — plus aucune étape clé devant toi</span></p>`;
-  const quand = j.reste > 0 ? 'dans ' + j.reste + ' étape' + (j.reste > 1 ? 's' : '') : 'c\'est maintenant';
+  // Une ligne, une information : le NOM du prochain sommet. Le décompte
+  // d'étapes disait la même chose que la barre juste au-dessus.
   return `<button type="button" class="asc-head-go" data-goto="${j.node.day}"
-      aria-label="Prochaine étape clé : ${mcpEsc(j.node.title)}, ${quand} — aller la voir sur le parcours">
+      aria-label="Prochaine étape : ${mcpEsc(j.node.title)} — aller la voir sur le parcours">
     ${icSvg('target')}
-    <span class="asc-head-gx">Prochaine étape clé · <b>${mcpEsc(j.node.title)}</b> — ${quand}</span>
+    <span class="asc-head-gx">Prochaine étape : <b>${mcpEsc(j.node.title)}</b></span>
     ${icSvg('arrow-right')}</button>`;
 }
 
@@ -5242,14 +5255,16 @@ function ascPunchCardHTML(st) {
   const streak = s.streak || 0;
   return `<div class="asc-rc asc-rc-punch">
     <p class="asc-rc-k">${icSvg('spark')} Tes compteurs</p>
-    <button type="button" class="asc-rc-stat mcpath-stat" data-stat="punch" aria-label="Ton Punch : en savoir plus">
-      <span class="asc-rc-v">👊 ${s.punch || 0}</span>
-      <span class="asc-rc-l">PUNCH cumulés</span>
-      <span class="asc-rc-ch" aria-hidden="true">${icSvg('arrow-right')}</span></button>
-    <button type="button" class="asc-rc-stat mcpath-stat" data-stat="streak" aria-label="Ta série : en savoir plus">
-      <span class="asc-rc-v">🔥 ${streak} jour${streak > 1 ? 's' : ''}</span>
-      <span class="asc-rc-l">Série actuelle</span>
-      <span class="asc-rc-ch" aria-hidden="true">${icSvg('arrow-right')}</span></button>
+    <div class="asc-rc-stats">
+      <button type="button" class="asc-rc-stat mcpath-stat" data-stat="punch" aria-label="Ton Punch : en savoir plus">
+        <span class="asc-rc-v">👊 ${s.punch || 0}</span>
+        <span class="asc-rc-l">PUNCH cumulés</span>
+        <span class="asc-rc-ch" aria-hidden="true">${icSvg('arrow-right')}</span></button>
+      <button type="button" class="asc-rc-stat mcpath-stat" data-stat="streak" aria-label="Ta série : en savoir plus">
+        <span class="asc-rc-v">🔥 ${streak} jour${streak > 1 ? 's' : ''}</span>
+        <span class="asc-rc-l">Série actuelle</span>
+        <span class="asc-rc-ch" aria-hidden="true">${icSvg('arrow-right')}</span></button>
+    </div>
   </div>`;
 }
 // La mission bonus avait une étoile de 38 px perdue au milieu du sentier pour
@@ -5349,6 +5364,7 @@ function ascTrace(pts) {
 // Rendu localement par le même moteur que partout ailleurs (config SVG, aucune
 // requête réseau pour une vignette) — cf. MCAvatar.
 let _ascAvatarSVG = '';
+let _ascAvatarPastilleSVG = '';
 function ascCalerAvatar() {
   const cfg = (window.__NUTRI_USER && window.__NUTRI_USER.avatarConfig) || null;
   // `corps: 'entier'` : sur le Chemin il est DEBOUT sur le sentier, pas en
@@ -5363,6 +5379,10 @@ function ascCalerAvatar() {
   if (!A) { _ascAvatarSVG = ''; return; }
   const email = (window.__NUTRI_USER && window.__NUTRI_USER.email) || '';
   _ascAvatarSVG = A.rendreSVG(cfg || A.configParDefaut(email), { alt: '', corps: 'entier' });
+  // Variante BUSTE pour le curseur de la barre de progression : en pied il
+  // mesurerait 42 px pour ~17 px de dégagement au-dessus de la barre — il
+  // recouvrirait le titre. Le rond, lui, se pose dessus sans rien mordre.
+  _ascAvatarPastilleSVG = A.rendreSVG(cfg || A.configParDefaut(email), { alt: '', fond: '#FFFFFF' });
 }
 // LE CLIENT SUR SON CHEMIN. Il ne coiffe plus la bulle comme une icône : il se
 // tient debout SUR le sentier, en pied, juste APRÈS l'étape du jour — sur le
@@ -5914,7 +5934,7 @@ async function envoyerMissionBonus() {
     const gagne = (d.reward && d.reward.punch) || 0;
     if (gagne) rewardToast({ title: (d.reward && d.reward.title) || 'Mission bonus', punch: gagne, milestone: false });
     else showToast('Mission validée ✅', { icon: 'check' });
-    ouvrirMissionBonus(week);      // la fenêtre passe sur « Mission validée · +X PUNCH »
+    if (sheet) sheet.classList.remove('open'); // mission envoyée : la fenêtre s'efface
     rafraichirCheminSiVisible();   // le nœud gagne sa pastille ✓
   } catch (e) {
     showToast(e.message || 'Envoi impossible pour le moment.', { icon: 'info' });

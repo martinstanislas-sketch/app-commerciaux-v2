@@ -29,11 +29,12 @@ const punchSeuils = require('./punchSeuils');
 const cadeaux = require('./cadeaux');
 
 const CHALLENGE_PATH_SEED_VERSION = 6;
-/* À la première personne : le client s'y projette (« Je… »), il ne lit pas un
-   programme, il se raconte sa propre progression. */
+/* À l'impératif, et court : le titre tient sur UNE ligne dans l'en-tête (« Je
+   passe un cap » passait à la ligne et cassait la carte), et il s'adresse au
+   client comme le ferait son coach. */
 const CHALLENGE_WEEK_TITLES = {
-  1: 'Je démarre', 2: 'Je prends le rythme', 3: 'Je progresse',
-  4: 'Je passe un cap', 5: 'Je ne lâche rien', 6: 'J’atteins mon objectif',
+  1: 'Lance-toi', 2: 'Prends le rythme', 3: 'Progresse',
+  4: 'Passe un cap', 5: 'Ne lâche rien', 6: 'Atteins ton objectif',
 };
 // Missions bonus : UNE par semaine, toujours FACULTATIVE — elle ne conditionne
 // jamais l'avancement du parcours. Le client DÉCLARE ce qu'il a fait (sur
