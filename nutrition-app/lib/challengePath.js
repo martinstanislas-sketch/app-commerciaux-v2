@@ -806,7 +806,7 @@ function createChallengeEngine({ getDb }) {
       // TOUTES les récompenses (vidéos, guides, cadeaux) avec leur seuil : le Chemin
       // les matérialise le long du parcours. Rien n'est recalculé — c'est
       // punchSeuils, la source de vérité, qui est simplement mise en forme.
-      recompenses: recompensesPubliques(punchProgression(email)),
+      recompenses: recompensesPubliques(punchProgression(email), email),
       weekTitles: CHALLENGE_WEEK_TITLES,
       // Missions bonus OUVERTES (semaines atteintes) : facultatives, les passées
       // restent rattrapables, les futures ne sont pas exposées.
@@ -928,12 +928,23 @@ function createChallengeEngine({ getDb }) {
     pathDoneDays(email).forEach((d) => { if (d > derniere) derniere = d; });
     return Math.max(reel, derniere >= 0 ? CUMUL_PUNCH_PARFAIT[derniere] || 0 : 0);
   }
-  function recompensesPubliques(punch) {
+  function recompensesPubliques(punch, email) {
+    // TROIS états, jamais deux. « obtenu » n'a de sens que là où il y a quelque
+    // chose à récupérer (un bon de cadeau) ou à porter (un accessoire) : un
+    // guide ou une vidéo sont débloqués, point.
+    const bons = email ? bonsDe(email) : {};
+    const portes = new Set(email ? accessoiresPortes(email) : []);
     return punchSeuils.tousLesSeuils().map((s) => ({
       seuil: s.seuil,
-      type: s.type,                                        // 'video' | 'ebook' | 'gift'
+      type: s.type,                                        // 'video' | 'ebook' | 'gift' | 'avatar'
       cadeau: s.type === 'gift' ? (s.payload || {}).cadeau : '',
+      accessoire: s.type === 'avatar' ? (s.payload || {}).accessoire : '',
       label: libelleRecompense(s),
+      // Le nom de la TABLE (« Guide 3 », « Vidéo 12 ») : il distingue les lignes
+      // dans une liste, là où `label` — volontairement chaleureux pour les
+      // célébrations — donnerait 22 fois « Un nouveau guide ».
+      nom: (s.payload || {}).nom || '',
+      etat: etatRecompense(s, punch, bons, portes),
       // Icône spécifique du cadeau (le vrai visuel) -> le Chemin distingue un cadeau
       // d'une vidéo/guide d'un coup d'œil. Vide pour vidéos/ebooks (icône par type).
       icon: s.type === 'gift' ? ((cadeaux.cadeau((s.payload || {}).cadeau) || {}).icon || '🎁') : '',
@@ -946,6 +957,27 @@ function createChallengeEngine({ getDb }) {
       ordre: ordreDeblocage(s.seuil),
     }));
   }
+  // verrouille -> debloque -> obtenu (cadeau récupéré / accessoire porté).
+  function etatRecompense(s, punch, bons, portes) {
+    if (punch < s.seuil) return 'verrouille';
+    if (s.type === 'gift') {
+      const b = bons[(s.payload || {}).cadeau];
+      // Un bon retiré = le cadeau est entre les mains du client. Les cadeaux
+      // digitaux n'ont pas de bon : ils restent « débloqué », ce qui est juste.
+      if (b && (b.retireLe || b.statut === 'retire')) return 'obtenu';
+      return 'debloque';
+    }
+    if (s.type === 'avatar') return portes.has((s.payload || {}).accessoire) ? 'obtenu' : 'debloque';
+    return 'debloque';
+  }
+  // Les accessoires actuellement PORTÉS par l'avatar du client.
+  function accessoiresPortes(email) {
+    try {
+      const row = getDb().prepare('SELECT avatar_config FROM nutrition_clients WHERE email=?').get(email);
+      const cfg = JSON.parse((row && row.avatar_config) || '{}');
+      return Array.isArray(cfg.accessoires) ? cfg.accessoires : [];
+    } catch (_) { return []; }
+  }
   // Le nom d'une récompense, dit à un seul endroit.
   function libelleRecompense(s) {
     if (s.type === 'gift') {
@@ -955,6 +987,17 @@ function createChallengeEngine({ getDb }) {
     // Une ligne = UN contenu depuis le passage aux seuils individuels : plus de
     // « 4 nouveaux guides », c'est un guide, et un seul.
     if (s.type === 'ebook') return 'Un nouveau guide';
+    // ⚠️ Sans ce cas, un accessoire tombait dans la branche « vidéo » et
+    // s'affichait « Une nouvelle séance vidéo » — invisible tant qu'aucun écran
+    // ne listait les récompenses.
+    if (s.type === 'avatar') {
+      const id = (s.payload || {}).accessoire;
+      try {
+        const a = (require('./avatar').ACCESSOIRES || []).find((x) => x.id === id);
+        if (a) return a.nom;
+      } catch (_) { /* catalogue absent */ }
+      return 'Un accessoire d\'avatar';
+    }
     return 'Une nouvelle séance vidéo';
   }
 

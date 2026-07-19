@@ -3997,3 +3997,89 @@ body.is-demo #navRestart { display: none !important; }
   .fin-stats { margin-top: 18px; }
   .fin-cta { margin-top: 16px; }
 }
+
+/* ── TOUT CE QUI SE DÉBLOQUE ────────────────────────────────────────────────
+   La liste complète, verrouillés compris. Trois états lisibles d'un coup
+   d'œil, un badge de type par ligne pour scanner sans lire. */
+.rcp { margin: 28px 0 0; }
+.rcp-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.rcp-title { margin: 0; font: 800 17px/1.2 var(--font); letter-spacing: -.02em; color: var(--text-c); }
+.rcp-compte { margin-left: auto; font: 800 15px/1 var(--font); color: var(--text-c); font-variant-numeric: tabular-nums; }
+.rcp-compte i { font: 600 12px/1 var(--font); font-style: normal; color: var(--text-muted-c); }
+
+/* Le prochain palier : la seule ligne qui a une barre. C'est l'objectif. */
+.rcp-next { padding: 14px 15px; margin-bottom: 14px; border: 1px solid #EBDCB8; border-radius: var(--r-sm);
+  background: linear-gradient(150deg, #FDF8ED 0%, var(--surface) 70%); }
+.rcp-next-k { margin: 0; font: 700 10px/1 var(--font); letter-spacing: .09em; text-transform: uppercase; color: #8A6D28; }
+.rcp-next-r { display: flex; align-items: center; gap: 9px; margin-top: 9px; }
+.rcp-next-ic { font-size: 22px; line-height: 1; flex: none; }
+.rcp-next-n { min-width: 0; font: 700 14.5px/1.25 var(--font); color: var(--text-c); }
+.rcp-next-x { margin-left: auto; flex: none; font: 800 12px/1 var(--font); color: #8A6D28; white-space: nowrap; }
+.rcp-bar { margin-top: 11px; height: 7px; border-radius: var(--pill); background: rgba(138, 109, 40, .16); overflow: hidden; }
+.rcp-bar > span { display: block; height: 100%; border-radius: var(--pill);
+  background: linear-gradient(90deg, #C79A3C 0%, #F0D488 100%); transition: width .6s var(--ease); }
+
+.rcp-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.rcp-l { display: flex; align-items: center; gap: 11px; padding: 11px 13px;
+  border: 1px solid var(--border-c); border-radius: var(--r-sm); background: var(--surface); }
+/* Verrouillé : GRISÉ, jamais masqué — voir ce qui attend est le moteur. */
+.rcp-l.is-verrouille { background: var(--surface-soft); border-color: transparent; }
+.rcp-l.is-verrouille .rcp-ic { filter: grayscale(1); opacity: .5; }
+.rcp-l.is-verrouille .rcp-n { color: var(--text-muted-c); }
+.rcp-l.is-next { border-color: var(--gold); background: var(--surface); }
+.rcp-ic { font-size: 21px; line-height: 1; flex: none; width: 26px; text-align: center; }
+.rcp-x { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.rcp-n { font: 700 13.5px/1.3 var(--font); color: var(--text-c); }
+.rcp-m { display: flex; align-items: center; gap: 7px; }
+.rcp-b { font: 700 9.5px/1 var(--font); font-style: normal; letter-spacing: .05em; text-transform: uppercase;
+  padding: 4px 7px; border-radius: 5px; background: var(--track); color: var(--text-muted-c); }
+.rcp-b-gift { background: #F6ECD6; color: #8A6D28; }
+.rcp-b-avatar { background: #E7EEFB; color: #2E5AA8; }
+.rcp-b-ebook { background: var(--sage-soft); color: var(--sage-on-soft); }
+.rcp-b-video { background: #FBE7E7; color: #A8352E; }
+.rcp-s { font: 600 11px/1 var(--font); font-style: normal; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.rcp-etat { flex: none; font: 700 10.5px/1 var(--font); padding: 6px 9px; border-radius: 999px; white-space: nowrap; }
+.rcp-etat.ok { background: var(--sage-soft); color: var(--sage-on-soft); }
+.rcp-etat.on { background: #E7EEFB; color: #2E5AA8; }
+.rcp-etat.off { background: transparent; color: var(--text-soft); }
+@media (max-width: 420px) {
+  .rcp-etat { font-size: 10px; padding: 5px 7px; }
+  .rcp-ic { width: 22px; font-size: 19px; }
+}
+
+/* ── ADMIN : les seuils de déblocage ────────────────────────────────────────
+   Une ligne par récompense, le seuil éditable en place. Volontairement dense :
+   il y en a 73, et on vient y comparer des valeurs, pas les contempler. */
+.dbl { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--border-c); }
+.dbl-head { display: flex; align-items: baseline; gap: 10px; }
+.dbl-title { margin: 0; font: 800 15px/1.2 var(--font); color: var(--text-c); }
+.dbl-n { margin-left: auto; font: 600 12px/1 var(--font); color: var(--text-muted-c); }
+.dbl-sous { margin: 7px 0 14px; font: 500 12.5px/1.5 var(--font); color: var(--text-muted-c); }
+.dbl-sous b { color: var(--text-c); }
+/* Hauteur bornée + défilement : 73 lignes ne doivent pas repousser les boutons
+   d'enregistrement hors de l'écran. */
+.dbl-liste { max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;
+  padding: 4px; border: 1px solid var(--border-c); border-radius: var(--r-sm); background: var(--surface-soft); }
+.dbl-l { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 9px; background: var(--surface); }
+.dbl-b { flex: none; width: 74px; font: 700 9.5px/1 var(--font); font-style: normal; letter-spacing: .04em;
+  text-transform: uppercase; text-align: center; padding: 5px 4px; border-radius: 5px;
+  background: var(--track); color: var(--text-muted-c); }
+.dbl-b-cadeau, .dbl-b-gift { background: #F6ECD6; color: #8A6D28; }
+.dbl-b-badge { background: #F1E4C4; color: #7A5E1F; }
+.dbl-b-accessoire, .dbl-b-avatar { background: #E7EEFB; color: #2E5AA8; }
+.dbl-b-guide, .dbl-b-ebook { background: var(--sage-soft); color: var(--sage-on-soft); }
+.dbl-b-video { background: #FBE7E7; color: #A8352E; }
+.dbl-nom { flex: 1; min-width: 0; font: 600 12.5px/1.3 var(--font); color: var(--text-c);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dbl-in { flex: none; width: 78px; padding: 7px 9px; border: 1px solid var(--border-c); border-radius: 8px;
+  background: var(--mc-white); color: var(--text-c); font: 700 13px/1 var(--font); font-family: inherit;
+  text-align: right; font-variant-numeric: tabular-nums; }
+.dbl-in:focus { outline: 2px solid var(--blue-c); outline-offset: 1px; }
+.dbl-u { flex: none; font: 600 9.5px/1 var(--font); color: var(--text-soft); letter-spacing: .04em; }
+.dbl-foot { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+@media (max-width: 460px) {
+  .dbl-b { width: 62px; font-size: 9px; }
+  .dbl-nom { font-size: 12px; }
+  .dbl-in { width: 68px; }
+  .dbl-u { display: none; }
+}

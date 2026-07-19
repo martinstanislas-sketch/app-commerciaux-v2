@@ -7689,8 +7689,85 @@ function renderCheminAdmin(d) {
       opt('on', 'Activé', 'L\'onglet « Parcours » apparaît : étapes, série 🔥, Punch 👊 et cadeaux.') +
       opt('off', 'Désactivé', 'L\'onglet disparaît. Rien n\'est perdu : les Punch et les étapes déjà validés sont conservés.') +
     '</div>' +
-    '<div id="cheminMsg" class="cia-msg"></div>';
+    '<div id="cheminMsg" class="cia-msg"></div>' +
+    '<div id="cheminSeuils" class="dbl"><p class="panel-sub">Chargement des seuils…</p></div>';
   body.querySelectorAll('.cia-opt').forEach((b) => b.addEventListener('click', () => saveCheminFlag(b.dataset.flag)));
+  chargerSeuilsAdmin();
+}
+
+// ── ADMIN : les seuils de déblocage ─────────────────────────────────────────
+// Les seuils vivent en base pour être ajustables SANS redéploiement. Cet écran
+// est le seul endroit où on les touche. Édition en place, un champ par ligne,
+// et un enregistrement GLOBAL : le serveur remplace la table entière dans une
+// transaction — une table à moitié écrite laisserait des récompenses
+// inatteignables.
+let _seuilsAdmin = null;
+const DBL_TYPE = { gift: 'Cadeau', cadeau: 'Cadeau', badge: 'Badge', accessoire: 'Accessoire', avatar: 'Accessoire', guide: 'Guide', ebook: 'Guide', video: 'Vidéo' };
+async function chargerSeuilsAdmin() {
+  const host = $('#cheminSeuils'); if (!host) return;
+  try {
+    const d = await (await fetch(apiUrl('/api/admin/deblocages'), { headers: nutriAuthHeaders() })).json();
+    if (!d.ok) throw new Error();
+    _seuilsAdmin = d;
+    renderSeuilsAdmin();
+  } catch (_) { host.innerHTML = '<p class="help-empty">Seuils illisibles pour le moment.</p>'; }
+}
+function renderSeuilsAdmin() {
+  const host = $('#cheminSeuils'); const d = _seuilsAdmin; if (!host || !d) return;
+  const lignes = [...(d.lignes || [])].sort((a, b) => a.seuil - b.seuil);
+  host.innerHTML =
+    '<div class="dbl-head"><h3 class="dbl-title">Seuils de déblocage</h3>'
+    + '<span class="dbl-n">' + lignes.length + ' lignes</span></div>'
+    + '<p class="dbl-sous">Ajuste un seuil et enregistre : c\'est actif immédiatement, sans redéploiement. '
+    + 'Plafond atteignable : <b>' + d.plafondAbsolu + ' PUNCH</b> — un seuil au-dessus ne tomberait jamais.</p>'
+    + '<div class="dbl-liste">' + lignes.map((l, i) =>
+      '<label class="dbl-l"><i class="dbl-b dbl-b-' + l.type + '">' + (DBL_TYPE[l.type] || l.type) + '</i>'
+      + '<span class="dbl-nom">' + escapeHtml(l.nom || l.ref || '') + '</span>'
+      + '<input type="number" min="1" max="' + d.plafondAbsolu + '" step="5" value="' + l.seuil + '" data-i="' + i + '" class="dbl-in">'
+      + '<span class="dbl-u">PUNCH</span></label>').join('') + '</div>'
+    + '<div class="dbl-foot"><button type="button" class="btn btn-primary" id="dblSave">Enregistrer les seuils</button>'
+    + '<button type="button" class="btn btn-outline" id="dblReset">Revenir aux valeurs d\'origine</button></div>'
+    + '<div id="dblMsg" class="cia-msg"></div>';
+  host._lignes = lignes;
+  $('#dblSave').addEventListener('click', enregistrerSeuilsAdmin);
+  $('#dblReset').addEventListener('click', resetSeuilsAdmin);
+}
+async function enregistrerSeuilsAdmin() {
+  const host = $('#cheminSeuils'); const msg = $('#dblMsg'); const btn = $('#dblSave');
+  const lignes = (host && host._lignes) || []; if (!lignes.length) return;
+  host.querySelectorAll('.dbl-in').forEach((inp) => { lignes[Number(inp.dataset.i)].seuil = Number(inp.value); });
+  // ⚠️ On vérifie ICI ce que le serveur refusera de toute façon : deux lignes de
+  // même type au même seuil. Autant le dire avant l'aller-retour, en désignant
+  // les coupables — un message serveur générique ne dit pas OÙ regarder.
+  const vus = new Map(); const dup = [];
+  lignes.forEach((l) => {
+    const cle = l.seuil + ':' + (DBL_TYPE[l.type] || l.type);
+    if (vus.has(cle)) dup.push((l.nom || l.type) + ' et ' + vus.get(cle) + ' à ' + l.seuil);
+    else vus.set(cle, l.nom || l.type);
+  });
+  if (dup.length) { if (msg) { msg.className = 'cia-msg ko'; msg.textContent = 'Doublons — la seconde récompense ne tomberait jamais : ' + dup.join(', '); } return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+  try {
+    const r = await fetch(apiUrl('/api/admin/deblocages'), {
+      method: 'PUT', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ lignes }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Enregistrement impossible.');
+    if (msg) { msg.className = 'cia-msg ok'; msg.textContent = d.lignes + ' seuils enregistrés — actifs dès maintenant.'; }
+    chargerSeuilsAdmin();
+  } catch (e) {
+    if (msg) { msg.className = 'cia-msg ko'; msg.textContent = e.message || 'Enregistrement impossible.'; }
+  } finally { if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer les seuils'; } }
+}
+async function resetSeuilsAdmin() {
+  if (!confirm('Revenir aux seuils d\'origine ? Tes réglages seront perdus.')) return;
+  const msg = $('#dblMsg');
+  try {
+    const d = await (await fetch(apiUrl('/api/admin/deblocages/reset'), { method: 'POST', headers: nutriAuthHeaders() })).json();
+    if (!d.ok) throw new Error();
+    if (msg) { msg.className = 'cia-msg ok'; msg.textContent = 'Seuils d\'origine rétablis (' + d.lignes + ' lignes).'; }
+    chargerSeuilsAdmin();
+  } catch (_) { if (msg) { msg.className = 'cia-msg ko'; msg.textContent = 'Rétablissement impossible.'; } }
 }
 async function saveCheminFlag(mode) {
   const msg = $('#cheminMsg'); if (msg) msg.textContent = 'Enregistrement…';
@@ -10098,6 +10175,59 @@ function boutiqueCard(c) {
       '<span class="btq-seuil">' + c.seuil + ' Punch</span></span>' +
     '<span class="btq-right">' + etat + action + '</span></button>';
 }
+// ── TOUT CE QUI SE DÉBLOQUE ─────────────────────────────────────────────────
+// La liste COMPLÈTE, par seuil croissant, verrouillés compris. On ne masque
+// jamais un verrouillé : voir ce qui attend est le moteur de motivation — une
+// liste qui ne montrerait que l'acquis ne donnerait envie de rien.
+const RECOMP_TYPE = {
+  gift: { badge: 'Cadeau', ic: '🎁' },
+  avatar: { badge: 'Accessoire', ic: '🧢' },
+  ebook: { badge: 'Guide', ic: '📗' },
+  video: { badge: 'Vidéo', ic: '🎬' },
+};
+function recompensesListeHTML(st) {
+  const rec = (st && st.recompenses) || [];
+  if (!rec.length) return '';
+  const punch = (st.stats && st.stats.punch) || 0;
+  // Le prochain : le premier verrouillé de la liste (elle est triée par seuil).
+  const prochain = rec.find((r) => r.etat === 'verrouille');
+  const acquis = rec.filter((r) => r.etat !== 'verrouille').length;
+
+  let tete = '<div class="rcp-head"><h3 class="rcp-title">Tout ce que tu peux débloquer</h3>'
+    + '<span class="rcp-compte">' + acquis + '<i>/' + rec.length + '</i></span></div>';
+  if (prochain) {
+    // ⚠️ La barre part du seuil PRÉCÉDENT, pas de zéro : sinon elle est déjà à
+    // 95 % en fin de parcours et ne bouge plus jamais — elle ne dirait rien.
+    const avant = [...rec].reverse().find((r) => r.seuil < prochain.seuil);
+    const base = avant ? avant.seuil : 0;
+    const pct = Math.max(0, Math.min(100, Math.round(((punch - base) / Math.max(1, prochain.seuil - base)) * 100)));
+    const t = RECOMP_TYPE[prochain.type] || { badge: 'Récompense', ic: '⭐' };
+    tete += '<div class="rcp-next"><p class="rcp-next-k">Prochaine récompense</p>'
+      + '<div class="rcp-next-r"><span class="rcp-next-ic">' + (prochain.icon || t.ic) + '</span>'
+      + '<b class="rcp-next-n">' + escapeHtml(prochain.nom || prochain.label) + '</b>'
+      + '<span class="rcp-next-x">Encore ' + prochain.restant + ' PUNCH</span></div>'
+      + '<div class="rcp-bar"><span style="width:' + pct + '%"></span></div></div>';
+  }
+  const lignes = rec.map((r) => {
+    const t = RECOMP_TYPE[r.type] || { badge: 'Récompense', ic: '⭐' };
+    const etat = r.etat === 'obtenu'
+      ? '<span class="rcp-etat ok">' + (r.type === 'avatar' ? 'Équipé' : 'Obtenu') + '</span>'
+      : r.etat === 'debloque'
+        ? '<span class="rcp-etat on">Débloqué</span>'
+        // ⚠️ TOUJOURS l'unité, jamais un nombre nu : « Encore 40 » ne veut rien dire.
+        : '<span class="rcp-etat off">Encore ' + r.restant + ' PUNCH</span>';
+    return '<li class="rcp-l is-' + r.etat + (prochain && r === prochain ? ' is-next' : '') + '">'
+      + '<span class="rcp-ic">' + (r.icon || t.ic) + '</span>'
+      // Le nom de la table quand il existe (« Guide 3 ») : sans lui, 22 lignes
+      // « Un nouveau guide » se ressemblent toutes et la liste devient illisible.
+      + '<span class="rcp-x"><b class="rcp-n">' + escapeHtml(r.nom || r.label) + '</b>'
+      + '<span class="rcp-m"><i class="rcp-b rcp-b-' + r.type + '">' + t.badge + '</i>'
+      + '<i class="rcp-s">' + r.seuil + ' PUNCH</i></span></span>'
+      + etat + '</li>';
+  }).join('');
+  return '<section class="rcp">' + tete + '<ul class="rcp-liste">' + lignes + '</ul></section>';
+}
+
 async function renderBoutiqueView() {
   const host = $('#view-boutique'); if (!host) return;
   host.innerHTML = '<div class="btq-head">' + brandMark() + '<h2 class="btq-title">🎁 Mes cadeaux</h2></div><p class="panel-sub">Chargement…</p>';
@@ -10105,8 +10235,17 @@ async function renderBoutiqueView() {
     const d = await (await fetch(apiUrl('/api/gifts'), { headers: nutriAuthHeaders() })).json();
     if (!d.ok) throw new Error();
     _boutique = d;
+    // L'état du Chemin porte la liste complète des récompenses. On le relit pour
+    // ne pas afficher un état figé au chargement de l'app.
+    let stCh = state.challenge;
+    try {
+      const r = await fetch(apiUrl('/api/challenge/state'), { headers: nutriAuthHeaders() });
+      const dc = await r.json();
+      if (dc && dc.ok && dc.state) { appliquerEtatChallenge(dc.state); stCh = state.challenge; }
+    } catch (_) { /* hors ligne : on garde ce qu'on a déjà */ }
     host.innerHTML = boutiqueHead(d) + '<div class="btq-grid">' + (d.cadeaux || []).map(boutiqueCard).join('') + '</div>' +
-      '<p class="btq-foot">Les cadeaux à retirer se présentent à ton coach, au studio.</p>';
+      '<p class="btq-foot">Les cadeaux à retirer se présentent à ton coach, au studio.</p>' +
+      recompensesListeHTML(stCh);
     host.querySelectorAll('.btq-card').forEach((b) => b.addEventListener('click', () => ouvrirCadeau(b.dataset.id)));
     // Le liseré a joué son rôle dès que la liste est à l'écran : on le consomme.
     // ⚠️ Après un délai, pas immédiatement : effacé à la seconde où l'on peint,
