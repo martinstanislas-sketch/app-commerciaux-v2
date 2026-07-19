@@ -4936,9 +4936,14 @@ async function renderChallenge() {
 // continue. Toucher ASC_STEP sans revoir les diamètres des bulles (--asc-dot*)
 // est le moyen le plus sûr de faire se chevaucher deux étapes : l'écart
 // bord-à-bord vaut ASC_STEP moins un rayon de chaque côté.
+// ⚠️ ASC_STEP est repassé de 90 à 140 px : à 90, avec des bulles de 74, l'écart
+// bord-à-bord tombait à 16 px — un chapelet serré, sans air autour de l'étape du
+// jour. À 140 on retrouve 5 à 7 étapes par écran (la densité visée), au prix
+// d'une page ~50 % plus longue. C'est un arbitrage, pas un réglage libre : le
+// remonter resserre les bulles, le baisser dilue le parcours.
 const ASC_AMP = 12;      // amplitude du serpentin, en % de la largeur de la carte
-const ASC_STEP = 90;     // distance verticale entre deux étapes (px)
-const ASC_PAD = 44;      // respiration en haut et en bas de chaque chapitre (px)
+const ASC_STEP = 140;    // distance verticale entre deux étapes (px)
+const ASC_PAD = 52;      // respiration en haut et en bas de chaque chapitre (px)
 // L'air SOUS une étape qui porte une CARTE. Sur mobile la carte se pose sous la
 // bulle (il n'y a pas la place à côté) : il lui faut sa hauteur. Sur desktop la
 // carte est à côté, et cette même air devient la respiration qu'un jalon mérite.
@@ -5439,10 +5444,23 @@ function ascChapitreHTML(week, nodes, iOffset, st, nbSemaines, next, ctx, ecartG
     ${ascWeekCardHTML(week, nodes, st, nbSemaines, etat)}
     <div class="asc-ch-map" style="height:${h}px">
       <svg class="asc-trail" viewBox="0 0 100 ${h}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <defs>
+          <!-- Le dégradé du parcouru : clair en haut, profond en bas. En
+               userSpaceOnUse il suit la HAUTEUR du chapitre, pas la boîte du
+               tracé — deux chapitres ont donc la même lumière au même endroit.
+               ⚠️ Les couleurs sont posées par CSS (.asc-g0/.asc-g1) et non en
+               attribut : un var() dans un attribut de présentation SVG n'est pas
+               lu par tous les WebView. -->
+          <linearGradient id="ascg-${week}" x1="0" y1="0" x2="0" y2="${h}" gradientUnits="userSpaceOnUse">
+            <stop class="asc-g0" offset="0" /><stop class="asc-g1" offset="1" />
+          </linearGradient>
+        </defs>
         <path class="asc-trail-bg" d="${d}" />
         ${dLien ? `<path class="asc-trail-bg asc-lien" d="${dLien}" />` : ''}
-        ${dFait ? `<path class="asc-trail-fill" d="${dFait}" />` : ''}
-        ${dLien && lienFait ? `<path class="asc-trail-fill asc-lien" d="${dLien}" />` : ''}
+        ${dFait ? `<path class="asc-trail-halo" d="${dFait}" />` : ''}
+        ${dFait ? `<path class="asc-trail-fill" d="${dFait}" stroke="url(#ascg-${week})" />` : ''}
+        ${dLien && lienFait ? `<path class="asc-trail-halo asc-lien" d="${dLien}" />` : ''}
+        ${dLien && lienFait ? `<path class="asc-trail-fill asc-lien" d="${dLien}" stroke="url(#ascg-${week})" />` : ''}
         <path class="asc-trail-dots" d="${d}" />
         ${dLien ? `<path class="asc-trail-dots asc-lien" d="${dLien}" />` : ''}
       </svg>
