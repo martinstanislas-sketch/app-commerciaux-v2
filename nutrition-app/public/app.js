@@ -5378,11 +5378,7 @@ function ascCalerAvatar() {
   const A = window.MCAvatar;
   if (!A) { _ascAvatarSVG = ''; return; }
   const email = (window.__NUTRI_USER && window.__NUTRI_USER.email) || '';
-  // La silhouette athlétique en pied ne vaut que pour un corps d'homme : le
-  // sexe vient du QUESTIONNAIRE, pas d'un réglage de plus dans l'éditeur.
-  // Femme / autre / non renseigné gardent le rendu d'origine (à retravailler).
-  const sexe = (state.profil && state.profil.sexe) || '';
-  _ascAvatarSVG = A.rendreSVG(cfg || A.configParDefaut(email), { alt: '', corps: 'entier', sexe });
+  _ascAvatarSVG = A.rendreSVG(cfg || A.configParDefaut(email), { alt: '', corps: 'entier' });
   // Variante BUSTE pour le curseur de la barre de progression : en pied il
   // mesurerait 42 px pour ~17 px de dégagement au-dessus de la barre — il
   // recouvrirait le titre. Le rond, lui, se pose dessus sans rien mordre.
