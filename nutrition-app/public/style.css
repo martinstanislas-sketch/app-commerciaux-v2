@@ -3373,12 +3373,18 @@ body.is-demo #navRestart { display: none !important; }
 .asc-avw-cg { left: calc(38% - var(--asc-av-mi)); }
 /* L'ombre au sol : c'est elle qui le POSE sur le sentier. Sans elle, il flotte
    au-dessus du chemin quelle que soit la qualité du reste. */
-.asc-av-sol { position: absolute; left: 50%; bottom: -3px; transform: translateX(-50%); width: 74%; height: 11px; border-radius: 50%; background: rgba(16, 24, 40, .24); filter: blur(4px); }
+/* L'ombre est POSÉE SOUS LES PIEDS, pas étalée sous tout le personnage : large
+   et floue, elle le faisait flotter au-dessus du sentier. Courte et resserrée,
+   elle l'y ancre. */
+/* ⚠️ Le bas du viewBox n'est PAS la semelle : les pieds s'arrêtent à 168 sur
+   176, il reste 4,5 % de vide dessous. D'où le décalage en pourcentage — collée
+   à `bottom: 0`, l'ombre se posait un cran trop bas et il flottait à nouveau. */
+.asc-av-sol { position: absolute; left: 50%; bottom: 3.4%; transform: translateX(-50%); width: 46%; height: 6px; border-radius: 50%; background: rgba(16, 24, 40, .3); filter: blur(2.5px); }
 /* Aucun cadre, aucun disque : c'est une SILHOUETTE posée sur le chemin. Le
    relief vient d'une ombre portée qui épouse la forme (drop-shadow, pas
    box-shadow — box-shadow suit la boîte rectangulaire, pas le personnage). */
 .asc-av { position: relative; display: block; width: 100%; height: 100%;
-  filter: drop-shadow(0 6px 10px rgba(16, 24, 40, .28)); }
+  filter: drop-shadow(0 3px 5px rgba(16, 24, 40, .22)); }
 /* Il regarde vers l'étape du jour : miroir discret quand elle est à sa gauche.
    L'inclinaison, elle, se voit — c'est ce qui dit le mouvement. */
 .asc-avw-g .asc-av { transform: scaleX(-1); }

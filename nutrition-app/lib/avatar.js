@@ -329,73 +329,182 @@
   // règle unique qui donne du volume. Chaque membre a donc sa face claire et sa
   // face à l'ombre, du même côté sur toute la silhouette.
   const OMBRE = 'rgba(15,20,30,.16)';
+  // DEUX NUANCES par vêtement, jamais une teinte en dur : un voile sombre sur la
+  // face droite, une arête claire sur l'épaule gauche. Posées en OVERLAY, elles
+  // marchent sur les quatre tenues sans avoir à calculer six couleurs.
+  const VET_OMBRE = 'rgba(8,14,26,.17)';
+  const VET_LUM = 'rgba(255,255,255,.14)';
 
-  function membresPath(peau, tenueC, uid) {
+  // ── Silhouette en pied : les proportions ──────────────────────────────────
+  // La tête rapetisse de 12 % (cf. TETE_ECHELLE) et le torse s'allonge d'autant
+  // — un personnage à grosse tête lit « mascotte », pas « athlète ».
+  // ⚠️ Le buste des vignettes rondes garde EXACTEMENT sa coupe d'origine : tout
+  // ce qui suit ne sert qu'au mode `corps: 'entier'`.
+  const TETE_ECHELLE = 0.88;
+  // Le mouvement, et non la pose de face au garde-à-vous : le corps penche
+  // légèrement dans le sens de la marche, la tête se redresse à contresens.
+  // Deux degrés suffisent — au-delà, il tombe.
+  const INCLINAISON = -2;
+  const TETE_REDRESSE = 3;
+
+  // ── DEUX MORPHOLOGIES, UN SEUL CODE DE RENDU ─────────────────────────────
+  // Seules les MESURES changent d'une silhouette à l'autre : même assemblage,
+  // mêmes nuances, mêmes accessoires. Ajouter une troisième morphologie un jour
+  // = ajouter une entrée ici, rien d'autre.
+  //
+  //  homme — épaules larges (52 à y=90), taille resserrée (34 à y=112) : le V.
+  //  femme — carrure adoucie (44), taille MARQUÉE (30 à y=108) et hanches
+  //          reprises (36 à y=118) : le sablier. Sportive et adulte, pas
+  //          filiforme — l'écart taille/hanches fait le travail, sans caricature.
+  //
+  // Bras et jambes sont des TRAITS (stroke) et non des polygones : l'épaisseur
+  // est constante du biceps au poignet, le coude s'arrondit tout seul, et un
+  // coude se déplace en changeant UN point.
+  // Membres décalés (un devant, un derrière) : une silhouette rigoureusement
+  // symétrique est à l'arrêt, quoi qu'on fasse d'autre.
+  const MORPHO = {
+    homme: {
+      torse: 'M39 72C29 74 22 80 22 90c0 9 7 14 9 22l1 8h32l1-8c2-8 9-13 9-22 0-10-7-16-17-18z',
+      bassin: 'M32 116h32v10c0 5-4 8-9 8H41c-5 0-9-3-9-8z',
+      bassinOmbre: 'M48 116h16v10c0 5-4 8-9 8h-7z',
+      brasG: 'M28 88 L19 105 L27.5 115', brasD: 'M68 88 L77 103 L69.5 118',
+      poingG: [27.5, 115], poingD: [69.5, 118], brasW: 9.6, poingR: 5.4,
+      mancheG: 'M28 88 L24.5 98', mancheD: 'M68 88 L71.5 97', mancheW: 11.4,
+      jambeAv: 'M40 128 L38 144 L36 156', jambeAr: 'M57 128 L59 146 L60 158', jambeW: 14,
+      piedAv: 0, piedAr: 0, logoX: 33.5, voileX: 52,
+      epaule: 'M39 70c-11 3-18 10-18 21l6 1c1-9 6-15 14-17z',
+    },
+    femme: {
+      torse: 'M39 72C31 74 26 80 26 90c0 8 6 12 7 18l-3 10h36l-3-10c1-6 7-10 7-18 0-10-5-16-13-18z',
+      bassin: 'M30 114h36v11c0 5-4 8-9 8H39c-5 0-9-3-9-8z',
+      bassinOmbre: 'M48 114h18v11c0 5-4 8-9 8h-9z',
+      brasG: 'M31 88 L23 105 L30.5 115', brasD: 'M65 88 L73 103 L66 117',
+      poingG: [30.5, 115], poingD: [66, 117], brasW: 8.6, poingR: 4.9,
+      mancheG: 'M31 88 L27.5 97', mancheD: 'M65 88 L68.5 96', mancheW: 10.4,
+      jambeAv: 'M41 129 L39 144 L37 156', jambeAr: 'M56 129 L58 146 L59 158', jambeW: 12.6,
+      piedAv: 1, piedAr: -1, logoX: 34.5, voileX: 50,
+      epaule: 'M39 70c-9 3-15 10-15 21l6 1c1-9 5-15 12-17z',
+    },
+  };
+
+  // Le membre et son volume : la forme pleine, puis la MÊME forme décalée d'un
+  // cheveu vers le haut-gauche et repeinte en clair. Ce qui dépasse en bas à
+  // droite devient la face à l'ombre — un seul tracé donne les deux faces.
+  function membre(d, w, clair, sombre) {
+    const trait = (col, dx, dy, lw) => `<path d="${d}"${dx || dy ? ` transform="translate(${dx} ${dy})"` : ''} fill="none" stroke="${col}" stroke-width="${lw}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    return trait(sombre, 0, 0, w) + trait(clair, -1.1, -0.7, w - 1.4);
+  }
+
+  // ── SILHOUETTE D'ORIGINE ─────────────────────────────────────────────────
+  // ⚠️ TEMPORAIRE. La refonte athlétique (épaules larges, taille resserrée,
+  // torse long) ne vaut QUE pour un corps d'homme : appliquée à une cliente,
+  // elle donne un homme en perruque. Tant que la variante féminine n'est pas
+  // dessinée, `sexe: 'femme'` et « autre » gardent EXACTEMENT le rendu qu'ils
+  // avaient avant la refonte — reproduit ici tel quel, sans une virgule de
+  // changement. Ces trois fonctions disparaîtront le jour où la silhouette
+  // féminine existera.
+  function membresPathOrigine(peau, tenueC) {
     return [
-      // ── Bras. Galbés, pas des barres : ils s'affinent au coude puis au
-      // poignet, et la main est une forme à part — sans elle, le bras se
-      // termine en tuyau coupé.
-      // Le bras DROIT (à gauche de l'image) part légèrement en avant, le gauche
-      // en arrière : c'est le balancier de la marche. Une silhouette
-      // rigoureusement symétrique est à l'arrêt, quoi qu'on fasse d'autre.
       `<path d="M29 82c-5 3-7 7-7 11l-1 17c0 2 1 4 3 4s4-2 4-4l2-16z" fill="${peau.c}"/>`,
       `<circle cx="24.5" cy="116" r="4.2" fill="${peau.c}"/>`,
       `<path d="M67 82c5 3 7 7 7 11l2 15c0 2-1 4-3 4s-4-2-4-4l-2-14z" fill="${peau.c}"/>`,
       `<circle cx="72.5" cy="113" r="4.2" fill="${peau.c}"/>`,
-      // Leur face à l'ombre : une lisière sur le bord droit de chaque bras.
       `<path d="M27 84c2 2 3 5 3 8l-2 16-2 1 2-17c0-3-1-6-2-8z" fill="${OMBRE}"/>`,
       `<path d="M72 86c1 2 2 5 2 7l2 15-2 1-2-16c0-2-1-5-2-7z" fill="${OMBRE}"/>`,
-
-      // ── Bassin, puis les jambes. Elles se resserrent au genou et s'écartent
-      // légèrement à la cheville — la jambe avant plus fléchie que l'autre.
       `<path d="M34 94h28v17c0 5-3 8-8 8H42c-5 0-8-3-8-8z" fill="${JAMBE}"/>`,
       `<path d="M48 94h14v17c0 5-3 8-8 8h-6z" fill="${JAMBE_O}"/>`,
-      // Jambe avant (celle qui avance) : la cuisse descend, le tibia repart un
-      // peu vers l'avant.
       `<path d="M37 113h10l-1 22-1 20c0 3-2 4-4.5 4S36 158 36 155l1-20z" fill="${JAMBE}"/>`,
-      // Jambe arrière : plus droite, et dans l'ombre de la première.
       `<path d="M51 113h10l1 21v24c0 3-2 4-4.5 4S53 161 53 158l-1-24z" fill="${JAMBE_O}"/>`,
       `<path d="M44 113h3l-1 22-1 20h-3l1-20z" fill="${OMBRE}"/>`,
-
-      // ── Chaussures. Semelle claire + tige colorée : c'est le détail qui les
-      // fait lire comme des baskets et non comme des chaussons.
       `<path d="M34 152h11c1.5 0 2.5 1 2.5 2.5v5c0 1.5-1 2.5-2.5 2.5H33c-1.5 0-2.5-1-2.5-2.5v-2c0-2 1-3.5 2.5-4.5z" fill="${tenueC}"/>`,
       `<path d="M30.5 159h17v2c0 1.5-1 2.5-2.5 2.5H33c-1.5 0-2.5-1-2.5-2.5z" fill="#F2F0EA"/>`,
       `<path d="M50 156h11c1.5 0 2.5 1 2.5 2.5v5c0 1.5-1 2.5-2.5 2.5H49c-1.5 0-2.5-1-2.5-2.5v-2c0-2 1-3.5 2.5-4.5z" fill="${tenueC}"/>`,
       `<path d="M46.5 163h17v2c0 1.5-1 2.5-2.5 2.5H49c-1.5 0-2.5-1-2.5-2.5z" fill="#F2F0EA"/>`,
     ].join('');
   }
-
-  // Le volume du TORSE et du COU, posé PAR-DESSUS le vêtement — donc après lui.
-  // ⚠️ En surcouche, et non dans tenuePath : ce dernier sert aussi au buste des
-  // vignettes rondes, qu'on ne touche pas. Le mode en pied ajoute, il ne
-  // réécrit rien.
-  // Les MANCHES. Sans elles, tout le monde a les bras nus, y compris en sweat :
-  // le vêtement s'arrêtait à l'épaule parce que le buste n'avait pas de bras.
-  // Elles se posent APRÈS le torse, donc par-dessus le haut du bras.
-  function manchesPath(tenue, c) {
-    if (tenue === 'debardeur') return ''; // un débardeur n'a pas de manche, c'est le propos
+  function manchesPathOrigine(tenue, c) {
+    if (tenue === 'debardeur') return '';
     if (tenue === 'hoodie') {
-      // Manches longues jusqu'au poignet — le sweat est le seul vêtement couvrant.
       return `<path d="M29 82c-5 3-7 7-7 11l-1 15h9l2-15z" fill="${c}"/>`
         + `<path d="M67 82c5 3 7 7 7 11l2 13h-9l-2-13z" fill="${c}"/>`;
     }
-    // T-shirt et polo : manches courtes, coupées à mi-biceps.
     return `<path d="M29 82c-4 2-6 5-6.5 9l-.5 5h9l1.5-9z" fill="${c}"/>`
       + `<path d="M67 82c4 2 6 5 6.5 9l.5 4h-9l-1.5-8z" fill="${c}"/>`;
   }
 
-  function volumeTorsePath(peau) {
+  function membresPath(peau, tenueC, m) {
+    const poing = ([x, y], r) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${peau.c}"/>`
+      + `<path d="M${x} ${y}a${r} ${r} 0 0 0 ${r} ${r} ${r} ${r} 0 0 1-${r}-${r}z" fill="${peau.ombre}"/>`;
+    // Une basket = tige colorée + arête de volume + semelle claire débordante.
+    // `dx` la décale avec sa jambe : les pieds suivent les jambes, toujours.
+    const basket = (x, y, dx, volume) => {
+      const g = (v) => (v + dx).toFixed(1);
+      return `<path d="M${g(x)} ${y}h9c7 0 12 3 13 7 .4 2-.8 3.4-2.8 3.4H${g(x)}c-2.2 0-3.6-1.4-3.6-3.4v-3.6c0-2 1.4-3.4 3.6-3.4z" fill="${tenueC}"/>`
+        + `<path d="M${g(x)} ${y}h5v10.4h-5c-2.2 0-3.6-1.4-3.6-3.4v-3.6c0-2 1.4-3.4 3.6-3.4z" fill="${volume}"/>`
+        + `<path d="M${g(x - 3.6)} ${y + 7.4}h25.8c.3 1.6-.9 3-2.9 3H${g(x)}c-2.2 0-3.6-1.4-3.6-3z" fill="#F2F0EA"/>`;
+    };
     return [
-      // L'ombre portée du menton sur le cou, puis du cou sur le col.
-      `<path d="M42 68h12v5c0 2-3 3-6 3s-6-1-6-3z" fill="${peau.ombre}" opacity=".55"/>`,
-      // ⚠️ PAS d'ombre sur le vêtement lui-même : elle n'est pas détourable sur
-      // sa silhouette (chaque tenue a la sienne, et tenuePath sert aussi au
-      // buste des vignettes rondes, qu'on ne touche pas). Large, elle débordait
-      // en bloc carré à côté du vêtement ; resserrée pour tenir dans la coupe la
-      // plus étroite, elle se lisait comme une tache. Le volume vient des
-      // membres et des manches, qui, eux, sont détourés.
+      // ── Bras fléchis, poings fermés au bout (le Punch, c'est 👊).
+      membre(m.brasG, m.brasW, peau.c, peau.ombre),
+      membre(m.brasD, m.brasW, peau.c, peau.ombre),
+      poing(m.poingG, m.poingR),
+      poing(m.poingD, m.poingR),
+
+      // ── Bassin puis jambes, épaissies. C'est ce qui porte la silhouette :
+      // des jambes fines sous le haut du corps donnent une toupie.
+      `<path d="${m.bassin}" fill="${JAMBE}"/>`,
+      `<path d="${m.bassinOmbre}" fill="${JAMBE_O}"/>`,
+      membre(m.jambeAv, m.jambeW, JAMBE, JAMBE_O),
+      membre(m.jambeAr, m.jambeW, JAMBE_O, '#1B2230'),
+
+      // ── Baskets. Plus hautes et plus longues que des chaussons.
+      basket(28, 155, m.piedAv, VET_LUM),
+      basket(51, 158, m.piedAr, VET_OMBRE),
     ].join('');
+  }
+
+  // Le TORSE du mode en pied : sa propre silhouette, plus longue et taillée en V.
+  // ⚠️ Il ne remplace pas tenuePath, il s'y substitue POUR CE MODE : tenuePath
+  // sert aussi au buste des vignettes rondes, qu'on ne touche pas.
+  // Les deux nuances sont posées dans un clip-path calé sur la silhouette : elles
+  // ne peuvent pas déborder, quelle que soit la tenue.
+  function torseEnPiedPath(tenue, c, uid, m) {
+    const det = {
+      hoodie: `<path d="M40 73c3 6 13 6 16 0" stroke="rgba(255,255,255,.22)" stroke-width="2" fill="none"/><path d="M46 76v9M50 76v9" stroke="rgba(255,255,255,.3)" stroke-width="1.4" stroke-linecap="round"/>`,
+      polo: `<path d="M44 73l4 7 4-7" stroke="rgba(255,255,255,.4)" stroke-width="1.8" fill="none"/>`,
+      debardeur: `<path d="M35 84c3-6 6-9 6-12M61 84c-3-6-6-9-6-12" stroke="rgba(0,0,0,.13)" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+    }[tenue] || '';
+    return `<clipPath id="${uid}-t"><path d="${m.torse}"/></clipPath>`
+      + `<path d="${m.torse}" fill="${c}"/>`
+      + `<g clip-path="url(#${uid}-t)">`
+      // Nuance 1 : toute la face droite dans l'ombre. Nuance 2 : l'arête de
+      // l'épaule gauche, côté lumière.
+      + `<path d="M${m.voileX} 66h32v60H${m.voileX}z" fill="${VET_OMBRE}"/>`
+      + `<path d="${m.epaule}" fill="${VET_LUM}"/>`
+      + `</g>` + det
+      // Le logo My Coach : une tuile claire posée sur le pectoral gauche, assez
+      // petite pour rester un détail — c'est un maillot d'équipe, pas un panneau.
+      + `<rect x="${m.logoX}" y="93" width="9.2" height="9.2" rx="2.8" fill="#F7F8FA" opacity=".95"/>`
+      + `<text x="${m.logoX + 4.6}" y="100" text-anchor="middle" font-family="system-ui,-apple-system,Segoe UI,sans-serif" font-size="5.6" font-weight="700" fill="#2563EB">MC</text>`;
+  }
+
+  // Les MANCHES, posées APRÈS le torse donc par-dessus le haut du bras. Elles
+  // suivent le tracé fléchi du bras : même chemin, trait plus épais.
+  function manchesPath(tenue, c, m) {
+    if (tenue === 'debardeur') return ''; // un débardeur n'a pas de manche, c'est le propos
+    if (tenue === 'hoodie') {
+      // Manches longues jusqu'au poignet — le sweat est le seul vêtement couvrant.
+      return membre(m.brasG, m.mancheW, c, c) + membre(m.brasD, m.mancheW, c, c);
+    }
+    // T-shirt et polo : manches courtes, coupées à mi-biceps.
+    return membre(m.mancheG, m.mancheW, c, c) + membre(m.mancheD, m.mancheW, c, c);
+  }
+
+  function volumeTorsePath(peau, athletique) {
+    // L'ombre portée du menton sur le cou : le seul volume que le cou demande.
+    return athletique
+      ? `<path d="M43 70h10v5c0 2-2.5 3-5 3s-5-1-5-3z" fill="${peau.ombre}" opacity=".55"/>`
+      : `<path d="M42 68h12v5c0 2-3 3-6 3s-6-1-6-3z" fill="${peau.ombre}" opacity=".55"/>`;
   }
 
   // Construit le SVG complet. `taille` sert d'attribut width/height ; le viewBox
@@ -418,16 +527,26 @@
     // En pied, le disque de fond disparaît : le personnage se tient sur le
     // sentier, il n'est plus une pastille posée dessus.
     const enPied = o.corps === 'entier';
-    const corps = [
-      enPied ? '' : `<circle cx="48" cy="48" r="48" fill="${o.fond || '#EFF3FA'}"/>`,
-      arriere.map((a) => a.body).join(''),
-      enPied ? membresPath(peau, tenue.c, uid) : '',
-      // Cou puis tenue : le col recouvre proprement la base du cou.
-      `<path d="M42 68h12v14H42z" fill="${peau.ombre}"/>`,
-      tenuePath(c.tenue, tenue.c),
-      enPied ? manchesPath(c.tenue, tenue.c) : '',
-      enPied ? volumeTorsePath(peau) : '',
-      // Visage
+    // La morphologie vient du QUESTIONNAIRE (profil.sexe) — pas d'un réglage de
+    // plus à remplir dans l'éditeur.
+    // ⚠️ « Autre / je préfère ne pas dire » et le sexe non renseigné gardent le
+    // rendu D'ORIGINE, volontairement : ni le sablier ni le V ne conviennent à
+    // quelqu'un qui a justement refusé de trancher, et le repli du chargement
+    // (profil pas encore lu) ne doit imposer aucun corps.
+    const morpho = MORPHO[o.sexe] || null;
+    const athle = enPied && !!morpho;
+    const m = morpho || MORPHO.homme;
+
+    // La TÊTE et ce qui s'y accroche. En pied elle est mise à l'échelle et
+    // redressée d'un bloc — d'où la séparation d'avec le reste des accessoires.
+    // ⚠️ Le partage se fait par CATÉGORIE : une couronne ou des lunettes suivent
+    // la tête, une médaille ou un brassard restent sur le corps, aux coordonnées
+    // absolues où ils ont toujours été posés.
+    const catDe = (id) => (ACCESSOIRES.find((a) => a.id === id) || {}).categorie;
+    const accTete = athle ? accs.filter((_, i) => ['tete', 'visage'].includes(catDe(c.accessoires[i]))) : [];
+    const accCorps = athle ? accs.filter((_, i) => !['tete', 'visage', 'aura'].includes(catDe(c.accessoires[i]))) : devant;
+
+    const tete = [
       `<path d="${g.d}" fill="${peau.c}"/>`,
       `<ellipse cx="27" cy="54" rx="3" ry="4" fill="${peau.ombre}"/><ellipse cx="69" cy="54" rx="3" ry="4" fill="${peau.ombre}"/>`,
       cheveuxPath(c.coiffure, chev.c),
@@ -435,14 +554,33 @@
       yeuxPath(c.yeux),
       bouchePath(c.bouche),
       pilositePath(c.pilosite, chev.c),
-      devant.map((a) => a.body).join(''),
+      enPied ? accTete.map((a) => a.body).join('') : '',
     ].join('');
+    // Réduction autour du MENTON (48,78) : la tête rapetisse vers le haut, le
+    // cou et les épaules ne bougent pas d'un pixel.
+    const teteEnPied = `<g transform="rotate(${TETE_REDRESSE} 48 78) translate(48 78) scale(${TETE_ECHELLE}) translate(-48 -78)">${tete}</g>`;
+
+    const corps = [
+      enPied ? '' : `<circle cx="48" cy="48" r="48" fill="${o.fond || '#EFF3FA'}"/>`,
+      arriere.map((a) => a.body).join(''),
+      enPied ? (athle ? membresPath(peau, tenue.c, m) : membresPathOrigine(peau, tenue.c)) : '',
+      // Cou puis tenue : le col recouvre proprement la base du cou.
+      athle ? `<path d="M43 68h10v18H43z" fill="${peau.ombre}"/>` : `<path d="M42 68h12v14H42z" fill="${peau.ombre}"/>`,
+      athle ? torseEnPiedPath(c.tenue, tenue.c, uid, m) : tenuePath(c.tenue, tenue.c),
+      enPied ? (athle ? manchesPath(c.tenue, tenue.c, m) : manchesPathOrigine(c.tenue, tenue.c)) : '',
+      enPied ? volumeTorsePath(peau, athle) : '',
+      athle ? teteEnPied : tete,
+      accCorps.map((a) => a.body).join(''),
+    ].join('');
+    // Le personnage entier penche dans le sens de la marche. Pivot aux PIEDS :
+    // c'est une jambe qui pousse, pas un buste qui bascule dans le vide.
+    const scene = athle ? `<g transform="rotate(${INCLINAISON} 48 168)">${corps}</g>` : corps;
 
     const defs = accs.map((a) => a.defs).filter(Boolean).join('');
     const attrs = o.taille ? ` width="${o.taille}" height="${o.taille}"` : '';
     const vb = enPied ? `0 0 96 ${CORPS_H}` : '0 0 96 96';
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}"${attrs} role="img" aria-label="${o.alt || 'Avatar'}">`
-      + (defs ? '<defs>' + defs + '</defs>' : '') + corps + '</svg>';
+      + (defs ? '<defs>' + defs + '</defs>' : '') + scene + '</svg>';
   }
 
   // Empreinte de la config : sert d'identifiant de <defs> ET de jeton de cache
