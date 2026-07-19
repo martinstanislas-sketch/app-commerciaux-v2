@@ -31,7 +31,7 @@ const punchDe = (db, email) => db.prepare('SELECT punch FROM user_game_stats WHE
 // --- La config : source de vérité unique ------------------------------------
 test('seuils : AUCUN ne dépasse le maximum atteignable (4095)', () => {
   const max = Math.max(...tousLesSeuils().map((s) => s.seuil));
-  assert.equal(PUNCH_MAX_THEORIQUE, 4095, 'parcours 1180 + série 1215 + missions bonus 1700');
+  assert.equal(PUNCH_MAX_THEORIQUE, 4305, 'parcours 1180 + série 1215 + missions bonus 1700 + bonus séance 210');
   assert.ok(max <= PUNCH_MAX_THEORIQUE, `seuil ${max} inatteignable (> ${PUNCH_MAX_THEORIQUE})`);
   tousLesSeuils().forEach((s) => assert.ok(s.seuil > 0 && s.seuil <= PUNCH_MAX_THEORIQUE, `seuil ${s.seuil} hors bornes`));
 });
@@ -243,4 +243,42 @@ test('table : un rang absent laisse le contenu FERMÉ, jamais ouvert à tous', (
   assert.equal(P.seuilGuide(0), null);
   assert.equal(P.seuilVideo(null), null);
   assert.equal(P.seuilVideo('abc'), null);
+});
+
+// --- Le bonus de séance : aucune action sans récompense ----------------------
+test('bonus séance : crédité une fois par jour, et JAMAIS deux fois', () => {
+  const { engine, db, email } = makeEngine();
+  const P = require('../lib/challengePath');
+  engine.pathStatsRow(email);
+  const avant = punchDe(db, email);
+  const r1 = engine.awardSeanceBonus(email, '2026-07-01');
+  assert.ok(r1, 'la 1re séance du jour rapporte');
+  assert.equal(r1.punch, P.PUNCH_SEANCE_BONUS);
+  assert.equal(punchDe(db, email), avant + P.PUNCH_SEANCE_BONUS);
+  // ⚠️ LE garde-fou : la route séance est un TOGGLE. Décocher puis recocher ne
+  // doit rien rapporter, sinon le Punch se farme à l'infini.
+  assert.equal(engine.awardSeanceBonus(email, '2026-07-01'), null, 'même jour -> rien');
+  assert.equal(punchDe(db, email), avant + P.PUNCH_SEANCE_BONUS, 'le total n\'a pas bougé');
+  // Un autre jour, en revanche, rapporte de nouveau.
+  assert.ok(engine.awardSeanceBonus(email, '2026-07-02'));
+  assert.equal(punchDe(db, email), avant + 2 * P.PUNCH_SEANCE_BONUS);
+});
+
+test('bonus séance : il passe par addPunch, donc il peut faire tomber un seuil', () => {
+  const { engine, db, email } = makeEngine();
+  engine.pathStatsRow(email);
+  const premier = tousLesSeuils()[0];
+  engine.addPunch(email, premier.seuil - 3, 'amorce'); // juste sous le 1er seuil
+  const avant = engine.unlockedThresholds(email).size;
+  engine.awardSeanceBonus(email, '2026-07-03');        // +5 -> le seuil tombe
+  assert.ok(engine.unlockedThresholds(email).size > avant, 'le bonus déclenche bien les déblocages');
+});
+
+test('bonus séance : reste petit devant une étape du parcours', () => {
+  const P = require('../lib/challengePath');
+  assert.ok(P.PUNCH_SEANCE_BONUS > 0, 'un gain nul ne se fêterait pas');
+  assert.ok(P.PUNCH_SEANCE_BONUS < 25, 'le parcours doit rester la route principale (une étape séance vaut 25)');
+  // Le plafond déclaré doit couvrir ce que le bonus peut ajouter : 42 jours.
+  const { PUNCH_MAX_THEORIQUE } = require('../lib/punchSeuils');
+  assert.ok(PUNCH_MAX_THEORIQUE >= 4095 + 42 * P.PUNCH_SEANCE_BONUS, 'le plafond n\'intègre pas le bonus');
 });

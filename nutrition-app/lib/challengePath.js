@@ -29,6 +29,10 @@ const punchSeuils = require('./punchSeuils');
 const cadeaux = require('./cadeaux');
 
 const CHALLENGE_PATH_SEED_VERSION = 6;
+// Gain d'une séance qui ne valide aucune étape du parcours. Petit par choix :
+// une étape « séance » en vaut 25, celle-ci 5 — le parcours reste la route
+// principale. Plafond que ce bonus ajoute : 42 jours × 5 = 210 Punch.
+const PUNCH_SEANCE_BONUS = 5;
 /* À l'impératif, et court : le titre tient sur UNE ligne dans l'en-tête (« Je
    passe un cap » passait à la ligne et cassait la carte), et il s'adresse au
    client comme le ferait son coach. */
@@ -282,6 +286,18 @@ const CHALLENGE_SCHEMA_SQL = `
   -- moins 2 repas sur 3, quel que soit le statut (on récompense l'engagement, pas
   -- la perfection). La PK (email, jour) garantit l'idempotence : un jour ne peut
   -- alimenter la série qu'une seule fois.
+  -- Bonus « séance hors parcours » : une séance qui ne valide aucune étape
+  -- rapporte quand même un petit gain, pour qu'AUCUNE action ne reste sans
+  -- récompense. ⚠️ La route séance est un TOGGLE : sans cette table, décocher et
+  -- recocher rapporterait du Punch à l'infini. Une ligne par jour, à jamais —
+  -- retirer sa séance n'efface pas la ligne, donc rien ne se rejoue.
+  CREATE TABLE IF NOT EXISTS user_seance_bonus (
+    client_email TEXT NOT NULL,
+    date_ymd TEXT NOT NULL,
+    punch INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (client_email, date_ymd)
+  );
   CREATE TABLE IF NOT EXISTS user_day_wins (
     client_email TEXT NOT NULL,
     day_ymd TEXT NOT NULL,
@@ -480,6 +496,24 @@ function createChallengeEngine({ getDb }) {
       getDb().prepare("UPDATE user_game_stats SET punch = punch + ?, updated_at=datetime('now') WHERE client_email=?").run(gain, email);
       return evaluateUnlocks(email, source);
     } catch (e) { console.error('addPunch:', e && e.message); return []; }
+  }
+
+  // Une séance qui ne valide AUCUNE étape du parcours rapporte quand même un
+  // petit gain : c'est ce qui fait qu'aucune action ne reste sans récompense.
+  // ⚠️ Volontairement petit (PUNCH_SEANCE_BONUS) : le parcours doit rester la
+  // route principale, le bonus est un encouragement, pas un raccourci.
+  // ⚠️ Idempotent par la PK : une séance décochée puis recochée ne rapporte
+  // rien de plus. C'est LE garde-fou, la route étant un toggle.
+  function awardSeanceBonus(email, dateYmd) {
+    if (!pathFeatureEnabled()) return null;
+    try {
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(String(dateYmd || '')) ? dateYmd : pathParisYmd();
+      const ins = getDb().prepare('INSERT OR IGNORE INTO user_seance_bonus (client_email, date_ymd, punch, created_at) VALUES (?,?,?,?)')
+        .run(email, d, PUNCH_SEANCE_BONUS, new Date().toISOString());
+      if (ins.changes === 0) return null; // déjà crédité ce jour-là
+      addPunch(email, PUNCH_SEANCE_BONUS, 'seance_bonus:' + d); // point de passage unique
+      return { day: null, title: 'Séance validée', punch: PUNCH_SEANCE_BONUS, milestone: false, final: false, bonus: true };
+    } catch (e) { console.error('awardSeanceBonus:', e && e.message); return null; }
   }
 
   // Déblocages déjà acquis (clés « seuil:type »).
@@ -930,6 +964,7 @@ function createChallengeEngine({ getDb }) {
     pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds, punchProgression,
     assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier,
     missionsBonusListe, declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
+    awardSeanceBonus, PUNCH_SEANCE_BONUS,
   };
 }
 
@@ -949,3 +984,6 @@ module.exports.nodeAccepteEvent = nodeAccepteEvent;
 module.exports.punchPalier = punchPalier;
 module.exports.PALIERS_SERIE = PALIERS_SERIE;
 module.exports.FLOW_STEP_EVENT = FLOW_STEP_EVENT;
+// Exposé aussi sur le module (et pas seulement sur le moteur) : la valeur est
+// une CONSTANTE de règle, elle ne dépend d'aucune base.
+module.exports.PUNCH_SEANCE_BONUS = PUNCH_SEANCE_BONUS;

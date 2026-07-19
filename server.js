@@ -652,7 +652,7 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 
 // Chemin du challenge : moteur gamifié 42 jours (module dédié, testable).
 const {
-  ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds,
+  ensureChallengePathSchema, awardClientEvent, awardSeanceBonus, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds,
   assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier, punchProgression,
   declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
@@ -2181,6 +2181,11 @@ try {
       else {
         const info = getDb().prepare('INSERT INTO nutrition_parcours_seances (client_email, date, auteur_role, auteur_id, type, created_at) VALUES (?,?,?,?,?,?)').run(email, date, acc.role, acc.id, type, new Date().toISOString());
         reward = awardClientEvent(email, 'seance', info.lastInsertRowid); // valide UNIQUEMENT à l'ajout, jamais au retrait (toggle)
+        // Aucune étape validée (le parcours est séquentiel : l'étape en cours
+        // n'est pas toujours une séance) -> petit gain hors parcours, pour
+        // qu'AUCUNE action ne reste sans récompense. Jamais les deux : une
+        // action, une récompense.
+        if (!reward) reward = awardSeanceBonus(email, date);
       }
       const pourMoi = ((req.session && req.session.email) || '') === email; // cf. mensurations
       res.json({ ok: true, parcours: buildParcours(email), reward: pourMoi ? reward : null, state: pourMoi ? challengePublicState(email) : null });

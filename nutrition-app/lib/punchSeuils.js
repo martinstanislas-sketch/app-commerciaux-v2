@@ -17,7 +17,8 @@
 //  débité. Un déblocage s'obtient en ATTEIGNANT un seuil, et reste acquis —
 //  il n'y a pas d'achat, donc pas de solde qui redescend.
 //
-//  ⚠️ Plafond : 4095 Punch max (parcours 1180 + série 1215 + missions bonus 1700).
+//  ⚠️ Plafond : 4305 Punch max — parcours 1180 + série 1215 + missions bonus
+//  1700 + bonus de séance 210 (42 jours × 5, cf. PUNCH_SEANCE_BONUS).
 //  Un seuil au-dessus serait inatteignable -> PUNCH_MAX_THEORIQUE + un test le
 //  verrouillent.
 //
@@ -29,7 +30,7 @@
 
 const REFERENCE = require('./deblocages.json');
 
-const PUNCH_MAX_THEORIQUE = 4095;
+const PUNCH_MAX_THEORIQUE = 4305;
 
 // La table courante. Remplacée par la base au boot ; sinon c'est la référence.
 let TABLE = normaliser(REFERENCE.deblocages);
