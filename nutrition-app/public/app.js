@@ -4506,8 +4506,9 @@ function unlocksFetes() {
 function marquerUnlocksFetes(set) {
   try { localStorage.setItem(CELEB_VUES_KEY, JSON.stringify([...set].slice(-400))); } catch (_) { /* quota : tant pis */ }
 }
+// Renvoie TRUE si un déblocage a été mis en file (cf. encaisserRecompenses).
 function appliquerEtatChallenge(st) {
-  if (!st) return;
+  if (!st) return false;
   const apres = st.unlocks || [];
   state.challenge = st;
   const premiereFois = localStorage.getItem(CELEB_VUES_KEY) === null;
@@ -4515,15 +4516,17 @@ function appliquerEtatChallenge(st) {
   // Tout premier passage après cette mise à jour : on ADOPTE l'acquis sans le
   // fêter. Sinon un client à 1500 Punch ouvrirait l'app sur douze animations
   // d'affilée pour des récompenses vieilles de trois semaines.
-  if (premiereFois) { marquerUnlocksFetes(new Set(apres)); return; }
+  if (premiereFois) { marquerUnlocksFetes(new Set(apres)); return false; }
   // Le filet de la grande fin : si le parcours est bouclé et qu'elle n'a jamais
   // été jouée (réponse perdue, app fermée au mauvais moment), elle se joue ici.
-  if (finDeParcours(st) && peutFeterLaFin()) filerCeleb(NIVEAU.FINAL, (fin) => feterFinal(fin));
+  let fete = false;
+  if (finDeParcours(st) && peutFeterLaFin()) { filerCeleb(NIVEAU.FINAL, (fin) => feterFinal(fin)); fete = true; }
   const nouveaux = apres.filter((c) => !vus.has(c));
-  if (!nouveaux.length) return;
+  if (!nouveaux.length) return fete;
   nouveaux.forEach((c) => vus.add(c));
   marquerUnlocksFetes(vus);
   celebrerDeblocages(nouveaux, st);
+  return true;
 }
 
 // --- BILAN HEBDO : les CHIFFRES (déterministes, calculés par l'app) ----------
@@ -6499,10 +6502,16 @@ function rewardToast(r) {
 // déblocages qu'elle a fait tomber (guide, vidéo, cadeau, accessoire).
 // ⚠️ L'ordre d'empilement n'a pas d'importance : la file joue par intensité
 // croissante, donc le cadeau passera toujours après le micro-gain qui l'a causé.
+// ⚠️ Renvoie TRUE seulement si une animation a réellement été mise en file.
+// `d.state` est renvoyé à CHAQUE appel d'un client : le tester ne prouve rien.
+// Sans ce retour, l'appelant supprimait son propre message de confirmation au
+// profit d'une animation qui ne venait pas — et le client ne voyait plus rien.
 function encaisserRecompenses(d) {
-  if (!d) return;
-  if (d.reward) rewardToast(d.reward);
-  if (d.state) appliquerEtatChallenge(d.state);
+  if (!d) return false;
+  let fete = false;
+  if (d.reward) { rewardToast(d.reward); fete = true; }
+  if (d.state) fete = appliquerEtatChallenge(d.state) || fete;
+  return fete;
 }
 
 function renderParcours() {
@@ -6762,8 +6771,7 @@ async function saveMensuration(form) {
     const d = await res.json();
     if (d && d.ok) {
       state.parcours = d.parcours; renderParcours();
-      if (d.reward || d.state) encaisserRecompenses(d);
-      else showToast('Mensurations enregistrées 📏', { icon: 'check' });
+      if (!encaisserRecompenses(d)) showToast('Mensurations enregistrées 📏', { icon: 'check' });
       mcpathRetourApresAction();
     }
     else showToast((d && d.error) || 'Enregistrement impossible.', { icon: 'info' });
@@ -6817,8 +6825,10 @@ async function validerParcoursSeance(date) {
       const done = !!(d.parcours && (d.parcours.seances || []).includes(jour));
       // La victoire prime sur l'accusé de réception : quand l'étape est validée,
       // c'est l'animation qui parle, pas un bandeau « Séance enregistrée ».
-      if (d.reward || d.state) encaisserRecompenses(d);
-      else showToast(done ? 'Séance enregistrée 🔥' : 'Séance retirée', { icon: done ? 'check' : 'info' });
+      // ⚠️ Le repli n'est PAS conditionné à la présence de `state` (toujours là)
+      // mais à ce qui a été RÉELLEMENT fêté : une séance ne valide une étape que
+      // si l'étape en cours en est une. Les autres jours, il faut confirmer.
+      if (!encaisserRecompenses(d)) showToast(done ? 'Séance enregistrée 🔥' : 'Séance retirée', { icon: done ? 'check' : 'info' });
       if (done && jour === aujourdhui) setTimeout(() => { try { maybeShowPushBanner(); } catch (_) { /* ignore */ } }, 1200); // 1re séance = moment pertinent
     }
     else showToast((d && d.error) || 'Impossible.', { icon: 'info' });
@@ -6839,8 +6849,7 @@ async function uploadParcoursPhoto(jalon, type, file) {
     const d = await res.json();
     if (d && d.ok) {
       state.parcours = d.parcours; renderParcours();
-      if (d.reward || d.state) encaisserRecompenses(d);
-      else showToast('Photo ajoutée 📸', { icon: 'check' });
+      if (!encaisserRecompenses(d)) showToast('Photo ajoutée 📸', { icon: 'check' });
       mcpathRetourApresAction();
     }
     else showToast((d && d.error) || 'Ajout impossible.', { icon: 'info' });
