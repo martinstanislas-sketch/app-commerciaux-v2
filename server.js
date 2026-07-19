@@ -1017,8 +1017,11 @@ try {
       // Marque le guide comme lu -> le badge « Nouveau » disparaît ensuite.
       try { getDb().prepare('INSERT OR IGNORE INTO nutrition_ebook_reads (client_email, ebook_id, opened_at) VALUES (?,?,?)').run(email, id, new Date().toISOString()); } catch (_) { /* ignore */ }
       recordEbookOpen(email, id);            // log quotidien + streak (Chemin du challenge)
-      awardClientEvent(email, 'ebook', id);  // valide le nœud ebook actif le cas échéant
-      res.json({ ok: true, url: '/nutrition/api/ebooks/' + id + '/file?k=' + encodeURIComponent(signEbookToken(id, email)) });
+      // ⚠️ Le retour d'awardClientEvent est RENVOYÉ (il était jeté) : sans lui le
+      // client valide une étape, gagne son Punch et ne voit rien. `state` porte
+      // les déblocages (guide, vidéo, cadeau…) que l'étape vient de faire tomber.
+      const reward = awardClientEvent(email, 'ebook', id);
+      res.json({ ok: true, url: '/nutrition/api/ebooks/' + id + '/file?k=' + encodeURIComponent(signEbookToken(id, email)), reward, state: challengePublicState(email) });
     } catch (e) { res.status(500).json({ ok: false }); }
   });
   // « Je l'ai vu » — sans AUCUN effet de bord.
@@ -1511,11 +1514,13 @@ try {
       // étape « photo au groupe » (13) ; sinon c'est un post comme un autre (27, 34).
       // On tente la photo d'abord et on s'arrête au premier succès : un seul post ne
       // doit jamais valider deux étapes d'affilée.
+      let reward = null;
       if (!isCoach) {
-        let valide = photo.data ? awardClientEvent(email, 'groupe_photo', info.lastInsertRowid) : null;
-        if (!valide) awardClientEvent(email, 'groupe', info.lastInsertRowid);
+        reward = photo.data ? awardClientEvent(email, 'groupe_photo', info.lastInsertRowid) : null;
+        if (!reward) reward = awardClientEvent(email, 'groupe', info.lastInsertRowid);
       }
-      res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind, mine: true, reactions: {}, myReaction: null, photoId: photo.data ? info.lastInsertRowid : null } });
+      res.json({ ok: true, message: { id: info.lastInsertRowid, who: author, when: now, text: msg, kind, mine: true, reactions: {}, myReaction: null, photoId: photo.data ? info.lastInsertRowid : null },
+        reward, state: (!isCoach && email) ? challengePublicState(email) : null });
     } catch (e) {
       console.error('Erreur community/messages POST :', e);
       res.status(500).json({ ok: false, error: 'Publication impossible.' });
@@ -1819,8 +1824,9 @@ try {
       // Répondre à un membre EST un encouragement : ça valide l'étape 27, qui accepte
       // le post OU la réponse. Événement distinct de 'groupe' pour ne pas valider
       // « présente-toi au groupe » (0) ni « partage ta recette » (34) avec un commentaire.
-      if (!isCoach) awardClientEvent(email, 'groupe_reponse', info.lastInsertRowid);
-      res.json({ ok: true, comment: { id: info.lastInsertRowid, who: author, text, when: now, mine: true } });
+      const reward = isCoach ? null : awardClientEvent(email, 'groupe_reponse', info.lastInsertRowid);
+      res.json({ ok: true, comment: { id: info.lastInsertRowid, who: author, text, when: now, mine: true },
+        reward, state: (!isCoach && email) ? challengePublicState(email) : null });
     } catch (e) { console.error('community/comments POST :', e); res.status(500).json({ ok: false, error: 'Publication impossible.' }); }
   });
 
@@ -1991,8 +1997,12 @@ try {
       if (Object.values(m).every((v) => v == null)) return res.status(400).json({ ok: false, error: 'Renseigne au moins une mesure.' });
       getDb().prepare('INSERT INTO nutrition_parcours_mensurations (client_email, date, taille, hanches, poitrine, bras, cuisse, created_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(client_email, date) DO UPDATE SET taille=excluded.taille, hanches=excluded.hanches, poitrine=excluded.poitrine, bras=excluded.bras, cuisse=excluded.cuisse')
         .run(email, date, m.taille, m.hanches, m.poitrine, m.bras, m.cuisse, new Date().toISOString());
-      awardClientEvent(email, 'mensurations', date); // Chemin du challenge (inerte si flag OFF)
-      res.json({ ok: true, parcours: buildParcours(email) });
+      const reward = awardClientEvent(email, 'mensurations', date); // Chemin du challenge (inerte si flag OFF)
+      // ⚠️ `pourMoi` : coach et admin peuvent saisir POUR un client. La récompense
+      // appartient alors au client, pas à celui qui tape — sinon le coach voit
+      // l'animation de quelqu'un d'autre, et le client ne la voit jamais.
+      const pourMoi = ((req.session && req.session.email) || '') === email;
+      res.json({ ok: true, parcours: buildParcours(email), reward: pourMoi ? reward : null, state: pourMoi ? challengePublicState(email) : null });
     } catch (e) { console.error('mensuration POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
   // CLIENT : supprime une de ses entrées de mensurations.
@@ -2031,8 +2041,9 @@ try {
       const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? b.date : new Date().toISOString().slice(0, 10);
       getDb().prepare("INSERT INTO nutrition_parcours_pesees (client_email, type, poids, date, auteur_role, auteur_id, commentaire, updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(client_email, type) DO UPDATE SET poids = excluded.poids, date = excluded.date, auteur_role = excluded.auteur_role, auteur_id = excluded.auteur_id, commentaire = excluded.commentaire, updated_at = excluded.updated_at")
         .run(email, type, poids, date, acc.role, acc.id, commentaire, new Date().toISOString());
-      awardClientEvent(email, 'pesee', type); // valide le nœud pesée du client (même si saisie par le coach)
-      res.json({ ok: true, parcours: buildParcours(email) });
+      const reward = awardClientEvent(email, 'pesee', type); // valide le nœud pesée du client (même si saisie par le coach)
+      const pourMoi = ((req.session && req.session.email) || '') === email; // cf. mensurations
+      res.json({ ok: true, parcours: buildParcours(email), reward: pourMoi ? reward : null, state: pourMoi ? challengePublicState(email) : null });
     } catch (e) { console.error('parcours pesee POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
 
@@ -2047,12 +2058,14 @@ try {
       const type = String(b.type || '').slice(0, 40);
       // Une seule séance par jour : si déjà validée -> on l'enlève (toggle).
       const exists = getDb().prepare('SELECT id FROM nutrition_parcours_seances WHERE client_email = ? AND date = ?').get(email, date);
+      let reward = null;
       if (exists) getDb().prepare('DELETE FROM nutrition_parcours_seances WHERE client_email = ? AND date = ?').run(email, date);
       else {
         const info = getDb().prepare('INSERT INTO nutrition_parcours_seances (client_email, date, auteur_role, auteur_id, type, created_at) VALUES (?,?,?,?,?,?)').run(email, date, acc.role, acc.id, type, new Date().toISOString());
-        awardClientEvent(email, 'seance', info.lastInsertRowid); // valide UNIQUEMENT à l'ajout, jamais au retrait (toggle)
+        reward = awardClientEvent(email, 'seance', info.lastInsertRowid); // valide UNIQUEMENT à l'ajout, jamais au retrait (toggle)
       }
-      res.json({ ok: true, parcours: buildParcours(email) });
+      const pourMoi = ((req.session && req.session.email) || '') === email; // cf. mensurations
+      res.json({ ok: true, parcours: buildParcours(email), reward: pourMoi ? reward : null, state: pourMoi ? challengePublicState(email) : null });
     } catch (e) { console.error('parcours seance POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
 
@@ -2071,8 +2084,9 @@ try {
       if (m[2].length > 4_000_000) return res.status(413).json({ ok: false, error: 'Image trop lourde (max ~3 Mo).' });
       const info = getDb().prepare('INSERT INTO nutrition_parcours_photos (client_email, jalon, type, data, mime, auteur_role, auteur_id, created_at) VALUES (?,?,?,?,?,?,?,?)')
         .run(email, jalon, type, b.data, m[1], acc.role, acc.id, new Date().toISOString());
-      awardClientEvent(email, 'photo', info.lastInsertRowid); // Chemin du challenge (inerte si flag OFF)
-      res.json({ ok: true, id: info.lastInsertRowid, parcours: buildParcours(email) });
+      const reward = awardClientEvent(email, 'photo', info.lastInsertRowid); // Chemin du challenge (inerte si flag OFF)
+      const pourMoi = ((req.session && req.session.email) || '') === email; // cf. mensurations
+      res.json({ ok: true, id: info.lastInsertRowid, parcours: buildParcours(email), reward: pourMoi ? reward : null, state: pourMoi ? challengePublicState(email) : null });
     } catch (e) { console.error('parcours photo POST :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
 
@@ -3564,8 +3578,9 @@ try {
         JSON.stringify({ pointPositif: String(b.pointPositif || '').slice(0, 240), axe: String(b.axe || '').slice(0, 240), action: String(b.action || '').slice(0, 240), coherencePlan: String(b.coherencePlan || '').slice(0, 240) }),
         thumb, String(b.clientMessage || '').slice(0, 500), b.askCoach ? 'a_traiter' : ''
       );
-      awardClientEvent((req.session && req.session.email) || '', 'plate', info.lastInsertRowid); // nœud "photo d'assiette"
-      res.json({ ok: true, id: info.lastInsertRowid });
+      const moi = (req.session && req.session.email) || '';
+      const reward = awardClientEvent(moi, 'plate', info.lastInsertRowid); // nœud "photo d'assiette"
+      res.json({ ok: true, id: info.lastInsertRowid, reward, state: moi ? challengePublicState(moi) : null });
     } catch (e) { console.error('Erreur plate-save :', e); res.status(500).json({ ok: false, error: 'Enregistrement impossible.' }); }
   });
   app.get('/nutrition/api/plate-analyses', requireAuth, requireCoachOrAdmin, (req, res) => {

@@ -3886,3 +3886,45 @@ body.is-demo #navRestart { display: none !important; }
 
 /* Réservé aux lecteurs d'écran : visible d'eux seuls, jamais à l'œil. */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ── NIVEAU 1 : LE MICRO-GAIN ───────────────────────────────────────────────
+   La victoire la PLUS FRÉQUENTE (une étape validée) : elle doit se voir sans
+   jamais gêner. Bandeau qui monte du bas, Punch qui grimpe, repart tout seul.
+   `pointer-events: none` : il ne peut pas intercepter un tap, même s'il couvre
+   un bouton au moment où le client le vise. */
+.mwin { position: fixed; left: 50%; bottom: 96px; z-index: 130; display: flex; align-items: center; gap: 12px;
+  max-width: min(92vw, 400px); padding: 12px 16px; border-radius: 16px;
+  background: linear-gradient(135deg, #1B2230 0%, #2B3444 100%); color: #fff;
+  border: 1px solid rgba(255,255,255,.13); box-shadow: 0 18px 44px rgba(0,0,0,.42);
+  opacity: 0; transform: translate(-50%, 22px) scale(.96); pointer-events: none;
+  transition: opacity .26s var(--ease), transform .26s cubic-bezier(.2, 1.4, .4, 1); }
+.mwin.open { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.mwin-ic { font-size: 24px; line-height: 1; flex: none; }
+.mwin.open .mwin-ic { animation: mwin-punch .5s cubic-bezier(.2, 1.6, .4, 1); }
+.mwin-x { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mwin-t { font: 700 14px/1.25 var(--font); }
+.mwin-s { font: 500 11.5px/1 var(--font); color: rgba(255,255,255,.62); }
+.mwin-g { margin-left: auto; flex: none; padding: 6px 12px; border-radius: 999px;
+  background: rgba(240, 212, 136, .16); color: #F0D488; font: 800 15px/1 var(--font); font-variant-numeric: tabular-nums; }
+@keyframes mwin-punch { 0% { transform: scale(.4) rotate(-18deg); } 60% { transform: scale(1.22) rotate(6deg); } 100% { transform: scale(1); } }
+
+/* ── NIVEAU 4 : LE JALON ────────────────────────────────────────────────────
+   Les quatre moments qui comptent. Même carte que le niveau 2, mais habillée :
+   fond plus dense, halo doré, carte plus large, confettis par-dessus. Rare par
+   construction — c'est ce qui la garde spectaculaire. */
+.celeb-cv { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.celeb--jalon { background: rgba(14, 12, 10, .82); }
+.celeb--jalon .celeb-card { max-width: 380px; padding: 40px 24px 30px;
+  background: radial-gradient(120% 90% at 50% 0%, #FFFDF7 0%, var(--surface) 62%);
+  box-shadow: 0 0 0 1px rgba(182,137,46,.28), 0 26px 80px rgba(0,0,0,.42); }
+.celeb--jalon .celeb-ic { font-size: 68px; }
+.celeb--jalon .celeb-title { font-size: 25px; }
+.celeb--jalon .celeb-etincelle { width: 9px; height: 9px; }
+
+/* Le système demande moins de mouvement : tout se fige, rien ne disparaît.
+   Le micro-gain garde sa place et son texte, il n'a plus qu'à ne pas bouger. */
+@media (prefers-reduced-motion: reduce) {
+  .mwin { transition: opacity .2s linear; transform: translate(-50%, 0); }
+  .mwin.open .mwin-ic { animation: none; }
+  .celeb--jalon .celeb-card { animation: none; }
+}

@@ -3725,6 +3725,7 @@ async function postCommunaute(text, kind, photo) {
     if (data && data.ok && data.message) {
       state.communauteMessages = [data.message].concat(state.communauteMessages || []);
       renderCommunauteWall();
+      encaisserRecompenses(data);
       mcpathRetourApresAction(); // peut valider la sous-étape « se présenter au groupe »
       return true;
     }
@@ -3992,6 +3993,7 @@ async function postComment(id, text) {
       _feedComments[id] = (_feedComments[id] || []).concat([d.comment]);
       if (it) it.comments = (it.comments || 0) + 1;
       renderCommunauteFeed();
+      encaisserRecompenses(d); // encourager un membre valide l'étape 27
     } else { showToast((d && d.error) || 'Commentaire impossible.', { icon: 'info' }); }
   } catch (_) { showToast('Connexion requise pour commenter.', { icon: 'info' }); }
 }
@@ -4088,8 +4090,43 @@ async function reactFeed(id, type) {
 // vidéo / d'un ebook / d'un cadeau). Le point clé est la FILE : un palier de série
 // peut franchir un seuil de Punch au même instant -> deux célébrations arrivent
 // ensemble et ne doivent JAMAIS se superposer. On les enchaîne.
+// ── L'ORDONNANCEUR DES VICTOIRES ────────────────────────────────────────────
+// UNE file pour TOUTES les animations, quel que soit leur niveau — y compris le
+// coffre, qui vivait à côté (z-index 1200 contre 96) et s'ouvrait PAR-DESSUS une
+// célébration déjà à l'écran, aucune des deux ne se refermant seule.
+//
+// Quatre niveaux, du plus discret au plus spectaculaire. L'intensité suit la
+// valeur de la victoire : une étape ordinaire ne peut pas se fêter comme la fin
+// du challenge, sinon plus rien ne se fête.
+//   1 MICRO     — une étape validée : bandeau + Punch qui grimpe, ~1,6 s, non bloquant.
+//   2 DEBLOCAGE — un guide, une vidéo : carte à étincelles, attend le clic.
+//   3 CADEAU    — un cadeau, un accessoire, un palier de série : le coffre.
+//   4 JALON     — étape clé, fin de semaine, fin de challenge : plein écran.
+//
+// ⚠️ La file se joue par intensité CROISSANTE : quand plusieurs récompenses
+// tombent ensemble, le lot finit sur son point d'orgue et non sur un lot de
+// consolation. Le tri est fait à chaque défilement, donc une grosse récompense
+// arrivée en retard passe quand même en dernier.
+const NIVEAU = { MICRO: 1, DEBLOCAGE: 2, CADEAU: 3, JALON: 4 };
 const _celebFile = [];
 let _celebEnCours = false;
+function filerCeleb(niveau, jouer) {
+  _celebFile.push({ niveau, jouer });
+  if (!_celebEnCours) celebSuivante();
+}
+function celebSuivante() {
+  if (!_celebFile.length) { _celebEnCours = false; return; }
+  _celebFile.sort((a, b) => a.niveau - b.niveau);
+  const job = _celebFile.shift();
+  _celebEnCours = true;
+  // `finCeleb` est passé à l'animation : c'est ELLE qui dit quand elle est finie
+  // (le clic du client pour les fenêtres, un timer pour le bandeau).
+  try { job.jouer(finCeleb); } catch (e) { console.warn('célébration :', e && e.message); finCeleb(); }
+}
+// On laisse la sortie se jouer avant d'enchaîner : sinon les deux se chevauchent.
+function finCeleb() {
+  setTimeout(() => { _celebEnCours = false; celebSuivante(); }, 260);
+}
 
 // { icon, title, subtitle, gain, cible }
 // ⚠️ AUCUNE fermeture automatique : la fenêtre attend le clic, et ce clic
@@ -4099,14 +4136,11 @@ let _celebEnCours = false;
 // `cible` = où le clic conduit (la liste des cadeaux, la bibliothèque…).
 function celebrateUnlock(c) {
   if (!c) return;
-  _celebFile.push(c);
-  if (!_celebEnCours) celebSuivante();
+  filerCeleb(c.niveau || NIVEAU.DEBLOCAGE, (fin) => jouerCeleb(c, fin));
 }
-function celebSuivante() {
-  const c = _celebFile.shift();
-  if (!c) { _celebEnCours = false; return; }
-  _celebEnCours = true;
+function jouerCeleb(c, fin) {
   const ov = ensureCelebOverlay();
+  ov._fin = fin;
   ov.querySelector('.celeb-ic').textContent = c.icon || '🎉';
   ov.querySelector('.celeb-title').textContent = c.title || 'Débloqué 🎉';
   ov.querySelector('.celeb-sub').textContent = c.subtitle || '';
@@ -4124,17 +4158,18 @@ function fermerCeleb() {
   const ov = $('#celebOv'); if (!ov) return;
   clearTimeout(ov._t);
   ov.classList.remove('open');
-  // On laisse la sortie se jouer avant d'enchaîner : sinon les deux se chevauchent.
-  setTimeout(celebSuivante, 260);
+  const fin = ov._fin; ov._fin = null;
+  if (fin) fin(); // c'est la fermeture qui libère la file, jamais un timer aveugle
 }
 // Le compteur grimpe : le gain se VOIT arriver au lieu d'apparaître déjà acquis.
 // ⚠️ On écrit la valeur JUSTE d'abord, l'animation n'est qu'un décor par-dessus :
 // requestAnimationFrame ne tourne pas si l'onglet n'est pas visible, et le client
 // resterait alors bloqué sur « +0 Punch » — le pire affichage possible sur une
 // récompense. Même logique si le téléphone demande moins de mouvement.
-function countUp(el, total) {
+function countUp(el, total, suffixe) {
   const fin = Number(total) || 0;
-  el.textContent = '+' + fin + ' Punch 👊';
+  const suf = suffixe === undefined ? ' Punch 👊' : suffixe;
+  el.textContent = '+' + fin + suf;
   let reduit = false;
   try { reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { /* ignore */ }
   if (reduit || document.visibilityState !== 'visible') return; // la bonne valeur est déjà là
@@ -4142,7 +4177,7 @@ function countUp(el, total) {
   const tick = (t) => {
     const p = Math.min(1, (t - t0) / duree);
     const v = Math.round(fin * (1 - Math.pow(1 - p, 3))); // ralentit à l'arrivée
-    el.textContent = '+' + v + ' Punch 👊';
+    el.textContent = '+' + v + suf;
     if (p < 1) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -4173,6 +4208,7 @@ function ensureCelebOverlay() {
 // plus gros gain de l'app, il mérite qu'on s'y arrête.
 function celebrerPalierSerie(palier) {
   celebrateUnlock({
+    niveau: NIVEAU.CADEAU, // tenir N jours d'affilée vaut mieux qu'un déblocage de plus
     icon: '🔥',
     title: palier.jours + ' jours d\'affilée',
     subtitle: 'Ta série tient — continue comme ça.',
@@ -4244,7 +4280,14 @@ function ensureGiftChestOverlay() {
   const soundBtn = ov.querySelector('.gchest-sound');
   const majSound = () => { soundBtn.textContent = ov._sound ? '🔊' : '🔇'; soundBtn.setAttribute('aria-pressed', ov._sound ? 'true' : 'false'); };
   majSound();
-  const fermer = () => { ov.classList.remove('open'); ov.classList.remove('is-open'); };
+  const fermer = () => {
+    ov.classList.remove('open'); ov.classList.remove('is-open');
+    // Le coffre est DANS la file comme les autres : c'est sa fermeture qui
+    // autorise l'animation suivante. Sans ça il s'ouvrait par-dessus une carte
+    // déjà à l'écran, et le client trouvait la précédente encore ouverte dessous.
+    const fin = ov._fin; ov._fin = null;
+    if (fin) fin();
+  };
   // La destination dépend de ce qui vient d'être débloqué : un cadeau mène à la
   // boutique, SUR sa fiche ; un accessoire ouvre l'éditeur d'avatar sur la pièce
   // fraîchement gagnée, prête à être équipée.
@@ -4279,7 +4322,11 @@ function celebrateGiftUnlock(seuil, etat) {
   if (giftAnimSeen().has(id)) return; // déjà vu -> jamais rejoué
   markGiftAnimSeen(id);
   if (g && g.id) marquerCadeauNeuf(g.id); // … et il brillera dans la liste
+  filerCeleb(NIVEAU.CADEAU, (fin) => jouerCoffreCadeau(seuil, g, fin));
+}
+function jouerCoffreCadeau(seuil, g, fin) {
   const ov = ensureGiftChestOverlay();
+  ov._fin = fin;
   ov._giftId = (g && g.id) || null;
   ov._avatarAcc = null;   // l'overlay est partagé : on remet la cible cadeau
   ov.querySelector('.gchest-kicker').innerHTML = 'Cadeau débloqué&nbsp;!'; // libellé d'origine
@@ -4309,7 +4356,11 @@ function celebrateAvatarUnlock(seuil, etat) {
   const cle = 'avatar:' + acc.id;
   if (giftAnimSeen().has(cle)) return;   // une seule fois par accessoire, jamais au refresh
   markGiftAnimSeen(cle);
+  filerCeleb(NIVEAU.CADEAU, (fin) => jouerCoffreAvatar(acc, fin));
+}
+function jouerCoffreAvatar(acc, fin) {
   const ov = ensureGiftChestOverlay();
+  ov._fin = fin;
   ov._giftId = null;
   ov._avatarAcc = acc.id;
   ov.querySelector('.gchest-gift').textContent = '🧢';
@@ -4438,14 +4489,35 @@ function rafraichirCheminSiVisible() {
 // Applique un nouvel état du Chemin et célèbre ce qui vient de se débloquer.
 // ⚠️ Passe par ICI plutôt que d'écrire state.challenge en direct : c'est le seul
 // moyen qu'aucun déblocage ne soit manqué, quelle que soit l'action à l'origine.
+// Mémoire PERSISTANTE des récompenses déjà fêtées.
+// ⚠️ Elle est indispensable depuis que renderChallenge passe par le diff : en
+// mémoire seule, `avant` est vide à chaque chargement de page, et TOUTES les
+// récompenses déjà acquises se refêteraient à chaque ouverture de l'app.
+// Elle répare aussi le défaut inverse, plus grave : une récompense tombée hors
+// session n'était fêtée nulle part et était perdue pour toujours. Ici elle
+// attend le prochain passage du client.
+const CELEB_VUES_KEY = 'mc-unlocks-fetes';
+function unlocksFetes() {
+  try { return new Set(JSON.parse(localStorage.getItem(CELEB_VUES_KEY) || '[]')); } catch (_) { return new Set(); }
+}
+function marquerUnlocksFetes(set) {
+  try { localStorage.setItem(CELEB_VUES_KEY, JSON.stringify([...set].slice(-400))); } catch (_) { /* quota : tant pis */ }
+}
 function appliquerEtatChallenge(st) {
   if (!st) return;
-  const avant = new Set(((state.challenge && state.challenge.unlocks) || []));
   const apres = st.unlocks || [];
   state.challenge = st;
-  if (avant.size || (state.challenge && state.challenge.unlocks)) {
-    celebrerDeblocages(apres.filter((c) => !avant.has(c)), st);
-  }
+  const premiereFois = localStorage.getItem(CELEB_VUES_KEY) === null;
+  const vus = unlocksFetes();
+  // Tout premier passage après cette mise à jour : on ADOPTE l'acquis sans le
+  // fêter. Sinon un client à 1500 Punch ouvrirait l'app sur douze animations
+  // d'affilée pour des récompenses vieilles de trois semaines.
+  if (premiereFois) { marquerUnlocksFetes(new Set(apres)); return; }
+  const nouveaux = apres.filter((c) => !vus.has(c));
+  if (!nouveaux.length) return;
+  nouveaux.forEach((c) => vus.add(c));
+  marquerUnlocksFetes(vus);
+  celebrerDeblocages(nouveaux, st);
 }
 
 // --- BILAN HEBDO : les CHIFFRES (déterministes, calculés par l'app) ----------
@@ -4848,6 +4920,28 @@ function parcoursSeancesSemaine(p) {
   return jours;
 }
 
+// Les badges n'ont AUCUN signal serveur : ils sont dérivés du parcours par le
+// front (pesées, photos, séances, repas). Ils passaient donc de gris à vert
+// entre deux rendus sans qu'un mot soit dit. On tient la liste de ceux déjà
+// fêtés et on célèbre l'écart — même mécanique que les déblocages, même
+// adoption silencieuse au tout premier passage.
+const BADGES_VUS_KEY = 'mc-badges-fetes';
+function feterNouveauxBadges(p) {
+  if (!p) return;
+  let obtenus;
+  try { obtenus = parcoursBadges(p).filter((b) => b.got).map((b) => b.label); } catch (_) { return; }
+  const brut = localStorage.getItem(BADGES_VUS_KEY);
+  if (brut === null) { try { localStorage.setItem(BADGES_VUS_KEY, JSON.stringify(obtenus)); } catch (_) {} return; }
+  let vus = []; try { vus = JSON.parse(brut) || []; } catch (_) { vus = []; }
+  const set = new Set(vus);
+  const nouveaux = obtenus.filter((l) => !set.has(l));
+  if (!nouveaux.length) return;
+  try { localStorage.setItem(BADGES_VUS_KEY, JSON.stringify(obtenus)); } catch (_) {}
+  nouveaux.forEach((label) => celebrateUnlock({
+    icon: '🏅', title: 'Badge obtenu', subtitle: label,
+    cible: () => { setTab('parcours'); state.parcoursSub = 'mesures'; renderParcoursTab(); },
+  }));
+}
 function parcoursBadges(p) {
   const sem = parcoursSeancesSemaine(p).filter((j) => j.done).length;
   const r = p.regularite || {};
@@ -4947,7 +5041,13 @@ async function renderChallenge() {
     const d = await r.json();
     if (d && d.ok) st = d.state;
   } catch (_) { /* réseau : on montre un état vide */ }
-  state.challenge = st;
+  // ⚠️ PAS `state.challenge = st` en direct : c'était LA fuite. Une récompense
+  // tombée pendant que le client était ailleurs (ou sur une route qui ne renvoie
+  // pas `state`) apparaissait ici dans `st.unlocks`, l'assignation directe la
+  // recopiait sans la comparer, et le prochain diff ne la voyait plus jamais :
+  // l'animation était perdue DÉFINITIVEMENT. On passe par le diff, qui la fête.
+  appliquerEtatChallenge(st);
+  if (st) st = state.challenge;
   if (!st) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">Parcours indisponible pour le moment.</div>'; wireParcoursSegment(); return; }
   if (!st.enabled) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">🔒 Le Parcours du challenge arrive bientôt pour ton groupe.</div>'; wireParcoursSegment(); return; }
   if (!st.started) {
@@ -6169,7 +6269,16 @@ async function bilanTerminer(n) {
       body: JSON.stringify({ week: n.week }),
     });
     const d = await r.json();
-    if (d && d.ok) { appliquerEtatChallenge(d.state); if (d.reward) rewardToast(d.reward); }
+    if (d && d.ok) {
+      // Clore une semaine est un JALON : ça se fête en plein écran, pas dans un
+      // bandeau de 2 s — c'est un sixième du challenge qui vient d'être bouclé.
+      if (d.reward) filerCeleb(NIVEAU.JALON, (fin) => feterJalon({
+        icon: '🏁', title: 'Semaine ' + n.week + ' bouclée !',
+        subtitle: 'Une semaine de plus derrière toi. Il en reste ' + Math.max(0, 6 - n.week) + '.',
+        punch: d.reward.punch,
+      }, fin));
+      appliquerEtatChallenge(d.state);
+    }
   } catch (_) { showToast('Connexion requise pour valider ton bilan.', { icon: 'info' }); return; }
   closeBilanSheet();
   if (state.parcoursSub !== 'mesures') renderChallenge();
@@ -6217,14 +6326,84 @@ async function challengeDeclareAventure(n) {
   } catch (_) { /* silencieux */ }
 }
 
+// ── NIVEAU 1 : le MICRO-GAIN ────────────────────────────────────────────────
+// Une étape ordinaire, c'est la victoire la plus FRÉQUENTE : elle doit se voir
+// sans jamais gêner. Un bandeau qui monte du bas, le Punch qui grimpe, et il
+// repart tout seul — aucun clic exigé, on n'interrompt pas quelqu'un qui coche
+// sa séance. C'est la contrepartie des niveaux 3 et 4 : si tout s'ouvrait en
+// plein écran, plus rien ne serait un événement.
+function feterMicro(r, fin) {
+  const el = ensureMicroWin();
+  el.querySelector('.mwin-t').textContent = r.title || 'Validé';
+  const g = el.querySelector('.mwin-g');
+  g.textContent = '+0';
+  el.classList.add('open');
+  countUp(g, r.punch || 0, '');
+  try { if (navigator.vibrate && !motionReduite()) navigator.vibrate(14); } catch (_) { /* pas de retour haptique */ }
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.classList.remove('open'); fin(); }, motionReduite() ? 1200 : 1900);
+}
+function ensureMicroWin() {
+  let el = $('#mcMicroWin'); if (el) return el;
+  el = document.createElement('div');
+  el.id = 'mcMicroWin';
+  el.className = 'mwin';
+  el.setAttribute('role', 'status');   // annoncé au lecteur d'écran, sans voler le focus
+  el.innerHTML = '<span class="mwin-ic">👊</span><span class="mwin-x"><b class="mwin-t"></b>'
+    + '<span class="mwin-s">Étape validée</span></span><b class="mwin-g">+0</b>';
+  document.body.appendChild(el);
+  return el;
+}
+function motionReduite() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
+// ── NIVEAU 4 : le JALON ─────────────────────────────────────────────────────
+// Les quatre moments qui comptent (départ, mi-parcours, point final, bilan) et
+// la fin d'une semaine. Plein écran, confettis, compteur — le MÊME moteur que la
+// célébration de pesée, réutilisé plutôt que réécrit. Rare par construction :
+// c'est ce qui le garde spectaculaire.
+function feterJalon(r, fin) {
+  const ov = ensureCelebOverlay();
+  ov.classList.add('celeb--jalon');
+  jouerCeleb({
+    icon: r.icon || '⭐',
+    title: r.title || 'Étape clé franchie',
+    subtitle: r.subtitle || 'Tu viens de passer un cap du challenge.',
+    gain: r.punch || 0,
+  }, () => { ov.classList.remove('celeb--jalon'); fin(); });
+  if (motionReduite()) return;         // pas de confettis si le système les refuse
+  const cv = ov.querySelector('.celeb-cv') || (() => {
+    const c = document.createElement('canvas'); c.className = 'celeb-cv'; c.setAttribute('aria-hidden', 'true');
+    ov.insertBefore(c, ov.firstChild); return c;
+  })();
+  const stop = celebrationConfetti(cv, true);
+  if (stop) setTimeout(stop, 3000);
+}
+
+// L'aiguillage d'une étape validée : ordinaire -> micro, jalon -> plein écran.
 function rewardToast(r) {
-  if (!r) return;
-  showToast((r.milestone ? '⭐ Étape clé validée ! ' : '✅ ') + r.title + ' — +' + (r.punch || 0) + ' Punch', { icon: 'check' });
+  if (!r || !r.punch && !r.title) return;
+  if (r.milestone) filerCeleb(NIVEAU.JALON, (fin) => feterJalon(r, fin));
+  else filerCeleb(NIVEAU.MICRO, (fin) => feterMicro(r, fin));
+}
+
+// ── LE POINT D'ENTRÉE UNIQUE ────────────────────────────────────────────────
+// Toute réponse serveur qui peut contenir une victoire passe par ici, et par ici
+// seulement. `reward` = l'étape qui vient d'être validée ; `state` porte les
+// déblocages qu'elle a fait tomber (guide, vidéo, cadeau, accessoire).
+// ⚠️ L'ordre d'empilement n'a pas d'importance : la file joue par intensité
+// croissante, donc le cadeau passera toujours après le micro-gain qui l'a causé.
+function encaisserRecompenses(d) {
+  if (!d) return;
+  if (d.reward) rewardToast(d.reward);
+  if (d.state) appliquerEtatChallenge(d.state);
 }
 
 function renderParcours() {
   const host = $('#view-parcours'); if (!host) return;
   const p = state.parcours;
+  feterNouveauxBadges(p); // un badge décroché ne doit pas passer inaperçu
   if (!p) {
     host.innerHTML = '<div class="pc-empty"><h2>Mon Parcours</h2><p>Disponible une fois ton compte créé et ton plan généré.</p></div>';
     return;
@@ -6476,7 +6655,12 @@ async function saveMensuration(form) {
   try {
     const res = await fetch(apiUrl('/api/parcours/mensuration'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
     const d = await res.json();
-    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Mensurations enregistrées 📏', { icon: 'check' }); mcpathRetourApresAction(); }
+    if (d && d.ok) {
+      state.parcours = d.parcours; renderParcours();
+      if (d.reward || d.state) encaisserRecompenses(d);
+      else showToast('Mensurations enregistrées 📏', { icon: 'check' });
+      mcpathRetourApresAction();
+    }
     else showToast((d && d.error) || 'Enregistrement impossible.', { icon: 'info' });
   } catch (_) { showToast('Connexion requise.', { icon: 'info' }); }
 }
@@ -6526,7 +6710,10 @@ async function validerParcoursSeance(date) {
       state.parcours = d.parcours; renderParcours();
       // Le serveur fait un toggle : on relit l'etat pour afficher le bon message.
       const done = !!(d.parcours && (d.parcours.seances || []).includes(jour));
-      showToast(done ? 'Séance enregistrée 🔥' : 'Séance retirée', { icon: done ? 'check' : 'info' });
+      // La victoire prime sur l'accusé de réception : quand l'étape est validée,
+      // c'est l'animation qui parle, pas un bandeau « Séance enregistrée ».
+      if (d.reward || d.state) encaisserRecompenses(d);
+      else showToast(done ? 'Séance enregistrée 🔥' : 'Séance retirée', { icon: done ? 'check' : 'info' });
       if (done && jour === aujourdhui) setTimeout(() => { try { maybeShowPushBanner(); } catch (_) { /* ignore */ } }, 1200); // 1re séance = moment pertinent
     }
     else showToast((d && d.error) || 'Impossible.', { icon: 'info' });
@@ -6545,7 +6732,12 @@ async function uploadParcoursPhoto(jalon, type, file) {
     const data = await compressImage(file, 1100, 0.8);
     const res = await fetch(apiUrl('/api/parcours/photo'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ jalon, type, data }) });
     const d = await res.json();
-    if (d && d.ok) { state.parcours = d.parcours; renderParcours(); showToast('Photo ajoutée 📸', { icon: 'check' }); mcpathRetourApresAction(); }
+    if (d && d.ok) {
+      state.parcours = d.parcours; renderParcours();
+      if (d.reward || d.state) encaisserRecompenses(d);
+      else showToast('Photo ajoutée 📸', { icon: 'check' });
+      mcpathRetourApresAction();
+    }
     else showToast((d && d.error) || 'Ajout impossible.', { icon: 'info' });
   } catch (_) { showToast('Ajout impossible.', { icon: 'info' }); }
   _parcoursPhotoBusy = false;
@@ -9056,6 +9248,7 @@ async function savePlate(askCoach, btn) {
     const data = await res.json();
     if (!data.ok) throw new Error();
     if (btn) btn.innerHTML = askCoach ? 'Demande envoyée à ton coach ✓' : 'Enregistré dans ton suivi ✓';
+    encaisserRecompenses(data); // le nœud « photo d'assiette » du Chemin
   } catch (e) { if (btn) btn.disabled = false; alert("L'enregistrement n'a pas fonctionné. Réessaie."); }
 }
 
@@ -9916,6 +10109,9 @@ async function openEbook(id, title) {
     if (d.ok && d.url) {
       // Lecture INTÉGRÉE : le guide s'affiche dans l'app, le client ne sort pas.
       showEbookReader(d.url, title);
+      // … et la lecture VALIDE une étape : elle se fête, après l'ouverture du
+      // lecteur pour ne pas retarder ce que le client est venu chercher.
+      encaisserRecompenses(d);
       // Le guide est marqué lu -> on retire le badge « Nouveau » et la carte du jour.
       setTimeout(() => { try { loadGuideDuJour(); rafraichirListesEbooks(); } catch (_) { /* ignore */ } }, 500);
     } else { showToast(d.locked ? 'Ce guide n\'est pas encore débloqué.' : 'Ouverture impossible.', { icon: 'info' }); }
@@ -10000,8 +10196,10 @@ function ouvrirVideo(videoId, titre, ebookId) {
 // doit faire ni l'un ni l'autre.
 async function marquerSeanceVue(ebookId) {
   const id = Number(ebookId); if (!id) return;
-  try { await fetch(apiUrl('/api/ebooks/' + id + '/vu'), { method: 'POST', headers: nutriAuthHeaders() }); }
-  catch (_) { return; } // hors ligne : la pastille s'éteindra à la prochaine ouverture réussie
+  try {
+    const d = await (await fetch(apiUrl('/api/ebooks/' + id + '/vu'), { method: 'POST', headers: nutriAuthHeaders() })).json();
+    encaisserRecompenses(d); // une séance vue peut faire tomber un palier
+  } catch (_) { return; } // hors ligne : la pastille s'éteindra à la prochaine ouverture réussie
   rafraichirListesEbooks();
 }
 
