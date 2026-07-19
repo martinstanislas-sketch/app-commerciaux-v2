@@ -7116,7 +7116,7 @@ async function openCoachConversation(id, support) {
     const supportBanner = d.support ? '<div class="msg-support-banner"><svg class="ic"><use href="#ic-eye"/></svg> Mode support — accès au contenu <strong>enregistré dans le journal d’audit</strong>.</div>' : '';
     body.innerHTML = back + head + supportBanner +
       '<div id="convWall" class="comm-wall">' + ((d.messages || []).length ? (d.messages).map(chatBubble).join('') : '<p class="comm-empty">Pas encore de message.</p>') + '</div>' +
-      '<form id="convForm" class="comm-compose"><textarea id="convInput" rows="1" maxlength="2000" placeholder="Répondre à ' + escapeHtml(d.clientName) + '…" autocomplete="off"></textarea><button type="submit" class="comm-send" aria-label="Envoyer">' + icSvg('send') + '</button></form>';
+      '<form id="convForm" class="comm-compose"><textarea id="convInput" rows="1" maxlength="2000" placeholder="Répondre à ' + escapeHtml(d.clientName) + '…" autocomplete="off"></textarea><button type="submit" class="comm-send">' + icSvg('send') + '<span>Envoyer</span></button></form>';
     const w = $('#convWall'); if (w) w.scrollTop = w.scrollHeight;
     { const _cp = $('#convProfil'); if (_cp) _cp.addEventListener('click', () => openCoachFiche(d.clientEmail)); }
     $('#convBack').addEventListener('click', renderMessagesCoachList);

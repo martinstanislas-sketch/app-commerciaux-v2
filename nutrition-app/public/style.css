@@ -1719,8 +1719,21 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .comm-compose { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 14px; }
 .comm-compose textarea { flex: 1; resize: none; min-height: 42px; max-height: 120px; padding: 11px 13px; border-radius: 12px; border: 1px solid var(--mc-border); background: var(--mc-cream); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.4; }
 .comm-compose textarea:focus { outline: none; border-color: var(--mc-blue); }
-.comm-send { flex: 0 0 auto; width: 42px; height: 42px; border: none; border-radius: 12px; background: var(--grad-blue); color: #fff; cursor: pointer; display: grid; place-items: center; }
+/* ⚠️ Le mot est ÉCRIT, il ne se devine plus. En pastille carrée avec le seul
+   avion en papier, le bouton ne se lisait pas comme un bouton : on tapait sa
+   réponse sans voir comment l'envoyer. Même correction que pour les
+   commentaires du mur (.feed-c-send), qui avait déjà valu ce retour.
+   L'icône reste : elle accélère la reconnaissance une fois qu'on sait. */
+.comm-send { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; height: 42px; padding: 0 16px;
+  border: none; border-radius: 12px; background: var(--grad-blue); color: #fff; cursor: pointer;
+  font: 700 13.5px/1 var(--font); font-family: inherit; white-space: nowrap; }
 .comm-send .ic { width: 18px; height: 18px; }
+.comm-send:active { transform: scale(.97); }
+/* Écran très étroit : le champ de saisie passe avant le libellé. */
+@media (max-width: 360px) {
+  .comm-send { width: 42px; padding: 0; justify-content: center; }
+  .comm-send span { display: none; }
+}
 .comm-wall { margin-top: 2px; }
 .comm-empty { color: var(--mc-muted); font-size: 13.5px; text-align: center; padding: 16px 0; }
 .comm-tag { display: inline-block; font-size: 10.5px; font-weight: 700; color: var(--mc-blue); background: var(--mc-blue-soft); padding: 1px 7px; border-radius: 99px; margin-left: 4px; vertical-align: middle; }
