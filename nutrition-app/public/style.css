@@ -3928,3 +3928,72 @@ body.is-demo #navRestart { display: none !important; }
   .mwin.open .mwin-ic { animation: none; }
   .celeb--jalon .celeb-card { animation: none; }
 }
+
+/* ── NIVEAU 5 : LA FIN DU PARCOURS ──────────────────────────────────────────
+   La seule animation de l'app qui a le droit de durer (~6 s). Elle ne tient
+   que parce que tout le reste est plus court : trois temps qui s'enchaînent,
+   et une sortie visible dès la première seconde. */
+.fin { position: fixed; inset: 0; z-index: 1400; display: none; align-items: center; justify-content: center; padding: 24px;
+  background: radial-gradient(120% 80% at 50% 0%, #2A2214 0%, #0E0C0A 62%); }
+.fin.open { display: flex; animation: fin-fond .5s var(--ease); }
+.fin-cv { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* La porte de sortie, présente AVANT le spectacle : discrète, jamais cachée. */
+.fin-skip { position: absolute; top: max(16px, env(safe-area-inset-top)); right: 16px; z-index: 2;
+  padding: 9px 15px; border: 1px solid rgba(255,255,255,.22); border-radius: 999px;
+  background: rgba(255,255,255,.06); color: rgba(255,255,255,.72); font: 600 13px/1 var(--font); font-family: inherit; cursor: pointer; }
+.fin-skip:hover { background: rgba(255,255,255,.13); color: #fff; }
+.fin-in { position: relative; z-index: 1; width: 100%; max-width: 400px; text-align: center; color: #fff; }
+.fin-kicker { margin: 0; font: 700 11px/1 var(--font); letter-spacing: .18em; text-transform: uppercase; color: #C79A3C;
+  opacity: 0; animation: fin-mont .6s var(--ease) .15s forwards; }
+
+/* Temps 2 : le trophée monte, les rayons tournent. */
+.fin-trophy { position: relative; height: 132px; display: grid; place-items: center; margin-top: 10px; }
+.fin-cup { position: relative; z-index: 1; font-size: 78px; line-height: 1; opacity: 0; transform: translateY(26px) scale(.6); }
+.fin.is-2 .fin-cup { animation: fin-cup .9s cubic-bezier(.2, 1.5, .35, 1) forwards; }
+.fin-rays { position: absolute; width: 260px; height: 260px; opacity: 0;
+  background: conic-gradient(from 0deg, rgba(240,212,136,.32) 0 8deg, transparent 8deg 30deg);
+  border-radius: 50%; mask-image: radial-gradient(circle, #000 22%, transparent 68%);
+  -webkit-mask-image: radial-gradient(circle, #000 22%, transparent 68%); }
+.fin.is-2 .fin-rays { animation: fin-rays-in .8s var(--ease) forwards, fin-rays-spin 14s linear infinite; }
+
+/* Temps 3 : le titre, les chiffres, la sortie. */
+.fin-title { margin: 4px 0 0; font: 800 34px/1.1 var(--font); letter-spacing: -.03em;
+  /* ⚠️ `color` explicite : une règle globale sur h2 repeignait le titre en
+     encre sombre — illisible sur le fond noir de la fin. */
+  color: #fff; opacity: 0; transform: translateY(14px); }
+.fin-sub { margin: 10px 0 0; font: 500 14px/1.5 var(--font); color: rgba(255,255,255,.66);
+  opacity: 0; transform: translateY(14px); }
+.fin-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 26px;
+  opacity: 0; transform: translateY(14px); }
+.fin-stats > div { padding: 14px 6px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(255,255,255,.05); }
+.fin-stats b { display: block; font: 800 24px/1 var(--font); color: #F0D488; font-variant-numeric: tabular-nums; }
+.fin-stats span { display: block; margin-top: 5px; font: 500 10.5px/1.2 var(--font); color: rgba(255,255,255,.58); }
+.fin-cta { width: 100%; margin-top: 24px; padding: 15px 20px; border: 0; border-radius: 14px;
+  background: linear-gradient(135deg, #F0D488 0%, #C79A3C 100%); color: #2A2214;
+  font: 800 15px/1 var(--font); font-family: inherit; cursor: pointer;
+  opacity: 0; transform: translateY(14px); }
+.fin.is-3 .fin-title { animation: fin-mont .55s var(--ease) forwards; }
+.fin.is-3 .fin-sub { animation: fin-mont .55s var(--ease) .08s forwards; }
+.fin.is-3 .fin-stats { animation: fin-mont .55s var(--ease) .16s forwards; }
+.fin.is-3 .fin-cta { animation: fin-mont .55s var(--ease) .26s forwards; }
+
+@keyframes fin-fond { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fin-mont { to { opacity: 1; transform: translateY(0); } }
+@keyframes fin-cup { to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes fin-rays-in { to { opacity: 1; } }
+@keyframes fin-rays-spin { to { transform: rotate(360deg); } }
+
+/* Moins de mouvement : le tableau final est là d'emblée, entier et immobile. */
+.fin--reduce .fin-kicker, .fin--reduce .fin-cup, .fin--reduce .fin-title,
+.fin--reduce .fin-sub, .fin--reduce .fin-stats, .fin--reduce .fin-cta { opacity: 1; transform: none; animation: none; }
+.fin--reduce .fin-rays { display: none; }
+@media (prefers-reduced-motion: reduce) { .fin.open { animation: none; } }
+
+/* Téléphone court : le trophée cède la place au texte, jamais l'inverse. */
+@media (max-height: 680px) {
+  .fin-trophy { height: 98px; }
+  .fin-cup { font-size: 60px; }
+  .fin-title { font-size: 28px; }
+  .fin-stats { margin-top: 18px; }
+  .fin-cta { margin-top: 16px; }
+}

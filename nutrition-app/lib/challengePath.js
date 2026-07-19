@@ -723,7 +723,10 @@ function createChallengeEngine({ getDb }) {
         .run(email, activeDay, new Date().toISOString(), node.punch, String(refId == null ? '' : refId));
       if (ins.changes === 0) return null; // déjà validé -> aucune double récompense (idempotence)
       addPunch(email, node.punch, 'etape:' + activeDay); // seul chemin d'ajout -> déblocages évalués
-      return { day: activeDay, title: node.title, punch: node.punch, milestone: !!node.milestone, nextDay: pathActiveDay(email) };
+      // `final` : c'est LA dernière étape du parcours (type 'final', jour 42).
+      // Le front n'a ainsi pas à coder « jour 42 » en dur pour savoir qu'il doit
+      // jouer la grande fin — déplacer ou renuméroter l'étape reste sans effet.
+      return { day: activeDay, title: node.title, punch: node.punch, milestone: !!node.milestone, final: node.type === 'final', nextDay: pathActiveDay(email) };
     } catch (e) { console.error('awardClientEvent:', e && e.message); return null; }
   }
   // État public du Chemin pour le client courant (consommé par l'onglet front).

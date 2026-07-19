@@ -4107,7 +4107,8 @@ async function reactFeed(id, type) {
 // tombent ensemble, le lot finit sur son point d'orgue et non sur un lot de
 // consolation. Le tri est fait à chaque défilement, donc une grosse récompense
 // arrivée en retard passe quand même en dernier.
-const NIVEAU = { MICRO: 1, DEBLOCAGE: 2, CADEAU: 3, JALON: 4 };
+//   5 FINAL     — le bout des 42 jours : une fois, et une seule.
+const NIVEAU = { MICRO: 1, DEBLOCAGE: 2, CADEAU: 3, JALON: 4, FINAL: 5 };
 const _celebFile = [];
 let _celebEnCours = false;
 function filerCeleb(niveau, jouer) {
@@ -4166,10 +4167,12 @@ function fermerCeleb() {
 // requestAnimationFrame ne tourne pas si l'onglet n'est pas visible, et le client
 // resterait alors bloqué sur « +0 Punch » — le pire affichage possible sur une
 // récompense. Même logique si le téléphone demande moins de mouvement.
-function countUp(el, total, suffixe) {
+function countUp(el, total, suffixe, prefixe) {
   const fin = Number(total) || 0;
   const suf = suffixe === undefined ? ' Punch 👊' : suffixe;
-  el.textContent = '+' + fin + suf;
+  // Le « + » dit un GAIN : il n'a rien à faire devant « 43 jours validés ».
+  const pre = prefixe === undefined ? '+' : prefixe;
+  el.textContent = pre + fin + suf;
   let reduit = false;
   try { reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { /* ignore */ }
   if (reduit || document.visibilityState !== 'visible') return; // la bonne valeur est déjà là
@@ -4177,7 +4180,7 @@ function countUp(el, total, suffixe) {
   const tick = (t) => {
     const p = Math.min(1, (t - t0) / duree);
     const v = Math.round(fin * (1 - Math.pow(1 - p, 3))); // ralentit à l'arrivée
-    el.textContent = '+' + v + suf;
+    el.textContent = pre + v + suf;
     if (p < 1) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -4513,6 +4516,9 @@ function appliquerEtatChallenge(st) {
   // fêter. Sinon un client à 1500 Punch ouvrirait l'app sur douze animations
   // d'affilée pour des récompenses vieilles de trois semaines.
   if (premiereFois) { marquerUnlocksFetes(new Set(apres)); return; }
+  // Le filet de la grande fin : si le parcours est bouclé et qu'elle n'a jamais
+  // été jouée (réponse perdue, app fermée au mauvais moment), elle se joue ici.
+  if (finDeParcours(st) && peutFeterLaFin()) filerCeleb(NIVEAU.FINAL, (fin) => feterFinal(fin));
   const nouveaux = apres.filter((c) => !vus.has(c));
   if (!nouveaux.length) return;
   nouveaux.forEach((c) => vus.add(c));
@@ -6381,10 +6387,109 @@ function feterJalon(r, fin) {
   if (stop) setTimeout(stop, 3000);
 }
 
-// L'aiguillage d'une étape validée : ordinaire -> micro, jalon -> plein écran.
+// ── NIVEAU 5 : LA FIN DU PARCOURS ───────────────────────────────────────────
+// Une fois. Une seule fois, au bout de 42 jours. C'est la seule animation de
+// l'app qui a le droit de durer, et elle n'existe que parce que tout le reste
+// est plus court qu'elle : si la validation d'une séance ouvrait déjà un plein
+// écran, ce moment-ci ne vaudrait plus rien.
+//
+// Trois temps, ~6 s en tout, et un bouton « Passer » présent DÈS LA PREMIÈRE
+// SECONDE : on ne retient personne en otage de sa propre victoire.
+//   1. le décompte des 42 jours et les chiffres du challenge qui grimpent ;
+//   2. le trophée qui monte, deux salves de confettis ;
+//   3. le titre, le bilan, et la porte de sortie.
+const FINAL_FETE_KEY = 'mc-final-fete';
+function feterFinal(fin) {
+  try { localStorage.setItem(FINAL_FETE_KEY, '1'); } catch (_) { /* quota : tant pis */ }
+  const ov = ensureFinalOverlay();
+  const reduit = motionReduite();
+  ov.classList.toggle('fin--reduce', reduit);
+
+  // Les chiffres du client, pris là où ils sont exacts — jamais inventés.
+  const st = state.challenge || {};
+  const stats = st.stats || {};
+  const nodes = st.nodes || [];
+  const jours = nodes.filter((n) => n.status === 'done').length || 42;
+  const seances = ((state.parcours && state.parcours.seances) || []).length;
+  const punch = stats.punch || 0;
+
+  ov.querySelector('.fin-j b').textContent = jours;
+  ov.querySelector('.fin-s b').textContent = seances;
+  ov.querySelector('.fin-p b').textContent = punch;
+  ov.classList.remove('is-2', 'is-3');
+  ov.classList.add('open');
+  ov._fin = fin;
+
+  if (reduit) { ov.classList.add('is-2', 'is-3'); return; } // tout est là, rien ne bouge
+
+  // Les compteurs ne s'affichent pas : ils MONTENT. C'est ce qui fait relire
+  // ses propres chiffres au lieu de les survoler.
+  countUp(ov.querySelector('.fin-j b'), jours, '', '');
+  countUp(ov.querySelector('.fin-s b'), seances, '', '');
+  countUp(ov.querySelector('.fin-p b'), punch, '', '');
+  try { if (navigator.vibrate) navigator.vibrate([40, 70, 40, 70, 120]); } catch (_) { /* pas de retour haptique */ }
+
+  const cv = ov.querySelector('.fin-cv');
+  ov._t1 = setTimeout(() => { ov.classList.add('is-2'); ov._stop1 = celebrationConfetti(cv, true); }, 1500);
+  ov._t2 = setTimeout(() => { ov._stop2 = celebrationConfetti(cv, true); }, 3100);
+  ov._t3 = setTimeout(() => { ov.classList.add('is-3'); }, 3400);
+}
+function ensureFinalOverlay() {
+  let ov = $('#finalOv'); if (ov) return ov;
+  ov = document.createElement('div');
+  ov.id = 'finalOv';
+  ov.className = 'fin';
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  ov.setAttribute('aria-label', 'Challenge terminé');
+  ov.innerHTML = '<canvas class="fin-cv" aria-hidden="true"></canvas>'
+    + '<button type="button" class="fin-skip">Passer</button>'
+    + '<div class="fin-in">'
+    + '<p class="fin-kicker">Challenge 6 semaines</p>'
+    + '<div class="fin-trophy" aria-hidden="true"><span class="fin-rays"></span><span class="fin-cup">🏆</span></div>'
+    + '<h2 class="fin-title">Tu l’as fait.</h2>'
+    + '<p class="fin-sub">Six semaines, du premier jour au dernier. Personne ne pourra te l’enlever.</p>'
+    + '<div class="fin-stats">'
+    + '<div class="fin-j"><b>0</b><span>jours validés</span></div>'
+    + '<div class="fin-s"><b>0</b><span>séances</span></div>'
+    + '<div class="fin-p"><b>0</b><span>Punch</span></div>'
+    + '</div>'
+    + '<button type="button" class="fin-cta">Voir mon bilan</button>'
+    + '</div>';
+  document.body.appendChild(ov);
+  // ⚠️ PAS de fermeture au clic n'importe où, contrairement aux autres fenêtres :
+  // ici un tap involontaire coûterait le seul moment que le client attend depuis
+  // six semaines. Deux sorties explicites, et Échap.
+  const fermer = (versBilan) => {
+    clearTimeout(ov._t1); clearTimeout(ov._t2); clearTimeout(ov._t3);
+    if (ov._stop1) ov._stop1(); if (ov._stop2) ov._stop2();
+    ov.classList.remove('open');
+    const f = ov._fin; ov._fin = null;
+    if (versBilan) { setTab('parcours'); state.parcoursSub = 'mesures'; renderParcoursTab(); }
+    if (f) f();
+  };
+  ov.querySelector('.fin-skip').addEventListener('click', () => fermer(false));
+  ov.querySelector('.fin-cta').addEventListener('click', () => fermer(true));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ov.classList.contains('open')) fermer(false); });
+  return ov;
+}
+// Le parcours est-il terminé ? On le lit sur l'ÉTAT, pas sur un numéro de jour :
+// c'est le filet quand la réponse qui portait `final` s'est perdue (réseau coupé,
+// app fermée au mauvais moment). La grande fin attend alors le prochain passage.
+function finDeParcours(st) {
+  const nodes = (st && st.nodes) || [];
+  return nodes.length > 0 && nodes.every((n) => n.status === 'done');
+}
+function peutFeterLaFin() {
+  try { return localStorage.getItem(FINAL_FETE_KEY) !== '1'; } catch (_) { return true; }
+}
+
+// L'aiguillage d'une étape validée : ordinaire -> micro, jalon -> plein écran,
+// dernière étape du parcours -> la grande fin.
 function rewardToast(r) {
   if (!r || !r.punch && !r.title) return;
-  if (r.milestone) filerCeleb(NIVEAU.JALON, (fin) => feterJalon(r, fin));
+  if (r.final && peutFeterLaFin()) filerCeleb(NIVEAU.FINAL, (fin) => feterFinal(fin));
+  else if (r.milestone) filerCeleb(NIVEAU.JALON, (fin) => feterJalon(r, fin));
   else filerCeleb(NIVEAU.MICRO, (fin) => feterMicro(r, fin));
 }
 
