@@ -2034,6 +2034,8 @@ try {
     return { ok: false };
   }
   // Construit l'objet parcours (données brutes ; les statuts/étapes/badges sont calculés au front).
+  // Objectif de séances du challenge : 3 par semaine, sur 6 semaines.
+  const SEANCES_PAR_SEMAINE = 3;
   function buildParcours(email) {
     const db = getDb();
     const profil = profilDeClient(email);
@@ -2099,7 +2101,10 @@ try {
     return {
       objectifPerte: perte, poidsDepart, poidsObjectif, startDate, jourActuel, dureeJours: 42, finDate,
       pesees, jalons, photos, seances, mensurations, regularite: reg,
-      seancesObjHebdo: 4, seancesObjTotal: 24, celebration,
+      // ⚠️ 3 séances par semaine sur les 6 semaines = 18. Le total est DÉRIVÉ de
+      // l'hebdo et de la durée, jamais saisi à côté : deux nombres écrits à la
+      // main finissent toujours par se contredire (c'était 4 et 24).
+      seancesObjHebdo: SEANCES_PAR_SEMAINE, seancesObjTotal: SEANCES_PAR_SEMAINE * (42 / 7), celebration,
     };
   }
 

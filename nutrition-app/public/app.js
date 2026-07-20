@@ -4566,7 +4566,7 @@ function statsSemaine(semaine) {
     semaine: w, joursGagnes, repasRenseignes, repasPossibles,
     // On n'a pas d'historique de la série : on compare au mieux (fin = valeur du jour).
     streakDebut: 0, streakFin: st.streak || 0,
-    seancesValidees, seancesPrevues: p.seancesObjHebdo || 4,
+    seancesValidees, seancesPrevues: p.seancesObjHebdo || 3,
     ebooksLus, actionsCommunaute,
   };
 }
@@ -6605,11 +6605,11 @@ function renderParcours() {
     '</section>';
 
   // --- Séances ---
-  const pastilles = Array.from({ length: p.seancesObjTotal || 24 }, (_, i) => '<span class="pc-pastille' + (i < seancesTot ? ' on' : '') + '"></span>').join('');
+  const pastilles = Array.from({ length: p.seancesObjTotal || 18 }, (_, i) => '<span class="pc-pastille' + (i < seancesTot ? ' on' : '') + '"></span>').join('');
   const todayY = ymd(new Date());
   const seancesBlock =
     '<section class="pc-sec"><h3>' + icSvg('flame') + ' Mes séances validées</h3>' +
-      '<div class="pc-seances-head"><b>' + seancesSemN + ' / ' + (p.seancesObjHebdo || 4) + '</b> séances cette semaine</div>' +
+      '<div class="pc-seances-head"><b>' + seancesSemN + ' / ' + (p.seancesObjHebdo || 3) + '</b> séances cette semaine</div>' +
       '<div class="pc-week">' + seancesSem.map((j) => {
         const inner = '<span>' + j.lbl + '</span>' + (j.done ? icSvg('check') : '<i>—</i>');
         const cls = 'pc-day-cell' + (j.done ? ' on' : '');
@@ -6620,7 +6620,7 @@ function renderParcours() {
         return '<button type="button" class="' + cls + ' is-clic" data-pc-day="' + j.ymd + '" title="' + titre + '">' + inner + '</button>';
       }).join('') + '</div>' +
       '<p class="pc-week-hint">Un oubli ? Touche le jour concerné pour valider (ou retirer) une séance passée.</p>' +
-      '<div class="pc-seances-tot">Depuis le départ : <b>' + seancesTot + ' / ' + (p.seancesObjTotal || 24) + '</b></div>' +
+      '<div class="pc-seances-tot">Depuis le départ : <b>' + seancesTot + ' / ' + (p.seancesObjTotal || 18) + '</b></div>' +
       '<div class="pc-pastilles">' + pastilles + '</div>' +
       '<button type="button" class="pc-btn primary pc-full" data-pc-act="seance">' + icSvg('check') + ' ' + (seancesSem.find((j) => j.ymd === todayY && j.done) ? 'Séance validée aujourd’hui' : 'Valider une séance') + '</button>' +
     '</section>';
@@ -6642,7 +6642,7 @@ function renderParcours() {
           '<div><span>Final</span><b>' + fmtKg(p.pesees.s6.poids) + '</b></div>' +
           '<div><span>Résultat</span><b class="hl">−' + fmtKg(perduReel) + '</b></div>' +
           '<div><span>Objectif</span><b>−' + (p.objectifPerte || 6) + ' kg</b></div>' +
-          '<div><span>Séances</span><b>' + seancesTot + ' / ' + (p.seancesObjTotal || 24) + '</b></div>' +
+          '<div><span>Séances</span><b>' + seancesTot + ' / ' + (p.seancesObjTotal || 18) + '</b></div>' +
           '<div><span>Régularité</span><b>' + (r.pct || 0) + '%</b></div>' +
         '</div>' +
         '<p class="pc-bilan-msg">' + (atteint ? 'Bravo, objectif atteint ! L’étape suivante est de stabiliser tes résultats.' : 'Beau parcours ! Tu t’es rapproché de ton objectif — on continue pour le stabiliser et le dépasser.') + '</p>' +
