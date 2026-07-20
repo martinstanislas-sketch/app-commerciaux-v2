@@ -878,7 +878,14 @@
         <button type="button" class="profil-row profil-admin hidden" id="btnPlatsPhotos"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Photos des plats<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" id="btnInviteClient"><svg class="ic pr-lime"><use href="#ic-send"/></svg>Inviter un client<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnClientsAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Clients inscrits<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
-        <button type="button" class="profil-row profil-admin hidden" data-go="btnAdhAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Adhérence clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <!-- ⚠️ profil-COACH et non profil-admin : ce tableau est l'outil de suivi
+             du coach (alertes « aucun suivi depuis N jours », adhérence faible,
+             demande d'aide en attente). Il était réservé au super-admin, donc
+             AUCUN coach ne pouvait l'atteindre — alors que la route le sert déjà
+             en le limitant à SES clients. La ligne voisine « Clients inscrits »
+             était bien en profil-coach : c'est cette ligne-ci qui était restée
+             sur la mauvaise classe. -->
+        <button type="button" class="profil-row profil-coach hidden" data-go="btnAdhAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Adhérence clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" data-go="btnScanAdmin"><svg class="ic pr-lime"><use href="#ic-barcode"/></svg>Scans clients<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" data-go="btnPlateAdmin"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Analyses d'assiettes<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnDemoAdmin"><svg class="ic pr-lime"><use href="#ic-eye"/></svg>Mode démo client<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
@@ -1559,6 +1566,6 @@
   <script src="avatar.js?v=8"></script>
   <script src="coursesCatalogue.js?v=5"></script>
   <script src="coursesEngine.js?v=4"></script>
-  <script src="app.js?v=216"></script>
+  <script src="app.js?v=217"></script>
 </body>
 </html>

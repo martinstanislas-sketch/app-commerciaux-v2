@@ -3166,7 +3166,10 @@ function init() {
   const _bQuickOpt = $('#btnQuickOptions'); if (_bQuickOpt) _bQuickOpt.addEventListener('click', openQuickOptions);
   const _bReset = $('#btnResetClients'); if (_bReset) _bReset.addEventListener('click', resetClientsData);
   const _coachPhotos = $('#coachOpenPhotos'); if (_coachPhotos) _coachPhotos.addEventListener('click', openPlatsPhotos);
-  const _coachAdh = $('#coachOpenAdh'); if (_coachAdh) _coachAdh.addEventListener('click', openAdhAdmin);
+  // ⚠️ `#coachOpenAdh` n'a jamais existé dans le HTML : ce câblage n'a jamais rien
+  // écouté. L'entrée du tableau d'adhérence est la ligne « Adhérence clients » du
+  // profil (profil-coach) et la carte de l'écran Repas. Retiré plutôt que laissé :
+  // un listener sur un id absent fait croire que la porte existe.
   const _coachHelp = $('#coachOpenHelp'); if (_coachHelp) _coachHelp.addEventListener('click', openHelpAdmin);
   const _coachScans = $('#coachOpenScans'); if (_coachScans) _coachScans.addEventListener('click', openScanAdmin);
   const _coachPlate = $('#coachOpenPlate'); if (_coachPlate) _coachPlate.addEventListener('click', openPlateAdmin);

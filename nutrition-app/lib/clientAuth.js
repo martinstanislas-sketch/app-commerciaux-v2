@@ -210,7 +210,20 @@ function createClientAuth({ getDb, defaultCoachId }) {
   return { validateInvite, validateAccessCode, genAccessCode, genUniqueAccessCode, findGroupByCode, joinCheck, loginClient };
 }
 
+// ─── CLOISON MÉTIER / NUTRITION ─────────────────────────────────────────────
+// Les deux mondes partagent le même magasin de sessions, et `requireAuth` ne
+// regarde que l'existence du jeton. Cette fonction dit si une session vient du
+// côté NUTRITION — client ou démo — et n'a donc rien à faire sur les routes
+// métier (chiffre d'affaires, commerciaux, coachs).
+// ⚠️ Extraite ici pour être TESTABLE : en ligne dans server.js, une régression
+// sur ce contrôle serait passée inaperçue.
+function estSessionNutrition(session) {
+  if (!session || typeof session !== 'object') return false;
+  return session.demo === true || session.role === 'nutrition_demo';
+}
+
 module.exports = createClientAuth;
+module.exports.estSessionNutrition = estSessionNutrition;
 module.exports.createClientAuth = createClientAuth;
 module.exports.PIN_RE = PIN_RE;
 module.exports.hashPin = hashPin;

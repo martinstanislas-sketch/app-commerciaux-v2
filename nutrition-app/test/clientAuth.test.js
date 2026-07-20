@@ -367,3 +367,31 @@ test('loginClient : email normalisé (casse + espaces)', () => {
   assert.equal(r.ok, true);
   assert.equal(r.body.email, 'a@a.fr');
 });
+
+// --- CLOISON MÉTIER / NUTRITION ---------------------------------------------
+// Les deux mondes partagent le même magasin de sessions et `requireAuth` ne
+// regarde que l'existence du jeton : sans ce contrôle, un compte client
+// nutrition lisait le chiffre d'affaires, les commerciaux et les coachs, et
+// écrivait même sur certaines routes. Le test est ici parce qu'une régression
+// silencieuse sur une règle de sécurité ne se voit jamais à l'écran.
+test('cloison : une session nutrition est reconnue comme telle', () => {
+  const { estSessionNutrition } = require('../lib/clientAuth');
+  // Ce que pose /nutrition/account/login (compte client réel).
+  assert.equal(estSessionNutrition({ role: 'nutrition_demo', demo: true, client: true, email: 'a@b.fr' }), true);
+  // Ce que pose /nutrition/demo/start (démo publique, sans compte).
+  assert.equal(estSessionNutrition({ role: 'nutrition_demo', name: 'Démo', demo: true }), true);
+  // Un drapeau `demo` suffit, même sans le rôle : on ferme large.
+  assert.equal(estSessionNutrition({ role: 'autre', demo: true }), true);
+});
+
+test('cloison : les sessions INTERNES passent, et rien ne casse sur l\'absence', () => {
+  const { estSessionNutrition } = require('../lib/clientAuth');
+  ['admin', 'coach', 'commercial', 'consultant', 'director', 'academy', 'guest'].forEach((role) => {
+    assert.equal(estSessionNutrition({ role }), false, role + ' doit garder son accès métier');
+  });
+  // Pas de session, ou une valeur inattendue : on ne bloque pas ici — c'est
+  // requireAuth qui refuse ensuite. Bloquer sur `null` casserait la connexion.
+  assert.equal(estSessionNutrition(null), false);
+  assert.equal(estSessionNutrition(undefined), false);
+  assert.equal(estSessionNutrition('nutrition_demo'), false, 'une chaîne n\'est pas une session');
+});

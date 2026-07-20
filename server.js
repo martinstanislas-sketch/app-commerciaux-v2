@@ -90,10 +90,37 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// ─── CLOISON : les sessions NUTRITION n'entrent pas dans le métier ───────────
+// ⚠️ Les deux mondes partagent le même magasin de sessions, et `requireAuth` ne
+// regarde QUE l'existence du jeton — jamais le rôle. Un compte client nutrition
+// (role 'nutrition_demo', posé par /nutrition/account/login et /nutrition/demo/start)
+// passait donc `requireAuth` sur TOUTES les routes métier : chiffre d'affaires,
+// commerciaux, coachs — et certaines routes en écriture, faute d'un requireAdmin.
+//
+// Ce garde est monté sur le PRÉFIXE /api : il couvre les routes existantes ET
+// celles qu'on ajoutera demain, ce qu'une liste à maintenir n'aurait pas fait.
+// ⚠️ Il ne couvre pas /nutrition/api/* : ces chemins ne commencent pas par /api,
+// et c'est bien l'intention — le client nutrition y est chez lui.
+// On lit le jeton nous-mêmes : ce middleware s'exécute AVANT requireAuth, donc
+// `req.session` n'existe pas encore.
+function refuserSessionNutrition(req, res, next) {
+  const h = req.headers['authorization'] || '';
+  if (h.startsWith('Bearer ')) {
+    const s = sessions.get(h.slice(7));
+    // `demo` couvre la session démo publique, `nutrition_demo` le compte client.
+    // La règle vit dans clientAuth (testée) plutôt qu'ici, en ligne.
+    if (estSessionNutrition(s)) {
+      return res.status(403).json({ error: 'Accès réservé à l\'équipe.' });
+    }
+  }
+  next(); // pas de jeton, ou un jeton interne : requireAuth fait son travail ensuite
+}
+app.use('/api', refuserSessionNutrition);
+
 // --- Code PIN client (protège l'accès au compte nutrition) ---
 // Extraits dans nutrition-app/lib/clientAuth.js pour être testables ; réimportés
 // ici sous les mêmes noms (utilisés aussi par la route account/set-pin).
-const { PIN_RE, hashPin, verifyPin } = require('./nutrition-app/lib/clientAuth');
+const { PIN_RE, hashPin, verifyPin, estSessionNutrition } = require('./nutrition-app/lib/clientAuth');
 
 // ─── Module Nutrition (My Coach Nutrition) ──────────────────
 // Monté sous /nutrition. Réservé à l'administrateur principal.
