@@ -4909,7 +4909,7 @@ function parcoursEtape(p) {
   const B = (label, act, primary) => ({ label, act, primary });
   switch (phase) {
     case 'avant-depart': return { t: 'Ta pesée de départ se fait avec ton coach. En attendant, ajoute tes photos.', b: [B('Ajouter mes photos', 'photos:depart', true), B('Contacter mon coach', 'coach')] };
-    case 'depart-s3': return { t: 'Reste régulier jusqu’au bilan mi-parcours avec ton coach.', sub: jS3 != null ? 'Bilan mi-parcours dans ' + jS3 + ' jour' + (jS3 > 1 ? 's' : '') + '.' : '', b: [B('Valider ma séance', 'seance', true), B('Voir ma régularité', 'scroll:reg'), B('Contacter mon coach', 'coach')] };
+    case 'depart-s3': return { t: 'Reste régulier jusqu’au bilan mi-parcours avec ton coach.', sub: jS3 != null ? 'Bilan mi-parcours dans ' + jS3 + ' jour' + (jS3 > 1 ? 's' : '') + '.' : '', b: [B('Valider ma séance', 'seance', true), B('Voir ma progression', 'scroll:courbe'), B('Contacter mon coach', 'coach')] };
     case 's3-due': return { t: 'Ton bilan mi-parcours se fait avec ton coach. Pense à ajouter tes photos.', b: [B('Ajouter mes photos', 'photos:s3', true), B('Contacter mon coach', 'coach')] };
     case 's3-s6': return { t: 'Dernière ligne droite jusqu’au bilan final avec ton coach.', sub: jS6 != null ? 'Bilan final dans ' + jS6 + ' jour' + (jS6 > 1 ? 's' : '') + '.' : '', b: [B('Valider ma séance', 'seance', true), B('Voir ma progression', 'scroll:courbe'), B('Contacter mon coach', 'coach')] };
     case 's6-due': return { t: 'Ton bilan final se fait avec ton coach. Ajoute tes photos et découvre ton bilan.', b: [B('Ajouter mes photos', 'photos:s6', true), B('Voir mon bilan', 'scroll:bilan'), B('Contacter mon coach', 'coach')] };
@@ -6535,8 +6535,6 @@ function renderParcours() {
   const seancesSem = parcoursSeancesSemaine(p);
   const seancesSemN = seancesSem.filter((j) => j.done).length;
   const seancesTot = (p.seances || []).length;
-  const r = p.regularite || {};
-  const joursRestants = p.startDate ? Math.max(0, p.dureeJours - p.jourActuel) : p.dureeJours;
   const badges = parcoursBadges(p);
 
   // --- Carte principale ---
@@ -6627,22 +6625,6 @@ function renderParcours() {
       '<button type="button" class="pc-btn primary pc-full" data-pc-act="seance">' + icSvg('check') + ' ' + (seancesSem.find((j) => j.ymd === todayY && j.done) ? 'Séance validée aujourd’hui' : 'Valider une séance') + '</button>' +
     '</section>';
 
-  // --- Régularité ---
-  let regMsg, regCls;
-  if (r.pct >= 75) { regMsg = 'Très bonne régularité, continue comme ça jusqu’à la prochaine pesée.'; regCls = 'ok'; }
-  else if (r.pct >= 45) { regMsg = 'Tu avances, mais essaie de valider plus de journées complètes cette semaine.'; regCls = 'mid'; }
-  else { regMsg = 'On se remet dans le rythme. Commence par valider ta journée d’aujourd’hui.'; regCls = 'low'; }
-  const regBlock =
-    '<section class="pc-sec"><h3>' + icSvg('heart') + ' Ma régularité</h3>' +
-      '<div class="pc-reg-grid">' +
-        '<div class="pc-reg"><b>' + (r.journeesValidees || 0) + ' / 42</b><span>journées</span></div>' +
-        '<div class="pc-reg"><b>' + (r.repasValides || 0) + '</b><span>repas validés</span></div>' +
-        '<div class="pc-reg"><b>' + (r.pct || 0) + '%</b><span>régularité</span></div>' +
-        '<div class="pc-reg"><b>' + joursRestants + '</b><span>jours restants</span></div>' +
-      '</div>' +
-      '<p class="pc-reg-msg ' + regCls + '">' + escapeHtml(regMsg) + '</p>' +
-    '</section>';
-
   // --- Badges ---
   const badgeBlock =
     '<section class="pc-sec"><h3>' + icSvg('spark') + ' Mes badges</h3><div class="pc-badges">' +
@@ -6710,7 +6692,7 @@ function renderParcours() {
 
   host.innerHTML =
     '<div class="pc-head"><h1>Mon Parcours</h1><p>Ton évolution pendant le Challenge 6 semaines</p></div>' +
-    carte + etapeBlock + peseeNote + courbe + timeline + photoBlock + mensurationsBlock + seancesBlock + regBlock + badgeBlock + bilan;
+    carte + etapeBlock + peseeNote + courbe + timeline + photoBlock + mensurationsBlock + seancesBlock + badgeBlock + bilan;
 
   // Câblage
   host.querySelectorAll('[data-pc-act]').forEach((b) => b.addEventListener('click', () => parcoursAction(b.dataset.pcAct)));
@@ -6803,7 +6785,7 @@ function parcoursAction(act) {
   if (kind === 'seance') return validerParcoursSeance();
   if (kind === 'coach') { if (typeof openCoachChat === 'function') openCoachChat(); return; }
   if (kind === 'scroll') {
-    const map = { reg: '.pc-reg-grid', courbe: '.pc-svg', bilan: '#pc-bilan', photos: '.pc-photos-jalon' };
+    const map = { courbe: '.pc-svg', bilan: '#pc-bilan', photos: '.pc-photos-jalon' };
     const node = map[arg] && document.querySelector('#view-parcours ' + map[arg]);
     if (node) node.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;

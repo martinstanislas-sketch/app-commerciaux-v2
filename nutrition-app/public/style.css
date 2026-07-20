@@ -1523,14 +1523,6 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .pc-pastille { width: 11px; height: 11px; border-radius: 50%; background: var(--gray-200); }
 .pc-pastille.on { background: var(--mc-blue); }
 /* régularité */
-.pc-reg-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.pc-reg { text-align: center; background: var(--mc-cream); border-radius: 12px; padding: 11px 4px; }
-.pc-reg b { display: block; font-size: 16px; font-weight: 800; color: var(--ink); }
-.pc-reg span { font-size: 10px; color: var(--muted); }
-.pc-reg-msg { margin: 12px 0 0; font-size: 13px; font-weight: 600; line-height: 1.45; padding: 10px 12px; border-radius: 12px; }
-.pc-reg-msg.ok { color: var(--success); background: rgba(52,211,153,0.12); }
-.pc-reg-msg.mid { color: var(--warn); background: rgba(229,181,103,0.12); }
-.pc-reg-msg.low { color: var(--error); background: rgba(248,113,113,0.12); }
 /* Mensurations (saisies par le client) */
 .pc-mensu-intro { margin: -4px 0 13px; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
 .pc-mensu-evol-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; margin-bottom: 13px; }
@@ -1587,7 +1579,7 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
 .cpc-pesee #cpcC-depart, .cpc-pesee [id^="cpcC-"] { flex: 2 1 140px; }
 .cpc-pesee .pc-btn { flex: none; }
 @media (max-width: 420px) {
-  .pc-reg-grid, .pc-weights { gap: 5px; }
+  .pc-weights { gap: 5px; }
   .pc-w b { font-size: 14px; }
 }
 
