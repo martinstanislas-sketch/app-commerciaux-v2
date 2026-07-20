@@ -4918,15 +4918,41 @@ function parcoursEtape(p) {
 }
 
 function lundiDeCetteSemaine() { const d = new Date(); const j = (d.getDay() + 6) % 7; d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - j); return d; }
+// Le programme du challenge : séances LUNDI, MERCREDI, VENDREDI. Les autres
+// jours sont des jours de repos — ils s'affichent, mais ne se cochent pas.
+// ⚠️ Indices de la boucle ci-dessous (0 = lundi), pas des getDay() : la grille
+// commence au lundi, elle n'a pas le même repère que le calendrier.
+const JOURS_SEANCE_GRILLE = [0, 2, 4];
 function parcoursSeancesSemaine(p) {
   const lundi = lundiDeCetteSemaine();
   const jours = [];
   // Jours construits en LOCAL (ymd) : toISOString() convertit en UTC et décalait
   // chaque case d'un jour (minuit local = la veille en UTC).
-  for (let i = 0; i < 7; i++) { const d = new Date(lundi.getFullYear(), lundi.getMonth(), lundi.getDate() + i); jours.push({ ymd: ymd(d), lbl: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'][i] }); }
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(lundi.getFullYear(), lundi.getMonth(), lundi.getDate() + i);
+    jours.push({ ymd: ymd(d), lbl: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'][i], programme: JOURS_SEANCE_GRILLE.includes(i) });
+  }
   const set = new Set(p.seances || []);
   jours.forEach((j) => { j.done = set.has(j.ymd); });
   return jours;
+}
+
+// Le bouton d'action des séances. Quatre situations, et un bouton qui ne peut
+// jamais échouer au clic : proposer « Valider une séance » un mardi, c'est
+// promettre une action que le serveur refusera.
+function boutonSeanceHTML(seancesSem, todayY, avantDepart, departY) {
+  const fr = (y) => String(y || '').split('-').reverse().join('/');
+  if (avantDepart) {
+    return '<p class="pc-week-hint">🗓️ Ton challenge démarre le <b>' + fr(departY) + '</b>. D’ici là, prépare-toi : photos, mensurations, plan et liste de courses.</p>';
+  }
+  const aujourdhui = seancesSem.find((j) => j.ymd === todayY);
+  if (aujourdhui && aujourdhui.programme) {
+    return '<button type="button" class="pc-btn primary pc-full" data-pc-act="seance">' + icSvg('check') + ' '
+      + (aujourdhui.done ? 'Séance validée aujourd’hui' : 'Valider une séance') + '</button>';
+  }
+  // Jour de repos : on annonce la prochaine séance au lieu d'un bouton mort.
+  const prochain = seancesSem.find((j) => j.programme && j.ymd > todayY);
+  return '<p class="pc-week-hint">😌 Jour de repos.' + (prochain ? ' Prochaine séance <b>' + prochain.lbl.toLowerCase() + '</b>.' : ' Reprise lundi.') + '</p>';
 }
 
 // Les badges n'ont AUCUN signal serveur : ils sont dérivés du parcours par le
@@ -6605,24 +6631,37 @@ function renderParcours() {
     '</section>';
 
   // --- Séances ---
+  // Avant le jour J, le client PRÉPARE (photos, mensurations, groupe, plan,
+  // liste de courses) mais ne s'entraîne pas encore. On le dit ici plutôt que de
+  // laisser un bouton qui se ferait refuser par le serveur.
+  // ⚠️ `departChallenge` (cohorte en priorité), PAS `startDate` qui n'est que la
+  // date de la pesée de départ : un groupe qui démarre lundi doit verrouiller les
+  // séances même pour un client pas encore pesé.
+  const departY = p.departChallenge || p.startDate || '';
+  const avantDepart = !!departY && ymd(new Date()) < departY;
   const pastilles = Array.from({ length: p.seancesObjTotal || 18 }, (_, i) => '<span class="pc-pastille' + (i < seancesTot ? ' on' : '') + '"></span>').join('');
   const todayY = ymd(new Date());
   const seancesBlock =
     '<section class="pc-sec"><h3>' + icSvg('flame') + ' Mes séances validées</h3>' +
       '<div class="pc-seances-head"><b>' + seancesSemN + ' / ' + (p.seancesObjHebdo || 3) + '</b> séances cette semaine</div>' +
       '<div class="pc-week">' + seancesSem.map((j) => {
+        // Jour de REPOS : il reste visible (le programme se lit d'un coup d'œil)
+        // mais ne réagit pas au clic — la règle est la même que côté serveur.
+        if (!j.programme) return '<div class="pc-day-cell is-repos" title="Jour de repos"><span>' + j.lbl + '</span><i>·</i></div>';
         const inner = '<span>' + j.lbl + '</span>' + (j.done ? icSvg('check') : '<i>—</i>');
         const cls = 'pc-day-cell' + (j.done ? ' on' : '');
         // Jour a venir : on ne peut pas valider une seance pas encore faite.
         if (j.ymd > todayY) return '<div class="' + cls + ' is-future">' + inner + '</div>';
+        // Avant le jour J : on se prépare, on ne s'entraîne pas encore.
+        if (avantDepart && j.ymd < departY) return '<div class="' + cls + ' is-future" title="Avant le départ du challenge">' + inner + '</div>';
         // Jour passe ou aujourd'hui : cliquable pour valider / retirer une seance ce jour-la.
         const titre = j.done ? 'Retirer la séance de ' + j.lbl : 'Valider une séance le ' + j.lbl;
         return '<button type="button" class="' + cls + ' is-clic" data-pc-day="' + j.ymd + '" title="' + titre + '">' + inner + '</button>';
       }).join('') + '</div>' +
-      '<p class="pc-week-hint">Un oubli ? Touche le jour concerné pour valider (ou retirer) une séance passée.</p>' +
+      '<p class="pc-week-hint">Séances le <b>lundi, mercredi et vendredi</b>. Un oubli ? Touche le jour concerné pour le valider après coup.</p>' +
       '<div class="pc-seances-tot">Depuis le départ : <b>' + seancesTot + ' / ' + (p.seancesObjTotal || 18) + '</b></div>' +
       '<div class="pc-pastilles">' + pastilles + '</div>' +
-      '<button type="button" class="pc-btn primary pc-full" data-pc-act="seance">' + icSvg('check') + ' ' + (seancesSem.find((j) => j.ymd === todayY && j.done) ? 'Séance validée aujourd’hui' : 'Valider une séance') + '</button>' +
+      boutonSeanceHTML(seancesSem, todayY, avantDepart, departY) +
     '</section>';
 
   // --- Badges ---
@@ -6798,6 +6837,14 @@ async function validerParcoursSeance(date) {
   const aujourdhui = ymd(new Date());
   const jour = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : aujourdhui;
   if (jour > aujourdhui) return; // pas de validation d'un jour a venir
+  // ⚠️ Même règle que le serveur, dite AVANT l'aller-retour : le client comprend
+  // pourquoi, au lieu de recevoir une erreur après coup. Le serveur reste le
+  // juge — ceci n'est qu'une politesse, pas la sécurité.
+  const jsem = new Date(Date.parse(jour + 'T12:00:00Z')).getUTCDay();
+  if (![1, 3, 5].includes(jsem)) {
+    showToast('Les séances ont lieu le lundi, le mercredi et le vendredi.', { icon: 'info' });
+    return;
+  }
   try {
     const res = await fetch(apiUrl('/api/parcours/seance'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ date: jour }) });
     const d = await res.json();

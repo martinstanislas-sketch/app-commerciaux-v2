@@ -850,3 +850,43 @@ test('reconcileStreak : rien manqué (gagné hier) -> la série est intacte', ()
   engine.reconcileStreak(email);
   assert.equal(db.prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email).streak_current, 3);
 });
+
+// --- LE CALENDRIER DU CHALLENGE ---------------------------------------------
+// Séances lundi / mercredi / vendredi, départ un lundi. Ces règles sont
+// appliquées côté SERVEUR (route de validation, création de groupe) : le front
+// ne fait que les refléter. Les tester ici, c'est tester la règle elle-même.
+test('calendrier : les séances ont lieu lundi, mercredi et vendredi', () => {
+  const CP = require('../lib/challengePath');
+  // Semaine du lundi 20 juillet 2026.
+  const semaine = ['2026-07-20', '2026-07-21', '2026-07-22', '2026-07-23', '2026-07-24', '2026-07-25', '2026-07-26'];
+  const attendu = [true, false, true, false, true, false, false];
+  semaine.forEach((d, i) => assert.equal(CP.estJourDeSeance(d), attendu[i], d + ' : jour de séance ?'));
+  assert.deepEqual(CP.JOURS_SEANCE, [1, 3, 5], 'lundi, mercredi, vendredi');
+});
+
+test('calendrier : le jour de la semaine ne dépend pas du fuseau', () => {
+  const CP = require('../lib/challengePath');
+  // ⚠️ `new Date('2026-07-20').getDay()` lit une date UTC en heure LOCALE : à
+  // l'ouest de Greenwich, on obtient dimanche au lieu de lundi, et tout le
+  // programme se décale d'un jour. Le calcul passe donc par midi UTC.
+  assert.equal(CP.jourSemaineYmd('2026-07-20'), 1, 'lundi');
+  assert.equal(CP.jourSemaineYmd('2026-01-01'), 4, 'jeudi (hiver)');
+  assert.equal(CP.jourSemaineYmd('2026-06-15'), 1, 'lundi (heure d\'été)');
+  assert.equal(CP.jourSemaineYmd('pas une date'), -1);
+});
+
+test('calendrier : un challenge démarre un lundi, et on sait lequel proposer', () => {
+  const CP = require('../lib/challengePath');
+  assert.equal(CP.estLundi('2026-07-20'), true);
+  assert.equal(CP.estLundi('2026-07-21'), false);
+  // ⚠️ TOUJOURS le lundi qui SUIT, jamais celui qui précède — même quand il est
+  // plus proche (un jeudi est à 3 jours du lundi passé, 4 du lundi suivant).
+  // Proposer une date de départ dans le passé serait une erreur de plus.
+  assert.equal(CP.lundiSuivant('2026-07-20'), '2026-07-20', 'déjà un lundi : inchangé');
+  assert.equal(CP.lundiSuivant('2026-07-21'), '2026-07-27', 'mardi -> lundi suivant');
+  assert.equal(CP.lundiSuivant('2026-07-23'), '2026-07-27', 'jeudi -> lundi suivant, pas le passé');
+  assert.equal(CP.lundiSuivant('2026-07-26'), '2026-07-27', 'dimanche -> le lendemain');
+  const tousDansLeFutur = ['2026-07-20', '2026-07-21', '2026-07-22', '2026-07-23', '2026-07-24', '2026-07-25', '2026-07-26']
+    .every((d) => CP.lundiSuivant(d) >= d);
+  assert.ok(tousDansLeFutur, 'aucune proposition ne doit tomber dans le passé');
+});

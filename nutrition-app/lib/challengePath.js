@@ -142,6 +142,34 @@ function pathDaysBetween(ymdA, ymdB) {
   if (isNaN(a) || isNaN(b)) return 0;
   return Math.round((b - a) / 86400000);
 }
+// ── LE CALENDRIER DU CHALLENGE ──────────────────────────────────────────────
+// Les séances ont lieu LUNDI, MERCREDI, VENDREDI — 3 par semaine, 6 semaines.
+// Ce n'est pas un objectif à atteindre comme on veut : c'est un programme daté.
+// ⚠️ Écrit ICI et nulle part ailleurs : le front, la route de validation et le
+// bonus de séance lisent tous cette même liste.
+const JOURS_SEANCE = [1, 3, 5]; // getUTCDay : 0 = dimanche, 1 = lundi…
+// Jour de la semaine d'un 'YYYY-MM-DD', sans piège de fuseau.
+// ⚠️ `new Date('2026-07-20').getDay()` interprète la chaîne en UTC puis la rend
+// en LOCAL : à l'ouest de Greenwich, on obtient la veille. On force donc midi
+// UTC et on lit en UTC — le jour ne peut plus basculer.
+function jourSemaineYmd(ymd) {
+  const t = Date.parse(String(ymd || '') + 'T12:00:00Z');
+  return isNaN(t) ? -1 : new Date(t).getUTCDay();
+}
+function estJourDeSeance(ymd) { return JOURS_SEANCE.includes(jourSemaineYmd(ymd)); }
+function estLundi(ymd) { return jourSemaineYmd(ymd) === 1; }
+// Le lundi À PARTIR d'une date (la date elle-même si c'est déjà un lundi).
+// ⚠️ Jamais le lundi PASSÉ, même s'il est plus proche : on propose ceci au coach
+// pour lancer un groupe, et une date de départ dans le passé n'est pas une
+// proposition — c'est une erreur de plus à corriger. Un jeudi donne donc le
+// lundi suivant (4 jours après) et non le lundi précédent (3 jours avant).
+function lundiSuivant(ymd) {
+  const j = jourSemaineYmd(ymd);
+  if (j < 0) return '';
+  if (j === 1) return ymd;
+  return pathYmdMinusDays(ymd, -((8 - j) % 7));
+}
+
 // 'YYYY-MM-DD' - n jours (via midi UTC pour éviter les bords DST).
 function pathYmdMinusDays(ymd, n) {
   const t = Date.parse(ymd + 'T12:00:00Z');
@@ -1027,6 +1055,11 @@ module.exports.nodeAccepteEvent = nodeAccepteEvent;
 module.exports.punchPalier = punchPalier;
 module.exports.PALIERS_SERIE = PALIERS_SERIE;
 module.exports.FLOW_STEP_EVENT = FLOW_STEP_EVENT;
+module.exports.JOURS_SEANCE = JOURS_SEANCE;
+module.exports.jourSemaineYmd = jourSemaineYmd;
+module.exports.estJourDeSeance = estJourDeSeance;
+module.exports.estLundi = estLundi;
+module.exports.lundiSuivant = lundiSuivant;
 // Exposé aussi sur le module (et pas seulement sur le moteur) : la valeur est
 // une CONSTANTE de règle, elle ne dépend d'aucune base.
 module.exports.PUNCH_SEANCE_BONUS = PUNCH_SEANCE_BONUS;

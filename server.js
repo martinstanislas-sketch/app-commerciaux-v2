@@ -652,7 +652,7 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 
 // Chemin du challenge : moteur gamifié 42 jours (module dédié, testable).
 const {
-  ensureChallengePathSchema, awardClientEvent, awardSeanceBonus, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds,
+  ensureChallengePathSchema, awardClientEvent, awardSeanceBonus, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds, pathStartYmd,
   assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier, punchProgression,
   declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
@@ -661,6 +661,9 @@ const {
 const bilanHebdo = require('./nutrition-app/lib/bilanHebdo');
 // Seuils de Punch : LA source de vérité des déblocages (vidéos, ebooks, cadeaux).
 const punchSeuils = require('./nutrition-app/lib/punchSeuils');
+// Le calendrier du challenge (jours de séance, départ un lundi) : une seule
+// source, partagée par la route de validation et le contrôle des groupes.
+const challengeCal = require('./nutrition-app/lib/challengePath');
 // Répartition des ebooks (intro / Chemin / paliers de Punch), validée par id.
 const ebooksSources = require('./nutrition-app/lib/ebooksSources');
 // Cadeaux : ce qu'est chaque cadeau (nom, digital/physique) + le thème selon le Punch.
@@ -2105,6 +2108,11 @@ try {
       // l'hebdo et de la durée, jamais saisi à côté : deux nombres écrits à la
       // main finissent toujours par se contredire (c'était 4 et 24).
       seancesObjHebdo: SEANCES_PAR_SEMAINE, seancesObjTotal: SEANCES_PAR_SEMAINE * (42 / 7), celebration,
+      // ⚠️ LA date de départ du CHALLENGE, qui n'est pas `startDate` (celle de la
+      // pesée de départ) : elle vient d'abord de la COHORTE. Sans elle, un client
+      // dont le groupe démarre lundi mais qui n'est pas encore pesé pourrait
+      // valider des séances avant le jour J.
+      departChallenge: (() => { try { return pathStartYmd(email) || ''; } catch (_) { return ''; } })(),
     };
   }
 
@@ -2197,6 +2205,18 @@ try {
       if (!acc.ok || !email) return res.status(403).json({ ok: false, error: 'Accès refusé.' });
       const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? b.date : new Date().toISOString().slice(0, 10);
       const type = String(b.type || '').slice(0, 40);
+      // ⚠️ LE PROGRAMME EST DATÉ : séances le lundi, le mercredi et le vendredi.
+      // Refusé côté SERVEUR et pas seulement grisé côté client — sinon la règle
+      // n'existe que dans l'affichage, et le compteur finit par mentir.
+      if (!challengeCal.estJourDeSeance(date)) {
+        return res.status(400).json({ ok: false, error: 'Les séances du challenge ont lieu le lundi, le mercredi et le vendredi.' });
+      }
+      // … et pas avant le jour J. Avant le départ, le client prépare (photos,
+      // mensurations, groupe, plan, courses) mais ne s'entraîne pas encore.
+      const depart = pathStartYmd(email);
+      if (depart && date < depart) {
+        return res.status(400).json({ ok: false, error: 'Ton challenge démarre le ' + depart.split('-').reverse().join('/') + '. D\'ici là, prépare-toi : photos, mensurations, plan et liste de courses.' });
+      }
       // Une seule séance par jour : si déjà validée -> on l'enlève (toggle).
       const exists = getDb().prepare('SELECT id FROM nutrition_parcours_seances WHERE client_email = ? AND date = ?').get(email, date);
       let reward = null;
@@ -3459,6 +3479,18 @@ try {
       if (b.startDate !== undefined) {
         const s = String(b.startDate || '').trim();
         if (s && !/^\d{4}-\d{2}-\d{2}$/.test(s)) return res.status(400).json({ ok: false, error: 'Date invalide (attendu AAAA-MM-JJ).' });
+        // ⚠️ UN CHALLENGE DÉMARRE UN LUNDI. On REFUSE plutôt que de corriger dans
+        // le dos du coach : une date changée en silence lui ferait croire son
+        // groupe lancé à une autre date que celle qu'il a annoncée à ses clients.
+        // Le lundi le plus proche est proposé, il reste maître de la décision.
+        if (s && !challengeCal.estLundi(s)) {
+          const prop = challengeCal.lundiSuivant(s);
+          return res.status(400).json({
+            ok: false,
+            error: 'Un challenge démarre un lundi. Le prochain lundi est le ' + prop.split('-').reverse().join('/') + '.',
+            lundiPropose: prop,
+          });
+        }
         startDate = s;
       }
       getDb().prepare('INSERT INTO nutrition_access_codes (ville, challenge_no, code, actif, start_date, updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(ville, challenge_no) DO UPDATE SET code = excluded.code, actif = excluded.actif, start_date = excluded.start_date, updated_at = excluded.updated_at')

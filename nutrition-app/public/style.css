@@ -4088,3 +4088,9 @@ body.is-demo #navRestart { display: none !important; }
   .dbl-in { width: 68px; }
   .dbl-u { display: none; }
 }
+
+/* Jour de REPOS : il reste visible — le programme (lundi / mercredi / vendredi)
+   se lit d'un coup d'œil — mais il ne se coche pas. Pas de curseur main, pas
+   d'effet au survol : rien ne suggère une action qui n'existe pas. */
+.pc-day-cell.is-repos { opacity: .42; cursor: default; background: transparent; border-style: dashed; }
+.pc-day-cell.is-repos i { font-style: normal; }
