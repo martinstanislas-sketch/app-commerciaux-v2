@@ -15,6 +15,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Static serving for COACH app at /coach
 app.use('/coach', express.static(path.join(__dirname, 'public', 'coach')));
 
+// Page autonome Standards (photos quotidiennes) — club en test : Tours
+app.get('/standard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'standard.html'));
+});
+
 // ─── Sessions (persistantes : cache memoire + SQLite) ───────
 // Stockees en base (table `sessions`) pour SURVIVRE aux redeploiements (le
 // process redemarre et viderait une Map memoire -> "Session expiree"). On garde
