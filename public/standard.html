@@ -98,19 +98,6 @@
     .stdp-sep { opacity: .7; }
     .stdp-count { font-weight: 600; color: #0F172A; }
     .stdp-head-actions { display: flex; align-items: center; gap: 10px; }
-    /* Raccourci « Suivant » : bouton principal bleu nuit */
-    .stdp-next {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: #1E293B; color: #fff;
-      border: none; border-radius: 9px;
-      padding: 7px 13px; font-size: 13px; font-weight: 600;
-      cursor: pointer; white-space: nowrap;
-    }
-    .stdp-next:hover { background: #0F172A; }
-    .stdp-next-label {
-      font-size: 10px; font-weight: 700; letter-spacing: .08em;
-      text-transform: uppercase; opacity: .6;
-    }
     /* 6/6 photos, pas encore validé */
     .stdp-done {
       font-size: 12.5px; font-weight: 700; color: #B45309;
@@ -155,24 +142,7 @@
     .std-group-head-status-ok { color: #2563EB; }
     .std-collapse-caret { color: #94A3B8; font-size: 13px; }
 
-    /* ── Carte « Suivant » et états : teal de l'app → bleu ──── */
-    body.std-page #tab-standards .std-card.std-card-next {
-      border-color: #2563EB;
-      box-shadow: 0 8px 24px -6px rgba(37, 99, 235, 0.30), 0 0 0 1px rgba(37, 99, 235, 0.18);
-    }
-    body.std-page #tab-standards .std-card-next .std-card-icon {
-      background: #EFF6FF; color: #1D4ED8;
-    }
-    body.std-page #tab-standards .std-card-next-tag {
-      background: #2563EB;
-      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
-    }
-    body.std-page #tab-standards .std-card-pulse { border-color: #2563EB; }
-    /* Redéfinit l'animation de pulsation (ombre teal → bleue) */
-    @keyframes stdCardPulse {
-      0%, 100% { transform: translateY(0); box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04); }
-      50% { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(37, 99, 235, 0.28); }
-    }
+    /* ── États : teal de l'app → bleu ───────────────────────── */
     body.std-page #tab-standards .std-card-uploading::after {
       background: linear-gradient(90deg, transparent 0%, rgba(37, 99, 235, 0.18) 50%, transparent 100%);
       background-size: 200% 100%;

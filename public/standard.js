@@ -298,7 +298,7 @@ async function standardsRender() {
 
 // Composant card photo. status ∈ { 'todo' | 'validated' }
 function renderStandardPhotoCard(props) {
-  const { title, slotId, slotKey, status, hasPhoto, readOnly, uploadedBy, uploadedAt, isNext } = props;
+  const { title, slotId, slotKey, status, hasPhoto, readOnly, uploadedBy, uploadedAt } = props;
   // Heure seule (la page est déjà datée) : « 06:41 »
   const fmtTimeOnly = (iso) => {
     const m = String(iso || '').match(/[ T](\d{2}):(\d{2})/);
@@ -337,8 +337,7 @@ function renderStandardPhotoCard(props) {
   }
 
   return `
-    <article class="std-card std-card-empty ${isNext ? 'std-card-next' : ''}" data-slot="${escapeHtml(slotKey)}">
-      ${isNext ? '<span class="std-card-next-tag">Suivant</span>' : ''}
+    <article class="std-card std-card-empty" data-slot="${escapeHtml(slotKey)}">
       <div class="std-card-empty-body">
         <header class="std-card-head">
           <span class="std-card-icon">${iconSvg}</span>
@@ -407,9 +406,6 @@ function standardsRenderDaily(data) {
   const doneCount = progressDefs.reduce((n, def) => n + ((slots[def.id] && slots[def.id].has_photo) ? 1 : 0), 0);
   const total = progressDefs.length;
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-  const nextSlot = progressDefs.find(def => !(slots[def.id] && slots[def.id].has_photo));
-  const nextSlotId = nextSlot ? nextSlot.id : null;
-  container.dataset.nextSlot = nextSlotId || '';
 
   // Compteur inline dans l'en-tête compact : « 0/6 espaces contrôlés »
   const progressInline = document.getElementById('std-progress-inline');
@@ -420,31 +416,13 @@ function standardsRenderDaily(data) {
     return m ? `${m[1]}:${m[2]}` : '';
   };
 
-  // Raccourci « Suivant » compact (à droite de l'en-tête). Quand la prise
-  // de poste est validée : simple statut discret — le détail (qui/quand)
-  // reste affiché une seule fois, au centre de la page.
+  // Statut à droite de l'en-tête. Quand la prise de poste est validée :
+  // simple statut discret — le détail (qui/quand) reste affiché une seule
+  // fois, au centre de la page.
   const scoreEl = document.getElementById('std-score-display');
   const primaryValidation = primaryGroup.num != null ? stdValidationByShift[primaryGroup.num] : null;
   if (scoreEl) {
-    if (nextSlot && !groupReadOnly(primaryGroup)) {
-      scoreEl.innerHTML = `
-        <button type="button" class="stdp-next" data-next-slot="${escapeHtml(nextSlot.id)}">
-          <span class="stdp-next-label">Suivant</span>
-          <strong>${escapeHtml(nextSlot.label)}</strong>
-          <span>→</span>
-        </button>
-      `;
-      const jumpBtn = scoreEl.querySelector('[data-next-slot]');
-      jumpBtn.addEventListener('click', () => {
-        const target = jumpBtn.dataset.nextSlot;
-        const targetCard = document.querySelector(`.std-card[data-slot="${target}"]`);
-        if (targetCard) {
-          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          targetCard.classList.add('std-card-pulse');
-          setTimeout(() => targetCard.classList.remove('std-card-pulse'), 1200);
-        }
-      });
-    } else if (primaryValidation) {
+    if (primaryValidation) {
       const when = fmtTime(primaryValidation.validated_at);
       scoreEl.innerHTML = `<span class="stdp-done-mini">✓ Terminée${when ? ` à ${when}` : ''}</span>`;
     } else if (pct >= 100 && total > 0) {
@@ -466,7 +444,6 @@ function standardsRenderDaily(data) {
       readOnly: rowReadOnly,
       uploadedBy: s.uploaded_by || null,
       uploadedAt: s.uploaded_at || null,
-      isNext: def.id === nextSlotId,
     });
   };
 
