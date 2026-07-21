@@ -633,6 +633,22 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_standards_checkin_date ON standards_daily_checkin(date, studio);
   `);
 
+  // ─── STANDARDS daily : validation de la prise de poste ──────
+  // Une ligne par studio × jour × prise de poste (1 = matin, 2 = après-midi).
+  // Créée quand le coach appuie sur « Valider ma prise de poste » (possible
+  // uniquement quand les 6 photos de sa rangée sont uploadées).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS standards_shift_validation (
+      studio TEXT NOT NULL,
+      date TEXT NOT NULL,
+      shift INTEGER NOT NULL,
+      validated_by TEXT,
+      validated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      PRIMARY KEY (studio, date, shift)
+    );
+    CREATE INDEX IF NOT EXISTS idx_standards_shift_valid_date ON standards_shift_validation(date, studio);
+  `);
+
   // ─── COCKPIT : suivi mensuel KPIs par club ──────────────────
   // Équivalent SQLite des tables kpi_objectives / kpi_values décrites
   // dans le brief Supabase. Upsert immédiat à la saisie.
