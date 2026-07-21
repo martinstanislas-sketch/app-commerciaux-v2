@@ -1838,6 +1838,17 @@ a.comp-thumb:hover { transform: translateY(-2px); border-color: var(--green-100)
   font: 700 13px/1 var(--font); font-family: inherit; white-space: nowrap; }
 .feed-c-send .ic { width: 15px; height: 15px; }
 .feed-c-send:active { transform: scale(.97); }
+/* Le bouton n'apparaît qu'à la 1re frappe. `:placeholder-shown` est vrai TANT
+   QUE le champ est vide (le placeholder s'affiche) : le bouton frère est alors
+   caché — sans une ligne de JS. Il réapparaît dès qu'un caractère est saisi, et
+   le champ, re-rendu vide après l'envoi, le re-cache tout seul.
+   ⚠️ `visibility` et non `display:none` : la largeur de la pastille reste
+   réservée, donc le champ ne s'élargit pas puis se rétrécit d'un coup à la
+   frappe — pas de sursaut de mise en page. */
+.feed-c-input:placeholder-shown + .feed-c-send { visibility: hidden; opacity: 0; }
+.feed-c-send { opacity: 1; transition: opacity .15s var(--ease), transform .1s var(--ease); }
+/* Pendant l'envoi : grisé et inerte, pour qu'un second tap ne reparte pas. */
+.feed-c-send:disabled { opacity: .55; cursor: default; }
 /* Sur les écrans les plus étroits, le champ passe avant : le libellé s'efface et
    la pastille reprend sa forme ronde, plutôt que d'écraser la zone de saisie. */
 @media (max-width: 360px) {

@@ -3980,14 +3980,23 @@ async function fetchComments(id) {
   } catch (_) { if (!_feedComments) _feedComments = {}; _feedComments[id] = _feedComments[id] || []; }
   renderCommunauteFeed();
 }
-async function postComment(id, text) {
+async function postComment(id, text, form) {
   text = String(text || '').trim(); if (!text) return;
+  // Anti-double-publication : un envoi déjà en cours verrouille le formulaire.
+  // Le drapeau `_busy` tient même si le bouton n'est pas passé (envoi par Entrée
+  // depuis un ancien rendu) ; le disabled visuel, lui, dépend du formulaire.
+  if (form) { if (form._busy) return; form._busy = true; }
+  const btn = form && form.querySelector('.feed-c-send');
+  const inp = form && form.querySelector('.feed-c-input');
+  if (btn) btn.disabled = true;
+  if (inp) inp.disabled = true;
+  const relacher = () => { if (form) form._busy = false; if (btn) btn.disabled = false; if (inp) inp.disabled = false; };
   if (!_feedComments) _feedComments = {};
   const it = (state.communauteFeed || []).find((x) => x.id === id) || (typeof FEED_DEMO !== 'undefined' && FEED_DEMO.find((x) => x.id === id));
   if (isDemo() || String(id).indexOf('demo') === 0) {
     _feedComments[id] = (_feedComments[id] || []).concat([{ id: 'l' + (_feedComments[id] || []).length, who: 'Moi', text: text, when: new Date().toISOString(), mine: true }]);
     if (it) it.comments = (it.comments || 0) + 1;
-    renderCommunauteFeed(); return;
+    relacher(); renderCommunauteFeed(); return;
   }
   try {
     const res = await fetch(apiUrl('/api/community/comments'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ item: id, text: text }) });
@@ -3995,10 +4004,11 @@ async function postComment(id, text) {
     if (d && d.ok && d.comment) {
       _feedComments[id] = (_feedComments[id] || []).concat([d.comment]);
       if (it) it.comments = (it.comments || 0) + 1;
-      renderCommunauteFeed();
+      relacher();            // avant le re-render : l'ancien form disparaît de toute façon
+      renderCommunauteFeed(); // le champ réapparaît vide -> bouton re-caché tout seul
       encaisserRecompenses(d); // encourager un membre valide l'étape 27
-    } else { showToast((d && d.error) || 'Commentaire impossible.', { icon: 'info' }); }
-  } catch (_) { showToast('Connexion requise pour commenter.', { icon: 'info' }); }
+    } else { relacher(); showToast((d && d.error) || 'Commentaire impossible.', { icon: 'info' }); }
+  } catch (_) { relacher(); showToast('Connexion requise pour commenter.', { icon: 'info' }); }
 }
 // Le badge d'un membre : un LISERÉ autour de sa photo dans le fil. C'est la seule
 // récompense que le GROUPE voit — et elle ne touche à rien d'autre : l'app de
@@ -4057,7 +4067,7 @@ function renderCommunauteFeed() {
   list.querySelectorAll('.feed-react, .feed-pal-btn').forEach((b) => b.addEventListener('click', () => reactFeed(b.dataset.fid, b.dataset.ftype)));
   list.querySelectorAll('.feed-more-btn').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); togglePalette(b.dataset.more); }));
   list.querySelectorAll('.feed-cbtn').forEach((b) => b.addEventListener('click', () => toggleComments(b.dataset.ctoggle)));
-  list.querySelectorAll('.feed-c-form').forEach((f) => f.addEventListener('submit', (e) => { e.preventDefault(); const inp = f.querySelector('.feed-c-input'); const v = inp ? inp.value : ''; if (!v.trim()) return; postComment(f.dataset.cform, v); }));
+  list.querySelectorAll('.feed-c-form').forEach((f) => f.addEventListener('submit', (e) => { e.preventDefault(); const inp = f.querySelector('.feed-c-input'); const v = inp ? inp.value : ''; if (!v.trim()) return; postComment(f.dataset.cform, v, f); }));
   if (typeof updateCommunauteAside === 'function') updateCommunauteAside(); // maj « posts récents » + « dernières victoires »
 }
 async function fetchCommunauteFeed() {
