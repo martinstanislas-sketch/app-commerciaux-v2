@@ -113,6 +113,17 @@
       margin: 4px 2px 10px;
     }
     .std-group-head-ro { color: #94A3B8; font-weight: 600; }
+    /* Les 6 vignettes d'une prise de poste tiennent sur UNE seule ligne */
+    body.std-page #tab-standards .std-slots-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+    }
+    @media (max-width: 1000px) and (min-width: 721px) {
+      body.std-page #tab-standards .std-slots-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      body.std-page #tab-standards .std-slots-grid { grid-template-columns: 1fr; gap: 8px; }
+    }
     /* Bouton final « Valider ma prise de poste » */
     .std-validate-wrap {
       margin: 14px 0 4px;
