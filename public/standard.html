@@ -98,6 +98,12 @@
       background: rgba(255, 255, 255, 0.18);
       padding: 7px 12px; border-radius: 10px; white-space: nowrap;
     }
+    /* Statut discret une fois la prise de poste validée (le détail
+       qui/quand n'est affiché qu'au centre de la page) */
+    .stdp-done-mini {
+      font-size: 13px; font-weight: 600;
+      color: rgba(255, 255, 255, 0.85); white-space: nowrap;
+    }
     .std-logout-btn {
       padding: 7px 14px; font-size: 13px;
       background: rgba(255, 255, 255, 0.12); color: #fff;
@@ -150,14 +156,18 @@
     .std-novalid-note {
       color: #94A3B8; font-size: 13px; text-align: center; padding: 8px;
     }
-    /* Bouton « Voir les contrôles précédents » */
-    .std-prev-toggle {
-      display: block; margin: 18px auto 6px; padding: 10px 20px;
-      background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
-      color: #475569; font-size: 14px; font-weight: 600; cursor: pointer;
+    /* Barre repliée de l'autre créneau : « Prise de poste — Après-midi ▾ » */
+    .std-group-collapse-head {
+      width: 100%; box-sizing: border-box;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+      padding: 13px 18px; margin-top: 16px; cursor: pointer;
+      font-size: 13px; font-weight: 700; color: #0F766E;
+      text-transform: uppercase; letter-spacing: .06em; text-align: left;
     }
-    .std-prev-toggle:hover { background: #F8FAFC; color: #0F172A; }
-    .std-prev-wrap { margin-top: 12px; }
+    .std-group-collapse-head:hover { background: #F8FAFC; }
+    .std-collapse-caret { color: #94A3B8; font-size: 15px; text-transform: none; }
+    .std-group-collapse-body { margin-top: 10px; }
     .hidden { display: none !important; }
   </style>
 </head>

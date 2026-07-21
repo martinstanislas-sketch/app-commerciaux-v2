@@ -290,8 +290,8 @@ function renderStandardPhotoCard(props) {
           </div>
           ${readOnly ? '' : `
             <div class="std-card-actions">
-              <button type="button" class="std-card-action-btn std-card-replace" data-slot-action="replace" data-slot-key="${escapeHtml(slotKey)}" title="Reprendre la photo">${STD_ICONS.refresh}<span>Remplacer</span></button>
-              <button type="button" class="std-card-action-btn std-card-delete" data-slot-action="delete" data-slot-key="${escapeHtml(slotKey)}" title="Supprimer">${STD_ICONS.trash}</button>
+              <button type="button" class="std-card-action-btn std-card-replace" data-slot-action="replace" data-slot-key="${escapeHtml(slotKey)}" title="Reprendre la photo (remplace l'ancienne)">${STD_ICONS.refresh}<span>Reprendre</span></button>
+              ${isAdmin() ? `<button type="button" class="std-card-action-btn std-card-delete" data-slot-action="delete" data-slot-key="${escapeHtml(slotKey)}" title="Supprimer">${STD_ICONS.trash}</button>` : ''}
             </div>
             <input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(slotKey)}" style="display:none">
           `}
@@ -379,8 +379,16 @@ function standardsRenderDaily(data) {
   const progressInline = document.getElementById('std-progress-inline');
   if (progressInline) progressInline.textContent = `${doneCount}/${total} espaces contrôlés`;
 
-  // Raccourci « Suivant » compact (à droite de l'en-tête)
+  const fmtTime = (iso) => {
+    const m = String(iso || '').match(/[ T](\d{2}):(\d{2})/);
+    return m ? `${m[1]}:${m[2]}` : '';
+  };
+
+  // Raccourci « Suivant » compact (à droite de l'en-tête). Quand la prise
+  // de poste est validée : simple statut discret — le détail (qui/quand)
+  // reste affiché une seule fois, au centre de la page.
   const scoreEl = document.getElementById('std-score-display');
+  const primaryValidation = primaryGroup.num != null ? stdValidationByShift[primaryGroup.num] : null;
   if (scoreEl) {
     if (nextSlot && !groupReadOnly(primaryGroup)) {
       scoreEl.innerHTML = `
@@ -400,6 +408,9 @@ function standardsRenderDaily(data) {
           setTimeout(() => targetCard.classList.remove('std-card-pulse'), 1200);
         }
       });
+    } else if (primaryValidation) {
+      const when = fmtTime(primaryValidation.validated_at);
+      scoreEl.innerHTML = `<span class="stdp-done-mini">✓ Terminée${when ? ` à ${when}` : ''}</span>`;
     } else if (pct >= 100 && total > 0) {
       scoreEl.innerHTML = `<span class="stdp-done">✓ Prise de poste complète</span>`;
     } else {
@@ -432,10 +443,6 @@ function standardsRenderDaily(data) {
   //  - validée         → chip verte « ✓ validée par X à HH:MM »
   //  - photos restantes → bouton désactivé « Encore X photos à prendre »
   //  - tout est prêt   → bouton actif « Valider ma prise de poste »
-  const fmtTime = (iso) => {
-    const m = String(iso || '').match(/[ T](\d{2}):(\d{2})/);
-    return m ? `${m[1]}:${m[2]}` : '';
-  };
   const renderShiftValidation = (g) => {
     if (g.num == null) return '';
     const validation = stdValidationByShift[g.num];
@@ -474,23 +481,26 @@ function standardsRenderDaily(data) {
     </section>
   `;
   };
-  // Une seule prise de poste mise en avant ; les autres derrière un bouton.
-  // Libellé selon la position : « précédents » si tout est avant, sinon neutre.
-  const othersAllEarlier = otherGroups.length > 0
-    && otherGroups.every(g => primaryGroup.num != null && g.num < primaryGroup.num);
-  const toggleLabel = (open) => othersAllEarlier
-    ? (open ? 'Masquer les contrôles précédents' : 'Voir les contrôles précédents')
-    : (open ? "Masquer l'autre prise de poste" : "Voir l'autre prise de poste");
+  // Le créneau qui ne concerne pas le salarié est REPLIÉ par défaut :
+  // simple barre « Prise de poste — Après-midi ▾ » qui se déplie au clic.
+  const renderCollapsedGroup = (g) => {
+    const rowRO = groupReadOnly(g);
+    return `
+    <section class="std-group std-group-collapsed">
+      <button type="button" class="std-group-collapse-head" data-collapse-toggle>
+        <span>Prise de poste — ${shiftLabel(g.num)}${rowRO && !readOnly ? ' <span class="std-group-head-ro">(lecture seule)</span>' : ''}</span>
+        <span class="std-collapse-caret">${stdShowPrevious ? '▴' : '▾'}</span>
+      </button>
+      <div class="std-group-collapse-body ${stdShowPrevious ? '' : 'hidden'}">
+        <div class="std-slots-grid">${g.defs.map(def => renderSlot(def, rowRO)).join('')}</div>
+        ${renderShiftValidation(g)}
+      </div>
+    </section>
+  `;
+  };
   const bodyHtml = `
     ${renderGroup(primaryGroup)}
-    ${otherGroups.length ? `
-      <button type="button" class="std-prev-toggle" id="std-prev-toggle">
-        ${toggleLabel(stdShowPrevious)}
-      </button>
-      <div class="std-prev-wrap ${stdShowPrevious ? '' : 'hidden'}" id="std-prev-groups">
-        ${otherGroups.map(renderGroup).join('')}
-      </div>
-    ` : ''}
+    ${otherGroups.map(renderCollapsedGroup).join('')}
   `;
   container.innerHTML = `
     ${readOnly ? `
@@ -506,16 +516,16 @@ function standardsRenderDaily(data) {
   container.querySelectorAll('[data-validate-shift]').forEach(btn => {
     btn.addEventListener('click', () => standardsValidateShift(parseInt(btn.dataset.validateShift, 10), btn));
   });
-  // Bouton « contrôles précédents » : simple toggle, l'état survit aux re-rendus
-  const prevToggle = container.querySelector('#std-prev-toggle');
-  if (prevToggle) {
-    prevToggle.addEventListener('click', () => {
+  // Barre repliable de l'autre créneau : l'état survit aux re-rendus
+  container.querySelectorAll('[data-collapse-toggle]').forEach(head => {
+    head.addEventListener('click', () => {
       stdShowPrevious = !stdShowPrevious;
-      const wrap = container.querySelector('#std-prev-groups');
-      if (wrap) wrap.classList.toggle('hidden', !stdShowPrevious);
-      prevToggle.textContent = toggleLabel(stdShowPrevious);
+      const body = head.nextElementSibling;
+      if (body) body.classList.toggle('hidden', !stdShowPrevious);
+      const caret = head.querySelector('.std-collapse-caret');
+      if (caret) caret.textContent = stdShowPrevious ? '▴' : '▾';
     });
-  }
+  });
   // Miniatures des slots remplis
   container.querySelectorAll('.std-slot-thumb-img').forEach(img => {
     const slot = img.dataset.thumbKey;
