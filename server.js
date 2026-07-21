@@ -4007,6 +4007,25 @@ app.post('/api/auth/login', (req, res) => {
     return res.json({ token, role: 'standards_admin', name: stdViewerName, sales_rep_id: null });
   }
 
+  // Mots de passe uniques des pages /standard par club : « tours » ouvre la
+  // prise de poste de Tours, « veigne » celle de Veigné. Session équivalente
+  // à un coach leader du studio (jour courant uniquement, pas d'historique,
+  // les deux rangées modifiables). Surchargables via STANDARD_PAGE_PIN_*.
+  const STANDARD_PAGE_PINS = {
+    [String(process.env.STANDARD_PAGE_PIN_TOURS || 'tours').toLowerCase()]: 'Tours',
+    [String(process.env.STANDARD_PAGE_PIN_VEIGNE || 'veigne').toLowerCase()]: 'Veigné',
+  };
+  const pageStudio = STANDARD_PAGE_PINS[pin.trim().toLowerCase()];
+  if (pageStudio) {
+    const token = crypto.randomUUID();
+    const sess = {
+      role: 'coach_leader', name: `Coach ${pageStudio}`, studio: pageStudio,
+      can_view_history: false, coach_slot: null, sales_rep_id: null,
+    };
+    sessions.set(token, sess);
+    return res.json({ token, ...sess });
+  }
+
   // Check commercial / phoneur PIN
   const rep = db.prepare('SELECT id, name, role FROM sales_reps WHERE pin = ? AND archived = 0').get(pin.trim());
   if (rep) {
