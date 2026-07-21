@@ -8721,6 +8721,66 @@ app.put('/api/standards/checkin', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Validation de la prise de poste ────────────────────────
+// Le coach valide sa prise de poste quand TOUTES les photos de sa rangée
+// sont uploadées. Une ligne par studio × date × shift (1 matin, 2 après-midi).
+
+app.get('/api/standards/shift-validation', requireAuth, (req, res) => {
+  const studio = String(req.query.studio || '').trim();
+  const date = String(req.query.date || '').trim();
+  if (!studio) return res.status(400).json({ error: 'studio requis' });
+  if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!standardsCanViewDate(req, date)) return res.status(403).json({ error: 'Accès refusé sur cette date' });
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT shift, validated_by, validated_at
+    FROM standards_shift_validation WHERE studio = ? AND date = ?
+  `).all(studio, date);
+  const byShift = {};
+  rows.forEach(r => { byShift[r.shift] = { validated_by: r.validated_by, validated_at: r.validated_at }; });
+  res.json({ studio, date, shifts: byShift });
+});
+
+app.put('/api/standards/shift-validation', requireAuth, (req, res) => {
+  const studio = String((req.body && req.body.studio) || '').trim();
+  const date = String((req.body && req.body.date) || '').trim();
+  const shift = parseInt((req.body && req.body.shift), 10);
+  if (!studio) return res.status(400).json({ error: 'studio requis' });
+  if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
+  if (!(shift === 1 || shift === 2)) return res.status(400).json({ error: 'shift doit être 1 ou 2' });
+  if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
+  if (!standardsCanModify(req, date)) return res.status(403).json({ error: 'Validation uniquement pour le jour en cours' });
+  if (req.session.role === 'standards_admin') return res.status(403).json({ error: 'Lecture seule' });
+  // Un coach affecté à une rangée ne peut valider que la sienne
+  if ((req.session.coach_slot === 1 || req.session.coach_slot === 2) && req.session.coach_slot !== shift) {
+    return res.status(403).json({ error: 'Tu ne peux valider que ta prise de poste' });
+  }
+  // Garde-fou serveur : toutes les photos de la rangée doivent être présentes
+  const prefix = `c${shift}_`;
+  const expected = STANDARDS_DAILY_SLOTS.filter(s => s.startsWith(prefix));
+  const db = getDb();
+  const filled = db.prepare(`
+    SELECT slot FROM standards_daily
+    WHERE studio = ? AND date = ? AND photo_blob IS NOT NULL AND photo_size > 0
+  `).all(studio, date).map(r => r.slot);
+  const missing = expected.filter(id => !filled.includes(id));
+  if (missing.length > 0) {
+    return res.status(400).json({ error: `Encore ${missing.length} photo${missing.length > 1 ? 's' : ''} à prendre avant de valider` });
+  }
+  // Idempotent : la première validation gagne, on renvoie l'état courant
+  db.prepare(`
+    INSERT INTO standards_shift_validation (studio, date, shift, validated_by)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(studio, date, shift) DO NOTHING
+  `).run(studio, date, shift, req.session.name || 'inconnu');
+  const row = db.prepare(`
+    SELECT validated_by, validated_at FROM standards_shift_validation
+    WHERE studio = ? AND date = ? AND shift = ?
+  `).get(studio, date, shift);
+  res.json({ ok: true, validation: row });
+});
+
 // Helper : vérifie qu'un check-in existe pour (studio, date, coach_slot)
 function checkinExists(studio, date, coach_slot) {
   const db = getDb();

@@ -22,6 +22,7 @@ let standardsSlotsDef = [];    // définition des 12 slots (id, label, icon, coa
 // précédents restent accessibles derrière un bouton.
 const STD_SHIFT_SWITCH_HOUR = 13;
 let stdShowPrevious = false;   // état du volet « contrôles précédents »
+let stdValidationByShift = {}; // { 1: {validated_by, validated_at}, 2: {...} }
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -234,13 +235,22 @@ async function standardsRender() {
   try {
     const headers = { 'Authorization': `Bearer ${authToken}` };
     const dailyUrl = `/api/standards/daily?studio=${encodeURIComponent(STD_STUDIO)}&date=${encodeURIComponent(standardsDate)}`;
-    const res = await fetch(dailyUrl, { headers });
+    const validUrl = `/api/standards/shift-validation?studio=${encodeURIComponent(STD_STUDIO)}&date=${encodeURIComponent(standardsDate)}`;
+    const [res, validRes] = await Promise.all([
+      fetch(dailyUrl, { headers }),
+      fetch(validUrl, { headers }).catch(() => null),
+    ]);
     if (res.status === 401) { logout(); return; }
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
       throw new Error(d.error || ('HTTP ' + res.status));
     }
     const daily = await res.json();
+    stdValidationByShift = {};
+    if (validRes && validRes.ok) {
+      const v = await validRes.json().catch(() => ({}));
+      stdValidationByShift = v.shifts || {};
+    }
     standardsRenderDaily(daily);
   } catch (err) {
     container.innerHTML = `<div class="std-error">Erreur : ${escapeHtml(String(err.message || err))}</div>`;
@@ -283,6 +293,7 @@ function renderStandardPhotoCard(props) {
               <button type="button" class="std-card-action-btn std-card-replace" data-slot-action="replace" data-slot-key="${escapeHtml(slotKey)}" title="Reprendre la photo">${STD_ICONS.refresh}<span>Remplacer</span></button>
               <button type="button" class="std-card-action-btn std-card-delete" data-slot-action="delete" data-slot-key="${escapeHtml(slotKey)}" title="Supprimer">${STD_ICONS.trash}</button>
             </div>
+            <input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(slotKey)}" style="display:none">
           `}
         </div>
       </article>
@@ -403,10 +414,47 @@ function standardsRenderDaily(data) {
     return;
   }
   const shiftLabel = (n) => n === 1 ? 'Matin' : 'Après-midi';
+  // Bouton final de validation de la prise de poste :
+  //  - validée         → chip verte « ✓ validée par X à HH:MM »
+  //  - photos restantes → bouton désactivé « Encore X photos à prendre »
+  //  - tout est prêt   → bouton actif « Valider ma prise de poste »
+  const fmtTime = (iso) => {
+    const m = String(iso || '').match(/[ T](\d{2}):(\d{2})/);
+    return m ? `${m[1]}:${m[2]}` : '';
+  };
+  const renderShiftValidation = (g) => {
+    if (g.num == null) return '';
+    const validation = stdValidationByShift[g.num];
+    if (validation) {
+      const when = fmtTime(validation.validated_at);
+      return `
+        <div class="std-validate-wrap">
+          <div class="std-validated-chip">✓ Prise de poste validée par ${escapeHtml(validation.validated_by || '?')}${when ? ` à ${when}` : ''}</div>
+        </div>
+      `;
+    }
+    if (readOnly) {
+      return `<div class="std-novalid-note">Prise de poste non validée</div>`;
+    }
+    const gRemaining = g.defs.filter(def => !(slots[def.id] && slots[def.id].has_photo)).length;
+    if (gRemaining > 0) {
+      return `
+        <div class="std-validate-wrap">
+          <button type="button" class="std-validate-btn" disabled>Encore ${gRemaining} photo${gRemaining > 1 ? 's' : ''} à prendre</button>
+        </div>
+      `;
+    }
+    return `
+      <div class="std-validate-wrap">
+        <button type="button" class="std-validate-btn" data-validate-shift="${g.num}">Valider ma prise de poste</button>
+      </div>
+    `;
+  };
   const renderGroup = (g) => `
     <section class="std-group">
       ${g.num != null ? `<div class="std-group-head">Prise de poste — ${shiftLabel(g.num)}</div>` : ''}
       <div class="std-slots-grid">${g.defs.map(renderSlot).join('')}</div>
+      ${renderShiftValidation(g)}
     </section>
   `;
   // Une seule prise de poste affichée ; les précédentes derrière un bouton.
@@ -431,6 +479,10 @@ function standardsRenderDaily(data) {
     ` : ''}
     ${bodyHtml}
   `;
+  // Bouton « Valider ma prise de poste »
+  container.querySelectorAll('[data-validate-shift]').forEach(btn => {
+    btn.addEventListener('click', () => standardsValidateShift(parseInt(btn.dataset.validateShift, 10), btn));
+  });
   // Bouton « contrôles précédents » : simple toggle, l'état survit aux re-rendus
   const prevToggle = container.querySelector('#std-prev-toggle');
   if (prevToggle) {
@@ -470,6 +522,29 @@ function standardsRenderDaily(data) {
       input.value = '';
     });
   });
+}
+
+// ─── Validation de la prise de poste ────────────────────────
+async function standardsValidateShift(shift, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Validation…'; }
+  try {
+    const res = await fetch('/api/standards/shift-validation', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+      body: JSON.stringify({ studio: STD_STUDIO, date: standardsDate, shift }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      showStandardsToast(d.error || 'Erreur validation', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Valider ma prise de poste'; }
+      return;
+    }
+    showStandardsToast('✓ Prise de poste validée', 'success');
+    await standardsRender();
+  } catch (_) {
+    showStandardsToast('Erreur réseau', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Valider ma prise de poste'; }
+  }
 }
 
 // ─── Miniatures (cache blob URLs) ───────────────────────────
