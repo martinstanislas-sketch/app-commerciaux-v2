@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0D9488">
+  <title>Standards — Tours</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    /* Page autonome : pas de barre d'onglets, fond identique à l'app */
+    body.std-page { background: #F4F5F7; min-height: 100vh; margin: 0; }
+
+    /* Écran de connexion PIN (léger, propre à cette page) */
+    .std-login-screen {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .std-login-card {
+      background: #fff; border-radius: 16px; padding: 32px 28px;
+      width: 100%; max-width: 380px;
+      box-shadow: 0 10px 40px rgba(15, 23, 42, 0.10);
+      text-align: center;
+    }
+    .std-login-title { margin: 0 0 4px; font-size: 20px; color: #0F172A; }
+    .std-login-sub { margin: 0 0 20px; font-size: 14px; color: #64748B; }
+    .std-login-input {
+      width: 100%; box-sizing: border-box;
+      padding: 12px 14px; font-size: 17px; text-align: center;
+      border: 1.5px solid #E2E8F0; border-radius: 10px;
+      outline: none; letter-spacing: 2px;
+    }
+    .std-login-input:focus { border-color: #0D9488; }
+    .std-login-btn {
+      width: 100%; margin-top: 12px; padding: 12px;
+      background: #0D9488; color: #fff; font-size: 15px; font-weight: 600;
+      border: none; border-radius: 10px; cursor: pointer;
+    }
+    .std-login-btn:hover { background: #0B7C72; }
+    .std-login-btn:disabled { opacity: .6; cursor: wait; }
+    .std-login-error {
+      margin-top: 12px; font-size: 13px; color: #DC2626; display: none;
+    }
+    /* Bouton sortir dans la toolbar */
+    .std-logout-btn {
+      margin-left: auto; padding: 6px 14px; font-size: 13px;
+      background: #fff; color: #475569; border: 1px solid #E2E8F0;
+      border-radius: 8px; cursor: pointer; white-space: nowrap;
+    }
+    .std-logout-btn:hover { background: #F8FAFC; color: #0F172A; }
+    /* Studio fixe (pas de sélecteur sur cette page) */
+    .std-studio-fixed {
+      font-weight: 700; color: #0F172A; font-size: 15px;
+      background: #E6FFFA; border: 1px solid #99F6E4;
+      padding: 6px 14px; border-radius: 8px;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body class="std-page">
+
+  <!-- Connexion PIN -->
+  <div id="std-login" class="std-login-screen hidden">
+    <form id="std-login-form" class="std-login-card" autocomplete="off">
+      <h1 class="std-login-title">Standards — Tours</h1>
+      <p class="std-login-sub">Entre ton code PIN pour accéder aux photos du jour</p>
+      <input type="password" id="std-login-pin" class="std-login-input" inputmode="text" placeholder="Code PIN" required minlength="3" autofocus>
+      <button type="submit" id="std-login-submit" class="std-login-btn">Se connecter</button>
+      <div id="std-login-error" class="std-login-error"></div>
+    </form>
+  </div>
+
+  <!-- Page Standards (id #tab-standards conservé pour réutiliser le CSS existant) -->
+  <section id="tab-standards" class="tab-content active hidden">
+    <div class="std-banner">
+      <h1 class="std-banner-title"><span class="std-banner-title-long">Standards — photos quotidiennes du studio</span><span class="std-banner-title-short">Standards du jour</span></h1>
+    </div>
+    <div class="std-wrap">
+      <div class="std-toolbar">
+        <div class="std-studio-picker">
+          <label class="std-studio-label">Studio :</label>
+          <span class="std-studio-fixed" id="std-studio-name">Tours</span>
+        </div>
+        <div class="std-month-picker">
+          <button type="button" class="std-nav-btn" id="std-month-prev" aria-label="Jour précédent">‹</button>
+          <span id="std-month-label" class="std-month-label">—</span>
+          <button type="button" class="std-nav-btn" id="std-month-next" aria-label="Jour suivant">›</button>
+        </div>
+        <div class="std-score" id="std-score-display"></div>
+        <button type="button" class="std-logout-btn" id="std-logout">Sortir</button>
+      </div>
+      <div id="std-categories" class="std-categories"></div>
+    </div>
+  </section>
+
+  <script src="/standard.js"></script>
+</body>
+</html>
