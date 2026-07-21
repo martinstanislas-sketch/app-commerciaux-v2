@@ -47,19 +47,65 @@
     .std-login-error {
       margin-top: 12px; font-size: 13px; color: #DC2626; display: none;
     }
-    /* Bouton sortir dans la toolbar */
+
+    /* ── En-tête compact ─────────────────────────────────── */
+    .stdp-header {
+      background: linear-gradient(135deg, #0F766E 0%, #14B8A6 100%);
+      color: #fff;
+      padding: 12px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+    }
+    .stdp-title {
+      margin: 0; font-size: 17px; font-weight: 700; line-height: 1.25;
+      letter-spacing: .01em;
+      /* Neutralise le dégradé texte appliqué globalement à « header h1 » */
+      background: none; -webkit-background-clip: initial; background-clip: initial;
+      color: #fff; -webkit-text-fill-color: #fff;
+      white-space: normal;
+    }
+    .stdp-studio { text-transform: uppercase; letter-spacing: .05em; }
+    .stdp-sub {
+      display: flex; align-items: center; gap: 6px;
+      margin-top: 2px; font-size: 13px; color: rgba(255, 255, 255, 0.9);
+    }
+    .stdp-nav {
+      background: rgba(255, 255, 255, 0.15); color: #fff;
+      border: none; border-radius: 6px;
+      width: 22px; height: 22px; line-height: 1;
+      font-size: 14px; cursor: pointer; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .stdp-nav:hover { background: rgba(255, 255, 255, 0.28); }
+    .stdp-sep { opacity: .7; }
+    .stdp-count { font-weight: 600; }
+    .stdp-head-actions { display: flex; align-items: center; gap: 10px; }
+    /* Raccourci « Suivant » compact */
+    .stdp-next {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #0F172A; color: #fff;
+      border: none; border-radius: 10px;
+      padding: 8px 14px; font-size: 13px; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+    }
+    .stdp-next:hover { background: #1E293B; }
+    .stdp-next-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; opacity: .65;
+    }
+    .stdp-done {
+      font-size: 13px; font-weight: 700; color: #fff;
+      background: rgba(255, 255, 255, 0.18);
+      padding: 7px 12px; border-radius: 10px; white-space: nowrap;
+    }
     .std-logout-btn {
-      margin-left: auto; padding: 6px 14px; font-size: 13px;
-      background: #fff; color: #475569; border: 1px solid #E2E8F0;
+      padding: 7px 14px; font-size: 13px;
+      background: rgba(255, 255, 255, 0.12); color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.35);
       border-radius: 8px; cursor: pointer; white-space: nowrap;
     }
-    .std-logout-btn:hover { background: #F8FAFC; color: #0F172A; }
-    /* Studio fixe (pas de sélecteur sur cette page) */
-    .std-studio-fixed {
-      font-weight: 700; color: #0F172A; font-size: 15px;
-      background: #E6FFFA; border: 1px solid #99F6E4;
-      padding: 6px 14px; border-radius: 8px;
-    }
+    .std-logout-btn:hover { background: rgba(255, 255, 255, 0.24); }
+
     /* Titre de la prise de poste affichée */
     .std-group-head {
       font-size: 13px; font-weight: 700; color: #0F766E;
@@ -92,23 +138,23 @@
 
   <!-- Page Standards (id #tab-standards conservé pour réutiliser le CSS existant) -->
   <section id="tab-standards" class="tab-content active hidden">
-    <div class="std-banner">
-      <h1 class="std-banner-title"><span class="std-banner-title-long">Standards — photos quotidiennes du studio</span><span class="std-banner-title-short">Standards du jour</span></h1>
-    </div>
-    <div class="std-wrap">
-      <div class="std-toolbar">
-        <div class="std-studio-picker">
-          <label class="std-studio-label">Studio :</label>
-          <span class="std-studio-fixed" id="std-studio-name">Tours</span>
+    <header class="stdp-header">
+      <div class="stdp-head-main">
+        <h1 class="stdp-title">Prise de poste — <span class="stdp-studio" id="std-studio-name">Tours</span></h1>
+        <div class="stdp-sub">
+          <button type="button" class="stdp-nav" id="std-month-prev" aria-label="Jour précédent">‹</button>
+          <span class="stdp-date" id="std-month-label">—</span>
+          <button type="button" class="stdp-nav" id="std-month-next" aria-label="Jour suivant">›</button>
+          <span class="stdp-sep">·</span>
+          <span class="stdp-count" id="std-progress-inline">—</span>
         </div>
-        <div class="std-month-picker">
-          <button type="button" class="std-nav-btn" id="std-month-prev" aria-label="Jour précédent">‹</button>
-          <span id="std-month-label" class="std-month-label">—</span>
-          <button type="button" class="std-nav-btn" id="std-month-next" aria-label="Jour suivant">›</button>
-        </div>
-        <div class="std-score" id="std-score-display"></div>
+      </div>
+      <div class="stdp-head-actions">
+        <div id="std-score-display"></div>
         <button type="button" class="std-logout-btn" id="std-logout">Sortir</button>
       </div>
+    </header>
+    <div class="std-wrap">
       <div id="std-categories" class="std-categories"></div>
     </div>
   </section>

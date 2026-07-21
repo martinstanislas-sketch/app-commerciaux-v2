@@ -83,12 +83,15 @@ function standardsTodayDate() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+// Format court pour l'en-tête compact : « Mardi 21 juillet » (l'année
+// n'est ajoutée que si elle diffère de l'année en cours).
 function standardsFormatDate(iso) {
   if (!iso) return '—';
   const [y, m, d] = iso.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   const dow = STD_DAYS_FR[dt.getUTCDay()];
-  return `${dow} ${String(d).padStart(2, '0')} ${(STD_MONTHS_FR[m - 1] || '').toLowerCase()} ${y}`;
+  const base = `${dow} ${String(d).padStart(2, '0')} ${(STD_MONTHS_FR[m - 1] || '').toLowerCase()}`;
+  return y === new Date().getFullYear() ? base : `${base} ${y}`;
 }
 function standardsShiftDate(iso, delta) {
   const [y, m, d] = iso.split('-').map(Number);
@@ -224,6 +227,8 @@ async function standardsRender() {
   const container = document.getElementById('std-categories');
   const scoreEl = document.getElementById('std-score-display');
   if (scoreEl) scoreEl.innerHTML = '';
+  const progressInline = document.getElementById('std-progress-inline');
+  if (progressInline) progressInline.textContent = '—';
   if (!container) return;
   container.innerHTML = `<div class="std-loading">Chargement…</div>`;
   try {
@@ -345,34 +350,22 @@ function standardsRenderDaily(data) {
   const nextSlotId = nextSlot ? nextSlot.id : null;
   container.dataset.nextSlot = nextSlotId || '';
 
-  // Progression + bandeau prochaine action
+  // Compteur inline dans l'en-tête compact : « 0/6 espaces contrôlés »
+  const progressInline = document.getElementById('std-progress-inline');
+  if (progressInline) progressInline.textContent = `${doneCount}/${total} espaces contrôlés`;
+
+  // Raccourci « Suivant » compact (à droite de l'en-tête)
   const scoreEl = document.getElementById('std-score-display');
   if (scoreEl) {
-    let stateClass = 'std-progress-empty';
-    let mainMsg = 'À démarrer';
-    const remaining = total - doneCount;
-    if (pct >= 100) { stateClass = 'std-progress-done'; mainMsg = 'Prise de poste complète ✓'; }
-    else if (pct >= 75) { stateClass = 'std-progress-half'; mainMsg = 'Dernière ligne droite'; }
-    else if (pct >= 50) { stateClass = 'std-progress-half'; mainMsg = 'Bien avancé'; }
-    else if (pct > 0) mainMsg = `${remaining} restante${remaining > 1 ? 's' : ''}`;
-    scoreEl.innerHTML = `
-      <div class="std-progress ${stateClass}">
-        <div class="std-progress-row">
-          <span class="std-progress-count">${doneCount}/${total}</span>
-          <span class="std-progress-label">${escapeHtml(mainMsg)}</span>
-        </div>
-        <div class="std-progress-bar"><div class="std-progress-fill" style="width:${pct}%"></div></div>
-        ${nextSlot && !readOnly ? `
-          <button type="button" class="std-progress-next" data-next-slot="${escapeHtml(nextSlot.id)}">
-            <span class="std-progress-next-label">Suivant</span>
-            <strong class="std-progress-next-title">${escapeHtml(nextSlot.label)}</strong>
-            <span class="std-progress-next-arrow">→</span>
-          </button>
-        ` : ''}
-      </div>
-    `;
-    const jumpBtn = scoreEl.querySelector('[data-next-slot]');
-    if (jumpBtn) {
+    if (nextSlot && !readOnly) {
+      scoreEl.innerHTML = `
+        <button type="button" class="stdp-next" data-next-slot="${escapeHtml(nextSlot.id)}">
+          <span class="stdp-next-label">Suivant</span>
+          <strong>${escapeHtml(nextSlot.label)}</strong>
+          <span>→</span>
+        </button>
+      `;
+      const jumpBtn = scoreEl.querySelector('[data-next-slot]');
       jumpBtn.addEventListener('click', () => {
         const target = jumpBtn.dataset.nextSlot;
         const targetCard = document.querySelector(`.std-card[data-slot="${target}"]`);
@@ -382,6 +375,10 @@ function standardsRenderDaily(data) {
           setTimeout(() => targetCard.classList.remove('std-card-pulse'), 1200);
         }
       });
+    } else if (pct >= 100 && total > 0) {
+      scoreEl.innerHTML = `<span class="stdp-done">✓ Prise de poste complète</span>`;
+    } else {
+      scoreEl.innerHTML = '';
     }
   }
 
