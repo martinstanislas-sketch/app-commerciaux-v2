@@ -8938,13 +8938,11 @@ function acaInjectStyles() {
   .aca-f-ico{width:28px;height:28px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;background:var(--mc-cream-dark);color:var(--mc-text-muted)}
   .aca-f.done .aca-f-ico{background:var(--mc-success-bg);color:var(--mc-success)}
   .aca-f.failed .aca-f-ico{background:var(--mc-danger-bg);color:var(--mc-danger)}
-  .aca-f.awaiting .aca-f-ico{background:var(--mc-warning-bg);color:var(--mc-warning)}
   .aca-f-main{display:flex;flex-direction:column;min-width:0}
   .aca-f-name{font-weight:700;color:var(--mc-text);font-size:15px;line-height:1.3}
   .aca-f.done .aca-f-name{color:var(--mc-black)}
   .aca-f-state{font-size:12px;color:var(--mc-text-muted);margin-top:1px}
   .aca-f.done .aca-f-state{color:var(--mc-success);font-weight:600}
-  .aca-f.awaiting .aca-f-state{color:var(--mc-warning);font-weight:600}
   .aca-badge-emoji{font-size:40px;line-height:1;filter:grayscale(1) opacity(.35)}
   .aca-badge.on .aca-badge-emoji{filter:none}
   .aca-badge-name{font-weight:800;color:var(--mc-text);margin:10px 0 3px;font-size:16px}
@@ -9034,11 +9032,9 @@ function openAcademyCategory(key) {
   const rows = items.length ? items.map((f) => {
     const isDone = f.status === 'validated';
     const isFailed = f.status === 'failed';
-    const quizPassed = f.quiz_passed === true || f.quiz_passed === 1;
-    const awaiting = !isDone && !isFailed && quizPassed;
-    const cls = isDone ? 'done' : isFailed ? 'failed' : awaiting ? 'awaiting' : 'pending';
-    const icon = isDone ? '✓' : isFailed ? '✗' : awaiting ? '⏳' : '○';
-    const state = isDone ? 'Validée' : isFailed ? 'À refaire' : awaiting ? 'Quiz réussi · en attente de validation' : 'À valider';
+    const cls = isDone ? 'done' : isFailed ? 'failed' : 'pending';
+    const icon = isDone ? '✓' : isFailed ? '✗' : '○';
+    const state = isDone ? 'Validée' : isFailed ? 'À refaire' : 'À valider';
     const date = (isDone && f.validated_at) ? ' · ' + new Date(f.validated_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
     return `<div class="aca-f ${cls}"><span class="aca-f-ico">${icon}</span>
       <span class="aca-f-main"><span class="aca-f-name">${chEsc(f.name || 'Formation')}</span>
