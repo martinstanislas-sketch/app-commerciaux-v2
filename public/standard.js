@@ -310,7 +310,7 @@ function renderStandardPhotoCard(props) {
           ${badge}
         </header>
         ${readOnly ? `
-          <div class="std-card-readonly-note">Aucune photo ce jour-là</div>
+          <div class="std-card-readonly-note">Aucune photo pour le moment</div>
         ` : `
           <button type="button" class="std-card-primary" data-slot-action="upload" data-slot-key="${escapeHtml(slotKey)}">
             ${STD_ICONS.camera}
@@ -330,27 +330,41 @@ function standardsRenderDaily(data) {
   const slots = data.slots || {};
   const today = standardsTodayDate();
   const readOnly = isStandardsAdmin() || ((isCoachLeader() || isGuest()) && standardsDate !== today);
-  // Filtre selon le coach_slot de l'utilisateur (1 ou 2). NULL = tout voir.
-  const userCoachSlot = currentUser && currentUser.coach_slot;
-  const allDefs = standardsSlotsDef || [];
-  const defsAll = (userCoachSlot === 1 || userCoachSlot === 2)
-    ? allDefs.filter(d => d.coach === userCoachSlot)
-    : allDefs;
+  // Le coach voit TOUTES les rangées (la sienne + celle du collègue en
+  // lecture seule). coach_slot 1/2 = rangée attribuée, null = tout éditer.
+  const userCoachSlot = (currentUser && (currentUser.coach_slot === 1 || currentUser.coach_slot === 2))
+    ? currentUser.coach_slot : null;
+  const defsAll = standardsSlotsDef || [];
 
-  // ─── Prise de poste courante ──────────────────────────────
-  // Aujourd'hui : Matin avant STD_SHIFT_SWITCH_HOUR h, Après-midi ensuite.
-  // Jour passé : on affiche la dernière prise de poste (Après-midi),
-  // les précédentes restent derrière le bouton.
+  // ─── Prise de poste mise en avant ─────────────────────────
+  // Coach affecté à une rangée → SA rangée, toujours (il doit pouvoir la
+  // remplir même si le collègue a déjà fini la sienne).
+  // Sinon : Matin avant STD_SHIFT_SWITCH_HOUR h, Après-midi ensuite — et si
+  // la prise de poste en cours est déjà terminée, on propose la suivante.
+  // Jour passé : la dernière (Après-midi), le reste derrière le bouton.
   const hasCoachField = defsAll.some(d => d.coach != null);
   const groups = hasCoachField
     ? [1, 2].map(n => ({ num: n, defs: defsAll.filter(d => d.coach === n) })).filter(g => g.defs.length > 0)
     : [{ num: null, defs: defsAll }];
   const isToday = standardsDate === today;
-  const currentShift = isToday
-    ? (new Date().getHours() < STD_SHIFT_SWITCH_HOUR ? 1 : 2)
-    : 2;
-  const primaryGroup = groups.find(g => g.num === currentShift) || groups[groups.length - 1] || { num: null, defs: [] };
-  const previousGroups = groups.filter(g => g.num != null && primaryGroup.num != null && g.num < primaryGroup.num);
+  const groupDone = (g) => !!stdValidationByShift[g.num]
+    || (g.defs.length > 0 && g.defs.every(def => slots[def.id] && slots[def.id].has_photo));
+  let primaryNum;
+  if (userCoachSlot != null) {
+    primaryNum = userCoachSlot;
+  } else {
+    primaryNum = isToday ? (new Date().getHours() < STD_SHIFT_SWITCH_HOUR ? 1 : 2) : 2;
+    if (isToday) {
+      const cur = groups.find(g => g.num === primaryNum);
+      const nextTodo = groups.find(g => g.num != null && g.num > primaryNum && !groupDone(g));
+      if (cur && groupDone(cur) && nextTodo) primaryNum = nextTodo.num;
+    }
+  }
+  const primaryGroup = groups.find(g => g.num === primaryNum) || groups[groups.length - 1] || { num: null, defs: [] };
+  const otherGroups = groups.filter(g => g !== primaryGroup && g.num != null);
+  // Une rangée est modifiable si la page ne l'est pas globalement en lecture
+  // seule ET que c'est la rangée de l'utilisateur (ou qu'il n'en a pas).
+  const groupReadOnly = (g) => readOnly || (userCoachSlot != null && g.num != null && g.num !== userCoachSlot);
 
   // Progression calculée sur la prise de poste affichée uniquement
   const progressDefs = primaryGroup.defs;
@@ -368,7 +382,7 @@ function standardsRenderDaily(data) {
   // Raccourci « Suivant » compact (à droite de l'en-tête)
   const scoreEl = document.getElementById('std-score-display');
   if (scoreEl) {
-    if (nextSlot && !readOnly) {
+    if (nextSlot && !groupReadOnly(primaryGroup)) {
       scoreEl.innerHTML = `
         <button type="button" class="stdp-next" data-next-slot="${escapeHtml(nextSlot.id)}">
           <span class="stdp-next-label">Suivant</span>
@@ -393,7 +407,7 @@ function standardsRenderDaily(data) {
     }
   }
 
-  const renderSlot = (def) => {
+  const renderSlot = (def, rowReadOnly) => {
     const s = slots[def.id] || {};
     const hasPhoto = !!s.has_photo;
     return renderStandardPhotoCard({
@@ -402,7 +416,7 @@ function standardsRenderDaily(data) {
       slotKey: def.id,
       status: hasPhoto ? 'validated' : 'todo',
       hasPhoto,
-      readOnly,
+      readOnly: rowReadOnly,
       uploadedBy: s.uploaded_by || null,
       uploadedAt: s.uploaded_at || null,
       isNext: def.id === nextSlotId,
@@ -433,7 +447,7 @@ function standardsRenderDaily(data) {
         </div>
       `;
     }
-    if (readOnly) {
+    if (groupReadOnly(g)) {
       return `<div class="std-novalid-note">Prise de poste non validée</div>`;
     }
     const gRemaining = g.defs.filter(def => !(slots[def.id] && slots[def.id].has_photo)).length;
@@ -450,22 +464,31 @@ function standardsRenderDaily(data) {
       </div>
     `;
   };
-  const renderGroup = (g) => `
+  const renderGroup = (g) => {
+    const rowRO = groupReadOnly(g);
+    return `
     <section class="std-group">
-      ${g.num != null ? `<div class="std-group-head">Prise de poste — ${shiftLabel(g.num)}</div>` : ''}
-      <div class="std-slots-grid">${g.defs.map(renderSlot).join('')}</div>
+      ${g.num != null ? `<div class="std-group-head">Prise de poste — ${shiftLabel(g.num)}${rowRO && !readOnly ? ' <span class="std-group-head-ro">(lecture seule)</span>' : ''}</div>` : ''}
+      <div class="std-slots-grid">${g.defs.map(def => renderSlot(def, rowRO)).join('')}</div>
       ${renderShiftValidation(g)}
     </section>
   `;
-  // Une seule prise de poste affichée ; les précédentes derrière un bouton.
+  };
+  // Une seule prise de poste mise en avant ; les autres derrière un bouton.
+  // Libellé selon la position : « précédents » si tout est avant, sinon neutre.
+  const othersAllEarlier = otherGroups.length > 0
+    && otherGroups.every(g => primaryGroup.num != null && g.num < primaryGroup.num);
+  const toggleLabel = (open) => othersAllEarlier
+    ? (open ? 'Masquer les contrôles précédents' : 'Voir les contrôles précédents')
+    : (open ? "Masquer l'autre prise de poste" : "Voir l'autre prise de poste");
   const bodyHtml = `
     ${renderGroup(primaryGroup)}
-    ${previousGroups.length ? `
+    ${otherGroups.length ? `
       <button type="button" class="std-prev-toggle" id="std-prev-toggle">
-        ${stdShowPrevious ? 'Masquer les contrôles précédents' : 'Voir les contrôles précédents'}
+        ${toggleLabel(stdShowPrevious)}
       </button>
       <div class="std-prev-wrap ${stdShowPrevious ? '' : 'hidden'}" id="std-prev-groups">
-        ${previousGroups.map(renderGroup).join('')}
+        ${otherGroups.map(renderGroup).join('')}
       </div>
     ` : ''}
   `;
@@ -490,7 +513,7 @@ function standardsRenderDaily(data) {
       stdShowPrevious = !stdShowPrevious;
       const wrap = container.querySelector('#std-prev-groups');
       if (wrap) wrap.classList.toggle('hidden', !stdShowPrevious);
-      prevToggle.textContent = stdShowPrevious ? 'Masquer les contrôles précédents' : 'Voir les contrôles précédents';
+      prevToggle.textContent = toggleLabel(stdShowPrevious);
     });
   }
   // Miniatures des slots remplis

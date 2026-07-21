@@ -8946,6 +8946,11 @@ app.put('/api/standards/daily/photo', requireAuth, (req, res) => {
   if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
   if (!standardsCanModify(req, date)) return res.status(403).json({ error: "Modification autorisée uniquement pour le jour en cours" });
+  // Un coach affecté à une rangée (matin/après-midi) ne peut uploader
+  // que sur SA rangée — celle du collègue reste en lecture seule.
+  if ((req.session.coach_slot === 1 || req.session.coach_slot === 2) && slotToCoachNum(slot) !== req.session.coach_slot) {
+    return res.status(403).json({ error: 'Tu ne peux modifier que ta prise de poste' });
+  }
   // Plus de gating sur le check-in d'énergie : le rituel est optionnel
   // pour tous les rôles. Le formulaire reste affiché pour celles et ceux
   // qui veulent renseigner leur humeur, mais ne bloque jamais l'upload.
@@ -9002,6 +9007,10 @@ app.delete('/api/standards/daily/photo', requireAuth, (req, res) => {
   if (!isValidStandardsDate(date)) return res.status(400).json({ error: 'date requise (YYYY-MM-DD)' });
   if (!authStandardsStudio(req, studio)) return res.status(403).json({ error: 'Accès refusé sur ce studio' });
   if (!standardsCanModify(req, date)) return res.status(403).json({ error: "Suppression autorisée uniquement pour le jour en cours" });
+  // Même règle que l'upload : chacun ne touche qu'à sa rangée
+  if ((req.session.coach_slot === 1 || req.session.coach_slot === 2) && slotToCoachNum(slot) !== req.session.coach_slot) {
+    return res.status(403).json({ error: 'Tu ne peux modifier que ta prise de poste' });
+  }
   const db = getDb();
   db.prepare(`DELETE FROM standards_daily WHERE studio = ? AND date = ? AND slot = ?`)
     .run(studio, date, slot);
