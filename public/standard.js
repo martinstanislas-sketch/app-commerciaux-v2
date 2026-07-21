@@ -286,7 +286,7 @@ function renderStandardPhotoCard(props) {
             ${readOnly ? '' : `
               <span class="stdp-card-actions">
                 <button type="button" class="stdp-retake" data-slot-action="replace" data-slot-key="${escapeHtml(slotKey)}" title="Reprendre la photo (remplace l'ancienne)">${STD_ICONS.refresh}<span>Reprendre</span></button>
-                ${isAdmin() ? `<button type="button" class="stdp-del" data-slot-action="delete" data-slot-key="${escapeHtml(slotKey)}" title="Supprimer (admin)">${STD_ICONS.trash}</button>` : ''}
+                <button type="button" class="stdp-del" data-slot-action="delete" data-slot-key="${escapeHtml(slotKey)}" title="Supprimer la photo">${STD_ICONS.trash}</button>
               </span>
             `}
           </div>
