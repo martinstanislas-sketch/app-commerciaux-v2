@@ -17,11 +17,11 @@ let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
 let standardsDate = null;      // YYYY-MM-DD affiché
 let standardsSlotsDef = [];    // définition des 12 slots (id, label, icon, coach)
 
-// Une seule prise de poste affichée à la fois : Matin (rangée 1) avant
-// STD_SHIFT_SWITCH_HOUR heures, Après-midi (rangée 2) ensuite. Les contrôles
-// précédents restent accessibles derrière un bouton.
+// Les deux prises de poste sont visibles en même temps (affichage compact) ;
+// celle du salarié est placée en premier. Pour les comptes sans rangée fixe,
+// la rangée mise en avant dépend de l'heure : Matin avant
+// STD_SHIFT_SWITCH_HOUR heures, Après-midi ensuite.
 const STD_SHIFT_SWITCH_HOUR = 13;
-let stdShowPrevious = false;   // état du volet « contrôles précédents »
 let stdValidationByShift = {}; // { 1: {validated_by, validated_at}, 2: {...} }
 
 function escapeHtml(str) {
@@ -200,7 +200,6 @@ async function bootStandardsPage() {
   }
 
   standardsDate = standardsTodayDate();
-  stdShowPrevious = false;
   showApp();
   standardsRender();
 }
@@ -481,26 +480,11 @@ function standardsRenderDaily(data) {
     </section>
   `;
   };
-  // Le créneau qui ne concerne pas le salarié est REPLIÉ par défaut :
-  // simple barre « Prise de poste — Après-midi ▾ » qui se déplie au clic.
-  const renderCollapsedGroup = (g) => {
-    const rowRO = groupReadOnly(g);
-    return `
-    <section class="std-group std-group-collapsed">
-      <button type="button" class="std-group-collapse-head" data-collapse-toggle>
-        <span>Prise de poste — ${shiftLabel(g.num)}${rowRO && !readOnly ? ' <span class="std-group-head-ro">(lecture seule)</span>' : ''}</span>
-        <span class="std-collapse-caret">${stdShowPrevious ? '▴' : '▾'}</span>
-      </button>
-      <div class="std-group-collapse-body ${stdShowPrevious ? '' : 'hidden'}">
-        <div class="std-slots-grid">${g.defs.map(def => renderSlot(def, rowRO)).join('')}</div>
-        ${renderShiftValidation(g)}
-      </div>
-    </section>
-  `;
-  };
+  // Les deux prises de poste sont visibles en même temps (affichage
+  // compact) — celle du salarié en premier.
   const bodyHtml = `
     ${renderGroup(primaryGroup)}
-    ${otherGroups.map(renderCollapsedGroup).join('')}
+    ${otherGroups.map(renderGroup).join('')}
   `;
   container.innerHTML = `
     ${readOnly ? `
@@ -515,16 +499,6 @@ function standardsRenderDaily(data) {
   // Bouton « Valider ma prise de poste »
   container.querySelectorAll('[data-validate-shift]').forEach(btn => {
     btn.addEventListener('click', () => standardsValidateShift(parseInt(btn.dataset.validateShift, 10), btn));
-  });
-  // Barre repliable de l'autre créneau : l'état survit aux re-rendus
-  container.querySelectorAll('[data-collapse-toggle]').forEach(head => {
-    head.addEventListener('click', () => {
-      stdShowPrevious = !stdShowPrevious;
-      const body = head.nextElementSibling;
-      if (body) body.classList.toggle('hidden', !stdShowPrevious);
-      const caret = head.querySelector('.std-collapse-caret');
-      if (caret) caret.textContent = stdShowPrevious ? '▴' : '▾';
-    });
   });
   // Miniatures des slots remplis
   container.querySelectorAll('.std-slot-thumb-img').forEach(img => {
@@ -764,12 +738,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('std-logout')?.addEventListener('click', logout);
   document.getElementById('std-month-prev')?.addEventListener('click', () => {
     standardsDate = standardsShiftDate(standardsDate, -1);
-    stdShowPrevious = false;
     standardsRender();
   });
   document.getElementById('std-month-next')?.addEventListener('click', () => {
     standardsDate = standardsShiftDate(standardsDate, +1);
-    stdShowPrevious = false;
     standardsRender();
   });
   bootStandardsPage();
