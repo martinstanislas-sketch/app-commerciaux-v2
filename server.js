@@ -494,6 +494,18 @@ function ensureNutritionHelpTable() {
       getDb().exec('ALTER TABLE nutrition_clients ADD COLUMN pre_created INTEGER NOT NULL DEFAULT 0');
     }
   } catch (e) { console.error('Migration nutrition_clients.pre_created :', e && e.message); }
+  // Verrouillage anti-force-brute du PIN : compteur d'échecs + drapeau de blocage.
+  // Un compte se bloque après MAX_PIN_FAILS codes erronés (cf. clientAuth) et ne
+  // se rouvre que par un coach ou l'admin — jamais tout seul.
+  try {
+    const ncCols = getDb().prepare('PRAGMA table_info(nutrition_clients)').all();
+    if (!ncCols.some((c) => c.name === 'pin_fails')) {
+      getDb().exec('ALTER TABLE nutrition_clients ADD COLUMN pin_fails INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!ncCols.some((c) => c.name === 'pin_locked')) {
+      getDb().exec('ALTER TABLE nutrition_clients ADD COLUMN pin_locked INTEGER NOT NULL DEFAULT 0');
+    }
+  } catch (e) { console.error('Migration nutrition_clients.pin_fails/pin_locked :', e && e.message); }
   // Migration : date de début de la COHORTE (lance le parcours pour tout le groupe).
   // Vide = comportement historique (chacun démarre à sa pesée de départ) -> les
   // groupes existants ne bougent pas tant qu'aucune date n'est posée à la main.
@@ -3256,7 +3268,7 @@ try {
   // Liste des clients inscrits (administrateur principal).
   app.get('/nutrition/api/clients', requireAuth, requireAdmin, (req, res) => {
     try {
-      const rows = getDb().prepare("SELECT email, prenom, nom, data, coach_id, created_at, updated_at FROM nutrition_clients ORDER BY datetime(CASE WHEN updated_at != '' THEN updated_at ELSE created_at END) DESC").all();
+      const rows = getDb().prepare("SELECT email, prenom, nom, data, coach_id, created_at, updated_at, pin_locked FROM nutrition_clients ORDER BY datetime(CASE WHEN updated_at != '' THEN updated_at ELSE created_at END) DESC").all();
       const coachMap = {};
       try { getDb().prepare('SELECT id, name FROM coaches WHERE archived = 0').all().forEach((c) => { coachMap[c.id] = c.name; }); } catch (_) { /* table absente */ }
       // Coachs supplémentaires (multi-coach) groupés par client, en une requête.
@@ -3279,7 +3291,7 @@ try {
         return { email: r.email, prenom: r.prenom, nom: r.nom, createdAt: r.created_at, updatedAt: r.updated_at, objectif, hasPlan, savedAt,
           coachId: r.coach_id || null, coachName: (r.coach_id && coachMap[r.coach_id]) || null,
           coachIds, coachNames: coachIds.map((id) => coachMap[id]).filter(Boolean),
-          ville: mm.ville || '', challengeNo: mm.challengeNo || 0 };
+          ville: mm.ville || '', challengeNo: mm.challengeNo || 0, pinLocked: !!r.pin_locked };
       });
       res.json({ ok: true, total: clients.length, clients });
     } catch (e) {
@@ -3339,10 +3351,33 @@ try {
     try {
       const email = String(req.params.email || '').trim();
       if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
-      const upd = getDb().prepare("UPDATE nutrition_clients SET pin_hash = '', updated_at = ? WHERE email = ?").run(new Date().toISOString(), email);
+      // On vide le PIN (le client en repose un) ET on lève le verrou anti-force-
+      // brute : sans ça, un compte réinitialisé resterait marqué bloqué.
+      const upd = getDb().prepare("UPDATE nutrition_clients SET pin_hash = '', pin_fails = 0, pin_locked = 0, updated_at = ? WHERE email = ?").run(new Date().toISOString(), email);
       if (!upd.changes) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
       res.json({ ok: true });
     } catch (e) { console.error('reset-pin :', e); res.status(500).json({ ok: false, error: 'Réinitialisation impossible.' }); }
+  });
+
+  // Débloquer un compte verrouillé après trop de PIN erronés. Le client GARDE son
+  // PIN (contrairement à reset-pin) : il retape son vrai code. Coach OU admin ;
+  // ⚠️ un coach ne peut débloquer que SES clients (le scope le lui interdit sinon).
+  app.post('/nutrition/api/clients/:email/unlock-pin', requireAuth, requireCoachOrAdmin, (req, res) => {
+    try {
+      const email = String(req.params.email || '').trim().toLowerCase();
+      if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
+      const sc = req.nutritionScope;
+      if (!sc.isAdmin) {
+        // Le client doit être rattaché à ce coach (référent ou coach supplémentaire).
+        const emails = new Set();
+        try { getDb().prepare('SELECT email FROM nutrition_clients WHERE coach_id = ?').all(sc.coachId).forEach((r) => emails.add(String(r.email).toLowerCase())); } catch (_) { /* ignore */ }
+        try { getDb().prepare('SELECT client_email FROM nutrition_client_coaches WHERE coach_id = ?').all(sc.coachId).forEach((r) => emails.add(String(r.client_email).toLowerCase())); } catch (_) { /* ignore */ }
+        if (!emails.has(email)) return res.status(403).json({ ok: false, error: 'Ce client n’est pas dans ton groupe.' });
+      }
+      const n = clientAuth.unlockPin(email);
+      if (!n) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
+      res.json({ ok: true });
+    } catch (e) { console.error('unlock-pin :', e); res.status(500).json({ ok: false, error: 'Déblocage impossible.' }); }
   });
 
   // Clients du coach connecté (admin = tous). Scopé par coach_id côté serveur.
@@ -3654,7 +3689,7 @@ try {
       const sc = req.nutritionScope;
       const email = String(req.params.email || '').trim();
       if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
-      const row = getDb().prepare('SELECT email, prenom, nom, data, coach_id, created_at, updated_at FROM nutrition_clients WHERE email = ?').get(email);
+      const row = getDb().prepare('SELECT email, prenom, nom, data, coach_id, created_at, updated_at, pin_locked FROM nutrition_clients WHERE email = ?').get(email);
       if (!row) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
       if (!sc.isAdmin && !coachSeesClient(sc.coachId, email)) return res.status(403).json({ ok: false, error: 'Client non attribué.' });
 
@@ -3705,7 +3740,7 @@ try {
           createdAt: row.created_at, updatedAt: row.updated_at,
           objectif, hasPlan, planJours, savedAt, startDate,
           profil: profilPublic, pesees, adherence, adhScore, adhDays,
-          help, scansCount, ville, challengeNo,
+          help, scansCount, ville, challengeNo, pinLocked: !!row.pin_locked,
         },
       });
     } catch (e) {

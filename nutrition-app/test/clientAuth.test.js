@@ -21,6 +21,7 @@ function makeAuth() {
     CREATE TABLE nutrition_clients (
       email TEXT PRIMARY KEY, prenom TEXT DEFAULT '', nom TEXT DEFAULT '', data TEXT,
       pin_hash TEXT NOT NULL DEFAULT '', coach_id INTEGER, pre_created INTEGER NOT NULL DEFAULT 0,
+      pin_fails INTEGER NOT NULL DEFAULT 0, pin_locked INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT '', updated_at TEXT DEFAULT ''
     );
     CREATE TABLE nutrition_client_meta (client_email TEXT PRIMARY KEY, ville TEXT DEFAULT '', challenge_no INTEGER DEFAULT 0, updated_at TEXT DEFAULT '');
@@ -394,4 +395,61 @@ test('cloison : les sessions INTERNES passent, et rien ne casse sur l\'absence',
   assert.equal(estSessionNutrition(null), false);
   assert.equal(estSessionNutrition(undefined), false);
   assert.equal(estSessionNutrition('nutrition_demo'), false, 'une chaîne n\'est pas une session');
+});
+
+// --- VERROUILLAGE ANTI-FORCE-BRUTE DU PIN -----------------------------------
+// Un compte garde photos corporelles, poids et messagerie : 4-6 chiffres se
+// cassent en quelques milliers d'essais. On bloque après MAX_PIN_FAILS échecs,
+// et seul un coach/admin rouvre (unlockPin) — aucun déverrouillage automatique.
+function makePinDb() {
+  const Database = require('better-sqlite3');
+  const db = new Database(':memory:');
+  db.exec("CREATE TABLE nutrition_clients (email TEXT PRIMARY KEY, prenom TEXT, nom TEXT, data TEXT, pin_hash TEXT DEFAULT '', pre_created INTEGER DEFAULT 0, pin_fails INTEGER DEFAULT 0, pin_locked INTEGER DEFAULT 0, coach_id INTEGER, created_at TEXT, updated_at TEXT)");
+  const CA = require('../lib/clientAuth');
+  const auth = CA.createClientAuth({ getDb: () => db });
+  db.prepare('INSERT INTO nutrition_clients (email,prenom,nom,pin_hash) VALUES (?,?,?,?)').run('c@c.fr', 'A', 'B', CA.hashPin('1234'));
+  return { db, auth, CA, login: (pin) => auth.loginClient({ email: 'c@c.fr', prenom: 'A', nom: 'B', pin }) };
+}
+
+test('PIN : blocage après MAX_PIN_FAILS codes erronés, avec décompte', () => {
+  const { CA, login } = makePinDb();
+  const MAX = CA.MAX_PIN_FAILS;
+  for (let i = 1; i < MAX; i++) {
+    const r = login('0000');
+    assert.equal(r.status, 401, 'essai ' + i + ' : refusé mais pas encore bloqué');
+    assert.equal(r.body.remaining, MAX - i, 'le décompte est juste');
+    assert.ok(!r.body.locked);
+  }
+  const dernier = login('0000');
+  assert.equal(dernier.status, 403, 'au ' + MAX + 'e échec : bloqué');
+  assert.equal(dernier.body.locked, true);
+});
+
+test('PIN : une fois bloqué, même le BON code est refusé', () => {
+  const { CA, login } = makePinDb();
+  for (let i = 0; i < CA.MAX_PIN_FAILS; i++) login('0000');
+  const r = login('1234'); // le vrai code
+  assert.equal(r.status, 403);
+  assert.equal(r.body.locked, true, 'le blocage prime sur la vérification du PIN');
+});
+
+test('PIN : un essai réussi AVANT le seuil remet le compteur à zéro', () => {
+  const { db, login } = makePinDb();
+  login('0000'); login('0000'); // 2 échecs
+  const ok = login('1234');
+  assert.equal(ok.ok, true);
+  assert.equal(db.prepare('SELECT pin_fails FROM nutrition_clients WHERE email=?').get('c@c.fr').pin_fails, 0, 'le compteur repart à zéro');
+  // 4 nouveaux échecs ne suffisent donc plus à bloquer (il en faut 5 d'affilée).
+  for (let i = 0; i < 4; i++) login('0000');
+  assert.equal(db.prepare('SELECT pin_locked FROM nutrition_clients WHERE email=?').get('c@c.fr').pin_locked, 0);
+});
+
+test('PIN : unlockPin rouvre le compte, PIN conservé', () => {
+  const { auth, login, db } = makePinDb();
+  for (let i = 0; i < 5; i++) login('0000');
+  assert.equal(auth.unlockPin('c@c.fr'), 1, 'un compte débloqué');
+  const st = db.prepare('SELECT pin_fails, pin_locked FROM nutrition_clients WHERE email=?').get('c@c.fr');
+  assert.deepEqual([st.pin_fails, st.pin_locked], [0, 0]);
+  assert.equal(login('1234').ok, true, 'le client retape son VRAI code, inchangé');
+  assert.equal(auth.unlockPin('inconnu@x.fr'), 0, 'un email inconnu ne touche rien');
 });
