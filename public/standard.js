@@ -259,42 +259,39 @@ async function standardsRender() {
 // Composant card photo. status ∈ { 'todo' | 'validated' }
 function renderStandardPhotoCard(props) {
   const { title, slotId, slotKey, status, hasPhoto, readOnly, uploadedBy, uploadedAt, isNext } = props;
-  const fmtDateTime = (iso) => {
-    if (!iso) return '';
-    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
-    return m ? `${m[3]}/${m[2]} · ${m[4]}:${m[5]}` : iso;
+  // Heure seule (la page est déjà datée) : « 06:41 »
+  const fmtTimeOnly = (iso) => {
+    const m = String(iso || '').match(/[ T](\d{2}):(\d{2})/);
+    return m ? `${m[1]}:${m[2]}` : '';
   };
   const iconSvg = stdGetIcon(slotId);
-  const badges = {
-    todo: '<span class="std-badge std-badge-todo">À faire</span>',
-    validated: '<span class="std-badge std-badge-validated">✓ Validée</span>',
-  };
-  const badge = badges[status] || badges.todo;
 
   if (hasPhoto) {
+    // Carte remplie, volontairement minimale : photo, nom de l'espace,
+    // petite coche verte, « Salarié · HH:MM » et petit bouton Reprendre
+    // sur la même ligne. La poubelle (admin) est reléguée en icône discrète.
+    const when = fmtTimeOnly(uploadedAt);
     return `
       <article class="std-card std-card-filled" data-slot="${escapeHtml(slotKey)}">
         <button type="button" class="std-card-photo" data-slot-action="view" data-slot-key="${escapeHtml(slotKey)}" title="Voir en grand">
           <img class="std-card-img std-slot-thumb-img" data-thumb-key="${escapeHtml(slotKey)}" alt="${escapeHtml(title)}">
         </button>
-        <div class="std-card-body">
-          <header class="std-card-head">
-            <span class="std-card-icon">${iconSvg}</span>
+        <div class="std-card-body stdp-card-body">
+          <div class="stdp-card-row1">
             <h4 class="std-card-title">${escapeHtml(title)}</h4>
-            ${badge}
-          </header>
-          <div class="std-card-meta">
-            <span class="std-card-meta-user">${STD_ICONS.user}<span>${escapeHtml(uploadedBy || '?')}</span></span>
-            <span class="std-card-meta-when">${escapeHtml(fmtDateTime(uploadedAt))}</span>
+            <span class="stdp-check" title="Photo validée">✓</span>
           </div>
-          ${readOnly ? '' : `
-            <div class="std-card-actions">
-              <button type="button" class="std-card-action-btn std-card-replace" data-slot-action="replace" data-slot-key="${escapeHtml(slotKey)}" title="Reprendre la photo (remplace l'ancienne)">${STD_ICONS.refresh}<span>Reprendre</span></button>
-              ${isAdmin() ? `<button type="button" class="std-card-action-btn std-card-delete" data-slot-action="delete" data-slot-key="${escapeHtml(slotKey)}" title="Supprimer">${STD_ICONS.trash}</button>` : ''}
-            </div>
-            <input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(slotKey)}" style="display:none">
-          `}
+          <div class="stdp-card-row2">
+            <span class="stdp-card-meta">${escapeHtml(uploadedBy || '?')}${when ? ` · ${when}` : ''}</span>
+            ${readOnly ? '' : `
+              <span class="stdp-card-actions">
+                <button type="button" class="stdp-retake" data-slot-action="replace" data-slot-key="${escapeHtml(slotKey)}" title="Reprendre la photo (remplace l'ancienne)">${STD_ICONS.refresh}<span>Reprendre</span></button>
+                ${isAdmin() ? `<button type="button" class="stdp-del" data-slot-action="delete" data-slot-key="${escapeHtml(slotKey)}" title="Supprimer (admin)">${STD_ICONS.trash}</button>` : ''}
+              </span>
+            `}
+          </div>
         </div>
+        ${readOnly ? '' : `<input type="file" accept="image/*" capture="environment" class="std-slot-input" data-slot-key="${escapeHtml(slotKey)}" style="display:none">`}
       </article>
     `;
   }
@@ -306,7 +303,7 @@ function renderStandardPhotoCard(props) {
         <header class="std-card-head">
           <span class="std-card-icon">${iconSvg}</span>
           <h4 class="std-card-title">${escapeHtml(title)}</h4>
-          ${badge}
+          <span class="std-badge std-badge-todo">À faire</span>
         </header>
         ${readOnly ? `
           <div class="std-card-readonly-note">Aucune photo pour le moment</div>

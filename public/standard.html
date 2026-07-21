@@ -3,23 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0D9488">
+  <meta name="theme-color" content="#1E293B">
   <title>Standards — Tours</title>
   <link rel="stylesheet" href="/style.css">
   <style>
-    /* Page autonome : pas de barre d'onglets, fond identique à l'app */
-    body.std-page { background: #F4F5F7; min-height: 100vh; margin: 0; }
-    /* Annule les marges négatives que le CSS de l'app applique à
-       #tab-standards pour compenser le padding du conteneur d'onglets
-       (inexistant sur cette page autonome) */
+    /* ═══════════════════════════════════════════════════════════
+       Thème « premium » de la page /standard
+       - Bleu nuit  (#0F172A / #1E293B) : titres, textes importants,
+         boutons principaux
+       - Turquoise  (#0D9488) : accent d'identité uniquement
+       - Fond gris très clair, cartes blanches
+       - Vert = validé, Orange = à faire, Rouge = anomalies
+       ═══════════════════════════════════════════════════════════ */
+    body.std-page { background: #F6F7F9; min-height: 100vh; margin: 0; }
+    /* Annule les marges négatives + min-height hérités du CSS de l'app */
     @media (min-width: 1100px) {
       body.std-page #tab-standards { margin: 0; }
     }
-    /* Pas de min-height 100vh hérité : la hauteur suit le contenu, le fond
-       de page est assuré par le body */
-    body.std-page #tab-standards { min-height: 0; }
+    body.std-page #tab-standards { min-height: 0; background: transparent; }
 
-    /* Écran de connexion PIN (léger, propre à cette page) */
+    /* ── Écran de connexion PIN ─────────────────────────────── */
     .std-login-screen {
       min-height: 100vh;
       display: flex; align-items: center; justify-content: center;
@@ -28,7 +31,8 @@
     .std-login-card {
       background: #fff; border-radius: 16px; padding: 32px 28px;
       width: 100%; max-width: 380px;
-      box-shadow: 0 10px 40px rgba(15, 23, 42, 0.10);
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
       text-align: center;
     }
     .std-login-title { margin: 0 0 4px; font-size: 20px; color: #0F172A; }
@@ -42,155 +46,202 @@
     .std-login-input:focus { border-color: #0D9488; }
     .std-login-btn {
       width: 100%; margin-top: 12px; padding: 12px;
-      background: #0D9488; color: #fff; font-size: 15px; font-weight: 600;
+      background: #1E293B; color: #fff; font-size: 15px; font-weight: 600;
       border: none; border-radius: 10px; cursor: pointer;
     }
-    .std-login-btn:hover { background: #0B7C72; }
+    .std-login-btn:hover { background: #0F172A; }
     .std-login-btn:disabled { opacity: .6; cursor: wait; }
     .std-login-error {
       margin-top: 12px; font-size: 13px; color: #DC2626; display: none;
     }
 
-    /* ── En-tête compact ─────────────────────────────────── */
+    /* ── En-tête compact (blanc, texte bleu nuit) ───────────── */
     .stdp-header {
-      background: linear-gradient(135deg, #0F766E 0%, #14B8A6 100%);
-      color: #fff;
-      padding: 12px 20px;
+      background: #fff;
+      border-bottom: 1px solid #E2E8F0;
+      color: #0F172A;
+      padding: 8px 20px;
       display: flex; align-items: center; justify-content: space-between;
       gap: 12px; flex-wrap: wrap;
     }
     .stdp-title {
-      margin: 0; font-size: 17px; font-weight: 700; line-height: 1.25;
+      margin: 0; font-size: 16px; font-weight: 700; line-height: 1.25;
       letter-spacing: .01em;
-      /* Neutralise le dégradé texte appliqué globalement à « header h1 » */
       background: none; -webkit-background-clip: initial; background-clip: initial;
-      color: #fff; -webkit-text-fill-color: #fff;
+      color: #0F172A; -webkit-text-fill-color: #0F172A;
       white-space: normal;
     }
-    .stdp-studio { text-transform: uppercase; letter-spacing: .05em; }
+    /* Le turquoise reste la couleur d'identité : uniquement sur le studio */
+    .stdp-studio { color: #0D9488; -webkit-text-fill-color: #0D9488; text-transform: uppercase; letter-spacing: .05em; }
     .stdp-sub {
       display: flex; align-items: center; gap: 6px;
-      margin-top: 2px; font-size: 13px; color: rgba(255, 255, 255, 0.9);
+      margin-top: 1px; font-size: 12.5px; color: #64748B;
     }
     .stdp-nav {
-      background: rgba(255, 255, 255, 0.15); color: #fff;
+      background: #F1F5F9; color: #334155;
       border: none; border-radius: 6px;
-      width: 22px; height: 22px; line-height: 1;
-      font-size: 14px; cursor: pointer; padding: 0;
+      width: 21px; height: 21px; line-height: 1;
+      font-size: 13px; cursor: pointer; padding: 0;
       display: inline-flex; align-items: center; justify-content: center;
     }
-    .stdp-nav:hover { background: rgba(255, 255, 255, 0.28); }
+    .stdp-nav:hover { background: #E2E8F0; }
     .stdp-sep { opacity: .7; }
-    .stdp-count { font-weight: 600; }
+    .stdp-count { font-weight: 600; color: #0F172A; }
     .stdp-head-actions { display: flex; align-items: center; gap: 10px; }
-    /* Raccourci « Suivant » compact */
+    /* Raccourci « Suivant » : bouton principal bleu nuit */
     .stdp-next {
       display: inline-flex; align-items: center; gap: 8px;
-      background: #0F172A; color: #fff;
-      border: none; border-radius: 10px;
-      padding: 8px 14px; font-size: 13px; font-weight: 600;
+      background: #1E293B; color: #fff;
+      border: none; border-radius: 9px;
+      padding: 7px 13px; font-size: 13px; font-weight: 600;
       cursor: pointer; white-space: nowrap;
     }
-    .stdp-next:hover { background: #1E293B; }
+    .stdp-next:hover { background: #0F172A; }
     .stdp-next-label {
       font-size: 10px; font-weight: 700; letter-spacing: .08em;
-      text-transform: uppercase; opacity: .65;
+      text-transform: uppercase; opacity: .6;
     }
+    /* 6/6 photos, pas encore validé */
     .stdp-done {
-      font-size: 13px; font-weight: 700; color: #fff;
-      background: rgba(255, 255, 255, 0.18);
-      padding: 7px 12px; border-radius: 10px; white-space: nowrap;
+      font-size: 12.5px; font-weight: 700; color: #B45309;
+      background: #FEF3C7; border: 1px solid #FDE68A;
+      padding: 6px 11px; border-radius: 9px; white-space: nowrap;
     }
-    /* Statut discret une fois la prise de poste validée (le détail
-       qui/quand n'est affiché qu'au centre de la page) */
+    /* Statut discret une fois validé (vert = terminé) */
     .stdp-done-mini {
       font-size: 13px; font-weight: 600;
-      color: rgba(255, 255, 255, 0.85); white-space: nowrap;
+      color: #059669; white-space: nowrap;
     }
     .std-logout-btn {
-      padding: 7px 14px; font-size: 13px;
-      background: rgba(255, 255, 255, 0.12); color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.35);
+      padding: 6px 13px; font-size: 12.5px;
+      background: #fff; color: #475569;
+      border: 1px solid #CBD5E1;
       border-radius: 8px; cursor: pointer; white-space: nowrap;
     }
-    .std-logout-btn:hover { background: rgba(255, 255, 255, 0.24); }
+    .std-logout-btn:hover { background: #F8FAFC; color: #0F172A; }
 
-    /* Titre de la prise de poste affichée */
-    .std-group-head {
-      font-size: 13px; font-weight: 700; color: #0F766E;
+    /* ── Bandeaux de section (fins, accent turquoise) ───────── */
+    body.std-page #tab-standards .std-group-head {
+      background: #fff; color: #0F172A;
+      border: 1px solid #E2E8F0; border-left: 3px solid #0D9488;
+      border-radius: 8px;
+      padding: 4px 12px; margin-bottom: 8px;
+      font-size: 12px; font-weight: 700;
       text-transform: uppercase; letter-spacing: .06em;
-      margin: 4px 2px 10px;
     }
     .std-group-head-ro { color: #94A3B8; font-weight: 600; }
-    /* Les 6 vignettes d'une prise de poste tiennent sur UNE seule ligne */
+
+    /* ── Cartes ─────────────────────────────────────────────── */
+    /* Bordure neutre (le vert est réservé à la coche de validation) */
+    body.std-page #tab-standards .std-card { border-color: #E2E8F0; }
+    body.std-page #tab-standards .std-card-filled { border-color: #E2E8F0; }
+    body.std-page #tab-standards .std-card:hover { border-color: #CBD5E1; }
+    /* Corps de carte remplie : 2 lignes seulement */
+    body.std-page #tab-standards .stdp-card-body {
+      padding: 6px 9px 7px; gap: 3px;
+      display: flex; flex-direction: column;
+    }
+    .stdp-card-row1 {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      min-width: 0;
+    }
+    body.std-page #tab-standards .std-card-title {
+      font-size: 12.5px; font-weight: 700; color: #0F172A; margin: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* Petite coche verte de validation (remplace le badge « Validée ») */
+    .stdp-check {
+      flex-shrink: 0;
+      width: 17px; height: 17px; border-radius: 50%;
+      background: #ECFDF5; border: 1px solid #A7F3D0; color: #059669;
+      font-size: 11px; font-weight: 800; line-height: 1;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .stdp-card-row2 {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      min-width: 0;
+    }
+    .stdp-card-meta {
+      font-size: 11px; color: #64748B;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .stdp-card-actions { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    /* Petit bouton « Reprendre » discret */
+    .stdp-retake {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #fff; color: #334155;
+      border: 1px solid #E2E8F0; border-radius: 6px;
+      padding: 2px 7px; font-size: 11px; font-weight: 600;
+      cursor: pointer;
+    }
+    .stdp-retake:hover { background: #F8FAFC; color: #0F172A; }
+    .stdp-retake svg { width: 11px; height: 11px; }
+    /* Poubelle (admin) : volontairement effacée, rouge seulement au survol */
+    .stdp-del {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: none; border: none; padding: 2px; cursor: pointer;
+      color: #CBD5E1;
+    }
+    .stdp-del:hover { color: #DC2626; }
+    .stdp-del svg { width: 12px; height: 12px; }
+
+    /* ── Bouton final de validation ─────────────────────────── */
+    .std-validate-wrap {
+      margin: 8px 0 0;
+      display: flex; justify-content: center;
+    }
+    /* Bouton principal bleu nuit */
+    .std-validate-btn {
+      width: 100%; max-width: 400px;
+      padding: 8px 18px; font-size: 13px; font-weight: 700;
+      border: none; border-radius: 10px; cursor: pointer;
+      background: #1E293B; color: #fff;
+      transition: background .15s;
+    }
+    .std-validate-btn:hover { background: #0F172A; }
+    .std-validate-btn:disabled {
+      background: #E2E8F0; color: #64748B; cursor: not-allowed;
+    }
+    /* Confirmation unique du créneau terminé (vert) */
+    .std-validated-chip {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; max-width: 400px;
+      background: #ECFDF5; border: 1px solid #A7F3D0; color: #047857;
+      font-weight: 600; font-size: 12.5px;
+      padding: 7px 14px; border-radius: 10px;
+    }
+    .std-novalid-note {
+      color: #94A3B8; font-size: 12px; text-align: center; padding: 3px;
+    }
+
+    /* ── Densité desktop : Matin + Après-midi sur UN écran ──── */
+    @media (min-width: 721px) {
+      body.std-page #tab-standards .std-wrap { padding: 12px 24px 16px; }
+      body.std-page #tab-standards .std-group { margin-bottom: 10px; }
+      body.std-page #tab-standards .std-slots-grid { gap: 10px; }
+      /* Photos aussi hautes que possible SANS dépasser un écran :
+         hauteur pilotée par la fenêtre, partagée entre les 2 rangées */
+      body.std-page #tab-standards .std-card-photo {
+        aspect-ratio: auto;
+        height: clamp(84px, calc((100vh - 450px) / 2), 170px);
+      }
+      body.std-page #tab-standards .std-card-empty-body { padding: 9px; gap: 7px; }
+      body.std-page #tab-standards .std-card-primary { padding: 7px 10px; font-size: 12.5px; }
+      body.std-page #tab-standards .std-card-primary svg { width: 14px; height: 14px; }
+      body.std-page #tab-standards .std-card-readonly-note { padding: 4px 0; margin: 0; }
+      body.std-page #tab-standards .std-card-icon { width: 24px; height: 24px; }
+      body.std-page #tab-standards .std-card-icon svg { width: 13px; height: 13px; }
+    }
+    /* Grille : 6 vignettes sur une seule ligne en desktop */
     body.std-page #tab-standards .std-slots-grid {
       grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 12px;
+      gap: 10px;
     }
     @media (max-width: 1000px) and (min-width: 721px) {
       body.std-page #tab-standards .std-slots-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 720px) {
       body.std-page #tab-standards .std-slots-grid { grid-template-columns: 1fr; gap: 8px; }
-    }
-    /* Bouton final « Valider ma prise de poste » */
-    .std-validate-wrap {
-      margin: 14px 0 4px;
-      display: flex; justify-content: center;
-    }
-    .std-validate-btn {
-      width: 100%; max-width: 420px;
-      padding: 14px 20px; font-size: 15px; font-weight: 700;
-      border: none; border-radius: 12px; cursor: pointer;
-      background: #0D9488; color: #fff;
-      transition: background .15s;
-    }
-    .std-validate-btn:hover { background: #0B7C72; }
-    .std-validate-btn:disabled {
-      background: #E2E8F0; color: #64748B; cursor: not-allowed;
-    }
-    .std-validated-chip {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      width: 100%; max-width: 420px;
-      background: #ECFDF5; border: 1px solid #A7F3D0; color: #047857;
-      font-weight: 600; font-size: 14px;
-      padding: 12px 18px; border-radius: 12px;
-    }
-    .std-novalid-note {
-      color: #94A3B8; font-size: 13px; text-align: center; padding: 8px;
-    }
-    /* ── Densité desktop : Matin + Après-midi visibles sur UN écran ── */
-    @media (min-width: 721px) {
-      body.std-page .stdp-header { padding: 8px 20px; }
-      body.std-page #tab-standards .std-wrap { padding: 12px 24px 18px; }
-      body.std-page #tab-standards .std-group { margin-bottom: 10px; }
-      body.std-page #tab-standards .std-group-head {
-        padding: 4px 12px; margin-bottom: 8px; font-size: 12px;
-      }
-      body.std-page #tab-standards .std-slots-grid { gap: 10px; }
-      /* Photos aussi hautes que possible SANS faire dépasser la page d'un
-         écran : hauteur calculée sur la fenêtre (≈ tout l'espace restant
-         après l'en-tête, les bandeaux, les corps de cartes et les
-         validations, partagé entre les 2 rangées), bornée 92-190px */
-      body.std-page #tab-standards .std-card-photo {
-        aspect-ratio: auto;
-        height: clamp(88px, calc((100vh - 530px) / 2), 190px);
-      }
-      body.std-page #tab-standards .std-card-body { padding: 7px 10px 8px; gap: 5px; }
-      body.std-page #tab-standards .std-card-empty-body { padding: 10px; gap: 8px; }
-      body.std-page #tab-standards .std-card-primary { padding: 7px 10px; font-size: 13px; }
-      body.std-page #tab-standards .std-card-primary svg { width: 15px; height: 15px; }
-      body.std-page #tab-standards .std-card-readonly-note { padding: 5px 0; margin: 0; }
-      body.std-page #tab-standards .std-card-title { font-size: 13px; }
-      body.std-page #tab-standards .std-card-icon { width: 26px; height: 26px; }
-      body.std-page #tab-standards .std-card-icon svg { width: 14px; height: 14px; }
-      body.std-page #tab-standards .std-card-meta { font-size: 11px; }
-      body.std-page #tab-standards .std-card-actions { gap: 6px; }
-      body.std-page #tab-standards .std-card-action-btn { padding: 4px 9px; font-size: 12px; }
-      body.std-page .std-validate-wrap { margin: 8px 0 0; }
-      body.std-page .std-validate-btn { padding: 8px 18px; font-size: 13px; border-radius: 10px; }
-      body.std-page .std-validated-chip { padding: 7px 14px; font-size: 13px; border-radius: 10px; }
-      body.std-page .std-novalid-note { padding: 3px; font-size: 12px; }
     }
     .hidden { display: none !important; }
   </style>
