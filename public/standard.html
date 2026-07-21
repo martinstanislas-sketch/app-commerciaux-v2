@@ -168,8 +168,14 @@
         padding: 4px 12px; margin-bottom: 8px; font-size: 12px;
       }
       body.std-page #tab-standards .std-slots-grid { gap: 10px; }
-      /* Photos moins hautes (au lieu du ratio 4/3) */
-      body.std-page #tab-standards .std-card-photo { aspect-ratio: auto; height: 92px; }
+      /* Photos aussi hautes que possible SANS faire dépasser la page d'un
+         écran : hauteur calculée sur la fenêtre (≈ tout l'espace restant
+         après l'en-tête, les bandeaux, les corps de cartes et les
+         validations, partagé entre les 2 rangées), bornée 92-190px */
+      body.std-page #tab-standards .std-card-photo {
+        aspect-ratio: auto;
+        height: clamp(88px, calc((100vh - 530px) / 2), 190px);
+      }
       body.std-page #tab-standards .std-card-body { padding: 7px 10px 8px; gap: 5px; }
       body.std-page #tab-standards .std-card-empty-body { padding: 10px; gap: 8px; }
       body.std-page #tab-standards .std-card-primary { padding: 7px 10px; font-size: 13px; }
