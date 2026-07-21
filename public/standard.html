@@ -11,9 +11,9 @@
        Thème « premium » de la page /standard
        - Bleu nuit  (#0F172A / #1E293B) : titres, textes importants,
          boutons principaux
-       - Turquoise  (#0D9488) : accent d'identité uniquement
+       - Bleu électrique (#2563EB) : accent d'identité + validé
        - Fond gris très clair, cartes blanches
-       - Bleu électrique = validé, Orange = à faire, Rouge = anomalies
+       - Orange = à faire, Rouge = anomalies
        ═══════════════════════════════════════════════════════════ */
     body.std-page { background: #F6F7F9; min-height: 100vh; margin: 0; }
     /* Annule les marges négatives + min-height hérités du CSS de l'app */
@@ -43,7 +43,7 @@
       border: 1.5px solid #E2E8F0; border-radius: 10px;
       outline: none; letter-spacing: 2px;
     }
-    .std-login-input:focus { border-color: #0D9488; }
+    .std-login-input:focus { border-color: #2563EB; }
     .std-login-btn {
       width: 100%; margin-top: 12px; padding: 12px;
       background: #1E293B; color: #fff; font-size: 15px; font-weight: 600;
@@ -71,8 +71,8 @@
       color: #0F172A; -webkit-text-fill-color: #0F172A;
       white-space: normal;
     }
-    /* Le turquoise reste la couleur d'identité : uniquement sur le studio */
-    .stdp-studio { color: #0D9488; -webkit-text-fill-color: #0D9488; text-transform: uppercase; letter-spacing: .05em; }
+    /* Accent d'identité : bleu électrique, uniquement sur le studio */
+    .stdp-studio { color: #2563EB; -webkit-text-fill-color: #2563EB; text-transform: uppercase; letter-spacing: .05em; }
     .stdp-sub {
       display: flex; align-items: center; gap: 6px;
       margin-top: 1px; font-size: 12.5px; color: #64748B;
@@ -120,16 +120,39 @@
     }
     .std-logout-btn:hover { background: #F8FAFC; color: #0F172A; }
 
-    /* ── Bandeaux de section (fins, accent turquoise) ───────── */
+    /* ── Bandeaux de section (fins, accent bleu) ────────────── */
     body.std-page #tab-standards .std-group-head {
       background: #fff; color: #0F172A;
-      border: 1px solid #E2E8F0; border-left: 3px solid #0D9488;
+      border: 1px solid #E2E8F0; border-left: 3px solid #2563EB;
       border-radius: 8px;
       padding: 4px 12px; margin-bottom: 8px;
       font-size: 12px; font-weight: 700;
       text-transform: uppercase; letter-spacing: .06em;
     }
     .std-group-head-ro { color: #94A3B8; font-weight: 600; }
+
+    /* ── Carte « Suivant » et états : teal de l'app → bleu ──── */
+    body.std-page #tab-standards .std-card.std-card-next {
+      border-color: #2563EB;
+      box-shadow: 0 8px 24px -6px rgba(37, 99, 235, 0.30), 0 0 0 1px rgba(37, 99, 235, 0.18);
+    }
+    body.std-page #tab-standards .std-card-next .std-card-icon {
+      background: #EFF6FF; color: #1D4ED8;
+    }
+    body.std-page #tab-standards .std-card-next-tag {
+      background: #2563EB;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+    }
+    body.std-page #tab-standards .std-card-pulse { border-color: #2563EB; }
+    /* Redéfinit l'animation de pulsation (ombre teal → bleue) */
+    @keyframes stdCardPulse {
+      0%, 100% { transform: translateY(0); box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04); }
+      50% { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(37, 99, 235, 0.28); }
+    }
+    body.std-page #tab-standards .std-card-uploading::after {
+      background: linear-gradient(90deg, transparent 0%, rgba(37, 99, 235, 0.18) 50%, transparent 100%);
+      background-size: 200% 100%;
+    }
 
     /* ── Cartes ─────────────────────────────────────────────── */
     /* Bordure neutre (le bleu électrique est réservé à la coche de validation) */
