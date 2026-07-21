@@ -9671,6 +9671,8 @@ async function renderClientsAdmin() {
           <div>${etat}</div>
           <div>${escapeHtml(obj)}</div>
           <div>Inscrit le ${fmt(c.createdAt)}</div>
+          ${c.pinLocked ? `<div style="margin-top:5px;color:#F0938c;font-weight:700;">🔒 PIN bloqué</div>
+          <button type="button" class="pin-unlock" data-email="${escapeHtml(c.email)}" style="margin-top:3px;background:#2C333F;border:1px solid #3a4353;color:#E7ECF3;border-radius:8px;padding:4px 9px;font-size:11.5px;font-family:inherit;cursor:pointer;">Débloquer le PIN</button>` : ''}
           <button type="button" class="pin-reset" data-email="${escapeHtml(c.email)}" style="margin-top:5px;background:none;border:1px solid #2C333F;color:#9AA0A6;border-radius:8px;padding:4px 9px;font-size:11.5px;font-family:inherit;cursor:pointer;">Réinitialiser le PIN</button>
           <button type="button" class="client-del" data-email="${escapeHtml(c.email)}" style="margin-top:5px;margin-left:6px;background:none;border:1px solid #6b2b2b;color:#F0938c;border-radius:8px;padding:4px 9px;font-size:11.5px;font-family:inherit;cursor:pointer;">Supprimer</button>
         </div>
@@ -9692,6 +9694,7 @@ async function renderClientsAdmin() {
       });
     });
     body.querySelectorAll('.pin-reset').forEach((b) => b.addEventListener('click', () => resetClientPin(b.dataset.email, b)));
+    body.querySelectorAll('.pin-unlock').forEach((b) => b.addEventListener('click', () => unlockClientPin(b.dataset.email, b)));
     body.querySelectorAll('.client-del').forEach((b) => b.addEventListener('click', () => deleteClientAdmin(b.dataset.email, b)));
     body.querySelectorAll('.client-range').forEach((row) => { const b = row.querySelector('.cr-save'); if (b) b.addEventListener('click', () => rangeClientAdmin(row, b)); });
   } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; }
@@ -9729,6 +9732,17 @@ async function resetClientPin(email, btn) {
     if (d.ok) { if (btn) { btn.textContent = 'PIN réinitialisé ✓'; btn.disabled = true; } showToast('Code PIN réinitialisé.', { icon: 'check' }); }
     else showToast(d.error || 'Échec.', { icon: 'info' });
   } catch (_) { showToast('Échec.', { icon: 'info' }); }
+}
+// Débloque un compte verrouillé après trop de PIN erronés. Le client GARDE son
+// PIN et retape simplement son vrai code — pas de réinitialisation.
+async function unlockClientPin(email, btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(apiUrl('/api/clients/' + encodeURIComponent(email) + '/unlock-pin'), { method: 'POST', headers: nutriAuthHeaders() });
+    const d = await res.json();
+    if (d.ok) { showToast('Compte débloqué.', { icon: 'check' }); renderClientsAdmin(); }
+    else { showToast(d.error || 'Déblocage impossible.', { icon: 'info' }); if (btn) btn.disabled = false; }
+  } catch (_) { showToast('Déblocage impossible.', { icon: 'info' }); if (btn) btn.disabled = false; }
 }
 // --- Multi-coach : sélecteur d'attribution (admin) ---
 // Cases à cocher pour chaque coach + un « référent » (le coach qui porte le fil de

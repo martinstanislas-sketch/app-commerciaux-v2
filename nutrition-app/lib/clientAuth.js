@@ -34,6 +34,13 @@ function verifyPin(pin, stored) {
 // Code de cohorte : 6 chiffres, facile à donner à l'oral.
 function genAccessCode() { return String(crypto.randomInt(100000, 1000000)); }
 
+// Nombre de PIN erronés TOLÉRÉS avant blocage du compte. Le blocage est
+// DÉFINITIF jusqu'à intervention d'un coach ou de l'admin — aucun déverrouillage
+// automatique après un délai : c'est ce que protège un compte qui garde des
+// photos corporelles, du poids et une messagerie. 4 à 6 chiffres = 10 000 à
+// 1 000 000 de combinaisons ; 5 essais rendent le tirage au sort sans espoir.
+const MAX_PIN_FAILS = 5;
+
 function createClientAuth({ getDb, defaultCoachId }) {
   // Retrouve le GROUPE à partir du seul code du challenge (auto-inscription).
   // Le code est la porte d'entrée : il détermine la ville + le n° de challenge.
@@ -105,10 +112,29 @@ function createClientAuth({ getDb, defaultCoachId }) {
     let data = null, isNew = true;
 
     if (row && row.pin_hash) {
+      // Compte BLOQUÉ après trop d'essais : on refuse AVANT de vérifier le PIN,
+      // sinon la limite ne servirait à rien. Seul un coach/admin peut rouvrir.
+      if (row.pin_locked) {
+        return { ok: false, status: 403, body: { ok: false, locked: true, error: 'Compte bloqué après plusieurs codes erronés. Ton coach peut le débloquer.' } };
+      }
       // Compte protégé : le PIN est obligatoire et doit correspondre.
       if (!pin) return { ok: false, status: 401, body: { ok: false, needPin: true } };
-      if (!verifyPin(pin, row.pin_hash)) return { ok: false, status: 401, body: { ok: false, needPin: true, error: 'Code PIN incorrect.' } };
-      getDb().prepare('UPDATE nutrition_clients SET prenom = ?, nom = ?, updated_at = ? WHERE email = ?').run(prenom, nom, now, email);
+      if (!verifyPin(pin, row.pin_hash)) {
+        // Échec : on incrémente, et on bloque au seuil. `>=` et non `===` : si un
+        // compteur avait déjà dépassé (données anciennes), on bloque quand même.
+        const fails = (Number(row.pin_fails) || 0) + 1;
+        const locked = fails >= MAX_PIN_FAILS;
+        try { getDb().prepare('UPDATE nutrition_clients SET pin_fails = ?, pin_locked = ? WHERE email = ?').run(fails, locked ? 1 : 0, email); } catch (_) { /* colonnes absentes : on n'empêche pas la connexion */ }
+        if (locked) {
+          return { ok: false, status: 403, body: { ok: false, locked: true, error: 'Compte bloqué après ' + MAX_PIN_FAILS + ' codes erronés. Ton coach peut le débloquer.' } };
+        }
+        // On dit combien d'essais restent : un vrai client corrige, un attaquant
+        // n'apprend rien qu'il ne pourrait déduire lui-même.
+        return { ok: false, status: 401, body: { ok: false, needPin: true, error: 'Code PIN incorrect.', remaining: MAX_PIN_FAILS - fails } };
+      }
+      // Succès : le compteur d'échecs repart à zéro (et le verrou avec, par
+      // sûreté — il ne peut de toute façon pas être posé sur un compte ouvert).
+      getDb().prepare('UPDATE nutrition_clients SET prenom = ?, nom = ?, pin_fails = 0, pin_locked = 0, updated_at = ? WHERE email = ?').run(prenom, nom, now, email);
       try { data = row.data ? JSON.parse(row.data) : null; } catch (_) { data = null; }
       isNew = !data;
     } else {
@@ -207,7 +233,17 @@ function createClientAuth({ getDb, defaultCoachId }) {
     return { ok: true, status: 200, body: { ok: true, mode: 'pin-set', groupe: label } };
   }
 
-  return { validateInvite, validateAccessCode, genAccessCode, genUniqueAccessCode, findGroupByCode, joinCheck, loginClient };
+  // Rouvre un compte bloqué : compteur d'échecs à zéro, verrou levé, PIN CONSERVÉ
+  // (le client retape son vrai code — on ne le force pas à en choisir un nouveau,
+  // c'est le rôle distinct de reset-pin). Renvoie le nombre de comptes touchés.
+  function unlockPin(email) {
+    const e = String(email || '').trim().toLowerCase();
+    if (!e) return 0;
+    try { return getDb().prepare('UPDATE nutrition_clients SET pin_fails = 0, pin_locked = 0 WHERE email = ?').run(e).changes; }
+    catch (_) { return 0; }
+  }
+
+  return { validateInvite, validateAccessCode, genAccessCode, genUniqueAccessCode, findGroupByCode, joinCheck, loginClient, unlockPin };
 }
 
 // ─── CLOISON MÉTIER / NUTRITION ─────────────────────────────────────────────
@@ -229,3 +265,4 @@ module.exports.PIN_RE = PIN_RE;
 module.exports.hashPin = hashPin;
 module.exports.verifyPin = verifyPin;
 module.exports.genAccessCode = genAccessCode;
+module.exports.MAX_PIN_FAILS = MAX_PIN_FAILS;

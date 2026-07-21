@@ -9690,6 +9690,10 @@ function renderChallengeDetail(host, c, pc, msgData) {
       <div>
         <button type="button" class="ch-btn sec${seanceToday ? ' on' : ''}" id="ch-seance-btn">${seanceToday ? '✓ Séance validée aujourd’hui' : '+ Valider une séance aujourd’hui'}</button>
       </div>
+      ${c.pinLocked ? `<div class="ch-locked" style="margin:4px 0;padding:9px 11px;border:1px solid #d98a84;border-radius:10px;background:#fbeceb;color:#8a2f28;font-size:13px;">
+        🔒 Compte bloqué après plusieurs codes PIN erronés.
+        <button type="button" class="ch-btn sec" id="ch-unlock-btn" style="margin-top:7px;">Débloquer le PIN</button>
+      </div>` : ''}
       <div class="ch-msg" id="ch-action-msg"></div>
       <div><button type="button" class="ch-btn danger" id="ch-delete-btn">Supprimer ce client</button></div>
     </div>`;
@@ -9774,5 +9778,15 @@ function renderChallengeDetail(host, c, pc, msgData) {
       await nutriApi(`/coach/clients/${encodeURIComponent(email)}`, { method: 'DELETE' });
       loadChallengeTab();
     } catch (err) { setMsg(err.message || 'Suppression impossible.', false); }
+  });
+  // Débloquer le PIN : le client garde son code et retape simplement le bon.
+  const unlockBtn = host.querySelector('#ch-unlock-btn');
+  if (unlockBtn) unlockBtn.addEventListener('click', async () => {
+    unlockBtn.disabled = true; setMsg('Déblocage…', true);
+    try {
+      await nutriApi(`/clients/${encodeURIComponent(email)}/unlock-pin`, { method: 'POST' });
+      setMsg('Compte débloqué. Le client peut retaper son code.', true);
+      openChallengeClient(host, email); // recharge la fiche -> l'encart bloqué disparaît
+    } catch (err) { unlockBtn.disabled = false; setMsg(err.message || 'Déblocage impossible.', false); }
   });
 }

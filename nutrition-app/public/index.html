@@ -211,8 +211,14 @@
               try { if (d.data) localStorage.setItem('mc-nutri-state-' + email, JSON.stringify(d.data)); else localStorage.removeItem('mc-nutri-state-' + email); } catch (e) {}
               location.reload();
             } else {
+              // Compte bloqué : réessayer ne sert plus à rien, on garde le bouton
+              // désactivé et on dit où trouver la clé (le coach).
+              if (d && d.locked) { btn.disabled = true; err.textContent = (d && d.error) || 'Compte bloqué. Ton coach peut le débloquer.'; return; }
               btn.disabled = false;
-              err.textContent = (d && d.error) || (d && d.needPin ? 'Code PIN incorrect.' : 'Connexion impossible.');
+              var msg = (d && d.error) || (d && d.needPin ? 'Code PIN incorrect.' : 'Connexion impossible.');
+              // Combien d'essais restent : un vrai client corrige avant le blocage.
+              if (d && typeof d.remaining === 'number') { msg += d.remaining > 0 ? ' Il te reste ' + d.remaining + ' essai' + (d.remaining > 1 ? 's' : '') + '.' : ''; }
+              err.textContent = msg;
               // Le code a été refusé (ou manque) : on renvoie à l'étape 1 pour le corriger.
               if (d && d.needCode && s1 && s2) { s2.style.display = 'none'; s1.style.display = ''; if (cd) cd.focus(); return; }
               if (pn) pn.focus();
@@ -1566,6 +1572,6 @@
   <script src="avatar.js?v=8"></script>
   <script src="coursesCatalogue.js?v=5"></script>
   <script src="coursesEngine.js?v=4"></script>
-  <script src="app.js?v=218"></script>
+  <script src="app.js?v=219"></script>
 </body>
 </html>
