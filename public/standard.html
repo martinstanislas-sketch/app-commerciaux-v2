@@ -15,6 +15,9 @@
     @media (min-width: 1100px) {
       body.std-page #tab-standards { margin: 0; }
     }
+    /* Pas de min-height 100vh hérité : la hauteur suit le contenu, le fond
+       de page est assuré par le body */
+    body.std-page #tab-standards { min-height: 0; }
 
     /* Écran de connexion PIN (léger, propre à cette page) */
     .std-login-screen {
@@ -156,18 +159,33 @@
     .std-novalid-note {
       color: #94A3B8; font-size: 13px; text-align: center; padding: 8px;
     }
-    /* Barre repliée de l'autre créneau : « Prise de poste — Après-midi ▾ » */
-    .std-group-collapse-head {
-      width: 100%; box-sizing: border-box;
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
-      padding: 13px 18px; margin-top: 16px; cursor: pointer;
-      font-size: 13px; font-weight: 700; color: #0F766E;
-      text-transform: uppercase; letter-spacing: .06em; text-align: left;
+    /* ── Densité desktop : Matin + Après-midi visibles sur UN écran ── */
+    @media (min-width: 721px) {
+      body.std-page .stdp-header { padding: 8px 20px; }
+      body.std-page #tab-standards .std-wrap { padding: 12px 24px 18px; }
+      body.std-page #tab-standards .std-group { margin-bottom: 10px; }
+      body.std-page #tab-standards .std-group-head {
+        padding: 4px 12px; margin-bottom: 8px; font-size: 12px;
+      }
+      body.std-page #tab-standards .std-slots-grid { gap: 10px; }
+      /* Photos moins hautes (au lieu du ratio 4/3) */
+      body.std-page #tab-standards .std-card-photo { aspect-ratio: auto; height: 92px; }
+      body.std-page #tab-standards .std-card-body { padding: 7px 10px 8px; gap: 5px; }
+      body.std-page #tab-standards .std-card-empty-body { padding: 10px; gap: 8px; }
+      body.std-page #tab-standards .std-card-primary { padding: 7px 10px; font-size: 13px; }
+      body.std-page #tab-standards .std-card-primary svg { width: 15px; height: 15px; }
+      body.std-page #tab-standards .std-card-readonly-note { padding: 5px 0; margin: 0; }
+      body.std-page #tab-standards .std-card-title { font-size: 13px; }
+      body.std-page #tab-standards .std-card-icon { width: 26px; height: 26px; }
+      body.std-page #tab-standards .std-card-icon svg { width: 14px; height: 14px; }
+      body.std-page #tab-standards .std-card-meta { font-size: 11px; }
+      body.std-page #tab-standards .std-card-actions { gap: 6px; }
+      body.std-page #tab-standards .std-card-action-btn { padding: 4px 9px; font-size: 12px; }
+      body.std-page .std-validate-wrap { margin: 8px 0 0; }
+      body.std-page .std-validate-btn { padding: 8px 18px; font-size: 13px; border-radius: 10px; }
+      body.std-page .std-validated-chip { padding: 7px 14px; font-size: 13px; border-radius: 10px; }
+      body.std-page .std-novalid-note { padding: 3px; font-size: 12px; }
     }
-    .std-group-collapse-head:hover { background: #F8FAFC; }
-    .std-collapse-caret { color: #94A3B8; font-size: 15px; text-transform: none; }
-    .std-group-collapse-body { margin-top: 10px; }
     .hidden { display: none !important; }
   </style>
 </head>
