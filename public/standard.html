@@ -9,6 +9,12 @@
   <style>
     /* Page autonome : pas de barre d'onglets, fond identique à l'app */
     body.std-page { background: #F4F5F7; min-height: 100vh; margin: 0; }
+    /* Annule les marges négatives que le CSS de l'app applique à
+       #tab-standards pour compenser le padding du conteneur d'onglets
+       (inexistant sur cette page autonome) */
+    @media (min-width: 1100px) {
+      body.std-page #tab-standards { margin: 0; }
+    }
 
     /* Écran de connexion PIN (léger, propre à cette page) */
     .std-login-screen {
@@ -54,6 +60,20 @@
       background: #E6FFFA; border: 1px solid #99F6E4;
       padding: 6px 14px; border-radius: 8px;
     }
+    /* Titre de la prise de poste affichée */
+    .std-group-head {
+      font-size: 13px; font-weight: 700; color: #0F766E;
+      text-transform: uppercase; letter-spacing: .06em;
+      margin: 4px 2px 10px;
+    }
+    /* Bouton « Voir les contrôles précédents » */
+    .std-prev-toggle {
+      display: block; margin: 18px auto 6px; padding: 10px 20px;
+      background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
+      color: #475569; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .std-prev-toggle:hover { background: #F8FAFC; color: #0F172A; }
+    .std-prev-wrap { margin-top: 12px; }
     .hidden { display: none !important; }
   </style>
 </head>

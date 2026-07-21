@@ -17,6 +17,12 @@ let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
 let standardsDate = null;      // YYYY-MM-DD affiché
 let standardsSlotsDef = [];    // définition des 12 slots (id, label, icon, coach)
 
+// Une seule prise de poste affichée à la fois : Matin (rangée 1) avant
+// STD_SHIFT_SWITCH_HOUR heures, Après-midi (rangée 2) ensuite. Les contrôles
+// précédents restent accessibles derrière un bouton.
+const STD_SHIFT_SWITCH_HOUR = 13;
+let stdShowPrevious = false;   // état du volet « contrôles précédents »
+
 function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -190,6 +196,7 @@ async function bootStandardsPage() {
   }
 
   standardsDate = standardsTodayDate();
+  stdShowPrevious = false;
   showApp();
   standardsRender();
 }
@@ -313,10 +320,28 @@ function standardsRenderDaily(data) {
   const defsAll = (userCoachSlot === 1 || userCoachSlot === 2)
     ? allDefs.filter(d => d.coach === userCoachSlot)
     : allDefs;
-  const doneCount = defsAll.reduce((n, def) => n + ((slots[def.id] && slots[def.id].has_photo) ? 1 : 0), 0);
-  const total = defsAll.length;
+
+  // ─── Prise de poste courante ──────────────────────────────
+  // Aujourd'hui : Matin avant STD_SHIFT_SWITCH_HOUR h, Après-midi ensuite.
+  // Jour passé : on affiche la dernière prise de poste (Après-midi),
+  // les précédentes restent derrière le bouton.
+  const hasCoachField = defsAll.some(d => d.coach != null);
+  const groups = hasCoachField
+    ? [1, 2].map(n => ({ num: n, defs: defsAll.filter(d => d.coach === n) })).filter(g => g.defs.length > 0)
+    : [{ num: null, defs: defsAll }];
+  const isToday = standardsDate === today;
+  const currentShift = isToday
+    ? (new Date().getHours() < STD_SHIFT_SWITCH_HOUR ? 1 : 2)
+    : 2;
+  const primaryGroup = groups.find(g => g.num === currentShift) || groups[groups.length - 1] || { num: null, defs: [] };
+  const previousGroups = groups.filter(g => g.num != null && primaryGroup.num != null && g.num < primaryGroup.num);
+
+  // Progression calculée sur la prise de poste affichée uniquement
+  const progressDefs = primaryGroup.defs;
+  const doneCount = progressDefs.reduce((n, def) => n + ((slots[def.id] && slots[def.id].has_photo) ? 1 : 0), 0);
+  const total = progressDefs.length;
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-  const nextSlot = defsAll.find(def => !(slots[def.id] && slots[def.id].has_photo));
+  const nextSlot = progressDefs.find(def => !(slots[def.id] && slots[def.id].has_photo));
   const nextSlotId = nextSlot ? nextSlot.id : null;
   container.dataset.nextSlot = nextSlotId || '';
 
@@ -326,7 +351,7 @@ function standardsRenderDaily(data) {
     let stateClass = 'std-progress-empty';
     let mainMsg = 'À démarrer';
     const remaining = total - doneCount;
-    if (pct >= 100) { stateClass = 'std-progress-done'; mainMsg = 'Studio complet ✓'; }
+    if (pct >= 100) { stateClass = 'std-progress-done'; mainMsg = 'Prise de poste complète ✓'; }
     else if (pct >= 75) { stateClass = 'std-progress-half'; mainMsg = 'Dernière ligne droite'; }
     else if (pct >= 50) { stateClass = 'std-progress-half'; mainMsg = 'Bien avancé'; }
     else if (pct > 0) mainMsg = `${remaining} restante${remaining > 1 ? 's' : ''}`;
@@ -376,27 +401,29 @@ function standardsRenderDaily(data) {
     });
   };
 
-  const defs = defsAll;
-  if (defs.length === 0) {
+  if (defsAll.length === 0) {
     container.innerHTML = `<div class="std-empty">Aucun emplacement photo configuré.</div>`;
     return;
   }
-  // Regroupe par rangée (Matin = coach 1, Après-midi = coach 2)
-  const hasCoachField = defs.some(d => d.coach != null);
-  let bodyHtml = '';
-  if (hasCoachField) {
-    const groups = [1, 2].map(n => ({
-      num: n,
-      defs: defs.filter(d => d.coach === n),
-    })).filter(g => g.defs.length > 0);
-    bodyHtml = groups.map(g => `
-      <section class="std-group">
-        <div class="std-slots-grid">${g.defs.map(renderSlot).join('')}</div>
-      </section>
-    `).join('');
-  } else {
-    bodyHtml = `<div class="std-slots-grid">${defs.map(renderSlot).join('')}</div>`;
-  }
+  const shiftLabel = (n) => n === 1 ? 'Matin' : 'Après-midi';
+  const renderGroup = (g) => `
+    <section class="std-group">
+      ${g.num != null ? `<div class="std-group-head">Prise de poste — ${shiftLabel(g.num)}</div>` : ''}
+      <div class="std-slots-grid">${g.defs.map(renderSlot).join('')}</div>
+    </section>
+  `;
+  // Une seule prise de poste affichée ; les précédentes derrière un bouton.
+  const bodyHtml = `
+    ${renderGroup(primaryGroup)}
+    ${previousGroups.length ? `
+      <button type="button" class="std-prev-toggle" id="std-prev-toggle">
+        ${stdShowPrevious ? 'Masquer les contrôles précédents' : 'Voir les contrôles précédents'}
+      </button>
+      <div class="std-prev-wrap ${stdShowPrevious ? '' : 'hidden'}" id="std-prev-groups">
+        ${previousGroups.map(renderGroup).join('')}
+      </div>
+    ` : ''}
+  `;
   container.innerHTML = `
     ${readOnly ? `
       <div class="std-readonly-banner">
@@ -407,6 +434,16 @@ function standardsRenderDaily(data) {
     ` : ''}
     ${bodyHtml}
   `;
+  // Bouton « contrôles précédents » : simple toggle, l'état survit aux re-rendus
+  const prevToggle = container.querySelector('#std-prev-toggle');
+  if (prevToggle) {
+    prevToggle.addEventListener('click', () => {
+      stdShowPrevious = !stdShowPrevious;
+      const wrap = container.querySelector('#std-prev-groups');
+      if (wrap) wrap.classList.toggle('hidden', !stdShowPrevious);
+      prevToggle.textContent = stdShowPrevious ? 'Masquer les contrôles précédents' : 'Voir les contrôles précédents';
+    });
+  }
   // Miniatures des slots remplis
   container.querySelectorAll('.std-slot-thumb-img').forEach(img => {
     const slot = img.dataset.thumbKey;
@@ -622,10 +659,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('std-logout')?.addEventListener('click', logout);
   document.getElementById('std-month-prev')?.addEventListener('click', () => {
     standardsDate = standardsShiftDate(standardsDate, -1);
+    stdShowPrevious = false;
     standardsRender();
   });
   document.getElementById('std-month-next')?.addEventListener('click', () => {
     standardsDate = standardsShiftDate(standardsDate, +1);
+    stdShowPrevious = false;
     standardsRender();
   });
   bootStandardsPage();
