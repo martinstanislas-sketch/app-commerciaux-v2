@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1E293B">
-  <title>Standards — Tours</title>
+  <title>Standards — Prise de poste</title>
   <link rel="stylesheet" href="/style.css">
   <style>
     /* ═══════════════════════════════════════════════════════════
@@ -73,6 +73,16 @@
     }
     /* Accent d'identité : bleu électrique, uniquement sur le studio */
     .stdp-studio { color: #2563EB; -webkit-text-fill-color: #2563EB; text-transform: uppercase; letter-spacing: .05em; }
+    /* Sélecteur de studio (admin / superviseurs) : même look que le texte */
+    .stdp-studio-select {
+      appearance: auto;
+      font: inherit; font-weight: 700;
+      color: #2563EB; -webkit-text-fill-color: #2563EB;
+      text-transform: uppercase; letter-spacing: .05em;
+      background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px;
+      padding: 1px 6px; cursor: pointer;
+    }
+    .stdp-studio-select:hover { background: #DBEAFE; }
     .stdp-sub {
       display: flex; align-items: center; gap: 6px;
       margin-top: 1px; font-size: 12.5px; color: #64748B;
@@ -274,7 +284,7 @@
   <!-- Connexion PIN -->
   <div id="std-login" class="std-login-screen hidden">
     <form id="std-login-form" class="std-login-card" autocomplete="off">
-      <h1 class="std-login-title">Standards — Tours</h1>
+      <h1 class="std-login-title">Standards — Prise de poste</h1>
       <p class="std-login-sub">Entre ton code PIN pour accéder aux photos du jour</p>
       <input type="password" id="std-login-pin" class="std-login-input" inputmode="text" placeholder="Code PIN" required minlength="3" autofocus>
       <button type="submit" id="std-login-submit" class="std-login-btn">Se connecter</button>

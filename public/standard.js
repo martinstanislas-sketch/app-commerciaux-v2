@@ -6,8 +6,12 @@
 
 'use strict';
 
-// Studio en test — figé pour cette page.
-const STD_STUDIO = 'Tours';
+// Studios disponibles sur cette page. Les admins / superviseurs peuvent
+// basculer de l'un à l'autre via le sélecteur de l'en-tête ; un coach
+// leader / assistant est automatiquement sur SON studio.
+// Lien direct possible : /standard?studio=Veigné
+const STD_PAGE_STUDIOS = ['Tours', 'Veigné'];
+let stdStudio = null;
 
 // Session partagée avec l'app principale (mêmes clés localStorage) : si le
 // coach est déjà connecté sur app.stanmartinapp.cloud, il l'est aussi ici.
@@ -199,9 +203,41 @@ async function bootStandardsPage() {
     if (nextBtn) nextBtn.style.display = 'none';
   }
 
+  stdInitStudio();
   standardsDate = standardsTodayDate();
   showApp();
   standardsRender();
+}
+
+// ─── Studio courant + sélecteur (admin / superviseurs) ──────
+function stdInitStudio() {
+  const holder = document.getElementById('std-studio-name');
+  if (!holder) return;
+  // Coach leader / assistant / guest : SON studio, sans sélecteur
+  if (isCoachLeader() || isGuest()) {
+    stdStudio = (currentUser && currentUser.studio) || STD_PAGE_STUDIOS[0];
+    holder.textContent = stdStudio;
+    return;
+  }
+  // Admin / superviseur Standards : sélecteur Tours / Veigné.
+  // Un ?studio=… dans l'URL présélectionne le club (lien direct).
+  const param = new URLSearchParams(location.search).get('studio');
+  const wanted = STD_PAGE_STUDIOS.find(s => s.localeCompare(param || '', 'fr', { sensitivity: 'base' }) === 0);
+  stdStudio = wanted || STD_PAGE_STUDIOS[0];
+  holder.innerHTML = `
+    <select id="std-studio-select" class="stdp-studio-select" title="Changer de studio">
+      ${STD_PAGE_STUDIOS.map(s => `<option value="${escapeHtml(s)}" ${s === stdStudio ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
+    </select>
+  `;
+  document.getElementById('std-studio-select').addEventListener('change', (e) => {
+    stdStudio = e.target.value;
+    // Garde l'URL partageable et revient sur le jour courant
+    const url = new URL(location.href);
+    url.searchParams.set('studio', stdStudio);
+    history.replaceState(null, '', url);
+    standardsDate = standardsTodayDate();
+    standardsRender();
+  });
 }
 
 // ─── Rendu principal ────────────────────────────────────────
@@ -233,8 +269,8 @@ async function standardsRender() {
   container.innerHTML = `<div class="std-loading">Chargement…</div>`;
   try {
     const headers = { 'Authorization': `Bearer ${authToken}` };
-    const dailyUrl = `/api/standards/daily?studio=${encodeURIComponent(STD_STUDIO)}&date=${encodeURIComponent(standardsDate)}`;
-    const validUrl = `/api/standards/shift-validation?studio=${encodeURIComponent(STD_STUDIO)}&date=${encodeURIComponent(standardsDate)}`;
+    const dailyUrl = `/api/standards/daily?studio=${encodeURIComponent(stdStudio)}&date=${encodeURIComponent(standardsDate)}`;
+    const validUrl = `/api/standards/shift-validation?studio=${encodeURIComponent(stdStudio)}&date=${encodeURIComponent(standardsDate)}`;
     const [res, validRes] = await Promise.all([
       fetch(dailyUrl, { headers }),
       fetch(validUrl, { headers }).catch(() => null),
@@ -535,7 +571,7 @@ async function standardsValidateShift(shift, btn) {
     const res = await fetch('/api/standards/shift-validation', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-      body: JSON.stringify({ studio: STD_STUDIO, date: standardsDate, shift }),
+      body: JSON.stringify({ studio: stdStudio, date: standardsDate, shift }),
     });
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
@@ -555,13 +591,13 @@ async function standardsValidateShift(shift, btn) {
 const standardsThumbCache = new Map();
 
 async function standardsLoadThumb(slot, imgEl) {
-  const key = `${STD_STUDIO}|${standardsDate}|${slot}`;
+  const key = `${stdStudio}|${standardsDate}|${slot}`;
   if (standardsThumbCache.has(key)) {
     imgEl.src = standardsThumbCache.get(key);
     return;
   }
   try {
-    const url = `/api/standards/daily/photo?studio=${encodeURIComponent(STD_STUDIO)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
+    const url = `/api/standards/daily/photo?studio=${encodeURIComponent(stdStudio)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
     const res = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
     if (!res.ok) return;
     const blob = await res.blob();
@@ -574,7 +610,7 @@ async function standardsLoadThumb(slot, imgEl) {
 }
 
 function standardsInvalidateThumb(slot) {
-  const key = `${STD_STUDIO}|${standardsDate}|${slot}`;
+  const key = `${stdStudio}|${standardsDate}|${slot}`;
   const url = standardsThumbCache.get(key);
   if (url) {
     URL.revokeObjectURL(url);
@@ -647,7 +683,7 @@ async function standardsUploadDailyPhoto(slot, file) {
         'Authorization': `Bearer ${authToken}`,
       },
       body: JSON.stringify({
-        studio: STD_STUDIO,
+        studio: stdStudio,
         date: standardsDate,
         slot,
         photo_base64: base64,
@@ -670,7 +706,7 @@ async function standardsUploadDailyPhoto(slot, file) {
 
 async function standardsViewDailyPhoto(slot) {
   try {
-    const url = `/api/standards/daily/photo?studio=${encodeURIComponent(STD_STUDIO)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
+    const url = `/api/standards/daily/photo?studio=${encodeURIComponent(stdStudio)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
     const res = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const blob = await res.blob();
@@ -683,7 +719,7 @@ async function standardsViewDailyPhoto(slot) {
 
 async function standardsDeleteDailyPhoto(slot) {
   try {
-    const url = `/api/standards/daily/photo?studio=${encodeURIComponent(STD_STUDIO)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
+    const url = `/api/standards/daily/photo?studio=${encodeURIComponent(stdStudio)}&date=${encodeURIComponent(standardsDate)}&slot=${encodeURIComponent(slot)}`;
     const res = await fetch(url, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     standardsInvalidateThumb(slot);
