@@ -140,6 +140,20 @@
       text-transform: uppercase; letter-spacing: .06em;
     }
     .std-group-head-ro { color: #94A3B8; font-weight: 600; }
+    /* Barre de rangée cliquable (repli/dépli) */
+    body.std-page #tab-standards .std-group-head-btn {
+      width: 100%; box-sizing: border-box; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      font-family: inherit; text-align: left;
+    }
+    body.std-page #tab-standards .std-group-head-btn:hover { background: #F8FAFC; }
+    .std-group-head-right {
+      display: inline-flex; align-items: center; gap: 8px;
+      text-transform: none; letter-spacing: normal; flex-shrink: 0;
+    }
+    .std-group-head-status { font-size: 12px; font-weight: 600; color: #64748B; }
+    .std-group-head-status-ok { color: #2563EB; }
+    .std-collapse-caret { color: #94A3B8; font-size: 13px; }
 
     /* ── Carte « Suivant » et états : teal de l'app → bleu ──── */
     body.std-page #tab-standards .std-card.std-card-next {

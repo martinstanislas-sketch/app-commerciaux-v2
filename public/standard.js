@@ -21,12 +21,13 @@ let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
 let standardsDate = null;      // YYYY-MM-DD affiché
 let standardsSlotsDef = [];    // définition des 12 slots (id, label, icon, coach)
 
-// Les deux prises de poste sont visibles en même temps (affichage compact) ;
-// celle du salarié est placée en premier. Pour les comptes sans rangée fixe,
-// la rangée mise en avant dépend de l'heure : Matin avant
-// STD_SHIFT_SWITCH_HOUR heures, Après-midi ensuite.
-const STD_SHIFT_SWITCH_HOUR = 13;
+// Ordre chronologique : Matin toujours au-dessus de l'Après-midi. Le Matin
+// se replie automatiquement (barre redépliable) une fois rempli/validé ou
+// passé STD_SHIFT_SWITCH_HOUR heures, pour laisser place à l'Après-midi.
+const STD_SHIFT_SWITCH_HOUR = 12;
 let stdValidationByShift = {}; // { 1: {validated_by, validated_at}, 2: {...} }
+let stdCollapsedOverride = {}; // replis forcés/annulés par l'utilisateur { num: bool }
+let stdLastDaily = null;       // dernière réponse /daily (re-rendu sans re-fetch)
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -205,6 +206,7 @@ async function bootStandardsPage() {
 
   stdInitStudio();
   standardsDate = standardsTodayDate();
+  stdCollapsedOverride = {};
   showApp();
   standardsRender();
 }
@@ -236,6 +238,7 @@ function stdInitStudio() {
     url.searchParams.set('studio', stdStudio);
     history.replaceState(null, '', url);
     standardsDate = standardsTodayDate();
+    stdCollapsedOverride = {};
     standardsRender();
   });
 }
@@ -286,6 +289,7 @@ async function standardsRender() {
       const v = await validRes.json().catch(() => ({}));
       stdValidationByShift = v.shifts || {};
     }
+    stdLastDaily = daily;
     standardsRenderDaily(daily);
   } catch (err) {
     container.innerHTML = `<div class="std-error">Erreur : ${escapeHtml(String(err.message || err))}</div>`;
@@ -503,22 +507,57 @@ function standardsRenderDaily(data) {
       </div>
     `;
   };
+  // Repli par défaut d'une rangée :
+  //  - jours passés : Matin replié (l'Après-midi, dernier créneau, reste ouvert)
+  //  - la rangée attribuée à l'utilisateur reste ouverte tant qu'elle n'est pas finie
+  //  - rangée remplie/validée → repliée (laisse place à la suivante)
+  //  - Matin replié une fois STD_SHIFT_SWITCH_HOUR h passées
+  const collapsedDefault = (g) => {
+    if (g.num == null) return false;
+    if (!isToday) return g.num === 1;
+    // Repli à la VALIDATION (pas au simple remplissage : le bouton
+    // « Valider ma prise de poste » doit rester visible)
+    if (userCoachSlot === g.num && !stdValidationByShift[g.num]) return false;
+    if (stdValidationByShift[g.num]) return true;
+    if (g.num === 1 && new Date().getHours() >= STD_SHIFT_SWITCH_HOUR) return true;
+    return false;
+  };
   const renderGroup = (g) => {
     const rowRO = groupReadOnly(g);
+    if (g.num == null) {
+      return `
+      <section class="std-group">
+        <div class="std-slots-grid">${g.defs.map(def => renderSlot(def, rowRO)).join('')}</div>
+        ${renderShiftValidation(g)}
+      </section>
+    `;
+    }
+    const collapsed = stdCollapsedOverride[g.num] ?? collapsedDefault(g);
+    const validation = stdValidationByShift[g.num];
+    const gDone = g.defs.filter(def => slots[def.id] && slots[def.id].has_photo).length;
+    // Résumé affiché dans la barre quand la rangée est repliée
+    const when = validation ? fmtTime(validation.validated_at) : '';
+    const statusHtml = validation
+      ? `<span class="std-group-head-status std-group-head-status-ok">✓ Validée par ${escapeHtml(validation.validated_by || '?')}${when ? ` à ${when}` : ''}</span>`
+      : `<span class="std-group-head-status">${gDone}/${g.defs.length}</span>`;
     return `
     <section class="std-group">
-      ${g.num != null ? `<div class="std-group-head">Prise de poste — ${shiftLabel(g.num)}${rowRO && !readOnly ? ' <span class="std-group-head-ro">(lecture seule)</span>' : ''}</div>` : ''}
-      <div class="std-slots-grid">${g.defs.map(def => renderSlot(def, rowRO)).join('')}</div>
-      ${renderShiftValidation(g)}
+      <button type="button" class="std-group-head std-group-head-btn" data-group-toggle="${g.num}" title="${collapsed ? 'Déplier' : 'Replier'}">
+        <span>Prise de poste — ${shiftLabel(g.num)}${rowRO && !readOnly ? ' <span class="std-group-head-ro">(lecture seule)</span>' : ''}</span>
+        <span class="std-group-head-right">
+          ${collapsed ? statusHtml : ''}
+          <span class="std-collapse-caret">${collapsed ? '▸' : '▾'}</span>
+        </span>
+      </button>
+      <div class="std-group-body ${collapsed ? 'hidden' : ''}">
+        <div class="std-slots-grid">${g.defs.map(def => renderSlot(def, rowRO)).join('')}</div>
+        ${renderShiftValidation(g)}
+      </div>
     </section>
   `;
   };
-  // Les deux prises de poste sont visibles en même temps (affichage
-  // compact) — celle du salarié en premier.
-  const bodyHtml = `
-    ${renderGroup(primaryGroup)}
-    ${otherGroups.map(renderGroup).join('')}
-  `;
+  // Ordre chronologique : Matin (1) puis Après-midi (2)
+  const bodyHtml = groups.map(renderGroup).join('');
   container.innerHTML = `
     ${readOnly ? `
       <div class="std-readonly-banner">
@@ -532,6 +571,16 @@ function standardsRenderDaily(data) {
   // Bouton « Valider ma prise de poste »
   container.querySelectorAll('[data-validate-shift]').forEach(btn => {
     btn.addEventListener('click', () => standardsValidateShift(parseInt(btn.dataset.validateShift, 10), btn));
+  });
+  // Barres repliables des rangées : le choix manuel survit aux re-rendus
+  container.querySelectorAll('[data-group-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const num = parseInt(btn.dataset.groupToggle, 10);
+      const g = groups.find(x => x.num === num);
+      const current = stdCollapsedOverride[num] ?? (g ? collapsedDefault(g) : false);
+      stdCollapsedOverride[num] = !current;
+      if (stdLastDaily) standardsRenderDaily(stdLastDaily);
+    });
   });
   // Miniatures des slots remplis
   container.querySelectorAll('.std-slot-thumb-img').forEach(img => {
@@ -580,6 +629,8 @@ async function standardsValidateShift(shift, btn) {
       return;
     }
     showStandardsToast('✓ Prise de poste validée', 'success');
+    // Le repli automatique reprend la main : la rangée validée se replie
+    delete stdCollapsedOverride[shift];
     await standardsRender();
   } catch (_) {
     showStandardsToast('Erreur réseau', 'error');
@@ -771,10 +822,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('std-logout')?.addEventListener('click', logout);
   document.getElementById('std-month-prev')?.addEventListener('click', () => {
     standardsDate = standardsShiftDate(standardsDate, -1);
+    stdCollapsedOverride = {};
     standardsRender();
   });
   document.getElementById('std-month-next')?.addEventListener('click', () => {
     standardsDate = standardsShiftDate(standardsDate, +1);
+    stdCollapsedOverride = {};
     standardsRender();
   });
   bootStandardsPage();
