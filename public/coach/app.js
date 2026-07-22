@@ -8361,7 +8361,7 @@ function chDateFr(s) {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 const CH_OBJ_LABEL = {
-  challenge: 'Challenge 6 semaines', perte: 'Perte de poids', 'perte-poids': 'Perte de poids',
+  challenge: 'Protocole 42', perte: 'Perte de poids', 'perte-poids': 'Perte de poids',
   muscle: 'Prise de muscle', 'prise-de-muscle': 'Prise de muscle', 'prise-muscle': 'Prise de muscle',
   forme: 'Forme & énergie', recomposition: 'Recomposition', maintien: 'Maintien', seche: 'Sèche',
 };

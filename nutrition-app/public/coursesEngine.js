@@ -296,6 +296,10 @@
   function rendreTexte(liste, meta) {
     const lignes = [];
     lignes.push('Liste de courses — My Coach Nutrition');
+    // Le nom du programme, quand l'appelant le fournit (ex. « Protocole 42 ») :
+    // la liste porte alors la marque du challenge. Optionnel -> le moteur reste
+    // générique et les listes hors challenge sont inchangées.
+    if (meta && meta.programme) lignes.push(meta.programme);
     lignes.push('Pour ' + (meta && meta.jours || '?') + ' jour(s) · ' + (meta && meta.personnes || 1) + ' personne(s)');
     const parRayon = {};
     liste.frais.forEach((it) => { (parRayon[it.rayon] = parRayon[it.rayon] || []).push(it); });

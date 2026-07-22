@@ -543,7 +543,7 @@ async function fetchMeal(creneau, kcalCible, exclureId) {
 function renderNeeds() {
   const card = $('#needsCard'); if (!card || !state.plan || !state.plan.besoins) return;
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6 semaines' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: CHALLENGE_NOM };
   const isChallenge = state.profil.objectif === 'challenge';
   const prenom = clientPrenom();
   // Jour X/X (discret)
@@ -769,6 +769,11 @@ function jourActuelDansPlan() {
 // officielle si dispo (le plan est régénéré à S3/S6, donc state.startDate bouge),
 // sinon le démarrage du plan.
 const CHALLENGE_DUREE = 42;
+// LE NOM du challenge, dit à UN seul endroit. Il s'appelle « Protocole 42 »
+// (42 = les 42 jours). Écrit ici, référencé partout : le renommer plus tard ne
+// touchera qu'une ligne. La durée « 6 semaines » reste un fait qu'on peut dire
+// à côté, ce n'est pas le nom.
+const CHALLENGE_NOM = 'Protocole 42';
 function jourChallenge() {
   let anchorTs = NaN;
   const dep = state.parcours && state.parcours.pesees && state.parcours.pesees.depart && state.parcours.pesees.depart.date;
@@ -1956,7 +1961,7 @@ function printDocument(title, innerHTML) {
 // Version imprimable du plan (repli ordinateur si la génération PDF échoue).
 function printPlanPdf() {
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6 semaines' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: CHALLENGE_NOM };
   let html = `<h1>Mon plan de repas — My Coach Nutrition</h1>
     <p class="sub">Objectif : ${objLabels[state.profil.objectif] || ''} · ~${b.kcalCible} kcal/jour · ${state.portions} personne(s) · Estimations à titre indicatif.</p>`;
   state.plan.jours.forEach((jour) => {
@@ -2004,13 +2009,18 @@ function isMobileDevice() {
   } catch (_) { /* ignore */ }
   return false;
 }
+// Le nom du programme à imprimer sur la liste de courses : « Protocole 42 »
+// pour un client du challenge, rien pour les autres (la liste sert à tous).
+function nomProgrammeCourses() {
+  return (state.profil && state.profil.objectif === 'challenge') ? CHALLENGE_NOM : '';
+}
 // Liste de courses en texte simple (partageable / imprimable partout).
 function shoppingListText() {
   // Rendu par le moteur (une ligne par article, join — T7) : le même que testent
   // les tests node, donc jamais deux articles collés sur une ligne.
   syncPortions();
   const liste = CoursesEngine.construireListe(state.plan, state.portions);
-  return CoursesEngine.rendreTexte(liste, { jours: state.plan.jours.length, personnes: state.portions });
+  return CoursesEngine.rendreTexte(liste, { jours: state.plan.jours.length, personnes: state.portions, programme: nomProgrammeCourses() });
 }
 function downloadTextFile(filename, text) {
   try {
@@ -2025,7 +2035,9 @@ function downloadTextFile(filename, text) {
 // Version imprimable (PDF via l'impression du navigateur) — fiable sur ordinateur.
 function printShoppingList() {
   const parRayon = buildShoppingList();
+  const prog = nomProgrammeCourses();
   let html = `<h1>Liste de courses — My Coach Nutrition</h1>
+    ${prog ? `<p class="sub" style="font-weight:700;color:#2563EB;margin:0 0 2px;">${prog}</p>` : ''}
     <p class="sub">Pour ${state.plan.jours.length} jour(s) · ${state.portions} personne(s)</p>`;
   rayonsTries(parRayon).forEach((rayon) => {
     html += `<div class="rayon">${rayon}</div>`;
@@ -2072,6 +2084,8 @@ function buildShoppingPdfBlob() {
   const checkbox = (x, boxY, s) => { cur += `0.55 0.6 0.7 RG 1 w ${x} ${boxY} ${s} ${s} re S\n`; };
   // En-tête
   text('Liste de courses', ML, 20, true, [0.09, 0.11, 0.13]); y -= 26;
+  const _prog = nomProgrammeCourses();
+  if (_prog) { text(_prog, ML, 12, true, [0.15, 0.39, 0.92]); y -= 18; }
   text('My Coach Nutrition · Pour ' + state.plan.jours.length + ' jour(s) · ' + state.portions + ' personne(s)', ML, 10.5, false, [0.42, 0.45, 0.5]); y -= 26;
   rayonsTries(parRayon).forEach((rayon) => {
     ensure(40);
@@ -2144,7 +2158,7 @@ function buildPlanPdfBlob() {
     _wrapText(str, WRAP).forEach((ln, i) => { ensure(size + 3); text(i && hang ? hang + ln : ln, x, size, bold, rgb); y -= size + 3; });
   };
   const b = state.plan.besoins;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6 semaines' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: CHALLENGE_NOM };
   text('Mon plan de repas — My Coach Nutrition', ML, 19, true, [0.09, 0.11, 0.13]); y -= 24;
   const sub = 'Objectif : ' + (objLabels[state.profil.objectif] || '—') + (state.masquerCalories ? '' : ' · ~' + (b.kcalCible || '') + ' kcal/jour') + ' · ' + state.portions + ' personne(s) · Estimations indicatives';
   text(sub, ML, 10, false, [0.42, 0.45, 0.5]); y -= 24;
@@ -2284,7 +2298,7 @@ function closeFiche() { $('#fichePanel').classList.add('hidden'); }
 
 function renderFiche() {
   const p = state.profil, pr = state.preferences, b = state.plan ? state.plan.besoins : null;
-  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6 semaines' };
+  const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: CHALLENGE_NOM };
   const comps = (p.complements || []).filter((c) => c !== 'aucun' && c !== 'non').map((c) => COMPLEMENT_LABELS[c] || c);
   const compStr = comps.length ? comps.filter((c) => c !== 'Autre').join(', ') + (p.complementsDetail ? ' — ' + p.complementsDetail : '') : 'Aucun';
   const hab = pr.habitudes || {};
@@ -3395,7 +3409,7 @@ async function submitHelp() {
 
 // ---------- SOS coach : bouton flottant + feuille (reutilise /api/help-request) ----------
 // ---------- Coach IA conversationnel ----------
-const OBJ_LABELS = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: 'Challenge 6 semaines' };
+const OBJ_LABELS = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: CHALLENGE_NOM };
 const ACT_LABELS = { sedentaire: 'sédentaire', leger: 'léger', modere: 'modéré', actif: 'actif', tres_actif: 'très actif' };
 // Suggestions par défaut (alignées sur les réponses préenregistrées) ; remplacées
 // au chargement par les questions réelles renvoyées par le serveur (/coach-faq/suggest).
@@ -3436,7 +3450,7 @@ function coachContext() {
   if (nom && nom !== 'Client') L.push('Prénom : ' + nom.split(' ')[0]);
   L.push('Objectif : ' + (OBJ_LABELS[p.objectif] || p.objectif || '—'));
   if (p.objectif === 'challenge') {
-    const ch = ['Inscrit au Challenge 6 semaines (perte accélérée)'];
+    const ch = ['Inscrit au ' + CHALLENGE_NOM + ' (perte accélérée)'];
     if (p.deficit_cible) ch.push('déficit visé ~' + p.deficit_cible + ' kcal/jour');
     L.push(ch.join(' — '));
   }
@@ -6487,7 +6501,7 @@ function ensureFinalOverlay() {
   ov.innerHTML = '<canvas class="fin-cv" aria-hidden="true"></canvas>'
     + '<button type="button" class="fin-skip">Passer</button>'
     + '<div class="fin-in">'
-    + '<p class="fin-kicker">Challenge 6 semaines</p>'
+    + '<p class="fin-kicker">' + CHALLENGE_NOM + '</p>'
     + '<div class="fin-trophy" aria-hidden="true"><span class="fin-rays"></span><span class="fin-cup">🏆</span></div>'
     + '<h2 class="fin-title">Tu l’as fait.</h2>'
     + '<p class="fin-sub">Six semaines, du premier jour au dernier. Personne ne pourra te l’enlever.</p>'
@@ -6580,7 +6594,7 @@ function renderParcours() {
   const poidsActuelTxt = p.pesees.s6 || p.pesees.s3 ? fmtKg(dernierPoids) : fmtKg(p.poidsDepart);
   const carte =
     '<div class="pc-hero">' +
-      '<div class="pc-hero-top"><div><div class="pc-kicker">Challenge 6 semaines</div>' +
+      '<div class="pc-hero-top"><div><div class="pc-kicker">' + CHALLENGE_NOM + '</div>' +
         '<h2>Objectif : −' + (p.objectifPerte || 6) + ' kg</h2></div>' +
         (p.startDate ? '<span class="pc-day">Jour ' + p.jourActuel + ' / 42</span>' : '<span class="pc-day soon">À démarrer</span>') + '</div>' +
       '<div class="pc-weights">' +
@@ -6743,7 +6757,7 @@ function renderParcours() {
     '</section>';
 
   host.innerHTML =
-    '<div class="pc-head"><h1>Mon Parcours</h1><p>Ton évolution pendant le Challenge 6 semaines</p></div>' +
+    '<div class="pc-head"><h1>Mon Parcours</h1><p>Ton évolution pendant le ' + CHALLENGE_NOM + '</p></div>' +
     carte + etapeBlock + peseeNote + courbe + timeline + photoBlock + mensurationsBlock + seancesBlock + badgeBlock + bilan;
 
   // Câblage
@@ -7620,7 +7634,7 @@ function renderCoachFiche(c) {
     tagLine('Régimes', regimes) +
     '<div class="fiche-sec"><h3>Suivi récent</h3>' + bars + '</div>' +
     helpBlock +
-    (c.objectif === 'challenge' ? '<button type="button" id="coachFicheParcours" class="btn btn-outline fiche-msg-btn" style="margin-bottom:10px"><svg class="ic"><use href="#ic-flame"/></svg> Parcours Challenge 6 sem.</button>' : '') +
+    (c.objectif === 'challenge' ? '<button type="button" id="coachFicheParcours" class="btn btn-outline fiche-msg-btn" style="margin-bottom:10px"><svg class="ic"><use href="#ic-flame"/></svg> Parcours ' + CHALLENGE_NOM + '</button>' : '') +
     '<button type="button" id="coachFicheMsg" class="btn btn-primary fiche-msg-btn"><svg class="ic"><use href="#ic-send"/></svg> Contacter ce client</button>';
 }
 

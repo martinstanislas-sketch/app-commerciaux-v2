@@ -1,7 +1,7 @@
 {
   "name": "My Coach Nutrition",
   "short_name": "My Coach",
-  "description": "Ton plan de repas de la semaine et ton Challenge 6 semaines.",
+  "description": "Ton plan de repas de la semaine et ton Protocole 42.",
   "start_url": "/nutrition/",
   "scope": "/nutrition/",
   "display": "standalone",
