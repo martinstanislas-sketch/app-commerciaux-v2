@@ -10272,7 +10272,13 @@ function recompensesListeHTML(st) {
         ? '<span class="rcp-etat on">Débloqué</span>'
         // ⚠️ TOUJOURS l'unité, jamais un nombre nu : « Encore 40 » ne veut rien dire.
         : '<span class="rcp-etat off">Encore ' + r.restant + ' PUNCH</span>';
-    return '<li class="rcp-l is-' + r.etat + (prochain && r === prochain ? ' is-next' : '') + '">'
+    // Débloqué (ou obtenu) -> la ligne EMMÈNE vers la récompense ; verrouillé ->
+    // un tap dit seulement ce qu'il reste à gagner (cf. wireRecompensesListe).
+    const cliquable = r.etat !== 'verrouille';
+    const data = ' data-rcp-type="' + r.type + '" data-rcp-etat="' + r.etat + '"'
+      + ' data-rcp-cadeau="' + escapeHtml(r.cadeau || '') + '" data-rcp-acc="' + escapeHtml(r.accessoire || '') + '"'
+      + ' data-rcp-restant="' + (r.restant || 0) + '" data-rcp-nom="' + escapeHtml(r.nom || r.label) + '"';
+    return '<li class="rcp-l is-' + r.etat + (prochain && r === prochain ? ' is-next' : '') + (cliquable ? ' rcp-go' : '') + '"' + (cliquable ? ' role="button" tabindex="0"' : '') + data + '>'
       + '<span class="rcp-ic">' + (r.icon || t.ic) + '</span>'
       // Le nom de la table quand il existe (« Guide 3 ») : sans lui, 22 lignes
       // « Un nouveau guide » se ressemblent toutes et la liste devient illisible.
@@ -10282,6 +10288,41 @@ function recompensesListeHTML(st) {
       + etat + '</li>';
   }).join('');
   return '<section class="rcp">' + tete + '<ul class="rcp-liste">' + lignes + '</ul></section>';
+}
+// Chaque ligne débloquée EMMÈNE vers sa récompense — la même destination que la
+// célébration au moment du déblocage (une seule route par type, pas deux façons
+// d'y aller). Une ligne verrouillée ne navigue pas : elle rappelle le reste.
+function wireRecompensesListe(host) {
+  if (!host) return;
+  const aller = (el) => {
+    if (el.dataset.rcpEtat === 'verrouille') {
+      showToast('🔒 Encore ' + (el.dataset.rcpRestant || 0) + ' PUNCH pour « ' + (el.dataset.rcpNom || 'cette récompense') + ' »', { icon: 'info' });
+      return;
+    }
+    switch (el.dataset.rcpType) {
+      case 'video': allerAuxDeblocages('video'); break;
+      case 'ebook': allerAuxDeblocages('ebook'); break;
+      case 'avatar': openAvatarEditor(el.dataset.rcpAcc || undefined); break;
+      case 'gift': {
+        // La liste vit SOUS les cartes de cadeaux, sur le même écran : on défile
+        // jusqu'à la carte plutôt que de recharger la vue.
+        const id = el.dataset.rcpCadeau;
+        if (id) ascAllerA('#view-boutique .btq-card[data-id="' + id + '"]'); else setTab('boutique');
+        break;
+      }
+      default: break;
+    }
+  };
+  // TOUTES les lignes répondent : la débloquée emmène, la verrouillée rappelle
+  // ce qu'il reste (comme une carte cadeau verrouillée). Seule la débloquée porte
+  // l'affordance visuelle (.rcp-go : curseur, survol) — cliquer un verrou pour
+  // apprendre son coût est un bonus, pas une invitation.
+  host.querySelectorAll('.rcp-l').forEach((el) => {
+    el.addEventListener('click', () => aller(el));
+    if (el.classList.contains('rcp-go')) {
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); aller(el); } });
+    }
+  });
 }
 
 async function renderBoutiqueView() {
@@ -10303,6 +10344,7 @@ async function renderBoutiqueView() {
       '<p class="btq-foot">Les cadeaux à retirer se présentent à ton coach, au studio.</p>' +
       recompensesListeHTML(stCh);
     host.querySelectorAll('.btq-card').forEach((b) => b.addEventListener('click', () => ouvrirCadeau(b.dataset.id)));
+    wireRecompensesListe(host); // chaque ligne débloquée emmène vers sa récompense
     // Le liseré a joué son rôle dès que la liste est à l'écran : on le consomme.
     // ⚠️ Après un délai, pas immédiatement : effacé à la seconde où l'on peint,
     // un client qui arrive puis revient ne verrait jamais briller son cadeau.

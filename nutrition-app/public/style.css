@@ -4043,6 +4043,11 @@ body.is-demo #navRestart { display: none !important; }
 .rcp-l.is-verrouille .rcp-ic { filter: grayscale(1); opacity: .5; }
 .rcp-l.is-verrouille .rcp-n { color: var(--text-muted-c); }
 .rcp-l.is-next { border-color: var(--gold); background: var(--surface); }
+/* Une récompense débloquée EMMÈNE vers elle : la ligne se comporte en bouton. */
+.rcp-l.rcp-go { cursor: pointer; transition: border-color .15s var(--ease), transform .08s var(--ease); }
+.rcp-l.rcp-go:hover { border-color: var(--blue-c); }
+.rcp-l.rcp-go:active { transform: scale(.99); }
+.rcp-l.rcp-go:focus-visible { outline: 2px solid var(--blue-c); outline-offset: 2px; }
 .rcp-ic { font-size: 21px; line-height: 1; flex: none; width: 26px; text-align: center; }
 .rcp-x { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .rcp-n { font: 700 13.5px/1.3 var(--font); color: var(--text-c); }
