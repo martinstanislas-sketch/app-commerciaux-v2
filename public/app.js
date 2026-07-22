@@ -964,13 +964,16 @@ function updateTabVisibility() {
     if (phoningBtn) phoningBtn.style.display = 'none';
     if (phoningRecapBtn) phoningRecapBtn.style.display = 'none';
     if (mensuelBtn) mensuelBtn.style.display = '';
-    if (tasksBtn) tasksBtn.style.display = '';
-    if (persoBtn) persoBtn.style.display = '';
+    // Onglets RETIRÉS de la nav admin (les boutons restent dans le DOM : « Tâches »
+    // sert encore aux commerciaux, on ne les supprime donc pas — on les masque
+    // seulement pour l'admin). Les écrans et leur code restent intacts.
+    if (tasksBtn) tasksBtn.style.display = 'none';
+    if (persoBtn) persoBtn.style.display = 'none';
+    if (prelBtn) prelBtn.style.display = 'none';
+    if (prelSuiviBtn) prelSuiviBtn.style.display = 'none';
+    if (newsBtn) newsBtn.style.display = 'none';
+    if (cockpitBtn) cockpitBtn.style.display = 'none';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
-    if (prelBtn) prelBtn.style.display = ''; // P.R.E.L : admin uniquement
-    if (prelSuiviBtn) prelSuiviBtn.style.display = ''; // Suivi prél. : admin uniquement
-    if (newsBtn) newsBtn.style.display = ''; // NEWS : admin uniquement
-    if (cockpitBtn) cockpitBtn.style.display = ''; // Cockpit : admin uniquement
     if (standardsBtn) standardsBtn.style.display = ''; // Standards : admin + coach leaders
     // Default landing tab on login (admin) = Pilotage, pré-réglé au mois précédent
     if (pilotageFunnelBtn) {
