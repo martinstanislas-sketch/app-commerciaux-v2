@@ -751,9 +751,27 @@ try {
       console.log('Déblocages : table semée depuis lib/deblocages.json');
     }
   }
+  // Retrait UNIQUE de cadeaux décidés hors ligne (le seed ne se rejoue pas sur
+  // une table déjà remplie). Guardé par un drapeau : joué une seule fois, jamais
+  // au redémarrage — un cadeau que l'admin RÉ-AJOUTERAIT ensuite n'est pas
+  // resupprimé. ⚠️ Un client qui avait DÉJÀ gagné un de ces cadeaux garde son bon
+  // (nutrition_gift_bons), on ne touche qu'au barème à venir.
+  function purgeCadeauxRetires() {
+    const VERSION = 'v1-2026-07';
+    const A_RETIRER = ['ambassadeur', 'acces_prioritaire', 'mois_offert', 'remise_abo', 'badge_argent'];
+    try {
+      const faite = (getDb().prepare("SELECT value FROM app_settings WHERE key='deblocages_purge'").get() || {}).value;
+      if (faite === VERSION) return;
+      const ph = A_RETIRER.map(() => '?').join(',');
+      const r = getDb().prepare('DELETE FROM nutrition_deblocages WHERE ref IN (' + ph + ')').run(...A_RETIRER);
+      getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('deblocages_purge', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(VERSION);
+      if (r.changes) console.log('Déblocages : ' + r.changes + ' cadeau(x) retiré(s) du barème (' + A_RETIRER.join(', ') + ')');
+    } catch (e) { console.error('Déblocages : purge impossible —', e && e.message); }
+  }
   function chargerDeblocages() {
     try {
       ensureDeblocagesSchema();
+      purgeCadeauxRetires(); // avant la lecture -> le moteur voit la table nettoyée
       const rows = getDb().prepare('SELECT seuil, type, nom, rang, ref, bonus_accessoire FROM nutrition_deblocages ORDER BY seuil').all();
       // ⚠️ `setTable` REFUSE une table vide : en cas de base vidée par erreur, le
       // moteur garde la référence du dépôt plutôt que de ne plus rien débloquer.

@@ -109,9 +109,14 @@ function seuilDe(id) {
 // dans punchSeuils (seuilDe), jamais recopiés : ils suivent les étapes du parcours.
 function themeTier(punch) {
   const n = Number(punch) || 0;
-  if (n >= seuilDe('badge_platine')) return 'platine';
-  if (n >= seuilDe('badge_or')) return 'or';
-  if (n >= seuilDe('badge_argent')) return 'argent';
+  // ⚠️ Un badge retiré du barème renvoie un seuil `null` (seuilDe) : on l'IGNORE
+  // au lieu de le traiter comme 0, sinon `n >= null` (soit n >= 0) donnerait ce
+  // palier à TOUT LE MONDE. Le badge argent ayant été retiré, le 1er liseré est
+  // désormais l'or ; le code reste robuste si un autre palier disparaît un jour.
+  const so = seuilDe('badge_or'), sp = seuilDe('badge_platine'), sa = seuilDe('badge_argent');
+  if (sp != null && n >= sp) return 'platine';
+  if (so != null && n >= so) return 'or';
+  if (sa != null && n >= sa) return 'argent';
   return '';
 }
 

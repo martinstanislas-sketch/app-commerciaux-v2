@@ -71,13 +71,6 @@
       "rang": 4
     },
     {
-      "seuil": 320,
-      "type": "badge",
-      "nom": "Badge Argent",
-      "ref": "badge_argent",
-      "bonus_accessoire": "medaille_argent"
-    },
-    {
       "seuil": 350,
       "type": "guide",
       "nom": "Guide 4",
@@ -130,12 +123,6 @@
       "type": "video",
       "nom": "Vidéo 7",
       "rang": 7
-    },
-    {
-      "seuil": 620,
-      "type": "cadeau",
-      "nom": "Ambassadeur",
-      "ref": "ambassadeur"
     },
     {
       "seuil": 650,
@@ -220,12 +207,6 @@
       "type": "guide",
       "nom": "Guide 12",
       "rang": 12
-    },
-    {
-      "seuil": 1225,
-      "type": "cadeau",
-      "nom": "Accès prioritaire",
-      "ref": "acces_prioritaire"
     },
     {
       "seuil": 1270,
@@ -367,12 +348,6 @@
       "rang": 21
     },
     {
-      "seuil": 2295,
-      "type": "cadeau",
-      "nom": "Un mois offert",
-      "ref": "mois_offert"
-    },
-    {
       "seuil": 2340,
       "type": "video",
       "nom": "Vidéo 22",
@@ -420,12 +395,6 @@
       "type": "video",
       "nom": "Vidéo 26",
       "rang": 26
-    },
-    {
-      "seuil": 3000,
-      "type": "cadeau",
-      "nom": "Remise abonnement",
-      "ref": "remise_abo"
     },
     {
       "seuil": 3250,

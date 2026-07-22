@@ -102,7 +102,6 @@
     { id: 'lunettes', nom: 'Lunettes', categorie: 'visage', tier: 'base', condition: { type: 'punch', valeur: 385 } },
     { id: 'bonnet', nom: 'Bonnet', categorie: 'tete', tier: 'base', condition: { type: 'punch', valeur: 555 } },
     { id: 'brassard', nom: 'Brassard', categorie: 'tenue', tier: 'base', condition: { type: 'punch', valeur: 880 } },
-    { id: 'medaille_argent', nom: 'Médaille d’argent', categorie: 'tenue', tier: 'argent', condition: { type: 'badge', valeur: 'badge_argent' } },
     { id: 'couronne_argent', nom: 'Couronne d’argent', categorie: 'tete', tier: 'argent', condition: { type: 'punch', valeur: 985 } },
     { id: 'lunettes_or', nom: 'Lunettes dorées', categorie: 'visage', tier: 'or', condition: { type: 'punch', valeur: 1270 } },
     { id: 'medaille_or', nom: 'Médaille d’or', categorie: 'tenue', tier: 'or', condition: { type: 'badge', valeur: 'badge_or' } },
@@ -295,10 +294,9 @@
         const m = id === 'couronne_or' ? OR : ARGENT;
         return { defs: grad('cr', m), body: `<path d="M32 30l5 8 6-10 5 10 6-10 5 10 5-8v8H32z" fill="url(#${uid}-cr)"/><rect x="32" y="36" width="32" height="4" rx="2" fill="${m.fonce}"/>` };
       }
-      case 'medaille_argent':
       case 'medaille_or':
       case 'medaille_platine': {
-        const m = MATIERE[id === 'medaille_or' ? 'or' : id === 'medaille_platine' ? 'platinium' : 'argent'];
+        const m = MATIERE[id === 'medaille_or' ? 'or' : 'platinium'];
         return {
           defs: grad('md', m),
           body: `<path d="M44 76l4 8 4-8" stroke="${m.fonce}" stroke-width="2.5" fill="none"/><circle cx="48" cy="88" r="7" fill="url(#${uid}-md)" stroke="${m.fonce}" stroke-width="1.2"/><circle cx="46" cy="86" r="2" fill="rgba(255,255,255,.6)"/>`,

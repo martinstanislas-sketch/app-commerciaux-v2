@@ -46,14 +46,14 @@ test('seuils : un seul objet contient vidéos + ebooks + cadeaux', () => {
   assert.deepEqual(seuils, [...seuils].sort((a, b) => a - b));
 });
 
-test('seuils : un même seuil peut porter DEUX récompenses (320, 1350)', () => {
-  // ⚠️ Les seuils suivent désormais les étapes du parcours : une récompense par
-  // action. Les SEULS doublons restants sont les médailles d'avatar, dont la
-  // condition est « avoir le badge » — elles tombent donc avec leur cadeau.
-  // L'identité reste (seuil, type),
-  // sinon le second déblocage serait avalé.
-  assert.deepEqual(tousLesSeuils().filter((s) => s.seuil === 320).map((s) => s.type).sort(), ['avatar', 'gift']);
+test('seuils : un même seuil peut porter DEUX récompenses (1350, 2500)', () => {
+  // ⚠️ Les seuils suivent les étapes du parcours : une récompense par action.
+  // Les SEULS doublons restants sont les médailles d'avatar, dont la condition
+  // est « avoir le badge » — elles tombent avec leur cadeau. Le badge argent
+  // (320) a été RETIRÉ, restent l'or (1350) et le platine (2500).
+  // L'identité reste (seuil, type), sinon le second déblocage serait avalé.
   assert.deepEqual(tousLesSeuils().filter((s) => s.seuil === 1350).map((s) => s.type).sort(), ['avatar', 'gift']);
+  assert.deepEqual(tousLesSeuils().filter((s) => s.seuil === 2500).map((s) => s.type).sort(), ['avatar', 'gift']);
   const cles = tousLesSeuils().map(cleSeuil);
   assert.equal(new Set(cles).size, cles.length, 'chaque (seuil, type) est unique');
 });
@@ -126,12 +126,12 @@ test('addPunch : chaque seuil ne se débloque QU\'UNE fois', () => {
 test('addPunch : un gros gain débloque TOUT ce qu\'il franchit d\'un coup', () => {
   const { engine, email } = makeEngine();
   engine.pathStatsRow(email);
-  const n = engine.addPunch(email, 620, 'test');
-  assert.deepEqual(n.map(cleSeuil), tousLesSeuils().filter((s) => s.seuil <= 620).map(cleSeuil));
-  assert.equal(n.filter((s) => s.seuil === 320).length, 2, 'les DEUX récompenses du seuil 320');
-  // 320 porte deux récompenses : le cadeau ET la médaille d'argent qui en dépend
-  // qu'il conditionne — l'identité (seuil, type) les garde distinctes.
-  assert.deepEqual(n.filter((s) => s.seuil === 320).map((s) => s.type).sort(), ['avatar', 'gift']);
+  const n = engine.addPunch(email, 1350, 'test');
+  assert.deepEqual(n.map(cleSeuil), tousLesSeuils().filter((s) => s.seuil <= 1350).map(cleSeuil));
+  assert.equal(n.filter((s) => s.seuil === 1350).length, 2, 'les DEUX récompenses du seuil 1350');
+  // 1350 porte deux récompenses : le badge OR ET la médaille d'or qu'il
+  // conditionne — l'identité (seuil, type) les garde distinctes.
+  assert.deepEqual(n.filter((s) => s.seuil === 1350).map((s) => s.type).sort(), ['avatar', 'gift']);
 });
 
 test('addPunch : un gain nul ou négatif ne fait rien (le Punch ne descend jamais)', () => {
@@ -195,9 +195,9 @@ test('table : la référence du dépôt est complète et exploitable', () => {
   const P = require('../lib/punchSeuils');
   assert.equal(P.nbDeType('video'), 27, '27 séances');
   assert.equal(P.nbDeType('guide'), 22, '22 guides par le canal Punch');
-  assert.equal(Object.keys(P.gifts()).length, 14, '14 cadeaux, badges compris');
-  assert.equal(P.avatarSeuils().length, 13, '13 accessoires, médailles comprises');
-  assert.equal(P.tousLesSeuils().length, 76, '76 déblocages au total');
+  assert.equal(Object.keys(P.gifts()).length, 9, '9 cadeaux (5 retirés), badges compris');
+  assert.equal(P.avatarSeuils().length, 12, '12 accessoires (médaille argent retirée avec son badge)');
+  assert.equal(P.tousLesSeuils().length, 70, '70 déblocages au total');
 });
 
 test('table : aucune collision (seuil, type) — sinon un déblocage disparaît', () => {
