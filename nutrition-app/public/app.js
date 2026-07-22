@@ -137,6 +137,16 @@ function icSvg(name) { return `<svg class="ic" aria-hidden="true"><use href="#ic
 // donc sans ça la marque n'existerait que sur l'écran Repas).
 // Décoratif : alt vide + aria-hidden, le nom de la page est déjà dans le titre.
 function brandMark() { return '<img class="mc-brand" src="logo-mc.png?v=1" alt="" aria-hidden="true" width="256" height="256" />'; }
+// Le logo « Protocole 42 » — SVG INLINE (pas un <img>) pour que `currentColor`
+// suive le thème : marine sur fond clair, bleu clair sur fond sombre (grande
+// fin). Réservé aux écrans DU CHALLENGE ; le reste garde la tuile MC. Le dessin
+// est reproduit ici une seule fois — cf. logo-p42.svg (même tracé) pour l'usage
+// en <img> si besoin un jour.
+function protocoleMark(cls) {
+  return '<svg class="p42-mark' + (cls ? ' ' + cls : '') + '" viewBox="0 0 64 64" role="img" aria-label="Protocole 42">'
+    + '<rect x="6" y="6" width="52" height="52" rx="6" fill="none" stroke="currentColor" stroke-width="4.5"/>'
+    + '<text x="33" y="46" text-anchor="middle" font-family="\'Arial Black\',\'Helvetica Neue\',Arial,sans-serif" font-size="36" font-weight="900" letter-spacing="-2" fill="currentColor">42</text></svg>';
+}
 
 // ---------- Table de substitution d'ingredients (mode demo) ----------
 // Cle = morceau du nom (normalise) -> alternatives proposees au "swap".
@@ -574,7 +584,7 @@ function renderNeeds() {
     <div class="pt-top">
       <div class="pt-titles">
         ${prenom ? `<p class="pt-kicker">Bonjour ${escapeHtml(prenom)}</p>` : ''}
-        <div class="pt-titlerow"><span class="pt-headic pt-headic--logo"><img src="logo-mc.png?v=1" alt="My Coach" /></span><h2 class="pt-title">${objLabels[state.profil.objectif] || 'Mon plan'}</h2></div>
+        <div class="pt-titlerow"><span class="pt-headic pt-headic--logo${isChallenge ? ' pt-headic--p42' : ''}">${isChallenge ? protocoleMark() : '<img src="logo-mc.png?v=1" alt="My Coach" />'}</span><h2 class="pt-title">${objLabels[state.profil.objectif] || 'Mon plan'}</h2></div>
       </div>
       ${dayTag}
     </div>
@@ -3096,7 +3106,7 @@ function init() {
   // d'une page), on retombe sur le Chemin. Délégué sur le document car ces logos
   // sont réinjectés à chaque rendu (brandMark()).
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('.brand-logo, .mc-brand')) return;
+    if (!e.target.closest('.brand-logo, .mc-brand, .p42-mark')) return;
     const nav = $('#navParcours');
     if (!nav || nav.classList.contains('hidden')) return; // Chemin non disponible : on ne fait rien
     setTab('parcours');
@@ -5078,7 +5088,7 @@ function renderParcoursTab() {
 function parcoursSegmentHTML() {
   const seg = (id, label, on) => `<button type="button" class="mcpath-seg${on ? ' on' : ''}" data-pseg="${id}">${label}</button>`;
   const sub = state.parcoursSub === 'mesures' ? 'mesures' : 'chemin';
-  return brandMark() + `<div class="mcpath-segwrap">${seg('chemin', '🚀 Parcours', sub === 'chemin')}${seg('mesures', '📏 Progression', sub === 'mesures')}</div>`;
+  return '<span class="mcpath-brand">' + protocoleMark() + '</span>' + `<div class="mcpath-segwrap">${seg('chemin', '🚀 Parcours', sub === 'chemin')}${seg('mesures', '📏 Progression', sub === 'mesures')}</div>`;
 }
 function wireParcoursSegment() {
   $$('#view-parcours .mcpath-seg').forEach((b) => b.addEventListener('click', () => {
@@ -6501,6 +6511,7 @@ function ensureFinalOverlay() {
   ov.innerHTML = '<canvas class="fin-cv" aria-hidden="true"></canvas>'
     + '<button type="button" class="fin-skip">Passer</button>'
     + '<div class="fin-in">'
+    + '<span class="fin-mark">' + protocoleMark() + '</span>'
     + '<p class="fin-kicker">' + CHALLENGE_NOM + '</p>'
     + '<div class="fin-trophy" aria-hidden="true"><span class="fin-rays"></span><span class="fin-cup">🏆</span></div>'
     + '<h2 class="fin-title">Tu l’as fait.</h2>'
@@ -6757,7 +6768,7 @@ function renderParcours() {
     '</section>';
 
   host.innerHTML =
-    '<div class="pc-head"><h1>Mon Parcours</h1><p>Ton évolution pendant le ' + CHALLENGE_NOM + '</p></div>' +
+    '<div class="pc-head"><span class="pc-head-mark">' + protocoleMark() + '</span><div><h1>Mon Parcours</h1><p>Ton évolution pendant le ' + CHALLENGE_NOM + '</p></div></div>' +
     carte + etapeBlock + peseeNote + courbe + timeline + photoBlock + mensurationsBlock + seancesBlock + badgeBlock + bilan;
 
   // Câblage

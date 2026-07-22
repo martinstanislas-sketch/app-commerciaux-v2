@@ -4110,3 +4110,21 @@ body.is-demo #navRestart { display: none !important; }
    d'effet au survol : rien ne suggère une action qui n'existe pas. */
 .pc-day-cell.is-repos { opacity: .42; cursor: default; background: transparent; border-style: dashed; }
 .pc-day-cell.is-repos i { font-style: normal; }
+
+/* ── LOGO PROTOCOLE 42 ───────────────────────────────────────────────────────
+   SVG inline : `currentColor` suit le thème. Marine sur fond clair ; sur le
+   fond sombre de la grande fin, il s'éclaircit pour rester lisible.
+   Réservé aux écrans du challenge (le reste garde la tuile MC). */
+.p42-mark { color: #1F4E79; display: block; width: 100%; height: 100%; cursor: pointer; }
+/* Dans la tuile de l'en-tête Repas : le contour du carré vaut déjà cadre, on
+   retire le fond/arrondi de la tuile pour ne pas doubler la bordure. */
+.pt-headic--p42 { background: none; overflow: visible; }
+.pt-headic--p42 .p42-mark { color: #1F4E79; }
+/* En-tête de l'onglet Parcours : le logo remplace la tuile MC, même gabarit. */
+.mcpath-brand { display: block; width: 30px; height: 30px; margin: 0 0 10px; }
+/* En-tête de Mon Parcours : le logo à gauche du titre. */
+.pc-head { display: flex; align-items: center; gap: 12px; }
+.pc-head-mark { flex: 0 0 auto; width: 40px; height: 40px; }
+/* Grande fin (fond sombre) : le logo s'éclaircit, centré au-dessus du kicker. */
+.fin-mark { display: block; width: 46px; height: 46px; margin: 0 auto 12px; }
+.fin-mark .p42-mark { color: #9FC0E6; }
