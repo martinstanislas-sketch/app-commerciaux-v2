@@ -4484,6 +4484,16 @@ app.get('/api/retention/membres', requireAuth, requireAdmin, (req, res) => {
   res.json(lireMembres(getDb()));
 });
 
+// Liste des clubs connus (imports club par club : l'admin choisit le club dans
+// un menu plutôt que de laisser deviner). Union des studios déjà vus.
+app.get('/api/retention/studios', requireAuth, requireAdmin, (req, res) => {
+  const db = getDb();
+  const a = db.prepare('SELECT DISTINCT studio FROM retention_imports').all().map((r) => r.studio);
+  const b = db.prepare("SELECT DISTINCT studio FROM retention_membres_map WHERE studio <> '*'").all().map((r) => r.studio);
+  const studios = [...new Set([...a, ...b])].filter(Boolean).sort((x, y) => x.localeCompare(y, 'fr'));
+  res.json({ studios });
+});
+
 // Chargement d'un mois M : ses imports (M) + les encaissements archivés de M-1
 // (repris automatiquement, par studio) + les choix du mois + la map membres.
 app.get('/api/retention/:mois', requireAuth, requireAdmin, (req, res) => {

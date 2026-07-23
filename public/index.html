@@ -137,17 +137,29 @@
 
         <!-- ═══ VUE ANALYSE ═══ -->
         <div id="rec-view-analyse">
+          <!-- Import club par club : on choisit le club, puis on dépose ses fichiers. -->
+          <div class="rec-club-bar">
+            <label class="rec-club-lbl">Club en cours
+              <select id="rec-club"><option value="">— choisis un club —</option></select>
+            </label>
+            <span class="rec-club-add">
+              <input type="text" id="rec-club-new" placeholder="Nouveau club…" autocomplete="off">
+              <button type="button" class="rec-link" id="rec-club-add-btn">Ajouter</button>
+            </span>
+            <p class="rec-club-hint">Tu importes club par club : choisis le club, puis dépose ses fichiers du mois.</p>
+          </div>
+
           <!-- À partir du 2e mois : on ne dépose plus que les 2 fichiers du mois à clôturer. -->
           <div class="rec-zones">
             <div class="rec-zone" data-zone="encM">
-              <div class="rec-zone-t">1 · Encaissements du mois</div>
-              <div class="rec-drop" id="rec-drop-encM"><span>Dépose l'export encaissements (.xlsx / .xls) — tous studios</span></div>
+              <div class="rec-zone-t">1 · Encaissements du club</div>
+              <div class="rec-drop" id="rec-drop-encM"><span>Dépose les encaissements de ce club (.xlsx / .xls)</span></div>
               <input type="file" id="rec-file-encM" accept=".xlsx,.xls" multiple style="display:none">
               <div class="rec-zone-info" id="rec-info-encM"></div>
             </div>
             <div class="rec-zone" data-zone="contrats">
-              <div class="rec-zone-t">2 · Contrats du mois</div>
-              <div class="rec-drop" id="rec-drop-contrats"><span>Dépose le .zip des contrats (ou les .pdf)</span></div>
+              <div class="rec-zone-t">2 · Contrats du club</div>
+              <div class="rec-drop" id="rec-drop-contrats"><span>Dépose le .zip des contrats de ce club (ou les .pdf)</span></div>
               <input type="file" id="rec-file-contrats" accept=".zip,.pdf" multiple style="display:none">
               <div class="rec-zone-info" id="rec-info-contrats"></div>
             </div>
@@ -161,8 +173,8 @@
           <!-- Bandeau membres + zone repliable (§B3) -->
           <div class="rec-banner" id="rec-banner-membres" hidden></div>
           <div class="rec-zone rec-zone-membres" id="rec-zone-membres" hidden>
-            <div class="rec-zone-t">Fichier membres <small>(Id_client Deciplus — un seul import suffit)</small></div>
-            <div class="rec-drop" id="rec-drop-membres"><span>Export membres (.xls) — sert aux liens Deciplus</span></div>
+            <div class="rec-zone-t">Fichier membres du club <small>(Id_client Deciplus — un seul import par club suffit)</small></div>
+            <div class="rec-drop" id="rec-drop-membres"><span>Export membres de ce club (.xls) — sert aux liens Deciplus</span></div>
             <input type="file" id="rec-file-membres" accept=".xls,.xlsx" multiple style="display:none">
             <div class="rec-zone-info" id="rec-info-membres"></div>
           </div>
@@ -1154,9 +1166,9 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="retention.js?v=rec2"></script>
-  <script src="retention-parse.js?v=rec2"></script>
-  <script src="recap.js?v=rec2"></script>
+  <script src="retention.js?v=rec3"></script>
+  <script src="retention-parse.js?v=rec3"></script>
+  <script src="recap.js?v=rec3"></script>
   <script src="app.js?v=ds2-tabs2"></script>
 </body>
 </html>

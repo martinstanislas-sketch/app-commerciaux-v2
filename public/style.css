@@ -21169,6 +21169,13 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-nav { display: flex; gap: 8px; margin: 18px 0 4px; border-bottom: 1px solid #232E42; }
 .rec-nav-btn { background: transparent; border: 0; border-bottom: 2px solid transparent; color: #93A0B4; font: inherit; font-weight: 700; font-size: 13.5px; padding: 9px 12px; cursor: pointer; }
 .rec-nav-btn.is-on { color: #F0D488; border-bottom-color: #F0D488; }
+/* Sélecteur de club (import club par club) */
+.rec-club-bar { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 18px 0 2px; padding: 14px 16px; background: #141C2A; border: 1px solid #232E42; border-radius: 12px; }
+.rec-club-lbl { display: flex; flex-direction: column; gap: 5px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #93A0B4; font-weight: 700; }
+.rec-club-lbl select { background: #1A2231; border: 1px solid #2C3547; color: #E7ECF3; border-radius: 10px; padding: 9px 12px; font: inherit; min-width: 200px; }
+.rec-club-add { display: flex; align-items: center; gap: 8px; }
+.rec-club-add input { background: #1A2231; border: 1px solid #2C3547; color: #E7ECF3; border-radius: 10px; padding: 9px 12px; font: inherit; }
+.rec-club-hint { flex-basis: 100%; margin: 2px 0 0; font-size: 12px; color: #6E7B8F; }
 .rec-banner { margin: 14px 0 0; background: #141C2A; border: 1px solid #232E42; border-radius: 12px; padding: 12px 15px; font-size: 13px; color: #C7D0DE; line-height: 1.5; }
 .rec-banner-warn { border-color: #7A5A22; background: rgba(240,180,80,.08); }
 .rec-banner-info { border-color: #2C3547; }
