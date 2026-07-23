@@ -4447,6 +4447,12 @@ function ensureRetentionSchema() {
       PRIMARY KEY (mois, studio, client_key, categorie)
     );
   `);
+  // Migration douce : retention_choices a existé (1er commit RECAP) SANS
+  // updated_at ; CREATE IF NOT EXISTS ne l'ajoute pas -> on complète à la main.
+  const cols = getDb().prepare('PRAGMA table_info(retention_choices)').all().map((c) => c.name);
+  if (!cols.includes('updated_at')) {
+    getDb().exec("ALTER TABLE retention_choices ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''");
+  }
 }
 ensureRetentionSchema();
 const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM

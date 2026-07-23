@@ -230,6 +230,25 @@ test('disparus affichés = disparus de la base + anomalies', () => {
   assert.equal(r.disparusAffichage, 2, '1 parti + 1 anomalie');
 });
 
+test('disparu « pack de séance » : EXCLU du dénominateur (remonte la note)', () => {
+  const input = {
+    encM1: [P('Fidele', 'F', 69), P('Fidele', 'F', 69), P('Parti', 'P', 69), P('Parti', 'P', 69)],
+    encM: [P('Fidele', 'F', 69), P('Fidele', 'F', 69)], // Parti disparaît
+    signataires: [],
+  };
+  // Défaut « parti » : 1 fidèle / (2 base) = 1/2.
+  const defaut = R.calculerStudio(Object.assign({ choix: {} }, input));
+  assert.equal(defaut.nbPartis, 1);
+  assert.ok(Math.abs(defaut.note - 1 / 2) < 1e-9, 'parti compté -> 50 %');
+  assert.equal(defaut.disparusAffichage, 1);
+  // « Pack de séance » : le disparu sort du calcul -> 1 fidèle / (1 base) = 100 %.
+  const pack = R.calculerStudio(Object.assign({ choix: { 'PARTI|P': 'pack' } }, input));
+  assert.equal(pack.nbDisparuPack, 1);
+  assert.equal(pack.nbPartis, 0, 'plus compté comme parti');
+  assert.equal(pack.disparusAffichage, 0);
+  assert.ok(Math.abs(pack.note - 1) < 1e-9, 'pack exclu -> 100 %');
+});
+
 // --- §6 NOTE RÉSEAU ----------------------------------------------------------
 test('note réseau : Σ numérateurs / Σ dénominateurs (pondérée)', () => {
   const gros = { numerateur: 90, denominateur: 100 }; // 90 %

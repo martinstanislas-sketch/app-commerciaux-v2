@@ -438,12 +438,14 @@ const RecapUI = (function () {
     baisse: [{ val: 'sous_controle', lbl: 'Sous contrôle' }, { val: 'arrangement', lbl: 'Arrangement' }],
     nouveauNonPaye: [{ val: 'decalage', lbl: 'Décalage de paiement' }, { val: 'anomalie', lbl: 'Anomalie' }],
     aQualifier: [{ val: 'suspendu', lbl: 'Suspendu' }, { val: 'nouveau', lbl: 'Nouveau' }, { val: 'pack', lbl: 'Pack de séance' }],
+    disparu: [{ val: 'parti', lbl: 'Parti' }, { val: 'pack', lbl: 'Pack de séance' }],
   };
-  const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack' };
+  const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack', disparu: 'parti' };
   const choixDe = (s, cle, cat) => ((choix[s] || {})[cle]) || DEF[cat];
   function classeChoix(cat, val) {
     if (cat === 'baisse') return val === 'sous_controle' ? 'rec-ok' : 'rec-ko';
     if (cat === 'nouveauNonPaye') return val === 'decalage' ? 'rec-ok' : 'rec-ko';
+    if (cat === 'disparu') return val === 'pack' ? 'rec-gris' : 'rec-ko';
     return (val === 'suspendu' || val === 'nouveau') ? 'rec-ok' : 'rec-gris';
   }
 
@@ -475,8 +477,9 @@ const RecapUI = (function () {
       + '<div class="rec-kpis">' + kpi + '</div>';
     if (r.disparus.length) {
       html += section('Disparus', r.disparus.map((d) => { compter(d.cle);
-        return '<li class="' + (d.type === 'IMPAYE' ? 'rec-ko' : '') + '">' + nomLien(s, d.cle, d.nom, d.prenom)
-          + ' · <em>' + (d.type === 'IMPAYE' ? 'IMPAYÉ' : 'PARTI') + '</em></li>';
+        const v = choixDe(s, d.cle, 'disparu');
+        return '<li class="' + classeChoix('disparu', v) + '">' + nomLien(s, d.cle, d.nom, d.prenom)
+          + ' <em>' + (d.type === 'IMPAYE' ? 'IMPAYÉ' : 'PARTI') + '</em> ' + menu(s, d.cle, 'disparu', OPT.disparu, v) + '</li>';
       }).join(''));
     }
     if (r.baisses.length) {

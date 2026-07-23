@@ -119,6 +119,9 @@
     baisse: { options: ['sous_controle', 'arrangement'], defaut: 'arrangement' },
     nouveauNonPaye: { options: ['decalage', 'anomalie'], defaut: 'anomalie' },
     aQualifier: { options: ['suspendu', 'nouveau', 'pack'], defaut: 'pack' },
+    // Un disparu « parti » (défaut) compte comme churn ; « pack » (pack de
+    // séance) est EXCLU du calcul (ni numérateur, ni dénominateur).
+    disparu: { options: ['parti', 'pack'], defaut: 'parti' },
   };
   const choixOu = (choix, cle, defaut) => {
     const v = choix && choix[cle];
@@ -190,12 +193,16 @@
       const v = choixOu(choix, q.cle, MENU.aQualifier.defaut);
       return v === 'suspendu' || v === 'nouveau';
     }).length;
+    // Disparus « pack de séance » -> exclus (retirés du dénominateur) ; « parti »
+    // (défaut) -> comptés comme churn.
+    const disparusComptes = disparus.filter((d) => choixOu(choix, d.cle, MENU.disparu.defaut) !== 'pack');
+    const nbDisparuPack = disparus.length - disparusComptes.length;
 
     const fideles = fidelesList.length + nbSousControle; // §6
     const baseN = base.size;
     const nsig = nouveauxPayes + nbDecalage;
     const numerateur = fideles + nsig + nbQualActifs;
-    const denominateur = baseN + nsig + nbAnomalie + nbQualActifs;
+    const denominateur = (baseN - nbDisparuPack) + nsig + nbAnomalie + nbQualActifs;
     const note = denominateur > 0 ? numerateur / denominateur : 0;
 
     return {
@@ -211,10 +218,11 @@
       numerateur,
       denominateur,
       note,
-      // §6 « Disparus » affiché = disparus de la base + anomalies (nouveaux morts).
-      disparusAffichage: disparus.length + nbAnomalie,
-      nbImpayes: disparus.filter((d) => d.type === 'IMPAYE').length,
-      nbPartis: disparus.filter((d) => d.type === 'PARTI').length,
+      // §6 « Disparus » affiché = disparus COMPTÉS (hors packs) + anomalies.
+      disparusAffichage: disparusComptes.length + nbAnomalie,
+      nbImpayes: disparusComptes.filter((d) => d.type === 'IMPAYE').length,
+      nbPartis: disparusComptes.filter((d) => d.type === 'PARTI').length,
+      nbDisparuPack,
       // listes détaillées (pour l'écran §7)
       disparus,
       baisses,
