@@ -21247,6 +21247,43 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-ap-ok { color: var(--rc-green); font-weight: 700; }
 .rec-ap-ko { color: #4A5162; }
 .rec-ap-opt { color: #3A4050; }
+/* ── Aide contextuelle : icône ⓘ, infobulle, bouton, fenêtre ──────────────── */
+.rec-info { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 5px; color: var(--rc-text-3); cursor: help; vertical-align: middle; transition: color .12s; }
+.rec-info svg { width: 13px; height: 13px; }
+.rec-info:hover, .rec-info:focus-visible { color: var(--rc-accent-hi); outline: none; }
+.rec-cat-tab.is-active .rec-info { color: var(--rc-text-2); }
+.rec-kpi2 .rec-info { margin-left: 4px; }
+/* Infobulle (fond clair, ombre douce, apparition en fondu) */
+.rec-tip { position: fixed; z-index: 9999; width: max-content; max-width: 320px; background: #FFFFFF; color: #2A303C; border: 1px solid rgba(15,19,32,.08); border-radius: 12px; box-shadow: 0 14px 38px rgba(0,0,0,.32); padding: 13px 15px; font-size: 12.5px; line-height: 1.5; opacity: 0; transform: translateY(4px); pointer-events: none; transition: opacity .14s ease, transform .14s ease; }
+.rec-tip.is-open { opacity: 1; transform: none; }
+.rec-tip-t { font-weight: 700; font-size: 13px; color: #0F1320; margin-bottom: 4px; }
+.rec-tip-def { margin: 0 0 8px; color: #3A414F; }
+.rec-tip-row { margin-top: 7px; font-size: 12px; color: #3A414F; }
+.rec-tip-row > span { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: #8A93A6; font-weight: 700; margin-bottom: 1px; }
+.rec-tip-row ul { margin: 2px 0 0; padding-left: 15px; }
+.rec-tip-row li { margin: 1px 0; }
+/* Bouton « Comment sont calculés les indicateurs ? » */
+.rec-help-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; min-height: 0; margin-top: 12px; padding: 0 13px; background: var(--rc-surface); border: 1px solid var(--rc-line-2); color: var(--rc-text-2); border-radius: 8px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: border-color .12s, color .12s, background .12s; }
+.rec-help-btn::before { content: 'ⓘ'; font-size: 14px; }
+.rec-help-btn:hover { border-color: var(--rc-accent-ring); color: var(--rc-text); background: var(--rc-surface-2); }
+/* Fenêtre d'aide (tokens re-déclarés : la modale est hors de .rec-wrap) */
+.rec-modal { --rc-bg: #0D0F16; --rc-surface: #14161F; --rc-surface-2: #1B1E29; --rc-line: rgba(255,255,255,.07); --rc-line-2: rgba(255,255,255,.12); --rc-text: #EDEFF3; --rc-text-2: #A2A9B8; --rc-text-3: #6B7280; --rc-accent-ring: rgba(99,102,241,.42);
+  position: fixed; inset: 0; z-index: 9998; display: none; align-items: flex-start; justify-content: center; background: rgba(6,8,12,.62); backdrop-filter: blur(2px); padding: 44px 16px; overflow: auto; }
+.rec-modal.is-open { display: flex; animation: rcFade .16s ease; }
+.rec-modal-card { position: relative; width: 100%; max-width: 680px; background: var(--rc-bg); border: 1px solid var(--rc-line-2); border-radius: 16px; box-shadow: 0 28px 70px rgba(0,0,0,.55); padding: 26px 28px 30px; color: var(--rc-text); -webkit-font-smoothing: antialiased; }
+.rec-modal-x { position: absolute; top: 16px; right: 16px; width: 30px; height: 30px; min-height: 0; display: grid; place-items: center; background: var(--rc-surface); border: 1px solid var(--rc-line-2); border-radius: 8px; color: var(--rc-text-2); font-size: 18px; line-height: 1; cursor: pointer; transition: color .12s, border-color .12s; }
+.rec-modal-x:hover { color: var(--rc-text); border-color: var(--rc-accent-ring); }
+.rec-help-h2 { margin: 0 40px 4px 0; font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+.rec-help-sub { margin: 0 0 18px; font-size: 13px; color: var(--rc-text-2); line-height: 1.55; }
+.rec-help-item { padding: 14px 0; border-top: 1px solid var(--rc-line); }
+.rec-help-item h3 { margin: 0 0 5px; font-size: 14px; font-weight: 650; color: var(--rc-text); }
+.rec-help-item > p { margin: 0 0 8px; font-size: 13px; color: var(--rc-text-2); line-height: 1.55; }
+.rec-help-meta { font-size: 12.5px; color: var(--rc-text-2); line-height: 1.5; margin-top: 4px; }
+.rec-help-meta b { display: inline-block; min-width: 66px; color: var(--rc-text-3); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; margin-right: 6px; vertical-align: top; }
+.rec-help-meta ul { display: inline-block; margin: 0; padding-left: 16px; vertical-align: top; }
+.rec-help-gloss { margin: 4px 0 0; padding-left: 0; list-style: none; }
+.rec-help-gloss li { font-size: 12.5px; color: var(--rc-text-2); padding: 3px 0; line-height: 1.5; }
+.rec-help-gloss b { color: var(--rc-text); font-weight: 600; }
 /* Zone importée -> carte compacte ; zone vide -> reste en grand (action restante) */
 .rec-done { display: none; align-items: center; gap: 11px; background: var(--rc-surface); border: 1px solid var(--rc-line-2); border-radius: 12px; padding: 11px 14px; }
 .rec-zone.is-done .rec-drop { display: none; }

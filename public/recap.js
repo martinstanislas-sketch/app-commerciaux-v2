@@ -85,6 +85,8 @@ const RecapUI = (function () {
     zone('resiliations', $('#rec-file-resiliations'), traiterResiliations);
     zone('membres', $('#rec-file-membres'), traiterMembres);
     $('#rec-calc').addEventListener('click', calculer);
+    const help = $('#rec-help-open'); if (help) help.addEventListener('click', openHelp);
+    wireAide();
   }
 
   // ── Clubs (menu déroulant, import club par club) ─────────────────────────────
@@ -429,8 +431,92 @@ const RecapUI = (function () {
     trend: '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>',
     plus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>',
     list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+    info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
   };
   const ico = (n) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[n] || '') + '</svg>';
+
+  // ── AIDE CONTEXTUELLE : définition / calcul / importance / actions ──────────
+  const AIDE = {
+    clients: { titre: 'Clients du mois précédent', def: "Clients ayant réellement payé le mois précédent (M-1). C'est la base de référence de la rétention.", calcul: 'Clients avec un encaissement net positif au mois M-1.', importance: "Point de départ du calcul : on mesure combien de ces clients sont encore là ce mois-ci.", actions: [] },
+    fideles: { titre: 'Fidèles', def: 'Clients présents le mois précédent qui ont de nouveau payé ce mois-ci, au même tarif.', calcul: 'Présents en M-1 ET net positif en M, sans baisse de tarif.', importance: 'Cœur de la rétention : plus ils sont nombreux, meilleure est la note.', actions: ['Entretenir la relation (suivi coach, fidélisation).', 'Repérer les profils à fort potentiel de parrainage.'] },
+    disparus: { titre: 'Disparus', def: 'Clients présents le mois précédent mais absents ce mois-ci.', calcul: 'Présents au mois M-1 mais net nul ou négatif au mois M.', importance: "Mesure les pertes de clients et permet d'agir vite.", actions: ["Vérifier s'il y a eu une résiliation.", 'Contrôler un éventuel impayé.', 'Identifier un changement de formule.', 'Corriger une erreur de saisie si nécessaire.'] },
+    impayes: { titre: 'Impayés', def: 'Disparus dont un prélèvement a été rejeté : client souvent récupérable.', calcul: 'Disparu avec au moins une ligne de décaissement (rejet) au mois M.', importance: 'Perte fréquemment récupérable : une relance peut sauver le client.', actions: ['Relancer le client pour régulariser.', 'Vérifier le motif du rejet (RIB, provision).', 'Reprogrammer un prélèvement.'] },
+    baisses: { titre: 'Tarifs en baisse', def: "Clients toujours présents mais qui paient moins cher qu'avant.", calcul: 'Présents en M-1 et M, avec prix unitaire ET montant net en baisse.', importance: 'Signale une érosion du panier moyen, à surveiller.', actions: ["Vérifier si c'est un arrangement accordé.", 'Confirmer que la baisse est justifiée.', 'Qualifier « Sous contrôle » ou « Arrangement ».'] },
+    nouveauxSignes: { titre: 'Nouveaux signés', def: 'Nouveaux clients comptés positivement ce mois-ci.', calcul: 'Contrats signés et payés au mois M (+ non payés qualifiés « décalage »).', importance: 'Compensent les départs et participent à la note de rétention.', actions: ['Confirmer le paiement du 1er mois.', 'Assurer un bon démarrage (onboarding).'] },
+    nouveauxNonPayes: { titre: 'Nouveaux non payés', def: "Contrats signés ce mois-ci mais dont le paiement n'est pas encore constaté.", calcul: "Signataire d'un contrat au mois M sans encaissement net positif.", importance: "Distingue un simple décalage de paiement d'une vraie anomalie.", actions: ['Vérifier si le 1er prélèvement arrive plus tard (décalage).', 'Contrôler une anomalie (mandat, saisie).', 'Qualifier « Décalage » ou « Anomalie ».'] },
+    aqualifier: { titre: 'À qualifier', def: 'Clients ayant payé ce mois-ci sans être ni dans la base M-1 ni parmi les nouveaux signataires.', calcul: 'Net positif au mois M, hors base M-1 et hors signataires.', importance: 'Cas ambigus à trancher pour fiabiliser la note.', actions: ['Client suspendu qui revient → « Suspendu ».', 'Nouveau non rattaché à un contrat → « Nouveau ».', 'Achat de séances hors abonnement → « Pack de séances ».'] },
+  };
+  const GLOSSAIRE = [
+    ['Impayé', 'Prélèvement rejeté ce mois-ci — client récupérable, compté comme perte.'],
+    ['Résilié', 'Départ confirmé (contrat résilié) — compté comme perte.'],
+    ['Parti', 'Absent sans impayé ni résiliation formelle — compté comme perte.'],
+    ['Sous contrôle', 'Baisse de tarif maîtrisée/temporaire — comptée comme fidèle.'],
+    ['Arrangement', 'Baisse de tarif accordée — comptée comme perte partielle.'],
+    ['Décalage', 'Paiement en léger retard — compté comme nouveau payé.'],
+    ['Anomalie', 'Incohérence à corriger — non comptée au numérateur.'],
+    ['Suspendu', 'Client en pause encore rattaché — compté comme actif.'],
+    ['Nouveau', 'Nouveau client à rattacher — compté comme actif.'],
+    ['Pack de séances', 'Achat hors abonnement mensuel — EXCLU du calcul.'],
+  ];
+  const NOTE_TXT = "Note d'un club = (fidèles + nouveaux payés + « à qualifier » actifs) ÷ (clients M-1 + nouveaux payés + anomalies + « à qualifier » actifs). Les packs de séances et les exclusions ne comptent pas. La note réseau est la moyenne de tous les clubs, pondérée par leur taille.";
+  const aideBtn = (key) => AIDE[key] ? '<span class="rec-info" data-aide="' + key + '" role="button" tabindex="0" aria-label="Aide : ' + esc(AIDE[key].titre) + '">' + ico('info') + '</span>' : '';
+
+  // Infobulle (survol desktop / clic mobile), refermable auto.
+  let tipTrigger = null, tipPinned = false;
+  function ensureTip() { let el = $('#rec-tip'); if (!el) { el = document.createElement('div'); el.id = 'rec-tip'; el.className = 'rec-tip'; document.body.appendChild(el); } return el; }
+  function tipHTML(a) {
+    return '<div class="rec-tip-t">' + esc(a.titre) + '</div><p class="rec-tip-def">' + esc(a.def) + '</p>'
+      + '<div class="rec-tip-row"><span>Calcul</span>' + esc(a.calcul) + '</div>'
+      + '<div class="rec-tip-row"><span>Pourquoi c\'est important</span>' + esc(a.importance) + '</div>'
+      + (a.actions && a.actions.length ? '<div class="rec-tip-row"><span>Actions</span><ul>' + a.actions.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul></div>' : '');
+  }
+  function showTip(trigger) {
+    const a = AIDE[trigger.dataset.aide]; if (!a) return;
+    const el = ensureTip(); tipTrigger = trigger; el.innerHTML = tipHTML(a);
+    el.style.left = '0px'; el.style.top = '0px';
+    const r = trigger.getBoundingClientRect(), w = Math.min(el.offsetWidth || 320, 320), h = el.offsetHeight || 0;
+    let left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 8));
+    let top = r.bottom + 8;
+    if (top + h + 8 > window.innerHeight && r.top - h - 8 > 0) top = r.top - h - 8;
+    el.style.left = Math.round(left) + 'px'; el.style.top = Math.round(top) + 'px';
+    el.classList.add('is-open');
+  }
+  function hideTip() { const el = $('#rec-tip'); if (el) el.classList.remove('is-open'); tipTrigger = null; }
+  function wireAide() {
+    document.addEventListener('mouseover', (e) => { const t = e.target.closest && e.target.closest('[data-aide]'); if (t && !tipPinned) showTip(t); });
+    document.addEventListener('mouseout', (e) => { const t = e.target.closest && e.target.closest('[data-aide]'); if (t && !tipPinned && !t.contains(e.relatedTarget)) hideTip(); });
+    document.addEventListener('click', (e) => {
+      const t = e.target.closest && e.target.closest('[data-aide]');
+      if (t) { e.preventDefault(); e.stopPropagation(); if (tipPinned && tipTrigger === t) { tipPinned = false; hideTip(); } else { tipPinned = true; showTip(t); } return; }
+      if (tipPinned && !(e.target.closest && e.target.closest('#rec-tip'))) { tipPinned = false; hideTip(); }
+    }, true);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { tipPinned = false; hideTip(); closeHelp(); } });
+    window.addEventListener('scroll', () => { if (!tipPinned) hideTip(); }, true);
+  }
+
+  // Fenêtre « Comment sont calculés les indicateurs ? »
+  function ensureHelpModal() {
+    let o = $('#rec-help-modal'); if (o) return o;
+    o = document.createElement('div'); o.id = 'rec-help-modal'; o.className = 'rec-modal';
+    o.innerHTML = '<div class="rec-modal-card" role="dialog" aria-modal="true"><button type="button" class="rec-modal-x" aria-label="Fermer">×</button><div class="rec-modal-body"></div></div>';
+    document.body.appendChild(o);
+    o.addEventListener('click', (e) => { if (e.target === o || (e.target.closest && e.target.closest('.rec-modal-x'))) closeHelp(); });
+    return o;
+  }
+  function buildHelpHTML() {
+    const ordre = ['clients', 'fideles', 'disparus', 'impayes', 'baisses', 'nouveauxSignes', 'nouveauxNonPayes', 'aqualifier'];
+    const section = (k) => { const a = AIDE[k]; return '<section class="rec-help-item"><h3>' + esc(a.titre) + '</h3><p>' + esc(a.def) + '</p>'
+      + '<div class="rec-help-meta"><b>Calcul</b>' + esc(a.calcul) + '</div>'
+      + '<div class="rec-help-meta"><b>Pourquoi</b>' + esc(a.importance) + '</div>'
+      + (a.actions && a.actions.length ? '<div class="rec-help-meta"><b>Actions</b><ul>' + a.actions.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul></div>' : '') + '</section>'; };
+    return '<h2 class="rec-help-h2">Comment sont calculés les indicateurs ?</h2>'
+      + '<p class="rec-help-sub">Chaque indicateur du tableau : définition, calcul, utilité et actions attendues — pour comprendre le tableau sans formation.</p>'
+      + ordre.map(section).join('')
+      + '<section class="rec-help-item"><h3>La note de rétention</h3><p>' + esc(NOTE_TXT) + '</p></section>'
+      + '<section class="rec-help-item"><h3>Qualifications possibles</h3><ul class="rec-help-gloss">' + GLOSSAIRE.map((g) => '<li><b>' + esc(g[0]) + '</b> — ' + esc(g[1]) + '</li>').join('') + '</ul></section>';
+  }
+  function openHelp() { const o = ensureHelpModal(); o.querySelector('.rec-modal-body').innerHTML = buildHelpHTML(); o.classList.add('is-open'); }
+  function closeHelp() { const o = $('#rec-help-modal'); if (o) o.classList.remove('is-open'); }
 
   // Ordre d'affichage des clubs (réseau My Coach), les autres à la suite.
   const ORDRE = ['Lille', 'Marcq', 'Wasquehal', 'Boulogne', 'Neuilly', 'Levallois'];
@@ -507,10 +593,10 @@ const RecapUI = (function () {
   // Catégories qualifiables d'un club (clé, libellé, liste, catégorie de menu).
   function categoriesDe(r) {
     return [
-      { key: 'disparus', label: 'Disparus', items: r.disparus, cat: 'disparu', opt: OPT.disparu },
-      { key: 'baisses', label: 'Baisses de tarif', items: r.baisses, cat: 'baisse', opt: OPT.baisse },
-      { key: 'nouveaux', label: 'Nouveaux non payés', items: r.nouveauxNonPayes, cat: 'nouveauNonPaye', opt: OPT.nouveauNonPaye },
-      { key: 'aqualifier', label: 'À qualifier', items: r.aQualifier, cat: 'aQualifier', opt: OPT.aQualifier },
+      { key: 'disparus', label: 'Disparus', items: r.disparus, cat: 'disparu', opt: OPT.disparu, aide: 'disparus' },
+      { key: 'baisses', label: 'Baisses de tarif', items: r.baisses, cat: 'baisse', opt: OPT.baisse, aide: 'baisses' },
+      { key: 'nouveaux', label: 'Nouveaux non payés', items: r.nouveauxNonPayes, cat: 'nouveauNonPaye', opt: OPT.nouveauNonPaye, aide: 'nouveauxNonPayes' },
+      { key: 'aqualifier', label: 'À qualifier', items: r.aQualifier, cat: 'aQualifier', opt: OPT.aQualifier, aide: 'aqualifier' },
     ];
   }
   // §2+§3 Panneau du club sélectionné : KPI + sous-onglets + tableau.
@@ -524,20 +610,20 @@ const RecapUI = (function () {
     }
     // §3+§5 KPI compacts (chiffre énorme, libellé + icône discrète).
     const kpis = [
-      ['Clients ' + moisLabel(mois, -1), r.base, 'users'],
-      ['Fidèles', r.fideles, 'check'],
-      ['Disparus', r.disparusAffichage, 'down'],
-      ['Impayés', r.nbImpayes, 'alert'],
-      ['Tarifs en baisse', r.baisses.length, 'trend'],
-      ['Nouveaux signés', r.nsig, 'plus'],
-      ['À qualifier', r.aQualifier.length, 'list'],
-    ].map((k) => '<div class="rec-kpi2"><b>' + esc(String(k[1])) + '</b><span>' + ico(k[2]) + esc(k[0]) + '</span></div>').join('');
+      ['Clients ' + moisLabel(mois, -1), r.base, 'users', 'clients'],
+      ['Fidèles', r.fideles, 'check', 'fideles'],
+      ['Disparus', r.disparusAffichage, 'down', 'disparus'],
+      ['Impayés', r.nbImpayes, 'alert', 'impayes'],
+      ['Tarifs en baisse', r.baisses.length, 'trend', 'baisses'],
+      ['Nouveaux signés', r.nsig, 'plus', 'nouveauxSignes'],
+      ['À qualifier', r.aQualifier.length, 'list', 'aqualifier'],
+    ].map((k) => '<div class="rec-kpi2"><b>' + esc(String(k[1])) + '</b><span>' + ico(k[2]) + esc(k[0]) + aideBtn(k[3]) + '</span></div>').join('');
 
     // §4 Sous-onglets : uniquement les catégories non vides.
     const cats = categoriesDe(r).filter((c) => c.items.length);
     if (!cats.some((c) => c.key === catActive)) catActive = cats.length ? cats[0].key : 'disparus';
     const subtabs = cats.map((c) => '<button type="button" class="rec-cat-tab' + (c.key === catActive ? ' is-active' : '') + '" data-cat="' + c.key + '">'
-      + esc(c.label) + ' <span class="rec-cat-n">' + c.items.length + '</span></button>').join('');
+      + esc(c.label) + aideBtn(c.aide) + ' <span class="rec-cat-n">' + c.items.length + '</span></button>').join('');
 
     // §5 Tableau de la catégorie active.
     const active = cats.find((c) => c.key === catActive);
