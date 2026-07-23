@@ -438,9 +438,9 @@ const RecapUI = (function () {
     baisse: [{ val: 'sous_controle', lbl: 'Sous contrôle' }, { val: 'arrangement', lbl: 'Arrangement' }],
     nouveauNonPaye: [{ val: 'decalage', lbl: 'Décalage de paiement' }, { val: 'anomalie', lbl: 'Anomalie' }],
     aQualifier: [{ val: 'suspendu', lbl: 'Suspendu' }, { val: 'nouveau', lbl: 'Nouveau' }, { val: 'pack', lbl: 'Pack de séance' }],
-    disparu: [{ val: 'parti', lbl: 'Parti' }, { val: 'pack', lbl: 'Pack de séance' }],
+    disparu: [{ val: 'impaye', lbl: 'Impayé' }, { val: 'resilie', lbl: 'Résilié' }, { val: 'pack', lbl: 'Pack de séance' }],
   };
-  const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack', disparu: 'parti' };
+  const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack', disparu: 'resilie' };
   const choixDe = (s, cle, cat) => ((choix[s] || {})[cle]) || DEF[cat];
   function classeChoix(cat, val) {
     if (cat === 'baisse') return val === 'sous_controle' ? 'rec-ok' : 'rec-ko';
@@ -477,9 +477,10 @@ const RecapUI = (function () {
       + '<div class="rec-kpis">' + kpi + '</div>';
     if (r.disparus.length) {
       html += section('Disparus', r.disparus.map((d) => { compter(d.cle);
-        const v = choixDe(s, d.cle, 'disparu');
+        // Défaut du menu = le type auto détecté (impayé si décaissement, sinon résilié).
+        const v = (choix[s] || {})[d.cle] || (d.type === 'IMPAYE' ? 'impaye' : 'resilie');
         return '<li class="' + classeChoix('disparu', v) + '">' + nomLien(s, d.cle, d.nom, d.prenom)
-          + ' <em>' + (d.type === 'IMPAYE' ? 'IMPAYÉ' : 'PARTI') + '</em> ' + menu(s, d.cle, 'disparu', OPT.disparu, v) + '</li>';
+          + ' ' + menu(s, d.cle, 'disparu', OPT.disparu, v) + '</li>';
       }).join(''));
     }
     if (r.baisses.length) {

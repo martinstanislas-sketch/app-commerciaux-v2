@@ -249,6 +249,20 @@ test('disparu « pack de séance » : EXCLU du dénominateur (remonte la note)',
   assert.ok(Math.abs(pack.note - 1) < 1e-9, 'pack exclu -> 100 %');
 });
 
+test('disparu « impayé » vs « résilié » : même note (qualification, pas de calcul)', () => {
+  const input = {
+    encM1: [P('Fidele', 'F', 69), P('Fidele', 'F', 69), P('Parti', 'P', 69), P('Parti', 'P', 69)],
+    encM: [P('Fidele', 'F', 69), P('Fidele', 'F', 69)],
+    signataires: [],
+  };
+  const impaye = R.calculerStudio(Object.assign({ choix: { 'PARTI|P': 'impaye' } }, input));
+  const resilie = R.calculerStudio(Object.assign({ choix: { 'PARTI|P': 'resilie' } }, input));
+  assert.ok(Math.abs(impaye.note - resilie.note) < 1e-9, 'la note ne dépend pas de impayé/résilié');
+  assert.ok(Math.abs(impaye.note - 1 / 2) < 1e-9);
+  assert.equal(impaye.nbImpayes, 1); assert.equal(impaye.nbPartis, 0);
+  assert.equal(resilie.nbPartis, 1); assert.equal(resilie.nbImpayes, 0);
+});
+
 // --- §6 NOTE RÉSEAU ----------------------------------------------------------
 test('note réseau : Σ numérateurs / Σ dénominateurs (pondérée)', () => {
   const gros = { numerateur: 90, denominateur: 100 }; // 90 %

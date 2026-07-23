@@ -119,9 +119,11 @@
     baisse: { options: ['sous_controle', 'arrangement'], defaut: 'arrangement' },
     nouveauNonPaye: { options: ['decalage', 'anomalie'], defaut: 'anomalie' },
     aQualifier: { options: ['suspendu', 'nouveau', 'pack'], defaut: 'pack' },
-    // Un disparu « parti » (défaut) compte comme churn ; « pack » (pack de
-    // séance) est EXCLU du calcul (ni numérateur, ni dénominateur).
-    disparu: { options: ['parti', 'pack'], defaut: 'parti' },
+    // Qualification d'un disparu : « impaye » / « resilie » comptent PAREIL
+    // (churn, aucune différence de note) ; « pack » (pack de séance) est EXCLU
+    // du calcul. Défaut = le type auto détecté (impayé si décaissement, sinon
+    // résilié).
+    disparu: { options: ['impaye', 'resilie', 'pack'], defaut: 'resilie' },
   };
   const choixOu = (choix, cle, defaut) => {
     const v = choix && choix[cle];
@@ -193,9 +195,13 @@
       const v = choixOu(choix, q.cle, MENU.aQualifier.defaut);
       return v === 'suspendu' || v === 'nouveau';
     }).length;
-    // Disparus « pack de séance » -> exclus (retirés du dénominateur) ; « parti »
-    // (défaut) -> comptés comme churn.
-    const disparusComptes = disparus.filter((d) => choixOu(choix, d.cle, MENU.disparu.defaut) !== 'pack');
+    // Qualification effective d'un disparu : le choix s'il existe, sinon le type
+    // auto (impayé si décaissement, sinon résilié). « pack » -> exclu du calcul.
+    const disparuChoix = (d) => {
+      const v = choix[d.cle];
+      return (v === 'impaye' || v === 'resilie' || v === 'pack') ? v : (d.type === 'IMPAYE' ? 'impaye' : 'resilie');
+    };
+    const disparusComptes = disparus.filter((d) => disparuChoix(d) !== 'pack');
     const nbDisparuPack = disparus.length - disparusComptes.length;
 
     const fideles = fidelesList.length + nbSousControle; // §6
@@ -219,9 +225,10 @@
       denominateur,
       note,
       // §6 « Disparus » affiché = disparus COMPTÉS (hors packs) + anomalies.
+      // Les compteurs impayés/résiliés suivent le choix du menu (défaut = type auto).
       disparusAffichage: disparusComptes.length + nbAnomalie,
-      nbImpayes: disparusComptes.filter((d) => d.type === 'IMPAYE').length,
-      nbPartis: disparusComptes.filter((d) => d.type === 'PARTI').length,
+      nbImpayes: disparusComptes.filter((d) => disparuChoix(d) === 'impaye').length,
+      nbPartis: disparusComptes.filter((d) => disparuChoix(d) === 'resilie').length,
       nbDisparuPack,
       // listes détaillées (pour l'écran §7)
       disparus,
