@@ -147,6 +147,7 @@ const RecapUI = (function () {
     fichiersEncM = dedupFichiers(fichiersEncM.concat(lus));
     $('#rec-info-encM').textContent = club + ' · ' + lus.length + ' fichier(s)';
     assembler();
+    await autoEnregistrer('Encaissements ' + club);
   }
   async function traiterContrats(files) {
     if (!exigeClub()) return;
@@ -161,6 +162,7 @@ const RecapUI = (function () {
     contratsParStudio[club] = dedupSig((contratsParStudio[club] || []).concat(sigs));
     $('#rec-info-contrats').textContent = club + ' · ' + contratsParStudio[club].length + ' contrat(s)';
     assembler();
+    await autoEnregistrer('Contrats ' + club);
   }
   function dedupSig(list) {
     const seen = new Set(); const out = [];
@@ -179,6 +181,7 @@ const RecapUI = (function () {
     }
     fichiersM1 = dedupFichiers(fichiersM1.concat(lus));
     assembler();
+    await autoEnregistrer('Encaissements ' + moisLabel(m1, 0) + (studioForce ? ' — ' + studioForce : ''));
   }
   async function traiterMembres(files) {
     if (!exigeClub()) return;
@@ -311,6 +314,12 @@ const RecapUI = (function () {
       await charger(); // recharge l'état canonique (dépôts -> archives)
       msg('✅ ' + moisLabel(mois, 0) + ' calculé et enregistré.' + (suiv ? ' ↻ ' + moisLabel(suiv, 0) + ' recalculé (son mois précédent a changé).' : ''), false);
     } catch (_) { msg('Enregistrement impossible (réseau).', true); }
+  }
+  // Sauvegarde immédiate à chaque dépôt : rien n'est perdu si on change de mois
+  // ou de club avant d'avoir cliqué « Calculer ».
+  async function autoEnregistrer(label) {
+    try { await persister(); msg((label || 'Fichier') + ' — enregistré automatiquement ✓', false); }
+    catch (_) { msg('⚠️ Sauvegarde réseau impossible — les données restent à l’écran, réessaie ou clique Calculer.', true); }
   }
   async function persister() {
     const imports = [];
