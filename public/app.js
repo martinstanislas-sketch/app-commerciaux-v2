@@ -979,9 +979,12 @@ function updateTabVisibility() {
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
     if (standardsBtn) standardsBtn.style.display = ''; // Standards : admin + coach leaders
     if (recapBtn) recapBtn.style.display = ''; // RECAP : admin uniquement
-    // Default landing tab on login (admin) = Pilotage, pré-réglé au mois précédent
-    if (pilotageFunnelBtn) {
-      pilotageFunnelInitToPreviousMonth();
+    // On pré-règle Pilotage au mois précédent (au cas où l'admin y va), mais…
+    if (pilotageFunnelBtn) pilotageFunnelInitToPreviousMonth();
+    // … l'onglet d'accueil à la connexion (admin) = RECAP (consultation rétention).
+    if (recapBtn) {
+      recapBtn.click();
+    } else if (pilotageFunnelBtn) {
       pilotageFunnelBtn.click();
     } else if (tasksBtn) {
       tasksBtn.click();
