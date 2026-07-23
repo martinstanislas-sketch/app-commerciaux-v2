@@ -198,6 +198,14 @@
       else nouveauxNonPayes.push({ cle: cleMatch || (s.cles && s.cles[0]) || cleClient(s.nom, s.prenom), nom: s.nom, prenom: s.prenom });
     });
 
+    // Liste des signataires (pour l'affichage « Nouveaux signés » : payés + non
+    // payés). N'entre PAS dans le calcul — expose juste des données déjà connues.
+    const signatairesListe = sig.filter((s) => !(s.cles || []).some((k) => resSet.has(k))).map((s) => {
+      let netM = 0, cleMatch = null;
+      (s.cles || []).forEach((k) => { const a = agM.get(k); if (a && a.net > netM) { netM = a.net; cleMatch = k; } });
+      return { cle: cleMatch || (s.cles && s.cles[0]) || cleClient(s.nom, s.prenom), nom: s.nom, prenom: s.prenom, paye: netM > 0 };
+    });
+
     // §4.5 À QUALIFIER = net(M) > 0, hors base, hors signataires.
     const aQualifier = [];
     agM.forEach((a, cle) => {
@@ -255,6 +263,10 @@
       baisses,
       nouveauxNonPayes,
       aQualifier,
+      // Listes exposées pour la navigation par carte KPI (déjà calculées).
+      baseListe: Array.from(base).map((cle) => { const rr = resInfo.get(cle); return { cle, nom: (rr && rr.nom) || nomDe(cle), prenom: (rr && rr.prenom) || prenomDe(cle) }; }),
+      fidelesListe: fidelesList,
+      signatairesListe,
     };
 
     // Ces deux helpers ne servent qu'à réétaler la clé en Nom/Prénom lisibles.

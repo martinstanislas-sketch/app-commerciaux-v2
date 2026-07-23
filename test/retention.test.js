@@ -292,6 +292,21 @@ test('résiliation hors base M-1 : ajoutée à la population et aux disparus', (
   assert.ok(avec.disparus.some((d) => d.cle === 'NEO|N'));
 });
 
+test('listes exposées : baseListe / fidelesListe / signatairesListe', () => {
+  const r = R.calculerStudio({
+    encM1: [P('Fidele', 'F', 69), P('Fidele', 'F', 69), P('Parti', 'P', 69), P('Parti', 'P', 69)],
+    encM: [P('Fidele', 'F', 69), P('Fidele', 'F', 69), P('Neo', 'N', 69)],
+    signataires: [{ cles: R.clesContrat('neo n'), nom: 'Neo', prenom: 'N' }], // signé + payé
+    choix: {},
+  });
+  assert.equal(r.baseListe.length, r.base, 'baseListe = tous les clients M-1');
+  assert.deepEqual(r.baseListe.map((x) => x.cle).sort(), ['FIDELE|F', 'PARTI|P']);
+  assert.equal(r.fidelesListe.length, r.nbFideles, 'fidelesListe = les fidèles');
+  assert.equal(r.fidelesListe[0].cle, 'FIDELE|F');
+  assert.equal(r.signatairesListe.length, 1);
+  assert.equal(r.signatairesListe[0].paye, true, 'Neo a payé -> nouveau signé payé');
+});
+
 // --- §6 NOTE RÉSEAU ----------------------------------------------------------
 test('note réseau : Σ numérateurs / Σ dénominateurs (pondérée)', () => {
   const gros = { numerateur: 90, denominateur: 100 }; // 90 %

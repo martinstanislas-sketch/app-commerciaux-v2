@@ -21188,10 +21188,18 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-kpis2 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; }
 @media (max-width: 860px) { .rec-kpis2 { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 480px) { .rec-kpis2 { grid-template-columns: repeat(2, 1fr); } }
-.rec-kpi2 { background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 10px; padding: 6px 10px; }
+.rec-kpi2 { background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 10px; padding: 6px 10px; text-align: left; cursor: pointer; min-height: 0; font: inherit; position: relative; transition: border-color .12s, background .12s, box-shadow .12s, transform .08s; }
+.rec-kpi2:hover { border-color: var(--rc-line-2); background: var(--rc-surface-2); }
+.rec-kpi2:active { transform: translateY(1px); }
+.rec-kpi2.is-active { border-color: var(--rc-accent-ring); background: linear-gradient(180deg, var(--rc-accent-soft), rgba(99,102,241,.03)); box-shadow: 0 6px 16px rgba(0,0,0,.32), inset 0 0 0 1px var(--rc-accent-ring); }
+.rec-kpi2.is-active b { color: #fff; }
+.rec-kpi2.is-active span { color: var(--rc-text-2); }
 .rec-kpi2 b { display: block; font-size: 20px; font-weight: 750; color: var(--rc-text); font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -.035em; }
 .rec-kpi2 span { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--rc-text-3); margin-top: 3px; line-height: 1.15; font-weight: 500; }
 .rec-kpi2 svg { width: 12px; height: 12px; opacity: .5; flex: 0 0 auto; }
+/* §5 En-tête de liste (catégorie sélectionnée + nombre) */
+.rec-list-head { margin: 16px 0 8px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--rc-text-2); }
+.rec-qual-none { color: var(--rc-text-3); }
 /* ── §4 Sous-onglets (soulignement, comme Linear) ─────────────────────────── */
 .rec-cat-tabs { display: flex; gap: 22px; flex-wrap: wrap; margin: 10px 0 2px; border-bottom: 1px solid var(--rc-line); }
 .rec-cat-tab { cursor: pointer; background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--rc-text-3); border-radius: 0; padding: 8px 1px; font: inherit; font-size: 13px; font-weight: 600; transition: color .15s, border-color .15s; margin-bottom: -1px; }

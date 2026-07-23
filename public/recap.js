@@ -49,7 +49,7 @@ const RecapUI = (function () {
   let resultats = {};// studio -> retour de calculerStudio  (ou { pending:true })
   let chartHisto = null;
   let resClub = '';  // club affiché dans la zone de résultats (onglets)
-  let catActive = 'disparus'; // catégorie affichée dans le club sélectionné
+  let kpiActive = 'disparus'; // KPI/catégorie affiché(e) : la carte cliquée pilote la liste
   let importOuvert = false; // panneau d'import replié par défaut (consultation avant tout)
 
   function open() {
@@ -571,7 +571,7 @@ const RecapUI = (function () {
       return '<button type="button" class="rec-club-tab' + actif + '" data-club="' + esc(s) + '">'
         + '<span class="rec-club-nom">' + esc(s) + '</span>'
         + '<span class="rec-club-note">' + pct(r.note) + '</span>'
-        + '<span class="rec-club-sub">' + r.disparusAffichage + ' disparus · ' + r.aQualifier.length + ' à qualifier</span>'
+        + '<span class="rec-club-sub">' + (r.disparus || []).length + ' disparus · ' + r.aQualifier.length + ' à qualifier</span>'
         + '</button>';
     }).join('');
     host.innerHTML = '<div class="rec-res-head"><h3 class="rec-h3">Résultats · ' + moisLabel(mois, 0) + '</h3>'
@@ -616,16 +616,41 @@ const RecapUI = (function () {
   };
   const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack', disparu: 'resilie' };
 
-  // Catégories qualifiables d'un club (clé, libellé, liste, catégorie de menu).
-  function categoriesDe(r) {
-    return [
-      { key: 'disparus', label: 'Disparus', items: r.disparus, cat: 'disparu', opt: OPT.disparu, aide: 'disparus' },
-      { key: 'baisses', label: 'Baisses de tarif', items: r.baisses, cat: 'baisse', opt: OPT.baisse, aide: 'baisses' },
-      { key: 'nouveaux', label: 'Nouveaux non payés', items: r.nouveauxNonPayes, cat: 'nouveauNonPaye', opt: OPT.nouveauNonPaye, aide: 'nouveauxNonPayes' },
-      { key: 'aqualifier', label: 'À qualifier', items: r.aQualifier, cat: 'aQualifier', opt: OPT.aQualifier, aide: 'aqualifier' },
-    ];
+  // Les 7 cartes KPI = l'unique navigation entre les listes (plus de sous-onglets).
+  const KPIS = [
+    { key: 'clients', label: () => 'Clients ' + moisLabel(mois, -1), icon: 'users', aide: 'clients' },
+    { key: 'fideles', label: () => 'Fidèles', icon: 'check', aide: 'fideles' },
+    { key: 'disparus', label: () => 'Disparus', icon: 'down', aide: 'disparus' },
+    { key: 'impayes', label: () => 'Impayés', icon: 'alert', aide: 'impayes' },
+    { key: 'baisses', label: () => 'Tarifs en baisse', icon: 'trend', aide: 'baisses' },
+    { key: 'nouveaux', label: () => 'Nouveaux signés', icon: 'plus', aide: 'nouveauxSignes' },
+    { key: 'aqualifier', label: () => 'À qualifier', icon: 'list', aide: 'aqualifier' },
+  ];
+  const KPI_TITRE = { clients: 'Clients du mois précédent', fideles: 'Fidèles', disparus: 'Disparus', impayes: 'Impayés', baisses: 'Tarifs en baisse', nouveaux: 'Nouveaux signés', aqualifier: 'À qualifier' };
+
+  // Construit la liste de clients correspondant à une carte KPI (données déjà
+  // calculées ; aucune modification du calcul). Chaque ligne : { cle, nom, prenom,
+  // menuCat (menu de qualification, ou null), situ (badge de situation) }.
+  function listeKPI(r, key, s) {
+    switch (key) {
+      case 'clients': return (r.baseListe || []).map((x) => ({ cle: x.cle, nom: x.nom, prenom: x.prenom, menuCat: null, situ: 'client' }));
+      case 'fideles': {
+        const fid = (r.fidelesListe || []).map((x) => ({ cle: x.cle, nom: x.nom, prenom: x.prenom, menuCat: null, situ: 'fidele' }));
+        // + baisses maîtrisées (« sous contrôle »), comptées comme fidèles.
+        const sc = (r.baisses || []).filter((b) => valeurCourante(s, b, 'baisse') === 'sous_controle')
+          .map((b) => ({ cle: b.cle, nom: b.nom, prenom: b.prenom, menuCat: 'baisse', situ: 'fidele' }));
+        return fid.concat(sc);
+      }
+      case 'disparus': return (r.disparus || []).map((d) => ({ cle: d.cle, nom: d.nom, prenom: d.prenom, type: d.type, menuCat: 'disparu', situ: 'disparu' }));
+      case 'impayes': return (r.disparus || []).filter((d) => d.type === 'IMPAYE').map((d) => ({ cle: d.cle, nom: d.nom, prenom: d.prenom, type: d.type, menuCat: 'disparu', situ: 'disparu' }));
+      case 'baisses': return (r.baisses || []).map((b) => ({ cle: b.cle, nom: b.nom, prenom: b.prenom, menuCat: 'baisse', situ: 'baisse' }));
+      case 'nouveaux': return (r.signatairesListe || []).map((n) => ({ cle: n.cle, nom: n.nom, prenom: n.prenom, menuCat: n.paye ? null : 'nouveauNonPaye', situ: n.paye ? 'nouveauPaye' : 'nonPaye' }));
+      case 'aqualifier': return (r.aQualifier || []).map((q) => ({ cle: q.cle, nom: q.nom, prenom: q.prenom, menuCat: 'aQualifier', situ: 'aqualifier' }));
+      default: return [];
+    }
   }
-  // §2+§3 Panneau du club sélectionné : KPI + sous-onglets + tableau.
+
+  // §2+§3 Panneau du club : KPI cliquables (navigation) + tableau de la catégorie.
   function renderClubPanel() {
     const host = $('#rec-details');
     const s = resClub, r = resultats[s];
@@ -634,53 +659,36 @@ const RecapUI = (function () {
       host.innerHTML = '<div class="rec-panel">' + bandeau('warn', '⏳ <b>' + esc(s) + '</b> : le mois précédent (' + esc(moisLabel(m1, 0)) + ') n\'est pas encore importé. Dépose-le pour calculer ce club.') + '</div>';
       return;
     }
-    // §3+§5 KPI compacts (chiffre énorme, libellé + icône discrète).
-    const kpis = [
-      ['Clients ' + moisLabel(mois, -1), r.base, 'users', 'clients'],
-      ['Fidèles', r.fideles, 'check', 'fideles'],
-      ['Disparus', r.disparusAffichage, 'down', 'disparus'],
-      ['Impayés', r.nbImpayes, 'alert', 'impayes'],
-      ['Tarifs en baisse', r.baisses.length, 'trend', 'baisses'],
-      ['Nouveaux signés', r.nsig, 'plus', 'nouveauxSignes'],
-      ['À qualifier', r.aQualifier.length, 'list', 'aqualifier'],
-    ].map((k) => '<div class="rec-kpi2"><b>' + esc(String(k[1])) + '</b><span>' + ico(k[2]) + esc(k[0]) + aideBtn(k[3]) + '</span></div>').join('');
+    if (!KPIS.some((k) => k.key === kpiActive)) kpiActive = 'disparus';
+    // §5 Cartes KPI = navigation. Le chiffre = la taille EXACTE de la liste ouverte
+    // au clic -> carte, en-tête et tableau affichent toujours le même nombre.
+    const kpis = KPIS.map((k) => '<button type="button" class="rec-kpi2' + (k.key === kpiActive ? ' is-active' : '') + '" data-kpi="' + k.key + '">'
+      + '<b>' + listeKPI(r, k.key, s).length + '</b><span>' + ico(k.icon) + esc(k.label()) + aideBtn(k.aide) + '</span></button>').join('');
 
-    // §4 Sous-onglets : uniquement les catégories non vides.
-    const cats = categoriesDe(r).filter((c) => c.items.length);
-    if (!cats.some((c) => c.key === catActive)) catActive = cats.length ? cats[0].key : 'disparus';
-    const subtabs = cats.map((c) => '<button type="button" class="rec-cat-tab' + (c.key === catActive ? ' is-active' : '') + '" data-cat="' + c.key + '">'
-      + esc(c.label) + aideBtn(c.aide) + ' <span class="rec-cat-n">' + c.items.length + '</span></button>').join('');
-
-    // §5 Tableau de la catégorie active.
-    const active = cats.find((c) => c.key === catActive);
-    let table = '<p class="rec-vide">Rien à afficher dans cette catégorie.</p>';
+    // §5 Tableau de la catégorie sélectionnée.
+    const rows = listeKPI(r, kpiActive, s);
     let sansLien = 0, total = 0;
-    if (active) {
-      const rows = active.items.map((it) => {
-        total++; if (!resoudreId(it.cle, s)) sansLien++;
-        const v = valeurCourante(s, it, active.cat);
-        return '<tr>'
-          + '<td class="rec-cli-nom">' + nomLien(s, it.cle, it.nom, it.prenom) + '</td>'
-          + '<td>' + situationBadge(active.cat, it) + '</td>'
-          + '<td class="rec-cli-qual">' + qualBtn(s, it.cle, active.cat, v) + '</td>'
-          + '</tr>';
-      }).join('');
-      table = '<table class="rec-cli-table"><thead><tr><th>Client</th><th>Situation détectée</th><th>Qualification</th></tr></thead><tbody>' + rows + '</tbody></table>';
-    }
+    const corps = rows.map((it) => {
+      total++; if (!resoudreId(it.cle, s)) sansLien++;
+      const qual = it.menuCat ? qualBtn(s, it.cle, it.menuCat, valeurCourante(s, it, it.menuCat)) : '<span class="rec-qual-none">—</span>';
+      return '<tr><td class="rec-cli-nom">' + nomLien(s, it.cle, it.nom, it.prenom) + '</td>'
+        + '<td>' + situBadge(it.situ, it) + '</td><td class="rec-cli-qual">' + qual + '</td></tr>';
+    }).join('');
+    const table = rows.length
+      ? '<table class="rec-cli-table"><thead><tr><th>Client</th><th>Situation détectée</th><th>Qualification</th></tr></thead><tbody>' + corps + '</tbody></table>'
+      : '<p class="rec-vide">Aucun client dans cette catégorie.</p>';
+    const nb = rows.length;
+    const listHead = '<div class="rec-list-head">' + esc((KPI_TITRE[kpiActive] || '').toUpperCase()) + ' — ' + nb + ' client' + (nb > 1 ? 's' : '') + '</div>';
 
-    // §B4 Alerte « sans lien Deciplus » (inchangée), sous le tableau.
+    // §B4 Alerte « sans lien Deciplus ».
     let alerte = '';
     if (sansLien > 5 || (total > 0 && sansLien / total > 0.10)) {
       alerte = bandeau('info', 'ℹ️ ' + sansLien + ' personne' + (sansLien > 1 ? 's' : '') + ' sans lien Deciplus (identifiant inconnu). '
         + '<button type="button" class="rec-link" data-maj-membres="1">Mettre à jour les membres</button>');
     }
 
-    host.innerHTML = '<div class="rec-panel">'
-      + '<div class="rec-kpis2">' + kpis + '</div>'
-      + '<div class="rec-cat-tabs">' + subtabs + '</div>'
-      + table + alerte + '</div>';
-
-    host.querySelectorAll('.rec-cat-tab').forEach((t) => t.addEventListener('click', () => { catActive = t.dataset.cat; renderClubPanel(); }));
+    host.innerHTML = '<div class="rec-panel"><div class="rec-kpis2">' + kpis + '</div>' + listHead + table + alerte + '</div>';
+    host.querySelectorAll('.rec-kpi2[data-kpi]').forEach((c) => c.addEventListener('click', () => { kpiActive = c.dataset.kpi; renderClubPanel(); }));
   }
 
   // Valeur de qualification courante d'une ligne (défaut spécial pour les disparus).
@@ -689,16 +697,21 @@ const RecapUI = (function () {
     if (cat === 'disparu') return it.type === 'IMPAYE' ? 'impaye' : 'resilie';
     return DEF[cat];
   }
-  // Badge « situation détectée » (colonne du milieu, non modifiable).
-  function situationBadge(cat, it) {
-    if (cat === 'disparu') {
-      if (it.type === 'IMPAYE') return badge('Impayé', 'red');
-      if (it.type === 'RESILIE') return badge('Résilié', 'gray');
-      return badge('Parti', 'gray');
+  // Badge « situation détectée » selon le type de ligne.
+  function situBadge(situ, it) {
+    switch (situ) {
+      case 'client': return badge('Présent M-1', 'neutral');
+      case 'fidele': return badge('Fidèle', 'green');
+      case 'baisse': return badge('Tarif en baisse', 'orange');
+      case 'nouveauPaye': return badge('Nouveau payé', 'green');
+      case 'nonPaye': return badge('Non payé', 'redlight');
+      case 'aqualifier': return badge('À qualifier', 'neutral');
+      case 'disparu':
+        if (it.type === 'IMPAYE') return badge('Impayé', 'red');
+        if (it.type === 'RESILIE') return badge('Résilié', 'gray');
+        return badge('Parti', 'gray');
+      default: return badge(situ, 'neutral');
     }
-    if (cat === 'baisse') return badge('Tarif en baisse', 'orange');
-    if (cat === 'nouveauNonPaye') return badge('Non payé', 'redlight');
-    return badge('À qualifier', 'neutral');
   }
   // §6 Bouton compact = badge de la valeur courante ; le menu s'ouvre au clic.
   const QUAL = {
@@ -732,7 +745,7 @@ const RecapUI = (function () {
     (choix[s] || (choix[s] = {}))[cle] = val;
     recalcStudio(s);
     patchChoix(s, cle, cat, val);
-    render(); // met à jour les onglets (note/compteurs) ET le panneau ; resClub/catActive conservés
+    render(); // met à jour les onglets (note/compteurs) ET le panneau ; resClub/kpiActive conservés
   }
 
   // ── CHARGEMENT / PERSISTANCE ────────────────────────────────────────────────
