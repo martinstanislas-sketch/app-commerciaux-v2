@@ -50,6 +50,7 @@ const RecapUI = (function () {
   let chartHisto = null;
   let resClub = '';  // club affiché dans la zone de résultats (onglets)
   let catActive = 'disparus'; // catégorie affichée dans le club sélectionné
+  let importOuvert = false; // panneau d'import replié par défaut (consultation avant tout)
 
   function open() {
     if (!inited) { wire(); inited = true; }
@@ -86,7 +87,30 @@ const RecapUI = (function () {
     zone('membres', $('#rec-file-membres'), traiterMembres);
     $('#rec-calc').addEventListener('click', calculer);
     const help = $('#rec-help-open'); if (help) help.addEventListener('click', openHelp);
+    const head = $('#rec-import-head');
+    if (head) head.addEventListener('click', (e) => {
+      if (e.target.closest('[data-toggle]')) { importOuvert = !importOuvert; renderImportBar(); }
+      else if (e.target.closest('[data-modif]')) { importOuvert = true; renderImportBar(); }
+    });
     wireAide();
+  }
+
+  // §2+§3 Barre d'import repliable : discrète par défaut, ✓ quand le mois est calculé.
+  function renderImportBar() {
+    const head = $('#rec-import-head'), body = $('#rec-import-body');
+    if (!head || !body) return;
+    body.hidden = !importOuvert;
+    const nb = Object.keys(studios).length;
+    const computed = Object.keys(resultats).some((s) => !resultats[s].pending);
+    const capMois = () => { const s = moisLabel(mois, 0); return s.charAt(0).toUpperCase() + s.slice(1); };
+    if (importOuvert) {
+      head.innerHTML = '<button type="button" class="rec-import-toggle is-open" data-toggle><span class="ri-title">📂 Importer les données du mois</span><span class="ri-chev">▲</span></button>';
+    } else if (computed) {
+      head.innerHTML = '<div class="rec-import-done"><span class="ri-ok">✓ ' + esc(capMois()) + ' calculé</span><button type="button" class="rec-link" data-modif>Modifier les imports</button></div>';
+    } else {
+      const sum = nb ? (capMois() + ' • ' + nb + ' club' + (nb > 1 ? 's' : '')) : 'Aucun import pour ce mois';
+      head.innerHTML = '<button type="button" class="rec-import-toggle" data-toggle><span class="ri-title">📂 Importer les données du mois</span><span class="ri-sum">' + esc(sum) + '</span><span class="ri-chev">▼</span></button>';
+    }
   }
 
   // ── Clubs (menu déroulant, import club par club) ─────────────────────────────
@@ -251,6 +275,7 @@ const RecapUI = (function () {
     majZones();
     renderApercu();
     recalcTout();
+    renderImportBar();
   }
   function groupLignes(arr) {
     const out = {};
@@ -385,6 +410,7 @@ const RecapUI = (function () {
     try {
       await persister();
       const suiv = await moisSuivantArchive();
+      importOuvert = false; // une fois calculé, on replie l'import et on montre les résultats
       await charger(); // recharge l'état canonique (dépôts -> archives)
       msg('✅ ' + moisLabel(mois, 0) + ' calculé et enregistré.' + (suiv ? ' ↻ ' + moisLabel(suiv, 0) + ' recalculé (son mois précédent a changé).' : ''), false);
     } catch (_) { msg('Enregistrement impossible (réseau).', true); }

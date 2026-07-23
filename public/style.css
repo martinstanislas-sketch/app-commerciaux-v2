@@ -21115,11 +21115,11 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
   --rc-accent-soft: rgba(99,102,241,.14); --rc-accent-ring: rgba(99,102,241,.42);
   --rc-green: #34D399; --rc-orange: #F59E0B; --rc-red: #F87171; --rc-blue: #60A5FA;
   --rc-btn-h: 36px;
-  background: var(--rc-bg); color: var(--rc-text); border-radius: 20px; padding: 24px 26px 32px; margin-top: 6px;
+  background: var(--rc-bg); color: var(--rc-text); border-radius: 20px; padding: 16px 22px 22px; margin-top: 6px;
   -webkit-font-smoothing: antialiased;
 }
-.rec-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; background: transparent; box-shadow: none; border: 0; padding: 0; }
-.rec-title { margin: 0; font-size: 22px; font-weight: 700; color: var(--rc-text); letter-spacing: -.025em; }
+.rec-head { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; background: transparent; box-shadow: none; border: 0; padding: 0; }
+.rec-title { margin: 0; font-size: 19px; font-weight: 700; color: var(--rc-text); letter-spacing: -.025em; }
 .rec-sub { margin: 7px 0 0; font-size: 13px; color: var(--rc-text-2); max-width: 640px; line-height: 1.55; }
 .rec-mois { display: flex; flex-direction: column; gap: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--rc-text-3); font-weight: 600; }
 .rec-mois input, .rec-club-lbl select, .rec-club-add input { background: var(--rc-surface); border: 1px solid var(--rc-line-2); color: var(--rc-text); border-radius: 9px; padding: 0 12px; height: var(--rc-btn-h); font: inherit; transition: border-color .15s, box-shadow .15s; }
@@ -21153,16 +21153,27 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-det-file { flex: 1; min-width: 0; font-size: 12.5px; color: var(--rc-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rec-det-arrow { color: var(--rc-text-3); }
 .rec-det-sel, .rec-menu { background: var(--rc-surface); border: 1px solid var(--rc-line-2); color: var(--rc-text); border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 12.5px; }
+/* ── Barre d'import repliable (usage mensuel, discrète) ────────────────────── */
+.rec-import { margin: 4px 0 6px; }
+.rec-import-toggle { width: 100%; display: flex; align-items: center; gap: 12px; background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 10px; padding: 0 14px; height: 42px; min-height: 0; cursor: pointer; font: inherit; text-align: left; transition: border-color .12s, background .12s; }
+.rec-import-toggle:hover { border-color: var(--rc-line-2); background: var(--rc-surface-2); }
+.rec-import-toggle .ri-title { font-size: 13px; font-weight: 650; color: var(--rc-text); }
+.rec-import-toggle .ri-sum { font-size: 12px; color: var(--rc-text-3); }
+.rec-import-toggle .ri-chev { margin-left: auto; color: var(--rc-text-3); font-size: 11px; }
+.rec-import-done { display: flex; align-items: center; gap: 14px; background: rgba(52,211,153,.08); border: 1px solid rgba(52,211,153,.28); border-radius: 10px; padding: 0 14px; height: 42px; }
+.rec-import-done .ri-ok { font-size: 13px; font-weight: 650; color: var(--rc-green); }
+.rec-import-done .rec-link { margin-left: auto; }
+.rec-import-body { padding-top: 14px; animation: rcFade .16s ease; }
 /* ── §1 + §9 Onglets clubs — style Linear ─────────────────────────────────── */
-.rec-res-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+.rec-res-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
 .rec-res-head .rec-h3 { margin: 0; }
 .rec-reseau-badge { font-size: 11px; color: var(--rc-text-3); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
 .rec-reseau-badge b { color: var(--rc-text); font-size: 15px; margin-left: 5px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
-.rec-club-tabs { display: flex; gap: 8px; margin: 12px 0 2px; overflow-x: auto; scrollbar-width: thin; padding: 2px 2px 6px; -webkit-overflow-scrolling: touch; }
-.rec-club-tab { flex: 1 1 0; min-width: 150px; text-align: left; cursor: pointer; background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 14px; padding: 13px 15px; display: flex; flex-direction: column; gap: 3px; position: relative; transition: background .18s cubic-bezier(.4,0,.2,1), border-color .18s, box-shadow .18s, transform .14s cubic-bezier(.4,0,.2,1); }
+.rec-club-tabs { display: flex; gap: 8px; margin: 8px 0 2px; overflow-x: auto; scrollbar-width: thin; padding: 2px 2px 6px; -webkit-overflow-scrolling: touch; }
+.rec-club-tab { flex: 1 1 0; min-width: 146px; text-align: left; cursor: pointer; background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 12px; padding: 8px 13px; display: flex; flex-direction: column; gap: 1px; position: relative; transition: background .18s cubic-bezier(.4,0,.2,1), border-color .18s, box-shadow .18s, transform .14s cubic-bezier(.4,0,.2,1); }
 .rec-club-tab:hover { border-color: var(--rc-line-2); background: var(--rc-surface-2); }
 .rec-club-tab .rec-club-nom { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--rc-text-3); transition: color .18s; }
-.rec-club-tab .rec-club-note { font-size: 27px; font-weight: 750; color: var(--rc-text); font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.03em; transition: color .18s; }
+.rec-club-tab .rec-club-note { font-size: 21px; font-weight: 750; color: var(--rc-text); font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -.03em; transition: color .18s; }
 .rec-club-tab .rec-club-sub { font-size: 11px; color: var(--rc-text-3); }
 .rec-club-tab.is-active { background: linear-gradient(180deg, var(--rc-accent-soft), rgba(99,102,241,.03)); border-color: var(--rc-accent-ring); box-shadow: 0 10px 26px rgba(0,0,0,.4), inset 0 0 0 1px var(--rc-accent-ring); transform: translateY(-2px); }
 .rec-club-tab.is-active .rec-club-nom { color: var(--rc-accent-hi); }
@@ -21172,17 +21183,17 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-club-tab.is-pending { opacity: .55; }
 .rec-club-tab.is-pending .rec-club-note { font-size: 20px; color: var(--rc-orange); }
 /* ── §5 Cartes KPI — chiffre énorme, libellé discret + icône ──────────────── */
-.rec-panel { margin-top: 20px; animation: rcFade .2s ease; }
+.rec-panel { margin-top: 10px; animation: rcFade .2s ease; }
 @keyframes rcFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-.rec-kpis2 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.rec-kpis2 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; }
 @media (max-width: 860px) { .rec-kpis2 { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 480px) { .rec-kpis2 { grid-template-columns: repeat(2, 1fr); } }
-.rec-kpi2 { background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 11px; padding: 11px 13px; }
-.rec-kpi2 b { display: block; font-size: 27px; font-weight: 750; color: var(--rc-text); font-variant-numeric: tabular-nums; line-height: 1.02; letter-spacing: -.035em; }
-.rec-kpi2 span { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--rc-text-3); margin-top: 5px; line-height: 1.2; font-weight: 500; }
+.rec-kpi2 { background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 10px; padding: 6px 10px; }
+.rec-kpi2 b { display: block; font-size: 20px; font-weight: 750; color: var(--rc-text); font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -.035em; }
+.rec-kpi2 span { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--rc-text-3); margin-top: 3px; line-height: 1.15; font-weight: 500; }
 .rec-kpi2 svg { width: 12px; height: 12px; opacity: .5; flex: 0 0 auto; }
 /* ── §4 Sous-onglets (soulignement, comme Linear) ─────────────────────────── */
-.rec-cat-tabs { display: flex; gap: 22px; flex-wrap: wrap; margin: 22px 0 6px; border-bottom: 1px solid var(--rc-line); }
+.rec-cat-tabs { display: flex; gap: 22px; flex-wrap: wrap; margin: 10px 0 2px; border-bottom: 1px solid var(--rc-line); }
 .rec-cat-tab { cursor: pointer; background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--rc-text-3); border-radius: 0; padding: 8px 1px; font: inherit; font-size: 13px; font-weight: 600; transition: color .15s, border-color .15s; margin-bottom: -1px; }
 .rec-cat-tab:hover { color: var(--rc-text-2); }
 .rec-cat-tab.is-active { color: var(--rc-text); border-bottom-color: var(--rc-accent); }
@@ -21195,7 +21206,7 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-cli-table th:nth-child(1), .rec-cli-table td:nth-child(1) { width: 46%; }
 .rec-cli-table th:nth-child(2), .rec-cli-table td:nth-child(2) { width: 27%; }
 .rec-cli-table th:nth-child(3), .rec-cli-table td:nth-child(3) { width: 27%; }
-.rec-cli-table td { padding: 3px 14px; height: 34px; line-height: 1.2; border-bottom: 1px solid var(--rc-line); font-size: 13px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-cli-table td { padding: 2px 14px; height: 30px; line-height: 1.2; border-bottom: 1px solid var(--rc-line); font-size: 13px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Neutralise le min-height 44px global des <button> sur les contrôles compacts */
 .rec-cat-tab, .rec-nav-btn, .rec-link, .rec-done-rep, .rec-club-add-btn { min-height: 0; }
 .rec-cli-table tbody tr { transition: background .12s; }
@@ -21223,7 +21234,7 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-qual-caret { color: var(--rc-text-3); font-size: 9px; }
 .rec-menu-open { background: var(--rc-surface-2); border: 1px solid var(--rc-accent); color: var(--rc-text); border-radius: 8px; padding: 5px 8px; font: inherit; font-size: 12.5px; box-shadow: 0 0 0 3px var(--rc-accent-soft); }
 /* ── Nav Analyser / Historique ────────────────────────────────────────────── */
-.rec-nav { display: flex; gap: 4px; margin: 18px 0 4px; border-bottom: 1px solid var(--rc-line); }
+.rec-nav { display: flex; gap: 4px; margin: 10px 0 8px; border-bottom: 1px solid var(--rc-line); }
 .rec-nav-btn { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--rc-text-3); font: inherit; font-weight: 600; font-size: 13.5px; padding: 9px 12px; cursor: pointer; margin-bottom: -1px; transition: color .15s, border-color .15s; }
 .rec-nav-btn:hover { color: var(--rc-text-2); }
 .rec-nav-btn.is-on { color: var(--rc-text); border-bottom-color: var(--rc-accent); }
@@ -21263,7 +21274,7 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-tip-row ul { margin: 2px 0 0; padding-left: 15px; }
 .rec-tip-row li { margin: 1px 0; }
 /* Bouton « Comment sont calculés les indicateurs ? » */
-.rec-help-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; min-height: 0; margin-top: 12px; padding: 0 13px; background: var(--rc-surface); border: 1px solid var(--rc-line-2); color: var(--rc-text-2); border-radius: 8px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: border-color .12s, color .12s, background .12s; }
+.rec-help-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; min-height: 0; margin-top: 7px; padding: 0 12px; background: var(--rc-surface); border: 1px solid var(--rc-line-2); color: var(--rc-text-2); border-radius: 8px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: border-color .12s, color .12s, background .12s; }
 .rec-help-btn::before { content: 'ⓘ'; font-size: 14px; }
 .rec-help-btn:hover { border-color: var(--rc-accent-ring); color: var(--rc-text); background: var(--rc-surface-2); }
 /* Fenêtre d'aide (tokens re-déclarés : la modale est hors de .rec-wrap) */

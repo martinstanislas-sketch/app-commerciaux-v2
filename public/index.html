@@ -122,7 +122,6 @@
         <header class="rec-head">
           <div>
             <h2 class="rec-title">RECAP — Rétention</h2>
-            <p class="rec-sub">Note mensuelle par studio et note réseau pondérée. Les fichiers sont lus dans ton navigateur — aucune donnée bancaire n'est envoyée.</p>
             <button type="button" class="rec-help-btn" id="rec-help-open">Comment sont calculés les indicateurs ?</button>
           </div>
           <label class="rec-mois">Mois à clôturer (M)
@@ -138,6 +137,10 @@
 
         <!-- ═══ VUE ANALYSE ═══ -->
         <div id="rec-view-analyse">
+          <!-- Panneau d'import repliable (usage mensuel, discret par défaut) -->
+          <div class="rec-import" id="rec-import">
+            <div class="rec-import-head" id="rec-import-head"></div>
+            <div class="rec-import-body" id="rec-import-body" hidden>
           <!-- Import club par club : on choisit le club, puis on dépose ses fichiers. -->
           <div class="rec-club-bar">
             <label class="rec-club-lbl">Club en cours
@@ -199,9 +202,13 @@
 
           <!-- Récap « fichier → studio détecté » (corrigeable) -->
           <div class="rec-detection" id="rec-detection"></div>
-          <!-- Tableau RECAP + note réseau -->
+            </div><!-- /rec-import-body -->
+          </div><!-- /rec-import -->
+
+          <!-- ═══ RÉSULTATS (priorité : consultation quotidienne, sans scroll) ═══ -->
+          <!-- Onglets clubs + note réseau -->
           <div class="rec-recap" id="rec-recap"></div>
-          <!-- Détail par studio -->
+          <!-- Panneau du club sélectionné -->
           <div class="rec-details" id="rec-details"></div>
         </div>
 
@@ -1179,9 +1186,9 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="retention.js?v=rec11"></script>
-  <script src="retention-parse.js?v=rec11"></script>
-  <script src="recap.js?v=rec11"></script>
+  <script src="retention.js?v=rec12"></script>
+  <script src="retention-parse.js?v=rec12"></script>
+  <script src="recap.js?v=rec12"></script>
   <script src="app.js?v=ds2-tabs2"></script>
 </body>
 </html>
