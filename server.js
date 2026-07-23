@@ -4404,6 +4404,86 @@ app.get('/api/prel/weeks', requireAuth, requireAdmin, (req, res) => {
   res.json({ weeks: rows });
 });
 
+// ─── RECAP RÉTENTION : persistance par (mois, studio) ───────────────────────
+// Le calcul et le parsing vivent CÔTÉ NAVIGATEUR (cf. RGPD : le fichier membres
+// avec les IBAN ne quitte jamais le poste). Le serveur ne fait que STOCKER les
+// données déjà parsées et ASSAINIES + les choix des menus, pour qu'un
+// rechargement ne perde rien. `retention_datasets.contenu` = JSON sans aucune
+// donnée bancaire (le front n'en extrait jamais) ; pour les membres, c'est un
+// simple mapping { clé -> Id_client }.
+function ensureRetentionSchema() {
+  getDb().exec(`
+    CREATE TABLE IF NOT EXISTS retention_datasets (
+      mois TEXT NOT NULL,
+      studio TEXT NOT NULL,
+      type TEXT NOT NULL,
+      contenu TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (mois, studio, type)
+    );
+    CREATE TABLE IF NOT EXISTS retention_choices (
+      mois TEXT NOT NULL,
+      studio TEXT NOT NULL,
+      client_key TEXT NOT NULL,
+      categorie TEXT NOT NULL,
+      valeur TEXT NOT NULL,
+      PRIMARY KEY (mois, studio, client_key, categorie)
+    );
+  `);
+}
+ensureRetentionSchema();
+const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM
+const RETENTION_TYPES = ['enc_m1', 'enc_m', 'contrats', 'membres'];
+
+app.get('/api/retention/:mois', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!RETENTION_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const db = getDb();
+  const datasets = db.prepare('SELECT studio, type, contenu FROM retention_datasets WHERE mois = ?').all(mois)
+    .map((r) => ({ studio: r.studio, type: r.type, contenu: safeJson(r.contenu) }));
+  const choices = db.prepare('SELECT studio, client_key, categorie, valeur FROM retention_choices WHERE mois = ?').all(mois);
+  res.json({ mois, datasets, choices });
+});
+
+// Remplace TOUT le jeu de données d'un mois (import complet). Transaction :
+// on ne veut jamais un mois à moitié écrit.
+app.put('/api/retention/:mois', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!RETENTION_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const b = req.body || {};
+  const datasets = Array.isArray(b.datasets) ? b.datasets : [];
+  const choices = Array.isArray(b.choices) ? b.choices : [];
+  const bons = datasets.filter((d) => d && d.studio && RETENTION_TYPES.includes(d.type));
+  const db = getDb();
+  const now = new Date().toISOString();
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM retention_datasets WHERE mois = ?').run(mois);
+      db.prepare('DELETE FROM retention_choices WHERE mois = ?').run(mois);
+      const ins = db.prepare('INSERT INTO retention_datasets (mois, studio, type, contenu, updated_at) VALUES (?,?,?,?,?)');
+      bons.forEach((d) => ins.run(mois, String(d.studio), d.type, JSON.stringify(d.contenu == null ? [] : d.contenu), now));
+      const insC = db.prepare('INSERT OR REPLACE INTO retention_choices (mois, studio, client_key, categorie, valeur) VALUES (?,?,?,?,?)');
+      choices.forEach((c) => { if (c && c.studio && c.client_key && c.categorie) insC.run(mois, String(c.studio), String(c.client_key), String(c.categorie), String(c.valeur || '')); });
+    })();
+    res.json({ ok: true, datasets: bons.length, choices: choices.length });
+  } catch (e) { console.error('retention PUT :', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
+});
+
+// Un seul choix de menu (changement en direct) -> upsert léger.
+app.patch('/api/retention/:mois/choix', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!RETENTION_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const b = req.body || {};
+  if (!b.studio || !b.client_key || !b.categorie) return res.status(400).json({ error: 'studio, client_key, categorie requis' });
+  try {
+    getDb().prepare('INSERT OR REPLACE INTO retention_choices (mois, studio, client_key, categorie, valeur) VALUES (?,?,?,?,?)')
+      .run(mois, String(b.studio), String(b.client_key), String(b.categorie), String(b.valeur || ''));
+    res.json({ ok: true });
+  } catch (e) { console.error('retention PATCH :', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
+});
+
+function safeJson(s) { try { return JSON.parse(s); } catch (_) { return null; } }
+
 // Suivi hebdomadaire des prélèvements — vue de pilotage dirigeant.
 // Lit les données DÉJÀ stockées dans prel_rows (aucune donnée bancaire n'y est
 // persistée) et les agrège par club + statut pour une semaine donnée.

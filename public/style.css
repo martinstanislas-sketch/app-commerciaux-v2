@@ -21105,3 +21105,63 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 
 @media (max-width: 1100px) { .psv-kpis { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 720px) { .psv-kpis { grid-template-columns: repeat(2, 1fr); } .psv-studio-stats { gap: 14px; } .psv-field select { min-width: 150px; } }
+
+/* ═══ RECAP RÉTENTION (§7) — panneau sombre + accents dorés ═══════════════════ */
+.rec-wrap { background: #0E1420; color: #E7ECF3; border-radius: 18px; padding: 22px 24px 30px; margin-top: 6px; }
+.rec-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; background: transparent; box-shadow: none; border: 0; padding: 0; }
+.rec-title { margin: 0; font-size: 24px; font-weight: 800; color: #F0D488; letter-spacing: -.02em; }
+.rec-sub { margin: 6px 0 0; font-size: 13px; color: #93A0B4; max-width: 640px; line-height: 1.5; }
+.rec-mois { display: flex; flex-direction: column; gap: 5px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #93A0B4; }
+.rec-mois input { background: #1A2231; border: 1px solid #2C3547; color: #E7ECF3; border-radius: 10px; padding: 9px 12px; font: inherit; }
+/* Zones de dépôt */
+.rec-zones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 22px 0 0; }
+@media (max-width: 1000px) { .rec-zones { grid-template-columns: repeat(2, 1fr); } }
+.rec-zone-t { font-size: 12.5px; font-weight: 700; color: #C7D0DE; margin-bottom: 8px; }
+.rec-drop { border: 1.5px dashed #33405A; border-radius: 12px; background: #141C2A; min-height: 96px; display: grid; place-items: center; text-align: center; padding: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
+.rec-drop span { font-size: 12.5px; color: #8B98AD; }
+.rec-drop:hover { border-color: #F0D488; }
+.rec-drop-on { border-color: #F0D488; background: #1B2536; }
+.rec-zone-info { margin-top: 7px; font-size: 11.5px; color: #6FCF97; min-height: 15px; }
+/* Actions */
+.rec-actions { display: flex; align-items: center; gap: 14px; margin: 20px 0 4px; }
+.rec-btn { background: linear-gradient(135deg, #F0D488, #C79A3C); color: #241B08; border: 0; border-radius: 12px; padding: 12px 26px; font: inherit; font-weight: 800; cursor: pointer; }
+.rec-btn:active { transform: scale(.98); }
+.rec-msg { font-size: 12.5px; color: #6FCF97; }
+.rec-msg-err { color: #F0938C; }
+/* Détection fichier -> studio */
+.rec-h3 { font-size: 15px; color: #F0D488; margin: 26px 0 12px; font-weight: 800; }
+.rec-h3 small { color: #6E7B8F; font-weight: 500; font-size: 12px; }
+.rec-det-grp { margin-bottom: 14px; }
+.rec-det-grp b { font-size: 12px; color: #93A0B4; display: block; margin-bottom: 6px; }
+.rec-det-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.rec-det-file { flex: 1; min-width: 0; font-size: 12.5px; color: #C7D0DE; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-det-arrow { color: #6E7B8F; }
+.rec-det-sel, .rec-menu { background: #1A2231; border: 1px solid #2C3547; color: #E7ECF3; border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 12.5px; }
+/* Tableau RECAP */
+.rec-table { width: 100%; border-collapse: collapse; margin-top: 4px; max-width: 560px; }
+.rec-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6E7B8F; padding: 8px 12px; border-bottom: 1px solid #2C3547; }
+.rec-table td { padding: 10px 12px; border-bottom: 1px solid #1C2536; font-size: 13.5px; }
+.rec-table .rec-note { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; color: #F0D488; }
+.rec-reseau td { border-top: 2px solid #33405A; border-bottom: 0; font-weight: 800; color: #F0D488; }
+/* Détail studio */
+.rec-studio { background: #141C2A; border: 1px solid #232E42; border-radius: 14px; padding: 16px 18px; margin-top: 16px; }
+.rec-studio-h { display: flex; justify-content: space-between; align-items: baseline; }
+.rec-studio-h h3 { margin: 0; font-size: 17px; color: #E7ECF3; }
+.rec-studio-note { font-size: 18px; font-weight: 800; color: #F0D488; }
+.rec-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 14px 0 6px; }
+@media (max-width: 900px) { .rec-kpis { grid-template-columns: repeat(3, 1fr); } }
+.rec-kpi { background: #1A2231; border-radius: 10px; padding: 10px; text-align: center; }
+.rec-kpi span { display: block; font-size: 10.5px; color: #8B98AD; line-height: 1.3; }
+.rec-kpi b { display: block; font-size: 16px; color: #E7ECF3; margin-top: 4px; }
+.rec-sec { margin-top: 14px; }
+.rec-sec h4 { font-size: 12.5px; color: #C7D0DE; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .04em; }
+.rec-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rec-list li { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: 9px; background: #1A2231; font-size: 13px; }
+.rec-list li a { color: #8FB6E0; text-decoration: none; }
+.rec-list li a:hover { text-decoration: underline; }
+.rec-list li em { color: #93A0B4; font-style: normal; }
+.rec-list li.rec-ok { background: rgba(31,167,103,.14); }
+.rec-list li.rec-ko { background: rgba(216,90,84,.16); }
+.rec-list li.rec-ko em { color: #F0938C; }
+.rec-list li.rec-gris { background: #171E2B; opacity: .7; }
+.rec-list li .rec-menu { margin-left: auto; }

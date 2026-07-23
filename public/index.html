@@ -94,6 +94,7 @@
       <button class="tab-btn" data-tab="news">NEWS</button>
       <button class="tab-btn" data-tab="cockpit">Cockpit</button>
       <button class="tab-btn" data-tab="standards">Standards</button>
+      <button class="tab-btn" data-tab="recap">RECAP</button>
       <!-- Module Nutrition : admin uniquement, masqu&eacute; par d&eacute;faut (g&eacute;r&eacute; par applyNutritionAccess) -->
       <button class="tab-btn tab-btn-nutrition" data-tab="nutrition" style="display:none">My Coach Nutrition</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
@@ -113,6 +114,62 @@
     <!-- AUJOURD'HUI -->
     <section id="tab-today" class="tab-content">
       <div id="today-standalone"></div>
+    </section>
+
+    <!-- RECAP RÉTENTION (admin uniquement) — note mensuelle par studio + réseau -->
+    <section id="tab-recap" class="tab-content">
+      <div class="rec-wrap">
+        <header class="rec-head">
+          <div>
+            <h2 class="rec-title">RECAP — Rétention</h2>
+            <p class="rec-sub">Note mensuelle par studio et note réseau pondérée. Les fichiers sont lus dans ton navigateur — aucune donnée bancaire n'est envoyée.</p>
+          </div>
+          <label class="rec-mois">Mois analysé (M)
+            <input type="month" id="rec-mois" />
+          </label>
+        </header>
+
+        <div class="rec-zones">
+          <div class="rec-zone" data-zone="contrats">
+            <div class="rec-zone-t">1 · Contrats du mois (M)</div>
+            <div class="rec-drop" id="rec-drop-contrats"><span>Dépose le .zip des contrats (ou les .pdf)</span></div>
+            <input type="file" id="rec-file-contrats" accept=".zip,.pdf" multiple style="display:none">
+            <div class="rec-zone-info" id="rec-info-contrats"></div>
+          </div>
+          <div class="rec-zone" data-zone="encM1">
+            <div class="rec-zone-t">2 · Encaissements M-1</div>
+            <div class="rec-drop" id="rec-drop-encM1"><span>Un .xlsx par studio (mois précédent)</span></div>
+            <input type="file" id="rec-file-encM1" accept=".xlsx,.xls" multiple style="display:none">
+            <div class="rec-zone-info" id="rec-info-encM1"></div>
+          </div>
+          <div class="rec-zone" data-zone="encM">
+            <div class="rec-zone-t">3 · Encaissements M</div>
+            <div class="rec-drop" id="rec-drop-encM"><span>Un .xlsx par studio (mois courant)</span></div>
+            <input type="file" id="rec-file-encM" accept=".xlsx,.xls" multiple style="display:none">
+            <div class="rec-zone-info" id="rec-info-encM"></div>
+          </div>
+          <div class="rec-zone" data-zone="membres">
+            <div class="rec-zone-t">4 · Fichier membres</div>
+            <div class="rec-drop" id="rec-drop-membres"><span>Export membres (.xls) — sert aux liens Deciplus</span></div>
+            <input type="file" id="rec-file-membres" accept=".xls,.xlsx" multiple style="display:none">
+            <div class="rec-zone-info" id="rec-info-membres"></div>
+          </div>
+        </div>
+
+        <div class="rec-actions">
+          <button type="button" class="rec-btn" id="rec-calc">Calculer</button>
+          <span class="rec-msg" id="rec-msg"></span>
+        </div>
+
+        <!-- Récap « fichier → studio détecté » (corrigeable) -->
+        <div class="rec-detection" id="rec-detection"></div>
+
+        <!-- Tableau RECAP + note réseau -->
+        <div class="rec-recap" id="rec-recap"></div>
+
+        <!-- Détail par studio -->
+        <div class="rec-details" id="rec-details"></div>
+      </div>
     </section>
 
     <!-- MY COACH NUTRITION (admin uniquement) - module integre via iframe meme-origine -->
@@ -1082,6 +1139,9 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="app.js?v=ds2-tabs1"></script>
+  <script src="retention.js?v=rec1"></script>
+  <script src="retention-parse.js?v=rec1"></script>
+  <script src="recap.js?v=rec1"></script>
+  <script src="app.js?v=ds2-tabs2"></script>
 </body>
 </html>

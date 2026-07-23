@@ -902,7 +902,10 @@ function updateTabVisibility() {
   if (prelSuiviBtn) prelSuiviBtn.style.display = 'none';
   const cockpitBtn = document.querySelector('[data-tab="cockpit"]');
   const standardsBtn = document.querySelector('[data-tab="standards"]');
+  const recapBtn = document.querySelector('[data-tab="recap"]');
 
+  // RECAP : admin uniquement. Masqué par défaut, révélé dans la seule branche admin.
+  if (recapBtn) recapBtn.style.display = 'none';
   if (isCoachLeader() || isGuest() || isStandardsAdmin()) {
     // Coach leader / Guest / Superviseur Standards : UNIQUEMENT l'onglet Standards.
     if (todayBtn) todayBtn.style.display = 'none';
@@ -975,6 +978,7 @@ function updateTabVisibility() {
     if (cockpitBtn) cockpitBtn.style.display = 'none';
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
     if (standardsBtn) standardsBtn.style.display = ''; // Standards : admin + coach leaders
+    if (recapBtn) recapBtn.style.display = ''; // RECAP : admin uniquement
     // Default landing tab on login (admin) = Pilotage, pré-réglé au mois précédent
     if (pilotageFunnelBtn) {
       pilotageFunnelInitToPreviousMonth();
@@ -2915,6 +2919,7 @@ function initTabs() {
       if (btn.dataset.tab === 'news') loadNewsTab();
       if (btn.dataset.tab === 'cockpit') loadCockpitTab();
       if (btn.dataset.tab === 'standards') loadStandardsTab();
+      if (btn.dataset.tab === 'recap' && typeof RecapUI !== 'undefined') RecapUI.open();
     });
   });
 }
