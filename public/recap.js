@@ -48,6 +48,8 @@ const RecapUI = (function () {
   let choix = {};    // studio -> { cle -> valeur }
   let resultats = {};// studio -> retour de calculerStudio  (ou { pending:true })
   let chartHisto = null;
+  let resClub = '';  // club affiché dans la zone de résultats (onglets)
+  let catActive = 'disparus'; // catégorie affichée dans le club sélectionné
 
   function open() {
     if (!inited) { wire(); inited = true; }
@@ -414,22 +416,46 @@ const RecapUI = (function () {
     } catch (_) { return null; }
   }
 
-  // ── RENDU RECAP + détail par studio ─────────────────────────────────────────
-  function render() { renderRecap(); renderDetails(); }
+  // ── RENDU RÉSULTATS : onglets clubs -> KPI -> sous-onglets -> tableau ────────
+  function render() { renderClubTabs(); renderClubPanel(); }
   const pct = (x) => (x == null ? '—' : (x * 100).toFixed(1).replace('.', ',') + ' %');
 
-  function renderRecap() {
-    const calcules = Object.keys(resultats).filter((s) => !resultats[s].pending);
-    const pending = Object.keys(resultats).filter((s) => resultats[s].pending);
-    if (!calcules.length && !pending.length) { $('#rec-recap').innerHTML = ''; return; }
-    const lignes = calcules.map((s) => ({ s, r: resultats[s] })).sort((a, b) => b.r.note - a.r.note);
-    const reseau = Retention.noteReseau(lignes.map((x) => x.r));
-    const rows = lignes.map((x) => '<tr><td>' + esc(x.s) + '</td><td class="rec-note">' + pct(x.r.note) + '</td></tr>').join('')
-      + pending.map((s) => '<tr class="rec-pending"><td>' + esc(s) + '</td><td class="rec-note">⏳ en attente (M-1)</td></tr>').join('');
-    $('#rec-recap').innerHTML = '<h3 class="rec-h3">RECAP · ' + moisLabel(mois, 0) + '</h3>'
-      + '<table class="rec-table"><thead><tr><th>Studio</th><th>Note</th></tr></thead><tbody>'
-      + rows + (lignes.length ? '<tr class="rec-reseau"><td>RÉSEAU (pondéré)</td><td class="rec-note">' + pct(reseau) + '</td></tr>' : '')
-      + '</tbody></table>';
+  // Ordre d'affichage des clubs (réseau My Coach), les autres à la suite.
+  const ORDRE = ['Lille', 'Marcq', 'Wasquehal', 'Boulogne', 'Neuilly', 'Levallois'];
+  function clubsResultats() {
+    const cles = Object.keys(resultats);
+    const rang = (s) => { const i = ORDRE.findIndex((o) => normClub(o) === normClub(s)); return i < 0 ? 99 : i; };
+    return cles.sort((a, b) => (rang(a) - rang(b)) || a.localeCompare(b, 'fr'));
+  }
+  const normClub = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+
+  // §1 Rangée d'onglets clubs (nom, note, disparus, à qualifier) + note réseau.
+  function renderClubTabs() {
+    const host = $('#rec-recap');
+    const clubsCalc = clubsResultats();
+    if (!clubsCalc.length) { host.innerHTML = ''; return; }
+    if (!resClub || !resultats[resClub]) resClub = clubsCalc[0];
+    const reseau = Retention.noteReseau(clubsCalc.filter((s) => !resultats[s].pending).map((s) => resultats[s]));
+    const tabs = clubsCalc.map((s) => {
+      const r = resultats[s];
+      const actif = s === resClub ? ' is-active' : '';
+      if (r.pending) {
+        return '<button type="button" class="rec-club-tab is-pending' + actif + '" data-club="' + esc(s) + '">'
+          + '<span class="rec-club-nom">' + esc(s) + '</span><span class="rec-club-note">⏳</span>'
+          + '<span class="rec-club-sub">en attente M-1</span></button>';
+      }
+      return '<button type="button" class="rec-club-tab' + actif + '" data-club="' + esc(s) + '">'
+        + '<span class="rec-club-nom">' + esc(s) + '</span>'
+        + '<span class="rec-club-note">' + pct(r.note) + '</span>'
+        + '<span class="rec-club-sub">' + r.disparusAffichage + ' disparus · ' + r.aQualifier.length + ' à qualifier</span>'
+        + '</button>';
+    }).join('');
+    host.innerHTML = '<div class="rec-res-head"><h3 class="rec-h3">Résultats · ' + moisLabel(mois, 0) + '</h3>'
+      + '<span class="rec-reseau-badge">Réseau <b>' + pct(reseau) + '</b></span></div>'
+      + '<div class="rec-club-tabs">' + tabs + '</div>';
+    host.querySelectorAll('.rec-club-tab').forEach((t) => t.addEventListener('click', () => {
+      resClub = t.dataset.club; renderClubTabs(); renderClubPanel();
+    }));
   }
 
   // §B5 Résolution de l'Id_client : studio courant, puis global ; homonyme -> null.
@@ -465,75 +491,125 @@ const RecapUI = (function () {
     disparu: [{ val: 'impaye', lbl: 'Impayé' }, { val: 'resilie', lbl: 'Résilié' }, { val: 'pack', lbl: 'Pack de séance' }],
   };
   const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack', disparu: 'resilie' };
-  const choixDe = (s, cle, cat) => ((choix[s] || {})[cle]) || DEF[cat];
-  function classeChoix(cat, val) {
-    if (cat === 'baisse') return val === 'sous_controle' ? 'rec-ok' : 'rec-ko';
-    if (cat === 'nouveauNonPaye') return val === 'decalage' ? 'rec-ok' : 'rec-ko';
-    if (cat === 'disparu') return val === 'pack' ? 'rec-gris' : 'rec-ko';
-    return (val === 'suspendu' || val === 'nouveau') ? 'rec-ok' : 'rec-gris';
-  }
 
-  function renderDetails() {
-    const lignes = Object.keys(resultats).filter((s) => !resultats[s].pending).sort((a, b) => resultats[b].note - resultats[a].note);
-    $('#rec-details').innerHTML = lignes.map((s) => detailStudio(s, resultats[s])).join('');
-    $('#rec-details').querySelectorAll('.rec-menu').forEach((sel) => sel.addEventListener('change', () => {
-      const s = sel.dataset.s, cle = sel.dataset.cle;
-      (choix[s] || (choix[s] = {}))[cle] = sel.value;
-      recalcStudio(s); renderRecap();
-      renderDetails();
-      patchChoix(s, cle, sel.dataset.cat, sel.value);
-    }));
+  // Catégories qualifiables d'un club (clé, libellé, liste, catégorie de menu).
+  function categoriesDe(r) {
+    return [
+      { key: 'disparus', label: 'Disparus', items: r.disparus, cat: 'disparu', opt: OPT.disparu },
+      { key: 'baisses', label: 'Baisses de tarif', items: r.baisses, cat: 'baisse', opt: OPT.baisse },
+      { key: 'nouveaux', label: 'Nouveaux non payés', items: r.nouveauxNonPayes, cat: 'nouveauNonPaye', opt: OPT.nouveauNonPaye },
+      { key: 'aqualifier', label: 'À qualifier', items: r.aQualifier, cat: 'aQualifier', opt: OPT.aQualifier },
+    ];
   }
-
-  function detailStudio(s, r) {
-    let sansLien = 0, total = 0;
-    const compter = (cle) => { total++; if (!resoudreId(cle, s)) sansLien++; };
-    const chiffres = [
-      ['Clients de ' + moisLabel(mois, -1), r.base],
-      ['Fidèles en ' + moisLabel(mois, 0), r.fideles],
-      ['Disparus', r.disparusAffichage + ' (dont ' + r.nbImpayes + ' impayés / ' + r.nbPartis + ' résiliés)'],
-      ['Tarif en baisse', r.baisses.length],
+  // §2+§3 Panneau du club sélectionné : KPI + sous-onglets + tableau.
+  function renderClubPanel() {
+    const host = $('#rec-details');
+    const s = resClub, r = resultats[s];
+    if (!s || !r) { host.innerHTML = ''; return; }
+    if (r.pending) {
+      host.innerHTML = '<div class="rec-panel">' + bandeau('warn', '⏳ <b>' + esc(s) + '</b> : le mois précédent (' + esc(moisLabel(m1, 0)) + ') n\'est pas encore importé. Dépose-le pour calculer ce club.') + '</div>';
+      return;
+    }
+    // §3 KPI compacts (chiffre >> libellé).
+    const kpis = [
+      ['Clients ' + moisLabel(mois, -1), r.base],
+      ['Fidèles', r.fideles],
+      ['Disparus', r.disparusAffichage],
+      ['Impayés', r.nbImpayes],
+      ['Tarifs en baisse', r.baisses.length],
       ['Nouveaux signés', r.nsig],
       ['À qualifier', r.aQualifier.length],
-    ];
-    const kpi = chiffres.map((c) => '<div class="rec-kpi"><span>' + esc(c[0]) + '</span><b>' + esc(String(c[1])) + '</b></div>').join('');
-    let html = '<div class="rec-studio"><div class="rec-studio-h"><h3>' + esc(s) + '</h3><span class="rec-studio-note">' + pct(r.note) + '</span></div>'
-      + '<div class="rec-kpis">' + kpi + '</div>';
-    if (r.disparus.length) {
-      html += section('Disparus', r.disparus.map((d) => { compter(d.cle);
-        // Défaut du menu = le type auto détecté (impayé si décaissement, sinon résilié).
-        const v = (choix[s] || {})[d.cle] || (d.type === 'IMPAYE' ? 'impaye' : 'resilie');
-        return '<li class="' + classeChoix('disparu', v) + '">' + nomLien(s, d.cle, d.nom, d.prenom)
-          + ' ' + menu(s, d.cle, 'disparu', OPT.disparu, v) + '</li>';
-      }).join(''));
+    ].map((k) => '<div class="rec-kpi2"><b>' + esc(String(k[1])) + '</b><span>' + esc(k[0]) + '</span></div>').join('');
+
+    // §4 Sous-onglets : uniquement les catégories non vides.
+    const cats = categoriesDe(r).filter((c) => c.items.length);
+    if (!cats.some((c) => c.key === catActive)) catActive = cats.length ? cats[0].key : 'disparus';
+    const subtabs = cats.map((c) => '<button type="button" class="rec-cat-tab' + (c.key === catActive ? ' is-active' : '') + '" data-cat="' + c.key + '">'
+      + esc(c.label) + ' <span class="rec-cat-n">' + c.items.length + '</span></button>').join('');
+
+    // §5 Tableau de la catégorie active.
+    const active = cats.find((c) => c.key === catActive);
+    let table = '<p class="rec-vide">Rien à afficher dans cette catégorie.</p>';
+    let sansLien = 0, total = 0;
+    if (active) {
+      const rows = active.items.map((it) => {
+        total++; if (!resoudreId(it.cle, s)) sansLien++;
+        const v = valeurCourante(s, it, active.cat);
+        return '<tr>'
+          + '<td class="rec-cli-nom">' + nomLien(s, it.cle, it.nom, it.prenom) + '</td>'
+          + '<td>' + situationBadge(active.cat, it) + '</td>'
+          + '<td class="rec-cli-qual">' + qualBtn(s, it.cle, active.cat, v) + '</td>'
+          + '</tr>';
+      }).join('');
+      table = '<table class="rec-cli-table"><thead><tr><th>Client</th><th>Situation détectée</th><th>Qualification</th></tr></thead><tbody>' + rows + '</tbody></table>';
     }
-    if (r.baisses.length) {
-      html += section('Baisse de tarif', r.baisses.map((b) => { compter(b.cle);
-        const v = choixDe(s, b.cle, 'baisse');
-        return '<li class="' + classeChoix('baisse', v) + '">' + nomLien(s, b.cle, b.nom, b.prenom) + ' ' + menu(s, b.cle, 'baisse', OPT.baisse, v) + '</li>';
-      }).join(''));
-    }
-    if (r.nouveauxNonPayes.length) {
-      html += section('Nouveaux contrats non payés', r.nouveauxNonPayes.map((n) => { compter(n.cle);
-        const v = choixDe(s, n.cle, 'nouveauNonPaye');
-        return '<li class="' + classeChoix('nouveauNonPaye', v) + '">' + nomLien(s, n.cle, n.nom, n.prenom) + ' ' + menu(s, n.cle, 'nouveauNonPaye', OPT.nouveauNonPaye, v) + '</li>';
-      }).join(''));
-    }
-    if (r.aQualifier.length) {
-      html += section('À qualifier', r.aQualifier.map((q) => { compter(q.cle);
-        const v = choixDe(s, q.cle, 'aQualifier');
-        return '<li class="' + classeChoix('aQualifier', v) + '">' + nomLien(s, q.cle, q.nom, q.prenom) + ' ' + menu(s, q.cle, 'aQualifier', OPT.aQualifier, v) + '</li>';
-      }).join(''));
-    }
-    // §B4 Alerte « personnes sans lien » : seulement si > 5 OU > 10 % du studio.
+
+    // §B4 Alerte « sans lien Deciplus » (inchangée), sous le tableau.
+    let alerte = '';
     if (sansLien > 5 || (total > 0 && sansLien / total > 0.10)) {
-      html += bandeau('info', 'ℹ️ ' + sansLien + ' personne' + (sansLien > 1 ? 's' : '') + ' n\'ont pas de lien vers Deciplus (identifiant inconnu). '
+      alerte = bandeau('info', 'ℹ️ ' + sansLien + ' personne' + (sansLien > 1 ? 's' : '') + ' sans lien Deciplus (identifiant inconnu). '
         + '<button type="button" class="rec-link" data-maj-membres="1">Mettre à jour les membres</button>');
     }
-    html += '</div>';
-    return html;
+
+    host.innerHTML = '<div class="rec-panel">'
+      + '<div class="rec-kpis2">' + kpis + '</div>'
+      + '<div class="rec-cat-tabs">' + subtabs + '</div>'
+      + table + alerte + '</div>';
+
+    host.querySelectorAll('.rec-cat-tab').forEach((t) => t.addEventListener('click', () => { catActive = t.dataset.cat; renderClubPanel(); }));
   }
-  const section = (titre, contenu) => contenu ? '<div class="rec-sec"><h4>' + esc(titre) + '</h4><ul class="rec-list">' + contenu + '</ul></div>' : '';
+
+  // Valeur de qualification courante d'une ligne (défaut spécial pour les disparus).
+  function valeurCourante(s, it, cat) {
+    if ((choix[s] || {})[it.cle]) return choix[s][it.cle];
+    if (cat === 'disparu') return it.type === 'IMPAYE' ? 'impaye' : 'resilie';
+    return DEF[cat];
+  }
+  // Badge « situation détectée » (colonne du milieu, non modifiable).
+  function situationBadge(cat, it) {
+    if (cat === 'disparu') {
+      if (it.type === 'IMPAYE') return badge('Impayé', 'red');
+      if (it.type === 'RESILIE') return badge('Résilié', 'gray');
+      return badge('Parti', 'gray');
+    }
+    if (cat === 'baisse') return badge('Tarif en baisse', 'orange');
+    if (cat === 'nouveauNonPaye') return badge('Non payé', 'redlight');
+    return badge('À qualifier', 'neutral');
+  }
+  // §6 Bouton compact = badge de la valeur courante ; le menu s'ouvre au clic.
+  const QUAL = {
+    disparu: { impaye: ['Impayé', 'red'], resilie: ['Résilié', 'gray'], pack: ['Pack de séances', 'blue'] },
+    baisse: { sous_controle: ['Sous contrôle', 'green'], arrangement: ['Arrangement', 'orange'] },
+    nouveauNonPaye: { decalage: ['Décalage', 'green'], anomalie: ['Anomalie', 'redlight'] },
+    aQualifier: { suspendu: ['Suspendu', 'green'], nouveau: ['Nouveau', 'green'], pack: ['Pack de séances', 'blue'] },
+  };
+  function qualBtn(s, cle, cat, v) {
+    const [lbl, col] = (QUAL[cat] && QUAL[cat][v]) || [v, 'neutral'];
+    return '<button type="button" class="rec-qual" data-s="' + esc(s) + '" data-cle="' + esc(cle) + '" data-cat="' + cat + '" data-val="' + esc(v) + '">'
+      + badge(lbl, col) + '<span class="rec-qual-caret">▾</span></button>';
+  }
+  const badge = (txt, col) => '<span class="rec-badge2 rec-b-' + col + '">' + esc(txt) + '</span>';
+
+  // §6 Délégué UNE fois sur #rec-details : clic sur un bouton -> le menu déroulant
+  // remplace le badge ; à la sélection -> applique + persiste + recalcule.
+  function onDetailsClick(e) {
+    const maj = e.target.closest('[data-maj-membres]');
+    if (maj) { switchViewMembres(); return; }
+    const btn = e.target.closest('.rec-qual');
+    if (!btn) return;
+    const cell = btn.parentElement;
+    const s = btn.dataset.s, cle = btn.dataset.cle, cat = btn.dataset.cat, v = btn.dataset.val;
+    cell.innerHTML = menu(s, cle, cat, OPT[cat], v);
+    const sel = cell.querySelector('select'); sel.classList.add('rec-menu-open'); sel.focus();
+    sel.addEventListener('change', () => appliquerChoix(s, cle, cat, sel.value));
+    sel.addEventListener('blur', () => renderClubPanel());
+  }
+  function appliquerChoix(s, cle, cat, val) {
+    (choix[s] || (choix[s] = {}))[cle] = val;
+    recalcStudio(s);
+    patchChoix(s, cle, cat, val);
+    render(); // met à jour les onglets (note/compteurs) ET le panneau ; resClub/catActive conservés
+  }
 
   // ── CHARGEMENT / PERSISTANCE ────────────────────────────────────────────────
   function patchChoix(s, cle, cat, val) {
@@ -579,13 +655,10 @@ const RecapUI = (function () {
     ['encM', 'contrats', 'resiliations'].forEach((z) => { const zn = $('#rec-zone-' + z); if (zn) zn.classList.remove('is-done'); const c = $('#rec-done-' + z); if (c) c.innerHTML = ''; });
     $('#rec-detection').innerHTML = ''; $('#rec-recap').innerHTML = ''; $('#rec-details').innerHTML = '';
     $('#rec-m1-manquants').innerHTML = ''; const ap = $('#rec-apercu'); if (ap) ap.innerHTML = ''; msg('');
-    // délègue le clic « Mettre à jour les membres » (bandeaux dynamiques).
+    // délègue UNE fois les clics du panneau (qualification + « mettre à jour membres »).
     if (!resetLocal._deleg) {
       resetLocal._deleg = true;
-      $('#rec-details').addEventListener('click', (e) => {
-        const b = e.target.closest('[data-maj-membres]');
-        if (b) { switchViewMembres(); }
-      });
+      $('#rec-details').addEventListener('click', onDetailsClick);
     }
   }
   function switchViewMembres() {
