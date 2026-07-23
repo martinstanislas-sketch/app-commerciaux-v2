@@ -21114,8 +21114,8 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-mois { display: flex; flex-direction: column; gap: 5px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #93A0B4; }
 .rec-mois input { background: #1A2231; border: 1px solid #2C3547; color: #E7ECF3; border-radius: 10px; padding: 9px 12px; font: inherit; }
 /* Zones de dépôt */
-.rec-zones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 22px 0 0; }
-@media (max-width: 1000px) { .rec-zones { grid-template-columns: repeat(2, 1fr); } }
+.rec-zones { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 22px 0 0; }
+@media (max-width: 700px) { .rec-zones { grid-template-columns: 1fr; } }
 .rec-zone-t { font-size: 12.5px; font-weight: 700; color: #C7D0DE; margin-bottom: 8px; }
 .rec-drop { border: 1.5px dashed #33405A; border-radius: 12px; background: #141C2A; min-height: 96px; display: grid; place-items: center; text-align: center; padding: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
 .rec-drop span { font-size: 12.5px; color: #8B98AD; }
@@ -21165,3 +21165,32 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-list li.rec-ko em { color: #F0938C; }
 .rec-list li.rec-gris { background: #171E2B; opacity: .7; }
 .rec-list li .rec-menu { margin-left: auto; }
+/* ── Évolution : nav, bandeaux, dépôts ciblés, historique ─────────────────── */
+.rec-nav { display: flex; gap: 8px; margin: 18px 0 4px; border-bottom: 1px solid #232E42; }
+.rec-nav-btn { background: transparent; border: 0; border-bottom: 2px solid transparent; color: #93A0B4; font: inherit; font-weight: 700; font-size: 13.5px; padding: 9px 12px; cursor: pointer; }
+.rec-nav-btn.is-on { color: #F0D488; border-bottom-color: #F0D488; }
+.rec-banner { margin: 14px 0 0; background: #141C2A; border: 1px solid #232E42; border-radius: 12px; padding: 12px 15px; font-size: 13px; color: #C7D0DE; line-height: 1.5; }
+.rec-banner-warn { border-color: #7A5A22; background: rgba(240,180,80,.08); }
+.rec-banner-info { border-color: #2C3547; }
+.rec-banner b { color: #E7ECF3; }
+.rec-link { background: transparent; border: 0; color: #8FB6E0; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; text-decoration: underline; padding: 0 2px; }
+.rec-manq { margin-top: 12px; }
+.rec-zone-inline { margin-top: 8px; }
+.rec-zone-inline .rec-drop { min-height: 66px; }
+.rec-zone-membres { margin-top: 14px; max-width: 460px; }
+.rec-pending td { color: #C79A3C; }
+/* Historique */
+.rec-histo-graph { background: #141C2A; border: 1px solid #232E42; border-radius: 14px; padding: 16px; margin: 4px 0 4px; }
+.rec-histo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 16px; }
+.rec-histo-card { background: #141C2A; border: 1px solid #232E42; border-radius: 14px; padding: 15px 17px; }
+.rec-histo-h { display: flex; align-items: center; gap: 10px; }
+.rec-histo-h b { font-size: 15px; color: #E7ECF3; text-transform: capitalize; }
+.rec-badge { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 3px 8px; border-radius: 999px; }
+.rec-badge.ok { background: rgba(31,167,103,.18); color: #6FCF97; }
+.rec-badge.prov { background: rgba(240,180,80,.16); color: #E7B85C; }
+.rec-histo-note { margin-top: 8px; font-size: 14px; color: #C7D0DE; }
+.rec-histo-note b { color: #F0D488; }
+.rec-histo-sub { font-size: 11.5px; color: #6E7B8F; margin-top: 3px; }
+.rec-histo-studios { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.rec-histo-studios li { display: flex; justify-content: space-between; font-size: 12.5px; color: #B7C1D2; padding: 5px 9px; background: #1A2231; border-radius: 8px; }
+.rec-histo-studios li b { color: #F0D488; font-variant-numeric: tabular-nums; }

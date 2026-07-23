@@ -4404,22 +4404,38 @@ app.get('/api/prel/weeks', requireAuth, requireAdmin, (req, res) => {
   res.json({ weeks: rows });
 });
 
-// ─── RECAP RÉTENTION : persistance par (mois, studio) ───────────────────────
+// ─── RECAP RÉTENTION : persistance par MOIS ABSOLU (studio, mois, type) ──────
 // Le calcul et le parsing vivent CÔTÉ NAVIGATEUR (cf. RGPD : le fichier membres
-// avec les IBAN ne quitte jamais le poste). Le serveur ne fait que STOCKER les
-// données déjà parsées et ASSAINIES + les choix des menus, pour qu'un
-// rechargement ne perde rien. `retention_datasets.contenu` = JSON sans aucune
-// donnée bancaire (le front n'en extrait jamais) ; pour les membres, c'est un
-// simple mapping { clé -> Id_client }.
+// avec les IBAN ne quitte jamais le poste). Le serveur ne fait que STOCKER des
+// données déjà parsées et ASSAINIES.
+//
+// Évolution (juillet 2026) : on abandonne le modèle relatif (enc_m1/enc_m) au
+// profit d'un modèle par MOIS ABSOLU. Chaque import est archivé sous son vrai
+// mois (déduit des dates du fichier côté navigateur). Conséquences :
+//   • le M-1 d'un mois = le M d'un mois déjà importé -> plus besoin de le
+//     redéposer, on le relit dans `retention_imports` ;
+//   • les membres (clé -> Id_client Deciplus) forment un mapping CUMULATIF et
+//     PERMANENT dans `retention_membres_map` : un seul import suffit, jamais
+//     remplacé en bloc, jamais purgé.
+// `contenu` est du JSON assaini (aucune donnée bancaire) ; la map membres ne
+// contient que { cle_client -> id_client }.
 function ensureRetentionSchema() {
   getDb().exec(`
-    CREATE TABLE IF NOT EXISTS retention_datasets (
-      mois TEXT NOT NULL,
+    CREATE TABLE IF NOT EXISTS retention_imports (
       studio TEXT NOT NULL,
+      mois TEXT NOT NULL,
       type TEXT NOT NULL,
       contenu TEXT NOT NULL DEFAULT '[]',
+      uploaded_at TEXT NOT NULL DEFAULT '',
+      uploaded_by TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (studio, mois, type)
+    );
+    CREATE TABLE IF NOT EXISTS retention_membres_map (
+      cle_client TEXT NOT NULL,
+      id_client TEXT NOT NULL,
+      studio TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT '',
-      PRIMARY KEY (mois, studio, type)
+      PRIMARY KEY (cle_client, studio)
     );
     CREATE TABLE IF NOT EXISTS retention_choices (
       mois TEXT NOT NULL,
@@ -4427,47 +4443,135 @@ function ensureRetentionSchema() {
       client_key TEXT NOT NULL,
       categorie TEXT NOT NULL,
       valeur TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (mois, studio, client_key, categorie)
     );
   `);
 }
 ensureRetentionSchema();
 const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM
-const RETENTION_TYPES = ['enc_m1', 'enc_m', 'contrats', 'membres'];
+const RETENTION_IMPORT_TYPES = ['encaissements', 'contrats'];
+function moisPrecedentSrv(ym) {
+  const [a, m] = String(ym || '').split('-').map(Number);
+  if (!a || !m) return null;
+  const d = new Date(Date.UTC(a, m - 2, 1));
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+}
+function moisSuivantSrv(ym) {
+  const [a, m] = String(ym || '').split('-').map(Number);
+  if (!a || !m) return null;
+  const d = new Date(Date.UTC(a, m, 1));
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+}
 
+// Liste des mois archivés (pour le sélecteur + écran Historique). Un mois est
+// « consolidé » dès que le mois suivant existe (son M-1 ne bougera plus).
+app.get('/api/retention/mois', requireAuth, requireAdmin, (req, res) => {
+  const rows = getDb().prepare(
+    `SELECT mois, COUNT(DISTINCT studio) AS studios, MAX(uploaded_at) AS dernier
+       FROM retention_imports WHERE type = 'encaissements' GROUP BY mois ORDER BY mois DESC`
+  ).all();
+  const presents = new Set(rows.map((r) => r.mois));
+  const mois = rows.map((r) => ({
+    mois: r.mois, studios: r.studios, dernier: r.dernier,
+    consolide: presents.has(moisSuivantSrv(r.mois)),
+  }));
+  res.json({ mois });
+});
+
+// Map membres complète (défini AVANT /:mois pour ne pas être capté comme un mois).
+app.get('/api/retention/membres', requireAuth, requireAdmin, (req, res) => {
+  res.json(lireMembres(getDb()));
+});
+
+// Chargement d'un mois M : ses imports (M) + les encaissements archivés de M-1
+// (repris automatiquement, par studio) + les choix du mois + la map membres.
 app.get('/api/retention/:mois', requireAuth, requireAdmin, (req, res) => {
   const mois = String(req.params.mois || '');
   if (!RETENTION_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
   const db = getDb();
-  const datasets = db.prepare('SELECT studio, type, contenu FROM retention_datasets WHERE mois = ?').all(mois)
-    .map((r) => ({ studio: r.studio, type: r.type, contenu: safeJson(r.contenu) }));
+  const m1 = moisPrecedentSrv(mois);
+  const rowsToImports = (rows) => rows.map((r) => ({
+    studio: r.studio, mois: r.mois, type: r.type,
+    contenu: safeJson(r.contenu), uploaded_at: r.uploaded_at, uploaded_by: r.uploaded_by,
+  }));
+  const importsM = rowsToImports(
+    db.prepare('SELECT studio, mois, type, contenu, uploaded_at, uploaded_by FROM retention_imports WHERE mois = ?').all(mois)
+  );
+  // Du M-1 on ne relit QUE les encaissements (le M-1 ne sert qu'à établir la base).
+  const importsM1 = rowsToImports(
+    db.prepare("SELECT studio, mois, type, contenu, uploaded_at, uploaded_by FROM retention_imports WHERE mois = ? AND type = 'encaissements'").all(m1)
+  );
   const choices = db.prepare('SELECT studio, client_key, categorie, valeur FROM retention_choices WHERE mois = ?').all(mois);
-  res.json({ mois, datasets, choices });
+  res.json({ mois, m1, importsM, importsM1, choices, membres: lireMembres(db) });
 });
 
-// Remplace TOUT le jeu de données d'un mois (import complet). Transaction :
-// on ne veut jamais un mois à moitié écrit.
-app.put('/api/retention/:mois', requireAuth, requireAdmin, (req, res) => {
-  const mois = String(req.params.mois || '');
-  if (!RETENTION_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+// Dépôt d'imports (un fichier d'encaissements couvre plusieurs studios -> le
+// front envoie une tranche par studio). Chaque (studio, mois, type) est REMPLACÉ.
+app.post('/api/retention/imports', requireAuth, requireAdmin, (req, res) => {
   const b = req.body || {};
-  const datasets = Array.isArray(b.datasets) ? b.datasets : [];
-  const choices = Array.isArray(b.choices) ? b.choices : [];
-  const bons = datasets.filter((d) => d && d.studio && RETENTION_TYPES.includes(d.type));
+  const items = Array.isArray(b.imports) ? b.imports : [];
+  const bons = items.filter((d) => d && d.studio && RETENTION_MOIS_RE.test(String(d.mois || '')) && RETENTION_IMPORT_TYPES.includes(d.type));
+  if (!bons.length) return res.status(400).json({ error: 'Aucun import valide (studio, mois=AAAA-MM, type=encaissements|contrats).' });
   const db = getDb();
   const now = new Date().toISOString();
+  const par = (req.session && req.session.name) || 'admin';
   try {
+    const ins = db.prepare(
+      `INSERT INTO retention_imports (studio, mois, type, contenu, uploaded_at, uploaded_by) VALUES (?,?,?,?,?,?)
+       ON CONFLICT(studio, mois, type) DO UPDATE SET contenu=excluded.contenu, uploaded_at=excluded.uploaded_at, uploaded_by=excluded.uploaded_by`
+    );
     db.transaction(() => {
-      db.prepare('DELETE FROM retention_datasets WHERE mois = ?').run(mois);
-      db.prepare('DELETE FROM retention_choices WHERE mois = ?').run(mois);
-      const ins = db.prepare('INSERT INTO retention_datasets (mois, studio, type, contenu, updated_at) VALUES (?,?,?,?,?)');
-      bons.forEach((d) => ins.run(mois, String(d.studio), d.type, JSON.stringify(d.contenu == null ? [] : d.contenu), now));
-      const insC = db.prepare('INSERT OR REPLACE INTO retention_choices (mois, studio, client_key, categorie, valeur) VALUES (?,?,?,?,?)');
-      choices.forEach((c) => { if (c && c.studio && c.client_key && c.categorie) insC.run(mois, String(c.studio), String(c.client_key), String(c.categorie), String(c.valeur || '')); });
+      bons.forEach((d) => ins.run(String(d.studio), String(d.mois), d.type, JSON.stringify(d.contenu == null ? [] : d.contenu), now, par));
     })();
-    res.json({ ok: true, datasets: bons.length, choices: choices.length });
-  } catch (e) { console.error('retention PUT :', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
+    res.json({ ok: true, imports: bons.length, uploaded_at: now });
+  } catch (e) { console.error('retention imports :', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
 });
+
+// Fusion CUMULATIVE de la map membres (clé -> Id_client). Jamais remplacée en
+// bloc, jamais purgée : clé inconnue -> ajout ; connue même id -> rien ; connue
+// autre id -> mise à jour (cas rare, tracé). Une entrée absente du nouvel import
+// N'EST PAS supprimée.
+app.post('/api/retention/membres', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const entries = Array.isArray(b.entries) ? b.entries : [];
+  const db = getDb();
+  const now = new Date().toISOString();
+  let ajouts = 0, maj = 0, inchanges = 0;
+  try {
+    const sel = db.prepare('SELECT id_client FROM retention_membres_map WHERE cle_client = ? AND studio = ?');
+    const ins = db.prepare('INSERT INTO retention_membres_map (cle_client, id_client, studio, updated_at) VALUES (?,?,?,?)');
+    const upd = db.prepare('UPDATE retention_membres_map SET id_client = ?, updated_at = ? WHERE cle_client = ? AND studio = ?');
+    db.transaction(() => {
+      entries.forEach((e) => {
+        if (!e || !e.cle || e.id == null || !e.studio) return;
+        const cle = String(e.cle), id = String(e.id).trim(), studio = String(e.studio);
+        if (!id) return;
+        const ex = sel.get(cle, studio);
+        if (!ex) { ins.run(cle, id, studio, now); ajouts++; }
+        else if (ex.id_client === id) { inchanges++; }
+        else { console.warn(`retention membres : ${cle} @ ${studio} change d'id ${ex.id_client} -> ${id}`); upd.run(id, now, cle, studio); maj++; }
+      });
+    })();
+    res.json({ ok: true, ajouts, maj, inchanges, membres: lireMembres(db) });
+  } catch (e) { console.error('retention membres :', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
+});
+
+// Map membres complète (pour résoudre les liens Deciplus côté front : studio puis
+// global, homonymes -> pas de lien) + stats par studio (compteur, dernier import).
+function lireMembres(db) {
+  const rows = db.prepare('SELECT cle_client, id_client, studio, updated_at FROM retention_membres_map').all();
+  const stats = {};
+  rows.forEach((r) => {
+    const s = stats[r.studio] || (stats[r.studio] = { count: 0, dernier: '' });
+    s.count++;
+    if (r.updated_at > s.dernier) s.dernier = r.updated_at;
+  });
+  return {
+    total: rows.length, stats,
+    map: rows.map((r) => ({ cle: r.cle_client, id: r.id_client, studio: r.studio })),
+  };
+}
 
 // Un seul choix de menu (changement en direct) -> upsert léger.
 app.patch('/api/retention/:mois/choix', requireAuth, requireAdmin, (req, res) => {
@@ -4476,10 +4580,12 @@ app.patch('/api/retention/:mois/choix', requireAuth, requireAdmin, (req, res) =>
   const b = req.body || {};
   if (!b.studio || !b.client_key || !b.categorie) return res.status(400).json({ error: 'studio, client_key, categorie requis' });
   try {
-    getDb().prepare('INSERT OR REPLACE INTO retention_choices (mois, studio, client_key, categorie, valeur) VALUES (?,?,?,?,?)')
-      .run(mois, String(b.studio), String(b.client_key), String(b.categorie), String(b.valeur || ''));
+    getDb().prepare(
+      `INSERT INTO retention_choices (mois, studio, client_key, categorie, valeur, updated_at) VALUES (?,?,?,?,?,?)
+       ON CONFLICT(mois, studio, client_key, categorie) DO UPDATE SET valeur=excluded.valeur, updated_at=excluded.updated_at`
+    ).run(mois, String(b.studio), String(b.client_key), String(b.categorie), String(b.valeur || ''), new Date().toISOString());
     res.json({ ok: true });
-  } catch (e) { console.error('retention PATCH :', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
+  } catch (e) { console.error('retention choix :', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
 });
 
 function safeJson(s) { try { return JSON.parse(s); } catch (_) { return null; } }

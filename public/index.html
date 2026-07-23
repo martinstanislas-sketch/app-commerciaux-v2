@@ -124,51 +124,66 @@
             <h2 class="rec-title">RECAP — Rétention</h2>
             <p class="rec-sub">Note mensuelle par studio et note réseau pondérée. Les fichiers sont lus dans ton navigateur — aucune donnée bancaire n'est envoyée.</p>
           </div>
-          <label class="rec-mois">Mois analysé (M)
+          <label class="rec-mois">Mois à clôturer (M)
             <input type="month" id="rec-mois" />
           </label>
         </header>
 
-        <div class="rec-zones">
-          <div class="rec-zone" data-zone="contrats">
-            <div class="rec-zone-t">1 · Contrats du mois (M)</div>
-            <div class="rec-drop" id="rec-drop-contrats"><span>Dépose le .zip des contrats (ou les .pdf)</span></div>
-            <input type="file" id="rec-file-contrats" accept=".zip,.pdf" multiple style="display:none">
-            <div class="rec-zone-info" id="rec-info-contrats"></div>
+        <!-- Bascule Analyse / Historique -->
+        <nav class="rec-nav">
+          <button type="button" class="rec-nav-btn is-on" data-view="analyse">Analyser un mois</button>
+          <button type="button" class="rec-nav-btn" data-view="historique">Historique</button>
+        </nav>
+
+        <!-- ═══ VUE ANALYSE ═══ -->
+        <div id="rec-view-analyse">
+          <!-- À partir du 2e mois : on ne dépose plus que les 2 fichiers du mois à clôturer. -->
+          <div class="rec-zones">
+            <div class="rec-zone" data-zone="encM">
+              <div class="rec-zone-t">1 · Encaissements du mois</div>
+              <div class="rec-drop" id="rec-drop-encM"><span>Dépose l'export encaissements (.xlsx / .xls) — tous studios</span></div>
+              <input type="file" id="rec-file-encM" accept=".xlsx,.xls" multiple style="display:none">
+              <div class="rec-zone-info" id="rec-info-encM"></div>
+            </div>
+            <div class="rec-zone" data-zone="contrats">
+              <div class="rec-zone-t">2 · Contrats du mois</div>
+              <div class="rec-drop" id="rec-drop-contrats"><span>Dépose le .zip des contrats (ou les .pdf)</span></div>
+              <input type="file" id="rec-file-contrats" accept=".zip,.pdf" multiple style="display:none">
+              <div class="rec-zone-info" id="rec-info-contrats"></div>
+            </div>
           </div>
-          <div class="rec-zone" data-zone="encM1">
-            <div class="rec-zone-t">2 · Encaissements M-1</div>
-            <div class="rec-drop" id="rec-drop-encM1"><span>Un .xlsx par studio (mois précédent)</span></div>
-            <input type="file" id="rec-file-encM1" accept=".xlsx,.xls" multiple style="display:none">
-            <div class="rec-zone-info" id="rec-info-encM1"></div>
-          </div>
-          <div class="rec-zone" data-zone="encM">
-            <div class="rec-zone-t">3 · Encaissements M</div>
-            <div class="rec-drop" id="rec-drop-encM"><span>Un .xlsx par studio (mois courant)</span></div>
-            <input type="file" id="rec-file-encM" accept=".xlsx,.xls" multiple style="display:none">
-            <div class="rec-zone-info" id="rec-info-encM"></div>
-          </div>
-          <div class="rec-zone" data-zone="membres">
-            <div class="rec-zone-t">4 · Fichier membres</div>
+
+          <!-- Bandeau « mois précédent repris automatiquement » (§A2) -->
+          <div class="rec-banner" id="rec-banner-m1" hidden></div>
+          <!-- Studios dont le M-1 n'est pas archivé : dépôt ciblé (§A3) -->
+          <div id="rec-m1-manquants"></div>
+
+          <!-- Bandeau membres + zone repliable (§B3) -->
+          <div class="rec-banner" id="rec-banner-membres" hidden></div>
+          <div class="rec-zone rec-zone-membres" id="rec-zone-membres" hidden>
+            <div class="rec-zone-t">Fichier membres <small>(Id_client Deciplus — un seul import suffit)</small></div>
             <div class="rec-drop" id="rec-drop-membres"><span>Export membres (.xls) — sert aux liens Deciplus</span></div>
             <input type="file" id="rec-file-membres" accept=".xls,.xlsx" multiple style="display:none">
             <div class="rec-zone-info" id="rec-info-membres"></div>
           </div>
+
+          <div class="rec-actions">
+            <button type="button" class="rec-btn" id="rec-calc">Calculer</button>
+            <span class="rec-msg" id="rec-msg"></span>
+          </div>
+
+          <!-- Récap « fichier → studio détecté » (corrigeable) -->
+          <div class="rec-detection" id="rec-detection"></div>
+          <!-- Tableau RECAP + note réseau -->
+          <div class="rec-recap" id="rec-recap"></div>
+          <!-- Détail par studio -->
+          <div class="rec-details" id="rec-details"></div>
         </div>
 
-        <div class="rec-actions">
-          <button type="button" class="rec-btn" id="rec-calc">Calculer</button>
-          <span class="rec-msg" id="rec-msg"></span>
+        <!-- ═══ VUE HISTORIQUE ═══ -->
+        <div id="rec-view-historique" hidden>
+          <div class="rec-histo" id="rec-histo"></div>
         </div>
-
-        <!-- Récap « fichier → studio détecté » (corrigeable) -->
-        <div class="rec-detection" id="rec-detection"></div>
-
-        <!-- Tableau RECAP + note réseau -->
-        <div class="rec-recap" id="rec-recap"></div>
-
-        <!-- Détail par studio -->
-        <div class="rec-details" id="rec-details"></div>
       </div>
     </section>
 
@@ -1139,9 +1154,9 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="retention.js?v=rec1"></script>
-  <script src="retention-parse.js?v=rec1"></script>
-  <script src="recap.js?v=rec1"></script>
+  <script src="retention.js?v=rec2"></script>
+  <script src="retention-parse.js?v=rec2"></script>
+  <script src="recap.js?v=rec2"></script>
   <script src="app.js?v=ds2-tabs2"></script>
 </body>
 </html>

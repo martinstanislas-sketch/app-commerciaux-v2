@@ -61,6 +61,47 @@
 
   const contient = (s, mot) => normEntete(s).includes(normEntete(mot));
 
+  // Mois couvert (AAAA-MM) d'UNE date, quel que soit le format Deciplus :
+  //  - 'JJ/MM/AAAA' (+ heure éventuelle) ;
+  //  - 'AAAA-MM-JJ' / 'AAAA/MM/JJ' ;
+  //  - numéro de série Excel (jours depuis 1899-12-30), si SheetJS n'a pas
+  //    converti la cellule en date.
+  //  - objet Date (cellDates).
+  function ymDeDate(v) {
+    if (v instanceof Date && !isNaN(v)) return v.getUTCFullYear() + '-' + String(v.getUTCMonth() + 1).padStart(2, '0');
+    let s = String(v == null ? '' : v).trim();
+    if (!s) return null;
+    let m = /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/.exec(s); // AAAA-MM-JJ
+    if (m) return m[1] + '-' + m[2].padStart(2, '0');
+    m = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/.exec(s);   // JJ/MM/AAAA
+    if (m) return m[3] + '-' + m[2].padStart(2, '0');
+    if (/^\d+(\.\d+)?$/.test(s)) {                          // série Excel
+      const n = Math.floor(Number(s));
+      if (n > 20000 && n < 80000) {
+        const d = new Date(Date.UTC(1899, 11, 30) + n * 86400000);
+        return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+      }
+    }
+    return null;
+  }
+  // Mois couvert d'un fichier = le mois MAJORITAIRE de ses lignes (§A1 : déduit
+  // des dates, jamais du nom de fichier ni de la date d'upload). Les lignes de
+  // date illisible sont ignorées.
+  function moisDeLignes(lignes) {
+    const compte = new Map();
+    (lignes || []).forEach((l) => { const ym = ymDeDate(l.date); if (ym) compte.set(ym, (compte.get(ym) || 0) + 1); });
+    let best = null, bestN = -1;
+    compte.forEach((n, ym) => { if (n > bestN) { bestN = n; best = ym; } });
+    return best;
+  }
+  // Mois précédent d'un AAAA-MM (pour résoudre le M-1).
+  function moisPrecedent(ym) {
+    const [a, m] = String(ym || '').split('-').map(Number);
+    if (!a || !m) return null;
+    const d = new Date(Date.UTC(a, m - 2, 1));
+    return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+  }
+
   // ── §2.2 ENCAISSEMENTS : lignes -> objets exploités par le moteur ──────────
   // `rows` = tableau d'objets { En-tête: valeur } (sortie de XLSX.utils.sheet_to_json).
   // Sortie : { cle, montant, decaissement } (+ date, description, nom, prenom pour l'UI).
@@ -179,6 +220,7 @@
   return {
     normEntete, trouverColonne, parseMontant,
     mapEncaissements, mapMembres, mapContrats,
+    ymDeDate, moisDeLignes, moisPrecedent,
     // adaptateurs navigateur
     estHTML, lireTabulaire, lireContratsZip,
   };

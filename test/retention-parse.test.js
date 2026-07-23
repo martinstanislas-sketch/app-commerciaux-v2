@@ -62,6 +62,36 @@ test('mapContrats : par studio, dédup, nom/prénom lisibles', () => {
   assert.ok(p.Wasquehal);
 });
 
+test('ymDeDate : tous les formats Deciplus -> AAAA-MM', () => {
+  assert.equal(RP.ymDeDate('01/06/2026'), '2026-06', 'JJ/MM/AAAA');
+  assert.equal(RP.ymDeDate('1/6/2026'), '2026-06', 'sans zéro de tête');
+  assert.equal(RP.ymDeDate('08/06/2026 14:30'), '2026-06', 'avec heure');
+  assert.equal(RP.ymDeDate('2026-06-15'), '2026-06', 'AAAA-MM-JJ');
+  assert.equal(RP.ymDeDate('2026/06/15'), '2026-06', 'AAAA/MM/JJ');
+  assert.equal(RP.ymDeDate(new Date(Date.UTC(2026, 5, 10))), '2026-06', 'objet Date');
+  // série Excel : 46184 = 2026-06-15 (jours depuis 1899-12-30)
+  assert.equal(RP.ymDeDate('46184'), '2026-06', 'série Excel');
+  assert.equal(RP.ymDeDate(''), null);
+  assert.equal(RP.ymDeDate('n/a'), null, 'illisible -> null');
+});
+
+test('moisDeLignes : mois majoritaire, ignore les dates illisibles', () => {
+  const lignes = [
+    { date: '01/06/2026' }, { date: '08/06/2026' }, { date: '15/06/2026' },
+    { date: '31/05/2026' },            // débordement de fin de mois précédent
+    { date: '' }, { date: 'xxx' },     // illisibles, ignorées
+  ];
+  assert.equal(RP.moisDeLignes(lignes), '2026-06');
+  assert.equal(RP.moisDeLignes([]), null);
+});
+
+test('moisPrecedent : recule d’un mois, gère le passage d’année', () => {
+  assert.equal(RP.moisPrecedent('2026-06'), '2026-05');
+  assert.equal(RP.moisPrecedent('2026-01'), '2025-12', 'passage d’année');
+  assert.equal(RP.moisPrecedent('2026-03'), '2026-02');
+  assert.equal(RP.moisPrecedent(''), null);
+});
+
 test('estHTML : détecte un .xls qui est en réalité du HTML', () => {
   const enc = (s) => new TextEncoder().encode(s);
   assert.equal(RP.estHTML(enc('<html><table>')), true);
