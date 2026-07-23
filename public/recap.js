@@ -74,7 +74,7 @@ const RecapUI = (function () {
       mois = $('#rec-mois').value; m1 = RetentionParse.moisPrecedent(mois); charger();
     });
     $$('.rec-nav-btn').forEach((b) => b.addEventListener('click', () => switchView(b.dataset.view)));
-    $('#rec-club').addEventListener('change', () => { clubCourant = $('#rec-club').value; });
+    $('#rec-club').addEventListener('change', () => { clubCourant = $('#rec-club').value; majZones(); renderApercu(); });
     $('#rec-club-add-btn').addEventListener('click', ajouterClub);
     $('#rec-club-new').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ajouterClub(); } });
     zone('encM', $('#rec-file-encM'), traiterEncM);
@@ -99,7 +99,7 @@ const RecapUI = (function () {
     const inp = $('#rec-club-new'); const v = (inp.value || '').trim();
     if (!v) return;
     if (!clubs.includes(v)) clubs.push(v);
-    clubCourant = v; inp.value = ''; peuplerClubs();
+    clubCourant = v; inp.value = ''; peuplerClubs(); majZones(); renderApercu();
     msg('Club « ' + v +' » sélectionné. Dépose ses fichiers.', false);
   }
   function exigeClub() {
@@ -224,12 +224,59 @@ const RecapUI = (function () {
     renderDetection();
     renderBanners();
     renderManquants();
+    majZones();
+    renderApercu();
     recalcTout();
   }
   function groupLignes(arr) {
     const out = {};
     arr.forEach((f) => { if (!f.studio) return; (out[f.studio] = out[f.studio] || []).push(...f.lignes); });
     return out;
+  }
+
+  // ── AVANCEMENT DES IMPORTS ───────────────────────────────────────────────────
+  // Statut d'un club pour le mois affiché : encaissements / contrats / membres.
+  function statutClub(club) {
+    const encN = fichiersEncM.filter((f) => f.studio === club).reduce((n, f) => n + f.lignes.length, 0)
+      || ((archM[club] && archM[club].encaissements) || []).length;
+    const conN = (contratsParStudio[club] || []).length;
+    return { enc: encN > 0, encN, con: conN > 0, conN, mem: !!(membres.stats && membres.stats[club]) };
+  }
+  // Replie une zone de dépôt en carte compacte quand son fichier est importé ;
+  // la laisse en grand (dashed) tant qu'elle est vide -> l'action restante saute aux yeux.
+  function majZones() {
+    const st = clubCourant ? statutClub(clubCourant) : { enc: false, con: false };
+    toggleZone('encM', st.enc, st.enc ? 'Encaissements — ' + st.encN + ' ligne' + (st.encN > 1 ? 's' : '') : '');
+    toggleZone('contrats', st.con, st.con ? 'Contrats — ' + st.conN + ' signataire' + (st.conN > 1 ? 's' : '') : '');
+  }
+  function toggleZone(zone, done, label) {
+    const z = $('#rec-zone-' + zone); if (!z) return;
+    z.classList.toggle('is-done', !!done);
+    const card = $('#rec-done-' + zone);
+    if (done) {
+      card.innerHTML = '<span class="rec-done-ic">✓</span><span class="rec-done-txt">' + esc(label) + '</span>'
+        + '<button type="button" class="rec-link rec-done-rep">Remplacer</button>';
+      card.querySelector('.rec-done-rep').addEventListener('click', () => $('#rec-file-' + zone).click());
+    } else { card.innerHTML = ''; }
+  }
+  // Tableau « club -> ce qui est importé / ce qui manque » (coup d'œil global).
+  function renderApercu() {
+    const host = $('#rec-apercu'); if (!host) return;
+    const noms = [...new Set([...clubs, ...Object.keys(studios || {})])].filter(Boolean).sort((a, b) => a.localeCompare(b, 'fr'));
+    if (!noms.length) { host.innerHTML = ''; return; }
+    const cell = (ok) => ok ? '<span class="rec-ap-ok">✓</span>' : '<span class="rec-ap-ko">○</span>';
+    const rows = noms.map((s) => {
+      const st = statutClub(s);
+      const restant = !(st.enc && st.con);
+      return '<tr data-club="' + esc(s) + '"' + (s === clubCourant ? ' class="is-cur"' : '') + '>'
+        + '<td class="rec-ap-club">' + esc(s) + (restant ? ' <em>à compléter</em>' : '') + '</td>'
+        + '<td>' + cell(st.enc) + '</td><td>' + cell(st.con) + '</td><td>' + cell(st.mem) + '</td></tr>';
+    }).join('');
+    host.innerHTML = '<h3 class="rec-h3">Avancement · ' + moisLabel(mois, 0) + ' <small>(clique un club pour le sélectionner)</small></h3>'
+      + '<table class="rec-ap-table"><thead><tr><th>Club</th><th>Encaiss.</th><th>Contrats</th><th>Membres</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    host.querySelectorAll('tr[data-club]').forEach((tr) => tr.addEventListener('click', () => {
+      clubCourant = tr.dataset.club; peuplerClubs(); majZones(); renderApercu();
+    }));
   }
 
   // ── BANDEAUX (reprise M-1, membres) ─────────────────────────────────────────
@@ -497,8 +544,9 @@ const RecapUI = (function () {
     studios = {}; resultats = {}; choix = {};
     membres = { map: [], stats: {}, total: 0 }; idxStudio = new Map(); idxGlobal = new Map();
     ['encM', 'contrats', 'membres'].forEach((z) => { const el = $('#rec-info-' + z); if (el) el.textContent = ''; });
+    ['encM', 'contrats'].forEach((z) => { const zn = $('#rec-zone-' + z); if (zn) zn.classList.remove('is-done'); const c = $('#rec-done-' + z); if (c) c.innerHTML = ''; });
     $('#rec-detection').innerHTML = ''; $('#rec-recap').innerHTML = ''; $('#rec-details').innerHTML = '';
-    $('#rec-m1-manquants').innerHTML = ''; msg('');
+    $('#rec-m1-manquants').innerHTML = ''; const ap = $('#rec-apercu'); if (ap) ap.innerHTML = ''; msg('');
     // délègue le clic « Mettre à jour les membres » (bandeaux dynamiques).
     if (!resetLocal._deleg) {
       resetLocal._deleg = true;

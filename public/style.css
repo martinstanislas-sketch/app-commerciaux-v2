@@ -21176,6 +21176,27 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-club-add { display: flex; align-items: center; gap: 8px; }
 .rec-club-add input { background: #1A2231; border: 1px solid #2C3547; color: #E7ECF3; border-radius: 10px; padding: 9px 12px; font: inherit; }
 .rec-club-hint { flex-basis: 100%; margin: 2px 0 0; font-size: 12px; color: #6E7B8F; }
+/* Aperçu de l'avancement (club -> importé / manquant) */
+.rec-apercu { margin: 16px 0 2px; }
+.rec-ap-table { width: 100%; border-collapse: collapse; max-width: 560px; }
+.rec-ap-table th { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: #6E7B8F; padding: 6px 12px; border-bottom: 1px solid #2C3547; text-align: center; }
+.rec-ap-table th:first-child { text-align: left; }
+.rec-ap-table td { padding: 8px 12px; text-align: center; border-bottom: 1px solid #1C2536; font-size: 13px; }
+.rec-ap-table tr[data-club] { cursor: pointer; }
+.rec-ap-table tr[data-club]:hover { background: #171E2B; }
+.rec-ap-table tr.is-cur { background: #1A2231; box-shadow: inset 3px 0 0 #F0D488; }
+.rec-ap-club { text-align: left !important; color: #C7D0DE; font-weight: 600; }
+.rec-ap-club em { color: #C79A3C; font-style: normal; font-size: 11px; font-weight: 500; }
+.rec-ap-ok { color: #6FCF97; font-weight: 800; }
+.rec-ap-ko { color: #55617A; }
+/* Zone importée -> carte compacte ; zone vide -> reste en grand (action restante) */
+.rec-done { display: none; align-items: center; gap: 11px; background: rgba(31,167,103,.14); border: 1px solid rgba(31,167,103,.35); border-radius: 12px; padding: 12px 14px; }
+.rec-zone.is-done .rec-drop { display: none; }
+.rec-zone.is-done .rec-zone-info { display: none; }
+.rec-zone.is-done .rec-done { display: flex; }
+.rec-done-ic { flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; background: #1FA767; color: #0E1420; display: grid; place-items: center; font-weight: 900; font-size: 14px; }
+.rec-done-txt { font-size: 13px; color: #D6E4DC; font-weight: 600; }
+.rec-done-rep { margin-left: auto; }
 .rec-banner { margin: 14px 0 0; background: #141C2A; border: 1px solid #232E42; border-radius: 12px; padding: 12px 15px; font-size: 13px; color: #C7D0DE; line-height: 1.5; }
 .rec-banner-warn { border-color: #7A5A22; background: rgba(240,180,80,.08); }
 .rec-banner-info { border-color: #2C3547; }

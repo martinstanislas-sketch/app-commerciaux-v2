@@ -149,17 +149,22 @@
             <p class="rec-club-hint">Tu importes club par club : choisis le club, puis dépose ses fichiers du mois. Chaque fichier est enregistré automatiquement — tu peux changer de club ou de mois sans rien perdre.</p>
           </div>
 
+          <!-- Aperçu de l'avancement : par club, ce qui est importé / ce qui manque -->
+          <div class="rec-apercu" id="rec-apercu"></div>
+
           <!-- À partir du 2e mois : on ne dépose plus que les 2 fichiers du mois à clôturer. -->
           <div class="rec-zones">
-            <div class="rec-zone" data-zone="encM">
+            <div class="rec-zone" data-zone="encM" id="rec-zone-encM">
               <div class="rec-zone-t">1 · Encaissements du club</div>
               <div class="rec-drop" id="rec-drop-encM"><span>Dépose les encaissements de ce club (.xlsx / .xls)</span></div>
+              <div class="rec-done" id="rec-done-encM"></div>
               <input type="file" id="rec-file-encM" accept=".xlsx,.xls" multiple style="display:none">
               <div class="rec-zone-info" id="rec-info-encM"></div>
             </div>
-            <div class="rec-zone" data-zone="contrats">
+            <div class="rec-zone" data-zone="contrats" id="rec-zone-contrats">
               <div class="rec-zone-t">2 · Contrats du club</div>
               <div class="rec-drop" id="rec-drop-contrats"><span>Dépose le .zip des contrats de ce club (ou les .pdf)</span></div>
+              <div class="rec-done" id="rec-done-contrats"></div>
               <input type="file" id="rec-file-contrats" accept=".zip,.pdf" multiple style="display:none">
               <div class="rec-zone-info" id="rec-info-contrats"></div>
             </div>
@@ -1166,9 +1171,9 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="retention.js?v=rec4"></script>
-  <script src="retention-parse.js?v=rec4"></script>
-  <script src="recap.js?v=rec4"></script>
+  <script src="retention.js?v=rec5"></script>
+  <script src="retention-parse.js?v=rec5"></script>
+  <script src="recap.js?v=rec5"></script>
   <script src="app.js?v=ds2-tabs2"></script>
 </body>
 </html>
