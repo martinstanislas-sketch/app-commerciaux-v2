@@ -263,6 +263,35 @@ test('disparu « impayé » vs « résilié » : même note (qualification, pas 
   assert.equal(resilie.nbPartis, 1); assert.equal(resilie.nbImpayes, 0);
 });
 
+test('résiliations : un résilié qui a PAYÉ le mois est compté comme départ (churn)', () => {
+  const input = {
+    encM1: [P('Fidele', 'F', 69), P('Fidele', 'F', 69), P('Resil', 'R', 69), P('Resil', 'R', 69)],
+    encM: [P('Fidele', 'F', 69), P('Fidele', 'F', 69), P('Resil', 'R', 69)], // Resil a encore payé
+    signataires: [],
+  };
+  // Sans fichier résiliation : Resil a payé -> fidèle -> 2/2 = 100 %.
+  const sans = R.calculerStudio(Object.assign({ choix: {} }, input));
+  assert.ok(Math.abs(sans.note - 1) < 1e-9, 'sans résiliation -> 100 %');
+  // Avec résiliation de Resil : il bascule en disparu (résilié) -> 1 fidèle / 2 = 50 %.
+  const avec = R.calculerStudio(Object.assign({ resiliations: [{ cle: 'RESIL|R', nom: 'Resil', prenom: 'R' }], choix: {} }, input));
+  assert.ok(Math.abs(avec.note - 1 / 2) < 1e-9, 'résilié -> compté comme départ -> 50 %');
+  assert.equal(avec.nbResilies, 1);
+  assert.ok(avec.disparus.some((d) => d.cle === 'RESIL|R' && d.type === 'RESILIE'));
+});
+
+test('résiliation hors base M-1 : ajoutée à la population et aux disparus', () => {
+  const input = {
+    encM1: [P('Fidele', 'F', 69), P('Fidele', 'F', 69)],           // base = 1 (Fidele)
+    encM: [P('Fidele', 'F', 69), P('Fidele', 'F', 69), P('Neo', 'N', 69)], // Neo paie en M mais pas en M-1
+    signataires: [],
+  };
+  const avec = R.calculerStudio(Object.assign({ resiliations: [{ cle: 'NEO|N', nom: 'Neo', prenom: 'N' }], choix: {} }, input));
+  // population = Fidele + Neo(résilié) = 2 ; retenu = Fidele -> 1/2.
+  assert.equal(avec.nbResilies, 1);
+  assert.ok(Math.abs(avec.note - 1 / 2) < 1e-9);
+  assert.ok(avec.disparus.some((d) => d.cle === 'NEO|N'));
+});
+
 // --- §6 NOTE RÉSEAU ----------------------------------------------------------
 test('note réseau : Σ numérateurs / Σ dénominateurs (pondérée)', () => {
   const gros = { numerateur: 90, denominateur: 100 }; // 90 %

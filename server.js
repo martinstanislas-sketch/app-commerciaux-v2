@@ -4456,7 +4456,7 @@ function ensureRetentionSchema() {
 }
 ensureRetentionSchema();
 const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM
-const RETENTION_IMPORT_TYPES = ['encaissements', 'contrats'];
+const RETENTION_IMPORT_TYPES = ['encaissements', 'contrats', 'resiliations'];
 function moisPrecedentSrv(ym) {
   const [a, m] = String(ym || '').split('-').map(Number);
   if (!a || !m) return null;

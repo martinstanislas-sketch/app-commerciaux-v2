@@ -35,6 +35,7 @@ const RecapUI = (function () {
   let clubCourant = '';    // club sélectionné -> tous les dépôts lui sont attribués
   // Dépôts en attente (fichiers glissés, pas encore archivés)
   let contratsParStudio = {}; // studio -> [{ cles, nom, prenom, date }]
+  let resiliationsParStudio = {}; // studio -> [{ cle, nom, prenom }] (départs du mois)
   let fichiersEncM = [];   // [{ nom, cles:Set, lignes, studio }]
   let fichiersM1 = [];     // [{ nom, cles:Set, lignes, studio }] (dépôts M-1 ciblés/bulk)
   let bulkM1Ouvert = false;
@@ -79,6 +80,7 @@ const RecapUI = (function () {
     $('#rec-club-new').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ajouterClub(); } });
     zone('encM', $('#rec-file-encM'), traiterEncM);
     zone('contrats', $('#rec-file-contrats'), traiterContrats);
+    zone('resiliations', $('#rec-file-resiliations'), traiterResiliations);
     zone('membres', $('#rec-file-membres'), traiterMembres);
     $('#rec-calc').addEventListener('click', calculer);
   }
@@ -169,6 +171,23 @@ const RecapUI = (function () {
     list.forEach((s) => { const k = (s.cles || []).slice().sort().join('#'); if (seen.has(k)) return; seen.add(k); out.push(s); });
     return out;
   }
+  // Résiliations du club : export « contrats résiliés », filtré sur le mois M.
+  async function traiterResiliations(files) {
+    if (!exigeClub()) return;
+    const club = clubCourant;
+    const lus = [];
+    for (const f of files) {
+      const res = RetentionParse.mapResiliations(RetentionParse.lireTabulaire(await buf(f)), mois);
+      lus.push(...res);
+    }
+    const seen = new Set(); const arr = [];
+    (resiliationsParStudio[club] || []).concat(lus).forEach((r) => { if (seen.has(r.cle)) return; seen.add(r.cle); arr.push(r); });
+    resiliationsParStudio[club] = arr;
+    $('#rec-info-resiliations').textContent = club + ' · ' + arr.length + ' résilié(s) en ' + moisLabel(mois, 0);
+    if (!arr.length) msg('Aucune résiliation datée de ' + moisLabel(mois, 0) + ' dans ce fichier.', false);
+    assembler();
+    await autoEnregistrer('Résiliations ' + club);
+  }
   // §A3 : encaissements M-1 déposés (par studio ciblé, ou en bulk tous studios).
   async function traiterM1(files, studioForce) {
     const lus = [];
@@ -211,14 +230,15 @@ const RecapUI = (function () {
     const deposeEncM = groupLignes(fichiersEncM);
     const deposeM1 = groupLignes(fichiersM1);
     studios = {};
-    const noms = new Set([...Object.keys(archM), ...Object.keys(deposeEncM), ...Object.keys(contratsParStudio)]);
+    const noms = new Set([...Object.keys(archM), ...Object.keys(deposeEncM), ...Object.keys(contratsParStudio), ...Object.keys(resiliationsParStudio)]);
     noms.forEach((s) => {
       const encM = deposeEncM[s] || (archM[s] && archM[s].encaissements) || [];
       const signataires = contratsParStudio[s] || (archM[s] && archM[s].contrats) || [];
+      const resiliations = resiliationsParStudio[s] || (archM[s] && archM[s].resiliations) || [];
       let encM1 = [], src = 'manquant';
       if (deposeM1[s]) { encM1 = deposeM1[s]; src = 'depose'; }
       else if (archM1[s]) { encM1 = archM1[s]; src = 'auto'; }
-      studios[s] = { encM, encM1, signataires, m1Source: src, m1Mois: m1 };
+      studios[s] = { encM, encM1, signataires, resiliations, m1Source: src, m1Mois: m1 };
     });
     peuplerClubs(); // reflète les studios apparus (dépôts/archives) dans le menu
     renderDetection();
@@ -240,14 +260,16 @@ const RecapUI = (function () {
     const encN = fichiersEncM.filter((f) => f.studio === club).reduce((n, f) => n + f.lignes.length, 0)
       || ((archM[club] && archM[club].encaissements) || []).length;
     const conN = (contratsParStudio[club] || []).length;
-    return { enc: encN > 0, encN, con: conN > 0, conN, mem: !!(membres.stats && membres.stats[club]) };
+    const resN = (resiliationsParStudio[club] || (archM[club] && archM[club].resiliations) || []).length;
+    return { enc: encN > 0, encN, con: conN > 0, conN, res: resN > 0, resN, mem: !!(membres.stats && membres.stats[club]) };
   }
   // Replie une zone de dépôt en carte compacte quand son fichier est importé ;
   // la laisse en grand (dashed) tant qu'elle est vide -> l'action restante saute aux yeux.
   function majZones() {
-    const st = clubCourant ? statutClub(clubCourant) : { enc: false, con: false };
+    const st = clubCourant ? statutClub(clubCourant) : { enc: false, con: false, res: false };
     toggleZone('encM', st.enc, st.enc ? 'Encaissements — ' + st.encN + ' ligne' + (st.encN > 1 ? 's' : '') : '');
     toggleZone('contrats', st.con, st.con ? 'Contrats — ' + st.conN + ' signataire' + (st.conN > 1 ? 's' : '') : '');
+    toggleZone('resiliations', st.res, st.res ? 'Résiliations — ' + st.resN + ' départ' + (st.resN > 1 ? 's' : '') : '');
   }
   function toggleZone(zone, done, label) {
     const z = $('#rec-zone-' + zone); if (!z) return;
@@ -265,15 +287,16 @@ const RecapUI = (function () {
     const noms = [...new Set([...clubs, ...Object.keys(studios || {})])].filter(Boolean).sort((a, b) => a.localeCompare(b, 'fr'));
     if (!noms.length) { host.innerHTML = ''; return; }
     const cell = (ok) => ok ? '<span class="rec-ap-ok">✓</span>' : '<span class="rec-ap-ko">○</span>';
+    const cellOpt = (ok) => ok ? '<span class="rec-ap-ok">✓</span>' : '<span class="rec-ap-opt">–</span>';
     const rows = noms.map((s) => {
       const st = statutClub(s);
-      const restant = !(st.enc && st.con);
+      const restant = !(st.enc && st.con); // résiliations = optionnel, ne bloque pas
       return '<tr data-club="' + esc(s) + '"' + (s === clubCourant ? ' class="is-cur"' : '') + '>'
         + '<td class="rec-ap-club">' + esc(s) + (restant ? ' <em>à compléter</em>' : '') + '</td>'
-        + '<td>' + cell(st.enc) + '</td><td>' + cell(st.con) + '</td><td>' + cell(st.mem) + '</td></tr>';
+        + '<td>' + cell(st.enc) + '</td><td>' + cell(st.con) + '</td><td>' + cellOpt(st.res) + '</td><td>' + cell(st.mem) + '</td></tr>';
     }).join('');
     host.innerHTML = '<h3 class="rec-h3">Avancement · ' + moisLabel(mois, 0) + ' <small>(clique un club pour le sélectionner)</small></h3>'
-      + '<table class="rec-ap-table"><thead><tr><th>Club</th><th>Encaiss.</th><th>Contrats</th><th>Membres</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      + '<table class="rec-ap-table"><thead><tr><th>Club</th><th>Encaiss.</th><th>Contrats</th><th>Résil.</th><th>Membres</th></tr></thead><tbody>' + rows + '</tbody></table>';
     host.querySelectorAll('tr[data-club]').forEach((tr) => tr.addEventListener('click', () => {
       clubCourant = tr.dataset.club; peuplerClubs(); majZones(); renderApercu();
     }));
@@ -347,7 +370,7 @@ const RecapUI = (function () {
   function recalcStudio(s) {
     const st = studios[s];
     if (st.m1Source === 'manquant') { resultats[s] = { pending: true, m1Mois: st.m1Mois }; return; }
-    resultats[s] = Retention.calculerStudio({ encM1: st.encM1, encM: st.encM, signataires: st.signataires, choix: choix[s] || {} });
+    resultats[s] = Retention.calculerStudio({ encM1: st.encM1, encM: st.encM, signataires: st.signataires, resiliations: st.resiliations, choix: choix[s] || {} });
   }
   function recalcTout() { resultats = {}; Object.keys(studios).forEach(recalcStudio); render(); }
 
@@ -374,6 +397,7 @@ const RecapUI = (function () {
     const deposeM1 = groupLignes(fichiersM1);
     Object.keys(deposeEncM).forEach((s) => imports.push({ studio: s, mois, type: 'encaissements', contenu: deposeEncM[s] }));
     Object.keys(contratsParStudio).forEach((s) => imports.push({ studio: s, mois, type: 'contrats', contenu: contratsParStudio[s] }));
+    Object.keys(resiliationsParStudio).forEach((s) => { if (resiliationsParStudio[s].length) imports.push({ studio: s, mois, type: 'resiliations', contenu: resiliationsParStudio[s] }); });
     Object.keys(deposeM1).forEach((s) => imports.push({ studio: s, mois: m1, type: 'encaissements', contenu: deposeM1[s] }));
     if (!imports.length) return; // rien de neuf (mois déjà archivé, aucune modif)
     await fetch('/api/retention/imports', { method: 'POST', headers: H(), body: JSON.stringify({ imports }) });
@@ -467,7 +491,7 @@ const RecapUI = (function () {
     const chiffres = [
       ['Clients de ' + moisLabel(mois, -1), r.base],
       ['Fidèles en ' + moisLabel(mois, 0), r.fideles],
-      ['Disparus', r.disparusAffichage + ' (dont ' + r.nbImpayes + ' impayés / ' + r.nbPartis + ' partis)'],
+      ['Disparus', r.disparusAffichage + ' (dont ' + r.nbImpayes + ' impayés / ' + r.nbPartis + ' résiliés)'],
       ['Tarif en baisse', r.baisses.length],
       ['Nouveaux signés', r.nsig],
       ['À qualifier', r.aQualifier.length],
@@ -526,15 +550,19 @@ const RecapUI = (function () {
       membres = d.membres || { map: [], stats: {}, total: 0 };
       construireIndexMembres();
       (d.importsM || []).forEach((im) => {
-        const st = archM[im.studio] || (archM[im.studio] = { encaissements: [], contrats: [] });
+        const st = archM[im.studio] || (archM[im.studio] = { encaissements: [], contrats: [], resiliations: [] });
         if (im.type === 'encaissements') st.encaissements = im.contenu || [];
         if (im.type === 'contrats') st.contrats = im.contenu || [];
+        if (im.type === 'resiliations') st.resiliations = im.contenu || [];
       });
       dejaArchiveM = (d.importsM || []).some((im) => im.type === 'encaissements');
       (d.importsM1 || []).forEach((im) => { archM1[im.studio] = im.contenu || []; m1Info[im.studio] = im.uploaded_at; });
       (d.choices || []).forEach((c) => (choix[c.studio] || (choix[c.studio] = {}))[c.client_key] = c.valeur);
-      // Contrats archivés : reconstruit contratsParStudio pour le rendu des liens/menus.
-      Object.keys(archM).forEach((s) => { if ((archM[s].contrats || []).length) contratsParStudio[s] = archM[s].contrats; });
+      // Contrats/résiliations archivés : reconstruit pour le rendu.
+      Object.keys(archM).forEach((s) => {
+        if ((archM[s].contrats || []).length) contratsParStudio[s] = archM[s].contrats;
+        if ((archM[s].resiliations || []).length) resiliationsParStudio[s] = archM[s].resiliations;
+      });
       assembler();
       peuplerClubs(); // les studios archivés enrichissent la liste des clubs
       if (dejaArchiveM) msg('Données du mois rechargées.', false);
@@ -544,11 +572,11 @@ const RecapUI = (function () {
   function resetLocal() {
     // NB : on NE réinitialise PAS clubs/clubCourant (sélection valable entre mois).
     archM = {}; archM1 = {}; m1Info = {}; dejaArchiveM = false;
-    contratsParStudio = {}; fichiersEncM = []; fichiersM1 = []; bulkM1Ouvert = false;
+    contratsParStudio = {}; resiliationsParStudio = {}; fichiersEncM = []; fichiersM1 = []; bulkM1Ouvert = false;
     studios = {}; resultats = {}; choix = {};
     membres = { map: [], stats: {}, total: 0 }; idxStudio = new Map(); idxGlobal = new Map();
-    ['encM', 'contrats', 'membres'].forEach((z) => { const el = $('#rec-info-' + z); if (el) el.textContent = ''; });
-    ['encM', 'contrats'].forEach((z) => { const zn = $('#rec-zone-' + z); if (zn) zn.classList.remove('is-done'); const c = $('#rec-done-' + z); if (c) c.innerHTML = ''; });
+    ['encM', 'contrats', 'resiliations', 'membres'].forEach((z) => { const el = $('#rec-info-' + z); if (el) el.textContent = ''; });
+    ['encM', 'contrats', 'resiliations'].forEach((z) => { const zn = $('#rec-zone-' + z); if (zn) zn.classList.remove('is-done'); const c = $('#rec-done-' + z); if (c) c.innerHTML = ''; });
     $('#rec-detection').innerHTML = ''; $('#rec-recap').innerHTML = ''; $('#rec-details').innerHTML = '';
     $('#rec-m1-manquants').innerHTML = ''; const ap = $('#rec-apercu'); if (ap) ap.innerHTML = ''; msg('');
     // délègue le clic « Mettre à jour les membres » (bandeaux dynamiques).

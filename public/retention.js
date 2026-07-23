@@ -137,26 +137,44 @@
   //   choix       : { [cle]: 'sous_controle'|'arrangement'|'decalage'|'anomalie'|
   //                          'suspendu'|'nouveau'|'pack' }
   // Sortie : les listes détaillées + les compteurs + la note.
-  function calculerStudio({ encM1, encM, signataires, choix } = {}) {
+  function calculerStudio({ encM1, encM, signataires, choix, resiliations } = {}) {
     const agM1 = agregerParClient(encM1);
     const agM = agregerParClient(encM);
     choix = choix || {};
 
-    // §4.2 BASE = clients de M-1 qui ont réellement payé (net > 0).
+    // Résiliations du mois (fichier « contrats résiliés ») : un résilié est un
+    // DÉPART CERTAIN. On l'ajoute à la population et on le force en disparu, même
+    // s'il a encore payé une échéance ce mois-ci (préavis). Prioritaire sur la
+    // détection par paiement.
+    const resSet = new Set();
+    const resInfo = new Map();
+    (resiliations || []).forEach((r) => {
+      if (!r || !r.cle || resSet.has(r.cle)) return;
+      resSet.add(r.cle); resInfo.set(r.cle, r);
+    });
+
+    // §4.2 BASE = clients de M-1 qui ont réellement payé (net > 0) + les résiliés
+    // (ils faisaient partie des membres, même s'ils n'ont pas payé en M-1).
     const base = new Set();
     agM1.forEach((a, cle) => { if (a.net > 0) base.add(cle); });
+    resSet.forEach((cle) => base.add(cle));
 
     // §4.3 Classement de chaque client de la base (M-1 -> M).
     const fidelesList = [];       // FIDÈLE (compte au numérateur)
     const baisses = [];           // EN PROBLÈME (baisse de tarif) -> menu §5.1
-    const disparus = [];          // DISPARU { cle, type: 'IMPAYE'|'PARTI' }
+    const disparus = [];          // DISPARU { cle, type: 'IMPAYE'|'PARTI'|'RESILIE' }
     base.forEach((cle) => {
+      if (resSet.has(cle)) { // résilié -> disparu certain
+        const r = resInfo.get(cle);
+        disparus.push({ cle, nom: (r && r.nom) || nomDe(cle), prenom: (r && r.prenom) || prenomDe(cle), type: 'RESILIE' });
+        return;
+      }
       const aM1 = agM1.get(cle);
       const aM = agM.get(cle);
       const infos = { cle, nom: nomDe(cle), prenom: prenomDe(cle) };
       if (aM && aM.net > 0) {
-        if (aM.pu < aM1.pu && aM.net < aM1.net) baisses.push(infos); // baisse de tarif
-        else fidelesList.push(infos);                                // fidèle
+        if (aM1 && aM.pu < aM1.pu && aM.net < aM1.net) baisses.push(infos); // baisse de tarif
+        else fidelesList.push(infos);                                        // fidèle
       } else {
         // net(M) <= 0 -> disparu. Décaissement = impayé (récupérable) ; sinon parti.
         const type = (aM && aM.aDecaissement) ? 'IMPAYE' : 'PARTI';
@@ -170,6 +188,7 @@
     let nouveauxPayes = 0;
     const nouveauxNonPayes = [];
     sig.forEach((s) => {
+      if ((s.cles || []).some((k) => resSet.has(k))) return; // signé ET résilié le même mois -> ignoré ici
       let netM = 0, cleMatch = null;
       (s.cles || []).forEach((k) => {
         const a = agM.get(k);
@@ -229,6 +248,7 @@
       disparusAffichage: disparusComptes.length + nbAnomalie,
       nbImpayes: disparusComptes.filter((d) => disparuChoix(d) === 'impaye').length,
       nbPartis: disparusComptes.filter((d) => disparuChoix(d) === 'resilie').length,
+      nbResilies: disparus.filter((d) => d.type === 'RESILIE').length,
       nbDisparuPack,
       // listes détaillées (pour l'écran §7)
       disparus,

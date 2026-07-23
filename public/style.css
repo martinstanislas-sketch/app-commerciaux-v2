@@ -21189,6 +21189,7 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-ap-club em { color: #C79A3C; font-style: normal; font-size: 11px; font-weight: 500; }
 .rec-ap-ok { color: #6FCF97; font-weight: 800; }
 .rec-ap-ko { color: #55617A; }
+.rec-ap-opt { color: #3C4658; }
 /* Zone importée -> carte compacte ; zone vide -> reste en grand (action restante) */
 .rec-done { display: none; align-items: center; gap: 11px; background: rgba(31,167,103,.14); border: 1px solid rgba(31,167,103,.35); border-radius: 12px; padding: 12px 14px; }
 .rec-zone.is-done .rec-drop { display: none; }

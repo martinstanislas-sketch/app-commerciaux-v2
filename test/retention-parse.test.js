@@ -92,6 +92,19 @@ test('moisPrecedent : recule d’un mois, gère le passage d’année', () => {
   assert.equal(RP.moisPrecedent(''), null);
 });
 
+test('mapResiliations : Nom/Prénom filtrés sur le mois de résiliation', () => {
+  const rows = [
+    { Prénom: 'Olivier', Nom: 'VANDERKELEN', Prestation: 'X', 'Date de résiliation': '15/06/2026' },
+    { Prénom: 'Martin', Nom: 'DUFOUR', Prestation: 'X', 'Date de résiliation': '18/08/2025' }, // autre mois -> exclu
+    { Prénom: 'Salomé', Nom: 'BUREAU', Prestation: 'X', 'Date de résiliation': '19/06/2026' },
+  ];
+  const out = RP.mapResiliations(rows, '2026-06');
+  assert.deepEqual(out.map((r) => r.cle).sort(), ['BUREAU|SALOME', 'VANDERKELEN|OLIVIER']);
+  assert.equal(RP.mapResiliations(rows, '2025-08')[0].cle, 'DUFOUR|MARTIN');
+  // sans mois cible -> tout est gardé
+  assert.equal(RP.mapResiliations(rows).length, 3);
+});
+
 test('estHTML : détecte un .xls qui est en réalité du HTML', () => {
   const enc = (s) => new TextEncoder().encode(s);
   assert.equal(RP.estHTML(enc('<html><table>')), true);

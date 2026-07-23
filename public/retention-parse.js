@@ -157,6 +157,38 @@
     return out;
   }
 
+  // ── RÉSILIATIONS : export « contrats résiliés » -> clés des départs du mois ──
+  // Colonnes Deciplus : Prénom, Nom, Prestation, …, Date de résiliation, Date
+  // d'annulation, Date de fin. On ne garde QUE Nom/Prénom, filtrés sur le mois M
+  // (via la date de résiliation/annulation/fin, la première lisible).
+  function mapResiliations(rows, moisM) {
+    const out = [];
+    if (!rows || !rows.length) return out;
+    const entetes = Object.keys(rows[0]);
+    const cNom = trouverColonne(entetes, ['Nom']);
+    const cPrenom = trouverColonne(entetes, ['Prenom', 'Prénom']);
+    if (!cNom || !cPrenom) {
+      throw new Error('Fichier résiliations : colonnes Nom / Prénom introuvables. En-têtes lus : ' + entetes.join(', '));
+    }
+    const dateCols = ['Date de résiliation', 'Date de resiliation', "Date d'annulation", 'Date de fin']
+      .map((c) => trouverColonne(entetes, [c])).filter(Boolean);
+    const seen = new Set();
+    rows.forEach((r) => {
+      const nom = String(r[cNom] || ''), prenom = String(r[cPrenom] || '');
+      if (!nom && !prenom) return;
+      // Filtre sur le mois de résiliation si on a une date ET un mois cible.
+      if (moisM && dateCols.length) {
+        let ym = null;
+        for (const dc of dateCols) { const y = ymDeDate(r[dc]); if (y) { ym = y; break; } }
+        if (ym !== moisM) return;
+      }
+      const cle = cleClient(nom, prenom);
+      if (seen.has(cle)) return; seen.add(cle);
+      out.push({ cle, nom, prenom });
+    });
+    return out;
+  }
+
   // ── §2.1 CONTRATS : noms de fichiers -> signataires ────────────────────────
   // `nomsFichiers` = tableau de noms de fichiers .pdf (issus du zip ou déposés
   // directement). On dédup les contrats identiques (§8).
@@ -219,7 +251,7 @@
 
   return {
     normEntete, trouverColonne, parseMontant,
-    mapEncaissements, mapMembres, mapContrats,
+    mapEncaissements, mapMembres, mapContrats, mapResiliations,
     ymDeDate, moisDeLignes, moisPrecedent,
     // adaptateurs navigateur
     estHTML, lireTabulaire, lireContratsZip,
