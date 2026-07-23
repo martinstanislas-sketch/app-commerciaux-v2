@@ -420,6 +420,18 @@ const RecapUI = (function () {
   function render() { renderClubTabs(); renderClubPanel(); }
   const pct = (x) => (x == null ? '—' : (x * 100).toFixed(1).replace('.', ',') + ' %');
 
+  // Icônes discrètes (SVG monochrome, hérite de currentColor) pour les KPI.
+  const ICONS = {
+    users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    down: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+    alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    trend: '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>',
+    plus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>',
+    list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+  };
+  const ico = (n) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[n] || '') + '</svg>';
+
   // Ordre d'affichage des clubs (réseau My Coach), les autres à la suite.
   const ORDRE = ['Lille', 'Marcq', 'Wasquehal', 'Boulogne', 'Neuilly', 'Levallois'];
   function clubsResultats() {
@@ -510,16 +522,16 @@ const RecapUI = (function () {
       host.innerHTML = '<div class="rec-panel">' + bandeau('warn', '⏳ <b>' + esc(s) + '</b> : le mois précédent (' + esc(moisLabel(m1, 0)) + ') n\'est pas encore importé. Dépose-le pour calculer ce club.') + '</div>';
       return;
     }
-    // §3 KPI compacts (chiffre >> libellé).
+    // §3+§5 KPI compacts (chiffre énorme, libellé + icône discrète).
     const kpis = [
-      ['Clients ' + moisLabel(mois, -1), r.base],
-      ['Fidèles', r.fideles],
-      ['Disparus', r.disparusAffichage],
-      ['Impayés', r.nbImpayes],
-      ['Tarifs en baisse', r.baisses.length],
-      ['Nouveaux signés', r.nsig],
-      ['À qualifier', r.aQualifier.length],
-    ].map((k) => '<div class="rec-kpi2"><b>' + esc(String(k[1])) + '</b><span>' + esc(k[0]) + '</span></div>').join('');
+      ['Clients ' + moisLabel(mois, -1), r.base, 'users'],
+      ['Fidèles', r.fideles, 'check'],
+      ['Disparus', r.disparusAffichage, 'down'],
+      ['Impayés', r.nbImpayes, 'alert'],
+      ['Tarifs en baisse', r.baisses.length, 'trend'],
+      ['Nouveaux signés', r.nsig, 'plus'],
+      ['À qualifier', r.aQualifier.length, 'list'],
+    ].map((k) => '<div class="rec-kpi2"><b>' + esc(String(k[1])) + '</b><span>' + ico(k[2]) + esc(k[0]) + '</span></div>').join('');
 
     // §4 Sous-onglets : uniquement les catégories non vides.
     const cats = categoriesDe(r).filter((c) => c.items.length);
@@ -740,7 +752,7 @@ const RecapUI = (function () {
         labels: asc.map((c) => c.label),
         datasets: [{
           label: 'Note réseau', data: asc.map((c) => c.reseau == null ? null : +(c.reseau * 100).toFixed(1)),
-          borderColor: '#F0D488', backgroundColor: 'rgba(240,212,136,.15)', tension: .25, spanGaps: true, pointRadius: 4,
+          borderColor: '#818CF8', backgroundColor: 'rgba(99,102,241,.15)', tension: .25, spanGaps: true, pointRadius: 4,
         }],
       },
       options: {
