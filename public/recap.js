@@ -672,7 +672,7 @@ const RecapUI = (function () {
   }
   const OPT = {
     baisse: [{ val: 'sous_controle', lbl: 'Sous contrôle' }, { val: 'arrangement', lbl: 'Arrangement' }],
-    nouveauNonPaye: [{ val: 'decalage', lbl: 'Décalage de paiement' }, { val: 'anomalie', lbl: 'Anomalie' }],
+    nouveauNonPaye: [{ val: 'decalage', lbl: 'OK' }, { val: 'anomalie', lbl: 'Anomalie' }],
     aQualifier: [{ val: 'suspendu', lbl: 'Suspendu' }, { val: 'nouveau', lbl: 'Nouveau' }, { val: 'pack', lbl: 'Pack de séance' }],
     disparu: [{ val: 'impaye', lbl: 'Impayé' }, { val: 'resilie', lbl: 'Résilié' }, { val: 'anomalie', lbl: 'Anomalie' }, { val: 'pack', lbl: 'Pack de séance' }],
     preavis: [{ val: 'ok', lbl: 'OK' }, { val: 'ctx', lbl: 'Ctx' }],
@@ -913,7 +913,7 @@ const RecapUI = (function () {
   const QUAL = {
     disparu: { impaye: ['Impayé', 'red'], resilie: ['Résilié', 'gray'], anomalie: ['Anomalie', 'redlight'], pack: ['Pack de séances', 'blue'] },
     baisse: { sous_controle: ['Sous contrôle', 'green'], arrangement: ['Arrangement', 'orange'] },
-    nouveauNonPaye: { decalage: ['Décalage', 'green'], anomalie: ['Anomalie', 'redlight'] },
+    nouveauNonPaye: { decalage: ['OK', 'green'], anomalie: ['Anomalie', 'redlight'] },
     aQualifier: { suspendu: ['Suspendu', 'green'], nouveau: ['Nouveau', 'green'], pack: ['Pack de séances', 'blue'] },
     preavis: { ok: ['OK', 'green'], ctx: ['Ctx', 'orange'] },
   };
