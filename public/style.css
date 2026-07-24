@@ -21237,10 +21237,11 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 /* Sans colonne « Situation détectée » : 2 colonnes (Client / Qualification). */
 .rec-cli-table.rec-cli-2col th:nth-child(1), .rec-cli-table.rec-cli-2col td:nth-child(1) { width: 70%; }
 .rec-cli-table.rec-cli-2col th:nth-child(2), .rec-cli-table.rec-cli-2col td:nth-child(2) { width: 30%; }
-/* Catégories qualifiables : 3 colonnes (Client / Qualification / Note inline). */
-.rec-cli-table.rec-cli-note3 th:nth-child(1), .rec-cli-table.rec-cli-note3 td:nth-child(1) { width: 40%; }
-.rec-cli-table.rec-cli-note3 th:nth-child(2), .rec-cli-table.rec-cli-note3 td:nth-child(2) { width: 22%; text-align: right; }
-.rec-cli-table.rec-cli-note3 th:nth-child(3), .rec-cli-table.rec-cli-note3 td:nth-child(3) { width: 38%; text-align: left; }
+/* Catégories qualifiables : 3 colonnes (Client / Qualification / Note inline).
+   Qualification alignée à gauche + colonne étroite ; Note élargie pour écrire. */
+.rec-cli-table.rec-cli-note3 th:nth-child(1), .rec-cli-table.rec-cli-note3 td:nth-child(1) { width: 27%; }
+.rec-cli-table.rec-cli-note3 th:nth-child(2), .rec-cli-table.rec-cli-note3 td:nth-child(2) { width: 15%; text-align: left; }
+.rec-cli-table.rec-cli-note3 th:nth-child(3), .rec-cli-table.rec-cli-note3 td:nth-child(3) { width: 58%; text-align: left; }
 .rec-cli-table td { padding: 2px 14px; height: 30px; line-height: 1.2; border-bottom: 1px solid var(--rc-line); font-size: 13px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Neutralise le min-height 44px global des <button> sur les contrôles compacts */
 .rec-cat-tab, .rec-nav-btn, .rec-link, .rec-done-rep, .rec-club-add-btn { min-height: 0; }
