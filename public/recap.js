@@ -53,6 +53,8 @@ const RecapUI = (function () {
   let kpiActive = 'disparus'; // KPI/catégorie affiché(e) : la carte cliquée pilote la liste
   let triCol = 'nom';         // colonne de tri du tableau clients : 'nom' | 'situ' | 'qual'
   let triSens = 1;            // 1 = croissant (A→Z), -1 = décroissant
+  let besoinTri = 'club';     // tri de l'onglet « Besoin d'infos » : 'nom' | 'club' | 'cat'
+  let besoinSens = 1;
   let importOuvert = false; // panneau d'import replié par défaut (consultation avant tout)
   const BESOIN_TAB = '__besoin__'; // onglet spécial (à droite des clubs) agrégeant les clients cochés
   const BESOIN_CAT = '_besoin';    // catégorie réservée en base (réutilise retention_choices)
@@ -788,9 +790,20 @@ const RecapUI = (function () {
       + '<td>' + badge(x.cat, 'neutral') + '</td>'
       + '<td class="rec-cli-qual">' + x.qual + '</td></tr>'
     ).join('');
+    const thB = (col, lbl) => {
+      const actif = besoinTri === col;
+      const glyph = actif ? (besoinSens > 0 ? '▲' : '▼') : '↕';
+      return '<th class="rec-th-tri' + (actif ? ' is-tri' : '') + '" data-btri="' + col + '">'
+        + esc(lbl) + '<span class="rec-tri-arw">' + glyph + '</span></th>';
+    };
     const table = '<table class="rec-cli-table rec-besoin-table"><thead><tr>'
-      + '<th></th><th>Client</th><th>Club</th><th>Catégorie</th><th>Qualification</th></tr></thead><tbody>' + corps + '</tbody></table>';
+      + '<th></th>' + thB('nom', 'Client') + thB('club', 'Club') + thB('cat', 'Catégorie') + '<th>Qualification</th></tr></thead><tbody>' + corps + '</tbody></table>';
     host.innerHTML = '<div class="rec-panel">' + head + table + '</div>';
+    host.querySelectorAll('.rec-th-tri[data-btri]').forEach((h) => h.addEventListener('click', () => {
+      const col = h.dataset.btri;
+      if (besoinTri === col) besoinSens = -besoinSens; else { besoinTri = col; besoinSens = 1; }
+      renderBesoinPanel();
+    }));
   }
 
   // Tri du tableau clients selon triCol/triSens. Clé par colonne ; le nom reste
@@ -939,7 +952,8 @@ const RecapUI = (function () {
       if (info) out.push(Object.assign({ studio: s, cle }, info));
     }));
     const nomCle = (x) => ((x.nom || '') + ' ' + (x.prenom || '')).toLowerCase();
-    return out.sort((a, b) => a.studio.localeCompare(b.studio, 'fr') || nomCle(a).localeCompare(nomCle(b), 'fr'));
+    const cle = (x) => besoinTri === 'nom' ? nomCle(x) : besoinTri === 'cat' ? String(x.cat || '').toLowerCase() : String(x.studio || '').toLowerCase();
+    return out.sort((a, b) => (cle(a).localeCompare(cle(b), 'fr') * besoinSens) || nomCle(a).localeCompare(nomCle(b), 'fr'));
   }
 
   async function charger() {
