@@ -50,6 +50,8 @@ const RecapUI = (function () {
   let chartHisto = null;
   let resClub = '';  // club affiché dans la zone de résultats (onglets)
   let kpiActive = 'disparus'; // KPI/catégorie affiché(e) : la carte cliquée pilote la liste
+  let triCol = 'nom';         // colonne de tri du tableau clients : 'nom' | 'situ' | 'qual'
+  let triSens = 1;            // 1 = croissant (A→Z), -1 = décroissant
   let importOuvert = false; // panneau d'import replié par défaut (consultation avant tout)
 
   function open() {
@@ -705,8 +707,9 @@ const RecapUI = (function () {
     const kpis = cartes.map((k) => '<button type="button" class="rec-kpi2' + (k.key === kpiActive ? ' is-active' : '') + '" data-kpi="' + k.key + '">'
       + '<b>' + listeKPI(r, k.key, s).length + '</b><span>' + ico(k.icon) + esc(k.label()) + aideBtn(k.aide) + '</span></button>').join('');
 
-    // §5 Tableau de la catégorie sélectionnée.
-    const rows = listeKPI(r, kpiActive, s);
+    // §5 Tableau de la catégorie sélectionnée, trié (par nom par défaut ;
+    // en-têtes cliquables pour trier par situation ou par qualification).
+    const rows = trierRows(listeKPI(r, kpiActive, s), s);
     let sansLien = 0, total = 0;
     const corps = rows.map((it) => {
       total++; if (!resoudreId(it.cle, s)) sansLien++;
@@ -714,8 +717,13 @@ const RecapUI = (function () {
       return '<tr><td class="rec-cli-nom">' + nomLien(s, it.cle, it.nom, it.prenom) + '</td>'
         + '<td>' + situBadge(it.situ, it) + '</td><td class="rec-cli-qual">' + qual + '</td></tr>';
     }).join('');
+    const thTri = (col, lbl) => {
+      const actif = triCol === col;
+      const fleche = actif ? '<span class="rec-tri-arw">' + (triSens > 0 ? '▲' : '▼') + '</span>' : '';
+      return '<th class="rec-th-tri' + (actif ? ' is-tri' : '') + '" data-tri="' + col + '">' + esc(lbl) + fleche + '</th>';
+    };
     const table = rows.length
-      ? '<table class="rec-cli-table"><thead><tr><th>Client</th><th>Situation détectée</th><th>Qualification</th></tr></thead><tbody>' + corps + '</tbody></table>'
+      ? '<table class="rec-cli-table"><thead><tr>' + thTri('nom', 'Client') + thTri('situ', 'Situation détectée') + thTri('qual', 'Qualification') + '</tr></thead><tbody>' + corps + '</tbody></table>'
       : '<p class="rec-vide">Aucun client dans cette catégorie.</p>';
     const nb = rows.length;
     const listHead = '<div class="rec-list-head">' + esc((KPI_TITRE[kpiActive] || '').toUpperCase()) + ' — ' + nb + ' client' + (nb > 1 ? 's' : '') + '</div>';
@@ -729,6 +737,32 @@ const RecapUI = (function () {
 
     host.innerHTML = '<div class="rec-panel"><div class="rec-kpis2">' + kpis + '</div>' + listHead + table + alerte + '</div>';
     host.querySelectorAll('.rec-kpi2[data-kpi]').forEach((c) => c.addEventListener('click', () => { kpiActive = c.dataset.kpi; renderClubPanel(); }));
+    // En-têtes de colonne = tri en un clic (même colonne -> inverse le sens).
+    host.querySelectorAll('.rec-th-tri[data-tri]').forEach((h) => h.addEventListener('click', () => {
+      const col = h.dataset.tri;
+      if (triCol === col) triSens = -triSens; else { triCol = col; triSens = 1; }
+      renderClubPanel();
+    }));
+  }
+
+  // Tri du tableau clients selon triCol/triSens. Clé par colonne ; le nom reste
+  // toujours le critère secondaire pour un ordre stable et lisible.
+  // Déplacement automatique : un client qualifié à la main descend en bas de liste
+  // (sauf tri explicite par qualification, où l'on veut un regroupement pur).
+  function trierRows(rows, s) {
+    const ch = choix[s] || {};
+    const traite = (it) => (it.menuCat && ch[it.cle] != null) ? 1 : 0; // qualifié -> en bas
+    const groupeTraite = triCol !== 'qual';
+    const nomCle = (it) => ((it.nom || '') + ' ' + (it.prenom || '')).trim().toLowerCase();
+    const cle = (it) => {
+      if (triCol === 'situ') return String(it.situ || '');
+      if (triCol === 'qual') return it.menuCat ? String(valeurCourante(s, it, it.menuCat)) : '￿'; // « — » en dernier
+      return nomCle(it);
+    };
+    return rows.slice().sort((a, b) =>
+      (groupeTraite ? (traite(a) - traite(b)) : 0)
+      || (cle(a).localeCompare(cle(b), 'fr') * triSens)
+      || nomCle(a).localeCompare(nomCle(b), 'fr'));
   }
 
   // Valeur de qualification courante d'une ligne (défaut spécial pour les disparus).

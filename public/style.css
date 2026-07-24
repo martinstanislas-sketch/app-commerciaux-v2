@@ -21211,6 +21211,10 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-cli-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .rec-cli-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--rc-text-3); padding: 4px 14px 7px; font-weight: 600; border-bottom: 1px solid var(--rc-line); }
 .rec-cli-table th:last-child { text-align: right; }
+.rec-cli-table th.rec-th-tri { cursor: pointer; user-select: none; transition: color .12s; }
+.rec-cli-table th.rec-th-tri:hover { color: var(--rc-text-2); }
+.rec-cli-table th.rec-th-tri.is-tri { color: var(--rc-accent, var(--rc-text-2)); }
+.rec-cli-table th .rec-tri-arw { margin-left: 4px; font-size: 9px; }
 .rec-cli-table th:nth-child(1), .rec-cli-table td:nth-child(1) { width: 46%; }
 .rec-cli-table th:nth-child(2), .rec-cli-table td:nth-child(2) { width: 27%; }
 .rec-cli-table th:nth-child(3), .rec-cli-table td:nth-child(3) { width: 27%; }
