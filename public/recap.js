@@ -675,7 +675,7 @@ const RecapUI = (function () {
   const OPT = {
     baisse: [{ val: 'sous_controle', lbl: 'Sous contrôle' }, { val: 'arrangement', lbl: 'Arrangement' }, NE_OPT],
     nouveauNonPaye: [{ val: 'decalage', lbl: 'OK' }, { val: 'anomalie', lbl: 'Anomalie' }, NE_OPT],
-    aQualifier: [{ val: 'suspendu', lbl: 'Suspendu' }, { val: 'nouveau', lbl: 'Nouveau' }, { val: 'pack', lbl: 'Pack de séance' }, NE_OPT],
+    aQualifier: [{ val: 'suspendu', lbl: 'Suspendu' }, { val: 'nouveau', lbl: 'Nouveau' }, { val: 'pack', lbl: 'Pack de séance' }, { val: 'downsell_pack', lbl: 'Downsell Pack' }, NE_OPT],
     disparu: [{ val: 'impaye', lbl: 'Impayé' }, { val: 'resilie', lbl: 'Résilié' }, { val: 'anomalie', lbl: 'Anomalie' }, { val: 'pack', lbl: 'Pack de séance' }, NE_OPT],
     preavis: [{ val: 'ok', lbl: 'OK' }, { val: 'ctx', lbl: 'Ctx' }, NE_OPT],
   };
@@ -923,7 +923,7 @@ const RecapUI = (function () {
     disparu: { impaye: ['Impayé', 'red'], resilie: ['Résilié', 'gray'], anomalie: ['Anomalie', 'redlight'], pack: ['Pack de séances', 'blue'], ne: NE_BADGE },
     baisse: { sous_controle: ['Sous contrôle', 'green'], arrangement: ['Arrangement', 'orange'], ne: NE_BADGE },
     nouveauNonPaye: { decalage: ['OK', 'green'], anomalie: ['Anomalie', 'redlight'], ne: NE_BADGE },
-    aQualifier: { suspendu: ['Suspendu', 'green'], nouveau: ['Nouveau', 'green'], pack: ['Pack de séances', 'blue'], ne: NE_BADGE },
+    aQualifier: { suspendu: ['Suspendu', 'green'], nouveau: ['Nouveau', 'green'], pack: ['Pack de séances', 'blue'], downsell_pack: ['Downsell Pack', 'gray'], ne: NE_BADGE },
     preavis: { ok: ['OK', 'green'], ctx: ['Ctx', 'orange'], ne: NE_BADGE },
   };
   function qualBtn(s, cle, cat, v) {
