@@ -4640,7 +4640,7 @@ app.post('/api/retention/besoin/export', requireAuth, requireAdmin, async (req, 
   if (!sheetId) return res.status(400).json({ error: 'Google Sheet non configuré (variable RECAP_BESOIN_SHEET_ID).' });
   const tab = process.env.RECAP_BESOIN_SHEET_TAB || "Besoins d'infos";
   const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
-  const rangeA = "'" + tab.replace(/'/g, "''") + "'!A:D";
+  const rangeA = "'" + tab.replace(/'/g, "''") + "'!A:E";
   const range1 = "'" + tab.replace(/'/g, "''") + "'!A1";
   try {
     const token = await googleServiceToken('https://www.googleapis.com/auth/spreadsheets');
@@ -4649,8 +4649,8 @@ app.post('/api/retention/besoin/export', requireAuth, requireAdmin, async (req, 
     // 1) Vide l'ancienne liste (colonnes A→D de l'onglet).
     await fetch(base + encodeURIComponent(rangeA) + ':clear', { method: 'POST', headers: auth });
     // 2) Écrit l'en-tête + les fiches courantes.
-    const values = [['Club', 'Nom', 'Prénom', 'Qualification']].concat(
-      rows.map((r) => [String(r.club || ''), String(r.nom || ''), String(r.prenom || ''), String(r.qual || '')]));
+    const values = [['Club', 'Nom', 'Prénom', 'Qualification', 'Note']].concat(
+      rows.map((r) => [String(r.club || ''), String(r.nom || ''), String(r.prenom || ''), String(r.qual || ''), String(r.note || '')]));
     const up = await fetch(base + encodeURIComponent(range1) + '?valueInputOption=RAW', {
       method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth),
       body: JSON.stringify({ values }),

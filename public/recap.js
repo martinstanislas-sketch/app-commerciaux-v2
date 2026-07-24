@@ -47,6 +47,7 @@ const RecapUI = (function () {
   let studios = {};  // studio -> { encM, encM1, signataires, m1Source, m1Mois }
   let choix = {};    // studio -> { cle -> valeur }
   let besoin = {};   // studio -> { cle -> true }  (clients cochés « besoin d'infos »)
+  let besoinNote = {}; // studio -> { cle -> texte }  (note libre par fiche « besoin d'infos »)
   let resultats = {};// studio -> retour de calculerStudio  (ou { pending:true })
   let chartHisto = null;
   let resClub = '';  // club affiché dans la zone de résultats (onglets)
@@ -58,6 +59,7 @@ const RecapUI = (function () {
   let importOuvert = false; // panneau d'import replié par défaut (consultation avant tout)
   const BESOIN_TAB = '__besoin__'; // onglet spécial (à droite des clubs) agrégeant les clients cochés
   const BESOIN_CAT = '_besoin';    // catégorie réservée en base (réutilise retention_choices)
+  const BESOIN_NOTE_CAT = '_besoin_note'; // note libre par fiche (réutilise retention_choices)
 
   function open() {
     if (!inited) { wire(); inited = true; }
@@ -821,8 +823,8 @@ const RecapUI = (function () {
       '<tr><td class="rec-besoin-cell"><input type="checkbox" class="rec-besoin-chk" checked title="Retirer" data-s="' + esc(x.studio) + '" data-cle="' + esc(x.cle) + '"></td>'
       + '<td class="rec-cli-nom">' + nomLien(x.studio, x.cle, x.nom, x.prenom) + '</td>'
       + '<td>' + esc(x.studio) + '</td>'
-      + '<td>' + badge(x.cat, 'neutral') + '</td>'
-      + '<td class="rec-cli-qual">' + x.qual + '</td></tr>'
+      + '<td class="rec-cli-qual">' + x.qual + '</td>'
+      + '<td class="rec-besoin-notecell"><input type="text" class="rec-besoin-note" placeholder="Note libre…" value="' + esc(x.note || '') + '" data-s="' + esc(x.studio) + '" data-cle="' + esc(x.cle) + '"></td></tr>'
     ).join('');
     const thB = (col, lbl) => {
       const actif = besoinTri === col;
@@ -831,21 +833,25 @@ const RecapUI = (function () {
         + esc(lbl) + '<span class="rec-tri-arw">' + glyph + '</span></th>';
     };
     const table = '<table class="rec-cli-table rec-besoin-table"><thead><tr>'
-      + '<th></th>' + thB('nom', 'Client') + thB('club', 'Club') + thB('cat', 'Catégorie') + '<th>Qualification</th></tr></thead><tbody>' + corps + '</tbody></table>';
+      + '<th></th>' + thB('nom', 'Client') + thB('club', 'Club') + '<th>Qualification</th><th>Note</th></tr></thead><tbody>' + corps + '</tbody></table>';
     host.innerHTML = '<div class="rec-panel">' + head + table + '</div>';
     host.querySelectorAll('.rec-th-tri[data-btri]').forEach((h) => h.addEventListener('click', () => {
       const col = h.dataset.btri;
       if (besoinTri === col) besoinSens = -besoinSens; else { besoinTri = col; besoinSens = 1; }
       renderBesoinPanel();
     }));
+    // Note libre : persiste à la sortie du champ (change), sans re-render (garde le focus fluide).
+    host.querySelectorAll('.rec-besoin-note').forEach((inp) => inp.addEventListener('change', () => {
+      setNoteBesoin(inp.dataset.s, inp.dataset.cle, inp.value.trim());
+    }));
     const eb = $('#rec-export-besoin');
     if (eb) eb.addEventListener('click', () => exporterBesoin(liste, eb));
   }
 
-  // Export vers Google Sheets (Club, Nom, Prénom, Qualification) via le backend.
+  // Export vers Google Sheets (Club, Nom, Prénom, Qualification, Note) via le backend.
   async function exporterBesoin(liste, btn) {
     const msg = $('#rec-export-msg');
-    const rows = liste.map((x) => ({ club: x.studio, nom: x.nom, prenom: x.prenom, qual: x.qualTxt || '' }));
+    const rows = liste.map((x) => ({ club: x.studio, nom: x.nom, prenom: x.prenom, qual: x.qualTxt || '', note: noteBesoin(x.studio, x.cle) }));
     const libel = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Export en cours…';
     if (msg) { msg.textContent = ''; msg.className = 'rec-export-msg'; }
     try {
@@ -987,6 +993,12 @@ const RecapUI = (function () {
     renderClubTabs(); // rafraîchit le compteur de l'onglet, sans toucher au panneau courant
     if (resClub === BESOIN_TAB) renderClubPanel(); // dans l'onglet dédié, la ligne décochée disparaît
   }
+  function noteBesoin(s, cle) { return (besoinNote[s] || {})[cle] || ''; }
+  function setNoteBesoin(s, cle, txt) {
+    (besoinNote[s] || (besoinNote[s] = {}))[cle] = txt;
+    fetch('/api/retention/' + mois + '/choix', { method: 'PATCH', headers: H(),
+      body: JSON.stringify({ studio: s, client_key: cle, categorie: BESOIN_NOTE_CAT, valeur: txt }) }).catch(() => {});
+  }
   // Retrouve nom/prénom + catégorie + qualification d'un client coché (par club).
   function trouverClientBesoin(s, cle) {
     const r = resultats[s]; if (!r || r.pending) return null;
@@ -1021,10 +1033,10 @@ const RecapUI = (function () {
     Object.keys(besoin).forEach((s) => Object.keys(besoin[s] || {}).forEach((cle) => {
       if (!besoin[s][cle]) return;
       const info = trouverClientBesoin(s, cle);
-      if (info) out.push(Object.assign({ studio: s, cle }, info));
+      if (info) out.push(Object.assign({ studio: s, cle, note: noteBesoin(s, cle) }, info));
     }));
     const nomCle = (x) => ((x.nom || '') + ' ' + (x.prenom || '')).toLowerCase();
-    const cle = (x) => besoinTri === 'nom' ? nomCle(x) : besoinTri === 'cat' ? String(x.cat || '').toLowerCase() : String(x.studio || '').toLowerCase();
+    const cle = (x) => besoinTri === 'nom' ? nomCle(x) : String(x.studio || '').toLowerCase();
     return out.sort((a, b) => (cle(a).localeCompare(cle(b), 'fr') * besoinSens) || nomCle(a).localeCompare(nomCle(b), 'fr'));
   }
 
@@ -1048,6 +1060,8 @@ const RecapUI = (function () {
       (d.choices || []).forEach((c) => {
         if (c.categorie === BESOIN_CAT) { // flag « besoin d'infos » -> map séparée
           if (c.valeur === '1') (besoin[c.studio] || (besoin[c.studio] = {}))[c.client_key] = true;
+        } else if (c.categorie === BESOIN_NOTE_CAT) { // note libre -> map séparée
+          if (c.valeur) (besoinNote[c.studio] || (besoinNote[c.studio] = {}))[c.client_key] = c.valeur;
         } else {
           (choix[c.studio] || (choix[c.studio] = {}))[c.client_key] = c.valeur;
         }
@@ -1067,7 +1081,7 @@ const RecapUI = (function () {
     // NB : on NE réinitialise PAS clubs/clubCourant (sélection valable entre mois).
     archM = {}; archM1 = {}; m1Info = {}; dejaArchiveM = false;
     contratsParStudio = {}; resiliationsParStudio = {}; fichiersEncM = []; fichiersM1 = []; bulkM1Ouvert = false;
-    studios = {}; resultats = {}; choix = {}; besoin = {};
+    studios = {}; resultats = {}; choix = {}; besoin = {}; besoinNote = {};
     membres = { map: [], stats: {}, total: 0 }; idxStudio = new Map(); idxGlobal = new Map();
     ['encM', 'contrats', 'resiliations', 'membres'].forEach((z) => { const el = $('#rec-info-' + z); if (el) el.textContent = ''; });
     ['encM', 'contrats', 'resiliations'].forEach((z) => { const zn = $('#rec-zone-' + z); if (zn) zn.classList.remove('is-done'); const c = $('#rec-done-' + z); if (c) c.innerHTML = ''; });
@@ -1131,7 +1145,7 @@ const RecapUI = (function () {
     const aM = {}, aM1 = {}, ch = {};
     (d.importsM || []).forEach((im) => { const s = aM[im.studio] || (aM[im.studio] = { enc: [], con: [] }); if (im.type === 'encaissements') s.enc = im.contenu || []; if (im.type === 'contrats') s.con = im.contenu || []; });
     (d.importsM1 || []).forEach((im) => { aM1[im.studio] = im.contenu || []; });
-    (d.choices || []).forEach((c) => { if (c.categorie !== BESOIN_CAT) (ch[c.studio] || (ch[c.studio] = {}))[c.client_key] = c.valeur; });
+    (d.choices || []).forEach((c) => { if (c.categorie !== BESOIN_CAT && c.categorie !== BESOIN_NOTE_CAT) (ch[c.studio] || (ch[c.studio] = {}))[c.client_key] = c.valeur; });
     const parStudio = []; const rs = [];
     Object.keys(aM).forEach((s) => {
       if (!aM1[s]) return; // sans M-1 -> pas de note (studio en attente)
