@@ -588,7 +588,12 @@ const RecapUI = (function () {
     const host = $('#rec-recap');
     const clubsCalc = clubsResultats();
     if (!clubsCalc.length) { host.innerHTML = ''; return; }
-    if (!resClub || !resultats[resClub]) resClub = clubsCalc[0];
+    // Conserve la ville sélectionnée d'un mois à l'autre : match exact d'abord,
+    // puis tolérant (accents/casse/espaces) pour survivre aux variantes de nom.
+    if (!resClub || !resultats[resClub]) {
+      const garde = resClub && clubsCalc.find((s) => normClub(s) === normClub(resClub));
+      resClub = garde || clubsCalc[0];
+    }
     const reseau = Retention.noteReseau(clubsCalc.filter((s) => !resultats[s].pending).map((s) => resultats[s]));
     const tabs = clubsCalc.map((s) => {
       const r = resultats[s];
