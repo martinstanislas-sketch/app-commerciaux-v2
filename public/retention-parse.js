@@ -71,6 +71,8 @@
     if (v instanceof Date && !isNaN(v)) return v.getUTCFullYear() + '-' + String(v.getUTCMonth() + 1).padStart(2, '0');
     let s = String(v == null ? '' : v).trim();
     if (!s) return null;
+    let mo = /^(\d{4})-(\d{1,2})$/.exec(s);                 // déjà un mois AAAA-MM (idempotent)
+    if (mo) return mo[1] + '-' + mo[2].padStart(2, '0');
     let m = /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/.exec(s); // AAAA-MM-JJ
     if (m) return m[1] + '-' + m[2].padStart(2, '0');
     m = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/.exec(s);   // JJ/MM/AAAA

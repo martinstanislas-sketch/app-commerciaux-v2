@@ -71,6 +71,8 @@ test('ymDeDate : tous les formats Deciplus -> AAAA-MM', () => {
   assert.equal(RP.ymDeDate(new Date(Date.UTC(2026, 5, 10))), '2026-06', 'objet Date');
   // série Excel : 46184 = 2026-06-15 (jours depuis 1899-12-30)
   assert.equal(RP.ymDeDate('46184'), '2026-06', 'série Excel');
+  assert.equal(RP.ymDeDate('2026-06'), '2026-06', 'déjà un mois AAAA-MM (idempotent)');
+  assert.equal(RP.ymDeDate('2026-6'), '2026-06', 'mois sans zéro de tête');
   assert.equal(RP.ymDeDate(''), null);
   assert.equal(RP.ymDeDate('n/a'), null, 'illisible -> null');
 });
