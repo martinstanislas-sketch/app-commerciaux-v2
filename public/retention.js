@@ -123,7 +123,7 @@
     // (churn, aucune différence de note) ; « pack » (pack de séance) est EXCLU
     // du calcul. Défaut = le type auto détecté (impayé si décaissement, sinon
     // résilié).
-    disparu: { options: ['impaye', 'resilie', 'pack'], defaut: 'resilie' },
+    disparu: { options: ['impaye', 'resilie', 'anomalie', 'pack'], defaut: 'resilie' },
   };
   const choixOu = (choix, cle, defaut) => {
     const v = choix && choix[cle];
@@ -237,8 +237,10 @@
     // auto (impayé si décaissement, sinon résilié). « pack » -> exclu du calcul.
     const disparuChoix = (d) => {
       const v = choix[d.cle];
-      return (v === 'impaye' || v === 'resilie' || v === 'pack') ? v : (d.type === 'IMPAYE' ? 'impaye' : 'resilie');
+      return (v === 'impaye' || v === 'resilie' || v === 'anomalie' || v === 'pack') ? v : (d.type === 'IMPAYE' ? 'impaye' : 'resilie');
     };
+    // « pack » exclu du calcul ; « anomalie » reste compté comme perte (déjà en
+    // base M-1) -> aucun double comptage, juste un libellé distinct pour le suivi.
     const disparusComptes = disparus.filter((d) => disparuChoix(d) !== 'pack');
     const nbDisparuPack = disparus.length - disparusComptes.length;
     const nbPreavis = preavis.length; // résiliés encore en paiement : neutres (hors dénominateur)
