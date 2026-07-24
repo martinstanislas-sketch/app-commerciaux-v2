@@ -719,8 +719,9 @@ const RecapUI = (function () {
     }).join('');
     const thTri = (col, lbl) => {
       const actif = triCol === col;
-      const fleche = actif ? '<span class="rec-tri-arw">' + (triSens > 0 ? '▲' : '▼') + '</span>' : '';
-      return '<th class="rec-th-tri' + (actif ? ' is-tri' : '') + '" data-tri="' + col + '">' + esc(lbl) + fleche + '</th>';
+      const glyph = actif ? (triSens > 0 ? '▲' : '▼') : '↕'; // ↕ = triable ; ▲/▼ = tri actif
+      return '<th class="rec-th-tri' + (actif ? ' is-tri' : '') + '" data-tri="' + col + '">'
+        + esc(lbl) + '<span class="rec-tri-arw">' + glyph + '</span></th>';
     };
     const table = rows.length
       ? '<table class="rec-cli-table"><thead><tr>' + thTri('nom', 'Client') + thTri('situ', 'Situation détectée') + thTri('qual', 'Qualification') + '</tr></thead><tbody>' + corps + '</tbody></table>'

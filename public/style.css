@@ -21214,7 +21214,9 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-cli-table th.rec-th-tri { cursor: pointer; user-select: none; transition: color .12s; }
 .rec-cli-table th.rec-th-tri:hover { color: var(--rc-text-2); }
 .rec-cli-table th.rec-th-tri.is-tri { color: var(--rc-accent, var(--rc-text-2)); }
-.rec-cli-table th .rec-tri-arw { margin-left: 4px; font-size: 9px; }
+.rec-cli-table th .rec-tri-arw { margin-left: 4px; font-size: 9px; opacity: .3; transition: opacity .12s; }
+.rec-cli-table th.rec-th-tri:hover .rec-tri-arw { opacity: .6; }
+.rec-cli-table th.rec-th-tri.is-tri .rec-tri-arw { opacity: 1; }
 .rec-cli-table th:nth-child(1), .rec-cli-table td:nth-child(1) { width: 46%; }
 .rec-cli-table th:nth-child(2), .rec-cli-table td:nth-child(2) { width: 27%; }
 .rec-cli-table th:nth-child(3), .rec-cli-table td:nth-child(3) { width: 27%; }
