@@ -227,8 +227,17 @@
 
     // §5 application des choix -> §6 compteurs.
     const nbSousControle = baisses.filter((b) => choixOu(choix, b.cle, MENU.baisse.defaut) === 'sous_controle').length;
-    const nbDecalage = nouveauxNonPayes.filter((n) => choixOu(choix, n.cle, MENU.nouveauNonPaye.defaut) === 'decalage').length;
-    const nbAnomalie = nouveauxNonPayes.filter((n) => choixOu(choix, n.cle, MENU.nouveauNonPaye.defaut) === 'anomalie').length;
+    // §5 Nouveaux signés : classification applicable à TOUS (payés compris).
+    // Défaut sans choix explicite : payé -> positif, non payé -> anomalie (comme
+    // avant). Choix explicite prioritaire : 'anomalie' -> pénalisant (dénominateur) ;
+    // 'decalage' (ou payé par défaut) -> positif (numérateur). Note inchangée pour
+    // les états déjà possibles ; nouveauté = un PAYÉ marqué « anomalie » pénalise.
+    let nsigPositif = 0, nbAnomalie = 0;
+    signatairesListe.forEach((s) => {
+      const v = choix[s.cle];
+      const eff = (v === 'decalage' || v === 'anomalie') ? v : (s.paye ? 'decalage' : MENU.nouveauNonPaye.defaut);
+      if (eff === 'anomalie') nbAnomalie += 1; else nsigPositif += 1;
+    });
     const nbQualActifs = aQualifier.filter((q) => {
       const v = choixOu(choix, q.cle, MENU.aQualifier.defaut);
       return v === 'suspendu' || v === 'nouveau';
@@ -247,7 +256,7 @@
 
     const fideles = fidelesList.length + nbSousControle; // §6
     const baseN = base.size;
-    const nsig = nouveauxPayes + nbDecalage;
+    const nsig = nsigPositif;
     const numerateur = fideles + nsig + nbQualActifs;
     const denominateur = (baseN - nbDisparuPack - nbPreavis) + nsig + nbAnomalie + nbQualActifs;
     const note = denominateur > 0 ? numerateur / denominateur : 0;

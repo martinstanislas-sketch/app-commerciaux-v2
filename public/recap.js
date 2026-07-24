@@ -712,7 +712,7 @@ const RecapUI = (function () {
       case 'disparus': return (r.disparus || []).map((d) => ({ cle: d.cle, nom: d.nom, prenom: d.prenom, type: d.type, menuCat: 'disparu', situ: 'disparu' }));
       case 'impayes': return (r.disparus || []).filter((d) => d.type === 'IMPAYE').map((d) => ({ cle: d.cle, nom: d.nom, prenom: d.prenom, type: d.type, menuCat: 'disparu', situ: 'disparu' }));
       case 'baisses': return (r.baisses || []).map((b) => ({ cle: b.cle, nom: b.nom, prenom: b.prenom, menuCat: 'baisse', situ: 'baisse' }));
-      case 'nouveaux': return (r.signatairesListe || []).map((n) => ({ cle: n.cle, nom: n.nom, prenom: n.prenom, menuCat: n.paye ? null : 'nouveauNonPaye', situ: n.paye ? 'nouveauPaye' : 'nonPaye' }));
+      case 'nouveaux': return (r.signatairesListe || []).map((n) => ({ cle: n.cle, nom: n.nom, prenom: n.prenom, menuCat: 'nouveauNonPaye', situ: n.paye ? 'nouveauPaye' : 'nonPaye' }));
       case 'aqualifier': return (r.aQualifier || []).map((q) => ({ cle: q.cle, nom: q.nom, prenom: q.prenom, menuCat: 'aQualifier', situ: 'aqualifier' }));
       case 'preavis': return (r.preavis || []).map((p) => ({ cle: p.cle, nom: p.nom, prenom: p.prenom, baisse: p.baisse, menuCat: 'preavis', situ: 'preavis' }));
       default: return [];
