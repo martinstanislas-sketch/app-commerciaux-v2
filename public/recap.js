@@ -653,13 +653,14 @@ const RecapUI = (function () {
     nouveauNonPaye: [{ val: 'decalage', lbl: 'Décalage de paiement' }, { val: 'anomalie', lbl: 'Anomalie' }],
     aQualifier: [{ val: 'suspendu', lbl: 'Suspendu' }, { val: 'nouveau', lbl: 'Nouveau' }, { val: 'pack', lbl: 'Pack de séance' }],
     disparu: [{ val: 'impaye', lbl: 'Impayé' }, { val: 'resilie', lbl: 'Résilié' }, { val: 'pack', lbl: 'Pack de séance' }],
+    preavis: [{ val: 'ok', lbl: 'OK' }, { val: 'ctx', lbl: 'Ctx' }],
   };
-  const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack', disparu: 'resilie' };
+  const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack', disparu: 'resilie', preavis: 'ok' };
   // Catégories où la qualification part VIDE (rien noté par défaut ; un clic
   // ouvre le menu) et où la colonne « Situation détectée » est masquée
   // (redondante avec la qualification). N.B. purement UI : le calcul garde son
   // propre défaut via choixOu(), donc la note est inchangée.
-  const CAT_QUAL_VIDE = new Set(['disparus', 'impayes', 'baisses', 'nouveaux', 'aqualifier']);
+  const CAT_QUAL_VIDE = new Set(['disparus', 'impayes', 'baisses', 'nouveaux', 'aqualifier', 'preavis']);
 
   // Les 7 cartes KPI = l'unique navigation entre les listes (plus de sous-onglets).
   const KPIS = [
@@ -693,7 +694,7 @@ const RecapUI = (function () {
       case 'baisses': return (r.baisses || []).map((b) => ({ cle: b.cle, nom: b.nom, prenom: b.prenom, menuCat: 'baisse', situ: 'baisse' }));
       case 'nouveaux': return (r.signatairesListe || []).map((n) => ({ cle: n.cle, nom: n.nom, prenom: n.prenom, menuCat: n.paye ? null : 'nouveauNonPaye', situ: n.paye ? 'nouveauPaye' : 'nonPaye' }));
       case 'aqualifier': return (r.aQualifier || []).map((q) => ({ cle: q.cle, nom: q.nom, prenom: q.prenom, menuCat: 'aQualifier', situ: 'aqualifier' }));
-      case 'preavis': return (r.preavis || []).map((p) => ({ cle: p.cle, nom: p.nom, prenom: p.prenom, baisse: p.baisse, menuCat: null, situ: 'preavis' }));
+      case 'preavis': return (r.preavis || []).map((p) => ({ cle: p.cle, nom: p.nom, prenom: p.prenom, baisse: p.baisse, menuCat: 'preavis', situ: 'preavis' }));
       default: return [];
     }
   }
@@ -807,6 +808,7 @@ const RecapUI = (function () {
     baisse: { sous_controle: ['Sous contrôle', 'green'], arrangement: ['Arrangement', 'orange'] },
     nouveauNonPaye: { decalage: ['Décalage', 'green'], anomalie: ['Anomalie', 'redlight'] },
     aQualifier: { suspendu: ['Suspendu', 'green'], nouveau: ['Nouveau', 'green'], pack: ['Pack de séances', 'blue'] },
+    preavis: { ok: ['OK', 'green'], ctx: ['Ctx', 'orange'] },
   };
   function qualBtn(s, cle, cat, v) {
     const [lbl, col] = (QUAL[cat] && QUAL[cat][v]) || [v, 'neutral'];
