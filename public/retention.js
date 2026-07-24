@@ -120,7 +120,7 @@
   const MENU = {
     baisse: { options: ['sous_controle', 'arrangement', 'ne'], defaut: 'arrangement' },
     nouveauNonPaye: { options: ['decalage', 'anomalie', 'ne'], defaut: 'anomalie' },
-    aQualifier: { options: ['suspendu', 'nouveau', 'pack', 'downsell_pack', 'ne'], defaut: 'pack' },
+    aQualifier: { options: ['suspendu', 'nouveau', 'pack', 'downsell_pack', 'impaye', 'ne'], defaut: 'pack' },
     // Qualification d'un disparu : « impaye » / « resilie » comptent PAREIL
     // (churn, aucune différence de note) ; « pack » (pack de séance) est EXCLU
     // du calcul. Défaut = le type auto détecté (impayé si décaissement, sinon
@@ -251,10 +251,13 @@
       const v = choixOu(choix, q.cle, MENU.aQualifier.defaut);
       return v === 'suspendu' || v === 'nouveau';
     }).length;
-    // « Downsell Pack » : traité comme un résilié -> compté comme PERTE (au
-    // dénominateur, hors numérateur), au lieu d'être exclu comme un pack.
-    const nbDownsell = aQualifier.filter((q) => !estNE(q.cle)
-      && choixOu(choix, q.cle, MENU.aQualifier.defaut) === 'downsell_pack').length;
+    // « Downsell Pack » et « Impayé » : traités comme un résilié -> comptés comme
+    // PERTE (au dénominateur, hors numérateur), au lieu d'être exclus comme un pack.
+    const nbQualPerte = aQualifier.filter((q) => {
+      if (estNE(q.cle)) return false;
+      const v = choixOu(choix, q.cle, MENU.aQualifier.defaut);
+      return v === 'downsell_pack' || v === 'impaye';
+    }).length;
     // Qualification effective d'un disparu : le choix s'il existe, sinon le type
     // auto (impayé si décaissement, sinon résilié). « pack » -> exclu du calcul.
     const disparuChoix = (d) => {
@@ -272,7 +275,7 @@
     const baseN = [...base].filter((c) => !estNE(c)).length; // base M-1 hors NE
     const nsig = nsigPositif;
     const numerateur = fideles + nsig + nbQualActifs;
-    const denominateur = (baseN - nbDisparuPack - nbPreavis) + nsig + nbAnomalie + nbQualActifs + nbDownsell;
+    const denominateur = (baseN - nbDisparuPack - nbPreavis) + nsig + nbAnomalie + nbQualActifs + nbQualPerte;
     const note = denominateur > 0 ? numerateur / denominateur : 0;
 
     return {
