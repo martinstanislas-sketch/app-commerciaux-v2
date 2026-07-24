@@ -776,8 +776,10 @@ const RecapUI = (function () {
       const situ = modeVide ? '' : '<td>' + situBadge(it.situ, it) + '</td>';
       // Petite case « besoin d'infos » devant le nom (catégories qualifiables).
       const chk = modeVide ? '<input type="checkbox" class="rec-besoin-chk" title="Besoin d\'infos" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '"' + (estBesoin(s, it.cle) ? ' checked' : '') + '>' : '';
+      // Remarque libre inline (même donnée que la note « Besoin d'infos »).
+      const note = modeVide ? '<td class="rec-besoin-notecell"><input type="text" class="rec-besoin-note" placeholder="Remarque…" value="' + esc(noteBesoin(s, it.cle)) + '" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '"></td>' : '';
       return '<tr><td class="rec-cli-nom">' + chk + nomLien(s, it.cle, it.nom, it.prenom) + '</td>'
-        + situ + '<td class="rec-cli-qual">' + qualCell(s, it, modeVide) + '</td></tr>';
+        + situ + '<td class="rec-cli-qual">' + qualCell(s, it, modeVide) + '</td>' + note + '</tr>';
     }).join('');
     const thTri = (col, lbl) => {
       const actif = triCol === col;
@@ -785,9 +787,9 @@ const RecapUI = (function () {
       return '<th class="rec-th-tri' + (actif ? ' is-tri' : '') + '" data-tri="' + col + '">'
         + esc(lbl) + '<span class="rec-tri-arw">' + glyph + '</span></th>';
     };
-    const thead = '<tr>' + thTri('nom', 'Client') + (modeVide ? '' : thTri('situ', 'Situation détectée')) + thTri('qual', 'Qualification') + '</tr>';
+    const thead = '<tr>' + thTri('nom', 'Client') + (modeVide ? '' : thTri('situ', 'Situation détectée')) + thTri('qual', 'Qualification') + (modeVide ? '<th>Note</th>' : '') + '</tr>';
     const table = rows.length
-      ? '<table class="rec-cli-table' + (modeVide ? ' rec-cli-2col' : '') + '"><thead>' + thead + '</thead><tbody>' + corps + '</tbody></table>'
+      ? '<table class="rec-cli-table' + (modeVide ? ' rec-cli-note3' : '') + '"><thead>' + thead + '</thead><tbody>' + corps + '</tbody></table>'
       : '<p class="rec-vide">Aucun client dans cette catégorie.</p>';
     const nb = rows.length;
     const listHead = '<div class="rec-list-head">' + esc((KPI_TITRE[kpiActive] || '').toUpperCase()) + ' — ' + nb + ' client' + (nb > 1 ? 's' : '') + '</div>';
@@ -806,6 +808,10 @@ const RecapUI = (function () {
       const col = h.dataset.tri;
       if (triCol === col) triSens = -triSens; else { triCol = col; triSens = 1; }
       renderClubPanel();
+    }));
+    // Remarque libre : persiste à la sortie du champ (partagée avec « Besoin d'infos »).
+    host.querySelectorAll('.rec-besoin-note').forEach((inp) => inp.addEventListener('change', () => {
+      setNoteBesoin(inp.dataset.s, inp.dataset.cle, inp.value.trim());
     }));
   }
 
