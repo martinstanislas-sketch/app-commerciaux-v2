@@ -583,10 +583,13 @@ const RecapUI = (function () {
 
   // Ordre d'affichage des clubs (réseau My Coach), les autres à la suite.
   const ORDRE = ['Lille', 'Marcq', 'Wasquehal', 'Boulogne', 'Neuilly', 'Levallois'];
+  // Clubs classés par % de rétention CROISSANT (plus faible à gauche, meilleur à
+  // droite). Les clubs sans note (en attente M-1) sont renvoyés en fin de liste.
+  // Recalculé à chaque render -> se met à jour au changement de données/mois.
   function clubsResultats() {
     const cles = Object.keys(resultats);
-    const rang = (s) => { const i = ORDRE.findIndex((o) => normClub(o) === normClub(s)); return i < 0 ? 99 : i; };
-    return cles.sort((a, b) => (rang(a) - rang(b)) || a.localeCompare(b, 'fr'));
+    const noteDe = (s) => { const r = resultats[s]; return (r && !r.pending && typeof r.note === 'number') ? r.note : Infinity; };
+    return cles.sort((a, b) => (noteDe(a) - noteDe(b)) || a.localeCompare(b, 'fr'));
   }
   const normClub = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
 
@@ -610,7 +613,8 @@ const RecapUI = (function () {
           + '<span class="rec-club-nom">' + esc(s) + '</span><span class="rec-club-note">⏳</span>'
           + '<span class="rec-club-sub">en attente M-1</span></button>';
       }
-      return '<button type="button" class="rec-club-tab' + actif + '" data-club="' + esc(s) + '">'
+      const vert = clubTraite(s) ? ' is-done' : ''; // club entièrement traité -> liseré vert
+      return '<button type="button" class="rec-club-tab' + actif + vert + '" data-club="' + esc(s) + '">'
         + '<span class="rec-club-nom">' + esc(s) + '</span>'
         + '<span class="rec-club-note">' + pct(r.note) + '</span>'
         + '<span class="rec-club-sub">' + (r.disparus || []).length + ' disparus · ' + r.aQualifier.length + ' à qualifier</span>'
@@ -622,8 +626,10 @@ const RecapUI = (function () {
       + '<span class="rec-club-nom">🔎 Besoin d\'infos</span>'
       + '<span class="rec-club-note">' + nBesoin + '</span>'
       + '<span class="rec-club-sub">' + (nBesoin > 1 ? 'clients à revoir' : 'client à revoir') + '</span></button>';
+    const clos = moisTraite(); // tous les clubs traités -> récap mensuel vert (« clôturé »)
     host.innerHTML = '<div class="rec-res-head"><h3 class="rec-h3">Résultats · ' + moisLabel(mois, 0) + '</h3>'
-      + '<span class="rec-reseau-badge">Réseau <b>' + pct(reseau) + '</b></span></div>'
+      + '<span class="rec-reseau-badge' + (clos ? ' is-done' : '') + '">Réseau <b>' + pct(reseau) + '</b>'
+      + (clos ? '<span class="rec-mois-clos">✓ Mois clôturé</span>' : '') + '</span></div>'
       + '<div class="rec-club-tabs">' + tabs + besoinTab + '</div>';
     host.querySelectorAll('.rec-club-tab').forEach((t) => t.addEventListener('click', () => {
       resClub = t.dataset.club; renderClubTabs(); renderClubPanel();
@@ -710,6 +716,27 @@ const RecapUI = (function () {
     }
   }
 
+  // ── ÉTAT « TRAITÉ » (liseré vert) ───────────────────────────────────────────
+  // Une catégorie est traitée quand TOUTES ses fiches qualifiables ont un choix
+  // explicite (les fiches sans menu — ex. nouveaux payés — ne bloquent pas ;
+  // une catégorie vide est considérée traitée).
+  function categorieTraitee(r, s, key) {
+    if (!r || r.pending) return false;
+    const ch = choix[s] || {};
+    return listeKPI(r, key, s).every((it) => !it.menuCat || ch[it.cle] != null);
+  }
+  // Les 6 catégories dont le traitement complet « verdit » le club.
+  const CATS_TRAITEMENT = ['disparus', 'impayes', 'baisses', 'nouveaux', 'aqualifier', 'preavis'];
+  function clubTraite(s) {
+    const r = resultats[s];
+    if (!r || r.pending) return false;
+    return CATS_TRAITEMENT.every((k) => categorieTraitee(r, s, k));
+  }
+  function moisTraite() {
+    const cs = clubsResultats();
+    return cs.length > 0 && cs.every((s) => clubTraite(s));
+  }
+
   // §2+§3 Panneau du club : KPI cliquables (navigation) + tableau de la catégorie.
   function renderClubPanel() {
     const host = $('#rec-details');
@@ -725,8 +752,12 @@ const RecapUI = (function () {
     if (!cartes.some((k) => k.key === kpiActive)) kpiActive = 'disparus';
     // §5 Cartes KPI = navigation. Le chiffre = la taille EXACTE de la liste ouverte
     // au clic -> carte, en-tête et tableau affichent toujours le même nombre.
-    const kpis = cartes.map((k) => '<button type="button" class="rec-kpi2' + (k.key === kpiActive ? ' is-active' : '') + '" data-kpi="' + k.key + '">'
-      + '<b>' + listeKPI(r, k.key, s).length + '</b><span>' + ico(k.icon) + esc(k.label()) + aideBtn(k.aide) + '</span></button>').join('');
+    const kpis = cartes.map((k) => {
+      // Vert par défaut pour Clients/Fidèles ; sinon vert quand tout est traité.
+      const vert = (k.key === 'clients' || k.key === 'fideles') || categorieTraitee(r, s, k.key);
+      return '<button type="button" class="rec-kpi2' + (k.key === kpiActive ? ' is-active' : '') + (vert ? ' is-done' : '') + '" data-kpi="' + k.key + '">'
+        + '<b>' + listeKPI(r, k.key, s).length + '</b><span>' + ico(k.icon) + esc(k.label()) + aideBtn(k.aide) + '</span></button>';
+    }).join('');
 
     // §5 Tableau de la catégorie sélectionnée, trié (par nom par défaut ;
     // en-têtes cliquables pour trier par situation ou par qualification).
