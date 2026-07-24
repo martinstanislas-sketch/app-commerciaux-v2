@@ -163,14 +163,25 @@
     const fidelesList = [];       // FIDÈLE (compte au numérateur)
     const baisses = [];           // EN PROBLÈME (baisse de tarif) -> menu §5.1
     const disparus = [];          // DISPARU { cle, type: 'IMPAYE'|'PARTI'|'RESILIE' }
+    const preavis = [];           // RÉSILIÉ mais ENCORE PAYÉ (préavis) -> NEUTRE (hors note)
     base.forEach((cle) => {
-      if (resSet.has(cle)) { // résilié -> disparu certain
-        const r = resInfo.get(cle);
-        disparus.push({ cle, nom: (r && r.nom) || nomDe(cle), prenom: (r && r.prenom) || prenomDe(cle), type: 'RESILIE' });
-        return;
-      }
       const aM1 = agM1.get(cle);
       const aM = agM.get(cle);
+      if (resSet.has(cle)) {
+        const r = resInfo.get(cle);
+        const infosR = { cle, nom: (r && r.nom) || nomDe(cle), prenom: (r && r.prenom) || prenomDe(cle) };
+        if (aM && aM.net > 0) {
+          // Résilié mais a encore payé ce mois (préavis) -> NEUTRE : ni fidèle, ni
+          // disparu, EXCLU du dénominateur. Il sera compté au mois où le paiement
+          // disparaît (détection normale par non-paiement) -> évite le double comptage.
+          infosR.baisse = !!(aM1 && aM.pu < aM1.pu && aM.net < aM1.net);
+          preavis.push(infosR);
+        } else {
+          // Résilié ET ne paie plus -> vrai départ, compté ce mois-ci (une seule fois).
+          disparus.push(Object.assign(infosR, { type: 'RESILIE' }));
+        }
+        return;
+      }
       const infos = { cle, nom: nomDe(cle), prenom: prenomDe(cle) };
       if (aM && aM.net > 0) {
         if (aM1 && aM.pu < aM1.pu && aM.net < aM1.net) baisses.push(infos); // baisse de tarif
@@ -230,12 +241,13 @@
     };
     const disparusComptes = disparus.filter((d) => disparuChoix(d) !== 'pack');
     const nbDisparuPack = disparus.length - disparusComptes.length;
+    const nbPreavis = preavis.length; // résiliés encore en paiement : neutres (hors dénominateur)
 
     const fideles = fidelesList.length + nbSousControle; // §6
     const baseN = base.size;
     const nsig = nouveauxPayes + nbDecalage;
     const numerateur = fideles + nsig + nbQualActifs;
-    const denominateur = (baseN - nbDisparuPack) + nsig + nbAnomalie + nbQualActifs;
+    const denominateur = (baseN - nbDisparuPack - nbPreavis) + nsig + nbAnomalie + nbQualActifs;
     const note = denominateur > 0 ? numerateur / denominateur : 0;
 
     return {
@@ -258,11 +270,13 @@
       nbPartis: disparusComptes.filter((d) => disparuChoix(d) === 'resilie').length,
       nbResilies: disparus.filter((d) => d.type === 'RESILIE').length,
       nbDisparuPack,
+      nbPreavis,
       // listes détaillées (pour l'écran §7)
       disparus,
       baisses,
       nouveauxNonPayes,
       aQualifier,
+      preavis,
       // Listes exposées pour la navigation par carte KPI (déjà calculées).
       baseListe: Array.from(base).map((cle) => { const rr = resInfo.get(cle); return { cle, nom: (rr && rr.nom) || nomDe(cle), prenom: (rr && rr.prenom) || prenomDe(cle) }; }),
       fidelesListe: fidelesList,

@@ -458,6 +458,7 @@ const RecapUI = (function () {
     plus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>',
     list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
     info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   };
   const ico = (n) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[n] || '') + '</svg>';
 
@@ -471,6 +472,7 @@ const RecapUI = (function () {
     nouveauxSignes: { titre: 'Nouveaux signés', def: 'Nouveaux clients comptés positivement ce mois-ci.', calcul: 'Contrats signés et payés au mois M (+ non payés qualifiés « décalage »).', importance: 'Compensent les départs et participent à la note de rétention.', actions: ['Confirmer le paiement du 1er mois.', 'Assurer un bon démarrage (onboarding).'] },
     nouveauxNonPayes: { titre: 'Nouveaux non payés', def: "Contrats signés ce mois-ci mais dont le paiement n'est pas encore constaté.", calcul: "Signataire d'un contrat au mois M sans encaissement net positif.", importance: "Distingue un simple décalage de paiement d'une vraie anomalie.", actions: ['Vérifier si le 1er prélèvement arrive plus tard (décalage).', 'Contrôler une anomalie (mandat, saisie).', 'Qualifier « Décalage » ou « Anomalie ».'] },
     aqualifier: { titre: 'À qualifier', def: 'Clients ayant payé ce mois-ci sans être ni dans la base M-1 ni parmi les nouveaux signataires.', calcul: 'Net positif au mois M, hors base M-1 et hors signataires.', importance: 'Cas ambigus à trancher pour fiabiliser la note.', actions: ['Client suspendu qui revient → « Suspendu ».', 'Nouveau non rattaché à un contrat → « Nouveau ».', 'Achat de séances hors abonnement → « Pack de séances ».'] },
+    preavis: { titre: 'Résilié (préavis)', def: 'Clients qui ont résilié mais qui paient encore leur préavis ce mois-ci.', calcul: 'Présents dans le fichier résiliations ET net > 0 ce mois-ci.', importance: "Neutralisés : ni fidèles, ni perdus — ils ne comptent PAS dans la note (hors dénominateur) tant qu'ils paient. Ils seront comptés comme départ, une seule fois, au mois où le prélèvement disparaît. Évite le double comptage.", actions: ['Anticiper la relance de rétention pendant le préavis.', 'Vérifier la date de fin de contrat.'] },
   };
   const GLOSSAIRE = [
     ['Impayé', 'Prélèvement rejeté ce mois-ci — client récupérable, compté comme perte.'],
@@ -626,7 +628,9 @@ const RecapUI = (function () {
     { key: 'nouveaux', label: () => 'Nouveaux signés', icon: 'plus', aide: 'nouveauxSignes' },
     { key: 'aqualifier', label: () => 'À qualifier', icon: 'list', aide: 'aqualifier' },
   ];
-  const KPI_TITRE = { clients: 'Clients du mois précédent', fideles: 'Fidèles', disparus: 'Disparus', impayes: 'Impayés', baisses: 'Tarifs en baisse', nouveaux: 'Nouveaux signés', aqualifier: 'À qualifier' };
+  const KPI_TITRE = { clients: 'Clients du mois précédent', fideles: 'Fidèles', disparus: 'Disparus', impayes: 'Impayés', baisses: 'Tarifs en baisse', nouveaux: 'Nouveaux signés', aqualifier: 'À qualifier', preavis: 'Résilié (préavis)' };
+  // Carte affichée uniquement s'il y a des résiliés en préavis (issue du fichier résiliations).
+  const KPI_PREAVIS = { key: 'preavis', label: () => 'Résilié préavis', icon: 'clock', aide: 'preavis' };
 
   // Construit la liste de clients correspondant à une carte KPI (données déjà
   // calculées ; aucune modification du calcul). Chaque ligne : { cle, nom, prenom,
@@ -646,6 +650,7 @@ const RecapUI = (function () {
       case 'baisses': return (r.baisses || []).map((b) => ({ cle: b.cle, nom: b.nom, prenom: b.prenom, menuCat: 'baisse', situ: 'baisse' }));
       case 'nouveaux': return (r.signatairesListe || []).map((n) => ({ cle: n.cle, nom: n.nom, prenom: n.prenom, menuCat: n.paye ? null : 'nouveauNonPaye', situ: n.paye ? 'nouveauPaye' : 'nonPaye' }));
       case 'aqualifier': return (r.aQualifier || []).map((q) => ({ cle: q.cle, nom: q.nom, prenom: q.prenom, menuCat: 'aQualifier', situ: 'aqualifier' }));
+      case 'preavis': return (r.preavis || []).map((p) => ({ cle: p.cle, nom: p.nom, prenom: p.prenom, baisse: p.baisse, menuCat: null, situ: 'preavis' }));
       default: return [];
     }
   }
@@ -659,10 +664,12 @@ const RecapUI = (function () {
       host.innerHTML = '<div class="rec-panel">' + bandeau('warn', '⏳ <b>' + esc(s) + '</b> : le mois précédent (' + esc(moisLabel(m1, 0)) + ') n\'est pas encore importé. Dépose-le pour calculer ce club.') + '</div>';
       return;
     }
-    if (!KPIS.some((k) => k.key === kpiActive)) kpiActive = 'disparus';
+    // Cartes = les 7 KPI + « Résilié préavis » uniquement s'il y en a.
+    const cartes = (r.preavis && r.preavis.length) ? KPIS.concat([KPI_PREAVIS]) : KPIS;
+    if (!cartes.some((k) => k.key === kpiActive)) kpiActive = 'disparus';
     // §5 Cartes KPI = navigation. Le chiffre = la taille EXACTE de la liste ouverte
     // au clic -> carte, en-tête et tableau affichent toujours le même nombre.
-    const kpis = KPIS.map((k) => '<button type="button" class="rec-kpi2' + (k.key === kpiActive ? ' is-active' : '') + '" data-kpi="' + k.key + '">'
+    const kpis = cartes.map((k) => '<button type="button" class="rec-kpi2' + (k.key === kpiActive ? ' is-active' : '') + '" data-kpi="' + k.key + '">'
       + '<b>' + listeKPI(r, k.key, s).length + '</b><span>' + ico(k.icon) + esc(k.label()) + aideBtn(k.aide) + '</span></button>').join('');
 
     // §5 Tableau de la catégorie sélectionnée.
@@ -706,6 +713,7 @@ const RecapUI = (function () {
       case 'nouveauPaye': return badge('Nouveau payé', 'green');
       case 'nonPaye': return badge('Non payé', 'redlight');
       case 'aqualifier': return badge('À qualifier', 'neutral');
+      case 'preavis': return badge('Résilié préavis', 'blue') + (it.baisse ? ' ' + badge('tarif en baisse', 'orange') : '');
       case 'disparu':
         if (it.type === 'IMPAYE') return badge('Impayé', 'red');
         if (it.type === 'RESILIE') return badge('Résilié', 'gray');
