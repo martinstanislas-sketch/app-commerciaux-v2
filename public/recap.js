@@ -658,12 +658,15 @@ const RecapUI = (function () {
     return id ? '<a href="' + DECIPLUS + encodeURIComponent(id) + '" target="_blank" rel="noopener">' + label + '</a>' : label;
   }
 
+  const RESET_VAL = '__reset__'; // option « Réinitialiser » du menu de qualification
   function menu(s, cle, cat, options, courant) {
     // État vide : placeholder sélectionné -> choisir une vraie option déclenche « change ».
     const has = options.some((v) => v.val === courant);
     const ph = has ? '' : '<option value="" disabled selected>— choisir —</option>';
     const o = options.map((v) => '<option value="' + v.val + '"' + (v.val === courant ? ' selected' : '') + '>' + esc(v.lbl) + '</option>').join('');
-    return '<select class="rec-menu" data-s="' + esc(s) + '" data-cle="' + esc(cle) + '" data-cat="' + cat + '">' + ph + o + '</select>';
+    // Si déjà qualifié : option pour remettre la fiche à zéro (état initial vide).
+    const reset = has ? '<option value="' + RESET_VAL + '">↺ Réinitialiser</option>' : '';
+    return '<select class="rec-menu" data-s="' + esc(s) + '" data-cle="' + esc(cle) + '" data-cat="' + cat + '">' + ph + o + reset + '</select>';
   }
   const OPT = {
     baisse: [{ val: 'sous_controle', lbl: 'Sous contrôle' }, { val: 'arrangement', lbl: 'Arrangement' }],
@@ -722,8 +725,7 @@ const RecapUI = (function () {
   // une catégorie vide est considérée traitée).
   function categorieTraitee(r, s, key) {
     if (!r || r.pending) return false;
-    const ch = choix[s] || {};
-    return listeKPI(r, key, s).every((it) => !it.menuCat || ch[it.cle] != null);
+    return listeKPI(r, key, s).every((it) => !it.menuCat || aChoix(s, it.cle));
   }
   // Les 6 catégories dont le traitement complet « verdit » le club.
   const CATS_TRAITEMENT = ['disparus', 'impayes', 'baisses', 'nouveaux', 'aqualifier', 'preavis'];
@@ -861,8 +863,7 @@ const RecapUI = (function () {
   // Déplacement automatique : un client qualifié à la main descend en bas de liste
   // (sauf tri explicite par qualification, où l'on veut un regroupement pur).
   function trierRows(rows, s) {
-    const ch = choix[s] || {};
-    const traite = (it) => (it.menuCat && ch[it.cle] != null) ? 1 : 0; // qualifié -> en bas
+    const traite = (it) => (it.menuCat && aChoix(s, it.cle)) ? 1 : 0; // qualifié -> en bas
     const groupeTraite = triCol !== 'qual';
     const nomCle = (it) => ((it.nom || '') + ' ' + (it.prenom || '')).trim().toLowerCase();
     const cle = (it) => {
@@ -882,6 +883,9 @@ const RecapUI = (function () {
     if (cat === 'disparu') return it.type === 'IMPAYE' ? 'impaye' : 'resilie';
     return DEF[cat];
   }
+  // Un client est « qualifié à la main » s'il a un choix explicite NON vide.
+  // (Le reset persiste une valeur vide '' -> doit compter comme « pas de choix ».)
+  function aChoix(s, cle) { const v = (choix[s] || {})[cle]; return v != null && v !== ''; }
   // Badge « situation détectée » selon le type de ligne.
   function situBadge(situ, it) {
     switch (situ) {
@@ -916,7 +920,7 @@ const RecapUI = (function () {
   // que rien n'a été choisi à la main : bouton vide -> un clic ouvre le menu.
   function qualCell(s, it, modeVide) {
     if (!it.menuCat) return '<span class="rec-qual-none">—</span>';
-    const explicite = (choix[s] || {})[it.cle] != null;
+    const explicite = aChoix(s, it.cle);
     if (modeVide && !explicite) {
       return '<button type="button" class="rec-qual rec-qual-vide" title="Qualifier" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '" data-cat="' + it.menuCat + '" data-val="">'
         + '<span class="rec-qual-ph">Qualifier</span><span class="rec-qual-caret">▾</span></button>';
@@ -939,7 +943,10 @@ const RecapUI = (function () {
     cell.innerHTML = menu(s, cle, cat, OPT[cat], v);
     const sel = cell.querySelector('select'); sel.classList.add('rec-menu-open'); sel.focus();
     try { sel.showPicker(); } catch (_) { /* navigateur sans showPicker : le clic suivant ouvre la liste */ }
-    sel.addEventListener('change', () => appliquerChoix(s, cle, cat, sel.value));
+    sel.addEventListener('change', () => {
+      if (sel.value === RESET_VAL) reinitialiserChoix(s, cle, cat);
+      else appliquerChoix(s, cle, cat, sel.value);
+    });
     sel.addEventListener('blur', () => renderClubPanel());
   }
   function appliquerChoix(s, cle, cat, val) {
@@ -947,6 +954,14 @@ const RecapUI = (function () {
     recalcStudio(s);
     patchChoix(s, cle, cat, val);
     render(); // met à jour les onglets (note/compteurs) ET le panneau ; resClub/kpiActive conservés
+  }
+  // Remet une fiche à son état initial (vide) : efface le choix local + persiste
+  // une valeur vide, puis recalcule et re-rend (la fiche redevient « Qualifier »).
+  function reinitialiserChoix(s, cle, cat) {
+    if (choix[s]) delete choix[s][cle];
+    recalcStudio(s);
+    patchChoix(s, cle, cat, ''); // '' = pas de choix (voir aChoix)
+    render();
   }
 
   // ── CHARGEMENT / PERSISTANCE ────────────────────────────────────────────────
@@ -996,7 +1011,7 @@ const RecapUI = (function () {
   // Qualification en texte brut (pour l'export) ; '' si pas encore qualifié.
   function qualLabelText(s, it) {
     if (!it.menuCat) return '';
-    if ((choix[s] || {})[it.cle] == null) return '';
+    if (!aChoix(s, it.cle)) return '';
     const v = valeurCourante(s, it, it.menuCat);
     return (QUAL[it.menuCat] && QUAL[it.menuCat][v]) ? QUAL[it.menuCat][v][0] : String(v);
   }
