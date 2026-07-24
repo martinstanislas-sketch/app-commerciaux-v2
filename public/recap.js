@@ -822,7 +822,7 @@ const RecapUI = (function () {
     const explicite = (choix[s] || {})[it.cle] != null;
     if (modeVide && !explicite) {
       return '<button type="button" class="rec-qual rec-qual-vide" title="Qualifier" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '" data-cat="' + it.menuCat + '" data-val="">'
-        + '<span class="rec-qual-caret">▾</span></button>';
+        + '<span class="rec-qual-ph">Qualifier</span><span class="rec-qual-caret">▾</span></button>';
     }
     return qualBtn(s, it.cle, it.menuCat, valeurCourante(s, it, it.menuCat));
   }

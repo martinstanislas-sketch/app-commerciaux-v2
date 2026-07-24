@@ -21249,9 +21249,11 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-qual { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 2px 6px 2px 4px; cursor: pointer; font: inherit; line-height: 1; min-height: 0; transition: background .12s, border-color .12s; }
 .rec-qual:hover { border-color: var(--rc-line-2); background: var(--rc-surface-2); }
 .rec-qual-caret { color: var(--rc-text-3); font-size: 9px; }
-/* Qualification vide (rien noté) : petit champ discret qui invite au clic. */
-.rec-qual-vide { border-color: var(--rc-line); border-style: dashed; padding: 3px 8px; opacity: .75; }
-.rec-qual-vide:hover { opacity: 1; border-style: solid; }
+/* Qualification vide : bouton d'action bien visible (accent) invitant au clic. */
+.rec-qual-vide { border: 1px solid var(--rc-accent); background: var(--rc-accent-soft); color: var(--rc-accent-hi, var(--rc-accent)); opacity: 1; padding: 3px 10px; font-weight: 650; box-shadow: 0 0 0 3px var(--rc-accent-soft); }
+.rec-qual-vide:hover { background: var(--rc-accent); color: #fff; box-shadow: 0 2px 10px var(--rc-accent-ring); }
+.rec-qual-vide .rec-qual-ph { font-size: 12px; letter-spacing: .01em; }
+.rec-qual-vide .rec-qual-caret { color: inherit; opacity: .85; }
 .rec-menu-open { background: var(--rc-surface-2); border: 1px solid var(--rc-accent); color: var(--rc-text); border-radius: 8px; padding: 5px 8px; font: inherit; font-size: 12.5px; box-shadow: 0 0 0 3px var(--rc-accent-soft); }
 /* ── Nav Analyser / Historique ────────────────────────────────────────────── */
 .rec-nav { display: flex; gap: 4px; margin: 10px 0 8px; border-bottom: 1px solid var(--rc-line); }
