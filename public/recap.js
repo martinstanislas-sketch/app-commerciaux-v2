@@ -656,8 +656,9 @@ const RecapUI = (function () {
   function nomLien(s, cle, nom, prenom) {
     const id = resoudreId(cle, s);
     const label = esc(((prenom || '') + ' ' + (nom || '')).trim() || cle);
-    // §B4 : sans id -> texte simple, pas d'icône, pas d'erreur.
-    return id ? '<a href="' + DECIPLUS + encodeURIComponent(id) + '" target="_blank" rel="noopener">' + label + '</a>' : label;
+    if (id) return '<a href="' + DECIPLUS + encodeURIComponent(id) + '" target="_blank" rel="noopener">' + label + '</a>';
+    // §B4 : sans id Deciplus -> nom atténué + marqueur repérable (aucun lien).
+    return '<span class="rec-nolink" title="Sans lien Deciplus (identifiant inconnu)">' + label + ' <span class="rec-nolink-mk">⚠</span></span>';
   }
 
   const RESET_VAL = '__reset__'; // option « Réinitialiser » du menu de qualification

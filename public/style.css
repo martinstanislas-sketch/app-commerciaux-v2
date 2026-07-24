@@ -21247,6 +21247,9 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-cli-nom { color: var(--rc-text); font-weight: 550; }
 .rec-cli-nom a { color: var(--rc-text); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color .15s, color .15s; }
 .rec-cli-nom a:hover { border-bottom-color: var(--rc-accent-hi); color: #fff; }
+/* Nom sans lien Deciplus (identifiant inconnu) : atténué + marqueur repérable. */
+.rec-nolink { color: var(--rc-text-2); }
+.rec-nolink-mk { color: var(--rc-orange); font-size: 10px; opacity: .85; cursor: help; }
 .rec-cli-qual { text-align: right; white-space: nowrap; }
 /* Case « besoin d'infos » devant le nom + onglet dédié. */
 .rec-besoin-chk { width: 15px; height: 15px; margin: 0 9px 0 0; vertical-align: -2px; cursor: pointer; accent-color: var(--rc-accent); flex: 0 0 auto; }
