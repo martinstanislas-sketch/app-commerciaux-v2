@@ -21170,7 +21170,11 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-reseau-badge { font-size: 11px; color: var(--rc-text-3); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
 .rec-reseau-badge b { color: var(--rc-text); font-size: 15px; margin-left: 5px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .rec-club-tabs { display: flex; gap: 8px; margin: 8px 0 2px; overflow-x: auto; scrollbar-width: thin; padding: 2px 2px 6px; -webkit-overflow-scrolling: touch; }
-.rec-club-tab { flex: 1 1 0; min-width: 146px; text-align: left; cursor: pointer; background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 12px; padding: 8px 13px; display: flex; flex-direction: column; gap: 1px; position: relative; transition: background .18s cubic-bezier(.4,0,.2,1), border-color .18s, box-shadow .18s, transform .14s cubic-bezier(.4,0,.2,1); }
+.rec-club-tab { flex: 1 1 0; min-width: 122px; text-align: left; cursor: pointer; background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; gap: 1px; position: relative; transition: background .18s cubic-bezier(.4,0,.2,1), border-color .18s, box-shadow .18s, transform .14s cubic-bezier(.4,0,.2,1); }
+/* Onglet spécial « Besoin d'infos » (à droite des clubs). */
+.rec-club-besoin { flex: 0 1 150px; }
+.rec-club-besoin .rec-club-nom { color: var(--rc-accent-hi); }
+.rec-club-besoin.is-active .rec-club-nom { color: var(--rc-accent-hi); }
 .rec-club-tab:hover { border-color: var(--rc-line-2); background: var(--rc-surface-2); }
 .rec-club-tab .rec-club-nom { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--rc-text-3); transition: color .18s; }
 .rec-club-tab .rec-club-note { font-size: 21px; font-weight: 750; color: var(--rc-text); font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -.03em; transition: color .18s; }
@@ -21234,6 +21238,16 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-cli-nom a { color: var(--rc-text); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color .15s, color .15s; }
 .rec-cli-nom a:hover { border-bottom-color: var(--rc-accent-hi); color: #fff; }
 .rec-cli-qual { text-align: right; white-space: nowrap; }
+/* Case « besoin d'infos » devant le nom + onglet dédié. */
+.rec-besoin-chk { width: 15px; height: 15px; margin: 0 9px 0 0; vertical-align: -2px; cursor: pointer; accent-color: var(--rc-accent); flex: 0 0 auto; }
+.rec-besoin-table th:nth-child(1), .rec-besoin-table td:nth-child(1) { width: 40px; text-align: center; }
+.rec-besoin-table th:nth-child(2), .rec-besoin-table td:nth-child(2) { width: 34%; }
+.rec-besoin-table th:nth-child(3), .rec-besoin-table td:nth-child(3) { width: 20%; }
+.rec-besoin-table th:nth-child(4), .rec-besoin-table td:nth-child(4) { width: 20%; }
+.rec-besoin-table th:nth-child(5), .rec-besoin-table td:nth-child(5) { width: auto; text-align: right; }
+.rec-besoin-table th:last-child { text-align: right; }
+.rec-besoin-cell { text-align: center; }
+.rec-besoin-cell .rec-besoin-chk { margin: 0; }
 .rec-vide { color: var(--rc-text-3); font-size: 12.5px; padding: 16px 2px; }
 /* Badges de statut — pastille colorée + libellé neutre (Linear) */
 .rec-badge2 { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 550; padding: 1px 8px; border-radius: 6px; white-space: nowrap; background: rgba(255,255,255,.045); border: 1px solid var(--rc-line); color: var(--rc-text-2); }
