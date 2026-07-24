@@ -21258,6 +21258,13 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-besoin-table th:last-child { text-align: right; }
 .rec-besoin-cell { text-align: center; }
 .rec-besoin-cell .rec-besoin-chk { margin: 0; }
+.rec-besoin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rec-export-besoin { min-height: 0; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 650; color: #0D0F16; background: var(--rc-green); border: 0; border-radius: 8px; padding: 8px 14px; transition: filter .12s, opacity .12s; }
+.rec-export-besoin:hover { filter: brightness(1.06); }
+.rec-export-besoin:disabled { opacity: .6; cursor: default; }
+.rec-export-msg { font-size: 12.5px; margin: 6px 0 2px; min-height: 16px; color: var(--rc-text-3); }
+.rec-export-msg.is-ok { color: var(--rc-green); }
+.rec-export-msg.is-err { color: var(--rc-red); }
 .rec-vide { color: var(--rc-text-3); font-size: 12.5px; padding: 16px 2px; }
 /* Badges de statut — pastille colorée + libellé neutre (Linear) */
 .rec-badge2 { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 550; padding: 1px 8px; border-radius: 6px; white-space: nowrap; background: rgba(255,255,255,.045); border: 1px solid var(--rc-line); color: var(--rc-text-2); }

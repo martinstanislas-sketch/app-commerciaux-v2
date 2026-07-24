@@ -809,7 +809,8 @@ const RecapUI = (function () {
     const host = $('#rec-details');
     const liste = besoinListe();
     const nb = liste.length;
-    const head = '<div class="rec-list-head">🔎 BESOIN D\'INFOS — ' + nb + ' client' + (nb > 1 ? 's' : '') + '</div>';
+    const exportBtn = nb ? '<button type="button" class="rec-export-besoin" id="rec-export-besoin">📤 Exporter les besoins d\'informations</button>' : '';
+    const head = '<div class="rec-besoin-head"><div class="rec-list-head">🔎 BESOIN D\'INFOS — ' + nb + ' client' + (nb > 1 ? 's' : '') + '</div>' + exportBtn + '</div><div class="rec-export-msg" id="rec-export-msg"></div>';
     if (!nb) {
       host.innerHTML = '<div class="rec-panel">' + head + '<p class="rec-vide">Aucun client signalé. Coche la case devant un nom (Disparus, Impayés, Tarifs en baisse, Nouveaux signés, À qualifier, Résilié préavis) pour l\'ajouter ici.</p></div>';
       return;
@@ -835,6 +836,24 @@ const RecapUI = (function () {
       if (besoinTri === col) besoinSens = -besoinSens; else { besoinTri = col; besoinSens = 1; }
       renderBesoinPanel();
     }));
+    const eb = $('#rec-export-besoin');
+    if (eb) eb.addEventListener('click', () => exporterBesoin(liste, eb));
+  }
+
+  // Export vers Google Sheets (Club, Nom, Prénom, Qualification) via le backend.
+  async function exporterBesoin(liste, btn) {
+    const msg = $('#rec-export-msg');
+    const rows = liste.map((x) => ({ club: x.studio, nom: x.nom, prenom: x.prenom, qual: x.qualTxt || '' }));
+    const libel = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Export en cours…';
+    if (msg) { msg.textContent = ''; msg.className = 'rec-export-msg'; }
+    try {
+      const r = await fetch('/api/retention/besoin/export', { method: 'POST', headers: H(), body: JSON.stringify({ mois, rows }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || 'Export impossible.');
+      if (msg) { msg.textContent = '✅ ' + j.count + ' fiche' + (j.count > 1 ? 's' : '') + ' exportée' + (j.count > 1 ? 's' : '') + ' vers Google Sheets.'; msg.className = 'rec-export-msg is-ok'; }
+    } catch (e) {
+      if (msg) { msg.textContent = '⚠️ ' + (e.message || 'Export impossible.'); msg.className = 'rec-export-msg is-err'; }
+    } finally { btn.disabled = false; btn.textContent = libel; }
   }
 
   // Tri du tableau clients selon triCol/triSens. Clé par colonne ; le nom reste
@@ -961,18 +980,25 @@ const RecapUI = (function () {
       if (it) {
         let catLabel = c.label;
         if (c.key === 'disparus' && it.type === 'IMPAYE') catLabel = 'Impayés';
-        return { nom: it.nom, prenom: it.prenom, cat: catLabel, qual: qualLabelBadge(s, it) };
+        return { nom: it.nom, prenom: it.prenom, cat: catLabel, qual: qualLabelBadge(s, it), qualTxt: qualLabelText(s, it) };
       }
     }
     return null;
   }
   // Badge de la qualification courante (ou « — » si pas encore qualifié).
   function qualLabelBadge(s, it) {
-    if (!it.menuCat) return '<span class="rec-qual-none">—</span>';
-    if ((choix[s] || {})[it.cle] == null) return '<span class="rec-qual-none">—</span>';
+    const t = qualLabelText(s, it);
+    if (!t) return '<span class="rec-qual-none">—</span>';
     const v = valeurCourante(s, it, it.menuCat);
-    const [lbl, col] = (QUAL[it.menuCat] && QUAL[it.menuCat][v]) || [v, 'neutral'];
-    return badge(lbl, col);
+    const col = (QUAL[it.menuCat] && QUAL[it.menuCat][v]) ? QUAL[it.menuCat][v][1] : 'neutral';
+    return badge(t, col);
+  }
+  // Qualification en texte brut (pour l'export) ; '' si pas encore qualifié.
+  function qualLabelText(s, it) {
+    if (!it.menuCat) return '';
+    if ((choix[s] || {})[it.cle] == null) return '';
+    const v = valeurCourante(s, it, it.menuCat);
+    return (QUAL[it.menuCat] && QUAL[it.menuCat][v]) ? QUAL[it.menuCat][v][0] : String(v);
   }
   // Liste agrégée (tous clubs) des clients cochés, résolus dans le mois courant.
   function besoinListe() {

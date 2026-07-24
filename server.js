@@ -4606,6 +4606,61 @@ app.patch('/api/retention/:mois/choix', requireAuth, requireAdmin, (req, res) =>
 
 function safeJson(s) { try { return JSON.parse(s); } catch (_) { return null; } }
 
+// ─── Export « Besoin d'infos » vers Google Sheets (compte de service) ────────
+// Auth par JWT RS256 signé avec la clé privée du compte de service (aucune
+// dépendance externe : crypto natif). Le Sheet doit être PARTAGÉ en éditeur
+// avec l'email du compte de service.
+let _gsheetTok = { token: '', exp: 0 };
+async function googleServiceToken(scope) {
+  const now = Math.floor(Date.now() / 1000);
+  if (_gsheetTok.token && _gsheetTok.exp > now + 60) return _gsheetTok.token;
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON manquant');
+  const sa = JSON.parse(raw);
+  if (!sa.client_email || !sa.private_key) throw new Error('JSON compte de service invalide');
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const head = b64({ alg: 'RS256', typ: 'JWT' });
+  const claim = b64({ iss: sa.client_email, scope, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 });
+  const sig = crypto.createSign('RSA-SHA256').update(head + '.' + claim).sign(sa.private_key, 'base64url');
+  const jwt = head + '.' + claim + '.' + sig;
+  const r = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt }),
+  });
+  const tok = await r.json();
+  if (!tok.access_token) throw new Error('Token Google refusé : ' + (tok.error_description || tok.error || 'inconnu'));
+  _gsheetTok = { token: tok.access_token, exp: now + (tok.expires_in || 3600) };
+  return tok.access_token;
+}
+
+// POST /api/retention/besoin/export : écrase l'onglet cible avec la liste
+// courante des fiches « besoin d'infos » (Club, Nom, Prénom, Qualification).
+app.post('/api/retention/besoin/export', requireAuth, requireAdmin, async (req, res) => {
+  const sheetId = process.env.RECAP_BESOIN_SHEET_ID;
+  if (!sheetId) return res.status(400).json({ error: 'Google Sheet non configuré (variable RECAP_BESOIN_SHEET_ID).' });
+  const tab = process.env.RECAP_BESOIN_SHEET_TAB || "Besoins d'infos";
+  const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
+  const rangeA = "'" + tab.replace(/'/g, "''") + "'!A:D";
+  const range1 = "'" + tab.replace(/'/g, "''") + "'!A1";
+  try {
+    const token = await googleServiceToken('https://www.googleapis.com/auth/spreadsheets');
+    const auth = { Authorization: 'Bearer ' + token };
+    const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheetId) + '/values/';
+    // 1) Vide l'ancienne liste (colonnes A→D de l'onglet).
+    await fetch(base + encodeURIComponent(rangeA) + ':clear', { method: 'POST', headers: auth });
+    // 2) Écrit l'en-tête + les fiches courantes.
+    const values = [['Club', 'Nom', 'Prénom', 'Qualification']].concat(
+      rows.map((r) => [String(r.club || ''), String(r.nom || ''), String(r.prenom || ''), String(r.qual || '')]));
+    const up = await fetch(base + encodeURIComponent(range1) + '?valueInputOption=RAW', {
+      method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth),
+      body: JSON.stringify({ values }),
+    });
+    const j = await up.json();
+    if (j.error) return res.status(502).json({ error: 'Google Sheets : ' + (j.error.message || 'erreur') });
+    res.json({ ok: true, count: rows.length });
+  } catch (e) { console.error('besoin export :', e && e.message); res.status(500).json({ error: e.message || 'Export impossible.' }); }
+});
+
 // Suivi hebdomadaire des prélèvements — vue de pilotage dirigeant.
 // Lit les données DÉJÀ stockées dans prel_rows (aucune donnée bancaire n'y est
 // persistée) et les agrège par club + statut pour une semaine donnée.
