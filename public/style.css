@@ -21220,6 +21220,9 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-cli-table th:nth-child(1), .rec-cli-table td:nth-child(1) { width: 46%; }
 .rec-cli-table th:nth-child(2), .rec-cli-table td:nth-child(2) { width: 27%; }
 .rec-cli-table th:nth-child(3), .rec-cli-table td:nth-child(3) { width: 27%; }
+/* Sans colonne « Situation détectée » : 2 colonnes (Client / Qualification). */
+.rec-cli-table.rec-cli-2col th:nth-child(1), .rec-cli-table.rec-cli-2col td:nth-child(1) { width: 70%; }
+.rec-cli-table.rec-cli-2col th:nth-child(2), .rec-cli-table.rec-cli-2col td:nth-child(2) { width: 30%; }
 .rec-cli-table td { padding: 2px 14px; height: 30px; line-height: 1.2; border-bottom: 1px solid var(--rc-line); font-size: 13px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Neutralise le min-height 44px global des <button> sur les contrôles compacts */
 .rec-cat-tab, .rec-nav-btn, .rec-link, .rec-done-rep, .rec-club-add-btn { min-height: 0; }
@@ -21246,6 +21249,9 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-qual { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 2px 6px 2px 4px; cursor: pointer; font: inherit; line-height: 1; min-height: 0; transition: background .12s, border-color .12s; }
 .rec-qual:hover { border-color: var(--rc-line-2); background: var(--rc-surface-2); }
 .rec-qual-caret { color: var(--rc-text-3); font-size: 9px; }
+/* Qualification vide (rien noté) : petit champ discret qui invite au clic. */
+.rec-qual-vide { border-color: var(--rc-line); border-style: dashed; padding: 3px 8px; opacity: .75; }
+.rec-qual-vide:hover { opacity: 1; border-style: solid; }
 .rec-menu-open { background: var(--rc-surface-2); border: 1px solid var(--rc-accent); color: var(--rc-text); border-radius: 8px; padding: 5px 8px; font: inherit; font-size: 12.5px; box-shadow: 0 0 0 3px var(--rc-accent-soft); }
 /* ── Nav Analyser / Historique ────────────────────────────────────────────── */
 .rec-nav { display: flex; gap: 4px; margin: 10px 0 8px; border-bottom: 1px solid var(--rc-line); }

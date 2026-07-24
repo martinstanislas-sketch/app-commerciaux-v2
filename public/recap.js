@@ -642,8 +642,11 @@ const RecapUI = (function () {
   }
 
   function menu(s, cle, cat, options, courant) {
+    // État vide : placeholder sélectionné -> choisir une vraie option déclenche « change ».
+    const has = options.some((v) => v.val === courant);
+    const ph = has ? '' : '<option value="" disabled selected>— choisir —</option>';
     const o = options.map((v) => '<option value="' + v.val + '"' + (v.val === courant ? ' selected' : '') + '>' + esc(v.lbl) + '</option>').join('');
-    return '<select class="rec-menu" data-s="' + esc(s) + '" data-cle="' + esc(cle) + '" data-cat="' + cat + '">' + o + '</select>';
+    return '<select class="rec-menu" data-s="' + esc(s) + '" data-cle="' + esc(cle) + '" data-cat="' + cat + '">' + ph + o + '</select>';
   }
   const OPT = {
     baisse: [{ val: 'sous_controle', lbl: 'Sous contrôle' }, { val: 'arrangement', lbl: 'Arrangement' }],
@@ -652,11 +655,16 @@ const RecapUI = (function () {
     disparu: [{ val: 'impaye', lbl: 'Impayé' }, { val: 'resilie', lbl: 'Résilié' }, { val: 'pack', lbl: 'Pack de séance' }],
   };
   const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack', disparu: 'resilie' };
+  // Catégories où la qualification part VIDE (rien noté par défaut ; un clic
+  // ouvre le menu) et où la colonne « Situation détectée » est masquée
+  // (redondante avec la qualification). N.B. purement UI : le calcul garde son
+  // propre défaut via choixOu(), donc la note est inchangée.
+  const CAT_QUAL_VIDE = new Set(['disparus', 'impayes', 'baisses', 'nouveaux', 'aqualifier']);
 
   // Les 7 cartes KPI = l'unique navigation entre les listes (plus de sous-onglets).
   const KPIS = [
     { key: 'clients', label: () => 'Clients ' + moisLabel(mois, -1), icon: 'users', aide: 'clients' },
-    { key: 'fideles', label: () => 'Fidèles', icon: 'check', aide: 'fideles' },
+    { key: 'fideles', label: () => 'Fidèles ' + moisLabel(mois, 0), icon: 'check', aide: 'fideles' },
     { key: 'disparus', label: () => 'Disparus', icon: 'down', aide: 'disparus' },
     { key: 'impayes', label: () => 'Impayés', icon: 'alert', aide: 'impayes' },
     { key: 'baisses', label: () => 'Tarifs en baisse', icon: 'trend', aide: 'baisses' },
@@ -709,13 +717,16 @@ const RecapUI = (function () {
 
     // §5 Tableau de la catégorie sélectionnée, trié (par nom par défaut ;
     // en-têtes cliquables pour trier par situation ou par qualification).
+    // Catégories « qualifiables » : colonne Situation masquée + qualification vide.
+    const modeVide = CAT_QUAL_VIDE.has(kpiActive);
+    if (modeVide && triCol === 'situ') triCol = 'nom'; // colonne situation absente -> retombe sur le nom
     const rows = trierRows(listeKPI(r, kpiActive, s), s);
     let sansLien = 0, total = 0;
     const corps = rows.map((it) => {
       total++; if (!resoudreId(it.cle, s)) sansLien++;
-      const qual = it.menuCat ? qualBtn(s, it.cle, it.menuCat, valeurCourante(s, it, it.menuCat)) : '<span class="rec-qual-none">—</span>';
+      const situ = modeVide ? '' : '<td>' + situBadge(it.situ, it) + '</td>';
       return '<tr><td class="rec-cli-nom">' + nomLien(s, it.cle, it.nom, it.prenom) + '</td>'
-        + '<td>' + situBadge(it.situ, it) + '</td><td class="rec-cli-qual">' + qual + '</td></tr>';
+        + situ + '<td class="rec-cli-qual">' + qualCell(s, it, modeVide) + '</td></tr>';
     }).join('');
     const thTri = (col, lbl) => {
       const actif = triCol === col;
@@ -723,8 +734,9 @@ const RecapUI = (function () {
       return '<th class="rec-th-tri' + (actif ? ' is-tri' : '') + '" data-tri="' + col + '">'
         + esc(lbl) + '<span class="rec-tri-arw">' + glyph + '</span></th>';
     };
+    const thead = '<tr>' + thTri('nom', 'Client') + (modeVide ? '' : thTri('situ', 'Situation détectée')) + thTri('qual', 'Qualification') + '</tr>';
     const table = rows.length
-      ? '<table class="rec-cli-table"><thead><tr>' + thTri('nom', 'Client') + thTri('situ', 'Situation détectée') + thTri('qual', 'Qualification') + '</tr></thead><tbody>' + corps + '</tbody></table>'
+      ? '<table class="rec-cli-table' + (modeVide ? ' rec-cli-2col' : '') + '"><thead>' + thead + '</thead><tbody>' + corps + '</tbody></table>'
       : '<p class="rec-vide">Aucun client dans cette catégorie.</p>';
     const nb = rows.length;
     const listHead = '<div class="rec-list-head">' + esc((KPI_TITRE[kpiActive] || '').toUpperCase()) + ' — ' + nb + ' client' + (nb > 1 ? 's' : '') + '</div>';
@@ -801,6 +813,17 @@ const RecapUI = (function () {
     return '<button type="button" class="rec-qual" data-s="' + esc(s) + '" data-cle="' + esc(cle) + '" data-cat="' + cat + '" data-val="' + esc(v) + '">'
       + badge(lbl, col) + '<span class="rec-qual-caret">▾</span></button>';
   }
+  // Cellule de qualification. En mode « vide » (catégories qualifiables) et tant
+  // que rien n'a été choisi à la main : bouton vide -> un clic ouvre le menu.
+  function qualCell(s, it, modeVide) {
+    if (!it.menuCat) return '<span class="rec-qual-none">—</span>';
+    const explicite = (choix[s] || {})[it.cle] != null;
+    if (modeVide && !explicite) {
+      return '<button type="button" class="rec-qual rec-qual-vide" title="Qualifier" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '" data-cat="' + it.menuCat + '" data-val="">'
+        + '<span class="rec-qual-caret">▾</span></button>';
+    }
+    return qualBtn(s, it.cle, it.menuCat, valeurCourante(s, it, it.menuCat));
+  }
   const badge = (txt, col) => '<span class="rec-badge2 rec-b-' + col + '">' + esc(txt) + '</span>';
 
   // §6 Délégué UNE fois sur #rec-details : clic sur un bouton -> le menu déroulant
@@ -814,6 +837,7 @@ const RecapUI = (function () {
     const s = btn.dataset.s, cle = btn.dataset.cle, cat = btn.dataset.cat, v = btn.dataset.val;
     cell.innerHTML = menu(s, cle, cat, OPT[cat], v);
     const sel = cell.querySelector('select'); sel.classList.add('rec-menu-open'); sel.focus();
+    try { sel.showPicker(); } catch (_) { /* navigateur sans showPicker : le clic suivant ouvre la liste */ }
     sel.addEventListener('change', () => appliquerChoix(s, cle, cat, sel.value));
     sel.addEventListener('blur', () => renderClubPanel());
   }
