@@ -671,12 +671,13 @@ const RecapUI = (function () {
     const reset = has ? '<option value="' + RESET_VAL + '">↺ Réinitialiser</option>' : '';
     return '<select class="rec-menu" data-s="' + esc(s) + '" data-cle="' + esc(cle) + '" data-cat="' + cat + '">' + ph + o + reset + '</select>';
   }
+  const NE_OPT = { val: 'ne', lbl: 'NE (ne pas compter)' }; // exclut du calcul, reste visible
   const OPT = {
-    baisse: [{ val: 'sous_controle', lbl: 'Sous contrôle' }, { val: 'arrangement', lbl: 'Arrangement' }],
-    nouveauNonPaye: [{ val: 'decalage', lbl: 'OK' }, { val: 'anomalie', lbl: 'Anomalie' }],
-    aQualifier: [{ val: 'suspendu', lbl: 'Suspendu' }, { val: 'nouveau', lbl: 'Nouveau' }, { val: 'pack', lbl: 'Pack de séance' }],
-    disparu: [{ val: 'impaye', lbl: 'Impayé' }, { val: 'resilie', lbl: 'Résilié' }, { val: 'anomalie', lbl: 'Anomalie' }, { val: 'pack', lbl: 'Pack de séance' }],
-    preavis: [{ val: 'ok', lbl: 'OK' }, { val: 'ctx', lbl: 'Ctx' }],
+    baisse: [{ val: 'sous_controle', lbl: 'Sous contrôle' }, { val: 'arrangement', lbl: 'Arrangement' }, NE_OPT],
+    nouveauNonPaye: [{ val: 'decalage', lbl: 'OK' }, { val: 'anomalie', lbl: 'Anomalie' }, NE_OPT],
+    aQualifier: [{ val: 'suspendu', lbl: 'Suspendu' }, { val: 'nouveau', lbl: 'Nouveau' }, { val: 'pack', lbl: 'Pack de séance' }, NE_OPT],
+    disparu: [{ val: 'impaye', lbl: 'Impayé' }, { val: 'resilie', lbl: 'Résilié' }, { val: 'anomalie', lbl: 'Anomalie' }, { val: 'pack', lbl: 'Pack de séance' }, NE_OPT],
+    preavis: [{ val: 'ok', lbl: 'OK' }, { val: 'ctx', lbl: 'Ctx' }, NE_OPT],
   };
   const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack', disparu: 'resilie', preavis: 'ok' };
   // Catégories où la qualification part VIDE (rien noté par défaut ; un clic
@@ -917,12 +918,13 @@ const RecapUI = (function () {
     }
   }
   // §6 Bouton compact = badge de la valeur courante ; le menu s'ouvre au clic.
+  const NE_BADGE = ['NE', 'neutral']; // exclu du calcul, reste visible
   const QUAL = {
-    disparu: { impaye: ['Impayé', 'red'], resilie: ['Résilié', 'gray'], anomalie: ['Anomalie', 'redlight'], pack: ['Pack de séances', 'blue'] },
-    baisse: { sous_controle: ['Sous contrôle', 'green'], arrangement: ['Arrangement', 'orange'] },
-    nouveauNonPaye: { decalage: ['OK', 'green'], anomalie: ['Anomalie', 'redlight'] },
-    aQualifier: { suspendu: ['Suspendu', 'green'], nouveau: ['Nouveau', 'green'], pack: ['Pack de séances', 'blue'] },
-    preavis: { ok: ['OK', 'green'], ctx: ['Ctx', 'orange'] },
+    disparu: { impaye: ['Impayé', 'red'], resilie: ['Résilié', 'gray'], anomalie: ['Anomalie', 'redlight'], pack: ['Pack de séances', 'blue'], ne: NE_BADGE },
+    baisse: { sous_controle: ['Sous contrôle', 'green'], arrangement: ['Arrangement', 'orange'], ne: NE_BADGE },
+    nouveauNonPaye: { decalage: ['OK', 'green'], anomalie: ['Anomalie', 'redlight'], ne: NE_BADGE },
+    aQualifier: { suspendu: ['Suspendu', 'green'], nouveau: ['Nouveau', 'green'], pack: ['Pack de séances', 'blue'], ne: NE_BADGE },
+    preavis: { ok: ['OK', 'green'], ctx: ['Ctx', 'orange'], ne: NE_BADGE },
   };
   function qualBtn(s, cle, cat, v) {
     const [lbl, col] = (QUAL[cat] && QUAL[cat][v]) || [v, 'neutral'];

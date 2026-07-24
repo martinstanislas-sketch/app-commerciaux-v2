@@ -115,15 +115,18 @@
   }
 
   // ── §5 MENUS : options et valeurs par défaut ───────────────────────────────
+  // « ne » (Ne pas compter) est une valeur transverse : disponible sur toutes les
+  // catégories, elle exclut totalement la personne du calcul (num. ET dénom.).
   const MENU = {
-    baisse: { options: ['sous_controle', 'arrangement'], defaut: 'arrangement' },
-    nouveauNonPaye: { options: ['decalage', 'anomalie'], defaut: 'anomalie' },
-    aQualifier: { options: ['suspendu', 'nouveau', 'pack'], defaut: 'pack' },
+    baisse: { options: ['sous_controle', 'arrangement', 'ne'], defaut: 'arrangement' },
+    nouveauNonPaye: { options: ['decalage', 'anomalie', 'ne'], defaut: 'anomalie' },
+    aQualifier: { options: ['suspendu', 'nouveau', 'pack', 'ne'], defaut: 'pack' },
     // Qualification d'un disparu : « impaye » / « resilie » comptent PAREIL
     // (churn, aucune différence de note) ; « pack » (pack de séance) est EXCLU
     // du calcul. Défaut = le type auto détecté (impayé si décaissement, sinon
     // résilié).
-    disparu: { options: ['impaye', 'resilie', 'anomalie', 'pack'], defaut: 'resilie' },
+    disparu: { options: ['impaye', 'resilie', 'anomalie', 'pack', 'ne'], defaut: 'resilie' },
+    preavis: { options: ['ok', 'ctx', 'ne'], defaut: 'ok' },
   };
   const choixOu = (choix, cle, defaut) => {
     const v = choix && choix[cle];
@@ -226,7 +229,11 @@
     });
 
     // §5 application des choix -> §6 compteurs.
-    const nbSousControle = baisses.filter((b) => choixOu(choix, b.cle, MENU.baisse.defaut) === 'sous_controle').length;
+    // « NE » (Ne pas compter) : la personne est EXCLUE de tout le calcul — ni au
+    // numérateur ni au dénominateur — mais reste dans les listes d'affichage.
+    // On la retire de chaque compte (net-zéro partout).
+    const estNE = (cle) => choix[cle] === 'ne';
+    const nbSousControle = baisses.filter((b) => !estNE(b.cle) && choixOu(choix, b.cle, MENU.baisse.defaut) === 'sous_controle').length;
     // §5 Nouveaux signés : classification applicable à TOUS (payés compris).
     // Défaut sans choix explicite : payé -> positif, non payé -> anomalie (comme
     // avant). Choix explicite prioritaire : 'anomalie' -> pénalisant (dénominateur) ;
@@ -234,11 +241,13 @@
     // les états déjà possibles ; nouveauté = un PAYÉ marqué « anomalie » pénalise.
     let nsigPositif = 0, nbAnomalie = 0;
     signatairesListe.forEach((s) => {
+      if (estNE(s.cle)) return; // NE -> exclu partout
       const v = choix[s.cle];
       const eff = (v === 'decalage' || v === 'anomalie') ? v : (s.paye ? 'decalage' : MENU.nouveauNonPaye.defaut);
       if (eff === 'anomalie') nbAnomalie += 1; else nsigPositif += 1;
     });
     const nbQualActifs = aQualifier.filter((q) => {
+      if (estNE(q.cle)) return false; // NE -> exclu
       const v = choixOu(choix, q.cle, MENU.aQualifier.defaut);
       return v === 'suspendu' || v === 'nouveau';
     }).length;
@@ -248,14 +257,15 @@
       const v = choix[d.cle];
       return (v === 'impaye' || v === 'resilie' || v === 'anomalie' || v === 'pack') ? v : (d.type === 'IMPAYE' ? 'impaye' : 'resilie');
     };
-    // « pack » exclu du calcul ; « anomalie » reste compté comme perte (déjà en
-    // base M-1) -> aucun double comptage, juste un libellé distinct pour le suivi.
-    const disparusComptes = disparus.filter((d) => disparuChoix(d) !== 'pack');
-    const nbDisparuPack = disparus.length - disparusComptes.length;
-    const nbPreavis = preavis.length; // résiliés encore en paiement : neutres (hors dénominateur)
+    // « pack »/« NE » exclus du calcul ; « anomalie » reste compté comme perte
+    // (déjà en base M-1) -> aucun double comptage, juste un libellé pour le suivi.
+    const disparusComptes = disparus.filter((d) => !estNE(d.cle) && disparuChoix(d) !== 'pack');
+    const disparusNonNE = disparus.filter((d) => !estNE(d.cle));
+    const nbDisparuPack = disparusNonNE.length - disparusComptes.length; // packs parmi les non-NE
+    const nbPreavis = preavis.filter((p) => !estNE(p.cle)).length; // neutres (hors dénominateur), hors NE
 
-    const fideles = fidelesList.length + nbSousControle; // §6
-    const baseN = base.size;
+    const fideles = fidelesList.filter((f) => !estNE(f.cle)).length + nbSousControle; // §6
+    const baseN = [...base].filter((c) => !estNE(c)).length; // base M-1 hors NE
     const nsig = nsigPositif;
     const numerateur = fideles + nsig + nbQualActifs;
     const denominateur = (baseN - nbDisparuPack - nbPreavis) + nsig + nbAnomalie + nbQualActifs;
