@@ -176,15 +176,13 @@
     rows.forEach((r) => {
       const nom = String(r[cNom] || ''), prenom = String(r[cPrenom] || '');
       if (!nom && !prenom) return;
-      // Filtre sur le mois de résiliation si on a une date ET un mois cible.
-      if (moisM && dateCols.length) {
-        let ym = null;
-        for (const dc of dateCols) { const y = ymDeDate(r[dc]); if (y) { ym = y; break; } }
-        if (ym !== moisM) return;
-      }
+      // Mois de résiliation (1re date lisible parmi les colonnes candidates).
+      let ym = null;
+      for (const dc of dateCols) { const y = ymDeDate(r[dc]); if (y) { ym = y; break; } }
+      if (moisM && ym !== moisM) return; // filtre optionnel (usage mono-mois)
       const cle = cleClient(nom, prenom);
       if (seen.has(cle)) return; seen.add(cle);
-      out.push({ cle, nom, prenom });
+      out.push({ cle, nom, prenom, ym }); // ym exposé pour la répartition multi-mois
     });
     return out;
   }

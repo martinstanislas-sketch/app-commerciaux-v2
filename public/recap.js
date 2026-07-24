@@ -163,17 +163,41 @@ const RecapUI = (function () {
   function msg(txt, err) { const el = $('#rec-msg'); if (el) { el.textContent = txt || ''; el.className = 'rec-msg' + (err ? ' rec-msg-err' : ''); } }
 
   // ── PARSING DES DÉPÔTS (club par club : studio = clubCourant, sans devinette) ─
+  // Regroupe des lignes datées par mois (colonne Date / date du contrat / résil.).
+  function grouperParMois(items, dateOf) {
+    const parMois = {};
+    (items || []).forEach((it) => { const ym = RetentionParse.ymDeDate(dateOf(it)); if (ym) (parMois[ym] = parMois[ym] || []).push(it); });
+    return parMois;
+  }
+  // Archive une base multi-mois (un fichier annuel réparti mois par mois).
+  async function archiverMultiMois(club, type, parMois, libelle) {
+    const moisPresents = Object.keys(parMois).sort();
+    const imports = moisPresents.map((ym) => ({ studio: club, mois: ym, type, contenu: parMois[ym] }));
+    try {
+      await fetch('/api/retention/imports', { method: 'POST', headers: H(), body: JSON.stringify({ imports }) });
+      const n = Object.values(parMois).reduce((a, l) => a + l.length, 0);
+      await charger();
+      msg('✅ ' + libelle + ' ' + club + ' : ' + moisPresents.length + ' mois répartis (' + moisLabel(moisPresents[0], 0) + ' → ' + moisLabel(moisPresents[moisPresents.length - 1], 0) + ') · ' + n + ' ligne(s).', false);
+    } catch (_) { msg('Import multi-mois impossible (réseau).', true); }
+  }
+
   async function traiterEncM(files) {
     if (!exigeClub()) return;
     const club = clubCourant;
-    const lus = [];
+    const perFichier = [];
+    let toutes = [];
     for (const f of files) {
       const lignes = RetentionParse.mapEncaissements(RetentionParse.lireTabulaire(await buf(f)));
-      const ymf = RetentionParse.moisDeLignes(lignes);
-      // §A1 : le mois est déduit des dates. On refuse un fichier qui ne couvre pas M.
-      if (ymf && ymf !== mois) { msg('Ce fichier couvre ' + moisLabel(ymf, 0) + ', or le mois à clôturer est ' + moisLabel(mois, 0) + '.', true); return; }
-      lus.push({ nom: f.name, cles: new Set(lignes.map((l) => l.cle)), lignes, studio: club });
+      perFichier.push({ nom: f.name, lignes }); toutes = toutes.concat(lignes);
     }
+    const parMois = grouperParMois(toutes, (l) => l.date);
+    const moisPresents = Object.keys(parMois);
+    // Fichier annuel (plusieurs mois) -> réparti et archivé mois par mois.
+    if (moisPresents.length > 1) { await archiverMultiMois(club, 'encaissements', parMois, 'Encaissements'); return; }
+    // Mono-mois : édition live + garde (le fichier doit couvrir le mois clôturé).
+    const ymf = moisPresents[0];
+    if (ymf && ymf !== mois) { msg('Ce fichier couvre ' + moisLabel(ymf, 0) + ', or le mois à clôturer est ' + moisLabel(mois, 0) + '.', true); return; }
+    const lus = perFichier.map((x) => ({ nom: x.nom, cles: new Set(x.lignes.map((l) => l.cle)), lignes: x.lignes, studio: club }));
     fichiersEncM = dedupFichiers(fichiersEncM.concat(lus));
     $('#rec-info-encM').textContent = club + ' · ' + lus.length + ' fichier(s)';
     assembler();
@@ -187,8 +211,16 @@ const RecapUI = (function () {
       if (/\.zip$/i.test(f.name)) { const l = await RetentionParse.lireContratsZip(await buf(f)); noms.push(...l); }
       else if (/\.pdf$/i.test(f.name)) noms.push(f.name);
     }
-    // Le studio vient du club choisi, pas du nom de fichier : on ne garde que les signataires.
+    // Studio = club choisi ; on garde les signataires (avec leur date de signature).
     const sigs = Object.values(RetentionParse.mapContrats(noms)).flat();
+    const parMois = grouperParMois(sigs, (s) => s.date);
+    const moisPresents = Object.keys(parMois);
+    // Zip annuel (plusieurs mois de signature) -> réparti mois par mois.
+    if (moisPresents.length > 1) {
+      Object.keys(parMois).forEach((ym) => { parMois[ym] = dedupSig(parMois[ym]); });
+      await archiverMultiMois(club, 'contrats', parMois, 'Contrats'); return;
+    }
+    // Mono-mois : rattaché au mois clôturé (comportement existant).
     contratsParStudio[club] = dedupSig((contratsParStudio[club] || []).concat(sigs));
     $('#rec-info-contrats').textContent = club + ' · ' + contratsParStudio[club].length + ' contrat(s)';
     assembler();
@@ -199,22 +231,18 @@ const RecapUI = (function () {
     list.forEach((s) => { const k = (s.cles || []).slice().sort().join('#'); if (seen.has(k)) return; seen.add(k); out.push(s); });
     return out;
   }
-  // Résiliations du club : export « contrats résiliés », filtré sur le mois M.
+  // Résiliations du club : réparties par mois de résiliation (mono ou multi-mois).
   async function traiterResiliations(files) {
     if (!exigeClub()) return;
     const club = clubCourant;
-    const lus = [];
-    for (const f of files) {
-      const res = RetentionParse.mapResiliations(RetentionParse.lireTabulaire(await buf(f)), mois);
-      lus.push(...res);
-    }
-    const seen = new Set(); const arr = [];
-    (resiliationsParStudio[club] || []).concat(lus).forEach((r) => { if (seen.has(r.cle)) return; seen.add(r.cle); arr.push(r); });
-    resiliationsParStudio[club] = arr;
-    $('#rec-info-resiliations').textContent = club + ' · ' + arr.length + ' résilié(s) en ' + moisLabel(mois, 0);
-    if (!arr.length) msg('Aucune résiliation datée de ' + moisLabel(mois, 0) + ' dans ce fichier.', false);
-    assembler();
-    await autoEnregistrer('Résiliations ' + club);
+    let all = [];
+    for (const f of files) all = all.concat(RetentionParse.mapResiliations(RetentionParse.lireTabulaire(await buf(f)))); // sans filtre -> ym par ligne
+    const parMois = grouperParMois(all, (r) => r.ym);
+    const moisPresents = Object.keys(parMois);
+    if (!moisPresents.length) { msg('Aucune résiliation datée dans ce fichier.', false); return; }
+    // On ne garde que cle/nom/prenom dans le contenu archivé.
+    Object.keys(parMois).forEach((ym) => { parMois[ym] = parMois[ym].map((r) => ({ cle: r.cle, nom: r.nom, prenom: r.prenom })); });
+    await archiverMultiMois(club, 'resiliations', parMois, 'Résiliations');
   }
   // §A3 : encaissements M-1 déposés (par studio ciblé, ou en bulk tous studios).
   async function traiterM1(files, studioForce) {
