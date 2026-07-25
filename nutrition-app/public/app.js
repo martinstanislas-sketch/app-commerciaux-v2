@@ -3229,6 +3229,9 @@ function init() {
   const _bEbooksAdmin = $('#btnEbooksAdmin'); if (_bEbooksAdmin) _bEbooksAdmin.addEventListener('click', openEbooksAdmin);
   const _ebkAClose = $('#ebooksAdminClose'); if (_ebkAClose) _ebkAClose.addEventListener('click', closeEbooksAdmin);
   const _ebkAPanel = $('#ebooksAdminPanel'); if (_ebkAPanel) _ebkAPanel.addEventListener('click', (e) => { if (e.target.id === 'ebooksAdminPanel') closeEbooksAdmin(); });
+  const _bVideosAdmin = $('#btnVideosAdmin'); if (_bVideosAdmin) _bVideosAdmin.addEventListener('click', openVideosAdmin);
+  const _vidAClose = $('#videosAdminClose'); if (_vidAClose) _vidAClose.addEventListener('click', closeVideosAdmin);
+  const _vidAPanel = $('#videosAdminPanel'); if (_vidAPanel) _vidAPanel.addEventListener('click', (e) => { if (e.target.id === 'videosAdminPanel') closeVideosAdmin(); });
   const _cpClose = $('#changePinClose'); if (_cpClose) _cpClose.addEventListener('click', closeChangePin);
   const _cpSave = $('#cpSave'); if (_cpSave) _cpSave.addEventListener('click', saveChangePin);
   const _cpPanel = $('#changePinPanel'); if (_cpPanel) _cpPanel.addEventListener('click', (e) => { if (e.target.id === 'changePinPanel') closeChangePin(); });
@@ -3289,7 +3292,7 @@ function init() {
 
   $('#navRestart').addEventListener('click', () => { if (confirm('Recommencer depuis le début ?')) showScreen('landing'); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closeCoachWall(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeCoachParcours(); closeChangePin(); closePushPrefs(); closeEbooks(); closeEbooksAdmin(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeRecipe(); closeShopping(); closeFavoris(); closeFiche(); closeSuivi(); closeAnalyse(); closeComplements(); closeAvance(); closeHelp(); closeHelpAdmin(); closeScan(); closeScanAdmin(); closeSuiviPlan(); closeAdhAdmin(); closeDemoAdmin(); closePlate(); closePlateAdmin(); closeAgenda(); closeSos(); closeCoachChat(); closeMessagesCoach(); closeCoachWall(); closePlatsPhotos(); closeCoachFiche(); closeCoachIaAdmin(); closeQuickOptions(); closeCoachParcours(); closeChangePin(); closePushPrefs(); closeEbooks(); closeEbooksAdmin(); closeVideosAdmin(); } });
 
   if (window.__NUTRI_COACH) {
     // Coach : on n'affiche PAS le parcours client (onboarding/plan), mais son dashboard.
@@ -10735,6 +10738,123 @@ async function toggleEbook(id, row) {
 async function delEbook(id) {
   if (!confirm('Supprimer ce guide définitivement ?')) return;
   try { await fetch(apiUrl('/api/admin/ebooks/' + id), { method: 'DELETE', headers: nutriAuthHeaders() }); renderEbooksAdmin(); } catch (_) { /* ignore */ }
+}
+
+// ============ ADMIN : GESTION DES VIDÉOS (séances YouTube, paliers de Punch) ============
+function closeVideosAdmin() { const p = $('#videosAdminPanel'); if (p) p.classList.add('hidden'); }
+function openVideosAdmin() { const p = $('#videosAdminPanel'); if (!p) return; p.classList.remove('hidden'); renderVideosAdmin(); }
+let _videosAdminList = [];
+async function renderVideosAdmin() {
+  const body = $('#videosAdminBody'); if (!body) return;
+  body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  let list = [];
+  try { const d = await (await fetch(apiUrl('/api/admin/videos'), { headers: nutriAuthHeaders() })).json(); if (d.ok) list = d.videos || []; } catch (_) { /* ignore */ }
+  _videosAdminList = list;
+  const lotOpts = (sel) => [1, 2, 3, 4, 5].map((n) => `<option value="${n}"${n === sel ? ' selected' : ''}>Lot ${n}</option>`).join('');
+  const rows = list.map((v, idx) => {
+    const canUp = list.slice(0, idx).some((x) => x.lot === v.lot);
+    const canDown = list.slice(idx + 1).some((x) => x.lot === v.lot);
+    return `<div class="vda-row" data-id="${v.id}" data-active="${v.active}">
+      <img class="vda-thumb" src="${escapeHtml(v.thumb)}" alt="" loading="lazy">
+      <div class="vda-main"><b>${escapeHtml(v.title)}</b><span>Lot ${v.lot} · ${escapeHtml(v.category || 'Séances')}${v.active ? '' : ' · masqué'}</span></div>
+      <div class="vda-acts">
+        <button type="button" class="ebka-btn" data-act="up"${canUp ? '' : ' disabled'}>↑</button>
+        <button type="button" class="ebka-btn" data-act="down"${canDown ? '' : ' disabled'}>↓</button>
+        <button type="button" class="ebka-btn" data-act="edit">Éditer</button>
+        <button type="button" class="ebka-btn" data-act="toggle">${v.active ? 'Masquer' : 'Afficher'}</button>
+        <button type="button" class="ebka-btn danger" data-act="del">Suppr.</button>
+      </div>
+    </div>`;
+  }).join('');
+  body.innerHTML = `
+    <form id="vidAddForm" class="ebka-form">
+      <input type="text" id="vidTitle" placeholder="Titre de la vidéo" maxlength="160" required>
+      <input type="url" id="vidUrl" placeholder="URL YouTube (https://youtu.be/… ou /watch?v=…)" required>
+      <label class="ebka-lbl">Lot de déblocage <em>(palier de Punch 1 à 5)</em><select id="vidLot">${lotOpts(1)}</select></label>
+      <textarea id="vidDesc" rows="2" placeholder="Description (optionnel)" maxlength="600"></textarea>
+      <button type="submit" class="btn btn-primary" id="vidAddBtn">Ajouter la vidéo</button>
+      <p class="pc-msg" id="vidMsg"></p>
+    </form>
+    <div class="vda-list">${rows || '<p class="help-empty">Aucune vidéo pour le moment.</p>'}</div>`;
+  $('#vidAddForm').addEventListener('submit', addVideo);
+  body.querySelectorAll('.vda-row').forEach((r) => {
+    r.querySelector('[data-act="edit"]').addEventListener('click', () => editVideo(r.dataset.id));
+    r.querySelector('[data-act="toggle"]').addEventListener('click', () => toggleVideo(r.dataset.id, r));
+    r.querySelector('[data-act="del"]').addEventListener('click', () => delVideo(r.dataset.id));
+    const up = r.querySelector('[data-act="up"]'), dn = r.querySelector('[data-act="down"]');
+    if (up && !up.disabled) up.addEventListener('click', () => moveVideo(r.dataset.id, -1));
+    if (dn && !dn.disabled) dn.addEventListener('click', () => moveVideo(r.dataset.id, 1));
+  });
+}
+async function addVideo(e) {
+  e.preventDefault();
+  const msg = $('#vidMsg'), btn = $('#vidAddBtn');
+  const title = $('#vidTitle').value.trim(), url = $('#vidUrl').value.trim();
+  if (!title || !url) { msg.textContent = 'Titre et URL requis.'; return; }
+  btn.disabled = true; msg.textContent = 'Ajout…';
+  try {
+    const d = await (await fetch(apiUrl('/api/admin/videos'), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ title, youtubeUrl: url, lot: Number($('#vidLot').value) || 1, description: $('#vidDesc').value.trim() }) })).json();
+    if (d.ok) { showToast('Vidéo ajoutée ✓', { icon: 'check' }); renderVideosAdmin(); }
+    else msg.textContent = d.error || 'Échec (URL YouTube ?).';
+  } catch (_) { msg.textContent = 'Échec de l\'ajout.'; }
+  btn.disabled = false;
+}
+function editVideo(id) {
+  const v = _videosAdminList.find((x) => x.id === Number(id));
+  const row = document.querySelector('.vda-row[data-id="' + id + '"]');
+  if (!v || !row) return;
+  row.classList.add('editing');
+  const lotOpts = [1, 2, 3, 4, 5].map((n) => `<option value="${n}"${n === v.lot ? ' selected' : ''}>Lot ${n}</option>`).join('');
+  row.innerHTML = `<div class="ebka-edit">
+    <input type="text" class="vde-title" value="${escapeHtml(v.title)}" maxlength="160" placeholder="Titre">
+    <input type="url" class="vde-url" value="https://youtu.be/${escapeHtml(v.youtubeId)}" placeholder="URL YouTube">
+    <label class="ebka-lbl">Lot <em>(1 à 5)</em><select class="vde-lot">${lotOpts}</select></label>
+    <textarea class="vde-desc" rows="2" maxlength="600" placeholder="Description">${escapeHtml(v.description || '')}</textarea>
+    <div class="ebka-edit-btns"><button type="button" class="ebka-btn" data-act="cancel">Annuler</button><button type="button" class="ebka-btn primary" data-act="save">Enregistrer</button></div>
+    <p class="pc-msg vde-msg"></p>
+  </div>`;
+  row.querySelector('[data-act="cancel"]').addEventListener('click', renderVideosAdmin);
+  row.querySelector('[data-act="save"]').addEventListener('click', () => saveVideoEdit(id, row));
+}
+async function saveVideoEdit(id, row) {
+  const msg = row.querySelector('.vde-msg'), btn = row.querySelector('[data-act="save"]');
+  const body = {
+    title: row.querySelector('.vde-title').value.trim(),
+    youtubeUrl: row.querySelector('.vde-url').value.trim(),
+    lot: Number(row.querySelector('.vde-lot').value) || 1,
+    description: row.querySelector('.vde-desc').value.trim(),
+  };
+  if (!body.title) { msg.textContent = 'Titre requis.'; return; }
+  btn.disabled = true; msg.textContent = 'Enregistrement…';
+  try {
+    const d = await (await fetch(apiUrl('/api/admin/videos/' + id), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) })).json();
+    if (d.ok) { showToast('Vidéo modifiée ✓', { icon: 'check' }); renderVideosAdmin(); }
+    else msg.textContent = d.error || 'Échec.';
+  } catch (_) { msg.textContent = 'Échec de l\'enregistrement.'; }
+  btn.disabled = false;
+}
+async function toggleVideo(id, row) {
+  const active = row.dataset.active === '1' ? 0 : 1;
+  try { await fetch(apiUrl('/api/admin/videos/' + id), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ active }) }); renderVideosAdmin(); } catch (_) { /* ignore */ }
+}
+async function delVideo(id) {
+  if (!confirm('Supprimer cette vidéo définitivement ?')) return;
+  try { await fetch(apiUrl('/api/admin/videos/' + id), { method: 'DELETE', headers: nutriAuthHeaders() }); renderVideosAdmin(); } catch (_) { /* ignore */ }
+}
+async function moveVideo(id, dir) {
+  const list = _videosAdminList; const i = list.findIndex((v) => v.id === Number(id));
+  if (i < 0) return; const cur = list[i];
+  let j = i + dir; while (j >= 0 && j < list.length && list[j].lot !== cur.lot) j += dir;
+  if (j < 0 || j >= list.length || list[j].lot !== cur.lot) return; // pas de voisin dans le même lot
+  const nb = list[j];
+  try {
+    await Promise.all([
+      fetch(apiUrl('/api/admin/videos/' + cur.id), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ sortOrder: nb.sortOrder }) }),
+      fetch(apiUrl('/api/admin/videos/' + nb.id), { method: 'POST', headers: nutriAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ sortOrder: cur.sortOrder }) }),
+    ]);
+  } catch (_) { /* ignore */ }
+  renderVideosAdmin();
 }
 
 document.addEventListener('DOMContentLoaded', init);

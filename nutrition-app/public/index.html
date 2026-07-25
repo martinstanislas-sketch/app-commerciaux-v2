@@ -40,7 +40,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=189" />
+  <link rel="stylesheet" href="style.css?v=190" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=103" />
   <script>
@@ -900,6 +900,7 @@
         <button type="button" class="profil-row profil-admin hidden" id="btnCoachFaq"><svg class="ic pr-lime"><use href="#ic-file"/></svg>Réponses du coach (gratuit)<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnQuickOptions"><svg class="ic pr-lime"><use href="#ic-cart"/></svg>Options rapides boutique<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin hidden" id="btnEbooksAdmin"><svg class="ic pr-lime"><use href="#ic-book"/></svg>Guides PDF<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" id="btnVideosAdmin"><span class="pr-emo">🎬</span>Gérer les vidéos<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-admin profil-danger hidden" id="btnResetClients"><svg class="ic"><use href="#ic-refresh"/></svg>Réinitialiser les données clients (test)</button>
         <button type="button" class="profil-row profil-admin hidden" data-go="btnHelpAdmin"><svg class="ic pr-lime"><use href="#ic-inbox"/></svg>Demandes d'aide<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
@@ -1303,6 +1304,18 @@
     </div>
   </div>
 
+  <!-- ============ ADMIN : GESTION DES VIDÉOS (séances YouTube, paliers de Punch) ============ -->
+  <div id="videosAdminPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2>🎬 Gérer les vidéos</h2>
+        <button class="modal-close" id="videosAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Ajoute, modifie et réordonne les séances vidéo. Le <b>lot 1→5</b> = le palier de Punch qui débloque la vidéo.</p>
+      <div id="videosAdminBody"></div>
+    </div>
+  </div>
+
   <!-- ============ DÉTAIL DES OBJECTIFS NUTRITIONNELS (ouvert depuis la pastille Objectif) ============ -->
   <div id="objDetail" class="obj-detail hidden" role="dialog" aria-modal="true" aria-label="Détail de mes objectifs nutritionnels">
     <div class="obj-detail-card">
@@ -1572,6 +1585,6 @@
   <script src="avatar.js?v=8"></script>
   <script src="coursesCatalogue.js?v=5"></script>
   <script src="coursesEngine.js?v=5"></script>
-  <script src="app.js?v=222"></script>
+  <script src="app.js?v=223"></script>
 </body>
 </html>

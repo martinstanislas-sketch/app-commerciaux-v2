@@ -1055,8 +1055,19 @@ try {
 
   // Les 27 séances vidéo, versionnées : on ne les réimporte pas à chaque démarrage,
   // et on ne touche JAMAIS aux ebooks PDF existants (type = 'video' uniquement).
+  // Drapeau : dès que l'admin gère les vidéos via le panneau, on cesse de semer
+  // (sinon le seed ré-ajouterait les supprimées et écraserait les modifs).
+  function videosGereesAdmin() {
+    try { return ((getDb().prepare("SELECT value FROM app_settings WHERE key='videos_admin_managed'").get() || {}).value) === '1'; }
+    catch (_) { return false; }
+  }
+  function marquerVideosGerees() {
+    try { getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('videos_admin_managed','1',datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value='1'").run(); }
+    catch (_) { /* ignore */ }
+  }
   function seedVideosSeances() {
     try {
+      if (videosGereesAdmin()) return; // l'admin possède le catalogue -> ne plus semer
       const V = require('./nutrition-app/lib/videosSeances');
       // v2 : lots RÉÉQUILIBRÉS par visage de miniature (jamais plus de 2 fois la
       // même personne par lot) + « Générique » corrigé en Quentin (c'est lui sur
@@ -1296,6 +1307,58 @@ try {
   });
   app.delete('/nutrition/api/admin/ebooks/:id', requireAuth, requireAdmin, (req, res) => {
     try { getDb().prepare('DELETE FROM nutrition_ebooks WHERE id=?').run(Number(req.params.id)); viderCacheRangsVideos(); res.json({ ok: true }); }
+    catch (e) { res.status(500).json({ ok: false }); }
+  });
+
+  // ============ VIDÉOS (séances YouTube, débloquées par palier de Punch 1..5) ============
+  const VIDEOS_LIB = require('./nutrition-app/lib/videosSeances');
+  const clampLot = (v) => Math.max(1, Math.min(5, Number(v) || 1));
+  app.get('/nutrition/api/admin/videos', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const rows = getDb().prepare("SELECT id, title, description, category, youtube_id, video_lot, sort_order, active FROM nutrition_ebooks WHERE type='video' ORDER BY video_lot ASC, sort_order ASC, id ASC").all();
+      res.json({ ok: true, videos: rows.map((r) => ({ id: r.id, title: r.title, description: r.description, category: r.category, youtubeId: r.youtube_id, lot: r.video_lot || 1, sortOrder: r.sort_order, active: r.active, thumb: VIDEOS_LIB.miniatureYoutube(r.youtube_id) })) });
+    } catch (e) { res.status(500).json({ ok: false }); }
+  });
+  app.post('/nutrition/api/admin/videos', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const title = String(b.title || '').trim().slice(0, 160);
+      if (!title) return res.status(400).json({ ok: false, error: 'Titre requis.' });
+      const yid = VIDEOS_LIB.extraireYoutubeId(b.youtubeUrl || b.youtubeId || '');
+      if (!yid) return res.status(400).json({ ok: false, error: 'URL YouTube invalide.' });
+      const lot = clampLot(b.lot);
+      const maxOrder = getDb().prepare("SELECT COALESCE(MAX(sort_order),0) m FROM nutrition_ebooks WHERE type='video'").get().m;
+      const info = getDb().prepare("INSERT INTO nutrition_ebooks (title, description, category, cover_data, pdf_data, type, youtube_id, video_lot, unlock_day, sort_order, active, created_at) VALUES (?,?,?,?,'','video',?,?,0,?,1,?)")
+        .run(title, String(b.description || '').slice(0, 600), String(b.category || 'Séances').slice(0, 60), VIDEOS_LIB.miniatureYoutube(yid), yid, lot, maxOrder + 1, new Date().toISOString());
+      marquerVideosGerees(); viderCacheRangsVideos();
+      res.json({ ok: true, id: info.lastInsertRowid });
+    } catch (e) { console.error('video create:', e); res.status(500).json({ ok: false, error: 'Création impossible.' }); }
+  });
+  app.post('/nutrition/api/admin/videos/:id', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const id = Number(req.params.id); const b = req.body || {};
+      if (!getDb().prepare("SELECT id FROM nutrition_ebooks WHERE id=? AND type='video'").get(id)) return res.status(404).json({ ok: false });
+      const sets = [], vals = [];
+      if ('title' in b) { sets.push('title=?'); vals.push(String(b.title).slice(0, 160)); }
+      if ('description' in b) { sets.push('description=?'); vals.push(String(b.description).slice(0, 600)); }
+      if ('category' in b) { sets.push('category=?'); vals.push(String(b.category).slice(0, 60)); }
+      if ('lot' in b) { sets.push('video_lot=?'); vals.push(clampLot(b.lot)); }
+      if ('active' in b) { sets.push('active=?'); vals.push(b.active ? 1 : 0); }
+      if ('sortOrder' in b) { sets.push('sort_order=?'); vals.push(Number(b.sortOrder) || 0); }
+      if ('youtubeUrl' in b || 'youtubeId' in b) {
+        const yid = VIDEOS_LIB.extraireYoutubeId(b.youtubeUrl || b.youtubeId || '');
+        if (!yid) return res.status(400).json({ ok: false, error: 'URL YouTube invalide.' });
+        sets.push('youtube_id=?'); vals.push(yid); sets.push('cover_data=?'); vals.push(VIDEOS_LIB.miniatureYoutube(yid));
+      }
+      if (!sets.length) return res.json({ ok: true });
+      vals.push(id);
+      getDb().prepare('UPDATE nutrition_ebooks SET ' + sets.join(', ') + " WHERE id=? AND type='video'").run(...vals);
+      marquerVideosGerees(); viderCacheRangsVideos();
+      res.json({ ok: true });
+    } catch (e) { console.error('video update:', e); res.status(500).json({ ok: false }); }
+  });
+  app.delete('/nutrition/api/admin/videos/:id', requireAuth, requireAdmin, (req, res) => {
+    try { getDb().prepare("DELETE FROM nutrition_ebooks WHERE id=? AND type='video'").run(Number(req.params.id)); marquerVideosGerees(); viderCacheRangsVideos(); res.json({ ok: true }); }
     catch (e) { res.status(500).json({ ok: false }); }
   });
 

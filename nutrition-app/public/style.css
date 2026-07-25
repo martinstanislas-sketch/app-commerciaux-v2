@@ -393,8 +393,19 @@ h1, h2, h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.02em; line-
 .ebka-btn.primary { background: var(--blue-c); color: #fff; border-color: var(--blue-c); }
 .ebka-row.editing { flex-direction: column; align-items: stretch; }
 .ebka-edit { display: flex; flex-direction: column; gap: 8px; width: 100%; }
-.ebka-edit input[type=text], .ebka-edit input[type=number], .ebka-edit textarea { font: inherit; padding: 9px 11px; border: 1px solid var(--border-c); border-radius: 10px; background: var(--surface); color: var(--ink); }
+.ebka-edit input[type=text], .ebka-edit input[type=number], .ebka-edit input[type=url], .ebka-edit textarea, .ebka-edit select { font: inherit; padding: 9px 11px; border: 1px solid var(--border-c); border-radius: 10px; background: var(--surface); color: var(--ink); }
 .ebka-edit-btns { display: flex; gap: 8px; justify-content: flex-end; }
+/* Gestion des vidéos (admin) */
+.ebka-form input[type=url] { font: inherit; padding: 9px 11px; border: 1px solid var(--border-c); border-radius: 10px; background: var(--surface); color: var(--ink); }
+.vda-list { display: flex; flex-direction: column; gap: 8px; }
+.vda-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border-c); border-radius: 12px; background: var(--surface); }
+.vda-row.editing { flex-direction: column; align-items: stretch; }
+.vda-thumb { width: 76px; height: 44px; object-fit: cover; border-radius: 8px; flex: none; background: var(--border-c); }
+.vda-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.vda-main b { font-size: 14px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vda-main span { font-size: 12px; color: var(--text-muted-c); }
+.vda-acts { display: flex; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.ebka-btn:disabled { opacity: .4; cursor: default; }
 /* Bouton « Guide du jour » (logo dans l'en-tête de l'objectif) + badge « Nouveau » */
 .needs-guide { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; flex: none; background: var(--blue-soft); color: var(--blue-on-soft); border: 1px solid var(--blue-c); border-radius: 12px; padding: 8px 13px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background .15s var(--ease), transform .1s var(--ease); }
 .needs-guide .ic { width: 17px; height: 17px; }
