@@ -4532,6 +4532,32 @@ function ensureLeadsSchema() {
   `);
 }
 ensureLeadsSchema();
+
+// Seed historique (Meta Ads juin 2025 → juillet 2026). Leads = « Qté totale »
+// mensuelle par club ; la campagne « Nord (groupé) » a été répartie ÷3 sur
+// Lille/Marcq/Wasquehal. Inséré une seule fois ; N'ÉCRASE JAMAIS une saisie
+// manuelle (ON CONFLICT DO NOTHING) -> ré-remplit seulement les cases vides.
+const LEADS_SEED = {"2025-06":{"Boulogne":230,"Lille":150,"Marcq":106,"Wasquehal":113,"Neuilly":144,"Levallois":138},"2025-07":{"Boulogne":173,"Lille":180,"Marcq":95,"Wasquehal":95,"Neuilly":166,"Levallois":166},"2025-08":{"Boulogne":193,"Lille":136,"Marcq":104,"Wasquehal":103,"Neuilly":182,"Levallois":173},"2025-09":{"Boulogne":133,"Lille":71,"Marcq":175,"Wasquehal":70,"Neuilly":138,"Levallois":133},"2025-10":{"Boulogne":135,"Lille":55,"Marcq":348,"Wasquehal":138,"Neuilly":129,"Levallois":171},"2025-11":{"Boulogne":134,"Lille":52,"Marcq":275,"Wasquehal":236,"Neuilly":107,"Levallois":209},"2025-12":{"Boulogne":171,"Lille":68,"Marcq":239,"Wasquehal":324,"Neuilly":164,"Levallois":196},"2026-01":{"Boulogne":188,"Lille":123,"Marcq":217,"Wasquehal":290,"Neuilly":181,"Levallois":213},"2026-02":{"Boulogne":121,"Lille":100,"Marcq":187,"Wasquehal":96,"Neuilly":145,"Levallois":162},"2026-03":{"Boulogne":155,"Lille":162,"Marcq":147,"Wasquehal":78,"Neuilly":152,"Levallois":189},"2026-04":{"Boulogne":121,"Lille":112,"Marcq":61,"Wasquehal":132,"Neuilly":126,"Levallois":175},"2026-05":{"Boulogne":91,"Lille":92,"Marcq":44,"Wasquehal":117,"Neuilly":158,"Levallois":165},"2026-06":{"Boulogne":142,"Lille":72,"Marcq":132,"Wasquehal":66,"Neuilly":102,"Levallois":121},"2026-07":{"Boulogne":109,"Lille":76,"Marcq":87,"Wasquehal":67,"Neuilly":102,"Levallois":209}};
+function seedLeads() {
+  try {
+    const V = '1';
+    const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='leads_seed_v'").get() || {}).value;
+    if (String(fait) === V) return;
+    const up = getDb().prepare('INSERT INTO leads (club, mois, nb, updated_at) VALUES (?,?,?,?) ON CONFLICT(club, mois) DO NOTHING');
+    const now = new Date().toISOString();
+    const tx = getDb().transaction(() => {
+      Object.keys(LEADS_SEED).forEach((mois) => {
+        const row = LEADS_SEED[mois];
+        Object.keys(row).forEach((club) => up.run(club, mois, row[club], now));
+      });
+    });
+    tx();
+    getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('leads_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(V);
+    console.log('[LEADS] seed historique appliqué');
+  } catch (e) { console.error('seedLeads:', e && e.message); }
+}
+seedLeads();
+
 const LEAD_CLUBS = ['Lille', 'Marcq', 'Wasquehal', 'Boulogne', 'Neuilly', 'Levallois'];
 const LEAD_MOIS_RE = /^\d{4}-\d{2}$/;
 function leadMoisN1(ym) { const [a, m] = String(ym || '').split('-').map(Number); return (a && m) ? (a - 1) + '-' + String(m).padStart(2, '0') : ''; }
