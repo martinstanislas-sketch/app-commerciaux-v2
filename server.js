@@ -4691,6 +4691,32 @@ function fanRow(r) {
   };
 }
 
+// Seed historique des AVIS GOOGLE par studio/mois (févr 2022 → juil 2026, source
+// export réel). Renseigne uniquement la colonne `avis` de fan_saisies (les autres
+// champs restent à 0 → note /30 = « — » tant que les contrats ne sont pas saisis).
+// ON CONFLICT DO NOTHING : n'écrase JAMAIS une ligne déjà présente (saisie manuelle).
+const FAN_AVIS_SEED = {"2022-02":{"Wasquehal":2},"2022-03":{"Wasquehal":3},"2022-06":{"Wasquehal":2,"Lille":4},"2022-07":{"Lille":6},"2022-08":{"Lille":1},"2022-09":{"Wasquehal":1,"Boulogne":10,"Lille":3},"2022-10":{"Wasquehal":4,"Boulogne":2},"2022-11":{"Wasquehal":2,"Boulogne":1,"Lille":1},"2022-12":{"Wasquehal":2,"Lille":1},"2023-01":{"Wasquehal":1,"Boulogne":1,"Lille":1},"2023-02":{"Wasquehal":1},"2023-03":{"Wasquehal":28,"Boulogne":14},"2023-04":{"Wasquehal":22,"Boulogne":6,"Lille":5},"2023-05":{"Marcq":1,"Wasquehal":1,"Boulogne":2,"Lille":1},"2023-06":{"Wasquehal":2,"Boulogne":1},"2023-07":{"Wasquehal":1},"2023-08":{"Wasquehal":2},"2023-09":{"Marcq":1,"Wasquehal":2,"Lille":1},"2023-10":{"Marcq":2,"Wasquehal":1},"2023-11":{"Boulogne":1},"2023-12":{"Marcq":1,"Wasquehal":2,"Boulogne":1},"2024-01":{"Levallois":1,"Wasquehal":1},"2024-02":{"Wasquehal":2,"Neuilly":2,"Lille":1},"2024-03":{"Marcq":2,"Wasquehal":1,"Boulogne":1,"Neuilly":1,"Lille":5},"2024-04":{"Marcq":15,"Wasquehal":1,"Neuilly":1,"Lille":16},"2024-05":{"Wasquehal":9,"Boulogne":1,"Neuilly":1,"Lille":1},"2024-06":{"Levallois":4,"Wasquehal":3,"Neuilly":2},"2024-07":{"Wasquehal":2},"2024-08":{"Levallois":2,"Neuilly":4,"Lille":1},"2024-09":{"Marcq":1,"Levallois":3,"Neuilly":5},"2024-10":{"Levallois":1,"Wasquehal":3},"2024-11":{"Marcq":1,"Levallois":3,"Boulogne":1,"Lille":3},"2024-12":{"Marcq":23,"Levallois":1},"2025-01":{"Marcq":1,"Wasquehal":1,"Boulogne":1},"2025-02":{"Marcq":1,"Levallois":2,"Wasquehal":1,"Lille":1},"2025-03":{"Marcq":1,"Levallois":3,"Neuilly":1,"Lille":3},"2025-04":{"Levallois":1,"Wasquehal":1},"2025-05":{"Marcq":4,"Levallois":2,"Wasquehal":1,"Boulogne":5,"Neuilly":2,"Lille":1},"2025-06":{"Marcq":10,"Levallois":36,"Boulogne":19,"Neuilly":12},"2025-07":{"Marcq":1,"Levallois":1,"Wasquehal":1,"Neuilly":1,"Lille":1},"2025-08":{"Marcq":1,"Levallois":2,"Wasquehal":2,"Boulogne":1,"Neuilly":3},"2025-09":{"Marcq":10,"Levallois":17,"Wasquehal":40,"Boulogne":41,"Neuilly":10,"Lille":17},"2025-10":{"Marcq":2,"Levallois":2,"Boulogne":1,"Neuilly":3,"Lille":2},"2025-11":{"Marcq":2,"Neuilly":3},"2025-12":{"Wasquehal":2},"2026-01":{"Marcq":6,"Levallois":3,"Wasquehal":6,"Boulogne":1,"Neuilly":3,"Lille":1},"2026-02":{"Marcq":12,"Levallois":3,"Wasquehal":7,"Neuilly":8,"Lille":10},"2026-03":{"Marcq":1,"Levallois":4,"Wasquehal":5,"Boulogne":43,"Neuilly":2,"Lille":3},"2026-04":{"Marcq":2,"Levallois":2,"Boulogne":8,"Neuilly":2,"Lille":2},"2026-05":{"Marcq":1,"Levallois":4,"Wasquehal":2,"Boulogne":1,"Neuilly":3},"2026-06":{"Levallois":3,"Wasquehal":1,"Boulogne":1,"Neuilly":4},"2026-07":{"Levallois":1,"Wasquehal":3,"Neuilly":3,"Lille":1}};
+function seedFanAvis() {
+  try {
+    const V = '1';
+    const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='fan_avis_seed_v'").get() || {}).value;
+    if (String(fait) === V) return;
+    const up = getDb().prepare(`INSERT INTO fan_saisies (studio, mois, non_freq, contrats, evenements, avis, refs, updated_at)
+      VALUES (?,?,0,0,'[]',?,0,?) ON CONFLICT(studio, mois) DO NOTHING`);
+    const now = new Date().toISOString();
+    const tx = getDb().transaction(() => {
+      Object.keys(FAN_AVIS_SEED).forEach((mois) => {
+        const row = FAN_AVIS_SEED[mois];
+        Object.keys(row).forEach((studio) => { if (FAN_STUDIOS.includes(studio)) up.run(studio, mois, row[studio], now); });
+      });
+    });
+    tx();
+    getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('fan_avis_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(V);
+    console.log('[FAN] seed avis Google 2022-02→2026-07 appliqué');
+  } catch (e) { console.error('seedFanAvis:', e && e.message); }
+}
+seedFanAvis();
+
 // Un mois : les saisies des 6 studios + l'état clôturé.
 app.get('/api/fan/:mois', requireAuth, requireAdmin, (req, res) => {
   const mois = String(req.params.mois || '');
