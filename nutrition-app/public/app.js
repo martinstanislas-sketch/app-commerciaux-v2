@@ -1,4 +1,4 @@
-// app.js - My Coach Nutrition (front)
+// app.js - Protocole 42 (front)
 'use strict';
 
 // ---------- Base d'URL + auth (intégration app principale) ----------
@@ -1972,7 +1972,7 @@ function printDocument(title, innerHTML) {
 function printPlanPdf() {
   const b = state.plan.besoins;
   const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: CHALLENGE_NOM };
-  let html = `<h1>Mon plan de repas — My Coach Nutrition</h1>
+  let html = `<h1>Mon plan de repas — Protocole 42</h1>
     <p class="sub">Objectif : ${objLabels[state.profil.objectif] || ''} · ~${b.kcalCible} kcal/jour · ${state.portions} personne(s) · Estimations à titre indicatif.</p>`;
   state.plan.jours.forEach((jour) => {
     html += `<div class="day"><h2>${jour.jour}</h2>`;
@@ -2046,7 +2046,7 @@ function downloadTextFile(filename, text) {
 function printShoppingList() {
   const parRayon = buildShoppingList();
   const prog = nomProgrammeCourses();
-  let html = `<h1>Liste de courses — My Coach Nutrition</h1>
+  let html = `<h1>Liste de courses — Protocole 42</h1>
     ${prog ? `<p class="sub" style="font-weight:700;color:#2563EB;margin:0 0 2px;">${prog}</p>` : ''}
     <p class="sub">Pour ${state.plan.jours.length} jour(s) · ${state.portions} personne(s)</p>`;
   rayonsTries(parRayon).forEach((rayon) => {
@@ -2096,7 +2096,7 @@ function buildShoppingPdfBlob() {
   text('Liste de courses', ML, 20, true, [0.09, 0.11, 0.13]); y -= 26;
   const _prog = nomProgrammeCourses();
   if (_prog) { text(_prog, ML, 12, true, [0.15, 0.39, 0.92]); y -= 18; }
-  text('My Coach Nutrition · Pour ' + state.plan.jours.length + ' jour(s) · ' + state.portions + ' personne(s)', ML, 10.5, false, [0.42, 0.45, 0.5]); y -= 26;
+  text('Protocole 42 · Pour ' + state.plan.jours.length + ' jour(s) · ' + state.portions + ' personne(s)', ML, 10.5, false, [0.42, 0.45, 0.5]); y -= 26;
   rayonsTries(parRayon).forEach((rayon) => {
     ensure(40);
     y -= 4;
@@ -2169,7 +2169,7 @@ function buildPlanPdfBlob() {
   };
   const b = state.plan.besoins;
   const objLabels = { perte: 'Perte de poids', maintien: 'Maintien', muscle: 'Prise de muscle', energie: 'Plus d\'énergie', challenge: CHALLENGE_NOM };
-  text('Mon plan de repas — My Coach Nutrition', ML, 19, true, [0.09, 0.11, 0.13]); y -= 24;
+  text('Mon plan de repas — Protocole 42', ML, 19, true, [0.09, 0.11, 0.13]); y -= 24;
   const sub = 'Objectif : ' + (objLabels[state.profil.objectif] || '—') + (state.masquerCalories ? '' : ' · ~' + (b.kcalCible || '') + ' kcal/jour') + ' · ' + state.portions + ' personne(s) · Estimations indicatives';
   text(sub, ML, 10, false, [0.42, 0.45, 0.5]); y -= 24;
   (state.plan.jours || []).forEach((jour) => {
@@ -2881,7 +2881,7 @@ function fmtIcsDate(d) { return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(
 function exportIcs() {
   if (!state.plan) return;
   const base = new Date(); base.setHours(0, 0, 0, 0); // le plan demarre aujourd'hui
-  const lignes = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//My Coach Nutrition//FR', 'CALSCALE:GREGORIAN'];
+  const lignes = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Protocole 42//FR', 'CALSCALE:GREGORIAN'];
   const stamp = fmtIcsDate(new Date());
   let uid = 0;
   state.plan.jours.forEach((jour, di) => {
@@ -2892,7 +2892,7 @@ function exportIcs() {
       const end = new Date(start); end.setMinutes(start.getMinutes() + dur);
       const titre = `${repas.label} - ${r.nom}`;
       const ingr = (r.ingredients || []).slice(0, 5).map((i) => i.nom).join(', ');
-      const desc = `${r.nom}\n${state.masquerCalories ? '' : r.kcal + ' kcal - '}${r.proteines} g proteines\nIngredients : ${ingr}\n(My Coach Nutrition - indicatif)`;
+      const desc = `${r.nom}\n${state.masquerCalories ? '' : r.kcal + ' kcal - '}${r.proteines} g proteines\nIngredients : ${ingr}\n(Protocole 42 - indicatif)`;
       lignes.push('BEGIN:VEVENT', `UID:mcn-${di}-${repas.creneau}-${uid++}@mycoach`, `DTSTAMP:${stamp}`,
         `DTSTART:${fmtIcsDate(start)}`, `DTEND:${fmtIcsDate(end)}`, `SUMMARY:${icsEscape(titre)}`, `DESCRIPTION:${icsEscape(desc)}`, 'END:VEVENT');
     });
@@ -8339,9 +8339,9 @@ function showInviteResult(d) {
   r.classList.remove('hidden');
   // Message prêt à partager (WhatsApp / email) — envoyé depuis le compte du coach.
   const prenom = d.prenom ? (d.prenom + ', ') : '';
-  const shareMsg = prenom + 'voici ton invitation pour créer ton espace My Coach Nutrition 🌱\n\n' + d.url + '\n\nTu choisiras un code PIN à la première connexion. Lien valable 21 jours.';
+  const shareMsg = prenom + 'voici ton invitation pour créer ton espace Protocole 42 🌱\n\n' + d.url + '\n\nTu choisiras un code PIN à la première connexion. Lien valable 21 jours.';
   const wa = 'https://wa.me/?text=' + encodeURIComponent(shareMsg);
-  const mailto = 'mailto:' + (d.email || '') + '?subject=' + encodeURIComponent('Ton invitation My Coach Nutrition') + '&body=' + encodeURIComponent(shareMsg);
+  const mailto = 'mailto:' + (d.email || '') + '?subject=' + encodeURIComponent('Ton invitation Protocole 42') + '&body=' + encodeURIComponent(shareMsg);
   // Bannière verte seulement si un email a réellement été envoyé (Brevo configuré).
   const sent = (d.email && d.emailSent) ? '<p class="invite-status ok">📧 Email envoyé automatiquement à <b>' + escapeHtml(d.email) + '</b>.</p>' : '';
   r.innerHTML = sent +
@@ -9857,7 +9857,7 @@ function renderAgenda(status, opts) {
     return;
   }
   const icsBtn = '<button type="button" class="btn btn-ghost" id="agendaIcs" style="width:100%;margin-top:8px"><svg class="ic"><use href="#ic-file"/></svg> Télécharger le fichier calendrier (.ics)</button>';
-  const privacy = '<p class="help-disclaimer">My Coach Nutrition utilise cette connexion uniquement pour ajouter tes repas à ton agenda.</p>';
+  const privacy = '<p class="help-disclaimer">Protocole 42 utilise cette connexion uniquement pour ajouter tes repas à ton agenda.</p>';
   if (status.connected) {
     $('#agendaBody').innerHTML = `
       <h2 class="scan-title"><svg class="ic"><use href="#ic-calendar"/></svg> Google Agenda connecté</h2>

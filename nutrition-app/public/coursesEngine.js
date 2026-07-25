@@ -295,7 +295,7 @@
   // manuelle perdait des sauts de ligne entre deux items.
   function rendreTexte(liste, meta) {
     const lignes = [];
-    lignes.push('Liste de courses — My Coach Nutrition');
+    lignes.push('Liste de courses — Protocole 42');
     // Le nom du programme, quand l'appelant le fournit (ex. « Protocole 42 ») :
     // la liste porte alors la marque du challenge. Optionnel -> le moteur reste
     // générique et les listes hors challenge sont inchangées.

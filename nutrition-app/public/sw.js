@@ -1,11 +1,11 @@
-/* Service Worker — My Coach Nutrition (Web Push + deep links) */
+/* Service Worker — Protocole 42 (Web Push + deep links) */
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) { data = {}; }
-  const title = data.title || 'My Coach Nutrition';
+  const title = data.title || 'Protocole 42';
   const opts = {
     body: data.body || '',
     icon: data.icon || '/nutrition/icon-192.png?v=2', // grande image de la notif : icône de marque

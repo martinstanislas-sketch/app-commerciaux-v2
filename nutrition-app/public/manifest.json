@@ -1,6 +1,6 @@
 {
-  "name": "My Coach Nutrition",
-  "short_name": "My Coach",
+  "name": "Protocole 42",
+  "short_name": "Protocole 42",
   "description": "Ton plan de repas de la semaine et ton Protocole 42.",
   "start_url": "/nutrition/",
   "scope": "/nutrition/",
