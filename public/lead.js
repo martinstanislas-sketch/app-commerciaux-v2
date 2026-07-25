@@ -85,8 +85,7 @@ const LeadUI = (function () {
       + '<th>Leads · ' + esc(moisLabel(mois, 0)) + '</th>'
       + '<th>N-1 · ' + esc(moisLabel(mois, -1)) + '</th>'
       + '<th>Écart</th>'
-      + '</tr></thead><tbody>' + corps + totalRow + '</tbody></table>'
-      + '<p class="lead-hint">💡 Saisis les leads du mois : chaque valeur est enregistrée automatiquement. L\'écart compare au même mois l\'an dernier.</p>';
+      + '</tr></thead><tbody>' + corps + totalRow + '</tbody></table>';
     host.querySelectorAll('.lead-input').forEach((inp) => {
       inp.addEventListener('change', () => enregistrer(inp.dataset.club, inp.value, inp));
     });
