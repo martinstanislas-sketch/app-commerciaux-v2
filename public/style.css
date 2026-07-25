@@ -21393,3 +21393,39 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-histo-studios { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .rec-histo-studios li { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--rc-text-2); padding: 5px 9px; background: var(--rc-surface-2); border-radius: 8px; }
 .rec-histo-studios li b { color: var(--rc-text); font-variant-numeric: tabular-nums; }
+
+/* ═══ LEAD — leads par club/mois + comparatif N-1 (onglet admin, thème RECAP) ═══ */
+.lead-wrap {
+  --rc-bg: #0D0F16; --rc-surface: #14161F; --rc-surface-2: #1B1E29;
+  --rc-line: rgba(255,255,255,.07); --rc-line-2: rgba(255,255,255,.12);
+  --rc-text: #EDEFF3; --rc-text-2: #A2A9B8; --rc-text-3: #6B7280;
+  --rc-accent: #6366F1; --rc-accent-soft: rgba(99,102,241,.14);
+  --rc-green: #34D399; --rc-red: #F87171;
+  background: var(--rc-bg); color: var(--rc-text); border-radius: 20px; padding: 16px 22px 22px; margin-top: 6px;
+  -webkit-font-smoothing: antialiased;
+}
+.lead-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+.lead-title { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.025em; }
+.lead-sub { margin: 7px 0 0; font-size: 13px; color: var(--rc-text-2); max-width: 560px; line-height: 1.55; }
+.lead-mois { display: flex; flex-direction: column; gap: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--rc-text-3); font-weight: 600; }
+.lead-mois input { background: var(--rc-surface); border: 1px solid var(--rc-line-2); color: var(--rc-text); border-radius: 9px; padding: 0 12px; height: 36px; font: inherit; }
+.lead-mois input:focus { outline: none; border-color: var(--rc-accent); box-shadow: 0 0 0 3px var(--rc-accent-soft); }
+.lead-loading { color: var(--rc-text-3); font-size: 14px; padding: 14px 2px; }
+.lead-table { width: 100%; border-collapse: collapse; }
+.lead-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--rc-text-3); padding: 6px 14px 9px; font-weight: 600; border-bottom: 1px solid var(--rc-line); }
+.lead-table td { padding: 8px 14px; border-bottom: 1px solid var(--rc-line); font-size: 14px; vertical-align: middle; }
+.lead-table tbody tr:hover { background: rgba(255,255,255,.02); }
+.lead-club { color: var(--rc-text); font-weight: 600; }
+.lead-n1 { color: var(--rc-text-2); font-variant-numeric: tabular-nums; }
+.lead-input { width: 92px; background: var(--rc-surface); border: 1px solid var(--rc-line-2); color: var(--rc-text); border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; transition: border-color .12s, box-shadow .12s; }
+.lead-input:focus { outline: none; border-color: var(--rc-accent); box-shadow: 0 0 0 3px var(--rc-accent-soft); }
+.lead-input.lead-saved { border-color: var(--rc-green); box-shadow: 0 0 0 3px rgba(52,211,153,.18); }
+.lead-input.lead-saving { opacity: .6; }
+.lead-ecart { font-weight: 650; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.lead-ecart.lead-up { color: var(--rc-green); }
+.lead-ecart.lead-down { color: var(--rc-red); }
+.lead-ecart.lead-flat { color: var(--rc-text-3); }
+.lead-pct { font-weight: 500; opacity: .85; }
+.lead-total td { border-top: 2px solid var(--rc-line-2); border-bottom: 0; font-size: 15px; }
+.lead-total .lead-club { color: var(--rc-text); }
+.lead-hint { margin: 14px 2px 0; font-size: 12.5px; color: var(--rc-text-3); }

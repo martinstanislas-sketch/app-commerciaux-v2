@@ -95,6 +95,7 @@
       <button class="tab-btn" data-tab="cockpit">Cockpit</button>
       <button class="tab-btn" data-tab="standards">Standards</button>
       <button class="tab-btn" data-tab="recap">RECAP</button>
+      <button class="tab-btn" data-tab="lead">LEAD</button>
       <!-- Module Nutrition : admin uniquement, masqu&eacute; par d&eacute;faut (g&eacute;r&eacute; par applyNutritionAccess) -->
       <button class="tab-btn tab-btn-nutrition" data-tab="nutrition" style="display:none">Protocole 42</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
@@ -216,6 +217,22 @@
         <div id="rec-view-historique" hidden>
           <div class="rec-histo" id="rec-histo"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- LEAD (admin uniquement) — leads générés par club/mois + comparatif N-1 -->
+    <section id="tab-lead" class="tab-content">
+      <div class="lead-wrap">
+        <header class="lead-head">
+          <div>
+            <h2 class="lead-title">LEAD — Leads générés</h2>
+            <p class="lead-sub">Saisis le nombre de leads par club pour le mois. Comparaison automatique avec le même mois l'an dernier (N-1).</p>
+          </div>
+          <label class="lead-mois">Mois
+            <input type="month" id="lead-mois" />
+          </label>
+        </header>
+        <div class="lead-table-wrap" id="lead-table-wrap"></div>
       </div>
     </section>
 
@@ -1189,6 +1206,7 @@
   <script src="retention.js?v=rec42"></script>
   <script src="retention-parse.js?v=rec16"></script>
   <script src="recap.js?v=rec43"></script>
-  <script src="app.js?v=ds2-recap1"></script>
+  <script src="lead.js?v=lead1"></script>
+  <script src="app.js?v=ds2-recap2"></script>
 </body>
 </html>

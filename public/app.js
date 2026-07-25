@@ -903,9 +903,11 @@ function updateTabVisibility() {
   const cockpitBtn = document.querySelector('[data-tab="cockpit"]');
   const standardsBtn = document.querySelector('[data-tab="standards"]');
   const recapBtn = document.querySelector('[data-tab="recap"]');
+  const leadBtn = document.querySelector('[data-tab="lead"]');
 
-  // RECAP : admin uniquement. Masqué par défaut, révélé dans la seule branche admin.
+  // RECAP + LEAD : admin uniquement. Masqués par défaut, révélés dans la seule branche admin.
   if (recapBtn) recapBtn.style.display = 'none';
+  if (leadBtn) leadBtn.style.display = 'none';
   if (isCoachLeader() || isGuest() || isStandardsAdmin()) {
     // Coach leader / Guest / Superviseur Standards : UNIQUEMENT l'onglet Standards.
     if (todayBtn) todayBtn.style.display = 'none';
@@ -979,6 +981,7 @@ function updateTabVisibility() {
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
     if (standardsBtn) standardsBtn.style.display = ''; // Standards : admin + coach leaders
     if (recapBtn) recapBtn.style.display = ''; // RECAP : admin uniquement
+    if (leadBtn) leadBtn.style.display = ''; // LEAD : admin uniquement
     // On pré-règle Pilotage au mois précédent (au cas où l'admin y va), mais…
     if (pilotageFunnelBtn) pilotageFunnelInitToPreviousMonth();
     // … l'onglet d'accueil à la connexion (admin) = RECAP (consultation rétention).
@@ -2923,6 +2926,7 @@ function initTabs() {
       if (btn.dataset.tab === 'cockpit') loadCockpitTab();
       if (btn.dataset.tab === 'standards') loadStandardsTab();
       if (btn.dataset.tab === 'recap' && typeof RecapUI !== 'undefined') RecapUI.open();
+      if (btn.dataset.tab === 'lead' && typeof LeadUI !== 'undefined') LeadUI.open();
     });
   });
 }

@@ -4518,6 +4518,57 @@ function ensureRetentionSchema() {
   }
 }
 ensureRetentionSchema();
+
+// ─── LEADS (saisie manuelle par club/mois + comparatif N-1) ──────────────────
+function ensureLeadsSchema() {
+  getDb().exec(`
+    CREATE TABLE IF NOT EXISTS leads (
+      club TEXT NOT NULL,
+      mois TEXT NOT NULL,               -- AAAA-MM
+      nb INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (club, mois)
+    );
+  `);
+}
+ensureLeadsSchema();
+const LEAD_CLUBS = ['Lille', 'Marcq', 'Wasquehal', 'Boulogne', 'Neuilly', 'Levallois'];
+const LEAD_MOIS_RE = /^\d{4}-\d{2}$/;
+function leadMoisN1(ym) { const [a, m] = String(ym || '').split('-').map(Number); return (a && m) ? (a - 1) + '-' + String(m).padStart(2, '0') : ''; }
+
+// Un mois : nb de leads par club + le même mois N-1.
+app.get('/api/leads/:mois', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!LEAD_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const moisN1 = leadMoisN1(mois);
+  try {
+    const lire = (ym) => {
+      const map = {};
+      getDb().prepare('SELECT club, nb FROM leads WHERE mois = ?').all(ym).forEach((r) => { map[r.club] = r.nb; });
+      return map;
+    };
+    const cur = lire(mois), prev = lire(moisN1);
+    const rows = LEAD_CLUBS.map((club) => ({ club, nb: cur[club] || 0, nbN1: prev[club] || 0 }));
+    res.json({ ok: true, mois, moisN1, clubs: LEAD_CLUBS, rows });
+  } catch (e) { console.error('leads GET:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
+});
+
+// Enregistre le nb de leads d'un club pour un mois (upsert).
+app.patch('/api/leads/:mois', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!LEAD_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const b = req.body || {};
+  const club = String(b.club || '');
+  if (!LEAD_CLUBS.includes(club)) return res.status(400).json({ error: 'club inconnu' });
+  const nb = Math.max(0, Math.min(1000000, Math.round(Number(b.nb) || 0)));
+  try {
+    getDb().prepare(`INSERT INTO leads (club, mois, nb, updated_at) VALUES (?,?,?,?)
+      ON CONFLICT(club, mois) DO UPDATE SET nb=excluded.nb, updated_at=excluded.updated_at`)
+      .run(club, mois, nb, new Date().toISOString());
+    res.json({ ok: true, nb });
+  } catch (e) { console.error('leads PATCH:', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
+});
+
 const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM
 const RETENTION_IMPORT_TYPES = ['encaissements', 'contrats', 'resiliations'];
 function moisPrecedentSrv(ym) {
