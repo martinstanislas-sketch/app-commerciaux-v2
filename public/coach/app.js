@@ -9524,8 +9524,8 @@ function openInvitePanel() {
     try {
       const r = await nutriApi('/coach/invites', { method: 'POST', body });
       const url = r.url;
-      const waText = encodeURIComponent(`Salut${body.prenom ? ' ' + body.prenom : ''} ! Voici ton accès à My Coach Nutrition : ${url}`);
-      const mailSub = encodeURIComponent('Ton accès My Coach Nutrition');
+      const waText = encodeURIComponent(`Salut${body.prenom ? ' ' + body.prenom : ''} ! Voici ton accès à Protocole 42 : ${url}`);
+      const mailSub = encodeURIComponent('Ton accès Protocole 42');
       const mailBody = encodeURIComponent(`Bonjour${body.prenom ? ' ' + body.prenom : ''},\n\nVoici ton lien pour créer ton espace : ${url}\n\nÀ bientôt !`);
       modal.querySelector('#ch-inv-result').innerHTML = `
         <div class="ch-link-box">
