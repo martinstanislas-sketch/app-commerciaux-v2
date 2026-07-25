@@ -903,10 +903,12 @@ function updateTabVisibility() {
   const cockpitBtn = document.querySelector('[data-tab="cockpit"]');
   const standardsBtn = document.querySelector('[data-tab="standards"]');
   const recapBtn = document.querySelector('[data-tab="recap"]');
+  const fanBtn = document.querySelector('[data-tab="fan"]');
   const leadBtn = document.querySelector('[data-tab="lead"]');
 
-  // RECAP + LEAD : admin uniquement. Masqués par défaut, révélés dans la seule branche admin.
+  // RECAP + FAN + LEAD : admin uniquement. Masqués par défaut, révélés dans la seule branche admin.
   if (recapBtn) recapBtn.style.display = 'none';
+  if (fanBtn) fanBtn.style.display = 'none';
   if (leadBtn) leadBtn.style.display = 'none';
   if (isCoachLeader() || isGuest() || isStandardsAdmin()) {
     // Coach leader / Guest / Superviseur Standards : UNIQUEMENT l'onglet Standards.
@@ -981,6 +983,7 @@ function updateTabVisibility() {
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
     if (standardsBtn) standardsBtn.style.display = ''; // Standards : admin + coach leaders
     if (recapBtn) recapBtn.style.display = ''; // RECAP : admin uniquement
+    if (fanBtn) fanBtn.style.display = ''; // FAN : admin uniquement
     if (leadBtn) leadBtn.style.display = ''; // LEAD : admin uniquement
     // On pré-règle Pilotage au mois précédent (au cas où l'admin y va), mais…
     if (pilotageFunnelBtn) pilotageFunnelInitToPreviousMonth();
@@ -2821,6 +2824,7 @@ const TAB_ICONS = {
   controle: '🔍',
   'admin-actions': '⚡',
   notes: '📝',
+  fan: '⭐',
   nutrition: '🥗'
 };
 const TAB_SHORT_LABELS = {
@@ -2834,6 +2838,7 @@ const TAB_SHORT_LABELS = {
   controle: 'Contrôle',
   'admin-actions': 'Actions',
   notes: 'Notes',
+  fan: 'FAN',
   nutrition: 'Nutrition'
 };
 
@@ -2926,6 +2931,7 @@ function initTabs() {
       if (btn.dataset.tab === 'cockpit') loadCockpitTab();
       if (btn.dataset.tab === 'standards') loadStandardsTab();
       if (btn.dataset.tab === 'recap' && typeof RecapUI !== 'undefined') RecapUI.open();
+      if (btn.dataset.tab === 'fan' && typeof FanUI !== 'undefined') FanUI.open();
       if (btn.dataset.tab === 'lead' && typeof LeadUI !== 'undefined') LeadUI.open();
     });
   });

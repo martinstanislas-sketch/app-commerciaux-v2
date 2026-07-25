@@ -21394,6 +21394,66 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-histo-studios li { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--rc-text-2); padding: 5px 9px; background: var(--rc-surface-2); border-radius: 8px; }
 .rec-histo-studios li b { color: var(--rc-text); font-variant-numeric: tabular-nums; }
 
+/* ═══ FAN — note du studio /20 (réutilise le design RECAP + spécifiques fan-*) ═══ */
+/* Couleurs de note : la classe gagne même sur une carte active (spécificité relevée). */
+.rec-club-note.fan-good, .fan-card.is-active .rec-club-note.fan-good, .rec-reseau-badge b.fan-good, .fan-h-cell.fan-good, .fan-trend-note.fan-good { color: var(--rc-green); }
+.rec-club-note.fan-warn, .fan-card.is-active .rec-club-note.fan-warn, .rec-reseau-badge b.fan-warn, .fan-h-cell.fan-warn, .fan-trend-note.fan-warn { color: var(--rc-orange); }
+.rec-club-note.fan-bad,  .fan-card.is-active .rec-club-note.fan-bad,  .rec-reseau-badge b.fan-bad,  .fan-h-cell.fan-bad,  .fan-trend-note.fan-bad  { color: var(--rc-red); }
+.rec-club-note.fan-na,   .fan-card.is-active .rec-club-note.fan-na,   .rec-reseau-badge b.fan-na,   .fan-h-cell.fan-na,   .fan-trend-note.fan-na   { color: var(--rc-text-3); }
+.fan-max { font-size: 11px; font-weight: 600; color: var(--rc-text-3); margin-left: 2px; letter-spacing: 0; }
+.fan-card.is-active .fan-max { color: var(--rc-text-2); }
+.rec-reseau-badge.fan-reseau b { font-size: 17px; }
+.rec-reseau-badge.fan-reseau .fan-max { font-size: 11px; }
+
+/* Formulaire de saisie */
+.fan-form-card { background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 14px; padding: 16px 18px; margin-top: 14px; }
+.fan-form-head { font-size: 12.5px; color: var(--rc-text-2); margin-bottom: 14px; }
+.fan-form-head b { color: var(--rc-text); font-size: 14px; }
+.fan-fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 6px 0; }
+@media (max-width: 640px) { .fan-fields { grid-template-columns: 1fr; } }
+.fan-field { display: flex; flex-direction: column; gap: 6px; }
+.fan-lbl { font-size: 12px; color: var(--rc-text-2); font-weight: 550; }
+.fan-lbl small { color: var(--rc-text-3); font-weight: 400; }
+.fan-num, .fan-ev-nom, .fan-ev-part { background: var(--rc-bg); border: 1px solid var(--rc-line-2); color: var(--rc-text); border-radius: 9px; padding: 0 12px; height: var(--rc-btn-h); font: inherit; transition: border-color .15s, box-shadow .15s; }
+.fan-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
+.fan-num:focus, .fan-ev-nom:focus, .fan-ev-part:focus { outline: none; border-color: var(--rc-accent); box-shadow: 0 0 0 3px var(--rc-accent-soft); }
+
+/* Événements dynamiques */
+.fan-events { margin: 18px 0 6px; padding: 14px 0; border-top: 1px solid var(--rc-line); border-bottom: 1px solid var(--rc-line); }
+.fan-events-h { font-size: 12px; color: var(--rc-text-2); font-weight: 550; margin-bottom: 10px; }
+.fan-events-h small { color: var(--rc-text-3); font-weight: 400; }
+.fan-events-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.fan-events-vide { font-size: 12px; color: var(--rc-text-3); margin: 0; }
+.fan-event-row { display: grid; grid-template-columns: 1fr 130px 36px; gap: 8px; align-items: center; }
+.fan-ev-part { text-align: right; font-variant-numeric: tabular-nums; }
+.fan-ev-del { height: var(--rc-btn-h); border: 1px solid var(--rc-line-2); background: var(--rc-surface-2); color: var(--rc-text-3); border-radius: 9px; cursor: pointer; font-size: 13px; transition: color .15s, border-color .15s; }
+.fan-ev-del:hover { color: var(--rc-red); border-color: var(--rc-red); }
+@media (max-width: 640px) { .fan-event-row { grid-template-columns: 1fr 90px 36px; } }
+
+/* Tuiles réseau : mêmes cartes que RECAP mais non cliquables */
+.fan-tile { cursor: default; }
+.fan-tile:hover { border-color: var(--rc-line); background: var(--rc-surface); }
+
+/* Historique */
+.fan-h-table-wrap { overflow-x: auto; }
+.fan-h-table { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+.fan-h-table th { text-align: center; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--rc-text-3); padding: 10px 10px; font-weight: 650; white-space: nowrap; }
+.fan-h-table th:first-child { text-align: left; }
+.fan-h-cell { text-align: center; padding: 11px 10px; font-size: 15px; font-weight: 700; border-top: 1px solid var(--rc-line); }
+.fan-h-mois { text-align: left; font-size: 13px; color: var(--rc-text-2); font-weight: 550; white-space: nowrap; border-top: 1px solid var(--rc-line); padding: 11px 10px; text-transform: capitalize; }
+.fan-h-reseau { font-weight: 800; border-left: 1px solid var(--rc-line); }
+.fan-trend-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 4px 0 8px; }
+@media (max-width: 760px) { .fan-trend-row { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 440px) { .fan-trend-row { grid-template-columns: repeat(2, 1fr); } }
+.fan-trend-card { background: var(--rc-surface); border: 1px solid var(--rc-line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.fan-trend-nom { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--rc-text-3); font-weight: 650; }
+.fan-trend-note { font-size: 20px; font-weight: 750; letter-spacing: -.03em; line-height: 1.1; }
+.fan-trend-sub { font-size: 12px; color: var(--rc-text-3); font-variant-numeric: tabular-nums; }
+.fan-tr { font-weight: 800; }
+.fan-tr.up { color: var(--rc-green); }
+.fan-tr.down { color: var(--rc-red); }
+.fan-tr.flat { color: var(--rc-text-3); }
+
 /* ═══ LEAD — leads par club/mois + comparatif N-1 (carte claire & colorée) ═══ */
 .lead-wrap {
   background: #fff; color: #1f2430; border-radius: 22px; margin-top: 6px; overflow: hidden;

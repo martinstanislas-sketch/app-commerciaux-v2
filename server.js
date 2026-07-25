@@ -4643,6 +4643,126 @@ app.patch('/api/leads/:mois', requireAuth, requireAdmin, (req, res) => {
   } catch (e) { console.error('leads PATCH:', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
 });
 
+// ─── FAN (note du studio /20 — capacité à transformer les clients en fans) ────
+// Saisie manuelle mensuelle par studio (5 champs) → 4 indicateurs /5 → note /20.
+// Le calcul des notes se fait côté client (source unique dans public/fan.js) ;
+// le serveur ne fait que stocker/restituer les saisies brutes + l'état « clôturé ».
+function ensureFanSchema() {
+  getDb().exec(`
+    CREATE TABLE IF NOT EXISTS fan_saisies (
+      studio TEXT NOT NULL,
+      mois TEXT NOT NULL,                       -- AAAA-MM
+      non_freq INTEGER NOT NULL DEFAULT 0,      -- membres non fréquentants
+      contrats INTEGER NOT NULL DEFAULT 0,      -- membres avec contrat actif
+      evenements TEXT NOT NULL DEFAULT '[]',    -- JSON [{nom, participants}]
+      avis INTEGER NOT NULL DEFAULT 0,          -- nouveaux avis Google du mois
+      refs INTEGER NOT NULL DEFAULT 0,          -- prises de références du mois
+      updated_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (studio, mois)
+    );
+    CREATE TABLE IF NOT EXISTS fan_months (
+      mois TEXT PRIMARY KEY,
+      closed INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+  `);
+}
+ensureFanSchema();
+
+const FAN_STUDIOS = ['Levallois', 'Marcq', 'Neuilly', 'Boulogne', 'Wasquehal', 'Lille'];
+const FAN_MOIS_RE = /^\d{4}-\d{2}$/;
+function fanClamp(v) { return Math.max(0, Math.min(1000000, Math.round(Number(v) || 0))); }
+function fanParseEvents(raw) {
+  let arr = raw;
+  if (typeof raw === 'string') { try { arr = JSON.parse(raw); } catch (_) { arr = []; } }
+  if (!Array.isArray(arr)) return [];
+  return arr.slice(0, 50).map((e) => ({
+    nom: String((e && e.nom) || '').slice(0, 120),
+    participants: fanClamp(e && e.participants),
+  }));
+}
+function fanRow(r) {
+  return {
+    nonFreq: r ? (r.non_freq || 0) : 0,
+    contrats: r ? (r.contrats || 0) : 0,
+    evenements: r ? fanParseEvents(r.evenements) : [],
+    avis: r ? (r.avis || 0) : 0,
+    refs: r ? (r.refs || 0) : 0,
+  };
+}
+
+// Un mois : les saisies des 6 studios + l'état clôturé.
+app.get('/api/fan/:mois', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!FAN_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  try {
+    const map = {};
+    getDb().prepare('SELECT * FROM fan_saisies WHERE mois = ?').all(mois).forEach((r) => { map[r.studio] = r; });
+    const closed = ((getDb().prepare('SELECT closed FROM fan_months WHERE mois = ?').get(mois) || {}).closed) ? 1 : 0;
+    const studios = FAN_STUDIOS.map((studio) => ({ studio, ...fanRow(map[studio]) }));
+    res.json({ ok: true, mois, closed, studios: FAN_STUDIOS, rows: studios });
+  } catch (e) { console.error('fan GET:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
+});
+
+// Enregistre la saisie d'un studio pour un mois (upsert, seuls les champs fournis).
+app.patch('/api/fan/:mois', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!FAN_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const b = req.body || {};
+  const studio = String(b.studio || '');
+  if (!FAN_STUDIOS.includes(studio)) return res.status(400).json({ error: 'studio inconnu' });
+  const champs = {};
+  if (b.nonFreq != null) champs.non_freq = fanClamp(b.nonFreq);
+  if (b.contrats != null) champs.contrats = fanClamp(b.contrats);
+  if (b.avis != null) champs.avis = fanClamp(b.avis);
+  if (b.refs != null) champs.refs = fanClamp(b.refs);
+  if (b.evenements != null) champs.evenements = JSON.stringify(fanParseEvents(b.evenements));
+  const keys = Object.keys(champs);
+  if (!keys.length) return res.status(400).json({ error: 'aucune valeur à enregistrer' });
+  try {
+    const now = new Date().toISOString();
+    getDb().prepare(`INSERT INTO fan_saisies (studio, mois, non_freq, contrats, evenements, avis, refs, updated_at)
+      VALUES (@studio, @mois, @non_freq, @contrats, @evenements, @avis, @refs, @updated_at)
+      ON CONFLICT(studio, mois) DO UPDATE SET ${keys.map((k) => k + '=excluded.' + k).join(', ')}, updated_at=excluded.updated_at`)
+      .run({
+        studio, mois, updated_at: now,
+        non_freq: champs.non_freq || 0, contrats: champs.contrats || 0,
+        evenements: champs.evenements || '[]', avis: champs.avis || 0, refs: champs.refs || 0,
+      });
+    res.json({ ok: true });
+  } catch (e) { console.error('fan PATCH:', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
+});
+
+// Clôture / réouverture d'un mois (fige les saisies, comme RECAP).
+app.post('/api/fan/:mois/cloturer', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!FAN_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const closed = (req.body && req.body.closed) ? 1 : 0;
+  try {
+    getDb().prepare(`INSERT INTO fan_months (mois, closed, updated_at) VALUES (?,?,?)
+      ON CONFLICT(mois) DO UPDATE SET closed=excluded.closed, updated_at=excluded.updated_at`)
+      .run(mois, closed, new Date().toISOString());
+    res.json({ ok: true, closed });
+  } catch (e) { console.error('fan cloturer:', e && e.message); res.status(500).json({ error: 'Opération impossible.' }); }
+});
+
+// Historique : tous les mois qui ont au moins une saisie.
+app.get('/api/fan-history', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const closedMap = {};
+    getDb().prepare('SELECT mois, closed FROM fan_months').all().forEach((r) => { closedMap[r.mois] = r.closed ? 1 : 0; });
+    const byMonth = {};
+    getDb().prepare('SELECT * FROM fan_saisies ORDER BY mois ASC').all().forEach((r) => {
+      (byMonth[r.mois] = byMonth[r.mois] || {})[r.studio] = r;
+    });
+    const months = Object.keys(byMonth).sort().map((mois) => ({
+      mois, closed: closedMap[mois] || 0,
+      rows: FAN_STUDIOS.map((studio) => ({ studio, ...fanRow(byMonth[mois][studio]) })),
+    }));
+    res.json({ ok: true, studios: FAN_STUDIOS, months });
+  } catch (e) { console.error('fan history:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
+});
+
 const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM
 const RETENTION_IMPORT_TYPES = ['encaissements', 'contrats', 'resiliations'];
 function moisPrecedentSrv(ym) {
