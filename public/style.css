@@ -21411,10 +21411,10 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .lead-mois input { background: #fff; border: 0; color: #2a2f3a; border-radius: 11px; padding: 0 12px; height: 40px; font: inherit; font-weight: 700; box-shadow: 0 4px 14px rgba(0,0,0,.14); }
 .lead-mois input:focus { outline: none; box-shadow: 0 0 0 4px rgba(255,255,255,.45); }
 .lead-loading { color: #8891a5; font-size: 14px; padding: 24px 26px; }
-.lead-table-wrap { padding: 8px 20px 8px; }
+.lead-table-wrap { padding: 8px 20px 8px; overflow-x: auto; }
 .lead-table { width: 100%; border-collapse: separate; border-spacing: 0; }
-.lead-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #97a0b5; padding: 16px 16px 10px; font-weight: 800; }
-.lead-table td { padding: 13px 16px; font-size: 15.5px; vertical-align: middle; border-top: 1px solid #eef1f7; }
+.lead-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #97a0b5; padding: 16px 12px 10px; font-weight: 800; white-space: nowrap; }
+.lead-table td { padding: 13px 12px; font-size: 15.5px; vertical-align: middle; border-top: 1px solid #eef1f7; white-space: nowrap; }
 .lead-table tbody tr { transition: background .12s; }
 .lead-table tbody tr:hover td { background: #f7f8fd; }
 .lead-club { font-weight: 750; color: #1f2430; display: flex; align-items: center; gap: 11px; }
@@ -21426,7 +21426,7 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .lead-table tbody tr:nth-child(5) .lead-club { --dot: #14B8A6; }
 .lead-table tbody tr:nth-child(6) .lead-club { --dot: #3B82F6; }
 .lead-n1 { color: #7a8296; font-weight: 650; font-variant-numeric: tabular-nums; }
-.lead-input { width: 92px; background: #fff; border: 2px solid #e5e9f2; color: #1f2430; border-radius: 11px; padding: 8px 11px; font: inherit; font-size: 15.5px; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; transition: border-color .12s, box-shadow .12s; }
+.lead-input { width: 76px; background: #fff; border: 2px solid #e5e9f2; color: #1f2430; border-radius: 11px; padding: 8px 10px; font: inherit; font-size: 15.5px; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; transition: border-color .12s, box-shadow .12s; }
 .lead-input:focus { outline: none; border-color: #6366F1; box-shadow: 0 0 0 4px rgba(99,102,241,.16); }
 .lead-input.lead-saved { border-color: #10B981; box-shadow: 0 0 0 4px rgba(16,185,129,.18); }
 .lead-input.lead-saving { opacity: .55; }

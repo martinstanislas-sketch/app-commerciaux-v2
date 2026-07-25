@@ -4530,6 +4530,12 @@ function ensureLeadsSchema() {
       PRIMARY KEY (club, mois)
     );
   `);
+  // Migration douce : RDV fixés / RDV venus (saisis à la main, comme les leads).
+  try {
+    const cols = getDb().prepare('PRAGMA table_info(leads)').all();
+    if (!cols.some((c) => c.name === 'rdv_fixe')) getDb().exec('ALTER TABLE leads ADD COLUMN rdv_fixe INTEGER NOT NULL DEFAULT 0');
+    if (!cols.some((c) => c.name === 'rdv_venu')) getDb().exec('ALTER TABLE leads ADD COLUMN rdv_venu INTEGER NOT NULL DEFAULT 0');
+  } catch (e) { console.error('leads migration rdv:', e && e.message); }
 }
 ensureLeadsSchema();
 
@@ -4558,6 +4564,31 @@ function seedLeads() {
 }
 seedLeads();
 
+// Backfill historique plus ancien (Meta Ads « CHECK-UP » juillet 2023 → mai 2025),
+// AVANT la période du seed ci-dessus. Même règle : « Nord (groupé) » réparti ÷3 sur
+// Lille/Marcq/Wasquehal, 0 = club pas encore en campagne. N'ÉCRASE JAMAIS une saisie
+// (ON CONFLICT DO NOTHING) -> complète seulement les cases vides.
+const LEADS_SEED_HISTO = {"2023-07":{"Boulogne":727,"Lille":0,"Marcq":0,"Wasquehal":0,"Neuilly":0,"Levallois":0},"2023-08":{"Boulogne":367,"Lille":2,"Marcq":10,"Wasquehal":20,"Neuilly":0,"Levallois":0},"2023-09":{"Boulogne":333,"Lille":97,"Marcq":128,"Wasquehal":140,"Neuilly":0,"Levallois":0},"2023-10":{"Boulogne":630,"Lille":198,"Marcq":214,"Wasquehal":180,"Neuilly":0,"Levallois":0},"2023-11":{"Boulogne":575,"Lille":156,"Marcq":159,"Wasquehal":154,"Neuilly":292,"Levallois":0},"2023-12":{"Boulogne":401,"Lille":90,"Marcq":85,"Wasquehal":153,"Neuilly":399,"Levallois":0},"2024-01":{"Boulogne":445,"Lille":78,"Marcq":65,"Wasquehal":110,"Neuilly":167,"Levallois":0},"2024-02":{"Boulogne":506,"Lille":123,"Marcq":90,"Wasquehal":129,"Neuilly":408,"Levallois":0},"2024-03":{"Boulogne":456,"Lille":115,"Marcq":97,"Wasquehal":134,"Neuilly":425,"Levallois":74},"2024-04":{"Boulogne":249,"Lille":100,"Marcq":100,"Wasquehal":137,"Neuilly":407,"Levallois":68},"2024-05":{"Boulogne":229,"Lille":69,"Marcq":117,"Wasquehal":103,"Neuilly":388,"Levallois":60},"2024-06":{"Boulogne":248,"Lille":72,"Marcq":86,"Wasquehal":86,"Neuilly":327,"Levallois":74},"2024-07":{"Boulogne":149,"Lille":43,"Marcq":51,"Wasquehal":45,"Neuilly":290,"Levallois":77},"2024-08":{"Boulogne":328,"Lille":116,"Marcq":128,"Wasquehal":163,"Neuilly":282,"Levallois":296},"2024-09":{"Boulogne":228,"Lille":112,"Marcq":120,"Wasquehal":131,"Neuilly":200,"Levallois":255},"2024-10":{"Boulogne":195,"Lille":109,"Marcq":110,"Wasquehal":129,"Neuilly":155,"Levallois":278},"2024-11":{"Boulogne":192,"Lille":88,"Marcq":92,"Wasquehal":87,"Neuilly":119,"Levallois":253},"2024-12":{"Boulogne":277,"Lille":180,"Marcq":131,"Wasquehal":174,"Neuilly":196,"Levallois":309},"2025-01":{"Boulogne":233,"Lille":165,"Marcq":121,"Wasquehal":152,"Neuilly":188,"Levallois":283},"2025-02":{"Boulogne":190,"Lille":141,"Marcq":94,"Wasquehal":122,"Neuilly":160,"Levallois":151},"2025-03":{"Boulogne":206,"Lille":153,"Marcq":107,"Wasquehal":119,"Neuilly":152,"Levallois":102},"2025-04":{"Boulogne":167,"Lille":118,"Marcq":65,"Wasquehal":131,"Neuilly":141,"Levallois":73},"2025-05":{"Boulogne":200,"Lille":163,"Marcq":93,"Wasquehal":107,"Neuilly":186,"Levallois":113}};
+function seedLeadsHisto() {
+  try {
+    const V = '1';
+    const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='leads_seed_histo_v'").get() || {}).value;
+    if (String(fait) === V) return;
+    const up = getDb().prepare('INSERT INTO leads (club, mois, nb, updated_at) VALUES (?,?,?,?) ON CONFLICT(club, mois) DO NOTHING');
+    const now = new Date().toISOString();
+    const tx = getDb().transaction(() => {
+      Object.keys(LEADS_SEED_HISTO).forEach((mois) => {
+        const row = LEADS_SEED_HISTO[mois];
+        Object.keys(row).forEach((club) => up.run(club, mois, row[club], now));
+      });
+    });
+    tx();
+    getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('leads_seed_histo_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(V);
+    console.log('[LEADS] backfill historique 2023-07→2025-05 appliqué');
+  } catch (e) { console.error('seedLeadsHisto:', e && e.message); }
+}
+seedLeadsHisto();
+
 const LEAD_CLUBS = ['Lille', 'Marcq', 'Wasquehal', 'Boulogne', 'Neuilly', 'Levallois'];
 const LEAD_MOIS_RE = /^\d{4}-\d{2}$/;
 function leadMoisN1(ym) { const [a, m] = String(ym || '').split('-').map(Number); return (a && m) ? (a - 1) + '-' + String(m).padStart(2, '0') : ''; }
@@ -4570,11 +4601,18 @@ app.get('/api/leads/:mois', requireAuth, requireAdmin, (req, res) => {
   try {
     const lire = (ym) => {
       const map = {};
-      getDb().prepare('SELECT club, nb FROM leads WHERE mois = ?').all(ym).forEach((r) => { map[r.club] = r.nb; });
+      getDb().prepare('SELECT club, nb, rdv_fixe, rdv_venu FROM leads WHERE mois = ?').all(ym).forEach((r) => { map[r.club] = r; });
       return map;
     };
     const cur = lire(mois), prev = lire(moisN1);
-    const rows = LEAD_CLUBS.map((club) => ({ club, nb: cur[club] || 0, nbN1: prev[club] || 0 }));
+    const rows = LEAD_CLUBS.map((club) => {
+      const c = cur[club] || {}, p = prev[club] || {};
+      return {
+        club,
+        nb: c.nb || 0, nbN1: p.nb || 0,
+        rdvFixe: c.rdv_fixe || 0, rdvVenu: c.rdv_venu || 0,
+      };
+    });
     res.json({ ok: true, mois, moisN1, clubs: LEAD_CLUBS, rows });
   } catch (e) { console.error('leads GET:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
 });
@@ -4586,12 +4624,22 @@ app.patch('/api/leads/:mois', requireAuth, requireAdmin, (req, res) => {
   const b = req.body || {};
   const club = String(b.club || '');
   if (!LEAD_CLUBS.includes(club)) return res.status(400).json({ error: 'club inconnu' });
-  const nb = Math.max(0, Math.min(1000000, Math.round(Number(b.nb) || 0)));
+  const clamp = (v) => Math.max(0, Math.min(1000000, Math.round(Number(v) || 0)));
+  // On accepte l'un des trois champs (nb, rdvFixe, rdvVenu) et on ne modifie que celui fourni.
+  const champs = {};
+  if (b.nb != null) champs.nb = clamp(b.nb);
+  if (b.rdvFixe != null) champs.rdv_fixe = clamp(b.rdvFixe);
+  if (b.rdvVenu != null) champs.rdv_venu = clamp(b.rdvVenu);
+  const keys = Object.keys(champs);
+  if (!keys.length) return res.status(400).json({ error: 'aucune valeur à enregistrer' });
   try {
-    getDb().prepare(`INSERT INTO leads (club, mois, nb, updated_at) VALUES (?,?,?,?)
-      ON CONFLICT(club, mois) DO UPDATE SET nb=excluded.nb, updated_at=excluded.updated_at`)
-      .run(club, mois, nb, new Date().toISOString());
-    res.json({ ok: true, nb });
+    // Upsert : crée la ligne au besoin (colonnes non fournies = défaut 0), sinon met à jour le(s) champ(s) donné(s).
+    const now = new Date().toISOString();
+    getDb().prepare(`INSERT INTO leads (club, mois, nb, rdv_fixe, rdv_venu, updated_at)
+      VALUES (?,?,?,?,?,?)
+      ON CONFLICT(club, mois) DO UPDATE SET ${keys.map((k) => k + '=excluded.' + k).join(', ')}, updated_at=excluded.updated_at`)
+      .run(club, mois, champs.nb || 0, champs.rdv_fixe || 0, champs.rdv_venu || 0, now);
+    res.json({ ok: true, ...champs });
   } catch (e) { console.error('leads PATCH:', e && e.message); res.status(500).json({ error: 'Enregistrement impossible.' }); }
 });
 

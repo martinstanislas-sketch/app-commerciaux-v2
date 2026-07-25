@@ -61,17 +61,25 @@ const LeadUI = (function () {
     return '<span class="lead-ecart ' + cls + '">' + fleche + ' ' + signe + diff + pct + '</span>';
   }
 
+  // Cellule input éditable pour un champ (nb / rdvFixe / rdvVenu).
+  function inputCell(champ, club, valeur) {
+    return '<td class="lead-input-cell"><input type="number" class="lead-input" min="0" step="1" value="'
+      + valeur + '" data-champ="' + champ + '" data-club="' + esc(club) + '"></td>';
+  }
+
   function render(data) {
     const host = $('#lead-table-wrap');
     const rows = data.rows || [];
-    let totalNb = 0, totalN1 = 0;
+    let totalNb = 0, totalN1 = 0, totalFixe = 0, totalVenu = 0;
     const corps = rows.map((r) => {
-      totalNb += r.nb; totalN1 += r.nbN1;
+      totalNb += r.nb; totalN1 += r.nbN1; totalFixe += (r.rdvFixe || 0); totalVenu += (r.rdvVenu || 0);
       return '<tr>'
         + '<td class="lead-club">' + esc(r.club) + '</td>'
-        + '<td class="lead-input-cell"><input type="number" class="lead-input" min="0" step="1" value="' + r.nb + '" data-club="' + esc(r.club) + '"></td>'
+        + inputCell('nb', r.club, r.nb)
         + '<td class="lead-n1">' + r.nbN1 + '</td>'
         + '<td class="lead-ecart-cell">' + ecartCell(r.nb, r.nbN1) + '</td>'
+        + inputCell('rdvFixe', r.club, r.rdvFixe || 0)
+        + inputCell('rdvVenu', r.club, r.rdvVenu || 0)
         + '</tr>';
     }).join('');
     const totalRow = '<tr class="lead-total">'
@@ -79,26 +87,31 @@ const LeadUI = (function () {
       + '<td class="lead-input-cell"><b>' + totalNb + '</b></td>'
       + '<td class="lead-n1"><b>' + totalN1 + '</b></td>'
       + '<td class="lead-ecart-cell">' + ecartCell(totalNb, totalN1) + '</td>'
+      + '<td class="lead-input-cell"><b>' + totalFixe + '</b></td>'
+      + '<td class="lead-input-cell"><b>' + totalVenu + '</b></td>'
       + '</tr>';
     host.innerHTML = '<table class="lead-table"><thead><tr>'
       + '<th>Club</th>'
       + '<th>Leads · ' + esc(moisLabel(mois, 0)) + '</th>'
       + '<th>N-1 · ' + esc(moisLabel(mois, -1)) + '</th>'
       + '<th>Écart</th>'
+      + '<th>RDV fixés</th>'
+      + '<th>RDV venus</th>'
       + '</tr></thead><tbody>' + corps + totalRow + '</tbody></table>';
     host.querySelectorAll('.lead-input').forEach((inp) => {
-      inp.addEventListener('change', () => enregistrer(inp.dataset.club, inp.value, inp));
+      inp.addEventListener('change', () => enregistrer(inp.dataset.champ, inp.dataset.club, inp.value, inp));
     });
   }
 
-  async function enregistrer(club, valeur, inp) {
-    const nb = Math.max(0, Math.round(Number(valeur) || 0));
-    if (inp) { inp.value = nb; inp.classList.add('lead-saving'); }
+  async function enregistrer(champ, club, valeur, inp) {
+    const val = Math.max(0, Math.round(Number(valeur) || 0));
+    if (inp) { inp.value = val; inp.classList.add('lead-saving'); }
     try {
       const r = await (await fetch('/api/leads/' + mois, { method: 'PATCH', headers: H(),
-        body: JSON.stringify({ club, nb }) })).json();
+        body: JSON.stringify({ club, [champ]: val }) })).json();
       if (inp) { inp.classList.remove('lead-saving'); inp.classList.add('lead-saved'); setTimeout(() => inp.classList.remove('lead-saved'), 700); }
-      if (r && r.ok) charger(); // recalcule l'écart + le total
+      // Seul le champ « nb » influe sur l'écart/total leads → on ne recharge que dans ce cas.
+      if (r && r.ok && champ === 'nb') charger();
     } catch (_) { if (inp) inp.classList.remove('lead-saving'); }
   }
 
