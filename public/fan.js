@@ -1,10 +1,10 @@
 'use strict';
 // ============================================================================
-//  FAN — Note du studio /20 (capacité à transformer les clients en fans, étape 6
-//  du parcours client). Admin uniquement. Reprend la structure de l'onglet RECAP.
+//  FAN — Note du studio /20. Admin uniquement. Thème CLAIR.
 //  Chaque studio reçoit une note /20 = somme de 4 indicateurs /5, calculés à
-//  partir d'une saisie mensuelle. Le calcul vit ICI (source unique) ; le serveur
-//  ne stocke que les saisies brutes + l'état « clôturé ».
+//  partir d'une saisie mensuelle. Le CALCUL vit ici (source unique) ; le serveur
+//  ne stocke que les saisies brutes + l'état « clôturé ». La logique métier
+//  (barèmes) n'a pas changé — seule l'UI/UX est refondue.
 // ============================================================================
 const FanUI = (function () {
   const $ = (s) => document.querySelector(s);
@@ -16,14 +16,20 @@ const FanUI = (function () {
 
   let mois = '';
   let inited = false;
-  let cur = { rows: [], closed: 0 };  // mois courant : saisies + clôture
-  let selStudio = '';                 // studio dont le formulaire est affiché
+  let cur = { rows: [], closed: 0, closedAt: '' };
+  let prevTotals = null;   // totaux du mois précédent (pour les deltas)
+  let selStudio = '';
   let chart = null;
 
   // ── Mois ────────────────────────────────────────────────────────────────
   function moisParDefaut() {
-    // Dernier mois calendaire révolu (le mois à clôturer), comme RECAP.
     const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  function moisAdj(ym, delta) {
+    const [a, m] = String(ym || '').split('-').map(Number);
+    if (!a || !m) return ym || '';
+    const d = new Date(a, m - 1 + (delta || 0), 1);
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   }
   function moisLabel(ym, delta) {
@@ -33,12 +39,18 @@ const FanUI = (function () {
     const s = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
+  function moisCourt(ym) {
+    const [a, m] = String(ym || '').split('-').map(Number);
+    if (!a || !m) return '';
+    return new Date(a, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long' });
+  }
   function capMois() { return moisLabel(mois, 0); }
+  function userName() { try { return (JSON.parse(localStorage.getItem('currentUser') || '{}').name) || 'admin'; } catch (_) { return 'admin'; } }
+  function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (_) { return ''; } }
 
-  // ── CALCUL DES 4 INDICATEURS (chacun /5) ─────────────────────────────────
-  // 1 · Non-fréquentants : taux = non_freq / contrats × 100. Plus bas = mieux.
+  // ── CALCUL DES 4 INDICATEURS (/5) — INCHANGÉ ────────────────────────────
   function noteNonFreq(nonFreq, contrats) {
-    if (!(contrats > 0)) return null;               // division par zéro -> « — »
+    if (!(contrats > 0)) return null;
     const t = (nonFreq / contrats) * 100;
     if (t <= 10) return 5;
     if (t <= 15) return 4;
@@ -47,7 +59,6 @@ const FanUI = (function () {
     if (t <= 40) return 1;
     return 0;
   }
-  // 2 · Événements : score = somme des participants de tous les événements.
   function totalParticipants(evs) { return (evs || []).reduce((s, e) => s + (Number(e && e.participants) || 0), 0); }
   function noteEvents(evs) {
     const p = totalParticipants(evs);
@@ -58,9 +69,7 @@ const FanUI = (function () {
     if (p <= 39) return 4;
     return 5;
   }
-  // 3 · Avis Google : 1 point par nouvel avis, plafonné à 5.
   function noteAvis(a) { return Math.max(0, Math.min(5, Math.round(Number(a) || 0))); }
-  // 4 · Références.
   function noteRefs(r) {
     r = Number(r) || 0;
     if (r <= 0) return 0;
@@ -70,7 +79,6 @@ const FanUI = (function () {
     if (r <= 8) return 4;
     return 5;
   }
-  // Note globale d'un studio : { freq, even, avis, refs, total|null }.
   function noteStudio(row) {
     const freq = noteNonFreq(row.nonFreq, row.contrats);
     const even = noteEvents(row.evenements);
@@ -84,16 +92,42 @@ const FanUI = (function () {
     if (!notes.length) return null;
     return notes.reduce((a, b) => a + b, 0) / notes.length;
   }
+  const tauxNonFreq = (row) => (row.contrats > 0 ? (row.nonFreq / row.contrats) * 100 : null);
+
+  // ── Couleurs de score (bandes : bon 14-20 / moyen 8-13 / faible 0-7) ──────
   function noteClass(total) {
     if (total == null) return 'fan-na';
-    if (total >= 16) return 'fan-good';
-    if (total >= 10) return 'fan-warn';
+    if (total >= 14) return 'fan-good';
+    if (total >= 8) return 'fan-warn';
+    return 'fan-bad';
+  }
+  function sub5Class(n) {
+    if (n == null) return 'fan-na';
+    if (n >= 4) return 'fan-good';
+    if (n >= 2) return 'fan-warn';
     return 'fan-bad';
   }
   const fmtNote = (t) => (t == null ? '—' : String(t));
   const fmtReseau = (t) => (t == null ? '—' : (Math.round(t * 10) / 10).toLocaleString('fr-FR'));
 
-  // ── Ouverture / chargement ───────────────────────────────────────────────
+  // ── États d'un studio ─────────────────────────────────────────────────────
+  function isEmpty(r) {
+    return !(Number(r.nonFreq) || 0) && !(Number(r.contrats) || 0)
+      && !(Number(r.avis) || 0) && !(Number(r.refs) || 0)
+      && !((r.evenements || []).length);
+  }
+  function ratioError(r) { return (Number(r.contrats) || 0) > 0 && (Number(r.nonFreq) || 0) > (Number(r.contrats) || 0); }
+  function studioComplete(r) { return (Number(r.contrats) || 0) > 0 && !ratioError(r); }
+
+  // ── Barèmes (popovers « ? ») ──────────────────────────────────────────────
+  const BAREMES = {
+    freq: { titre: 'Fréquentation', desc: 'Taux = membres non fréquentants ÷ membres avec contrat actif. Plus le taux est bas, meilleure est la note.', rows: [['≤ 10 %', 5], ['10–15 %', 4], ['15–20 %', 3], ['20–30 %', 2], ['30–40 %', 1], ['> 40 %', 0]] },
+    even: { titre: 'Événements', desc: 'Somme des participants de tous les événements du mois.', rows: [['0', 0], ['1–9', 1], ['10–19', 2], ['20–29', 3], ['30–39', 4], ['≥ 40', 5]] },
+    avis: { titre: 'Avis Google', desc: '1 point par nouvel avis du mois, plafonné à 5.', rows: [['0', 0], ['1', 1], ['2', 2], ['3', 3], ['4', 4], ['≥ 5', 5]] },
+    refs: { titre: 'Références', desc: 'Nombre de prises de références du mois.', rows: [['0', 0], ['1–2', 1], ['3–4', 2], ['5–6', 3], ['7–8', 4], ['≥ 9', 5]] },
+  };
+
+  // ── Ouverture / navigation ─────────────────────────────────────────────────
   function open() {
     if (!inited) { wire(); inited = true; }
     if (!$('#fan-mois').value) $('#fan-mois').value = moisParDefaut();
@@ -104,8 +138,13 @@ const FanUI = (function () {
   function wire() {
     const mp = $('#fan-mois');
     if (mp) mp.addEventListener('change', () => { mois = mp.value; if (currentView() === 'historique') renderHistorique(); else charger(); });
+    const prev = $('#fan-prev'), next = $('#fan-next');
+    if (prev) prev.addEventListener('click', () => changeMois(-1));
+    if (next) next.addEventListener('click', () => changeMois(1));
     document.querySelectorAll('[data-fan-view]').forEach((b) => b.addEventListener('click', () => switchView(b.dataset.fanView)));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePop(); closeModal(); } });
   }
+  function changeMois(delta) { mois = moisAdj(mois, delta); $('#fan-mois').value = mois; charger(); }
   function currentView() { return $('#fan-view-historique').hidden ? 'analyse' : 'historique'; }
   function switchView(v) {
     document.querySelectorAll('[data-fan-view]').forEach((b) => b.classList.toggle('is-on', b.dataset.fanView === v));
@@ -115,14 +154,22 @@ const FanUI = (function () {
   }
 
   async function charger() {
-    let data = null;
-    try { data = await (await fetch('/api/fan/' + mois, { headers: H() })).json(); }
-    catch (_) { $('#fan-recap').innerHTML = '<p class="rec-vide">Erreur de chargement.</p>'; return; }
-    if (!data || !data.ok) { $('#fan-recap').innerHTML = '<p class="rec-vide">Erreur de chargement.</p>'; return; }
-    cur = { rows: data.rows || [], closed: data.closed ? 1 : 0 };
-    // Sélection par défaut = le studio le mieux noté.
-    const sorted = sortedRows();
-    if (!selStudio || !cur.rows.some((r) => r.studio === selStudio)) selStudio = (sorted[0] || {}).studio || STUDIOS[0];
+    closePop(); closeModal();
+    $('#fan-recap').innerHTML = '<p class="fan-loading">Chargement…</p>';
+    let data = null, prev = null;
+    try {
+      [data, prev] = await Promise.all([
+        (await fetch('/api/fan/' + mois, { headers: H() })).json(),
+        fetch('/api/fan/' + moisAdj(mois, -1), { headers: H() }).then((r) => r.json()).catch(() => null),
+      ]);
+    } catch (_) { $('#fan-recap').innerHTML = '<p class="fan-loading">Erreur de chargement.</p>'; return; }
+    if (!data || !data.ok) { $('#fan-recap').innerHTML = '<p class="fan-loading">Erreur de chargement.</p>'; return; }
+    cur = { rows: data.rows || [], closed: data.closed ? 1 : 0, closedAt: data.closedAt || '' };
+    prevTotals = (prev && prev.ok) ? sumTotals(prev.rows || []) : null;
+    if (!selStudio || !cur.rows.some((r) => r.studio === selStudio)) {
+      const notEmpty = cur.rows.find((r) => !isEmpty(r));
+      selStudio = (notEmpty || cur.rows[0] || {}).studio || STUDIOS[0];
+    }
     render();
   }
 
@@ -130,222 +177,359 @@ const FanUI = (function () {
   function sortedRows() {
     return cur.rows.slice().sort((a, b) => {
       const ta = noteStudio(a).total, tb = noteStudio(b).total;
-      return (tb == null ? -1 : tb) - (ta == null ? -1 : ta);  // notes définies d'abord, décroissant
+      return (tb == null ? -1 : tb) - (ta == null ? -1 : ta);
     });
   }
-
-  // ── Rendu ─────────────────────────────────────────────────────────────────
-  function render() { renderBanner(); renderCards(); renderForm(); renderTiles(); }
-
-  function renderBanner() {
-    const host = $('#fan-banner');
-    if (!host) return;
-    host.innerHTML = cur.closed
-      ? '<div class="rec-import-done"><span class="ri-ok">✓ ' + esc(capMois()) + ' calculé</span>'
-        + '<button type="button" class="rec-link" data-modifier>Modifier les saisies</button></div>'
-      : '';
-    const b = host.querySelector('[data-modifier]');
-    if (b) b.addEventListener('click', () => cloturer(false));
+  function sumTotals(rows) {
+    return {
+      nonFreq: rows.reduce((s, r) => s + (Number(r.nonFreq) || 0), 0),
+      contrats: rows.reduce((s, r) => s + (Number(r.contrats) || 0), 0),
+      participants: rows.reduce((s, r) => s + totalParticipants(r.evenements), 0),
+      avis: rows.reduce((s, r) => s + (Number(r.avis) || 0), 0),
+      refs: rows.reduce((s, r) => s + (Number(r.refs) || 0), 0),
+    };
   }
 
+  // ── Rendu global ────────────────────────────────────────────────────────────
+  function render() { renderNetwork(); renderProgress(); renderCards(); renderBanner(); renderForm(); renderTiles(); }
+
+  // Progression du mois
+  function renderProgress() {
+    const host = $('#fan-progress');
+    const nSaisis = cur.rows.filter((r) => !isEmpty(r)).length;
+    const pct = Math.round((nSaisis / STUDIOS.length) * 100);
+    host.innerHTML = '<div class="fan-progress-track"><span class="fan-progress-fill" style="width:' + pct + '%"></span></div>'
+      + '<span class="fan-progress-lbl">' + nSaisis + '/' + STUDIOS.length + ' studios saisis</span>';
+  }
+
+  // Note réseau (composant jauge)
+  function renderNetwork() {
+    const host = $('#fan-network');
+    const notes = cur.rows.filter((r) => noteStudio(r).total != null);
+    const reseau = noteReseau(cur.rows);
+    const cls = noteClass(reseau == null ? null : Math.round(reseau));
+    host.innerHTML = '<div class="fan-net-top"><span class="fan-net-lbl">Note réseau</span>'
+      + '<span class="fan-net-val ' + cls + '">' + fmtReseau(reseau) + '<small>/20</small></span></div>'
+      + '<div class="fan-net-track"><span class="fan-net-fill ' + cls + '" style="width:' + (reseau == null ? 0 : (reseau / 20 * 100)) + '%"></span></div>'
+      + '<span class="fan-net-sub">basée sur ' + notes.length + '/' + STUDIOS.length + ' studios saisis</span>';
+  }
+
+  // Cartes studios
+  function gauge(key, label, full, n) {
+    const val = (n == null) ? '—' : (n + '/5');
+    const w = (n == null) ? 0 : (n / 5 * 100);
+    return '<div class="fan-g">'
+      + '<span class="fan-g-lbl" title="' + esc(full) + '">' + esc(label) + '</span>'
+      + '<span class="fan-g-track"><span class="fan-g-fill ' + sub5Class(n) + '" style="width:' + w + '%"></span></span>'
+      + '<span class="fan-g-val">' + val + '</span></div>';
+  }
   function renderCards() {
     const host = $('#fan-recap');
-    const reseau = noteReseau(cur.rows);
     const cards = sortedRows().map((r) => {
       const n = noteStudio(r);
-      const active = r.studio === selStudio ? ' is-active' : '';
-      return '<button type="button" class="rec-club-tab fan-card' + active + '" data-studio="' + esc(r.studio) + '">'
-        + '<span class="rec-club-nom">' + esc(r.studio) + '</span>'
-        + '<span class="rec-club-note ' + noteClass(n.total) + '">' + fmtNote(n.total) + '<span class="fan-max">/20</span></span>'
-        + '<span class="rec-club-sub">Fréq ' + (n.freq == null ? '—' : n.freq) + '/5 · Évén ' + n.even + '/5 · Avis ' + n.avis + '/5 · Réf ' + n.refs + '/5</span>'
+      const empty = isEmpty(r);
+      const state = cur.closed ? 'st-closed' : (empty ? 'st-empty' : 'st-progress');
+      const badge = cur.closed ? 'Clôturé ✓' : (empty ? 'À saisir' : 'En cours');
+      const sel = r.studio === selStudio ? ' is-selected' : '';
+      // Sous-scores : « — » quand la carte est vide (jamais 0 pour un studio non saisi).
+      const g = empty
+        ? gauge('freq', 'Fréq', 'Fréquentation', null) + gauge('even', 'Évén', 'Événements', null) + gauge('avis', 'Avis', 'Avis Google', null) + gauge('refs', 'Réf', 'Références', null)
+        : gauge('freq', 'Fréq', 'Fréquentation', n.freq) + gauge('even', 'Évén', 'Événements', n.even) + gauge('avis', 'Avis', 'Avis Google', n.avis) + gauge('refs', 'Réf', 'Références', n.refs);
+      const noteVal = empty ? '—' : fmtNote(n.total);
+      const noteCls = empty ? 'fan-na' : noteClass(n.total);
+      return '<button type="button" class="fan-card ' + state + sel + '" data-studio="' + esc(r.studio) + '" aria-pressed="' + (sel ? 'true' : 'false') + '">'
+        + '<div class="fan-card-top"><span class="fan-card-nom">' + esc(r.studio) + '</span>'
+        + '<span class="fan-badge ' + state + '">' + badge + '</span></div>'
+        + '<div class="fan-card-note"><span class="fan-pastille ' + noteCls + '"></span>'
+        + '<span class="fan-note-val ' + noteCls + '">' + noteVal + '<span class="fan-note-max">/20</span></span></div>'
+        + '<div class="fan-gauges">' + g + '</div>'
         + '</button>';
     }).join('');
-    host.innerHTML = '<div class="rec-res-head"><h3 class="rec-h3">Notes · ' + esc(capMois()) + '</h3>'
-      + '<span class="rec-reseau-badge fan-reseau">RÉSEAU <b class="' + noteClass(reseau == null ? null : Math.round(reseau)) + '">' + fmtReseau(reseau) + '<span class="fan-max">/20</span></b></span></div>'
-      + '<div class="rec-club-tabs">' + cards + '</div>';
+    host.innerHTML = '<div class="fan-cards-grid">' + cards + '</div>';
     host.querySelectorAll('.fan-card').forEach((c) => c.addEventListener('click', () => {
-      selStudio = c.dataset.studio;
-      renderCards();
-      if (!cur.closed) renderForm();
+      selStudio = c.dataset.studio; renderCards(); renderForm();
     }));
   }
 
-  function renderTiles() {
-    const host = $('#fan-tiles');
-    const totNonFreq = cur.rows.reduce((s, r) => s + (Number(r.nonFreq) || 0), 0);
-    const totContrats = cur.rows.reduce((s, r) => s + (Number(r.contrats) || 0), 0);
-    const totPart = cur.rows.reduce((s, r) => s + totalParticipants(r.evenements), 0);
-    const totAvis = cur.rows.reduce((s, r) => s + (Number(r.avis) || 0), 0);
-    const totRefs = cur.rows.reduce((s, r) => s + (Number(r.refs) || 0), 0);
-    const tauxMoyen = totContrats > 0 ? Math.round((totNonFreq / totContrats) * 100) + ' %' : '—';
-    const tile = (val, lbl) => '<div class="rec-kpi2 fan-tile"><b>' + esc(val) + '</b><span>' + esc(lbl) + '</span></div>';
-    host.innerHTML = '<h3 class="rec-h3">Réseau · totaux du mois</h3><div class="rec-kpis2">'
-      + tile(tauxMoyen, 'Taux moyen non-fréquentants')
-      + tile(totPart, 'Participants événements')
-      + tile(totAvis, 'Nouveaux avis Google')
-      + tile(totRefs, 'Prises de références')
-      + '</div>';
+  // ── Formulaire de saisie ────────────────────────────────────────────────────
+  function derFreq(r) {
+    if (!(r.contrats > 0)) return { txt: 'Renseigne les « membres avec contrat actif » pour noter la fréquentation.', err: false };
+    if (ratioError(r)) return { txt: '⚠ Les non-fréquentants (' + r.nonFreq + ') dépassent les contrats actifs (' + r.contrats + ').', err: true };
+    const t = Math.round(tauxNonFreq(r));
+    return { txt: '= ' + t + ' % de non-fréquentants → Fréquentation ' + noteNonFreq(r.nonFreq, r.contrats) + '/5', err: false };
   }
+  function derEven(r) {
+    const p = totalParticipants(r.evenements);
+    return p <= 0 ? { txt: 'Aucun événement = Événements 0/5' } : { txt: p + ' participant' + (p > 1 ? 's' : '') + ' → Événements ' + noteEvents(r.evenements) + '/5' };
+  }
+  function derAvis(r) { const a = Number(r.avis) || 0; return { txt: a + (a > 1 ? ' nouveaux avis' : ' nouvel avis') + ' → Avis ' + noteAvis(a) + '/5' }; }
+  function derRefs(r) { const x = Number(r.refs) || 0; return { txt: x + ' référence' + (x > 1 ? 's' : '') + ' → Références ' + noteRefs(x) + '/5' }; }
 
   function renderForm() {
     const host = $('#fan-form');
-    if (cur.closed) { host.innerHTML = ''; return; }  // figé -> pas de formulaire
     const r = rowOf(selStudio);
+    const ro = !!cur.closed;                 // lecture seule si clôturé
+    const n = noteStudio(r);
+    const dis = ro ? ' disabled' : '';
+    const num = (champ, val) => '<input type="number" min="0" step="1" class="fan-num" data-champ="' + champ + '" value="' + (Number(val) || 0) + '"' + dis + '>';
     const evs = r.evenements || [];
-    const numField = (champ, label, val, hint) =>
-      '<label class="fan-field"><span class="fan-lbl">' + esc(label) + (hint ? ' <small>' + esc(hint) + '</small>' : '') + '</span>'
-      + '<input type="number" min="0" step="1" class="fan-num" data-champ="' + champ + '" value="' + (Number(val) || 0) + '"></label>';
     const evRows = evs.map((e, i) =>
       '<div class="fan-event-row" data-idx="' + i + '">'
-      + '<input type="text" class="fan-ev-nom" placeholder="Nom de l\'événement" value="' + esc(e.nom || '') + '">'
-      + '<input type="number" class="fan-ev-part" min="0" step="1" placeholder="Participants" value="' + (Number(e.participants) || 0) + '">'
-      + '<button type="button" class="fan-ev-del" title="Retirer">✕</button>'
+      + '<input type="text" class="fan-ev-nom" placeholder="Nom de l\'événement" value="' + esc(e.nom || '') + '"' + dis + '>'
+      + '<input type="number" class="fan-ev-part" min="0" step="1" placeholder="Particip." value="' + (Number(e.participants) || 0) + '"' + dis + '>'
+      + (ro ? '' : '<button type="button" class="fan-ev-del" title="Retirer l\'événement" aria-label="Retirer l\'événement">✕</button>')
       + '</div>').join('');
-    host.innerHTML = '<div class="fan-form-card">'
-      + '<div class="fan-form-head">Saisie — <b>' + esc(selStudio) + '</b> · ' + esc(capMois()) + '</div>'
-      + '<div class="fan-fields">'
-      + numField('nonFreq', 'Membres non fréquentants', r.nonFreq)
-      + numField('contrats', 'Membres avec contrat actif', r.contrats, '(carte ou abo)')
-      + '</div>'
-      + '<div class="fan-events">'
-      + '<div class="fan-events-h">Événements du mois <small>(nom + nombre de participants)</small></div>'
+    const help = (key) => ro ? '' : '<button type="button" class="fan-help" data-help="' + key + '" aria-label="Voir le barème">?</button>';
+
+    host.innerHTML = '<div class="fan-form-card' + (ro ? ' is-readonly' : '') + '">'
+      + '<div class="fan-form-head"><div><span class="fan-form-title">Saisie — <b>' + esc(selStudio) + '</b></span>'
+      + '<span class="fan-form-mois">' + esc(capMois()) + (ro ? ' · figé' : '') + '</span></div>'
+      + '<span class="fan-form-note ' + noteClass(n.total) + '" id="fan-form-note">' + fmtNote(n.total) + '<small>/20</small></span></div>'
+
+      // Bloc membres (groupé + ratio)
+      + '<div class="fan-block"><div class="fan-block-h">Membres ' + help('freq') + '</div>'
+      + '<div class="fan-two-fields">'
+      + '<label class="fan-field"><span class="fan-lbl">Non fréquentants</span>' + num('nonFreq', r.nonFreq) + '</label>'
+      + '<label class="fan-field"><span class="fan-lbl">Avec contrat actif <small>(carte ou abo)</small></span>' + num('contrats', r.contrats) + '</label>'
+      + '</div><div class="fan-derived" id="fan-d-freq"></div></div>'
+
+      // Événements
+      + '<div class="fan-block"><div class="fan-block-h">Événements du mois ' + help('even') + '</div>'
       + '<div class="fan-events-list">' + (evRows || '<p class="fan-events-vide">Aucun événement ce mois-ci.</p>') + '</div>'
-      + '<button type="button" class="rec-link" data-add-event>+ Ajouter un événement</button>'
+      + (ro ? '' : '<button type="button" class="fan-link" data-add-event>+ Ajouter un événement</button>')
+      + '<div class="fan-derived" id="fan-d-even"></div></div>'
+
+      // Avis + Références
+      + '<div class="fan-two-blocks">'
+      + '<div class="fan-block"><div class="fan-block-h">Nouveaux avis Google ' + help('avis') + '</div>'
+      + '<label class="fan-field fan-field-sm"><span class="fan-lbl">Avis du mois</span>' + num('avis', r.avis) + '</label>'
+      + '<div class="fan-derived" id="fan-d-avis"></div></div>'
+      + '<div class="fan-block"><div class="fan-block-h">Prises de références ' + help('refs') + '</div>'
+      + '<label class="fan-field fan-field-sm"><span class="fan-lbl">Références du mois</span>' + num('refs', r.refs) + '</label>'
+      + '<div class="fan-derived" id="fan-d-refs"></div></div>'
       + '</div>'
-      + '<div class="fan-fields">'
-      + numField('avis', 'Nouveaux avis Google du mois', r.avis)
-      + numField('refs', 'Prises de références du mois', r.refs)
-      + '</div>'
-      + '<div class="rec-actions"><button type="button" class="rec-btn" data-cloturer>Clôturer le mois</button>'
-      + '<span class="rec-msg" id="fan-msg"></span></div>'
+
+      // Pied : clôture (masqué si déjà clôturé)
+      + (ro ? '' : '<div class="fan-form-foot"><span class="fan-close-reason" id="fan-close-reason"></span>'
+        + '<button type="button" class="fan-btn-primary" id="fan-close-btn">Clôturer le mois</button></div>')
       + '</div>';
-    wireForm(host, r);
+
+    if (!ro) wireForm(host, r);
+    updateDerived(r);
+    updateCloseBtn();
+  }
+
+  function updateDerived(r) {
+    const set = (id, d) => { const el = $('#' + id); if (el) { el.textContent = d.txt; el.classList.toggle('is-err', !!d.err); } };
+    set('fan-d-freq', derFreq(r)); set('fan-d-even', derEven(r)); set('fan-d-avis', derAvis(r)); set('fan-d-refs', derRefs(r));
+    const nt = noteStudio(r), noteEl = $('#fan-form-note');
+    if (noteEl) { noteEl.className = 'fan-form-note ' + noteClass(nt.total); noteEl.innerHTML = fmtNote(nt.total) + '<small>/20</small>'; }
+    // reflète l'erreur de ratio sur le champ
+    const nf = document.querySelector('.fan-num[data-champ="nonFreq"]');
+    if (nf) nf.classList.toggle('is-err', ratioError(r));
+  }
+
+  function updateCloseBtn() {
+    const btn = $('#fan-close-btn'), reason = $('#fan-close-reason');
+    if (!btn || !reason) return;
+    const missing = cur.rows.filter((r) => !studioComplete(r));
+    if (missing.length) {
+      btn.disabled = true;
+      reason.textContent = 'Saisie incomplète — à compléter : ' + missing.map((r) => r.studio).join(', ');
+    } else {
+      btn.disabled = false;
+      reason.textContent = 'Tous les studios sont saisis.';
+    }
   }
 
   function wireForm(host, r) {
-    // Champs numériques : live (input -> maj cartes/tuiles) + save (change -> PATCH).
     host.querySelectorAll('.fan-num').forEach((inp) => {
-      inp.addEventListener('input', () => { r[inp.dataset.champ] = Math.max(0, Math.round(Number(inp.value) || 0)); renderCards(); renderTiles(); });
-      inp.addEventListener('change', () => { const v = Math.max(0, Math.round(Number(inp.value) || 0)); inp.value = v; r[inp.dataset.champ] = v; enregistrer({ [inp.dataset.champ]: v }); });
+      const commit = (save) => {
+        const v = Math.max(0, Math.round(Number(inp.value) || 0));
+        inp.value = v; r[inp.dataset.champ] = v;
+        updateDerived(r); renderNetwork(); renderProgress(); renderCards(); renderTiles(); updateCloseBtn();
+        if (save) enregistrer({ [inp.dataset.champ]: v });
+      };
+      inp.addEventListener('input', () => commit(false));
+      inp.addEventListener('change', () => commit(true));
     });
-    // Événements.
-    host.querySelector('[data-add-event]').addEventListener('click', () => {
-      r.evenements = (r.evenements || []).concat([{ nom: '', participants: 0 }]);
-      renderForm(); renderCards(); renderTiles();
-    });
+    const add = host.querySelector('[data-add-event]');
+    if (add) add.addEventListener('click', () => { r.evenements = (r.evenements || []).concat([{ nom: '', participants: 0 }]); renderForm(); renderNetwork(); renderCards(); });
     host.querySelectorAll('.fan-event-row').forEach((rowEl) => {
       const i = Number(rowEl.dataset.idx);
-      const nom = rowEl.querySelector('.fan-ev-nom');
-      const part = rowEl.querySelector('.fan-ev-part');
-      const live = () => { r.evenements[i] = { nom: nom.value, participants: Math.max(0, Math.round(Number(part.value) || 0)) }; renderCards(); renderTiles(); };
+      const nom = rowEl.querySelector('.fan-ev-nom'), part = rowEl.querySelector('.fan-ev-part');
+      const live = () => { r.evenements[i] = { nom: nom.value, participants: Math.max(0, Math.round(Number(part.value) || 0)) }; updateDerived(r); renderNetwork(); renderProgress(); renderCards(); renderTiles(); updateCloseBtn(); };
       const save = () => { live(); enregistrer({ evenements: r.evenements }); };
       nom.addEventListener('input', live); nom.addEventListener('change', save);
       part.addEventListener('input', live); part.addEventListener('change', save);
-      rowEl.querySelector('.fan-ev-del').addEventListener('click', () => {
-        r.evenements.splice(i, 1);
-        enregistrer({ evenements: r.evenements });
-        renderForm(); renderCards(); renderTiles();
-      });
+      const del = rowEl.querySelector('.fan-ev-del');
+      if (del) del.addEventListener('click', () => { r.evenements.splice(i, 1); enregistrer({ evenements: r.evenements }); renderForm(); renderNetwork(); renderCards(); });
     });
-    host.querySelector('[data-cloturer]').addEventListener('click', () => cloturer(true));
+    host.querySelectorAll('.fan-help').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPop(b, b.dataset.help); }));
+    const cb = host.querySelector('#fan-close-btn');
+    if (cb) cb.addEventListener('click', () => openModal());
   }
 
   async function enregistrer(champs) {
-    msg('');
     try {
-      const r = await (await fetch('/api/fan/' + mois, { method: 'PATCH', headers: H(),
-        body: JSON.stringify(Object.assign({ studio: selStudio }, champs)) })).json();
-      if (!r || !r.ok) msg('⚠️ Enregistrement impossible.', true);
-    } catch (_) { msg('⚠️ Sauvegarde réseau impossible.', true); }
+      const r = await (await fetch('/api/fan/' + mois, { method: 'PATCH', headers: H(), body: JSON.stringify(Object.assign({ studio: selStudio }, champs)) })).json();
+      if (!r || !r.ok) console.warn('fan save failed');
+    } catch (_) { /* silencieux : la valeur reste à l'écran */ }
   }
-  function msg(txt, err) { const el = $('#fan-msg'); if (el) { el.textContent = txt || ''; el.className = 'rec-msg' + (err ? ' rec-msg-err' : ''); } }
 
+  // ── Bandeau clôture + rouverture ─────────────────────────────────────────────
+  function renderBanner() {
+    const host = $('#fan-banner');
+    if (!cur.closed) { host.innerHTML = ''; return; }
+    host.innerHTML = '<div class="fan-closed-banner"><span class="fan-closed-txt">🔒 Clôturé le ' + esc(fmtDate(cur.closedAt)) + ' par ' + esc(userName()) + '</span>'
+      + '<button type="button" class="fan-link fan-reopen" data-reopen>Rouvrir le mois</button></div>';
+    host.querySelector('[data-reopen]').addEventListener('click', () => cloturer(false));
+  }
   async function cloturer(closed) {
     try {
       const r = await (await fetch('/api/fan/' + mois + '/cloturer', { method: 'POST', headers: H(), body: JSON.stringify({ closed: !!closed }) })).json();
-      if (r && r.ok) { cur.closed = r.closed ? 1 : 0; render(); }
-    } catch (_) { msg('⚠️ Opération impossible (réseau).', true); }
+      if (r && r.ok) charger();
+    } catch (_) { /* réseau */ }
   }
+
+  // ── Tuiles totaux réseau + delta vs M-1 ───────────────────────────────────────
+  function renderTiles() {
+    const host = $('#fan-tiles');
+    const t = sumTotals(cur.rows);
+    const tauxMoyen = t.contrats > 0 ? Math.round((t.nonFreq / t.contrats) * 100) : null;
+    const tauxPrev = (prevTotals && prevTotals.contrats > 0) ? Math.round((prevTotals.nonFreq / prevTotals.contrats) * 100) : null;
+    const moisPrec = moisCourt(moisAdj(mois, -1));
+    const delta = (curV, prevV, unit) => {
+      if (prevTotals == null || prevV == null || curV == null) return '<span class="fan-tile-delta flat">— vs ' + esc(moisPrec) + '</span>';
+      const d = curV - prevV;
+      const cls = d > 0 ? 'up' : (d < 0 ? 'down' : 'flat');
+      const s = (d > 0 ? '+' : (d < 0 ? '−' : '')) + Math.abs(d) + (unit || '');
+      return '<span class="fan-tile-delta ' + cls + '">' + (d === 0 ? '=' : s) + ' vs ' + esc(moisPrec) + '</span>';
+    };
+    const tile = (val, lbl, deltaHtml) => '<div class="fan-tile"><span class="fan-tile-val">' + esc(val) + '</span>'
+      + '<span class="fan-tile-lbl">' + esc(lbl) + '</span>' + deltaHtml + '</div>';
+    host.innerHTML = '<div class="fan-tiles-head"><h3 class="fan-h3">Totaux du mois · réseau</h3>'
+      + '<button type="button" class="fan-link" data-goto-histo>Voir l\'historique →</button></div>'
+      + '<div class="fan-tiles-grid">'
+      + tile(tauxMoyen == null ? '—' : (tauxMoyen + ' %'), 'Taux moyen non-fréquentants', delta(tauxMoyen, tauxPrev, ' pts'))
+      + tile(t.participants, 'Participants aux événements', delta(t.participants, prevTotals && prevTotals.participants))
+      + tile(t.avis, 'Nouveaux avis Google', delta(t.avis, prevTotals && prevTotals.avis))
+      + tile(t.refs, 'Prises de références', delta(t.refs, prevTotals && prevTotals.refs))
+      + '</div>';
+    const g = host.querySelector('[data-goto-histo]');
+    if (g) g.addEventListener('click', () => switchView('historique'));
+  }
+
+  // ── Popover barème ────────────────────────────────────────────────────────────
+  function openPop(trigger, key) {
+    const b = BAREMES[key]; if (!b) return;
+    closePop();
+    const el = document.createElement('div');
+    el.className = 'fan-pop'; el.id = 'fan-pop'; el.setAttribute('role', 'dialog');
+    el.innerHTML = '<div class="fan-pop-t">' + esc(b.titre) + ' — barème /5</div>'
+      + '<p class="fan-pop-d">' + esc(b.desc) + '</p>'
+      + '<table class="fan-pop-table"><tbody>'
+      + b.rows.map((row) => '<tr><td>' + esc(row[0]) + '</td><td><b class="' + sub5Class(row[1]) + '">' + row[1] + '/5</b></td></tr>').join('')
+      + '</tbody></table>';
+    document.body.appendChild(el);
+    const rect = trigger.getBoundingClientRect();
+    const top = rect.bottom + 8, left = Math.min(rect.left, window.innerWidth - el.offsetWidth - 12);
+    el.style.top = top + 'px'; el.style.left = Math.max(12, left) + 'px';
+    setTimeout(() => document.addEventListener('click', outsidePop, true), 0);
+  }
+  function outsidePop(e) { const el = $('#fan-pop'); if (el && !el.contains(e.target) && !(e.target.classList && e.target.classList.contains('fan-help'))) closePop(); }
+  function closePop() { const el = $('#fan-pop'); if (el) el.remove(); document.removeEventListener('click', outsidePop, true); }
+
+  // ── Modale de clôture ─────────────────────────────────────────────────────────
+  function openModal() {
+    if (cur.rows.some((r) => !studioComplete(r))) return;   // garde-fou
+    closeModal();
+    const reseau = noteReseau(cur.rows);
+    const list = sortedRows().map((r) => {
+      const t = noteStudio(r).total;
+      return '<li><span>' + esc(r.studio) + ' — ' + esc(capMois()) + '</span><b class="' + noteClass(t) + '">' + fmtNote(t) + '/20</b></li>';
+    }).join('');
+    const host = $('#fan-modal-host');
+    host.innerHTML = '<div class="fan-modal-backdrop" data-cancel>'
+      + '<div class="fan-modal" role="dialog" aria-modal="true" aria-labelledby="fan-modal-t">'
+      + '<h3 id="fan-modal-t" class="fan-modal-t">Clôturer ' + esc(capMois()) + ' ?</h3>'
+      + '<p class="fan-modal-warn">Les saisies seront figées. Tu pourras rouvrir le mois plus tard si besoin.</p>'
+      + '<div class="fan-modal-net">Note réseau <b class="' + noteClass(reseau == null ? null : Math.round(reseau)) + '">' + fmtReseau(reseau) + '/20</b></div>'
+      + '<ul class="fan-modal-list">' + list + '</ul>'
+      + '<div class="fan-modal-actions"><button type="button" class="fan-btn-ghost" data-cancel>Annuler</button>'
+      + '<button type="button" class="fan-btn-primary" data-confirm>Clôturer définitivement</button></div>'
+      + '</div></div>';
+    host.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', (e) => { if (e.target === b) closeModal(); }));
+    host.querySelector('[data-confirm]').addEventListener('click', () => { closeModal(); cloturer(true); });
+    const cf = host.querySelector('[data-confirm]'); if (cf) cf.focus();
+  }
+  function closeModal() { const h = $('#fan-modal-host'); if (h) h.innerHTML = ''; }
 
   // ── HISTORIQUE ─────────────────────────────────────────────────────────────
   async function renderHistorique() {
     const host = $('#fan-histo');
-    host.innerHTML = '<p class="rec-vide">Chargement…</p>';
+    host.innerHTML = '<p class="fan-loading">Chargement…</p>';
     let data = null;
     try { data = await (await fetch('/api/fan-history', { headers: H() })).json(); }
-    catch (_) { host.innerHTML = '<p class="rec-vide">Erreur de chargement.</p>'; return; }
-    if (!data || !data.ok) { host.innerHTML = '<p class="rec-vide">Erreur de chargement.</p>'; return; }
+    catch (_) { host.innerHTML = '<p class="fan-loading">Erreur de chargement.</p>'; return; }
+    if (!data || !data.ok) { host.innerHTML = '<p class="fan-loading">Erreur de chargement.</p>'; return; }
     const months = data.months || [];
-    if (!months.length) { host.innerHTML = '<p class="rec-vide">Aucun mois saisi pour le moment.</p>'; return; }
+    if (!months.length) { host.innerHTML = '<p class="fan-loading">Aucun mois saisi pour le moment.</p>'; return; }
 
-    // Note /20 par (mois, studio) + réseau.
-    const noteMap = {}; // mois -> {studio -> total|null, reseau}
-    months.forEach((m) => {
-      const per = {};
-      m.rows.forEach((r) => { per[r.studio] = noteStudio(r).total; });
-      noteMap[m.mois] = { per, reseau: noteReseau(m.rows) };
-    });
+    const noteMap = {};
+    months.forEach((m) => { const per = {}; m.rows.forEach((r) => { per[r.studio] = noteStudio(r).total; }); noteMap[m.mois] = { per, reseau: noteReseau(m.rows) }; });
     const moisAsc = months.map((m) => m.mois);
     const moisDesc = moisAsc.slice().reverse();
 
-    // Tableau : une ligne par mois (récent en haut), une colonne par studio + réseau.
     const cell = (t) => '<td class="fan-h-cell ' + noteClass(t) + '">' + fmtNote(t) + '</td>';
     const corps = moisDesc.map((ym) => {
       const nm = noteMap[ym];
       return '<tr><td class="fan-h-mois">' + esc(moisLabel(ym, 0)) + '</td>'
         + STUDIOS.map((s) => cell(nm.per[s] == null ? null : nm.per[s])).join('')
-        + '<td class="fan-h-cell fan-h-reseau ' + noteClass(nm.reseau == null ? null : Math.round(nm.reseau)) + '">' + fmtReseau(nm.reseau) + '</td>'
-        + '</tr>';
+        + '<td class="fan-h-cell fan-h-reseau ' + noteClass(nm.reseau == null ? null : Math.round(nm.reseau)) + '">' + fmtReseau(nm.reseau) + '</td></tr>';
     }).join('');
     const thead = '<tr><th>Mois</th>' + STUDIOS.map((s) => '<th>' + esc(s) + '</th>').join('') + '<th>Réseau</th></tr>';
 
-    // Cartes de tendance (dernier mois vs précédent).
     const last = moisAsc[moisAsc.length - 1], prev = moisAsc[moisAsc.length - 2];
     const trendCards = STUDIOS.map((s) => {
-      const cu = noteMap[last].per[s];
-      const pr = prev ? noteMap[prev].per[s] : null;
+      const cu = noteMap[last].per[s], pr = prev ? noteMap[prev].per[s] : null;
       let arw = '<span class="fan-tr flat">=</span>', d = '';
       if (cu != null && pr != null) {
         if (cu > pr) { arw = '<span class="fan-tr up">↑</span>'; d = ' +' + (cu - pr); }
-        else if (cu < pr) { arw = '<span class="fan-tr down">↓</span>'; d = ' ' + (cu - pr); }
+        else if (cu < pr) { arw = '<span class="fan-tr down">↓</span>'; d = ' −' + (pr - cu); }
       }
       return '<div class="fan-trend-card"><span class="fan-trend-nom">' + esc(s) + '</span>'
-        + '<span class="fan-trend-note ' + noteClass(cu) + '">' + fmtNote(cu) + '<span class="fan-max">/20</span></span>'
+        + '<span class="fan-trend-note ' + noteClass(cu) + '">' + fmtNote(cu) + '<small>/20</small></span>'
         + '<span class="fan-trend-sub">' + arw + esc(d) + '</span></div>';
     }).join('');
 
-    host.innerHTML =
-      '<h3 class="rec-h3">Évolution des notes /20</h3>'
-      + '<div class="rec-histo-graph"><canvas id="fan-chart" height="120"></canvas></div>'
+    host.innerHTML = '<h3 class="fan-h3">Évolution des notes /20</h3>'
+      + '<div class="fan-histo-graph"><canvas id="fan-chart" height="120"></canvas></div>'
       + '<div class="fan-trend-row">' + trendCards + '</div>'
-      + '<h3 class="rec-h3">Détail par mois</h3>'
+      + '<h3 class="fan-h3">Détail par mois</h3>'
       + '<div class="fan-h-table-wrap"><table class="fan-h-table"><thead>' + thead + '</thead><tbody>' + corps + '</tbody></table></div>';
-
     dessinerChart(moisAsc.slice(-12), noteMap);
   }
 
-  const STUDIO_COLORS = { Levallois: '#60A5FA', Marcq: '#8B5CF6', Neuilly: '#34D399', Boulogne: '#F59E0B', Wasquehal: '#EC4899', Lille: '#F87171' };
+  const STUDIO_COLORS = { Levallois: '#2563EB', Marcq: '#7C3AED', Neuilly: '#0A7D33', Boulogne: '#B56A00', Wasquehal: '#DB2777', Lille: '#C22F2F' };
   function dessinerChart(labels, noteMap) {
     const el = $('#fan-chart');
     if (!el || typeof Chart === 'undefined') return;
     if (chart) { chart.destroy(); chart = null; }
     const datasets = STUDIOS.map((s) => ({
-      label: s,
-      data: labels.map((ym) => { const v = noteMap[ym] ? noteMap[ym].per[s] : null; return v == null ? null : v; }),
-      borderColor: STUDIO_COLORS[s], backgroundColor: STUDIO_COLORS[s],
-      tension: 0.3, spanGaps: true, borderWidth: 2, pointRadius: 3,
+      label: s, data: labels.map((ym) => { const v = noteMap[ym] ? noteMap[ym].per[s] : null; return v == null ? null : v; }),
+      borderColor: STUDIO_COLORS[s], backgroundColor: STUDIO_COLORS[s], tension: 0.3, spanGaps: true, borderWidth: 2, pointRadius: 3,
     }));
     chart = new Chart(el.getContext('2d'), {
       type: 'line',
-      data: { labels: labels.map((ym) => moisLabel(ym, 0).replace(/ \d{4}$/, '')), datasets },
+      data: { labels: labels.map((ym) => moisCourt(ym)), datasets },
       options: {
-        responsive: true, maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
+        responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
         scales: {
-          y: { min: 0, max: 20, ticks: { stepSize: 5, color: '#6B7280' }, grid: { color: 'rgba(255,255,255,.06)' } },
-          x: { ticks: { color: '#6B7280' }, grid: { display: false } },
+          y: { min: 0, max: 20, ticks: { stepSize: 5, color: '#5c5b57' }, grid: { color: 'rgba(0,0,0,.08)' } },
+          x: { ticks: { color: '#5c5b57' }, grid: { display: false } },
         },
-        plugins: { legend: { labels: { color: '#A2A9B8', boxWidth: 12, usePointStyle: true } } },
+        plugins: { legend: { labels: { color: '#111111', boxWidth: 12, usePointStyle: true } } },
       },
     });
   }

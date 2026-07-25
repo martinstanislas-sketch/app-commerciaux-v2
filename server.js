@@ -4698,9 +4698,11 @@ app.get('/api/fan/:mois', requireAuth, requireAdmin, (req, res) => {
   try {
     const map = {};
     getDb().prepare('SELECT * FROM fan_saisies WHERE mois = ?').all(mois).forEach((r) => { map[r.studio] = r; });
-    const closed = ((getDb().prepare('SELECT closed FROM fan_months WHERE mois = ?').get(mois) || {}).closed) ? 1 : 0;
+    const fm = getDb().prepare('SELECT closed, updated_at FROM fan_months WHERE mois = ?').get(mois) || {};
+    const closed = fm.closed ? 1 : 0;
     const studios = FAN_STUDIOS.map((studio) => ({ studio, ...fanRow(map[studio]) }));
-    res.json({ ok: true, mois, closed, studios: FAN_STUDIOS, rows: studios });
+    // closedAt = dernière écriture sur fan_months (colonne existante) ; sert au bandeau « clôturé le … ».
+    res.json({ ok: true, mois, closed, closedAt: closed ? (fm.updated_at || '') : '', studios: FAN_STUDIOS, rows: studios });
   } catch (e) { console.error('fan GET:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
 });
 
