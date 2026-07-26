@@ -175,7 +175,9 @@ const FanUI = (function () {
     even: { titre: 'Événements (/5)', desc: 'Somme des participants de tous les événements du mois.', rows: [['0', '0'], ['1–9', '1'], ['10–19', '2'], ['20–29', '3'], ['30–39', '4'], ['≥ 40', '5']] },
     avis: { titre: 'Avis Google (/5)', desc: '1 point par nouvel avis du mois, plafonné à 5.', rows: [['0', '0'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['≥ 5', '5']] },
     refs: { titre: 'Références (/10)', desc: '1 point par prise de référence du mois, plafonné à 10.', rows: [['0', '0'], ['1', '1'], ['5', '5'], ['9', '9'], ['≥ 10', '10']] },
-    fid: { titre: 'Clients fidèles (/10)', desc: 'Classement des 6 studios sur le nombre de clients fidèles du mois (source RECAP). Le studio qui en a le plus marque 10, puis 8, 6, 4, 2, et 0 pour celui qui en a le moins. Studios à égalité = mêmes points.', rows: [['1ᵉʳ (le plus)', '10'], ['2ᵉ', '8'], ['3ᵉ', '6'], ['4ᵉ', '4'], ['5ᵉ', '2'], ['6ᵉ (le moins)', '0']] },
+    fid: { titre: 'Clients fidèles (/10)', desc: 'Classement des 6 studios sur le nombre de clients fidèles du mois (source RECAP, automatique). Le studio qui en a le plus marque 10, puis 8, 6, 4, 2, et 0 pour celui qui en a le moins. Studios à égalité = mêmes points.', rows: [['1ᵉʳ (le plus)', '10'], ['2ᵉ', '8'], ['3ᵉ', '6'], ['4ᵉ', '4'], ['5ᵉ', '2'], ['6ᵉ (le moins)', '0']] },
+    contrats: { titre: 'Contrat actif', desc: 'Nombre de membres avec un contrat actif (carte ou abonnement) ce mois-ci. Sert de base (dénominateur) au taux de non-fréquentation. N\'a pas de note propre.' },
+    eventnom: { titre: 'Événement — nom', desc: 'Nom de l\'événement organisé ce mois-ci (texte libre, ex. « portes ouvertes »). Sans note en soi : c\'est le nombre de participants qui donne la note Événements.' },
   };
 
   // ── Ouverture / navigation ─────────────────────────────────────────────────
@@ -316,27 +318,28 @@ const FanUI = (function () {
     const ev = (r.evenements && r.evenements[0]) || { nom: '', participants: 0 };
     const nbFid = (cur.fideles || {})[r.studio];
     const fidVal = (nbFid == null) ? '—' : String(nbFid);
-    const field = (lbl, inputHtml, cls) => '<label class="fan-line-field' + (cls ? ' ' + cls : '') + '"><span class="fan-lbl">' + lbl + '</span>' + inputHtml + '</label>';
+    // « ? » d'aide au-dessus de chaque champ (ce que c'est + comment c'est calculé).
+    const help = (key) => ro ? '' : ' <button type="button" class="fan-help" data-help="' + key + '" aria-label="Aide">?</button>';
+    const field = (lbl, inputHtml, helpKey, cls) => '<label class="fan-line-field' + (cls ? ' ' + cls : '') + '"><span class="fan-lbl">' + lbl + help(helpKey) + '</span>' + inputHtml + '</label>';
 
     host.innerHTML = '<div class="fan-form-card' + (ro ? ' is-readonly' : '') + '">'
       + '<div class="fan-form-head"><div><span class="fan-form-title">Saisie — <b>' + esc(selStudio) + '</b></span>'
       + '<span class="fan-form-mois">' + esc(capMois()) + (ro ? ' · figé' : '') + '</span></div>'
       + '<span class="fan-form-note" id="fan-form-note">' + stars(n.total) + '</span></div>'
 
-      // Req 5 : une seule ligne de saisie
+      // Req 5 : une seule ligne de saisie, avec un « ? » par champ
       + '<div class="fan-line">'
-      + field('Non fréquentants', num('nonFreq', r.nonFreq))
-      + field('Contrat actif', num('contrats', r.contrats))
-      + field('Avis GMB', num('avis', r.avis))
-      + field('Réf', num('refs', r.refs))
-      + field('Event', '<input type="text" class="fan-ev-nom" placeholder="Nom" value="' + esc(ev.nom || '') + '"' + dis + '>', 'fan-line-ev')
-      + field('Participants', '<input type="number" class="fan-ev-part" min="0" step="1" value="' + (Number(ev.participants) || 0) + '"' + dis + '>')
-      + field('Fidèle <span class="fan-auto-tag">RECAP</span>', '<input type="text" class="fan-fid-ro" value="' + esc(fidVal) + '" title="Automatique depuis RECAP" disabled>', 'fan-line-fid')
+      + field('Non fréquentants', num('nonFreq', r.nonFreq), 'freq')
+      + field('Contrat actif', num('contrats', r.contrats), 'contrats')
+      + field('Avis GMB', num('avis', r.avis), 'avis')
+      + field('Réf', num('refs', r.refs), 'refs')
+      + field('Event', '<input type="text" class="fan-ev-nom" placeholder="Nom" value="' + esc(ev.nom || '') + '"' + dis + '>', 'eventnom', 'fan-line-ev')
+      + field('Participants', '<input type="number" class="fan-ev-part" min="0" step="1" value="' + (Number(ev.participants) || 0) + '"' + dis + '>', 'even')
+      + field('Fidèle <span class="fan-auto-tag">RECAP</span>', '<input type="text" class="fan-fid-ro" value="' + esc(fidVal) + '" title="Automatique depuis RECAP" disabled>', 'fid', 'fan-line-fid')
       + '</div>'
 
       // Détail du calcul en direct
       + '<div class="fan-breakdown" id="fan-breakdown"></div>'
-      + (ro ? '' : '<button type="button" class="fan-link" data-help="all">Voir le barème des notes</button>')
 
       // Pied : clôture (masqué si déjà clôturé)
       + (ro ? '' : '<div class="fan-form-foot"><span class="fan-close-reason" id="fan-close-reason"></span>'
@@ -408,7 +411,7 @@ const FanUI = (function () {
       nom.addEventListener('input', live); nom.addEventListener('change', save);
       part.addEventListener('input', live); part.addEventListener('change', save);
     }
-    host.querySelectorAll('[data-help]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPop(b, b.dataset.help); }));
+    host.querySelectorAll('[data-help]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openPop(b, b.dataset.help); }));
     const cb = host.querySelector('#fan-close-btn');
     if (cb) cb.addEventListener('click', () => openModal());
   }
@@ -478,11 +481,11 @@ const FanUI = (function () {
         + '<p class="fan-pop-d">La note /40 est ramenée en étoiles /5 (façon Google My Business).</p>';
     } else {
       const b = BAREMES[key]; if (!b) return;
-      el.innerHTML = '<div class="fan-pop-t">' + esc(b.titre) + ' — barème</div>'
+      el.innerHTML = '<div class="fan-pop-t">' + esc(b.titre) + (b.rows ? ' — barème' : '') + '</div>'
         + '<p class="fan-pop-d">' + esc(b.desc) + '</p>'
-        + '<table class="fan-pop-table"><tbody>'
-        + b.rows.map((row) => '<tr><td>' + esc(row[0]) + '</td><td><b>' + esc(row[1]) + '</b></td></tr>').join('')
-        + '</tbody></table>';
+        + (b.rows ? ('<table class="fan-pop-table"><tbody>'
+          + b.rows.map((row) => '<tr><td>' + esc(row[0]) + '</td><td><b>' + esc(row[1]) + '</b></td></tr>').join('')
+          + '</tbody></table>') : '');
     }
     document.body.appendChild(el);
     const rect = trigger.getBoundingClientRect();

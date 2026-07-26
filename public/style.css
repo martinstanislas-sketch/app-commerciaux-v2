@@ -21518,7 +21518,8 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 /* Ligne unique de saisie (req 5) */
 .fan-line { display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: flex-end; margin: 6px 0 12px; }
 .fan-line-field { display: flex; flex-direction: column; gap: 5px; }
-.fan-line-field .fan-lbl { font-size: 12px; white-space: nowrap; }
+.fan-line-field .fan-lbl { font-size: 12px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.fan-line-field .fan-help { width: 14px; height: 14px; font-size: 9.5px; }
 .fan-line .fan-num, .fan-line .fan-ev-part { width: 96px; height: 38px; }
 .fan-line .fan-ev-nom { width: 150px; height: 38px; }
 .fan-line-fid .fan-fid-ro { width: 80px; }
@@ -21618,6 +21619,30 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 
 /* Focus clavier visible partout */
 .fan-wrap :focus-visible, .fan-modal :focus-visible, .fan-pop :focus-visible { outline: 2px solid #5b50d6; outline-offset: 2px; }
+
+/* Compacité : la vue « Analyser un mois » doit tenir sur un écran sans scroll */
+.rec-wrap.fan-wrap { padding: 12px 18px 14px; }
+.fan-head { margin-bottom: 2px; }
+.fan-subtitle { display: none; }
+.fan-context { margin: 8px 0 4px; }
+.fan-network { padding: 7px 12px; }
+.fan-net-sub { margin-top: 1px; }
+.fan-progress { margin: 4px 0 8px; }
+.fan-cards-grid { gap: 8px; }
+.fan-card { padding: 9px 11px; gap: 6px; }
+.fan-card.is-selected { padding: 8px 10px; }
+.fan-gauges { gap: 3px; }
+.fan-form-card { padding: 12px 15px; margin-top: 8px; }
+.fan-form-head { margin-bottom: 8px; }
+.fan-line { margin: 2px 0 6px; gap: 8px 12px; align-items: flex-end; }
+.fan-line-field { gap: 3px; }
+.fan-line .fan-num, .fan-line .fan-ev-part, .fan-line .fan-ev-nom, .fan-fid-ro { height: 34px; }
+.fan-breakdown { margin: 2px 0 4px; }
+.fan-form-foot { margin-top: 8px; padding-top: 8px; }
+.fan-h3 { margin: 12px 0 6px; }
+.fan-tiles-head { margin: 10px 0 6px; }
+.fan-tile { padding: 8px 12px; gap: 2px; }
+.fan-tile-val { font-size: 20px; }
 
 /* ═══ LEAD — leads par club/mois + comparatif N-1 (carte claire & colorée) ═══ */
 
