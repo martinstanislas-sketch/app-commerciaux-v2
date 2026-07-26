@@ -17,6 +17,9 @@ const BossUI = (function () {
 
   let mois = '';
   let inited = false;
+  let lastRows = [];              // dernières lignes rendues (pour le comparatif)
+  let compareMetric = 'contribution';
+  let compareChart = null;
 
   // ── Mois ────────────────────────────────────────────────────────────────
   function moisParDefaut() {
@@ -198,6 +201,68 @@ const BossUI = (function () {
       + '<th>Note Fan<span class="boss-th-sub">note FAN /50 → /5 ★ · vs M-1</span></th>'
       + '<th>Contribution<span class="boss-th-sub">encaiss. − décaiss. · vs M-1</span></th>'
       + '</tr></thead><tbody>' + corps + totalRow + '</tbody></table>';
+
+    lastRows = rows;
+    renderCompare();
+  }
+
+  // ── Comparatif visuel des clubs (à la demande) ─────────────────────────────
+  const METRICS = [
+    { key: 'contribution', label: 'Contribution', get: (r) => r.contrib, fmt: (v) => fmtEur(v), signed: true },
+    { key: 'leads', label: 'Leads', get: (r) => r.leads, fmt: (v) => fmtInt(v) },
+    { key: 'conv', label: '% Conversion', get: (r) => r.conv, fmt: (v) => fmtPct1(v) },
+    { key: 'resultat', label: 'Résultat', get: (r) => r.resultat, fmt: (v) => fmtPct1(v) },
+    { key: 'fan', label: 'Note Fan', get: (r) => (r.fanNote != null ? r.fanNote / 10 : null), fmt: (v) => fmtDec1(v) + '★' },
+  ];
+  function renderCompare() {
+    const host = $('#boss-compare');
+    if (!host) return;
+    host.innerHTML = '<div class="boss-compare-head"><span class="boss-compare-title">Comparer les clubs</span>'
+      + '<div class="boss-metric-btns">' + METRICS.map((m) => '<button type="button" class="boss-metric-btn' + (m.key === compareMetric ? ' is-on' : '') + '" data-metric="' + m.key + '">' + esc(m.label) + '</button>').join('') + '</div></div>'
+      + '<div class="boss-chart-wrap"><canvas id="boss-chart"></canvas></div>';
+    host.querySelectorAll('[data-metric]').forEach((b) => b.addEventListener('click', () => { compareMetric = b.dataset.metric; renderCompare(); }));
+    drawCompareChart();
+  }
+  function drawCompareChart() {
+    const el = $('#boss-chart');
+    if (!el || typeof Chart === 'undefined') return;
+    if (compareChart) { compareChart.destroy(); compareChart = null; }
+    const metric = METRICS.find((m) => m.key === compareMetric) || METRICS[0];
+    const pts = lastRows.map((r) => ({ name: r.club.display, val: metric.get(r) }))
+      .filter((x) => x.val != null && !Number.isNaN(x.val))
+      .sort((a, b) => b.val - a.val);
+    const wrap = el.parentElement;
+    if (!pts.length) { wrap.innerHTML = '<p class="boss-loading">Aucune donnée pour cet indicateur ce mois-ci.</p>'; return; }
+    wrap.style.height = (pts.length * 40 + 24) + 'px';
+    const colors = pts.map((p) => (metric.signed && p.val < 0) ? '#c22f2f' : '#6d3bd9');
+    const labels = pts.map((p) => metric.fmt(p.val));
+    const valuePlugin = {
+      id: 'bossvals',
+      afterDatasetsDraw(c) {
+        const { ctx } = c; const meta = c.getDatasetMeta(0);
+        ctx.save(); ctx.font = '700 12px Inter, system-ui, sans-serif'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#5a6072';
+        meta.data.forEach((bar, i) => {
+          const v = pts[i].val;
+          if (v < 0) { ctx.textAlign = 'right'; ctx.fillText(labels[i], bar.x - 6, bar.y); }
+          else { ctx.textAlign = 'left'; ctx.fillText(labels[i], bar.x + 6, bar.y); }
+        });
+        ctx.restore();
+      },
+    };
+    compareChart = new Chart(el.getContext('2d'), {
+      type: 'bar',
+      data: { labels: pts.map((p) => p.name), datasets: [{ data: pts.map((p) => p.val), backgroundColor: colors, borderRadius: 6, barThickness: 22, maxBarThickness: 26 }] },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        layout: { padding: { right: 70, left: 4, top: 2, bottom: 2 } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => metric.fmt(ctx.raw) } } },
+        scales: {
+          x: { display: false, grid: { display: false }, beginAtZero: true },
+          y: { grid: { display: false }, ticks: { color: '#1f2430', font: { weight: '700', size: 12.5 } } },
+        },
+      },
+      plugins: [valuePlugin],
+    });
   }
 
   return { open };

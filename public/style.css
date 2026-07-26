@@ -21728,3 +21728,12 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .boss-total td { border-top: 2px solid #dfe4ee; background: linear-gradient(90deg, rgba(109,59,217,.06), rgba(59,47,143,.04)); }
 .boss-total .boss-club { font-weight: 850; }
 .boss-total .boss-club::before { background: linear-gradient(135deg, #3b2f8f, #6d3bd9); }
+/* Comparatif visuel des clubs (barres, à la demande) */
+.boss-compare { padding: 8px 18px 22px; border-top: 1px solid #eef1f7; margin-top: 4px; }
+.boss-compare-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 10px 0 12px; }
+.boss-compare-title { font-size: 14px; font-weight: 800; color: #1f2430; }
+.boss-metric-btns { display: inline-flex; gap: 2px; background: #efeef6; border-radius: 10px; padding: 3px; flex-wrap: wrap; }
+.boss-metric-btn { border: 0; background: transparent; color: #5a6072; font: inherit; font-size: 12.5px; font-weight: 650; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+.boss-metric-btn:hover { color: #1f2430; }
+.boss-metric-btn.is-on { background: #fff; color: #6d3bd9; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.boss-chart-wrap { position: relative; width: 100%; height: 264px; }
