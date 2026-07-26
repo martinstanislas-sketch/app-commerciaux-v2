@@ -4759,6 +4759,33 @@ function seedFanAvis() {
 }
 seedFanAvis();
 
+// Seed Deciplus des NON-FRÉQUENTANTS + CONTRATS ACTIFS par studio/mois (janv 2024
+// → juin 2026, extraction réelle Deciplus). Valeur = [non_freq, contrats]. Met à
+// jour uniquement ces deux colonnes (avis/refs/événements préservés). ON CONFLICT
+// DO UPDATE (les lignes existent déjà via le seed avis) ; drapeau = 1 seule exécution.
+const FAN_DECIPLUS_SEED = {"2024-01":{"Levallois":[0,0],"Marcq":[12,75],"Neuilly":[2,31],"Boulogne":[40,156],"Wasquehal":[26,112],"Lille":[19,79]},"2024-02":{"Levallois":[0,0],"Marcq":[15,74],"Neuilly":[5,40],"Boulogne":[40,149],"Wasquehal":[16,97],"Lille":[18,69]},"2024-03":{"Levallois":[0,0],"Marcq":[10,69],"Neuilly":[9,46],"Boulogne":[41,148],"Wasquehal":[21,93],"Lille":[12,66]},"2024-04":{"Levallois":[0,9],"Marcq":[8,69],"Neuilly":[15,54],"Boulogne":[38,142],"Wasquehal":[20,86],"Lille":[20,69]},"2024-05":{"Levallois":[0,19],"Marcq":[10,72],"Neuilly":[14,53],"Boulogne":[39,147],"Wasquehal":[14,83],"Lille":[15,59]},"2024-06":{"Levallois":[0,34],"Marcq":[11,74],"Neuilly":[7,55],"Boulogne":[40,142],"Wasquehal":[14,76],"Lille":[18,54]},"2024-07":{"Levallois":[7,41],"Marcq":[12,67],"Neuilly":[11,52],"Boulogne":[24,109],"Wasquehal":[12,69],"Lille":[23,56]},"2024-08":{"Levallois":[12,45],"Marcq":[13,59],"Neuilly":[22,58],"Boulogne":[38,114],"Wasquehal":[13,69],"Lille":[21,54]},"2024-09":{"Levallois":[6,61],"Marcq":[9,53],"Neuilly":[15,61],"Boulogne":[16,116],"Wasquehal":[9,78],"Lille":[17,60]},"2024-10":{"Levallois":[10,67],"Marcq":[14,55],"Neuilly":[13,69],"Boulogne":[11,113],"Wasquehal":[10,79],"Lille":[15,62]},"2024-11":{"Levallois":[10,69],"Marcq":[14,48],"Neuilly":[13,71],"Boulogne":[12,110],"Wasquehal":[7,78],"Lille":[12,67]},"2024-12":{"Levallois":[10,66],"Marcq":[13,51],"Neuilly":[12,73],"Boulogne":[17,110],"Wasquehal":[10,77],"Lille":[11,71]},"2025-01":{"Levallois":[15,72],"Marcq":[8,59],"Neuilly":[18,83],"Boulogne":[22,123],"Wasquehal":[12,78],"Lille":[17,77]},"2025-02":{"Levallois":[19,82],"Marcq":[15,60],"Neuilly":[23,93],"Boulogne":[30,117],"Wasquehal":[15,75],"Lille":[13,70]},"2025-03":{"Levallois":[24,84],"Marcq":[11,69],"Neuilly":[25,99],"Boulogne":[26,125],"Wasquehal":[15,69],"Lille":[15,71]},"2025-04":{"Levallois":[23,85],"Marcq":[10,65],"Neuilly":[25,99],"Boulogne":[25,130],"Wasquehal":[8,67],"Lille":[13,69]},"2025-05":{"Levallois":[21,88],"Marcq":[8,71],"Neuilly":[26,110],"Boulogne":[19,125],"Wasquehal":[11,72],"Lille":[15,73]},"2025-06":{"Levallois":[19,101],"Marcq":[12,73],"Neuilly":[34,109],"Boulogne":[25,135],"Wasquehal":[10,73],"Lille":[10,73]},"2025-07":{"Levallois":[24,97],"Marcq":[11,67],"Neuilly":[40,103],"Boulogne":[38,131],"Wasquehal":[12,71],"Lille":[11,74]},"2025-08":{"Levallois":[37,104],"Marcq":[17,72],"Neuilly":[53,106],"Boulogne":[55,138],"Wasquehal":[13,77],"Lille":[19,83]},"2025-09":{"Levallois":[28,111],"Marcq":[16,79],"Neuilly":[41,120],"Boulogne":[39,141],"Wasquehal":[12,77],"Lille":[18,87]},"2025-10":{"Levallois":[22,113],"Marcq":[13,75],"Neuilly":[34,125],"Boulogne":[37,146],"Wasquehal":[11,78],"Lille":[18,85]},"2025-11":{"Levallois":[31,118],"Marcq":[13,81],"Neuilly":[29,121],"Boulogne":[38,142],"Wasquehal":[11,72],"Lille":[25,80]},"2025-12":{"Levallois":[36,112],"Marcq":[19,81],"Neuilly":[30,124],"Boulogne":[41,142],"Wasquehal":[12,75],"Lille":[19,70]},"2026-01":{"Levallois":[33,122],"Marcq":[16,83],"Neuilly":[36,125],"Boulogne":[35,136],"Wasquehal":[10,77],"Lille":[16,67]},"2026-02":{"Levallois":[32,127],"Marcq":[14,80],"Neuilly":[31,126],"Boulogne":[35,146],"Wasquehal":[12,80],"Lille":[12,70]},"2026-03":{"Levallois":[30,122],"Marcq":[13,86],"Neuilly":[29,126],"Boulogne":[35,157],"Wasquehal":[11,84],"Lille":[8,70]},"2026-04":{"Levallois":[28,134],"Marcq":[14,84],"Neuilly":[36,131],"Boulogne":[30,160],"Wasquehal":[10,83],"Lille":[11,72]},"2026-05":{"Levallois":[36,139],"Marcq":[14,80],"Neuilly":[41,129],"Boulogne":[33,152],"Wasquehal":[12,84],"Lille":[15,73]},"2026-06":{"Levallois":[33,138],"Marcq":[12,83],"Neuilly":[41,125],"Boulogne":[30,146],"Wasquehal":[7,86],"Lille":[4,73]}};
+function seedFanDeciplus() {
+  try {
+    const V = '1';
+    const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='fan_deciplus_seed_v'").get() || {}).value;
+    if (String(fait) === V) return;
+    const up = getDb().prepare(`INSERT INTO fan_saisies (studio, mois, non_freq, contrats, evenements, avis, refs, updated_at)
+      VALUES (?,?,?,?,'[]',0,0,?)
+      ON CONFLICT(studio, mois) DO UPDATE SET non_freq=excluded.non_freq, contrats=excluded.contrats, updated_at=excluded.updated_at`);
+    const now = new Date().toISOString();
+    const tx = getDb().transaction(() => {
+      Object.keys(FAN_DECIPLUS_SEED).forEach((mois) => {
+        const row = FAN_DECIPLUS_SEED[mois];
+        Object.keys(row).forEach((studio) => { if (FAN_STUDIOS.includes(studio)) up.run(studio, mois, row[studio][0], row[studio][1], now); });
+      });
+    });
+    tx();
+    getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('fan_deciplus_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(V);
+    console.log('[FAN] seed Deciplus non-fréquentants + contrats 2024-01→2026-06 appliqué');
+  } catch (e) { console.error('seedFanDeciplus:', e && e.message); }
+}
+seedFanDeciplus();
+
 // Un mois : les saisies des 6 studios + l'état clôturé.
 app.get('/api/fan/:mois', requireAuth, requireAdmin, (req, res) => {
   const mois = String(req.params.mois || '');
