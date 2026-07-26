@@ -21678,6 +21678,9 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .lead-table tbody tr:nth-child(5) .lead-club { --dot: #14B8A6; }
 .lead-table tbody tr:nth-child(6) .lead-club { --dot: #3B82F6; }
 .lead-n1 { color: #7a8296; font-weight: 650; font-variant-numeric: tabular-nums; }
+.lead-ratio-cell { font-variant-numeric: tabular-nums; }
+.lead-ratio { display: inline-block; font-weight: 800; color: #1f2430; background: #f1f0fb; border: 1px solid #e3e1f6; border-radius: 8px; padding: 3px 10px; }
+.lead-total .lead-ratio-cell b { font-size: 16.5px; }
 .lead-input { width: 76px; background: #fff; border: 2px solid #e5e9f2; color: #1f2430; border-radius: 11px; padding: 8px 10px; font: inherit; font-size: 15.5px; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; transition: border-color .12s, box-shadow .12s; }
 .lead-input:focus { outline: none; border-color: #6366F1; box-shadow: 0 0 0 4px rgba(99,102,241,.16); }
 .lead-input.lead-saved { border-color: #10B981; box-shadow: 0 0 0 4px rgba(16,185,129,.18); }

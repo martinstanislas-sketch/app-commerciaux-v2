@@ -67,6 +67,13 @@ const LeadUI = (function () {
       + valeur + '" data-champ="' + champ + '" data-club="' + esc(club) + '"></td>';
   }
 
+  // KPI de référence : nombre de leads ÷ nombre de RDV venus (« — » si aucun venu).
+  function ratioCell(nb, venu) {
+    const v = (venu > 0) ? (nb / venu) : null;
+    const txt = (v == null) ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    return '<td class="lead-ratio-cell"><span class="lead-ratio">' + txt + '</span></td>';
+  }
+
   function render(data) {
     const host = $('#lead-table-wrap');
     const rows = data.rows || [];
@@ -80,6 +87,7 @@ const LeadUI = (function () {
         + '<td class="lead-ecart-cell">' + ecartCell(r.nb, r.nbN1) + '</td>'
         + inputCell('rdvFixe', r.club, r.rdvFixe || 0)
         + inputCell('rdvVenu', r.club, r.rdvVenu || 0)
+        + ratioCell(r.nb, r.rdvVenu || 0)
         + '</tr>';
     }).join('');
     const totalRow = '<tr class="lead-total">'
@@ -89,6 +97,7 @@ const LeadUI = (function () {
       + '<td class="lead-ecart-cell">' + ecartCell(totalNb, totalN1) + '</td>'
       + '<td class="lead-input-cell"><b>' + totalFixe + '</b></td>'
       + '<td class="lead-input-cell"><b>' + totalVenu + '</b></td>'
+      + '<td class="lead-ratio-cell"><b>' + (totalVenu > 0 ? (totalNb / totalVenu).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—') + '</b></td>'
       + '</tr>';
     host.innerHTML = '<table class="lead-table"><thead><tr>'
       + '<th>Club</th>'
@@ -97,6 +106,7 @@ const LeadUI = (function () {
       + '<th>Écart</th>'
       + '<th>RDV fixés</th>'
       + '<th>RDV venus</th>'
+      + '<th title="Nombre de leads ÷ nombre de RDV venus">Leads / RDV venu</th>'
       + '</tr></thead><tbody>' + corps + totalRow + '</tbody></table>';
     host.querySelectorAll('.lead-input').forEach((inp) => {
       inp.addEventListener('change', () => enregistrer(inp.dataset.champ, inp.dataset.club, inp.value, inp));
