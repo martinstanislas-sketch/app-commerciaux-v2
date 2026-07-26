@@ -4594,6 +4594,32 @@ const LEAD_CLUBS = ['Lille', 'Marcq', 'Wasquehal', 'Boulogne', 'Neuilly', 'Leval
 const LEAD_MOIS_RE = /^\d{4}-\d{2}$/;
 function leadMoisN1(ym) { const [a, m] = String(ym || '').split('-').map(Number); return (a && m) ? (a - 1) + '-' + String(m).padStart(2, '0') : ''; }
 
+// Seed des RDV fixés + prospects venus par club/mois (succursales, juin 2025 →
+// juin 2026, extraction réelle). Valeur = [rdv_fixe, rdv_venu]. Met à jour UNIQUEMENT
+// ces deux colonnes (nb leads préservé). ON CONFLICT DO UPDATE ; drapeau = 1 exécution.
+const LEADS_RDV_SEED = {"2025-06":{"Levallois":[52,45],"Neuilly":[38,12],"Boulogne":[72,27],"Wasquehal":[12,9],"Lille":[74,28],"Marcq":[40,25]},"2025-07":{"Levallois":[51,26],"Neuilly":[39,17],"Boulogne":[71,16],"Wasquehal":[30,11],"Lille":[49,28],"Marcq":[30,14]},"2025-08":{"Levallois":[27,11],"Neuilly":[33,13],"Boulogne":[47,21],"Wasquehal":[29,17],"Lille":[39,22],"Marcq":[31,19]},"2025-09":{"Levallois":[41,34],"Neuilly":[57,43],"Boulogne":[55,26],"Wasquehal":[34,19],"Lille":[64,35],"Marcq":[48,29]},"2025-10":{"Levallois":[52,30],"Neuilly":[38,23],"Boulogne":[32,16],"Wasquehal":[22,13],"Lille":[37,19],"Marcq":[84,30]},"2025-11":{"Levallois":[54,22],"Neuilly":[34,18],"Boulogne":[27,9],"Wasquehal":[9,7],"Lille":[14,5],"Marcq":[54,23]},"2025-12":{"Levallois":[51,24],"Neuilly":[22,9],"Boulogne":[21,13],"Wasquehal":[15,12],"Lille":[21,10],"Marcq":[61,20]},"2026-01":{"Levallois":[50,32],"Neuilly":[37,15],"Boulogne":[34,11],"Wasquehal":[25,14],"Lille":[27,13],"Marcq":[82,51]},"2026-02":{"Levallois":[52,20],"Neuilly":[62,35],"Boulogne":[37,18],"Wasquehal":[26,21],"Lille":[30,19],"Marcq":[40,27]},"2026-03":{"Levallois":[56,31],"Neuilly":[48,27],"Boulogne":[48,28],"Wasquehal":[31,16],"Lille":[34,10],"Marcq":[47,26]},"2026-04":{"Levallois":[73,45],"Neuilly":[45,26],"Boulogne":[66,27],"Wasquehal":[24,15],"Lille":[29,17],"Marcq":[28,17]},"2026-05":{"Levallois":[53,28],"Neuilly":[45,23],"Boulogne":[30,11],"Wasquehal":[14,22],"Lille":[7,12],"Marcq":[13,13]},"2026-06":{"Levallois":[51,33],"Neuilly":[34,16],"Boulogne":[37,18],"Wasquehal":[30,11],"Lille":[23,13],"Marcq":[32,18]}};
+function seedLeadsRdv() {
+  try {
+    const V = '1';
+    const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='leads_rdv_seed_v'").get() || {}).value;
+    if (String(fait) === V) return;
+    const up = getDb().prepare(`INSERT INTO leads (club, mois, nb, rdv_fixe, rdv_venu, updated_at)
+      VALUES (?,?,0,?,?,?)
+      ON CONFLICT(club, mois) DO UPDATE SET rdv_fixe=excluded.rdv_fixe, rdv_venu=excluded.rdv_venu, updated_at=excluded.updated_at`);
+    const now = new Date().toISOString();
+    const tx = getDb().transaction(() => {
+      Object.keys(LEADS_RDV_SEED).forEach((mois) => {
+        const row = LEADS_RDV_SEED[mois];
+        Object.keys(row).forEach((club) => { if (LEAD_CLUBS.includes(club)) up.run(club, mois, row[club][0], row[club][1], now); });
+      });
+    });
+    tx();
+    getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('leads_rdv_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(V);
+    console.log('[LEADS] seed RDV fixés + prospects venus 2025-06→2026-06 appliqué');
+  } catch (e) { console.error('seedLeadsRdv:', e && e.message); }
+}
+seedLeadsRdv();
+
 // Un mois : nb de leads par club + le même mois N-1.
 app.get('/api/leads/:mois', requireAuth, requireAdmin, (req, res) => {
   const mois = String(req.params.mois || '');
