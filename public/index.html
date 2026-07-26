@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds2-fan9">
+  <link rel="stylesheet" href="style.css?v=ds2-boss1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -97,6 +97,7 @@
       <button class="tab-btn" data-tab="recap">RECAP</button>
       <button class="tab-btn" data-tab="fan">FAN</button>
       <button class="tab-btn" data-tab="lead">LEAD</button>
+      <button class="tab-btn" data-tab="boss">BOSS</button>
       <!-- Module Nutrition : admin uniquement, masqu&eacute; par d&eacute;faut (g&eacute;r&eacute; par applyNutritionAccess) -->
       <button class="tab-btn tab-btn-nutrition" data-tab="nutrition" style="display:none">Protocole 42</button>
       <!-- <button class="tab-btn" data-tab="phoning">Aujourd'hui</button>
@@ -269,6 +270,24 @@
           </label>
         </div>
         <div class="lead-table-wrap" id="lead-table-wrap"></div>
+      </div>
+    </section>
+
+    <!-- BOSS (direction uniquement) — vue synthèse dirigeant, lecture seule -->
+    <section id="tab-boss" class="tab-content">
+      <div class="boss-wrap">
+        <div class="boss-head">
+          <div>
+            <h2 class="boss-title">BOSS — Vue direction</h2>
+            <p class="boss-subtitle">Synthèse mensuelle par club · lecture seule</p>
+          </div>
+          <div class="boss-monthnav">
+            <button type="button" class="boss-arrow" id="boss-prev" aria-label="Mois précédent">◀</button>
+            <input type="month" id="boss-mois" aria-label="Mois affiché" />
+            <button type="button" class="boss-arrow" id="boss-next" aria-label="Mois suivant">▶</button>
+          </div>
+        </div>
+        <div class="boss-table-wrap" id="boss-table-wrap"></div>
       </div>
     </section>
 
@@ -1244,6 +1263,7 @@
   <script src="recap.js?v=rec43"></script>
   <script src="lead.js?v=lead5"></script>
   <script src="fan.js?v=fan11"></script>
-  <script src="app.js?v=ds2-fan2"></script>
+  <script src="boss.js?v=boss1"></script>
+  <script src="app.js?v=ds2-fan3"></script>
 </body>
 </html>

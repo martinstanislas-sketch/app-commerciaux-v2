@@ -4947,6 +4947,82 @@ app.get('/api/fan-history', requireAuth, requireAdmin, (req, res) => {
   } catch (e) { console.error('fan history:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
 });
 
+// ─── BOSS (vue synthèse dirigeant, lecture seule) ────────────────────────────
+// Consolide, par club et par mois : leads (LEAD), % conversion (LEAD), résultat =
+// note de rétention (RECAP), % Challenge → note Fan (FAN). La contribution
+// (Pennylane) est lue côté client (localStorage). Accès : admin + direction.
+function requireDirection(req, res, next) {
+  if (!req.session || (req.session.role !== 'admin' && req.session.role !== 'director')) {
+    return res.status(403).json({ error: 'Accès réservé à la direction.' });
+  }
+  next();
+}
+const BOSS_CLUBS = [
+  { key: 'Lille', display: 'Vieux Lille', pilotage: 'Lille' },
+  { key: 'Wasquehal', display: 'Wasquehal', pilotage: 'Wasquehal' },
+  { key: 'Marcq', display: 'Marcq-en-Baroeul', pilotage: 'Marcq-en-Barœul' },
+  { key: 'Boulogne', display: 'Boulogne-Billancourt', pilotage: 'Boulogne-Billancourt' },
+  { key: 'Neuilly', display: 'Neuilly-sur-Seine', pilotage: 'Neuilly-sur-Seine' },
+  { key: 'Levallois', display: 'Levallois-Perret', pilotage: 'Levallois-Perret' },
+];
+// Note de rétention RECAP par studio (+ réseau) pour un mois — rejoue le moteur.
+function recapForMonth(mois) {
+  const notes = {}; let reseau = null;
+  try {
+    if (!FAN_MOIS_RE.test(mois)) return { notes, reseau };
+    const db = getDb();
+    const m1 = moisPrecedentSrv(mois);
+    const importsM = db.prepare('SELECT studio, type, contenu FROM retention_imports WHERE mois = ?').all(mois);
+    const importsM1 = db.prepare("SELECT studio, contenu FROM retention_imports WHERE mois = ? AND type = 'encaissements'").all(m1);
+    const choices = db.prepare('SELECT studio, client_key, categorie, valeur FROM retention_choices WHERE mois = ?').all(mois);
+    const aM = {}, aM1 = {}, ch = {};
+    importsM.forEach((im) => { const s = aM[im.studio] || (aM[im.studio] = { enc: [], con: [] }); const c = safeJson(im.contenu) || []; if (im.type === 'encaissements') s.enc = c; else if (im.type === 'contrats') s.con = c; });
+    importsM1.forEach((im) => { aM1[im.studio] = safeJson(im.contenu) || []; });
+    choices.forEach((c) => { if (c.categorie !== '_besoin' && c.categorie !== '_besoin_note') (ch[c.studio] || (ch[c.studio] = {}))[c.client_key] = c.valeur; });
+    const rs = [];
+    Object.keys(aM).forEach((studioRecap) => {
+      if (!aM1[studioRecap]) return;
+      const r = Retention.calculerStudio({ encM1: aM1[studioRecap], encM: aM[studioRecap].enc, signataires: aM[studioRecap].con, choix: ch[studioRecap] || {} });
+      const fan = fanStudioFromRecap(studioRecap);
+      if (fan) notes[fan] = r.note;
+      rs.push(r);
+    });
+    reseau = rs.length ? Retention.noteReseau(rs) : null;
+  } catch (e) { console.error('recapForMonth:', e && e.message); }
+  return { notes, reseau };
+}
+app.get('/api/boss/:mois', requireAuth, requireDirection, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!FAN_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  try {
+    const db = getDb();
+    const moisPrec = moisPrecedentSrv(mois);
+    const [ya, ym] = mois.split('-').map(Number);
+    const moisN1 = (ya - 1) + '-' + String(ym).padStart(2, '0');
+    const leadsFor = (m) => { const o = {}; db.prepare('SELECT club, nb, rdv_venu FROM leads WHERE mois = ?').all(m).forEach((r) => { o[r.club] = { nb: r.nb || 0, rdvVenu: r.rdv_venu || 0 }; }); return o; };
+    const fanFor = (m) => { const o = {}; db.prepare('SELECT studio, challenge_pct FROM fan_saisies WHERE mois = ?').all(m).forEach((r) => { o[r.studio] = (r.challenge_pct != null ? r.challenge_pct : null); }); return o; };
+    const lCur = leadsFor(mois), lPrec = leadsFor(moisPrec), lN1 = leadsFor(moisN1);
+    const fCur = fanFor(mois), fPrec = fanFor(moisPrec);
+    const rCur = recapForMonth(mois), rPrec = recapForMonth(moisPrec);
+    const data = {};
+    BOSS_CLUBS.forEach(({ key }) => {
+      const cur = lCur[key] || {}, prec = lPrec[key] || {}, n1 = lN1[key] || {};
+      data[key] = {
+        leads: cur.nb != null ? cur.nb : null,
+        leadsN1: n1.nb != null ? n1.nb : null,
+        rdvVenu: cur.rdvVenu != null ? cur.rdvVenu : null,
+        leadsPrec: prec.nb != null ? prec.nb : null,
+        rdvVenuPrec: prec.rdvVenu != null ? prec.rdvVenu : null,
+        challengePct: (fCur[key] != null ? fCur[key] : null),
+        challengePctPrec: (fPrec[key] != null ? fPrec[key] : null),
+        recapNote: (rCur.notes[key] != null ? rCur.notes[key] : null),
+        recapNotePrec: (rPrec.notes[key] != null ? rPrec.notes[key] : null),
+      };
+    });
+    res.json({ ok: true, mois, moisPrec, moisN1, clubs: BOSS_CLUBS, data, recapReseau: rCur.reseau, recapReseauPrec: rPrec.reseau });
+  } catch (e) { console.error('boss GET:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
+});
+
 const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM
 const RETENTION_IMPORT_TYPES = ['encaissements', 'contrats', 'resiliations'];
 function moisPrecedentSrv(ym) {

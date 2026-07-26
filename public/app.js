@@ -905,11 +905,24 @@ function updateTabVisibility() {
   const recapBtn = document.querySelector('[data-tab="recap"]');
   const fanBtn = document.querySelector('[data-tab="fan"]');
   const leadBtn = document.querySelector('[data-tab="lead"]');
+  const bossBtn = document.querySelector('[data-tab="boss"]');
 
-  // RECAP + FAN + LEAD : admin uniquement. Masqués par défaut, révélés dans la seule branche admin.
+  // RECAP + FAN + LEAD + BOSS : admin uniquement. Masqués par défaut, révélés dans la seule branche admin.
   if (recapBtn) recapBtn.style.display = 'none';
   if (fanBtn) fanBtn.style.display = 'none';
   if (leadBtn) leadBtn.style.display = 'none';
+  if (bossBtn) bossBtn.style.display = 'none';
+
+  // Rôle « Direction » (dirigeant/associé) : voit UNIQUEMENT l'onglet BOSS (lecture seule).
+  const isDirection = (() => { try { return (currentUser && currentUser.role === 'director'); } catch (_) { return false; } })();
+  if (isDirection) {
+    [todayBtn, ventesBtn, dashBtn, phoningBtn, phoningRecapBtn, mensuelBtn, tasksBtn, persoBtn,
+      prelBtn, prelSuiviBtn, newsBtn, cockpitBtn, pilotageFunnelBtn, standardsBtn, recapBtn, fanBtn, leadBtn,
+      document.querySelector('[data-tab="nutrition"]')]
+      .forEach((b) => { if (b) b.style.display = 'none'; });
+    if (bossBtn) { bossBtn.style.display = ''; bossBtn.click(); }
+    return;
+  }
   if (isCoachLeader() || isGuest() || isStandardsAdmin()) {
     // Coach leader / Guest / Superviseur Standards : UNIQUEMENT l'onglet Standards.
     if (todayBtn) todayBtn.style.display = 'none';
@@ -985,6 +998,7 @@ function updateTabVisibility() {
     if (recapBtn) recapBtn.style.display = ''; // RECAP : admin uniquement
     if (fanBtn) fanBtn.style.display = ''; // FAN : admin uniquement
     if (leadBtn) leadBtn.style.display = ''; // LEAD : admin uniquement
+    if (bossBtn) bossBtn.style.display = ''; // BOSS : admin + direction
     // On pré-règle Pilotage au mois précédent (au cas où l'admin y va), mais…
     if (pilotageFunnelBtn) pilotageFunnelInitToPreviousMonth();
     // … l'onglet d'accueil à la connexion (admin) = RECAP (consultation rétention).
@@ -2825,6 +2839,7 @@ const TAB_ICONS = {
   'admin-actions': '⚡',
   notes: '📝',
   fan: '⭐',
+  boss: '👑',
   nutrition: '🥗'
 };
 const TAB_SHORT_LABELS = {
@@ -2839,6 +2854,7 @@ const TAB_SHORT_LABELS = {
   'admin-actions': 'Actions',
   notes: 'Notes',
   fan: 'FAN',
+  boss: 'BOSS',
   nutrition: 'Nutrition'
 };
 
@@ -2933,6 +2949,7 @@ function initTabs() {
       if (btn.dataset.tab === 'recap' && typeof RecapUI !== 'undefined') RecapUI.open();
       if (btn.dataset.tab === 'fan' && typeof FanUI !== 'undefined') FanUI.open();
       if (btn.dataset.tab === 'lead' && typeof LeadUI !== 'undefined') LeadUI.open();
+      if (btn.dataset.tab === 'boss' && typeof BossUI !== 'undefined') BossUI.open();
     });
   });
 }
