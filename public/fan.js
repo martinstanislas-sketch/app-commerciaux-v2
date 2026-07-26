@@ -50,13 +50,6 @@ const FanUI = (function () {
   function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (_) { return ''; } }
 
   // ── CALCUL DES 4 INDICATEURS (/5) — INCHANGÉ ────────────────────────────
-  // Non-fréquentants (/10, PROGRESSIF sans palier) : 10 × (1 − taux/40), borné 0–10, arrondi au dixième.
-  function noteNonFreq(nonFreq, contrats) {
-    if (!(contrats > 0)) return null;
-    const taux = (nonFreq / contrats) * 100;
-    const p = Math.max(0, Math.min(10, 10 * (1 - taux / 40)));
-    return Math.round(p * 10) / 10;
-  }
   function totalParticipants(evs) { return (evs || []).reduce((s, e) => s + (Number(e && e.participants) || 0), 0); }
   function noteEvents(evs) {
     const p = totalParticipants(evs);
@@ -94,9 +87,32 @@ const FanUI = (function () {
     return above + 1;
   }
 
-  // Note d'un studio /40. `fid` = points de fidélité (0–10) déjà classés.
-  function noteStudio(row, fid) {
-    const freq = noteNonFreq(row.nonFreq, row.contrats);
+  // Indicateur 1 — Fréquentation (/10) : CLASSEMENT des 6 studios sur le TAUX de
+  // non-fréquentants (non_freq/contrats). Le plus BAS taux = meilleur = 10, le plus
+  // haut = 0. Même règle que la fidélité (2 × studios strictement moins bons ;
+  // égalité = mêmes points). Studio sans contrats (taux indéfini) = classé dernier.
+  const tauxNonFreq = (row) => (row.contrats > 0 ? (row.nonFreq / row.contrats) * 100 : null);
+  function freqQual(r) { const c = Number(r.contrats) || 0; return c > 0 ? -((Number(r.nonFreq) || 0) / c) : -Infinity; } // + haut = meilleur
+  function freqPointsMap(rows) {
+    const q = {}; rows.forEach((r) => { q[r.studio] = freqQual(r); });
+    const map = {};
+    STUDIOS.forEach((s) => {
+      let below = 0;
+      STUDIOS.forEach((o) => { if (o !== s && q[o] < q[s]) below++; });
+      map[s] = Math.min(10, below * 2);
+    });
+    return map;
+  }
+  function freqRank(rows, studio) {
+    const q = {}; rows.forEach((r) => { q[r.studio] = freqQual(r); });
+    let above = 0; STUDIOS.forEach((o) => { if (o !== studio && q[o] > q[studio]) above++; });
+    return above + 1;
+  }
+
+  // Note d'un studio /40. `fid`/`freqPts` = points (0–10) déjà classés (fidélité / fréquentation).
+  function noteStudio(row, fid, freqPts) {
+    const hasC = (Number(row.contrats) || 0) > 0;
+    const freq = hasC ? Math.max(0, Math.min(10, Number(freqPts) || 0)) : null;   // pas de contrats → « — »
     const even = noteEvents(row.evenements);
     const avis = noteAvis(row.avis);
     const refs = noteRefs(row.refs);
@@ -104,12 +120,11 @@ const FanUI = (function () {
     const total = (freq === null) ? null : (freq + even + avis + refs + f);
     return { freq, even, avis, refs, fid: f, total };
   }
-  function noteReseau(rows, fp) {
-    const notes = rows.map((r) => noteStudio(r, fp && fp[r.studio]).total).filter((t) => t != null);
+  function noteReseau(rows, fp, freqp) {
+    const notes = rows.map((r) => noteStudio(r, fp && fp[r.studio], freqp && freqp[r.studio]).total).filter((t) => t != null);
     if (!notes.length) return null;
     return notes.reduce((a, b) => a + b, 0) / notes.length;
   }
-  const tauxNonFreq = (row) => (row.contrats > 0 ? (row.nonFreq / row.contrats) * 100 : null);
 
   // ── Couleurs de note /40 : bon ≥32 / moyen 20–31,9 / faible <20 ───────────
   function noteClass(total) {
@@ -156,7 +171,7 @@ const FanUI = (function () {
 
   // ── Barèmes (popovers « ? ») ──────────────────────────────────────────────
   const BAREMES = {
-    freq: { titre: 'Fréquentation (/10)', desc: 'Note = 10 × (1 − taux/40), bornée 0–10, arrondie au dixième. Taux = non fréquentants ÷ contrats actifs. Plus le taux est bas, meilleure est la note.', rows: [['0 %', '10,0'], ['5 %', '8,8'], ['10 %', '7,5'], ['20 %', '5,0'], ['30 %', '2,5'], ['≥ 40 %', '0,0']] },
+    freq: { titre: 'Fréquentation (/10)', desc: 'Classement des 6 studios sur le taux de non-fréquentants (non fréquentants ÷ contrat actif). Le taux le plus BAS marque 10, puis 8, 6, 4, 2, et 0 pour le taux le plus élevé. Studios à égalité = mêmes points ; sans contrats saisis = classé dernier.', rows: [['1ᵉʳ (taux le + bas)', '10'], ['2ᵉ', '8'], ['3ᵉ', '6'], ['4ᵉ', '4'], ['5ᵉ', '2'], ['6ᵉ (taux le + haut)', '0']] },
     even: { titre: 'Événements (/5)', desc: 'Somme des participants de tous les événements du mois.', rows: [['0', '0'], ['1–9', '1'], ['10–19', '2'], ['20–29', '3'], ['30–39', '4'], ['≥ 40', '5']] },
     avis: { titre: 'Avis Google (/5)', desc: '1 point par nouvel avis du mois, plafonné à 5.', rows: [['0', '0'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['≥ 5', '5']] },
     refs: { titre: 'Références (/10)', desc: '1 point par prise de référence du mois, plafonné à 10.', rows: [['0', '0'], ['1', '1'], ['5', '5'], ['9', '9'], ['≥ 10', '10']] },
@@ -202,6 +217,7 @@ const FanUI = (function () {
     if (!data || !data.ok) { $('#fan-recap').innerHTML = '<p class="fan-loading">Erreur de chargement.</p>'; return; }
     const fideles = data.fideles || {};
     cur = { rows: data.rows || [], closed: data.closed ? 1 : 0, closedAt: data.closedAt || '', fideles, fidPts: fidPointsMap(fideles) };
+    cur.freqPts = freqPointsMap(cur.rows);
     if (prev && prev.ok) { prevTotals = sumTotals(prev.rows || []); prevTotals.fideles = sumFideles(prev.fideles); }
     else prevTotals = null;
     // Aucune sélection par défaut : le panneau de saisie n'apparaît qu'après un clic
@@ -212,7 +228,7 @@ const FanUI = (function () {
 
   function rowOf(studio) { return cur.rows.find((r) => r.studio === studio) || { studio, nonFreq: 0, contrats: 0, evenements: [], avis: 0, refs: 0 }; }
   // Note d'un studio du mois courant (injecte ses points de fidélité).
-  function noteOf(r) { return noteStudio(r, (cur.fidPts || {})[r.studio]); }
+  function noteOf(r) { return noteStudio(r, (cur.fidPts || {})[r.studio], (cur.freqPts || {})[r.studio]); }
   function sortedRows() {
     return cur.rows.slice().sort((a, b) => {
       const ta = noteOf(a).total, tb = noteOf(b).total;
@@ -245,7 +261,7 @@ const FanUI = (function () {
   function renderNetwork() {
     const host = $('#fan-network');
     const notes = cur.rows.filter((r) => noteOf(r).total != null);
-    const reseau = noteReseau(cur.rows, cur.fidPts);
+    const reseau = noteReseau(cur.rows, cur.fidPts, cur.freqPts);
     host.innerHTML = '<div class="fan-net-top"><span class="fan-net-lbl">Note réseau</span>' + stars(reseau, 'lg') + '</div>'
       + '<span class="fan-net-sub">basée sur ' + notes.length + '/' + STUDIOS.length + ' studios saisis</span>';
   }
@@ -270,8 +286,8 @@ const FanUI = (function () {
       const sel = r.studio === selStudio ? ' is-selected' : '';
       // Sous-scores : « — » quand la carte est vide (jamais 0 pour un studio non saisi).
       const g = empty
-        ? gauge('Fréq', 'Fréquentation', null, 10, true) + gauge('Évén', 'Événements', null, 5, false) + gauge('Avis', 'Avis Google', null, 5, false) + gauge('Réf', 'Références', null, 10, false) + gauge('Fid', 'Clients fidèles', null, 10, false)
-        : gauge('Fréq', 'Fréquentation', n.freq, 10, true) + gauge('Évén', 'Événements', n.even, 5, false) + gauge('Avis', 'Avis Google', n.avis, 5, false) + gauge('Réf', 'Références', n.refs, 10, false) + gauge('Fid', 'Clients fidèles', n.fid, 10, false);
+        ? gauge('Fréq', 'Fréquentation', null, 10, false) + gauge('Évén', 'Événements', null, 5, false) + gauge('Avis', 'Avis Google', null, 5, false) + gauge('Réf', 'Références', null, 10, false) + gauge('Fid', 'Clients fidèles', null, 10, false)
+        : gauge('Fréq', 'Fréquentation', n.freq, 10, false) + gauge('Évén', 'Événements', n.even, 5, false) + gauge('Avis', 'Avis Google', n.avis, 5, false) + gauge('Réf', 'Références', n.refs, 10, false) + gauge('Fid', 'Clients fidèles', n.fid, 10, false);
       const note40 = empty ? null : n.total;
       return '<button type="button" class="fan-card ' + state + sel + '" data-studio="' + esc(r.studio) + '" aria-pressed="' + (sel ? 'true' : 'false') + '">'
         + '<div class="fan-card-top"><span class="fan-card-nom">' + esc(r.studio) + '</span>'
@@ -287,18 +303,6 @@ const FanUI = (function () {
   }
 
   // ── Formulaire de saisie ────────────────────────────────────────────────────
-  function derFreq(r) {
-    if (!(r.contrats > 0)) return { txt: 'Renseigne les « membres avec contrat actif » pour noter la fréquentation.', err: false };
-    if (ratioError(r)) return { txt: '⚠ Les non-fréquentants (' + r.nonFreq + ') dépassent les contrats actifs (' + r.contrats + ').', err: true };
-    const t = Math.round(tauxNonFreq(r));
-    return { txt: '= ' + t + ' % de non-fréquentants → Fréquentation ' + fmtDec(noteNonFreq(r.nonFreq, r.contrats)) + '/10', err: false };
-  }
-  function derEven(r) {
-    const p = totalParticipants(r.evenements);
-    return p <= 0 ? { txt: 'Aucun événement = Événements 0/5' } : { txt: p + ' participant' + (p > 1 ? 's' : '') + ' → Événements ' + noteEvents(r.evenements) + '/5' };
-  }
-  function derAvis(r) { const a = Number(r.avis) || 0; return { txt: a + (a > 1 ? ' nouveaux avis' : ' nouvel avis') + ' → Avis ' + noteAvis(a) + '/5' }; }
-  function derRefs(r) { const x = Number(r.refs) || 0; return { txt: x + ' référence' + (x > 1 ? 's' : '') + ' → Références ' + noteRefs(x) + '/10' }; }
 
   function renderForm() {
     const host = $('#fan-form');
@@ -352,7 +356,8 @@ const FanUI = (function () {
       if (ratioError(r)) {
         bd.innerHTML = '<span class="fan-bd-err">⚠ Non fréquentants (' + r.nonFreq + ') dépasse Contrat actif (' + r.contrats + ')</span>';
       } else {
-        const freqTxt = (n.freq == null) ? 'Fréq —' : ('Fréq ' + fmtDec(n.freq) + '/10');
+        const tx = tauxNonFreq(r);
+        const freqTxt = (n.freq == null) ? 'Fréq —' : ('Fréq ' + n.freq + '/10 (taux ' + Math.round(tx) + '%, rang ' + freqRank(cur.rows, r.studio) + '/' + STUDIOS.length + ')');
         const nb = (cur.fideles || {})[r.studio];
         const fidTxt = (nb == null) ? 'Fid 0/10' : ('Fid ' + n.fid + '/10 (' + nb + ' fidèles, rang ' + fidRank(cur.fideles, r.studio) + '/' + STUDIOS.length + ')');
         const parts = [freqTxt, 'Évén ' + n.even + '/5', 'Avis ' + n.avis + '/5', 'Réf ' + n.refs + '/10', fidTxt];
@@ -379,7 +384,7 @@ const FanUI = (function () {
   }
 
   function wireForm(host, r) {
-    const refreshLive = () => { updateDerived(r); renderNetwork(); renderProgress(); renderCards(); renderTiles(); updateCloseBtn(); };
+    const refreshLive = () => { cur.freqPts = freqPointsMap(cur.rows); updateDerived(r); renderNetwork(); renderProgress(); renderCards(); renderTiles(); updateCloseBtn(); };
     host.querySelectorAll('.fan-num[data-champ]').forEach((inp) => {
       const commit = (save) => {
         const v = Math.max(0, Math.round(Number(inp.value) || 0));
@@ -492,7 +497,7 @@ const FanUI = (function () {
   function openModal() {
     if (cur.rows.some((r) => !studioComplete(r))) return;   // garde-fou
     closeModal();
-    const reseau = noteReseau(cur.rows, cur.fidPts);
+    const reseau = noteReseau(cur.rows, cur.fidPts, cur.freqPts);
     const list = sortedRows().map((r) => {
       const t = noteOf(r).total;
       return '<li><span>' + esc(r.studio) + ' — ' + esc(capMois()) + '</span>' + stars(t) + '</li>';
@@ -527,9 +532,10 @@ const FanUI = (function () {
     const noteMap = {};
     months.forEach((m) => {
       const fp = fidPointsMap(m.fideles || {});
+      const freqp = freqPointsMap(m.rows);
       const per = {};
-      m.rows.forEach((r) => { per[r.studio] = noteStudio(r, fp[r.studio]).total; });
-      noteMap[m.mois] = { per, reseau: noteReseau(m.rows, fp) };
+      m.rows.forEach((r) => { per[r.studio] = noteStudio(r, fp[r.studio], freqp[r.studio]).total; });
+      noteMap[m.mois] = { per, reseau: noteReseau(m.rows, fp, freqp) };
     });
     const moisAsc = months.map((m) => m.mois);
     const moisDesc = moisAsc.slice().reverse();
