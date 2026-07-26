@@ -67,10 +67,12 @@ const LeadUI = (function () {
       + valeur + '" data-champ="' + champ + '" data-club="' + esc(club) + '"></td>';
   }
 
-  // KPI de référence : nombre de leads ÷ nombre de RDV venus (« — » si aucun venu).
+  // KPI : taux de transformation Lead → RDV venu = (RDV venus ÷ Leads) × 100.
+  // Plus le % est élevé, mieux c'est. « — » si aucun lead (division par zéro).
+  function tauxTransfo(nb, venu) { return (nb > 0) ? (venu / nb * 100) : null; }
   function ratioCell(nb, venu) {
-    const v = (venu > 0) ? (nb / venu) : null;
-    const txt = (v == null) ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const v = tauxTransfo(nb, venu);
+    const txt = (v == null) ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
     return '<td class="lead-ratio-cell"><span class="lead-ratio">' + txt + '</span></td>';
   }
 
@@ -97,7 +99,7 @@ const LeadUI = (function () {
       + '<td class="lead-ecart-cell">' + ecartCell(totalNb, totalN1) + '</td>'
       + '<td class="lead-input-cell"><b>' + totalFixe + '</b></td>'
       + '<td class="lead-input-cell"><b>' + totalVenu + '</b></td>'
-      + '<td class="lead-ratio-cell"><b>' + (totalVenu > 0 ? (totalNb / totalVenu).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—') + '</b></td>'
+      + '<td class="lead-ratio-cell"><b>' + (totalNb > 0 ? (totalVenu / totalNb * 100).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %' : '—') + '</b></td>'
       + '</tr>';
     host.innerHTML = '<table class="lead-table"><thead><tr>'
       + '<th>Club</th>'
@@ -106,7 +108,7 @@ const LeadUI = (function () {
       + '<th>Écart</th>'
       + '<th>RDV fixés</th>'
       + '<th>RDV venus</th>'
-      + '<th title="Nombre de leads ÷ nombre de RDV venus">Leads / RDV venu</th>'
+      + '<th title="(RDV venus ÷ Leads) × 100 — plus c\'est haut, mieux c\'est">Taux de transfo Lead → RDV venu (%)</th>'
       + '</tr></thead><tbody>' + corps + totalRow + '</tbody></table>';
     host.querySelectorAll('.lead-input').forEach((inp) => {
       inp.addEventListener('change', () => enregistrer(inp.dataset.champ, inp.dataset.club, inp.value, inp));
