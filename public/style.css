@@ -21499,6 +21499,12 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .fan-num:disabled { background: #f2f1ee; color: #6d6c67; }
 .fan-derived { margin-top: 10px; font-size: 13px; color: #4a41b8; font-weight: 600; }
 .fan-derived.is-err { color: #c22f2f; }
+/* Bloc « Clients fidèles » (auto depuis RECAP, non éditable) */
+.fan-auto-tag { font-size: 10.5px; font-weight: 650; color: #4a41b8; background: rgba(91,80,214,.10); border-radius: 6px; padding: 1px 7px; letter-spacing: .02em; }
+.fan-fid-info { font-size: 13px; color: #5c5b57; }
+.fan-fid-info b { color: #111; }
+.fan-fid-rank { color: #8a8a86; }
+.fan-fid-none { color: #8a8a86; }
 
 /* Événements */
 .fan-events-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
@@ -21532,9 +21538,8 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 /* Tuiles totaux + delta */
 .fan-tiles-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 24px 0 12px; }
 .fan-tiles-head .fan-h3 { margin: 0; }
-.fan-tiles-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-@media (max-width: 860px) { .fan-tiles-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 460px) { .fan-tiles-grid { grid-template-columns: 1fr; } }
+.fan-tiles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+@media (max-width: 460px) { .fan-tiles-grid { grid-template-columns: repeat(2, 1fr); } }
 .fan-tile { background: #fff; border: 1px solid var(--f-line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
 .fan-tile-val { font-size: 22px; font-weight: 800; color: #111; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .fan-tile-lbl { font-size: 12.5px; color: #5c5b57; line-height: 1.3; }

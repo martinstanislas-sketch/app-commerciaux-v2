@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk').default;
 const { getDb, ensureWeeklySettings, generatePin } = require('./db');
 const { sendEmail, verifyConnection } = require('./email');
+const Retention = require('./public/retention.js'); // moteur rétention PUR (UMD) — sert au calcul des « fidèles » pour FAN
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -4691,6 +4692,47 @@ function fanRow(r) {
   };
 }
 
+// ── FIDÈLES depuis RECAP ─────────────────────────────────────────────────────
+// Le nombre de « clients fidèles » d'un studio pour un mois est calculé par le
+// MÊME moteur pur que RECAP (Retention.calculerStudio), à partir des imports
+// rétention déjà archivés. Aucun recalcul divergent : on rejoue le calcul RECAP.
+function fanNorm(x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, ''); }
+const FAN_STUDIO_NORM = FAN_STUDIOS.map((s) => ({ s, n: fanNorm(s) }));
+// Rapproche un nom de studio RECAP (« Neuilly-sur-seine », « Levallois-Perret »…)
+// d'un studio FAN par inclusion du nom normalisé.
+function fanStudioFromRecap(name) {
+  const n = fanNorm(name);
+  if (!n) return null;
+  const hit = FAN_STUDIO_NORM.find((f) => n.includes(f.n) || f.n.includes(n));
+  return hit ? hit.s : null;
+}
+// { studioFAN: nbFidèles } pour un mois. Studio sans M-1 archivé ou sans imports
+// -> absent (pas de note RECAP possible → l'indicateur vaudra 0 côté client).
+function fanFidelesForMonth(mois) {
+  const out = {};
+  try {
+    if (!FAN_MOIS_RE.test(mois)) return out;
+    const db = getDb();
+    const m1 = moisPrecedentSrv(mois);
+    const importsM = db.prepare('SELECT studio, type, contenu FROM retention_imports WHERE mois = ?').all(mois);
+    const importsM1 = db.prepare("SELECT studio, contenu FROM retention_imports WHERE mois = ? AND type = 'encaissements'").all(m1);
+    const choices = db.prepare('SELECT studio, client_key, categorie, valeur FROM retention_choices WHERE mois = ?').all(mois);
+    const aM = {}, aM1 = {}, ch = {};
+    importsM.forEach((im) => { const s = aM[im.studio] || (aM[im.studio] = { enc: [], con: [] }); const c = safeJson(im.contenu) || []; if (im.type === 'encaissements') s.enc = c; else if (im.type === 'contrats') s.con = c; });
+    importsM1.forEach((im) => { aM1[im.studio] = safeJson(im.contenu) || []; });
+    // Exclut les catégories « besoin d'infos » (réservées, ne qualifient pas).
+    choices.forEach((c) => { if (c.categorie !== '_besoin' && c.categorie !== '_besoin_note') (ch[c.studio] || (ch[c.studio] = {}))[c.client_key] = c.valeur; });
+    Object.keys(aM).forEach((studioRecap) => {
+      if (!aM1[studioRecap]) return;                       // pas de M-1 → studio en attente, pas de note
+      const fan = fanStudioFromRecap(studioRecap);
+      if (!fan) return;
+      const r = Retention.calculerStudio({ encM1: aM1[studioRecap], encM: aM[studioRecap].enc, signataires: aM[studioRecap].con, choix: ch[studioRecap] || {} });
+      out[fan] = (out[fan] || 0) + (Number(r && r.fideles) || 0);
+    });
+  } catch (e) { console.error('fanFideles:', e && e.message); }
+  return out;
+}
+
 // Seed historique des AVIS GOOGLE par studio/mois (févr 2022 → juil 2026, source
 // export réel). Renseigne uniquement la colonne `avis` de fan_saisies (les autres
 // champs restent à 0 → note /30 = « — » tant que les contrats ne sont pas saisis).
@@ -4728,7 +4770,8 @@ app.get('/api/fan/:mois', requireAuth, requireAdmin, (req, res) => {
     const closed = fm.closed ? 1 : 0;
     const studios = FAN_STUDIOS.map((studio) => ({ studio, ...fanRow(map[studio]) }));
     // closedAt = dernière écriture sur fan_months (colonne existante) ; sert au bandeau « clôturé le … ».
-    res.json({ ok: true, mois, closed, closedAt: closed ? (fm.updated_at || '') : '', studios: FAN_STUDIOS, rows: studios });
+    // fideles = nb de clients fidèles par studio (calculé depuis RECAP) → indicateur Fidélité côté client.
+    res.json({ ok: true, mois, closed, closedAt: closed ? (fm.updated_at || '') : '', studios: FAN_STUDIOS, rows: studios, fideles: fanFidelesForMonth(mois) });
   } catch (e) { console.error('fan GET:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
 });
 
@@ -4786,6 +4829,7 @@ app.get('/api/fan-history', requireAuth, requireAdmin, (req, res) => {
     const months = Object.keys(byMonth).sort().map((mois) => ({
       mois, closed: closedMap[mois] || 0,
       rows: FAN_STUDIOS.map((studio) => ({ studio, ...fanRow(byMonth[mois][studio]) })),
+      fideles: fanFidelesForMonth(mois),
     }));
     res.json({ ok: true, studios: FAN_STUDIOS, months });
   } catch (e) { console.error('fan history:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
