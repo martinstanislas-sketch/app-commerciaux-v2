@@ -130,6 +130,21 @@ const FanUI = (function () {
   const fmtNote = (t) => (t == null ? '—' : fmtDec(t));
   const fmtReseau = fmtNote;
 
+  // Note /40 ramenée en note ÉTOILES /5 (façon Google My Business). Le remplissage
+  // est fractionnaire (largeur du calque plein), la couleur suit la bande de score.
+  function stars(note40, size) {
+    const cls = noteClass(note40);
+    if (note40 == null) {
+      return '<span class="fan-stars-wrap ' + cls + (size ? ' ' + size : '') + '"><span class="fan-stars"><span class="fan-stars-bg">★★★★★</span></span><span class="fan-star-val">—</span></span>';
+    }
+    const rating = note40 / 8;                       // 40 → 5,0
+    const pct = Math.max(0, Math.min(100, note40 * 2.5));
+    return '<span class="fan-stars-wrap ' + cls + (size ? ' ' + size : '') + '">'
+      + '<span class="fan-stars"><span class="fan-stars-bg">★★★★★</span>'
+      + '<span class="fan-stars-fg" style="width:' + pct + '%">★★★★★</span></span>'
+      + '<span class="fan-star-val">' + fmtDec(rating) + '</span></span>';
+  }
+
   // ── États d'un studio ─────────────────────────────────────────────────────
   function isEmpty(r) {
     return !(Number(r.nonFreq) || 0) && !(Number(r.contrats) || 0)
@@ -189,10 +204,9 @@ const FanUI = (function () {
     cur = { rows: data.rows || [], closed: data.closed ? 1 : 0, closedAt: data.closedAt || '', fideles, fidPts: fidPointsMap(fideles) };
     if (prev && prev.ok) { prevTotals = sumTotals(prev.rows || []); prevTotals.fideles = sumFideles(prev.fideles); }
     else prevTotals = null;
-    if (!selStudio || !cur.rows.some((r) => r.studio === selStudio)) {
-      const notEmpty = cur.rows.find((r) => !isEmpty(r));
-      selStudio = (notEmpty || cur.rows[0] || {}).studio || STUDIOS[0];
-    }
+    // Aucune sélection par défaut : le panneau de saisie n'apparaît qu'après un clic
+    // sur un studio (et disparaît à chaque changement de mois / réouverture).
+    selStudio = '';
     render();
   }
 
@@ -232,10 +246,7 @@ const FanUI = (function () {
     const host = $('#fan-network');
     const notes = cur.rows.filter((r) => noteOf(r).total != null);
     const reseau = noteReseau(cur.rows, cur.fidPts);
-    const cls = noteClass(reseau);
-    host.innerHTML = '<div class="fan-net-top"><span class="fan-net-lbl">Note réseau</span>'
-      + '<span class="fan-net-val ' + cls + '">' + fmtReseau(reseau) + '<small>/40</small></span></div>'
-      + '<div class="fan-net-track"><span class="fan-net-fill ' + cls + '" style="width:' + (reseau == null ? 0 : (reseau / 40 * 100)) + '%"></span></div>'
+    host.innerHTML = '<div class="fan-net-top"><span class="fan-net-lbl">Note réseau</span>' + stars(reseau, 'lg') + '</div>'
       + '<span class="fan-net-sub">basée sur ' + notes.length + '/' + STUDIOS.length + ' studios saisis</span>';
   }
 
@@ -261,13 +272,11 @@ const FanUI = (function () {
       const g = empty
         ? gauge('Fréq', 'Fréquentation', null, 10, true) + gauge('Évén', 'Événements', null, 5, false) + gauge('Avis', 'Avis Google', null, 5, false) + gauge('Réf', 'Références', null, 10, false) + gauge('Fid', 'Clients fidèles', null, 10, false)
         : gauge('Fréq', 'Fréquentation', n.freq, 10, true) + gauge('Évén', 'Événements', n.even, 5, false) + gauge('Avis', 'Avis Google', n.avis, 5, false) + gauge('Réf', 'Références', n.refs, 10, false) + gauge('Fid', 'Clients fidèles', n.fid, 10, false);
-      const noteVal = empty ? '—' : fmtNote(n.total);
-      const noteCls = empty ? 'fan-na' : noteClass(n.total);
+      const note40 = empty ? null : n.total;
       return '<button type="button" class="fan-card ' + state + sel + '" data-studio="' + esc(r.studio) + '" aria-pressed="' + (sel ? 'true' : 'false') + '">'
         + '<div class="fan-card-top"><span class="fan-card-nom">' + esc(r.studio) + '</span>'
         + '<span class="fan-badge ' + state + '">' + badge + '</span></div>'
-        + '<div class="fan-card-note"><span class="fan-pastille ' + noteCls + '"></span>'
-        + '<span class="fan-note-val ' + noteCls + '">' + noteVal + '<span class="fan-note-max">/40</span></span></div>'
+        + '<div class="fan-card-note">' + stars(note40) + '</div>'
         + '<div class="fan-gauges">' + g + '</div>'
         + '</button>';
     }).join('');
@@ -293,51 +302,37 @@ const FanUI = (function () {
 
   function renderForm() {
     const host = $('#fan-form');
+    // Req 4 & 6 : rien tant qu'aucun studio n'est cliqué (ni à l'ouverture, ni après réouverture).
+    if (!selStudio) { host.innerHTML = '<p class="fan-form-hint">Sélectionne un studio ci-dessus pour saisir ses données du mois.</p>'; return; }
     const r = rowOf(selStudio);
     const ro = !!cur.closed;                 // lecture seule si clôturé
     const n = noteOf(r);
     const dis = ro ? ' disabled' : '';
     const num = (champ, val) => '<input type="number" min="0" step="1" class="fan-num" data-champ="' + champ + '" value="' + (Number(val) || 0) + '"' + dis + '>';
-    const evs = r.evenements || [];
-    const evRows = evs.map((e, i) =>
-      '<div class="fan-event-row" data-idx="' + i + '">'
-      + '<input type="text" class="fan-ev-nom" placeholder="Nom de l\'événement" value="' + esc(e.nom || '') + '"' + dis + '>'
-      + '<input type="number" class="fan-ev-part" min="0" step="1" placeholder="Particip." value="' + (Number(e.participants) || 0) + '"' + dis + '>'
-      + (ro ? '' : '<button type="button" class="fan-ev-del" title="Retirer l\'événement" aria-label="Retirer l\'événement">✕</button>')
-      + '</div>').join('');
-    const help = (key) => ro ? '' : '<button type="button" class="fan-help" data-help="' + key + '" aria-label="Voir le barème">?</button>';
+    const ev = (r.evenements && r.evenements[0]) || { nom: '', participants: 0 };
+    const nbFid = (cur.fideles || {})[r.studio];
+    const fidVal = (nbFid == null) ? '—' : String(nbFid);
+    const field = (lbl, inputHtml, cls) => '<label class="fan-line-field' + (cls ? ' ' + cls : '') + '"><span class="fan-lbl">' + lbl + '</span>' + inputHtml + '</label>';
 
     host.innerHTML = '<div class="fan-form-card' + (ro ? ' is-readonly' : '') + '">'
       + '<div class="fan-form-head"><div><span class="fan-form-title">Saisie — <b>' + esc(selStudio) + '</b></span>'
       + '<span class="fan-form-mois">' + esc(capMois()) + (ro ? ' · figé' : '') + '</span></div>'
-      + '<span class="fan-form-note ' + noteClass(n.total) + '" id="fan-form-note">' + fmtNote(n.total) + '<small>/40</small></span></div>'
+      + '<span class="fan-form-note" id="fan-form-note">' + stars(n.total) + '</span></div>'
 
-      // Bloc membres (groupé + ratio)
-      + '<div class="fan-block"><div class="fan-block-h">Membres ' + help('freq') + '</div>'
-      + '<div class="fan-two-fields">'
-      + '<label class="fan-field"><span class="fan-lbl">Non fréquentants</span>' + num('nonFreq', r.nonFreq) + '</label>'
-      + '<label class="fan-field"><span class="fan-lbl">Avec contrat actif <small>(carte ou abo)</small></span>' + num('contrats', r.contrats) + '</label>'
-      + '</div><div class="fan-derived" id="fan-d-freq"></div></div>'
-
-      // Événements
-      + '<div class="fan-block"><div class="fan-block-h">Événements du mois ' + help('even') + '</div>'
-      + '<div class="fan-events-list">' + (evRows || '<p class="fan-events-vide">Aucun événement ce mois-ci.</p>') + '</div>'
-      + (ro ? '' : '<button type="button" class="fan-link" data-add-event>+ Ajouter un événement</button>')
-      + '<div class="fan-derived" id="fan-d-even"></div></div>'
-
-      // Avis + Références
-      + '<div class="fan-two-blocks">'
-      + '<div class="fan-block"><div class="fan-block-h">Nouveaux avis Google ' + help('avis') + '</div>'
-      + '<label class="fan-field fan-field-sm"><span class="fan-lbl">Avis du mois</span>' + num('avis', r.avis) + '</label>'
-      + '<div class="fan-derived" id="fan-d-avis"></div></div>'
-      + '<div class="fan-block"><div class="fan-block-h">Prises de références ' + help('refs') + '</div>'
-      + '<label class="fan-field fan-field-sm"><span class="fan-lbl">Références du mois</span>' + num('refs', r.refs) + '</label>'
-      + '<div class="fan-derived" id="fan-d-refs"></div></div>'
+      // Req 5 : une seule ligne de saisie
+      + '<div class="fan-line">'
+      + field('Non fréquentants', num('nonFreq', r.nonFreq))
+      + field('Contrat actif', num('contrats', r.contrats))
+      + field('Avis GMB', num('avis', r.avis))
+      + field('Réf', num('refs', r.refs))
+      + field('Event', '<input type="text" class="fan-ev-nom" placeholder="Nom" value="' + esc(ev.nom || '') + '"' + dis + '>', 'fan-line-ev')
+      + field('Participants', '<input type="number" class="fan-ev-part" min="0" step="1" value="' + (Number(ev.participants) || 0) + '"' + dis + '>')
+      + field('Fidèle <span class="fan-auto-tag">RECAP</span>', '<input type="text" class="fan-fid-ro" value="' + esc(fidVal) + '" title="Automatique depuis RECAP" disabled>', 'fan-line-fid')
       + '</div>'
 
-      // Clients fidèles (auto depuis RECAP, non éditable)
-      + '<div class="fan-block"><div class="fan-block-h">Clients fidèles <span class="fan-auto-tag">auto · RECAP</span> ' + help('fid') + '</div>'
-      + '<div class="fan-fid-info" id="fan-fid-info"></div></div>'
+      // Détail du calcul en direct
+      + '<div class="fan-breakdown" id="fan-breakdown"></div>'
+      + (ro ? '' : '<button type="button" class="fan-link" data-help="all">Voir le barème des notes</button>')
 
       // Pied : clôture (masqué si déjà clôturé)
       + (ro ? '' : '<div class="fan-form-foot"><span class="fan-close-reason" id="fan-close-reason"></span>'
@@ -346,28 +341,26 @@ const FanUI = (function () {
 
     if (!ro) wireForm(host, r);
     updateDerived(r);
-    updateFidInfo(r);
     updateCloseBtn();
   }
 
-  function updateFidInfo(r) {
-    const el = $('#fan-fid-info');
-    if (!el) return;
-    const nb = Number((cur.fideles || {})[r.studio]);
-    const pts = (cur.fidPts || {})[r.studio] || 0;
-    const has = (cur.fideles || {})[r.studio] != null;
-    if (!has) { el.innerHTML = '<span class="fan-fid-none">Aucune donnée RECAP pour ' + esc(selStudio) + ' ce mois-ci → Fidélité 0/10.</span>'; return; }
-    const rang = fidRank(cur.fideles, r.studio);
-    el.innerHTML = '<b>' + nb + '</b> client' + (nb > 1 ? 's' : '') + ' fidèle' + (nb > 1 ? 's' : '')
-      + ' <span class="fan-fid-rank">(rang ' + rang + '/' + STUDIOS.length + ' du réseau)</span> → Fidélité <b>' + pts + '/10</b>';
-  }
-
+  // Détail du calcul en direct (une ligne) + rafraîchissement de la note étoiles.
   function updateDerived(r) {
-    const set = (id, d) => { const el = $('#' + id); if (el) { el.textContent = d.txt; el.classList.toggle('is-err', !!d.err); } };
-    set('fan-d-freq', derFreq(r)); set('fan-d-even', derEven(r)); set('fan-d-avis', derAvis(r)); set('fan-d-refs', derRefs(r));
-    const nt = noteOf(r), noteEl = $('#fan-form-note');
-    if (noteEl) { noteEl.className = 'fan-form-note ' + noteClass(nt.total); noteEl.innerHTML = fmtNote(nt.total) + '<small>/40</small>'; }
-    // reflète l'erreur de ratio sur le champ
+    const n = noteOf(r);
+    const bd = $('#fan-breakdown');
+    if (bd) {
+      if (ratioError(r)) {
+        bd.innerHTML = '<span class="fan-bd-err">⚠ Non fréquentants (' + r.nonFreq + ') dépasse Contrat actif (' + r.contrats + ')</span>';
+      } else {
+        const freqTxt = (n.freq == null) ? 'Fréq —' : ('Fréq ' + fmtDec(n.freq) + '/10');
+        const nb = (cur.fideles || {})[r.studio];
+        const fidTxt = (nb == null) ? 'Fid 0/10' : ('Fid ' + n.fid + '/10 (' + nb + ' fidèles, rang ' + fidRank(cur.fideles, r.studio) + '/' + STUDIOS.length + ')');
+        const parts = [freqTxt, 'Évén ' + n.even + '/5', 'Avis ' + n.avis + '/5', 'Réf ' + n.refs + '/10', fidTxt];
+        bd.innerHTML = '<span class="fan-bd-parts">' + parts.join(' · ') + '</span> <span class="fan-bd-total ' + noteClass(n.total) + '">= ' + fmtNote(n.total) + '/40</span>';
+      }
+    }
+    const noteEl = $('#fan-form-note');
+    if (noteEl) noteEl.innerHTML = stars(n.total);
     const nf = document.querySelector('.fan-num[data-champ="nonFreq"]');
     if (nf) nf.classList.toggle('is-err', ratioError(r));
   }
@@ -386,29 +379,31 @@ const FanUI = (function () {
   }
 
   function wireForm(host, r) {
-    host.querySelectorAll('.fan-num').forEach((inp) => {
+    const refreshLive = () => { updateDerived(r); renderNetwork(); renderProgress(); renderCards(); renderTiles(); updateCloseBtn(); };
+    host.querySelectorAll('.fan-num[data-champ]').forEach((inp) => {
       const commit = (save) => {
         const v = Math.max(0, Math.round(Number(inp.value) || 0));
         inp.value = v; r[inp.dataset.champ] = v;
-        updateDerived(r); renderNetwork(); renderProgress(); renderCards(); renderTiles(); updateCloseBtn();
+        refreshLive();
         if (save) enregistrer({ [inp.dataset.champ]: v });
       };
       inp.addEventListener('input', () => commit(false));
       inp.addEventListener('change', () => commit(true));
     });
-    const add = host.querySelector('[data-add-event]');
-    if (add) add.addEventListener('click', () => { r.evenements = (r.evenements || []).concat([{ nom: '', participants: 0 }]); renderForm(); renderNetwork(); renderCards(); });
-    host.querySelectorAll('.fan-event-row').forEach((rowEl) => {
-      const i = Number(rowEl.dataset.idx);
-      const nom = rowEl.querySelector('.fan-ev-nom'), part = rowEl.querySelector('.fan-ev-part');
-      const live = () => { r.evenements[i] = { nom: nom.value, participants: Math.max(0, Math.round(Number(part.value) || 0)) }; updateDerived(r); renderNetwork(); renderProgress(); renderCards(); renderTiles(); updateCloseBtn(); };
+    // Événement unique (nom + participants) sur la ligne.
+    const nom = host.querySelector('.fan-ev-nom'), part = host.querySelector('.fan-ev-part');
+    if (nom && part) {
+      const setEv = () => {
+        const nm = nom.value;
+        const p = Math.max(0, Math.round(Number(part.value) || 0)); part.value = p;
+        r.evenements = (nm.trim() || p) ? [{ nom: nm, participants: p }] : [];
+      };
+      const live = () => { setEv(); refreshLive(); };
       const save = () => { live(); enregistrer({ evenements: r.evenements }); };
       nom.addEventListener('input', live); nom.addEventListener('change', save);
       part.addEventListener('input', live); part.addEventListener('change', save);
-      const del = rowEl.querySelector('.fan-ev-del');
-      if (del) del.addEventListener('click', () => { r.evenements.splice(i, 1); enregistrer({ evenements: r.evenements }); renderForm(); renderNetwork(); renderCards(); });
-    });
-    host.querySelectorAll('.fan-help').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPop(b, b.dataset.help); }));
+    }
+    host.querySelectorAll('[data-help]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPop(b, b.dataset.help); }));
     const cb = host.querySelector('#fan-close-btn');
     if (cb) cb.addEventListener('click', () => openModal());
   }
@@ -469,22 +464,28 @@ const FanUI = (function () {
 
   // ── Popover barème ────────────────────────────────────────────────────────────
   function openPop(trigger, key) {
-    const b = BAREMES[key]; if (!b) return;
     closePop();
     const el = document.createElement('div');
-    el.className = 'fan-pop'; el.id = 'fan-pop'; el.setAttribute('role', 'dialog');
-    el.innerHTML = '<div class="fan-pop-t">' + esc(b.titre) + ' — barème</div>'
-      + '<p class="fan-pop-d">' + esc(b.desc) + '</p>'
-      + '<table class="fan-pop-table"><tbody>'
-      + b.rows.map((row) => '<tr><td>' + esc(row[0]) + '</td><td><b>' + esc(row[1]) + '</b></td></tr>').join('')
-      + '</tbody></table>';
+    el.className = 'fan-pop' + (key === 'all' ? ' fan-pop-all' : ''); el.id = 'fan-pop'; el.setAttribute('role', 'dialog');
+    if (key === 'all') {
+      el.innerHTML = '<div class="fan-pop-t">Barème des notes — total /40</div>'
+        + ['freq', 'even', 'avis', 'refs', 'fid'].map((k) => { const b = BAREMES[k]; return '<div class="fan-pop-sec"><div class="fan-pop-st">' + esc(b.titre) + '</div><p class="fan-pop-d">' + esc(b.desc) + '</p></div>'; }).join('')
+        + '<p class="fan-pop-d">La note /40 est ramenée en étoiles /5 (façon Google My Business).</p>';
+    } else {
+      const b = BAREMES[key]; if (!b) return;
+      el.innerHTML = '<div class="fan-pop-t">' + esc(b.titre) + ' — barème</div>'
+        + '<p class="fan-pop-d">' + esc(b.desc) + '</p>'
+        + '<table class="fan-pop-table"><tbody>'
+        + b.rows.map((row) => '<tr><td>' + esc(row[0]) + '</td><td><b>' + esc(row[1]) + '</b></td></tr>').join('')
+        + '</tbody></table>';
+    }
     document.body.appendChild(el);
     const rect = trigger.getBoundingClientRect();
     const top = rect.bottom + 8, left = Math.min(rect.left, window.innerWidth - el.offsetWidth - 12);
     el.style.top = top + 'px'; el.style.left = Math.max(12, left) + 'px';
     setTimeout(() => document.addEventListener('click', outsidePop, true), 0);
   }
-  function outsidePop(e) { const el = $('#fan-pop'); if (el && !el.contains(e.target) && !(e.target.classList && e.target.classList.contains('fan-help'))) closePop(); }
+  function outsidePop(e) { const el = $('#fan-pop'); if (el && !el.contains(e.target) && !(e.target.dataset && e.target.dataset.help != null)) closePop(); }
   function closePop() { const el = $('#fan-pop'); if (el) el.remove(); document.removeEventListener('click', outsidePop, true); }
 
   // ── Modale de clôture ─────────────────────────────────────────────────────────
@@ -494,14 +495,14 @@ const FanUI = (function () {
     const reseau = noteReseau(cur.rows, cur.fidPts);
     const list = sortedRows().map((r) => {
       const t = noteOf(r).total;
-      return '<li><span>' + esc(r.studio) + ' — ' + esc(capMois()) + '</span><b class="' + noteClass(t) + '">' + fmtNote(t) + '/40</b></li>';
+      return '<li><span>' + esc(r.studio) + ' — ' + esc(capMois()) + '</span>' + stars(t) + '</li>';
     }).join('');
     const host = $('#fan-modal-host');
     host.innerHTML = '<div class="fan-modal-backdrop" data-cancel>'
       + '<div class="fan-modal" role="dialog" aria-modal="true" aria-labelledby="fan-modal-t">'
       + '<h3 id="fan-modal-t" class="fan-modal-t">Clôturer ' + esc(capMois()) + ' ?</h3>'
       + '<p class="fan-modal-warn">Les saisies seront figées. Tu pourras rouvrir le mois plus tard si besoin.</p>'
-      + '<div class="fan-modal-net">Note réseau <b class="' + noteClass(reseau) + '">' + fmtReseau(reseau) + '/40</b></div>'
+      + '<div class="fan-modal-net">Note réseau ' + stars(reseau) + '</div>'
       + '<ul class="fan-modal-list">' + list + '</ul>'
       + '<div class="fan-modal-actions"><button type="button" class="fan-btn-ghost" data-cancel>Annuler</button>'
       + '<button type="button" class="fan-btn-primary" data-confirm>Clôturer définitivement</button></div>'
@@ -533,12 +534,14 @@ const FanUI = (function () {
     const moisAsc = months.map((m) => m.mois);
     const moisDesc = moisAsc.slice().reverse();
 
-    const cell = (t) => '<td class="fan-h-cell ' + noteClass(t) + '">' + fmtNote(t) + '</td>';
+    // En tableau dense : la note est affichée en étoiles /5 (valeur = note40/8) avec ★.
+    const star5 = (t) => (t == null ? '—' : fmtDec(t / 8) + '★');
+    const cell = (t) => '<td class="fan-h-cell ' + noteClass(t) + '">' + star5(t) + '</td>';
     const corps = moisDesc.map((ym) => {
       const nm = noteMap[ym];
       return '<tr><td class="fan-h-mois">' + esc(moisLabel(ym, 0)) + '</td>'
         + STUDIOS.map((s) => cell(nm.per[s] == null ? null : nm.per[s])).join('')
-        + '<td class="fan-h-cell fan-h-reseau ' + noteClass(nm.reseau) + '">' + fmtReseau(nm.reseau) + '</td></tr>';
+        + '<td class="fan-h-cell fan-h-reseau ' + noteClass(nm.reseau) + '">' + star5(nm.reseau) + '</td></tr>';
     }).join('');
     const thead = '<tr><th>Mois</th>' + STUDIOS.map((s) => '<th>' + esc(s) + '</th>').join('') + '<th>Réseau</th></tr>';
 
@@ -551,11 +554,11 @@ const FanUI = (function () {
         else if (cu < pr) { arw = '<span class="fan-tr down">↓</span>'; d = ' −' + fmtDec(pr - cu); }
       }
       return '<div class="fan-trend-card"><span class="fan-trend-nom">' + esc(s) + '</span>'
-        + '<span class="fan-trend-note ' + noteClass(cu) + '">' + fmtNote(cu) + '<small>/40</small></span>'
+        + '<span class="fan-trend-note">' + stars(cu) + '</span>'
         + '<span class="fan-trend-sub">' + arw + esc(d) + '</span></div>';
     }).join('');
 
-    host.innerHTML = '<h3 class="fan-h3">Évolution des notes /40</h3>'
+    host.innerHTML = '<h3 class="fan-h3">Évolution des notes (étoiles /5)</h3>'
       + '<div class="fan-histo-graph"><canvas id="fan-chart" height="120"></canvas></div>'
       + '<div class="fan-trend-row">' + trendCards + '</div>'
       + '<h3 class="fan-h3">Détail par mois</h3>'
@@ -568,8 +571,9 @@ const FanUI = (function () {
     const el = $('#fan-chart');
     if (!el || typeof Chart === 'undefined') return;
     if (chart) { chart.destroy(); chart = null; }
+    // Données en note ÉTOILES /5 (note40 ÷ 8).
     const datasets = STUDIOS.map((s) => ({
-      label: s, data: labels.map((ym) => { const v = noteMap[ym] ? noteMap[ym].per[s] : null; return v == null ? null : v; }),
+      label: s, data: labels.map((ym) => { const v = noteMap[ym] ? noteMap[ym].per[s] : null; return v == null ? null : Math.round(v / 8 * 100) / 100; }),
       borderColor: STUDIO_COLORS[s], backgroundColor: STUDIO_COLORS[s], tension: 0.3, spanGaps: true, borderWidth: 2, pointRadius: 3,
     }));
     chart = new Chart(el.getContext('2d'), {
@@ -578,7 +582,7 @@ const FanUI = (function () {
       options: {
         responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
         scales: {
-          y: { min: 0, max: 40, ticks: { stepSize: 10, color: '#5c5b57' }, grid: { color: 'rgba(0,0,0,.08)' } },
+          y: { min: 0, max: 5, ticks: { stepSize: 1, color: '#5c5b57' }, grid: { color: 'rgba(0,0,0,.08)' } },
           x: { ticks: { color: '#5c5b57' }, grid: { display: false } },
         },
         plugins: { legend: { labels: { color: '#111111', boxWidth: 12, usePointStyle: true } } },

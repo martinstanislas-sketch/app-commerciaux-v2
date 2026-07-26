@@ -21411,11 +21411,23 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 /* Couleurs de score — bandes : bon 14-20 · moyen 8-13 · faible 0-7. La var --sc
    est posée sur l'élément coloré lui-même (texte -> color, jauge -> background). */
 .fan-good { --sc: #0a7d33; } .fan-warn { --sc: #b56a00; } .fan-bad { --sc: #c22f2f; } .fan-na { --sc: #8a8a86; }
-.fan-note-val, .fan-net-val, .fan-form-note, .fan-trend-note, .fan-h-cell, .fan-modal-list b, .fan-modal-net b, .fan-pop-table b { color: var(--sc, #111); }
+.fan-note-val, .fan-net-val, .fan-form-note, .fan-trend-note, .fan-h-cell, .fan-modal-list b, .fan-modal-net b, .fan-pop-table b, .fan-bd-total { color: var(--sc, #111); }
 .fan-g-fill, .fan-net-fill, .fan-pastille { background: var(--sc, #8a8a86); }
 
 /* En-tête */
-.fan-head { align-items: flex-start; }
+.fan-head { align-items: center; }
+.fan-viewtoggle { display: inline-flex; gap: 2px; background: #efeeeb; border-radius: 10px; padding: 3px; }
+.fan-viewtoggle .rec-nav-btn { border: 0; border-radius: 8px; padding: 6px 13px; margin: 0; font-size: 13px; font-weight: 600; color: #5c5b57; background: transparent; cursor: pointer; }
+.fan-viewtoggle .rec-nav-btn:hover { color: #111; }
+.fan-viewtoggle .rec-nav-btn.is-on { background: #fff; color: #111; box-shadow: 0 1px 3px rgba(0,0,0,.10); }
+/* Note en étoiles (façon Google My Business) : remplissage fractionnaire, couleur = bande de score */
+.fan-stars-wrap { display: inline-flex; align-items: center; gap: 7px; }
+.fan-stars { position: relative; display: inline-block; font-size: 17px; line-height: 1; letter-spacing: 1px; white-space: nowrap; }
+.fan-stars-bg { color: #dcdbd6; }
+.fan-stars-fg { position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; color: var(--sc, #f4b400); }
+.fan-star-val { font-size: 15px; font-weight: 800; color: var(--sc, #111); font-variant-numeric: tabular-nums; }
+.fan-stars-wrap.lg .fan-stars { font-size: 23px; }
+.fan-stars-wrap.lg .fan-star-val { font-size: 19px; }
 .fan-title { font-size: 20px; }
 .fan-subtitle { margin: 6px 0 0; font-size: 13px; color: #5c5b57; max-width: 640px; line-height: 1.5; }
 .fan-loading { color: #5c5b57; font-size: 13px; padding: 20px 2px; }
@@ -21500,9 +21512,26 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .fan-derived { margin-top: 10px; font-size: 13px; color: #4a41b8; font-weight: 600; }
 .fan-derived.is-err { color: #c22f2f; }
 /* Bloc « Clients fidèles » (auto depuis RECAP, non éditable) */
-.fan-auto-tag { font-size: 10.5px; font-weight: 650; color: #4a41b8; background: rgba(91,80,214,.10); border-radius: 6px; padding: 1px 7px; letter-spacing: .02em; }
+.fan-auto-tag { font-size: 10px; font-weight: 650; color: #4a41b8; background: rgba(91,80,214,.10); border-radius: 5px; padding: 1px 6px; letter-spacing: .02em; }
 .fan-fid-info { font-size: 13px; color: #5c5b57; }
 .fan-fid-info b { color: #111; }
+/* Ligne unique de saisie (req 5) */
+.fan-line { display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: flex-end; margin: 6px 0 12px; }
+.fan-line-field { display: flex; flex-direction: column; gap: 5px; }
+.fan-line-field .fan-lbl { font-size: 12px; white-space: nowrap; }
+.fan-line .fan-num, .fan-line .fan-ev-part { width: 96px; height: 38px; }
+.fan-line .fan-ev-nom { width: 150px; height: 38px; }
+.fan-line-fid .fan-fid-ro { width: 80px; }
+.fan-fid-ro { height: 38px; background: #f2f1ee; border: 1px solid #d9d8d2; border-radius: 9px; padding: 0 12px; color: #111; font: inherit; font-size: 15px; font-weight: 700; text-align: right; }
+/* Détail du calcul en direct (une ligne) */
+.fan-breakdown { font-size: 12.5px; color: #5c5b57; margin: 2px 0 10px; line-height: 1.5; }
+.fan-bd-total { font-weight: 800; margin-left: 4px; }
+.fan-bd-err { color: #c22f2f; font-weight: 700; }
+.fan-form-hint { font-size: 13px; color: #8a8a86; padding: 16px 2px; margin: 0; }
+/* Popover barème combiné */
+.fan-pop-all { max-width: 320px; }
+.fan-pop-sec { margin-bottom: 9px; }
+.fan-pop-st { font-size: 12.5px; font-weight: 700; color: #111; margin-bottom: 1px; }
 .fan-fid-rank { color: #8a8a86; }
 .fan-fid-none { color: #8a8a86; }
 

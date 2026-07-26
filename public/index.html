@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds2-fan5">
+  <link rel="stylesheet" href="style.css?v=ds2-fan6">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -225,17 +225,12 @@
     <section id="tab-fan" class="tab-content">
       <div class="rec-wrap fan-wrap">
         <header class="rec-head fan-head">
-          <div>
-            <h2 class="rec-title fan-title">FAN — Note du studio</h2>
-            <p class="fan-subtitle">Capacité de chaque studio à transformer ses clients en fans (étape 6 du parcours).</p>
+          <h2 class="rec-title fan-title">FAN - De client à ambassadeur</h2>
+          <div class="fan-viewtoggle">
+            <button type="button" class="rec-nav-btn is-on" data-fan-view="analyse">Analyser un mois</button>
+            <button type="button" class="rec-nav-btn" data-fan-view="historique">Historique</button>
           </div>
         </header>
-
-        <!-- Bascule Analyse / Historique -->
-        <nav class="rec-nav fan-subnav">
-          <button type="button" class="rec-nav-btn is-on" data-fan-view="analyse">Analyser un mois</button>
-          <button type="button" class="rec-nav-btn" data-fan-view="historique">Historique</button>
-        </nav>
 
         <!-- ═══ VUE ANALYSE ═══ -->
         <div id="fan-view-analyse">
@@ -1248,7 +1243,7 @@
   <script src="retention-parse.js?v=rec16"></script>
   <script src="recap.js?v=rec43"></script>
   <script src="lead.js?v=lead3"></script>
-  <script src="fan.js?v=fan6"></script>
+  <script src="fan.js?v=fan7"></script>
   <script src="app.js?v=ds2-fan1"></script>
 </body>
 </html>
