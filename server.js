@@ -4786,6 +4786,32 @@ function seedFanDeciplus() {
 }
 seedFanDeciplus();
 
+// Seed des PRISES DE RÉFÉRENCE par studio/mois (oct 2025 → juil 2026, valeurs réelles).
+// Ne renseigne que la colonne `refs` (les autres champs préservés). Cellules vides/0
+// ignorées. ON CONFLICT DO UPDATE (crée la ligne au besoin, ex. Marcq juil 2026).
+const FAN_REFS_SEED = {"2025-10":{"Lille":27,"Neuilly":1,"Levallois":1},"2025-11":{"Marcq":67,"Boulogne":2,"Neuilly":2,"Levallois":1},"2025-12":{"Lille":3,"Wasquehal":10,"Neuilly":3,"Levallois":1},"2026-01":{"Lille":1,"Wasquehal":3,"Marcq":5,"Neuilly":2,"Levallois":1},"2026-02":{"Lille":1,"Wasquehal":2,"Marcq":1,"Neuilly":1,"Levallois":1},"2026-03":{"Lille":3,"Wasquehal":3,"Marcq":8},"2026-04":{"Wasquehal":1,"Marcq":1,"Boulogne":1,"Neuilly":5},"2026-05":{"Lille":1,"Wasquehal":2,"Boulogne":1,"Neuilly":5},"2026-06":{"Lille":2,"Wasquehal":2,"Marcq":1,"Boulogne":3,"Neuilly":2,"Levallois":2},"2026-07":{"Lille":2,"Wasquehal":3,"Marcq":5,"Neuilly":3,"Levallois":3}};
+function seedFanRefs() {
+  try {
+    const V = '1';
+    const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='fan_refs_seed_v'").get() || {}).value;
+    if (String(fait) === V) return;
+    const up = getDb().prepare(`INSERT INTO fan_saisies (studio, mois, non_freq, contrats, evenements, avis, refs, updated_at)
+      VALUES (?,?,0,0,'[]',0,?,?)
+      ON CONFLICT(studio, mois) DO UPDATE SET refs=excluded.refs, updated_at=excluded.updated_at`);
+    const now = new Date().toISOString();
+    const tx = getDb().transaction(() => {
+      Object.keys(FAN_REFS_SEED).forEach((mois) => {
+        const row = FAN_REFS_SEED[mois];
+        Object.keys(row).forEach((studio) => { if (FAN_STUDIOS.includes(studio)) up.run(studio, mois, row[studio], now); });
+      });
+    });
+    tx();
+    getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('fan_refs_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(V);
+    console.log('[FAN] seed prises de référence 2025-10→2026-07 appliqué');
+  } catch (e) { console.error('seedFanRefs:', e && e.message); }
+}
+seedFanRefs();
+
 // Un mois : les saisies des 6 studios + l'état clôturé.
 app.get('/api/fan/:mois', requireAuth, requireAdmin, (req, res) => {
   const mois = String(req.params.mois || '');
