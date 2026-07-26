@@ -4991,6 +4991,39 @@ function recapForMonth(mois) {
   } catch (e) { console.error('recapForMonth:', e && e.message); }
   return { notes, reseau };
 }
+// Note FAN COMPLÈTE /50 par studio (miroir de public/fan.js) : Fréquentation /10
+// (classement taux) + Événements /5 + Avis /5 + Références /10 + Fidélité /10
+// (classement RECAP) + Engagement /10 (classement % Challenge). contrats=0 → null.
+function fanNoteEvents(evs) { const p = (evs || []).reduce((s, e) => s + (Number(e && e.participants) || 0), 0); if (p <= 0) return 0; if (p <= 9) return 1; if (p <= 19) return 2; if (p <= 29) return 3; if (p <= 39) return 4; return 5; }
+function fanFullNotesForMonth(mois) {
+  const notes = {};
+  try {
+    const db = getDb();
+    const byStudio = {};
+    db.prepare('SELECT * FROM fan_saisies WHERE mois = ?').all(mois).forEach((r) => { byStudio[r.studio] = r; });
+    const fideles = fanFidelesForMonth(mois);
+    const keys = FAN_STUDIOS;
+    const freqQ = {}, fidV = {}, engQ = {};
+    keys.forEach((k) => {
+      const r = byStudio[k] || {}; const c = Number(r.contrats) || 0;
+      freqQ[k] = c > 0 ? -((Number(r.non_freq) || 0) / c) : -Infinity;   // + haut = meilleur
+      fidV[k] = Number(fideles[k]) || 0;
+      engQ[k] = (r.challenge_pct != null) ? Number(r.challenge_pct) : -Infinity;
+    });
+    const belowPts = (q) => { const m = {}; keys.forEach((k) => { let b = 0; keys.forEach((o) => { if (o !== k && q[o] < q[k]) b++; }); m[k] = Math.min(10, b * 2); }); return m; };
+    const freqPts = belowPts(freqQ), fidPts = belowPts(fidV);
+    const engPts = {}; keys.forEach((k) => { const v = engQ[k]; if (v === -Infinity) { engPts[k] = 0; return; } let a = 0; keys.forEach((o) => { if (o !== k && engQ[o] > v) a++; }); engPts[k] = Math.max(0, 10 - a * 2); });
+    keys.forEach((k) => {
+      const r = byStudio[k] || {}; const c = Number(r.contrats) || 0;
+      if (!(c > 0)) { notes[k] = null; return; }   // pas de contrats → « — »
+      const even = fanNoteEvents(fanParseEvents(r.evenements));
+      const avis = Math.max(0, Math.min(5, Math.round(Number(r.avis) || 0)));
+      const refs = Math.max(0, Math.min(10, Math.round(Number(r.refs) || 0)));
+      notes[k] = Math.max(0, Math.min(10, freqPts[k] || 0)) + even + avis + refs + Math.max(0, Math.min(10, fidPts[k] || 0)) + Math.max(0, Math.min(10, engPts[k] || 0));
+    });
+  } catch (e) { console.error('fanFullNotesForMonth:', e && e.message); }
+  return notes;
+}
 app.get('/api/boss/:mois', requireAuth, requireDirection, (req, res) => {
   const mois = String(req.params.mois || '');
   if (!FAN_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
@@ -5000,9 +5033,8 @@ app.get('/api/boss/:mois', requireAuth, requireDirection, (req, res) => {
     const [ya, ym] = mois.split('-').map(Number);
     const moisN1 = (ya - 1) + '-' + String(ym).padStart(2, '0');
     const leadsFor = (m) => { const o = {}; db.prepare('SELECT club, nb, rdv_venu FROM leads WHERE mois = ?').all(m).forEach((r) => { o[r.club] = { nb: r.nb || 0, rdvVenu: r.rdv_venu || 0 }; }); return o; };
-    const fanFor = (m) => { const o = {}; db.prepare('SELECT studio, challenge_pct FROM fan_saisies WHERE mois = ?').all(m).forEach((r) => { o[r.studio] = (r.challenge_pct != null ? r.challenge_pct : null); }); return o; };
     const lCur = leadsFor(mois), lPrec = leadsFor(moisPrec), lN1 = leadsFor(moisN1);
-    const fCur = fanFor(mois), fPrec = fanFor(moisPrec);
+    const fCur = fanFullNotesForMonth(mois), fPrec = fanFullNotesForMonth(moisPrec);
     const rCur = recapForMonth(mois), rPrec = recapForMonth(moisPrec);
     const data = {};
     BOSS_CLUBS.forEach(({ key }) => {
@@ -5013,8 +5045,8 @@ app.get('/api/boss/:mois', requireAuth, requireDirection, (req, res) => {
         rdvVenu: cur.rdvVenu != null ? cur.rdvVenu : null,
         leadsPrec: prec.nb != null ? prec.nb : null,
         rdvVenuPrec: prec.rdvVenu != null ? prec.rdvVenu : null,
-        challengePct: (fCur[key] != null ? fCur[key] : null),
-        challengePctPrec: (fPrec[key] != null ? fPrec[key] : null),
+        fanNote: (fCur[key] != null ? fCur[key] : null),
+        fanNotePrec: (fPrec[key] != null ? fPrec[key] : null),
         recapNote: (rCur.notes[key] != null ? rCur.notes[key] : null),
         recapNotePrec: (rPrec.notes[key] != null ? rPrec.notes[key] : null),
       };

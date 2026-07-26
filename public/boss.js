@@ -54,34 +54,25 @@ const BossUI = (function () {
     const sign = d > 0 ? '+' : '−';
     return '<span class="boss-delta ' + cls + '">' + arw + ' ' + sign + fmt(Math.abs(d)) + (suffix || '') + '</span>';
   }
-  // Delta leads : valeur + pourcentage vs N-1.
+  // Delta leads vs N-1 : pourcentage uniquement (pas la valeur absolue).
   function deltaLeads(cur, n1) {
     if (cur == null || n1 == null) return '';
     const d = cur - n1;
-    const cls = d > 0 ? 'up' : (d < 0 ? 'down' : 'flat');
-    const arw = d > 0 ? '▲' : (d < 0 ? '▼' : '=');
-    const pct = n1 > 0 ? (' · ' + (d > 0 ? '+' : (d < 0 ? '−' : '')) + Math.round(Math.abs(d) / n1 * 100) + '%') : '';
-    const sign = d > 0 ? '+' : (d < 0 ? '−' : '');
-    return '<span class="boss-delta ' + cls + '">' + arw + ' ' + (d === 0 ? '=' : sign + fmtInt(Math.abs(d))) + pct + '</span>';
+    if (d === 0) return '<span class="boss-delta flat">=</span>';
+    const cls = d > 0 ? 'up' : 'down';
+    const arw = d > 0 ? '▲' : '▼';
+    if (n1 <= 0) return '<span class="boss-delta ' + cls + '">' + arw + ' nouveau</span>';
+    const sign = d > 0 ? '+' : '−';
+    return '<span class="boss-delta ' + cls + '">' + arw + ' ' + sign + Math.round(Math.abs(d) / n1 * 100) + '%</span>';
   }
 
-  // ── Note Fan : classement % Challenge → points /10 (10−2×au-dessus) ───────
-  function engPoints(pctByKey, keys) {
-    const map = {};
-    keys.forEach((k) => {
-      const v = pctByKey[k];
-      if (v == null) { map[k] = null; return; }
-      let above = 0;
-      keys.forEach((o) => { if (o !== k) { const ov = pctByKey[o]; if (ov != null && ov > v) above++; } });
-      map[k] = Math.max(0, 10 - above * 2);
-    });
-    return map;
-  }
-  function starsHtml(p) {
-    if (p == null) return ND;
-    const s = Math.max(0, Math.min(5, Math.round(p / 2)));
+  // ── Note Fan : note FAN COMPLÈTE /50 (identique à l'onglet FAN) → étoiles /5 ─
+  function starsHtml(note50) {
+    if (note50 == null) return ND;
+    const rating = note50 / 10;                        // 50 → 5,0
+    const s = Math.max(0, Math.min(5, Math.round(rating)));
     return '<span class="boss-stars">' + '★'.repeat(s) + '<span class="boss-stars-empty">' + '★'.repeat(5 - s) + '</span></span>'
-      + '<span class="boss-stars-note">(' + p + '/10)</span>';
+      + '<span class="boss-stars-note">' + fmtDec1(rating) + '</span>';
   }
   function trendArrow(cur, prev) {
     if (cur == null || prev == null) return '';
@@ -141,11 +132,6 @@ const BossUI = (function () {
     const sigCur = 'month-' + mois;
     const sigPrec = 'month-' + data.moisPrec;
 
-    // Points Note Fan (classement) — mois courant et M-1
-    const pctCur = {}, pctPrec = {};
-    keys.forEach((k) => { pctCur[k] = (D[k] && D[k].challengePct != null) ? D[k].challengePct : null; pctPrec[k] = (D[k] && D[k].challengePctPrec != null) ? D[k].challengePctPrec : null; });
-    const engCur = engPoints(pctCur, keys), engPrec = engPoints(pctPrec, keys);
-
     // Calcule toutes les valeurs par club (pour tri + total)
     const rows = clubs.map((c) => {
       const d = D[c.key] || {};
@@ -157,7 +143,8 @@ const BossUI = (function () {
       const contribPrec = contribution(c.pilotage, sigPrec);
       return {
         club: c, leads: d.leads, leadsN1: d.leadsN1, conv, convPrec,
-        resultat, resultatPrec, eng: engCur[c.key], engPrec: engPrec[c.key], contrib, contribPrec,
+        resultat, resultatPrec, fanNote: (d.fanNote != null ? d.fanNote : null), fanNotePrec: (d.fanNotePrec != null ? d.fanNotePrec : null),
+        contrib, contribPrec,
       };
     });
     // Tri par défaut : contribution décroissante (n.d. en bas)
@@ -166,7 +153,7 @@ const BossUI = (function () {
     const cellLeads = (r) => r.leads == null ? ND : ('<span class="boss-val">' + fmtInt(r.leads) + '</span>' + deltaLeads(r.leads, r.leadsN1));
     const cellConv = (r) => r.conv == null ? ND : ('<span class="boss-val">' + fmtPct1(r.conv) + '</span>' + deltaHtml(r.conv, r.convPrec, fmtDec1, ' pts'));
     const cellRes = (r) => r.resultat == null ? ND : ('<span class="boss-val">' + fmtPct1(r.resultat) + '</span>' + deltaHtml(r.resultat, r.resultatPrec, fmtDec1, ' pts'));
-    const cellFan = (r) => r.eng == null ? ND : ('<span class="boss-val">' + starsHtml(r.eng) + '</span>' + trendArrow(r.eng, r.engPrec));
+    const cellFan = (r) => r.fanNote == null ? ND : ('<span class="boss-val">' + starsHtml(r.fanNote) + '</span>' + trendArrow(r.fanNote, r.fanNotePrec));
     const cellContrib = (r) => r.contrib == null ? ND : ('<span class="boss-val ' + (r.contrib >= 0 ? '' : 'boss-neg') + '">' + fmtEur(r.contrib) + '</span>' + deltaHtml(r.contrib, r.contribPrec, (x) => fmtEur(x).replace(' €', ''), ' €'));
 
     const corps = rows.map((r) => '<tr>'
@@ -208,7 +195,7 @@ const BossUI = (function () {
       + '<th>Leads<span class="boss-th-sub">vs ' + esc(moisLabel(mois, 0)) + ' N-1</span></th>'
       + '<th>% Conversion<span class="boss-th-sub">RDV venus ÷ leads · vs M-1</span></th>'
       + '<th>Résultat<span class="boss-th-sub">rétention RECAP · vs M-1</span></th>'
-      + '<th>Note Fan<span class="boss-th-sub">classement % Challenge</span></th>'
+      + '<th>Note Fan<span class="boss-th-sub">note FAN /50 → /5 ★ · vs M-1</span></th>'
       + '<th>Contribution<span class="boss-th-sub">encaiss. − décaiss. · vs M-1</span></th>'
       + '</tr></thead><tbody>' + corps + totalRow + '</tbody></table>';
   }
