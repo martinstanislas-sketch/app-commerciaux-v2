@@ -4693,6 +4693,11 @@ function ensureFanSchema() {
       updated_at TEXT NOT NULL DEFAULT ''
     );
   `);
+  // Migration douce : % Challenge (engagement contrat), source export Deciplus.
+  try {
+    const cols = getDb().prepare('PRAGMA table_info(fan_saisies)').all();
+    if (!cols.some((c) => c.name === 'challenge_pct')) getDb().exec('ALTER TABLE fan_saisies ADD COLUMN challenge_pct REAL');
+  } catch (e) { console.error('fan migration challenge_pct:', e && e.message); }
 }
 ensureFanSchema();
 
@@ -4715,6 +4720,7 @@ function fanRow(r) {
     evenements: r ? fanParseEvents(r.evenements) : [],
     avis: r ? (r.avis || 0) : 0,
     refs: r ? (r.refs || 0) : 0,
+    challengePct: (r && r.challenge_pct != null) ? r.challenge_pct : null,
   };
 }
 
@@ -4837,6 +4843,33 @@ function seedFanRefs() {
   } catch (e) { console.error('seedFanRefs:', e && e.message); }
 }
 seedFanRefs();
+
+// Seed du % CHALLENGE (engagement contrat) par studio/mois (janv 2025 → juin 2026,
+// export Deciplus « contrats actifs fin de mois »). Valeur = ratio 0–1. Alimente la
+// colonne challenge_pct uniquement (reste préservé). Le classement /10 se fait côté
+// client. ON CONFLICT DO UPDATE ; drapeau = 1 exécution.
+const FAN_ENGAGEMENT_SEED = {"2025-01":{"Lille":0.986842,"Wasquehal":1,"Marcq":0.95,"Boulogne":0.875969,"Neuilly":0.752941,"Levallois":0.887324},"2025-02":{"Lille":0.985714,"Wasquehal":1,"Marcq":0.951613,"Boulogne":0.852459,"Neuilly":0.734043,"Levallois":0.878049},"2025-03":{"Lille":0.985714,"Wasquehal":1,"Marcq":0.942029,"Boulogne":0.81203,"Neuilly":0.69,"Levallois":0.833333},"2025-04":{"Lille":0.985507,"Wasquehal":1,"Marcq":0.955224,"Boulogne":0.794118,"Neuilly":0.683168,"Levallois":0.823529},"2025-05":{"Lille":0.972603,"Wasquehal":1,"Marcq":0.943662,"Boulogne":0.765152,"Neuilly":0.660714,"Levallois":0.829545},"2025-06":{"Lille":0.933333,"Wasquehal":1,"Marcq":0.891892,"Boulogne":0.72028,"Neuilly":0.619469,"Levallois":0.85},"2025-07":{"Lille":0.921053,"Wasquehal":1,"Marcq":0.878788,"Boulogne":0.705882,"Neuilly":0.576923,"Levallois":0.827957},"2025-08":{"Lille":0.929412,"Wasquehal":1,"Marcq":0.876712,"Boulogne":0.652778,"Neuilly":0.588785,"Levallois":0.8},"2025-09":{"Lille":0.933333,"Wasquehal":0.987013,"Marcq":0.901235,"Boulogne":0.611842,"Neuilly":0.616667,"Levallois":0.75},"2025-10":{"Lille":0.933333,"Wasquehal":0.974026,"Marcq":0.896104,"Boulogne":0.582278,"Neuilly":0.629921,"Levallois":0.736842},"2025-11":{"Lille":0.928571,"Wasquehal":0.985714,"Marcq":0.914634,"Boulogne":0.58,"Neuilly":0.592,"Levallois":0.737288},"2025-12":{"Lille":0.917808,"Wasquehal":1,"Marcq":0.925926,"Boulogne":0.564626,"Neuilly":0.587302,"Levallois":0.741071},"2026-01":{"Lille":0.927536,"Wasquehal":1,"Marcq":0.939024,"Boulogne":0.555556,"Neuilly":0.55814,"Levallois":0.733333},"2026-02":{"Lille":0.944444,"Wasquehal":1,"Marcq":0.948718,"Boulogne":0.578947,"Neuilly":0.565891,"Levallois":0.736},"2026-03":{"Lille":0.958333,"Wasquehal":1,"Marcq":0.941176,"Boulogne":0.590361,"Neuilly":0.527559,"Levallois":0.75},"2026-04":{"Lille":0.945205,"Wasquehal":0.988372,"Marcq":0.927711,"Boulogne":0.570588,"Neuilly":0.544118,"Levallois":0.729927},"2026-05":{"Lille":0.958904,"Wasquehal":0.965909,"Marcq":0.888889,"Boulogne":0.567901,"Neuilly":0.496296,"Levallois":0.71831},"2026-06":{"Lille":0.972603,"Wasquehal":0.955056,"Marcq":0.901235,"Boulogne":0.566667,"Neuilly":0.480916,"Levallois":0.646259}};
+function seedFanEngagement() {
+  try {
+    const V = '1';
+    const fait = (getDb().prepare("SELECT value FROM app_settings WHERE key='fan_engagement_seed_v'").get() || {}).value;
+    if (String(fait) === V) return;
+    const up = getDb().prepare(`INSERT INTO fan_saisies (studio, mois, non_freq, contrats, evenements, avis, refs, challenge_pct, updated_at)
+      VALUES (?,?,0,0,'[]',0,0,?,?)
+      ON CONFLICT(studio, mois) DO UPDATE SET challenge_pct=excluded.challenge_pct, updated_at=excluded.updated_at`);
+    const now = new Date().toISOString();
+    const tx = getDb().transaction(() => {
+      Object.keys(FAN_ENGAGEMENT_SEED).forEach((mois) => {
+        const row = FAN_ENGAGEMENT_SEED[mois];
+        Object.keys(row).forEach((studio) => { if (FAN_STUDIOS.includes(studio)) up.run(studio, mois, row[studio], now); });
+      });
+    });
+    tx();
+    getDb().prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('fan_engagement_seed_v', ?, datetime('now','localtime')) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(V);
+    console.log('[FAN] seed engagement contrat (% Challenge) 2025-01→2026-06 appliqué');
+  } catch (e) { console.error('seedFanEngagement:', e && e.message); }
+}
+seedFanEngagement();
 
 // Un mois : les saisies des 6 studios + l'état clôturé.
 app.get('/api/fan/:mois', requireAuth, requireAdmin, (req, res) => {

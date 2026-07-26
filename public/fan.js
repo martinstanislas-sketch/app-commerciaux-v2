@@ -1,7 +1,7 @@
 'use strict';
 // ============================================================================
-//  FAN — Note du studio /40. Admin uniquement. Thème CLAIR.
-//  Chaque studio reçoit une note /40 = Fréquentation /10 (progressif) + Événements
+//  FAN — Note du studio /50. Admin uniquement. Thème CLAIR.
+//  Chaque studio reçoit une note /50 = Fréquentation /10 + Événements
 //  /5 + Avis /5 + Références /10 + Clients fidèles /10 (classement RECAP), calculés à
 //  partir d'une saisie mensuelle. Le CALCUL vit ici (source unique) ; le serveur
 //  ne stocke que les saisies brutes + l'état « clôturé ». La logique métier
@@ -109,28 +109,50 @@ const FanUI = (function () {
     return above + 1;
   }
 
-  // Note d'un studio /40. `fid`/`freqPts` = points (0–10) déjà classés (fidélité / fréquentation).
-  function noteStudio(row, fid, freqPts) {
+  // Indicateur 6 — Engagement contrat (/10) : CLASSEMENT des 6 studios sur le
+  // % Challenge (Challenge ÷ (Challenge+Carnet), source Deciplus). Le plus haut % =
+  // meilleur. Règle « note du MEILLEUR rang concerné » en cas d'égalité →
+  // points = 10 − 2 × (studios strictement AU-DESSUS), borné à 0. Studio sans donnée = dernier.
+  function engQual(r) { return (r.challengePct != null) ? Number(r.challengePct) : -Infinity; } // + haut = meilleur
+  function engPointsMap(rows) {
+    const q = {}; rows.forEach((r) => { q[r.studio] = engQual(r); });
+    const map = {};
+    STUDIOS.forEach((s) => {
+      let above = 0;
+      STUDIOS.forEach((o) => { if (o !== s && q[o] > q[s]) above++; });
+      map[s] = (q[s] === -Infinity) ? 0 : Math.max(0, 10 - above * 2);
+    });
+    return map;
+  }
+  function engRank(rows, studio) {
+    const q = {}; rows.forEach((r) => { q[r.studio] = engQual(r); });
+    let above = 0; STUDIOS.forEach((o) => { if (o !== studio && q[o] > q[studio]) above++; });
+    return above + 1;
+  }
+
+  // Note d'un studio /50. fid/freqPts/engPts = points (0–10) déjà classés.
+  function noteStudio(row, fid, freqPts, engPts) {
     const hasC = (Number(row.contrats) || 0) > 0;
     const freq = hasC ? Math.max(0, Math.min(10, Number(freqPts) || 0)) : null;   // pas de contrats → « — »
     const even = noteEvents(row.evenements);
     const avis = noteAvis(row.avis);
     const refs = noteRefs(row.refs);
     const f = Math.max(0, Math.min(10, Number(fid) || 0));
-    const total = (freq === null) ? null : (freq + even + avis + refs + f);
-    return { freq, even, avis, refs, fid: f, total };
+    const eng = Math.max(0, Math.min(10, Number(engPts) || 0));
+    const total = (freq === null) ? null : (freq + even + avis + refs + f + eng);
+    return { freq, even, avis, refs, fid: f, eng, total };
   }
-  function noteReseau(rows, fp, freqp) {
-    const notes = rows.map((r) => noteStudio(r, fp && fp[r.studio], freqp && freqp[r.studio]).total).filter((t) => t != null);
+  function noteReseau(rows, fp, freqp, engp) {
+    const notes = rows.map((r) => noteStudio(r, fp && fp[r.studio], freqp && freqp[r.studio], engp && engp[r.studio]).total).filter((t) => t != null);
     if (!notes.length) return null;
     return notes.reduce((a, b) => a + b, 0) / notes.length;
   }
 
-  // ── Couleurs de note /40 : bon ≥32 / moyen 20–31,9 / faible <20 ───────────
+  // ── Couleurs de note /50 : bon ≥40 / moyen 25–39,9 / faible <25 ───────────
   function noteClass(total) {
     if (total == null) return 'fan-na';
-    if (total >= 32) return 'fan-good';
-    if (total >= 20) return 'fan-warn';
+    if (total >= 40) return 'fan-good';
+    if (total >= 25) return 'fan-warn';
     return 'fan-bad';
   }
   // Couleur d'une sous-jauge selon sa proportion du max (≥80 % bon · ≥50 % moyen · sinon faible).
@@ -145,20 +167,21 @@ const FanUI = (function () {
   const fmtNote = (t) => (t == null ? '—' : fmtDec(t));
   const fmtReseau = fmtNote;
 
-  // Note /40 ramenée en note ÉTOILES /5 (façon Google My Business). Le remplissage
+  // Note /50 ramenée en note ÉTOILES /5 (façon Google My Business). Le remplissage
   // est fractionnaire (largeur du calque plein), la couleur suit la bande de score.
-  function stars(note40, size) {
-    const cls = noteClass(note40);
-    if (note40 == null) {
+  function stars(note50, size) {
+    const cls = noteClass(note50);
+    if (note50 == null) {
       return '<span class="fan-stars-wrap ' + cls + (size ? ' ' + size : '') + '"><span class="fan-stars"><span class="fan-stars-bg">★★★★★</span></span><span class="fan-star-val">—</span></span>';
     }
-    const rating = note40 / 8;                       // 40 → 5,0
-    const pct = Math.max(0, Math.min(100, note40 * 2.5));
+    const rating = note50 / 10;                      // 50 → 5,0
+    const pct = Math.max(0, Math.min(100, note50 * 2));
     return '<span class="fan-stars-wrap ' + cls + (size ? ' ' + size : '') + '">'
       + '<span class="fan-stars"><span class="fan-stars-bg">★★★★★</span>'
       + '<span class="fan-stars-fg" style="width:' + pct + '%">★★★★★</span></span>'
       + '<span class="fan-star-val">' + fmtDec(rating) + '</span></span>';
   }
+  const fmtPct = (r) => (r == null ? '—' : Math.round(Number(r) * 100) + ' %');
 
   // ── États d'un studio ─────────────────────────────────────────────────────
   function isEmpty(r) {
@@ -176,6 +199,7 @@ const FanUI = (function () {
     avis: { titre: 'Avis Google (/5)', desc: '1 point par nouvel avis du mois, plafonné à 5.', rows: [['0', '0'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['≥ 5', '5']] },
     refs: { titre: 'Références (/10)', desc: '1 point par prise de référence du mois, plafonné à 10.', rows: [['0', '0'], ['1', '1'], ['5', '5'], ['9', '9'], ['≥ 10', '10']] },
     fid: { titre: 'Clients fidèles (/10)', desc: 'Classement des 6 studios sur le nombre de clients fidèles du mois (source RECAP, automatique). Le studio qui en a le plus marque 10, puis 8, 6, 4, 2, et 0 pour celui qui en a le moins. Studios à égalité = mêmes points.', rows: [['1ᵉʳ (le plus)', '10'], ['2ᵉ', '8'], ['3ᵉ', '6'], ['4ᵉ', '4'], ['5ᵉ', '2'], ['6ᵉ (le moins)', '0']] },
+    eng: { titre: 'Engagement contrat (/10)', desc: 'Classement des 6 studios sur le % Challenge = abonnements Challenge ÷ (Challenge + Carnets) parmi les contrats actifs (source Deciplus, auto). Le % le plus haut marque 10, puis 8, 6, 4, 2, et 0 pour le plus bas. Égalité = note du meilleur rang concerné.', rows: [['1ᵉʳ (% le + haut)', '10'], ['2ᵉ', '8'], ['3ᵉ', '6'], ['4ᵉ', '4'], ['5ᵉ', '2'], ['6ᵉ (% le + bas)', '0']] },
     contrats: { titre: 'Contrat actif', desc: 'Nombre de membres avec un contrat actif (carte ou abonnement) ce mois-ci. Sert de base (dénominateur) au taux de non-fréquentation. N\'a pas de note propre.' },
     eventnom: { titre: 'Événement — nom', desc: 'Nom de l\'événement organisé ce mois-ci (texte libre, ex. « portes ouvertes »). Sans note en soi : c\'est le nombre de participants qui donne la note Événements.' },
   };
@@ -220,7 +244,8 @@ const FanUI = (function () {
     const fideles = data.fideles || {};
     cur = { rows: data.rows || [], closed: data.closed ? 1 : 0, closedAt: data.closedAt || '', fideles, fidPts: fidPointsMap(fideles) };
     cur.freqPts = freqPointsMap(cur.rows);
-    if (prev && prev.ok) { prevTotals = sumTotals(prev.rows || []); prevTotals.fideles = sumFideles(prev.fideles); }
+    cur.engPts = engPointsMap(cur.rows);
+    if (prev && prev.ok) { prevTotals = sumTotals(prev.rows || []); prevTotals.fideles = sumFideles(prev.fideles); prevTotals.challMean = meanChall(prev.rows); }
     else prevTotals = null;
     // Aucune sélection par défaut : le panneau de saisie n'apparaît qu'après un clic
     // sur un studio (et disparaît à chaque changement de mois / réouverture).
@@ -230,7 +255,7 @@ const FanUI = (function () {
 
   function rowOf(studio) { return cur.rows.find((r) => r.studio === studio) || { studio, nonFreq: 0, contrats: 0, evenements: [], avis: 0, refs: 0 }; }
   // Note d'un studio du mois courant (injecte ses points de fidélité).
-  function noteOf(r) { return noteStudio(r, (cur.fidPts || {})[r.studio], (cur.freqPts || {})[r.studio]); }
+  function noteOf(r) { return noteStudio(r, (cur.fidPts || {})[r.studio], (cur.freqPts || {})[r.studio], (cur.engPts || {})[r.studio]); }
   function sortedRows() {
     return cur.rows.slice().sort((a, b) => {
       const ta = noteOf(a).total, tb = noteOf(b).total;
@@ -263,7 +288,7 @@ const FanUI = (function () {
   function renderNetwork() {
     const host = $('#fan-network');
     const notes = cur.rows.filter((r) => noteOf(r).total != null);
-    const reseau = noteReseau(cur.rows, cur.fidPts, cur.freqPts);
+    const reseau = noteReseau(cur.rows, cur.fidPts, cur.freqPts, cur.engPts);
     host.innerHTML = '<div class="fan-net-top"><span class="fan-net-lbl">Note réseau</span>' + stars(reseau, 'lg') + '</div>'
       + '<span class="fan-net-sub">basée sur ' + notes.length + '/' + STUDIOS.length + ' studios saisis</span>';
   }
@@ -288,8 +313,8 @@ const FanUI = (function () {
       const sel = r.studio === selStudio ? ' is-selected' : '';
       // Sous-scores : « — » quand la carte est vide (jamais 0 pour un studio non saisi).
       const g = empty
-        ? gauge('Fréq', 'Fréquentation', null, 10, false) + gauge('Évén', 'Événements', null, 5, false) + gauge('Avis', 'Avis Google', null, 5, false) + gauge('Réf', 'Références', null, 10, false) + gauge('Fid', 'Clients fidèles', null, 10, false)
-        : gauge('Fréq', 'Fréquentation', n.freq, 10, false) + gauge('Évén', 'Événements', n.even, 5, false) + gauge('Avis', 'Avis Google', n.avis, 5, false) + gauge('Réf', 'Références', n.refs, 10, false) + gauge('Fid', 'Clients fidèles', n.fid, 10, false);
+        ? gauge('Fréq', 'Fréquentation', null, 10, false) + gauge('Évén', 'Événements', null, 5, false) + gauge('Avis', 'Avis Google', null, 5, false) + gauge('Réf', 'Références', null, 10, false) + gauge('Fid', 'Clients fidèles', null, 10, false) + gauge('Eng', 'Engagement contrat', null, 10, false)
+        : gauge('Fréq', 'Fréquentation', n.freq, 10, false) + gauge('Évén', 'Événements', n.even, 5, false) + gauge('Avis', 'Avis Google', n.avis, 5, false) + gauge('Réf', 'Références', n.refs, 10, false) + gauge('Fid', 'Clients fidèles', n.fid, 10, false) + gauge('Eng', 'Engagement contrat', n.eng, 10, false);
       const note40 = empty ? null : n.total;
       return '<button type="button" class="fan-card ' + state + sel + '" data-studio="' + esc(r.studio) + '" aria-pressed="' + (sel ? 'true' : 'false') + '">'
         + '<div class="fan-card-top"><span class="fan-card-nom">' + esc(r.studio) + '</span>'
@@ -318,6 +343,7 @@ const FanUI = (function () {
     const ev = (r.evenements && r.evenements[0]) || { nom: '', participants: 0 };
     const nbFid = (cur.fideles || {})[r.studio];
     const fidVal = (nbFid == null) ? '—' : String(nbFid);
+    const engVal = fmtPct(r.challengePct);
     // « ? » d'aide au-dessus de chaque champ (ce que c'est + comment c'est calculé).
     const help = (key) => ro ? '' : ' <button type="button" class="fan-help" data-help="' + key + '" aria-label="Aide">?</button>';
     const field = (lbl, inputHtml, helpKey, cls) => '<label class="fan-line-field' + (cls ? ' ' + cls : '') + '"><span class="fan-lbl">' + lbl + help(helpKey) + '</span>' + inputHtml + '</label>';
@@ -336,6 +362,7 @@ const FanUI = (function () {
       + field('Event', '<input type="text" class="fan-ev-nom" placeholder="Nom" value="' + esc(ev.nom || '') + '"' + dis + '>', 'eventnom', 'fan-line-ev')
       + field('Participants', '<input type="number" class="fan-ev-part" min="0" step="1" value="' + (Number(ev.participants) || 0) + '"' + dis + '>', 'even')
       + field('Fidèle <span class="fan-auto-tag">RECAP</span>', '<input type="text" class="fan-fid-ro" value="' + esc(fidVal) + '" title="Automatique depuis RECAP" disabled>', 'fid', 'fan-line-fid')
+      + field('Engagt <span class="fan-auto-tag">% Chall.</span>', '<input type="text" class="fan-fid-ro" value="' + esc(engVal) + '" title="% Challenge (auto, export Deciplus)" disabled>', 'eng', 'fan-line-fid')
       + '</div>'
 
       // Détail du calcul en direct
@@ -363,8 +390,9 @@ const FanUI = (function () {
         const freqTxt = (n.freq == null) ? 'Fréq —' : ('Fréq ' + n.freq + '/10 (taux ' + Math.round(tx) + '%, rang ' + freqRank(cur.rows, r.studio) + '/' + STUDIOS.length + ')');
         const nb = (cur.fideles || {})[r.studio];
         const fidTxt = (nb == null) ? 'Fid 0/10' : ('Fid ' + n.fid + '/10 (' + nb + ' fidèles, rang ' + fidRank(cur.fideles, r.studio) + '/' + STUDIOS.length + ')');
-        const parts = [freqTxt, 'Évén ' + n.even + '/5', 'Avis ' + n.avis + '/5', 'Réf ' + n.refs + '/10', fidTxt];
-        bd.innerHTML = '<span class="fan-bd-parts">' + parts.join(' · ') + '</span> <span class="fan-bd-total ' + noteClass(n.total) + '">= ' + fmtNote(n.total) + '/40</span>';
+        const engTxt = (r.challengePct == null) ? 'Eng 0/10' : ('Eng ' + n.eng + '/10 (' + fmtPct(r.challengePct) + ' Challenge, rang ' + engRank(cur.rows, r.studio) + '/' + STUDIOS.length + ')');
+        const parts = [freqTxt, 'Évén ' + n.even + '/5', 'Avis ' + n.avis + '/5', 'Réf ' + n.refs + '/10', fidTxt, engTxt];
+        bd.innerHTML = '<span class="fan-bd-parts">' + parts.join(' · ') + '</span> <span class="fan-bd-total ' + noteClass(n.total) + '">= ' + fmtNote(n.total) + '/50</span>';
       }
     }
     const noteEl = $('#fan-form-note');
@@ -439,6 +467,7 @@ const FanUI = (function () {
   }
 
   function sumFideles(fideles) { return STUDIOS.reduce((s, st) => s + (Number(fideles && fideles[st]) || 0), 0); }
+  function meanChall(rows) { const v = (rows || []).map((r) => r.challengePct).filter((x) => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 100) : null; }
 
   // ── Tuiles totaux réseau + delta vs M-1 ───────────────────────────────────────
   function renderTiles() {
@@ -465,6 +494,7 @@ const FanUI = (function () {
       + tile(t.avis, 'Nouveaux avis Google', delta(t.avis, prevTotals && prevTotals.avis))
       + tile(t.refs, 'Prises de références', delta(t.refs, prevTotals && prevTotals.refs))
       + tile(totFid, 'Clients fidèles (RECAP)', delta(totFid, prevTotals && prevTotals.fideles))
+      + (function () { const cm = meanChall(cur.rows); return tile(cm == null ? '—' : (cm + ' %'), '% Challenge moyen', delta(cm, prevTotals && prevTotals.challMean, ' pts')); })()
       + '</div>';
     const g = host.querySelector('[data-goto-histo]');
     if (g) g.addEventListener('click', () => switchView('historique'));
@@ -476,9 +506,9 @@ const FanUI = (function () {
     const el = document.createElement('div');
     el.className = 'fan-pop' + (key === 'all' ? ' fan-pop-all' : ''); el.id = 'fan-pop'; el.setAttribute('role', 'dialog');
     if (key === 'all') {
-      el.innerHTML = '<div class="fan-pop-t">Barème des notes — total /40</div>'
-        + ['freq', 'even', 'avis', 'refs', 'fid'].map((k) => { const b = BAREMES[k]; return '<div class="fan-pop-sec"><div class="fan-pop-st">' + esc(b.titre) + '</div><p class="fan-pop-d">' + esc(b.desc) + '</p></div>'; }).join('')
-        + '<p class="fan-pop-d">La note /40 est ramenée en étoiles /5 (façon Google My Business).</p>';
+      el.innerHTML = '<div class="fan-pop-t">Barème des notes — total /50</div>'
+        + ['freq', 'even', 'avis', 'refs', 'fid', 'eng'].map((k) => { const b = BAREMES[k]; return '<div class="fan-pop-sec"><div class="fan-pop-st">' + esc(b.titre) + '</div><p class="fan-pop-d">' + esc(b.desc) + '</p></div>'; }).join('')
+        + '<p class="fan-pop-d">La note /50 est ramenée en étoiles /5 (façon Google My Business).</p>';
     } else {
       const b = BAREMES[key]; if (!b) return;
       el.innerHTML = '<div class="fan-pop-t">' + esc(b.titre) + (b.rows ? ' — barème' : '') + '</div>'
@@ -500,7 +530,7 @@ const FanUI = (function () {
   function openModal() {
     if (cur.rows.some((r) => !studioComplete(r))) return;   // garde-fou
     closeModal();
-    const reseau = noteReseau(cur.rows, cur.fidPts, cur.freqPts);
+    const reseau = noteReseau(cur.rows, cur.fidPts, cur.freqPts, cur.engPts);
     const list = sortedRows().map((r) => {
       const t = noteOf(r).total;
       return '<li><span>' + esc(r.studio) + ' — ' + esc(capMois()) + '</span>' + stars(t) + '</li>';
@@ -536,15 +566,16 @@ const FanUI = (function () {
     months.forEach((m) => {
       const fp = fidPointsMap(m.fideles || {});
       const freqp = freqPointsMap(m.rows);
+      const engp = engPointsMap(m.rows);
       const per = {};
-      m.rows.forEach((r) => { per[r.studio] = noteStudio(r, fp[r.studio], freqp[r.studio]).total; });
-      noteMap[m.mois] = { per, reseau: noteReseau(m.rows, fp, freqp) };
+      m.rows.forEach((r) => { per[r.studio] = noteStudio(r, fp[r.studio], freqp[r.studio], engp[r.studio]).total; });
+      noteMap[m.mois] = { per, reseau: noteReseau(m.rows, fp, freqp, engp) };
     });
     const moisAsc = months.map((m) => m.mois);
     const moisDesc = moisAsc.slice().reverse();
 
-    // En tableau dense : la note est affichée en étoiles /5 (valeur = note40/8) avec ★.
-    const star5 = (t) => (t == null ? '—' : fmtDec(t / 8) + '★');
+    // En tableau dense : la note est affichée en étoiles /5 (valeur = note50/10) avec ★.
+    const star5 = (t) => (t == null ? '—' : fmtDec(t / 10) + '★');
     const cell = (t) => '<td class="fan-h-cell ' + noteClass(t) + '">' + star5(t) + '</td>';
     const corps = moisDesc.map((ym) => {
       const nm = noteMap[ym];
@@ -582,7 +613,7 @@ const FanUI = (function () {
     if (chart) { chart.destroy(); chart = null; }
     // Données en note ÉTOILES /5 (note40 ÷ 8).
     const datasets = STUDIOS.map((s) => ({
-      label: s, data: labels.map((ym) => { const v = noteMap[ym] ? noteMap[ym].per[s] : null; return v == null ? null : Math.round(v / 8 * 100) / 100; }),
+      label: s, data: labels.map((ym) => { const v = noteMap[ym] ? noteMap[ym].per[s] : null; return v == null ? null : Math.round(v / 10 * 100) / 100; }),
       borderColor: STUDIO_COLORS[s], backgroundColor: STUDIO_COLORS[s], tension: 0.3, spanGaps: true, borderWidth: 2, pointRadius: 3,
     }));
     chart = new Chart(el.getContext('2d'), {
