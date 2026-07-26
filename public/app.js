@@ -10483,12 +10483,16 @@ function parsePennylaneXlsx(arrayBuffer) {
     throw new Error('Aucune colonne mois détectée dans l\'en-tête');
   }
 
-  // 2. Trouver les sections Encaissements et Décaissements
+  // 2. Trouver les sections Encaissement(s) et Décaissement(s). Selon l'export
+  // Pennylane, l'intitulé est au pluriel (« Encaissements ») ou au singulier
+  // (« Encaissement (encaissement réalisé + … ) ») → on matche le préfixe singulier
+  // qui couvre les deux. La 1re occurrence après l'en-tête = l'en-tête de section
+  // (les sous-lignes « Encaissement ponctuels … » viennent après, donc ignorées).
   let encStart = -1, decStart = -1;
   for (let i = headerRowIdx + 1; i < rows.length; i++) {
     const label = String((rows[i] || [])[0] || '').trim().toLowerCase();
-    if (label.startsWith('encaissements') && encStart === -1) encStart = i;
-    else if (label.startsWith('décaissements') && decStart === -1) { decStart = i; break; }
+    if (label.startsWith('encaissement') && encStart === -1) encStart = i;
+    else if (label.startsWith('décaissement') && decStart === -1) { decStart = i; break; }
   }
   if (encStart === -1 || decStart === -1) {
     throw new Error('Sections Encaissements / Décaissements introuvables');
