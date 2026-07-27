@@ -190,6 +190,31 @@ const RecapUI = (function () {
     if (v === 'historique') renderHistorique();
   }
 
+  // Parcourt récursivement des entrées glissées (fichiers ET dossiers) et
+  // renvoie la liste à plat des fichiers. Indispensable quand l'utilisateur
+  // dépose un DOSSIER de PDF : dataTransfer.files ne contient alors pas les
+  // fichiers internes — il faut lire l'arborescence via l'API des entrées.
+  // ⚠️ webkitGetAsEntry() DOIT être appelé de façon synchrone dans l'événement
+  // drop (les items deviennent invalides dès que le handler rend la main).
+  function fichiersDesEntrees(entrees) {
+    const out = [];
+    const lire = (entry) => new Promise((resolve) => {
+      if (!entry) return resolve();
+      if (entry.isFile) { entry.file((f) => { out.push(f); resolve(); }, () => resolve()); return; }
+      if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const lot = () => reader.readEntries((batch) => {
+          if (!batch.length) return resolve(); // plus rien -> dossier épuisé
+          Promise.all(batch.map(lire)).then(lot); // readEntries renvoie par paquets
+        }, () => resolve());
+        lot();
+        return;
+      }
+      resolve();
+    });
+    return Promise.all(entrees.map(lire)).then(() => out);
+  }
+
   // Câble une zone de dépôt existante (glisser/déposer + clic).
   function zone(nom, input, handler) { wireDrop(nom, handler, input); }
   function wireDrop(id, handler, inputEl) {
@@ -201,7 +226,13 @@ const RecapUI = (function () {
     input.addEventListener('change', () => go(input.files));
     ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('rec-drop-on'); }));
     ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('rec-drop-on'); }));
-    drop.addEventListener('drop', (e) => go(e.dataTransfer.files));
+    drop.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      // Capture SYNCHRONE des entrées (fichiers/dossiers) avant tout await.
+      const entrees = dt && dt.items ? [...dt.items].map((it) => (it.webkitGetAsEntry ? it.webkitGetAsEntry() : null)).filter(Boolean) : [];
+      if (entrees.some((en) => en.isDirectory)) { fichiersDesEntrees(entrees).then(go); }
+      else { go(dt.files); }
+    });
   }
 
   const buf = (file) => file.arrayBuffer();
