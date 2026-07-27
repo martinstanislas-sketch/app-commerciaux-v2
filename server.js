@@ -5233,20 +5233,44 @@ async function googleServiceToken(scope) {
   return tok.access_token;
 }
 
-// POST /api/retention/besoin/export : écrase l'onglet cible avec la liste
-// courante des fiches « besoin d'infos » (Club, Nom, Prénom, Qualification).
+// Nom d'onglet lisible à partir d'un mois "YYYY-MM" -> "Juillet 2026".
+// Fallback sur l'onglet fixe (env) si le mois est absent/invalide.
+const MOIS_FR = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+function besoinTabName(mois) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(mois || '').trim());
+  if (!m) return process.env.RECAP_BESOIN_SHEET_TAB || "Besoins d'infos";
+  const idx = parseInt(m[2], 10) - 1;
+  if (idx < 0 || idx > 11) return process.env.RECAP_BESOIN_SHEET_TAB || "Besoins d'infos";
+  return MOIS_FR[idx] + ' ' + m[1];
+}
+
+// POST /api/retention/besoin/export : écrit la liste courante des fiches
+// « besoin d'infos » (Club, Nom, Prénom, Qualification, Note) dans UN ONGLET
+// dédié au mois exporté (ex. « Juillet 2026 »). L'onglet est créé s'il manque,
+// puis vidé et réécrit — chaque mois garde donc son propre onglet.
 app.post('/api/retention/besoin/export', requireAuth, requireAdmin, async (req, res) => {
   const sheetId = process.env.RECAP_BESOIN_SHEET_ID;
   if (!sheetId) return res.status(400).json({ error: 'Google Sheet non configuré (variable RECAP_BESOIN_SHEET_ID).' });
-  const tab = process.env.RECAP_BESOIN_SHEET_TAB || "Besoins d'infos";
+  const tab = besoinTabName(req.body && req.body.mois);
   const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
   const rangeA = "'" + tab.replace(/'/g, "''") + "'!A:E";
   const range1 = "'" + tab.replace(/'/g, "''") + "'!A1";
   try {
     const token = await googleServiceToken('https://www.googleapis.com/auth/spreadsheets');
     const auth = { Authorization: 'Bearer ' + token };
-    const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheetId) + '/values/';
-    // 1) Vide l'ancienne liste (colonnes A→D de l'onglet).
+    const ssBase = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheetId);
+    const base = ssBase + '/values/';
+    // 0) Crée l'onglet du mois s'il n'existe pas encore (ignore l'erreur "déjà présent").
+    const add = await fetch(ssBase + ':batchUpdate', {
+      method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth),
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tab } } }] }),
+    });
+    if (!add.ok) {
+      const aj = await add.json().catch(() => ({}));
+      const already = aj && aj.error && /already exists/i.test(aj.error.message || '');
+      if (!already) return res.status(502).json({ error: 'Google Sheets : ' + ((aj.error && aj.error.message) || 'création onglet impossible') });
+    }
+    // 1) Vide l'ancienne liste de CET onglet (colonnes A→E).
     await fetch(base + encodeURIComponent(rangeA) + ':clear', { method: 'POST', headers: auth });
     // 2) Écrit l'en-tête + les fiches courantes.
     const values = [['Club', 'Nom', 'Prénom', 'Qualification', 'Note']].concat(
@@ -5257,7 +5281,7 @@ app.post('/api/retention/besoin/export', requireAuth, requireAdmin, async (req, 
     });
     const j = await up.json();
     if (j.error) return res.status(502).json({ error: 'Google Sheets : ' + (j.error.message || 'erreur') });
-    res.json({ ok: true, count: rows.length });
+    res.json({ ok: true, count: rows.length, tab });
   } catch (e) { console.error('besoin export :', e && e.message); res.status(500).json({ error: e.message || 'Export impossible.' }); }
 });
 

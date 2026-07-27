@@ -866,7 +866,7 @@ const RecapUI = (function () {
       const r = await fetch('/api/retention/besoin/export', { method: 'POST', headers: H(), body: JSON.stringify({ mois, rows }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) throw new Error(j.error || 'Export impossible.');
-      if (msg) { msg.textContent = '✅ ' + j.count + ' fiche' + (j.count > 1 ? 's' : '') + ' exportée' + (j.count > 1 ? 's' : '') + ' vers Google Sheets.'; msg.className = 'rec-export-msg is-ok'; }
+      if (msg) { msg.textContent = '✅ ' + j.count + ' fiche' + (j.count > 1 ? 's' : '') + ' exportée' + (j.count > 1 ? 's' : '') + ' vers Google Sheets' + (j.tab ? ' (onglet « ' + j.tab + ' »)' : '') + '.'; msg.className = 'rec-export-msg is-ok'; }
     } catch (e) {
       if (msg) { msg.textContent = '⚠️ ' + (e.message || 'Export impossible.'); msg.className = 'rec-export-msg is-err'; }
     } finally { btn.disabled = false; btn.textContent = libel; }
