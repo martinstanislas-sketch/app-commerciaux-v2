@@ -56,10 +56,42 @@ const RecapUI = (function () {
   let triSens = 1;            // 1 = croissant (A→Z), -1 = décroissant
   let besoinTri = 'club';     // tri de l'onglet « Besoin d'infos » : 'nom' | 'club' | 'cat'
   let besoinSens = 1;
+  let rechCli = '';           // recherche par nom/prénom dans la liste d'un club/KPI
+  let rechBesoin = '';        // recherche par nom/prénom dans l'onglet « Besoin d'infos »
   let importOuvert = false; // panneau d'import replié par défaut (consultation avant tout)
   const BESOIN_TAB = '__besoin__'; // onglet spécial (à droite des clubs) agrégeant les clients cochés
   const BESOIN_CAT = '_besoin';    // catégorie réservée en base (réutilise retention_choices)
   const BESOIN_NOTE_CAT = '_besoin_note'; // note libre par fiche (réutilise retention_choices)
+
+  // §Recherche — normalisation insensible à la casse et aux accents.
+  const normRech = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  // Chaîne à stocker sur chaque ligne (data-rech) : « nom prénom » normalisé.
+  const cibleRech = (nom, prenom) => (normRech(nom) + ' ' + normRech(prenom)).trim();
+  // Champ de recherche (HTML) à insérer au-dessus d'un tableau.
+  const champRech = (id, val) => '<div class="rec-rech-bar"><input type="search" class="rec-rech" id="' + id
+    + '" placeholder="🔎 Rechercher un client (nom, prénom)…" value="' + esc(val || '') + '" autocomplete="off">'
+    + '<span class="rec-rech-vide" style="display:none">Aucun client ne correspond.</span></div>';
+  // Filtre en direct les lignes <tr data-rech> d'un tableau, sans re-render (garde le focus).
+  // Chaque mot tapé doit être présent (ordre libre : « dupont jean » = « jean dupont »).
+  function appliquerRech(host, terme) {
+    const mots = normRech(terme).trim().split(/\s+/).filter(Boolean);
+    let vus = 0;
+    host.querySelectorAll('tbody tr[data-rech]').forEach((tr) => {
+      const ok = mots.every((m) => (tr.dataset.rech || '').includes(m));
+      tr.style.display = ok ? '' : 'none';
+      if (ok) vus++;
+    });
+    const vide = host.querySelector('.rec-rech-vide');
+    if (vide) vide.style.display = (mots.length && vus === 0) ? '' : 'none';
+    return vus;
+  }
+  // Branche un champ de recherche : filtre à la frappe + mémorise le terme (setTerme).
+  function brancherRech(host, id, terme, setTerme) {
+    const inp = host.querySelector('#' + id);
+    if (!inp) return;
+    if (terme) appliquerRech(host, terme); // ré-applique le filtre après un re-render
+    inp.addEventListener('input', () => { setTerme(inp.value); appliquerRech(host, inp.value); });
+  }
 
   function open() {
     if (!inited) { wire(); inited = true; }
@@ -779,7 +811,7 @@ const RecapUI = (function () {
       const chk = modeVide ? '<input type="checkbox" class="rec-besoin-chk" title="Besoin d\'infos" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '"' + (estBesoin(s, it.cle) ? ' checked' : '') + '>' : '';
       // Remarque libre inline (même donnée que la note « Besoin d'infos »).
       const note = modeVide ? '<td class="rec-besoin-notecell"><input type="text" class="rec-besoin-note" placeholder="Remarque…" value="' + esc(noteBesoin(s, it.cle)) + '" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '"></td>' : '';
-      return '<tr><td class="rec-cli-nom">' + chk + nomLien(s, it.cle, it.nom, it.prenom) + '</td>'
+      return '<tr data-rech="' + esc(cibleRech(it.nom, it.prenom)) + '"><td class="rec-cli-nom">' + chk + nomLien(s, it.cle, it.nom, it.prenom) + '</td>'
         + situ + '<td class="rec-cli-qual">' + qualCell(s, it, modeVide) + '</td>' + note + '</tr>';
     }).join('');
     const thTri = (col, lbl) => {
@@ -789,8 +821,9 @@ const RecapUI = (function () {
         + esc(lbl) + '<span class="rec-tri-arw">' + glyph + '</span></th>';
     };
     const thead = '<tr>' + thTri('nom', 'Client') + (modeVide ? '' : thTri('situ', 'Situation détectée')) + thTri('qual', 'Qualification') + (modeVide ? '<th>Note</th>' : '') + '</tr>';
+    const rech = rows.length > 1 ? champRech('rec-rech-cli', rechCli) : '';
     const table = rows.length
-      ? '<table class="rec-cli-table' + (modeVide ? ' rec-cli-note3' : '') + '"><thead>' + thead + '</thead><tbody>' + corps + '</tbody></table>'
+      ? rech + '<table class="rec-cli-table' + (modeVide ? ' rec-cli-note3' : '') + '"><thead>' + thead + '</thead><tbody>' + corps + '</tbody></table>'
       : '<p class="rec-vide">Aucun client dans cette catégorie.</p>';
     const nb = rows.length;
     const listHead = '<div class="rec-list-head">' + esc((KPI_TITRE[kpiActive] || '').toUpperCase()) + ' — ' + nb + ' client' + (nb > 1 ? 's' : '') + '</div>';
@@ -814,6 +847,7 @@ const RecapUI = (function () {
     host.querySelectorAll('.rec-besoin-note').forEach((inp) => inp.addEventListener('change', () => {
       setNoteBesoin(inp.dataset.s, inp.dataset.cle, inp.value.trim());
     }));
+    brancherRech(host, 'rec-rech-cli', rechCli, (v) => { rechCli = v; });
   }
 
   // Onglet « Besoin d'infos » : liste agrégée (tous clubs) des clients cochés.
@@ -828,7 +862,7 @@ const RecapUI = (function () {
       return;
     }
     const corps = liste.map((x) =>
-      '<tr><td class="rec-besoin-cell"><input type="checkbox" class="rec-besoin-chk" checked title="Retirer" data-s="' + esc(x.studio) + '" data-cle="' + esc(x.cle) + '"></td>'
+      '<tr data-rech="' + esc(cibleRech(x.nom, x.prenom)) + '"><td class="rec-besoin-cell"><input type="checkbox" class="rec-besoin-chk" checked title="Retirer" data-s="' + esc(x.studio) + '" data-cle="' + esc(x.cle) + '"></td>'
       + '<td class="rec-cli-nom">' + nomLien(x.studio, x.cle, x.nom, x.prenom) + '</td>'
       + '<td>' + esc(x.studio) + '</td>'
       + '<td class="rec-cli-qual">' + x.qual + '</td>'
@@ -840,9 +874,10 @@ const RecapUI = (function () {
       return '<th class="rec-th-tri' + (actif ? ' is-tri' : '') + '" data-btri="' + col + '">'
         + esc(lbl) + '<span class="rec-tri-arw">' + glyph + '</span></th>';
     };
+    const rech = nb > 1 ? champRech('rec-rech-besoin', rechBesoin) : '';
     const table = '<table class="rec-cli-table rec-besoin-table"><thead><tr>'
       + '<th></th>' + thB('nom', 'Client') + thB('club', 'Club') + '<th>Qualification</th><th>Note</th></tr></thead><tbody>' + corps + '</tbody></table>';
-    host.innerHTML = '<div class="rec-panel">' + head + table + '</div>';
+    host.innerHTML = '<div class="rec-panel">' + head + rech + table + '</div>';
     host.querySelectorAll('.rec-th-tri[data-btri]').forEach((h) => h.addEventListener('click', () => {
       const col = h.dataset.btri;
       if (besoinTri === col) besoinSens = -besoinSens; else { besoinTri = col; besoinSens = 1; }
@@ -854,6 +889,7 @@ const RecapUI = (function () {
     }));
     const eb = $('#rec-export-besoin');
     if (eb) eb.addEventListener('click', () => exporterBesoin(liste, eb));
+    brancherRech(host, 'rec-rech-besoin', rechBesoin, (v) => { rechBesoin = v; });
   }
 
   // Export vers Google Sheets (Club, Nom, Prénom, Qualification, Note) via le backend.

@@ -21278,6 +21278,12 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-export-msg.is-ok { color: var(--rc-green); }
 .rec-export-msg.is-err { color: var(--rc-red); }
 .rec-vide { color: var(--rc-text-3); font-size: 12.5px; padding: 16px 2px; }
+/* Recherche par nom/prénom (liste club/KPI + onglet Besoin d'infos) */
+.rec-rech-bar { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; flex-wrap: wrap; }
+.rec-rech { flex: 1 1 240px; max-width: 360px; background: var(--rc-surface); border: 1px solid var(--rc-line-2); color: var(--rc-text); border-radius: 9px; padding: 0 12px; height: var(--rc-btn-h); font: inherit; font-size: 13px; transition: border-color .15s, box-shadow .15s; }
+.rec-rech:focus { outline: none; border-color: var(--rc-accent); box-shadow: 0 0 0 3px var(--rc-accent-soft); }
+.rec-rech::placeholder { color: var(--rc-text-3); }
+.rec-rech-vide { font-size: 12px; color: var(--rc-text-3); }
 /* Badges de statut — pastille colorée + libellé neutre (Linear) */
 .rec-badge2 { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 550; padding: 1px 8px; border-radius: 6px; white-space: nowrap; background: rgba(255,255,255,.045); border: 1px solid var(--rc-line); color: var(--rc-text-2); }
 .rec-badge2::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--rc-text-3); flex: 0 0 auto; }
