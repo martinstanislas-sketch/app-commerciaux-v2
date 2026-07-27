@@ -46,16 +46,23 @@
   }
   function parseContratFilename(nomFichier) {
     const base = String(nomFichier || '').replace(/\.pdf$/i, '');
-    // 6 chiffres de date + séquence(s) ignorée(s), puis nom, puis studio.
-    const m = /^(\d{6})\d*-(.+)-contrat-my-coach-(.+)$/i.exec(base);
+    // 6 chiffres de date + séquence(s) ignorée(s), puis nom, puis « -contrat »
+    // et un éventuel suffixe de marque/studio. La marque n'est PAS imposée : le
+    // club est déjà choisi dans le menu, donc « my-coach », « ginkgo-sport » ou
+    // toute autre marque sont acceptés (nom capturé jusqu'au 1er « -contrat »).
+    const m = /^(\d{6})\d*-(.+?)-contrat(?:-(.*))?$/i.exec(base);
     if (!m) return null;
-    const [, ymd, nomBloc, studioBloc] = m;
+    const ymd = m[1];
+    const nomBloc = m[2];
+    const reste = m[3] || '';
     const an = 2000 + Number(ymd.slice(0, 2));
     const mois = ymd.slice(2, 4);
     const jour = ymd.slice(4, 6);
     const date = an + '-' + mois + '-' + jour;
     const nomComplet = nomBloc.replace(/-/g, ' ').trim();
-    const studio = titleCase(studioBloc.replace(/-/g, ' ').trim());
+    // Studio purement indicatif (ignoré à l'affectation) : on retire une marque
+    // connue en tête pour rester lisible si jamais on l'affiche.
+    const studio = titleCase(reste.replace(/^my-coach-/i, '').replace(/-/g, ' ').trim());
     return { date, studio, nomComplet, cles: clesContrat(nomComplet) };
   }
 
