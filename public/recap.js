@@ -31,7 +31,10 @@ const RecapUI = (function () {
   let m1Info = {};   // studio -> uploaded_at (pour le bandeau de reprise)
   let dejaArchiveM = false;
   // Import club par club : l'admin choisit le club, aucune détection automatique.
-  let clubs = [];          // clubs connus (menu déroulant)
+  // Clubs toujours proposés dans le menu, même sans aucun import (nouveaux clubs
+  // à évaluer). Évite de retaper le nom à la main (et les fautes de frappe).
+  const CLUBS_BASE = ['Ginkgo Sport'];
+  let clubs = [...CLUBS_BASE]; // clubs connus (menu déroulant)
   let clubCourant = '';    // club sélectionné -> tous les dépôts lui sont attribués
   // Dépôts en attente (fichiers glissés, pas encore archivés)
   let contratsParStudio = {}; // studio -> [{ cles, nom, prenom, date }]
@@ -158,6 +161,7 @@ const RecapUI = (function () {
   async function chargerClubs() {
     try { const d = await (await fetch('/api/retention/studios', { headers: H() })).json(); clubs = d.studios || []; }
     catch (_) { /* garde la liste courante */ }
+    clubs = [...new Set([...CLUBS_BASE, ...clubs])]; // les clubs de base restent toujours proposés
     peuplerClubs();
   }
   function peuplerClubs() {
