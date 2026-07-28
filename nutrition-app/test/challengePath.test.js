@@ -8,6 +8,7 @@ const Database = require('better-sqlite3');
 const {
   createChallengeEngine, CHALLENGE_PATH_NODES, FLOW_STEP_EVENT,
   pathDaysBetween, pathYmdMinusDays, pathParisYmd, streakAfterOpen, streakAffiche, activeDayFromDone, punchPalier,
+  etapeDeverrouillee, etapeATemps,
 } = require('../lib/challengePath');
 
 // Fabrique un moteur branché sur une DB in-memory, avec le flag ON et une date de
@@ -60,6 +61,26 @@ function completeAll(engine, email, db) {
     doNode(engine, email, active, db);
     if (engine.pathActiveDay(email) === active) break; // bloqué -> on sort
   }
+}
+// --- VERROU TEMPOREL EN TEST -------------------------------------------------
+// On pilote le « jour courant » via la date de départ : la caler sur
+// aujourd'hui - `day` place le jour courant 0-based (jc0) à `day`, donc l'étape
+// `day` se joue « à temps ». (data.startDate = priorité 3, suffisant hors cohorte.)
+function calerJour(db, email, day) {
+  db.prepare('UPDATE nutrition_clients SET data=? WHERE email=?')
+    .run(JSON.stringify({ startDate: pathYmdMinusDays(pathParisYmd(), day) }), email);
+}
+// Amène le client À l'étape `cible` en la rendant validable « à temps » : jc0 =
+// cible, donc 0..cible-1 sont rattrapées (déverrouillées, sans Punch) et `cible`
+// tombe pile sur le jour courant. Reproduit un client qui rattrape puis agit ce jour.
+function amenerA(engine, db, email, cible) {
+  calerJour(db, email, cible);
+  for (let d = 0; d < cible; d++) doNode(engine, email, d, db);
+}
+// Parcours PONCTUEL : chaque étape faite le jour même -> Punch crédité à chaque
+// fois (un client qui suit le rythme, une étape par jour).
+function completeAllPonctuel(engine, db, email, fin = CHALLENGE_PATH_NODES.length - 1) {
+  for (let d = 0; d <= fin; d++) { calerJour(db, email, d); doNode(engine, email, d, db); }
 }
 
 // --- MIGRATION XP + gems -> Punch -------------------------------------------
@@ -219,6 +240,96 @@ test('cohorte : tout le groupe partage le même jour de parcours', () => {
   assert.equal(engine.pathCurrentDay('a2@a.fr'), 5, 'même cohorte = même jour, quel que soit le client');
 });
 
+// ============================================================================
+//  VERROU TEMPOREL DU PARCOURS (challenge de GROUPE synchronisé)
+//  On ne valide que jusqu'au jour réellement atteint (identique pour tout le
+//  groupe), dans l'ordre ; seule l'étape faite le jour J crédite du Punch.
+// ============================================================================
+test('verrou : helpers purs etapeDeverrouillee / etapeATemps (jc0 0-based)', () => {
+  // 3e jour -> jc0 = 2 : étapes 0,1,2 ouvertes ; « à temps » = 2 ; 3+ fermées.
+  assert.equal(etapeDeverrouillee(0, 2), true);
+  assert.equal(etapeDeverrouillee(2, 2), true);
+  assert.equal(etapeDeverrouillee(3, 2), false, 'le jour n\'est pas encore atteint');
+  assert.equal(etapeATemps(2, 2), true, 'l\'étape du jour');
+  assert.equal(etapeATemps(1, 2), false, 'une étape passée = rattrapage');
+});
+
+test('verrou : date GLOBALE — deux clients de la même cohorte ont le même jour', () => {
+  const { db, engine } = makeEngine({ startDate: null });
+  const j3 = pathYmdMinusDays(pathParisYmd(), 2); // jour 3 -> jc0 = 2
+  ['x@a.fr', 'y@a.fr'].forEach((e) => seedCohorte(db, e, j3));
+  assert.equal(engine.jourCourant0('x@a.fr'), 2);
+  assert.equal(engine.jourCourant0('y@a.fr'), 2, 'même date de début = même plafond, pour tous');
+});
+
+test('verrou : démarré au jour 1, on est au jour 3 -> étapes 1..3 ouvertes, la 4 fermée', () => {
+  const { engine, db, email } = makeEngine();
+  seedCohorte(db, email, pathYmdMinusDays(pathParisYmd(), 2)); // jour 3 (jc0 = 2)
+  assert.equal(engine.jourCourant0(email), 2);
+  const st = engine.challengePublicState(email).nodes;
+  // Statut = séquentiel : l'étape ACTIVE est la 1re non faite (0), les 1,2 sont
+  // en file (« locked »), mais toutes trois (index 0..2) sont déverrouillées par
+  // le temps ; seule l'étape 3 (index) est « à venir » (timelock).
+  assert.equal(st.find((n) => n.day === 0).status, 'active');
+  assert.equal(st.find((n) => n.day === 1).status, 'locked');
+  assert.equal(st.find((n) => n.day === 2).status, 'locked');
+  assert.equal(st.find((n) => n.day === 3).status, 'timelock', 'l\'étape 4 (index 3) reste à venir');
+  // On rattrape 0,1 et on fait la 2 « à temps » ; l'étape 3 doit rester verrouillée.
+  [0, 1, 2].forEach((d) => doNode(engine, email, d, db));
+  assert.equal(engine.pathActiveDay(email), 3);
+  assert.equal(engine.awardClientEvent(email, eventFor(3), 'x'), null, 'valider au-delà du jour atteint est bloqué');
+  assert.equal(engine.pathDoneDays(email).has(3), false, 'et rien n\'est écrit pour une étape future');
+});
+
+test('verrou : intégré au jour 5 -> rattrape les étapes 1..5, la 6 reste fermée', () => {
+  const { engine, db, email } = makeEngine();
+  seedCohorte(db, email, pathYmdMinusDays(pathParisYmd(), 4)); // jour 5 (jc0 = 4)
+  const st = engine.challengePublicState(email).nodes;
+  [0, 1, 2, 3, 4].forEach((d) => assert.notEqual(st.find((n) => n.day === d).status, 'timelock', 'étapes 1..5 accessibles'));
+  assert.equal(st.find((n) => n.day === 5).status, 'timelock', 'l\'étape 6 (index 5) reste à venir');
+  // Il enchaîne le rattrapage 0..4 dès son arrivée, puis bute sur la 6.
+  for (let d = 0; d <= 4; d++) doNode(engine, email, d, db);
+  assert.equal(engine.pathActiveDay(email), 5);
+  assert.equal(engine.awardClientEvent(email, eventFor(5), 'x'), null, 'la 6e reste fermée au jour 5');
+});
+
+test('verrou : rattrapage (jour passé) -> validé mais SANS Punch ni série', () => {
+  const { engine, db, email } = makeEngine();
+  seedCohorte(db, email, pathYmdMinusDays(pathParisYmd(), 4)); // jour 5
+  const punchAvant = engine.pathStatsRow(email).punch;
+  const serieAvant = engine.pathStatsRow(email).streak_current || 0;
+  doNode(engine, email, 0, db); // rattrapage de l'étape 0 (composite), sans Punch
+  const r = engine.awardClientEvent(email, eventFor(1), 'x'); // étape 1, jour passé -> rattrapage
+  assert.equal(r, null, 'un rattrapage ne renvoie aucune récompense (donc aucune célébration)');
+  assert.equal(engine.pathDoneDays(email).has(1), true, 'mais l\'étape est bien marquée faite');
+  assert.equal(engine.pathStatsRow(email).punch, punchAvant, 'aucun Punch pour un rattrapage');
+  assert.equal(db.prepare('SELECT punch_awarded FROM user_node_progress WHERE client_email=? AND node_day=1').get(email).punch_awarded, 0, 'Punch crédité mémorisé = 0');
+  assert.equal(engine.pathStatsRow(email).streak_current || 0, serieAvant, 'la série n\'est pas touchée');
+});
+
+test('verrou : à temps (jour pile) -> Punch crédité + récompense renvoyée', () => {
+  const { engine, db, email } = makeEngine();
+  seedCohorte(db, email, pathYmdMinusDays(pathParisYmd(), 3)); // jour 4 (jc0 = 3)
+  for (let d = 0; d < 3; d++) doNode(engine, email, d, db); // rattrapage 0,1,2
+  const node3 = CHALLENGE_PATH_NODES.find((n) => n.day === 3);
+  const punchAvant = engine.pathStatsRow(email).punch;
+  const r = engine.awardClientEvent(email, eventFor(3), 'x'); // étape 3 = celle du jour
+  assert.ok(r, 'l\'étape du jour renvoie sa récompense');
+  assert.equal(r.aTemps, true);
+  assert.equal(r.punch, node3.punch);
+  assert.equal(engine.pathStatsRow(email).punch, punchAvant + node3.punch, 'le Punch est crédité');
+  assert.equal(db.prepare('SELECT punch_awarded FROM user_node_progress WHERE client_email=? AND node_day=3').get(email).punch_awarded, node3.punch);
+});
+
+test('verrou : passage au jour suivant (minuit) -> l\'étape du jour se déverrouille', () => {
+  const { engine, db, email } = makeEngine();
+  seedCohorte(db, email, pathYmdMinusDays(pathParisYmd(), 2)); // jour 3 : l'étape 3 (index) est à venir
+  assert.equal(engine.challengePublicState(email).nodes.find((n) => n.day === 3).status, 'timelock');
+  // « Minuit » : un jour de plus s'est écoulé (la date de début recule d'un cran).
+  seedCohorte(db, email, pathYmdMinusDays(pathParisYmd(), 3)); // jour 4
+  assert.notEqual(engine.challengePublicState(email).nodes.find((n) => n.day === 3).status, 'timelock', 'elle n\'est plus « à venir »');
+});
+
 // --- Seed ------------------------------------------------------------------
 test('seed : 43 étapes (0→42), aucune pesée, 4 jalons ★, 6 semaines bien bornées', () => {
   const { db } = makeEngine();
@@ -278,6 +389,7 @@ test('étapes composites : flow + jalon présents dans la donnée exposée', () 
 // --- Moteur : déblocage séquentiel -----------------------------------------
 test('déblocage séquentiel : bon événement valide + avance ; mauvais événement ignoré', () => {
   const { engine, email, db } = makeEngine();
+  calerJour(db, email, 1); // jour 2 : étape 0 rattrapable, étape 1 « à temps »
   assert.equal(engine.pathActiveDay(email), 0, 'on démarre à l\'étape 0 « Commencer »');
   // étape active = Commencer (composite) ; une séance ne doit RIEN valider
   assert.equal(engine.awardClientEvent(email, 'seance', 1), null);
@@ -300,7 +412,7 @@ test('déblocage séquentiel : bon événement valide + avance ; mauvais événe
 // image (cf. POST /api/community/messages) — jamais à l'ouverture de la communauté.
 test('étape 13 : un post PHOTO la valide', () => {
   const { engine, email, db } = makeEngine();
-  for (let d = 0; d < 13; d++) doNode(engine, email, d, db);
+  amenerA(engine, db, email, 13); // étape 13 « à temps »
   assert.equal(engine.pathActiveDay(email), 13);
   const r = engine.awardClientEvent(email, 'groupe_photo', 'post1');
   assert.ok(r, 'la photo postée valide l\'étape');
@@ -347,7 +459,7 @@ test('étapes « groupe » (27/34) : une photo reste un post et les valide', () 
   // Le serveur tente groupe_photo puis groupe : une photo ne doit pas bloquer une
   // étape qui demande simplement de poster.
   const { engine, email, db } = makeEngine();
-  for (let d = 0; d < 27; d++) doNode(engine, email, d, db);
+  amenerA(engine, db, email, 27); // étape 27 « à temps »
   assert.equal(engine.pathActiveDay(email), 27);
   assert.equal(engine.awardClientEvent(email, 'groupe_photo', 'p'), null, '27 n\'attend pas une photo');
   const r = engine.awardClientEvent(email, 'groupe', 'p'); // le repli du serveur
@@ -425,6 +537,7 @@ test('paliers : la série cassée REMET les paliers à zéro -> ils se regagnent
 
 test('paliers : les gains du Chemin restent EN PLUS de la série', () => {
   const { engine, email, db } = makeEngine();
+  calerJour(db, email, 0); // étape 0 « à temps »
   doNode(engine, email, 0, db); // étape Commencer = 80 Punch
   const avant = db.prepare('SELECT punch FROM user_game_stats WHERE client_email=?').get(email).punch;
   assert.equal(avant, 80, 'les actions du Chemin rapportent toujours');
@@ -442,7 +555,7 @@ test('paliers : une colonne illisible ne bloque pas le gain', () => {
 // --- ÉTAPE 27 : encourager = poster OU répondre ------------------------------
 test('étape 27 : une RÉPONSE à un membre la valide', () => {
   const { engine, email, db } = makeEngine();
-  for (let d = 0; d < 27; d++) doNode(engine, email, d, db);
+  amenerA(engine, db, email, 27); // étape 27 « à temps »
   assert.equal(engine.pathActiveDay(email), 27);
   const r = engine.awardClientEvent(email, 'groupe_reponse', 'c1');
   assert.ok(r, 'répondre à quelqu\'un est un encouragement');
@@ -452,7 +565,7 @@ test('étape 27 : une RÉPONSE à un membre la valide', () => {
 
 test('étape 27 : un POST la valide aussi (les deux chemins marchent)', () => {
   const { engine, email, db } = makeEngine();
-  for (let d = 0; d < 27; d++) doNode(engine, email, d, db);
+  amenerA(engine, db, email, 27); // étape 27 « à temps »
   const r = engine.awardClientEvent(email, 'groupe', 'p1');
   assert.ok(r, 'poster reste valable');
   assert.equal(r.day, 27);
@@ -474,7 +587,7 @@ test('RÉGRESSION : une réponse ne valide PAS les autres étapes « groupe »',
   assert.equal(a.engine.flowDone(a.email, 0).has('groupe'), false, 'l\'étape 0 exige un vrai post');
   // « Partage ta recette » (étape 34) : idem.
   const b = makeEngine();
-  for (let d = 0; d < 34; d++) doNode(b.engine, b.email, d, b.db);
+  amenerA(b.engine, b.db, b.email, 34); // étape 34 « à temps »
   assert.equal(b.engine.pathActiveDay(b.email), 34);
   assert.equal(b.engine.awardClientEvent(b.email, 'groupe_reponse', 'c'), null, 'une réponse ne partage pas une recette');
   assert.ok(b.engine.awardClientEvent(b.email, 'groupe', 'p'), 'un post la valide bien');
@@ -484,7 +597,7 @@ test('RÉGRESSION : une réponse ne valide PAS les autres étapes « groupe »',
 // Ces étapes se valident sur l'ENVOI réel d'un message (l'événement 'coach' n'est
 // émis que par POST /api/messages/coach) — jamais à l'ouverture de la conversation.
 function allerJusqua(engine, email, db, cible) {
-  for (let d = 0; d < cible; d++) doNode(engine, email, d, db);
+  amenerA(engine, db, email, cible); // cible « à temps » ; les précédentes rattrapées
 }
 [6, 20].forEach((jour) => {
   test('étape ' + jour + ' : un message coach envoyé la valide', () => {
@@ -511,7 +624,7 @@ function allerJusqua(engine, email, db, cible) {
 
 test('message coach : ouvrir la conversation ne valide rien (seul l\'envoi compte)', () => {
   const { engine, email, db } = makeEngine();
-  allerJusqua(engine, email, db, 6);
+  completeAllPonctuel(engine, db, email, 5); // étapes 0..5 faites À TEMPS -> Punch crédité
   // Ouvrir la conversation n'émet AUCUN événement : le moteur ne voit rien passer.
   assert.equal(engine.pathActiveDay(email), 6, 'l\'étape 6 reste active tant que rien n\'est envoyé');
   assert.equal(engine.pathStatsRow(email).punch, CHALLENGE_PATH_NODES.filter((n) => n.day < 6).reduce((a, n) => a + n.punch, 0));
@@ -571,6 +684,7 @@ test('photos : les photos d\'un AUTRE jalon ne valident pas l\'étape en cours',
 // --- PHASE 2 : étapes composites, le flow doit être COMPLET ------------------
 test('composite : l\'étape 0 ne se valide QUE si tout son flow est fait', () => {
   const { engine, email, db } = makeEngine();
+  calerJour(db, email, 0); // étape 0 « à temps »
   // photos + mensurations + groupe requis : chaque sous-étape seule ne suffit pas.
   ['face', 'profil', 'dos'].forEach((t) => ajouterPhoto(db, email, 'debut', t));
   assert.equal(engine.awardClientEvent(email, 'photo', 'x'), null, 'photos seules ne valident pas');
@@ -586,6 +700,7 @@ test('composite : l\'étape 0 ne se valide QUE si tout son flow est fait', () =>
 
 test('composite : ordre LIBRE — groupe puis mensurations puis photos valide aussi', () => {
   const { engine, email, db } = makeEngine();
+  calerJour(db, email, 0); // étape 0 « à temps »
   assert.equal(engine.awardClientEvent(email, 'groupe', 'x'), null);
   assert.equal(engine.awardClientEvent(email, 'mensurations', 'x'), null);
   ['face', 'profil', 'dos'].forEach((t) => ajouterPhoto(db, email, 'debut', t));
@@ -613,8 +728,8 @@ test('composite : répéter la même sous-étape ne fait pas avancer le flow', (
 
 test('composite : le Point mi-parcours (21) ne demande que photos + mensurations', () => {
   const { engine, email, db } = makeEngine();
-  // On amène le parcours jusqu'à l'étape 21.
-  for (let d = 0; d <= 20; d++) doNode(engine, email, d, db);
+  // On amène le parcours jusqu'à l'étape 21, faite « à temps ».
+  amenerA(engine, db, email, 21);
   assert.equal(engine.pathActiveDay(email), 21);
   ['face', 'profil', 'dos'].forEach((t) => ajouterPhoto(db, email, 'mi', t)); // jalon 'mi' -> photos rangées sous 's3'
   assert.equal(engine.awardClientEvent(email, 'photo', 'x'), null);
@@ -649,7 +764,7 @@ test('parcours non démarré (pas de date) : aucun événement ne valide', () =>
 // --- PUNCH (monnaie unique) / idempotence -----------------------------------
 test('parcours complet : Punch = somme du barème ; ré-émission = aucun double (idempotence)', () => {
   const { engine, email, db } = makeEngine();
-  completeAll(engine, email, db);
+  completeAllPonctuel(engine, db, email); // chaque étape faite À TEMPS -> tout le Punch
   assert.equal(engine.pathActiveDay(email), null);
   const sumPunch = CHALLENGE_PATH_NODES.reduce((a, n) => a + n.punch, 0);
   assert.equal(db.prepare('SELECT * FROM user_game_stats WHERE client_email=?').get(email).punch, sumPunch);
@@ -688,7 +803,7 @@ test('idempotence fine : revalider une étape déjà faite n\'ajoute pas de Punc
 
 test('RÉGRESSION : compléter une semaine n\'accorde plus rien d\'autre que le Punch', () => {
   const { engine, email, db } = makeEngine();
-  for (let d = 0; d <= 7; d++) doNode(engine, email, d, db); // S1 complète (étapes 0..7)
+  completeAllPonctuel(engine, db, email, 7); // S1 complète (étapes 0..7), à temps
   const cols = db.prepare('PRAGMA table_info(user_game_stats)').all().map((c) => c.name);
   assert.ok(!cols.includes('jokers'), 'la colonne jokers ne doit plus exister');
   const attendu = CHALLENGE_PATH_NODES.filter((n) => n.week === 1).reduce((a, n) => a + n.punch, 0);

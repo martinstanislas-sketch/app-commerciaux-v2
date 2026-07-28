@@ -235,6 +235,19 @@ function activeDayFromDone(doneSet, total) {
 }
 
 // ---------------------------------------------------------------------------
+//  VERROU TEMPOREL (challenge de GROUPE synchronisé)
+//  Tout se raisonne en index 0-based aligné sur node.day (0..42). Le « jour
+//  courant » 0-based `jc0` vaut pathCurrentDay-1 (jour de départ -> 0), et est
+//  IDENTIQUE pour tout le groupe (il découle de la date de cohorte globale).
+//   · déverrouillée : node.day <= jc0  -> validable (à temps OU à rattraper) ;
+//   · à temps       : node.day === jc0 -> seule à créditer du Punch ;
+//   · à rattraper   : node.day <  jc0  -> validable, SANS Punch ni série ;
+//   · verrouillée   : node.day >  jc0  -> « Disponible le jour X ».
+// ---------------------------------------------------------------------------
+function etapeDeverrouillee(day, jc0) { return Number(day) <= Number(jc0); }
+function etapeATemps(day, jc0) { return Number(day) === Number(jc0); }
+
+// ---------------------------------------------------------------------------
 //  Schéma SQL (exporté pour les tests : une seule source de vérité).
 // ---------------------------------------------------------------------------
 const CHALLENGE_SCHEMA_SQL = `
@@ -491,6 +504,9 @@ function createChallengeEngine({ getDb }) {
     if (!start) return 0;
     return pathDaysBetween(start, pathParisYmd()) + 1;
   }
+  // Jour courant en index 0-based, aligné sur node.day (0..42). -1 si le parcours
+  // n'a pas démarré. C'est le plafond des étapes validables aujourd'hui.
+  function jourCourant0(email) { const c = pathCurrentDay(email); return c > 0 ? c - 1 : -1; }
   function pathDoneDays(email) {
     const set = new Set();
     try { getDb().prepare("SELECT node_day FROM user_node_progress WHERE client_email=? AND completed_at!=''").all(email).forEach((r) => set.add(r.node_day)); } catch (_) { /* ignore */ }
@@ -764,6 +780,10 @@ function createChallengeEngine({ getDb }) {
       if (pathCurrentDay(email) <= 0) return null; // parcours non démarré
       const activeDay = pathActiveDay(email);
       if (activeDay === null) return null; // terminé (=== null : l'étape 0 est falsy !)
+      // PLAFOND TEMPOREL : on ne valide jamais au-delà du jour réellement atteint
+      // (identique pour tout le groupe). Une étape future reste verrouillée.
+      const jc0 = jourCourant0(email);
+      if (!etapeDeverrouillee(activeDay, jc0)) return null; // étape à venir -> bloquée
       const node = CHALLENGE_PATH_NODES.find((n) => n.day === activeDay);
       if (!node) return null;
       if (node.flow && node.flow.length) {
@@ -781,14 +801,21 @@ function createChallengeEngine({ getDb }) {
       } else if (!nodeAccepteEvent(node, eventType)) {
         return null; // pas le bon événement -> le retard décale la suite
       }
+      // PONCTUALITÉ : seule une étape faite LE JOUR J crédite du Punch. Un
+      // rattrapage (jour passé) est validé mais ne rapporte rien. On mémorise le
+      // Punch réellement crédité (0 en retard) : le front s'en sert pour ne PAS
+      // célébrer un rattrapage (pas de Punch = pas de célébration).
+      const aTemps = etapeATemps(activeDay, jc0);
+      const punchCredit = aTemps ? node.punch : 0;
       const ins = getDb().prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at, punch_awarded, ref_id) VALUES (?,?,?,?,?)")
-        .run(email, activeDay, new Date().toISOString(), node.punch, String(refId == null ? '' : refId));
+        .run(email, activeDay, new Date().toISOString(), punchCredit, String(refId == null ? '' : refId));
       if (ins.changes === 0) return null; // déjà validé -> aucune double récompense (idempotence)
-      addPunch(email, node.punch, 'etape:' + activeDay); // seul chemin d'ajout -> déblocages évalués
+      if (!aTemps) return null; // RATTRAPAGE : étape marquée faite, sans Punch ni célébration
+      addPunch(email, node.punch, 'etape:' + activeDay); // à temps -> seul chemin d'ajout, déblocages évalués
       // `final` : c'est LA dernière étape du parcours (type 'final', jour 42).
       // Le front n'a ainsi pas à coder « jour 42 » en dur pour savoir qu'il doit
       // jouer la grande fin — déplacer ou renuméroter l'étape reste sans effet.
-      return { day: activeDay, title: node.title, punch: node.punch, milestone: !!node.milestone, final: node.type === 'final', nextDay: pathActiveDay(email) };
+      return { day: activeDay, title: node.title, punch: node.punch, milestone: !!node.milestone, final: node.type === 'final', nextDay: pathActiveDay(email), aTemps: true };
     } catch (e) { console.error('awardClientEvent:', e && e.message); return null; }
   }
   // État public du Chemin pour le client courant (consommé par l'onglet front).
@@ -805,6 +832,18 @@ function createChallengeEngine({ getDb }) {
     const streakVu = streakAffiche(s.streak_current || 0, s.last_win_date || '', pathParisYmd());
     const done = pathDoneDays(email);
     const activeDay = pathActiveDay(email);
+    // Plafond du jour (0-based) + Punch réellement crédité par étape déjà faite :
+    // le front distingue ainsi « à venir » (grisé), l'étape du jour, et les
+    // rattrapages faits sans Punch (à ne pas re-célébrer).
+    const jc0 = day > 0 ? day - 1 : -1;
+    const punchDe = new Map();
+    try { getDb().prepare("SELECT node_day, punch_awarded FROM user_node_progress WHERE client_email=? AND completed_at!=''").all(email).forEach((r) => punchDe.set(r.node_day, r.punch_awarded || 0)); } catch (_) { /* table absente en test */ }
+    const statutNoeud = (nd) => {
+      if (done.has(nd)) return 'done';
+      if (nd > jc0) return 'timelock';       // étape future -> « Disponible le jour X »
+      if (nd === activeDay) return 'active';  // à faire aujourd'hui (à temps ou à rattraper)
+      return 'locked';                        // en file derrière l'étape active
+    };
     const nodes = CHALLENGE_PATH_NODES.map((n) => ({
       day: n.day, week: n.week, weekTitle: CHALLENGE_WEEK_TITLES[n.week] || '',
       // `event` est exposé : le front route vers l'écran qui produit ce vrai
@@ -817,7 +856,9 @@ function createChallengeEngine({ getDb }) {
       // Compteur des photos exigées -> le front affiche « 2/3 photos ajoutées »
       // et le client comprend pourquoi sa sous-étape n'est pas encore cochée.
       photos: (n.flow || []).includes('photos') ? { fait: photosFaites(email, n.jalon), requis: PHOTOS_REQUISES.length } : null,
-      status: done.has(n.day) ? 'done' : (n.day === activeDay ? 'active' : 'locked'),
+      status: statutNoeud(n.day),
+      // Punch réellement crédité (0 = rattrapage sans points) ; null si pas faite.
+      punchAwarded: done.has(n.day) ? (punchDe.get(n.day) || 0) : null,
     }));
     return {
       enabled, started, day, activeDay, startsOn, totalDays: CHALLENGE_PATH_NODES.length,
@@ -1031,7 +1072,7 @@ function createChallengeEngine({ getDb }) {
 
   return {
     ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, dayWon, challengePublicState,
-    pathFeatureEnabled, pathCurrentDay, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
+    pathFeatureEnabled, pathCurrentDay, jourCourant0, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
     pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds, punchProgression,
     assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier,
     missionsBonusListe, declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
@@ -1051,6 +1092,8 @@ module.exports.pathYmdMinusDays = pathYmdMinusDays;
 module.exports.streakAfterOpen = streakAfterOpen;
 module.exports.streakAffiche = streakAffiche;
 module.exports.activeDayFromDone = activeDayFromDone;
+module.exports.etapeDeverrouillee = etapeDeverrouillee;
+module.exports.etapeATemps = etapeATemps;
 module.exports.nodeAccepteEvent = nodeAccepteEvent;
 module.exports.punchPalier = punchPalier;
 module.exports.PALIERS_SERIE = PALIERS_SERIE;

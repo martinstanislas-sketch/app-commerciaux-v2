@@ -5154,7 +5154,9 @@ async function renderChallenge() {
   // Toast « au retour » : un nœud validé sur son écran d'origine s'affiche à la revenue.
   if (hadSnapshot) {
     const newly = (st.nodes || []).filter((n) => n.status === 'done' && !prevDone.has(n.day));
-    if (newly.length) { const n = newly[newly.length - 1]; rewardToast({ title: n.title, punch: n.punch, milestone: n.milestone }); }
+    // Pas de Punch réellement crédité (rattrapage) = pas de célébration au retour.
+    const fetables = newly.filter((n) => (n.punchAwarded || 0) > 0);
+    if (fetables.length) { const n = fetables[fetables.length - 1]; rewardToast({ title: n.title, punch: n.punchAwarded, milestone: n.milestone, final: n.type === 'final' }); }
   }
   state._challengeLoaded = true;
 }
@@ -5239,7 +5241,7 @@ function ascYs(nodes) {
 const ASC_IC_TYPE = { commencer: 'flag', seance: 'dumbbell', ebook: 'book', bilan: 'file', check: 'trophy', final: 'trophy', special: 'spark' };
 const ASC_IC_EVENT = { coach: 'message', groupe_photo: 'camera', groupe: 'users' };
 function ascIcone(n) { return ASC_IC_EVENT[n.event] || ASC_IC_TYPE[n.type] || 'spark'; }
-const ASC_ETAT_MOT = { done: 'Terminé', active: 'À faire maintenant', locked: 'Pas encore débloqué' };
+const ASC_ETAT_MOT = { done: 'Terminé', active: 'À faire maintenant', locked: 'Pas encore débloqué', timelock: 'À venir' };
 
 // Le récit des six semaines. `weekTitles` vient du serveur (source de vérité) ;
 // le sous-titre et l'ambiance sont de la MISE EN SCÈNE — ils vivent donc ici, et
@@ -5770,17 +5772,19 @@ function ascNodeHTML(n, pt, ctx, ecarte) {
   if (n.type === 'final') cls.push('asc-fin');
   // Le libellé porte déjà l'état en toutes lettres pour les lecteurs d'écran :
   // la couleur n'est jamais le seul indice.
+  const ferme = n.status === 'locked' || n.status === 'timelock';
   const aria = mcpEsc(n.title) + (n.milestone ? ' — Étape clé' : '') + ' — ' + ASC_ETAT_MOT[n.status]
-    + (n.status === 'locked' ? '' : ' — ' + n.punch + ' Punch');
+    + (ferme ? '' : ' — ' + n.punch + ' Punch');
   // L'étape active LANCE l'étape ; une étape fermée DIT pourquoi elle l'est
   // (au clic, un simple message — cf. ascPourquoiFerme). Une porte fermée qui
   // ne répond pas quand on frappe se lit comme un bug ; elle reste pour autant
   // non-actionnable, et son libellé le dit aux lecteurs d'écran.
   // ⚠️ Les étapes DÉJÀ FAITES restent inertes : rien à y relancer.
+  // Étape fermée (en file OU à venir) : cliquable pour DIRE pourquoi, jamais pour valider.
   const attr = n.status === 'active' ? ` data-node="${n.day}"`
-    : n.status === 'locked' ? ` data-locked="${n.day}"` : ' disabled';
+    : ferme ? ` data-locked="${n.day}"` : ' disabled';
   const ecusson = n.status === 'done' ? `<span class="asc-ck" aria-hidden="true">${icSvg('check')}</span>`
-    : n.status === 'locked' ? `<span class="asc-lk" aria-hidden="true">${icSvg('lock')}</span>` : '';
+    : ferme ? `<span class="asc-lk" aria-hidden="true">${icSvg('lock')}</span>` : '';
   // Placement autour de la bulle (à sa hauteur, le sentier ne l'occupe qu'elle :
   // les deux côtés sont libres) :
   //  · un simple LIBELLÉ part vers l'EXTÉRIEUR de la vague, centré sur la bulle ;
@@ -5865,10 +5869,16 @@ function ascLegendeHTML() {
 function ascPourquoiFerme(day) {
   const nodes = (state.challenge && state.challenge.nodes) || [];
   const n = nodes.find((x) => x.day === day); if (!n) return;
+  const quoi = mcpEsc(n.title);
+  // Étape à venir : verrou TEMPOREL (le jour n'est pas encore arrivé pour tout le
+  // groupe). node.day est 0-based -> elle s'ouvre le jour (node.day + 1).
+  if (n.status === 'timelock') {
+    showToast('🔒 ' + quoi + ' — disponible le jour ' + (n.day + 1), { icon: 'info' });
+    return;
+  }
   const iAct = nodes.findIndex((x) => x.status === 'active');
   const i = nodes.indexOf(n);
   const reste = iAct >= 0 ? i - iAct : 0;
-  const quoi = mcpEsc(n.title);
   if (reste > 0) {
     showToast('🔒 ' + quoi + ' — encore ' + reste + ' étape' + (reste > 1 ? 's' : '') + ' avant d\'y arriver', { icon: 'info' });
   } else {
@@ -5999,9 +6009,10 @@ async function mcpathRetourApresAction() {
     const faits = (n.flowDone || []).length;
     if (faits <= r.faits && n.status !== 'done') return; // rien de neuf : on n'importune pas
     if (n.status === 'done') {
-      // Étape complète : on laisse le client où il est, avec sa récompense.
+      // Étape complète : on laisse le client où il est. On ne fête que si du Punch
+      // a réellement été crédité (une étape composite rattrapée n'en donne pas).
       state.mcpathRetour = null;
-      rewardToast({ title: n.title, punch: n.punch, milestone: n.milestone });
+      if ((n.punchAwarded || 0) > 0) rewardToast({ title: n.title, punch: n.punchAwarded, milestone: n.milestone, final: n.type === 'final' });
       return;
     }
     // Il reste des sous-étapes : on ramène la liste, à jour.
@@ -6222,9 +6233,18 @@ function closeChallengeSheet() { const el = $('#mcpathSheet'); if (el) el.classL
 function openChallengeNode(day) {
   const st = state.challenge; if (!st) return;
   const n = (st.nodes || []).find((x) => x.day === day); if (!n) return;
+  // Garde anti-futur (défense en profondeur : une étape à venir n'est déjà pas
+  // câblée pour s'ouvrir, mais on ne valide jamais au-delà du jour atteint).
+  if (n.status === 'timelock') { ascPourquoiFerme(day); return; }
   const sheet = ensureChallengeSheet();
   const lbl = challengeActionLabel(n);
-  sheet.querySelector('.mcpath-sheet-badge').textContent = `Étape ${n.day} · +${n.punch} Punch`;
+  // Rattrapage : l'étape du jour est déjà passée (node.day < jour courant 0-based).
+  // On le DIT (sans Punch), sinon le client croit gagner des points en la faisant.
+  const jc0 = (Number(st.day) || 0) - 1;
+  const rattrapage = n.day < jc0;
+  sheet.querySelector('.mcpath-sheet-badge').textContent = rattrapage
+    ? `Étape ${n.day} · Rattrapage — sans Punch`
+    : `Étape ${n.day} · +${n.punch} Punch`;
   sheet.querySelector('.mcpath-sheet-title').textContent = n.title;
   sheet.querySelector('.mcpath-sheet-sub').textContent = lbl.sub;
   const btn = sheet.querySelector('.mcpath-sheet-btn');

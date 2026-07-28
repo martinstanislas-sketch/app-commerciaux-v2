@@ -149,6 +149,10 @@ test('source PARCOURS : valider une étape passe par addPunch et évalue les seu
   const { engine, db, email } = makeEngine();
   engine.pathStatsRow(email);
   engine.addPunch(email, 60, 'amorce');
+  // Verrou temporel : l'étape 0 ne crédite du Punch que faite « à temps ». On cale
+  // donc la date de début sur aujourd'hui (jour courant 0 -> étape 0 pile à l'heure).
+  const cp = require('../lib/challengePath');
+  db.prepare('UPDATE nutrition_clients SET data=? WHERE email=?').run(JSON.stringify({ startDate: cp.pathParisYmd() }), email);
   // L'étape 0 vaut 80 Punch : le total passe à 140, et tout ce qui est en
   // dessous doit être débloqué — quels que soient les seuils de la table.
   ['face', 'profil', 'dos'].forEach((t) => db.prepare("INSERT INTO nutrition_parcours_photos (client_email, jalon, type, data, mime, auteur_role, created_at) VALUES (?,'depart',?,'x','image/jpeg','client','')").run(email, t));

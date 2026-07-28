@@ -3367,6 +3367,13 @@ body.is-demo #navRestart { display: none !important; }
 .asc-locked .asc-dot { background: #E4E8EF; border-color: #C9D2E0; color: #7C8AA0; box-shadow: none; cursor: pointer; }
 .asc-locked .asc-dot:hover { border-color: #A9B7CC; background: #DCE2EC; }
 .asc-locked .asc-lbl { color: var(--text-muted-c); }
+/* Étape à VENIR (verrou temporel : le jour du groupe n'est pas encore arrivé).
+   Même grisé que « verrouillée de séquence », un cran plus estompé + pointillés :
+   « pas encore le moment » se distingue de « fais d'abord l'étape en cours ». */
+.asc-timelock .asc-dot { background: #E4E8EF; border-color: #C9D2E0; color: #7C8AA0; box-shadow: none; cursor: pointer; border-style: dashed; opacity: .82; }
+.asc-timelock .asc-dot:hover { border-color: #A9B7CC; background: #DCE2EC; }
+.asc-timelock .asc-lbl { color: var(--text-muted-c); opacity: .9; }
+.asc-sommet.asc-timelock .asc-dot { background: #EDE7DA; border-color: #DCCFB4; color: #B9A87F; box-shadow: 0 0 0 5px var(--app-bg), 0 0 0 7px rgba(182, 137, 46, .14); }
 
 /* --- Le client, SUR son chemin ------------------------------------------
    Il ne coiffe plus la bulle comme une icône : il se tient sur le sentier, sur
