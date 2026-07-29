@@ -51,6 +51,9 @@ const RecapUI = (function () {
   let choix = {};    // studio -> { cle -> valeur }
   let besoin = {};   // studio -> { cle -> true }  (clients cochés « besoin d'infos »)
   let besoinNote = {}; // studio -> { cle -> texte }  (note libre par fiche « besoin d'infos »)
+  // Ajouts manuels : studio -> { categorie -> [{ id, nom, prenom }] }
+  // categorie ∈ {disparus, impayes, baisses, nouveaux, aqualifier, preavis}
+  let manuelsPar = {};
   let resultats = {};// studio -> retour de calculerStudio  (ou { pending:true })
   let chartHisto = null;
   let resClub = '';  // club affiché dans la zone de résultats (onglets)
@@ -767,10 +770,21 @@ const RecapUI = (function () {
   // Carte affichée uniquement s'il y a des résiliés en préavis (issue du fichier résiliations).
   const KPI_PREAVIS = { key: 'preavis', label: () => 'Résilié préavis', icon: 'clock', aide: 'preavis' };
 
+  // Récupère les clients ajoutés manuellement pour ce (studio, catégorie).
+  // Retour : [{ cle: 'manual:<id>', nom, prenom, manualId, menuCat, situ }]
+  function manuelsPourCat(s, key) {
+    const arr = (manuelsPar[s] && manuelsPar[s][key]) || [];
+    const menuCat = { disparus: 'disparu', impayes: 'disparu', baisses: 'baisse', nouveaux: 'nouveauNonPaye', aqualifier: 'aQualifier', preavis: 'preavis' }[key] || null;
+    const situ = { disparus: 'disparu', impayes: 'disparu', baisses: 'baisse', nouveaux: 'nouveauPaye', aqualifier: 'aqualifier', preavis: 'preavis' }[key] || '';
+    return arr.map((m) => ({ cle: 'manual:' + m.id, nom: m.nom, prenom: m.prenom, manualId: m.id, isManuel: true, menuCat, situ, type: key === 'impayes' ? 'IMPAYE' : undefined }));
+  }
   // Construit la liste de clients correspondant à une carte KPI (données déjà
   // calculées ; aucune modification du calcul). Chaque ligne : { cle, nom, prenom,
   // menuCat (menu de qualification, ou null), situ (badge de situation) }.
   function listeKPI(r, key, s) {
+    // Ajouts manuels (persistants) — comptés dans la catégorie où ils ont été ajoutés
+    const manuels = manuelsPourCat(s, key);
+    const withManuels = (arr) => arr.concat(manuels);
     switch (key) {
       case 'clients': return (r.baseListe || []).map((x) => ({ cle: x.cle, nom: x.nom, prenom: x.prenom, menuCat: null, situ: 'client' }));
       case 'fideles': {
@@ -780,12 +794,12 @@ const RecapUI = (function () {
           .map((b) => ({ cle: b.cle, nom: b.nom, prenom: b.prenom, menuCat: 'baisse', situ: 'fidele' }));
         return fid.concat(sc);
       }
-      case 'disparus': return (r.disparus || []).map((d) => ({ cle: d.cle, nom: d.nom, prenom: d.prenom, type: d.type, menuCat: 'disparu', situ: 'disparu' }));
-      case 'impayes': return (r.disparus || []).filter((d) => d.type === 'IMPAYE').map((d) => ({ cle: d.cle, nom: d.nom, prenom: d.prenom, type: d.type, menuCat: 'disparu', situ: 'disparu' }));
-      case 'baisses': return (r.baisses || []).map((b) => ({ cle: b.cle, nom: b.nom, prenom: b.prenom, menuCat: 'baisse', situ: 'baisse' }));
-      case 'nouveaux': return (r.signatairesListe || []).map((n) => ({ cle: n.cle, nom: n.nom, prenom: n.prenom, menuCat: 'nouveauNonPaye', situ: n.paye ? 'nouveauPaye' : 'nonPaye' }));
-      case 'aqualifier': return (r.aQualifier || []).map((q) => ({ cle: q.cle, nom: q.nom, prenom: q.prenom, menuCat: 'aQualifier', situ: 'aqualifier' }));
-      case 'preavis': return (r.preavis || []).map((p) => ({ cle: p.cle, nom: p.nom, prenom: p.prenom, baisse: p.baisse, menuCat: 'preavis', situ: 'preavis' }));
+      case 'disparus': return withManuels((r.disparus || []).map((d) => ({ cle: d.cle, nom: d.nom, prenom: d.prenom, type: d.type, menuCat: 'disparu', situ: 'disparu' })));
+      case 'impayes': return withManuels((r.disparus || []).filter((d) => d.type === 'IMPAYE').map((d) => ({ cle: d.cle, nom: d.nom, prenom: d.prenom, type: d.type, menuCat: 'disparu', situ: 'disparu' })));
+      case 'baisses': return withManuels((r.baisses || []).map((b) => ({ cle: b.cle, nom: b.nom, prenom: b.prenom, menuCat: 'baisse', situ: 'baisse' })));
+      case 'nouveaux': return withManuels((r.signatairesListe || []).map((n) => ({ cle: n.cle, nom: n.nom, prenom: n.prenom, menuCat: 'nouveauNonPaye', situ: n.paye ? 'nouveauPaye' : 'nonPaye' })));
+      case 'aqualifier': return withManuels((r.aQualifier || []).map((q) => ({ cle: q.cle, nom: q.nom, prenom: q.prenom, menuCat: 'aQualifier', situ: 'aqualifier' })));
+      case 'preavis': return withManuels((r.preavis || []).map((p) => ({ cle: p.cle, nom: p.nom, prenom: p.prenom, baisse: p.baisse, menuCat: 'preavis', situ: 'preavis' })));
       default: return [];
     }
   }
@@ -840,13 +854,18 @@ const RecapUI = (function () {
     const rows = trierRows(listeKPI(r, kpiActive, s), s);
     let sansLien = 0, total = 0;
     const corps = rows.map((it) => {
-      total++; if (!resoudreId(it.cle, s)) sansLien++;
+      total++; if (!resoudreId(it.cle, s) && !it.isManuel) sansLien++;
       const situ = modeVide ? '' : '<td>' + situBadge(it.situ, it) + '</td>';
       // Petite case « besoin d'infos » devant le nom (catégories qualifiables).
       const chk = modeVide ? '<input type="checkbox" class="rec-besoin-chk" title="Besoin d\'infos" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '"' + (estBesoin(s, it.cle) ? ' checked' : '') + '>' : '';
       // Remarque libre inline (même donnée que la note « Besoin d'infos »).
       const note = modeVide ? '<td class="rec-besoin-notecell"><input type="text" class="rec-besoin-note" placeholder="Remarque…" value="' + esc(noteBesoin(s, it.cle)) + '" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '"></td>' : '';
-      return '<tr data-rech="' + esc(cibleRech(it.nom, it.prenom)) + '"><td class="rec-cli-nom">' + chk + nomLien(s, it.cle, it.nom, it.prenom) + '</td>'
+      // Sur une ligne ajoutée manuellement : petit tag + bouton × pour la retirer.
+      const nomAff = it.isManuel
+        ? '<span class="rec-manual-name">' + esc(((it.prenom || '') + ' ' + (it.nom || '')).trim() || '—') + '</span> <span class="rec-manual-tag" title="Ajouté à la main">manuel</span>'
+          + ' <button type="button" class="rec-manual-del-btn" data-manual-del="' + it.manualId + '" title="Retirer">×</button>'
+        : nomLien(s, it.cle, it.nom, it.prenom);
+      return '<tr data-rech="' + esc(cibleRech(it.nom, it.prenom)) + '"' + (it.isManuel ? ' class="rec-manual-row"' : '') + '><td class="rec-cli-nom">' + chk + nomAff + '</td>'
         + situ + '<td class="rec-cli-qual">' + qualCell(s, it, modeVide) + '</td>' + note + '</tr>';
     }).join('');
     const thTri = (col, lbl) => {
@@ -861,7 +880,24 @@ const RecapUI = (function () {
       ? rech + '<table class="rec-cli-table' + (modeVide ? ' rec-cli-note3' : '') + '"><thead>' + thead + '</thead><tbody>' + corps + '</tbody></table>'
       : '<p class="rec-vide">Aucun client dans cette catégorie.</p>';
     const nb = rows.length;
-    const listHead = '<div class="rec-list-head">' + esc((KPI_TITRE[kpiActive] || '').toUpperCase()) + ' — ' + nb + ' client' + (nb > 1 ? 's' : '') + '</div>';
+    // Bouton « + Ajouter un client » réservé aux 6 catégories actionnables
+    // (identiques à CAT_QUAL_VIDE). Un clic ouvre un mini-formulaire inline.
+    const canAddManual = CAT_QUAL_VIDE.has(kpiActive);
+    const addBtn = canAddManual
+      ? '<button type="button" class="rec-manual-add-btn" data-manual-add-cat="' + esc(kpiActive) + '" data-manual-add-studio="' + esc(s) + '">+ Ajouter un client</button>'
+      : '';
+    const addForm = canAddManual
+      ? '<form class="rec-manual-form" id="rec-manual-form" hidden autocomplete="off">'
+          + '<input type="text" name="prenom" placeholder="Prénom" maxlength="60" required>'
+          + '<input type="text" name="nom" placeholder="Nom" maxlength="60">'
+          + '<button type="submit" class="rec-manual-form-ok">Ajouter</button>'
+          + '<button type="button" class="rec-manual-form-cancel" data-manual-cancel="1">Annuler</button>'
+        + '</form>'
+      : '';
+    const listHead = '<div class="rec-list-head">'
+      + '<span class="rec-list-head-title">' + esc((KPI_TITRE[kpiActive] || '').toUpperCase()) + ' — ' + nb + ' client' + (nb > 1 ? 's' : '') + '</span>'
+      + addBtn
+      + '</div>' + addForm;
 
     // §B4 Alerte « sans lien Deciplus ».
     let alerte = '';
@@ -881,6 +917,55 @@ const RecapUI = (function () {
     // Remarque libre : persiste à la sortie du champ (partagée avec « Besoin d'infos »).
     host.querySelectorAll('.rec-besoin-note').forEach((inp) => inp.addEventListener('change', () => {
       setNoteBesoin(inp.dataset.s, inp.dataset.cle, inp.value.trim());
+    }));
+    // « + Ajouter un client » : ouvre le formulaire inline
+    const addBtnEl = host.querySelector('.rec-manual-add-btn');
+    const formEl = host.querySelector('#rec-manual-form');
+    if (addBtnEl && formEl) {
+      addBtnEl.addEventListener('click', () => {
+        formEl.hidden = false;
+        addBtnEl.style.display = 'none';
+        setTimeout(() => formEl.querySelector('input[name="prenom"]').focus(), 40);
+      });
+      const cancelBtn = formEl.querySelector('[data-manual-cancel]');
+      if (cancelBtn) cancelBtn.addEventListener('click', () => {
+        formEl.hidden = true;
+        formEl.reset();
+        addBtnEl.style.display = '';
+      });
+      formEl.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(formEl);
+        const prenom = String(fd.get('prenom') || '').trim();
+        const nom = String(fd.get('nom') || '').trim();
+        if (!prenom && !nom) return;
+        try {
+          const r = await fetch('/api/retention/manual', {
+            method: 'POST', headers: H(),
+            body: JSON.stringify({ mois, studio: s, categorie: kpiActive, nom, prenom }),
+          });
+          if (!r.ok) { msg('Ajout impossible.', true); return; }
+          const d = await r.json();
+          const byCat = manuelsPar[s] || (manuelsPar[s] = {});
+          (byCat[kpiActive] || (byCat[kpiActive] = [])).push({ id: d.id, nom, prenom });
+          formEl.reset();
+          renderClubTabs();
+          renderClubPanel();
+        } catch (_) { msg('Réseau indisponible.', true); }
+      });
+    }
+    // Suppression d'un ajout manuel
+    host.querySelectorAll('.rec-manual-del-btn[data-manual-del]').forEach((btn) => btn.addEventListener('click', async () => {
+      const id = parseInt(btn.dataset.manualDel, 10);
+      if (!Number.isFinite(id)) return;
+      if (!confirm('Retirer ce client de la liste ?')) return;
+      try {
+        const r = await fetch('/api/retention/manual/' + id, { method: 'DELETE', headers: H() });
+        if (!r.ok) { msg('Suppression impossible.', true); return; }
+        const byCat = manuelsPar[s]; if (byCat && byCat[kpiActive]) byCat[kpiActive] = byCat[kpiActive].filter((m) => m.id !== id);
+        renderClubTabs();
+        renderClubPanel();
+      } catch (_) { msg('Réseau indisponible.', true); }
     }));
     brancherRech(host, 'rec-rech-cli', rechCli, (v) => { rechCli = v; });
   }
@@ -1137,6 +1222,12 @@ const RecapUI = (function () {
       });
       dejaArchiveM = (d.importsM || []).some((im) => im.type === 'encaissements');
       (d.importsM1 || []).forEach((im) => { archM1[im.studio] = im.contenu || []; m1Info[im.studio] = im.uploaded_at; });
+      // Manuels : indexation par studio -> categorie -> [{id, nom, prenom}]
+      manuelsPar = {};
+      (d.manuels || []).forEach((m) => {
+        const byCat = manuelsPar[m.studio] || (manuelsPar[m.studio] = {});
+        (byCat[m.categorie] || (byCat[m.categorie] = [])).push({ id: m.id, nom: m.nom || '', prenom: m.prenom || '' });
+      });
       (d.choices || []).forEach((c) => {
         if (c.categorie === BESOIN_CAT) { // flag « besoin d'infos » -> map séparée
           if (c.valeur === '1') (besoin[c.studio] || (besoin[c.studio] = {}))[c.client_key] = true;
@@ -1161,7 +1252,7 @@ const RecapUI = (function () {
     // NB : on NE réinitialise PAS clubs/clubCourant (sélection valable entre mois).
     archM = {}; archM1 = {}; m1Info = {}; dejaArchiveM = false;
     contratsParStudio = {}; resiliationsParStudio = {}; fichiersEncM = []; fichiersM1 = []; bulkM1Ouvert = false;
-    studios = {}; resultats = {}; choix = {}; besoin = {}; besoinNote = {};
+    studios = {}; resultats = {}; choix = {}; besoin = {}; besoinNote = {}; manuelsPar = {};
     membres = { map: [], stats: {}, total: 0 }; idxStudio = new Map(); idxGlobal = new Map();
     ['encM', 'contrats', 'resiliations', 'membres'].forEach((z) => { const el = $('#rec-info-' + z); if (el) el.textContent = ''; });
     ['encM', 'contrats', 'resiliations'].forEach((z) => { const zn = $('#rec-zone-' + z); if (zn) zn.classList.remove('is-done'); const c = $('#rec-done-' + z); if (c) c.innerHTML = ''; });

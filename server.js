@@ -4593,6 +4593,19 @@ function ensureRetentionSchema() {
       updated_at TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (mois, studio, client_key, categorie)
     );
+    -- Clients ajoutés à la main dans le RECAP (persistants, supprimables).
+    -- categorie ∈ {disparus, impayes, baisses, nouveaux, aqualifier, preavis}
+    CREATE TABLE IF NOT EXISTS retention_manual (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      mois TEXT NOT NULL,
+      studio TEXT NOT NULL,
+      categorie TEXT NOT NULL,
+      nom TEXT NOT NULL,
+      prenom TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      created_by TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_retention_manual_mois ON retention_manual(mois, studio);
   `);
   // Migration douce : retention_choices a existé (1er commit RECAP) SANS
   // updated_at ; CREATE IF NOT EXISTS ne l'ajoute pas -> on complète à la main.
@@ -5202,7 +5215,36 @@ app.get('/api/retention/:mois', requireAuth, requireAdmin, (req, res) => {
     db.prepare("SELECT studio, mois, type, contenu, uploaded_at, uploaded_by FROM retention_imports WHERE mois = ? AND type = 'encaissements'").all(m1)
   );
   const choices = db.prepare('SELECT studio, client_key, categorie, valeur FROM retention_choices WHERE mois = ?').all(mois);
-  res.json({ mois, m1, importsM, importsM1, choices, membres: lireMembres(db) });
+  const manuels = db.prepare('SELECT id, studio, categorie, nom, prenom, created_at FROM retention_manual WHERE mois = ? ORDER BY created_at ASC').all(mois);
+  res.json({ mois, m1, importsM, importsM1, choices, membres: lireMembres(db), manuels });
+});
+
+// ─── Ajout manuel d'un client dans une catégorie RECAP ────────
+const RETENTION_MANUAL_CATS = ['disparus', 'impayes', 'baisses', 'nouveaux', 'aqualifier', 'preavis'];
+app.post('/api/retention/manual', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim();
+  const studio = String(b.studio || '').trim();
+  const categorie = String(b.categorie || '').trim();
+  const nom = String(b.nom || '').trim();
+  const prenom = String(b.prenom || '').trim();
+  if (!RETENTION_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois AAAA-MM-01 requis' });
+  if (!studio) return res.status(400).json({ error: 'studio requis' });
+  if (!RETENTION_MANUAL_CATS.includes(categorie)) return res.status(400).json({ error: 'catégorie invalide' });
+  if (!nom && !prenom) return res.status(400).json({ error: 'nom ou prénom requis' });
+  if (nom.length > 60 || prenom.length > 60) return res.status(400).json({ error: 'nom / prénom trop long (60 max)' });
+  const db = getDb();
+  const result = db.prepare(
+    'INSERT INTO retention_manual (mois, studio, categorie, nom, prenom, created_by) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(mois, studio, categorie, nom, prenom, (req.session && req.session.name) || 'admin');
+  res.json({ ok: true, id: result.lastInsertRowid, mois, studio, categorie, nom, prenom });
+});
+app.delete('/api/retention/manual/:id', requireAuth, requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'id invalide' });
+  const db = getDb();
+  const r = db.prepare('DELETE FROM retention_manual WHERE id = ?').run(id);
+  res.json({ ok: true, deleted: r.changes });
 });
 
 // Dépôt d'imports (un fichier d'encaissements couvre plusieurs studios -> le
