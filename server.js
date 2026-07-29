@@ -532,6 +532,26 @@ function ensureNutritionHelpTable() {
       getDb().exec("ALTER TABLE nutrition_community_messages ADD COLUMN photo TEXT NOT NULL DEFAULT ''");
     }
   } catch (e) { console.error('Migration community photo :', e && e.message); }
+  // Migration : cloisonnement du FIL D'ACTIVITÉ (événements) par groupe. Sans ça, les
+  // « moments » auto (bienvenue, séries, séances, jalons) étaient lus tous groupes
+  // confondus -> un membre voyait l'activité d'autres challenges. On ajoute group_key
+  // puis on le rétro-remplit depuis le groupe de l'acteur (les events par membre).
+  try {
+    const evCols = getDb().prepare('PRAGMA table_info(nutrition_community_events)').all();
+    if (evCols.length && !evCols.some((c) => c.name === 'group_key')) {
+      getDb().exec("ALTER TABLE nutrition_community_events ADD COLUMN group_key TEXT NOT NULL DEFAULT ''");
+      // Rétro-remplissage : chaque event porté par un membre hérite du groupe de ce
+      // membre. Les jalons collectifs (actor_email='') restent '' et s'éteignent
+      // d'eux-mêmes (recalculés par groupe chaque semaine).
+      getDb().exec(
+        "UPDATE nutrition_community_events SET group_key = COALESCE((" +
+        "  SELECT LOWER(TRIM(m.ville)) || '#' || m.challenge_no FROM nutrition_client_meta m" +
+        "  WHERE m.client_email = nutrition_community_events.actor_email" +
+        "    AND TRIM(m.ville) <> '' AND m.challenge_no > 0), '')" +
+        " WHERE actor_email <> '' AND group_key = ''"
+      );
+    }
+  } catch (e) { console.error('Migration community events group_key :', e && e.message); }
   // Migration : unification de l'identité client sur l'email. Les tables historiques
   // (aide/scans/avis/adhérence/assiettes) lient un client par `client_name` (texte libre
   // = nom de session) ≠ email -> impossible à scoper proprement par coach. On ajoute une
@@ -1869,10 +1889,17 @@ try {
           : db.prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n;
       } catch (_) { /* ignore */ }
 
+      // Cloisonnement des stats par groupe : on ne compte QUE les membres du groupe
+      // du lecteur (coach/admin = vgOv null -> tout le monde, vue globale). Sans ça,
+      // « repas validés », « actifs » et l'objectif mélangeaient tous les challenges.
+      const dansGroupe = "client_email IN (SELECT client_email FROM nutrition_client_meta WHERE (LOWER(TRIM(ville)) || '#' || challenge_no) = ?)";
+
       // Repas validés/adaptés/sautés sur 7 jours (table d'adhérence existante).
       let sv = { v: 0, a: 0, o: 0, s: 0 };
       try {
-        const r = db.prepare('SELECT COALESCE(SUM(suivi),0) v, COALESCE(SUM(adapte),0) a, COALESCE(SUM(autre),0) o, COALESCE(SUM(saute),0) s FROM nutrition_adherence WHERE date >= ?').get(since);
+        const r = vgOv
+          ? db.prepare('SELECT COALESCE(SUM(suivi),0) v, COALESCE(SUM(adapte),0) a, COALESCE(SUM(autre),0) o, COALESCE(SUM(saute),0) s FROM nutrition_adherence WHERE date >= ? AND ' + dansGroupe).get(since, vgOv)
+          : db.prepare('SELECT COALESCE(SUM(suivi),0) v, COALESCE(SUM(adapte),0) a, COALESCE(SUM(autre),0) o, COALESCE(SUM(saute),0) s FROM nutrition_adherence WHERE date >= ?').get(since);
         if (r) sv = { v: r.v || 0, a: r.a || 0, o: r.o || 0, s: r.s || 0 };
       } catch (_) { /* table absente */ }
       const repasValides = sv.v;
@@ -1881,8 +1908,16 @@ try {
 
       // Journées validées partagées cette semaine + membres actifs aujourd'hui.
       let journeesValidees = 0, actifsAujourdhui = 0;
-      try { journeesValidees = db.prepare("SELECT COUNT(*) n FROM nutrition_community_messages WHERE kind = 'partage' AND created_at >= ?").get(since + 'T00:00:00.000Z').n; } catch (_) { /* ignore */ }
-      try { actifsAujourdhui = db.prepare('SELECT COUNT(DISTINCT client_email) n FROM nutrition_adherence WHERE date = ? AND client_email != \'\'').get(today).n; } catch (_) { /* ignore */ }
+      try {
+        journeesValidees = vgOv
+          ? db.prepare("SELECT COUNT(*) n FROM nutrition_community_messages WHERE kind = 'partage' AND created_at >= ? AND group_key = ?").get(since + 'T00:00:00.000Z', vgOv).n
+          : db.prepare("SELECT COUNT(*) n FROM nutrition_community_messages WHERE kind = 'partage' AND created_at >= ?").get(since + 'T00:00:00.000Z').n;
+      } catch (_) { /* ignore */ }
+      try {
+        actifsAujourdhui = vgOv
+          ? db.prepare("SELECT COUNT(DISTINCT client_email) n FROM nutrition_adherence WHERE date = ? AND client_email != '' AND " + dansGroupe).get(today, vgOv).n
+          : db.prepare('SELECT COUNT(DISTINCT client_email) n FROM nutrition_adherence WHERE date = ? AND client_email != \'\'').get(today).n;
+      } catch (_) { /* ignore */ }
 
       // Objectif collectif de la semaine = semaine pleine (3 repas x 7 j x membres).
       const objectifRepas = Math.max(members, 1) * 21;
@@ -1935,8 +1970,8 @@ try {
   function prenomDe(c) { return ((c && (c.prenom || c.nom)) || 'Un membre').toString().trim().split(' ')[0] || 'Un membre'; }
   function insertEvent(db, ev) {
     try {
-      db.prepare('INSERT OR IGNORE INTO nutrition_community_events (type, actor_email, actor_name, emoji, text, dedup_key, created_at) VALUES (?,?,?,?,?,?,?)')
-        .run(ev.type, ev.email || '', ev.name || '', ev.emoji || '', ev.text, ev.dedup, ev.when || new Date().toISOString());
+      db.prepare('INSERT OR IGNORE INTO nutrition_community_events (type, actor_email, actor_name, emoji, text, dedup_key, created_at, group_key) VALUES (?,?,?,?,?,?,?,?)')
+        .run(ev.type, ev.email || '', ev.name || '', ev.emoji || '', ev.text, ev.dedup, ev.when || new Date().toISOString(), ev.groupKey || '');
     } catch (_) { /* doublon -> ignoré */ }
   }
   function genererEvenementsCommunaute(db) {
@@ -1950,7 +1985,7 @@ try {
     const since30 = new Date(now.getTime() - 30 * 864e5).toISOString();
     for (const c of clients) {
       if (!c.email || !c.created_at || c.created_at < since30) continue;
-      insertEvent(db, { type: 'welcome', email: c.email, name: prenomDe(c), emoji: '👋', text: `Bienvenue à ${prenomDe(c)} dans le groupe`, dedup: 'welcome:' + c.email, when: c.created_at });
+      insertEvent(db, { type: 'welcome', email: c.email, name: prenomDe(c), emoji: '👋', text: `Bienvenue à ${prenomDe(c)} dans le groupe`, dedup: 'welcome:' + c.email, when: c.created_at, groupKey: clientGroupKey(c.email) });
     }
     // 2) Séries de jours validés d'affilée (paliers).
     const STREAK_MILESTONES = [3, 5, 7, 10, 14, 21, 30];
@@ -1966,7 +2001,7 @@ try {
           if (Math.round((Date.parse(dates[i - 1] + 'T00:00:00Z') - Date.parse(dates[i] + 'T00:00:00Z')) / 864e5) === 1) streak++; else break;
         }
         const top = STREAK_MILESTONES.filter((m) => streak >= m).pop();
-        if (top) insertEvent(db, { type: 'streak', email: c.email, name: prenomDe(c), emoji: '🔥', text: `${prenomDe(c)} a validé ${top} journées d'affilée`, dedup: 'streak:' + c.email + ':' + top });
+        if (top) insertEvent(db, { type: 'streak', email: c.email, name: prenomDe(c), emoji: '🔥', text: `${prenomDe(c)} a validé ${top} journées d'affilée`, dedup: 'streak:' + c.email + ':' + top, groupKey: clientGroupKey(c.email) });
       }
     } catch (_) { /* ignore */ }
     // 3) Séances de la semaine (paliers par nombre de séances).
@@ -1975,14 +2010,22 @@ try {
       for (const r of rows) {
         const c = byEmail[r.client_email]; if (!c || r.n < 1) continue;
         const ord = r.n === 1 ? '1re' : (r.n + 'e');
-        insertEvent(db, { type: 'session', email: r.client_email, name: prenomDe(c), emoji: '💪', text: `${prenomDe(c)} a terminé sa ${ord} séance de la semaine`, dedup: 'session:' + r.client_email + ':' + weekStart + ':' + r.n });
+        insertEvent(db, { type: 'session', email: r.client_email, name: prenomDe(c), emoji: '💪', text: `${prenomDe(c)} a terminé sa ${ord} séance de la semaine`, dedup: 'session:' + r.client_email + ':' + weekStart + ':' + r.n, groupKey: clientGroupKey(r.client_email) });
       }
     } catch (_) { /* ignore */ }
-    // 4) Jalons collectifs : repas validés cette semaine.
+    // 4) Jalons collectifs : repas validés cette semaine, PAR GROUPE (chaque
+    // challenge a son propre compteur -> aucun mélange entre cohortes).
     try {
-      const sum = db.prepare('SELECT COALESCE(SUM(suivi),0) v FROM nutrition_adherence WHERE date >= ?').get(weekStart).v || 0;
-      const top = [50, 100, 200, 300, 500].filter((m) => sum >= m).pop();
-      if (top) insertEvent(db, { type: 'group_meals', email: '', name: 'Le groupe', emoji: '🔥', text: `Le groupe a dépassé ${top} repas validés cette semaine`, dedup: 'group_meals:' + weekStart + ':' + top });
+      const gkOf = {};
+      db.prepare("SELECT client_email, LOWER(TRIM(ville)) || '#' || challenge_no AS gk FROM nutrition_client_meta WHERE TRIM(ville) <> '' AND challenge_no > 0").all()
+        .forEach((m) => { if (m.client_email) gkOf[m.client_email] = m.gk; });
+      const sommeParGroupe = {};
+      db.prepare('SELECT client_email, COALESCE(SUM(suivi),0) v FROM nutrition_adherence WHERE date >= ? GROUP BY client_email').all(weekStart)
+        .forEach((r) => { const gk = gkOf[r.client_email]; if (gk) sommeParGroupe[gk] = (sommeParGroupe[gk] || 0) + (r.v || 0); });
+      Object.keys(sommeParGroupe).forEach((gk) => {
+        const top = [50, 100, 200, 300, 500].filter((m) => sommeParGroupe[gk] >= m).pop();
+        if (top) insertEvent(db, { type: 'group_meals', email: '', name: 'Le groupe', emoji: '🔥', text: `Le groupe a dépassé ${top} repas validés cette semaine`, dedup: 'group_meals:' + gk + ':' + weekStart + ':' + top, groupKey: gk });
+      });
     } catch (_) { /* ignore */ }
   }
 
@@ -1993,14 +2036,18 @@ try {
       const me = (req.session && req.session.email) || '';
       const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
       try { genererEvenementsCommunaute(db); } catch (e) { console.warn('genEvents :', e && e.message); }
-      const evs = db.prepare('SELECT id, type, actor_name, actor_email, emoji, text, created_at FROM nutrition_community_events ORDER BY created_at DESC, id DESC LIMIT ?').all(limit);
+      const vg = viewerGroupForRead(req); // cloisonnement : le client ne voit que SON groupe (coach/admin = null -> tout)
+      // Événements du fil scopés au groupe du lecteur (comme les posts). Un membre
+      // ne voit plus l'activité des autres challenges.
+      const evs = (vg == null)
+        ? db.prepare('SELECT id, type, actor_name, actor_email, emoji, text, created_at FROM nutrition_community_events ORDER BY created_at DESC, id DESC LIMIT ?').all(limit)
+        : db.prepare('SELECT id, type, actor_name, actor_email, emoji, text, created_at FROM nutrition_community_events WHERE group_key = ? ORDER BY created_at DESC, id DESC LIMIT ?').all(vg, limit);
       const evReac = {}; const evIds = evs.map((e) => e.id);
       if (evIds.length) {
         const ph = evIds.map(() => '?').join(',');
         db.prepare('SELECT event_id, type, email FROM nutrition_community_event_reactions WHERE event_id IN (' + ph + ')').all(...evIds)
           .forEach((x) => { const e = evReac[x.event_id] || (evReac[x.event_id] = { counts: {}, mine: null }); e.counts[x.type] = (e.counts[x.type] || 0) + 1; if (me && x.email === me) e.mine = x.type; });
       }
-      const vg = viewerGroupForRead(req); // cloisonnement : le client ne voit que son groupe (+ coach)
       const posts = (vg == null)
         ? db.prepare("SELECT id, author, message, kind, email, created_at, (photo != '') AS has_photo FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') ORDER BY id DESC LIMIT ?").all(limit)
         : db.prepare("SELECT id, author, message, kind, email, created_at, (photo != '') AS has_photo FROM nutrition_community_messages WHERE kind IN ('message','partage','coach') AND (group_key = ? OR (kind = 'coach' AND group_key = '')) ORDER BY id DESC LIMIT ?").all(vg, limit);
