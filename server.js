@@ -1596,6 +1596,30 @@ try {
     if (isStaff || !s.email) return null;
     return clientGroupKey(s.email);
   }
+  // group_key de l'élément de fil visé (post « p<id> » ou événement « e<id> »).
+  // Renvoie { groupKey, kind } ou null si introuvable. Sert à cloisonner les
+  // commentaires et les réactions, qui adressent un élément par son id.
+  function feedItemGroup(item) {
+    const m = /^([ep])(\d+)$/.exec(String(item || ''));
+    if (!m) return null;
+    const num = Number(m[2]);
+    if (m[1] === 'p') {
+      const row = getDb().prepare('SELECT group_key, kind FROM nutrition_community_messages WHERE id = ?').get(num);
+      return row ? { groupKey: String(row.group_key || ''), kind: row.kind || '' } : null;
+    }
+    const row = getDb().prepare('SELECT group_key FROM nutrition_community_events WHERE id = ?').get(num);
+    return row ? { groupKey: String(row.group_key || ''), kind: 'event' } : null;
+  }
+  // Un visiteur peut-il agir sur cet élément ? Staff (null) = tout ; sinon même
+  // groupe uniquement (les messages coach diffusés à group_key='' restent visibles).
+  function peutAccederItem(req, item) {
+    const vg = viewerGroupForRead(req);
+    if (vg == null) return true; // coach/admin : pas de cloisonnement
+    const info = feedItemGroup(item);
+    if (!info) return false; // élément inconnu -> refus (pas d'énumération inter-groupes)
+    if (info.kind === 'coach' && info.groupKey === '') return true; // diffusion coach
+    return info.groupKey === vg;
+  }
 
   // Payload du mur collectif (messages + réactions agrégées + taille du groupe).
   // Factorisé pour être réutilisé par la vue CLIENT et la vue COACH.
@@ -1683,7 +1707,9 @@ try {
     }));
     let members = 0;
     try {
-      members = viewerGroup
+      // != null (et non truthy) : un client SANS groupe (viewerGroup='') doit rester
+      // cloisonné, pas basculer sur le total global. Seul le staff (null) voit tout.
+      members = (viewerGroup != null)
         ? db.prepare("SELECT COUNT(*) AS n FROM nutrition_client_meta WHERE (LOWER(TRIM(ville)) || '#' || challenge_no) = ?").get(viewerGroup).n
         : db.prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n;
     } catch (_) { /* ignore */ }
@@ -1857,6 +1883,7 @@ try {
       const id = Number(req.params.id);
       const type = String((req.body || {}).type || '');
       if (!Number.isInteger(id) || !COMMUNITY_REACTIONS.includes(type)) return res.status(400).json({ ok: false, error: 'Réaction invalide.' });
+      if (!peutAccederItem(req, 'p' + id)) return res.status(403).json({ ok: false, error: 'Élément hors de ton groupe.' });
       const exists = getDb().prepare('SELECT type FROM nutrition_community_reactions WHERE message_id = ? AND email = ?').get(id, email);
       if (exists && exists.type === type) {
         getDb().prepare('DELETE FROM nutrition_community_reactions WHERE message_id = ? AND email = ?').run(id, email);
@@ -1884,7 +1911,7 @@ try {
       const vgOv = viewerGroupForRead(req); // membres = ceux du groupe du client
       let members = 0;
       try {
-        members = vgOv
+        members = (vgOv != null)
           ? db.prepare("SELECT COUNT(*) AS n FROM nutrition_client_meta WHERE (LOWER(TRIM(ville)) || '#' || challenge_no) = ?").get(vgOv).n
           : db.prepare('SELECT COUNT(*) AS n FROM nutrition_clients').get().n;
       } catch (_) { /* ignore */ }
@@ -1897,7 +1924,7 @@ try {
       // Repas validés/adaptés/sautés sur 7 jours (table d'adhérence existante).
       let sv = { v: 0, a: 0, o: 0, s: 0 };
       try {
-        const r = vgOv
+        const r = (vgOv != null)
           ? db.prepare('SELECT COALESCE(SUM(suivi),0) v, COALESCE(SUM(adapte),0) a, COALESCE(SUM(autre),0) o, COALESCE(SUM(saute),0) s FROM nutrition_adherence WHERE date >= ? AND ' + dansGroupe).get(since, vgOv)
           : db.prepare('SELECT COALESCE(SUM(suivi),0) v, COALESCE(SUM(adapte),0) a, COALESCE(SUM(autre),0) o, COALESCE(SUM(saute),0) s FROM nutrition_adherence WHERE date >= ?').get(since);
         if (r) sv = { v: r.v || 0, a: r.a || 0, o: r.o || 0, s: r.s || 0 };
@@ -1909,12 +1936,12 @@ try {
       // Journées validées partagées cette semaine + membres actifs aujourd'hui.
       let journeesValidees = 0, actifsAujourdhui = 0;
       try {
-        journeesValidees = vgOv
+        journeesValidees = (vgOv != null)
           ? db.prepare("SELECT COUNT(*) n FROM nutrition_community_messages WHERE kind = 'partage' AND created_at >= ? AND group_key = ?").get(since + 'T00:00:00.000Z', vgOv).n
           : db.prepare("SELECT COUNT(*) n FROM nutrition_community_messages WHERE kind = 'partage' AND created_at >= ?").get(since + 'T00:00:00.000Z').n;
       } catch (_) { /* ignore */ }
       try {
-        actifsAujourdhui = vgOv
+        actifsAujourdhui = (vgOv != null)
           ? db.prepare("SELECT COUNT(DISTINCT client_email) n FROM nutrition_adherence WHERE date = ? AND client_email != '' AND " + dansGroupe).get(today, vgOv).n
           : db.prepare('SELECT COUNT(DISTINCT client_email) n FROM nutrition_adherence WHERE date = ? AND client_email != \'\'').get(today).n;
       } catch (_) { /* ignore */ }
@@ -2090,6 +2117,7 @@ try {
       if (!FEED_REACTIONS.includes(type)) return res.status(400).json({ ok: false, error: 'Réaction invalide.' });
       const m = id.match(/^([ep])(\d+)$/);
       if (!m) return res.status(400).json({ ok: false, error: 'Élément invalide.' });
+      if (!peutAccederItem(req, id)) return res.status(403).json({ ok: false, error: 'Élément hors de ton groupe.' });
       const num = Number(m[2]);
       const T = m[1] === 'e'
         ? { table: 'nutrition_community_event_reactions', col: 'event_id' }
@@ -2113,6 +2141,7 @@ try {
       const me = (req.session && req.session.email) || '';
       const item = String((req.query || {}).item || '');
       if (!/^[ep]\d+$/.test(item)) return res.status(400).json({ ok: false, error: 'Élément invalide.' });
+      if (!peutAccederItem(req, item)) return res.status(403).json({ ok: false, error: 'Élément hors de ton groupe.' });
       const rows = getDb().prepare('SELECT id, email, author, text, created_at FROM nutrition_community_comments WHERE item_id = ? ORDER BY id ASC LIMIT 200').all(item);
       const avm = avatarUrlsByEmail(getDb(), rows.map((r) => r.email));
       const comments = rows.map((r) => ({ id: r.id, who: r.author || 'Un membre', text: r.text, when: r.created_at, avatarUrl: avm[r.email] || '', mine: !!me && r.email === me }));
@@ -2126,6 +2155,7 @@ try {
       if (!email) return res.status(403).json({ ok: false, error: 'Connexion requise.' });
       const item = String(b.item || '');
       if (!/^[ep]\d+$/.test(item)) return res.status(400).json({ ok: false, error: 'Élément invalide.' });
+      if (!peutAccederItem(req, item)) return res.status(403).json({ ok: false, error: 'Élément hors de ton groupe.' });
       const role = (req.session && req.session.role) || '';
       const isCoach = ['admin', 'coach', 'coach-leader'].includes(role);
       const author = isCoach ? 'Coach' : String((req.session && req.session.name) || 'Un membre').slice(0, 80);
@@ -3778,6 +3808,12 @@ try {
           getDb().prepare('UPDATE nutrition_community_messages SET group_key = ? WHERE group_key = ?')
             .run(groupKeyOf(newVille, newNo), groupKeyOf(ville, challengeNo));
         } catch (_) { /* mur de communauté absent : le renommage reste valide */ }
+        try {
+          // Le fil d'activité suit aussi le renommage, sinon l'historique du groupe
+          // (bienvenue/séries/séances/jalons) reste sur l'ancienne clé et disparaît.
+          getDb().prepare('UPDATE nutrition_community_events SET group_key = ? WHERE group_key = ?')
+            .run(groupKeyOf(newVille, newNo), groupKeyOf(ville, challengeNo));
+        } catch (_) { /* table events absente : le renommage reste valide */ }
       })();
       res.json({ ok: true, group: { ville: newVille, challengeNo: newNo, code: row.code || '', actif: !!row.actif, startDate: row.start_date || '', membres: groupMemberCount(newVille, newNo) } });
     } catch (e) { console.error('groups rename :', e); res.status(500).json({ ok: false, error: 'Renommage impossible.' }); }
