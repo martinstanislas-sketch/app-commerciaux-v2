@@ -330,6 +330,43 @@ test('verrou : passage au jour suivant (minuit) -> l\'étape du jour se déverro
   assert.notEqual(engine.challengePublicState(email).nodes.find((n) => n.day === 3).status, 'timelock', 'elle n\'est plus « à venir »');
 });
 
+// --- SÉANCES : tolérance de calendrier (nœud Mar/Jeu/Sam, entraînement Lun/Mer/Ven) ---
+test('verrou séance : validée au prochain jour d\'entraînement (décalage 1 j) -> Punch crédité', () => {
+  const { engine, db, email } = makeEngine();
+  seedCohorte(db, email, pathYmdMinusDays(pathParisYmd(), 2)); // jour 3 (jc0=2)
+  doNode(engine, email, 0, db); // rattrape l'étape 0 (composite)
+  const node1 = CHALLENGE_PATH_NODES.find((n) => n.day === 1);
+  assert.equal(node1.type, 'seance');
+  assert.equal(engine.pathActiveDay(email), 1);
+  const avant = engine.pathStatsRow(email).punch;
+  const r = engine.awardClientEvent(email, 'seance', 'x'); // nœud 1 (Mar) validé jc0=2 (Mer) -> décalage 1
+  assert.ok(r && r.aTemps, 'séance au prochain jour d\'entraînement = à temps');
+  assert.equal(engine.pathStatsRow(email).punch, avant + node1.punch, 'le Punch de la séance est crédité');
+});
+
+test('verrou séance : décalage de 2 jours (Sam -> Lun) reste à temps', () => {
+  const { engine, db, email } = makeEngine();
+  seedCohorte(db, email, pathYmdMinusDays(pathParisYmd(), 7)); // jour 8 (jc0=7)
+  for (let d = 0; d < 5; d++) doNode(engine, email, d, db); // rattrape 0..4
+  const node5 = CHALLENGE_PATH_NODES.find((n) => n.day === 5);
+  assert.equal(node5.type, 'seance');
+  const avant = engine.pathStatsRow(email).punch;
+  const r = engine.awardClientEvent(email, 'seance', 'x'); // nœud 5 (Sam) validé jc0=7 (Lun) -> décalage 2
+  assert.ok(r && r.aTemps, 'Sam -> Lun (2 j) = à temps');
+  assert.equal(engine.pathStatsRow(email).punch, avant + node5.punch);
+});
+
+test('verrou séance : au-delà de la tolérance (vrai retard) -> rattrapage sans Punch', () => {
+  const { engine, db, email } = makeEngine();
+  seedCohorte(db, email, pathYmdMinusDays(pathParisYmd(), 5)); // jour 6 (jc0=5)
+  doNode(engine, email, 0, db);
+  const avant = engine.pathStatsRow(email).punch;
+  const r = engine.awardClientEvent(email, 'seance', 'x'); // nœud 1, décalage 4 -> trop tard
+  assert.equal(r, null, 'une séance trop en retard reste un rattrapage');
+  assert.equal(engine.pathDoneDays(email).has(1), true, 'mais l\'étape est bien marquée faite');
+  assert.equal(engine.pathStatsRow(email).punch, avant, 'aucun Punch');
+});
+
 // --- Seed ------------------------------------------------------------------
 test('seed : 43 étapes (0→42), aucune pesée, 4 jalons ★, 6 semaines bien bornées', () => {
   const { db } = makeEngine();

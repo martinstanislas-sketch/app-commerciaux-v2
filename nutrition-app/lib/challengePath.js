@@ -246,6 +246,12 @@ function activeDayFromDone(doneSet, total) {
 // ---------------------------------------------------------------------------
 function etapeDeverrouillee(day, jc0) { return Number(day) <= Number(jc0); }
 function etapeATemps(day, jc0) { return Number(day) === Number(jc0); }
+// Tolérance (en jours) pour qu'une SÉANCE reste « à temps ». Les nœuds séance
+// tombent un Mar/Jeu/Sam, mais le serveur n'autorise à loguer une séance que
+// Lun/Mer/Ven : le prochain jour d'entraînement arrive 1 (Mar→Mer, Jeu→Ven) ou
+// 2 jours (Sam→Lun) après. 2 couvre donc pile la 1re séance possible, sans jamais
+// laisser passer un vrai retard (aucun jour d'entraînement n'existe entre-temps).
+const SEANCE_TOLERANCE_JOURS = 2;
 
 // ---------------------------------------------------------------------------
 //  Schéma SQL (exporté pour les tests : une seule source de vérité).
@@ -805,7 +811,17 @@ function createChallengeEngine({ getDb }) {
       // rattrapage (jour passé) est validé mais ne rapporte rien. On mémorise le
       // Punch réellement crédité (0 en retard) : le front s'en sert pour ne PAS
       // célébrer un rattrapage (pas de Punch = pas de célébration).
-      const aTemps = etapeATemps(activeDay, jc0);
+      // CAS PARTICULIER DES SÉANCES : le parcours date un nœud « séance » un jour
+      // (Mar/Jeu/Sam) où le serveur REFUSE de loguer une séance (autorisée seulement
+      // Lun/Mer/Ven). Le client fait donc sa séance à son PROCHAIN jour d'entraînement
+      // (décalage de 1 à 2 jours) : sans tolérance, elle serait toujours « en retard »
+      // → 0 Punch. On considère donc une séance « à temps » si elle est validée dans
+      // les SEANCE_TOLERANCE_JOURS suivant le jour du nœud. Le décalage ne peut PAS
+      // dépasser cette fenêtre via un vrai jour d'entraînement (garanti par la règle
+      // Lun/Mer/Ven côté serveur) ; au-delà, c'est un vrai retard = rattrapage.
+      const aTemps = node.type === 'seance'
+        ? (jc0 - activeDay) <= SEANCE_TOLERANCE_JOURS // activeDay <= jc0 déjà garanti (déverrouillée)
+        : etapeATemps(activeDay, jc0);
       const punchCredit = aTemps ? node.punch : 0;
       const ins = getDb().prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at, punch_awarded, ref_id) VALUES (?,?,?,?,?)")
         .run(email, activeDay, new Date().toISOString(), punchCredit, String(refId == null ? '' : refId));
