@@ -5253,7 +5253,13 @@ app.get('/api/retention/:mois', requireAuth, requireAdmin, (req, res) => {
   );
   const choices = db.prepare('SELECT studio, client_key, categorie, valeur FROM retention_choices WHERE mois = ?').all(mois);
   const manuels = db.prepare('SELECT id, studio, categorie, nom, prenom, created_at FROM retention_manual WHERE mois = ? ORDER BY created_at ASC').all(mois);
-  res.json({ mois, m1, importsM, importsM1, choices, membres: lireMembres(db), manuels });
+  // Notes « besoin d'infos » posées sur d'AUTRES mois : quand la même personne
+  // réapparaît ce mois-ci, le front affiche sa note passée + le mois d'origine.
+  // Trié mois DESC → le front garde la 1re occurrence (= la plus récente).
+  const notesAutres = db.prepare(
+    "SELECT mois, studio, client_key, valeur FROM retention_choices WHERE categorie = '_besoin_note' AND mois != ? AND TRIM(valeur) != '' ORDER BY mois DESC"
+  ).all(mois);
+  res.json({ mois, m1, importsM, importsM1, choices, membres: lireMembres(db), manuels, notesAutres });
 });
 
 // ─── Ajout manuel d'un client dans une catégorie RECAP ────────

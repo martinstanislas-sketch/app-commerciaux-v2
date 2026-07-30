@@ -21286,6 +21286,17 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-besoin-note { width: 100%; box-sizing: border-box; background: var(--rc-surface); border: 1px solid var(--rc-line-2); color: var(--rc-text); border-radius: 7px; padding: 5px 9px; font: inherit; font-size: 12.5px; transition: border-color .12s, box-shadow .12s; }
 .rec-besoin-note::placeholder { color: var(--rc-text-3); }
 .rec-besoin-note:focus { outline: none; border-color: var(--rc-accent); box-shadow: 0 0 0 3px var(--rc-accent-soft); }
+/* Note héritée d'un autre mois : champ + badge du mois d'origine */
+.rec-note-heritee { position: relative; }
+.rec-note-heritee .rec-besoin-note { padding-right: 92px; font-style: italic; color: var(--rc-text-2); }
+.rec-note-heritee .rec-besoin-note:focus { font-style: normal; color: var(--rc-text); }
+.rec-note-origine {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  pointer-events: none; white-space: nowrap;
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: capitalize;
+  color: var(--rc-accent, #818CF8); background: var(--rc-accent-soft, rgba(99,102,241,0.14));
+  border: 1px solid rgba(99, 102, 241, 0.28); border-radius: 4px; padding: 1px 6px;
+}
 .rec-besoin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .rec-export-besoin { min-height: 0; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 650; color: #0D0F16; background: var(--rc-green); border: 0; border-radius: 8px; padding: 8px 14px; transition: filter .12s, opacity .12s; }
 .rec-export-besoin:hover { filter: brightness(1.06); }

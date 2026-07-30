@@ -51,6 +51,7 @@ const RecapUI = (function () {
   let choix = {};    // studio -> { cle -> valeur }
   let besoin = {};   // studio -> { cle -> true }  (clients cochés « besoin d'infos »)
   let besoinNote = {}; // studio -> { cle -> texte }  (note libre par fiche « besoin d'infos »)
+  let notesAutres = {}; // studio -> { cle -> { valeur, mois } }  (note posée sur un AUTRE mois, la plus récente)
   // Ajouts manuels : studio -> { categorie -> [{ id, nom, prenom }] }
   // categorie ∈ {disparus, impayes, baisses, nouveaux, aqualifier, preavis}
   let manuelsPar = {};
@@ -885,7 +886,7 @@ const RecapUI = (function () {
       // Petite case « besoin d'infos » devant le nom (catégories qualifiables).
       const chk = modeVide ? '<input type="checkbox" class="rec-besoin-chk" title="Besoin d\'infos" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '"' + (estBesoin(s, it.cle) ? ' checked' : '') + '>' : '';
       // Remarque libre inline (même donnée que la note « Besoin d'infos »).
-      const note = modeVide ? '<td class="rec-besoin-notecell"><input type="text" class="rec-besoin-note" placeholder="Remarque…" value="' + esc(noteBesoin(s, it.cle)) + '" data-s="' + esc(s) + '" data-cle="' + esc(it.cle) + '"></td>' : '';
+      const note = modeVide ? noteCellHtml(s, it.cle, 'Remarque…') : '';
       // Sur une ligne ajoutée manuellement : petit tag + bouton × pour la retirer.
       const nomAff = it.isManuel
         ? '<span class="rec-manual-name">' + esc(((it.prenom || '') + ' ' + (it.nom || '')).trim() || '—') + '</span> <span class="rec-manual-tag" title="Ajouté à la main">manuel</span>'
@@ -1014,7 +1015,7 @@ const RecapUI = (function () {
       + '<td class="rec-cli-nom">' + nomLien(x.studio, x.cle, x.nom, x.prenom) + '</td>'
       + '<td>' + esc(x.studio) + '</td>'
       + '<td class="rec-cli-qual">' + x.qual + '</td>'
-      + '<td class="rec-besoin-notecell"><input type="text" class="rec-besoin-note" placeholder="Note libre…" value="' + esc(x.note || '') + '" data-s="' + esc(x.studio) + '" data-cle="' + esc(x.cle) + '"></td></tr>'
+      + noteCellHtml(x.studio, x.cle, 'Note libre…') + '</tr>'
     ).join('');
     const thB = (col, lbl) => {
       const actif = besoinTri === col;
@@ -1187,6 +1188,24 @@ const RecapUI = (function () {
     if (resClub === BESOIN_TAB) renderClubPanel(); // dans l'onglet dédié, la ligne décochée disparaît
   }
   function noteBesoin(s, cle) { return (besoinNote[s] || {})[cle] || ''; }
+  // Note à afficher pour une fiche : la note du mois courant si elle existe,
+  // sinon la note posée sur un autre mois (avec son mois d'origine).
+  function noteAffichee(s, cle) {
+    const propre = noteBesoin(s, cle);
+    if (propre) return { valeur: propre, origine: null };
+    const h = (notesAutres[s] || {})[cle];
+    if (h && h.valeur) return { valeur: h.valeur, origine: h.mois };
+    return { valeur: '', origine: null };
+  }
+  // Cellule « Note » commune (panneau club + onglet Besoin d'infos) : input
+  // prérempli avec la note (courante ou héritée) + badge du mois d'origine.
+  function noteCellHtml(s, cle, placeholder) {
+    const n = noteAffichee(s, cle);
+    const badge = n.origine ? '<span class="rec-note-origine" title="Note posée en ' + esc(moisLabel(n.origine, 0)) + '">' + esc(moisLabel(n.origine, 0)) + '</span>' : '';
+    return '<td class="rec-besoin-notecell' + (n.origine ? ' rec-note-heritee' : '') + '">'
+      + '<input type="text" class="rec-besoin-note" placeholder="' + esc(placeholder || 'Remarque…') + '" value="' + esc(n.valeur) + '" data-s="' + esc(s) + '" data-cle="' + esc(cle) + '">'
+      + badge + '</td>';
+  }
   function setNoteBesoin(s, cle, txt) {
     (besoinNote[s] || (besoinNote[s] = {}))[cle] = txt;
     fetch('/api/retention/' + mois + '/choix', { method: 'PATCH', headers: H(),
@@ -1250,6 +1269,12 @@ const RecapUI = (function () {
       });
       dejaArchiveM = (d.importsM || []).some((im) => im.type === 'encaissements');
       (d.importsM1 || []).forEach((im) => { archM1[im.studio] = im.contenu || []; m1Info[im.studio] = im.uploaded_at; });
+      // Notes venues d'autres mois : 1re occurrence = la plus récente (tri serveur mois DESC)
+      notesAutres = {};
+      (d.notesAutres || []).forEach((n) => {
+        const byCle = notesAutres[n.studio] || (notesAutres[n.studio] = {});
+        if (!byCle[n.client_key]) byCle[n.client_key] = { valeur: n.valeur, mois: n.mois };
+      });
       // Manuels : indexation par studio -> categorie -> [{id, nom, prenom}]
       manuelsPar = {};
       (d.manuels || []).forEach((m) => {
@@ -1280,7 +1305,7 @@ const RecapUI = (function () {
     // NB : on NE réinitialise PAS clubs/clubCourant (sélection valable entre mois).
     archM = {}; archM1 = {}; m1Info = {}; dejaArchiveM = false;
     contratsParStudio = {}; resiliationsParStudio = {}; fichiersEncM = []; fichiersM1 = []; bulkM1Ouvert = false;
-    studios = {}; resultats = {}; choix = {}; besoin = {}; besoinNote = {}; manuelsPar = {};
+    studios = {}; resultats = {}; choix = {}; besoin = {}; besoinNote = {}; manuelsPar = {}; notesAutres = {};
     membres = { map: [], stats: {}, total: 0 }; idxStudio = new Map(); idxGlobal = new Map();
     ['encM', 'contrats', 'resiliations', 'membres'].forEach((z) => { const el = $('#rec-info-' + z); if (el) el.textContent = ''; });
     ['encM', 'contrats', 'resiliations'].forEach((z) => { const zn = $('#rec-zone-' + z); if (zn) zn.classList.remove('is-done'); const c = $('#rec-done-' + z); if (c) c.innerHTML = ''; });
