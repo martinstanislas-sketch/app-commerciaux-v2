@@ -513,12 +513,13 @@ const RecapUI = (function () {
     const chS = (ch && ch[s]) || {};
     const v = (id, defaut) => chS['manual:' + id] || defaut;
     let addNum = 0, addDenom = 0, addNsig = 0, addFideles = 0, addPreavis = 0;
-    (byCat.disparus || []).forEach((m) => { const c = v(m.id, 'resilie'); if (c === 'pack' || c === 'ne') return; addDenom += 1; });
-    (byCat.impayes || []).forEach((m) => { const c = v(m.id, 'impaye'); if (c === 'pack' || c === 'ne') return; addDenom += 1; });
-    (byCat.baisses || []).forEach((m) => { const c = v(m.id, 'arrangement'); if (c === 'ne') return; if (c === 'sous_controle') { addFideles += 1; addNum += 1; addDenom += 1; } else { addDenom += 1; } });
-    (byCat.nouveaux || []).forEach((m) => { const c = v(m.id, 'decalage'); if (c === 'ne') return; addNsig += 1; addNum += 1; addDenom += 1; });
-    (byCat.aqualifier || []).forEach((m) => { const c = v(m.id, 'pack'); if (c === 'pack' || c === 'ne') return; if (c === 'suspendu' || c === 'nouveau') { addNum += 1; addDenom += 1; } else if (c === 'downsell_pack' || c === 'impaye') { addDenom += 1; } });
-    (byCat.preavis || []).forEach((m) => { const c = v(m.id, 'ok'); if (c === 'ne') return; addPreavis += 1; });
+    const exclu = (c) => c === 'ne' || c === 'deja_traite'; // hors calcul (NE / déjà traité un mois précédent)
+    (byCat.disparus || []).forEach((m) => { const c = v(m.id, 'resilie'); if (c === 'pack' || exclu(c)) return; addDenom += 1; });
+    (byCat.impayes || []).forEach((m) => { const c = v(m.id, 'impaye'); if (c === 'pack' || exclu(c)) return; addDenom += 1; });
+    (byCat.baisses || []).forEach((m) => { const c = v(m.id, 'arrangement'); if (exclu(c)) return; if (c === 'sous_controle') { addFideles += 1; addNum += 1; addDenom += 1; } else { addDenom += 1; } });
+    (byCat.nouveaux || []).forEach((m) => { const c = v(m.id, 'decalage'); if (exclu(c)) return; addNsig += 1; addNum += 1; addDenom += 1; });
+    (byCat.aqualifier || []).forEach((m) => { const c = v(m.id, 'pack'); if (c === 'pack' || exclu(c)) return; if (c === 'suspendu' || c === 'nouveau') { addNum += 1; addDenom += 1; } else if (c === 'downsell_pack' || c === 'impaye') { addDenom += 1; } });
+    (byCat.preavis || []).forEach((m) => { const c = v(m.id, 'ok'); if (exclu(c)) return; addPreavis += 1; });
     r.numerateur = (r.numerateur || 0) + addNum;
     r.denominateur = Math.max(0, (r.denominateur || 0) + addDenom);
     r.note = r.denominateur > 0 ? r.numerateur / r.denominateur : 0;
@@ -769,12 +770,15 @@ const RecapUI = (function () {
     return '<select class="rec-menu" data-s="' + esc(s) + '" data-cle="' + esc(cle) + '" data-cat="' + cat + '">' + ph + o + reset + '</select>';
   }
   const NE_OPT = { val: 'ne', lbl: 'NE (ne pas compter)' }; // exclut du calcul, reste visible
+  // « Déjà traité » : la personne a déjà été gérée un mois précédent →
+  // exclue du calcul (comme NE) mais avec un libellé explicite.
+  const DEJA_OPT = { val: 'deja_traite', lbl: 'Déjà traité' };
   const OPT = {
-    baisse: [{ val: 'sous_controle', lbl: 'Sous contrôle' }, { val: 'arrangement', lbl: 'Arrangement' }, NE_OPT],
-    nouveauNonPaye: [{ val: 'decalage', lbl: 'OK' }, { val: 'anomalie', lbl: 'Anomalie' }, NE_OPT],
-    aQualifier: [{ val: 'suspendu', lbl: 'Suspendu' }, { val: 'nouveau', lbl: 'Nouveau' }, { val: 'pack', lbl: 'Pack de séance' }, { val: 'downsell_pack', lbl: 'Downsell Pack' }, { val: 'impaye', lbl: 'Impayé' }, NE_OPT],
-    disparu: [{ val: 'impaye', lbl: 'Impayé' }, { val: 'resilie', lbl: 'Résilié' }, { val: 'anomalie', lbl: 'Anomalie' }, { val: 'pack', lbl: 'Pack de séance' }, NE_OPT],
-    preavis: [{ val: 'ok', lbl: 'OK' }, { val: 'ctx', lbl: 'Ctx' }, NE_OPT],
+    baisse: [{ val: 'sous_controle', lbl: 'Sous contrôle' }, { val: 'arrangement', lbl: 'Arrangement' }, DEJA_OPT, NE_OPT],
+    nouveauNonPaye: [{ val: 'decalage', lbl: 'OK' }, { val: 'anomalie', lbl: 'Anomalie' }, DEJA_OPT, NE_OPT],
+    aQualifier: [{ val: 'suspendu', lbl: 'Suspendu' }, { val: 'nouveau', lbl: 'Nouveau' }, { val: 'pack', lbl: 'Pack de séance' }, { val: 'downsell_pack', lbl: 'Downsell Pack' }, { val: 'impaye', lbl: 'Impayé' }, DEJA_OPT, NE_OPT],
+    disparu: [{ val: 'impaye', lbl: 'Impayé' }, { val: 'resilie', lbl: 'Résilié' }, { val: 'anomalie', lbl: 'Anomalie' }, { val: 'pack', lbl: 'Pack de séance' }, DEJA_OPT, NE_OPT],
+    preavis: [{ val: 'ok', lbl: 'OK' }, { val: 'ctx', lbl: 'Ctx' }, DEJA_OPT, NE_OPT],
   };
   const DEF = { baisse: 'arrangement', nouveauNonPaye: 'anomalie', aQualifier: 'pack', disparu: 'resilie', preavis: 'ok' };
   // Catégories où la qualification part VIDE (rien noté par défaut ; un clic
@@ -1104,12 +1108,13 @@ const RecapUI = (function () {
   }
   // §6 Bouton compact = badge de la valeur courante ; le menu s'ouvre au clic.
   const NE_BADGE = ['NE', 'neutral']; // exclu du calcul, reste visible
+  const DEJA_BADGE = ['Déjà traité', 'blue']; // déjà géré un mois précédent — exclu du calcul
   const QUAL = {
-    disparu: { impaye: ['Impayé', 'red'], resilie: ['Résilié', 'gray'], anomalie: ['Anomalie', 'redlight'], pack: ['Pack de séances', 'blue'], ne: NE_BADGE },
-    baisse: { sous_controle: ['Sous contrôle', 'green'], arrangement: ['Arrangement', 'orange'], ne: NE_BADGE },
-    nouveauNonPaye: { decalage: ['OK', 'green'], anomalie: ['Anomalie', 'redlight'], ne: NE_BADGE },
-    aQualifier: { suspendu: ['Suspendu', 'green'], nouveau: ['Nouveau', 'green'], pack: ['Pack de séances', 'blue'], downsell_pack: ['Downsell Pack', 'gray'], impaye: ['Impayé', 'red'], ne: NE_BADGE },
-    preavis: { ok: ['OK', 'green'], ctx: ['Ctx', 'orange'], ne: NE_BADGE },
+    disparu: { impaye: ['Impayé', 'red'], resilie: ['Résilié', 'gray'], anomalie: ['Anomalie', 'redlight'], pack: ['Pack de séances', 'blue'], deja_traite: DEJA_BADGE, ne: NE_BADGE },
+    baisse: { sous_controle: ['Sous contrôle', 'green'], arrangement: ['Arrangement', 'orange'], deja_traite: DEJA_BADGE, ne: NE_BADGE },
+    nouveauNonPaye: { decalage: ['OK', 'green'], anomalie: ['Anomalie', 'redlight'], deja_traite: DEJA_BADGE, ne: NE_BADGE },
+    aQualifier: { suspendu: ['Suspendu', 'green'], nouveau: ['Nouveau', 'green'], pack: ['Pack de séances', 'blue'], downsell_pack: ['Downsell Pack', 'gray'], impaye: ['Impayé', 'red'], deja_traite: DEJA_BADGE, ne: NE_BADGE },
+    preavis: { ok: ['OK', 'green'], ctx: ['Ctx', 'orange'], deja_traite: DEJA_BADGE, ne: NE_BADGE },
   };
   function qualBtn(s, cle, cat, v) {
     const [lbl, col] = (QUAL[cat] && QUAL[cat][v]) || [v, 'neutral'];

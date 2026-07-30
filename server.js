@@ -5082,12 +5082,13 @@ function ajusterAvecManuelsSrv(r, s, ma, ch) {
   const chS = (ch && ch[s]) || {};
   const v = (id, defaut) => chS['manual:' + id] || defaut;
   let addNum = 0, addDenom = 0, addNsig = 0, addFideles = 0, addPreavis = 0;
-  (byCat.disparus || []).forEach((m) => { const c = v(m.id, 'resilie'); if (c === 'pack' || c === 'ne') return; addDenom += 1; });
-  (byCat.impayes || []).forEach((m) => { const c = v(m.id, 'impaye'); if (c === 'pack' || c === 'ne') return; addDenom += 1; });
-  (byCat.baisses || []).forEach((m) => { const c = v(m.id, 'arrangement'); if (c === 'ne') return; if (c === 'sous_controle') { addFideles += 1; addNum += 1; addDenom += 1; } else { addDenom += 1; } });
-  (byCat.nouveaux || []).forEach((m) => { const c = v(m.id, 'decalage'); if (c === 'ne') return; addNsig += 1; addNum += 1; addDenom += 1; });
-  (byCat.aqualifier || []).forEach((m) => { const c = v(m.id, 'pack'); if (c === 'pack' || c === 'ne') return; if (c === 'suspendu' || c === 'nouveau') { addNum += 1; addDenom += 1; } else if (c === 'downsell_pack' || c === 'impaye') { addDenom += 1; } });
-  (byCat.preavis || []).forEach((m) => { const c = v(m.id, 'ok'); if (c === 'ne') return; addPreavis += 1; });
+  const exclu = (c) => c === 'ne' || c === 'deja_traite'; // hors calcul (NE / déjà traité un mois précédent)
+  (byCat.disparus || []).forEach((m) => { const c = v(m.id, 'resilie'); if (c === 'pack' || exclu(c)) return; addDenom += 1; });
+  (byCat.impayes || []).forEach((m) => { const c = v(m.id, 'impaye'); if (c === 'pack' || exclu(c)) return; addDenom += 1; });
+  (byCat.baisses || []).forEach((m) => { const c = v(m.id, 'arrangement'); if (exclu(c)) return; if (c === 'sous_controle') { addFideles += 1; addNum += 1; addDenom += 1; } else { addDenom += 1; } });
+  (byCat.nouveaux || []).forEach((m) => { const c = v(m.id, 'decalage'); if (exclu(c)) return; addNsig += 1; addNum += 1; addDenom += 1; });
+  (byCat.aqualifier || []).forEach((m) => { const c = v(m.id, 'pack'); if (c === 'pack' || exclu(c)) return; if (c === 'suspendu' || c === 'nouveau') { addNum += 1; addDenom += 1; } else if (c === 'downsell_pack' || c === 'impaye') { addDenom += 1; } });
+  (byCat.preavis || []).forEach((m) => { const c = v(m.id, 'ok'); if (exclu(c)) return; addPreavis += 1; });
   r.numerateur = (r.numerateur || 0) + addNum;
   r.denominateur = Math.max(0, (r.denominateur || 0) + addDenom);
   r.note = r.denominateur > 0 ? r.numerateur / r.denominateur : 0;

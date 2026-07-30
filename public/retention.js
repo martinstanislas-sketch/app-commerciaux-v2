@@ -125,15 +125,15 @@
   // « ne » (Ne pas compter) est une valeur transverse : disponible sur toutes les
   // catégories, elle exclut totalement la personne du calcul (num. ET dénom.).
   const MENU = {
-    baisse: { options: ['sous_controle', 'arrangement', 'ne'], defaut: 'arrangement' },
-    nouveauNonPaye: { options: ['decalage', 'anomalie', 'ne'], defaut: 'anomalie' },
-    aQualifier: { options: ['suspendu', 'nouveau', 'pack', 'downsell_pack', 'impaye', 'ne'], defaut: 'pack' },
+    baisse: { options: ['sous_controle', 'arrangement', 'deja_traite', 'ne'], defaut: 'arrangement' },
+    nouveauNonPaye: { options: ['decalage', 'anomalie', 'deja_traite', 'ne'], defaut: 'anomalie' },
+    aQualifier: { options: ['suspendu', 'nouveau', 'pack', 'downsell_pack', 'impaye', 'deja_traite', 'ne'], defaut: 'pack' },
     // Qualification d'un disparu : « impaye » / « resilie » comptent PAREIL
     // (churn, aucune différence de note) ; « pack » (pack de séance) est EXCLU
     // du calcul. Défaut = le type auto détecté (impayé si décaissement, sinon
     // résilié).
-    disparu: { options: ['impaye', 'resilie', 'anomalie', 'pack', 'ne'], defaut: 'resilie' },
-    preavis: { options: ['ok', 'ctx', 'ne'], defaut: 'ok' },
+    disparu: { options: ['impaye', 'resilie', 'anomalie', 'pack', 'deja_traite', 'ne'], defaut: 'resilie' },
+    preavis: { options: ['ok', 'ctx', 'deja_traite', 'ne'], defaut: 'ok' },
   };
   const choixOu = (choix, cle, defaut) => {
     const v = choix && choix[cle];
@@ -239,7 +239,10 @@
     // « NE » (Ne pas compter) : la personne est EXCLUE de tout le calcul — ni au
     // numérateur ni au dénominateur — mais reste dans les listes d'affichage.
     // On la retire de chaque compte (net-zéro partout).
-    const estNE = (cle) => choix[cle] === 'ne';
+    // « ne » (non exploitable) et « deja_traite » (déjà traité un mois
+    // précédent) : la fiche reste visible mais sort ENTIÈREMENT du calcul
+    // (ni numérateur, ni dénominateur, ni base) — pas de double comptage.
+    const estNE = (cle) => choix[cle] === 'ne' || choix[cle] === 'deja_traite';
     const nbSousControle = baisses.filter((b) => !estNE(b.cle) && choixOu(choix, b.cle, MENU.baisse.defaut) === 'sous_controle').length;
     // §5 Nouveaux signés : classification applicable à TOUS (payés compris).
     // Défaut sans choix explicite : payé -> positif, non payé -> anomalie (comme
