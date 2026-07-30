@@ -5062,6 +5062,29 @@ const BOSS_CLUBS = [
   { key: 'Levallois', display: 'Levallois-Perret', pilotage: 'Levallois-Perret' },
 ];
 // Note de rétention RECAP par studio (+ réseau) pour un mois — rejoue le moteur.
+// Ajuste r (retour de calculerStudio) avec les manuels d'un studio pour
+// intégrer les personnes ajoutées à la main au numérateur / dénominateur / note.
+// Miroir exact de la fonction du même nom dans public/recap.js.
+function ajusterAvecManuelsSrv(r, s, ma, ch) {
+  if (!r || r.pending) return r;
+  const byCat = (ma && ma[s]) || {};
+  const chS = (ch && ch[s]) || {};
+  const v = (id, defaut) => chS['manual:' + id] || defaut;
+  let addNum = 0, addDenom = 0, addNsig = 0, addFideles = 0, addPreavis = 0;
+  (byCat.disparus || []).forEach((m) => { const c = v(m.id, 'resilie'); if (c === 'pack' || c === 'ne') return; addDenom += 1; });
+  (byCat.impayes || []).forEach((m) => { const c = v(m.id, 'impaye'); if (c === 'pack' || c === 'ne') return; addDenom += 1; });
+  (byCat.baisses || []).forEach((m) => { const c = v(m.id, 'arrangement'); if (c === 'ne') return; if (c === 'sous_controle') { addFideles += 1; addNum += 1; addDenom += 1; } else { addDenom += 1; } });
+  (byCat.nouveaux || []).forEach((m) => { const c = v(m.id, 'decalage'); if (c === 'ne') return; addNsig += 1; addNum += 1; addDenom += 1; });
+  (byCat.aqualifier || []).forEach((m) => { const c = v(m.id, 'pack'); if (c === 'pack' || c === 'ne') return; if (c === 'suspendu' || c === 'nouveau') { addNum += 1; addDenom += 1; } else if (c === 'downsell_pack' || c === 'impaye') { addDenom += 1; } });
+  (byCat.preavis || []).forEach((m) => { const c = v(m.id, 'ok'); if (c === 'ne') return; addPreavis += 1; });
+  r.numerateur = (r.numerateur || 0) + addNum;
+  r.denominateur = Math.max(0, (r.denominateur || 0) + addDenom);
+  r.note = r.denominateur > 0 ? r.numerateur / r.denominateur : 0;
+  r.fideles = (r.fideles || 0) + addFideles;
+  r.nsig = (r.nsig || 0) + addNsig;
+  r.nbPreavis = (r.nbPreavis || 0) + addPreavis;
+  return r;
+}
 function recapForMonth(mois) {
   const notes = {}; let reseau = null;
   try {
@@ -5071,14 +5094,17 @@ function recapForMonth(mois) {
     const importsM = db.prepare('SELECT studio, type, contenu FROM retention_imports WHERE mois = ?').all(mois);
     const importsM1 = db.prepare("SELECT studio, contenu FROM retention_imports WHERE mois = ? AND type = 'encaissements'").all(m1);
     const choices = db.prepare('SELECT studio, client_key, categorie, valeur FROM retention_choices WHERE mois = ?').all(mois);
-    const aM = {}, aM1 = {}, ch = {};
+    const manuels = db.prepare('SELECT studio, categorie, id, nom, prenom FROM retention_manual WHERE mois = ?').all(mois);
+    const aM = {}, aM1 = {}, ch = {}, ma = {};
     importsM.forEach((im) => { const s = aM[im.studio] || (aM[im.studio] = { enc: [], con: [] }); const c = safeJson(im.contenu) || []; if (im.type === 'encaissements') s.enc = c; else if (im.type === 'contrats') s.con = c; });
     importsM1.forEach((im) => { aM1[im.studio] = safeJson(im.contenu) || []; });
     choices.forEach((c) => { if (c.categorie !== '_besoin' && c.categorie !== '_besoin_note') (ch[c.studio] || (ch[c.studio] = {}))[c.client_key] = c.valeur; });
+    manuels.forEach((m) => { const byCat = ma[m.studio] || (ma[m.studio] = {}); (byCat[m.categorie] || (byCat[m.categorie] = [])).push({ id: m.id, nom: m.nom, prenom: m.prenom }); });
     const rs = [];
     Object.keys(aM).forEach((studioRecap) => {
       if (!aM1[studioRecap]) return;
-      const r = Retention.calculerStudio({ encM1: aM1[studioRecap], encM: aM[studioRecap].enc, signataires: aM[studioRecap].con, choix: ch[studioRecap] || {} });
+      let r = Retention.calculerStudio({ encM1: aM1[studioRecap], encM: aM[studioRecap].enc, signataires: aM[studioRecap].con, choix: ch[studioRecap] || {} });
+      r = ajusterAvecManuelsSrv(r, studioRecap, ma, ch);
       const fan = fanStudioFromRecap(studioRecap);
       if (fan) notes[fan] = r.note;
       rs.push(r);

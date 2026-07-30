@@ -502,11 +502,37 @@ const RecapUI = (function () {
   }
   const cleId = (s) => String(s).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
 
+  // Ajuste le résultat calculerStudio en tenant compte des ajouts manuels :
+  // - chaque manuel entre au numérateur/dénominateur selon sa catégorie et
+  //   sa qualification (le menu de qualification remplace le défaut si posé)
+  // - la note est recalculée en conséquence
+  function ajusterAvecManuels(r, s, ma, ch) {
+    if (!r || r.pending) return r;
+    const byCat = (ma && ma[s]) || {};
+    const chS = (ch && ch[s]) || {};
+    const v = (id, defaut) => chS['manual:' + id] || defaut;
+    let addNum = 0, addDenom = 0, addNsig = 0, addFideles = 0, addPreavis = 0;
+    (byCat.disparus || []).forEach((m) => { const c = v(m.id, 'resilie'); if (c === 'pack' || c === 'ne') return; addDenom += 1; });
+    (byCat.impayes || []).forEach((m) => { const c = v(m.id, 'impaye'); if (c === 'pack' || c === 'ne') return; addDenom += 1; });
+    (byCat.baisses || []).forEach((m) => { const c = v(m.id, 'arrangement'); if (c === 'ne') return; if (c === 'sous_controle') { addFideles += 1; addNum += 1; addDenom += 1; } else { addDenom += 1; } });
+    (byCat.nouveaux || []).forEach((m) => { const c = v(m.id, 'decalage'); if (c === 'ne') return; addNsig += 1; addNum += 1; addDenom += 1; });
+    (byCat.aqualifier || []).forEach((m) => { const c = v(m.id, 'pack'); if (c === 'pack' || c === 'ne') return; if (c === 'suspendu' || c === 'nouveau') { addNum += 1; addDenom += 1; } else if (c === 'downsell_pack' || c === 'impaye') { addDenom += 1; } });
+    (byCat.preavis || []).forEach((m) => { const c = v(m.id, 'ok'); if (c === 'ne') return; addPreavis += 1; });
+    r.numerateur = (r.numerateur || 0) + addNum;
+    r.denominateur = Math.max(0, (r.denominateur || 0) + addDenom);
+    r.note = r.denominateur > 0 ? r.numerateur / r.denominateur : 0;
+    r.fideles = (r.fideles || 0) + addFideles;
+    r.nsig = (r.nsig || 0) + addNsig;
+    r.nbPreavis = (r.nbPreavis || 0) + addPreavis;
+    return r;
+  }
+
   // ── CALCUL ───────────────────────────────────────────────────────────────────
   function recalcStudio(s) {
     const st = studios[s];
     if (st.m1Source === 'manquant') { resultats[s] = { pending: true, m1Mois: st.m1Mois }; return; }
-    resultats[s] = Retention.calculerStudio({ encM1: st.encM1, encM: st.encM, signataires: st.signataires, resiliations: st.resiliations, choix: choix[s] || {} });
+    const r = Retention.calculerStudio({ encM1: st.encM1, encM: st.encM, signataires: st.signataires, resiliations: st.resiliations, choix: choix[s] || {} });
+    resultats[s] = ajusterAvecManuels(r, s, manuelsPar, choix);
   }
   function recalcTout() { resultats = {}; Object.keys(studios).forEach(recalcStudio); render(); }
 
@@ -949,6 +975,7 @@ const RecapUI = (function () {
           const byCat = manuelsPar[s] || (manuelsPar[s] = {});
           (byCat[kpiActive] || (byCat[kpiActive] = [])).push({ id: d.id, nom, prenom });
           formEl.reset();
+          recalcStudio(s); // recalcule numérateur/dénominateur/note avec le manuel
           renderClubTabs();
           renderClubPanel();
         } catch (_) { msg('Réseau indisponible.', true); }
@@ -963,6 +990,7 @@ const RecapUI = (function () {
         const r = await fetch('/api/retention/manual/' + id, { method: 'DELETE', headers: H() });
         if (!r.ok) { msg('Suppression impossible.', true); return; }
         const byCat = manuelsPar[s]; if (byCat && byCat[kpiActive]) byCat[kpiActive] = byCat[kpiActive].filter((m) => m.id !== id);
+        recalcStudio(s); // recalcule après suppression
         renderClubTabs();
         renderClubPanel();
       } catch (_) { msg('Réseau indisponible.', true); }
@@ -1313,14 +1341,16 @@ const RecapUI = (function () {
   async function calcMois(meta) {
     const ym = meta.mois;
     const d = await (await fetch('/api/retention/' + ym, { headers: H() })).json();
-    const aM = {}, aM1 = {}, ch = {};
+    const aM = {}, aM1 = {}, ch = {}, ma = {};
     (d.importsM || []).forEach((im) => { const s = aM[im.studio] || (aM[im.studio] = { enc: [], con: [] }); if (im.type === 'encaissements') s.enc = im.contenu || []; if (im.type === 'contrats') s.con = im.contenu || []; });
     (d.importsM1 || []).forEach((im) => { aM1[im.studio] = im.contenu || []; });
     (d.choices || []).forEach((c) => { if (c.categorie !== BESOIN_CAT && c.categorie !== BESOIN_NOTE_CAT) (ch[c.studio] || (ch[c.studio] = {}))[c.client_key] = c.valeur; });
+    (d.manuels || []).forEach((m) => { const byCat = ma[m.studio] || (ma[m.studio] = {}); (byCat[m.categorie] || (byCat[m.categorie] = [])).push({ id: m.id, nom: m.nom, prenom: m.prenom }); });
     const parStudio = []; const rs = [];
     Object.keys(aM).forEach((s) => {
       if (!aM1[s]) return; // sans M-1 -> pas de note (studio en attente)
-      const r = Retention.calculerStudio({ encM1: aM1[s], encM: aM[s].enc, signataires: aM[s].con, choix: ch[s] || {} });
+      let r = Retention.calculerStudio({ encM1: aM1[s], encM: aM[s].enc, signataires: aM[s].con, choix: ch[s] || {} });
+      r = ajusterAvecManuels(r, s, ma, ch);
       rs.push(r); parStudio.push({ s, note: r.note });
     });
     parStudio.sort((a, b) => b.note - a.note);
