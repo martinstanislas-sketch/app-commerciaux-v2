@@ -3820,18 +3820,29 @@ try {
   });
 
   // Supprime un groupe — refusé s'il a encore des membres (on ne largue personne).
-  // Pour fermer un groupe plein : le désactiver (POST access-codes { actif:false }).
+  // Sauf si `force=1` : dans ce cas on détache les clients du groupe (leur
+  // compte est préservé, ville/challenge_no vidés) puis on supprime le code.
+  // Pour fermer un groupe plein sans casser : POST access-codes { actif:false }.
   app.delete('/nutrition/api/coach/groups', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const b = req.body || {};
       const ville = String(b.ville || req.query.ville || '').trim().slice(0, 80);
       const challengeNo = Math.max(0, Math.min(999, Math.round(Number(b.challengeNo || req.query.challengeNo) || 0)));
+      const force = String(b.force != null ? b.force : (req.query.force || '')) === '1';
       if (!ville) return res.status(400).json({ ok: false, error: 'Ville requise.' });
       const n = groupMemberCount(ville, challengeNo);
-      if (n) return res.status(409).json({ ok: false, error: 'Ce groupe compte ' + n + ' membre(s) : désactive son code plutôt que de le supprimer.' });
-      const info = getDb().prepare('DELETE FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').run(ville, challengeNo);
-      if (!info.changes) return res.status(404).json({ ok: false, error: 'Groupe introuvable.' });
-      res.json({ ok: true });
+      if (n && !force) return res.status(409).json({ ok: false, error: 'Ce groupe compte ' + n + ' membre(s) : désactive son code plutôt que de le supprimer.', membres: n, canForce: true });
+      const db = getDb();
+      let detaches = 0;
+      if (n && force) {
+        // Détache les clients : leurs comptes restent, mais sans groupe
+        const now = new Date().toISOString();
+        const info2 = db.prepare("UPDATE nutrition_client_meta SET ville = '', challenge_no = 0, updated_at = ? WHERE LOWER(TRIM(ville)) = ? AND challenge_no = ?").run(now, ville.toLowerCase(), challengeNo);
+        detaches = info2.changes || 0;
+      }
+      const info = db.prepare('DELETE FROM nutrition_access_codes WHERE ville = ? AND challenge_no = ?').run(ville, challengeNo);
+      if (!info.changes && !detaches) return res.status(404).json({ ok: false, error: 'Groupe introuvable.' });
+      res.json({ ok: true, detaches });
     } catch (e) { console.error('groups DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
   });
 

@@ -9255,7 +9255,19 @@ async function chRenameGroup(ville, no) {
 async function chDeleteGroup(ville, no) {
   if (!window.confirm('Supprimer le groupe ' + ville + ' · Challenge n°' + no + ' ?\n\nSon code cessera d\'exister.')) return;
   try {
-    const d = await chNutriFetch('/nutrition/api/coach/groups?ville=' + encodeURIComponent(ville) + '&challengeNo=' + Number(no), { method: 'DELETE' });
+    let d = await chNutriFetch('/nutrition/api/coach/groups?ville=' + encodeURIComponent(ville) + '&challengeNo=' + Number(no), { method: 'DELETE' });
+    // 409 = le groupe a encore des membres. On propose une force-suppression
+    // qui détache les clients (leurs comptes restent intacts) puis supprime
+    // le code du groupe.
+    if (d && !d.ok && d.canForce && d.membres) {
+      const msg = 'Ce groupe contient encore ' + d.membres + ' client' + (d.membres > 1 ? 's' : '') + '.\n\n'
+        + 'Confirmer une SUPPRESSION FORCÉE ?\n\n'
+        + '• Le code de connexion sera supprimé.\n'
+        + '• Les ' + d.membres + ' client' + (d.membres > 1 ? 's seront détachés' : ' sera détaché') + ' du groupe (compte préservé).\n'
+        + '• Action irréversible.';
+      if (!window.confirm(msg)) return;
+      d = await chNutriFetch('/nutrition/api/coach/groups?ville=' + encodeURIComponent(ville) + '&challengeNo=' + Number(no) + '&force=1', { method: 'DELETE' });
+    }
     if (d && d.ok) { await chLoadCodes(); chRenderList(); }
     else alert((d && d.error) || 'Suppression impossible.');
   } catch (_) { alert('Erreur réseau.'); }
