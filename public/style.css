@@ -21513,6 +21513,17 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .fan-gauges { display: flex; flex-direction: column; gap: 6px; }
 .fan-g { display: grid; grid-template-columns: 36px 1fr 48px; align-items: center; gap: 7px; }
 .fan-g-lbl { font-size: 11.5px; color: #5c5b57; font-weight: 600; cursor: help; }
+.fan-g-lbl[data-aide] { text-decoration: underline dotted rgba(92, 91, 87, 0.5); text-underline-offset: 3px; }
+/* Tooltip d'explication des indicateurs (survol des libellés des cartes) */
+.fan-tip {
+  position: fixed; z-index: 9999; display: none; pointer-events: none;
+  max-width: 330px; padding: 10px 13px; border-radius: 10px;
+  background: #1E293B; color: #F1F5F9;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35);
+  font-size: 12px; line-height: 1.5;
+}
+.fan-tip b { display: block; margin-bottom: 4px; font-size: 12.5px; }
+.fan-tip span { color: #CBD5E1; }
 .fan-g-track { height: 6px; background: #ececea; border-radius: 999px; overflow: hidden; }
 .fan-g-fill { display: block; height: 100%; border-radius: 999px; transition: width .2s ease; }
 .fan-g-val { font-size: 11.5px; color: #5c5b57; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; }

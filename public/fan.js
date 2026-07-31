@@ -220,7 +220,32 @@ const FanUI = (function () {
     if (next) next.addEventListener('click', () => changeMois(1));
     document.querySelectorAll('[data-fan-view]').forEach((b) => b.addEventListener('click', () => switchView(b.dataset.fanView)));
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePop(); closeModal(); } });
+    // Tooltip d'explication au survol des libellés d'indicateurs (Fréq, Évén,
+    // Avis, Réf, Fid, Eng) dans les cartes studio. Contenu : BAREMES.
+    document.addEventListener('mouseover', (e) => {
+      const t = e.target.closest('.fan-g-lbl[data-aide]');
+      if (t) showAideTip(t);
+    });
+    document.addEventListener('mouseout', (e) => {
+      if (e.target.closest('.fan-g-lbl[data-aide]')) hideAideTip();
+    });
   }
+  let aideTipEl = null;
+  function showAideTip(target) {
+    const b = BAREMES[target.dataset.aide];
+    if (!b) return;
+    if (!aideTipEl) { aideTipEl = document.createElement('div'); aideTipEl.className = 'fan-tip'; document.body.appendChild(aideTipEl); }
+    aideTipEl.innerHTML = '<b>' + esc(b.titre) + '</b><span>' + esc(b.desc) + '</span>';
+    aideTipEl.style.display = 'block';
+    const r = target.getBoundingClientRect();
+    const tw = aideTipEl.offsetWidth, th = aideTipEl.offsetHeight;
+    const x = Math.max(8, Math.min(window.innerWidth - tw - 8, r.left));
+    let y = r.top - th - 8;
+    if (y < 8) y = r.bottom + 8; // pas de place au-dessus -> en dessous
+    aideTipEl.style.left = x + 'px';
+    aideTipEl.style.top = y + 'px';
+  }
+  function hideAideTip() { if (aideTipEl) aideTipEl.style.display = 'none'; }
   function changeMois(delta) { mois = moisAdj(mois, delta); $('#fan-mois').value = mois; charger(); }
   function currentView() { return $('#fan-view-historique').hidden ? 'analyse' : 'historique'; }
   function switchView(v) {
@@ -294,12 +319,14 @@ const FanUI = (function () {
   }
 
   // Cartes studios
-  function gauge(label, full, n, max, dec) {
+  function gauge(label, full, n, max, dec, aideKey) {
     const isNull = (n == null);
     const val = isNull ? '—' : ((dec ? fmtDec(n) : String(n)) + '/' + max);
     const w = isNull ? 0 : Math.max(0, Math.min(100, n / max * 100));
+    // aideKey -> tooltip riche (BAREMES) au survol ; sinon title natif.
+    const attr = aideKey ? ' data-aide="' + aideKey + '"' : ' title="' + esc(full) + '"';
     return '<div class="fan-g">'
-      + '<span class="fan-g-lbl" title="' + esc(full) + '">' + esc(label) + '</span>'
+      + '<span class="fan-g-lbl"' + attr + '>' + esc(label) + '</span>'
       + '<span class="fan-g-track"><span class="fan-g-fill ' + propClass(n, max) + '" style="width:' + w + '%"></span></span>'
       + '<span class="fan-g-val">' + val + '</span></div>';
   }
@@ -313,8 +340,8 @@ const FanUI = (function () {
       const sel = r.studio === selStudio ? ' is-selected' : '';
       // Sous-scores : « — » quand la carte est vide (jamais 0 pour un studio non saisi).
       const g = empty
-        ? gauge('Fréq', 'Fréquentation', null, 10, false) + gauge('Évén', 'Événements', null, 5, false) + gauge('Avis', 'Avis Google', null, 5, false) + gauge('Réf', 'Références', null, 10, false) + gauge('Fid', 'Clients fidèles', null, 10, false) + gauge('Eng', 'Engagement contrat', null, 10, false)
-        : gauge('Fréq', 'Fréquentation', n.freq, 10, false) + gauge('Évén', 'Événements', n.even, 5, false) + gauge('Avis', 'Avis Google', n.avis, 5, false) + gauge('Réf', 'Références', n.refs, 10, false) + gauge('Fid', 'Clients fidèles', n.fid, 10, false) + gauge('Eng', 'Engagement contrat', n.eng, 10, false);
+        ? gauge('Fréq', 'Fréquentation', null, 10, false, 'freq') + gauge('Évén', 'Événements', null, 5, false, 'even') + gauge('Avis', 'Avis Google', null, 5, false, 'avis') + gauge('Réf', 'Références', null, 10, false, 'refs') + gauge('Fid', 'Clients fidèles', null, 10, false, 'fid') + gauge('Eng', 'Engagement contrat', null, 10, false, 'eng')
+        : gauge('Fréq', 'Fréquentation', n.freq, 10, false, 'freq') + gauge('Évén', 'Événements', n.even, 5, false, 'even') + gauge('Avis', 'Avis Google', n.avis, 5, false, 'avis') + gauge('Réf', 'Références', n.refs, 10, false, 'refs') + gauge('Fid', 'Clients fidèles', n.fid, 10, false, 'fid') + gauge('Eng', 'Engagement contrat', n.eng, 10, false, 'eng');
       const note40 = empty ? null : n.total;
       return '<button type="button" class="fan-card ' + state + sel + '" data-studio="' + esc(r.studio) + '" aria-pressed="' + (sel ? 'true' : 'false') + '">'
         + '<div class="fan-card-top"><span class="fan-card-nom">' + esc(r.studio) + '</span>'
