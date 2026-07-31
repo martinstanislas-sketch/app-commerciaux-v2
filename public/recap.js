@@ -870,11 +870,17 @@ const RecapUI = (function () {
     if (!cartes.some((k) => k.key === kpiActive)) kpiActive = 'disparus';
     // §5 Cartes KPI = navigation. Le chiffre = la taille EXACTE de la liste ouverte
     // au clic -> carte, en-tête et tableau affichent toujours le même nombre.
+    const nbClientsM1 = listeKPI(r, 'clients', s).length;
     const kpis = cartes.map((k) => {
       // Vert par défaut pour Clients/Fidèles ; sinon vert quand tout est traité.
       const vert = (k.key === 'clients' || k.key === 'fideles') || categorieTraitee(r, s, k.key);
+      const nb = listeKPI(r, k.key, s).length;
+      // Disparus : % par rapport aux clients du mois précédent (la base).
+      const pctDisp = (k.key === 'disparus' && nbClientsM1 > 0)
+        ? ' <em class="rec-kpi2-pct">' + (nb / nbClientsM1 * 100).toFixed(1).replace('.', ',') + '&nbsp;%</em>'
+        : '';
       return '<button type="button" class="rec-kpi2' + (k.key === kpiActive ? ' is-active' : '') + (vert ? ' is-done' : '') + '" data-kpi="' + k.key + '">'
-        + '<b>' + listeKPI(r, k.key, s).length + '</b><span>' + ico(k.icon) + esc(k.label()) + aideBtn(k.aide) + '</span></button>';
+        + '<b>' + nb + pctDisp + '</b><span>' + ico(k.icon) + esc(k.label()) + aideBtn(k.aide) + '</span></button>';
     }).join('');
 
     // §5 Tableau de la catégorie sélectionnée, trié (par nom par défaut ;

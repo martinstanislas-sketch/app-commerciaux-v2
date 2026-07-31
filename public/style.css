@@ -21209,6 +21209,8 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-kpi2.is-done { border-color: var(--rc-green); }
 .rec-kpi2.is-done.is-active { box-shadow: 0 6px 16px rgba(0,0,0,.32), inset 0 0 0 1px var(--rc-green); }
 .rec-kpi2 b { display: block; font-size: 20px; font-weight: 750; color: var(--rc-text); font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -.035em; }
+/* % de disparus (vs clients M-1), affiché à côté du compteur */
+.rec-kpi2-pct { font-style: normal; font-size: 12px; font-weight: 600; color: var(--rc-text-2); letter-spacing: 0; margin-left: 4px; }
 .rec-kpi2 span { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--rc-text-3); margin-top: 3px; line-height: 1.15; font-weight: 500; }
 .rec-kpi2 svg { width: 12px; height: 12px; opacity: .5; flex: 0 0 auto; }
 /* §5 En-tête de liste (catégorie sélectionnée + nombre) */
