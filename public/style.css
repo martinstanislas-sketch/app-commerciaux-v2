@@ -21180,6 +21180,18 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-club-tab .rec-club-note { font-size: 21px; font-weight: 750; color: var(--rc-text); font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -.03em; transition: color .18s; }
 .rec-club-tab .rec-club-sub { font-size: 11px; color: var(--rc-text-3); }
 .rec-club-tab.is-active { background: linear-gradient(180deg, var(--rc-accent-soft), rgba(99,102,241,.03)); border-color: var(--rc-accent-ring); box-shadow: 0 10px 26px rgba(0,0,0,.4), inset 0 0 0 1px var(--rc-accent-ring); transform: translateY(-2px); }
+/* Carte FRANCHISE : consolide les clubs franchisés sans allonger la rangée.
+   Pointillés = « contient plusieurs clubs », caret = elle se déplie. */
+.rec-club-franchise { flex: 0 1 190px; border-style: dashed; }
+.rec-club-franchise .rec-club-nom { color: var(--rc-accent-hi); }
+.rec-fr-caret { display: inline-block; font-size: 11px; margin-left: 7px; color: var(--rc-text-3); vertical-align: 3px; transition: transform .18s cubic-bezier(.4,0,.2,1); }
+.rec-club-franchise[aria-expanded="true"] .rec-fr-caret { transform: rotate(180deg); }
+/* Le panneau déplié : mêmes cartes que la rangée, dans un cadre léger. */
+.rec-franchise-panel { margin: 6px 0 2px; padding: 10px 12px 6px; border: 1px dashed var(--rc-line-2); border-radius: 12px; background: var(--rc-surface-2); }
+.rec-franchise-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--rc-text-3); margin-bottom: 4px; }
+.rec-franchise-close { background: none; border: none; color: var(--rc-text-3); cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 7px; border-radius: 6px; }
+.rec-franchise-close:hover { background: var(--rc-surface); color: var(--rc-text); }
+.rec-franchise-tabs { margin: 0; }
 .rec-club-tab.is-active .rec-club-nom { color: var(--rc-accent-hi); }
 .rec-club-tab.is-active .rec-club-note { color: #fff; }
 .rec-club-tab.is-active .rec-club-sub { color: var(--rc-text-2); }

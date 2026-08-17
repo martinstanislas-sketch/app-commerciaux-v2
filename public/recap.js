@@ -693,6 +693,36 @@ const RecapUI = (function () {
   }
   const normClub = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
 
+  // ── FRANCHISES ─────────────────────────────────────────────────────────────
+  // Les clubs franchisés ne s'étalent pas dans la rangée : UNE carte compacte
+  // « FRANCHISE » les consolide — Σ numérateurs / Σ dénominateurs via
+  // Retention.noteReseau (les volumes réels, jamais une moyenne de %) — et un
+  // panneau léger se déplie dessous pour voir et ouvrir chacun. Invisible tant
+  // qu'aucune franchise n'a de résultats (data-ready : elle s'allume dès les
+  // premiers imports, même partiels). Aucun calcul existant n'est modifié : la
+  // note Réseau continue d'agréger TOUS les clubs calculés, franchises comprises.
+  const FRANCHISES = ['Caen', 'Tours', 'Veigné', 'Paris 15'];
+  const estFranchise = (s) => FRANCHISES.some((f) => normClub(f) === normClub(s));
+  let franchiseOuvert = false; // panneau des franchises déplié ?
+
+  // La carte d'un club, IDENTIQUE dans la rangée et dans le panneau Franchise :
+  // une seule fabrique, aucune divergence possible.
+  function clubTabHTML(s) {
+    const r = resultats[s];
+    const actif = s === resClub ? ' is-active' : '';
+    if (r.pending) {
+      return '<button type="button" class="rec-club-tab is-pending' + actif + '" data-club="' + esc(s) + '">'
+        + '<span class="rec-club-nom">' + esc(s) + '</span><span class="rec-club-note">⏳</span>'
+        + '<span class="rec-club-sub">en attente M-1</span></button>';
+    }
+    const vert = clubTraite(s) ? ' is-done' : ''; // club entièrement traité -> liseré vert
+    return '<button type="button" class="rec-club-tab' + actif + vert + '" data-club="' + esc(s) + '">'
+      + '<span class="rec-club-nom">' + esc(s) + '</span>'
+      + '<span class="rec-club-note">' + pct(r.note) + '</span>'
+      + '<span class="rec-club-sub">' + (r.disparus || []).length + ' disparus · ' + r.aQualifier.length + ' à qualifier</span>'
+      + '</button>';
+  }
+
   // §1 Rangée d'onglets clubs (nom, note, disparus, à qualifier) + note réseau.
   function renderClubTabs() {
     const host = $('#rec-recap');
@@ -705,21 +735,32 @@ const RecapUI = (function () {
       resClub = garde || clubsCalc[0];
     }
     const reseau = Retention.noteReseau(clubsCalc.filter((s) => !resultats[s].pending).map((s) => resultats[s]));
-    const tabs = clubsCalc.map((s) => {
-      const r = resultats[s];
-      const actif = s === resClub ? ' is-active' : '';
-      if (r.pending) {
-        return '<button type="button" class="rec-club-tab is-pending' + actif + '" data-club="' + esc(s) + '">'
-          + '<span class="rec-club-nom">' + esc(s) + '</span><span class="rec-club-note">⏳</span>'
-          + '<span class="rec-club-sub">en attente M-1</span></button>';
+    // Partition : les franchises quittent la rangée, la carte FRANCHISE les porte.
+    const reseauClubs = clubsCalc.filter((s) => !estFranchise(s));
+    const franchises = clubsCalc.filter(estFranchise);
+    const tabs = reseauClubs.map(clubTabHTML).join('');
+    // Carte FRANCHISE compacte + panneau dépliant (uniquement si des franchises
+    // ont des résultats ce mois-ci — sinon rien ne change à l'écran).
+    let franchiseTab = '', franchisePanel = '';
+    if (franchises.length) {
+      const frRes = franchises.filter((s) => !resultats[s].pending).map((s) => resultats[s]);
+      const frNote = frRes.length ? Retention.noteReseau(frRes) : null;
+      const frDisparus = frRes.reduce((n, r) => n + (r.disparus || []).length, 0);
+      const frAQual = frRes.reduce((n, r) => n + (r.aQualifier || []).length, 0);
+      const frActif = franchiseOuvert || estFranchise(resClub) ? ' is-active' : '';
+      const sub = franchises.length + ' club' + (franchises.length > 1 ? 's' : '')
+        + (frRes.length ? ' · ' + frDisparus + ' disparus · ' + frAQual + ' à qualifier' : ' · en attente M-1');
+      franchiseTab = '<button type="button" class="rec-club-tab rec-club-franchise' + frActif + '" data-franchise="1" aria-expanded="' + (franchiseOuvert ? 'true' : 'false') + '">'
+        + '<span class="rec-club-nom">Franchise</span>'
+        + '<span class="rec-club-note">' + (frNote != null ? pct(frNote) : '⏳') + '<span class="rec-fr-caret" aria-hidden="true">▾</span></span>'
+        + '<span class="rec-club-sub">' + sub + '</span></button>';
+      if (franchiseOuvert) {
+        franchisePanel = '<div class="rec-franchise-panel">'
+          + '<div class="rec-franchise-head"><span>Clubs franchisés · taux consolidé ' + (frNote != null ? pct(frNote) : '⏳') + '</span>'
+          + '<button type="button" class="rec-franchise-close" aria-label="Fermer le panneau des franchises">✕</button></div>'
+          + '<div class="rec-club-tabs rec-franchise-tabs">' + franchises.map(clubTabHTML).join('') + '</div></div>';
       }
-      const vert = clubTraite(s) ? ' is-done' : ''; // club entièrement traité -> liseré vert
-      return '<button type="button" class="rec-club-tab' + actif + vert + '" data-club="' + esc(s) + '">'
-        + '<span class="rec-club-nom">' + esc(s) + '</span>'
-        + '<span class="rec-club-note">' + pct(r.note) + '</span>'
-        + '<span class="rec-club-sub">' + (r.disparus || []).length + ' disparus · ' + r.aQualifier.length + ' à qualifier</span>'
-        + '</button>';
-    }).join('');
+    }
     // Onglet spécial « Besoin d'infos » à droite des clubs (agrégé tous clubs).
     const nBesoin = besoinListe().length;
     const besoinTab = '<button type="button" class="rec-club-tab rec-club-besoin' + (resClub === BESOIN_TAB ? ' is-active' : '') + '" data-club="' + BESOIN_TAB + '">'
@@ -730,10 +771,18 @@ const RecapUI = (function () {
     host.innerHTML = '<div class="rec-res-head"><h3 class="rec-h3">Résultats · ' + moisLabel(mois, 0) + '</h3>'
       + '<span class="rec-reseau-badge' + (clos ? ' is-done' : '') + '">Réseau <b>' + pct(reseau) + '</b>'
       + (clos ? '<span class="rec-mois-clos">✓ Mois clôturé</span>' : '') + '</span></div>'
-      + '<div class="rec-club-tabs">' + tabs + besoinTab + '</div>';
-    host.querySelectorAll('.rec-club-tab').forEach((t) => t.addEventListener('click', () => {
-      resClub = t.dataset.club; renderClubTabs(); renderClubPanel();
+      + '<div class="rec-club-tabs">' + tabs + franchiseTab + besoinTab + '</div>'
+      + franchisePanel;
+    host.querySelectorAll('.rec-club-tab[data-club]').forEach((t) => t.addEventListener('click', () => {
+      resClub = t.dataset.club;
+      // Choisir un club hors franchise replie le panneau ; une franchise le garde ouvert.
+      if (!estFranchise(resClub)) franchiseOuvert = false;
+      renderClubTabs(); renderClubPanel();
     }));
+    const frBtn = host.querySelector('.rec-club-franchise');
+    if (frBtn) frBtn.addEventListener('click', () => { franchiseOuvert = !franchiseOuvert; renderClubTabs(); });
+    const frClose = host.querySelector('.rec-franchise-close');
+    if (frClose) frClose.addEventListener('click', () => { franchiseOuvert = false; renderClubTabs(); });
   }
 
   // §B5 Résolution de l'Id_client : studio courant, puis global ; homonyme -> null.
