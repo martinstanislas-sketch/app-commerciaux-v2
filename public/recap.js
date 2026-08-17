@@ -739,26 +739,36 @@ const RecapUI = (function () {
     const reseauClubs = clubsCalc.filter((s) => !estFranchise(s));
     const franchises = clubsCalc.filter(estFranchise);
     const tabs = reseauClubs.map(clubTabHTML).join('');
-    // Carte FRANCHISE compacte + panneau dépliant (uniquement si des franchises
-    // ont des résultats ce mois-ci — sinon rien ne change à l'écran).
+    // Carte FRANCHISE compacte + panneau dépliant. TOUJOURS visible dès qu'il y
+    // a des résultats à l'écran : sans import franchise elle annonce l'attente
+    // (aucun chiffre inventé) ; les taux apparaissent au fil des imports.
     let franchiseTab = '', franchisePanel = '';
-    if (franchises.length) {
+    {
       const frRes = franchises.filter((s) => !resultats[s].pending).map((s) => resultats[s]);
       const frNote = frRes.length ? Retention.noteReseau(frRes) : null;
       const frDisparus = frRes.reduce((n, r) => n + (r.disparus || []).length, 0);
       const frAQual = frRes.reduce((n, r) => n + (r.aQualifier || []).length, 0);
+      // Franchises attendues mais sans AUCUN import ce mois-ci : listées en
+      // attente dans le panneau — on sait toujours qui manque à l'appel.
+      const manquantes = FRANCHISES.filter((f) => !franchises.some((s) => normClub(s) === normClub(f)));
       const frActif = franchiseOuvert || estFranchise(resClub) ? ' is-active' : '';
-      const sub = franchises.length + ' club' + (franchises.length > 1 ? 's' : '')
-        + (frRes.length ? ' · ' + frDisparus + ' disparus · ' + frAQual + ' à qualifier' : ' · en attente M-1');
+      const sub = FRANCHISES.length + ' clubs'
+        + (frRes.length ? ' · ' + frDisparus + ' disparus · ' + frAQual + ' à qualifier'
+          : (franchises.length ? ' · en attente M-1' : ' · en attente d\'imports'));
       franchiseTab = '<button type="button" class="rec-club-tab rec-club-franchise' + frActif + '" data-franchise="1" aria-expanded="' + (franchiseOuvert ? 'true' : 'false') + '">'
         + '<span class="rec-club-nom">Franchise</span>'
         + '<span class="rec-club-note">' + (frNote != null ? pct(frNote) : '⏳') + '<span class="rec-fr-caret" aria-hidden="true">▾</span></span>'
         + '<span class="rec-club-sub">' + sub + '</span></button>';
       if (franchiseOuvert) {
+        const absentes = manquantes.map((f) => '<div class="rec-club-tab is-pending is-absent">'
+          + '<span class="rec-club-nom">' + esc(f) + '</span><span class="rec-club-note">—</span>'
+          + '<span class="rec-club-sub">aucun import ce mois</span></div>').join('');
         franchisePanel = '<div class="rec-franchise-panel">'
-          + '<div class="rec-franchise-head"><span>Clubs franchisés · taux consolidé ' + (frNote != null ? pct(frNote) : '⏳') + '</span>'
+          + '<div class="rec-franchise-head"><span>Clubs franchisés · taux consolidé ' + (frNote != null ? pct(frNote) : '⏳ en attente') + '</span>'
           + '<button type="button" class="rec-franchise-close" aria-label="Fermer le panneau des franchises">✕</button></div>'
-          + '<div class="rec-club-tabs rec-franchise-tabs">' + franchises.map(clubTabHTML).join('') + '</div></div>';
+          + '<div class="rec-club-tabs rec-franchise-tabs">' + franchises.map(clubTabHTML).join('') + absentes + '</div>'
+          + (manquantes.length ? '<p class="rec-franchise-hint">Ajoute un club manquant via « Modifier les imports » (Nouveau club…) puis dépose ses fichiers : la carte se met à jour toute seule.</p>' : '')
+          + '</div>';
       }
     }
     // Onglet spécial « Besoin d'infos » à droite des clubs (agrégé tous clubs).

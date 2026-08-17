@@ -21192,6 +21192,10 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec-franchise-close { background: none; border: none; color: var(--rc-text-3); cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 7px; border-radius: 6px; }
 .rec-franchise-close:hover { background: var(--rc-surface); color: var(--rc-text); }
 .rec-franchise-tabs { margin: 0; }
+/* Franchise attendue mais sans import ce mois : présente, atténuée, non cliquable. */
+.rec-club-tab.is-absent { opacity: .55; cursor: default; }
+.rec-club-tab.is-absent:hover { border-color: var(--rc-line); background: var(--rc-surface); }
+.rec-franchise-hint { margin: 6px 2px 4px; font-size: 11px; color: var(--rc-text-3); }
 .rec-club-tab.is-active .rec-club-nom { color: var(--rc-accent-hi); }
 .rec-club-tab.is-active .rec-club-note { color: #fff; }
 .rec-club-tab.is-active .rec-club-sub { color: var(--rc-text-2); }
