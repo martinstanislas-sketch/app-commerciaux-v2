@@ -39,7 +39,7 @@ const {
   iaDisponible, coachIaDisponible, coachRepondre,
 } = require('./lib/aiGenerator');
 const { getDb, nowIso, readJson } = require('./lib/db');
-const { createAuth, normEmail } = require('./lib/auth');
+const { createAuth, normEmail, hashPin, PIN_RE } = require('./lib/auth');
 const coachFaq = require('./lib/coachFaq');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
@@ -646,11 +646,133 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 // front, qui fait systématiquement res.json(), échoue avec une erreur illisible.
 app.use('/api', (req, res) => res.status(404).json({ ok: false, error: 'Route inconnue.' }));
 
+// ---------------------------------------------------------------------------
+//  Réinitialisation du PIN administrateur — PIN oublié, sans coach pour aider.
+//
+//  Volontairement PAS une route HTTP : un « reset sans l'ancien PIN » accessible
+//  par le web serait une porte dérobée, quelle que soit sa protection. On ancre
+//  donc le reset là où se définit déjà QUI est admin : les variables
+//  d'environnement du déploiement. Poser ADMIN_PIN_RESET exige le même niveau
+//  de contrôle que changer ADMIN_EMAIL — on n'élargit rien.
+//
+//  Usage : poser ADMIN_PIN_RESET=<nouveau code 4-6 chiffres> (Railway ->
+//  Variables), redéployer, se reconnecter avec le nouveau code, puis RETIRER la
+//  variable. Elle est appliquée à CHAQUE démarrage tant qu'elle reste posée
+//  (idempotent, mais le code traînerait en clair dans la config) — d'où
+//  l'avertissement insistant dans les logs.
+//
+//  Périmètre strict : le seul compte ADMIN_EMAIL, et seulement ses colonnes
+//  d'authentification (pin_hash, compteur d'échecs, temporisation) + ses
+//  sessions. Ni les autres comptes, ni le profil/plan/photos de l'admin.
+//  Les sessions sont révoquées comme à tout changement de secret : si le reset
+//  est fait parce que le compte est soupçonné compromis, une session volée ne
+//  doit pas y survivre. Il suffit de se reconnecter avec le nouveau code.
+// ---------------------------------------------------------------------------
+function appliquerResetPinAdmin() {
+  const voulu = String(process.env.ADMIN_PIN_RESET || '').trim();
+  if (!voulu) return false;
+  if (!ADMIN_EMAIL) {
+    console.warn('⚠️  ADMIN_PIN_RESET est posé mais ADMIN_EMAIL est vide : ignoré.');
+    return false;
+  }
+  if (!PIN_RE.test(voulu)) {
+    console.warn('⚠️  ADMIN_PIN_RESET ignoré : le code doit faire 4 à 6 chiffres.');
+    return false;
+  }
+  const db = getDb();
+  const existe = db.prepare('SELECT email FROM users WHERE email = ?').get(ADMIN_EMAIL);
+  if (!existe) {
+    console.warn(`⚠️  ADMIN_PIN_RESET ignoré : le compte ${ADMIN_EMAIL} n'existe pas encore.` +
+      ' Une première connexion dans l\'app le créera (elle choisit son PIN à ce moment-là).');
+    return false;
+  }
+  db.prepare('UPDATE users SET pin_hash = ?, pin_fails = 0, bloque = 0 WHERE email = ?')
+    .run(hashPin(voulu), ADMIN_EMAIL);
+  db.prepare('DELETE FROM sessions WHERE email = ?').run(ADMIN_EMAIL);
+  console.warn(`⚠️  PIN administrateur RÉINITIALISÉ pour ${ADMIN_EMAIL} (sessions révoquées).`);
+  console.warn('⚠️  RETIRE la variable ADMIN_PIN_RESET maintenant : tant qu\'elle reste posée,');
+  console.warn('⚠️  le code est en clair dans la config et réappliqué à chaque démarrage.');
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+//  Amorçage des photos de plats depuis une app source (PHOTOS_SOURCE_URL).
+//
+//  Même rôle que tools/importer-photos.js, mais exécuté PAR LE SERVEUR à son
+//  démarrage : indispensable quand l'import ne peut pas être lancé d'ailleurs
+//  (poste sans accès, environnement au réseau restreint). Le serveur va chercher
+//  lui-même les photos manquantes sur les routes PUBLIQUES de la source
+//  (/api/recipe-photos-index, /api/recipe-photo/:id) et les écrit dans SA table
+//  recipe_photos — aucun identifiant requis, aucune autre table touchée.
+//
+//  Idempotent et auto-réparant : à chaque démarrage, seule la différence
+//  (photos de la source absentes ici) est importée ; si rien ne manque, un seul
+//  appel d'index et c'est fini. Laisser la variable posée est donc sans danger ;
+//  la retirer arrête simplement la synchronisation.
+//
+//  Lancé APRÈS l'écoute, en tâche de fond : une source lente ou injoignable ne
+//  doit jamais retarder ni empêcher le démarrage de l'app.
+// ---------------------------------------------------------------------------
+const PHOTO_IMPORT_MAX_OCTETS = 3 * 1024 * 1024; // parité avec la route admin
+async function importerPhotosDepuisSource() {
+  const src = String(process.env.PHOTOS_SOURCE_URL || '').trim().replace(/\/+$/, '');
+  if (!src) return null;
+  const bilan = { importees: 0, deja: 0, sautees: 0, echecs: 0 };
+  try {
+    const idx = await (await fetch(src + '/api/recipe-photos-index')).json();
+    if (!idx || !idx.ok) throw new Error('index illisible');
+    const db = getDb();
+    const { RECIPES } = require('./lib/recipes-v2');
+    const catalogue = new Set(RECIPES.map((r) => r.id));
+    const locales = new Set(db.prepare('SELECT recipe_id FROM recipe_photos').all().map((r) => r.recipe_id));
+    const manquantes = Object.keys(idx.photos || {}).filter((id) => catalogue.has(id) && !locales.has(id));
+    bilan.deja = locales.size;
+    if (!manquantes.length) {
+      console.log(`Photos de plats : rien à importer (${locales.size} en base, source alignée).`);
+      return bilan;
+    }
+    console.log(`Photos de plats : import de ${manquantes.length} photo(s) depuis ${src}…`);
+    const ins = db.prepare(`INSERT INTO recipe_photos (recipe_id, mime, data, updated_at) VALUES (?, ?, ?, ?)
+                            ON CONFLICT(recipe_id) DO NOTHING`);
+    // En séquentiel : on est l'invité d'un serveur de production.
+    for (const id of manquantes) {
+      try {
+        const res = await fetch(src + '/api/recipe-photo/' + encodeURIComponent(id));
+        if (!res.ok) { bilan.echecs++; continue; }
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length > PHOTO_IMPORT_MAX_OCTETS) { bilan.sautees++; continue; }
+        ins.run(id, res.headers.get('content-type') || 'image/jpeg', buf, nowIso());
+        bilan.importees++;
+        if (bilan.importees % 50 === 0) console.log(`  … ${bilan.importees}/${manquantes.length}`);
+      } catch (_) { bilan.echecs++; }
+    }
+    const total = db.prepare('SELECT COUNT(*) AS n FROM recipe_photos').get().n;
+    console.log(`Photos de plats : ${bilan.importees} importée(s), ${bilan.sautees} sautée(s) (trop lourdes), ` +
+      `${bilan.echecs} échec(s). Total en base : ${total}.`);
+  } catch (e) {
+    console.warn('Photos de plats : import impossible pour le moment (' + e.message + '). ' +
+      'L\'app fonctionne normalement ; nouvel essai au prochain démarrage.');
+  }
+  return bilan;
+}
+
 if (require.main === module) {
   // getDb() crée le schéma au premier appel ; amorcerFaq() complète la base de
   // réponses. Les deux sont idempotents : redémarrer ne duplique rien.
   const ajout = amorcerFaq();
   if (ajout) console.log(`  FAQ coach : ${ajout} réponses ajoutées.`);
+  appliquerResetPinAdmin();
+  // L'état de la synchronisation photos est dit AU BOOT, inconditionnellement :
+  // « aucune ligne dans les logs » ne doit plus pouvoir signifier à la fois
+  // « variable absente » et « code pas déployé » — c'est précisément l'ambiguïté
+  // qui a rendu un déploiement en retard indiagnosticable depuis les logs.
+  if (String(process.env.PHOTOS_SOURCE_URL || '').trim()) {
+    console.log(`  Photos     : synchronisation depuis ${String(process.env.PHOTOS_SOURCE_URL).trim()} (démarre dans 1,5 s)`);
+  } else {
+    console.log('  Photos     : PHOTOS_SOURCE_URL non définie — pas de synchronisation au démarrage');
+  }
+  // En tâche de fond, une fois le serveur prêt à répondre.
+  setTimeout(() => { importerPhotosDepuisSource(); }, 1500);
   app.listen(PORT, () => {
     const mode = iaDisponible() ? 'IA (Claude)' : 'DÉMO (recettes locales)';
     console.log(`\n  ${APP_NOM}`);
@@ -682,3 +804,5 @@ function amorcerFaq() {
 
 module.exports = app;
 module.exports.amorcerFaq = amorcerFaq;
+module.exports.appliquerResetPinAdmin = appliquerResetPinAdmin;
+module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;

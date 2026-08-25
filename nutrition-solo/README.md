@@ -94,7 +94,14 @@ filtré sur le porteur du jeton. Concrètement :
 - 5 codes PIN erronés déclenchent une **temporisation qui double** (1, 2, 4… minutes,
   plafond 1 h) et non un blocage définitif : sans coach pour déverrouiller, un blocage
   définitif enfermerait quelqu'un dehors pour de bon ;
-- `DELETE /account` supprime le compte et, par cascade, tout ce qui s'y rattache.
+- `DELETE /account` supprime le compte et, par cascade, tout ce qui s'y rattache ;
+- **PIN admin oublié** : poser `ADMIN_PIN_RESET=<nouveau code>` (Railway → Variables)
+  et redéployer — au démarrage, le PIN du compte `ADMIN_EMAIL` est remplacé et ses
+  sessions révoquées, sans toucher à quoi que ce soit d'autre (ni les autres comptes,
+  ni son profil/plan/photos). **Retirer la variable ensuite.** C'est volontairement
+  une variable d'environnement et non une route HTTP : un reset « sans l'ancien PIN »
+  accessible par le web serait une porte dérobée ; ici il exige le contrôle du
+  déploiement — le même niveau de confiance que celui qui définit qui est admin.
 
 ## Structure
 
@@ -160,9 +167,28 @@ Une clé présente dans l'environnement ne suffit jamais : l'opt-in est explicit
 ## À savoir avant de mettre en ligne
 
 - **Photos des recettes.** Le catalogue ne porte pas d'image : dans Protocole 42, les
-  photos étaient ajoutées une par une en base par le coach. Cette base-ci part vide,
-  et les plats s'affichent sans visuel (l'`<img>` se retire tout seul). Renseigner
-  `ADMIN_EMAIL` donne accès à « Photos des plats » pour les ajouter.
+  photos vivent dans la base de production (ajoutées une à une via l'admin) — elles ne
+  sont pas dans le dépôt, donc un déploiement neuf affiche les plats sans visuel.
+  **`tools/importer-photos.js` les rapatrie en une commande**, en ne passant que par
+  des routes qui existent déjà (index public côté source, route admin côté cible) :
+
+  ```bash
+  node tools/importer-photos.js \
+    --source https://app.stanmartinapp.cloud/nutrition \
+    --cible  https://<votre-app>.up.railway.app \
+    --email  <ADMIN_EMAIL> --pin <code>
+  ```
+
+  Prérequis : `ADMIN_EMAIL` posé sur la cible (Railway → Variables) et ce compte créé
+  (une première connexion dans l'app suffit). Relançable sans risque — un plat déjà
+  illustré est sauté (`--remplacer` pour forcer). Ensuite, `ADMIN_EMAIL` garde accès
+  à « Photos des plats » pour compléter ou remplacer à la main.
+
+  **Sans poste pour lancer le script** : poser `PHOTOS_SOURCE_URL` (Railway →
+  Variables, ex. `https://app.stanmartinapp.cloud/nutrition`) et redéployer — au
+  démarrage, le serveur importe lui-même les photos manquantes, en tâche de fond,
+  sans identifiant (routes publiques de la source) et sans toucher à autre chose
+  que `recipe_photos`. Idempotent et auto-réparant : la variable peut rester posée.
 - **Liens boutique.** Les fiches compléments pointaient la boutique du coach (liens
   affiliés). `SHOP_BASE` est **vide** dans `public/app.js` : renseigner cette seule
   constante réactive tous les liens produit.

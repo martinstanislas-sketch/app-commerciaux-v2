@@ -299,3 +299,121 @@ test('une route /api inconnue répond en JSON, pas en HTML', async () => {
   assert.strictEqual(r.status, 404);
   assert.strictEqual(r.body.ok, false, 'le front reçoit du JSON exploitable');
 });
+
+// --- Réinitialisation du PIN admin (ADMIN_PIN_RESET) --------------------------
+// Le reset vit au démarrage du serveur, jamais dans une route HTTP : on teste la
+// fonction directement, comme le ferait le boot. À ce stade de la suite, le
+// compte admin (patron@exemple.fr, PIN 7777) existe déjà.
+
+test('ADMIN_PIN_RESET : remplace le PIN admin et révoque ses sessions', async () => {
+  // Une session admin vivante AVANT le reset : elle doit mourir avec l'ancien PIN.
+  const avant = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '7777' });
+  assert.strictEqual(avant.body.ok, true);
+
+  process.env.ADMIN_PIN_RESET = '2468';
+  try {
+    assert.strictEqual(app.appliquerResetPinAdmin(), true);
+  } finally {
+    delete process.env.ADMIN_PIN_RESET;
+  }
+
+  // L'ancien PIN ne vaut plus rien, la session d'avant non plus.
+  const ancien = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '7777' });
+  assert.strictEqual(ancien.status, 401);
+  assert.strictEqual((await api('GET', '/account/me', null, avant.body.token)).status, 401,
+    'une session antérieure au reset doit être révoquée');
+
+  // Le nouveau PIN ouvre le compte, toujours admin.
+  const nouveau = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '2468' });
+  assert.strictEqual(nouveau.body.ok, true);
+  assert.strictEqual(nouveau.body.compte.admin, true);
+});
+
+test('ADMIN_PIN_RESET : ne touche à rien d\'autre', async () => {
+  // Le reset a déjà eu lieu au test précédent : Léa, elle, n'a pas bougé.
+  const lea = await api('POST', '/account/login', { email: 'lea@exemple.fr', pin: '4821' });
+  assert.strictEqual(lea.body.ok, true, 'le PIN d\'un compte normal est intact');
+  const p = await api('GET', '/api/progression', null, lea.body.token);
+  assert.strictEqual(p.body.progression.pesees.length, 3, 'ses données aussi');
+});
+
+test('ADMIN_PIN_RESET : un code mal formé est ignoré', async () => {
+  process.env.ADMIN_PIN_RESET = 'abc123';
+  try {
+    assert.strictEqual(app.appliquerResetPinAdmin(), false);
+  } finally {
+    delete process.env.ADMIN_PIN_RESET;
+  }
+  // Le PIN posé par le test précédent marche toujours.
+  const r = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '2468' });
+  assert.strictEqual(r.body.ok, true);
+});
+
+test('ADMIN_PIN_RESET : réarme aussi un compte en temporisation', async () => {
+  // 5 échecs -> temporisation. Le reset doit la lever en même temps que le PIN.
+  for (let i = 0; i < 5; i++) await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '0000' });
+  const bloque = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '2468' });
+  assert.strictEqual(bloque.status, 429, 'le compte est bien temporisé');
+
+  process.env.ADMIN_PIN_RESET = '1357';
+  try { app.appliquerResetPinAdmin(); } finally { delete process.env.ADMIN_PIN_RESET; }
+
+  const apres = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '1357' });
+  assert.strictEqual(apres.body.ok, true, 'plus de temporisation, nouveau PIN actif');
+});
+
+// --- Amorçage des photos depuis une source (PHOTOS_SOURCE_URL) ----------------
+// On simule l'app source par un mini serveur HTTP qui expose les deux routes
+// publiques réelles. L'import doit remplir recipe_photos — et seulement elle.
+
+test('PHOTOS_SOURCE_URL : importe les photos manquantes au démarrage', async () => {
+  const http = require('node:http');
+  const { RECIPES } = require('../lib/recipes-v2');
+  const ids = RECIPES.slice(0, 2).map((r) => r.id);
+  // 1x1 px PNG, servi comme le ferait Protocole 42.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  const stub = http.createServer((req, res) => {
+    if (req.url === '/api/recipe-photos-index') {
+      res.setHeader('Content-Type', 'application/json');
+      // Un id hors catalogue dans l'index : il doit être ignoré sans bruit.
+      res.end(JSON.stringify({ ok: true, photos: Object.fromEntries([...ids, 'id-inconnu'].map((i) => [i, '1'])) }));
+    } else if (req.url.startsWith('/api/recipe-photo/')) {
+      res.setHeader('Content-Type', 'image/png');
+      res.end(png);
+    } else { res.statusCode = 404; res.end(); }
+  });
+  await new Promise((r) => stub.listen(0, r));
+
+  process.env.PHOTOS_SOURCE_URL = `http://127.0.0.1:${stub.address().port}`;
+  try {
+    const bilan = await app.importerPhotosDepuisSource();
+    assert.strictEqual(bilan.importees, 2, 'les 2 photos du catalogue sont importées');
+    assert.strictEqual(bilan.echecs, 0);
+
+    // Servies par l'app comme n'importe quelle photo de plat.
+    const idx = await api('GET', '/api/recipe-photos-index');
+    assert.ok(ids.every((i) => idx.body.photos[i]), 'l\'index les connaît');
+    const img = await fetch(`${base}/api/recipe-photo/${ids[0]}`);
+    assert.strictEqual(img.status, 200);
+    assert.strictEqual(img.headers.get('content-type'), 'image/png');
+
+    // Relance : rien à refaire (idempotent).
+    const bis = await app.importerPhotosDepuisSource();
+    assert.strictEqual(bis.importees, 0, 'une relance n\'importe rien');
+  } finally {
+    delete process.env.PHOTOS_SOURCE_URL;
+    stub.close();
+  }
+});
+
+test('PHOTOS_SOURCE_URL : une source injoignable ne casse rien', async () => {
+  process.env.PHOTOS_SOURCE_URL = 'http://127.0.0.1:1';   // port fermé
+  try {
+    const bilan = await app.importerPhotosDepuisSource(); // ne doit pas lever
+    assert.ok(bilan, 'la fonction rend la main proprement');
+  } finally {
+    delete process.env.PHOTOS_SOURCE_URL;
+  }
+  // L'app répond toujours.
+  assert.strictEqual((await api('GET', '/api/status')).status, 200);
+});
