@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
+  <title>My Coach Nutrition — Manger facile, selon tes goûts</title>
+  <meta name="description" content="Réponds à quelques questions, reçois un plan de repas de la semaine adapté à tes goûts et à ton objectif, avec liste de courses." />
+  <meta name="theme-color" content="#F6F5F2" />
+
+  <!-- PWA / notifications push (installable + iOS « ajouter a l'ecran d'accueil ») -->
+  <link rel="manifest" href="manifest.json" />
+  <!-- Icône d'app (iOS n'accepte pas le SVG pour l'écran d'accueil -> PNG). -->
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=2" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=2" />
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png?v=2" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="My Coach Nutrition" />
+
+  <!-- Apercu de lien (Open Graph / Twitter) : miniature affichee au partage -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Coach Nutrition" />
+  <meta property="og:title" content="My Coach Nutrition — Manger facile, selon tes goûts" />
+  <meta property="og:description" content="Reçois un plan de repas de la semaine adapté à tes goûts et à ton objectif, avec liste de courses." />
+  <meta property="og:locale" content="fr_FR" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="My Coach Nutrition — Manger facile, selon tes goûts" />
+  <meta name="twitter:description" content="Ton plan de repas de la semaine, adapté à ton objectif." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=192" />
+  <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
+  <link rel="stylesheet" href="landing.css?v=103" />
+  <script>
+  // ---- Portail d'entrée : landing -> connexion / inscription --------------
+  // Il remplace le « gate » du My Coach Nutrition, qui vérifiait un rôle de l'app
+  // principale (admin / coach / session démo) puis exigeait un code de cohorte
+  // donné par un coach. Ici il n'y a ni rôle ni cohorte : on s'inscrit seul, et
+  // l'app est même utilisable SANS compte (le plan reste alors sur l'appareil).
+  (function () {
+    var base = location.pathname.replace(/[^/]*$/, '');
+    var CLE_COMPTE = 'nutri-compte';
+    var CLE_ID = 'nutri-identite';   // identité mémorisée sur CET appareil
+
+    var acc = null; try { acc = JSON.parse(localStorage.getItem(CLE_COMPTE) || 'null'); } catch (e) {}
+    var idr = null; try { idr = JSON.parse(localStorage.getItem(CLE_ID) || 'null'); } catch (e) {}
+    var _landingHTML = null;
+
+    // Session existante : le JETON fait foi (il a été obtenu avec le PIN). On le
+    // revalide via /account/me — jamais de reconnexion silencieuse sans PIN.
+    if (acc && acc.email && acc.token) {
+      window.__NUTRI_USER = acc;
+      window.__NUTRI_REFRESH = fetch(base + 'account/me', { headers: { 'Authorization': 'Bearer ' + acc.token } })
+        .then(function (r) { if (r.status === 401 || r.status === 403) throw new Error('expired'); return r.json(); })
+        .then(function (d) {
+          if (!d || !d.ok) return;
+          acc.prenom = d.compte.prenom || acc.prenom;
+          acc.avatarConfig = d.compte.avatarConfig || null;
+          acc.admin = !!d.compte.admin;
+          window.__NUTRI_USER = acc;
+          try { localStorage.setItem(CLE_COMPTE, JSON.stringify(acc)); } catch (e) {}
+        })
+        .catch(function (e) {
+          if (e && e.message === 'expired') {
+            try { localStorage.removeItem(CLE_COMPTE); } catch (_) {}
+            location.reload();
+          } /* sinon hors-ligne : on garde le jeton et les données locales */
+        });
+      return;
+    }
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&amp;'; }); }
+
+    // Formulaire de connexion / inscription. UN SEUL écran : le serveur décide
+    // s'il crée le compte ou vérifie le PIN (cf. lib/auth.js), donc l'utilisateur
+    // n'a pas à savoir d'avance dans quel cas il se trouve.
+    function renderLogin() {
+      var IN = 'width:100%;padding:13px 16px;border:1px solid #ECEAE4;border-radius:14px;font-size:15px;color:#1F2430;background:#FBFAF7;font-family:inherit;box-sizing:border-box;';
+      var BTN = 'width:100%;margin-top:14px;padding:14px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#fff;font-size:15px;font-weight:700;font-family:inherit;';
+      var connu = !!(idr && idr.email);
+      window.__NUTRI_PORTAIL = true;   // idem : plus aucun élément de l'app dans la page
+      document.body.innerHTML =
+        '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Inter,system-ui,sans-serif;background:#F6F5F2;color:#1F2430;padding:24px;">'
+        + '<div style="max-width:400px;width:100%;text-align:center;">'
+        + '<div style="text-align:left;margin-bottom:10px;"><button id="rBackHome" type="button" style="background:none;border:none;color:#6B6B63;font-size:13px;font-family:inherit;cursor:pointer;padding:6px 0;">&#8592; Retour à l\'accueil</button></div>'
+        + '<img src="logo-mc.png?v=1" alt="" style="height:64px;width:64px;display:block;margin:0 auto 18px;" />'
+        + '<h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">' + (connu ? 'Bon retour, ' + esc(idr.prenom || '') + ' 👋' : 'Crée ton espace') + '</h1>'
+        + '<p style="margin:0 0 20px;color:#6B6B63;font-size:14.5px;line-height:1.5;">'
+          + (connu ? 'Entre ton code pour retrouver ton plan et ta progression.'
+                   : 'Ton email et un code à toi, c\'est tout. Aucun code d\'invitation n\'est nécessaire.') + '</p>'
+        + (connu ? '' : '<input id="rPrenom" type="text" autocomplete="given-name" placeholder="Prénom" style="' + IN + '" />'
+                      + '<input id="rEmail" type="email" autocomplete="email" inputmode="email" placeholder="Email" style="' + IN + 'margin-top:10px;" />')
+        + '<input id="rPin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="' + (connu ? 'Ton code' : 'Choisis un code (4 à 6 chiffres)') + '" style="' + IN + 'margin-top:10px;letter-spacing:6px;text-align:center;font-size:20px;" />'
+        + '<button id="rGo" style="' + BTN + '">' + (connu ? 'Se connecter' : 'Créer mon espace') + '</button>'
+        + '<p id="rErr" style="margin:10px 0 0;color:#DC4C44;font-size:13px;min-height:16px;"></p>'
+        + (connu ? '<button id="rOther" style="margin:14px 0 0;background:none;border:none;color:#6B6B63;font-size:13px;font-family:inherit;cursor:pointer;text-decoration:underline;">Ce n\'est pas moi / changer de compte</button>' : '')
+        + '<p style="margin:16px 0 0;color:#9A9890;font-size:12px;line-height:1.5;">Tes données (poids, photos, plan) sont privées : personne d\'autre que toi n\'y a accès.</p>'
+        + '</div></div>';
+
+      var pn = document.getElementById('rPin'), btn = document.getElementById('rGo'), err = document.getElementById('rErr');
+      var pr = document.getElementById('rPrenom'), em = document.getElementById('rEmail');
+
+      function go() {
+        var pin = (pn.value || '').trim();
+        var prenom = connu ? (idr.prenom || '') : ((pr.value || '').trim());
+        var email = connu ? idr.email : ((em.value || '').trim().toLowerCase());
+        if (!connu && (!prenom || email.indexOf('@') < 1)) { err.textContent = 'Renseigne ton prénom et un email valide.'; return; }
+        if (!/^[0-9]{4,6}$/.test(pin)) { err.textContent = 'Le code fait 4 à 6 chiffres.'; return; }
+        btn.disabled = true; err.textContent = 'Connexion…';
+        fetch(base + 'account/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, prenom: prenom, pin: pin }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d && d.ok) {
+              try { localStorage.setItem(CLE_COMPTE, JSON.stringify({ email: email, token: d.token, prenom: (d.compte && d.compte.prenom) || prenom, admin: !!(d.compte && d.compte.admin) })); } catch (e) {}
+              try { localStorage.setItem(CLE_ID, JSON.stringify({ email: email, prenom: (d.compte && d.compte.prenom) || prenom })); } catch (e) {}
+              location.reload();
+              return;
+            }
+            btn.disabled = false;
+            var msg = (d && d.error) || 'Connexion impossible.';
+            // Le serveur dit combien d'essais restent avant la temporisation :
+            // un vrai titulaire corrige avant d'être ralenti.
+            if (d && typeof d.restants === 'number' && d.restants > 0) {
+              msg += ' Il te reste ' + d.restants + ' essai' + (d.restants > 1 ? 's' : '') + '.';
+            }
+            err.textContent = msg;
+            pn.focus();
+          })
+          .catch(function () { btn.disabled = false; err.textContent = 'Erreur réseau, réessaie.'; });
+      }
+      btn.addEventListener('click', go);
+      [pr, em, pn].forEach(function (i) { if (i) i.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); }); });
+      var back = document.getElementById('rBackHome');
+      if (back) back.addEventListener('click', function () { renderLanding(); });
+      var other = document.getElementById('rOther');
+      if (other) other.addEventListener('click', function () { try { localStorage.removeItem(CLE_ID); } catch (e) {} location.reload(); });
+      (connu ? pn : pr).focus();
+    }
+
+    // Landing marketing (visiteur). Ses CTA mènent à la connexion ; le bouton
+    // « essayer sans compte » laisse entrer directement dans l'app.
+    function renderLanding() {
+      if (!_landingHTML) { renderLogin(); return; }
+      window.__NUTRI_PORTAIL = true;   // le DOM de l'app est remplacé -> init() doit s'abstenir
+      document.body.innerHTML = _landingHTML;
+      initLandingUI();
+      Array.prototype.forEach.call(document.querySelectorAll('[data-cta]'), function (a) {
+        a.addEventListener('click', function (e) { e.preventDefault(); window.scrollTo(0, 0); renderLogin(); });
+      });
+    }
+    function initLandingUI() {
+      var header = document.getElementById('lp-header'), burger = document.getElementById('lp-burger'), mnav = document.getElementById('lp-mnav');
+      if (header) { var onScroll = function () { header.classList.toggle('is-stuck', window.scrollY > 12); }; onScroll(); window.addEventListener('scroll', onScroll, { passive: true }); }
+      if (burger && mnav) {
+        burger.addEventListener('click', function () { var o = burger.getAttribute('aria-expanded') === 'true'; burger.setAttribute('aria-expanded', String(!o)); mnav.classList.toggle('open', !o); });
+        mnav.addEventListener('click', function (e) { if (e.target.closest('a')) { burger.setAttribute('aria-expanded', 'false'); mnav.classList.remove('open'); } });
+      }
+      var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var items = document.querySelectorAll('.lp-reveal');
+      if (reduce || !('IntersectionObserver' in window)) { Array.prototype.forEach.call(items, function (el) { el.classList.add('in'); }); }
+      else { var io = new IntersectionObserver(function (es) { es.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } }); }, { rootMargin: '0px 0px -8% 0px', threshold: .08 }); Array.prototype.forEach.call(items, function (el) { io.observe(el); }); }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      var tpl = document.getElementById('lp-template');
+      _landingHTML = tpl ? tpl.innerHTML : '';
+      // Filet de sécurité : si la landing échoue, la connexion reste atteignable.
+      try { renderLanding(); } catch (e) { try { renderLogin(); } catch (_) {} }
+    });
+  })();
+  </script>
+</head>
+<body>
+  <!-- ============ LANDING D'ACCUEIL (visiteurs non connectés) ============
+       Inerte tant que non injecté par le gate (renderLanding). Styles = landing.css.
+       CTA [data-cta] -> ouvre le formulaire de connexion/création (renderLogin). -->
+  <!-- Landing d'accueil. ⚠️ Le texte a été REPRIS DEPUIS ZÉRO : celui du Protocole 42
+       promettait « un coach dédié », « Julie, ta coach — répond en < 2 h » et une
+       communauté. Rien de tout cela n'existe dans cette version ; le laisser
+       aurait vendu un produit qui n'est pas livré. -->
+  <template id="lp-template">
+    <div class="lp" id="lp">
+      <a class="lp-skip" href="#lp-main">Aller au contenu</a>
+      <header class="lp-header" id="lp-header">
+        <div class="lp-wrap lp-header__bar">
+          <a class="lp-brand" href="#lp-top" aria-label="My Coach Nutrition — accueil">
+            <img class="lp-brand__logo" src="logo-mc.png?v=1" alt="My Coach Nutrition" width="256" height="256" />
+          </a>
+          <div class="lp-header__actions">
+            <a class="lp-login" href="#" data-cta="login">Se connecter</a>
+          </div>
+        </div>
+      </header>
+      <main id="lp-main">
+      <span id="lp-top"></span>
+      <section class="lp-hero" aria-labelledby="lp-hero-title">
+        <div class="lp-wrap">
+          <div class="lp-hero__grid">
+            <div>
+              <h1 class="lp-hero__title" id="lp-hero-title">
+                <span class="lp-hero__l1">Manger bien,</span>
+                <span class="lp-hero__l2">sans y passer <span class="lp-hero__hl">ses journées</span>.</span>
+              </h1>
+              <p class="lp-hero__sub">Réponds à quelques questions et reçois ton plan de repas de la semaine :
+                adapté à ton objectif, à tes goûts, à tes allergies et au temps que tu as pour cuisiner.
+                Liste de courses comprise.</p>
+              <div class="lp-hero__ctas">
+                <a class="lp-btn lp-btn--primary lp-btn--lg" href="#" data-cta="start">Créer mon plan</a>
+              </div>
+              <p class="lp-hero__re"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Questionnaire en 5 minutes · Un repas se remplace en un clic</p>
+            </div>
+            <div class="lp-appwrap lp-reveal">
+              <div class="lp-phone">
+                <div class="lp-app" role="img" aria-label="Aperçu de l'application : calories du jour, repas de la journée et réponse du coach.">
+                  <span class="lp-app__isle" aria-hidden="true"></span>
+                  <div class="lp-app__status"><b>9:41</b><span class="lp-app__sig" aria-hidden="true"><i></i><i></i><i></i><i></i></span></div>
+                  <div class="lp-app__top"><div><b>Bonjour 👋</b><small>Jeudi · jour 4 / 7</small></div><span class="av">S</span></div>
+                  <div class="lp-app__body">
+                    <div class="lp-cal"><div class="k">Calories aujourd'hui</div><div class="v">2 100 <span style="font-size:.8rem;font-weight:600;opacity:.9">kcal · 60 %</span></div><div class="bar"><i></i></div></div>
+                    <div class="lp-meal"><div><div class="t">Déjeuner — Poulet, riz &amp; légumes</div><div class="s">Prêt en 15 min</div></div><span class="kc">542 kcal</span></div>
+                    <div class="lp-meal"><div><div class="t">Dîner — Saumon &amp; quinoa</div><div class="s">Prêt en 20 min</div></div><span class="kc">498 kcal</span></div>
+                    <div class="lp-coach"><span class="ci"><svg class="lp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A2.5 2.5 0 0 1 17.5 18H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5Z"/></svg></span><p><b>Le coach</b>Il te reste 40 g de protéines : un skyr et une poignée d'amandes suffisent.</p></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-sec">
+        <div class="lp-wrap">
+          <h2 class="lp-sec__title">Ton objectif, pas celui d'un programme</h2>
+          <div class="lp-cards">
+            <article class="lp-card lp-reveal"><h3>Perdre du poids</h3><p>Un déficit doux et tenable, jamais un régime express.</p></article>
+            <article class="lp-card lp-reveal"><h3>Maintenir mon poids</h3><p>Manger équilibré sans compter, à ta dépense réelle.</p></article>
+            <article class="lp-card lp-reveal"><h3>Prendre du muscle</h3><p>Un surplus mesuré et assez de protéines pour en profiter.</p></article>
+            <article class="lp-card lp-reveal"><h3>Avoir plus d'énergie</h3><p>Mêmes calories, meilleure répartition sur la journée.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-sec">
+        <div class="lp-wrap">
+          <h2 class="lp-sec__title">Ce que fait l'application</h2>
+          <div class="lp-cards">
+            <article class="lp-card lp-reveal"><h3>Ton plan de la semaine</h3><p>Sept jours de repas calculés sur tes besoins réels. Un plat ne te plaît pas ? Il se remplace en un clic, et la journée entière se régénère aussi.</p></article>
+            <article class="lp-card lp-reveal"><h3>Ta liste de courses</h3><p>Agrégée par rayon, à l'échelle du nombre de personnes, exportable en PDF. Elle se coche au fur et à mesure.</p></article>
+            <article class="lp-card lp-reveal"><h3>Allergies respectées</h3><p>Un aliment déclaré en allergie ne sort jamais : deux filtres indépendants le vérifient, à la génération puis avant l'affichage.</p></article>
+            <article class="lp-card lp-reveal"><h3>Un coach à toute heure</h3><p>Une question sur un écart, un resto, quoi manger après le sport : le coach répond en connaissant ton profil et ton plan du jour.</p></article>
+            <article class="lp-card lp-reveal"><h3>Scan de produits</h3><p>Le code-barres d'un produit t'indique s'il colle à ton objectif, et peut remplacer un ingrédient de ta recette.</p></article>
+            <article class="lp-card lp-reveal"><h3>Ta progression</h3><p>Pesées, mensurations et photos, quand tu veux : aucune date imposée, aucun programme à finir.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-sec lp-sec--cta">
+        <div class="lp-wrap" style="text-align:center">
+          <h2 class="lp-sec__title">Ton plan en cinq minutes</h2>
+          <p class="lp-hero__sub" style="margin:0 auto 20px;max-width:520px">Ton email et un code à toi suffisent. Tes données — poids, photos, plan — restent privées.</p>
+          <a class="lp-btn lp-btn--primary lp-btn--lg" href="#" data-cta="start">Créer mon plan</a>
+        </div>
+      </section>
+
+      <footer class="lp-foot">
+        <div class="lp-wrap">
+          <p>Estimations à titre indicatif. Cette application ne remplace pas l'avis d'un professionnel de santé.</p>
+        </div>
+      </footer>
+      </main>
+    </div>
+  </template>
+
+  <!-- Sprite d'icones SVG (style Lucide) - utilise via <svg class="ic"><use href="#ic-..."/></svg> -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="ic-leaf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></symbol>
+      <symbol id="ic-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></symbol>
+      <symbol id="ic-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+      <symbol id="ic-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h5"/><path d="M9 13h6"/><path d="M9 17h4"/></symbol>
+      <symbol id="ic-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
+      <symbol id="ic-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+      <symbol id="ic-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.8 10A10 10 0 1 1 17 3.34"/><path d="m9 11 3 3L22 4"/></symbol>
+      <symbol id="ic-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16v-3"/><path d="M12 16v-6"/><path d="M17 16v-9"/></symbol>
+      <symbol id="ic-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></symbol>
+      <symbol id="ic-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+      <symbol id="ic-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></symbol>
+      <symbol id="ic-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="ic-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+      <symbol id="ic-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></symbol>
+      <symbol id="ic-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+      <symbol id="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="ic-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+      <symbol id="ic-swap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></symbol>
+      <symbol id="ic-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+      <symbol id="ic-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9Z"/></symbol>
+      <symbol id="ic-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-2 1.5-4 1.5-6 0Z"/><path d="m2 16 3-8 3 8c-2 1.5-4 1.5-6 0Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></symbol>
+      <!-- Haltère : le geste sportif dit sans détour. Le bras fléchi de #ic-muscle
+           reste dans l'app (choix d'objectif « prendre du muscle »), mais sur le
+           Chemin il se lisait mal à 28 px — une séance, c'est de la fonte. -->
+      <symbol id="ic-dumbbell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 10v4"/><path d="M21.5 10v4"/><rect x="4.8" y="7.2" width="3.6" height="9.6" rx="1.4"/><rect x="15.6" y="7.2" width="3.6" height="9.6" rx="1.4"/><path d="M8.4 12h7.2"/></symbol>
+      <symbol id="ic-muscle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 12c0 4-3 7-7 7-2 0-3.5-1-3.5-3 0-1.5 1-2.5 2.5-2.5.7 0 1.3.2 1.8.6"/><path d="M14.5 3.5C16 4 17.5 5.5 18.5 8c.7 1.7 1 3 1 4"/><path d="M4.5 9c0-2 1-3.5 3-3.5S11 7 12.5 9"/></symbol>
+      <symbol id="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.9 4.9 1.4 1.4"/><path d="m17.7 17.7 1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.3 17.7-1.4 1.4"/><path d="m19.1 4.9-1.4 1.4"/></symbol>
+      <symbol id="ic-bowl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18a9 9 0 0 1-18 0Z"/><path d="M9 7c0-1 .5-2 1.5-2.5"/><path d="M13 7c0-1.5.5-2.5 2-3.5"/></symbol>
+      <symbol id="ic-apple" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8c-2-3-6-2.5-7 0-1.2 3 .8 8 3 10 1 .9 2 .9 3 0 .5-.4.8-.4 1.3 0 1 .9 2 .9 3 0 2.2-2 4.2-7 3-10-1-2.5-5-3-6-0Z"/><path d="M12 8c0-2 1-3.5 3-4"/></symbol>
+      <symbol id="ic-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+      <symbol id="ic-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1 1 0 0 1 1.5 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1Z"/><path d="m9 12 2 2 4-4"/></symbol>
+      <symbol id="ic-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></symbol>
+      <symbol id="ic-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.94 14.06 12 21l2.06-6.94L21 12l-6.94-2.06L12 3l-2.06 6.94L3 12Z"/></symbol>
+      <symbol id="ic-pill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></symbol>
+      <symbol id="ic-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></symbol>
+      <symbol id="ic-life-buoy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></symbol>
+      <symbol id="ic-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+      <symbol id="ic-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+      <symbol id="ic-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+      <symbol id="ic-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+      <symbol id="ic-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v6a6 6 0 0 1-12 0Z"/><path d="M6 6H4a2 2 0 0 0 0 4h2"/><path d="M18 6h2a2 2 0 0 1 0 4h-2"/><path d="M12 16v3"/><path d="M8.5 22h7l-.7-3H9.2Z"/></symbol>
+      <symbol id="ic-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22V4"/><path d="M5 4h11l-2 4 2 4H5"/></symbol>
+      <symbol id="ic-message" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+      <symbol id="ic-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+      <symbol id="ic-heart-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 14h2a2 2 0 0 0 2-2 2 2 0 0 0-2-2H8.5a3 3 0 0 0-2.1.9L3 14"/><path d="m7 18 2.5-1.5L13 18l5-4.5a2 2 0 0 0-2.8-2.8l-1.7 1.5"/><path d="M18 6.5a2.5 2.5 0 0 0-5 0c0 1.7 2.5 3.5 2.5 3.5S18 8.2 18 6.5Z"/></symbol>
+      <symbol id="ic-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></symbol>
+      <symbol id="ic-barcode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"/><path d="M7.5 5v14"/><path d="M12 5v14"/><path d="M16.5 5v14"/><path d="M21 5v14"/></symbol>
+      <symbol id="ic-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+      <symbol id="ic-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+      <symbol id="ic-calendar-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></symbol>
+      <symbol id="ic-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+      <symbol id="ic-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
+    </defs>
+  </svg>
+
+  <!-- Bandeau permanent du mode démonstration client -->
+  <div id="demoBanner" class="demo-banner hidden">
+    <span class="demo-banner-txt"><svg class="ic"><use href="#ic-eye"/></svg> Mode démonstration client activé — données fictives</span>
+    <span class="demo-banner-actions">
+      <button id="demoRestart" class="demo-banner-btn" title="Recommencer le parcours démo">Recommencer</button>
+      <button id="demoQuit" class="demo-banner-btn" title="Quitter la démo">Quitter</button>
+    </span>
+  </div>
+
+  <!-- Bouton lecture plein ecran : masque/reaffiche topbar + bandeau demo -->
+  <button id="fullscreenToggle" class="fullscreen-toggle" title="Lecture plein écran" aria-label="Lecture plein écran"
+    onclick="document.body.classList.toggle('lecture'); this.classList.toggle('on');">
+    <svg class="ic-expand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13 0h3a2 2 0 0 0 2-2v-3"/></svg>
+    <svg class="ic-compress" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3m13-5h-3a2 2 0 0 0-2 2v3"/></svg>
+  </button>
+
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-logo" src="logo-mc.png?v=1" alt="My Coach" width="256" height="256" />
+    </div>
+    <div class="topbar-right">
+      <span id="modeBadge" class="badge badge-demo hidden" title="Mode de génération">Mode démo</span>
+      <button id="navRestart" class="link-btn hidden">Recommencer</button>
+    </div>
+  </header>
+
+  <main id="app">
+    <!-- ============ LANDING ============ -->
+    <section id="screen-landing" class="screen active">
+      <div class="hero">
+        <h1>Mange mieux,<br />sans y penser.</h1>
+        <p class="hero-sub">
+          Quelques questions, et reçois un plan de la semaine adapté à tes goûts —
+          avec liste de courses. <strong>Aucun calcul de ton côté.</strong>
+        </p>
+        <button class="btn btn-primary btn-lg" id="ctaStart">
+          Créer mon plan <svg class="ic"><use href="#ic-arrow-right"/></svg>
+        </button>
+        <ul class="hero-points">
+          <li><svg class="ic"><use href="#ic-check"/></svg> Plan personnalisé en 2 minutes</li>
+          <li><svg class="ic"><use href="#ic-check"/></svg> Liste de courses automatique</li>
+          <li><svg class="ic"><use href="#ic-check"/></svg> Recettes adaptées à tes goûts</li>
+        </ul>
+        <div class="hero-trust">
+          <div class="trust-avatars"><span></span><span></span><span></span><span></span></div>
+          <span>Pensé pour les actifs qui veulent retrouver énergie et équilibre.</span>
+        </div>
+        <p class="disclaimer">
+          Estimations à titre indicatif. Cette application ne remplace pas l'avis
+          d'un professionnel de santé.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ ONBOARDING ============ -->
+    <section id="screen-onboarding" class="screen">
+      <div class="progress-wrap">
+        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+        <div class="progress-label"><span id="stepNum">1</span> / <span id="stepTotal">7</span></div>
+      </div>
+
+      <form id="onboardingForm" autocomplete="off">
+
+        <!-- Etape 1 : Objectif -->
+        <div class="step active" data-step="1">
+          <h2>Quel est ton objectif ?</h2>
+          <p class="step-help">Choisis ce qui te ressemble le plus aujourd'hui.</p>
+          <div class="choice-grid" data-field="objectif">
+            <button type="button" class="choice" data-value="perte"><span class="choice-ic"><svg class="ic"><use href="#ic-target"/></svg></span><span class="choice-txt">Perdre du poids</span></button>
+            <button type="button" class="choice" data-value="maintien"><span class="choice-ic"><svg class="ic"><use href="#ic-scale"/></svg></span><span class="choice-txt">Maintenir mon poids</span></button>
+            <button type="button" class="choice" data-value="muscle"><span class="choice-ic"><svg class="ic"><use href="#ic-muscle"/></svg></span><span class="choice-txt">Prendre du muscle</span></button>
+            <button type="button" class="choice" data-value="energie"><span class="choice-ic"><svg class="ic"><use href="#ic-bolt"/></svg></span><span class="choice-txt">Avoir plus d'énergie</span></button>
+          </div>
+        </div>
+
+        <!-- Etape 2 : Infos corps -->
+        <div class="step" data-step="2">
+          <h2>Quelques infos sur toi</h2>
+          <p class="step-help">Pour estimer tes besoins. Tes données restent sur ton appareil.</p>
+          <div class="field-row">
+            <label class="field">
+              <span>Sexe</span>
+              <select name="sexe">
+                <option value="femme">Femme</option>
+                <option value="homme">Homme</option>
+                <option value="autre">Autre / je préfère ne pas dire</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Âge</span>
+              <input type="number" name="age" min="14" max="100" value="30" />
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field">
+              <span>Taille (cm)</span>
+              <input type="number" name="taille_cm" min="120" max="230" value="170" />
+            </label>
+            <label class="field">
+              <span>Poids (kg)</span>
+              <input type="number" name="poids_kg" min="35" max="250" value="70" />
+            </label>
+          </div>
+          <label class="field">
+            <span>Niveau d'activité</span>
+            <select name="activite">
+              <option value="sedentaire">Sédentaire (peu de mouvement)</option>
+              <option value="leger">Léger (1-3 fois/semaine)</option>
+              <option value="modere" selected>Modéré (3-5 fois/semaine)</option>
+              <option value="actif">Actif (6-7 fois/semaine)</option>
+              <option value="tres_actif">Très actif (travail physique + sport)</option>
+            </select>
+          </label>
+
+          <!-- Donnees de pesee (optionnel) : elles affinent le calcul du
+               metabolisme de base (balance connectee, masse grasse). -->
+          <details class="pesee-block">
+            <summary><span class="field-title">Données de pesée <em>(optionnel, pour un calcul plus précis)</em></span></summary>
+            <p class="step-help">Si tu ne disposes pas de ces informations, tu peux les demander à ton conseiller forme ou à ton coach sportif.</p>
+            <div class="field-row">
+              <label class="field">
+                <span>Métabolisme basal (kcal)</span>
+                <input type="number" name="metabolisme_basal" min="600" max="4000" placeholder="ex. 1450" />
+              </label>
+              <label class="field">
+                <span>Masse grasse (kg)</span>
+                <input type="number" name="masse_grasse" min="1" max="150" step="0.1" placeholder="ex. 22" />
+              </label>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span>Masse musculaire (kg)</span>
+                <input type="number" name="masse_musculaire" min="1" max="120" step="0.1" placeholder="ex. 28" />
+              </label>
+              <label class="field">
+                <span>Type de journée</span>
+                <select name="type_journee">
+                  <option value="">Non précisé</option>
+                  <option value="assis">Plutôt assis (bureau)</option>
+                  <option value="debout">Plutôt debout / en mouvement</option>
+                  <option value="physique">Travail physique</option>
+                </select>
+              </label>
+            </div>
+          </details>
+        </div>
+
+        <!-- Etape 3 : Gouts -->
+        <div class="step" data-step="3">
+          <h2>Tes goûts</h2>
+          <p class="step-help">On privilégiera ce que tu aimes. Tout est optionnel.</p>
+          <span class="field-title">Cuisines que tu aimes <em>(plusieurs choix possibles)</em></span>
+          <div class="chip-set" data-multifield="cuisines">
+            <button type="button" class="chip" data-value="francaise">🇫🇷 Française</button>
+            <button type="button" class="chip" data-value="italienne">🍝 Italienne</button>
+            <button type="button" class="chip" data-value="mediterraneenne">🫒 Méditerranéenne</button>
+            <button type="button" class="chip" data-value="asiatique">🍜 Asiatique</button>
+            <button type="button" class="chip" data-value="monde">🌍 Cuisine du monde</button>
+          </div>
+          <span class="field-title">Le matin, tu manges plutôt...</span>
+          <div class="choice-grid" data-field="matinGout">
+            <button type="button" class="choice" data-value="sucre"><span class="choice-ic"><svg class="ic"><use href="#ic-apple"/></svg></span><span class="choice-txt">Sucré</span></button>
+            <button type="button" class="choice" data-value="sale"><span class="choice-ic"><svg class="ic"><use href="#ic-bowl"/></svg></span><span class="choice-txt">Salé</span></button>
+            <button type="button" class="choice selected" data-value="les-deux"><span class="choice-ic"><svg class="ic"><use href="#ic-swap"/></svg></span><span class="choice-txt">Peu importe</span></button>
+            <button type="button" class="choice" data-value="aucun"><span class="choice-ic"><svg class="ic"><use href="#ic-x"/></svg></span><span class="choice-txt">Je ne mange pas le matin</span></button>
+          </div>
+          <span class="field-title">Prends-tu des collations dans la journée ? <em>(plusieurs choix possibles)</em></span>
+          <div class="chip-set" data-multifield="collations">
+            <button type="button" class="chip" data-value="matin">Oui, le matin</button>
+            <button type="button" class="chip" data-value="apres-midi">Oui, l'après-midi</button>
+            <button type="button" class="chip" data-value="apres-sport">Oui, après le sport</button>
+            <button type="button" class="chip" data-value="soir">Oui, tard le soir</button>
+            <button type="button" class="chip" data-value="non">Non, pas de collation</button>
+          </div>
+          <div id="collationDetails" class="hidden">
+            <span class="field-title">Quels types de collations préfères-tu ? <em>(plusieurs choix possibles)</em></span>
+            <div class="chip-set" data-multifield="collationCategories">
+              <button type="button" class="chip" data-value="fruits-laitiers">🍎 Fruits & produits laitiers</button>
+              <button type="button" class="chip" data-value="oleagineux">🥜 Oléagineux & énergie</button>
+              <button type="button" class="chip" data-value="proteinees">💪 Protéinées</button>
+              <button type="button" class="chip" data-value="tartines">🍞 Tartines & snacks</button>
+              <button type="button" class="chip" data-value="smoothies">🥤 Smoothies & shakes</button>
+              <button type="button" class="chip" data-value="emporter">🌯 À emporter</button>
+            </div>
+          </div>
+          <label class="field">
+            <span>Aliments que tu adores <em>(séparés par des virgules)</em></span>
+            <input type="text" name="aimes" placeholder="ex. poulet, avocat, chocolat" />
+          </label>
+          <label class="field">
+            <span>Aliments que tu n'aimes pas</span>
+            <input type="text" name="deteste" placeholder="ex. champignons, tofu" />
+          </label>
+        </div>
+
+        <!-- Etape 4 : Habitudes actuelles -->
+        <div class="step" data-step="4">
+          <h2>Comment manges-tu aujourd'hui ?</h2>
+          <p class="step-help">Décris une journée type, avec tes mots. Ça nous aide à te proposer un plan qui te ressemble (rien d'obligé).</p>
+          <label class="field">
+            <span>Petit-déjeuner habituel</span>
+            <input type="text" name="hab_petitDej" placeholder="ex. café, tartines beurre, jus d'orange" />
+          </label>
+          <label class="field">
+            <span>Déjeuner habituel</span>
+            <input type="text" name="hab_dejeuner" placeholder="ex. pâtes au poulet, ou sandwich" />
+          </label>
+          <label class="field">
+            <span>Dîner habituel</span>
+            <input type="text" name="hab_diner" placeholder="ex. riz, légumes, viande" />
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span>Collations habituelles</span>
+              <input type="text" name="hab_collations" placeholder="ex. yaourt, fruits, biscuits" />
+            </label>
+            <label class="field">
+              <span>Boissons habituelles</span>
+              <input type="text" name="hab_boissons" placeholder="ex. eau, soda, thé" />
+            </label>
+          </div>
+          <label class="field">
+            <span>Aliments que tu manges presque tous les jours <em>(séparés par des virgules)</em></span>
+            <input type="text" name="frequents" placeholder="ex. poulet, pâtes, yaourt, pain" />
+          </label>
+        </div>
+
+        <!-- Etape 5 : Contraintes -->
+        <div class="step" data-step="5">
+          <h2>Tes contraintes</h2>
+          <p class="step-help">Important pour ta sécurité et ton confort.</p>
+          <span class="field-title">Allergies ou intolérances <em>(jamais proposées)</em></span>
+          <div class="chip-set" data-multifield="allergiesCourantes">
+            <button type="button" class="chip" data-value="gluten">Gluten</button>
+            <button type="button" class="chip" data-value="lactose">Lactose</button>
+            <button type="button" class="chip" data-value="oeufs">Œufs</button>
+            <button type="button" class="chip" data-value="arachide">Arachide</button>
+            <button type="button" class="chip" data-value="noix">Fruits à coque</button>
+            <button type="button" class="chip" data-value="poisson">Poisson</button>
+            <button type="button" class="chip" data-value="crustace">Crustacés</button>
+            <button type="button" class="chip" data-value="mollusques">Mollusques</button>
+            <button type="button" class="chip" data-value="soja">Soja</button>
+            <button type="button" class="chip" data-value="sesame">Sésame</button>
+          </div>
+          <label class="field field-allergies">
+            <span>Autre allergie / intolérance <em>(séparées par des virgules)</em></span>
+            <input type="text" name="allergies" placeholder="ex. kiwi, moutarde, céleri" />
+          </label>
+          <span class="field-title">Régime</span>
+          <div class="chip-set" data-multifield="regime">
+            <button type="button" class="chip" data-value="vegetarien">Végétarien</button>
+            <button type="button" class="chip" data-value="vegan">Vegan</button>
+            <button type="button" class="chip" data-value="sans-porc">Sans porc</button>
+            <button type="button" class="chip" data-value="sans-gluten">Sans gluten</button>
+          </div>
+          <div class="field-row">
+            <label class="field">
+              <span>Budget</span>
+              <select name="budget">
+                <option value="eco">Économique</option>
+                <option value="normal" selected>Normal</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Temps de cuisine max</span>
+              <select name="temps_max">
+                <option value="20">Rapide (moins de 20 min)</option>
+                <option value="45" selected>Normal (jusqu'à 45 min)</option>
+                <option value="999">Peu importe</option>
+              </select>
+            </label>
+          </div>
+          <span class="field-title">Tu manges plutôt tard le soir ?</span>
+          <div class="choice-grid" data-field="dinerTard">
+            <button type="button" class="choice selected" data-value="non"><span class="choice-ic"><svg class="ic"><use href="#ic-check"/></svg></span><span class="choice-txt">Non, horaires classiques</span></button>
+            <button type="button" class="choice" data-value="oui"><span class="choice-ic"><svg class="ic"><use href="#ic-clock"/></svg></span><span class="choice-txt">Oui, je dîne tard</span></button>
+          </div>
+        </div>
+
+        <!-- Etape 6 : Complements alimentaires -->
+        <div class="step" data-step="6">
+          <h2>Compléments alimentaires</h2>
+          <p class="step-help">Prends-tu actuellement des compléments alimentaires ? (plusieurs choix possibles)</p>
+          <div class="chip-set" data-multifield="complements">
+            <button type="button" class="chip" data-value="non">Non</button>
+            <button type="button" class="chip" data-value="proteines">Oui, protéines</button>
+            <button type="button" class="chip" data-value="creatine">Oui, créatine</button>
+            <button type="button" class="chip" data-value="vitamines">Oui, vitamines / minéraux</button>
+            <button type="button" class="chip" data-value="bruleur">Oui, brûleur de graisse</button>
+            <button type="button" class="chip" data-value="omega3">Oui, oméga 3</button>
+            <button type="button" class="chip" data-value="magnesium">Oui, magnésium</button>
+            <button type="button" class="chip" data-value="autre">Oui, autre</button>
+          </div>
+          <label class="field hidden" id="complementsDetailWrap">
+            <span>Lesquels prends-tu, à quelle dose et à quelle fréquence ?</span>
+            <input type="text" name="complementsDetail" placeholder="ex. whey 30 g après le sport, magnésium 300 mg le soir" />
+          </label>
+        </div>
+
+        <!-- Etape 7 : Format -->
+        <div class="step" data-step="7">
+          <h2>Ta semaine</h2>
+          <p class="step-help">Dernière étape, on y est presque !</p>
+          <label class="field">
+            <span>Nombre de jours</span>
+            <select name="jours">
+              <option value="3">3 jours</option>
+              <option value="5">5 jours</option>
+              <option value="7" selected>7 jours</option>
+            </select>
+          </label>
+          <label class="toggle-line">
+            <input type="checkbox" name="masquerCalories" />
+            <span>Masquer les calories (affichage plus doux)</span>
+          </label>
+        </div>
+
+        <div class="step-nav">
+          <button type="button" class="btn btn-ghost" id="btnPrev">Retour</button>
+          <button type="button" class="btn btn-primary" id="btnNext">Continuer</button>
+          <button type="submit" class="btn btn-primary hidden" id="btnFinish">Voir mon plan ✨</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ============ RESULTAT ============ -->
+    <section id="screen-result" class="screen" data-tab="plan">
+      <div id="view-plan">
+      <!-- Haut de l'écran : en-tête programme + rangée de 3 pictos (Guide/Info, Affine,
+           Objectif) + « Jour X/X » discret. Guide & Affine sont maintenant DANS cette
+           rangée (renderNeeds) — leurs anciens blocs séparés ont été retirés. -->
+      <div id="needsCard" class="needs-card"></div>
+
+      <!-- Conseils du jour : astuces contextuelles (max 2/jour), remplies par renderConseils() -->
+      <div id="conseilsJour" class="conseils-jour hidden"></div>
+
+      <!-- Accompagnement : demander de l'aide à son coach (toujours visible) -->
+      <button type="button" id="btnHelp" class="help-cta">
+        <span class="help-cta-ic"><svg class="ic"><use href="#ic-life-buoy"/></svg></span>
+        <span class="help-cta-text">
+          <strong>J'ai besoin d'aide sur mon alimentation cette semaine</strong>
+          <small>Une difficulté ? Ton coach est là pour t'aider à ajuster — sans jugement.</small>
+        </span>
+        <span class="help-cta-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span>
+      </button>
+
+      <div class="actions-grid">
+        <button class="action-card action-card-accent" id="btnSuiviPlan"><span class="action-ic"><svg class="ic"><use href="#ic-calendar-check"/></svg></span>Suivi de mon plan</button>
+        <button class="action-card action-card-accent" id="btnScan"><span class="action-ic"><svg class="ic"><use href="#ic-scan"/></svg></span>Scanner un produit</button>
+        <button class="action-card action-card-accent is-soon" id="btnPlate"><span class="action-ic"><svg class="ic"><use href="#ic-camera"/></svg></span>Analyser mon assiette<span class="soon-badge">Bientôt</span></button>
+        <button class="action-card action-card-admin hidden" id="btnPlateAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-camera"/></svg></span>Analyses d'assiettes<span id="plateAdminBadge" class="action-badge hidden">0</span></button>
+        <button class="action-card action-card-admin hidden" id="btnClientsAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-users"/></svg></span>Clients inscrits<span id="clientsAdminBadge" class="action-badge hidden">0</span></button>
+        <button class="action-card action-card-admin hidden" id="btnAdhAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-users"/></svg></span>Adhérence clients<span id="adhAdminBadge" class="action-badge hidden">0</span></button>
+        <button class="action-card action-card-admin hidden" id="btnDemoAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-eye"/></svg></span>Mode démo client</button>
+        <button class="action-card action-card-admin hidden" id="btnHelpAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-inbox"/></svg></span>Demandes d'aide<span id="helpAdminBadge" class="action-badge hidden">0</span></button>
+        <button class="action-card action-card-admin hidden" id="btnScanAdmin"><span class="action-ic"><svg class="ic"><use href="#ic-barcode"/></svg></span>Scans clients<span id="scanAdminBadge" class="action-badge hidden">0</span></button>
+        <button class="action-card" id="btnShopping"><span class="action-ic"><svg class="ic"><use href="#ic-cart"/></svg></span>Liste de courses</button>
+        <button class="action-card" id="btnNewPlan"><span class="action-ic"><svg class="ic"><use href="#ic-refresh"/></svg></span>Nouveau plan</button>
+        <button class="action-card action-card-accent" id="btnAvance"><span class="action-ic"><svg class="ic"><use href="#ic-sliders"/></svg></span>Personnaliser mon plan</button>
+        <button class="action-card" id="btnComplements"><span class="action-ic"><svg class="ic"><use href="#ic-pill"/></svg></span>Compléments</button>
+        <button class="action-card" id="btnExportPlan"><span class="action-ic"><svg class="ic"><use href="#ic-file"/></svg></span>Plan PDF</button>
+        <button class="action-card" id="btnFavoris"><span class="action-ic"><svg class="ic"><use href="#ic-heart"/></svg></span>Favoris</button>
+        <button class="action-card" id="btnFiche"><span class="action-ic"><svg class="ic"><use href="#ic-user"/></svg></span>Mes informations</button>
+        <button class="action-card" id="btnSuivi"><span class="action-ic"><svg class="ic"><use href="#ic-check-circle"/></svg></span>Mon suivi</button>
+        <button class="action-card" id="btnAnalyse"><span class="action-ic"><svg class="ic"><use href="#ic-chart"/></svg></span>Analyse</button>
+        <button class="action-card" id="btnAgenda"><span class="action-ic"><svg class="ic"><use href="#ic-calendar"/></svg></span>Agenda</button>
+        <button class="action-card" id="btnEditProfile"><span class="action-ic"><svg class="ic"><use href="#ic-edit"/></svg></span>Mon profil</button>
+      </div>
+      <div class="result-toolbar">
+        <div class="portions-ctrl" title="Nombre de personnes (la liste de courses s'adapte)">
+          <span>Portions</span>
+          <button type="button" id="portMinus" aria-label="Diminuer les portions"><svg class="ic"><use href="#ic-minus"/></svg></button>
+          <strong id="portValue">1</strong>
+          <button type="button" id="portPlus" aria-label="Augmenter les portions"><svg class="ic"><use href="#ic-plus"/></svg></button>
+        </div>
+        <span id="saveState" class="save-state"></span>
+      </div>
+
+      <div id="planGrid" class="plan-grid"></div>
+
+      <!-- Zone secondaire du plan : agenda / ajuster / regenerer -->
+      <div class="plan-tools">
+        <button type="button" class="plan-tool" data-go="btnAgenda"><svg class="ic"><use href="#ic-calendar"/></svg> Ajouter à mon agenda</button>
+        <button type="button" class="plan-tool" data-go="btnAvance"><svg class="ic"><use href="#ic-sliders"/></svg> Personnaliser mon plan</button>
+        <button type="button" class="plan-tool-link" data-go="btnNewPlan"><svg class="ic"><use href="#ic-refresh"/></svg> Nouveau plan</button>
+      </div>
+      </div><!-- /#view-plan -->
+
+      <!-- ÉCRAN PROFIL : options secondaires triées (délègue aux boutons existants) -->
+      <div id="view-profil">
+        <img class="mc-brand" src="logo-mc.png?v=1" alt="" aria-hidden="true" width="256" height="256" />
+        <h2 class="profil-title">Profil &amp; plus</h2>
+
+        <button type="button" class="profil-row" data-go="btnExportPlan"><svg class="ic pr-blue"><use href="#ic-file"/></svg>Plan PDF<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+
+        <div class="profil-sec">MOI</div>
+        <div class="profil-avatar profil-client hidden" id="profilAvatarBlock">
+          <div class="pav-pic" id="pavPic"><svg class="ic"><use href="#ic-user"/></svg></div>
+          <div class="pav-txt">
+            <b>Mon avatar</b>
+            <span>Il te représente dans l'application.</span>
+            <div class="pav-actions">
+              <button type="button" class="pav-btn" id="pavEdit"><svg class="ic"><use href="#ic-edit"/></svg><span id="pavEditLbl">Personnaliser mon avatar</span></button>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="profil-row" data-go="btnFiche"><svg class="ic pr-muted"><use href="#ic-user"/></svg>Mes informations<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row" data-go="btnEditProfile"><svg class="ic pr-muted"><use href="#ic-edit"/></svg>Modifier mon profil<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row" data-go="btnFavoris"><svg class="ic pr-muted"><use href="#ic-heart"/></svg>Favoris<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row" data-go="btnComplements"><svg class="ic pr-muted"><use href="#ic-pill"/></svg>Compléments<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row" data-go="btnAgenda"><svg class="ic pr-muted"><use href="#ic-calendar"/></svg>Agenda<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row" data-go="btnAnalyse"><svg class="ic pr-muted"><use href="#ic-chart"/></svg>Analyse des écarts<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-client hidden" id="btnChangePin"><svg class="ic pr-muted"><use href="#ic-shield"/></svg>Changer mon code PIN<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+
+        <!-- Seul privilège au-dessus d'un compte normal : illustrer les recettes.
+             Visible uniquement pour le compte ADMIN_EMAIL (cf. server.js). -->
+        <div class="profil-sec profil-admin hidden">ADMINISTRATION</div>
+        <button type="button" class="profil-row profil-admin hidden" id="btnPlatsPhotos"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Photos des plats<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+
+        <!-- Déconnexion : toujours en TOUT DERNIER (après toutes les sections) pour éviter le tap accidentel. -->
+        <button type="button" class="profil-row profil-logout hidden" id="btnLogout"><svg class="ic"><use href="#ic-logout"/></svg>Se déconnecter</button>
+      </div>
+      <!-- ÉCRAN PROGRESSION : pesées, mensurations, photos (rendu par renderProgression) -->
+      <div id="view-progression"></div>
+
+      <!-- SOS coach (présent sur tous les onglets) -->
+      <button type="button" id="sosFab" class="sos-fab" aria-haspopup="dialog" aria-label="SOS coach" title="SOS coach">
+        <svg class="ic"><use href="#ic-life-buoy"/></svg><span class="sos-fab-lbl">SOS coach</span>
+      </button>
+      <div id="sosSheet" class="sos-wrap hidden" role="dialog" aria-modal="true" aria-label="SOS coach">
+        <div class="sos-overlay" data-sos-close></div>
+        <div class="sos-sheet sos-chat">
+          <div class="sos-grip"></div>
+          <div class="sos-head">
+            <span class="sos-ic"><svg class="ic"><use href="#ic-spark"/></svg></span>
+            <span class="sos-t">Coach<small>ton coach nutrition</small></span>
+            <button type="button" class="sos-x" data-sos-close aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+          </div>
+          <div id="coachMessages" class="coach-msgs" aria-live="polite"></div>
+          <div id="coachChips" class="coach-chips"></div>
+          <form id="coachForm" class="coach-input">
+            <textarea id="coachInput" rows="1" placeholder="Pose ta question à ton coach…" autocomplete="off"></textarea>
+            <button type="submit" id="coachSend" class="coach-send" aria-label="Envoyer"><svg class="ic"><use href="#ic-send"/></svg></button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Barre de navigation basse (mobile) / latérale (desktop) -->
+      <nav id="bottom-nav" class="bottom-nav" aria-label="Navigation principale">
+        <!-- Barre mobile : 4 onglets. Compléments et suivi sont rangés dans le Profil. -->
+        <button type="button" class="nav-i on" data-tab="plan"><svg class="ic"><use href="#ic-calendar"/></svg><span>Repas</span></button>
+        <button type="button" class="nav-i" data-tab="courses"><svg class="ic"><use href="#ic-cart"/></svg><span>Courses</span></button>
+        <button type="button" class="nav-i" data-tab="progression"><svg class="ic"><use href="#ic-scale"/></svg><span>Progression</span></button>
+        <button type="button" class="nav-i" data-tab="profil"><svg class="ic"><use href="#ic-user"/></svg><span>Profil</span><span class="nav-dot" id="navProfilDot" style="display:none"></span></button>
+        <button type="button" class="nav-i nav-logout hidden" id="navLogout"><svg class="ic"><use href="#ic-logout"/></svg><span>Se déconnecter</span></button>
+      </nav>
+    </section>
+
+  </main>
+
+  <!-- ============ MODALE RECETTE ============ -->
+  <div id="recipeModal" class="modal-overlay hidden">
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="modal-close" id="modalClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ MODALE SCAN PRODUIT ============ -->
+  <div id="scanModal" class="modal-overlay hidden">
+    <div class="modal scan-modal" role="dialog" aria-modal="true">
+      <button class="modal-close" id="scanClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+
+      <!-- Etape : camera -->
+      <div id="scanStageCamera" class="scan-stage">
+        <h2 class="scan-title"><svg class="ic"><use href="#ic-scan"/></svg> Scanner un produit</h2>
+        <p class="panel-sub">Vise le code-barres du produit avec ta caméra.</p>
+        <div class="scan-viewport">
+          <video id="scanVideo" playsinline muted></video>
+          <div class="scan-frame"></div>
+        </div>
+        <p id="scanHint" class="scan-hint">Initialisation de la caméra…</p>
+        <button type="button" class="btn btn-ghost btn-sm" id="scanManualToggle">Saisir le code manuellement</button>
+        <div id="scanManual" class="scan-manual hidden">
+          <input type="text" id="scanManualInput" inputmode="numeric" autocomplete="off" placeholder="Ex : 3017620422003" />
+          <button type="button" class="btn btn-primary" id="scanManualGo">Rechercher</button>
+        </div>
+      </div>
+
+      <!-- Etape : chargement -->
+      <div id="scanStageLoading" class="scan-stage hidden">
+        <div class="scan-loader"></div>
+        <p class="scan-loading-text">Recherche du produit…</p>
+      </div>
+
+      <!-- Etape : erreur -->
+      <div id="scanStageError" class="scan-stage hidden">
+        <div id="scanErrorBox" class="scan-error"></div>
+        <button type="button" class="btn btn-outline" id="scanRetry"><svg class="ic"><use href="#ic-refresh"/></svg> Réessayer</button>
+      </div>
+
+      <!-- Etape : resultat produit -->
+      <div id="scanStageResult" class="scan-stage hidden">
+        <div id="scanResultBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODALE ANALYSE D'ASSIETTE ============ -->
+  <div id="plateModal" class="modal-overlay hidden">
+    <div class="modal scan-modal" role="dialog" aria-modal="true">
+      <button class="modal-close" id="plateClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+
+      <div id="plateStageInput" class="scan-stage">
+        <h2 class="scan-title"><svg class="ic"><use href="#ic-camera"/></svg> Analyser mon assiette</h2>
+        <p class="panel-sub">Prends ou importe une photo de ton repas pour une estimation visuelle des calories et des macros.</p>
+        <div class="plate-drop" id="plateDrop" role="button" tabindex="0">
+          <input type="file" id="plateFile" accept="image/*" hidden>
+          <div id="plateDropEmpty" class="plate-drop-empty"><svg class="ic"><use href="#ic-camera"/></svg><span>Prendre une photo ou importer<small>Appareil photo ou galerie</small></span></div>
+          <img id="platePreview" class="plate-preview hidden" alt="Aperçu de l'assiette">
+        </div>
+        <label class="field" style="margin-top:10px"><span>Ajoute une précision si besoin (sauce, huile, boisson, dessert, quantité, cuisson...)</span>
+          <textarea id="platePrecision" rows="2" placeholder="Ex : avec un filet d'huile d'olive et un verre de jus"></textarea>
+        </label>
+        <p class="help-disclaimer">Estimation visuelle à utiliser comme repère. Les quantités peuvent varier selon les portions, la cuisson et les ingrédients utilisés.</p>
+        <button type="button" class="btn btn-primary btn-lg" id="plateAnalyze" style="width:100%" disabled><svg class="ic"><use href="#ic-spark"/></svg> Analyser mon assiette</button>
+      </div>
+
+      <div id="plateStageLoading" class="scan-stage hidden">
+        <div class="scan-loader"></div>
+        <p class="scan-loading-text">On analyse ton assiette…</p>
+      </div>
+
+      <div id="plateStageError" class="scan-stage hidden">
+        <div id="plateErrorBox" class="scan-error"></div>
+        <button type="button" class="btn btn-outline" id="plateRetry"><svg class="ic"><use href="#ic-refresh"/></svg> Reprendre une photo</button>
+      </div>
+
+      <div id="plateStageResult" class="scan-stage hidden">
+        <div id="plateResultBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODALE GOOGLE AGENDA ============ -->
+  <div id="agendaModal" class="modal-overlay hidden">
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="modal-close" id="agendaClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      <div id="agendaBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU LISTE DE COURSES ============ -->
+  <div id="shoppingPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><img class="mc-brand mc-brand--inline" src="logo-mc.png?v=1" alt="" aria-hidden="true" width="256" height="256" /> Liste de courses</h2>
+        <button class="modal-close" id="shoppingClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Pour <span id="shoppingDays">7</span> jour(s). Choisis pour combien de personnes, puis coche au fur et à mesure.<span id="shoppingPortions" hidden></span></p>
+      <button class="btn btn-outline" id="btnExportShopping" style="margin-bottom:14px"><svg class="ic"><use href="#ic-file"/></svg> Partager / exporter la liste</button>
+      <div id="shoppingList"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU FAVORIS ============ -->
+  <div id="favorisPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-heart"/></svg> Mes recettes favorites</h2>
+        <button class="modal-close" id="favorisClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Tes favoris sont reproposés en priorité dans les prochains plans.</p>
+      <div id="favorisList"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU MA FICHE ============ -->
+  <div id="fichePanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-user"/></svg> Mes informations</h2>
+        <button class="modal-close" id="ficheClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Récapitulatif de ton profil, tes compléments et tes habitudes.</p>
+      <div id="ficheBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU MON SUIVI (adherence) ============ -->
+  <div id="suiviPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-check-circle"/></svg> Mon suivi alimentaire</h2>
+        <button class="modal-close" id="suiviClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Ton suivi du plan, repas par repas.</p>
+      <button type="button" id="btnHelpFromSuivi" class="btn btn-outline" style="margin-bottom:10px"><svg class="ic"><use href="#ic-life-buoy"/></svg> J'ai besoin d'aide cette semaine</button>
+      <button type="button" id="btnScanFromSuivi" class="btn btn-outline" style="margin-bottom:10px"><svg class="ic"><use href="#ic-scan"/></svg> J'ai mangé autre chose — scanner</button>
+      <button type="button" id="btnPlateFromSuivi" class="btn btn-outline is-soon" style="margin-bottom:14px"><svg class="ic"><use href="#ic-camera"/></svg> Analyser mon assiette en photo<span class="soon-badge">Bientôt</span></button>
+      <div id="suiviBody"></div>
+    </div>
+  </div>
+  <!-- ============ ADMIN/COACH : PHOTOS DES PLATS ============ -->
+  <div id="platsPhotosPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-camera"/></svg> Photos des plats</h2>
+        <button class="modal-close" id="platsPhotosClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Ajoute une photo aux plats pour les rendre plus appétissants dans le plan des clients.</p>
+      <div id="platsPhotosBody"></div>
+    </div>
+  </div>
+  <!-- ============ LECTEUR DE GUIDE (intégré : le client ne quitte pas l'app) ============ -->
+  <div id="ebookReader" class="ebk-reader hidden" role="dialog" aria-modal="true" aria-label="Lecture d'un guide">
+    <div class="ebk-reader-head">
+      <button type="button" class="ebk-reader-close" id="ebookReaderClose" aria-label="Fermer le guide"><svg class="ic"><use href="#ic-x"/></svg></button>
+      <b id="ebookReaderTitle" class="ebk-reader-title">Guide</b>
+      <a id="ebookReaderFull" class="ebk-reader-full" target="_blank" rel="noopener" aria-label="Ouvrir en plein écran"><svg class="ic"><use href="#ic-eye"/></svg></a>
+    </div>
+    <div class="ebk-reader-body">
+      <div id="ebookReaderLoading" class="ebk-reader-loading"><span class="ebk-reader-spin"></span>Chargement du guide…</div>
+      <!-- Rendu INTÉGRÉ du PDF (canvas PDF.js) : s'affiche directement, aucun téléchargement. -->
+      <div id="ebookReaderPages" class="ebk-reader-pages" style="display:none"></div>
+      <!-- Repli visionneuse native (si PDF.js indisponible ou erreur de rendu). -->
+      <iframe id="ebookReaderFrame" class="ebk-reader-frame" title="Guide" referrerpolicy="no-referrer" style="display:none"></iframe>
+    </div>
+  </div>
+  <!-- ============ DÉTAIL DES OBJECTIFS NUTRITIONNELS (ouvert depuis la pastille Objectif) ============ -->
+  <div id="objDetail" class="obj-detail hidden" role="dialog" aria-modal="true" aria-label="Détail de mes objectifs nutritionnels">
+    <div class="obj-detail-card">
+      <button type="button" class="modal-close" id="objDetailClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      <h3 class="obj-detail-title">Tes objectifs du jour</h3>
+      <p class="obj-detail-w" id="objWeight"></p>
+      <div class="obj-macros">
+        <div class="obj-macro"><b id="objKcal">—</b><span>Calories</span></div>
+        <div class="obj-macro"><b id="objProt">—</b><span>Protéines</span></div>
+        <div class="obj-macro"><b id="objGluc">—</b><span>Glucides</span></div>
+        <div class="obj-macro"><b id="objLip">—</b><span>Lipides</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CLIENT : CHANGER SON CODE PIN ============ -->
+  <div id="changePinPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-shield"/></svg> Changer mon code PIN</h2>
+        <button class="modal-close" id="changePinClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Ton code PIN protège l'accès à ton espace (suivi, photos).</p>
+      <label class="qopt-field"><span>Code PIN actuel</span><input id="cpCurrent" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Code actuel"></label>
+      <label class="qopt-field"><span>Nouveau code PIN (4 à 6 chiffres)</span><input id="cpNew" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Nouveau code"></label>
+      <div class="pc-step-btns"><button type="button" class="pc-btn primary" id="cpSave">Enregistrer</button></div>
+      <p class="pc-msg" id="cpMsg"></p>
+    </div>
+  </div>
+
+  <!-- Saisie de pesée côté client RETIRÉE : pesées officielles saisies par le coach uniquement. -->
+  <!-- ============ PANNEAU SUIVI DE MON PLAN (client) ============ -->
+  <div id="suiviPlanPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-calendar-check"/></svg> Suivi de mon plan</h2>
+        <button class="modal-close" id="suiviPlanClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Ton plan reste la référence. Dis-nous simplement comment s'est passé chaque repas — l'objectif est la régularité, pas la perfection.</p>
+      <div id="suiviPlanBody"></div>
+    </div>
+  </div>
+  <!-- ============ PANNEAU ANALYSE DES ECARTS ============ -->
+  <div id="analysePanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-chart"/></svg> Analyse de mes habitudes</h2>
+        <button class="modal-close" id="analyseClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Tes points forts et tes pistes d'amélioration, sans jugement.</p>
+      <div id="analyseBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU AFFINER (analyse avancee niveau 2) ============ -->
+  <div id="avancePanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-sliders"/></svg> Personnaliser mon plan</h2>
+        <button class="modal-close" id="avanceClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Plus tu es précis, plus le plan colle à ton quotidien. Tout est optionnel — réponds seulement à ce qui te parle.</p>
+      <form id="avanceForm" autocomplete="off">
+        <label class="field"><span>Quand as-tu le plus faim ?</span>
+          <select name="faim">
+            <option value="equilibre">Équilibré dans la journée</option>
+            <option value="matin">Surtout le matin</option>
+            <option value="midi">Surtout le midi</option>
+            <option value="soir">Surtout le soir</option>
+          </select></label>
+        <label class="field"><span>As-tu faim le matin ?</span>
+          <select name="appetitMatin">
+            <option value="oui">Oui, appétit normal</option>
+            <option value="non">Non, peu d'appétit le matin</option>
+          </select></label>
+        <label class="field"><span>Grignotes-tu dans la journée ?</span>
+          <select name="grignotage">
+            <option value="non">Non / rarement</option>
+            <option value="aprem">Oui, surtout en fin d'après-midi (après le travail)</option>
+            <option value="soir">Oui, surtout le soir</option>
+          </select></label>
+        <label class="field"><span>As-tu des envies de sucre ?</span>
+          <select name="sucre">
+            <option value="non">Non</option>
+            <option value="soir">Surtout le soir</option>
+            <option value="aprem">Surtout l'après-midi</option>
+          </select></label>
+        <label class="field"><span>Le midi, as-tu le temps de cuisiner ?</span>
+          <select name="midi">
+            <option value="oui">Oui</option>
+            <option value="rapide">Peu de temps</option>
+            <option value="exterieur">Je mange souvent à l'extérieur</option>
+          </select></label>
+        <label class="field"><span>Le soir, as-tu l'énergie de cuisiner ?</span>
+          <select name="soirCuisine">
+            <option value="oui">Oui</option>
+            <option value="fatigue">Non, fatigué(e) : je veux des repas simples</option>
+          </select></label>
+        <label class="field"><span>Fais-tu du sport ?</span>
+          <select name="sport">
+            <option value="non">Non</option>
+            <option value="matin">Oui, le matin</option>
+            <option value="midi">Oui, le midi</option>
+            <option value="soir">Oui, le soir</option>
+          </select></label>
+        <span class="field-title">Ressenti général (plusieurs choix possibles)</span>
+        <div class="chip-set" data-multifield="etat">
+          <button type="button" class="chip" data-value="sommeil">Sommeil difficile</button>
+          <button type="button" class="chip" data-value="stress">Stress</button>
+          <button type="button" class="chip" data-value="fatigue">Fatigue</button>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Mettre à jour mon plan</button>
+      </form>
+      <div id="ajustementsBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ PANNEAU COMPLEMENTS ALIMENTAIRES ============ -->
+  <div id="complementsPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-pill"/></svg> Compléments alimentaires</h2>
+        <button class="modal-close" id="complementsClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Une aide secondaire, jamais la base du résultat. Informations générales, non médicales.</p>
+      <div id="complementsBody"></div>
+    </div>
+  </div>
+
+  <!-- Overlay de chargement -->
+  <div id="loader" class="loader hidden">
+    <div class="loader-card">
+      <div class="spinner"></div>
+      <p id="loaderText">On prépare ton plan…</p>
+    </div>
+  </div>
+
+  <!-- Overlay premium : revelation pas-a-pas du plan (clic "Voir mon plan") -->
+  <div id="planLoader" class="plan-loader hidden" aria-hidden="true">
+    <div class="pl-inner">
+      <div class="pl-head">
+        <span class="pl-mark"><svg class="ic"><use href="#ic-leaf"/></svg></span>
+        <div>
+          <div class="pl-title">On personnalise ton plan</div>
+          <div class="pl-sub">On adapte chaque repas à toi, un instant…</div>
+        </div>
+      </div>
+      <ul class="pl-steps">
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-target"/></svg></span><span class="pl-label">Analyse de ton objectif</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-heart"/></svg></span><span class="pl-label">Prise en compte de tes goûts</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-shield"/></svg></span><span class="pl-label">Vérification de tes contraintes</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-scale"/></svg></span><span class="pl-label">Calcul de tes besoins</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-bowl"/></svg></span><span class="pl-label">Équilibrage de tes repas</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+        <li class="pl-step"><span class="pl-ic"><svg class="ic"><use href="#ic-cart"/></svg></span><span class="pl-label">Création de la liste de courses</span><span class="pl-status"><svg class="pl-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></li>
+      </ul>
+      <div class="pl-bar"><i></i></div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>My Coach Nutrition · Estimations à titre indicatif, ne remplace pas un avis médical.</p>
+  </footer>
+
+  <script src="vendor/zxing.min.js"></script>
+  <script src="vendor/pdf.min.js"></script>
+  <!-- ⚠️ Bumper ces ?v= À CHAQUE modification du référentiel ou du moteur : les
+       commits 92d2d05 / f77eae5 (référentiel v2) ont changé ces deux fichiers
+       SANS toucher ces versions -> les navigateurs ayant déjà chargé v=2/v=1
+       continuaient de générer les listes avec l'ANCIEN référentiel. -->
+  <script src="avatar.js?v=8"></script>
+  <script src="coursesCatalogue.js?v=5"></script>
+  <script src="coursesEngine.js?v=5"></script>
+  <script src="app.js?v=225"></script>
+</body>
+</html>
