@@ -160,9 +160,22 @@ Une clé présente dans l'environnement ne suffit jamais : l'opt-in est explicit
 ## À savoir avant de mettre en ligne
 
 - **Photos des recettes.** Le catalogue ne porte pas d'image : dans Protocole 42, les
-  photos étaient ajoutées une par une en base par le coach. Cette base-ci part vide,
-  et les plats s'affichent sans visuel (l'`<img>` se retire tout seul). Renseigner
-  `ADMIN_EMAIL` donne accès à « Photos des plats » pour les ajouter.
+  photos vivent dans la base de production (ajoutées une à une via l'admin) — elles ne
+  sont pas dans le dépôt, donc un déploiement neuf affiche les plats sans visuel.
+  **`tools/importer-photos.js` les rapatrie en une commande**, en ne passant que par
+  des routes qui existent déjà (index public côté source, route admin côté cible) :
+
+  ```bash
+  node tools/importer-photos.js \
+    --source https://app.stanmartinapp.cloud/nutrition \
+    --cible  https://<votre-app>.up.railway.app \
+    --email  <ADMIN_EMAIL> --pin <code>
+  ```
+
+  Prérequis : `ADMIN_EMAIL` posé sur la cible (Railway → Variables) et ce compte créé
+  (une première connexion dans l'app suffit). Relançable sans risque — un plat déjà
+  illustré est sauté (`--remplacer` pour forcer). Ensuite, `ADMIN_EMAIL` garde accès
+  à « Photos des plats » pour compléter ou remplacer à la main.
 - **Liens boutique.** Les fiches compléments pointaient la boutique du coach (liens
   affiliés). `SHOP_BASE` est **vide** dans `public/app.js` : renseigner cette seule
   constante réactive tous les liens produit.
