@@ -183,6 +183,12 @@ Une clé présente dans l'environnement ne suffit jamais : l'opt-in est explicit
   (une première connexion dans l'app suffit). Relançable sans risque — un plat déjà
   illustré est sauté (`--remplacer` pour forcer). Ensuite, `ADMIN_EMAIL` garde accès
   à « Photos des plats » pour compléter ou remplacer à la main.
+
+  **Sans poste pour lancer le script** : poser `PHOTOS_SOURCE_URL` (Railway →
+  Variables, ex. `https://app.stanmartinapp.cloud/nutrition`) et redéployer — au
+  démarrage, le serveur importe lui-même les photos manquantes, en tâche de fond,
+  sans identifiant (routes publiques de la source) et sans toucher à autre chose
+  que `recipe_photos`. Idempotent et auto-réparant : la variable peut rester posée.
 - **Liens boutique.** Les fiches compléments pointaient la boutique du coach (liens
   affiliés). `SHOP_BASE` est **vide** dans `public/app.js` : renseigner cette seule
   constante réactive tous les liens produit.

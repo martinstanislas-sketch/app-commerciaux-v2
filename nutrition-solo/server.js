@@ -695,12 +695,75 @@ function appliquerResetPinAdmin() {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+//  Amorçage des photos de plats depuis une app source (PHOTOS_SOURCE_URL).
+//
+//  Même rôle que tools/importer-photos.js, mais exécuté PAR LE SERVEUR à son
+//  démarrage : indispensable quand l'import ne peut pas être lancé d'ailleurs
+//  (poste sans accès, environnement au réseau restreint). Le serveur va chercher
+//  lui-même les photos manquantes sur les routes PUBLIQUES de la source
+//  (/api/recipe-photos-index, /api/recipe-photo/:id) et les écrit dans SA table
+//  recipe_photos — aucun identifiant requis, aucune autre table touchée.
+//
+//  Idempotent et auto-réparant : à chaque démarrage, seule la différence
+//  (photos de la source absentes ici) est importée ; si rien ne manque, un seul
+//  appel d'index et c'est fini. Laisser la variable posée est donc sans danger ;
+//  la retirer arrête simplement la synchronisation.
+//
+//  Lancé APRÈS l'écoute, en tâche de fond : une source lente ou injoignable ne
+//  doit jamais retarder ni empêcher le démarrage de l'app.
+// ---------------------------------------------------------------------------
+const PHOTO_IMPORT_MAX_OCTETS = 3 * 1024 * 1024; // parité avec la route admin
+async function importerPhotosDepuisSource() {
+  const src = String(process.env.PHOTOS_SOURCE_URL || '').trim().replace(/\/+$/, '');
+  if (!src) return null;
+  const bilan = { importees: 0, deja: 0, sautees: 0, echecs: 0 };
+  try {
+    const idx = await (await fetch(src + '/api/recipe-photos-index')).json();
+    if (!idx || !idx.ok) throw new Error('index illisible');
+    const db = getDb();
+    const { RECIPES } = require('./lib/recipes-v2');
+    const catalogue = new Set(RECIPES.map((r) => r.id));
+    const locales = new Set(db.prepare('SELECT recipe_id FROM recipe_photos').all().map((r) => r.recipe_id));
+    const manquantes = Object.keys(idx.photos || {}).filter((id) => catalogue.has(id) && !locales.has(id));
+    bilan.deja = locales.size;
+    if (!manquantes.length) {
+      console.log(`Photos de plats : rien à importer (${locales.size} en base, source alignée).`);
+      return bilan;
+    }
+    console.log(`Photos de plats : import de ${manquantes.length} photo(s) depuis ${src}…`);
+    const ins = db.prepare(`INSERT INTO recipe_photos (recipe_id, mime, data, updated_at) VALUES (?, ?, ?, ?)
+                            ON CONFLICT(recipe_id) DO NOTHING`);
+    // En séquentiel : on est l'invité d'un serveur de production.
+    for (const id of manquantes) {
+      try {
+        const res = await fetch(src + '/api/recipe-photo/' + encodeURIComponent(id));
+        if (!res.ok) { bilan.echecs++; continue; }
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length > PHOTO_IMPORT_MAX_OCTETS) { bilan.sautees++; continue; }
+        ins.run(id, res.headers.get('content-type') || 'image/jpeg', buf, nowIso());
+        bilan.importees++;
+        if (bilan.importees % 50 === 0) console.log(`  … ${bilan.importees}/${manquantes.length}`);
+      } catch (_) { bilan.echecs++; }
+    }
+    const total = db.prepare('SELECT COUNT(*) AS n FROM recipe_photos').get().n;
+    console.log(`Photos de plats : ${bilan.importees} importée(s), ${bilan.sautees} sautée(s) (trop lourdes), ` +
+      `${bilan.echecs} échec(s). Total en base : ${total}.`);
+  } catch (e) {
+    console.warn('Photos de plats : import impossible pour le moment (' + e.message + '). ' +
+      'L\'app fonctionne normalement ; nouvel essai au prochain démarrage.');
+  }
+  return bilan;
+}
+
 if (require.main === module) {
   // getDb() crée le schéma au premier appel ; amorcerFaq() complète la base de
   // réponses. Les deux sont idempotents : redémarrer ne duplique rien.
   const ajout = amorcerFaq();
   if (ajout) console.log(`  FAQ coach : ${ajout} réponses ajoutées.`);
   appliquerResetPinAdmin();
+  // En tâche de fond, une fois le serveur prêt à répondre.
+  setTimeout(() => { importerPhotosDepuisSource(); }, 1500);
   app.listen(PORT, () => {
     const mode = iaDisponible() ? 'IA (Claude)' : 'DÉMO (recettes locales)';
     console.log(`\n  ${APP_NOM}`);
@@ -733,3 +796,4 @@ function amorcerFaq() {
 module.exports = app;
 module.exports.amorcerFaq = amorcerFaq;
 module.exports.appliquerResetPinAdmin = appliquerResetPinAdmin;
+module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;

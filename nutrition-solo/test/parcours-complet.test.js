@@ -361,3 +361,59 @@ test('ADMIN_PIN_RESET : réarme aussi un compte en temporisation', async () => {
   const apres = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '1357' });
   assert.strictEqual(apres.body.ok, true, 'plus de temporisation, nouveau PIN actif');
 });
+
+// --- Amorçage des photos depuis une source (PHOTOS_SOURCE_URL) ----------------
+// On simule l'app source par un mini serveur HTTP qui expose les deux routes
+// publiques réelles. L'import doit remplir recipe_photos — et seulement elle.
+
+test('PHOTOS_SOURCE_URL : importe les photos manquantes au démarrage', async () => {
+  const http = require('node:http');
+  const { RECIPES } = require('../lib/recipes-v2');
+  const ids = RECIPES.slice(0, 2).map((r) => r.id);
+  // 1x1 px PNG, servi comme le ferait Protocole 42.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  const stub = http.createServer((req, res) => {
+    if (req.url === '/api/recipe-photos-index') {
+      res.setHeader('Content-Type', 'application/json');
+      // Un id hors catalogue dans l'index : il doit être ignoré sans bruit.
+      res.end(JSON.stringify({ ok: true, photos: Object.fromEntries([...ids, 'id-inconnu'].map((i) => [i, '1'])) }));
+    } else if (req.url.startsWith('/api/recipe-photo/')) {
+      res.setHeader('Content-Type', 'image/png');
+      res.end(png);
+    } else { res.statusCode = 404; res.end(); }
+  });
+  await new Promise((r) => stub.listen(0, r));
+
+  process.env.PHOTOS_SOURCE_URL = `http://127.0.0.1:${stub.address().port}`;
+  try {
+    const bilan = await app.importerPhotosDepuisSource();
+    assert.strictEqual(bilan.importees, 2, 'les 2 photos du catalogue sont importées');
+    assert.strictEqual(bilan.echecs, 0);
+
+    // Servies par l'app comme n'importe quelle photo de plat.
+    const idx = await api('GET', '/api/recipe-photos-index');
+    assert.ok(ids.every((i) => idx.body.photos[i]), 'l\'index les connaît');
+    const img = await fetch(`${base}/api/recipe-photo/${ids[0]}`);
+    assert.strictEqual(img.status, 200);
+    assert.strictEqual(img.headers.get('content-type'), 'image/png');
+
+    // Relance : rien à refaire (idempotent).
+    const bis = await app.importerPhotosDepuisSource();
+    assert.strictEqual(bis.importees, 0, 'une relance n\'importe rien');
+  } finally {
+    delete process.env.PHOTOS_SOURCE_URL;
+    stub.close();
+  }
+});
+
+test('PHOTOS_SOURCE_URL : une source injoignable ne casse rien', async () => {
+  process.env.PHOTOS_SOURCE_URL = 'http://127.0.0.1:1';   // port fermé
+  try {
+    const bilan = await app.importerPhotosDepuisSource(); // ne doit pas lever
+    assert.ok(bilan, 'la fonction rend la main proprement');
+  } finally {
+    delete process.env.PHOTOS_SOURCE_URL;
+  }
+  // L'app répond toujours.
+  assert.strictEqual((await api('GET', '/api/status')).status, 200);
+});
