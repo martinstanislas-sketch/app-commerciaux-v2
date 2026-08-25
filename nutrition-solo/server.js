@@ -762,6 +762,15 @@ if (require.main === module) {
   const ajout = amorcerFaq();
   if (ajout) console.log(`  FAQ coach : ${ajout} réponses ajoutées.`);
   appliquerResetPinAdmin();
+  // L'état de la synchronisation photos est dit AU BOOT, inconditionnellement :
+  // « aucune ligne dans les logs » ne doit plus pouvoir signifier à la fois
+  // « variable absente » et « code pas déployé » — c'est précisément l'ambiguïté
+  // qui a rendu un déploiement en retard indiagnosticable depuis les logs.
+  if (String(process.env.PHOTOS_SOURCE_URL || '').trim()) {
+    console.log(`  Photos     : synchronisation depuis ${String(process.env.PHOTOS_SOURCE_URL).trim()} (démarre dans 1,5 s)`);
+  } else {
+    console.log('  Photos     : PHOTOS_SOURCE_URL non définie — pas de synchronisation au démarrage');
+  }
   // En tâche de fond, une fois le serveur prêt à répondre.
   setTimeout(() => { importerPhotosDepuisSource(); }, 1500);
   app.listen(PORT, () => {
