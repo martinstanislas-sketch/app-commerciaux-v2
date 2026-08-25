@@ -299,3 +299,65 @@ test('une route /api inconnue répond en JSON, pas en HTML', async () => {
   assert.strictEqual(r.status, 404);
   assert.strictEqual(r.body.ok, false, 'le front reçoit du JSON exploitable');
 });
+
+// --- Réinitialisation du PIN admin (ADMIN_PIN_RESET) --------------------------
+// Le reset vit au démarrage du serveur, jamais dans une route HTTP : on teste la
+// fonction directement, comme le ferait le boot. À ce stade de la suite, le
+// compte admin (patron@exemple.fr, PIN 7777) existe déjà.
+
+test('ADMIN_PIN_RESET : remplace le PIN admin et révoque ses sessions', async () => {
+  // Une session admin vivante AVANT le reset : elle doit mourir avec l'ancien PIN.
+  const avant = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '7777' });
+  assert.strictEqual(avant.body.ok, true);
+
+  process.env.ADMIN_PIN_RESET = '2468';
+  try {
+    assert.strictEqual(app.appliquerResetPinAdmin(), true);
+  } finally {
+    delete process.env.ADMIN_PIN_RESET;
+  }
+
+  // L'ancien PIN ne vaut plus rien, la session d'avant non plus.
+  const ancien = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '7777' });
+  assert.strictEqual(ancien.status, 401);
+  assert.strictEqual((await api('GET', '/account/me', null, avant.body.token)).status, 401,
+    'une session antérieure au reset doit être révoquée');
+
+  // Le nouveau PIN ouvre le compte, toujours admin.
+  const nouveau = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '2468' });
+  assert.strictEqual(nouveau.body.ok, true);
+  assert.strictEqual(nouveau.body.compte.admin, true);
+});
+
+test('ADMIN_PIN_RESET : ne touche à rien d\'autre', async () => {
+  // Le reset a déjà eu lieu au test précédent : Léa, elle, n'a pas bougé.
+  const lea = await api('POST', '/account/login', { email: 'lea@exemple.fr', pin: '4821' });
+  assert.strictEqual(lea.body.ok, true, 'le PIN d\'un compte normal est intact');
+  const p = await api('GET', '/api/progression', null, lea.body.token);
+  assert.strictEqual(p.body.progression.pesees.length, 3, 'ses données aussi');
+});
+
+test('ADMIN_PIN_RESET : un code mal formé est ignoré', async () => {
+  process.env.ADMIN_PIN_RESET = 'abc123';
+  try {
+    assert.strictEqual(app.appliquerResetPinAdmin(), false);
+  } finally {
+    delete process.env.ADMIN_PIN_RESET;
+  }
+  // Le PIN posé par le test précédent marche toujours.
+  const r = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '2468' });
+  assert.strictEqual(r.body.ok, true);
+});
+
+test('ADMIN_PIN_RESET : réarme aussi un compte en temporisation', async () => {
+  // 5 échecs -> temporisation. Le reset doit la lever en même temps que le PIN.
+  for (let i = 0; i < 5; i++) await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '0000' });
+  const bloque = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '2468' });
+  assert.strictEqual(bloque.status, 429, 'le compte est bien temporisé');
+
+  process.env.ADMIN_PIN_RESET = '1357';
+  try { app.appliquerResetPinAdmin(); } finally { delete process.env.ADMIN_PIN_RESET; }
+
+  const apres = await api('POST', '/account/login', { email: 'patron@exemple.fr', pin: '1357' });
+  assert.strictEqual(apres.body.ok, true, 'plus de temporisation, nouveau PIN actif');
+});

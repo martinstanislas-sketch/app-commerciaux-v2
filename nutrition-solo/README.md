@@ -94,7 +94,14 @@ filtré sur le porteur du jeton. Concrètement :
 - 5 codes PIN erronés déclenchent une **temporisation qui double** (1, 2, 4… minutes,
   plafond 1 h) et non un blocage définitif : sans coach pour déverrouiller, un blocage
   définitif enfermerait quelqu'un dehors pour de bon ;
-- `DELETE /account` supprime le compte et, par cascade, tout ce qui s'y rattache.
+- `DELETE /account` supprime le compte et, par cascade, tout ce qui s'y rattache ;
+- **PIN admin oublié** : poser `ADMIN_PIN_RESET=<nouveau code>` (Railway → Variables)
+  et redéployer — au démarrage, le PIN du compte `ADMIN_EMAIL` est remplacé et ses
+  sessions révoquées, sans toucher à quoi que ce soit d'autre (ni les autres comptes,
+  ni son profil/plan/photos). **Retirer la variable ensuite.** C'est volontairement
+  une variable d'environnement et non une route HTTP : un reset « sans l'ancien PIN »
+  accessible par le web serait une porte dérobée ; ici il exige le contrôle du
+  déploiement — le même niveau de confiance que celui qui définit qui est admin.
 
 ## Structure
 
