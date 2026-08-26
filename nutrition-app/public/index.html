@@ -356,6 +356,21 @@
         </div>
       </section>
       </main>
+      <!-- Monogramme P42, discret en bas à gauche : il n'existe QUE sur cette
+           landing, pour la distinguer au premier regard de celle de l'app
+           nutrition grand public (My Coach Nutrition), très proche visuellement.
+           SVG inline (pas d'image) : net à toutes les tailles, et `currentColor`
+           permettrait de le teinter si le fond changeait. aria-hidden + aucun
+           clic : c'est un repère visuel, pas un élément d'interface. -->
+      <div class="lp-p42" aria-hidden="true">
+        <svg viewBox="0 0 92 32" role="img">
+          <g transform="skewX(-6)" fill="currentColor"
+             font-family="'Arial Black','Helvetica Neue',Arial,sans-serif"
+             font-size="27" font-weight="900" letter-spacing="-1.5">
+            <text x="6" y="25">P42</text>
+          </g>
+        </svg>
+      </div>
     </div>
   </template>
 

@@ -299,3 +299,11 @@
   .lp-reveal{opacity:0;transform:translateY(22px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
   .lp-reveal.in{opacity:1;transform:none}
 }
+
+/* ── Monogramme P42 (repère de page, bas gauche) ─────────────────────────────
+   Volontairement effacé : il doit se voir quand on le cherche, jamais gêner la
+   lecture. Fixe pour rester présent au défilement ; pointer-events none pour ne
+   jamais voler un clic ; masqué sous 480px où chaque pixel de hauteur compte. */
+.lp-p42 { position: fixed; left: 18px; bottom: 14px; z-index: 40; color: #fff; opacity: .34; pointer-events: none; }
+.lp-p42 svg { display: block; width: 74px; height: 26px; }
+@media (max-width: 480px) { .lp-p42 { display: none; } }
