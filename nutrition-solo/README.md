@@ -49,6 +49,11 @@ npm start
 Puis <http://localhost:3000>. La base SQLite (`data/nutrition.sqlite`) et les
 réponses du coach sont créées au premier démarrage — rien à configurer.
 
+**En production** (Railway, service suivi sur `main`) :
+<https://app-commerciaux-v2-production.up.railway.app/> — c'est le lien clients :
+la landing mène à l'inscription libre (email + code PIN). L'app coachée
+Protocole 42 reste, elle, sur <https://app.stanmartinapp.cloud/nutrition/>.
+
 ## Fonctionnalités
 
 **Le plan** — onboarding en 6 étapes, besoins caloriques (Mifflin-St Jeor) et macros,
