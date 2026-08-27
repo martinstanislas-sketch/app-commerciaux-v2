@@ -31,6 +31,10 @@ const $ = (s) => document.querySelector(s);
 const montrer = (sel, oui) => { const el = $(sel); if (el) el.hidden = !oui; };
 
 let session = null;
+// LE CATALOGUE VIENT DU SERVEUR, jamais du code. Une formation active ajoutée
+// demain en base apparaît ici sans qu'on rouvre ce fichier.
+let catalogue = [];     // toutes les formations accessibles
+let fCourante = null;   // la formation affichée — clé, pas objet
 let formation = null;
 let contenuOuvert = null;
 let qcm = null;         // état de l'évaluation théorique, tel que le serveur le calcule
@@ -56,6 +60,14 @@ function echapper(s) {
 function dateFr(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
   return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
+
+// Ajoute la formation courante à une route de lecture. Le serveur la valide et
+// refuse une clé inconnue : l'écran ne décide de rien, il annonce sur quoi il
+// travaille.
+function avecFormation(route) {
+  if (!fCourante) return route;
+  return route + (route.includes('?') ? '&' : '?') + 'formation=' + encodeURIComponent(fCourante);
 }
 
 async function apiAc(route, methode, corps) {
@@ -109,13 +121,20 @@ async function demarrer() {
   // lui servir une formation vide.
   if (!moiCollab && !moiEval && !moiAdmin) {
     bloquer('🔒', 'Formation réservée aux collaborateurs',
-      'La formation Coach Nutrition est réservée aux collaborateurs My Coach. Si tu es client, ton espace se trouve sur la page d\'accueil de l\'application.');
+      // Ce message précède le chargement du catalogue : il parle de l'Academy,
+      // pas d'une formation en particulier — et n'en nomme donc aucune.
+      'My Coach Academy est réservée aux collaborateurs My Coach. Si tu es client, ton espace se trouve sur la page d\'accueil de l\'application.');
     return;
   }
   // Qui n'est pas collaborateur n'a pas de formation à suivre — un formateur
   // extérieur, l'administrateur : il arrive directement sur ce qui le concerne
   // plutôt que sur un sommaire vide. Les écrans se renvoient l'un à l'autre
   // quand il a les deux droits.
+  // Le catalogue vaut pour tout le monde : l'évaluateur et l'administrateur
+  // doivent savoir sur quelle formation ils agissent, autant que le
+  // collaborateur doit savoir laquelle il suit.
+  await chargerCatalogue();
+
   if (!moiCollab) {
     if (moiEval) { await ouvrirEvaluateur(); return; }
     await ouvrirAdmin();
@@ -124,8 +143,36 @@ async function demarrer() {
   await chargerFormation();
 }
 
+// Le catalogue d'abord : c'est lui qui dit quelles formations existent et
+// laquelle ouvrir par défaut.
+async function chargerCatalogue() {
+  const r = await apiAc('/api/academy/formations');
+  if (!r.data || !r.data.ok) { catalogue = []; return; }
+  catalogue = r.data.formations || [];
+  // On garde la formation courante si elle est toujours au catalogue ; sinon on
+  // retombe sur celle que le serveur désigne. Jamais sur une clé inventée ici.
+  if (!fCourante || !catalogue.some((f) => f.cle === fCourante)) {
+    fCourante = r.data.defaut || (catalogue.length ? catalogue[0].cle : null);
+  }
+}
+
+// La formation courante, telle que le catalogue la décrit. C'est elle qui porte
+// les drapeaux : pratique obligatoire, certification active.
+const formationCourante = () => catalogue.find((f) => f.cle === fCourante) || null;
+
+// CHANGER DE FORMATION, C'EST TOUT VIDER PUIS TOUT RELIRE. Garder ne serait-ce
+// qu'un état de l'ancienne ferait afficher la progression d'un parcours sous le
+// nom d'un autre.
+async function changerFormation(cle) {
+  if (!cle || cle === fCourante) return;
+  fCourante = cle;
+  formation = null; qcm = null; pratique = null; certifs = null;
+  contenuOuvert = null; tentative = null; iQuestion = 0;
+  await chargerFormation();
+}
+
 async function chargerFormation() {
-  const r = await apiAc('/api/academy/formation');
+  const r = await apiAc(avecFormation('/api/academy/formation'));
   // La certification a pu être retirée entre-temps : le serveur ferme, l'écran suit.
   if (r.status === 403) { await demarrer(); return; }
   if (r.status === 401) { deconnecter(); return; }
@@ -141,14 +188,14 @@ async function chargerFormation() {
 // achevée », « la théorie est-elle validée », « une tentative est-elle
 // ouverte » sont trois questions dont l'écran n'a pas les réponses.
 async function chargerQcm() {
-  const r = await apiAc('/api/academy/qcm');
+  const r = await apiAc(avecFormation('/api/academy/qcm'));
   qcm = r.data && r.data.ok ? r.data.qcm : null;
 }
 
 // Même principe pour l'étape suivante : « ma pratique est-elle validée » est une
 // question dont l'écran n'a pas la réponse, et ne doit pas l'inventer.
 async function chargerPratique() {
-  const r = await apiAc('/api/academy/pratique');
+  const r = await apiAc(avecFormation('/api/academy/pratique'));
   pratique = r.data && r.data.ok ? r.data.pratique : null;
 }
 
@@ -168,13 +215,54 @@ function etatDe(c) {
   return ['ac-avenir', '○'];
 }
 
+// Le sélecteur n'existe que s'il y a un choix à faire. Avec une seule
+// formation au catalogue, l'écran reste exactement celui d'avant.
+// Le titre que porte celui qui obtient la formation courante. Ces phrases
+// n'ont plus à connaître « Coach Nutrition » : elles nomment ce que le
+// catalogue déclare.
+const titreCourant = () => {
+  const f = formationCourante();
+  return f && f.titre ? f.titre : 'certifié';
+};
+
+const nomFormation = (cle) => {
+  const f = catalogue.find((x) => x.cle === cle);
+  return f ? f.libelle : (cle || '');
+};
+
+// Le même sélecteur pour l'évaluateur et l'administrateur : changer de
+// formation y recharge l'écran courant, comme pour le collaborateur.
+function rendreSelecteurEval() {
+  if (!catalogue || catalogue.length < 2) return '';
+  return '<div class="ac-sel">' + catalogue.map((f) =>
+    '<button type="button" class="ac-sel-b' + (f.cle === fCourante ? ' on' : '') + '"' +
+      ' data-formation-eval="' + echapper(f.cle) + '">' + echapper(f.libelle) + '</button>').join('') + '</div>';
+}
+
+function rendreSelecteur() {
+  if (!catalogue || catalogue.length < 2) return '';
+  return '<div class="ac-sel" role="tablist" aria-label="Mes formations">' +
+    catalogue.map((f) =>
+      '<button type="button" role="tab" class="ac-sel-b' + (f.cle === fCourante ? ' on' : '') + '"' +
+        ' aria-selected="' + (f.cle === fCourante ? 'true' : 'false') + '"' +
+        ' data-formation="' + echapper(f.cle) + '">' + echapper(f.libelle) + '</button>').join('') +
+    '</div>';
+}
+
 function rendreSommaire() {
   const f = formation;
   const reprise = f.reprise ? f.modules.flatMap((m) => m.contenus).find((c) => c.id === f.reprise) : null;
 
+  const cat = formationCourante();
+
   $('#acSommaire').innerHTML =
-    '<h1 class="ec-t">Formation Coach Nutrition</h1>' +
-    '<p class="ec-sub">Les modules à suivre pour devenir Coach Nutrition certifié.</p>' +
+    rendreSelecteur() +
+    // LE NOM VIENT DU CATALOGUE. Plus aucun titre de formation écrit en dur :
+    // une formation ajoutée demain s'annonce toute seule.
+    '<h1 class="ec-t">' + echapper(cat ? cat.libelle : 'Ma formation') + '</h1>' +
+    '<p class="ec-sub">' + (cat && cat.titre
+      ? 'Les modules à suivre pour devenir ' + echapper(cat.titre) + '.'
+      : 'Les modules de ce parcours.') + '</p>' +
 
     '<div class="ac-prog">' +
       '<div class="ac-prog-h"><b>Ta progression</b><span>' + f.pourcentage + ' %</span></div>' +
@@ -194,6 +282,9 @@ function rendreSommaire() {
 
     (f.modules.length ? f.modules.map(rendreModule).join('')
       : '<div class="ec-vide">Aucun module de formation pour le moment.</div>');
+
+  document.querySelectorAll('#acSommaire [data-formation]').forEach((el) =>
+    el.addEventListener('click', () => changerFormation(el.dataset.formation)));
 
   const b = $('#acReprendre');
   if (b) b.addEventListener('click', () => ouvrir(f.reprise));
@@ -328,7 +419,7 @@ function rendreCarteQcm() {
   const e = qcm.etat;
   const entete =
     '<div class="ac-qcm-h">' +
-      '<b>Évaluation théorique — Coach Nutrition</b>' +
+      '<b>Évaluation théorique — ' + echapper(nomFormation(fCourante)) + '</b>' +
       '<span class="ac-qcm-etat ac-etat-' + e.replace(/_/g, '-') + '">' + echapper(LIBELLES[e] || '') + '</span>' +
     '</div>';
 
@@ -351,10 +442,11 @@ function rendreCarteQcm() {
       // se contredirait avec la carte du dessous.
       (pratique && pratique.validee ? '' : '<p class="ac-qcm-next">Prochaine étape : évaluation pratique</p>') +
       (qcm.certifie
-        ? '<p class="ac-qcm-note">Tu es Coach Nutrition certifié.</p>'
+        ? '<p class="ac-qcm-note">Tu es ' + echapper(titreCourant()) + '.</p>'
         // Le point le plus important de tout l'écran : réussir le QCM ne
         // certifie personne. Le dire à moitié laisserait croire l'inverse.
-        : '<p class="ac-qcm-note">Tu n\'es pas encore Coach Nutrition certifié : la certification est prononcée par ton évaluateur après l\'évaluation pratique.</p>');
+        : '<p class="ac-qcm-note">Tu n\'es pas encore ' + echapper(titreCourant()) +
+            ' : la certification est prononcée par ton évaluateur après l\'évaluation pratique.</p>');
   } else if (e === 'theorie_non_validee') {
     corps =
       '<p class="ac-qcm-ko">Théorie non validée — dernier score : ' + qcm.derniere.scorePct +
@@ -390,7 +482,7 @@ const premiereSansReponse = () => {
 // Démarre OU reprend : c'est le serveur qui tranche. Cliquer deux fois ne crée
 // jamais une seconde tentative — il rend celle qui est déjà ouverte.
 async function ouvrirEvaluation() {
-  const r = await apiAc('/api/academy/qcm/tentatives', 'POST', {});
+  const r = await apiAc('/api/academy/qcm/tentatives', 'POST', { formation: fCourante });
   if (r.status === 401) { deconnecter(); return; }
   if (r.status === 403) { await demarrer(); return; }
   if (!r.data.ok) {
@@ -412,7 +504,7 @@ function rendreQcm() {
     '<button type="button" class="ec-back" id="acQBack">← Ma formation</button>' +
     '<div class="ac-lec-h">' +
       '<p class="ac-lec-mod">Évaluation théorique</p>' +
-      '<h1 class="ac-lec-t">Coach Nutrition</h1>' +
+      '<h1 class="ac-lec-t">' + echapper(nomFormation(fCourante)) + '</h1>' +
     '</div>' +
 
     // Une pastille par question : elle dit d'un coup d'œil où l'on en est, et
@@ -518,8 +610,9 @@ function rendreResultat() {
           '<p class="ac-res-t"><span aria-hidden="true">✓</span> Théorie validée</p>' +
           '<p class="ac-res-next">Prochaine étape : évaluation pratique</p>' +
           (qcm && qcm.certifie
-            ? '<p class="ac-res-note">Tu es Coach Nutrition certifié : ce résultat ne change rien à ta certification.</p>'
-            : '<p class="ac-res-note">Tu n\'es pas encore Coach Nutrition certifié. La certification est prononcée par ton évaluateur, après l\'évaluation pratique.</p>') +
+            ? '<p class="ac-res-note">Tu es ' + echapper(titreCourant()) + ' : ce résultat ne change rien à ta certification.</p>'
+            : '<p class="ac-res-note">Tu n\'es pas encore ' + echapper(titreCourant()) +
+                '. La certification est prononcée par ton évaluateur, après l\'évaluation pratique.</p>') +
         '</div>'
       : '<div class="ac-res-suite">' +
           '<p class="ac-res-note">Tu peux repasser l\'évaluation autant de fois que nécessaire : chaque tentative tire de nouvelles questions.</p>' +
@@ -571,10 +664,14 @@ function ligneTentative(t) {
 
 function rendreCartePratique() {
   if (!pratique) return '';
+  // LE DRAPEAU DE LA FORMATION DÉCIDE. Une formation sans évaluation pratique
+  // n'affiche pas une étape « non requise » : elle n'en affiche aucune.
+  const cat = formationCourante();
+  if (cat && !cat.pratiqueObligatoire) return '';
   const e = pratique.etat;
   const entete =
     '<div class="ac-qcm-h">' +
-      '<b>Évaluation pratique — Coach Nutrition</b>' +
+      '<b>Évaluation pratique — ' + echapper(nomFormation(fCourante)) + '</b>' +
       '<span class="ac-qcm-etat ac-etat-p-' + e.replace(/_/g, '-') + '">' + echapper(LIB_PRATIQUE[e] || '') + '</span>' +
     '</div>';
 
@@ -582,8 +679,9 @@ function rendreCartePratique() {
   // certification. Le dire une fois ne suffit pas, on le dit là où c'est
   // tentant de croire le contraire.
   const pasCertifie = pratique.certifie
-    ? '<p class="ac-qcm-note">Tu es Coach Nutrition certifié.</p>'
-    : '<p class="ac-qcm-note">La certification Coach Nutrition sera prononcée dans un second temps : cette étape ne la remplace pas.</p>';
+    ? '<p class="ac-qcm-note">Tu es ' + echapper(titreCourant()) + '.</p>'
+    : '<p class="ac-qcm-note">La certification ' + echapper(nomFormation(fCourante)) +
+        ' sera prononcée dans un second temps : cette étape ne la remplace pas.</p>';
 
   let corps = '';
   if (e === 'non_accessible') {
@@ -646,7 +744,7 @@ function rendreAccesEvaluateur() {
 // --- Espace évaluateur --------------------------------------------------------
 
 async function ouvrirEvaluateur() {
-  const r = await apiAc('/api/academy/evaluateur/collaborateurs');
+  const r = await apiAc(avecFormation('/api/academy/evaluateur/collaborateurs'));
   if (r.status === 401) { deconnecter(); return; }
   if (r.status === 403) {
     bloquer('🔒', 'Espace évaluateur',
@@ -664,7 +762,11 @@ function rendreEvalListe() {
     (moiCollab ? '<button type="button" class="ec-back" id="acEvalBack">← Ma formation</button>' : '') +
     (moiAdmin ? '<button type="button" class="ec-back" id="acEvalAdmin">Administration →</button>' : '') +
     '<h1 class="ec-t">Évaluations pratiques</h1>' +
-    '<p class="ec-sub">Les collaborateurs dont la partie théorique est validée. ' +
+    // POUR QUELLE FORMATION. Un évaluateur qui intervient sur plusieurs
+    // parcours doit le lire avant de prononcer un résultat, pas le deviner.
+    rendreSelecteurEval() +
+    '<p class="ec-sub">Les collaborateurs de <b>' + echapper(nomFormation(fCourante)) +
+      '</b> dont la partie théorique est validée. ' +
       'Ceux qui n\'en sont pas là n\'apparaissent pas : l\'évaluation pratique leur reste fermée.</p>' +
 
     (evalListe.length
@@ -678,6 +780,14 @@ function rendreEvalListe() {
               echapper(LIB_PRATIQUE[c.etat] || '') + '</span>' +
           '</button>').join('') + '</div>'
       : '<div class="ec-vide">Aucun collaborateur n\'a encore validé la partie théorique.</div>');
+
+  document.querySelectorAll('[data-formation-eval]').forEach((el) =>
+    el.addEventListener('click', async () => {
+      if (el.dataset.formationEval === fCourante) return;
+      fCourante = el.dataset.formationEval;
+      evalListe = null; evalFiche = null;
+      await ouvrirEvaluateur();
+    }));
 
   const b = $('#acEvalBack');
   // On relit son propre état en revenant : un évaluateur est souvent aussi un
@@ -693,7 +803,7 @@ function rendreEvalListe() {
 }
 
 async function ouvrirFiche(email) {
-  const r = await apiAc('/api/academy/evaluateur/collaborateurs/' + encodeURIComponent(email));
+  const r = await apiAc(avecFormation('/api/academy/evaluateur/collaborateurs/' + encodeURIComponent(email)));
   if (r.status === 401) { deconnecter(); return; }
   if (!r.data.ok) {
     bloquer('🔍', 'Dossier indisponible', r.data.error || 'Ce collaborateur n\'est pas évaluable.');
@@ -711,7 +821,7 @@ function rendreEvalFiche() {
   $('#acEval').innerHTML =
     '<button type="button" class="ec-back" id="acEvalRetour">← Tous les collaborateurs</button>' +
     '<div class="ac-lec-h">' +
-      '<p class="ac-lec-mod">Évaluation pratique</p>' +
+      '<p class="ac-lec-mod">Évaluation pratique — ' + echapper(nomFormation(fCourante)) + '</p>' +
       '<h1 class="ac-lec-t">' + echapper(c.prenom || c.email) + '</h1>' +
     '</div>' +
 
@@ -722,7 +832,7 @@ function rendreEvalFiche() {
       '<p class="ac-qcm-s">Théorie validée' +
         (p.scoreTheorie !== null && p.scoreTheorie !== undefined ? ' — score : ' + p.scoreTheorie + ' %' : '') + '.</p>' +
       (p.certifie
-        ? '<p class="ac-qcm-note">Ce collaborateur est déjà Coach Nutrition certifié.</p>'
+        ? '<p class="ac-qcm-note">Ce collaborateur est déjà ' + echapper(titreCourant()) + '.</p>'
         : '<p class="ac-qcm-note">Enregistrer un résultat ne certifie pas le collaborateur : la certification est un geste distinct.</p>') +
     '</div>' +
 
@@ -789,6 +899,9 @@ async function enregistrer(resultat) {
   err.textContent = '';
   const corps = {
     resultat,
+    // L'action est SCOPÉE : le droit d'évaluer est global, la décision ne
+    // l'est jamais.
+    formation: fCourante,
     dateEvaluation: $('#acEvDate').value || null,
     cas: $('#acEvCas').value || null,
     commentaire: $('#acEvCom').value || null,
@@ -881,6 +994,15 @@ function rendreAdmin() {
   // Changer d'onglet RELIT les données. Les écarts entre l'Academy et le Boost
   // naissent précisément ailleurs — dans l'administration du Boost, dans une
   // autre session — et un onglet qui réaffiche sa mémoire les manquerait.
+  document.querySelectorAll('#acAdmin [data-formation-eval]').forEach((el) =>
+    el.addEventListener('click', async () => {
+      if (el.dataset.formationEval === fCourante) return;
+      fCourante = el.dataset.formationEval;
+      enSaisie = null;
+      await chargerAdminCerts();
+      rendreAdmin();
+    }));
+
   document.querySelectorAll('#acAdmin [data-onglet]').forEach((el) =>
     el.addEventListener('click', async () => {
       adminOnglet = el.dataset.onglet;
@@ -971,7 +1093,11 @@ async function agirSurCompte(email, action) {
 
 function rendreCartesCertification() {
   if (!certifs || !certifs.length) return '';
-  return certifs.map(rendreCarteCertification).join('');
+  // On n'affiche QUE la formation courante — les autres ont leur propre écran —
+  // et seulement si elle délivre un titre.
+  return certifs
+    .filter((c) => c.formation === fCourante && c.certificationActive !== false)
+    .map(rendreCarteCertification).join('');
 }
 
 function rendreCarteCertification(c) {
@@ -1029,7 +1155,7 @@ function rendreCarteCertification(c) {
 // --- Administration : certifications ------------------------------------------
 
 async function chargerAdminCerts() {
-  const r = await apiAc('/api/academy/admin/certifications');
+  const r = await apiAc(avecFormation('/api/academy/admin/certifications'));
   adminCerts = r.data && r.data.ok ? r.data : null;
 }
 
@@ -1097,14 +1223,17 @@ function rendreAdminCerts() {
         ? '<div class="ac-adm-saisie">' +
             '<label class="ec-field"><span>Motif du retrait (obligatoire)</span>' +
               '<input id="acCertMotif" type="text" maxlength="1000" placeholder="Pourquoi ce retrait ?" /></label>' +
-            '<p class="ac-adm-avert">Le diplôme reste dans l\'historique avec ce motif. Les droits Coach Nutrition ' +
+            '<p class="ac-adm-avert">Le diplôme reste dans l\'historique avec ce motif. Les droits ' +
+              echapper(nomFormation(fCourante)) + ' du collaborateur se ferment immédiatement.</p>' +
               'du collaborateur se ferment immédiatement.</p>' +
           '</div>'
         : '') +
       '</div>';
   };
 
-  return ecarts +
+  return rendreSelecteurEval() +
+    '<p class="ac-qcm-s">Certifications de <b>' + echapper(nomFormation(fCourante)) + '</b>.</p>' +
+    ecarts +
     '<h2 class="ac-eval-t">Éligibles (' + d.eligibles.length + ')</h2>' +
     (d.eligibles.length
       ? '<div class="ac-liste">' + d.eligibles.map(ligneEligible).join('') + '</div>'
@@ -1123,11 +1252,13 @@ async function agirSurCertification(email, geste) {
   let r;
   if (geste === 'confirmer-delivrer') {
     r = await apiAc('/api/academy/admin/certifications/' + encodeURIComponent(email), 'POST', {
+      formation: fCourante,
       obtenueLe: ($('#acCertDate') || {}).value || null,
       commentaire: ($('#acCertCom') || {}).value || null,
     });
   } else {
     r = await apiAc('/api/academy/admin/certifications/' + encodeURIComponent(email) + '/retrait', 'POST', {
+      formation: fCourante,
       motif: ($('#acCertMotif') || {}).value || '',
     });
   }

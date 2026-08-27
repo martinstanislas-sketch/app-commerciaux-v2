@@ -86,7 +86,21 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
 
   // Le catalogue : ce que le collaborateur peut suivre. Le serveur reste seul
   // juge — l'écran n'affiche que ce qu'il reçoit ici.
-  r.get('/api/academy/formations', exigeCompte, exigeCollaborateur, (req, res) => {
+  //  Le catalogue est lu par TOUS ceux qui entrent dans l'Academy : le
+  //  collaborateur qui suit un parcours, l'évaluateur qui doit dire pour quelle
+  //  formation il prononce un résultat, l'administrateur qui doit dire pour
+  //  laquelle il certifie. Le réserver aux collaborateurs privait les deux
+  //  autres de leur sélecteur.
+  function exigeEntree(req, res, next) {
+    const mail = moi(req);
+    if (academy.peutSeFormer(mail) || pratique.estEvaluateur(mail) || (estAdmin && estAdmin(mail))) return next();
+    return res.status(403).json({
+      ok: false, nonCollaborateur: true,
+      error: 'La formation Coach Nutrition est réservée aux collaborateurs My Coach.',
+    });
+  }
+
+  r.get('/api/academy/formations', exigeCompte, exigeEntree, (req, res) => {
     const liste = formations.lister();
     res.json({
       ok: true,

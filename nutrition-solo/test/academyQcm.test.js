@@ -829,7 +829,8 @@ test('l\'écran présente les six états attendus', () => {
 });
 
 test('l\'écran dit franchement que réussir le QCM ne certifie pas', () => {
-  assert.ok(/pas encore Coach Nutrition certifié/.test(js),
+  // Le titre vient du catalogue depuis le lot 5 : la phrase se construit.
+  assert.ok(/n\\?'es pas encore ' \+ echapper\(titreCourant\(\)\)/.test(js),
     'le collaborateur doit lire noir sur blanc qu\'il n\'est pas certifié');
   assert.ok(/évaluation pratique/.test(js));
   assert.ok(/Formation théorique validée/.test(js) && /Formation théorique non validée/.test(js));

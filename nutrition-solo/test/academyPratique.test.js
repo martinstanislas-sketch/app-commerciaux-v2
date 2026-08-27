@@ -756,7 +756,10 @@ test('l\'écran ferme l\'étape quand la pratique est validée', () => {
 });
 
 test('l\'écran dit qu\'une pratique validée ne vaut pas certification', () => {
-  assert.ok(/La certification Coach Nutrition sera prononcée dans un second temps/.test(js),
+  // Depuis le lot 5, le nom de la formation vient du CATALOGUE : la phrase se
+  // construit, elle n'est plus écrite en dur. Ce qu'on vérifie est qu'elle est
+  // toujours dite — et qu'elle nomme la formation courante.
+  assert.ok(/La certification ' \+ echapper\(nomFormation\(fCourante\)\) \+\s*\n?\s*' sera prononcée dans un second temps/.test(js),
     'le collaborateur doit lire que cette étape ne remplace pas la certification');
   assert.ok(/ne certifie pas le collaborateur/.test(js),
     'l\'évaluateur aussi doit le lire avant de prononcer son verdict');

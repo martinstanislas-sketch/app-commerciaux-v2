@@ -89,7 +89,12 @@ async function semer() {
     await seConnecter(COLLAB, '4004');
     await page.waitForSelector('#acSommaire:not([hidden])');
     const t = await contenu();
-    if (!/Formation Coach Nutrition/.test(t)) throw new Error('titre absent');
+    // Depuis le lot 5, le titre vient du CATALOGUE : plus aucun nom de formation
+    // écrit en dur dans l'écran. C'est le libellé de la formation qu'on attend.
+    if (!/Coach Nutrition/.test(t)) throw new Error('titre absent');
+    if (!/Les modules à suivre pour devenir Coach Nutrition certifié/.test(t)) {
+      throw new Error('le sous-titre devrait reprendre le titre de certification du catalogue');
+    }
     if (!/Ta progression/.test(t)) throw new Error('bloc de progression absent');
     if (!/0 %/.test(t)) throw new Error('la progression devrait partir de zéro');
   });
