@@ -695,7 +695,7 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 // ---------------------------------------------------------------------------
 app.use(creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }));
 app.use(creerRoutesAcademy({ academy, qcm: academyQcm, pratique: academyPratique,
-  certifications: academyCertifications, exigeCompte, exigeAdmin, estAdmin }));
+  certifications: academyCertifications, formations: academyFormations, exigeCompte, exigeAdmin, estAdmin }));
 
 // Toute route /api inconnue répond en JSON : sinon Express renvoie du HTML et le
 // front, qui fait systématiquement res.json(), échoue avec une erreur illisible.

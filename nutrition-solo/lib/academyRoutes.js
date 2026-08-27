@@ -17,7 +17,7 @@
 const express = require('express');
 const path = require('path');
 
-function creerRoutesAcademy({ academy, qcm, pratique, certifications, exigeCompte, exigeAdmin, estAdmin }) {
+function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations, exigeCompte, exigeAdmin, estAdmin }) {
   const r = express.Router();
   const moi = (req) => String(req.user.email || '').trim().toLowerCase();
 
@@ -33,6 +33,28 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, exigeCompt
 
   // Réservé aux collaborateurs actifs. Un client n'a rien à faire ici : le
   // refus le dit franchement plutôt que de lui servir une formation vide.
+  // ==========================================================================
+  //  LA FORMATION D'UNE REQUÊTE
+  //
+  //  Elle arrive en `?formation=` (lecture) ou dans le corps (écriture), et
+  //  elle est RÉSOLUE PAR LE CATALOGUE : une clé inconnue ou inactive n'est
+  //  jamais acceptée, sinon on manipulerait des données Academy rattachées à
+  //  un parcours qui n'existe pas.
+  //
+  //  Absente, on prend la formation par défaut. C'est ce qui laisse tous les
+  //  appels historiques fonctionner sans réécriture.
+  // ==========================================================================
+  const cleDemandee = (req) => (req.query && req.query.formation) || (req.body && req.body.formation) || null;
+
+  function formationDe(req, res) {
+    const f = formations.resoudre(cleDemandee(req));
+    if (!f) {
+      res.status(404).json({ ok: false, formationInconnue: true, error: 'Formation inconnue ou inactive.' });
+      return null;
+    }
+    return f;
+  }
+
   function exigeCollaborateur(req, res, next) {
     if (!academy.peutSeFormer(moi(req))) {
       return res.status(403).json({
@@ -62,8 +84,23 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, exigeCompt
     });
   });
 
+  // Le catalogue : ce que le collaborateur peut suivre. Le serveur reste seul
+  // juge — l'écran n'affiche que ce qu'il reçoit ici.
+  r.get('/api/academy/formations', exigeCompte, exigeCollaborateur, (req, res) => {
+    const liste = formations.lister();
+    res.json({
+      ok: true,
+      formations: liste,
+      // La formation courante par défaut : la première du catalogue. L'écran
+      // n'a pas à la deviner.
+      defaut: liste.length ? liste[0].cle : null,
+    });
+  });
+
   r.get('/api/academy/formation', exigeCompte, exigeCollaborateur, (req, res) => {
-    res.json({ ok: true, formation: academy.formationPour(moi(req)) });
+    const f = formationDe(req, res);
+    if (!f) return;
+    res.json({ ok: true, formation: academy.formationPour(moi(req), f.cle), catalogue: f });
   });
 
   r.get('/api/academy/contenus/:id', exigeCompte, exigeCollaborateur, (req, res) => {
@@ -98,11 +135,15 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, exigeCompt
   // ==========================================================================
 
   r.get('/api/academy/qcm', exigeCompte, exigeCollaborateur, (req, res) => {
-    res.json({ ok: true, qcm: qcm.etatPour(moi(req)) });
+    const f = formationDe(req, res);
+    if (!f) return;
+    res.json({ ok: true, qcm: qcm.etatPour(moi(req), f.cle) });
   });
 
   r.post('/api/academy/qcm/tentatives', exigeCompte, exigeCollaborateur, (req, res) => {
-    const r_ = qcm.demarrer(moi(req));
+    const f = formationDe(req, res);
+    if (!f) return;
+    const r_ = qcm.demarrer(moi(req), f.cle);
     res.status(r_.status).json(r_.body);
   });
 
@@ -156,24 +197,36 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, exigeCompt
   // -- Côté collaborateur ----------------------------------------------------
 
   r.get('/api/academy/pratique', exigeCompte, exigeCollaborateur, (req, res) => {
-    res.json({ ok: true, pratique: pratique.etatPour(moi(req)) });
+    const f = formationDe(req, res);
+    if (!f) return;
+    res.json({ ok: true, pratique: pratique.etatPour(moi(req), f.cle), catalogue: f });
   });
 
   // -- Côté évaluateur -------------------------------------------------------
 
   r.get('/api/academy/evaluateur/collaborateurs', exigeCompte, exigeEvaluateur, (req, res) => {
-    res.json({ ok: true, collaborateurs: pratique.listerEligibles() });
+    const f = formationDe(req, res);
+    if (!f) return;
+    // La formation repart avec la liste : l'évaluateur doit lire à l'écran
+    // POUR QUELLE formation il s'apprête à prononcer un résultat.
+    res.json({ ok: true, formation: f, formations: formations.lister(),
+      collaborateurs: pratique.listerEligibles(f.cle) });
   });
 
   r.get('/api/academy/evaluateur/collaborateurs/:email', exigeCompte, exigeEvaluateur, (req, res) => {
-    const r_ = pratique.ficheDe(req.params.email);
+    const f = formationDe(req, res);
+    if (!f) return;
+    const r_ = pratique.ficheDe(req.params.email, f.cle);
+    if (r_.ok) r_.body.formation = f;
     res.status(r_.status).json(r_.body);
   });
 
   // Ouvrir une évaluation. Sans résultat : séance ouverte, verdict à venir.
   // Avec résultat : l'évaluateur qui saisit à chaud clôt en une fois.
   r.post('/api/academy/evaluateur/collaborateurs/:email/evaluations', exigeCompte, exigeEvaluateur, (req, res) => {
-    const r_ = pratique.ouvrir(req.params.email, moi(req), req.body || {});
+    const f = formationDe(req, res);
+    if (!f) return;
+    const r_ = pratique.ouvrir(req.params.email, moi(req), { ...(req.body || {}), formation: f.cle });
     res.status(r_.status).json(r_.body);
   });
 
@@ -229,16 +282,20 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, exigeCompt
   });
 
   r.get('/api/academy/admin/certifications', exigeCompte, exigeAdmin, (req, res) => {
+    if (!formationDe(req, res)) return;
     res.json({
       ok: true,
       formations: certifications.formations(),
-      ...certifications.listerAdmin(req.query ? req.query.formation : null),
+      formation: (formations.resoudre(cleDemandee(req)) || {}),
+      ...certifications.listerAdmin(cleDemandee(req)),
     });
   });
 
   r.post('/api/academy/admin/certifications/:email', exigeCompte, exigeAdmin, (req, res) => {
-    const r_ = certifications.delivrer(req.params.email, moi(req), req.body || {});
-    if (r_.ok) r_.body.liste = certifications.listerAdmin((req.body || {}).formation);
+    const f = formationDe(req, res);
+    if (!f) return;
+    const r_ = certifications.delivrer(req.params.email, moi(req), { ...(req.body || {}), formation: f.cle });
+    if (r_.ok) r_.body.liste = certifications.listerAdmin(f.cle);
     res.status(r_.status).json(r_.body);
   });
 
@@ -246,8 +303,10 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, exigeCompt
   // obligatoire, et un corps sur un DELETE ne traverse pas tous les
   // intermédiaires de façon fiable.
   r.post('/api/academy/admin/certifications/:email/retrait', exigeCompte, exigeAdmin, (req, res) => {
-    const r_ = certifications.retirer(req.params.email, moi(req), req.body || {});
-    if (r_.ok) r_.body.liste = certifications.listerAdmin((req.body || {}).formation);
+    const f = formationDe(req, res);
+    if (!f) return;
+    const r_ = certifications.retirer(req.params.email, moi(req), { ...(req.body || {}), formation: f.cle });
+    if (r_.ok) r_.body.liste = certifications.listerAdmin(f.cle);
     res.status(r_.status).json(r_.body);
   });
 
