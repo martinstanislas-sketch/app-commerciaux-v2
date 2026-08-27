@@ -4128,3 +4128,85 @@ body.is-demo #navRestart { display: none !important; }
 /* Grande fin (fond sombre) : le logo s'éclaircit, centré au-dessus du kicker. */
 .fin-mark { display: block; width: 46px; height: 46px; margin: 0 auto 12px; }
 .fin-mark .p42-mark { color: #9FC0E6; }
+
+/* ==========================================================================
+   ADMINISTRATION DU BOOST NUTRITION  (préfixe .badm-)
+   Tout est préfixé et vit en fin de feuille : aucune règle existante n'est
+   redéfinie, et retirer le Boost revient à retirer ce bloc.
+   Parti pris : une ligne = un dossier, lisible d'un coup d'œil, et les
+   formulaires s'ouvrent SOUS la ligne concernée (jamais en modale).
+   ========================================================================== */
+.badm-tabs { display: flex; gap: 8px; margin: 14px 0 4px; }
+.badm-tab {
+  flex: 1; padding: 10px 12px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line, #e4ded4); background: var(--card, #fff);
+  color: var(--muted, #7a7268); font: inherit; font-weight: 600; font-size: .92rem;
+}
+.badm-tab.on { background: var(--accent, #2f6fb3); border-color: var(--accent, #2f6fb3); color: #fff; }
+
+.badm-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 10px; flex-wrap: wrap; }
+.badm-count { color: var(--muted, #7a7268); font-size: .86rem; }
+.badm-neo { display: inline-flex; align-items: center; gap: 7px; }
+.badm-neo .ic { width: 16px; height: 16px; }
+
+.badm-list { display: flex; flex-direction: column; gap: 10px; }
+.badm-row {
+  border: 1px solid var(--line, #e4ded4); border-radius: 12px;
+  background: var(--card, #fff); padding: 12px 14px;
+}
+.badm-row-head { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.badm-cli { flex: 1 1 180px; min-width: 0; }
+.badm-cli b { display: block; font-size: .98rem; }
+.badm-cli small { display: block; color: var(--muted, #7a7268); font-size: .8rem; word-break: break-all; }
+
+/* Les cellules portent leur intitulé : sur mobile la ligne se replie en
+   colonnes, et « 3/12 » sans son étiquette ne voudrait plus rien dire. */
+.badm-cells { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; width: 100%; }
+.badm-cells span { display: flex; flex-direction: column; font-size: .88rem; }
+.badm-cells i { font-style: normal; font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #7a7268); }
+.badm-cells em { font-style: normal; color: var(--muted, #7a7268); font-size: .8rem; }
+.badm-late { color: #b4463a; }
+
+.badm-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: .74rem; font-weight: 700; white-space: nowrap; }
+.badm-b-a_demarrer { background: #eef1f5; color: #4a5568; }
+.badm-b-en_cours   { background: #e6f0fa; color: #23557f; }
+.badm-b-termine    { background: #e7f2e6; color: #326b32; }
+.badm-b-expire     { background: #fbeceb; color: #9b3b30; }
+.badm-b-interrompu { background: #f2efe9; color: #6b6357; }
+.badm-b-off        { background: #f2efe9; color: #6b6357; }
+.badm-b-oui        { background: #e7f2e6; color: #326b32; }
+.badm-b-non        { background: #fbeceb; color: #9b3b30; }
+
+.badm-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.badm-act {
+  padding: 7px 12px; border-radius: 9px; cursor: pointer; font: inherit; font-size: .84rem; font-weight: 600;
+  border: 1px solid var(--line, #e4ded4); background: var(--bg, #faf7f2); color: var(--ink, #2b2620);
+}
+.badm-act:hover { border-color: var(--accent, #2f6fb3); color: var(--accent, #2f6fb3); }
+.badm-act.danger:hover { border-color: #b4463a; color: #b4463a; }
+.badm-act.on { background: var(--accent, #2f6fb3); border-color: var(--accent, #2f6fb3); color: #fff; }
+
+.badm-form { margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--bg, #faf7f2); border: 1px solid var(--line, #e4ded4); }
+.badm-form .qopt-field { margin-bottom: 10px; }
+.badm-form textarea { width: 100%; min-height: 68px; resize: vertical; font: inherit; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line, #e4ded4); background: var(--card, #fff); color: inherit; }
+.badm-form-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.badm-hint { color: var(--muted, #7a7268); font-size: .8rem; margin: 6px 0 0; }
+.badm-warn { color: #9b3b30; font-size: .84rem; margin: 6px 0 0; }
+.badm-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 520px) { .badm-grid2 { grid-template-columns: 1fr; } }
+
+/* Choix du client : une liste de résultats cliquables plutôt qu'un <select>,
+   pour montrer d'un coup qui a déjà un Boost en cours et ne peut pas en
+   recevoir un second. */
+.badm-picks { max-height: 210px; overflow-y: auto; border: 1px solid var(--line, #e4ded4); border-radius: 9px; background: var(--card, #fff); margin-bottom: 10px; }
+.badm-pick { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--line, #e4ded4); background: none; font: inherit; text-align: left; cursor: pointer; color: inherit; }
+.badm-pick:last-child { border-bottom: 0; }
+.badm-pick:hover { background: var(--bg, #faf7f2); }
+.badm-pick.on { background: #e6f0fa; }
+.badm-pick[disabled] { opacity: .55; cursor: not-allowed; }
+.badm-pick small { color: var(--muted, #7a7268); font-size: .78rem; }
+
+.badm-journal { margin-top: 12px; border-top: 1px dashed var(--line, #e4ded4); padding-top: 10px; }
+.badm-journal ol { margin: 0; padding-left: 18px; }
+.badm-journal li { font-size: .84rem; margin-bottom: 5px; color: var(--ink, #2b2620); }
+.badm-journal li small { color: var(--muted, #7a7268); }

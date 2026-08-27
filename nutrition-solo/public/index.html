@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=192" />
+  <link rel="stylesheet" href="style.css?v=193" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
   <link rel="stylesheet" href="landing.css?v=103" />
   <script>
@@ -754,6 +754,7 @@
              Visible uniquement pour le compte ADMIN_EMAIL (cf. server.js). -->
         <div class="profil-sec profil-admin hidden">ADMINISTRATION</div>
         <button type="button" class="profil-row profil-admin hidden" id="btnPlatsPhotos"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Photos des plats<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <button type="button" class="profil-row profil-admin hidden" id="btnBoostAdmin"><svg class="ic pr-lime"><use href="#ic-spark"/></svg>Boost Nutrition<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
 
         <!-- Déconnexion : toujours en TOUT DERNIER (après toutes les sections) pour éviter le tap accidentel. -->
         <button type="button" class="profil-row profil-logout hidden" id="btnLogout"><svg class="ic"><use href="#ic-logout"/></svg>Se déconnecter</button>
@@ -950,6 +951,28 @@
       <div id="platsPhotosBody"></div>
     </div>
   </div>
+
+  <!-- ============ ADMINISTRATION DU BOOST NUTRITION ============
+       Écran d'administration volontairement PAUVRE en surface : deux vues, une
+       liste par vue, et des formulaires qui s'ouvrent SOUS la ligne concernée
+       plutôt que dans une modale. L'administrateur voit toujours à quel dossier
+       il est en train de toucher — c'est ce qui évite l'erreur d'inattention
+       qu'une fenêtre flottante rend possible.
+       Aucun écran Coach ni client ici : ce lot ne sert qu'à préparer les suivis. -->
+  <div id="boostAdminPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-spark"/></svg> Boost Nutrition</h2>
+        <button class="modal-close" id="boostAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Prépare les suivis : déclare tes Coachs Nutrition, ouvre les Boosts et attribue les clients.</p>
+      <div class="badm-tabs" role="tablist">
+        <button type="button" class="badm-tab on" data-vue="boosts" role="tab">Boosts</button>
+        <button type="button" class="badm-tab" data-vue="coachs" role="tab">Coachs Nutrition</button>
+      </div>
+      <div id="boostAdminBody"></div>
+    </div>
+  </div>
   <!-- ============ LECTEUR DE GUIDE (intégré : le client ne quitte pas l'app) ============ -->
   <div id="ebookReader" class="ebk-reader hidden" role="dialog" aria-modal="true" aria-label="Lecture d'un guide">
     <div class="ebk-reader-head">
@@ -1137,6 +1160,6 @@
   <script src="avatar.js?v=8"></script>
   <script src="coursesCatalogue.js?v=5"></script>
   <script src="coursesEngine.js?v=5"></script>
-  <script src="app.js?v=225"></script>
+  <script src="app.js?v=226"></script>
 </body>
 </html>

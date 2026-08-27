@@ -41,6 +41,8 @@ const {
 const { getDb, nowIso, readJson } = require('./lib/db');
 const { createAuth, normEmail, hashPin, PIN_RE } = require('./lib/auth');
 const coachFaq = require('./lib/coachFaq');
+const { createBoost } = require('./lib/boost');
+const { creerRoutesBoost } = require('./lib/boostRoutes');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
 const PORT = process.env.PORT || 3000;
@@ -49,6 +51,10 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_EMAIL = normEmail(process.env.ADMIN_EMAIL || '');
 
 const auth = createAuth({ getDb, nowIso });
+// Socle Boost Nutrition. Volontairement à côté du reste : il porte son propre
+// schéma et ses propres routes (/api/boost/*), et ne réutilise de l'app que
+// l'authentification existante — un compte reste un compte (email + PIN).
+const boost = createBoost({ getDb, nowIso });
 
 const app = express();
 // 6 Mo : une photo de progression prise au téléphone passe, un envoi abusif non.
@@ -642,6 +648,12 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+//  Boost Nutrition — monté ICI, juste avant le filet /api 404 : plus haut il
+//  masquerait des routes existantes, plus bas il serait avalé par le 404.
+// ---------------------------------------------------------------------------
+app.use(creerRoutesBoost({ boost, exigeCompte, exigeAdmin }));
+
 // Toute route /api inconnue répond en JSON : sinon Express renvoie du HTML et le
 // front, qui fait systématiquement res.json(), échoue avec une erreur illisible.
 app.use('/api', (req, res) => res.status(404).json({ ok: false, error: 'Route inconnue.' }));
@@ -803,6 +815,7 @@ function amorcerFaq() {
 }
 
 module.exports = app;
+module.exports.boost = boost;
 module.exports.amorcerFaq = amorcerFaq;
 module.exports.appliquerResetPinAdmin = appliquerResetPinAdmin;
 module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;

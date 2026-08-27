@@ -2932,6 +2932,20 @@ function init() {
   const _ppPanel = $('#platsPhotosPanel'); if (_ppPanel) _ppPanel.addEventListener('click', (e) => { if (e.target.id === 'platsPhotosPanel') closePlatsPhotos(); });
   fetchPhotoIndex();
 
+  // --- Administration du Boost Nutrition (même porte que les photos de plats :
+  //     la ligne n'est révélée que pour le compte ADMIN_EMAIL, cf. setupProfilCoach) ---
+  const _bBoost = $('#btnBoostAdmin'); if (_bBoost) _bBoost.addEventListener('click', openBoostAdmin);
+  const _baClose = $('#boostAdminClose'); if (_baClose) _baClose.addEventListener('click', closeBoostAdmin);
+  const _baPanel = $('#boostAdminPanel');
+  if (_baPanel) {
+    _baPanel.addEventListener('click', (e) => { if (e.target.id === 'boostAdminPanel') closeBoostAdmin(); });
+    // Les onglets vivent dans le balisage (pas dans le corps re-rendu) : on les
+    // câble une fois pour toutes, ici, plutôt qu'à chaque rendu.
+    _baPanel.querySelectorAll('.badm-tab').forEach((t) => t.addEventListener('click', () => {
+      _badmVue = t.dataset.vue; _badmForm = null; _badmJournalId = null; _badmMsg = ''; badmRender();
+    }));
+  }
+
   // --- Détail des objectifs ---
   const _odClose = $('#objDetailClose'); if (_odClose) _odClose.addEventListener('click', closeObjDetail);
   const _odPanel = $('#objDetail'); if (_odPanel) _odPanel.addEventListener('click', (e) => { if (e.target.id === 'objDetail') closeObjDetail(); });
@@ -4691,3 +4705,509 @@ function cablerProgression() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+// ===========================================================================
+//  ADMINISTRATION DU BOOST NUTRITION  (compte ADMIN_EMAIL uniquement)
+//
+//  Deux vues, une liste par vue, des formulaires qui s'ouvrent sous la ligne
+//  concernée. Rien d'autre : ce lot sert à PRÉPARER les suivis, pas à les
+//  animer. Aucun écran Coach ni client ici.
+//
+//  Le serveur reste seul juge de ce qui est permis (certification, Boost déjà
+//  actif, motif obligatoire…). L'interface ne fait que RENDRE ces règles
+//  visibles avant l'échec : proposer un coach non certifié pour se le voir
+//  refuser ensuite, c'est une mauvaise manière de dire non. Quand les deux
+//  divergent, c'est la réponse serveur qui s'affiche, jamais l'optimisme local.
+// ===========================================================================
+
+const BADM_STATUTS = { a_demarrer: 'À démarrer', en_cours: 'En cours', termine: 'Terminé', expire: 'Expiré', interrompu: 'Interrompu' };
+const BADM_CERT = { non_certifie: 'Non certifié', en_cours: 'En formation', certifie: 'Certifié', suspendu: 'Suspendu' };
+const BADM_PRATIQUE = { valide: 'Validée', non_valide: 'Non validée', a_repasser: 'À repasser' };
+const BADM_JOURNAL = {
+  creation: 'Boost créé', attribution: 'Coach Nutrition attribué', demarrage: 'Étape 1 validée — 16 semaines lancées',
+  etape_validee: 'Étape validée', prolongation: 'Prolongation', expiration: 'Arrivé à échéance',
+  terminaison: 'Boost terminé', interruption: 'Boost interrompu',
+};
+
+let _badmVue = 'boosts';
+let _badmDossiers = [];
+let _badmCoachs = [];
+let _badmClients = [];
+// Un seul formulaire ouvert à la fois : { type, id, clientEmail? }. Deux
+// formulaires ouverts en même temps, et on ne sait plus lequel on valide.
+let _badmForm = null;
+let _badmJournalId = null;
+let _badmMsg = '';
+
+async function badmApi(methode, route, corps) {
+  const res = await fetch(apiUrl(route), {
+    method: methode,
+    headers: nutriAuthHeaders(corps ? { 'Content-Type': 'application/json' } : {}),
+    body: corps ? JSON.stringify(corps) : undefined,
+  });
+  let d = null;
+  try { d = await res.json(); } catch (_) { /* réponse non JSON */ }
+  return { status: res.status, data: d || {} };
+}
+
+function badmDate(iso) {
+  if (!iso) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso);
+}
+function badmDateHeure(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('fr-FR') + ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+// Décale une date AAAA-MM-JJ de n jours, en UTC comme le serveur.
+function badmPlusJours(iso, n) {
+  if (!iso) return '';
+  const d = new Date(String(iso) + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + Number(n || 0));
+  return d.toISOString().slice(0, 10);
+}
+const badmNom = (prenom, email) => escapeHtml(prenom || String(email || '').split('@')[0] || '—');
+
+function openBoostAdmin() {
+  const p = $('#boostAdminPanel'); if (!p) return;
+  p.classList.remove('hidden');
+  _badmVue = 'boosts'; _badmForm = null; _badmJournalId = null; _badmMsg = '';
+  badmRecharger();
+}
+function closeBoostAdmin() { const p = $('#boostAdminPanel'); if (p) p.classList.add('hidden'); }
+
+async function badmRecharger() {
+  const body = $('#boostAdminBody');
+  if (body && !body.innerHTML) body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  try {
+    const [d, c] = await Promise.all([
+      badmApi('GET', '/api/boost/admin/dossiers'),
+      badmApi('GET', '/api/boost/admin/collaborateurs?tous=1'),
+    ]);
+    if (!d.data.ok || !c.data.ok) throw new Error('lecture');
+    _badmDossiers = d.data.dossiers || [];
+    _badmCoachs = c.data.collaborateurs || [];
+    badmRender();
+  } catch (_) {
+    if (body) body.innerHTML = '<p class="help-empty">Lecture impossible. Réessaie dans un instant.</p>';
+  }
+}
+
+function badmRender() {
+  $$('#boostAdminPanel .badm-tab').forEach((t) => t.classList.toggle('on', t.dataset.vue === _badmVue));
+  const body = $('#boostAdminBody'); if (!body) return;
+  body.innerHTML = (_badmVue === 'boosts' ? badmVueBoosts() : badmVueCoachs()) +
+    (_badmMsg ? '<p class="badm-warn">' + escapeHtml(_badmMsg) + '</p>' : '');
+  badmWire();
+}
+
+// --- Vue « Boosts » --------------------------------------------------------
+
+function badmVueBoosts() {
+  const n = _badmDossiers.length;
+  const lignes = n ? _badmDossiers.map(badmLigneBoost).join('')
+    : '<p class="help-empty">Aucun Boost pour l\'instant. Commence par en créer un.</p>';
+  return '<div class="badm-bar">' +
+      '<button type="button" class="pc-btn primary badm-neo" id="badmNouveau">' + icSvg('plus') + 'Créer un Boost</button>' +
+      '<span class="badm-count">' + n + ' Boost' + (n > 1 ? 's' : '') + '</span>' +
+    '</div>' +
+    (_badmForm && _badmForm.type === 'creer' ? badmFormCreer() : '') +
+    '<div class="badm-list">' + lignes + '</div>';
+}
+
+function badmLigneBoost(b) {
+  const estActif = b.statut === 'a_demarrer' || b.statut === 'en_cours';
+  const retard = b.joursRestants !== null && b.joursRestants !== undefined && b.joursRestants < 0;
+  const reste = (b.joursRestants === null || b.joursRestants === undefined) ? ''
+    : retard ? ` <em class="badm-late">(dépassée de ${Math.abs(b.joursRestants)} j)</em>`
+      : ` <em>(dans ${b.joursRestants} j)</em>`;
+
+  const actions = [];
+  // Actions strictement contextuelles : un bouton qu'on ne peut pas utiliser
+  // est un bouton qui trompe.
+  if (estActif) actions.push(badmBtn('coach', b.id, b.coachEmail ? 'Réattribuer' : 'Attribuer le coach'));
+  if (b.statut === 'en_cours' || b.statut === 'expire') actions.push(badmBtn('prolonger', b.id, 'Prolonger'));
+  if (b.statut !== 'termine' && b.statut !== 'interrompu') actions.push(badmBtn('interrompre', b.id, 'Interrompre', 'danger'));
+  actions.push('<button type="button" class="badm-act' + (_badmJournalId === b.id ? ' on' : '') + '" data-journal="' + b.id + '">Historique</button>');
+
+  const formulaire = (_badmForm && _badmForm.id === b.id)
+    ? (_badmForm.type === 'coach' ? badmFormCoach(b)
+      : _badmForm.type === 'prolonger' ? badmFormProlonger(b)
+        : _badmForm.type === 'interrompre' ? badmFormInterrompre(b) : '')
+    : '';
+
+  return '<div class="badm-row">' +
+    '<div class="badm-row-head">' +
+      '<div class="badm-cli"><b>' + badmNom(b.clientPrenom, b.clientEmail) + '</b><small>' + escapeHtml(b.clientEmail) + '</small></div>' +
+      '<span class="badm-badge badm-b-' + b.statut + '">' + (BADM_STATUTS[b.statut] || b.statut) + '</span>' +
+    '</div>' +
+    '<div class="badm-cells">' +
+      '<span><i>Coach Nutrition</i>' + (b.coachEmail ? badmNom(b.coachPrenom, b.coachEmail) : '<em>non attribué</em>') + '</span>' +
+      '<span><i>Étape</i>' + b.etapesValidees + '/' + b.etapesTotal + '</span>' +
+      '<span><i>Début</i>' + badmDate(b.demarreLe) + '</span>' +
+      '<span><i>Date limite</i>' + badmDate(b.echeanceLe) + reste + '</span>' +
+    '</div>' +
+    '<div class="badm-acts">' + actions.join('') + '</div>' +
+    formulaire +
+    (_badmJournalId === b.id ? '<div class="badm-journal" id="badmJournalBox"><p class="badm-hint">Chargement de l\'historique…</p></div>' : '') +
+  '</div>';
+}
+
+function badmBtn(type, id, libelle, extra) {
+  const ouvert = _badmForm && _badmForm.id === id && _badmForm.type === type;
+  return '<button type="button" class="badm-act ' + (extra || '') + (ouvert ? ' on' : '') +
+    '" data-form="' + type + '" data-id="' + id + '">' + escapeHtml(libelle) + '</button>';
+}
+
+// Coachs proposables : actifs ET certifiés. La liste est calculée ici pour que
+// l'admin ne puisse pas choisir quelqu'un que le serveur refusera.
+function badmCoachsDisponibles() { return _badmCoachs.filter((c) => c.peutSuivre); }
+
+function badmOptionsCoachs(selection) {
+  const dispo = badmCoachsDisponibles();
+  if (!dispo.length) return '';
+  return dispo.map((c) => '<option value="' + escapeHtml(c.email) + '"' + (c.email === selection ? ' selected' : '') + '>' +
+    badmNom(c.prenom, c.email) + ' — ' + escapeHtml(c.email) + '</option>').join('');
+}
+
+const BADM_AUCUN_COACH = '<p class="badm-warn">Aucun Coach Nutrition actif et certifié pour l\'instant. ' +
+  'Va dans l\'onglet « Coachs Nutrition » pour en déclarer un et renseigner sa certification.</p>';
+
+// Rendu isolé de la liste de clients : la recherche la rafraîchit SEULE, sans
+// re-rendre le formulaire. Re-rendre tout à chaque frappe recréait le champ de
+// recherche et faisait perdre le focus au bout d'une lettre.
+function badmPicksHtml() {
+  const choisi = (_badmForm && _badmForm.clientEmail) || '';
+  if (_badmClients === null) return '<p class="badm-hint" style="padding:10px 12px">Chargement…</p>';
+  if (!_badmClients.length) return '<p class="badm-hint" style="padding:10px 12px">Aucun client trouvé.</p>';
+  return _badmClients.map((c) => {
+    // Un client qui a déjà un Boost actif est montré mais NON cliquable : le
+    // masquer laisserait croire que le compte n'existe pas.
+    const pris = !!c.boostActif;
+    return '<button type="button" class="badm-pick' + (c.email === choisi ? ' on' : '') + '"' +
+      (pris ? ' disabled' : '') + ' data-client="' + escapeHtml(c.email) + '">' +
+      '<span><b>' + badmNom(c.prenom, c.email) + '</b><br><small>' + escapeHtml(c.email) + '</small></span>' +
+      (pris ? '<small>Boost ' + (BADM_STATUTS[c.boostActif.statut] || '') + '</small>' : '') + '</button>';
+  }).join('');
+}
+
+function badmFormCreer() {
+  const dispo = badmCoachsDisponibles();
+  const picks = badmPicksHtml();
+
+  return '<div class="badm-form">' +
+    '<label class="qopt-field"><span>Client</span>' +
+      '<input id="badmCliQ" type="search" placeholder="Rechercher par prénom ou email…" autocomplete="off"></label>' +
+    '<div class="badm-picks" id="badmCliList">' + picks + '</div>' +
+    '<div class="badm-grid2">' +
+      '<label class="qopt-field"><span>Coach Nutrition (facultatif)</span><select id="badmCreerCoach">' +
+        '<option value="">— attribuer plus tard —</option>' + badmOptionsCoachs('') + '</select></label>' +
+      '<label class="qopt-field"><span>Référence externe (facultatif)</span>' +
+        '<input id="badmCreerRef" type="text" maxlength="200" placeholder="N° de facture, commande…"></label>' +
+    '</div>' +
+    (dispo.length ? '' : '<p class="badm-hint">Aucun coach certifié disponible : le Boost sera créé sans coach, à attribuer plus tard.</p>') +
+    '<p class="badm-hint">Le Boost est créé au statut « À démarrer ». Les 16 semaines ne commenceront qu\'à la validation de l\'Étape 1 par le coach.</p>' +
+    '<div class="badm-form-btns">' +
+      '<button type="button" class="pc-btn primary" id="badmCreerOk">Créer le Boost</button>' +
+      '<button type="button" class="pc-btn" data-annuler="1">Annuler</button>' +
+    '</div></div>';
+}
+
+function badmFormCoach(b) {
+  const dispo = badmCoachsDisponibles();
+  if (!dispo.length) {
+    return '<div class="badm-form">' + BADM_AUCUN_COACH +
+      '<div class="badm-form-btns"><button type="button" class="pc-btn" data-annuler="1">Fermer</button></div></div>';
+  }
+  return '<div class="badm-form">' +
+    '<label class="qopt-field"><span>Coach Nutrition</span><select id="badmCoachSel">' +
+      badmOptionsCoachs(b.coachEmail || '') + '</select></label>' +
+    (b.coachEmail ? '<p class="badm-hint">La réattribution est enregistrée dans l\'historique du dossier (ancien coach, nouveau coach, auteur, date).</p>' : '') +
+    '<div class="badm-form-btns">' +
+      '<button type="button" class="pc-btn primary" id="badmCoachOk">' + (b.coachEmail ? 'Réattribuer' : 'Attribuer') + '</button>' +
+      '<button type="button" class="pc-btn" data-annuler="1">Annuler</button>' +
+    '</div></div>';
+}
+
+function badmFormProlonger(b) {
+  // Par défaut : 4 semaines après l'échéance actuelle. Le minimum est le
+  // lendemain de l'échéance — une « prolongation » qui raccourcit n'en est pas une.
+  const min = badmPlusJours(b.echeanceLe, 1);
+  const defaut = badmPlusJours(b.echeanceLe, 28);
+  return '<div class="badm-form">' +
+    '<p class="badm-hint">Date limite actuelle : <b>' + badmDate(b.echeanceLe) + '</b>' +
+      (b.statut === 'expire' ? ' — ce Boost est expiré, choisis une date à venir pour le rouvrir.' : '') + '</p>' +
+    '<label class="qopt-field"><span>Nouvelle date limite</span>' +
+      '<input id="badmProlDate" type="date" min="' + min + '" value="' + defaut + '"></label>' +
+    '<label class="qopt-field"><span>Motif (obligatoire)</span>' +
+      '<textarea id="badmProlMotif" maxlength="1000" placeholder="Pourquoi ce Boost est-il prolongé ? (10 caractères minimum)"></textarea></label>' +
+    '<p class="badm-hint">Ton nom et la date sont enregistrés automatiquement. La prolongation doit rester exceptionnelle.</p>' +
+    '<div class="badm-form-btns">' +
+      '<button type="button" class="pc-btn primary" id="badmProlOk">Prolonger</button>' +
+      '<button type="button" class="pc-btn" data-annuler="1">Annuler</button>' +
+    '</div></div>';
+}
+
+function badmFormInterrompre(b) {
+  return '<div class="badm-form">' +
+    '<p class="badm-hint">L\'accompagnement de <b>' + badmNom(b.clientPrenom, b.clientEmail) + '</b> sera clos. ' +
+      'Un nouveau Boost pourra lui être ouvert ensuite.</p>' +
+    '<label class="qopt-field"><span>Motif (obligatoire)</span>' +
+      '<textarea id="badmIntMotif" maxlength="1000" placeholder="Pourquoi cet accompagnement s\'arrête-t-il ?"></textarea></label>' +
+    '<div class="badm-form-btns">' +
+      '<button type="button" class="pc-btn primary" id="badmIntOk">Interrompre le Boost</button>' +
+      '<button type="button" class="pc-btn" data-annuler="1">Annuler</button>' +
+    '</div></div>';
+}
+
+// --- Vue « Coachs Nutrition » ---------------------------------------------
+
+function badmVueCoachs() {
+  const dispo = badmCoachsDisponibles().length;
+  const lignes = _badmCoachs.length ? _badmCoachs.map(badmLigneCoach).join('')
+    : '<p class="help-empty">Aucun collaborateur déclaré. Ajoute un compte existant pour commencer.</p>';
+  return '<div class="badm-bar">' +
+      '<button type="button" class="pc-btn primary badm-neo" id="badmAjoutCollab">' + icSvg('plus') + 'Ajouter un collaborateur</button>' +
+      '<span class="badm-count">' + dispo + ' coach' + (dispo > 1 ? 's' : '') + ' pouvant suivre des clients</span>' +
+    '</div>' +
+    (_badmForm && _badmForm.type === 'collab' ? badmFormCollab() : '') +
+    '<div class="badm-list">' + lignes + '</div>';
+}
+
+function badmFormCollab() {
+  return '<div class="badm-form">' +
+    '<label class="qopt-field"><span>Email du collaborateur</span>' +
+      '<input id="badmCollabMail" type="email" autocomplete="off" placeholder="prenom@exemple.fr"></label>' +
+    '<p class="badm-hint">Le compte doit déjà exister : le collaborateur s\'inscrit lui-même dans l\'app (email + code PIN), ' +
+      'comme n\'importe quel utilisateur. On ne crée pas de compte depuis ici.</p>' +
+    '<div class="badm-form-btns">' +
+      '<button type="button" class="pc-btn primary" id="badmCollabOk">Ajouter</button>' +
+      '<button type="button" class="pc-btn" data-annuler="1">Annuler</button>' +
+    '</div></div>';
+}
+
+function badmLigneCoach(c) {
+  const cert = c.certification || {};
+  const badge = c.peutSuivre ? '<span class="badm-badge badm-b-oui">Certifié</span>'
+    : '<span class="badm-badge badm-b-non">' + (BADM_CERT[cert.statut] || 'Non certifié') + '</span>';
+  const off = c.actif ? '' : '<span class="badm-badge badm-b-off">Désactivé</span>';
+  const formulaire = (_badmForm && _badmForm.type === 'cert' && _badmForm.id === c.email) ? badmFormCert(c) : '';
+  return '<div class="badm-row">' +
+    '<div class="badm-row-head">' +
+      '<div class="badm-cli"><b>' + badmNom(c.prenom, c.email) + '</b><small>' + escapeHtml(c.email) + '</small></div>' +
+      '<span style="display:flex;gap:6px;flex-wrap:wrap">' + badge + off + '</span>' +
+    '</div>' +
+    '<div class="badm-cells">' +
+      '<span><i>Certifié le</i>' + badmDate(cert.dateCertification) + '</span>' +
+      '<span><i>Évaluateur</i>' + (cert.evaluateur ? escapeHtml(cert.evaluateur) : '—') + '</span>' +
+      '<span><i>Score QCM</i>' + (cert.scoreQcm === null || cert.scoreQcm === undefined ? '—' : cert.scoreQcm + '/100') + '</span>' +
+      '<span><i>Pratique</i>' + (BADM_PRATIQUE[cert.resultatPratique] || '—') + '</span>' +
+      '<span><i>Clients suivis</i>' + (c.nbClients || 0) + '</span>' +
+    '</div>' +
+    '<div class="badm-acts">' +
+      '<button type="button" class="badm-act' + (formulaire ? ' on' : '') + '" data-cert="' + escapeHtml(c.email) + '">Certification</button>' +
+      '<button type="button" class="badm-act' + (c.actif ? ' danger' : '') + '" data-actif="' + escapeHtml(c.email) + '" data-val="' + (c.actif ? '0' : '1') + '">' +
+        (c.actif ? 'Désactiver' : 'Réactiver') + '</button>' +
+    '</div>' + formulaire +
+  '</div>';
+}
+
+function badmFormCert(c) {
+  const cert = c.certification || {};
+  const opt = (obj, sel) => Object.keys(obj).map((k) => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + obj[k] + '</option>').join('');
+  return '<div class="badm-form">' +
+    '<div class="badm-grid2">' +
+      '<label class="qopt-field"><span>Statut de certification</span><select id="badmCertStatut">' +
+        opt(BADM_CERT, cert.statut || 'non_certifie') + '</select></label>' +
+      '<label class="qopt-field"><span>Date de certification</span>' +
+        '<input id="badmCertDate" type="date" value="' + escapeHtml(cert.dateCertification || '') + '"></label>' +
+      '<label class="qopt-field"><span>Évaluateur</span>' +
+        '<input id="badmCertEval" type="text" maxlength="120" value="' + escapeHtml(cert.evaluateur || '') + '" placeholder="Qui a prononcé la certification"></label>' +
+      '<label class="qopt-field"><span>Score QCM final (0 à 100)</span>' +
+        '<input id="badmCertScore" type="number" min="0" max="100" value="' + (cert.scoreQcm === null || cert.scoreQcm === undefined ? '' : cert.scoreQcm) + '"></label>' +
+      '<label class="qopt-field"><span>Résultat de l\'évaluation pratique</span><select id="badmCertPratique">' +
+        '<option value="">— non renseigné —</option>' + opt(BADM_PRATIQUE, cert.resultatPratique || '') + '</select></label>' +
+    '</div>' +
+    '<p class="badm-hint">Les 35 vidéos, le QCM et l\'évaluation pratique sont gérés en amont. On ne conserve ici que le verdict. ' +
+      'Pour certifier, l\'évaluateur est obligatoire.</p>' +
+    '<div class="badm-form-btns">' +
+      '<button type="button" class="pc-btn primary" id="badmCertOk">Enregistrer</button>' +
+      '<button type="button" class="pc-btn" data-annuler="1">Annuler</button>' +
+    '</div></div>';
+}
+
+// --- Câblage et actions ----------------------------------------------------
+
+function badmWire() {
+  const body = $('#boostAdminBody'); if (!body) return;
+
+  body.querySelectorAll('[data-annuler]').forEach((b) => b.addEventListener('click', () => { _badmForm = null; _badmMsg = ''; badmRender(); }));
+  body.querySelectorAll('[data-form]').forEach((b) => b.addEventListener('click', () => {
+    const id = Number(b.dataset.id), type = b.dataset.form;
+    _badmForm = (_badmForm && _badmForm.id === id && _badmForm.type === type) ? null : { type, id };
+    _badmMsg = ''; badmRender();
+  }));
+  body.querySelectorAll('[data-journal]').forEach((b) => b.addEventListener('click', () => {
+    const id = Number(b.dataset.journal);
+    _badmJournalId = _badmJournalId === id ? null : id;
+    badmRender();
+    if (_badmJournalId === id) badmChargerJournal(id);
+  }));
+
+  const nouveau = $('#badmNouveau');
+  if (nouveau) nouveau.addEventListener('click', () => {
+    if (_badmForm && _badmForm.type === 'creer') { _badmForm = null; badmRender(); return; }
+    _badmForm = { type: 'creer', id: null, clientEmail: '' };
+    _badmClients = null; _badmMsg = ''; badmRender(); badmChercherClients('');
+  });
+
+  const q = $('#badmCliQ');
+  if (q) q.addEventListener('input', () => {
+    clearTimeout(badmWire._t);
+    badmWire._t = setTimeout(() => badmChercherClients(q.value), 220);
+  });
+  badmWirePicks();
+
+  const creerOk = $('#badmCreerOk'); if (creerOk) creerOk.addEventListener('click', badmCreerBoost);
+  const coachOk = $('#badmCoachOk'); if (coachOk) coachOk.addEventListener('click', badmAttribuer);
+  const prolOk = $('#badmProlOk'); if (prolOk) prolOk.addEventListener('click', badmProlonger);
+  const intOk = $('#badmIntOk'); if (intOk) intOk.addEventListener('click', badmInterrompre);
+
+  const ajout = $('#badmAjoutCollab');
+  if (ajout) ajout.addEventListener('click', () => {
+    _badmForm = (_badmForm && _badmForm.type === 'collab') ? null : { type: 'collab', id: null };
+    _badmMsg = ''; badmRender();
+  });
+  const collabOk = $('#badmCollabOk'); if (collabOk) collabOk.addEventListener('click', badmAjouterCollaborateur);
+  body.querySelectorAll('[data-cert]').forEach((b) => b.addEventListener('click', () => {
+    const email = b.dataset.cert;
+    _badmForm = (_badmForm && _badmForm.type === 'cert' && _badmForm.id === email) ? null : { type: 'cert', id: email };
+    _badmMsg = ''; badmRender();
+  }));
+  const certOk = $('#badmCertOk'); if (certOk) certOk.addEventListener('click', badmEnregistrerCert);
+  body.querySelectorAll('[data-actif]').forEach((b) => b.addEventListener('click', () => badmBasculerActif(b.dataset.actif, b.dataset.val === '1')));
+}
+
+// Toute action passe par ici : on affiche le message du SERVEUR tel quel. Les
+// refus métier (coach non certifié, Boost déjà actif, motif trop court) sont
+// des informations utiles, pas des erreurs à masquer derrière un « Oups ».
+async function badmAgir(methode, route, corps, succes) {
+  _badmMsg = '';
+  const r = await badmApi(methode, route, corps);
+  if (r.data && r.data.ok) {
+    _badmForm = null;
+    showToast(succes, { icon: 'check' });
+    await badmRecharger();
+    return true;
+  }
+  _badmMsg = (r.data && r.data.error) || 'Action impossible.';
+  badmRender();
+  return false;
+}
+
+async function badmChercherClients(q) {
+  const r = await badmApi('GET', '/api/boost/admin/clients?q=' + encodeURIComponent(q || ''));
+  _badmClients = (r.data && r.data.clients) || [];
+  if (!_badmForm || _badmForm.type !== 'creer') return;
+  const liste = $('#badmCliList');
+  // Si le formulaire n'est pas encore à l'écran (première ouverture), on rend
+  // tout ; sinon on remplace la seule liste, pour ne pas voler le focus.
+  if (!liste) { badmRender(); return; }
+  liste.innerHTML = badmPicksHtml();
+  badmWirePicks();
+}
+
+// Sélection d'un client : on marque le choix à la main plutôt que de re-rendre,
+// pour la même raison que ci-dessus.
+function badmWirePicks() {
+  const liste = $('#badmCliList'); if (!liste) return;
+  liste.querySelectorAll('[data-client]').forEach((b) => b.addEventListener('click', () => {
+    _badmForm.clientEmail = b.dataset.client;
+    liste.querySelectorAll('[data-client]').forEach((x) => x.classList.toggle('on', x === b));
+  }));
+}
+
+async function badmCreerBoost() {
+  const client = (_badmForm && _badmForm.clientEmail) || '';
+  if (!client) { _badmMsg = 'Choisis d\'abord un client dans la liste.'; badmRender(); return; }
+  await badmAgir('POST', '/api/boost/admin/dossiers', {
+    clientEmail: client,
+    coachEmail: (($('#badmCreerCoach') || {}).value) || undefined,
+    referenceExterne: (($('#badmCreerRef') || {}).value || '').trim() || undefined,
+  }, 'Boost créé ✓');
+}
+
+async function badmAttribuer() {
+  const id = _badmForm.id;
+  const coach = ($('#badmCoachSel') || {}).value || '';
+  if (!coach) { _badmMsg = 'Choisis un Coach Nutrition.'; badmRender(); return; }
+  await badmAgir('POST', '/api/boost/admin/dossiers/' + id + '/coach', { coachEmail: coach }, 'Client attribué ✓');
+}
+
+async function badmProlonger() {
+  const id = _badmForm.id;
+  const date = ($('#badmProlDate') || {}).value || '';
+  const motif = (($('#badmProlMotif') || {}).value || '').trim();
+  if (!date) { _badmMsg = 'Choisis une nouvelle date limite.'; badmRender(); return; }
+  if (motif.length < 10) { _badmMsg = 'Le motif est obligatoire (10 caractères minimum).'; badmRender(); return; }
+  if (await badmAgir('POST', '/api/boost/admin/dossiers/' + id + '/prolongation', { nouvelleEcheance: date, motif }, 'Boost prolongé ✓')) {
+    // Le serveur accepte une date déjà passée (la trace vaut d'être gardée),
+    // mais le Boost retombe expiré : on le dit franchement plutôt que de
+    // laisser un « ✓ » faire croire que l'accompagnement a repris.
+    const apres = _badmDossiers.find((b) => b.id === id);
+    if (apres && apres.statut === 'expire') {
+      _badmMsg = 'Prolongation enregistrée, mais la nouvelle date limite est déjà passée : le Boost reste expiré.';
+      badmRender();
+    }
+  }
+}
+
+async function badmInterrompre() {
+  const id = _badmForm.id;
+  const motif = (($('#badmIntMotif') || {}).value || '').trim();
+  if (!motif) { _badmMsg = 'Le motif est obligatoire pour interrompre un Boost.'; badmRender(); return; }
+  await badmAgir('POST', '/api/boost/admin/dossiers/' + id + '/interruption', { motif }, 'Boost interrompu');
+}
+
+async function badmAjouterCollaborateur() {
+  const email = (($('#badmCollabMail') || {}).value || '').trim().toLowerCase();
+  if (!email) { _badmMsg = 'Saisis l\'email du collaborateur.'; badmRender(); return; }
+  if (await badmAgir('POST', '/api/boost/admin/collaborateurs', { email, role: 'collaborateur' }, 'Collaborateur ajouté ✓')) {
+    _badmVue = 'coachs'; _badmForm = { type: 'cert', id: email }; badmRender();
+  }
+}
+
+async function badmEnregistrerCert() {
+  const email = _badmForm.id;
+  const score = ($('#badmCertScore') || {}).value;
+  await badmAgir('PUT', '/api/boost/admin/certification/' + encodeURIComponent(email), {
+    statut: ($('#badmCertStatut') || {}).value || 'non_certifie',
+    dateCertification: ($('#badmCertDate') || {}).value || null,
+    evaluateur: ($('#badmCertEval') || {}).value || '',
+    scoreQcm: score === '' || score === undefined ? null : Number(score),
+    resultatPratique: ($('#badmCertPratique') || {}).value || null,
+  }, 'Certification enregistrée ✓');
+}
+
+async function badmBasculerActif(email, activer) {
+  await badmAgir('POST', '/api/boost/admin/collaborateurs',
+    { email, role: activer ? 'collaborateur' : 'client' },
+    activer ? 'Collaborateur réactivé ✓' : 'Collaborateur désactivé');
+}
+
+async function badmChargerJournal(id) {
+  const box = $('#badmJournalBox'); if (!box) return;
+  const r = await badmApi('GET', '/api/boost/admin/dossiers/' + id + '/journal');
+  const lignes = (r.data && r.data.journal) || [];
+  if (!lignes.length) { box.innerHTML = '<p class="badm-hint">Aucun événement.</p>'; return; }
+  box.innerHTML = '<ol>' + lignes.map((l) => {
+    const d = l.detail || {};
+    let quoi = BADM_JOURNAL[l.action] || l.action;
+    if (l.action === 'etape_validee' && d.numero) quoi = 'Étape ' + d.numero + '/12 validée';
+    if (l.action === 'prolongation' && d.jours) quoi = 'Prolongé de ' + d.jours + ' jours (jusqu\'au ' + badmDate(d.echeanceApres) + ')';
+    if (l.action === 'attribution') quoi = d.avant ? 'Réattribué : ' + escapeHtml(d.avant) + ' → ' + escapeHtml(d.apres || '') : 'Coach attribué';
+    const par = l.auteur ? ' par ' + escapeHtml(l.auteur) : ' (constaté par le système)';
+    const motif = d.motif ? '<br><small>« ' + escapeHtml(d.motif) + ' »</small>' : '';
+    return '<li>' + quoi + '<br><small>' + badmDateHeure(l.creeLe) + par + '</small>' + motif + '</li>';
+  }).join('') + '</ol>';
+}
