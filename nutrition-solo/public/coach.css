@@ -192,3 +192,84 @@ body {
   .ec-fiche-nom { font-size: 1.25rem; }
   .ec-card { padding: 20px; }
 }
+
+/* ==========================================================================
+   S1 — PREMIER RENDEZ-VOUS
+   Hiérarchie forte et une seule zone mise en avant : l'action de la semaine.
+   Tout le reste est du gris de travail — le coach parle avec son client, il ne
+   remplit pas un dossier.
+   ========================================================================== */
+.ec-s1 { margin: 20px 0 40px; }
+.ec-s1-t { font-size: 1.15rem; font-weight: 800; color: var(--marine); margin: 0 0 16px; }
+.ec-s1-t span { font-weight: 500; font-size: .82rem; color: var(--text-soft); margin-left: 8px; }
+
+.ec-s1-bloc {
+  background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius);
+  padding: 18px 20px; margin-bottom: 12px;
+}
+.ec-s1-h { font-size: 1rem; font-weight: 700; color: var(--marine); margin: 0 0 4px; }
+.ec-s1-aide { font-size: .85rem; color: var(--text-muted); margin: 0 0 14px; }
+.ec-s1-péda { font-size: .9rem; color: var(--text-c); margin: 0 0 14px; line-height: 1.55; }
+
+.ec-s1 textarea, .ec-s1 input[type="text"] {
+  width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-strong);
+  background: var(--surface); color: var(--text-c); font: inherit; font-size: .92rem; resize: vertical;
+}
+.ec-s1 textarea:focus, .ec-s1 input[type="text"]:focus { outline: 2px solid var(--saphir); outline-offset: 1px; border-color: var(--saphir); }
+
+/* Choix rapides : des pastilles, pas des listes déroulantes — en rendez-vous on
+   veut voir toutes les options d'un coup et cliquer une fois. */
+.ec-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.ec-chip { position: relative; }
+.ec-chip input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ec-chip span {
+  display: inline-block; padding: 8px 13px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--surface-soft);
+  font-size: .87rem; color: var(--text-c); transition: all .12s ease;
+}
+.ec-chip span:hover { border-color: var(--saphir); color: var(--saphir); }
+.ec-chip input:checked + span { background: var(--saphir); border-color: var(--saphir); color: #fff; font-weight: 600; }
+.ec-chip input:focus-visible + span { outline: 2px solid var(--saphir); outline-offset: 2px; }
+
+.ec-hab { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ec-hab-l { display: block; }
+.ec-hab-l span { display: block; font-size: .78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
+
+.ec-check { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: .93rem; font-weight: 600; }
+.ec-check input { width: 20px; height: 20px; accent-color: var(--saphir); cursor: pointer; flex: 0 0 auto; }
+
+/* L'ACTION : la seule zone qui sort du lot. Fond bleu pâle, liseré saphir,
+   champ plus grand. Le coach doit la voir avant tout le reste. */
+.ec-s1-action {
+  background: var(--saphir-soft); border-color: var(--saphir); border-left-width: 4px;
+  border-left-style: solid; border-left-color: var(--saphir);
+}
+.ec-s1-action .ec-s1-h { font-size: 1.12rem; }
+.ec-s1-action .ec-s1-aide { color: var(--saphir-on-soft); }
+.ec-s1-gros { font-size: 1.02rem !important; font-weight: 600; padding: 13px 15px !important; }
+.ec-s1-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+.ec-s1-fin { margin-top: 20px; }
+.ec-s1-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.ec-s1-btns .ec-btn { flex: 1 1 auto; }
+.ec-s1-valider { flex: 2 1 240px !important; padding: 13px 16px; font-size: 1rem; }
+.ec-s1-note { font-size: .82rem; color: var(--text-muted); margin: 12px 0 0; text-align: center; }
+.ec-s1-msg { font-size: .9rem; color: var(--sage-on-soft); background: var(--sage-soft); padding: 10px 13px; border-radius: 10px; margin: 0 0 12px; }
+.ec-s1-manque {
+  background: var(--rouge-soft); color: var(--rouge-on-soft); border-radius: 10px;
+  padding: 12px 15px; margin-bottom: 12px; font-size: .9rem;
+}
+.ec-s1-manque ul { margin: 6px 0 0; padding-left: 20px; }
+
+/* Rendez-vous validé : relu, jamais réécrit. */
+.ec-s1-lu { background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 40px; }
+.ec-s1-lu-t { font-size: 1rem; font-weight: 700; color: var(--marine); margin: 0 0 14px; }
+.ec-s1-lu-l { margin-bottom: 12px; }
+.ec-s1-lu-l i { display: block; font-style: normal; font-size: .7rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 2px; }
+.ec-s1-lu-l p { margin: 0; font-size: .92rem; white-space: pre-wrap; }
+
+@media (max-width: 620px) {
+  .ec-hab, .ec-s1-duo { grid-template-columns: 1fr; }
+  .ec-s1-bloc { padding: 15px 16px; }
+  .ec-s1-btns .ec-btn { flex: 1 1 100%; }
+}

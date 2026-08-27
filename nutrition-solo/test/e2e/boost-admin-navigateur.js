@@ -258,9 +258,14 @@ async function planReel() {
     await page.waitForTimeout(800);
     const t = await corps();
     if (!/Interrompu/.test(t)) throw new Error('le statut n\'est pas passé à Interrompu');
-    // Un dossier clos ne propose plus d'action, sauf l'historique.
-    if (await page.locator('[data-form="interrompre"]').count() !== 0) throw new Error('actions encore offertes sur un dossier clos');
-    if (await page.locator('[data-journal]').count() !== 1) throw new Error('l\'historique doit rester consultable');
+    // ⚠️ On juge SA ligne, pas toute la liste : d'autres dossiers actifs peuvent
+    // exister en base (une autre suite e2e a pu en créer sur le même serveur), et
+    // compter globalement ferait échouer ce test pour une raison étrangère à ce
+    // qu'il vérifie.
+    const ligne = page.locator('.badm-row', { hasText: CLIENT });
+    if (await ligne.locator('[data-form="interrompre"]').count() !== 0) throw new Error('actions encore offertes sur un dossier clos');
+    if (await ligne.locator('[data-form="coach"]').count() !== 0) throw new Error('attribution encore offerte sur un dossier clos');
+    if (await ligne.locator('[data-journal]').count() !== 1) throw new Error('l\'historique doit rester consultable');
   });
 
   await etape('affichage mobile : la ligne reste lisible en 390 px', async () => {

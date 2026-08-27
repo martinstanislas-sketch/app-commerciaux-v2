@@ -187,7 +187,9 @@ async function semer() {
     for (const attendu of ['Marc', 'Étape', 'Statut', 'Début', 'Date limite']) {
       if (!t.includes(attendu)) throw new Error('bloc absent de la fiche : ' + attendu);
     }
-    if (!/Le contenu de l'Étape 2 sera disponible dans la prochaine brique/.test(t)) {
+    // Depuis S1, un dossier déjà démarré annonce l'étape suivante (S2 n'est pas
+    // encore construite) au lieu de l'ancienne coquille générique.
+    if (!/Prochaine étape : S2/.test(t) || !/prochain lot/.test(t)) {
       throw new Error('la zone de rendez-vous ne dit pas ce qui vient');
     }
     if (/undefined|NaN/.test(t)) throw new Error('trou dans la fiche');

@@ -123,6 +123,47 @@ function creerRoutesBoost({ boost, exigeCompte, exigeAdmin }) {
     res.json({ ok: true, journal: boost.lireJournal(req.params.id) });
   });
 
+  // ---- Rendez-vous (séances) -------------------------------------------
+  //
+  //  Portée identique au dossier : hors de son portefeuille, c'est 404. Ces
+  //  trois routes sont les SEULES à renvoyer les notes internes du coach — ni
+  //  la vue client, ni la vue admin ne les servent (arbitrage n°2).
+  //
+  //  Le facteur commun est isolé dans `monDossier` : un oubli de contrôle sur
+  //  l'une des trois ouvrirait le contenu d'un rendez-vous à un confrère, et ça
+  //  ne se verrait pas à l'usage.
+  function monDossier(req, res) {
+    const b = boost.lireBoost(req.params.id);
+    if (!b || b.coachEmail !== moi(req)) {
+      res.status(404).json({ ok: false, error: 'Dossier introuvable.' });
+      return null;
+    }
+    return b;
+  }
+
+  r.get('/api/boost/coach/dossiers/:id/seances/:numero', exigeCompte, exigeCoachCertifie, (req, res) => {
+    const b = monDossier(req, res); if (!b) return;
+    const n = Number(req.params.numero);
+    if (!Number.isInteger(n) || n < 1 || n > ETAPES_TOTAL) {
+      return res.status(400).json({ ok: false, error: 'Numéro d\'étape invalide.' });
+    }
+    res.json({ ok: true, boost: b, seance: boost.seancePourCoach(b.id, n) });
+  });
+
+  // Brouillon : le coach quitte et revient sans rien perdre, et le Boost ne
+  // bouge pas tant que le rendez-vous n'est pas validé.
+  r.put('/api/boost/coach/dossiers/:id/seances/:numero', exigeCompte, exigeCoachCertifie, (req, res) => {
+    const b = monDossier(req, res); if (!b) return;
+    envoyer(res, boost.enregistrerSeance(b.id, req.params.numero, req.body || {}, moi(req)));
+  });
+
+  // Validation : tout ou rien (contenu + action + Étape dans une transaction).
+  // L'auteur vient du jeton, jamais du corps de la requête.
+  r.post('/api/boost/coach/dossiers/:id/seances/:numero/valider', exigeCompte, exigeCoachCertifie, (req, res) => {
+    const b = monDossier(req, res); if (!b) return;
+    envoyer(res, boost.validerSeance(b.id, req.params.numero, req.body || {}, moi(req)));
+  });
+
   // Validation d'une Étape : le Coach Nutrition attribué, et lui seul. Ni
   // l'admin, ni un autre coach certifié.
   r.post('/api/boost/coach/dossiers/:id/etapes/:numero/valider', exigeCompte, exigeCoachCertifie, (req, res) => {
