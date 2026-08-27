@@ -433,9 +433,19 @@ const SUIVI_MINIMAL = (n) => ({
   },
   action: { intitule: `Action décidée à l'Étape ${n}` },
 });
-// Fait avancer un Boost d'une Étape par le chemin réel, quel que soit son numéro.
+// Le bilan final : ni action de semaine, ni résultat à constater.
+const BILAN_MINIMAL = {
+  donnees: {
+    actionPrecedente: { resultat: 'realisee', commentaire: '' },
+    bilan: { progres: 'Plus stable au quotidien.', plusFacile: '', appris: '' },
+    regles: ['Une source de protéines à chaque repas'],
+    fragiles: '', confiance: 8,
+  },
+};
+// Fait avancer un Boost d'une Étape par le chemin réel, quel que soit son
+// numéro : depuis le lot S12, les douze Étapes portent toutes un rendez-vous.
 async function validerEtapeReelle(boostId, n, jeton) {
-  const corps = n === 1 ? S1_MINIMAL : SUIVI_MINIMAL(n);
+  const corps = n === 1 ? S1_MINIMAL : (n === 12 ? BILAN_MINIMAL : SUIVI_MINIMAL(n));
   return api('POST', `/api/boost/coach/dossiers/${boostId}/seances/${n}/valider`, corps, jeton);
 }
 
@@ -476,8 +486,8 @@ test('l\'Étape 12 termine le Boost et libère la place pour un nouveau', async 
     const r = await validerEtapeReelle(dossiers[LEA], n, jetons[COACH1]);
     assert.strictEqual(r.status, 200, `Étape ${n}/12`);
   }
-  // L'Étape 12 n'a pas encore de rendez-vous : elle passe par la route générique.
-  const douze = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/etapes/12/valider`, {}, jetons[COACH1]);
+  // L'Étape 12 porte le bilan final : elle se valide par lui, comme les autres.
+  const douze = await validerEtapeReelle(dossiers[LEA], 12, jetons[COACH1]);
   assert.strictEqual(douze.status, 200, 'Étape 12/12');
   const fin = await api('GET', `/api/boost/admin/dossiers/${dossiers[LEA]}`, null, jetons[ADMIN]);
   const b = fin.body.boost;
@@ -498,7 +508,7 @@ test('l\'Étape 12 termine le Boost et libère la place pour un nouveau', async 
 });
 
 test('un Boost terminé ne se rouvre pas par une Étape', async () => {
-  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/etapes/12/valider`, {}, jetons[COACH1]);
+  const r = await validerEtapeReelle(dossiers[LEA], 12, jetons[COACH1]);
   assert.strictEqual(r.status, 409);
 });
 

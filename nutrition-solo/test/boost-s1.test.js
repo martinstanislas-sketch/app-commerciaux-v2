@@ -336,12 +336,14 @@ test('si l\'Étape ne peut pas être validée, rien n\'est écrit', async () => 
     'aucune note écrite');
 });
 
-test('une Étape sans protocole ne se valide pas par la route des séances', async () => {
-  // S12 n'a pas encore de rendez-vous construit : mieux vaut refuser que de
-  // laisser valider un contenu qui n'existe pas.
-  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/seances/12/valider`, S1_COMPLET, jetons[COACH_A]);
-  assert.strictEqual(r.status, 409);
-  assert.ok(/n'est pas encore construit/.test(r.body.error));
+test('un numéro hors des 12 Étapes est refusé', async () => {
+  // Depuis le lot S12, les douze Étapes ont toutes un protocole. Le refus
+  // « contenu pas encore construit » n'est plus atteignable ; ce qui reste à
+  // garder, c'est qu'aucun numéro fantaisiste ne passe.
+  for (const n of [0, 13, 99, 'abc']) {
+    const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/seances/${n}/valider`, S1_COMPLET, jetons[COACH_A]);
+    assert.strictEqual(r.status, 400, 'Étape ' + n);
+  }
 });
 
 // ===========================================================================
@@ -503,21 +505,31 @@ test('une Étape à contenu ne se valide JAMAIS par la route générique', async
 });
 
 test('la fermeture vise « l\'Étape a-t-elle un contenu », pas « est-ce S1 »', async () => {
-  // Les Étapes 1 à 11 portent un rendez-vous : la route générique les refuse
-  // toutes, sans qu'aucune n'ait été citée en dur. S12 n'en a pas encore.
-  for (let n = 1; n <= 11; n++) assert.strictEqual(S.aUnContenu(n), true, 'Étape ' + n);
-  assert.strictEqual(S.aUnContenu(12), false, 'S12 reste à construire');
+  // Les douze Étapes portent désormais un rendez-vous : la route générique les
+  // refuse toutes, sans qu'aucune n'ait jamais été citée en dur. Le mécanisme
+  // s'est fermé de lui-même à mesure que les protocoles arrivaient.
+  for (let n = 1; n <= 12; n++) assert.strictEqual(S.aUnContenu(n), true, 'Étape ' + n);
+  assert.strictEqual(S.aUnContenu(13), false, 'et rien au-delà des 12 Étapes');
 });
 
-test('une Étape sans rendez-vous se valide toujours par la route générique', async () => {
-  // S12 n'a pas encore de contenu : elle doit rester validable, sinon un Boost
-  // arrivé au bout serait bloqué. On fait avancer le dossier jusqu'à elle.
+test('plus aucune Étape ne se valide par la route générique', async () => {
+  // Le parcours entier passe désormais par les rendez-vous. On le mène au bout
+  // pour vérifier qu'aucune Étape ne reste bloquée faute de protocole.
   for (let n = 2; n <= 11; n++) {
     const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/seances/${n}/valider`,
       SUIVI_MINIMAL(n), jetons[COACH_A]);
     assert.strictEqual(r.status, 200, `Étape ${n}`);
   }
-  const douze = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/etapes/12/valider`, {}, jetons[COACH_A]);
+  const generique = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/etapes/12/valider`, {}, jetons[COACH_A]);
+  assert.strictEqual(generique.status, 409, 'même la dernière Étape passe par son rendez-vous');
+  assert.strictEqual(generique.body.seanceRequise, true);
+
+  const douze = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/seances/12/valider`, {
+    donnees: {
+      actionPrecedente: { resultat: 'realisee', commentaire: '' },
+      bilan: { progres: 'Beaucoup plus régulière.' }, regles: ['Protéines à chaque repas'], confiance: 8,
+    },
+  }, jetons[COACH_A]);
   assert.strictEqual(douze.status, 200);
   assert.strictEqual(douze.body.boost.etapesValidees, 12);
 });

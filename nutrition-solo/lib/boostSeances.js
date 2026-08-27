@@ -42,9 +42,15 @@ const {
 // plutôt que de laisser valider un rendez-vous dont le contenu n'existe pas.
 const PROTOCOLE_DECOUVERTE = 'decouverte';   // S1
 const PROTOCOLE_SUIVI = 'suivi';             // S2 à S11
+const PROTOCOLE_BILAN = 'bilan';             // S12
 
-const REGLES_SEANCE = { 1: PROTOCOLE_DECOUVERTE };
+const REGLES_SEANCE = { 1: PROTOCOLE_DECOUVERTE, 12: PROTOCOLE_BILAN };
 for (let n = 2; n <= 11; n++) REGLES_SEANCE[n] = PROTOCOLE_SUIVI;
+
+// Nombre de règles personnelles qu'on emporte après le Boost. Le plafond n'est
+// pas décoratif : trois règles se retiennent, dix ne se retiennent pas — et un
+// plan qu'on ne retient pas n'est pas un plan.
+const REGLES_AUTONOMIE_MAX = 3;
 
 // Résultat de l'action de la période écoulée. Trois états, et AUCUN n'est une
 // note : on constate pour adapter la suite, on ne juge pas le client.
@@ -230,6 +236,47 @@ function createSeances({ getDb, nowIso, boost }) {
     return m;
   }
 
+  // --- Protocole de BILAN (S12) -------------------------------------------
+  // Le dernier rendez-vous ne crée AUCUNE action de semaine : il fait le bilan
+  // des 12 Étapes et transforme ce qui a marché en règles personnelles que le
+  // client emporte. C'est un protocole à part, pas un suivi de plus.
+  function nettoyerDonneesBilan(d) {
+    const src = d && typeof d === 'object' ? d : {};
+    const bil = src.bilan && typeof src.bilan === 'object' ? src.bilan : {};
+    const prec = src.actionPrecedente && typeof src.actionPrecedente === 'object' ? src.actionPrecedente : {};
+    const resultat = texteCourt(prec.resultat, 20);
+    const note = Number(src.confiance);
+    return {
+      // Le bilan constate LUI AUSSI l'action de la période écoulée — celle
+      // décidée à S11. Sans ce constat, la dernière action du Boost serait la
+      // seule à finir sans verdict, alors que c'est justement celle sur
+      // laquelle le client vient de travailler.
+      actionPrecedente: {
+        resultat: RESULTATS.includes(resultat) ? resultat : '',
+        commentaire: texteCourt(prec.commentaire, 2000),
+      },
+      bilan: ['progres', 'plusFacile', 'appris']
+        .reduce((acc, k) => { acc[k] = texteCourt(bil[k], 2000); return acc; }, {}),
+      // Les règles vides sont retirées ici : une case laissée blanche au milieu
+      // du formulaire ne doit pas devenir une règle vide dans le plan final.
+      regles: (Array.isArray(src.regles) ? src.regles : [])
+        .map((r) => texteCourt(r, 300)).filter(Boolean).slice(0, REGLES_AUTONOMIE_MAX),
+      fragiles: texteCourt(src.fragiles, 2000),
+      confiance: Number.isInteger(note) && note >= 1 && note <= 10 ? note : null,
+    };
+  }
+
+  function manquesBilan(donnees) {
+    const m = [];
+    const d = donnees || {};
+    const bil = d.bilan || {};
+    if (!(d.actionPrecedente && d.actionPrecedente.resultat)) m.push('le résultat de l\'action précédente');
+    if (!(bil.progres || bil.plusFacile || bil.appris)) m.push('le bilan de ce qui a changé');
+    if (!(d.regles || []).length) m.push('au moins une règle personnelle à conserver');
+    if (!d.confiance) m.push('la note de confiance pour continuer seul (1 à 10)');
+    return m;
+  }
+
   // Aiguillage par Étape. C'est LE point qui empêche les données d'un protocole
   // d'être silencieusement effacées par le nettoyage d'un autre : sans lui,
   // enregistrer un brouillon de S2 le ferait passer par le nettoyage de S1, qui
@@ -238,6 +285,7 @@ function createSeances({ getDb, nowIso, boost }) {
     const p = protocoleDe(numero);
     if (p === PROTOCOLE_DECOUVERTE) return nettoyerDonneesS1(d);
     if (p === PROTOCOLE_SUIVI) return nettoyerDonneesSuivi(d);
+    if (p === PROTOCOLE_BILAN) return nettoyerDonneesBilan(d);
     return {};
   }
 
@@ -245,6 +293,7 @@ function createSeances({ getDb, nowIso, boost }) {
     const p = protocoleDe(numero);
     if (p === PROTOCOLE_DECOUVERTE) return manquesS1(donnees, action);
     if (p === PROTOCOLE_SUIVI) return manquesSuivi(donnees, action);
+    if (p === PROTOCOLE_BILAN) return manquesBilan(donnees);
     return ['un protocole de rendez-vous pour cette Étape'];
   }
 
@@ -309,6 +358,10 @@ function createSeances({ getDb, nowIso, boost }) {
         // S1 n'a ni action suivie ni décision : son apport à l'historique, c'est
         // l'objectif du client. Sans lui, la première ligne serait presque vide.
         objectif: d.objectif && (d.objectif.texte || d.objectif.choix) ? d.objectif : null,
+        // Le bilan n'a pas décidé d'action mais des règles à emporter : sans
+        // elles, sa ligne d'historique serait vide.
+        regles: Array.isArray(d.regles) && d.regles.length ? d.regles : null,
+        confiance: d.confiance || null,
         actionSuivie: suivie ? suivie.intitule : null,
         resultat: suivie ? suivie.resultat : null,
         commentaireResultat: suivie ? suivie.commentaireResultat : null,
@@ -339,6 +392,39 @@ function createSeances({ getDb, nowIso, boost }) {
     };
   }
 
+  // Le point de départ, tel que S1 l'a enregistré. Le bilan s'ouvre avec, pour
+  // que le coach n'ait rien à ressaisir ni à retrouver ailleurs.
+  function departDe(boostId) {
+    const l = ligneSeance(boostId, 1);
+    if (!l || l.statut !== SEANCE_VALIDEE) return null;
+    const d = lireJson(l.donnees, {});
+    return {
+      valideeLe: l.validee_le,
+      objectif: d.objectif || null,
+      difficultes: d.difficultes || null,
+      habitudes: d.habitudes || null,
+    };
+  }
+
+  // Le chemin parcouru : une ligne par action travaillée. La décision prise sur
+  // une action n'est pas écrite sur elle — elle appartient au rendez-vous qui
+  // l'a prise, c'est-à-dire le suivant. On les rapproche ici plutôt que de
+  // dupliquer l'information en base.
+  function syntheseDe(boostId) {
+    const historique = historiqueDe(boostId);
+    const decisions = new Map(historique.map((h) => [h.numero, h.decision]));
+    return actionsDe(boostId).map((a) => ({
+      numero: a.numero,
+      intitule: a.intitule,
+      detail: a.detail,
+      frequence: a.frequence,
+      resultat: a.resultat,                       // null pour la dernière : jamais évaluée
+      commentaireResultat: a.commentaireResultat,
+      adhesion: a.adhesion,
+      decision: decisions.get(a.numero + 1) || null,
+    }));
+  }
+
   function seancePourCoach(boostId, numero) {
     const l = ligneSeance(boostId, numero);
     const note = noteCoach(boostId, numero);
@@ -357,6 +443,10 @@ function createSeances({ getDb, nowIso, boost }) {
       actions: actionsDe(boostId),
       precedent: contextePrecedent(boostId, n),
       historique: historiqueDe(boostId),
+      // Réservés au bilan : les calculer pour chaque rendez-vous coûterait deux
+      // requêtes de plus à chaque ouverture, sans servir à rien.
+      depart: protocoleDe(n) === PROTOCOLE_BILAN ? departDe(boostId) : null,
+      synthese: protocoleDe(n) === PROTOCOLE_BILAN ? syntheseDe(boostId) : null,
       noteCoach: note ? note.texte : '',
       noteCoachMajLe: note ? note.majLe : null,
     };
@@ -431,6 +521,7 @@ function createSeances({ getDb, nowIso, boost }) {
       return err(409, `L'Étape ${n}/${ETAPES_TOTAL} a déjà été validée.`, { statut: deja.statut });
     }
 
+    const protocole = protocoleDe(n);
     const donnees = nettoyerDonnees(n, (corps || {}).donnees);
     const action = nettoyerAction((corps || {}).action);
     const manque = manquesDe(n, donnees, action);
@@ -467,15 +558,23 @@ function createSeances({ getDb, nowIso, boost }) {
             .run(prec.resultat, prec.commentaire || null, quand, normalise(auteur), n, b.id, ACTION_ACTIVE);
         }
 
-        // Une seule action active à la fois : les précédentes sont remplacées.
-        // Même quand la décision est « continuer », une NOUVELLE ligne est
-        // créée : sans elle, l'historique ne dirait pas qu'une décision a été
-        // prise à cette Étape, et le fil de l'accompagnement aurait un trou.
+        // L'action en cours est close, quel que soit le protocole.
         d.prepare('UPDATE boost_actions SET statut = ? WHERE boost_id = ? AND statut = ?')
           .run(ACTION_REMPLACEE, b.id, ACTION_ACTIVE);
-        d.prepare('INSERT INTO boost_actions (boost_id, numero, intitule, detail, frequence, statut, adhesion, cree_le, cree_par) VALUES (?,?,?,?,?,?,?,?,?)')
-          .run(b.id, n, action.intitule, action.detail || null, action.frequence || null,
-            ACTION_ACTIVE, donnees.adhesion || null, maintenant, normalise(auteur));
+
+        // LE BILAN NE CRÉE AUCUNE ACTION. Le Boost se termine : laisser une
+        // action active voudrait dire qu'une consigne hebdomadaire court encore
+        // alors que l'accompagnement est fini. Ce que le client emporte, ce sont
+        // des règles personnelles — elles vivent dans le contenu de la séance,
+        // pas dans la table des actions de semaine.
+        if (protocole !== PROTOCOLE_BILAN) {
+          // Même quand la décision est « continuer », une NOUVELLE ligne est
+          // créée : sans elle, l'historique ne dirait pas qu'une décision a été
+          // prise à cette Étape, et le fil de l'accompagnement aurait un trou.
+          d.prepare('INSERT INTO boost_actions (boost_id, numero, intitule, detail, frequence, statut, adhesion, cree_le, cree_par) VALUES (?,?,?,?,?,?,?,?,?)')
+            .run(b.id, n, action.intitule, action.detail || null, action.frequence || null,
+              ACTION_ACTIVE, donnees.adhesion || null, maintenant, normalise(auteur));
+        }
 
         ecrireNote(d, b.id, n, note, auteur, maintenant);
 
@@ -489,7 +588,8 @@ function createSeances({ getDb, nowIso, boost }) {
     }
 
     journaliser(b.id, 'seance_validee', {
-      numero: n, action: action.intitule,
+      numero: n, action: protocole === PROTOCOLE_BILAN ? null : action.intitule,
+      regles: protocole === PROTOCOLE_BILAN ? donnees.regles : undefined,
       resultatPrecedent: (donnees.actionPrecedente && donnees.actionPrecedente.resultat) || null,
       decision: donnees.decision || null,
     }, auteur);
@@ -498,14 +598,15 @@ function createSeances({ getDb, nowIso, boost }) {
   return {
     assurerSchema, aUnContenu,
     seancePourCoach, enregistrerSeance, validerSeance,
-    actionActive, historiqueDe, contextePrecedent,
-    manquesS1, manquesSuivi, manquesDe, nettoyerDonneesS1, nettoyerDonneesSuivi, nettoyerDonnees,
+    actionActive, historiqueDe, contextePrecedent, departDe, syntheseDe,
+    manquesS1, manquesSuivi, manquesBilan, manquesDe,
+    nettoyerDonneesS1, nettoyerDonneesSuivi, nettoyerDonneesBilan, nettoyerDonnees,
   };
 }
 
 module.exports = {
   createSeances, aUnContenu, protocoleDe,
   SEANCE_BROUILLON, SEANCE_VALIDEE, ACTION_ACTIVE, ACTION_REMPLACEE, REGLES_SEANCE,
-  PROTOCOLE_DECOUVERTE, PROTOCOLE_SUIVI,
+  PROTOCOLE_DECOUVERTE, PROTOCOLE_SUIVI, PROTOCOLE_BILAN, REGLES_AUTONOMIE_MAX,
   RESULTAT_REALISEE, RESULTAT_PARTIELLE, RESULTAT_NON, RESULTATS, DECISIONS,
 };

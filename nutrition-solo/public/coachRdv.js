@@ -75,20 +75,38 @@ const libelle = (liste, cle) => { const t = liste.find((x) => x[0] === cle); ret
 function rendreRendezVous(b) {
   const zone = $('#ecRdv'); if (!zone) return;
   const etape = b.etapeCourante;
-
-  // Parcours terminé, ou Étape dont le rendez-vous n'est pas encore construit :
-  // on l'annonce, sans rien simuler.
-  if (!etape || etape > 11) {
-    zone.innerHTML = '<div class="ec-rdv">' +
-      (etape
-        ? '<p class="ec-rdv-t">Rendez-vous — Étape ' + etape + '/' + b.etapesTotal + '</p>' +
-          '<p class="ec-rdv-p">Prochaine étape : S' + etape + '. Son contenu sera construit dans le prochain lot.</p>'
-        : '<p class="ec-rdv-t">Les 12 Étapes du Boost sont terminées.</p>') +
-      '</div>';
-    if (b.etapesValidees >= 1) chargerHistorique(b);
-    return;
-  }
+  // Plus d'Étape à venir : le Boost est allé au bout, on montre la conclusion
+  // et le plan que le client emporte.
+  if (!etape) { chargerConclusion(b); return; }
   chargerRdv(b, etape);
+}
+
+// ---- Après le Boost : la conclusion et le plan d'autonomie ---------------
+
+async function chargerConclusion(b) {
+  const zone = $('#ecRdv');
+  zone.innerHTML = '<div class="ec-rdv"><p class="ec-rdv-p">Chargement…</p></div>';
+  const r = await apiCoach('/api/boost/coach/dossiers/' + b.id + '/seances/12');
+  const seance = (r.data && r.data.seance) || null;
+  const regles = (seance && seance.donnees && seance.donnees.regles) || [];
+
+  zone.innerHTML =
+    '<div class="ec-fin">' +
+      '<p class="ec-fin-t">Boost Nutrition terminé</p>' +
+      (seance && seance.valideeLe ? '<p class="ec-fin-d">Bilan du ' + echapper(dateFr(seance.valideeLe)) + '</p>' : '') +
+    '</div>' +
+    (regles.length ? '<section class="ec-rdv-bloc ec-plan">' +
+      '<h3 class="ec-rdv-h">Ton plan pour la suite</h3>' +
+      '<p class="ec-rdv-aide">Ce qui fonctionne pour toi, et que tu continues à appliquer.</p>' +
+      '<ol class="ec-plan-l">' + regles.map((x) => '<li>' + echapper(x) + '</li>').join('') + '</ol>' +
+      '</section>' : '') +
+    ((seance && seance.donnees && seance.donnees.fragiles)
+      ? '<section class="ec-rdv-bloc"><h3 class="ec-rdv-h">Points de vigilance</h3>' +
+        '<p class="ec-fin-p">' + echapper(seance.donnees.fragiles) + '</p></section>' : '') +
+    '<p class="ec-fin-suite">' + nomAffiche({ clientPrenom: b.clientPrenom, clientEmail: b.clientEmail }) +
+      ' repart dans son accompagnement nutrition standard My Coach.</p>' +
+    (seance ? vueHistorique(seance) : '');
+  cablerHistorique();
 }
 
 async function chargerRdv(b, numero) {
@@ -102,15 +120,10 @@ async function chargerRdv(b, numero) {
   rendreRdv();
 }
 
-// Après validation : l'historique des rendez-vous, en lecture seule.
-async function chargerHistorique(b) {
-  const dernier = Math.min(b.etapesValidees, 11);
-  if (dernier < 1) return;
-  const r = await apiCoach('/api/boost/coach/dossiers/' + b.id + '/seances/' + dernier);
-  if (!r.data.ok) return;
-  $('#ecRdv').insertAdjacentHTML('beforeend', vueHistorique(r.data.seance));
+function cablerHistorique() {
   const b2 = $('#ecHistoB');
-  if (b2) b2.addEventListener('click', () => {
+  if (!b2) return;
+  b2.addEventListener('click', () => {
     const box = $('#ecHisto');
     const ouvert = box.hidden;
     box.hidden = !ouvert;
@@ -139,6 +152,10 @@ function vueHistorique(seance) {
       faits.push(['Action décidée', h.actionDecidee +
         (h.adhesion ? ' — adhésion ' + h.adhesion + '/10' : '')]);
     }
+    // Le bilan n'a pas décidé d'action mais des règles : sans elles, sa ligne
+    // d'historique serait presque vide.
+    if (h.regles) faits.push(['Règles conservées', h.regles.join(' · ')]);
+    if (h.confiance) faits.push(['Confiance pour continuer seul', h.confiance + '/10']);
     return '<div class="ec-histo-l"><b>Étape ' + h.numero + '/12 <span>· ' + echapper(dateFr(h.valideeLe)) + '</span></b>' +
       faits.map(([t, v]) => '<p><i>' + echapper(t) + '</i>' + echapper(v) + '</p>').join('') + '</div>';
   }).join('');
@@ -151,7 +168,9 @@ function vueHistorique(seance) {
 function rendreRdv() {
   // Le protocole vient du SERVEUR, pas du numéro d'Étape recalculé ici : c'est
   // lui qui décide ce qu'un rendez-vous contient, l'écran ne fait que le suivre.
-  const form = rdv.seance.protocole === 'suivi' ? formSuivi() : formDecouverte();
+  const form = rdv.seance.protocole === 'suivi' ? formSuivi()
+    : rdv.seance.protocole === 'bilan' ? formBilan()
+      : formDecouverte();
   $('#ecRdv').innerHTML = form + vueHistorique(rdv.seance);
   cablerRdv();
 }
@@ -306,6 +325,99 @@ function formSuivi() {
     '</form>';
 }
 
+// ---- S12 : le bilan final -------------------------------------------------
+
+function formBilan() {
+  const d = rdv.seance.donnees || {};
+  const bil = d.bilan || {};
+  const regles = (d.regles || []).concat(['', '', '']).slice(0, 3);
+  const dep = rdv.seance.depart;
+  const synth = rdv.seance.synthese || [];
+  const prec = d.actionPrecedente || {};
+  const precedente = rdv.seance.action;   // l'action décidée à S11
+
+  // Le point de départ, tel que S1 l'a enregistré. Rien à ressaisir.
+  const rappelHab = dep && dep.habitudes
+    ? HABITUDES.map(([k, t]) => (dep.habitudes[k] ? '<p><i>' + echapper(t) + '</i>' + echapper(dep.habitudes[k]) + '</p>' : '')).join('')
+    : '';
+  const rappel = dep ? '<section class="ec-rdv-bloc ec-depart">' +
+    '<h3 class="ec-rdv-h">D\'où tu es parti</h3>' +
+    '<p class="ec-rdv-aide">Le point de départ, tel qu\'il a été noté le ' + echapper(dateFr(dep.valideeLe)) + '.</p>' +
+    (dep.objectif && (dep.objectif.choix || dep.objectif.texte)
+      ? '<p><i>Objectif initial</i>' + echapper([libelle(OBJECTIFS, dep.objectif.choix), dep.objectif.texte].filter(Boolean).join(' — ')) + '</p>' : '') +
+    (dep.difficultes && (dep.difficultes.choix || []).length
+      ? '<p><i>Difficultés annoncées</i>' + echapper(dep.difficultes.choix.map((c) => libelle(DIFFICULTES, c)).filter(Boolean).join(', ')) + '</p>' : '') +
+    (dep.difficultes && dep.difficultes.precision ? '<p><i>Précision</i>' + echapper(dep.difficultes.precision) + '</p>' : '') +
+    rappelHab + '</section>' : '';
+
+  // Le chemin parcouru. Une ligne par action : ni tableau, ni graphique — on
+  // regarde ça ensemble, à l'écran, pas dans un rapport.
+  const chemin = synth.length ? '<section class="ec-rdv-bloc">' +
+    '<h3 class="ec-rdv-h">Le chemin parcouru</h3>' +
+    '<p class="ec-rdv-aide">Les actions travaillées pendant le Boost.</p>' +
+    '<ol class="ec-chemin">' + synth.map((a) => '<li>' +
+      '<b>Étape ' + a.numero + '</b> ' + echapper(a.intitule) +
+      '<span>' +
+        (a.resultat ? libelle(RESULTATS, a.resultat) : 'pas encore constatée') +
+        (a.decision ? ' · ' + libelle(DECISIONS, a.decision) : '') +
+        (a.adhesion ? ' · adhésion ' + a.adhesion + '/10' : '') +
+      '</span></li>').join('') + '</ol></section>' : '';
+
+  return '<form id="ecBilan" class="ec-rdv-form" autocomplete="off">' +
+    '<h2 class="ec-rdv-t2">Étape 12/12 — Ton bilan <span>le dernier rendez-vous</span></h2>' +
+
+    // On commence par CLORE la dernière action, avant de regarder le chemin :
+    // c'est le geste habituel du rendez-vous, et sans lui l'action de S11 serait
+    // la seule du Boost à finir sans verdict.
+    '<section class="ec-rdv-bloc ec-rdv-prec">' +
+      '<h3 class="ec-rdv-h">Ton action depuis le dernier rendez-vous</h3>' +
+      (precedente
+        ? '<p class="ec-prec-txt">' + echapper(precedente.intitule) +
+          (precedente.frequence ? ' <span>(' + echapper(precedente.frequence) + ')</span>' : '') + '</p>' +
+          (precedente.detail ? '<p class="ec-prec-det">' + echapper(precedente.detail) + '</p>' : '') +
+          (precedente.adhesion ? '<p class="ec-prec-det">Adhésion annoncée : ' + precedente.adhesion + '/10</p>' : '')
+        : '<p class="ec-prec-txt ec-prec-vide">Aucune action active trouvée pour la période écoulée.</p>') +
+      '<p class="ec-rdv-aide">Un simple constat, pour clore proprement cette dernière action.</p>' +
+      '<div class="ec-chips">' + RESULTATS.map(([k, t, cls]) =>
+        '<label class="ec-chip ' + cls + '"><input type="radio" name="svRes" value="' + k + '"' +
+        (prec.resultat === k ? ' checked' : '') + '><span>' + echapper(t) + '</span></label>').join('') + '</div>' +
+      champTexte('svResCom', 'Ce qui s\'est passé, en une phrase (facultatif)', prec.commentaire, 2) +
+    '</section>' +
+
+    rappel + chemin +
+
+    bloc('Ce qui a changé', 'Avec les mots du client. Note ce qui est utile, laisse le reste vide.',
+      '<label class="ec-hab-l ec-bilan-l"><span>Les progrès dont il est le plus satisfait</span>' +
+      '<input type="text" data-bilan12="progres" value="' + echapper(bil.progres || '') + '" placeholder="Même une petite chose"></label>' +
+      '<label class="ec-hab-l ec-bilan-l"><span>Ce qui est devenu plus facile</span>' +
+      '<input type="text" data-bilan12="plusFacile" value="' + echapper(bil.plusFacile || '') + '" placeholder="Un geste qui ne demande plus d\'effort"></label>' +
+      '<label class="ec-hab-l ec-bilan-l"><span>Ce qu\'il a appris sur son alimentation</span>' +
+      '<input type="text" data-bilan12="appris" value="' + echapper(bil.appris || '') + '" placeholder="Ce qu\'il ne savait pas au départ"></label>') +
+
+    // LA zone mise en avant : ce que le client emporte.
+    '<section class="ec-rdv-bloc ec-rdv-action">' +
+      '<h3 class="ec-rdv-h">Ce que tu veux conserver</h3>' +
+      '<p class="ec-rdv-aide">Deux ou trois règles personnelles, pas plus : trois règles se retiennent, dix ne se retiennent pas. ' +
+        'Ce ne sont pas de nouvelles actions de semaine — c\'est ce que le client garde après le Boost.</p>' +
+      regles.map((r, i) => '<input type="text" data-regle="' + i + '" class="ec-regle" value="' + echapper(r) + '" ' +
+        'placeholder="Règle ' + (i + 1) + (i === 0 ? ' — ex. : préparer mes déjeuners la veille' : ' (facultative)') + '">').join('') +
+    '</section>' +
+
+    bloc('Ce qui reste difficile', 'Les situations où il devra rester vigilant : week-end, restaurant, déplacements…',
+      champTexte('bilFragiles', 'Ce sur quoi garder un œil', d.fragiles, 3)) +
+
+    bloc('À quel point tu te sens capable de continuer seul ?',
+      'La note du client, de 1 à 10. Informative : elle ne bloque pas la fin du Boost.',
+      '<div class="ec-notes">' + Array.from({ length: 10 }, (_, i) => i + 1).map((v) =>
+        '<label class="ec-note"><input type="radio" name="bilConf" value="' + v + '"' +
+        (Number(d.confiance) === v ? ' checked' : '') + '><span>' + v + '</span></label>').join('') + '</div>') +
+
+    blocNotes() +
+    piedRdv('Terminer mon Boost Nutrition',
+      'La validation clôt le Boost : l\'Étape 12 est validée, aucune nouvelle action de semaine n\'est créée, et le client repart avec son plan.') +
+    '</form>';
+}
+
 function bloc(titre, aide, contenu) {
   return '<section class="ec-rdv-bloc"><h3 class="ec-rdv-h">' + echapper(titre) + '</h3>' +
     (aide ? '<p class="ec-rdv-aide">' + echapper(aide) + '</p>' : '') + contenu + '</section>';
@@ -345,6 +457,25 @@ function lireRdv() {
   const coche = (nom) => { const e = document.querySelector('input[name="' + nom + '"]:checked'); return e ? e.value : ''; };
   const action = { intitule: val('actIntitule'), detail: val('actDetail'), frequence: val('actFreq') };
   const noteCoach = val('rdvNote');
+
+  if (rdv.seance.protocole === 'bilan') {
+    const bilan = {};
+    document.querySelectorAll('[data-bilan12]').forEach((i) => { bilan[i.dataset.bilan12] = i.value; });
+    const conf = coche('bilConf');
+    return {
+      donnees: {
+        actionPrecedente: { resultat: coche('svRes'), commentaire: val('svResCom') },
+        bilan,
+        // Les cases vides sont retirées côté serveur aussi : une règle blanche
+        // au milieu du formulaire ne doit pas entrer dans le plan final.
+        regles: [...document.querySelectorAll('[data-regle]')].map((i) => i.value).filter((v) => v.trim()),
+        fragiles: val('bilFragiles'),
+        confiance: conf ? Number(conf) : null,
+      },
+      // Aucune action de semaine à S12 : le champ n'existe pas dans l'écran.
+      action: {}, noteCoach,
+    };
+  }
 
   if (rdv.seance.protocole === 'suivi') {
     const bilan = {};
