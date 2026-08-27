@@ -135,6 +135,22 @@ function createAcademy({ getDb, nowIso, boost, formations }) {
   const basesMigrees = new WeakSet();
   function assurerSchema() {
     const d = db();
+    // LE BOOST D'ABORD, ET AVANT LE GARDE-FOU.
+    //
+    //  L'Academy lit boost_collaborateurs dès sa toute première route :
+    //  `peutSeFormer` demande au Boost si l'appelant est collaborateur, parce
+    //  qu'un collaborateur de l'Academy EST un collaborateur du Boost (lot 1).
+    //  Mais chaque module pose son schéma à la demande, sur SON préfixe : sur
+    //  une base vierge dont la première page ouverte est /academy, aucune route
+    //  /api/boost n'a encore été traversée. La table n'existait donc pas, et
+    //  GET /api/academy/moi répondait 500 — « Espace indisponible » à l'écran.
+    //
+    //  Appelé HORS du garde-fou, et c'est voulu : boost.assurerSchema() porte
+    //  le sien (idempotent, une seule exécution par base), l'appel est donc
+    //  gratuit, et la dépendance tient même sur une base dont le schéma Academy
+    //  a déjà été posé. On déclare ici une dépendance qui existait déjà dans le
+    //  code sans être exprimée nulle part.
+    boost.assurerSchema();
     if (basesMigrees.has(d)) return true;
     // Le catalogue d'abord : c'est lui qui donne la formation par défaut, et
     // les migrations ci-dessous rattachent l'existant à cette formation-là.
