@@ -267,3 +267,76 @@
   .ac-sel { gap: 6px; }
   .ac-sel-b { flex: 1 1 auto; padding: 8px 12px; font-size: .82rem; text-align: center; }
 }
+
+/* Administration des contenus (lot 6) ---------------------------------------- */
+/* Le troisième onglet ne rouvre aucune direction graphique : mêmes cartes,
+   mêmes listes, mêmes pastilles que les deux autres. Ce qui lui est propre se
+   limite à ce qu'aucun écran n'avait encore — un arbre, des formulaires en
+   ligne, et la marque d'un brouillon. */
+.ac-adm-sel { align-items: center; }
+.ac-adm-brouillon { font-style: normal; font-size: .72rem; opacity: .7; }
+.ac-adm-neuve { border-style: dashed; }
+
+.ac-adm-bloc { background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius);
+  padding: 14px 18px; margin: 0 0 18px; }
+.ac-adm-som { cursor: pointer; font-size: .95rem; font-weight: 700; color: var(--marine); }
+.ac-adm-form { margin-top: 12px; }
+/* Le formulaire ouvert DANS une ligne : il doit se lire comme un dépliement de
+   cette ligne, pas comme une carte flottante. */
+.ac-adm-form-in { border-left: 3px solid var(--saphir); padding-left: 14px; margin: 4px 0 10px; }
+.ac-adm-form .ec-field { margin-bottom: 10px; }
+.ac-adm-form textarea { width: 100%; font: inherit; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: inherit; resize: vertical; }
+.ac-adm-duo { display: flex; gap: 10px; flex-wrap: wrap; }
+.ac-adm-duo .ec-field { flex: 1 1 120px; }
+.ac-adm-case { display: flex; align-items: center; gap: 9px; font-size: .9rem; margin-bottom: 8px; cursor: pointer; }
+.ac-adm-case input { width: 17px; height: 17px; accent-color: var(--saphir); flex: 0 0 auto; }
+.ac-adm-aide { font-size: .82rem; color: var(--text-muted); margin: 4px 0 10px; }
+.ac-adm-actions-form { margin-left: 0; margin-top: 4px; }
+
+/* Publication. Les blocages en rouge, les avertissements en gris : la
+   différence entre « impossible » et « à savoir » doit se voir sans lire. */
+.ac-adm-pub-on { border-color: var(--sage); }
+.ac-adm-blocages { border-left-color: #B3261E; margin: 12px 0; }
+.ac-adm-blocages b { color: #B3261E; }
+.ac-adm-avertis { margin: 12px 0; }
+.ac-adm-pub .ec-btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* L'arbre. L'indentation d'un seul cran suffit : deux niveaux de plus et la
+   liste devient un plan, illisible sur un téléphone. */
+.ac-adm-arbre { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+.ac-adm-mod { border: 1px solid var(--border-c); border-radius: var(--radius); padding: 10px 14px; background: var(--surface); }
+.ac-adm-ligne { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; row-gap: 8px; padding: 6px 0; }
+.ac-adm-ligne .ac-l-t { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.ac-adm-ligne .ac-l-t b { font-size: .93rem; color: var(--marine); }
+.ac-adm-contenus { margin-left: 14px; padding-left: 12px; border-left: 1px solid var(--border-c); }
+.ac-adm-ligne-c .ac-l-t b { font-weight: 500; }
+/* Ce qui manque se dit en rouge, à côté de ce qui manque — pas dans un encart
+   qu'on lit après coup. */
+.ac-adm-manque { color: #B3261E; font-weight: 700; }
+.ac-adm-off { opacity: .55; }
+.ac-adm-plus { border-style: dashed; width: 100%; margin-top: 8px; }
+.ac-adm-fleche { padding: 8px 10px; font-weight: 700; }
+.ac-adm-choix-l { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.ac-adm-choix { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ac-adm-choix input[type="text"] { flex: 1 1 200px; font: inherit; padding: 9px 12px; border-radius: 12px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: inherit; }
+.ac-adm-choix .ac-adm-case { margin-bottom: 0; flex: 0 0 auto; font-size: .82rem; color: var(--text-muted); }
+
+@media (max-width: 520px) {
+  /* À 390 px, une ligne de l'arbre ne tient plus avec ses quatre boutons à
+     droite du titre : tout passe à la ligne, et les boutons se partagent la
+     largeur au lieu de se réduire à des cibles inatteignables. */
+  .ac-adm-ligne { flex-direction: column; align-items: stretch; }
+  .ac-adm-ligne .ac-adm-actions { margin-left: 0; flex-direction: row; flex-wrap: wrap; }
+  .ac-adm-ligne .ac-adm-actions .ec-btn { flex: 1 1 auto; width: auto; }
+  .ac-adm-fleche { flex: 0 0 44px; }
+  .ac-adm-contenus { margin-left: 6px; padding-left: 8px; }
+  .ac-adm-bloc { padding: 12px 14px; }
+  .ac-adm-duo { gap: 8px; }
+  .ac-adm-duo .ec-field { flex: 1 1 100%; }
+  /* La case « bonne réponse » passe au-dessus de son texte plutôt que de le
+     comprimer à trois mots par ligne. */
+  .ac-adm-choix input[type="text"] { flex: 1 1 100%; }
+  .ac-adm-actions-form .ec-btn { width: 100%; }
+}

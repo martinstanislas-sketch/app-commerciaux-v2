@@ -52,6 +52,18 @@ let certifs = null;     // état de MES certifications
 let adminOnglet = 'evaluateurs';  // écran d'administration : onglet courant
 let adminCerts = null;  // vue admin : éligibles, certifiés, écarts
 let enSaisie = null;    // { email, geste } : la ligne dépliée en cours de saisie
+// Administration des contenus (lot 6). `fAdmin` est VOLONTAIREMENT distincte de
+// `fCourante` : l'administrateur travaille sur des brouillons, que le reste de
+// l'écran n'a pas le droit de lire.
+let adminFormations = null;  // vue admin : le catalogue COMPLET, brouillons compris
+let fAdmin = null;           // la formation administrée — clé, pas objet
+let adminArbre = null;       // vue admin : modules, contenus, banque et corrigé
+let edition = null;          // { objet, id } : le seul formulaire ouvert à la fois
+// Le refus du serveur, GARDÉ EN ÉTAT et non posé dans le DOM : chaque geste
+// re-rend tout #acAdmin, et un message écrit dans l'encart juste avant serait
+// effacé par le rendu suivant — l'administrateur verrait son action échouer
+// sans savoir pourquoi.
+let admErreur = '';
 
 function echapper(s) {
   return String(s === null || s === undefined ? '' : s)
@@ -947,6 +959,19 @@ function rendreAccesAdmin() {
     '</section>';
 }
 
+// Chaque onglet lit SES données au moment où il s'affiche. Les écarts entre
+// l'Academy et le Boost, comme l'état de publication d'une formation, naissent
+// ailleurs — dans une autre session, dans l'administration du Boost : un onglet
+// qui réafficherait sa mémoire les manquerait.
+async function chargerAdminOnglet() {
+  if (adminOnglet === 'contenus') {
+    await chargerAdminFormations();
+    await chargerAdminArbre();
+    return;
+  }
+  await chargerAdminCerts();
+}
+
 async function ouvrirAdmin(onglet) {
   if (onglet) adminOnglet = onglet;
   const r = await apiAc('/api/academy/admin/evaluateurs');
@@ -957,9 +982,10 @@ async function ouvrirAdmin(onglet) {
   }
   if (!r.data.ok) { bloquer('⚠️', 'Écran indisponible', 'Réessaie dans un instant.'); return; }
   adminComptes = r.data.comptes || [];
-  await chargerAdminCerts();
+  await chargerAdminOnglet();
   aRetirer = null;
   enSaisie = null;
+  edition = null;
   rendreAdmin();
 }
 
@@ -979,6 +1005,7 @@ function rendrePanneauEvaluateurs() {
 
 function rendreAdmin() {
   const certifs_ = adminOnglet === 'certifications';
+  const contenus_ = adminOnglet === 'contenus';
 
   $('#acAdmin').innerHTML =
     // Les écrans se renvoient l'un à l'autre : l'administrateur est souvent
@@ -988,8 +1015,8 @@ function rendreAdmin() {
 
     '<h1 class="ec-t">Administration My Coach Academy</h1>' +
     rendreOngletsAdmin() +
-    '<p class="ac-eval-err" id="acAdmErr" role="alert"></p>' +
-    (certifs_ ? rendreAdminCerts() : rendrePanneauEvaluateurs());
+    '<p class="ac-eval-err" id="acAdmErr" role="alert">' + echapper(admErreur) + '</p>' +
+    (contenus_ ? rendreAdminContenus() : certifs_ ? rendreAdminCerts() : rendrePanneauEvaluateurs());
 
   // Changer d'onglet RELIT les données. Les écarts entre l'Academy et le Boost
   // naissent précisément ailleurs — dans l'administration du Boost, dans une
@@ -1008,14 +1035,37 @@ function rendreAdmin() {
       adminOnglet = el.dataset.onglet;
       enSaisie = null;
       aRetirer = null;
-      await chargerAdminCerts();
+      edition = null;
+      admErreur = '';
+      await chargerAdminOnglet();
       rendreAdmin();
     }));
+
+  // L'onglet Contenus a son propre sélecteur de formation : il montre les
+  // brouillons, que celui des deux autres onglets n'a pas le droit d'afficher.
+  document.querySelectorAll('#acAdmin [data-formation-adm]').forEach((el) =>
+    el.addEventListener('click', async () => {
+      if (el.dataset.formationAdm === fAdmin) return;
+      fAdmin = el.dataset.formationAdm;
+      edition = null;
+      admErreur = '';
+      await chargerAdminArbre();
+      rendreAdmin();
+    }));
+
+  document.querySelectorAll('#acAdmin [data-adm]').forEach((el) =>
+    el.addEventListener('click', () => agirSurContenus(el)));
   document.querySelectorAll('#acAdmin [data-cert]').forEach((el) =>
     el.addEventListener('click', () => agirSurCertification(el.dataset.cert, el.dataset.geste)));
 
+  // Revenir à sa propre formation. On repasse par le catalogue PUBLIÉ : il a pu
+  // changer sous les pieds de l'administrateur — c'est justement lui qui vient
+  // de publier ou de dépublier.
   const b = $('#acAdmBack');
-  if (b) b.addEventListener('click', async () => { await chargerPratique(); rendreSommaire(); });
+  if (b) b.addEventListener('click', async () => {
+    await chargerCatalogue();
+    await chargerFormation();
+  });
   const e = $('#acAdmEval');
   if (e) e.addEventListener('click', ouvrirEvaluateur);
 
@@ -1161,9 +1211,10 @@ async function chargerAdminCerts() {
 
 function rendreOngletsAdmin() {
   return '<div class="ac-adm-onglets">' +
-    ['evaluateurs', 'certifications'].map((o) =>
+    ['evaluateurs', 'certifications', 'contenus'].map((o) =>
       '<button type="button" class="ac-adm-ong' + (adminOnglet === o ? ' on' : '') + '" data-onglet="' + o + '">' +
-        (o === 'evaluateurs' ? 'Évaluateurs' : 'Certifications') + '</button>').join('') +
+        (o === 'evaluateurs' ? 'Évaluateurs' : o === 'certifications' ? 'Certifications' : 'Contenus') +
+        '</button>').join('') +
     '</div>';
 }
 
@@ -1274,6 +1325,467 @@ async function agirSurCertification(email, geste) {
   enSaisie = null;
   rendreAdmin();
   err();
+}
+
+// --- Administration : contenus (lot 6) ----------------------------------------
+//
+//  L'onglet qui remplace le SQL à la main. Il suit l'ordre dans lequel une
+//  formation se construit réellement, et non l'ordre des tables :
+//
+//     nouvelle formation → réglages → modules → vidéos → questions → publication
+//
+//  DEUX PRINCIPES, LES MÊMES QUE PARTOUT DANS CET ÉCRAN :
+//
+//   - il ne décide de rien. Ce qui est publiable, ce qui bloque, ce qui n'est
+//     qu'un avertissement : tout vient de `verification`, calculée par le
+//     serveur. L'écran l'affiche, il ne la recalcule pas — deux vérités
+//     finiraient par diverger ;
+//   - il ne publie jamais lui-même. Aucun formulaire n'envoie `actif` : publier
+//     est une route à part, qui vérifie.
+//
+//  `fAdmin` est DISTINCTE de `fCourante`. L'administrateur travaille souvent
+//  sur un brouillon ; s'il partageait la formation courante, revenir à
+//  « Ma formation » ou à l'onglet Certifications afficherait une formation que
+//  le reste de l'écran n'a pas le droit de lire.
+
+async function chargerAdminFormations() {
+  const r = await apiAc('/api/academy/admin/formations');
+  adminFormations = r.data && r.data.ok ? (r.data.formations || []) : [];
+  if (!fAdmin || !adminFormations.some((f) => f.cle === fAdmin)) {
+    fAdmin = adminFormations.length ? adminFormations[0].cle : null;
+  }
+}
+
+async function chargerAdminArbre() {
+  if (!fAdmin) { adminArbre = null; return; }
+  const r = await apiAc('/api/academy/admin/arbre?formation=' + encodeURIComponent(fAdmin));
+  adminArbre = r.data && r.data.ok ? r.data : null;
+}
+
+// Le geste d'écriture, toujours le même : envoyer, afficher l'erreur telle que
+// le serveur la formule, reprendre l'arbre qu'il renvoie. L'écran ne devine
+// jamais le nouvel état.
+async function ecrireAdmin(route, corps) {
+  admErreur = '';
+  const r = await apiAc(route, 'POST', { formation: fAdmin, ...(corps || {}) });
+  if (r.status === 401) { deconnecter(); return null; }
+  if (!r.data.ok) {
+    admErreur = r.data.error || 'Action impossible.';
+    // UN REFUS NE DOIT PAS EFFACER CE QUI VIENT D'ÊTRE TAPÉ. Re-rendre
+    // réécrirait le formulaire depuis la base, donc reviendrait à demander à
+    // l'administrateur de tout retaper pour une case oubliée. On ne re-rend
+    // donc que quand il n'y a aucune saisie à perdre : le refus de publication,
+    // qui rapporte une vérification à réafficher.
+    if (r.data.verification) {
+      adminArbre = { ...(adminArbre || {}), verification: r.data.verification };
+      rendreAdmin();
+    } else {
+      const el = $('#acAdmErr');
+      if (el) el.textContent = admErreur;
+    }
+    return null;
+  }
+  if (r.data.arbre) adminArbre = { ...(adminArbre || {}), ...r.data.arbre };
+  else await chargerAdminArbre();
+  edition = null;
+  rendreAdmin();
+  return r.data;
+}
+
+const champ = (id) => (($(id) || {}).value || '').trim();
+const coche = (id) => !!(($(id) || {}).checked);
+
+// Le sélecteur d'administration : le catalogue COMPLET, brouillons marqués.
+// C'est le seul endroit de l'application où un brouillon s'affiche.
+function rendreSelecteurAdmin() {
+  const l = adminFormations || [];
+  return '<div class="ac-sel ac-adm-sel">' +
+    l.map((f) => '<button type="button" class="ac-sel-b' + (f.cle === fAdmin ? ' on' : '') + '"' +
+      ' data-formation-adm="' + echapper(f.cle) + '">' + echapper(f.libelle) +
+      (f.actif ? '' : ' <i class="ac-adm-brouillon">brouillon</i>') + '</button>').join('') +
+    '<button type="button" class="ac-sel-b ac-adm-neuve" data-adm="formation-neuve">+ Nouvelle formation</button>' +
+    '</div>';
+}
+
+// Le formulaire de création d'une formation. La clé est saisie une seule fois :
+// elle voyage ensuite dans des URL et sert de valeur dans une dizaine de
+// colonnes, elle ne se renomme pas.
+function rendreFormFormationNeuve() {
+  return '<div class="ac-adm-form">' +
+    '<h2 class="ac-eval-t">Nouvelle formation</h2>' +
+    '<p class="ac-qcm-s">Elle sera créée en brouillon : invisible des collaborateurs tant que tu ne l\'auras pas publiée.</p>' +
+    '<label class="ec-field"><span>Nom de la formation</span>' +
+      '<input id="acFLibelle" type="text" maxlength="120" placeholder="Coach Sommeil" /></label>' +
+    '<label class="ec-field"><span>Clé technique (minuscules, chiffres et « _ »)</span>' +
+      '<input id="acFCle" type="text" maxlength="40" placeholder="coach_sommeil" /></label>' +
+    '<label class="ec-field"><span>Titre délivré</span>' +
+      '<input id="acFTitre" type="text" maxlength="120" placeholder="Coach Sommeil certifié" /></label>' +
+    '<div class="ac-adm-actions ac-adm-actions-form">' +
+      '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="formation-creer">Créer le brouillon</button>' +
+      '<button type="button" class="ec-btn ac-adm-b" data-adm="annuler">Annuler</button>' +
+    '</div></div>';
+}
+
+// Les réglages. Ce sont EXACTEMENT les colonnes du catalogue — pas une de plus,
+// et surtout pas `actif` : la publication a son propre bouton, et elle vérifie.
+function rendreReglages(f) {
+  const oui = (v) => (v ? ' checked' : '');
+  return '<details class="ac-adm-bloc"' + (edition && edition.objet === 'reglages' ? ' open' : '') + '>' +
+    '<summary class="ac-adm-som">Réglages de la formation</summary>' +
+    '<div class="ac-adm-form">' +
+      '<label class="ec-field"><span>Nom de la formation</span>' +
+        '<input id="acRLibelle" type="text" maxlength="120" value="' + echapper(f.libelle) + '" /></label>' +
+      '<label class="ec-field"><span>Titre délivré (requis si la formation certifie)</span>' +
+        '<input id="acRTitre" type="text" maxlength="120" value="' + echapper(f.titre || '') + '" /></label>' +
+      '<div class="ac-adm-duo">' +
+        '<label class="ec-field"><span>Questions tirées</span>' +
+          '<input id="acRNb" type="number" min="1" max="200" value="' + f.qcmNbQuestions + '" /></label>' +
+        '<label class="ec-field"><span>Seuil de réussite (%)</span>' +
+          '<input id="acRSeuil" type="number" min="0" max="100" value="' + f.qcmSeuilPct + '" /></label>' +
+        '<label class="ec-field"><span>Ordre au catalogue</span>' +
+          '<input id="acROrdre" type="number" min="0" max="9999" value="' + f.ordre + '" /></label>' +
+      '</div>' +
+      '<label class="ac-adm-case"><input id="acRPratique" type="checkbox"' + oui(f.pratiqueObligatoire) + ' />' +
+        '<span>Évaluation pratique obligatoire</span></label>' +
+      '<label class="ac-adm-case"><input id="acRCertif" type="checkbox"' + oui(f.certificationActive) + ' />' +
+        '<span>Délivre une certification</span></label>' +
+      '<div class="ac-adm-actions ac-adm-actions-form">' +
+        '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="reglages-enregistrer">Enregistrer les réglages</button>' +
+      '</div>' +
+    '</div></details>';
+}
+
+// L'état de publication. LES BLOCAGES D'ABORD ET JAMAIS MASQUÉS : c'est ce qui
+// répond à « pourquoi je ne peux pas publier ? » sans avoir à chercher.
+function rendrePublication(v, f) {
+  const liste = (titre, items, classe) => (items && items.length
+    ? '<div class="' + classe + '"><b>' + titre + '</b><ul>' +
+      items.map((t) => '<li>' + echapper(t) + '</li>').join('') + '</ul></div>'
+    : '');
+
+  const c = v.chiffres || {};
+  return '<div class="ac-adm-bloc ac-adm-pub' + (v.publiee ? ' ac-adm-pub-on' : '') + '">' +
+    '<div class="ac-qcm-h"><b>' + (v.publiee ? 'Formation publiée' : 'Brouillon') + '</b>' +
+      '<span class="ac-qcm-etat ' + (v.publiee ? 'ac-etat-theorie-validee' : '') + '">' +
+        (v.publiee ? 'Visible des collaborateurs' : 'Invisible des collaborateurs') + '</span></div>' +
+    '<p class="ac-qcm-s">' + c.modules + ' module' + (c.modules > 1 ? 's' : '') + ' actif' + (c.modules > 1 ? 's' : '') +
+      ' · ' + c.contenus + ' contenu' + (c.contenus > 1 ? 's' : '') +
+      ' · ' + c.questionsTirables + ' question' + (c.questionsTirables > 1 ? 's' : '') +
+      ' tirable' + (c.questionsTirables > 1 ? 's' : '') + ' pour ' + c.qcmNbQuestions + ' tirée' +
+      (c.qcmNbQuestions > 1 ? 's' : '') + '.</p>' +
+    liste('Ce qui empêche la publication', v.blocages, 'ac-ecarts ac-adm-blocages') +
+    liste('À savoir', v.avertissements, 'ac-ecarts ac-adm-avertis') +
+    '<div class="ac-adm-actions ac-adm-actions-form">' +
+      (v.publiee
+        ? '<button type="button" class="ec-btn ac-adm-b ac-adm-danger" data-adm="depublier">Dépublier</button>'
+        : '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="publier"' +
+            (v.publiable ? '' : ' disabled') + '>Publier la formation</button>') +
+    '</div>' +
+    (v.publiee ? '<p class="ac-adm-avert">Dépublier la retire du catalogue. Rien n\'est effacé : progression, ' +
+      'tentatives et certifications déjà délivrées restent en base.</p>' : '') +
+    '</div>';
+}
+
+// Le formulaire d'un module ou d'un contenu. Un seul par écran à la fois :
+// deux formulaires ouverts, c'est deux brouillons qu'on croit enregistrés.
+function rendreFormModule(m) {
+  return '<div class="ac-adm-form ac-adm-form-in">' +
+    '<label class="ec-field"><span>Titre du module</span>' +
+      '<input id="acMTitre" type="text" maxlength="200" value="' + echapper(m ? m.titre : '') + '" /></label>' +
+    '<label class="ec-field"><span>Description (facultative)</span>' +
+      '<input id="acMDesc" type="text" maxlength="500" value="' + echapper(m ? (m.description || '') : '') + '" /></label>' +
+    '<div class="ac-adm-actions ac-adm-actions-form">' +
+      '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="module-enregistrer">Enregistrer</button>' +
+      '<button type="button" class="ec-btn ac-adm-b" data-adm="annuler">Annuler</button>' +
+    '</div></div>';
+}
+
+function rendreFormContenu(c) {
+  const type = c ? c.type : 'video';
+  return '<div class="ac-adm-form ac-adm-form-in">' +
+    '<label class="ec-field"><span>Type</span><select id="acCType">' +
+      '<option value="video"' + (type === 'video' ? ' selected' : '') + '>Vidéo</option>' +
+      '<option value="texte"' + (type === 'texte' ? ' selected' : '') + '>Contenu écrit</option>' +
+      '</select></label>' +
+    '<label class="ec-field"><span>Titre</span>' +
+      '<input id="acCTitre" type="text" maxlength="200" value="' + echapper(c ? c.titre : '') + '" /></label>' +
+    '<label class="ec-field"><span>Identifiant YouTube (11 caractères, pas l\'URL entière)</span>' +
+      '<input id="acCYt" type="text" maxlength="20" placeholder="dQw4w9WgXcQ" value="' +
+        echapper(c ? (c.youtubeId || '') : '') + '" /></label>' +
+    '<label class="ec-field"><span>Contenu écrit (si le type est « écrit »)</span>' +
+      '<textarea id="acCTexte" rows="4" maxlength="20000">' + echapper(c ? (c.texte || '') : '') + '</textarea></label>' +
+    '<label class="ec-field"><span>Durée en minutes (facultative)</span>' +
+      '<input id="acCDuree" type="number" min="0" max="999" value="' + (c && c.dureeMin ? c.dureeMin : '') + '" /></label>' +
+    '<div class="ac-adm-actions ac-adm-actions-form">' +
+      '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="contenu-enregistrer">Enregistrer</button>' +
+      '<button type="button" class="ec-btn ac-adm-b" data-adm="annuler">Annuler</button>' +
+    '</div></div>';
+}
+
+// Six emplacements de réponse, toujours les mêmes. Ajouter et retirer des
+// lignes à la volée demanderait un état de plus pour un gain nul : au-delà de
+// six choix, une question de QCM n'est plus une question de QCM.
+const SLOTS_CHOIX = 6;
+
+function rendreFormQuestion(q) {
+  const choix = q ? q.choix.filter((c) => c.actif) : [];
+  const modules = (adminArbre && adminArbre.modules) || [];
+  const slots = [];
+  for (let i = 0; i < SLOTS_CHOIX; i++) {
+    const c = choix[i];
+    slots.push('<div class="ac-adm-choix">' +
+      '<label class="ac-adm-case"><input id="acQC' + i + 'ok" type="checkbox"' + (c && c.correct ? ' checked' : '') + ' />' +
+        '<span>Bonne réponse</span></label>' +
+      '<input id="acQC' + i + '" type="text" maxlength="500" placeholder="Réponse ' + (i + 1) + '" value="' +
+        echapper(c ? c.texte : '') + '" /></div>');
+  }
+  return '<div class="ac-adm-form ac-adm-form-in">' +
+    '<label class="ec-field"><span>Énoncé</span>' +
+      '<input id="acQEnonce" type="text" maxlength="1000" value="' + echapper(q ? q.enonce : '') + '" /></label>' +
+    '<label class="ec-field"><span>Module de rattachement (facultatif)</span><select id="acQModule">' +
+      '<option value="">— aucun —</option>' +
+      modules.map((m) => '<option value="' + m.id + '"' + (q && q.moduleId === m.id ? ' selected' : '') + '>' +
+        echapper(m.titre) + '</option>').join('') +
+      '</select></label>' +
+    '<p class="ac-adm-aide">Au moins deux réponses, au moins une bonne et au moins une mauvaise. ' +
+      'Coche plusieurs bonnes réponses pour une question à choix multiples.</p>' +
+    '<div class="ac-adm-choix-l">' + slots.join('') + '</div>' +
+    '<div class="ac-adm-actions ac-adm-actions-form">' +
+      '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="question-enregistrer">Enregistrer</button>' +
+      '<button type="button" class="ec-btn ac-adm-b" data-adm="annuler">Annuler</button>' +
+    '</div></div>';
+}
+
+// Les boutons d'une ligne. « Archiver » plutôt que « Supprimer », et le mot est
+// choisi : rien n'est effacé, et la progression des collaborateurs non plus.
+function actionsLigne(type, id, actif, place) {
+  return '<span class="ac-adm-actions">' +
+    (place.haut ? '' : '<button type="button" class="ec-btn ac-adm-b ac-adm-fleche" data-adm="monter" data-type="' +
+      type + '" data-id="' + id + '" aria-label="Monter">↑</button>') +
+    (place.bas ? '' : '<button type="button" class="ec-btn ac-adm-b ac-adm-fleche" data-adm="descendre" data-type="' +
+      type + '" data-id="' + id + '" aria-label="Descendre">↓</button>') +
+    '<button type="button" class="ec-btn ac-adm-b" data-adm="modifier" data-type="' + type + '" data-id="' + id + '">Modifier</button>' +
+    '<button type="button" class="ec-btn ac-adm-b' + (actif ? ' ac-adm-danger' : '') + '" data-adm="basculer"' +
+      ' data-type="' + type + '" data-id="' + id + '" data-actif="' + (actif ? '0' : '1') + '">' +
+      (actif ? 'Archiver' : 'Restaurer') + '</button>' +
+    '</span>';
+}
+
+function rendreAdminContenus() {
+  if (!adminFormations) return '<div class="ec-vide">Chargement…</div>';
+  if (edition && edition.objet === 'formation-neuve') {
+    return rendreSelecteurAdmin() + rendreFormFormationNeuve();
+  }
+  if (!adminArbre) return rendreSelecteurAdmin() + '<div class="ec-vide">Aucune formation à administrer.</div>';
+
+  const f = adminArbre.formation;
+  const v = adminArbre.verification;
+  const modules = adminArbre.modules || [];
+  const questions = adminArbre.questions || [];
+  const ouvert = (objet, id) => edition && edition.objet === objet && edition.id === id;
+
+  // -- Modules et contenus, dans l'ordre où le collaborateur les verra.
+  const blocModules = modules.map((m, i) => {
+    const contenus = m.contenus || [];
+    return '<div class="ac-adm-mod' + (m.actif ? '' : ' ac-adm-off') + '">' +
+      '<div class="ac-adm-ligne">' +
+        '<span class="ac-l-t"><b>' + echapper(m.titre) + '</b>' +
+          '<span class="ac-eval-mail">' + contenus.filter((c) => c.actif).length + ' contenu' +
+            (contenus.filter((c) => c.actif).length > 1 ? 's' : '') +
+            (m.actif ? '' : ' · archivé') + '</span></span>' +
+        actionsLigne('module', m.id, m.actif, { haut: i === 0, bas: i === modules.length - 1 }) +
+      '</div>' +
+      (ouvert('module', m.id) ? rendreFormModule(m) : '') +
+
+      '<div class="ac-adm-contenus">' +
+        contenus.map((c, j) => '<div class="ac-adm-ligne ac-adm-ligne-c' + (c.actif ? '' : ' ac-adm-off') + '">' +
+          '<span class="ac-l-t"><b>' + echapper(c.titre) + '</b>' +
+            '<span class="ac-eval-mail">' + (c.type === 'texte' ? 'écrit' : 'vidéo') +
+              (c.type === 'video'
+                ? (c.youtubeValide === true ? ' · ' + echapper(c.youtubeId)
+                  : '<b class="ac-adm-manque"> · lien manquant ou invalide</b>')
+                : (String(c.texte || '').trim() ? '' : '<b class="ac-adm-manque"> · texte vide</b>')) +
+              (c.dureeMin ? ' · ' + c.dureeMin + ' min' : '') +
+              (c.actif ? '' : ' · archivé') + '</span></span>' +
+          actionsLigne('contenu', c.id, c.actif, { haut: j === 0, bas: j === contenus.length - 1 }) +
+          '</div>' +
+          (ouvert('contenu', c.id) ? rendreFormContenu(c) : '')).join('') +
+        (ouvert('contenu-neuf', m.id) ? rendreFormContenu(null) : '') +
+        '<button type="button" class="ec-btn ac-adm-b ac-adm-plus" data-adm="contenu-neuf" data-id="' + m.id + '">' +
+          '+ Ajouter un contenu</button>' +
+      '</div></div>';
+  }).join('');
+
+  // -- La banque. « Écartée du tirage » se dit à voix haute : une question en
+  //    base qui ne sort jamais est exactement ce qu'on ne voit pas venir.
+  const blocQuestions = questions.map((q) => {
+    const bons = q.choix.filter((c) => c.actif && c.correct).length;
+    return '<div class="ac-adm-ligne' + (q.actif ? '' : ' ac-adm-off') + '">' +
+      '<span class="ac-l-t"><b>' + echapper(q.enonce) + '</b>' +
+        '<span class="ac-eval-mail">' + q.choix.filter((c) => c.actif).length + ' réponses · ' +
+          bons + ' bonne' + (bons > 1 ? 's' : '') + (q.multiple ? ' · choix multiple' : '') +
+          (q.actif ? '' : ' · archivée') +
+          (q.actif && !q.tirable ? '<b class="ac-adm-manque"> · écartée du tirage</b>' : '') +
+        '</span></span>' +
+      '<span class="ac-adm-actions">' +
+        '<button type="button" class="ec-btn ac-adm-b" data-adm="modifier" data-type="question" data-id="' + q.id + '">Modifier</button>' +
+        '<button type="button" class="ec-btn ac-adm-b' + (q.actif ? ' ac-adm-danger' : '') + '" data-adm="basculer"' +
+          ' data-type="question" data-id="' + q.id + '" data-actif="' + (q.actif ? '0' : '1') + '">' +
+          (q.actif ? 'Archiver' : 'Restaurer') + '</button>' +
+      '</span></div>' +
+      (ouvert('question', q.id) ? rendreFormQuestion(q) : '');
+  }).join('');
+
+  return rendreSelecteurAdmin() +
+    '<p class="ac-qcm-s">Contenus de <b>' + echapper(f.libelle) + '</b>.</p>' +
+    rendreReglages(f) +
+    rendrePublication(v, f) +
+
+    '<h2 class="ac-eval-t">Modules et contenus</h2>' +
+    '<div class="ac-adm-arbre">' +
+      (modules.length ? blocModules : '<div class="ec-vide">Aucun module pour le moment.</div>') +
+      (ouvert('module-neuf', 0) ? rendreFormModule(null) : '') +
+      '<button type="button" class="ec-btn ac-adm-b ac-adm-plus" data-adm="module-neuf">+ Ajouter un module</button>' +
+    '</div>' +
+
+    '<h2 class="ac-eval-t ac-eval-t2">Banque de questions</h2>' +
+    '<div class="ac-adm-arbre">' +
+      (questions.length ? blocQuestions : '<div class="ec-vide">Aucune question pour le moment.</div>') +
+      (ouvert('question-neuve', 0) ? rendreFormQuestion(null) : '') +
+      '<button type="button" class="ec-btn ac-adm-b ac-adm-plus" data-adm="question-neuve">+ Ajouter une question</button>' +
+    '</div>';
+}
+
+// Les choix saisis, lus dans les six emplacements. Les vides sont ignorés :
+// c'est le moteur qui refuse une question incorrigeable, et il le dit.
+function lireChoixSaisis() {
+  const l = [];
+  for (let i = 0; i < SLOTS_CHOIX; i++) {
+    const t = champ('#acQC' + i);
+    if (t) l.push({ texte: t, correct: coche('#acQC' + i + 'ok') });
+  }
+  return l;
+}
+
+// Déplacer d'un cran. On envoie la LISTE ENTIÈRE des frères dans leur nouvel
+// ordre : le serveur réécrit tous les rangs en une transaction plutôt que
+// d'incrémenter deux lignes qui pourraient se croiser.
+function voisinage(type, id) {
+  if (type === 'module') return (adminArbre.modules || []).map((m) => m.id);
+  const m = (adminArbre.modules || []).find((x) => (x.contenus || []).some((c) => c.id === id));
+  return m ? m.contenus.map((c) => c.id) : [];
+}
+
+async function agirSurContenus(el) {
+  const geste = el.dataset.adm;
+  const id = el.dataset.id ? Number(el.dataset.id) : null;
+  const type = el.dataset.type || null;
+  admErreur = '';
+  const encart = $('#acAdmErr');
+  if (encart) encart.textContent = '';
+
+  // Les gestes qui n'ouvrent qu'un formulaire. Rien ne part au serveur.
+  if (geste === 'annuler') { edition = null; rendreAdmin(); return; }
+  if (geste === 'formation-neuve') { edition = { objet: 'formation-neuve', id: 0 }; rendreAdmin(); return; }
+  if (geste === 'module-neuf') { edition = { objet: 'module-neuf', id: 0 }; rendreAdmin(); return; }
+  if (geste === 'contenu-neuf') { edition = { objet: 'contenu-neuf', id }; rendreAdmin(); return; }
+  if (geste === 'question-neuve') { edition = { objet: 'question-neuve', id: 0 }; rendreAdmin(); return; }
+  if (geste === 'modifier') { edition = { objet: type, id }; rendreAdmin(); return; }
+
+  if (geste === 'formation-creer') {
+    const r = await apiAc('/api/academy/admin/formations', 'POST', {
+      cle: champ('#acFCle').toLowerCase(), libelle: champ('#acFLibelle'), titre: champ('#acFTitre'),
+    });
+    if (r.status === 401) { deconnecter(); return; }
+    if (!r.data.ok) { admErreur = r.data.error || 'Création impossible.'; const e = $('#acAdmErr'); if (e) e.textContent = admErreur; return; }
+    fAdmin = r.data.formation.cle;
+    edition = null;
+    await chargerAdminFormations();
+    await chargerAdminArbre();
+    rendreAdmin();
+    return;
+  }
+
+  if (geste === 'reglages-enregistrer') {
+    const r = await apiAc('/api/academy/admin/formations/' + encodeURIComponent(fAdmin), 'PUT', {
+      libelle: champ('#acRLibelle'), titre: champ('#acRTitre'),
+      qcmNbQuestions: Number(champ('#acRNb')), qcmSeuilPct: Number(champ('#acRSeuil')),
+      ordre: Number(champ('#acROrdre')),
+      pratiqueObligatoire: coche('#acRPratique'), certificationActive: coche('#acRCertif'),
+    });
+    if (r.status === 401) { deconnecter(); return; }
+    if (!r.data.ok) { admErreur = r.data.error || 'Enregistrement impossible.'; const e = $('#acAdmErr'); if (e) e.textContent = admErreur; return; }
+    edition = null;
+    await chargerAdminFormations();
+    await chargerAdminArbre();
+    rendreAdmin();
+    return;
+  }
+
+  // Publier et dépublier : DEUX ROUTES À PART. Aucun formulaire de cet écran
+  // n'envoie `actif` — la publication se vérifie, elle ne se glisse pas dans un
+  // enregistrement de réglages.
+  if (geste === 'publier' || geste === 'depublier') {
+    const r = await apiAc('/api/academy/admin/formations/' + encodeURIComponent(fAdmin) + '/' + geste, 'POST', {});
+    if (r.status === 401) { deconnecter(); return; }
+    if (!r.data.ok) {
+      admErreur = r.data.error || 'Action impossible.';
+      if (r.data.verification) adminArbre = { ...(adminArbre || {}), verification: r.data.verification };
+      rendreAdmin();
+      return;
+    }
+    await chargerAdminFormations();
+    await chargerAdminArbre();
+    // Publier ou dépublier change le catalogue du collaborateur : on le relit
+    // plutôt que de laisser un sélecteur périmé ailleurs dans l'écran.
+    await chargerCatalogue();
+    rendreAdmin();
+    return;
+  }
+
+  if (geste === 'module-enregistrer') {
+    await ecrireAdmin('/api/academy/admin/modules', {
+      id: edition && edition.objet === 'module' ? edition.id : undefined,
+      titre: champ('#acMTitre'), description: champ('#acMDesc'),
+    });
+    return;
+  }
+
+  if (geste === 'contenu-enregistrer') {
+    const neuf = edition && edition.objet === 'contenu-neuf';
+    await ecrireAdmin('/api/academy/admin/contenus', {
+      id: neuf ? undefined : (edition ? edition.id : undefined),
+      moduleId: neuf ? edition.id : undefined,
+      type: champ('#acCType'), titre: champ('#acCTitre'),
+      youtubeId: champ('#acCYt'), texte: champ('#acCTexte'),
+      dureeMin: champ('#acCDuree'),
+    });
+    return;
+  }
+
+  if (geste === 'question-enregistrer') {
+    await ecrireAdmin('/api/academy/admin/questions', {
+      id: edition && edition.objet === 'question' ? edition.id : undefined,
+      enonce: champ('#acQEnonce'),
+      moduleId: champ('#acQModule') || null,
+      choix: lireChoixSaisis(),
+    });
+    return;
+  }
+
+  if (geste === 'basculer') {
+    await ecrireAdmin('/api/academy/admin/archiver', { type, id, actif: el.dataset.actif === '1' });
+    return;
+  }
+
+  if (geste === 'monter' || geste === 'descendre') {
+    const ids = voisinage(type, id);
+    const i = ids.indexOf(id);
+    const j = geste === 'monter' ? i - 1 : i + 1;
+    if (i < 0 || j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    await ecrireAdmin('/api/academy/admin/ordre', { type, ids });
+  }
 }
 
 // --- Connexion ----------------------------------------------------------------

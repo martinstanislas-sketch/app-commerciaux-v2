@@ -413,18 +413,23 @@ test('l\'écran ne prononce aucune certification', () => {
   // viendra ensuite — ce qu'il ne doit pas faire, c'est la prononcer.
   const code = js.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
   assert.ok(!/\/api\/boost\//.test(code), 'l\'écran ne touche pas au système de certification');
-  // L'écran gère désormais les ÉVALUATEURS — c'est la seule administration
-  // qu'il porte, et elle reste gardée par exigeAdmin côté serveur. Tout le
-  // reste de l'Academy (contenus, banque de questions, configuration) et la
-  // certification demeurent hors de sa portée.
-  // Le lot 4 a ouvert la certification : l'écran la LIT et, pour un
-  // administrateur, la demande. Ce qu'il ne fait toujours pas — et c'est la
-  // dernière frontière — c'est décider qu'elle est acquise : il n'écrit aucun
-  // statut, ne touche pas au système du Boost, et n'administre ni les contenus
-  // ni la banque de questions.
+  // L'écran administre désormais les évaluateurs (lot 3), les certifications
+  // (lot 4) et les contenus (lot 6). Chacune de ces portes a été ouverte
+  // délibérément, et toutes restent gardées par exigeAdmin côté serveur.
+  //
+  // LA DERNIÈRE FRONTIÈRE TIENT TOUJOURS, et c'est celle que ce test défend :
+  // l'écran ne DÉCIDE de rien. Il ne prononce aucune certification, n'écrit
+  // aucun statut, et ne touche pas au système du Boost — administrer des
+  // contenus n'est pas accorder un droit.
   assert.ok(!/\/api\/boost\//.test(code), 'l\'écran ne touche pas au système du Boost');
-  assert.ok(!/\/api\/academy\/admin\/(contenus|modules|questions|choix|config)/.test(code),
-    'l\'écran n\'administre ni les contenus ni la banque de questions');
+  // Le lot 6 administre les contenus, mais PAS la configuration du QCM par une
+  // porte dérobée : le nombre de questions et le seuil sont des colonnes de la
+  // formation, réglées par sa propre route.
+  assert.ok(!/\/api\/academy\/admin\/(choix|config)/.test(code),
+    'une route d\'administration non prévue est appelée');
+  // Et la publication ne se décide pas non plus dans le navigateur : l'écran
+  // demande, le serveur vérifie et tranche.
+  assert.ok(code.includes('/publier') || /data-adm="publier"/.test(code), 'la publication passe par le serveur');
   // Ce que l'écran ENVOIE quand il demande une certification : une date, un
   // commentaire, un motif. Jamais un statut, jamais un droit. On le vérifie
   // sur le corps de la fonction concernée plutôt qu'au jugé sur tout le

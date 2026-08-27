@@ -17,7 +17,7 @@
 const express = require('express');
 const path = require('path');
 
-function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations, exigeCompte, exigeAdmin, estAdmin }) {
+function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations, admin, exigeCompte, exigeAdmin, estAdmin }) {
   const r = express.Router();
   const moi = (req) => String(req.user.email || '').trim().toLowerCase();
 
@@ -322,6 +322,123 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     const r_ = certifications.retirer(req.params.email, moi(req), { ...(req.body || {}), formation: f.cle });
     if (r_.ok) r_.body.liste = certifications.listerAdmin(f.cle);
     res.status(r_.status).json(r_.body);
+  });
+
+
+  // ==========================================================================
+  //  ADMINISTRATION DES CONTENUS (lot 6)
+  //
+  //  Ce groupe fait ce que seul le SQL savait faire jusqu'ici : poser une
+  //  formation, ses modules, ses vidéos et sa banque de questions.
+  //
+  //  ⚠️ POINT DE SÉCURITÉ DU LOT. `GET /admin/arbre` est la SEULE route de
+  //  toute l'application qui laisse sortir `academy_choix.correct`. Elle est
+  //  gardée par exigeAdmin, comme les deux autres routes d'administration, et
+  //  aucune route collaborateur n'appelle le module qui la sert. Un
+  //  collaborateur — même en pleine tentative — ne reçoit jamais autre chose
+  //  que des identifiants de choix : le corrigé de sa tentative est figé dans
+  //  academy_tentative_questions, table qu'aucune vue collaborateur ne lit.
+  //
+  //  LA FORMATION DE CES ROUTES SE RÉSOUT AVEC LES BROUILLONS. C'est la seule
+  //  différence avec formationDe(), et c'est tout l'objet du lot : administrer
+  //  une formation qui n'est pas encore publiée. Les routes collaborateur, elles,
+  //  continuent de répondre 404 sur une formation inactive.
+  // ==========================================================================
+
+  function formationAdmin(req, res) {
+    const f = formations.resoudre(cleDemandee(req), { inclureInactives: true });
+    if (!f) {
+      res.status(404).json({ ok: false, formationInconnue: true, error: 'Formation inconnue.' });
+      return null;
+    }
+    return f;
+  }
+
+  // Le catalogue COMPLET, brouillons compris. Distinct de
+  // /api/academy/formations, qui ne montre que le publié — les deux listes
+  // n'ont pas le même public et ne doivent pas se confondre.
+  r.get('/api/academy/admin/formations', exigeCompte, exigeAdmin, (_req, res) => {
+    const liste = formations.lister({ toutes: true });
+    res.json({
+      ok: true,
+      formations: liste.map((f) => ({ ...f, verification: admin.verifier(f.cle) })),
+    });
+  });
+
+  // Créer. TOUJOURS en brouillon : la route ne lit même pas `actif`.
+  r.post('/api/academy/admin/formations', exigeCompte, exigeAdmin, (req, res) => {
+    const r_ = admin.creerFormation(req.body || {}, moi(req));
+    if (r_.ok) r_.body.verification = admin.verifier(r_.body.formation.cle);
+    res.status(r_.status).json(r_.body);
+  });
+
+  // Régler. `actif` est ignoré ici aussi : on ne publie pas par effet de bord
+  // d'un enregistrement de réglages.
+  r.put('/api/academy/admin/formations/:cle', exigeCompte, exigeAdmin, (req, res) => {
+    const r_ = admin.reglerFormation({ ...(req.body || {}), cle: req.params.cle }, moi(req));
+    if (r_.ok) r_.body.verification = admin.verifier(req.params.cle);
+    res.status(r_.status).json(r_.body);
+  });
+
+  r.post('/api/academy/admin/formations/:cle/publier', exigeCompte, exigeAdmin, (req, res) => {
+    const r_ = admin.publier(req.params.cle, moi(req));
+    res.status(r_.status).json(r_.body);
+  });
+
+  r.post('/api/academy/admin/formations/:cle/depublier', exigeCompte, exigeAdmin, (req, res) => {
+    const r_ = admin.depublier(req.params.cle, moi(req));
+    res.status(r_.status).json(r_.body);
+  });
+
+  // L'arbre d'administration : modules, contenus, banque, corrigé, inactifs
+  // compris, plus l'état de publication.
+  r.get('/api/academy/admin/arbre', exigeCompte, exigeAdmin, (req, res) => {
+    const f = formationAdmin(req, res);
+    if (!f) return;
+    res.json({ ok: true, ...admin.arbre(f.cle) });
+  });
+
+  // Une seule route d'écriture par objet : créer et modifier sont le même
+  // geste, distingués par la présence d'un identifiant. L'arbre à jour repart
+  // avec la réponse — l'écran ne redemande pas, et ne peut donc pas afficher un
+  // état périmé.
+  const repondreAvecArbre = (res, r_, cle) => {
+    if (r_.ok) r_.body.arbre = admin.arbre(cle);
+    res.status(r_.status).json(r_.body);
+  };
+
+  r.post('/api/academy/admin/modules', exigeCompte, exigeAdmin, (req, res) => {
+    const f = formationAdmin(req, res);
+    if (!f) return;
+    repondreAvecArbre(res, admin.definirModule({ ...(req.body || {}), formation: f.cle }), f.cle);
+  });
+
+  r.post('/api/academy/admin/contenus', exigeCompte, exigeAdmin, (req, res) => {
+    const f = formationAdmin(req, res);
+    if (!f) return;
+    repondreAvecArbre(res, admin.definirContenu(req.body || {}), f.cle);
+  });
+
+  r.post('/api/academy/admin/questions', exigeCompte, exigeAdmin, (req, res) => {
+    const f = formationAdmin(req, res);
+    if (!f) return;
+    repondreAvecArbre(res, admin.definirQuestion({ ...(req.body || {}), formation: f.cle }), f.cle);
+  });
+
+  // Archiver et restaurer. Aucun DELETE dans tout ce groupe : supprimer un
+  // contenu emporterait en cascade la progression de ceux qui l'ont terminé.
+  r.post('/api/academy/admin/archiver', exigeCompte, exigeAdmin, (req, res) => {
+    const f = formationAdmin(req, res);
+    if (!f) return;
+    const { type, id, actif } = req.body || {};
+    repondreAvecArbre(res, admin.basculerActif(type, id, actif === true), f.cle);
+  });
+
+  r.post('/api/academy/admin/ordre', exigeCompte, exigeAdmin, (req, res) => {
+    const f = formationAdmin(req, res);
+    if (!f) return;
+    const { type, ids } = req.body || {};
+    repondreAvecArbre(res, admin.reordonner(type, ids), f.cle);
   });
 
   return r;

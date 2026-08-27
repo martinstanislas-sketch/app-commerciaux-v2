@@ -159,10 +159,24 @@ function createAcademyFormations({ getDb, nowIso }) {
 
   // Résout une clé venue de l'extérieur. Absente -> formation par défaut.
   // Inconnue ou inactive -> null, et l'appelant répond 404.
-  function resoudre(cle) {
-    if (cle === undefined || cle === null || String(cle).trim() === '') return defaut();
+  //
+  //  `inclureInactives` EST LA SEULE PORTE VERS UN BROUILLON, et elle n'est
+  //  ouverte que depuis les routes gardées par exigeAdmin (lot 6). Le défaut
+  //  reste le refus : une formation en construction n'existe pas pour un
+  //  collaborateur, et ce n'est pas à l'appelant de s'en souvenir.
+  function resoudre(cle, { inclureInactives = false } = {}) {
+    if (cle === undefined || cle === null || String(cle).trim() === '') {
+      if (!inclureInactives) return defaut();
+      // Côté administration, « aucune formation précisée » ne doit pas tomber
+      // sur rien le jour où toutes les formations sont des brouillons.
+      const d = defaut();
+      if (d) return d;
+      const toutes = lister({ toutes: true });
+      return toutes.length ? toutes[0] : null;
+    }
     const f = lire(cle);
-    return f && f.actif ? f : null;
+    if (!f) return null;
+    return (f.actif || inclureInactives) ? f : null;
   }
 
   // Créer ou modifier une formation. Prévu pour l'administration ; c'est aussi

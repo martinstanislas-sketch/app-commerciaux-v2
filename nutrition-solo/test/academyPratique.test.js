@@ -818,9 +818,22 @@ test('l\'écran n\'appelle que les routes du lot', () => {
   // celui-là : la route est gardée par exigeAdmin, et aucune autre
   // administration de l'Academy n'a été ouverte au passage.
   assert.ok(js.includes('/api/academy/admin/evaluateurs'), 'l\'écran gère les évaluateurs');
-  // Le lot 4 en a ouvert une seconde — les certifications — et pas une de plus.
+  // Le lot 4 en a ouvert une seconde — les certifications. Le lot 6 ouvre
+  // l'administration des contenus, sur décision explicite : l'inventaire reste
+  // donc CLOS, il a seulement changé de contenu. Toute route qui apparaîtrait
+  // ici sans avoir été décidée fait échouer ce test, et c'est son seul rôle.
   const admin = js.match(/\/api\/academy\/admin\/[a-z]+/g) || [];
   assert.deepStrictEqual([...new Set(admin)].sort(),
-    ['/api/academy/admin/certifications', '/api/academy/admin/evaluateurs'],
+    [
+      '/api/academy/admin/arbre',         // lot 6 : la SEULE route qui porte le corrigé
+      '/api/academy/admin/archiver',      // lot 6 : archiver / restaurer
+      '/api/academy/admin/certifications',
+      '/api/academy/admin/contenus',
+      '/api/academy/admin/evaluateurs',
+      '/api/academy/admin/formations',
+      '/api/academy/admin/modules',
+      '/api/academy/admin/ordre',
+      '/api/academy/admin/questions',
+    ],
     'une autre route d\'administration a été ouverte : ' + admin.join(', '));
 });

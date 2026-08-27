@@ -314,6 +314,13 @@ function createAcademy({ getDb, nowIso, boost, formations }) {
     if (!c || !c.actif) return null;
     const m = db().prepare('SELECT id, titre, actif, formation FROM academy_modules WHERE id = ?').get(c.moduleId);
     if (!m || !m.actif) return null;
+    // UN BROUILLON N'EXISTE PAS (lot 6). Cette route-ci prend un identifiant de
+    // contenu SANS clé de formation : c'était donc le seul chemin par lequel un
+    // collaborateur pouvait atteindre — en devinant un numéro — le titre et la
+    // vidéo d'une formation encore en construction. On referme ici, au plus
+    // près de la lecture, plutôt que dans chaque appelant.
+    const f = formations.lire(m.formation);
+    if (!f || !f.actif) return null;
     // La formation vient du MODULE : un identifiant de contenu suffit donc à
     // savoir de quel parcours il relève, sans que l'appelant ait à le dire.
     return { ...c, youtubeId: idYoutubeValide(c.youtubeId) ? c.youtubeId : null,

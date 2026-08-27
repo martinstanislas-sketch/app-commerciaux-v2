@@ -50,6 +50,7 @@ const { createAcademyQcm } = require('./lib/academyQcm');
 const { createAcademyPratique } = require('./lib/academyPratique');
 const { createAcademyFormations } = require('./lib/academyFormations');
 const { createAcademyCertifications } = require('./lib/academyCertifications');
+const { createAcademyAdmin } = require('./lib/academyAdmin');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
 const PORT = process.env.PORT || 3000;
@@ -90,6 +91,13 @@ const academyCertifications = createAcademyCertifications({
 // Boost ne peut plus poser « certifié » sur un compte que l'Academy n'a pas
 // diplômé. Elle garde en revanche tout le reste — suspendre, retirer, annoter.
 boost.brancherCertificationAcademy((email) => academyCertifications.estCertifie(email));
+
+// L'administration des contenus (lot 6). Elle ÉCRIT ce que les moteurs
+// ci-dessus lisent, et n'ajoute aucune règle de parcours : le tirage, la
+// progression et la certification restent chez eux.
+const academyAdmin = createAcademyAdmin({
+  getDb, nowIso, academy, qcm: academyQcm, pratique: academyPratique, formations: academyFormations,
+});
 
 const app = express();
 // 6 Mo : une photo de progression prise au téléphone passe, un envoi abusif non.
@@ -695,7 +703,8 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 // ---------------------------------------------------------------------------
 app.use(creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }));
 app.use(creerRoutesAcademy({ academy, qcm: academyQcm, pratique: academyPratique,
-  certifications: academyCertifications, formations: academyFormations, exigeCompte, exigeAdmin, estAdmin }));
+  certifications: academyCertifications, formations: academyFormations, admin: academyAdmin,
+  exigeCompte, exigeAdmin, estAdmin }));
 
 // Toute route /api inconnue répond en JSON : sinon Express renvoie du HTML et le
 // front, qui fait systématiquement res.json(), échoue avec une erreur illisible.
@@ -865,6 +874,7 @@ module.exports.academyQcm = academyQcm;
 module.exports.academyPratique = academyPratique;
 module.exports.academyCertifications = academyCertifications;
 module.exports.academyFormations = academyFormations;
+module.exports.academyAdmin = academyAdmin;
 module.exports.amorcerFaq = amorcerFaq;
 module.exports.appliquerResetPinAdmin = appliquerResetPinAdmin;
 module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;
