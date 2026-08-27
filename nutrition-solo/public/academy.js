@@ -14,6 +14,10 @@
 //   2. La progression et le point de reprise viennent TOUJOURS du serveur.
 //      L'écran ne calcule ni pourcentage ni « où j'en étais » : deux sources
 //      pour la même vérité finissent toujours par diverger.
+//   4. L'ÉVALUATION PRATIQUE EST UNE DÉCISION HUMAINE. L'écran l'affiche et,
+//      pour un évaluateur, la saisit. Il ne la calcule jamais, et il ne
+//      transforme jamais une pratique validée en certification : cette
+//      dernière marche appartient à un autre lot, et l'écran le dit.
 //   3. L'ÉVALUATION THÉORIQUE NE SE CORRIGE PAS ICI. Cet écran ne reçoit
 //      jamais les bonnes réponses : il envoie des identifiants de choix et
 //      reçoit un score déjà calculé. Il ne décide ni de la réussite, ni du
@@ -32,6 +36,14 @@ let contenuOuvert = null;
 let qcm = null;         // état de l'évaluation théorique, tel que le serveur le calcule
 let tentative = null;   // la tentative ouverte, figée par le serveur
 let iQuestion = 0;      // question affichée
+let pratique = null;    // état de l'évaluation pratique, tel que le serveur le calcule
+let moiCollab = false;  // suis-je collaborateur ? (je suis alors formé et évalué)
+let moiEval = false;    // ai-je le droit d'évaluer ? (indépendant du précédent)
+let evalListe = null;   // vue évaluateur : collaborateurs éligibles
+let evalFiche = null;   // vue évaluateur : le dossier ouvert
+let moiAdmin = false;   // administrateur ? (gère les évaluateurs, n'évalue pas)
+let adminComptes = null; // vue admin : les comptes et leur droit d'évaluer
+let aRetirer = null;    // retrait en attente de confirmation
 
 function echapper(s) {
   return String(s === null || s === undefined ? '' : s)
@@ -57,7 +69,7 @@ async function apiAc(route, methode, corps) {
 }
 
 function afficher(ecran) {
-  for (const id of ['#acBoot', '#acLogin', '#acBloc', '#acSommaire', '#acLecteur', '#acQcm']) montrer(id, id === ecran);
+  for (const id of ['#acBoot', '#acLogin', '#acBloc', '#acSommaire', '#acLecteur', '#acQcm', '#acEval', '#acAdmin']) montrer(id, id === ecran);
 }
 function bloquer(icone, titre, texte) {
   $('#acBlocIc').textContent = icone;
@@ -85,11 +97,24 @@ async function demarrer() {
   $('#acMeNom').textContent = moi.data.email || '';
   montrer('#acMe', true);
 
+  moiCollab = !!moi.data.collaborateur;
+  moiEval = !!moi.data.evaluateur;
+  moiAdmin = !!moi.data.admin;
+
   // Un client n'a rien à faire ici : on le lui dit franchement plutôt que de
   // lui servir une formation vide.
-  if (!moi.data.collaborateur) {
+  if (!moiCollab && !moiEval && !moiAdmin) {
     bloquer('🔒', 'Formation réservée aux collaborateurs',
       'La formation Coach Nutrition est réservée aux collaborateurs My Coach. Si tu es client, ton espace se trouve sur la page d\'accueil de l\'application.');
+    return;
+  }
+  // Qui n'est pas collaborateur n'a pas de formation à suivre — un formateur
+  // extérieur, l'administrateur : il arrive directement sur ce qui le concerne
+  // plutôt que sur un sommaire vide. Les écrans se renvoient l'un à l'autre
+  // quand il a les deux droits.
+  if (!moiCollab) {
+    if (moiEval) { await ouvrirEvaluateur(); return; }
+    await ouvrirAdmin();
     return;
   }
   await chargerFormation();
@@ -103,6 +128,7 @@ async function chargerFormation() {
   if (!r.data.ok) { bloquer('⚠️', 'Formation indisponible', 'Réessaie dans un instant.'); return; }
   formation = r.data.formation;
   await chargerQcm();
+  await chargerPratique();
   rendreSommaire();
 }
 
@@ -112,6 +138,13 @@ async function chargerFormation() {
 async function chargerQcm() {
   const r = await apiAc('/api/academy/qcm');
   qcm = r.data && r.data.ok ? r.data.qcm : null;
+}
+
+// Même principe pour l'étape suivante : « ma pratique est-elle validée » est une
+// question dont l'écran n'a pas la réponse, et ne doit pas l'inventer.
+async function chargerPratique() {
+  const r = await apiAc('/api/academy/pratique');
+  pratique = r.data && r.data.ok ? r.data.pratique : null;
 }
 
 // --- Sommaire ----------------------------------------------------------------
@@ -141,6 +174,9 @@ function rendreSommaire() {
     '</div>' +
 
     rendreCarteQcm() +
+    rendreCartePratique() +
+    rendreAccesEvaluateur() +
+    rendreAccesAdmin() +
 
     (f.modules.length ? f.modules.map(rendreModule).join('')
       : '<div class="ec-vide">Aucun module de formation pour le moment.</div>');
@@ -151,6 +187,10 @@ function rendreSommaire() {
   if (g) g.addEventListener('click', ouvrirEvaluation);
   const v = $('#acQcmVoir');
   if (v) v.addEventListener('click', ouvrirEvaluation);
+  const ev = $('#acEvalGo');
+  if (ev) ev.addEventListener('click', ouvrirEvaluateur);
+  const ad = $('#acAdminGo');
+  if (ad) ad.addEventListener('click', ouvrirAdmin);
   document.querySelectorAll('[data-contenu]').forEach((el) => {
     el.addEventListener('click', () => ouvrir(Number(el.dataset.contenu)));
   });
@@ -475,6 +515,406 @@ function rendreResultat() {
 
   afficher('#acQcm');
   window.scrollTo(0, 0);
+}
+
+// --- Évaluation pratique -----------------------------------------------------
+//
+//  L'étape que personne n'automatise. Cet écran affiche une décision humaine
+//  et, pour un évaluateur, la saisit. Deux choses qu'il ne fait JAMAIS :
+//   - décider à la place de l'évaluateur (aucun résultat n'est calculé ici) ;
+//   - laisser croire qu'une pratique validée vaut certification. Elle ne la
+//     vaut pas, et l'écran l'écrit à chaque état concerné.
+
+const LIB_PRATIQUE = {
+  non_accessible: 'Non accessible',
+  a_realiser: 'À réaliser',
+  en_attente: 'Résultat en attente',
+  validee: 'Évaluation validée',
+  a_repasser: 'Évaluation à repasser',
+};
+const LIB_RESULTAT = { valide: 'Validée', a_repasser: 'À repasser' };
+
+const aujourdhuiIso = () => {
+  const d = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+};
+
+// Une tentative, telle qu'elle apparaît dans un historique.
+function ligneTentative(t) {
+  return '<li>' +
+    '<b>' + echapper(dateFr(t.dateEvaluation || t.ouverteLe)) + '</b> — ' +
+    (t.resultat ? echapper(LIB_RESULTAT[t.resultat] || t.resultat) : 'résultat en attente') +
+    (t.evaluateurPrenom || t.evaluateur
+      ? ' · évaluateur : ' + echapper(t.evaluateurPrenom || t.evaluateur) : '') +
+    (t.cas ? ' · ' + echapper(t.cas) : '') +
+    (t.commentaire ? '<span class="ac-prat-com">' + echapper(t.commentaire) + '</span>' : '') +
+    '</li>';
+}
+
+function rendreCartePratique() {
+  if (!pratique) return '';
+  const e = pratique.etat;
+  const entete =
+    '<div class="ac-qcm-h">' +
+      '<b>Évaluation pratique — Coach Nutrition</b>' +
+      '<span class="ac-qcm-etat ac-etat-p-' + e.replace(/_/g, '-') + '">' + echapper(LIB_PRATIQUE[e] || '') + '</span>' +
+    '</div>';
+
+  // Le rappel qui doit survivre à tous les états : cette étape n'est pas la
+  // certification. Le dire une fois ne suffit pas, on le dit là où c'est
+  // tentant de croire le contraire.
+  const pasCertifie = pratique.certifie
+    ? '<p class="ac-qcm-note">Tu es Coach Nutrition certifié.</p>'
+    : '<p class="ac-qcm-note">La certification Coach Nutrition sera prononcée dans un second temps : cette étape ne la remplace pas.</p>';
+
+  let corps = '';
+  if (e === 'non_accessible') {
+    corps =
+      '<p class="ac-qcm-p"><span aria-hidden="true">🔒</span> Évaluation pratique verrouillée : valide d\'abord l\'évaluation théorique.</p>';
+  } else if (e === 'a_realiser') {
+    corps =
+      '<p class="ac-qcm-p">Ta théorie est validée : tu peux passer à l\'évaluation pratique.</p>' +
+      '<p class="ac-qcm-s">Elle se déroule avec un évaluateur, en conditions réelles. C\'est lui qui la programme et en enregistre le résultat.</p>' +
+      pasCertifie;
+  } else if (e === 'en_attente') {
+    const t = pratique.enAttente;
+    corps =
+      '<p class="ac-qcm-p">Ton évaluation pratique a été ouverte' +
+        (t && t.dateEvaluation ? ' pour le ' + echapper(dateFr(t.dateEvaluation)) : '') + '.</p>' +
+      '<p class="ac-qcm-s">Résultat en attente : ton évaluateur l\'enregistrera après la séance.</p>' +
+      pasCertifie;
+  } else if (e === 'validee') {
+    const t = t_valide(pratique);
+    corps =
+      '<p class="ac-qcm-ok"><span aria-hidden="true">✓</span> Évaluation pratique validée' +
+        (pratique.valideeLe ? ' le ' + echapper(dateFr(pratique.valideeLe)) : '') + '.</p>' +
+      (t && t.commentaire ? '<p class="ac-qcm-s">« ' + echapper(t.commentaire) + ' »</p>' : '') +
+      '<p class="ac-qcm-s">L\'étape pratique est terminée : elle ne se repasse pas.</p>' +
+      pasCertifie;
+  } else {
+    const t = pratique.derniere;
+    corps =
+      '<p class="ac-qcm-ko">Évaluation pratique à repasser' +
+        (t && t.dateEvaluation ? ' — séance du ' + echapper(dateFr(t.dateEvaluation)) : '') + '.</p>' +
+      (t && t.commentaire ? '<p class="ac-qcm-s">« ' + echapper(t.commentaire) + ' »</p>' : '') +
+      '<p class="ac-qcm-s">Ton évaluateur te reconvoquera : les tentatives ne sont pas limitées.</p>' +
+      pasCertifie;
+  }
+
+  const histo = pratique.historique.length
+    ? '<details class="ac-qcm-histo"><summary>Mes évaluations pratiques (' + pratique.historique.length + ')</summary><ul>' +
+      pratique.historique.map(ligneTentative).join('') + '</ul></details>'
+    : '';
+
+  return '<section class="ac-qcm-carte ac-prat-' + e.replace(/_/g, '-') + '">' + entete + corps + histo + '</section>';
+}
+
+// La tentative validée, retrouvée dans l'historique : c'est elle qui porte
+// l'appréciation, pas forcément la dernière ligne.
+function t_valide(p) {
+  return p.historique.find((t) => t.resultat === 'valide') || null;
+}
+
+function rendreAccesEvaluateur() {
+  if (!moiEval) return '';
+  return '<section class="ac-qcm-carte ac-eval-acces">' +
+    '<div class="ac-qcm-h"><b>Espace évaluateur</b>' +
+      '<span class="ac-qcm-etat ac-etat-eval">Évaluateur</span></div>' +
+    '<p class="ac-qcm-s">Enregistre le résultat des évaluations pratiques des collaborateurs dont la théorie est validée.</p>' +
+    '<button type="button" class="ec-btn ec-btn-p ac-reprendre" id="acEvalGo">Ouvrir mes évaluations</button>' +
+    '</section>';
+}
+
+// --- Espace évaluateur --------------------------------------------------------
+
+async function ouvrirEvaluateur() {
+  const r = await apiAc('/api/academy/evaluateur/collaborateurs');
+  if (r.status === 401) { deconnecter(); return; }
+  if (r.status === 403) {
+    bloquer('🔒', 'Espace évaluateur',
+      'Seuls les évaluateurs désignés peuvent enregistrer une évaluation pratique.');
+    return;
+  }
+  if (!r.data.ok) { bloquer('⚠️', 'Espace indisponible', 'Réessaie dans un instant.'); return; }
+  evalListe = r.data.collaborateurs;
+  evalFiche = null;
+  rendreEvalListe();
+}
+
+function rendreEvalListe() {
+  $('#acEval').innerHTML =
+    (moiCollab ? '<button type="button" class="ec-back" id="acEvalBack">← Ma formation</button>' : '') +
+    (moiAdmin ? '<button type="button" class="ec-back" id="acEvalAdmin">Gérer les évaluateurs →</button>' : '') +
+    '<h1 class="ec-t">Évaluations pratiques</h1>' +
+    '<p class="ec-sub">Les collaborateurs dont la partie théorique est validée. ' +
+      'Ceux qui n\'en sont pas là n\'apparaissent pas : l\'évaluation pratique leur reste fermée.</p>' +
+
+    (evalListe.length
+      ? '<div class="ac-liste">' + evalListe.map((c) =>
+          '<button type="button" class="ac-l ac-eval-l" data-collab="' + echapper(c.email) + '">' +
+            '<span class="ac-l-t">' +
+              '<b>' + echapper(c.prenom || c.email) + '</b>' +
+              '<span class="ac-eval-mail">' + echapper(c.email) + '</span>' +
+            '</span>' +
+            '<span class="ac-eval-etat ac-etat-p-' + c.etat.replace(/_/g, '-') + '">' +
+              echapper(LIB_PRATIQUE[c.etat] || '') + '</span>' +
+          '</button>').join('') + '</div>'
+      : '<div class="ec-vide">Aucun collaborateur n\'a encore validé la partie théorique.</div>');
+
+  const b = $('#acEvalBack');
+  // On relit son propre état en revenant : un évaluateur est souvent aussi un
+  // collaborateur, et sa carte doit refléter ce qui s'est passé entre-temps.
+  if (b) b.addEventListener('click', async () => { await chargerPratique(); rendreSommaire(); });
+  const ga = $('#acEvalAdmin');
+  if (ga) ga.addEventListener('click', ouvrirAdmin);
+  document.querySelectorAll('#acEval [data-collab]').forEach((el) =>
+    el.addEventListener('click', () => ouvrirFiche(el.dataset.collab)));
+
+  afficher('#acEval');
+  window.scrollTo(0, 0);
+}
+
+async function ouvrirFiche(email) {
+  const r = await apiAc('/api/academy/evaluateur/collaborateurs/' + encodeURIComponent(email));
+  if (r.status === 401) { deconnecter(); return; }
+  if (!r.data.ok) {
+    bloquer('🔍', 'Dossier indisponible', r.data.error || 'Ce collaborateur n\'est pas évaluable.');
+    return;
+  }
+  evalFiche = r.data;
+  rendreEvalFiche();
+}
+
+function rendreEvalFiche() {
+  const c = evalFiche.collaborateur;
+  const p = evalFiche.pratique;
+  const attente = p.enAttente;
+
+  $('#acEval').innerHTML =
+    '<button type="button" class="ec-back" id="acEvalRetour">← Tous les collaborateurs</button>' +
+    '<div class="ac-lec-h">' +
+      '<p class="ac-lec-mod">Évaluation pratique</p>' +
+      '<h1 class="ac-lec-t">' + echapper(c.prenom || c.email) + '</h1>' +
+    '</div>' +
+
+    '<div class="ac-qcm-carte">' +
+      '<div class="ac-qcm-h"><b>' + echapper(c.email) + '</b>' +
+        '<span class="ac-qcm-etat ac-etat-p-' + p.etat.replace(/_/g, '-') + '">' +
+          echapper(LIB_PRATIQUE[p.etat] || '') + '</span></div>' +
+      '<p class="ac-qcm-s">Théorie validée' +
+        (p.scoreTheorie !== null && p.scoreTheorie !== undefined ? ' — score : ' + p.scoreTheorie + ' %' : '') + '.</p>' +
+      (p.certifie
+        ? '<p class="ac-qcm-note">Ce collaborateur est déjà Coach Nutrition certifié.</p>'
+        : '<p class="ac-qcm-note">Enregistrer un résultat ne certifie pas le collaborateur : la certification est un geste distinct.</p>') +
+    '</div>' +
+
+    (p.historique.length
+      ? '<div class="ac-res-revoir"><b>Historique</b><ul class="ac-prat-histo">' +
+        p.historique.map(ligneTentative).join('') + '</ul></div>'
+      : '') +
+
+    // ÉTAPE CLOSE : plus de formulaire. Une pratique validée termine le
+    // parcours pratique — le serveur refuse toute nouvelle tentative, et
+    // laisser des boutons qui échouent serait une invitation à essayer.
+    (p.close
+      ? '<div class="ac-qcm-fin">' +
+          '<p class="ac-qcm-ok"><span aria-hidden="true">✓</span> Étape pratique terminée : validée le ' +
+            echapper(dateFr(p.valideeLe)) + '.</p>' +
+          '<p class="ac-q-aide">Aucune nouvelle évaluation ne peut être ouverte pour ce collaborateur : ' +
+            'la validation est acquise et l\'historique reste consultable ci-dessus.</p>' +
+        '</div>'
+      :
+
+    '<div class="ac-qcm-fin">' +
+      '<h2 class="ac-eval-t">' + (attente
+        ? 'Séance ouverte le ' + echapper(dateFr(attente.ouverteLe)) + ' — enregistrer le résultat'
+        : 'Enregistrer une évaluation') + '</h2>' +
+
+      '<label class="ec-field"><span>Date de l\'évaluation</span>' +
+        '<input id="acEvDate" type="date" value="' +
+          echapper((attente && attente.dateEvaluation) || aujourdhuiIso()) + '" /></label>' +
+      '<label class="ec-field"><span>Cas ou support utilisé (facultatif)</span>' +
+        '<input id="acEvCas" type="text" maxlength="200" placeholder="Ex. : mise en situation S1" value="' +
+          echapper((attente && attente.cas) || '') + '" /></label>' +
+      '<label class="ec-field"><span>Appréciation — communiquée au collaborateur (facultatif)</span>' +
+        '<textarea id="acEvCom" rows="3" maxlength="2000" placeholder="Ce qui est acquis, ce qui reste à travailler."></textarea></label>' +
+
+      '<p class="ac-eval-err" id="acEvErr" role="alert"></p>' +
+      '<div class="ac-eval-actions">' +
+        '<button type="button" class="ec-btn ec-btn-p" id="acEvOk">Enregistrer : évaluation validée</button>' +
+        '<button type="button" class="ec-btn" id="acEvKo">Enregistrer : à repasser</button>' +
+      '</div>' +
+      (attente ? '' :
+        '<button type="button" class="ec-btn ac-eval-plus" id="acEvOuvrir">Ouvrir la séance sans saisir le résultat</button>') +
+      '<p class="ac-q-aide">Une évaluation prononcée n\'est plus modifiable : tant que la pratique n\'est pas ' +
+        'validée, enregistre une nouvelle évaluation. L\'historique les conserve toutes.</p>' +
+    '</div>');
+
+  $('#acEvalRetour').addEventListener('click', ouvrirEvaluateur);
+  const ok_ = $('#acEvOk');
+  if (ok_) ok_.addEventListener('click', () => enregistrer('valide'));
+  const ko_ = $('#acEvKo');
+  if (ko_) ko_.addEventListener('click', () => enregistrer('a_repasser'));
+  const o = $('#acEvOuvrir');
+  if (o) o.addEventListener('click', () => enregistrer(null));
+
+  afficher('#acEval');
+  window.scrollTo(0, 0);
+}
+
+// Un seul chemin de saisie pour les deux gestes : ouvrir une séance (resultat
+// nul) ou prononcer un verdict. Si une séance attend déjà, on la complète
+// plutôt que d'en ouvrir une seconde.
+async function enregistrer(resultat) {
+  const p = evalFiche.pratique;
+  const err = $('#acEvErr');
+  err.textContent = '';
+  const corps = {
+    resultat,
+    dateEvaluation: $('#acEvDate').value || null,
+    cas: $('#acEvCas').value || null,
+    commentaire: $('#acEvCom').value || null,
+  };
+  ['#acEvOk', '#acEvKo', '#acEvOuvrir'].forEach((sel) => { const b = $(sel); if (b) b.disabled = true; });
+
+  const r = p.enAttente
+    ? await apiAc('/api/academy/evaluateur/evaluations/' + p.enAttente.id, 'PUT', corps)
+    : await apiAc('/api/academy/evaluateur/collaborateurs/' +
+        encodeURIComponent(evalFiche.collaborateur.email) + '/evaluations', 'POST', corps);
+
+  if (r.status === 401) { deconnecter(); return; }
+  if (!r.data.ok) {
+    err.textContent = r.data.error || 'Enregistrement impossible.';
+    ['#acEvOk', '#acEvKo', '#acEvOuvrir'].forEach((sel) => { const b = $(sel); if (b) b.disabled = false; });
+    return;
+  }
+  evalFiche = { collaborateur: evalFiche.collaborateur, pratique: r.data.pratique };
+  rendreEvalFiche();
+}
+
+// --- Gestion des évaluateurs (administrateur) ---------------------------------
+//
+//  UN écran, deux gestes : désigner, retirer. Ce n'est pas l'administration de
+//  l'Academy — ni contenus, ni banque de questions, ni configuration. Juste ce
+//  qu'il faut pour que faire tourner l'évaluation pratique ne demande plus
+//  d'appel API à la main.
+//
+//  DEUX CHOSES QUE CET ÉCRAN NE FAIT PAS :
+//   - il ne rend pas l'administrateur évaluateur. Administrer et habiliter sont
+//     deux métiers ; un admin qui veut évaluer se désigne, et le geste est tracé
+//     comme n'importe quel autre ;
+//   - il ne décide de rien. Chaque clic part au serveur, qui reste seul juge :
+//     le drapeau `admin` reçu au démarrage ne sert qu'à afficher l'entrée.
+
+function rendreAccesAdmin() {
+  if (!moiAdmin) return '';
+  return '<section class="ac-qcm-carte ac-adm-acces">' +
+    '<div class="ac-qcm-h"><b>Gestion des évaluateurs</b>' +
+      '<span class="ac-qcm-etat ac-etat-admin">Administrateur</span></div>' +
+    '<p class="ac-qcm-s">Désigne les personnes autorisées à faire passer les évaluations pratiques.</p>' +
+    '<button type="button" class="ec-btn ec-btn-p ac-reprendre" id="acAdminGo">Gérer les évaluateurs</button>' +
+    '</section>';
+}
+
+async function ouvrirAdmin() {
+  const r = await apiAc('/api/academy/admin/evaluateurs');
+  if (r.status === 401) { deconnecter(); return; }
+  if (r.status === 403) {
+    bloquer('🔒', 'Gestion des évaluateurs', 'Cet écran est réservé à l\'administrateur.');
+    return;
+  }
+  if (!r.data.ok) { bloquer('⚠️', 'Écran indisponible', 'Réessaie dans un instant.'); return; }
+  adminComptes = r.data.comptes || [];
+  aRetirer = null;
+  rendreAdmin();
+}
+
+function rendreAdmin() {
+  const actifs = adminComptes.filter((c) => c.evaluateur).length;
+
+  $('#acAdmin').innerHTML =
+    // Les écrans se renvoient l'un à l'autre : l'administrateur est souvent
+    // aussi évaluateur, parfois aussi collaborateur.
+    (moiCollab ? '<button type="button" class="ec-back" id="acAdmBack">← Ma formation</button>'
+      : moiEval ? '<button type="button" class="ec-back" id="acAdmEval">← Mes évaluations</button>' : '') +
+
+    '<h1 class="ec-t">Évaluateurs</h1>' +
+    '<p class="ec-sub">Qui peut faire passer une évaluation pratique. ' +
+      'Être administrateur ne suffit pas : le droit d\'évaluer se désigne, ici, explicitement.</p>' +
+
+    '<div class="ac-adm-compte"><b>' + actifs + '</b> évaluateur' + (actifs > 1 ? 's' : '') +
+      ' autorisé' + (actifs > 1 ? 's' : '') + ' sur ' + adminComptes.length + ' compte' +
+      (adminComptes.length > 1 ? 's' : '') + '.</div>' +
+
+    (adminComptes.length
+      ? '<div class="ac-liste">' + adminComptes.map(ligneCompte).join('') + '</div>'
+      : '<div class="ec-vide">Aucun collaborateur à afficher pour le moment.</div>');
+
+  const b = $('#acAdmBack');
+  if (b) b.addEventListener('click', async () => { await chargerPratique(); rendreSommaire(); });
+  const e = $('#acAdmEval');
+  if (e) e.addEventListener('click', ouvrirEvaluateur);
+
+  document.querySelectorAll('#acAdmin [data-agir]').forEach((el) =>
+    el.addEventListener('click', () => agirSurCompte(el.dataset.compte, el.dataset.agir)));
+
+  afficher('#acAdmin');
+  window.scrollTo(0, 0);
+}
+
+function ligneCompte(c) {
+  const enRetrait = aRetirer === c.email;
+  const mail = echapper(c.email);
+
+  // Retirer un droit d'évaluer se confirme. Pas par une boîte de dialogue du
+  // navigateur — qui fige la page et qu'on clique sans lire — mais en
+  // remplaçant le bouton par sa propre confirmation, à côté d'une sortie.
+  const actions = !c.evaluateur
+    ? '<button type="button" class="ec-btn ac-adm-b" data-compte="' + mail + '" data-agir="designer">' +
+        'Désigner comme évaluateur</button>'
+    : enRetrait
+      ? '<button type="button" class="ec-btn ac-adm-b ac-adm-danger" data-compte="' + mail + '" data-agir="confirmer">' +
+          'Confirmer le retrait</button>' +
+        '<button type="button" class="ec-btn ac-adm-b" data-compte="' + mail + '" data-agir="annuler">Annuler</button>'
+      : '<button type="button" class="ec-btn ac-adm-b" data-compte="' + mail + '" data-agir="retirer">' +
+          'Retirer le droit d\'évaluer</button>';
+
+  return '<div class="ac-l ac-adm-l' + (enRetrait ? ' ac-adm-l-retrait' : '') + '" data-compte="' + mail + '">' +
+    '<span class="ac-l-t">' +
+      '<b>' + echapper(c.prenom || c.email) + '</b>' +
+      '<span class="ac-eval-mail">' + mail +
+        (c.collaborateur ? '' : ' · compte externe') + '</span>' +
+    '</span>' +
+    '<span class="ac-eval-etat ' + (c.evaluateur ? 'ac-etat-eval-oui' : 'ac-etat-eval-non') + '">' +
+      (c.evaluateur ? 'Évaluateur' : 'Non évaluateur') + '</span>' +
+    '<span class="ac-adm-actions">' + actions + '</span>' +
+    (enRetrait ? '<p class="ac-adm-avert">Ce compte ne pourra plus enregistrer d\'évaluation pratique. ' +
+      'Les évaluations qu\'il a déjà prononcées restent dans l\'historique.</p>' : '') +
+    '</div>';
+}
+
+async function agirSurCompte(email, action) {
+  // Les deux gestes qui ne touchent qu'à l'écran : ouvrir et fermer la
+  // confirmation. Rien ne part au serveur tant que le retrait n'est pas confirmé.
+  if (action === 'retirer') { aRetirer = email; rendreAdmin(); return; }
+  if (action === 'annuler') { aRetirer = null; rendreAdmin(); return; }
+
+  const r = await apiAc('/api/academy/admin/evaluateurs', 'POST',
+    { email, evaluateur: action === 'designer' });
+  if (r.status === 401) { deconnecter(); return; }
+  if (!r.data.ok) { bloquer('⚠️', 'Modification impossible', r.data.error || 'Réessaie dans un instant.'); return; }
+
+  // La liste à jour vient du serveur : l'écran ne devine pas le nouvel état.
+  adminComptes = r.data.comptes || adminComptes;
+  aRetirer = null;
+  // Se retirer à soi-même le droit d'évaluer change ce qu'on a le droit de
+  // voir : on relit son propre statut plutôt que de garder un menu périmé.
+  if (email === (session && session.email)) {
+    const moi = await apiAc('/api/academy/moi');
+    if (moi.data && moi.data.ok) moiEval = !!moi.data.evaluateur;
+  }
+  rendreAdmin();
 }
 
 // --- Connexion ----------------------------------------------------------------

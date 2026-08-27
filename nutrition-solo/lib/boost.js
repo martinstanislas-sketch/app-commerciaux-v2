@@ -427,6 +427,54 @@ function createBoost({ getDb, nowIso }) {
     return ok({ certification: lireCertification(mail) });
   }
 
+  // Report d'une évaluation PRATIQUE prononcée dans l'Academy (lot 3). Aussi
+  // étroit que son homologue théorique : il n'écrit que resultat_pratique.
+  //
+  //  ⚠️ LE STATUT N'EST JAMAIS TOUCHÉ. Une pratique validée ne certifie
+  //  personne : passer à `certifie` demande un évaluateur nommé et une date,
+  //  et c'est un geste distinct, prononcé via definirCertification(). Écrire
+  //  ici « certifie » ferait de l'Academy le juge de sa propre habilitation.
+  //
+  //  Un coach DÉJÀ CERTIFIÉ garde son statut quoi qu'il arrive : ce report ne
+  //  peut donc jamais lui fermer ses dossiers clients. Comme pour le QCM, la
+  //  mise à jour nomme ses colonnes une par une plutôt que de réécrire la
+  //  ligne, qui effacerait l'évaluateur et la date de certification.
+  function enregistrerPratique(email, resultat, auteur) {
+    const mail = normalise(email);
+    const u = lireUtilisateur(mail);
+    if (!u) return err(404, 'Compte introuvable.');
+    if (!estCollaborateur(u)) return err(409, 'Ce compte n\'est pas un collaborateur.');
+
+    const res = String(resultat || '').trim();
+    if (!PRATIQUE_RESULTATS.includes(res)) return err(400, 'Résultat pratique inconnu.');
+
+    const actuelle = lireCertification(mail);
+    // LE RÉSULTAT PRATIQUE NE RECULE JAMAIS. Cette colonne est une donnée
+    // DÉRIVÉE : l'historique réel et immuable des tentatives vit dans
+    // academy_evaluations, et c'est lui qui démontre la validation. Le cache ne
+    // doit donc jamais raconter autre chose que lui — or l'Academy ferme
+    // l'étape à la première validation, et un coach déjà certifié porte un
+    // « valide » prononcé par un évaluateur humain. Dans les deux cas, repasser
+    // à « à repasser » serait une régression de la trace, jamais un fait
+    // nouveau.
+    if (actuelle.resultatPratique === 'valide') {
+      return ok({ certification: actuelle, inchange: true });
+    }
+
+    const existe = db().prepare('SELECT email FROM boost_certifications WHERE email = ?').get(mail);
+    if (existe) {
+      db().prepare('UPDATE boost_certifications SET resultat_pratique = ?, maj_le = ?, maj_par = ? WHERE email = ?')
+        .run(res, nowIso(), normalise(auteur) || null, mail);
+    } else {
+      // Aucune ligne : on en crée une au statut de départ. Le collaborateur
+      // n'est pas certifié pour autant — c'est justement ce que dit CERT_NON.
+      db().prepare(`INSERT INTO boost_certifications (email, statut, resultat_pratique, maj_le, maj_par)
+                    VALUES (?, ?, ?, ?, ?)`)
+        .run(mail, CERT_NON, res, nowIso(), normalise(auteur) || null);
+    }
+    return ok({ certification: lireCertification(mail) });
+  }
+
   // La jointure part de la table Boost, pas de `users` : c'est le Boost qui sait
   // qui sont ses collaborateurs, le compte n'apporte que le prénom.
   //
@@ -827,7 +875,8 @@ function createBoost({ getDb, nowIso }) {
     assurerSchema,
     // rôles & certification
     lireUtilisateur, definirRole, estCollaborateur, listerCollaborateurs, listerClients,
-    lireCertification, definirCertification, estCoachCertifie, enregistrerQcmTheorie,
+    lireCertification, definirCertification, estCoachCertifie,
+    enregistrerQcmTheorie, enregistrerPratique,
     // lecture
     lireBoost, listerBoosts, boostActifDuClient, dossierDuClient, boostsDuCoach, lireJournal,
     // écriture

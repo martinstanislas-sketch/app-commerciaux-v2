@@ -47,6 +47,7 @@ const { creerRoutesBoost } = require('./lib/boostRoutes');
 const { createAcademy } = require('./lib/academy');
 const { creerRoutesAcademy } = require('./lib/academyRoutes');
 const { createAcademyQcm } = require('./lib/academyQcm');
+const { createAcademyPratique } = require('./lib/academyPratique');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
 const PORT = process.env.PORT || 3000;
@@ -69,6 +70,12 @@ const academy = createAcademy({ getDb, nowIso, boost });
 // progression, ce module porte le QCM, son gel et sa correction. Réussir n'y
 // certifie personne — la certification reste celle du Boost (boost.js).
 const academyQcm = createAcademyQcm({ getDb, nowIso, boost, academy });
+// L'évaluation pratique : la seule étape que personne n'automatise. Elle relit
+// le verdict théorique du QCM plutôt que de le recalculer, et n'écrit jamais le
+// statut de certification — valider la pratique ne certifie pas.
+// Le droit d'évaluer n'est PAS dérivé du droit d'administrer : il se désigne,
+// explicitement, administrateur compris (cf. lib/academyPratique.js).
+const academyPratique = createAcademyPratique({ getDb, nowIso, boost, qcm: academyQcm });
 
 const app = express();
 // 6 Mo : une photo de progression prise au téléphone passe, un envoi abusif non.
@@ -114,8 +121,14 @@ function exigeCompte(req, res, next) {
   next();
 }
 
+// La règle « qui est administrateur » est écrite ICI, une seule fois : le
+// middleware la garde, et les modules qui ont besoin de la CONNAÎTRE (pour
+// afficher un écran, jamais pour ouvrir une porte) reçoivent la même fonction.
+// Deux formulations de la même règle finiraient par diverger.
+const estAdmin = (email) => !!ADMIN_EMAIL && normEmail(email) === ADMIN_EMAIL;
+
 function exigeAdmin(req, res, next) {
-  if (!req.user || !ADMIN_EMAIL || normEmail(req.user.email) !== ADMIN_EMAIL) {
+  if (!req.user || !estAdmin(req.user.email)) {
     return res.status(403).json({ ok: false, error: 'Réservé à l\'administrateur.' });
   }
   next();
@@ -667,7 +680,7 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 //  masquerait des routes existantes, plus bas il serait avalé par le 404.
 // ---------------------------------------------------------------------------
 app.use(creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }));
-app.use(creerRoutesAcademy({ academy, qcm: academyQcm, exigeCompte }));
+app.use(creerRoutesAcademy({ academy, qcm: academyQcm, pratique: academyPratique, exigeCompte, exigeAdmin, estAdmin }));
 
 // Toute route /api inconnue répond en JSON : sinon Express renvoie du HTML et le
 // front, qui fait systématiquement res.json(), échoue avec une erreur illisible.
@@ -834,6 +847,7 @@ module.exports.boost = boost;
 module.exports.seances = seances;
 module.exports.academy = academy;
 module.exports.academyQcm = academyQcm;
+module.exports.academyPratique = academyPratique;
 module.exports.amorcerFaq = amorcerFaq;
 module.exports.appliquerResetPinAdmin = appliquerResetPinAdmin;
 module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;

@@ -399,18 +399,24 @@ test('l\'écran dit franchement que « terminer » est une déclaration', () => 
     'aucune promesse de vérification');
 });
 
-test('l\'écran ne construit ni évaluation pratique ni certification', () => {
-  // Le lot 2 a ajouté le QCM : cette frontière-là est tombée, et c'est voulu.
-  // Les deux SUIVANTES tiennent toujours — l'évaluation pratique et le verdict
-  // de certification ne s'écrivent pas dans un navigateur.
+test('l\'écran ne prononce aucune certification', () => {
+  // Deux frontières sont tombées, chacune à son lot : le QCM au lot 2, puis
+  // l'évaluation pratique au lot 3. C'est voulu. LA DERNIÈRE TIENT TOUJOURS —
+  // le verdict « Coach Nutrition certifié » ne s'écrit pas dans un navigateur,
+  // et l'écran ne touche pas au système qui le porte.
   //
   // On juge sur le CODE, commentaires retirés : ceux-ci parlent du programme,
-  // pas au collaborateur. Et l'écran a bien le droit de DIRE que la pratique
-  // vient ensuite — ce qu'il ne doit pas faire, c'est en construire la
-  // mécanique ni prononcer une certification.
+  // pas au collaborateur. L'écran a bien le droit de DIRE que la certification
+  // viendra ensuite — ce qu'il ne doit pas faire, c'est la prononcer.
   const code = js.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
-  assert.ok(!/\/api\/academy\/(pratique|certification)/.test(code), 'aucune route d\'évaluation pratique');
   assert.ok(!/\/api\/boost\//.test(code), 'l\'écran ne touche pas au système de certification');
+  // L'écran gère désormais les ÉVALUATEURS — c'est la seule administration
+  // qu'il porte, et elle reste gardée par exigeAdmin côté serveur. Tout le
+  // reste de l'Academy (contenus, banque de questions, configuration) et la
+  // certification demeurent hors de sa portée.
+  assert.ok(!/\/api\/academy\/certification/.test(code), 'l\'écran ne certifie personne');
+  assert.ok(!/\/api\/academy\/admin\/(contenus|modules|questions|choix|config)/.test(code),
+    'l\'écran n\'administre ni les contenus ni la banque de questions');
   assert.ok(!/statut\s*[:=]\s*'certifie'/.test(code), 'l\'écran ne prononce aucune certification');
 });
 

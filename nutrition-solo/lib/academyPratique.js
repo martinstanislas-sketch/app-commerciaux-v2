@@ -1,0 +1,467 @@
+'use strict';
+// ============================================================================
+//  MY COACH ACADEMY — évaluation pratique (lot 3).
+//
+//  L'ÉTAPE QUI N'EST PAS AUTOMATISÉE. Le QCM du lot 2 mesure ce qu'un serveur
+//  sait mesurer : des réponses. Savoir conduire un rendez-vous ne se mesure pas
+//  comme ça. Cette étape enregistre donc UNE DÉCISION HUMAINE, et rien d'autre.
+//
+//  QUATRE PARTIS PRIS :
+//
+//   1. LA THÉORIE NE SE RECALCULE PAS ICI. « La théorie est-elle validée ? » a
+//      une seule réponse dans l'application, et elle vit dans le lot 2
+//      (academyQcm.etatPour). La relire est gratuit ; la redémontrer serait un
+//      second système qui, un jour, dirait autre chose.
+//
+//   2. ON N'ÉCRASE JAMAIS UNE ÉVALUATION. Une tentative close est immuable,
+//      exactement comme une tentative de QCM rendue. Repasser l'évaluation crée
+//      une LIGNE DE PLUS. L'historique n'est pas une fonctionnalité de confort :
+//      c'est ce qui permet de répondre, un an après, de l'habilitation d'un
+//      coach.
+//
+//   3. PERSONNE NE S'AUTO-VALIDE. Un évaluateur ne peut pas s'évaluer lui-même,
+//      et un collaborateur ordinaire n'atteint aucune route d'écriture. C'est la
+//      seule chose qui donne du poids au résultat.
+//
+//   4. VALIDER LA PRATIQUE NE CERTIFIE PAS. On inscrit le résultat dans la
+//      colonne prévue pour lui (boost_certifications.resultat_pratique) et on
+//      NE TOUCHE PAS au statut. Devenir Coach Nutrition certifié est un geste
+//      distinct, qui viendra dans son propre lot.
+//
+//  Ce que ce module NE fait pas : la certification finale, l'administration de
+//  l'Academy, et les cas pratiques. Ce dernier point est un choix : l'évaluation
+//  doit fonctionner en V1 même si l'évaluateur travaille avec ses propres
+//  supports. Une simple étiquette libre (`cas`) note lequel a servi ; une table
+//  de cas se construira le jour où on en aura vraiment.
+// ============================================================================
+
+const { err, ok, jourValide, aujourdhui } = require('./boost');
+
+// Une seule formation aujourd'hui. La colonne existe pour que l'arrivée d'une
+// seconde ne demande pas de migration — pas pour être configurable maintenant.
+const FORMATION = 'coach_nutrition';
+
+// V1 volontairement binaire : l'évaluateur considère-t-il que le collaborateur
+// maîtrise assez la pratique pour poursuivre ? Les deux valeurs appartiennent
+// déjà à la liste du Boost (PRATIQUE_RESULTATS) : aucune nouvelle convention.
+const RES_VALIDE = 'valide';
+const RES_A_REPASSER = 'a_repasser';
+const RESULTATS = [RES_VALIDE, RES_A_REPASSER];
+
+// Les cinq états que l'écran doit pouvoir présenter. CALCULÉS à chaque lecture,
+// jamais stockés : un état stocké finit par mentir le jour où la théorie bouge.
+const ETAT_NON_ACCESSIBLE = 'non_accessible';
+const ETAT_A_REALISER = 'a_realiser';
+const ETAT_EN_ATTENTE = 'en_attente';
+const ETAT_VALIDEE = 'validee';
+const ETAT_A_REPASSER = 'a_repasser';
+
+const SCHEMA_PRATIQUE = `
+-- Qui a le droit d'évaluer. Table DÉDIÉE et minimale, calquée sur
+-- boost_collaborateurs : aucun second système d'authentification, aucune
+-- colonne ajoutée ailleurs. On pose actif = 0 plutôt que de supprimer la ligne,
+-- pour garder la date et l'auteur du retrait.
+--
+-- LA DÉSIGNATION EST TOUJOURS EXPLICITE, administrateur compris. Administrer
+-- l'Academy et faire passer une évaluation pratique sont deux métiers : que
+-- l'un entraîne l'autre ferait de chaque administrateur un évaluateur sans que
+-- personne ne l'ait décidé. Pas d'amorçage impossible pour autant : désigner
+-- un évaluateur relève du droit d'ADMIN, pas du droit d'évaluer.
+CREATE TABLE IF NOT EXISTS academy_evaluateurs (
+  email   TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
+  actif   INTEGER NOT NULL DEFAULT 1,
+  cree_le TEXT NOT NULL,
+  maj_le  TEXT NOT NULL,
+  maj_par TEXT
+);
+
+-- Une ligne = UNE TENTATIVE d'évaluation pratique. Jamais mise à jour une fois
+-- close : repasser l'évaluation ajoute une ligne. C'est ce qui rend impossible
+-- d'écraser silencieusement une décision passée.
+--
+-- resultat NULL = séance ouverte, verdict pas encore saisi (« résultat en
+-- attente »). C'est un état réel : l'évaluation a lieu, la saisie suit.
+CREATE TABLE IF NOT EXISTS academy_evaluations (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  email           TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  formation       TEXT NOT NULL DEFAULT '${FORMATION}',
+  -- Étiquette libre du support utilisé. PAS une clé étrangère : en V1
+  -- l'évaluateur peut très bien travailler avec ses propres documents.
+  cas             TEXT,
+  ouvert_par      TEXT,
+  ouverte_le      TEXT NOT NULL,
+  -- Le JOUR de la séance (AAAA-MM-JJ), qui n'est pas forcément celui de la
+  -- saisie : un évaluateur note souvent son verdict le lendemain.
+  date_evaluation TEXT,
+  evaluateur      TEXT,          -- qui a PRONONCÉ le résultat
+  resultat        TEXT,          -- NULL | valide | a_repasser
+  commentaire     TEXT,
+  decide_le       TEXT,          -- date de saisie du verdict
+  maj_le          TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_academy_evaluations ON academy_evaluations(email, id);
+`;
+
+function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
+  const db = () => getDb();
+  const normalise = (e) => String(e || '').trim().toLowerCase();
+
+  const basesMigrees = new WeakSet();
+  function assurerSchema() {
+    const d = db();
+    if (basesMigrees.has(d)) return true;
+    // Les tables du lot 3 s'appuient sur les comptes et sur le QCM : les socles
+    // précédents doivent exister d'abord (clés étrangères actives).
+    qcm.assurerSchema();
+    d.exec(SCHEMA_PRATIQUE);
+    basesMigrees.add(d);
+    return true;
+  }
+
+  // -- Droit d'évaluer -------------------------------------------------------
+
+  // Relu à CHAQUE requête, jamais mis en cache : retirer le droit d'évaluer doit
+  // fermer la porte dans la seconde, comme pour les collaborateurs du Boost.
+  //
+  // Aucune exception, pas même pour l'administrateur : être admin donne le droit
+  // de DÉSIGNER des évaluateurs, jamais celui d'évaluer. Un admin qui veut faire
+  // passer une pratique se désigne lui-même — le geste est alors tracé, et c'est
+  // exactement ce qu'on veut d'une habilitation.
+  function estEvaluateur(email) {
+    const mail = normalise(email);
+    if (!mail) return false;
+    const row = db().prepare('SELECT actif FROM academy_evaluateurs WHERE email = ?').get(mail);
+    return !!(row && row.actif);
+  }
+
+  // Réservé à l'administrateur (la route s'en charge). Volontairement la SEULE
+  // écriture d'administration du lot : on n'en profite pas pour construire
+  // l'administration complète de l'Academy.
+  function definirEvaluateur(email, oui, auteur) {
+    const mail = normalise(email);
+    const u = boost.lireUtilisateur(mail);
+    if (!u) return err(404, 'Ce compte n\'existe pas encore : la personne doit d\'abord créer son espace.');
+    const maintenant = nowIso();
+    db().prepare(`INSERT INTO academy_evaluateurs (email, actif, cree_le, maj_le, maj_par) VALUES (?, ?, ?, ?, ?)
+                  ON CONFLICT(email) DO UPDATE SET actif = excluded.actif,
+                    maj_le = excluded.maj_le, maj_par = excluded.maj_par`)
+      .run(mail, oui ? 1 : 0, maintenant, maintenant, normalise(auteur) || null);
+    return ok({ evaluateur: { email: mail, prenom: u.prenom || '', actif: !!oui } });
+  }
+
+  // La liste qu'affiche l'écran d'administration : tout compte susceptible
+  // d'évaluer, avec son droit actuel. C'est-à-dire les collaborateurs ACTIFS —
+  // les candidats naturels — PLUS toute personne déjà désignée même si elle a
+  // cessé d'être collaboratrice : sans elle, on ne pourrait plus lui retirer
+  // son droit depuis l'écran, et il faudrait ressortir la ligne de commande.
+  //
+  // Ce n'est PAS un second système de permissions : la vérité reste
+  // academy_evaluateurs, relue à chaque requête par estEvaluateur().
+  function listerGestionEvaluateurs() {
+    const droits = new Map(db().prepare('SELECT email, actif FROM academy_evaluateurs').all()
+      .map((r) => [r.email, !!r.actif]));
+    const vus = new Set();
+    const lignes = boost.listerCollaborateurs().map((c) => {
+      vus.add(c.email);
+      return {
+        email: c.email, prenom: c.prenom || '',
+        collaborateur: true, evaluateur: droits.get(c.email) === true,
+      };
+    });
+    for (const [email, actif] of droits) {
+      if (vus.has(email) || !actif) continue;
+      lignes.push({ email, prenom: prenomDe(email), collaborateur: false, evaluateur: true });
+    }
+    // Les évaluateurs en tête : c'est la question qu'on vient se poser en
+    // ouvrant cet écran, « qui a le droit aujourd'hui ? ».
+    return lignes.sort((a, b) => (Number(b.evaluateur) - Number(a.evaluateur)) || a.email.localeCompare(b.email));
+  }
+
+  function listerEvaluateurs() {
+    return db().prepare(`SELECT e.email AS email, u.prenom AS prenom, e.actif AS actif, e.maj_le AS majLe, e.maj_par AS majPar
+                         FROM academy_evaluateurs e JOIN users u ON u.email = e.email
+                         ORDER BY e.actif DESC, e.email ASC`).all()
+      .map((r) => ({ ...r, actif: !!r.actif }));
+  }
+
+  // -- Lecture ---------------------------------------------------------------
+
+  const prenomDe = (email) => {
+    const u = db().prepare('SELECT prenom FROM users WHERE email = ?').get(normalise(email));
+    return u && u.prenom ? u.prenom : '';
+  };
+
+  // La vue d'une tentative. Le commentaire de l'évaluateur EST montré au
+  // collaborateur concerné : c'est une appréciation qui lui est destinée, et
+  // l'écran de saisie le dit à l'évaluateur avant qu'il l'écrive. Le jour où
+  // une note privée sera nécessaire, ce sera une colonne distincte — pas un
+  // champ qu'on aurait laissé ambigu.
+  const vue = (r) => ({
+    id: r.id,
+    formation: r.formation,
+    cas: r.cas || null,
+    ouverteLe: r.ouverte_le,
+    ouvertPar: r.ouvert_par || null,
+    dateEvaluation: r.date_evaluation || null,
+    evaluateur: r.evaluateur || null,
+    evaluateurPrenom: r.evaluateur ? prenomDe(r.evaluateur) : '',
+    resultat: r.resultat || null,
+    enAttente: !r.resultat,
+    commentaire: r.commentaire || null,
+    decideLe: r.decide_le || null,
+  });
+
+  function historiqueDe(email) {
+    return db().prepare('SELECT * FROM academy_evaluations WHERE email = ? ORDER BY id DESC')
+      .all(normalise(email)).map(vue);
+  }
+
+  const lireEvaluation = (id) => {
+    const r = db().prepare('SELECT * FROM academy_evaluations WHERE id = ?').get(Number(id));
+    return r || null;
+  };
+
+  const enAttenteDe = (email) =>
+    db().prepare('SELECT * FROM academy_evaluations WHERE email = ? AND resultat IS NULL ORDER BY id DESC LIMIT 1')
+      .get(normalise(email)) || null;
+
+  // Une validation est ACQUISE et CLÔT l'étape : on cherche donc « existe-t-il
+  // une évaluation validée », et non « la dernière est-elle validée ». Comme
+  // plus aucune tentative ne peut s'ouvrir ensuite (cf. ouvrir()), aucun verdict
+  // postérieur ne peut venir la rétrograder — la règle tient par construction,
+  // pas seulement par comparaison de dates.
+  const validationDe = (email) =>
+    db().prepare(`SELECT * FROM academy_evaluations WHERE email = ? AND resultat = ?
+                  ORDER BY id ASC LIMIT 1`).get(normalise(email), RES_VALIDE) || null;
+
+  // L'état complet, tel que l'écran l'affiche. Tout est recalculé.
+  function etatPour(email) {
+    const mail = normalise(email);
+    // LA source unique : le lot 2. Rien n'est recalculé ici.
+    const theorie = qcm.etatPour(mail);
+    const validee = validationDe(mail);
+    const attente = enAttenteDe(mail);
+    const derniere = db().prepare('SELECT * FROM academy_evaluations WHERE email = ? ORDER BY id DESC LIMIT 1').get(mail);
+    const cert = boost.lireCertification(mail);
+
+    let etat = ETAT_NON_ACCESSIBLE;
+    if (theorie.theorieValidee) {
+      if (validee) etat = ETAT_VALIDEE;
+      else if (attente) etat = ETAT_EN_ATTENTE;
+      else if (derniere && derniere.resultat === RES_A_REPASSER) etat = ETAT_A_REPASSER;
+      else etat = ETAT_A_REALISER;
+    }
+
+    return {
+      etat,
+      // Le prérequis, relu et renvoyé tel quel : l'écran n'a pas à le déduire.
+      theorieValidee: !!theorie.theorieValidee,
+      accessible: !!theorie.theorieValidee,
+      scoreTheorie: theorie.scoreValide,
+      validee: !!validee,
+      valideeLe: validee ? (validee.date_evaluation || validee.decide_le) : null,
+      // L'étape est close : plus aucune tentative ne s'ouvrira. L'écran s'en
+      // sert pour ne plus proposer de formulaire — le serveur refuserait de
+      // toute façon.
+      close: !!validee,
+      enAttente: attente ? vue(attente) : null,
+      derniere: derniere ? vue(derniere) : null,
+      historique: historiqueDe(mail),
+      // Ce que la pratique validée n'ouvre PAS, renvoyé à côté pour que l'écran
+      // ne puisse pas confondre les deux.
+      certifie: cert.statut === 'certifie',
+      certification: cert.statut,
+    };
+  }
+
+  // -- Vue de l'évaluateur ---------------------------------------------------
+
+  // Les collaborateurs qu'un évaluateur peut convoquer : actifs, théorie
+  // validée. Ceux dont la théorie n'est pas faite n'apparaissent pas — les
+  // afficher grisés inviterait à chercher comment passer outre.
+  function listerEligibles() {
+    const collabs = boost.listerCollaborateurs();
+    return collabs
+      .map((c) => {
+        const e = etatPour(c.email);
+        return {
+          email: c.email,
+          prenom: c.prenom || '',
+          etat: e.etat,
+          theorieValidee: e.theorieValidee,
+          scoreTheorie: e.scoreTheorie,
+          validee: e.validee,
+          close: e.close,
+          enAttente: e.enAttente,
+          derniere: e.derniere,
+          nbTentatives: e.historique.length,
+          certifie: e.certifie,
+        };
+      })
+      .filter((c) => c.theorieValidee)
+      .sort((a, b) => {
+        // Ce qui demande une action d'abord : séances à saisir, puis à
+        // convoquer, puis les dossiers clos.
+        const rang = { en_attente: 0, a_repasser: 1, a_realiser: 2, validee: 3, non_accessible: 4 };
+        return (rang[a.etat] - rang[b.etat]) || a.email.localeCompare(b.email);
+      });
+  }
+
+  function ficheDe(email) {
+    const mail = normalise(email);
+    const u = boost.lireUtilisateur(mail);
+    if (!u) return err(404, 'Collaborateur introuvable.');
+    if (!boost.estCollaborateur(u)) return err(404, 'Collaborateur introuvable.');
+    const e = etatPour(mail);
+    if (!e.theorieValidee) {
+      return err(409, 'Ce collaborateur n\'a pas encore validé la partie théorique.',
+        { theorieNonValidee: true, email: mail });
+    }
+    return ok({ collaborateur: { email: mail, prenom: u.prenom || '' }, pratique: e });
+  }
+
+  // -- Écriture --------------------------------------------------------------
+
+  // Les trois refus qui donnent son poids au résultat, réunis en un seul
+  // endroit pour qu'aucune route ne puisse en oublier un.
+  function verifierCible(cible, auteur) {
+    const mail = normalise(cible);
+    const moi = normalise(auteur);
+    if (!mail) return err(400, 'Collaborateur manquant.');
+    // Personne ne s'auto-valide, évaluateur ou non. C'est le refus le plus
+    // important du lot : sans lui, le droit d'évaluer vaudrait droit de se
+    // certifier soi-même.
+    if (mail === moi) return err(403, 'On n\'évalue pas sa propre pratique.', { autoEvaluation: true });
+    const u = boost.lireUtilisateur(mail);
+    if (!u || !boost.estCollaborateur(u)) return err(404, 'Collaborateur introuvable.');
+    // Le prérequis est relu ICI, à l'écriture. Le vérifier seulement à
+    // l'affichage laisserait un appel direct à l'API passer devant.
+    if (!qcm.etatPour(mail).theorieValidee) {
+      return err(409, 'La partie théorique de ce collaborateur n\'est pas validée : l\'évaluation pratique reste verrouillée.',
+        { theorieNonValidee: true });
+    }
+    return ok({ collaborateur: u });
+  }
+
+  function normaliserSaisie(donnees) {
+    const d = donnees || {};
+    const resultat = d.resultat === undefined || d.resultat === null || d.resultat === ''
+      ? null : String(d.resultat).trim();
+    if (resultat !== null && !RESULTATS.includes(resultat)) {
+      return { erreur: err(400, 'Résultat inconnu : attendu « valide » ou « a_repasser ».') };
+    }
+    let date = d.dateEvaluation ? String(d.dateEvaluation).trim() : null;
+    if (date && !jourValide(date)) return { erreur: err(400, 'Date d\'évaluation invalide (AAAA-MM-JJ).') };
+    return {
+      resultat,
+      date,
+      cas: d.cas ? String(d.cas).slice(0, 200) : null,
+      commentaire: d.commentaire ? String(d.commentaire).slice(0, 2000) : null,
+    };
+  }
+
+  // Ouvrir une évaluation. Deux usages, une seule route : sans résultat, la
+  // séance est ouverte et le verdict suivra (« résultat en attente ») ; avec
+  // résultat, l'évaluateur qui saisit à chaud clôt en une fois.
+  function ouvrir(cible, auteur, donnees) {
+    const mail = normalise(cible);
+    const moi = normalise(auteur);
+    const controle = verifierCible(mail, moi);
+    if (!controle.ok) return controle;
+
+    const saisie = normaliserSaisie(donnees);
+    if (saisie.erreur) return saisie.erreur;
+
+    // L'ÉTAPE EST TERMINÉE. Une pratique validée ferme le parcours pratique :
+    // plus de tentative, donc plus de verdict postérieur capable de la
+    // rétrograder. Le refus vit ICI, côté serveur — l'écran qui masque le
+    // formulaire n'est qu'une politesse, pas une protection.
+    const acquise = validationDe(mail);
+    if (acquise) {
+      return err(409, 'L\'évaluation pratique de ce collaborateur est déjà validée : l\'étape est terminée.',
+        { dejaValidee: true, evaluation: vue(acquise) });
+    }
+
+    // Deux séances ouvertes en même temps rendraient « où en est-il ? »
+    // impossible à répondre. On renvoie celle qui attend plutôt qu'un refus sec.
+    const attente = enAttenteDe(mail);
+    if (attente) {
+      return err(409, 'Une évaluation est déjà ouverte pour ce collaborateur : saisis son résultat.',
+        { evaluation: vue(attente) });
+    }
+
+    const maintenant = nowIso();
+    const clos = saisie.resultat !== null;
+    const info = db().prepare(`INSERT INTO academy_evaluations
+        (email, formation, cas, ouvert_par, ouverte_le, date_evaluation, evaluateur, resultat, commentaire, decide_le, maj_le)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(mail, FORMATION, saisie.cas, moi, maintenant,
+        saisie.date || (clos ? aujourdhui() : null),
+        clos ? moi : null, saisie.resultat, saisie.commentaire,
+        clos ? maintenant : null, maintenant);
+
+    const id = Number(info.lastInsertRowid);
+    if (clos) reporterDansCertification(mail, saisie.resultat, moi);
+    return ok({ evaluation: vue(lireEvaluation(id)), pratique: etatPour(mail) }, 201);
+  }
+
+  // Saisir le verdict d'une séance ouverte. Une évaluation close est IMMUABLE :
+  // on ne corrige pas une décision prononcée, on en prononce une nouvelle.
+  function enregistrerResultat(id, auteur, donnees) {
+    const moi = normalise(auteur);
+    const r = lireEvaluation(id);
+    if (!r) return err(404, 'Évaluation introuvable.');
+    if (r.resultat) {
+      return err(409, 'Cette évaluation a déjà été prononcée : ouvre une nouvelle évaluation pour ce collaborateur.',
+        { evaluation: vue(r) });
+    }
+    const controle = verifierCible(r.email, moi);
+    if (!controle.ok) return controle;
+
+    // Même verrou qu'à l'ouverture. Il ne peut normalement pas se déclencher —
+    // une séance ne survit pas à une validation, puisque valider est justement
+    // ce qui clôt la dernière séance ouverte — mais une règle qui protège une
+    // habilitation ne se garde pas à un seul endroit.
+    const acquise = validationDe(r.email);
+    if (acquise) {
+      return err(409, 'L\'évaluation pratique de ce collaborateur est déjà validée : l\'étape est terminée.',
+        { dejaValidee: true, evaluation: vue(acquise) });
+    }
+
+    const saisie = normaliserSaisie(donnees);
+    if (saisie.erreur) return saisie.erreur;
+    if (!saisie.resultat) return err(400, 'Un résultat est requis : « valide » ou « a_repasser ».');
+
+    const maintenant = nowIso();
+    db().prepare(`UPDATE academy_evaluations SET evaluateur = ?, resultat = ?, commentaire = ?,
+                    date_evaluation = COALESCE(?, date_evaluation, ?), cas = COALESCE(?, cas),
+                    decide_le = ?, maj_le = ? WHERE id = ?`)
+      .run(moi, saisie.resultat, saisie.commentaire, saisie.date, aujourdhui(), saisie.cas,
+        maintenant, maintenant, r.id);
+
+    reporterDansCertification(r.email, saisie.resultat, moi);
+    return ok({ evaluation: vue(lireEvaluation(r.id)), pratique: etatPour(r.email) });
+  }
+
+  // Report dans le système de certification EXISTANT — la colonne
+  // resultat_pratique, qui n'attendait que ça. Le STATUT n'est jamais touché :
+  // valider la pratique ne certifie personne, et le lot qui certifiera devra le
+  // faire explicitement.
+  function reporterDansCertification(email, resultat, auteur) {
+    if (typeof boost.enregistrerPratique !== 'function') return null;
+    return boost.enregistrerPratique(email, resultat, auteur);
+  }
+
+  return {
+    assurerSchema,
+    estEvaluateur, definirEvaluateur, listerEvaluateurs, listerGestionEvaluateurs,
+    etatPour, historiqueDe, listerEligibles, ficheDe,
+    ouvrir, enregistrerResultat, lireEvaluation,
+  };
+}
+
+module.exports = {
+  createAcademyPratique,
+  FORMATION, RESULTATS, RES_VALIDE, RES_A_REPASSER,
+  ETAT_NON_ACCESSIBLE, ETAT_A_REALISER, ETAT_EN_ATTENTE, ETAT_VALIDEE, ETAT_A_REPASSER,
+};

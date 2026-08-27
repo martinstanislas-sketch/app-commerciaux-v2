@@ -119,6 +119,55 @@
 .ac-res-note { font-size: .84rem; color: var(--text-muted); margin: 0 0 12px; }
 .ac-res-suite .ec-btn { width: 100%; }
 
+/* Évaluation pratique ------------------------------------------------------ */
+/* Elle réutilise la carte, les pastilles d'état et la coquille du QCM : deux
+   étapes du même parcours ne doivent pas avoir deux allures. */
+.ac-etat-p-validee { background: var(--sage); color: #fff; border-color: var(--sage); }
+.ac-etat-p-en-attente, .ac-etat-p-a-realiser { background: var(--saphir); color: #fff; border-color: var(--saphir); }
+.ac-etat-p-a-repasser { background: var(--surface-soft); color: var(--marine); border-color: var(--marine); }
+.ac-etat-eval { background: var(--marine); color: #fff; border-color: var(--marine); }
+.ac-prat-validee { border-color: var(--sage); }
+.ac-prat-non-accessible { border-style: dashed; }
+.ac-prat-com { display: block; margin-top: 3px; font-style: italic; color: var(--text-soft); }
+.ac-prat-histo li { margin-bottom: 8px; }
+
+/* Espace évaluateur : une ligne = un collaborateur, tout est cliquable. */
+.ac-eval-l { justify-content: space-between; }
+.ac-eval-l .ac-l-t { display: flex; flex-direction: column; gap: 2px; }
+.ac-eval-mail { font-size: .78rem; color: var(--text-soft); font-weight: 400; }
+.ac-eval-etat { flex: 0 0 auto; font-size: .72rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: var(--surface-soft); color: var(--text-soft); border: 1px solid var(--border-strong); }
+.ac-eval-t { font-size: 1rem; font-weight: 700; color: var(--marine); margin: 0 0 14px; }
+.ac-eval-err { font-size: .84rem; color: #B3261E; margin: 0 0 10px; min-height: 1em; }
+/* Les deux verdicts côte à côte, chacun nommé en toutes lettres : « ✓ » et
+   « ✗ » se confondent trop vite pour une décision qui ne se corrige pas. */
+.ac-eval-actions { display: flex; gap: 10px; margin-bottom: 10px; }
+.ac-eval-actions .ec-btn { flex: 1 1 0; }
+.ac-eval-plus { width: 100%; margin-bottom: 10px; }
+.ac-qcm-fin .ec-field { margin-bottom: 12px; }
+.ac-qcm-fin textarea { width: 100%; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); font: inherit; resize: vertical; }
+
+/* Gestion des évaluateurs (administrateur) --------------------------------- */
+/* Même carte, même liste, mêmes pastilles que le reste de l'Academy : cet écran
+   n'ouvre pas une direction graphique de plus. */
+.ac-etat-admin { background: var(--marine); color: #fff; border-color: var(--marine); }
+.ac-adm-compte { font-size: .86rem; color: var(--text-muted); margin: 0 0 14px; }
+.ac-adm-compte b { color: var(--marine); font-size: 1rem; }
+/* La ligne n'est pas cliquable : ce sont les boutons qui agissent. */
+.ac-adm-l { cursor: default; flex-wrap: wrap; row-gap: 10px; }
+/* Nom et adresse l'un sous l'autre, comme dans la liste de l'évaluateur : côte
+   à côte ils se collent et deviennent illisibles. */
+.ac-adm-l .ac-l-t { display: flex; flex-direction: column; gap: 2px; }
+.ac-adm-l:hover { border-color: var(--border-c); }
+.ac-adm-l-retrait { border-color: #B3261E; }
+.ac-etat-eval-oui { background: var(--sage); color: #fff; border-color: var(--sage); }
+.ac-etat-eval-non { background: var(--surface-soft); color: var(--text-soft); border-color: var(--border-strong); }
+.ac-adm-actions { display: flex; gap: 8px; flex: 0 0 auto; margin-left: auto; }
+.ac-adm-b { padding: 8px 12px; font-size: .84rem; }
+/* Le retrait est rouge, et il porte son verbe : c'est le seul geste de l'écran
+   qui enlève un droit. */
+.ac-adm-danger { border-color: #B3261E; color: #B3261E; font-weight: 700; }
+.ac-adm-avert { flex: 1 1 100%; font-size: .82rem; color: var(--text-muted); margin: 0; }
+
 @media (max-width: 520px) {
   .ac-lec-t { font-size: 1.15rem; }
   .ac-l-d { display: none; }
@@ -137,4 +186,20 @@
   .ac-res-score { font-size: 1.8rem; }
   /* Les pastilles restent alignées et atteignables au doigt même à 390 px. */
   .ac-q-dot { width: 28px; height: 28px; }
+}
+
+@media (max-width: 520px) {
+  /* À 390 px, deux verdicts sur une ligne deviennent deux boutons de 12 px de
+     texte : on les empile plutôt que de les rendre illisibles. */
+  .ac-eval-actions { flex-direction: column; }
+  .ac-eval-l { flex-wrap: wrap; row-gap: 6px; }
+}
+
+@media (max-width: 520px) {
+  /* À 390 px, la pastille d'état et les boutons ne tiennent plus à droite du
+     nom : tout passe à la ligne, et les boutons prennent la largeur. */
+  .ac-adm-l { flex-direction: column; align-items: stretch; }
+  .ac-adm-actions { margin-left: 0; flex-direction: column; }
+  .ac-adm-actions .ec-btn { width: 100%; }
+  .ac-eval-etat { align-self: flex-start; }
 }

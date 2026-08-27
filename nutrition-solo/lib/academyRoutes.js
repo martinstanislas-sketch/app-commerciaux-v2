@@ -17,18 +17,18 @@
 const express = require('express');
 const path = require('path');
 
-function creerRoutesAcademy({ academy, qcm, exigeCompte }) {
+function creerRoutesAcademy({ academy, qcm, pratique, exigeCompte, exigeAdmin, estAdmin }) {
   const r = express.Router();
   const moi = (req) => String(req.user.email || '').trim().toLowerCase();
 
   // Le schéma s'applique tout seul à la première requête Academy, comme celui
   // du Boost : aucun ordre d'initialisation à respecter dans server.js.
-  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); next(); });
+  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); next(); });
 
   // Page autonome, servie comme /coach. Un espace de formation et un espace de
   // suivi n'ont ni les mêmes écrans ni le même rythme d'évolution.
   const pageAcademy = (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'academy.html'));
-  r.get('/academy', (req, res) => { academy.assurerSchema(); qcm.assurerSchema(); pageAcademy(req, res); });
+  r.get('/academy', (req, res) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); pageAcademy(req, res); });
   r.get('/academy/', (req, res) => { academy.assurerSchema(); qcm.assurerSchema(); pageAcademy(req, res); });
 
   // Réservé aux collaborateurs actifs. Un client n'a rien à faire ici : le
@@ -50,6 +50,15 @@ function creerRoutesAcademy({ academy, qcm, exigeCompte }) {
       ok: true,
       email: moi(req),
       collaborateur: academy.peutSeFormer(moi(req)),
+      // Le droit d'évaluer est INDÉPENDANT du fait d'être collaborateur : un
+      // formateur extérieur peut évaluer sans suivre la formation, et
+      // l'administrateur évalue d'office. L'écran a besoin des deux pour
+      // savoir quoi montrer.
+      evaluateur: pratique.estEvaluateur(moi(req)),
+      // Administrer et évaluer restent DEUX choses : ce drapeau ne sert qu'à
+      // montrer l'écran de gestion des évaluateurs. Il n'ouvre aucune porte —
+      // c'est exigeAdmin, côté serveur, qui garde les routes.
+      admin: !!estAdmin && estAdmin(moi(req)),
     });
   });
 
@@ -114,6 +123,92 @@ function creerRoutesAcademy({ academy, qcm, exigeCompte }) {
   // navigateur ne fait que demander la clôture.
   r.post('/api/academy/qcm/tentatives/:id/terminer', exigeCompte, exigeCollaborateur, (req, res) => {
     const r_ = qcm.terminer(moi(req), req.params.id);
+    res.status(r_.status).json(r_.body);
+  });
+
+
+  // ==========================================================================
+  //  ÉVALUATION PRATIQUE (lot 3)
+  //
+  //  Deux portes, et elles ne donnent pas sur le même couloir :
+  //
+  //   - LE COLLABORATEUR lit SON état. Aucune route de ce groupe n'accepte
+  //     d'email : la portée vient du jeton, comme partout ailleurs.
+  //   - L'ÉVALUATEUR lit et écrit les évaluations des AUTRES. Toutes ses
+  //     routes passent par exigeEvaluateur, et le moteur refuse en plus qu'il
+  //     s'évalue lui-même — un droit d'évaluer ne doit jamais valoir droit de
+  //     se valider soi-même.
+  //
+  //  Le prérequis théorique est relu À L'ÉCRITURE, pas seulement à l'affichage :
+  //  sinon un appel direct à l'API passerait devant l'écran.
+  // ==========================================================================
+
+  function exigeEvaluateur(req, res, next) {
+    if (!pratique.estEvaluateur(moi(req))) {
+      return res.status(403).json({
+        ok: false, nonEvaluateur: true,
+        error: 'Seuls les évaluateurs désignés peuvent enregistrer une évaluation pratique.',
+      });
+    }
+    next();
+  }
+
+  // -- Côté collaborateur ----------------------------------------------------
+
+  r.get('/api/academy/pratique', exigeCompte, exigeCollaborateur, (req, res) => {
+    res.json({ ok: true, pratique: pratique.etatPour(moi(req)) });
+  });
+
+  // -- Côté évaluateur -------------------------------------------------------
+
+  r.get('/api/academy/evaluateur/collaborateurs', exigeCompte, exigeEvaluateur, (req, res) => {
+    res.json({ ok: true, collaborateurs: pratique.listerEligibles() });
+  });
+
+  r.get('/api/academy/evaluateur/collaborateurs/:email', exigeCompte, exigeEvaluateur, (req, res) => {
+    const r_ = pratique.ficheDe(req.params.email);
+    res.status(r_.status).json(r_.body);
+  });
+
+  // Ouvrir une évaluation. Sans résultat : séance ouverte, verdict à venir.
+  // Avec résultat : l'évaluateur qui saisit à chaud clôt en une fois.
+  r.post('/api/academy/evaluateur/collaborateurs/:email/evaluations', exigeCompte, exigeEvaluateur, (req, res) => {
+    const r_ = pratique.ouvrir(req.params.email, moi(req), req.body || {});
+    res.status(r_.status).json(r_.body);
+  });
+
+  // Prononcer le verdict d'une séance ouverte. Une évaluation close est
+  // immuable : on n'y revient pas, on en ouvre une nouvelle.
+  r.put('/api/academy/evaluateur/evaluations/:id', exigeCompte, exigeEvaluateur, (req, res) => {
+    const r_ = pratique.enregistrerResultat(req.params.id, moi(req), req.body || {});
+    res.status(r_.status).json(r_.body);
+  });
+
+  // -- Administration, réduite au strict nécessaire --------------------------
+  //
+  //  Désigner un évaluateur, et rien d'autre. L'administration de l'Academy
+  //  (banque de questions, contenus, configuration) reste hors de ce lot.
+  //  L'administrateur étant évaluateur d'office, aucun amorçage n'est requis
+  //  pour que le dispositif fonctionne.
+
+  //  `evaluateurs` = les lignes de droits telles quelles (contrat du lot 3,
+  //  inchangé). `comptes` = la vue de l'écran : chaque candidat avec son droit
+  //  actuel. Les deux viennent de la MÊME table ; la seconde est un confort
+  //  d'affichage, pas une seconde source de vérité.
+  r.get('/api/academy/admin/evaluateurs', exigeCompte, exigeAdmin, (_req, res) => {
+    res.json({
+      ok: true,
+      evaluateurs: pratique.listerEvaluateurs(),
+      comptes: pratique.listerGestionEvaluateurs(),
+    });
+  });
+
+  // Désigner ou retirer. La liste à jour repart avec la réponse : l'écran n'a
+  // pas à redemander, et ne peut donc pas afficher un droit périmé.
+  r.post('/api/academy/admin/evaluateurs', exigeCompte, exigeAdmin, (req, res) => {
+    const { email, evaluateur } = req.body || {};
+    const r_ = pratique.definirEvaluateur(email, evaluateur !== false, moi(req));
+    if (r_.ok) r_.body.comptes = pratique.listerGestionEvaluateurs();
     res.status(r_.status).json(r_.body);
   });
 
