@@ -409,8 +409,8 @@ test('retirer la certification ferme l\'accès immédiatement, sans défaire l\'
 // ===========================================================================
 
 test('on ne saute pas d\'Étape', async () => {
-  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/etapes/2/valider`, {}, jetons[COACH1]);
-  assert.strictEqual(r.status, 409);
+  const r = await validerEtapeReelle(dossiers[LEA], 2, jetons[COACH1]);
+  assert.strictEqual(r.status, 409, 'l\'Étape 1 n\'est pas encore validée');
 
   const horsBornes = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/etapes/13/valider`, {}, jetons[COACH1]);
   assert.strictEqual(horsBornes.status, 400);
@@ -423,6 +423,21 @@ const S1_MINIMAL = {
   donnees: { objectif: { choix: 'perte', texte: '' }, journalPhotoExplique: true },
   action: { intitule: 'Ajouter une source de protéines au petit-déjeuner' },
 };
+// Depuis le lot S2-S11, les Étapes 2 à 11 portent elles aussi un rendez-vous :
+// elles se valident par lui. Ce fichier ne teste pas leur contenu (c'est
+// boost-s2.test.js), il a seulement besoin de faire avancer un Boost.
+const SUIVI_MINIMAL = (n) => ({
+  donnees: {
+    actionPrecedente: { resultat: 'realisee', commentaire: '' },
+    decision: 'continuer', adhesion: 8,
+  },
+  action: { intitule: `Action décidée à l'Étape ${n}` },
+});
+// Fait avancer un Boost d'une Étape par le chemin réel, quel que soit son numéro.
+async function validerEtapeReelle(boostId, n, jeton) {
+  const corps = n === 1 ? S1_MINIMAL : SUIVI_MINIMAL(n);
+  return api('POST', `/api/boost/coach/dossiers/${boostId}/seances/${n}/valider`, corps, jeton);
+}
 
 test('la route générique ne valide plus une Étape qui porte un rendez-vous', async () => {
   const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/etapes/1/valider`, {}, jetons[COACH1]);
@@ -457,10 +472,13 @@ test('une Étape déjà validée ne se revalide pas', async () => {
 });
 
 test('l\'Étape 12 termine le Boost et libère la place pour un nouveau', async () => {
-  for (let n = 2; n <= 12; n++) {
-    const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/etapes/${n}/valider`, {}, jetons[COACH1]);
+  for (let n = 2; n <= 11; n++) {
+    const r = await validerEtapeReelle(dossiers[LEA], n, jetons[COACH1]);
     assert.strictEqual(r.status, 200, `Étape ${n}/12`);
   }
+  // L'Étape 12 n'a pas encore de rendez-vous : elle passe par la route générique.
+  const douze = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/etapes/12/valider`, {}, jetons[COACH1]);
+  assert.strictEqual(douze.status, 200, 'Étape 12/12');
   const fin = await api('GET', `/api/boost/admin/dossiers/${dossiers[LEA]}`, null, jetons[ADMIN]);
   const b = fin.body.boost;
   assert.strictEqual(b.statut, B.STATUT_TERMINE);
@@ -502,7 +520,7 @@ test('passé 16 semaines, le Boost expire de lui-même à la première lecture',
 });
 
 test('un Boost expiré n\'accepte plus d\'Étape', async () => {
-  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[MARC]}/etapes/2/valider`, {}, jetons[COACH1]);
+  const r = await validerEtapeReelle(dossiers[MARC], 2, jetons[COACH1]);
   assert.strictEqual(r.status, 409);
   assert.strictEqual(r.body.statut, B.STATUT_EXPIRE);
 });
@@ -541,7 +559,7 @@ test('la prolongation rouvre un Boost expiré, datée, motivée et attribuée', 
   assert.ok(p.echeanceAvant && p.echeanceApres && p.echeanceApres > p.echeanceAvant);
 
   // Et le suivi peut reprendre.
-  const etape = await api('POST', `/api/boost/coach/dossiers/${dossiers[MARC]}/etapes/2/valider`, {}, jetons[COACH1]);
+  const etape = await validerEtapeReelle(dossiers[MARC], 2, jetons[COACH1]);
   assert.strictEqual(etape.status, 200);
 });
 
@@ -602,7 +620,7 @@ test('interrompre : motif obligatoire, puis rachat possible', async () => {
   assert.ok(r.body.boost.motifInterruption.includes('Déménagement'));
 
   // Plus d'Étape possible, mais la place est libérée.
-  const etape = await api('POST', `/api/boost/coach/dossiers/${dossiers[NORA]}/etapes/2/valider`, {}, jetons[COACH2]);
+  const etape = await validerEtapeReelle(dossiers[NORA], 2, jetons[COACH2]);
   assert.strictEqual(etape.status, 409);
 
   const rachat = await api('POST', '/api/boost/admin/dossiers', { clientEmail: NORA, coachEmail: COACH2 }, jetons[ADMIN]);

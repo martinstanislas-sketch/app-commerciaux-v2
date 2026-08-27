@@ -222,7 +222,7 @@ function rendreFiche(b) {
     // Zone centrale : le rendez-vous. S1 est construite ; les Étapes suivantes
     // annoncent ce qui vient plutôt que de le simuler.
     '<div id="ecRdv"></div>' +
-    '<button type="button" class="ec-btn ec-hist-b" id="ecHistB" data-id="' + b.id + '">Voir l\'historique</button>' +
+    '<button type="button" class="ec-btn ec-hist-b" id="ecHistB" data-id="' + b.id + '">Voir le journal du dossier</button>' +
     '<div class="ec-hist" id="ecHist" hidden></div>';
 
   $('#ecBack').addEventListener('click', () => { afficher('#ecListe'); window.scrollTo(0, 0); });
@@ -233,15 +233,17 @@ function rendreFiche(b) {
 }
 
 // ============================================================================
-//  S1 — PREMIER RENDEZ-VOUS
+//  LES RENDEZ-VOUS
 //
-//  Un seul écran, dans l'ordre du rendez-vous : objectif, habitudes,
-//  difficultés, ACTION, journal photo, notes, validation. Pas quinze
-//  formulaires indépendants : le coach parle avec son client et note au fil de
-//  l'eau, il ne remplit pas un dossier administratif.
+//  UN SEUL écran, paramétré par l'Étape — pas douze écrans. S1 est le
+//  rendez-vous fondateur (on découvre le client) ; S2 à S11 sont dix fois le
+//  MÊME rendez-vous de suivi : on regarde l'action précédente, on décide de la
+//  suite, on en pose une nouvelle. Écrire dix variantes garantirait qu'elles
+//  divergent au premier correctif.
 //
-//  L'action de la semaine est la seule zone mise en avant, parce que c'est la
-//  seule chose que le client emportera en sortant.
+//  ZÉRO PRÉPARATION : le coach ouvre, et tout ce qu'il lui faut est déjà là —
+//  l'action de la période écoulée, ce qui s'est dit la fois d'avant,
+//  l'historique. Il n'a rien à chercher ni à relire ailleurs.
 // ============================================================================
 
 const OBJECTIFS = [
@@ -268,76 +270,157 @@ const DIFFICULTES = [
 ];
 const FREQUENCES = ['Tous les jours', '5 fois par semaine', '3 fois par semaine', '2 fois par semaine', '1 fois par semaine'];
 
-let s1 = null;          // { boost, seance } du rendez-vous ouvert
-let s1Message = '';
-let s1Manques = [];
+// Trois constats, aucune note. Les libellés le disent : on regarde ce qui s'est
+// passé pour adapter la suite, on n'évalue pas le client.
+const RESULTATS = [
+  ['realisee', 'Réalisée', 'ec-res-ok'],
+  ['partielle', 'Partiellement réalisée', 'ec-res-mid'],
+  ['non_realisee', 'Non réalisée', 'ec-res-no'],
+];
+const DECISIONS = [
+  ['continuer', 'Continuer', 'On garde cette action telle quelle'],
+  ['ajuster', 'Ajuster', 'On la garde, mais on la modifie'],
+  ['changer', 'Changer', 'On passe à autre chose'],
+];
+const BILAN = [
+  ['reussites', 'Ce qui a bien fonctionné', 'Même une petite chose'],
+  ['difficultes', 'Les difficultés rencontrées', 'Sans jugement : on cherche à comprendre'],
+  ['observations', 'Autre chose d\'important', 'Événement, changement de rythme…'],
+];
+
+let rdv = null;          // { boost, numero, seance } du rendez-vous ouvert
+let rdvMessage = '';
+let rdvManques = [];
+
+const libelle = (liste, cle) => { const t = liste.find((x) => x[0] === cle); return t ? t[1] : ''; };
 
 function rendreRendezVous(b) {
   const zone = $('#ecRdv'); if (!zone) return;
   const etape = b.etapeCourante;
 
-  // Étape 1 déjà validée : on l'annonce, et on dit ce qui vient.
-  if (!etape || etape > 1) {
+  // Parcours terminé, ou Étape dont le rendez-vous n'est pas encore construit :
+  // on l'annonce, sans rien simuler.
+  if (!etape || etape > 11) {
     zone.innerHTML = '<div class="ec-rdv">' +
-      '<p class="ec-rdv-t">' + (b.etapesValidees >= 1 ? 'Étape 1 terminée' : 'Rendez-vous — Étape ' + etape + '/' + b.etapesTotal) + '</p>' +
-      (etape ? '<p class="ec-rdv-p">Prochaine étape : S' + etape + '. Son contenu sera construit dans le prochain lot.</p>'
-        : '<p class="ec-rdv-p">Les 12 Étapes du Boost sont terminées.</p>') +
+      (etape
+        ? '<p class="ec-rdv-t">Rendez-vous — Étape ' + etape + '/' + b.etapesTotal + '</p>' +
+          '<p class="ec-rdv-p">Prochaine étape : S' + etape + '. Son contenu sera construit dans le prochain lot.</p>'
+        : '<p class="ec-rdv-t">Les 12 Étapes du Boost sont terminées.</p>') +
       '</div>';
-    if (b.etapesValidees >= 1) chargerS1Lecture(b);
+    if (b.etapesValidees >= 1) chargerHistorique(b);
     return;
   }
-  chargerS1(b);
+  chargerRdv(b, etape);
 }
 
-async function chargerS1(b) {
+async function chargerRdv(b, numero) {
   const zone = $('#ecRdv');
   zone.innerHTML = '<div class="ec-rdv"><p class="ec-rdv-p">Ouverture du rendez-vous…</p></div>';
-  const r = await apiCoach('/api/boost/coach/dossiers/' + b.id + '/seances/1');
+  const r = await apiCoach('/api/boost/coach/dossiers/' + b.id + '/seances/' + numero);
   if (r.status === 403) { await demarrer(); return; }
   if (!r.data.ok) { zone.innerHTML = '<div class="ec-rdv"><p class="ec-rdv-p">Rendez-vous indisponible.</p></div>'; return; }
-  s1 = { boost: b, seance: r.data.seance };
-  s1Message = ''; s1Manques = [];
-  rendreS1();
+  rdv = { boost: b, numero: Number(numero), seance: r.data.seance };
+  rdvMessage = ''; rdvManques = [];
+  rendreRdv();
 }
 
-// Après validation : le contenu reste consultable, en lecture seule.
-async function chargerS1Lecture(b) {
-  const r = await apiCoach('/api/boost/coach/dossiers/' + b.id + '/seances/1');
-  if (!r.data.ok || !r.data.seance.existe) return;
-  const s = r.data.seance;
-  const d = s.donnees || {};
-  const lignes = [];
-  const obj = d.objectif || {};
-  if (obj.choix || obj.texte) {
-    lignes.push(['Objectif', [libelle(OBJECTIFS, obj.choix), obj.texte].filter(Boolean).join(' — ')]);
-  }
-  HABITUDES.forEach(([k, t]) => { if (d.habitudes && d.habitudes[k]) lignes.push([t, d.habitudes[k]]); });
-  const dif = d.difficultes || {};
-  const difTxt = [(dif.choix || []).map((c) => libelle(DIFFICULTES, c)).filter(Boolean).join(', '), dif.precision].filter(Boolean).join(' — ');
-  if (difTxt) lignes.push(['Difficultés', difTxt]);
-  if (s.action) lignes.push(['Action de la semaine', s.action.intitule + (s.action.frequence ? ' (' + s.action.frequence + ')' : '')]);
-  if (s.noteCoach) lignes.push(['Notes Coach Nutrition', s.noteCoach]);
-
-  $('#ecRdv').insertAdjacentHTML('beforeend',
-    '<div class="ec-s1-lu"><h2 class="ec-s1-lu-t">Rendez-vous S1 du ' + echapper(dateFr(s.valideeLe)) + '</h2>' +
-    lignes.map(([t, v]) => '<div class="ec-s1-lu-l"><i>' + echapper(t) + '</i><p>' + echapper(v) + '</p></div>').join('') +
-    '</div>');
+// Après validation : l'historique des rendez-vous, en lecture seule.
+async function chargerHistorique(b) {
+  const dernier = Math.min(b.etapesValidees, 11);
+  if (dernier < 1) return;
+  const r = await apiCoach('/api/boost/coach/dossiers/' + b.id + '/seances/' + dernier);
+  if (!r.data.ok) return;
+  $('#ecRdv').insertAdjacentHTML('beforeend', vueHistorique(r.data.seance));
+  const b2 = $('#ecHistoB');
+  if (b2) b2.addEventListener('click', () => {
+    const box = $('#ecHisto');
+    const ouvert = box.hidden;
+    box.hidden = !ouvert;
+    b2.setAttribute('aria-expanded', String(ouvert));
+    b2.textContent = ouvert ? 'Masquer les rendez-vous précédents' : 'Voir les rendez-vous précédents';
+  });
 }
 
-const libelle = (liste, cle) => { const t = liste.find((x) => x[0] === cle); return t ? t[1] : ''; };
+// ---- Historique : une ligne par rendez-vous validé -------------------------
 
-function rendreS1() {
-  const d = s1.seance.donnees || {};
+function vueHistorique(seance) {
+  const lignes = seance.historique || [];
+  if (!lignes.length) return '';
+  const rendu = lignes.slice().reverse().map((h) => {
+    const faits = [];
+    if (h.objectif) {
+      faits.push(['Objectif', [libelle(OBJECTIFS, h.objectif.choix), h.objectif.texte].filter(Boolean).join(' — ')]);
+    }
+    if (h.actionSuivie) {
+      faits.push(['Action suivie', h.actionSuivie +
+        (h.resultat ? ' — ' + libelle(RESULTATS, h.resultat) : '')]);
+    }
+    if (h.commentaireResultat) faits.push(['Ce qui s\'est passé', h.commentaireResultat]);
+    if (h.decision) faits.push(['Décision', libelle(DECISIONS, h.decision)]);
+    if (h.actionDecidee) {
+      faits.push(['Action décidée', h.actionDecidee +
+        (h.adhesion ? ' — adhésion ' + h.adhesion + '/10' : '')]);
+    }
+    return '<div class="ec-histo-l"><b>Étape ' + h.numero + '/12 <span>· ' + echapper(dateFr(h.valideeLe)) + '</span></b>' +
+      faits.map(([t, v]) => '<p><i>' + echapper(t) + '</i>' + echapper(v) + '</p>').join('') + '</div>';
+  }).join('');
+  return '<div class="ec-histo"><button type="button" class="ec-anciens-b" id="ecHistoB" aria-expanded="false">' +
+    'Voir les rendez-vous précédents</button><div id="ecHisto" class="ec-histo-box" hidden>' + rendu + '</div></div>';
+}
+
+// ---- Rendu : aiguillage par protocole -------------------------------------
+
+function rendreRdv() {
+  // Le protocole vient du SERVEUR, pas du numéro d'Étape recalculé ici : c'est
+  // lui qui décide ce qu'un rendez-vous contient, l'écran ne fait que le suivre.
+  const form = rdv.seance.protocole === 'suivi' ? formSuivi() : formDecouverte();
+  $('#ecRdv').innerHTML = form + vueHistorique(rdv.seance);
+  cablerRdv();
+}
+
+function piedRdv(libelleValider, note) {
+  return '<div class="ec-rdv-fin">' +
+    (rdvManques.length ? '<div class="ec-rdv-manque"><b>Il manque encore :</b><ul>' +
+      rdvManques.map((m) => '<li>' + echapper(m) + '</li>').join('') + '</ul></div>' : '') +
+    (rdvMessage ? '<p class="ec-rdv-msg">' + echapper(rdvMessage) + '</p>' : '') +
+    '<div class="ec-rdv-btns">' +
+      '<button type="button" class="ec-btn" id="rdvBrouillon">Enregistrer le brouillon</button>' +
+      '<button type="button" class="ec-btn ec-btn-p ec-rdv-valider" id="rdvValider">' + echapper(libelleValider) + '</button>' +
+    '</div>' +
+    '<p class="ec-rdv-note">' + echapper(note) + '</p>' +
+  '</div>';
+}
+
+function blocNotes() {
+  return bloc('Notes Coach Nutrition', 'Notes internes. Le client n\'y a pas accès.',
+    champTexte('rdvNote', 'Ce que tu veux retenir pour la suite', rdv.seance.noteCoach, 4));
+}
+
+function blocAction(titre, aide, act, placeholder) {
+  return '<section class="ec-rdv-bloc ec-rdv-action">' +
+    '<h3 class="ec-rdv-h">' + echapper(titre) + '</h3>' +
+    '<p class="ec-rdv-aide">' + echapper(aide) + '</p>' +
+    '<input type="text" id="actIntitule" class="ec-rdv-gros" value="' + echapper(act.intitule || '') + '" ' +
+      'placeholder="' + echapper(placeholder) + '">' +
+    '<div class="ec-rdv-duo">' +
+      '<input type="text" id="actDetail" value="' + echapper(act.detail || '') + '" placeholder="Précision (facultatif)">' +
+      '<input type="text" id="actFreq" list="rdvfreqs" value="' + echapper(act.frequence || '') + '" placeholder="Fréquence (facultatif)">' +
+      '<datalist id="rdvfreqs">' + FREQUENCES.map((f) => '<option value="' + echapper(f) + '">').join('') + '</datalist>' +
+    '</div></section>';
+}
+
+// ---- S1 : le rendez-vous de découverte ------------------------------------
+
+function formDecouverte() {
+  const d = rdv.seance.donnees || {};
   const obj = d.objectif || {};
   const hab = d.habitudes || {};
   const dif = d.difficultes || {};
-  // L'action en discussion vit dans le brouillon tant qu'elle n'est pas validée.
-  const act = d.actionBrouillon || s1.seance.action || {};
+  const act = d.actionBrouillon || rdv.seance.action || {};
   const coche = (v) => (v ? ' checked' : '');
 
-  $('#ecRdv').innerHTML =
-    '<form id="ecS1" class="ec-s1" autocomplete="off">' +
-    '<h2 class="ec-s1-t">Rendez-vous S1 <span>environ 40 minutes</span></h2>' +
+  return '<form id="ecS1" class="ec-rdv-form" autocomplete="off">' +
+    '<h2 class="ec-rdv-t2">Rendez-vous S1 <span>environ 40 minutes</span></h2>' +
 
     bloc('Ton objectif', 'Ce que ton client vient chercher, avec ses mots.',
       '<div class="ec-chips">' + OBJECTIFS.map(([k, t]) =>
@@ -356,75 +439,167 @@ function rendreS1() {
         '<span>' + echapper(t) + '</span></label>').join('') + '</div>' +
       champTexte('s1difTexte', 'Précision', dif.precision, 2)) +
 
-    // LA zone mise en avant : c'est la seule chose que le client emporte.
-    '<section class="ec-s1-bloc ec-s1-action">' +
-      '<h3 class="ec-s1-h">Ton action de la semaine</h3>' +
-      '<p class="ec-s1-aide">Une seule action, concrète, choisie AVEC le client. C\'est ce qu\'il emporte en sortant.</p>' +
-      '<input type="text" id="s1ActIntitule" class="ec-s1-gros" value="' + echapper(act.intitule || '') + '" ' +
-        'placeholder="Ex. : ajouter une source de protéines au petit-déjeuner">' +
-      '<div class="ec-s1-duo">' +
-        '<input type="text" id="s1ActDetail" value="' + echapper(act.detail || '') + '" placeholder="Précision (facultatif)">' +
-        '<input type="text" id="s1ActFreq" list="s1freqs" value="' + echapper(act.frequence || '') + '" placeholder="Fréquence (facultatif)">' +
-        '<datalist id="s1freqs">' + FREQUENCES.map((f) => '<option value="' + echapper(f) + '">').join('') + '</datalist>' +
-      '</div>' +
-    '</section>' +
+    blocAction('Ton action de la semaine',
+      'Une seule action, concrète, choisie AVEC le client. C\'est ce qu\'il emporte en sortant.',
+      act, 'Ex. : ajouter une source de protéines au petit-déjeuner') +
 
     bloc('Journal photo', '',
-      '<p class="ec-s1-péda">Entre vos rendez-vous, ton client photographie ses repas. Ce n\'est ni un contrôle ni un jugement : ' +
+      '<p class="ec-rdv-peda">Entre vos rendez-vous, ton client photographie ses repas. Ce n\'est ni un contrôle ni un jugement : ' +
       'c\'est ce qui te permet de voir son alimentation réelle, et pas celle dont on se souvient. ' +
       'Explique-lui qu\'une photo prise au moment du repas vaut mieux qu\'un carnet rempli le soir.</p>' +
       '<label class="ec-check"><input type="checkbox" id="s1Photo"' + coche(d.journalPhotoExplique) + '>' +
       '<span>J\'ai expliqué le journal photo au client</span></label>') +
 
-    bloc('Notes Coach Nutrition', 'Notes internes. Le client n\'y a pas accès.',
-      champTexte('s1Note', 'Ce que tu veux retenir pour la suite', s1.seance.noteCoach, 4)) +
+    blocNotes() +
+    piedRdv('Valider le rendez-vous S1',
+      'La validation démarre officiellement le Boost : l\'Étape 1 est validée et les 16 semaines commencent aujourd\'hui.') +
+    '</form>';
+}
 
-    '<div class="ec-s1-fin">' +
-      (s1Manques.length ? '<div class="ec-s1-manque"><b>Il manque encore :</b><ul>' +
-        s1Manques.map((m) => '<li>' + echapper(m) + '</li>').join('') + '</ul></div>' : '') +
-      (s1Message ? '<p class="ec-s1-msg">' + echapper(s1Message) + '</p>' : '') +
-      '<div class="ec-s1-btns">' +
-        '<button type="button" class="ec-btn" id="s1Brouillon">Enregistrer le brouillon</button>' +
-        '<button type="button" class="ec-btn ec-btn-p ec-s1-valider" id="s1Valider">Valider le rendez-vous S1</button>' +
-      '</div>' +
-      '<p class="ec-s1-note">La validation démarre officiellement le Boost : l\'Étape 1 est validée et les 16 semaines commencent aujourd\'hui.</p>' +
-    '</div></form>';
+// ---- S2 à S11 : le rendez-vous de suivi -----------------------------------
 
-  $('#s1Brouillon').addEventListener('click', () => envoyerS1(false));
-  $('#s1Valider').addEventListener('click', () => envoyerS1(true));
+function formSuivi() {
+  const d = rdv.seance.donnees || {};
+  const prec = d.actionPrecedente || {};
+  const bil = d.bilan || {};
+  const act = d.actionBrouillon || {};
+  const precedente = rdv.seance.action;   // l'action décidée à l'Étape d'avant
+  const n = rdv.numero;
+
+  // Ce qui a été dit la fois d'avant, remonté sans que le coach ait à le chercher.
+  const ctx = rdv.seance.precedent;
+  const rappel = ctx ? [
+    ctx.objectif && (ctx.objectif.texte || ctx.objectif.choix)
+      ? ['Objectif', [libelle(OBJECTIFS, ctx.objectif.choix), ctx.objectif.texte].filter(Boolean).join(' — ')] : null,
+    ctx.difficultes && (ctx.difficultes.choix || []).length
+      ? ['Difficultés annoncées', ctx.difficultes.choix.map((c) => libelle(DIFFICULTES, c)).filter(Boolean).join(', ')] : null,
+    ctx.bilan && ctx.bilan.difficultes ? ['Difficultés du dernier point', ctx.bilan.difficultes] : null,
+  ].filter(Boolean) : [];
+
+  return '<form id="ecSuivi" class="ec-rdv-form" autocomplete="off">' +
+    '<h2 class="ec-rdv-t2">Rendez-vous — Étape ' + n + '/12' +
+      (ctx ? ' <span>dernier point le ' + echapper(dateFr(ctx.valideeLe)) + '</span>' : '') + '</h2>' +
+
+    // 1. L'action précédente, très visible : c'est le point de départ du RDV.
+    '<section class="ec-rdv-bloc ec-rdv-prec">' +
+      '<h3 class="ec-rdv-h">Ton action depuis le dernier rendez-vous</h3>' +
+      (precedente
+        ? '<p class="ec-prec-txt">' + echapper(precedente.intitule) +
+          (precedente.frequence ? ' <span>(' + echapper(precedente.frequence) + ')</span>' : '') + '</p>' +
+          (precedente.detail ? '<p class="ec-prec-det">' + echapper(precedente.detail) + '</p>' : '') +
+          (precedente.adhesion ? '<p class="ec-prec-det">Adhésion annoncée : ' + precedente.adhesion + '/10</p>' : '')
+        : '<p class="ec-prec-txt ec-prec-vide">Aucune action active trouvée pour la période écoulée.</p>') +
+      '<p class="ec-rdv-aide">Un simple constat, pour adapter la suite. Ce n\'est ni une note ni un reproche.</p>' +
+      '<div class="ec-chips">' + RESULTATS.map(([k, t, cls]) =>
+        '<label class="ec-chip ' + cls + '"><input type="radio" name="svRes" value="' + k + '"' +
+        (prec.resultat === k ? ' checked' : '') + '><span>' + echapper(t) + '</span></label>').join('') + '</div>' +
+      champTexte('svResCom', 'Ce qui s\'est passé, en une phrase', prec.commentaire, 2) +
+    '</section>' +
+
+    // 2. Le bilan de la période.
+    bloc('Comment ça s\'est passé ?', 'Note ce qui est utile, laisse le reste vide.',
+      BILAN.map(([k, t, aide]) =>
+        '<label class="ec-hab-l ec-bilan-l"><span>' + echapper(t) + '</span>' +
+        '<input type="text" data-bilan="' + k + '" value="' + echapper(bil[k] || '') + '" placeholder="' + echapper(aide) + '"></label>').join('')) +
+
+    // 3. La décision sur cette action.
+    bloc('Que fait-on de cette action ?', 'La décision se prend avec le client.',
+      '<div class="ec-chips ec-chips-dec">' + DECISIONS.map(([k, t, aide]) =>
+        '<label class="ec-chip ec-chip-dec"><input type="radio" name="svDec" value="' + k + '"' +
+        (d.decision === k ? ' checked' : '') + '><span><b>' + echapper(t) + '</b><i>' + echapper(aide) + '</i></span></label>').join('') + '</div>') +
+
+    // 4. La nouvelle action : la zone mise en avant.
+    blocAction('Ton action jusqu\'au prochain rendez-vous',
+      'Une seule action, concrète et mesurable, co-construite avec le client.',
+      act, 'Ex. : préparer mon déjeuner la veille 3 fois cette semaine') +
+
+    // 5. L'adhésion : un repère pour le coach, pas un score.
+    bloc('À quel point tu te sens capable de réaliser cette action ?',
+      'La note du client, de 1 à 10. Si elle est basse, revois l\'action avec lui avant de valider — elle ne bloque rien.',
+      '<div class="ec-notes">' + Array.from({ length: 10 }, (_, i) => i + 1).map((v) =>
+        '<label class="ec-note"><input type="radio" name="svAdh" value="' + v + '"' +
+        (Number(d.adhesion) === v ? ' checked' : '') + '><span>' + v + '</span></label>').join('') + '</div>') +
+
+    blocNotes() +
+    (rappel.length ? '<div class="ec-rappel"><b>Rappel du rendez-vous précédent</b>' +
+      rappel.map(([t, v]) => '<p><i>' + echapper(t) + '</i>' + echapper(v) + '</p>').join('') + '</div>' : '') +
+    piedRdv('Valider le rendez-vous',
+      'La validation enregistre le résultat de l\'action précédente, crée la nouvelle et fait passer à l\'Étape ' + (n + 1) + '.') +
+    '</form>';
 }
 
 function bloc(titre, aide, contenu) {
-  return '<section class="ec-s1-bloc"><h3 class="ec-s1-h">' + echapper(titre) + '</h3>' +
-    (aide ? '<p class="ec-s1-aide">' + echapper(aide) + '</p>' : '') + contenu + '</section>';
+  return '<section class="ec-rdv-bloc"><h3 class="ec-rdv-h">' + echapper(titre) + '</h3>' +
+    (aide ? '<p class="ec-rdv-aide">' + echapper(aide) + '</p>' : '') + contenu + '</section>';
 }
 function champTexte(id, placeholder, valeur, lignes) {
   return '<textarea id="' + id + '" rows="' + lignes + '" placeholder="' + echapper(placeholder) + '">' + echapper(valeur || '') + '</textarea>';
 }
 
-// Lecture du formulaire. Une seule fonction : le brouillon et la validation
-// envoient exactement la même chose, seule la route change.
-function lireS1() {
-  const radio = document.querySelector('input[name="s1obj"]:checked');
+function cablerRdv() {
+  $('#rdvBrouillon').addEventListener('click', () => envoyerRdv(false));
+  $('#rdvValider').addEventListener('click', () => envoyerRdv(true));
+  const histo = $('#ecHistoB');
+  if (histo) histo.addEventListener('click', () => {
+    const box = $('#ecHisto');
+    const ouvert = box.hidden;
+    box.hidden = !ouvert;
+    histo.setAttribute('aria-expanded', String(ouvert));
+    histo.textContent = ouvert ? 'Masquer les rendez-vous précédents' : 'Voir les rendez-vous précédents';
+  });
+  // « Continuer » reprend l'action précédente telle quelle : c'est ce que le
+  // coach vient de décider, lui refaire taper le même texte serait absurde.
+  document.querySelectorAll('input[name="svDec"]').forEach((r) => r.addEventListener('change', () => {
+    const champ = $('#actIntitule');
+    if (r.value !== 'continuer' || !champ || champ.value.trim()) return;
+    const p = rdv.seance.action;
+    if (!p) return;
+    champ.value = p.intitule;
+    const det = $('#actDetail'); if (det && !det.value) det.value = p.detail || '';
+    const fr = $('#actFreq'); if (fr && !fr.value) fr.value = p.frequence || '';
+  }));
+}
+
+// ---- Lecture du formulaire ------------------------------------------------
+
+function lireRdv() {
+  const val = (id) => { const e = $('#' + id); return e ? e.value : ''; };
+  const coche = (nom) => { const e = document.querySelector('input[name="' + nom + '"]:checked'); return e ? e.value : ''; };
+  const action = { intitule: val('actIntitule'), detail: val('actDetail'), frequence: val('actFreq') };
+  const noteCoach = val('rdvNote');
+
+  if (rdv.seance.protocole === 'suivi') {
+    const bilan = {};
+    document.querySelectorAll('[data-bilan]').forEach((i) => { bilan[i.dataset.bilan] = i.value; });
+    const adh = coche('svAdh');
+    return {
+      donnees: {
+        actionPrecedente: { resultat: coche('svRes'), commentaire: val('svResCom') },
+        bilan,
+        decision: coche('svDec'),
+        adhesion: adh ? Number(adh) : null,
+      },
+      action, noteCoach,
+    };
+  }
+
   const hab = {};
   document.querySelectorAll('[data-hab]').forEach((i) => { hab[i.dataset.hab] = i.value; });
   const choix = [...document.querySelectorAll('[data-dif]')].filter((i) => i.checked).map((i) => i.dataset.dif);
-  const val = (id) => { const e = $('#' + id); return e ? e.value : ''; };
   return {
     donnees: {
-      objectif: { choix: radio ? radio.value : '', texte: val('s1objTexte') },
+      objectif: { choix: coche('s1obj'), texte: val('s1objTexte') },
       habitudes: hab,
       difficultes: { choix, precision: val('s1difTexte') },
       journalPhotoExplique: !!($('#s1Photo') && $('#s1Photo').checked),
     },
-    action: { intitule: val('s1ActIntitule'), detail: val('s1ActDetail'), frequence: val('s1ActFreq') },
-    noteCoach: val('s1Note'),
+    action, noteCoach,
   };
 }
 
-async function envoyerS1(valider) {
-  const corps = lireS1();
-  const route = '/api/boost/coach/dossiers/' + s1.boost.id + '/seances/1' + (valider ? '/valider' : '');
+async function envoyerRdv(valider) {
+  const corps = lireRdv();
+  const route = '/api/boost/coach/dossiers/' + rdv.boost.id + '/seances/' + rdv.numero + (valider ? '/valider' : '');
   const res = await fetch(route, {
     method: valider ? 'POST' : 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.token },
@@ -438,40 +613,39 @@ async function envoyerS1(valider) {
   if (!d.ok) {
     // ⚠️ On re-rend à partir de CE QUE LE COACH VIENT DE SAISIR, et surtout pas
     // du dernier brouillon enregistré : un refus de validation ne doit jamais
-    // lui faire perdre sa frappe. Repartir de `s1.seance` effaçait tout ce qui
-    // avait été tapé depuis la dernière sauvegarde — en plein rendez-vous.
-    s1.seance = {
-      ...s1.seance,
+    // lui faire perdre sa frappe, en plein rendez-vous.
+    rdv.seance = {
+      ...rdv.seance,
       donnees: { ...corps.donnees, actionBrouillon: corps.action },
       noteCoach: corps.noteCoach,
     };
     // Le serveur dit CE QUI MANQUE : on le montre tel quel, pour que le coach
-    // n'ait pas à chercher, en rendez-vous, devant son client.
-    s1Manques = d.manque || [];
-    s1Message = s1Manques.length ? '' : (d.error || 'Enregistrement impossible.');
-    rendreS1();
+    // n'ait pas à chercher devant son client.
+    rdvManques = d.manque || [];
+    rdvMessage = rdvManques.length ? '' : (d.error || 'Enregistrement impossible.');
+    rendreRdv();
     $('#ecRdv').scrollIntoView({ block: 'end' });
     return;
   }
 
   if (valider) {
-    // Le Boost a changé d'état : on relit la fiche entière plutôt que de
-    // rafistoler l'écran, pour que dates et statut viennent tous du serveur.
+    // Le Boost a changé d'Étape : on relit la fiche entière plutôt que de
+    // rafistoler l'écran, pour que tout vienne du serveur.
     await chargerClients();
-    await ouvrirFiche(s1.boost.id);
+    await ouvrirFiche(rdv.boost.id);
     return;
   }
-  s1.seance = d.seance;
-  s1Manques = [];
-  s1Message = 'Brouillon enregistré. Tu peux fermer et revenir plus tard.';
-  rendreS1();
+  rdv.seance = d.seance;
+  rdvManques = [];
+  rdvMessage = 'Brouillon enregistré. Tu peux fermer et revenir plus tard.';
+  rendreRdv();
 }
 
 async function basculerHistorique(id) {
   const box = $('#ecHist');
   const btn = $('#ecHistB');
-  if (!box.hidden) { box.hidden = true; btn.textContent = 'Voir l\'historique'; return; }
-  btn.textContent = 'Masquer l\'historique';
+  if (!box.hidden) { box.hidden = true; btn.textContent = 'Voir le journal du dossier'; return; }
+  btn.textContent = 'Masquer le journal du dossier';
   box.hidden = false;
   box.innerHTML = '<p class="ec-cli-info">Chargement…</p>';
   const r = await apiCoach('/api/boost/coach/dossiers/' + id + '/journal');

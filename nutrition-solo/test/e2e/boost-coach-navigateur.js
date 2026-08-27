@@ -192,10 +192,13 @@ async function semer() {
     for (const attendu of ['Marc', 'Étape', 'Statut', 'Début', 'Date limite']) {
       if (!t.includes(attendu)) throw new Error('bloc absent de la fiche : ' + attendu);
     }
-    // Depuis S1, un dossier déjà démarré annonce l'étape suivante (S2 n'est pas
-    // encore construite) au lieu de l'ancienne coquille générique.
-    if (!/Prochaine étape : S2/.test(t) || !/prochain lot/.test(t)) {
-      throw new Error('la zone de rendez-vous ne dit pas ce qui vient');
+    // Depuis le lot S2-S11, un dossier arrivé à l'Étape 2 ouvre directement son
+    // rendez-vous de suivi : le coach n'a rien à rouvrir pour enchaîner.
+    if (!/Rendez-vous — Étape 2\/12/.test(t)) {
+      throw new Error('le rendez-vous de l\'Étape 2 devrait s\'ouvrir');
+    }
+    if (!/Ton action depuis le dernier rendez-vous/.test(t)) {
+      throw new Error('l\'action de la période écoulée devrait être présentée');
     }
     if (/undefined|NaN/.test(t)) throw new Error('trou dans la fiche');
   });

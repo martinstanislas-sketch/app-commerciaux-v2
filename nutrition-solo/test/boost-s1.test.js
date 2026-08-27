@@ -331,10 +331,12 @@ test('si l\'Étape ne peut pas être validée, rien n\'est écrit', async () => 
     'aucune note écrite');
 });
 
-test('S2 n\'existe pas encore : sa validation est refusée franchement', async () => {
-  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/seances/2/valider`, S1_COMPLET, jetons[COACH_A]);
+test('une Étape sans protocole ne se valide pas par la route des séances', async () => {
+  // S12 n'a pas encore de rendez-vous construit : mieux vaut refuser que de
+  // laisser valider un contenu qui n'existe pas.
+  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/seances/12/valider`, S1_COMPLET, jetons[COACH_A]);
   assert.strictEqual(r.status, 409);
-  assert.ok(/n'est pas encore construit/.test(r.body.error), 'on ne valide pas un rendez-vous dont le contenu n\'existe pas');
+  assert.ok(/n'est pas encore construit/.test(r.body.error));
 });
 
 // ===========================================================================
@@ -414,11 +416,11 @@ test('le client voit son Boost démarré, sans le contenu du rendez-vous', async
 // ===========================================================================
 
 test('l\'écran suit l\'ordre demandé, avec l\'action mise en avant', () => {
-  const bloc = js.slice(js.indexOf('function rendreS1'));
+  const bloc = js.slice(js.indexOf('function formDecouverte'));
   // Ancres sans apostrophe : dans la source JS elles sont échappées (aujourd\\'hui),
   // les chercher telles qu'affichées ne les trouverait pas.
   const ordre = ['Ton objectif', 'Comment tu manges', 'Ce qui te pose le plus de difficultés',
-    'Ton action de la semaine', 'Journal photo', 'Notes Coach Nutrition', 'Valider le rendez-vous S1'];
+    'Ton action de la semaine', 'Journal photo', 'blocNotes()', 'Valider le rendez-vous S1'];
   let position = -1;
   for (const titre of ordre) {
     const i = bloc.indexOf(titre);
@@ -426,8 +428,8 @@ test('l\'écran suit l\'ordre demandé, avec l\'action mise en avant', () => {
     position = i;
   }
   // L'action est la seule zone à porter une classe de mise en avant.
-  assert.ok(bloc.includes('ec-s1-action'), 'la zone action est distinguée');
-  assert.ok(/\.ec-s1-action\s*\{[^}]*var\(--saphir-soft\)/.test(css), 'et elle est mise en avant visuellement');
+  assert.ok(bloc.includes('blocAction('), 'la zone action est distinguée');
+  assert.ok(/\.ec-rdv-action\s*\{[^}]*var\(--saphir-soft\)/.test(css), 'et elle est mise en avant visuellement');
 });
 
 test('l\'écran n\'ouvre aucune porte vers ce qui n\'est pas construit', () => {
@@ -449,7 +451,7 @@ test('les fonctions de rendu S1 produisent un écran complet', () => {
     window: { scrollTo() {} }, console,
   };
   vm.createContext(ctx);
-  vm.runInContext(js + ';globalThis.__s1 = { poser: (v) => { s1 = v; }, bloc, libelle, OBJECTIFS, DIFFICULTES };', ctx);
+  vm.runInContext(js + ';globalThis.__s1 = { poser: (v) => { rdv = v; }, bloc, libelle, OBJECTIFS, DIFFICULTES };', ctx);
   const ec = ctx.__s1;
 
   assert.strictEqual(ec.libelle(ec.OBJECTIFS, 'perte'), 'Perdre du poids');
@@ -470,6 +472,10 @@ test('les fonctions de rendu S1 produisent un écran complet', () => {
 // ===========================================================================
 
 const CLI_GARDE = 'garde@exemple.fr';
+const SUIVI_MINIMAL = (n) => ({
+  donnees: { actionPrecedente: { resultat: 'realisee', commentaire: '' }, decision: 'continuer', adhesion: 8 },
+  action: { intitule: `Action décidée à l'Étape ${n}` },
+});
 
 test('une Étape à contenu ne se valide JAMAIS par la route générique', async () => {
   await connecter(CLI_GARDE, '1212');
@@ -492,33 +498,23 @@ test('une Étape à contenu ne se valide JAMAIS par la route générique', async
 });
 
 test('la fermeture vise « l\'Étape a-t-elle un contenu », pas « est-ce S1 »', async () => {
-  const S = require('../lib/boostSeances');
-  // Aujourd'hui seule l'Étape 1 a un rendez-vous construit : les autres passent
-  // encore par la route générique. Quand S2 arrivera, elle se fermera seule.
-  assert.strictEqual(S.aUnContenu(1), true);
-  for (let n = 2; n <= 12; n++) assert.strictEqual(S.aUnContenu(n), false, 'Étape ' + n);
+  // Les Étapes 1 à 11 portent un rendez-vous : la route générique les refuse
+  // toutes, sans qu'aucune n'ait été citée en dur. S12 n'en a pas encore.
+  for (let n = 1; n <= 11; n++) assert.strictEqual(S.aUnContenu(n), true, 'Étape ' + n);
+  assert.strictEqual(S.aUnContenu(12), false, 'S12 reste à construire');
 });
 
 test('une Étape sans rendez-vous se valide toujours par la route générique', async () => {
-  // Le dossier de CLI_A a son Étape 1 validée par S1 : l'Étape 2 n'a pas encore
-  // de contenu, elle doit rester validable. Sinon le Boost serait bloqué.
-  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/etapes/2/valider`, {}, jetons[COACH_A]);
-  assert.strictEqual(r.status, 200);
-  assert.strictEqual(r.body.boost.etapesValidees, 2);
-});
-
-test('aucun espacement minimum n\'est imposé entre deux Étapes', async () => {
-  // Arbitrage validé : la contrainte porte sur l'ORDRE et sur la fenêtre de 16
-  // semaines, pas sur un délai entre rendez-vous. Deux Étapes le même jour
-  // doivent passer — un client peut avoir besoin d'un rythme resserré.
-  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/etapes/3/valider`, {}, jetons[COACH_A]);
-  assert.strictEqual(r.status, 200, 'deux Étapes le même jour sont permises');
-  assert.strictEqual(r.body.boost.etapesValidees, 3);
-  assert.strictEqual(r.body.boost.etapes[1].valideeLe, r.body.boost.etapes[2].valideeLe,
-    'les deux Étapes portent bien la même date');
-  // L'ordre, lui, reste imposé.
-  const saut = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/etapes/5/valider`, {}, jetons[COACH_A]);
-  assert.strictEqual(saut.status, 409, 'on ne saute toujours pas d\'Étape');
+  // S12 n'a pas encore de contenu : elle doit rester validable, sinon un Boost
+  // arrivé au bout serait bloqué. On fait avancer le dossier jusqu'à elle.
+  for (let n = 2; n <= 11; n++) {
+    const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/seances/${n}/valider`,
+      SUIVI_MINIMAL(n), jetons[COACH_A]);
+    assert.strictEqual(r.status, 200, `Étape ${n}`);
+  }
+  const douze = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/etapes/12/valider`, {}, jetons[COACH_A]);
+  assert.strictEqual(douze.status, 200);
+  assert.strictEqual(douze.body.boost.etapesValidees, 12);
 });
 
 test('les deux modules restent séparés', () => {

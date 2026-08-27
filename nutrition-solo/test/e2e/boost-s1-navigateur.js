@@ -37,6 +37,10 @@ async function semer() {
   await jsonp('/api/boost/admin/certification/' + encodeURIComponent(COACH),
     { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15', scoreQcm: 88, resultatPratique: 'valide' }, 'PUT', t);
   const r = await jsonp('/api/boost/admin/dossiers', { clientEmail: CLIENT, coachEmail: COACH }, 'POST', t);
+  // Ce script part d'un dossier neuf. Relancé sur une base déjà utilisée, la
+  // création est refusée (un seul Boost actif par client) : on le dit au lieu
+  // de planter sur un « undefined » qui n'apprend rien.
+  if (!r.ok) throw new Error('préparation impossible (' + (r.error || '?') + ') — relance sur une base vierge.');
   return { t, id: r.boost.id };
 }
 
@@ -80,20 +84,20 @@ async function semer() {
   });
 
   await etape('l\'action de la semaine est la zone mise en avant', async () => {
-    const action = await page.locator('.ec-s1-action').boundingBox();
-    const autre = await page.locator('.ec-s1-bloc').first().boundingBox();
+    const action = await page.locator('.ec-rdv-action').boundingBox();
+    const autre = await page.locator('.ec-rdv-bloc').first().boundingBox();
     if (!action) throw new Error('zone action absente');
     // Elle se distingue par son fond : les autres blocs sont blancs.
-    const fond = await page.locator('.ec-s1-action').evaluate((e) => getComputedStyle(e).backgroundColor);
-    const fondAutre = await page.locator('.ec-s1-bloc').first().evaluate((e) => getComputedStyle(e).backgroundColor);
+    const fond = await page.locator('.ec-rdv-action').evaluate((e) => getComputedStyle(e).backgroundColor);
+    const fondAutre = await page.locator('.ec-rdv-bloc').first().evaluate((e) => getComputedStyle(e).backgroundColor);
     if (fond === fondAutre) throw new Error('la zone action ne se distingue pas visuellement');
     if (action.width < 300 || autre.width < 300) throw new Error('mise en page effondrée');
   });
 
   await etape('refus de valider un rendez-vous vide, avec ce qui manque', async () => {
-    await page.click('#s1Valider');
-    await page.waitForSelector('.ec-s1-manque');
-    const t = await page.innerText('.ec-s1-manque');
+    await page.click('#rdvValider');
+    await page.waitForSelector('.ec-rdv-manque');
+    const t = await page.innerText('.ec-rdv-manque');
     for (const m of ['objectif', 'action de la semaine', 'journal photo']) {
       if (!new RegExp(m, 'i').test(t)) throw new Error('manque non signalé : ' + m);
     }
@@ -108,13 +112,13 @@ async function semer() {
     await page.locator('.ec-chip', { hasText: 'Envies de sucre' }).click();
     await page.locator('.ec-chip', { hasText: 'Week-end' }).click();
     await page.fill('#s1difTexte', 'Craque surtout le dimanche soir.');
-    await page.fill('#s1Note', 'Horaires de nuit. Ne pas surcharger.');
+    await page.fill('#rdvNote', 'Horaires de nuit. Ne pas surcharger.');
   });
 
   await etape('« Enregistrer le brouillon » ne démarre PAS le Boost', async () => {
-    await page.click('#s1Brouillon');
-    await page.waitForSelector('.ec-s1-msg');
-    if (!/Brouillon enregistré/.test(await page.innerText('.ec-s1-msg'))) throw new Error('confirmation absente');
+    await page.click('#rdvBrouillon');
+    await page.waitForSelector('.ec-rdv-msg');
+    if (!/Brouillon enregistré/.test(await page.innerText('.ec-rdv-msg'))) throw new Error('confirmation absente');
     // Le dossier n'a pas bougé : c'est le point le plus important du brouillon.
     const b = await page.evaluate(async (bid) => {
       const s = JSON.parse(localStorage.getItem('mc-coach-session'));
@@ -137,7 +141,7 @@ async function semer() {
     const txt = await page.inputValue('#s1objTexte');
     if (!/Perdre 8 kg/.test(txt)) throw new Error('objectif perdu : ' + txt);
     if (!/21h30/.test(await page.inputValue('[data-hab="diner"]'))) throw new Error('habitudes perdues');
-    if (!/Horaires de nuit/.test(await page.inputValue('#s1Note'))) throw new Error('notes coach perdues');
+    if (!/Horaires de nuit/.test(await page.inputValue('#rdvNote'))) throw new Error('notes coach perdues');
     // …et les pastilles cochées le sont restées.
     const objCoche = await page.locator('input[name="s1obj"]:checked').getAttribute('value');
     if (objCoche !== 'perte') throw new Error('objectif décoché : ' + objCoche);
@@ -147,9 +151,9 @@ async function semer() {
 
   await etape('sans action de la semaine, la validation est toujours refusée', async () => {
     await page.check('#s1Photo');
-    await page.click('#s1Valider');
-    await page.waitForSelector('.ec-s1-manque');
-    const t = await page.innerText('.ec-s1-manque');
+    await page.click('#rdvValider');
+    await page.waitForSelector('.ec-rdv-manque');
+    const t = await page.innerText('.ec-rdv-manque');
     if (!/action de la semaine/i.test(t)) throw new Error('le manque attendu n\'est pas dit');
     if (/objectif/i.test(t)) throw new Error('l\'objectif est renseigné, il ne devrait plus manquer');
   });
@@ -159,18 +163,18 @@ async function semer() {
     if (!/Perdre 8 kg/.test(await page.inputValue('#s1objTexte'))) throw new Error('saisies perdues au refus');
     const photo = await page.isChecked('#s1Photo');
     if (!photo) throw new Error('la case journal photo a été perdue au refus');
-    await page.fill('#s1ActIntitule', 'Ajouter une source de protéines au petit-déjeuner');
-    await page.fill('#s1ActDetail', 'Œuf, skyr ou fromage blanc');
-    await page.fill('#s1ActFreq', '5 fois par semaine');
+    await page.fill('#actIntitule', 'Ajouter une source de protéines au petit-déjeuner');
+    await page.fill('#actDetail', 'Œuf, skyr ou fromage blanc');
+    await page.fill('#actFreq', '5 fois par semaine');
   });
 
-  await etape('validation : le Boost démarre et la fiche bascule', async () => {
-    await page.click('#s1Valider');
-    await page.waitForSelector('.ec-s1-lu', { timeout: 8000 });
+  await etape('validation : le Boost démarre et l\'écran enchaîne sur S2', async () => {
+    await page.click('#rdvValider');
+    // Depuis le lot S2-S11, valider S1 ouvre directement le rendez-vous suivant :
+    // le coach n'a rien à rouvrir pour enchaîner.
+    await page.waitForSelector('#ecSuivi', { timeout: 8000 });
     const t = await contenu();
-    if (!/Étape 1 terminée/.test(t)) throw new Error('« Étape 1 terminée » attendu');
-    if (!/Prochaine étape : S2/.test(t)) throw new Error('la prochaine étape n\'est pas annoncée');
-    if (!/prochain lot/.test(t)) throw new Error('on doit dire que S2 n\'est pas encore construite');
+    if (!/Rendez-vous — Étape 2\/12/.test(t)) throw new Error('le rendez-vous S2 devrait s\'ouvrir');
     if (await page.locator('#ecS1').count() !== 0) throw new Error('le formulaire S1 est encore là');
   });
 
@@ -179,15 +183,20 @@ async function semer() {
     if (!/Étape 1\/12/.test(t)) throw new Error('compteur d\'Étape non mis à jour');
     if (!/En cours/.test(t)) throw new Error('le statut devrait être « En cours »');
     if (!/Prochaine : Étape 2/.test(t)) throw new Error('la prochaine Étape n\'est pas indiquée');
+    if (!/Perdre 8 kg/.test(t)) throw new Error('le rappel du rendez-vous précédent devrait remonter dans S2');
     if (/undefined|NaN/.test(t)) throw new Error('trou dans la fiche');
   });
 
-  await etape('le contenu du rendez-vous reste consultable', async () => {
-    const t = await page.innerText('.ec-s1-lu');
-    for (const attendu of ['Perdre du poids', 'Perdre 8 kg', '21h30', 'Envies de sucre',
-      'Ajouter une source de protéines', 'Horaires de nuit']) {
+  await etape('le contenu du rendez-vous reste consultable dans l\'historique', async () => {
+    await page.click('#ecHistoB');
+    await page.waitForSelector('#ecHisto:not([hidden])');
+    const t = await page.innerText('#ecHisto');
+    for (const attendu of ['Étape 1/12', 'Perdre du poids', 'Perdre 8 kg', 'Ajouter une source de protéines']) {
       if (!t.includes(attendu)) throw new Error('information perdue après validation : ' + attendu);
     }
+    // Les notes internes ne descendent PAS dans l'historique.
+    if (/Horaires de nuit/.test(t)) throw new Error('une note interne a fuité dans l\'historique');
+    await page.click('#ecHistoB');
   });
 
   await etape('S1 ne peut pas être validée une deuxième fois', async () => {
@@ -213,7 +222,8 @@ async function semer() {
   await etape('affichage mobile : le rendez-vous reste conduisible en 390 px', async () => {
     await page.setViewportSize({ width: 390, height: 800 });
     await page.locator('.ec-cli', { hasText: 'Léa' }).click();
-    await page.waitForSelector('.ec-s1-lu');
+    // S1 étant validée, le client s'ouvre désormais sur son rendez-vous suivant.
+    await page.waitForSelector('#ecSuivi');
     const debord = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     if (debord > 2) throw new Error('débordement horizontal de ' + debord + ' px');
     await page.setViewportSize({ width: 1100, height: 950 });
