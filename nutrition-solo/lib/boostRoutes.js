@@ -28,6 +28,7 @@
 // ============================================================================
 
 const express = require('express');
+const path = require('path');
 const { ETAPES_TOTAL } = require('./boost');
 
 // `exigeCompte` et `exigeAdmin` sont injectés par server.js : le routeur ne
@@ -75,6 +76,34 @@ function creerRoutesBoost({ boost, exigeCompte, exigeAdmin }) {
   //  COACH NUTRITION — ses clients attribués, uniquement.
   // =========================================================================
 
+  // L'espace Coach est une PAGE À PART (public/coach.html), pas un onglet de
+  // l'app client : un coach n'a rien à faire dans un espace conçu pour suivre
+  // SON propre plan de repas, et l'app client n'a pas à embarquer du
+  // back-office. Elles ne partagent que l'authentification et cette API.
+  const pageCoach = (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'coach.html'));
+  r.get('/coach', pageCoach);
+  r.get('/coach/', pageCoach);
+
+  // « Qui suis-je ? » — appelé AVANT toute lecture de dossier. Sans cette route,
+  // l'écran devrait déduire l'état du collaborateur d'un 403, c'est-à-dire
+  // traiter un refus comme une donnée d'affichage. Or « ta certification n'est
+  // pas encore validée » n'est pas une erreur : c'est un état normal, qui mérite
+  // un écran normal.
+  r.get('/api/boost/coach/moi', exigeCompte, (req, res) => {
+    const u = boost.lireUtilisateur(moi(req));
+    const collaborateur = boost.estCollaborateur(u);
+    const cert = boost.lireCertification(moi(req));
+    res.json({
+      ok: true,
+      email: moi(req),
+      prenom: (u && u.prenom) || '',
+      collaborateur,
+      // Sa propre certification : il peut la lire, il ne peut pas la changer.
+      certifie: boost.estCoachCertifie(moi(req)),
+      certification: cert,
+    });
+  });
+
   r.get('/api/boost/coach/dossiers', exigeCompte, exigeCoachCertifie, (req, res) => {
     res.json({ ok: true, dossiers: boost.boostsDuCoach(moi(req)), etapesTotal: ETAPES_TOTAL });
   });
@@ -84,6 +113,14 @@ function creerRoutesBoost({ boost, exigeCompte, exigeAdmin }) {
     // Dossier d'un autre coach -> 404, pas 403 (cf. en-tête).
     if (!b || b.coachEmail !== moi(req)) return res.status(404).json({ ok: false, error: 'Dossier introuvable.' });
     res.json({ ok: true, boost: b });
+  });
+
+  // L'historique d'un dossier, pour le coach qui l'anime. Même portée que le
+  // dossier lui-même : hors de son portefeuille, c'est 404.
+  r.get('/api/boost/coach/dossiers/:id/journal', exigeCompte, exigeCoachCertifie, (req, res) => {
+    const b = boost.lireBoost(req.params.id);
+    if (!b || b.coachEmail !== moi(req)) return res.status(404).json({ ok: false, error: 'Dossier introuvable.' });
+    res.json({ ok: true, journal: boost.lireJournal(req.params.id) });
   });
 
   // Validation d'une Étape : le Coach Nutrition attribué, et lui seul. Ni

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Espace Coach Nutrition — My Coach</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#1B2A41" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="coach.css?v=1" />
+</head>
+<body>
+<!--
+  ESPACE COACH NUTRITION — page autonome, servie sur /coach.
+
+  Volontairement SÉPARÉE de l'app client (index.html) : un coach n'a rien à
+  faire dans un espace conçu pour suivre son propre plan de repas, et l'app
+  client n'a pas à embarquer un back-office. Les deux ne partagent que
+  l'authentification (email + PIN) et l'API du Boost.
+
+  Règle de l'écran : ZÉRO PRÉPARATION. On ouvre, on voit qui on suit, on clique.
+  Pas de tableau de bord, pas de filtre à régler, pas de recherche à faire.
+-->
+
+  <header class="ec-head">
+    <div class="ec-wrap ec-head-in">
+      <a class="ec-mark" href="/coach" aria-label="Espace Coach Nutrition">
+        <span class="ec-mark-sq">MC</span>
+        <span class="ec-mark-txt">Espace Coach <b>Nutrition</b></span>
+      </a>
+      <div class="ec-me" id="ecMe" hidden>
+        <span class="ec-me-nom" id="ecMeNom"></span>
+        <button type="button" class="ec-out" id="ecOut">Se déconnecter</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="ec-wrap">
+    <p class="ec-boot" id="ecBoot">Chargement…</p>
+
+    <!-- ===== Connexion ===== -->
+    <section class="ec-card ec-login" id="ecLogin" hidden>
+      <h1 class="ec-login-t">Espace Coach Nutrition</h1>
+      <p class="ec-login-s">Connecte-toi avec ton email et ton code, comme dans l'application.</p>
+      <form id="ecForm" autocomplete="on">
+        <label class="ec-field"><span>Email</span>
+          <input id="ecEmail" type="email" autocomplete="username" inputmode="email" placeholder="prenom@exemple.fr" required /></label>
+        <label class="ec-field"><span>Code</span>
+          <input id="ecPin" type="password" autocomplete="current-password" inputmode="numeric" maxlength="6" placeholder="••••" required /></label>
+        <button type="submit" class="ec-btn ec-btn-p" id="ecGo">Se connecter</button>
+        <p class="ec-err" id="ecErr" role="alert"></p>
+      </form>
+    </section>
+
+    <!-- ===== Accès refusé / certification en attente ===== -->
+    <section class="ec-card ec-bloc" id="ecBloc" hidden>
+      <div class="ec-bloc-ic" id="ecBlocIc" aria-hidden="true"></div>
+      <h1 class="ec-bloc-t" id="ecBlocT"></h1>
+      <p class="ec-bloc-p" id="ecBlocP"></p>
+      <div class="ec-bloc-det" id="ecBlocDet" hidden></div>
+    </section>
+
+    <!-- ===== Mes clients ===== -->
+    <section id="ecListe" hidden>
+      <h1 class="ec-t">Mes clients</h1>
+      <p class="ec-sub">Tes suivis Boost Nutrition</p>
+      <div id="ecActifs" class="ec-list"></div>
+      <div class="ec-anciens" id="ecAnciensBloc" hidden>
+        <button type="button" class="ec-anciens-b" id="ecAnciensB" aria-expanded="false">
+          <span id="ecAnciensLbl">Anciens suivis</span>
+          <span class="ec-chev" aria-hidden="true">▾</span>
+        </button>
+        <div id="ecAnciens" class="ec-list" hidden></div>
+      </div>
+    </section>
+
+    <!-- ===== Fiche client (coquille) ===== -->
+    <section id="ecFiche" hidden></section>
+  </main>
+
+  <script src="coach.js?v=1"></script>
+</body>
+</html>

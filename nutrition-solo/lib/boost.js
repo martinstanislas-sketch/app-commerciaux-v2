@@ -526,9 +526,17 @@ function createBoost({ getDb, nowIso }) {
     return { actuel: tous.find((b) => b.actif) || null, historique: tous.filter((b) => !b.actif) };
   }
 
+  // Les dossiers d'un coach, RANGÉS PAR URGENCE et non par date de création :
+  // « À démarrer » en tête (personne n'attend plus que ces clients-là), puis
+  // « en cours », puis les dossiers clos. C'est trié ici et non côté écran pour
+  // que l'ordre soit une règle du dispositif, testable, et pas une décision
+  // d'affichage qu'on redécouvrirait à chaque nouvelle interface.
+  const RANG_STATUT = { [STATUT_A_DEMARRER]: 0, [STATUT_EN_COURS]: 1, [STATUT_EXPIRE]: 2, [STATUT_INTERROMPU]: 3, [STATUT_TERMINE]: 4 };
   function boostsDuCoach(email, jour) {
     return db().prepare('SELECT * FROM boosts WHERE coach_email = ? ORDER BY id DESC')
-      .all(normalise(email)).map((r) => vueBoost(r, jour));
+      .all(normalise(email))
+      .map((r) => vueBoost(r, jour))
+      .sort((a, b) => (RANG_STATUT[a.statut] - RANG_STATUT[b.statut]) || (b.id - a.id));
   }
 
   function listerBoosts(jour) {
