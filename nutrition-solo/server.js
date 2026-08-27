@@ -44,6 +44,8 @@ const coachFaq = require('./lib/coachFaq');
 const { createBoost } = require('./lib/boost');
 const { createSeances } = require('./lib/boostSeances');
 const { creerRoutesBoost } = require('./lib/boostRoutes');
+const { createAcademy } = require('./lib/academy');
+const { creerRoutesAcademy } = require('./lib/academyRoutes');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
 const PORT = process.env.PORT || 3000;
@@ -59,6 +61,9 @@ const boost = createBoost({ getDb, nowIso });
 // Le contenu des rendez-vous vit à part (lib/boostSeances.js) : le socle porte
 // le cycle de vie du Boost, ce module porte ce qui se dit en séance.
 const seances = createSeances({ getDb, nowIso, boost });
+// My Coach Academy : la formation qui mène à la certification Coach Nutrition.
+// Elle réutilise les comptes et les collaborateurs du Boost — jamais les siens.
+const academy = createAcademy({ getDb, nowIso, boost });
 
 const app = express();
 // 6 Mo : une photo de progression prise au téléphone passe, un envoi abusif non.
@@ -657,6 +662,7 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 //  masquerait des routes existantes, plus bas il serait avalé par le 404.
 // ---------------------------------------------------------------------------
 app.use(creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }));
+app.use(creerRoutesAcademy({ academy, exigeCompte }));
 
 // Toute route /api inconnue répond en JSON : sinon Express renvoie du HTML et le
 // front, qui fait systématiquement res.json(), échoue avec une erreur illisible.
@@ -821,6 +827,7 @@ function amorcerFaq() {
 module.exports = app;
 module.exports.boost = boost;
 module.exports.seances = seances;
+module.exports.academy = academy;
 module.exports.amorcerFaq = amorcerFaq;
 module.exports.appliquerResetPinAdmin = appliquerResetPinAdmin;
 module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;

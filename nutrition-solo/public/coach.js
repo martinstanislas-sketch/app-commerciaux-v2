@@ -107,7 +107,10 @@ async function demarrer() {
       (c.evaluateur ? '<p>Évaluateur : <b>' + echapper(c.evaluateur) + '</b></p>' : '') +
       (c.scoreQcm !== null && c.scoreQcm !== undefined ? '<p>Score QCM : <b>' + echapper(c.scoreQcm) + '/100</b></p>' : '');
     bloquer('⏳', 'Ta certification Coach Nutrition n\'est pas encore validée',
-      'Tu retrouveras tes clients ici dès qu\'elle le sera. Aucun dossier n\'est accessible d\'ici là.', det);
+      'Tu retrouveras tes clients ici dès qu\'elle le sera. Aucun dossier n\'est accessible d\'ici là.',
+      // Une seule porte pour les collaborateurs : cet écran d'attente devient
+      // le chemin vers la formation, au lieu d'être une impasse.
+      '<p style="text-align:center;margin:0 0 14px"><a class="ec-btn ec-btn-p" style="display:inline-block;text-decoration:none" href="/academy">Accéder à ma formation</a></p>' + det);
     return;
   }
   await chargerClients();

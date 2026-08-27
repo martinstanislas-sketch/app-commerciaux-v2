@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>My Coach Academy — Formation Coach Nutrition</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#1B2A41" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="coach.css?v=4" />
+  <link rel="stylesheet" href="academy.css?v=2" />
+</head>
+<body>
+<!--
+  MY COACH ACADEMY — page autonome, servie sur /academy.
+
+  Elle emprunte la feuille de l'espace Coach (même identité : marine, saphir,
+  blanc) et n'ajoute que ce qui lui est propre. Charger deux fois la même
+  palette la ferait diverger au premier ajustement.
+
+  Réservée aux collaborateurs ACTIFS, certifiés ou non : c'est justement cette
+  formation qui doit permettre de le devenir.
+-->
+
+  <header class="ec-head">
+    <div class="ec-wrap ec-head-in">
+      <a class="ec-mark" href="/academy" aria-label="My Coach Academy">
+        <span class="ec-mark-sq">MC</span>
+        <span class="ec-mark-txt">My Coach <b>Academy</b></span>
+      </a>
+      <div class="ec-me" id="acMe" hidden>
+        <span class="ec-me-nom" id="acMeNom"></span>
+        <a class="ec-out" id="acCoach" href="/coach">Espace Coach</a>
+        <button type="button" class="ec-out" id="acOut">Se déconnecter</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="ec-wrap">
+    <p class="ec-boot" id="acBoot">Chargement…</p>
+
+    <section class="ec-card ec-login" id="acLogin" hidden>
+      <h1 class="ec-login-t">My Coach Academy</h1>
+      <p class="ec-login-s">Connecte-toi avec ton email et ton code, comme dans l'application.</p>
+      <form id="acForm" autocomplete="on">
+        <label class="ec-field"><span>Email</span>
+          <input id="acEmail" type="email" autocomplete="username" inputmode="email" placeholder="prenom@exemple.fr" required /></label>
+        <label class="ec-field"><span>Code</span>
+          <input id="acPin" type="password" autocomplete="current-password" inputmode="numeric" maxlength="6" placeholder="••••" required /></label>
+        <button type="submit" class="ec-btn ec-btn-p" id="acGo">Se connecter</button>
+        <p class="ec-err" id="acErr" role="alert"></p>
+      </form>
+    </section>
+
+    <section class="ec-card ec-bloc" id="acBloc" hidden>
+      <div class="ec-bloc-ic" id="acBlocIc" aria-hidden="true"></div>
+      <h1 class="ec-bloc-t" id="acBlocT"></h1>
+      <p class="ec-bloc-p" id="acBlocP"></p>
+    </section>
+
+    <!-- Sommaire de la formation -->
+    <section id="acSommaire" hidden></section>
+
+    <!-- Lecture d'un contenu -->
+    <section id="acLecteur" hidden></section>
+  </main>
+
+  <script src="academy.js?v=1"></script>
+</body>
+</html>
