@@ -34,6 +34,13 @@
 
 const { err, ok, jourValide, aujourdhui } = require('./boost');
 
+// Les détails de prérequis sont LUS PAR LE COLLABORATEUR : une date y sort en
+// français, pas au format de stockage.
+const enFrancais = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
+};
+
 const DELIVREE = 'delivree';
 const RETIREE = 'retiree';
 
@@ -85,6 +92,7 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
     if (basesMigrees.has(d)) return true;
     // Les prérequis vivent dans les lots 2 et 3 : leurs tables doivent exister.
     pratique.assurerSchema();
+    formations.assurerSchema();
     d.exec(SCHEMA_CERT);
     basesMigrees.add(d);
     return true;
@@ -139,14 +147,68 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
       .all(normalise(email), f.cle).map(vue);
   }
 
+  // Les prérequis d'une formation ne sont plus du code : ils se DÉDUISENT de
+  // ses drapeaux. La théorie est toujours demandée ; l'évaluation pratique ne
+  // l'est que si la formation la réclame. Une formation qui ne l'impose pas ne
+  // « saute » pas l'étape — elle ne la demande pas, et rien dans le moteur n'a
+  // à connaître le cas particulier.
+  function prerequisDe(mail, f) {
+    const t = qcm.etatPour(mail);
+    const liste = [{
+      cle: 'theorie',
+      libelle: 'Évaluation théorique (QCM)',
+      rempli: !!t.theorieValidee,
+      detail: t.scoreValide === null || t.scoreValide === undefined ? null : 'score : ' + t.scoreValide + ' %',
+    }];
+    if (f.pratiqueObligatoire) {
+      const p = pratique.etatPour(mail);
+      liste.push({
+        cle: 'pratique',
+        libelle: 'Évaluation pratique',
+        rempli: !!p.validee,
+        detail: p.valideeLe ? 'validée le ' + enFrancais(p.valideeLe) : null,
+      });
+    }
+    return liste;
+  }
+
+  // Les PREUVES recopiées dans le diplôme au moment de la délivrance : il doit
+  // pouvoir se relire seul, des années plus tard, sans dépendre de données qui
+  // auront bougé.
+  function preuvesDe(mail, f) {
+    const t = qcm.etatPour(mail);
+    const validee = f.pratiqueObligatoire
+      ? (pratique.etatPour(mail).historique.find((h) => h.resultat === 'valide') || null)
+      : null;
+    return {
+      scoreQcm: t.scoreValide === undefined ? null : t.scoreValide,
+      pratiqueLe: validee ? (validee.dateEvaluation || validee.decideLe) : null,
+      pratiquePar: validee ? validee.evaluateur : null,
+    };
+  }
+
   // L'état d'une formation pour une personne : les prérequis un par un, ce
   // qu'il manque, et le diplôme s'il existe. Tout est recalculé.
   function etatFormation(email, f) {
     const mail = normalise(email);
-    const prerequis = f.prerequis(mail);
+    const prerequis = prerequisDe(mail, f);
     const manquants = prerequis.filter((p) => !p.rempli);
     const active = certificationActive(mail, f.cle);
     const collaborateur = boost.estCollaborateur(boost.lireUtilisateur(mail));
+
+    // UNE FORMATION QUI NE CERTIFIE PAS n'a pas d'éligible ni de certifié : son
+    // parcours est en cours, ou terminé. On ne fabrique pas un diplôme fictif
+    // pour faire entrer le cas dans le même moule.
+    if (!f.certificationActive) {
+      return {
+        formation: f.cle, libelle: f.libelle, titre: f.titre,
+        certificationActive: false, pratiqueObligatoire: !!f.pratiqueObligatoire,
+        prerequis, manquants: manquants.map((p) => p.cle),
+        eligible: false, certifie: false,
+        etat: collaborateur && !manquants.length ? 'parcours_termine' : 'parcours_en_cours',
+        certification: null, historique: [], collaborateur,
+      };
+    }
 
     let etat = 'non_eligible';
     if (active) etat = 'certifie';
@@ -156,6 +218,8 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
       formation: f.cle,
       libelle: f.libelle,
       titre: f.titre,
+      certificationActive: true,
+      pratiqueObligatoire: !!f.pratiqueObligatoire,
       prerequis,
       manquants: manquants.map((p) => p.cle),
       // ÉLIGIBLE N'EST PAS CERTIFIÉ. Les deux sont renvoyés côte à côte pour
@@ -177,7 +241,7 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
   // Toutes les formations du registre : c'est ce que lit la carte du
   // collaborateur, et ce qui la rendra multi-formation sans y retoucher.
   const etatCompletPour = (email) =>
-    formations.liste().map((l) => etatFormation(email, formations.lire(l.cle)));
+    formations.lister().map((l) => etatFormation(email, formations.lire(l.cle)));
 
   // -- Délivrance ------------------------------------------------------------
 
@@ -198,9 +262,13 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
     if (!u) return err(404, 'Collaborateur introuvable.');
     if (!boost.estCollaborateur(u)) return err(404, 'Collaborateur introuvable.');
 
+    if (!f.certificationActive) {
+      return err(409, 'Cette formation ne délivre pas de certification.', { sansCertification: true });
+    }
+
     // LE CONTRÔLE QUI COMPTE : les prérequis sont relus ICI, à l'écriture. Les
     // vérifier seulement à l'affichage laisserait cette requête passer devant.
-    const prerequis = f.prerequis(mail);
+    const prerequis = prerequisDe(mail, f);
     const manquants = prerequis.filter((p) => !p.rempli);
     if (manquants.length) {
       return err(409, 'Prérequis non remplis : ' + manquants.map((p) => p.libelle).join(', ') + '.',
@@ -216,7 +284,7 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
     if (!jourValide(date)) return err(400, 'Date de certification invalide (AAAA-MM-JJ).');
 
     const maintenant = nowIso();
-    const preuves = f.preuves ? f.preuves(mail) : {};
+    const preuves = preuvesDe(mail, f);
     const info = db().prepare(`INSERT INTO academy_certifications
         (email, formation, statut, obtenue_le, delivree_par, delivree_le,
          score_qcm, pratique_le, pratique_par, commentaire, maj_le)
@@ -247,6 +315,9 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
     const f = formations.lire(d.formation || (formations.defaut() || {}).cle);
     if (!f) return err(404, 'Formation inconnue.');
 
+    if (!f.certificationActive) {
+      return err(409, 'Cette formation ne délivre pas de certification.', { sansCertification: true });
+    }
     const motif = String(d.motif || '').trim();
     if (!motif) return err(400, 'Un motif est requis pour retirer une certification.', { motifRequis: true });
 
@@ -271,6 +342,8 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
   function listerAdmin(formationCle) {
     const f = formations.lire(formationCle || (formations.defaut() || {}).cle);
     if (!f) return { eligibles: [], certifies: [], ecarts: [] };
+
+    if (!f.certificationActive) return { formation: f.cle, libelle: f.libelle, eligibles: [], certifies: [], ecarts: [] };
 
     const collaborateurs = boost.listerCollaborateurs();
     const eligibles = [];
@@ -325,7 +398,7 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
 
   return {
     assurerSchema,
-    formations: () => formations.liste(),
+    formations: () => formations.lister(),
     etatPour, etatCompletPour, historiqueDe,
     certificationActive, estCertifie,
     delivrer, retirer, listerAdmin,

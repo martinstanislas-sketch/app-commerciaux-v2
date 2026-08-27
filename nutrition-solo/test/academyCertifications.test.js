@@ -112,8 +112,11 @@ test('le moteur ne connaît aucune formation : il lit un registre', () => {
   const code = moteur.split('\n').filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('--')).join('\n');
   assert.ok(!/coach_nutrition|Coach Nutrition/.test(code),
     'le moteur nomme une formation : il n\'est pas générique');
-  assert.ok(code.includes('formations.lire') && code.includes('f.prerequis'),
-    'il passe par le registre pour tout');
+  // Depuis le lot 5, les prérequis ne sont plus des fonctions du registre mais
+  // des DRAPEAUX de la formation. Le moteur les lit ; il ne les connaît pas.
+  assert.ok(code.includes('formations.lire'), 'il passe par le registre');
+  assert.ok(code.includes('f.pratiqueObligatoire') && code.includes('f.certificationActive'),
+    'et déduit le parcours des drapeaux de la formation');
 });
 
 test('le registre décrit la formation, ses prérequis et ce qu\'elle ouvre', () => {

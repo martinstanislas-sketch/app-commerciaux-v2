@@ -48,7 +48,7 @@ const { createAcademy } = require('./lib/academy');
 const { creerRoutesAcademy } = require('./lib/academyRoutes');
 const { createAcademyQcm } = require('./lib/academyQcm');
 const { createAcademyPratique } = require('./lib/academyPratique');
-const { creerRegistre } = require('./lib/academyFormations');
+const { createAcademyFormations } = require('./lib/academyFormations');
 const { createAcademyCertifications } = require('./lib/academyCertifications');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
@@ -80,7 +80,7 @@ const academyQcm = createAcademyQcm({ getDb, nowIso, boost, academy });
 const academyPratique = createAcademyPratique({ getDb, nowIso, boost, qcm: academyQcm });
 // La certification finale. Le moteur est GÉNÉRIQUE : il ne connaît aucune
 // formation, il lit un registre. « Coach Nutrition » y est la première entrée.
-const academyFormations = creerRegistre({ qcm: academyQcm, pratique: academyPratique });
+const academyFormations = createAcademyFormations({ getDb, nowIso });
 const academyCertifications = createAcademyCertifications({
   getDb, nowIso, boost, qcm: academyQcm, pratique: academyPratique, formations: academyFormations,
 });
