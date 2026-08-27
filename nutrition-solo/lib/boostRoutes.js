@@ -33,7 +33,7 @@ const { ETAPES_TOTAL } = require('./boost');
 
 // `exigeCompte` et `exigeAdmin` sont injectés par server.js : le routeur ne
 // redéfinit AUCUNE règle d'authentification (arbitrage n°9 — un seul système).
-function creerRoutesBoost({ boost, exigeCompte, exigeAdmin }) {
+function creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }) {
   const r = express.Router();
   const moi = (req) => String(req.user.email || '').trim().toLowerCase();
 
@@ -41,7 +41,7 @@ function creerRoutesBoost({ boost, exigeCompte, exigeAdmin }) {
   // (l'appel est mémorisé, cf. lib/boost.js). Conséquence voulue : le socle ne
   // dépend d'aucun ordre d'initialisation dans server.js, et une app qui ne
   // touche jamais au Boost ne crée jamais ses tables.
-  r.use('/api/boost', (req, _res, next) => { boost.assurerSchema(); next(); });
+  r.use('/api/boost', (req, _res, next) => { boost.assurerSchema(); seances.assurerSchema(); next(); });
 
   // Collaborateur certifié = Coach Nutrition en exercice. Tout le reste est
   // refusé ici, avant d'avoir touché le moindre dossier.
@@ -147,29 +147,42 @@ function creerRoutesBoost({ boost, exigeCompte, exigeAdmin }) {
     if (!Number.isInteger(n) || n < 1 || n > ETAPES_TOTAL) {
       return res.status(400).json({ ok: false, error: 'Numéro d\'étape invalide.' });
     }
-    res.json({ ok: true, boost: b, seance: boost.seancePourCoach(b.id, n) });
+    res.json({ ok: true, boost: b, seance: seances.seancePourCoach(b.id, n) });
   });
 
   // Brouillon : le coach quitte et revient sans rien perdre, et le Boost ne
   // bouge pas tant que le rendez-vous n'est pas validé.
   r.put('/api/boost/coach/dossiers/:id/seances/:numero', exigeCompte, exigeCoachCertifie, (req, res) => {
     const b = monDossier(req, res); if (!b) return;
-    envoyer(res, boost.enregistrerSeance(b.id, req.params.numero, req.body || {}, moi(req)));
+    envoyer(res, seances.enregistrerSeance(b.id, req.params.numero, req.body || {}, moi(req)));
   });
 
   // Validation : tout ou rien (contenu + action + Étape dans une transaction).
   // L'auteur vient du jeton, jamais du corps de la requête.
   r.post('/api/boost/coach/dossiers/:id/seances/:numero/valider', exigeCompte, exigeCoachCertifie, (req, res) => {
     const b = monDossier(req, res); if (!b) return;
-    envoyer(res, boost.validerSeance(b.id, req.params.numero, req.body || {}, moi(req)));
+    envoyer(res, seances.validerSeance(b.id, req.params.numero, req.body || {}, moi(req)));
   });
 
   // Validation d'une Étape : le Coach Nutrition attribué, et lui seul. Ni
   // l'admin, ni un autre coach certifié.
   r.post('/api/boost/coach/dossiers/:id/etapes/:numero/valider', exigeCompte, exigeCoachCertifie, (req, res) => {
-    const b = boost.lireBoost(req.params.id);
-    if (!b || b.coachEmail !== moi(req)) return res.status(404).json({ ok: false, error: 'Dossier introuvable.' });
-    envoyer(res, boost.validerEtape(req.params.id, req.params.numero, moi(req)));
+    const b = monDossier(req, res); if (!b) return;
+    const n = Number(req.params.numero);
+    // Une Étape qui porte un rendez-vous ne se valide QUE par son rendez-vous.
+    // Sans ce refus, cette route resterait une porte dérobée : elle validerait
+    // l'Étape 1 sans objectif, sans action de la semaine et sans que le journal
+    // photo ait été expliqué — c'est-à-dire en contournant toutes les règles que
+    // S1 existe pour tenir. Le test porte sur « cette Étape a-t-elle un
+    // contenu ? », jamais sur « est-ce S1 ? » : quand S2 arrivera, elle se
+    // fermera d'elle-même, sans qu'on ait à repasser ici.
+    if (seances.aUnContenu(n)) {
+      return res.status(409).json({
+        ok: false, seanceRequise: true, numero: n,
+        error: `L'Étape ${n}/${ETAPES_TOTAL} se valide depuis son rendez-vous (S${n}), pas directement.`,
+      });
+    }
+    envoyer(res, boost.validerEtape(b.id, n, moi(req)));
   });
 
   // =========================================================================

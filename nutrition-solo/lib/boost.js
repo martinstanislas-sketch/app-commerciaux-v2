@@ -78,22 +78,6 @@ const ROLE_CLIENT = 'client';
 const ROLE_COLLABORATEUR = 'collaborateur';
 const ROLES = [ROLE_CLIENT, ROLE_COLLABORATEUR];
 
-// Règles de complétude, PAR ÉTAPE. Aujourd'hui seule l'Étape 1 en a : c'est
-// délibéré, S2-S11 et S12 viendront ajouter leur entrée ici. Une Étape sans
-// règle ne peut pas être validée par la route des séances — mieux vaut refuser
-// que de laisser valider un rendez-vous dont le contenu n'existe pas encore.
-const REGLES_SEANCE = {
-  1: [
-    { champ: 'objectif', dit: 'l\'objectif du client' },
-    { champ: 'action', dit: 'l\'action de la semaine' },
-    { champ: 'journalPhoto', dit: 'la confirmation que le journal photo a été expliqué' },
-  ],
-};
-const SEANCE_BROUILLON = 'brouillon';
-const SEANCE_VALIDEE = 'validee';
-const ACTION_ACTIVE = 'active';
-const ACTION_REMPLACEE = 'remplacee';
-
 const SCHEMA = `
 -- Qui est collaborateur. Table DÉDIÉE : la table users n'apprend rien du Boost,
 -- elle est seulement référencée. On pose actif = 0 plutôt que de supprimer la
@@ -179,59 +163,6 @@ CREATE TABLE IF NOT EXISTS boost_prolongations (
   echeance_apres TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_boost_prolongations ON boost_prolongations(boost_id, id);
-
--- Contenu d'un rendez-vous. UNE ligne par Étape et par Boost, quelle que soit
--- l'Étape : S1 aujourd'hui, S2-S11 et S12 plus tard viendront s'y ranger sans
--- nouvelle table. Le contenu propre à chaque Étape vit en JSON (colonne donnees),
--- parce qu'il diffère d'une Étape à l'autre et qu'une colonne par champ
--- figerait le formulaire dans le schéma.
-CREATE TABLE IF NOT EXISTS boost_seances (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  boost_id    INTEGER NOT NULL REFERENCES boosts(id) ON DELETE CASCADE,
-  numero      INTEGER NOT NULL,
-  donnees     TEXT NOT NULL DEFAULT '{}',
-  statut      TEXT NOT NULL DEFAULT 'brouillon',   -- brouillon | validee
-  maj_le      TEXT NOT NULL,
-  maj_par     TEXT,
-  validee_le  TEXT,
-  validee_par TEXT,
-  UNIQUE(boost_id, numero)
-);
-CREATE INDEX IF NOT EXISTS idx_boost_seances ON boost_seances(boost_id, numero);
-
--- L'action de la semaine. Table DÉDIÉE et non un champ de la séance, pour deux
--- raisons : l'invariant « une seule action active » doit pouvoir se tenir
--- (les précédentes passent en 'remplacee'), et S2-S11 devront relire l'action
--- précédente sans avoir à ouvrir le JSON de la séance d'avant.
-CREATE TABLE IF NOT EXISTS boost_actions (
-  id        INTEGER PRIMARY KEY AUTOINCREMENT,
-  boost_id  INTEGER NOT NULL REFERENCES boosts(id) ON DELETE CASCADE,
-  numero    INTEGER NOT NULL,            -- l'Étape qui l'a décidée
-  intitule  TEXT NOT NULL,
-  detail    TEXT,
-  frequence TEXT,
-  statut    TEXT NOT NULL DEFAULT 'active',  -- active | remplacee
-  cree_le   TEXT NOT NULL,
-  cree_par  TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_boost_actions ON boost_actions(boost_id, id);
-
--- Notes internes du Coach Nutrition. Table SÉPARÉE des données de séance, et
--- c'est structurel, pas cosmétique : ces notes ne doivent jamais partir dans
--- une réponse destinée au client ni à l'administrateur (arbitrage n°2 —
--- l'admin administre le dispositif, il n'anime pas le suivi). Les ranger à
--- part rend l'oubli impossible plutôt qu'improbable : aucune route ne peut les
--- inclure par accident en sérialisant une séance.
-CREATE TABLE IF NOT EXISTS boost_notes_coach (
-  id       INTEGER PRIMARY KEY AUTOINCREMENT,
-  boost_id INTEGER NOT NULL REFERENCES boosts(id) ON DELETE CASCADE,
-  numero   INTEGER NOT NULL,
-  texte    TEXT NOT NULL,
-  auteur   TEXT NOT NULL,
-  cree_le  TEXT NOT NULL,
-  maj_le   TEXT NOT NULL,
-  UNIQUE(boost_id, numero)
-);
 
 -- Journal d'administration : qui a fait quoi, quand, sur quel dossier.
 CREATE TABLE IF NOT EXISTS boost_journal (
@@ -845,216 +776,8 @@ function createBoost({ getDb, nowIso }) {
     return ok({ boost: lireBoost(b.id, jour) });
   }
 
-  // =====================================================================
-  //  SÉANCES — le contenu d'un rendez-vous.
-  //
-  //  Deux gestes seulement : enregistrer un brouillon, et valider. Tant que le
-  //  rendez-vous n'est pas validé, le Boost ne bouge pas : il reste « à
-  //  démarrer », l'Étape reste à venir, les 16 semaines ne courent pas. Un coach
-  //  peut donc ouvrir S1, être interrompu, revenir plus tard.
-  // =====================================================================
-
-  const texteCourt = (v, max) => String(v === null || v === undefined ? '' : v).trim().slice(0, max);
-
-  // Ce qu'on accepte de stocker. On ne recopie PAS le corps de la requête tel
-  // quel : un champ inattendu envoyé par un client bricolé finirait en base et
-  // ressortirait à l'affichage. On reconstruit donc l'objet, champ par champ.
-  function nettoyerDonneesS1(d) {
-    const src = d && typeof d === 'object' ? d : {};
-    const obj = src.objectif && typeof src.objectif === 'object' ? src.objectif : {};
-    const hab = src.habitudes && typeof src.habitudes === 'object' ? src.habitudes : {};
-    const dif = src.difficultes && typeof src.difficultes === 'object' ? src.difficultes : {};
-    const liste = (v) => (Array.isArray(v) ? v : []).map((x) => texteCourt(x, 40)).filter(Boolean).slice(0, 20);
-    return {
-      objectif: { choix: texteCourt(obj.choix, 40), texte: texteCourt(obj.texte, 2000) },
-      habitudes: ['organisation', 'petitDejeuner', 'dejeuner', 'diner', 'collations', 'boissons', 'exterieur', 'preparation']
-        .reduce((acc, k) => { acc[k] = texteCourt(hab[k], 1000); return acc; }, {}),
-      difficultes: { choix: liste(dif.choix), precision: texteCourt(dif.precision, 2000) },
-      journalPhotoExplique: !!src.journalPhotoExplique,
-    };
-  }
-
-  function nettoyerAction(a) {
-    const src = a && typeof a === 'object' ? a : {};
-    return {
-      intitule: texteCourt(src.intitule, 300),
-      detail: texteCourt(src.detail, 1000),
-      frequence: texteCourt(src.frequence, 80),
-    };
-  }
-
-  // Ce qui manque pour valider. Renvoie une LISTE : dire « incomplet » sans dire
-  // quoi obligerait le coach à chercher, en rendez-vous, devant son client.
-  function manquesS1(donnees, action) {
-    const m = [];
-    const d = donnees || {};
-    if (!(d.objectif && (d.objectif.choix || d.objectif.texte))) m.push('l\'objectif du client');
-    if (!(action && action.intitule)) m.push('l\'action de la semaine');
-    if (!d.journalPhotoExplique) m.push('la confirmation que le journal photo a été expliqué');
-    return m;
-  }
-
-  function ligneSeance(boostId, numero) {
-    return db().prepare('SELECT * FROM boost_seances WHERE boost_id = ? AND numero = ?')
-      .get(Number(boostId), Number(numero)) || null;
-  }
-
-  function actionActive(boostId) {
-    return db().prepare('SELECT id, numero, intitule, detail, frequence, statut, cree_le AS creeLe, cree_par AS creePar FROM boost_actions WHERE boost_id = ? AND statut = ? ORDER BY id DESC LIMIT 1')
-      .get(Number(boostId), ACTION_ACTIVE) || null;
-  }
-
-  function actionsDe(boostId) {
-    return db().prepare('SELECT id, numero, intitule, detail, frequence, statut, cree_le AS creeLe, cree_par AS creePar FROM boost_actions WHERE boost_id = ? ORDER BY id ASC')
-      .all(Number(boostId));
-  }
-
-  function noteCoach(boostId, numero) {
-    const r = db().prepare('SELECT texte, auteur, maj_le AS majLe FROM boost_notes_coach WHERE boost_id = ? AND numero = ?')
-      .get(Number(boostId), Number(numero));
-    return r || null;
-  }
-
-  // Vue d'un rendez-vous POUR LE COACH. Le nom le dit : cette forme contient les
-  // notes internes, elle n'a le droit de sortir que par une route Coach.
-  function seancePourCoach(boostId, numero) {
-    const l = ligneSeance(boostId, numero);
-    const note = noteCoach(boostId, numero);
-    return {
-      numero: Number(numero),
-      statut: l ? l.statut : SEANCE_BROUILLON,
-      existe: !!l,
-      donnees: l ? lireJson(l.donnees, {}) : nettoyerDonneesS1({}),
-      majLe: l ? l.maj_le : null,
-      majPar: l ? l.maj_par : null,
-      valideeLe: l ? l.validee_le : null,
-      valideePar: l ? l.validee_par : null,
-      action: actionActive(boostId),
-      actions: actionsDe(boostId),
-      noteCoach: note ? note.texte : '',
-      noteCoachMajLe: note ? note.majLe : null,
-    };
-  }
-
-  // Enregistrement d'un brouillon. Ne touche NI au statut du Boost, NI aux
-  // Étapes : c'est tout l'intérêt du brouillon.
-  function enregistrerSeance(boostId, numero, corps, auteur, jour) {
-    const n = Number(numero);
-    if (!Number.isInteger(n) || n < 1 || n > ETAPES_TOTAL) return err(400, 'Numéro d\'étape invalide.');
-    const row = ligneBoost(boostId);
-    if (!row) return err(404, 'Boost introuvable.');
-    const b = rafraichirExpiration(row, jour);
-    if (![STATUT_A_DEMARRER, STATUT_EN_COURS].includes(b.statut)) {
-      return err(409, 'Ce Boost n\'est plus actif : son contenu n\'est plus modifiable.', { statut: b.statut });
-    }
-    const deja = ligneSeance(b.id, n);
-    // Un rendez-vous validé se relit, il ne se réécrit pas : sinon l'historique
-    // dirait autre chose que ce qui a été décidé le jour du rendez-vous.
-    if (deja && deja.statut === SEANCE_VALIDEE) {
-      return err(409, `L'Étape ${n}/${ETAPES_TOTAL} est déjà validée : son contenu n'est plus modifiable.`);
-    }
-
-    const donnees = nettoyerDonneesS1((corps || {}).donnees);
-    const action = nettoyerAction((corps || {}).action);
-    const note = texteCourt((corps || {}).noteCoach, 5000);
-    const maintenant = nowIso();
-    const d = db();
-    d.transaction(() => {
-      // L'action en cours de discussion voyage dans le brouillon : elle ne
-      // devient une vraie ligne d'action qu'à la validation.
-      const brouillon = { ...donnees, actionBrouillon: action };
-      d.prepare(`INSERT INTO boost_seances (boost_id, numero, donnees, statut, maj_le, maj_par)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 ON CONFLICT(boost_id, numero) DO UPDATE SET donnees = excluded.donnees,
-                   maj_le = excluded.maj_le, maj_par = excluded.maj_par`)
-        .run(b.id, n, JSON.stringify(brouillon), SEANCE_BROUILLON, maintenant, normalise(auteur) || null);
-      ecrireNote(d, b.id, n, note, auteur, maintenant);
-    })();
-    return ok({ seance: seancePourCoach(b.id, n), brouillon: true });
-  }
-
-  function ecrireNote(d, boostId, numero, texte, auteur, maintenant) {
-    if (!texte) {
-      d.prepare('DELETE FROM boost_notes_coach WHERE boost_id = ? AND numero = ?').run(boostId, numero);
-      return;
-    }
-    d.prepare(`INSERT INTO boost_notes_coach (boost_id, numero, texte, auteur, cree_le, maj_le)
-               VALUES (?, ?, ?, ?, ?, ?)
-               ON CONFLICT(boost_id, numero) DO UPDATE SET texte = excluded.texte,
-                 auteur = excluded.auteur, maj_le = excluded.maj_le`)
-      .run(boostId, numero, texte, normalise(auteur) || '', maintenant, maintenant);
-  }
-
-  // Validation d'un rendez-vous. TOUT OU RIEN : le contenu, l'action et la
-  // validation de l'Étape sont écrits dans une seule transaction. On ne doit
-  // jamais pouvoir se retrouver avec « Étape 1 validée » d'un côté et un
-  // rendez-vous vide de l'autre — c'est la panne qu'on ne saurait pas réparer.
-  function validerSeance(boostId, numero, corps, auteur, jour) {
-    const n = Number(numero);
-    if (!Number.isInteger(n) || n < 1 || n > ETAPES_TOTAL) return err(400, 'Numéro d\'étape invalide.');
-    if (!REGLES_SEANCE[n]) {
-      return err(409, `Le contenu de l'Étape ${n}/${ETAPES_TOTAL} n'est pas encore construit.`);
-    }
-    if (!auteur) return err(400, 'Auteur manquant.');
-
-    const row = ligneBoost(boostId);
-    if (!row) return err(404, 'Boost introuvable.');
-    const b = rafraichirExpiration(row, jour);
-    const deja = ligneSeance(b.id, n);
-    if (deja && deja.statut === SEANCE_VALIDEE) {
-      return err(409, `L'Étape ${n}/${ETAPES_TOTAL} a déjà été validée.`, { statut: deja.statut });
-    }
-
-    const donnees = nettoyerDonneesS1((corps || {}).donnees);
-    const action = nettoyerAction((corps || {}).action);
-    const manque = manquesS1(donnees, action);
-    if (manque.length) {
-      return err(400, 'Il manque ' + manque.join(', ') + '.', { manque });
-    }
-
-    const note = texteCourt((corps || {}).noteCoach, 5000);
-    const maintenant = nowIso();
-    const quand = jourValide(jour) ? jour : aujourdhui();
-    const d = db();
-    let echec = null;
-    try {
-      d.transaction(() => {
-        // Le contenu d'abord : si la validation de l'Étape échoue ensuite, tout
-        // est annulé ensemble et le brouillon d'origine reste intact.
-        d.prepare(`INSERT INTO boost_seances (boost_id, numero, donnees, statut, maj_le, maj_par, validee_le, validee_par)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(boost_id, numero) DO UPDATE SET donnees = excluded.donnees,
-                     statut = excluded.statut, maj_le = excluded.maj_le, maj_par = excluded.maj_par,
-                     validee_le = excluded.validee_le, validee_par = excluded.validee_par`)
-          .run(b.id, n, JSON.stringify(donnees), SEANCE_VALIDEE, maintenant,
-            normalise(auteur), quand, normalise(auteur));
-
-        // Une seule action active à la fois : les précédentes sont remplacées.
-        d.prepare('UPDATE boost_actions SET statut = ? WHERE boost_id = ? AND statut = ?')
-          .run(ACTION_REMPLACEE, b.id, ACTION_ACTIVE);
-        d.prepare('INSERT INTO boost_actions (boost_id, numero, intitule, detail, frequence, statut, cree_le, cree_par) VALUES (?,?,?,?,?,?,?,?)')
-          .run(b.id, n, action.intitule, action.detail || null, action.frequence || null,
-            ACTION_ACTIVE, maintenant, normalise(auteur));
-
-        ecrireNote(d, b.id, n, note, auteur, maintenant);
-
-        // Et seulement là, l'Étape. C'est ELLE qui arme les 16 semaines (n = 1).
-        const r = validerEtape(b.id, n, auteur, jour);
-        if (!r.ok) { echec = r; throw new Error('ANNULER_VALIDATION'); }
-      })();
-    } catch (e) {
-      if (e && e.message === 'ANNULER_VALIDATION') return echec;
-      throw e;
-    }
-
-    journaliser(b.id, 'seance_validee', { numero: n, action: action.intitule }, auteur);
-    return ok({ boost: lireBoost(b.id, jour), seance: seancePourCoach(b.id, n) });
-  }
-
   return {
     assurerSchema,
-    // séances
-    seancePourCoach, enregistrerSeance, validerSeance, actionActive, manquesS1, nettoyerDonneesS1,
     // rôles & certification
     lireUtilisateur, definirRole, estCollaborateur, listerCollaborateurs, listerClients,
     lireCertification, definirCertification, estCoachCertifie,
@@ -1062,6 +785,10 @@ function createBoost({ getDb, nowIso }) {
     lireBoost, listerBoosts, boostActifDuClient, dossierDuClient, boostsDuCoach, lireJournal,
     // écriture
     creerBoostPour, attribuerCoach, validerEtape, prolonger, interrompre,
+    // Collaborateurs pour lib/boostSeances.js. Exposés à dessein : le module
+    // des séances doit lire un dossier, constater son expiration et écrire au
+    // journal — sans réécrire ces règles de son côté, ce qui les ferait diverger.
+    ligneBoost, rafraichirExpiration, journaliser,
   };
 }
 
@@ -1071,7 +798,9 @@ module.exports = {
   STATUT_A_DEMARRER, STATUT_EN_COURS, STATUT_TERMINE, STATUT_EXPIRE, STATUT_INTERROMPU,
   STATUTS, STATUTS_ACTIFS,
   CERT_NON, CERT_EN_COURS, CERT_OK, CERT_SUSPENDU, CERT_STATUTS, PRATIQUE_RESULTATS,
-  SEANCE_BROUILLON, SEANCE_VALIDEE, ACTION_ACTIVE, ACTION_REMPLACEE, REGLES_SEANCE,
   ROLE_CLIENT, ROLE_COLLABORATEUR, ROLES,
   calculerEcheance, joursRestants, ajouterJours, joursEntre,
+  // Utilitaires purs partagés avec lib/boostSeances.js : les dupliquer les
+  // ferait diverger le jour où l'un des deux modules change de convention.
+  jourValide, aujourdhui, lireJson, err, ok,
 };

@@ -30,6 +30,9 @@ process.env.ADMIN_EMAIL = 'patron@exemple.fr';
 
 const app = require('../server');
 const B = require('../lib/boost');
+// Les constantes de séance vivent désormais dans le module des séances : c'est
+// le seul effet visible de l'extraction sur ce fichier de test.
+const S = require('../lib/boostSeances');
 let srv, base;
 
 const ADMIN = 'patron@exemple.fr';
@@ -121,7 +124,7 @@ test('le coach attribué ouvre S1 sur un rendez-vous vierge', async () => {
   assert.strictEqual(r.status, 200);
   assert.strictEqual(r.body.seance.numero, 1);
   assert.strictEqual(r.body.seance.existe, false, 'aucun rendez-vous encore enregistré');
-  assert.strictEqual(r.body.seance.statut, B.SEANCE_BROUILLON);
+  assert.strictEqual(r.body.seance.statut, S.SEANCE_BROUILLON);
   assert.strictEqual(r.body.seance.action, null);
   assert.strictEqual(r.body.seance.noteCoach, '');
   // Le dossier arrive avec, pour que l'écran n'ait pas à faire deux appels.
@@ -147,7 +150,7 @@ test('le brouillon s\'enregistre, même très incomplet', async () => {
   }, jetons[COACH_A]);
   assert.strictEqual(r.status, 200);
   assert.strictEqual(r.body.brouillon, true);
-  assert.strictEqual(r.body.seance.statut, B.SEANCE_BROUILLON);
+  assert.strictEqual(r.body.seance.statut, S.SEANCE_BROUILLON);
 });
 
 test('après une simple sauvegarde, le Boost n\'a PAS bougé', async () => {
@@ -226,7 +229,7 @@ test('une tentative refusée ne laisse AUCUNE trace', async () => {
   assert.strictEqual(b.body.boost.statut, B.STATUT_A_DEMARRER);
   assert.strictEqual(b.body.boost.etapesValidees, 0);
   const s = await api('GET', routeS1(CLI_A), null, jetons[COACH_A]);
-  assert.strictEqual(s.body.seance.statut, B.SEANCE_BROUILLON, 'la séance reste un brouillon');
+  assert.strictEqual(s.body.seance.statut, S.SEANCE_BROUILLON, 'la séance reste un brouillon');
   assert.strictEqual(s.body.seance.action, null, 'aucune action n\'a été créée');
 });
 
@@ -249,7 +252,7 @@ test('S1 complète : le Boost démarre et les 16 semaines s\'arment', async () =
   // Auteur et date de la validation, sur l'Étape comme sur la séance.
   assert.strictEqual(b.etapes[0].valideePar, COACH_A);
   assert.strictEqual(b.etapes[0].valideeLe, aujourdhui());
-  assert.strictEqual(r.body.seance.statut, B.SEANCE_VALIDEE);
+  assert.strictEqual(r.body.seance.statut, S.SEANCE_VALIDEE);
   assert.strictEqual(r.body.seance.valideePar, COACH_A);
   assert.strictEqual(r.body.seance.valideeLe, aujourdhui());
 });
@@ -260,11 +263,11 @@ test('l\'action de la semaine devient l\'action active du Boost', async () => {
   assert.strictEqual(a.intitule, S1_COMPLET.action.intitule);
   assert.strictEqual(a.detail, S1_COMPLET.action.detail);
   assert.strictEqual(a.frequence, '5 fois par semaine');
-  assert.strictEqual(a.statut, B.ACTION_ACTIVE);
+  assert.strictEqual(a.statut, S.ACTION_ACTIVE);
   assert.strictEqual(a.numero, 1, 'on sait quelle Étape l\'a décidée');
   assert.strictEqual(a.creePar, COACH_A);
   // Une seule action active : c'est l'invariant que S2-S11 devront tenir.
-  const actives = r.body.seance.actions.filter((x) => x.statut === B.ACTION_ACTIVE);
+  const actives = r.body.seance.actions.filter((x) => x.statut === S.ACTION_ACTIVE);
   assert.strictEqual(actives.length, 1);
 });
 
@@ -456,4 +459,85 @@ test('les fonctions de rendu S1 produisent un écran complet', () => {
   const s = ec.bloc('Titre <script>', 'Aide', '<p>corps</p>');
   assert.ok(s.includes('&lt;script&gt;'), 'les titres sont échappés');
   assert.ok(s.includes('<p>corps</p>'), 'le contenu passe tel quel');
+});
+
+// ===========================================================================
+//  8. GARDE-FOUS DU DÉCOUPAGE ET DE LA PORTE DÉROBÉE
+//
+//  Ces tests ne portent pas sur une fonctionnalité mais sur deux propriétés
+//  qu'on peut casser sans s'en apercevoir : l'impossibilité de valider une
+//  Étape en contournant son rendez-vous, et la séparation des deux modules.
+// ===========================================================================
+
+const CLI_GARDE = 'garde@exemple.fr';
+
+test('une Étape à contenu ne se valide JAMAIS par la route générique', async () => {
+  await connecter(CLI_GARDE, '1212');
+  const cree = await api('POST', '/api/boost/admin/dossiers',
+    { clientEmail: CLI_GARDE, coachEmail: COACH_A }, jetons[ADMIN]);
+  const id = cree.body.boost.id;
+
+  const r = await api('POST', `/api/boost/coach/dossiers/${id}/etapes/1/valider`, {}, jetons[COACH_A]);
+  assert.strictEqual(r.status, 409);
+  assert.strictEqual(r.body.seanceRequise, true, 'le refus dit pourquoi, et vers quoi aller');
+  assert.strictEqual(r.body.numero, 1);
+
+  // Rien n'a bougé : ni l'Étape, ni le démarrage, ni la séance.
+  const b = await api('GET', `/api/boost/coach/dossiers/${id}`, null, jetons[COACH_A]);
+  assert.strictEqual(b.body.boost.etapesValidees, 0);
+  assert.strictEqual(b.body.boost.statut, B.STATUT_A_DEMARRER);
+  assert.strictEqual(b.body.boost.demarreLe, null);
+  const s = await api('GET', `/api/boost/coach/dossiers/${id}/seances/1`, null, jetons[COACH_A]);
+  assert.strictEqual(s.body.seance.existe, false);
+});
+
+test('la fermeture vise « l\'Étape a-t-elle un contenu », pas « est-ce S1 »', async () => {
+  const S = require('../lib/boostSeances');
+  // Aujourd'hui seule l'Étape 1 a un rendez-vous construit : les autres passent
+  // encore par la route générique. Quand S2 arrivera, elle se fermera seule.
+  assert.strictEqual(S.aUnContenu(1), true);
+  for (let n = 2; n <= 12; n++) assert.strictEqual(S.aUnContenu(n), false, 'Étape ' + n);
+});
+
+test('une Étape sans rendez-vous se valide toujours par la route générique', async () => {
+  // Le dossier de CLI_A a son Étape 1 validée par S1 : l'Étape 2 n'a pas encore
+  // de contenu, elle doit rester validable. Sinon le Boost serait bloqué.
+  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/etapes/2/valider`, {}, jetons[COACH_A]);
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.body.boost.etapesValidees, 2);
+});
+
+test('aucun espacement minimum n\'est imposé entre deux Étapes', async () => {
+  // Arbitrage validé : la contrainte porte sur l'ORDRE et sur la fenêtre de 16
+  // semaines, pas sur un délai entre rendez-vous. Deux Étapes le même jour
+  // doivent passer — un client peut avoir besoin d'un rythme resserré.
+  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/etapes/3/valider`, {}, jetons[COACH_A]);
+  assert.strictEqual(r.status, 200, 'deux Étapes le même jour sont permises');
+  assert.strictEqual(r.body.boost.etapesValidees, 3);
+  assert.strictEqual(r.body.boost.etapes[1].valideeLe, r.body.boost.etapes[2].valideeLe,
+    'les deux Étapes portent bien la même date');
+  // L'ordre, lui, reste imposé.
+  const saut = await api('POST', `/api/boost/coach/dossiers/${dossiers[CLI_A]}/etapes/5/valider`, {}, jetons[COACH_A]);
+  assert.strictEqual(saut.status, 409, 'on ne saute toujours pas d\'Étape');
+});
+
+test('les deux modules restent séparés', () => {
+  const socle = fs.readFileSync(path.join(__dirname, '..', 'lib', 'boost.js'), 'utf8');
+  const seances = fs.readFileSync(path.join(__dirname, '..', 'lib', 'boostSeances.js'), 'utf8');
+
+  // Le socle ne doit plus rien savoir des rendez-vous : c'est tout l'objet du
+  // découpage. S'il se remet à les nommer, on est en train de refusionner.
+  assert.ok(!/boost_seances|boost_actions|boost_notes_coach/.test(socle),
+    'le socle ne touche plus aux tables de séance');
+  assert.ok(!/nettoyerDonneesS1|validerSeance|REGLES_SEANCE/.test(socle),
+    'le socle ne connaît plus la logique de séance');
+
+  // Et le module des séances ne doit pas réécrire les règles du socle de son
+  // côté : il les emprunte, sinon les deux finiraient par diverger.
+  assert.ok(seances.includes("require('./boost')"), 'les séances empruntent au socle');
+  assert.ok(!/CREATE TABLE IF NOT EXISTS boosts\b|calculerEcheance\s*\(/.test(seances),
+    'les séances ne redéfinissent pas le cycle de vie du Boost');
+  // L'atomicité repose sur une connexion unique : les deux doivent recevoir le
+  // MÊME getDb, jamais en ouvrir un de leur côté.
+  assert.ok(!/require\('\.\/db'\)/.test(seances), 'le module des séances n\'ouvre pas sa propre base');
 });

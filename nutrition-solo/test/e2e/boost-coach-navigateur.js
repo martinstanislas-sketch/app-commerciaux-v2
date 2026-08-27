@@ -55,7 +55,12 @@ async function semer() {
   // trier : Léa reste « à démarrer », Marc passe « en cours » (Étape 1 validée
   // par le coach lui-même, via sa vraie route), Nora est interrompue.
   const tCoach = (await jsonp('/account/login', { email: COACH_A, pin: '2002' })).token;
-  await jsonp('/api/boost/coach/dossiers/' + ids[CLI2] + '/etapes/1/valider', {}, 'POST', tCoach);
+  // L'Étape 1 se valide par son rendez-vous : la route générique la refuse
+  // désormais, précisément pour qu'on ne puisse pas la contourner.
+  await jsonp('/api/boost/coach/dossiers/' + ids[CLI2] + '/seances/1/valider', {
+    donnees: { objectif: { choix: 'perte', texte: '' }, journalPhotoExplique: true },
+    action: { intitule: 'Ajouter une source de protéines au petit-déjeuner' },
+  }, 'POST', tCoach);
   await jsonp('/api/boost/admin/dossiers/' + ids[CLI3] + '/interruption',
     { motif: 'Déménagement, accompagnement arrêté d\'un commun accord.' }, 'POST', t);
   return { t, ids };

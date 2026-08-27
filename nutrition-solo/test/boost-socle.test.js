@@ -416,8 +416,28 @@ test('on ne saute pas d\'Étape', async () => {
   assert.strictEqual(horsBornes.status, 400);
 });
 
-test('la validation de l\'Étape 1 arme les 16 semaines', async () => {
+// Depuis que l'Étape 1 porte un rendez-vous, elle se valide par S1 et non plus
+// par la route générique. Ce test vérifie toujours la même chose — la règle des
+// 16 semaines du socle — mais par le chemin réel.
+const S1_MINIMAL = {
+  donnees: { objectif: { choix: 'perte', texte: '' }, journalPhotoExplique: true },
+  action: { intitule: 'Ajouter une source de protéines au petit-déjeuner' },
+};
+
+test('la route générique ne valide plus une Étape qui porte un rendez-vous', async () => {
   const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/etapes/1/valider`, {}, jetons[COACH1]);
+  assert.strictEqual(r.status, 409, 'la porte dérobée est fermée');
+  assert.strictEqual(r.body.seanceRequise, true);
+
+  // Et elle n'a rien validé au passage.
+  const b = await api('GET', `/api/boost/coach/dossiers/${dossiers[LEA]}`, null, jetons[COACH1]);
+  assert.strictEqual(b.body.boost.etapesValidees, 0);
+  assert.strictEqual(b.body.boost.statut, B.STATUT_A_DEMARRER);
+  assert.strictEqual(b.body.boost.demarreLe, null, 'les 16 semaines ne sont pas armées');
+});
+
+test('la validation de l\'Étape 1 arme les 16 semaines', async () => {
+  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/seances/1/valider`, S1_MINIMAL, jetons[COACH1]);
   assert.strictEqual(r.status, 200);
   const b = r.body.boost;
 
@@ -432,7 +452,7 @@ test('la validation de l\'Étape 1 arme les 16 semaines', async () => {
 });
 
 test('une Étape déjà validée ne se revalide pas', async () => {
-  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/etapes/1/valider`, {}, jetons[COACH1]);
+  const r = await api('POST', `/api/boost/coach/dossiers/${dossiers[LEA]}/seances/1/valider`, S1_MINIMAL, jetons[COACH1]);
   assert.strictEqual(r.status, 409);
 });
 
@@ -569,7 +589,7 @@ test('un Boost pas encore démarré ne se prolonge pas', async () => {
 test('interrompre : motif obligatoire, puis rachat possible', async () => {
   const cree = await api('POST', '/api/boost/admin/dossiers', { clientEmail: NORA, coachEmail: COACH2 }, jetons[ADMIN]);
   dossiers[NORA] = cree.body.boost.id;
-  await api('POST', `/api/boost/coach/dossiers/${dossiers[NORA]}/etapes/1/valider`, {}, jetons[COACH2]);
+  await api('POST', `/api/boost/coach/dossiers/${dossiers[NORA]}/seances/1/valider`, S1_MINIMAL, jetons[COACH2]);
 
   const sansMotif = await api('POST', `/api/boost/admin/dossiers/${dossiers[NORA]}/interruption`, {}, jetons[ADMIN]);
   assert.strictEqual(sansMotif.status, 400);
