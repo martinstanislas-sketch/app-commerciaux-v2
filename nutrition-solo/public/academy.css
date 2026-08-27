@@ -54,6 +54,71 @@
 .ac-nav .ec-btn { flex: 1 1 0; }
 .ac-nav .ec-btn[disabled] { opacity: .45; cursor: not-allowed; }
 
+
+/* Évaluation théorique ---------------------------------------------------- */
+/* La carte du sommaire : elle porte l'état du QCM, verrouillé compris. Un état
+   verrouillé qui ne se voit pas laisse croire à une panne. */
+.ac-qcm-carte { background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius); padding: 16px 18px; margin: 0 0 26px; }
+.ac-qcm-formation-en-cours { border-style: dashed; }
+.ac-qcm-theorie-validee { border-color: var(--sage); }
+.ac-qcm-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.ac-qcm-h b { font-size: .95rem; color: var(--marine); }
+.ac-qcm-etat { font-size: .72rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: var(--surface-soft); color: var(--text-soft); border: 1px solid var(--border-strong); }
+.ac-etat-theorie-validee { background: var(--sage); color: #fff; border-color: var(--sage); }
+.ac-etat-evaluation-en-cours, .ac-etat-qcm-disponible { background: var(--saphir); color: #fff; border-color: var(--saphir); }
+.ac-qcm-p { font-size: .92rem; margin: 0 0 6px; }
+.ac-qcm-s, .ac-qcm-note { font-size: .82rem; color: var(--text-muted); margin: 0 0 6px; }
+.ac-qcm-demo { font-size: .78rem; color: var(--text-soft); font-style: italic; margin: 0 0 6px; }
+.ac-qcm-ok { font-size: .95rem; font-weight: 700; color: var(--sage-on-soft); margin: 0 0 4px; }
+.ac-qcm-ko { font-size: .95rem; font-weight: 700; color: var(--marine); margin: 0 0 4px; }
+.ac-qcm-next { font-size: .9rem; font-weight: 600; color: var(--saphir); margin: 0 0 6px; }
+.ac-qcm-histo { margin-top: 10px; font-size: .82rem; color: var(--text-muted); }
+.ac-qcm-histo summary { cursor: pointer; }
+.ac-qcm-histo ul { margin: 8px 0 0; padding-left: 18px; }
+
+/* Le questionnaire. Les pastilles servent de progression ET de navigation :
+   revenir sur une réponse doit coûter un clic, sinon personne ne le fait. */
+.ac-q-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 14px; }
+.ac-q-dot { width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-soft); font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+/* Répondue = sauge, comme partout ailleurs dans l'app. Un simple changement de
+   bordure ne se voyait pas assez pour servir de progression. */
+.ac-q-dot.ac-q-ok { background: var(--sage-soft); color: var(--sage-on-soft); border-color: var(--sage); }
+.ac-q-dot.ac-q-ici { background: var(--saphir); color: #fff; border-color: var(--saphir); }
+.ac-q-dot:focus-visible { outline: 2px solid var(--saphir); outline-offset: 2px; }
+
+.ac-q { background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; }
+.ac-q-num { font-size: .76rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-soft); margin: 0 0 6px; }
+.ac-q-enonce { font-size: 1.1rem; font-weight: 700; color: var(--marine); margin: 0 0 6px; line-height: 1.4; }
+.ac-q-aide { font-size: .82rem; color: var(--text-muted); margin: 0 0 14px; }
+.ac-q-choix { display: flex; flex-direction: column; gap: 8px; }
+/* Toute la ligne est cliquable : viser une case de 14 px au doigt ne marche pas. */
+.ac-choix { display: flex; align-items: flex-start; gap: 11px; border: 1px solid var(--border-c); border-radius: 12px; padding: 12px 14px; cursor: pointer; font-size: .93rem; line-height: 1.45; transition: border-color .12s ease, background .12s ease; }
+.ac-choix:hover { border-color: var(--saphir); }
+.ac-choix input { flex: 0 0 auto; margin-top: 2px; width: 17px; height: 17px; accent-color: var(--saphir); }
+.ac-choix-on { border-color: var(--saphir); background: var(--surface-soft); }
+.ac-choix:focus-within { outline: 2px solid var(--saphir); outline-offset: 2px; }
+
+.ac-qcm-fin { background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 40px; }
+.ac-q-reste { font-size: .84rem; color: var(--text-muted); margin: 0 0 12px; }
+.ac-qcm-fin .ac-q-aide { margin: 10px 0 0; }
+
+/* Résultat. Le score et le verdict d'abord : c'est ce qu'on vient lire. */
+.ac-res { border-radius: var(--radius); padding: 22px 20px; margin: 22px 0 16px; text-align: center; border: 1px solid var(--border-c); background: var(--surface); }
+.ac-res-ok { border-color: var(--sage); }
+.ac-res-score { font-size: 2.2rem; font-weight: 800; color: var(--marine); margin: 0 0 4px; letter-spacing: -.02em; }
+.ac-res-verdict { font-size: 1.1rem; font-weight: 700; margin: 0 0 8px; }
+.ac-res-ok .ac-res-verdict { color: var(--sage-on-soft); }
+.ac-res-ko .ac-res-verdict { color: var(--marine); }
+.ac-res-detail { font-size: .86rem; color: var(--text-muted); margin: 0; }
+.ac-res-revoir { background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 16px; font-size: .88rem; }
+.ac-res-revoir b { color: var(--marine); }
+.ac-res-revoir ul { margin: 8px 0 0; padding-left: 18px; color: var(--text-muted); }
+.ac-res-suite { background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 40px; }
+.ac-res-t { font-size: 1rem; font-weight: 700; color: var(--sage-on-soft); margin: 0 0 4px; }
+.ac-res-next { font-size: .95rem; font-weight: 600; color: var(--saphir); margin: 0 0 10px; }
+.ac-res-note { font-size: .84rem; color: var(--text-muted); margin: 0 0 12px; }
+.ac-res-suite .ec-btn { width: 100%; }
+
 @media (max-width: 520px) {
   .ac-lec-t { font-size: 1.15rem; }
   .ac-l-d { display: none; }
@@ -65,4 +130,11 @@
   .ec-head-in { flex-wrap: wrap; row-gap: 8px; }
   .ec-me { gap: 8px; }
   #acCoach, #acOut { padding: 5px 9px; font-size: .78rem; }
+}
+
+@media (max-width: 520px) {
+  .ac-q-enonce { font-size: 1rem; }
+  .ac-res-score { font-size: 1.8rem; }
+  /* Les pastilles restent alignées et atteignables au doigt même à 390 px. */
+  .ac-q-dot { width: 28px; height: 28px; }
 }

@@ -46,6 +46,7 @@ const { createSeances } = require('./lib/boostSeances');
 const { creerRoutesBoost } = require('./lib/boostRoutes');
 const { createAcademy } = require('./lib/academy');
 const { creerRoutesAcademy } = require('./lib/academyRoutes');
+const { createAcademyQcm } = require('./lib/academyQcm');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
 const PORT = process.env.PORT || 3000;
@@ -64,6 +65,10 @@ const seances = createSeances({ getDb, nowIso, boost });
 // My Coach Academy : la formation qui mène à la certification Coach Nutrition.
 // Elle réutilise les comptes et les collaborateurs du Boost — jamais les siens.
 const academy = createAcademy({ getDb, nowIso, boost });
+// L'évaluation théorique vit à part : le socle porte les contenus et la
+// progression, ce module porte le QCM, son gel et sa correction. Réussir n'y
+// certifie personne — la certification reste celle du Boost (boost.js).
+const academyQcm = createAcademyQcm({ getDb, nowIso, boost, academy });
 
 const app = express();
 // 6 Mo : une photo de progression prise au téléphone passe, un envoi abusif non.
@@ -662,7 +667,7 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 //  masquerait des routes existantes, plus bas il serait avalé par le 404.
 // ---------------------------------------------------------------------------
 app.use(creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }));
-app.use(creerRoutesAcademy({ academy, exigeCompte }));
+app.use(creerRoutesAcademy({ academy, qcm: academyQcm, exigeCompte }));
 
 // Toute route /api inconnue répond en JSON : sinon Express renvoie du HTML et le
 // front, qui fait systématiquement res.json(), échoue avec une erreur illisible.
@@ -828,6 +833,7 @@ module.exports = app;
 module.exports.boost = boost;
 module.exports.seances = seances;
 module.exports.academy = academy;
+module.exports.academyQcm = academyQcm;
 module.exports.amorcerFaq = amorcerFaq;
 module.exports.appliquerResetPinAdmin = appliquerResetPinAdmin;
 module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;

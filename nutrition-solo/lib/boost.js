@@ -380,6 +380,53 @@ function createBoost({ getDb, nowIso }) {
     return ok({ certification: lireCertification(mail) });
   }
 
+  // Report d'une réussite au QCM théorique de l'Academy. Volontairement ÉTROIT :
+  // il n'écrit que le score et l'avancement, et n'ouvre jamais la certification.
+  //
+  //  ⚠️ CE N'EST PAS UNE CERTIFICATION. Réussir le QCM valide LA THÉORIE et rend
+  //  éligible à l'évaluation pratique. Le statut `certifie` reste prononcé par
+  //  un humain via definirCertification(), avec un évaluateur et une date — ce
+  //  que l'Academy ne peut pas fournir et n'a pas à décider.
+  //
+  //  Trois interdits, chacun pour une raison qui s'est déjà vue ailleurs :
+  //   - un coach DÉJÀ CERTIFIÉ n'est jamais rétrogradé. Passer sa ligne en
+  //     « en_cours » lui fermerait ses dossiers clients dans la seconde ;
+  //   - une SUSPENSION n'est pas levée par un QCM. C'est une décision
+  //     d'administration ; la relever depuis une réussite automatique viderait
+  //     la suspension de son sens ;
+  //   - le score enregistré ne BAISSE jamais. Repasser le QCM pour s'entraîner
+  //     ne doit pas dégrader une trace déjà écrite.
+  //
+  //  Les autres colonnes (évaluateur, date, résultat pratique, commentaire) ne
+  //  sont pas touchées : la mise à jour les nomme une par une plutôt que de
+  //  réécrire la ligne entière, qui les effacerait.
+  function enregistrerQcmTheorie(email, scoreQcm, auteur) {
+    const mail = normalise(email);
+    const u = lireUtilisateur(mail);
+    if (!u) return err(404, 'Compte introuvable.');
+    if (!estCollaborateur(u)) return err(409, 'Ce compte n\'est pas un collaborateur.');
+
+    const score = Number(scoreQcm);
+    if (!Number.isFinite(score) || score < 0 || score > 100) return err(400, 'Le score QCM doit être compris entre 0 et 100.');
+
+    const actuelle = lireCertification(mail);
+    // Seul le passage depuis « non certifié » est automatique. Tout autre statut
+    // a été posé par quelqu'un : on le laisse en place.
+    const statut = actuelle.statut === CERT_NON ? CERT_EN_COURS : actuelle.statut;
+    const meilleur = actuelle.scoreQcm === null || actuelle.scoreQcm === undefined
+      ? Math.round(score) : Math.max(Number(actuelle.scoreQcm), Math.round(score));
+
+    const existe = db().prepare('SELECT email FROM boost_certifications WHERE email = ?').get(mail);
+    if (existe) {
+      db().prepare('UPDATE boost_certifications SET statut = ?, score_qcm = ?, maj_le = ?, maj_par = ? WHERE email = ?')
+        .run(statut, meilleur, nowIso(), normalise(auteur) || null, mail);
+    } else {
+      db().prepare(`INSERT INTO boost_certifications (email, statut, score_qcm, maj_le, maj_par) VALUES (?, ?, ?, ?, ?)`)
+        .run(mail, statut, meilleur, nowIso(), normalise(auteur) || null);
+    }
+    return ok({ certification: lireCertification(mail) });
+  }
+
   // La jointure part de la table Boost, pas de `users` : c'est le Boost qui sait
   // qui sont ses collaborateurs, le compte n'apporte que le prénom.
   //
@@ -780,7 +827,7 @@ function createBoost({ getDb, nowIso }) {
     assurerSchema,
     // rôles & certification
     lireUtilisateur, definirRole, estCollaborateur, listerCollaborateurs, listerClients,
-    lireCertification, definirCertification, estCoachCertifie,
+    lireCertification, definirCertification, estCoachCertifie, enregistrerQcmTheorie,
     // lecture
     lireBoost, listerBoosts, boostActifDuClient, dossierDuClient, boostsDuCoach, lireJournal,
     // écriture

@@ -399,16 +399,19 @@ test('l\'écran dit franchement que « terminer » est une déclaration', () => 
     'aucune promesse de vérification');
 });
 
-test('le lot 1 ne construit ni QCM ni certification', () => {
+test('l\'écran ne construit ni évaluation pratique ni certification', () => {
+  // Le lot 2 a ajouté le QCM : cette frontière-là est tombée, et c'est voulu.
+  // Les deux SUIVANTES tiennent toujours — l'évaluation pratique et le verdict
+  // de certification ne s'écrivent pas dans un navigateur.
+  //
   // On juge sur le CODE, commentaires retirés : ceux-ci parlent du programme,
-  // pas au collaborateur. Et l'écran a bien le droit de dire à quoi mène la
-  // formation (« devenir Coach Nutrition certifié ») — ce qu'il ne doit pas
-  // faire, c'est en construire la mécanique.
+  // pas au collaborateur. Et l'écran a bien le droit de DIRE que la pratique
+  // vient ensuite — ce qu'il ne doit pas faire, c'est en construire la
+  // mécanique ni prononcer une certification.
   const code = js.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
-  for (const interdit of ['qcm', 'question', 'tentative', 'bonne réponse', 'seuil']) {
-    assert.ok(!new RegExp(interdit, 'i').test(code), 'l\'écran construit du « ' + interdit + ' » : hors périmètre du lot');
-  }
-  assert.ok(!/\/api\/academy\/(qcm|tentatives|questions)/.test(js), 'aucune route de QCM appelée');
+  assert.ok(!/\/api\/academy\/(pratique|certification)/.test(code), 'aucune route d\'évaluation pratique');
+  assert.ok(!/\/api\/boost\//.test(code), 'l\'écran ne touche pas au système de certification');
+  assert.ok(!/statut\s*[:=]\s*'certifie'/.test(code), 'l\'écran ne prononce aucune certification');
 });
 
 test('l\'espace Coach mène à la formation au lieu d\'être une impasse', () => {

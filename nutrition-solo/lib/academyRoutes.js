@@ -17,19 +17,19 @@
 const express = require('express');
 const path = require('path');
 
-function creerRoutesAcademy({ academy, exigeCompte }) {
+function creerRoutesAcademy({ academy, qcm, exigeCompte }) {
   const r = express.Router();
   const moi = (req) => String(req.user.email || '').trim().toLowerCase();
 
   // Le schéma s'applique tout seul à la première requête Academy, comme celui
   // du Boost : aucun ordre d'initialisation à respecter dans server.js.
-  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); next(); });
+  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); next(); });
 
   // Page autonome, servie comme /coach. Un espace de formation et un espace de
   // suivi n'ont ni les mêmes écrans ni le même rythme d'évolution.
   const pageAcademy = (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'academy.html'));
-  r.get('/academy', (req, res) => { academy.assurerSchema(); pageAcademy(req, res); });
-  r.get('/academy/', (req, res) => { academy.assurerSchema(); pageAcademy(req, res); });
+  r.get('/academy', (req, res) => { academy.assurerSchema(); qcm.assurerSchema(); pageAcademy(req, res); });
+  r.get('/academy/', (req, res) => { academy.assurerSchema(); qcm.assurerSchema(); pageAcademy(req, res); });
 
   // Réservé aux collaborateurs actifs. Un client n'a rien à faire ici : le
   // refus le dit franchement plutôt que de lui servir une formation vide.
@@ -72,6 +72,48 @@ function creerRoutesAcademy({ academy, exigeCompte }) {
 
   r.post('/api/academy/contenus/:id/terminer', exigeCompte, exigeCollaborateur, (req, res) => {
     const r_ = academy.terminerContenu(moi(req), req.params.id);
+    res.status(r_.status).json(r_.body);
+  });
+
+
+  // ==========================================================================
+  //  ÉVALUATION THÉORIQUE (QCM)
+  //
+  //  Comme le reste de l'Academy, AUCUNE de ces routes n'accepte d'email :
+  //  la portée vient du jeton. Et aucune n'accepte de score ni de seuil — le
+  //  navigateur envoie des identifiants de choix, rien d'autre. Ce qu'il
+  //  pourrait glisser d'autre dans le corps de la requête n'est jamais lu.
+  //
+  //  Une tentative qui n'appartient pas à l'appelant répond 404 et non 403 :
+  //  un 403 confirmerait qu'elle existe, ce qui est déjà une fuite.
+  // ==========================================================================
+
+  r.get('/api/academy/qcm', exigeCompte, exigeCollaborateur, (req, res) => {
+    res.json({ ok: true, qcm: qcm.etatPour(moi(req)) });
+  });
+
+  r.post('/api/academy/qcm/tentatives', exigeCompte, exigeCollaborateur, (req, res) => {
+    const r_ = qcm.demarrer(moi(req));
+    res.status(r_.status).json(r_.body);
+  });
+
+  r.get('/api/academy/qcm/tentatives/:id', exigeCompte, exigeCollaborateur, (req, res) => {
+    const r_ = qcm.lireTentative(moi(req), req.params.id);
+    res.status(r_.status).json(r_.body);
+  });
+
+  // Enregistrer une réponse. On lit UNIQUEMENT `choix` : le reste du corps est
+  // ignoré, quoi qu'il contienne.
+  r.put('/api/academy/qcm/tentatives/:id/reponses/:tqId', exigeCompte, exigeCollaborateur, (req, res) => {
+    const choix = (req.body || {}).choix;
+    const r_ = qcm.repondre(moi(req), req.params.id, req.params.tqId, choix === undefined ? [] : choix);
+    res.status(r_.status).json(r_.body);
+  });
+
+  // La correction, le score et le verdict se décident ICI, côté serveur. Le
+  // navigateur ne fait que demander la clôture.
+  r.post('/api/academy/qcm/tentatives/:id/terminer', exigeCompte, exigeCollaborateur, (req, res) => {
+    const r_ = qcm.terminer(moi(req), req.params.id);
     res.status(r_.status).json(r_.body);
   });
 
