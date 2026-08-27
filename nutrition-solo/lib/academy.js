@@ -23,6 +23,7 @@
 // ============================================================================
 
 const { err, ok } = require('./boost');
+const { ajouterColonne, aColonne, COACH_NUTRITION } = require('./academyFormations');
 
 // Un identifiant YouTube fait 11 caractères dans un alphabet restreint. On le
 // valide à l'écriture ET on le re-valide à la lecture : ce qui part dans un
@@ -39,6 +40,10 @@ const SCHEMA_ACADEMY = `
 -- c'est ce qui permettra à l'admin de les gérer sans redéploiement (lot 4).
 CREATE TABLE IF NOT EXISTS academy_modules (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  -- LA colonne qui cloisonne tout le contenu pédagogique : les contenus
+  -- suivent leur module, la progression suit les contenus. Une seule
+  -- colonne à poser, et l'arborescence entière est rattachée.
+  formation   TEXT NOT NULL DEFAULT 'coach_nutrition',
   titre       TEXT NOT NULL,
   description TEXT,
   ordre       INTEGER NOT NULL DEFAULT 0,
@@ -66,6 +71,7 @@ CREATE TABLE IF NOT EXISTS academy_contenus (
   maj_le      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_academy_contenus ON academy_contenus(module_id, ordre);
+CREATE INDEX IF NOT EXISTS idx_academy_modules_f ON academy_modules(formation, actif, ordre);
 
 -- Progression individuelle. DEUX dates distinctes, et c'est tout l'enjeu :
 -- ouvrir un contenu n'est pas l'avoir terminé. Confondre les deux ferait d'un
@@ -82,10 +88,14 @@ CREATE INDEX IF NOT EXISTS idx_academy_vus ON academy_vus(email);
 -- Dernier contenu consulté, pour la reprise. Une ligne par collaborateur : on
 -- pourrait le déduire des dates d'ouverture, mais revenir en arrière sur une
 -- vidéo déjà vue changerait alors le point de reprise sans qu'on l'ait voulu.
+-- Une position PAR FORMATION : quelqu'un peut être au milieu de deux parcours
+-- sans que l'un déplace le point de reprise de l'autre.
 CREATE TABLE IF NOT EXISTS academy_position (
-  email      TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
+  email      TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  formation  TEXT NOT NULL DEFAULT 'coach_nutrition',
   contenu_id INTEGER REFERENCES academy_contenus(id) ON DELETE SET NULL,
-  maj_le     TEXT NOT NULL
+  maj_le     TEXT NOT NULL,
+  PRIMARY KEY (email, formation)
 );
 `;
 
@@ -118,7 +128,7 @@ const AMORCE = [
   },
 ];
 
-function createAcademy({ getDb, nowIso, boost }) {
+function createAcademy({ getDb, nowIso, boost, formations }) {
   const db = () => getDb();
   const normalise = (e) => String(e || '').trim().toLowerCase();
 
@@ -126,10 +136,49 @@ function createAcademy({ getDb, nowIso, boost }) {
   function assurerSchema() {
     const d = db();
     if (basesMigrees.has(d)) return true;
+    // Le catalogue d'abord : c'est lui qui donne la formation par défaut, et
+    // les migrations ci-dessous rattachent l'existant à cette formation-là.
+    formations.assurerSchema();
     d.exec(SCHEMA_ACADEMY);
+    migrerVersMultiFormation(d);
     basesMigrees.add(d);
     amorcer();
     return true;
+  }
+
+  // MIGRATION D'UNE BASE EXISTANTE. Les tables sont déjà là, sans la colonne :
+  // on l'ajoute avec la valeur qui rattache tout l'existant à Coach Nutrition.
+  // Aucune donnée n'est perdue, aucune ligne n'est réécrite.
+  function migrerVersMultiFormation(d) {
+    ajouterColonne(d, 'academy_modules', 'formation', `TEXT NOT NULL DEFAULT '${COACH_NUTRITION}'`);
+
+    // academy_position change de CLÉ PRIMAIRE (email -> email + formation), et
+    // SQLite ne sait pas l'altérer : il faut reconstruire. On le fait en une
+    // transaction, en recopiant chaque ligne sur la formation historique.
+    // Rien ne référence cette table, la reconstruction est donc sans risque.
+    if (!aColonne(d, 'academy_position', 'formation')) {
+      d.transaction(() => {
+        d.exec(`CREATE TABLE academy_position_v2 (
+                  email      TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+                  formation  TEXT NOT NULL DEFAULT '${COACH_NUTRITION}',
+                  contenu_id INTEGER REFERENCES academy_contenus(id) ON DELETE SET NULL,
+                  maj_le     TEXT NOT NULL,
+                  PRIMARY KEY (email, formation)
+                )`);
+        d.exec(`INSERT INTO academy_position_v2 (email, formation, contenu_id, maj_le)
+                SELECT email, '${COACH_NUTRITION}', contenu_id, maj_le FROM academy_position`);
+        d.exec('DROP TABLE academy_position');
+        d.exec('ALTER TABLE academy_position_v2 RENAME TO academy_position');
+      })();
+    }
+  }
+
+  // La formation visée par un appel. Absente -> celle du catalogue par défaut :
+  // c'est ce qui laisse fonctionner tout l'existant sans le réécrire.
+  function cleFormation(formation) {
+    if (formation) return typeof formation === 'string' ? formation : formation.cle;
+    const f = formations.defaut();
+    return f ? f.cle : COACH_NUTRITION;
   }
 
   // Amorçage idempotent, sur le modèle de la FAQ coach : on n'insère que ce qui
@@ -145,8 +194,9 @@ function createAcademy({ getDb, nowIso, boost }) {
       for (const m of AMORCE) {
         let ligne = modExiste.get(m.cle);
         if (!ligne) {
-          const info = d.prepare('INSERT INTO academy_modules (titre, description, ordre, actif, cle, cree_le, maj_le) VALUES (?,?,?,1,?,?,?)')
-            .run(m.titre, m.description, m.ordre, m.cle, maintenant, maintenant);
+          const info = d.prepare(`INSERT INTO academy_modules (formation, titre, description, ordre, actif, cle, cree_le, maj_le)
+                                  VALUES (?,?,?,?,1,?,?,?)`)
+            .run(COACH_NUTRITION, m.titre, m.description, m.ordre, m.cle, maintenant, maintenant);
           ligne = { id: Number(info.lastInsertRowid) };
           ajouts++;
         }
@@ -174,8 +224,10 @@ function createAcademy({ getDb, nowIso, boost }) {
 
   // -- Lecture de la formation ---------------------------------------------
 
-  function modulesActifs() {
-    return db().prepare('SELECT id, titre, description, ordre FROM academy_modules WHERE actif = 1 ORDER BY ordre ASC, id ASC').all();
+  function modulesActifs(formation) {
+    return db().prepare(`SELECT id, formation, titre, description, ordre FROM academy_modules
+                         WHERE formation = ? AND actif = 1 ORDER BY ordre ASC, id ASC`)
+      .all(cleFormation(formation));
   }
 
   function contenusActifs(moduleId) {
@@ -195,20 +247,22 @@ function createAcademy({ getDb, nowIso, boost }) {
     return new Map(rows.map((r) => [r.contenuId, r]));
   }
 
-  function positionDe(email) {
-    const r = db().prepare('SELECT contenu_id AS contenuId FROM academy_position WHERE email = ?').get(normalise(email));
+  function positionDe(email, formation) {
+    const r = db().prepare('SELECT contenu_id AS contenuId FROM academy_position WHERE email = ? AND formation = ?')
+      .get(normalise(email), cleFormation(formation));
     return r ? r.contenuId : null;
   }
 
   // La formation telle que l'écran la reçoit : modules ordonnés, contenus
   // ordonnés, état de chacun, et le contenu par lequel reprendre.
-  function formationPour(email) {
+  function formationPour(email, formation) {
     const mail = normalise(email);
+    const cle = cleFormation(formation);
     const vus = progressionDe(mail);
     let total = 0;
     let termines = 0;
 
-    const modules = modulesActifs().map((m) => {
+    const modules = modulesActifs(cle).map((m) => {
       const contenus = contenusActifs(m.id).map((c) => {
         const v = vus.get(c.id) || null;
         return {
@@ -235,13 +289,14 @@ function createAcademy({ getDb, nowIso, boost }) {
     // La reprise se CALCULE, elle ne se stocke pas : ajouter un contenu au
     // milieu de la formation ne doit rien avoir à resynchroniser.
     const tous = modules.flatMap((m) => m.contenus);
-    const position = positionDe(mail);
+    const position = positionDe(mail, cle);
     const premierNonFait = tous.find((c) => !c.termine) || null;
     const reprise = (position && tous.some((c) => c.id === position && !c.termine))
       ? position
       : (premierNonFait ? premierNonFait.id : null);
 
     return {
+      formation: cle,
       modules,
       total,
       termines,
@@ -257,9 +312,12 @@ function createAcademy({ getDb, nowIso, boost }) {
                                    texte, duree_min AS dureeMin, ordre, actif
                             FROM academy_contenus WHERE id = ?`).get(Number(id));
     if (!c || !c.actif) return null;
-    const m = db().prepare('SELECT id, titre, actif FROM academy_modules WHERE id = ?').get(c.moduleId);
+    const m = db().prepare('SELECT id, titre, actif, formation FROM academy_modules WHERE id = ?').get(c.moduleId);
     if (!m || !m.actif) return null;
-    return { ...c, youtubeId: idYoutubeValide(c.youtubeId) ? c.youtubeId : null, moduleTitre: m.titre };
+    // La formation vient du MODULE : un identifiant de contenu suffit donc à
+    // savoir de quel parcours il relève, sans que l'appelant ait à le dire.
+    return { ...c, youtubeId: idYoutubeValide(c.youtubeId) ? c.youtubeId : null,
+      moduleTitre: m.titre, formation: m.formation };
   }
 
   // -- Écriture de la progression ------------------------------------------
@@ -281,11 +339,11 @@ function createAcademy({ getDb, nowIso, boost }) {
       d.prepare(`INSERT INTO academy_vus (email, contenu_id, ouvert_le) VALUES (?, ?, ?)
                  ON CONFLICT(email, contenu_id) DO NOTHING`)
         .run(mail, c.id, maintenant);
-      d.prepare(`INSERT INTO academy_position (email, contenu_id, maj_le) VALUES (?, ?, ?)
-                 ON CONFLICT(email) DO UPDATE SET contenu_id = excluded.contenu_id, maj_le = excluded.maj_le`)
-        .run(mail, c.id, maintenant);
+      d.prepare(`INSERT INTO academy_position (email, formation, contenu_id, maj_le) VALUES (?, ?, ?, ?)
+                 ON CONFLICT(email, formation) DO UPDATE SET contenu_id = excluded.contenu_id, maj_le = excluded.maj_le`)
+        .run(mail, c.formation, c.id, maintenant);
     })();
-    return ok({ contenu: c, formation: formationPour(mail) });
+    return ok({ contenu: c, formation: formationPour(mail, c.formation) });
   }
 
   // Terminer : la confirmation explicite du collaborateur. C'est une
@@ -301,13 +359,13 @@ function createAcademy({ getDb, nowIso, boost }) {
                   ON CONFLICT(email, contenu_id) DO UPDATE SET
                     termine_le = COALESCE(academy_vus.termine_le, excluded.termine_le)`)
       .run(mail, c.id, maintenant, maintenant);
-    return ok({ contenu: c, formation: formationPour(mail) });
+    return ok({ contenu: c, formation: formationPour(mail, c.formation) });
   }
 
   return {
     assurerSchema, amorcer, peutSeFormer,
     formationPour, lireContenu, ouvrirContenu, terminerContenu,
-    positionDe, progressionDe,
+    positionDe, progressionDe, modulesActifs, cleFormation,
   };
 }
 

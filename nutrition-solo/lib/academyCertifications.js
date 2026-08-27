@@ -153,7 +153,7 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
   // « saute » pas l'étape — elle ne la demande pas, et rien dans le moteur n'a
   // à connaître le cas particulier.
   function prerequisDe(mail, f) {
-    const t = qcm.etatPour(mail);
+    const t = qcm.etatPour(mail, f.cle);
     const liste = [{
       cle: 'theorie',
       libelle: 'Évaluation théorique (QCM)',
@@ -161,7 +161,7 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
       detail: t.scoreValide === null || t.scoreValide === undefined ? null : 'score : ' + t.scoreValide + ' %',
     }];
     if (f.pratiqueObligatoire) {
-      const p = pratique.etatPour(mail);
+      const p = pratique.etatPour(mail, f.cle);
       liste.push({
         cle: 'pratique',
         libelle: 'Évaluation pratique',
@@ -176,9 +176,9 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
   // pouvoir se relire seul, des années plus tard, sans dépendre de données qui
   // auront bougé.
   function preuvesDe(mail, f) {
-    const t = qcm.etatPour(mail);
+    const t = qcm.etatPour(mail, f.cle);
     const validee = f.pratiqueObligatoire
-      ? (pratique.etatPour(mail).historique.find((h) => h.resultat === 'valide') || null)
+      ? (pratique.etatPour(mail, f.cle).historique.find((h) => h.resultat === 'valide') || null)
       : null;
     return {
       scoreQcm: t.scoreValide === undefined ? null : t.scoreValide,

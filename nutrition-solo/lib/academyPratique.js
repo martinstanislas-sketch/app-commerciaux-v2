@@ -102,9 +102,13 @@ CREATE TABLE IF NOT EXISTS academy_evaluations (
 CREATE INDEX IF NOT EXISTS idx_academy_evaluations ON academy_evaluations(email, id);
 `;
 
-function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
+function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
   const db = () => getDb();
   const normalise = (e) => String(e || '').trim().toLowerCase();
+
+  // La formation visée. Absente -> celle du catalogue par défaut.
+  const cleFormation = (f) => (f ? (typeof f === 'string' ? f : f.cle)
+    : ((formations.defaut() || {}).cle || FORMATION));
 
   const basesMigrees = new WeakSet();
   function assurerSchema() {
@@ -211,9 +215,12 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
     decideLe: r.decide_le || null,
   });
 
-  function historiqueDe(email) {
-    return db().prepare('SELECT * FROM academy_evaluations WHERE email = ? ORDER BY id DESC')
-      .all(normalise(email)).map(vue);
+  // ⚠️ LA COLONNE `formation` EXISTAIT DEPUIS LE LOT 3, MAIS AUCUNE REQUÊTE NE
+  // LA LISAIT : une pratique validée dans une formation en validait donc une
+  // autre. C'est ce filtre-là, et ses quatre voisins, qui cloisonnent enfin.
+  function historiqueDe(email, formationCle) {
+    return db().prepare('SELECT * FROM academy_evaluations WHERE email = ? AND formation = ? ORDER BY id DESC')
+      .all(normalise(email), cleFormation(formationCle)).map(vue);
   }
 
   const lireEvaluation = (id) => {
@@ -221,27 +228,31 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
     return r || null;
   };
 
-  const enAttenteDe = (email) =>
-    db().prepare('SELECT * FROM academy_evaluations WHERE email = ? AND resultat IS NULL ORDER BY id DESC LIMIT 1')
-      .get(normalise(email)) || null;
+  const enAttenteDe = (email, formationCle) =>
+    db().prepare(`SELECT * FROM academy_evaluations WHERE email = ? AND formation = ?
+                  AND resultat IS NULL ORDER BY id DESC LIMIT 1`)
+      .get(normalise(email), cleFormation(formationCle)) || null;
 
   // Une validation est ACQUISE et CLÔT l'étape : on cherche donc « existe-t-il
   // une évaluation validée », et non « la dernière est-elle validée ». Comme
   // plus aucune tentative ne peut s'ouvrir ensuite (cf. ouvrir()), aucun verdict
   // postérieur ne peut venir la rétrograder — la règle tient par construction,
   // pas seulement par comparaison de dates.
-  const validationDe = (email) =>
-    db().prepare(`SELECT * FROM academy_evaluations WHERE email = ? AND resultat = ?
-                  ORDER BY id ASC LIMIT 1`).get(normalise(email), RES_VALIDE) || null;
+  const validationDe = (email, formationCle) =>
+    db().prepare(`SELECT * FROM academy_evaluations WHERE email = ? AND formation = ? AND resultat = ?
+                  ORDER BY id ASC LIMIT 1`)
+      .get(normalise(email), cleFormation(formationCle), RES_VALIDE) || null;
 
   // L'état complet, tel que l'écran l'affiche. Tout est recalculé.
-  function etatPour(email) {
+  function etatPour(email, formationCle) {
     const mail = normalise(email);
+    const cle = cleFormation(formationCle);
     // LA source unique : le lot 2. Rien n'est recalculé ici.
-    const theorie = qcm.etatPour(mail);
-    const validee = validationDe(mail);
-    const attente = enAttenteDe(mail);
-    const derniere = db().prepare('SELECT * FROM academy_evaluations WHERE email = ? ORDER BY id DESC LIMIT 1').get(mail);
+    const theorie = qcm.etatPour(mail, cle);
+    const validee = validationDe(mail, cle);
+    const attente = enAttenteDe(mail, cle);
+    const derniere = db().prepare(`SELECT * FROM academy_evaluations WHERE email = ? AND formation = ?
+                                   ORDER BY id DESC LIMIT 1`).get(mail, cle);
     const cert = boost.lireCertification(mail);
 
     let etat = ETAT_NON_ACCESSIBLE;
@@ -253,6 +264,7 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
     }
 
     return {
+      cleFormation: cle,
       etat,
       // Le prérequis, relu et renvoyé tel quel : l'écran n'a pas à le déduire.
       theorieValidee: !!theorie.theorieValidee,
@@ -266,7 +278,7 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
       close: !!validee,
       enAttente: attente ? vue(attente) : null,
       derniere: derniere ? vue(derniere) : null,
-      historique: historiqueDe(mail),
+      historique: historiqueDe(mail, cle),
       // Ce que la pratique validée n'ouvre PAS, renvoyé à côté pour que l'écran
       // ne puisse pas confondre les deux.
       certifie: cert.statut === 'certifie',
@@ -279,11 +291,12 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
   // Les collaborateurs qu'un évaluateur peut convoquer : actifs, théorie
   // validée. Ceux dont la théorie n'est pas faite n'apparaissent pas — les
   // afficher grisés inviterait à chercher comment passer outre.
-  function listerEligibles() {
+  function listerEligibles(formationCle) {
+    const cle = cleFormation(formationCle);
     const collabs = boost.listerCollaborateurs();
     return collabs
       .map((c) => {
-        const e = etatPour(c.email);
+        const e = etatPour(c.email, cle);
         return {
           email: c.email,
           prenom: c.prenom || '',
@@ -307,12 +320,13 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
       });
   }
 
-  function ficheDe(email) {
+  function ficheDe(email, formationCle) {
     const mail = normalise(email);
+    const cle = cleFormation(formationCle);
     const u = boost.lireUtilisateur(mail);
     if (!u) return err(404, 'Collaborateur introuvable.');
     if (!boost.estCollaborateur(u)) return err(404, 'Collaborateur introuvable.');
-    const e = etatPour(mail);
+    const e = etatPour(mail, cle);
     if (!e.theorieValidee) {
       return err(409, 'Ce collaborateur n\'a pas encore validé la partie théorique.',
         { theorieNonValidee: true, email: mail });
@@ -324,7 +338,7 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
 
   // Les trois refus qui donnent son poids au résultat, réunis en un seul
   // endroit pour qu'aucune route ne puisse en oublier un.
-  function verifierCible(cible, auteur) {
+  function verifierCible(cible, auteur, formationCle) {
     const mail = normalise(cible);
     const moi = normalise(auteur);
     if (!mail) return err(400, 'Collaborateur manquant.');
@@ -336,7 +350,7 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
     if (!u || !boost.estCollaborateur(u)) return err(404, 'Collaborateur introuvable.');
     // Le prérequis est relu ICI, à l'écriture. Le vérifier seulement à
     // l'affichage laisserait un appel direct à l'API passer devant.
-    if (!qcm.etatPour(mail).theorieValidee) {
+    if (!qcm.etatPour(mail, cleFormation(formationCle)).theorieValidee) {
       return err(409, 'La partie théorique de ce collaborateur n\'est pas validée : l\'évaluation pratique reste verrouillée.',
         { theorieNonValidee: true });
     }
@@ -366,7 +380,12 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
   function ouvrir(cible, auteur, donnees) {
     const mail = normalise(cible);
     const moi = normalise(auteur);
-    const controle = verifierCible(mail, moi);
+    const cle = cleFormation((donnees || {}).formation);
+    // La formation doit exister ET être active : sinon on ouvrirait une
+    // évaluation rattachée à un parcours qui n'existe pas.
+    if (!formations.resoudre(cle)) return err(404, 'Formation inconnue.');
+
+    const controle = verifierCible(mail, moi, cle);
     if (!controle.ok) return controle;
 
     const saisie = normaliserSaisie(donnees);
@@ -376,7 +395,7 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
     // plus de tentative, donc plus de verdict postérieur capable de la
     // rétrograder. Le refus vit ICI, côté serveur — l'écran qui masque le
     // formulaire n'est qu'une politesse, pas une protection.
-    const acquise = validationDe(mail);
+    const acquise = validationDe(mail, cle);
     if (acquise) {
       return err(409, 'L\'évaluation pratique de ce collaborateur est déjà validée : l\'étape est terminée.',
         { dejaValidee: true, evaluation: vue(acquise) });
@@ -384,7 +403,7 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
 
     // Deux séances ouvertes en même temps rendraient « où en est-il ? »
     // impossible à répondre. On renvoie celle qui attend plutôt qu'un refus sec.
-    const attente = enAttenteDe(mail);
+    const attente = enAttenteDe(mail, cle);
     if (attente) {
       return err(409, 'Une évaluation est déjà ouverte pour ce collaborateur : saisis son résultat.',
         { evaluation: vue(attente) });
@@ -395,14 +414,14 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
     const info = db().prepare(`INSERT INTO academy_evaluations
         (email, formation, cas, ouvert_par, ouverte_le, date_evaluation, evaluateur, resultat, commentaire, decide_le, maj_le)
         VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(mail, FORMATION, saisie.cas, moi, maintenant,
+      .run(mail, cle, saisie.cas, moi, maintenant,
         saisie.date || (clos ? aujourdhui() : null),
         clos ? moi : null, saisie.resultat, saisie.commentaire,
         clos ? maintenant : null, maintenant);
 
     const id = Number(info.lastInsertRowid);
-    if (clos) reporterDansCertification(mail, saisie.resultat, moi);
-    return ok({ evaluation: vue(lireEvaluation(id)), pratique: etatPour(mail) }, 201);
+    if (clos) reporterDansCertification(mail, saisie.resultat, moi, cle);
+    return ok({ evaluation: vue(lireEvaluation(id)), pratique: etatPour(mail, cle) }, 201);
   }
 
   // Saisir le verdict d'une séance ouverte. Une évaluation close est IMMUABLE :
@@ -415,14 +434,14 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
       return err(409, 'Cette évaluation a déjà été prononcée : ouvre une nouvelle évaluation pour ce collaborateur.',
         { evaluation: vue(r) });
     }
-    const controle = verifierCible(r.email, moi);
+    const controle = verifierCible(r.email, moi, r.formation);
     if (!controle.ok) return controle;
 
     // Même verrou qu'à l'ouverture. Il ne peut normalement pas se déclencher —
     // une séance ne survit pas à une validation, puisque valider est justement
     // ce qui clôt la dernière séance ouverte — mais une règle qui protège une
     // habilitation ne se garde pas à un seul endroit.
-    const acquise = validationDe(r.email);
+    const acquise = validationDe(r.email, r.formation);
     if (acquise) {
       return err(409, 'L\'évaluation pratique de ce collaborateur est déjà validée : l\'étape est terminée.',
         { dejaValidee: true, evaluation: vue(acquise) });
@@ -439,15 +458,19 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm }) {
       .run(moi, saisie.resultat, saisie.commentaire, saisie.date, aujourdhui(), saisie.cas,
         maintenant, maintenant, r.id);
 
-    reporterDansCertification(r.email, saisie.resultat, moi);
-    return ok({ evaluation: vue(lireEvaluation(r.id)), pratique: etatPour(r.email) });
+    reporterDansCertification(r.email, saisie.resultat, moi, r.formation);
+    return ok({ evaluation: vue(lireEvaluation(r.id)), pratique: etatPour(r.email, r.formation) });
   }
 
   // Report dans le système de certification EXISTANT — la colonne
   // resultat_pratique, qui n'attendait que ça. Le STATUT n'est jamais touché :
   // valider la pratique ne certifie personne, et le lot qui certifiera devra le
   // faire explicitement.
-  function reporterDansCertification(email, resultat, auteur) {
+  function reporterDansCertification(email, resultat, auteur, formationCle) {
+    // Seule une formation qui ouvre des droits dans le Boost y écrit son
+    // résultat pratique. Une formation « Vente » n'a rien à y refléter.
+    const f = formations.lire(cleFormation(formationCle));
+    if (!f || !f.refletBoost) return null;
     if (typeof boost.enregistrerPratique !== 'function') return null;
     return boost.enregistrerPratique(email, resultat, auteur);
   }

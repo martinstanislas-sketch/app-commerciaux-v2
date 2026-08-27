@@ -34,6 +34,7 @@
 // ============================================================================
 
 const { err, ok } = require('./boost');
+const { ajouterColonne, COACH_NUTRITION } = require('./academyFormations');
 
 // Valeurs d'AMORÇAGE, et rien d'autre. La logique lit toujours la table
 // academy_config : ces deux nombres servent à la remplir la première fois, puis
@@ -71,6 +72,9 @@ CREATE TABLE IF NOT EXISTS academy_config (
 -- fait référence.
 CREATE TABLE IF NOT EXISTS academy_questions (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  -- La banque est cloisonnée : le tirage d'une formation ne pioche jamais
+  -- dans les questions d'une autre.
+  formation   TEXT NOT NULL DEFAULT 'coach_nutrition',
   module_id   INTEGER REFERENCES academy_modules(id) ON DELETE SET NULL,
   enonce      TEXT NOT NULL,
   actif       INTEGER NOT NULL DEFAULT 1,
@@ -104,6 +108,9 @@ CREATE INDEX IF NOT EXISTS idx_academy_choix ON academy_choix(question_id, ordre
 CREATE TABLE IF NOT EXISTS academy_tentatives (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   email        TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  -- « Une tentative en cours », « la théorie est-elle validée » : deux
+  -- questions qui n'ont de sens que RAPPORTÉES À UNE FORMATION.
+  formation    TEXT NOT NULL DEFAULT 'coach_nutrition',
   statut       TEXT NOT NULL DEFAULT 'en_cours',   -- en_cours | soumise
   nb_questions INTEGER NOT NULL,
   seuil_pct    INTEGER NOT NULL,
@@ -113,7 +120,7 @@ CREATE TABLE IF NOT EXISTS academy_tentatives (
   bonnes       INTEGER,
   reussie      INTEGER
 );
-CREATE INDEX IF NOT EXISTS idx_academy_tentatives ON academy_tentatives(email, id);
+CREATE INDEX IF NOT EXISTS idx_academy_tentatives ON academy_tentatives(email, formation, id);
 
 -- Les questions FIGÉES de la tentative. Tout est recopié : l'énoncé, le titre
 -- du module, la position. Renommer un module ou corriger une faute de frappe
@@ -200,9 +207,14 @@ function melangerDefaut(liste) {
 const memesIds = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 const trierNum = (l) => [...new Set(l.map(Number).filter(Number.isInteger))].sort((x, y) => x - y);
 
-function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDefaut }) {
+function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger = melangerDefaut }) {
   const db = () => getDb();
   const normalise = (e) => String(e || '').trim().toLowerCase();
+
+  // La formation visée. Absente -> celle du catalogue par défaut : c'est ce
+  // qui laisse fonctionner tout l'existant sans le réécrire.
+  const cleFormation = (f) => (f ? (typeof f === 'string' ? f : f.cle)
+    : ((formations.defaut() || {}).cle || COACH_NUTRITION));
 
   const basesMigrees = new WeakSet();
   function assurerSchema() {
@@ -212,6 +224,10 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
     // exister d'abord (les clés étrangères sont actives dans cette base).
     academy.assurerSchema();
     d.exec(SCHEMA_QCM);
+    // Base existante : on pose la colonne et l'existant se rattache à la
+    // formation historique. Aucune ligne réécrite, aucune donnée perdue.
+    ajouterColonne(d, 'academy_questions', 'formation', `TEXT NOT NULL DEFAULT '${COACH_NUTRITION}'`);
+    ajouterColonne(d, 'academy_tentatives', 'formation', `TEXT NOT NULL DEFAULT '${COACH_NUTRITION}'`);
     basesMigrees.add(d);
     amorcer();
     return true;
@@ -235,8 +251,9 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
       AMORCE_QUESTIONS.forEach((q, iq) => {
         if (qExiste.get(q.cle)) return;
         const m = module.get(q.module);
-        const info = d.prepare('INSERT INTO academy_questions (module_id, enonce, actif, ordre, cle, cree_le, maj_le) VALUES (?,?,1,?,?,?,?)')
-          .run(m ? m.id : null, q.enonce, iq + 1, q.cle, maintenant, maintenant);
+        const info = d.prepare(`INSERT INTO academy_questions (formation, module_id, enonce, actif, ordre, cle, cree_le, maj_le)
+                                VALUES (?,?,?,1,?,?,?,?)`)
+          .run(COACH_NUTRITION, m ? m.id : null, q.enonce, iq + 1, q.cle, maintenant, maintenant);
         q.choix.forEach(([texte, correct], i) => {
           d.prepare('INSERT INTO academy_choix (question_id, texte, correct, actif, ordre, cle, cree_le, maj_le) VALUES (?,?,?,1,?,?,?,?)')
             .run(Number(info.lastInsertRowid), texte, correct ? 1 : 0, i + 1, `${q.cle}-c${i + 1}`, maintenant, maintenant);
@@ -249,40 +266,33 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
 
   // -- Configuration ---------------------------------------------------------
 
-  function lireConfig() {
-    const rows = db().prepare('SELECT cle, valeur FROM academy_config').all();
-    const map = new Map(rows.map((r) => [r.cle, r.valeur]));
-    // Une valeur absente ou abîmée retombe sur l'amorçage plutôt que de faire
-    // échouer une tentative : un QCM ne doit pas dépendre d'une ligne de config.
-    const entier = (v, defaut, min, max) => {
-      const n = Number.parseInt(v, 10);
-      return Number.isFinite(n) && n >= min && n <= max ? n : defaut;
-    };
-    return {
-      nbQuestions: entier(map.get(CFG_NB), DEFAUTS.nbQuestions, 1, 200),
-      seuilPct: entier(map.get(CFG_SEUIL), DEFAUTS.seuilPct, 0, 100),
-    };
+  // LA CONFIGURATION VIENT DE LA FORMATION, et d'elle seule. academy_config
+  // reste en place pour d'éventuels réglages réellement globaux, mais le
+  // nombre de questions et le seuil sont des propriétés du PARCOURS : les
+  // laisser en double ferait deux vérités, et un jour deux réponses.
+  function lireConfig(formation) {
+    const f = formations.lire(cleFormation(formation));
+    return f
+      ? { nbQuestions: f.qcmNbQuestions, seuilPct: f.qcmSeuilPct }
+      : { nbQuestions: DEFAUTS.nbQuestions, seuilPct: DEFAUTS.seuilPct };
   }
 
-  // Prévue pour l'administration du lot 4. Aucune route ne l'expose ici : le
-  // modèle est prêt, l'écran viendra. Elle ne touche PAS aux tentatives en
-  // cours — c'est tout l'objet du gel.
-  function definirConfig(donnees, auteur) {
-    const actuel = lireConfig();
+  function definirConfig(donnees, auteur, formation) {
+    const cle = cleFormation(formation);
+    const actuel = lireConfig(cle);
     const nb = donnees.nbQuestions === undefined ? actuel.nbQuestions : Number(donnees.nbQuestions);
     const seuil = donnees.seuilPct === undefined ? actuel.seuilPct : Number(donnees.seuilPct);
     if (!Number.isInteger(nb) || nb < 1 || nb > 200) return err(400, 'Le nombre de questions doit être un entier entre 1 et 200.');
     if (!Number.isInteger(seuil) || seuil < 0 || seuil > 100) return err(400, 'Le seuil de réussite doit être un entier entre 0 et 100.');
-    const maintenant = nowIso();
-    const d = db();
-    d.transaction(() => {
-      for (const [cle, valeur] of [[CFG_NB, nb], [CFG_SEUIL, seuil]]) {
-        d.prepare(`INSERT INTO academy_config (cle, valeur, maj_le, maj_par) VALUES (?,?,?,?)
-                   ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, maj_le = excluded.maj_le, maj_par = excluded.maj_par`)
-          .run(cle, String(valeur), maintenant, normalise(auteur) || null);
-      }
-    })();
-    return ok({ config: lireConfig() });
+    const f = formations.lire(cle);
+    if (!f) return err(404, 'Formation inconnue.');
+    const r = formations.definir({
+      cle: f.cle, libelle: f.libelle, titre: f.titre, ordre: f.ordre, actif: f.actif,
+      pratiqueObligatoire: f.pratiqueObligatoire, certificationActive: f.certificationActive,
+      qcmNbQuestions: nb, qcmSeuilPct: seuil,
+    }, auteur);
+    if (!r.ok) return r;
+    return ok({ config: lireConfig(cle) });
   }
 
   // -- Banque ----------------------------------------------------------------
@@ -293,12 +303,12 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
   // On écarte aussi les questions INCORRIGEABLES — sans bonne réponse, sans
   // mauvaise, ou avec un seul choix. Mieux vaut une banque plus courte qu'une
   // question que tout le monde réussit sans la lire.
-  function questionsEligibles() {
+  function questionsEligibles(formation) {
     const qs = db().prepare(`SELECT q.id AS id, q.enonce AS enonce, q.module_id AS moduleId, m.titre AS moduleTitre
                              FROM academy_questions q
                              LEFT JOIN academy_modules m ON m.id = q.module_id
-                             WHERE q.actif = 1 AND (q.module_id IS NULL OR m.actif = 1)
-                             ORDER BY q.ordre ASC, q.id ASC`).all();
+                             WHERE q.formation = ? AND q.actif = 1 AND (q.module_id IS NULL OR m.actif = 1)
+                             ORDER BY q.ordre ASC, q.id ASC`).all(cleFormation(formation));
     const lireChoix = db().prepare('SELECT id, texte, correct FROM academy_choix WHERE question_id = ? AND actif = 1 ORDER BY ordre ASC, id ASC');
     return qs
       .map((q) => ({ ...q, choix: lireChoix.all(q.id) }))
@@ -313,8 +323,8 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
   // Le QCM final s'ouvre quand TOUS les contenus actifs sont terminés. C'est la
   // formation qui décide, pas une case à part : ajouter un contenu demain
   // refermera naturellement l'accès de ceux qui ne l'ont pas encore suivi.
-  function formationAchevee(email) {
-    const f = academy.formationPour(email);
+  function formationAchevee(email, formation) {
+    const f = academy.formationPour(email, cleFormation(formation));
     return { acheve: !!f.acheve, total: f.total, termines: f.termines, pourcentage: f.pourcentage };
   }
 
@@ -323,9 +333,10 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
   const ligneTentative = (id, email) =>
     db().prepare('SELECT * FROM academy_tentatives WHERE id = ? AND email = ?').get(Number(id), normalise(email));
 
-  const tentativeEnCours = (email) =>
-    db().prepare('SELECT * FROM academy_tentatives WHERE email = ? AND statut = ? ORDER BY id DESC LIMIT 1')
-      .get(normalise(email), T_EN_COURS);
+  const tentativeEnCours = (email, formation) =>
+    db().prepare(`SELECT * FROM academy_tentatives WHERE email = ? AND formation = ? AND statut = ?
+                  ORDER BY id DESC LIMIT 1`)
+      .get(normalise(email), cleFormation(formation), T_EN_COURS);
 
   // La vue destinée au collaborateur. Elle ne lit JAMAIS correct_json : les
   // colonnes sont énumérées, et cette énumération est le contrat de sécurité du
@@ -390,28 +401,31 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
                              WHERE tentative_id = ? AND reponse_json IS NOT NULL AND reponse_json <> '[]'`).get(t.id).n,
   });
 
-  function historiqueDe(email) {
-    return db().prepare('SELECT * FROM academy_tentatives WHERE email = ? ORDER BY id DESC').all(normalise(email))
-      .map(resumeTentative);
+  function historiqueDe(email, formation) {
+    return db().prepare('SELECT * FROM academy_tentatives WHERE email = ? AND formation = ? ORDER BY id DESC')
+      .all(normalise(email), cleFormation(formation)).map(resumeTentative);
   }
 
   // La théorie se DÉDUIT de l'historique : « il existe une tentative réussie ».
   // Rien à maintenir, rien à défaire, et surtout rien qui puisse la reprendre —
   // une tentative ratée plus tard ne fait pas disparaître celle qui a réussi.
-  function tentativeReussie(email) {
-    return db().prepare('SELECT * FROM academy_tentatives WHERE email = ? AND reussie = 1 ORDER BY score_pct DESC, id ASC LIMIT 1')
-      .get(normalise(email)) || null;
+  function tentativeReussie(email, formation) {
+    return db().prepare(`SELECT * FROM academy_tentatives WHERE email = ? AND formation = ? AND reussie = 1
+                         ORDER BY score_pct DESC, id ASC LIMIT 1`)
+      .get(normalise(email), cleFormation(formation)) || null;
   }
 
   // L'état complet, tel que l'écran l'affiche. Tout est recalculé : aucun de ces
   // drapeaux n'est stocké quelque part où il pourrait se désynchroniser.
-  function etatPour(email) {
+  function etatPour(email, formationCle) {
     const mail = normalise(email);
-    const formation = formationAchevee(mail);
-    const enCours = tentativeEnCours(mail);
-    const reussie = tentativeReussie(mail);
-    const derniere = db().prepare('SELECT * FROM academy_tentatives WHERE email = ? AND statut = ? ORDER BY id DESC LIMIT 1')
-      .get(mail, T_SOUMISE);
+    const cle = cleFormation(formationCle);
+    const formation = formationAchevee(mail, cle);
+    const enCours = tentativeEnCours(mail, cle);
+    const reussie = tentativeReussie(mail, cle);
+    const derniere = db().prepare(`SELECT * FROM academy_tentatives WHERE email = ? AND formation = ?
+                                   AND statut = ? ORDER BY id DESC LIMIT 1`)
+      .get(mail, cle, T_SOUMISE);
     const cert = boost.lireCertification(mail);
     const certifie = cert.statut === 'certifie';
 
@@ -424,19 +438,20 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
     }
 
     return {
+      cleFormation: cle,
       etat,
       formation,
       // Le QCM s'ouvre uniquement quand la formation est achevée.
       disponible: formation.acheve,
       // La configuration ANNONCÉE : celle qui s'appliquera à une nouvelle
       // tentative. Celle d'une tentative en cours est dans la tentative.
-      config: lireConfig(),
+      config: lireConfig(cle),
       theorieValidee: !!reussie,
       scoreValide: reussie ? reussie.score_pct : null,
       valideeLe: reussie ? reussie.soumise_le : null,
       enCours: enCours ? resumeTentative(enCours) : null,
       derniere: derniere ? resumeTentative(derniere) : null,
-      historique: historiqueDe(mail),
+      historique: historiqueDe(mail, cle),
       // Ce que la réussite ouvre — et ce qu'elle n'ouvre pas. Les deux sont
       // renvoyés côte à côte pour que l'écran ne puisse pas les confondre.
       certifie,
@@ -447,9 +462,10 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
 
   // -- Démarrer --------------------------------------------------------------
 
-  function demarrer(email) {
+  function demarrer(email, formationCle) {
     const mail = normalise(email);
-    const formation = formationAchevee(mail);
+    const cle = cleFormation(formationCle);
+    const formation = formationAchevee(mail, cle);
     if (!formation.acheve) {
       return err(409, 'Termine d\'abord tous les contenus de la formation : l\'évaluation théorique s\'ouvrira ensuite.',
         { formationIncomplete: true, formation });
@@ -457,13 +473,13 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
     // Une tentative en cours est REPRISE, jamais doublée. Cliquer deux fois sur
     // « commencer » ne doit pas retirer au collaborateur le questionnaire
     // auquel il a déjà répondu à moitié.
-    const enCours = tentativeEnCours(mail);
+    const enCours = tentativeEnCours(mail, cle);
     if (enCours) return ok({ tentative: vueTentative(enCours), reprise: true });
 
-    const pool = questionsEligibles();
+    const pool = questionsEligibles(cle);
     if (!pool.length) return err(409, 'Aucune question n\'est disponible pour le moment. Préviens ton référent.');
 
-    const cfg = lireConfig();
+    const cfg = lireConfig(cle);
     const tirage = melanger(pool).slice(0, Math.min(cfg.nbQuestions, pool.length));
 
     const maintenant = nowIso();
@@ -473,9 +489,9 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
       // nb_questions = ce qui a RÉELLEMENT été tiré, pas ce qui était demandé :
       // si la banque est plus courte que la configuration, le score doit se
       // calculer sur les questions posées.
-      const info = d.prepare(`INSERT INTO academy_tentatives (email, statut, nb_questions, seuil_pct, ouverte_le)
-                              VALUES (?, ?, ?, ?, ?)`)
-        .run(mail, T_EN_COURS, tirage.length, cfg.seuilPct, maintenant);
+      const info = d.prepare(`INSERT INTO academy_tentatives (email, formation, statut, nb_questions, seuil_pct, ouverte_le)
+                              VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(mail, cle, T_EN_COURS, tirage.length, cfg.seuilPct, maintenant);
       id = Number(info.lastInsertRowid);
 
       const insQ = d.prepare(`INSERT INTO academy_tentative_questions
@@ -592,7 +608,7 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, melanger = melangerDe
     // « certifié » : ce verdict-là appartient à l'évaluateur humain.
     if (clos.reussie) boost.enregistrerQcmTheorie(mail, clos.score_pct, 'academy');
 
-    return ok({ tentative: vueTentative(clos), etat: etatPour(mail) });
+    return ok({ tentative: vueTentative(clos), etat: etatPour(mail, clos.formation) });
   }
 
   return {

@@ -67,20 +67,22 @@ const boost = createBoost({ getDb, nowIso });
 const seances = createSeances({ getDb, nowIso, boost });
 // My Coach Academy : la formation qui mène à la certification Coach Nutrition.
 // Elle réutilise les comptes et les collaborateurs du Boost — jamais les siens.
-const academy = createAcademy({ getDb, nowIso, boost });
+// Le catalogue des formations : il précède tout le reste, puisque chaque
+// moteur lui demande sur quelle formation il travaille.
+const academyFormations = createAcademyFormations({ getDb, nowIso });
+const academy = createAcademy({ getDb, nowIso, boost, formations: academyFormations });
 // L'évaluation théorique vit à part : le socle porte les contenus et la
 // progression, ce module porte le QCM, son gel et sa correction. Réussir n'y
 // certifie personne — la certification reste celle du Boost (boost.js).
-const academyQcm = createAcademyQcm({ getDb, nowIso, boost, academy });
+const academyQcm = createAcademyQcm({ getDb, nowIso, boost, academy, formations: academyFormations });
 // L'évaluation pratique : la seule étape que personne n'automatise. Elle relit
 // le verdict théorique du QCM plutôt que de le recalculer, et n'écrit jamais le
 // statut de certification — valider la pratique ne certifie pas.
 // Le droit d'évaluer n'est PAS dérivé du droit d'administrer : il se désigne,
 // explicitement, administrateur compris (cf. lib/academyPratique.js).
-const academyPratique = createAcademyPratique({ getDb, nowIso, boost, qcm: academyQcm });
+const academyPratique = createAcademyPratique({ getDb, nowIso, boost, qcm: academyQcm, formations: academyFormations });
 // La certification finale. Le moteur est GÉNÉRIQUE : il ne connaît aucune
 // formation, il lit un registre. « Coach Nutrition » y est la première entrée.
-const academyFormations = createAcademyFormations({ getDb, nowIso });
 const academyCertifications = createAcademyCertifications({
   getDb, nowIso, boost, qcm: academyQcm, pratique: academyPratique, formations: academyFormations,
 });
