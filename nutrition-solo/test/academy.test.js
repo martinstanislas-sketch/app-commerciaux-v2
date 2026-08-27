@@ -23,6 +23,7 @@ process.env.NUTRITION_DB = DB;
 process.env.ADMIN_EMAIL = 'patron@exemple.fr';
 
 const app = require('../server');
+const { certifierAncienne } = require('./aideAcademy');
 const A = require('../lib/academy');
 let srv, base;
 
@@ -68,8 +69,10 @@ test.before(async () => {
   for (const e of [COLLAB, COACH, AUTRE]) {
     await api('POST', '/api/boost/admin/collaborateurs', { email: e, role: 'collaborateur' }, jetons[ADMIN]);
   }
-  await api('PUT', `/api/boost/admin/certification/${COACH}`,
-    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15', scoreQcm: 88, resultatPratique: 'valide' }, jetons[ADMIN]);
+  // Certification ANTÉRIEURE à l'Academy, écrite à la main : depuis le lot 4,
+  // aucune route ne permet plus de certifier sans le parcours complet — et
+  // c'est précisément ce cas hérité qu'on veut éprouver ici.
+  certifierAncienne({ db: require('../lib/db').getDb(), email: COACH });
 });
 
 test.after(() => {
@@ -414,9 +417,25 @@ test('l\'écran ne prononce aucune certification', () => {
   // qu'il porte, et elle reste gardée par exigeAdmin côté serveur. Tout le
   // reste de l'Academy (contenus, banque de questions, configuration) et la
   // certification demeurent hors de sa portée.
-  assert.ok(!/\/api\/academy\/certification/.test(code), 'l\'écran ne certifie personne');
+  // Le lot 4 a ouvert la certification : l'écran la LIT et, pour un
+  // administrateur, la demande. Ce qu'il ne fait toujours pas — et c'est la
+  // dernière frontière — c'est décider qu'elle est acquise : il n'écrit aucun
+  // statut, ne touche pas au système du Boost, et n'administre ni les contenus
+  // ni la banque de questions.
+  assert.ok(!/\/api\/boost\//.test(code), 'l\'écran ne touche pas au système du Boost');
   assert.ok(!/\/api\/academy\/admin\/(contenus|modules|questions|choix|config)/.test(code),
     'l\'écran n\'administre ni les contenus ni la banque de questions');
+  // Ce que l'écran ENVOIE quand il demande une certification : une date, un
+  // commentaire, un motif. Jamais un statut, jamais un droit. On le vérifie
+  // sur le corps de la fonction concernée plutôt qu'au jugé sur tout le
+  // fichier — un libellé « Certifié » à l'écran n'est pas une décision.
+  const geste = code.slice(code.indexOf('async function agirSurCertification'));
+  const corps = geste.slice(0, geste.indexOf('\n}'));
+  assert.ok(corps.includes('/api/academy/admin/certifications'), 'la fonction de délivrance a bien été trouvée');
+  for (const interdit of ['statut', 'certifie', 'droit', 'peutSuivre']) {
+    assert.ok(!new RegExp('\\b' + interdit + '\\s*:').test(corps),
+      'l\'écran envoie « ' + interdit +' » au serveur : ce n\'est pas à lui d\'en décider');
+  }
   assert.ok(!/statut\s*[:=]\s*'certifie'/.test(code), 'l\'écran ne prononce aucune certification');
 });
 

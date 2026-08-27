@@ -17,18 +17,18 @@
 const express = require('express');
 const path = require('path');
 
-function creerRoutesAcademy({ academy, qcm, pratique, exigeCompte, exigeAdmin, estAdmin }) {
+function creerRoutesAcademy({ academy, qcm, pratique, certifications, exigeCompte, exigeAdmin, estAdmin }) {
   const r = express.Router();
   const moi = (req) => String(req.user.email || '').trim().toLowerCase();
 
   // Le schéma s'applique tout seul à la première requête Academy, comme celui
   // du Boost : aucun ordre d'initialisation à respecter dans server.js.
-  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); next(); });
+  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); certifications.assurerSchema(); next(); });
 
   // Page autonome, servie comme /coach. Un espace de formation et un espace de
   // suivi n'ont ni les mêmes écrans ni le même rythme d'évolution.
   const pageAcademy = (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'academy.html'));
-  r.get('/academy', (req, res) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); pageAcademy(req, res); });
+  r.get('/academy', (req, res) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); certifications.assurerSchema(); pageAcademy(req, res); });
   r.get('/academy/', (req, res) => { academy.assurerSchema(); qcm.assurerSchema(); pageAcademy(req, res); });
 
   // Réservé aux collaborateurs actifs. Un client n'a rien à faire ici : le
@@ -209,6 +209,45 @@ function creerRoutesAcademy({ academy, qcm, pratique, exigeCompte, exigeAdmin, e
     const { email, evaluateur } = req.body || {};
     const r_ = pratique.definirEvaluateur(email, evaluateur !== false, moi(req));
     if (r_.ok) r_.body.comptes = pratique.listerGestionEvaluateurs();
+    res.status(r_.status).json(r_.body);
+  });
+
+
+  // ==========================================================================
+  //  CERTIFICATION FINALE (lot 4)
+  //
+  //  Le collaborateur LIT son parcours ; l'administrateur DÉLIVRE et RETIRE.
+  //  Aucune route de lecture collaborateur n'accepte d'email, et aucune route
+  //  d'écriture n'accepte de statut, de droit ni d'identité : ce que le
+  //  navigateur envoie, c'est une formation, une date et un motif. Le reste —
+  //  qui délivre, si les prérequis sont remplis, ce que ça ouvre — se décide
+  //  ici.
+  // ==========================================================================
+
+  r.get('/api/academy/certification', exigeCompte, exigeCollaborateur, (req, res) => {
+    res.json({ ok: true, certifications: certifications.etatCompletPour(moi(req)) });
+  });
+
+  r.get('/api/academy/admin/certifications', exigeCompte, exigeAdmin, (req, res) => {
+    res.json({
+      ok: true,
+      formations: certifications.formations(),
+      ...certifications.listerAdmin(req.query ? req.query.formation : null),
+    });
+  });
+
+  r.post('/api/academy/admin/certifications/:email', exigeCompte, exigeAdmin, (req, res) => {
+    const r_ = certifications.delivrer(req.params.email, moi(req), req.body || {});
+    if (r_.ok) r_.body.liste = certifications.listerAdmin((req.body || {}).formation);
+    res.status(r_.status).json(r_.body);
+  });
+
+  // Retrait : POST et non DELETE, parce qu'il PORTE UN CORPS — le motif est
+  // obligatoire, et un corps sur un DELETE ne traverse pas tous les
+  // intermédiaires de façon fiable.
+  r.post('/api/academy/admin/certifications/:email/retrait', exigeCompte, exigeAdmin, (req, res) => {
+    const r_ = certifications.retirer(req.params.email, moi(req), req.body || {});
+    if (r_.ok) r_.body.liste = certifications.listerAdmin((req.body || {}).formation);
     res.status(r_.status).json(r_.body);
   });
 

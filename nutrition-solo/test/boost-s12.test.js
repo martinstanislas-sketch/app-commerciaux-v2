@@ -28,6 +28,10 @@ process.env.NUTRITION_DB = DB;
 process.env.ADMIN_EMAIL = 'patron@exemple.fr';
 
 const app = require('../server');
+// Depuis le lot 4, un Coach Nutrition certifié s'amorce par le PARCOURS RÉEL :
+// contenus, QCM, évaluation pratique, puis délivrance. La porte directe du
+// Boost est fermée — et chaque suite prouve donc la chaîne en passant.
+const { certifierViaAcademy } = require('./aideAcademy');
 const B = require('../lib/boost');
 const S = require('../lib/boostSeances');
 let srv, base;
@@ -126,8 +130,8 @@ test.before(async () => {
     await api('POST', '/api/boost/admin/collaborateurs', { email: e, role: 'collaborateur' }, T);
   }
   for (const e of [COACH_A, COACH_B]) {
-    await api('PUT', `/api/boost/admin/certification/${e}`,
-      { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15', scoreQcm: 88, resultatPratique: 'valide' }, T);
+    await certifierViaAcademy({ api, admin: ADMIN, jetonAdmin: T,
+        email: e, jeton: jetons[e] });
   }
   await api('PUT', `/api/boost/admin/certification/${COLLAB}`, { statut: 'en_cours', evaluateur: 'Stan Martin' }, T);
 
@@ -486,8 +490,11 @@ test('retirer la certification coupe le bilan immédiatement', async () => {
   const r = await api('GET', `/api/boost/coach/dossiers/${dossiers[CLI_B]}/seances/12`, null, jetons[COACH_B]);
   assert.strictEqual(r.status, 403);
   assert.strictEqual(r.body.nonCertifie, true);
+  // Rétablissement : le diplôme Academy n'a jamais bougé, c'est le DROIT Boost
+  // qui avait été fermé. La réactivation reste un geste d'administration
+  // légitime — et elle n'est permise que PARCE QUE l'Academy a délivré.
   await api('PUT', `/api/boost/admin/certification/${COACH_B}`,
-    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15', scoreQcm: 91, resultatPratique: 'valide' }, jetons[ADMIN]);
+    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15' }, jetons[ADMIN]);
   assert.strictEqual((await api('GET', `/api/boost/coach/dossiers/${dossiers[CLI_B]}/seances/12`, null, jetons[COACH_B])).status, 200);
 });
 

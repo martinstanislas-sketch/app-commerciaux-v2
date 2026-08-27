@@ -18,6 +18,10 @@
 //    BASE=http://127.0.0.1:3222 node test/e2e/boost-s12-navigateur.js
 // ============================================================================
 const { chromium } = require('playwright');
+// Depuis le lot 4, un Coach Nutrition certifié s'amorce par le PARCOURS RÉEL :
+// la porte directe du Boost est fermée. Chaque suite prouve donc la chaîne
+// complète en passant — contenus, QCM, évaluation pratique, délivrance.
+const { creerAide } = require('./aideAcademy');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:3222';
 const ADMIN = 'patron@exemple.fr';
@@ -37,8 +41,7 @@ async function semer() {
   }
   const t = (await jsonp('/account/login', { email: ADMIN, pin: '7777' })).token;
   await jsonp('/api/boost/admin/collaborateurs', { email: COACH, role: 'collaborateur' }, 'POST', t);
-  await jsonp('/api/boost/admin/certification/' + encodeURIComponent(COACH),
-    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15', scoreQcm: 88, resultatPratique: 'valide' }, 'PUT', t);
+  await creerAide(BASE).certifier({ email: COACH, pin: '2002', jetonAdmin: t });
   const r = await jsonp('/api/boost/admin/dossiers', { clientEmail: CLIENT, coachEmail: COACH }, 'POST', t);
   if (!r.ok) throw new Error('préparation impossible (' + (r.error || '?') + ') — relance sur une base vierge.');
   const id = r.boost.id;

@@ -4720,7 +4720,7 @@ document.addEventListener('DOMContentLoaded', init);
 // ===========================================================================
 
 const BADM_STATUTS = { a_demarrer: 'À démarrer', en_cours: 'En cours', termine: 'Terminé', expire: 'Expiré', interrompu: 'Interrompu' };
-const BADM_CERT = { non_certifie: 'Non certifié', en_cours: 'En formation', certifie: 'Certifié', suspendu: 'Suspendu' };
+const BADM_CERT = { non_certifie: 'Non certifié', en_cours: 'En formation', certifie: 'Certifié (Academy)', suspendu: 'Suspendu' };
 const BADM_PRATIQUE = { valide: 'Validée', non_valide: 'Non validée', a_repasser: 'À repasser' };
 const BADM_JOURNAL = {
   creation: 'Boost créé', attribution: 'Coach Nutrition attribué', demarrage: 'Étape 1 validée — 16 semaines lancées',
@@ -5028,8 +5028,11 @@ function badmFormCert(c) {
       '<label class="qopt-field"><span>Résultat de l\'évaluation pratique</span><select id="badmCertPratique">' +
         '<option value="">— non renseigné —</option>' + opt(BADM_PRATIQUE, cert.resultatPratique || '') + '</select></label>' +
     '</div>' +
-    '<p class="badm-hint">Les 35 vidéos, le QCM et l\'évaluation pratique sont gérés en amont. On ne conserve ici que le verdict. ' +
-      'Pour certifier, l\'évaluateur est obligatoire.</p>' +
+    '<p class="badm-hint"><b>La certification Coach Nutrition est délivrée par My Coach Academy</b>, ' +
+      'au terme du parcours : formation, évaluation théorique, évaluation pratique, puis délivrance par un ' +
+      'administrateur Academy. Elle ne peut pas être accordée depuis cet écran — la tentative sera refusée.<br>' +
+      'Ce que cet écran permet toujours : <b>suspendre</b> ou <b>retirer</b> les droits d\'un coach, corriger ' +
+      'une trace, et <b>réactiver</b> quelqu\'un dont l\'Academy a bien délivré le diplôme.</p>' +
     '<div class="badm-form-btns">' +
       '<button type="button" class="pc-btn primary" id="badmCertOk">Enregistrer</button>' +
       '<button type="button" class="pc-btn" data-annuler="1">Annuler</button>' +

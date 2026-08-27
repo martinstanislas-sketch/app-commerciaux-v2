@@ -17,6 +17,9 @@
 //  par parcours-navigateur.js.
 // ============================================================================
 const { chromium } = require('playwright');
+// Depuis le lot 4, la certification se délivre dans My Coach Academy : cet
+// écran ne peut plus l'accorder, seulement l'afficher, la suspendre ou la rendre.
+const { creerAide } = require('./aideAcademy');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:3222';
 const ADMIN = process.env.ADMIN || 'patron@exemple.fr';
@@ -158,19 +161,47 @@ async function planReel() {
     await page.click('[data-annuler]');
   });
 
-  await etape('renseigner la certification (les 5 informations)', async () => {
+  await etape('LA PORTE EST FERMÉE : cet écran ne certifie plus', async () => {
+    // Quentin est collaborateur, mais l'Academy ne lui a rien délivré. Le
+    // serveur refuse, et l'écran doit le dire — pas échouer en silence.
     await page.click('[data-cert="' + COACH + '"]');
     await page.waitForSelector('#badmCertStatut');
+    if (!/délivrée par My Coach Academy/.test(await corps())) {
+      throw new Error('l\'écran ne dit pas d\'où vient la certification');
+    }
     await page.selectOption('#badmCertStatut', 'certifie');
     await page.fill('#badmCertDate', '2026-07-15');
     await page.fill('#badmCertEval', 'Stan Martin');
-    await page.fill('#badmCertScore', '88');
-    await page.selectOption('#badmCertPratique', 'valide');
     await page.click('#badmCertOk');
     await page.waitForTimeout(700);
+    if (!/My Coach Academy/.test(await corps())) throw new Error('le refus du serveur n\'est pas affiché');
+    await page.click('[data-annuler]');
+    await page.waitForTimeout(200);
+  });
+
+  await etape('certifié PAR L\'ACADEMY, la fiche affiche les 5 informations', async () => {
+    // Le parcours réel, côté serveur : contenus, QCM, pratique, délivrance.
+    const jetonAdmin = (await (await fetch(BASE + '/account/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: ADMIN, pin: PIN_ADMIN }),
+    })).json()).token;
+    await creerAide(BASE).certifier({ email: COACH, pin: '2002', jetonAdmin });
+
+    // Le panneau rend depuis sa mémoire : on le rouvre pour qu'il relise le
+    // serveur, la certification ayant été délivrée en dehors de l'écran.
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForSelector('#screen-result:not(.hidden)', { timeout: 8000 });
+    await page.click('#bottom-nav .nav-i[data-tab="profil"]');
+    await page.waitForTimeout(300);
+    await page.click('#btnBoostAdmin');
+    await page.waitForSelector('#boostAdminPanel:not(.hidden)');
+    await page.click('.badm-tab[data-vue="coachs"]');
+    await page.waitForTimeout(400);
     const t = await corps();
-    for (const attendu of ['Certifié', '15/07/2026', 'Stan Martin', '88/100', 'Validée']) {
-      if (!t.includes(attendu)) throw new Error('information absente après enregistrement : ' + attendu);
+    // Les valeurs viennent désormais du VRAI parcours : le score est celui de
+    // la tentative, et « l'évaluateur » est l'administrateur qui a délivré.
+    for (const attendu of ['Certifié', '15/07/2026', ADMIN, '100/100', 'Validée']) {
+      if (!t.includes(attendu)) throw new Error('information absente : ' + attendu);
     }
   });
 
@@ -287,6 +318,8 @@ async function planReel() {
     const attendus = [
       'POST /api/boost/admin/collaborateurs -> 404',      // email inconnu, testé exprès
       'PUT /api/boost/admin/certification/' + encodeURIComponent(COACH) + ' -> 400', // certifier sans évaluateur
+      // Le refus du lot 4 : cet écran ne délivre plus la certification.
+      'PUT /api/boost/admin/certification/' + encodeURIComponent(COACH) + ' -> 409',
     ];
     const inattendus = reponsesKo.filter((r) => !attendus.includes(r));
     if (inattendus.length) throw new Error('requêtes en échec inattendues : ' + inattendus.join(', '));

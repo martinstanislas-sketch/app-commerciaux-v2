@@ -26,6 +26,10 @@ process.env.NUTRITION_DB = DB;
 process.env.ADMIN_EMAIL = 'patron@exemple.fr';
 
 const app = require('../server');
+// Depuis le lot 4, un Coach Nutrition certifié s'amorce par le PARCOURS RÉEL :
+// contenus, QCM, évaluation pratique, puis délivrance. La porte directe du
+// Boost est fermée — et chaque suite prouve donc la chaîne en passant.
+const { certifierViaAcademy } = require('./aideAcademy');
 const B = require('../lib/boost');
 let srv, base;
 
@@ -85,8 +89,8 @@ test.before(async () => {
     await api('POST', '/api/boost/admin/collaborateurs', { email: e, role: 'collaborateur' }, T);
   }
   for (const e of [COACH_A, COACH_B]) {
-    await api('PUT', `/api/boost/admin/certification/${e}`,
-      { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15', scoreQcm: 88, resultatPratique: 'valide' }, T);
+    await certifierViaAcademy({ api, admin: ADMIN, jetonAdmin: T,
+        email: e, jeton: jetons[e] });
   }
   await api('PUT', `/api/boost/admin/certification/${COLLAB}`,
     { statut: 'en_cours', evaluateur: 'Stan Martin', scoreQcm: 61 }, T);
@@ -226,8 +230,11 @@ test('retirer la certification ferme l\'accès dès l\'appel suivant', async () 
   }
 
   // Rétabli : l'accès revient, sans avoir touché aux attributions.
+  // Rétablissement : le diplôme Academy n'a jamais bougé, c'est le DROIT Boost
+  // qui avait été fermé. La réactivation reste un geste d'administration
+  // légitime — et elle n'est permise que PARCE QUE l'Academy a délivré.
   await api('PUT', `/api/boost/admin/certification/${COACH_A}`,
-    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15', scoreQcm: 88, resultatPratique: 'valide' }, jetons[ADMIN]);
+    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15' }, jetons[ADMIN]);
   const apres = await api('GET', '/api/boost/coach/dossiers', null, jetons[COACH_A]);
   assert.strictEqual(apres.status, 200);
   assert.strictEqual(apres.body.dossiers.length, 3);

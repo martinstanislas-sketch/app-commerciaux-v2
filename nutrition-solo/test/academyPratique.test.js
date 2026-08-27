@@ -31,6 +31,7 @@ process.env.NUTRITION_DB = DB;
 process.env.ADMIN_EMAIL = 'patron@exemple.fr';
 
 const app = require('../server');
+const { certifierAncienne } = require('./aideAcademy');
 const P = require('../lib/academyPratique');
 let srv, base;
 
@@ -104,9 +105,10 @@ test.before(async () => {
   for (const e of [EVA, OLIVIER, THEO, NINA, QUENTIN]) {
     await api('POST', '/api/boost/admin/collaborateurs', { email: e, role: 'collaborateur' }, jetons[ADMIN]);
   }
-  await api('PUT', `/api/boost/admin/certification/${QUENTIN}`,
-    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15', scoreQcm: 88, resultatPratique: 'valide' },
-    jetons[ADMIN]);
+  // Certification ANTÉRIEURE à l'Academy, écrite à la main : depuis le lot 4,
+  // aucune route ne permet plus de certifier sans le parcours complet — et
+  // c'est précisément ce cas hérité qu'on veut éprouver ici.
+  certifierAncienne({ db: require('../lib/db').getDb(), email: QUENTIN });
   await validerLaTheorie(THEO);
   await validerLaTheorie(EVA);
   // Eva est désignée évaluatrice AVANT tout : depuis l'arbitrage, l'admin n'a
@@ -778,7 +780,8 @@ test('l\'évaluateur est prévenu que son appréciation est lue par le collabora
 
 test('l\'écran de gestion affiche l\'état et confirme avant de retirer', () => {
   assert.ok(html.includes('id="acAdmin"'), 'la section existe');
-  assert.ok(/Gérer les évaluateurs/.test(js), 'l\'entrée est proposée');
+  assert.ok(/Ouvrir l\\'administration/.test(js), 'l\'entrée est proposée');
+  assert.ok(/data-onglet="?/.test(js) || js.includes('data-onglet'), 'la gestion vit dans un onglet');
   assert.ok(/'Évaluateur'/.test(js) && /'Non évaluateur'/.test(js), 'les deux états sont nommés');
   assert.ok(/Désigner comme évaluateur/.test(js) && /Retirer le droit d/.test(js),
     'les deux gestes portent leur verbe en toutes lettres');
@@ -812,7 +815,9 @@ test('l\'écran n\'appelle que les routes du lot', () => {
   // celui-là : la route est gardée par exigeAdmin, et aucune autre
   // administration de l'Academy n'a été ouverte au passage.
   assert.ok(js.includes('/api/academy/admin/evaluateurs'), 'l\'écran gère les évaluateurs');
+  // Le lot 4 en a ouvert une seconde — les certifications — et pas une de plus.
   const admin = js.match(/\/api\/academy\/admin\/[a-z]+/g) || [];
-  assert.deepStrictEqual([...new Set(admin)], ['/api/academy/admin/evaluateurs'],
+  assert.deepStrictEqual([...new Set(admin)].sort(),
+    ['/api/academy/admin/certifications', '/api/academy/admin/evaluateurs'],
     'une autre route d\'administration a été ouverte : ' + admin.join(', '));
 });

@@ -303,6 +303,22 @@ function createBoost({ getDb, nowIso }) {
   const estCollaborateur = (u) => !!u && u.role === ROLE_COLLABORATEUR;
 
   // -- Certification --------------------------------------------------------
+  //
+  //  ⚠️ DEPUIS LE LOT 4, LE BOOST NE DÉLIVRE PLUS. La certification Coach
+  //  Nutrition se prononce dans My Coach Academy, au terme du parcours
+  //  théorie → pratique → délivrance. Le Boost n'en garde que le DROIT COURANT,
+  //  celui qu'on suspend ou qu'on rend.
+  //
+  //  Ce branchement est la porte d'entrée de cette règle : server.js y pose la
+  //  fonction « l'Academy a-t-elle délivré un diplôme actif à ce compte ? ».
+  //  Tant que rien n'est branché — une installation sans Academy — le Boost
+  //  fonctionne comme avant : on ne casse pas un déploiement en le mettant à
+  //  jour.
+  let diplomeAcademy = null;
+  function brancherCertificationAcademy(verificateur) {
+    diplomeAcademy = typeof verificateur === 'function' ? verificateur : null;
+  }
+  const academyBranchee = () => typeof diplomeAcademy === 'function';
 
   function lireCertification(email) {
     const mail = normalise(email);
@@ -357,6 +373,22 @@ function createBoost({ getDb, nowIso }) {
     if (pratique && !PRATIQUE_RESULTATS.includes(pratique)) {
       return err(400, 'Résultat pratique inconnu.');
     }
+    // LA PORTE PARALLÈLE EST FERMÉE. Poser « certifié » depuis l'administration
+    // du Boost court-circuiterait théorie + pratique + délivrance Academy — et
+    // rendrait tout le parcours décoratif. On ne l'autorise donc que si
+    // l'Academy a bien délivré un diplôme ACTIF : ce cas-là n'est pas une
+    // délivrance, c'est une RÉACTIVATION (lever une suspension), et elle reste
+    // un geste légitime d'administration.
+    //
+    // Les autres statuts passent toujours : suspendre, retirer, annoter sont
+    // des décisions du Boost, elles n'accordent aucun droit.
+    if (statut === CERT_OK && academyBranchee() && !diplomeAcademy(mail)) {
+      return err(409,
+        'La certification Coach Nutrition se délivre depuis My Coach Academy, au terme du parcours ' +
+        '(évaluation théorique, évaluation pratique, puis délivrance). Elle ne peut pas être accordée ici.',
+        { academyRequise: true });
+    }
+
     // Une certification qui ouvre des dossiers clients ne s'accorde pas sans
     // dire QUI l'a prononcée ni QUAND : sinon la trace ne vaut rien le jour où
     // on doit répondre de l'habilitation d'un coach.
@@ -472,6 +504,49 @@ function createBoost({ getDb, nowIso }) {
                     VALUES (?, ?, ?, ?, ?)`)
         .run(mail, CERT_NON, res, nowIso(), normalise(auteur) || null);
     }
+    return ok({ certification: lireCertification(mail) });
+  }
+
+  // -- Reflet de la certification délivrée par l'Academy (lot 4) ------------
+  //
+  //  L'ACADEMY EST LA SOURCE, CES DEUX FONCTIONS SONT LE REFLET. Le diplôme —
+  //  daté, signé, motivé en cas de retrait — vit dans academy_certifications.
+  //  Ici on ne tient que le droit courant, celui que lit estCoachCertifie().
+  //
+  //  Comme leurs deux aînées (QCM, pratique), elles nomment leurs colonnes une
+  //  par une : réécrire la ligne entière effacerait le score et le résultat
+  //  pratique déjà inscrits.
+
+  function enregistrerCertificationAcademy(email, dateObtention, auteur) {
+    const mail = normalise(email);
+    const u = lireUtilisateur(mail);
+    if (!u) return err(404, 'Compte introuvable.');
+    if (!estCollaborateur(u)) return err(409, 'Ce compte n\'est pas un collaborateur.');
+    const date = jourValide(dateObtention) ? dateObtention : aujourdhui();
+
+    const existe = db().prepare('SELECT email FROM boost_certifications WHERE email = ?').get(mail);
+    if (existe) {
+      db().prepare(`UPDATE boost_certifications SET statut = ?, date_certification = ?, evaluateur = ?,
+                      maj_le = ?, maj_par = ? WHERE email = ?`)
+        .run(CERT_OK, date, normalise(auteur) || null, nowIso(), normalise(auteur) || null, mail);
+    } else {
+      db().prepare(`INSERT INTO boost_certifications (email, statut, date_certification, evaluateur, maj_le, maj_par)
+                    VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(mail, CERT_OK, date, normalise(auteur) || null, nowIso(), normalise(auteur) || null);
+    }
+    return ok({ certification: lireCertification(mail) });
+  }
+
+  // Le droit se ferme. La date et l'évaluateur sont effacés parce qu'ils ne
+  // décrivent plus rien de vrai ICI : le diplôme retiré, lui, garde tout —
+  // sa date d'obtention, son délivreur, et le motif du retrait.
+  function retirerCertificationAcademy(email, auteur) {
+    const mail = normalise(email);
+    const existe = db().prepare('SELECT email FROM boost_certifications WHERE email = ?').get(mail);
+    if (!existe) return ok({ certification: lireCertification(mail) });
+    db().prepare(`UPDATE boost_certifications SET statut = ?, date_certification = NULL, evaluateur = NULL,
+                    maj_le = ?, maj_par = ? WHERE email = ?`)
+      .run(CERT_NON, nowIso(), normalise(auteur) || null, mail);
     return ok({ certification: lireCertification(mail) });
   }
 
@@ -877,6 +952,7 @@ function createBoost({ getDb, nowIso }) {
     lireUtilisateur, definirRole, estCollaborateur, listerCollaborateurs, listerClients,
     lireCertification, definirCertification, estCoachCertifie,
     enregistrerQcmTheorie, enregistrerPratique,
+    enregistrerCertificationAcademy, retirerCertificationAcademy, brancherCertificationAcademy,
     // lecture
     lireBoost, listerBoosts, boostActifDuClient, dossierDuClient, boostsDuCoach, lireJournal,
     // écriture

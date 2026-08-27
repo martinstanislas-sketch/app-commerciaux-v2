@@ -168,6 +168,43 @@
 .ac-adm-danger { border-color: #B3261E; color: #B3261E; font-weight: 700; }
 .ac-adm-avert { flex: 1 1 100%; font-size: .82rem; color: var(--text-muted); margin: 0; }
 
+/* Certification finale ------------------------------------------------------ */
+/* Même carte, mêmes pastilles : la 3e étape du parcours n'a pas à ressembler à
+   autre chose que les deux premières. */
+.ac-etat-c-certifie { background: var(--sage); color: #fff; border-color: var(--sage); }
+.ac-etat-c-eligible { background: var(--saphir); color: #fff; border-color: var(--saphir); }
+.ac-etat-c-non-eligible { background: var(--surface-soft); color: var(--text-soft); border-color: var(--border-strong); }
+.ac-cert-certifie { border-color: var(--sage); }
+.ac-cert-non-eligible { border-style: dashed; }
+/* Les prérequis, un par ligne : c'est la réponse à « où j'en suis ? ». */
+.ac-cert-prereq { list-style: none; margin: 10px 0 6px; padding: 0; font-size: .88rem; }
+.ac-cert-prereq li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; }
+.ac-cert-prereq i { color: var(--text-soft); font-size: .82rem; }
+.ac-pr-ok { color: var(--sage-on-soft); font-weight: 600; }
+.ac-pr-non { color: var(--text-muted); }
+
+/* Administration : onglets et écarts ---------------------------------------- */
+.ac-adm-onglets { display: flex; gap: 8px; margin: 4px 0 18px; border-bottom: 1px solid var(--border-c); }
+.ac-adm-ong { background: none; border: none; border-bottom: 2px solid transparent; padding: 9px 4px; margin-bottom: -1px;
+  font: inherit; font-size: .92rem; font-weight: 600; color: var(--text-muted); cursor: pointer; }
+.ac-adm-ong.on { color: var(--marine); border-bottom-color: var(--saphir); }
+.ac-adm-ong:focus-visible { outline: 2px solid var(--saphir); outline-offset: 2px; }
+.ac-eval-t2 { margin-top: 26px; }
+
+/* Un écart entre l'Academy et le Boost ne se masque pas : il se met en tête. */
+.ac-ecarts { background: var(--surface); border: 1px solid var(--border-strong); border-left: 3px solid var(--marine);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 20px; font-size: .88rem; }
+.ac-ecarts b { color: var(--marine); }
+.ac-ecarts ul { margin: 8px 0 0; padding-left: 18px; }
+.ac-ecarts li { margin-bottom: 5px; color: var(--text-muted); }
+.ac-ecart-ko { color: #B3261E; }
+.ac-ecart-ko i { font-weight: 700; }
+
+/* La ligne dépliée pour saisir une date, un commentaire ou un motif. */
+.ac-adm-l-saisie { border-color: var(--saphir); }
+.ac-adm-saisie { flex: 1 1 100%; margin-top: 4px; }
+.ac-adm-saisie .ec-field { margin-bottom: 10px; }
+
 @media (max-width: 520px) {
   .ac-lec-t { font-size: 1.15rem; }
   .ac-l-d { display: none; }
@@ -202,4 +239,11 @@
   .ac-adm-actions { margin-left: 0; flex-direction: column; }
   .ac-adm-actions .ec-btn { width: 100%; }
   .ac-eval-etat { align-self: flex-start; }
+}
+
+@media (max-width: 520px) {
+  /* Les onglets restent atteignables au doigt et ne débordent pas. */
+  .ac-adm-onglets { gap: 4px; }
+  .ac-adm-ong { flex: 1 1 0; font-size: .85rem; text-align: center; }
+  .ac-cert-prereq li { flex-wrap: wrap; }
 }

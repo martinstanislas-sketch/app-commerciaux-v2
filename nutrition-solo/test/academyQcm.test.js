@@ -29,6 +29,7 @@ process.env.NUTRITION_DB = DB;
 process.env.ADMIN_EMAIL = 'patron@exemple.fr';
 
 const app = require('../server');
+const { certifierAncienne } = require('./aideAcademy');
 const Q = require('../lib/academyQcm');
 let srv, base;
 
@@ -117,9 +118,10 @@ test.before(async () => {
   await terminerFormation(SOPHIE);
   // Quentin est certifié AVANT tout QCM : c'est le cas qui ne doit jamais
   // régresser quand l'Academy se met à écrire dans la certification.
-  await api('PUT', `/api/boost/admin/certification/${QUENTIN}`,
-    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15', scoreQcm: 88, resultatPratique: 'valide' },
-    jetons[ADMIN]);
+  // Certification ANTÉRIEURE à l'Academy, écrite à la main : depuis le lot 4,
+  // aucune route ne permet plus de certifier sans le parcours complet — et
+  // c'est précisément ce cas hérité qu'on veut éprouver ici.
+  certifierAncienne({ db: require('../lib/db').getDb(), email: QUENTIN });
 });
 
 test.after(() => {
@@ -801,9 +803,13 @@ test('si la banque est plus courte que la configuration, on tire ce qui existe',
 
 test('l\'écran ne reçoit ni ne manipule le corrigé', () => {
   const code = js.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
-  for (const interdit of ['correct_json', 'correctJson', 'bonneReponse', 'bonne_reponse', 'estJuste', 'corrige']) {
+  // Bornes de mot : l'écran a le droit de dire « à corriger » ailleurs (les
+  // écarts Academy/Boost du lot 4), ce qu'il ne doit pas manipuler c'est LE
+  // corrigé.
+  for (const interdit of ['correct_json', 'correctJson', 'bonneReponse', 'bonne_reponse', 'estJuste']) {
     assert.ok(!new RegExp(interdit, 'i').test(code), 'l\'écran manipule « ' + interdit + ' »');
   }
+  assert.ok(!/\bcorrig[ée]s?\b/i.test(code), 'l\'écran manipule un corrigé');
   // Il ne recalcule ni score ni verdict : les deux viennent du serveur.
   assert.ok(!/scorePct\s*=\s*Math\./.test(code), 'aucun calcul de score dans l\'écran');
   assert.ok(!/reussie\s*=\s*[^=]/.test(code), 'l\'écran ne décide pas de la réussite');

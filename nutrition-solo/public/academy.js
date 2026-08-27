@@ -43,7 +43,11 @@ let evalListe = null;   // vue évaluateur : collaborateurs éligibles
 let evalFiche = null;   // vue évaluateur : le dossier ouvert
 let moiAdmin = false;   // administrateur ? (gère les évaluateurs, n'évalue pas)
 let adminComptes = null; // vue admin : les comptes et leur droit d'évaluer
-let aRetirer = null;    // retrait en attente de confirmation
+let aRetirer = null;    // retrait d'un droit d'évaluer, en attente de confirmation
+let certifs = null;     // état de MES certifications
+let adminOnglet = 'evaluateurs';  // écran d'administration : onglet courant
+let adminCerts = null;  // vue admin : éligibles, certifiés, écarts
+let enSaisie = null;    // { email, geste } : la ligne dépliée en cours de saisie
 
 function echapper(s) {
   return String(s === null || s === undefined ? '' : s)
@@ -129,6 +133,7 @@ async function chargerFormation() {
   formation = r.data.formation;
   await chargerQcm();
   await chargerPratique();
+  await chargerCertifs();
   rendreSommaire();
 }
 
@@ -145,6 +150,14 @@ async function chargerQcm() {
 async function chargerPratique() {
   const r = await apiAc('/api/academy/pratique');
   pratique = r.data && r.data.ok ? r.data.pratique : null;
+}
+
+// Le dernier maillon. « Suis-je certifié » est une question dont l'écran n'a
+// pas la réponse : elle dépend de prérequis qu'il ne calcule pas et d'une
+// décision qu'il ne prend pas.
+async function chargerCertifs() {
+  const r = await apiAc('/api/academy/certification');
+  certifs = r.data && r.data.ok ? r.data.certifications : null;
 }
 
 // --- Sommaire ----------------------------------------------------------------
@@ -175,6 +188,7 @@ function rendreSommaire() {
 
     rendreCarteQcm() +
     rendreCartePratique() +
+    rendreCartesCertification() +
     rendreAccesEvaluateur() +
     rendreAccesAdmin() +
 
@@ -332,7 +346,10 @@ function rendreCarteQcm() {
   } else if (e === 'theorie_validee') {
     corps =
       '<p class="ac-qcm-ok"><span aria-hidden="true">✓</span> Théorie validée — score : ' + qcm.scoreValide + ' %.</p>' +
-      '<p class="ac-qcm-next">Prochaine étape : évaluation pratique</p>' +
+      // « Prochaine étape » ne s'annonce que si elle en est vraiment une : une
+      // fois la pratique validée, cette phrase deviendrait fausse — et l'écran
+      // se contredirait avec la carte du dessous.
+      (pratique && pratique.validee ? '' : '<p class="ac-qcm-next">Prochaine étape : évaluation pratique</p>') +
       (qcm.certifie
         ? '<p class="ac-qcm-note">Tu es Coach Nutrition certifié.</p>'
         // Le point le plus important de tout l'écran : réussir le QCM ne
@@ -645,7 +662,7 @@ async function ouvrirEvaluateur() {
 function rendreEvalListe() {
   $('#acEval').innerHTML =
     (moiCollab ? '<button type="button" class="ec-back" id="acEvalBack">← Ma formation</button>' : '') +
-    (moiAdmin ? '<button type="button" class="ec-back" id="acEvalAdmin">Gérer les évaluateurs →</button>' : '') +
+    (moiAdmin ? '<button type="button" class="ec-back" id="acEvalAdmin">Administration →</button>' : '') +
     '<h1 class="ec-t">Évaluations pratiques</h1>' +
     '<p class="ec-sub">Les collaborateurs dont la partie théorique est validée. ' +
       'Ceux qui n\'en sont pas là n\'apparaissent pas : l\'évaluation pratique leur reste fermée.</p>' +
@@ -810,37 +827,32 @@ async function enregistrer(resultat) {
 function rendreAccesAdmin() {
   if (!moiAdmin) return '';
   return '<section class="ac-qcm-carte ac-adm-acces">' +
-    '<div class="ac-qcm-h"><b>Gestion des évaluateurs</b>' +
+    '<div class="ac-qcm-h"><b>Administration My Coach Academy</b>' +
       '<span class="ac-qcm-etat ac-etat-admin">Administrateur</span></div>' +
-    '<p class="ac-qcm-s">Désigne les personnes autorisées à faire passer les évaluations pratiques.</p>' +
-    '<button type="button" class="ec-btn ec-btn-p ac-reprendre" id="acAdminGo">Gérer les évaluateurs</button>' +
+    '<p class="ac-qcm-s">Désigne les évaluateurs et délivre les certifications au terme du parcours.</p>' +
+    '<button type="button" class="ec-btn ec-btn-p ac-reprendre" id="acAdminGo">Ouvrir l\'administration</button>' +
     '</section>';
 }
 
-async function ouvrirAdmin() {
+async function ouvrirAdmin(onglet) {
+  if (onglet) adminOnglet = onglet;
   const r = await apiAc('/api/academy/admin/evaluateurs');
   if (r.status === 401) { deconnecter(); return; }
   if (r.status === 403) {
-    bloquer('🔒', 'Gestion des évaluateurs', 'Cet écran est réservé à l\'administrateur.');
+    bloquer('🔒', 'Administration de l\'Academy', 'Cet écran est réservé à l\'administrateur.');
     return;
   }
   if (!r.data.ok) { bloquer('⚠️', 'Écran indisponible', 'Réessaie dans un instant.'); return; }
   adminComptes = r.data.comptes || [];
+  await chargerAdminCerts();
   aRetirer = null;
+  enSaisie = null;
   rendreAdmin();
 }
 
-function rendreAdmin() {
+function rendrePanneauEvaluateurs() {
   const actifs = adminComptes.filter((c) => c.evaluateur).length;
-
-  $('#acAdmin').innerHTML =
-    // Les écrans se renvoient l'un à l'autre : l'administrateur est souvent
-    // aussi évaluateur, parfois aussi collaborateur.
-    (moiCollab ? '<button type="button" class="ec-back" id="acAdmBack">← Ma formation</button>'
-      : moiEval ? '<button type="button" class="ec-back" id="acAdmEval">← Mes évaluations</button>' : '') +
-
-    '<h1 class="ec-t">Évaluateurs</h1>' +
-    '<p class="ec-sub">Qui peut faire passer une évaluation pratique. ' +
+  return '<p class="ec-sub">Qui peut faire passer une évaluation pratique. ' +
       'Être administrateur ne suffit pas : le droit d\'évaluer se désigne, ici, explicitement.</p>' +
 
     '<div class="ac-adm-compte"><b>' + actifs + '</b> évaluateur' + (actifs > 1 ? 's' : '') +
@@ -850,6 +862,35 @@ function rendreAdmin() {
     (adminComptes.length
       ? '<div class="ac-liste">' + adminComptes.map(ligneCompte).join('') + '</div>'
       : '<div class="ec-vide">Aucun collaborateur à afficher pour le moment.</div>');
+}
+
+function rendreAdmin() {
+  const certifs_ = adminOnglet === 'certifications';
+
+  $('#acAdmin').innerHTML =
+    // Les écrans se renvoient l'un à l'autre : l'administrateur est souvent
+    // aussi évaluateur, parfois aussi collaborateur.
+    (moiCollab ? '<button type="button" class="ec-back" id="acAdmBack">← Ma formation</button>'
+      : moiEval ? '<button type="button" class="ec-back" id="acAdmEval">← Mes évaluations</button>' : '') +
+
+    '<h1 class="ec-t">Administration My Coach Academy</h1>' +
+    rendreOngletsAdmin() +
+    '<p class="ac-eval-err" id="acAdmErr" role="alert"></p>' +
+    (certifs_ ? rendreAdminCerts() : rendrePanneauEvaluateurs());
+
+  // Changer d'onglet RELIT les données. Les écarts entre l'Academy et le Boost
+  // naissent précisément ailleurs — dans l'administration du Boost, dans une
+  // autre session — et un onglet qui réaffiche sa mémoire les manquerait.
+  document.querySelectorAll('#acAdmin [data-onglet]').forEach((el) =>
+    el.addEventListener('click', async () => {
+      adminOnglet = el.dataset.onglet;
+      enSaisie = null;
+      aRetirer = null;
+      await chargerAdminCerts();
+      rendreAdmin();
+    }));
+  document.querySelectorAll('#acAdmin [data-cert]').forEach((el) =>
+    el.addEventListener('click', () => agirSurCertification(el.dataset.cert, el.dataset.geste)));
 
   const b = $('#acAdmBack');
   if (b) b.addEventListener('click', async () => { await chargerPratique(); rendreSommaire(); });
@@ -915,6 +956,193 @@ async function agirSurCompte(email, action) {
     if (moi.data && moi.data.ok) moiEval = !!moi.data.evaluateur;
   }
   rendreAdmin();
+}
+
+// --- Certification finale -----------------------------------------------------
+//
+//  Le bout du parcours. L'écran affiche les prérequis un par un — c'est ce qui
+//  répond à « où j'en suis ? » sans avoir à deviner — puis le diplôme quand il
+//  existe. Il ne délivre rien : la certification est prononcée par un
+//  administrateur, et ce geste ouvre les dossiers clients du Boost.
+//
+//  UNE BOUCLE, PAS UNE CARTE : le registre est multi-formation. Une seule
+//  formation le remplit aujourd'hui ; le jour où il y en aura deux, cet écran
+//  n'aura rien à apprendre.
+
+function rendreCartesCertification() {
+  if (!certifs || !certifs.length) return '';
+  return certifs.map(rendreCarteCertification).join('');
+}
+
+function rendreCarteCertification(c) {
+  const LIB = { non_eligible: 'Non éligible', eligible: 'Éligible à la certification', certifie: 'Certifié' };
+  const entete =
+    '<div class="ac-qcm-h">' +
+      '<b>Certification — ' + echapper(c.libelle) + '</b>' +
+      '<span class="ac-qcm-etat ac-etat-c-' + c.etat.replace(/_/g, '-') + '">' +
+        echapper(LIB[c.etat] || '') + '</span>' +
+    '</div>';
+
+  // Les prérequis, toujours affichés : savoir ce qui manque vaut mieux que de
+  // découvrir qu'on n'est pas éligible sans savoir pourquoi.
+  const liste = '<ul class="ac-cert-prereq">' + c.prerequis.map((p) =>
+    '<li class="' + (p.rempli ? 'ac-pr-ok' : 'ac-pr-non') + '">' +
+      '<span aria-hidden="true">' + (p.rempli ? '✓' : '○') + '</span> ' +
+      echapper(p.libelle) + (p.detail ? ' <i>— ' + echapper(p.detail) + '</i>' : '') +
+    '</li>').join('') + '</ul>';
+
+  let corps = '';
+  if (c.certifie) {
+    const d = c.certification;
+    corps =
+      '<p class="ac-qcm-ok"><span aria-hidden="true">🎓</span> ' + echapper(c.titre) +
+        ' — obtenue le ' + echapper(dateFr(d.obtenueLe)) + '.</p>' +
+      (d.commentaire ? '<p class="ac-qcm-s">« ' + echapper(d.commentaire) + ' »</p>' : '') +
+      '<p class="ac-qcm-s">Tu peux désormais suivre des clients dans le Boost Nutrition.</p>' +
+      liste;
+  } else if (c.eligible) {
+    corps =
+      '<p class="ac-qcm-p"><span aria-hidden="true">✓</span> Tout ton parcours est validé : tu es éligible à la certification.</p>' +
+      liste +
+      // ÉLIGIBLE N'EST PAS CERTIFIÉ. Le dire ici évite qu'on le déduise.
+      '<p class="ac-qcm-note">La certification est prononcée par un administrateur My Coach Academy. ' +
+        'Tant qu\'elle ne l\'est pas, tu n\'es pas encore ' + echapper(c.titre) + '.</p>';
+  } else {
+    corps =
+      '<p class="ac-qcm-p"><span aria-hidden="true">🔒</span> Certification verrouillée : il te reste des étapes à valider.</p>' +
+      liste;
+  }
+
+  // Un retrait passé se lit dans l'historique : on ne le cache pas.
+  const retires = c.historique.filter((h) => h.statut === 'retiree');
+  const histo = retires.length
+    ? '<details class="ac-qcm-histo"><summary>Historique de mes certifications (' + c.historique.length + ')</summary><ul>' +
+      c.historique.map((h) => '<li><b>' + echapper(dateFr(h.obtenueLe)) + '</b> — ' +
+        (h.statut === 'delivree' ? 'délivrée' : 'retirée le ' + echapper(dateFr(h.retireeLe))) +
+        (h.motifRetrait ? '<span class="ac-prat-com">' + echapper(h.motifRetrait) + '</span>' : '') +
+        '</li>').join('') + '</ul></details>'
+    : '';
+
+  return '<section class="ac-qcm-carte ac-cert-' + c.etat.replace(/_/g, '-') + '">' + entete + corps + histo + '</section>';
+}
+
+// --- Administration : certifications ------------------------------------------
+
+async function chargerAdminCerts() {
+  const r = await apiAc('/api/academy/admin/certifications');
+  adminCerts = r.data && r.data.ok ? r.data : null;
+}
+
+function rendreOngletsAdmin() {
+  return '<div class="ac-adm-onglets">' +
+    ['evaluateurs', 'certifications'].map((o) =>
+      '<button type="button" class="ac-adm-ong' + (adminOnglet === o ? ' on' : '') + '" data-onglet="' + o + '">' +
+        (o === 'evaluateurs' ? 'Évaluateurs' : 'Certifications') + '</button>').join('') +
+    '</div>';
+}
+
+function rendreAdminCerts() {
+  const d = adminCerts || { eligibles: [], certifies: [], ecarts: [] };
+
+  // LES ÉCARTS D'ABORD, et jamais masqués : une différence entre ce que
+  // l'Academy a délivré et ce que le Boost autorise est exactement ce qu'on
+  // vient chercher ici.
+  const ecarts = d.ecarts.length
+    ? '<div class="ac-ecarts"><b>Écarts entre l\'Academy et le Boost (' + d.ecarts.length + ')</b><ul>' +
+      d.ecarts.map((e) => '<li class="' + (e.anomalie ? 'ac-ecart-ko' : 'ac-ecart-ok') + '">' +
+        '<b>' + echapper(e.prenom || e.email) + '</b> — ' + echapper(e.explication) +
+        (e.anomalie ? ' <i>à corriger</i>' : ' <i>situation attendue</i>') + '</li>').join('') +
+      '</ul></div>'
+    : '';
+
+  const ligneEligible = (c) => {
+    const saisie = enSaisie && enSaisie.email === c.email && enSaisie.geste === 'delivrer';
+    return '<div class="ac-l ac-adm-l' + (saisie ? ' ac-adm-l-saisie' : '') + '">' +
+      '<span class="ac-l-t"><b>' + echapper(c.prenom || c.email) + '</b>' +
+        '<span class="ac-eval-mail">' + echapper(c.email) + '</span></span>' +
+      '<span class="ac-eval-etat ac-etat-c-eligible">Éligible</span>' +
+      '<span class="ac-adm-actions">' +
+        (saisie
+          ? '<button type="button" class="ec-btn ac-adm-b ec-btn-p" data-cert="' + echapper(c.email) + '" data-geste="confirmer-delivrer">Confirmer la délivrance</button>' +
+            '<button type="button" class="ec-btn ac-adm-b" data-cert="' + echapper(c.email) + '" data-geste="annuler">Annuler</button>'
+          : '<button type="button" class="ec-btn ac-adm-b" data-cert="' + echapper(c.email) + '" data-geste="delivrer">Délivrer la certification</button>') +
+      '</span>' +
+      (saisie
+        ? '<div class="ac-adm-saisie">' +
+            '<label class="ec-field"><span>Date d\'obtention</span>' +
+              '<input id="acCertDate" type="date" value="' + aujourdhuiIso() + '" /></label>' +
+            '<label class="ec-field"><span>Commentaire (facultatif)</span>' +
+              '<input id="acCertCom" type="text" maxlength="1000" placeholder="Mention, remarque…" /></label>' +
+            '<p class="ac-adm-avert">Cette délivrance ouvrira immédiatement l\'accès aux dossiers clients du Boost.</p>' +
+          '</div>'
+        : '') +
+      '</div>';
+  };
+
+  const ligneCertifie = (c) => {
+    const saisie = enSaisie && enSaisie.email === c.email && enSaisie.geste === 'retirer';
+    const d_ = c.certification || {};
+    return '<div class="ac-l ac-adm-l' + (saisie ? ' ac-adm-l-retrait' : '') + '">' +
+      '<span class="ac-l-t"><b>' + echapper(c.prenom || c.email) + '</b>' +
+        '<span class="ac-eval-mail">' + echapper(c.email) + ' · certifié le ' + echapper(dateFr(d_.obtenueLe)) +
+        (d_.delivreePar ? ' par ' + echapper(d_.delivreePar) : '') + '</span></span>' +
+      '<span class="ac-eval-etat ac-etat-c-certifie">Certifié</span>' +
+      '<span class="ac-adm-actions">' +
+        (saisie
+          ? '<button type="button" class="ec-btn ac-adm-b ac-adm-danger" data-cert="' + echapper(c.email) + '" data-geste="confirmer-retirer">Confirmer le retrait</button>' +
+            '<button type="button" class="ec-btn ac-adm-b" data-cert="' + echapper(c.email) + '" data-geste="annuler">Annuler</button>'
+          : '<button type="button" class="ec-btn ac-adm-b" data-cert="' + echapper(c.email) + '" data-geste="retirer">Retirer la certification</button>') +
+      '</span>' +
+      (saisie
+        ? '<div class="ac-adm-saisie">' +
+            '<label class="ec-field"><span>Motif du retrait (obligatoire)</span>' +
+              '<input id="acCertMotif" type="text" maxlength="1000" placeholder="Pourquoi ce retrait ?" /></label>' +
+            '<p class="ac-adm-avert">Le diplôme reste dans l\'historique avec ce motif. Les droits Coach Nutrition ' +
+              'du collaborateur se ferment immédiatement.</p>' +
+          '</div>'
+        : '') +
+      '</div>';
+  };
+
+  return ecarts +
+    '<h2 class="ac-eval-t">Éligibles (' + d.eligibles.length + ')</h2>' +
+    (d.eligibles.length
+      ? '<div class="ac-liste">' + d.eligibles.map(ligneEligible).join('') + '</div>'
+      : '<div class="ec-vide">Personne n\'a terminé le parcours pour le moment.</div>') +
+    '<h2 class="ac-eval-t ac-eval-t2">Certifiés (' + d.certifies.length + ')</h2>' +
+    (d.certifies.length
+      ? '<div class="ac-liste">' + d.certifies.map(ligneCertifie).join('') + '</div>'
+      : '<div class="ec-vide">Aucune certification délivrée pour le moment.</div>');
+}
+
+async function agirSurCertification(email, geste) {
+  const err = () => { /* les erreurs s'affichent dans l'encart de la ligne */ };
+  if (geste === 'delivrer' || geste === 'retirer') { enSaisie = { email, geste }; rendreAdmin(); return; }
+  if (geste === 'annuler') { enSaisie = null; rendreAdmin(); return; }
+
+  let r;
+  if (geste === 'confirmer-delivrer') {
+    r = await apiAc('/api/academy/admin/certifications/' + encodeURIComponent(email), 'POST', {
+      obtenueLe: ($('#acCertDate') || {}).value || null,
+      commentaire: ($('#acCertCom') || {}).value || null,
+    });
+  } else {
+    r = await apiAc('/api/academy/admin/certifications/' + encodeURIComponent(email) + '/retrait', 'POST', {
+      motif: ($('#acCertMotif') || {}).value || '',
+    });
+  }
+  if (r.status === 401) { deconnecter(); return; }
+  if (!r.data.ok) {
+    // Le refus vient du serveur et il dit pourquoi : on le montre tel quel
+    // plutôt que d'inventer un message.
+    const el = $('#acAdmErr');
+    if (el) el.textContent = r.data.error || 'Action impossible.';
+    return;
+  }
+  adminCerts = r.data.liste ? { ...(adminCerts || {}), ...r.data.liste } : adminCerts;
+  enSaisie = null;
+  rendreAdmin();
+  err();
 }
 
 // --- Connexion ----------------------------------------------------------------

@@ -27,6 +27,7 @@ process.env.NUTRITION_DB = DB;
 process.env.ADMIN_EMAIL = 'patron@exemple.fr';
 
 const app = require('../server');
+const { certifierViaAcademy } = require('./aideAcademy');
 const B = require('../lib/boost');
 let srv, base;
 
@@ -185,43 +186,87 @@ test('désigner un collaborateur : le compte doit exister au préalable', async 
   }
 });
 
-test('certifier : évaluateur obligatoire, score borné, verdict conservé', async () => {
-  const sansEvaluateur = await api('PUT', `/api/boost/admin/certification/${COACH1}`,
-    { statut: 'certifie', scoreQcm: 88 }, jetons[ADMIN]);
-  assert.strictEqual(sansEvaluateur.status, 400, 'on ne certifie pas anonymement');
+test('LA PORTE PARALLÈLE EST FERMÉE : on ne certifie plus depuis le Boost', async () => {
+  // Depuis le lot 4, la certification Coach Nutrition se délivre dans My Coach
+  // Academy, au terme du parcours. L'administration du Boost ne doit plus
+  // permettre de la court-circuiter — sinon tout le parcours serait décoratif.
+  const r = await api('PUT', `/api/boost/admin/certification/${COACH1}`,
+    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15',
+      scoreQcm: 88, resultatPratique: 'valide' }, jetons[ADMIN]);
+  assert.strictEqual(r.status, 409, 'le Boost ne délivre plus');
+  assert.strictEqual(r.body.academyRequise, true);
+  assert.ok(/Academy/.test(r.body.error), 'le refus dit où se fait la délivrance : ' + r.body.error);
+  assert.strictEqual(app.boost.estCoachCertifie(COACH1), false, 'rien n\'a été accordé');
+});
 
+test('ce que le Boost peut TOUJOURS faire : suspendre, retirer, annoter', async () => {
+  // La fermeture ne devait pas emporter les gestes utiles de l'administration.
+  // Aucun de ces statuts n'accorde de droit : ils en ferment ou n'en changent pas.
+  for (const statut of ['en_cours', 'suspendu', 'non_certifie']) {
+    const r = await api('PUT', `/api/boost/admin/certification/${COACH1}`,
+      { statut, evaluateur: 'Stan Martin', scoreQcm: 62, commentaire: 'note interne' }, jetons[ADMIN]);
+    assert.strictEqual(r.status, 200, statut);
+    assert.strictEqual(r.body.certification.statut, statut);
+  }
+  assert.strictEqual(app.boost.estCoachCertifie(COACH1), false);
+});
+
+test('les validations de champs tiennent toujours', async () => {
   const scoreFou = await api('PUT', `/api/boost/admin/certification/${COACH1}`,
-    { statut: 'certifie', evaluateur: 'Stan', scoreQcm: 250 }, jetons[ADMIN]);
+    { statut: 'en_cours', evaluateur: 'Stan', scoreQcm: 250 }, jetons[ADMIN]);
   assert.strictEqual(scoreFou.status, 400);
 
   const pratiqueInconnue = await api('PUT', `/api/boost/admin/certification/${COACH1}`,
-    { statut: 'certifie', evaluateur: 'Stan', resultatPratique: 'peut-etre' }, jetons[ADMIN]);
+    { statut: 'en_cours', evaluateur: 'Stan', resultatPratique: 'peut-etre' }, jetons[ADMIN]);
   assert.strictEqual(pratiqueInconnue.status, 400);
 
-  // Les 5 informations que l'app conserve du parcours Academy, et rien de plus.
-  const ok = await api('PUT', `/api/boost/admin/certification/${COACH1}`, {
-    statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15',
-    scoreQcm: 88, resultatPratique: 'valide',
-  }, jetons[ADMIN]);
-  assert.strictEqual(ok.status, 200);
-  const c = ok.body.certification;
-  assert.strictEqual(c.statut, B.CERT_OK);
-  assert.strictEqual(c.dateCertification, '2026-07-15');
-  assert.strictEqual(c.evaluateur, 'Stan Martin');
-  assert.strictEqual(c.scoreQcm, 88);
-  assert.strictEqual(c.resultatPratique, 'valide');
+  const statutInconnu = await api('PUT', `/api/boost/admin/certification/${COACH1}`,
+    { statut: 'diplome', evaluateur: 'Stan' }, jetons[ADMIN]);
+  assert.strictEqual(statutInconnu.status, 400);
+});
 
-  await api('PUT', `/api/boost/admin/certification/${COACH2}`,
-    { statut: 'certifie', evaluateur: 'Stan Martin', scoreQcm: 91, resultatPratique: 'valide' }, jetons[ADMIN]);
+test('certifier passe par l\'Academy — et le Boost en devient le reflet', async () => {
+  // Le parcours complet : contenus, QCM, évaluation pratique, délivrance.
+  await certifierViaAcademy({ api, admin: ADMIN, jetonAdmin: jetons[ADMIN],
+    email: COACH1, jeton: jetons[COACH1] });
+
+  const c = app.boost.lireCertification(COACH1);
+  assert.strictEqual(c.statut, B.CERT_OK, 'le reflet a suivi');
+  assert.strictEqual(c.dateCertification, '2026-07-15');
+  assert.strictEqual(c.evaluateur, ADMIN, 'qui a délivré');
+  assert.strictEqual(c.scoreQcm, 100, 'le score de la vraie tentative');
+  assert.strictEqual(c.resultatPratique, 'valide');
+  assert.strictEqual(app.boost.estCoachCertifie(COACH1), true);
+
+  // Et une fois le diplôme délivré, RÉACTIVER depuis le Boost redevient permis :
+  // ce n'est plus une délivrance, c'est une levée de suspension.
+  await api('PUT', `/api/boost/admin/certification/${COACH1}`, { statut: 'suspendu' }, jetons[ADMIN]);
+  assert.strictEqual(app.boost.estCoachCertifie(COACH1), false);
+  const reprise = await api('PUT', `/api/boost/admin/certification/${COACH1}`,
+    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15' }, jetons[ADMIN]);
+  assert.strictEqual(reprise.status, 200, 'la réactivation reste possible');
+  assert.strictEqual(app.boost.estCoachCertifie(COACH1), true);
+});
+
+test('le second coach est certifié par le même chemin', async () => {
+  await certifierViaAcademy({ api, admin: ADMIN, jetonAdmin: jetons[ADMIN],
+    email: COACH2, jeton: jetons[COACH2] });
+  assert.strictEqual(app.boost.estCoachCertifie(COACH2), true);
   // Theo reste explicitement non certifié : c'est lui qui éprouve le refus.
   await api('PUT', `/api/boost/admin/certification/${COLLAB3}`,
     { statut: 'en_cours', evaluateur: 'Stan Martin', scoreQcm: 62 }, jetons[ADMIN]);
+  assert.strictEqual(app.boost.estCoachCertifie(COLLAB3), false);
 });
 
 test('un compte qui n\'est pas collaborateur ne peut pas être certifié', async () => {
+  // Deux refus se présentent, et les deux sont bons : la porte Academy fermée,
+  // et le fait que Léa ne soit pas collaboratrice.
   const r = await api('PUT', `/api/boost/admin/certification/${LEA}`,
     { statut: 'certifie', evaluateur: 'Stan' }, jetons[ADMIN]);
   assert.strictEqual(r.status, 409);
+  const parLeStatut = await api('PUT', `/api/boost/admin/certification/${LEA}`,
+    { statut: 'en_cours', evaluateur: 'Stan' }, jetons[ADMIN]);
+  assert.strictEqual(parLeStatut.status, 409, 'ce n\'est pas une collaboratrice, quel que soit le statut');
 });
 
 test('sans ligne de certification, le statut lu est « non certifié »', () => {
@@ -707,8 +752,9 @@ test('supprimer un compte client emporte ses Boosts', async () => {
 test('le départ d\'un coach ne détruit pas les dossiers de ses clients', async () => {
   const s = await api('POST', '/account/login', { email: 'partant@exemple.fr', prenom: 'Partant', pin: '4141' });
   await api('POST', '/api/boost/admin/collaborateurs', { email: 'partant@exemple.fr', role: 'collaborateur' }, jetons[ADMIN]);
-  await api('PUT', '/api/boost/admin/certification/partant@exemple.fr',
-    { statut: 'certifie', evaluateur: 'Stan Martin', scoreQcm: 80, resultatPratique: 'valide' }, jetons[ADMIN]);
+  jetons['partant@exemple.fr'] = s.body.token;
+  await certifierViaAcademy({ api, admin: ADMIN, jetonAdmin: jetons[ADMIN],
+    email: 'partant@exemple.fr', jeton: jetons['partant@exemple.fr'] });
 
   const cli = await api('POST', '/account/login', { email: 'reste@exemple.fr', prenom: 'Reste', pin: '5151' });
   const cree = await api('POST', '/api/boost/admin/dossiers',

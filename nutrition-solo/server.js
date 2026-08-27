@@ -48,6 +48,8 @@ const { createAcademy } = require('./lib/academy');
 const { creerRoutesAcademy } = require('./lib/academyRoutes');
 const { createAcademyQcm } = require('./lib/academyQcm');
 const { createAcademyPratique } = require('./lib/academyPratique');
+const { creerRegistre } = require('./lib/academyFormations');
+const { createAcademyCertifications } = require('./lib/academyCertifications');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
 const PORT = process.env.PORT || 3000;
@@ -76,6 +78,16 @@ const academyQcm = createAcademyQcm({ getDb, nowIso, boost, academy });
 // Le droit d'évaluer n'est PAS dérivé du droit d'administrer : il se désigne,
 // explicitement, administrateur compris (cf. lib/academyPratique.js).
 const academyPratique = createAcademyPratique({ getDb, nowIso, boost, qcm: academyQcm });
+// La certification finale. Le moteur est GÉNÉRIQUE : il ne connaît aucune
+// formation, il lit un registre. « Coach Nutrition » y est la première entrée.
+const academyFormations = creerRegistre({ qcm: academyQcm, pratique: academyPratique });
+const academyCertifications = createAcademyCertifications({
+  getDb, nowIso, boost, qcm: academyQcm, pratique: academyPratique, formations: academyFormations,
+});
+// LA FERMETURE DE LA PORTE PARALLÈLE : à partir d'ici, l'administration du
+// Boost ne peut plus poser « certifié » sur un compte que l'Academy n'a pas
+// diplômé. Elle garde en revanche tout le reste — suspendre, retirer, annoter.
+boost.brancherCertificationAcademy((email) => academyCertifications.estCertifie(email));
 
 const app = express();
 // 6 Mo : une photo de progression prise au téléphone passe, un envoi abusif non.
@@ -680,7 +692,8 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 //  masquerait des routes existantes, plus bas il serait avalé par le 404.
 // ---------------------------------------------------------------------------
 app.use(creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }));
-app.use(creerRoutesAcademy({ academy, qcm: academyQcm, pratique: academyPratique, exigeCompte, exigeAdmin, estAdmin }));
+app.use(creerRoutesAcademy({ academy, qcm: academyQcm, pratique: academyPratique,
+  certifications: academyCertifications, exigeCompte, exigeAdmin, estAdmin }));
 
 // Toute route /api inconnue répond en JSON : sinon Express renvoie du HTML et le
 // front, qui fait systématiquement res.json(), échoue avec une erreur illisible.
@@ -848,6 +861,8 @@ module.exports.seances = seances;
 module.exports.academy = academy;
 module.exports.academyQcm = academyQcm;
 module.exports.academyPratique = academyPratique;
+module.exports.academyCertifications = academyCertifications;
+module.exports.academyFormations = academyFormations;
 module.exports.amorcerFaq = amorcerFaq;
 module.exports.appliquerResetPinAdmin = appliquerResetPinAdmin;
 module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;

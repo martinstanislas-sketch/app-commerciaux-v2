@@ -29,6 +29,10 @@ process.env.NUTRITION_DB = DB;
 process.env.ADMIN_EMAIL = 'patron@exemple.fr';
 
 const app = require('../server');
+// Depuis le lot 4, un Coach Nutrition certifié s'amorce par le PARCOURS RÉEL :
+// contenus, QCM, évaluation pratique, puis délivrance. La porte directe du
+// Boost est fermée — et chaque suite prouve donc la chaîne en passant.
+const { certifierViaAcademy } = require('./aideAcademy');
 const B = require('../lib/boost');
 let srv, base;
 
@@ -77,8 +81,8 @@ test.before(async () => {
   }
   // Un Coach Nutrition prêt à recevoir des clients.
   await api('POST', '/api/boost/admin/collaborateurs', { email: COACH, role: 'collaborateur' }, jetons[ADMIN]);
-  await api('PUT', `/api/boost/admin/certification/${COACH}`,
-    { statut: 'certifie', evaluateur: 'Stan Martin', dateCertification: '2026-07-15', scoreQcm: 88, resultatPratique: 'valide' }, jetons[ADMIN]);
+  await certifierViaAcademy({ api, admin: ADMIN, jetonAdmin: jetons[ADMIN],
+        email: COACH, jeton: jetons[COACH] });
 });
 
 test.after(() => {
@@ -137,8 +141,8 @@ test('l\'annuaire se filtre par prénom ou email', async () => {
 
 test('par défaut la liste ne montre que les collaborateurs actifs, ?tous=1 les montre tous', async () => {
   await api('POST', '/api/boost/admin/collaborateurs', { email: COACH2, role: 'collaborateur' }, jetons[ADMIN]);
-  await api('PUT', `/api/boost/admin/certification/${COACH2}`,
-    { statut: 'certifie', evaluateur: 'Stan Martin', scoreQcm: 91, resultatPratique: 'valide' }, jetons[ADMIN]);
+  await certifierViaAcademy({ api, admin: ADMIN, jetonAdmin: jetons[ADMIN],
+        email: COACH2, jeton: jetons[COACH2] });
   await api('POST', '/api/boost/admin/collaborateurs', { email: COACH2, role: 'client' }, jetons[ADMIN]);
 
   const actifs = await api('GET', '/api/boost/admin/collaborateurs', null, jetons[ADMIN]);
@@ -171,7 +175,10 @@ test('la réactivation rend le coach de nouveau attribuable, sans retoucher sa c
   const sophie = tous.body.collaborateurs.find((c) => c.email === COACH2);
   assert.strictEqual(sophie.actif, true);
   assert.strictEqual(sophie.peutSuivre, true);
-  assert.strictEqual(sophie.certification.scoreQcm, 91, 'la certification n\'a pas été touchée');
+  // Le score vient désormais du VRAI QCM passé à l'amorçage : ce qu'on vérifie,
+  // c'est qu'activer/désactiver un collaborateur ne le touche pas.
+  assert.strictEqual(sophie.certification.scoreQcm, 100, 'la certification n\'a pas été touchée');
+  assert.strictEqual(sophie.certification.statut, 'certifie');
 });
 
 // ===========================================================================
@@ -456,8 +463,10 @@ test('la fiche d\'un Coach Nutrition affiche les 5 informations de certification
   assert.ok(!/undefined|NaN/.test(s), 'aucun trou : ' + s.slice(0, 200));
   assert.ok(s.includes('Certifié'), 'statut');
   assert.ok(s.includes('15/07/2026'), 'date de certification');
-  assert.ok(s.includes('Stan Martin'), 'évaluateur');
-  assert.ok(s.includes('88/100'), 'score QCM');
+  // Depuis le lot 4, « l'évaluateur » de la ligne Boost est l'administrateur
+  // Academy qui a DÉLIVRÉ le diplôme : c'est lui qui répond de l'habilitation.
+  assert.ok(s.includes(ADMIN), 'délivreur : ' + s.slice(0, 200));
+  assert.ok(s.includes('100/100'), 'score QCM, celui de la vraie tentative');
   assert.ok(s.includes('Validée'), 'résultat pratique');
   assert.ok(s.includes('Désactiver'), 'l\'action d\'activation/désactivation');
 });
