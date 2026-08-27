@@ -48,7 +48,12 @@ const jetons = {};
 const dossiers = {};
 
 const PUBLIC = path.join(__dirname, '..', 'public');
-const js = fs.readFileSync(path.join(PUBLIC, 'coach.js'), 'utf8');
+const jsCoquille = fs.readFileSync(path.join(PUBLIC, 'coach.js'), 'utf8');
+const jsRdv = fs.readFileSync(path.join(PUBLIC, 'coachRdv.js'), 'utf8');
+// Ce que le navigateur évalue réellement : les deux scripts, dans l'ordre de
+// chargement de coach.html. Ils partagent la même portée globale, donc les
+// analyser séparément ferait passer pour manquant ce qui est simplement à côté.
+const js = jsCoquille + '\n' + jsRdv;
 const css = fs.readFileSync(path.join(PUBLIC, 'coach.css'), 'utf8');
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10);

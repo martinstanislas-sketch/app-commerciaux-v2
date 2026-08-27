@@ -42,7 +42,12 @@ const dossiers = {};
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const html = fs.readFileSync(path.join(PUBLIC, 'coach.html'), 'utf8');
-const js = fs.readFileSync(path.join(PUBLIC, 'coach.js'), 'utf8');
+const jsCoquille = fs.readFileSync(path.join(PUBLIC, 'coach.js'), 'utf8');
+const jsRdv = fs.readFileSync(path.join(PUBLIC, 'coachRdv.js'), 'utf8');
+// Ce que le navigateur évalue réellement : les deux scripts, dans l'ordre de
+// chargement de coach.html. Ils partagent la même portée globale, donc les
+// analyser séparément ferait passer pour manquant ce qui est simplement à côté.
+const js = jsCoquille + '\n' + jsRdv;
 const css = fs.readFileSync(path.join(PUBLIC, 'coach.css'), 'utf8');
 
 const jour = (d) => {
@@ -393,4 +398,65 @@ test('sans prénom, on retombe sur l\'email — jamais sur un nom inventé', () 
   const ec = chargerRendu();
   assert.strictEqual(ec.nom({ clientPrenom: '', clientEmail: 'jean.dupont@exemple.fr' }), 'jean.dupont');
   assert.strictEqual(ec.nom({ clientPrenom: 'Léa', clientEmail: 'l@x.fr' }), 'Léa');
+});
+
+// ===========================================================================
+//  LE DÉCOUPAGE DU FRONT (coach.js / coachRdv.js)
+//
+//  Les deux fichiers sont des scripts CLASSIQUES chargés l'un après l'autre :
+//  ils partagent la même portée globale. C'est ce qui rend le découpage simple
+//  — rien à importer — et c'est aussi ce qui le rend fragile : une seule
+//  redéclaration et le navigateur refuse la page ENTIÈRE, sans que rien ne
+//  l'ait signalé au développement.
+// ===========================================================================
+
+test('la page charge les deux scripts, dans le bon ordre', () => {
+  const iCoquille = html.indexOf('coach.js?v=');
+  const iRdv = html.indexOf('coachRdv.js?v=');
+  assert.ok(iCoquille > 0, 'coach.js est chargé');
+  assert.ok(iRdv > 0, 'coachRdv.js est chargé');
+  // La coquille d'abord : c'est elle qui porte les utilitaires empruntés.
+  assert.ok(iCoquille < iRdv, 'coach.js doit être chargé avant coachRdv.js');
+  // Les deux sont versionnés, sinon le cache servirait un couple dépareillé.
+  assert.ok(/coach\.js\?v=\d+/.test(html) && /coachRdv\.js\?v=\d+/.test(html));
+});
+
+test('aucun nom n\'est déclaré deux fois entre les deux fichiers', () => {
+  // Portée globale partagée : `const X` des deux côtés = page morte au premier
+  // chargement. Ce test est le seul filet entre l'erreur et la production.
+  const declarations = (src) => {
+    const noms = new Set();
+    for (const m of src.matchAll(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)/gm)) noms.add(m[1]);
+    for (const m of src.matchAll(/^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm)) noms.add(m[1]);
+    return noms;
+  };
+  const a = declarations(jsCoquille);
+  const b = declarations(jsRdv);
+  const collisions = [...a].filter((n) => b.has(n));
+  assert.deepStrictEqual(collisions, [], 'noms déclarés dans les deux fichiers');
+});
+
+test('la surface de contact entre les deux fichiers reste étroite', () => {
+  // La coquille n'appelle qu'UNE fonction du module des rendez-vous. Si cette
+  // liste s'allonge, c'est que le découpage ne tient plus.
+  const appelsDepuisCoquille = ['rendreRendezVous']
+    .filter((f) => jsCoquille.includes(f + '('));
+  assert.deepStrictEqual(appelsDepuisCoquille, ['rendreRendezVous']);
+
+  // Et le module des rendez-vous ne redéfinit aucun utilitaire de la coquille :
+  // il les emprunte, sinon les deux finiraient par diverger.
+  for (const utilitaire of ['function echapper', 'function dateFr', 'async function apiCoach', 'const $ =']) {
+    assert.ok(!jsRdv.includes(utilitaire), 'coachRdv.js redéfinit ' + utilitaire);
+    assert.ok(jsCoquille.includes(utilitaire), 'coach.js porte bien ' + utilitaire);
+  }
+});
+
+test('chaque fichier reste dans son rôle', () => {
+  // La coquille ne doit plus connaître le contenu des rendez-vous…
+  assert.ok(!/formSuivi|formDecouverte|OBJECTIFS|RESULTATS|DECISIONS/.test(jsCoquille),
+    'coach.js ne connaît plus le contenu des rendez-vous');
+  // …et les rendez-vous ne doivent pas refaire la liste des clients.
+  assert.ok(!/function rendreListe|function carteClient|function connecter/.test(jsRdv),
+    'coachRdv.js ne refait pas la coquille');
+  assert.ok(jsRdv.includes('function formSuivi') && jsRdv.includes('function formDecouverte'));
 });
