@@ -56,6 +56,12 @@ CREATE TABLE IF NOT EXISTS academy_formations (
   -- d'épreuve ni la même exigence.
   qcm_nb_questions     INTEGER NOT NULL DEFAULT 5,
   qcm_seuil_pct        INTEGER NOT NULL DEFAULT 80,
+  -- Le mini-QCM de fin de module se règle SÉPARÉMENT du QCM final. Les deux
+  -- épreuves n'ont ni la même longueur, ni la même exigence, ni le même rôle :
+  -- l'une jalonne l'apprentissage, l'autre valide la théorie. Un seul couple de
+  -- réglages pour les deux obligerait un jour à choisir laquelle sacrifier.
+  mini_nb_questions    INTEGER NOT NULL DEFAULT 5,
+  mini_seuil_pct       INTEGER NOT NULL DEFAULT 80,
   -- Les deux drapeaux qui dessinent le parcours. À 0, l'étape n'est pas
   -- « sautée » : elle n'est pas demandée.
   pratique_obligatoire INTEGER NOT NULL DEFAULT 1,
@@ -77,6 +83,8 @@ const AMORCE = {
   ordre: 1,
   qcmNbQuestions: 5,
   qcmSeuilPct: 80,
+  miniNbQuestions: 5,
+  miniSeuilPct: 80,
 };
 
 function createAcademyFormations({ getDb, nowIso }) {
@@ -87,6 +95,11 @@ function createAcademyFormations({ getDb, nowIso }) {
     const d = db();
     if (basesMigrees.has(d)) return true;
     d.exec(SCHEMA_FORMATIONS);
+    // Base existante : les deux réglages du mini-QCM se posent avec leur défaut.
+    // Une formation déjà en service se retrouve donc avec un mini de 5 questions
+    // à 80 % — ce qu'elle aurait eu si le mini avait existé dès l'origine.
+    ajouterColonne(d, 'academy_formations', 'mini_nb_questions', 'INTEGER NOT NULL DEFAULT 5');
+    ajouterColonne(d, 'academy_formations', 'mini_seuil_pct', 'INTEGER NOT NULL DEFAULT 80');
     basesMigrees.add(d);
     amorcer();
     return true;
@@ -130,6 +143,8 @@ function createAcademyFormations({ getDb, nowIso }) {
     actif: !!r.actif,
     qcmNbQuestions: r.qcm_nb_questions,
     qcmSeuilPct: r.qcm_seuil_pct,
+    miniNbQuestions: r.mini_nb_questions,
+    miniSeuilPct: r.mini_seuil_pct,
     pratiqueObligatoire: !!r.pratique_obligatoire,
     certificationActive: !!r.certification_active,
     refletBoost: !!r.reflet_boost,
@@ -201,6 +216,10 @@ function createAcademyFormations({ getDb, nowIso }) {
     if (nb === null) return err(400, `Le nombre de questions doit être un entier entre ${NB_MIN} et ${NB_MAX}.`);
     const seuil = entier(d.qcmSeuilPct, existante ? existante.qcmSeuilPct : AMORCE.qcmSeuilPct, SEUIL_MIN, SEUIL_MAX);
     if (seuil === null) return err(400, `Le seuil de réussite doit être un entier entre ${SEUIL_MIN} et ${SEUIL_MAX}.`);
+    const miniNb = entier(d.miniNbQuestions, existante ? existante.miniNbQuestions : AMORCE.miniNbQuestions, NB_MIN, NB_MAX);
+    if (miniNb === null) return err(400, `Le nombre de questions du mini-QCM doit être un entier entre ${NB_MIN} et ${NB_MAX}.`);
+    const miniSeuil = entier(d.miniSeuilPct, existante ? existante.miniSeuilPct : AMORCE.miniSeuilPct, SEUIL_MIN, SEUIL_MAX);
+    if (miniSeuil === null) return err(400, `Le seuil du mini-QCM doit être un entier entre ${SEUIL_MIN} et ${SEUIL_MAX}.`);
     const ordre = entier(d.ordre, existante ? existante.ordre : lister({ toutes: true }).length + 1, 0, 9999);
     if (ordre === null) return err(400, 'Ordre invalide.');
 
@@ -214,17 +233,19 @@ function createAcademyFormations({ getDb, nowIso }) {
     const maintenant = nowIso();
     db().prepare(`INSERT INTO academy_formations
         (cle, libelle, titre_certifie, ordre, actif, qcm_nb_questions, qcm_seuil_pct,
+         mini_nb_questions, mini_seuil_pct,
          pratique_obligatoire, certification_active, reflet_boost, cree_le, maj_le)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(cle) DO UPDATE SET libelle = excluded.libelle,
           titre_certifie = excluded.titre_certifie, ordre = excluded.ordre, actif = excluded.actif,
           qcm_nb_questions = excluded.qcm_nb_questions, qcm_seuil_pct = excluded.qcm_seuil_pct,
+          mini_nb_questions = excluded.mini_nb_questions, mini_seuil_pct = excluded.mini_seuil_pct,
           pratique_obligatoire = excluded.pratique_obligatoire,
           certification_active = excluded.certification_active,
           reflet_boost = excluded.reflet_boost, maj_le = excluded.maj_le`)
       .run(cle, libelle, titre || null, ordre,
         drapeau(d.actif, existante ? existante.actif : true) ? 1 : 0,
-        nb, seuil,
+        nb, seuil, miniNb, miniSeuil,
         drapeau(d.pratiqueObligatoire, existante ? existante.pratiqueObligatoire : true) ? 1 : 0,
         certif ? 1 : 0,
         // Le reflet Boost ne s'accorde JAMAIS depuis une saisie ordinaire : il

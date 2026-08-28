@@ -4,10 +4,12 @@
 //
 //  QUATRE PROPRIÉTÉS SE CASSENT SANS BRUIT, ET SONT ATTAQUÉES ICI :
 //
-//   1. LE CORRIGÉ NE SORT PAS. Aucune route ne le renvoie, aucune réponse ne le
-//      laisse deviner. On le lit DIRECTEMENT EN BASE dans ces tests — et c'est
-//      exactement le propos : s'il avait fallu passer par l'API pour connaître
-//      les bonnes réponses, c'est qu'elles auraient fui.
+//   1. LE CORRIGÉ DU QCM FINAL NE SORT PAS. Aucune route ne le renvoie, aucune
+//      réponse ne le laisse deviner. On le lit DIRECTEMENT EN BASE dans ces
+//      tests — et c'est exactement le propos : s'il avait fallu passer par
+//      l'API pour connaître les bonnes réponses, c'est qu'elles auraient fui.
+//      ⚠️ Le MINI-QCM, lui, corrige volontairement : sa banque est disjointe de
+//      celle-ci, et le cloisonnement est éprouvé dans academyMiniQcm.test.js.
 //   2. UNE TENTATIVE EST FIGÉE. On modifie la banque et la configuration SOUS
 //      une tentative ouverte, puis on vérifie qu'elle n'a pas bougé d'un mot.
 //      Une tentative qui change en cours de route est un questionnaire truqué.
@@ -809,7 +811,21 @@ test('l\'écran ne reçoit ni ne manipule le corrigé', () => {
   for (const interdit of ['correct_json', 'correctJson', 'bonneReponse', 'bonne_reponse', 'estJuste']) {
     assert.ok(!new RegExp(interdit, 'i').test(code), 'l\'écran manipule « ' + interdit + ' »');
   }
-  assert.ok(!/\bcorrig[ée]s?\b/i.test(code), 'l\'écran manipule un corrigé');
+  // ⚠️ CETTE ASSERTION A ÉTÉ RESSERRÉE, PAS LEVÉE. L'écran affiche désormais la
+  // correction d'un MINI-QCM — c'est la raison d'être d'un exercice
+  // pédagogique. Ce qui reste interdit, et qui est le vrai risque, c'est qu'il
+  // la CALCULE : tant qu'il ne fait que rendre l'objet `corrige` envoyé par le
+  // serveur, la règle tient, puisque le serveur ne l'envoie que pour une
+  // tentative de portée « module » déjà rendue.
+  //
+  // Le cloisonnement lui-même — jamais de corrigé sur une tentative finale —
+  // est éprouvé côté serveur dans test/academyMiniQcm.test.js.
+  assert.ok(/tentative\.corrige/.test(code), 'la correction affichée ne vient plus du serveur');
+  assert.ok(/portee === 'module'/.test(code), 'l\'écran de correction n\'est plus réservé au mini-QCM');
+  assert.ok(!/\bcorrecte\s*=\s*[^=]/.test(code), 'l\'écran décide lui-même si une réponse est correcte');
+  // Le lookahead absorbe lui-même l'espace : le laisser à `\s*` avant lui le
+  // ferait revenir à zéro par retour arrière, et l'assertion ne testerait plus rien.
+  assert.ok(!/\bbonnes\s*=(?!\s*q\.bonnes)/.test(code), 'l\'écran calcule lui-même les bonnes réponses');
   // Il ne recalcule ni score ni verdict : les deux viennent du serveur.
   assert.ok(!/scorePct\s*=\s*Math\./.test(code), 'aucun calcul de score dans l\'écran');
   assert.ok(!/reussie\s*=\s*[^=]/.test(code), 'l\'écran ne décide pas de la réussite');

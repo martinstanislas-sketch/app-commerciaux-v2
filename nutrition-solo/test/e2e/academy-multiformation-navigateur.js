@@ -256,9 +256,13 @@ async function semer() {
   await etape('B affiche SES modules et SES vidéos', async () => {
     const modules = await page.locator('.ac-mod-t').allInnerTexts();
     if (modules.join('|') !== 'Module B1|Module B2') throw new Error('modules : ' + modules.join(' | '));
+    // Le parcours est séquentiel : B2 reste verrouillé tant que B1 n'est pas
+    // terminé, donc un seul contenu est listé. Le cloisonnement entre formations
+    // — ce que cette étape vérifie vraiment — n'en est pas affecté.
     const titres = await page.locator('.ac-l-t').allInnerTexts();
-    if (titres.length !== 2) throw new Error('contenus de B : ' + titres.length);
+    if (titres.length !== 1) throw new Error('contenus de B visibles : ' + titres.length);
     if (!titres.some((x) => /Vidéo B/.test(x))) throw new Error('vidéos : ' + titres.join(' | '));
+    if (await page.locator('.ac-mod-lock').count() !== 1) throw new Error('Module B2 devrait être verrouillé');
   });
 
   await etape('sa progression repart de zéro, indépendamment de A', async () => {

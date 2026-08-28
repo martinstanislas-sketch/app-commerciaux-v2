@@ -133,28 +133,66 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     });
   });
 
+  // On sert le parcours ENRICHI (état du mini et verrou de chaque module) et
+  // non l'arbre brut : un écran qui afficherait un module ouvert que le serveur
+  // refuse ensuite promet ce qu'il ne peut pas tenir.
   r.get('/api/academy/formation', exigeCompte, exigeCollaborateur, (req, res) => {
     const f = formationDe(req, res);
     if (!f) return;
-    res.json({ ok: true, formation: academy.formationPour(moi(req), f.cle), catalogue: f });
+    res.json({ ok: true, formation: qcm.parcoursPour(moi(req), f.cle), catalogue: f });
   });
 
+  // ==========================================================================
+  //  LE VERROU DE MODULE EST TENU ICI, SUR LES TROIS ROUTES DE CONTENU.
+  //
+  //  Un verrou seulement dessiné à l'écran n'est pas un verrou : il suffirait
+  //  d'appeler la route au clavier pour lire, ouvrir ou terminer le contenu d'un
+  //  module encore fermé — et donc de traverser la formation sans passer un
+  //  seul mini-QCM. Les trois portes sont donc gardées, et par la même
+  //  fonction : une règle écrite trois fois finit par diverger.
+  // ==========================================================================
+  const barrage = (req, res) => {
+    const g = qcm.contenuAccessible(moi(req), req.params.id);
+    if (!g.body.ok) { res.status(g.status).json(g.body); return null; }
+    return g.body.contenu;
+  };
+
+  // ==========================================================================
+  //  TOUTE RÉPONSE QUI PORTE LE PARCOURS PORTE LE PARCOURS ENRICHI.
+  //
+  //  `academy.ouvrirContenu` et `terminerContenu` renvoient l'arbre BRUT : ils
+  //  vivent dans le moteur de progression, qui ne connaît pas les mini-QCM. Les
+  //  servir tels quels donnait à l'écran un parcours amputé de `mini` — donc
+  //  sans verrou et sans mini-QCM — dès le premier « Terminer ». L'écran
+  //  rouvrait alors tous les modules et enchaînait droit sur une porte fermée.
+  //
+  //  Le moteur n'a pas à changer : c'est ICI, au point de sortie, qu'on
+  //  recompose ce que l'écran doit recevoir. Une seule fonction pour les deux
+  //  routes : la dupliquer, c'est se garantir qu'une des copies oubliera.
+  // ==========================================================================
+  const avecParcours = (req, res, r_) => {
+    if (r_.body && r_.body.ok && r_.body.formation) {
+      r_.body.formation = qcm.parcoursPour(moi(req), r_.body.formation.formation);
+    }
+    res.status(r_.status).json(r_.body);
+  };
+
   r.get('/api/academy/contenus/:id', exigeCompte, exigeCollaborateur, (req, res) => {
-    const c = academy.lireContenu(req.params.id);
-    if (!c) return res.status(404).json({ ok: false, error: 'Contenu introuvable.' });
+    const c = barrage(req, res);
+    if (!c) return;
     res.json({ ok: true, contenu: c });
   });
 
   // Ouvrir ≠ terminer. Deux routes distinctes, parce que ce sont deux faits
   // différents et qu'une seule route les confondrait tôt ou tard.
   r.post('/api/academy/contenus/:id/ouvrir', exigeCompte, exigeCollaborateur, (req, res) => {
-    const r_ = academy.ouvrirContenu(moi(req), req.params.id);
-    res.status(r_.status).json(r_.body);
+    if (!barrage(req, res)) return;
+    avecParcours(req, res, academy.ouvrirContenu(moi(req), req.params.id));
   });
 
   r.post('/api/academy/contenus/:id/terminer', exigeCompte, exigeCollaborateur, (req, res) => {
-    const r_ = academy.terminerContenu(moi(req), req.params.id);
-    res.status(r_.status).json(r_.body);
+    if (!barrage(req, res)) return;
+    avecParcours(req, res, academy.terminerContenu(moi(req), req.params.id));
   });
 
 
@@ -176,10 +214,18 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     res.json({ ok: true, qcm: qcm.etatPour(moi(req), f.cle) });
   });
 
+  // `moduleId` dans le corps ouvre le MINI-QCM de ce module ; son absence ouvre
+  // le QCM final. La portée vient donc d'un fait explicite, jamais d'un défaut
+  // deviné : un corps vide reste le QCM final, comme avant ce lot.
   r.post('/api/academy/qcm/tentatives', exigeCompte, exigeCollaborateur, (req, res) => {
     const f = formationDe(req, res);
     if (!f) return;
-    const r_ = qcm.demarrer(moi(req), f.cle);
+    const brut = (req.body || {}).moduleId;
+    const moduleId = (brut === undefined || brut === null || brut === '') ? null : Number(brut);
+    if (moduleId !== null && !Number.isInteger(moduleId)) {
+      return res.status(400).json({ ok: false, error: 'Module invalide.' });
+    }
+    const r_ = qcm.demarrer(moi(req), f.cle, { moduleId });
     res.status(r_.status).json(r_.body);
   });
 

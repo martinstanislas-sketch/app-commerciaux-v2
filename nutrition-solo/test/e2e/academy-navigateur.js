@@ -143,8 +143,12 @@ async function semer() {
     const titres = await page.locator('.ac-mod').first().locator('.ac-l-t').allInnerTexts();
     if (titres.length !== 3) throw new Error('3 contenus attendus dans le module 1');
     if (!/rôle du Coach Nutrition/.test(titres[0])) throw new Error('premier contenu inattendu : ' + titres[0]);
-    // Tout est « à venir » au départ.
-    if (await page.locator('.ac-avenir').count() !== 5) throw new Error('les 5 contenus devraient être à venir');
+    // LE PARCOURS EST SÉQUENTIEL depuis l'arrivée des mini-QCM : seuls les
+    // contenus du module ouvert sont listés. Ceux du module 2 restent derrière
+    // son verrou tant que le module 1 n'est pas terminé — et le verrou est tenu
+    // par le serveur, pas seulement dessiné (cf. test/academyMiniQcm.test.js).
+    if (await page.locator('.ac-avenir').count() !== 3) throw new Error('les 3 contenus du module 1 devraient être à venir');
+    if (await page.locator('.ac-mod-lock').count() !== 1) throw new Error('le module 2 devrait être verrouillé tant que le module 1 n\'est pas terminé');
   });
 
   await etape('ouvrir une vidéo NE la termine pas', async () => {

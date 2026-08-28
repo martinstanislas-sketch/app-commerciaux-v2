@@ -874,6 +874,9 @@ function rendreSommaire() {
   document.querySelectorAll('#acSommaire [data-contenu]').forEach((el) => {
     el.addEventListener('click', () => ouvrir(Number(el.dataset.contenu)));
   });
+  document.querySelectorAll('#acSommaire [data-mini]').forEach((el) => {
+    el.addEventListener('click', () => ouvrirEvaluation(Number(el.dataset.mini)));
+  });
   const rp = $('#acRegPhoto');
   if (rp && PHOTO_REGULARITE) {
     rp.addEventListener('load', () => { rp.hidden = false; });
@@ -892,7 +895,68 @@ function rendreSommaire() {
 //
 // <details> plutôt qu'un repli maison : le navigateur gère l'accessibilité, le
 // clavier et la recherche dans la page sans une ligne de script.
+// LA LIGNE DU MINI-QCM, en bas du module. Elle n'apparaît QUE si le module a
+// une banque : un module d'introduction n'en a pas, et n'a donc rien à afficher
+// — plutôt qu'une ligne « non requis » qui ferait croire à une étape sautée.
+//
+// Le libellé du bouton porte le VERBE en toutes lettres. Une icône seule
+// laisserait deviner ce qui va se passer au moment où il faut le savoir.
+function rendreLigneMini(m) {
+  const mini = m.mini;
+  if (!mini || !mini.aBanque) return '';
+  const cfg = mini.config || {};
+  const reglage = '<span class="ac-mini-s">' + cfg.nbQuestions + ' questions · réussite à ' + cfg.seuilPct + ' %</span>';
+
+  if (mini.reussi) {
+    return '<div class="ac-mini ac-mini-ok">' +
+      '<span class="ac-mini-ic" aria-hidden="true">✓</span>' +
+      '<span class="ac-mini-tx"><b>Mini-QCM du module — réussi' +
+        (mini.scorePct === null ? '' : ' (' + mini.scorePct + ' %)') + '</b>' + reglage + '</span>' +
+      '<button type="button" class="ec-btn ac-mini-b" data-mini="' + m.id + '">Refaire le mini-QCM</button>' +
+      '</div>';
+  }
+  if (!mini.contenusAcheves) {
+    const reste = m.total - m.termines;
+    return '<div class="ac-mini ac-mini-lock">' +
+      '<span class="ac-mini-ic" aria-hidden="true">🔒</span>' +
+      '<span class="ac-mini-tx"><b>Mini-QCM du module</b>' +
+        '<span class="ac-mini-s">Termine les ' + reste + ' contenu' + (reste > 1 ? 's' : '') +
+        ' restant' + (reste > 1 ? 's' : '') + ' pour l\'ouvrir</span></span>' +
+      '</div>';
+  }
+  const rate = !!mini.derniere;
+  return '<div class="ac-mini' + (rate ? ' ac-mini-ko' : '') + '">' +
+    '<span class="ac-mini-ic" aria-hidden="true">' + (rate ? '↻' : '?') + '</span>' +
+    '<span class="ac-mini-tx"><b>Mini-QCM du module' +
+      (rate ? ' — non réussi (' + mini.derniere.scorePct + ' %)' : '') + '</b>' + reglage + '</span>' +
+    '<button type="button" class="ec-btn ec-btn-p ac-mini-b" data-mini="' + m.id + '">' +
+      (rate ? 'Recommencer le mini-QCM' : 'Passer le mini-QCM') + '</button>' +
+    '</div>';
+}
+
 function rendreModule(m) {
+  // UN MODULE FERMÉ N'AFFICHE PAS SES CONTENUS : les montrer grisés donnerait
+  // envie de cliquer sur une porte close, et allongerait le sommaire de lignes
+  // inutilisables.
+  //
+  // ⚠️ C'EST UN CHOIX D'AFFICHAGE, PAS UNE PROTECTION. Le serveur envoie bien
+  // l'arbre complet, titres compris. Le vrai verrou est ailleurs, sur les trois
+  // routes de contenu (lire, ouvrir, terminer) : c'est lui qui empêche de
+  // traverser la formation, et lui seul qu'il faut croire.
+  if (m.mini && !m.mini.deverrouille) {
+    return '<details class="ac-mod ac-mod-lock">' +
+      '<summary class="ac-mod-h">' +
+        '<span class="ac-mod-ti">' +
+          '<span class="ac-mod-t">' + echapper(m.titre) + '</span>' +
+          '<span class="ac-mod-s">Réussis le mini-QCM du module précédent pour ouvrir ce module.</span>' +
+        '</span>' +
+        '<span class="ac-mod-c" aria-hidden="true">🔒</span>' +
+      '</summary>' +
+      '<p class="ac-mod-lockp">Ce module contient ' + m.total + ' contenu' + (m.total > 1 ? 's' : '') +
+        '. Il s\'ouvrira dès que le mini-QCM du module précédent sera réussi.</p>' +
+      '</details>';
+  }
+
   const ouvert = !m.acheve;
   const lignes = '<div class="ac-liste">' + m.contenus.map((c) => {
     const [cls, ic] = etatDe(c);
@@ -903,15 +967,21 @@ function rendreModule(m) {
       '</button>';
   }).join('') + '</div>';
 
-  return '<details class="ac-mod' + (m.acheve ? ' ac-mod-ok' : '') + '"' + (ouvert ? ' open' : '') + '>' +
+  // Un module n'est « fait » que contenus terminés ET mini réussi : la pastille
+  // doit dire la même chose que le verrou, sinon elle annonce une avance qui
+  // n'existe pas.
+  const fait = m.mini ? m.mini.franchi : m.acheve;
+
+  return '<details class="ac-mod' + (fait ? ' ac-mod-ok' : '') + '"' + (ouvert ? ' open' : '') + '>' +
     '<summary class="ac-mod-h">' +
       '<span class="ac-mod-ti">' +
         '<span class="ac-mod-t">' + echapper(m.titre) + '</span>' +
         (m.description ? '<span class="ac-mod-s">' + echapper(m.description) + '</span>' : '') +
       '</span>' +
-      '<span class="ac-mod-c">' + m.termines + '/' + m.total + (m.acheve ? ' ✓' : '') + '</span>' +
+      '<span class="ac-mod-c">' + m.termines + '/' + m.total + (fait ? ' ✓' : '') + '</span>' +
     '</summary>' +
     lignes +
+    rendreLigneMini(m) +
     '</details>';
 }
 
@@ -937,6 +1007,66 @@ function rendreModule(m) {
 
 const aPlat = () => (formation ? formation.modules.flatMap((m) => m.contenus) : []);
 
+// ==========================================================================
+//  CE QUI VIENT APRÈS UN CONTENU — ET POURQUOI CE N'EST PAS « LE SUIVANT ».
+//
+//  Le parcours a longtemps été une simple liste : le contenu d'après était
+//  celui de la ligne du dessous, tous modules confondus. Depuis les mini-QCM,
+//  cette liste ment à deux endroits : à la fin d'un module il y a une épreuve
+//  avant la suite, et le module d'après peut être VERROUILLÉ. Enchaîner à
+//  l'aveugle menait droit sur « Contenu introuvable » — le serveur refusait,
+//  et l'écran ne savait pas dire pourquoi.
+//
+//  On répond donc à la vraie question : « après ce contenu, où va-t-on ? »
+//   - un contenu de plus dans CE module      -> ce contenu ;
+//   - dernier du module, un mini à réussir   -> le mini-QCM du module ;
+//   - dernier du module, mini déjà réussi
+//     ou module sans mini                    -> le premier contenu du module
+//                                               suivant, S'IL EST OUVERT ;
+//   - plus rien devant                       -> les étapes d'évaluation.
+//
+//  Le verrou reste tenu par le serveur : cette fonction ne l'invente pas, elle
+//  évite seulement de proposer une porte qu'il refusera.
+// ==========================================================================
+function suiteDe(c) {
+  if (!formation || !c) return { type: 'etapes' };
+  const iMod = formation.modules.findIndex((m) => m.contenus.some((x) => x.id === c.id));
+  if (iMod < 0) return { type: 'etapes' };
+  const mod = formation.modules[iMod];
+  const i = mod.contenus.findIndex((x) => x.id === c.id);
+
+  if (i >= 0 && i < mod.contenus.length - 1) {
+    return { type: 'contenu', id: mod.contenus[i + 1].id };
+  }
+  const mini = mod.mini;
+  if (mini && mini.aBanque && !mini.reussi) {
+    return { type: 'mini', moduleId: mod.id, titre: mod.titre };
+  }
+  return suiteApresModule(iMod);
+}
+
+// Le premier contenu du module suivant, s'il en existe un ET qu'il est ouvert.
+// Un module encore verrouillé ne s'annonce pas : on renvoie aux étapes.
+function suiteApresModule(iMod) {
+  const suivant = formation ? formation.modules[iMod + 1] : null;
+  if (suivant && suivant.contenus.length && (!suivant.mini || suivant.mini.deverrouille)) {
+    return { type: 'contenu', id: suivant.contenus[0].id, titre: suivant.titre };
+  }
+  return { type: 'etapes' };
+}
+
+const suiteApresMini = (moduleId) =>
+  suiteApresModule(formation ? formation.modules.findIndex((m) => m.id === moduleId) : -1);
+
+// Aller là où `suiteDe` a dit d'aller. Un seul endroit qui sait enchaîner :
+// dupliquer ce dispatch, c'est se garantir qu'une des copies oubliera le mini.
+async function allerVers(suite) {
+  if (!suite) { versEtapes(); return; }
+  if (suite.type === 'contenu') { await ouvrir(suite.id); return; }
+  if (suite.type === 'mini') { await ouvrirEvaluation(suite.moduleId); return; }
+  versEtapes();
+}
+
 // Le sommaire latéral. Il montre TOUT le parcours, pas seulement le module
 // courant : c'est ce qui permet de mesurer ce qu'il reste.
 function rendreSommaireLateral(courant) {
@@ -944,6 +1074,17 @@ function rendreSommaireLateral(courant) {
   if (!f) return '';
 
   const modules = f.modules.map((m) => {
+    // MÊME RÈGLE QUE LE SOMMAIRE PRINCIPAL : un module verrouillé n'offre pas
+    // ses lignes. Les laisser cliquables ici rouvrirait exactement l'impasse
+    // qu'on vient de fermer sur le bouton « Suivant » — le serveur refuse, et
+    // l'écran ne sait dire que « Contenu introuvable ».
+    if (m.mini && !m.mini.deverrouille) {
+      return '<div class="ac-sl-mod ac-sl-lock">' +
+        '<p class="ac-sl-mt">' + echapper(m.titre) + '</p>' +
+        '<p class="ac-sl-lockp"><span aria-hidden="true">🔒</span> ' + m.total + ' contenu' +
+          (m.total > 1 ? 's' : '') + ' — à ouvrir avec le mini-QCM précédent</p>' +
+        '</div>';
+    }
     const lignes = m.contenus.map((c) => {
       const ici = c.id === courant.id;
       const cls = ici ? 'ac-sl-ici' : c.termine ? 'ac-sl-fait' : 'ac-sl-avenir';
@@ -956,9 +1097,19 @@ function rendreSommaireLateral(courant) {
         (c.dureeMin ? '<span class="ac-sl-d">' + c.dureeMin + ' min</span>' : '') +
         '</button>';
     }).join('');
+    // Le mini du module se rejoint aussi depuis le sommaire : c'est une étape
+    // du parcours, pas une annexe. Fermé tant que les contenus ne sont pas
+    // terminés — l'ouvrir plus tôt ferait cliquer sur un refus du serveur.
+    const ligneMini = (m.mini && m.mini.aBanque)
+      ? '<button type="button" class="ac-sl-r ac-sl-mini ' + (m.mini.reussi ? 'ac-sl-fait' : 'ac-sl-avenir') + '"' +
+          (m.mini.disponible || m.mini.reussi ? ' data-mini="' + m.id + '"' : ' disabled') + '>' +
+          '<span class="ac-sl-ic" aria-hidden="true">' + (m.mini.reussi ? '✓' : '?') + '</span>' +
+          '<span class="ac-sl-t">Mini-QCM du module</span>' +
+          '</button>'
+      : '';
     return '<div class="ac-sl-mod">' +
       '<p class="ac-sl-mt">' + echapper(m.titre) + '</p>' +
-      lignes +
+      lignes + ligneMini +
       '</div>';
   }).join('');
 
@@ -1015,18 +1166,23 @@ function rendreLecteur() {
       'referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>'
     : '<p class="ac-video-non">Cette vidéo n\'est pas encore disponible.</p>';
 
-  // LE BOUTON PRINCIPAL, ET SES TROIS FORMES.
-  //  - pas encore terminé, un suivant existe  -> « Terminer et continuer »
-  //  - pas encore terminé, c'est le dernier   -> « Terminer et passer au QCM »
-  //  - déjà terminé                           -> « Suivant », en secondaire
+  // LE BOUTON PRINCIPAL. Il annonce EXACTEMENT où il mène — y compris quand ce
+  // n'est pas une vidéo. « Suivant » à la fin d'un module laissait croire à une
+  // vidéo de plus et tombait sur une porte fermée ; « Passer le mini-QCM » dit
+  // ce qui arrive, et c'est le même geste.
+  const suite = suiteDe(c);
   let principal;
-  if (!etat.termine && suiv) {
-    principal = '<button type="button" class="ec-btn ec-btn-p ac-lec-cta" id="acFait" data-puis="suivant">' +
-      'Terminer et continuer →</button>';
-  } else if (!etat.termine) {
-    principal = '<button type="button" class="ec-btn ec-btn-p ac-lec-cta" id="acFait" data-puis="qcm">' +
-      'Terminer et passer au QCM →</button>';
-  } else if (suiv) {
+  if (!etat.termine) {
+    const libelle = suite.type === 'mini' ? 'Terminer et passer au mini-QCM →'
+      : suite.type === 'contenu' ? 'Terminer et continuer →'
+      : 'Terminer et passer au QCM →';
+    principal = '<button type="button" class="ec-btn ec-btn-p ac-lec-cta" id="acFait">' + libelle + '</button>';
+  } else if (suite.type === 'mini') {
+    // ⚠️ MÊME IDENTIFIANT `acSuiv` POUR LES DEUX FORMES, ET C'EST VOULU : c'est
+    // le bouton « avancer » du lecteur, et quatre suites E2E s'appuient dessus.
+    // Ce qui change, c'est sa DESTINATION — pas son rôle.
+    principal = '<button type="button" class="ec-btn ec-btn-p ac-lec-cta" id="acSuiv">Passer le mini-QCM →</button>';
+  } else if (suite.type === 'contenu') {
     principal = '<button type="button" class="ec-btn ac-lec-cta" id="acSuiv">Suivant →</button>';
   } else {
     principal = '<button type="button" class="ec-btn ac-lec-cta" id="acVersEtapes">Voir les étapes d\'évaluation →</button>';
@@ -1081,10 +1237,10 @@ function rendreLecteur() {
 
   $('#acBack').addEventListener('click', () => rendreSommaire());
   const f = $('#acFait');
-  if (f) f.addEventListener('click', () => terminer(c.id, f.dataset.puis));
+  if (f) f.addEventListener('click', () => terminer(c.id));
   if (prec) $('#acPrec').addEventListener('click', () => ouvrir(prec.id));
   const s = $('#acSuiv');
-  if (s && suiv) s.addEventListener('click', () => ouvrir(suiv.id));
+  if (s) s.addEventListener('click', () => allerVers(suite));
   const e = $('#acVersEtapes');
   if (e) e.addEventListener('click', () => versEtapes());
   // Le sommaire latéral est navigable : c'est un sommaire, pas une décoration.
@@ -1093,6 +1249,8 @@ function rendreLecteur() {
       const id = Number(el.dataset.contenu);
       if (id !== c.id) ouvrir(id);
     }));
+  document.querySelectorAll('#acLecteur [data-mini]').forEach((el) =>
+    el.addEventListener('click', () => ouvrirEvaluation(Number(el.dataset.mini))));
 
   rendreBarreLaterale('formations');
   afficher('#acLecteur');
@@ -1108,9 +1266,13 @@ function versEtapes() {
   if (cible && cible.scrollIntoView) cible.scrollIntoView({ block: 'start', behavior: 'auto' });
 }
 
-// Terminer, puis enchaîner. `puis` dit ce qui suit le geste :
-//   'suivant' -> on ouvre le contenu d'après ; 'qcm' -> on remonte aux étapes.
-async function terminer(id, puis) {
+// Terminer, puis enchaîner.
+//
+// ⚠️ LA SUITE SE RECALCULE APRÈS COUP, sur le parcours rendu par le serveur.
+// Terminer ce contenu vient peut-être d'ouvrir le mini-QCM du module, voire le
+// module suivant : une destination calculée AVANT le geste serait déjà périmée
+// au moment de l'emprunter.
+async function terminer(id) {
   const r = await apiAc('/api/academy/contenus/' + id + '/terminer', 'POST');
   if (r.status === 403) { await demarrer(); return; }
   if (r.status === 401) { deconnecter(); return; }
@@ -1119,15 +1281,7 @@ async function terminer(id, puis) {
   // Terminer le DERNIER contenu ouvre l'évaluation théorique : on relit son
   // état, sinon la carte du sommaire annoncerait encore un verrou levé.
   await chargerQcm();
-
-  if (puis === 'suivant') {
-    const tous = aPlat();
-    const i = tous.findIndex((x) => x.id === id);
-    const suiv = i >= 0 && i < tous.length - 1 ? tous[i + 1] : null;
-    if (suiv) { await ouvrir(suiv.id); return; }
-  }
-  if (puis === 'qcm') { versEtapes(); return; }
-  rendreLecteur();
+  await allerVers(suiteDe(contenuOuvert));
 }
 
 // --- Évaluation théorique ----------------------------------------------------
@@ -1157,9 +1311,16 @@ function rendreCarteQcm() {
   let corps = '';
   if (e === 'formation_en_cours') {
     const reste = qcm.formation.total - qcm.formation.termines;
-    corps =
-      '<p class="ac-qcm-p"><span aria-hidden="true">🔒</span> Évaluation verrouillée : termine d\'abord tous les contenus de la formation.</p>' +
-      '<p class="ac-qcm-s">Il te reste ' + reste + ' contenu' + (reste > 1 ? 's' : '') + ' à terminer sur ' + qcm.formation.total + '.</p>';
+    // DEUX RAISONS DE RESTER FERMÉE, et elles ne se disent pas pareil. Annoncer
+    // « il te reste 0 contenu » à quelqu'un qui a tout regardé mais qu'un
+    // mini-QCM retient serait à la fois faux et décourageant.
+    const manquants = (qcm.minis || []).filter((m) => m.aBanque && !m.reussi);
+    corps = reste > 0
+      ? '<p class="ac-qcm-p"><span aria-hidden="true">🔒</span> Évaluation verrouillée : termine d\'abord tous les contenus de la formation.</p>' +
+        '<p class="ac-qcm-s">Il te reste ' + reste + ' contenu' + (reste > 1 ? 's' : '') + ' à terminer sur ' + qcm.formation.total + '.</p>'
+      : '<p class="ac-qcm-p"><span aria-hidden="true">🔒</span> Évaluation verrouillée : réussis d\'abord le mini-QCM de chaque module.</p>' +
+        '<p class="ac-qcm-s">Il te reste ' + manquants.length + ' mini-QCM à réussir' +
+          (manquants.length ? ' : ' + manquants.map((m) => echapper(m.moduleTitre)).join(', ') : '') + '.</p>';
   } else if (e === 'evaluation_en_cours') {
     corps =
       '<p class="ac-qcm-p">Tu as une évaluation en cours : ' + qcm.enCours.repondues + ' réponse' +
@@ -1211,8 +1372,13 @@ const premiereSansReponse = () => {
 
 // Démarre OU reprend : c'est le serveur qui tranche. Cliquer deux fois ne crée
 // jamais une seconde tentative — il rend celle qui est déjà ouverte.
-async function ouvrirEvaluation() {
-  const r = await apiAc('/api/academy/qcm/tentatives', 'POST', { formation: fCourante });
+async function ouvrirEvaluation(moduleId) {
+  // ⚠️ CETTE FONCTION EST AUSSI POSÉE DIRECTEMENT COMME ÉCOUTEUR DE CLIC : elle
+  // reçoit alors un Event en premier argument. Sans ce filtre, un objet Event
+  // partirait au serveur comme identifiant de module.
+  const mid = Number.isInteger(moduleId) ? moduleId : null;
+  const r = await apiAc('/api/academy/qcm/tentatives', 'POST',
+    mid === null ? { formation: fCourante } : { formation: fCourante, moduleId: mid });
   if (r.status === 401) { deconnecter(); return; }
   if (r.status === 403) { await demarrer(); return; }
   if (!r.data.ok) {
@@ -1229,11 +1395,21 @@ function rendreQcm() {
   const qs = tentative.questions;
   const q = qs[iQuestion];
   const sans = qs.filter((x) => !x.reponse.length).length;
+  const estMini = tentative.portee === 'module';
+  const modMini = estMini && formation
+    ? formation.modules.find((m) => m.id === tentative.moduleId) || null
+    : null;
 
   $('#acQcm').innerHTML =
     '<button type="button" class="ec-back" id="acQBack">← Ma formation</button>' +
+    // L'ÉPREUVE SE NOMME. Les deux passent par cet écran, mais elles n'ont ni le
+    // même enjeu ni les mêmes conséquences : afficher « Évaluation théorique »
+    // pendant un mini de fin de module ferait croire à l'épreuve de
+    // certification, et à un ratage bien plus lourd qu'il n'est.
     '<div class="ac-lec-h">' +
-      '<p class="ac-lec-mod">Évaluation théorique</p>' +
+      '<p class="ac-lec-mod">' + (estMini
+        ? 'Mini-QCM' + (modMini ? ' — ' + echapper(modMini.titre) : '')
+        : 'Évaluation théorique') + '</p>' +
       '<h1 class="ac-lec-t">' + echapper(nomFormation(fCourante)) + '</h1>' +
     '</div>' +
 
@@ -1267,8 +1443,10 @@ function rendreQcm() {
     '<div class="ac-qcm-fin">' +
       (sans ? '<p class="ac-q-reste" id="acQReste">Il reste ' + sans + ' question' + (sans > 1 ? 's' : '') +
         ' sans réponse. Une question sans réponse est comptée fausse.</p>' : '') +
-      '<button type="button" class="ec-btn ec-btn-p ac-fait-b" id="acQFin">Terminer mon évaluation</button>' +
-      '<p class="ac-q-aide">Tu peux revenir sur tes réponses tant que tu n\'as pas rendu ton évaluation.</p>' +
+      '<button type="button" class="ec-btn ec-btn-p ac-fait-b" id="acQFin">' +
+        (estMini ? 'Terminer le mini-QCM' : 'Terminer mon évaluation') + '</button>' +
+      '<p class="ac-q-aide">Tu peux revenir sur tes réponses tant que tu n\'as pas rendu ' +
+        (estMini ? 'ton mini-QCM' : 'ton évaluation') + '.</p>' +
     '</div>';
 
   $('#acQBack').addEventListener('click', quitterEvaluation);
@@ -1296,9 +1474,10 @@ async function enregistrerReponse(tqId) {
   rendreQcm();
 }
 
+// On relit TOUT le parcours, pas seulement l'état du QCM : un mini réussi vient
+// peut-être d'ouvrir le module suivant, et le sommaire doit le montrer.
 async function quitterEvaluation() {
-  await chargerQcm();
-  rendreSommaire();
+  await chargerFormation();
 }
 
 async function terminerEvaluation() {
@@ -1309,7 +1488,10 @@ async function terminerEvaluation() {
   if (r.status === 403) { await demarrer(); return; }
   if (!r.data.ok) { if (b) b.disabled = false; return; }
   tentative = r.data.tentative;
-  qcm = r.data.etat || qcm;
+  // Un mini rend le parcours (le verrou du module suivant a pu sauter) ; une
+  // finale rend l'état de l'évaluation théorique.
+  if (r.data.parcours) { formation = r.data.parcours; await chargerQcm(); }
+  else { qcm = r.data.etat || qcm; }
   rendreResultat();
 }
 
@@ -1317,6 +1499,7 @@ async function terminerEvaluation() {
 // pourcentage — et n'affiche jamais le détail question par question : savoir
 // lesquelles sont tombées à côté reviendrait à distribuer la moitié du corrigé.
 function rendreResultat() {
+  if (tentative.portee === 'module') { rendreResultatMini(); return; }
   const res = tentative.resultat;
   const valide = res.reussie;
 
@@ -1352,6 +1535,92 @@ function rendreResultat() {
   $('#acQBack').addEventListener('click', quitterEvaluation);
   const rf = $('#acQRefaire');
   if (rf) rf.addEventListener('click', async () => { await chargerQcm(); await ouvrirEvaluation(); });
+
+  afficher('#acQcm');
+  window.scrollTo(0, 0);
+}
+
+// LE RÉSULTAT D'UN MINI-QCM — et c'est le seul écran de l'application qui
+// affiche une bonne réponse.
+//
+//  DEUX CHOSES QU'IL DIT, ET QU'IL DOIT DIRE ENSEMBLE :
+//   - ce qui était juste et ce qui ne l'était pas, question par question. Un
+//     exercice qui ne corrige pas n'apprend rien ;
+//   - que ce résultat NE VALIDE PAS LA THÉORIE. Un écran qui annonce « réussi »
+//     sans le préciser laisse croire à une étape de certification franchie.
+//
+//  La bonne réponse ne s'affiche que sur les questions manquées, parce que le
+//  serveur ne l'envoie que là. L'écran ne choisit pas ce qu'il révèle : il ne
+//  peut afficher que ce qu'il a reçu.
+function rendreResultatMini() {
+  const res = tentative.resultat;
+  const valide = res.reussie;
+  const corrige = tentative.corrige || [];
+  const mod = (formation && formation.modules.find((m) => m.id === tentative.moduleId)) || null;
+  // `formation` a été rafraîchi par terminerEvaluation : le module suivant est
+  // déjà déverrouillé au moment où l'on calcule la destination.
+  const apres = suiteApresMini(tentative.moduleId);
+
+  const lignesCorrige = corrige.map((q) => {
+    const bonnes = q.bonnes || [];
+    return '<div class="ac-cor' + (q.correcte ? ' ac-cor-ok' : ' ac-cor-ko') + '">' +
+      '<p class="ac-cor-h"><span class="ac-cor-p" aria-hidden="true">' + (q.correcte ? '✓' : '✗') + '</span>' +
+        'Question ' + q.position + ' — ' + (q.correcte ? 'bonne réponse' : 'mauvaise réponse') + '</p>' +
+      '<p class="ac-cor-e">' + echapper(q.enonce) + '</p>' +
+      '<ul class="ac-cor-l">' + q.choix.map((ch) => {
+        const choisi = q.reponse.indexOf(ch.id) >= 0;
+        const juste = bonnes.indexOf(ch.id) >= 0;
+        return '<li class="ac-cor-c' + (juste ? ' ac-cor-bonne' : (choisi ? ' ac-cor-mauvaise' : '')) + '">' +
+          echapper(ch.texte) +
+          (choisi ? '<i class="ac-cor-tag">ta réponse</i>' : '') +
+          (juste ? '<b class="ac-cor-tag">bonne réponse</b>' : '') +
+          '</li>';
+      }).join('') + '</ul>' +
+      '</div>';
+  }).join('');
+
+  $('#acQcm').innerHTML =
+    '<button type="button" class="ec-back" id="acQBack">← Ma formation</button>' +
+    '<div class="ac-lec-h">' +
+      '<p class="ac-lec-mod">Mini-QCM' + (mod ? ' — ' + echapper(mod.titre) : '') + '</p>' +
+    '</div>' +
+    '<div class="ac-res ' + (valide ? 'ac-res-ok' : 'ac-res-ko') + '">' +
+      '<p class="ac-res-score">Score : ' + res.scorePct + ' %</p>' +
+      '<h1 class="ac-res-verdict">' + (valide ? 'Mini-QCM réussi' : 'Mini-QCM non réussi') + '</h1>' +
+      '<p class="ac-res-detail">' + res.bonnes + ' bonne' + (res.bonnes > 1 ? 's' : '') + ' réponse' +
+        (res.bonnes > 1 ? 's' : '') + ' sur ' + res.total + ' · seuil de réussite : ' + res.seuilPct + ' %.</p>' +
+    '</div>' +
+
+    '<div class="ac-res-suite">' +
+      (valide
+        ? '<p class="ac-res-t"><span aria-hidden="true">✓</span> Module validé — la suite du parcours est ouverte</p>'
+        : '<p class="ac-res-note">Tu peux recommencer autant de fois que nécessaire.</p>') +
+      // LE POINT À NE PAS ESCAMOTER : un mini n'est pas une étape de certification.
+      '<p class="ac-res-note">Ce mini-QCM ne compte pas dans ta certification : seule l\'évaluation ' +
+        'théorique finale valide la théorie.</p>' +
+      // Réussi : on enchaîne. Le libellé NOMME la destination — le module qui
+      // vient de s'ouvrir, ou les étapes d'évaluation s'il n'y en a plus.
+      (valide
+        ? '<button type="button" class="ec-btn ec-btn-p ac-fait-b" id="acQSuite">' +
+            (apres.type === 'contenu'
+              ? 'Continuer vers ' + echapper(apres.titre || 'le module suivant') + ' →'
+              : 'Voir les étapes d\'évaluation →') +
+          '</button>'
+        : '') +
+    '</div>' +
+
+    '<div class="ac-corrige"><h2 class="ac-cor-t">Correction</h2>' + lignesCorrige + '</div>' +
+
+    (valide ? '' :
+      '<div class="ac-res-suite">' +
+        '<button type="button" class="ec-btn ec-btn-p ac-fait-b" id="acQRefaire">Recommencer le mini-QCM</button>' +
+      '</div>');
+
+  $('#acQBack').addEventListener('click', quitterEvaluation);
+  const rf = $('#acQRefaire');
+  if (rf) rf.addEventListener('click', () => ouvrirEvaluation(tentative.moduleId));
+  const su = $('#acQSuite');
+  if (su) su.addEventListener('click', () => allerVers(apres));
 
   afficher('#acQcm');
   window.scrollTo(0, 0);

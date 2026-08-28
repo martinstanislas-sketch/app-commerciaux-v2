@@ -35,6 +35,7 @@
 
 const { err, ok } = require('./boost');
 const { ajouterColonne, COACH_NUTRITION } = require('./academyFormations');
+const BANQUE_CN = require('./academyBanqueCoachNutrition');
 
 // Valeurs d'AMORÇAGE, et rien d'autre. La logique lit toujours la table
 // academy_config : ces deux nombres servent à la remplir la première fois, puis
@@ -46,6 +47,26 @@ const DEFAUTS = { nbQuestions: 5, seuilPct: 80 };
 
 const T_EN_COURS = 'en_cours';
 const T_SOUMISE = 'soumise';
+
+// ---------------------------------------------------------------------------
+//  DEUX BANQUES, DEUX ÉPREUVES.
+//
+//  `usage` range une question dans l'une des deux banques ; `portee` dit pour
+//  laquelle des deux épreuves une tentative a été ouverte. Les deux mots
+//  décrivent la même séparation vue de deux côtés, et le moteur les tient
+//  APPARIÉS : une tentative de portée « module » ne tire que des questions
+//  d'usage « mini », et réciproquement. Jamais de mélange, jamais de défaut
+//  implicite qui rattraperait un oubli d'appel.
+//
+//  Le défaut est « finale » des deux côtés : c'est ce qu'était l'existant avant
+//  l'arrivée du mini-QCM, et c'est donc ce que doivent devenir les lignes déjà
+//  en base sans qu'on en réécrive une seule.
+// ---------------------------------------------------------------------------
+const USAGE_MINI = 'mini';
+const USAGE_FINALE = 'finale';
+const PORTEE_MODULE = 'module';
+const PORTEE_FINALE = 'finale';
+const usageDePortee = (p) => (p === PORTEE_MODULE ? USAGE_MINI : USAGE_FINALE);
 
 // Les six états que l'écran doit pouvoir présenter (cf. cahier des charges).
 // Ils sont CALCULÉS à chaque lecture, jamais stockés : un état stocké finit par
@@ -76,6 +97,11 @@ CREATE TABLE IF NOT EXISTS academy_questions (
   -- dans les questions d'une autre.
   formation   TEXT NOT NULL DEFAULT 'coach_nutrition',
   module_id   INTEGER REFERENCES academy_modules(id) ON DELETE SET NULL,
+  -- LA colonne qui sépare les deux banques : « mini » pour les mini-QCM de fin
+  -- de module, « finale » pour le QCM de certification théorique. Le tirage
+  -- filtre dessus systématiquement — c'est ce qui rend le mélange impossible,
+  -- plutôt qu'improbable.
+  usage       TEXT NOT NULL DEFAULT 'finale',
   enonce      TEXT NOT NULL,
   actif       INTEGER NOT NULL DEFAULT 1,
   ordre       INTEGER NOT NULL DEFAULT 0,
@@ -111,6 +137,15 @@ CREATE TABLE IF NOT EXISTS academy_tentatives (
   -- « Une tentative en cours », « la théorie est-elle validée » : deux
   -- questions qui n'ont de sens que RAPPORTÉES À UNE FORMATION.
   formation    TEXT NOT NULL DEFAULT 'coach_nutrition',
+  -- Pour QUELLE épreuve cette tentative a été ouverte. « finale » = le QCM de
+  -- certification théorique ; « module » = le mini-QCM de fin de module, et
+  -- module_id dit alors lequel.
+  --
+  -- ⚠️ TOUTES les lectures qui répondent « la théorie est-elle validée ? »
+  -- filtrent sur portee = 'finale'. Sans ce filtre, réussir un mini-QCM
+  -- validerait la théorie — silencieusement, et sans que rien ne le signale.
+  portee       TEXT NOT NULL DEFAULT 'finale',
+  module_id    INTEGER,
   statut       TEXT NOT NULL DEFAULT 'en_cours',   -- en_cours | soumise
   nb_questions INTEGER NOT NULL,
   seuil_pct    INTEGER NOT NULL,
@@ -228,8 +263,25 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
     // formation historique. Aucune ligne réécrite, aucune donnée perdue.
     ajouterColonne(d, 'academy_questions', 'formation', `TEXT NOT NULL DEFAULT '${COACH_NUTRITION}'`);
     ajouterColonne(d, 'academy_tentatives', 'formation', `TEXT NOT NULL DEFAULT '${COACH_NUTRITION}'`);
+    // Base existante : les questions déjà en place sont celles du QCM final, et
+    // les tentatives déjà passées sont des tentatives finales. Le défaut des
+    // colonnes dit donc la vérité — aucune ligne à réécrire.
+    ajouterColonne(d, 'academy_questions', 'usage', `TEXT NOT NULL DEFAULT '${USAGE_FINALE}'`);
+    ajouterColonne(d, 'academy_tentatives', 'portee', `TEXT NOT NULL DEFAULT '${PORTEE_FINALE}'`);
+    ajouterColonne(d, 'academy_tentatives', 'module_id', 'INTEGER');
+    // ⚠️ LES INDEX QUI CITENT CES COLONNES VIENNENT APRÈS L'ALTER, ET PAS DANS
+    // LE SCHÉMA. Sur une base NEUVE, le CREATE TABLE pose déjà les colonnes et
+    // un index déclaré plus haut passerait ; sur une base EXISTANTE, le
+    // CREATE TABLE IF NOT EXISTS ne fait rien, l'index s'exécuterait avant
+    // l'ALTER et échouerait sur « no such column ». Le piège ne se voit qu'en
+    // migration réelle — jamais dans une suite de tests partie d'une base vide.
+    d.exec(`CREATE INDEX IF NOT EXISTS idx_academy_questions_u
+              ON academy_questions(formation, usage, actif);
+            CREATE INDEX IF NOT EXISTS idx_academy_tentatives_p
+              ON academy_tentatives(email, formation, portee, module_id);`);
     basesMigrees.add(d);
     amorcer();
+    importerBanqueCoachNutrition();
     return true;
   }
 
@@ -264,6 +316,94 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
     return ajouts;
   }
 
+  // -- La banque réelle de Coach Nutrition -----------------------------------
+  //
+  //  IMPORT UNIQUE, repéré par un marqueur dans academy_config. Une fois posé,
+  //  plus rien n'est rejoué : ni les 60 questions, ni les réglages. C'est ce qui
+  //  permet de redémarrer le serveur sans réécraser une question retouchée
+  //  depuis l'écran d'administration — l'inverse serait un piège, puisque
+  //  l'administration est justement faite pour corriger une coquille.
+  //
+  //  ⚠️ TOUT OU RIEN. Si un seul module attendu manque à l'appel, on n'écrit
+  //  RIEN et on le dit. Écrire les sept modules trouvés et taire le huitième
+  //  laisserait une formation à moitié posée, qu'aucun contrôle ne rattraperait
+  //  ensuite puisque le marqueur serait, lui, bien en place.
+
+  // Les titres en base emploient l'apostrophe ASCII, le document source
+  // l'apostrophe typographique. On compare donc des titres NORMALISÉS : sinon
+  // le garde-fou refuserait un module parfaitement correct.
+  const memeTitre = (a, b) => String(a || '').replace(/[’‘]/g, "'").trim().toLowerCase().replace(/\s+/g, ' ')
+    === String(b || '').replace(/[’‘]/g, "'").trim().toLowerCase().replace(/\s+/g, ' ');
+
+  function importerBanqueCoachNutrition() {
+    const d = db();
+    if (d.prepare('SELECT cle FROM academy_config WHERE cle = ?').get(BANQUE_CN.MARQUEUR)) return 0;
+    // La formation doit exister : sur une base neuve, l'amorçage du catalogue
+    // l'a posée avant nous (assurerSchema du lot 5 tourne en premier).
+    const f = formations.lire(COACH_NUTRITION);
+    if (!f) return 0;
+
+    // Résolution des modules AVANT toute écriture.
+    const lireModule = d.prepare(`SELECT id, titre FROM academy_modules
+                                  WHERE formation = ? AND ordre = ? AND actif = 1
+                                  ORDER BY id ASC LIMIT 1`);
+    const cibles = [];
+    for (const bloc of BANQUE_CN.MINI) {
+      const m = lireModule.get(COACH_NUTRITION, bloc.ordre);
+      if (!m || !memeTitre(m.titre, bloc.titre)) return 0;
+      cibles.push({ bloc, moduleId: m.id });
+    }
+
+    const maintenant = nowIso();
+    const existe = d.prepare('SELECT id FROM academy_questions WHERE cle = ?');
+    const insQ = d.prepare(`INSERT INTO academy_questions
+        (formation, module_id, usage, enonce, actif, ordre, cle, cree_le, maj_le)
+        VALUES (?,?,?,?,1,?,?,?,?)`);
+    const insC = d.prepare(`INSERT INTO academy_choix
+        (question_id, texte, correct, actif, ordre, cle, cree_le, maj_le)
+        VALUES (?,?,?,1,?,?,?,?)`);
+
+    let ajouts = 0;
+    const poser = (cle, moduleId, usage, ordre, q) => {
+      if (existe.get(cle)) return;
+      const info = insQ.run(COACH_NUTRITION, moduleId, usage, q.enonce, ordre, cle, maintenant, maintenant);
+      const qid = Number(info.lastInsertRowid);
+      q.choix.forEach(([texte, correct], i) => {
+        insC.run(qid, texte, correct ? 1 : 0, i + 1, `${cle}-c${i + 1}`, maintenant, maintenant);
+      });
+      ajouts++;
+    };
+
+    d.transaction(() => {
+      for (const { bloc, moduleId } of cibles) {
+        bloc.questions.forEach((q, i) => poser(`${bloc.prefixe}-q${i + 1}`, moduleId, USAGE_MINI, i + 1, q));
+      }
+      // Les questions finales ne portent aucun module : elles sont transversales.
+      BANQUE_CN.FINALE.forEach((q, i) => {
+        poser(`cn-fin-q${String(i + 1).padStart(2, '0')}`, null, USAGE_FINALE, i + 1, q);
+      });
+      // LES QUESTIONS DE DÉMONSTRATION SORTENT DU TIRAGE. Elles appartiennent
+      // à la banque finale que celle-ci remplace : les laisser actives ferait
+      // tirer le QCM final dans un mélange de vraies questions et de questions
+      // d'appareillage — un QCM de certification à moitié factice, sans que
+      // rien ne le signale. On archive, on ne supprime pas : l'historique des
+      // tentatives passées y fait référence.
+      d.prepare(`UPDATE academy_questions SET actif = 0, maj_le = ?
+                 WHERE formation = ? AND cle LIKE 'demo-q%' AND actif = 1`)
+        .run(maintenant, COACH_NUTRITION);
+
+      // Les réglages que cette banque suppose, posés une seule fois. Ensuite
+      // ils se modifient depuis l'administration comme n'importe quel réglage.
+      const r = BANQUE_CN.REGLAGES;
+      d.prepare(`UPDATE academy_formations SET qcm_nb_questions = ?, qcm_seuil_pct = ?,
+                   mini_nb_questions = ?, mini_seuil_pct = ?, maj_le = ? WHERE cle = ?`)
+        .run(r.qcmNbQuestions, r.qcmSeuilPct, r.miniNbQuestions, r.miniSeuilPct, maintenant, COACH_NUTRITION);
+      d.prepare('INSERT INTO academy_config (cle, valeur, maj_le) VALUES (?,?,?) ON CONFLICT(cle) DO NOTHING')
+        .run(BANQUE_CN.MARQUEUR, String(ajouts), maintenant);
+    })();
+    return ajouts;
+  }
+
   // -- Configuration ---------------------------------------------------------
 
   // LA CONFIGURATION VIENT DE LA FORMATION, et d'elle seule. academy_config
@@ -276,6 +416,19 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
       ? { nbQuestions: f.qcmNbQuestions, seuilPct: f.qcmSeuilPct }
       : { nbQuestions: DEFAUTS.nbQuestions, seuilPct: DEFAUTS.seuilPct };
   }
+
+  // Le mini-QCM a SES réglages. Les confondre avec ceux du QCM final ferait
+  // passer l'épreuve de fin de module à 90 % le jour où on durcit la
+  // certification — ce que personne n'aurait demandé.
+  function lireConfigMini(formation) {
+    const f = formations.lire(cleFormation(formation));
+    return f
+      ? { nbQuestions: f.miniNbQuestions, seuilPct: f.miniSeuilPct }
+      : { nbQuestions: DEFAUTS.nbQuestions, seuilPct: DEFAUTS.seuilPct };
+  }
+
+  const configDe = (formation, portee) =>
+    (portee === PORTEE_MODULE ? lireConfigMini(formation) : lireConfig(formation));
 
   function definirConfig(donnees, auteur, formation) {
     const cle = cleFormation(formation);
@@ -303,12 +456,23 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
   // On écarte aussi les questions INCORRIGEABLES — sans bonne réponse, sans
   // mauvaise, ou avec un seul choix. Mieux vaut une banque plus courte qu'une
   // question que tout le monde réussit sans la lire.
-  function questionsEligibles(formation) {
+  //  DEUX FILTRES DE PLUS, ET ILS NE SONT PAS FACULTATIFS. `usage` sépare les
+  //  deux banques ; `moduleId` restreint le mini-QCM à SON module. Le défaut est
+  //  la banque finale : un appel qui oublierait de préciser ne piochera jamais,
+  //  par accident, dans les questions pédagogiques.
+  function questionsEligibles(formation, { usage = USAGE_FINALE, moduleId = null } = {}) {
+    const params = [cleFormation(formation), usage];
+    let filtreModule = '';
+    if (moduleId !== null && moduleId !== undefined) {
+      filtreModule = ' AND q.module_id = ?';
+      params.push(Number(moduleId));
+    }
     const qs = db().prepare(`SELECT q.id AS id, q.enonce AS enonce, q.module_id AS moduleId, m.titre AS moduleTitre
                              FROM academy_questions q
                              LEFT JOIN academy_modules m ON m.id = q.module_id
-                             WHERE q.formation = ? AND q.actif = 1 AND (q.module_id IS NULL OR m.actif = 1)
-                             ORDER BY q.ordre ASC, q.id ASC`).all(cleFormation(formation));
+                             WHERE q.formation = ? AND q.usage = ? AND q.actif = 1
+                               AND (q.module_id IS NULL OR m.actif = 1)${filtreModule}
+                             ORDER BY q.ordre ASC, q.id ASC`).all(...params);
     const lireChoix = db().prepare('SELECT id, texte, correct FROM academy_choix WHERE question_id = ? AND actif = 1 ORDER BY ordre ASC, id ASC');
     return qs
       .map((q) => ({ ...q, choix: lireChoix.all(q.id) }))
@@ -328,15 +492,127 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
     return { acheve: !!f.acheve, total: f.total, termines: f.termines, pourcentage: f.pourcentage };
   }
 
+  // ==========================================================================
+  //  LE PARCOURS SÉQUENTIEL
+  //
+  //  Le verrou vit ICI et pas dans lib/academy.js, pour une raison de sens de
+  //  dépendance : le QCM connaît déjà la progression (il en dépend), la
+  //  progression ne connaît pas le QCM. Le faire descendre d'un cran créerait
+  //  un cycle entre les deux moteurs.
+  //
+  //  UN MODULE EST « FRANCHI » quand ses contenus sont terminés ET que son
+  //  mini-QCM est réussi. Un module SANS banque mini est franchi dès ses
+  //  contenus terminés — c'est le cas voulu du module d'introduction, et c'est
+  //  une règle générale plutôt qu'une exception nommée : le jour où un autre
+  //  module se passe de mini, rien n'est à retoucher.
+  //
+  //  UN MODULE EST OUVERT quand tous ceux qui le précèdent sont franchis.
+  // ==========================================================================
+
+  // Un module sans aucun contenu ne peut pas être « achevé » au sens de la
+  // progression — et bloquerait alors tout le parcours derrière lui. Il compte
+  // donc comme fait : il n'y a rien à y faire.
+  const contenusFaits = (m) => m.total === 0 || !!m.acheve;
+
+  function etatMinis(email, formation, parcours) {
+    const mail = normalise(email);
+    const cle = cleFormation(formation);
+    const p = parcours || academy.formationPour(mail, cle);
+    const cfg = lireConfigMini(cle);
+
+    let precedentsFranchis = true;
+    return p.modules.map((m) => {
+      const aBanque = questionsEligibles(cle, { usage: USAGE_MINI, moduleId: m.id }).length > 0;
+      const reussie = tentativeReussie(mail, cle, PORTEE_MODULE, m.id);
+      const enCours = tentativeEnCours(mail, cle, PORTEE_MODULE, m.id);
+      const derniere = derniereSoumise(mail, cle, PORTEE_MODULE, m.id);
+      const faits = contenusFaits(m);
+
+      const deverrouille = precedentsFranchis;
+      const disponible = deverrouille && faits && aBanque;
+      const franchi = deverrouille && faits && (!aBanque || !!reussie);
+      // Le verrou du module SUIVANT se referme dès qu'un module n'est pas franchi.
+      precedentsFranchis = precedentsFranchis && franchi;
+
+      return {
+        moduleId: m.id,
+        moduleTitre: m.titre,
+        ordre: m.ordre,
+        aBanque,
+        contenusAcheves: faits,
+        deverrouille,
+        disponible,
+        franchi,
+        reussi: !!reussie,
+        scorePct: reussie ? reussie.score_pct : (derniere ? derniere.score_pct : null),
+        config: cfg,
+        enCours: enCours ? resumeTentative(enCours) : null,
+        derniere: derniere ? resumeTentative(derniere) : null,
+      };
+    });
+  }
+
+  // La formation telle que l'écran du collaborateur doit la voir : l'arbre de
+  // lib/academy.js, plus l'état du mini et le verrou de chaque module. Les
+  // routes servent CECI et non `academy.formationPour` : sinon l'écran
+  // afficherait un parcours ouvert que le serveur refuserait ensuite.
+  function parcoursPour(email, formation) {
+    const mail = normalise(email);
+    const cle = cleFormation(formation);
+    const p = academy.formationPour(mail, cle);
+    const minis = etatMinis(mail, cle, p);
+    const parMod = new Map(minis.map((x) => [x.moduleId, x]));
+    return {
+      ...p,
+      modules: p.modules.map((m) => ({ ...m, mini: parMod.get(m.id) || null })),
+      minis,
+      minisFranchis: minis.every((x) => !x.aBanque || x.reussi),
+    };
+  }
+
+  // LE GARDE-FOU SERVEUR du verrou. Un verrou seulement dessiné à l'écran n'est
+  // pas un verrou : il suffirait d'appeler la route directement pour ouvrir un
+  // contenu d'un module encore fermé.
+  function contenuAccessible(email, contenuId) {
+    const c = academy.lireContenu(contenuId);
+    if (!c) return err(404, 'Contenu introuvable.');
+    const etat = etatMinis(email, c.formation).find((m) => m.moduleId === c.moduleId);
+    if (etat && !etat.deverrouille) {
+      return err(409, 'Ce module n\'est pas encore ouvert : réussis d\'abord le mini-QCM du module précédent.',
+        { moduleVerrouille: true });
+    }
+    return ok({ contenu: c });
+  }
+
   // -- Tentatives ------------------------------------------------------------
 
   const ligneTentative = (id, email) =>
     db().prepare('SELECT * FROM academy_tentatives WHERE id = ? AND email = ?').get(Number(id), normalise(email));
 
-  const tentativeEnCours = (email, formation) =>
-    db().prepare(`SELECT * FROM academy_tentatives WHERE email = ? AND formation = ? AND statut = ?
-                  ORDER BY id DESC LIMIT 1`)
-      .get(normalise(email), cleFormation(formation), T_EN_COURS);
+  // ==========================================================================
+  //  LES QUATRE LECTURES CLOISONNÉES.
+  //
+  //  tentativeEnCours, tentativeReussie, derniereSoumise et historiqueDe
+  //  répondent toutes, d'une façon ou d'une autre, à « où en est cette personne
+  //  sur cette épreuve ». Elles portent donc TOUTES la portée, sans valeur par
+  //  défaut permissive : le défaut est « finale », et une tentative de module ne
+  //  peut jamais y répondre par accident.
+  //
+  //  C'est ici, et uniquement ici, que se joue la garantie promise : réussir un
+  //  mini-QCM ne valide pas la théorie.
+  // ==========================================================================
+  function filtrePortee(portee, moduleId) {
+    if (portee !== PORTEE_MODULE) return { sql: ' AND portee = ?', params: [PORTEE_FINALE] };
+    if (moduleId === null || moduleId === undefined) return { sql: ' AND portee = ?', params: [PORTEE_MODULE] };
+    return { sql: ' AND portee = ? AND module_id = ?', params: [PORTEE_MODULE, Number(moduleId)] };
+  }
+
+  const tentativeEnCours = (email, formation, portee = PORTEE_FINALE, moduleId = null) => {
+    const f = filtrePortee(portee, moduleId);
+    return db().prepare(`SELECT * FROM academy_tentatives WHERE email = ? AND formation = ? AND statut = ?${f.sql}
+                         ORDER BY id DESC LIMIT 1`)
+      .get(normalise(email), cleFormation(formation), T_EN_COURS, ...f.params);
+  };
 
   // La vue destinée au collaborateur. Elle ne lit JAMAIS correct_json : les
   // colonnes sont énumérées, et cette énumération est le contrat de sécurité du
@@ -355,9 +631,11 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
       choix: lireChoix.all(q.id),
       reponse: q.reponseJson ? JSON.parse(q.reponseJson) : [],
     }));
-    return {
+    const vue = {
       id: t.id,
       statut: t.statut,
+      portee: t.portee || PORTEE_FINALE,
+      moduleId: t.module_id || null,
       nbQuestions: t.nb_questions,
       seuilPct: t.seuil_pct,
       ouverteLe: t.ouverte_le,
@@ -366,6 +644,52 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
       questions: vues,
       resultat: t.statut === T_SOUMISE ? resultatDe(t) : null,
     };
+    // La clé `corrige` n'est même pas POSÉE quand il n'y en a pas. Un
+    // `corrige: null` traînant dans une réponse du QCM final apprendrait à un
+    // lecteur attentif qu'un corrigé circule quelque part, et ferait mentir la
+    // règle affichée en tête de fichier.
+    const corrige = corrigeDe(t);
+    return corrige ? { ...vue, corrige } : vue;
+  }
+
+  // ==========================================================================
+  //  LE CORRIGÉ — LA SEULE ENTORSE, ET ELLE EST VERROUILLÉE PAR LA PORTÉE.
+  //
+  //  La règle fondatrice de ce fichier est que les bonnes réponses ne quittent
+  //  jamais le serveur. Le mini-QCM la lève, parce qu'un exercice qui ne dit pas
+  //  ce qui était juste n'apprend rien. Mais elle n'est levée QUE là, et le
+  //  verrou est la portée elle-même — pas un paramètre d'appel qu'un appelant
+  //  distrait pourrait passer à vrai sur une tentative finale.
+  //
+  //  Deux conditions, toutes deux nécessaires : portée « module », et tentative
+  //  RENDUE. Tant qu'elle est en cours, le corrigé n'existe pas.
+  //
+  //  Comme les deux banques sont disjointes, révéler le corrigé d'un mini ne
+  //  divulgue aucune question du QCM final.
+  //
+  //  La bonne réponse n'est renvoyée que sur les questions MANQUÉES : sur une
+  //  question réussie, le collaborateur l'a déjà sous les yeux.
+  // ==========================================================================
+  function corrigeDe(t) {
+    if (!t || t.portee !== PORTEE_MODULE || t.statut !== T_SOUMISE) return null;
+    const qs = db().prepare(`SELECT id, position, enonce, multiple, correcte,
+                                    correct_json AS correctJson, reponse_json AS reponseJson
+                             FROM academy_tentative_questions WHERE tentative_id = ?
+                             ORDER BY position ASC, id ASC`).all(t.id);
+    const lireChoix = db().prepare('SELECT id, texte FROM academy_tentative_choix WHERE tq_id = ? ORDER BY position ASC, id ASC');
+    return qs.map((q) => {
+      const juste = !!q.correcte;
+      return {
+        id: q.id,
+        position: q.position,
+        enonce: q.enonce,
+        multiple: !!q.multiple,
+        correcte: juste,
+        reponse: trierNum(JSON.parse(q.reponseJson || '[]')),
+        bonnes: juste ? null : trierNum(JSON.parse(q.correctJson || '[]')),
+        choix: lireChoix.all(q.id),
+      };
+    });
   }
 
   // Le résultat tel qu'on l'annonce : un score, un compte, et les modules à
@@ -401,18 +725,27 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
                              WHERE tentative_id = ? AND reponse_json IS NOT NULL AND reponse_json <> '[]'`).get(t.id).n,
   });
 
-  function historiqueDe(email, formation) {
-    return db().prepare('SELECT * FROM academy_tentatives WHERE email = ? AND formation = ? ORDER BY id DESC')
-      .all(normalise(email), cleFormation(formation)).map(resumeTentative);
+  function historiqueDe(email, formation, portee = PORTEE_FINALE, moduleId = null) {
+    const f = filtrePortee(portee, moduleId);
+    return db().prepare(`SELECT * FROM academy_tentatives WHERE email = ? AND formation = ?${f.sql} ORDER BY id DESC`)
+      .all(normalise(email), cleFormation(formation), ...f.params).map(resumeTentative);
   }
+
+  const derniereSoumise = (email, formation, portee = PORTEE_FINALE, moduleId = null) => {
+    const f = filtrePortee(portee, moduleId);
+    return db().prepare(`SELECT * FROM academy_tentatives WHERE email = ? AND formation = ? AND statut = ?${f.sql}
+                         ORDER BY id DESC LIMIT 1`)
+      .get(normalise(email), cleFormation(formation), T_SOUMISE, ...f.params) || null;
+  };
 
   // La théorie se DÉDUIT de l'historique : « il existe une tentative réussie ».
   // Rien à maintenir, rien à défaire, et surtout rien qui puisse la reprendre —
   // une tentative ratée plus tard ne fait pas disparaître celle qui a réussi.
-  function tentativeReussie(email, formation) {
-    return db().prepare(`SELECT * FROM academy_tentatives WHERE email = ? AND formation = ? AND reussie = 1
+  function tentativeReussie(email, formation, portee = PORTEE_FINALE, moduleId = null) {
+    const f = filtrePortee(portee, moduleId);
+    return db().prepare(`SELECT * FROM academy_tentatives WHERE email = ? AND formation = ? AND reussie = 1${f.sql}
                          ORDER BY score_pct DESC, id ASC LIMIT 1`)
-      .get(normalise(email), cleFormation(formation)) || null;
+      .get(normalise(email), cleFormation(formation), ...f.params) || null;
   }
 
   // L'état complet, tel que l'écran l'affiche. Tout est recalculé : aucun de ces
@@ -421,16 +754,22 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
     const mail = normalise(email);
     const cle = cleFormation(formationCle);
     const formation = formationAchevee(mail, cle);
-    const enCours = tentativeEnCours(mail, cle);
-    const reussie = tentativeReussie(mail, cle);
-    const derniere = db().prepare(`SELECT * FROM academy_tentatives WHERE email = ? AND formation = ?
-                                   AND statut = ? ORDER BY id DESC LIMIT 1`)
-      .get(mail, cle, T_SOUMISE);
+    const enCours = tentativeEnCours(mail, cle, PORTEE_FINALE);
+    const reussie = tentativeReussie(mail, cle, PORTEE_FINALE);
+    const derniere = derniereSoumise(mail, cle, PORTEE_FINALE);
     const cert = boost.lireCertification(mail);
     const certifie = cert.statut === 'certifie';
 
+    // Le QCM final ne s'ouvre pas seulement quand les contenus sont terminés :
+    // il faut aussi que tous les mini-QCM aient été franchis. Sans cette
+    // condition, le mini du DERNIER module ne bloquerait rien — il n'a aucun
+    // module suivant à garder — et se contournerait en allant droit au QCM final.
+    const minis = etatMinis(mail, cle);
+    const minisFranchis = minis.every((m) => !m.aBanque || m.reussi);
+    const ouvert = formation.acheve && minisFranchis;
+
     let etat = ETAT_FORMATION;
-    if (formation.acheve) {
+    if (ouvert) {
       if (reussie) etat = ETAT_VALIDEE;
       else if (enCours) etat = ETAT_EVALUATION;
       else if (derniere) etat = ETAT_ECHOUE;
@@ -441,8 +780,10 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
       cleFormation: cle,
       etat,
       formation,
-      // Le QCM s'ouvre uniquement quand la formation est achevée.
-      disponible: formation.acheve,
+      // Le QCM s'ouvre quand la formation est achevée ET tous les minis franchis.
+      disponible: ouvert,
+      minis,
+      minisFranchis,
       // La configuration ANNONCÉE : celle qui s'appliquera à une nouvelle
       // tentative. Celle d'une tentative en cours est dans la tentative.
       config: lireConfig(cle),
@@ -462,24 +803,51 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
 
   // -- Démarrer --------------------------------------------------------------
 
-  function demarrer(email, formationCle) {
+  function demarrer(email, formationCle, { moduleId = null } = {}) {
     const mail = normalise(email);
     const cle = cleFormation(formationCle);
-    const formation = formationAchevee(mail, cle);
-    if (!formation.acheve) {
-      return err(409, 'Termine d\'abord tous les contenus de la formation : l\'évaluation théorique s\'ouvrira ensuite.',
-        { formationIncomplete: true, formation });
+    const portee = (moduleId === null || moduleId === undefined) ? PORTEE_FINALE : PORTEE_MODULE;
+
+    let cibleModule = null;
+    if (portee === PORTEE_MODULE) {
+      // Le module doit relever de CETTE formation : un identifiant de module
+      // venu d'ailleurs ouvrirait un mini-QCM sur un parcours étranger.
+      const etats = etatMinis(mail, cle);
+      cibleModule = etats.find((m) => m.moduleId === Number(moduleId)) || null;
+      if (!cibleModule) return err(404, 'Module introuvable dans cette formation.');
+      if (!cibleModule.deverrouille) {
+        return err(409, 'Ce module n\'est pas encore ouvert : réussis d\'abord le mini-QCM du module précédent.',
+          { moduleVerrouille: true });
+      }
+      if (!cibleModule.contenusAcheves) {
+        return err(409, 'Termine d\'abord tous les contenus du module : son mini-QCM s\'ouvrira ensuite.',
+          { moduleIncomplet: true });
+      }
+    } else {
+      const formation = formationAchevee(mail, cle);
+      if (!formation.acheve) {
+        return err(409, 'Termine d\'abord tous les contenus de la formation : l\'évaluation théorique s\'ouvrira ensuite.',
+          { formationIncomplete: true, formation });
+      }
+      // Le mini du dernier module n'a aucun module suivant à garder : c'est le
+      // QCM final qui le tient. Sans cette vérification, il ne bloquerait rien.
+      const minis = etatMinis(mail, cle);
+      if (!minis.every((m) => !m.aBanque || m.reussi)) {
+        return err(409, 'Réussis d\'abord les mini-QCM de chaque module : l\'évaluation théorique s\'ouvrira ensuite.',
+          { minisIncomplets: true, minis });
+      }
     }
+
     // Une tentative en cours est REPRISE, jamais doublée. Cliquer deux fois sur
     // « commencer » ne doit pas retirer au collaborateur le questionnaire
     // auquel il a déjà répondu à moitié.
-    const enCours = tentativeEnCours(mail, cle);
+    const enCours = tentativeEnCours(mail, cle, portee, moduleId);
     if (enCours) return ok({ tentative: vueTentative(enCours), reprise: true });
 
-    const pool = questionsEligibles(cle);
+    const pool = questionsEligibles(cle, { usage: usageDePortee(portee), moduleId });
     if (!pool.length) return err(409, 'Aucune question n\'est disponible pour le moment. Préviens ton référent.');
 
-    const cfg = lireConfig(cle);
+    const cfg = configDe(cle, portee);
     const tirage = melanger(pool).slice(0, Math.min(cfg.nbQuestions, pool.length));
 
     const maintenant = nowIso();
@@ -489,9 +857,11 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
       // nb_questions = ce qui a RÉELLEMENT été tiré, pas ce qui était demandé :
       // si la banque est plus courte que la configuration, le score doit se
       // calculer sur les questions posées.
-      const info = d.prepare(`INSERT INTO academy_tentatives (email, formation, statut, nb_questions, seuil_pct, ouverte_le)
-                              VALUES (?, ?, ?, ?, ?, ?)`)
-        .run(mail, cle, T_EN_COURS, tirage.length, cfg.seuilPct, maintenant);
+      const info = d.prepare(`INSERT INTO academy_tentatives
+          (email, formation, portee, module_id, statut, nb_questions, seuil_pct, ouverte_le)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(mail, cle, portee, portee === PORTEE_MODULE ? Number(moduleId) : null,
+          T_EN_COURS, tirage.length, cfg.seuilPct, maintenant);
       id = Number(info.lastInsertRowid);
 
       const insQ = d.prepare(`INSERT INTO academy_tentative_questions
@@ -606,17 +976,30 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
     // La réussite est reportée dans le système de certification EXISTANT. Elle
     // y inscrit « théorie validée, parcours pratique ouvert » — jamais
     // « certifié » : ce verdict-là appartient à l'évaluateur humain.
-    if (clos.reussie) boost.enregistrerQcmTheorie(mail, clos.score_pct, 'academy');
+    //
+    // ⚠️ SEULE UNE TENTATIVE FINALE ÉCRIT ICI. Un mini-QCM est un jalon
+    // d'apprentissage : il ouvre le module suivant, il ne valide pas la théorie
+    // et ne touche jamais au dossier de certification. C'est la deuxième moitié
+    // de la garantie — la première étant le cloisonnement des lectures d'état.
+    if (clos.reussie && clos.portee === PORTEE_FINALE) {
+      boost.enregistrerQcmTheorie(mail, clos.score_pct, 'academy');
+    }
 
+    // Un mini rend le parcours (le verrou du module suivant vient peut-être de
+    // sauter) ; une finale rend l'état de l'évaluation théorique.
+    if (clos.portee === PORTEE_MODULE) {
+      return ok({ tentative: vueTentative(clos), parcours: parcoursPour(mail, clos.formation) });
+    }
     return ok({ tentative: vueTentative(clos), etat: etatPour(mail, clos.formation) });
   }
 
   return {
-    assurerSchema, amorcer,
-    lireConfig, definirConfig,
+    assurerSchema, amorcer, importerBanqueCoachNutrition,
+    lireConfig, lireConfigMini, definirConfig,
     questionsEligibles, formationAchevee,
     etatPour, demarrer, lireTentative, repondre, terminer,
     historiqueDe, tentativeEnCours,
+    etatMinis, parcoursPour, contenuAccessible,
   };
 }
 
@@ -624,5 +1007,6 @@ module.exports = {
   createAcademyQcm,
   AMORCE_QUESTIONS, DEFAUTS,
   T_EN_COURS, T_SOUMISE,
+  USAGE_MINI, USAGE_FINALE, PORTEE_MODULE, PORTEE_FINALE,
   ETAT_FORMATION, ETAT_DISPONIBLE, ETAT_EVALUATION, ETAT_ECHOUE, ETAT_VALIDEE,
 };

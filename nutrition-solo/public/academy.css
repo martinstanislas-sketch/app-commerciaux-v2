@@ -1101,3 +1101,78 @@ details.ac-et[open] .ac-et-ch { transform: rotate(180deg); }
   .ac-et-c { padding: 14px 14px 14px; }
   .ac-parc { padding: 16px 14px; }
 }
+
+/* ------------------------------------------------- MINI-QCM DE FIN DE MODULE
+   La ligne qui ferme un module, et le verrou qui ferme le suivant.
+
+   Elle emprunte la palette déjà en place — sauge pour ce qui est validé, sable
+   pour le neutre, saphir pour l'action — plutôt que d'introduire des couleurs
+   à elle : deux vocabulaires de couleur dans le même écran, et plus personne
+   ne sait ce que « vert » veut dire. */
+.ac-mini {
+  display: flex; align-items: center; gap: 12px;
+  border: 1px dashed var(--border-c); border-radius: 12px;
+  padding: 12px 14px; margin-top: 10px; background: var(--bg-soft, transparent);
+}
+.ac-mini-ic {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center; font-size: .82rem; font-weight: 800;
+  background: var(--sable, #F3EEE6); color: var(--text-soft);
+}
+.ac-mini-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.ac-mini-tx b { font-size: .9rem; font-weight: 700; color: var(--marine); line-height: 1.3; }
+.ac-mini-s { font-size: .8rem; color: var(--text-muted); }
+.ac-mini-b { width: auto; flex: 0 0 auto; padding: 9px 16px; font-size: .86rem; }
+
+.ac-mini-ok { border-style: solid; border-color: var(--sage, #CBDCBB); }
+.ac-mini-ok .ac-mini-ic { background: var(--sage-soft); color: var(--sage-on-soft); }
+.ac-mini-ok .ac-mini-tx b { color: var(--sage-on-soft); }
+.ac-mini-ko { border-style: solid; }
+.ac-mini-lock .ac-mini-tx b { color: var(--text-muted); font-weight: 600; }
+
+/* Un module verrouillé : on annonce ce qu'il contient, jamais ses titres. */
+details.ac-mod-lock { border-style: dashed; opacity: .78; }
+details.ac-mod-lock .ac-mod-t { color: var(--text-muted); font-weight: 600; }
+details.ac-mod-lock .ac-mod-h { cursor: default; }
+.ac-mod-lockp { font-size: .84rem; color: var(--text-muted); margin: 0 0 10px; }
+
+/* ------------------------------------------------------ CORRECTION DU MINI
+   Le seul endroit de l'application où une bonne réponse s'affiche. */
+.ac-corrige { margin-bottom: 40px; }
+.ac-cor-t { font-size: 1rem; font-weight: 700; color: var(--marine); margin: 0 0 12px; }
+.ac-cor {
+  background: var(--surface); border: 1px solid var(--border-c);
+  border-left: 3px solid var(--border-c);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 10px;
+}
+.ac-cor-ok { border-left-color: var(--sage, #CBDCBB); }
+.ac-cor-ko { border-left-color: var(--saphir); }
+.ac-cor-h { display: flex; align-items: center; gap: 8px; font-size: .82rem; font-weight: 700; margin: 0 0 6px; color: var(--text-muted); }
+.ac-cor-p { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: .72rem; flex: 0 0 auto; }
+.ac-cor-ok .ac-cor-p { background: var(--sage-soft); color: var(--sage-on-soft); }
+.ac-cor-ko .ac-cor-p { background: var(--sable, #F3EEE6); color: var(--marine); }
+.ac-cor-e { font-size: .92rem; font-weight: 600; color: var(--marine); margin: 0 0 10px; line-height: 1.4; }
+.ac-cor-l { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.ac-cor-c {
+  font-size: .86rem; color: var(--text-muted); padding: 7px 11px;
+  border: 1px solid var(--border-c); border-radius: 9px; line-height: 1.35;
+}
+.ac-cor-bonne { border-color: var(--sage, #CBDCBB); background: var(--sage-soft); color: var(--sage-on-soft); font-weight: 600; }
+.ac-cor-mauvaise { border-color: var(--saphir); color: var(--marine); }
+.ac-cor-tag {
+  display: inline-block; margin-left: 8px; font-size: .74rem; font-weight: 700;
+  font-style: normal; text-transform: uppercase; letter-spacing: .04em; opacity: .8;
+}
+
+@media (max-width: 620px) {
+  .ac-mini { flex-wrap: wrap; }
+  .ac-mini-b { width: 100%; margin-top: 4px; }
+  .ac-cor { padding: 12px 14px; }
+}
+
+/* Le sommaire latéral : module verrouillé, et ligne du mini-QCM. */
+.ac-sl-lock .ac-sl-mt { color: var(--text-muted); font-weight: 600; }
+.ac-sl-lockp { font-size: .78rem; color: var(--text-muted); margin: 2px 0 6px; padding-left: 2px; }
+.ac-sl-mini { font-style: normal; }
+.ac-sl-mini .ac-sl-t { font-weight: 600; }
+.ac-sl-mini[disabled] { opacity: .5; cursor: default; }

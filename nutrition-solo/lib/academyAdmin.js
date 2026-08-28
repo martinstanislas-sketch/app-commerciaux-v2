@@ -37,6 +37,7 @@
 // ============================================================================
 
 const { err, ok } = require('./boost');
+const { USAGE_MINI, USAGE_FINALE } = require('./academyQcm');
 const { idYoutubeValide, TYPES, TYPE_VIDEO, TYPE_TEXTE } = require('./academy');
 
 // Bornes de saisie, pas des valeurs métier.
@@ -79,7 +80,7 @@ function createAcademyAdmin({ getDb, nowIso, academy, qcm, pratique, formations 
      FROM academy_contenus WHERE id = ?`).get(Number(id));
 
   const lireQuestionBrute = (id) => db().prepare(
-    `SELECT id, formation, module_id AS moduleId, enonce, ordre, actif
+    `SELECT id, formation, module_id AS moduleId, usage, enonce, ordre, actif
      FROM academy_questions WHERE id = ?`).get(Number(id));
 
   // Le rang suivant parmi les frères. Calculé, pas deviné : deux ajouts
@@ -122,7 +123,7 @@ function createAcademyAdmin({ getDb, nowIso, academy, qcm, pratique, formations 
     }));
 
     const questions = db().prepare(
-      `SELECT id, module_id AS moduleId, enonce, ordre, actif FROM academy_questions
+      `SELECT id, module_id AS moduleId, usage, enonce, ordre, actif FROM academy_questions
        WHERE formation = ? ORDER BY ordre ASC, id ASC`).all(f.cle);
     const lireChoix = db().prepare(
       'SELECT id, texte, correct, actif, ordre FROM academy_choix WHERE question_id = ? ORDER BY ordre ASC, id ASC');
@@ -286,6 +287,21 @@ function createAcademyAdmin({ getDb, nowIso, academy, qcm, pratique, formations 
       moduleId = m.id;
     }
 
+    // Dans QUELLE banque cette question se range. Le défaut est « finale » :
+    // c'est ce qu'étaient toutes les questions avant l'arrivée du mini-QCM, et
+    // une saisie qui ne le précise pas ne doit pas atterrir par surprise dans
+    // une épreuve pédagogique.
+    const usage = d.usage === undefined ? (existante ? existante.usage : USAGE_FINALE) : String(d.usage || '').trim();
+    if (![USAGE_MINI, USAGE_FINALE].includes(usage)) {
+      return err(400, `L'usage d'une question vaut « ${USAGE_MINI} » ou « ${USAGE_FINALE} ».`);
+    }
+    // Une question de mini-QCM SANS module ne serait jamais tirée : le tirage
+    // d'un mini est restreint au module. La refuser à la saisie évite une
+    // question qui existe en base sans exister nulle part ailleurs.
+    if (usage === USAGE_MINI && moduleId === null) {
+      return err(400, 'Une question de mini-QCM doit être rattachée à un module.');
+    }
+
     // Les choix. Fournis -> ils remplacent les précédents. Absents -> on ne
     // touche pas au corrigé existant (modifier un énoncé ne doit pas effacer
     // ses réponses).
@@ -317,12 +333,12 @@ function createAcademyAdmin({ getDb, nowIso, academy, qcm, pratique, formations 
     let id = existante ? existante.id : null;
     dd.transaction(() => {
       if (existante) {
-        dd.prepare(`UPDATE academy_questions SET module_id = ?, enonce = ?, ordre = ?, actif = ?, maj_le = ?
-                    WHERE id = ?`).run(moduleId, enonce, ordre, actif ? 1 : 0, maintenant, existante.id);
+        dd.prepare(`UPDATE academy_questions SET module_id = ?, usage = ?, enonce = ?, ordre = ?, actif = ?, maj_le = ?
+                    WHERE id = ?`).run(moduleId, usage, enonce, ordre, actif ? 1 : 0, maintenant, existante.id);
       } else {
-        const info = dd.prepare(`INSERT INTO academy_questions (formation, module_id, enonce, actif, ordre, cle, cree_le, maj_le)
-                                 VALUES (?,?,?,?,?,NULL,?,?)`)
-          .run(f.cle, moduleId, enonce, actif ? 1 : 0, ordre, maintenant, maintenant);
+        const info = dd.prepare(`INSERT INTO academy_questions (formation, module_id, usage, enonce, actif, ordre, cle, cree_le, maj_le)
+                                 VALUES (?,?,?,?,?,?,NULL,?,?)`)
+          .run(f.cle, moduleId, usage, enonce, actif ? 1 : 0, ordre, maintenant, maintenant);
         id = Number(info.lastInsertRowid);
       }
       if (choix) {
@@ -436,9 +452,38 @@ function createAcademyAdmin({ getDb, nowIso, academy, qcm, pratique, formations 
 
     // La banque se mesure avec la RÈGLE DU TIRAGE, pas avec un compte de lignes :
     // une question sans bonne réponse est en base sans être tirable.
-    const tirables = qcm.questionsEligibles(f.cle).length;
+    const tirables = qcm.questionsEligibles(f.cle, { usage: USAGE_FINALE }).length;
+    // ON NE COMPTE QUE LA BANQUE FINALE. Additionner les deux ferait dire à
+    // l'avertissement du dessous que les questions de mini-QCM sont « écartées
+    // du tirage » : elles ne le sont pas, elles relèvent de l'autre épreuve.
     const totalQuestions = db().prepare(
-      'SELECT COUNT(*) AS n FROM academy_questions WHERE formation = ? AND actif = 1').get(f.cle).n;
+      'SELECT COUNT(*) AS n FROM academy_questions WHERE formation = ? AND usage = ? AND actif = 1')
+      .get(f.cle, USAGE_FINALE).n;
+
+    // ------------------------------------------------------------------------
+    //  LES MINI-QCM, MODULE PAR MODULE.
+    //
+    //  Un mini-QCM est BLOQUANT : un module actif dont la banque mini est trop
+    //  courte n'arrête pas seulement son propre exercice, il ferme tout ce qui
+    //  vient après lui. C'est donc un blocage de publication, pas un
+    //  avertissement.
+    //
+    //  UN MODULE SANS AUCUNE QUESTION MINI EST ACCEPTÉ, et c'est voulu : il vaut
+    //  module d'introduction, franchi dès ses contenus terminés. La règle
+    //  distingue « pas de mini » (légitime) de « un mini qu'on ne peut pas
+    //  passer » (infranchissable) — c'est cette seconde situation qu'on refuse.
+    // ------------------------------------------------------------------------
+    const minisCourts = [];
+    let modulesAvecMini = 0;
+    for (const m of actifs) {
+      const n = qcm.questionsEligibles(f.cle, { usage: USAGE_MINI, moduleId: m.id }).length;
+      if (n === 0) continue;                       // module sans mini : légitime
+      modulesAvecMini++;
+      if (n < f.miniNbQuestions) minisCourts.push({ titre: m.titre, n });
+    }
+    for (const m of minisCourts) {
+      blocages.push(`Le mini-QCM du module « ${m.titre} » tire ${f.miniNbQuestions} question${f.miniNbQuestions > 1 ? 's' : ''} mais n'en compte que ${m.n} d'exploitable${m.n > 1 ? 's' : ''}.`);
+    }
 
     if (tirables < f.qcmNbQuestions) {
       blocages.push(`Le QCM tire ${f.qcmNbQuestions} question${f.qcmNbQuestions > 1 ? 's' : ''} mais la banque n'en compte que ${tirables} d'exploitable${tirables > 1 ? 's' : ''}.`);
@@ -473,6 +518,7 @@ function createAcademyAdmin({ getDb, nowIso, academy, qcm, pratique, formations 
         modules: actifs.length, modulesTotal: modules.length,
         contenus: contenusActifs, questionsTirables: tirables, questionsTotal: totalQuestions,
         qcmNbQuestions: f.qcmNbQuestions,
+        modulesAvecMini, miniNbQuestions: f.miniNbQuestions,
       },
     };
   }
