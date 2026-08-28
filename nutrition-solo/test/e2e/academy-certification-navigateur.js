@@ -18,6 +18,11 @@
 //    NUTRITION_DB=/tmp/e2e.sqlite ADMIN_EMAIL=patron@exemple.fr PORT=3222 node server.js &
 //    BASE=http://127.0.0.1:3222 node test/e2e/academy-certification-navigateur.js
 // ============================================================================
+// LOT A : « Évaluer » et « Administrer » ont quitté le parcours de l'apprenant
+// pour l'en-tête (#acRoleEval / #acRoleAdmin). Ce sont des changements de rôle,
+// pas des étapes de formation. Les boutons existent toujours dans le DOM mais
+// restent `hidden` pour qui n'a pas le droit : on juge donc leur VISIBILITÉ,
+// pas leur présence.
 const { chromium } = require('playwright');
 const { AMORCE_QUESTIONS } = require('../../lib/academyQcm');
 
@@ -109,7 +114,31 @@ async function semer() {
     await page.fill('#acEmail', email);
     await page.fill('#acPin', pin);
     await page.click('#acGo');
-    await page.waitForSelector((attendu || '#acSommaire') + ':not([hidden])');
+    // Sans écran attendu, on vise la formation : on passe donc par l'accueil.
+    if (attendu) await page.waitForSelector(attendu + ':not([hidden])');
+    else await entrerFormation();
+  }
+
+  // Depuis la refonte, les quatre étapes sont des accordéons : seule l'étape
+  // courante est dépliée. Pour agir dans une autre, on l'ouvre — comme un humain.
+  async function ouvrirEtapes() {
+    await page.evaluate(() => {
+      document.querySelectorAll('#acSommaire details.ac-et:not([open])').forEach((d) => { d.open = true; });
+    });
+  }
+
+  // DEPUIS LE LOT A, LE COLLABORATEUR ARRIVE SUR « MES FORMATIONS ».
+  // Entrer dans une formation est un clic de plus — c'est le nouveau parcours,
+  // pas un détour de test : l'accueil est le point d'entrée, même avec une
+  // seule formation.
+  async function entrerFormation(libelle) {
+    await page.waitForSelector('#acAccueil:not([hidden])');
+    const carte = libelle
+      // La carte est un <article> ; c'est son bouton qui ouvre la formation.
+      ? page.locator('#acAccueil .ac-fc', { hasText: libelle }).locator('[data-ouvrir]')
+      : page.locator('#acAccueil [data-ouvrir]');
+    await carte.first().click();
+    await page.waitForSelector('#acSommaire:not([hidden])');
   }
 
   const ongletCertifs = async () => {
@@ -151,7 +180,7 @@ async function semer() {
 
   await etape('Eva valide la pratique de Théo', async () => {
     await seConnecter(EVA, '3003');
-    await page.click('#acEvalGo');
+    await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
     await page.locator('.ac-eval-l', { hasText: 'Théo' }).click();
     await page.waitForSelector('#acEvOk');
@@ -332,6 +361,7 @@ async function semer() {
 
   await etape('l\'historique montre les deux diplômes, dont celui retiré', async () => {
     await seConnecter(THEO, '4004');
+    await ouvrirEtapes();
     await page.click('.ac-cert-certifie .ac-qcm-histo summary');
     const lignes = await page.locator('.ac-cert-certifie .ac-qcm-histo li').allInnerTexts();
     if (lignes.length !== 2) throw new Error('diplômes listés : ' + lignes.length);

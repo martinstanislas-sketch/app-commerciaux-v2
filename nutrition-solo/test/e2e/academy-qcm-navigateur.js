@@ -114,6 +114,37 @@ async function semer() {
     await page.fill('#acEmail', email);
     await page.fill('#acPin', pin);
     await page.click('#acGo');
+    await entrerFormation();
+  }
+
+  // Depuis la refonte, les quatre étapes sont des accordéons : seule l'étape
+  // courante est dépliée. Pour agir dans une autre, on l'ouvre — comme un humain.
+  async function ouvrirEtapes() {
+    await page.evaluate(() => {
+      document.querySelectorAll('#acSommaire details.ac-et:not([open])').forEach((d) => { d.open = true; });
+    });
+  }
+
+  // Depuis la refonte de la coquille, « Se déconnecter » vit dans le menu de
+  // compte, en haut à droite : on l'ouvre avant de cliquer.
+  async function seDeconnecter() {
+    await page.click('#acCompte');
+    await page.waitForSelector('#acMenu:not([hidden])');
+    await page.click('#acOut');
+    await page.waitForSelector('#acLogin:not([hidden])');
+  }
+
+  // DEPUIS LE LOT A, LE COLLABORATEUR ARRIVE SUR « MES FORMATIONS ».
+  // Entrer dans une formation est un clic de plus — c'est le nouveau parcours,
+  // pas un détour de test : l'accueil est le point d'entrée, même avec une
+  // seule formation.
+  async function entrerFormation(libelle) {
+    await page.waitForSelector('#acAccueil:not([hidden])');
+    const carte = libelle
+      // La carte est un <article> ; c'est son bouton qui ouvre la formation.
+      ? page.locator('#acAccueil .ac-fc', { hasText: libelle }).locator('[data-ouvrir]')
+      : page.locator('#acAccueil [data-ouvrir]');
+    await carte.first().click();
     await page.waitForSelector('#acSommaire:not([hidden])');
   }
 
@@ -184,15 +215,41 @@ async function semer() {
     if (await page.locator('#acQcmGo').count()) throw new Error('un bouton de démarrage est offert malgré le verrou');
   });
 
-  await etape('terminer tous les contenus de la formation', async () => {
-    const nb = await page.locator('.ac-l').count();
-    for (let i = 0; i < nb; i++) {
-      await page.locator('.ac-l').nth(i).click();
-      await page.waitForSelector('#acLecteur:not([hidden])');
-      if (await page.locator('#acFait').count()) {
-        await page.click('#acFait');
-        await page.waitForSelector('.ac-deja');
+
+  // LOT B : « Terminer et continuer » marque le contenu ET ouvre le suivant.
+  // Terminer une formation entière est donc une suite de clics sur le même
+  // bouton, jusqu'à ce qu'il disparaisse — sur le dernier contenu, il renvoie
+  // aux étapes d'évaluation et l'écran de lecture se ferme.
+  async function terminerToutDepuisLeLecteur() {
+    for (let i = 0; i < 80; i++) {
+      if (await page.locator('#acLecteur').isHidden()) return;
+      if (!(await page.locator('#acFait').count())) {
+        // Contenu déjà terminé : on avance sans rien revalider.
+        if (!(await page.locator('#acSuiv').count())) return;
+        const avant = await page.locator('.ac-lec-t').innerText();
+        await page.click('#acSuiv');
+        await page.waitForFunction((t) => {
+          const el = document.querySelector('.ac-lec-t');
+          return !el || el.textContent !== t;
+        }, avant);
+        continue;
       }
+      const avant = await page.locator('.ac-lec-t').innerText();
+      await page.click('#acFait');
+      await page.waitForFunction((t) => {
+        const el = document.querySelector('.ac-lec-t');
+        const lec = document.querySelector('#acLecteur');
+        return !lec || lec.hidden || !el || el.textContent !== t;
+      }, avant);
+    }
+  }
+  await etape('terminer tous les contenus de la formation', async () => {
+    await page.evaluate(() => document.querySelectorAll('#acSommaire details.ac-mod:not([open])')
+      .forEach((d) => { d.open = true; }));
+    await page.locator('.ac-l').first().click();
+    await page.waitForSelector('#acLecteur:not([hidden])');
+    await terminerToutDepuisLeLecteur();
+    if (await page.locator('#acSommaire').isHidden()) {
       await page.click('#acBack');
       await page.waitForSelector('#acSommaire:not([hidden])');
     }
@@ -252,6 +309,7 @@ async function semer() {
     if (!(await page.locator('#acQRefaire').count())) throw new Error('le bouton « Recommencer » manque');
     await page.click('#acQBack');
     await page.waitForSelector('#acSommaire:not([hidden])');
+    await ouvrirEtapes();
     const t = await contenu();
     if (!/Théorie non validée/.test(t)) throw new Error('l\'état attendu manque');
     if (!/Recommencer l'évaluation/.test(t)) throw new Error('on doit pouvoir repasser l\'évaluation');
@@ -312,8 +370,7 @@ async function semer() {
   await etape('déconnexion, reconnexion : la théorie reste validée', async () => {
     await page.click('#acQBack');
     await page.waitForSelector('#acSommaire:not([hidden])');
-    await page.click('#acOut');
-    await page.waitForSelector('#acLogin:not([hidden])');
+    await seDeconnecter();
 
     await seConnecter(THEO, '4004');
     const t = await contenu();
@@ -324,6 +381,7 @@ async function semer() {
   });
 
   await etape('l\'historique garde les deux tentatives', async () => {
+    await ouvrirEtapes();
     await page.click('.ac-qcm-histo summary');
     const lignes = await page.locator('.ac-qcm-histo li').allInnerTexts();
     if (lignes.length < 2) throw new Error('tentatives listées : ' + lignes.length);
@@ -359,12 +417,12 @@ async function semer() {
   await etape('on quitte l\'évaluation et on se déconnecte', async () => {
     await page.click('#acQBack');
     await page.waitForSelector('#acSommaire:not([hidden])');
+    await ouvrirEtapes();
     const t = await contenu();
     if (!/Évaluation théorique en cours/.test(t)) throw new Error('l\'état « en cours » manque');
     if (!/2 réponses sur/.test(t)) throw new Error('le nombre de réponses saisies n\'est pas rappelé : ' + (t.match(/\d+ réponses? sur \d+/) || ['—'])[0]);
     if (!/Reprendre mon évaluation/.test(t)) throw new Error('le bouton de reprise manque');
-    await page.click('#acOut');
-    await page.waitForSelector('#acLogin:not([hidden])');
+    await seDeconnecter();
   });
 
   await etape('à la reconnexion, on retrouve EXACTEMENT la même tentative', async () => {

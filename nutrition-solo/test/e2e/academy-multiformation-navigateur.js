@@ -119,14 +119,75 @@ async function semer() {
     await page.fill('#acEmail', email);
     await page.fill('#acPin', pin);
     await page.click('#acGo');
-    await page.waitForSelector((attendu || '#acSommaire') + ':not([hidden])');
+    // Lot A : le collaborateur arrive sur « Mes formations ». Le sélecteur en
+    // pastilles a disparu du sommaire — c'est l'accueil qui porte le choix.
+    if (attendu) await page.waitForSelector(attendu + ':not([hidden])');
+    else await page.waitForSelector('#acAccueil:not([hidden])');
   }
 
+  // Depuis la refonte, les quatre étapes sont des accordéons : seule l'étape
+  // courante est dépliée. Pour agir dans une autre, on l'ouvre — comme un humain.
+  async function ouvrirEtapes() {
+    await page.evaluate(() => {
+      document.querySelectorAll('#acSommaire details.ac-et:not([open])').forEach((d) => { d.open = true; });
+    });
+  }
+
+  const auxFormations = async () => {
+    if (await page.locator('#acAccueil').isHidden()) {
+      await page.click('#acVersAccueil');
+    }
+    await page.waitForSelector('#acAccueil:not([hidden])');
+  };
+
+  // Changer de formation, c'est désormais repasser par l'accueil et ouvrir sa
+  // carte. Le titre de la page formation confirme qu'on est bien arrivé.
+
+  // LOT A : un module achevé se replie sur son compteur. Pour atteindre une de
+  // ses vidéos, il faut donc l'ouvrir — c'est exactement ce que fait un humain.
+  async function ouvrirModulesReplies() {
+    await page.evaluate(() => {
+      // Les modules vivent dans l'accordéon de l'étape « Apprendre » : on ouvre
+      // l'étape d'abord, puis les modules repliés.
+      document.querySelectorAll('#acSommaire details.ac-et:not([open]), #acSommaire details.ac-mod:not([open])')
+        .forEach((d) => { d.open = true; });
+    });
+  }
+
+  // LOT B : « Terminer et continuer » marque le contenu ET ouvre le suivant.
+  // Terminer une formation entière est donc une suite de clics sur le même
+  // bouton, jusqu'à ce qu'il disparaisse — sur le dernier contenu, il renvoie
+  // aux étapes d'évaluation et l'écran de lecture se ferme.
+  async function terminerToutDepuisLeLecteur() {
+    for (let i = 0; i < 80; i++) {
+      if (await page.locator('#acLecteur').isHidden()) return;
+      if (!(await page.locator('#acFait').count())) {
+        // Contenu déjà terminé : on avance sans rien revalider.
+        if (!(await page.locator('#acSuiv').count())) return;
+        const avant = await page.locator('.ac-lec-t').innerText();
+        await page.click('#acSuiv');
+        await page.waitForFunction((t) => {
+          const el = document.querySelector('.ac-lec-t');
+          return !el || el.textContent !== t;
+        }, avant);
+        continue;
+      }
+      const avant = await page.locator('.ac-lec-t').innerText();
+      await page.click('#acFait');
+      await page.waitForFunction((t) => {
+        const el = document.querySelector('.ac-lec-t');
+        const lec = document.querySelector('#acLecteur');
+        return !lec || lec.hidden || !el || el.textContent !== t;
+      }, avant);
+    }
+  }
   const choisir = async (cle, libelle) => {
-    await page.locator('#acSommaire .ac-sel-b', { hasText: libelle }).click();
+    await auxFormations();
+    await page.locator('#acAccueil .ac-fc', { hasText: libelle }).locator('[data-ouvrir]').first().click();
+    await page.waitForSelector('#acSommaire:not([hidden])');
     await page.waitForFunction((l) => {
-      const on = document.querySelector('#acSommaire .ac-sel-b.on');
-      return on && on.textContent.trim() === l;
+      const t = document.querySelector('#acSommaire .ac-fh-t');
+      return t && t.textContent.trim() === l;
     }, libelle);
   };
 
@@ -137,13 +198,19 @@ async function semer() {
 
   await etape('les deux formations apparaissent, sans avoir touché au front', async () => {
     await seConnecter(THEO, '4004');
-    const boutons = await page.locator('#acSommaire .ac-sel-b').allInnerTexts();
-    if (boutons.length !== 2) throw new Error('formations proposées : ' + boutons.join(' | '));
-    if (!boutons.includes('Coach Nutrition')) throw new Error('A absente : ' + boutons.join(' | '));
-    if (!boutons.includes('Formation de test B')) throw new Error('B absente : ' + boutons.join(' | '));
+    const cartes = await page.locator('#acAccueil .ac-fc .ac-fc-t').allInnerTexts();
+    if (cartes.length !== 2) throw new Error('formations proposées : ' + cartes.join(' | '));
+    if (!cartes.includes('Coach Nutrition')) throw new Error('A absente : ' + cartes.join(' | '));
+    if (!cartes.includes('Formation de test B')) throw new Error('B absente : ' + cartes.join(' | '));
+    // La carte porte l'avancement : c'est l'enrichissement du catalogue.
+    const bas = await page.locator('#acAccueil .ac-fc').first().textContent();
+    if (!/% complété/.test(bas) || !/contenus? terminé/.test(bas)) {
+      throw new Error('la carte n\'affiche pas l\'avancement : ' + bas);
+    }
   });
 
-  await etape('la formation A est ouverte par défaut, avec SON nom', async () => {
+  await etape('on ouvre A depuis l\'accueil, avec SON nom', async () => {
+    await choisir(A, 'Coach Nutrition');
     const t = await contenu();
     if (!/Coach Nutrition/.test(t)) throw new Error('le nom de A manque');
     if (!/Module 1 — Les fondamentaux/.test(t)) throw new Error('les modules de A manquent');
@@ -158,8 +225,9 @@ async function semer() {
   await etape('on avance dans A : un contenu terminé', async () => {
     await page.locator('.ac-l').first().click();
     await page.waitForSelector('#acLecteur:not([hidden])');
+    // Lot B : le clic marque le contenu ET ouvre le suivant.
     await page.click('#acFait');
-    await page.waitForSelector('.ac-deja');
+    await page.waitForFunction(() => /cadre bienveillant/.test(document.querySelector('.ac-lec-t').textContent));
     await page.click('#acBack');
     await page.waitForSelector('#acSommaire:not([hidden])');
     if (!/20 %/.test(await contenu())) throw new Error('A devrait être à 20 %');
@@ -209,10 +277,10 @@ async function semer() {
   console.log('\n4. QCM DE B');
 
   await etape('on termine les contenus de B et son QCM s\'ouvre', async () => {
-    for (let i = 0; i < 2; i++) {
-      await page.locator('.ac-l').nth(i).click();
-      await page.waitForSelector('#acLecteur:not([hidden])');
-      if (await page.locator('#acFait').count()) { await page.click('#acFait'); await page.waitForSelector('.ac-deja'); }
+    await page.locator('.ac-l').first().click();
+    await page.waitForSelector('#acLecteur:not([hidden])');
+    await terminerToutDepuisLeLecteur();
+    if (await page.locator('#acSommaire').isHidden()) {
       await page.click('#acBack');
       await page.waitForSelector('#acSommaire:not([hidden])');
     }
@@ -287,7 +355,9 @@ async function semer() {
 
   await etape('l\'évaluateur lit POUR QUELLE formation il évalue', async () => {
     await seConnecter(EVA, '3003');
-    await page.click('#acEvalGo');
+    // Lot A : évaluer est un changement de RÔLE, pas une étape du parcours.
+    // L'entrée a quitté le sommaire pour l'en-tête.
+    await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
     const t = await contenu();
     if (!/Coach Nutrition/.test(t)) throw new Error('la formation concernée n\'est pas annoncée');
@@ -324,12 +394,17 @@ async function semer() {
       const d = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       if (d > 2) throw new Error('débordement de ' + d + ' px : ' + ou);
     };
+    await debord('accueil');
+    await auxFormations();
+    await debord('accueil, après retour');
+    const b = await page.locator('#acAccueil [data-ouvrir]').first().boundingBox();
+    if (!b || b.height < 34) throw new Error('carte de formation trop petite au doigt');
+    await choisir(A, 'Coach Nutrition');
     await debord('sommaire A');
-    const b = await page.locator('#acSommaire .ac-sel-b').first().boundingBox();
-    if (!b || b.height < 34) throw new Error('sélecteur trop petit au doigt');
 
     await choisir(B, 'Formation de test B');
     await debord('sommaire B');
+    await ouvrirModulesReplies();
     await page.locator('.ac-l').first().click();
     await page.waitForSelector('#acLecteur:not([hidden])');
     await debord('lecteur B');
@@ -347,7 +422,7 @@ async function semer() {
   const OUT = process.env.OUT || '.';
   try {
     await page.goto(BASE + '/academy', { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#acSommaire:not([hidden])', { timeout: 4000 });
+    await page.waitForSelector('#acAccueil:not([hidden])', { timeout: 4000 });
     await page.screenshot({ path: OUT + '/academy-multiformation.png', fullPage: true });
   } catch (_) { /* la capture ne doit jamais faire échouer la suite */ }
   await nav.close();

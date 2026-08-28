@@ -102,9 +102,31 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
 
   r.get('/api/academy/formations', exigeCompte, exigeEntree, (req, res) => {
     const liste = formations.lister();
+
+    // L'AVANCEMENT VOYAGE AVEC LE CATALOGUE.
+    //
+    //  L'écran d'accueil montre une carte par formation, avec sa barre de
+    //  progression. Sans ces trois champs il lui faudrait un appel par
+    //  formation — N allers-retours au chargement, sur un téléphone.
+    //
+    //  C'est un ENRICHISSEMENT EN LECTURE SEULE : aucune règle nouvelle, aucune
+    //  écriture, rien qui ne soit déjà calculé par academy.formationPour(). Et
+    //  il ne part qu'à qui suit réellement la formation : un évaluateur ou un
+    //  administrateur non-collaborateur reçoit le catalogue nu, comme avant.
+    //
+    //  La progression est celle de L'APPELANT, tirée du jeton : cette route
+    //  n'a jamais accepté d'email et ne commence pas aujourd'hui.
+    const mail = moi(req);
+    const formationsVues = academy.peutSeFormer(mail)
+      ? liste.map((f) => {
+        const p = academy.formationPour(mail, f.cle);
+        return { ...f, total: p.total, termines: p.termines, pourcentage: p.pourcentage, acheve: p.acheve };
+      })
+      : liste;
+
     res.json({
       ok: true,
-      formations: liste,
+      formations: formationsVues,
       // La formation courante par défaut : la première du catalogue. L'écran
       // n'a pas à la deviner.
       defaut: liste.length ? liste[0].cle : null,

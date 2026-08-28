@@ -27,6 +27,19 @@
 
 const CLE = 'mc-academy-session';   // propre à cette page
 
+// LE VISUEL DE L'ÉCRAN DE CONNEXION.
+//
+//  Un seul endroit à renseigner : le nom du fichier déposé dans public/.
+//  Laissé vide, la balise <img> ne reçoit aucun src — donc AUCUNE requête, et
+//  aucune 404 dans la console. La colonne garde son aplat travaillé.
+//
+//  Format attendu : portrait 3/4, 1200 × 1600 px minimum, JPEG ou WebP.
+const PHOTO_CONNEXION = '';   // ex. 'academy-coachs.jpg'
+
+// Même principe pour le bandeau de régularité de la page formation.
+// Format attendu : paysage 4/3, 800 × 600 px minimum.
+const PHOTO_REGULARITE = '';  // ex. 'academy-regularite.jpg'
+
 const $ = (s) => document.querySelector(s);
 const montrer = (sel, oui) => { const el = $(sel); if (el) el.hidden = !oui; };
 
@@ -48,7 +61,7 @@ let evalFiche = null;   // vue évaluateur : le dossier ouvert
 let moiAdmin = false;   // administrateur ? (gère les évaluateurs, n'évalue pas)
 let adminComptes = null; // vue admin : les comptes et leur droit d'évaluer
 let aRetirer = null;    // retrait d'un droit d'évaluer, en attente de confirmation
-let certifs = null;     // état de MES certifications
+let certifs = null;     // état de MES certifications, toutes formations confondues
 let adminOnglet = 'evaluateurs';  // écran d'administration : onglet courant
 let adminCerts = null;  // vue admin : éligibles, certifiés, écarts
 let enSaisie = null;    // { email, geste } : la ligne dépliée en cours de saisie
@@ -64,6 +77,9 @@ let edition = null;          // { objet, id } : le seul formulaire ouvert à la 
 // effacé par le rendu suivant — l'administrateur verrait son action échouer
 // sans savoir pourquoi.
 let admErreur = '';
+// Le prénom du compte, lu sur /account/me — la même route que l'application.
+// L'écran n'invente ni nom ni rôle : il affiche ce que le serveur dit.
+let moiPrenom = '';
 
 function echapper(s) {
   return String(s === null || s === undefined ? '' : s)
@@ -96,8 +112,38 @@ async function apiAc(route, methode, corps) {
   return { status: res.status, data: d || {} };
 }
 
+// LA COQUILLE CHANGE DE LARGEUR SELON L'ÉCRAN.
+//
+//  720 px convient à un formulaire et à une lecture suivie ; il étrangle une
+//  grille de cartes. On élargit donc les écrans qui le demandent — et
+//  UNIQUEMENT depuis academy.css, jamais en touchant .ec-wrap dans coach.css :
+//  cette feuille est partagée avec /coach, qui n'a rien demandé.
+const LARGEUR = {
+  // L'accueil est le plus large : quatre indicateurs, une grille et un rail.
+  '#acAccueil': 'ac-w-accueil',
+  '#acSommaire': 'ac-w-large',
+  '#acAdmin': 'ac-w-large',
+  '#acEval': 'ac-w-large',
+  // Le lecteur est le plus large des trois : la vidéo et son sommaire latéral
+  // ne tiennent pas dans une colonne de formulaire.
+  '#acLecteur': 'ac-w-lecteur',
+};
+
 function afficher(ecran) {
-  for (const id of ['#acBoot', '#acLogin', '#acBloc', '#acSommaire', '#acLecteur', '#acQcm', '#acEval', '#acAdmin']) montrer(id, id === ecran);
+  for (const id of ['#acBoot', '#acLogin', '#acBloc', '#acAccueil', '#acSommaire', '#acLecteur', '#acQcm', '#acEval', '#acAdmin']) {
+    montrer(id, id === ecran);
+  }
+  // L'écran de connexion vit HORS de la coquille et prend la fenêtre entière :
+  // une barre latérale de navigation n'a aucun sens avant d'être connecté.
+  montrer('#acApp', ecran !== '#acLogin');
+  const large = LARGEUR[ecran] || '';
+  for (const sel of ['#acMain', '#acHeadWrap']) {
+    const el = $(sel);
+    if (!el) continue;
+    el.classList.toggle('ac-w-large', large === 'ac-w-large');
+    el.classList.toggle('ac-w-lecteur', large === 'ac-w-lecteur');
+    el.classList.toggle('ac-w-accueil', large === 'ac-w-accueil');
+  }
 }
 function bloquer(icone, titre, texte) {
   $('#acBlocIc').textContent = icone;
@@ -108,7 +154,12 @@ function bloquer(icone, titre, texte) {
 function deconnecter() {
   try { localStorage.removeItem(CLE); } catch (_) { /* stockage indisponible */ }
   session = null;
+  moiPrenom = '';
   montrer('#acMe', false);
+  // La coquille appartient à la session : hors connexion, il n'y a rien à
+  // naviguer, et une barre latérale vide serait un décor.
+  montrer('#acSide', false);
+  const m = $('#acMenu'); if (m) m.hidden = true;
   afficher('#acLogin');
 }
 
@@ -122,12 +173,20 @@ async function demarrer() {
   if (moi.status === 401) { deconnecter(); return; }
   if (!moi.data.ok) { bloquer('⚠️', 'Espace indisponible', 'Réessaie dans un instant.'); return; }
 
-  $('#acMeNom').textContent = moi.data.email || '';
+  // Le prénom vient du compte ; l'email reste le repli si le champ est vide.
+  const compte = await apiAc('/account/me');
+  moiPrenom = (compte.data && compte.data.compte && compte.data.compte.prenom) || '';
+  if (!moiPrenom) moiPrenom = moi.data.email || '';
+  $('#acMeNom').textContent = moiPrenom;
   montrer('#acMe', true);
 
   moiCollab = !!moi.data.collaborateur;
   moiEval = !!moi.data.evaluateur;
   moiAdmin = !!moi.data.admin;
+  // Les entrées de rôle vivent dans la barre latérale, hors du parcours
+  // d'apprentissage : ce sont des destinations, pas des étapes de formation.
+  rendreBarreLaterale('academy');
+  rendreCompte();
 
   // Un client n'a rien à faire ici : on le lui dit franchement plutôt que de
   // lui servir une formation vide.
@@ -152,7 +211,10 @@ async function demarrer() {
     await ouvrirAdmin();
     return;
   }
-  await chargerFormation();
+  // Le collaborateur arrive sur SES FORMATIONS, jamais directement dans l'une
+  // d'elles — même s'il n'y en a qu'une. C'est un point d'entrée stable, qui ne
+  // changera pas de comportement le jour où une deuxième sera publiée.
+  await ouvrirAccueil();
 }
 
 // Le catalogue d'abord : c'est lui qui dit quelles formations existent et
@@ -175,11 +237,23 @@ const formationCourante = () => catalogue.find((f) => f.cle === fCourante) || nu
 // CHANGER DE FORMATION, C'EST TOUT VIDER PUIS TOUT RELIRE. Garder ne serait-ce
 // qu'un état de l'ancienne ferait afficher la progression d'un parcours sous le
 // nom d'un autre.
+function viderEtatFormation() {
+  formation = null; qcm = null; pratique = null; certifs = null;
+  contenuOuvert = null; tentative = null; iQuestion = 0;
+}
+
 async function changerFormation(cle) {
   if (!cle || cle === fCourante) return;
   fCourante = cle;
-  formation = null; qcm = null; pratique = null; certifs = null;
-  contenuOuvert = null; tentative = null; iQuestion = 0;
+  viderEtatFormation();
+  await chargerFormation();
+}
+
+// Ouvrir une formation DEPUIS L'ACCUEIL : on entre toujours, même si c'est
+// celle qu'on avait quittée — sinon un clic sur sa propre carte ne ferait rien.
+async function ouvrirFormation(cle) {
+  if (!cle) return;
+  if (cle !== fCourante) { fCourante = cle; viderEtatFormation(); }
   await chargerFormation();
 }
 
@@ -217,6 +291,301 @@ async function chargerPratique() {
 async function chargerCertifs() {
   const r = await apiAc('/api/academy/certification');
   certifs = r.data && r.data.ok ? r.data.certifications : null;
+}
+
+// --- Accueil My Coach Academy -------------------------------------------------
+//
+//  L'écran d'entrée du collaborateur. Il répond à une question et une seule :
+//  quelles formations dois-je faire, et où en suis-je ?
+//
+//  IL NE CALCULE RIEN QU'IL NE SACHE. L'avancement vient du catalogue (enrichi
+//  côté serveur), le statut se déduit des prérequis que le registre des
+//  certifications renvoie déjà pour TOUTES les formations. L'écran assemble,
+//  il ne décide pas — et il n'invente aucun chiffre.
+
+// Statut -> [libellé, classe, glyphe, verbe du bouton, bouton plein ?]
+//
+//  QUATRE STATUTS, PAS CINQ. « Théorie validée » couvre aussi l'attente de
+//  l'évaluation pratique : la nuance se dit sur la ligne du dessous, là où elle
+//  est lisible, plutôt que dans une pastille de plus.
+const STATUTS = {
+  a_commencer: ['À commencer', 'ac-st-neutre', '⧗', 'Commencer cette formation', false],
+  en_cours:    ['En cours', 'ac-st-cours', '▶', 'Continuer ma formation', true],
+  theorie:     ['Théorie validée', 'ac-st-theorie', '✓', 'Voir les étapes suivantes', false],
+  certifie:    ['Certification obtenue', 'ac-st-certifie', '★', 'Revoir la formation', false],
+};
+const ORDRE_STATUT = ['en_cours', 'theorie', 'a_commencer', 'certifie'];
+
+const certifDe = (cle) => (certifs || []).find((c) => c.formation === cle) || null;
+const prerequis = (cert, quoi) => (cert && (cert.prerequis || []).find((p) => p.cle === quoi)) || null;
+
+function statutDe(f) {
+  const cert = certifDe(f.cle);
+  if (cert && cert.certifie) return 'certifie';
+  const theo = prerequis(cert, 'theorie');
+  if (theo && theo.rempli) return 'theorie';
+  return f.pourcentage > 0 ? 'en_cours' : 'a_commencer';
+}
+
+// La ligne d'état, sous la barre. Elle porte la nuance que la pastille ne dit
+// pas : théorie validée mais pratique encore attendue.
+function detailDe(f, st) {
+  const cert = certifDe(f.cle);
+  if (st === 'certifie') {
+    const d = cert && cert.certification ? cert.certification.obtenueLe : null;
+    return d ? 'Certification obtenue le ' + dateFr(d) : 'Certification obtenue';
+  }
+  if (st === 'theorie') {
+    const prat = prerequis(cert, 'pratique');
+    if (prat && !prat.rempli) return 'Théorie validée – En attente de l\'évaluation pratique';
+    return 'Théorie validée – Certification à prononcer';
+  }
+  // Tous les contenus vus mais la théorie pas encore passée : le prochain geste
+  // n'est plus « continuer », c'est l'évaluation. Le dire ici évite un bouton
+  // qui promet une suite inexistante.
+  if (f.acheve) return 'Contenus terminés – Évaluation théorique à passer';
+  return f.termines + ' / ' + f.total + ' contenu' + (f.total > 1 ? 's' : '') + ' terminé' + (f.termines > 1 ? 's' : '');
+}
+
+let accueilTri = 'statut';    // statut | progression | nom
+let accueilFiltre = 'toutes'; // toutes | certifiantes
+
+function formationsAffichees() {
+  let l = (catalogue || []).map((f, i) => ({ f, i, st: statutDe(f) }));
+  if (accueilFiltre === 'certifiantes') l = l.filter((x) => x.f.certificationActive);
+  const rang = (x) => ORDRE_STATUT.indexOf(x.st);
+  if (accueilTri === 'statut') l.sort((a, b) => rang(a) - rang(b) || a.i - b.i);
+  else if (accueilTri === 'progression') l.sort((a, b) => (b.f.pourcentage || 0) - (a.f.pourcentage || 0) || a.i - b.i);
+  else l.sort((a, b) => a.f.libelle.localeCompare(b.f.libelle, 'fr'));
+  return l;
+}
+
+async function ouvrirAccueil() {
+  await chargerCatalogue();
+  await chargerCertifs();
+  rendreAccueil();
+}
+
+// -- La barre latérale ---------------------------------------------------------
+//
+//  Elle ne montre que des destinations réelles. Les entrées de rôle n'y
+//  apparaissent que pour qui a le droit — et c'est le serveur qui l'a dit.
+function rendreBarreLaterale(actif) {
+  const ic = {
+    academy: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5Z"/></svg>',
+    livre: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H10a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4.5A1.5 1.5 0 0 1 3 16.5v-11Z"/><path d="M21 5.5A1.5 1.5 0 0 0 19.5 4H14a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h5.5a1.5 1.5 0 0 0 1.5-1.5v-11Z"/></svg>',
+    medaille: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5.5"/><path d="m8.5 13.5-2 7 5.5-3 5.5 3-2-7"/></svg>',
+    eval: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6v3H9z"/><path d="M15 5.5h3a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1h3"/><path d="m9 13 2 2 4-4"/></svg>',
+    admin: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+  };
+  const entrees = [
+    { cle: 'academy', libelle: 'Mon Academy', icone: ic.academy },
+    { cle: 'formations', libelle: 'Mes formations', icone: ic.livre },
+    { cle: 'certifications', libelle: 'Mes certifications', icone: ic.medaille },
+  ];
+  if (moiEval) entrees.push({ cle: 'evaluer', libelle: 'Évaluer', icone: ic.eval, id: 'acRoleEval' });
+  if (moiAdmin) entrees.push({ cle: 'administrer', libelle: 'Administrer', icone: ic.admin, id: 'acRoleAdmin' });
+
+  const nav = $('#acSideNav');
+  if (!nav) return;
+  nav.innerHTML = entrees.map((e) =>
+    '<button type="button" class="ac-side-i' + (e.cle === actif ? ' on' : '') + '"' +
+      (e.id ? ' id="' + e.id + '"' : '') +
+      ' data-nav="' + e.cle + '"' + (e.cle === actif ? ' aria-current="page"' : '') + '>' +
+      '<span class="ac-side-ic" aria-hidden="true">' + e.icone + '</span>' +
+      '<span>' + echapper(e.libelle) + '</span></button>').join('');
+
+  nav.querySelectorAll('[data-nav]').forEach((el) =>
+    el.addEventListener('click', () => naviguer(el.dataset.nav)));
+  montrer('#acSide', true);
+}
+
+async function naviguer(ou) {
+  if (ou === 'evaluer') { await ouvrirEvaluateur(); return; }
+  if (ou === 'administrer') { await ouvrirAdmin(); return; }
+  accueilFiltre = ou === 'certifications' ? 'certifiantes' : 'toutes';
+  await ouvrirAccueil();
+  if (ou !== 'academy') {
+    const g = $('#acGrille');
+    if (g && g.scrollIntoView) g.scrollIntoView({ block: 'start', behavior: 'auto' });
+  }
+}
+
+// -- Le bloc de compte ---------------------------------------------------------
+
+function rendreCompte() {
+  const nom = (moiPrenom || (session && session.email) || '').trim();
+  const initiales = nom.replace(/[^\p{L}\s-]/gu, ' ').trim().split(/[\s-]+/)
+    .filter(Boolean).slice(0, 2).map((m) => m[0].toUpperCase()).join('') || '?';
+  const av = $('#acAv'); if (av) av.textContent = initiales;
+  const n = $('#acMeNom'); if (n) n.textContent = nom || '';
+
+  // La seconde ligne dit un fait, pas un slogan : le titre déjà obtenu, sinon
+  // le rôle réel dans l'Academy.
+  const titre = (certifs || []).filter((c) => c.certifie && c.titre).map((c) => c.titre)[0];
+  const role = titre || (moiAdmin ? 'Administrateur My Coach Academy'
+    : moiEval ? 'Évaluateur My Coach Academy'
+    : moiCollab ? 'Collaborateur My Coach' : '');
+  const r = $('#acMeRole'); if (r) r.textContent = role;
+}
+
+// -- L'écran -------------------------------------------------------------------
+
+// L'anneau de progression globale. Un SVG, pas une image : il se redessine avec
+// la donnée, et reste net sur tous les écrans.
+function rendreAnneau(pct) {
+  const r = 52, c = 2 * Math.PI * r;
+  const rempli = Math.max(0, Math.min(100, pct)) / 100 * c;
+  return '<svg class="ac-anneau" viewBox="0 0 128 128" role="img" aria-label="Progression globale : ' + pct + ' %">' +
+    '<circle cx="64" cy="64" r="' + r + '" fill="none" stroke="var(--border-c)" stroke-width="13" />' +
+    '<circle cx="64" cy="64" r="' + r + '" fill="none" stroke="var(--saphir)" stroke-width="13" stroke-linecap="round" ' +
+      'stroke-dasharray="' + rempli.toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 64 64)" />' +
+    '<text x="64" y="64" class="ac-anneau-t" text-anchor="middle" dominant-baseline="central">' + pct + ' %</text>' +
+    '</svg>';
+}
+
+function rendreAccueil() {
+  const liste = formationsAffichees();
+  const toutes = (catalogue || []).map((f) => ({ f, st: statutDe(f) }));
+  const compte = (st) => toutes.filter((x) => x.st === st).length;
+
+  // La progression globale porte sur TOUS les contenus ouverts, pas sur une
+  // moyenne de pourcentages : une formation de 27 vidéos ne pèse pas comme une
+  // de 5.
+  const totContenus = toutes.reduce((n, x) => n + (x.f.total || 0), 0);
+  const totFaits = toutes.reduce((n, x) => n + (x.f.termines || 0), 0);
+  const global = totContenus ? Math.round(totFaits / totContenus * 100) : 0;
+
+  const kpi = [
+    ['🎓', 'ac-k-bleu', toutes.length, 'Formation' + (toutes.length > 1 ? 's' : '') + ' disponible' + (toutes.length > 1 ? 's' : '')],
+    ['📘', 'ac-k-indigo', compte('en_cours'), 'En cours'],
+    ['✓', 'ac-k-vert', compte('theorie') + compte('certifie'), 'Théorie validée'],
+    ['🏅', 'ac-k-ambre', compte('certifie'), 'Certification obtenue'],
+  ];
+
+  const carte = ({ f, st }) => {
+    const [libelle, classe, glyphe] = STATUTS[st];
+    let [, , , verbe, plein] = STATUTS[st];
+    // Plus rien à suivre, mais la théorie reste à passer : le verbe suit l'état
+    // réel, pas la pastille.
+    if (st === 'en_cours' && f.acheve) { verbe = 'Voir les étapes suivantes'; plein = false; }
+    const pct = Number.isFinite(f.pourcentage) ? f.pourcentage : 0;
+    return '<article class="ac-fc ac-fc-' + st + '">' +
+      '<div class="ac-fc-top">' +
+        '<span class="ac-fc-ic" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M12 4 2.5 9 12 14l9.5-5L12 4Z"/><path d="M6 11.2V16c0 1.4 2.7 2.6 6 2.6s6-1.2 6-2.6v-4.8"/></svg>' +
+        '</span>' +
+        '<span class="ac-st ' + classe + '"><i aria-hidden="true">' + glyphe + '</i>' + echapper(libelle) + '</span>' +
+      '</div>' +
+      '<h3 class="ac-fc-t">' + echapper(f.libelle) + '</h3>' +
+      '<p class="ac-fc-d">' + echapper(f.titre ? 'Obtiens le titre ' + f.titre + '.' : 'Parcours de formation My Coach.') + '</p>' +
+      '<p class="ac-fc-pct"><b>' + pct + '%</b> complété</p>' +
+      '<div class="ac-jauge' + (st === 'certifie' || pct === 100 ? ' ac-jauge-ok' : '') + '">' +
+        '<i style="width:' + pct + '%"></i></div>' +
+      '<p class="ac-fc-m">' + echapper(detailDe(f, st)) + '</p>' +
+      '<button type="button" class="ec-btn ac-fc-b' + (plein ? ' ec-btn-p' : '') + '"' +
+        ' data-ouvrir="' + echapper(f.cle) + '">' + echapper(verbe) + (plein ? '' : ' →') + '</button>' +
+      '</article>';
+  };
+
+  const legende = [
+    ['en_cours', 'En cours'],
+    ['theorie', 'Théorie validée'],
+    ['a_commencer', 'À commencer'],
+    ['certifie', 'Certification obtenue'],
+  ];
+
+  $('#acAccueil').innerHTML =
+    '<h1 class="ac-h1">Mon Academy <span aria-hidden="true">👋</span></h1>' +
+    '<p class="ac-h1-s">Bienvenue dans ton espace de formation. Continue ton parcours et obtiens tes certifications.</p>' +
+
+    '<div class="ac-kpis">' + kpi.map(([g, c, n, l]) =>
+      '<div class="ac-kpi"><span class="ac-kpi-ic ' + c + '" aria-hidden="true">' + g + '</span>' +
+        '<span class="ac-kpi-tx"><b>' + n + '</b><span>' + echapper(l) + '</span></span></div>').join('') +
+    '</div>' +
+
+    '<div class="ac-grille-h">' +
+      '<h2 class="ac-h2">' + (accueilFiltre === 'certifiantes' ? 'Mes formations certifiantes' : 'Toutes mes formations') + '</h2>' +
+      '<label class="ac-tri"><span>Trier par</span>' +
+        '<select id="acTri">' +
+          ['statut', 'progression', 'nom'].map((v) =>
+            '<option value="' + v + '"' + (accueilTri === v ? ' selected' : '') + '>' +
+            (v === 'statut' ? 'Statut' : v === 'progression' ? 'Progression' : 'Nom') + '</option>').join('') +
+        '</select></label>' +
+    '</div>' +
+
+    '<div class="ac-cols">' +
+      '<div class="ac-fcs" id="acGrille">' +
+        (liste.length ? liste.map(carte).join('')
+          : '<div class="ec-vide">' + (accueilFiltre === 'certifiantes'
+            ? 'Aucune formation certifiante ne t\'est ouverte pour le moment.'
+            : 'Aucune formation ne t\'est ouverte pour le moment.') + '</div>') +
+      '</div>' +
+
+      '<aside class="ac-parcours">' +
+        '<h2 class="ac-parcours-t">Ton parcours</h2>' +
+        rendreAnneau(global) +
+        '<p class="ac-parcours-l">Progression globale</p>' +
+        '<ul class="ac-lg">' + legende.map(([cle, l]) =>
+          '<li><span class="ac-lg-d ac-lg-' + cle + '" aria-hidden="true"></span>' +
+            '<span class="ac-lg-t">' + echapper(l) + '</span>' +
+            '<b class="ac-lg-n">' + compte(cle) + '</b></li>').join('') + '</ul>' +
+        '<button type="button" class="ec-btn ac-parcours-b" id="acVersCertifs">Voir mes certifications</button>' +
+      '</aside>' +
+    '</div>';
+
+  document.querySelectorAll('#acAccueil [data-ouvrir]').forEach((el) =>
+    el.addEventListener('click', () => ouvrirFormation(el.dataset.ouvrir)));
+  const tri = $('#acTri');
+  if (tri) tri.addEventListener('change', () => { accueilTri = tri.value; rendreAccueil(); });
+  const vc = $('#acVersCertifs');
+  if (vc) vc.addEventListener('click', () => naviguer('certifications'));
+
+  rendreCompte();
+  rendreBarreLaterale('academy');
+  afficher('#acAccueil');
+  window.scrollTo(0, 0);
+}
+
+// --- La frise du parcours -----------------------------------------------------
+//
+//  Elle remplace quatre encadrés d'état empilés par une ligne. Et elle
+//  N'AFFICHE QUE LES ÉTAPES RÉELLEMENT DEMANDÉES : une formation sans
+//  évaluation pratique montre trois jalons, pas quatre dont un grisé. Une étape
+//  qui n'est pas demandée n'existe pas — c'est la règle du catalogue depuis le
+//  lot 5, l'écran ne fait que la suivre.
+
+function etapesDe() {
+  const cat = formationCourante() || {};
+  const cert = certifDe(fCourante);
+  const l = [
+    { cle: 'apprendre', libelle: 'Apprendre', fait: !!(formation && formation.acheve) },
+    { cle: 'theorie', libelle: 'Théorie', fait: !!(qcm && qcm.theorieValidee) },
+  ];
+  if (cat.pratiqueObligatoire) l.push({ cle: 'terrain', libelle: 'Terrain', fait: !!(pratique && pratique.validee) });
+  if (cat.certificationActive) l.push({ cle: 'certification', libelle: 'Certification', fait: !!(cert && cert.certifie) });
+
+  // L'étape courante est la première qui n'est pas faite. Aucune n'est courante
+  // quand tout l'est : le parcours est fini, il n'y a plus de « ici ».
+  const i = l.findIndex((e) => !e.fait);
+  l.forEach((e, k) => { e.courante = k === i; });
+  return l;
+}
+
+function rendreFrise() {
+  const l = etapesDe();
+  if (l.length < 2) return '';
+  return '<ol class="ac-frise" aria-label="Étapes du parcours">' +
+    l.map((e, i) => {
+      const cls = e.fait ? ' ac-fr-fait' : e.courante ? ' ac-fr-ici' : '';
+      return (i ? '<li class="ac-fr-lien' + (l[i - 1].fait ? ' ac-fr-lien-fait' : '') + '" aria-hidden="true"></li>' : '') +
+        '<li class="ac-fr-e' + cls + '"' + (e.courante ? ' aria-current="step"' : '') + '>' +
+          '<span class="ac-fr-d">' + (e.fait ? '✓' : String(i + 1)) + '</span>' +
+          '<span class="ac-fr-l">' + echapper(e.libelle) + '</span>' +
+        '</li>';
+    }).join('') +
+    '</ol>';
 }
 
 // --- Sommaire ----------------------------------------------------------------
@@ -261,85 +630,360 @@ function rendreSelecteur() {
     '</div>';
 }
 
+// --- La page d'une formation --------------------------------------------------
+//
+//  L'ordre est celui de l'apprenant : qui je suis en train de suivre, où j'en
+//  suis, puis les quatre étapes du parcours, chacune dépliable.
+//
+//  ⚠️ LES CARTES QCM, PRATIQUE ET CERTIFICATION NE SONT PAS TOUCHÉES : elles
+//  sont rendues telles quelles À L'INTÉRIEUR de leur étape. Leur refonte est un
+//  lot à part ; ce qui change ici, c'est ce qui les entoure.
+
+// Durée totale d'une formation, additionnée sur ses contenus. Aucun champ
+// nouveau : c'est la somme des durées déjà saisies à l'administration.
+function dureeTotale(f) {
+  const min = f.modules.flatMap((m) => m.contenus).reduce((n, c) => n + (c.dureeMin || 0), 0);
+  if (!min) return null;
+  const h = Math.floor(min / 60), r = min % 60;
+  return h ? h + ' h' + (r ? ' ' + String(r).padStart(2, '0') : '') : min + ' min';
+}
+
+// La régularité, calculée sur les dates de complétion réelles. On ne stocke
+// rien : les jours viennent de `termineLe`, déjà renvoyé par le serveur.
+function regularite(f) {
+  const jours = new Set(f.modules.flatMap((m) => m.contenus)
+    .filter((c) => c.termineLe).map((c) => String(c.termineLe).slice(0, 10)));
+  const cle = (d) => d.toISOString().slice(0, 10);
+  const auj = new Date();
+
+  // La semaine affichée, du lundi au dimanche.
+  const lundi = new Date(auj);
+  lundi.setDate(auj.getDate() - ((auj.getDay() + 6) % 7));
+  const semaine = [];
+  for (let i = 0; i < 7; i++) {
+    const j = new Date(lundi); j.setDate(lundi.getDate() + i);
+    semaine.push({ lettre: 'LMMJVSD'[i], actif: jours.has(cle(j)), futur: j > auj });
+  }
+
+  // La série : les jours consécutifs jusqu'à aujourd'hui. On tolère que rien
+  // n'ait été fait aujourd'hui — la série court alors depuis hier.
+  let serie = 0;
+  const depart = new Date(auj);
+  if (!jours.has(cle(depart))) depart.setDate(depart.getDate() - 1);
+  while (jours.has(cle(depart))) { serie++; depart.setDate(depart.getDate() - 1); }
+  return { semaine, serie };
+}
+
+// Le statut d'une étape : son libellé et sa couleur. Tout est relu sur l'état
+// que le serveur renvoie — l'écran ne déduit jamais un droit.
+function statutEtape(cle) {
+  const cert = certifDe(fCourante);
+  if (cle === 'apprendre') {
+    return formation.acheve
+      ? ['Terminé', 'ac-et-ok']
+      : [formation.termines + ' / ' + formation.total + ' terminés', 'ac-et-neutre'];
+  }
+  if (cle === 'theorie') {
+    if (!qcm) return ['À venir', 'ac-et-neutre'];
+    if (qcm.theorieValidee) return ['Théorie validée', 'ac-et-ok'];
+    if (qcm.enCours) return ['Évaluation en cours', 'ac-et-actif'];
+    if (qcm.disponible) return ['À passer', 'ac-et-actif'];
+    return ['Verrouillé', 'ac-et-gris'];
+  }
+  if (cle === 'terrain') {
+    if (!pratique) return ['À venir', 'ac-et-neutre'];
+    if (pratique.validee) return ['Validée', 'ac-et-ok'];
+    if (pratique.etat === 'en_attente') return ['Résultat en attente', 'ac-et-actif'];
+    if (pratique.etat === 'a_repasser') return ['À repasser', 'ac-et-neutre'];
+    if (pratique.etat === 'a_realiser') return ['À réaliser', 'ac-et-actif'];
+    return ['À venir', 'ac-et-neutre'];
+  }
+  if (cert && cert.certifie) return ['Obtenue', 'ac-et-ok'];
+  if (cert && cert.eligible) return ['À délivrer', 'ac-et-actif'];
+  return ['Non accessible', 'ac-et-gris'];
+}
+
+const ICONES_ETAPE = {
+  apprendre: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H10a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4.5A1.5 1.5 0 0 1 3 16.5v-11Z"/><path d="M21 5.5A1.5 1.5 0 0 0 19.5 4H14a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h5.5a1.5 1.5 0 0 0 1.5-1.5v-11Z"/></svg>',
+  theorie: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.3 12.2 2.6 2.6 4.8-5"/></svg>',
+  terrain: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6M20 9v6M7 6.5v11M17 6.5v11M7 12h10"/></svg>',
+  certification: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5.5"/><path d="m8.5 13.5-2 7 5.5-3 5.5 3-2-7"/></svg>',
+};
+const TEXTES_ETAPE = {
+  apprendre: ['Apprendre — Les modules', 'Regarde et valide tous les contenus de la formation.', 'Les modules'],
+  theorie: ['Théorie — Évaluation QCM', 'Valide tes connaissances avec le QCM.', 'Évaluation QCM'],
+  terrain: ['Terrain — Évaluation pratique', 'Mets en pratique tes compétences lors d\'une évaluation avec un évaluateur.', 'Évaluation pratique'],
+  certification: ['Certification — Deviens certifié', 'Valide toutes les étapes et obtiens ta certification.', 'Deviens certifié'],
+};
+
 function rendreSommaire() {
   const f = formation;
+  const cat = formationCourante() || {};
   const reprise = f.reprise ? f.modules.flatMap((m) => m.contenus).find((c) => c.id === f.reprise) : null;
+  const etapes = etapesDe();
+  const cle2 = { apprendre: 'apprendre', theorie: 'theorie', terrain: 'terrain', certification: 'certification' };
+  const st = statutDe(cat.cle ? cat : { cle: fCourante, pourcentage: f.pourcentage });
+  const [libStatut, clStatut] = [STATUTS[st][0], STATUTS[st][1]];
+  const duree = dureeTotale(f);
+  const reg = regularite(f);
 
-  const cat = formationCourante();
+  // -- Identité + progression ------------------------------------------------
+  const meta = [
+    duree ? ['⏱', 'Durée totale : ' + duree] : null,
+    ['▤', f.modules.length + ' module' + (f.modules.length > 1 ? 's' : '')],
+    cat.certificationActive ? ['✦', 'Certification My Coach'] : null,
+  ].filter(Boolean);
+
+  const entete =
+    '<div class="ac-fh">' +
+      '<div class="ac-fh-id">' +
+        '<span class="ac-fh-ic" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M12 4 2.5 9 12 14l9.5-5L12 4Z"/><path d="M6 11.2V16c0 1.4 2.7 2.6 6 2.6s6-1.2 6-2.6v-4.8"/></svg>' +
+        '</span>' +
+        '<div class="ac-fh-tx">' +
+          '<h1 class="ac-fh-t">' + echapper(cat.libelle || 'Ma formation') + '</h1>' +
+          '<span class="ac-st ' + clStatut + '">' + echapper(libStatut) + '</span>' +
+          '<p class="ac-fh-d">' + echapper(cat.titre
+            ? 'Pour devenir ' + cat.titre + '.'
+            : 'Parcours de formation My Coach.') + '</p>' +
+          '<ul class="ac-fh-m">' + meta.map(([g, t]) =>
+            '<li><i aria-hidden="true">' + g + '</i>' + echapper(t) + '</li>').join('') + '</ul>' +
+        '</div>' +
+      '</div>' +
+
+      '<aside class="ac-fp">' +
+        '<div class="ac-fp-h"><b>Ta progression</b><span>' + f.pourcentage + ' %</span></div>' +
+        '<div class="ac-jauge' + (f.acheve ? ' ac-jauge-ok' : '') + '"><i style="width:' + f.pourcentage + '%"></i></div>' +
+        '<p class="ac-fp-m">' + f.termines + ' / ' + f.total + ' contenu' + (f.total > 1 ? 's' : '') + ' terminé' + (f.termines > 1 ? 's' : '') + '</p>' +
+        (reprise
+          ? '<button type="button" class="ec-btn ec-btn-p ac-fp-b" id="acReprendre">' +
+              '<i aria-hidden="true">▶</i> ' + (f.termines ? 'Reprendre ma formation' : 'Commencer ma formation') + '</button>' +
+            // Le prochain contenu est NOMMÉ : « reprendre » sans dire quoi
+            // oblige à le chercher dans la liste.
+            '<p class="ac-fp-n">Suite : ' + echapper(reprise.titre) + '</p>'
+          : '<p class="ac-fp-fini"><span aria-hidden="true">✓</span> Tous les contenus sont terminés</p>') +
+      '</aside>' +
+    '</div>';
+
+  // -- La frise --------------------------------------------------------------
+  const frise =
+    '<div class="ac-parc">' +
+      '<h2 class="ac-parc-t">Ton parcours</h2>' +
+      '<ol class="ac-fr2">' + etapes.map((e, i) => {
+        const cls = e.fait ? ' ac-fr2-fait' : e.courante ? ' ac-fr2-ici' : '';
+        const [, , sous] = TEXTES_ETAPE[e.cle];
+        return (i ? '<li class="ac-fr2-l' + (etapes[i - 1].fait ? ' ac-fr2-l-fait' : '') + '" aria-hidden="true"></li>' : '') +
+          '<li class="ac-fr2-e' + cls + '"' + (e.courante ? ' aria-current="step"' : '') + '>' +
+            '<span class="ac-fr2-d">' + (e.fait ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 12.4 4 4 8-8.4"/></svg>' : ICONES_ETAPE[e.cle]) + '</span>' +
+            '<span class="ac-fr2-t">' + (i + 1) + '. ' + echapper(e.libelle) + '</span>' +
+            '<span class="ac-fr2-s">' + echapper(sous) + '</span>' +
+          '</li>';
+      }).join('') + '</ol>' +
+
+      // -- Les quatre étapes, en accordéon ------------------------------------
+      '<div class="ac-ets" id="acEtapes">' + etapes.map((e, i) => {
+        const [titre, aide] = TEXTES_ETAPE[e.cle];
+        const [lib, cl] = statutEtape(cle2[e.cle]);
+        const corps = e.cle === 'apprendre'
+          ? (f.modules.length ? f.modules.map(rendreModule).join('')
+            : '<div class="ec-vide">Aucun module pour le moment.</div>')
+          : e.cle === 'theorie' ? rendreCarteQcm()
+          : e.cle === 'terrain' ? rendreCartePratique()
+          : rendreCartesCertification();
+        return '<details class="ac-et' + (e.courante ? ' ac-et-ici' : '') + '"' + (e.courante ? ' open' : '') + '>' +
+          '<summary class="ac-et-h">' +
+            '<span class="ac-et-n' + (e.fait ? ' ac-et-n-ok' : e.courante ? ' ac-et-n-ici' : '') + '">' + (i + 1) + '</span>' +
+            '<span class="ac-et-tx"><b>' + echapper(titre) + '</b><span>' + echapper(aide) + '</span></span>' +
+            '<span class="ac-et-st ' + cl + '">' + echapper(lib) + '</span>' +
+            '<span class="ac-et-ch" aria-hidden="true">⌄</span>' +
+          '</summary>' +
+          '<div class="ac-et-c">' + (corps || '<div class="ec-vide">Rien à afficher pour le moment.</div>') + '</div>' +
+          '</details>';
+      }).join('') + '</div>' +
+    '</div>';
+
+  // -- Le panneau de droite --------------------------------------------------
+  const points = [
+    f.modules.length + ' module' + (f.modules.length > 1 ? 's' : '') + ' et ' + f.total + ' contenu' + (f.total > 1 ? 's' : ''),
+    cat.pratiqueObligatoire ? 'Une évaluation pratique en situation réelle' : 'Une évaluation théorique par QCM',
+    cat.certificationActive && cat.titre ? 'Le titre ' + cat.titre + ' à la clé' : 'Un parcours validé par un QCM',
+  ];
+  const panneau =
+    '<aside class="ac-pan">' +
+      '<section class="ac-pan-c">' +
+        '<h2 class="ac-pan-t">À propos de cette formation</h2>' +
+        '<p class="ac-pan-p">' + echapper(cat.titre
+          ? 'Ce parcours te donne les clés pour obtenir le titre ' + cat.titre + ', avec méthode et exigence.'
+          : 'Ce parcours te donne les clés pour progresser, avec méthode et exigence.') + '</p>' +
+        '<ul class="ac-pan-l">' + points.map((p) =>
+          '<li><span class="ac-pan-ck" aria-hidden="true">✓</span>' + echapper(p) + '</li>').join('') + '</ul>' +
+      '</section>' +
+
+      '<section class="ac-pan-c">' +
+        '<h2 class="ac-pan-t"><span class="ac-pan-i" aria-hidden="true">🎧</span> Besoin d\'aide ?</h2>' +
+        '<p class="ac-pan-p">Ton référent My Coach est là pour t\'accompagner si tu as la moindre question.</p>' +
+        '<button type="button" class="ec-btn ac-pan-b" disabled title="Bientôt disponible">Contacter le support</button>' +
+      '</section>' +
+
+      '<section class="ac-pan-c">' +
+        '<h2 class="ac-pan-t"><span class="ac-pan-i" aria-hidden="true">🗂</span> Ressources utiles</h2>' +
+        '<p class="ac-pan-p">Les documents liés à la formation seront regroupés ici.</p>' +
+        '<button type="button" class="ec-btn ac-pan-b" disabled title="Bientôt disponible">Voir les ressources</button>' +
+      '</section>' +
+    '</aside>';
+
+  // -- La régularité ---------------------------------------------------------
+  const motiv =
+    '<div class="ac-reg">' +
+      '<div class="ac-reg-photo" aria-hidden="true">' +
+        '<img class="ac-reg-img" id="acRegPhoto" alt="" hidden />' +
+      '</div>' +
+      '<div class="ac-reg-tx">' +
+        '<h2 class="ac-reg-t">Reste régulier, progresse chaque jour</h2>' +
+        '<p class="ac-reg-p">Consacre un peu de temps chaque jour à ta formation. ' +
+          'La régularité est ton meilleur allié !</p>' +
+      '</div>' +
+      '<div class="ac-reg-sem">' +
+        '<div class="ac-reg-j">' + reg.semaine.map((j) =>
+          '<span class="ac-reg-c' + (j.actif ? ' on' : j.futur ? ' futur' : '') + '">' +
+            '<i aria-hidden="true">' + j.lettre + '</i>' +
+            '<b aria-hidden="true">' + (j.actif ? '✓' : '') + '</b></span>').join('') + '</div>' +
+        '<p class="ac-reg-s">' + (reg.serie
+          ? reg.serie + ' jour' + (reg.serie > 1 ? 's' : '') + ' consécutif' + (reg.serie > 1 ? 's' : '') + ' 🔥'
+          : 'Reprends aujourd\'hui pour lancer ta série') + '</p>' +
+      '</div>' +
+    '</div>';
 
   $('#acSommaire').innerHTML =
-    rendreSelecteur() +
-    // LE NOM VIENT DU CATALOGUE. Plus aucun titre de formation écrit en dur :
-    // une formation ajoutée demain s'annonce toute seule.
-    '<h1 class="ec-t">' + echapper(cat ? cat.libelle : 'Ma formation') + '</h1>' +
-    '<p class="ec-sub">' + (cat && cat.titre
-      ? 'Les modules à suivre pour devenir ' + echapper(cat.titre) + '.'
-      : 'Les modules de ce parcours.') + '</p>' +
+    '<button type="button" class="ec-back" id="acVersAccueil">← Retour à mes formations</button>' +
+    entete +
+    '<div class="ac-fcols">' +
+      '<div class="ac-fcol-g">' + frise + motiv + '</div>' +
+      panneau +
+    '</div>';
 
-    '<div class="ac-prog">' +
-      '<div class="ac-prog-h"><b>Ta progression</b><span>' + f.pourcentage + ' %</span></div>' +
-      '<div class="ac-barre"><i style="width:' + f.pourcentage + '%"></i></div>' +
-      '<p class="ac-prog-s">' + f.termines + ' contenu' + (f.termines > 1 ? 's' : '') + ' terminé' +
-        (f.termines > 1 ? 's' : '') + ' sur ' + f.total + '.' +
-        (f.acheve ? ' Formation théorique terminée.' : '') + '</p>' +
-      (reprise ? '<button type="button" class="ec-btn ec-btn-p ac-reprendre" id="acReprendre">' +
-        (f.termines ? 'Reprendre' : 'Commencer') + ' : ' + echapper(reprise.titre) + '</button>' : '') +
-    '</div>' +
-
-    rendreCarteQcm() +
-    rendreCartePratique() +
-    rendreCartesCertification() +
-    rendreAccesEvaluateur() +
-    rendreAccesAdmin() +
-
-    (f.modules.length ? f.modules.map(rendreModule).join('')
-      : '<div class="ec-vide">Aucun module de formation pour le moment.</div>');
-
-  document.querySelectorAll('#acSommaire [data-formation]').forEach((el) =>
-    el.addEventListener('click', () => changerFormation(el.dataset.formation)));
-
+  const acc = $('#acVersAccueil');
+  if (acc) acc.addEventListener('click', ouvrirAccueil);
   const b = $('#acReprendre');
   if (b) b.addEventListener('click', () => ouvrir(f.reprise));
   const g = $('#acQcmGo');
   if (g) g.addEventListener('click', ouvrirEvaluation);
   const v = $('#acQcmVoir');
   if (v) v.addEventListener('click', ouvrirEvaluation);
-  const ev = $('#acEvalGo');
-  if (ev) ev.addEventListener('click', ouvrirEvaluateur);
-  const ad = $('#acAdminGo');
-  if (ad) ad.addEventListener('click', ouvrirAdmin);
-  document.querySelectorAll('[data-contenu]').forEach((el) => {
+  document.querySelectorAll('#acSommaire [data-contenu]').forEach((el) => {
     el.addEventListener('click', () => ouvrir(Number(el.dataset.contenu)));
   });
+  const rp = $('#acRegPhoto');
+  if (rp && PHOTO_REGULARITE) {
+    rp.addEventListener('load', () => { rp.hidden = false; });
+    rp.addEventListener('error', () => { rp.hidden = true; });
+    rp.src = PHOTO_REGULARITE;
+  }
+
+  rendreBarreLaterale('formations');
   afficher('#acSommaire');
   window.scrollTo(0, 0);
 }
 
+// UN MODULE ACHEVÉ SE REPLIE. L'écran raccourcit à mesure qu'on avance : c'est
+// exactement le retour dont l'apprenant a besoin, et ça évite de faire défiler
+// vingt lignes cochées pour atteindre la suivante à faire.
+//
+// <details> plutôt qu'un repli maison : le navigateur gère l'accessibilité, le
+// clavier et la recherche dans la page sans une ligne de script.
 function rendreModule(m) {
-  return '<section class="ac-mod">' +
-    '<h2 class="ac-mod-t">' + echapper(m.titre) + '</h2>' +
-    (m.description ? '<p class="ac-mod-s">' + echapper(m.description) + '</p>' : '') +
-    '<p class="ac-mod-c">' + m.termines + '/' + m.total + ' terminé' + (m.termines > 1 ? 's' : '') +
-      (m.acheve ? ' · module complet' : '') + '</p>' +
-    '<div class="ac-liste">' + m.contenus.map((c) => {
-      const [cls, ic] = etatDe(c);
-      return '<button type="button" class="ac-l ' + cls + '" data-contenu="' + c.id + '">' +
-        '<span class="ac-l-ic" aria-hidden="true">' + ic + '</span>' +
-        '<span class="ac-l-t">' + echapper(c.titre) + '</span>' +
-        (c.dureeMin ? '<span class="ac-l-d">' + c.dureeMin + ' min</span>' : '') +
-        '</button>';
-    }).join('') + '</div></section>';
+  const ouvert = !m.acheve;
+  const lignes = '<div class="ac-liste">' + m.contenus.map((c) => {
+    const [cls, ic] = etatDe(c);
+    return '<button type="button" class="ac-l ' + cls + '" data-contenu="' + c.id + '">' +
+      '<span class="ac-l-ic" aria-hidden="true">' + ic + '</span>' +
+      '<span class="ac-l-t">' + echapper(c.titre) + '</span>' +
+      (c.dureeMin ? '<span class="ac-l-d">' + c.dureeMin + ' min</span>' : '') +
+      '</button>';
+  }).join('') + '</div>';
+
+  return '<details class="ac-mod' + (m.acheve ? ' ac-mod-ok' : '') + '"' + (ouvert ? ' open' : '') + '>' +
+    '<summary class="ac-mod-h">' +
+      '<span class="ac-mod-ti">' +
+        '<span class="ac-mod-t">' + echapper(m.titre) + '</span>' +
+        (m.description ? '<span class="ac-mod-s">' + echapper(m.description) + '</span>' : '') +
+      '</span>' +
+      '<span class="ac-mod-c">' + m.termines + '/' + m.total + (m.acheve ? ' ✓' : '') + '</span>' +
+    '</summary>' +
+    lignes +
+    '</details>';
 }
 
-// --- Lecteur -----------------------------------------------------------------
+// --- Lecture d'un contenu -----------------------------------------------------
+//
+//  L'ÉCRAN LE PLUS TRANSFORMÉ DU CHANTIER (lot B). Avant : une vidéo, un
+//  encadré « j'ai terminé », deux flèches — et aucun contexte. On savait où on
+//  était uniquement parce qu'on venait de cliquer.
+//
+//  Maintenant, le sommaire du parcours reste affiché à côté de la vidéo et
+//  répond en permanence aux quatre questions : où je suis (la ligne en saphir),
+//  ce que je viens de faire (les lignes cochées), ce qu'il me reste (la suite de
+//  la liste), ce qui vient ensuite (la ligne juste en dessous).
+//
+//  LE GESTE PRINCIPAL EST FUSIONNÉ : « Terminer et continuer → » marque le
+//  contenu puis ouvre le suivant. C'est le mouvement naturel, et il remplace
+//  l'enchaînement « j'ai terminé » puis « suivant » qui demandait deux clics
+//  pour une seule intention.
+//
+//  ⚠️ CE QUI N'A PAS CHANGÉ, ET NE DOIT PAS : terminer reste une DÉCLARATION du
+//  collaborateur. On ne peut pas prouver qu'une vidéo YouTube a été regardée, et
+//  aucun libellé de cet écran ne doit laisser croire le contraire.
 
-// Tous les contenus, à plat et dans l'ordre : c'est ce qui donne « précédent »
-// et « suivant » sans que l'écran ait à connaître la structure des modules.
 const aPlat = () => (formation ? formation.modules.flatMap((m) => m.contenus) : []);
 
+// Le sommaire latéral. Il montre TOUT le parcours, pas seulement le module
+// courant : c'est ce qui permet de mesurer ce qu'il reste.
+function rendreSommaireLateral(courant) {
+  const f = formation;
+  if (!f) return '';
+
+  const modules = f.modules.map((m) => {
+    const lignes = m.contenus.map((c) => {
+      const ici = c.id === courant.id;
+      const cls = ici ? 'ac-sl-ici' : c.termine ? 'ac-sl-fait' : 'ac-sl-avenir';
+      const ic = ici ? '▶' : c.termine ? '✓' : '○';
+      return '<button type="button" class="ac-sl-r ' + cls + '"' +
+        (ici ? ' aria-current="true"' : '') +
+        ' data-contenu="' + c.id + '">' +
+        '<span class="ac-sl-ic" aria-hidden="true">' + ic + '</span>' +
+        '<span class="ac-sl-t">' + echapper(c.titre) + '</span>' +
+        (c.dureeMin ? '<span class="ac-sl-d">' + c.dureeMin + ' min</span>' : '') +
+        '</button>';
+    }).join('');
+    return '<div class="ac-sl-mod">' +
+      '<p class="ac-sl-mt">' + echapper(m.titre) + '</p>' +
+      lignes +
+      '</div>';
+  }).join('');
+
+  // Sur mobile, le sommaire est REPLIÉ sous la vidéo : ouvert, ses vingt-sept
+  // lignes repousseraient le bouton d'action hors de l'écran. Sur desktop il
+  // est déplié, c'est tout son intérêt.
+  const deplie = typeof window !== 'undefined' && window.innerWidth >= 900;
+
+  return '<aside class="ac-lec-side">' +
+    '<details class="ac-sl"' + (deplie ? ' open' : '') + '>' +
+      '<summary class="ac-sl-h">' +
+        '<span class="ac-sl-hk">Le parcours</span>' +
+        '<span class="ac-sl-hc">' + f.termines + '/' + f.total + '</span>' +
+      '</summary>' +
+      '<div class="ac-jauge ac-sl-jauge"><i style="width:' + f.pourcentage + '%"></i></div>' +
+      '<div class="ac-sl-l">' + modules + '</div>' +
+    '</details>' +
+    '</aside>';
+}
+
+// Ouvrir un contenu. On enregistre l'ouverture AVANT d'afficher : c'est elle
+// qui déplace le point de reprise. Elle ne termine RIEN — ouvrir une page n'est
+// pas avoir regardé une vidéo, et confondre les deux viderait la progression de
+// son sens.
 async function ouvrir(id) {
-  // On enregistre l'ouverture AVANT d'afficher : c'est elle qui déplace le
-  // point de reprise. Elle ne termine rien.
   const r = await apiAc('/api/academy/contenus/' + id + '/ouvrir', 'POST');
   if (r.status === 403) { await demarrer(); return; }
   if (r.status === 401) { deconnecter(); return; }
@@ -356,48 +1000,117 @@ function rendreLecteur() {
   const etat = tous[i] || {};
   const prec = i > 0 ? tous[i - 1] : null;
   const suiv = i >= 0 && i < tous.length - 1 ? tous[i + 1] : null;
+  const cat = formationCourante();
+  const mod = formation ? formation.modules.find((m) => m.contenus.some((x) => x.id === c.id)) : null;
 
   // youtube-nocookie : pas de cookie déposé tant que la vidéo n'est pas lancée.
   // L'identifiant a été validé côté serveur ; il est ré-échappé ici par principe.
+  //
+  // Sans identifiant, on le DIT et on n'empêche rien : le parcours continue,
+  // le bouton reste actif. Bloquer quelqu'un sur un contenu qui manque serait
+  // le punir d'un oubli d'administration.
   const lecteur = c.youtubeId
     ? '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(c.youtubeId) + '?rel=0" ' +
       'title="' + echapper(c.titre) + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture" ' +
       'referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>'
-    : '<p class="ac-video-non">Vidéo indisponible pour ce contenu.</p>';
+    : '<p class="ac-video-non">Cette vidéo n\'est pas encore disponible.</p>';
+
+  // LE BOUTON PRINCIPAL, ET SES TROIS FORMES.
+  //  - pas encore terminé, un suivant existe  -> « Terminer et continuer »
+  //  - pas encore terminé, c'est le dernier   -> « Terminer et passer au QCM »
+  //  - déjà terminé                           -> « Suivant », en secondaire
+  let principal;
+  if (!etat.termine && suiv) {
+    principal = '<button type="button" class="ec-btn ec-btn-p ac-lec-cta" id="acFait" data-puis="suivant">' +
+      'Terminer et continuer →</button>';
+  } else if (!etat.termine) {
+    principal = '<button type="button" class="ec-btn ec-btn-p ac-lec-cta" id="acFait" data-puis="qcm">' +
+      'Terminer et passer au QCM →</button>';
+  } else if (suiv) {
+    principal = '<button type="button" class="ec-btn ac-lec-cta" id="acSuiv">Suivant →</button>';
+  } else {
+    principal = '<button type="button" class="ec-btn ac-lec-cta" id="acVersEtapes">Voir les étapes d\'évaluation →</button>';
+  }
+
+  const resume = c.description
+    ? '<section class="ac-lec-bloc"><h2 class="ac-lec-bt">En résumé</h2>' +
+        '<p class="ac-lec-bp">' + echapper(c.description) + '</p></section>'
+    : '';
+
+  // Les points clés : le champ « texte » du contenu, quand il est renseigné.
+  // Aucun modèle de données nouveau — c'est celui des contenus écrits, réutilisé
+  // ici comme note de la vidéo quand l'administration en a saisi une.
+  const cles = String(c.texte || '').trim()
+    ? '<section class="ac-lec-bloc"><h2 class="ac-lec-bt">Les points clés</h2>' +
+        '<div class="ac-lec-bp ac-lec-texte">' +
+          String(c.texte).split(/\n+/).filter((l) => l.trim())
+            .map((l) => '<p>' + echapper(l.trim()) + '</p>').join('') +
+        '</div></section>'
+    : '';
 
   $('#acLecteur').innerHTML =
-    '<button type="button" class="ec-back" id="acBack">← Ma formation</button>' +
-    '<div class="ac-lec-h">' +
-      '<p class="ac-lec-mod">' + echapper(c.moduleTitre) + '</p>' +
-      '<h1 class="ac-lec-t">' + echapper(c.titre) + '</h1>' +
-    '</div>' +
-    '<div class="ac-video">' + lecteur + '</div>' +
-    (c.description ? '<p class="ac-lec-d">' + echapper(c.description) + '</p>' : '') +
+    '<button type="button" class="ec-back" id="acBack">← ' +
+      echapper(cat ? cat.libelle : 'Ma formation') + '</button>' +
 
-    '<div class="ac-lec-fin">' +
-      (etat.termine
-        ? '<p class="ac-deja"><span aria-hidden="true">✓</span> Terminé le ' + echapper(dateFr(etat.termineLe)) + '</p>'
-        : '<p class="ac-lec-aide">Quand tu as regardé cette vidéo en entier, confirme-le ici : ' +
-            'c\'est ce qui fait avancer ta progression.</p>' +
-          '<button type="button" class="ec-btn ec-btn-p ac-fait-b" id="acFait">J\'ai terminé ce contenu</button>') +
-    '</div>' +
+    '<div class="ac-lec">' +
+      '<div class="ac-lec-main">' +
+        '<div class="ac-video">' + lecteur + '</div>' +
 
-    '<div class="ac-nav">' +
-      '<button type="button" class="ec-btn" id="acPrec"' + (prec ? '' : ' disabled') + '>← Précédent</button>' +
-      '<button type="button" class="ec-btn" id="acSuiv"' + (suiv ? '' : ' disabled') + '>Suivant →</button>' +
+        '<p class="ac-lec-mod">' + echapper(mod ? mod.titre : c.moduleTitre) +
+          (etat.dureeMin ? ' · ' + etat.dureeMin + ' min' : '') + '</p>' +
+        '<h1 class="ac-lec-t">' + echapper(c.titre) + '</h1>' +
+
+        // « Précédent » à gauche, le geste qui fait avancer à droite : on lit le
+        // sens de la marche dans la disposition, pas seulement dans les flèches.
+        '<div class="ac-lec-actions">' +
+          '<button type="button" class="ec-btn ac-lec-prec" id="acPrec"' + (prec ? '' : ' disabled') +
+            '>← Précédent</button>' +
+          principal +
+        '</div>' +
+
+        (etat.termine
+          ? '<p class="ac-deja"><span aria-hidden="true">✓</span> Terminé le ' + echapper(dateFr(etat.termineLe)) + '</p>'
+          : '<p class="ac-lec-aide">Confirme quand tu as regardé cette vidéo en entier : ' +
+              'c\'est ce qui fait avancer ta progression.</p>') +
+
+        resume + cles +
+      '</div>' +
+
+      rendreSommaireLateral(c) +
     '</div>';
 
   $('#acBack').addEventListener('click', () => rendreSommaire());
   const f = $('#acFait');
-  if (f) f.addEventListener('click', () => terminer(c.id));
+  if (f) f.addEventListener('click', () => terminer(c.id, f.dataset.puis));
   if (prec) $('#acPrec').addEventListener('click', () => ouvrir(prec.id));
-  if (suiv) $('#acSuiv').addEventListener('click', () => ouvrir(suiv.id));
+  const s = $('#acSuiv');
+  if (s && suiv) s.addEventListener('click', () => ouvrir(suiv.id));
+  const e = $('#acVersEtapes');
+  if (e) e.addEventListener('click', () => versEtapes());
+  // Le sommaire latéral est navigable : c'est un sommaire, pas une décoration.
+  document.querySelectorAll('#acLecteur [data-contenu]').forEach((el) =>
+    el.addEventListener('click', () => {
+      const id = Number(el.dataset.contenu);
+      if (id !== c.id) ouvrir(id);
+    }));
 
+  rendreBarreLaterale('formations');
   afficher('#acLecteur');
   window.scrollTo(0, 0);
 }
 
-async function terminer(id) {
+// Revenir à la formation, sur ses étapes d'évaluation. On ne DÉMARRE pas le
+// QCM depuis le lecteur : une tentative est une épreuve, elle mérite un clic
+// délibéré sur sa propre carte.
+function versEtapes() {
+  rendreSommaire();
+  const cible = $('#acEtapes');
+  if (cible && cible.scrollIntoView) cible.scrollIntoView({ block: 'start', behavior: 'auto' });
+}
+
+// Terminer, puis enchaîner. `puis` dit ce qui suit le geste :
+//   'suivant' -> on ouvre le contenu d'après ; 'qcm' -> on remonte aux étapes.
+async function terminer(id, puis) {
   const r = await apiAc('/api/academy/contenus/' + id + '/terminer', 'POST');
   if (r.status === 403) { await demarrer(); return; }
   if (r.status === 401) { deconnecter(); return; }
@@ -406,8 +1119,14 @@ async function terminer(id) {
   // Terminer le DERNIER contenu ouvre l'évaluation théorique : on relit son
   // état, sinon la carte du sommaire annoncerait encore un verrou levé.
   await chargerQcm();
-  // On reste sur le contenu : le collaborateur voit sa progression bouger et
-  // enchaîne s'il le souhaite. Le renvoyer au sommaire lui ferait perdre le fil.
+
+  if (puis === 'suivant') {
+    const tous = aPlat();
+    const i = tous.findIndex((x) => x.id === id);
+    const suiv = i >= 0 && i < tous.length - 1 ? tous[i + 1] : null;
+    if (suiv) { await ouvrir(suiv.id); return; }
+  }
+  if (puis === 'qcm') { versEtapes(); return; }
   rendreLecteur();
 }
 
@@ -470,7 +1189,6 @@ function rendreCarteQcm() {
       '<p class="ac-qcm-p">Ta formation est terminée : l\'évaluation théorique est ouverte.</p>' +
       '<p class="ac-qcm-s">' + qcm.config.nbQuestions + ' questions tirées au hasard · seuil de réussite : ' +
         qcm.config.seuilPct + ' %.</p>' +
-      '<p class="ac-qcm-demo">Questionnaire de démonstration : les vraies questions de la formation seront saisies depuis l\'administration.</p>' +
       '<button type="button" class="ec-btn ec-btn-p ac-reprendre" id="acQcmGo">Commencer mon évaluation</button>';
   }
 
@@ -743,15 +1461,11 @@ function t_valide(p) {
   return p.historique.find((t) => t.resultat === 'valide') || null;
 }
 
-function rendreAccesEvaluateur() {
-  if (!moiEval) return '';
-  return '<section class="ac-qcm-carte ac-eval-acces">' +
-    '<div class="ac-qcm-h"><b>Espace évaluateur</b>' +
-      '<span class="ac-qcm-etat ac-etat-eval">Évaluateur</span></div>' +
-    '<p class="ac-qcm-s">Enregistre le résultat des évaluations pratiques des collaborateurs dont la théorie est validée.</p>' +
-    '<button type="button" class="ec-btn ec-btn-p ac-reprendre" id="acEvalGo">Ouvrir mes évaluations</button>' +
-    '</section>';
-}
+// L'ENTRÉE « ÉVALUER » A QUITTÉ LE PARCOURS (lot A). Évaluer est un changement
+// de rôle, pas une étape de formation : le bouton vit dans l'en-tête, révélé au
+// démarrage par `montrer('#acRoleEval', moiEval)`. Il n'y a donc plus de carte
+// à rendre ici — la laisser dans le sommaire faisait croire à l'apprenant qu'il
+// avait une chose de plus à faire.
 
 // --- Espace évaluateur --------------------------------------------------------
 
@@ -771,7 +1485,7 @@ async function ouvrirEvaluateur() {
 
 function rendreEvalListe() {
   $('#acEval').innerHTML =
-    (moiCollab ? '<button type="button" class="ec-back" id="acEvalBack">← Ma formation</button>' : '') +
+    (moiCollab ? '<button type="button" class="ec-back" id="acEvalBack">← Mes formations</button>' : '') +
     (moiAdmin ? '<button type="button" class="ec-back" id="acEvalAdmin">Administration →</button>' : '') +
     '<h1 class="ec-t">Évaluations pratiques</h1>' +
     // POUR QUELLE FORMATION. Un évaluateur qui intervient sur plusieurs
@@ -804,12 +1518,13 @@ function rendreEvalListe() {
   const b = $('#acEvalBack');
   // On relit son propre état en revenant : un évaluateur est souvent aussi un
   // collaborateur, et sa carte doit refléter ce qui s'est passé entre-temps.
-  if (b) b.addEventListener('click', async () => { await chargerPratique(); rendreSommaire(); });
+  if (b) b.addEventListener('click', ouvrirAccueil);
   const ga = $('#acEvalAdmin');
   if (ga) ga.addEventListener('click', ouvrirAdmin);
   document.querySelectorAll('#acEval [data-collab]').forEach((el) =>
     el.addEventListener('click', () => ouvrirFiche(el.dataset.collab)));
 
+  rendreBarreLaterale('evaluer');
   afficher('#acEval');
   window.scrollTo(0, 0);
 }
@@ -938,9 +1653,7 @@ async function enregistrer(resultat) {
 // --- Gestion des évaluateurs (administrateur) ---------------------------------
 //
 //  UN écran, deux gestes : désigner, retirer. Ce n'est pas l'administration de
-//  l'Academy — ni contenus, ni banque de questions, ni configuration. Juste ce
-//  qu'il faut pour que faire tourner l'évaluation pratique ne demande plus
-//  d'appel API à la main.
+//  l'Academy — celle-là vit dans l'onglet « Contenus » (lot 6).
 //
 //  DEUX CHOSES QUE CET ÉCRAN NE FAIT PAS :
 //   - il ne rend pas l'administrateur évaluateur. Administrer et habiliter sont
@@ -948,16 +1661,9 @@ async function enregistrer(resultat) {
 //     comme n'importe quel autre ;
 //   - il ne décide de rien. Chaque clic part au serveur, qui reste seul juge :
 //     le drapeau `admin` reçu au démarrage ne sert qu'à afficher l'entrée.
-
-function rendreAccesAdmin() {
-  if (!moiAdmin) return '';
-  return '<section class="ac-qcm-carte ac-adm-acces">' +
-    '<div class="ac-qcm-h"><b>Administration My Coach Academy</b>' +
-      '<span class="ac-qcm-etat ac-etat-admin">Administrateur</span></div>' +
-    '<p class="ac-qcm-s">Désigne les évaluateurs et délivre les certifications au terme du parcours.</p>' +
-    '<button type="button" class="ec-btn ec-btn-p ac-reprendre" id="acAdminGo">Ouvrir l\'administration</button>' +
-    '</section>';
-}
+//
+//  L'entrée elle-même est dans l'en-tête depuis le lot A (`#acRoleAdmin`), pour
+//  la même raison que « Évaluer » : ce n'est pas une étape du parcours.
 
 // Chaque onglet lit SES données au moment où il s'affiche. Les écarts entre
 // l'Academy et le Boost, comme l'état de publication d'une formation, naissent
@@ -1010,7 +1716,7 @@ function rendreAdmin() {
   $('#acAdmin').innerHTML =
     // Les écrans se renvoient l'un à l'autre : l'administrateur est souvent
     // aussi évaluateur, parfois aussi collaborateur.
-    (moiCollab ? '<button type="button" class="ec-back" id="acAdmBack">← Ma formation</button>'
+    (moiCollab ? '<button type="button" class="ec-back" id="acAdmBack">← Mes formations</button>'
       : moiEval ? '<button type="button" class="ec-back" id="acAdmEval">← Mes évaluations</button>' : '') +
 
     '<h1 class="ec-t">Administration My Coach Academy</h1>' +
@@ -1063,8 +1769,9 @@ function rendreAdmin() {
   // de publier ou de dépublier.
   const b = $('#acAdmBack');
   if (b) b.addEventListener('click', async () => {
-    await chargerCatalogue();
-    await chargerFormation();
+    // On repasse par le catalogue PUBLIÉ : il a pu changer sous les pieds de
+    // l'administrateur — c'est justement lui qui vient de publier ou dépublier.
+    await ouvrirAccueil();
   });
   const e = $('#acAdmEval');
   if (e) e.addEventListener('click', ouvrirEvaluateur);
@@ -1072,6 +1779,7 @@ function rendreAdmin() {
   document.querySelectorAll('#acAdmin [data-agir]').forEach((el) =>
     el.addEventListener('click', () => agirSurCompte(el.dataset.compte, el.dataset.agir)));
 
+  rendreBarreLaterale('administrer');
   afficher('#acAdmin');
   window.scrollTo(0, 0);
 }
@@ -1817,6 +2525,46 @@ async function connecter(e) {
 
 document.addEventListener('DOMContentLoaded', () => {
   $('#acForm').addEventListener('submit', connecter);
+  // Le menu de compte : il s'ouvre au clic, se referme au clic ailleurs et à
+  // la touche Échap. Rien d'autre — ce n'est pas un menu de navigation.
+  // La photo de la colonne de gauche, si un fichier a été fourni. `onerror`
+  // est un filet : un nom de fichier erroné masque l'image au lieu de laisser
+  // une icône cassée sur le marine.
+  const photo = $('#acCxPhoto');
+  if (photo && PHOTO_CONNEXION) {
+    photo.addEventListener('load', () => { photo.hidden = false; });
+    photo.addEventListener('error', () => { photo.hidden = true; });
+    photo.src = PHOTO_CONNEXION;
+  }
+
+  // Montrer/masquer le code saisi. C'est de l'AFFICHAGE et rien d'autre : le
+  // champ, son nom et ce qui part au serveur ne changent pas.
+  const oeil = $('#acVoirPin');
+  if (oeil) oeil.addEventListener('click', () => {
+    const champ = $('#acPin');
+    if (!champ) return;
+    const visible = champ.type === 'text';
+    champ.type = visible ? 'password' : 'text';
+    oeil.setAttribute('aria-label', visible ? 'Afficher le code' : 'Masquer le code');
+    oeil.classList.toggle('on', !visible);
+    champ.focus();
+  });
+
+  const bc = $('#acCompte');
+  const menu = $('#acMenu');
+  if (bc && menu) {
+    bc.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      bc.setAttribute('aria-expanded', String(!menu.hidden));
+    });
+    document.addEventListener('click', () => {
+      if (!menu.hidden) { menu.hidden = true; bc.setAttribute('aria-expanded', 'false'); }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !menu.hidden) { menu.hidden = true; bc.setAttribute('aria-expanded', 'false'); }
+    });
+  }
   $('#acOut').addEventListener('click', async () => {
     if (session) { try { await fetch('/account/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + session.token } }); } catch (_) {} }
     deconnecter();

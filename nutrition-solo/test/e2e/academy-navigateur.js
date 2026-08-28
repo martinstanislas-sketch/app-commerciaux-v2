@@ -30,6 +30,8 @@ const jsonp = (r, b, m, t) => fetch(BASE + r, {
   body: b ? JSON.stringify(b) : undefined,
 }).then((x) => x.json());
 
+const get = (r, t) => fetch(BASE + r, { headers: { Authorization: 'Bearer ' + t } }).then((x) => x.json());
+
 async function semer() {
   for (const [email, prenom, pin] of [[ADMIN, 'Patron', '7777'], [COLLAB, 'Théo', '4004'], [CLIENT, 'Léa', '1001']]) {
     await jsonp('/account/login', { email, prenom, pin });
@@ -68,6 +70,37 @@ async function semer() {
     await page.click('#acGo');
   }
 
+  // Depuis la refonte, les quatre étapes sont des accordéons : seule l'étape
+  // courante est dépliée. Pour agir dans une autre, on l'ouvre — comme un humain.
+  async function ouvrirEtapes() {
+    await page.evaluate(() => {
+      document.querySelectorAll('#acSommaire details.ac-et:not([open])').forEach((d) => { d.open = true; });
+    });
+  }
+
+  // Depuis la refonte de la coquille, « Se déconnecter » vit dans le menu de
+  // compte, en haut à droite : on l'ouvre avant de cliquer.
+  async function seDeconnecter() {
+    await page.click('#acCompte');
+    await page.waitForSelector('#acMenu:not([hidden])');
+    await page.click('#acOut');
+    await page.waitForSelector('#acLogin:not([hidden])');
+  }
+
+  // DEPUIS LE LOT A, LE COLLABORATEUR ARRIVE SUR « MES FORMATIONS ».
+  // Entrer dans une formation est un clic de plus — c'est le nouveau parcours,
+  // pas un détour de test : l'accueil est le point d'entrée, même avec une
+  // seule formation.
+  async function entrerFormation(libelle) {
+    await page.waitForSelector('#acAccueil:not([hidden])');
+    const carte = libelle
+      // La carte est un <article> ; c'est son bouton qui ouvre la formation.
+      ? page.locator('#acAccueil .ac-fc', { hasText: libelle }).locator('[data-ouvrir]')
+      : page.locator('#acAccueil [data-ouvrir]');
+    await carte.first().click();
+    await page.waitForSelector('#acSommaire:not([hidden])');
+  }
+
   await etape('la page /academy s\'ouvre sur un écran de connexion', async () => {
     await page.goto(BASE + '/academy', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#acLogin:not([hidden])');
@@ -87,15 +120,19 @@ async function semer() {
 
   await etape('un collaborateur NON certifié accède à sa formation', async () => {
     await seConnecter(COLLAB, '4004');
-    await page.waitForSelector('#acSommaire:not([hidden])');
+    await entrerFormation();
     const t = await contenu();
     // Depuis le lot 5, le titre vient du CATALOGUE : plus aucun nom de formation
     // écrit en dur dans l'écran. C'est le libellé de la formation qu'on attend.
     if (!/Coach Nutrition/.test(t)) throw new Error('titre absent');
-    if (!/Les modules à suivre pour devenir Coach Nutrition certifié/.test(t)) {
+    if (!/[Pp]our devenir Coach Nutrition certifié/.test(t)) {
       throw new Error('le sous-titre devrait reprendre le titre de certification du catalogue');
     }
-    if (!/Ta progression/.test(t)) throw new Error('bloc de progression absent');
+    // Lot A : la frise remplace le bloc « Ta progression ». Les quatre étapes du
+    // parcours doivent être lisibles d'un coup d'œil.
+    for (const etape of ['Apprendre', 'Théorie', 'Terrain', 'Certification']) {
+      if (!t.includes(etape)) throw new Error('étape absente de la frise : ' + etape);
+    }
     if (!/0 %/.test(t)) throw new Error('la progression devrait partir de zéro');
   });
 
@@ -115,7 +152,12 @@ async function semer() {
     await page.waitForSelector('#acLecteur:not([hidden])');
     const t = await contenu();
     if (!/Le rôle du Coach Nutrition/.test(t)) throw new Error('titre du contenu absent');
-    if (!/J'ai terminé ce contenu/.test(t)) throw new Error('le bouton de fin devrait être proposé');
+    // Lot B : le geste est fusionné — terminer ET enchaîner en un clic.
+    if (!/Terminer et continuer/.test(t)) throw new Error('le bouton de fin devrait être proposé');
+    // Le sommaire du parcours accompagne la vidéo, et situe le contenu courant.
+    if (!/Le parcours/.test(t)) throw new Error('le sommaire latéral manque');
+    const ici = await page.locator('#acLecteur .ac-sl-ici .ac-sl-t').innerText();
+    if (!/rôle du Coach Nutrition/.test(ici)) throw new Error('le contenu courant n\'est pas mis en évidence : ' + ici);
     if (/Terminé le/.test(t)) throw new Error('le contenu ne doit pas être marqué terminé à l\'ouverture');
     // La progression n'a pas bougé : on le vérifie dans les données.
     const f = await page.evaluate(async () => {
@@ -137,21 +179,46 @@ async function semer() {
     if (Math.abs(ratio - 16 / 9) > 0.05) throw new Error('ratio inattendu : ' + ratio.toFixed(2));
   });
 
-  await etape('« J\'ai terminé » fait avancer la progression', async () => {
+  await etape('« Terminer et continuer » marque le contenu ET ouvre le suivant', async () => {
     await page.click('#acFait');
-    await page.waitForSelector('.ac-deja');
-    if (!/Terminé le/.test(await contenu())) throw new Error('la complétion devrait être confirmée et datée');
+    // Le geste enchaîne : on est maintenant sur le contenu SUIVANT.
+    await page.waitForFunction(() => /cadre bienveillant/.test(document.querySelector('.ac-lec-t').textContent));
+    // Et le précédent porte sa coche dans le sommaire latéral.
+    const fait = await page.locator('#acLecteur .ac-sl-fait .ac-sl-t').allInnerTexts();
+    if (!fait.some((x) => /rôle du Coach Nutrition/.test(x))) {
+      throw new Error('le contenu terminé n\'est pas coché : ' + fait.join(' | '));
+    }
+    if (!/1\/5/.test(await page.locator('.ac-sl-hc').innerText())) throw new Error('le compteur du parcours n\'a pas avancé');
+
     await page.click('#acBack');
     await page.waitForSelector('#acSommaire:not([hidden])');
+    await ouvrirEtapes();
     const t = await contenu();
     if (!/20 %/.test(t)) throw new Error('1 contenu sur 5 = 20 % — vu : ' + (t.match(/(\d+) %/) || [])[0]);
     if (await page.locator('.ac-fait').count() !== 1) throw new Error('un contenu devrait être marqué fait');
   });
 
+  await etape('un contenu DÉJÀ terminé propose « Suivant », pas de le refaire', async () => {
+    await page.locator('.ac-l', { hasText: 'rôle du Coach Nutrition' }).click();
+    await page.waitForSelector('#acLecteur:not([hidden])');
+    if (await page.locator('#acFait').count()) throw new Error('un contenu terminé ne se re-termine pas');
+    if (!/Terminé le/.test(await contenu())) throw new Error('la date de complétion devrait rester visible');
+    const b = await page.innerText('#acSuiv');
+    if (!/Suivant/.test(b)) throw new Error('bouton inattendu : ' + b);
+    // Et il est SECONDAIRE : un seul bouton plein par écran, et ce n'est pas
+    // celui-là puisqu'il n'y a plus rien à valider ici.
+    const classe = await page.getAttribute('#acSuiv', 'class');
+    if (/ec-btn-p/.test(classe)) throw new Error('le bouton devrait être secondaire : ' + classe);
+    await page.click('#acBack');
+    await page.waitForSelector('#acSommaire:not([hidden])');
+  });
+
   await etape('la navigation suivant/précédent enchaîne les contenus', async () => {
     await page.locator('.ac-l', { hasText: 'Poser un cadre bienveillant' }).click();
     await page.waitForSelector('#acLecteur:not([hidden])');
-    await page.click('#acSuiv');
+    // Ce contenu n'est pas terminé : c'est le SOMMAIRE LATÉRAL qui permet
+    // d'avancer sans rien valider. Il est navigable, c'est un sommaire.
+    await page.locator('#acLecteur .ac-sl-r', { hasText: 'action unique' }).click();
     await page.waitForFunction(() => /action unique/.test(document.querySelector('.ac-lec-t').textContent));
     await page.click('#acPrec');
     await page.waitForFunction(() => /cadre bienveillant/.test(document.querySelector('.ac-lec-t').textContent));
@@ -167,16 +234,21 @@ async function semer() {
     await page.locator('.ac-l', { hasText: 'Poser un cadre bienveillant' }).click();
     await page.waitForSelector('#acLecteur:not([hidden])');
 
-    await page.click('#acOut');
-    await page.waitForSelector('#acLogin:not([hidden])');
+    await seDeconnecter();
     await seConnecter(COLLAB, '4004');
-    await page.waitForSelector('#acSommaire:not([hidden])');
+    await entrerFormation();
 
     const t = await contenu();
     if (!/20 %/.test(t)) throw new Error('la progression devrait être retrouvée');
+    // Lot A : le contenu à reprendre est NOMMÉ dans la carte, et le bouton porte
+    // le verbe. « Reprendre » sans dire quoi obligeait à chercher dans la liste.
+    const carte = await page.innerText('.ac-fp');
+    if (!/Poser un cadre bienveillant/.test(carte)) throw new Error('reprise inattendue : ' + carte);
+    // Insensible à la casse : le libellé est mis en majuscules par la CSS, et
+    // innerText rend le texte tel qu'il s'affiche.
+    if (!/Ta progression/i.test(carte)) throw new Error('la carte de progression manque : ' + carte);
     const bouton = await page.innerText('#acReprendre');
-    if (!/Poser un cadre bienveillant/.test(bouton)) throw new Error('reprise inattendue : ' + bouton);
-    if (!/Reprendre/.test(bouton)) throw new Error('le bouton devrait proposer de reprendre');
+    if (!/Reprendre ma formation/.test(bouton)) throw new Error('verbe de reprise inattendu : ' + bouton);
   });
 
   await etape('le bouton de reprise ouvre bien ce contenu', async () => {
@@ -184,6 +256,75 @@ async function semer() {
     await page.waitForSelector('#acLecteur:not([hidden])');
     if (!/Poser un cadre bienveillant/.test(await page.innerText('.ac-lec-t'))) throw new Error('mauvais contenu ouvert');
     await page.click('#acBack');
+  });
+
+  await etape('une vidéo sans identifiant se lit proprement, sans casser le parcours', async () => {
+    // On retire l'identifiant d'un contenu par l'ADMINISTRATION — la même route
+    // que l'écran du lot 6 — puis on l'ouvre côté collaborateur.
+    const arbre = await get('/api/academy/admin/arbre', jetonAdmin);
+    const cible = arbre.modules[0].contenus[0];
+    await jsonp('/api/academy/admin/contenus',
+      { id: cible.id, titre: cible.titre, youtubeId: '' }, 'POST', jetonAdmin);
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await entrerFormation();
+    await page.evaluate(() => document.querySelectorAll('#acSommaire details.ac-mod:not([open])')
+      .forEach((d) => { d.open = true; }));
+    await page.locator('.ac-l', { hasText: 'rôle du Coach Nutrition' }).click();
+    await page.waitForSelector('#acLecteur:not([hidden])');
+
+    const t = await contenu();
+    if (!/Cette vidéo n'est pas encore disponible/.test(t)) {
+      throw new Error('le manque devrait être annoncé franchement : ' + t.slice(0, 200));
+    }
+    if (await page.locator('.ac-video iframe').count()) throw new Error('aucun lecteur ne doit être posé sans identifiant');
+    // LE PARCOURS N'EST PAS BLOQUÉ : le sommaire et la navigation restent là.
+    if (!/Le parcours/.test(t)) throw new Error('le sommaire a disparu');
+    if (!(await page.locator('#acSuiv').count()) && !(await page.locator('#acFait').count())) {
+      throw new Error('plus aucun moyen d\'avancer : le parcours est cassé');
+    }
+
+    // On remet l'identifiant en place pour la suite de la suite.
+    await jsonp('/api/academy/admin/contenus',
+      { id: cible.id, titre: cible.titre, youtubeId: 'DEMOaaaa001' }, 'POST', jetonAdmin);
+    await page.click('#acBack');
+    await page.waitForSelector('#acSommaire:not([hidden])');
+  });
+
+  await etape('le lecteur tient en 390 px : vidéo pleine largeur, sommaire replié', async () => {
+    await page.setViewportSize({ width: 390, height: 850 });
+    await page.evaluate(() => document.querySelectorAll('#acSommaire details.ac-mod:not([open])')
+      .forEach((d) => { d.open = true; }));
+    await page.locator('.ac-l').first().click();
+    await page.waitForSelector('#acLecteur:not([hidden])');
+
+    const debord = await page.evaluate(() =>
+      document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (debord > 2) throw new Error('débordement du lecteur de ' + debord + ' px');
+
+    // La vidéo occupe la largeur utile, et garde son ratio.
+    const v = await page.locator('.ac-video').boundingBox();
+    if (v.width < 320) throw new Error('vidéo écrasée en mobile : ' + Math.round(v.width) + ' px');
+    if (Math.abs(v.width / v.height - 16 / 9) > 0.06) throw new Error('ratio perdu en mobile');
+
+    // Le sommaire est REPLIÉ : ouvert, ses lignes repousseraient le bouton hors
+    // de l'écran. Il reste dépliable d'un clic.
+    const sl = await page.locator('#acLecteur details.ac-sl').getAttribute('open');
+    if (sl !== null) throw new Error('le sommaire devrait être replié en mobile');
+    await page.locator('#acLecteur .ac-sl-h').click();
+    await page.waitForSelector('#acLecteur .ac-sl-r');
+    const d2 = await page.evaluate(() =>
+      document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (d2 > 2) throw new Error('débordement du sommaire déplié de ' + d2 + ' px');
+
+    // Le bouton principal reste atteignable au doigt et prend la largeur.
+    const b = await page.locator('#acLecteur .ac-lec-cta').boundingBox();
+    if (!b || b.height < 40) throw new Error('bouton principal trop petit au doigt');
+    if (b.width < 300) throw new Error('bouton principal écrasé : ' + Math.round(b.width) + ' px');
+
+    await page.setViewportSize({ width: 1100, height: 1000 });
+    await page.click('#acBack');
+    await page.waitForSelector('#acSommaire:not([hidden])');
   });
 
   await etape('désactiver le collaborateur lui ferme l\'Academy au rechargement', async () => {
@@ -196,7 +337,7 @@ async function semer() {
 
     await jsonp('/api/boost/admin/collaborateurs', { email: COLLAB, role: 'collaborateur' }, 'POST', jetonAdmin);
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#acSommaire:not([hidden])');
+    await entrerFormation();
   });
 
   await etape('affichage mobile : la formation reste lisible en 390 px', async () => {

@@ -28,6 +28,11 @@
 //    NUTRITION_DB=/tmp/e2e.sqlite ADMIN_EMAIL=patron@exemple.fr PORT=3222 node server.js &
 //    BASE=http://127.0.0.1:3222 node test/e2e/academy-pratique-navigateur.js
 // ============================================================================
+// LOT A : « Évaluer » et « Administrer » ont quitté le parcours de l'apprenant
+// pour l'en-tête (#acRoleEval / #acRoleAdmin). Ce sont des changements de rôle,
+// pas des étapes de formation. Les boutons existent toujours dans le DOM mais
+// restent `hidden` pour qui n'a pas le droit : on juge donc leur VISIBILITÉ,
+// pas leur présence.
 const { chromium } = require('playwright');
 const { AMORCE_QUESTIONS } = require('../../lib/academyQcm');
 
@@ -141,7 +146,31 @@ async function validerQcm(jeton) {
     await page.fill('#acEmail', email);
     await page.fill('#acPin', pin);
     await page.click('#acGo');
-    await page.waitForSelector((attendu || '#acSommaire') + ':not([hidden])');
+    // Sans écran attendu, on vise la formation : on passe donc par l'accueil.
+    if (attendu) await page.waitForSelector(attendu + ':not([hidden])');
+    else await entrerFormation();
+  }
+
+  // Depuis la refonte, les quatre étapes sont des accordéons : seule l'étape
+  // courante est dépliée. Pour agir dans une autre, on l'ouvre — comme un humain.
+  async function ouvrirEtapes() {
+    await page.evaluate(() => {
+      document.querySelectorAll('#acSommaire details.ac-et:not([open])').forEach((d) => { d.open = true; });
+    });
+  }
+
+  // DEPUIS LE LOT A, LE COLLABORATEUR ARRIVE SUR « MES FORMATIONS ».
+  // Entrer dans une formation est un clic de plus — c'est le nouveau parcours,
+  // pas un détour de test : l'accueil est le point d'entrée, même avec une
+  // seule formation.
+  async function entrerFormation(libelle) {
+    await page.waitForSelector('#acAccueil:not([hidden])');
+    const carte = libelle
+      // La carte est un <article> ; c'est son bouton qui ouvre la formation.
+      ? page.locator('#acAccueil .ac-fc', { hasText: libelle }).locator('[data-ouvrir]')
+      : page.locator('#acAccueil [data-ouvrir]');
+    await carte.first().click();
+    await page.waitForSelector('#acSommaire:not([hidden])');
   }
 
   // =========================================================================
@@ -255,7 +284,7 @@ async function validerQcm(jeton) {
   });
 
   await etape('aucun bouton ne permet de lancer ou de valider quoi que ce soit', async () => {
-    if (await page.locator('#acEvalGo').count()) throw new Error('un accès évaluateur est offert à une collaboratrice');
+    if (await page.locator('#acRoleEval').isVisible()) throw new Error('un accès évaluateur est offert à une collaboratrice');
     const t = await contenu();
     if (/Enregistrer : évaluation validée|Ouvrir mes évaluations/.test(t)) throw new Error('un geste d\'évaluateur est offert');
   });
@@ -293,7 +322,7 @@ async function validerQcm(jeton) {
   });
 
   await etape('un collaborateur, même à théorie validée, ne s\'auto-valide pas', async () => {
-    if (await page.locator('#acEvalGo').count()) throw new Error('accès évaluateur offert à un simple collaborateur');
+    if (await page.locator('#acRoleEval').isVisible()) throw new Error('accès évaluateur offert à un simple collaborateur');
     const vu = await page.evaluate(async (moi) => {
       const s = JSON.parse(localStorage.getItem('mc-academy-session'));
       const h = { Authorization: 'Bearer ' + s.token, 'Content-Type': 'application/json' };
@@ -312,8 +341,9 @@ async function validerQcm(jeton) {
 
   await etape('Eva voit son espace évaluateur, et Théo dans la liste', async () => {
     await seConnecter(EVA, '3003');
-    if (!/Espace évaluateur/.test(await contenu())) throw new Error('la carte évaluateur manque');
-    await page.click('#acEvalGo');
+    // Lot A : l'entrée « Évaluer » est dans l'en-tête, plus dans le parcours.
+    if (!(await page.locator('#acRoleEval').isVisible())) throw new Error('l\'entrée évaluateur manque');
+    await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
     const t = await contenu();
     if (!/Évaluations pratiques/.test(t)) throw new Error('titre absent');
@@ -356,7 +386,7 @@ async function validerQcm(jeton) {
 
   await etape('Eva prononce « à repasser » avec une appréciation', async () => {
     await seConnecter(EVA, '3003');
-    await page.click('#acEvalGo');
+    await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
     await page.locator('.ac-eval-l', { hasText: 'Théo' }).click();
     await page.waitForSelector('#acEvKo');
@@ -391,7 +421,7 @@ async function validerQcm(jeton) {
 
   await etape('Eva enregistre une seconde évaluation, validée', async () => {
     await seConnecter(EVA, '3003');
-    await page.click('#acEvalGo');
+    await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
     await page.locator('.ac-eval-l', { hasText: 'Théo' }).click();
     await page.waitForSelector('#acEvOk');
@@ -414,6 +444,7 @@ async function validerQcm(jeton) {
 
   await etape('Théo lit « Évaluation validée » et retrouve ses deux tentatives', async () => {
     await seConnecter(THEO, '4004');
+    await ouvrirEtapes();
     const t = await contenu();
     if (!/Évaluation pratique validée le 10\/09\/2026/.test(t)) throw new Error('la validation datée manque');
     if (!/reformulation nette/.test(t)) throw new Error('l\'appréciation de la tentative validée manque');
@@ -425,7 +456,7 @@ async function validerQcm(jeton) {
 
   await etape('l\'étape pratique est CLOSE : plus aucune tentative possible', async () => {
     await seConnecter(EVA, '3003');
-    await page.click('#acEvalGo');
+    await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
     await page.locator('.ac-eval-l', { hasText: 'Théo' }).click();
     await page.waitForFunction(() => /Étape pratique terminée/.test(document.querySelector('#acEval').textContent));
@@ -520,11 +551,14 @@ async function validerQcm(jeton) {
 
   await etape('retirer le droit d\'évaluer ferme l\'espace au rechargement', async () => {
     await seConnecter(EVA, '3003');
-    if (!/Espace évaluateur/.test(await contenu())) throw new Error('Eva devrait être évaluatrice');
+    // Lot A : l'entrée « Évaluer » est dans l'en-tête. Elle existe toujours dans
+    // le DOM, mais reste `hidden` pour qui n'a pas le droit : on juge donc sa
+    // VISIBILITÉ, qui est ce que voit réellement la personne.
+    if (!(await page.locator('#acRoleEval').isVisible())) throw new Error('Eva devrait être évaluatrice');
     await jsonp('/api/academy/admin/evaluateurs', { email: EVA, evaluateur: false }, 'POST', jetonAdmin);
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#acSommaire:not([hidden])');
-    if (/Espace évaluateur/.test(await contenu())) throw new Error('l\'accès est resté ouvert');
+    await page.waitForSelector('#acAccueil:not([hidden])');
+    if (await page.locator('#acRoleEval').isVisible()) throw new Error('l\'accès est resté ouvert');
     await jsonp('/api/academy/admin/evaluateurs', { email: EVA, evaluateur: true }, 'POST', jetonAdmin);
   });
 
@@ -536,10 +570,10 @@ async function validerQcm(jeton) {
     await validerLaTheorie(NINA, '5005');
 
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#acSommaire:not([hidden])');
+    await page.waitForSelector('#acAccueil:not([hidden])');
     await page.setViewportSize({ width: 390, height: 900 });
     await page.waitForTimeout(300);
-    await page.click('#acEvalGo');
+    await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
     let debord = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     if (debord > 2) throw new Error('débordement de la liste de ' + debord + ' px');
@@ -557,6 +591,7 @@ async function validerQcm(jeton) {
   });
 
   await etape('la carte du collaborateur reste lisible en 390 px', async () => {
+    // seConnecter entre déjà dans la formation quand aucun écran n'est attendu.
     await seConnecter(THEO, '4004');
     await page.setViewportSize({ width: 390, height: 900 });
     await page.waitForTimeout(300);

@@ -637,8 +637,15 @@ test('réécrire une question ne réécrit aucune tentative passée', async () =
 test('l\'onglet Contenus rejoint les deux autres, sans page de plus', () => {
   assert.ok(/'evaluateurs', 'certifications', 'contenus'/.test(js),
     'le troisième onglet doit s\'ajouter aux deux existants');
-  assert.strictEqual((html.match(/<section id="ac/g) || []).length, 5,
-    'le lot 6 n\'ajoute aucune section : il vit dans #acAdmin');
+  // Le lot 6 vit dans #acAdmin et n'ajoute AUCUNE section. Le compte est passé
+  // de 5 à 6 avec le lot A, qui a ajouté #acAccueil — une section, et une
+  // seule, pour l'écran d'accueil du collaborateur.
+  const sections = [...html.matchAll(/<section id="(ac[A-Za-z]+)"/g)].map((m) => m[1]);
+  assert.deepStrictEqual(sections,
+    ['acAccueil', 'acSommaire', 'acLecteur', 'acQcm', 'acEval', 'acAdmin'],
+    'la liste des écrans a changé sans décision : ' + sections.join(', '));
+  assert.ok(sections.includes('acAdmin') && !sections.some((x) => /contenu/i.test(x)),
+    'le lot 6 doit rester dans #acAdmin, sans écran à lui');
   assert.ok(js.includes('rendreAdminContenus'), 'l\'onglet a son rendu');
 });
 

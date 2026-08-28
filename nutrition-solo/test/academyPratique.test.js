@@ -783,7 +783,21 @@ test('l\'évaluateur est prévenu que son appréciation est lue par le collabora
 
 test('l\'écran de gestion affiche l\'état et confirme avant de retirer', () => {
   assert.ok(html.includes('id="acAdmin"'), 'la section existe');
-  assert.ok(/Ouvrir l\\'administration/.test(js), 'l\'entrée est proposée');
+  // LOT A : l'entrée a quitté le parcours de l'apprenant pour l'en-tête.
+  // Administrer est un changement de rôle, pas une étape de formation.
+  // L'entrée vit dans la BARRE LATÉRALE, rendue par le script : elle n'est
+  // posée que pour qui a le droit, et c'est le serveur qui l'a dit
+  // (`moiAdmin` / `moiEval` viennent de /api/academy/moi).
+  assert.ok(html.includes('id="acSideNav"'), 'la barre latérale existe');
+  assert.ok(/if \(moiAdmin\) entrees\.push\(/.test(js),
+    'l\'entrée d\'administration n\'apparaît que pour un administrateur');
+  assert.ok(/if \(moiEval\) entrees\.push\(/.test(js),
+    'l\'entrée d\'évaluation n\'apparaît que pour un évaluateur');
+  assert.ok(/'acRoleAdmin'/.test(js) && /'acRoleEval'/.test(js),
+    'les deux entrées gardent leur identifiant');
+  const sommaire = js.slice(js.indexOf('function rendreSommaire'), js.indexOf('function rendreModule'));
+  assert.ok(!/acRoleAdmin|acRoleEval/.test(sommaire),
+    'le parcours de l\'apprenant ne doit plus proposer de changer de rôle');
   assert.ok(/data-onglet="?/.test(js) || js.includes('data-onglet'), 'la gestion vit dans un onglet');
   assert.ok(/'Évaluateur'/.test(js) && /'Non évaluateur'/.test(js), 'les deux états sont nommés');
   assert.ok(/Désigner comme évaluateur/.test(js) && /Retirer le droit d/.test(js),

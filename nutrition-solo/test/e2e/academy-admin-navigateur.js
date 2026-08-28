@@ -22,6 +22,11 @@
 //    NUTRITION_DB=/tmp/e2e.sqlite ADMIN_EMAIL=patron@exemple.fr PORT=3222 node server.js &
 //    BASE=http://127.0.0.1:3222 node test/e2e/academy-admin-navigateur.js
 // ============================================================================
+// LOT A : « Évaluer » et « Administrer » ont quitté le parcours de l'apprenant
+// pour l'en-tête (#acRoleEval / #acRoleAdmin). Ce sont des changements de rôle,
+// pas des étapes de formation. Les boutons existent toujours dans le DOM mais
+// restent `hidden` pour qui n'a pas le droit : on juge donc leur VISIBILITÉ,
+// pas leur présence.
 const { chromium } = require('playwright');
 const BASE = process.env.BASE || 'http://127.0.0.1:3222';
 const ADMIN = 'patron@exemple.fr';
@@ -77,7 +82,20 @@ async function semer() {
   // L'administrateur n'est pas collaborateur : il n'a pas de sommaire, il
   // arrive directement sur l'administration. Deux écrans d'arrivée différents,
   // et c'est le comportement voulu depuis le lot 3.
-  const ECRAN = { [ADMIN]: '#acAdmin', [THEO]: '#acSommaire' };
+  // Lot A : le collaborateur arrive sur « Mes formations », l'administrateur
+  // directement sur l'administration.
+  const ECRAN = { [ADMIN]: '#acAdmin', [THEO]: '#acAccueil' };
+
+  // Entrer dans une formation depuis l'accueil.
+  async function entrerFormation(libelle) {
+    await page.waitForSelector('#acAccueil:not([hidden])');
+    const carte = libelle
+      // La carte est un <article> ; c'est son bouton qui ouvre la formation.
+      ? page.locator('#acAccueil .ac-fc', { hasText: libelle }).locator('[data-ouvrir]')
+      : page.locator('#acAccueil [data-ouvrir]');
+    await carte.first().click();
+    await page.waitForSelector('#acSommaire:not([hidden])');
+  }
 
   async function seConnecter(email, pin, attendu) {
     await page.goto(BASE + '/academy', { waitUntil: 'domcontentloaded' });
@@ -90,16 +108,52 @@ async function semer() {
     await page.waitForSelector((attendu || ECRAN[email] || '#acSommaire') + ':not([hidden])');
   }
 
+  // Depuis la refonte, les quatre étapes sont des accordéons : seule l'étape
+  // courante est dépliée. Pour agir dans une autre, on l'ouvre — comme un humain.
+  async function ouvrirEtapes() {
+    await page.evaluate(() => {
+      document.querySelectorAll('#acSommaire details.ac-et:not([open])').forEach((d) => { d.open = true; });
+    });
+  }
+
   // Ouvrir l'onglet Contenus, depuis n'importe où dans l'écran.
   async function ouvrirContenus() {
     if (await page.locator('#acAdmin').isHidden()) {
-      await page.click('#acAdminGo');
+      await page.click('#acRoleAdmin');
       await page.waitForSelector('#acAdmin:not([hidden])');
     }
     await page.locator('.ac-adm-ong', { hasText: 'Contenus' }).click();
     await page.waitForSelector('.ac-adm-sel');
   }
 
+
+  // LOT B : « Terminer et continuer » marque le contenu ET ouvre le suivant.
+  // Terminer une formation entière est donc une suite de clics sur le même
+  // bouton, jusqu'à ce qu'il disparaisse — sur le dernier contenu, il renvoie
+  // aux étapes d'évaluation et l'écran de lecture se ferme.
+  async function terminerToutDepuisLeLecteur() {
+    for (let i = 0; i < 80; i++) {
+      if (await page.locator('#acLecteur').isHidden()) return;
+      if (!(await page.locator('#acFait').count())) {
+        // Contenu déjà terminé : on avance sans rien revalider.
+        if (!(await page.locator('#acSuiv').count())) return;
+        const avant = await page.locator('.ac-lec-t').innerText();
+        await page.click('#acSuiv');
+        await page.waitForFunction((t) => {
+          const el = document.querySelector('.ac-lec-t');
+          return !el || el.textContent !== t;
+        }, avant);
+        continue;
+      }
+      const avant = await page.locator('.ac-lec-t').innerText();
+      await page.click('#acFait');
+      await page.waitForFunction((t) => {
+        const el = document.querySelector('.ac-lec-t');
+        const lec = document.querySelector('#acLecteur');
+        return !lec || lec.hidden || !el || el.textContent !== t;
+      }, avant);
+    }
+  }
   // Choisir une formation dans le sélecteur d'administration (brouillons compris).
   async function choisirAdmin(libelle) {
     await page.locator('#acAdmin [data-formation-adm]', { hasText: libelle }).first().click();
@@ -281,10 +335,9 @@ async function semer() {
     if (/Coach Sommeil|cycles du sommeil|SOMMEILaa01/.test(t)) {
       throw new Error('un brouillon est visible du collaborateur');
     }
-    // Il n'y a qu'une formation publiée : le sélecteur ne doit même pas exister.
-    if (await page.locator('#acSommaire .ac-sel-b').count()) {
-      throw new Error('un sélecteur apparaît alors qu\'une seule formation est publiée');
-    }
+    // Une seule formation publiée : l'accueil ne doit montrer qu'une carte.
+    const n = await page.locator('#acAccueil .ac-fc').count();
+    if (n !== 1) throw new Error('cartes à l\'accueil : ' + n + ' (une seule formation est publiée)');
   });
 
   await etape('ni en nommant sa clé dans l\'URL de l\'API', async () => {
@@ -317,13 +370,9 @@ async function semer() {
 
   await etape('le collaborateur la voit et peut la suivre', async () => {
     await seConnecter(THEO, '4004');
-    const boutons = await page.locator('#acSommaire .ac-sel-b').allInnerTexts();
-    if (!boutons.includes(LIBELLE)) throw new Error('formations : ' + boutons.join(' | '));
-    await page.locator('#acSommaire .ac-sel-b', { hasText: LIBELLE }).click();
-    await page.waitForFunction(() => {
-      const on = document.querySelector('#acSommaire .ac-sel-b.on');
-      return on && on.textContent.trim() === 'Coach Sommeil';
-    });
+    const cartes = await page.locator('#acAccueil .ac-fc .ac-fc-t').allInnerTexts();
+    if (!cartes.includes(LIBELLE)) throw new Error('formations : ' + cartes.join(' | '));
+    await entrerFormation(LIBELLE);
     const t = await contenu();
     if (!/Comprendre le sommeil/.test(t)) throw new Error('les modules saisis n\'apparaissent pas');
     if (!/Les cycles du sommeil/.test(t)) throw new Error('les vidéos saisies n\'apparaissent pas');
@@ -332,6 +381,8 @@ async function semer() {
   });
 
   await etape('la vidéo saisie est bien celle qui se joue', async () => {
+    await page.evaluate(() => document.querySelectorAll('#acSommaire details.ac-mod:not([open])')
+      .forEach((d) => { d.open = true; }));
     await page.locator('.ac-l').first().click();
     await page.waitForSelector('#acLecteur:not([hidden])');
     const src = await page.locator('#acLecteur iframe').getAttribute('src');
@@ -341,11 +392,12 @@ async function semer() {
   });
 
   await etape('le QCM saisi se passe, avec le seuil saisi', async () => {
-    for (let i = 0; i < 2; i++) {
-      await page.locator('.ac-l').filter({ hasNotText: '✓' }).first().click();
-      await page.waitForSelector('#acLecteur:not([hidden])');
-      await page.click('#acFait');
-      await page.waitForSelector('.ac-deja');
+    await page.evaluate(() => document.querySelectorAll('#acSommaire details.ac-mod:not([open])')
+      .forEach((d) => { d.open = true; }));
+    await page.locator('.ac-l').filter({ hasNotText: '✓' }).first().click();
+    await page.waitForSelector('#acLecteur:not([hidden])');
+    await terminerToutDepuisLeLecteur();
+    if (await page.locator('#acSommaire').isHidden()) {
       await page.click('#acBack');
       await page.waitForSelector('#acSommaire:not([hidden])');
     }
@@ -395,11 +447,7 @@ async function semer() {
     await page.waitForFunction(() => !document.querySelector('#acAdmin').textContent.includes('· archivé'));
 
     await seConnecter(THEO, '4004');
-    await page.locator('#acSommaire .ac-sel-b', { hasText: LIBELLE }).click();
-    await page.waitForFunction(() => {
-      const on = document.querySelector('#acSommaire .ac-sel-b.on');
-      return on && on.textContent.trim() === 'Coach Sommeil';
-    });
+    await entrerFormation(LIBELLE);
     if (!/100 %/.test(await contenu())) throw new Error('la progression a bougé après un archivage');
   });
 
