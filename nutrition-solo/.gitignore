@@ -6,3 +6,11 @@ npm-debug.log*
 data/*.sqlite
 data/*.sqlite-wal
 data/*.sqlite-shm
+
+# Captures d'écran des suites E2E navigateur. Elles se déposent à la RACINE du
+# projet (`OUT || '.'` dans test/e2e/*.js) et servent à regarder un écran après
+# coup, jamais à faire tourner l'app.
+#
+# La règle est ancrée par `/` : elle ne vaut que pour ce dossier-ci. Les images
+# de public/ — icônes, logos — restent versionnées, elles font partie du site.
+/*.png

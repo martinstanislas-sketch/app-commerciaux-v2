@@ -635,8 +635,13 @@ test('réécrire une question ne réécrit aucune tentative passée', async () =
 // ===========================================================================
 
 test('l\'onglet Contenus rejoint les deux autres, sans page de plus', () => {
-  assert.ok(/'evaluateurs', 'certifications', 'contenus'/.test(js),
-    'le troisième onglet doit s\'ajouter aux deux existants');
+  // LOT 7 : l'onglet Certifications a quitté l'administration pour rejoindre
+  // « Évaluer & certifier », auprès de l'évaluation qu'il conclut. Il en reste
+  // deux ici — les droits d'évaluer, et les contenus.
+  assert.ok(/'evaluateurs', 'contenus'/.test(js),
+    'l\'administration doit porter les deux onglets restants');
+  assert.ok(!/'evaluateurs', 'certifications', 'contenus'/.test(js),
+    'l\'onglet Certifications ne doit plus être ici');
   // Le lot 6 vit dans #acAdmin et n'ajoute AUCUNE section. Le compte est passé
   // de 5 à 6 avec le lot A, qui a ajouté #acAccueil — une section, et une
   // seule, pour l'écran d'accueil du collaborateur.

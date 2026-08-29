@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="coach.css?v=4" />
-  <link rel="stylesheet" href="academy.css?v=20" />
+  <link rel="stylesheet" href="academy.css?v=28" />
 </head>
 <body>
 <!--
@@ -157,6 +157,20 @@
         </a>
 
         <!--
+          Le titre de l'accueil vit ICI, dans le bandeau blanc, et non en tête
+          du corps : il rendait sa première hauteur d'écran à une salutation,
+          alors que les indicateurs et les cartes sont ce qu'on vient voir.
+
+          Il n'apparaît QUE sur l'accueil (cf. afficher() dans academy.js) :
+          l'en-tête est partagé par tous les écrans, et « Mon Academy » posé
+          au-dessus d'une vidéo ou d'un QCM en titrerait un autre.
+        -->
+        <div class="ac-head-t" id="acHeadTitre" hidden>
+          <h1 class="ac-head-h1">Mon Academy <span aria-hidden="true">👋</span></h1>
+          <p class="ac-head-s">Bienvenue dans ton espace de formation. Continue ton parcours et obtiens tes certifications.</p>
+        </div>
+
+        <!--
           Le bloc de compte. Les entrées de RÔLE (évaluer, administrer) sont
           passées dans la barre latérale : ce sont des destinations, pas des
           réglages de compte. Ne restent ici que « qui je suis » et « sortir ».
@@ -215,6 +229,6 @@
   </div>
 </div>
 
-  <script src="academy.js?v=20"></script>
+  <script src="academy.js?v=28"></script>
 </body>
 </html>

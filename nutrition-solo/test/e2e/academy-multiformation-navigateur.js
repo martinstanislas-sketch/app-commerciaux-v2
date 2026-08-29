@@ -366,19 +366,27 @@ async function semer() {
     const t = await contenu();
     if (!/Coach Nutrition/.test(t)) throw new Error('la formation concernée n\'est pas annoncée');
     if (!(await page.locator('#acEval .ac-sel-b').count())) throw new Error('aucun sélecteur de formation');
-    // B ne demande pas de pratique : personne n'y est évaluable.
+    // LOT 7 : la liste montre TOUS les coachs de la formation, à toutes les
+    // étapes. B ne demande pas d'évaluation pratique : ses coachs sont donc
+    // éligibles dès la théorie, et aucun n'y attend une séance de terrain.
     await page.locator('#acEval .ac-sel-b', { hasText: 'Formation de test B' }).click();
     await page.waitForFunction(() => /Formation de test B/.test(document.querySelector('#acEval').textContent));
-    if (!/Aucun collaborateur/.test(await contenu())) throw new Error('B ne devrait proposer personne à évaluer');
+    const b = await contenu();
+    if (/Pratique à réaliser|Résultat en attente|À repasser/.test(b)) {
+      throw new Error('B ne demande pas de pratique : aucun statut de terrain ne doit y apparaître');
+    }
   });
 
   await etape('l\'administrateur lit POUR QUELLE formation il certifie', async () => {
+    // LOT 7 : les certifications ont rejoint « Évaluer & certifier ».
     await seConnecter(ADMIN, '7777', '#acAdmin');
-    await page.click('.ac-adm-ong[data-onglet="certifications"]');
-    await page.waitForFunction(() => /Éligibles \(/.test(document.querySelector('#acAdmin').textContent));
+    await page.click('#acRoleEval');
+    await page.waitForSelector('#acEval:not([hidden])');
+    await page.click('.ac-adm-ong[data-onglet-eval="certifications"]');
+    await page.waitForFunction(() => /Éligibles \(/.test(document.querySelector('#acEval').textContent));
     if (!/Certifications de/.test(await contenu())) throw new Error('la formation concernée n\'est pas annoncée');
-    await page.locator('#acAdmin .ac-sel-b', { hasText: 'Formation de test B' }).click();
-    await page.waitForFunction(() => /Formation de test B/.test(document.querySelector('#acAdmin').textContent));
+    await page.locator('#acEval .ac-sel-b', { hasText: 'Formation de test B' }).click();
+    await page.waitForFunction(() => /Formation de test B/.test(document.querySelector('#acEval').textContent));
     const t = await contenu();
     if (!/Éligibles \(0\)/.test(t) || !/Certifiés \(0\)/.test(t)) {
       throw new Error('une formation sans certification ne délivre rien : ' + (t.match(/Éligibles \(\d+\)/) || ['—'])[0]);

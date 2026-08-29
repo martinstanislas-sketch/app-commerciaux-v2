@@ -174,10 +174,14 @@ async function semer() {
     if (/Administration My Coach Academy/.test(t)) throw new Error('l\'entrée d\'administration est visible');
   });
 
-  await etape('l\'administrateur trouve « Contenus » à côté des deux autres onglets', async () => {
+  await etape('l\'administrateur trouve « Contenus » à côté des droits d\'évaluer', async () => {
     await seConnecter(ADMIN, '7777');
-    const onglets = await page.locator('.ac-adm-ong').allInnerTexts();
-    const attendus = ['Évaluateurs', 'Certifications', 'Contenus'];
+    // `.ac-adm-ong` sert aussi aux onglets de « Évaluer & certifier » : on
+    // cible l'écran qu'on interroge.
+    const onglets = await page.locator('#acAdmin .ac-adm-ong').allInnerTexts();
+    // LOT 7 : « Certifications » a quitté l'administration pour rejoindre
+    // « Évaluer & certifier », auprès de l'évaluation qu'il conclut.
+    const attendus = ['Évaluateurs', 'Contenus'];
     if (JSON.stringify(onglets) !== JSON.stringify(attendus)) {
       throw new Error('onglets : ' + onglets.join(' | '));
     }

@@ -449,3 +449,191 @@ test('l\'espace Coach mène à la formation au lieu d\'être une impasse', () =>
   assert.ok(coachJs.includes('href="/academy"'), 'l\'écran d\'attente propose la formation');
   assert.ok(coachJs.includes('Accéder à ma formation'));
 });
+
+// ===========================================================================
+//  LA PROGRESSION GLOBALE DU DASHBOARD
+//
+//  ⚠️ LE DÉFAUT QUE CES TESTS FERMENT. L'anneau « Progression globale »
+//  divisait la somme des contenus vus par la somme des contenus ouverts. Un
+//  coach qui avait tout regardé lisait « 100 % » alors que son Terrain restait
+//  à réaliser et sa certification à obtenir : l'anneau annonçait fini un
+//  parcours qui ne l'était pas.
+//
+//  La fonction est PURE et vit dans public/academy.js. On l'extrait de la
+//  source et on l'évalue : pas de navigateur à démarrer, et le test porte sur
+//  le code réellement servi — pas sur une copie qui dériverait.
+// ===========================================================================
+
+const progGlobale = (() => {
+  const debut = js.indexOf('function etapesDuParcours');
+  const fin = js.indexOf('function rendreAccueil');
+  assert.ok(debut > 0 && fin > debut, 'les fonctions de progression doivent exister dans academy.js');
+  return new Function('formations', 'certifications',
+    js.slice(debut, fin) + '; return progressionGlobale(formations, certifications);');
+})();
+
+// Deux fabriques : le catalogue d'un côté, l'état de certification de l'autre —
+// exactement les deux objets que le dashboard a en main.
+const catCN = (o) => Object.assign(
+  { cle: 'coach_nutrition', total: 35, termines: 35, acheve: true, pratiqueObligatoire: true, certificationActive: true }, o);
+const catCM = (o) => Object.assign(
+  { cle: 'cycle_menstruel', total: 10, termines: 10, acheve: true, pratiqueObligatoire: true, certificationActive: true }, o);
+const etat = (cle, { theorie = false, pratique = false, certifie = false } = {}) => ({
+  formation: cle,
+  prerequis: [{ cle: 'theorie', rempli: theorie }, { cle: 'pratique', rempli: pratique }],
+  certifie,
+});
+
+test('LE CAS QUI A MOTIVÉ LA RÈGLE : contenus finis + théorie, Terrain à faire', () => {
+  const pct = progGlobale([catCM()], [etat('cycle_menstruel', { theorie: true })]);
+  assert.strictEqual(pct, 50, 'deux étapes sur quatre — et surtout PAS 100 %');
+});
+
+test('une seconde formation certifiée à côté ne masque pas le parcours en cours', () => {
+  const pct = progGlobale(
+    [catCN(), catCM()],
+    [etat('coach_nutrition', { theorie: true, pratique: true, certifie: true }),
+      etat('cycle_menstruel', { theorie: true })]);
+  assert.strictEqual(pct, 75, 'six étapes acquises sur huit demandées');
+});
+
+test('l\'étape Apprendre reste proportionnelle aux contenus', () => {
+  // 3 contenus sur 10 : l'anneau bouge à chaque vidéo, il ne saute pas.
+  assert.strictEqual(progGlobale([catCM({ termines: 3, acheve: false })], [etat('cycle_menstruel')]), 8);
+  assert.strictEqual(progGlobale([catCM({ termines: 5, acheve: false })], [etat('cycle_menstruel')]), 13);
+});
+
+test('contenus finis mais théorie pas encore passée : un quart du parcours', () => {
+  assert.strictEqual(progGlobale([catCM()], [etat('cycle_menstruel')]), 25);
+});
+
+test('Terrain validé mais certification pas délivrée : PAS 100 %', () => {
+  const pct = progGlobale([catCM()], [etat('cycle_menstruel', { theorie: true, pratique: true })]);
+  assert.strictEqual(pct, 75, 'la dernière étape reste à prononcer');
+});
+
+test('LE 100 % EST RÉSERVÉ AU PARCOURS RÉELLEMENT TERMINÉ', () => {
+  const un = progGlobale([catCM()], [etat('cycle_menstruel', { theorie: true, pratique: true, certifie: true })]);
+  assert.strictEqual(un, 100);
+  const deux = progGlobale([catCN(), catCM()],
+    [etat('coach_nutrition', { theorie: true, pratique: true, certifie: true }),
+      etat('cycle_menstruel', { theorie: true, pratique: true, certifie: true })]);
+  assert.strictEqual(deux, 100, 'les deux parcours achevés');
+});
+
+test('une étape NON DEMANDÉE n\'est pas une étape manquante', () => {
+  // Ni pratique ni certification : deux étapes seulement, et 100 % atteignable.
+  const sansRien = { cle: 'b', total: 5, termines: 5, acheve: true, pratiqueObligatoire: false, certificationActive: false };
+  assert.strictEqual(progGlobale([sansRien], [etat('b', { theorie: true })]), 100,
+    'une formation qui ne certifie pas doit pouvoir atteindre 100 %');
+  // Certifiante mais sans Terrain : trois étapes.
+  const sansTerrain = { cle: 'c', total: 5, termines: 5, acheve: true, pratiqueObligatoire: false, certificationActive: true };
+  assert.strictEqual(progGlobale([sansTerrain], [etat('c', { theorie: true })]), 67);
+  assert.strictEqual(progGlobale([sansTerrain], [etat('c', { theorie: true, certifie: true })]), 100);
+});
+
+test('aucun compteur (catalogue nu) ou aucune formation : jamais NaN', () => {
+  assert.strictEqual(progGlobale([], []), 0);
+  assert.strictEqual(progGlobale(null, null), 0);
+  // Un administrateur non collaborateur reçoit le catalogue sans total/termines.
+  const nu = { cle: 'coach_nutrition', pratiqueObligatoire: true, certificationActive: true };
+  assert.strictEqual(progGlobale([nu], null), 0, 'zéro, pas NaN ni 100');
+  // Contenus à zéro : on ne divise pas par zéro, on lit le drapeau.
+  const vide = { cle: 'd', total: 0, termines: 0, acheve: true, pratiqueObligatoire: false, certificationActive: false };
+  assert.strictEqual(progGlobale([vide], [etat('d', { theorie: true })]), 100);
+});
+
+test('la carte d\'une formation garde SA progression de contenus', () => {
+  // Le « X % complété » de la carte lit f.pourcentage — la progression des
+  // contenus — et ne doit pas avoir été remplacé par la progression d'étapes.
+  assert.ok(/Number\.isFinite\(f\.pourcentage\) \? f\.pourcentage : 0/.test(js),
+    'la carte doit continuer à afficher le pourcentage de contenus');
+  assert.ok(/<b>' \+ pct \+ '%<\/b> complété/.test(js), 'le libellé « % complété » de la carte est intact');
+});
+
+// ===========================================================================
+//  LA BARRE LATÉRALE : UNE SEULE PORTE POUR LE COACH
+//
+//  « Mes formations » et « Mes certifications » menaient au MÊME écran que
+//  « Mon Academy » — même appel, même grille, à un filtre près. Trois entrées
+//  pour une destination. Seules les ENTRÉES disparaissent : naviguer() accepte
+//  toujours ces destinations, et le bouton « Voir mes certifications » de
+//  l'accueil s'en sert encore.
+// ===========================================================================
+
+const entreesNav = (() => {
+  const debut = js.indexOf('const entrees = [', js.indexOf('function rendreBarreLaterale'));
+  const fin = js.indexOf('const nav = $(\'#acSideNav\')');
+  assert.ok(debut > 0 && fin > debut, 'le bloc des entrées de navigation doit exister');
+  return new Function('moiEval', 'moiAdmin', 'ic',
+    js.slice(debut, fin) + '; return entrees.map((e) => e.cle);');
+})();
+const ic = new Proxy({}, { get: () => '<svg/>' });
+
+test('un coach sans droit ne voit QU\'UNE entrée : Mon Academy', () => {
+  assert.deepStrictEqual(entreesNav(false, false, ic), ['academy'],
+    'plus de « Mes formations » ni « Mes certifications »');
+});
+
+test('« Évaluer & certifier » n\'apparaît QUE pour qui a le droit d\'évaluer', () => {
+  assert.deepStrictEqual(entreesNav(true, false, ic), ['academy', 'evaluer']);
+  assert.ok(!entreesNav(false, false, ic).includes('evaluer'), 'un coach simple ne la voit pas');
+});
+
+test('« Administrer » n\'apparaît QUE pour un administrateur', () => {
+  assert.deepStrictEqual(entreesNav(false, true, ic), ['academy', 'administrer']);
+  assert.deepStrictEqual(entreesNav(true, true, ic), ['academy', 'evaluer', 'administrer']);
+  assert.ok(!entreesNav(true, false, ic).includes('administrer'), 'un évaluateur non admin ne la voit pas');
+});
+
+test('les DESTINATIONS restent, seules les entrées disparaissent', () => {
+  // Le bouton de l'accueil continue de filtrer sur les formations certifiantes.
+  assert.ok(/id="acVersCertifs"/.test(js), 'le bouton « Voir mes certifications » existe toujours');
+  assert.ok(/naviguer\('certifications'\)/.test(js), 'et il mène toujours à la vue filtrée');
+  assert.ok(/accueilFiltre = ou === 'certifications' \? 'certifiantes' : 'toutes'/.test(js),
+    'naviguer() sait toujours traiter ces destinations');
+});
+
+test('dans une formation, c\'est « Mon Academy » qui reste l\'entrée active', () => {
+  // Sans cela, plus aucune entrée ne serait surlignée depuis la suppression
+  // de la clé 'formations'.
+  assert.ok(!/rendreBarreLaterale\('formations'\)/.test(js),
+    'aucun écran ne doit activer une entrée qui n\'existe plus');
+});
+
+// ===========================================================================
+//  AUCUN TEXTE HÉRITÉ DE COACH NUTRITION DANS UNE AUTRE FORMATION
+//
+//  ⚠️ LE DÉFAUT QUE CES TESTS FERMENT. Trois phrases promettaient « des clients
+//  dans le Boost Nutrition » à quiconque se certifiait — Cycle menstruel
+//  comprise, alors qu'elle n'ouvre aucun dossier client. Le catalogue portait
+//  déjà refletBoost ; il n'était lu nulle part côté écran.
+// ===========================================================================
+
+const ouvreBoostDe = (() => {
+  const debut = js.indexOf('const ouvreBoost = (cle) =>');
+  const fin = js.indexOf('function statutDe');
+  assert.ok(debut > 0 && fin > debut, 'le garde ouvreBoost doit exister');
+  return new Function('catalogue', 'cle', js.slice(debut, fin) + '; return ouvreBoost(cle);');
+})();
+
+test('ouvreBoost ne dit oui QUE pour une formation à reflet', () => {
+  const cat = [{ cle: 'coach_nutrition', refletBoost: true }, { cle: 'cycle_menstruel', refletBoost: false }];
+  assert.strictEqual(ouvreBoostDe(cat, 'coach_nutrition'), true);
+  assert.strictEqual(ouvreBoostDe(cat, 'cycle_menstruel'), false);
+  assert.strictEqual(ouvreBoostDe(cat, 'inconnue'), false, 'une clé inconnue ne promet rien');
+  assert.strictEqual(ouvreBoostDe(null, 'coach_nutrition'), false, 'sans catalogue, on ne promet rien');
+});
+
+test('les trois phrases « Boost » sont toutes conditionnées', () => {
+  // Aucune des trois ne doit être concaténée sans garde.
+  const sansGarde = /\+\s*'<p class="ac-qcm-s">Tu peux désormais suivre des clients/;
+  assert.ok(!sansGarde.test(js), 'la phrase du coach doit passer par ouvreBoost');
+  const avert = js.split('Cette délivrance ouvrira immédiatement');
+  assert.strictEqual(avert.length, 3, 'les deux avertissements de délivrance existent toujours');
+  for (const bloc of avert.slice(0, 2)) {
+    assert.ok(/ouvreBoost\(fCourante\)\s*$|ouvreBoost\(fCourante\)[\s\S]{0,80}$/.test(bloc),
+      'chaque avertissement doit être précédé de son garde ouvreBoost');
+  }
+  assert.ok(/ouvreBoost\(c\.formation\)/.test(js), 'la carte du coach lit le drapeau de SA formation');
+});

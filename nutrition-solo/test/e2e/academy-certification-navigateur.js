@@ -141,9 +141,16 @@ async function semer() {
     await page.waitForSelector('#acSommaire:not([hidden])');
   }
 
+  // LOT 7 : les certifications vivent dans « Évaluer & certifier », onglet
+  // « Certifications » — plus dans l'administration. On y entre par la barre
+  // latérale, puis par l'onglet.
   const ongletCertifs = async () => {
-    await page.click('.ac-adm-ong[data-onglet="certifications"]');
-    await page.waitForFunction(() => /Éligibles \(/.test(document.querySelector('#acAdmin').textContent));
+    if (!(await page.locator('#acEval:not([hidden])').count())) {
+      await page.click('#acRoleEval');
+      await page.waitForSelector('#acEval:not([hidden])');
+    }
+    await page.click('.ac-adm-ong[data-onglet-eval="certifications"]');
+    await page.waitForFunction(() => /Éligibles \(/.test(document.querySelector('#acEval').textContent));
   };
 
   // =========================================================================
@@ -182,7 +189,7 @@ async function semer() {
     await seConnecter(EVA, '3003');
     await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
-    await page.locator('.ac-eval-l', { hasText: 'Théo' }).click();
+    await page.click(`[data-collab="${THEO}"]`);
     await page.waitForSelector('#acEvOk');
     await page.fill('#acEvDate', '2026-09-10');
     await page.fill('#acEvCom', 'Conduite de rendez-vous nette.');
@@ -238,7 +245,7 @@ async function semer() {
     await page.fill('#acCertDate', '2026-09-15');
     await page.fill('#acCertCom', 'Parcours net du début à la fin.');
     await page.locator('.ac-adm-l', { hasText: THEO }).getByText('Confirmer la délivrance').click();
-    await page.waitForFunction(() => /Certifiés \(1\)/.test(document.querySelector('#acAdmin').textContent));
+    await page.waitForFunction(() => /Certifiés \(1\)/.test(document.querySelector('#acEval').textContent));
     if (!/Éligibles \(0\)/.test(await contenu())) throw new Error('il devrait avoir quitté les éligibles');
   });
 
@@ -307,14 +314,14 @@ async function semer() {
 
     // Sans motif : refusé, et l'écran le dit.
     await page.locator('.ac-adm-l', { hasText: THEO }).getByText('Confirmer le retrait').click();
-    await page.waitForFunction(() => /motif est requis/i.test(document.querySelector('#acAdmErr').textContent));
+    await page.waitForFunction(() => /motif est requis/i.test(document.querySelector('#acEvalErr').textContent));
     if (!/Certifiés \(1\)/.test(await contenu())) throw new Error('le retrait a eu lieu sans motif');
   });
 
   await etape('avec motif, les droits se ferment et le diplôme reste', async () => {
     await page.fill('#acCertMotif', 'Suite à un signalement client.');
     await page.locator('.ac-adm-l', { hasText: THEO }).getByText('Confirmer le retrait').click();
-    await page.waitForFunction(() => /Certifiés \(0\)/.test(document.querySelector('#acAdmin').textContent));
+    await page.waitForFunction(() => /Certifiés \(0\)/.test(document.querySelector('#acEval').textContent));
     if (!/Éligibles \(1\)/.test(await contenu())) throw new Error('il devrait redevenir éligible');
 
     const vu = await get('/api/academy/admin/certifications', jetonAdmin);

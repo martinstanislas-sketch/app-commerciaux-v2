@@ -21,6 +21,33 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   const r = express.Router();
   const moi = (req) => String(req.user.email || '').trim().toLowerCase();
 
+  // ==========================================================================
+  //  QUI PEUT ÉVALUER ET CERTIFIER — la seule règle de droits ajoutée.
+  //
+  //  L'ADMINISTRATEUR EST ÉVALUATEUR/CERTIFICATEUR D'OFFICE. C'est un
+  //  renversement assumé du parti pris d'origine (« administrer et évaluer sont
+  //  deux métiers ») : il obligeait l'administrateur à se désigner lui-même
+  //  avant de pouvoir travailler, et cette désignation manquante rendait
+  //  l'espace inatteignable sur une base neuve.
+  //
+  //  CE QUE LE RENVERSEMENT NE COÛTE PAS. On perd l'habilitation explicite d'un
+  //  admin ; on ne perd AUCUNE trace de décision : chaque évaluation porte son
+  //  `evaluateur`, chaque diplôme son `delivree_par`. Qui a prononcé quoi reste
+  //  écrit.
+  //
+  //  ⚠️ CE QUE LE RENVERSEMENT REND PLUS IMPORTANT, PAS MOINS : les deux refus
+  //  d'auto-validation du moteur (on n'évalue pas sa propre pratique, on ne se
+  //  délivre pas sa propre certification). Sans eux, « admin d'office » vaudrait
+  //  « je me certifie moi-même ». Ils vivent dans academyPratique.verifierCible
+  //  et academyCertifications.delivrer, et ce fichier ne les contourne jamais.
+  //
+  //  La table academy_evaluateurs reste la vérité pour les évaluateurs NON
+  //  administrateurs — elle n'a pas changé de rôle, elle a cessé d'être le seul
+  //  chemin.
+  // ==========================================================================
+  const estAdministrateur = (mail) => !!estAdmin && estAdmin(mail);
+  const peutEvaluer = (mail) => pratique.estEvaluateur(mail) || estAdministrateur(mail);
+
   // Le schéma s'applique tout seul à la première requête Academy, comme celui
   // du Boost : aucun ordre d'initialisation à respecter dans server.js.
   r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); certifications.assurerSchema(); next(); });
@@ -73,14 +100,16 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
       email: moi(req),
       collaborateur: academy.peutSeFormer(moi(req)),
       // Le droit d'évaluer est INDÉPENDANT du fait d'être collaborateur : un
-      // formateur extérieur peut évaluer sans suivre la formation, et
-      // l'administrateur évalue d'office. L'écran a besoin des deux pour
-      // savoir quoi montrer.
-      evaluateur: pratique.estEvaluateur(moi(req)),
-      // Administrer et évaluer restent DEUX choses : ce drapeau ne sert qu'à
-      // montrer l'écran de gestion des évaluateurs. Il n'ouvre aucune porte —
-      // c'est exigeAdmin, côté serveur, qui garde les routes.
-      admin: !!estAdmin && estAdmin(moi(req)),
+      // formateur extérieur peut évaluer sans suivre la formation. Ce drapeau
+      // répond « puis-je ouvrir Évaluer & certifier ? » — donc désigné OU
+      // administrateur, jamais l'appartenance brute à academy_evaluateurs, que
+      // seul l'écran de gestion des droits a besoin de connaître.
+      evaluateur: peutEvaluer(moi(req)),
+      // Administrer est un droit EN PLUS : il ouvre les formations, les
+      // contenus, les banques et le retrait d'une certification. Il n'ouvre
+      // aucune porte à lui seul — c'est exigeAdmin, côté serveur, qui garde
+      // ces routes.
+      admin: estAdministrateur(moi(req)),
     });
   });
 
@@ -93,7 +122,7 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   //  autres de leur sélecteur.
   function exigeEntree(req, res, next) {
     const mail = moi(req);
-    if (academy.peutSeFormer(mail) || pratique.estEvaluateur(mail) || (estAdmin && estAdmin(mail))) return next();
+    if (academy.peutSeFormer(mail) || peutEvaluer(mail)) return next();
     return res.status(403).json({
       ok: false, nonCollaborateur: true,
       error: 'La formation Coach Nutrition est réservée aux collaborateurs My Coach.',
@@ -257,20 +286,20 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   //
   //   - LE COLLABORATEUR lit SON état. Aucune route de ce groupe n'accepte
   //     d'email : la portée vient du jeton, comme partout ailleurs.
-  //   - L'ÉVALUATEUR lit et écrit les évaluations des AUTRES. Toutes ses
-  //     routes passent par exigeEvaluateur, et le moteur refuse en plus qu'il
-  //     s'évalue lui-même — un droit d'évaluer ne doit jamais valoir droit de
-  //     se valider soi-même.
+  //   - L'ÉVALUATEUR/CERTIFICATEUR lit et écrit les évaluations des AUTRES.
+  //     Toutes ses routes passent par exigeEvaluer, et le moteur refuse en plus
+  //     qu'il s'évalue lui-même — un droit d'évaluer ne doit jamais valoir
+  //     droit de se valider soi-même.
   //
   //  Le prérequis théorique est relu À L'ÉCRITURE, pas seulement à l'affichage :
   //  sinon un appel direct à l'API passerait devant l'écran.
   // ==========================================================================
 
-  function exigeEvaluateur(req, res, next) {
-    if (!pratique.estEvaluateur(moi(req))) {
+  function exigeEvaluer(req, res, next) {
+    if (!peutEvaluer(moi(req))) {
       return res.status(403).json({
         ok: false, nonEvaluateur: true,
-        error: 'Seuls les évaluateurs désignés peuvent enregistrer une évaluation pratique.',
+        error: 'Seuls les évaluateurs désignés et les administrateurs peuvent évaluer et certifier.',
       });
     }
     next();
@@ -286,7 +315,7 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
 
   // -- Côté évaluateur -------------------------------------------------------
 
-  r.get('/api/academy/evaluateur/collaborateurs', exigeCompte, exigeEvaluateur, (req, res) => {
+  r.get('/api/academy/evaluateur/collaborateurs', exigeCompte, exigeEvaluer, (req, res) => {
     const f = formationDe(req, res);
     if (!f) return;
     // La formation repart avec la liste : l'évaluateur doit lire à l'écran
@@ -295,7 +324,32 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
       collaborateurs: pratique.listerEligibles(f.cle) });
   });
 
-  r.get('/api/academy/evaluateur/collaborateurs/:email', exigeCompte, exigeEvaluateur, (req, res) => {
+  // LA LISTE UNIFIÉE de l'espace « Évaluer & certifier » : tous les coachs de
+  // la formation, à toutes les étapes, avec UN seul statut chacun. Elle remplace
+  // à l'écran les deux listes d'avant (éligibles à l'évaluation d'un côté,
+  // éligibles à la certification de l'autre) — qui laissaient invisible un
+  // coach encore en cours d'apprentissage.
+  r.get('/api/academy/evaluateur/coachs', exigeCompte, exigeEvaluer, (req, res) => {
+    const f = formationDe(req, res);
+    if (!f) return;
+    const liste = certifications.listerCoachs(f.cle);
+    res.json({
+      ok: true,
+      // La formation entière, pas seulement sa clé : l'écran doit LIRE pour
+      // quel parcours il s'apprête à prononcer, et pouvoir en changer.
+      formation: f,
+      formations: formations.lister(),
+      certificationActive: liste.certificationActive,
+      pratiqueObligatoire: liste.pratiqueObligatoire,
+      coachs: liste.coachs,
+      // Le drapeau dit à l'écran s'il doit proposer le retrait d'un diplôme :
+      // ce geste-là reste à l'administrateur, et l'écran ne doit pas dessiner
+      // un bouton que le serveur refusera.
+      peutRetirer: estAdministrateur(moi(req)),
+    });
+  });
+
+  r.get('/api/academy/evaluateur/collaborateurs/:email', exigeCompte, exigeEvaluer, (req, res) => {
     const f = formationDe(req, res);
     if (!f) return;
     const r_ = pratique.ficheDe(req.params.email, f.cle);
@@ -305,7 +359,7 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
 
   // Ouvrir une évaluation. Sans résultat : séance ouverte, verdict à venir.
   // Avec résultat : l'évaluateur qui saisit à chaud clôt en une fois.
-  r.post('/api/academy/evaluateur/collaborateurs/:email/evaluations', exigeCompte, exigeEvaluateur, (req, res) => {
+  r.post('/api/academy/evaluateur/collaborateurs/:email/evaluations', exigeCompte, exigeEvaluer, (req, res) => {
     const f = formationDe(req, res);
     if (!f) return;
     const r_ = pratique.ouvrir(req.params.email, moi(req), { ...(req.body || {}), formation: f.cle });
@@ -314,7 +368,7 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
 
   // Prononcer le verdict d'une séance ouverte. Une évaluation close est
   // immuable : on n'y revient pas, on en ouvre une nouvelle.
-  r.put('/api/academy/evaluateur/evaluations/:id', exigeCompte, exigeEvaluateur, (req, res) => {
+  r.put('/api/academy/evaluateur/evaluations/:id', exigeCompte, exigeEvaluer, (req, res) => {
     const r_ = pratique.enregistrerResultat(req.params.id, moi(req), req.body || {});
     res.status(r_.status).json(r_.body);
   });
@@ -323,8 +377,10 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   //
   //  Désigner un évaluateur, et rien d'autre. L'administration de l'Academy
   //  (banque de questions, contenus, configuration) reste hors de ce lot.
-  //  L'administrateur étant évaluateur d'office, aucun amorçage n'est requis
-  //  pour que le dispositif fonctionne.
+  //  L'administrateur étant évaluateur/certificateur d'office (cf. peutEvaluer
+  //  en tête de fichier), aucun amorçage n'est requis pour que le dispositif
+  //  fonctionne : cette liste sert à habiliter les évaluateurs QUI NE SONT PAS
+  //  administrateurs.
 
   //  `evaluateurs` = les lignes de droits telles quelles (contrat du lot 3,
   //  inchangé). `comptes` = la vue de l'écran : chaque candidat avec son droit
@@ -363,7 +419,13 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     res.json({ ok: true, certifications: certifications.etatCompletPour(moi(req)) });
   });
 
-  r.get('/api/academy/admin/certifications', exigeCompte, exigeAdmin, (req, res) => {
+  // DÉLIVRER EST UN GESTE D'ÉVALUATEUR/CERTIFICATEUR, RETIRER EST UN GESTE
+  // D'ADMINISTRATEUR. Les deux ne pèsent pas pareil : délivrer conclut un
+  // parcours dont les prérequis sont déjà remplis et relus ici ; retirer ferme
+  // des droits ouverts, exige un motif, et se lit comme une sanction. Le chemin
+  // d'URL reste sous /admin/ — le renommer casserait des appels existants pour
+  // un gain cosmétique ; c'est la GARDE qui dit qui entre, pas le chemin.
+  r.get('/api/academy/admin/certifications', exigeCompte, exigeEvaluer, (req, res) => {
     if (!formationDe(req, res)) return;
     res.json({
       ok: true,
@@ -373,7 +435,7 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     });
   });
 
-  r.post('/api/academy/admin/certifications/:email', exigeCompte, exigeAdmin, (req, res) => {
+  r.post('/api/academy/admin/certifications/:email', exigeCompte, exigeEvaluer, (req, res) => {
     const f = formationDe(req, res);
     if (!f) return;
     const r_ = certifications.delivrer(req.params.email, moi(req), { ...(req.body || {}), formation: f.cle });

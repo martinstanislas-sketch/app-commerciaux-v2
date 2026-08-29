@@ -757,8 +757,13 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
     const enCours = tentativeEnCours(mail, cle, PORTEE_FINALE);
     const reussie = tentativeReussie(mail, cle, PORTEE_FINALE);
     const derniere = derniereSoumise(mail, cle, PORTEE_FINALE);
-    const cert = boost.lireCertification(mail);
-    const certifie = cert.statut === 'certifie';
+    // ⚠️ LIRE LE BOOST SE GARDE COMME Y ÉCRIRE. Le dossier boost_certifications
+    // ne parle que du titre qui ouvre des droits clients. L'exposer depuis une
+    // autre formation faisait dire à l'écran « Tu es <titre de CETTE
+    // formation> » à quelqu'un qui n'y avait rien obtenu : il lui suffisait
+    // d'être certifié ailleurs.
+    const cert = certificationBoostDe(cle, mail);
+    const certifie = !!cert && cert.statut === 'certifie';
 
     // Le QCM final ne s'ouvre pas seulement quand les contenus sont terminés :
     // il faut aussi que tous les mini-QCM aient été franchis. Sans cette
@@ -796,7 +801,9 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
       // Ce que la réussite ouvre — et ce qu'elle n'ouvre pas. Les deux sont
       // renvoyés côte à côte pour que l'écran ne puisse pas les confondre.
       certifie,
-      certification: cert.statut,
+      // null — et non « non_certifie » — pour une formation sans reflet : elle
+      // n'a pas de dossier Boost, elle n'en a pas un vide.
+      certification: cert ? cert.statut : null,
       eligiblePratique: !!reussie && !certifie,
     };
   }
@@ -937,6 +944,31 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
 
   // -- Soumettre -------------------------------------------------------------
 
+  // Report du score théorique dans le dossier de certification du Boost.
+  //
+  // ⚠️ LA MÊME CONDITION QUE SON HOMOLOGUE PRATIQUE (academyPratique →
+  // reporterDansCertification) : seule une formation qui OUVRE DES DROITS dans
+  // le Boost y écrit. Sans ce filtre, le QCM final de n'importe quelle
+  // formation écrasait boost_certifications.score_qcm — un parcours « Cycle
+  // menstruel » repeignait le dossier Coach Nutrition d'un coach. Le
+  // cloisonnement des lectures avait été posé ; celui des écritures manquait
+  // encore de ce côté-ci.
+  // Le pendant EN LECTURE de reporterTheorieDansBoost, sous le même drapeau.
+  // Renvoie null pour une formation sans reflet : elle n'a pas de dossier.
+  function certificationBoostDe(formationCle, email) {
+    const f = formations.lire(cleFormation(formationCle));
+    if (!f || !f.refletBoost) return null;
+    if (typeof boost.lireCertification !== 'function') return null;
+    return boost.lireCertification(email);
+  }
+
+  function reporterTheorieDansBoost(email, score, formationCle) {
+    const f = formations.lire(cleFormation(formationCle));
+    if (!f || !f.refletBoost) return null;
+    if (typeof boost.enregistrerQcmTheorie !== 'function') return null;
+    return boost.enregistrerQcmTheorie(email, score, 'academy');
+  }
+
   // TOUTE la correction est ici, et nulle part ailleurs. Le navigateur envoie
   // des identifiants de choix ; il ne dit ni ce qui est juste, ni quel score il
   // pense avoir, ni quel seuil s'applique — ces trois-là viennent de la base.
@@ -982,7 +1014,7 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
     // et ne touche jamais au dossier de certification. C'est la deuxième moitié
     // de la garantie — la première étant le cloisonnement des lectures d'état.
     if (clos.reussie && clos.portee === PORTEE_FINALE) {
-      boost.enregistrerQcmTheorie(mail, clos.score_pct, 'academy');
+      reporterTheorieDansBoost(mail, clos.score_pct, clos.formation);
     }
 
     // Un mini rend le parcours (le verrou du module suivant vient peut-être de

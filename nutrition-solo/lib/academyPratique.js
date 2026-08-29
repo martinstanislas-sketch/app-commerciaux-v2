@@ -36,6 +36,7 @@
 // ============================================================================
 
 const { err, ok, jourValide, aujourdhui } = require('./boost');
+const { ajouterColonne } = require('./academyFormations');
 
 // Une seule formation aujourd'hui. La colonne existe pour que l'arrivée d'une
 // seconde ne demande pas de migration — pas pour être configurable maintenant.
@@ -85,9 +86,17 @@ CREATE TABLE IF NOT EXISTS academy_evaluations (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   email           TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
   formation       TEXT NOT NULL DEFAULT '${FORMATION}',
-  -- Étiquette libre du support utilisé. PAS une clé étrangère : en V1
-  -- l'évaluateur peut très bien travailler avec ses propres documents.
+  -- Le TITRE du cas, RECOPIÉ à la saisie. Il reste une étiquette libre : un
+  -- évaluateur peut travailler avec ses propres supports, et une formation
+  -- peut n'avoir aucun référentiel. Quand un cas du référentiel est choisi,
+  -- son titre est copié ici — comme un diplôme recopie ses preuves : relire
+  -- une évaluation de l'an dernier ne doit pas dépendre d'un référentiel qui
+  -- aura bougé depuis.
   cas             TEXT,
+  -- D'OÙ VENAIT L'ÉTIQUETTE, quand elle vient du référentiel. Volontairement
+  -- SANS clé étrangère dure : retirer un cas du référentiel ne doit pas
+  -- emporter ni invalider les évaluations qui s'en sont servies.
+  cas_id          INTEGER,
   ouvert_par      TEXT,
   ouverte_le      TEXT NOT NULL,
   -- Le JOUR de la séance (AAAA-MM-JJ), qui n'est pas forcément celui de la
@@ -100,6 +109,31 @@ CREATE TABLE IF NOT EXISTS academy_evaluations (
   maj_le          TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_academy_evaluations ON academy_evaluations(email, id);
+
+-- LE RÉFÉRENTIEL DES CAS PRATIQUES, rattaché à UNE FORMATION.
+--
+-- Calqué sur academy_modules : une colonne formation qui cloisonne, un ordre
+-- qui range, un actif qui retire sans effacer, une cle stable pour l'amorçage.
+-- Aucune ligne de moteur n'est propre à un parcours : une formation nouvelle
+-- pose ses cas comme elle pose ses modules, par ses seules données.
+--
+-- ZÉRO CAS EST UN CAS VALIDE, et c'est ce qui garde Coach Nutrition intacte :
+-- sans référentiel, l'évaluateur retrouve exactement le champ libre d'avant.
+CREATE TABLE IF NOT EXISTS academy_cas (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  formation TEXT NOT NULL,
+  titre     TEXT NOT NULL,
+  -- Ce que l'évaluateur doit mettre en œuvre. Facultatif : un intitulé suffit
+  -- à désigner une situation, et personne ne doit inventer des consignes pour
+  -- remplir une colonne.
+  consignes TEXT,
+  ordre     INTEGER NOT NULL DEFAULT 0,
+  actif     INTEGER NOT NULL DEFAULT 1,
+  cle       TEXT UNIQUE,
+  cree_le   TEXT NOT NULL,
+  maj_le    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_academy_cas ON academy_cas(formation, ordre);
 `;
 
 function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
@@ -118,8 +152,39 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     // précédents doivent exister d'abord (clés étrangères actives).
     qcm.assurerSchema();
     d.exec(SCHEMA_PRATIQUE);
+    // Les évaluations posées avant le référentiel n'ont pas cette colonne :
+    // elles gardent leur étiquette libre, et `cas_id` reste NULL chez elles.
+    ajouterColonne(d, 'academy_evaluations', 'cas_id', 'INTEGER');
     basesMigrees.add(d);
     return true;
+  }
+
+  // -- Le référentiel de cas d'une formation ---------------------------------
+
+  const vueCas = (r) => ({
+    id: r.id, formation: r.formation, titre: r.titre,
+    consignes: r.consignes || null, ordre: r.ordre,
+  });
+
+  // Les cas PROPOSABLES d'une formation. Une autre formation n'en voit jamais
+  // un seul : c'est la même colonne qui cloisonne les modules et les questions.
+  function listerCas(formationCle) {
+    assurerSchema();
+    return db().prepare(`SELECT * FROM academy_cas WHERE formation = ? AND actif = 1
+                         ORDER BY ordre ASC, id ASC`)
+      .all(cleFormation(formationCle)).map(vueCas);
+  }
+
+  // Un cas n'est utilisable QUE dans sa formation. Renvoyer null plutôt que de
+  // se rabattre sur une autre : un identifiant venu d'ailleurs doit être un
+  // refus franc, pas une étiquette silencieusement fausse.
+  function lireCasDe(formationCle, casId) {
+    if (casId === undefined || casId === null || casId === '') return null;
+    const n = Number(casId);
+    if (!Number.isInteger(n)) return null;
+    const r = db().prepare('SELECT * FROM academy_cas WHERE id = ? AND formation = ? AND actif = 1')
+      .get(n, cleFormation(formationCle));
+    return r ? vueCas(r) : null;
   }
 
   // -- Droit d'évaluer -------------------------------------------------------
@@ -204,6 +269,9 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     id: r.id,
     formation: r.formation,
     cas: r.cas || null,
+    // L'origine de l'étiquette, quand elle vient du référentiel. L'écran s'en
+    // sert pour resélectionner le bon cas ; le titre, lui, reste dans `cas`.
+    casId: r.cas_id === undefined || r.cas_id === null ? null : r.cas_id,
     ouverteLe: r.ouverte_le,
     ouvertPar: r.ouvert_par || null,
     dateEvaluation: r.date_evaluation || null,
@@ -253,7 +321,11 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     const attente = enAttenteDe(mail, cle);
     const derniere = db().prepare(`SELECT * FROM academy_evaluations WHERE email = ? AND formation = ?
                                    ORDER BY id DESC LIMIT 1`).get(mail, cle);
-    const cert = boost.lireCertification(mail);
+    // ⚠️ MÊME GARDE QU'À L'ÉCRITURE (reporterDansCertification). Sans elle, un
+    // coach certifié Coach Nutrition lisait « Tu es <titre de l'autre
+    // formation> » sur la carte Terrain d'un parcours qu'il venait de
+    // commencer.
+    const cert = certificationBoostDe(cle, mail);
 
     let etat = ETAT_NON_ACCESSIBLE;
     if (theorie.theorieValidee) {
@@ -281,8 +353,8 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
       historique: historiqueDe(mail, cle),
       // Ce que la pratique validée n'ouvre PAS, renvoyé à côté pour que l'écran
       // ne puisse pas confondre les deux.
-      certifie: cert.statut === 'certifie',
-      certification: cert.statut,
+      certifie: !!cert && cert.statut === 'certifie',
+      certification: cert ? cert.statut : null,
     };
   }
 
@@ -331,7 +403,13 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
       return err(409, 'Ce collaborateur n\'a pas encore validé la partie théorique.',
         { theorieNonValidee: true, email: mail });
     }
-    return ok({ collaborateur: { email: mail, prenom: u.prenom || '' }, pratique: e });
+    // Le référentiel voyage AVEC la fiche : l'écran de saisie a besoin des deux
+    // au même moment, et une seconde route ne dirait rien de plus.
+    return ok({
+      collaborateur: { email: mail, prenom: u.prenom || '' },
+      pratique: e,
+      cas: listerCas(cle),
+    });
   }
 
   // -- Écriture --------------------------------------------------------------
@@ -357,7 +435,9 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     return ok({ collaborateur: u });
   }
 
-  function normaliserSaisie(donnees) {
+  // `formationCle` est indispensable ici : c'est elle qui décide si le cas
+  // demandé appartient bien au référentiel de CETTE formation.
+  function normaliserSaisie(donnees, formationCle) {
     const d = donnees || {};
     const resultat = d.resultat === undefined || d.resultat === null || d.resultat === ''
       ? null : String(d.resultat).trim();
@@ -366,10 +446,28 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     }
     let date = d.dateEvaluation ? String(d.dateEvaluation).trim() : null;
     if (date && !jourValide(date)) return { erreur: err(400, 'Date d\'évaluation invalide (AAAA-MM-JJ).') };
+    // LE CAS. Trois entrées possibles, une seule sortie : un titre recopié.
+    //  - un `casId` du référentiel  -> son titre est copié, l'origine gardée ;
+    //  - un `cas` en texte libre    -> conservé tel quel (l'existant) ;
+    //  - rien                       -> rien, un cas n'a jamais été obligatoire.
+    let casId = null;
+    let cas = d.cas ? String(d.cas).slice(0, 200) : null;
+    if (d.casId !== undefined && d.casId !== null && d.casId !== '') {
+      const choisi = lireCasDe(formationCle, d.casId);
+      // Un identifiant venu d'une autre formation est REFUSÉ, pas ignoré :
+      // l'ignorer enregistrerait l'évaluation sous une étiquette vide, et
+      // l'évaluateur croirait avoir désigné une situation.
+      if (!choisi) {
+        return { erreur: err(400, 'Cas pratique inconnu pour cette formation.', { casInconnu: true }) };
+      }
+      casId = choisi.id;
+      cas = choisi.titre.slice(0, 200);
+    }
     return {
       resultat,
       date,
-      cas: d.cas ? String(d.cas).slice(0, 200) : null,
+      cas,
+      casId,
       commentaire: d.commentaire ? String(d.commentaire).slice(0, 2000) : null,
     };
   }
@@ -388,7 +486,7 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     const controle = verifierCible(mail, moi, cle);
     if (!controle.ok) return controle;
 
-    const saisie = normaliserSaisie(donnees);
+    const saisie = normaliserSaisie(donnees, cle);
     if (saisie.erreur) return saisie.erreur;
 
     // L'ÉTAPE EST TERMINÉE. Une pratique validée ferme le parcours pratique :
@@ -412,9 +510,9 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     const maintenant = nowIso();
     const clos = saisie.resultat !== null;
     const info = db().prepare(`INSERT INTO academy_evaluations
-        (email, formation, cas, ouvert_par, ouverte_le, date_evaluation, evaluateur, resultat, commentaire, decide_le, maj_le)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(mail, cle, saisie.cas, moi, maintenant,
+        (email, formation, cas, cas_id, ouvert_par, ouverte_le, date_evaluation, evaluateur, resultat, commentaire, decide_le, maj_le)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(mail, cle, saisie.cas, saisie.casId, moi, maintenant,
         saisie.date || (clos ? aujourdhui() : null),
         clos ? moi : null, saisie.resultat, saisie.commentaire,
         clos ? maintenant : null, maintenant);
@@ -447,15 +545,20 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
         { dejaValidee: true, evaluation: vue(acquise) });
     }
 
-    const saisie = normaliserSaisie(donnees);
+    // La formation est celle de la SÉANCE OUVERTE, pas une clé venue du corps
+    // de la requête : sinon un `formation` glissé dans le JSON ferait accepter
+    // le cas d'un autre parcours.
+    const saisie = normaliserSaisie(donnees, r.formation);
     if (saisie.erreur) return saisie.erreur;
     if (!saisie.resultat) return err(400, 'Un résultat est requis : « valide » ou « a_repasser ».');
 
     const maintenant = nowIso();
     db().prepare(`UPDATE academy_evaluations SET evaluateur = ?, resultat = ?, commentaire = ?,
-                    date_evaluation = COALESCE(?, date_evaluation, ?), cas = COALESCE(?, cas),
+                    date_evaluation = COALESCE(?, date_evaluation, ?),
+                    cas = COALESCE(?, cas), cas_id = COALESCE(?, cas_id),
                     decide_le = ?, maj_le = ? WHERE id = ?`)
-      .run(moi, saisie.resultat, saisie.commentaire, saisie.date, aujourdhui(), saisie.cas,
+      .run(moi, saisie.resultat, saisie.commentaire, saisie.date, aujourdhui(),
+        saisie.cas, saisie.casId,
         maintenant, maintenant, r.id);
 
     reporterDansCertification(r.email, saisie.resultat, moi, r.formation);
@@ -466,6 +569,14 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
   // resultat_pratique, qui n'attendait que ça. Le STATUT n'est jamais touché :
   // valider la pratique ne certifie personne, et le lot qui certifiera devra le
   // faire explicitement.
+  // Le pendant EN LECTURE de reporterDansCertification, sous le même drapeau.
+  function certificationBoostDe(formationCle, email) {
+    const f = formations.lire(cleFormation(formationCle));
+    if (!f || !f.refletBoost) return null;
+    if (typeof boost.lireCertification !== 'function') return null;
+    return boost.lireCertification(email);
+  }
+
   function reporterDansCertification(email, resultat, auteur, formationCle) {
     // Seule une formation qui ouvre des droits dans le Boost y écrit son
     // résultat pratique. Une formation « Vente » n'a rien à y refléter.
@@ -479,6 +590,7 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     assurerSchema,
     estEvaluateur, definirEvaluateur, listerEvaluateurs, listerGestionEvaluateurs,
     etatPour, historiqueDe, listerEligibles, ficheDe,
+    listerCas, lireCasDe,
     ouvrir, enregistrerResultat, lireEvaluation,
   };
 }

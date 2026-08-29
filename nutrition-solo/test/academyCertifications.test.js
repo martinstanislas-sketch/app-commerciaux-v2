@@ -212,14 +212,45 @@ test('théorie + pratique validées : ÉLIGIBLE — et toujours pas certifié', 
 //  3. QUI DÉLIVRE
 // ===========================================================================
 
-test('un client, un collaborateur, un évaluateur : aucun ne délivre', async () => {
-  for (const e of [LEA, THEO, EVA]) {
+test('un client et un collaborateur ne délivrent pas — l\'évaluateur/certificateur, si', async () => {
+  for (const e of [LEA, THEO]) {
     const r = await delivrer(THEO, e);
     assert.strictEqual(r.status, 403, e);
   }
-  assert.strictEqual((await api('GET', '/api/academy/admin/certifications', null, jetons[EVA])).status, 403,
-    'être évaluateur ne donne pas accès à l\'écran de certification');
-  assert.strictEqual((await certifDe(THEO)).certifie, false);
+
+  // ÉVALUER ET CERTIFIER SONT DÉSORMAIS LE MÊME MÉTIER : l'évaluatrice lit
+  // l'écran de certification, qui lui était fermé.
+  assert.strictEqual((await api('GET', '/api/academy/admin/certifications', null, jetons[EVA])).status, 200);
+
+  // Et sa délivrance passe la garde — démontré SANS rien délivrer : sur Nina,
+  // dont la pratique manque, le refus vient des PRÉREQUIS (409) et non du droit
+  // (403). Un 403 ici voudrait dire que la porte est restée fermée.
+  const r = await delivrer(NINA, EVA);
+  assert.strictEqual(r.status, 409);
+  assert.ok(r.body.prerequisManquants.includes('pratique'));
+  assert.strictEqual((await certifDe(THEO)).certifie, false, 'et rien n\'a été délivré à Théo');
+});
+
+test('l\'évaluateur/certificateur n\'entre PAS dans l\'administration des formations', async () => {
+  // Le contrepoint : le droit qu'on vient d'élargir s'arrête net au parcours.
+  // Sans ce test, « évaluer = certifier » pourrait glisser vers « = tout ».
+  for (const [m, route, corps] of [
+    ['GET', '/api/academy/admin/formations', null],
+    ['POST', '/api/academy/admin/formations', { cle: 'pirate', libelle: 'Pirate' }],
+    ['GET', '/api/academy/admin/arbre', null],
+    ['POST', '/api/academy/admin/modules', { titre: 'Pirate' }],
+    ['POST', '/api/academy/admin/contenus', { titre: 'Pirate' }],
+    ['POST', '/api/academy/admin/questions', { enonce: 'Pirate ?' }],
+    ['POST', '/api/academy/admin/archiver', { type: 'module', id: 1 }],
+    ['POST', '/api/academy/admin/ordre', { type: 'module', ids: [1] }],
+    ['GET', '/api/academy/admin/evaluateurs', null],
+    ['POST', '/api/academy/admin/evaluateurs', { email: EVA }],
+  ]) {
+    assert.strictEqual((await api(m, route, corps, jetons[EVA])).status, 403, `${m} ${route}`);
+  }
+  // Le retrait d'une certification non plus : délivrer conclut un parcours,
+  // retirer ferme des droits ouverts. Les deux ne pèsent pas pareil.
+  assert.strictEqual((await retirer(THEO, EVA, { motif: 'essai' })).status, 403);
 });
 
 test('un client n\'atteint même pas la lecture de sa certification', async () => {
@@ -468,6 +499,29 @@ test('les listes de l\'administrateur séparent éligibles et certifiés', async
   assert.ok(!d.eligibles.some((c) => c.email === NINA), 'sa pratique n\'est pas validée');
   assert.ok(!d.certifies.some((c) => c.email === LEA), 'un client n\'est pas là');
   assert.ok(d.formations.some((f) => f.cle === F.COACH_NUTRITION));
+});
+
+test('LA MÊME PERSONNE ÉVALUE PUIS CERTIFIE, d\'un bout à l\'autre', async () => {
+  // La promesse de l'espace unifié, éprouvée pour de vrai : Eva n'est pas
+  // administratrice, et elle mène Nina de la pratique au diplôme sans que
+  // personne d'autre n'intervienne.
+  assert.strictEqual((await api('GET', '/api/academy/moi', null, jetons[EVA])).body.admin, false);
+
+  assert.strictEqual((await validerPratique(NINA)).status, 201);
+  const r = await delivrer(NINA, EVA, { obtenueLe: '2026-10-05' });
+  assert.strictEqual(r.status, 201);
+
+  const d = r.body.certification;
+  assert.strictEqual(d.statut, 'delivree');
+  assert.strictEqual(d.delivreePar, EVA, 'le diplôme porte le nom de qui l\'a prononcé');
+  assert.strictEqual(d.obtenueLe, '2026-10-05');
+  assert.strictEqual(d.pratiquePar, EVA, 'et la preuve pratique aussi');
+  assert.strictEqual(r.body.etat.etat, 'certifie');
+
+  // Ce que ça n'ouvre PAS : Eva ne peut toujours pas défaire ce qu'elle a fait.
+  assert.strictEqual((await retirer(NINA, EVA, { motif: 'erreur' })).status, 403);
+  assert.strictEqual((await retirer(NINA, ADMIN, { motif: 'recette' })).status, 200,
+    'seul l\'administrateur retire');
 });
 
 // ===========================================================================

@@ -220,27 +220,40 @@ test('un collaborateur NE PEUT PAS s\'auto-valider, même en visant son propre c
   assert.strictEqual(dbq().prepare('SELECT COUNT(*) AS n FROM academy_evaluations WHERE email = ?').get(THEO).n, 0);
 });
 
-test('l\'ADMINISTRATEUR N\'ÉVALUE PAS sans avoir été désigné', async () => {
-  // Administrer l'Academy et faire passer une évaluation pratique sont deux
-  // métiers. Que l'un entraîne l'autre ferait de chaque administrateur un
-  // évaluateur sans que personne ne l'ait décidé.
+test('L\'ADMINISTRATEUR ÉVALUE D\'OFFICE, sans avoir été désigné', async () => {
+  // La règle a changé de sens : administrer implique désormais évaluer et
+  // certifier. L'ancienne séparation obligeait l'administrateur à se désigner
+  // lui-même avant de pouvoir travailler — et cette désignation manquante
+  // rendait l'espace inatteignable sur une base neuve.
   const moi = await api('GET', '/api/academy/moi', null, jetons[ADMIN]);
-  assert.strictEqual(moi.body.evaluateur, false, 'l\'admin n\'est pas évaluateur d\'office');
-  assert.strictEqual(moi.body.collaborateur, false);
+  assert.strictEqual(moi.body.evaluateur, true, 'l\'admin est évaluateur d\'office');
+  assert.strictEqual(moi.body.admin, true);
+  assert.strictEqual(moi.body.collaborateur, false, 'sans être entré dans le parcours pour autant');
+  // La table des droits, elle, est TOUJOURS VIDE pour lui : le droit vient de
+  // son statut, pas d'une ligne. C'est ce qui distingue « d'office » de
+  // « désigné ».
+  assert.strictEqual(dbq().prepare('SELECT COUNT(*) AS n FROM academy_evaluateurs WHERE email = ?').get(ADMIN).n, 0);
 
-  for (const [m, route, corps] of [['GET', '/api/academy/evaluateur/collaborateurs', null],
-    ['GET', `/api/academy/evaluateur/collaborateurs/${THEO}`, null],
-    ['POST', `/api/academy/evaluateur/collaborateurs/${THEO}/evaluations`, { resultat: 'valide' }]]) {
-    const r = await api(m, route, corps, jetons[ADMIN]);
-    assert.strictEqual(r.status, 403, `${m} ${route}`);
-    assert.strictEqual(r.body.nonEvaluateur, true);
+  for (const route of ['/api/academy/evaluateur/collaborateurs',
+    `/api/academy/evaluateur/collaborateurs/${THEO}`]) {
+    assert.strictEqual((await api('GET', route, null, jetons[ADMIN])).status, 200, route);
   }
 
-  // Mais il garde le droit de DÉSIGNER : aucun amorçage impossible.
+  // L'ÉCRITURE AUSSI PASSE LA GARDE — démontré SANS rien écrire : sur un compte
+  // inconnu, le refus vient de la cible (404) et non du droit (403). Un
+  // `nonEvaluateur` ici voudrait dire que la porte est restée fermée.
+  const r = await api('POST', '/api/academy/evaluateur/collaborateurs/fantome@exemple.fr/evaluations',
+    { resultat: 'valide' }, jetons[ADMIN]);
+  assert.strictEqual(r.status, 404);
+  assert.notStrictEqual(r.body.nonEvaluateur, true, 'la garde s\'est ouverte : le refus est celui de la cible');
+  assert.strictEqual(dbq().prepare('SELECT COUNT(*) AS n FROM academy_evaluations').get().n, 0,
+    'aucune évaluation n\'a été créée au passage');
+
+  // Et il garde le droit de DÉSIGNER les évaluateurs qui, eux, ne sont pas admin.
   assert.strictEqual((await api('GET', '/api/academy/admin/evaluateurs', null, jetons[ADMIN])).status, 200);
 });
 
-test('un admin qui veut évaluer doit se désigner lui-même — et le geste est tracé', async () => {
+test('un admin peut tout de même être désigné explicitement — et le geste reste tracé', async () => {
   assert.strictEqual((await api('POST', '/api/academy/admin/evaluateurs', { email: ADMIN }, jetons[ADMIN])).status, 200);
   assert.strictEqual((await api('GET', '/api/academy/moi', null, jetons[ADMIN])).body.evaluateur, true);
   const ligne = dbq().prepare('SELECT actif, maj_par FROM academy_evaluateurs WHERE email = ?').get(ADMIN);
@@ -683,16 +696,35 @@ test('un retrait ne supprime rien : la ligne et l\'historique restent', async ()
   await api('POST', '/api/academy/admin/evaluateurs', { email: EVA, evaluateur: true }, jetons[ADMIN]);
 });
 
-test('ADMINISTRER NE REND TOUJOURS PAS ÉVALUATEUR', async () => {
-  // Le point le plus important de cet écran : il ouvre une porte de gestion,
-  // pas une porte d'habilitation.
+test('RETIRER LA DÉSIGNATION D\'UN ADMIN NE LUI RETIRE PAS SON DROIT D\'OFFICE', async () => {
+  // Le piège de cet écran : il gère des DÉSIGNATIONS, pas le statut d'admin.
+  // Retirer sa ligne à un administrateur retire bien la ligne — et ne change
+  // rien à ce qu'il peut faire, puisque son droit ne venait pas de là.
   await api('POST', '/api/academy/admin/evaluateurs', { email: ADMIN, evaluateur: false }, jetons[ADMIN]);
+  assert.strictEqual(dbq().prepare('SELECT actif FROM academy_evaluateurs WHERE email = ?').get(ADMIN).actif, 0,
+    'la désignation est bien retirée');
+
   const moi = await api('GET', '/api/academy/moi', null, jetons[ADMIN]);
   assert.strictEqual(moi.body.admin, true, 'il reste administrateur');
-  assert.strictEqual(moi.body.evaluateur, false, 'et n\'évalue pas pour autant');
-  assert.strictEqual((await api('GET', '/api/academy/evaluateur/collaborateurs', null, jetons[ADMIN])).status, 403);
-  // Mais il peut toujours ouvrir l'écran de gestion.
+  assert.strictEqual(moi.body.evaluateur, true, 'et évaluateur d\'office, désignation ou pas');
+  assert.strictEqual((await api('GET', '/api/academy/evaluateur/collaborateurs', null, jetons[ADMIN])).status, 200);
+  // Et il peut toujours ouvrir l'écran de gestion.
   assert.strictEqual((await api('GET', '/api/academy/admin/evaluateurs', null, jetons[ADMIN])).status, 200);
+});
+
+test('un évaluateur ORDINAIRE, lui, perd tout quand on le dédésigne', async () => {
+  // Le contrepoint indispensable au test précédent : sans le statut d'admin,
+  // la ligne EST le droit. Sans ce contraste, « évaluateur d'office » pourrait
+  // masquer une garde qui ne refuse plus personne.
+  await api('POST', '/api/academy/admin/evaluateurs', { email: EVA, evaluateur: false }, jetons[ADMIN]);
+  const moi = await api('GET', '/api/academy/moi', null, jetons[EVA]);
+  assert.strictEqual(moi.body.admin, false);
+  assert.strictEqual(moi.body.evaluateur, false);
+  const r = await api('GET', '/api/academy/evaluateur/collaborateurs', null, jetons[EVA]);
+  assert.strictEqual(r.status, 403);
+  assert.strictEqual(r.body.nonEvaluateur, true);
+  // On la rétablit : les tests suivants la veulent évaluatrice.
+  await api('POST', '/api/academy/admin/evaluateurs', { email: EVA, evaluateur: true }, jetons[ADMIN]);
 });
 
 test('le drapeau `admin` n\'ouvre aucune porte, il n\'affiche qu\'un écran', async () => {
@@ -807,8 +839,11 @@ test('l\'écran de gestion affiche l\'état et confirme avant de retirer', () =>
   // clique sans se lire.
   const code = js.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
   assert.ok(!/\b(confirm|alert|prompt)\s*\(/.test(code), 'aucune boîte de dialogue native');
-  assert.ok(/Être administrateur ne suffit pas/.test(js),
-    'l\'écran dit que le droit d\'évaluer se désigne');
+  // L'écran dit la règle en vigueur : l'admin a ces droits d'office, la liste
+  // sert à les donner à ceux qui ne sont pas administrateurs.
+  // Le texte est écrit dans une chaîne JavaScript : l'apostrophe y est échappée.
+  assert.ok(/sans être administrateur/.test(js) && /d\\?'office/.test(js),
+    'l\'écran doit dire à quoi sert cette liste maintenant qu\'un admin évalue d\'office');
   for (const cls of ['.ac-etat-eval-oui', '.ac-etat-eval-non', '.ac-adm-danger', '.ac-adm-actions']) {
     assert.ok(css.includes(cls), 'style manquant : ' + cls);
   }

@@ -136,6 +136,25 @@
 .ac-eval-l .ac-l-t { display: flex; flex-direction: column; gap: 2px; }
 .ac-eval-mail { font-size: .78rem; color: var(--text-soft); font-weight: 400; }
 .ac-eval-etat { flex: 0 0 auto; font-size: .72rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: var(--surface-soft); color: var(--text-soft); border: 1px solid var(--border-strong); }
+/* -- Les sept statuts de « Évaluer & certifier » -----------------------------
+   Trois familles de couleur, et pas sept : ce qui ATTEND une action est bleu,
+   ce qui est ACQUIS est sauge, ce qui n'appelle rien reste neutre. Sept teintes
+   distinctes se liraient comme un code à apprendre ; trois se lisent d'un
+   coup d'œil, et le libellé dit le reste. */
+.ac-st-formation-en-cours { background: var(--surface-soft); color: var(--text-soft); border-color: var(--border-strong); }
+.ac-st-pratique-a-realiser,
+.ac-st-resultat-en-attente,
+.ac-st-certification-a-delivrer { background: var(--saphir); color: #fff; border-color: var(--saphir); }
+.ac-st-pratique-a-repasser { background: var(--surface-soft); color: var(--marine); border-color: var(--marine); }
+.ac-st-pratique-validee,
+.ac-st-certifie { background: var(--sage); color: #fff; border-color: var(--sage); }
+
+/* Une ligne qui n'ouvre pas de fiche : elle garde l'aspect d'une ligne, pas
+   celui d'un bouton mort. Le curseur et le survol le disent avant le clic. */
+.ac-eval-l-fermee { cursor: default; background: transparent; }
+.ac-eval-l-fermee:hover { border-color: var(--border-c); }
+.ac-eval-note { flex: 0 0 auto; font-size: .74rem; color: var(--text-soft); font-style: italic; }
+
 .ac-eval-t { font-size: 1rem; font-weight: 700; color: var(--marine); margin: 0 0 14px; }
 .ac-eval-err { font-size: .84rem; color: #B3261E; margin: 0 0 10px; min-height: 1em; }
 /* Les deux verdicts côte à côte, chacun nommé en toutes lettres : « ✓ » et
@@ -644,6 +663,18 @@ body { background: #F5F7FB; }
    ferait doublon. On le garde dans le HTML pour les lecteurs d'écran hors JS. */
 .ac-app .ec-mark { display: none; }
 
+/* -- Le titre de l'accueil, dans le bandeau ---------------------------------
+   Il est poussé à gauche par `margin-right: auto` plutôt qu'en rendant la
+   ligne `space-between` : le bloc de compte reste ainsi calé à droite par le
+   `flex-end` ci-dessus, sur l'accueil comme sur les écrans où le titre est
+   absent. Une seule règle d'alignement, un seul comportement.
+   ⚠️ `[hidden]` doit être redit : déclarer un `display` le neutralise (même
+   piège que .ec-me, cf. coach.css). */
+.ac-head-t { min-width: 0; margin-right: auto; display: block; }
+.ac-head-t[hidden] { display: none; }
+.ac-head-h1 { font-size: 1.3rem; font-weight: 800; color: var(--marine); letter-spacing: -.02em; line-height: 1.2; margin: 0; }
+.ac-head-s { font-size: .84rem; color: var(--text-muted); line-height: 1.35; margin: 2px 0 0; }
+
 .ec-me { position: relative; }
 .ac-compte {
   display: flex; align-items: center; gap: 11px; background: none; border: 0; border-radius: 12px;
@@ -680,17 +711,19 @@ body { background: #F5F7FB; }
 .ac-app main.ec-wrap.ac-w-accueil { max-width: 1320px; }
 
 /* ============================================================================
-   L'ACCUEIL — titre, indicateurs, grille, parcours.
+   L'ACCUEIL — indicateurs, grille, parcours.
+
+   Le titre est remonté dans le bandeau blanc (.ac-head-t) : l'écran commence
+   aux indicateurs. Le retrait qu'ouvrait la marge du titre est rendu ici, pour
+   que la première carte ne colle pas au filet de l'en-tête.
    ============================================================================ */
-.ac-h1 { font-size: 1.75rem; font-weight: 800; color: var(--marine); letter-spacing: -.02em; margin: 26px 0 6px; }
-.ac-h1-s { font-size: .95rem; color: var(--text-muted); margin: 0 0 22px; }
 .ac-h2 { font-size: 1.2rem; font-weight: 800; color: var(--marine); letter-spacing: -.015em; margin: 0; }
 
 /* Les quatre indicateurs, dans une seule carte séparée par des filets. */
 .ac-kpis {
   display: grid; grid-template-columns: repeat(4, 1fr);
   background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius);
-  padding: 18px 8px; margin-bottom: 30px; box-shadow: var(--shadow);
+  padding: 18px 8px; margin: 22px 0 30px; box-shadow: var(--shadow);
 }
 .ac-kpi { display: flex; align-items: center; gap: 14px; padding: 4px 22px; border-right: 1px solid var(--border-c); }
 .ac-kpi:last-child { border-right: 0; }
@@ -799,13 +832,28 @@ body { background: #F5F7FB; }
   .ac-side-i.on { box-shadow: none; }
   .ac-side-foot { display: none; }
 
-  .ac-kpis { grid-template-columns: repeat(2, 1fr); row-gap: 18px; padding: 16px 4px; }
+  /* Le bandeau se resserre : le titre garde sa place, la phrase d'accueil
+     rétrécit avant de disparaître plus bas. */
+  .ac-head-h1 { font-size: 1.15rem; }
+  .ac-head-s { font-size: .8rem; }
+
+  .ac-kpis { grid-template-columns: repeat(2, 1fr); row-gap: 18px; padding: 16px 4px; margin-top: 18px; }
   .ac-kpi { padding: 4px 14px; }
   .ac-kpi:nth-child(2) { border-right: 0; }
 }
 
 @media (max-width: 620px) {
-  .ac-h1 { font-size: 1.4rem; margin-top: 18px; }
+  /* LA PHRASE D'ACCUEIL SORT, LE TITRE RESTE. Sur une ligne partagée avec le
+     compte, elle passerait sur deux lignes et doublerait la hauteur du bandeau
+     — c'est exactement la hauteur qu'on vient de rendre au contenu. */
+  .ac-head-s { display: none; }
+  .ac-head-h1 { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* `flex-basis: 0` et pas `auto` : à 520 px la ligne d'en-tête peut passer à
+     la ligne (règle plus haut), et un flex-basis `auto` déclencherait ce
+     retour AVANT de laisser le titre rétrécir. À zéro, le titre prend ce qui
+     reste et s'abrège — le compte ne descend jamais d'une ligne. */
+  .ac-head-t { flex: 1 1 0; }
+
   .ac-kpis { grid-template-columns: 1fr; row-gap: 4px; }
   .ac-kpi { border-right: 0; padding: 8px 14px; }
   .ac-kpi-ic { width: 38px; height: 38px; border-radius: 10px; }

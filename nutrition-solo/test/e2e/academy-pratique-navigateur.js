@@ -184,7 +184,7 @@ async function validerQcm(jeton) {
     await seConnecter(ADMIN, '7777', '#acAdmin');
     const t = await contenu();
     if (!/Évaluateurs/.test(t)) throw new Error('titre absent');
-    if (!/Être administrateur ne suffit pas/.test(t)) throw new Error('la règle n\'est pas rappelée');
+    if (!/sans être administrateur/.test(t)) throw new Error('la règle n\'est pas rappelée');
     if (!/0 évaluateur autorisé/.test(t)) throw new Error('le compteur devrait partir de zéro : ' + (t.match(/\d+ évaluateurs? autorisés?/) || ['—'])[0]);
   });
 
@@ -218,13 +218,18 @@ async function validerQcm(jeton) {
     if (moi.evaluateur !== true) throw new Error('le droit n\'a pas été accordé côté serveur');
   });
 
-  await etape('l\'administrateur ne s\'est pas rendu évaluateur au passage', async () => {
+  await etape('l\'administrateur, lui, évalue et certifie D\'OFFICE', async () => {
+    // La règle a changé de sens (lot 7) : administrer implique évaluer et
+    // certifier. Ce qui reste vrai, et que la suite éprouve : il n\'a PAS pour
+    // autant de ligne de désignation, et il ne s\'évalue jamais lui-même.
     const moi = await get('/api/academy/moi', jetonAdmin);
     if (moi.admin !== true) throw new Error('il devrait rester administrateur');
-    if (moi.evaluateur !== false) throw new Error('ADMINISTRER A RENDU ÉVALUATEUR : régression majeure');
-    const t = await contenu();
-    // Il apparaît dans la liste comme les autres, sans droit.
-    if (/Espace évaluateur/.test(t)) throw new Error('un espace d\'évaluation lui est offert');
+    if (moi.evaluateur !== true) throw new Error('un administrateur doit évaluer d\'office');
+    const l = await get('/api/academy/evaluateur/coachs', jetonAdmin);
+    if (!l.ok) throw new Error('l\'espace « Évaluer & certifier » lui est fermé');
+    // Son droit ne vient pas d\'une ligne : le compteur d\'évaluateurs désignés
+    // ne le compte pas.
+    if (!/1 évaluateur autorisé/.test(await contenu())) throw new Error('l\'admin a été compté comme désigné');
   });
 
   await etape('le retrait demande une confirmation, et l\'annulation ne fait rien', async () => {
@@ -346,13 +351,23 @@ async function validerQcm(jeton) {
     await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
     const t = await contenu();
-    if (!/Évaluations pratiques/.test(t)) throw new Error('titre absent');
-    if (!/Théo/.test(t)) throw new Error('Théo devrait être éligible');
-    if (/Nina/.test(t)) throw new Error('Nina n\'a pas validé sa théorie : elle ne doit pas apparaître');
+    if (!/Évaluer & certifier/.test(t)) throw new Error('titre absent');
+    if (!/Théo/.test(t)) throw new Error('Théo devrait être dans la liste');
+    // LOT 7 : Nina APPARAÎT désormais, au statut « Formation en cours ». C'est
+    // le sens du lot — un coach en cours d'apprentissage n'était visible nulle
+    // part. Sa fiche, elle, reste fermée tant que la théorie n'est pas validée.
+    if (!/Nina/.test(t)) throw new Error('Nina devrait être visible, en formation');
+    const nina = page.locator('.ac-eval-l', { hasText: NINA });
+    if (!/Formation en cours/.test(await nina.evaluate((el) => el.textContent))) {
+      throw new Error('Nina devrait être au statut « Formation en cours »');
+    }
+    if (await page.locator(`[data-collab="${NINA}"]`).count()) {
+      throw new Error('sa fiche ne doit pas s\'ouvrir : sa théorie n\'est pas validée');
+    }
   });
 
   await etape('la fiche de Théo affiche son état et l\'historique vide', async () => {
-    await page.locator('.ac-eval-l', { hasText: 'Théo' }).click();
+    await page.click(`[data-collab="${THEO}"]`);
     await page.waitForSelector('#acEvOk');
     const t = await contenu();
     if (!/Théorie validée — score : 100 %/.test(t)) throw new Error('le score théorique n\'est pas rappelé');
@@ -388,13 +403,13 @@ async function validerQcm(jeton) {
     await seConnecter(EVA, '3003');
     await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
-    await page.locator('.ac-eval-l', { hasText: 'Théo' }).click();
+    await page.click(`[data-collab="${THEO}"]`);
     await page.waitForSelector('#acEvKo');
     await page.fill('#acEvCom', 'Cadre bien posé, mais l\'action de la semaine reste floue.');
     await page.click('#acEvKo');
     await page.waitForFunction(() => /Évaluation à repasser/.test(document.querySelector('#acEval').textContent));
     const t = await contenu();
-    if (!/Historique/.test(t)) throw new Error('l\'historique devrait apparaître');
+    if (!/Historique des évaluations pratiques/.test(t)) throw new Error('l\'historique devrait apparaître');
     if (!/À repasser/.test(t)) throw new Error('le verdict n\'est pas dans l\'historique');
   });
 
@@ -423,7 +438,7 @@ async function validerQcm(jeton) {
     await seConnecter(EVA, '3003');
     await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
-    await page.locator('.ac-eval-l', { hasText: 'Théo' }).click();
+    await page.click(`[data-collab="${THEO}"]`);
     await page.waitForSelector('#acEvOk');
     await page.fill('#acEvDate', '2026-09-10');
     await page.fill('#acEvCas', 'Mise en situation S4');
@@ -458,7 +473,7 @@ async function validerQcm(jeton) {
     await seConnecter(EVA, '3003');
     await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
-    await page.locator('.ac-eval-l', { hasText: 'Théo' }).click();
+    await page.click(`[data-collab="${THEO}"]`);
     await page.waitForFunction(() => /Étape pratique terminée/.test(document.querySelector('#acEval').textContent));
 
     // L'écran ne propose plus rien.
@@ -532,13 +547,13 @@ async function validerQcm(jeton) {
   // =========================================================================
   console.log('\nCONTRÔLES');
 
-  await etape('l\'administrateur n\'évalue pas : administrer n\'est pas habiliter', async () => {
+  await etape('l\'administrateur évalue d\'office ET garde la gestion des droits', async () => {
     const liste = await fetch(BASE + '/api/academy/evaluateur/collaborateurs',
       { headers: { Authorization: 'Bearer ' + jetonAdmin } });
-    if (liste.status !== 403) throw new Error('l\'admin liste les dossiers d\'évaluation : ' + liste.status);
+    if (liste.status !== 200) throw new Error('l\'admin devrait lister les dossiers d\'évaluation : ' + liste.status);
     const moi = await get('/api/academy/moi', jetonAdmin);
-    if (moi.evaluateur !== false) throw new Error('l\'admin est évaluateur sans avoir été désigné');
-    // Mais il garde le droit de désigner, et l'écran le lui offre.
+    if (moi.evaluateur !== true) throw new Error('l\'admin devrait évaluer d\'office');
+    // Et il garde le droit de désigner ceux qui ne sont pas administrateurs.
     const admins = await get('/api/academy/admin/evaluateurs', jetonAdmin);
     if (!admins.ok) throw new Error('l\'admin ne peut plus gérer les évaluateurs');
     if (!admins.evaluateurs.some((e) => e.email === EVA && e.actif)) throw new Error('Eva devrait être listée active');
@@ -578,7 +593,7 @@ async function validerQcm(jeton) {
     let debord = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     if (debord > 2) throw new Error('débordement de la liste de ' + debord + ' px');
 
-    await page.locator('.ac-eval-l', { hasText: 'Nina' }).click();
+    await page.click(`[data-collab="${NINA}"]`);
     await page.waitForSelector('#acEvOk');
     debord = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     if (debord > 2) throw new Error('débordement de la fiche de ' + debord + ' px');

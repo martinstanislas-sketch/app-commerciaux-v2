@@ -18,8 +18,19 @@
 //  et le suivi de progression personnel.
 // ============================================================================
 
+// L'ENVIRONNEMENT PRIME SUR LE FICHIER (`override: false`, le défaut de
+// dotenv). C'était l'inverse, et cet inverse cassait tout ce qui pose ses
+// variables AVANT de charger server.js : la suite de tests exporte son propre
+// ADMIN_EMAIL et son propre NUTRITION_DB, qu'un .env de développement écrasait
+// silencieusement — 407 tests tombaient d'un coup, sans que le .env soit
+// soupçonnable puisqu'il n'est pas versionné.
+//
+// Dans ce sens-là, chacun garde son rôle : le .env est le RÉGLAGE PAR DÉFAUT
+// de la machine de développement, une variable exportée est une DÉCISION
+// explicite pour ce lancement-là. En production rien ne change : il n'y a pas
+// de .env (il est dans .gitignore), les variables viennent de l'hébergeur.
 try {
-  require('dotenv').config({ path: require('path').join(__dirname, '.env'), override: true });
+  require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 } catch (_) {
   /* dotenv non installé : on lit process.env directement */
 }
@@ -48,9 +59,10 @@ const { createAcademy } = require('./lib/academy');
 const { creerRoutesAcademy } = require('./lib/academyRoutes');
 const { createAcademyQcm } = require('./lib/academyQcm');
 const { createAcademyPratique } = require('./lib/academyPratique');
-const { createAcademyFormations } = require('./lib/academyFormations');
+const { createAcademyFormations, COACH_NUTRITION } = require('./lib/academyFormations');
 const { createAcademyCertifications } = require('./lib/academyCertifications');
 const { createAcademyAdmin } = require('./lib/academyAdmin');
+const { createAmorcageCycleMenstruel } = require('./lib/academyAmorcageCycleMenstruel');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
 const PORT = process.env.PORT || 3000;
@@ -86,17 +98,38 @@ const academyPratique = createAcademyPratique({ getDb, nowIso, boost, qcm: acade
 // formation, il lit un registre. « Coach Nutrition » y est la première entrée.
 const academyCertifications = createAcademyCertifications({
   getDb, nowIso, boost, qcm: academyQcm, pratique: academyPratique, formations: academyFormations,
+  // Pour la seule liste unifiée de « Évaluer & certifier » : elle y lit la
+  // progression d'apprentissage d'un coach. Aucune règle de certification ne
+  // dépend de cette dépendance — elle est un confort de lecture.
+  academy,
 });
 // LA FERMETURE DE LA PORTE PARALLÈLE : à partir d'ici, l'administration du
 // Boost ne peut plus poser « certifié » sur un compte que l'Academy n'a pas
 // diplômé. Elle garde en revanche tout le reste — suspendre, retirer, annoter.
-boost.brancherCertificationAcademy((email) => academyCertifications.estCertifie(email));
+//
+//  ⚠️ LA FORMATION EST NOMMÉE, PAS DÉDUITE. Sans second argument, estCertifie()
+//  se rabat sur formations.defaut() — c'est-à-dire la PREMIÈRE DU CATALOGUE PAR
+//  ORDRE. Le garde-fou aurait alors changé de diplôme le jour où quelqu'un
+//  réordonne les formations depuis l'écran d'administration : une certification
+//  Boost validée par le diplôme d'un autre parcours. Le dossier
+//  boost_certifications ne parle que de Coach Nutrition ; on le dit ici.
+boost.brancherCertificationAcademy((email) => academyCertifications.estCertifie(email, COACH_NUTRITION));
 
 // L'administration des contenus (lot 6). Elle ÉCRIT ce que les moteurs
 // ci-dessus lisent, et n'ajoute aucune règle de parcours : le tirage, la
 // progression et la certification restent chez eux.
 const academyAdmin = createAcademyAdmin({
   getDb, nowIso, academy, qcm: academyQcm, pratique: academyPratique, formations: academyFormations,
+});
+
+// La deuxième formation réelle, « Cycle menstruel & entraînement ». Elle
+// s'amorce comme la banque Coach Nutrition : une seule fois, gardée par son
+// propre marqueur, et EN BROUILLON — personne ne la voit tant qu'un
+// administrateur ne l'a pas publiée. Un échec n'empêche pas l'app de démarrer.
+const academyCycleMenstruel = createAmorcageCycleMenstruel({
+  getDb, nowIso, formations: academyFormations, qcm: academyQcm,
+  // Pour le référentiel de cas pratiques : c'est lui qui porte la table.
+  pratique: academyPratique,
 });
 
 const app = express();
@@ -825,6 +858,9 @@ if (require.main === module) {
   // réponses. Les deux sont idempotents : redémarrer ne duplique rien.
   const ajout = amorcerFaq();
   if (ajout) console.log(`  FAQ coach : ${ajout} réponses ajoutées.`);
+  // La deuxième formation de l'Academy, posée une seule fois et en brouillon.
+  const cm = academyCycleMenstruel.amorcer();
+  if (cm) console.log(`  Academy : « Cycle menstruel » amorcée (${cm} questions), en brouillon.`);
   appliquerResetPinAdmin();
   // L'état de la synchronisation photos est dit AU BOOT, inconditionnellement :
   // « aucune ligne dans les logs » ne doit plus pouvoir signifier à la fois
@@ -875,6 +911,7 @@ module.exports.academyPratique = academyPratique;
 module.exports.academyCertifications = academyCertifications;
 module.exports.academyFormations = academyFormations;
 module.exports.academyAdmin = academyAdmin;
+module.exports.academyCycleMenstruel = academyCycleMenstruel;
 module.exports.amorcerFaq = amorcerFaq;
 module.exports.appliquerResetPinAdmin = appliquerResetPinAdmin;
 module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;

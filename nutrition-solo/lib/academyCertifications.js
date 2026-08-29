@@ -82,7 +82,36 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_academy_cert_active
 CREATE INDEX IF NOT EXISTS idx_academy_cert ON academy_certifications(email, id);
 `;
 
-function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, formations }) {
+// LES SEPT STATUTS DE LA LISTE UNIFIÉE. Ils ne sont ni stockés ni écrits : ce
+// sont des NOMS donnés à des combinaisons déjà calculées ailleurs. En ajouter
+// un huitième se fait ici et nulle part ailleurs.
+//
+// ⚠️ « théorie validée » N'EST PAS un statut : c'est le même moment que
+// « pratique à réaliser », vu de l'autre côté. Deux libellés concurrents pour
+// un seul état auraient obligé l'évaluateur à savoir lequel des deux compte.
+const STATUTS_COACH = [
+  'formation_en_cours',
+  'pratique_a_realiser',
+  'resultat_en_attente',
+  'pratique_a_repasser',
+  'pratique_validee',
+  'certification_a_delivrer',
+  'certifie',
+];
+
+// L'ordre de la liste dit CE QUI ATTEND UNE ACTION DE L'ÉVALUATEUR. Un dossier
+// clos descend, un dossier qui l'attend remonte.
+const RANG_STATUT = {
+  certification_a_delivrer: 0,
+  resultat_en_attente: 1,
+  pratique_a_repasser: 2,
+  pratique_a_realiser: 3,
+  pratique_validee: 4,
+  formation_en_cours: 5,
+  certifie: 6,
+};
+
+function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, formations, academy }) {
   const db = () => getDb();
   const normalise = (e) => String(e || '').trim().toLowerCase();
 
@@ -396,13 +425,99 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
     return { formation: f.cle, libelle: f.libelle, eligibles, certifies, ecarts };
   }
 
+  // -- La liste unifiée de l'espace « Évaluer & certifier » -------------------
+  //
+  //  UN SEUL ÉCRAN POUR UN SEUL MÉTIER. Avant elle, suivre un coach demandait
+  //  deux listes dans deux espaces sous deux droits : les éligibles à
+  //  l'évaluation d'un côté, les éligibles à la certification de l'autre. Un
+  //  coach qui n'avait pas encore validé sa théorie n'apparaissait nulle part.
+  //
+  //  CETTE FONCTION N'INVENTE AUCUNE RÈGLE. Elle COMPOSE ce que les lots
+  //  précédents savent déjà dire — qcm.etatPour, pratique.etatPour,
+  //  etatFormation, academy.formationPour — et se contente de leur donner un
+  //  nom commun. C'est pour cela qu'elle vit ici : ce module est le seul à
+  //  connaître déjà les quatre.
+  //
+  //  listerAdmin() reste intacte à côté : elle répond à une autre question
+  //  (« où sont les écarts avec le Boost ? »), et rien ne gagnerait à les
+  //  fondre.
+
+  function statutCoach(p, e, f) {
+    if (e.certifie) return 'certifie';
+    if (e.eligible) return 'certification_a_delivrer';
+    // Pratique acquise mais pas éligible : la formation ne certifie pas, ou un
+    // autre prérequis manque. L'étape pratique n'en est pas moins terminée.
+    if (f.pratiqueObligatoire && p.validee) return 'pratique_validee';
+    if (p.etat === 'en_attente') return 'resultat_en_attente';
+    if (p.etat === 'a_repasser') return 'pratique_a_repasser';
+    // Théorie validée et rien d'engagé : c'est exactement « pratique à
+    // réaliser ». Un formation sans pratique obligatoire ne passe jamais ici —
+    // elle est éligible dès la théorie, donc traitée plus haut.
+    if (p.theorieValidee) return 'pratique_a_realiser';
+    return 'formation_en_cours';
+  }
+
+  function ligneCoach(c, f) {
+    const p = pratique.etatPour(c.email, f.cle);
+    const e = etatFormation(c.email, f);
+    // La progression d'apprentissage est un CONFORT DE LECTURE : si le module
+    // n'est pas branché, la ligne existe quand même, sans elle.
+    let progression = null;
+    if (academy && typeof academy.formationPour === 'function') {
+      const fp = academy.formationPour(c.email, f.cle);
+      progression = { total: fp.total, termines: fp.termines, pourcentage: fp.pourcentage };
+    }
+    return {
+      email: c.email,
+      prenom: c.prenom || '',
+      statut: statutCoach(p, e, f),
+      progression,
+      theorieValidee: !!p.theorieValidee,
+      scoreTheorie: p.scoreTheorie === undefined ? null : p.scoreTheorie,
+      pratique: {
+        etat: p.etat,
+        validee: !!p.validee,
+        valideeLe: p.valideeLe,
+        close: !!p.close,
+        enAttente: p.enAttente,
+        derniere: p.derniere,
+        nbTentatives: p.historique.length,
+      },
+      certification: {
+        etat: e.etat,
+        eligible: !!e.eligible,
+        certifie: !!e.certifie,
+        prerequis: e.prerequis,
+        manquants: e.manquants,
+        certification: e.certification,
+        nbCertifications: e.historique.length,
+      },
+    };
+  }
+
+  function listerCoachs(formationCle) {
+    const f = formations.lire(formationCle || (formations.defaut() || {}).cle);
+    if (!f) return { formation: null, coachs: [] };
+    const nom = (l) => (l.prenom || l.email);
+    return {
+      formation: f.cle,
+      libelle: f.libelle,
+      titre: f.titre,
+      certificationActive: !!f.certificationActive,
+      pratiqueObligatoire: !!f.pratiqueObligatoire,
+      coachs: boost.listerCollaborateurs()
+        .map((c) => ligneCoach(c, f))
+        .sort((a, b) => (RANG_STATUT[a.statut] - RANG_STATUT[b.statut]) || nom(a).localeCompare(nom(b))),
+    };
+  }
+
   return {
     assurerSchema,
     formations: () => formations.lister(),
     etatPour, etatCompletPour, historiqueDe,
     certificationActive, estCertifie,
-    delivrer, retirer, listerAdmin,
+    delivrer, retirer, listerAdmin, listerCoachs,
   };
 }
 
-module.exports = { createAcademyCertifications, DELIVREE, RETIREE };
+module.exports = { createAcademyCertifications, DELIVREE, RETIREE, STATUTS_COACH };
