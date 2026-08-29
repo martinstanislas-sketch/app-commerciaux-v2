@@ -798,24 +798,211 @@ const FINALE = [
 //  Ce sont des DONNÉES, comme les modules et les questions : une formation
 //  nouvelle pose les siennes dans son propre fichier, sans toucher au moteur.
 //
-//  ⚠️ `consignes` est VOLONTAIREMENT VIDE. Seuls les six intitulés ont été
-//  définis ; le déroulé de chaque situation ne l'a jamais été. Les inventer ici
-//  ferait passer pour un référentiel validé ce qui ne serait qu'une supposition.
-//  La colonne existe et attend le texte réel.
+//  Chaque cas porte SA MISE EN SITUATION COMPLÈTE : la phrase de la cliente,
+//  ce que l'évaluateur observe, le comportement attendu, ce qui vaut validation
+//  et ce qui justifie un « à repasser ». L'évaluateur mène la séance sans
+//  document externe.
+//
+//  ⚠️ « À REPASSER NOTAMMENT SI » N'EST PAS UNE RÈGLE LOGICIELLE. Rien ici
+//  n'est interprété par le moteur : c'est un référentiel de lecture pour un
+//  humain. La décision reste la sienne, et le verdict reste ses deux boutons.
 // ---------------------------------------------------------------------------
 const CAS = [
-  { cle: 'cm-cas-1', ordre: 1, titre: 'J’ai mes règles aujourd’hui' },
-  { cle: 'cm-cas-2', ordre: 2, titre: 'Cette fois, c’est différent' },
-  { cle: 'cm-cas-3', ordre: 3, titre: 'Un seul exercice me gêne' },
-  { cle: 'cm-cas-4', ordre: 4, titre: 'Mon application dit phase lutéale' },
-  { cle: 'cm-cas-5', ordre: 5, titre: 'Je préfère ne pas en parler' },
-  { cle: 'cm-cas-6', ordre: 6, titre: 'Là, il faut passer le relais' },
+  {
+    cle: 'cm-cas-1', ordre: 1,
+    titre: 'J’ai mes règles aujourd’hui',
+    consignes: `SITUATION PRÉSENTÉE AU COACH
+Une cliente arrive à sa séance et dit :
+« J’ai mes règles aujourd’hui et je ne me sens pas au top. Je ne sais pas si je dois quand même faire la séance. »
+
+CE QUE L’ÉVALUATEUR OBSERVE
+Le coach doit chercher à comprendre le ressenti réel de la cliente plutôt que prendre une décision uniquement parce qu’elle a ses règles.
+Il questionne notamment son niveau d’énergie, son inconfort éventuel, ses symptômes et son envie de s’entraîner.
+
+COMPORTEMENT ATTENDU
+Le coach individualise sa réponse.
+Selon le ressenti exprimé, il peut :
+- maintenir la séance ;
+- modifier certains paramètres ;
+- proposer une séance plus légère si cela se justifie.
+Il ne considère pas automatiquement que menstruations = baisse de performance ou nécessité de réduire l’entraînement.
+
+VALIDATION
+Le coach :
+- écoute ;
+- questionne ;
+- individualise ;
+- adapte si nécessaire ;
+- reste dans son champ de compétence.
+
+À REPASSER NOTAMMENT SI
+- il applique une règle automatique liée aux menstruations ;
+- il impose une adaptation sans questionner la cliente ;
+- il affirme des effets hormonaux individuels comme une certitude ;
+- il sort de son champ de compétence.`,
+  },
+  {
+    cle: 'cm-cas-2', ordre: 2,
+    titre: 'Cette fois, c’est différent',
+    consignes: `SITUATION PRÉSENTÉE AU COACH
+Une cliente habituée à s’entraîner pendant ses règles explique :
+« D’habitude ça va, mais cette fois-ci je suis vraiment beaucoup plus fatiguée et j’ai plus mal que d’habitude. »
+
+CE QUE L’ÉVALUATEUR OBSERVE
+Le coach doit comprendre que le ressenti peut varier d’un cycle à l’autre et ne pas simplement se fier à ce qui fonctionnait les mois précédents.
+
+COMPORTEMENT ATTENDU
+Le coach :
+- questionne la cliente sur ce qui est différent aujourd’hui ;
+- prend en compte son ressenti actuel ;
+- adapte la séance en conséquence.
+Si les symptômes paraissent inhabituels, importants ou préoccupants, il ne cherche pas à les interpréter médicalement et sait conseiller à la cliente d’en parler à un professionnel de santé.
+
+VALIDATION
+Le coach :
+- ne généralise pas à partir des séances précédentes ;
+- adapte à la situation du jour ;
+- connaît les limites de son rôle.
+
+À REPASSER NOTAMMENT SI
+- il répond que puisqu’elle arrive habituellement à s’entraîner, elle peut continuer normalement ;
+- il banalise une évolution importante des symptômes ;
+- il cherche à établir lui-même une explication médicale.`,
+  },
+  {
+    cle: 'cm-cas-3', ordre: 3,
+    titre: 'Un seul exercice me gêne',
+    consignes: `SITUATION PRÉSENTÉE AU COACH
+Pendant une séance, une cliente explique :
+« Globalement je me sens bien, mais aujourd’hui cet exercice me gêne vraiment au niveau du bas-ventre. »
+
+CE QUE L’ÉVALUATEUR OBSERVE
+Le coach doit éviter deux extrêmes :
+- ignorer la gêne ;
+- arrêter ou modifier toute la séance inutilement.
+
+COMPORTEMENT ATTENDU
+Le coach :
+- questionne la cliente sur son ressenti ;
+- arrête ou modifie l’exercice concerné si nécessaire ;
+- recherche une alternative mieux tolérée ;
+- continue à observer la cliente ;
+- réévalue si nécessaire.
+
+VALIDATION
+Le coach sait adapter localement la séance en fonction du feedback de la cliente plutôt que d’appliquer une adaptation générale sans raison.
+
+À REPASSER NOTAMMENT SI
+- il demande à la cliente de continuer malgré une gêne significative ;
+- il minimise son ressenti ;
+- il cherche à diagnostiquer la cause ;
+- il modifie arbitrairement toute la séance sans questionner.`,
+  },
+  {
+    cle: 'cm-cas-4', ordre: 4,
+    titre: 'Mon application dit phase lutéale',
+    consignes: `SITUATION PRÉSENTÉE AU COACH
+Une cliente montre son application de suivi du cycle et dit :
+« Mon application dit que je suis en phase lutéale. Du coup, normalement je devrais faire une séance moins intense, non ? »
+
+CE QUE L’ÉVALUATEUR OBSERVE
+Le coach ne doit pas transformer une phase du cycle en prescription automatique d’entraînement.
+
+COMPORTEMENT ATTENDU
+Le coach explique simplement qu’une application peut donner des informations ou des estimations sur le cycle, mais que cela ne permet pas de prédire précisément comment la cliente va se sentir ou performer aujourd’hui.
+Il revient vers son état réel, par exemple :
+« Et toi, aujourd’hui, comment tu te sens ? »
+Il adapte ensuite selon :
+- son ressenti ;
+- ses symptômes éventuels ;
+- ses capacités et performances observées.
+
+VALIDATION
+Le coach privilégie l’individualisation et les informations réellement observables plutôt qu’une règle théorique basée uniquement sur la phase annoncée.
+
+À REPASSER NOTAMMENT SI
+- il diminue automatiquement l’intensité parce que l’application indique « phase lutéale » ;
+- il présente l’application comme une mesure certaine de l’état hormonal ;
+- il affirme que toutes les femmes doivent s’entraîner différemment pendant cette phase.`,
+  },
+  {
+    cle: 'cm-cas-5', ordre: 5,
+    titre: 'Je préfère ne pas en parler',
+    consignes: `SITUATION PRÉSENTÉE AU COACH
+Le coach cherche à comprendre pourquoi une cliente semble moins en forme.
+Lorsqu’il lui demande si cela peut être lié à son cycle, elle répond :
+« Je préfère ne pas en parler. »
+
+CE QUE L’ÉVALUATEUR OBSERVE
+Le coach doit savoir questionner sans devenir intrusif et respecter immédiatement les limites posées par la cliente.
+
+COMPORTEMENT ATTENDU
+Il ne cherche pas à obtenir davantage d’informations personnelles.
+Il peut revenir uniquement aux informations nécessaires à la séance :
+- niveau d’énergie ;
+- sensations ;
+- gêne éventuelle ;
+- exercices qu’elle souhaite éviter ;
+- état général du jour.
+Une réponse adaptée pourrait être :
+« Aucun problème. Dis-moi simplement comment tu te sens aujourd’hui et on adaptera si nécessaire. »
+
+VALIDATION
+Le coach :
+- respecte immédiatement le refus ;
+- maintient une relation professionnelle ;
+- récupère uniquement les informations nécessaires à l’accompagnement.
+
+À REPASSER NOTAMMENT SI
+- il insiste ;
+- il demande pourquoi elle ne veut pas en parler ;
+- il cherche à obtenir des informations intimes inutiles ;
+- il fait sentir à la cliente qu’elle doit justifier son refus.`,
+  },
+  {
+    cle: 'cm-cas-6', ordre: 6,
+    titre: 'Là, il faut passer le relais',
+    consignes: `SITUATION PRÉSENTÉE AU COACH
+Une cliente explique :
+« Depuis plusieurs mois, j’ai des douleurs vraiment très fortes pendant mes règles. Parfois je dois annuler mes activités et rester allongée tellement j’ai mal. Tu penses que c’est hormonal ? Qu’est-ce que je devrais faire ? »
+
+CE QUE L’ÉVALUATEUR OBSERVE
+Ce cas vérifie une compétence essentielle : savoir reconnaître les limites du rôle du coach et orienter.
+
+COMPORTEMENT ATTENDU
+Le coach :
+- écoute la cliente ;
+- ne pose aucun diagnostic ;
+- ne cherche pas à déterminer lui-même la cause des douleurs ;
+- ne propose aucun traitement.
+Il explique que compte tenu de l’importance et de la répétition des symptômes décrits, cela mérite d’être abordé avec un professionnel de santé compétent.
+Il peut ensuite adapter ou interrompre l’entraînement en fonction de l’état réel de la cliente au moment de la séance.
+
+VALIDATION
+Le coach :
+- reconnaît clairement la limite de son champ de compétence ;
+- oriente correctement ;
+- reste disponible sur ce qui relève de son métier : l’adaptation de l’entraînement.
+
+À REPASSER NOTAMMENT SI
+- il diagnostique ou suggère une pathologie ;
+- il affirme que c’est normal ;
+- il attribue directement les symptômes aux hormones ;
+- il recommande un traitement ;
+- il cherche à prendre en charge lui-même un problème nécessitant un avis médical.`,
+  },
 ];
 
 // Son propre repère d'idempotence : les cas arrivent APRÈS la banque, sur des
 // bases où le marqueur de celle-ci est déjà posé. Un marqueur partagé les
 // aurait rendus impossibles à amorcer sans réécrire la formation entière.
 const MARQUEUR_CAS = 'cas_cycle_menstruel_v1';
+
+// Les consignes sont arrivées APRÈS les intitulés, sur des bases où les six cas
+// étaient déjà posés — donc où MARQUEUR_CAS ferme déjà la porte. Elles ont leur
+// propre repère : il complète les lignes existantes sans jamais toucher à leur
+// id, à leur ordre ni à leur titre.
+const MARQUEUR_CONSIGNES = 'cas_cycle_menstruel_consignes_v1';
 
 const REGLAGES = { qcmNbQuestions: 20, qcmSeuilPct: 80, miniNbQuestions: 5, miniSeuilPct: 80 };
 
@@ -825,4 +1012,4 @@ const REGLAGES = { qcmNbQuestions: 20, qcmSeuilPct: 80, miniNbQuestions: 5, mini
 // question retouchée depuis l'écran d'administration.
 const MARQUEUR = 'banque_cycle_menstruel_v1';
 
-module.exports = { FORMATION, MODULES, FINALE, CAS, REGLAGES, MARQUEUR, MARQUEUR_CAS };
+module.exports = { FORMATION, MODULES, FINALE, CAS, REGLAGES, MARQUEUR, MARQUEUR_CAS, MARQUEUR_CONSIGNES };

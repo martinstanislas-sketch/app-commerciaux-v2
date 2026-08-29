@@ -2163,9 +2163,13 @@ function champCas(cas, attente) {
         echapper((attente && !attente.casId && attente.cas) || '') + '" /></label>';
 }
 
+// Le texte BRUT, échappé : la mise en forme vient du bloc qui l'accueille
+// (.ac-eval-cas-c, en pre-wrap). Les consignes sont structurées en sections et
+// en listes — les enfermer dans une ligne d'aide grise les rendrait illisibles,
+// alors que l'évaluateur mène sa séance avec elles sous les yeux.
 function consignesDe(liste, id) {
   const c = liste.find((x) => String(x.id) === String(id));
-  return c && c.consignes ? '<p class="ac-q-aide">' + echapper(c.consignes) + '</p>' : '';
+  return c && c.consignes ? echapper(c.consignes) : '';
 }
 
 // Un seul chemin de saisie pour les deux gestes : ouvrir une séance (resultat

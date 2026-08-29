@@ -202,9 +202,44 @@ test('les six cas pratiques sont posés, dans l\'ordre et pour CETTE formation',
     'les intitulés sont ceux du référentiel, au caractère près');
   assert.deepStrictEqual(cas.map((c) => c.ordre), [1, 2, 3, 4, 5, 6]);
   assert.strictEqual(cas.length, 6);
-  // Aucune consigne n'a jamais été rédigée : la colonne existe, elle est vide.
-  // Un jour où elle se remplira, ce test dira lequel des deux a changé.
-  assert.deepStrictEqual(cas.map((c) => c.consignes), [null, null, null, null, null, null]);
+  // Les identifiants sont ceux de l'amorçage, et ils ne bougent pas : une
+  // évaluation passée les référence.
+  assert.deepStrictEqual(cas.map((c) => c.id), [1, 2, 3, 4, 5, 6]);
+});
+
+test('les six cas portent tous leurs CONSIGNES, et aucune n\'est vide', () => {
+  const cas = app.academyPratique.listerCas(CM);
+  assert.strictEqual(cas.filter((c) => c.consignes && c.consignes.trim()).length, 6,
+    'aucune consigne ne doit rester NULL');
+  for (const c of cas) {
+    // Chaque cas doit permettre de MENER la séance sans document externe : la
+    // situation, ce qu'on observe, ce qu'on attend, ce qui vaut validation, et
+    // ce qui justifie un « à repasser ».
+    for (const section of ['SITUATION PRÉSENTÉE AU COACH', 'CE QUE L’ÉVALUATEUR OBSERVE',
+      'COMPORTEMENT ATTENDU', 'VALIDATION', 'À REPASSER NOTAMMENT SI']) {
+      assert.ok(c.consignes.includes(section),
+        `cas ${c.ordre} : section « ${section} » manquante`);
+    }
+    assert.ok(c.consignes.length > 500, `cas ${c.ordre} : consigne trop courte pour être exploitable`);
+  }
+  // Et elles viennent bien du référentiel source, au caractère près.
+  assert.deepStrictEqual(cas.map((c) => c.consignes), BANQUE.CAS.map((c) => c.consignes));
+});
+
+test('« À repasser notamment si » reste un texte, JAMAIS une règle logicielle', () => {
+  // Le moteur ne lit pas les consignes : il les stocke et les affiche. Le
+  // verdict reste les deux boutons de l'évaluateur.
+  const moteur = ['lib/academyPratique.js', 'lib/academyCertifications.js'].map((f) =>
+    fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
+  assert.ok(!/consignes/.test(moteur.replace(/--.*$/gm, '').replace(/\/\/.*$/gm, '')
+    .replace(/consignes\s+TEXT/g, '').replace(/consignes: r\.consignes \|\| null,/g, '')
+    .replace(/c\.consignes \|\| null/g, '')),
+  'aucune décision du moteur ne doit dépendre du texte des consignes');
+});
+
+test('l\'amorçage des consignes est idempotent', () => {
+  assert.strictEqual(app.academyCycleMenstruel.amorcerConsignesCas(), 0, 'un second passage ne réécrit rien');
+  assert.strictEqual(app.academyPratique.listerCas(CM).filter((c) => c.consignes).length, 6);
 });
 
 test('Coach Nutrition n\'a AUCUN cas : son écran d\'évaluation ne bouge pas', () => {

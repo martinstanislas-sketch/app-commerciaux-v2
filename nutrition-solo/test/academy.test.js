@@ -637,3 +637,17 @@ test('les trois phrases « Boost » sont toutes conditionnées', () => {
   }
   assert.ok(/ouvreBoost\(c\.formation\)/.test(js), 'la carte du coach lit le drapeau de SA formation');
 });
+
+test('les consignes du cas atteignent l\'écran de l\'évaluateur, mise en forme préservée', () => {
+  // Le texte est structuré en sections et en listes : sans pre-wrap, un <p>
+  // écraserait ses retours à la ligne en un pavé illisible.
+  assert.ok(/\.ac-eval-cas-c:not\(:empty\)\s*\{[^}]*white-space:\s*pre-wrap/.test(css),
+    'le bloc des consignes doit préserver les retours à la ligne');
+  // Le texte part brut et échappé ; c'est le bloc qui le met en forme.
+  assert.ok(/return c && c\.consignes \? echapper\(c\.consignes\) : '';/.test(js),
+    'les consignes sont échappées, jamais injectées telles quelles');
+  // Et elles suivent le cas choisi.
+  assert.ok(/sel\.addEventListener\('change'[\s\S]{0,220}consignesDe\(/.test(js),
+    'changer de cas doit rafraîchir ses consignes');
+  assert.ok(/consignesDe\(liste, choisi\)/.test(js), 'et le cas déjà retenu les affiche à l\'ouverture');
+});

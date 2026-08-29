@@ -66,9 +66,7 @@ function createAmorcageCycleMenstruel({ getDb, nowIso, formations, qcm, pratique
             VALUES (?,?,?,?,1,?,?,?)
             ON CONFLICT(cle) DO NOTHING`);
         for (const c of BANQUE.CAS) {
-          // consignes NULL : le déroulé de chaque situation n'a jamais été
-          // rédigé, et on n'invente pas un référentiel d'évaluation.
-          poses += ins.run(BANQUE.FORMATION.cle, c.titre, null, c.ordre, c.cle, maintenant, maintenant).changes;
+          poses += ins.run(BANQUE.FORMATION.cle, c.titre, c.consignes || null, c.ordre, c.cle, maintenant, maintenant).changes;
         }
         d.prepare('INSERT INTO academy_config (cle, valeur, maj_le) VALUES (?,?,?) ON CONFLICT(cle) DO NOTHING')
           .run(BANQUE.MARQUEUR_CAS, String(poses), maintenant);
@@ -78,6 +76,43 @@ function createAmorcageCycleMenstruel({ getDb, nowIso, formations, qcm, pratique
       return 0;
     }
     return poses;
+  }
+
+  // -- Les consignes, posées après coup -------------------------------------
+  //
+  //  Les six intitulés existaient avant leur contenu pédagogique. Sur une base
+  //  déjà amorcée, MARQUEUR_CAS ferme la porte : ce second repère est le seul
+  //  moyen de compléter les lignes en place. Il ne crée aucun cas, n'en
+  //  renomme aucun, ne touche ni aux id ni à l'ordre — il remplit une colonne
+  //  restée vide, et seulement si elle l'est encore. Une consigne retouchée
+  //  depuis la base n'est jamais réécrasée.
+  function amorcerConsignesCas() {
+    if (!pratique || typeof pratique.assurerSchema !== 'function') return 0;
+    const d = db();
+    pratique.assurerSchema();
+
+    if (d.prepare('SELECT cle FROM academy_config WHERE cle = ?').get(BANQUE.MARQUEUR_CONSIGNES)) return 0;
+    if (!formations.lire(BANQUE.FORMATION.cle)) return 0;
+
+    const maintenant = nowIso();
+    let remplies = 0;
+    try {
+      d.transaction(() => {
+        const maj = d.prepare(`UPDATE academy_cas SET consignes = ?, maj_le = ?
+                               WHERE cle = ? AND formation = ?
+                                 AND (consignes IS NULL OR consignes = '')`);
+        for (const c of BANQUE.CAS) {
+          if (!c.consignes) continue;
+          remplies += maj.run(c.consignes, maintenant, c.cle, BANQUE.FORMATION.cle).changes;
+        }
+        d.prepare('INSERT INTO academy_config (cle, valeur, maj_le) VALUES (?,?,?) ON CONFLICT(cle) DO NOTHING')
+          .run(BANQUE.MARQUEUR_CONSIGNES, String(remplies), maintenant);
+      })();
+    } catch (e) {
+      console.warn('⚠️  Cycle menstruel : consignes des cas non posées — ' + e.message + '.');
+      return 0;
+    }
+    return remplies;
   }
 
   // Renvoie le nombre de questions posées, 0 si l'amorçage n'avait rien à faire.
@@ -97,6 +132,8 @@ function createAmorcageCycleMenstruel({ getDb, nowIso, formations, qcm, pratique
     // premier a travaillé.
     const cas = amorcerCas();
     if (cas) console.log(`  Academy : « Cycle menstruel » — ${cas} cas pratiques posés.`);
+    const cons = amorcerConsignesCas();
+    if (cons) console.log(`  Academy : « Cycle menstruel » — ${cons} consignes de cas renseignées.`);
     // La valeur de retour reste le nombre de QUESTIONS : c'est ce que le
     // démarrage annonce, et les cas ont leur propre ligne ci-dessus.
     if (d.prepare('SELECT cle FROM academy_config WHERE cle = ?').get(BANQUE.MARQUEUR)) return 0;
@@ -187,10 +224,12 @@ function createAmorcageCycleMenstruel({ getDb, nowIso, formations, qcm, pratique
     // que ses cas peuvent s'y rattacher.
     const casApres = amorcerCas();
     if (casApres) console.log(`  Academy : « Cycle menstruel » — ${casApres} cas pratiques posés.`);
+    const consApres = amorcerConsignesCas();
+    if (consApres) console.log(`  Academy : « Cycle menstruel » — ${consApres} consignes de cas renseignées.`);
     return ajouts;
   }
 
-  return { amorcer, amorcerCas };
+  return { amorcer, amorcerCas, amorcerConsignesCas };
 }
 
 module.exports = { createAmorcageCycleMenstruel, BANQUE };

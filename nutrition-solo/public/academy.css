@@ -1224,3 +1224,21 @@ details.ac-mod-lock .ac-mod-h { cursor: default; }
 .ac-sl-mini { font-style: normal; }
 .ac-sl-mini .ac-sl-t { font-weight: 600; }
 .ac-sl-mini[disabled] { opacity: .5; cursor: default; }
+
+/* Les consignes du cas pratique retenu, sous le sélecteur de l'évaluateur.
+   `pre-wrap` est le point qui compte : le texte est structuré en sections et en
+   listes, et un <p> ordinaire écraserait ses retours à la ligne en un pavé
+   illisible — l'évaluateur mène sa séance avec ce bloc sous les yeux. */
+.ac-eval-cas-c:not(:empty) {
+  white-space: pre-wrap;
+  margin: -2px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-c);
+  border-left: 3px solid var(--saphir);
+  border-radius: 8px;
+  background: var(--fond-2, #fafaf8);
+  font-size: 13.5px;
+  line-height: 1.55;
+  max-height: 340px;
+  overflow-y: auto;
+}
