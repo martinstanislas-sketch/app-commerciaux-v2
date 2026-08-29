@@ -470,79 +470,11 @@ function rendreCompte() {
 
 // -- L'écran -------------------------------------------------------------------
 
-// L'anneau de progression globale. Un SVG, pas une image : il se redessine avec
-// la donnée, et reste net sur tous les écrans.
-function rendreAnneau(pct) {
-  const r = 52, c = 2 * Math.PI * r;
-  const rempli = Math.max(0, Math.min(100, pct)) / 100 * c;
-  return '<svg class="ac-anneau" viewBox="0 0 128 128" role="img" aria-label="Progression globale : ' + pct + ' %">' +
-    '<circle cx="64" cy="64" r="' + r + '" fill="none" stroke="var(--border-c)" stroke-width="13" />' +
-    '<circle cx="64" cy="64" r="' + r + '" fill="none" stroke="var(--saphir)" stroke-width="13" stroke-linecap="round" ' +
-      'stroke-dasharray="' + rempli.toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 64 64)" />' +
-    '<text x="64" y="64" class="ac-anneau-t" text-anchor="middle" dominant-baseline="central">' + pct + ' %</text>' +
-    '</svg>';
-}
-
-// LA PROGRESSION GLOBALE PORTE SUR LE PARCOURS, PAS SUR LES VIDÉOS.
-//
-//  Elle comptait la somme des contenus vus sur la somme des contenus ouverts.
-//  Un coach qui avait tout regardé lisait donc « 100 % » alors que son Terrain
-//  restait à faire et sa certification à obtenir — l'anneau annonçait fini un
-//  parcours qui ne l'était pas.
-//
-//  Elle compte désormais des ÉTAPES : les mêmes que la frise (cf. etapesDe),
-//  et sous la même règle. Terrain et Certification ne sont comptées que si la
-//  formation les DEMANDE — une étape non demandée n'est pas une étape
-//  manquante, sinon une formation qui ne certifie pas plafonnerait à jamais.
-//
-//  Seule « Apprendre » est fractionnaire : sans elle, l'anneau sauterait par
-//  paliers de 25 % au lieu de bouger à chaque vidéo terminée.
-//
-//  ⚠️ À NE PAS CONFONDRE avec le « X % complété » d'une carte de formation,
-//  qui reste volontairement la progression de SES CONTENUS. Les deux nombres
-//  ne répondent pas à la même question et n'ont aucune raison de coïncider.
-function etapesDuParcours(f, cert) {
-  const rempli = (cle) => {
-    const p = cert && (cert.prerequis || []).find((x) => x.cle === cle);
-    return !!(p && p.rempli);
-  };
-  // Le catalogue n'est enrichi de total/termines que pour qui SUIT la
-  // formation ; sans compteur, on retombe sur le drapeau `acheve`, et à défaut
-  // sur zéro. Jamais sur une division par zéro.
-  const total = Number(f.total);
-  const faits = Number(f.termines);
-  const apprendre = Number.isFinite(total) && total > 0 && Number.isFinite(faits)
-    ? Math.max(0, Math.min(1, faits / total))
-    : (f.acheve ? 1 : 0);
-
-  const etapes = [apprendre, rempli('theorie') ? 1 : 0];
-  if (f.pratiqueObligatoire) etapes.push(rempli('pratique') ? 1 : 0);
-  if (f.certificationActive) etapes.push(cert && cert.certifie ? 1 : 0);
-  return etapes;
-}
-
-// Somme des étapes acquises / somme des étapes demandées, toutes formations
-// confondues. Chaque étape pèse pareil : deux parcours, deux diplômes.
-function progressionGlobale(formations, certifications) {
-  let acquises = 0;
-  let demandees = 0;
-  for (const f of formations || []) {
-    const cert = (certifications || []).find((c) => c.formation === f.cle) || null;
-    const e = etapesDuParcours(f, cert);
-    for (const v of e) acquises += v;
-    demandees += e.length;
-  }
-  return demandees ? Math.round(acquises / demandees * 100) : 0;
-}
-
 function rendreAccueil() {
   const liste = formationsAffichees();
   const toutes = (catalogue || []).map((f) => ({ f, st: statutDe(f) }));
   const compte = (st) => toutes.filter((x) => x.st === st).length;
 
-  // L'anneau porte sur le PARCOURS entier, étape par étape (cf.
-  // progressionGlobale) — et sur TOUT le catalogue, pas sur la vue filtrée.
-  const global = progressionGlobale(catalogue || [], certifs || []);
 
   const kpi = [
     ['🎓', 'ac-k-bleu', toutes.length, 'Formation' + (toutes.length > 1 ? 's' : '') + ' disponible' + (toutes.length > 1 ? 's' : '')],
@@ -577,12 +509,6 @@ function rendreAccueil() {
       '</article>';
   };
 
-  const legende = [
-    ['en_cours', 'En cours'],
-    ['theorie', 'Théorie validée'],
-    ['a_commencer', 'À commencer'],
-    ['certifie', 'Certification obtenue'],
-  ];
 
   // Le titre et sa phrase d'accueil ne sont plus ici : ils vivent dans le
   // bandeau blanc (#acHeadTitre), montré par afficher(). L'écran commence donc
@@ -603,32 +529,21 @@ function rendreAccueil() {
         '</select></label>' +
     '</div>' +
 
-    '<div class="ac-cols">' +
-      '<div class="ac-fcs" id="acGrille">' +
-        (liste.length ? liste.map(carte).join('')
-          : '<div class="ec-vide">' + (accueilFiltre === 'certifiantes'
-            ? 'Aucune formation certifiante ne t\'est ouverte pour le moment.'
-            : 'Aucune formation ne t\'est ouverte pour le moment.') + '</div>') +
-      '</div>' +
-
-      '<aside class="ac-parcours">' +
-        '<h2 class="ac-parcours-t">Ton parcours</h2>' +
-        rendreAnneau(global) +
-        '<p class="ac-parcours-l">Progression globale</p>' +
-        '<ul class="ac-lg">' + legende.map(([cle, l]) =>
-          '<li><span class="ac-lg-d ac-lg-' + cle + '" aria-hidden="true"></span>' +
-            '<span class="ac-lg-t">' + echapper(l) + '</span>' +
-            '<b class="ac-lg-n">' + compte(cle) + '</b></li>').join('') + '</ul>' +
-        '<button type="button" class="ec-btn ac-parcours-b" id="acVersCertifs">Voir mes certifications</button>' +
-      '</aside>' +
+    // LE RAIL DE DROITE A ÉTÉ RETIRÉ. « Ton parcours » répétait ce que le
+    // bandeau de KPI dit déjà — nombre de formations, en cours, théorie
+    // validée, certifications — et volait 268 px aux cartes. Les cartes
+    // occupent désormais toute la largeur.
+    '<div class="ac-fcs" id="acGrille">' +
+      (liste.length ? liste.map(carte).join('')
+        : '<div class="ec-vide">' + (accueilFiltre === 'certifiantes'
+          ? 'Aucune formation certifiante ne t\'est ouverte pour le moment.'
+          : 'Aucune formation ne t\'est ouverte pour le moment.') + '</div>') +
     '</div>';
 
   document.querySelectorAll('#acAccueil [data-ouvrir]').forEach((el) =>
     el.addEventListener('click', () => ouvrirFormation(el.dataset.ouvrir)));
   const tri = $('#acTri');
   if (tri) tri.addEventListener('change', () => { accueilTri = tri.value; rendreAccueil(); });
-  const vc = $('#acVersCertifs');
-  if (vc) vc.addEventListener('click', () => naviguer('certifications'));
 
   rendreCompte();
   rendreBarreLaterale('academy');

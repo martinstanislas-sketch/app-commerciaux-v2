@@ -745,8 +745,8 @@ body { background: #F5F7FB; }
 .ac-tri select:focus-visible { outline: 2px solid var(--saphir); outline-offset: 1px; }
 
 /* Grille + rail de droite. */
-.ac-cols { display: grid; grid-template-columns: minmax(0, 1fr) 268px; gap: 20px; align-items: start; margin-bottom: 40px; }
-.ac-fcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); gap: 18px; align-content: start; }
+/* Plus de rail à droite : les cartes occupent toute la largeur. */
+.ac-fcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); gap: 18px; align-content: start; margin-bottom: 40px; }
 
 /* -- Carte de formation ----------------------------------------------------- */
 .ac-fc {
@@ -783,34 +783,6 @@ body { background: #F5F7FB; }
 .ac-st-cours    { background: var(--saphir); color: #fff; }
 .ac-st-theorie  { background: var(--sage-soft); color: var(--sage-on-soft); border-color: #CBDCBB; }
 .ac-st-certifie { background: var(--marine); color: #fff; }
-
-/* -- Ton parcours ----------------------------------------------------------- */
-.ac-parcours {
-  background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius);
-  padding: 20px 18px; text-align: center; box-shadow: var(--shadow); position: sticky; top: 16px;
-}
-.ac-parcours-t { font-size: 1rem; font-weight: 800; color: var(--marine); margin: 0 0 16px; text-align: left; }
-.ac-anneau { width: 148px; height: 148px; display: block; margin: 0 auto 6px; }
-.ac-anneau-t { font: 800 1.5rem/1 Inter, system-ui, sans-serif; fill: var(--marine); }
-.ac-parcours-l { font-size: .82rem; color: var(--text-muted); margin: 0 0 18px; }
-.ac-lg { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 1px; text-align: left; }
-.ac-lg li { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-bottom: 1px solid var(--border-c); }
-.ac-lg li:last-child { border-bottom: 0; }
-.ac-lg-d { width: 9px; height: 9px; border-radius: 999px; flex: 0 0 auto; }
-.ac-lg-en_cours    { background: var(--saphir); }
-.ac-lg-theorie     { background: var(--sage); }
-.ac-lg-a_commencer { background: #D9A521; }
-.ac-lg-certifie    { background: var(--marine); }
-.ac-lg-t { flex: 1 1 auto; font-size: .84rem; color: var(--text-muted); }
-.ac-lg-n { font-size: .88rem; font-weight: 800; color: var(--marine); font-variant-numeric: tabular-nums; }
-.ac-parcours-b { width: 100%; color: var(--saphir); font-weight: 700; padding: 11px 14px; font-size: .86rem; }
-
-@media (max-width: 1120px) {
-  /* Le rail de droite passe sous la grille avant que les cartes ne s'écrasent. */
-  .ac-cols { grid-template-columns: 1fr; }
-  .ac-parcours { position: static; }
-  .ac-anneau { width: 132px; height: 132px; }
-}
 
 @media (max-width: 900px) {
   /* LA BARRE LATÉRALE SE COUCHE, ELLE NE DISPARAÎT PAS.

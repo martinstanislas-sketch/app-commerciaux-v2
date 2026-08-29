@@ -451,97 +451,13 @@ test('l\'espace Coach mène à la formation au lieu d\'être une impasse', () =>
 });
 
 // ===========================================================================
-//  LA PROGRESSION GLOBALE DU DASHBOARD
+//  LA CARTE D'UNE FORMATION GARDE SA PROGRESSION DE CONTENUS
 //
-//  ⚠️ LE DÉFAUT QUE CES TESTS FERMENT. L'anneau « Progression globale »
-//  divisait la somme des contenus vus par la somme des contenus ouverts. Un
-//  coach qui avait tout regardé lisait « 100 % » alors que son Terrain restait
-//  à réaliser et sa certification à obtenir : l'anneau annonçait fini un
-//  parcours qui ne l'était pas.
-//
-//  La fonction est PURE et vit dans public/academy.js. On l'extrait de la
-//  source et on l'évalue : pas de navigateur à démarrer, et le test porte sur
-//  le code réellement servi — pas sur une copie qui dériverait.
+//  Le rail « Ton parcours » et son anneau de progression globale ont été
+//  retirés de l'accueil : ils répétaient le bandeau de KPI. Le pourcentage de
+//  CHAQUE CARTE, lui, reste la progression des contenus de cette formation —
+//  c'est une autre question, et elle continue de se poser.
 // ===========================================================================
-
-const progGlobale = (() => {
-  const debut = js.indexOf('function etapesDuParcours');
-  const fin = js.indexOf('function rendreAccueil');
-  assert.ok(debut > 0 && fin > debut, 'les fonctions de progression doivent exister dans academy.js');
-  return new Function('formations', 'certifications',
-    js.slice(debut, fin) + '; return progressionGlobale(formations, certifications);');
-})();
-
-// Deux fabriques : le catalogue d'un côté, l'état de certification de l'autre —
-// exactement les deux objets que le dashboard a en main.
-const catCN = (o) => Object.assign(
-  { cle: 'coach_nutrition', total: 35, termines: 35, acheve: true, pratiqueObligatoire: true, certificationActive: true }, o);
-const catCM = (o) => Object.assign(
-  { cle: 'cycle_menstruel', total: 10, termines: 10, acheve: true, pratiqueObligatoire: true, certificationActive: true }, o);
-const etat = (cle, { theorie = false, pratique = false, certifie = false } = {}) => ({
-  formation: cle,
-  prerequis: [{ cle: 'theorie', rempli: theorie }, { cle: 'pratique', rempli: pratique }],
-  certifie,
-});
-
-test('LE CAS QUI A MOTIVÉ LA RÈGLE : contenus finis + théorie, Terrain à faire', () => {
-  const pct = progGlobale([catCM()], [etat('cycle_menstruel', { theorie: true })]);
-  assert.strictEqual(pct, 50, 'deux étapes sur quatre — et surtout PAS 100 %');
-});
-
-test('une seconde formation certifiée à côté ne masque pas le parcours en cours', () => {
-  const pct = progGlobale(
-    [catCN(), catCM()],
-    [etat('coach_nutrition', { theorie: true, pratique: true, certifie: true }),
-      etat('cycle_menstruel', { theorie: true })]);
-  assert.strictEqual(pct, 75, 'six étapes acquises sur huit demandées');
-});
-
-test('l\'étape Apprendre reste proportionnelle aux contenus', () => {
-  // 3 contenus sur 10 : l'anneau bouge à chaque vidéo, il ne saute pas.
-  assert.strictEqual(progGlobale([catCM({ termines: 3, acheve: false })], [etat('cycle_menstruel')]), 8);
-  assert.strictEqual(progGlobale([catCM({ termines: 5, acheve: false })], [etat('cycle_menstruel')]), 13);
-});
-
-test('contenus finis mais théorie pas encore passée : un quart du parcours', () => {
-  assert.strictEqual(progGlobale([catCM()], [etat('cycle_menstruel')]), 25);
-});
-
-test('Terrain validé mais certification pas délivrée : PAS 100 %', () => {
-  const pct = progGlobale([catCM()], [etat('cycle_menstruel', { theorie: true, pratique: true })]);
-  assert.strictEqual(pct, 75, 'la dernière étape reste à prononcer');
-});
-
-test('LE 100 % EST RÉSERVÉ AU PARCOURS RÉELLEMENT TERMINÉ', () => {
-  const un = progGlobale([catCM()], [etat('cycle_menstruel', { theorie: true, pratique: true, certifie: true })]);
-  assert.strictEqual(un, 100);
-  const deux = progGlobale([catCN(), catCM()],
-    [etat('coach_nutrition', { theorie: true, pratique: true, certifie: true }),
-      etat('cycle_menstruel', { theorie: true, pratique: true, certifie: true })]);
-  assert.strictEqual(deux, 100, 'les deux parcours achevés');
-});
-
-test('une étape NON DEMANDÉE n\'est pas une étape manquante', () => {
-  // Ni pratique ni certification : deux étapes seulement, et 100 % atteignable.
-  const sansRien = { cle: 'b', total: 5, termines: 5, acheve: true, pratiqueObligatoire: false, certificationActive: false };
-  assert.strictEqual(progGlobale([sansRien], [etat('b', { theorie: true })]), 100,
-    'une formation qui ne certifie pas doit pouvoir atteindre 100 %');
-  // Certifiante mais sans Terrain : trois étapes.
-  const sansTerrain = { cle: 'c', total: 5, termines: 5, acheve: true, pratiqueObligatoire: false, certificationActive: true };
-  assert.strictEqual(progGlobale([sansTerrain], [etat('c', { theorie: true })]), 67);
-  assert.strictEqual(progGlobale([sansTerrain], [etat('c', { theorie: true, certifie: true })]), 100);
-});
-
-test('aucun compteur (catalogue nu) ou aucune formation : jamais NaN', () => {
-  assert.strictEqual(progGlobale([], []), 0);
-  assert.strictEqual(progGlobale(null, null), 0);
-  // Un administrateur non collaborateur reçoit le catalogue sans total/termines.
-  const nu = { cle: 'coach_nutrition', pratiqueObligatoire: true, certificationActive: true };
-  assert.strictEqual(progGlobale([nu], null), 0, 'zéro, pas NaN ni 100');
-  // Contenus à zéro : on ne divise pas par zéro, on lit le drapeau.
-  const vide = { cle: 'd', total: 0, termines: 0, acheve: true, pratiqueObligatoire: false, certificationActive: false };
-  assert.strictEqual(progGlobale([vide], [etat('d', { theorie: true })]), 100);
-});
 
 test('la carte d\'une formation garde SA progression de contenus', () => {
   // Le « X % complété » de la carte lit f.pourcentage — la progression des
@@ -587,9 +503,8 @@ test('« Administrer » n\'apparaît QUE pour un administrateur', () => {
 });
 
 test('les DESTINATIONS restent, seules les entrées disparaissent', () => {
-  // Le bouton de l'accueil continue de filtrer sur les formations certifiantes.
-  assert.ok(/id="acVersCertifs"/.test(js), 'le bouton « Voir mes certifications » existe toujours');
-  assert.ok(/naviguer\('certifications'\)/.test(js), 'et il mène toujours à la vue filtrée');
+  // naviguer() sait toujours traiter ces destinations : les entrées de menu ont
+  // disparu, la logique d'aiguillage n'a pas été touchée.
   assert.ok(/accueilFiltre = ou === 'certifications' \? 'certifiantes' : 'toutes'/.test(js),
     'naviguer() sait toujours traiter ces destinations');
 });
@@ -650,4 +565,13 @@ test('les consignes du cas atteignent l\'écran de l\'évaluateur, mise en forme
   assert.ok(/sel\.addEventListener\('change'[\s\S]{0,220}consignesDe\(/.test(js),
     'changer de cas doit rafraîchir ses consignes');
   assert.ok(/consignesDe\(liste, choisi\)/.test(js), 'et le cas déjà retenu les affiche à l\'ouverture');
+});
+
+test('le rail « Ton parcours » a bien disparu de l\'accueil', () => {
+  for (const trace of ['ac-parcours', 'ac-anneau', 'acVersCertifs', 'rendreAnneau', 'progressionGlobale', 'ac-cols']) {
+    assert.ok(!js.includes(trace), `academy.js contient encore « ${trace} »`);
+    assert.ok(!css.includes(trace), `academy.css contient encore « ${trace} »`);
+  }
+  // Et la grille des cartes reprend l'espace libéré.
+  assert.ok(/\.ac-fcs \{[^}]*margin-bottom: 40px/.test(css), 'la grille doit occuper toute la largeur');
 });
