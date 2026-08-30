@@ -639,15 +639,22 @@ test('l\'onglet Contenus rejoint les deux autres, sans page de plus', () => {
   // « Évaluer & certifier », auprès de l'évaluation qu'il conclut. Il en reste
   // deux ici — les droits d'évaluer, et les contenus.
   assert.ok(/'evaluateurs', 'contenus'/.test(js),
-    'l\'administration doit porter les deux onglets restants');
+    'l\'administration doit porter les onglets attendus');
+  // La Boîte à outils s'ajoute APRÈS Contenus : c'est une administration de
+  // plus, décidée explicitement, et elle ne remplace aucune des trois autres.
+  assert.ok(/'evaluateurs', 'contenus', 'outils', 'collaborateurs'/.test(js),
+    'l\'onglet Boîte à outils doit se ranger entre Contenus et Collaborateurs');
   assert.ok(!/'evaluateurs', 'certifications', 'contenus'/.test(js),
     'l\'onglet Certifications ne doit plus être ici');
   // Le lot 6 vit dans #acAdmin et n'ajoute AUCUNE section. Le compte est passé
   // de 5 à 6 avec le lot A, qui a ajouté #acAccueil — une section, et une
   // seule, pour l'écran d'accueil du collaborateur.
+  //  ⚠️ #acOutils EST LE SEPTIÈME, et il est décidé : la Boîte à outils est une
+  //  bibliothèque, pas un onglet de la grille des formations. Elle a son écran
+  //  parce qu'elle a son contenu — des documents, pas des parcours.
   const sections = [...html.matchAll(/<section id="(ac[A-Za-z]+)"/g)].map((m) => m[1]);
   assert.deepStrictEqual(sections,
-    ['acAccueil', 'acSommaire', 'acLecteur', 'acQcm', 'acEval', 'acAdmin'],
+    ['acAccueil', 'acSommaire', 'acLecteur', 'acQcm', 'acEval', 'acOutils', 'acAdmin'],
     'la liste des écrans a changé sans décision : ' + sections.join(', '));
   assert.ok(sections.includes('acAdmin') && !sections.some((x) => /contenu/i.test(x)),
     'le lot 6 doit rester dans #acAdmin, sans écran à lui');
@@ -1079,9 +1086,13 @@ test('L\'ÉCRAN d\'administration propose les CINQ catégories, et rien d\'autre
   // La liste est déclarée UNE fois et le <select> est partagé : deux listes
   // divergeraient au premier ajout de catégorie.
   const bloc = js.slice(js.indexOf('const CATEGORIES = ['), js.indexOf('function rendreFormFormationNeuve'));
-  for (const c of ['essentiel', 'signature', 'expertise', 'management', 'boite_a_outils']) {
+  for (const c of ['essentiel', 'signature', 'expertise', 'management']) {
     assert.ok(bloc.includes(`'${c}'`), 'catégorie manquante à l\'écran : ' + c);
   }
+  // L'écran ne doit pas proposer de classer une formation en « Boîte à outils » :
+  // ce n'en est plus une famille, c'est un autre écran (#acOutils).
+  assert.ok(!bloc.includes("'boite_a_outils'"),
+    'la Boîte à outils ne doit plus figurer parmi les catégories de formations');
   assert.strictEqual((js.match(/const CATEGORIES = \[/g) || []).length, 1,
     'la liste des catégories ne doit être déclarée qu\'une fois');
   assert.strictEqual((js.match(/function champCategorie/g) || []).length, 1,
@@ -1108,7 +1119,7 @@ test('LE RAIL SE DÉRIVE DE LA LISTE, il n\'est pas écrit à la main', () => {
   // Les six onglets : « toutes » plus la liste. Aucun autre libellé en dur.
   assert.ok(/\['toutes', 'Toutes'\], \.\.\.CATEGORIES/.test(bloc),
     'les onglets doivent se construire depuis CATEGORIES');
-  for (const c of ['essentiel', 'signature', 'expertise', 'management', 'boite_a_outils']) {
+  for (const c of ['essentiel', 'signature', 'expertise', 'management']) {
     assert.ok(!new RegExp(`'${c}'`).test(bloc),
       `« ${c} » est écrit en dur dans le rendu de l'accueil : il doit venir de CATEGORIES`);
   }

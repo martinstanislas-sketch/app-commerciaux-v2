@@ -17,7 +17,7 @@
 const express = require('express');
 const path = require('path');
 
-function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations, admin, exigeCompte, exigeAdmin, estAdmin }) {
+function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations, admin, ressources, boost, exigeCompte, exigeAdmin, estAdmin }) {
   const r = express.Router();
   const moi = (req) => String(req.user.email || '').trim().toLowerCase();
 
@@ -50,7 +50,7 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
 
   // Le schéma s'applique tout seul à la première requête Academy, comme celui
   // du Boost : aucun ordre d'initialisation à respecter dans server.js.
-  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); certifications.assurerSchema(); next(); });
+  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); certifications.assurerSchema(); ressources.assurerSchema(); next(); });
 
   // Page autonome, servie comme /coach. Un espace de formation et un espace de
   // suivi n'ont ni les mêmes écrans ni le même rythme d'évolution.
@@ -583,6 +583,199 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     const f = formationAdmin(req, res);
     if (!f) return;
     repondreAvecArbre(res, admin.definirContenu(req.body || {}), f.cle);
+  });
+
+  // ==========================================================================
+  //  LES COLLABORATEURS — QUI ENTRE DANS L'ACADEMY
+  //
+  //  CES DEUX ROUTES N'INVENTENT AUCUN DROIT. Elles délèguent à
+  //  `boost.listerCollaborateurs` et `boost.definirRole`, c'est-à-dire à la
+  //  table `boost_collaborateurs` — la seule que `academy.peutSeFormer`
+  //  consulte pour ouvrir sa porte. Un second système de droits, même bien
+  //  intentionné, finirait par diverger de celui-ci.
+  //
+  //  POURQUOI DES ROUTES ACADEMY PLUTÔT QUE D'APPELER /api/boost/ DEPUIS
+  //  L'ÉCRAN : l'écran Academy ne touche pas au Boost, et deux tests le
+  //  gardent. La frontière tient ; c'est la porte qui se déplace, pas le mur.
+  //
+  //  ⚠️ definirRole NE CRÉE JAMAIS DE COMPTE et n'écrit jamais dans `users`.
+  //  Retirer l'accès vaut `actif = 0` : la ligne reste, et la progression, les
+  //  tentatives et les certifications avec elle.
+  // ==========================================================================
+  // UNE SEULE LISTE, DEUX ORIGINES. Les comptes existants portent leur statut
+  // réel (actif / retiré) ; les adresses inscrites d'avance apparaissent EN
+  // ATTENTE, sans aucun droit, jusqu'à ce que leur compte soit créé.
+  const listeCollaborateurs = () => [
+    ...boost.listerCollaborateurs({ tous: true })
+      .map((c) => ({ email: c.email, prenom: c.prenom, actif: c.actif, majLe: c.majLe,
+        etat: c.actif ? 'actif' : 'retire' })),
+    ...academy.listerPreautorisations()
+      .map((p) => ({ email: p.email, prenom: '', actif: false, majLe: p.creeLe, etat: 'en_attente' })),
+  ];
+
+  r.get('/api/academy/admin/collaborateurs', exigeCompte, exigeAdmin, (_req, res) => {
+    res.json({ ok: true, collaborateurs: listeCollaborateurs() });
+  });
+
+  r.post('/api/academy/admin/collaborateurs', exigeCompte, exigeAdmin, (req, res) => {
+    const { email, role } = req.body || {};
+    // Retirer : le compte existe -> on lui retire le droit ; sinon c'est une
+    // adresse en attente -> on retire l'intention. Dans les deux cas, RIEN
+    // n'est supprimé du compte lui-même.
+    if (String(role || '') === 'client') {
+      const r_ = boost.lireUtilisateur(email)
+        ? boost.definirRole(email, 'client', moi(req))
+        : academy.retirerPreautorisation(email);
+      if (!r_.ok) return res.status(r_.status).json(r_.body);
+      return res.json({ ok: true, collaborateurs: listeCollaborateurs() });
+    }
+    // Autoriser : `preautoriser` tranche selon que le compte existe ou non.
+    const r_ = academy.preautoriser(email, moi(req));
+    if (!r_.ok) return res.status(r_.status).json(r_.body);
+    res.json({ ok: true, enAttente: !!r_.body.enAttente, collaborateurs: listeCollaborateurs() });
+  });
+
+  // ==========================================================================
+  //  LA BOÎTE À OUTILS — une bibliothèque, PAS une formation.
+  //
+  //  Ces routes ne touchent à AUCUN des moteurs de parcours. Elles ne
+  //  consultent ni la progression, ni le QCM, ni l'évaluation pratique, ni la
+  //  certification, et n'écrivent nulle part ailleurs que dans les trois tables
+  //  de lib/academyRessources.js. Consulter un PDF ne fait donc rien avancer —
+  //  c'est la promesse du lot, et elle tient par l'absence de code, pas par une
+  //  précaution qu'il faudrait se rappeler.
+  //
+  //  QUI ENTRE : `exigeEntree`, la même porte que le catalogue — collaborateurs
+  //  actifs et évaluateurs. Les franchisés viendront quand leur rôle existera ;
+  //  d'ici là, personne n'a de droit qui n'existe pas.
+  // ==========================================================================
+
+  // La bibliothèque. Les filtres sont appliqués PAR LE SERVEUR : l'écran ne
+  // reçoit que ce qu'il affiche, et la recherche ne suppose pas que toute la
+  // bibliothèque tient dans le navigateur.
+  r.get('/api/academy/ressources', exigeCompte, exigeEntree, (req, res) => {
+    const q = req.query || {};
+    res.json({
+      ok: true,
+      categories: ressources.listerCategories(),
+      ressources: ressources.lister({ q: q.q, categorie: q.categorie, type: q.type }),
+    });
+  });
+
+  // LES OCTETS. Gardés par la même porte que la fiche — contrairement aux
+  // photos de plats, qui sont publiques : un support interne n'a pas à être
+  // lisible par une URL devinée.
+  //
+  //  `inline` pour consulter, `attachment` (?dl=1) pour télécharger : c'est le
+  //  MÊME fichier et la MÊME route, seule l'intention change. Deux routes
+  //  auraient fait deux gardes à tenir.
+  r.get('/api/academy/ressources/:id/fichier', exigeCompte, exigeEntree, (req, res) => {
+    const f = ressources.lireFichierDe(req.params.id);
+    if (!f) return res.status(404).json({ ok: false, error: 'Fichier introuvable.' });
+    const telecharger = String((req.query || {}).dl || '') === '1';
+    res.set('Content-Type', f.mime);
+    // Le nom est déjà nettoyé à l'enregistrement (nomPropre) ; on ne le
+    // reconstruit pas ici, on le repasse tel quel.
+    res.set('Content-Disposition', `${telecharger ? 'attachment' : 'inline'}; filename="${f.nom}"`);
+    // Interdire au navigateur de renifler un autre type que celui annoncé : un
+    // PDF ne doit jamais être interprété comme du HTML.
+    res.set('X-Content-Type-Options', 'nosniff');
+    // `private` : la réponse est nominative (elle a franchi une garde), elle
+    // n'a rien à faire dans un cache partagé.
+    res.set('Cache-Control', 'private, max-age=300');
+    res.send(f.data);
+  });
+
+  // -- Administration de la bibliothèque -------------------------------------
+
+  // Tout, archivées comprises : c'est l'écran qui gère, il doit voir ce qu'il
+  // peut restaurer.
+  r.get('/api/academy/admin/ressources', exigeCompte, exigeAdmin, (_req, res) => {
+    res.json({
+      ok: true,
+      categories: ressources.listerCategories({ toutes: true }),
+      ressources: ressources.lister({ toutes: true }),
+    });
+  });
+
+  // L'ENVOI DU FICHIER, EN CORPS BRUT. Pas de base64 dans du JSON : l'encodage
+  // gonfle un PDF d'un tiers, et la limite JSON de l'app est à 6 Mo — la
+  // relever pour tout le monde afin de faire passer un document serait payer
+  // partout le prix d'un seul écran. `express.raw` est posé ICI, sur cette
+  // route et elle seule.
+  //
+  //  L'envoi précède l'enregistrement de la fiche : la réponse porte un
+  //  `fichierId` que le formulaire renvoie ensuite. Un fichier envoyé puis
+  //  abandonné ne laisse qu'une ligne orpheline, jamais une fiche cassée.
+  r.post('/api/academy/admin/ressources/fichier', exigeCompte, exigeAdmin,
+    express.raw({ type: '*/*', limit: '25mb' }),
+    (req, res) => {
+      const r_ = ressources.enregistrerFichier({
+        mime: req.headers['content-type'],
+        nom: (req.query || {}).nom,
+        data: Buffer.isBuffer(req.body) ? req.body : null,
+      });
+      res.status(r_.status).json(r_.body);
+    });
+
+  const repondreAvecBibliotheque = (res, r_) => {
+    if (!r_.ok) return res.status(r_.status).json(r_.body);
+    res.json({
+      ok: true,
+      ...r_.body,
+      categories: ressources.listerCategories({ toutes: true }),
+      ressources: ressources.lister({ toutes: true }),
+    });
+  };
+
+  // Créer ET modifier : une seule route, distinguées par la présence d'un `id`,
+  // comme les modules et les contenus.
+  r.post('/api/academy/admin/ressources', exigeCompte, exigeAdmin, (req, res) => {
+    repondreAvecBibliotheque(res, ressources.definir(req.body || {}, moi(req)));
+  });
+
+  r.post('/api/academy/admin/ressources/archiver', exigeCompte, exigeAdmin, (req, res) => {
+    const { id, actif } = req.body || {};
+    repondreAvecBibliotheque(res, ressources.basculerActif(id, actif === true));
+  });
+
+  // La seule suppression définitive de toute l'Academy, et elle est légitime :
+  // rien ne pointe vers une ressource (cf. l'en-tête du moteur). Ailleurs, un
+  // DELETE emporterait la progression de quelqu'un.
+  r.post('/api/academy/admin/ressources/supprimer', exigeCompte, exigeAdmin, (req, res) => {
+    repondreAvecBibliotheque(res, ressources.supprimer((req.body || {}).id));
+  });
+
+  r.post('/api/academy/admin/ressources/ordre', exigeCompte, exigeAdmin, (req, res) => {
+    repondreAvecBibliotheque(res, ressources.reordonner((req.body || {}).ids));
+  });
+
+  // Les catégories : administrables pour qu'elles puissent évoluer sans
+  // redéploiement — c'était la demande, et c'est ce qui distingue cette liste
+  // des catégories de FORMATIONS, qui restent une liste fermée du code.
+  //
+  //  ⚠️ CE SONT DEUX CHOSES DIFFÉRENTES, ET ELLES LE RESTENT. Ici : le domaine
+  //  d'une ressource (Coaching, Pilotage & KPI…), en base, extensible. Là-bas
+  //  (lib/academyFormations.js) : la famille d'un parcours, en constante,
+  //  fermée. Les mélanger reviendrait à pouvoir classer une certification dans
+  //  une bibliothèque de documents.
+  //
+  //  Une seule route pour créer ET renommer, distinguées par l'existence de la
+  //  clé — même forme que les ressources, les modules et les contenus.
+  r.post('/api/academy/admin/ressources/categories', exigeCompte, exigeAdmin, (req, res) => {
+    repondreAvecBibliotheque(res, ressources.definirCategorie(req.body || {}));
+  });
+
+  // Archiver / réactiver. La réponse porte le nombre de ressources concernées :
+  // l'écran doit pouvoir dire ce qui arrive, plutôt que de masquer en silence
+  // une catégorie qui en contient douze.
+  r.post('/api/academy/admin/ressources/categories/archiver', exigeCompte, exigeAdmin, (req, res) => {
+    const { cle, actif } = req.body || {};
+    repondreAvecBibliotheque(res, ressources.basculerCategorie(cle, actif === true));
+  });
+
+  r.post('/api/academy/admin/ressources/categories/ordre', exigeCompte, exigeAdmin, (req, res) => {
+    repondreAvecBibliotheque(res, ressources.reordonnerCategories((req.body || {}).cles));
   });
 
   // L'IMPORT D'UNE FORMATION COMPLÈTE. Deux usages, une seule route :

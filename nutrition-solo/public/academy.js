@@ -73,6 +73,12 @@ let adminComptes = null; // vue admin : les comptes et leur droit d'évaluer
 let aRetirer = null;    // retrait d'un droit d'évaluer, en attente de confirmation
 let certifs = null;     // état de MES certifications, toutes formations confondues
 let adminOnglet = 'evaluateurs';  // écran d'administration : onglet courant
+// LES COLLABORATEURS. Cet écran n'invente AUCUN droit : il pilote
+// `boost_collaborateurs`, la seule table qui décide qui entre dans l'Academy.
+// `academy.peutSeFormer` la relit à chaque requête — retirer un accès ferme
+// donc la porte à l'appel suivant, sans rien à défaire ailleurs.
+let adminCollabs = null;
+let collabARetirer = null;   // l'email en attente de confirmation de retrait
 let adminCerts = null;  // vue admin : éligibles, certifiés, écarts
 let enSaisie = null;    // { email, geste } : la ligne dépliée en cours de saisie
 // Administration des contenus (lot 6). `fAdmin` est VOLONTAIREMENT distincte de
@@ -140,13 +146,16 @@ const LARGEUR = {
   '#acSommaire': 'ac-w-large',
   '#acAdmin': 'ac-w-large',
   '#acEval': 'ac-w-large',
+  // La bibliothèque est une grille de cartes : la colonne de formulaire
+  // l'étranglerait, exactement comme le sommaire d'une formation.
+  '#acOutils': 'ac-w-large',
   // Le lecteur est le plus large des trois : la vidéo et son sommaire latéral
   // ne tiennent pas dans une colonne de formulaire.
   '#acLecteur': 'ac-w-lecteur',
 };
 
 function afficher(ecran) {
-  for (const id of ['#acBoot', '#acLogin', '#acBloc', '#acAccueil', '#acSommaire', '#acLecteur', '#acQcm', '#acEval', '#acAdmin']) {
+  for (const id of ['#acBoot', '#acLogin', '#acBloc', '#acAccueil', '#acSommaire', '#acLecteur', '#acQcm', '#acEval', '#acAdmin', '#acOutils']) {
     montrer(id, id === ecran);
   }
   // L'écran de connexion vit HORS de la coquille et prend la fenêtre entière :
@@ -343,12 +352,17 @@ const STATUTS = {
 // qu'un accent n'a rien à faire dans une colonne. Toute la navigation du
 // catalogue se DÉRIVE de cette liste : aucune formation, jamais, n'est classée
 // par du code.
+// ⚠️ « Boîte à outils » N'EST PLUS UNE CATÉGORIE DE FORMATION. C'est une
+// bibliothèque de ressources, avec son écran (#acOutils), ses propres tables
+// et ses propres catégories de classement — administrables, elles, alors que
+// celles-ci restent une liste fermée. La laisser ici aurait produit un onglet du rail des
+// formations filtrant sur une famille désormais vide, à côté d'une entrée de
+// navigation portant le même nom : deux destinations pour un seul mot.
 const CATEGORIES = [
   ['essentiel', 'Essentiel'],
   ['signature', 'Signature'],
   ['expertise', 'Expertise'],
   ['management', 'Management'],
-  ['boite_a_outils', 'Boîte à outils'],
 ];
 const libelleCategorie = (c) => (CATEGORIES.find(([k]) => k === c) || [, ''])[1];
 
@@ -447,6 +461,7 @@ function rendreBarreLaterale(actif) {
     academy: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5Z"/></svg>',
     eval: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6v3H9z"/><path d="M15 5.5h3a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1h3"/><path d="m9 13 2 2 4-4"/></svg>',
     admin: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+    outils: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a3.9 3.9 0 0 0 5 5l-8.4 8.4a2.1 2.1 0 0 1-3-3l6.4-10.4Z"/><path d="M5 5l2.5 2.5"/></svg>',
   };
   // UNE SEULE PORTE POUR LE COACH. « Mes formations » et « Mes certifications »
   // menaient au MÊME écran que « Mon Academy » — même appel, même grille — à un
@@ -459,6 +474,11 @@ function rendreBarreLaterale(actif) {
   // grille sur les formations certifiantes.
   const entrees = [
     { cle: 'academy', libelle: 'Mon Academy', icone: ic.academy },
+    // UNE DESTINATION, PAS UN FILTRE. La Boîte à outils n'est pas une famille
+    // de formations qu'on cocherait dans le rail de l'accueil : c'est un autre
+    // écran, un autre contenu, d'autres gestes. Elle a donc sa propre entrée,
+    // ouverte à qui entre dans l'Academy.
+    { cle: 'outils', libelle: 'Boîte à outils', icone: ic.outils, id: 'acNavOutils' },
   ];
   // UN SEUL MÉTIER, UNE SEULE ENTRÉE. Évaluer la pratique et prononcer la
   // certification étaient deux destinations sous deux droits ; c'est la même
@@ -481,6 +501,7 @@ function rendreBarreLaterale(actif) {
 }
 
 async function naviguer(ou) {
+  if (ou === 'outils') { await ouvrirOutils(); return; }
   if (ou === 'evaluer') { await ouvrirEvaluateur(); return; }
   if (ou === 'administrer') { await ouvrirAdmin(); return; }
   accueilFiltre = ou === 'certifications' ? 'certifiantes' : 'toutes';
@@ -2293,6 +2314,798 @@ async function rafraichirListeEval() {
   await chargerCerts();
 }
 
+// =============================================================================
+//  LA BOÎTE À OUTILS — une bibliothèque, pas une formation.
+//
+//  TOUT CE FICHIER TIENT DANS UNE PHRASE : on consulte, on ne progresse pas.
+//  Aucune barre de progression, aucun statut, aucun « terminer », aucun appel
+//  à /contenus/:id/ouvrir. Une ressource ouverte ne laisse aucune trace dans le
+//  parcours de qui l'ouvre — c'est ce qui la distingue d'un contenu de module,
+//  et c'est vrai jusque dans l'API : ces écrans n'appellent que
+//  /api/academy/ressources*.
+//
+//  ⚠️ LES OCTETS NE PEUVENT PAS PARTIR DANS UN `src`. La route des fichiers est
+//  gardée par un jeton Bearer, et ni <img src> ni <iframe src> n'envoient
+//  d'en-tête. On récupère donc le fichier par `fetch` — jeton compris — et on
+//  en fait une URL d'objet locale, qui elle tient dans un attribut. C'est ce
+//  qui permet de garder la garde : l'alternative aurait été de faire voyager le
+//  jeton dans l'URL, où il finit dans les journaux du serveur.
+// =============================================================================
+
+// Les quatre types, tels que l'écran les nomme. Les CLÉS viennent du serveur
+// (lib/academyRessources.js) ; le libellé, l'icône et le verbe du bouton vivent
+// ici. Toute la bibliothèque se dérive de cette liste : ajouter un type demain,
+// c'est une ligne — et aucune ressource n'est jamais décrite par du code.
+const TYPES_RESSOURCE = [
+  ['pdf', 'PDF / document', 'Consulter',
+    '<path d="M14 3H7a1.6 1.6 0 0 0-1.6 1.6v14.8A1.6 1.6 0 0 0 7 21h10a1.6 1.6 0 0 0 1.6-1.6V7.6L14 3Z"/><path d="M13.6 3.2v4.6h4.8"/><path d="M8.6 13.5h6.8M8.6 16.6h4.4"/>'],
+  ['image', 'Image', 'Voir l\'image',
+    '<rect x="3.2" y="4.8" width="17.6" height="14.4" rx="2"/><circle cx="8.6" cy="10" r="1.6"/><path d="m4 17 4.6-4.4 3.3 3 3-2.7L20.4 17"/>'],
+  ['video', 'Vidéo', 'Voir la vidéo',
+    '<rect x="2.6" y="5" width="18.8" height="14" rx="3"/><path d="m10.3 9.4 5 2.6-5 2.6V9.4Z"/>'],
+  ['lien', 'Lien externe', 'Ouvrir la ressource',
+    '<path d="M10.6 13.4a3.9 3.9 0 0 0 5.6 0l2.6-2.6a3.9 3.9 0 0 0-5.5-5.5l-1.3 1.3"/><path d="M13.4 10.6a3.9 3.9 0 0 0-5.6 0l-2.6 2.6a3.9 3.9 0 1 0 5.5 5.5l1.3-1.3"/>'],
+];
+const typeRessource = (t) => TYPES_RESSOURCE.find(([k]) => k === t) || null;
+const libelleType = (t) => (typeRessource(t) || [, ''])[1];
+const verbeType = (t) => (typeRessource(t) || [, , 'Ouvrir'])[2];
+
+// L'icône d'un type, dans le gabarit commun aux SVG de cet écran.
+function iconeType(t, taille) {
+  const d = (typeRessource(t) || [, , , ''])[3];
+  const n = taille || 20;
+  return '<svg viewBox="0 0 24 24" width="' + n + '" height="' + n + '" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+}
+
+// Un poids de fichier lisible. On l'affiche sur la carte : savoir qu'un support
+// pèse 12 Mo AVANT de le charger en 4G est une politesse, pas un détail.
+function poidsLisible(o) {
+  const n = Number(o) || 0;
+  if (n < 1024) return n + ' o';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' Ko';
+  return (n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0).replace('.', ',') + ' Mo';
+}
+
+let outils = null;            // { categories, ressources } — la bibliothèque reçue
+let outilsQ = '';             // la recherche par mot-clé
+let outilsCat = 'toutes';     // le filtre par catégorie (le DOMAINE, pas le format)
+let outilsType = 'tous';      // le filtre par type de ressource
+let outilsVue = null;         // la ressource affichée en grand, ou null
+let outilsErreur = '';
+let outilsRecherche = null;   // le minuteur de la recherche (cf. rafraichirOutils)
+
+// LES URL D'OBJET SONT GARDÉES, PAS RECRÉÉES. Rouvrir un PDF de 8 Mo ne doit
+// pas le retélécharger, et chaque URL créée occupe la mémoire de l'onglet tant
+// qu'on ne la révoque pas — les empiler à chaque clic serait une fuite.
+const outilsFichiers = new Map();
+
+async function fichierRessource(id) {
+  if (outilsFichiers.has(id)) return outilsFichiers.get(id);
+  const res = await fetch('/api/academy/ressources/' + encodeURIComponent(id) + '/fichier', {
+    headers: session ? { Authorization: 'Bearer ' + session.token } : {},
+  });
+  if (!res.ok) throw new Error('fichier');
+  const url = URL.createObjectURL(await res.blob());
+  outilsFichiers.set(id, url);
+  return url;
+}
+
+// Le téléchargement passe par la MÊME route, avec `?dl=1` : le serveur répond
+// alors en `attachment`. Le nom du fichier est celui qu'il a annoncé — pas un
+// nom reconstruit ici, qui divergerait de celui rangé en base.
+async function telechargerRessource(r) {
+  try {
+    const res = await fetch('/api/academy/ressources/' + encodeURIComponent(r.id) + '/fichier?dl=1', {
+      headers: session ? { Authorization: 'Bearer ' + session.token } : {},
+    });
+    if (!res.ok) throw new Error('fichier');
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (r.fichier && r.fichier.nom) || r.titre;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Révoquée au tour de boucle suivant : le téléchargement est lancé, l'URL
+    // n'a plus à vivre. Celles de la consultation, elles, sont gardées.
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  } catch (_) {
+    outilsErreur = 'Téléchargement impossible. Réessaie dans un instant.';
+    rendreOutils();
+  }
+}
+
+// -- Chargement ----------------------------------------------------------------
+
+async function chargerOutils() {
+  const p = new URLSearchParams();
+  if (outilsQ) p.set('q', outilsQ);
+  if (outilsCat !== 'toutes') p.set('categorie', outilsCat);
+  if (outilsType !== 'tous') p.set('type', outilsType);
+  const suffixe = p.toString() ? '?' + p.toString() : '';
+  const r = await apiAc('/api/academy/ressources' + suffixe);
+  if (r.status === 401) { deconnecter(); return false; }
+  if (r.status === 403) {
+    bloquer('🔒', 'Boîte à outils', 'Cet espace est réservé aux collaborateurs My Coach.');
+    return false;
+  }
+  if (!r.data.ok) { outilsErreur = 'Bibliothèque indisponible. Réessaie dans un instant.'; return true; }
+  outilsErreur = '';
+  outils = r.data;
+  return true;
+}
+
+async function ouvrirOutils() {
+  outilsVue = null;
+  if (!(await chargerOutils())) return;
+  rendreOutils();
+}
+
+// -- L'écran -------------------------------------------------------------------
+
+function rendreOutils() {
+  if (outilsVue) { rendreOutilsDetail(); return; }
+  const cats = (outils && outils.categories) || [];
+
+  $('#acOutils').innerHTML =
+    '<div class="ac-out-tete">' +
+      '<h1 class="ec-t ac-out-h1">Boîte à outils</h1>' +
+      '<p class="ec-sub ac-out-sub">Les ressources pratiques de My Coach : documents, visuels, ' +
+        'vidéos et liens utiles. On les consulte librement — rien ici n\'est une formation, ' +
+        'et rien n\'est évalué.</p>' +
+    '</div>' +
+
+    // LA BARRE DE FILTRES EST RENDUE UNE SEULE FOIS. Chercher re-rend la
+    // GRILLE, jamais cette barre : re-générer le champ à chaque frappe lui
+    // ferait perdre le curseur au premier caractère.
+    '<div class="ac-out-filtres">' +
+      '<label class="ac-out-q"><span class="ac-out-qic" aria-hidden="true">' +
+        '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+        'stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.5 15.5 4 4"/></svg></span>' +
+        '<input id="acOutQ" type="search" placeholder="Rechercher un document, un mot-clé…" ' +
+          'value="' + echapper(outilsQ) + '" aria-label="Rechercher une ressource" /></label>' +
+
+      '<label class="ac-out-sel"><span>Catégorie</span><select id="acOutCat">' +
+        '<option value="toutes"' + (outilsCat === 'toutes' ? ' selected' : '') + '>Toutes</option>' +
+        cats.map((c) => '<option value="' + echapper(c.cle) + '"' +
+          (outilsCat === c.cle ? ' selected' : '') + '>' + echapper(c.libelle) + '</option>').join('') +
+      '</select></label>' +
+
+      '<label class="ac-out-sel"><span>Type</span><select id="acOutType">' +
+        '<option value="tous"' + (outilsType === 'tous' ? ' selected' : '') + '>Tous les types</option>' +
+        TYPES_RESSOURCE.map(([k, l]) => '<option value="' + k + '"' +
+          (outilsType === k ? ' selected' : '') + '>' + echapper(l) + '</option>').join('') +
+      '</select></label>' +
+    '</div>' +
+
+    '<p class="ac-eval-err" id="acOutErr" role="alert">' + echapper(outilsErreur) + '</p>' +
+    '<div id="acOutGrille"></div>';
+
+  const q = $('#acOutQ');
+  if (q) {
+    // Un délai court : on interroge le serveur quand la frappe s'arrête, pas à
+    // chaque touche. Sans lui, taper « nutrition » lance neuf requêtes dont
+    // huit sont périmées avant d'arriver.
+    q.addEventListener('input', () => {
+      outilsQ = q.value.trim();
+      clearTimeout(outilsRecherche);
+      outilsRecherche = setTimeout(rafraichirOutils, 250);
+    });
+  }
+  ['#acOutCat', '#acOutType'].forEach((sel) => {
+    const el = $(sel);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      if (sel === '#acOutCat') outilsCat = el.value; else outilsType = el.value;
+      rafraichirOutils();
+    });
+  });
+
+  rendreGrilleOutils();
+  rendreCompte();
+  rendreBarreLaterale('outils');
+  afficher('#acOutils');
+  window.scrollTo(0, 0);
+}
+
+// Relire et redessiner LA GRILLE SEULE. C'est ce qui garde le curseur dans le
+// champ de recherche pendant que les résultats changent sous lui.
+async function rafraichirOutils() {
+  if (!(await chargerOutils())) return;
+  const err = $('#acOutErr');
+  if (err) err.textContent = outilsErreur;
+  rendreGrilleOutils();
+}
+
+function rendreGrilleOutils() {
+  const boite = $('#acOutGrille');
+  if (!boite) return;
+  const liste = (outils && outils.ressources) || [];
+  const cats = (outils && outils.categories) || [];
+  const nomCat = (c) => (cats.find((x) => x.cle === c) || {}).libelle || '';
+
+  if (!liste.length) {
+    const filtre = outilsQ || outilsCat !== 'toutes' || outilsType !== 'tous';
+    boite.innerHTML = '<div class="ec-vide">' + (filtre
+      ? 'Aucune ressource ne correspond à cette recherche.'
+      : 'La boîte à outils est encore vide. Les ressources apparaîtront ici dès qu\'elles seront publiées.')
+      + '</div>';
+    return;
+  }
+
+  // UNE CARTE HOMOGÈNE, QUEL QUE SOIT LE TYPE. Même hauteur d'en-tête, même
+  // place pour le titre, même pied d'actions : c'est ce qui fait une
+  // bibliothèque plutôt qu'une liste d'objets disparates.
+  const carte = (r) => {
+    const secondaire = (r.type === 'pdf' || r.type === 'image')
+      ? '<button type="button" class="ec-btn ac-out-b2" data-out-dl="' + r.id + '">Télécharger</button>'
+      : '';
+    return '<article class="ac-out-c ac-out-c-' + echapper(r.type) + '">' +
+      '<div class="ac-out-c-top">' +
+        '<span class="ac-out-ic" aria-hidden="true">' + iconeType(r.type) + '</span>' +
+        '<span class="ac-out-badge">' + echapper(libelleType(r.type)) + '</span>' +
+      '</div>' +
+      '<h3 class="ac-out-t">' + echapper(r.titre) + '</h3>' +
+      '<p class="ac-out-d">' + echapper(r.description) + '</p>' +
+      '<p class="ac-out-m">' +
+        (r.categorie ? '<span class="ac-out-cat">' + echapper(nomCat(r.categorie)) + '</span>' : '') +
+        (r.fichier ? '<span class="ac-out-poids">' + echapper(poidsLisible(r.fichier.taille)) + '</span>' : '') +
+      '</p>' +
+      '<div class="ac-out-actions">' +
+        '<button type="button" class="ec-btn ec-btn-p ac-out-b" data-out-ouvrir="' + r.id + '">' +
+          echapper(verbeType(r.type)) + '</button>' +
+        secondaire +
+      '</div>' +
+      '</article>';
+  };
+
+  boite.innerHTML = '<div class="ac-out-grille">' + liste.map(carte).join('') + '</div>';
+
+  boite.querySelectorAll('[data-out-ouvrir]').forEach((el) =>
+    el.addEventListener('click', () => ouvrirRessource(Number(el.dataset.outOuvrir))));
+  boite.querySelectorAll('[data-out-dl]').forEach((el) => {
+    const r = liste.find((x) => x.id === Number(el.dataset.outDl));
+    if (r) el.addEventListener('click', () => telechargerRessource(r));
+  });
+}
+
+const ressourceDe = (id) => ((outils && outils.ressources) || []).find((x) => x.id === id) || null;
+
+// Ouvrir. UN LIEN EXTERNE S'OUVRE DIRECTEMENT : lui inventer une page de détail
+// ajouterait un clic pour ne rien montrer de plus que ce que la carte dit déjà.
+// Les trois autres ont quelque chose à afficher, donc un écran.
+async function ouvrirRessource(id) {
+  const r = ressourceDe(id);
+  if (!r) return;
+  if (r.type === 'lien') {
+    if (r.url) window.open(r.url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  outilsVue = r;
+  outilsErreur = '';
+  rendreOutilsDetail();
+  // Les octets arrivent APRÈS le premier rendu : l'écran s'affiche tout de
+  // suite avec son titre et son cadre, et le document s'y pose quand il est là.
+  // L'inverse ferait patienter devant une page blanche.
+  if (r.type === 'pdf' || r.type === 'image') {
+    try {
+      const url = await fichierRessource(r.id);
+      if (outilsVue && outilsVue.id === r.id) poserFichierVue(r, url);
+    } catch (_) {
+      const z = $('#acOutVisu');
+      if (z) z.innerHTML = '<p class="ac-video-non">Ce fichier n\'a pas pu être chargé.</p>';
+    }
+  }
+}
+
+function poserFichierVue(r, url) {
+  const z = $('#acOutVisu');
+  if (!z) return;
+  z.innerHTML = r.type === 'pdf'
+    ? '<iframe class="ac-out-pdf" src="' + url + '" title="' + echapper(r.titre) + '"></iframe>'
+    : '<img class="ac-out-img" src="' + url + '" alt="' + echapper(r.titre) + '" />';
+}
+
+function rendreOutilsDetail() {
+  const r = outilsVue;
+  const cats = (outils && outils.categories) || [];
+  const nomCat = (r.categorie && (cats.find((x) => x.cle === r.categorie) || {}).libelle) || '';
+
+  // La vidéo se lit avec EXACTEMENT le même lecteur que les contenus de
+  // formation — youtube-nocookie, mêmes autorisations. Deux lecteurs pour une
+  // seule sorte de vidéo finiraient par se comporter différemment.
+  const visuel = r.type === 'video'
+    ? (r.youtubeId
+      ? '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(r.youtubeId) + '?rel=0" ' +
+        'title="' + echapper(r.titre) + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture" ' +
+        'referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>'
+      : '<p class="ac-video-non">Cette vidéo n\'est pas encore disponible.</p>')
+    : '<p class="ac-out-charge">Chargement du document…</p>';
+
+  $('#acOutils').innerHTML =
+    '<button type="button" class="ec-back" id="acOutBack">← Boîte à outils</button>' +
+
+    '<div class="ac-out-vue-tete">' +
+      '<span class="ac-out-ic ac-out-ic-g" aria-hidden="true">' + iconeType(r.type, 22) + '</span>' +
+      '<div>' +
+        '<h1 class="ec-t ac-out-vue-h1">' + echapper(r.titre) + '</h1>' +
+        '<p class="ac-out-vue-m">' + echapper(libelleType(r.type)) +
+          (nomCat ? ' · ' + echapper(nomCat) : '') +
+          (r.fichier ? ' · ' + echapper(poidsLisible(r.fichier.taille)) : '') + '</p>' +
+      '</div>' +
+    '</div>' +
+
+    (r.description ? '<p class="ac-out-vue-d">' + echapper(r.description) + '</p>' : '') +
+
+    '<div class="ac-out-visu ac-out-visu-' + echapper(r.type) + '" id="acOutVisu">' + visuel + '</div>' +
+
+    (r.fichier
+      ? '<div class="ac-out-vue-actions">' +
+          '<button type="button" class="ec-btn ec-btn-p" id="acOutDl">Télécharger</button>' +
+        '</div>'
+      : '');
+
+  const b = $('#acOutBack');
+  if (b) b.addEventListener('click', () => { outilsVue = null; rendreOutils(); });
+  const dl = $('#acOutDl');
+  if (dl) dl.addEventListener('click', () => telechargerRessource(r));
+
+  rendreCompte();
+  rendreBarreLaterale('outils');
+  afficher('#acOutils');
+  window.scrollTo(0, 0);
+}
+
+// =============================================================================
+//  ADMINISTRATION DE LA BOÎTE À OUTILS
+//
+//  Quatre gestes, comme partout ailleurs dans cet écran : ajouter, modifier,
+//  archiver, réordonner. Plus un cinquième qui n'existe NULLE PART AILLEURS
+//  dans l'Academy — supprimer pour de bon. Il est légitime ici et seulement
+//  ici : aucune progression, aucune tentative, aucune évaluation ne pointe vers
+//  une ressource, donc il n'y a rien à emporter en cascade. Il demande tout de
+//  même une confirmation : effacer un fichier de 15 Mo ne se rattrape pas.
+// =============================================================================
+
+let admOutils = null;        // { categories, ressources } — tout, archivées comprises
+let admOutilsEdition = null; // la fiche ouverte en saisie, ou null
+let admOutilsCat = false;    // le panneau des catégories est-il déplié ?
+let admOutilsCatEdit = null; // la catégorie en cours de renommage, ou null
+let admOutilsCatAvert = null; // la catégorie garnie dont l'archivage est à confirmer
+let admOutilsSuppr = null;   // l'id en attente de confirmation de suppression
+let admOutilsFichier = null; // { fichierId, nom, taille, type } — le fichier envoyé
+
+async function chargerAdminOutils() {
+  const r = await apiAc('/api/academy/admin/ressources');
+  admOutils = r.data && r.data.ok ? r.data : { categories: [], ressources: [] };
+}
+
+// Toute écriture répond avec la bibliothèque à jour : l'écran ne devine jamais
+// le nouvel état, il le reçoit. Même règle que l'arbre des contenus.
+function encaisserOutils(r) {
+  if (!r.data.ok) { admErreur = r.data.error || 'Enregistrement impossible.'; return false; }
+  admErreur = '';
+  admOutils = { categories: r.data.categories || [], ressources: r.data.ressources || [] };
+  return true;
+}
+
+function rendreAdminOutils() {
+  const cats = (admOutils && admOutils.categories) || [];
+  const liste = (admOutils && admOutils.ressources) || [];
+  const nomCat = (c) => (cats.find((x) => x.cle === c) || {}).libelle || '';
+
+  if (admOutilsEdition) return rendreFormulaireRessource(cats);
+
+  // Les fiches groupées par catégorie : c'est l'ensemble dans lequel
+  // l'ordre a un sens, et c'est donc l'ensemble que les flèches déplacent.
+  const groupes = cats.map((c) => [c.cle, c.libelle, liste.filter((r) => r.categorie === c.cle)])
+    .concat([[null, 'Sans catégorie', liste.filter((r) => !r.categorie)]])
+    .filter(([, , l]) => l.length);
+
+  const ligne = (r, i, n) =>
+    '<div class="ac-adm-l' + (r.actif ? '' : ' ac-adm-l-off') + '">' +
+      '<span class="ac-out-ic ac-out-ic-s" aria-hidden="true">' + iconeType(r.type, 16) + '</span>' +
+      '<span class="ac-adm-l-t">' + echapper(r.titre) +
+        (r.actif ? '' : ' <i class="ac-adm-brouillon">archivée</i>') +
+        '<i class="ac-adm-l-s">' + echapper(libelleType(r.type)) +
+          (r.fichier ? ' · ' + echapper(r.fichier.nom) + ' · ' + echapper(poidsLisible(r.fichier.taille)) : '') +
+          (r.type === 'video' && r.youtubeId ? ' · ' + echapper(r.youtubeId) : '') +
+          (r.type === 'lien' && r.url ? ' · ' + echapper(r.url) : '') +
+        '</i></span>' +
+      '<span class="ac-adm-actions">' +
+        (i === 0 ? '' : '<button type="button" class="ec-btn ac-adm-b ac-adm-fleche" data-out="monter" data-id="' + r.id + '">↑</button>') +
+        (i === n - 1 ? '' : '<button type="button" class="ec-btn ac-adm-b ac-adm-fleche" data-out="descendre" data-id="' + r.id + '">↓</button>') +
+        '<button type="button" class="ec-btn ac-adm-b" data-out="modifier" data-id="' + r.id + '">Modifier</button>' +
+        '<button type="button" class="ec-btn ac-adm-b' + (r.actif ? ' ac-adm-danger' : '') + '" data-out="archiver"' +
+          ' data-id="' + r.id + '" data-actif="' + (r.actif ? '0' : '1') + '">' +
+          (r.actif ? 'Archiver' : 'Restaurer') + '</button>' +
+        (admOutilsSuppr === r.id
+          ? '<button type="button" class="ec-btn ac-adm-b ac-adm-danger" data-out="supprimer-ok" data-id="' + r.id + '">Confirmer</button>' +
+            '<button type="button" class="ec-btn ac-adm-b" data-out="annuler-suppr">Annuler</button>'
+          : '<button type="button" class="ec-btn ac-adm-b ac-adm-danger" data-out="supprimer" data-id="' + r.id + '">Supprimer</button>') +
+      '</span>' +
+      (admOutilsSuppr === r.id
+        ? '<p class="ac-adm-avert">La ressource et son fichier seront effacés définitivement. ' +
+          'Pour la retirer sans la perdre, choisis plutôt « Archiver ».</p>'
+        : '') +
+    '</div>';
+
+  return '<p class="ec-sub">Les ressources pratiques de l\'Academy. ' +
+      '<b>Une ressource n\'est pas une formation</b> : elle ne crée ni progression, ni QCM, ' +
+      'ni évaluation, ni certification — elle est simplement mise à disposition.</p>' +
+
+    '<div class="ac-adm-outils-barre">' +
+      '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-out="neuve">+ Ajouter une ressource</button>' +
+      '<button type="button" class="ec-btn ac-adm-b" data-out="cats">' +
+        (admOutilsCat ? 'Masquer les catégories' : 'Gérer les catégories') + '</button>' +
+    '</div>' +
+
+    (admOutilsCat ? rendrePanneauCategories(cats, liste) : '') +
+
+    (groupes.length
+      ? groupes.map(([cle, libelle, l]) =>
+        '<h2 class="ac-eval-t ac-eval-t2">' + echapper(libelle) +
+          '<i class="ac-adm-l-s"> — ' + l.length + ' ressource' + (l.length > 1 ? 's' : '') + '</i></h2>' +
+        '<div class="ac-adm-arbre">' + l.map((r, i) => ligne(r, i, l.length)).join('') + '</div>').join('')
+      : '<div class="ec-vide">Aucune ressource pour le moment.</div>');
+}
+
+// LE GESTIONNAIRE DE CATÉGORIES — quatre gestes, tous réversibles.
+//
+//  Ajouter, renommer, réordonner, archiver. Aucun ne touche à une ressource :
+//  les fiches portent la CLÉ de leur catégorie, et cette clé ne change jamais.
+//  Renommer « Divers » en « Autres » déplace un libellé, pas un classement.
+//
+//  ⚠️ IL N'Y A PAS DE SUPPRESSION, et c'est délibéré. Une catégorie supprimée
+//  laisserait ses ressources pointer vers une clé qui n'existe plus. Archiver
+//  fait ce qu'on attend — elle quitte les filtres — sans rien casser.
+function rendrePanneauCategories(cats, liste) {
+  const compte = (cle) => liste.filter((r) => r.categorie === cle).length;
+
+  const ligne = (c, i) => {
+    const n = compte(c.cle);
+    // Le renommage se fait SUR PLACE. Un formulaire séparé obligerait à
+    // retrouver la ligne qu'on vient de quitter pour vérifier le résultat.
+    if (admOutilsCatEdit === c.cle) {
+      return '<div class="ac-adm-l ac-adm-l-edit">' +
+        '<label class="ec-field ac-adm-cat-champ"><span>Nom de la catégorie</span>' +
+          '<input id="acOutCatNom" type="text" maxlength="80" value="' + echapper(c.libelle) + '" /></label>' +
+        '<span class="ac-adm-actions">' +
+          '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-out="cat-renommer" data-cle="' +
+            echapper(c.cle) + '">Enregistrer</button>' +
+          '<button type="button" class="ec-btn ac-adm-b" data-out="cat-annuler">Annuler</button>' +
+        '</span>' +
+        '<p class="ac-adm-aide">La clé <b>' + echapper(c.cle) + '</b> ne change pas : ' +
+          (n ? 'les ' + n + ' ressource' + (n > 1 ? 's' : '') + ' de cette catégorie ' +
+            (n > 1 ? 'suivent' : 'suit') + ' le nouveau nom.' : 'aucune ressource n\'est concernée.') + '</p>' +
+        '</div>';
+    }
+
+    // L'archivage d'une catégorie GARNIE se confirme, et l'avertissement dit
+    // exactement ce qui arrive — sans quoi « Masquer » sur douze ressources
+    // ressemble à une suppression.
+    const aConfirmer = admOutilsCatAvert === c.cle;
+    return '<div class="ac-adm-l' + (c.actif ? '' : ' ac-adm-l-off') + '">' +
+      '<span class="ac-adm-l-t">' + echapper(c.libelle) +
+        (c.actif ? '' : ' <i class="ac-adm-brouillon">archivée</i>') +
+        '<i class="ac-adm-l-s">' + echapper(c.cle) + ' · ' +
+          (n ? n + ' ressource' + (n > 1 ? 's' : '') : 'aucune ressource') + '</i></span>' +
+      '<span class="ac-adm-actions">' +
+        (i === 0 ? '' : '<button type="button" class="ec-btn ac-adm-b ac-adm-fleche" data-out="cat-monter" data-cle="' + echapper(c.cle) + '">↑</button>') +
+        (i === cats.length - 1 ? '' : '<button type="button" class="ec-btn ac-adm-b ac-adm-fleche" data-out="cat-descendre" data-cle="' + echapper(c.cle) + '">↓</button>') +
+        '<button type="button" class="ec-btn ac-adm-b" data-out="cat-modifier" data-cle="' + echapper(c.cle) + '">Renommer</button>' +
+        (aConfirmer
+          ? '<button type="button" class="ec-btn ac-adm-b ac-adm-danger" data-out="cat-archiver-ok" data-cle="' +
+              echapper(c.cle) + '" data-actif="0">Confirmer</button>' +
+            '<button type="button" class="ec-btn ac-adm-b" data-out="cat-annuler">Annuler</button>'
+          : '<button type="button" class="ec-btn ac-adm-b' + (c.actif ? ' ac-adm-danger' : '') + '"' +
+              ' data-out="cat-archiver" data-cle="' + echapper(c.cle) + '"' +
+              ' data-actif="' + (c.actif ? '0' : '1') + '" data-n="' + n + '">' +
+              (c.actif ? 'Archiver' : 'Réactiver') + '</button>') +
+      '</span>' +
+      (aConfirmer
+        ? '<p class="ac-adm-avert"><b>Aucune ressource ne sera supprimée.</b> Les ' + n +
+          ' ressource' + (n > 1 ? 's' : '') + ' de « ' + echapper(c.libelle) + ' » rest' +
+          (n > 1 ? 'ent' : 'e') + ' consultable' + (n > 1 ? 's' : '') + ' dans la bibliothèque et gard' +
+          (n > 1 ? 'ent' : 'e') + ' cette catégorie ; elle disparaît seulement du filtre, ' +
+          'et revient si tu la réactives.</p>'
+        : '') +
+      '</div>';
+  };
+
+  return '<div class="ac-adm-form ac-adm-cats">' +
+    '<h3 class="ac-adm-form-t">Catégories</h3>' +
+    '<p class="ac-adm-aide">Elles disent <b>à quel domaine</b> appartient une ressource — à ne pas ' +
+      'confondre avec son <b>type</b>, qui dit sous quelle forme elle se présente (PDF, image, ' +
+      'vidéo, lien). Tu peux en ajouter, les renommer, les réordonner et les archiver : ' +
+      'l\'ordre ci-dessous est celui du filtre que voient les utilisateurs.</p>' +
+    '<div class="ac-adm-arbre">' + cats.map(ligne).join('') + '</div>' +
+    '<div class="ac-adm-cats-neuve">' +
+      '<label class="ec-field"><span>Nouvelle catégorie</span>' +
+        '<input id="acOutCatLib" type="text" maxlength="80" placeholder="Ex. : Juridique" /></label>' +
+      '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-out="cat-ajouter">Ajouter</button>' +
+    '</div>' +
+    '</div>';
+}
+
+// LE FORMULAIRE SUIT LE TYPE. Un PDF n'a pas d'URL, un lien n'a pas de fichier :
+// montrer les quatre champs à chaque fois obligerait à deviner lesquels
+// comptent. Changer le type re-rend le formulaire, en gardant la saisie.
+function rendreFormulaireRessource(cats) {
+  const r = admOutilsEdition;
+  const neuve = !r.id;
+  const type = r.type || 'pdf';
+  const champsDuType =
+    type === 'video'
+      ? '<label class="ec-field"><span>Vidéo YouTube</span>' +
+          '<input id="acOutYt" type="text" maxlength="200" placeholder="URL de la vidéo ou identifiant" value="' +
+            echapper(r.youtubeId || '') + '" /></label>' +
+        '<p class="ac-adm-aide">Colle l\'adresse complète (youtube.com/watch?v=… ou youtu.be/…) ' +
+          'ou seulement l\'identifiant de 11 caractères.</p>'
+    : type === 'lien'
+      ? '<label class="ec-field"><span>Adresse du lien</span>' +
+          '<input id="acOutUrl" type="url" maxlength="2000" placeholder="https://…" value="' +
+            echapper(r.url || '') + '" /></label>'
+    : '<label class="ec-field"><span>' + (type === 'pdf' ? 'Fichier PDF' : 'Image (JPG, PNG ou WebP)') + '</span>' +
+        '<input id="acOutFichier" type="file" accept="' +
+          (type === 'pdf' ? 'application/pdf' : 'image/jpeg,image/png,image/webp') + '" /></label>' +
+      '<p class="ac-adm-aide">' +
+        (admOutilsFichier
+          ? 'Nouveau fichier prêt : <b>' + echapper(admOutilsFichier.nom) + '</b> (' +
+            echapper(poidsLisible(admOutilsFichier.taille)) + ').'
+          : r.fichier
+            ? 'Fichier actuel : <b>' + echapper(r.fichier.nom) + '</b> (' +
+              echapper(poidsLisible(r.fichier.taille)) + '). Laisse vide pour le conserver.'
+            : 'Choisis le fichier depuis ton ordinateur. 20 Mo au maximum.') +
+      '</p>';
+
+  return '<h2 class="ac-adm-form-t">' + (neuve ? 'Nouvelle ressource' : 'Modifier la ressource') + '</h2>' +
+    '<div class="ac-adm-form">' +
+      '<label class="ec-field"><span>Type de ressource</span><select id="acOutType2">' +
+        TYPES_RESSOURCE.map(([k, l]) => '<option value="' + k + '"' + (type === k ? ' selected' : '') + '>' +
+          echapper(l) + '</option>').join('') +
+      '</select></label>' +
+
+      '<label class="ec-field"><span>Titre</span>' +
+        '<input id="acOutTitre" type="text" maxlength="160" value="' + echapper(r.titre || '') + '" /></label>' +
+
+      '<label class="ec-field"><span>Description courte</span>' +
+        '<textarea id="acOutDesc" rows="3" maxlength="600" placeholder="À quoi sert cette ressource, en une ou deux phrases.">' +
+          echapper(r.description || '') + '</textarea></label>' +
+
+      '<label class="ec-field"><span>Catégorie</span><select id="acOutCat2">' +
+        '<option value="">— aucune —</option>' +
+        cats.map((c) => '<option value="' + echapper(c.cle) + '"' +
+          ((r.categorie || '') === c.cle ? ' selected' : '') + '>' + echapper(c.libelle) +
+          (c.actif ? '' : ' (masquée)') + '</option>').join('') +
+      '</select></label>' +
+
+      champsDuType +
+
+      '<div class="ac-adm-form-b">' +
+        '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-out="enregistrer">Enregistrer</button>' +
+        '<button type="button" class="ec-btn ac-adm-b" data-out="annuler">Annuler</button>' +
+      '</div>' +
+    '</div>';
+}
+
+// Le formulaire lu à l'écran. On garde la saisie en cours au changement de
+// type : choisir « Vidéo » après avoir écrit un titre ne doit pas l'effacer.
+function lireFormulaireRessource() {
+  const r = admOutilsEdition || {};
+  const el = (id) => $(id);
+  return {
+    id: r.id,
+    type: (el('#acOutType2') || {}).value || r.type || 'pdf',
+    titre: el('#acOutTitre') ? champ('#acOutTitre') : (r.titre || ''),
+    description: el('#acOutDesc') ? champ('#acOutDesc') : (r.description || ''),
+    categorie: el('#acOutCat2') ? (el('#acOutCat2').value || '') : (r.categorie || ''),
+    youtubeId: el('#acOutYt') ? champ('#acOutYt') : (r.youtubeId || ''),
+    url: el('#acOutUrl') ? champ('#acOutUrl') : (r.url || ''),
+    fichier: r.fichier || null,
+  };
+}
+
+// L'ENVOI DU FICHIER EST UN APPEL À PART, en corps brut. Il précède
+// l'enregistrement de la fiche : le serveur répond un identifiant, que le
+// formulaire renvoie ensuite. Rien n'est écrit dans la bibliothèque tant que la
+// fiche elle-même n'est pas enregistrée.
+async function envoyerFichierRessource(fichier) {
+  const res = await fetch('/api/academy/admin/ressources/fichier?nom=' + encodeURIComponent(fichier.name), {
+    method: 'POST',
+    headers: {
+      ...(session ? { Authorization: 'Bearer ' + session.token } : {}),
+      'Content-Type': fichier.type || 'application/octet-stream',
+    },
+    body: fichier,
+  });
+  let d = null;
+  try { d = await res.json(); } catch (_) { /* réponse non JSON */ }
+  return { status: res.status, data: d || {} };
+}
+
+async function agirSurRessource(el) {
+  const geste = el.dataset.out;
+  const id = Number(el.dataset.id);
+  admErreur = '';
+
+  // Les gestes qui ne touchent qu'à l'écran.
+  if (geste === 'cats') {
+    admOutilsCat = !admOutilsCat;
+    admOutilsCatEdit = null; admOutilsCatAvert = null;
+    rendreAdmin();
+    return;
+  }
+  // Les gestes du panneau de catégories qui ne touchent qu'à l'écran.
+  if (geste === 'cat-modifier') { admOutilsCatEdit = el.dataset.cle; admOutilsCatAvert = null; rendreAdmin(); return; }
+  if (geste === 'cat-annuler') { admOutilsCatEdit = null; admOutilsCatAvert = null; rendreAdmin(); return; }
+  if (geste === 'annuler') { admOutilsEdition = null; admOutilsFichier = null; rendreAdmin(); return; }
+  if (geste === 'supprimer') { admOutilsSuppr = id; rendreAdmin(); return; }
+  if (geste === 'annuler-suppr') { admOutilsSuppr = null; rendreAdmin(); return; }
+  if (geste === 'neuve') {
+    admOutilsEdition = { type: 'pdf', titre: '', description: '', categorie: '' };
+    admOutilsFichier = null;
+    rendreAdmin();
+    return;
+  }
+  if (geste === 'modifier') {
+    const r = ((admOutils && admOutils.ressources) || []).find((x) => x.id === id);
+    if (r) { admOutilsEdition = { ...r }; admOutilsFichier = null; rendreAdmin(); }
+    return;
+  }
+
+  // Monter / descendre : on échange deux voisins DANS LA MÊME catégorie,
+  // puis on envoie la liste entière. Le serveur réécrit tous les rangs d'un
+  // coup — incrémenter au coup par coup laisserait des doublons.
+  if (geste === 'monter' || geste === 'descendre') {
+    const toutes = (admOutils && admOutils.ressources) || [];
+    const r = toutes.find((x) => x.id === id);
+    if (!r) return;
+    const freres = toutes.filter((x) => (x.categorie || null) === (r.categorie || null));
+    const i = freres.findIndex((x) => x.id === id);
+    const j = geste === 'monter' ? i - 1 : i + 1;
+    if (j < 0 || j >= freres.length) return;
+    const ids = freres.map((x) => x.id);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    const rep = await apiAc('/api/academy/admin/ressources/ordre', 'POST', { ids });
+    if (rep.status === 401) { deconnecter(); return; }
+    encaisserOutils(rep);
+    rendreAdmin();
+    return;
+  }
+
+  // « archiver » et non « basculer » : le geste des CONTENUS porte déjà ce
+  // second nom, et deux aiguillages qui répondent au même mot finissent par se
+  // confondre — dans le code comme dans les tests qui le découpent.
+  if (geste === 'archiver') {
+    const rep = await apiAc('/api/academy/admin/ressources/archiver', 'POST',
+      { id, actif: el.dataset.actif === '1' });
+    if (rep.status === 401) { deconnecter(); return; }
+    encaisserOutils(rep);
+    rendreAdmin();
+    return;
+  }
+
+  if (geste === 'supprimer-ok') {
+    const rep = await apiAc('/api/academy/admin/ressources/supprimer', 'POST', { id });
+    if (rep.status === 401) { deconnecter(); return; }
+    admOutilsSuppr = null;
+    encaisserOutils(rep);
+    rendreAdmin();
+    return;
+  }
+
+  // ARCHIVER UNE CATÉGORIE. Vide, ou qu'on réactive : rien à confirmer, le
+  // geste est sans conséquence. Garnie : on montre d'abord ce qui arrive à ses
+  // ressources — c'est le seul endroit où quelqu'un pourrait croire qu'il
+  // supprime, et il ne supprime pas.
+  if (geste === 'cat-archiver') {
+    const versArchive = el.dataset.actif === '0';
+    if (versArchive && Number(el.dataset.n) > 0) {
+      admOutilsCatAvert = el.dataset.cle;
+      admOutilsCatEdit = null;
+      rendreAdmin();
+      return;
+    }
+  }
+  if (geste === 'cat-archiver' || geste === 'cat-archiver-ok') {
+    const rep = await apiAc('/api/academy/admin/ressources/categories/archiver', 'POST',
+      { cle: el.dataset.cle, actif: el.dataset.actif === '1' });
+    if (rep.status === 401) { deconnecter(); return; }
+    admOutilsCatAvert = null;
+    encaisserOutils(rep);
+    rendreAdmin();
+    return;
+  }
+
+  // RENOMMER. On renvoie la MÊME clé : c'est elle que portent les ressources,
+  // et c'est ce qui fait qu'aucune ne se détache de sa catégorie.
+  if (geste === 'cat-renommer') {
+    const libelle = champ('#acOutCatNom');
+    if (!libelle) { admErreur = 'Donne un nom à la catégorie.'; rendreAdmin(); return; }
+    const rep = await apiAc('/api/academy/admin/ressources/categories', 'POST',
+      { cle: el.dataset.cle, libelle });
+    if (rep.status === 401) { deconnecter(); return; }
+    if (encaisserOutils(rep)) admOutilsCatEdit = null;
+    rendreAdmin();
+    return;
+  }
+
+  // RÉORDONNER. On échange deux voisines et on renvoie la liste entière : le
+  // serveur réécrit tous les rangs d'un coup. Cette route ne lit aucune
+  // ressource — changer l'ordre du filtre ne peut pas déplacer une fiche.
+  if (geste === 'cat-monter' || geste === 'cat-descendre') {
+    const cats = (admOutils && admOutils.categories) || [];
+    const i = cats.findIndex((c) => c.cle === el.dataset.cle);
+    const j = geste === 'cat-monter' ? i - 1 : i + 1;
+    if (i < 0 || j < 0 || j >= cats.length) return;
+    const cles = cats.map((c) => c.cle);
+    [cles[i], cles[j]] = [cles[j], cles[i]];
+    const rep = await apiAc('/api/academy/admin/ressources/categories/ordre', 'POST', { cles });
+    if (rep.status === 401) { deconnecter(); return; }
+    encaisserOutils(rep);
+    rendreAdmin();
+    return;
+  }
+
+  if (geste === 'cat-ajouter') {
+    const libelle = champ('#acOutCatLib');
+    if (!libelle) { admErreur = 'Donne un nom à la catégorie.'; rendreAdmin(); return; }
+    // La clé se dérive du libellé : personne ne devrait avoir à inventer un
+    // identifiant technique pour ajouter « Juridique ».
+    const cle = libelle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+    const rep = await apiAc('/api/academy/admin/ressources/categories', 'POST', { cle, libelle });
+    if (rep.status === 401) { deconnecter(); return; }
+    encaisserOutils(rep);
+    rendreAdmin();
+    return;
+  }
+
+  if (geste === 'enregistrer') {
+    const saisie = lireFormulaireRessource();
+    if (!saisie.titre) { admErreur = 'Le titre de la ressource est requis.'; admOutilsEdition = saisie; rendreAdmin(); return; }
+
+    // Le fichier part EN PREMIER, et seulement s'il y en a un de nouveau.
+    let fichierId;
+    const input = $('#acOutFichier');
+    const f = input && input.files && input.files[0];
+    if (f) {
+      admErreur = 'Envoi du fichier en cours…';
+      rendreAdmin();
+      const env = await envoyerFichierRessource(f);
+      if (env.status === 401) { deconnecter(); return; }
+      if (!env.data.ok) {
+        admErreur = env.data.error || 'Envoi du fichier impossible.';
+        admOutilsEdition = saisie;
+        rendreAdmin();
+        return;
+      }
+      fichierId = env.data.fichierId;
+      admOutilsFichier = env.data;
+    }
+
+    const corps = {
+      id: saisie.id,
+      type: saisie.type,
+      titre: saisie.titre,
+      description: saisie.description,
+      categorie: saisie.categorie,
+    };
+    if (saisie.type === 'video') corps.youtubeId = saisie.youtubeId;
+    if (saisie.type === 'lien') corps.url = saisie.url;
+    if (fichierId) corps.fichierId = fichierId;
+
+    const rep = await apiAc('/api/academy/admin/ressources', 'POST', corps);
+    if (rep.status === 401) { deconnecter(); return; }
+    if (!encaisserOutils(rep)) { admOutilsEdition = saisie; rendreAdmin(); return; }
+    admOutilsEdition = null;
+    admOutilsFichier = null;
+    rendreAdmin();
+  }
+}
+
 // --- Gestion des évaluateurs (administrateur) ---------------------------------
 //
 //  UN écran, deux gestes : désigner, retirer. Ce n'est pas l'administration de
@@ -2316,6 +3129,13 @@ async function chargerAdminOnglet() {
   // Les certifications ont quitté cet écran : elles vivent dans « Évaluer &
   // certifier », auprès de l'évaluation qu'elles concluent. Les laisser aux
   // deux endroits ferait deux vérités pour un seul geste.
+  if (adminOnglet === 'collaborateurs') {
+    // `tous=1` ramène AUSSI les accès retirés : on doit pouvoir les rendre.
+    const r = await apiAc('/api/academy/admin/collaborateurs');
+    adminCollabs = r.data && r.data.ok ? (r.data.collaborateurs || []) : [];
+    return;
+  }
+  if (adminOnglet === 'outils') { await chargerAdminOutils(); return; }
   if (adminOnglet !== 'contenus') return;
   await chargerAdminFormations();
   await chargerAdminArbre();
@@ -2364,11 +3184,17 @@ function rendreAdmin() {
     '<h1 class="ec-t">Administration My Coach Academy</h1>' +
     rendreOngletsAdmin() +
     '<p class="ac-eval-err" id="acAdmErr" role="alert">' + echapper(admErreur) + '</p>' +
-    (contenus_ ? rendreAdminContenus() : rendrePanneauEvaluateurs());
+    (adminOnglet === 'contenus' ? rendreAdminContenus()
+      : adminOnglet === 'outils' ? rendreAdminOutils()
+      : adminOnglet === 'collaborateurs' ? rendreAdminCollaborateurs()
+      : rendrePanneauEvaluateurs());
 
   // Changer d'onglet RELIT les données : l'état de publication d'une formation
   // naît ailleurs — dans une autre session — et un onglet qui réaffiche sa
   // mémoire le manquerait.
+  document.querySelectorAll('#acAdmin [data-adm^="collab-"]').forEach((el) =>
+    el.addEventListener('click', () => agirSurCollaborateur(el.dataset.adm, el.dataset.mail)));
+
   document.querySelectorAll('#acAdmin [data-onglet]').forEach((el) =>
     el.addEventListener('click', async () => {
       adminOnglet = el.dataset.onglet;
@@ -2394,6 +3220,22 @@ function rendreAdmin() {
 
   document.querySelectorAll('#acAdmin [data-adm]').forEach((el) =>
     el.addEventListener('click', () => agirSurContenus(el)));
+
+  // L'onglet Boîte à outils a ses propres gestes. Un attribut distinct
+  // (`data-out`) plutôt que d'élargir `data-adm` : les deux écrans n'ont ni les
+  // mêmes objets ni les mêmes routes, et un seul aiguillage pour les deux
+  // finirait par confondre une ressource et un contenu de module.
+  document.querySelectorAll('#acAdmin [data-out]').forEach((el) =>
+    el.addEventListener('click', () => agirSurRessource(el)));
+
+  // Changer le type de ressource re-rend le formulaire — les champs ne sont
+  // pas les mêmes — EN GARDANT la saisie déjà faite : choisir « Vidéo » après
+  // avoir écrit un titre ne doit pas l'effacer.
+  const tr = $('#acOutType2');
+  if (tr) tr.addEventListener('change', () => {
+    admOutilsEdition = { ...lireFormulaireRessource(), type: tr.value };
+    rendreAdmin();
+  });
 
   // Revenir à sa propre formation. On repasse par le catalogue PUBLIÉ : il a pu
   // changer sous les pieds de l'administrateur — c'est justement lui qui vient
@@ -2444,6 +3286,47 @@ function ligneCompte(c) {
     (enRetrait ? '<p class="ac-adm-avert">Ce compte ne pourra plus enregistrer d\'évaluation pratique. ' +
       'Les évaluations qu\'il a déjà prononcées restent dans l\'historique.</p>' : '') +
     '</div>';
+}
+
+// Les gestes de l'onglet Collaborateurs. Ils passent TOUS par
+// la route d'administration des collaborateurs, qui délègue côté serveur à la
+// table `boost_collaborateurs` — la seule que l'Academy consulte pour ouvrir
+// sa porte. L'écran, lui, ne sort jamais du domaine Academy.
+async function agirSurCollaborateur(geste, mail) {
+  admErreur = '';
+  if (geste === 'collab-retirer') { collabARetirer = mail; rendreAdmin(); return; }
+  if (geste === 'collab-annuler') { collabARetirer = null; rendreAdmin(); return; }
+
+  let email = mail;
+  let role = 'collaborateur';
+
+  if (geste === 'collab-ajouter') {
+    email = champ('#acCoMail').toLowerCase();
+    if (!email) { admErreur = 'Saisis l\'adresse e-mail du collaborateur.'; rendreAdmin(); return; }
+    if (!emailPlausible(email)) { admErreur = 'Cette adresse e-mail n\'est pas valide.'; rendreAdmin(); return; }
+    // Le doublon est écarté ICI, avec un message utile : la route accepterait
+    // un second appel sans rien changer, mais l'administrateur croirait avoir
+    // ajouté quelqu'un.
+    const deja = (adminCollabs || []).find((c) => c.email === email);
+    if (deja && deja.etat === 'actif') { admErreur = 'Ce collaborateur a déjà accès à l\'Academy.'; rendreAdmin(); return; }
+    if (deja && deja.etat === 'en_attente') { admErreur = 'Cette adresse est déjà autorisée : le compte n\'est pas encore créé.'; rendreAdmin(); return; }
+  }
+  if (geste === 'collab-confirmer') role = 'client';   // retirer l'accès
+
+  const r = await apiAc('/api/academy/admin/collaborateurs', 'POST', { email, role });
+  if (r.status === 401) { deconnecter(); return; }
+  if (!r.data.ok) {
+    // Le refus vient du serveur — compte inexistant, par exemple — et il dit
+    // pourquoi. On le montre tel quel plutôt que de le réécrire.
+    admErreur = r.data.error || 'Modification impossible.';
+    collabARetirer = null;
+    rendreAdmin();
+    return;
+  }
+  collabARetirer = null;
+  // La liste à jour repart avec la réponse : l'écran ne devine pas l'état.
+  adminCollabs = r.data.collaborateurs || adminCollabs;
+  rendreAdmin();
 }
 
 async function agirSurCompte(email, action) {
@@ -2551,11 +3434,110 @@ function rendreCarteCertification(c) {
 //  RETRAIT reste un geste d'administrateur, et le bouton n'apparaît que si le
 //  serveur a dit `peutRetirer` — on ne dessine pas ce qu'il refuserait.
 
+// ============================================================================
+//  L'ONGLET COLLABORATEURS
+//
+//  IL NE CRÉE AUCUN DROIT NOUVEAU. Il pilote `boost_collaborateurs` par les
+//  routes d'administration des collaborateurs, gardées par exigeAdmin, qui
+//  délèguent côté serveur aux fonctions du Boost. Un second système de droits, même bien intentionné, finirait par
+//  diverger de celui-ci — et un coach perdrait son accès sans qu'on sache
+//  lequel des deux l'a décidé.
+//
+//  ⚠️ ON NE SUPPRIME JAMAIS UN COMPTE. Retirer l'accès, c'est `actif = 0` : la
+//  ligne reste, et progressions, tentatives et certifications restent en base.
+//  Rendre l'accès plus tard les retrouve intactes.
+// ============================================================================
+
+// Le format retenu est volontairement permissif : c'est le serveur qui tranche,
+// et lui seul sait si le compte existe. On écarte ici la faute de frappe
+// évidente, pas davantage.
+const emailPlausible = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim());
+
+function rendreAdminCollaborateurs() {
+  const l = adminCollabs || [];
+  const actifs = l.filter((c) => c.etat === 'actif');
+  const attente = l.filter((c) => c.etat === 'en_attente');
+  const retires = l.filter((c) => c.etat === 'retire');
+
+  const ligne = (c) => {
+    const enConfirmation = collabARetirer === c.email;
+    const attente_ = c.etat === 'en_attente';
+    const LIB = { actif: 'Actif', en_attente: 'En attente', retire: 'Accès retiré' };
+    const quand = { actif: 'ajouté le ', en_attente: 'autorisée le ', retire: 'retiré le ' };
+    return '<div class="ac-adm-ligne' + (c.etat === 'actif' ? '' : ' ac-adm-off') + '">' +
+      '<span class="ac-l-t"><b>' + echapper(c.prenom || c.email) + '</b>' +
+        '<span class="ac-eval-mail">' + echapper(c.email) +
+          (c.majLe ? ' · ' + quand[c.etat] + dateFr(c.majLe) : '') +
+          (attente_ ? ' · compte pas encore créé' : '') +
+        '</span></span>' +
+      '<span class="ac-eval-etat ' + (c.etat === 'actif' ? 'ac-etat-theorie-validee' : '') + '">' +
+        LIB[c.etat] + '</span>' +
+      '<span class="ac-adm-actions">' +
+        (c.etat === 'retire'
+          ? '<button type="button" class="ec-btn ac-adm-b" data-adm="collab-rendre"' +
+              ' data-mail="' + echapper(c.email) + '">Rendre l\'accès</button>'
+          : '<button type="button" class="ec-btn ac-adm-b ac-adm-danger" data-adm="collab-retirer"' +
+              ' data-mail="' + echapper(c.email) + '">' +
+              (attente_ ? 'Supprimer l\'autorisation' : 'Retirer l\'accès') + '</button>') +
+      '</span></div>' +
+      // La confirmation est EXPLICITE et nomme la personne : un retrait ferme
+      // l'Academy à l'appel suivant.
+      (enConfirmation
+        ? '<div class="ac-adm-form ac-adm-form-in">' +
+            '<p class="ac-adm-manque">' + (attente_
+              ? 'Supprimer l\'autorisation de ' + echapper(c.email) + ' ?'
+              : 'Retirer l\'accès de ' + echapper(c.email) + ' à My Coach Academy ?') + '</p>' +
+            '<p class="ac-adm-aide">' + (attente_
+              ? 'Aucun compte n\'existe encore à cette adresse : rien d\'autre n\'est supprimé. ' +
+                'Tu pourras la réautoriser à tout moment.'
+              : 'Son compte n\'est pas supprimé. Sa progression, ses tentatives et ses certifications ' +
+                'restent en base : rendre l\'accès plus tard les retrouvera intactes.') + '</p>' +
+            '<div class="ac-adm-actions ac-adm-actions-form">' +
+              '<button type="button" class="ec-btn ac-adm-b ac-adm-danger" data-adm="collab-confirmer"' +
+                ' data-mail="' + echapper(c.email) + '">Confirmer le retrait</button>' +
+              '<button type="button" class="ec-btn ac-adm-b" data-adm="collab-annuler">Annuler</button>' +
+            '</div></div>'
+        : '');
+  };
+
+  return '<p class="ac-qcm-s">Les collaborateurs actifs accèdent à <b>Mon Academy</b> avec les droits ' +
+      'd\'un coach. Aucun droit d\'administration ni d\'évaluation n\'est accordé ici.</p>' +
+
+    '<div class="ac-adm-form">' +
+      '<label class="ec-field"><span>Adresse e-mail</span>' +
+        '<input id="acCoMail" type="email" autocomplete="off" placeholder="prenom@exemple.fr" /></label>' +
+      '<p class="ac-adm-aide">Le compte n\'a pas besoin d\'exister : tu peux autoriser une adresse ' +
+        'à l\'avance. Le statut Collaborateur sera accordé dès la création de l\'espace.</p>' +
+      '<div class="ac-adm-actions ac-adm-actions-form">' +
+        '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="collab-ajouter">+ Ajouter un collaborateur</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<h2 class="ac-eval-t ac-eval-t2">Collaborateurs autorisés</h2>' +
+    '<div class="ac-adm-arbre">' +
+      (actifs.length ? actifs.map(ligne).join('')
+        : '<div class="ec-vide">Aucun collaborateur autorisé pour le moment.</div>') +
+    '</div>' +
+
+    (attente.length
+      ? '<h2 class="ac-eval-t ac-eval-t2">En attente de création de compte</h2>' +
+        '<p class="ac-adm-aide">Ces adresses sont autorisées. Le statut Collaborateur sera accordé ' +
+          'automatiquement dès que la personne créera son espace avec exactement cette adresse.</p>' +
+        '<div class="ac-adm-arbre">' + attente.map(ligne).join('') + '</div>'
+      : '') +
+
+    (retires.length
+      ? '<h2 class="ac-eval-t ac-eval-t2">Accès retirés</h2>' +
+        '<div class="ac-adm-arbre">' + retires.map(ligne).join('') + '</div>'
+      : '');
+}
+
 function rendreOngletsAdmin() {
   return '<div class="ac-adm-onglets">' +
-    ['evaluateurs', 'contenus'].map((o) =>
+    ['evaluateurs', 'contenus', 'outils', 'collaborateurs'].map((o) =>
       '<button type="button" class="ac-adm-ong' + (adminOnglet === o ? ' on' : '') + '" data-onglet="' + o + '">' +
-        (o === 'evaluateurs' ? 'Évaluateurs' : 'Contenus') +
+        (o === 'evaluateurs' ? 'Évaluateurs' : o === 'contenus' ? 'Contenus'
+          : o === 'outils' ? 'Boîte à outils' : 'Collaborateurs') +
         '</button>').join('') +
     '</div>';
 }

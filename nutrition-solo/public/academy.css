@@ -1347,3 +1347,148 @@ details.ac-mod-lock .ac-mod-h { cursor: default; }
   .ac-eval-filtre { flex-direction: column; align-items: stretch; }
   .ac-eval-filtre select { max-width: none; }
 }
+
+/* ===========================================================================
+   LA BOÎTE À OUTILS — la bibliothèque de ressources.
+
+   Elle emprunte tout à la carte de formation (mêmes surfaces, même rayon,
+   même ombre) et n'ajoute que ce qui lui est propre : un bandeau de type, un
+   pied d'actions, et les trois visionneuses. Une identité visuelle séparée
+   aurait fait deux Academy dans la même application.
+
+   ⚠️ CE QU'ON NE TROUVE PAS ICI, ET C'EST VOLONTAIRE : ni jauge, ni pastille
+   de statut, ni pourcentage. Une ressource ne se termine pas ; lui donner les
+   attributs visuels d'une formation la ferait passer pour un parcours à
+   suivre, et l'utilisateur chercherait une progression qui n'existe pas.
+   =========================================================================== */
+
+.ac-out-tete { margin-bottom: 4px; }
+.ac-out-h1 { margin-top: 26px; }
+.ac-out-sub { max-width: 62ch; }
+
+/* -- Recherche et filtres --------------------------------------------------- */
+.ac-out-filtres {
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+  margin: 0 0 22px;
+}
+.ac-out-q { position: relative; flex: 1 1 280px; display: block; }
+.ac-out-qic {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  color: var(--text-soft); display: flex; pointer-events: none;
+}
+.ac-out-q input {
+  width: 100%; padding: 11px 13px 11px 38px; border-radius: 10px;
+  border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--text-c); font: inherit;
+}
+.ac-out-q input:focus { outline: 2px solid var(--saphir); outline-offset: 1px; border-color: var(--saphir); }
+.ac-out-sel { display: flex; flex-direction: column; gap: 6px; flex: 0 1 190px; }
+.ac-out-sel span { font-size: .8rem; font-weight: 600; color: var(--text-muted); }
+.ac-out-sel select {
+  padding: 11px 13px; border-radius: 10px; border: 1px solid var(--border-strong);
+  background: var(--surface); color: inherit; font: inherit;
+}
+
+/* -- La grille de cartes ---------------------------------------------------- */
+.ac-out-grille {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 18px; align-content: start; margin-bottom: 40px;
+}
+.ac-out-c {
+  background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 18px;
+  /* La colonne en `flex` avec le pied poussé en bas : les boutons de toutes les
+     cartes d'une même rangée s'alignent, quelle que soit la longueur du
+     résumé. Sans ça, une bibliothèque homogène ne l'est qu'à l'écriture. */
+  display: flex; flex-direction: column; min-height: 232px;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.ac-out-c:hover { border-color: var(--saphir); }
+.ac-out-c-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+
+/* La pastille d'icône reprend la teinte du type. Quatre familles, quatre
+   couleurs — c'est le repère qu'on lit avant même le titre. */
+.ac-out-ic {
+  flex: 0 0 auto; width: 38px; height: 38px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--saphir-soft); color: var(--saphir-on-soft);
+}
+.ac-out-ic-g { width: 46px; height: 46px; border-radius: 13px; }
+.ac-out-ic-s { width: 28px; height: 28px; border-radius: 9px; }
+.ac-out-c-pdf .ac-out-ic { background: #FDEBEC; color: #B3261E; }
+.ac-out-c-image .ac-out-ic { background: var(--sage-soft); color: var(--sage-on-soft); }
+.ac-out-c-video .ac-out-ic { background: var(--saphir-soft); color: var(--saphir-on-soft); }
+.ac-out-c-lien .ac-out-ic { background: #FBF0DC; color: #8A6A12; }
+
+.ac-out-badge {
+  font-size: .74rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ac-out-t { font-size: 1.02rem; font-weight: 700; color: var(--marine); line-height: 1.3; margin: 0 0 7px; }
+.ac-out-d {
+  font-size: .87rem; color: var(--text-muted); line-height: 1.5; margin: 0 0 12px;
+  /* Trois lignes au maximum : c'est ce qui garde les cartes comparables. Le
+     texte entier reste lisible sur l'écran de la ressource. */
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ac-out-m {
+  display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px;
+  /* `auto` sur la marge du haut : le méta et les actions restent collés au bas
+     de la carte, quelle que soit la hauteur du résumé. */
+  margin-top: auto;
+}
+.ac-out-cat, .ac-out-poids {
+  font-size: .76rem; padding: 3px 9px; border-radius: 999px;
+  background: var(--surface-soft); border: 1px solid var(--border-c); color: var(--text-muted);
+}
+.ac-out-actions { display: flex; gap: 8px; }
+.ac-out-b { flex: 1 1 auto; }
+.ac-out-b2 { flex: 0 0 auto; padding: 10px 13px; font-size: .84rem; }
+
+/* -- L'écran d'une ressource ------------------------------------------------ */
+.ac-out-vue-tete { display: flex; align-items: center; gap: 14px; margin: 22px 0 8px; }
+.ac-out-vue-h1 { margin: 0; font-size: 1.42rem; }
+.ac-out-vue-m { font-size: .84rem; color: var(--text-muted); margin: 4px 0 0; }
+.ac-out-vue-d { color: var(--text-muted); font-size: .95rem; line-height: 1.6; margin: 0 0 18px; max-width: 70ch; }
+.ac-out-visu {
+  background: var(--surface); border: 1px solid var(--border-c); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow: hidden; margin-bottom: 18px;
+}
+.ac-out-charge { padding: 60px 20px; text-align: center; color: var(--text-muted); margin: 0; }
+/* Le PDF a besoin de hauteur : sous 70 vh on ne lit qu'un quart de page et on
+   passe son temps à faire défiler deux barres imbriquées. */
+.ac-out-pdf { display: block; width: 100%; height: 74vh; min-height: 460px; border: 0; }
+.ac-out-img { display: block; width: 100%; height: auto; max-height: 78vh; object-fit: contain; background: var(--surface-soft); }
+.ac-out-visu-video { position: relative; padding-top: 56.25%; height: 0; }
+.ac-out-visu-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.ac-out-visu-video .ac-video-non { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.ac-out-vue-actions { display: flex; gap: 10px; margin-bottom: 40px; }
+.ac-out-vue-actions .ec-btn-p { width: auto; padding: 11px 22px; }
+
+/* -- Administration --------------------------------------------------------- */
+.ac-adm-outils-barre { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 18px; }
+.ac-adm-outils-barre .ec-btn-p { width: auto; }
+.ac-adm-cats { border: 1px solid var(--border-c); border-radius: var(--radius); padding: 18px; margin-bottom: 22px; background: var(--surface-soft); }
+.ac-adm-cats-neuve { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+.ac-adm-cats-neuve .ec-field { flex: 1 1 220px; margin-bottom: 0; }
+.ac-adm-cats-neuve .ec-btn-p { width: auto; }
+.ac-adm-form-b { display: flex; gap: 10px; margin-top: 14px; }
+.ac-adm-form-b .ec-btn-p { width: auto; }
+.ac-adm-l-off { opacity: .62; }
+.ac-adm-l-t { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+.ac-adm-l-s { font-style: normal; font-size: .79rem; color: var(--text-soft); font-weight: 400; word-break: break-word; }
+
+@media (max-width: 620px) {
+  .ac-out-filtres { flex-direction: column; align-items: stretch; }
+  .ac-out-sel { flex: 1 1 auto; }
+  .ac-out-grille { grid-template-columns: 1fr; }
+  .ac-out-pdf { height: 62vh; min-height: 340px; }
+  .ac-out-actions { flex-direction: column; }
+  .ac-out-b2 { width: 100%; }
+}
+
+/* La ligne d'une catégorie en cours de renommage : le champ prend la place du
+   nom, les actions restent à droite, et l'aide passe dessous. */
+.ac-adm-l-edit { flex-wrap: wrap; row-gap: 10px; }
+.ac-adm-cat-champ { flex: 1 1 220px; margin-bottom: 0; }
+.ac-adm-cat-champ input { width: 100%; }

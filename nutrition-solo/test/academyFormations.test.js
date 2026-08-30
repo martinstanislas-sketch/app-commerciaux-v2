@@ -240,7 +240,13 @@ test('aucun ALTER TABLE users', () => {
 test('LES CATÉGORIES SONT UNE LISTE FERMÉE, déclarée à UN SEUL endroit', () => {
   const { CATEGORIES, categorieValide } = require('../lib/academyFormations');
   assert.deepStrictEqual(CATEGORIES,
-    ['essentiel', 'signature', 'expertise', 'management', 'boite_a_outils']);
+    ['essentiel', 'signature', 'expertise', 'management']);
+  // ⚠️ « boite_a_outils » A QUITTÉ CETTE LISTE et ne doit pas y revenir : elle
+  // désigne désormais une BIBLIOTHÈQUE DE RESSOURCES (lib/academyRessources.js),
+  // pas une famille de formations. L'y remettre permettrait de classer un
+  // parcours certifiant dans un onglet qui n'affiche que des documents.
+  assert.strictEqual(categorieValide('boite_a_outils'), false,
+    'la Boîte à outils n\'est plus une catégorie de formation');
   for (const c of CATEGORIES) assert.strictEqual(categorieValide(c), true, c);
   for (const c of ['premium', 'ESSENTIEL', 'Signature', '', null, undefined, 'boite a outils']) {
     assert.strictEqual(categorieValide(c), false, JSON.stringify(c));
@@ -261,7 +267,7 @@ test('une catégorie inconnue est REFUSÉE, et le refus dit ce qui est attendu',
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.status, 400);
   assert.match(r.body.error, /premium/);
-  assert.match(r.body.error, /essentiel, signature, expertise, management, boite_a_outils/);
+  assert.match(r.body.error, /essentiel, signature, expertise, management/);
   assert.strictEqual(registre().lire('cat_ko'), null, 'rien ne doit avoir été écrit');
 });
 
@@ -314,7 +320,7 @@ test('AUCUNE FORMATION N\'EST NOMMÉE dans la logique de catégorisation', () =>
   const code = src.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
   // `coach_nutrition` figure légitimement dans l'amorçage historique. Ce qu'on
   // interdit, c'est qu'une clé de formation apparaisse à côté d'une catégorie.
-  for (const c of ['essentiel', 'signature', 'expertise', 'management', 'boite_a_outils']) {
+  for (const c of ['essentiel', 'signature', 'expertise', 'management']) {
     const lignes = code.split('\n').filter((l) => l.includes(c));
     for (const l of lignes) {
       assert.ok(!/cycle_menstruel|prevenir_decrochage|mouvements_fondamentaux|savoir_etre/.test(l),

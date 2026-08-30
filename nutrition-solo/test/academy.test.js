@@ -486,20 +486,34 @@ const entreesNav = (() => {
 })();
 const ic = new Proxy({}, { get: () => '<svg/>' });
 
-test('un coach sans droit ne voit QU\'UNE entrée : Mon Academy', () => {
-  assert.deepStrictEqual(entreesNav(false, false, ic), ['academy'],
-    'plus de « Mes formations » ni « Mes certifications »');
+test('un coach sans droit voit ses DEUX destinations, et pas une de plus', () => {
+  // « Mes formations » et « Mes certifications » ont disparu — elles menaient
+  // au même écran que « Mon Academy ». La Boîte à outils, elle, EST un autre
+  // écran : un autre contenu, d'autres gestes, aucune progression. C'est une
+  // destination, pas un troisième nom pour la grille des formations.
+  assert.deepStrictEqual(entreesNav(false, false, ic), ['academy', 'outils'],
+    'plus de « Mes formations » ni « Mes certifications » ; la Boîte à outils reste');
 });
 
 test('« Évaluer & certifier » n\'apparaît QUE pour qui a le droit d\'évaluer', () => {
-  assert.deepStrictEqual(entreesNav(true, false, ic), ['academy', 'evaluer']);
+  assert.deepStrictEqual(entreesNav(true, false, ic), ['academy', 'outils', 'evaluer']);
   assert.ok(!entreesNav(false, false, ic).includes('evaluer'), 'un coach simple ne la voit pas');
 });
 
 test('« Administrer » n\'apparaît QUE pour un administrateur', () => {
-  assert.deepStrictEqual(entreesNav(false, true, ic), ['academy', 'administrer']);
-  assert.deepStrictEqual(entreesNav(true, true, ic), ['academy', 'evaluer', 'administrer']);
+  assert.deepStrictEqual(entreesNav(false, true, ic), ['academy', 'outils', 'administrer']);
+  assert.deepStrictEqual(entreesNav(true, true, ic), ['academy', 'outils', 'evaluer', 'administrer']);
   assert.ok(!entreesNav(true, false, ic).includes('administrer'), 'un évaluateur non admin ne la voit pas');
+});
+
+test('la Boîte à outils est ouverte à TOUS ceux qui entrent dans l\'Academy', () => {
+  // Elle ne dépend d'aucun droit supplémentaire : un collaborateur ordinaire y
+  // accède, comme l'évaluateur et l'administrateur. Le serveur garde la même
+  // porte que le catalogue (exigeEntree) — l'écran ne fait que le suivre.
+  for (const [ev, adm] of [[false, false], [true, false], [false, true], [true, true]]) {
+    assert.ok(entreesNav(ev, adm, ic).includes('outils'),
+      `la Boîte à outils manque pour eval=${ev} admin=${adm}`);
+  }
 });
 
 test('les DESTINATIONS restent, seules les entrées disparaissent', () => {

@@ -73,6 +73,24 @@ CREATE TABLE IF NOT EXISTS academy_contenus (
 CREATE INDEX IF NOT EXISTS idx_academy_contenus ON academy_contenus(module_id, ordre);
 CREATE INDEX IF NOT EXISTS idx_academy_modules_f ON academy_modules(formation, actif, ordre);
 
+-- LA SALLE D'ATTENTE DE L'ACADEMY.
+--
+-- « boost_collaborateurs.email » porte une clé étrangère vers « users » : la table
+-- refuse STRUCTURELLEMENT une adresse sans compte. On ne peut donc pas y
+-- pré-inscrire quelqu'un — et il ne faut pas y toucher, c'est cette contrainte
+-- qui garantit qu'un droit ne flotte jamais sans titulaire.
+--
+-- Cette table-ci n'accorde AUCUN droit. Elle mémorise une intention : « quand
+-- ce compte existera, il sera collaborateur ». La promotion se fait à la
+-- création du compte, PAR boost.definirRole — le seul chemin qui écrit un
+-- droit. Il n'y a toujours qu'un système de droits ; celui-ci a juste une
+-- file d'attente.
+CREATE TABLE IF NOT EXISTS academy_preautorisations (
+  email    TEXT PRIMARY KEY,
+  cree_le  TEXT NOT NULL,
+  cree_par TEXT
+);
+
 -- Progression individuelle. DEUX dates distinctes, et c'est tout l'enjeu :
 -- ouvrir un contenu n'est pas l'avoir terminé. Confondre les deux ferait d'un
 -- clic malheureux une formation validée.
@@ -238,6 +256,55 @@ function createAcademy({ getDb, nowIso, boost, formations }) {
     return boost.estCollaborateur(boost.lireUtilisateur(email));
   }
 
+  // -- La préautorisation ----------------------------------------------------
+  const normMail = (e) => String(e || '').trim().toLowerCase();
+
+  function listerPreautorisations() {
+    assurerSchema();
+    return db().prepare('SELECT email, cree_le AS creeLe, cree_par AS creePar FROM academy_preautorisations ORDER BY email')
+      .all();
+  }
+
+  // Autoriser une adresse. DEUX CAS, et un seul résultat visible :
+  //  · le compte existe  -> on accorde le droit TOUT DE SUITE, par definirRole ;
+  //  · il n'existe pas   -> on mémorise l'intention, sans accorder aucun droit.
+  function preautoriser(email, par) {
+    assurerSchema();
+    const mail = normMail(email);
+    if (!mail) return { ok: false, status: 400, body: { ok: false, error: 'Adresse e-mail requise.' } };
+
+    if (boost.lireUtilisateur(mail)) {
+      const r = boost.definirRole(mail, 'collaborateur', par);
+      // Le compte ayant été créé entre-temps, une éventuelle ligne d'attente
+      // n'a plus d'objet : on la retire pour qu'elle ne repromeuve jamais.
+      if (r.ok) db().prepare('DELETE FROM academy_preautorisations WHERE email = ?').run(mail);
+      return r;
+    }
+    db().prepare(`INSERT INTO academy_preautorisations (email, cree_le, cree_par) VALUES (?,?,?)
+                  ON CONFLICT(email) DO NOTHING`).run(mail, nowIso(), par || null);
+    return { ok: true, status: 200, body: { ok: true, enAttente: true } };
+  }
+
+  function retirerPreautorisation(email) {
+    assurerSchema();
+    const info = db().prepare('DELETE FROM academy_preautorisations WHERE email = ?').run(normMail(email));
+    return { ok: true, status: 200, body: { ok: true, retirees: info.changes } };
+  }
+
+  // Appelée à CHAQUE connexion réussie. Elle n'agit que si une intention a été
+  // posée, et elle consomme la ligne : un accès retiré plus tard ne peut donc
+  // pas se rétablir tout seul à la connexion suivante.
+  function promouvoirSiPreautorise(email, par) {
+    assurerSchema();
+    const mail = normMail(email);
+    const attendu = db().prepare('SELECT email FROM academy_preautorisations WHERE email = ?').get(mail);
+    if (!attendu) return false;
+    const r = boost.definirRole(mail, 'collaborateur', par || 'préautorisation');
+    if (!r.ok) return false;
+    db().prepare('DELETE FROM academy_preautorisations WHERE email = ?').run(mail);
+    return true;
+  }
+
   // -- Lecture de la formation ---------------------------------------------
 
   function modulesActifs(formation) {
@@ -387,6 +454,7 @@ function createAcademy({ getDb, nowIso, boost, formations }) {
 
   return {
     assurerSchema, amorcer, peutSeFormer,
+    listerPreautorisations, preautoriser, retirerPreautorisation, promouvoirSiPreautorise,
     formationPour, lireContenu, ouvrirContenu, terminerContenu,
     positionDe, progressionDe, modulesActifs, cleFormation,
   };

@@ -41,7 +41,7 @@ const SEUIL_MIN = 0, SEUIL_MAX = 100;
 // dans des URL : on la tient courte et sans surprise.
 // LES CATÉGORIES DU CATALOGUE. Une liste FERMÉE, et un seul endroit qui la
 // connaît : l'administration, l'import et l'écran coach la lisent tous ici. Le
-// jour où une sixième arrive, elle s'ajoute sur cette ligne et nulle part
+// jour où une cinquième arrive, elle s'ajoute sur cette ligne et nulle part
 // ailleurs — c'est ce qui interdit qu'une formation soit un jour classée par du
 // code plutôt que par sa donnée.
 //
@@ -49,7 +49,19 @@ const SEUIL_MIN = 0, SEUIL_MAX = 100;
 // antérieures n'en ont pas, et personne ne doit leur en inventer une. Sans
 // catégorie, une formation reste entière — elle n'apparaît simplement dans
 // aucun onglet de catégorie, seulement dans « toutes ».
-const CATEGORIES = ['essentiel', 'signature', 'expertise', 'management', 'boite_a_outils'];
+//
+// ⚠️ « boite_a_outils » A QUITTÉ CETTE LISTE, et c'est le geste central du lot
+// Boîte à outils. Elle y désignait une famille de FORMATIONS ; elle désigne
+// désormais une BIBLIOTHÈQUE DE RESSOURCES, qui a ses propres tables, ses
+// propres sous-catégories et son propre écran (lib/academyRessources.js). La
+// laisser ici aurait permis de classer une formation — avec sa progression,
+// son QCM et sa certification — dans un onglet qui n'affiche plus que des
+// documents : deux natures sous un seul nom, et l'une des deux invisible.
+//
+// AUCUNE DONNÉE N'EST CONCERNÉE : la catégorie n'a jamais été attribuée à une
+// formation. Si une base en portait une malgré tout, elle serait simplement
+// sans catégorie à l'écran — jamais perdue, jamais réécrite (cf. definir).
+const CATEGORIES = ['essentiel', 'signature', 'expertise', 'management'];
 const categorieValide = (v) => CATEGORIES.includes(String(v || ''));
 
 const CLE_RE = /^[a-z][a-z0-9_]{2,39}$/;

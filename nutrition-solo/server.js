@@ -62,6 +62,7 @@ const { createAcademyPratique } = require('./lib/academyPratique');
 const { createAcademyFormations, COACH_NUTRITION } = require('./lib/academyFormations');
 const { createAcademyCertifications } = require('./lib/academyCertifications');
 const { createAcademyAdmin } = require('./lib/academyAdmin');
+const { createAcademyRessources } = require('./lib/academyRessources');
 const { createAmorcageCycleMenstruel } = require('./lib/academyAmorcageCycleMenstruel');
 const { createAmorcagePrevenirDecrochage } = require('./lib/academyAmorcagePrevenirDecrochage');
 const { createAmorcageMouvementsFondamentaux } = require('./lib/academyAmorcageMouvementsFondamentaux');
@@ -123,6 +124,12 @@ boost.brancherCertificationAcademy((email) => academyCertifications.estCertifie(
 const academyAdmin = createAcademyAdmin({
   getDb, nowIso, academy, qcm: academyQcm, pratique: academyPratique, formations: academyFormations,
 });
+
+// LA BOÎTE À OUTILS. Volontairement SANS aucune dépendance vers les moteurs de
+// parcours : ni academy, ni qcm, ni pratique, ni certifications, ni formations.
+// Ce qu'on ne lui donne pas, elle ne peut pas l'écrire — une bibliothèque de
+// ressources ne doit jamais pouvoir faire avancer une progression.
+const academyRessources = createAcademyRessources({ getDb, nowIso });
 
 // La deuxième formation réelle, « Cycle menstruel & entraînement ». Elle
 // s'amorce comme la banque Coach Nutrition : une seule fois, gardée par son
@@ -355,6 +362,12 @@ app.post('/account/login', (req, res) => {
   const { email, prenom, pin } = req.body || {};
   const r = auth.login({ email, prenom, pin });
   if (!r.ok) return res.status(r.status).json(r.body);
+  // LA PRÉAUTORISATION SE CONSOMME ICI. Si l'administrateur a inscrit cette
+  // adresse à l'avance, le compte qui vient de naître devient collaborateur —
+  // par definirRole, le seul chemin qui écrive un droit. Appelé à chaque
+  // connexion : c'est sans effet quand rien n'attend, et cela rattrape le cas
+  // où l'adresse est autorisée APRÈS la création du compte.
+  try { academy.promouvoirSiPreautorise(r.email); } catch (_) { /* jamais bloquant */ }
   const { token, expire } = auth.creerSession(r.email);
   const u = auth.findUser(r.email);
   res.json({ ...r.body, token, expire, compte: compteVisible(u) });
@@ -754,7 +767,7 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 app.use(creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }));
 app.use(creerRoutesAcademy({ academy, qcm: academyQcm, pratique: academyPratique,
   certifications: academyCertifications, formations: academyFormations, admin: academyAdmin,
-  exigeCompte, exigeAdmin, estAdmin }));
+  ressources: academyRessources, boost, exigeCompte, exigeAdmin, estAdmin }));
 
 // Toute route /api inconnue répond en JSON : sinon Express renvoie du HTML et le
 // front, qui fait systématiquement res.json(), échoue avec une erreur illisible.
@@ -932,6 +945,7 @@ module.exports.academyPratique = academyPratique;
 module.exports.academyCertifications = academyCertifications;
 module.exports.academyFormations = academyFormations;
 module.exports.academyAdmin = academyAdmin;
+module.exports.academyRessources = academyRessources;
 module.exports.academyCycleMenstruel = academyCycleMenstruel;
 module.exports.academyPrevenirDecrochage = academyPrevenirDecrochage;
 module.exports.academyMouvementsFondamentaux = academyMouvementsFondamentaux;

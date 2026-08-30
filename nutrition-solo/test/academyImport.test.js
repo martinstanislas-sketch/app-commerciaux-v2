@@ -455,7 +455,7 @@ test('UNE CATÉGORIE INCONNUE EST UNE ERREUR, dite AVANT toute écriture', async
   const e = r.body.rapport.erreurs.find((x) => x.chemin === 'formation.categorie');
   assert.ok(e, 'l\'erreur doit porter son chemin : ' + JSON.stringify(r.body.rapport.erreurs));
   assert.match(e.message, /premium/);
-  assert.match(e.message, /essentiel, signature, expertise, management, boite_a_outils/);
+  assert.match(e.message, /essentiel, signature, expertise, management/);
   assert.deepStrictEqual(compter(), avant, 'un refus a écrit quelque chose');
 
   // Et l'écriture la refuse aussi, pour son propre compte.
@@ -481,8 +481,21 @@ test('une catégorie ABSENTE est un AVERTISSEMENT, jamais un blocage', async () 
 });
 
 test('la casse et les espaces d\'une catégorie sont normalisés', async () => {
-  const j = jsonValide('import_cat_casse', { formation: { categorie: '  Boite_A_Outils ' } });
+  const j = jsonValide('import_cat_casse', { formation: { categorie: '  Management ' } });
   const r = await importer(j, false);
   assert.strictEqual(r.status, 200, r.txt.slice(0, 300));
-  assert.strictEqual(r.body.formation.categorie, 'boite_a_outils');
+  assert.strictEqual(r.body.formation.categorie, 'management');
+});
+
+test('un import ne peut plus classer une formation en « Boîte à outils »', async () => {
+  // La bascule du lot : ce n'est plus une catégorie de formation. Un JSON écrit
+  // avant le changement doit être REFUSÉ avec un message qui le dit, pas
+  // silencieusement rangé dans une famille qui n'affiche plus de formations.
+  const j = jsonValide('import_cat_outils', { formation: { categorie: 'boite_a_outils' } });
+  const r = await importer(j, true);
+  assert.strictEqual(r.status, 400);
+  const e = r.body.rapport.erreurs.find((x) => x.chemin === 'formation.categorie');
+  assert.ok(e, 'le refus doit porter son chemin');
+  assert.match(e.message, /boite_a_outils/);
+  assert.strictEqual(app.academyFormations.lire('import_cat_outils'), null);
 });

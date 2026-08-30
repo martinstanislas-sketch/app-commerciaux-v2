@@ -878,6 +878,7 @@ test('l\'écran n\'appelle que les routes du lot', () => {
       '/api/academy/admin/archiver',      // lot 6 : archiver / restaurer
       '/api/academy/admin/cas',           // étape 2 : le référentiel d'évaluation, administrable
       '/api/academy/admin/certifications',
+      '/api/academy/admin/collaborateurs', // qui entre dans l'Academy — délègue au Boost
       '/api/academy/admin/contenus',
       '/api/academy/admin/evaluateurs',
       '/api/academy/admin/formations',
@@ -885,6 +886,9 @@ test('l\'écran n\'appelle que les routes du lot', () => {
       '/api/academy/admin/modules',
       '/api/academy/admin/ordre',
       '/api/academy/admin/questions',
+      // Boîte à outils : la bibliothèque de ressources. Elle n'ouvre AUCUNE
+      // route de parcours — ni arbre, ni progression, ni certification.
+      '/api/academy/admin/ressources',
     ],
     'une autre route d\'administration a été ouverte : ' + admin.join(', '));
 });
