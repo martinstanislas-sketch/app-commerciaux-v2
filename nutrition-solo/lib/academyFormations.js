@@ -39,6 +39,19 @@ const SEUIL_MIN = 0, SEUIL_MAX = 100;
 
 // Une clé de formation sert de valeur dans une dizaine de colonnes et voyage
 // dans des URL : on la tient courte et sans surprise.
+// LES CATÉGORIES DU CATALOGUE. Une liste FERMÉE, et un seul endroit qui la
+// connaît : l'administration, l'import et l'écran coach la lisent tous ici. Le
+// jour où une sixième arrive, elle s'ajoute sur cette ligne et nulle part
+// ailleurs — c'est ce qui interdit qu'une formation soit un jour classée par du
+// code plutôt que par sa donnée.
+//
+// La catégorie est NULLABLE, et ce n'est pas un oubli : les formations
+// antérieures n'en ont pas, et personne ne doit leur en inventer une. Sans
+// catégorie, une formation reste entière — elle n'apparaît simplement dans
+// aucun onglet de catégorie, seulement dans « toutes ».
+const CATEGORIES = ['essentiel', 'signature', 'expertise', 'management', 'boite_a_outils'];
+const categorieValide = (v) => CATEGORIES.includes(String(v || ''));
+
 const CLE_RE = /^[a-z][a-z0-9_]{2,39}$/;
 const cleValide = (v) => CLE_RE.test(String(v || ''));
 
@@ -67,6 +80,11 @@ CREATE TABLE IF NOT EXISTS academy_formations (
   pratique_obligatoire INTEGER NOT NULL DEFAULT 1,
   certification_active INTEGER NOT NULL DEFAULT 1,
   reflet_boost         INTEGER NOT NULL DEFAULT 0,
+  -- La présentation de la formation, telle que l'administration la saisit.
+  -- Nullable : une formation peut très bien n'avoir que son libellé.
+  description          TEXT,
+  -- La grande famille du catalogue. NULLABLE : voir CATEGORIES ci-dessus.
+  categorie            TEXT,
   cree_le              TEXT NOT NULL,
   maj_le               TEXT NOT NULL
 );
@@ -100,6 +118,13 @@ function createAcademyFormations({ getDb, nowIso }) {
     // à 80 % — ce qu'elle aurait eu si le mini avait existé dès l'origine.
     ajouterColonne(d, 'academy_formations', 'mini_nb_questions', 'INTEGER NOT NULL DEFAULT 5');
     ajouterColonne(d, 'academy_formations', 'mini_seuil_pct', 'INTEGER NOT NULL DEFAULT 80');
+    // La description arrive après coup, donc NULLABLE et sans défaut : une
+    // formation déjà en service n'en a pas, et n'a aucune raison d'en inventer.
+    ajouterColonne(d, 'academy_formations', 'description', 'TEXT');
+    // La catégorie arrive après coup. Nullable et SANS DÉFAUT : attribuer
+    // d'office « essentiel » à quatre formations en service serait décider à la
+    // place de celui qui les a écrites.
+    ajouterColonne(d, 'academy_formations', 'categorie', 'TEXT');
     basesMigrees.add(d);
     amorcer();
     return true;
@@ -138,6 +163,8 @@ function createAcademyFormations({ getDb, nowIso }) {
   const vue = (r) => (r ? {
     cle: r.cle,
     libelle: r.libelle,
+    description: r.description || null,
+    categorie: r.categorie || null,
     titre: r.titre_certifie || null,
     ordre: r.ordre,
     actif: !!r.actif,
@@ -207,6 +234,26 @@ function createAcademyFormations({ getDb, nowIso }) {
     if (!libelle) return err(400, 'Le libellé de la formation est requis.');
 
     const existante = lire(cle);
+    // Facultative. Absente d'un corps de requête, elle NE S'EFFACE PAS : régler
+    // un seuil ne doit pas emporter la présentation du parcours.
+    const description = d.description === undefined
+      ? (existante ? existante.description : null)
+      : (String(d.description || '').trim().slice(0, 2000) || null);
+    // MÊME RÈGLE QUE LA DESCRIPTION, et elle est le vrai piège de ce lot :
+    // ABSENTE DU CORPS, LA CATÉGORIE NE S'EFFACE PAS. Le formulaire de réglages
+    // n'envoie pas tous les champs ; sans cette garde, enregistrer un seuil
+    // déclasserait la formation sans que personne ne l'ait demandé.
+    let categorie;
+    if (d.categorie === undefined) {
+      categorie = existante ? existante.categorie : null;
+    } else if (d.categorie === null || String(d.categorie).trim() === '') {
+      categorie = null;                       // « — aucune — », un choix légitime
+    } else {
+      categorie = String(d.categorie).trim().toLowerCase();
+      if (!categorieValide(categorie)) {
+        return err(400, `Catégorie inconnue : « ${categorie} ». Attendu : ${CATEGORIES.join(', ')}.`);
+      }
+    }
     const entier = (v, defaut, min, max) => {
       if (v === undefined || v === null || v === '') return defaut;
       const n = Number(v);
@@ -232,18 +279,19 @@ function createAcademyFormations({ getDb, nowIso }) {
 
     const maintenant = nowIso();
     db().prepare(`INSERT INTO academy_formations
-        (cle, libelle, titre_certifie, ordre, actif, qcm_nb_questions, qcm_seuil_pct,
+        (cle, libelle, description, categorie, titre_certifie, ordre, actif, qcm_nb_questions, qcm_seuil_pct,
          mini_nb_questions, mini_seuil_pct,
          pratique_obligatoire, certification_active, reflet_boost, cree_le, maj_le)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(cle) DO UPDATE SET libelle = excluded.libelle,
+          description = excluded.description, categorie = excluded.categorie,
           titre_certifie = excluded.titre_certifie, ordre = excluded.ordre, actif = excluded.actif,
           qcm_nb_questions = excluded.qcm_nb_questions, qcm_seuil_pct = excluded.qcm_seuil_pct,
           mini_nb_questions = excluded.mini_nb_questions, mini_seuil_pct = excluded.mini_seuil_pct,
           pratique_obligatoire = excluded.pratique_obligatoire,
           certification_active = excluded.certification_active,
           reflet_boost = excluded.reflet_boost, maj_le = excluded.maj_le`)
-      .run(cle, libelle, titre || null, ordre,
+      .run(cle, libelle, description, categorie, titre || null, ordre,
         drapeau(d.actif, existante ? existante.actif : true) ? 1 : 0,
         nb, seuil, miniNb, miniSeuil,
         drapeau(d.pratiqueObligatoire, existante ? existante.pratiqueObligatoire : true) ? 1 : 0,
@@ -281,4 +329,5 @@ const aColonne = (d, table, nom) =>
 module.exports = {
   createAcademyFormations, ajouterColonne, aColonne,
   COACH_NUTRITION, AMORCE, cleValide,
+  CATEGORIES, categorieValide,
 };

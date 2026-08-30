@@ -272,6 +272,9 @@
   .ac-adm-actions { margin-left: 0; flex-direction: column; }
   .ac-adm-actions .ec-btn { width: 100%; }
   .ac-eval-etat { align-self: flex-start; }
+  /* Le retrait du groupe mange une largeur qu'on n'a plus à 390 px : on garde
+     le liseré, qui porte le lien au module, et on rend l'indentation. */
+  .ac-adm-groupe { padding-left: 8px; }
 }
 
 @media (max-width: 520px) {
@@ -334,6 +337,13 @@
    qu'on lit après coup. */
 .ac-adm-manque { color: #B3261E; font-weight: 700; }
 .ac-adm-off { opacity: .55; }
+
+/* Les mini-QCM se lisent SOUS leur module : le rattachement est la seule chose
+   qui décide où une question sera tirée, il doit donc se voir sans le chercher.
+   Le liseré tient ce lien à l'œil, y compris quand le groupe est vide. */
+.ac-adm-groupe { border-left: 2px solid var(--sable, #E7E0D6); padding-left: 12px; margin-bottom: 4px; }
+.ac-adm-groupe-t { border-bottom: 1px solid var(--sable, #E7E0D6); padding-bottom: 6px; }
+.ac-adm-groupe-t .ac-l-t b { font-size: .88rem; text-transform: uppercase; letter-spacing: .02em; }
 .ac-adm-plus { border-style: dashed; width: 100%; margin-top: 8px; }
 .ac-adm-fleche { padding: 8px 10px; font-weight: 700; }
 .ac-adm-choix-l { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
@@ -1213,4 +1223,127 @@ details.ac-mod-lock .ac-mod-h { cursor: default; }
   line-height: 1.55;
   max-height: 340px;
   overflow-y: auto;
+}
+
+/* L'import. Le rapport se lit AVANT d'écrire : il occupe donc la place, et les
+   erreurs portent leur chemin en monospace pour se retrouver dans le JSON. */
+.ac-imp-rapport { margin: 12px 0; padding: 12px 14px; border-radius: 12px; background: var(--surface-2, #F6F2EC); }
+.ac-imp-ok { color: #1E6B4E; font-weight: 700; margin: 0 0 6px; }
+.ac-imp-l { margin: 6px 0 12px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.ac-imp-l code { font-size: .82rem; background: var(--surface, #FFF); padding: 1px 5px; border-radius: 5px; }
+.ac-imp-err { color: #B3261E; }
+.ac-imp-avert { opacity: .8; }
+.ac-adm-form #acImpJson { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
+
+@media (max-width: 520px) {
+  /* Le rapport reste lisible : le chemin passe à la ligne plutôt que de
+     pousser la page en largeur. */
+  .ac-imp-rapport { padding: 10px; }
+  .ac-imp-l { padding-left: 14px; }
+  .ac-imp-l code { overflow-wrap: anywhere; }
+}
+
+/* ---------------------------------------------------------------------------
+   LE RAIL DE CATÉGORIES, au-dessus du catalogue du coach.
+
+   Il reprend EXACTEMENT le motif de .ac-sel-b (le sélecteur de formation de
+   l'administration) : même pilule, même saphir à l'état actif. Une navigation
+   de plus ne devait pas amener une charte de plus.
+   --------------------------------------------------------------------------- */
+.ac-cats {
+  display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+}
+.ac-cat {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted);
+  border-radius: 999px; padding: 8px 14px; font: inherit; font-size: .86rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: border-color .12s ease, background .12s ease, color .12s ease;
+}
+.ac-cat:hover { border-color: var(--saphir); }
+.ac-cat.on { background: var(--saphir); border-color: var(--saphir); color: #fff; }
+.ac-cat:focus-visible { outline: 2px solid var(--saphir); outline-offset: 2px; }
+/* Le compteur : il dit tout de suite si une famille est vide, sans cliquer. */
+.ac-cat-n {
+  font-style: normal; font-size: .74rem; font-weight: 700;
+  background: var(--surface-2, #F0EBE3); color: var(--text-muted);
+  border-radius: 999px; padding: 1px 7px; min-width: 20px; text-align: center;
+}
+.ac-cat.on .ac-cat-n { background: rgba(255, 255, 255, .22); color: #fff; }
+
+@media (max-width: 520px) {
+  /* À 390 px, six pilules ne tiennent pas sur deux lignes sans hacher la page :
+     le rail DÉFILE, comme les onglets d'administration. */
+  .ac-cats {
+    flex-wrap: nowrap; overflow-x: auto; margin-inline: -16px; padding: 0 16px 4px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .ac-cats::-webkit-scrollbar { display: none; }
+  .ac-cat { flex: 0 0 auto; }
+}
+
+/* ---------------------------------------------------------------------------
+   « ÉVALUER & CERTIFIER » — la file de travail.
+
+   Une GRILLE, pas un tableau HTML : sept colonnes sur écran large, des lignes
+   empilées et étiquetées sur téléphone. Les couleurs, la typographie et les
+   composants (.ac-kpi, .ac-eval-etat, .ec-btn) sont ceux de l'Academy — on
+   change la hiérarchie de l'information, pas l'identité.
+   --------------------------------------------------------------------------- */
+.ac-kpis-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.ac-eval-filtre {
+  display: flex; align-items: center; gap: 10px;
+  font-size: .84rem; color: var(--text-muted); margin: 0 0 14px;
+}
+.ac-eval-filtre select {
+  font: inherit; font-size: .88rem; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  max-width: 320px;
+}
+
+.ac-evt { display: flex; flex-direction: column; }
+.ac-evr {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.6fr) minmax(120px, 1.2fr) 90px 80px 90px 150px minmax(120px, auto);
+  align-items: center; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+/* L'en-tête reprend le ton des sous-titres : il guide, il ne pèse pas. */
+.ac-evr-h {
+  font-size: .74rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--border-strong);
+  padding-bottom: 8px;
+}
+.ac-evr-c { min-width: 0; font-size: .88rem; }
+.ac-evr-coach { display: flex; flex-direction: column; gap: 2px; }
+.ac-evr-coach b { color: var(--marine); }
+.ac-evr-coach i { font-style: normal; }
+.ac-evr-form { color: var(--text-muted); }
+.ac-evr-act { display: flex; justify-content: flex-end; }
+.ac-eval-act { padding: 7px 14px; font-size: .84rem; white-space: nowrap; }
+
+@media (max-width: 900px) {
+  /* Sous 900 px les sept colonnes ne tiennent plus : la ligne devient une
+     fiche empilée, et chaque valeur porte son étiquette — sans quoi « 10 / 10 »
+     ne voudrait plus rien dire une fois l'en-tête disparu. */
+  .ac-evr-h { display: none; }
+  .ac-evr {
+    grid-template-columns: 1fr auto; gap: 6px 12px;
+    padding: 14px 0;
+  }
+  .ac-evr-coach { grid-column: 1 / -1; }
+  .ac-evr-form { grid-column: 1 / -1; font-size: .82rem; }
+  .ac-evr-c[data-l] { display: flex; gap: 6px; }
+  .ac-evr-c[data-l]::before {
+    content: attr(data-l) " :"; color: var(--text-muted); font-size: .82rem;
+  }
+  .ac-evr-act { grid-column: 1 / -1; justify-content: flex-start; margin-top: 6px; }
+  .ac-eval-act { width: 100%; }
+}
+
+@media (max-width: 520px) {
+  .ac-kpis-3 { grid-template-columns: 1fr; }
+  .ac-eval-filtre { flex-direction: column; align-items: stretch; }
+  .ac-eval-filtre select { max-width: none; }
 }

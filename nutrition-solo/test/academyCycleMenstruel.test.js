@@ -229,12 +229,29 @@ test('les six cas portent tous leurs CONSIGNES, et aucune n\'est vide', () => {
 test('« À repasser notamment si » reste un texte, JAMAIS une règle logicielle', () => {
   // Le moteur ne lit pas les consignes : il les stocke et les affiche. Le
   // verdict reste les deux boutons de l'évaluateur.
+  //
+  // ⚠️ LE MÉCANISME DE CE TEST A CHANGÉ, PAS SON INTENTION. Il cherchait
+  // l'ABSENCE DU MOT « consignes » dans le moteur, ce qui tenait tant que
+  // `academyPratique` ne faisait que les relire. Depuis que l'administration
+  // sait ÉCRIRE un cas, le mot y figure forcément — et une liste d'exceptions
+  // à rallonge finirait par ne plus rien garder du tout.
+  //
+  // On vérifie donc ce qui a toujours été le vrai sujet, et que l'écriture ne
+  // change en rien : qu'AUCUNE DÉCISION ne soit prise sur leur CONTENU. Stocker
+  // un texte est permis ; le lire pour en tirer un verdict ne l'est pas.
   const moteur = ['lib/academyPratique.js', 'lib/academyCertifications.js'].map((f) =>
     fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
-  assert.ok(!/consignes/.test(moteur.replace(/--.*$/gm, '').replace(/\/\/.*$/gm, '')
-    .replace(/consignes\s+TEXT/g, '').replace(/consignes: r\.consignes \|\| null,/g, '')
-    .replace(/c\.consignes \|\| null/g, '')),
-  'aucune décision du moteur ne doit dépendre du texte des consignes');
+  const code = moteur.replace(/--.*$/gm, '').replace(/\/\/.*$/gm, '');
+  const lignes = code.split('\n').filter((l) => /consignes/.test(l));
+  assert.ok(lignes.length >= 3, 'les consignes doivent bien être stockées et rendues quelque part');
+
+  // Tout ce par quoi un texte devient une règle. Le « ? » est absent de la
+  // liste À DESSEIN : c'est le marqueur de paramètre SQL, pas un branchement.
+  const decision = /\bif\s*\(|\bswitch\s*\(|===|!==|\.includes\(|\.test\(|\.match\(|\.indexOf\(|startsWith|endsWith|RegExp/;
+  for (const l of lignes) {
+    assert.ok(!decision.test(l),
+      'une décision du moteur dépend du texte des consignes : ' + l.trim());
+  }
 });
 
 test('l\'amorçage des consignes est idempotent', () => {

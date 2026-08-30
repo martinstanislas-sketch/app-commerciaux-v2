@@ -310,3 +310,199 @@ test('l\'administration de l\'écran n\'a plus d\'onglet Certifications', () => 
   assert.ok(!/\['evaluateurs', 'certifications', 'contenus'\]/.test(js),
     'l\'onglet Certifications doit avoir quitté l\'administration');
 });
+
+// ===========================================================================
+//  LA FILE DE TRAVAIL — refonte de l'écran « Évaluer & certifier »
+//
+//  CE QUE CES TESTS DÉFENDENT :
+//   1. l'agrégation « toutes les formations » EXISTE et n'altère RIEN du mode
+//      mono-formation ;
+//   2. chaque ligne porte SA formation — un dossier est un couple
+//      (coach, formation), et prononcer sur le mauvais parcours serait la
+//      faute la plus grave de cette page ;
+//   3. les compteurs et l'ordre se déduisent des SEPT statuts existants, sans
+//      qu'aucun ne soit inventé ;
+//   4. `RANG_STATUT` et `fCourante` ne sont pas touchés : d'autres vues en
+//      dépendent.
+// ===========================================================================
+
+const listeToutes = async (jeton) =>
+  (await api('GET', '/api/academy/evaluateur/coachs?formation=toutes', null, jeton)).body;
+
+test('LE MODE MONO-FORMATION EST INCHANGÉ, et chaque ligne porte sa formation', async () => {
+  const d = await liste(jetons[EVA]);
+  assert.strictEqual(d.ok, true);
+  assert.strictEqual(d.toutes, false);
+  assert.ok(d.formation && d.formation.cle, 'la formation courante est toujours servie');
+  assert.ok(Array.isArray(d.formations), 'la liste des formations aussi');
+  assert.ok(d.coachs.length > 0);
+  // L'ajout : la formation sur CHAQUE ligne, en mono comme en agrégé, pour que
+  // l'écran n'ait qu'une seule façon de lire une ligne.
+  for (const c of d.coachs) {
+    assert.strictEqual(c.formation, d.formation.cle, 'ligne sans sa formation : ' + c.email);
+    assert.ok(c.formationLibelle, 'et sans son libellé : ' + c.email);
+  }
+  // Rien d'autre n'a bougé : les champs que l'écran lit sont tous là.
+  const l = ligneDe(d, THEORIE);
+  for (const champ of ['email', 'prenom', 'statut', 'progression', 'theorieValidee',
+    'scoreTheorie', 'pratique', 'certification']) {
+    assert.ok(champ in l, 'champ perdu : ' + champ);
+  }
+});
+
+test('« TOUTES LES FORMATIONS » agrège en UN SEUL appel', async () => {
+  const t = await listeToutes(jetons[EVA]);
+  assert.strictEqual(t.ok, true);
+  assert.strictEqual(t.toutes, true);
+  assert.strictEqual(t.formation, null, '« toutes » n\'a pas de formation courante');
+  assert.ok(t.formations.length >= 1);
+
+  // Le total agrégé vaut la somme des formations publiées : un dossier par
+  // couple (coach, formation), jamais un coach dédoublonné à tort.
+  let attendu = 0;
+  for (const f of t.formations) {
+    const d = (await api('GET', `/api/academy/evaluateur/coachs?formation=${f.cle}`, null, jetons[EVA])).body;
+    attendu += d.coachs.length;
+  }
+  assert.strictEqual(t.coachs.length, attendu);
+  for (const c of t.coachs) {
+    assert.ok(c.formation && c.formationLibelle, 'ligne agrégée sans sa formation : ' + c.email);
+  }
+});
+
+test('l\'agrégation N\'INVENTE AUCUN STATUT ni ne modifie ceux du moteur', async () => {
+  const t = await listeToutes(jetons[EVA]);
+  for (const c of t.coachs) {
+    assert.ok(STATUTS_COACH.includes(c.statut), 'statut inconnu : ' + c.statut);
+  }
+  // Et le statut d'un dossier est le même, agrégé ou non.
+  const mono = await liste(jetons[EVA]);
+  for (const c of mono.coachs) {
+    const agrege = t.coachs.find((x) => x.email === c.email && x.formation === mono.formation.cle);
+    assert.ok(agrege, 'dossier perdu à l\'agrégation : ' + c.email);
+    assert.strictEqual(agrege.statut, c.statut, 'statut divergent pour ' + c.email);
+  }
+});
+
+test('l\'agrégation reste FERMÉE à qui n\'évalue pas', async () => {
+  const r = await api('GET', '/api/academy/evaluateur/coachs?formation=toutes', null, jetons[LEA]);
+  assert.strictEqual(r.status, 403, 'une cliente ne doit pas lire la file de travail');
+});
+
+test('LES TROIS COMPTEURS se calculent sur les statuts réels', async () => {
+  const t = await listeToutes(jetons[EVA]);
+  const compte = (sts) => t.coachs.filter((c) => sts.includes(c.statut)).length;
+  const aEvaluer = compte(['pratique_a_realiser', 'resultat_en_attente', 'pratique_a_repasser']);
+  const aCertifier = compte(['certification_a_delivrer']);
+  const certifies = compte(['certifie']);
+
+  // ⚠️ CE TEST NE SUPPOSE PAS L'ÉTAT INITIAL. Les tests qui précèdent font
+  // avancer des dossiers de bout en bout ; figer ici « THEORIE est à évaluer »
+  // ferait échouer le lot au premier réordonnancement du fichier. On éprouve
+  // donc les PROPRIÉTÉS des compteurs, qui, elles, ne dépendent pas de l'ordre.
+  //
+  // DIPLOME, lui, est certifié et le reste : rien ne le déclasse.
+  assert.strictEqual(statutDe(t, DIPLOME), 'certifie');
+  assert.ok(certifies >= 1, `certifiés = ${certifies}`);
+  // Chaque compteur vaut exactement le nombre de lignes qu'il revendique.
+  assert.strictEqual(aEvaluer,
+    t.coachs.filter((c) => ['pratique_a_realiser', 'resultat_en_attente', 'pratique_a_repasser']
+      .includes(c.statut)).length);
+  assert.strictEqual(aCertifier, t.coachs.filter((c) => c.statut === 'certification_a_delivrer').length);
+  assert.strictEqual(certifies, t.coachs.filter((c) => c.statut === 'certifie').length);
+  // Et les trois familles ne se recouvrent jamais.
+  const familles = [
+    ['pratique_a_realiser', 'resultat_en_attente', 'pratique_a_repasser'],
+    ['certification_a_delivrer'], ['certifie'],
+  ];
+  const vus = new Set();
+  for (const f of familles) for (const st of f) {
+    assert.ok(!vus.has(st), 'statut compté deux fois : ' + st);
+    vus.add(st);
+  }
+
+  // Aucun dossier n'est compté deux fois, et les deux statuts « sans geste »
+  // ne sont dans aucun compteur.
+  const total = t.coachs.length;
+  const neutres = compte(['pratique_validee', 'formation_en_cours']);
+  assert.strictEqual(aEvaluer + aCertifier + certifies + neutres, total,
+    'les cinq familles doivent partitionner exactement la liste');
+});
+
+test('L\'ÉCRAN trie SANS toucher à RANG_STATUT', () => {
+  // L'ordre de travail est déclaré dans l'écran, et il est celui demandé.
+  // La tranche s'arrête au tableau LUI-MÊME : plus loin, KPI_EVAL mentionne
+  // légitimement « certifie » pour le compteur des diplômés.
+  const bloc = js.slice(js.indexOf('const ORDRE_TRAVAIL'), js.indexOf('const rangTravail'));
+  assert.ok(bloc.length > 100, 'l\'ordre de travail doit être délimité');
+  const ordre = ['pratique_a_realiser', 'resultat_en_attente', 'pratique_a_repasser',
+    'certification_a_delivrer', 'pratique_validee', 'formation_en_cours'];
+  let pos = -1;
+  for (const st of ordre) {
+    const i = bloc.indexOf(`'${st}'`);
+    assert.ok(i > pos, `${st} est mal placé dans l'ordre de travail`);
+    pos = i;
+  }
+  // `certifie` n'est PAS dans la file : il n'attend rien.
+  assert.ok(!bloc.includes("'certifie'"), 'un certifié n\'a rien à faire dans la file de travail');
+
+  // Et le moteur n'a pas bougé : RANG_STATUT garde son ordre d'origine.
+  const moteur = fs.readFileSync(path.join(__dirname, '..', 'lib', 'academyCertifications.js'), 'utf8');
+  const rang = moteur.slice(moteur.indexOf('const RANG_STATUT'), moteur.indexOf('function createAcademyCertifications'));
+  assert.ok(/certification_a_delivrer: 0/.test(rang), 'RANG_STATUT a été modifié');
+  assert.ok(/certifie: 6/.test(rang), 'RANG_STATUT a été modifié');
+});
+
+test('L\'ÉCRAN N\'UTILISE PAS fCourante pour évaluer : elle appartient aux autres vues', () => {
+  const bloc = js.slice(js.indexOf('async function ouvrirEvaluateur'), js.indexOf('async function ouvrirFiche'));
+  assert.ok(bloc.length > 500, 'le bloc de l\'écran doit être délimité');
+  assert.ok(!/fCourante/.test(bloc),
+    'l\'écran d\'évaluation touche à fCourante : Mon Academy et l\'administration la partagent');
+  assert.ok(/evalFormation/.test(bloc), 'il doit utiliser sa propre variable');
+  // Les gestes de certification visent la formation DU DOSSIER.
+  const geste = js.slice(js.indexOf('function formationDuGeste'), js.indexOf('async function agirSurCertification'));
+  assert.ok(/evalFicheFormation/.test(geste) && /ligne && ligne.formation/.test(geste),
+    'un geste de certification doit viser la formation du dossier');
+  assert.ok(!/fCourante/.test(geste), 'et jamais se rabattre sur fCourante');
+});
+
+test('l\'écran affiche les SEPT colonnes, le sous-titre, le select et l\'état vide court', () => {
+  const bloc = js.slice(js.indexOf('function rendreEvalListe'), js.indexOf('async function ouvrirFiche'));
+  for (const t of ['Coach', 'Formation', 'Contenus', 'Théorie', 'Pratique', 'Statut', 'Action']) {
+    assert.ok(bloc.includes(`'${t}'`), 'colonne manquante : ' + t);
+  }
+  assert.ok(/Suis la progression des coachs et traite les évaluations en attente/.test(bloc),
+    'le sous-titre demandé doit être là');
+  assert.ok(/Aucune évaluation en attente\./.test(bloc), 'l\'état vide doit tenir en une phrase');
+  assert.ok(/KPI_EVAL/.test(bloc), 'les trois compteurs doivent être rendus');
+  assert.ok(/statut !== 'certifie'/.test(bloc), 'les certifiés doivent quitter la file');
+  // Le select remplace les pilules.
+  assert.ok(/id="acEvalFormation"/.test(js), 'le filtre doit être un select');
+  assert.ok(!/data-formation-eval/.test(js), 'les anciennes pilules doivent avoir disparu');
+  assert.ok(/Toutes les formations/.test(js), 'et proposer « toutes »');
+  // Les onglets sont renommés.
+  assert.ok(/\['coachs', 'À traiter'\]/.test(js), 'l\'onglet doit s\'appeler « À traiter »');
+});
+
+test('les assets sont versionnés : sans bump, le navigateur sert l\'ancien écran', () => {
+  // Même règle qu'ailleurs : on n'attache pas un test à un numéro qui monte à
+  // chaque lot, mais on exige que les deux assets bougent ENSEMBLE.
+  const vJs = (html.match(/academy\.js\?v=(\d+)/) || [])[1];
+  const vCss = (html.match(/academy\.css\?v=(\d+)/) || [])[1];
+  assert.ok(vJs && vCss, 'les deux assets doivent être versionnés');
+  assert.strictEqual(vJs, vCss, 'academy.js et academy.css doivent porter la même version');
+  assert.ok(Number(vJs) >= 33, 'la version doit avoir été bumpée pour ce lot');
+});
+
+test('MON ACADEMY N\'A PAS BOUGÉ : cartes, tri et filtres du coach intacts', () => {
+  // Le périmètre le plus important du lot : la refonte ne devait toucher QUE
+  // l'espace d'évaluation.
+  const accueil = js.slice(js.indexOf('function formationsAffichees'), js.indexOf('function rendreBarreLaterale'));
+  assert.ok(/accueilFiltre === 'certifiantes'/.test(accueil), 'le filtre certifiantes est intact');
+  assert.ok(/accueilCategorie !== 'toutes'/.test(accueil), 'le filtre par catégorie est intact');
+  assert.ok(/ORDRE_STATUT\.indexOf/.test(accueil), 'le tri par statut est intact');
+  const cartes = js.slice(js.indexOf('function rendreAccueil'), js.indexOf('function etapesDe'));
+  assert.ok(/ac-fc ac-fc-/.test(cartes), 'les cartes de formation sont intactes');
+  assert.ok(/ac-cats/.test(cartes), 'le rail de catégories est intact');
+  assert.ok(/data-ouvrir=/.test(cartes), 'les boutons des cartes sont intacts');
+});

@@ -693,3 +693,487 @@ test('rien ne publie depuis l\'écran sans passer par la route vérifiée', asyn
   const p = await adm('PUT', `/api/academy/admin/formations/${cle}`, { libelle: 'Forcée', titre: 'T', actif: true });
   assert.strictEqual(p.body.formation.actif, false, 'un réglage ne publie pas, même en le demandant');
 });
+
+// ===========================================================================
+//  7. LES MINI-QCM SE CONSTITUENT DEPUIS L'ÉCRAN
+//
+//  Le moteur savait déjà ranger une question dans l'une ou l'autre épreuve :
+//  `definirQuestion` accepte `usage`, et la route le passe tel quel. L'ÉCRAN,
+//  LUI, NE L'ENVOYAIT PAS. Toute question saisie partait donc en « finale » —
+//  et comme le tirage final n'écarte pas les questions rattachées à un module,
+//  elle atterrissait dans l'examen. Les mini-QCM étaient inaccessibles sans
+//  passer par un fichier d'amorçage : c'est exactement ce que ce lot ferme.
+// ===========================================================================
+
+test('une question « mini » se range dans la banque de SON module, jamais dans le QCM final', async () => {
+  const f = await formationJetable();
+  const r = await adm('POST', '/api/academy/admin/questions', {
+    formation: f.cle, usage: 'mini', moduleId: f.moduleId, enonce: 'Mini du module ?',
+    choix: [{ texte: 'Oui', correct: true }, { texte: 'Non', correct: false }],
+  });
+  assert.strictEqual(r.status, 200, r.txt.slice(0, 200));
+  assert.strictEqual(r.body.question.usage, 'mini');
+
+  const mini = app.academyQcm.questionsEligibles(f.cle, { usage: 'mini', moduleId: f.moduleId });
+  assert.deepStrictEqual(mini.map((q) => q.enonce), ['Mini du module ?']);
+
+  // Et surtout : elle n'a PAS rejoint l'examen.
+  const finale = app.academyQcm.questionsEligibles(f.cle, { usage: 'finale' });
+  assert.ok(!finale.some((q) => q.enonce === 'Mini du module ?'),
+    'une question de mini-QCM ne doit jamais entrer dans le tirage final');
+});
+
+test('un mini-QCM sans module est refusé À LA SAISIE, jamais rangé sans être tirable', async () => {
+  const f = await formationJetable();
+  const r = await adm('POST', '/api/academy/admin/questions', {
+    formation: f.cle, usage: 'mini', enonce: 'Mini sans module ?',
+    choix: [{ texte: 'Oui', correct: true }, { texte: 'Non', correct: false }],
+  });
+  assert.strictEqual(r.status, 400);
+  assert.match(r.body.error, /module/i);
+  // Rien n'a été écrit : une question qui existerait en base sans exister à
+  // aucune épreuve serait invisible et indébogable.
+  const n = dbq().prepare("SELECT COUNT(*) AS n FROM academy_questions WHERE formation = ? AND usage = 'mini'")
+    .get(f.cle).n;
+  assert.strictEqual(n, 0);
+});
+
+test('une épreuve absente vaut « finale » : une saisie muette ne change pas de sens', async () => {
+  const f = await formationJetable();
+  const r = await adm('POST', '/api/academy/admin/questions', {
+    formation: f.cle, moduleId: f.moduleId, enonce: 'Sans épreuve précisée ?',
+    choix: [{ texte: 'Oui', correct: true }, { texte: 'Non', correct: false }],
+  });
+  assert.strictEqual(r.body.question.usage, 'finale',
+    'le défaut du serveur doit rester « finale », écran ou pas');
+});
+
+test('basculer une question de finale à mini la RETIRE du tirage final', async () => {
+  const f = await formationJetable();
+  const avant = app.academyQcm.questionsEligibles(f.cle, { usage: 'finale' }).length;
+  assert.ok(avant >= 1, 'la formation jetable naît avec une question finale');
+
+  // L'énoncé se renvoie à chaque écriture : `definirQuestion` l'exige, et
+  // l'écran le renvoie toujours puisque son formulaire est prérempli.
+  const r = await adm('POST', '/api/academy/admin/questions', {
+    formation: f.cle, id: f.questionId, usage: 'mini', moduleId: f.moduleId,
+    enonce: 'Question jetable ?',
+  });
+  assert.strictEqual(r.status, 200, r.txt.slice(0, 200));
+  assert.strictEqual(r.body.question.usage, 'mini');
+
+  assert.strictEqual(app.academyQcm.questionsEligibles(f.cle, { usage: 'finale' }).length, avant - 1);
+  assert.strictEqual(app.academyQcm.questionsEligibles(f.cle, { usage: 'mini', moduleId: f.moduleId }).length, 1);
+  // Le corrigé n'a pas été perdu au passage : changer d'épreuve n'est pas
+  // réécrire les réponses.
+  const choix = dbq().prepare('SELECT COUNT(*) AS n FROM academy_choix WHERE question_id = ?').get(f.questionId).n;
+  assert.strictEqual(choix, 2);
+});
+
+test('UNE FORMATION À MINI-QCM SE PUBLIE SANS AUCUN FICHIER, par les seules routes', async () => {
+  // Le vrai test du lot : constituer un mini complet à la main, et vérifier
+  // que la vérification de publication cesse de le refuser.
+  const f = await formationJetable({ qcmNbQuestions: 2, miniNbQuestions: 3 });
+  await adm('POST', '/api/academy/admin/questions', {
+    formation: f.cle, enonce: 'Deuxième finale ?',
+    choix: [{ texte: 'Oui', correct: true }, { texte: 'Non', correct: false }],
+  });
+
+  // Deux minis sur trois demandés : la publication doit être REFUSÉE, et le
+  // dire en nommant le module.
+  for (const n of [1, 2]) {
+    await adm('POST', '/api/academy/admin/questions', {
+      formation: f.cle, usage: 'mini', moduleId: f.moduleId, enonce: `Mini ${n} ?`,
+      choix: [{ texte: 'Oui', correct: true }, { texte: 'Non', correct: false }],
+    });
+  }
+  const court = await verifDe(f.cle);
+  assert.strictEqual(court.publiable, false);
+  assert.ok(court.blocages.some((b) => /mini-QCM.*Module jetable/i.test(b)),
+    'le refus doit nommer le module en défaut : ' + JSON.stringify(court.blocages));
+
+  // La troisième complète la banque : la formation devient publiable.
+  await adm('POST', '/api/academy/admin/questions', {
+    formation: f.cle, usage: 'mini', moduleId: f.moduleId, enonce: 'Mini 3 ?',
+    choix: [{ texte: 'Oui', correct: true }, { texte: 'Non', correct: false }],
+  });
+  const v = await verifDe(f.cle);
+  assert.strictEqual(v.publiable, true, 'blocages restants : ' + JSON.stringify(v.blocages));
+  assert.strictEqual(v.chiffres.modulesAvecMini, 1);
+  assert.strictEqual(v.chiffres.miniNbQuestions, 3);
+
+  const p = await publier(f.cle);
+  assert.strictEqual(p.status, 200, p.txt.slice(0, 200));
+  assert.strictEqual(p.body.formation.actif, true);
+});
+
+test('l\'ÉCRAN envoie l\'épreuve, et refuse un mini sans module avant d\'écrire', () => {
+  // 1. Le champ existe, avec ses deux valeurs et aucune autre.
+  assert.ok(/id="acQUsage"/.test(js), 'le formulaire doit porter le choix de l\'épreuve');
+  assert.ok(/value="mini"/.test(js) && /value="finale"/.test(js), 'les deux épreuves doivent être proposées');
+
+  // 2. Le geste l'envoie. Sans cette ligne, tout repart en « finale » et le lot
+  //    ne sert à rien — c'était précisément l'état d'avant.
+  const bloc = js.slice(js.indexOf("geste === 'question-enregistrer'"), js.indexOf("geste === 'basculer'"));
+  assert.ok(bloc.length > 100, 'le geste doit être délimité');
+  assert.ok(/usage/.test(bloc), 'l\'écran doit envoyer l\'épreuve saisie');
+  assert.ok(/'#acQUsage'/.test(bloc), 'et la lire dans le champ');
+
+  // 3. Il garde la règle du serveur au lieu de la découvrir par un refus : un
+  //    aller-retour perdrait six réponses déjà tapées.
+  assert.ok(/'mini'/.test(bloc) && /module/i.test(bloc),
+    'l\'écran doit refuser un mini sans module avant l\'envoi');
+});
+
+test('la banque s\'affiche PAR ÉPREUVE : un module à court se voit sans être cherché', () => {
+  const bloc = js.slice(js.indexOf('function rendreAdminContenus'), js.indexOf('function lireChoixSaisis'));
+  assert.ok(/Mini-QCM, module par module/.test(bloc), 'les minis doivent avoir leur section');
+  assert.ok(/QCM final/.test(bloc), 'l\'examen doit avoir la sienne');
+  // Le tri se fait sur `usage`, pas sur la présence d'un module : une finale
+  // rattachée à un module reste une finale, et doit le rester à l'écran.
+  assert.ok(/usage === 'mini'/.test(bloc), 'le tri doit se faire sur l\'épreuve');
+  assert.ok(/module d'introduction/.test(bloc),
+    'un module sans mini est légitime : l\'écran doit le dire, pas laisser un blanc');
+  // Le style du groupe existe, et il survit à 390 px.
+  assert.ok(css.includes('.ac-adm-groupe'), 'les groupes ont leur style');
+  const mobile = css.slice(css.indexOf('@media (max-width: 520px)'));
+  assert.ok(/ac-adm-groupe/.test(mobile), 'aucune règle mobile pour les groupes de banque');
+});
+
+// ===========================================================================
+//  8. LE RÉFÉRENTIEL D'ÉVALUATION S'ADMINISTRE
+//
+//  `academy_cas` existait, et l'évaluateur savait s'y référer — mais RIEN ne
+//  savait y écrire : `academyPratique` n'exposait que des lectures. Un cas ne
+//  pouvait naître que d'un fichier d'amorçage. C'est ce qui s'ouvre ici, avec
+//  les deux règles du lot 6 intactes : on n'efface jamais, on ne traverse
+//  jamais une formation.
+// ===========================================================================
+
+test('un cas se crée, se relit dans l\'arbre, et se modifie', async () => {
+  const f = await formationJetable({ pratiqueObligatoire: true });
+  const r = await adm('POST', '/api/academy/admin/cas', {
+    formation: f.cle, titre: 'Corriger un squat en séance',
+    consignes: 'SITUATION : le client compense. ATTENDU : une seule priorité.',
+  });
+  assert.strictEqual(r.status, 200, r.txt.slice(0, 200));
+  assert.strictEqual(r.body.cas.titre, 'Corriger un squat en séance');
+  assert.strictEqual(r.body.cas.ordre, 1, 'le premier cas prend le rang 1');
+  assert.strictEqual(r.body.cas.actif, true);
+
+  // L'arbre le porte, et l'écran n'a donc rien à redemander.
+  const a = await arbreDe(f.cle);
+  assert.deepStrictEqual((a.cas || []).map((c) => c.titre), ['Corriger un squat en séance']);
+
+  const m = await adm('POST', '/api/academy/admin/cas', {
+    formation: f.cle, id: r.body.cas.id, titre: 'Corriger un hip hinge', consignes: 'Autre consigne.',
+  });
+  assert.strictEqual(m.body.cas.titre, 'Corriger un hip hinge');
+  assert.strictEqual((await arbreDe(f.cle)).cas.length, 1, 'modifier ne duplique pas');
+});
+
+test('un cas sans titre est refusé ; ses consignes restent facultatives', async () => {
+  const f = await formationJetable({ pratiqueObligatoire: true });
+  const vide = await adm('POST', '/api/academy/admin/cas', { formation: f.cle, titre: '   ' });
+  assert.strictEqual(vide.status, 400);
+  assert.match(vide.body.error, /titre/i);
+
+  // Un intitulé seul suffit : c'est ce que dit le schéma, et l'évaluateur se
+  // prononce alors en champ libre.
+  const nu = await adm('POST', '/api/academy/admin/cas', { formation: f.cle, titre: 'Cas sans consignes' });
+  assert.strictEqual(nu.status, 200);
+  assert.strictEqual(nu.body.cas.consignes, null);
+});
+
+test('LES CAS S\'ORDONNENT ET S\'ARCHIVENT par les routes communes', async () => {
+  const f = await formationJetable({ pratiqueObligatoire: true });
+  const ids = [];
+  for (const t of ['Premier', 'Deuxième', 'Troisième']) {
+    const r = await adm('POST', '/api/academy/admin/cas', { formation: f.cle, titre: t });
+    ids.push(r.body.cas.id);
+  }
+  assert.deepStrictEqual((await arbreDe(f.cle)).cas.map((c) => c.titre), ['Premier', 'Deuxième', 'Troisième']);
+
+  // Réordonner : la liste entière, en une transaction.
+  const o = await adm('POST', '/api/academy/admin/ordre', { formation: f.cle, type: 'cas', ids: [ids[2], ids[0], ids[1]] });
+  assert.strictEqual(o.status, 200, o.txt.slice(0, 200));
+  assert.deepStrictEqual((await arbreDe(f.cle)).cas.map((c) => c.titre), ['Troisième', 'Premier', 'Deuxième']);
+
+  // Archiver : la ligne reste, l'évaluateur ne la voit plus.
+  const arc = await adm('POST', '/api/academy/admin/archiver', { formation: f.cle, type: 'cas', id: ids[0], actif: false });
+  assert.strictEqual(arc.status, 200, arc.txt.slice(0, 200));
+  const apres = await arbreDe(f.cle);
+  assert.strictEqual(apres.cas.length, 3, 'RIEN N\'EST EFFACÉ : l\'administration voit toujours les trois');
+  assert.strictEqual(apres.cas.find((c) => c.id === ids[0]).actif, false);
+  assert.deepStrictEqual(app.academyPratique.listerCas(f.cle).map((c) => c.id), [ids[2], ids[1]],
+    'l\'évaluateur ne se voit plus proposer un cas archivé');
+
+  // Et il se restaure.
+  await adm('POST', '/api/academy/admin/archiver', { formation: f.cle, type: 'cas', id: ids[0], actif: true });
+  assert.strictEqual(app.academyPratique.listerCas(f.cle).length, 3);
+});
+
+test('archiver un cas ne touche à AUCUNE évaluation déjà prononcée', async () => {
+  const f = await formationJetable({ pratiqueObligatoire: true });
+  const c = await adm('POST', '/api/academy/admin/cas', { formation: f.cle, titre: 'Cas évalué' });
+  const casId = c.body.cas.id;
+
+  // Pour qu'une évaluation existe, il faut la mériter : la formation doit être
+  // PUBLIÉE, et la théorie du collaborateur VALIDÉE — l'évaluation pratique est
+  // verrouillée derrière elle. On joue donc le parcours, comme un vrai coach.
+  assert.strictEqual((await publier(f.cle)).status, 200);
+  const vue = await api('GET', `/api/academy/formation?formation=${f.cle}`, null, jetons[THEO]);
+  for (const ct of vue.body.formation.modules.flatMap((m) => m.contenus)) {
+    await api('POST', `/api/academy/contenus/${ct.id}/terminer`, {}, jetons[THEO]);
+  }
+  const t = (await api('POST', '/api/academy/qcm/tentatives', { formation: f.cle }, jetons[THEO])).body.tentative;
+  for (const q of t.questions) {
+    // Le corrigé ne sort que par l'arbre d'administration : on le lit là, comme
+    // seul un administrateur le peut.
+    const ref = (await arbreDe(f.cle)).questions.find((x) => x.enonce === q.enonce);
+    const bons = ref.choix.filter((c) => c.correct).map((c) => c.texte);
+    await api('PUT', `/api/academy/qcm/tentatives/${t.id}/reponses/${q.id}`,
+      { choix: q.choix.filter((c) => bons.includes(c.texte)).map((c) => c.id) }, jetons[THEO]);
+  }
+  const fin = await api('POST', `/api/academy/qcm/tentatives/${t.id}/terminer`, {}, jetons[THEO]);
+  assert.strictEqual(fin.body.tentative.resultat.reussie, true, 'la théorie doit être validée');
+
+  const ev = await adm('POST', `/api/academy/evaluateur/collaborateurs/${THEO}/evaluations`,
+    { formation: f.cle, casId, resultat: 'valide', commentaire: 'Vu en séance.' });
+  assert.strictEqual(ev.status, 201, ev.txt.slice(0, 200));
+
+  const avant = dbq().prepare('SELECT COUNT(*) AS n FROM academy_evaluations WHERE cas_id = ?').get(casId).n;
+  await adm('POST', '/api/academy/admin/archiver', { formation: f.cle, type: 'cas', id: casId, actif: false });
+  const apres = dbq().prepare('SELECT COUNT(*) AS n FROM academy_evaluations WHERE cas_id = ?').get(casId).n;
+  assert.strictEqual(apres, avant, 'archiver un cas a touché aux évaluations');
+  assert.strictEqual(app.academyPratique.etatPour(THEO, f.cle).validee, true,
+    'la pratique validée le reste, cas archivé ou non');
+});
+
+test('UN CAS NE TRAVERSE JAMAIS UNE FORMATION', async () => {
+  const a = await formationJetable({ pratiqueObligatoire: true });
+  const b = await formationJetable({ pratiqueObligatoire: true });
+  const ca = await adm('POST', '/api/academy/admin/cas', { formation: a.cle, titre: 'Cas de A' });
+
+  // Le désigner depuis B doit être refusé — sinon la route écrirait dans A
+  // tout en renvoyant l'arbre de B.
+  const vol = await adm('POST', '/api/academy/admin/cas',
+    { formation: b.cle, id: ca.body.cas.id, titre: 'Volé par B' });
+  assert.strictEqual(vol.status, 400);
+  assert.match(vol.body.error, /autre formation/i);
+  assert.strictEqual((await arbreDe(a.cle)).cas[0].titre, 'Cas de A', 'le cas de A n\'a pas bougé');
+  assert.strictEqual((await arbreDe(b.cle)).cas.length, 0, 'B n\'a rien gagné');
+
+  // Et l'évaluateur ne peut pas s'en servir hors de A.
+  assert.strictEqual(app.academyPratique.lireCasDe(b.cle, ca.body.cas.id), null);
+});
+
+test('une formation inconnue ne reçoit pas de cas', async () => {
+  const r = await adm('POST', '/api/academy/admin/cas?formation=nexiste_pas', { titre: 'Orphelin' });
+  assert.strictEqual(r.status, 404);
+});
+
+test('pratique obligatoire SANS AUCUN CAS : un avertissement, jamais un blocage', async () => {
+  // La nuance est tout le sujet : « zéro cas est un cas valide » — c'est ce qui
+  // garde Coach Nutrition publiable, où l'évaluateur juge en champ libre.
+  const f = await formationJetable({ pratiqueObligatoire: true });
+  const v = await verifDe(f.cle);
+  assert.strictEqual(v.publiable, true, 'l\'absence de cas ne doit RIEN bloquer');
+  assert.ok(v.avertissements.some((a) => /aucun cas/i.test(a)),
+    'le trou doit être dit : ' + JSON.stringify(v.avertissements));
+
+  // Un cas posé, l'avertissement disparaît.
+  await adm('POST', '/api/academy/admin/cas', { formation: f.cle, titre: 'Un cas' });
+  const v2 = await verifDe(f.cle);
+  assert.ok(!v2.avertissements.some((a) => /aucun cas/i.test(a)));
+
+  // Et une formation qui n'évalue pas ne s'entend jamais reprocher ses cas.
+  const sans = await formationJetable({ pratiqueObligatoire: false });
+  assert.ok(!(await verifDe(sans.cle)).avertissements.some((a) => /aucun cas/i.test(a)));
+});
+
+test('COACH NUTRITION RESTE INTACTE : ni cas imposé, ni publication refusée', async () => {
+  const v = await verifDe(COACH_NUTRITION);
+  assert.ok(!v.blocages.some((b) => /cas/i.test(b)),
+    'aucun blocage lié aux cas ne doit apparaître sur la formation historique');
+});
+
+test('l\'ÉCRAN administre les cas, sans jamais les supprimer', () => {
+  const bloc = js.slice(js.indexOf('function rendreAdminContenus'), js.indexOf('function lireChoixSaisis'));
+  assert.ok(/Cas d\\'évaluation pratique/.test(bloc), 'la section existe');
+  // Elle ne s'affiche que si la formation évalue : un champ de plus à
+  // comprendre pour rien serait une régression d'écran.
+  assert.ok(/pratiqueObligatoire/.test(bloc), 'la section doit suivre le drapeau de la formation');
+  assert.ok(/data-adm="cas-neuf"/.test(js), 'le geste d\'ajout existe');
+  assert.ok(/data-adm="cas-enregistrer"/.test(js), 'le geste d\'enregistrement existe');
+  assert.ok(/id="acKTitre"/.test(js) && /id="acKConsignes"/.test(js), 'les deux champs existent');
+  // AUCUNE suppression : le mot ne doit pas apparaître comme geste.
+  assert.ok(!/data-adm="cas-supprimer"/.test(js), 'aucun geste de suppression');
+  assert.ok(/'cas'/.test(js.slice(js.indexOf('function voisinage'), js.indexOf('async function agirSurContenus'))),
+    'les cas doivent s\'ordonner entre frères');
+});
+
+test('le moteur d\'administration ne nomme toujours aucune formation', () => {
+  // Le même invariant qu'au début du fichier, revérifié APRÈS l'ajout des cas.
+  const pratiqueSrc = fs.readFileSync(path.join(__dirname, '..', 'lib', 'academyPratique.js'), 'utf8');
+  const definirCas = pratiqueSrc.slice(pratiqueSrc.indexOf('function definirCas'),
+    pratiqueSrc.indexOf('// Un cas n\'est utilisable QUE'));
+  assert.ok(definirCas.length > 500, 'la fonction doit être délimitée');
+  assert.ok(!/coach_nutrition|cycle_menstruel|prevenir_decrochage|mouvements_fondamentaux/.test(definirCas),
+    'definirCas nomme une formation');
+});
+
+// ===========================================================================
+//  9. LA CATÉGORIE DE CATALOGUE, DEPUIS L'ADMINISTRATION
+// ===========================================================================
+
+test('une formation se crée avec sa catégorie et sa description', async () => {
+  const r = await adm('POST', '/api/academy/admin/formations', {
+    cle: 'cat_admin', libelle: 'Catégorisée', titre: 'T',
+    categorie: 'signature', description: 'Une présentation du parcours.',
+  });
+  assert.strictEqual(r.status, 200, r.txt.slice(0, 200));
+  assert.strictEqual(r.body.formation.categorie, 'signature');
+  assert.strictEqual(r.body.formation.description, 'Une présentation du parcours.');
+  assert.strictEqual(r.body.formation.actif, false, 'et toujours en brouillon');
+});
+
+test('la catégorie se modifie ensuite depuis les réglages', async () => {
+  const r = await adm('PUT', '/api/academy/admin/formations/cat_admin', {
+    libelle: 'Catégorisée', titre: 'T', categorie: 'expertise',
+  });
+  assert.strictEqual(r.status, 200, r.txt.slice(0, 200));
+  assert.strictEqual(r.body.formation.categorie, 'expertise');
+});
+
+test('une catégorie inconnue est refusée par la route, sans rien écrire', async () => {
+  const avant = app.academyFormations.lire('cat_admin').categorie;
+  const r = await adm('PUT', '/api/academy/admin/formations/cat_admin', {
+    libelle: 'Catégorisée', titre: 'T', categorie: 'premium',
+  });
+  assert.strictEqual(r.status, 400);
+  assert.match(r.body.error, /premium/);
+  assert.strictEqual(app.academyFormations.lire('cat_admin').categorie, avant,
+    'un refus a quand même modifié la catégorie');
+});
+
+test('la catégorie voyage jusqu\'au CATALOGUE DU COACH, sans route nouvelle', async () => {
+  await adm('POST', '/api/academy/admin/formations/cat_admin/publier').catch(() => {});
+  // La formation jetable n'est pas publiable en l'état : on interroge donc le
+  // registre, qui est ce que la route recopie.
+  const f = app.academyFormations.lire('cat_admin');
+  assert.strictEqual(f.categorie, 'expertise');
+  // Et le catalogue servi au collaborateur porte le champ pour les publiées.
+  const cat = await api('GET', '/api/academy/formations', null, jetons[THEO]);
+  for (const x of cat.body.formations) {
+    assert.ok('categorie' in x, 'le catalogue coach doit porter la catégorie : ' + x.cle);
+  }
+});
+
+test('L\'ÉCRAN d\'administration propose les CINQ catégories, et rien d\'autre', () => {
+  // Le <select> est rendu par une fonction partagée : son `id` est un
+  // PARAMÈTRE, il n'apparaît donc pas en clair dans un attribut.
+  assert.ok(/champCategorie\('acFCategorie'/.test(js), 'le formulaire de création a son champ');
+  assert.ok(/champCategorie\('acRCategorie'/.test(js), 'les réglages ont le leur');
+  assert.ok(/id="acFDesc"/.test(js) && /id="acRDesc"/.test(js), 'la description est saisissable des deux côtés');
+  // La liste est déclarée UNE fois et le <select> est partagé : deux listes
+  // divergeraient au premier ajout de catégorie.
+  const bloc = js.slice(js.indexOf('const CATEGORIES = ['), js.indexOf('function rendreFormFormationNeuve'));
+  for (const c of ['essentiel', 'signature', 'expertise', 'management', 'boite_a_outils']) {
+    assert.ok(bloc.includes(`'${c}'`), 'catégorie manquante à l\'écran : ' + c);
+  }
+  assert.strictEqual((js.match(/const CATEGORIES = \[/g) || []).length, 1,
+    'la liste des catégories ne doit être déclarée qu\'une fois');
+  assert.strictEqual((js.match(/function champCategorie/g) || []).length, 1,
+    'un seul rendu de <select>, partagé');
+  // Les deux gestes l'envoient.
+  const creer = js.slice(js.indexOf("geste === 'formation-creer'"), js.indexOf("geste === 'reglages-enregistrer'"));
+  assert.ok(/acFCategorie/.test(creer) && /acFDesc/.test(creer));
+  const regler = js.slice(js.indexOf("geste === 'reglages-enregistrer'"), js.indexOf("geste === 'publier'"));
+  assert.ok(/acRCategorie/.test(regler) && /acRDesc/.test(regler));
+});
+
+// ===========================================================================
+//  10. LE RAIL DE CATÉGORIES, CÔTÉ COACH
+//
+//  L'exigence de fond : le catalogue doit pouvoir accueillir cinquante
+//  formations demain SANS QU'UNE LIGNE DE CODE NE CHANGE. Ce qui se vérifie
+//  ici, ce n'est donc pas l'apparence du rail — c'est qu'aucune formation n'y
+//  soit nommée, et que la liste des onglets se DÉRIVE de la donnée.
+// ===========================================================================
+
+test('LE RAIL SE DÉRIVE DE LA LISTE, il n\'est pas écrit à la main', () => {
+  const bloc = js.slice(js.indexOf('function rendreAccueil'), js.indexOf('function etapesDe'));
+  assert.ok(/ac-cats/.test(bloc), 'le rail existe');
+  // Les six onglets : « toutes » plus la liste. Aucun autre libellé en dur.
+  assert.ok(/\['toutes', 'Toutes'\], \.\.\.CATEGORIES/.test(bloc),
+    'les onglets doivent se construire depuis CATEGORIES');
+  for (const c of ['essentiel', 'signature', 'expertise', 'management', 'boite_a_outils']) {
+    assert.ok(!new RegExp(`'${c}'`).test(bloc),
+      `« ${c} » est écrit en dur dans le rendu de l'accueil : il doit venir de CATEGORIES`);
+  }
+});
+
+test('AUCUNE FORMATION N\'EST NOMMÉE dans la logique du catalogue coach', () => {
+  const bloc = js.slice(js.indexOf('function formationsAffichees'), js.indexOf('async function ouvrirAccueil'));
+  for (const cle of ['coach_nutrition', 'cycle_menstruel', 'prevenir_decrochage',
+    'mouvements_fondamentaux', 'savoir_etre', 'fitness_boxe']) {
+    assert.ok(!bloc.includes(cle), 'une formation est classée en dur : ' + cle);
+  }
+});
+
+test('le filtre par catégorie s\'applique AVANT le tri, et laisse le tri intact', () => {
+  const fn = js.slice(js.indexOf('function formationsAffichees'), js.indexOf('async function ouvrirAccueil'));
+  const iCat = fn.indexOf('accueilCategorie !==');
+  const iTri = fn.indexOf('accueilTri ===');
+  assert.ok(iCat > 0 && iTri > 0, 'les deux doivent exister');
+  assert.ok(iCat < iTri, 'le filtre doit précéder le tri : sinon le tri par statut serait faussé');
+  // Le tri lui-même n'a pas été touché.
+  assert.ok(/ORDRE_STATUT\.indexOf/.test(fn), 'le tri par statut doit rester celui d\'avant');
+  assert.ok(/pourcentage/.test(fn) && /localeCompare/.test(fn), 'les trois tris doivent subsister');
+});
+
+test('« toutes » n\'est PAS une catégorie enregistrée', () => {
+  const { CATEGORIES } = require('../lib/academyFormations');
+  assert.ok(!CATEGORIES.includes('toutes'),
+    '« toutes » est l\'absence de filtre, pas une valeur de la colonne');
+  // Et le filtre le traite comme tel : il ne compare jamais categorie === 'toutes'.
+  const fn = js.slice(js.indexOf('function formationsAffichees'), js.indexOf('async function ouvrirAccueil'));
+  assert.ok(!/categorie === 'toutes'/.test(fn));
+});
+
+test('les deux filtres sont ORTHOGONAUX : certifiantes et catégorie coexistent', () => {
+  const fn = js.slice(js.indexOf('function formationsAffichees'), js.indexOf('async function ouvrirAccueil'));
+  assert.ok(/accueilFiltre === 'certifiantes'/.test(fn), 'le filtre historique subsiste');
+  assert.ok(/accueilCategorie !== 'toutes'/.test(fn), 'le nouveau s\'ajoute');
+  // Deux `if` distincts, pas un `else if` : choisir une catégorie ne doit pas
+  // faire sortir de « Mes certifications ».
+  assert.ok(!/else if \(accueilCategorie/.test(fn),
+    'les deux filtres doivent se cumuler, pas s\'exclure');
+});
+
+test('une catégorie vide affiche un état vide qui la NOMME', () => {
+  const bloc = js.slice(js.indexOf('function rendreAccueil'), js.indexOf('function etapesDe'));
+  assert.ok(/Aucune formation dans/.test(bloc), 'l\'état vide doit exister');
+  assert.ok(/libelleCategorie\(accueilCategorie\)/.test(bloc),
+    'et nommer la catégorie choisie plutôt qu\'un message générique');
+});
+
+test('le rail survit à 390 px, et les assets sont versionnés', () => {
+  assert.ok(css.includes('.ac-cats'), 'le rail a son style');
+  assert.ok(css.includes('.ac-cat.on'), 'l\'onglet actif est distingué');
+  // On cherche LE bloc mobile qui parle du rail, pas « le dernier » : d'autres
+  // écrans ajoutent les leurs, et un test qui suppose sa place casse au premier
+  // qui arrive après lui.
+  const blocsMobiles = css.split('@media (max-width: 520px)').slice(1);
+  assert.ok(blocsMobiles.some((b2) => /ac-cats/.test(b2) && /overflow-x: auto/.test(b2)),
+    'le rail doit défiler sous 520 px plutôt que hacher la page');
+  // Sans bump, le navigateur sert l'ancien écran : le piège a déjà coûté une
+  // session. On ne fige PAS le numéro — il monte à chaque lot — mais on exige
+  // que les deux assets portent LE MÊME : n'en bumper qu'un est le vrai piège,
+  // le CSS et le JS se répondent.
+  const vJs = (html.match(/academy\.js\?v=(\d+)/) || [])[1];
+  const vCss = (html.match(/academy\.css\?v=(\d+)/) || [])[1];
+  assert.ok(vJs && vCss, 'les deux assets doivent être versionnés');
+  assert.strictEqual(vJs, vCss, 'academy.js et academy.css doivent porter la même version');
+});

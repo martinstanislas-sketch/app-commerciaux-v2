@@ -61,6 +61,10 @@ let moiEval = false;
 let evalListe = null;   // vue « Évaluer & certifier » : tous les coachs, un statut chacun
 let evalFiche = null;   // vue évaluateur : le dossier ouvert
 let evalOnglet = 'coachs';  // 'coachs' | 'certifications'
+// LA FORMATION DE CET ÉCRAN, ET D'AUCUN AUTRE. `fCourante` est partagée avec
+// Mon Academy et l'administration : y poser 'toutes' casserait les deux. Cette
+// variable-ci ne sort jamais d'« Évaluer & certifier ».
+let evalFormation = 'toutes';
 let evalErreur = '';    // le refus du serveur, gardé en état (chaque geste re-rend l'écran)
 // Administrateur ? Il a TOUS les droits de l'évaluateur/certificateur, plus les
 // formations, les contenus, les banques et le retrait d'un diplôme.
@@ -78,6 +82,12 @@ let adminFormations = null;  // vue admin : le catalogue COMPLET, brouillons com
 let fAdmin = null;           // la formation administrée — clé, pas objet
 let adminArbre = null;       // vue admin : modules, contenus, banque et corrigé
 let edition = null;          // { objet, id } : le seul formulaire ouvert à la fois
+// L'import. Le texte collé est GARDÉ EN ÉTAT : chaque geste re-rend tout
+// #acAdmin, et un JSON de soixante-dix questions perdu à la première erreur
+// serait à recoller en entier. Le rapport suit le même sort — c'est lui qui
+// décide si le bouton d'écriture existe.
+let importTexte = '';
+let importRapport = null;
 // Le refus du serveur, GARDÉ EN ÉTAT et non posé dans le DOM : chaque geste
 // re-rend tout #acAdmin, et un message écrit dans l'encart juste avant serait
 // effacé par le rendu suivant — l'administrateur verrait son action échouer
@@ -328,6 +338,30 @@ const STATUTS = {
   theorie:     ['Théorie validée', 'ac-st-theorie', '✓', 'Voir les étapes suivantes', false],
   certifie:    ['Certification obtenue', 'ac-st-certifie', '★', 'Revoir la formation', false],
 };
+// LES CATÉGORIES, telles que l'écran les nomme. Les CLÉS sont celles du
+// serveur (lib/academyFormations.js) ; seuls les libellés vivent ici, parce
+// qu'un accent n'a rien à faire dans une colonne. Toute la navigation du
+// catalogue se DÉRIVE de cette liste : aucune formation, jamais, n'est classée
+// par du code.
+const CATEGORIES = [
+  ['essentiel', 'Essentiel'],
+  ['signature', 'Signature'],
+  ['expertise', 'Expertise'],
+  ['management', 'Management'],
+  ['boite_a_outils', 'Boîte à outils'],
+];
+const libelleCategorie = (c) => (CATEGORIES.find(([k]) => k === c) || [, ''])[1];
+
+// Le <select> de catégorie, partagé par la création et les réglages : un seul
+// rendu, donc jamais deux listes qui divergent.
+function champCategorie(id, valeur) {
+  return '<label class="ec-field"><span>Catégorie</span><select id="' + id + '">' +
+    '<option value="">— aucune —</option>' +
+    CATEGORIES.map(([k, l]) => '<option value="' + k + '"' + (valeur === k ? ' selected' : '') + '>' +
+      echapper(l) + '</option>').join('') +
+    '</select></label>';
+}
+
 const ORDRE_STATUT = ['en_cours', 'theorie', 'a_commencer', 'certifie'];
 
 const certifDe = (cle) => (certifs || []).find((c) => c.formation === cle) || null;
@@ -379,11 +413,18 @@ function detailDe(f, st) {
 }
 
 let accueilTri = 'statut';    // statut | progression | nom
-let accueilFiltre = 'toutes'; // toutes | certifiantes
+let accueilFiltre = 'toutes'; // toutes | certifiantes — piloté par la barre latérale
+// LE FILTRE PAR CATÉGORIE, orthogonal au précédent : « Mes certifications »
+// reste « Mes certifications » quel que soit l'onglet choisi. 'toutes' n'est
+// PAS une catégorie enregistrée — c'est l'absence de filtre.
+let accueilCategorie = 'toutes';
 
 function formationsAffichees() {
   let l = (catalogue || []).map((f, i) => ({ f, i, st: statutDe(f) }));
   if (accueilFiltre === 'certifiantes') l = l.filter((x) => x.f.certificationActive);
+  // On filtre AVANT de trier : le tri par statut, la progression et l'ordre du
+  // catalogue restent exactement ce qu'ils étaient.
+  if (accueilCategorie !== 'toutes') l = l.filter((x) => x.f.categorie === accueilCategorie);
   const rang = (x) => ORDRE_STATUT.indexOf(x.st);
   if (accueilTri === 'statut') l.sort((a, b) => rang(a) - rang(b) || a.i - b.i);
   else if (accueilTri === 'progression') l.sort((a, b) => (b.f.pourcentage || 0) - (a.f.pourcentage || 0) || a.i - b.i);
@@ -519,8 +560,21 @@ function rendreAccueil() {
         '<span class="ac-kpi-tx"><b>' + n + '</b><span>' + echapper(l) + '</span></span></div>').join('') +
     '</div>' +
 
+    // LE RAIL DE CATÉGORIES. Il se DÉRIVE de CATEGORIES : ajouter une famille
+    // demain, c'est une ligne dans cette liste, et l'onglet apparaît. Aucune
+    // formation n'est nommée ici, et aucune ne peut l'être.
+    '<nav class="ac-cats" aria-label="Catégories de formations">' +
+      [['toutes', 'Toutes'], ...CATEGORIES].map(([k, l]) => {
+        const n = k === 'toutes' ? toutes.length : toutes.filter((x) => x.f.categorie === k).length;
+        return '<button type="button" class="ac-cat' + (accueilCategorie === k ? ' on' : '') + '"' +
+          ' data-cat="' + k + '"' + (accueilCategorie === k ? ' aria-current="true"' : '') + '>' +
+          echapper(l) + '<i class="ac-cat-n">' + n + '</i></button>';
+      }).join('') +
+    '</nav>' +
+
     '<div class="ac-grille-h">' +
-      '<h2 class="ac-h2">' + (accueilFiltre === 'certifiantes' ? 'Mes formations certifiantes' : 'Toutes mes formations') + '</h2>' +
+      '<h2 class="ac-h2">' + (accueilFiltre === 'certifiantes' ? 'Mes formations certifiantes' : 'Toutes mes formations') +
+        (accueilCategorie === 'toutes' ? '' : ' — ' + echapper(libelleCategorie(accueilCategorie))) + '</h2>' +
       '<label class="ac-tri"><span>Trier par</span>' +
         '<select id="acTri">' +
           ['statut', 'progression', 'nom'].map((v) =>
@@ -535,13 +589,17 @@ function rendreAccueil() {
     // occupent désormais toute la largeur.
     '<div class="ac-fcs" id="acGrille">' +
       (liste.length ? liste.map(carte).join('')
-        : '<div class="ec-vide">' + (accueilFiltre === 'certifiantes'
-          ? 'Aucune formation certifiante ne t\'est ouverte pour le moment.'
-          : 'Aucune formation ne t\'est ouverte pour le moment.') + '</div>') +
+        : '<div class="ec-vide">' + (accueilCategorie !== 'toutes'
+          ? 'Aucune formation dans « ' + echapper(libelleCategorie(accueilCategorie)) + ' » pour le moment.'
+          : accueilFiltre === 'certifiantes'
+            ? 'Aucune formation certifiante ne t\'est ouverte pour le moment.'
+            : 'Aucune formation ne t\'est ouverte pour le moment.') + '</div>') +
     '</div>';
 
   document.querySelectorAll('#acAccueil [data-ouvrir]').forEach((el) =>
     el.addEventListener('click', () => ouvrirFormation(el.dataset.ouvrir)));
+  document.querySelectorAll('#acAccueil [data-cat]').forEach((el) =>
+    el.addEventListener('click', () => { accueilCategorie = el.dataset.cat; rendreAccueil(); }));
   const tri = $('#acTri');
   if (tri) tri.addEventListener('change', () => { accueilTri = tri.value; rendreAccueil(); });
 
@@ -616,11 +674,18 @@ const nomFormation = (cle) => {
 
 // Le même sélecteur pour l'évaluateur et l'administrateur : changer de
 // formation y recharge l'écran courant, comme pour le collaborateur.
+// UN <select>, PAS UNE SUITE DE PILULES. À cinq formations les boutons
+// tenaient ; à cinquante ils occuperaient l'écran avant la première ligne de
+// travail. La liste vient de la RÉPONSE SERVEUR (`formations`), jamais d'une
+// liste écrite ici : elle suit donc le catalogue sans qu'on y touche.
 function rendreSelecteurEval() {
-  if (!catalogue || catalogue.length < 2) return '';
-  return '<div class="ac-sel">' + catalogue.map((f) =>
-    '<button type="button" class="ac-sel-b' + (f.cle === fCourante ? ' on' : '') + '"' +
-      ' data-formation-eval="' + echapper(f.cle) + '">' + echapper(f.libelle) + '</button>').join('') + '</div>';
+  const l = (evalListe && evalListe.formations) || catalogue || [];
+  return '<label class="ac-eval-filtre"><span>Formation</span>' +
+    '<select id="acEvalFormation">' +
+      '<option value="toutes"' + (evalFormation === 'toutes' ? ' selected' : '') + '>Toutes les formations</option>' +
+      l.map((f) => '<option value="' + echapper(f.cle) + '"' +
+        (evalFormation === f.cle ? ' selected' : '') + '>' + echapper(f.libelle) + '</option>').join('') +
+    '</select></label>';
 }
 
 function rendreSelecteur() {
@@ -1758,11 +1823,54 @@ const LIB_STATUT = {
 // le serveur la refuse (409), et c'est la bonne règle — on n'évalue pas la
 // pratique de quelqu'un qui n'a pas passé la théorie. La ligne reste affichée
 // avec sa progression ; elle n'est simplement pas cliquable.
+// L'ORDRE DE LA FILE DE TRAVAIL. Il est propre à CET ÉCRAN et ne touche pas à
+// RANG_STATUT (lib/academyCertifications.js), dont dépendent d'autres vues :
+// ici on classe par « ce que l'évaluateur doit faire », là-bas par l'avancement
+// du dossier. Deux lectures légitimes de la même donnée.
+//
+// Les CERTIFIÉS sont absents : ils n'attendent rien et vivent dans l'onglet
+// Certifications. `formation_en_cours` ferme la marche — le dossier attend le
+// coach, pas l'évaluateur.
+const ORDRE_TRAVAIL = [
+  'pratique_a_realiser',
+  'resultat_en_attente',
+  'pratique_a_repasser',
+  'certification_a_delivrer',
+  'pratique_validee',
+  'formation_en_cours',
+];
+const rangTravail = (st) => {
+  const i = ORDRE_TRAVAIL.indexOf(st);
+  return i < 0 ? ORDRE_TRAVAIL.length : i;
+};
+
+// L'ACTION ATTENDUE, déduite du statut réel. Aucun statut inventé : ce sont
+// exactement les sept que produit statutCoach().
+const ACTION = {
+  pratique_a_realiser: 'Évaluer',
+  pratique_a_repasser: 'Évaluer',
+  resultat_en_attente: 'Voir l’évaluation',
+  certification_a_delivrer: 'Certifier',
+  pratique_validee: 'Voir',
+};
+
+// LES TROIS COMPTEURS, calculés sur les statuts et rien d'autre.
+//  · à évaluer   : les trois états où le geste attendu est une évaluation ;
+//  · à certifier : le seul état où le dossier est éligible et non délivré ;
+//  · certifiés   : le diplôme est acquis.
+// `pratique_validee` et `formation_en_cours` ne comptent nulle part : ni l'un
+// ni l'autre n'appelle un geste de l'évaluateur.
+const KPI_EVAL = [
+  ['À évaluer', ['pratique_a_realiser', 'resultat_en_attente', 'pratique_a_repasser'], 'ac-k-indigo'],
+  ['À certifier', ['certification_a_delivrer'], 'ac-k-ambre'],
+  ['Certifiés', ['certifie'], 'ac-k-vert'],
+];
+
 const ficheOuvrable = (c) => !!c.theorieValidee;
 
 async function ouvrirEvaluateur(onglet) {
   if (onglet) evalOnglet = onglet;
-  const r = await apiAc(avecFormation('/api/academy/evaluateur/coachs'));
+  const r = await apiAc('/api/academy/evaluateur/coachs?formation=' + encodeURIComponent(evalFormation));
   if (r.status === 401) { deconnecter(); return; }
   if (r.status === 403) {
     bloquer('🔒', 'Évaluer & certifier',
@@ -1779,14 +1887,19 @@ async function ouvrirEvaluateur(onglet) {
   rendreEvalListe();
 }
 
+// LES CERTIFICATIONS SONT PAR FORMATION — un diplôme est celui d'un parcours.
+// En mode « toutes », il n'y a donc rien de juste à afficher : on ne charge
+// rien, et l'onglet invite à choisir. Montrer la liste d'une formation prise au
+// hasard serait pire qu'un écran vide.
 async function chargerCerts() {
-  const r = await apiAc(avecFormation('/api/academy/admin/certifications'));
+  if (evalFormation === 'toutes') { adminCerts = null; return; }
+  const r = await apiAc('/api/academy/admin/certifications?formation=' + encodeURIComponent(evalFormation));
   adminCerts = r.data && r.data.ok ? r.data : null;
 }
 
 function rendreOngletsEval() {
   return '<div class="ac-adm-onglets">' +
-    [['coachs', 'Coachs'], ['certifications', 'Certifications']].map(([o, l]) =>
+    [['coachs', 'À traiter'], ['certifications', 'Certifications']].map(([o, l]) =>
       '<button type="button" class="ac-adm-ong' + (evalOnglet === o ? ' on' : '') + '" data-onglet-eval="' + o + '">' +
         l + '</button>').join('') +
     '</div>';
@@ -1796,64 +1909,95 @@ function rendreOngletsEval() {
 // fiche : où en est l'apprentissage, le score de théorie, combien de tentatives
 // pratiques, et le statut qui résume tout.
 function ligneCoach(c) {
-  const cl = 'ac-st-' + c.statut.replace(/_/g, '-');
   const ouvrable = ficheOuvrable(c);
-  const detail = [
-    c.progression ? c.progression.termines + ' / ' + c.progression.total + ' contenus' : null,
-    c.theorieValidee && c.scoreTheorie !== null ? 'théorie ' + c.scoreTheorie + ' %' : null,
-    c.pratique.nbTentatives
-      ? c.pratique.nbTentatives + ' évaluation' + (c.pratique.nbTentatives > 1 ? 's' : '') + ' pratique' +
-        (c.pratique.nbTentatives > 1 ? 's' : '')
-      : null,
-    c.certification.certifie && c.certification.certification
-      ? 'certifié le ' + dateFr(c.certification.certification.obtenueLe) : null,
-  ].filter(Boolean).join(' · ');
+  const action = ACTION[c.statut] || null;
+  const cl = 'ac-st-' + c.statut.replace(/_/g, '-');
 
-  const dedans =
-    '<span class="ac-l-t">' +
-      '<b>' + echapper(c.prenom || c.email) + '</b>' +
-      '<span class="ac-eval-mail">' + echapper(c.email) + (detail ? ' · ' + echapper(detail) : '') + '</span>' +
-    '</span>' +
-    '<span class="ac-eval-etat ' + cl + '">' + echapper(LIB_STATUT[c.statut] || c.statut) + '</span>';
+  // Chaque colonne dit UNE chose, et se tait quand elle ne sait pas. La
+  // progression n'est pas toujours servie (le module peut ne pas être branché) :
+  // on n'écrit pas un « 0 / 0 » qui serait faux.
+  const contenus = c.progression
+    ? c.progression.termines + ' / ' + c.progression.total
+    : '—';
+  const theorie = c.theorieValidee
+    ? (c.scoreTheorie === null || c.scoreTheorie === undefined ? 'validée' : c.scoreTheorie + ' %')
+    : '—';
+  const prat = c.pratique && c.pratique.nbTentatives
+    ? c.pratique.nbTentatives + ' éval.' + (c.pratique.nbTentatives > 1 ? 's' : '')
+    : '—';
 
-  return ouvrable
-    ? '<button type="button" class="ac-l ac-eval-l" data-collab="' + echapper(c.email) + '">' + dedans + '</button>'
-    // Pas un bouton mort : une ligne qui dit pourquoi elle n'ouvre pas.
-    : '<div class="ac-l ac-eval-l ac-eval-l-fermee">' + dedans +
-        '<span class="ac-eval-note">Fiche disponible dès la théorie validée</span></div>';
+  // Un bouton n'apparaît QUE si le serveur l'honorerait. Sans théorie validée,
+  // la fiche est refusée : on dit pourquoi plutôt que d'offrir un bouton mort.
+  const geste = c.statut === 'certification_a_delivrer'
+    ? '<button type="button" class="ec-btn ec-btn-p ac-eval-act" data-cert="' + echapper(c.email) +
+        '" data-geste="delivrer">' + echapper(action) + '</button>'
+    : (action && ouvrable
+      ? '<button type="button" class="ec-btn ac-eval-act" data-collab="' + echapper(c.email) +
+          '" data-form="' + echapper(c.formation || '') + '">' + echapper(action) + '</button>'
+      : '<span class="ac-eval-note">Dès la théorie validée</span>');
+
+  return '<div class="ac-evr">' +
+    '<span class="ac-evr-c ac-evr-coach"><b>' + echapper(c.prenom || c.email) + '</b>' +
+      '<i class="ac-eval-mail">' + echapper(c.email) + '</i></span>' +
+    '<span class="ac-evr-c ac-evr-form">' + echapper(c.formationLibelle || '') + '</span>' +
+    '<span class="ac-evr-c" data-l="Contenus">' + contenus + '</span>' +
+    '<span class="ac-evr-c" data-l="Théorie">' + theorie + '</span>' +
+    '<span class="ac-evr-c" data-l="Pratique">' + prat + '</span>' +
+    '<span class="ac-evr-c"><span class="ac-eval-etat ' + cl + '">' +
+      echapper(LIB_STATUT[c.statut] || c.statut) + '</span></span>' +
+    '<span class="ac-evr-c ac-evr-act">' + geste + '</span>' +
+  '</div>';
 }
 
 function rendreEvalListe() {
   const d = evalListe || { coachs: [] };
-  const coachs = d.coachs || [];
-  const aFaire = coachs.filter((c) => c.statut !== 'certifie' && c.statut !== 'formation_en_cours').length;
+  const tous = d.coachs || [];
+
+  // LA FILE DE TRAVAIL. Les certifiés en sortent — ils n'attendent rien, et ils
+  // restent consultables dans l'onglet Certifications.
+  const aTraiter = tous.filter((c) => c.statut !== 'certifie')
+    .sort((a2, b2) => rangTravail(a2.statut) - rangTravail(b2.statut)
+      || String(a2.prenom || a2.email).localeCompare(String(b2.prenom || b2.email), 'fr'));
+
+  const compte = (statuts) => tous.filter((c) => statuts.includes(c.statut)).length;
+
+  const enTete =
+    '<div class="ac-evr ac-evr-h" aria-hidden="true">' +
+      ['Coach', 'Formation', 'Contenus', 'Théorie', 'Pratique', 'Statut', 'Action']
+        .map((t) => '<span class="ac-evr-c">' + t + '</span>').join('') +
+    '</div>';
 
   $('#acEval').innerHTML =
     (moiCollab ? '<button type="button" class="ec-back" id="acEvalBack">← Mes formations</button>' : '') +
     (moiAdmin ? '<button type="button" class="ec-back" id="acEvalAdmin">Administration →</button>' : '') +
     '<h1 class="ec-t">Évaluer &amp; certifier</h1>' +
-    // POUR QUELLE FORMATION. Un évaluateur qui intervient sur plusieurs
-    // parcours doit le lire avant de prononcer un résultat, pas le deviner.
+    '<p class="ec-sub">Suis la progression des coachs et traite les évaluations en attente.</p>' +
+
+    // Les trois compteurs, calculés sur les statuts servis. Aucun chiffre écrit.
+    '<div class="ac-kpis ac-kpis-3">' + KPI_EVAL.map(([libelle, statuts, classe]) =>
+      '<div class="ac-kpi"><span class="ac-kpi-ic ' + classe + '" aria-hidden="true">' +
+        (statuts[0] === 'certifie' ? '🏅' : statuts.length > 1 ? '📋' : '🎓') + '</span>' +
+        '<span class="ac-kpi-tx"><b>' + compte(statuts) + '</b><span>' + echapper(libelle) + '</span></span>' +
+      '</div>').join('') +
+    '</div>' +
+
     rendreSelecteurEval() +
     rendreOngletsEval() +
     '<p class="ac-eval-err" id="acEvalErr" role="alert">' + echapper(evalErreur) + '</p>' +
 
     (evalOnglet === 'certifications' ? rendreCertifications() :
-      '<p class="ec-sub">Tous les coachs de <b>' + echapper(nomFormation(fCourante)) + '</b>, à toutes les étapes. ' +
-        (aFaire ? '<b>' + aFaire + '</b> dossier' + (aFaire > 1 ? 's' : '') + ' attend' + (aFaire > 1 ? 'ent' : '') +
-          ' une action — ils sont en tête de liste.'
-          : 'Aucun dossier n\'attend d\'action pour le moment.') + '</p>' +
-      (coachs.length
-        ? '<div class="ac-liste">' + coachs.map(ligneCoach).join('') + '</div>'
-        : '<div class="ec-vide">Aucun coach n\'est inscrit à cette formation.</div>'));
+      (aTraiter.length
+        ? '<div class="ac-evt">' + enTete + aTraiter.map(ligneCoach).join('') + '</div>'
+        // L'état vide tient en une phrase : quand il n'y a rien à faire, il n'y
+        // a rien à expliquer.
+        : '<div class="ec-vide">Aucune évaluation en attente.</div>'));
 
-  document.querySelectorAll('[data-formation-eval]').forEach((el) =>
-    el.addEventListener('click', async () => {
-      if (el.dataset.formationEval === fCourante) return;
-      fCourante = el.dataset.formationEval;
-      evalListe = null; evalFiche = null; evalErreur = '';
-      await ouvrirEvaluateur();
-    }));
+  const sel = $('#acEvalFormation');
+  if (sel) sel.addEventListener('change', async () => {
+    evalFormation = sel.value;
+    evalListe = null; evalFiche = null; evalErreur = '';
+    await ouvrirEvaluateur();
+  });
 
   // Changer d'onglet RELIT les données : les écarts avec le Boost naissent
   // ailleurs — dans une autre session, dans l'administration du Boost — et un
@@ -1872,7 +2016,7 @@ function rendreEvalListe() {
   const ga = $('#acEvalAdmin');
   if (ga) ga.addEventListener('click', () => ouvrirAdmin());
   document.querySelectorAll('#acEval [data-collab]').forEach((el) =>
-    el.addEventListener('click', () => ouvrirFiche(el.dataset.collab)));
+    el.addEventListener('click', () => ouvrirFiche(el.dataset.collab, el.dataset.form)));
   document.querySelectorAll('#acEval [data-cert]').forEach((el) =>
     el.addEventListener('click', () => agirSurCertification(el.dataset.cert, el.dataset.geste)));
 
@@ -1881,8 +2025,19 @@ function rendreEvalListe() {
   window.scrollTo(0, 0);
 }
 
-async function ouvrirFiche(email) {
-  const r = await apiAc(avecFormation('/api/academy/evaluateur/collaborateurs/' + encodeURIComponent(email)));
+// LA FORMATION D'UN DOSSIER vient de SA LIGNE, jamais de l'écran. En mode
+// « toutes », l'écran n'a pas de formation courante — et prononcer un résultat
+// sur le mauvais parcours serait la faute la plus grave que cette page puisse
+// commettre. On garde la formation ouverte, pour que le retour de fiche et les
+// gestes de certification visent le même dossier.
+let evalFicheFormation = null;
+
+async function ouvrirFiche(email, formation) {
+  const cle = formation || (evalFormation !== 'toutes' ? evalFormation : null);
+  if (!cle) { evalErreur = 'Formation introuvable pour ce dossier.'; rendreEvalListe(); return; }
+  evalFicheFormation = cle;
+  const r = await apiAc('/api/academy/evaluateur/collaborateurs/' + encodeURIComponent(email) +
+    '?formation=' + encodeURIComponent(cle));
   if (r.status === 401) { deconnecter(); return; }
   if (!r.data.ok) {
     bloquer('🔍', 'Dossier indisponible', r.data.error || 'Ce collaborateur n\'est pas évaluable.');
@@ -1900,7 +2055,8 @@ function rendreEvalFiche() {
   $('#acEval').innerHTML =
     '<button type="button" class="ec-back" id="acEvalRetour">← Tous les coachs</button>' +
     '<div class="ac-lec-h">' +
-      '<p class="ac-lec-mod">Évaluer &amp; certifier — ' + echapper(nomFormation(fCourante)) + '</p>' +
+      '<p class="ac-lec-mod">Évaluer &amp; certifier — ' +
+        echapper(nomFormation(evalFicheFormation || evalFormation)) + '</p>' +
       '<h1 class="ac-lec-t">' + echapper(c.prenom || c.email) + '</h1>' +
     '</div>' +
     // Le refus du serveur a sa place ICI AUSSI : la délivrance se joue
@@ -2405,6 +2561,12 @@ function rendreOngletsAdmin() {
 }
 
 function rendreCertifications() {
+  // « Toutes les formations » n'a pas de sens ici : un diplôme appartient à un
+  // parcours. On le dit, plutôt que d'afficher la liste d'une formation choisie
+  // au hasard — ce serait faux sans en avoir l'air.
+  if (evalFormation === 'toutes') {
+    return '<div class="ec-vide">Choisis une formation pour voir ses certifications.</div>';
+  }
   const d = adminCerts || { eligibles: [], certifies: [], ecarts: [] };
   // C'est le SERVEUR qui dit qui peut retirer un diplôme. L'écran ne déduit pas
   // ce droit de `moiAdmin` : un drapeau d'affichage et une garde de route qui
@@ -2493,6 +2655,16 @@ function rendreCertifications() {
 // Les deux gestes du diplôme, depuis l'espace « Évaluer & certifier ». Ils
 // re-rendent l'écran d'où ils viennent : la fiche d'un coach, ou l'onglet
 // Certifications. `evalFiche` dit lequel.
+// La formation visée par un geste de certification. Dans l'ordre : la fiche
+// ouverte, puis la ligne du dossier, puis la formation choisie à l'écran. On ne
+// se rabat JAMAIS sur `fCourante` — elle appartient à d'autres écrans.
+function formationDuGeste(email) {
+  if (evalFiche && evalFicheFormation) return evalFicheFormation;
+  const ligne = ((evalListe || {}).coachs || []).find((c) => c.email === email);
+  if (ligne && ligne.formation) return ligne.formation;
+  return evalFormation !== 'toutes' ? evalFormation : null;
+}
+
 async function agirSurCertification(email, geste) {
   const rendre = () => (evalFiche ? rendreEvalFiche() : rendreEvalListe());
   if (geste === 'delivrer' || geste === 'retirer') { enSaisie = { email, geste }; evalErreur = ''; rendre(); return; }
@@ -2501,13 +2673,13 @@ async function agirSurCertification(email, geste) {
   let r;
   if (geste === 'confirmer-delivrer') {
     r = await apiAc('/api/academy/admin/certifications/' + encodeURIComponent(email), 'POST', {
-      formation: fCourante,
+      formation: formationDuGeste(email),
       obtenueLe: ($('#acCertDate') || {}).value || null,
       commentaire: ($('#acCertCom') || {}).value || null,
     });
   } else {
     r = await apiAc('/api/academy/admin/certifications/' + encodeURIComponent(email) + '/retrait', 'POST', {
-      formation: fCourante,
+      formation: formationDuGeste(email),
       motif: ($('#acCertMotif') || {}).value || '',
     });
   }
@@ -2606,7 +2778,54 @@ function rendreSelecteurAdmin() {
       ' data-formation-adm="' + echapper(f.cle) + '">' + echapper(f.libelle) +
       (f.actif ? '' : ' <i class="ac-adm-brouillon">brouillon</i>') + '</button>').join('') +
     '<button type="button" class="ac-sel-b ac-adm-neuve" data-adm="formation-neuve">+ Nouvelle formation</button>' +
+    '<button type="button" class="ac-sel-b ac-adm-neuve" data-adm="import-ouvrir">⤓ Importer un JSON</button>' +
     '</div>';
+}
+
+// L'ÉCRAN D'IMPORT. Deux boutons, et l'ordre entre eux est la garantie :
+// « Vérifier » ne peut rien écrire, « Importer » n'apparaît que sur un rapport
+// vierge. Le serveur revalide de toute façon pour son propre compte — l'aperçu
+// est une commodité, jamais une autorisation.
+function rendreImport() {
+  const r = importRapport;
+  const erreurs = r && r.erreurs ? r.erreurs : [];
+  const avert = r && r.avertissements ? r.avertissements : [];
+  const c = r && r.chiffres ? r.chiffres : null;
+
+  const liste = (items, classe) => '<ul class="ac-imp-l">' + items.map((x) =>
+    '<li class="' + classe + '"><code>' + echapper(x.chemin) + '</code> ' + echapper(x.message) + '</li>').join('') + '</ul>';
+
+  return '<div class="ac-adm-form">' +
+    '<h2 class="ac-eval-t">Importer une formation</h2>' +
+    '<p class="ac-qcm-s">Colle le JSON complet : formation, réglages, modules, vidéos, mini-QCM, ' +
+      'QCM final et cas d\'évaluation. La formation sera créée <b>en brouillon</b> — rien n\'est publié.</p>' +
+    '<label class="ec-field"><span>JSON de la formation</span>' +
+      '<textarea id="acImpJson" rows="14" spellcheck="false" placeholder=\'{ "formation": { "cle": "fitness_boxe", … } }\'>' +
+      echapper(importTexte || '') + '</textarea></label>' +
+
+    (r ? '<div class="ac-imp-rapport">' +
+      (erreurs.length
+        ? '<p class="ac-adm-manque">✗ ' + erreurs.length + ' erreur' + (erreurs.length > 1 ? 's' : '') +
+            ' — rien ne sera créé.</p>' + liste(erreurs, 'ac-imp-err')
+        : '<p class="ac-imp-ok">✓ Aucune erreur.</p>') +
+      (c ? '<p class="ac-eval-mail">Serait créé : <b>' + c.modules + '</b> module' + (c.modules > 1 ? 's' : '') +
+            ' · <b>' + c.videos + '</b> vidéo' + (c.videos > 1 ? 's' : '') +
+            ' · <b>' + c.minis + '</b> mini-QCM' +
+            ' · <b>' + c.finales + '</b> question' + (c.finales > 1 ? 's' : '') + ' finale' + (c.finales > 1 ? 's' : '') +
+            ' · <b>' + c.cas + '</b> cas' + '</p>' : '') +
+      (avert.length ? '<p class="ac-eval-mail">⚠ ' + avert.length + ' avertissement' +
+        (avert.length > 1 ? 's' : '') + ' — ils ne bloquent rien.</p>' + liste(avert, 'ac-imp-avert') : '') +
+      '</div>' : '') +
+
+    '<div class="ac-adm-actions ac-adm-actions-form">' +
+      '<button type="button" class="ec-btn ac-adm-b" data-adm="import-verifier">Vérifier</button>' +
+      // Le bouton d'écriture N'EXISTE PAS tant qu'une vérification n'est pas
+      // passée sans erreur. On ne le grise pas : on ne le rend pas.
+      (r && !erreurs.length
+        ? '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="import-ecrire">Importer en brouillon</button>'
+        : '') +
+      '<button type="button" class="ec-btn ac-adm-b" data-adm="annuler">Annuler</button>' +
+    '</div></div>';
 }
 
 // Le formulaire de création d'une formation. La clé est saisie une seule fois :
@@ -2622,6 +2841,9 @@ function rendreFormFormationNeuve() {
       '<input id="acFCle" type="text" maxlength="40" placeholder="coach_sommeil" /></label>' +
     '<label class="ec-field"><span>Titre délivré</span>' +
       '<input id="acFTitre" type="text" maxlength="120" placeholder="Coach Sommeil certifié" /></label>' +
+    champCategorie('acFCategorie', '') +
+    '<label class="ec-field"><span>Description (facultatif)</span>' +
+      '<textarea id="acFDesc" rows="3" maxlength="2000" placeholder="Ce que le coach y apprend."></textarea></label>' +
     '<div class="ac-adm-actions ac-adm-actions-form">' +
       '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="formation-creer">Créer le brouillon</button>' +
       '<button type="button" class="ec-btn ac-adm-b" data-adm="annuler">Annuler</button>' +
@@ -2639,6 +2861,9 @@ function rendreReglages(f) {
         '<input id="acRLibelle" type="text" maxlength="120" value="' + echapper(f.libelle) + '" /></label>' +
       '<label class="ec-field"><span>Titre délivré (requis si la formation certifie)</span>' +
         '<input id="acRTitre" type="text" maxlength="120" value="' + echapper(f.titre || '') + '" /></label>' +
+      champCategorie('acRCategorie', f.categorie || '') +
+      '<label class="ec-field"><span>Description (facultatif)</span>' +
+        '<textarea id="acRDesc" rows="3" maxlength="2000">' + echapper(f.description || '') + '</textarea></label>' +
       '<div class="ac-adm-duo">' +
         '<label class="ec-field"><span>Questions tirées</span>' +
           '<input id="acRNb" type="number" min="1" max="200" value="' + f.qcmNbQuestions + '" /></label>' +
@@ -2732,6 +2957,13 @@ const SLOTS_CHOIX = 6;
 function rendreFormQuestion(q) {
   const choix = q ? q.choix.filter((c) => c.actif) : [];
   const modules = (adminArbre && adminArbre.modules) || [];
+  // L'ÉPREUVE EST UNE SAISIE, plus un défaut silencieux. Sans ce champ, toute
+  // question créée ici partait en « finale » — et comme le tirage final
+  // n'écarte pas les questions rattachées à un module, elle atterrissait dans
+  // l'examen. Les mini-QCM étaient donc impossibles à constituer par l'écran.
+  // Le défaut reste « finale », celui du serveur : une saisie muette ne doit
+  // pas changer de sens selon qu'elle passe par l'écran ou par la route.
+  const usage = q && q.usage === 'mini' ? 'mini' : 'finale';
   const slots = [];
   for (let i = 0; i < SLOTS_CHOIX; i++) {
     const c = choix[i];
@@ -2744,16 +2976,41 @@ function rendreFormQuestion(q) {
   return '<div class="ac-adm-form ac-adm-form-in">' +
     '<label class="ec-field"><span>Énoncé</span>' +
       '<input id="acQEnonce" type="text" maxlength="1000" value="' + echapper(q ? q.enonce : '') + '" /></label>' +
-    '<label class="ec-field"><span>Module de rattachement (facultatif)</span><select id="acQModule">' +
+    '<label class="ec-field"><span>Épreuve</span><select id="acQUsage">' +
+      '<option value="finale"' + (usage === 'finale' ? ' selected' : '') + '>QCM final</option>' +
+      '<option value="mini"' + (usage === 'mini' ? ' selected' : '') + '>Mini-QCM de module</option>' +
+      '</select></label>' +
+    '<label class="ec-field"><span>Module de rattachement</span><select id="acQModule">' +
       '<option value="">— aucun —</option>' +
       modules.map((m) => '<option value="' + m.id + '"' + (q && q.moduleId === m.id ? ' selected' : '') + '>' +
         echapper(m.titre) + '</option>').join('') +
       '</select></label>' +
+    '<p class="ac-adm-aide">Une question de <b>mini-QCM</b> doit être rattachée à un module : ' +
+      'c\'est là, et là seulement, qu\'elle sera tirée. Une question de <b>QCM final</b> est transversale ; ' +
+      'le module y reste facultatif.</p>' +
     '<p class="ac-adm-aide">Au moins deux réponses, au moins une bonne et au moins une mauvaise. ' +
       'Coche plusieurs bonnes réponses pour une question à choix multiples.</p>' +
     '<div class="ac-adm-choix-l">' + slots.join('') + '</div>' +
     '<div class="ac-adm-actions ac-adm-actions-form">' +
       '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="question-enregistrer">Enregistrer</button>' +
+      '<button type="button" class="ec-btn ac-adm-b" data-adm="annuler">Annuler</button>' +
+    '</div></div>';
+}
+
+// Un cas d'évaluation pratique. DEUX CHAMPS, et le second est facultatif :
+// « un intitulé suffit à désigner une situation », dit le schéma, « et personne
+// ne doit inventer des consignes pour remplir une colonne ».
+function rendreFormCas(c) {
+  return '<div class="ac-adm-form ac-adm-form-in">' +
+    '<label class="ec-field"><span>Titre du cas</span>' +
+      '<input id="acKTitre" type="text" maxlength="200" value="' + echapper(c ? c.titre : '') + '" /></label>' +
+    '<label class="ec-field"><span>Consignes à l\'évaluateur (facultatif)</span>' +
+      '<textarea id="acKConsignes" rows="8" maxlength="5000">' + echapper(c && c.consignes ? c.consignes : '') +
+      '</textarea></label>' +
+    '<p class="ac-adm-aide">Ce que l\'évaluateur observe, ce qu\'il attend, ce qui vaut validation. ' +
+      'Sans consignes, le cas reste un intitulé : l\'évaluateur se prononce en champ libre.</p>' +
+    '<div class="ac-adm-actions ac-adm-actions-form">' +
+      '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="cas-enregistrer">Enregistrer</button>' +
       '<button type="button" class="ec-btn ac-adm-b" data-adm="annuler">Annuler</button>' +
     '</div></div>';
 }
@@ -2777,6 +3034,9 @@ function rendreAdminContenus() {
   if (!adminFormations) return '<div class="ec-vide">Chargement…</div>';
   if (edition && edition.objet === 'formation-neuve') {
     return rendreSelecteurAdmin() + rendreFormFormationNeuve();
+  }
+  if (edition && edition.objet === 'import') {
+    return rendreSelecteurAdmin() + rendreImport();
   }
   if (!adminArbre) return rendreSelecteurAdmin() + '<div class="ec-vide">Aucune formation à administrer.</div>';
 
@@ -2820,7 +3080,7 @@ function rendreAdminContenus() {
 
   // -- La banque. « Écartée du tirage » se dit à voix haute : une question en
   //    base qui ne sort jamais est exactement ce qu'on ne voit pas venir.
-  const blocQuestions = questions.map((q) => {
+  const ligneQuestion = (q) => {
     const bons = q.choix.filter((c) => c.actif && c.correct).length;
     return '<div class="ac-adm-ligne' + (q.actif ? '' : ' ac-adm-off') + '">' +
       '<span class="ac-l-t"><b>' + echapper(q.enonce) + '</b>' +
@@ -2836,7 +3096,79 @@ function rendreAdminContenus() {
           (q.actif ? 'Archiver' : 'Restaurer') + '</button>' +
       '</span></div>' +
       (ouvert('question', q.id) ? rendreFormQuestion(q) : '');
+  };
+
+  // LA BANQUE SE LIT PAR ÉPREUVE, jamais à plat. Cinquante minis et vingt
+  // finales dans une seule liste, on ne voit plus quel module est servi ni
+  // lequel est à court — or c'est précisément ce qui refusera la publication.
+  const minis = questions.filter((q) => q.usage === 'mini');
+  const finales = questions.filter((q) => q.usage !== 'mini');
+
+  // On compte les TIRABLES, avec la règle du tirage que `arbre()` a déjà
+  // appliquée : une question sans corrigé est en base sans exister à l'épreuve.
+  const compte = (n, attendu) => '<span class="ac-eval-mail">' + n + ' tirable' + (n > 1 ? 's' : '') +
+    ' · il en faut ' + attendu +
+    (n < attendu ? '<b class="ac-adm-manque"> · banque trop courte</b>' : '') + '</span>';
+
+  const blocMinis = modules.map((m) => {
+    const qs = minis.filter((q) => q.moduleId === m.id);
+    return '<div class="ac-adm-groupe">' +
+      '<div class="ac-adm-ligne ac-adm-groupe-t"><span class="ac-l-t"><b>' + echapper(m.titre) + '</b>' +
+        // Un module SANS mini est légitime : il vaut module d'introduction,
+        // franchi dès ses contenus terminés. On le dit, pour qu'un blanc ne
+        // passe pas pour un oubli.
+        (qs.length ? compte(qs.filter((q) => q.tirable).length, f.miniNbQuestions)
+          : '<span class="ac-eval-mail">aucun mini-QCM — module d\'introduction</span>') +
+      '</span></div>' +
+      qs.map(ligneQuestion).join('') +
+    '</div>';
   }).join('');
+
+  // -- Les cas d'évaluation pratique. La section n'apparaît QUE si la formation
+  //    en demande une : proposer un référentiel d'évaluation à une formation
+  //    qui n'évalue pas serait un champ de plus à comprendre pour rien.
+  const cas = adminArbre.cas || [];
+  const actifsCas = cas.filter((c) => c.actif);
+  const blocCas = cas.map((c, i) => {
+    const place = { haut: i === 0, bas: i === cas.length - 1 };
+    return '<div class="ac-adm-ligne' + (c.actif ? '' : ' ac-adm-off') + '">' +
+      '<span class="ac-l-t"><b>' + echapper(c.titre) + '</b>' +
+        '<span class="ac-eval-mail">' +
+          (c.consignes ? c.consignes.length + ' caractères de consignes'
+            : 'sans consignes — l\'évaluateur se prononcera en champ libre') +
+          (c.actif ? '' : ' · archivé') +
+        '</span></span>' +
+      actionsLigne('cas', c.id, c.actif, place) +
+      '</div>' +
+      (ouvert('cas', c.id) ? rendreFormCas(c) : '');
+  }).join('');
+
+  const sectionCas = !f.pratiqueObligatoire ? '' :
+    '<h2 class="ac-eval-t ac-eval-t2">Cas d\'évaluation pratique</h2>' +
+    '<div class="ac-adm-arbre">' +
+      '<div class="ac-adm-ligne ac-adm-groupe-t"><span class="ac-l-t"><b>Référentiel</b>' +
+        '<span class="ac-eval-mail">' + actifsCas.length + ' cas proposé' + (actifsCas.length > 1 ? 's' : '') +
+        ' à l\'évaluateur' +
+        // Zéro cas reste VALIDE — Coach Nutrition fonctionne ainsi. On le dit
+        // sans le peindre en rouge : ce n'est pas une erreur, c'est un choix.
+        (actifsCas.length ? '' : ' — évaluation en champ libre') +
+        '</span></span></div>' +
+      blocCas +
+      (ouvert('cas-neuf', 0) ? rendreFormCas(null) : '') +
+      '<button type="button" class="ec-btn ac-adm-b ac-adm-plus" data-adm="cas-neuf">+ Ajouter un cas</button>' +
+    '</div>';
+
+  // Un mini sans module ne serait jamais tiré. La saisie l'interdit désormais,
+  // des deux côtés ; une ligne d'avant la règle doit quand même se voir.
+  const orphelines = minis.filter((q) => !modules.some((m) => m.id === q.moduleId));
+  const blocOrphelines = orphelines.length
+    ? '<div class="ac-adm-groupe">' +
+        '<div class="ac-adm-ligne ac-adm-groupe-t"><span class="ac-l-t"><b>Sans module</b>' +
+          '<b class="ac-adm-manque">' + orphelines.length + ' mini-QCM sans module : jamais tiré' +
+          (orphelines.length > 1 ? 's' : '') + '</b></span></div>' +
+        orphelines.map(ligneQuestion).join('') +
+      '</div>'
+    : '';
 
   return rendreSelecteurAdmin() +
     '<p class="ac-qcm-s">Contenus de <b>' + echapper(f.libelle) + '</b>.</p>' +
@@ -2850,12 +3182,26 @@ function rendreAdminContenus() {
       '<button type="button" class="ec-btn ac-adm-b ac-adm-plus" data-adm="module-neuf">+ Ajouter un module</button>' +
     '</div>' +
 
-    '<h2 class="ac-eval-t ac-eval-t2">Banque de questions</h2>' +
+    '<h2 class="ac-eval-t ac-eval-t2">Mini-QCM, module par module</h2>' +
     '<div class="ac-adm-arbre">' +
-      (questions.length ? blocQuestions : '<div class="ec-vide">Aucune question pour le moment.</div>') +
+      (modules.length ? blocMinis + blocOrphelines
+        : '<div class="ec-vide">Aucun module : les mini-QCM se rattachent à un module.</div>') +
+    '</div>' +
+
+    '<h2 class="ac-eval-t ac-eval-t2">QCM final</h2>' +
+    '<div class="ac-adm-arbre">' +
+      '<div class="ac-adm-ligne ac-adm-groupe-t"><span class="ac-l-t"><b>Banque transversale</b>' +
+        compte(finales.filter((q) => q.tirable).length, f.qcmNbQuestions) + '</span></div>' +
+      (finales.length ? finales.map(ligneQuestion).join('')
+        : '<div class="ec-vide">Aucune question pour le moment.</div>') +
+    '</div>' +
+
+    '<div class="ac-adm-arbre">' +
       (ouvert('question-neuve', 0) ? rendreFormQuestion(null) : '') +
       '<button type="button" class="ec-btn ac-adm-b ac-adm-plus" data-adm="question-neuve">+ Ajouter une question</button>' +
-    '</div>';
+    '</div>' +
+
+    sectionCas;
 }
 
 // Les choix saisis, lus dans les six emplacements. Les vides sont ignorés :
@@ -2874,6 +3220,9 @@ function lireChoixSaisis() {
 // d'incrémenter deux lignes qui pourraient se croiser.
 function voisinage(type, id) {
   if (type === 'module') return (adminArbre.modules || []).map((m) => m.id);
+  // Les cas sont frères entre eux à l'échelle de la formation, comme les
+  // modules — et non d'un parent intermédiaire comme les contenus.
+  if (type === 'cas') return (adminArbre.cas || []).map((c) => c.id);
   const m = (adminArbre.modules || []).find((x) => (x.contenus || []).some((c) => c.id === id));
   return m ? m.contenus.map((c) => c.id) : [];
 }
@@ -2892,11 +3241,60 @@ async function agirSurContenus(el) {
   if (geste === 'module-neuf') { edition = { objet: 'module-neuf', id: 0 }; rendreAdmin(); return; }
   if (geste === 'contenu-neuf') { edition = { objet: 'contenu-neuf', id }; rendreAdmin(); return; }
   if (geste === 'question-neuve') { edition = { objet: 'question-neuve', id: 0 }; rendreAdmin(); return; }
+  if (geste === 'cas-neuf') { edition = { objet: 'cas-neuf', id: 0 }; rendreAdmin(); return; }
+  if (geste === 'import-ouvrir') {
+    edition = { objet: 'import', id: 0 };
+    importRapport = null;
+    rendreAdmin();
+    return;
+  }
+
+  if (geste === 'import-verifier' || geste === 'import-ecrire') {
+    // Le texte est repris du champ AVANT tout appel : un rendu ultérieur le
+    // réécrit depuis l'état, jamais depuis le DOM.
+    importTexte = (($('#acImpJson') || {}).value || '');
+    let json = null;
+    try {
+      json = JSON.parse(importTexte);
+    } catch (e) {
+      // Le JSON malformé se dit ICI : le serveur ne verrait qu'un corps vide et
+      // n'aurait rien d'utile à répondre.
+      importRapport = { erreurs: [{ chemin: 'racine', message: 'JSON illisible — ' + e.message }],
+        avertissements: [], chiffres: null };
+      rendreAdmin();
+      return;
+    }
+
+    const apercu = geste === 'import-verifier';
+    const r = await apiAc('/api/academy/admin/import', 'POST', { json, apercu });
+    if (r.status === 401) { deconnecter(); return; }
+
+    if (!r.data.ok) {
+      importRapport = r.data.rapport
+        || { erreurs: [{ chemin: 'import', message: r.data.error || 'Import impossible.' }],
+             avertissements: [], chiffres: null };
+      rendreAdmin();
+      return;
+    }
+    if (apercu) { importRapport = r.data.rapport; rendreAdmin(); return; }
+
+    // Écrit. On bascule sur la formation créée, EN BROUILLON : elle se relit
+    // avant d'être publiée, et la publication reste un geste à part.
+    fAdmin = r.data.formation.cle;
+    importTexte = '';
+    importRapport = null;
+    edition = null;
+    await chargerAdminFormations();
+    await chargerAdminArbre();
+    rendreAdmin();
+    return;
+  }
   if (geste === 'modifier') { edition = { objet: type, id }; rendreAdmin(); return; }
 
   if (geste === 'formation-creer') {
     const r = await apiAc('/api/academy/admin/formations', 'POST', {
       cle: champ('#acFCle').toLowerCase(), libelle: champ('#acFLibelle'), titre: champ('#acFTitre'),
+      categorie: champ('#acFCategorie'), description: champ('#acFDesc'),
     });
     if (r.status === 401) { deconnecter(); return; }
     if (!r.data.ok) { admErreur = r.data.error || 'Création impossible.'; const e = $('#acAdmErr'); if (e) e.textContent = admErreur; return; }
@@ -2911,6 +3309,7 @@ async function agirSurContenus(el) {
   if (geste === 'reglages-enregistrer') {
     const r = await apiAc('/api/academy/admin/formations/' + encodeURIComponent(fAdmin), 'PUT', {
       libelle: champ('#acRLibelle'), titre: champ('#acRTitre'),
+      categorie: champ('#acRCategorie'), description: champ('#acRDesc'),
       qcmNbQuestions: Number(champ('#acRNb')), qcmSeuilPct: Number(champ('#acRSeuil')),
       ordre: Number(champ('#acROrdre')),
       pratiqueObligatoire: coche('#acRPratique'), certificationActive: coche('#acRCertif'),
@@ -2966,11 +3365,31 @@ async function agirSurContenus(el) {
   }
 
   if (geste === 'question-enregistrer') {
+    const usage = champ('#acQUsage') || 'finale';
+    const moduleId = champ('#acQModule') || null;
+    // Le serveur refuse déjà un mini sans module. On le dit ICI parce qu'un
+    // refus serveur n'est pas gratuit : `ecrireAdmin` n'a alors plus qu'un
+    // message à poser, et une question de six réponses serait à retaper.
+    if (usage === 'mini' && !moduleId) {
+      admErreur = 'Une question de mini-QCM doit être rattachée à un module.';
+      const el = $('#acAdmErr');
+      if (el) el.textContent = admErreur;
+      return;
+    }
     await ecrireAdmin('/api/academy/admin/questions', {
       id: edition && edition.objet === 'question' ? edition.id : undefined,
       enonce: champ('#acQEnonce'),
-      moduleId: champ('#acQModule') || null,
+      usage,
+      moduleId,
       choix: lireChoixSaisis(),
+    });
+    return;
+  }
+
+  if (geste === 'cas-enregistrer') {
+    await ecrireAdmin('/api/academy/admin/cas', {
+      id: edition && edition.objet === 'cas' ? edition.id : undefined,
+      titre: champ('#acKTitre'), consignes: champ('#acKConsignes'),
     });
     return;
   }

@@ -329,19 +329,55 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   // à l'écran les deux listes d'avant (éligibles à l'évaluation d'un côté,
   // éligibles à la certification de l'autre) — qui laissaient invisible un
   // coach encore en cours d'apprentissage.
+  // « TOUTES LES FORMATIONS ». Un évaluateur qui suit plusieurs parcours doit
+  // pouvoir lire sa file de travail entière, sans changer d'onglet cinq fois.
+  //
+  // L'AGRÉGATION EST ISOLÉE ICI, et volontairement : `listerCoachs` n'est pas
+  // touchée, ni `ligneCoach`, ni `statutCoach`, ni `RANG_STATUT`. On appelle la
+  // même fonction, une fois par formation publiée, et on marque chaque ligne de
+  // la formation d'où elle vient — un dossier est un couple (coach, formation),
+  // pas un coach.
+  //
+  // ⚠️ Le mode mono-formation, lui, ne change en RIEN : c'est la branche du bas,
+  // identique à ce qu'elle était.
+  const TOUTES = 'toutes';
+
   r.get('/api/academy/evaluateur/coachs', exigeCompte, exigeEvaluer, (req, res) => {
+    if (String(cleDemandee(req) || '').trim().toLowerCase() === TOUTES) {
+      const publiees = formations.lister();
+      const coachs = [];
+      for (const f of publiees) {
+        const l = certifications.listerCoachs(f.cle);
+        for (const c of l.coachs) {
+          coachs.push({ ...c, formation: f.cle, formationLibelle: f.libelle });
+        }
+      }
+      return res.json({
+        ok: true,
+        // Pas de formation courante : c'est justement ce que dit « toutes ».
+        formation: null,
+        toutes: true,
+        formations: publiees,
+        coachs,
+        peutRetirer: estAdministrateur(moi(req)),
+      });
+    }
+
     const f = formationDe(req, res);
     if (!f) return;
     const liste = certifications.listerCoachs(f.cle);
     res.json({
       ok: true,
+      toutes: false,
+      // Chaque ligne porte SA formation, en mono comme en agrégé : l'écran a
+      // ainsi une seule façon de lire une ligne, quel que soit le mode.
+      coachs: liste.coachs.map((c) => ({ ...c, formation: f.cle, formationLibelle: f.libelle })),
       // La formation entière, pas seulement sa clé : l'écran doit LIRE pour
       // quel parcours il s'apprête à prononcer, et pouvoir en changer.
       formation: f,
       formations: formations.lister(),
       certificationActive: liste.certificationActive,
       pratiqueObligatoire: liste.pratiqueObligatoire,
-      coachs: liste.coachs,
       // Le drapeau dit à l'écran s'il doit proposer le retrait d'un diplôme :
       // ce geste-là reste à l'administrateur, et l'écran ne doit pas dessiner
       // un bouton que le serveur refusera.
@@ -547,6 +583,27 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     const f = formationAdmin(req, res);
     if (!f) return;
     repondreAvecArbre(res, admin.definirContenu(req.body || {}), f.cle);
+  });
+
+  // L'IMPORT D'UNE FORMATION COMPLÈTE. Deux usages, une seule route :
+  //   { apercu: true }  -> valide et rapporte, SANS ÉCRIRE UNE LIGNE ;
+  //   { apercu: false } -> écrit, en une transaction, TOUJOURS en brouillon.
+  //
+  // L'aperçu est une commodité d'écran, jamais une autorisation : l'écriture
+  // rejoue l'analyse complète pour son propre compte.
+  r.post('/api/academy/admin/import', exigeCompte, exigeAdmin, (req, res) => {
+    const corps = req.body || {};
+    const r_ = admin.importer(corps.json, { apercu: !!corps.apercu }, moi(req));
+    res.status(r_.status).json(r_.body);
+  });
+
+  // Les cas d'évaluation pratique. Même forme que les trois autres écritures :
+  // une seule route, créer et modifier distingués par la présence d'un `id`.
+  // L'archivage et l'ordre passent par les routes communes, avec `type: 'cas'`.
+  r.post('/api/academy/admin/cas', exigeCompte, exigeAdmin, (req, res) => {
+    const f = formationAdmin(req, res);
+    if (!f) return;
+    repondreAvecArbre(res, admin.definirCas({ ...(req.body || {}), formation: f.cle }), f.cle);
   });
 
   r.post('/api/academy/admin/questions', exigeCompte, exigeAdmin, (req, res) => {

@@ -228,3 +228,97 @@ test('aucun ALTER TABLE users', () => {
     assert.ok(!cols.some((c) => c.includes(interdit)), 'colonnes users : ' + cols.join(', '));
   }
 });
+
+// ===========================================================================
+//  LA CATÉGORIE DE CATALOGUE
+//
+//  Une DONNÉE de la formation, jamais une règle d'écran. Le catalogue se
+//  classe par cette colonne et par rien d'autre : aucune clé de formation ne
+//  doit apparaître dans une logique de catégorisation, ni ici ni ailleurs.
+// ===========================================================================
+
+test('LES CATÉGORIES SONT UNE LISTE FERMÉE, déclarée à UN SEUL endroit', () => {
+  const { CATEGORIES, categorieValide } = require('../lib/academyFormations');
+  assert.deepStrictEqual(CATEGORIES,
+    ['essentiel', 'signature', 'expertise', 'management', 'boite_a_outils']);
+  for (const c of CATEGORIES) assert.strictEqual(categorieValide(c), true, c);
+  for (const c of ['premium', 'ESSENTIEL', 'Signature', '', null, undefined, 'boite a outils']) {
+    assert.strictEqual(categorieValide(c), false, JSON.stringify(c));
+  }
+});
+
+test('une formation se crée AVEC sa catégorie, et la relit', () => {
+  const r = registre().definir({ cle: 'cat_avec', libelle: 'Avec catégorie',
+    titre: 'T', categorie: 'signature' }, 'test');
+  assert.strictEqual(r.ok, true, JSON.stringify(r.body));
+  assert.strictEqual(r.body.formation.categorie, 'signature');
+  assert.strictEqual(registre().lire('cat_avec').categorie, 'signature');
+});
+
+test('une catégorie inconnue est REFUSÉE, et le refus dit ce qui est attendu', () => {
+  const r = registre().definir({ cle: 'cat_ko', libelle: 'Mauvaise', titre: 'T',
+    categorie: 'premium' }, 'test');
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.status, 400);
+  assert.match(r.body.error, /premium/);
+  assert.match(r.body.error, /essentiel, signature, expertise, management, boite_a_outils/);
+  assert.strictEqual(registre().lire('cat_ko'), null, 'rien ne doit avoir été écrit');
+});
+
+test('une formation SANS catégorie reste parfaitement valide', () => {
+  const r = registre().definir({ cle: 'cat_sans', libelle: 'Sans catégorie', titre: 'T' }, 'test');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.body.formation.categorie, null);
+  // Et elle apparaît normalement au catalogue.
+  assert.ok(registre().lister({ toutes: true }).some((f) => f.cle === 'cat_sans'));
+});
+
+test('LE PIÈGE : régler un seuil N\'EFFACE PAS la catégorie', () => {
+  registre().definir({ cle: 'cat_garde', libelle: 'Gardée', titre: 'T', categorie: 'expertise' }, 'test');
+  // Le formulaire de réglages n'envoie PAS la catégorie. Absente du corps, elle
+  // doit rester ce qu'elle était — sinon un enregistrement de seuil déclasserait
+  // la formation sans que personne ne l'ait demandé.
+  const r = registre().definir({ cle: 'cat_garde', libelle: 'Gardée', titre: 'T', qcmSeuilPct: 95 }, 'test');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.body.formation.categorie, 'expertise', 'la catégorie a été effacée par un réglage');
+  assert.strictEqual(r.body.formation.qcmSeuilPct, 95);
+  // La description tient par la même règle : on le revérifie ici, les deux
+  // champs partagent exactement le même piège.
+  // `definir` exige le libellé à CHAQUE écriture — il ne le reprend pas de la
+  // ligne existante. L'écran le renvoie toujours, son formulaire étant
+  // prérempli ; un appel qui l'oublie est simplement refusé.
+  registre().definir({ cle: 'cat_garde', libelle: 'Gardée', titre: 'T',
+    description: 'Une présentation.' }, 'test');
+  const apres = registre().definir({ cle: 'cat_garde', libelle: 'Gardée', titre: 'T', ordre: 7 }, 'test');
+  assert.strictEqual(apres.body.formation.description, 'Une présentation.');
+  assert.strictEqual(apres.body.formation.categorie, 'expertise');
+});
+
+test('on peut RETIRER une catégorie explicitement, sans la deviner', () => {
+  registre().definir({ cle: 'cat_retrait', libelle: 'Retrait', titre: 'T', categorie: 'management' }, 'test');
+  const r = registre().definir({ cle: 'cat_retrait', libelle: 'Retrait', titre: 'T', categorie: '' }, 'test');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.body.formation.categorie, null, 'une chaîne vide vaut « aucune catégorie »');
+});
+
+test('la catégorie est normalisée, jamais devinée', () => {
+  const r = registre().definir({ cle: 'cat_casse', libelle: 'Casse', titre: 'T',
+    categorie: '  Signature  ' }, 'test');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.body.formation.categorie, 'signature');
+});
+
+test('AUCUNE FORMATION N\'EST NOMMÉE dans la logique de catégorisation', () => {
+  const src = require('fs').readFileSync(
+    require('path').join(__dirname, '..', 'lib', 'academyFormations.js'), 'utf8');
+  const code = src.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  // `coach_nutrition` figure légitimement dans l'amorçage historique. Ce qu'on
+  // interdit, c'est qu'une clé de formation apparaisse à côté d'une catégorie.
+  for (const c of ['essentiel', 'signature', 'expertise', 'management', 'boite_a_outils']) {
+    const lignes = code.split('\n').filter((l) => l.includes(c));
+    for (const l of lignes) {
+      assert.ok(!/cycle_menstruel|prevenir_decrochage|mouvements_fondamentaux|savoir_etre/.test(l),
+        'une formation est classée en dur : ' + l.trim());
+    }
+  }
+});

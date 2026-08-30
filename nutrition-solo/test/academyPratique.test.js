@@ -876,10 +876,12 @@ test('l\'écran n\'appelle que les routes du lot', () => {
     [
       '/api/academy/admin/arbre',         // lot 6 : la SEULE route qui porte le corrigé
       '/api/academy/admin/archiver',      // lot 6 : archiver / restaurer
+      '/api/academy/admin/cas',           // étape 2 : le référentiel d'évaluation, administrable
       '/api/academy/admin/certifications',
       '/api/academy/admin/contenus',
       '/api/academy/admin/evaluateurs',
       '/api/academy/admin/formations',
+      '/api/academy/admin/import',        // étape 3 : une formation entière, en un JSON
       '/api/academy/admin/modules',
       '/api/academy/admin/ordre',
       '/api/academy/admin/questions',

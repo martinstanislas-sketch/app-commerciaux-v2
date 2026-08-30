@@ -175,6 +175,90 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
       .all(cleFormation(formationCle)).map(vueCas);
   }
 
+  // La liste D'ADMINISTRATION : archivés compris, et le drapeau avec. Elle ne
+  // remplace PAS `listerCas` — celle-ci sert l'évaluateur, et un cas archivé ne
+  // doit jamais lui être proposé. Deux publics, deux listes.
+  function listerCasAdmin(formationCle) {
+    assurerSchema();
+    return db().prepare(`SELECT * FROM academy_cas WHERE formation = ?
+                         ORDER BY ordre ASC, id ASC`)
+      .all(cleFormation(formationCle))
+      .map((r) => ({ ...vueCas(r), actif: !!r.actif }));
+  }
+
+  // Écrire un cas. Créer et modifier sont le MÊME geste, distingués par la
+  // présence d'un identifiant — comme pour un module ou une question.
+  //
+  // ⚠️ AUCUNE SUPPRESSION ICI, et ce n'est pas un oubli : `academy_evaluations`
+  // cite `cas_id`. Effacer un cas effacerait le référentiel des évaluations
+  // déjà prononcées dessus. L'archivage passe par `basculerActif`, comme
+  // partout ailleurs dans l'administration.
+  const TITRE_CAS_MAX = 200;
+  const CONSIGNES_MAX = 5000;
+
+  function definirCas(donnees) {
+    assurerSchema();
+    const d = donnees || {};
+    const existant = d.id
+      ? db().prepare('SELECT * FROM academy_cas WHERE id = ?').get(Number(d.id))
+      : null;
+    if (d.id && !existant) return err(404, 'Cas introuvable.');
+
+    // Un cas NE CHANGE PAS de formation. Le déplacer emporterait les
+    // évaluations déjà prononcées dessus, qui le citent par son identifiant.
+    // On lit donc la formation de la LIGNE quand elle existe, jamais du corps.
+    //
+    // `inclureInactives` est indispensable : on administre d'abord des
+    // brouillons, et `resoudre()` seul les tient pour inexistants.
+    const demandee = String(d.formation || '').trim().toLowerCase();
+    // Modifier un cas EN LE DÉSIGNANT DEPUIS UNE AUTRE FORMATION est refusé.
+    // Sans ce refus, la route écrirait dans la formation B tout en renvoyant
+    // l'arbre de la formation A : une écriture invisible dans l'écran qui l'a
+    // provoquée. C'est le même garde-fou que pour le module d'une question.
+    if (existant && demandee && demandee !== existant.formation) {
+      return err(400, 'Ce cas appartient à une autre formation.');
+    }
+    const cle = existant ? existant.formation : demandee;
+    const f = cle ? formations.resoudre(cle, { inclureInactives: true }) : null;
+    if (!f) return err(404, 'Formation inconnue.');
+
+    const titre = String(d.titre || '').trim().slice(0, TITRE_CAS_MAX);
+    if (!titre) return err(400, 'Le titre du cas est requis.');
+    // Les consignes restent FACULTATIVES, comme le dit le schéma : un intitulé
+    // suffit à désigner une situation, et personne ne doit inventer des
+    // consignes pour remplir une colonne.
+    const consignes = String(d.consignes || '').trim().slice(0, CONSIGNES_MAX) || null;
+
+    const entier = (v, defaut) => {
+      if (v === undefined || v === null || v === '') return defaut;
+      const n = Number(v);
+      return Number.isInteger(n) && n >= 0 && n <= 9999 ? n : null;
+    };
+    const suivant = (db().prepare('SELECT MAX(ordre) AS n FROM academy_cas WHERE formation = ?')
+      .get(f.cle).n || 0) + 1;
+    const ordre = entier(d.ordre, existant ? existant.ordre : suivant);
+    if (ordre === null) return err(400, 'Ordre invalide.');
+    const actif = d.actif === undefined || d.actif === null
+      ? (existant ? !!existant.actif : true) : !!d.actif;
+
+    const maintenant = nowIso();
+    let id = existant ? existant.id : null;
+    if (existant) {
+      db().prepare(`UPDATE academy_cas SET titre = ?, consignes = ?, ordre = ?, actif = ?, maj_le = ?
+                    WHERE id = ?`).run(titre, consignes, ordre, actif ? 1 : 0, maintenant, existant.id);
+    } else {
+      // `cle` reste NULLE. Elle est UNIQUE À TRAVERS TOUTES LES FORMATIONS et
+      // ne sert qu'à repérer l'amorçage : la remplir depuis l'administration
+      // ferait entrer en collision deux formations sans rapport.
+      const info = db().prepare(`INSERT INTO academy_cas (formation, titre, consignes, ordre, actif, cle, cree_le, maj_le)
+                                 VALUES (?,?,?,?,?,NULL,?,?)`)
+        .run(f.cle, titre, consignes, ordre, actif ? 1 : 0, maintenant, maintenant);
+      id = Number(info.lastInsertRowid);
+    }
+    const r = db().prepare('SELECT * FROM academy_cas WHERE id = ?').get(id);
+    return ok({ cas: { ...vueCas(r), actif: !!r.actif } });
+  }
+
   // Un cas n'est utilisable QUE dans sa formation. Renvoyer null plutôt que de
   // se rabattre sur une autre : un identifiant venu d'ailleurs doit être un
   // refus franc, pas une étiquette silencieusement fausse.
@@ -590,7 +674,7 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     assurerSchema,
     estEvaluateur, definirEvaluateur, listerEvaluateurs, listerGestionEvaluateurs,
     etatPour, historiqueDe, listerEligibles, ficheDe,
-    listerCas, lireCasDe,
+    listerCas, listerCasAdmin, lireCasDe, definirCas,
     ouvrir, enregistrerResultat, lireEvaluation,
   };
 }
