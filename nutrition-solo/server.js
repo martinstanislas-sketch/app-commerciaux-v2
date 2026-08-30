@@ -64,6 +64,7 @@ const { createAcademyCertifications } = require('./lib/academyCertifications');
 const { createAcademyAdmin } = require('./lib/academyAdmin');
 const { createAmorcageCycleMenstruel } = require('./lib/academyAmorcageCycleMenstruel');
 const { createAmorcagePrevenirDecrochage } = require('./lib/academyAmorcagePrevenirDecrochage');
+const { createAmorcageMouvementsFondamentaux } = require('./lib/academyAmorcageMouvementsFondamentaux');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
 const PORT = process.env.PORT || 3000;
@@ -137,6 +138,13 @@ const academyCycleMenstruel = createAmorcageCycleMenstruel({
 // Même dispositif, mêmes garanties : un marqueur qui lui est propre, un
 // amorçage tout-ou-rien, et une naissance EN BROUILLON.
 const academyPrevenirDecrochage = createAmorcagePrevenirDecrochage({
+  getDb, nowIso, formations: academyFormations, qcm: academyQcm,
+  pratique: academyPratique,
+});
+
+// La quatrième formation, « Maîtriser les mouvements fondamentaux ». Même
+// dispositif, mêmes garanties : marqueur propre, tout-ou-rien, EN BROUILLON.
+const academyMouvementsFondamentaux = createAmorcageMouvementsFondamentaux({
   getDb, nowIso, formations: academyFormations, qcm: academyQcm,
   pratique: academyPratique,
 });
@@ -872,6 +880,8 @@ if (require.main === module) {
   if (cm) console.log(`  Academy : « Cycle menstruel » amorcée (${cm} questions), en brouillon.`);
   const pd = academyPrevenirDecrochage.amorcer();
   if (pd) console.log(`  Academy : « Prévenir le décrochage » amorcée (${pd} questions), en brouillon.`);
+  const mf = academyMouvementsFondamentaux.amorcer();
+  if (mf) console.log(`  Academy : « Mouvements fondamentaux » amorcée (${mf} questions), en brouillon.`);
   appliquerResetPinAdmin();
   // L'état de la synchronisation photos est dit AU BOOT, inconditionnellement :
   // « aucune ligne dans les logs » ne doit plus pouvoir signifier à la fois
@@ -924,6 +934,7 @@ module.exports.academyFormations = academyFormations;
 module.exports.academyAdmin = academyAdmin;
 module.exports.academyCycleMenstruel = academyCycleMenstruel;
 module.exports.academyPrevenirDecrochage = academyPrevenirDecrochage;
+module.exports.academyMouvementsFondamentaux = academyMouvementsFondamentaux;
 module.exports.amorcerFaq = amorcerFaq;
 module.exports.appliquerResetPinAdmin = appliquerResetPinAdmin;
 module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;
