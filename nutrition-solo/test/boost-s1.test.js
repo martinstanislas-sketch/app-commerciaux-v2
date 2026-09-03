@@ -416,13 +416,21 @@ test('les notes du Coach ne sortent QUE par les routes Coach', async () => {
   }
 });
 
-test('le client voit son Boost démarré, sans le contenu du rendez-vous', async () => {
+test('le client voit son Boost démarré ET son action — pas le contenu du rendez-vous', async () => {
   const r = await api('GET', '/api/boost/mien', null, jetons[CLI_A]);
   assert.strictEqual(r.body.actuel.statut, B.STATUT_EN_COURS);
   assert.strictEqual(r.body.actuel.etapesValidees, 1);
-  // Aucune route client ne sert le contenu de S1 dans ce lot.
+  // La séance BRUTE ne sort toujours pas : ce que le client reçoit est une vue
+  // filtrée (`suivi`), jamais le contenu du rendez-vous tel que le coach l'a
+  // saisi.
   assert.strictEqual(r.body.actuel.seance, undefined);
-  assert.ok(!r.txt.includes('Perdre 8 kg'));
+
+  // LOT « MON ACCOMPAGNEMENT » : ce qui LUI est destiné lui parvient désormais.
+  // Avant, il suivait seize semaines sans qu'aucun écran ne lui dise ce qu'il
+  // avait à faire.
+  assert.ok(r.body.suivi.action, 'son action doit lui parvenir');
+  // Son objectif est le sien : ce sont ses mots, notés au premier rendez-vous.
+  assert.ok(r.txt.includes('Perdre 8 kg'), 'le client relit l\'objectif qu\'il a formulé');
 });
 
 // ===========================================================================

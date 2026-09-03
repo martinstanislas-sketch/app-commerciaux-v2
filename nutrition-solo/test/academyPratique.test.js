@@ -86,10 +86,29 @@ async function validerLaTheorie(email) {
   assert.strictEqual(res.reussie, true, 'la théorie devait être validée pour ' + email);
 }
 
+// LA GRILLE NUTRITION EST ARRIVÉE APRÈS CE FICHIER. Prononcer un verdict sur
+// coach_nutrition exige désormais ses neuf critères — c'est la règle posée par
+// academyGrilles, et elle a son propre fichier de tests. Ici, on teste le
+// MOTEUR d'évaluation : on pose donc la grille complète et acquise, pour que
+// chaque cas continue d'éprouver ce qu'il éprouvait.
+//
+// ⚠️ On n'injecte QUE si un résultat est demandé et qu'aucun critère n'est
+// fourni : les cas qui vérifient un verdict vide, un droit refusé ou un
+// identifiant inconnu doivent continuer d'échouer pour LEUR raison.
+const grilleAcquise = () => dbq()
+  .prepare('SELECT id FROM academy_criteres WHERE formation = ? AND actif = 1')
+  .all('coach_nutrition').map((c) => ({ id: c.id, acquis: true }));
+const avecGrille = (corps) => {
+  const c = corps || {};
+  if (!c.resultat || c.criteres) return c;
+  return { ...c, criteres: grilleAcquise() };
+};
+
 const ouvrir = (cible, par, corps) =>
-  api('POST', `/api/academy/evaluateur/collaborateurs/${encodeURIComponent(cible)}/evaluations`, corps || {}, jetons[par]);
+  api('POST', `/api/academy/evaluateur/collaborateurs/${encodeURIComponent(cible)}/evaluations`,
+    avecGrille(corps), jetons[par]);
 const prononcer = (id, par, corps) =>
-  api('PUT', `/api/academy/evaluateur/evaluations/${id}`, corps, jetons[par]);
+  api('PUT', `/api/academy/evaluateur/evaluations/${id}`, avecGrille(corps), jetons[par]);
 
 test.before(async () => {
   await new Promise((r) => { srv = app.listen(0, r); });
@@ -503,18 +522,26 @@ test('la liste de l\'évaluateur reflète l\'état courant', async () => {
   assert.strictEqual(theo.validee, true);
   assert.strictEqual(theo.nbTentatives, 2, 'les deux tentatives, et pas une de plus');
   assert.strictEqual(theo.close, true);
-  assert.strictEqual(theo.certifie, false);
+  // DEPUIS LA CERTIFICATION AUTOMATIQUE, valider la pratique certifie : le
+  // verdict était le dernier prérequis, il n'y a plus d'attente derrière.
+  assert.strictEqual(theo.certifie, true);
 });
 
 // ===========================================================================
-//  5. VALIDER LA PRATIQUE NE CERTIFIE PAS
+//  5. VALIDER LA PRATIQUE CERTIFIE — ET C'EST LE SEUL DÉCLENCHEUR
+//
+//  ⚠️ CE BLOC A CHANGÉ DE SENS. Il éprouvait l'inverse : « valider la pratique
+//  ne certifie personne, et le lot qui certifiera devra le faire
+//  explicitement ». Ce lot-là est arrivé, et l'étape intermédiaire « à
+//  certifier » a été supprimée. Ce qui reste vrai, et qui est éprouvé ici :
+//  le verdict est le SEUL déclencheur, et il ne déclenche que s'il est
+//  favorable.
 // ===========================================================================
 
-test('le résultat est reporté dans boost_certifications — mais PAS le statut', async () => {
+test('le résultat est reporté dans boost_certifications — ET le statut suit', async () => {
   const cert = app.boost.lireCertification(THEO);
   assert.strictEqual(cert.resultatPratique, 'valide', 'la colonne prévue pour ça reçoit le verdict');
-  assert.strictEqual(cert.statut, 'en_cours', 'le statut est resté celui posé par le QCM');
-  assert.notStrictEqual(cert.statut, 'certifie');
+  assert.strictEqual(cert.statut, 'certifie', 'le diplôme a été délivré dans la foulée');
 });
 
 test('le reflet a suivi les deux verdicts, dans l\'ordre, sans jamais reculer', () => {
@@ -525,22 +552,31 @@ test('le reflet a suivi les deux verdicts, dans l\'ordre, sans jamais reculer', 
   assert.strictEqual(app.boost.lireCertification(THEO).resultatPratique, 'valide');
 });
 
-test('AUCUNE CERTIFICATION AUTOMATIQUE : pratique validée, coach non certifié', async () => {
+test('CERTIFICATION AUTOMATIQUE : pratique validée, coach certifié', async () => {
   const p = await pratiqueDe(THEO);
   assert.strictEqual(p.validee, true, 'sa pratique est validée');
-  assert.strictEqual(p.certifie, false, 'et il n\'est PAS Coach Nutrition certifié');
-  assert.strictEqual(p.certification, 'en_cours');
+  assert.strictEqual(p.certifie, true, 'et il EST Coach Nutrition certifié, sans geste de plus');
+  assert.strictEqual(p.certification, 'certifie');
 
-  assert.strictEqual(app.boost.estCoachCertifie(THEO), false);
+  // Le reflet Boost suit : les dossiers clients s'ouvrent.
+  assert.strictEqual(app.boost.estCoachCertifie(THEO), true);
   const r = await api('GET', '/api/boost/coach/dossiers', null, jetons[THEO]);
-  assert.strictEqual(r.status, 403, 'il n\'accède toujours pas aux dossiers Boost');
-  assert.strictEqual(r.body.nonCertifie, true);
+  assert.strictEqual(r.status, 200, 'ses dossiers Boost sont ouverts');
 
-  // Rien n'a été prononcé par personne : l'évaluateur et la date de
-  // certification restent vides.
+  // PERSONNE n'a prononcé ce diplôme : c'est la règle. L'auteur est le
+  // marqueur automatique, et la date est celle du verdict pratique.
   const cert = app.boost.lireCertification(THEO);
-  assert.strictEqual(cert.evaluateur, null);
-  assert.strictEqual(cert.dateCertification, null);
+  // Le Boost normalise ce qu'il reçoit (il y attend des e-mails) : le marqueur
+  // y arrive en minuscules. Côté Academy, `delivree_par` garde « Academy »,
+  // qui est ce qui s'affiche.
+  assert.strictEqual(String(cert.evaluateur).toLowerCase(), 'academy');
+  assert.ok(cert.dateCertification, 'la date de certification est posée');
+
+  // UNE SEULE certification, malgré les deux tentatives d'évaluation.
+  const lignes = require('../lib/db').getDb()
+    .prepare('SELECT COUNT(*) AS n FROM academy_certifications WHERE email = ? AND statut = ?')
+    .get(THEO, 'delivree');
+  assert.strictEqual(lignes.n, 1);
 });
 
 test('aucune route de l\'Academy ne permet de poser le statut « certifie »', async () => {
@@ -560,11 +596,21 @@ test('aucune route de l\'Academy ne permet de poser le statut « certifie »', a
     await api(m, route, corps, jetons[EVA]);
     await api(m, route, corps, jetons[ADMIN]);
   }
-  for (const e of [THEO, OLIVIER]) {
-    assert.strictEqual(app.boost.lireCertification(e).statut !== 'certifie', true, e + ' a été certifié');
-  }
-  assert.strictEqual(app.boost.lireCertification(THEO).statut, 'en_cours', 'le statut n\'a pas bougé');
-  assert.strictEqual(app.boost.estCoachCertifie(THEO), false);
+  // OLIVIER n'a PAS d'évaluation pratique validée : aucun corps de requête ne
+  // doit pouvoir le certifier. C'est l'objet du test, et il tient toujours.
+  assert.notStrictEqual(app.boost.lireCertification(OLIVIER).statut, 'certifie',
+    OLIVIER + ' a été certifié par un statut glissé dans le corps');
+  assert.strictEqual(app.boost.estCoachCertifie(OLIVIER), false);
+
+  // ⚠️ THEO, LUI, EST LÉGITIMEMENT CERTIFIÉ depuis ce lot : sa pratique a été
+  // validée, et c'est CE verdict qui a délivré son diplôme — pas un `statut`
+  // envoyé par un client. La preuve : l'auteur est le marqueur automatique du
+  // serveur, et les quatre injections n'ont pas ajouté une seule ligne.
+  const db = require('../lib/db').getDb();
+  const lignes = db.prepare('SELECT delivree_par FROM academy_certifications WHERE email = ? AND statut = ?')
+    .all(THEO, 'delivree');
+  assert.strictEqual(lignes.length, 1, 'les injections n\'ont créé aucune certification');
+  assert.strictEqual(lignes[0].delivree_par, 'Academy', 'son diplôme vient de la règle, pas d\'un corps de requête');
 });
 
 test('un Coach DÉJÀ CERTIFIÉ n\'est pas rétrogradé par une évaluation pratique', async () => {
@@ -809,7 +855,7 @@ test('l\'écran ne décide d\'aucun résultat : il les envoie', () => {
 });
 
 test('l\'évaluateur est prévenu que son appréciation est lue par le collaborateur', () => {
-  assert.ok(/communiquée au collaborateur/.test(js),
+  assert.ok(/communiqué\w* au collaborateur/.test(js),
     'écrire une appréciation sans savoir qui la lira est un piège');
 });
 
@@ -830,11 +876,29 @@ test('l\'écran de gestion affiche l\'état et confirme avant de retirer', () =>
   const sommaire = js.slice(js.indexOf('function rendreSommaire'), js.indexOf('function rendreModule'));
   assert.ok(!/acRoleAdmin|acRoleEval/.test(sommaire),
     'le parcours de l\'apprenant ne doit plus proposer de changer de rôle');
-  assert.ok(/data-onglet="?/.test(js) || js.includes('data-onglet'), 'la gestion vit dans un onglet');
-  assert.ok(/'Évaluateur'/.test(js) && /'Non évaluateur'/.test(js), 'les deux états sont nommés');
-  assert.ok(/Désigner comme évaluateur/.test(js) && /Retirer le droit d/.test(js),
-    'les deux gestes portent leur verbe en toutes lettres');
-  assert.ok(/Confirmer le retrait/.test(js) && /Annuler/.test(js), 'le retrait se confirme');
+  // LE DROIT DE CERTIFIER A QUITTÉ « ADMINISTRER » pour l'écran Collaborateurs :
+  // il s'y bascule d'un interrupteur, à côté de la personne qu'il concerne.
+  // Le droit de certifier n'est PAS revenu dans les onglets d'administration :
+  // la barre en porte deux, les contenus et l'aperçu des évaluations pratiques.
+  const onglets = js.slice(js.indexOf('const ONGLETS_ADMIN'), js.indexOf('let admOnglet'));
+  assert.ok(!/certif|evaluateur/i.test(onglets),
+    'le droit de certifier ne doit pas revenir dans les onglets d\'administration');
+  assert.ok(!/Désigner comme évaluateur/.test(js), 'l\'ancien écran de désignation doit avoir disparu');
+  const inter = js.slice(js.indexOf('function interrupteurCertificateur'), js.indexOf('function rendreAdminCollaborateurs'));
+  assert.ok(inter.length > 300, 'l\'interrupteur doit être délimité');
+  assert.ok(/data-adm="collab-certificateur"/.test(inter), 'l\'interrupteur porte son geste');
+  assert.ok(/type="checkbox"/.test(inter),
+    'un vrai <input> : on garde le clavier, le focus et l\'état coché du navigateur');
+  assert.ok(/Certificateur/.test(inter), 'le rôle porte son nouveau nom à l\'écran');
+  // Les deux cas particuliers : l'administrateur l'a par son rôle, une adresse
+  // sans compte ne peut rien porter.
+  assert.ok(/certificateurAdmin/.test(inter) && /inclus avec le rôle Administrateur/.test(inter),
+    'le droit inclus dans le rôle d\'administrateur doit être dit, et verrouillé');
+  assert.ok(/en_attente/.test(inter), 'une adresse sans compte ne reçoit pas d\'interrupteur');
+  // Le retour visuel après bascule, discret et immédiat.
+  assert.ok(/Droit de certificateur activé/.test(js) && /Droit de certificateur retiré/.test(js),
+    'la bascule doit être confirmée à l\'écran');
+  assert.ok(/Confirmer le retrait/.test(js) && /Annuler/.test(js), 'le retrait d\'accès se confirme toujours');
   // Surtout PAS de boîte de dialogue du navigateur : elle fige la page et se
   // clique sans se lire.
   const code = js.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
@@ -842,9 +906,11 @@ test('l\'écran de gestion affiche l\'état et confirme avant de retirer', () =>
   // L'écran dit la règle en vigueur : l'admin a ces droits d'office, la liste
   // sert à les donner à ceux qui ne sont pas administrateurs.
   // Le texte est écrit dans une chaîne JavaScript : l'apostrophe y est échappée.
-  assert.ok(/sans être administrateur/.test(js) && /d\\?'office/.test(js),
-    'l\'écran doit dire à quoi sert cette liste maintenant qu\'un admin évalue d\'office');
-  for (const cls of ['.ac-etat-eval-oui', '.ac-etat-eval-non', '.ac-adm-danger', '.ac-adm-actions']) {
+  // L'écran dit ce que l'interrupteur ouvre : sans cela, « Certificateur »
+  // n'est qu'un mot de plus dans une ligne.
+  assert.ok(/ouvre en plus « Évaluer/.test(js),
+    'l\'écran doit dire ce que le droit de certificateur donne');
+  for (const cls of ['.ac-cert-sw', '.ac-sw', '.ac-sw-on', '.ac-adm-flash', '.ac-adm-danger', '.ac-adm-actions']) {
     assert.ok(css.includes(cls), 'style manquant : ' + cls);
   }
 });
@@ -856,7 +922,11 @@ test('l\'écran ne décide d\'aucun droit : il les demande', () => {
   assert.ok(!/moiEval\s*=\s*true/.test(code), 'l\'écran ne s\'accorde pas le droit d\'évaluer');
   assert.ok(!/moiAdmin\s*=\s*true/.test(code), 'ni celui d\'administrer');
   // Chaque changement repart du serveur.
-  assert.ok(/adminComptes = r\.data\.comptes/.test(code), 'la liste vient toujours de la réponse serveur');
+  assert.ok(/adminCollabs = r\.data\.collaborateurs/.test(code), 'la liste vient toujours de la réponse serveur');
+  // Et l'écran ne déduit JAMAIS le droit qu'il vient d'accorder : il relit son
+  // propre statut auprès du serveur quand il se l'applique à lui-même.
+  assert.ok(/moiEval = !!r2\.data\.evaluateur/.test(code),
+    'se donner ou se retirer le droit doit repartir de /api/academy/moi');
 });
 
 test('l\'écran n\'appelle que les routes du lot', () => {
@@ -874,6 +944,7 @@ test('l\'écran n\'appelle que les routes du lot', () => {
   const admin = js.match(/\/api\/academy\/admin\/[a-z]+/g) || [];
   assert.deepStrictEqual([...new Set(admin)].sort(),
     [
+      '/api/academy/admin/apercu',        // aperçu : LECTURE SEULE, réservée à l'admin
       '/api/academy/admin/arbre',         // lot 6 : la SEULE route qui porte le corrigé
       '/api/academy/admin/archiver',      // lot 6 : archiver / restaurer
       '/api/academy/admin/cas',           // étape 2 : le référentiel d'évaluation, administrable

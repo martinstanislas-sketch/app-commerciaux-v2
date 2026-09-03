@@ -462,10 +462,13 @@ test('la fiche d\'un Coach Nutrition affiche les 5 informations de certification
   const s = ecran.ligneCoach(quentin);
   assert.ok(!/undefined|NaN/.test(s), 'aucun trou : ' + s.slice(0, 200));
   assert.ok(s.includes('Certifié'), 'statut');
-  assert.ok(s.includes('15/07/2026'), 'date de certification');
-  // Depuis le lot 4, « l'évaluateur » de la ligne Boost est l'administrateur
-  // Academy qui a DÉLIVRÉ le diplôme : c'est lui qui répond de l'habilitation.
-  assert.ok(s.includes(ADMIN), 'délivreur : ' + s.slice(0, 200));
+  // ⚠️ LA DATE EST CELLE DU VERDICT PRATIQUE depuis la certification
+  // automatique : c'est le dernier prérequis rempli qui date le diplôme, pas
+  // le jour de son écriture.
+  assert.ok(s.includes('10/07/2026'), 'date de certification : ' + s.slice(0, 200));
+  // Et « l'évaluateur » de la ligne Boost est désormais le marqueur
+  // automatique : personne n'a prononcé ce diplôme, c'est la règle.
+  assert.ok(/academy/i.test(s), 'délivreur : ' + s.slice(0, 200));
   assert.ok(s.includes('100/100'), 'score QCM, celui de la vraie tentative');
   assert.ok(s.includes('Validée'), 'résultat pratique');
   assert.ok(s.includes('Désactiver'), 'l\'action d\'activation/désactivation');

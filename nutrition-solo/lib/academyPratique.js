@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS academy_cas (
 CREATE INDEX IF NOT EXISTS idx_academy_cas ON academy_cas(formation, ordre);
 `;
 
-function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
+function createAcademyPratique({ getDb, nowIso, boost, qcm, formations, grilles }) {
   const db = () => getDb();
   const normalise = (e) => String(e || '').trim().toLowerCase();
 
@@ -152,6 +152,42 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     // précédents doivent exister d'abord (clés étrangères actives).
     qcm.assurerSchema();
     d.exec(SCHEMA_PRATIQUE);
+    // ==================================================================
+    //  LE SCÉNARIO D'UN CAS — quatre colonnes, ajoutées après coup.
+    //
+    //  Elles remplacent le pavé de consignes par ce que le certificateur a
+    //  RÉELLEMENT besoin de savoir : ce qu'il lit, le rôle qu'il joue, les
+    //  trois comportements qu'il provoque, et ce que ça permet d'évaluer.
+    //
+    //  ⚠️ `consignes` N'EST PAS TOUCHÉE. Elle reste ce qu'elle était pour les
+    //  cas qui n'ont pas de scénario — d'autres formations en ont — et un cas
+    //  sans scénario continue de s'afficher exactement comme avant. Nullables
+    //  et sans défaut : aucune ligne existante n'est réécrite par la migration.
+    // ==================================================================
+    ajouterColonne(d, 'academy_cas', 'lire', 'TEXT');
+    ajouterColonne(d, 'academy_cas', 'role', 'TEXT');
+    ajouterColonne(d, 'academy_cas', 'jouer', 'TEXT');  // JSON : 3 comportements ordonnés
+    ajouterColonne(d, 'academy_cas', 'evalue', 'TEXT');
+    // ==================================================================
+    //  LE SCÉNARIO STRUCTURÉ — UNE COLONNE, ET PLUS JAMAIS DE MIGRATION.
+    //
+    //  Les quatre colonnes ci-dessus suffisaient tant qu'un cas se jouait en
+    //  trois gestes. Elles ne suffisent plus : un cas conversationnel porte
+    //  aussi ce que le client révèle SI on l'interroge, comment il réagit aux
+    //  propositions, ce qui est attendu, et le point à observer.
+    //
+    //  UN BLOC JSON VERSIONNÉ PLUTÔT QUE SEPT COLONNES NULLABLES. Le contenu
+    //  d'un scénario n'est jamais interrogé en SQL — il est lu en entier, pour
+    //  être affiché en entier. Sept colonnes ne donneraient donc aucun pouvoir
+    //  de requête, seulement sept migrations, puis une huitième au prochain
+    //  besoin. `v` porte la version du format : le jour où il évolue, c'est
+    //  l'adaptateur qui traduit, pas la base qui se réécrit.
+    //
+    //  ⚠️ LES QUATRE COLONNES RESTENT, ET RIEN NE LES RÉÉCRIT. Fitness Boxe
+    //  vit encore dessus ; `scenarioDe` retombe sur elles quand `scenario` est
+    //  vide. Un cas d'avant ce lot s'affiche exactement comme avant.
+    // ==================================================================
+    ajouterColonne(d, 'academy_cas', 'scenario', 'TEXT');
     // Les évaluations posées avant le référentiel n'ont pas cette colonne :
     // elles gardent leur étiquette libre, et `cas_id` reste NULL chez elles.
     ajouterColonne(d, 'academy_evaluations', 'cas_id', 'INTEGER');
@@ -161,9 +197,63 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
 
   // -- Le référentiel de cas d'une formation ---------------------------------
 
+  //  LE SCÉNARIO EST SERVI TEL QUEL, ou `null`. L'écran ne le devine pas : un
+  //  cas qui n'en a pas retombe sur `consignes`, comme avant ce lot.
+  //  UNE SEULE FORME EN SORTIE, quelle que soit la colonne d'où elle vient.
+  //  L'écran ne connaît donc qu'un scénario : celui-ci. C'est ce qui évite le
+  //  second moteur d'affichage — un pour les cas d'avant, un pour les nouveaux.
+  const texteOuNull = (v) => {
+    const t = String(v === null || v === undefined ? '' : v).trim();
+    return t || null;
+  };
+  const listeTexte = (v) => (Array.isArray(v) ? v.map(texteOuNull).filter(Boolean) : []);
+
+  //  LES RUBRIQUES CONDITIONNELLES. Une section = un titre (« Si le coach te
+  //  questionne ») et des lignes `clé → valeur` (« Matin » → « Je ne prends
+  //  pas de petit-déjeuner »). C'est la primitive qui sert les DEUX familles
+  //  d'évaluation : ce qu'un client répond quand on l'interroge, comme ce
+  //  qu'un pratiquant fait quand le coach corrige. Une ligne sans valeur est
+  //  écartée : elle n'aurait rien à dire au certificateur.
+  const sectionsDe = (v) => (Array.isArray(v) ? v.map((s) => ({
+    titre: texteOuNull(s && s.titre),
+    lignes: (Array.isArray(s && s.lignes) ? s.lignes : [])
+      .map((l) => ({ cle: texteOuNull(l && l.cle), valeur: texteOuNull(l && l.valeur) }))
+      .filter((l) => l.valeur),
+  })).filter((s) => s.lignes.length) : []);
+
+  const normaliserScenario = (o) => ({
+    v: 1,
+    lire: texteOuNull(o.lire),
+    role: texteOuNull(o.role),
+    // `jouer` GARDE SON NOM. Il a toujours voulu dire « ce que le certificateur
+    // produit sans qu'on le lui demande » — trois gestes en boxe, une phrase
+    // d'ouverture en nutrition. Le renommer aurait cassé Fitness Boxe et ses
+    // tests pour un synonyme.
+    jouer: listeTexte(o.jouer),
+    sections: sectionsDe(o.sections),
+    attendu: texteOuNull(o.attendu),
+    observer: texteOuNull(o.observer),
+    evalue: texteOuNull(o.evalue),
+  });
+
+  const scenarioDe = (r) => {
+    if (r.scenario) {
+      let o = null;
+      try { o = JSON.parse(r.scenario); } catch (_) { o = null; }
+      if (o && typeof o === 'object' && !Array.isArray(o)) return normaliserScenario(o);
+    }
+    // Le format d'avant, intact : aucune ligne n'a été convertie, aucune ne
+    // doit l'être pour continuer de fonctionner.
+    if (!r.lire && !r.role && !r.jouer) return null;
+    let jouer = [];
+    try { jouer = JSON.parse(r.jouer || '[]'); } catch (_) { jouer = []; }
+    return normaliserScenario({ lire: r.lire, role: r.role, jouer, evalue: r.evalue });
+  };
+
   const vueCas = (r) => ({
     id: r.id, formation: r.formation, titre: r.titre,
     consignes: r.consignes || null, ordre: r.ordre,
+    scenario: scenarioDe(r),
   });
 
   // Les cas PROPOSABLES d'une formation. Une autre formation n'en voit jamais
@@ -365,6 +455,10 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     enAttente: !r.resultat,
     commentaire: r.commentaire || null,
     decideLe: r.decide_le || null,
+    // LE RELEVÉ DE LA GRILLE, quand cette évaluation en porte un. `null` sinon
+    // — et c'est le cas de toutes celles d'avant ce lot, qui restent lisibles
+    // exactement comme elles l'étaient.
+    ...(grilles ? { grille: grilles.pour(r.id) } : {}),
   });
 
   // ⚠️ LA COLONNE `formation` EXISTAIT DEPUIS LE LOT 3, MAIS AUCUNE REQUÊTE NE
@@ -593,15 +687,37 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
 
     const maintenant = nowIso();
     const clos = saisie.resultat !== null;
-    const info = db().prepare(`INSERT INTO academy_evaluations
-        (email, formation, cas, cas_id, ouvert_par, ouverte_le, date_evaluation, evaluateur, resultat, commentaire, decide_le, maj_le)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(mail, cle, saisie.cas, saisie.casId, moi, maintenant,
-        saisie.date || (clos ? aujourdhui() : null),
-        clos ? moi : null, saisie.resultat, saisie.commentaire,
-        clos ? maintenant : null, maintenant);
 
-    const id = Number(info.lastInsertRowid);
+    // LA GRILLE N'EST EXIGÉE QUE LORSQU'ON PRONONCE. Ouvrir une séance sans
+    // verdict reste possible et ne demande rien : c'est le cas de l'évaluateur
+    // qui note son résultat le lendemain. Les mêmes deux refus qu'à la saisie
+    // du verdict (cf. enregistrerResultat) s'appliquent dès qu'on tranche.
+    let releve = null;
+    if (clos && grilles) {
+      const g = grilles.verifierSaisie(cle, (donnees || {}).criteres);
+      if (g.erreur) return g.erreur;
+      if (g.grille) {
+        if (!g.tousAcquis && !saisie.commentaire) {
+          return err(400, 'Un commentaire est requis dès qu\'un critère n\'est pas acquis : ' +
+            'explique brièvement ce qui doit être amélioré.', { commentaireRequis: true });
+        }
+        releve = g.lignes;
+      }
+    }
+
+    let id = null;
+    db().transaction(() => {
+      const info = db().prepare(`INSERT INTO academy_evaluations
+          (email, formation, cas, cas_id, ouvert_par, ouverte_le, date_evaluation, evaluateur, resultat, commentaire, decide_le, maj_le)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(mail, cle, saisie.cas, saisie.casId, moi, maintenant,
+          saisie.date || (clos ? aujourdhui() : null),
+          clos ? moi : null, saisie.resultat, saisie.commentaire,
+          clos ? maintenant : null, maintenant);
+      id = Number(info.lastInsertRowid);
+      if (releve) grilles.enregistrer(id, releve);
+    })();
+
     if (clos) reporterDansCertification(mail, saisie.resultat, moi, cle);
     return ok({ evaluation: vue(lireEvaluation(id)), pratique: etatPour(mail, cle) }, 201);
   }
@@ -636,14 +752,46 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations }) {
     if (saisie.erreur) return saisie.erreur;
     if (!saisie.resultat) return err(400, 'Un résultat est requis : « valide » ou « a_repasser ».');
 
+    // ==================================================================
+    //  LA GRILLE, QUAND LA FORMATION EN A UNE.
+    //
+    //  Deux refus, et ils sont la raison d'être de la grille :
+    //   · elle se remplit ENTIÈREMENT. Neuf critères ou aucun — un axe à
+    //     moitié renseigné afficherait un résultat faux qui a l'air juste ;
+    //   · un critère NON ACQUIS oblige à écrire pourquoi. C'est tout ce que
+    //     le coach évalué recevra pour progresser ; sans commentaire, on lui
+    //     annonce un manque sans lui dire lequel.
+    //
+    //  ⚠️ LA GRILLE NE PRONONCE PAS LE VERDICT. Le certificateur reste celui
+    //  qui tranche « validée » ou « à repasser » — la règle de réussite n'a
+    //  pas changé d'un iota dans ce lot.
+    // ==================================================================
+    let releve = null;
+    if (grilles) {
+      const g = grilles.verifierSaisie(r.formation, (donnees || {}).criteres);
+      if (g.erreur) return g.erreur;
+      if (g.grille) {
+        if (!g.tousAcquis && !saisie.commentaire) {
+          return err(400, 'Un commentaire est requis dès qu\'un critère n\'est pas acquis : ' +
+            'explique brièvement ce qui doit être amélioré.', { commentaireRequis: true });
+        }
+        releve = g.lignes;
+      }
+    }
+
     const maintenant = nowIso();
-    db().prepare(`UPDATE academy_evaluations SET evaluateur = ?, resultat = ?, commentaire = ?,
-                    date_evaluation = COALESCE(?, date_evaluation, ?),
-                    cas = COALESCE(?, cas), cas_id = COALESCE(?, cas_id),
-                    decide_le = ?, maj_le = ? WHERE id = ?`)
-      .run(moi, saisie.resultat, saisie.commentaire, saisie.date, aujourdhui(),
-        saisie.cas, saisie.casId,
-        maintenant, maintenant, r.id);
+    // TOUT DANS LA MÊME TRANSACTION : une évaluation prononcée sans sa grille,
+    // ou une grille sans son verdict, serait un dossier à moitié écrit.
+    db().transaction(() => {
+      db().prepare(`UPDATE academy_evaluations SET evaluateur = ?, resultat = ?, commentaire = ?,
+                      date_evaluation = COALESCE(?, date_evaluation, ?),
+                      cas = COALESCE(?, cas), cas_id = COALESCE(?, cas_id),
+                      decide_le = ?, maj_le = ? WHERE id = ?`)
+        .run(moi, saisie.resultat, saisie.commentaire, saisie.date, aujourdhui(),
+          saisie.cas, saisie.casId,
+          maintenant, maintenant, r.id);
+      if (releve) grilles.enregistrer(r.id, releve);
+    })();
 
     reporterDansCertification(r.email, saisie.resultat, moi, r.formation);
     return ok({ evaluation: vue(lireEvaluation(r.id)), pratique: etatPour(r.email, r.formation) });

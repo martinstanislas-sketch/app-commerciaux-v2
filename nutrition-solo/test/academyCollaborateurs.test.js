@@ -66,15 +66,28 @@ async function connecter(email, pin) {
   return r;
 }
 
+// L'INSCRIPTION TELLE QUE L'ÉCRAN ACADEMY LA FAIT : email + code, SANS prénom
+// (public/academy.js n'envoie que ces deux champs). C'est le chemin réel d'un
+// collaborateur qui crée son espace depuis /academy, et donc celui sur lequel
+// la reprise d'identité doit être éprouvée.
+async function inscrireCommeAcademy(email, pin) {
+  const r = await api('POST', '/account/login', { email, pin });
+  jetons[email] = r.body.token;
+  return r;
+}
+
 const adm = (m, route, corps) => api(m, route, corps, jetons[ADMIN]);
 const dbq = () => require('../lib/db').getDb();
 
 // L'état tel que l'écran le lit : une entrée par adresse, avec son statut.
+const dansLaListe = (l, mail) => (l || []).find((c) => c.email === mail) || null;
 const listeAdmin = async () => (await adm('GET', '/api/academy/admin/collaborateurs')).body.collaborateurs;
 const entree = async (mail) => (await listeAdmin()).find((c) => c.email === mail) || null;
 
 // La VÉRITÉ des droits, lue en base et non à l'écran : `boost_collaborateurs`
 // est la seule table que `academy.peutSeFormer` consulte.
+const identite = (mail) =>
+  dbq().prepare('SELECT prenom, nom FROM users WHERE email = ?').get(mail) || null;
 const ligneDroit = (mail) =>
   dbq().prepare('SELECT email, actif FROM boost_collaborateurs WHERE email = ?').get(mail) || null;
 const enAttenteEnBase = (mail) =>
@@ -104,7 +117,7 @@ test('les deux routes de l\'onglet Collaborateurs sont montées', async () => {
   // Sans jeton : on attend un REFUS (401), pas une absence (404). Le filet
   // /api de server.js répond « Route inconnue. » — c'est le message exact qui
   // s'affichait à l'écran, et c'est lui qu'on interdit ici.
-  for (const [m, corps] of [['GET', undefined], ['POST', { email: DEJA, role: 'collaborateur' }]]) {
+  for (const [m, corps] of [['GET', undefined], ['POST', { email: DEJA, role: 'collaborateur', prenom: 'A', nom: 'B' }]]) {
     const r = await api(m, '/api/academy/admin/collaborateurs', corps);
     assert.notStrictEqual(r.status, 404,
       `${m} /api/academy/admin/collaborateurs n'est pas montée : l'écran affichera « Route inconnue. »`);
@@ -128,7 +141,7 @@ test('l\'écran appelle exactement la route que le serveur expose', () => {
 
 test('administrer ces routes est réservé à l\'administrateur', async () => {
   const r = await api('POST', '/api/academy/admin/collaborateurs',
-    { email: DEJA, role: 'collaborateur' }, jetons[CURIEUX]);
+    { email: DEJA, role: 'collaborateur', prenom: 'Thomas', nom: 'Dupont' }, jetons[CURIEUX]);
   assert.strictEqual(r.status, 403, 'un compte ordinaire ne distribue pas les accès à l\'Academy');
   assert.strictEqual(ligneDroit(DEJA), null, 'un refus ne doit écrire aucun droit');
 });
@@ -138,10 +151,16 @@ test('administrer ces routes est réservé à l\'administrateur', async () => {
 // ===========================================================================
 
 test('adresse dont le compte existe : collaborateur actif tout de suite', async () => {
-  const r = await adm('POST', '/api/academy/admin/collaborateurs', { email: DEJA, role: 'collaborateur' });
+  const r = await adm('POST', '/api/academy/admin/collaborateurs',
+    { email: DEJA, role: 'collaborateur', prenom: 'Thomas', nom: 'Dupont' });
   assert.strictEqual(r.status, 200);
   assert.strictEqual(r.body.ok, true);
   assert.strictEqual(r.body.enAttente, false, 'un compte existant n\'attend rien : le droit est accordé');
+
+  // L'identité saisie est posée sur le profil, tout de suite.
+  assert.deepStrictEqual(identite(DEJA), { prenom: 'Thomas', nom: 'Dupont' });
+  assert.strictEqual(dansLaListe(r.body.collaborateurs, DEJA).prenom, 'Thomas');
+  assert.strictEqual(dansLaListe(r.body.collaborateurs, DEJA).nom, 'Dupont');
 
   // Le droit est écrit là où l'Academy le lit, et nulle part ailleurs.
   assert.deepStrictEqual(ligneDroit(DEJA), { email: DEJA, actif: 1 });
@@ -149,7 +168,7 @@ test('adresse dont le compte existe : collaborateur actif tout de suite', async 
 
   // L'écran le voit « actif », sans avoir à recharger : la liste repart avec
   // la réponse du POST.
-  const dansLaReponse = (r.body.collaborateurs || []).find((c) => c.email === DEJA);
+  const dansLaReponse = dansLaListe(r.body.collaborateurs, DEJA);
   assert.ok(dansLaReponse, 'la réponse du POST porte la liste à jour');
   assert.strictEqual(dansLaReponse.etat, 'actif');
   assert.strictEqual((await entree(DEJA)).etat, 'actif', 'et la relecture dit la même chose');
@@ -164,7 +183,8 @@ test('adresse dont le compte existe : collaborateur actif tout de suite', async 
 // ===========================================================================
 
 test('adresse sans compte : en attente, et pas une once de droit', async () => {
-  const r = await adm('POST', '/api/academy/admin/collaborateurs', { email: FUTUR, role: 'collaborateur' });
+  const r = await adm('POST', '/api/academy/admin/collaborateurs',
+    { email: FUTUR, role: 'collaborateur', prenom: 'Léa', nom: 'Martin' });
   assert.strictEqual(r.status, 200);
   assert.strictEqual(r.body.ok, true);
   assert.strictEqual(r.body.enAttente, true, 'sans compte, on ne mémorise qu\'une intention');
@@ -176,11 +196,15 @@ test('adresse sans compte : en attente, et pas une once de droit', async () => {
   assert.ok(vue, 'l\'administrateur voit l\'adresse dans sa liste');
   assert.strictEqual(vue.etat, 'en_attente');
   assert.strictEqual(vue.actif, false, 'en attente n\'est pas actif');
+  // L'identité attend avec l'adresse : elle n'a pas encore de compte où aller.
+  assert.strictEqual(vue.prenom, 'Léa');
+  assert.strictEqual(vue.nom, 'Martin');
 });
 
 test('à la création du compte, l\'attente se consomme et le droit s\'accorde', async () => {
-  // La personne crée son espace elle-même, avec exactement cette adresse.
-  await connecter(FUTUR, '5005');
+  // La personne crée son espace elle-même depuis /academy, avec exactement
+  // cette adresse — et sans saisir de prénom, l'écran n'en demande pas.
+  await inscrireCommeAcademy(FUTUR, '5005');
 
   assert.deepStrictEqual(ligneDroit(FUTUR), { email: FUTUR, actif: 1 },
     'le compte qui vient de naître devient collaborateur');
@@ -189,9 +213,49 @@ test('à la création du compte, l\'attente se consomme et le droit s\'accorde',
 
   const vue = await entree(FUTUR);
   assert.strictEqual(vue.etat, 'actif', 'l\'administrateur le voit passer d\'« en attente » à « actif »');
+  // L'identité mise en attente a rejoint le compte qui vient de naître.
+  assert.deepStrictEqual(identite(FUTUR), { prenom: 'Léa', nom: 'Martin' });
+  assert.strictEqual(vue.prenom, 'Léa');
+  assert.strictEqual(vue.nom, 'Martin');
 
   const moi = await api('GET', '/api/academy/moi', undefined, jetons[FUTUR]);
   assert.strictEqual(moi.body.collaborateur, true, 'et l\'Academy s\'ouvre vraiment');
+});
+
+test('UN PRÉNOM CHOISI PAR LA PERSONNE N\'EST PAS ÉCRASÉ dans son dos', async () => {
+  // Quelqu'un peut avoir créé son compte AILLEURS dans l'app — le questionnaire
+  // nutrition, lui, demande le prénom. Si l'administrateur l'avait inscrit
+  // d'avance sous un autre prénom, la promotion ne doit pas corriger celui que
+  // la personne a saisi. Elle ne comble QUE le vide : le nom de famille, ici.
+  const AUTRE = 'deja.prenomme@exemple.fr';
+  const r = await adm('POST', '/api/academy/admin/collaborateurs',
+    { email: AUTRE, role: 'collaborateur', prenom: 'Jean-Baptiste', nom: 'Durand' });
+  assert.strictEqual(r.body.enAttente, true);
+
+  await connecter(AUTRE, '6006');          // s'inscrit avec le prénom « deja.prenomme »
+  assert.deepStrictEqual(identite(AUTRE), { prenom: 'deja.prenomme', nom: 'Durand' },
+    'le prénom saisi tient, le nom manquant est comblé');
+  assert.deepStrictEqual(ligneDroit(AUTRE), { email: AUTRE, actif: 1 }, 'le droit est bien accordé');
+});
+
+test('prénom et nom sont OBLIGATOIRES, et le refus dit lequel manque', async () => {
+  const avant = dbq().prepare('SELECT COUNT(*) AS n FROM academy_preautorisations').get().n;
+  const cas = [
+    [{ email: 'sans.prenom@exemple.fr', role: 'collaborateur', nom: 'Dupont' }, /prénom/i],
+    [{ email: 'sans.nom@exemple.fr', role: 'collaborateur', prenom: 'Thomas' }, /nom/i],
+    [{ email: 'sans.rien@exemple.fr', role: 'collaborateur', prenom: '  ', nom: '  ' }, /prénom/i],
+  ];
+  for (const [corps, motif] of cas) {
+    const r = await adm('POST', '/api/academy/admin/collaborateurs', corps);
+    assert.strictEqual(r.status, 400, JSON.stringify(corps));
+    assert.match(r.body.error, motif, JSON.stringify(corps));
+  }
+  assert.strictEqual(dbq().prepare('SELECT COUNT(*) AS n FROM academy_preautorisations').get().n, avant,
+    'un refus ne doit poser aucune ligne d\'attente');
+  // Le RETRAIT, lui, n'a pas besoin d'identité : on retire un accès, on ne
+  // décrit pas quelqu'un.
+  assert.strictEqual((await adm('POST', '/api/academy/admin/collaborateurs',
+    { email: 'sans.prenom@exemple.fr', role: 'client' })).status, 200);
 });
 
 // ===========================================================================
@@ -209,13 +273,15 @@ test('retirer un accès laisse le compte et ses données intacts', async () => {
   assert.strictEqual(moi.body.collaborateur, false, 'l\'Academy se referme à la requête suivante');
 
   // On le rend, pour ne rien laisser derrière soi.
-  await adm('POST', '/api/academy/admin/collaborateurs', { email: DEJA, role: 'collaborateur' });
+  await adm('POST', '/api/academy/admin/collaborateurs',
+    { email: DEJA, role: 'collaborateur', prenom: 'Thomas', nom: 'Dupont' });
   assert.deepStrictEqual(ligneDroit(DEJA), { email: DEJA, actif: 1 });
 });
 
 test('retirer une adresse encore en attente efface l\'intention, sans erreur', async () => {
   const EPHEMERE = 'ephemere@exemple.fr';
-  await adm('POST', '/api/academy/admin/collaborateurs', { email: EPHEMERE, role: 'collaborateur' });
+  await adm('POST', '/api/academy/admin/collaborateurs',
+    { email: EPHEMERE, role: 'collaborateur', prenom: 'Ephe', nom: 'Mere' });
   assert.ok(enAttenteEnBase(EPHEMERE));
 
   const r = await adm('POST', '/api/academy/admin/collaborateurs', { email: EPHEMERE, role: 'client' });
@@ -226,7 +292,8 @@ test('retirer une adresse encore en attente efface l\'intention, sans erreur', a
 
 test('une adresse vide est refusée, et n\'entre nulle part', async () => {
   const avant = dbq().prepare('SELECT COUNT(*) AS n FROM academy_preautorisations').get().n;
-  const r = await adm('POST', '/api/academy/admin/collaborateurs', { email: '  ', role: 'collaborateur' });
+  const r = await adm('POST', '/api/academy/admin/collaborateurs',
+    { email: '  ', role: 'collaborateur', prenom: 'X', nom: 'Y' });
   assert.strictEqual(r.status, 400);
   assert.strictEqual(r.body.ok, false);
   assert.strictEqual(dbq().prepare('SELECT COUNT(*) AS n FROM academy_preautorisations').get().n, avant,

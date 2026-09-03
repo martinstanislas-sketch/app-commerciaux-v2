@@ -33,6 +33,17 @@ const EVA = 'eva.m@exemple.fr';
 const ADMIN = 'patron@exemple.fr';
 
 const dbq = () => require('../lib/db').getDb();
+const { criteresAcquis } = require('./aideAcademy');
+
+// `prat().ouvrir` AVEC LA GRILLE quand la formation en porte une. Coach
+// Nutrition a reçu la sienne : depuis, un verdict sans elle est refusé. Ce
+// fichier éprouve le CLOISONNEMENT entre formations, pas les critères.
+const ouvrirPrat = (cible, par, corps) => {
+  const c = corps || {};
+  if (!c.resultat || c.criteres || !c.formation) return prat().ouvrir(cible, par, c);
+  const g = criteresAcquis(dbq(), c.formation);
+  return prat().ouvrir(cible, par, g.length ? { ...c, criteres: g } : c);
+};
 const acad = () => app.academy;
 const qcm = () => app.academyQcm;
 const prat = () => app.academyPratique;
@@ -131,6 +142,11 @@ function reussirQcm(email, formation) {
 test.before(() => {
   app.boost.assurerSchema();
   cert().assurerSchema();
+  // La grille vit dans ses propres tables : ce fichier n'appelle aucune route,
+  // donc rien ne les pose pour lui. Sans cet appel, Coach Nutrition n'aurait
+  // pas ses critères — et l'on croirait tester le cloisonnement alors qu'on
+  // testerait une table manquante.
+  app.academyGrilles.assurerSchema();
   compte(THEO, 'Théo');
   compte(EVA, 'Eva');
   prat().definirEvaluateur(EVA, true, ADMIN);
@@ -272,7 +288,7 @@ test('valider la pratique de A ne touche pas B', () => {
   reussirQcm(THEO, A);
   assert.strictEqual(qcm().etatPour(THEO, A).theorieValidee, true);
 
-  const r = prat().ouvrir(THEO, EVA, { formation: A, resultat: 'valide', dateEvaluation: '2026-09-10' });
+  const r = ouvrirPrat(THEO, EVA, { formation: A, resultat: 'valide', dateEvaluation: '2026-09-10' });
   assert.strictEqual(r.status, 201);
   assert.strictEqual(prat().etatPour(THEO, A).validee, true);
   assert.strictEqual(prat().etatPour(THEO, B).validee, false, 'B n\'a pas hérité de la pratique de A');
@@ -282,7 +298,7 @@ test('valider la pratique de A ne touche pas B', () => {
 });
 
 test('une évaluation ne s\'ouvre pas sur une formation inconnue', () => {
-  const r = prat().ouvrir(THEO, EVA, { formation: 'fantome', resultat: 'valide' });
+  const r = ouvrirPrat(THEO, EVA, { formation: 'fantome', resultat: 'valide' });
   assert.strictEqual(r.status, 404);
   assert.strictEqual(dbq().prepare('SELECT COUNT(*) AS n FROM academy_evaluations WHERE email = ?').get(THEO).n, 1);
 });
@@ -405,7 +421,7 @@ test('le garde-fou du Boost interroge Coach Nutrition, pas « la première du ca
   compte(IVA, 'Iva');
   terminerContenus(IVA, A);
   reussirQcm(IVA, A);
-  prat().ouvrir(IVA, EVA, { formation: A, resultat: 'valide' });
+  ouvrirPrat(IVA, EVA, { formation: A, resultat: 'valide' });
   cert().delivrer(IVA, ADMIN, { formation: A });
   assert.strictEqual(cert().estCertifie(IVA, A), true, 'son diplôme Coach Nutrition existe');
   assert.strictEqual(cert().estCertifie(IVA, B), false, 'et il n\'a rien en B');
@@ -437,7 +453,12 @@ test('le garde-fou du Boost interroge Coach Nutrition, pas « la première du ca
 
 test('chaque formation ne voit QUE ses propres cas', () => {
   assert.deepStrictEqual(prat().listerCas(B).map((c) => c.titre), ['Cas B numéro un', 'Cas B numéro deux']);
-  assert.deepStrictEqual(prat().listerCas(A), [], 'Coach Nutrition n\'a pas de référentiel, et n\'en hérite pas');
+  // Coach Nutrition porte désormais ses six cas. Ce que ce test doit prouver
+  // n'a pas changé : aucun des deux référentiels ne déborde sur l'autre.
+  assert.strictEqual(prat().listerCas(A).length, 6, 'Coach Nutrition porte ses six cas');
+  const titresA = prat().listerCas(A).map((c) => c.titre);
+  assert.strictEqual(titresA.filter((t) => t.startsWith('Cas B')).length, 0,
+    'aucun cas de la formation B ne remonte dans A');
 });
 
 test('un casId étranger est REFUSÉ, pas ignoré', () => {
@@ -449,7 +470,7 @@ test('un casId étranger est REFUSÉ, pas ignoré', () => {
   assert.strictEqual(prat().lireCasDe(A, casB.id), null, 'il ne se résout pas depuis A');
 
   const avant = prat().etatPour(FAB, A).historique.length;
-  const r = prat().ouvrir(FAB, EVA, { formation: A, casId: casB.id, resultat: 'valide' });
+  const r = ouvrirPrat(FAB, EVA, { formation: A, casId: casB.id, resultat: 'valide' });
   assert.strictEqual(r.status, 400, JSON.stringify(r.body));
   assert.strictEqual(r.body.casInconnu, true);
   // Un refus n'ouvre pas de séance à moitié.
@@ -463,7 +484,7 @@ test('un cas du référentiel est RECOPIÉ dans l\'évaluation, avec son origine
   reussirQcm(GAB, B);                       // sa théorie B est validée
   const casB = prat().listerCas(B)[1];
 
-  const r = prat().ouvrir(GAB, EVA, { formation: B, casId: casB.id, resultat: 'valide' });
+  const r = ouvrirPrat(GAB, EVA, { formation: B, casId: casB.id, resultat: 'valide' });
   assert.strictEqual(r.status, 201, JSON.stringify(r.body));
   assert.strictEqual(r.body.evaluation.cas, 'Cas B numéro deux', 'le titre est COPIÉ, pas référencé');
   assert.strictEqual(r.body.evaluation.casId, casB.id, 'et son origine est gardée');
@@ -471,16 +492,19 @@ test('un cas du référentiel est RECOPIÉ dans l\'évaluation, avec son origine
   assert.strictEqual(prat().etatPour(GAB, A).historique.length, 0, 'aucune évaluation côté A');
 });
 
-test('sans référentiel, le champ libre marche exactement comme avant', () => {
+// Le champ libre SURVIT au référentiel : un évaluateur qui travaille avec son
+// propre support ne doit pas être forcé de choisir un cas qui n'est pas celui
+// qu'il a fait passer. C'était vrai sans référentiel, ça reste vrai avec.
+test('le champ libre marche exactement comme avant, référentiel ou pas', () => {
   const HUG = 'hug.m@exemple.fr';
   compte(HUG, 'Hug');
   terminerContenus(HUG, A);
   reussirQcm(HUG, A);
 
-  const r = prat().ouvrir(HUG, EVA, { formation: A, cas: 'mise en situation S1', resultat: 'valide' });
+  const r = ouvrirPrat(HUG, EVA, { formation: A, cas: 'mise en situation S1', resultat: 'valide' });
   assert.strictEqual(r.status, 201, JSON.stringify(r.body));
   assert.strictEqual(r.body.evaluation.cas, 'mise en situation S1', 'le texte libre est conservé tel quel');
-  assert.strictEqual(r.body.evaluation.casId, null, 'aucune origine : cette formation n\'a pas de référentiel');
+  assert.strictEqual(r.body.evaluation.casId, null, 'aucune origine : le support ne vient pas du référentiel');
 });
 
 test('L\'ÉTAT COMPLET distingue les deux parcours, sans les mélanger', () => {

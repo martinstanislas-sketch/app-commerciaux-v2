@@ -634,16 +634,27 @@ test('réécrire une question ne réécrit aucune tentative passée', async () =
 //  7. L'ÉCRAN
 // ===========================================================================
 
-test('l\'onglet Contenus rejoint les deux autres, sans page de plus', () => {
-  // LOT 7 : l'onglet Certifications a quitté l'administration pour rejoindre
-  // « Évaluer & certifier », auprès de l'évaluation qu'il conclut. Il en reste
-  // deux ici — les droits d'évaluer, et les contenus.
-  assert.ok(/'evaluateurs', 'contenus'/.test(js),
-    'l\'administration doit porter les onglets attendus');
-  // La Boîte à outils s'ajoute APRÈS Contenus : c'est une administration de
-  // plus, décidée explicitement, et elle ne remplace aucune des trois autres.
-  assert.ok(/'evaluateurs', 'contenus', 'outils', 'collaborateurs'/.test(js),
-    'l\'onglet Boîte à outils doit se ranger entre Contenus et Collaborateurs');
+test('« Administrer » porte DEUX sujets : les contenus, et l\'aperçu des évaluations', () => {
+  // L'ÉCRAN S'EST VIDÉ, UN LOT APRÈS L'AUTRE, ET C'ÉTAIT LE BUT. Certifications
+  // est parti vers « Évaluer & certifier », Collaborateurs et Boîte à outils
+  // vers leur propre destination, et le droit de certifier vers la ligne du
+  // collaborateur qu'il concerne. Il ne reste donc AUCUN onglet à dessiner :
+  // une barre d'un seul onglet est un décor.
+  // LA BARRE EST REVENUE POUR UN SECOND SUJET — l'aperçu des évaluations
+  // pratiques — et pour lui seul. Ce que ce test protège reste entier : aucun
+  // des onglets partis n'est de retour.
+  const onglets = js.slice(js.indexOf('const ONGLETS_ADMIN'), js.indexOf('let admOnglet'));
+  assert.ok(onglets.length > 40, 'les onglets doivent être déclarés en un seul endroit');
+  assert.deepStrictEqual((onglets.match(/cle: '([a-z]+)'/g) || []),
+    ["cle: 'contenus'", "cle: 'apercu'"], 'deux onglets, et pas un de plus');
+  assert.ok(!/'evaluateurs', 'contenus'|'contenus', 'outils'|'outils', 'collaborateurs'/.test(js),
+    'un onglet déplacé subsiste dans la page Administrer');
+  assert.ok(!/function rendrePanneauEvaluateurs/.test(js),
+    'l\'ancien écran des évaluateurs subsiste : deux endroits pour un même droit');
+  // L'AIGUILLAGE EXISTE DE NOUVEAU, et il n'a que deux branches. C'est le seul
+  // endroit du fichier qui choisit ce que l'écran d'administration affiche.
+  assert.ok(/admOnglet === 'apercu' \? rendreApercu\(\) : rendreAdminContenus\(\)/.test(js),
+    'l\'écran doit aiguiller entre les contenus et l\'aperçu, et rien d\'autre');
   assert.ok(!/'evaluateurs', 'certifications', 'contenus'/.test(js),
     'l\'onglet Certifications ne doit plus être ici');
   // Le lot 6 vit dans #acAdmin et n'ajoute AUCUNE section. Le compte est passé
@@ -654,7 +665,7 @@ test('l\'onglet Contenus rejoint les deux autres, sans page de plus', () => {
   //  parce qu'elle a son contenu — des documents, pas des parcours.
   const sections = [...html.matchAll(/<section id="(ac[A-Za-z]+)"/g)].map((m) => m[1]);
   assert.deepStrictEqual(sections,
-    ['acAccueil', 'acSommaire', 'acLecteur', 'acQcm', 'acEval', 'acOutils', 'acAdmin'],
+    ['acAccueil', 'acSommaire', 'acLecteur', 'acQcm', 'acEval', 'acOutils', 'acCollab', 'acAdmin'],
     'la liste des écrans a changé sans décision : ' + sections.join(', '));
   assert.ok(sections.includes('acAdmin') && !sections.some((x) => /contenu/i.test(x)),
     'le lot 6 doit rester dans #acAdmin, sans écran à lui');
@@ -1037,10 +1048,10 @@ test('le moteur d\'administration ne nomme toujours aucune formation', () => {
 test('une formation se crée avec sa catégorie et sa description', async () => {
   const r = await adm('POST', '/api/academy/admin/formations', {
     cle: 'cat_admin', libelle: 'Catégorisée', titre: 'T',
-    categorie: 'signature', description: 'Une présentation du parcours.',
+    categorie: 'essentiel', description: 'Une présentation du parcours.',
   });
   assert.strictEqual(r.status, 200, r.txt.slice(0, 200));
-  assert.strictEqual(r.body.formation.categorie, 'signature');
+  assert.strictEqual(r.body.formation.categorie, 'essentiel');
   assert.strictEqual(r.body.formation.description, 'Une présentation du parcours.');
   assert.strictEqual(r.body.formation.actif, false, 'et toujours en brouillon');
 });
@@ -1077,7 +1088,7 @@ test('la catégorie voyage jusqu\'au CATALOGUE DU COACH, sans route nouvelle', a
   }
 });
 
-test('L\'ÉCRAN d\'administration propose les CINQ catégories, et rien d\'autre', () => {
+test('L\'ÉCRAN d\'administration propose les catégories du serveur, et rien d\'autre', () => {
   // Le <select> est rendu par une fonction partagée : son `id` est un
   // PARAMÈTRE, il n'apparaît donc pas en clair dans un attribut.
   assert.ok(/champCategorie\('acFCategorie'/.test(js), 'le formulaire de création a son champ');
@@ -1086,9 +1097,25 @@ test('L\'ÉCRAN d\'administration propose les CINQ catégories, et rien d\'autre
   // La liste est déclarée UNE fois et le <select> est partagé : deux listes
   // divergeraient au premier ajout de catégorie.
   const bloc = js.slice(js.indexOf('const CATEGORIES = ['), js.indexOf('function rendreFormFormationNeuve'));
-  for (const c of ['essentiel', 'signature', 'expertise', 'management']) {
+  // L'ÉCRAN DIT EXACTEMENT CE QUE LE SERVEUR VALIDE. Les deux listes vivent dans
+  // deux fichiers — l'une porte les libellés, l'autre les clés — et une seule
+  // qui bouge ferait proposer un classement que la validation refuse.
+  const { CATEGORIES } = require('../lib/academyFormations');
+  for (const c of CATEGORIES) {
     assert.ok(bloc.includes(`'${c}'`), 'catégorie manquante à l\'écran : ' + c);
   }
+  // On lit LE TABLEAU, pas le fichier autour de lui : la tranche ci-dessus
+  // court jusqu'au formulaire, et y attraperait des clés qui n'ont rien à voir.
+  const litteral = js.slice(js.indexOf('const CATEGORIES = ['),
+    js.indexOf('];', js.indexOf('const CATEGORIES = [')));
+  const declarees = [...litteral.matchAll(/\['([a-z_]+)', '/g)].map((m) => m[1]);
+  assert.deepStrictEqual(declarees, CATEGORIES,
+    'l\'écran et le serveur ne proposent pas les mêmes catégories');
+  // « Signature » a été retirée : ni clé, ni libellé, nulle part à l'écran.
+  // On juge le CODE, pas les commentaires — dire pourquoi une catégorie a été
+  // retirée est précisément ce qui évite qu'on la remette par mégarde.
+  const sansCommentaires = js.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  assert.ok(!/signature/i.test(sansCommentaires), '« Signature » subsiste dans l\'interface');
   // L'écran ne doit pas proposer de classer une formation en « Boîte à outils » :
   // ce n'en est plus une famille, c'est un autre écran (#acOutils).
   assert.ok(!bloc.includes("'boite_a_outils'"),
@@ -1119,7 +1146,7 @@ test('LE RAIL SE DÉRIVE DE LA LISTE, il n\'est pas écrit à la main', () => {
   // Les six onglets : « toutes » plus la liste. Aucun autre libellé en dur.
   assert.ok(/\['toutes', 'Toutes'\], \.\.\.CATEGORIES/.test(bloc),
     'les onglets doivent se construire depuis CATEGORIES');
-  for (const c of ['essentiel', 'signature', 'expertise', 'management']) {
+  for (const c of ['essentiel', 'expertise', 'management']) {
     assert.ok(!new RegExp(`'${c}'`).test(bloc),
       `« ${c} » est écrit en dur dans le rendu de l'accueil : il doit venir de CATEGORIES`);
   }

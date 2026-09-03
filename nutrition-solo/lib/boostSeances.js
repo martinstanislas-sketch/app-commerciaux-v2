@@ -452,6 +452,76 @@ function createSeances({ getDb, nowIso, boost }) {
     };
   }
 
+  // -- Ce que le CLIENT a le droit de lire ----------------------------------
+  //
+  //  LE PENDANT EXACT DE seancePourCoach(), ET SON CONTRAIRE. L'espace coach
+  //  reçoit la matière de travail : le bilan de la période, les difficultés
+  //  relevées, ses propres notes. Le client, lui, ne reçoit que ce qui LUI est
+  //  destiné — son action, ce qu'elle a donné, son parcours.
+  //
+  //  ⚠️ CE QUI NE SORT JAMAIS D'ICI, ET POURQUOI C'EST STRUCTUREL :
+  //   - boost_notes_coach. Le schéma le dit déjà : « ces notes ne doivent
+  //     jamais partir dans une réponse destinée au client ». Elles vivent dans
+  //     une table à part précisément pour qu'on ne puisse pas les sérialiser
+  //     par accident ; cette fonction ne les interroge pas ;
+  //   - le bloc `bilan` d'une séance de suivi (réussites, difficultés,
+  //     observations). Ce sont les mots que le coach écrit POUR LUI, pas une
+  //     appréciation adressée au client ;
+  //   - les EMAILS. Le client connaît le prénom de son coach (vueBoost) ; lui
+  //     servir `cree_par` ou `evaluee_par` divulguerait une adresse interne
+  //     sans qu'aucun écran ne l'ait demandé.
+  //
+  //  Le nom de la fonction est le garde-fou : deux fonctions voisines qui
+  //  disent à qui elles parlent rendent l'erreur visible plutôt qu'improbable.
+  function vueClientDe(boostId) {
+    const toutes = actionsDe(boostId);
+
+    // L'action en cours : celle décidée au rendez-vous précédent. Son résultat
+    // est toujours vide — il sera prononcé au rendez-vous suivant, jamais ici.
+    const active = toutes.find((a) => a.statut === ACTION_ACTIVE) || null;
+
+    // La dernière action VERDICTÉE. Ce n'est pas « l'avant-dernière ligne » :
+    // une action peut avoir été close sans verdict (bilan), et l'historique
+    // doit alors remonter jusqu'à la dernière qui en porte un.
+    const evaluees = toutes.filter((a) => a.resultat);
+    const derniere = evaluees.length ? evaluees[evaluees.length - 1] : null;
+
+    // Le contenu du bilan, une fois l'Étape 12 validée : les règles que le
+    // client emporte. Trois au maximum, le plafond vit dans le nettoyage.
+    const l12 = ligneSeance(boostId, ETAPES_TOTAL);
+    const bilan = l12 && l12.statut === SEANCE_VALIDEE ? lireJson(l12.donnees, {}) : null;
+
+    return {
+      action: active ? {
+        intitule: active.intitule,
+        detail: active.detail,
+        frequence: active.frequence,
+        adhesion: active.adhesion,
+        // L'Étape qui l'a DÉCIDÉE — donc l'Étape courante moins une. L'écran
+        // affiche les deux, et les confondre ferait mentir la fiche d'un cran.
+        decideeAEtape: active.numero,
+        decideeLe: active.creeLe,
+      } : null,
+
+      derniereEvaluation: derniere ? {
+        intitule: derniere.intitule,
+        resultat: derniere.resultat,
+        commentaire: derniere.commentaireResultat,
+        etape: derniere.evalueeAEtape,
+        le: derniere.evalueeLe,
+      } : null,
+
+      // historiqueDe() ne renvoie DÉJÀ que du client-compatible : numéro, date,
+      // objectif du client, action suivie et son résultat, décision, adhésion.
+      // Ni bloc `bilan`, ni note interne, ni email. On le réutilise tel quel
+      // plutôt que d'en écrire une seconde version qui divergerait.
+      parcours: historiqueDe(boostId),
+
+      regles: bilan && Array.isArray(bilan.regles) && bilan.regles.length ? bilan.regles : null,
+      confiance: bilan ? (bilan.confiance || null) : null,
+    };
+  }
+
   // Enregistrement d'un brouillon. Ne touche NI au statut du Boost, NI aux
   // Étapes : c'est tout l'intérêt du brouillon.
   function enregistrerSeance(boostId, numero, corps, auteur, jour) {
@@ -597,7 +667,7 @@ function createSeances({ getDb, nowIso, boost }) {
   }
   return {
     assurerSchema, aUnContenu,
-    seancePourCoach, enregistrerSeance, validerSeance,
+    seancePourCoach, vueClientDe, enregistrerSeance, validerSeance,
     actionActive, historiqueDe, contextePrecedent, departDe, syntheseDe,
     manquesS1, manquesSuivi, manquesBilan, manquesDe,
     nettoyerDonneesS1, nettoyerDonneesSuivi, nettoyerDonneesBilan, nettoyerDonnees,

@@ -115,11 +115,17 @@ test('non-régression : un compte créé avant le schéma Boost reste intact', a
 //  de vie Boost complet.
 // ===========================================================================
 
-// Les 12 colonnes déclarées dans lib/db.js, ni plus ni moins. Ce tableau est
+// Les colonnes déclarées dans lib/db.js, ni plus ni moins. Ce tableau est
 // volontairement écrit en dur : si un jour quelqu'un ajoute une colonne à
 // `users` pour le Boost, ce test tombe, et c'est exactement le but.
+//
+//  ⚠️ `nom` EST LA SEULE AJOUTÉE APRÈS COUP, et elle ne vient PAS du Boost :
+//  elle est déclarée par lib/db.js lui-même, le socle propriétaire de cette
+//  table, pour porter le nom de famille d'un compte. L'intention gardée ici est
+//  intacte — aucun module satellite n'étend `users` — et le test qui suit la
+//  verrouille au niveau de la SOURCE, sur le Boost comme sur l'Academy.
 const COLONNES_USERS = ['email', 'prenom', 'pin_hash', 'pin_fails', 'bloque',
-  'avatar_config', 'profil', 'preferences', 'plan', 'plan_maj', 'cree_le', 'vu_le'];
+  'avatar_config', 'profil', 'preferences', 'plan', 'plan_maj', 'cree_le', 'vu_le', 'nom'];
 
 let empreinteLea = null;
 
@@ -135,15 +141,53 @@ test('la table users garde exactement ses colonnes d\'origine', () => {
   assert.ok(empreinteLea, 'le compte témoin existe');
 });
 
+const lireSource = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
+
 test('aucun ALTER TABLE users dans le code du Boost', () => {
   // Garde de niveau source : la contrainte est architecturale, elle ne doit pas
   // pouvoir être contournée par une migration glissée plus tard dans un coin.
-  for (const fichier of ['../lib/boost.js', '../lib/boostRoutes.js']) {
-    const code = fs.readFileSync(path.join(__dirname, fichier), 'utf8');
-    assert.ok(!/ALTER\s+TABLE/i.test(code), `${fichier} ne contient aucun ALTER TABLE`);
-    // Ni écriture d'aucune sorte dans les tables du socle nutrition.
-    assert.ok(!/UPDATE\s+users|INSERT\s+INTO\s+users|DELETE\s+FROM\s+users/i.test(code),
+  //
+  //  LE SEUL FICHIER QUI A LE DROIT DE TOUCHER À LA FORME DE `users` EST CELUI
+  //  QUI LA DÉCLARE — lib/db.js. L'Academy est ajoutée à la liste des modules
+  //  qui n'ont pas ce droit : elle non plus n'a pas à faire pousser une colonne
+  //  sur la table des comptes.
+  const modules = ['../lib/boost.js', '../lib/boostRoutes.js', '../lib/boostSeances.js',
+    '../lib/academy.js', '../lib/academyRoutes.js', '../lib/academyFormations.js',
+    '../lib/academyRessources.js', '../lib/academyCouvertures.js'];
+  for (const fichier of modules) {
+    assert.ok(!/ALTER\s+TABLE\s+users/i.test(lireSource(fichier)),
+      `${fichier} ne doit pas altérer users`);
+  }
+
+  // LE BOOST N'ÉCRIT JAMAIS DANS `users`, sous aucune forme. C'est ce qui fait
+  // la différence entre « rattaché au Boost » et « modifié par le Boost ».
+  for (const fichier of ['../lib/boost.js', '../lib/boostRoutes.js', '../lib/boostSeances.js']) {
+    assert.ok(!/UPDATE\s+users|INSERT\s+INTO\s+users|DELETE\s+FROM\s+users/i.test(lireSource(fichier)),
       `${fichier} n'écrit jamais dans users`);
+  }
+});
+
+test('l\'ACADEMY N\'ÉCRIT DANS users QUE LE PRÉNOM ET LE NOM', () => {
+  //  ⚠️ UNE EXCEPTION, ET UNE SEULE. Depuis que l'administration enregistre
+  //  l'identité d'un collaborateur, l'Academy pose un prénom et un nom sur un
+  //  compte. C'est une frontière franchie : on la borne ici plutôt que de la
+  //  laisser s'élargir en silence.
+  //
+  //  Ce qui reste interdit, et qui compte : créer un compte, en supprimer un,
+  //  toucher au code d'accès, au blocage, au profil, au plan — bref, tout ce
+  //  qui n'est pas le nom affiché.
+  const modules = ['../lib/academy.js', '../lib/academyRoutes.js', '../lib/academyFormations.js',
+    '../lib/academyRessources.js', '../lib/academyCouvertures.js'];
+  const colonnesAutorisees = ['prenom', 'nom'];
+
+  for (const fichier of modules) {
+    const code = lireSource(fichier);
+    assert.ok(!/INSERT\s+INTO\s+users|DELETE\s+FROM\s+users/i.test(code),
+      `${fichier} ne doit ni créer ni supprimer un compte`);
+    for (const [, colonne] of code.matchAll(/UPDATE\s+users\s+SET\s+(\w+)/gi)) {
+      assert.ok(colonnesAutorisees.includes(colonne),
+        `${fichier} écrit users.${colonne} : seuls ${colonnesAutorisees.join(' et ')} sont permis`);
+    }
   }
 });
 
@@ -232,8 +276,12 @@ test('certifier passe par l\'Academy — et le Boost en devient le reflet', asyn
 
   const c = app.boost.lireCertification(COACH1);
   assert.strictEqual(c.statut, B.CERT_OK, 'le reflet a suivi');
-  assert.strictEqual(c.dateCertification, '2026-07-15');
-  assert.strictEqual(c.evaluateur, ADMIN, 'qui a délivré');
+  // ⚠️ DEPUIS LA CERTIFICATION AUTOMATIQUE : la date est celle du VERDICT
+  // PRATIQUE (le dernier prérequis), et le diplôme n'est prononcé par
+  // personne. Le nom de l'évaluateur n'est pas perdu — il vit dans la preuve
+  // pratique de la certification Academy.
+  assert.strictEqual(c.dateCertification, '2026-07-10', 'la date du verdict pratique');
+  assert.strictEqual(String(c.evaluateur).toLowerCase(), 'academy', 'délivré par la règle');
   assert.strictEqual(c.scoreQcm, 100, 'le score de la vraie tentative');
   assert.strictEqual(c.resultatPratique, 'valide');
   assert.strictEqual(app.boost.estCoachCertifie(COACH1), true);

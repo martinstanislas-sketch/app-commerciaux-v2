@@ -1,0 +1,135 @@
+{
+  "formation": {
+    "cle": "suivi_specifique",
+    "libelle": "Suivi spécifique",
+    "description": "Apprends à organiser un suivi qui ne repose pas sur une impression. Un client, un référent, un vrai point par mois, une trace et une action si nécessaire : identifie les besoins réels du client, fais-le parler avec ses mots, note motivation et assiduité, et agis avant la résiliation plutôt qu'après.",
+    "categorie": "essentiel",
+    "titre": "Suivi spécifique My Coach",
+    "qcmNbQuestions": 5,
+    "qcmSeuilPct": 80,
+    "miniNbQuestions": 5,
+    "miniSeuilPct": 80,
+    "pratiqueObligatoire": true,
+    "certificationActive": true
+  },
+  "modules": [
+    {
+      "titre": "Mettre en place un suivi spécifique",
+      "description": "Découvre l'outil de suivi (une ligne par adhérent, un référent identifié), le point mensuel et les questions qui font parler le client, les notes de motivation et d'assiduité, les seuils d'alerte et la lecture qu'en fait le coach leader pour repérer les clients à risque comme ceux à valoriser.",
+      "video": {
+        "titre": "Mettre en place un suivi spécifique",
+        "youtubeId": "uN5S9_jy6N8",
+        "dureeMin": 7
+      },
+      "questions": []
+    }
+  ],
+  "finale": [
+    {
+      "enonce": "Quelle est la règle de base du suivi spécifique ?",
+      "choix": [
+        {
+          "texte": "Un client, un référent clairement identifié, et au moins un vrai point par mois",
+          "correct": true
+        },
+        {
+          "texte": "Un point de suivi chaque semaine avec l'ensemble des coachs du studio",
+          "correct": false
+        },
+        {
+          "texte": "Un référent différent à chaque point, pour croiser les regards",
+          "correct": false
+        },
+        {
+          "texte": "Un point de suivi dès que le coach sent que le client s'essouffle",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Qui attribue la note de motivation de 1 à 5 ?",
+      "choix": [
+        {
+          "texte": "Le client lui-même : le coach peut l'aider à se positionner, jamais décider à sa place",
+          "correct": true
+        },
+        {
+          "texte": "Le coach référent, à partir de ce qu'il observe en séance",
+          "correct": false
+        },
+        {
+          "texte": "Le coach leader, lors de sa revue mensuelle du tableau",
+          "correct": false
+        },
+        {
+          "texte": "Le coach et le client ensemble, en retenant la moyenne des deux notes",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "À partir de quand l'alerte se déclenche-t-elle sur une ligne du tableau ?",
+      "choix": [
+        {
+          "texte": "Au-delà de 30 jours sans contact qualitatif avec l'adhérent",
+          "correct": true
+        },
+        {
+          "texte": "Au-delà de trois séances manquées consécutives",
+          "correct": false
+        },
+        {
+          "texte": "Dès que la note de motivation passe sous 4 sur 5",
+          "correct": false
+        },
+        {
+          "texte": "Au-delà de 90 jours sans contact, soit un trimestre complet",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Dans quel délai l'outil de suivi doit-il être mis à jour après un échange ?",
+      "choix": [
+        {
+          "texte": "Dans les 24 heures, tant que les mots exacts du client sont encore en mémoire",
+          "correct": true
+        },
+        {
+          "texte": "En fin de semaine, lors du créneau administratif prévu",
+          "correct": false
+        },
+        {
+          "texte": "Avant le point mensuel suivant, peu importe la date de saisie",
+          "correct": false
+        },
+        {
+          "texte": "Immédiatement pendant l'échange, devant le client",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Que doit-on écrire dans l'outil de suivi ?",
+      "choix": [
+        {
+          "texte": "Ce que le client dit avec ses propres mots, pas le jugement du coach sur lui",
+          "correct": true
+        },
+        {
+          "texte": "Une synthèse de ce que le coach pense du niveau d'implication du client",
+          "correct": false
+        },
+        {
+          "texte": "Uniquement les données chiffrées : présence, poids, notes",
+          "correct": false
+        },
+        {
+          "texte": "Les consignes techniques données au client pendant la séance",
+          "correct": false
+        }
+      ]
+    }
+  ],
+  "cas": []
+}

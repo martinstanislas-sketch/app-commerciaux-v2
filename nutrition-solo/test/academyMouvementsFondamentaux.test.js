@@ -357,12 +357,15 @@ test('l\'évaluation pratique se prononce SUR UN CAS DU RÉFÉRENTIEL', async ()
   assert.strictEqual(app.academyPratique.etatPour(LEA, CM).validee, false);
 });
 
-test('elle passe « Certification à délivrer », puis se délivre', async () => {
+test('elle est CERTIFIÉE dès la validation de la pratique', async () => {
   const d = (await api('GET', `/api/academy/evaluateur/coachs${fmt(PD)}`, null, jetons[ADMIN])).body;
-  assert.strictEqual(d.coachs.find((c) => c.email === LEA).statut, 'certification_a_delivrer');
+  assert.strictEqual(d.coachs.find((c) => c.email === LEA).statut, 'certifie');
 
-  const r = await api('POST', `/api/academy/admin/certifications/${LEA}`, { formation: PD }, jetons[ADMIN]);
-  assert.strictEqual(r.status, 201, r.txt.slice(0, 200));
+  // PLUS D'ÉTAPE « À CERTIFIER » : le verdict pratique était le dernier
+  // prérequis, le diplôme a été délivré par la règle dans la foulée. On le LIT
+  // au lieu de le demander — la délivrance manuelle refuserait un doublon.
+  const r = { body: { certification: app.academyCertifications.etatPour(LEA, PD).certification } };
+  assert.strictEqual(r.body.certification.delivreePar, 'Academy', 'personne ne l\'a prononcé');
   assert.strictEqual(r.body.certification.formation, PD);
   assert.strictEqual(r.body.certification.scoreQcm, 100);
   assert.ok(r.body.certification.pratiqueLe, 'la date de la pratique est recopiée');

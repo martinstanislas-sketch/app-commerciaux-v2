@@ -187,29 +187,23 @@ async function semer() {
     await page.click('#acEvOk');
     await page.waitForFunction(() => /Étape pratique terminée/.test(document.querySelector('#acEval').textContent));
     const t = await contenu();
-    if (!/Parcours complet/.test(t)) throw new Error('l\'éligibilité n\'est pas annoncée');
-    if (!/Délivrer la certification/.test(t)) throw new Error('le geste de certification n\'est pas proposé dans la fiche');
-    // AUCUNE CERTIFICATION AUTOMATIQUE : le serveur le confirme.
+    // ⚠️ CERTIFICATION AUTOMATIQUE : valider la pratique DÉLIVRE le diplôme.
+    // Ce bloc éprouvait l'inverse ; l'étape « à certifier » a été supprimée.
     const c = await get('/api/academy/admin/certifications', jetonAdmin);
-    if (c.certifies.some((x) => x.email === THEO)) throw new Error('VALIDER LA PRATIQUE A CERTIFIÉ : régression majeure');
-    if (!c.eligibles.some((x) => x.email === THEO)) throw new Error('il devrait être éligible');
+    if (!c.certifies.some((x) => x.email === THEO)) throw new Error('VALIDER LA PRATIQUE N\'A PAS CERTIFIÉ');
+    if (c.eligibles.some((x) => x.email === THEO)) throw new Error('il ne devrait plus être en attente');
     // Les DEUX tentatives sont conservées.
     if (!/Historique des évaluations pratiques/.test(t)) throw new Error('l\'historique manque');
     const n = await page.locator('.ac-prat-histo li').count();
     if (n !== 2) throw new Error('tentatives conservées : ' + n);
   });
 
-  await etape('elle délivre le diplôme SANS quitter la fiche ni changer de droit', async () => {
-    await page.click('[data-geste="delivrer"]');
-    await page.waitForSelector('#acCertDate');
-    if (!/ouvrira immédiatement l'accès aux dossiers clients/.test(await contenu())) {
-      throw new Error('la conséquence n\'est pas annoncée');
-    }
-    await page.fill('#acCertDate', '2026-09-12');
-    await page.click('[data-geste="confirmer-delivrer"]');
-    await page.waitForFunction(() => /délivrée le 12\/09\/2026/.test(document.querySelector('#acEval').textContent));
+  await etape('le diplôme est là SANS qu\'elle ait rien prononcé', async () => {
+    // Plus de panneau de délivrance à ouvrir : la fiche annonce directement le
+    // diplôme, délivré par la règle au moment du verdict.
     const t = await contenu();
-    if (!new RegExp('par ' + EVA).test(t)) throw new Error('le diplôme ne porte pas le nom de qui l\'a prononcé');
+    if (!/délivrée le/.test(t)) throw new Error('la fiche devrait annoncer le diplôme : ' + t.slice(0, 200));
+    if (!/par Academy/.test(t)) throw new Error('le diplôme devrait porter le marqueur automatique');
     if (!/Retrait d'une certification est réservé|retrait d'une certification est réservé/i.test(t)) {
       throw new Error('la limite du droit n\'est pas dite dans la fiche');
     }

@@ -1,0 +1,74 @@
+{
+  "formation": {
+    "cle": "reussir_seance_test",
+    "libelle": "Réussir la séance test",
+    "description": "Maîtrise le protocole de la séance test My Coach pour créer un point de départ fiable, personnaliser l’accompagnement et rendre les progrès du client visibles. Apprends à réaliser, observer, noter et débriefer la séance de manière standardisée afin que chaque retest permette une comparaison pertinente.",
+    "categorie": "essentiel",
+    "titre": "Réussir la séance test My Coach",
+    "qcmNbQuestions": 5,
+    "qcmSeuilPct": 80,
+    "miniNbQuestions": 5,
+    "miniSeuilPct": 80,
+    "pratiqueObligatoire": true,
+    "certificationActive": true
+  },
+  "modules": [
+    {
+      "titre": "Réussir la séance test My Coach",
+      "description": "Découvre le protocole complet de la séance test : préparation du client, choix des options, AMRAP, gainage, cardio, observation, notation et débrief. Apprends à renseigner correctement les résultats et à préparer le retest à J+28 pour mesurer la progression du client dans des conditions comparables.",
+      "video": {
+        "titre": "Réussir la séance test",
+        "youtubeId": "vshZ8VQClaI"
+      },
+      "questions": []
+    }
+  ],
+  "finale": [
+    {
+      "enonce": "Quel est l’objectif principal de la séance test My Coach ?",
+      "choix": [
+        { "texte": "Créer un point de départ fiable pour mesurer la progression du client", "correct": true },
+        { "texte": "Comparer les performances des clients entre eux", "correct": false },
+        { "texte": "Identifier les clients les plus sportifs", "correct": false },
+        { "texte": "Faire réaliser la séance la plus difficile possible", "correct": false }
+      ]
+    },
+    {
+      "enonce": "Quand doit être réalisée la première séance test ?",
+      "choix": [
+        { "texte": "Lors de la première séance de sport du challenge My Coach", "correct": true },
+        { "texte": "Après quatre semaines d’entraînement", "correct": false },
+        { "texte": "Lorsque le coach estime que le client est prêt", "correct": false },
+        { "texte": "À la dernière séance du challenge", "correct": false }
+      ]
+    },
+    {
+      "enonce": "Quelle règle doit guider le choix des options et des charges pendant le test ?",
+      "choix": [
+        { "texte": "Choisir un niveau adapté permettant une exécution pertinente et sécurisée", "correct": true },
+        { "texte": "Toujours choisir l’option la plus difficile possible", "correct": false },
+        { "texte": "Utiliser les mêmes charges pour tous les clients", "correct": false },
+        { "texte": "Chercher prioritairement à maximiser le nombre de tours", "correct": false }
+      ]
+    },
+    {
+      "enonce": "Que doit contenir le débrief de 5 minutes ?",
+      "choix": [
+        { "texte": "Féliciter, donner 1 à 2 points forts, 1 à 2 axes de travail maximum et faire parler le client", "correct": true },
+        { "texte": "Présenter au client toutes les erreurs observées pendant le test", "correct": false },
+        { "texte": "Communiquer uniquement sa note sur 20", "correct": false },
+        { "texte": "Comparer ses résultats à ceux des autres clients", "correct": false }
+      ]
+    },
+    {
+      "enonce": "Pourquoi le retest doit-il respecter le même protocole ?",
+      "choix": [
+        { "texte": "Pour pouvoir comparer de manière fiable le client à lui-même et rendre sa progression visible", "correct": true },
+        { "texte": "Pour établir un classement entre les clients", "correct": false },
+        { "texte": "Pour empêcher toute adaptation de sécurité", "correct": false },
+        { "texte": "Pour obtenir obligatoirement un meilleur score sur chaque exercice", "correct": false }
+      ]
+    }
+  ],
+  "cas": []
+}

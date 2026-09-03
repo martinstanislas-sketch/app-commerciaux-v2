@@ -31,10 +31,12 @@
   <meta name="twitter:description" content="Ton plan de repas de la semaine, adapté à ton objectif." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=193" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+  <!-- LES TOKENS D'ABORD, TOUJOURS : style.css n'y déclare plus que des alias. -->
+  <link rel="stylesheet" href="tokens.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=195" />
   <!-- Landing d'accueil (visiteurs non connectés) — scopée .lp-, n'affecte pas l'app -->
-  <link rel="stylesheet" href="landing.css?v=103" />
+  <link rel="stylesheet" href="landing.css?v=104" />
   <script>
   // ---- Portail d'entrée : landing -> connexion / inscription --------------
   // Il remplace le « gate » du My Coach Nutrition, qui vérifiait un rôle de l'app
@@ -762,6 +764,13 @@
       <!-- ÉCRAN PROGRESSION : pesées, mensurations, photos (rendu par renderProgression) -->
       <div id="view-progression"></div>
 
+      <!-- MON ACCOMPAGNEMENT — le Boost Nutrition, vu du client.
+           Rendu par renderAccompagnement(). L'onglet et cet écran n'existent
+           que pour un client réellement accompagné : c'est le SERVEUR qui le
+           dit (`montre` non nul dans /api/boost/mien), jamais un rôle deviné
+           ici. Un client sans Boost garde exactement les quatre onglets. -->
+      <div id="view-accompagnement"></div>
+
       <!-- SOS coach (présent sur tous les onglets) -->
       <button type="button" id="sosFab" class="sos-fab" aria-haspopup="dialog" aria-label="SOS coach" title="SOS coach">
         <svg class="ic"><use href="#ic-life-buoy"/></svg><span class="sos-fab-lbl">SOS coach</span>
@@ -790,6 +799,8 @@
         <button type="button" class="nav-i on" data-tab="plan"><svg class="ic"><use href="#ic-calendar"/></svg><span>Repas</span></button>
         <button type="button" class="nav-i" data-tab="courses"><svg class="ic"><use href="#ic-cart"/></svg><span>Courses</span></button>
         <button type="button" class="nav-i" data-tab="progression"><svg class="ic"><use href="#ic-scale"/></svg><span>Progression</span></button>
+        <!-- Masqué par défaut : révélé au démarrage si un accompagnement existe. -->
+        <button type="button" class="nav-i hidden" id="navAccompagnement" data-tab="accompagnement"><svg class="ic"><use href="#ic-spark"/></svg><span>Suivi</span></button>
         <button type="button" class="nav-i" data-tab="profil"><svg class="ic"><use href="#ic-user"/></svg><span>Profil</span><span class="nav-dot" id="navProfilDot" style="display:none"></span></button>
         <button type="button" class="nav-i nav-logout hidden" id="navLogout"><svg class="ic"><use href="#ic-logout"/></svg><span>Se déconnecter</span></button>
       </nav>
@@ -1160,6 +1171,6 @@
   <script src="avatar.js?v=8"></script>
   <script src="coursesCatalogue.js?v=5"></script>
   <script src="coursesEngine.js?v=5"></script>
-  <script src="app.js?v=226"></script>
+  <script src="app.js?v=227"></script>
 </body>
 </html>

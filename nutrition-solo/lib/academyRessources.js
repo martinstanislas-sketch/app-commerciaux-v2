@@ -134,6 +134,56 @@ function nomPropre(v, defaut) {
   return s || defaut;
 }
 
+// ---------------------------------------------------------------------------
+//  L'EN-TÊTE Content-Disposition — ET LE PIÈGE QUI A CASSÉ LA CONSULTATION.
+//
+//  ⚠️ UN NOM DE FICHIER N'EST PAS UNE CHAÎNE COMME UNE AUTRE DANS UN EN-TÊTE.
+//  Node refuse tout caractère hors ISO-8859-1 dans une valeur d'en-tête, et
+//  lève ERR_INVALID_CHAR. Or macOS remet les noms de fichiers en forme
+//  DÉCOMPOSÉE (NFD) : « Séance » n'y est pas « S-é-a-n-c-e » mais
+//  « S-e-◌́-a-n-c-e », où l'accent est un caractère à part entière — U+0301,
+//  soit 769, hors de la plage autorisée. Poser le nom tel quel faisait donc
+//  planter la route en 500, et les DEUX parcours avec elle : le lecteur
+//  recevait une page d'erreur HTML au lieu du PDF, et le téléchargement aussi.
+//
+//  Le piège est sournois parce qu'il ne dépend pas du fichier mais de SON NOM :
+//  « guide.pdf » passait, « Séance Test - Notation.pdf » non. Aucun de nos
+//  premiers tests n'utilisait d'accent — d'où le trou.
+//
+//  LA RÉPONSE EST CELLE DE LA NORME (RFC 6266 + RFC 5987) : deux formes dans le
+//  même en-tête.
+//   · `filename="..."`      -> un repli ASCII, compris de tout client ;
+//   · `filename*=UTF-8''...`-> le nom EXACT, percent-encodé, que tout
+//                              navigateur moderne préfère au repli.
+//  L'utilisateur récupère donc « Séance Test - Notation.pdf », accent compris,
+//  et rien d'illégal ne part dans l'en-tête.
+//
+//  On normalise en NFC au passage : c'est la forme composée, celle qu'attendent
+//  les navigateurs et les autres systèmes. On ne touche PAS à ce qui est
+//  stocké — la correction est entièrement dans la restitution, et elle répare
+//  donc aussi les fichiers déjà en base.
+// ---------------------------------------------------------------------------
+function enteteContentDisposition(nom, telecharger) {
+  const disposition = telecharger ? 'attachment' : 'inline';
+  const exact = String(nom || '').normalize('NFC').replace(/[\r\n]/g, ' ').trim() || 'document';
+
+  // Le repli : accents retirés plutôt que remplacés par « _ » — « Seance » se
+  // lit, « S_ance » non. Tout ce qui n'est pas de l'ASCII imprimable ensuite
+  // (idéogrammes, emoji…) devient « _ », faute de translittération honnête.
+  const repli = exact
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/["\\]/g, '_')
+    .replace(/[^\x20-\x7e]/g, '_')
+    .trim() || 'document';
+
+  // La forme exacte. encodeURIComponent laisse passer ' ( ) * , que la
+  // grammaire de la RFC 5987 n'autorise pas : on les encode à la main.
+  const encode = encodeURIComponent(exact)
+    .replace(/['()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+
+  return `${disposition}; filename="${repli}"; filename*=UTF-8''${encode}`;
+}
+
 const SCHEMA_RESSOURCES = `
 -- Les sous-catégories. En table pour être administrables : Coaching, Nutrition,
 -- Commercial… ne sont que les huit premières lignes, pas une règle du code.
@@ -666,5 +716,6 @@ function extraireIdYoutube(v) {
 module.exports = {
   createAcademyRessources, extraireIdYoutube, urlValide, nomPropre,
   TYPES, TYPE_PDF, TYPE_IMAGE, TYPE_VIDEO, TYPE_LIEN,
+  enteteContentDisposition,
   MIMES, MIMES_ACCEPTES, TAILLE_MAX, CATEGORIES_AMORCE, CATEGORIES_RENOMMEES, cleValide,
 };

@@ -509,11 +509,20 @@ test('les notes de suivi ne sortent que par les routes Coach', async () => {
   }
 });
 
-test('le client ne voit pas le contenu de ses rendez-vous', async () => {
+test('le client voit son action et son résultat — jamais les notes du coach', async () => {
   const r = await api('GET', '/api/boost/mien', null, jetons[CLI]);
   assert.strictEqual(r.body.actuel.etapesValidees, 11);
-  assert.ok(!r.txt.includes('Action de l\'Étape'), 'aucune action servie au client dans ce lot');
-  assert.ok(!r.txt.includes('partielle'), 'aucun résultat servi au client');
+
+  // LOT « MON ACCOMPAGNEMENT » : l'action décidée avec lui et le constat qui la
+  // suit LUI SONT DESTINÉS. Les lui cacher était le défaut, pas la règle.
+  assert.ok(r.txt.includes('Action de l\'Étape'), 'son action doit lui parvenir');
+  assert.ok(r.txt.includes('partielle'), 'le constat sur son action aussi');
+
+  // CE QUI RESTE DEHORS, ET C'EST LA VRAIE RÈGLE : le matériau de travail du
+  // coach — son bilan de la période et ses notes internes.
+  assert.ok(!r.txt.includes('Petit-déjeuner mieux tenu'), 'le bilan du coach est sorti');
+  assert.ok(!r.txt.includes('Le week-end reste dur'), 'les difficultés notées par le coach sont sorties');
+  assert.ok(!/Note interne de l/.test(r.txt), 'LA NOTE INTERNE DU COACH EST SORTIE : fuite grave');
 });
 
 // ===========================================================================

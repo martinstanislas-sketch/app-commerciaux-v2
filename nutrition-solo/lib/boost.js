@@ -557,8 +557,13 @@ function createBoost({ getDb, nowIso }) {
   // pouvoir les RÉACTIVER, ce qui suppose de les voir. Les autres appelants ne
   // veulent que les actifs, d'où le défaut restrictif.
   function listerCollaborateurs({ tous = false } = {}) {
-    return db().prepare(`SELECT c.email AS email, u.prenom AS prenom, c.actif AS actif,
-                                c.maj_le AS majLe, c.maj_par AS majPar
+    return db().prepare(`SELECT c.email AS email, u.prenom AS prenom, u.nom AS nom, c.actif AS actif,
+                                c.maj_le AS majLe, c.maj_par AS majPar,
+                                -- AJOUT ADDITIF : la dernière visite, que l'écran
+                                -- « Évaluer & certifier » lit pour dire qui est
+                                -- actif. Personne d'autre ne la consomme, et les
+                                -- champs existants n'ont pas bougé.
+                                u.vu_le AS vuLe, c.cree_le AS creeLe
                          FROM boost_collaborateurs c
                          JOIN users u ON u.email = c.email
                          ${tous ? '' : 'WHERE c.actif = 1'}
@@ -570,10 +575,16 @@ function createBoost({ getDb, nowIso }) {
         return {
           email: u.email,
           prenom: u.prenom || '',
+          // Le nom de famille, quand il est renseigné. Ajout PUREMENT additif :
+          // les appelants qui ne le lisent pas ne voient aucune différence.
+          nom: u.nom || '',
           role: actif ? ROLE_COLLABORATEUR : ROLE_CLIENT,
           actif,
           majLe: u.majLe,
           majPar: u.majPar,
+          // La dernière visite et la date d'arrivée, additives elles aussi.
+          vuLe: u.vuLe || null,
+          creeLe: u.creeLe || null,
           certification: cert,
           // LA colonne qui décide de tout dans l'écran d'attribution : être
           // certifié ne suffit pas, encore faut-il être actif.

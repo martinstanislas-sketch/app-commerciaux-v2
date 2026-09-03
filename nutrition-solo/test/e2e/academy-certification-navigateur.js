@@ -150,6 +150,14 @@ async function semer() {
       await page.waitForSelector('#acEval:not([hidden])');
     }
     await page.click('.ac-adm-ong[data-onglet-eval="certifications"]');
+    // UN DIPLÔME APPARTIENT À UN PARCOURS : le panneau des certifications
+    // (éligibles, écarts, retrait) n'existe que pour une formation CHOISIE. Sur
+    // « toutes », l'écran le dit et n'invente rien — il faut donc la choisir.
+    await page.waitForSelector('#acEvalFormation');
+    if (await page.locator('#acEvalFormation').inputValue() === 'toutes') {
+      const cle = await page.$eval('#acEvalFormation option:not([value="toutes"])', (o) => o.value);
+      await page.selectOption('#acEvalFormation', cle);
+    }
     await page.waitForFunction(() => /Éligibles \(/.test(document.querySelector('#acEval').textContent));
   };
 
@@ -189,6 +197,11 @@ async function semer() {
     await seConnecter(EVA, '3003');
     await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
+    // LOT « un coach = une ligne » : la vue par défaut est centrée sur le coach
+    // et ne porte plus les gestes — ils vivent dans la file « À évaluer » et
+    // dans le détail d'un coach. On passe donc par la file.
+    await page.click('[data-onglet-eval="a_evaluer"]');
+    await page.waitForSelector(`[data-collab="${THEO}"]`);
     await page.click(`[data-collab="${THEO}"]`);
     await page.waitForSelector('#acEvOk');
     await page.fill('#acEvDate', '2026-09-10');
@@ -335,6 +348,9 @@ async function semer() {
     const t = await contenu();
     if (!/Éligible à la certification/.test(t)) throw new Error('son parcours reste validé');
     if (/obtenue le 15\/09\/2026/.test(t)) throw new Error('il se croit encore certifié');
+    // Les étapes sont des accordéons : seule l'étape courante est dépliée. Son
+    // historique vit dans une autre — on l'ouvre, comme un humain le ferait.
+    await ouvrirEtapes();
     await page.click('.ac-cert-eligible .ac-qcm-histo summary');
     const histo = await page.locator('.ac-cert-eligible .ac-qcm-histo li').allInnerTexts();
     if (!histo.length) throw new Error('son historique est vide : le diplôme retiré a été effacé');

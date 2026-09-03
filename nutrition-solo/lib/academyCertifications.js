@@ -95,14 +95,12 @@ const STATUTS_COACH = [
   'resultat_en_attente',
   'pratique_a_repasser',
   'pratique_validee',
-  'certification_a_delivrer',
   'certifie',
 ];
 
 // L'ordre de la liste dit CE QUI ATTEND UNE ACTION DE L'ÉVALUATEUR. Un dossier
 // clos descend, un dossier qui l'attend remonte.
 const RANG_STATUT = {
-  certification_a_delivrer: 0,
   resultat_en_attente: 1,
   pratique_a_repasser: 2,
   pratique_a_realiser: 3,
@@ -110,6 +108,14 @@ const RANG_STATUT = {
   formation_en_cours: 5,
   certifie: 6,
 };
+
+// L'AUTEUR D'UNE DÉLIVRANCE AUTOMATIQUE. `delivree_par` n'est jamais résolu en
+// utilisateur — il s'affiche tel quel (« délivrée le 3 septembre par Academy »).
+// On y écrit donc un nom lisible plutôt qu'un e-mail : personne n'a prononcé ce
+// diplôme, c'est la règle qui l'a fait. L'identité de l'évaluateur qui a validé
+// la pratique n'est pas perdue pour autant : `preuvesDe` la recopie dans
+// `pratique_par`, comme avant.
+const AUTEUR_AUTO = 'Academy';
 
 function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, formations, academy }) {
   const db = () => getDb();
@@ -274,10 +280,15 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
 
   // -- Délivrance ------------------------------------------------------------
 
-  function delivrer(cible, auteur, donnees) {
+  //  `options` est un 4ᵉ ARGUMENT, et ce n'est pas un détail : il ne doit
+  //  JAMAIS pouvoir venir du corps d'une requête. Glissé dans `donnees`, un
+  //  « automatique: true » envoyé par un client contournerait le refus de
+  //  l'auto-certification ci-dessous.
+  function delivrer(cible, auteur, donnees, options) {
     const mail = normalise(cible);
     const moi = normalise(auteur);
     const d = donnees || {};
+    const auto = !!(options && options.automatique);
 
     const f = formations.lire(d.formation || (formations.defaut() || {}).cle);
     if (!f) return err(404, 'Formation inconnue.');
@@ -285,7 +296,12 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
     if (!mail) return err(400, 'Collaborateur manquant.');
     // PERSONNE NE SE CERTIFIE SOI-MÊME. Un administrateur peut être
     // collaborateur ; sans ce refus, il lui suffirait d'ouvrir son propre écran.
-    if (mail === moi) return err(403, 'On ne se délivre pas sa propre certification.', { autoCertification: true });
+    // Le garde-fou vise UN HUMAIN qui ouvrirait son propre écran. Une
+    // délivrance automatique n'est le geste de personne : elle applique une
+    // règle, et l'appelant n'est pas un candidat.
+    if (!auto && mail === moi) {
+      return err(403, 'On ne se délivre pas sa propre certification.', { autoCertification: true });
+    }
 
     const u = boost.lireUtilisateur(mail);
     if (!u) return err(404, 'Collaborateur introuvable.');
@@ -318,15 +334,66 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
         (email, formation, statut, obtenue_le, delivree_par, delivree_le,
          score_qcm, pratique_le, pratique_par, commentaire, maj_le)
         VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(mail, f.cle, DELIVREE, date, moi, maintenant,
+      .run(mail, f.cle, DELIVREE, date, auto ? AUTEUR_AUTO : moi, maintenant,
         preuves.scoreQcm === undefined ? null : preuves.scoreQcm,
         preuves.pratiqueLe || null, preuves.pratiquePar || null,
         d.commentaire ? String(d.commentaire).slice(0, 1000) : null, maintenant);
 
     // Le REFLET dans le Boost, pour les formations qui y ouvrent des droits.
-    if (f.refletBoost) boost.enregistrerCertificationAcademy(mail, date, moi);
+    if (f.refletBoost) boost.enregistrerCertificationAcademy(mail, date, auto ? AUTEUR_AUTO : moi);
 
     return ok({ certification: vue(lireLigne(Number(info.lastInsertRowid))), etat: etatPour(mail, f.cle) }, 201);
+  }
+
+  // ==========================================================================
+  //  LA CERTIFICATION AUTOMATIQUE.
+  //
+  //  Elle n'invente AUCUNE règle de délivrance : elle relit exactement les
+  //  mêmes prérequis que `delivrer`, et passe par lui. Ce qu'elle supprime,
+  //  c'est le GESTE HUMAIN qui attendait entre « tout est validé » et « le
+  //  diplôme existe ».
+  //
+  //  SILENCIEUSE PAR CONSTRUCTION. On l'appelle après chaque QCM rendu et
+  //  chaque évaluation prononcée : elle ne doit jamais faire échouer l'action
+  //  qui l'a déclenchée. Une formation qui ne certifie pas, des prérequis
+  //  encore incomplets, un diplôme déjà là : ce sont des non-événements, pas
+  //  des erreurs. Elle rapporte, elle ne lève pas.
+  //
+  //  LE DOUBLON EST IMPOSSIBLE À TROIS NIVEAUX : le refus ci-dessous, celui de
+  //  `delivrer` sur un dossier déjà certifié, et l'index unique
+  //  `idx_academy_cert_active` sur (email, formation) WHERE statut='delivree'.
+  //
+  //  ⚠️ ELLE NE RETIRE JAMAIS RIEN. Une certification existante est la preuve
+  //  définitive que la formation a été certifiée : cette fonction ne sait que
+  //  créer une ligne absente, jamais toucher une ligne présente.
+  // ==========================================================================
+  function delivrerSiComplet(email, formationCle) {
+    const mail = normalise(email);
+    const f = formations.lire(formationCle);
+    if (!f) return { delivree: false, raison: 'formation_inconnue' };
+    if (!f.certificationActive) return { delivree: false, raison: 'formation_sans_certification' };
+
+    const u = boost.lireUtilisateur(mail);
+    if (!u || !boost.estCollaborateur(u)) return { delivree: false, raison: 'pas_collaborateur' };
+    // DÉJÀ CERTIFIÉ : on s'arrête ici, sans rien relire ni rien réécrire.
+    if (certificationActive(mail, f.cle)) return { delivree: false, raison: 'deja_certifie' };
+    if (prerequisDe(mail, f).some((x) => !x.rempli)) {
+      return { delivree: false, raison: 'prerequis_incomplets' };
+    }
+
+    // LA DATE DU DIPLÔME EST CELLE DU DERNIER PRÉREQUIS REMPLI, pas celle de
+    // l'écriture. Le schéma le dit déjà d'`obtenue_le` : « le JOUR du diplôme,
+    // qui n'est pas forcément celui de la saisie ». Un évaluateur qui enregistre
+    // lundi un verdict prononcé vendredi doit donner un diplôme daté de
+    // vendredi. Sans pratique obligatoire, le dernier prérequis est le QCM :
+    // c'est le jour même, et `delivrer` s'en charge par défaut.
+    const preuves = preuvesDe(mail, f);
+    const r = delivrer(mail, AUTEUR_AUTO,
+      { formation: f.cle, ...(preuves.pratiqueLe ? { obtenueLe: String(preuves.pratiqueLe).slice(0, 10) } : {}) },
+      { automatique: true });
+    return r.ok
+      ? { delivree: true, certification: r.body.certification }
+      : { delivree: false, raison: 'refus', erreur: r.body.error };
   }
 
   const lireLigne = (id) => db().prepare('SELECT * FROM academy_certifications WHERE id = ?').get(Number(id)) || null;
@@ -444,10 +511,29 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
 
   function statutCoach(p, e, f) {
     if (e.certifie) return 'certifie';
-    if (e.eligible) return 'certification_a_delivrer';
+    // ⚠️ « CERTIFICATION À DÉLIVRER » N'EXISTE PLUS. La certification part
+    // automatiquement dès que les prérequis sont remplis : il n'y a plus
+    // d'attente entre « tout est validé » et « le diplôme existe », donc plus
+    // rien à demander à l'évaluateur à ce moment-là.
+    //
+    // Un dossier éligible SANS diplôme ne peut donc être qu'un accident de
+    // parcours — une délivrance automatique qui n'a pas abouti. On le lit
+    // « pratique validée » : ses étapes SONT franchies, et son rang (4) le
+    // laisse hors de la file de travail plutôt que de le faire remonter en
+    // tête pour un geste qui n'est plus attendu.
+    if (e.eligible) return 'pratique_validee';
+
+    // ⚠️ UNE FORMATION QUI N'EXIGE AUCUNE PRATIQUE SORT ICI, et c'est ce qui la
+    // garde hors de la file de l'évaluateur. Sans ce retour, elle tombait plus
+    // bas sur `p.theorieValidee` et se lisait « pratique à réaliser » : le
+    // certificateur voyait un rendez-vous à prendre pour une épreuve qui
+    // n'existe pas. Théorie validée = ce que la formation attendait est fait
+    // (elle est certifiée plus haut si elle certifie) ; sinon, en cours.
+    if (!f.pratiqueObligatoire) return p.theorieValidee ? 'pratique_validee' : 'formation_en_cours';
+
     // Pratique acquise mais pas éligible : la formation ne certifie pas, ou un
     // autre prérequis manque. L'étape pratique n'en est pas moins terminée.
-    if (f.pratiqueObligatoire && p.validee) return 'pratique_validee';
+    if (p.validee) return 'pratique_validee';
     if (p.etat === 'en_attente') return 'resultat_en_attente';
     if (p.etat === 'a_repasser') return 'pratique_a_repasser';
     // Théorie validée et rien d'engagé : c'est exactement « pratique à
@@ -455,6 +541,16 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
     // elle est éligible dès la théorie, donc traitée plus haut.
     if (p.theorieValidee) return 'pratique_a_realiser';
     return 'formation_en_cours';
+  }
+
+  // LES CERTIFICATIONS DES 30 DERNIERS JOURS, toutes formations confondues.
+  // Lecture seule, sur `delivree_le` : c'est la date d'écriture du diplôme,
+  // donc « ce qui s'est ajouté récemment » — pas `obtenue_le`, qui peut être
+  // antérieure quand un verdict est saisi après coup.
+  function compterCertifsRecentes(jours = 30) {
+    const depuis = new Date(Date.now() - jours * 864e5).toISOString();
+    return db().prepare(`SELECT COUNT(*) AS n FROM academy_certifications
+                         WHERE statut = ? AND delivree_le >= ?`).get(DELIVREE, depuis).n;
   }
 
   function ligneCoach(c, f) {
@@ -470,6 +566,9 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
     return {
       email: c.email,
       prenom: c.prenom || '',
+      // La dernière visite suit le dossier : l'écran en tire « actif cette
+      // semaine » sans avoir à recroiser une seconde liste.
+      vuLe: c.vuLe || null,
       statut: statutCoach(p, e, f),
       progression,
       theorieValidee: !!p.theorieValidee,
@@ -516,8 +615,8 @@ function createAcademyCertifications({ getDb, nowIso, boost, qcm, pratique, form
     formations: () => formations.lister(),
     etatPour, etatCompletPour, historiqueDe,
     certificationActive, estCertifie,
-    delivrer, retirer, listerAdmin, listerCoachs,
+    delivrer, delivrerSiComplet, retirer, listerAdmin, listerCoachs, compterCertifsRecentes,
   };
 }
 
-module.exports = { createAcademyCertifications, DELIVREE, RETIREE, STATUTS_COACH };
+module.exports = { createAcademyCertifications, DELIVREE, RETIREE, STATUTS_COACH, RANG_STATUT, AUTEUR_AUTO };

@@ -1,0 +1,75 @@
+{
+  "formation": {
+    "cle": "resultat_du_mois",
+    "libelle": "Résultat du mois",
+    "description": "Apprends à mettre en avant, chaque mois, un résultat de transformation issu des pesées pour rendre les progrès du client visibles et concrets. Sélectionne le bon résultat, recueille l’accord de l’adhérent, construis un visuel simple et une légende claire, et fais de ce rendez-vous récurrent un levier de fierté et de motivation.",
+    "categorie": "essentiel",
+    "titre": "Résultat du mois My Coach",
+    "qcmNbQuestions": 5,
+    "qcmSeuilPct": 80,
+    "miniNbQuestions": 5,
+    "miniSeuilPct": 80,
+    "pratiqueObligatoire": true,
+    "certificationActive": true
+  },
+  "modules": [
+    {
+      "titre": "Valoriser le résultat du mois",
+      "description": "Découvre le process complet du Résultat du mois : les données utilisées (pesées et impédancemétrie), la fréquence de publication, la sélection du résultat, le recueil du consentement de l’adhérent, la création du visuel et la rédaction de la légende. Apprends à en faire un rendez-vous régulier qui célèbre les réussites du client et entretient sa motivation.",
+      "video": {
+        "titre": "Valoriser le résultat du mois",
+        "youtubeId": "ZbxWDLr49eM",
+        "dureeMin": 5
+      },
+      "questions": []
+    }
+  ],
+  "finale": [
+    {
+      "enonce": "Sur quelles données le Résultat du mois est-il construit ?",
+      "choix": [
+        { "texte": "Les résultats de pesées (impédancemétrie) : masse grasse, masse musculaire, kilos de gras perdus", "correct": true },
+        { "texte": "Le nombre de séances réalisées par l’adhérent dans le mois", "correct": false },
+        { "texte": "Les mensurations relevées par le coach à chaque séance", "correct": false },
+        { "texte": "L’ancienneté de l’adhérent dans le studio", "correct": false }
+      ]
+    },
+    {
+      "enonce": "À quelle fréquence et sur quelle période le Résultat du mois est-il publié ?",
+      "choix": [
+        { "texte": "Un post par studio et par mois, publié la première quinzaine du mois sur les résultats du mois précédent", "correct": true },
+        { "texte": "Un post par coach et par semaine, sur les résultats de la semaine écoulée", "correct": false },
+        { "texte": "Un post par studio chaque trimestre, sur les résultats des trois mois passés", "correct": false },
+        { "texte": "Un post dès qu’un adhérent obtient un résultat jugé remarquable, sans calendrier fixe", "correct": false }
+      ]
+    },
+    {
+      "enonce": "Que doit obtenir le coach auprès de l’adhérent avant toute publication ?",
+      "choix": [
+        { "texte": "Son accord explicite pour l’utilisation de ses résultats et pour la photo, avec la possibilité de flouter son visage", "correct": true },
+        { "texte": "Rien de particulier : les résultats de pesée appartiennent au studio", "correct": false },
+        { "texte": "Un accord verbal suffisant, uniquement si la photo est prise dans le studio", "correct": false },
+        { "texte": "Son accord seulement lorsque le visage apparaît en clair sur le visuel", "correct": false }
+      ]
+    },
+    {
+      "enonce": "Que fait-on si l’adhérent sélectionné refuse que son résultat soit publié ?",
+      "choix": [
+        { "texte": "On retient le deuxième meilleur résultat du studio", "correct": true },
+        { "texte": "On publie le résultat sans photo ni prénom, l’accord n’étant alors plus nécessaire", "correct": false },
+        { "texte": "On ne publie aucun Résultat du mois pour ce studio", "correct": false },
+        { "texte": "On reporte la publication au mois suivant en espérant qu’il change d’avis", "correct": false }
+      ]
+    },
+    {
+      "enonce": "Quel critère doit guider en priorité le choix du format du visuel ?",
+      "choix": [
+        { "texte": "Un format simple et rapide à produire, pour garantir la régularité du rendez-vous", "correct": true },
+        { "texte": "Le format le plus travaillé possible, quitte à décaler la publication", "correct": false },
+        { "texte": "Un format différent chaque mois, pour éviter la lassitude de l’audience", "correct": false },
+        { "texte": "Le format qui met le plus en avant le coach ayant accompagné l’adhérent", "correct": false }
+      ]
+    }
+  ],
+  "cas": []
+}

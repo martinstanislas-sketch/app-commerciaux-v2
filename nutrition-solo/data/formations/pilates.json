@@ -1,0 +1,591 @@
+{
+  "formation": {
+    "cle": "pilates",
+    "libelle": "Pilates",
+    "description": "Maîtrise les fondamentaux du Pilates et apprends à les intégrer intelligemment dans tes coachings My Coach. Comprends les principes de respiration, de placement, de contrôle, de mobilité et de stabilité, puis apprends à choisir, enseigner, observer, corriger et adapter les exercices selon les besoins réels du client.",
+    "categorie": "expertise",
+    "qcmNbQuestions": 20,
+    "qcmSeuilPct": 90,
+    "miniNbQuestions": 5,
+    "miniSeuilPct": 90,
+    "pratiqueObligatoire": true,
+    "certificationActive": true,
+    "titre": "Maîtriser les fondamentaux et les intégrer dans le coaching"
+  },
+  "modules": [
+    {
+      "titre": "Comprendre le Pilates et son intérêt chez My Coach",
+      "description": "Comprends ce qu’est le Pilates, ses grands principes et surtout comment l’utiliser comme un outil de coaching au service du client. L’objectif n’est pas de devenir professeur de Pilates, mais de savoir sélectionner certains principes et exercices lorsqu’ils répondent à un besoin identifié : contrôle, respiration, mobilité, stabilité, coordination ou conscience corporelle.",
+      "video": { "titre": "M1 — Comprendre le Pilates", "youtubeId": "o9M0yG9WU9I" },
+      "questions": [
+        { "enonce": "Quelle est la logique My Coach attendue pour utiliser le Pilates ?",
+          "choix": [
+            { "texte": "Choisir d’abord un exercice Pilates puis chercher à qui il convient", "correct": false },
+            { "texte": "Partir du client, de son objectif et de son besoin avant de choisir l’outil", "correct": true },
+            { "texte": "Faire du Pilates dans toutes les séances", "correct": false },
+            { "texte": "Utiliser uniquement les exercices les plus complexes", "correct": false }
+          ] },
+        { "enonce": "Quel est le positionnement de cette formation ?",
+          "choix": [
+            { "texte": "Former des professeurs de Pilates", "correct": false },
+            { "texte": "Former des coachs capables d’utiliser intelligemment le Pilates", "correct": true },
+            { "texte": "Remplacer le renforcement classique", "correct": false },
+            { "texte": "Construire des cours collectifs standardisés", "correct": false }
+          ] },
+        { "enonce": "Le Pilates peut notamment être utilisé pour travailler :",
+          "choix": [
+            { "texte": "Contrôle, respiration, mobilité, stabilité et coordination", "correct": true },
+            { "texte": "Uniquement la souplesse", "correct": false },
+            { "texte": "Uniquement les abdominaux", "correct": false },
+            { "texte": "Uniquement la récupération", "correct": false }
+          ] },
+        { "enonce": "Pourquoi ne faut-il pas choisir un exercice simplement parce qu’on le connaît ?",
+          "choix": [
+            { "texte": "Parce qu’un exercice doit être relié à un besoin réel du client", "correct": true },
+            { "texte": "Parce que seuls les exercices nouveaux sont efficaces", "correct": false },
+            { "texte": "Parce que le Pilates ne doit jamais être répété", "correct": false },
+            { "texte": "Parce que tous les exercices doivent être difficiles", "correct": false }
+          ] },
+        { "enonce": "Quelle phrase résume le mieux le module ?",
+          "choix": [
+            { "texte": "Le Pilates détermine la séance", "correct": false },
+            { "texte": "Le client détermine l’outil", "correct": true },
+            { "texte": "Plus l’exercice est complexe, mieux c’est", "correct": false },
+            { "texte": "Le Pilates doit remplacer les autres méthodes", "correct": false }
+          ] }
+      ]
+    },
+    {
+      "titre": "Respiration, placement et contrôle du centre",
+      "description": "Apprends à utiliser la respiration, le placement et le contrôle du mouvement pour améliorer la qualité d’exécution. Observe l’organisation du bassin, de la colonne, de la cage thoracique et des épaules, puis adapte l’amplitude lorsque le contrôle disparaît.",
+      "video": { "titre": "M2 — Respiration, placement et contrôle", "youtubeId": "6OdJtD6-kzI" },
+      "questions": [
+        { "enonce": "Quelle séquence décrit le mieux l’apprentissage proposé ?",
+          "choix": [
+            { "texte": "Bouger vite puis corriger", "correct": false },
+            { "texte": "Respirer, se placer, contrôler puis bouger", "correct": true },
+            { "texte": "Bloquer la respiration puis augmenter l’amplitude", "correct": false },
+            { "texte": "Chercher l’amplitude maximale", "correct": false }
+          ] },
+        { "enonce": "Que doit faire le coach si le contrôle se dégrade quand l’amplitude augmente ?",
+          "choix": [
+            { "texte": "Forcer pour habituer le client", "correct": false },
+            { "texte": "Réduire l’amplitude jusqu’à retrouver une exécution contrôlée", "correct": true },
+            { "texte": "Changer immédiatement de séance", "correct": false },
+            { "texte": "Demander au client de bloquer sa respiration", "correct": false }
+          ] },
+        { "enonce": "La stabilité signifie-t-elle une immobilité absolue ?",
+          "choix": [
+            { "texte": "Oui", "correct": false },
+            { "texte": "Non, elle correspond à une organisation suffisante pendant le mouvement", "correct": true },
+            { "texte": "Oui uniquement au sol", "correct": false },
+            { "texte": "Oui uniquement avec charge", "correct": false }
+          ] },
+        { "enonce": "Quelle est la meilleure stratégie de consigne ?",
+          "choix": [
+            { "texte": "Donner toutes les corrections possibles en même temps", "correct": false },
+            { "texte": "Donner une consigne prioritaire et observable", "correct": true },
+            { "texte": "Ne jamais corriger", "correct": false },
+            { "texte": "Toujours utiliser des termes anatomiques complexes", "correct": false }
+          ] },
+        { "enonce": "Quelle amplitude est considérée comme utile ?",
+          "choix": [
+            { "texte": "L’amplitude maximale disponible", "correct": false },
+            { "texte": "Celle que le client peut contrôler", "correct": true },
+            { "texte": "Celle du coach", "correct": false },
+            { "texte": "La même pour tous les clients", "correct": false }
+          ] }
+      ]
+    },
+    {
+      "titre": "Maîtriser les mouvements fondamentaux au sol",
+      "description": "Maîtrise les mouvements fondamentaux du Pilates au sol pour construire des séquences cohérentes et adaptées. Apprends à installer la position de départ, démontrer clairement, décomposer le mouvement, coordonner respiration et exécution, puis faire répéter avant de complexifier.",
+      "video": { "titre": "M3 — Les mouvements fondamentaux", "youtubeId": "gPzd7HT5u7Q" },
+      "questions": [
+        { "enonce": "Une bonne exécution commence :",
+          "choix": [
+            { "texte": "Après plusieurs répétitions", "correct": false },
+            { "texte": "Avant la première répétition, par une bonne installation", "correct": true },
+            { "texte": "Quand le client fatigue", "correct": false },
+            { "texte": "Quand l’exercice devient difficile", "correct": false }
+          ] },
+        { "enonce": "Pourquoi décomposer un mouvement ?",
+          "choix": [
+            { "texte": "Pour ralentir inutilement la séance", "correct": false },
+            { "texte": "Pour aider le client à comprendre les différentes étapes", "correct": true },
+            { "texte": "Pour augmenter la difficulté", "correct": false },
+            { "texte": "Pour éviter toute répétition", "correct": false }
+          ] },
+        { "enonce": "Quel principe doit guider la progression ?",
+          "choix": [
+            { "texte": "Complexifier avant de maîtriser", "correct": false },
+            { "texte": "Faire réussir avant de complexifier", "correct": true },
+            { "texte": "Changer d’exercice toutes les deux répétitions", "correct": false },
+            { "texte": "Chercher l’amplitude maximale dès le départ", "correct": false }
+          ] },
+        { "enonce": "Respiration et mouvement doivent être :",
+          "choix": [
+            { "texte": "Toujours dissociés", "correct": false },
+            { "texte": "Coordonnés progressivement sans surcharger le client", "correct": true },
+            { "texte": "Bloqués pendant l’effort", "correct": false },
+            { "texte": "Ignorés au début", "correct": false }
+          ] },
+        { "enonce": "Pourquoi la répétition est-elle importante ?",
+          "choix": [
+            { "texte": "Elle aide l’apprentissage et l’automatisation", "correct": true },
+            { "texte": "Elle empêche toute progression", "correct": false },
+            { "texte": "Elle n’est utile que pour la force", "correct": false },
+            { "texte": "Elle doit être évitée en Pilates", "correct": false }
+          ] }
+      ]
+    },
+    {
+      "titre": "Mobilité et contrôle de la colonne",
+      "description": "Découvre comment utiliser les principes du Pilates pour travailler la mobilité de la colonne avec contrôle. Apprends à distinguer mobilité et recherche d’amplitude maximale, à repérer les compensations et à adapter le mouvement selon les capacités du client.",
+      "video": { "titre": "M4 — Mobilité de la colonne vertébrale", "youtubeId": "jyxkpGCid5c" },
+      "questions": [
+        { "enonce": "Mobilité signifie-t-elle chercher l’amplitude maximale ?",
+          "choix": [
+            { "texte": "Oui", "correct": false },
+            { "texte": "Non, l’objectif est une amplitude disponible et contrôlée", "correct": true },
+            { "texte": "Oui uniquement en rotation", "correct": false },
+            { "texte": "Oui uniquement sans douleur", "correct": false }
+          ] },
+        { "enonce": "Que doit observer le coach quand l’amplitude augmente ?",
+          "choix": [
+            { "texte": "Uniquement la vitesse", "correct": false },
+            { "texte": "Si le mouvement reste contrôlé ou si une compensation apparaît", "correct": true },
+            { "texte": "Uniquement la respiration", "correct": false },
+            { "texte": "Seulement la fatigue", "correct": false }
+          ] },
+        { "enonce": "Si une compensation apparaît à grande amplitude, que faire ?",
+          "choix": [
+            { "texte": "Augmenter encore l’amplitude", "correct": false },
+            { "texte": "Revenir à une amplitude mieux maîtrisée", "correct": true },
+            { "texte": "Ajouter de la charge", "correct": false },
+            { "texte": "Arrêter définitivement le mouvement", "correct": false }
+          ] },
+        { "enonce": "Quelle phrase résume le mieux ce module ?",
+          "choix": [
+            { "texte": "Bouger plus loin", "correct": false },
+            { "texte": "Bouger mieux, pas simplement plus loin", "correct": true },
+            { "texte": "Toujours mobiliser au maximum", "correct": false },
+            { "texte": "La mobilité remplace la stabilité", "correct": false }
+          ] },
+        { "enonce": "Si une douleur apparaît pendant un mouvement de mobilité, le coach doit :",
+          "choix": [
+            { "texte": "Forcer légèrement", "correct": false },
+            { "texte": "Modifier ou arrêter l’exercice selon le contexte", "correct": true },
+            { "texte": "Ignorer la sensation", "correct": false },
+            { "texte": "Augmenter le nombre de répétitions", "correct": false }
+          ] }
+      ]
+    },
+    {
+      "titre": "Stabilité du centre et contrôle des membres",
+      "description": "Apprends à maintenir une base stable pendant le mouvement des bras et des jambes afin d’améliorer contrôle, coordination et qualité d’exécution. Découvre comment faire évoluer levier, amplitude, nombre de membres en mouvement et coordination sans dépasser les capacités du client.",
+      "video": { "titre": "M5 — Stabilité et mouvement des membres", "youtubeId": "9Tu0RW455dk" },
+      "questions": [
+        { "enonce": "Quel est l’objectif principal du module ?",
+          "choix": [
+            { "texte": "Immobiliser complètement le tronc", "correct": false },
+            { "texte": "Maintenir une organisation stable pendant le mouvement des membres", "correct": true },
+            { "texte": "Faire bouger tous les membres simultanément", "correct": false },
+            { "texte": "Chercher le levier le plus long", "correct": false }
+          ] },
+        { "enonce": "Qu’arrive-t-il généralement quand le levier s’allonge ?",
+          "choix": [
+            { "texte": "La difficulté diminue", "correct": false },
+            { "texte": "La difficulté augmente", "correct": true },
+            { "texte": "Rien ne change", "correct": false },
+            { "texte": "L’exercice devient automatiquement dangereux", "correct": false }
+          ] },
+        { "enonce": "Que faire si le client perd le contrôle à un niveau supérieur ?",
+          "choix": [
+            { "texte": "Insister jusqu’à réussite", "correct": false },
+            { "texte": "Revenir au dernier niveau maîtrisé", "correct": true },
+            { "texte": "Changer toute la séance", "correct": false },
+            { "texte": "Ajouter de la vitesse", "correct": false }
+          ] },
+        { "enonce": "Quelle est une bonne façon de progresser ?",
+          "choix": [
+            { "texte": "Modifier plusieurs variables à la fois", "correct": false },
+            { "texte": "Faire évoluer une variable à la fois", "correct": true },
+            { "texte": "Toujours ajouter de la charge", "correct": false },
+            { "texte": "Toujours enlever les appuis", "correct": false }
+          ] },
+        { "enonce": "Quelle phrase résume le module ?",
+          "choix": [
+            { "texte": "Stabiliser pour mieux bouger", "correct": true },
+            { "texte": "Bouger pour éviter toute stabilité", "correct": false },
+            { "texte": "Plus le levier est long, mieux c’est", "correct": false },
+            { "texte": "L’immobilité est l’objectif", "correct": false }
+          ] }
+      ]
+    },
+    {
+      "titre": "Construire avec des régressions et des progressions",
+      "description": "Apprends à simplifier ou faire évoluer un exercice Pilates selon le niveau, les capacités et la qualité d’exécution du client. Utilise intelligemment amplitude, levier, appuis, coordination et complexité pour trouver la bonne difficulté au bon moment.",
+      "video": { "titre": "M6 — Régressions et progressions", "youtubeId": "NwIdV6H8GbE" },
+      "questions": [
+        { "enonce": "Quelle question doit précéder une progression ?",
+          "choix": [
+            { "texte": "Quelle est la version la plus difficile ?", "correct": false },
+            { "texte": "Qu’est-ce que mon client maîtrise aujourd’hui ?", "correct": true },
+            { "texte": "Quel exercice est le plus impressionnant ?", "correct": false },
+            { "texte": "Combien de variantes connais-je ?", "correct": false }
+          ] },
+        { "enonce": "Parmi ces éléments, lequel peut être utilisé pour régresser ou progresser ?",
+          "choix": [
+            { "texte": "Amplitude", "correct": false },
+            { "texte": "Levier", "correct": false },
+            { "texte": "Appuis", "correct": false },
+            { "texte": "Toutes ces réponses", "correct": true }
+          ] },
+        { "enonce": "Pourquoi modifier une seule variable à la fois ?",
+          "choix": [
+            { "texte": "Pour mieux identifier la réponse du client", "correct": true },
+            { "texte": "Parce que plusieurs variables sont interdites", "correct": false },
+            { "texte": "Pour rendre la séance plus longue", "correct": false },
+            { "texte": "Pour éviter toute progression", "correct": false }
+          ] },
+        { "enonce": "Simplifier un exercice signifie :",
+          "choix": [
+            { "texte": "Échouer", "correct": false },
+            { "texte": "Créer les conditions de la réussite", "correct": true },
+            { "texte": "Revenir définitivement en arrière", "correct": false },
+            { "texte": "Arrêter l’apprentissage", "correct": false }
+          ] },
+        { "enonce": "Quelle est la meilleure difficulté ?",
+          "choix": [
+            { "texte": "La plus élevée possible", "correct": false },
+            { "texte": "Celle qui challenge sans faire perdre le contrôle", "correct": true },
+            { "texte": "La plus faible possible", "correct": false },
+            { "texte": "La même pour tous", "correct": false }
+          ] }
+      ]
+    },
+    {
+      "titre": "Observer et corriger un mouvement Pilates",
+      "description": "Développe ton regard de coach pour identifier les difficultés, choisir une priorité de correction et proposer une adaptation pertinente. Apprends à observer avant de parler, à donner un feedback simple, à laisser le client essayer puis à retester l’effet de ta correction.",
+      "video": { "titre": "M7 — Observer et corriger le mouvement", "youtubeId": "5eA_NC-w0Ko" },
+      "questions": [
+        { "enonce": "Quelle est la bonne séquence de correction ?",
+          "choix": [
+            { "texte": "Corriger → observer → changer", "correct": false },
+            { "texte": "Observer → prioriser → corriger → retester", "correct": true },
+            { "texte": "Parler → démontrer → arrêter", "correct": false },
+            { "texte": "Corriger toutes les erreurs simultanément", "correct": false }
+          ] },
+        { "enonce": "Si tu vois cinq erreurs, combien faut-il corriger immédiatement ?",
+          "choix": [
+            { "texte": "Les cinq", "correct": false },
+            { "texte": "Une priorité pertinente", "correct": true },
+            { "texte": "Aucune", "correct": false },
+            { "texte": "Toujours deux", "correct": false }
+          ] },
+        { "enonce": "Pourquoi faut-il laisser le client retenter après une consigne ?",
+          "choix": [
+            { "texte": "Pour vérifier si la correction produit l’effet attendu", "correct": true },
+            { "texte": "Pour gagner du temps", "correct": false },
+            { "texte": "Pour augmenter le volume", "correct": false },
+            { "texte": "Pour éviter de l’observer", "correct": false }
+          ] },
+        { "enonce": "Quel feedback est le plus utile ?",
+          "choix": [
+            { "texte": "« Fais mieux »", "correct": false },
+            { "texte": "Une consigne courte liée à un comportement observable", "correct": true },
+            { "texte": "Une longue explication anatomique", "correct": false },
+            { "texte": "Un encouragement sans consigne", "correct": false }
+          ] },
+        { "enonce": "Coacher signifie-t-il parler en permanence ?",
+          "choix": [
+            { "texte": "Oui", "correct": false },
+            { "texte": "Non, il faut aussi laisser le client essayer et observer", "correct": true },
+            { "texte": "Oui uniquement au début", "correct": false },
+            { "texte": "Oui sur les exercices complexes", "correct": false }
+          ] }
+      ]
+    },
+    {
+      "titre": "Utiliser le Pilates selon l’objectif du client",
+      "description": "Apprends à sélectionner les exercices et principes Pilates les plus pertinents selon l’objectif et les besoins du client. Pars du besoin réel, compare plusieurs outils possibles, choisis le Pilates uniquement lorsqu’il est pertinent puis observe la réponse pour ajuster.",
+      "video": { "titre": "M8 — Choisir les exercices selon l’objectif", "youtubeId": "wm7bzWAsLHA" },
+      "questions": [
+        { "enonce": "Quelle est la première question à se poser ?",
+          "choix": [
+            { "texte": "Quel exercice Pilates vais-je faire ?", "correct": false },
+            { "texte": "Qu’est-ce que mon client doit améliorer ?", "correct": true },
+            { "texte": "Quel exercice est nouveau ?", "correct": false },
+            { "texte": "Quelle séquence dure 15 minutes ?", "correct": false }
+          ] },
+        { "enonce": "Le Pilates est :",
+          "choix": [
+            { "texte": "Toujours le meilleur outil", "correct": false },
+            { "texte": "Une option parmi d’autres", "correct": true },
+            { "texte": "Obligatoire à chaque séance", "correct": false },
+            { "texte": "Supérieur au renforcement", "correct": false }
+          ] },
+        { "enonce": "Quelle chaîne de décision est la plus cohérente ?",
+          "choix": [
+            { "texte": "Exercice → client → objectif", "correct": false },
+            { "texte": "Client → objectif → besoin → outil → dosage → réponse", "correct": true },
+            { "texte": "Pilates → séance → client", "correct": false },
+            { "texte": "Technique → difficulté → objectif", "correct": false }
+          ] },
+        { "enonce": "Deux clients ont le même objectif. Doivent-ils forcément recevoir le même exercice ?",
+          "choix": [
+            { "texte": "Oui", "correct": false },
+            { "texte": "Non, leurs capacités et besoins peuvent conduire à des outils différents", "correct": true },
+            { "texte": "Oui si le coach préfère cet exercice", "correct": false },
+            { "texte": "Oui s’ils ont le même âge", "correct": false }
+          ] },
+        { "enonce": "Que faire si un exercice choisi ne produit pas l’effet recherché ?",
+          "choix": [
+            { "texte": "Le conserver par principe", "correct": false },
+            { "texte": "Observer puis adapter ou changer d’outil", "correct": true },
+            { "texte": "Augmenter la difficulté", "correct": false },
+            { "texte": "Augmenter la durée", "correct": false }
+          ] }
+      ]
+    },
+    {
+      "titre": "Intégrer le Pilates dans une séance My Coach",
+      "description": "Découvre comment intégrer intelligemment le Pilates dans une séance personnalisée, au service de l’objectif du client sans transformer la séance en cours de Pilates. Apprends à utiliser une séquence pour préparer, activer, apprendre, travailler ou récupérer, puis à retester l’objectif ciblé.",
+      "video": { "titre": "M9 — Intégrer le Pilates dans une séance My Coach", "youtubeId": "y7JRIYCpXG4" },
+      "questions": [
+        { "enonce": "Quelle phrase résume le mieux l’intégration du Pilates ?",
+          "choix": [
+            { "texte": "Le coaching s’adapte au Pilates", "correct": false },
+            { "texte": "Le Pilates s’intègre au coaching", "correct": true },
+            { "texte": "Chaque séance doit comporter 15 minutes de Pilates", "correct": false },
+            { "texte": "Le Pilates doit remplacer les autres outils", "correct": false }
+          ] },
+        { "enonce": "Une séquence Pilates peut servir à :",
+          "choix": [
+            { "texte": "Préparer, activer, apprendre, travailler ou récupérer", "correct": true },
+            { "texte": "Uniquement échauffer", "correct": false },
+            { "texte": "Uniquement récupérer", "correct": false },
+            { "texte": "Uniquement renforcer", "correct": false }
+          ] },
+        { "enonce": "La durée d’une séquence Pilates doit être :",
+          "choix": [
+            { "texte": "Toujours 10 minutes", "correct": false },
+            { "texte": "Déterminée par le besoin, l’objectif et le reste de la séance", "correct": true },
+            { "texte": "Toujours la moitié de la séance", "correct": false },
+            { "texte": "La plus longue possible", "correct": false }
+          ] },
+        { "enonce": "Pourquoi retester après une séquence ciblée ?",
+          "choix": [
+            { "texte": "Pour vérifier si l’intervention a aidé l’objectif recherché", "correct": true },
+            { "texte": "Pour augmenter le nombre d’exercices", "correct": false },
+            { "texte": "Pour fatiguer davantage le client", "correct": false },
+            { "texte": "Pour transformer la séance en Pilates", "correct": false }
+          ] },
+        { "enonce": "Quel est le principal piège ?",
+          "choix": [
+            { "texte": "Utiliser un exercice simple", "correct": false },
+            { "texte": "Laisser l’outil prendre la place de l’objectif", "correct": true },
+            { "texte": "Faire du renforcement", "correct": false },
+            { "texte": "Adapter la durée", "correct": false }
+          ] }
+      ]
+    },
+    {
+      "titre": "De la théorie au terrain : construire et coacher une situation complète",
+      "description": "Mets en pratique l’ensemble des compétences acquises pour observer, choisir, adapter et faire progresser ton client dans une situation concrète de coaching. Ce module synthétise le raisonnement complet : client, objectif, besoin, exercice, niveau, consigne, observation, correction, progression et adaptation.",
+      "video": { "titre": "M10 — À toi de coacher", "youtubeId": "jCOWnA44kkM" },
+      "questions": [
+        { "enonce": "Quelle est la première étape d’une situation complète de coaching ?",
+          "choix": [
+            { "texte": "Choisir un exercice complexe", "correct": false },
+            { "texte": "Comprendre le client et son objectif", "correct": true },
+            { "texte": "Démontrer immédiatement", "correct": false },
+            { "texte": "Faire un test maximal", "correct": false }
+          ] },
+        { "enonce": "Après une première tentative avec compensation, que fait le coach ?",
+          "choix": [
+            { "texte": "Corrige tout", "correct": false },
+            { "texte": "Choisit une priorité, corrige puis reteste", "correct": true },
+            { "texte": "Augmente la difficulté", "correct": false },
+            { "texte": "Change d’objectif", "correct": false }
+          ] },
+        { "enonce": "Quand une progression fait perdre le contrôle, il faut :",
+          "choix": [
+            { "texte": "Insister", "correct": false },
+            { "texte": "Revenir au dernier niveau maîtrisé ou simplifier", "correct": true },
+            { "texte": "Ajouter une deuxième progression", "correct": false },
+            { "texte": "Arrêter toute la séance", "correct": false }
+          ] },
+        { "enonce": "Quelle différence essentielle existe entre connaître et coacher un exercice ?",
+          "choix": [
+            { "texte": "Aucune", "correct": false },
+            { "texte": "Coacher implique choisir, observer, corriger et adapter au client", "correct": true },
+            { "texte": "Coacher signifie uniquement démontrer", "correct": false },
+            { "texte": "Connaître suffit pour certifier", "correct": false }
+          ] },
+        { "enonce": "Quel est le message final de la formation ?",
+          "choix": [
+            { "texte": "Connaître le plus d’exercices possible", "correct": false },
+            { "texte": "Savoir choisir, coacher et adapter le bon exercice au bon client", "correct": true },
+            { "texte": "Faire du Pilates à chaque séance", "correct": false },
+            { "texte": "Toujours chercher la difficulté maximale", "correct": false }
+          ] }
+      ]
+    }
+  ],
+  "finale": [
+    { "enonce": "Quel est le principe directeur de l’utilisation du Pilates chez My Coach ?",
+      "choix": [
+        { "texte": "Le Pilates doit dicter la séance", "correct": false },
+        { "texte": "Le besoin du client détermine l’outil", "correct": true },
+        { "texte": "Chaque client doit faire les mêmes exercices", "correct": false },
+        { "texte": "La difficulté est la priorité", "correct": false }
+      ] },
+    { "enonce": "Quel est l’objectif de la formation Pilates ?",
+      "choix": [
+        { "texte": "Former des professeurs de Pilates", "correct": false },
+        { "texte": "Former des coachs capables d’utiliser le Pilates comme outil de coaching", "correct": true },
+        { "texte": "Remplacer tous les autres outils", "correct": false },
+        { "texte": "Construire des cours collectifs", "correct": false }
+      ] },
+    { "enonce": "Quelle amplitude doit être privilégiée ?",
+      "choix": [
+        { "texte": "La maximale", "correct": false },
+        { "texte": "Celle que le client contrôle", "correct": true },
+        { "texte": "Celle du coach", "correct": false },
+        { "texte": "La même pour tous", "correct": false }
+      ] },
+    { "enonce": "La stabilité est :",
+      "choix": [
+        { "texte": "Une immobilité absolue", "correct": false },
+        { "texte": "Une organisation suffisante permettant le mouvement", "correct": true },
+        { "texte": "Un blocage respiratoire", "correct": false },
+        { "texte": "Une position identique chez tous", "correct": false }
+      ] },
+    { "enonce": "Quelle séquence d’apprentissage est la plus pertinente ?",
+      "choix": [
+        { "texte": "Complexifier → répéter → comprendre", "correct": false },
+        { "texte": "Comprendre → essayer → répéter → maîtriser → progresser", "correct": true },
+        { "texte": "Progresser → expliquer → corriger", "correct": false },
+        { "texte": "Varier → accélérer → charger", "correct": false }
+      ] },
+    { "enonce": "Pourquoi décomposer un mouvement ?",
+      "choix": [
+        { "texte": "Pour faciliter la compréhension et l’apprentissage", "correct": true },
+        { "texte": "Pour rendre l’exercice plus difficile", "correct": false },
+        { "texte": "Pour supprimer la respiration", "correct": false },
+        { "texte": "Pour éviter les répétitions", "correct": false }
+      ] },
+    { "enonce": "Que faire lorsqu’une compensation apparaît avec une amplitude plus grande ?",
+      "choix": [
+        { "texte": "Forcer", "correct": false },
+        { "texte": "Réduire l’amplitude pour retrouver du contrôle", "correct": true },
+        { "texte": "Ajouter de la charge", "correct": false },
+        { "texte": "Ignorer", "correct": false }
+      ] },
+    { "enonce": "Comment faire évoluer un exercice ?",
+      "choix": [
+        { "texte": "En modifiant plusieurs variables simultanément", "correct": false },
+        { "texte": "En jouant progressivement sur amplitude, levier, appuis, coordination ou complexité", "correct": true },
+        { "texte": "Uniquement avec la charge", "correct": false },
+        { "texte": "Uniquement avec la vitesse", "correct": false }
+      ] },
+    { "enonce": "Une régression est :",
+      "choix": [
+        { "texte": "Un échec", "correct": false },
+        { "texte": "Un moyen de créer les conditions de la réussite", "correct": true },
+        { "texte": "Une interdiction de progresser", "correct": false },
+        { "texte": "Un abandon", "correct": false }
+      ] },
+    { "enonce": "Quelle séquence décrit le mieux une correction efficace ?",
+      "choix": [
+        { "texte": "Observer → prioriser → corriger → retester", "correct": true },
+        { "texte": "Parler → corriger tout → continuer", "correct": false },
+        { "texte": "Démontrer → changer d’exercice", "correct": false },
+        { "texte": "Corriger → observer", "correct": false }
+      ] },
+    { "enonce": "Pourquoi ne faut-il pas corriger cinq éléments à la fois ?",
+      "choix": [
+        { "texte": "Parce que le coach n’a pas le droit", "correct": false },
+        { "texte": "Parce que cela surcharge l’attention du client", "correct": true },
+        { "texte": "Parce que seuls deux éléments existent", "correct": false },
+        { "texte": "Parce que la correction n’est jamais utile", "correct": false }
+      ] },
+    { "enonce": "Quel feedback est préférable ?",
+      "choix": [
+        { "texte": "Un feedback générique", "correct": false },
+        { "texte": "Une consigne courte, précise et observable", "correct": true },
+        { "texte": "Une explication très longue", "correct": false },
+        { "texte": "Aucun feedback", "correct": false }
+      ] },
+    { "enonce": "Quel est le bon point de départ pour choisir un exercice ?",
+      "choix": [
+        { "texte": "La préférence du coach", "correct": false },
+        { "texte": "L’objectif et le besoin du client", "correct": true },
+        { "texte": "La nouveauté de l’exercice", "correct": false },
+        { "texte": "Le nombre de répétitions", "correct": false }
+      ] },
+    { "enonce": "Le Pilates doit être considéré comme :",
+      "choix": [
+        { "texte": "La meilleure méthode dans tous les cas", "correct": false },
+        { "texte": "Une option parmi les outils disponibles", "correct": true },
+        { "texte": "Une obligation", "correct": false },
+        { "texte": "Une méthode réservée au sol", "correct": false }
+      ] },
+    { "enonce": "Si un outil ne produit pas l’effet recherché, le coach doit :",
+      "choix": [
+        { "texte": "Le conserver", "correct": false },
+        { "texte": "Observer et adapter ou changer d’outil", "correct": true },
+        { "texte": "Augmenter sa durée", "correct": false },
+        { "texte": "Toujours le complexifier", "correct": false }
+      ] },
+    { "enonce": "Une séquence Pilates dans une séance peut être utilisée pour :",
+      "choix": [
+        { "texte": "Préparer, activer, apprendre, travailler ou récupérer", "correct": true },
+        { "texte": "Uniquement échauffer", "correct": false },
+        { "texte": "Uniquement renforcer", "correct": false },
+        { "texte": "Uniquement finir la séance", "correct": false }
+      ] },
+    { "enonce": "Pourquoi faut-il retester après une intervention ciblée ?",
+      "choix": [
+        { "texte": "Pour vérifier son effet sur l’objectif", "correct": true },
+        { "texte": "Pour augmenter la fatigue", "correct": false },
+        { "texte": "Pour remplir la séance", "correct": false },
+        { "texte": "Pour comparer avec les autres clients", "correct": false }
+      ] },
+    { "enonce": "Quel est le danger d’une mauvaise intégration du Pilates ?",
+      "choix": [
+        { "texte": "L’outil prend la place de l’objectif du client", "correct": true },
+        { "texte": "La séance devient trop courte", "correct": false },
+        { "texte": "Le client progresse trop vite", "correct": false },
+        { "texte": "Le coach donne une seule consigne", "correct": false }
+      ] },
+    { "enonce": "Une progression fait perdre le contrôle au client. Que faire ?",
+      "choix": [
+        { "texte": "Continuer", "correct": false },
+        { "texte": "Simplifier ou revenir au dernier niveau maîtrisé", "correct": true },
+        { "texte": "Ajouter une nouvelle difficulté", "correct": false },
+        { "texte": "Augmenter le tempo", "correct": false }
+      ] },
+    { "enonce": "Que doit démontrer le coach lors de l’évaluation pratique ?",
+      "choix": [
+        { "texte": "Le nombre d’exercices qu’il connaît", "correct": false },
+        { "texte": "Sa capacité à choisir, enseigner, observer, corriger et adapter au client", "correct": true },
+        { "texte": "Sa capacité à réciter le cours", "correct": false },
+        { "texte": "Sa capacité à faire une séance standard", "correct": false }
+      ] }
+  ],
+  "cas": [
+    { "titre": "Axe 1 — Maîtrise technique",
+      "consignes": "Évaluer si le coach comprend suffisamment les principes du Pilates et sait démontrer les mouvements qu’il propose avec clarté. Il doit pouvoir expliquer simplement la position de départ, le mouvement, la respiration et les points de contrôle utiles sans surcharger le client." },
+    { "titre": "Axe 2 — Observation et correction",
+      "consignes": "Présenter une situation où le client réalise un exercice avec plusieurs difficultés observables. Le coach doit prendre le temps d’observer, choisir une priorité de correction, formuler une consigne simple, laisser le client retenter puis vérifier l’effet." },
+    { "titre": "Axe 3 — Adaptation au client",
+      "consignes": "Demander au coach de choisir ou d’adapter un exercice selon l’objectif et les capacités du client. Il doit savoir régresser ou progresser en jouant sur amplitude, levier, appuis, coordination ou complexité, sans rechercher systématiquement la version la plus difficile." },
+    { "titre": "Axe 4 — Intégration dans une séance My Coach",
+      "consignes": "Évaluer la capacité du coach à intégrer un exercice ou une courte séquence Pilates dans une séance complète sans perdre l’objectif global. Il doit expliquer pourquoi il utilise cet outil, à quel moment de la séance et comment il vérifiera son utilité." },
+    { "titre": "Axe 5 — Situation complète de coaching",
+      "consignes": "Présenter un client, un objectif et une difficulté. Le coach doit dérouler le raisonnement complet : client → objectif → besoin → outil → niveau → consigne → observation → correction → progression ou adaptation. L’évaluation porte sur la capacité à coacher réellement et non à réciter une liste d’exercices." }
+  ]
+}

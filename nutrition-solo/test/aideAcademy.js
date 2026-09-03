@@ -63,17 +63,32 @@ async function certifierViaAcademy({
   await terminerFormation({ api, email, jeton });
   await reussirQcm({ api, jeton });
 
+  // LA GRILLE, QUAND LA FORMATION EN A UNE. Coach Nutrition a reçu la sienne
+  // (neuf critères) : depuis, un verdict sans grille complète est refusé — la
+  // même règle que Fitness Boxe. On la lit là où l'écran la lit, sur la fiche,
+  // plutôt que de recopier neuf clés qui bougeraient avec le référentiel.
+  const fiche = (await api('GET',
+    `/api/academy/evaluateur/collaborateurs/${encodeURIComponent(email)}?formation=coach_nutrition`,
+    null, evalJeton)).body || {};
+  const criteres = (fiche.grille || []).flatMap((a) => a.criteres.map((c) => ({ id: c.id, acquis: true })));
+
   const p = await api('POST', `/api/academy/evaluateur/collaborateurs/${encodeURIComponent(email)}/evaluations`,
-    { resultat: 'valide', dateEvaluation: date || '2026-07-10', cas: 'Amorçage de test' }, evalJeton);
+    { resultat: 'valide', dateEvaluation: date || '2026-07-10', cas: 'Amorçage de test',
+      ...(criteres.length ? { criteres } : {}) }, evalJeton);
+
+  // ⚠️ DEPUIS LA CERTIFICATION AUTOMATIQUE, le diplôme est le plus souvent DÉJÀ
+  // LÀ : valider la pratique suffit à le déclencher. On tente donc la
+  // délivrance manuelle, et un « déjà certifié » n'est PAS une erreur — c'est
+  // le nouveau chemin normal. On rend alors la certification existante.
+  if (p.body && p.body.certification) return p.body.certification;
 
   const c = await api('POST', `/api/academy/admin/certifications/${encodeURIComponent(email)}`,
     { obtenueLe: date || '2026-07-15' }, jetonAdmin);
+  if (c.status === 201) return c.body.certification;
+  if (c.status === 409 && c.body && c.body.dejaCertifie) return c.body.certification;
 
-  if (c.status !== 201) {
-    throw new Error('amorçage : certification refusée (' + c.status + ') — ' +
-      JSON.stringify(c.body) + ' | pratique : ' + p.status);
-  }
-  return c.body.certification;
+  throw new Error('amorçage : certification refusée (' + c.status + ') — ' +
+    JSON.stringify(c.body) + ' | pratique : ' + p.status);
 }
 
 // Une certification héritée, écrite à la main : le cas des coachs certifiés
@@ -89,4 +104,15 @@ function certifierAncienne({ db, email, date = '2026-07-15', evaluateur = 'Stan 
     .run(String(email).toLowerCase(), date, evaluateur, scoreQcm, resultatPratique, maintenant);
 }
 
-module.exports = { certifierViaAcademy, certifierAncienne, terminerFormation, reussirQcm, CORRIGE };
+// Les critères d'une formation, TOUS ACQUIS. Sert aux suites qui prononcent un
+// verdict pour ARRIVER quelque part — certifier un coach, remplir un espace —
+// et non pour éprouver la grille, qui a son propre fichier. Sans eux, un
+// verdict sur une formation qui porte une grille est refusé, à juste titre.
+function criteresAcquis(db, formation = 'coach_nutrition') {
+  return db.prepare('SELECT id FROM academy_criteres WHERE formation = ? AND actif = 1 ORDER BY axe, ordre')
+    .all(formation).map((c) => ({ id: c.id, acquis: true }));
+}
+
+module.exports = {
+  certifierViaAcademy, certifierAncienne, terminerFormation, reussirQcm, CORRIGE, criteresAcquis,
+};

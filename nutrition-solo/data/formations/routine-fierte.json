@@ -1,0 +1,135 @@
+{
+  "formation": {
+    "cle": "routine_fierte",
+    "libelle": "Routine de fierté",
+    "description": "Apprends à ne jamais laisser un client repartir sans savoir ce qu'il a bien fait aujourd'hui. Observe pendant la séance, identifie un progrès réel, formule un feedback court et précis, et transforme dix secondes en un levier de motivation, de relation et de fidélisation.",
+    "categorie": "essentiel",
+    "titre": "Routine de fierté My Coach",
+    "qcmNbQuestions": 5,
+    "qcmSeuilPct": 80,
+    "miniNbQuestions": 5,
+    "miniSeuilPct": 80,
+    "pratiqueObligatoire": true,
+    "certificationActive": true
+  },
+  "modules": [
+    {
+      "titre": "Créer une Routine de Fierté",
+      "description": "Découvre le micro-rituel de fin de séance : quand il commence réellement, les cinq familles de progrès à observer, les quatre critères d'un feedback qui porte, la manière de projeter la prochaine étape sans effacer le compliment, et la conduite à tenir après une séance difficile.",
+      "video": {
+        "titre": "Créer une Routine de Fierté",
+        "youtubeId": "P_B8rBCCfCk",
+        "dureeMin": 6
+      },
+      "questions": []
+    }
+  ],
+  "finale": [
+    {
+      "enonce": "Quelle est la règle de la routine de fierté ?",
+      "choix": [
+        {
+          "texte": "Une séance, un feedback de fierté par adhérent — un par personne, même en small group",
+          "correct": true
+        },
+        {
+          "texte": "Un feedback adressé au groupe en fin de séance, qui vaut pour tous",
+          "correct": false
+        },
+        {
+          "texte": "Un feedback par adhérent chaque semaine, quel que soit le nombre de séances",
+          "correct": false
+        },
+        {
+          "texte": "Un feedback réservé aux adhérents ayant réalisé une performance notable",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Quand la routine de fierté commence-t-elle réellement ?",
+      "choix": [
+        {
+          "texte": "Pendant la séance : c'est en observant qu'on identifie un point de fierté pour chacun",
+          "correct": true
+        },
+        {
+          "texte": "À la toute fin de la séance, une fois le dernier exercice terminé",
+          "correct": false
+        },
+        {
+          "texte": "Au début de la séance, en annonçant au client ce qu'on va observer",
+          "correct": false
+        },
+        {
+          "texte": "Après la séance, en relisant les notes de suivi de l'adhérent",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Quels sont les quatre critères d'un bon feedback de fierté ?",
+      "choix": [
+        {
+          "texte": "Spécifique, concret, court et sincère",
+          "correct": true
+        },
+        {
+          "texte": "Technique, chiffré, comparatif et daté",
+          "correct": false
+        },
+        {
+          "texte": "Positif, collectif, régulier et enthousiaste",
+          "correct": false
+        },
+        {
+          "texte": "Détaillé, argumenté, écrit et transmis au coach référent",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Le client a eu une mauvaise séance : moins performant, fatigué, la tête ailleurs. Que fait le coach ?",
+      "choix": [
+        {
+          "texte": "Il cherche un élément réel à valoriser, sans jamais inventer une performance",
+          "correct": true
+        },
+        {
+          "texte": "Il passe la routine de fierté ce jour-là, pour rester crédible",
+          "correct": false
+        },
+        {
+          "texte": "Il félicite quand même sur un point de son choix, l'important étant l'encouragement",
+          "correct": false
+        },
+        {
+          "texte": "Il remplace le feedback par un rappel des objectifs à tenir",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Que faut-il éviter en ajoutant la prochaine étape au feedback ?",
+      "choix": [
+        {
+          "texte": "Que le feed forward efface le compliment et transforme la fierté en correction",
+          "correct": true
+        },
+        {
+          "texte": "Que la prochaine étape soit trop simple à atteindre pour le client",
+          "correct": false
+        },
+        {
+          "texte": "Que la prochaine étape porte sur un exercice différent de celui valorisé",
+          "correct": false
+        },
+        {
+          "texte": "Que la prochaine étape soit formulée avant la fin de la séance",
+          "correct": false
+        }
+      ]
+    }
+  ],
+  "cas": []
+}

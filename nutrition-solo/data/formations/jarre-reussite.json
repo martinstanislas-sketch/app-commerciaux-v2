@@ -1,0 +1,135 @@
+{
+  "formation": {
+    "cle": "jarre_reussite",
+    "libelle": "Jarre de la réussite",
+    "description": "Apprends à utiliser la Jarre de la Réussite juste après une pesée pour rendre visible et concret le travail du client. Applique la règle de dosage commune à tous les studios, fais verser le sable par le client lui-même et transforme un chiffre en moment de fierté partagé par tout le studio.",
+    "categorie": "essentiel",
+    "titre": "Jarre de la Réussite My Coach",
+    "qcmNbQuestions": 5,
+    "qcmSeuilPct": 80,
+    "miniNbQuestions": 5,
+    "miniSeuilPct": 80,
+    "pratiqueObligatoire": true,
+    "certificationActive": true
+  },
+  "modules": [
+    {
+      "titre": "La Jarre de la Réussite",
+      "description": "Découvre à quel moment déclencher le rituel, ce que symbolise le sable, la règle de dosage identique dans tous les studios, les quatre étapes du rituel, la conduite à tenir lorsqu'il n'y a pas de progression chiffrée et les conditions à respecter pour en faire un support de communication.",
+      "video": {
+        "titre": "La Jarre de la Réussite",
+        "youtubeId": "JcAqmxvqRKo",
+        "dureeMin": 4
+      },
+      "questions": []
+    }
+  ],
+  "finale": [
+    {
+      "enonce": "À quel moment la Jarre de la Réussite s'utilise-t-elle ?",
+      "choix": [
+        {
+          "texte": "Juste après une pesée, lorsque la progression est constatée avec le client",
+          "correct": true
+        },
+        {
+          "texte": "À la fin de chaque séance, pour clôturer le travail du jour",
+          "correct": false
+        },
+        {
+          "texte": "Une fois par mois, lors d'un temps collectif réunissant les adhérents",
+          "correct": false
+        },
+        {
+          "texte": "Dès que le client atteint l'objectif qu'il s'était fixé au départ",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Un client a perdu 0,8 kg de masse grasse. Combien de doses verse-t-il ?",
+      "choix": [
+        {
+          "texte": "Une dose : une dose vaut un kilo de résultat, et on arrondit de 0,5 à 1,4 kg à une dose",
+          "correct": true
+        },
+        {
+          "texte": "Aucune dose : le seuil d'un kilo entier n'est pas atteint",
+          "correct": false
+        },
+        {
+          "texte": "Deux doses : on arrondit toujours au kilo supérieur pour encourager",
+          "correct": false
+        },
+        {
+          "texte": "Le nombre de doses est laissé à l'appréciation du coach selon le profil",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Qui verse le sable dans la jarre ?",
+      "choix": [
+        {
+          "texte": "Le client lui-même : son travail, son résultat, son geste",
+          "correct": true
+        },
+        {
+          "texte": "Le coach, qui officialise ainsi le résultat obtenu",
+          "correct": false
+        },
+        {
+          "texte": "Le coach leader, lors du point hebdomadaire du studio",
+          "correct": false
+        },
+        {
+          "texte": "Peu importe, l'essentiel étant que le sable soit ajouté le jour de la pesée",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Les résultats du client sont stables ce mois-ci. Que fait-on ?",
+      "choix": [
+        {
+          "texte": "Pas de sable, mais on ne retire jamais de sable : ce qui a été gagné reste acquis",
+          "correct": true
+        },
+        {
+          "texte": "On retire une dose pour que la jarre reflète la réalité du moment",
+          "correct": false
+        },
+        {
+          "texte": "On ajoute quand même une dose pour ne pas décourager le client",
+          "correct": false
+        },
+        {
+          "texte": "On reporte le versement au mois suivant, en cumulant les deux pesées",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Quelles sont les quatre étapes du rituel de la jarre ?",
+      "choix": [
+        {
+          "texte": "Analyser la pesée, expliquer la symbolique, faire participer le client, féliciter",
+          "correct": true
+        },
+        {
+          "texte": "Peser, annoncer le chiffre, verser le sable, photographier le moment",
+          "correct": false
+        },
+        {
+          "texte": "Comparer, classer le résultat, récompenser, fixer le prochain palier",
+          "correct": false
+        },
+        {
+          "texte": "Accueillir, mesurer, corriger le programme, planifier la prochaine pesée",
+          "correct": false
+        }
+      ]
+    }
+  ],
+  "cas": []
+}

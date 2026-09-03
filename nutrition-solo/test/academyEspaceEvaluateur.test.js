@@ -38,7 +38,7 @@ process.env.ADMIN_EMAIL = 'patron@exemple.fr';
 
 const app = require('../server');
 const { STATUTS_COACH } = require('../lib/academyCertifications');
-const { terminerFormation, reussirQcm } = require('./aideAcademy');
+const { terminerFormation, reussirQcm, criteresAcquis } = require('./aideAcademy');
 
 let srv, base;
 
@@ -78,9 +78,16 @@ const liste = async (jeton) => (await api('GET', '/api/academy/evaluateur/coachs
 const statutDe = (d, email) => (d.coachs.find((c) => c.email === email) || {}).statut;
 const ligneDe = (d, email) => d.coachs.find((c) => c.email === email) || null;
 
-const ouvrirSeance = (cible, corps, par) =>
-  api('POST', `/api/academy/evaluateur/collaborateurs/${encodeURIComponent(cible)}/evaluations`,
-    corps || {}, jetons[par || EVA]);
+// Un verdict sur une formation qui porte une grille exige cette grille. On la
+// pose ici quand un résultat est demandé — ce fichier éprouve l'ESPACE de
+// l'évaluateur, pas les critères.
+const dbq = () => require('../lib/db').getDb();
+const ouvrirSeance = (cible, corps, par) => {
+  const c = corps || {};
+  const avec = c.resultat && !c.criteres ? { ...c, criteres: criteresAcquis(dbq()) } : c;
+  return api('POST', `/api/academy/evaluateur/collaborateurs/${encodeURIComponent(cible)}/evaluations`,
+    avec, jetons[par || EVA]);
+};
 const delivrer = (cible, par, corps) =>
   api('POST', `/api/academy/admin/certifications/${encodeURIComponent(cible)}`, corps || {}, jetons[par]);
 
@@ -120,11 +127,15 @@ test.after(() => {
 //  1. LE STATUT UNIQUE
 // ===========================================================================
 
-test('les sept statuts sont ceux du moteur, et pas un de plus', () => {
+test('les six statuts sont ceux du moteur, et pas un de plus', () => {
+  // ⚠️ ILS ÉTAIENT SEPT. « certification_a_delivrer » a disparu avec l'étape
+  // qu'il nommait : la certification part automatiquement dès que le dernier
+  // prérequis est rempli, donc aucun dossier n'attend plus un clic.
   assert.deepStrictEqual([...STATUTS_COACH].sort(), [
-    'certification_a_delivrer', 'certifie', 'formation_en_cours', 'pratique_a_realiser',
+    'certifie', 'formation_en_cours', 'pratique_a_realiser',
     'pratique_a_repasser', 'pratique_validee', 'resultat_en_attente',
   ]);
+  assert.ok(!STATUTS_COACH.includes('certification_a_delivrer'));
   // « théorie validée » n'en est PAS un : c'est « pratique à réaliser » vu de
   // l'autre côté. Deux libellés concurrents pour un seul état obligeraient
   // l'évaluateur à savoir lequel compte.
@@ -137,7 +148,9 @@ test('chaque palier du parcours porte UN statut, et le bon', async () => {
   assert.strictEqual(statutDe(d, THEORIE), 'pratique_a_realiser');
   assert.strictEqual(statutDe(d, ATTENTE), 'resultat_en_attente');
   assert.strictEqual(statutDe(d, REPASSE), 'pratique_a_repasser');
-  assert.strictEqual(statutDe(d, PRET), 'certification_a_delivrer');
+  // PRET a vu sa pratique validée : il est donc CERTIFIÉ, comme DIPLOME. Le
+  // palier intermédiaire qu'il incarnait n'existe plus.
+  assert.strictEqual(statutDe(d, PRET), 'certifie');
   assert.strictEqual(statutDe(d, DIPLOME), 'certifie');
   // Un seul statut par ligne : la valeur est une chaîne, pas une liste.
   for (const c of d.coachs) {
@@ -177,15 +190,21 @@ test('la ligne porte de quoi décider sans ouvrir la fiche', async () => {
   assert.strictEqual(ligneDe(d, PRET).progression.pourcentage, 100);
 });
 
-test('le certifié porte son diplôme, l\'éligible porte ses prérequis remplis', async () => {
+test('le certifié porte son diplôme, et ses prérequis tous remplis', async () => {
   const d = await liste(jetons[EVA]);
+  // ⚠️ DIPLOME ÉTAIT CERTIFIÉ À LA MAIN dans l'amorçage ; il l'est désormais
+  // par la règle, au moment où sa pratique a été validée. Son diplôme porte
+  // donc le marqueur automatique et la date du verdict, pas celle qu'un
+  // administrateur aurait saisie ensuite.
   const dip = ligneDe(d, DIPLOME);
   assert.strictEqual(dip.certification.certifie, true);
-  assert.strictEqual(dip.certification.certification.obtenueLe, '2026-09-05');
-  assert.strictEqual(dip.certification.certification.delivreePar, ADMIN);
+  assert.strictEqual(dip.certification.certification.delivreePar, 'Academy');
+  assert.strictEqual(dip.certification.certification.obtenueLe, '2026-09-04',
+    'la date du verdict pratique, pas celle de la saisie');
 
+  // PRET a suivi le même chemin : plus d'état d'attente entre les deux.
   const pret = ligneDe(d, PRET);
-  assert.strictEqual(pret.certification.eligible, true);
+  assert.strictEqual(pret.certification.certifie, true);
   assert.ok(pret.certification.prerequis.every((p) => p.rempli));
   assert.strictEqual(pret.certification.manquants.length, 0);
   assert.strictEqual(pret.pratique.validee, true);
@@ -195,11 +214,14 @@ test('le certifié porte son diplôme, l\'éligible porte ses prérequis remplis
 test('l\'ordre remonte ce qui attend une action, et descend les dossiers clos', async () => {
   const d = await liste(jetons[EVA]);
   const rang = (e) => d.coachs.findIndex((c) => c.email === e);
-  assert.ok(rang(PRET) < rang(ATTENTE), 'une certification à délivrer passe devant');
+  // Le barème n'a pas changé, il a juste perdu son rang 0 : ce qui attend un
+  // verdict remonte, ce qui est clos descend. PRET, désormais certifié, ferme
+  // la marche avec DIPLOME au lieu d'ouvrir la file.
   assert.ok(rang(ATTENTE) < rang(REPASSE));
   assert.ok(rang(REPASSE) < rang(THEORIE));
   assert.ok(rang(THEORIE) < rang(DEBUT), 'un dossier qui n\'attend rien descend');
   assert.ok(rang(DEBUT) < rang(DIPLOME), 'et un certifié ferme la marche');
+  assert.ok(rang(DEBUT) < rang(PRET), 'PRET est certifié : il ferme la marche aussi');
 });
 
 // ===========================================================================
@@ -258,23 +280,28 @@ test('le drapeau `peutRetirer` distingue l\'évaluatrice de l\'administrateur', 
 //  3. LE PARCOURS COMPLET, PAR LA SEULE ÉVALUATRICE
 // ===========================================================================
 
-test('de « pratique à réaliser » à « certifié » sans quitter l\'espace', async () => {
-  // Le scénario que l'espace unifié promet : une seule personne, un seul écran.
+test('de « pratique à réaliser » à « certifié » EN UN SEUL GESTE', async () => {
+  // La promesse de l'espace unifié, resserrée par ce lot : une seule personne,
+  // un seul écran, et désormais UN SEUL GESTE. Le verdict pratique ne rend
+  // plus « éligible » — il certifie.
   assert.strictEqual(statutDe(await liste(jetons[EVA]), THEORIE), 'pratique_a_realiser');
 
-  assert.strictEqual((await ouvrirSeance(THEORIE, { resultat: 'valide', dateEvaluation: '2026-09-20' })).status, 201);
-  assert.strictEqual(statutDe(await liste(jetons[EVA]), THEORIE), 'certification_a_delivrer',
-    'AUCUNE CERTIFICATION AUTOMATIQUE : valider la pratique rend éligible, pas certifié');
-  assert.strictEqual(app.academyCertifications.estCertifie(THEORIE), false);
-
-  assert.strictEqual((await delivrer(THEORIE, EVA, { obtenueLe: '2026-09-21' })).status, 201);
+  const r = await ouvrirSeance(THEORIE, { resultat: 'valide', dateEvaluation: '2026-09-20' });
+  assert.strictEqual(r.status, 201);
+  assert.strictEqual(r.body.certificationAutomatique, true, 'le diplôme part avec la réponse');
+  assert.strictEqual(app.academyCertifications.estCertifie(THEORIE), true);
   assert.strictEqual(statutDe(await liste(jetons[EVA]), THEORIE), 'certifie');
+
+  // Et il n'y a plus rien à délivrer derrière : la porte manuelle refuse.
+  const encore = await delivrer(THEORIE, EVA, { obtenueLe: '2026-09-21' });
+  assert.strictEqual(encore.status, 409);
+  assert.strictEqual(encore.body.dejaCertifie, true);
 });
 
 test('un « à repasser » se rattrape sans effacer la tentative ratée', async () => {
   assert.strictEqual((await ouvrirSeance(REPASSE, { resultat: 'valide', dateEvaluation: '2026-09-22' })).status, 201);
   const r = ligneDe(await liste(jetons[EVA]), REPASSE);
-  assert.strictEqual(r.statut, 'certification_a_delivrer');
+  assert.strictEqual(r.statut, 'certifie', 'le rattrapage validé certifie directement');
   assert.strictEqual(r.pratique.nbTentatives, 2, 'les DEUX tentatives sont là');
   assert.strictEqual(r.pratique.validee, true);
 });
@@ -435,8 +462,11 @@ test('L\'ÉCRAN trie SANS toucher à RANG_STATUT', () => {
   // légitimement « certifie » pour le compteur des diplômés.
   const bloc = js.slice(js.indexOf('const ORDRE_TRAVAIL'), js.indexOf('const rangTravail'));
   assert.ok(bloc.length > 100, 'l\'ordre de travail doit être délimité');
+  // « certification_a_delivrer » est sorti de cette file avec l'étape qu'il
+  // nommait : plus rien n'attend un clic entre « tout est validé » et
+  // « certifié ».
   const ordre = ['pratique_a_realiser', 'resultat_en_attente', 'pratique_a_repasser',
-    'certification_a_delivrer', 'pratique_validee', 'formation_en_cours'];
+    'pratique_validee', 'formation_en_cours'];
   let pos = -1;
   for (const st of ordre) {
     const i = bloc.indexOf(`'${st}'`);
@@ -446,11 +476,23 @@ test('L\'ÉCRAN trie SANS toucher à RANG_STATUT', () => {
   // `certifie` n'est PAS dans la file : il n'attend rien.
   assert.ok(!bloc.includes("'certifie'"), 'un certifié n\'a rien à faire dans la file de travail');
 
-  // Et le moteur n'a pas bougé : RANG_STATUT garde son ordre d'origine.
+  // Et le moteur dit la même chose que l'écran : le barème a perdu son rang 0
+  // avec l'étape « à certifier », mais RIEN d'autre n'a bougé — un dossier qui
+  // attend un verdict remonte toujours, un dossier clos descend toujours.
   const moteur = fs.readFileSync(path.join(__dirname, '..', 'lib', 'academyCertifications.js'), 'utf8');
-  const rang = moteur.slice(moteur.indexOf('const RANG_STATUT'), moteur.indexOf('function createAcademyCertifications'));
-  assert.ok(/certification_a_delivrer: 0/.test(rang), 'RANG_STATUT a été modifié');
-  assert.ok(/certifie: 6/.test(rang), 'RANG_STATUT a été modifié');
+  const rang = moteur.slice(moteur.indexOf('const RANG_STATUT'), moteur.indexOf('const AUTEUR_AUTO'));
+  assert.ok(!/certification_a_delivrer/.test(rang), 'le rang de l\'étape supprimée doit avoir disparu');
+  assert.ok(/resultat_en_attente: 1/.test(rang) && /certifie: 6/.test(rang),
+    'les rangs des états conservés ne doivent pas bouger');
+  // ⚠️ ON NE COMPARE PAS les deux ordres terme à terme, et c'est voulu : ils
+  // divergeaient DÉJÀ avant ce lot. L'écran remonte « pratique à réaliser » en
+  // tête de sa file de travail, le moteur classe d'abord ce qui attend un
+  // verdict. Deux lectures légitimes du même parcours ; ce test garde
+  // seulement qu'aucun état ne perd son rang au passage.
+  const { RANG_STATUT } = require('../lib/academyCertifications');
+  for (const st of ordre) {
+    assert.strictEqual(typeof RANG_STATUT[st], 'number', 'rang manquant dans le moteur : ' + st);
+  }
 });
 
 test('L\'ÉCRAN N\'UTILISE PAS fCourante pour évaluer : elle appartient aux autres vues', () => {
@@ -466,22 +508,163 @@ test('L\'ÉCRAN N\'UTILISE PAS fCourante pour évaluer : elle appartient aux aut
   assert.ok(!/fCourante/.test(geste), 'et jamais se rabattre sur fCourante');
 });
 
-test('l\'écran affiche les SEPT colonnes, le sous-titre, le select et l\'état vide court', () => {
-  const bloc = js.slice(js.indexOf('function rendreEvalListe'), js.indexOf('async function ouvrirFiche'));
-  for (const t of ['Coach', 'Formation', 'Contenus', 'Théorie', 'Pratique', 'Statut', 'Action']) {
-    assert.ok(bloc.includes(`'${t}'`), 'colonne manquante : ' + t);
-  }
+test('l\'écran garde son sous-titre, son select de formation et ses compteurs', () => {
+  const bloc = js.slice(js.indexOf('function rendreEvalListe'), js.indexOf('function rafraichirCorpsEval'));
   assert.ok(/Suis la progression des coachs et traite les évaluations en attente/.test(bloc),
     'le sous-titre demandé doit être là');
-  assert.ok(/Aucune évaluation en attente\./.test(bloc), 'l\'état vide doit tenir en une phrase');
-  assert.ok(/KPI_EVAL/.test(bloc), 'les trois compteurs doivent être rendus');
-  assert.ok(/statut !== 'certifie'/.test(bloc), 'les certifiés doivent quitter la file');
+  // ⚠️ LES COMPTEURS SONT PASSÉS DANS LE BENTO (refonte lot 1) : ils ne sont
+  // plus rendus dans `rendreEvalListe` mais dans `rendreBentoEval`, appelée
+  // par elle. Le sous-titre, lui, n'a pas bougé.
+  assert.ok(/rendreBentoEval\(tous\)/.test(bloc), 'le bento doit être rendu');
   // Le select remplace les pilules.
   assert.ok(/id="acEvalFormation"/.test(js), 'le filtre doit être un select');
   assert.ok(!/data-formation-eval/.test(js), 'les anciennes pilules doivent avoir disparu');
   assert.ok(/Toutes les formations/.test(js), 'et proposer « toutes »');
-  // Les onglets sont renommés.
-  assert.ok(/\['coachs', 'À traiter'\]/.test(js), 'l\'onglet doit s\'appeler « À traiter »');
+  // Les files d'action gardent les sept colonnes du dossier : là, un dossier
+  // reste un couple (coach, formation), et la formation doit être en clair.
+  const file = js.slice(js.indexOf('const ENTETE_FILE'), js.indexOf('function rendreCorpsEval'));
+  for (const t of ['Coach', 'Formation', 'Contenus', 'Théorie', 'Pratique', 'Statut', 'Action']) {
+    assert.ok(file.includes(`'${t}'`), 'colonne manquante dans la file : ' + t);
+  }
+  assert.ok(/Aucune évaluation en attente\./.test(js), 'l\'état vide doit tenir en une phrase');
+});
+
+// ===========================================================================
+//  UN COACH = UNE LIGNE
+//
+//  CE QUE CES TESTS DÉFENDENT, et c'est tout l'enjeu du lot :
+//
+//   1. LE REGROUPEMENT EST UN AFFICHAGE, PAS UN CALCUL. Aucun statut n'est
+//      recalculé, aucune progression n'est recomposée à partir de rien : tout
+//      se compte sur ce que le serveur a déjà établi. Un second barème, ici,
+//      ferait dire à l'écran autre chose qu'au moteur — pour la même donnée.
+//   2. LE DÉTAIL N'EST JAMAIS AFFICHÉ PAR DÉFAUT. C'est la raison d'être du
+//      lot : dix formations ne doivent plus faire dix lignes permanentes.
+//   3. LES GESTES RESTENT CEUX DU DOSSIER. On ne prononce pas sur un coach, on
+//      prononce sur un couple (coach, formation) : les boutons du détail
+//      portent les mêmes attributs et passent par les mêmes fonctions.
+// ===========================================================================
+
+test('LE REGROUPEMENT NE RECALCULE RIEN : il compte les statuts du serveur', () => {
+  const bloc = js.slice(js.indexOf('function grouperParCoach'), js.indexOf('const GARDES_ETAT'));
+  assert.ok(bloc.length > 400, 'le regroupement doit être délimité');
+  // Les deux familles de statuts sont LUES dans KPI_EVAL, pas réécrites : deux
+  // listes qui divergeraient donneraient un badge et un compteur en désaccord.
+  const familles = js.slice(js.indexOf('const STATUTS_A_EVALUER'), js.indexOf('function grouperParCoach'));
+  assert.ok(/STATUTS_A_EVALUER = KPI_EVAL/.test(familles), 'les statuts « à évaluer » doivent venir de KPI_EVAL');
+  assert.ok(!/STATUT_A_CERTIFIER/.test(js), 'le statut « à certifier » n\'existe plus');
+  // Aucun statut inventé dans le regroupement.
+  for (const s of ['pratique_a_realiser', 'resultat_en_attente', 'pratique_a_repasser']) {
+    assert.ok(!bloc.includes(`'${s}'`), `${s} est réécrit dans le regroupement au lieu d'être lu`);
+  }
+  // LE PARCOURS ACADEMY EST UNE MOYENNE DE VALIDATIONS, une formation = une
+  // voix. Ce que le regroupement additionne, ce sont des pourcentages de
+  // validation lus sur les prérequis du serveur — jamais des contenus vus.
+  // (Le barème lui-même est prouvé dans test/academyParcours.test.js.)
+  assert.ok(/somme \+= pct/.test(bloc) && /pctValidation\(d\)/.test(bloc),
+    'le parcours global doit sommer les validations');
+  assert.ok(!/d\.progression/.test(bloc),
+    'la progression de contenus ne doit pas entrer dans le parcours global');
+  // Et le moteur n'a pas bougé.
+  const moteur = fs.readFileSync(path.join(__dirname, '..', 'lib', 'academyCertifications.js'), 'utf8');
+  assert.ok(/function statutCoach/.test(moteur) && /function ligneCoach/.test(moteur),
+    'le moteur de statut doit rester intact');
+});
+
+test('LE DÉTAIL D\'UN COACH NE S\'AFFICHE QUE SI ON LE DEMANDE', () => {
+  assert.ok(/const evalDeplies = new Set\(\)/.test(js), 'le dépliage doit être un état d\'écran');
+  const ligne = js.slice(js.indexOf('function ligneAgregee'), js.indexOf('function detailCoach'));
+  assert.ok(/const ouvert = evalDeplies\.has\(c\.email\)/.test(ligne),
+    'la ligne doit lire l\'état de dépliage');
+  assert.ok(/ouvert \? '<div class="ac-evd">' \+ detailCoach\(c\)/.test(ligne),
+    'le détail ne doit être rendu que lorsque la ligne est ouverte');
+  assert.ok(/Voir le parcours/.test(ligne), 'le bouton demandé doit être là');
+  assert.ok(/aria-expanded/.test(ligne), 'et dire son état à un lecteur d\'écran');
+});
+
+test('LES GESTES DU DÉTAIL SONT CEUX DU DOSSIER, pas du coach', () => {
+  const bloc = js.slice(js.indexOf('function detailCoach'), js.indexOf('const ENTETE_COACHS'));
+  assert.ok(/data-collab="/.test(bloc) && /data-form="/.test(bloc),
+    'ouvrir une fiche doit viser un couple (coach, formation)');
+  // LE GESTE « CERTIFIER » A DISPARU de cette vue : aucun dossier n'attend
+  // plus une délivrance. Le seul geste du détail est d'ouvrir la fiche.
+  assert.ok(!/data-cert="/.test(bloc) && !/data-geste="delivrer"/.test(bloc),
+    'plus aucun bouton de délivrance dans le détail d\'un coach');
+  assert.ok(/ficheOuvrable\(d\)/.test(bloc),
+    'sans théorie validée, aucun bouton : le serveur refuserait la fiche');
+  // Les six colonnes compactes demandées.
+  for (const t of ['Formation', 'Progression', 'Théorie', 'Pratique', 'Statut', 'Action']) {
+    assert.ok(bloc.includes(`'${t}'`), 'colonne manquante dans le détail : ' + t);
+  }
+});
+
+test('LA LIGNE COACH PORTE LES CINQ INFORMATIONS DEMANDÉES', () => {
+  const bloc = js.slice(js.indexOf('function ligneAgregee'), js.indexOf('function detailCoach'));
+  assert.ok(/ac-eval-mail/.test(bloc), 'l\'email doit rester en information secondaire');
+  assert.ok(/c\.terminees \+ ' \/ ' \+ c\.formations/.test(bloc), 'validées / disponibles');
+  assert.ok(/ac-jauge/.test(bloc), 'la barre de progression doit être celle de l\'Academy');
+  assert.ok(/badgeEval\(c\.aEvaluer/.test(bloc), 'le badge « à évaluer » doit être là');
+  assert.ok(!/aCertifier/.test(bloc), 'celui d\'« à certifier » a disparu avec l\'étape');
+  // Un badge ne s'affiche QUE s'il compte quelque chose.
+  const badge = js.slice(js.indexOf('const badgeEval'), js.indexOf('function ligneAgregee'));
+  assert.ok(/n > 0/.test(badge), 'le badge ne doit apparaître qu\'au-dessus de zéro');
+  assert.ok(/\\u\{1F3C5\}/.test(bloc), 'la médaille de l\'Academy doit marquer les certifications');
+});
+
+test('LES TROIS VUES REMPLACENT « À traiter | Certifications »', () => {
+  assert.ok(!/'À traiter'/.test(js), 'l\'ancien onglet « À traiter » doit avoir disparu');
+  const vues = js.slice(js.indexOf('const VUES_EVAL'), js.indexOf('function rendreOngletsEval'));
+  // ELLES ÉTAIENT QUATRE. « À certifier » est parti avec son étape.
+  assert.ok(!/a_certifier/.test(vues), 'la vue « À certifier » ne doit plus exister');
+  for (const [cle, libelle] of [['coachs', 'Coachs'], ['a_evaluer', 'À évaluer'],
+    ['certifications', 'Certifications']]) {
+    assert.ok(vues.includes(`'${cle}'`) && vues.includes(`'${libelle}'`), 'vue manquante : ' + libelle);
+  }
+  assert.ok(/let evalOnglet = 'coachs'/.test(js), '« Coachs » doit être la vue par défaut');
+});
+
+test('LES COMPTEURS DU BENTO RESTENT DES RACCOURCIS', () => {
+  // Le bento a remplacé les trois cartes-compteurs (refonte lot 1) : on lit
+  // donc `rendreBentoEval`, et la fonction d'écran qui l'appelle.
+  const bloc = js.slice(js.indexOf('function rendreBentoEval'), js.indexOf('function rafraichirCorpsEval'));
+  // LES QUATRE TUILES SONT DES DESTINATIONS : chacune porte sa vue, et c'est
+  // la tuile ENTIÈRE qui est un <button> — le petit bouton « Traiter » niché
+  // dedans a disparu, un bouton dans un bouton n'étant pas du HTML valide.
+  const tuiles = js.slice(js.indexOf('function kpiTile'), js.indexOf('function rendreEvalListe'));
+  assert.ok(/data-kpi-eval="' \+ vue \+ '"/.test(tuiles),
+    'une tuile qui mène quelque part doit porter sa destination');
+  assert.ok(/<button type="button" class="' \+ classe \+ '"/.test(tuiles),
+    'c\'est un bouton : atteignable au clavier');
+  for (const v of ["vue: 'a_evaluer'", "vue: 'certifications'", "vue: 'coachs'"]) {
+    assert.ok(tuiles.includes(v), 'destination manquante : ' + v);
+  }
+  assert.ok(/etat: 'actifs'/.test(tuiles), '« Actifs cette semaine » doit poser son filtre');
+  assert.ok(!/ac-btn-mini/.test(bloc), 'le bouton imbriqué doit avoir disparu');
+  assert.ok(/aria-pressed=/.test(bloc), 'le segmented control dit lequel est actif');
+  // Le chiffre compte des DOSSIERS, pas des coachs : il se calcule sur la
+  // liste servie, avant tout regroupement.
+  assert.ok(/tous\.filter\(\(c\) => STATUTS_A_EVALUER\.includes/.test(bloc),
+    'le compteur doit compter des dossiers, pas des coachs');
+  assert.ok(/certifs = tous\.filter\(\(c\) => c\.statut === 'certifie'\)/.test(bloc),
+    'les certifications comptent des dossiers, elles aussi');
+  // ⚠️ LE BENTO, LUI, REGROUPE — et c'est légitime : « progression moyenne » et
+  // « actifs cette semaine » comptent des COACHS, pas des dossiers. Les deux
+  // granularités cohabitent, chacune sur la bonne liste. Ce que ce test garde,
+  // c'est qu'on ne les confonde pas.
+  assert.ok(/const coachs = grouperParCoach\(tous\)/.test(bloc),
+    'les tuiles qui parlent de coachs doivent regrouper');
+  assert.ok(/actifs = coachs\.filter/.test(bloc), 'les actifs se comptent sur des coachs');
+});
+
+test('LA RECHERCHE ET LE FILTRE NE REPARTENT PAS AU SERVEUR', () => {
+  const bloc = js.slice(js.indexOf('function rendreEvalListe'), js.indexOf('function rafraichirCorpsEval'));
+  // Seul le changement de FORMATION recharge : c'est le serveur qui agrège par
+  // formation. La recherche et l'état trient ce qui est déjà là.
+  assert.ok(/evalStatut = etat\.value; rafraichirCorpsEval\(\)/.test(bloc),
+    'le filtre d\'état doit redessiner le corps, pas recharger');
+  assert.ok(/evalQ = q\.value; rafraichirCorpsEval\(\)/.test(bloc),
+    'la recherche doit redessiner le corps, pas recharger');
+  assert.ok(/await ouvrirEvaluateur\(\)/.test(bloc), 'changer de formation, lui, recharge');
 });
 
 test('les assets sont versionnés : sans bump, le navigateur sert l\'ancien écran', () => {

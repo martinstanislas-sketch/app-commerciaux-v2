@@ -262,7 +262,11 @@ test('le fichier revient à l\'octet près, et sous son vrai nom', async () => {
     { headers: { Authorization: 'Bearer ' + jetons[THEO] } });
   assert.strictEqual(res.status, 200);
   assert.strictEqual(res.headers.get('content-type'), 'application/pdf');
-  assert.match(res.headers.get('content-disposition'), /^inline; filename="trame-s1\.pdf"$/);
+  // Deux formes désormais (RFC 6266) : le repli ASCII et le nom exact. Un nom
+  // déjà en ASCII donne le même dans les deux — c'est la garantie qu'on n'a pas
+  // dégradé le cas simple en réparant le cas accentué.
+  assert.match(res.headers.get('content-disposition'),
+    /^inline; filename="trame-s1\.pdf"; filename\*=UTF-8''trame-s1\.pdf$/);
   assert.strictEqual(res.headers.get('x-content-type-options'), 'nosniff');
   const recu = Buffer.from(await res.arrayBuffer());
   assert.ok(recu.equals(PDF), 'les octets rendus ne sont pas ceux qui ont été envoyés');
@@ -270,8 +274,141 @@ test('le fichier revient à l\'octet près, et sous son vrai nom', async () => {
   // ?dl=1 : le MÊME fichier, une autre intention.
   const dl = await fetch(base + '/api/academy/ressources/' + r.id + '/fichier?dl=1',
     { headers: { Authorization: 'Bearer ' + jetons[THEO] } });
-  assert.match(dl.headers.get('content-disposition'), /^attachment; filename="trame-s1\.pdf"$/);
+  assert.match(dl.headers.get('content-disposition'),
+    /^attachment; filename="trame-s1\.pdf"; filename\*=UTF-8''trame-s1\.pdf$/);
   assert.ok(Buffer.from(await dl.arrayBuffer()).equals(PDF));
+});
+
+// ===========================================================================
+//  LE NOM DE FICHIER DANS L'EN-TÊTE — LE BUG DU 30/08, ET SA GARDE
+//
+//  ⚠️ CE QUI S'EST PASSÉ. La route posait le nom du fichier tel quel dans
+//  Content-Disposition. Un nom venu d'un macOS est en forme DÉCOMPOSÉE (NFD) :
+//  l'accent de « Séance » y est un caractère à part, U+0301 = 769, hors de la
+//  plage ISO-8859-1 qu'autorise un en-tête HTTP. Node levait ERR_INVALID_CHAR,
+//  Express répondait 500 avec une page HTML, et LES DEUX PARCOURS tombaient —
+//  le lecteur affichait « Ce fichier n'a pas pu être chargé », le
+//  téléchargement ne rendait rien.
+//
+//  POURQUOI AUCUN TEST NE L'AVAIT VU : tous nos noms de fichiers étaient en
+//  ASCII pur (« trame-s1.pdf », « interne.pdf »…). Le bug ne dépendait pas du
+//  fichier, mais de son NOM. Ces tests-ci utilisent donc de vrais noms français,
+//  dans les deux formes Unicode, et un nom non latin.
+// ===========================================================================
+
+// Le nom exact que portait la ressource de production, en NFD — tel que macOS
+// le transmet. Écrit par points de code pour qu'aucun éditeur ne le recompose
+// en douce et ne vide le test de son sens.
+const NOM_NFD = 'S\u0065\u0301ance Test - Notation.pdf';
+const NOM_NFC = 'S\u00e9ance Test - Notation.pdf';
+
+test('le nom du bug est bien décomposé, et illégal en en-tête brut', () => {
+  assert.strictEqual(NOM_NFD.normalize('NFC'), NOM_NFC, 'les deux formes doivent désigner le même nom');
+  assert.notStrictEqual(NOM_NFD, NOM_NFC, 'le test doit bien porter sur la forme décomposée');
+  assert.ok([...NOM_NFD].some((c) => c.codePointAt(0) > 255),
+    'le nom doit contenir un caractère hors ISO-8859-1 — c\'est tout l\'objet du test');
+  // La preuve par Node : poser ce nom tel quel lève.
+  const res = new (require('http').ServerResponse)({});
+  assert.throws(() => res.setHeader('Content-Disposition', `inline; filename="${NOM_NFD}"`),
+    /ERR_INVALID_CHAR|Invalid character/);
+});
+
+test('CONSULTER un PDF au nom accentué : 200, et non 500', async () => {
+  const f = await envoyer(PDF, 'application/pdf', NOM_NFD, jetons[ADMIN]);
+  assert.strictEqual(f.status, 200, f.txt.slice(0, 200));
+  const r = await creer({ type: 'pdf', titre: 'Séance test notation', categorie: 'coaching',
+    fichierId: f.body.fichierId });
+
+  const res = await fetch(base + '/api/academy/ressources/' + r.id + '/fichier',
+    { headers: { Authorization: 'Bearer ' + jetons[THEO] } });
+  assert.strictEqual(res.status, 200, 'la route ne doit plus tomber en 500 sur un nom accentué');
+  assert.strictEqual(res.headers.get('content-type'), 'application/pdf',
+    'le lecteur doit recevoir un PDF, pas une page d\'erreur HTML');
+  assert.strictEqual(res.headers.get('content-length'), String(PDF.length),
+    'Content-Length doit annoncer la taille réelle');
+
+  const recu = Buffer.from(await res.arrayBuffer());
+  assert.ok(recu.equals(PDF), 'les octets rendus ne sont pas ceux qui ont été envoyés');
+  assert.strictEqual(recu.slice(0, 4).toString('latin1'), '%PDF', 'le lecteur doit recevoir un vrai PDF');
+});
+
+test('TÉLÉCHARGER ce même PDF : le nom d\'origine est rendu, accent compris', async () => {
+  const f = await envoyer(PDF, 'application/pdf', NOM_NFD, jetons[ADMIN]);
+  const r = await creer({ type: 'pdf', titre: 'Séance à télécharger', fichierId: f.body.fichierId });
+
+  const res = await fetch(base + '/api/academy/ressources/' + r.id + '/fichier?dl=1',
+    { headers: { Authorization: 'Bearer ' + jetons[THEO] } });
+  assert.strictEqual(res.status, 200);
+  const cd = res.headers.get('content-disposition');
+
+  assert.match(cd, /^attachment;/, 'le téléchargement doit être annoncé en attachment');
+  // LES DEUX FORMES DE LA RFC 6266 : un repli ASCII pour tout client, et le nom
+  // exact pour les navigateurs modernes.
+  assert.match(cd, /filename="Seance Test - Notation\.pdf"/,
+    'le repli ASCII doit rester lisible : « Seance », pas « S_ance »');
+  assert.ok(cd.includes("filename*=UTF-8''"), 'la forme étendue doit porter le nom exact');
+  const etendu = decodeURIComponent(cd.split("filename*=UTF-8''")[1]);
+  assert.strictEqual(etendu, NOM_NFC, 'le nom rendu doit être le nom d\'origine, accent compris');
+
+  assert.ok(Buffer.from(await res.arrayBuffer()).equals(PDF), 'le fichier téléchargé doit être complet');
+});
+
+test('l\'en-tête reste légal quel que soit le nom, et Node l\'accepte', () => {
+  const { enteteContentDisposition } = require('../lib/academyRessources');
+  const cas = [
+    ['guide.pdf', 'guide.pdf'],
+    [NOM_NFD, NOM_NFC],
+    [NOM_NFC, NOM_NFC],
+    ['Reçu 2026 — clients.pdf', 'Reçu 2026 — clients.pdf'],
+    ['資料.pdf', '資料.pdf'],
+    ['photo 100% "validée".png', 'photo 100% "validée".png'],
+    ['', 'document'],
+  ];
+  for (const [entree, attendu] of cas) {
+    for (const dl of [true, false]) {
+      const v = enteteContentDisposition(entree, dl);
+      // 1. Node doit l'accepter — c'est exactement ce qui manquait.
+      const res = new (require('http').ServerResponse)({});
+      assert.doesNotThrow(() => res.setHeader('Content-Disposition', v),
+        'en-tête refusé par Node pour ' + JSON.stringify(entree));
+      // 2. Le nom exact doit être restituable.
+      const etendu = decodeURIComponent(v.split("filename*=UTF-8''")[1]);
+      assert.strictEqual(etendu, attendu.normalize('NFC'), 'nom exact perdu pour ' + JSON.stringify(entree));
+      // 3. Le repli ne doit ni être vide, ni casser les guillemets de l'en-tête.
+      const repli = /filename="([^"]*)"/.exec(v)[1];
+      assert.ok(repli.length, 'repli vide pour ' + JSON.stringify(entree));
+      assert.ok(!/["\\]/.test(repli), 'le repli doit être échappé pour ' + JSON.stringify(entree));
+      assert.strictEqual(v.startsWith(dl ? 'attachment' : 'inline'), true);
+    }
+  }
+});
+
+test('une IMAGE au nom accentué se sert aussi — pas de régression', async () => {
+  const f = await envoyer(PNG, 'image/png', 'Visuel affichage — été.png', jetons[ADMIN]);
+  const r = await creer({ type: 'image', titre: 'Visuel été', categorie: 'communication',
+    fichierId: f.body.fichierId });
+
+  const res = await fetch(base + '/api/academy/ressources/' + r.id + '/fichier',
+    { headers: { Authorization: 'Bearer ' + jetons[THEO] } });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.headers.get('content-type'), 'image/png');
+  assert.match(res.headers.get('content-disposition'), /^inline;/);
+  assert.ok(Buffer.from(await res.arrayBuffer()).equals(PNG), 'l\'image doit revenir intacte');
+});
+
+test('LA GARDE TIENT TOUJOURS sur un fichier au nom accentué', async () => {
+  const f = await envoyer(PDF, 'application/pdf', NOM_NFD, jetons[ADMIN]);
+  const r = await creer({ type: 'pdf', titre: 'Protégée malgré son nom', fichierId: f.body.fichierId });
+  const url = base + '/api/academy/ressources/' + r.id + '/fichier';
+
+  // Corriger l'en-tête ne devait ouvrir aucune porte.
+  assert.strictEqual((await fetch(url)).status, 401, 'sans jeton : 401');
+  assert.strictEqual((await fetch(url, { headers: { Authorization: 'Bearer faux' } })).status, 401,
+    'jeton invalide : 401');
+  assert.strictEqual((await fetch(url, { headers: { Authorization: 'Bearer ' + jetons[LEA] } })).status, 403,
+    'compte sans accès Academy : 403');
+  assert.strictEqual((await fetch(url, { headers: { Authorization: 'Bearer ' + jetons[THEO] } })).status, 200,
+    'collaborateur : 200');
 });
 
 test('LE FICHIER N\'EST PAS PUBLIC — contrairement à une photo de plat', async () => {
@@ -774,7 +911,63 @@ test('l\'écran existe, et il est branché sur les bonnes routes', () => {
   assert.ok(/apiAc\('\/api\/academy\/ressources'/.test(js) || /\/api\/academy\/ressources'/.test(js),
     'l\'écran lit la bibliothèque');
   assert.ok(/data-nav="outils"|cle: 'outils'/.test(js), 'la Boîte à outils a son entrée de navigation');
-  assert.ok(/'outils', 'collaborateurs'|'contenus', 'outils'/.test(js), 'l\'administration a son onglet');
+});
+
+// ===========================================================================
+//  7 bis. UN SEUL ÉCRAN POUR CONSULTER ET POUR ADMINISTRER
+//
+//  La Boîte à outils s'administrait depuis « Administrer » et se consultait
+//  depuis la barre latérale : deux chemins, deux rendus, et deux endroits à
+//  corriger. Tout tient désormais dans l'écran de la bibliothèque.
+//
+//  ⚠️ CE QUI EST VRAIMENT EN JEU : que la vue du COLLABORATEUR n'ait pas gagné
+//  un bouton d'administration au passage. Le serveur garde les routes, mais un
+//  bouton visible qui répond 403 est un défaut d'écran à part entière.
+// ===========================================================================
+
+test('l\'onglet « Administrer > Boîte à outils » n\'existe plus', () => {
+  assert.ok(!/'contenus', 'outils'|'outils', 'contenus'/.test(js),
+    'la barre d\'onglets de l\'administration cite encore la Boîte à outils');
+  assert.ok(!/adminOnglet === 'outils'/.test(js),
+    'un aiguillage d\'administration mène encore à la Boîte à outils');
+  assert.ok(!/function rendreAdminOutils/.test(js),
+    'le rendu de l\'ancien onglet subsiste : deux écrans finiraient par diverger');
+  assert.ok(!/#acAdmin \[data-out\]/.test(js),
+    'l\'écran d\'administration branche encore les gestes des ressources');
+});
+
+test('les gestes d\'administration sont branchés SUR la bibliothèque', () => {
+  assert.ok(/#acOutils \[data-out\]/.test(js), 'l\'écran de la bibliothèque doit brancher les gestes');
+  const bloc = js.slice(js.indexOf('function rendreOutils()'), js.indexOf('const archivees ='));
+  assert.ok(bloc.length > 500, 'le rendu de la bibliothèque doit être délimité');
+  for (const [geste, quoi] of [['neuve', 'ajouter une ressource'], ['cats', 'gérer les catégories']]) {
+    assert.ok(bloc.includes('data-out="' + geste + '"'), 'geste manquant dans la bibliothèque : ' + quoi);
+  }
+  assert.ok(/\+ Ajouter une ressource/.test(bloc), 'le bouton d\'ajout doit être écrit en toutes lettres');
+  assert.ok(/Gérer les catégories/.test(bloc), 'le bouton des catégories doit être écrit en toutes lettres');
+  // Le formulaire et le gestionnaire ne sont pas réécrits : ce sont LES MÊMES.
+  assert.ok(/rendreFormulaireRessource\(/.test(bloc), 'le formulaire existant doit être réutilisé');
+  assert.ok(/rendrePanneauCategories\(/.test(bloc), 'le gestionnaire de catégories existant doit être réutilisé');
+  assert.strictEqual((js.match(/function rendreFormulaireRessource/g) || []).length, 1,
+    'il ne doit exister qu\'UN formulaire de ressource');
+  assert.strictEqual((js.match(/function rendrePanneauCategories/g) || []).length, 1,
+    'il ne doit exister qu\'UN gestionnaire de catégories');
+});
+
+test('AUCUN GESTE D\'ADMINISTRATION NE SE REND SANS `moiAdmin`', () => {
+  // La barre : elle est tout entière sous la garde du drapeau.
+  const barre = js.slice(js.indexOf('// LA BARRE D\'ADMINISTRATION.'), js.indexOf("'<p class=\"ac-eval-err\" id=\"acOutErr\""));
+  assert.ok(/moiAdmin\s*\n?\s*\?/.test(barre), 'la barre doit être conditionnée à moiAdmin');
+  assert.ok(barre.includes('data-out="neuve"'), 'la barre testée doit bien être celle de l\'administration');
+
+  // Les actions de carte : la fonction refuse net pour qui n'est pas admin.
+  const actions = js.slice(js.indexOf('const actionsAdmin = (r, archivee) =>'), js.indexOf('const carte = (r, archivee) =>'));
+  assert.ok(/if \(!moiAdmin\) return '';/.test(actions),
+    'les actions de carte doivent sortir immédiatement pour un non-administrateur');
+  for (const geste of ['modifier', 'archiver', 'supprimer']) {
+    assert.ok(actions.includes('\'' + geste + '\''), 'geste manquant sur la carte : ' + geste);
+  }
+  assert.ok(/Restaurer/.test(actions), 'une ressource archivée doit pouvoir être restaurée depuis sa carte');
 });
 
 test('L\'ÉCRAN N\'AFFICHE AUCUNE PROGRESSION sur une ressource', () => {

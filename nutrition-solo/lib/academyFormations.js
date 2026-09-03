@@ -61,8 +61,22 @@ const SEUIL_MIN = 0, SEUIL_MAX = 100;
 // AUCUNE DONNÉE N'EST CONCERNÉE : la catégorie n'a jamais été attribuée à une
 // formation. Si une base en portait une malgré tout, elle serait simplement
 // sans catégorie à l'écran — jamais perdue, jamais réécrite (cf. definir).
-const CATEGORIES = ['essentiel', 'signature', 'expertise', 'management'];
+//
+// ⚠️ « signature » A QUITTÉ CETTE LISTE. Aucune formation ne la portait — la
+// vérification a été faite en base avant de la retirer, et c'est la seule qui
+// autorisait le geste : une catégorie retirée alors qu'une formation la porte
+// encore laisserait celle-ci classée dans une famille qui n'existe plus, donc
+// visible nulle part dans le rail. La colonne, elle, ne change pas : elle
+// reste un TEXT nullable, et une valeur héritée serait conservée telle quelle
+// par `definir` (cf. la garde sur `d.categorie === undefined`) plutôt que
+// réécrite en douce.
+const CATEGORIES = ['essentiel', 'expertise', 'management'];
 const categorieValide = (v) => CATEGORIES.includes(String(v || ''));
+
+// Le marqueur de la reprise des descriptions historiques (cf.
+// amorcerDescriptions). Même mécanique que les marqueurs de banque : posé une
+// fois dans academy_config, il interdit à la migration de se rejouer.
+const CFG_DESCRIPTIONS = 'formations_descriptions_reprises';
 
 const CLE_RE = /^[a-z][a-z0-9_]{2,39}$/;
 const cleValide = (v) => CLE_RE.test(String(v || ''));
@@ -110,6 +124,9 @@ const AMORCE = {
   cle: COACH_NUTRITION,
   libelle: 'Coach Nutrition',
   titreCertifie: 'Coach Nutrition certifié',
+  // La description de la carte naît AVEC la formation : une base neuve n'a pas
+  // à attendre la reprise de migration pour avoir un catalogue lisible.
+  description: 'Obtiens le titre Coach Nutrition certifié.',
   ordre: 1,
   qcmNbQuestions: 5,
   qcmSeuilPct: 80,
@@ -139,7 +156,57 @@ function createAcademyFormations({ getDb, nowIso }) {
     ajouterColonne(d, 'academy_formations', 'categorie', 'TEXT');
     basesMigrees.add(d);
     amorcer();
+    amorcerDescriptions();
     return true;
+  }
+
+  // ==========================================================================
+  //  LA DESCRIPTION DE LA CARTE EST UNE DONNÉE, PLUS UNE PHRASE FABRIQUÉE.
+  //
+  //  L'écran d'accueil composait « Obtiens le titre X. » à partir du titre
+  //  délivré. Deux formations qui délivrent le même titre — c'est le cas de
+  //  Pilates et Haltérophilie — se retrouvaient donc avec la MÊME phrase, et
+  //  personne ne pouvait la corriger sans passer par le code.
+  //
+  //  On reprend ces phrases telles qu'elles s'affichaient, une seule fois, pour
+  //  qu'aucune carte ne se vide à la migration. Ensuite, la colonne appartient à
+  //  l'administration.
+  // ==========================================================================
+  const descriptionInitiale = (titre) => (String(titre || '').trim()
+    ? `Obtiens le titre ${String(titre).trim()}.`
+    : 'Parcours de formation My Coach.');
+
+  // DEUX GARDES, ET CHACUNE TIENT UNE MOITIÉ DU PROBLÈME :
+  //
+  //   - LE MARQUEUR. Sans lui, l'administrateur qui VIDE une description la
+  //     verrait réapparaître au redémarrage suivant — une reprise de migration
+  //     se joue une fois, elle ne surveille pas la saisie.
+  //   - `description IS NULL`. On ne touche jamais à ce qui est déjà écrit :
+  //     trois formations portent leur texte, saisi depuis l'administration.
+  //
+  //  Le marqueur vit dans academy_config, qui appartient au moteur du QCM : on
+  //  s'y adosse sans la créer. Sur une base neuve elle peut ne pas encore
+  //  exister — on repasse alors au démarrage suivant, et la seule formation
+  //  présente est celle d'amorçage, qui naît déjà avec sa description.
+  function amorcerDescriptions() {
+    const d = db();
+    try {
+      if (d.prepare('SELECT cle FROM academy_config WHERE cle = ?').get(CFG_DESCRIPTIONS)) return 0;
+    } catch (_) { return 0; }
+
+    const maintenant = nowIso();
+    let reprises = 0;
+    d.transaction(() => {
+      const ecrire = d.prepare('UPDATE academy_formations SET description = ?, maj_le = ? WHERE cle = ?');
+      for (const l of d.prepare(`SELECT cle, titre_certifie FROM academy_formations
+                                 WHERE description IS NULL OR TRIM(description) = ''`).all()) {
+        ecrire.run(descriptionInitiale(l.titre_certifie), maintenant, l.cle);
+        reprises++;
+      }
+      d.prepare('INSERT INTO academy_config (cle, valeur, maj_le) VALUES (?,?,?) ON CONFLICT(cle) DO NOTHING')
+        .run(CFG_DESCRIPTIONS, String(reprises), maintenant);
+    })();
+    return reprises;
   }
 
   // Amorçage idempotent. LE POINT DÉLICAT EST LA REPRISE DES RÉGLAGES : une
@@ -165,10 +232,11 @@ function createAcademyFormations({ getDb, nowIso }) {
 
     const maintenant = nowIso();
     d.prepare(`INSERT INTO academy_formations
-        (cle, libelle, titre_certifie, ordre, actif, qcm_nb_questions, qcm_seuil_pct,
+        (cle, libelle, description, titre_certifie, ordre, actif, qcm_nb_questions, qcm_seuil_pct,
          pratique_obligatoire, certification_active, reflet_boost, cree_le, maj_le)
-        VALUES (?,?,?,?,1,?,?,1,1,1,?,?)`)
-      .run(AMORCE.cle, AMORCE.libelle, AMORCE.titreCertifie, AMORCE.ordre, nb, seuil, maintenant, maintenant);
+        VALUES (?,?,?,?,?,1,?,?,1,1,1,?,?)`)
+      .run(AMORCE.cle, AMORCE.libelle, AMORCE.description, AMORCE.titreCertifie, AMORCE.ordre,
+        nb, seuil, maintenant, maintenant);
     return 1;
   }
 
@@ -317,7 +385,7 @@ function createAcademyFormations({ getDb, nowIso }) {
     return ok({ formation: lire(cle) });
   }
 
-  return { assurerSchema, amorcer, lister, lire, defaut, resoudre, definir };
+  return { assurerSchema, amorcer, amorcerDescriptions, lister, lire, defaut, resoudre, definir };
 }
 
 // ---------------------------------------------------------------------------

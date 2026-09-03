@@ -1019,10 +1019,17 @@ function createAcademyQcm({ getDb, nowIso, boost, academy, formations, melanger 
 
     // Un mini rend le parcours (le verrou du module suivant vient peut-être de
     // sauter) ; une finale rend l'état de l'évaluation théorique.
+    //
+    // `formation` PART AVEC LA RÉPONSE, et c'est un ajout de ce lot : la route
+    // qui clôt une tentative doit savoir SUR QUELLE FORMATION elle vient de se
+    // prononcer, pour y déclencher la certification automatique. La tentative
+    // le sait déjà ; sans ce champ, l'appelant devrait le redemander en
+    // devinant, ou l'accepter du client — ce qui reviendrait à laisser choisir
+    // la formation qu'on certifie.
     if (clos.portee === PORTEE_MODULE) {
-      return ok({ tentative: vueTentative(clos), parcours: parcoursPour(mail, clos.formation) });
+      return ok({ tentative: vueTentative(clos), formation: clos.formation, parcours: parcoursPour(mail, clos.formation) });
     }
-    return ok({ tentative: vueTentative(clos), etat: etatPour(mail, clos.formation) });
+    return ok({ tentative: vueTentative(clos), formation: clos.formation, etat: etatPour(mail, clos.formation) });
   }
 
   return {

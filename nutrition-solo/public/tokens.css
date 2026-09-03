@@ -1,0 +1,159 @@
+/* ===========================================================================
+   MY COACH — LES TOKENS PARTAGÉS PAR LES TROIS ESPACES.        (lot A)
+
+   UNE SEULE SOURCE DE VÉRITÉ pour les couleurs, les rayons, les ombres et la
+   typographie. Ce fichier est chargé EN PREMIER par les trois pages :
+     /            index.html   -> tokens.css, puis style.css, landing.css
+     /coach       coach.html   -> tokens.css, puis coach.css
+     /academy     academy.html -> tokens.css, puis coach.css, academy.css
+
+   COMMENT ON S'EN SERT, ET COMMENT ON NE S'EN SERT PAS.
+
+   ⚠️ AUCUN SÉLECTEUR ICI, JAMAIS. Ce fichier ne déclare que des variables sur
+   `:root`. Il ne peint rien lui-même : s'il posait une règle, elle s'appliquerait
+   aux trois espaces d'un coup, et le premier ajustement local la contredirait
+   sans qu'on sache lequel des deux fichiers a raison.
+
+   ⚠️ LES ANCIENS NOMS N'ONT PAS DISPARU. `--marine`, `--saphir`, `--navy`,
+   `--mc-blue`, `--ink`… existent toujours dans style.css, coach.css et
+   academy.css : ils sont devenus des ALIAS de ces tokens. C'est ce qui permet
+   de n'avoir touché ni un sélecteur, ni une classe, ni une ligne de JavaScript.
+   Chacun des trois fichiers porte en tête son tableau de correspondance.
+
+   ⚠️ POUR CHANGER UNE COULEUR DE MARQUE, ON VIENT ICI — et nulle part ailleurs.
+   Repeindre `--marine` dans coach.css ferait diverger l'Academy du Boost au
+   premier écran partagé.
+
+   POURQUOI DEUX FAMILLES DE NEUTRES.
+   Les trois espaces partagent la marque (marine, saphir) et les neutres FROIDS
+   (`--mc-page`, `--mc-line`, `--mc-ink`…). L'app cliente garde en plus une
+   ambiance CHAUDE qui lui est propre — crème, sable, sauge — parce que ce n'est
+   pas le même public : un coach travaille dans un back-office, un client suit
+   son plan de repas. Les trois tokens `--mc-cream`, `--mc-sand` et `--mc-sage`
+   portent exactement les valeurs qui étaient déjà dans style.css : on les a
+   remontées ici, on ne les a pas réinventées.
+   =========================================================================== */
+
+:root {
+  /* -- Couleurs de marque -------------------------------------------------- */
+  /* Le marine de la charte My Coach. UN SEUL pour les trois espaces : avant ce
+     lot il y en avait trois (#04173B, #0B1B3A, #1B2A41) selon l'écran. */
+  --mc-navy: #04173B;
+  --mc-sapphire: #0F52BA;   /* l'action, et elle seule */
+  --mc-sky: #5B8DEF;        /* saphir éclairci : accents secondaires */
+  --mc-white: #FFFFFF;
+
+  /* Les trois dérivés du saphir. RECALÉS SUR #0F52BA au lot A2 : ils valaient
+     encore les dérivés de l'ancien #2563EB, et juraient donc légèrement avec le
+     saphir unifié. `-dark` sert au survol, `-soft` au fond d'une pastille,
+     `-on-soft` au texte posé dessus (même teinte que `-dark` : c'est le
+     contraste sur fond pâle qui commande, pas la variété). */
+  /* Le marine éclairci : dégradés d'en-tête, second plan d'un fond sombre. */
+  --mc-navy-soft: #1A2E55;
+  --mc-sapphire-dark: #0B3F8F;
+  --mc-sapphire-soft: #E0E9FB;
+  --mc-sapphire-on-soft: #0B3F8F;
+
+  /* -- Neutres froids (structure, partagés) -------------------------------- */
+  --mc-page: #F5F7FB;
+  --mc-surface: #FFFFFF;
+  --mc-surface-soft: #F8FAFF;
+  --mc-line: #E6EAF2;
+  --mc-line-soft: #EEF1F7;
+  --mc-line-strong: #D9DFEA;   /* bordure qu'on doit voir : champs, séparateurs */
+  /* L'encre du texte : un marine très sombre, pas un noir. C'est aussi la
+     teinte de toutes les ombres ci-dessous — d'où `--mc-ink-rgb`. */
+  --mc-ink: #0B1B3A;
+  /* Le texte posé SUR le marine. Sans eux, chaque écran sombre réinvente son
+     blanc cassé — la landing avait --ink-on-navy, la tuile navy de l'Academy
+     un rgba(255,255,255,.62). */
+  --mc-on-navy: #DBE4FB;
+  --mc-on-navy-muted: #9FB0D6;
+  --mc-ink-2: #4B5A78;         /* corps secondaire : plus clair que l'encre,
+                                  plus sombre que `--mc-muted` */
+  --mc-muted: #6B7A99;
+  --mc-muted-2: #9AA6BF;
+
+  /* -- Sémantiques --------------------------------------------------------- */
+  --mc-success: #16A34A;
+  --mc-success-soft: #EAF7EF;
+  --mc-warning: #F59E0B;
+  --mc-warning-soft: #FFF3E0;
+  --mc-danger: #DC2626;
+  --mc-danger-soft: #FDECEC;
+  --mc-danger-text: #9B3B30;   /* le rouge LISIBLE sur `--mc-danger-soft` */
+  --mc-gold: #D99A06;
+  --mc-gold-light: #F0D488;   /* le stop CLAIR d'un dégradé doré : trop foncé
+                                 pour un fond, trop clair pour un aplat */
+  --mc-gold-soft: #FFF6E0;
+  --mc-gold-text: #9A6B00;
+
+  /* -- Ambiance chaude, réservée à l'app cliente --------------------------- */
+  /* Valeurs reprises telles quelles de style.css (--app-bg, --sand-soft,
+     --sage) : ce sont celles du thème « clair premium chaleureux » en ligne. */
+  --mc-cream: #F6F5F2;
+  --mc-cream-soft: #FBFAF7;    /* surface secondaire crème */
+  /* ⚠️ LES DEUX NEUTRES CHAUDS DE L'APP CLIENTE. Ils existent précisément
+     pour NE PAS rabattre ses bordures et son texte secondaire sur les
+     neutres froids partagés (--mc-line, --mc-muted) : le thème « clair
+     premium chaleureux » tient à ces deux teintes-là. Ne les utilise pas
+     dans le Coach, l'Academy ou la vitrine. */
+  --mc-line-warm: #E4DED4;
+  --mc-muted-warm: #7A7268;
+  --mc-sand: #F0E8DA;
+  --mc-sand-on-soft: #6E6456;  /* texte lisible sur le sable */
+  --mc-sage: #6E8B5B;
+  --mc-sage-soft: #E7EEDF;     /* fond d'un « validé » */
+  --mc-sage-on-soft: #4F6B3E;  /* texte lisible sur ce fond */
+  --mc-sage-line: #CBDCBB;     /* la bordure qui cerne --mc-sage-soft */
+
+  /* -- Rayons -------------------------------------------------------------- */
+  --mc-r-sm: 8px;
+  --mc-r: 10px;
+  --mc-r-lg: 12px;
+  --mc-r-card: 16px;
+  --mc-r-pill: 999px;
+
+  /* -- Ombres -------------------------------------------------------------- */
+  /* Toutes teintées à l'encre (11, 27, 58) plutôt qu'au noir : une ombre noire
+     sur un fond clair grise l'image, une ombre encrée la garde froide. */
+  --mc-shadow-xs: 0 1px 2px rgba(11, 27, 58, .04);
+  --mc-shadow-card: 0 1px 2px rgba(11, 27, 58, .04), 0 8px 24px rgba(11, 27, 58, .04);
+  --mc-shadow-md: 0 12px 28px rgba(11, 27, 58, .12);
+  --mc-shadow-navy: 0 12px 28px rgba(11, 27, 58, .25);
+
+  /* Les composantes RVB des deux teintes dont on tire des rgba() ailleurs
+     (anneaux de focus, ombres colorées). AJOUT au-delà de la liste du lot :
+     sans elles, style.css devrait garder `rgba(37, 99, 235, .32)` en dur, donc
+     un saphir qui ne suivrait plus le token. */
+  --mc-sapphire-rgb: 15, 82, 186;
+  --mc-ink-rgb: 11, 27, 58;
+  --mc-white-rgb: 255, 255, 255;
+  --mc-success-rgb: 22, 163, 74;
+  --mc-danger-rgb: 220, 38, 38;
+  --mc-gold-rgb: 217, 154, 6;
+
+  /* ⚠️ LE NOIR N'A PAS DE TRIPLET, ET C'EST VOULU. Les rgba(0,0,0,…) qui
+     restent sont des VOILES et des OMBRES PORTÉES — un noir y est un noir,
+     pas une couleur de marque. Leur donner un token inviterait à les
+     reteinter un jour, et une ombre teintée en marine existe déjà plus
+     haut sous --mc-shadow-*. */
+
+  /* -- Typographie --------------------------------------------------------- */
+  /* Inter pour lire, Plus Jakarta Sans pour les titres et les grands chiffres.
+     Les deux sont chargées par un <link> IDENTIQUE dans les trois pages. */
+  --mc-font-body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mc-font-display: "Plus Jakarta Sans", var(--mc-font-body);
+
+  --mc-text-xs: 11px;
+  --mc-text-sm: 12px;
+  --mc-text-base: 14px;
+  --mc-text-md: 16px;
+  --mc-text-lg: 20px;
+  --mc-text-xl: 28px;
+  --mc-text-2xl: 34px;
+
+  /* -- Mouvement ----------------------------------------------------------- */
+  --mc-ease: cubic-bezier(.2, .8, .2, 1);
+  --mc-dur: 200ms;
+}

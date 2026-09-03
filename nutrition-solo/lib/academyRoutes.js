@@ -16,8 +16,9 @@
 
 const express = require('express');
 const path = require('path');
+const { enteteContentDisposition } = require('./academyRessources');
 
-function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations, admin, ressources, boost, exigeCompte, exigeAdmin, estAdmin }) {
+function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations, admin, ressources, couvertures, grilles, boost, exigeCompte, exigeAdmin, estAdmin }) {
   const r = express.Router();
   const moi = (req) => String(req.user.email || '').trim().toLowerCase();
 
@@ -50,7 +51,7 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
 
   // Le schéma s'applique tout seul à la première requête Academy, comme celui
   // du Boost : aucun ordre d'initialisation à respecter dans server.js.
-  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); certifications.assurerSchema(); ressources.assurerSchema(); next(); });
+  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); certifications.assurerSchema(); ressources.assurerSchema(); couvertures.assurerSchema(); if (grilles) grilles.assurerSchema(); next(); });
 
   // Page autonome, servie comme /coach. Un espace de formation et un espace de
   // suivi n'ont ni les mêmes écrans ni le même rythme d'évolution.
@@ -129,8 +130,23 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     });
   }
 
+  // LA COUVERTURE VOYAGE AVEC LE CATALOGUE — sa DATE, pas ses octets.
+  //
+  //  L'écran a besoin de deux choses : « y a-t-il une image ? » (sinon il pose
+  //  son visuel de repli) et « de quand date-t-elle ? » (pour ne pas réafficher
+  //  celle qu'il garde en mémoire après un remplacement). Les octets, eux, se
+  //  demandent image par image — les faire voyager dans le catalogue le
+  //  rendrait proportionnel au poids des illustrations.
+  //
+  //  ⚠️ ENRICHISSEMENT EN LECTURE SEULE. `academyFormations` n'est pas touché :
+  //  le catalogue reste ce qu'il était, on lui ajoute un champ ici.
+  const avecCouverture = (liste) => {
+    const etat = couvertures.etat();
+    return liste.map((f) => ({ ...f, couverture: etat.get(f.cle) || null }));
+  };
+
   r.get('/api/academy/formations', exigeCompte, exigeEntree, (req, res) => {
-    const liste = formations.lister();
+    const liste = avecCouverture(formations.lister());
 
     // L'AVANCEMENT VOYAGE AVEC LE CATALOGUE.
     //
@@ -214,6 +230,16 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
 
   // Ouvrir ≠ terminer. Deux routes distinctes, parce que ce sont deux faits
   // différents et qu'une seule route les confondrait tôt ou tard.
+  // REPRENDRE SA FORMATION. La cible n'est pas dans la requête : le serveur la
+  // calcule. Un contenu archivé entre l'affichage de la page et le clic ne peut
+  // donc plus envoyer le coach nulle part — voir academy.reprendre().
+  r.post('/api/academy/reprendre', exigeCompte, exigeCollaborateur, (req, res) => {
+    const f = formationDe(req, res);
+    if (!f) return;
+    const r_ = academy.reprendre(moi(req), f.cle);
+    res.status(r_.status).json(r_.body);
+  });
+
   r.post('/api/academy/contenus/:id/ouvrir', exigeCompte, exigeCollaborateur, (req, res) => {
     if (!barrage(req, res)) return;
     avecParcours(req, res, academy.ouvrirContenu(moi(req), req.params.id));
@@ -273,9 +299,20 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
 
   // La correction, le score et le verdict se décident ICI, côté serveur. Le
   // navigateur ne fait que demander la clôture.
+  //  ⚠️ SECOND ENDROIT OÙ LA CERTIFICATION PART : une formation SANS pratique
+  //  obligatoire n'a plus rien à franchir après un QCM final réussi.
+  //
+  //  On appelle `delivrerSiComplet` sans se demander de quelle épreuve il
+  //  s'agissait — mini ou finale — parce qu'elle relit les prérequis complets
+  //  et ne délivre que s'ils sont tous remplis. Un mini réussi ne certifie
+  //  donc personne, sans qu'on ait à le vérifier deux fois ici.
   r.post('/api/academy/qcm/tentatives/:id/terminer', exigeCompte, exigeCollaborateur, (req, res) => {
     const r_ = qcm.terminer(moi(req), req.params.id);
-    res.status(r_.status).json(r_.body);
+    if (!r_.ok || !r_.body.formation) return res.status(r_.status).json(r_.body);
+    const auto = certifications.delivrerSiComplet(moi(req), r_.body.formation);
+    res.status(r_.status).json(auto.delivree
+      ? { ...r_.body, certification: auto.certification, certificationAutomatique: true }
+      : r_.body);
   });
 
 
@@ -299,7 +336,9 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     if (!peutEvaluer(moi(req))) {
       return res.status(403).json({
         ok: false, nonEvaluateur: true,
-        error: 'Seuls les évaluateurs désignés et les administrateurs peuvent évaluer et certifier.',
+        // Le mot affiché est « certificateur » depuis que le droit s'administre
+        // dans Collaborateurs. La clé technique, elle, reste `evaluateur`.
+        error: 'Seuls les certificateurs désignés et les administrateurs peuvent évaluer et certifier.',
       });
     }
     next();
@@ -349,7 +388,7 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
       for (const f of publiees) {
         const l = certifications.listerCoachs(f.cle);
         for (const c of l.coachs) {
-          coachs.push({ ...c, formation: f.cle, formationLibelle: f.libelle });
+          coachs.push({ ...c, formation: f.cle, formationLibelle: f.libelle, formationCategorie: f.categorie });
         }
       }
       return res.json({
@@ -359,6 +398,9 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
         toutes: true,
         formations: publiees,
         coachs,
+        // Le bento en a besoin, et le serveur est seul à savoir lire
+        // `delivree_le`. Champ additif : rien d'autre ne le consomme.
+        certifsDuMois: certifications.compterCertifsRecentes(30),
         peutRetirer: estAdministrateur(moi(req)),
       });
     }
@@ -371,13 +413,14 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
       toutes: false,
       // Chaque ligne porte SA formation, en mono comme en agrégé : l'écran a
       // ainsi une seule façon de lire une ligne, quel que soit le mode.
-      coachs: liste.coachs.map((c) => ({ ...c, formation: f.cle, formationLibelle: f.libelle })),
+      coachs: liste.coachs.map((c) => ({ ...c, formation: f.cle, formationLibelle: f.libelle, formationCategorie: f.categorie })),
       // La formation entière, pas seulement sa clé : l'écran doit LIRE pour
       // quel parcours il s'apprête à prononcer, et pouvoir en changer.
       formation: f,
       formations: formations.lister(),
       certificationActive: liste.certificationActive,
       pratiqueObligatoire: liste.pratiqueObligatoire,
+      certifsDuMois: certifications.compterCertifsRecentes(30),
       // Le drapeau dit à l'écran s'il doit proposer le retrait d'un diplôme :
       // ce geste-là reste à l'administrateur, et l'écran ne doit pas dessiner
       // un bouton que le serveur refusera.
@@ -389,24 +432,61 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     const f = formationDe(req, res);
     if (!f) return;
     const r_ = pratique.ficheDe(req.params.email, f.cle);
-    if (r_.ok) r_.body.formation = f;
+    if (r_.ok) {
+      r_.body.formation = f;
+      // LA GRILLE DE CETTE FORMATION, servie avec la fiche : l'écran ne la
+      // connaît pas, il la reçoit. Une formation sans grille en renvoie une
+      // vide — et l'écran retombe alors sur le formulaire libre d'avant.
+      r_.body.grille = grilles ? grilles.grillePour(f.cle) : [];
+    }
     res.status(r_.status).json(r_.body);
   });
 
   // Ouvrir une évaluation. Sans résultat : séance ouverte, verdict à venir.
   // Avec résultat : l'évaluateur qui saisit à chaud clôt en une fois.
+  //
+  //  ⚠️ UN VERDICT PEUT DONC ÊTRE PRONONCÉ ICI AUSSI, et la certification
+  //  automatique doit partir des DEUX portes. Elles sont les seules à écrire
+  //  `academy_evaluations.resultat` — manquer l'une laisserait un coach tout
+  //  validé sans diplôme, précisément l'attente que ce lot supprime.
+  //  `delivrerSiComplet` étant idempotente, la brancher deux fois ne risque
+  //  rien : au pire elle répond « déjà certifié » et n'écrit pas une ligne.
   r.post('/api/academy/evaluateur/collaborateurs/:email/evaluations', exigeCompte, exigeEvaluer, (req, res) => {
     const f = formationDe(req, res);
     if (!f) return;
     const r_ = pratique.ouvrir(req.params.email, moi(req), { ...(req.body || {}), formation: f.cle });
-    res.status(r_.status).json(r_.body);
+    if (!r_.ok) return res.status(r_.status).json(r_.body);
+    const auto = certifications.delivrerSiComplet(req.params.email, f.cle);
+    res.status(r_.status).json(auto.delivree
+      ? { ...r_.body, certification: auto.certification, certificationAutomatique: true }
+      : r_.body);
   });
 
   // Prononcer le verdict d'une séance ouverte. Une évaluation close est
   // immuable : on n'y revient pas, on en ouvre une nouvelle.
+  //
+  //  ⚠️ C'EST ICI QUE LA CERTIFICATION PART, quand le verdict complète le
+  //  parcours. Il n'y a plus d'étape « à certifier » entre les deux.
+  //
+  //  Le couple (coach, formation) est lu sur la séance AVANT le verdict : la
+  //  réponse de `enregistrerResultat` ne porte pas l'e-mail, et surtout on ne
+  //  le prend jamais dans le corps de la requête — ce serait prononcer sur un
+  //  dossier qu'on n'a pas ouvert.
+  //
+  //  `delivrerSiComplet` est silencieuse : si la pratique est « à repasser »,
+  //  ou si la formation ne certifie pas, elle ne fait rien. Un refus de sa
+  //  part ne doit JAMAIS transformer un verdict correctement enregistré en
+  //  erreur HTTP — le verdict, lui, est déjà écrit.
   r.put('/api/academy/evaluateur/evaluations/:id', exigeCompte, exigeEvaluer, (req, res) => {
+    const seance = pratique.lireEvaluation(req.params.id);
     const r_ = pratique.enregistrerResultat(req.params.id, moi(req), req.body || {});
-    res.status(r_.status).json(r_.body);
+    if (!r_.ok || !seance) return res.status(r_.status).json(r_.body);
+    const auto = certifications.delivrerSiComplet(seance.email, seance.formation);
+    // L'écran doit pouvoir dire « certifié » plutôt que « validé » dans la
+    // foulée : on lui rend le diplôme quand il vient d'être créé.
+    res.status(r_.status).json(auto.delivree
+      ? { ...r_.body, certification: auto.certification, certificationAutomatique: true }
+      : r_.body);
   });
 
   // -- Administration, réduite au strict nécessaire --------------------------
@@ -435,7 +515,13 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   r.post('/api/academy/admin/evaluateurs', exigeCompte, exigeAdmin, (req, res) => {
     const { email, evaluateur } = req.body || {};
     const r_ = pratique.definirEvaluateur(email, evaluateur !== false, moi(req));
-    if (r_.ok) r_.body.comptes = pratique.listerGestionEvaluateurs();
+    if (r_.ok) {
+      r_.body.comptes = pratique.listerGestionEvaluateurs();
+      // LA LISTE DES COLLABORATEURS REPART AVEC LA RÉPONSE : c'est désormais
+      // depuis cet écran qu'on bascule le droit, et il ne doit pas avoir à
+      // redemander — donc pas de fenêtre où il afficherait un droit périmé.
+      r_.body.collaborateurs = listeCollaborateurs();
+    }
     res.status(r_.status).json(r_.body);
   });
 
@@ -524,7 +610,7 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   // /api/academy/formations, qui ne montre que le publié — les deux listes
   // n'ont pas le même public et ne doivent pas se confondre.
   r.get('/api/academy/admin/formations', exigeCompte, exigeAdmin, (_req, res) => {
-    const liste = formations.lister({ toutes: true });
+    const liste = avecCouverture(formations.lister({ toutes: true }));
     res.json({
       ok: true,
       formations: liste.map((f) => ({ ...f, verification: admin.verifier(f.cle) })),
@@ -561,15 +647,93 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   r.get('/api/academy/admin/arbre', exigeCompte, exigeAdmin, (req, res) => {
     const f = formationAdmin(req, res);
     if (!f) return;
-    res.json({ ok: true, ...admin.arbre(f.cle) });
+    res.json({ ok: true, ...arbreDe(f.cle) });
+  });
+
+  // ==========================================================================
+  //  L'APERÇU DES ÉVALUATIONS PRATIQUES — DEUX ROUTES, EN LECTURE SEULE.
+  //
+  //  À QUOI ELLES SERVENT. Contrôler ce que verra un certificateur AVANT qu'un
+  //  seul coach soit prêt : sans dossier, sans théorie validée, sans
+  //  éligibilité. C'est un outil de qualité pédagogique, pas un raccourci.
+  //
+  //  ⚠️ ELLES N'ÉCRIVENT RIEN, ET NE PEUVENT RIEN ÉCRIRE. Ce sont deux GET qui
+  //  composent trois lectures existantes — `formations.lister`,
+  //  `pratique.listerCas`, `grilles.grillePour`. Aucune logique métier neuve,
+  //  aucune table touchée, aucune notification.
+  //
+  //  ⚠️ ELLES N'AFFAIBLISSENT AUCUNE GARDE. Les routes du parcours réel gardent
+  //  `exigeEvaluer`, `verifierCible` et le refus d'auto-validation ; elles ne
+  //  sont pas modifiées d'un caractère. Un aperçu ne « contourne » donc rien :
+  //  il n'y a rien à contourner quand on ne peut pas écrire.
+  //
+  //  ⚠️ `exigeAdmin`, PAS `exigeEvaluer`. Un certificateur ordinaire n'entre
+  //  pas : ce mode montre les cas de TOUTES les formations, brouillons compris,
+  //  ce qui relève de l'administration du catalogue et non de l'évaluation.
+  // ==========================================================================
+
+  //  LE PÉRIMÈTRE : les formations qui ont un référentiel pratique, c'est-à-dire
+  //  des cas OU des critères. Une formation qui n'a ni l'un ni l'autre n'a rien
+  //  à prévisualiser, et l'afficher ferait une liste de portes fermées.
+  //
+  //  BROUILLONS COMPRIS (`toutes: true`) : c'est précisément AVANT publication
+  //  qu'on veut relire ses cas.
+  const formationsAvecPratique = () => formations.lister({ toutes: true })
+    .map((f) => {
+      const cas = pratique.listerCas(f.cle);
+      const grille = grilles ? grilles.grillePour(f.cle) : [];
+      return {
+        cle: f.cle,
+        libelle: f.libelle,
+        titre: f.titre || null,
+        actif: !!f.actif,
+        nbCas: cas.length,
+        nbCriteres: grille.reduce((n, a) => n + a.criteres.length, 0),
+        nbAxes: grille.length,
+      };
+    })
+    .filter((f) => f.nbCas > 0 || f.nbCriteres > 0);
+
+  r.get('/api/academy/admin/apercu', exigeCompte, exigeAdmin, (_req, res) => {
+    res.json({ ok: true, formations: formationsAvecPratique() });
+  });
+
+  //  Le contenu d'une formation : ses cas (scénario compris, tel que
+  //  `scenarioDe` le sert au certificateur) et sa grille. STRICTEMENT les
+  //  mêmes objets que ceux de la fiche réelle — c'est ce qui garantit que
+  //  l'aperçu ne peut pas diverger de ce qu'on prévisualise.
+  r.get('/api/academy/admin/apercu/:cle', exigeCompte, exigeAdmin, (req, res) => {
+    const cle = String(req.params.cle || '').trim().toLowerCase();
+    const f = formations.resoudre(cle, { inclureInactives: true });
+    if (!f || f.cle !== cle) return res.status(404).json({ ok: false, error: 'Formation inconnue.' });
+    res.json({
+      ok: true,
+      formation: { cle: f.cle, libelle: f.libelle, titre: f.titre || null, actif: !!f.actif },
+      cas: pratique.listerCas(f.cle),
+      grille: grilles ? grilles.grillePour(f.cle) : [],
+    });
   });
 
   // Une seule route d'écriture par objet : créer et modifier sont le même
   // geste, distingués par la présence d'un identifiant. L'arbre à jour repart
   // avec la réponse — l'écran ne redemande pas, et ne peut donc pas afficher un
   // état périmé.
+  // L'ARBRE, ENRICHI DE LA COUVERTURE — EN UN SEUL ENDROIT.
+  //
+  //  Le panneau de réglages lit la formation de l'ARBRE, pas celle du
+  //  catalogue : c'est cette réponse-là qui doit porter la couverture, sinon
+  //  l'administrateur voit « aucune image » sur une formation qui en a une. Et
+  //  toutes les écritures de contenu renvoient l'arbre à leur tour — enrichir
+  //  la seule route GET aurait fait disparaître l'aperçu au premier module
+  //  enregistré. On passe donc par une source unique.
+  const arbreDe = (cle) => {
+    const a = admin.arbre(cle);
+    if (!a || !a.formation) return a;
+    return { ...a, formation: { ...a.formation, couverture: couvertures.etat().get(cle) || null } };
+  };
+
   const repondreAvecArbre = (res, r_, cle) => {
-    if (r_.ok) r_.body.arbre = admin.arbre(cle);
+    if (r_.ok) r_.body.arbre = arbreDe(cle);
     res.status(r_.status).json(r_.body);
   };
 
@@ -605,12 +769,34 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   // UNE SEULE LISTE, DEUX ORIGINES. Les comptes existants portent leur statut
   // réel (actif / retiré) ; les adresses inscrites d'avance apparaissent EN
   // ATTENTE, sans aucun droit, jusqu'à ce que leur compte soit créé.
+  //  LE NOM VIENT DE `users`, PAS D'UNE TABLE ACADEMY. `listerCollaborateurs`
+  //  joint déjà `users` pour le prénom ; on y ajoute le nom de famille au même
+  //  endroit. Une adresse en attente, elle, porte l'identité que
+  //  l'administrateur a saisie — elle n'a pas encore de compte où la ranger.
+  //  ⚠️ LE DROIT DE CERTIFIER VOYAGE AVEC LA LISTE, ET CE N'EST PAS UN SECOND
+  //  DROIT. C'est `pratique.estEvaluateur` — la table academy_evaluateurs, la
+  //  même que consultent `exigeEvaluer` et `peutEvaluer` — servie en lecture
+  //  pour que l'écran des collaborateurs puisse l'afficher et le basculer sans
+  //  aller le chercher ailleurs. L'écriture, elle, reste la route existante
+  //  (/api/academy/admin/evaluateurs), gardée par exigeAdmin.
+  //
+  //  `certificateurAdmin` dit une chose différente : ce compte a le droit PAR
+  //  SON RÔLE d'administrateur (cf. peutEvaluer en tête de fichier). Il n'y a
+  //  rien à lui accorder, et l'écran verrouille son interrupteur — lui poser
+  //  une ligne dans academy_evaluateurs créerait un second droit pour la même
+  //  personne, et une divergence le jour où l'on retire l'un des deux.
   const listeCollaborateurs = () => [
     ...boost.listerCollaborateurs({ tous: true })
-      .map((c) => ({ email: c.email, prenom: c.prenom, actif: c.actif, majLe: c.majLe,
-        etat: c.actif ? 'actif' : 'retire' })),
+      .map((c) => ({ email: c.email, prenom: c.prenom || '', nom: c.nom || '',
+        actif: c.actif, majLe: c.majLe, etat: c.actif ? 'actif' : 'retire',
+        certificateur: pratique.estEvaluateur(c.email),
+        certificateurAdmin: estAdministrateur(c.email) })),
     ...academy.listerPreautorisations()
-      .map((p) => ({ email: p.email, prenom: '', actif: false, majLe: p.creeLe, etat: 'en_attente' })),
+      .map((p) => ({ email: p.email, prenom: p.prenom || '', nom: p.nom || '',
+        actif: false, majLe: p.creeLe, etat: 'en_attente',
+        // Une adresse sans compte ne peut porter aucun droit : `definirEvaluateur`
+        // la refuserait (404). L'écran n'affiche donc pas d'interrupteur.
+        certificateur: false, certificateurAdmin: false })),
   ];
 
   r.get('/api/academy/admin/collaborateurs', exigeCompte, exigeAdmin, (_req, res) => {
@@ -618,7 +804,7 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   });
 
   r.post('/api/academy/admin/collaborateurs', exigeCompte, exigeAdmin, (req, res) => {
-    const { email, role } = req.body || {};
+    const { email, role, prenom, nom } = req.body || {};
     // Retirer : le compte existe -> on lui retire le droit ; sinon c'est une
     // adresse en attente -> on retire l'intention. Dans les deux cas, RIEN
     // n'est supprimé du compte lui-même.
@@ -629,10 +815,69 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
       if (!r_.ok) return res.status(r_.status).json(r_.body);
       return res.json({ ok: true, collaborateurs: listeCollaborateurs() });
     }
-    // Autoriser : `preautoriser` tranche selon que le compte existe ou non.
-    const r_ = academy.preautoriser(email, moi(req));
+    // Autoriser : prénom et nom sont désormais demandés, au même titre que
+    // l'adresse. On refuse AVANT d'écrire quoi que ce soit — un collaborateur
+    // à moitié identifié serait une ligne qu'il faudrait retrouver plus tard.
+    const p_ = String(prenom || '').trim();
+    const n_ = String(nom || '').trim();
+    if (!p_) return res.status(400).json({ ok: false, error: 'Le prénom du collaborateur est requis.' });
+    if (!n_) return res.status(400).json({ ok: false, error: 'Le nom du collaborateur est requis.' });
+    // `preautoriser` tranche selon que le compte existe ou non.
+    const r_ = academy.preautoriser(email, moi(req), { prenom: p_, nom: n_ });
     if (!r_.ok) return res.status(r_.status).json(r_.body);
     res.json({ ok: true, enAttente: !!r_.body.enAttente, collaborateurs: listeCollaborateurs() });
+  });
+
+  // ==========================================================================
+  //  L'IMAGE DE COUVERTURE D'UNE FORMATION
+  //
+  //  Une illustration administrable. Elle ne change RIEN au parcours : ni la
+  //  progression, ni le QCM, ni l'évaluation, ni la certification ne la
+  //  regardent. Une formation sans couverture reste une formation entière —
+  //  l'écran pose alors son visuel de repli.
+  // ==========================================================================
+
+  // Les octets. Gardés comme le catalogue lui-même : une couverture illustre un
+  // parcours réservé aux collaborateurs, elle n'a pas à être publique.
+  //
+  //  ⚠️ ET UN BROUILLON RESTE UN BROUILLON. Une formation non publiée n'existe
+  //  pas pour un collaborateur ; sa couverture non plus, sinon une clé devinée
+  //  révélerait par l'image un parcours encore en construction. Seul
+  //  l'administrateur, qui la prépare, y accède.
+  r.get('/api/academy/formations/:cle/couverture', exigeCompte, exigeEntree, (req, res) => {
+    const f = formations.resoudre(req.params.cle, { inclureInactives: estAdministrateur(moi(req)) });
+    if (!f) return res.status(404).json({ ok: false, error: 'Formation inconnue.' });
+    const img = couvertures.lire(f.cle);
+    if (!img) return res.status(404).json({ ok: false, error: 'Aucune couverture.' });
+    res.set('Content-Type', img.mime);
+    res.set('X-Content-Type-Options', 'nosniff');
+    // `private` : la réponse a franchi une garde, elle n'a rien à faire dans un
+    // cache partagé. La date de mise à jour sert de repère de fraîcheur côté
+    // écran, ce qui permet un cache court sans jamais servir l'ancienne image.
+    res.set('Cache-Control', 'private, max-age=60');
+    res.send(img.data);
+  });
+
+  // L'ENVOI, EN CORPS BRUT — même mécanique que les fichiers de la Boîte à
+  // outils, et pour la même raison : le base64 gonflerait l'image d'un tiers,
+  // et relever la limite JSON de l'app pour un seul écran la relèverait pour
+  // tout le monde. `express.raw` est posé ICI, sur cette route et elle seule.
+  //
+  //  L'écran redimensionne et recomprime AVANT d'envoyer : ce que reçoit cette
+  //  route pèse quelques dizaines de Ko, pas les 5 Mo d'une photo d'appareil.
+  r.post('/api/academy/admin/formations/:cle/couverture', exigeCompte, exigeAdmin,
+    express.raw({ type: '*/*', limit: '6mb' }),
+    (req, res) => {
+      const r_ = couvertures.enregistrer(req.params.cle, {
+        mime: req.headers['content-type'],
+        data: Buffer.isBuffer(req.body) ? req.body : null,
+      });
+      res.status(r_.status).json(r_.body);
+    });
+
+  r.delete('/api/academy/admin/formations/:cle/couverture', exigeCompte, exigeAdmin, (req, res) => {
+    const r_ = couvertures.supprimer(req.params.cle);
+    res.status(r_.status).json(r_.body);
   });
 
   // ==========================================================================
@@ -674,9 +919,12 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
     if (!f) return res.status(404).json({ ok: false, error: 'Fichier introuvable.' });
     const telecharger = String((req.query || {}).dl || '') === '1';
     res.set('Content-Type', f.mime);
-    // Le nom est déjà nettoyé à l'enregistrement (nomPropre) ; on ne le
-    // reconstruit pas ici, on le repasse tel quel.
-    res.set('Content-Disposition', `${telecharger ? 'attachment' : 'inline'}; filename="${f.nom}"`);
+    // ⚠️ LE NOM NE SE POSE PAS TEL QUEL. Un nom venu d'un macOS est en forme
+    // décomposée : l'accent de « Séance » y est un caractère hors ISO-8859-1,
+    // que Node refuse dans un en-tête — la route répondait 500, et le lecteur
+    // comme le téléchargement recevaient une page d'erreur au lieu du PDF.
+    // Le moteur construit les deux formes de la RFC 6266 ; voir son commentaire.
+    res.set('Content-Disposition', enteteContentDisposition(f.nom, telecharger));
     // Interdire au navigateur de renifler un autre type que celui annoncé : un
     // PDF ne doit jamais être interprété comme du HTML.
     res.set('X-Content-Type-Options', 'nosniff');

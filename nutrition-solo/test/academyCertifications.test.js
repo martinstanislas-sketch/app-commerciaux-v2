@@ -29,7 +29,7 @@ process.env.ADMIN_EMAIL = 'patron@exemple.fr';
 const app = require('../server');
 const C = require('../lib/academyCertifications');
 const F = require('../lib/academyFormations');
-const { certifierAncienne, terminerFormation, reussirQcm } = require('./aideAcademy');
+const { certifierAncienne, terminerFormation, reussirQcm, criteresAcquis } = require('./aideAcademy');
 let srv, base;
 
 const ADMIN = 'patron@exemple.fr';
@@ -72,9 +72,12 @@ const delivrer = (cible, par, corps) =>
 const retirer = (cible, par, corps) =>
   api('POST', `/api/academy/admin/certifications/${encodeURIComponent(cible)}/retrait`, corps || {}, jetons[par]);
 
+// La grille Nutrition est arrivée après ce fichier : un verdict sans elle est
+// désormais refusé. Ici on valide une pratique pour POUVOIR CERTIFIER — la
+// grille elle-même est éprouvée dans academyGrilles.test.js.
 const validerPratique = (cible) =>
   api('POST', `/api/academy/evaluateur/collaborateurs/${encodeURIComponent(cible)}/evaluations`,
-    { resultat: 'valide', dateEvaluation: '2026-09-10' }, jetons[EVA]);
+    { resultat: 'valide', dateEvaluation: '2026-09-10', criteres: criteresAcquis(dbq()) }, jetons[EVA]);
 
 test.before(async () => {
   await new Promise((r) => { srv = app.listen(0, r); });
@@ -192,20 +195,30 @@ test('la pratique est inaccessible sans théorie : la chaîne tient d\'elle-mêm
   assert.strictEqual((await delivrer(SACHA, ADMIN)).status, 409);
 });
 
-test('théorie + pratique validées : ÉLIGIBLE — et toujours pas certifié', async () => {
+test('théorie + pratique validées : CERTIFIÉ, sans geste de plus', async () => {
   await terminerFormation({ api, email: THEO, jeton: jetons[THEO] });
   await reussirQcm({ api, jeton: jetons[THEO] });
   assert.strictEqual((await validerPratique(THEO)).status, 201);
 
   const c = await certifDe(THEO);
-  assert.strictEqual(c.etat, 'eligible');
-  assert.strictEqual(c.eligible, true);
-  assert.strictEqual(c.certifie, false, 'ÉLIGIBLE N\'EST PAS CERTIFIÉ');
+  assert.strictEqual(c.etat, 'certifie', 'le verdict pratique était le dernier prérequis');
+  assert.strictEqual(c.certifie, true);
   assert.deepStrictEqual(c.manquants, []);
   assert.ok(c.prerequis.every((p) => p.rempli));
-  // Rien n'a été accordé côté Boost.
-  assert.strictEqual(app.boost.estCoachCertifie(THEO), false);
-  assert.strictEqual((await api('GET', '/api/boost/coach/dossiers', null, jetons[THEO])).status, 403);
+  // Et les droits Boost s'ouvrent dans la foulée.
+  assert.strictEqual(app.boost.estCoachCertifie(THEO), true);
+  assert.strictEqual((await api('GET', '/api/boost/coach/dossiers', null, jetons[THEO])).status, 200);
+
+  // ⚠️ ON LE RETIRE ICI, ET C'EST DÉLIBÉRÉ. Tout ce qui suit dans ce fichier
+  // éprouve la DÉLIVRANCE MANUELLE — qui délivre, quelle date, quelles
+  // preuves, quelle identité — et elle reste la porte de l'administrateur.
+  // Or depuis la certification automatique, un dossier « éligible non
+  // certifié » ne se produit plus de lui-même : un RETRAIT est désormais la
+  // seule façon de le recréer. On remet donc Théo dans cet état, par la route
+  // prévue pour ça, plutôt que de réécrire trente assertions encore justes.
+  const r = await retirer(THEO, ADMIN, { motif: 'Retrait de test : remise en état éligible.' });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.strictEqual((await certifDe(THEO)).certifie, false, 'le voilà éligible et non certifié');
 });
 
 // ===========================================================================
@@ -355,8 +368,13 @@ test('la carte du collaborateur annonce le diplôme et son historique', async ()
   const c = await certifDe(THEO);
   assert.strictEqual(c.certifie, true);
   assert.strictEqual(c.titre, 'Coach Nutrition certifié');
-  assert.strictEqual(c.historique.length, 1);
-  assert.strictEqual(c.historique[0].statut, 'delivree');
+  // DEUX lignes : celle délivrée automatiquement à la validation de sa
+  // pratique — puis retirée pour éprouver la délivrance manuelle — et celle
+  // que l'administrateur vient de délivrer. L'historique est un parcours, il
+  // ne se réécrit pas.
+  assert.strictEqual(c.historique.length, 2);
+  assert.strictEqual(c.historique[0].statut, 'delivree', 'la plus récente en tête');
+  assert.strictEqual(c.historique[1].statut, 'retiree', 'la certification automatique, retirée');
 });
 
 // ===========================================================================
@@ -434,13 +452,13 @@ test('après un retrait, le collaborateur redevient éligible — pas certifié'
   const c = await certifDe(THEO);
   assert.strictEqual(c.certifie, false);
   assert.strictEqual(c.eligible, true, 'son parcours reste validé');
-  assert.strictEqual(c.historique.length, 1, 'le diplôme retiré reste dans l\'historique');
+  assert.strictEqual(c.historique.length, 2, 'les diplômes retirés restent dans l\'historique');
   assert.strictEqual(c.historique[0].statut, 'retiree');
 });
 
 test('retirer deux fois répond 404, et n\'invente pas de ligne', async () => {
   assert.strictEqual((await retirer(THEO, ADMIN, { motif: 'encore' })).status, 404);
-  assert.strictEqual(dbq().prepare('SELECT COUNT(*) AS n FROM academy_certifications WHERE email = ?').get(THEO).n, 1);
+  assert.strictEqual(dbq().prepare('SELECT COUNT(*) AS n FROM academy_certifications WHERE email = ?').get(THEO).n, 2);
 });
 
 test('redélivrer crée une NOUVELLE ligne : l\'historique se lit comme un parcours', async () => {
@@ -448,7 +466,7 @@ test('redélivrer crée une NOUVELLE ligne : l\'historique se lit comme un parco
   assert.strictEqual(r.status, 201);
   const c = await certifDe(THEO);
   assert.strictEqual(c.certifie, true);
-  assert.strictEqual(c.historique.length, 2);
+  assert.strictEqual(c.historique.length, 3);
   assert.strictEqual(c.historique[0].statut, 'delivree', 'la plus récente en tête');
   assert.strictEqual(c.historique[0].obtenueLe, '2026-10-01');
   assert.strictEqual(c.historique[1].statut, 'retiree');
@@ -507,16 +525,21 @@ test('LA MÊME PERSONNE ÉVALUE PUIS CERTIFIE, d\'un bout à l\'autre', async ()
   // personne d'autre n'intervienne.
   assert.strictEqual((await api('GET', '/api/academy/moi', null, jetons[EVA])).body.admin, false);
 
-  assert.strictEqual((await validerPratique(NINA)).status, 201);
-  const r = await delivrer(NINA, EVA, { obtenueLe: '2026-10-05' });
+  // Un seul geste suffit désormais : elle prononce le verdict, et le diplôme
+  // part avec la réponse. Il n'y a plus de second appel à faire.
+  const r = await validerPratique(NINA);
   assert.strictEqual(r.status, 201);
+  assert.strictEqual(r.body.certificationAutomatique, true);
 
   const d = r.body.certification;
   assert.strictEqual(d.statut, 'delivree');
-  assert.strictEqual(d.delivreePar, EVA, 'le diplôme porte le nom de qui l\'a prononcé');
-  assert.strictEqual(d.obtenueLe, '2026-10-05');
-  assert.strictEqual(d.pratiquePar, EVA, 'et la preuve pratique aussi');
-  assert.strictEqual(r.body.etat.etat, 'certifie');
+  // Le diplôme n'est prononcé par PERSONNE : c'est la règle qui l'a délivré.
+  // Mais la trace d'Eva est là, à sa place — dans la preuve pratique.
+  assert.strictEqual(d.delivreePar, 'Academy');
+  assert.strictEqual(d.pratiquePar, EVA, 'la preuve pratique porte son nom');
+  // Et la date du diplôme est celle du verdict, pas celle de la saisie.
+  assert.strictEqual(d.obtenueLe, d.pratiqueLe);
+  assert.strictEqual((await certifDe(NINA)).etat, 'certifie');
 
   // Ce que ça n'ouvre PAS : Eva ne peut toujours pas défaire ce qu'elle a fait.
   assert.strictEqual((await retirer(NINA, EVA, { motif: 'erreur' })).status, 403);

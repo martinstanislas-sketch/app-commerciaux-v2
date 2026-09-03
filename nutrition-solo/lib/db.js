@@ -158,12 +158,37 @@ CREATE TABLE IF NOT EXISTS recipe_photos (
 );
 `;
 
+// Les colonnes ajoutées APRÈS coup. Le bloc SCHEMA ci-dessus ne sait que créer
+// des tables : sur une base déjà en service, une colonne nouvelle demande un
+// ALTER. On le joue ici, idempotent, en relisant le schéma réel plutôt qu'en
+// tenant un numéro de version — c'est la méthode déjà employée par les modules
+// Academy et Boost, et elle survit à une base rejouée.
+//
+//  `users.nom` : le nom de famille. NULLABLE ET SANS DÉFAUT, parce que les
+//  comptes existants n'en ont pas et que personne ne doit leur en inventer un.
+//  Sans nom, un compte reste entier — les écrans se rabattent sur le prénom,
+//  puis sur l'adresse e-mail.
+const COLONNES_TARDIVES = [
+  ['users', 'nom', 'TEXT'],
+];
+
+function migrer(d) {
+  for (const [table, colonne, definition] of COLONNES_TARDIVES) {
+    const presentes = d.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    if (!presentes.includes(colonne)) d.exec(`ALTER TABLE ${table} ADD COLUMN ${colonne} ${definition}`);
+  }
+}
+
 function getDb() {
   if (_db) return _db;
   const file = dbPath();
   fs.mkdirSync(path.dirname(file), { recursive: true });
   _db = new Database(file);
   _db.exec(SCHEMA);
+  // AVANT de rendre la base : une route qui lirait `nom` sur une base non
+  // migrée tomberait, et l'ordre d'initialisation des modules ne doit pas
+  // devenir une chose à se rappeler.
+  migrer(_db);
   return _db;
 }
 

@@ -441,10 +441,10 @@ test('l\'écran vérifie AVANT d\'écrire, et n\'offre l\'écriture que sur un r
 // ===========================================================================
 
 test('la catégorie du JSON est enregistrée telle quelle', async () => {
-  const j = jsonValide('import_cat', { formation: { categorie: 'signature' } });
+  const j = jsonValide('import_cat', { formation: { categorie: 'essentiel' } });
   const r = await importer(j, false);
   assert.strictEqual(r.status, 200, r.txt.slice(0, 300));
-  assert.strictEqual(r.body.formation.categorie, 'signature');
+  assert.strictEqual(r.body.formation.categorie, 'essentiel');
 });
 
 test('UNE CATÉGORIE INCONNUE EST UNE ERREUR, dite AVANT toute écriture', async () => {
@@ -455,7 +455,7 @@ test('UNE CATÉGORIE INCONNUE EST UNE ERREUR, dite AVANT toute écriture', async
   const e = r.body.rapport.erreurs.find((x) => x.chemin === 'formation.categorie');
   assert.ok(e, 'l\'erreur doit porter son chemin : ' + JSON.stringify(r.body.rapport.erreurs));
   assert.match(e.message, /premium/);
-  assert.match(e.message, /essentiel, signature, expertise, management/);
+  assert.match(e.message, /essentiel, expertise, management/);
   assert.deepStrictEqual(compter(), avant, 'un refus a écrit quelque chose');
 
   // Et l'écriture la refuse aussi, pour son propre compte.

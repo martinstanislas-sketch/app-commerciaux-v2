@@ -30,6 +30,9 @@
 const express = require('express');
 const path = require('path');
 const { ETAPES_TOTAL } = require('./boost');
+// Le catalogue éditorial des 12 Étapes : de la donnée, servie telle quelle.
+// Aucune règle n'en dépend — le moteur ne connaît toujours que 3 protocoles.
+const { ETAPES_BOOST } = require('./boostEtapes');
 
 // `exigeCompte` et `exigeAdmin` sont injectés par server.js : le routeur ne
 // redéfinit AUCUNE règle d'authentification (arbitrage n°9 — un seul système).
@@ -67,9 +70,84 @@ function creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }) {
   // =========================================================================
 
   // Aucun paramètre d'email nulle part : impossible de demander celui d'un autre.
+  //
+  //  LA ROUTE EXISTAIT DEPUIS LE SOCLE, MAIS NE DISAIT QUE L'AVANCEMENT :
+  //  combien d'Étapes validées, quelle Étape courante, combien de jours
+  //  restants. Le client voyait donc une barre de progression sans jamais lire
+  //  CE QU'IL AVAIT À FAIRE — l'action décidée avec son coach vivait
+  //  uniquement dans l'espace coach.
+  //
+  //  Trois ajouts, tous en LECTURE et tous filtrés :
+  //   - `etapes` : le catalogue éditorial (titre + objectif), identique pour
+  //     tout le monde, servi tel quel ;
+  //   - `suivi`  : la vue CLIENT du dossier courant (seances.vueClientDe), qui
+  //     laisse dehors les notes internes du coach et son bloc de travail ;
+  //   - `etapeCourante` reste calculé par le socle : on ne le recalcule pas ici.
+  //
+  //  ⚠️ LE DOSSIER EST FILTRÉ, ET C'EST NOUVEAU. `vueBoost()` sert le MÊME
+  //  objet au client, au coach et à l'administrateur — il porte donc des
+  //  champs d'administration : `creePar` (l'email de l'admin qui a ouvert le
+  //  dossier), `valideePar` sur chaque Étape (l'email du coach),
+  //  `prolongations[].auteur` et son motif administratif, `referenceExterne`
+  //  (le point d'accroche facturation). Tant que rien ne consommait cette
+  //  route, personne ne les voyait. Les servir à un écran client aurait
+  //  divulgué des adresses internes que l'écran n'a jamais demandées.
+  //
+  //  Le filtre vit ICI plutôt que dans vueBoost() : le socle continue de
+  //  répondre aux trois publics comme avant, et l'espace coach comme
+  //  l'administration ne changent pas d'un octet. C'est une LISTE BLANCHE —
+  //  un champ ajouté demain au socle ne sortira pas tout seul.
+  const dossierPourClient = (b) => (b ? {
+    id: b.id,
+    statut: b.statut,
+    actif: b.actif,
+    demarreLe: b.demarreLe,
+    echeanceLe: b.echeanceLe,
+    joursRestants: b.joursRestants,
+    semainesBase: b.semainesBase,
+    // Le nombre de semaines gagnées, oui ; qui l'a accordé et pourquoi, non.
+    semainesProlongation: b.semainesProlongation,
+    etapesValidees: b.etapesValidees,
+    etapesTotal: b.etapesTotal,
+    etapeCourante: b.etapeCourante,
+    // Les Étapes SANS `valideePar` : la date suffit à dessiner la frise,
+    // l'email du coach n'y ajoute rien.
+    etapes: (b.etapes || []).map((e) => ({ numero: e.numero, statut: e.statut, valideeLe: e.valideeLe })),
+    // Le PRÉNOM du coach, jamais son adresse.
+    coachPrenom: b.coachPrenom,
+    termineLe: b.termineLe,
+    interrompuLe: b.interrompuLe,
+    motifInterruption: b.motifInterruption,
+  } : null);
+
   r.get('/api/boost/mien', exigeCompte, (req, res) => {
     const dossier = boost.dossierDuClient(moi(req));
-    res.json({ ok: true, ...dossier, etapesTotal: ETAPES_TOTAL });
+
+    // LE DOSSIER QU'ON MONTRE N'EST PAS TOUJOURS UN DOSSIER ACTIF. Valider le
+    // bilan TERMINE le Boost : `actuel` retombe à null dans la seconde. Ne
+    // servir que l'actif ferait donc disparaître les trois règles personnelles
+    // à l'instant précis où le client est censé repartir avec — c'est-à-dire
+    // au seul moment où elles servent. On montre donc l'accompagnement en
+    // cours, ou à défaut LE DERNIER (l'historique est déjà trié du plus
+    // récent au plus ancien).
+    const montre = dossier.actuel || (dossier.historique || [])[0] || null;
+
+    res.json({
+      ok: true,
+      actuel: dossierPourClient(dossier.actuel),
+      historique: (dossier.historique || []).map(dossierPourClient),
+      // Le dossier réellement affiché, et s'il est clos. L'écran n'a pas à
+      // refaire ce choix : deux endroits qui décident « lequel montrer »
+      // finiraient par ne pas montrer le même.
+      montre: dossierPourClient(montre),
+      clos: !!(montre && !montre.actif),
+      etapesTotal: ETAPES_TOTAL,
+      // `catalogue` et non `etapes` : le dossier porte déjà un tableau `etapes`
+      // (l'état des douze), et deux clés du même nom au même endroit finiraient
+      // par être confondues à l'écran.
+      catalogue: ETAPES_BOOST,
+      suivi: montre ? seances.vueClientDe(montre.id) : null,
+    });
   });
 
   // =========================================================================

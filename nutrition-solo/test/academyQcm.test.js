@@ -207,7 +207,13 @@ test('un collaborateur désactivé perd le QCM à l\'appel suivant', async () =>
 test('le nombre de questions et le seuil viennent de la BASE, pas du code', async () => {
   const cfg = app.academyQcm.lireConfig();
   const lignes = dbq().prepare('SELECT cle, valeur FROM academy_config ORDER BY cle').all();
-  assert.deepStrictEqual(lignes.map((l) => l.cle).sort(), ['qcm_nb_questions', 'qcm_seuil_pct']);
+  // ⚠️ ON JUGE LES CLÉS DU QCM, PAS LA TABLE ENTIÈRE. academy_config sert aussi
+  // de registre de marqueurs d'amorçage (banques de questions, grilles
+  // d'évaluation) : exiger qu'elle ne contienne QUE ces deux lignes ferait
+  // tomber ce test au premier amorçage ajouté ailleurs, sans que la propriété
+  // vérifiée ici — le QCM se règle en base — soit en cause.
+  assert.deepStrictEqual(lignes.map((l) => l.cle).filter((c) => c.startsWith('qcm_')).sort(),
+    ['qcm_nb_questions', 'qcm_seuil_pct']);
   assert.strictEqual(cfg.nbQuestions, Number(lignes.find((l) => l.cle === 'qcm_nb_questions').valeur));
   assert.strictEqual(cfg.seuilPct, Number(lignes.find((l) => l.cle === 'qcm_seuil_pct').valeur));
   // L'état renvoyé à l'écran annonce la configuration courante.

@@ -1,0 +1,135 @@
+{
+  "formation": {
+    "cle": "pesee",
+    "libelle": "Pesée",
+    "description": "Apprends à faire d'une pesée un outil de coaching, pas un verdict. Prépare la balance et le profil, retiens les bonnes données, pars de l'objectif du client plutôt que des chiffres, interprète la tendance avec lui et termine toujours par une décision et une action concrète.",
+    "categorie": "essentiel",
+    "titre": "Pesée My Coach",
+    "qcmNbQuestions": 5,
+    "qcmSeuilPct": 80,
+    "miniNbQuestions": 5,
+    "miniSeuilPct": 80,
+    "pratiqueObligatoire": true,
+    "certificationActive": true
+  },
+  "modules": [
+    {
+      "titre": "Réaliser la pesée My Coach",
+      "description": "Découvre le protocole complet : les vérifications avant l'arrivée du client, les conditions à respecter pour des mesures comparables, les trois données à retenir, la manière d'annoncer et d'interpréter les résultats selon les trois cas de figure, et la décision qui doit clore chaque pesée.",
+      "video": {
+        "titre": "Réaliser la pesée My Coach",
+        "youtubeId": "OJGTOFbvWJg",
+        "dureeMin": 6
+      },
+      "questions": []
+    }
+  ],
+  "finale": [
+    {
+      "enonce": "À quelle fréquence la pesée est-elle réalisée dans le challenge My Coach ?",
+      "choix": [
+        {
+          "texte": "Une pesée de référence à l'entrée dans le challenge, puis une pesée par mois avant la séance",
+          "correct": true
+        },
+        {
+          "texte": "Une pesée à chaque séance, pour suivre l'évolution au plus près",
+          "correct": false
+        },
+        {
+          "texte": "Une pesée par trimestre, le temps que les résultats deviennent visibles",
+          "correct": false
+        },
+        {
+          "texte": "Une pesée uniquement lorsque le client en fait la demande",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Parmi toutes les données affichées par la balance, lesquelles retient-on ?",
+      "choix": [
+        {
+          "texte": "Le poids total, la masse grasse en kilos et en pourcentage, et la masse musculaire squelettique",
+          "correct": true
+        },
+        {
+          "texte": "Toutes les données affichées, pour que le client ait l'information complète",
+          "correct": false
+        },
+        {
+          "texte": "Uniquement le poids total, seul chiffre réellement fiable",
+          "correct": false
+        },
+        {
+          "texte": "L'âge métabolique et le taux d'hydratation, plus parlants pour le client",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Par quoi le coach commence-t-il l'entretien de pesée ?",
+      "choix": [
+        {
+          "texte": "Par le rappel de l'objectif du client, avant d'annoncer le moindre chiffre",
+          "correct": true
+        },
+        {
+          "texte": "Par l'annonce du poids total, l'information que le client attend",
+          "correct": false
+        },
+        {
+          "texte": "Par la comparaison avec la moyenne des adhérents du studio",
+          "correct": false
+        },
+        {
+          "texte": "Par la lecture complète de la fiche d'impédancemétrie",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "La masse grasse a augmenté depuis la dernière pesée. Quelle est la bonne attitude ?",
+      "choix": [
+        {
+          "texte": "Ne pas dramatiser ni minimiser : analyser le contexte, responsabiliser sans jamais culpabiliser",
+          "correct": true
+        },
+        {
+          "texte": "Dédramatiser en expliquant que ces chiffres ne veulent pas dire grand-chose",
+          "correct": false
+        },
+        {
+          "texte": "Marquer le coup pour que le client mesure le sérieux de la situation",
+          "correct": false
+        },
+        {
+          "texte": "Reporter l'analyse à la pesée suivante pour confirmer la tendance",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Comment doit se terminer chaque pesée ?",
+      "choix": [
+        {
+          "texte": "Par une décision, un objectif et une action concrète, en privilégiant un objectif de comportement",
+          "correct": true
+        },
+        {
+          "texte": "Par la remise au client de l'impression complète de ses résultats",
+          "correct": false
+        },
+        {
+          "texte": "Par la fixation d'un nombre de kilos à perdre d'ici la prochaine pesée",
+          "correct": false
+        },
+        {
+          "texte": "Par un encouragement et un rendez-vous pour la pesée du mois suivant",
+          "correct": false
+        }
+      ]
+    }
+  ],
+  "cas": []
+}

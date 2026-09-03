@@ -2910,6 +2910,9 @@ function init() {
 
   // --- Navigation ---
   setupProfilCoach();
+  // L'onglet « Suivi » n'apparaît que si le serveur dit qu'un accompagnement
+  // existe. Appel non bloquant : l'app doit démarrer même sans le Boost.
+  chargerAccompagnement();
   $$('#bottom-nav .nav-i').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $$('[data-go]').forEach((r) => r.addEventListener('click', () => { const t = $('#' + r.dataset.go); if (t) t.click(); }));
   // Le logo ramène à l'écran Repas — l'accueil de cette version.
@@ -3270,6 +3273,10 @@ function setTab(tab) {
   if (tab === 'courses') { $('#btnShopping').click(); return; }
   if (tab === 'suivi') { $('#btnSuiviPlan').click(); return; }
   if (tab === 'progression') renderProgression();
+  // On RELIT à chaque ouverture : le coach a pu valider un rendez-vous entre
+  // deux visites, et un écran qui réaffiche sa mémoire montrerait une consigne
+  // périmée — précisément celle que le client s'apprête à suivre.
+  if (tab === 'accompagnement') chargerAccompagnement();
   const screen = $('#screen-result');
   if (screen) screen.setAttribute('data-tab', tab);
   $$('#bottom-nav .nav-i').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
@@ -4705,6 +4712,210 @@ function cablerProgression() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+// ============================================================================
+//  MON ACCOMPAGNEMENT — le Boost Nutrition, vu du client.
+//
+//  CE QUE CET ÉCRAN RÉPARE. Le Boost était complet côté coach — douze Étapes,
+//  une action décidée à chaque rendez-vous, un verdict au suivant — et
+//  totalement invisible côté client : `/api/boost/mien` existait, personne ne
+//  l'appelait. Un client suivait donc un accompagnement de seize semaines sans
+//  qu'aucun écran ne lui dise où il en était ni ce qu'il avait à faire.
+//
+//  TROIS RÈGLES QUE CET ÉCRAN NE DÉCIDE PAS, IL LES AFFICHE :
+//   - UNE SEULE ACTION à la fois. Le serveur n'en renvoie qu'une ; l'écran ne
+//     sait pas en dessiner deux ;
+//   - le RÉSULTAT d'une action est prononcé par le coach au rendez-vous
+//     suivant. Rien ici n'est cliquable pour le client : lui laisser cocher
+//     « fait » créerait une seconde vérité sur la même chose ;
+//   - AUCUN JUGEMENT. Les trois résultats sont des constats, jamais des notes,
+//     et les libellés le tiennent.
+//
+//  ⚠️ UNE ÉTAPE EST UNE PÉRIODE, PAS UN RENDEZ-VOUS. À l'Étape N, on travaille
+//  l'action décidée à l'Étape N-1 — c'est ce que renvoie `decideeAEtape`, et
+//  c'est pour ça que l'écran affiche les deux numéros sans les confondre.
+// ============================================================================
+
+let boostMien = null;   // la réponse de /api/boost/mien, telle quelle
+
+const LIB_RESULTAT_BOOST = {
+  realisee: 'Réalisée',
+  partielle: 'Partiellement réalisée',
+  non_realisee: 'Non réalisée',
+};
+const LIB_STATUT_BOOST = {
+  a_demarrer: 'À démarrer',
+  en_cours: 'En cours',
+  expire: 'Terminé (échéance atteinte)',
+  interrompu: 'Interrompu',
+  termine: 'Terminé',
+};
+
+// Chargé une fois au démarrage. Le SERVEUR décide si l'onglet existe : `montre`
+// non nul. L'écran ne devine aucun rôle et ne déduit rien d'un 403.
+async function chargerAccompagnement() {
+  if (!estConnecte()) return;
+  try {
+    const r = await fetch(apiUrl('/api/boost/mien'), { headers: nutriAuthHeaders() });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d || !d.ok || !d.montre) return;
+    boostMien = d;
+    const nav = $('#navAccompagnement');
+    if (nav) nav.classList.remove('hidden');
+    renderAccompagnement();
+    renderRappelAction();
+  } catch (_) { /* hors-ligne : l'onglet reste simplement absent */ }
+}
+
+const etapeCatalogue = (n) => (boostMien && (boostMien.catalogue || []).find((e) => e.numero === Number(n))) || null;
+
+// Le rappel en tête de l'écran Repas. L'action doit se voir TOUS LES JOURS —
+// la ranger derrière un onglet qu'il faut penser à ouvrir, c'est la rendre
+// invisible à celui qui la suit.
+function renderRappelAction() {
+  const hote = $('#conseilsJour');
+  if (!hote || !boostMien || !boostMien.suivi || !boostMien.suivi.action) return;
+  const a = boostMien.suivi.action;
+  const vieux = $('#rappelAction'); if (vieux) vieux.remove();
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.id = 'rappelAction';
+  el.className = 'rappel-action';
+  el.innerHTML =
+    '<span class="ra-ic">' + icSvg('spark') + '</span>' +
+    '<span class="ra-tx"><b>' + escapeHtml(a.intitule) + '</b>' +
+    '<span>Ton action avec ' + escapeHtml((boostMien.montre && boostMien.montre.coachPrenom) || 'ton coach') +
+    ' · voir mon suivi</span></span>';
+  el.addEventListener('click', () => setTab('accompagnement'));
+  hote.parentNode.insertBefore(el, hote);
+}
+
+function renderAccompagnement() {
+  const hote = $('#view-accompagnement');
+  if (!hote || !boostMien || !boostMien.montre) return;
+  const b = boostMien.montre;
+  const s = boostMien.suivi || {};
+  const clos = !!boostMien.clos;
+  const courante = b.etapeCourante || b.etapesTotal;
+  const cat = etapeCatalogue(courante);
+  const pct = Math.round((b.etapesValidees / b.etapesTotal) * 100);
+
+  // -- ① Où j'en suis ------------------------------------------------------
+  const restant = !clos && b.joursRestants !== null && b.joursRestants !== undefined
+    ? (b.joursRestants > 13
+      ? 'Il te reste ' + Math.floor(b.joursRestants / 7) + ' semaines'
+      : 'Il te reste ' + b.joursRestants + ' jour' + (b.joursRestants > 1 ? 's' : ''))
+    : '';
+  const entete =
+    '<div class="acc-h">' +
+      '<div class="acc-anneau">' + anneauBoost(pct) + '</div>' +
+      '<div class="acc-h-tx">' +
+        '<p class="acc-h-sur">' + escapeHtml(clos ? LIB_STATUT_BOOST[b.statut] || '' : 'Mon accompagnement') + '</p>' +
+        '<h2 class="acc-h-t">' + (clos
+          ? 'Les 12 Étapes sont derrière toi'
+          : 'Étape ' + courante + ' sur ' + b.etapesTotal) + '</h2>' +
+        '<p class="acc-h-s">' +
+          (b.coachPrenom ? 'Avec ' + escapeHtml(b.coachPrenom) + ', ton Coach Nutrition' : 'Coach à attribuer') +
+          (restant ? ' · ' + escapeHtml(restant) : '') + '</p>' +
+      '</div>' +
+    '</div>' +
+    // L'objectif de l'Étape en cours : le catalogue éditorial, identique pour
+    // tout le monde. Il répond à « pourquoi je fais ça maintenant ».
+    (!clos && cat
+      ? '<div class="acc-obj"><b>' + escapeHtml(cat.titre) + '</b><p>' + escapeHtml(cat.objectif) + '</p></div>'
+      : '');
+
+  // -- ② Mon action en cours -----------------------------------------------
+  let action = '';
+  if (s.action) {
+    action =
+      '<section class="acc-c acc-c-action">' +
+        '<p class="acc-c-sur">Mon action en cours' +
+          (s.action.decideeAEtape ? ' · décidée à l\'Étape ' + s.action.decideeAEtape : '') + '</p>' +
+        '<h3 class="acc-act-t">' + escapeHtml(s.action.intitule) + '</h3>' +
+        (s.action.detail ? '<p class="acc-act-d">' + escapeHtml(s.action.detail) + '</p>' : '') +
+        (s.action.frequence ? '<p class="acc-act-f">' + icSvg('calendar') + ' ' + escapeHtml(s.action.frequence) + '</p>' : '') +
+        (s.action.adhesion
+          ? '<p class="acc-act-a">Tu l\'avais notée ' + s.action.adhesion + '/10 quand vous l\'avez décidée.</p>' : '') +
+        '<p class="acc-act-n">Elle court jusqu\'à ton prochain rendez-vous. C\'est ton coach qui en fera le point avec toi.</p>' +
+      '</section>';
+  } else if (!clos && b.statut === 'a_demarrer') {
+    action =
+      '<section class="acc-c">' +
+        '<p class="acc-vide">Ton premier rendez-vous n\'a pas encore eu lieu. ' +
+          'C\'est lui qui lancera ton accompagnement et posera ta première action.</p>' +
+      '</section>';
+  }
+
+  // -- ③ Ce qu'a donné la précédente ---------------------------------------
+  const e = s.derniereEvaluation;
+  const verdict = e
+    ? '<section class="acc-c acc-c-verdict">' +
+        '<p class="acc-c-sur">Ce qu\'a donné la précédente' + (e.etape ? ' · Étape ' + e.etape : '') + '</p>' +
+        '<p class="acc-v-l"><span class="acc-v-p acc-v-' + String(e.resultat).replace(/_/g, '-') + '"></span>' +
+          escapeHtml(LIB_RESULTAT_BOOST[e.resultat] || '') + ' — ' + escapeHtml(e.intitule) + '</p>' +
+        (e.commentaire ? '<p class="acc-v-c">« ' + escapeHtml(e.commentaire) + ' »</p>' : '') +
+      '</section>'
+    : '';
+
+  // -- ④ Mon parcours -------------------------------------------------------
+  const parEtape = new Map((s.parcours || []).map((p) => [p.numero, p]));
+  const lignes = (b.etapes || []).map((et) => {
+    const c = etapeCatalogue(et.numero);
+    const p = parEtape.get(et.numero);
+    const faite = et.statut === 'validee';
+    const ici = !clos && et.numero === courante;
+    const marque = faite ? '✓' : ici ? '●' : '○';
+    const detail = faite && p
+      ? '<div class="acc-p-d">' +
+          (p.objectif && (p.objectif.texte || p.objectif.choix)
+            ? '<p>Ton objectif : « ' + escapeHtml(p.objectif.texte || p.objectif.choix) + ' »</p>' : '') +
+          (p.actionSuivie
+            ? '<p>' + escapeHtml(LIB_RESULTAT_BOOST[p.resultat] || 'Action suivie') + ' — ' + escapeHtml(p.actionSuivie) + '</p>' : '') +
+          (p.commentaireResultat ? '<p class="acc-p-c">« ' + escapeHtml(p.commentaireResultat) + ' »</p>' : '') +
+          (p.actionDecidee ? '<p>Action décidée : ' + escapeHtml(p.actionDecidee) + '</p>' : '') +
+        '</div>'
+      : '';
+    const corps =
+      '<span class="acc-p-m">' + marque + '</span>' +
+      '<span class="acc-p-tx"><b>' + et.numero + '. ' + escapeHtml(c ? c.titre : 'Étape ' + et.numero) + '</b>' +
+        '<span>' + escapeHtml(faite && et.valideeLe ? dateFrBoost(et.valideeLe) : (c ? c.objectif : '')) + '</span></span>';
+    return detail
+      ? '<details class="acc-p acc-p-faite"><summary>' + corps + '</summary>' + detail + '</details>'
+      : '<div class="acc-p' + (ici ? ' acc-p-ici' : '') + '">' + corps + '</div>';
+  }).join('');
+
+  const parcours = '<section class="acc-c"><p class="acc-c-sur">Mon parcours</p><div class="acc-ps">' + lignes + '</div></section>';
+
+  // -- ⑤ Mes règles (bilan) -------------------------------------------------
+  const regles = (s.regles && s.regles.length)
+    ? '<section class="acc-c acc-c-regles">' +
+        '<p class="acc-c-sur">Ce que tu emportes</p>' +
+        '<ul class="acc-r">' + s.regles.map((r) => '<li>' + escapeHtml(r) + '</li>').join('') + '</ul>' +
+      '</section>'
+    : '';
+
+  hote.innerHTML = brandMark() + entete + action + verdict + regles + parcours;
+}
+
+// Un anneau de progression en SVG : il se redessine avec la donnée et reste net
+// à toutes les tailles.
+function anneauBoost(pct) {
+  const r = 34, c = 2 * Math.PI * r;
+  const plein = Math.max(0, Math.min(100, pct)) / 100 * c;
+  return '<svg viewBox="0 0 80 80" role="img" aria-label="Progression : ' + pct + ' %">' +
+    '<circle cx="40" cy="40" r="' + r + '" fill="none" stroke="rgba(0,0,0,.08)" stroke-width="8" />' +
+    '<circle cx="40" cy="40" r="' + r + '" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" ' +
+      'stroke-dasharray="' + plein.toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 40 40)" />' +
+    '<text x="40" y="40" text-anchor="middle" dominant-baseline="central" class="acc-anneau-t">' + pct + '%</text>' +
+    '</svg>';
+}
+
+const dateFrBoost = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+};
+
 // ===========================================================================
 //  ADMINISTRATION DU BOOST NUTRITION  (compte ADMIN_EMAIL uniquement)
 //
@@ -5214,3 +5425,4 @@ async function badmChargerJournal(id) {
     return '<li>' + quoi + '<br><small>' + badmDateHeure(l.creeLe) + par + '</small>' + motif + '</li>';
   }).join('') + '</ol>';
 }
+

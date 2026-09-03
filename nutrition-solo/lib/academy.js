@@ -87,6 +87,11 @@ CREATE INDEX IF NOT EXISTS idx_academy_modules_f ON academy_modules(formation, a
 -- file d'attente.
 CREATE TABLE IF NOT EXISTS academy_preautorisations (
   email    TEXT PRIMARY KEY,
+  -- L'identité saisie par l'administrateur, en attente d'un compte à qui la
+  -- poser. NULLABLE : les lignes d'avant cette évolution n'en portent pas, et
+  -- une adresse sans nom reste une adresse parfaitement autorisée.
+  prenom   TEXT,
+  nom      TEXT,
   cree_le  TEXT NOT NULL,
   cree_par TEXT
 );
@@ -185,6 +190,9 @@ function createAcademy({ getDb, nowIso, boost, formations }) {
   // Aucune donnée n'est perdue, aucune ligne n'est réécrite.
   function migrerVersMultiFormation(d) {
     ajouterColonne(d, 'academy_modules', 'formation', `TEXT NOT NULL DEFAULT '${COACH_NUTRITION}'`);
+    // L'identité en file d'attente arrive après coup : nullable, sans défaut.
+    ajouterColonne(d, 'academy_preautorisations', 'prenom', 'TEXT');
+    ajouterColonne(d, 'academy_preautorisations', 'nom', 'TEXT');
 
     // academy_position change de CLÉ PRIMAIRE (email -> email + formation), et
     // SQLite ne sait pas l'altérer : il faut reconstruire. On le fait en une
@@ -261,28 +269,67 @@ function createAcademy({ getDb, nowIso, boost, formations }) {
 
   function listerPreautorisations() {
     assurerSchema();
-    return db().prepare('SELECT email, cree_le AS creeLe, cree_par AS creePar FROM academy_preautorisations ORDER BY email')
-      .all();
+    return db().prepare(`SELECT email, prenom, nom, cree_le AS creeLe, cree_par AS creePar
+                         FROM academy_preautorisations ORDER BY email`).all();
   }
 
   // Autoriser une adresse. DEUX CAS, et un seul résultat visible :
   //  · le compte existe  -> on accorde le droit TOUT DE SUITE, par definirRole ;
   //  · il n'existe pas   -> on mémorise l'intention, sans accorder aucun droit.
-  function preautoriser(email, par) {
+  //  L'IDENTITÉ VOYAGE AVEC L'AUTORISATION. L'administrateur saisit un prénom
+  //  et un nom ; selon que le compte existe ou non, ils sont posés tout de
+  //  suite sur le profil, ou mis en attente avec l'adresse.
+  //
+  //  ⚠️ CETTE FONCTION N'ACCORDE TOUJOURS AUCUN DROIT ELLE-MÊME. Le seul chemin
+  //  qui écrit un droit reste boost.definirRole ; on ne fait qu'y ajouter, à
+  //  côté, l'écriture d'un nom dans `users`. Deux tables, deux gestes, et la
+  //  règle des droits n'a pas bougé d'une ligne.
+  function preautoriser(email, par, identite) {
     assurerSchema();
     const mail = normMail(email);
     if (!mail) return { ok: false, status: 400, body: { ok: false, error: 'Adresse e-mail requise.' } };
+    const id = identite || {};
+    const prenom = String(id.prenom || '').trim().slice(0, 60);
+    const nom = String(id.nom || '').trim().slice(0, 60);
 
     if (boost.lireUtilisateur(mail)) {
       const r = boost.definirRole(mail, 'collaborateur', par);
-      // Le compte ayant été créé entre-temps, une éventuelle ligne d'attente
-      // n'a plus d'objet : on la retire pour qu'elle ne repromeuve jamais.
-      if (r.ok) db().prepare('DELETE FROM academy_preautorisations WHERE email = ?').run(mail);
+      if (r.ok) {
+        // Le compte existe : l'administrateur écrit son identité, et elle fait
+        // foi — c'est un geste délibéré sur un profil qu'il a sous les yeux.
+        // Un champ laissé vide ne l'efface pas pour autant.
+        if (prenom || nom) ecrireIdentite(mail, { prenom, nom });
+        // Une éventuelle ligne d'attente n'a plus d'objet : on la retire pour
+        // qu'elle ne repromeuve jamais.
+        db().prepare('DELETE FROM academy_preautorisations WHERE email = ?').run(mail);
+      }
       return r;
     }
-    db().prepare(`INSERT INTO academy_preautorisations (email, cree_le, cree_par) VALUES (?,?,?)
-                  ON CONFLICT(email) DO NOTHING`).run(mail, nowIso(), par || null);
+    db().prepare(`INSERT INTO academy_preautorisations (email, prenom, nom, cree_le, cree_par) VALUES (?,?,?,?,?)
+                  ON CONFLICT(email) DO UPDATE SET prenom = excluded.prenom, nom = excluded.nom`)
+      .run(mail, prenom || null, nom || null, nowIso(), par || null);
     return { ok: true, status: 200, body: { ok: true, enAttente: true } };
+  }
+
+  // Pose un prénom / un nom sur un compte. `remplacer: false` NE COMBLE QUE LE
+  // VIDE — c'est ce qu'on veut à la création d'un compte : la personne vient
+  // peut-être de saisir son propre prénom, et l'administration n'a pas à le
+  // corriger dans son dos.
+  function ecrireIdentite(email, { prenom, nom }, remplacer = true) {
+    const mail = normMail(email);
+    const d = db();
+    if (prenom) {
+      d.prepare(remplacer
+        ? 'UPDATE users SET prenom = ? WHERE email = ?'
+        : "UPDATE users SET prenom = ? WHERE email = ? AND COALESCE(TRIM(prenom), '') = ''")
+        .run(prenom, mail);
+    }
+    if (nom) {
+      d.prepare(remplacer
+        ? 'UPDATE users SET nom = ? WHERE email = ?'
+        : "UPDATE users SET nom = ? WHERE email = ? AND COALESCE(TRIM(nom), '') = ''")
+        .run(nom, mail);
+    }
   }
 
   function retirerPreautorisation(email) {
@@ -297,10 +344,13 @@ function createAcademy({ getDb, nowIso, boost, formations }) {
   function promouvoirSiPreautorise(email, par) {
     assurerSchema();
     const mail = normMail(email);
-    const attendu = db().prepare('SELECT email FROM academy_preautorisations WHERE email = ?').get(mail);
+    const attendu = db().prepare('SELECT email, prenom, nom FROM academy_preautorisations WHERE email = ?').get(mail);
     if (!attendu) return false;
     const r = boost.definirRole(mail, 'collaborateur', par || 'préautorisation');
     if (!r.ok) return false;
+    // L'identité mise en attente rejoint le compte qui vient de naître, SANS
+    // écraser ce que la personne aurait saisi elle-même à l'inscription.
+    ecrireIdentite(mail, { prenom: attendu.prenom, nom: attendu.nom }, false);
     db().prepare('DELETE FROM academy_preautorisations WHERE email = ?').run(mail);
     return true;
   }
@@ -374,9 +424,32 @@ function createAcademy({ getDb, nowIso, boost, formations }) {
     const tous = modules.flatMap((m) => m.contenus);
     const position = positionDe(mail, cle);
     const premierNonFait = tous.find((c) => !c.termine) || null;
-    const reprise = (position && tous.some((c) => c.id === position && !c.termine))
-      ? position
-      : (premierNonFait ? premierNonFait.id : null);
+    // DEUX QUESTIONS DIFFÉRENTES, ET IL FAUT LES SÉPARER.
+    //
+    //  · « CETTE POSITION EXISTE-T-ELLE ENCORE ? » — le contenu est-il toujours
+    //    actif, dans un module actif, dans CETTE formation. `tous` ne contient
+    //    que cela : le point de reprise est donc confronté à la réalité de la
+    //    base à chaque lecture, jamais accepté sur la foi de ce qui est mémorisé.
+    //
+    //  · « EST-CE LÀ QU'IL FAUT REPRENDRE ? » — il faut EN PLUS qu'il ne soit
+    //    pas terminé.
+    //
+    //  ⚠️ LES CONFONDRE EFFACE DES POSITIONS PARFAITEMENT VALIDES. Un contenu
+    //  terminé reste le dernier consulté : il n'est simplement pas la cible de
+    //  reprise. Traiter « terminé » comme « invalide » supprimait la ligne dès
+    //  qu'un coach finissait ce qu'il venait d'ouvrir.
+    const positionExiste = !!(position && tous.some((c) => c.id === position));
+    const positionOuvrable = !!(position && tous.some((c) => c.id === position && !c.termine));
+    const reprise = positionOuvrable ? position : (premierNonFait ? premierNonFait.id : null);
+
+    // On ne nettoie que ce qui a VRAIMENT disparu : l'administrateur a archivé
+    // le contenu où le coach s'était arrêté, et la ligne pointe désormais sur
+    // quelque chose qui n'existe plus pour lui. La laisser reviendrait à la
+    // réévaluer à chaque affichage, et à la laisser mener vers un cul-de-sac le
+    // jour où un appelant la lirait directement.
+    if (position && !positionExiste) {
+      db().prepare('DELETE FROM academy_position WHERE email = ? AND formation = ?').run(mail, cle);
+    }
 
     return {
       formation: cle,
@@ -452,9 +525,44 @@ function createAcademy({ getDb, nowIso, boost, formations }) {
     return ok({ contenu: c, formation: formationPour(mail, c.formation) });
   }
 
+  // ==========================================================================
+  //  REPRENDRE — LE SEUL CHEMIN QUI DÉCIDE OÙ ALLER.
+  //
+  //  ⚠️ LE BOUTON N'ENVOIE PLUS D'IDENTIFIANT. Il disait « ouvre le contenu 42 »,
+  //  avec un 42 calculé au moment où la page s'était affichée. Entre l'affichage
+  //  et le clic, l'administrateur peut avoir archivé ce contenu, archivé son
+  //  module, ou dépublié la formation — et le coach tombait sur « Contenu
+  //  introuvable », dans un écran sans issue.
+  //
+  //  Ici, la cible est RECALCULÉE au clic, à partir de la base : le dernier
+  //  contenu consulté s'il est toujours actif et accessible, sinon le premier
+  //  non terminé, sinon rien du tout — et « rien » est une réponse valable, pas
+  //  une erreur. C'est `formationPour` qui tranche, la même fonction qui dessine
+  //  la page : l'écran et le bouton ne peuvent donc pas être en désaccord.
+  function reprendre(email, formation) {
+    const mail = normalise(email);
+    const cle = cleFormation(formation);
+    const vue = formationPour(mail, cle);
+
+    // Aucun contenu ouvrable : on le DIT, et l'appelant reste sur la formation.
+    // Ni 404, ni redirection vers un écran d'erreur.
+    if (!vue.reprise) {
+      return ok({
+        aucunContenu: true,
+        formation: vue,
+        raison: vue.total === 0 ? 'vide' : 'acheve',
+      });
+    }
+    // La cible sort de `formationPour` : elle est donc active, dans un module
+    // actif, dans cette formation. `ouvrirContenu` la revérifie pour son propre
+    // compte — deux gardes valent mieux qu'une sur le chemin d'un cul-de-sac.
+    return ouvrirContenu(mail, vue.reprise);
+  }
+
   return {
-    assurerSchema, amorcer, peutSeFormer,
+    assurerSchema, amorcer, peutSeFormer, reprendre,
     listerPreautorisations, preautoriser, retirerPreautorisation, promouvoirSiPreautorise,
+    ecrireIdentite,
     formationPour, lireContenu, ouvrirContenu, terminerContenu,
     positionDe, progressionDe, modulesActifs, cleFormation,
   };

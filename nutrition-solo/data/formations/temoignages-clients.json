@@ -1,0 +1,135 @@
+{
+  "formation": {
+    "cle": "temoignages_clients",
+    "libelle": "Témoignages clients",
+    "description": "Apprends à repérer, recueillir et publier une vraie parole client. Les meilleurs témoignages existent déjà dans les conversations du studio : saisis le bon moment, propose sans imposer, recueille le consentement, filme simplement et fais sortir les trois informations qui donnent confiance.",
+    "categorie": "essentiel",
+    "titre": "Témoignages clients My Coach",
+    "qcmNbQuestions": 5,
+    "qcmSeuilPct": 80,
+    "miniNbQuestions": 5,
+    "miniSeuilPct": 80,
+    "pratiqueObligatoire": true,
+    "certificationActive": true
+  },
+  "modules": [
+    {
+      "titre": "Les témoignages clients",
+      "description": "Découvre le standard attendu, le format de la capsule courte et les trois questions qui la structurent, le bon moment pour proposer, les règles de consentement et de tournage, les formats complémentaires (vidéo parcours, témoignage de clôture) et la publication jusqu'à la story à la une.",
+      "video": {
+        "titre": "Les témoignages clients",
+        "youtubeId": "ctkmFS7hvQY",
+        "dureeMin": 7
+      },
+      "questions": []
+    }
+  ],
+  "finale": [
+    {
+      "enonce": "Quel est le standard attendu en matière de témoignages ?",
+      "choix": [
+        {
+          "texte": "Deux témoignages vidéo par mois et par studio, en privilégiant la régularité",
+          "correct": true
+        },
+        {
+          "texte": "Un témoignage vidéo par semaine et par coach du studio",
+          "correct": false
+        },
+        {
+          "texte": "Deux témoignages par trimestre, écrits ou vidéo au choix",
+          "correct": false
+        },
+        {
+          "texte": "Autant de témoignages que possible, sans objectif chiffré",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Quelles sont les trois informations qui doivent ressortir d'une capsule ?",
+      "choix": [
+        {
+          "texte": "Un résultat concret, le ressenti du client et le rôle de My Coach",
+          "correct": true
+        },
+        {
+          "texte": "Le prénom, l'âge et l'ancienneté du client dans le studio",
+          "correct": false
+        },
+        {
+          "texte": "L'objectif de départ, le programme suivi et les chiffres de la dernière pesée",
+          "correct": false
+        },
+        {
+          "texte": "Le nom du coach, la fréquence des séances et le tarif de l'offre",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Quel est le format de la capsule courte ?",
+      "choix": [
+        {
+          "texte": "Une vidéo verticale de 30 à 60 secondes, tournée au smartphone, visage et buste dans le cadre",
+          "correct": true
+        },
+        {
+          "texte": "Une vidéo horizontale de deux à trois minutes, tournée en caméra",
+          "correct": false
+        },
+        {
+          "texte": "Un format libre, dès lors que le son est de bonne qualité",
+          "correct": false
+        },
+        {
+          "texte": "Une vidéo verticale de trois minutes minimum pour laisser parler le client",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Que suppose le consentement du client avant de filmer ?",
+      "choix": [
+        {
+          "texte": "Qu'il sache pourquoi on filme et où la vidéo sera diffusée, et qu'un refus soit respecté sans pression",
+          "correct": true
+        },
+        {
+          "texte": "Qu'il signe une autorisation écrite avant chaque tournage",
+          "correct": false
+        },
+        {
+          "texte": "Qu'il valide le montage final avant toute publication",
+          "correct": false
+        },
+        {
+          "texte": "Qu'il accepte oralement, la finalité pouvant lui être expliquée après le tournage",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Dans quel cas un témoignage de clôture est-il exclu ?",
+      "choix": [
+        {
+          "texte": "En cas de conflit : il suppose un départ sain et un client ouvert à l'idée",
+          "correct": true
+        },
+        {
+          "texte": "Lorsque le client part avant la fin de son challenge",
+          "correct": false
+        },
+        {
+          "texte": "Lorsque le client n'a pas obtenu de résultat chiffré",
+          "correct": false
+        },
+        {
+          "texte": "Lorsque le client a déjà donné un témoignage pendant son accompagnement",
+          "correct": false
+        }
+      ]
+    }
+  ],
+  "cas": []
+}

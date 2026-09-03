@@ -1,0 +1,135 @@
+{
+  "formation": {
+    "cle": "vocaux_equipe",
+    "libelle": "Vocaux d'équipe",
+    "description": "Apprends à faire remonter chaque jour l'information du studio par un vocal court et structuré. Le coach leader ne peut pas être partout : présence, pesées, incidents, temps libres, signatures et résiliations doivent lui parvenir au bon moment, sur un seul canal, pour déclencher les bonnes actions.",
+    "categorie": "essentiel",
+    "titre": "Vocaux d'équipe My Coach",
+    "qcmNbQuestions": 5,
+    "qcmSeuilPct": 80,
+    "miniNbQuestions": 5,
+    "miniSeuilPct": 80,
+    "pratiqueObligatoire": true,
+    "certificationActive": true
+  },
+  "modules": [
+    {
+      "titre": "Vocaux d'équipe",
+      "description": "Découvre qui envoie quoi et quand, la durée à respecter, le canal unique, les cinq blocs du vocal coach et les quatre blocs du vocal commercial, ainsi que le rôle du coach leader qui écoute, contrôle et surtout exploite chaque information remontée.",
+      "video": {
+        "titre": "Vocaux d'équipe",
+        "youtubeId": "B7ppg-HOvTQ",
+        "dureeMin": 6
+      },
+      "questions": []
+    }
+  ],
+  "finale": [
+    {
+      "enonce": "Quelle est la durée maximale d'un vocal info ?",
+      "choix": [
+        {
+          "texte": "Une minute : au-delà, ce n'est plus un vocal mais un compte-rendu",
+          "correct": true
+        },
+        {
+          "texte": "Trois minutes, le temps de détailler chaque situation rencontrée",
+          "correct": false
+        },
+        {
+          "texte": "Trente secondes, pour ne garder que le point le plus important",
+          "correct": false
+        },
+        {
+          "texte": "Il n'y a pas de durée maximale, seule la clarté compte",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Sur quel canal les vocaux doivent-ils être envoyés ?",
+      "choix": [
+        {
+          "texte": "Uniquement le canal Slack dédié du studio — ni WhatsApp, ni SMS, ni message privé, ni mail",
+          "correct": true
+        },
+        {
+          "texte": "Le canal le plus pratique sur le moment, tant que l'information passe",
+          "correct": false
+        },
+        {
+          "texte": "En message privé au coach leader, pour ne pas encombrer l'équipe",
+          "correct": false
+        },
+        {
+          "texte": "Par mail, afin de conserver une trace écrite consultable plus tard",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "À quel rythme un coach envoie-t-il son vocal ?",
+      "choix": [
+        {
+          "texte": "À la fin de chaque demi-journée travaillée, une fois ses coachings terminés et le studio rangé",
+          "correct": true
+        },
+        {
+          "texte": "Une fois par jour, en fin de journée, en résumant les deux demi-journées",
+          "correct": false
+        },
+        {
+          "texte": "Une fois par semaine, en synthétisant les faits marquants",
+          "correct": false
+        },
+        {
+          "texte": "Uniquement les jours où un incident ou une absence est à signaler",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Une pesée prévue n'a pas été réalisée. Que doit contenir le vocal ?",
+      "choix": [
+        {
+          "texte": "Le fait qu'elle n'a pas été faite ET la raison, pour que le coach leader puisse la reprogrammer",
+          "correct": true
+        },
+        {
+          "texte": "Uniquement le fait qu'elle n'a pas été faite : la raison se verra plus tard",
+          "correct": false
+        },
+        {
+          "texte": "Rien : on ne signale que les pesées effectivement réalisées",
+          "correct": false
+        },
+        {
+          "texte": "Une proposition de nouvelle date, sans avoir à en expliquer le motif",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "enonce": "Un client résilie et le commercial ignore pourquoi. Que dit-il dans son vocal ?",
+      "choix": [
+        {
+          "texte": "Il dit qu'il ne connaît pas la raison : on n'invente jamais un motif de départ",
+          "correct": true
+        },
+        {
+          "texte": "Il indique le motif le plus probable au vu du dossier du client",
+          "correct": false
+        },
+        {
+          "texte": "Il omet la résiliation tant que la raison n'est pas connue",
+          "correct": false
+        },
+        {
+          "texte": "Il note « départ sans motif », formule neutre qui clôt le sujet",
+          "correct": false
+        }
+      ]
+    }
+  ],
+  "cas": []
+}

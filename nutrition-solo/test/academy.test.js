@@ -398,7 +398,12 @@ test('l\'écran dit franchement que « terminer » est une déclaration', () => 
   // On ne peut pas prouver qu'une vidéo a été regardée. Le texte ne doit pas
   // laisser croire le contraire.
   assert.ok(/quand tu as regardé/i.test(js), 'la confirmation est demandée explicitement');
-  assert.ok(!/vérifi(é|ons)|prouv|contrôl/i.test(js.slice(js.indexOf('function rendreLecteur'))),
+  // LE PÉRIMÈTRE EST LA FONCTION, PAS TOUT CE QUI LA SUIT. « …jusqu'à la fin du
+  // fichier » attrapait n'importe quel « contrôle » écrit ailleurs — l'aperçu
+  // d'administration, par exemple, qui n'a rien à voir avec le lecteur.
+  const lecteur = js.slice(js.indexOf('function rendreLecteur'), js.indexOf('function versEtapes'));
+  assert.ok(lecteur.length > 300, 'le lecteur doit être délimité');
+  assert.ok(!/vérifi(é|ons)|prouv|contrôl/i.test(lecteur),
     'aucune promesse de vérification');
 });
 
@@ -501,9 +506,44 @@ test('« Évaluer & certifier » n\'apparaît QUE pour qui a le droit d\'évalue
 });
 
 test('« Administrer » n\'apparaît QUE pour un administrateur', () => {
-  assert.deepStrictEqual(entreesNav(false, true, ic), ['academy', 'outils', 'administrer']);
-  assert.deepStrictEqual(entreesNav(true, true, ic), ['academy', 'outils', 'evaluer', 'administrer']);
+  assert.deepStrictEqual(entreesNav(false, true, ic), ['academy', 'outils', 'collaborateurs', 'administrer']);
+  assert.deepStrictEqual(entreesNav(true, true, ic),
+    ['academy', 'outils', 'evaluer', 'collaborateurs', 'administrer']);
   assert.ok(!entreesNav(true, false, ic).includes('administrer'), 'un évaluateur non admin ne la voit pas');
+});
+
+test('L\'ORDRE DE LA BARRE EST CELUI QUI A ÉTÉ DÉCIDÉ', () => {
+  // Mon Academy · Boîte à outils · Évaluer & certifier · Collaborateurs · Administrer.
+  assert.deepStrictEqual(entreesNav(true, true, ic),
+    ['academy', 'outils', 'evaluer', 'collaborateurs', 'administrer']);
+});
+
+test('« Collaborateurs » est une DESTINATION, et réservée à l\'administrateur', () => {
+  // Elle a quitté les onglets de « Administrer ». Le droit, lui, n'a pas bougé :
+  // elle n'apparaît que pour un administrateur, et les routes restent gardées
+  // par exigeAdmin côté serveur.
+  assert.ok(entreesNav(false, true, ic).includes('collaborateurs'), 'l\'administrateur la voit');
+  for (const [ev, adm] of [[false, false], [true, false]]) {
+    assert.ok(!entreesNav(ev, adm, ic).includes('collaborateurs'),
+      `un compte non administrateur ne doit pas la voir (eval=${ev})`);
+  }
+  // Et elle mène à son propre écran, pas à un onglet de l'administration.
+  assert.ok(/if \(ou === 'collaborateurs'\) \{ await ouvrirCollaborateurs\(\); return; \}/.test(js),
+    'la navigation doit ouvrir l\'écran dédié');
+  assert.ok(/id="acCollab"/.test(html), 'l\'écran dédié doit exister');
+  // Le doublon est retiré : plus d'onglet « Collaborateurs » dans Administrer.
+  // La Boîte à outils, puis le droit de certifier, l'ont suivi depuis — il ne
+  // reste plus aucun onglet.
+  // LA BARRE D'ONGLETS EST REVENUE — avec DEUX sujets, pas cinq : les contenus,
+  // et l'aperçu des évaluations pratiques. Ce que ce test protège n'a pas
+  // changé : « Collaborateurs » n'y est PAS revenu.
+  assert.deepStrictEqual(
+    (js.match(/\{ cle: '([a-z]+)', libelle: '[^']*' \}/g) || []).length >= 2, true,
+    'les onglets d\'administration doivent être déclarés');
+  const onglets = js.slice(js.indexOf('const ONGLETS_ADMIN'), js.indexOf('let admOnglet'));
+  assert.ok(/'contenus'/.test(onglets) && /'apercu'/.test(onglets), 'les deux onglets attendus');
+  assert.ok(!/collaborateurs|outils|evaluateurs|certifications/.test(onglets),
+    'aucun onglet déplacé ne doit être revenu dans Administrer');
 });
 
 test('la Boîte à outils est ouverte à TOUS ceux qui entrent dans l\'Academy', () => {
@@ -588,4 +628,237 @@ test('le rail « Ton parcours » a bien disparu de l\'accueil', () => {
   }
   // Et la grille des cartes reprend l'espace libéré.
   assert.ok(/\.ac-fcs \{[^}]*margin-bottom: 40px/.test(css), 'la grille doit occuper toute la largeur');
+});
+
+// ===========================================================================
+//  LES QUATRE INDICATEURS SONT DES FILTRES
+//
+//  Le dashboard affiche quatre chiffres. Ils sont désormais cliquables et
+//  filtrent la grille. LE POINT DUR N'EST PAS LE CLIC, C'EST LA COHÉRENCE :
+//  une tuile qui annonce « 3 » doit en montrer trois. Le code le garantit en
+//  faisant lire au compteur et au filtre le MÊME prédicat (KPIS[].garde) ;
+//  ces tests le vérifient en exécutant réellement les deux.
+// ===========================================================================
+
+// On exécute le vrai code de l'écran, pas une copie : les deux blocs sont
+// extraits du fichier servi au navigateur.
+const SRC_KPIS = js.slice(js.indexOf('const KPIS = ['), js.indexOf('let accueilTri'));
+const SRC_FILTRE = js.slice(js.indexOf('function formationsAffichees'), js.indexOf('async function ouvrirAccueil'));
+// Le drapeau de la mosaïque Leader, extrait lui aussi du fichier servi : le
+// filtre l'appelle, et on exécute le vrai code plutôt qu'une redite de la règle.
+const SRC_MOSAIQUE = js.slice(js.indexOf('const CAT_ELITES'), js.indexOf('function formationsAffichees'));
+
+// Un catalogue de six formations couvrant les quatre statuts.
+const CATALOGUE_T = [
+  { cle: 'a', libelle: 'A', certificationActive: true, categorie: 'essentiel', pourcentage: 0 },
+  { cle: 'b', libelle: 'B', certificationActive: true, categorie: 'essentiel', pourcentage: 40 },
+  { cle: 'c', libelle: 'C', certificationActive: true, categorie: 'expertise', pourcentage: 70 },
+  { cle: 'd', libelle: 'D', certificationActive: true, categorie: 'expertise', pourcentage: 100 },
+  { cle: 'e', libelle: 'E', certificationActive: true, categorie: 'expertise', pourcentage: 100 },
+  { cle: 'f', libelle: 'F', certificationActive: false, categorie: 'essentiel', pourcentage: 0 },
+];
+const STATUT_T = {
+  a: 'a_commencer', b: 'en_cours', c: 'en_cours',
+  d: 'theorie', e: 'certifie', f: 'a_commencer',
+};
+
+// Le filtre tel que l'écran l'applique, pour un statut donné.
+function filtrer(statut, extra) {
+  const o = extra || {};
+  const fn = new Function('catalogue', 'statutDe', 'accueilFiltre', 'accueilCategorie',
+    'accueilStatut', 'accueilTri', 'ORDRE_STATUT',
+    SRC_KPIS + SRC_MOSAIQUE + SRC_FILTRE + '; return formationsAffichees();');
+  return fn(CATALOGUE_T, (f) => STATUT_T[f.cle],
+    o.filtre || 'toutes', o.categorie || 'toutes', statut, o.tri || 'statut',
+    ['en_cours', 'theorie', 'a_commencer', 'certifie']).map((x) => x.f.cle);
+}
+
+// Le compteur tel que la tuile l'affiche.
+function compterTuiles() {
+  const fn = new Function('SRC', SRC_KPIS + '; return KPIS;');
+  const kpis = fn();
+  const toutes = CATALOGUE_T.map((f) => ({ f, st: STATUT_T[f.cle] }));
+  return kpis.map((k) => [k.cle, k.garde ? toutes.filter((x) => k.garde(x.st)).length : toutes.length]);
+}
+
+test('les quatre indicateurs filtrent le statut qu\'ils annoncent', () => {
+  // « Formations disponibles » : tout, sans exception.
+  assert.deepStrictEqual(filtrer('tous').sort(), ['a', 'b', 'c', 'd', 'e', 'f']);
+  // « En cours » : commencées mais pas terminées.
+  assert.deepStrictEqual(filtrer('en_cours').sort(), ['b', 'c']);
+  // « Théorie validée » : théorie passée — la certification l'ayant exigée,
+  // une formation certifiée en fait partie.
+  assert.deepStrictEqual(filtrer('theorie').sort(), ['d', 'e']);
+  // « Certification obtenue » : le diplôme, et lui seul.
+  assert.deepStrictEqual(filtrer('certifie').sort(), ['e']);
+});
+
+test('LE CHIFFRE DE LA TUILE EST LE NOMBRE DE CARTES QU\'ELLE OUVRE', () => {
+  // L'invariant du lot. Compteur et filtre lisent le même prédicat ; on le
+  // vérifie en exécutant les deux et en comparant.
+  for (const [cle, n] of compterTuiles()) {
+    assert.strictEqual(filtrer(cle).length, n,
+      `la tuile « ${cle} » annonce ${n} formation(s) et son filtre en montre ${filtrer(cle).length}`);
+  }
+});
+
+test('un statut inconnu ne filtre rien plutôt que de vider la grille', () => {
+  // kpiDe() se rabat sur la première tuile — « tous ». Une valeur d'état
+  // abîmée doit donner le catalogue entier, jamais un écran vide inexplicable.
+  assert.deepStrictEqual(filtrer('nimportequoi').sort(), ['a', 'b', 'c', 'd', 'e', 'f']);
+});
+
+test('le filtre par statut est ORTHOGONAL aux deux autres', () => {
+  // Choisir un statut ne fait sortir ni de « Mes certifications », ni de la
+  // catégorie ouverte : les trois filtres se cumulent.
+  assert.deepStrictEqual(filtrer('en_cours', { categorie: 'expertise' }), ['c']);
+  assert.deepStrictEqual(filtrer('tous', { categorie: 'essentiel' }).sort(), ['a', 'b', 'f']);
+  assert.deepStrictEqual(filtrer('tous', { filtre: 'certifiantes' }).sort(), ['a', 'b', 'c', 'd', 'e'],
+    'F n\'est pas certifiante');
+  assert.deepStrictEqual(filtrer('certifie', { filtre: 'certifiantes', categorie: 'expertise' }), ['e']);
+});
+
+test('les indicateurs sont des BOUTONS, atteignables au clavier', () => {
+  const bloc = js.slice(js.indexOf('function rendreAccueil'), js.indexOf('function etapesDe'));
+  assert.ok(/<button type="button" class="ac-kpi/.test(bloc), 'une tuile doit être un bouton, pas un div');
+  assert.ok(/aria-pressed="/.test(bloc), 'l\'état actif doit être annoncé aux lecteurs d\'écran');
+  assert.ok(/data-kpi="/.test(bloc), 'chaque tuile porte le statut qu\'elle applique');
+  // Les libellés et les compteurs des TUILES se dérivent de KPIS : aucun
+  // statut écrit à la main dans le bandeau. On ne regarde que ce bandeau —
+  // ailleurs, les cartes comparent légitimement leur propre statut.
+  const bandeau = bloc.slice(bloc.indexOf('<nav class="ac-kpis"'), bloc.indexOf("'</nav>'"));
+  assert.ok(bandeau.length > 200, 'le bandeau des indicateurs doit être délimité');
+  assert.ok(/KPIS\.map/.test(bandeau), 'les tuiles doivent se dériver de KPIS');
+  for (const st of ['en_cours', 'theorie', 'certifie']) {
+    assert.ok(!new RegExp("'" + st + "'").test(bandeau),
+      `« ${st} » est écrit en dur dans le bandeau : il doit venir de KPIS`);
+  }
+  // Et aucun libellé de tuile n'y est écrit non plus.
+  for (const mot of ['En cours', 'Théorie validée', 'Certification obtenue']) {
+    assert.ok(!bandeau.includes(mot), `« ${mot} » est écrit en dur dans le bandeau`);
+  }
+});
+
+test('l\'état actif se voit, et l\'icône garde sa couleur de famille', () => {
+  assert.ok(/\.ac-kpi\.on\s*\{/.test(css), 'l\'indicateur actif doit avoir un style');
+  assert.ok(/\.ac-kpi:focus-visible/.test(css), 'et un anneau de focus au clavier');
+  assert.ok(/\.ac-kpi\s*\{[^}]*cursor:\s*pointer/.test(css), 'la tuile doit se signaler cliquable');
+  // La pastille colorée distingue les quatre familles : la repeindre en bleu
+  // à l'état actif les rendrait indiscernables.
+  assert.ok(!/\.ac-kpi\.on\s+\.ac-kpi-ic/.test(css), 'l\'état actif ne doit pas repeindre l\'icône');
+});
+
+test('le clic descend vers la grille, sans remonter en haut au passage', () => {
+  const bloc = js.slice(js.indexOf("document.querySelectorAll('#acAccueil [data-kpi]')"),
+    js.indexOf('const tri = $(\'#acTri\')'));
+  assert.ok(bloc.length > 200, 'le geste doit être délimité');
+  assert.ok(/sansRemonter: true/.test(bloc), 'le re-rendu ne doit pas ramener en haut de page');
+  assert.ok(/scrollIntoView/.test(bloc) && /smooth/.test(bloc), 'le défilement doit être fluide');
+  assert.ok(/prefers-reduced-motion/.test(bloc), 'et respecter « animations réduites »');
+  // Le retour à la vue complète : « tous », ou un second clic sur la tuile active.
+  assert.ok(/cle === 'tous' \|\| cle === accueilStatut/.test(bloc),
+    'un nouveau clic doit ramener à la vue complète');
+  // La cible est relue APRÈS le rendu — innerHTML a remplacé le DOM.
+  assert.ok(bloc.indexOf('rendreAccueil(') < bloc.indexOf("$('#acGrilleH')"),
+    'la cible du défilement doit être relue après le re-rendu');
+  assert.ok(/id="acGrilleH"/.test(js), 'la grille doit porter une ancre');
+});
+
+// ===========================================================================
+//  LA MOSAÏQUE E.L.I.T.E.S — la famille Leader s'affiche en 3 × 2.
+//
+//  CE QUE CETTE SUITE PROUVE :
+//
+//   1. LA POSITION PORTE DU SENS. Les six incontournables se lisent
+//      E | L | I / T | E | S : leur ordre est celui du catalogue, et AUCUN
+//      tri ne le déplace — sans quoi l'acronyme ne tiendrait pas.
+//   2. LA MOSAÏQUE NE DÉBORDE PAS. Essentiel et Expertise gardent la grille
+//      générique et leur tri.
+//   3. RIEN D'AUTRE NE CHANGE : mêmes cartes, mêmes filtres, une classe de
+//      plus sur la grille.
+// ===========================================================================
+
+// Six formations Leader, dans l'ordre où le serveur les sert (`ordre`, puis
+// clé) — et des statuts volontairement mélangés : c'est ce qui ferait bouger
+// les cartes si le tri l'emportait.
+const ELITES_T = [
+  { cle: 'engagement', libelle: 'Engagement', certificationActive: true, categorie: 'management', pourcentage: 100 },
+  { cle: 'loyal', libelle: 'Loyal', certificationActive: true, categorie: 'management', pourcentage: 0 },
+  { cle: 'infos', libelle: 'Infos', certificationActive: true, categorie: 'management', pourcentage: 40 },
+  { cle: 'team', libelle: 'Team', certificationActive: true, categorie: 'management', pourcentage: 0 },
+  { cle: 'eclat', libelle: 'Éclat', certificationActive: true, categorie: 'management', pourcentage: 70 },
+  { cle: 'succes', libelle: 'Succès', certificationActive: true, categorie: 'management', pourcentage: 0 },
+];
+const ELITES_ST = {
+  engagement: 'certifie', loyal: 'a_commencer', infos: 'en_cours',
+  team: 'a_commencer', eclat: 'en_cours', succes: 'a_commencer',
+};
+const ORDRE_ELITES = ['engagement', 'loyal', 'infos', 'team', 'eclat', 'succes'];
+
+function afficherElites(categorie, tri) {
+  const fn = new Function('catalogue', 'statutDe', 'accueilFiltre', 'accueilCategorie',
+    'accueilStatut', 'accueilTri', 'ORDRE_STATUT',
+    SRC_KPIS + SRC_MOSAIQUE + SRC_FILTRE + '; return formationsAffichees();');
+  return fn(ELITES_T, (f) => ELITES_ST[f.cle], 'toutes', categorie, 'tous', tri,
+    ['en_cours', 'theorie', 'a_commencer', 'certifie']).map((x) => x.f.cle);
+}
+
+test('LA MOSAÏQUE TIENT SON ORDRE E-L-I / T-E-S, quel que soit le tri', () => {
+  for (const tri of ['statut', 'progression', 'nom']) {
+    assert.deepStrictEqual(afficherElites('management', tri), ORDRE_ELITES,
+      `le tri « ${tri} » a déplacé une carte de la mosaïque`);
+  }
+});
+
+test('HORS de la famille Leader, le tri reprend ses droits', () => {
+  // Les mêmes six formations, vues depuis « toutes » : le tri par statut les
+  // réordonne, et c'est le comportement d'avant, inchangé.
+  const parStatut = afficherElites('toutes', 'statut');
+  assert.notDeepStrictEqual(parStatut, ORDRE_ELITES,
+    'sans le filtre Leader, le tri par statut doit continuer de réordonner');
+  assert.deepStrictEqual([...parStatut].sort(), [...ORDRE_ELITES].sort(),
+    'le tri ne doit ni perdre ni ajouter de formation');
+  // Et le tri par nom reste le tri par nom.
+  assert.deepStrictEqual(afficherElites('toutes', 'nom'),
+    ['Éclat', 'Engagement', 'Infos', 'Loyal', 'Succès', 'Team']
+      .map((l) => ELITES_T.find((f) => f.libelle === l).cle));
+});
+
+test('LA MOSAÏQUE EST UNE CLASSE, PAS UN SECOND RENDU DE CARTE', () => {
+  const bloc = js.slice(js.indexOf('function rendreAccueil'), js.indexOf('function etapesDe'));
+  // Une seule grille, une classe conditionnelle : les cartes rendues sont les
+  // mêmes (image, statut, titre, description, progression, bouton).
+  assert.ok(/'<div class="ac-fcs' \+ \(mosaiqueElites\(\) \? ' ac-fcs-elites' : ''\)/.test(bloc),
+    'la grille doit porter la classe de mosaïque, sans dupliquer le rendu');
+  assert.strictEqual((bloc.match(/liste\.map\(carte\)/g) || []).length, 1,
+    'il ne doit exister qu\'UN rendu de cartes');
+  // Le tri s'efface là où il n'aurait aucun effet.
+  assert.ok(/mosaiqueElites\(\) \? '' :\s*'<label class="ac-tri">/.test(bloc),
+    'le sélecteur de tri doit disparaître sur la mosaïque');
+});
+
+test('LA MOSAÏQUE VISE LA CLÉ TECHNIQUE, jamais le libellé affiché', () => {
+  const bloc = js.slice(js.indexOf('const CAT_ELITES'), js.indexOf('function formationsAffichees'));
+  assert.ok(/CAT_ELITES = 'management'/.test(bloc),
+    'la mosaïque doit se brancher sur la clé stockée, que « Leader » ne fait qu\'afficher');
+  assert.ok(!/Leader/.test(bloc.replace(/\/\/.*$/gm, '')),
+    'le libellé ne doit pas servir de test : le renommer casserait la mosaïque');
+  const { CATEGORIES } = require('../lib/academyFormations');
+  assert.ok(CATEGORIES.includes('management'),
+    'la clé de la mosaïque doit être une catégorie que le serveur accepte');
+});
+
+test('LES TROIS PALIERS DE LA MOSAÏQUE : 3, puis 2, puis 1 colonne', () => {
+  const i = css.indexOf('.ac-fcs.ac-fcs-elites');
+  assert.ok(i > 0, 'la mosaïque doit exister en CSS');
+  const bloc = css.slice(i);
+  assert.ok(/\.ac-fcs\.ac-fcs-elites \{ grid-template-columns: repeat\(3, 1fr\); \}/.test(bloc),
+    'trois colonnes fixes sur desktop');
+  assert.ok(/max-width: 1040px\).*repeat\(2, 1fr\)/s.test(bloc), 'deux colonnes en tablette');
+  assert.ok(/max-width: 620px\).*\.ac-fcs\.ac-fcs-elites \{ grid-template-columns: 1fr/s.test(bloc),
+    'une colonne en mobile');
+  // Le sélecteur DOUBLE est ce qui empêche la règle mobile de `.ac-fcs` de
+  // ramener la mosaïque à une colonne sur tous les écrans.
+  assert.ok(!/^\.ac-fcs-elites \{/m.test(bloc),
+    'la mosaïque doit rester en sélecteur double, sinon la règle mobile de .ac-fcs l\'emporte');
 });

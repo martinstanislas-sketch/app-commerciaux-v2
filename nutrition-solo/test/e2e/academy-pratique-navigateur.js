@@ -178,90 +178,91 @@ async function validerQcm(jeton) {
   // =========================================================================
   console.log('\n0. GESTION DES ÉVALUATEURS');
 
-  await etape('l\'administrateur entre dans l\'Academy et voit la gestion', async () => {
-    // Il n'est ni collaborateur ni évaluateur : il arrive directement sur ce
-    // qui le concerne, sans sommaire vide.
+  // =========================================================================
+  //  LE DROIT DE CERTIFIER S'ADMINISTRE DANS « COLLABORATEURS ».
+  //
+  //  L'écran « Administrer > Évaluateurs » a disparu : le droit se bascule
+  //  d'un interrupteur, dans la ligne de la personne qu'il concerne. Le droit,
+  //  lui, n'a pas changé — même table, même route, même garde serveur.
+  // =========================================================================
+
+  const ligneCollab = (mail) => page.locator('#acCollab .ac-adm-ligne', { hasText: mail });
+  async function ouvrirCollaborateurs() {
+    await page.click('[data-nav="collaborateurs"]');
+    await page.waitForSelector('#acCollab:not([hidden])');
+    await page.waitForSelector('#acCollab .ac-adm-ligne');
+  }
+  const droitDe = async (email, pin) =>
+    (await get('/api/academy/moi', (await jsonp('/account/login', { email, pin })).token)).evaluateur;
+
+  await etape('l\'administrateur ouvre Collaborateurs, et personne n\'est certificateur', async () => {
     await seConnecter(ADMIN, '7777', '#acAdmin');
+    await ouvrirCollaborateurs();
     const t = await contenu();
-    if (!/Évaluateurs/.test(t)) throw new Error('titre absent');
-    if (!/sans être administrateur/.test(t)) throw new Error('la règle n\'est pas rappelée');
-    if (!/0 évaluateur autorisé/.test(t)) throw new Error('le compteur devrait partir de zéro : ' + (t.match(/\d+ évaluateurs? autorisés?/) || ['—'])[0]);
+    if (!/Certificateur/.test(t)) throw new Error('le rôle n\'est pas nommé à l\'écran');
+    if (!/ouvre en plus/.test(t)) throw new Error('l\'écran doit dire ce que le droit donne');
+    const allumes = await page.locator('#acCollab .ac-sw-on').count();
+    if (allumes !== 0) throw new Error('personne ne devrait être certificateur, vu : ' + allumes);
   });
 
-  await etape('chaque compte affiche son état « Évaluateur / Non évaluateur »', async () => {
-    const lignes = await page.locator('.ac-adm-l').count();
+  await etape('chaque collaborateur porte son interrupteur, éteint', async () => {
+    const lignes = await page.locator('#acCollab .ac-adm-ligne').count();
     if (lignes < 3) throw new Error('les trois collaborateurs devraient être listés, vu : ' + lignes);
-    if (await page.locator('.ac-etat-eval-oui').count() !== 0) throw new Error('personne ne devrait être évaluateur');
-    if (await page.locator('.ac-etat-eval-non').count() !== lignes) throw new Error('tous devraient être « Non évaluateur »');
-    const t = await contenu();
-    if (!/Non évaluateur/.test(t)) throw new Error('l\'état n\'est pas nommé');
-    if (!/Désigner comme évaluateur/.test(t)) throw new Error('le geste n\'est pas proposé');
+    const interrupteurs = await page.locator('#acCollab .ac-sw-in').count();
+    if (interrupteurs < 3) throw new Error('chaque ligne doit porter son interrupteur, vu : ' + interrupteurs);
+    for (const mail of [EVA, THEO]) {
+      if (await ligneCollab(mail).locator('.ac-sw-in').isChecked()) {
+        throw new Error('ne devrait pas être certificateur : ' + mail);
+      }
+    }
   });
 
-  await etape('il désigne Eva évaluatrice, et l\'état bascule', async () => {
-    await page.locator('.ac-adm-l', { hasText: EVA }).getByText('Désigner comme évaluateur').click();
-    await page.waitForFunction((mail) => {
-      const l = [...document.querySelectorAll('.ac-adm-l')].find((x) => x.textContent.includes(mail));
-      return l && l.querySelector('.ac-etat-eval-oui');
-    }, EVA);
-    // On lit le texte BRUT : la pastille est en petites capitales par CSS, et
-    // innerText renverrait le texte transformé.
-    const ligne = page.locator('.ac-adm-l', { hasText: EVA });
-    const brut = await ligne.evaluate((el) => el.textContent);
-    // textContent colle les éléments sans espace : pas de \b utilisable ici.
-    if (!brut.replace('Non évaluateur', '').includes('Évaluateur')) throw new Error('l\'état n\'a pas basculé : ' + brut);
-    if (!/Retirer le droit d'évaluer/.test(brut)) throw new Error('le geste inverse n\'est pas proposé');
-    if (/Désigner comme évaluateur/.test(brut)) throw new Error('on propose encore de la désigner');
-    if (!/1 évaluateur autorisé/.test(await contenu())) throw new Error('le compteur n\'a pas suivi');
+  await etape('il rend Eva certificatrice d\'un clic, et le serveur suit', async () => {
+    await ligneCollab(EVA).locator('.ac-cert-sw').click();
+    await page.waitForSelector('.ac-adm-flash');
+    const msg = await page.locator('.ac-adm-flash').textContent();
+    if (!/Droit de certificateur activé/.test(msg)) throw new Error('le retour visuel manque : ' + msg);
+    if (!(await ligneCollab(EVA).locator('.ac-sw-in').isChecked())) throw new Error('l\'interrupteur n\'a pas basculé');
     // Et le SERVEUR l'a bien enregistré, ce qui est la seule chose qui compte.
-    const moi = await get('/api/academy/moi', (await jsonp('/account/login', { email: EVA, pin: '3003' })).token);
-    if (moi.evaluateur !== true) throw new Error('le droit n\'a pas été accordé côté serveur');
+    if (await droitDe(EVA, '3003') !== true) throw new Error('le droit n\'a pas été accordé côté serveur');
   });
 
   await etape('l\'administrateur, lui, évalue et certifie D\'OFFICE', async () => {
-    // La règle a changé de sens (lot 7) : administrer implique évaluer et
-    // certifier. Ce qui reste vrai, et que la suite éprouve : il n\'a PAS pour
-    // autant de ligne de désignation, et il ne s\'évalue jamais lui-même.
+    // La règle n'a pas bougé : administrer implique évaluer et certifier. Ce
+    // qui reste vrai, et que la suite éprouve : il n'a PAS pour autant de ligne
+    // de droit en base, et il ne s'évalue jamais lui-même.
     const moi = await get('/api/academy/moi', jetonAdmin);
     if (moi.admin !== true) throw new Error('il devrait rester administrateur');
     if (moi.evaluateur !== true) throw new Error('un administrateur doit évaluer d\'office');
     const l = await get('/api/academy/evaluateur/coachs', jetonAdmin);
     if (!l.ok) throw new Error('l\'espace « Évaluer & certifier » lui est fermé');
-    // Son droit ne vient pas d\'une ligne : le compteur d\'évaluateurs désignés
-    // ne le compte pas.
-    if (!/1 évaluateur autorisé/.test(await contenu())) throw new Error('l\'admin a été compté comme désigné');
+    // Un seul interrupteur allumé : le sien n'existe pas — il n'est pas
+    // collaborateur, et son droit vient de son rôle.
+    const allumes = await page.locator('#acCollab .ac-sw-on').count();
+    if (allumes !== 1) throw new Error('l\'admin a été compté comme désigné, allumés : ' + allumes);
   });
 
-  await etape('le retrait demande une confirmation, et l\'annulation ne fait rien', async () => {
-    const ligne = page.locator('.ac-adm-l', { hasText: EVA });
-    await ligne.getByText('Retirer le droit d\'évaluer').click();
-    await page.waitForSelector('.ac-adm-l-retrait');
-    const t = await contenu();
-    if (!/Confirmer le retrait/.test(t)) throw new Error('aucune confirmation demandée');
-    if (!/ne pourra plus enregistrer d'évaluation pratique/.test(t)) throw new Error('la conséquence n\'est pas dite');
-    if (!/restent dans l'historique/.test(t)) throw new Error('l\'effet sur l\'historique n\'est pas précisé');
-
-    await ligne.getByText('Annuler').click();
-    await page.waitForFunction(() => !document.querySelector('.ac-adm-l-retrait'));
-    if (!/1 évaluateur autorisé/.test(await contenu())) throw new Error('l\'annulation a retiré le droit');
-    const moi = await get('/api/academy/moi', (await jsonp('/account/login', { email: EVA, pin: '3003' })).token);
-    if (moi.evaluateur !== true) throw new Error('le droit a sauté malgré l\'annulation');
-  });
-
-  await etape('confirmer le retrait le retire vraiment, puis on le rend', async () => {
-    const ligne = page.locator('.ac-adm-l', { hasText: EVA });
-    await ligne.getByText('Retirer le droit d\'évaluer').click();
-    await page.waitForSelector('.ac-adm-l-retrait');
-    await ligne.getByText('Confirmer le retrait').click();
-    await page.waitForFunction(() => /0 évaluateur autorisé/.test(document.querySelector('#acAdmin').textContent));
-    let moi = await get('/api/academy/moi', (await jsonp('/account/login', { email: EVA, pin: '3003' })).token);
-    if (moi.evaluateur !== false) throw new Error('le retrait n\'a pas pris côté serveur');
+  await etape('le droit se retire du même geste, et se rend', async () => {
+    await ligneCollab(EVA).locator('.ac-cert-sw').click();
+    await page.waitForFunction(() => /retiré/.test((document.querySelector('.ac-adm-flash') || {}).textContent || ''));
+    if (await ligneCollab(EVA).locator('.ac-sw-in').isChecked()) throw new Error('l\'interrupteur devrait être éteint');
+    if (await droitDe(EVA, '3003') !== false) throw new Error('le retrait n\'a pas pris côté serveur');
 
     // On la redésigne : c'est elle qui évaluera dans la suite du parcours.
-    await ligne.getByText('Désigner comme évaluateur').click();
-    await page.waitForFunction(() => /1 évaluateur autorisé/.test(document.querySelector('#acAdmin').textContent));
-    moi = await get('/api/academy/moi', (await jsonp('/account/login', { email: EVA, pin: '3003' })).token);
-    if (moi.evaluateur !== true) throw new Error('la redésignation n\'a pas pris');
+    await ligneCollab(EVA).locator('.ac-cert-sw').click();
+    await page.waitForFunction(() => /activé/.test((document.querySelector('.ac-adm-flash') || {}).textContent || ''));
+    if (await droitDe(EVA, '3003') !== true) throw new Error('la redésignation n\'a pas pris');
+  });
+
+  await etape('UN COLLABORATEUR NE PEUT PAS SE L\'ATTRIBUER, et la garde est serveur', async () => {
+    const jetonTheo = (await jsonp('/account/login', { email: THEO, pin: '4004' })).token;
+    const r = await fetch(BASE + '/api/academy/admin/evaluateurs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + jetonTheo },
+      body: JSON.stringify({ email: THEO, evaluateur: true }),
+    });
+    if (r.status !== 403) throw new Error('la route devait refuser, vu : ' + r.status);
+    if (await droitDe(THEO, '4004') !== false) throw new Error('il s\'est accordé le droit');
   });
 
   await etape('l\'écran de gestion reste lisible en 390 px', async () => {
@@ -269,9 +270,11 @@ async function validerQcm(jeton) {
     await page.waitForTimeout(300);
     const debord = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     if (debord > 2) throw new Error('débordement de ' + debord + ' px');
-    const b = await page.locator('.ac-adm-l', { hasText: EVA }).locator('.ec-btn').first().boundingBox();
+    // L'interrupteur reste visé du pouce : c'est le geste de cet écran.
+    const sw = await ligneCollab(EVA).locator('.ac-sw').first().boundingBox();
+    if (!sw || sw.height < 20 || sw.width < 30) throw new Error('interrupteur trop petit en mobile');
+    const b = await ligneCollab(EVA).locator('.ec-btn').first().boundingBox();
     if (!b || b.height < 34) throw new Error('bouton trop petit en mobile');
-    if (b.width < 200) throw new Error('bouton écrasé en mobile : ' + Math.round(b.width) + ' px');
     await page.setViewportSize({ width: 1100, height: 1000 });
   });
 
@@ -344,6 +347,33 @@ async function validerQcm(jeton) {
   // =========================================================================
   console.log('\n3. L\'ÉVALUATRICE');
 
+  // La file « À évaluer » : c'est là que vivent les dossiers qui attendent un
+  // geste, et donc les boutons de fiche. La vue par défaut, elle, est centrée
+  // sur le coach.
+  async function ouvrirFileEval() {
+    if (!(await page.locator('#acEval:not([hidden])').count())) {
+      await page.click('#acRoleEval');
+      await page.waitForSelector('#acEval:not([hidden])');
+    }
+    await page.click('[data-onglet-eval="a_evaluer"]');
+    await page.waitForSelector('#acEvalCorps .ac-evr:not(.ac-evr-h)');
+  }
+
+  // UN DOSSIER QUI N'ATTEND PLUS RIEN N'EST DANS AUCUNE FILE — c'est le sens
+  // même d'une file. On passe alors par le détail du coach, qui porte TOUS ses
+  // dossiers, quel que soit leur état.
+  async function ouvrirFicheDepuisCoach(email) {
+    if (!(await page.locator('#acEval:not([hidden])').count())) {
+      await page.click('#acRoleEval');
+      await page.waitForSelector('#acEval:not([hidden])');
+    }
+    await page.click('[data-onglet-eval="coachs"]');
+    const ligne = page.locator('#acEvalCorps .ac-evc:not(.ac-evr-h)', { hasText: email });
+    await ligne.locator('[data-coach]').click();
+    await page.waitForSelector('.ac-evd');
+    await ligne.locator(`.ac-evd [data-collab="${email}"]`).first().click();
+  }
+
   await etape('Eva voit son espace évaluateur, et Théo dans la liste', async () => {
     await seConnecter(EVA, '3003');
     // Lot A : l'entrée « Évaluer » est dans l'en-tête, plus dans le parcours.
@@ -357,16 +387,23 @@ async function validerQcm(jeton) {
     // le sens du lot — un coach en cours d'apprentissage n'était visible nulle
     // part. Sa fiche, elle, reste fermée tant que la théorie n'est pas validée.
     if (!/Nina/.test(t)) throw new Error('Nina devrait être visible, en formation');
-    const nina = page.locator('.ac-eval-l', { hasText: NINA });
-    if (!/Formation en cours/.test(await nina.evaluate((el) => el.textContent))) {
-      throw new Error('Nina devrait être au statut « Formation en cours »');
+    // LOT « un coach = une ligne » : la vue globale porte une ligne par coach, et
+    // l'état de CHAQUE formation vit dans son détail — qu'on déplie.
+    const nina = page.locator('#acEvalCorps .ac-evc:not(.ac-evr-h)', { hasText: NINA });
+    await nina.locator('[data-coach]').click();
+    await page.waitForSelector('.ac-evd');
+    const etat = await nina.locator('.ac-evd .ac-eval-etat').first().textContent();
+    if (!/À commencer|En cours/.test(etat)) {
+      throw new Error('Nina devrait être en cours de formation, vu : ' + etat);
     }
-    if (await page.locator(`[data-collab="${NINA}"]`).count()) {
+    if (await nina.locator(`[data-collab="${NINA}"]`).count()) {
       throw new Error('sa fiche ne doit pas s\'ouvrir : sa théorie n\'est pas validée');
     }
+    await nina.locator('[data-coach]').click();
   });
 
   await etape('la fiche de Théo affiche son état et l\'historique vide', async () => {
+    await ouvrirFileEval();
     await page.click(`[data-collab="${THEO}"]`);
     await page.waitForSelector('#acEvOk');
     const t = await contenu();
@@ -403,6 +440,7 @@ async function validerQcm(jeton) {
     await seConnecter(EVA, '3003');
     await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
+    await ouvrirFileEval();
     await page.click(`[data-collab="${THEO}"]`);
     await page.waitForSelector('#acEvKo');
     await page.fill('#acEvCom', 'Cadre bien posé, mais l\'action de la semaine reste floue.');
@@ -438,6 +476,7 @@ async function validerQcm(jeton) {
     await seConnecter(EVA, '3003');
     await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
+    await ouvrirFileEval();
     await page.click(`[data-collab="${THEO}"]`);
     await page.waitForSelector('#acEvOk');
     await page.fill('#acEvDate', '2026-09-10');
@@ -473,15 +512,40 @@ async function validerQcm(jeton) {
     await seConnecter(EVA, '3003');
     await page.click('#acRoleEval');
     await page.waitForSelector('#acEval:not([hidden])');
-    await page.click(`[data-collab="${THEO}"]`);
-    await page.waitForFunction(() => /Étape pratique terminée/.test(document.querySelector('#acEval').textContent));
-
-    // L'écran ne propose plus rien.
-    for (const sel of ['#acEvOk', '#acEvKo', '#acEvOuvrir']) {
-      if (await page.locator(sel).count()) throw new Error('le formulaire est resté : ' + sel);
+    // SA PRATIQUE EST VALIDÉE : son dossier a quitté la file « à évaluer », et
+    // l'écran ne propose plus d'évaluer — il propose de certifier. C'est ce que
+    // « close » veut dire, vu de l'évaluatrice.
+    await page.click('[data-onglet-eval="coachs"]');
+    // Changer de vue relit le serveur : on attend le rendu avant de viser une
+    // ligne, sinon on clique dans un écran qui va être remplacé.
+    await page.waitForFunction(() => {
+      const o = document.querySelector('#acEval [data-onglet-eval="coachs"]');
+      return o && o.classList.contains('on')
+        && document.querySelectorAll('#acEvalCorps .ac-evc:not(.ac-evr-h)').length > 0;
+    });
+    const ligneTheo = page.locator('#acEvalCorps .ac-evc:not(.ac-evr-h)', { hasText: THEO });
+    await ligneTheo.locator('[data-coach]').click();
+    await page.waitForSelector('.ac-evd');
+    const etat = await ligneTheo.locator('.ac-evd .ac-eval-etat').first().textContent();
+    // Le verdict pratique certifie désormais : plus d'état d'attente.
+    if (!/Certifié/.test(etat)) throw new Error('son dossier devrait être certifié : ' + etat);
+    if (await ligneTheo.locator(`.ac-evd [data-collab="${THEO}"]`).count()) {
+      throw new Error('une nouvelle évaluation est encore proposée');
     }
-    if (!/Aucune nouvelle évaluation ne peut être ouverte/.test(await contenu())) {
-      throw new Error('l\'évaluatrice n\'est pas prévenue de la clôture');
+    // ET PLUS AUCUN BOUTON DE DÉLIVRANCE : il n'y a plus rien à prononcer.
+    if (await ligneTheo.locator('.ac-evd [data-geste="delivrer"]').count()) {
+      throw new Error('un bouton de délivrance subsiste alors que la certification est automatique');
+    }
+    // Et sur la file d'évaluation, il n'apparaît plus du tout. La file peut être
+    // VIDE à ce stade : on attend donc que la vue soit active, pas qu'elle
+    // contienne une ligne.
+    await page.click('[data-onglet-eval="a_evaluer"]');
+    await page.waitForFunction(() => {
+      const o = document.querySelector('#acEval [data-onglet-eval="a_evaluer"]');
+      return o && o.classList.contains('on');
+    });
+    if (await page.locator(`#acEvalCorps [data-collab="${THEO}"]`).count()) {
+      throw new Error('un dossier clos reste dans la file des évaluations');
     }
 
     // Et le SERVEUR refuse, ce qui est la vraie protection.
@@ -593,6 +657,9 @@ async function validerQcm(jeton) {
     let debord = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     if (debord > 2) throw new Error('débordement de la liste de ' + debord + ' px');
 
+    await ouvrirFileEval();
+    debord = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (debord > 2) throw new Error('débordement de la file de ' + debord + ' px');
     await page.click(`[data-collab="${NINA}"]`);
     await page.waitForSelector('#acEvOk');
     debord = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

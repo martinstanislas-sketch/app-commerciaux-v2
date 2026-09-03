@@ -259,9 +259,16 @@ test('l\'amorçage des consignes est idempotent', () => {
   assert.strictEqual(app.academyPratique.listerCas(CM).filter((c) => c.consignes).length, 6);
 });
 
-test('Coach Nutrition n\'a AUCUN cas : son écran d\'évaluation ne bouge pas', () => {
-  assert.deepStrictEqual(app.academyPratique.listerCas(CN), [],
-    'zéro cas = le champ libre d\'avant, inchangé');
+// CE TEST A CHANGÉ DE SUJET, ET C'EST VOULU. Il vérifiait que Coach Nutrition
+// n'avait aucun cas — vrai jusqu'à ce qu'elle reçoive les six siens. Ce qu'il
+// doit prouver reste le même : les cas de Cycle menstruel ne débordent pas.
+test('les six cas de Cycle menstruel sont les siens, et ceux de Nutrition les leurs', () => {
+  const cm = app.academyPratique.listerCas(CM);
+  const cn = app.academyPratique.listerCas(CN);
+  assert.strictEqual(cm.length, 6, 'Cycle menstruel porte ses six cas');
+  assert.strictEqual(cn.length, 6, 'Coach Nutrition porte les siens');
+  const communs = cm.map((c) => c.id).filter((id) => cn.some((c) => c.id === id));
+  assert.deepStrictEqual(communs, [], 'aucun cas n\'appartient aux deux formations');
 });
 
 test('un cas ne s\'utilise QUE dans sa formation', () => {
@@ -462,8 +469,10 @@ test('l\'évaluation pratique se prononce SUR UN CAS DU RÉFÉRENTIEL', async ()
   assert.strictEqual(r.body.pratique.etat, 'validee');
   assert.strictEqual(r.body.pratique.close, true, 'une pratique validée ferme l\'étape');
 
-  // ⚠️ VALIDER LA PRATIQUE NE CERTIFIE PAS, et n'ouvre aucun dossier Boost.
-  assert.strictEqual(app.academyCertifications.estCertifie(LEA, CM), false);
+  // ⚠️ VALIDER LA PRATIQUE CERTIFIE DÉSORMAIS — le verdict était le dernier
+  // prérequis. Mais ça n'ouvre TOUJOURS aucun dossier Boost : Cycle menstruel
+  // n'a pas de reflet, et c'est ce cloisonnement-là que ce test garde.
+  assert.strictEqual(app.academyCertifications.estCertifie(LEA, CM), true);
   const boostLea = dbq().prepare('SELECT COUNT(*) AS n FROM boost_certifications WHERE email = ?').get(LEA).n;
   assert.strictEqual(boostLea, 0, 'une formation sans reflet n\'écrit RIEN dans le Boost');
 });
@@ -475,14 +484,17 @@ test('la pratique validée ici ne vaut rien sur Coach Nutrition', () => {
   assert.strictEqual(app.academyPratique.etatPour(LEA, CN).etat, 'non_accessible');
 });
 
-test('elle passe alors « Certification à délivrer »', async () => {
+test('elle passe alors directement « Certifiée »', async () => {
   const d = (await api('GET', `/api/academy/evaluateur/coachs${fmt(CM)}`, null, jetons[ADMIN])).body;
-  assert.strictEqual(d.coachs.find((c) => c.email === LEA).statut, 'certification_a_delivrer');
+  assert.strictEqual(d.coachs.find((c) => c.email === LEA).statut, 'certifie');
 });
 
-test('la certification se délivre, et elle est PROPRE à cette formation', async () => {
-  const r = await api('POST', `/api/academy/admin/certifications/${LEA}`, { formation: CM, obtenueLe: '2026-09-20' }, jetons[ADMIN]);
-  assert.strictEqual(r.status, 201, r.txt.slice(0, 200));
+test('la certification est PROPRE à cette formation', async () => {
+  // PLUS D'ÉTAPE « À CERTIFIER » : le verdict pratique était le dernier
+  // prérequis, le diplôme a été délivré par la règle dans la foulée. On le LIT
+  // au lieu de le demander — la délivrance manuelle refuserait un doublon.
+  const r = { body: { certification: app.academyCertifications.etatPour(LEA, CM).certification } };
+  assert.strictEqual(r.body.certification.delivreePar, 'Academy', 'personne ne l\'a prononcé');
   assert.strictEqual(r.body.certification.formation, CM);
   // Les preuves RECOPIÉES : le diplôme se relit seul, des années plus tard.
   assert.strictEqual(r.body.certification.scoreQcm, 100);

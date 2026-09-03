@@ -59,10 +59,12 @@ const { createAcademy } = require('./lib/academy');
 const { creerRoutesAcademy } = require('./lib/academyRoutes');
 const { createAcademyQcm } = require('./lib/academyQcm');
 const { createAcademyPratique } = require('./lib/academyPratique');
+const { createAcademyGrilles } = require('./lib/academyGrilles');
 const { createAcademyFormations, COACH_NUTRITION } = require('./lib/academyFormations');
 const { createAcademyCertifications } = require('./lib/academyCertifications');
 const { createAcademyAdmin } = require('./lib/academyAdmin');
 const { createAcademyRessources } = require('./lib/academyRessources');
+const { createAcademyCouvertures } = require('./lib/academyCouvertures');
 const { createAmorcageCycleMenstruel } = require('./lib/academyAmorcageCycleMenstruel');
 const { createAmorcagePrevenirDecrochage } = require('./lib/academyAmorcagePrevenirDecrochage');
 const { createAmorcageMouvementsFondamentaux } = require('./lib/academyAmorcageMouvementsFondamentaux');
@@ -96,7 +98,13 @@ const academyQcm = createAcademyQcm({ getDb, nowIso, boost, academy, formations:
 // statut de certification — valider la pratique ne certifie pas.
 // Le droit d'évaluer n'est PAS dérivé du droit d'administrer : il se désigne,
 // explicitement, administrateur compris (cf. lib/academyPratique.js).
-const academyPratique = createAcademyPratique({ getDb, nowIso, boost, qcm: academyQcm, formations: academyFormations });
+// LA GRILLE D'ÉVALUATION PRATIQUE — trois axes, trois critères, acquis ou non.
+// Elle DÉCRIT ce qui est acquis ; elle ne décide pas de la réussite, qui reste
+// prononcée par le certificateur (cf. lib/academyGrilles.js).
+const academyGrilles = createAcademyGrilles({ getDb, nowIso });
+const academyPratique = createAcademyPratique({
+  getDb, nowIso, boost, qcm: academyQcm, formations: academyFormations, grilles: academyGrilles,
+});
 // La certification finale. Le moteur est GÉNÉRIQUE : il ne connaît aucune
 // formation, il lit un registre. « Coach Nutrition » y est la première entrée.
 const academyCertifications = createAcademyCertifications({
@@ -130,6 +138,11 @@ const academyAdmin = createAcademyAdmin({
 // Ce qu'on ne lui donne pas, elle ne peut pas l'écrire — une bibliothèque de
 // ressources ne doit jamais pouvoir faire avancer une progression.
 const academyRessources = createAcademyRessources({ getDb, nowIso });
+
+// L'image de couverture d'une formation. Elle ne reçoit que le CATALOGUE — pour
+// refuser une clé inconnue — et jamais un moteur de parcours : une illustration
+// ne doit pouvoir toucher ni à une progression, ni à une évaluation.
+const academyCouvertures = createAcademyCouvertures({ getDb, nowIso, formations: academyFormations });
 
 // La deuxième formation réelle, « Cycle menstruel & entraînement ». Elle
 // s'amorce comme la banque Coach Nutrition : une seule fois, gardée par son
@@ -380,6 +393,7 @@ function compteVisible(u) {
   return {
     email: u.email,
     prenom: u.prenom || '',
+    nom: u.nom || '',
     avatarConfig: readJson(u.avatar_config, null),
     profil: readJson(u.profil, null),
     preferences: readJson(u.preferences, null),
@@ -767,7 +781,8 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 app.use(creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }));
 app.use(creerRoutesAcademy({ academy, qcm: academyQcm, pratique: academyPratique,
   certifications: academyCertifications, formations: academyFormations, admin: academyAdmin,
-  ressources: academyRessources, boost, exigeCompte, exigeAdmin, estAdmin }));
+  ressources: academyRessources, couvertures: academyCouvertures, grilles: academyGrilles,
+  boost, exigeCompte, exigeAdmin, estAdmin }));
 
 // Toute route /api inconnue répond en JSON : sinon Express renvoie du HTML et le
 // front, qui fait systématiquement res.json(), échoue avec une erreur illisible.
@@ -895,6 +910,12 @@ if (require.main === module) {
   if (pd) console.log(`  Academy : « Prévenir le décrochage » amorcée (${pd} questions), en brouillon.`);
   const mf = academyMouvementsFondamentaux.amorcer();
   if (mf) console.log(`  Academy : « Mouvements fondamentaux » amorcée (${mf} questions), en brouillon.`);
+  // La reprise des descriptions de carte, une seule fois, sur les formations qui
+  // n'en avaient pas. Elle est appelée ICI et pas seulement dans assurerSchema :
+  // son marqueur vit dans academy_config, que le moteur du QCM pose plus tard
+  // dans le démarrage — à cet endroit, la table existe à coup sûr.
+  const desc = academyFormations.amorcerDescriptions();
+  if (desc) console.log(`  Academy : ${desc} description(s) de carte reprises telles qu'elles s'affichaient.`);
   appliquerResetPinAdmin();
   // L'état de la synchronisation photos est dit AU BOOT, inconditionnellement :
   // « aucune ligne dans les logs » ne doit plus pouvoir signifier à la fois
@@ -942,10 +963,12 @@ module.exports.seances = seances;
 module.exports.academy = academy;
 module.exports.academyQcm = academyQcm;
 module.exports.academyPratique = academyPratique;
+module.exports.academyGrilles = academyGrilles;
 module.exports.academyCertifications = academyCertifications;
 module.exports.academyFormations = academyFormations;
 module.exports.academyAdmin = academyAdmin;
 module.exports.academyRessources = academyRessources;
+module.exports.academyCouvertures = academyCouvertures;
 module.exports.academyCycleMenstruel = academyCycleMenstruel;
 module.exports.academyPrevenirDecrochage = academyPrevenirDecrochage;
 module.exports.academyMouvementsFondamentaux = academyMouvementsFondamentaux;
