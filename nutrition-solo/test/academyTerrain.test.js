@@ -326,6 +326,60 @@ test('un studio s\'ARCHIVE, il ne se supprime pas : les observations restent lis
 });
 
 // ===========================================================================
+//  8. L'AMORÇAGE DES SIX STUDIOS EN PROPRE
+//
+//  `data/*.sqlite` est ignoré par git : sans amorçage, un nouvel environnement
+//  démarrerait sans aucun studio et le module serait inutilisable tant que
+//  personne ne les ressaisit. Ces tests éprouvent les trois propriétés qui
+//  comptent : ils arrivent seuls, ils n'arrivent qu'une fois, et un archivage
+//  volontaire n'est jamais défait.
+// ===========================================================================
+
+const { STUDIOS_EN_PROPRE, MARQUEUR_STUDIOS } = require('../lib/academyTerrain');
+
+test('LES SIX STUDIOS EN PROPRE SONT POSÉS À LA CRÉATION DU SCHÉMA', () => {
+  assert.deepStrictEqual([...STUDIOS_EN_PROPRE].sort(),
+    ['Boulogne-Billancourt', 'Levallois-Perret', 'Marcq-en-Barœul',
+      'Neuilly-sur-Seine', 'Vieux-Lille', 'Wasquehal'].sort(),
+    'la liste des studios en propre ne doit pas changer par accident');
+  // Cette base a été créée par test.before : les six y sont, sans qu'on les ait
+  // saisis (seuls « Studio Nord » et « Studio Sud » l'ont été).
+  const noms = app.academyTerrain.listerStudios({ toutes: true }).map((s) => s.nom);
+  for (const v of STUDIOS_EN_PROPRE) {
+    assert.ok(noms.includes(v), v + ' doit avoir été amorcé automatiquement');
+  }
+  assert.ok(dbq().prepare('SELECT cle FROM academy_config WHERE cle = ?').get(MARQUEUR_STUDIOS),
+    'le marqueur doit être posé : sans lui, l\'amorçage rejouerait à chaque démarrage');
+});
+
+test('IL NE REJOUE PAS : un second passage ne crée aucun doublon', () => {
+  const avant = app.academyTerrain.listerStudios({ toutes: true }).length;
+  assert.strictEqual(app.academyTerrain.amorcerStudios(), 0, 'aucun studio créé au second passage');
+  assert.strictEqual(app.academyTerrain.listerStudios({ toutes: true }).length, avant);
+  const noms = app.academyTerrain.listerStudios({ toutes: true }).map((s) => s.nom.toLowerCase());
+  assert.strictEqual(new Set(noms).size, noms.length, 'aucun nom en double');
+});
+
+test('UN STUDIO ARCHIVÉ VOLONTAIREMENT N\'EST PAS RÉACTIVÉ au redémarrage', async () => {
+  const T = app.academyTerrain;
+  const cible = T.listerStudios().find((s) => s.nom === 'Vieux-Lille');
+  T.archiverStudio(cible.id, true);
+  assert.ok(!T.listerStudios().some((s) => s.nom === 'Vieux-Lille'), 'il quitte la saisie');
+
+  T.amorcerStudios();   // le « redémarrage »
+  const apres = T.listerStudios({ toutes: true }).filter((s) => s.nom === 'Vieux-Lille');
+  assert.strictEqual(apres.length, 1, 'et il n\'est surtout pas recréé à côté');
+  assert.strictEqual(apres[0].actif, false, 'un archivage volontaire ne se défait pas tout seul');
+  T.archiverStudio(cible.id, false);   // on le rend à l'état où on l'a trouvé
+});
+
+test('l\'amorçage n\'écrase aucune observation existante', async () => {
+  const avant = dbq().prepare('SELECT COUNT(*) AS n FROM academy_observations').get().n;
+  app.academyTerrain.amorcerStudios();
+  assert.strictEqual(dbq().prepare('SELECT COUNT(*) AS n FROM academy_observations').get().n, avant);
+});
+
+// ===========================================================================
 //  7. L'ÉCRAN
 // ===========================================================================
 

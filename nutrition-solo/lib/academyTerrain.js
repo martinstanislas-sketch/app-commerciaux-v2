@@ -38,6 +38,40 @@ const ISSUE = 'ISSUE';
 const OBSERVATION = 'OBSERVATION';
 const NIVEAUX = [POSITIVE, TO_CORRECT, ISSUE, OBSERVATION];
 
+// ============================================================================
+//  LES SIX STUDIOS EN PROPRE, ET LEUR AMORÇAGE.
+//
+//  POURQUOI DU CODE ET PAS UNE LIGNE EN BASE. `data/*.sqlite` est ignoré par
+//  git : les studios saisis en local ne partent pas au déploiement, et il
+//  faudrait les ressaisir sur chaque nouvel environnement. Ils sont donc
+//  décrits ici, et posés à la création du schéma.
+//
+//  ⚠️ CE SONT LES STUDIOS EN PROPRE, ET EUX SEULS. Ni franchise, ni studio
+//  fermé, ni ouverture à venir. Cette liste ne concerne QUE le suivi terrain :
+//  aucun autre module de l'application ne la lit.
+//
+//  ⚠️ AMORÇAGE UNIQUE, REPÉRÉ PAR UN MARQUEUR — pas « je recrée ce qui
+//  manque ». La nuance est tout l'enjeu :
+//
+//   · un studio ARCHIVÉ volontairement ne doit pas revenir au redémarrage
+//     suivant ;
+//   · un studio RENOMMÉ ne doit pas voir son ancien nom réapparaître à côté
+//     du nouveau.
+//
+//  Un simple « insérer si le nom manque » échouerait sur le second cas et
+//  rejouerait à chaque démarrage. Le marqueur ferme la porte pour de bon :
+//  passé le premier amorçage, cette liste n'est plus jamais relue.
+// ============================================================================
+const STUDIOS_EN_PROPRE = [
+  'Vieux-Lille',
+  'Wasquehal',
+  'Marcq-en-Barœul',
+  'Boulogne-Billancourt',
+  'Neuilly-sur-Seine',
+  'Levallois-Perret',
+];
+const MARQUEUR_STUDIOS = 'terrain_studios_amorces';
+
 const OBS_MAX = 4000;
 const NOM_STUDIO_MAX = 80;
 
@@ -95,6 +129,17 @@ CREATE TABLE IF NOT EXISTS academy_observations (
 CREATE INDEX IF NOT EXISTS idx_academy_obs_date ON academy_observations(date_observation DESC);
 CREATE INDEX IF NOT EXISTS idx_academy_obs_studio ON academy_observations(studio_id);
 CREATE INDEX IF NOT EXISTS idx_academy_obs_salarie ON academy_observations(salarie_email);
+
+-- Le registre des marqueurs d'amorçage, partagé avec le reste de l'Academy
+-- (academyQcm le déclare à l'identique). On le pose ici aussi pour que ce
+-- module reste utilisable seul : "IF NOT EXISTS" rend le doublon inoffensif,
+-- et les colonnes sont copiées mot pour mot.
+CREATE TABLE IF NOT EXISTS academy_config (
+  cle     TEXT PRIMARY KEY,
+  valeur  TEXT NOT NULL,
+  maj_le  TEXT NOT NULL,
+  maj_par TEXT
+);
 `;
 
 function createAcademyTerrain({ getDb, nowIso, boost }) {
@@ -110,7 +155,35 @@ function createAcademyTerrain({ getDb, nowIso, boost }) {
     if (basesMigrees.has(d)) return true;
     d.exec(SCHEMA_TERRAIN);
     basesMigrees.add(d);
+    amorcerStudios();
     return true;
+  }
+
+  //  L'AMORÇAGE DES SIX STUDIOS. Il ne s'exécute QU'UNE FOIS par base : le
+  //  marqueur est posé dans la même transaction que les insertions, donc un
+  //  amorçage interrompu ne laisse jamais la porte à moitié fermée.
+  //
+  //  ⚠️ IL N'ÉCRASE RIEN. Un nom déjà présent — actif ou archivé — est ignoré :
+  //  on ne réactive pas, on ne renomme pas, on ne touche à aucune observation.
+  //  Renvoie le nombre de studios réellement créés (0 aux démarrages suivants).
+  function amorcerStudios() {
+    const d = db();
+    if (d.prepare('SELECT cle FROM academy_config WHERE cle = ?').get(MARQUEUR_STUDIOS)) return 0;
+    const maintenant = nowIso();
+    const poser = d.transaction(() => {
+      const existe = d.prepare('SELECT id FROM academy_studios WHERE nom = ? COLLATE NOCASE');
+      const ins = d.prepare('INSERT INTO academy_studios (nom, actif, cree_le, maj_le) VALUES (?, 1, ?, ?)');
+      let n = 0;
+      for (const nom of STUDIOS_EN_PROPRE) {
+        if (existe.get(nom)) continue;      // déjà là : on ne recrée rien
+        ins.run(nom, maintenant, maintenant);
+        n++;
+      }
+      d.prepare(`INSERT INTO academy_config (cle, valeur, maj_le) VALUES (?, ?, ?)
+                 ON CONFLICT(cle) DO NOTHING`).run(MARQUEUR_STUDIOS, String(n), maintenant);
+      return n;
+    });
+    return poser();
   }
 
   // -- LE DROIT ---------------------------------------------------------------
@@ -338,7 +411,7 @@ function createAcademyTerrain({ getDb, nowIso, boost }) {
     !!estAdmin || (!!obs && normMail(obs.auteurEmail) === normMail(moi));
 
   return {
-    assurerSchema,
+    assurerSchema, amorcerStudios,
     aLeDroit, definirDroit, listerDroits,
     listerStudios, definirStudio, archiverStudio,
     lister, lire, compter, creer, modifier, supprimer, peutModifier,
@@ -348,4 +421,5 @@ function createAcademyTerrain({ getDb, nowIso, boost }) {
 module.exports = {
   createAcademyTerrain,
   NIVEAUX, POSITIVE, TO_CORRECT, ISSUE, OBSERVATION,
+  STUDIOS_EN_PROPRE, MARQUEUR_STUDIOS,
 };
