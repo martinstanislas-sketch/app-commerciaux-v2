@@ -220,6 +220,100 @@ test('une bascule ne touche NI aux évaluations, NI aux certifications, NI aux p
 });
 
 // ===========================================================================
+//  7. LE CERTIFICATEUR PUR, ET OÙ L'ON ARRIVE
+//
+//  DEUX CHANGEMENTS, ET ILS SE TIENNENT :
+//
+//   · le droit de certifier n'a jamais exigé d'être collaborateur, mais
+//     l'écran ne montrait que des collaborateurs — le cas « pur » était donc
+//     représentable en base et inatteignable à l'écran. Il apparaît désormais
+//     dans sa propre section, et se désigne par son adresse.
+//   · qui certifie ARRIVE sur « Évaluer & certifier ». Un coach-certificateur
+//     y arrive aussi, sans rien perdre : Mon Academy reste dans sa barre.
+// ===========================================================================
+
+const CERT_SEUL = 'cert.seul@exemple.fr';
+
+test('UN CERTIFICATEUR PEUT ÊTRE DÉSIGNÉ SANS ÊTRE COLLABORATEUR', async () => {
+  await connecter(CERT_SEUL, '9009');   // le compte existe, sans aucun rôle
+  const avant = await ligneDe(CERT_SEUL);
+  assert.strictEqual(avant, undefined, 'un compte sans rôle ne figure pas dans la liste');
+
+  const r = await basculer(CERT_SEUL, true);
+  assert.strictEqual(r.status, 200, 'la désignation doit passer');
+
+  const apres = await ligneDe(CERT_SEUL);
+  assert.ok(apres, 'il doit désormais figurer dans la liste');
+  assert.strictEqual(apres.etat, 'certificateur', 'dans son propre état, pas parmi les collaborateurs');
+  assert.strictEqual(apres.certificateur, true);
+  assert.strictEqual(apres.actif, false, 'il n\'a AUCUN accès à Mon Academy');
+});
+
+test('il entre dans « Évaluer & certifier » et dans le référentiel', async () => {
+  assert.strictEqual(await accedeAEvaluer(CERT_SEUL), 200);
+  const ref = await api('GET', '/api/academy/referentiel', null, jetons[CERT_SEUL]);
+  assert.strictEqual(ref.status, 200, 'il doit consulter le référentiel');
+  assert.ok(ref.body.formations.length >= 0);
+});
+
+test('IL N\'EST PAS UN APPRENANT, et le serveur le refuse partout', async () => {
+  const moi = await api('GET', '/api/academy/moi', null, jetons[CERT_SEUL]);
+  assert.strictEqual(moi.body.collaborateur, false, 'il ne se forme pas');
+  assert.strictEqual(moi.body.evaluateur, true, 'il certifie');
+  assert.strictEqual(app.academy.peutSeFormer(CERT_SEUL), false);
+
+  for (const [m, route] of [['GET', '/api/academy/formation'], ['GET', '/api/academy/qcm'],
+    ['GET', '/api/academy/certification'], ['POST', '/api/academy/qcm/tentatives']]) {
+    const r = await api(m, route, m === 'POST' ? {} : null, jetons[CERT_SEUL]);
+    assert.strictEqual(r.status, 403, route + ' doit rester fermée');
+  }
+  // Et il n'est comptabilisé nulle part comme coach suivi.
+  const coachs = await api('GET', '/api/academy/evaluateur/coachs?formation=toutes', null, jetons[ADMIN]);
+  assert.ok(!coachs.body.coachs.some((c) => c.email === CERT_SEUL),
+    'un certificateur ne doit jamais apparaître parmi les coachs suivis');
+});
+
+test('lui retirer le droit le fait SORTIR de la liste : il n\'a plus rien à y faire', async () => {
+  await basculer(CERT_SEUL, false);
+  assert.strictEqual(await ligneDe(CERT_SEUL), undefined);
+  assert.strictEqual(await accedeAEvaluer(CERT_SEUL), 403, 'et la porte se referme');
+});
+
+test('le désigner N\'EN FAIT PAS un collaborateur : les deux tables restent distinctes', async () => {
+  await basculer(CERT_SEUL, true);
+  const collab = dbq().prepare('SELECT * FROM boost_collaborateurs WHERE email = ?').get(CERT_SEUL);
+  assert.strictEqual(collab, undefined, 'aucune ligne de collaborateur ne doit avoir été créée');
+  assert.strictEqual(app.academy.peutSeFormer(CERT_SEUL), false);
+  await basculer(CERT_SEUL, false);
+});
+
+test('L\'ÉCRAN SAIT DÉSIGNER ET AFFICHER CE CAS', () => {
+  assert.ok(/data-adm="collab-cert-ajouter"/.test(js),
+    'le geste doit exister, et porter le préfixe que le répartiteur branche');
+  assert.ok(/Désigner un certificateur/.test(js), 'le formulaire doit être nommé');
+  assert.ok(/etat === 'certificateur'/.test(js), 'la ligne doit connaître ce nouvel état');
+  assert.ok(/Certificateurs seuls/.test(js), 'ils ont leur propre section');
+  // Et on ne leur propose PAS de retirer un accès qu'ils n'ont pas.
+  const l = js.slice(js.indexOf('const ligne = (c) => {', js.indexOf('function rendreAdminCollaborateurs')),
+    js.indexOf('return \'<p class="ac-qcm-s">'));
+  assert.ok(/certSeul[\s\S]{0,400}collab-promouvoir/.test(l),
+    'le certificateur seul se voit proposer de devenir coach, pas de perdre un accès inexistant');
+});
+
+test('OÙ L\'ON ARRIVE : trois règles, dans cet ordre', () => {
+  const d = js.slice(js.indexOf('async function demarrer'), js.indexOf('async function chargerCatalogue'));
+  const iAdmin = d.indexOf('if (!moiCollab && moiAdmin)');
+  const iEval = d.indexOf('if (moiEval) { await ouvrirEvaluateur(); return; }');
+  const iAccueil = d.indexOf('await ouvrirAccueil();', iEval);
+  assert.ok(iAdmin > 0 && iEval > iAdmin && iAccueil > iEval,
+    'administrateur, puis certificateur, puis coach — l\'ordre EST la règle');
+  // Le piège : tester moiCollab avant moiEval renverrait un coach-certificateur
+  // sur son parcours personnel.
+  assert.ok(!/if \(moiCollab\)[\s\S]{0,60}ouvrirAccueil/.test(d),
+    'le coach ne doit pas être servi avant le certificateur');
+});
+
+// ===========================================================================
 //  6. L'ANCIEN ÉCRAN N'EXISTE PLUS
 // ===========================================================================
 

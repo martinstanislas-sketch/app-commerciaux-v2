@@ -91,6 +91,7 @@ let evalErreur = '';    // le refus du serveur, gardé en état (chaque geste re
 // Administrateur ? Il a TOUS les droits de l'évaluateur/certificateur, plus les
 // formations, les contenus, les banques et le retrait d'un diplôme.
 let moiAdmin = false;
+let moiTerrain = false;   // droit de suivre le terrain (table academy_terrain_droits)
 let certifs = null;     // état de MES certifications, toutes formations confondues
 // LES COLLABORATEURS. Cet écran n'invente AUCUN droit : il pilote
 // `boost_collaborateurs`, la seule table qui décide qui entre dans l'Academy.
@@ -173,22 +174,26 @@ const LARGEUR = {
   // La bibliothèque est une grille de cartes : la colonne de formulaire
   // l'étranglerait, exactement comme le sommaire d'une formation.
   '#acOutils': 'ac-w-large',
+  // Le référentiel du certificateur : une grille de formations, puis des
+  // banques de questions et des grilles de critères. Même besoin de largeur.
+  '#acReferentiel': 'ac-w-large',
+  // Le suivi terrain : quatre indicateurs, une barre de filtres et une liste.
+  '#acTerrain': 'ac-w-large',
   // Le lecteur est le plus large des trois : la vidéo et son sommaire latéral
   // ne tiennent pas dans une colonne de formulaire.
   '#acLecteur': 'ac-w-lecteur',
 };
 
 function afficher(ecran) {
-  for (const id of ['#acBoot', '#acLogin', '#acBloc', '#acAccueil', '#acSommaire', '#acLecteur', '#acQcm', '#acEval', '#acAdmin', '#acOutils', '#acCollab']) {
+  for (const id of ['#acBoot', '#acLogin', '#acBloc', '#acAccueil', '#acSommaire', '#acLecteur', '#acQcm', '#acEval', '#acAdmin', '#acOutils', '#acCollab', '#acReferentiel', '#acTerrain']) {
     montrer(id, id === ecran);
   }
   // L'écran de connexion vit HORS de la coquille et prend la fenêtre entière :
   // une barre latérale de navigation n'a aucun sens avant d'être connecté.
   montrer('#acApp', ecran !== '#acLogin');
-  // Le titre « Mon Academy » est porté par le bandeau blanc, et il n'appartient
-  // qu'à l'accueil : l'en-tête étant partagé, c'est ici — au seul endroit qui
-  // sait quel écran est ouvert — qu'il se montre et se retire.
-  montrer('#acHeadTitre', ecran === '#acAccueil');
+  // ⚠️ PLUS DE TITRE DANS LE BANDEAU BLANC. Il n'y en a qu'un par page, et il
+  // vit DANS la page (cf. enTetePage) — comme sur les trois autres écrans.
+  // Le bandeau ne porte plus que le fil d'Ariane et le bloc de compte.
   // LE FIL D'ARIANE APPARTIENT À L'ÉCRAN QUI L'A POSÉ. On le retire ici, au
   // seul endroit qui sait qu'on en change : sans ça, « Évaluer & certifier »
   // resterait affiché au-dessus du QCM d'à côté.
@@ -197,7 +202,6 @@ function afficher(ecran) {
   // plutôt qu'en entrant — sinon un changement d'onglet, qui repasse par le
   // rendu de l'écran, refermerait la section qu'on vient d'ouvrir.
   if (ecran !== '#acEval') evalSectionOuverte = false;
-  saluer();
   const large = LARGEUR[ecran] || '';
   for (const sel of ['#acMain', '#acHeadWrap']) {
     const el = $(sel);
@@ -207,27 +211,6 @@ function afficher(ecran) {
     el.classList.toggle('ac-w-accueil', large === 'ac-w-accueil');
   }
 }
-// LA SALUTATION D'ACCUEIL. Elle appelle le coach par son prénom quand on le
-// connaît, et reste la phrase générique sinon — « Bonjour  👋 » sur un compte
-// sans prénom serait pire que pas de salutation du tout.
-//
-//  Le titre est écrit dans academy.html, donc rendu AVANT que /account/me ait
-//  répondu : on le réécrit ici, à chaque changement d'écran, une fois
-//  l'identité connue.
-function saluer() {
-  const h = $('#acHeadH1');
-  const p = $('#acHeadS');
-  if (!h) return;
-  const prenom = String(moiPrenom || '').trim();
-  h.innerHTML = (prenom ? 'Bonjour ' + echapper(prenom) : 'Mon Academy') +
-    ' <span aria-hidden="true">👋</span>';
-  if (p) {
-    p.textContent = prenom
-      ? 'Continue ton parcours et développe tes compétences.'
-      : 'Bienvenue dans ton espace de formation. Continue ton parcours et obtiens tes certifications.';
-  }
-}
-
 function bloquer(icone, titre, texte) {
   $('#acBlocIc').textContent = icone;
   $('#acBlocT').textContent = titre;
@@ -270,6 +253,7 @@ async function demarrer() {
   moiCollab = !!moi.data.collaborateur;
   moiEval = !!moi.data.evaluateur;
   moiAdmin = !!moi.data.admin;
+  moiTerrain = !!moi.data.terrain;
   // Les entrées de rôle vivent dans la barre latérale, hors du parcours
   // d'apprentissage : ce sont des destinations, pas des étapes de formation.
   rendreBarreLaterale('academy');
@@ -277,7 +261,7 @@ async function demarrer() {
 
   // Un client n'a rien à faire ici : on le lui dit franchement plutôt que de
   // lui servir une formation vide.
-  if (!moiCollab && !moiEval && !moiAdmin) {
+  if (!moiCollab && !moiEval && !moiAdmin && !moiTerrain) {
     bloquer('🔒', 'Formation réservée aux collaborateurs',
       // Ce message précède le chargement du catalogue : il parle de l'Academy,
       // pas d'une formation en particulier — et n'en nomme donc aucune.
@@ -293,18 +277,27 @@ async function demarrer() {
   // collaborateur doit savoir laquelle il suit.
   await chargerCatalogue();
 
-  // Qui n'est pas collaborateur arrive sur ce qui le concerne, dans l'ordre de
-  // ses responsabilités : l'administrateur sur l'administration — c'est son
-  // poste de commande, et « Évaluer & certifier » reste à un clic dans la barre
-  // latérale — l'évaluateur extérieur sur son espace, le seul qu'il ait.
-  if (!moiCollab) {
-    if (moiAdmin) { await ouvrirAdmin(); return; }
-    await ouvrirEvaluateur();
-    return;
-  }
-  // Le collaborateur arrive sur SES FORMATIONS, jamais directement dans l'une
-  // d'elles — même s'il n'y en a qu'une. C'est un point d'entrée stable, qui ne
-  // changera pas de comportement le jour où une deuxième sera publiée.
+  // ==========================================================================
+  //  OÙ L'ON ARRIVE — TROIS RÈGLES, DANS CET ORDRE.
+  //
+  //   1. L'ADMINISTRATEUR QUI NE SE FORME PAS garde son poste de commande.
+  //      C'est le parti pris d'origine, inchangé : « Évaluer & certifier »
+  //      reste à un clic dans la barre latérale.
+  //   2. QUI CERTIFIE ARRIVE SUR CE QU'IL A À TRAITER. Certificateur pur comme
+  //      double rôle : son métier est de suivre les parcours des AUTRES, et
+  //      une file d'évaluations en attente ne doit pas se découvrir au
+  //      deuxième clic. Le double rôle ne perd rien — « Mon Academy » et tout
+  //      son parcours personnel restent dans la barre latérale.
+  //   3. LE COACH arrive sur SES FORMATIONS, jamais directement dans l'une
+  //      d'elles — même s'il n'y en a qu'une. Point d'entrée stable, qui ne
+  //      changera pas le jour où une deuxième sera publiée.
+  //
+  //  ⚠️ L'ORDRE COMPTE, ET C'EST TOUT CE QUI DÉCIDE. Tester `moiCollab` avant
+  //  `moiEval` renverrait un coach-certificateur sur son parcours personnel —
+  //  exactement ce qu'on corrige ici.
+  // ==========================================================================
+  if (!moiCollab && moiAdmin) { await ouvrirAdmin(); return; }
+  if (moiEval) { await ouvrirEvaluateur(); return; }
   await ouvrirAccueil();
 }
 
@@ -441,6 +434,17 @@ const CATEGORIES = [
 ];
 const libelleCategorie = (c) => (CATEGORIES.find(([k]) => k === c) || [, ''])[1];
 
+// LE MÊME MOT QUE LE BOUTON. Le bandeau de l'accordéon nomme la famille en
+// cours ; il doit la nommer comme le rail la nomme, « Toutes » comprise —
+// sinon on lit deux mots pour un seul filtre. 'toutes' n'étant pas une
+// catégorie enregistrée, c'est ici qu'elle reçoit son libellé.
+const libelleFamille = (c) => (c === 'toutes' ? 'Toutes' : libelleCategorie(c));
+
+// « 12 formations », « 1 formation », « aucune formation ». Le pluriel se
+// décide à un seul endroit : deux endroits finissent par écrire « 1 formations ».
+const compteFormations = (n) => (n === 0 ? 'aucune formation'
+  : n === 1 ? '1 formation' : n + ' formations');
+
 // Le <select> de catégorie, partagé par la création et les réglages : un seul
 // rendu, donc jamais deux listes qui divergent.
 function champCategorie(id, valeur) {
@@ -483,14 +487,58 @@ async function couvertureUrl(cle, stamp) {
 // donne une carte aussi finie que les autres. Il reste d'ailleurs SOUS la
 // photo quand il y en a une — le temps qu'elle arrive, la carte est déjà
 // dessinée, et une image qui échoue ne laisse jamais un trou.
-const REPLI_COUVERTURE =
+// ===========================================================================
+//  LE VISUEL DE REPLI — une PLAQUE, pas un trou.
+//
+//  Il ne signale plus « image manquante » : il tient lieu de couverture à part
+//  entière. Le dessin reprend la famille la plus premium et la plus homogène
+//  du catalogue — les cartes management (ECLATS, LOYAL, TEAM, SUCCÈS…) : fond
+//  marine profond, filet et titre dorés, sceau de l'Academy en filigrane.
+//
+//  ⚠️ C'EST UNE FONCTION, PAS UNE CONSTANTE, parce qu'elle porte désormais le
+//  NOM de la formation. Une plaque muette redeviendrait un trou : c'est le
+//  libellé qui en fait un visuel qui informe.
+//
+//  POURQUOI DU DESSIN ET PAS UNE PHOTO. Une photo de repli serait, par
+//  construction, générique — donc exactement le défaut qu'on corrige. La
+//  plaque, elle, est juste pour toutes les formations, ne pèse rien, ne se
+//  recadre jamais mal, et se lit aussi bien à 230 px qu'en plein écran.
+// ===========================================================================
+const REPLI_COUVERTURE = (f) =>
   '<span class="ac-cv-repli" aria-hidden="true">' +
-    '<svg viewBox="0 0 24 28" width="34" height="40" fill="none">' +
-      '<path d="M12 1 22 5v10c0 6-4.3 10.4-10 12C6.3 25.4 2 21 2 15V5l10-4Z" fill="currentColor" opacity=".92"/>' +
-      '<path d="M7 18V10l5 4 5-4v8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg>' +
-    '<b>MY COACH ACADEMY</b>' +
+    '<span class="ac-cv-repli-sceau">' +
+      '<svg viewBox="0 0 24 28" width="26" height="30" fill="none">' +
+        '<path d="M12 1 22 5v10c0 6-4.3 10.4-10 12C6.3 25.4 2 21 2 15V5l10-4Z" fill="currentColor"/>' +
+        '<path d="M7 18V10l5 4 5-4v8" stroke="#0A1526" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg>' +
+    '</span>' +
+    '<b class="ac-cv-repli-t">' + echapper(String((f && f.libelle) || 'My Coach Academy')) + '</b>' +
+    '<i class="ac-cv-repli-f"></i>' +
   '</span>';
+
+// ---------------------------------------------------------------------------
+//  LE POINT FOCAL, quand le centre de la photo n'est pas son sujet.
+//
+//  `object-fit: cover` recadre toujours depuis le CENTRE. Sur une photo au
+//  format portrait ramenée en 16:9, cela revient à garder une bande médiane
+//  choisie au hasard — d'où des sujets coupés et des cadrages illisibles.
+//
+//  Cette table dit, pour les seules photos concernées, QUELLE bande garder.
+//  C'est un recadrage sans réencodage : l'image en base n'est pas touchée, et
+//  revenir en arrière tient en une ligne supprimée.
+//
+//  ⚠️ ELLE NE CONTIENT QUE DES EXCEPTIONS. Une couverture correctement cadrée
+//  n'a rien à faire ici : le défaut `center` lui convient, et l'y inscrire
+//  ferait croire à une règle là où il n'y a qu'un rattrapage.
+// ---------------------------------------------------------------------------
+const FOCUS_COUVERTURE = {
+  sante_epaule: 'center 15%',          // le développé est en haut du cadre
+  sante_genou: 'center 60%',           // la fente, donc les genoux, est en bas
+  posture_coach: 'center 30%',         // le visage, pas le buste
+  resultat_du_mois: 'center 20%',      // sinon les deux têtes sont coupées
+  menopause: '100% 40%',               // écarte l'objet flou du premier plan
+  creer_relation_client: '75% 40%',    // écarte le lettrage mural tronqué
+};
 
 // Pose les vraies images sur les cartes déjà rendues. Appelée APRÈS le rendu :
 // la carte s'affiche tout de suite avec son repli, la photo s'y dépose quand
@@ -505,6 +553,8 @@ function poserCouvertures(racine) {
       if (!cadre.isConnected) return;         // l'écran a changé entre-temps
       const img = document.createElement('img');
       img.className = 'ac-cv-img';
+      // Le recadrage choisi pour cette couverture-là, s'il y en a un.
+      if (FOCUS_COUVERTURE[cle]) img.style.objectPosition = FOCUS_COUVERTURE[cle];
       img.alt = '';
       img.addEventListener('load', () => cadre.classList.add('ac-cv-ok'));
       // Une image illisible laisse simplement le repli en place : jamais de
@@ -521,7 +571,7 @@ function poserCouvertures(racine) {
 const cadreCouverture = (f) =>
   '<div class="ac-cv" data-cv="' + echapper(f.cle) + '"' +
     (f.couverture ? ' data-cv-stamp="' + echapper(f.couverture) + '"' : '') + '>' +
-    REPLI_COUVERTURE + '</div>';
+    REPLI_COUVERTURE(f) + '</div>';
 
 // « Prénom Nom », avec ce qu'on a. UN SEUL ENDROIT le compose : la liste des
 // collaborateurs, l'en-tête de compte et la salutation d'accueil doivent dire
@@ -631,6 +681,16 @@ let accueilCategorie = 'toutes';
 // autres, comme eux entre eux : cliquer « En cours » ne fait pas sortir de la
 // catégorie choisie. 'tous' n'est pas un statut — c'est l'absence de filtre.
 let accueilStatut = 'tous';
+// L'ACCORDÉON DE LA GRILLE. Les quatre familles restent VISIBLES en
+// permanence — ce sont elles qui commandent — mais la liste qu'elles filtrent
+// se replie. Trente-quatre cartes déroulées d'emblée noyaient les indicateurs
+// et le rail : on ouvre ce qu'on vient chercher.
+//
+//  ⚠️ C'EST UN ÉTAT D'ÉCRAN, ET RIEN D'AUTRE. Il ne filtre pas, ne trie pas et
+//  ne touche à aucun statut : `formationsAffichees()` renvoie exactement la
+//  même liste, ouverte ou fermée. Fermé à l'arrivée, il le reste jusqu'à un
+//  geste explicite.
+let accueilOuvert = false;
 
 // LA FAMILLE LEADER S'AFFICHE EN MOSAÏQUE 3 × 2 — les six incontournables
 // E.L.I.T.E.S. `management` est la clé technique, « Leader » son libellé
@@ -670,6 +730,61 @@ async function ouvrirAccueil() {
   rendreAccueil();
 }
 
+// =============================================================================
+//  LES COMPOSANTS PARTAGÉS DES QUATRE ÉCRANS
+//
+//  POURQUOI ILS EXISTENT. Mon Academy, Évaluer & certifier, Formations et la
+//  Boîte à outils étaient écrits l'un après l'autre, chacun avec son en-tête,
+//  ses pilules et ses badges. À la mesure : quatre tailles de titre (28, 25,6,
+//  19,2 px et aucun), quatre hauteurs de bouton (45, 36, 46, 38 px), trois
+//  rayons de filtre (999, 10 et 0 px) et quatre rythmes verticaux. Rien de
+//  cassé, mais quatre produits.
+//
+//  ⚠️ CE SONT DES COMPOSANTS DE PRÉSENTATION, ET RIEN D'AUTRE. Ils ne lisent
+//  aucun état, ne décident d'aucun droit et ne connaissent aucune règle
+//  métier : on leur donne un texte, ils rendent du balisage. Ce qui décide de
+//  ce qu'un rôle voit reste exactement où c'était.
+// =============================================================================
+
+//  L'EN-TÊTE D'UNE PAGE. Un titre, une phrase, et rien de plus à gauche ; les
+//  actions propres à l'écran passent à droite.
+//
+//  ⚠️ IL VIT DANS LA PAGE, PAS DANS LE BANDEAU BLANC. « Mon Academy » avait son
+//  titre dans l'en-tête partagé (« Bonjour Stan ») et les trois autres dans
+//  leur corps : deux origines pour la même ligne, donc deux alignements et deux
+//  rythmes. Une seule origine, désormais.
+function enTetePage({ titre, sousTitre, actions }) {
+  return '<header class="ac-pg-h">' +
+    '<div class="ac-pg-h-t">' +
+      '<h1 class="ac-pg-t">' + echapper(titre) + '</h1>' +
+      (sousTitre ? '<p class="ac-pg-s">' + sousTitre + '</p>' : '') +
+    '</div>' +
+    (actions ? '<div class="ac-pg-a">' + actions + '</div>' : '') +
+  '</header>';
+}
+
+//  UN BADGE. Le même objet pour « 10 modules », « Certifié », « PDF » ou
+//  « 2,4 Mo » : une pastille qui QUALIFIE, jamais qui commande. `ton` ne change
+//  que la couleur, et chaque ton porte aussi un mot — on ne dit jamais une
+//  information par la seule couleur.
+//  ⚠️ LA CLASSE S'APPELLE `ac-etiq`, PAS `ac-bdg` : ce dernier nom désignait
+//  des pastilles cerclées retirées dans un lot précédent, et un test garde leur
+//  disparition. Reprendre le nom aurait ressuscité un concept abandonné.
+const TONS_BADGE = ['neutre', 'bleu', 'vert', 'or', 'ambre'];
+function badge(texte, ton) {
+  const t = TONS_BADGE.includes(ton) ? ton : 'neutre';
+  return '<span class="ac-etiq ac-etiq-' + t + '">' + echapper(texte) + '</span>';
+}
+
+//  UN TITRE DE SECTION, à l'intérieur d'une page. Un cran sous l'en-tête, et
+//  le même cran sur les quatre écrans.
+function titreSection(texte, aide) {
+  return '<div class="ac-sec-h">' +
+    '<h2 class="ac-sec-t">' + echapper(texte) + '</h2>' +
+    (aide ? '<p class="ac-sec-s">' + aide + '</p>' : '') +
+  '</div>';
+}
+
 // -- La barre latérale ---------------------------------------------------------
 //
 //  Elle ne montre que des destinations réelles. Les entrées de rôle n'y
@@ -681,6 +796,10 @@ function rendreBarreLaterale(actif) {
     admin: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
     outils: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a3.9 3.9 0 0 0 5 5l-8.4 8.4a2.1 2.1 0 0 1-3-3l6.4-10.4Z"/><path d="M5 5l2.5 2.5"/></svg>',
     collab: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.2 19.5c0-3.1 2.6-5.2 5.8-5.2s5.8 2.1 5.8 5.2"/><path d="M16.4 5.2a3.2 3.2 0 0 1 0 6"/><path d="M17.6 14.6c1.9.5 3.2 1.9 3.2 4.9"/></svg>',
+    referentiel: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H5.5A1.5 1.5 0 0 1 4 15.5v-10Z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h5.5a1.5 1.5 0 0 0 1.5-1.5v-10Z"/></svg>',
+    // Un repère posé sur une carte : on va sur place, on constate. Même trait
+    // et même taille que les cinq autres — aucune logique graphique à part.
+    terrain: '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg>',
   };
   // UNE SEULE PORTE POUR LE COACH. « Mes formations » et « Mes certifications »
   // menaient au MÊME écran que « Mon Academy » — même appel, même grille — à un
@@ -691,18 +810,34 @@ function rendreBarreLaterale(actif) {
   // continue d'accepter 'formations' et 'certifications', et le bouton
   // « Voir mes certifications » de l'accueil s'en sert toujours pour filtrer la
   // grille sur les formations certifiantes.
-  const entrees = [
-    { cle: 'academy', libelle: 'Mon Academy', icone: ic.academy },
-    // UNE DESTINATION, PAS UN FILTRE. La Boîte à outils n'est pas une famille
-    // de formations qu'on cocherait dans le rail de l'accueil : c'est un autre
-    // écran, un autre contenu, d'autres gestes. Elle a donc sa propre entrée,
-    // ouverte à qui entre dans l'Academy.
-    { cle: 'outils', libelle: 'Boîte à outils', icone: ic.outils, id: 'acNavOutils' },
-  ];
+  //  LA BARRE DIT LE MÉTIER DE CELUI QUI LA LIT.
+  //
+  //  ⚠️ « MON ACADEMY » N'APPARTIENT QU'À QUI SE FORME. C'est un parcours
+  //  PERSONNEL — des cartes « Commencer cette formation », des pourcentages,
+  //  une progression. Un certificateur qui n'est pas collaborateur n'en a
+  //  aucune : l'entrée le menait à une grille de formations dont les boutons
+  //  se refermaient sur un refus du serveur. Elle suit donc `moiCollab`, le
+  //  droit que le serveur a nommé, et rien d'autre.
+  const entrees = [];
+  if (moiCollab) entrees.push({ cle: 'academy', libelle: 'Mon Academy', icone: ic.academy });
   // UN SEUL MÉTIER, UNE SEULE ENTRÉE. Évaluer la pratique et prononcer la
   // certification étaient deux destinations sous deux droits ; c'est la même
   // personne qui suit un coach du terrain au diplôme.
   if (moiEval) entrees.push({ cle: 'evaluer', libelle: 'Évaluer & certifier', icone: ic.eval, id: 'acRoleEval' });
+  //  LE RÉFÉRENTIEL, DESTINATION DU CERTIFICATEUR. Consulter ce qu'on évalue
+  //  n'est pas suivre un parcours : c'est un autre écran, d'autres libellés
+  //  (« Voir », jamais « Commencer ») et deux routes de lecture seule.
+  if (moiEval) entrees.push({ cle: 'referentiel', libelle: 'Formations', icone: ic.referentiel, id: 'acNavReferentiel' });
+  // UNE DESTINATION, PAS UN FILTRE. La Boîte à outils n'est pas une famille
+  // de formations qu'on cocherait dans le rail de l'accueil : c'est un autre
+  // écran, un autre contenu, d'autres gestes. Elle a donc sa propre entrée,
+  // ouverte à qui entre dans l'Academy — certificateur compris.
+  //  LE SUIVI TERRAIN, entre le référentiel et la bibliothèque. C'est un droit
+  //  À PART : ni se former, ni certifier — observer ce qui se passe dans les
+  //  studios. Il ne s'affiche donc que pour qui l'a reçu, et la route est
+  //  gardée côté serveur (exigeTerrain), pas seulement l'entrée de menu.
+  if (moiTerrain) entrees.push({ cle: 'terrain', libelle: 'Suivi terrain', icone: ic.terrain, id: 'acNavTerrain' });
+  entrees.push({ cle: 'outils', libelle: 'Boîte à outils', icone: ic.outils, id: 'acNavOutils' });
   // LES COLLABORATEURS ONT QUITTÉ LES ONGLETS DE L'ADMINISTRATION pour devenir
   // une destination. « Qui entre dans l'Academy » n'est pas un réglage de
   // contenu : c'est une population qu'on gère, et on la cherchait sous un
@@ -730,8 +865,18 @@ async function naviguer(ou) {
   if (ou === 'outils') { await ouvrirOutils(); return; }
   if (ou === 'collaborateurs') { await ouvrirCollaborateurs(); return; }
   if (ou === 'evaluer') { await ouvrirEvaluateur(); return; }
+  if (ou === 'referentiel') { await ouvrirReferentiel(); return; }
+  if (ou === 'terrain') { await ouvrirTerrain(); return; }
   if (ou === 'administrer') { await ouvrirAdmin(); return; }
+  // ⚠️ LA DERNIÈRE PORTE EST CELLE DE L'ACCUEIL, ET ELLE N'EXISTE QUE POUR QUI
+  // SE FORME. La barre ne la propose plus à un certificateur pur ; ce garde-fou
+  // vaut pour tout autre appel — un bouton de retour, une ancienne ancre.
+  if (!moiCollab) { await ouvrirReferentiel(); return; }
   accueilFiltre = ou === 'certifications' ? 'certifiantes' : 'toutes';
+  // « Voir mes certifications » et « Mes formations » demandent une LISTE : on
+  // l'ouvre. « Mon Academy », lui, est un retour à l'accueil et ne force rien —
+  // l'accordéon garde l'état où on l'avait laissé, fermé à la première arrivée.
+  if (ou !== 'academy') accueilOuvert = true;
   await ouvrirAccueil();
   if (ou !== 'academy') {
     const g = $('#acGrille');
@@ -807,10 +952,18 @@ function rendreAccueil(options) {
   };
 
 
-  // Le titre et sa phrase d'accueil ne sont plus ici : ils vivent dans le
-  // bandeau blanc (#acHeadTitre), montré par afficher(). L'écran commence donc
-  // directement par les indicateurs.
+  // Le titre et sa phrase vivent dans l'en-tête de page commun aux quatre
+  // écrans (cf. enTetePage), rendu juste au-dessus des indicateurs.
   $('#acAccueil').innerHTML =
+    // L'EN-TÊTE EST CELUI DES TROIS AUTRES ÉCRANS. Il portait « Bonjour Stan »
+    // dans le bandeau blanc : une salutation à la place d'un titre, et une
+    // origine différente des trois autres pages — donc un alignement et un
+    // rythme différents. Le prénom n'est pas perdu, il passe dans la phrase.
+    enTetePage({
+      titre: 'Mon Academy',
+      sousTitre: (moiPrenom ? 'Bonjour ' + echapper(moiPrenom) + ' — continue' : 'Continue') +
+        ' ton parcours, valide tes évaluations et obtiens tes certifications.',
+    }) +
     // Des <button>, plus des <div> : ce sont des commandes, et il faut qu'elles
     // soient atteignables au clavier comme à la souris. `aria-pressed` dit
     // l'état à un lecteur d'écran, la classe `on` le dit à l'œil.
@@ -837,6 +990,39 @@ function rendreAccueil(options) {
           echapper(l) + '<i class="ac-cat-n">' + n + '</i></button>';
       }).join('') +
     '</nav>' +
+
+    // ======================================================================
+    //  LE BANDEAU QUI OUVRE ET FERME LA LISTE.
+    //
+    //  Il dit TROIS choses et pas une de plus : de quoi il s'agit, quelle
+    //  famille est en cours, et combien de cartes attendent derrière. Le
+    //  compte est celui de `liste` — donc CE QU'IL Y A VRAIMENT DEDANS, filtre
+    //  de statut compris. Afficher le compte de la famille pendant qu'un
+    //  filtre de statut est actif annoncerait douze cartes pour en montrer
+    //  trois.
+    //
+    //  C'est un <button> : il s'atteint au clavier, `aria-expanded` dit son
+    //  état à un lecteur d'écran, et `aria-controls` désigne ce qu'il ouvre.
+    // ======================================================================
+    '<button type="button" class="ac-acc-b' + (accueilOuvert ? ' on' : '') + '" id="acAccBtn"' +
+      ' aria-expanded="' + (accueilOuvert ? 'true' : 'false') + '" aria-controls="acAccPan">' +
+      '<span class="ac-acc-t">Formations <span class="ac-acc-sep" aria-hidden="true">—</span> ' +
+        '<b>' + echapper(libelleFamille(accueilCategorie)) + '</b></span>' +
+      '<span class="ac-acc-d">' +
+        '<span class="ac-acc-n">' + echapper(compteFormations(liste.length)) + '</span>' +
+        '<span class="ac-acc-ch" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"' +
+          ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' +
+        '</span>' +
+      '</span>' +
+    '</button>' +
+
+    // L'ENVELOPPE REPLIABLE. Elle contient EXACTEMENT ce qui s'affichait
+    // avant — le titre du filtre, le sélecteur de tri, la grille de cartes —
+    // sans qu'une seule ligne de leur rendu ne change.
+    '<div class="ac-acc-pan' + (accueilOuvert ? ' on' : '') + '" id="acAccPan" role="region"' +
+      ' aria-labelledby="acAccBtn">' +
+    '<div class="ac-acc-in">' +
 
     '<div class="ac-grille-h" id="acGrilleH">' +
       // Le titre dit LE FILTRE EN COURS. Sans lui, une grille soudain réduite à
@@ -873,14 +1059,46 @@ function rendreAccueil(options) {
             : accueilFiltre === 'certifiantes'
               ? 'Aucune formation certifiante ne t\'est ouverte pour le moment.'
               : 'Aucune formation ne t\'est ouverte pour le moment.') + '</div>') +
-    '</div>';
+    '</div>' +
 
-  poserCouvertures($('#acAccueil'));
+    '</div></div>';
+
+  // LES COUVERTURES NE SE CHARGENT QUE SI ON LES VOIT. Trente-quatre images
+  // demandées pour une liste repliée, c'est trente-quatre requêtes pour rien —
+  // et sur un téléphone, c'est la première chose qu'on sent. Elles se posent au
+  // dépliement, par ce même appel : chaque bascule repasse par ce rendu.
+  if (accueilOuvert) poserCouvertures($('#acAccueil'));
 
   document.querySelectorAll('#acAccueil [data-ouvrir]').forEach((el) =>
     el.addEventListener('click', () => ouvrirFormation(el.dataset.ouvrir)));
+  // ========================================================================
+  //  UNE FAMILLE COMMANDE L'ACCORDÉON.
+  //
+  //   · une AUTRE famille -> on change de famille ET on ouvre : cliquer
+  //     « Expertise » veut dire « montre-moi Expertise », pas « prépare-le » ;
+  //   · la famille DÉJÀ active -> on replie. C'est le même geste que sur les
+  //     indicateurs de statut : on rappuie sur ce qu'on vient d'enfoncer.
+  //
+  //  ⚠️ LA FAMILLE RESTE SÉLECTIONNÉE EN SE REFERMANT. Replier n'est pas
+  //  annuler : le bandeau continue d'annoncer « Essentiel », et rouvrir
+  //  redonne Essentiel. Remettre 'toutes' au passage effacerait un choix que
+  //  personne n'a défait.
+  // ========================================================================
   document.querySelectorAll('#acAccueil [data-cat]').forEach((el) =>
-    el.addEventListener('click', () => { accueilCategorie = el.dataset.cat; rendreAccueil(); }));
+    el.addEventListener('click', () => {
+      const cat = el.dataset.cat;
+      accueilOuvert = (cat === accueilCategorie) ? !accueilOuvert : true;
+      accueilCategorie = cat;
+      rendreAccueil({ sansRemonter: true });
+    }));
+
+  // Le bandeau lui-même : il ne fait qu'ouvrir et fermer. Il ne touche ni à la
+  // famille, ni au tri, ni au statut.
+  const acc = $('#acAccBtn');
+  if (acc) acc.addEventListener('click', () => {
+    accueilOuvert = !accueilOuvert;
+    rendreAccueil({ sansRemonter: true });
+  });
 
   // LE CLIC SUR UN INDICATEUR : on filtre, puis on descend jusqu'à la grille.
   //
@@ -892,6 +1110,11 @@ function rendreAccueil(options) {
     el.addEventListener('click', () => {
       const cle = el.dataset.kpi;
       accueilStatut = (cle === 'tous' || cle === accueilStatut) ? 'tous' : cle;
+      // Filtrer par statut est une demande de VOIR la liste filtrée : sur une
+      // grille repliée, le clic n'aurait produit aucun effet visible. On ouvre
+      // donc, puis on descend — c'est le geste qui existait déjà, rendu au
+      // complet.
+      accueilOuvert = true;
       rendreAccueil({ sansRemonter: true });
       // APRÈS le rendu : innerHTML a remplacé le DOM, l'ancien nœud n'existe
       // plus. Et on respecte « animations réduites » — un défilement animé
@@ -2987,12 +3210,11 @@ function rendreEvalListe() {
   // d'Ariane dans l'en-tête (voir `rendreFilEval`) : une navigation posée
   // au-dessus d'un titre le fait passer pour un sous-titre.
   $('#acEval').innerHTML =
-    '<div class="ac-ev-h">' +
-      '<div>' +
-        '<h1 class="ac-ev-h1">Évaluer &amp; certifier</h1>' +
-        '<p class="ac-ev-sub">Suis la progression des coachs et traite les évaluations en attente.</p>' +
-      '</div>' +
-      '<div class="ac-ev-actions">' +
+    enTetePage({
+      titre: 'Évaluer & certifier',
+      sousTitre: 'Suis la progression des coachs, traite les évaluations en attente ' +
+        'et prononce les certifications.',
+      actions:
         // « Grille » n'a pas encore de comportement : il est DÉSACTIVÉ plutôt
         // que muet. Un segment cliquable qui ne fait rien est un bug pour qui
         // l'essaie ; désactivé, c'est une promesse.
@@ -3006,9 +3228,8 @@ function rendreEvalListe() {
           ? '<button type="button" class="ac-btn-sec" id="acEvalAdmin">Administration</button>'
           : '') +
         '<button type="button" class="ac-btn-sec" disabled title="Bientôt">' +
-          icone('telecharger', { taille: 16 }) + 'Exporter</button>' +
-      '</div>' +
-    '</div>' +
+          icone('telecharger', { taille: 16 }) + 'Exporter</button>',
+    }) +
 
     rendreBentoEval(tous) +
 
@@ -4060,12 +4281,11 @@ function rendreOutils() {
   }
 
   $('#acOutils').innerHTML =
-    '<div class="ac-out-tete">' +
-      '<h1 class="ec-t ac-out-h1">Boîte à outils</h1>' +
-      '<p class="ec-sub ac-out-sub">Les ressources pratiques de My Coach : documents, visuels, ' +
-        'vidéos et liens utiles. On les consulte librement — rien ici n\'est une formation, ' +
-        'et rien n\'est évalué.</p>' +
-    '</div>' +
+    enTetePage({
+      titre: 'Boîte à outils',
+      sousTitre: 'Les ressources pratiques de My Coach : documents, visuels, vidéos et liens ' +
+        'utiles. On les consulte librement — rien ici n\'est une formation, et rien n\'est évalué.',
+    }) +
 
     // LA BARRE DE FILTRES EST RENDUE UNE SEULE FOIS. Chercher re-rend la
     // GRILLE, jamais cette barre : re-générer le champ à chaque frappe lui
@@ -4952,6 +5172,69 @@ async function agirSurCollaborateur(geste, mail) {
   // déjà — celle de l'écran « Évaluateurs », gardée par exigeAdmin — et
   // n'invente ni permission, ni table, ni vérification côté écran : un
   // non-administrateur qui appellerait cette route recevrait un 403.
+  // DÉSIGNER UN CERTIFICATEUR PAR SON ADRESSE. Même route, même garde
+  // (exigeAdmin), même table : c'est le geste de l'interrupteur, atteint par
+  // une adresse plutôt que par une ligne existante. Aucune permission nouvelle.
+  if (geste === 'collab-cert-ajouter') {
+    const email = champ('#acCertMail').toLowerCase();
+    if (!email) { admErreur = 'Saisis l\'adresse e-mail du certificateur.'; rendreCollaborateurs(); return; }
+    if (!emailPlausible(email)) { admErreur = 'Cette adresse e-mail n\'est pas valide.'; rendreCollaborateurs(); return; }
+    const deja = (adminCollabs || []).find((c) => c.email === email);
+    if (deja && deja.certificateurAdmin) {
+      admErreur = 'Ce compte est administrateur : il certifie déjà par son rôle.';
+      rendreCollaborateurs(); return;
+    }
+    if (deja && deja.certificateur) {
+      admErreur = 'Ce compte est déjà certificateur.'; rendreCollaborateurs(); return;
+    }
+    const r = await apiAc('/api/academy/admin/evaluateurs', 'POST', { email, evaluateur: true });
+    if (r.status === 401) { deconnecter(); return; }
+    if (!r.data.ok) { admErreur = r.data.error || 'Désignation impossible.'; collabMessage = ''; rendreCollaborateurs(); return; }
+    adminCollabs = r.data.collaborateurs || adminCollabs;
+    collabMessage = deja
+      ? 'Droit de certificateur activé — ' + (nomComplet(deja) || email)
+      : 'Certificateur désigné — ' + email + '. Il n\'a pas accès à Mon Academy.';
+    rendreCollaborateurs();
+    return;
+  }
+
+  // Rendre un certificateur seul ÉGALEMENT coach : on lui ouvre Mon Academy
+  // sans toucher à son droit de certifier. Les deux vivent dans deux tables.
+  if (geste === 'collab-promouvoir') {
+    const ligne = (adminCollabs || []).find((c) => c.email === mail);
+    const r = await apiAc('/api/academy/admin/collaborateurs', 'POST',
+      { email: mail, role: 'collaborateur', prenom: (ligne && ligne.prenom) || mail.split('@')[0],
+        nom: (ligne && ligne.nom) || '—' });
+    if (r.status === 401) { deconnecter(); return; }
+    if (!r.data.ok) { admErreur = r.data.error || 'Modification impossible.'; rendreCollaborateurs(); return; }
+    adminCollabs = r.data.collaborateurs || adminCollabs;
+    collabMessage = 'Accès coach ouvert — ' + (ligne ? (nomComplet(ligne) || mail) : mail) +
+      '. Il garde son droit de certificateur.';
+    rendreCollaborateurs();
+    return;
+  }
+
+  //  Accorder ou retirer le SUIVI TERRAIN. Même route gardée par exigeAdmin,
+  //  même retour : la liste à jour vient du serveur, jamais d'une déduction.
+  if (geste === 'collab-terrain') {
+    const ligne = (adminCollabs || []).find((c) => c.email === mail);
+    const vise = !(ligne && ligne.suiviTerrain);
+    const r = await apiAc('/api/academy/admin/terrain', 'POST', { email: mail, terrain: vise });
+    if (r.status === 401) { deconnecter(); return; }
+    if (!r.data.ok) { admErreur = r.data.error || 'Modification impossible.'; collabMessage = ''; rendreCollaborateurs(); return; }
+    adminCollabs = r.data.collaborateurs || adminCollabs;
+    const qui = ligne ? (nomComplet(ligne) || mail) : mail;
+    collabMessage = vise ? 'Droit de suivi terrain activé — ' + qui : 'Droit de suivi terrain retiré — ' + qui;
+    // Se l'accorder à SOI-MÊME change ce qu'on a le droit de voir : on relit
+    // son propre statut plutôt que de garder une barre latérale périmée.
+    if (mail === (session && session.email)) {
+      const r2 = await apiAc('/api/academy/moi');
+      if (r2.data && r2.data.ok) moiTerrain = !!r2.data.terrain;
+    }
+    rendreCollaborateurs();
+    return;
+  }
+
   if (geste === 'collab-certificateur') {
     const ligne = (adminCollabs || []).find((c) => c.email === mail);
     const vise = !(ligne && ligne.certificateur);
@@ -4966,7 +5249,13 @@ async function agirSurCollaborateur(geste, mail) {
     // La liste à jour vient du serveur : l'écran ne devine pas le nouvel état.
     adminCollabs = r.data.collaborateurs || adminCollabs;
     const qui = ligne ? (nomComplet(ligne) || mail) : mail;
-    collabMessage = vise ? 'Droit de certificateur activé — ' + qui : 'Droit de certificateur retiré — ' + qui;
+    // Retirer le droit à un certificateur SEUL fait disparaître sa ligne : il
+    // n'a plus rien à faire dans cette liste. On le dit, sinon la ligne semble
+    // s'être évaporée.
+    const seul = ligne && ligne.etat === 'certificateur';
+    collabMessage = vise ? 'Droit de certificateur activé — ' + qui
+      : 'Droit de certificateur retiré — ' + qui +
+        (seul ? '. Ce compte n\'étant pas collaborateur, il quitte cette liste.' : '');
     // Se l'accorder ou se le retirer à SOI-MÊME change ce qu'on a le droit de
     // voir : on relit son propre statut plutôt que de garder un menu périmé.
     if (mail === (session && session.email)) {
@@ -5159,17 +5448,51 @@ function interrupteurCertificateur(c) {
     '</label>';
 }
 
+//  L'INTERRUPTEUR « SUIVI TERRAIN ». Copie exacte de celui du certificateur —
+//  même forme, même geste, même garde serveur — parce que c'est le même type
+//  d'objet : un droit d'Academy qu'on accorde à une personne. Deux dessins pour
+//  deux droits jumeaux auraient fait deux composants à maintenir.
+function interrupteurTerrain(c) {
+  if (c.suiviTerrainAdmin) {
+    return '<span class="ac-cert-sw ac-cert-sw-admin">' +
+      '<span class="ac-sw ac-sw-on ac-sw-verrou" aria-hidden="true"><i></i></span>' +
+      '<span class="ac-cert-sw-t">Suivi terrain<i>inclus avec le rôle Administrateur</i></span>' +
+      '</span>';
+  }
+  if (c.etat === 'en_attente') {
+    return '<span class="ac-cert-sw ac-cert-sw-vide">' +
+      '<span class="ac-cert-sw-t">Suivi terrain<i>dès que le compte existera</i></span></span>';
+  }
+  const on = !!c.suiviTerrain;
+  return '<label class="ac-cert-sw">' +
+    '<input type="checkbox" class="ac-sw-in" data-adm="collab-terrain"' +
+      ' data-mail="' + echapper(c.email) + '"' + (on ? ' checked' : '') + ' />' +
+    '<span class="ac-sw' + (on ? ' ac-sw-on' : '') + '" aria-hidden="true"><i></i></span>' +
+    '<span class="ac-cert-sw-t">Suivi terrain<i>' +
+      (on ? 'peut relever des observations' : 'aucun droit') + '</i></span>' +
+    '</label>';
+}
+
 function rendreAdminCollaborateurs() {
   const l = adminCollabs || [];
   const actifs = l.filter((c) => c.etat === 'actif');
   const attente = l.filter((c) => c.etat === 'en_attente');
   const retires = l.filter((c) => c.etat === 'retire');
+  const certSeuls = l.filter((c) => c.etat === 'certificateur');
 
   const ligne = (c) => {
     const enConfirmation = collabARetirer === c.email;
     const attente_ = c.etat === 'en_attente';
-    const LIB = { actif: 'Actif', en_attente: 'En attente', retire: 'Accès retiré' };
-    const quand = { actif: 'ajouté le ', en_attente: 'autorisée le ', retire: 'retiré le ' };
+    // LE CERTIFICATEUR SEUL N'EST PAS UN COLLABORATEUR AU RABAIS. Il n'a pas
+    // d'accès à « Mon Academy », donc rien à lui retirer de ce côté : son seul
+    // droit est celui que porte son interrupteur, et c'est par lui qu'on le
+    // reprend. Lui proposer « Retirer l'accès » désignerait un accès qu'il n'a
+    // pas.
+    const certSeul = c.etat === 'certificateur';
+    const LIB = { actif: 'Actif', en_attente: 'En attente', retire: 'Accès retiré',
+      certificateur: 'Certificateur seul' };
+    const quand = { actif: 'ajouté le ', en_attente: 'autorisée le ', retire: 'retiré le ',
+      certificateur: 'désigné le ' };
     return '<div class="ac-adm-ligne' + (c.etat === 'actif' ? '' : ' ac-adm-off') + '">' +
       // « Prénom Nom » sur la première ligne, l'adresse sur la seconde. Un
       // compte d'avant cette évolution n'a ni l'un ni l'autre : son adresse
@@ -5182,13 +5505,20 @@ function rendreAdminCollaborateurs() {
       '<span class="ac-eval-etat ' + (c.etat === 'actif' ? 'ac-etat-theorie-validee' : '') + '">' +
         LIB[c.etat] + '</span>' +
       interrupteurCertificateur(c) +
+      interrupteurTerrain(c) +
       '<span class="ac-adm-actions">' +
-        (c.etat === 'retire'
-          ? '<button type="button" class="ec-btn ac-adm-b" data-adm="collab-rendre"' +
-              ' data-mail="' + echapper(c.email) + '">Rendre l\'accès</button>'
-          : '<button type="button" class="ec-btn ac-adm-b ac-adm-danger" data-adm="collab-retirer"' +
-              ' data-mail="' + echapper(c.email) + '">' +
-              (attente_ ? 'Supprimer l\'autorisation' : 'Retirer l\'accès') + '</button>') +
+        (certSeul
+          // Rien : l'interrupteur ci-dessus EST son unique droit. L'éteindre le
+          // retire — et la ligne disparaît, puisque ce compte n'a rien d'autre
+          // à faire dans cette liste.
+          ? '<button type="button" class="ec-btn ac-adm-b" data-adm="collab-promouvoir"' +
+              ' data-mail="' + echapper(c.email) + '">Le rendre aussi coach</button>'
+          : c.etat === 'retire'
+            ? '<button type="button" class="ec-btn ac-adm-b" data-adm="collab-rendre"' +
+                ' data-mail="' + echapper(c.email) + '">Rendre l\'accès</button>'
+            : '<button type="button" class="ec-btn ac-adm-b ac-adm-danger" data-adm="collab-retirer"' +
+                ' data-mail="' + echapper(c.email) + '">' +
+                (attente_ ? 'Supprimer l\'autorisation' : 'Retirer l\'accès') + '</button>') +
       '</span></div>' +
       // La confirmation est EXPLICITE et nomme la personne : un retrait ferme
       // l'Academy à l'appel suivant.
@@ -5233,6 +5563,32 @@ function rendreAdminCollaborateurs() {
       '</div>' +
     '</div>' +
 
+    // ======================================================================
+    //  DÉSIGNER UN CERTIFICATEUR QUI NE SE FORME PAS.
+    //
+    //  Le droit de certifier n'a jamais exigé d'être collaborateur — c'est une
+    //  autre table. Mais tant que cet écran ne montrait que des
+    //  collaborateurs, le seul chemin pour l'accorder passait par la ligne de
+    //  l'un d'eux : tout certificateur était donc forcément apprenant.
+    //
+    //  ⚠️ LE COMPTE DOIT EXISTER. Contrairement à un collaborateur, un
+    //  certificateur ne se pré-autorise pas : le serveur refuse une adresse
+    //  sans compte (404), et on le dit avant de laisser saisir.
+    // ======================================================================
+    '<h2 class="ac-eval-t ac-eval-t2">Désigner un certificateur</h2>' +
+    '<div class="ac-adm-form">' +
+      '<label class="ec-field"><span>Adresse e-mail</span>' +
+        '<input id="acCertMail" type="email" autocomplete="off" placeholder="prenom@exemple.fr" /></label>' +
+      '<p class="ac-adm-aide">Ouvre « Évaluer &amp; certifier » et la consultation des formations, ' +
+        '<b>sans</b> donner accès à Mon Academy ni créer le moindre parcours personnel. ' +
+        'Le compte doit déjà exister — une adresse inconnue sera refusée. ' +
+        'Pour un collaborateur, sers-toi plutôt de son interrupteur ci-dessous.</p>' +
+      '<div class="ac-adm-actions ac-adm-actions-form">' +
+        '<button type="button" class="ec-btn ec-btn-p ac-adm-b" data-adm="collab-cert-ajouter">' +
+          '+ Désigner un certificateur</button>' +
+      '</div>' +
+    '</div>' +
+
     '<h2 class="ac-eval-t ac-eval-t2">Collaborateurs autorisés</h2>' +
     '<div class="ac-adm-arbre">' +
       (actifs.length ? actifs.map(ligne).join('')
@@ -5244,6 +5600,14 @@ function rendreAdminCollaborateurs() {
         '<p class="ac-adm-aide">Ces adresses sont autorisées. Le statut Collaborateur sera accordé ' +
           'automatiquement dès que la personne créera son espace avec exactement cette adresse.</p>' +
         '<div class="ac-adm-arbre">' + attente.map(ligne).join('') + '</div>'
+      : '') +
+
+    (certSeuls.length
+      ? '<h2 class="ac-eval-t ac-eval-t2">Certificateurs seuls</h2>' +
+        '<p class="ac-adm-aide">Ils évaluent et certifient, et consultent le référentiel des ' +
+          'formations. Ils n\'ont <b>pas</b> Mon Academy, aucune progression personnelle, et ' +
+          'n\'apparaissent jamais parmi les coachs suivis.</p>' +
+        '<div class="ac-adm-arbre">' + certSeuls.map(ligne).join('') + '</div>'
       : '') +
 
     (retires.length
@@ -6401,6 +6765,883 @@ async function agirSurContenus(el) {
     [ids[i], ids[j]] = [ids[j], ids[i]];
     await ecrireAdmin('/api/academy/admin/ordre', { type, ids });
   }
+}
+
+// --- Référentiel : la consultation du certificateur ---------------------------
+//
+//  À QUOI SERT CET ÉCRAN. Le certificateur ne suit pas de parcours : il suit
+//  CEUX DES AUTRES. Pour prononcer un résultat, il doit connaître ce sur quoi
+//  il prononce — modules, contenus, questions, cas, grille, règles du diplôme.
+//
+//  ⚠️ CE N'EST PAS « MON ACADEMY » AVEC D'AUTRES MOTS. Aucun pourcentage,
+//  aucune barre de progression, aucun « Commencer cette formation » : ces
+//  chiffres appartiennent à un parcours personnel, et le certificateur n'en a
+//  pas. On CONSULTE ici, on ne progresse pas — et les libellés le disent.
+//
+//  ⚠️ IL NE PEUT RIEN ÉCRIRE, ET PAS SEULEMENT PARCE QU'IL S'EN ABSTIENT :
+//  les deux seules routes qu'il appelle sont des GET (/api/academy/referentiel).
+//  Ouvrir un QCM ici n'ouvre aucune tentative, ouvrir une évaluation pratique
+//  n'ouvre aucune évaluation.
+
+let refCatalogue = null;    // la liste servie par le serveur
+let refFiche = null;        // le référentiel de la formation ouverte
+let refCategorie = 'toutes';
+let refVolet = 'contenu';   // contenu | qcm | pratique | certification
+let refContenuOuvert = null; // l'identifiant du contenu déplié (un seul à la fois)
+let refCasOuvert = null;     // idem pour les cas pratiques
+
+const REF_VOLETS = [
+  ['contenu', 'Consulter le contenu'],
+  ['qcm', 'Voir le QCM théorique'],
+  ['pratique', 'Voir l’évaluation pratique'],
+  ['certification', 'Voir les critères de certification'],
+];
+
+async function ouvrirReferentiel() {
+  const r = await apiAc('/api/academy/referentiel');
+  if (r.status === 401) { deconnecter(); return; }
+  if (r.status === 403) {
+    bloquer('🔒', 'Référentiel des formations',
+      'Seuls les certificateurs désignés et les administrateurs consultent le référentiel.');
+    return;
+  }
+  if (!r.data.ok) { bloquer('⚠️', 'Espace indisponible', 'Réessaie dans un instant.'); return; }
+  refCatalogue = r.data;
+  refFiche = null;
+  rendreReferentiel();
+}
+
+async function ouvrirRefFormation(cle) {
+  const r = await apiAc('/api/academy/referentiel/' + encodeURIComponent(cle));
+  if (r.status === 401) { deconnecter(); return; }
+  if (!r.data.ok) { refFiche = null; rendreReferentiel(); return; }
+  refFiche = r.data;
+  refVolet = 'contenu';
+  refContenuOuvert = null;
+  refCasOuvert = null;
+  rendreReferentiel();
+}
+
+// -- La liste ------------------------------------------------------------------
+
+function refFormationsAffichees() {
+  const l = (refCatalogue && refCatalogue.formations) || [];
+  return refCategorie === 'toutes' ? l : l.filter((f) => f.categorie === refCategorie);
+}
+
+// Une pastille de dénombrement. Elle DIT CE QU'ELLE COMPTE : « 6 modules »
+// plutôt qu'un « 6 » qu'il faudrait interpréter.
+//
+//  ⚠️ ELLE PASSE PAR `badge()`, le composant commun aux quatre écrans : une
+//  pastille de dénombrement et une pastille de statut sont le même objet, et
+//  divergeaient de 0,3 px de police et de 2 px de padding.
+const refPuce = (n, un, plusieurs) => badge(n + ' ' + (n > 1 ? plusieurs : un));
+
+function rendreRefListe() {
+  const toutes = (refCatalogue && refCatalogue.formations) || [];
+  const liste = refFormationsAffichees();
+
+  const carte = (f) => '<article class="ac-rf-c">' +
+    '<div class="ac-rf-c-h">' +
+      '<h3 class="ac-rf-c-t">' + echapper(f.libelle) + '</h3>' +
+      (f.actif ? '' : '<span class="ac-rf-brouillon">Brouillon</span>') +
+    '</div>' +
+    '<p class="ac-rf-c-d">' + echapper(f.description || '') + '</p>' +
+    '<div class="ac-rf-puces">' +
+      refPuce(f.nbModules, 'module', 'modules') +
+      refPuce(f.nbContenus, 'contenu', 'contenus') +
+      refPuce(f.nbQuestionsFinale, 'question', 'questions') +
+      (f.nbCas ? refPuce(f.nbCas, 'cas pratique', 'cas pratiques') : '') +
+      (f.nbCriteres ? refPuce(f.nbCriteres, 'critère', 'critères') : '') +
+    '</div>' +
+    '<p class="ac-rf-c-m">' +
+      (f.certificationActive
+        ? 'Certifiante' + (f.titre ? ' — ' + echapper(f.titre) : '')
+        : 'Sans certification') +
+      (f.pratiqueObligatoire ? ' · évaluation pratique obligatoire' : ' · théorie seule') +
+    '</p>' +
+    // LE CTA D'UNE CARTE EST SECONDAIRE, ici comme sur Mon Academy. Trente-quatre
+    // boutons pleins dans une grille ne hiérarchisent rien : ils crient tous
+    // aussi fort. Le bleu plein reste pour l'action unique d'un écran.
+    '<button type="button" class="ec-btn ac-rf-c-b" data-ref="' + echapper(f.cle) + '">' +
+      'Voir la formation</button>' +
+    '</article>';
+
+  return enTetePage({
+      titre: 'Le référentiel des formations',
+      sousTitre: 'Tout ce que tu évalues, formation par formation : contenus, QCM théorique, ' +
+        'mises en situation et critères de certification. ' +
+        '<b>Ta consultation n’enregistre rien</b> — ni progression pour toi, ni activité sur le ' +
+        'dossier d’un coach.',
+    }) +
+
+    '<nav class="ac-cats" aria-label="Catégories de formations">' +
+      [['toutes', 'Toutes'], ...CATEGORIES].map(([k, l]) => {
+        const n = k === 'toutes' ? toutes.length : toutes.filter((f) => f.categorie === k).length;
+        return '<button type="button" class="ac-cat' + (refCategorie === k ? ' on' : '') + '"' +
+          ' data-refcat="' + k + '"' + (refCategorie === k ? ' aria-current="true"' : '') + '>' +
+          echapper(l) + '<i class="ac-cat-n">' + n + '</i></button>';
+      }).join('') +
+    '</nav>' +
+
+    (liste.length
+      ? '<div class="ac-rf-grille">' + liste.map(carte).join('') + '</div>'
+      : '<div class="ec-vide">Aucune formation dans cette famille.</div>');
+}
+
+// -- La fiche : contenus -------------------------------------------------------
+
+const REF_TYPE = { video: 'Vidéo', texte: 'Texte' };
+
+function rendreRefContenu() {
+  const modules = refFiche.modules || [];
+  if (!modules.length) return '<div class="ec-vide">Cette formation n’a pas encore de contenu publié.</div>';
+
+  const contenu = (c) => {
+    const ouvert = refContenuOuvert === c.id;
+    const corps = !ouvert ? '' :
+      '<div class="ac-rf-corps">' +
+        (c.description ? '<p class="ac-rf-desc">' + echapper(c.description) + '</p>' : '') +
+        (c.type === 'video'
+          ? (c.youtubeId
+            // youtube-nocookie, comme le lecteur du coach : aucun cookie tant
+            // que la vidéo n'est pas lancée. L'iframe n'est POSÉE QU'À
+            // L'OUVERTURE — trente vidéos chargées d'un coup ne servent
+            // personne.
+            ? '<div class="ac-rf-video"><iframe src="https://www.youtube-nocookie.com/embed/' +
+                encodeURIComponent(c.youtubeId) + '?rel=0" title="' + echapper(c.titre) + '" ' +
+                'allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture" ' +
+                'referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>'
+            : '<p class="ac-video-non">Aucune vidéo n’est encore rattachée à ce contenu.</p>')
+          : '') +
+        (String(c.texte || '').trim()
+          ? '<div class="ac-rf-texte">' + String(c.texte).split(/\n+/).filter((l) => l.trim())
+            .map((l) => '<p>' + echapper(l.trim()) + '</p>').join('') + '</div>'
+          : (c.type === 'texte' ? '<p class="ac-q-aide">Ce contenu écrit est encore vide.</p>' : '')) +
+      '</div>';
+
+    return '<li class="ac-rf-ct' + (ouvert ? ' on' : '') + '">' +
+      '<button type="button" class="ac-rf-ct-b" data-refcontenu="' + c.id + '" aria-expanded="' +
+        (ouvert ? 'true' : 'false') + '">' +
+        '<span class="ac-rf-ct-type">' + echapper(REF_TYPE[c.type] || c.type) + '</span>' +
+        '<span class="ac-rf-ct-t">' + echapper(c.titre) + '</span>' +
+        (c.dureeMin ? '<span class="ac-rf-ct-d">' + c.dureeMin + ' min</span>' : '') +
+        '<span class="ac-rf-ct-ch" aria-hidden="true">' + (ouvert ? '⌃' : '⌄') + '</span>' +
+      '</button>' + corps + '</li>';
+  };
+
+  return modules.map((m, i) =>
+    '<section class="ac-rf-mod">' +
+      '<h3 class="ac-rf-mod-t"><span class="ac-rf-mod-n">Module ' + (i + 1) + '</span>' +
+        echapper(m.titre) + '</h3>' +
+      (m.description ? '<p class="ac-rf-desc">' + echapper(m.description) + '</p>' : '') +
+      (m.contenus.length
+        ? '<ul class="ac-rf-cts">' + m.contenus.map(contenu).join('') + '</ul>'
+        : '<p class="ac-q-aide">Aucun contenu publié dans ce module.</p>') +
+    '</section>').join('');
+}
+
+// -- La fiche : QCM théorique --------------------------------------------------
+
+//  LE CORRIGÉ EST UNE DONNÉE DU SERVEUR, PAS UNE DÉCISION D'ÉCRAN. Quand il
+//  n'est pas servi, on affiche la raison telle qu'elle arrive — l'écran ne
+//  l'invente pas et ne devine pas la bonne réponse.
+function rendreRefBanque(titre, bloc, aide) {
+  if (!bloc.questions.length) {
+    return '<section class="ac-rf-bloc"><h3 class="ac-rf-bt">' + echapper(titre) + '</h3>' +
+      '<div class="ec-vide">Aucune question dans cette banque.</div></section>';
+  }
+  const corrige = refFiche.qcm.corrige;
+  return '<section class="ac-rf-bloc">' +
+    '<h3 class="ac-rf-bt">' + echapper(titre) + '</h3>' +
+    '<p class="ac-rf-regle">' + echapper(aide) + '</p>' +
+    '<ol class="ac-rf-qs">' + bloc.questions.map((q) =>
+      '<li class="ac-rf-q">' +
+        '<p class="ac-rf-q-e">' + echapper(q.enonce) +
+          (corrige && q.multiple ? '<span class="ac-rf-multi">plusieurs bonnes réponses</span>' : '') +
+        '</p>' +
+        // ⚠️ PRÉFIXE `ac-rf-ch-`, PAS `ac-rf-c-` : ce dernier appartient à la
+        // CARTE d'une formation (titre, description, bouton). Deux objets sans
+        // rapport sous le même nom finiraient par se repeindre l'un l'autre.
+        '<ul class="ac-rf-ch">' + q.choix.map((c) =>
+          '<li class="ac-rf-ch-i' + (corrige && c.correct ? ' ac-rf-ch-ok' : '') + '">' +
+            (corrige
+              ? '<span class="ac-rf-ch-m" aria-hidden="true">' + (c.correct ? '✓' : '·') + '</span>'
+              : '') +
+            echapper(c.texte) +
+            (corrige && c.correct ? '<span class="ac-rf-ch-lb">attendue</span>' : '') +
+          '</li>').join('') + '</ul>' +
+      '</li>').join('') + '</ol>' +
+  '</section>';
+}
+
+function rendreRefQcm() {
+  const q = refFiche.qcm;
+  const f = refFiche.formation;
+  const banque = q.finale.questions.length;
+  return (q.corrige ? '' :
+    '<p class="ac-rf-avis" role="status">' + echapper(refFiche.corrigeMasque || '') + '</p>') +
+    '<div class="ac-rf-regles">' +
+      '<p><b>Tirage</b> — ' + f.qcm.nbQuestions + ' questions tirées au hasard parmi les ' +
+        banque + ' de la banque finale.</p>' +
+      '<p><b>Validation</b> — score d’au moins ' + f.qcm.seuilPct + ' %. Le serveur corrige et ' +
+        'prononce seul : le coach ne voit jamais le corrigé.</p>' +
+    '</div>' +
+    rendreRefBanque('Banque du QCM final', q.finale,
+      'Les questions sur lesquelles la théorie est validée.') +
+    (q.mini.questions.length
+      ? rendreRefBanque('Banque des mini-QCM de fin de module', q.mini,
+        f.mini.nbQuestions + ' questions par module, seuil ' + f.mini.seuilPct + ' % — ' +
+        'ils ouvrent le module suivant, ils ne certifient rien.')
+      : '');
+}
+
+// -- La fiche : évaluation pratique --------------------------------------------
+
+// LE SCÉNARIO, LU D'UN SEUL TENANT. L'assistant d'évaluation le déroule étape
+// par étape parce qu'il accompagne une séance en cours ; ici on vient RELIRE le
+// cas en entier avant d'aller le faire passer. Même données, autre besoin.
+function rendreRefScenario(sc) {
+  if (!sc) return '';
+  let h = '';
+  if (sc.lire) h += '<blockquote class="ac-as-lu">' + echapper(sc.lire) + '</blockquote>';
+  if (sc.role) h += '<p class="ac-rf-l"><b>Ton rôle</b> — ' + echapper(sc.role) + '</p>';
+  if ((sc.jouer || []).length) {
+    h += '<p class="ac-rf-l"><b>Ce que tu joues</b></p><ul class="ac-rf-ul">' +
+      sc.jouer.map((j) => '<li>' + echapper(j) + '</li>').join('') + '</ul>';
+  }
+  for (const sec of sc.sections || []) {
+    h += '<p class="ac-rf-l"><b>' + echapper(sec.titre || 'Si le coach…') + '</b></p>' +
+      '<dl class="ac-as-dl">' + sec.lignes.map((l) =>
+        '<div class="ac-as-dr">' + (l.cle ? '<dt>' + echapper(l.cle) + '</dt>' : '<dt></dt>') +
+        '<dd>' + echapper(l.valeur) + '</dd></div>').join('') + '</dl>';
+  }
+  if (sc.attendu) h += '<p class="ac-rf-l"><b>Ce qui est attendu</b> — ' + echapper(sc.attendu) + '</p>';
+  if (sc.observer) h += '<p class="ac-rf-l"><b>Point à observer</b> — ' + echapper(sc.observer) + '</p>';
+  if (sc.evalue) h += '<p class="ac-rf-l"><b>Permet d’évaluer</b> — ' + echapper(sc.evalue) + '</p>';
+  return h;
+}
+
+function rendreRefPratique() {
+  const p = refFiche.pratique;
+  if (!p.obligatoire && !p.cas.length && !p.grille.length) {
+    return '<div class="ec-vide">Cette formation ne comporte pas d’évaluation pratique : ' +
+      'la théorie suffit à la certifier.</div>';
+  }
+
+  const cas = (c) => {
+    const ouvert = refCasOuvert === c.id;
+    return '<li class="ac-rf-ct' + (ouvert ? ' on' : '') + '">' +
+      '<button type="button" class="ac-rf-ct-b" data-refcas="' + c.id + '" aria-expanded="' +
+        (ouvert ? 'true' : 'false') + '">' +
+        '<span class="ac-rf-ct-type">Cas ' + c.ordre + '</span>' +
+        '<span class="ac-rf-ct-t">' + echapper(c.titre) + '</span>' +
+        '<span class="ac-rf-ct-ch" aria-hidden="true">' + (ouvert ? '⌃' : '⌄') + '</span>' +
+      '</button>' +
+      (ouvert
+        ? '<div class="ac-rf-corps">' +
+            (c.consignes
+              ? '<div class="ac-rf-texte">' + echapper(c.consignes).replace(/\n/g, '<br>') + '</div>'
+              : '') +
+            rendreRefScenario(c.scenario) +
+          '</div>'
+        : '') +
+      '</li>';
+  };
+
+  return '<div class="ac-rf-regles">' +
+      '<p><b>Exigence</b> — ' + (p.obligatoire
+        ? 'la mise en situation est obligatoire pour être certifié.'
+        : 'la mise en situation n’est pas exigée pour la certification de ce parcours.') + '</p>' +
+      '<p><b>Verdict</b> — ' + p.verdicts.map((v) => echapper(v.libelle)).join(' ou ') +
+        '. La grille éclaire la décision, elle ne la prononce pas : c’est toi qui tranches, et un ' +
+        'commentaire est exigé dès qu’un critère n’est pas acquis.</p>' +
+    '</div>' +
+
+    '<section class="ac-rf-bloc">' +
+      '<h3 class="ac-rf-bt">Les mises en situation</h3>' +
+      (p.cas.length
+        ? '<ul class="ac-rf-cts">' + p.cas.map(cas).join('') + '</ul>'
+        : '<div class="ec-vide">Aucun cas : l’évaluation se fait sur un support libre.</div>') +
+    '</section>' +
+
+    '<section class="ac-rf-bloc">' +
+      '<h3 class="ac-rf-bt">La grille de notation</h3>' +
+      (p.grille.length
+        ? '<p class="ac-rf-regle">Lecture d’un axe : ' +
+            p.reglesAxe.map((r) => '<b>' + echapper(r.libelle) + '</b> si ' + echapper(r.regle)).join(' ; ') +
+            '.</p>' +
+          p.grille.map((a) =>
+            '<div class="ac-rf-axe">' +
+              '<h4 class="ac-rf-axe-t">Axe ' + a.axe + ' — ' + echapper(a.axeTitre) + '</h4>' +
+              '<ul class="ac-rf-crits">' + a.criteres.map((c) =>
+                '<li><b>' + echapper(c.titre) + '</b>' +
+                  (c.enonce ? '<span>' + echapper(c.enonce) + '</span>' : '') + '</li>').join('') +
+              '</ul>' +
+            '</div>').join('')
+        : '<div class="ec-vide">Aucune grille : l’évaluation se saisit en texte libre.</div>') +
+    '</section>';
+}
+
+// -- La fiche : critères de certification --------------------------------------
+
+function rendreRefCertification() {
+  const c = refFiche.certification;
+  if (!c.active) {
+    return '<div class="ec-vide">Ce parcours ne délivre pas de certification : ' +
+      'il se termine, il ne se certifie pas.</div>';
+  }
+  return '<div class="ac-rf-regles">' +
+      '<p><b>Titre délivré</b> — ' + echapper(c.titre || 'aucun titre nommé') + '</p>' +
+      '<p><b>Délivrance</b> — automatique dès que toutes les étapes ci-dessous sont remplies. ' +
+        'Personne ne se certifie soi-même : le certificateur qui prononce la pratique ne peut pas ' +
+        'être le coach évalué.</p>' +
+    '</div>' +
+    '<ol class="ac-rf-etapes">' + c.etapes.map((e) =>
+      '<li><b>' + echapper(e.libelle) + '</b><span>' + echapper(e.regle) + '</span></li>').join('') +
+    '</ol>';
+}
+
+// -- La fiche : assemblage -----------------------------------------------------
+
+function rendreRefFiche() {
+  const f = refFiche.formation;
+  const corps = refVolet === 'qcm' ? rendreRefQcm()
+    : refVolet === 'pratique' ? rendreRefPratique()
+    : refVolet === 'certification' ? rendreRefCertification()
+    : rendreRefContenu();
+
+  return '<button type="button" class="ec-back" id="acRefRetour">← Toutes les formations</button>' +
+    '<div class="ac-lec-h">' +
+      '<p class="ac-lec-mod">Référentiel — consultation</p>' +
+      '<h2 class="ac-lec-t">' + echapper(f.libelle) + '</h2>' +
+      (f.description ? '<p class="ac-rf-desc">' + echapper(f.description) + '</p>' : '') +
+    '</div>' +
+    '<div class="ac-rf-puces">' +
+      refPuce(refFiche.compteurs.nbModules, 'module', 'modules') +
+      refPuce(refFiche.compteurs.nbContenus, 'contenu', 'contenus') +
+      refPuce(refFiche.compteurs.nbQuestionsFinale, 'question', 'questions') +
+      (refFiche.compteurs.nbCas ? refPuce(refFiche.compteurs.nbCas, 'cas pratique', 'cas pratiques') : '') +
+      (refFiche.compteurs.nbCriteres ? refPuce(refFiche.compteurs.nbCriteres, 'critère', 'critères') : '') +
+    '</div>' +
+    '<div class="ac-adm-onglets">' + REF_VOLETS.map(([k, l]) =>
+      '<button type="button" class="ac-adm-ong' + (refVolet === k ? ' on' : '') + '"' +
+        ' data-refvolet="' + k + '">' + echapper(l) + '</button>').join('') + '</div>' +
+    '<div class="ac-rf-volet">' + corps + '</div>';
+}
+
+function rendreReferentiel() {
+  $('#acReferentiel').innerHTML = refFiche ? rendreRefFiche() : rendreRefListe();
+  brancherReferentiel();
+  rendreBarreLaterale('referentiel');
+  afficher('#acReferentiel');
+}
+
+function brancherReferentiel() {
+  const racine = $('#acReferentiel');
+  if (!racine) return;
+  racine.querySelectorAll('[data-ref]').forEach((el) =>
+    el.addEventListener('click', () => ouvrirRefFormation(el.dataset.ref)));
+  racine.querySelectorAll('[data-refcat]').forEach((el) =>
+    el.addEventListener('click', () => { refCategorie = el.dataset.refcat; rendreReferentiel(); }));
+  racine.querySelectorAll('[data-refvolet]').forEach((el) =>
+    el.addEventListener('click', () => {
+      refVolet = el.dataset.refvolet;
+      refContenuOuvert = null;
+      refCasOuvert = null;
+      rendreReferentiel();
+    }));
+  // Un seul contenu déplié à la fois : c'est ce qui garde la vidéo unique et la
+  // page lisible sur un téléphone.
+  racine.querySelectorAll('[data-refcontenu]').forEach((el) =>
+    el.addEventListener('click', () => {
+      const id = Number(el.dataset.refcontenu);
+      refContenuOuvert = refContenuOuvert === id ? null : id;
+      rendreReferentiel();
+    }));
+  racine.querySelectorAll('[data-refcas]').forEach((el) =>
+    el.addEventListener('click', () => {
+      const id = Number(el.dataset.refcas);
+      refCasOuvert = refCasOuvert === id ? null : id;
+      rendreReferentiel();
+    }));
+  const retour = $('#acRefRetour');
+  if (retour) retour.addEventListener('click', () => { refFiche = null; rendreReferentiel(); });
+}
+
+// --- Suivi terrain ------------------------------------------------------------
+//
+//  UNE OBSERVATION = UNE COULEUR + UN TEXTE. Tout l'écran est construit autour
+//  de ça : quatre niveaux, un champ, et sept secondes de saisie.
+//
+//  ⚠️ CE N'EST NI UNE NOTE, NI UN DOSSIER. Aucun score n'est calculé ici, aucun
+//  état n'est suivi, aucune conséquence n'est déclenchée. Les quatre compteurs
+//  du haut dénombrent, ils ne jugent pas.
+//
+//  ⚠️ LA COULEUR NE DIT JAMAIS SEULE. Chaque niveau porte son libellé partout
+//  où il apparaît — dans la liste, dans les compteurs, dans le formulaire :
+//  personne ne doit avoir à distinguer un vert d'un orange pour comprendre.
+
+// Les quatre niveaux, dans l'ordre de lecture. La clé est la valeur MÉTIER
+// stockée en base ; le reste n'est que présentation.
+const NIVEAUX_TERRAIN = [
+  ['POSITIVE', 'Positif', 'ac-niv-vert'],
+  ['TO_CORRECT', 'À corriger', 'ac-niv-ambre'],
+  ['ISSUE', 'Écart', 'ac-niv-rouge'],
+  ['OBSERVATION', 'Observation', 'ac-niv-bleu'],
+];
+const nivDe = (cle) => NIVEAUX_TERRAIN.find(([k]) => k === cle) || NIVEAUX_TERRAIN[3];
+
+let terrain = null;            // la réponse du serveur : liste + compteurs + référentiels
+let terrainFiltres = { studio: '', salarie: '', niveau: '', depuis: '', jusqua: '', q: '', tri: 'recent' };
+let terrainForm = null;        // { id?, studioId, salarie, date, niveau, observation } quand le panneau est ouvert
+let terrainErreur = '';
+let terrainMessage = '';
+let terrainASupprimer = null;  // l'identifiant en attente de confirmation
+let terrainMenu = null;        // le menu « … » déplié
+let terrainEnvoi = false;      // garde anti double-soumission
+// Le panneau des studios reste OUVERT tant qu'on s'en sert. Sans cet état, il
+// se refermait tout seul dès le premier studio ajouté — la condition d'ouverture
+// étant « la liste est vide » — et il fallait le rouvrir pour saisir le suivant.
+let terrainStudiosOuvert = false;
+
+const aujourdhuiISO = () => {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+};
+
+// La date en toutes lettres : « 4 septembre 2026 ». Une observation se lit, elle
+// ne se déchiffre pas.
+const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet',
+  'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+function dateLongue(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return '';
+  return Number(m[3]) + ' ' + MOIS_FR[Number(m[2]) - 1] + ' ' + m[1];
+}
+
+const terrainQuery = () => {
+  const f = terrainFiltres;
+  const p = [];
+  if (f.studio) p.push('studio=' + encodeURIComponent(f.studio));
+  if (f.salarie) p.push('salarie=' + encodeURIComponent(f.salarie));
+  if (f.niveau) p.push('niveau=' + encodeURIComponent(f.niveau));
+  if (f.depuis) p.push('depuis=' + encodeURIComponent(f.depuis));
+  if (f.jusqua) p.push('jusqua=' + encodeURIComponent(f.jusqua));
+  if (f.q) p.push('q=' + encodeURIComponent(f.q));
+  if (f.tri) p.push('tri=' + encodeURIComponent(f.tri));
+  return p.length ? '?' + p.join('&') : '';
+};
+
+async function chargerTerrain() {
+  const r = await apiAc('/api/academy/terrain' + terrainQuery());
+  if (r.status === 401) { deconnecter(); return false; }
+  if (r.status === 403) {
+    bloquer('🔒', 'Suivi terrain',
+      'Cette rubrique est réservée aux personnes qui en ont reçu le droit.');
+    return false;
+  }
+  if (!r.data.ok) { bloquer('⚠️', 'Espace indisponible', 'Réessaie dans un instant.'); return false; }
+  terrain = r.data;
+  return true;
+}
+
+async function ouvrirTerrain() {
+  if (!(await chargerTerrain())) return;
+  terrainForm = null; terrainASupprimer = null; terrainMenu = null; terrainErreur = '';
+  rendreTerrain();
+}
+
+// Recharger SANS toucher au panneau ouvert : c'est ce qui permet d'appliquer un
+// filtre ou d'enregistrer sans que l'écran ne se réinitialise sous les doigts.
+async function rafraichirTerrain() {
+  if (!(await chargerTerrain())) return;
+  rendreTerrain();
+}
+
+// -- Les quatre indicateurs ----------------------------------------------------
+//
+//  ILS COMPTENT CE QUI EST AFFICHÉ, filtres compris — c'est le serveur qui les
+//  calcule sur la même requête que la liste. Des compteurs qui parleraient de
+//  tout le studio pendant qu'on lit un salarié seraient faux à l'écran.
+function rendreTerrainKpis() {
+  const c = (terrain && terrain.compteurs) || {};
+  return '<nav class="ac-kpis" aria-label="Observations par niveau">' +
+    NIVEAUX_TERRAIN.map(([cle, libelle, classe]) => {
+      const n = c[cle] || 0;
+      const actif = terrainFiltres.niveau === cle;
+      return '<button type="button" class="ac-kpi ac-kpi-terrain' + (actif ? ' on' : '') + '"' +
+        ' data-tniveau="' + cle + '" aria-pressed="' + (actif ? 'true' : 'false') + '">' +
+        '<span class="ac-kpi-ic ' + classe + '" aria-hidden="true"><i class="ac-niv-pt"></i></span>' +
+        '<span class="ac-kpi-tx"><b>' + n + '</b><span>' + echapper(libelle) + '</span></span>' +
+        '</button>';
+    }).join('') + '</nav>';
+}
+
+// -- Les studios, gérés SUR PLACE par l'administrateur --------------------------
+//
+//  POURQUOI ICI, et pas dans « Administrer ». Cet écran est le seul qui utilise
+//  les studios : les gérer à côté de la liste qu'ils filtrent évite un aller-
+//  retour, et « Administrer » n'a que deux sujets — les contenus et l'aperçu des
+//  évaluations — qu'un troisième onglet aurait dilués.
+//
+//  ⚠️ REPLIÉ PAR DÉFAUT. C'est un réglage, pas le sujet de la page : on
+//  l'ouvre quand on ajoute un studio, et on n'y revient plus.
+function rendreTerrainStudios() {
+  if (!(terrain && terrain.admin)) return '';
+  const studios = terrain.studios || [];
+  const ouvert = terrainStudiosOuvert || !studios.length;
+  return '<details class="ac-tst"' + (ouvert ? ' open' : '') + '>' +
+    '<summary class="ac-tst-s">Gérer les studios' +
+      '<span class="ac-tst-n">' + studios.length + '</span></summary>' +
+    '<div class="ac-tst-c">' +
+      (studios.length
+        ? '<ul class="ac-tst-l">' + studios.map((st) =>
+            '<li><span>' + echapper(st.nom) + '</span>' +
+              '<button type="button" class="ec-btn" data-tstarch="' + st.id + '">Archiver</button></li>').join('') +
+          '</ul>'
+        : '<p class="ac-adm-aide">Aucun studio enregistré. Ajoute-les ici : ce sont eux qui ' +
+          'apparaîtront dans la saisie d\'une observation.</p>') +
+      '<div class="ac-tst-add">' +
+        '<label class="ec-field"><span>Nom du studio</span>' +
+          '<input id="acTstNom" type="text" maxlength="80" placeholder="Wasquehal" /></label>' +
+        '<button type="button" class="ec-btn ec-btn-p" id="acTstGo">+ Ajouter</button>' +
+      '</div>' +
+    '</div></details>';
+}
+
+// -- La barre de filtres -------------------------------------------------------
+
+function rendreTerrainFiltres() {
+  const f = terrainFiltres;
+  const studios = (terrain && terrain.studios) || [];
+  const salaries = (terrain && terrain.salaries) || [];
+  const opt = (v, l, sel) => '<option value="' + echapper(v) + '"' + (sel === v ? ' selected' : '') + '>' +
+    echapper(l) + '</option>';
+  return '<div class="ac-tf">' +
+    '<label class="ac-tf-q"><span class="ac-tf-qic" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+      'stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>' +
+      '<input id="acTQ" type="search" placeholder="Rechercher dans les observations…"' +
+        ' value="' + echapper(f.q) + '" aria-label="Rechercher dans les observations" /></label>' +
+    '<label class="ec-field ac-tf-c"><span>Studio</span><select id="acTStudio">' +
+      opt('', 'Tous les studios', f.studio) +
+      studios.map((s) => opt(String(s.id), s.nom, f.studio)).join('') + '</select></label>' +
+    '<label class="ec-field ac-tf-c"><span>Salarié</span><select id="acTSalarie">' +
+      opt('', 'Tous les salariés', f.salarie) +
+      salaries.map((s) => opt(s.email, nomComplet(s) || s.email, f.salarie)).join('') + '</select></label>' +
+    '<label class="ec-field ac-tf-c"><span>Du</span>' +
+      '<input id="acTDepuis" type="date" value="' + echapper(f.depuis) + '" /></label>' +
+    '<label class="ec-field ac-tf-c"><span>Au</span>' +
+      '<input id="acTJusqua" type="date" value="' + echapper(f.jusqua) + '" /></label>' +
+    '<label class="ec-field ac-tf-c"><span>Trier</span><select id="acTTri">' +
+      opt('recent', 'Plus récent', f.tri) + opt('ancien', 'Plus ancien', f.tri) + '</select></label>' +
+    (aUnFiltreTerrain()
+      ? '<button type="button" class="ec-btn ac-tf-raz" id="acTRaz">Effacer les filtres</button>' : '') +
+  '</div>';
+}
+
+const aUnFiltreTerrain = () => {
+  const f = terrainFiltres;
+  return !!(f.studio || f.salarie || f.niveau || f.depuis || f.jusqua || f.q);
+};
+
+// -- Une observation -----------------------------------------------------------
+//
+//  ⚠️ LA CARTE RESTE BLANCHE. La couleur tient dans un liseré et une pastille —
+//  un aplat vert ou rouge pleine largeur ferait un logiciel de sanctions.
+function rendreObservation(o) {
+  const [, libelle, classe] = nivDe(o.niveau);
+  const sien = terrain && (o.auteurEmail === terrain.moi || terrain.admin);
+  const menuOuvert = terrainMenu === o.id;
+  const enConfirmation = terrainASupprimer === o.id;
+  return '<article class="ac-obs ' + classe + '">' +
+    '<div class="ac-obs-h">' +
+      '<span class="ac-obs-niv"><i class="ac-niv-pt" aria-hidden="true"></i>' + echapper(libelle) + '</span>' +
+      '<span class="ac-obs-meta">' +
+        // Le salarié n'apparaît QUE s'il y en a un : une visite de studio ne
+        // vise personne, et « Salarié : aucun » serait une ligne pour rien.
+        (o.salarie ? '<b class="ac-obs-qui">' + echapper(o.salarie) + '</b>' : '') +
+        '<span>' + echapper(o.studio) + (o.studioArchive ? ' (archivé)' : '') + '</span>' +
+        '<span>' + echapper(dateLongue(o.date)) + '</span>' +
+      '</span>' +
+      (sien
+        ? '<span class="ac-obs-act">' +
+            '<button type="button" class="ac-obs-menu-b" data-tmenu="' + o.id + '"' +
+              ' aria-haspopup="true" aria-expanded="' + (menuOuvert ? 'true' : 'false') + '"' +
+              ' aria-label="Actions sur cette observation">…</button>' +
+            (menuOuvert
+              ? '<span class="ac-obs-menu">' +
+                  '<button type="button" data-tmodifier="' + o.id + '">Modifier</button>' +
+                  '<button type="button" class="ac-obs-sup" data-tsupprimer="' + o.id + '">Supprimer</button>' +
+                '</span>'
+              : '') +
+          '</span>'
+        : '') +
+    '</div>' +
+    '<p class="ac-obs-txt">' + echapper(o.observation).replace(/\n/g, '<br>') + '</p>' +
+    '<p class="ac-obs-pied">Ajouté par ' + echapper(o.auteur) + '</p>' +
+    (enConfirmation
+      ? '<div class="ac-obs-conf" role="alertdialog">' +
+          '<p>Supprimer cette observation ? Elle ne sera pas récupérable.</p>' +
+          '<span class="ac-obs-conf-a">' +
+            '<button type="button" class="ec-btn ac-adm-danger" data-tconfirmer="' + o.id + '">Confirmer</button>' +
+            '<button type="button" class="ec-btn" data-tannuler="1">Annuler</button>' +
+          '</span></div>'
+      : '') +
+  '</article>';
+}
+
+// -- Le panneau de saisie ------------------------------------------------------
+//
+//  UN PANNEAU LATÉRAL, pas une fenêtre modale : l'Academy n'en a aucune, et en
+//  introduire une pour cet écran ferait un composant de plus à maintenir.
+//
+//  ⚠️ AUCUN CHAMP « TITRE ». Le texte de l'observation dit ce qui s'est passé ;
+//  demander un titre en plus, c'est faire écrire deux fois la même chose.
+function rendreTerrainPanneau() {
+  if (!terrainForm) return '';
+  const f = terrainForm;
+  const studios = (terrain && terrain.studios) || [];
+  const salaries = (terrain && terrain.salaries) || [];
+  const modif = !!f.id;
+  return '<div class="ac-tp-fond" data-tfermer="1"></div>' +
+    '<aside class="ac-tp" role="dialog" aria-modal="true" aria-labelledby="acTpT">' +
+      '<div class="ac-tp-h">' +
+        '<h2 class="ac-sec-t" id="acTpT">' + (modif ? 'Modifier l’observation' : 'Ajouter une observation') + '</h2>' +
+        '<button type="button" class="ac-tp-x" data-tfermer="1" aria-label="Fermer">✕</button>' +
+      '</div>' +
+      (terrainErreur ? '<p class="ac-eval-err" role="alert">' + echapper(terrainErreur) + '</p>' : '') +
+      '<div class="ac-tp-c">' +
+        '<label class="ec-field"><span>Studio *</span><select id="acTfStudio">' +
+          '<option value="">— Choisis un studio —</option>' +
+          studios.map((s) => '<option value="' + s.id + '"' +
+            (String(f.studioId) === String(s.id) ? ' selected' : '') + '>' + echapper(s.nom) + '</option>').join('') +
+        '</select></label>' +
+        (studios.length ? '' :
+          '<p class="ac-adm-aide">Aucun studio n’est encore enregistré. Un administrateur les ajoute ' +
+          'depuis <b>Administrer &rsaquo; Studios</b>.</p>') +
+
+        '<label class="ec-field"><span>Salarié concerné</span><select id="acTfSalarie">' +
+          '<option value="">— Aucun : l’observation concerne le studio —</option>' +
+          salaries.map((s) => '<option value="' + echapper(s.email) + '"' +
+            (f.salarie === s.email ? ' selected' : '') + '>' +
+            echapper(nomComplet(s) || s.email) + '</option>').join('') +
+        '</select></label>' +
+
+        '<label class="ec-field"><span>Date de l’observation *</span>' +
+          '<input id="acTfDate" type="date" value="' + echapper(f.date) + '" /></label>' +
+
+        // LES QUATRE NIVEAUX EN BOUTONS, pas en menu déroulant : c'est le geste
+        // central de la saisie, et il doit se faire d'un seul clic.
+        '<fieldset class="ac-tf-niv"><legend>Niveau *</legend>' +
+          NIVEAUX_TERRAIN.map(([cle, libelle, classe]) =>
+            '<button type="button" class="ac-nivb ' + classe + (f.niveau === cle ? ' on' : '') + '"' +
+              ' data-tniv="' + cle + '" aria-pressed="' + (f.niveau === cle ? 'true' : 'false') + '">' +
+              '<i class="ac-niv-pt" aria-hidden="true"></i>' + echapper(libelle) + '</button>').join('') +
+        '</fieldset>' +
+
+        '<label class="ec-field"><span>Observation *</span>' +
+          '<textarea id="acTfObs" rows="6" maxlength="4000" placeholder="Décrivez ce que vous avez observé ' +
+            'et ce qui justifie ce niveau…">' + echapper(f.observation) + '</textarea></label>' +
+      '</div>' +
+      '<div class="ac-tp-p">' +
+        '<button type="button" class="ec-btn" data-tfermer="1">Annuler</button>' +
+        '<button type="button" class="ec-btn ec-btn-p" id="acTfGo"' + (terrainEnvoi ? ' disabled' : '') + '>' +
+          (terrainEnvoi ? 'Enregistrement…' : (modif ? 'Enregistrer les modifications' : 'Enregistrer l’observation')) +
+        '</button>' +
+      '</div>' +
+    '</aside>';
+}
+
+// -- L'écran -------------------------------------------------------------------
+
+function rendreTerrain() {
+  const liste = (terrain && terrain.observations) || [];
+  $('#acTerrain').innerHTML =
+    enTetePage({
+      titre: 'Suivi terrain',
+      sousTitre: 'Centralisez les observations, visites et faits marquants relevés dans les studios.',
+      actions: '<button type="button" class="ec-btn ec-btn-p" id="acTAjouter">+ Ajouter une observation</button>',
+    }) +
+    (terrainMessage ? '<p class="ac-adm-flash" role="status">' + echapper(terrainMessage) + '</p>' : '') +
+    rendreTerrainKpis() +
+    rendreTerrainStudios() +
+    rendreTerrainFiltres() +
+    (liste.length
+      ? '<div class="ac-obs-l">' + liste.map(rendreObservation).join('') + '</div>'
+      // L'ÉTAT VIDE DIT QUOI FAIRE. Deux cas, et ils n'appellent pas la même
+      // phrase : rien n'a jamais été saisi, ou le filtre ne trouve rien.
+      : '<div class="ec-vide ac-obs-vide">' +
+          (aUnFiltreTerrain()
+            ? '<p><b>Aucune observation ne correspond à ces filtres.</b></p>' +
+              '<p>Élargis la période, change de studio, ou efface les filtres.</p>'
+            : '<p><b>Aucune observation terrain pour le moment.</b></p>' +
+              '<p>Les observations ajoutées depuis les studios apparaîtront ici.</p>' +
+              '<button type="button" class="ec-btn ec-btn-p" id="acTAjouter2">+ Ajouter une observation</button>') +
+        '</div>') +
+    rendreTerrainPanneau();
+
+  brancherTerrain();
+  rendreCompte();
+  rendreBarreLaterale('terrain');
+  afficher('#acTerrain');
+}
+
+// -- Les gestes ----------------------------------------------------------------
+
+function ouvrirFormTerrain(obs) {
+  terrainErreur = '';
+  terrainMenu = null;
+  terrainASupprimer = null;
+  terrainForm = obs
+    ? { id: obs.id, studioId: String(obs.studioId), salarie: obs.salarieEmail || '',
+        date: obs.date, niveau: obs.niveau, observation: obs.observation }
+    // À l'ouverture : la date du jour, et rien de présélectionné. Un niveau posé
+    // d'avance serait choisi par défaut par distraction.
+    : { studioId: '', salarie: '', date: aujourdhuiISO(), niveau: '', observation: '' };
+  rendreTerrain();
+}
+
+// Le panneau garde ce qui est saisi À CHAQUE RE-RENDU : choisir un niveau
+// re-rend l'écran, et un texte perdu à ce moment-là serait à retaper.
+function lireFormTerrain() {
+  if (!terrainForm) return;
+  const v = (id) => (($(id) || {}).value || '');
+  if ($('#acTfStudio')) terrainForm.studioId = v('#acTfStudio');
+  if ($('#acTfSalarie')) terrainForm.salarie = v('#acTfSalarie');
+  if ($('#acTfDate')) terrainForm.date = v('#acTfDate');
+  if ($('#acTfObs')) terrainForm.observation = v('#acTfObs');
+}
+
+async function enregistrerTerrain() {
+  if (terrainEnvoi) return;              // garde anti double-clic
+  lireFormTerrain();
+  const f = terrainForm;
+  // On vérifie ICI pour nommer le champ manquant ; le serveur revérifie tout
+  // pour son propre compte.
+  if (!f.studioId) { terrainErreur = 'Choisis un studio.'; rendreTerrain(); return; }
+  if (!f.date) { terrainErreur = 'La date de l’observation est requise.'; rendreTerrain(); return; }
+  if (!f.niveau) { terrainErreur = 'Choisis un niveau.'; rendreTerrain(); return; }
+  if (!String(f.observation).trim()) { terrainErreur = 'Décris ce que tu as observé.'; rendreTerrain(); return; }
+
+  terrainEnvoi = true; terrainErreur = ''; rendreTerrain();
+  const corps = { studioId: f.studioId, salarie: f.salarie || null, date: f.date,
+    niveau: f.niveau, observation: f.observation };
+  const r = f.id
+    ? await apiAc('/api/academy/terrain/' + f.id, 'PUT', corps)
+    : await apiAc('/api/academy/terrain', 'POST', corps);
+  terrainEnvoi = false;
+  if (r.status === 401) { deconnecter(); return; }
+  if (!r.data.ok) { terrainErreur = r.data.error || 'Enregistrement impossible.'; rendreTerrain(); return; }
+  terrainMessage = f.id ? 'Observation modifiée.' : 'Observation enregistrée.';
+  terrainForm = null;
+  await rafraichirTerrain();
+}
+
+async function supprimerTerrain(id) {
+  const r = await apiAc('/api/academy/terrain/' + id, 'DELETE');
+  if (r.status === 401) { deconnecter(); return; }
+  terrainASupprimer = null;
+  if (!r.data.ok) { terrainMessage = ''; terrainErreur = r.data.error || 'Suppression impossible.'; rendreTerrain(); return; }
+  terrainMessage = 'Observation supprimée.';
+  await rafraichirTerrain();
+}
+
+function brancherTerrain() {
+  const racine = $('#acTerrain');
+  if (!racine) return;
+  const sur = (sel, ev, fn) => racine.querySelectorAll(sel).forEach((el) => el.addEventListener(ev, fn(el)));
+
+  ['#acTAjouter', '#acTAjouter2'].forEach((id) => {
+    const b = $(id); if (b) b.addEventListener('click', () => ouvrirFormTerrain(null));
+  });
+
+  // Les indicateurs filtrent : un second clic sur celui déjà actif l'annule,
+  // comme sur Mon Academy.
+  sur('[data-tniveau]', 'click', (el) => async () => {
+    const c = el.dataset.tniveau;
+    terrainFiltres.niveau = terrainFiltres.niveau === c ? '' : c;
+    await rafraichirTerrain();
+  });
+
+  const filtre = (id, cle) => {
+    const e = $(id);
+    if (e) e.addEventListener('change', async () => { terrainFiltres[cle] = e.value; await rafraichirTerrain(); });
+  };
+  filtre('#acTStudio', 'studio'); filtre('#acTSalarie', 'salarie');
+  filtre('#acTDepuis', 'depuis'); filtre('#acTJusqua', 'jusqua'); filtre('#acTTri', 'tri');
+
+  // LA RECHERCHE NE PART PAS À CHAQUE FRAPPE : on attend une pause. Sans ça,
+  // « accueil » enverrait sept requêtes et le champ perdrait son curseur.
+  const q = $('#acTQ');
+  if (q) {
+    let minuteur = null;
+    q.addEventListener('input', () => {
+      clearTimeout(minuteur);
+      minuteur = setTimeout(async () => {
+        terrainFiltres.q = q.value;
+        const pos = q.selectionStart;
+        await rafraichirTerrain();
+        const n = $('#acTQ');
+        if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (_) { /* champ recréé */ } }
+      }, 320);
+    });
+  }
+  const raz = $('#acTRaz');
+  if (raz) raz.addEventListener('click', async () => {
+    terrainFiltres = { studio: '', salarie: '', niveau: '', depuis: '', jusqua: '', q: '', tri: 'recent' };
+    await rafraichirTerrain();
+  });
+
+  sur('[data-tmenu]', 'click', (el) => () => {
+    const id = Number(el.dataset.tmenu);
+    terrainMenu = terrainMenu === id ? null : id;
+    terrainASupprimer = null;
+    rendreTerrain();
+  });
+  sur('[data-tmodifier]', 'click', (el) => () => {
+    const o = ((terrain && terrain.observations) || []).find((x) => x.id === Number(el.dataset.tmodifier));
+    if (o) ouvrirFormTerrain(o);
+  });
+  sur('[data-tsupprimer]', 'click', (el) => () => {
+    terrainASupprimer = Number(el.dataset.tsupprimer); terrainMenu = null; rendreTerrain();
+  });
+  sur('[data-tconfirmer]', 'click', (el) => async () => { await supprimerTerrain(Number(el.dataset.tconfirmer)); });
+  sur('[data-tannuler]', 'click', () => () => { terrainASupprimer = null; rendreTerrain(); });
+
+  // -- Le panneau --
+  sur('[data-tfermer]', 'click', () => () => { lireFormTerrain(); terrainForm = null; terrainErreur = ''; rendreTerrain(); });
+  sur('[data-tniv]', 'click', (el) => () => { lireFormTerrain(); terrainForm.niveau = el.dataset.tniv; rendreTerrain(); });
+  const go = $('#acTfGo');
+  if (go) go.addEventListener('click', enregistrerTerrain);
+
+  // -- Les studios (administrateur) --
+  // On mémorise l'ouverture : chaque geste re-rend l'écran, et un `<details>`
+  // recréé perdrait son état natif.
+  const det = racine.querySelector('.ac-tst');
+  if (det) det.addEventListener('toggle', () => { terrainStudiosOuvert = det.open; });
+
+  const ajout = $('#acTstGo');
+  if (ajout) ajout.addEventListener('click', async () => {
+    const nom = (($('#acTstNom') || {}).value || '').trim();
+    if (!nom) { terrainMessage = ''; terrainErreur = ''; return; }
+    const r = await apiAc('/api/academy/admin/studios', 'POST', { nom });
+    if (r.status === 401) { deconnecter(); return; }
+    terrainMessage = r.data.ok ? 'Studio ajouté — ' + nom : (r.data.error || 'Ajout impossible.');
+    terrainStudiosOuvert = true;   // on en ajoute souvent plusieurs d'affilée
+    await rafraichirTerrain();
+    const champNom = $('#acTstNom');
+    if (champNom) champNom.focus();
+  });
+  sur('[data-tstarch]', 'click', (el) => async () => {
+    const r = await apiAc('/api/academy/admin/studios/' + el.dataset.tstarch + '/archiver', 'POST', { archive: true });
+    if (r.status === 401) { deconnecter(); return; }
+    terrainMessage = r.data.ok ? 'Studio archivé. Les observations qui le citent restent lisibles.'
+      : (r.data.error || 'Archivage impossible.');
+    await rafraichirTerrain();
+  });
 }
 
 // --- Connexion ----------------------------------------------------------------

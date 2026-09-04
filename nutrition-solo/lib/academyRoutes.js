@@ -18,7 +18,7 @@ const express = require('express');
 const path = require('path');
 const { enteteContentDisposition } = require('./academyRessources');
 
-function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations, admin, ressources, couvertures, grilles, boost, exigeCompte, exigeAdmin, estAdmin }) {
+function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations, admin, referentiel, terrain, ressources, couvertures, grilles, boost, exigeCompte, exigeAdmin, estAdmin }) {
   const r = express.Router();
   const moi = (req) => String(req.user.email || '').trim().toLowerCase();
 
@@ -48,10 +48,14 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   // ==========================================================================
   const estAdministrateur = (mail) => !!estAdmin && estAdmin(mail);
   const peutEvaluer = (mail) => pratique.estEvaluateur(mail) || estAdministrateur(mail);
+  //  LE SUIVI TERRAIN. Même forme que le droit de certifier — une table, un
+  //  drapeau, relu à chaque requête — et la même exception : l'administrateur
+  //  l'a par son rôle, on ne le lui accorde pas.
+  const peutSuivreTerrain = (mail) => (terrain ? terrain.aLeDroit(mail) : false) || estAdministrateur(mail);
 
   // Le schéma s'applique tout seul à la première requête Academy, comme celui
   // du Boost : aucun ordre d'initialisation à respecter dans server.js.
-  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); certifications.assurerSchema(); ressources.assurerSchema(); couvertures.assurerSchema(); if (grilles) grilles.assurerSchema(); next(); });
+  r.use('/api/academy', (req, _res, next) => { academy.assurerSchema(); qcm.assurerSchema(); pratique.assurerSchema(); certifications.assurerSchema(); ressources.assurerSchema(); couvertures.assurerSchema(); if (grilles) grilles.assurerSchema(); if (terrain) terrain.assurerSchema(); next(); });
 
   // Page autonome, servie comme /coach. Un espace de formation et un espace de
   // suivi n'ont ni les mêmes écrans ni le même rythme d'évolution.
@@ -111,6 +115,10 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
       // aucune porte à lui seul — c'est exigeAdmin, côté serveur, qui garde
       // ces routes.
       admin: estAdministrateur(moi(req)),
+      // Le SUIVI TERRAIN est un droit de plus, indépendant des deux autres :
+      // on peut suivre les studios sans se former ni certifier. L'administrateur
+      // l'a par son rôle, comme pour la certification.
+      terrain: peutSuivreTerrain(moi(req)),
     });
   });
 
@@ -489,6 +497,176 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
       : r_.body);
   });
 
+  // ==========================================================================
+  //  LE RÉFÉRENTIEL — CE QUE LE CERTIFICATEUR CONSULTE, SANS RIEN DEVENIR.
+  //
+  //  LE PROBLÈME QU'ELLES RÈGLENT. Un certificateur doit connaître par cœur ce
+  //  sur quoi il prononce : modules, contenus, questions, cas, grille, règles
+  //  de certification. Il n'avait qu'un chemin pour y accéder — celui de
+  //  l'apprenant (`/api/academy/formation`, gardé par exigeCollaborateur) — qui
+  //  lui ouvrait un parcours personnel dont il n'a que faire, et qui se
+  //  refermait sur un 403 dès qu'il n'était pas collaborateur.
+  //
+  //  ⚠️ DEUX GET, ET RIEN D'AUTRE. `academyReferentiel` ne sait pas écrire :
+  //  aucun INSERT, aucun UPDATE. Consulter un QCM n'ouvre donc AUCUNE
+  //  tentative, consulter une évaluation pratique n'ouvre AUCUNE évaluation, et
+  //  ouvrir une formation ne crée AUCUNE progression. Le certificateur n'entre
+  //  jamais dans les statistiques d'apprentissage, parce qu'il n'existe pas de
+  //  route par laquelle il pourrait y entrer.
+  //
+  //  ⚠️ CE N'EST PAS L'ADMINISTRATION. Un certificateur ordinaire ne voit que
+  //  les formations PUBLIÉES, et leurs objets ACTIFS. Les brouillons restent
+  //  aux routes /admin, comme pour un collaborateur : une clé devinée ne doit
+  //  pas révéler un parcours en construction.
+  // ==========================================================================
+
+  //  LE CORRIGÉ, ET LA SEULE RAISON DE LE MASQUER.
+  //
+  //  Un certificateur doit voir les réponses attendues : c'est précisément ce
+  //  qu'il est censé connaître. MAIS le double rôle est prévu — le même compte
+  //  peut être certificateur ET apprenant, et il passe alors le même QCM que
+  //  les autres. Lui servir le corrigé d'une théorie qu'il n'a pas encore
+  //  validée, ce serait lui donner ses propres réponses.
+  //
+  //  La règle prolonge celles du moteur (« on n'évalue pas sa propre pratique,
+  //  on ne se délivre pas sa propre certification ») : ON NE LIT PAS LE CORRIGÉ
+  //  D'UNE ÉPREUVE QU'ON DOIT ENCORE PASSER. Elle ne coûte rien au
+  //  certificateur pur — il n'est l'apprenant de rien — et elle se lève d'elle-
+  //  même dès que la théorie est validée. L'administrateur, lui, lit déjà le
+  //  corrigé par /admin/arbre : le masquer ici ne protégerait rien.
+  function corrigeVisible(mail, cle) {
+    if (estAdministrateur(mail)) return true;
+    if (!academy.peutSeFormer(mail)) return true;
+    return !!qcm.etatPour(mail, cle).theorieValidee;
+  }
+
+  r.get('/api/academy/referentiel', exigeCompte, exigeEvaluer, (req, res) => {
+    res.json({
+      ok: true,
+      formations: referentiel.lister({ toutes: estAdministrateur(moi(req)) }),
+      // L'écran doit pouvoir dire « brouillon » sans deviner pourquoi il en
+      // voit : c'est le drapeau qui l'y autorise.
+      brouillonsInclus: estAdministrateur(moi(req)),
+    });
+  });
+
+  r.get('/api/academy/referentiel/:cle', exigeCompte, exigeEvaluer, (req, res) => {
+    const mail = moi(req);
+    const cle = String(req.params.cle || '').trim().toLowerCase();
+    // `resoudre` sans `inclureInactives` REFUSE un brouillon : la porte des
+    // brouillons est celle de l'administrateur, et elle ne s'ouvre pas ici.
+    const f = formations.resoudre(cle, { inclureInactives: estAdministrateur(mail) });
+    if (!f || f.cle !== cle) return res.status(404).json({ ok: false, error: 'Formation inconnue.' });
+    const corrige = corrigeVisible(mail, f.cle);
+    res.json({
+      ok: true,
+      ...referentiel.lire(f.cle, { corrige }),
+      // Pourquoi le corrigé manque, dit une fois pour toutes plutôt que laissé
+      // à l'interprétation d'un écran qui verrait des choix sans `correct`.
+      corrigeMasque: corrige ? null
+        : 'Tu suis toi-même cette formation : le corrigé s\'affichera une fois ' +
+          'ton évaluation théorique validée.',
+    });
+  });
+
+  // ==========================================================================
+  //  LE SUIVI TERRAIN — observations relevées dans les studios.
+  //
+  //  UNE OBSERVATION EST UN CONSTAT, PAS UNE DÉCISION. Ces routes lisent et
+  //  écrivent des lignes ; elles ne touchent ni aux parcours, ni aux
+  //  certifications, ni au Boost — `academyTerrain` ne les connaît même pas.
+  //  Un « écart » ne déclenche donc rien : il n'y a rien à déclencher.
+  //
+  //  ⚠️ LA GARDE EST SERVEUR, PAS UN ONGLET MASQUÉ. Un coach ordinaire qui
+  //  appelle ces routes au clavier reçoit un 403 : il n'a pas à lire les
+  //  observations qui concernent ses collègues.
+  // ==========================================================================
+  function exigeTerrain(req, res, next) {
+    if (!peutSuivreTerrain(moi(req))) {
+      return res.status(403).json({
+        ok: false, nonTerrain: true,
+        error: 'Le suivi terrain est réservé aux personnes qui en ont reçu le droit.',
+      });
+    }
+    next();
+  }
+
+  //  LES FILTRES ARRIVENT EN QUERY, et le serveur les applique lui-même : les
+  //  compteurs se calculent donc sur EXACTEMENT la liste renvoyée. Filtrer à
+  //  l'écran après coup aurait fait diverger les quatre chiffres de ce qu'on a
+  //  sous les yeux dès la première page.
+  const filtresDe = (req) => ({
+    studioId: req.query.studio || null,
+    salarie: req.query.salarie || null,
+    niveau: req.query.niveau || null,
+    depuis: req.query.depuis || null,
+    jusqua: req.query.jusqua || null,
+    q: req.query.q || null,
+    tri: req.query.tri || null,
+  });
+
+  r.get('/api/academy/terrain', exigeCompte, exigeTerrain, (req, res) => {
+    const f = filtresDe(req);
+    res.json({
+      ok: true,
+      observations: terrain.lister(f),
+      compteurs: terrain.compter(f),
+      // Les référentiels de saisie voyagent avec la liste : l'écran ne fait
+      // pas trois appels pour afficher deux sélecteurs.
+      studios: terrain.listerStudios(),
+      // LES SALARIÉS VIENNENT DU BOOST, jamais d'une liste écrite ici : ce
+      // sont les collaborateurs actifs, avec l'identité de `users`.
+      salaries: boost.listerCollaborateurs().map((c) => ({
+        email: c.email, prenom: c.prenom || '', nom: c.nom || '' })),
+      moi: moi(req),
+      admin: estAdministrateur(moi(req)),
+    });
+  });
+
+  r.post('/api/academy/terrain', exigeCompte, exigeTerrain, (req, res) => {
+    const r_ = terrain.creer(req.body || {}, moi(req));
+    res.status(r_.status).json(r_.body);
+  });
+
+  r.put('/api/academy/terrain/:id', exigeCompte, exigeTerrain, (req, res) => {
+    const r_ = terrain.modifier(req.params.id, req.body || {}, moi(req), estAdministrateur(moi(req)));
+    res.status(r_.status).json(r_.body);
+  });
+
+  r.delete('/api/academy/terrain/:id', exigeCompte, exigeTerrain, (req, res) => {
+    const r_ = terrain.supprimer(req.params.id, moi(req), estAdministrateur(moi(req)));
+    res.status(r_.status).json(r_.body);
+  });
+
+  //  LES STUDIOS S'ADMINISTRENT, comme les collaborateurs et les catégories de
+  //  ressources : gardés par exigeAdmin, et jamais écrits d'avance en base.
+  r.get('/api/academy/admin/studios', exigeCompte, exigeAdmin, (_req, res) => {
+    res.json({ ok: true, studios: terrain.listerStudios({ toutes: true }) });
+  });
+
+  r.post('/api/academy/admin/studios', exigeCompte, exigeAdmin, (req, res) => {
+    const r_ = terrain.definirStudio(req.body || {});
+    if (r_.ok) r_.body.studios = terrain.listerStudios({ toutes: true });
+    res.status(r_.status).json(r_.body);
+  });
+
+  //  Archiver, jamais supprimer : des observations citent ce studio.
+  r.post('/api/academy/admin/studios/:id/archiver', exigeCompte, exigeAdmin, (req, res) => {
+    const r_ = terrain.archiverStudio(req.params.id, (req.body || {}).archive !== false);
+    if (r_.ok) r_.body.studios = terrain.listerStudios({ toutes: true });
+    res.status(r_.status).json(r_.body);
+  });
+
+  //  Accorder ou retirer le droit de suivre le terrain. Même forme que la route
+  //  des certificateurs, même garde, et la liste des collaborateurs repart avec
+  //  la réponse — l'écran ne peut donc pas afficher un droit périmé.
+  r.post('/api/academy/admin/terrain', exigeCompte, exigeAdmin, (req, res) => {
+    const { email, terrain: vise } = req.body || {};
+    const r_ = terrain.definirDroit(email, vise !== false, moi(req));
+    if (r_.ok) r_.body.collaborateurs = listeCollaborateurs();
+    res.status(r_.status).json(r_.body);
+  });
+
   // -- Administration, réduite au strict nécessaire --------------------------
   //
   //  Désigner un évaluateur, et rien d'autre. L'administration de l'Academy
@@ -785,19 +963,45 @@ function creerRoutesAcademy({ academy, qcm, pratique, certifications, formations
   //  rien à lui accorder, et l'écran verrouille son interrupteur — lui poser
   //  une ligne dans academy_evaluateurs créerait un second droit pour la même
   //  personne, et une divergence le jour où l'on retire l'un des deux.
-  const listeCollaborateurs = () => [
-    ...boost.listerCollaborateurs({ tous: true })
-      .map((c) => ({ email: c.email, prenom: c.prenom || '', nom: c.nom || '',
-        actif: c.actif, majLe: c.majLe, etat: c.actif ? 'actif' : 'retire',
-        certificateur: pratique.estEvaluateur(c.email),
-        certificateurAdmin: estAdministrateur(c.email) })),
-    ...academy.listerPreautorisations()
-      .map((p) => ({ email: p.email, prenom: p.prenom || '', nom: p.nom || '',
-        actif: false, majLe: p.creeLe, etat: 'en_attente',
-        // Une adresse sans compte ne peut porter aucun droit : `definirEvaluateur`
-        // la refuserait (404). L'écran n'affiche donc pas d'interrupteur.
-        certificateur: false, certificateurAdmin: false })),
-  ];
+  //  ⚠️ TROISIÈME GROUPE : LES CERTIFICATEURS QUI NE SE FORMENT PAS.
+  //
+  //  Le droit de certifier n'a JAMAIS exigé d'être collaborateur — c'est
+  //  `academy_evaluateurs`, et `definirEvaluateur` ne demande qu'un compte
+  //  existant. Mais cette liste ne montrait que les collaborateurs : un
+  //  certificateur pur était donc représentable en base et invisible à
+  //  l'écran, donc impossible à désigner comme à retirer sans ligne de
+  //  commande. On le fait apparaître, dans son propre état.
+  //
+  //  Il n'est PAS un collaborateur au rabais : `actif: false` dit qu'il n'a
+  //  aucun accès à « Mon Academy », et l'écran ne lui propose ni retrait
+  //  d'accès ni parcours. Son seul droit est celui que porte son interrupteur.
+  const certificateursSeuls = (vus) => pratique.listerEvaluateurs()
+    .filter((e) => e.actif && !vus.has(e.email))
+    .map((e) => {
+      const u = boost.lireUtilisateur(e.email);
+      return { email: e.email, prenom: (u && u.prenom) || e.prenom || '', nom: e.nom || '',
+        actif: false, majLe: e.majLe, etat: 'certificateur',
+        certificateur: true, certificateurAdmin: estAdministrateur(e.email) };
+    });
+
+  const listeCollaborateurs = () => {
+    const lignes = [
+      ...boost.listerCollaborateurs({ tous: true })
+        .map((c) => ({ email: c.email, prenom: c.prenom || '', nom: c.nom || '',
+          actif: c.actif, majLe: c.majLe, etat: c.actif ? 'actif' : 'retire',
+          certificateur: pratique.estEvaluateur(c.email),
+          certificateurAdmin: estAdministrateur(c.email),
+          suiviTerrain: terrain ? terrain.aLeDroit(c.email) : false,
+          suiviTerrainAdmin: estAdministrateur(c.email) })),
+      ...academy.listerPreautorisations()
+        .map((p) => ({ email: p.email, prenom: p.prenom || '', nom: p.nom || '',
+          actif: false, majLe: p.creeLe, etat: 'en_attente',
+          // Une adresse sans compte ne peut porter aucun droit : `definirEvaluateur`
+          // la refuserait (404). L'écran n'affiche donc pas d'interrupteur.
+          certificateur: false, certificateurAdmin: false })),
+    ];
+    return [...lignes, ...certificateursSeuls(new Set(lignes.map((l) => l.email)))];
+  };
 
   r.get('/api/academy/admin/collaborateurs', exigeCompte, exigeAdmin, (_req, res) => {
     res.json({ ok: true, collaborateurs: listeCollaborateurs() });

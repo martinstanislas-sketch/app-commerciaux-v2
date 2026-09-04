@@ -421,7 +421,11 @@ function createAcademyPratique({ getDb, nowIso, boost, qcm, formations, grilles 
   }
 
   function listerEvaluateurs() {
-    return db().prepare(`SELECT e.email AS email, u.prenom AS prenom, e.actif AS actif, e.maj_le AS majLe, e.maj_par AS majPar
+    // `nom` s'ajoute au prénom déjà joint : l'écran d'administration affiche
+    // « Prénom Nom », et un certificateur qui n'est pas collaborateur n'a aucune
+    // autre ligne d'où tirer son identité.
+    return db().prepare(`SELECT e.email AS email, u.prenom AS prenom, u.nom AS nom,
+                                e.actif AS actif, e.maj_le AS majLe, e.maj_par AS majPar
                          FROM academy_evaluateurs e JOIN users u ON u.email = e.email
                          ORDER BY e.actif DESC, e.email ASC`).all()
       .map((r) => ({ ...r, actif: !!r.actif }));

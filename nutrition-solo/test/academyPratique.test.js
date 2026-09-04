@@ -960,6 +960,12 @@ test('l\'écran n\'appelle que les routes du lot', () => {
       // Boîte à outils : la bibliothèque de ressources. Elle n'ouvre AUCUNE
       // route de parcours — ni arbre, ni progression, ni certification.
       '/api/academy/admin/ressources',
+      // SUIVI TERRAIN, sur décision explicite : `studios` administre les lieux
+      // (ils n'existaient dans aucune table de cette base), `terrain` accorde
+      // le droit d'y relever des observations. Ni l'une ni l'autre ne touche
+      // un parcours, un QCM ou une certification.
+      '/api/academy/admin/studios',
+      '/api/academy/admin/terrain',
     ],
     'une autre route d\'administration a été ouverte : ' + admin.join(', '));
 });

@@ -482,11 +482,15 @@ test('la carte d\'une formation garde SA progression de contenus', () => {
 //  l'accueil s'en sert encore.
 // ===========================================================================
 
+//  ⚠️ TROIS DROITS, PAS DEUX. La barre lit désormais `moiCollab` — « est-ce
+//  que je me forme ? » — en plus de `moiEval` et `moiAdmin` : « Mon Academy »
+//  est un parcours PERSONNEL, et un certificateur qui n'est pas collaborateur
+//  n'en a aucun (cf. test/academyReferentiel.test.js).
 const entreesNav = (() => {
   const debut = js.indexOf('const entrees = [', js.indexOf('function rendreBarreLaterale'));
   const fin = js.indexOf('const nav = $(\'#acSideNav\')');
   assert.ok(debut > 0 && fin > debut, 'le bloc des entrées de navigation doit exister');
-  return new Function('moiEval', 'moiAdmin', 'ic',
+  return new Function('moiCollab', 'moiEval', 'moiAdmin', 'moiTerrain', 'ic',
     js.slice(debut, fin) + '; return entrees.map((e) => e.cle);');
 })();
 const ic = new Proxy({}, { get: () => '<svg/>' });
@@ -496,35 +500,61 @@ test('un coach sans droit voit ses DEUX destinations, et pas une de plus', () =>
   // au même écran que « Mon Academy ». La Boîte à outils, elle, EST un autre
   // écran : un autre contenu, d'autres gestes, aucune progression. C'est une
   // destination, pas un troisième nom pour la grille des formations.
-  assert.deepStrictEqual(entreesNav(false, false, ic), ['academy', 'outils'],
+  assert.deepStrictEqual(entreesNav(true, false, false, false, ic), ['academy', 'outils'],
     'plus de « Mes formations » ni « Mes certifications » ; la Boîte à outils reste');
 });
 
-test('« Évaluer & certifier » n\'apparaît QUE pour qui a le droit d\'évaluer', () => {
-  assert.deepStrictEqual(entreesNav(true, false, ic), ['academy', 'outils', 'evaluer']);
-  assert.ok(!entreesNav(false, false, ic).includes('evaluer'), 'un coach simple ne la voit pas');
+test('UN CERTIFICATEUR PUR N\'A PAS DE « MON ACADEMY »', () => {
+  // Il ne suit aucun parcours : la grille des formations personnelles ne lui
+  // promettait que des boutons que le serveur refuse. Il a « Évaluer &
+  // certifier », le référentiel, et la Boîte à outils.
+  assert.deepStrictEqual(entreesNav(false, true, false, false, ic), ['evaluer', 'referentiel', 'outils']);
+});
+
+test('« Évaluer & certifier » et « Formations » n\'apparaissent QUE pour qui certifie', () => {
+  assert.deepStrictEqual(entreesNav(true, true, false, false, ic),
+    ['academy', 'evaluer', 'referentiel', 'outils']);
+  const coach = entreesNav(true, false, false, false, ic);
+  assert.ok(!coach.includes('evaluer'), 'un coach simple ne voit pas « Évaluer & certifier »');
+  assert.ok(!coach.includes('referentiel'), 'un coach simple ne voit pas le référentiel');
 });
 
 test('« Administrer » n\'apparaît QUE pour un administrateur', () => {
-  assert.deepStrictEqual(entreesNav(false, true, ic), ['academy', 'outils', 'collaborateurs', 'administrer']);
-  assert.deepStrictEqual(entreesNav(true, true, ic),
-    ['academy', 'outils', 'evaluer', 'collaborateurs', 'administrer']);
-  assert.ok(!entreesNav(true, false, ic).includes('administrer'), 'un évaluateur non admin ne la voit pas');
+  assert.deepStrictEqual(entreesNav(true, false, true, false, ic),
+    ['academy', 'outils', 'collaborateurs', 'administrer']);
+  assert.deepStrictEqual(entreesNav(true, true, true, false, ic),
+    ['academy', 'evaluer', 'referentiel', 'outils', 'collaborateurs', 'administrer']);
+  assert.ok(!entreesNav(true, true, false, false, ic).includes('administrer'),
+    'un évaluateur non admin ne la voit pas');
+});
+
+test('« SUIVI TERRAIN » N\'APPARAÎT QU\'À QUI EN A LE DROIT', () => {
+  // C'est un quatrième droit, indépendant des trois autres : ni se former, ni
+  // certifier, ni administrer — observer ce qui se passe dans les studios.
+  assert.ok(!entreesNav(true, true, false, false, ic).includes('terrain'),
+    'un coach-certificateur sans le droit ne doit pas la voir');
+  assert.ok(entreesNav(true, false, false, true, ic).includes('terrain'),
+    'un coach qui a le droit la voit');
+  // Et elle se range AVANT la Boîte à outils, comme décidé.
+  assert.deepStrictEqual(entreesNav(true, true, true, true, ic),
+    ['academy', 'evaluer', 'referentiel', 'terrain', 'outils', 'collaborateurs', 'administrer']);
 });
 
 test('L\'ORDRE DE LA BARRE EST CELUI QUI A ÉTÉ DÉCIDÉ', () => {
-  // Mon Academy · Boîte à outils · Évaluer & certifier · Collaborateurs · Administrer.
-  assert.deepStrictEqual(entreesNav(true, true, ic),
-    ['academy', 'outils', 'evaluer', 'collaborateurs', 'administrer']);
+  // Mon Academy · Évaluer & certifier · Formations · Boîte à outils ·
+  // Collaborateurs · Administrer. Les deux entrées de certification suivent
+  // « Mon Academy » : c'est le métier qui les appelle, pas la bibliothèque.
+  assert.deepStrictEqual(entreesNav(true, true, true, false, ic),
+    ['academy', 'evaluer', 'referentiel', 'outils', 'collaborateurs', 'administrer']);
 });
 
 test('« Collaborateurs » est une DESTINATION, et réservée à l\'administrateur', () => {
   // Elle a quitté les onglets de « Administrer ». Le droit, lui, n'a pas bougé :
   // elle n'apparaît que pour un administrateur, et les routes restent gardées
   // par exigeAdmin côté serveur.
-  assert.ok(entreesNav(false, true, ic).includes('collaborateurs'), 'l\'administrateur la voit');
+  assert.ok(entreesNav(true, false, true, false, ic).includes('collaborateurs'), 'l\'administrateur la voit');
   for (const [ev, adm] of [[false, false], [true, false]]) {
-    assert.ok(!entreesNav(ev, adm, ic).includes('collaborateurs'),
+    assert.ok(!entreesNav(true, ev, adm, false, ic).includes('collaborateurs'),
       `un compte non administrateur ne doit pas la voir (eval=${ev})`);
   }
   // Et elle mène à son propre écran, pas à un onglet de l'administration.
@@ -546,13 +576,75 @@ test('« Collaborateurs » est une DESTINATION, et réservée à l\'administrate
     'aucun onglet déplacé ne doit être revenu dans Administrer');
 });
 
+// ===========================================================================
+//  L'ACCORDÉON DE LA GRILLE DES FORMATIONS
+//
+//  CE QUI CHANGE : la liste des formations se replie. CE QUI NE CHANGE PAS, et
+//  c'est tout l'enjeu : le rail des familles reste visible, la grille reste la
+//  même grille, et le tri comme le filtre de statut gardent leur effet. Un
+//  accordéon qui filtrerait « un peu » au passage serait une régression
+//  invisible — d'où les vérifications ci-dessous.
+// ===========================================================================
+
+test('la grille est REPLIÉE à l\'arrivée, et le rail des familles reste visible', () => {
+  assert.ok(/let accueilOuvert = false;/.test(js),
+    'l\'accordéon doit être fermé par défaut');
+  // Le rail n'est PAS dans l'enveloppe repliable : il commande, il ne se cache pas.
+  const i = { rail: js.indexOf("class=\"ac-cats\""), pan: js.indexOf("class=\"ac-acc-pan") };
+  assert.ok(i.rail > 0 && i.pan > 0, 'le rail et l\'enveloppe doivent exister');
+  assert.ok(i.rail < i.pan, 'le rail des familles doit rester AU-DESSUS de la zone repliable');
+});
+
+test('LE BANDEAU EST UN BOUTON, et il dit son état', () => {
+  const b = js.slice(js.indexOf("id=\"acAccBtn\"") - 400, js.indexOf("id=\"acAccPan\"") + 200);
+  assert.ok(/aria-expanded/.test(b), 'un lecteur d\'écran doit connaître l\'état');
+  assert.ok(/aria-controls="acAccPan"/.test(b), 'le bouton doit désigner ce qu\'il ouvre');
+  assert.ok(/Formations/.test(b) && /libelleFamille\(accueilCategorie\)/.test(b),
+    'le bandeau doit nommer la famille en cours');
+  assert.ok(/compteFormations\(liste\.length\)/.test(b),
+    'le compte annoncé doit être celui des cartes RÉELLEMENT dans le panneau, filtre de statut compris');
+});
+
+test('un second clic sur la famille active REPLIE, sans perdre la famille', () => {
+  const geste = js.slice(js.indexOf("querySelectorAll('#acAccueil [data-cat]')"),
+    js.indexOf("const acc = $('#acAccBtn')"));
+  assert.ok(/accueilOuvert = \(cat === accueilCategorie\) \? !accueilOuvert : true;/.test(geste),
+    'même famille -> bascule ; autre famille -> ouvre');
+  assert.ok(/accueilCategorie = cat;/.test(geste), 'la famille choisie doit être retenue');
+  assert.ok(!/accueilCategorie = 'toutes'/.test(geste),
+    'replier ne doit pas remettre le filtre à zéro : ce serait annuler un choix que personne n\'a défait');
+});
+
+test('LES DONNÉES NE BOUGENT PAS : l\'accordéon ne filtre rien', () => {
+  // `formationsAffichees()` est la seule fonction qui décide de la liste. Si
+  // l'état d'ouverture y entrait, replier changerait le contenu — pas seulement
+  // sa visibilité.
+  const f = js.slice(js.indexOf('function formationsAffichees'), js.indexOf('async function ouvrirAccueil'));
+  assert.ok(!/accueilOuvert/.test(f),
+    'l\'ouverture ne doit jamais entrer dans le calcul de la liste');
+  // Le tri et le filtre de statut restent lus au même endroit qu'avant.
+  assert.ok(/accueilTri/.test(f) && /accueilStatut/.test(f) && /accueilCategorie/.test(f),
+    'tri, statut et famille doivent continuer de gouverner la liste');
+});
+
+test('les couvertures ne se chargent QUE lorsque la liste est dépliée', () => {
+  assert.ok(/if \(accueilOuvert\) poserCouvertures\(\$\('#acAccueil'\)\);/.test(js),
+    'trente-quatre images demandées pour une liste repliée seraient trente-quatre requêtes pour rien');
+});
+
 test('la Boîte à outils est ouverte à TOUS ceux qui entrent dans l\'Academy', () => {
   // Elle ne dépend d'aucun droit supplémentaire : un collaborateur ordinaire y
   // accède, comme l'évaluateur et l'administrateur. Le serveur garde la même
   // porte que le catalogue (exigeEntree) — l'écran ne fait que le suivre.
-  for (const [ev, adm] of [[false, false], [true, false], [false, true], [true, true]]) {
-    assert.ok(entreesNav(ev, adm, ic).includes('outils'),
-      `la Boîte à outils manque pour eval=${ev} admin=${adm}`);
+  for (const col of [true, false]) {
+    for (const [ev, adm] of [[false, false], [true, false], [false, true], [true, true]]) {
+      // Un compte sans aucun droit n'entre pas dans l'Academy : la barre ne lui
+      // est jamais rendue (cf. demarrer()). On n'éprouve donc que les combinaisons
+      // qui donnent accès à quelque chose.
+      if (!col && !ev && !adm) continue;
+      assert.ok(entreesNav(col, ev, adm, false, ic).includes('outils'),
+        `la Boîte à outils manque pour collab=${col} eval=${ev} admin=${adm}`);
+    }
   }
 });
 

@@ -63,6 +63,8 @@ const { createAcademyGrilles } = require('./lib/academyGrilles');
 const { createAcademyFormations, COACH_NUTRITION } = require('./lib/academyFormations');
 const { createAcademyCertifications } = require('./lib/academyCertifications');
 const { createAcademyAdmin } = require('./lib/academyAdmin');
+const { createAcademyReferentiel } = require('./lib/academyReferentiel');
+const { createAcademyTerrain } = require('./lib/academyTerrain');
 const { createAcademyRessources } = require('./lib/academyRessources');
 const { createAcademyCouvertures } = require('./lib/academyCouvertures');
 const { createAmorcageCycleMenstruel } = require('./lib/academyAmorcageCycleMenstruel');
@@ -132,6 +134,22 @@ boost.brancherCertificationAcademy((email) => academyCertifications.estCertifie(
 const academyAdmin = createAcademyAdmin({
   getDb, nowIso, academy, qcm: academyQcm, pratique: academyPratique, formations: academyFormations,
 });
+
+// LE RÉFÉRENTIEL DU CERTIFICATEUR. Il ne reçoit QUE des lectures — le
+// catalogue, l'arbre d'administration, les cas et la grille — et pas une seule
+// fonction d'écriture. C'est ce qui rend structurellement impossible qu'une
+// consultation ouvre une tentative de QCM, une évaluation ou une progression :
+// il n'a rien avec quoi le faire.
+const academyReferentiel = createAcademyReferentiel({
+  getDb, formations: academyFormations, admin: academyAdmin,
+  pratique: academyPratique, grilles: academyGrilles,
+});
+
+// LE SUIVI TERRAIN. Il ne reçoit QUE le Boost — pour lire les collaborateurs et
+// vérifier qu'un compte existe — et rien du moteur de formation. Un « écart »
+// relevé en studio ne peut donc toucher ni un parcours, ni une certification :
+// ce module n'a pas de quoi le faire.
+const academyTerrain = createAcademyTerrain({ getDb, nowIso, boost });
 
 // LA BOÎTE À OUTILS. Volontairement SANS aucune dépendance vers les moteurs de
 // parcours : ni academy, ni qcm, ni pratique, ni certifications, ni formations.
@@ -781,6 +799,7 @@ app.delete('/api/recipes/:id/photo', exigeAdmin, (req, res) => {
 app.use(creerRoutesBoost({ boost, seances, exigeCompte, exigeAdmin }));
 app.use(creerRoutesAcademy({ academy, qcm: academyQcm, pratique: academyPratique,
   certifications: academyCertifications, formations: academyFormations, admin: academyAdmin,
+  referentiel: academyReferentiel, terrain: academyTerrain,
   ressources: academyRessources, couvertures: academyCouvertures, grilles: academyGrilles,
   boost, exigeCompte, exigeAdmin, estAdmin }));
 
@@ -967,6 +986,8 @@ module.exports.academyGrilles = academyGrilles;
 module.exports.academyCertifications = academyCertifications;
 module.exports.academyFormations = academyFormations;
 module.exports.academyAdmin = academyAdmin;
+module.exports.academyReferentiel = academyReferentiel;
+module.exports.academyTerrain = academyTerrain;
 module.exports.academyRessources = academyRessources;
 module.exports.academyCouvertures = academyCouvertures;
 module.exports.academyCycleMenstruel = academyCycleMenstruel;

@@ -13,8 +13,8 @@
   <!-- LES TOKENS D'ABORD, TOUJOURS : coach.css et academy.css n'y déclarent
        plus que des alias. -->
   <link rel="stylesheet" href="tokens.css?v=2" />
-  <link rel="stylesheet" href="coach.css?v=5" />
-  <link rel="stylesheet" href="academy.css?v=72" />
+  <link rel="stylesheet" href="coach.css?v=6" />
+  <link rel="stylesheet" href="academy.css?v=82" />
 </head>
 <body>
 <!--
@@ -172,15 +172,6 @@
              chaque écran l'alimente s'il en a un (voir rendreFilEval). -->
         <div class="ac-fil" id="acFil" hidden></div>
 
-        <div class="ac-head-t" id="acHeadTitre" hidden>
-          <!-- Réécrits par saluer() (academy.js) dès que l'identité du compte est
-               connue : « Bonjour Thomas 👋 ». Le texte ci-dessous est celui qui
-               s'affiche avant la réponse du serveur, et celui qui reste pour un
-               compte sans prénom. -->
-          <h1 class="ac-head-h1" id="acHeadH1">Mon Academy <span aria-hidden="true">👋</span></h1>
-          <p class="ac-head-s" id="acHeadS">Bienvenue dans ton espace de formation. Continue ton parcours et obtiens tes certifications.</p>
-        </div>
-
         <!--
           Le bloc de compte. Les entrées de RÔLE (évaluer, administrer) sont
           passées dans la barre latérale : ce sont des destinations, pas des
@@ -247,6 +238,20 @@
          une fenêtre modale qu'il faudrait ensuite savoir refermer. -->
     <section id="acOutils" hidden></section>
 
+    <!-- LE RÉFÉRENTIEL, écran du certificateur : toutes les formations en
+         CONSULTATION — contenus, QCM théorique, mises en situation, grille et
+         critères de certification. Ce n'est pas « Mon Academy » : aucune
+         progression n'y est affichée, et aucune n'y est créée. Les deux routes
+         qu'il appelle sont des GET (/api/academy/referentiel). -->
+    <section id="acReferentiel" hidden></section>
+
+    <!-- SUIVI TERRAIN : les observations relevées dans les studios. Ce n'est
+         ni une formation, ni une évaluation pédagogique — aucune progression,
+         aucun score, aucun workflow. Une couleur, un texte, et la trace de qui
+         l'a écrite. Réservé au droit « Suivi terrain » (garde serveur :
+         exigeTerrain). -->
+    <section id="acTerrain" hidden></section>
+
     <!-- Collaborateurs : qui entre dans l'Academy. Écran à part depuis qu'il a
          quitté les onglets de « Administrer » — gérer une population n'est pas
          régler un contenu. Réservé à l'administrateur, comme les routes qu'il
@@ -261,6 +266,6 @@
   </div>
 </div>
 
-  <script src="academy.js?v=72"></script>
+  <script src="academy.js?v=82"></script>
 </body>
 </html>

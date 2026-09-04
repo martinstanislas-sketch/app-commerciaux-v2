@@ -663,9 +663,17 @@ test('« Administrer » porte DEUX sujets : les contenus, et l\'aperçu des éva
   //  ⚠️ #acOutils EST LE SEPTIÈME, et il est décidé : la Boîte à outils est une
   //  bibliothèque, pas un onglet de la grille des formations. Elle a son écran
   //  parce qu'elle a son contenu — des documents, pas des parcours.
+  //  ⚠️ #acReferentiel EST LE HUITIÈME, et il est décidé aussi : le
+  //  certificateur CONSULTE ce qu'il évalue — contenus, QCM, mises en situation,
+  //  critères — sans progression et sans rien créer. « Mon Academy » ne pouvait
+  //  pas jouer ce rôle : c'est un parcours personnel, et il n'en a pas.
   const sections = [...html.matchAll(/<section id="(ac[A-Za-z]+)"/g)].map((m) => m[1]);
   assert.deepStrictEqual(sections,
-    ['acAccueil', 'acSommaire', 'acLecteur', 'acQcm', 'acEval', 'acOutils', 'acCollab', 'acAdmin'],
+    //  ⚠️ #acTerrain EST LE NEUVIÈME, et il est décidé : le suivi terrain n'est
+    //  ni une formation ni une évaluation pédagogique — aucune progression,
+    //  aucun score, aucun workflow. Il a son écran parce qu'il a son métier.
+    ['acAccueil', 'acSommaire', 'acLecteur', 'acQcm', 'acEval', 'acOutils', 'acReferentiel',
+      'acTerrain', 'acCollab', 'acAdmin'],
     'la liste des écrans a changé sans décision : ' + sections.join(', '));
   assert.ok(sections.includes('acAdmin') && !sections.some((x) => /contenu/i.test(x)),
     'le lot 6 doit rester dans #acAdmin, sans écran à lui');

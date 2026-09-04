@@ -510,8 +510,12 @@ test('L\'ÉCRAN N\'UTILISE PAS fCourante pour évaluer : elle appartient aux aut
 
 test('l\'écran garde son sous-titre, son select de formation et ses compteurs', () => {
   const bloc = js.slice(js.indexOf('function rendreEvalListe'), js.indexOf('function rafraichirCorpsEval'));
-  assert.ok(/Suis la progression des coachs et traite les évaluations en attente/.test(bloc),
+  // La formulation a été élargie aux certifications lors de l'harmonisation des
+  // quatre en-têtes ; ce que ce test protège n'a pas changé — l'écran annonce
+  // en une phrase ce qu'on vient y faire.
+  assert.ok(/Suis la progression des coachs/.test(bloc) && /évaluations en attente/.test(bloc),
     'le sous-titre demandé doit être là');
+  assert.ok(/enTetePage\(/.test(bloc), 'et il passe par l\'en-tête commun aux quatre écrans');
   // ⚠️ LES COMPTEURS SONT PASSÉS DANS LE BENTO (refonte lot 1) : ils ne sont
   // plus rendus dans `rendreEvalListe` mais dans `rendreBentoEval`, appelée
   // par elle. Le sous-titre, lui, n'a pas bougé.
