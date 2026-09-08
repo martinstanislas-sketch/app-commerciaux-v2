@@ -21799,3 +21799,68 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .boss-metric-btn:hover { color: #1f2430; }
 .boss-metric-btn.is-on { background: #fff; color: #6d3bd9; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 .boss-chart-wrap { position: relative; width: 100%; height: 264px; }
+
+/* ═══ RECAP 2 — écran minimal (non-reconduction + complétion) ════════════════
+   Namespace `.rec2-*` STRICTEMENT séparé de `.rec-*` (RECAP/FAN) : aucune règle
+   partagée, donc aucune régression possible sur l'écran d'origine. Les jetons
+   de couleur sont redéclarés localement, pour la même raison. */
+.rec2-wrap {
+  --r2-bg: #0D0F16; --r2-surface: #14161F; --r2-surface-2: #1B1E29;
+  --r2-line: rgba(255,255,255,.09); --r2-line-2: rgba(255,255,255,.16);
+  --r2-text: #EDEFF3; --r2-text-2: #A2A9B8; --r2-text-3: #6B7280;
+  --r2-accent: #6366F1; --r2-accent-soft: rgba(99,102,241,.14);
+  --r2-green: #34D399; --r2-red: #F87171;
+  background: var(--r2-bg); color: var(--r2-text); border-radius: 20px;
+  padding: 16px 22px 24px; margin-top: 6px; -webkit-font-smoothing: antialiased;
+}
+.rec2-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+.rec2-title { margin: 0; font-size: 19px; font-weight: 700; color: var(--r2-text); letter-spacing: -.025em; }
+.rec2-sub { margin: 6px 0 0; font-size: 13px; color: var(--r2-text-2); }
+.rec2-mois { display: flex; flex-direction: column; gap: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--r2-text-3); font-weight: 600; }
+.rec2-mois input { background: var(--r2-surface); border: 1px solid var(--r2-line-2); color: var(--r2-text); border-radius: 9px; padding: 0 12px; height: 36px; font: inherit; }
+.rec2-mois input:focus { outline: none; border-color: var(--r2-accent); box-shadow: 0 0 0 3px var(--r2-accent-soft); }
+
+.rec2-info { margin: 10px 0; font-size: 13px; color: var(--r2-text-2); }
+.rec2-info-err { color: var(--r2-red); }
+
+/* Un studio = un bloc, toujours dans le même ordre (jamais de classement). */
+.rec2-studio { border-top: 1px solid var(--r2-line); padding: 16px 0 4px; }
+.rec2-studio:first-child { border-top: 0; padding-top: 0; }
+.rec2-studio-nom { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--r2-text-2); }
+.rec2-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .rec2-cards { grid-template-columns: 1fr; } }
+
+.rec2-card {
+  display: flex; flex-direction: column; gap: 3px; text-align: left; width: 100%;
+  background: var(--r2-surface); border: 1px solid var(--r2-line); border-radius: 14px;
+  padding: 14px 16px; color: inherit; font: inherit; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.rec2-card:hover { border-color: var(--r2-line-2); background: var(--r2-surface-2); }
+.rec2-card.is-open { border-color: var(--r2-accent); background: var(--r2-surface-2); }
+.rec2-card.is-na { cursor: default; opacity: .72; }
+.rec2-card-lbl { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; color: var(--r2-text-3); }
+.rec2-card-val { font-size: 30px; font-weight: 750; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.rec2-card-sub { font-size: 12.5px; color: var(--r2-text-2); }
+.rec2-card-hint { margin-top: 5px; font-size: 11px; color: var(--r2-text-3); }
+.rec2-card:hover .rec2-card-hint { color: var(--r2-accent); }
+
+/* Détail : fermé par défaut, un seul ouvert à la fois. */
+.rec2-detail { margin-top: 12px; background: var(--r2-surface); border: 1px solid var(--r2-line-2); border-radius: 14px; padding: 12px 14px 14px; }
+.rec2-det-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12.5px; font-weight: 650; color: var(--r2-text); margin-bottom: 10px; }
+.rec2-det-x { border: 1px solid var(--r2-line-2); background: transparent; color: var(--r2-text-2); font: inherit; font-size: 12px; border-radius: 8px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+.rec2-det-x:hover { color: var(--r2-text); border-color: var(--r2-accent); }
+
+.rec2-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.rec2-chip { border: 1px solid var(--r2-line-2); background: transparent; color: var(--r2-text-2); font: inherit; font-size: 12px; border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.rec2-chip b { color: var(--r2-text); font-variant-numeric: tabular-nums; }
+.rec2-chip.is-on { background: var(--r2-accent-soft); border-color: var(--r2-accent); color: var(--r2-text); }
+
+.rec2-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rec2-table th { text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--r2-text-3); padding: 0 8px 7px; border-bottom: 1px solid var(--r2-line); }
+.rec2-table td { padding: 8px; border-bottom: 1px solid var(--r2-line); color: var(--r2-text); }
+.rec2-table tbody tr:last-child td { border-bottom: 0; }
+.rec2-num { text-align: right; font-variant-numeric: tabular-nums; }
+.rec2-etat { font-size: 11.5px; font-weight: 650; border-radius: 999px; padding: 3px 10px; }
+.rec2-etat.is-oui { background: rgba(52,211,153,.14); color: var(--r2-green); }
+.rec2-etat.is-non { background: rgba(248,113,113,.14); color: var(--r2-red); }
