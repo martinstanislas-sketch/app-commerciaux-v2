@@ -1,0 +1,9 @@
+# ⚠️ LE PROFIL NAVIGATEUR CONTIENT LA SESSION CONNECTÉE (cookies, jetons).
+# Il ne doit JAMAIS partir dans git : ce serait publier un accès au CRM.
+.session/
+
+# Dépendances locales de l'automatisation (isolées de l'app principale).
+node_modules/
+
+# Configuration locale (URL du CRM, éventuels réglages) — jamais d'identifiants.
+.env
