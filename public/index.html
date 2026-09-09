@@ -95,6 +95,7 @@
       <button class="tab-btn" data-tab="cockpit">Cockpit</button>
       <button class="tab-btn" data-tab="standards">Standards</button>
       <button class="tab-btn" data-tab="recap">RECAP</button>
+      <button class="tab-btn" data-tab="recap2">RECAP 2</button>
       <button class="tab-btn" data-tab="fan">FAN</button>
       <button class="tab-btn" data-tab="lead">LEAD</button>
       <button class="tab-btn" data-tab="boss">BOSS</button>
@@ -219,6 +220,24 @@
         <div id="rec-view-historique" hidden>
           <div class="rec-histo" id="rec-histo"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- RECAP 2 (admin uniquement) — écran minimal : non-reconduction + complétion,
+         6 studios en propre. VUE de lecture sur les données déjà archivées par
+         RECAP : aucun import, aucune écriture, aucun impact sur RECAP/FAN/BOSS. -->
+    <section id="tab-recap2" class="tab-content">
+      <div class="rec2-wrap">
+        <header class="rec2-head">
+          <div>
+            <h2 class="rec2-title">RECAP 2</h2>
+            <p class="rec2-sub" id="rec2-sub"></p>
+          </div>
+          <label class="rec2-mois">Mois analys&eacute; (M)
+            <input type="month" id="rec2-mois" />
+          </label>
+        </header>
+        <div id="rec2-body"></div>
       </div>
     </section>
 
@@ -1263,6 +1282,8 @@
   <script src="retention.js?v=rec51"></script>
   <script src="retention-parse.js?v=rec16"></script>
   <script src="recap.js?v=rec54"></script>
+  <script src="recap2-metrics.js?v=rec2-1"></script>
+  <script src="recap2.js?v=rec2-2"></script>
   <script src="lead.js?v=lead5"></script>
   <script src="fan.js?v=fan12"></script>
   <script src="boss.js?v=boss4"></script>

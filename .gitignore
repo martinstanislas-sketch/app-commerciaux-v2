@@ -18,6 +18,11 @@ data.db-wal
 *.sqlite
 *.sqlite3
 
+# ── RECAP 2 : JSON déposés (noms de clients) ──
+# En production ils vivent dans le volume ($DB_DIR/recap2/). En local, DB_DIR
+# vaut la racine du projet : ce dossier peut donc apparaître ici. Jamais versionné.
+recap2/
+
 # ── Runtime / logs ───────────────────────────
 *.log
 logs/

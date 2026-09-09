@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs'); // lecture seule : JSON de collecte RECAP 2
 const crypto = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk').default;
 const { getDb, ensureWeeklySettings, generatePin } = require('./db');
@@ -5187,6 +5188,125 @@ app.get('/api/boss/:mois', requireAuth, requireDirection, (req, res) => {
     });
     res.json({ ok: true, mois, moisPrec, moisN1, clubs: BOSS_CLUBS, data, recapReseau: rCur.reseau, recapReseauPrec: rPrec.reseau });
   } catch (e) { console.error('boss GET:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
+});
+
+// ─── RECAP 2 : DÉPÔT (Mac -> serveur) puis LECTURE SEULE ────────────────────
+//  RECAP 2 n'a AUCUNE persistance SQL. Ses deux chiffres sont produits sur le
+//  Mac par crm-automation (Deciplus + Fitness Booster), puis DÉPOSÉS ici sous
+//  forme d'un JSON par mois, rangé dans le volume :
+//
+//      $DB_DIR/recap2/recap2-AAAA-MM.json
+//
+//  Deux portes, et deux seulement :
+//   · POST /api/recap2/:mois — le dépôt. Machine à machine, authentifié par la
+//     clé RECAP2_INGEST_KEY (en-tête X-Recap2-Key), jamais par une session.
+//     Le corps est validé STRICTEMENT avant toute écriture, puis réécrit sous
+//     sa forme canonique (lib/recap2Store.js) : une clé inattendue ne peut pas
+//     atterrir sur le serveur ;
+//   · GET /api/recap2/:mois — la lecture, réservée à l'admin connecté.
+//
+//  ⚠️ CE JSON CONTIENT DES NOMS DE CLIENTS (le détail nominatif des cartes).
+//  D'où : dossier dans le volume et jamais dans public/ (rien n'est servi en
+//  statique), fichier en 0600, et aucune autre route qui y touche.
+//
+//  ⚠️ CE QUI NE PASSE PAS PAR ICI : les CSV Deciplus, le profil Chromium, les
+//  cookies de session CRM. Ils restent sur le Mac, dans crm-automation/.session
+//  (non versionné). L'expéditeur n'envoie que la forme canonique, et le
+//  validateur refuserait de toute façon toute chaîne un peu longue.
+//
+//  ⚠️ AUCUNE ÉCRITURE EN BASE : ni tables retention_*, ni quoi que ce soit.
+const Recap2Store = require('./lib/recap2Store.js');
+const RECAP2_MOIS_RE = Recap2Store.MOIS_RE;
+// Chemin historique : le JSON produit localement par la collecte. Sur le Mac,
+// l'écran marche donc sans dépôt ; sur Railway ce dossier n'existe pas (il est
+// ignoré par git), et seul le volume répond.
+const RECAP2_DIR_LOCAL = path.join(__dirname, 'crm-automation', '.session', 'controle');
+
+// La clé de dépôt est lue à chaque appel : on ne fige pas au démarrage, et une
+// clé absente laisse la porte FERMÉE (503), jamais ouverte.
+function recap2CleAttendue() {
+  const k = String(process.env.RECAP2_INGEST_KEY || '').trim();
+  return k.length >= 16 ? k : ''; // sous 16 caractères, on considère qu'il n'y a pas de clé
+}
+// Comparaison à temps constant, sur des empreintes de même longueur : ni la
+// valeur ni la longueur de la clé ne fuient par le temps de réponse.
+function recap2CleValide(fournie) {
+  const attendue = recap2CleAttendue();
+  if (!attendue || !fournie) return false;
+  const a = crypto.createHash('sha256').update(String(fournie)).digest();
+  const b = crypto.createHash('sha256').update(attendue).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+app.post('/api/recap2/:mois', (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!recap2CleAttendue()) {
+    return res.status(503).json({ error: 'Dépôt RECAP 2 désactivé : RECAP2_INGEST_KEY absente ou trop courte (16 caractères minimum).' });
+  }
+  if (!recap2CleValide(req.get('X-Recap2-Key'))) {
+    console.warn('recap2 dépôt refusé (clé invalide) pour ' + mois);
+    return res.status(401).json({ error: 'Clé de dépôt invalide.' });
+  }
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+
+  const rapport = req.body;
+  let taille = 0;
+  try { taille = Buffer.byteLength(JSON.stringify(rapport || null)); }
+  catch (_) { return res.status(400).json({ error: 'Corps JSON illisible.' }); }
+  if (taille > Recap2Store.TAILLE_MAX) {
+    return res.status(413).json({ error: 'Rapport trop volumineux (' + taille + ' octets).' });
+  }
+
+  const v = Recap2Store.valider(rapport, mois);
+  if (!v.ok) {
+    // On renvoie les motifs — ils décrivent la FORME, jamais le contenu : aucun
+    // nom de client ne repart dans une réponse d'erreur.
+    console.warn('recap2 dépôt ' + mois + ' refusé : ' + v.problemes.length + ' problème(s)');
+    return res.status(422).json({ error: 'Rapport refusé : il ne respecte pas la forme attendue.', problemes: v.problemes });
+  }
+
+  try {
+    const propre = Recap2Store.nettoyer(rapport);
+    Recap2Store.ecrire(mois, propre); // .tmp + rename, aucun .bak, aucune écriture SQL
+    console.log('recap2 dépôt ' + mois + ' accepté (' + taille + ' octets)');
+    // Accusé de réception volontairement muet sur les personnes : des comptes.
+    res.json({
+      ok: true, mois, m1: propre.m1, genere: propre.genere,
+      studios: Object.keys(propre.studios || {}).length, octets: taille, recuLe: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error('recap2 écriture :', e && e.message);
+    res.status(500).json({ error: 'Écriture impossible sur le serveur.' });
+  }
+});
+
+app.get('/api/recap2/:mois', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+
+  const r = Recap2Store.lire(mois);
+  if (r.etat === 'ok') {
+    if (r.rapport && r.rapport.mois && r.rapport.mois !== mois) {
+      return res.status(409).json({ error: 'Le fichier trouvé porte le mois ' + r.rapport.mois + ', pas ' + mois + '.' });
+    }
+    return res.json(r.rapport);
+  }
+  if (r.etat === 'illisible') {
+    console.error('recap2 lecture :', r.raison);
+    return res.status(500).json({ error: 'Fichier de collecte illisible.' });
+  }
+
+  // Rien dans le volume : sur le Mac, on retombe sur le JSON que la collecte
+  // vient d'écrire — pratique pour vérifier un mois avant de le déposer.
+  const local = path.resolve(RECAP2_DIR_LOCAL, 'recap2-' + mois + '.json');
+  if (path.dirname(local) === path.resolve(RECAP2_DIR_LOCAL) && fs.existsSync(local)) {
+    try { return res.json(JSON.parse(fs.readFileSync(local, 'utf8'))); }
+    catch (e) { console.error('recap2 lecture locale :', e && e.message); return res.status(500).json({ error: 'Fichier de collecte illisible.' }); }
+  }
+  res.status(404).json({
+    error: 'Données non encore collectées pour ce mois.',
+    fichierAttendu: 'DB_DIR/recap2/recap2-' + mois + '.json',
+  });
 });
 
 const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM

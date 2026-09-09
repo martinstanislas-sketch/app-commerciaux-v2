@@ -903,12 +903,14 @@ function updateTabVisibility() {
   const cockpitBtn = document.querySelector('[data-tab="cockpit"]');
   const standardsBtn = document.querySelector('[data-tab="standards"]');
   const recapBtn = document.querySelector('[data-tab="recap"]');
+  const recap2Btn = document.querySelector('[data-tab="recap2"]'); // RECAP 2 (écran parallèle, mêmes droits que RECAP)
   const fanBtn = document.querySelector('[data-tab="fan"]');
   const leadBtn = document.querySelector('[data-tab="lead"]');
   const bossBtn = document.querySelector('[data-tab="boss"]');
 
   // RECAP + FAN + LEAD + BOSS : admin uniquement. Masqués par défaut, révélés dans la seule branche admin.
   if (recapBtn) recapBtn.style.display = 'none';
+  if (recap2Btn) recap2Btn.style.display = 'none';
   if (fanBtn) fanBtn.style.display = 'none';
   if (leadBtn) leadBtn.style.display = 'none';
   if (bossBtn) bossBtn.style.display = 'none';
@@ -996,6 +998,7 @@ function updateTabVisibility() {
     if (pilotageFunnelBtn) pilotageFunnelBtn.style.display = '';
     if (standardsBtn) standardsBtn.style.display = ''; // Standards : admin + coach leaders
     if (recapBtn) recapBtn.style.display = ''; // RECAP : admin uniquement
+    if (recap2Btn) recap2Btn.style.display = ''; // RECAP 2 : admin uniquement (écran parallèle, n'ouvre rien par défaut)
     if (fanBtn) fanBtn.style.display = ''; // FAN : admin uniquement
     if (leadBtn) leadBtn.style.display = ''; // LEAD : admin uniquement
     if (bossBtn) bossBtn.style.display = ''; // BOSS : admin + direction
@@ -2947,6 +2950,7 @@ function initTabs() {
       if (btn.dataset.tab === 'cockpit') loadCockpitTab();
       if (btn.dataset.tab === 'standards') loadStandardsTab();
       if (btn.dataset.tab === 'recap' && typeof RecapUI !== 'undefined') RecapUI.open();
+      if (btn.dataset.tab === 'recap2' && typeof Recap2UI !== 'undefined') Recap2UI.open();
       if (btn.dataset.tab === 'fan' && typeof FanUI !== 'undefined') FanUI.open();
       if (btn.dataset.tab === 'lead' && typeof LeadUI !== 'undefined') LeadUI.open();
       if (btn.dataset.tab === 'boss' && typeof BossUI !== 'undefined') BossUI.open();
