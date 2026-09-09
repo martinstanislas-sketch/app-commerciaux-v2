@@ -3,8 +3,9 @@
 //  RECAP 2 — écran minimal : 6 studios, 2 chiffres chacun.
 //
 //  COUCHE D'AFFICHAGE, ET RIEN D'AUTRE. Les chiffres sont produits en amont par
-//  la collecte (crm-automation) et déposés dans un JSON que le serveur sert en
-//  lecture seule :  GET /api/recap2/AAAA-MM  (route admin).
+//  la collecte (crm-automation, sur le Mac), déposés sur le serveur par
+//  recap2-envoi.js dans $DB_DIR/recap2/, et servis en lecture seule :
+//  GET /api/recap2/AAAA-MM  (route admin).
 //
 //  ⚠️ ON NE RECALCULE RIEN ICI. Le JSON porte les résultats définitifs ; créer
 //  une seconde logique métier dans le navigateur, c'est se garantir deux
@@ -133,7 +134,8 @@ const Recap2UI = (function () {
     if (etat === 'absent') {
       host.innerHTML = '<div class="rec2-vide"><p class="rec2-vide-t">Données non encore collectées pour ce mois.</p>'
         + (message ? '<p class="rec2-vide-s">Fichier attendu : <code>' + esc(message) + '</code></p>' : '')
-        + '<p class="rec2-vide-s">Lance la collecte : <code>node crm-automation/recap2-collecte.js ' + esc(mois) + '</code></p></div>';
+        + '<p class="rec2-vide-s">Sur le Mac : <code>node crm-automation/recap2-collecte.js ' + esc(mois) + '</code>'
+        + ' puis <code>node crm-automation/recap2-envoi.js ' + esc(mois) + '</code></p></div>';
       return;
     }
     if (etat === 'erreur') { host.innerHTML = '<p class="rec2-info rec2-info-err">Lecture impossible' + (message ? ' — ' + esc(message) : '') + '.</p>'; return; }
