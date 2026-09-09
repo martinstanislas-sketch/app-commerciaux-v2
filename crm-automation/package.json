@@ -4,7 +4,9 @@
   "private": true,
   "description": "Automatisation CRM (Playwright) — isolée de l'app principale, jamais déployée",
   "scripts": {
-    "open": "node open-crm.js"
+    "open": "node open-crm.js",
+    "collecte": "node recap2-collecte.js",
+    "envoi": "node recap2-envoi.js"
   },
   "devDependencies": {
     "playwright": "^1.49.0"
