@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs'); // lecture seule : JSON de collecte RECAP 2
 const crypto = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk').default;
 const { getDb, ensureWeeklySettings, generatePin } = require('./db');
@@ -5187,6 +5188,49 @@ app.get('/api/boss/:mois', requireAuth, requireDirection, (req, res) => {
     });
     res.json({ ok: true, mois, moisPrec, moisN1, clubs: BOSS_CLUBS, data, recapReseau: rCur.reseau, recapReseauPrec: rPrec.reseau });
   } catch (e) { console.error('boss GET:', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
+});
+
+// ─── RECAP 2 : LECTURE SEULE du JSON produit par crm-automation ──────────────
+//  RECAP 2 n'a AUCUNE persistance propre : il affiche le fichier de contrôle
+//  déposé par la collecte (crm-automation/.session/controle/recap2-AAAA-MM.json).
+//
+//  ⚠️ CE JSON CONTIENT DES NOMS DE CLIENTS. D'où :
+//   · route ADMIN uniquement (requireAuth + requireAdmin) ;
+//   · le dossier .session n'est JAMAIS servi en statique — cette route est le
+//     seul chemin d'accès, et elle ne sert que ce fichier-là ;
+//   · aucun CSV Deciplus, aucun PDF, aucune donnée brute ne transite ici.
+//
+//  ⚠️ AUCUNE ÉCRITURE : ni fichier, ni base. On ne touche pas non plus aux
+//  tables retention_* de l'ancien RECAP, qui continue de vivre sa vie.
+const RECAP2_MOIS_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const RECAP2_DIR = path.join(__dirname, 'crm-automation', '.session', 'controle');
+app.get('/api/recap2/:mois', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  // Le format strict AAAA-MM interdit à lui seul tout « ../ » ; on vérifie
+  // malgré tout que le chemin résolu reste DANS le dossier attendu (ceinture
+  // et bretelles : un jour ce format pourrait s'assouplir).
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const fichier = path.resolve(RECAP2_DIR, 'recap2-' + mois + '.json');
+  if (path.dirname(fichier) !== path.resolve(RECAP2_DIR)) {
+    return res.status(400).json({ error: 'chemin refusé' });
+  }
+  if (!fs.existsSync(fichier)) {
+    return res.status(404).json({
+      error: 'Données non encore collectées pour ce mois.',
+      fichierAttendu: 'crm-automation/.session/controle/recap2-' + mois + '.json',
+    });
+  }
+  try {
+    const brut = fs.readFileSync(fichier, 'utf8');
+    const j = JSON.parse(brut);
+    if (j && j.mois && j.mois !== mois) {
+      return res.status(409).json({ error: 'Le fichier trouvé porte le mois ' + j.mois + ', pas ' + mois + '.' });
+    }
+    res.json(j);
+  } catch (e) {
+    console.error('recap2 lecture :', e && e.message);
+    res.status(500).json({ error: 'Fichier de collecte illisible.' });
+  }
 });
 
 const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM
