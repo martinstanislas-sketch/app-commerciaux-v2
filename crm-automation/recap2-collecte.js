@@ -7,12 +7,19 @@
 //  L'intégration viendra après, une fois le JSON jugé juste.
 //
 //  Le calcul n'est PAS refait ici : on appelle le module déjà testé
-//  public/recap2-metrics.js (non-reconduction, complétion), et le moteur
+//  public/recap2-metrics.js (non-reconduction, clients retrouvés), et le moteur
 //  public/retention.js pour les clés client. Une seule vérité arithmétique.
 //
+//  ⚠️ M EST LE MOIS AUDITÉ (règle métier v2). Pour contrôler le travail d'août,
+//  on demande août — plus jamais septembre. Ce qui est lu :
+//    · Deciplus encaissements M-1 et M -> non-reconduction M-1 -> M (inchangé) ;
+//    · Deciplus VENTES de M            -> présence CRM des signatures de M ;
+//    · Fitness Booster, contrats de M  -> les ventes à contrôler.
+//  AUCUNE donnée de M+1 n'est nécessaire.
+//
 //  Usage :
-//    node recap2-collecte.js 2026-07                  (M = juillet 2026)
-//    node recap2-collecte.js 2026-07 --sans-deciplus  (réutilise les CSV déjà là)
+//    node recap2-collecte.js 2026-08                  (M = août 2026, mois audité)
+//    node recap2-collecte.js 2026-08 --sans-deciplus  (réutilise les CSV déjà là)
 //
 //  Garde-fous appliqués :
 //   · Deciplus : période du fichier vérifiée, 6 studios exigés, total recoupé ;
@@ -29,6 +36,7 @@ const { chromium } = require('playwright');
 const M = require('../public/recap2-metrics.js');
 const R = require('../public/retention.js');
 const CSV = require('./lib/csvEncaissements.js');
+const VENTES = require('./lib/csvVentes.js');
 const DEC = require('./lib/deciplus.js');
 const FB = require('./lib/booster.js');
 const CTRL = require('./lib/recap2Controles.js');
@@ -65,10 +73,21 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
   const pageDe = (hote) => contexte.pages().find((p) => p.url().includes(hote));
 
   const erreurs = [];
-  const rapport = { genere: horodatage(), mois, m1, source: {}, studios: {}, journal: [] };
+  // `businessVersion` : la RÈGLE MÉTIER qui a produit ces chiffres.
+  //   1 (absente) = ancienne règle « complétion » — contrats de M-1 ayant payé
+  //                 en M, donc août ne se contrôlait que depuis septembre ;
+  //   2           = règle actuelle — M est le mois audité, 2e KPI = présence
+  //                 des signataires de M dans le journal des ventes de M.
+  // Un rapport de juin/juillet/août produit avant ce changement n'a PAS cette
+  // clé : l'écran doit donc pouvoir les distinguer, et surtout ne jamais
+  // afficher un vieux chiffre sous le nouveau libellé.
+  const rapport = { businessVersion: 2, genere: horodatage(), mois, m1, source: {}, studios: {}, journal: [] };
 
-  // ── 1) DECIPLUS : deux exports CSV (M et M-1), tous sites ─────────────────
+  // ── 1) DECIPLUS : trois exports CSV, tous sites ──────────────────────────
+  //  · encaissements M-1 et M -> non-reconduction (question inchangée)
+  //  · VENTES de M            -> présence dans le CRM des signatures de M
   const fichiers = {};
+  let fichierVentes = null;
   try {
     const page = pageDe('deciplus');
     if (!page) throw new Error('Aucun onglet Deciplus ouvert (lance open-crm.js)');
@@ -85,6 +104,23 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       } catch (e) {
         erreurs.push('Deciplus / ' + ym + ' : ' + e.message);
         dire('⚠️ Deciplus ' + ym + ' : ' + e.message + ' — ce mois est abandonné');
+      }
+    }
+    // JOURNAL DES VENTES de M — la preuve de présence dans le CRM.
+    //  Il ne remplace pas les encaissements, il répond à une AUTRE question :
+    //  « cette vente est-elle saisie ? » et non « a-t-elle été payée ? ». Sans
+    //  lui, une vente signée le 29/08 prélevée en septembre passait pour absente.
+    const destV = path.join(DOSSIER_EXPORTS, 'ventes-' + mois + '.csv');
+    if (sansDeciplus && fs.existsSync(destV)) { dire('CSV ventes ' + mois + ' réutilisé (--sans-deciplus)'); fichierVentes = destV; }
+    else {
+      try {
+        fichierVentes = await REESSAI.avecReessai('export ventes Deciplus ' + mois, TENTATIVES, (n) => {
+          dire('Deciplus : export des VENTES de ' + mois + (n > 1 ? ' — tentative ' + n : '') + '…');
+          return DEC.exporterVentesMois(page, mois, DOSSIER_EXPORTS, dire);
+        }, { remise: () => DEC.reinitialiserFiltres(page), journal: dire });
+      } catch (e) {
+        erreurs.push('Deciplus ventes / ' + mois + ' : ' + e.message);
+        dire('⚠️ Deciplus ventes ' + mois + ' : ' + e.message);
       }
     }
     await DEC.reinitialiserFiltres(page);
@@ -126,7 +162,35 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     enc[ym] = p.lignes;
   }
 
-  // ── 3) FITNESS BOOSTER : contrats souscrits de M-1, studio par studio ────
+  // ── 2 bis) Parsing + contrôle du JOURNAL DES VENTES de M ─────────────────
+  let ventesM = null;
+  if (fichierVentes) {
+    try {
+      const texteV = fs.readFileSync(fichierVentes, 'utf8');
+      const pv = VENTES.parser(texteV);
+      const vv = VENTES.verifier(pv, { moisAttendu: mois });
+      rapport.source['deciplus_ventes_' + mois] = {
+        fichier: path.basename(fichierVentes), periode: pv.periode, lignes: pv.lignes.length,
+        totalAnnonce: pv.totalAnnonce, conforme: vv.ok, problemes: vv.problemes,
+        avertissements: vv.avertissements || [],
+      };
+      if (!vv.ok) {
+        erreurs.push('CSV ventes ' + mois + ' non conforme : ' + vv.problemes.join(' · '));
+        dire('⚠️ CSV ventes ' + mois + ' : ' + vv.problemes.join(' · '));
+      } else {
+        ventesM = pv.lignes;
+        dire('CSV ventes ' + mois + ' conforme : ' + pv.lignes.length + ' vente(s)');
+      }
+    } catch (e) {
+      erreurs.push('CSV ventes ' + mois + ' illisible : ' + e.message);
+      dire('⚠️ CSV ventes ' + mois + ' : ' + e.message);
+    }
+  } else erreurs.push('Journal des ventes de ' + mois + ' absent — présence CRM invérifiable');
+
+  // ── 3) FITNESS BOOSTER : contrats signés PENDANT M, studio par studio ────
+  //  ⚠️ C'EST BIEN M, PAS M-1. RECAP 2 audite le mois M : on contrôle les ventes
+  //  signées CE mois-là. Auparavant on lisait M-1, ce qui obligeait à
+  //  sélectionner septembre pour contrôler le travail d'août.
   const contratsFB = {};
   try {
     const page = pageDe('fitness-booster');
@@ -134,12 +198,12 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     for (const studio of M.LABELS) {
       try {
         contratsFB[studio] = await REESSAI.avecReessai('Fitness Booster ' + studio, TENTATIVES,
-          () => FB.lireStudio(page, studio, m1, dire),
+          () => FB.lireStudio(page, studio, mois, dire),
           { remise: () => FB.fermerPanneau(page), journal: dire });
       } catch (e) {
         erreurs.push('Fitness Booster / ' + studio + ' : ' + e.message);
         dire('⚠️ FB ' + studio + ' : ' + e.message);
-        contratsFB[studio] = { studio, mois: m1, echec: e.message };
+        contratsFB[studio] = { studio, mois, echec: e.message };
       }
     }
   } catch (e) {
@@ -153,7 +217,9 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
 
   // ── 4) CALCUL par studio ─────────────────────────────────────────────────
   for (const studio of M.LABELS) {
-    const bloc = { studio, nonReconduction: null, completion: null, avertissements: [] };
+    // Pas de `completion` ici, même à null : ce champ appartient à la règle v1.
+    // Un rapport v2 qui le porterait laisserait croire que le KPI existe encore.
+    const bloc = { studio, nonReconduction: null, clientsRetrouves: null, avertissements: [] };
 
     // Contrôle bloquant PAR STUDIO : si le fichier de M ou de M-1 ne passe pas
     // pour ce studio, on ne produit AUCUN KPI pour lui — et on dit pourquoi.
@@ -194,46 +260,58 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       }
     } else bloc.avertissements.push('encaissements manquants (M et/ou M-1)');
 
-    // 4b) Complétion : contrats FB de M-1 (annulés EXCLUS) vs net > 0 en M.
+    // 4b) Clients retrouvés dans Deciplus : signataires FB de M (annulés EXCLUS)
+    //     cherchés dans le JOURNAL DES VENTES de M, tous sites.
+    //  ⚠️ On ne conclut PAS depuis les encaissements : « pas de paiement » ne
+    //  veut pas dire « absent du CRM ». Le net de M ne sert qu'à nuancer un
+    //  client retrouvé (encaissé ou pas encore), jamais à le déclarer manquant.
     const fbr = contratsFB[studio];
-    if (fbr && !fbr.echec && enc[mois]) {
+    if (fbr && !fbr.echec && ventesM) {
       const valides = (fbr.contrats || []).filter((c) => !c.annulee);
-      // Chaque signataire devient { cles, nom, prenom } comme un contrat PDF :
-      // l'identité arrive en un seul champ « Prénom Nom », donc on génère toutes
-      // les coupes candidates — exactement ce que fait déjà RECAP pour les PDF.
-      // On garde l'identité FB TELLE QUELLE dans prenom, et nom vide : ainsi
-      // « prenom + nom » reconstruit exactement le libellé d'origine, sans
-      // supposer où s'arrête le prénom (les clés candidates s'en chargent).
-      const signataires = valides.map((c) => ({ cles: R.clesContrat(c.identite), prenom: c.identite.trim(), nom: '' }));
-      const dateDe = new Map(valides.map((c) => [c.identite.trim(), c.date]));
-      const vueNom = CSV.vueParNom(enc[mois], studio, M.studioLabel, R.clesContrat);
-      const co = M.completion({ contratsM1: signataires, encM: vueNom });
-      bloc.completion = {
-        contratsSouscrits: fbr.compteur, annulesExclus: fbr.annulees,
-        contratsValides: co.total, ontPaye: co.nbPayes,
-        taux: co.taux, tauxPct: co.taux == null ? null : +(co.taux * 100).toFixed(1),
-        // ⚠️ NE JAMAIS APPARIER PAR INDEX : le module TRIE sa liste par nom,
-        // alors que `valides` suit l'ordre d'affichage de Fitness Booster. On
-        // associait donc le nom d'une personne au statut d'une autre — les taux
-        // restaient justes, mais le détail nominatif était faux.
-        liste: co.contrats.map((c) => {
-          const identite = ((c.prenom || '') + ' ' + (c.nom || '')).trim();
-          return { contrat: identite, date: dateDe.get(identite) || '', paye: c.paye };
-        }),
+      const signataires = valides.map((c) => ({
+        cles: R.clesContrat(c.identite), prenom: c.identite.trim(), nom: '',
+        date: c.date, prestation: c.prestation, commercial: c.commercial,
+      }));
+      const vueVentes = VENTES.vueParNom(ventesM, R.clesContrat);
+      const vueEnc = enc[mois] ? CSV.vueParNom(enc[mois], studio, M.studioLabel, R.clesContrat) : [];
+      const cr = M.clientsRetrouves({ signataires, ventesM: vueVentes, encM: vueEnc });
+      bloc.clientsRetrouves = {
+        ventesSignees: fbr.compteur, annulesExclus: fbr.annulees,
+        ventesValides: valides.length, signataires: cr.total, retrouves: cr.nbRetrouves,
+        taux: cr.taux, tauxPct: cr.taux == null ? null : +(cr.taux * 100).toFixed(1),
+        liste: cr.clients.map((c) => ({
+          client: ((c.prenom || '') + ' ' + (c.nom || '')).trim(),
+          date: c.date || '', prestation: c.prestation || '', commercial: c.commercial || '',
+          retrouve: c.retrouve, site: c.site || '', dateVente: c.dateVente || '', encaisse: c.encaisse,
+        })),
       };
-      // Le taux se lit en SIGNATAIRES UNIQUES : deux contrats d'une même
-      // personne ne comptent qu'une fois au dénominateur. On le signale.
-      const bruts = fbr.compteur - fbr.annulees;
-      if (co.total !== bruts) {
-        bloc.completion.contratsBruts = bruts;
-        bloc.completion.doublonsSignataire = bruts - co.total;
-        bloc.avertissements.push(CTRL.messageDoublons(bruts, co.total));
+      // Le taux se lit en SIGNATAIRES UNIQUES : deux ventes d'une même personne
+      // ne comptent qu'une fois au dénominateur. On le DIT, on ne l'avale pas.
+      if (cr.total !== valides.length) {
+        bloc.clientsRetrouves.doublonsSignataire = valides.length - cr.total;
+        bloc.avertissements.push(CTRL.messageDoublons(valides.length, cr.total));
+      }
+      // Un client retrouvé dans le CRM mais pas encore encaissé n'est PAS une
+      // anomalie — c'est précisément ce que l'ancien KPI comptait à tort comme
+      // un manque. On le mentionne pour mémoire, jamais comme un défaut.
+      const enAttente = cr.clients.filter((c) => c.retrouve && !c.encaisse).length;
+      if (enAttente) {
+        bloc.clientsRetrouves.retrouvesSansEncaissement = enAttente;
+        bloc.avertissements.push(enAttente + ' vente(s) saisie(s) dans le CRM sans encaissement sur ' + mois + ' — normal si l\'échéance tombe plus tard');
+      }
+      // Le site Deciplus peut différer du studio qui a porté la vente côté FB.
+      const ailleurs = cr.clients.filter((c) => c.retrouve && c.site && M.studioLabel(c.site) !== studio);
+      if (ailleurs.length) {
+        bloc.avertissements.push(ailleurs.length + ' vente(s) retrouvée(s) sur un autre site Deciplus : '
+          + [...new Set(ailleurs.map((c) => c.site))].join(', '));
       }
     } else if (fbr && fbr.echec) bloc.avertissements.push('Fitness Booster en échec : ' + fbr.echec);
-    else bloc.avertissements.push('contrats ' + m1 + ' indisponibles');
+    else if (!ventesM) bloc.avertissements.push('journal des ventes de ' + mois + ' indisponible');
+    else bloc.avertissements.push('contrats ' + mois + ' indisponibles');
 
     rapport.studios[studio] = bloc;
   }
+
 
   // ── 5) Sortie ────────────────────────────────────────────────────────────
   rapport.erreurs = erreurs;
@@ -250,17 +328,17 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
   // Résumé lisible au terminal (sans aucune donnée nominative).
   console.log('\n===== RÉSUMÉ ' + mois + ' (M-1 = ' + m1 + ') =====');
   console.table(M.LABELS.map((s) => {
-    const b = rapport.studios[s], nr = b.nonReconduction, co = b.completion;
+    const b = rapport.studios[s], nr = b.nonReconduction, cr = b.clientsRetrouves;
     return {
       studio: s,
       'base M-1': nr ? nr.base : '—',
       'non recond.': nr ? nr.nonReconduits : '—',
       'taux non-rec.': nr && nr.tauxPct != null ? nr.tauxPct + ' %' : '—',
-      'contrats M-1': co ? co.contratsSouscrits : '—',
-      'annulés': co ? co.annulesExclus : '—',
-      'valides': co ? co.contratsValides : '—',
-      'ont payé': co ? co.ontPaye : '—',
-      'complétion': co && co.tauxPct != null ? co.tauxPct + ' %' : '—',
+      ['ventes ' + mois]: cr ? cr.ventesSignees : '—',
+      'annulées': cr ? cr.annulesExclus : '—',
+      'signataires': cr ? cr.signataires : '—',
+      'retrouvés': cr ? cr.retrouves : '—',
+      'présence CRM': cr && cr.tauxPct != null ? cr.tauxPct + ' %' : '—',
       alertes: b.avertissements.length || '',
     };
   }));
