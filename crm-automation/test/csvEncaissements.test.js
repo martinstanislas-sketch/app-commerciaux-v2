@@ -234,3 +234,139 @@ test('controlerStudios : un encaissement sans adhérent est écarté et signalé
   assert.equal(c.Wasquehal.montantSansAdherent, 45);
   assert.match(c.Wasquehal.avertissements.join(' '), /sans adhérent/);
 });
+
+// ─── L'ÉCART GLOBAL NE FAIT PLUS DOUBLON AVEC LES ALERTES STUDIO ───────────
+//  Un seul phénomène : les lignes sans adhérent manquent à la somme des lignes
+//  mais pas au total annoncé. Elles sont déjà dites studio par studio ; l'écart
+//  global ne doit donc plus les redire.
+
+// Fabrique : un rapport Deciplus minimal, avec un total annoncé imposé.
+function rapportCSV(lignes, total) {
+  return 'Journal des encaissements du 2026-06-01 au 2026-06-30\n\n'
+    + 'TOTAL Encaissememts;' + String(total).replace('.', ',') + '\n\n'
+    + '"Numéro";"Date d\'encaissement";"Adhérent";"Montant encaissé";"Mode";"Note";"Site";"Id membre"\n'
+    + lignes.join('\n') + '\n';
+}
+const L = (num, adh, mt, site, id) => '"' + num + '";"01/06/2026";"' + adh + '";"'
+  + String(mt).replace('.', ',') + '";"CB";"";"' + site + '";"' + id + '"';
+
+test('lignesEcartees : compte les lignes sans adhérent, dans et hors périmètre', () => {
+  const texte = rapportCSV([
+    L(1, 'DUPONT Jean', 60, 'My Coach Wasquehal', 'A1'),
+    L(2, '', 25, 'My Coach Wasquehal', ''),
+    L(3, '', 49.95, 'Ginkgo Sport', ''),
+  ], 134.95);
+  const e = C.lignesEcartees(texte, { studios: M.LABELS, studioLabel: M.studioLabel });
+  assert.equal(e.sansAdherent.lignes, 2);
+  assert.equal(e.sansAdherent.montant, 74.95);
+  assert.deepEqual(e.dansPerimetre, { lignes: 1, montant: 25 });
+  assert.deepEqual(e.horsPerimetre, { lignes: 1, montant: 49.95 });
+  assert.equal(e.tronquees.lignes, 0);
+});
+
+test('verifier : écart entièrement expliqué DANS le périmètre -> aucune alerte globale', () => {
+  // 7 lignes sans adhérent chez Lille : le studio le dit déjà, pas deux fois.
+  const lignes = [L(1, 'DUPONT Jean', 60, 'My Coach Vieux Lille', 'A1')];
+  for (let i = 0; i < 7; i++) lignes.push(L(10 + i, '', 32.14, 'My Coach Vieux Lille', ''));
+  const texte = rapportCSV(lignes, 285); // 60 + 7 x 32,14 = 284,98 -> arrondi Deciplus
+  const p = C.parser(texte);
+  const e = C.lignesEcartees(texte, { studios: M.LABELS, studioLabel: M.studioLabel });
+  const v = C.verifier(p, { moisAttendu: '2026-06', studiosAttendus: ['Lille'], studioLabel: M.studioLabel, ecartees: e });
+  assert.equal(v.avertissements.filter((a) => /écart/.test(a)).length, 0);
+  assert.equal(v.ecartGlobal.explique, true);
+  assert.equal(v.ecartGlobal.lignesSansAdherent, 7);
+  // …et le studio, lui, le dit — une fois, au format court.
+  const c = C.controlerStudios(texte, p, { moisAttendu: '2026-06', studios: M.LABELS, studioLabel: M.studioLabel });
+  assert.equal(c.Lille.ok, true, 'écarter n\'est pas perdre : le studio reste calculable');
+  assert.deepEqual(c.Lille.avertissements, ['7 encaissements sans adhérent (224,98 €) écartés du calcul']);
+});
+
+test('verifier : écart expliqué HORS périmètre -> une seule alerte, claire', () => {
+  const texte = rapportCSV([
+    L(1, 'DUPONT Jean', 60, 'My Coach Wasquehal', 'A1'),
+    L(2, '', 30, 'Ginkgo Sport', ''),
+    L(3, '', 19.95, 'Ginkgo Sport', ''),
+  ], 109.95);
+  const p = C.parser(texte);
+  const e = C.lignesEcartees(texte, { studios: M.LABELS, studioLabel: M.studioLabel });
+  const v = C.verifier(p, { moisAttendu: '2026-06', studiosAttendus: ['Wasquehal'], studioLabel: M.studioLabel, ecartees: e });
+  assert.equal(v.avertissements.length, 1);
+  assert.match(v.avertissements[0], /2 encaissements sans adhérent \(49,95 €\) écartés du calcul, hors des 6 studios/);
+  assert.equal(v.ecartGlobal.explique, true);
+});
+
+test('verifier : une part inexpliquée reste dite, et elle seule', () => {
+  const texte = rapportCSV([
+    L(1, 'DUPONT Jean', 60, 'My Coach Wasquehal', 'A1'),
+    L(2, '', 25, 'My Coach Wasquehal', ''),
+  ], 185); // 60 + 25 expliqués, 100 € qui ne viennent de nulle part
+  const p = C.parser(texte);
+  const e = C.lignesEcartees(texte, { studios: M.LABELS, studioLabel: M.studioLabel });
+  const v = C.verifier(p, { moisAttendu: '2026-06', studiosAttendus: ['Wasquehal'], studioLabel: M.studioLabel, ecartees: e });
+  assert.equal(v.avertissements.length, 1);
+  assert.match(v.avertissements[0], /^écart de 100 € inexpliqué/);
+  assert.match(v.avertissements[0], /25 € déjà expliqué par 1 ligne sans adhérent/);
+  assert.equal(v.ecartGlobal.explique, false);
+  assert.equal(v.ecartGlobal.residu, 100);
+});
+
+test('verifier : sans décompte des lignes écartées, rien ne change (compatibilité)', () => {
+  const texte = rapportCSV([L(1, 'DUPONT Jean', 60, 'My Coach Wasquehal', 'A1')], 160);
+  const v = C.verifier(C.parser(texte), { moisAttendu: '2026-06', studiosAttendus: [], studioLabel: M.studioLabel });
+  assert.equal(v.avertissements.length, 1);
+  assert.match(v.avertissements[0], /écart de 100 € inexpliqué entre la somme des lignes/);
+});
+
+test('euros : lisible à l\'œil, centimes seulement s\'il y en a', () => {
+  assert.equal(C.euros(225), '225 €');
+  assert.equal(C.euros(49.95), '49,95 €');
+  assert.equal(C.euros(230857.39), '230 857,39 €');
+  assert.equal(C.euros(-428328.1), '-428 328,10 €');
+  assert.equal(C.euros(0), '0 €');
+});
+
+// ─── LES EXPORTS RÉELS : le fait qui a motivé tout ça ───────────────────────
+const exportsDispo = ['2026-05', '2026-06', '2026-07']
+  .every((ym) => fs.existsSync(path.join(__dirname, '..', '.session', 'exports', 'encaissements-' + ym + '.csv')));
+const lireExport = (ym) => fs.readFileSync(path.join(__dirname, '..', '.session', 'exports', 'encaissements-' + ym + '.csv'), 'utf8');
+
+test('export réel juillet 2026 : les 225 € ne sont dits qu\'une fois, chez Lille',
+  { skip: !exportsDispo && 'CSV de référence absents' }, () => {
+    const texte = lireExport('2026-07');
+    const p = C.parser(texte);
+    const e = C.lignesEcartees(texte, { studios: M.LABELS, studioLabel: M.studioLabel });
+    const v = C.verifier(p, { moisAttendu: '2026-07', studiosAttendus: M.LABELS, studioLabel: M.studioLabel, ecartees: e });
+    assert.deepEqual(v.avertissements, [], 'plus aucune alerte globale : elle faisait doublon');
+    assert.equal(v.ecartGlobal.ecart, 225);
+    assert.equal(v.ecartGlobal.residu, 0);
+    const c = C.controlerStudios(texte, p, { moisAttendu: '2026-07', studios: M.LABELS, studioLabel: M.studioLabel });
+    assert.deepEqual(c.Lille.avertissements, ['7 encaissements sans adhérent (225 €) écartés du calcul']);
+    M.LABELS.filter((s) => s !== 'Lille').forEach((s) => assert.deepEqual(c[s].avertissements, [], s));
+  });
+
+test('export réel mai 2026 : 49,95 € hors périmètre -> une alerte, pas un écart cryptique',
+  { skip: !exportsDispo && 'CSV de référence absents' }, () => {
+    const texte = lireExport('2026-05');
+    const p = C.parser(texte);
+    const e = C.lignesEcartees(texte, { studios: M.LABELS, studioLabel: M.studioLabel });
+    const v = C.verifier(p, { moisAttendu: '2026-05', studiosAttendus: M.LABELS, studioLabel: M.studioLabel, ecartees: e });
+    assert.equal(v.avertissements.length, 1);
+    assert.match(v.avertissements[0], /hors des 6 studios — sans effet sur les KPI/);
+    const c = C.controlerStudios(texte, p, { moisAttendu: '2026-05', studios: M.LABELS, studioLabel: M.studioLabel });
+    M.LABELS.forEach((s) => assert.deepEqual(c[s].avertissements, [], s));
+  });
+
+test('export réel juin 2026 : l\'écart annoncé vaut exactement les lignes écartées',
+  { skip: !exportsDispo && 'CSV de référence absents' }, () => {
+    // ⚠️ PAS DE NOMBRE ÉPINGLÉ ICI. Cet export est réexporté à chaque collecte et
+    // il bouge (un remboursement passe, une écriture est rattachée à un client).
+    // Ce qui ne bouge pas, c'est la règle : l'écart avec le total Deciplus est
+    // celui des lignes que le parseur a écartées, au centime.
+    const texte = lireExport('2026-06');
+    const p = C.parser(texte);
+    const e = C.lignesEcartees(texte, { studios: M.LABELS, studioLabel: M.studioLabel });
+    const v = C.verifier(p, { moisAttendu: '2026-06', studiosAttendus: M.LABELS, studioLabel: M.studioLabel, ecartees: e });
+    assert.equal(v.ecartGlobal.residu, 0, 'aucun euro inexpliqué');
+    assert.equal(v.ecartGlobal.ecart, e.sansAdherent.montant);
+    assert.deepEqual(v.avertissements.filter((a) => /^écart de /.test(a)), []);
+  });
