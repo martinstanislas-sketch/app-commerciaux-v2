@@ -44,6 +44,19 @@ function montant(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// Arrondi au centime. Le « + 0 » n'est pas décoratif : sans lui, un total nul
+// sur des montants négatifs rend -0, qui n'est égal à rien de ce qu'on attend.
+const arrondi = (n) => Math.round((Number(n) || 0) * 100) / 100 + 0;
+
+// Montant -> texte lisible. « 225 € » et non « 225.00 € » : une alerte se lit à
+// l'œil, les centimes ne s'affichent que s'il y en a.
+function euros(n) {
+  const v = arrondi(n);
+  const [ent, dec] = Math.abs(v).toFixed(2).split('.');
+  const groupe = ent.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return (v < 0 ? '-' : '') + groupe + (dec === '00' ? '' : ',' + dec) + ' €';
+}
+
 // « JJ/MM/AAAA » -> « AAAA-MM ».
 function moisDe(dateFr) {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(String(dateFr || '').trim());
@@ -100,10 +113,59 @@ function parser(texte) {
   return { periode, colonnes, lignes, totalAnnonce: mt ? montant(mt[1]) : null };
 }
 
+// ── LIGNES ÉCARTÉES PAR LE PARSEUR ──────────────────────────────────────────
+//  parser() laisse tomber, en silence, deux sortes de lignes de détail :
+//   · celles SANS adhérent — des écritures non rattachées à un client ;
+//   · celles au nombre de champs trop faible — une ligne tronquée, ou le pied
+//     du rapport.
+//  Elles manquent donc à la somme des lignes, alors que Deciplus les compte
+//  dans son « TOTAL Encaissememts ». C'EST EXACTEMENT CE QUI CRÉE « L'ÉCART
+//  GLOBAL » : ce n'est pas un second phénomène, c'est le même, vu de loin. On
+//  les dénombre ici, TOUS SITES CONFONDUS, pour que verifier() puisse dire si
+//  l'écart est déjà expliqué — et se taire quand il l'est.
+//
+//  Les lignes sans adhérent sont réparties « dans le périmètre » (un des 6
+//  studios : controlerStudios() les signale déjà, studio par studio) et « hors
+//  périmètre » (franchises : personne ne les signale, donc on le dit une fois).
+function lignesEcartees(texte, { studios, studioLabel } = {}) {
+  const txt = String(texte || '').replace(/^\ufeff/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const brutes = txt.split('\n');
+  const iEntete = brutes.findIndex((l) => /^"?Numéro"?\s*;/.test(l) && /Date d'encaissement/.test(l));
+  const vide = { lignes: 0, montant: 0 };
+  const out = {
+    sansAdherent: { ...vide }, tronquees: { ...vide },
+    dansPerimetre: { ...vide }, horsPerimetre: { ...vide },
+  };
+  if (iEntete < 0) return out;
+  const colonnes = decouper(brutes[iEntete]).map((c) => c.trim());
+  const iAdh = colonnes.indexOf('Adhérent');
+  const iMt = colonnes.indexOf('Montant encaissé');
+  const iSite = colonnes.indexOf('Site');
+  if (iAdh < 0 || iMt < 0) return out;
+  for (let i = iEntete + 1; i < brutes.length; i++) {
+    const l = brutes[i];
+    if (!l.trim()) continue;
+    const v = decouper(l);
+    const mt = montant(v[iMt]);
+    if (v.length < colonnes.length - 1) { out.tronquees.lignes += 1; out.tronquees.montant += mt; continue; }
+    if ((v[iAdh] || '').trim()) continue;
+    out.sansAdherent.lignes += 1;
+    out.sansAdherent.montant += mt;
+    const lab = studioLabel ? studioLabel(v[iSite]) : (iSite >= 0 ? v[iSite] : null);
+    const dedans = !!lab && (!studios || studios.includes(lab));
+    const c = dedans ? out.dansPerimetre : out.horsPerimetre;
+    c.lignes += 1;
+    c.montant += mt;
+  }
+  [out.sansAdherent, out.tronquees, out.dansPerimetre, out.horsPerimetre]
+    .forEach((c) => { c.montant = arrondi(c.montant); });
+  return out;
+}
+
 // ── CONTRÔLES DE CONFORMITÉ ─────────────────────────────────────────────────
 // On refuse un fichier plutôt que de calculer sur du sable : mauvaise période,
 // studio absent, total incohérent -> on lève.
-function verifier(parse, { moisAttendu, studiosAttendus, studioLabel } = {}) {
+function verifier(parse, { moisAttendu, studiosAttendus, studioLabel, ecartees } = {}) {
   const pb = [];
   if (!parse.periode) pb.push("période absente de l'en-tête du rapport");
   else {
@@ -123,13 +185,45 @@ function verifier(parse, { moisAttendu, studiosAttendus, studioLabel } = {}) {
   // encaissement » de -650 640 € chez un franchisé). Un écart n'est donc PAS un
   // motif de rejet : c'est un simple signalement. Ce qui compte, c'est que nos
   // studios soient présents et que les lignes tombent dans le mois.
+  //
+  // ⚠️ PAS DEUX ALERTES POUR UN SEUL PHÉNOMÈNE. L'écart global n'a, jusqu'ici,
+  // qu'une seule cause observée : les lignes que le parseur écarte parce
+  // qu'elles n'ont pas d'adhérent. Elles sont DÉJÀ signalées studio par studio
+  // par controlerStudios(). Répéter « écart global de 225 € » juste après
+  // « 7 encaissements sans adhérent (225 €) chez Lille », c'est décrire le même
+  // fait deux fois et diluer les vraies anomalies. On soustrait donc ce qui est
+  // expliqué, et on ne parle QUE de ce qui reste :
+  //   · résidu ≈ 0, lignes dans le périmètre -> silence (les studios le disent) ;
+  //   · résidu ≈ 0, lignes hors périmètre    -> UNE alerte claire (personne ne
+  //     le dit ailleurs : ces sites n'ont pas de bloc studio) ;
+  //   · résidu ≠ 0                            -> alerte sur la SEULE part inexpliquée.
   const avertissements = [];
+  let ecartGlobal = null;
   if (parse.totalAnnonce != null) {
     const somme = parse.lignes.reduce((s, l) => s + l.montant, 0);
-    const ecart = Math.abs(somme - parse.totalAnnonce);
-    if (ecart > 0.05) {
-      avertissements.push('écart de ' + ecart.toFixed(2) + ' € entre la somme des lignes ('
-        + somme.toFixed(2) + ') et le total annoncé (' + parse.totalAnnonce.toFixed(2) + ') — tous sites confondus');
+    // Sens : ce qui manque à notre somme pour atteindre le total de Deciplus.
+    const ecart = parse.totalAnnonce - somme;
+    const sansAdh = (ecartees && ecartees.sansAdherent) || { lignes: 0, montant: 0 };
+    const hors = (ecartees && ecartees.horsPerimetre) || { lignes: 0, montant: 0 };
+    const residu = ecart - sansAdh.montant;
+    ecartGlobal = {
+      somme: arrondi(somme), totalAnnonce: arrondi(parse.totalAnnonce),
+      ecart: arrondi(ecart),
+      expliqueParLignesSansAdherent: arrondi(sansAdh.montant),
+      lignesSansAdherent: sansAdh.lignes,
+      residu: arrondi(residu),
+      explique: Math.abs(residu) <= 0.05,
+    };
+    if (Math.abs(residu) > 0.05) {
+      avertissements.push('écart de ' + euros(Math.abs(residu)) + ' inexpliqué entre la somme des lignes ('
+        + euros(somme) + ') et le total annoncé (' + euros(parse.totalAnnonce) + ') — tous sites confondus'
+        + (sansAdh.lignes ? ' (' + euros(Math.abs(sansAdh.montant)) + ' déjà expliqué'
+          + (sansAdh.lignes > 1 ? 's' : '') + ' par ' + sansAdh.lignes + ' ligne'
+          + (sansAdh.lignes > 1 ? 's' : '') + ' sans adhérent)' : ''));
+    } else if (hors.lignes) {
+      avertissements.push(hors.lignes + ' encaissement' + (hors.lignes > 1 ? 's' : '')
+        + ' sans adhérent (' + euros(Math.abs(hors.montant)) + ') écarté' + (hors.lignes > 1 ? 's' : '')
+        + ' du calcul, hors des 6 studios — sans effet sur les KPI');
     }
   }
   // ⚠️ L'ABSENCE D'UN STUDIO N'EST PLUS UN REJET GLOBAL. Elle est traitée par
@@ -142,7 +236,7 @@ function verifier(parse, { moisAttendu, studiosAttendus, studioLabel } = {}) {
     parStudio[lab] = (parStudio[lab] || 0) + 1;
   });
   (studiosAttendus || []).forEach((s) => { if (!parStudio[s]) avertissements.push('studio absent du fichier : ' + s); });
-  return { ok: pb.length === 0, problemes: pb, avertissements, lignesParStudio: parStudio };
+  return { ok: pb.length === 0, problemes: pb, avertissements, lignesParStudio: parStudio, ecartGlobal };
 }
 
 // ── CONTRÔLE PAR STUDIO (bloquant pour LE studio concerné) ──────────────────
@@ -227,8 +321,11 @@ function controlerStudios(texte, parse, { moisAttendu, studios, studioLabel } = 
       sommeBrute: +b.somme.toFixed(2), sommeParsee: +p.somme.toFixed(2),
       // Écartées volontairement, hors calcul : signalées, jamais bloquantes.
       lignesSansAdherent: b.sansAdherent, montantSansAdherent: +b.sommeSansAdherent.toFixed(2),
+      // Formulation courte et définitive : c'est la SEULE alerte émise pour ce
+      // phénomène (verifier() se tait quand l'écart global s'explique par elle).
       avertissements: b.sansAdherent
-        ? [b.sansAdherent + ' encaissement(s) sans adhérent (' + b.sommeSansAdherent.toFixed(2) + ' €) écarté(s) : non rattachables à un client']
+        ? [b.sansAdherent + ' encaissement' + (b.sansAdherent > 1 ? 's' : '') + ' sans adhérent ('
+          + euros(b.sommeSansAdherent) + ') écarté' + (b.sansAdherent > 1 ? 's' : '') + ' du calcul']
         : [],
     };
   });
@@ -267,4 +364,4 @@ function vueParNom(lignes, studio, studioLabel, clesDe) {
   return out;
 }
 
-module.exports = { parser, verifier, controlerStudios, lirePeriode, decouper, montant, moisDe, vueParId, vueParNom, COLONNES_REQUISES };
+module.exports = { parser, verifier, controlerStudios, lignesEcartees, lirePeriode, decouper, montant, euros, moisDe, vueParId, vueParNom, COLONNES_REQUISES };
