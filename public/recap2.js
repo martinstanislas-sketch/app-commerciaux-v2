@@ -37,8 +37,19 @@ const Recap2UI = (function () {
   let etat = 'vide';        // 'vide' | 'chargement' | 'ok' | 'absent' | 'erreur'
   let rapport = null;       // le JSON tel que servi
   let message = '';         // texte d'erreur / de fichier attendu
-  let ouvert = '';          // détail ouvert : '<studio>|nr' ou '<studio>|comp'
-  let filtreComp = {};      // studio -> 'tous' | 'payes' | 'nonpayes'
+  let ouvert = '';          // détail ouvert : '<studio>|nr' ou '<studio>|crm'
+  let filtreComp = {};      // studio -> 'tous' | 'payes' | 'nonpayes'   (règle v1)
+  let filtreCrm = {};       // studio -> 'tous' | 'retrouves' | 'verifier' (règle v2)
+
+  // La RÈGLE MÉTIER qui a produit le rapport affiché.
+  //  v1 (clé absente) : 2e KPI = « complétion » (contrats de M-1 ayant payé en M)
+  //  v2               : 2e KPI = « clients retrouvés dans Deciplus » (signataires
+  //                     de M présents dans le journal des ventes de M)
+  // ⚠️ Les rapports de juin/juillet/août d'avant le changement sont en v1. On ne
+  // doit JAMAIS afficher leurs chiffres sous le libellé de la v2 : ils ne
+  // répondent pas à la même question.
+  const versionMetier = () => ((rapport && Number.isFinite(rapport.businessVersion)) ? rapport.businessVersion : 1);
+  const estV2 = () => versionMetier() >= 2;
   let alertesOuvertes = false;
 
   function open() {
@@ -108,6 +119,12 @@ const Recap2UI = (function () {
       else if (co.ontPaye > co.contratsValides) pb.push('complétion : plus de payés que de contrats');
       else if (!tauxCoherent(co.taux, co.ontPaye, co.contratsValides)) pb.push('complétion : taux incohérent avec ' + co.ontPaye + '/' + co.contratsValides);
     }
+    const cr = bloc && bloc.clientsRetrouves;
+    if (cr) {
+      if (!estNombre(cr.signataires) || !estNombre(cr.retrouves)) pb.push('clients retrouvés : compteurs non numériques');
+      else if (cr.retrouves > cr.signataires) pb.push('clients retrouvés : plus de retrouvés que de signataires');
+      else if (!tauxCoherent(cr.taux, cr.retrouves, cr.signataires)) pb.push('clients retrouvés : taux incohérent avec ' + cr.retrouves + '/' + cr.signataires);
+    }
     return pb;
   }
 
@@ -127,7 +144,9 @@ const Recap2UI = (function () {
     const sub = $('#rec2-sub');
     if (sub) {
       sub.textContent = (etat === 'ok' && rapport)
-        ? 'Passage ' + moisLabel(rapport.m1) + ' → ' + moisLabel(rapport.mois) + ' · 6 studios en propre'
+        ? (estV2()
+          ? 'Contrôle de ' + moisLabel(rapport.mois) + ' · base ' + moisLabel(rapport.m1) + ' · 6 studios en propre'
+          : 'Passage ' + moisLabel(rapport.m1) + ' → ' + moisLabel(rapport.mois) + ' · 6 studios en propre (ancienne règle)')
         : (mois ? moisLabel(mois) : '');
     }
     if (etat === 'chargement') { host.innerHTML = '<p class="rec2-info">Chargement…</p>'; return; }
@@ -178,20 +197,22 @@ const Recap2UI = (function () {
 
   function blocStudio(label) {
     const b = (rapport.studios || {})[label];
+    const t2 = titre2();
     let corps;
     if (!b) {
       corps = '<div class="rec2-cards">' + carteNA('NON-RECONDUCTION', 'studio absent du fichier de collecte')
-        + carteNA('COMPLÉTION', 'studio absent du fichier de collecte') + '</div>';
+        + carteNA(t2, 'studio absent du fichier de collecte') + '</div>';
     } else if (b.controleBloquant && b.controleBloquant.ok === false) {
       // Contrôle bloquant : on n'affiche AUCUN chiffre pour ce studio.
       const r = (b.controleBloquant.raisons || []).join(' · ');
-      corps = '<div class="rec2-cards">' + carteNA('NON-RECONDUCTION', r) + carteNA('COMPLÉTION', r) + '</div>';
+      corps = '<div class="rec2-cards">' + carteNA('NON-RECONDUCTION', r) + carteNA(t2, r) + '</div>';
     } else {
       const pb = incoherences(b);
       if (pb.length) {
-        corps = '<div class="rec2-cards">' + carteNA('NON-RECONDUCTION', pb.join(' · ')) + carteNA('COMPLÉTION', pb.join(' · ')) + '</div>';
+        corps = '<div class="rec2-cards">' + carteNA('NON-RECONDUCTION', pb.join(' · ')) + carteNA(t2, pb.join(' · ')) + '</div>';
       } else {
-        corps = '<div class="rec2-cards">' + carteNR(label, b.nonReconduction) + carteComp(label, b.completion) + '</div>' + detail(label, b);
+        const c2 = estV2() ? carteCrm(label, b.clientsRetrouves) : carteComp(label, b.completion);
+        corps = '<div class="rec2-cards">' + carteNR(label, b.nonReconduction) + c2 + '</div>' + detail(label, b);
       }
     }
     return '<section class="rec2-studio"><h3 class="rec2-studio-nom">' + esc(label.toUpperCase()) + '</h3>' + corps + '</section>';
@@ -225,10 +246,26 @@ const Recap2UI = (function () {
     return carte(label, 'comp', 'COMPLÉTION', pct(d.taux), sous, ouvert === label + '|comp', d.contratsValides > 0);
   }
 
+  // Le titre du 2e KPI DIT la règle qui l'a produit.
+  //  ⚠️ « CLIENTS RETROUVÉS » et non « VENTES INTÉGRÉES » : on rapproche par le
+  //  nom, donc on prouve qu'un signataire a une vente dans Deciplus sur le mois,
+  //  pas que CE contrat précis y est. Le libellé ne promet que ça.
+  const titre2 = () => (estV2() ? 'CLIENTS RETROUVÉS DANS DECIPLUS' : 'COMPLÉTION (ancienne règle)');
+
+  function carteCrm(label, d) {
+    if (!d) return carteNA(titre2(), 'indicateur absent du fichier');
+    const n = d.signataires;
+    const sous = n > 0
+      ? d.retrouves + ' / ' + n + ' signataire' + (n > 1 ? 's' : '') + ' de ' + moisLabel(rapport.mois)
+      : '0 vente signée';
+    return carte(label, 'crm', titre2(), pct(d.taux), sous, ouvert === label + '|crm', n > 0);
+  }
+
   // ── DÉTAILS (fermés par défaut, un seul ouvert à la fois) ────────────────────
   function detail(label, b) {
     if (ouvert === label + '|nr') return detailNR(label, b.nonReconduction);
     if (ouvert === label + '|comp') return detailComp(label, b.completion);
+    if (ouvert === label + '|crm') return detailCrm(label, b.clientsRetrouves);
     return '';
   }
   const detailHead = (titre) => '<div class="rec2-det-head"><span>' + titre + '</span>'
@@ -264,11 +301,61 @@ const Recap2UI = (function () {
     return '<div class="rec2-detail">' + detailHead(esc(label) + ' · nouveaux clients ' + esc(moisLabel(rapport.m1)) + ' — ' + tous.length) + chips + corps + rappel + '</div>';
   }
 
+  // Détail du 2e KPI, règle v2 : une ligne par signataire, contrôlable à l'œil.
+  //  Le STATUT dit ce qu'on sait, et rien de plus :
+  //   · « Retrouvée »  -> une vente existe dans Deciplus sur le mois, au nom du
+  //     signataire. Si elle n'est pas encore encaissée, on le précise — ce n'est
+  //     PAS un manque, c'est une échéance à venir ;
+  //   · « À vérifier » -> aucune vente trouvée. On ne dit pas « absent du CRM » :
+  //     une saisie faite le mois suivant est hors du champ de cet audit.
+  function detailCrm(label, d) {
+    const tous = (d && d.liste) || [];
+    const f = filtreCrm[label] || 'tous';
+    const liste = tous.filter((c) => f === 'tous' || (f === 'retrouves' ? c.retrouve : !c.retrouve));
+    const nbT = tous.filter((c) => c.retrouve).length;
+    const chip = (val, txt, n) => '<button type="button" class="rec2-chip' + (f === val ? ' is-on' : '')
+      + '" data-filtrecrm="' + esc(label) + '|' + val + '">' + txt + ' <b>' + n + '</b></button>';
+    const chips = '<div class="rec2-chips">' + chip('tous', 'Tous', tous.length)
+      + chip('retrouves', 'Retrouvés', nbT) + chip('verifier', 'À vérifier', tous.length - nbT) + '</div>';
+
+    const statut = (c) => {
+      if (!c.retrouve) return '<span class="rec2-etat is-non">À vérifier</span>';
+      const ailleurs = c.site && window.Recap2Metrics && window.Recap2Metrics.studioLabel
+        && window.Recap2Metrics.studioLabel(c.site) !== label;
+      const notes = [];
+      if (c.dateVente) notes.push('le ' + esc(c.dateVente));
+      if (ailleurs) notes.push('site ' + esc(c.site));
+      if (c.encaisse === false) notes.push('pas encore encaissé');
+      return '<span class="rec2-etat is-oui">Retrouvée</span>'
+        + (notes.length ? ' <span class="rec2-det-date">' + notes.join(' · ') + '</span>' : '');
+    };
+    const lignes = liste.map((c) => '<tr><td>' + esc(c.client)
+      + (c.date ? ' <span class="rec2-det-date">signé le ' + esc(c.date) + '</span>' : '') + '</td>'
+      + '<td>' + esc(c.prestation || '—') + '</td>'
+      + '<td>' + esc(c.commercial || '—') + '</td>'
+      + '<td class="rec2-num">' + statut(c) + '</td></tr>').join('');
+    const corps = liste.length
+      ? '<table class="rec2-table"><thead><tr><th>Signataire ' + esc(cap(moisLabel(rapport.mois)))
+        + '</th><th>Prestation</th><th>Commercial</th><th class="rec2-num">Dans Deciplus</th></tr></thead><tbody>'
+        + lignes + '</tbody></table>'
+      : '<p class="rec2-info">Aucune vente dans ce filtre.</p>';
+    const notes = [];
+    if (d && d.annulesExclus) notes.push(d.annulesExclus + ' vente(s) annulée(s) exclue(s) du calcul.');
+    if (d && d.doublonsSignataire) {
+      notes.push(d.doublonsSignataire + ' vente(s) d\'un signataire déjà compté : le taux se lit en signataires uniques.');
+    }
+    const pied = notes.length ? '<p class="rec2-det-note">' + esc(notes.join(' ')) + '</p>' : '';
+    return '<div class="rec2-detail">' + detailHead(esc(label) + ' · ventes signées en ' + esc(moisLabel(rapport.mois)) + ' — ' + tous.length)
+      + chips + corps + pied + '</div>';
+  }
+
   // ── INTERACTIONS ────────────────────────────────────────────────────────────
   function onBodyClick(e) {
     if (e.target.closest('[data-alertes]')) { alertesOuvertes = !alertesOuvertes; render(); return; }
     const fil = e.target.closest('[data-filtre]');
     if (fil) { const [label, val] = fil.dataset.filtre.split('|'); filtreComp[label] = val; render(); return; }
+    const filC = e.target.closest('[data-filtrecrm]');
+    if (filC) { const [label, val] = filC.dataset.filtrecrm.split('|'); filtreCrm[label] = val; render(); return; }
     if (e.target.closest('[data-close]')) { ouvert = ''; render(); return; }
     const btn = e.target.closest('[data-open]');
     if (!btn) return;

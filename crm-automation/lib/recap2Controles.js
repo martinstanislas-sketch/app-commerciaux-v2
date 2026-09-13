@@ -107,16 +107,33 @@ function analyser(rapport, moisAttendu) {
     }
     if (src.conforme === false) pbPeriode.push('export Deciplus de ' + ym + ' non conforme : ' + (src.problemes || []).join(' · '));
   });
+  // Fitness Booster : en règle v2, le détail lu doit porter sur M — le MOIS
+  // AUDITÉ — et non sur M-1. C'est le contrôle qui empêche de recalculer août
+  // avec les signatures de juillet sans que personne ne le voie.
+  const v2 = Store.versionMetier(rapport) >= 2;
+  const moisFB = v2 ? rapport.mois : rapport.m1;
   const fb = (rapport.source || {}).fitnessBooster || {};
   LABELS.forEach((s) => {
     const d = fb[s];
     if (estObjet(d) && d.periodeDetail && !d.echec) {
       const p = d.periodeDetail;
-      if (moisDeDate(p.du) !== rapport.m1 || moisDeDate(p.au) !== rapport.m1) {
-        pbPeriode.push('Fitness Booster / ' + s + ' : détail du ' + p.du + ' au ' + p.au + ' ≠ ' + rapport.m1);
+      if (moisDeDate(p.du) !== moisFB || moisDeDate(p.au) !== moisFB) {
+        pbPeriode.push('Fitness Booster / ' + s + ' : détail du ' + p.du + ' au ' + p.au + ' ≠ ' + moisFB);
       }
     }
   });
+  // Journal des ventes : présent, conforme, et daté du mois audité.
+  if (v2) {
+    const sv = (rapport.source || {})['deciplus_ventes_' + rapport.mois];
+    if (!estObjet(sv)) pbPeriode.push('journal des ventes de ' + rapport.mois + ' absent du rapport');
+    else {
+      const p = sv.periode;
+      if (!estObjet(p) || moisDeDate(p.du) !== rapport.mois || moisDeDate(p.au) !== rapport.mois) {
+        pbPeriode.push('journal des ventes : période du fichier « ' + ((p && p.du) || '?') + ' → ' + ((p && p.au) || '?') + ' »');
+      }
+      if (sv.conforme === false) pbPeriode.push('journal des ventes non conforme : ' + (sv.problemes || []).join(' · '));
+    }
+  }
   ajouter('periode', 'Cohérence de période', pbPeriode);
 
   // 3) STUDIOS — les six, tous là, tous calculés.
@@ -164,11 +181,20 @@ function analyser(rapport, moisAttendu) {
   LABELS.forEach((s) => {
     const b = (rapport.studios || {})[s];
     if (!estObjet(b) || (b.controleBloquant && b.controleBloquant.ok === false)) return; // déjà dit en 3
-    const nr = b.nonReconduction, co = b.completion;
+    const nr = b.nonReconduction;
     if (!estObjet(nr)) pbKpi.push(s + ' : non-reconduction absente');
     else bornes(s + ' / non-reconduction', nr.taux, nr.nonReconduits, nr.base);
-    if (!estObjet(co)) pbKpi.push(s + ' : complétion absente');
-    else bornes(s + ' / complétion', co.taux, co.ontPaye, co.contratsValides);
+    // Le 2e KPI change de définition avec la règle métier : on contrôle CELUI
+    // que le rapport porte, jamais l'autre.
+    if (v2) {
+      const cr = b.clientsRetrouves;
+      if (!estObjet(cr)) pbKpi.push(s + ' : clients retrouvés absents');
+      else bornes(s + ' / clients retrouvés', cr.taux, cr.retrouves, cr.signataires);
+    } else {
+      const co = b.completion;
+      if (!estObjet(co)) pbKpi.push(s + ' : complétion absente');
+      else bornes(s + ' / complétion', co.taux, co.ontPaye, co.contratsValides);
+    }
   });
   ajouter('kpi', 'KPI cohérents', pbKpi);
 
@@ -185,9 +211,13 @@ function analyser(rapport, moisAttendu) {
     mois: rapport.mois || moisAttendu,
     m1: rapport.m1 || null,
     genere: rapport.genere || null,
+    version: Store.versionMetier(rapport),
     studios: LABELS.map((s) => {
       const b = (rapport.studios || {})[s] || {};
-      return { studio: s, nonReconduction: b.nonReconduction || null, completion: b.completion || null };
+      return {
+        studio: s, nonReconduction: b.nonReconduction || null,
+        completion: b.completion || null, clientsRetrouves: b.clientsRetrouves || null,
+      };
     }),
     controles,
     bloquants,

@@ -33,18 +33,33 @@ const BASE = 'https://ginkgo-sport.deciplus.pro/nextgen/';
 // Texte de la barre de filtres — sert à TOUS les contrôles.
 const barre = (page) => page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' '));
 
-async function ongletEncaissements(page, journal) {
+// Les deux journaux du Manager. Même écran, même barre de filtres, même export :
+// seuls l'onglet, le libellé de la borne de date et le nom du fichier changent.
+//   · boxing = ENCAISSEMENTS -> ce qui a été PAYÉ  (« Encaissé entre le »)
+//   · sales  = VENTES        -> ce qui a été VENDU (« Vendu entre le »)
+// Le second est la seule source qui prouve qu'une vente existe dans le CRM sans
+// la confondre avec un paiement (cf. lib/csvVentes.js).
+const ONGLETS = {
+  boxing: { nom: 'Encaissements', prefixe: 'encaissements' },
+  sales: { nom: 'Ventes', prefixe: 'ventes' },
+};
+
+async function ouvrirOnglet(page, cle, journal) {
+  const o = ONGLETS[cle];
+  if (!o) throw new Error('Onglet Deciplus inconnu : ' + cle);
   // 1) charger l'app (à froid, l'onglet par défaut est « Ventes »)
   if (!page.url().includes('/nextgen/historybeta')) {
     await page.goto(garde(BASE + 'historybeta'), { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(9000);
   }
-  // 2) basculer sur Encaissements par navigation interne
-  await page.goto(garde(BASE + 'historybeta?history=boxing'), { waitUntil: 'domcontentloaded' });
+  // 2) basculer sur l'onglet visé par navigation interne
+  await page.goto(garde(BASE + 'historybeta?history=' + cle), { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(9000);
   const tab = await page.evaluate(() => (document.querySelector('[role=tab][aria-selected=true]') || {}).id || '');
-  if (!/_boxing$/.test(tab)) throw new Error('Onglet Encaissements non actif (onglet courant : ' + tab + ')');
-  journal('onglet Encaissements actif (' + tab + ')');
+  if (!new RegExp('_' + cle + '$').test(tab)) {
+    throw new Error('Onglet ' + o.nom + ' non actif (onglet courant : ' + tab + ')');
+  }
+  journal('onglet ' + o.nom + ' actif (' + tab + ')');
 }
 
 // Les deux champs de date de la barre : ce sont des <span> porteurs de JJ/MM/AAAA.
@@ -147,10 +162,12 @@ async function poserDate(page, rang, annee, moisIdx, jour) {
 // Dernier jour d'un mois AAAA-MM.
 const finDeMois = (ym) => { const [a, m] = ym.split('-').map(Number); return new Date(Date.UTC(a, m, 0)).getUTCDate(); };
 
-// Exporte les encaissements du mois `ym`, TOUS SITES, et rend le chemin du CSV.
-async function exporterMois(page, ym, dossier, journal = () => {}) {
+// Exporte le journal `onglet` du mois `ym`, TOUS SITES, et rend le chemin du CSV.
+async function exporterOnglet(page, onglet, ym, dossier, journal = () => {}) {
+  const o = ONGLETS[onglet];
+  if (!o) throw new Error('Onglet Deciplus inconnu : ' + onglet);
   const [annee, mois] = ym.split('-').map(Number);
-  await ongletEncaissements(page, journal);
+  await ouvrirOnglet(page, onglet, journal);
 
   await poserDate(page, 0, annee, mois - 1, 1);
   await poserDate(page, 1, annee, mois - 1, finDeMois(ym));
@@ -170,7 +187,7 @@ async function exporterMois(page, ym, dossier, journal = () => {}) {
   journal('filtres conformes : ' + attDu + ' → ' + attAu + ' · tous les sites · ' + (nbLignes || '?').trim() + ' lignes');
 
   fs.mkdirSync(dossier, { recursive: true });
-  const dest = path.join(dossier, 'encaissements-' + ym + '.csv');
+  const dest = path.join(dossier, o.prefixe + '-' + ym + '.csv');
   const attente = page.waitForEvent('download', { timeout: 120000 });
   await page.getByText('Effectuer une action', { exact: true }).first().click({ timeout: 8000 });
   await page.waitForTimeout(1200);
@@ -193,4 +210,8 @@ async function reinitialiserFiltres(page) {
   } catch (_) { /* sans conséquence : l'état des filtres n'est pas une donnée */ }
 }
 
-module.exports = { exporterMois, reinitialiserFiltres, garde, MOIS_FR, finDeMois };
+// Les deux usages nommés, pour que l'appelant ne manipule jamais la clé d'onglet.
+const exporterMois = (page, ym, dossier, journal) => exporterOnglet(page, 'boxing', ym, dossier, journal);
+const exporterVentesMois = (page, ym, dossier, journal) => exporterOnglet(page, 'sales', ym, dossier, journal);
+
+module.exports = { exporterMois, exporterVentesMois, exporterOnglet, reinitialiserFiltres, garde, MOIS_FR, finDeMois, ONGLETS };

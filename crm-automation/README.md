@@ -67,6 +67,8 @@ jamais leur contenu. C'est le témoin qui permet de vérifier que la session tie
 | `open-crm.js` | Ouvre Chromium visible sur le profil persistant, puis attend. |
 | `recap2.js` | **La commande du mois.** Orchestre tout et n'envoie que si les contrôles bloquants passent. |
 | `recap2-collecte.js` | Produit `.session/controle/recap2-AAAA-MM.json` (Deciplus + Fitness Booster). |
+| `lib/csvEncaissements.js` | Parseur du **journal des encaissements** — ce qui a été PAYÉ. |
+| `lib/csvVentes.js` | Parseur du **journal des ventes** — ce qui a été VENDU, encaissé ou non. |
 | `recap2-envoi.js` | Dépose ce JSON sur le serveur (POST authentifié). |
 | `lib/recap2Controles.js` | La frontière bloquant / non bloquant. Module pur, testé. |
 | `lib/reessai.js` | Rejoue une lecture après un à-coup d'affichage. Jamais un contrôle. |
@@ -79,6 +81,54 @@ jamais leur contenu. C'est le témoin qui permet de vérifier que la session tie
 
 La collecte a besoin du navigateur connecté aux deux CRM : elle ne tournera
 jamais sur Railway. Le serveur, lui, ne sait que **relire** un JSON déposé.
+
+### M est le MOIS AUDITÉ
+
+Pour contrôler le travail d'**août**, on demande **août** :
+
+```bash
+npm run recap2 -- 2026-08
+```
+
+Ce qui est lu, et rien d'autre — **aucune donnée de septembre n'est nécessaire** :
+
+| Source | Période | Sert à |
+|---|---|---|
+| Deciplus — encaissements | juillet **et** août | non-reconduction juillet → août |
+| Deciplus — **journal des ventes** | août | prouver la présence CRM des signatures d'août |
+| Fitness Booster — contrats | **août** | les ventes à contrôler (annulées exclues) |
+
+### Pourquoi un second journal Deciplus
+
+Le journal des **encaissements** est un journal de paiements : une vente signée
+le 29/08 prélevée en septembre n'y a **aucune ligne**. En conclure « ce client
+n'est pas dans le CRM » serait faux.
+
+Mesuré sur août 2026 : sur **14** signataires que l'ancienne règle disait « non
+payés », **11** avaient bel et bien leur vente saisie dans Deciplus. Le journal
+des **ventes** (`Manager → Ventes`) liste ce qui a été vendu, encaissé ou non —
+d'où la colonne `Info` portant « Paiement différé » sur des ventes à 0,00 €.
+
+Le rapprochement se fait **par le nom** (Fitness Booster ne porte aucun
+identifiant Deciplus) et **tous sites** — constaté : deux ventes portées par
+Marcq étaient enregistrées sur Wasquehal. On sait donc prouver qu'un signataire
+a **au moins une vente** dans Deciplus sur le mois ; on ne certifie pas que
+c'est *ce* contrat. D'où le libellé **« clients retrouvés »**, jamais
+« contrats retrouvés ».
+
+### Deux règles métier, jamais mélangées
+
+Le JSON porte `businessVersion` :
+
+| | 2e KPI | Mois à demander pour auditer août |
+|---|---|---|
+| **1** (clé absente) | `completion` — contrats de M-1 ayant payé en M | septembre |
+| **2** (actuelle) | `clientsRetrouves` — signataires de M présents dans les ventes de M | **août** |
+
+Les rapports de juin/juillet/août produits avant le changement restent lisibles,
+mais l'écran les affiche sous leur **ancien** libellé : un vieux chiffre ne
+s'affiche jamais sous le nouveau nom. Pour basculer un mois sur la règle
+actuelle, il suffit de le recollecter.
 
 ### La commande du mois — une seule
 
@@ -95,7 +145,8 @@ Elle enchaîne, dans cet ordre, et s'arrête à la première marche cassée :
 1. **Navigateur et session** — Chromium répond, les deux onglets CRM sont
    ouverts, aucun n'est retombé sur un écran de connexion ; l'adresse et la clé
    de dépôt sont là (vérifié **avant** dix minutes de collecte, pas après) ;
-2. **Collecte** — Deciplus M et M-1, Fitness Booster M-1, ventes annulées exclues ;
+2. **Collecte** — encaissements Deciplus M-1 et M, **journal des ventes Deciplus
+   de M**, Fitness Booster de **M**, ventes annulées exclues ;
 3. **Contrôles + résumé lisible**, affiché **avant** tout envoi ;
 4. **Envoi** — seulement si aucun contrôle bloquant n'échoue.
 

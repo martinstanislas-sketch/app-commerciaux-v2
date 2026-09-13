@@ -9,9 +9,12 @@
 //
 //  ⚠️ VOLONTAIREMENT BRUT. Aucune qualification, aucun « NE », aucun « déjà
 //  traité », aucun pack, aucun préavis, aucun ajustement manuel, aucun fichier
-//  de résiliation n'entre ici. RECAP 2 répond à deux questions factuelles :
-//    1. qui payait le mois dernier et ne paie plus ce mois-ci ?
-//    2. parmi les contrats signés le mois dernier, lesquels ont payé ce mois-ci ?
+//  de résiliation n'entre ici. RECAP 2 AUDITE UN MOIS M et répond à deux
+//  questions factuelles :
+//    1. qui payait en M-1 et ne paie plus en M ?
+//    2. les clients qui ont signé en M sont-ils bien saisis dans le CRM ?
+//  `completion()` est l'ANCIENNE forme de la question 2 (contrats de M-1 ayant
+//  payé en M) : conservée pour relire les rapports d'avant, plus jamais produite.
 //  Le moteur `retention.js` reste la référence de l'ancien RECAP (et de FAN /
 //  BOSS) : on lui EMPRUNTE ses briques (clé client, agrégation, dédup des
 //  signataires), on ne le modifie pas et on n'en refait pas une deuxième version.
@@ -137,6 +140,67 @@
     };
   }
 
+  // ── INDICATEUR 2 — CLIENTS RETROUVÉS DANS DECIPLUS ─────────────────────────
+  //  Question posée : les ventes signées dans Fitness Booster PENDANT M ont-elles
+  //  été saisies dans le CRM ?
+  //
+  //  ⚠️ CE QU'ON PROUVE, EXACTEMENT — et pas un mot de plus.
+  //  On rapproche par le NOM (Fitness Booster ne porte aucun identifiant
+  //  Deciplus). On sait donc dire : « ce signataire a AU MOINS UNE vente
+  //  enregistrée dans Deciplus sur M ». On ne sait PAS certifier que c'est LE
+  //  contrat signé : les deux outils ne nomment pas les prestations pareil, et
+  //  un contrat commercial peut donner plusieurs ventes Deciplus (le challenge,
+  //  puis un pack de suivi). D'où le libellé « clients retrouvés » et jamais
+  //  « contrats retrouvés ».
+  //
+  //  Dénominateur : signataires UNIQUES (deux contrats d'une même personne = une
+  //  personne). Le nombre de contrats bruts reste rendu à part pour que l'écart
+  //  soit DIT, jamais avalé en silence.
+  //
+  //  `encM` est facultatif : il ne change aucun compte, il sert seulement à
+  //  distinguer « retrouvé ET encaissé » de « retrouvé, pas encore encaissé » —
+  //  l'information qui, confondue avec une absence, faussait l'ancien KPI.
+  function clientsRetrouves({ signataires, ventesM, encM } = {}) {
+    // Une clé -> la première vente qui la porte. Première suffit : on répond
+    // « présent ou absent », pas « combien de fois ».
+    const index = new Map();
+    (ventesM || []).forEach((v) => { if (v && v.cle && !index.has(v.cle)) index.set(v.cle, v); });
+    const agM = Retention.agregerParClient(encM || []);
+    const sig = Retention.dedupSignataires(signataires || []);
+
+    const clients = sig.map((s) => {
+      let vente = null, netM = 0;
+      (s.cles || []).forEach((k) => {
+        if (!vente && index.has(k)) vente = index.get(k);
+        const a = agM.get(k);
+        if (a && a.net > netM) netM = a.net;
+      });
+      return {
+        nom: Retention.titleCase(s.nom || ''),
+        prenom: Retention.titleCase(s.prenom || ''),
+        date: s.date || '',
+        prestation: s.prestation || '',
+        commercial: s.commercial || '',
+        retrouve: !!vente,
+        site: vente ? vente.site : null,
+        dateVente: vente ? vente.date : '',
+        prestationCrm: vente ? vente.prestation : '',
+        encaisse: netM > 0,
+      };
+    });
+    clients.sort((x, y) => ((x.nom || '') + ' ' + (x.prenom || '')).localeCompare((y.nom || '') + ' ' + (y.prenom || ''), 'fr'));
+
+    const nbRetrouves = clients.filter((c) => c.retrouve).length;
+    return {
+      total: clients.length,
+      nbRetrouves,
+      // Aucun signataire -> pas de dénominateur -> taux null (l'écran dira « — »
+      // et « 0 vente signée »), jamais 0 % ni NaN.
+      taux: clients.length > 0 ? nbRetrouves / clients.length : null,
+      clients,
+    };
+  }
+
   // ── Assemblage d'un studio, disponibilité comprise ─────────────────────────
   // Convention d'entrée : `null` = import ABSENT (rien n'a jamais été déposé) ;
   // `[]` = import présent mais vide (ex. aucun contrat signé ce mois-là). Les
@@ -158,5 +222,5 @@
     };
   }
 
-  return { STUDIOS, LABELS, normStudio, studioLabel, nonReconduction, completion, analyserStudio };
+  return { STUDIOS, LABELS, normStudio, studioLabel, nonReconduction, completion, clientsRetrouves, analyserStudio };
 }));
