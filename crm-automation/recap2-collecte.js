@@ -31,8 +31,12 @@ const R = require('../public/retention.js');
 const CSV = require('./lib/csvEncaissements.js');
 const DEC = require('./lib/deciplus.js');
 const FB = require('./lib/booster.js');
+const CTRL = require('./lib/recap2Controles.js');
+const REESSAI = require('./lib/reessai.js');
+const FICHIER = require('./lib/rapportFichier.js');
 
 const CDP = process.env.CRM_DEBUG_URL || 'http://127.0.0.1:9222';
+const TENTATIVES = REESSAI.tentatives();
 const DOSSIER_EXPORTS = path.join(__dirname, '.session', 'exports');
 const DOSSIER_SORTIE = path.join(__dirname, '.session', 'controle');
 
@@ -71,8 +75,17 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     for (const ym of [m1, mois]) {
       const dest = path.join(DOSSIER_EXPORTS, 'encaissements-' + ym + '.csv');
       if (sansDeciplus && fs.existsSync(dest)) { dire('CSV ' + ym + ' réutilisé (--sans-deciplus)'); fichiers[ym] = dest; continue; }
-      dire('Deciplus : export des encaissements de ' + ym + '…');
-      fichiers[ym] = await DEC.exporterMois(page, ym, DOSSIER_EXPORTS, dire);
+      // ⚠️ UN MOIS QUI ÉCHOUE N'EMPORTE PLUS L'AUTRE. Avant, le `throw` sortait
+      // de la boucle : juillet raté, et juin déjà exporté partait avec lui.
+      try {
+        fichiers[ym] = await REESSAI.avecReessai('export Deciplus ' + ym, TENTATIVES, (n) => {
+          dire('Deciplus : export des encaissements de ' + ym + (n > 1 ? ' — tentative ' + n : '') + '…');
+          return DEC.exporterMois(page, ym, DOSSIER_EXPORTS, dire);
+        }, { remise: () => DEC.reinitialiserFiltres(page), journal: dire });
+      } catch (e) {
+        erreurs.push('Deciplus / ' + ym + ' : ' + e.message);
+        dire('⚠️ Deciplus ' + ym + ' : ' + e.message + ' — ce mois est abandonné');
+      }
     }
     await DEC.reinitialiserFiltres(page);
   } catch (e) {
@@ -87,7 +100,12 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     if (!fichiers[ym]) continue;
     const texte = fs.readFileSync(fichiers[ym], 'utf8');
     const p = CSV.parser(texte);
-    const v = CSV.verifier(p, { moisAttendu: ym, studiosAttendus: M.LABELS, studioLabel: M.studioLabel });
+    // Ce que le parseur a écarté (lignes sans adhérent, lignes tronquées) :
+    // c'est la seule cause connue de « l'écart global » avec le total Deciplus.
+    // On le donne à verifier() pour qu'il ne répète PAS une alerte que
+    // controlerStudios() émet déjà, studio par studio.
+    const ecartees = CSV.lignesEcartees(texte, { studios: M.LABELS, studioLabel: M.studioLabel });
+    const v = CSV.verifier(p, { moisAttendu: ym, studiosAttendus: M.LABELS, studioLabel: M.studioLabel, ecartees });
     // Contrôle BLOQUANT, studio par studio, sur les 6 seuls studios RECAP 2.
     controleStudio[ym] = CSV.controlerStudios(texte, p, { moisAttendu: ym, studios: M.LABELS, studioLabel: M.studioLabel });
     const enEchec = M.LABELS.filter((st) => !controleStudio[ym][st].ok);
@@ -97,6 +115,10 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       totalAnnonce: p.totalAnnonce, conforme: v.ok, problemes: v.problemes,
       avertissements: v.avertissements || [], lignesParStudio: v.lignesParStudio,
       controleParStudio: controleStudio[ym],
+      // Trace structurée : l'écart global reste LISIBLE dans le fichier même
+      // quand il ne fait plus d'alerte, parce qu'il est entièrement expliqué.
+      ecartGlobal: v.ecartGlobal,
+      lignesEcartees: ecartees,
     };
     (v.avertissements || []).forEach((a) => dire('ℹ️ CSV ' + ym + ' : ' + a));
     if (!v.ok) { erreurs.push('CSV ' + ym + ' non conforme : ' + v.problemes.join(' · ')); dire('⚠️ CSV ' + ym + ' : ' + v.problemes.join(' · ')); }
@@ -111,7 +133,9 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     if (!page) throw new Error('Aucun onglet Fitness Booster ouvert');
     for (const studio of M.LABELS) {
       try {
-        contratsFB[studio] = await FB.lireStudio(page, studio, m1, dire);
+        contratsFB[studio] = await REESSAI.avecReessai('Fitness Booster ' + studio, TENTATIVES,
+          () => FB.lireStudio(page, studio, m1, dire),
+          { remise: () => FB.fermerPanneau(page), journal: dire });
       } catch (e) {
         erreurs.push('Fitness Booster / ' + studio + ' : ' + e.message);
         dire('⚠️ FB ' + studio + ' : ' + e.message);
@@ -146,9 +170,11 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     }
     bloc.controleBloquant = { ok: true, detail: Object.fromEntries([m1, mois].map((ym) => [ym,
       (controleStudio[ym] && controleStudio[ym][studio]) ? controleStudio[ym][studio].controles : null])) };
+    // Le rapport porte sur M : une alerte sur M n'a pas besoin d'être datée.
+    // Seule celle qui vient de M-1 est préfixée, sinon elle serait ambiguë.
     [m1, mois].forEach((ym) => {
       const c = controleStudio[ym] && controleStudio[ym][studio];
-      (c && c.avertissements || []).forEach((a) => bloc.avertissements.push(ym + ' : ' + a));
+      (c && c.avertissements || []).forEach((a) => bloc.avertissements.push(ym === mois ? a : ym + ' : ' + a));
     });
 
     // 4a) Non-reconduction : vue par Id membre (identifiant stable d'un mois à l'autre).
@@ -201,8 +227,7 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       if (co.total !== bruts) {
         bloc.completion.contratsBruts = bruts;
         bloc.completion.doublonsSignataire = bruts - co.total;
-        bloc.avertissements.push('plusieurs contrats pour un même signataire : ' + bruts
-          + ' contrat(s) valide(s) -> ' + co.total + ' signataire(s) unique(s) (' + (bruts - co.total) + ' doublon(s)) — le taux est calculé sur les signataires uniques');
+        bloc.avertissements.push(CTRL.messageDoublons(bruts, co.total));
       }
     } else if (fbr && fbr.echec) bloc.avertissements.push('Fitness Booster en échec : ' + fbr.echec);
     else bloc.avertissements.push('contrats ' + m1 + ' indisponibles');
@@ -214,9 +239,13 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
   rapport.erreurs = erreurs;
   rapport.journal = journal;
   fs.mkdirSync(DOSSIER_SORTIE, { recursive: true });
-  const sortie = path.join(DOSSIER_SORTIE, 'recap2-' + mois + '.json');
-  fs.writeFileSync(sortie, JSON.stringify(rapport, null, 2));
-  dire('JSON de contrôle écrit : ' + sortie);
+  const ecrit = FICHIER.ecrire(DOSSIER_SORTIE, mois, rapport, { enEchec: erreurs.length > 0 });
+  if (ecrit.conserve) {
+    dire('⚠️ collecte en échec — rapport exploitable du ' + ecrit.ancienGenere
+      + ' CONSERVÉ ; diagnostic écrit dans ' + path.basename(ecrit.cible));
+  }
+  dire('JSON de contrôle écrit : ' + ecrit.cible);
+  if (ecrit.nettoye) dire('diagnostic précédent supprimé : ' + path.basename(ecrit.diagnostic));
 
   // Résumé lisible au terminal (sans aucune donnée nominative).
   console.log('\n===== RÉSUMÉ ' + mois + ' (M-1 = ' + m1 + ') =====');

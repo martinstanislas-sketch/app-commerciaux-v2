@@ -5,8 +5,10 @@
   "description": "Automatisation CRM (Playwright) — isolée de l'app principale, jamais déployée",
   "scripts": {
     "open": "node open-crm.js",
+    "recap2": "node recap2.js",
     "collecte": "node recap2-collecte.js",
-    "envoi": "node recap2-envoi.js"
+    "envoi": "node recap2-envoi.js",
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "playwright": "^1.49.0"
