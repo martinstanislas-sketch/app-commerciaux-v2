@@ -136,7 +136,7 @@ function lancer(script, args) {
   const urlCible = arg('--url');
 
   console.log('\n' + trait('═'));
-  console.log('  RECAP 2 — ' + moisLabel(mois) + '   (nouveaux clients et base de ' + moisLabel(m1) + ')');
+  console.log('  RECAP 2 — contrôle de ' + moisLabel(mois) + '   (ventes de ' + moisLabel(mois) + ', base de ' + moisLabel(m1) + ')');
   console.log(trait('═'));
 
   // ── 0. Préflight ──────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ function lancer(script, args) {
   if (!sansEnvoi) ok('Dépôt configuré : ' + base);
 
   // ── 1. Collecte ───────────────────────────────────────────────────────────
-  titre('2/4  Collecte — Deciplus ' + m1 + ' et ' + mois + ', Fitness Booster ' + m1);
+  titre('2/4  Collecte — Deciplus ' + m1 + ' et ' + mois + ' (+ ventes ' + mois + '), Fitness Booster ' + mois);
   const source = path.join(DOSSIER_SORTIE, 'recap2-' + mois + '.json');
   let col = { code: 0 };
   const debut = Date.now();
@@ -224,12 +224,23 @@ function lancer(script, args) {
   const bilan = CTRL.analyser(rapport, mois);
 
   titre('3/4  Résultats — ' + moisLabel(mois));
-  console.log('  ' + 'STUDIO'.padEnd(12) + 'NON-RECONDUCTION'.padEnd(26) + 'COMPLÉTION');
+  // Le 2e KPI n'a pas la même définition selon la règle métier du rapport : on
+  // affiche le libellé de CELLE QUI A PRODUIT LES CHIFFRES, jamais l'autre.
+  const v2 = bilan.version >= 2;
+  const titre2 = v2 ? 'CLIENTS RETROUVÉS CRM' : 'COMPLÉTION (ancienne règle)';
+  console.log('  ' + 'STUDIO'.padEnd(12) + 'NON-RECONDUCTION'.padEnd(26) + titre2);
   bilan.studios.forEach((s) => {
-    const nr = s.nonReconduction, co = s.completion;
+    const nr = s.nonReconduction;
     const gN = nr ? (pct(nr.taux) + '  (' + nr.nonReconduits + '/' + nr.base + ')') : '—';
-    const gC = co ? (pct(co.taux) + '  (' + co.ontPaye + '/' + co.contratsValides + ')') : '—';
-    console.log('  ' + s.studio.padEnd(12) + gN.padEnd(26) + gC);
+    let g2 = '—';
+    if (v2 && s.clientsRetrouves) {
+      const cr = s.clientsRetrouves;
+      g2 = pct(cr.taux) + '  (' + cr.retrouves + '/' + cr.signataires + ')';
+    } else if (!v2 && s.completion) {
+      const co = s.completion;
+      g2 = pct(co.taux) + '  (' + co.ontPaye + '/' + co.contratsValides + ')';
+    }
+    console.log('  ' + s.studio.padEnd(12) + gN.padEnd(26) + g2);
   });
 
   console.log('');
@@ -268,8 +279,8 @@ function lancer(script, args) {
     : sansEnvoi ? '— non demandé (--sans-envoi)'
       : (envoi && envoi.code === 0) ? '✓ succès' : '✗ échec';
   console.log('\n' + trait('═'));
-  console.log('  Mois              : ' + moisLabel(mois) + '  (' + mois + ', M-1 = ' + m1 + ')');
-  console.log('  Studios           : ' + bilan.studios.filter((s) => s.nonReconduction && s.completion).length
+  console.log('  Mois audité       : ' + moisLabel(mois) + '  (' + mois + ', base de ' + m1 + ')');
+  console.log('  Studios           : ' + bilan.studios.filter((s) => s.nonReconduction && (v2 ? s.clientsRetrouves : s.completion)).length
     + ' / ' + CTRL.LABELS.length + ' avec leurs deux KPI');
   console.log('  Alertes non bloq. : ' + nbAlertes);
   console.log('  Envoi             : ' + etatEnvoi);
