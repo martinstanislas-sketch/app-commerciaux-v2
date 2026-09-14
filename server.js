@@ -5363,6 +5363,48 @@ app.post('/api/recap2/checks', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
+// ─── RÉSILIATION MANUELLE D'UNE VENTE ───────────────────────────────────────
+//  Admin connecté uniquement. { mois, studio, client, date (signature),
+//  resilie: true|false, dateResiliation: 'JJ/MM/AAAA' (obligatoire si true) }.
+//  ⚠️ Seulement sur une vente RETROUVÉE non annulée — y compris « Retrouvé —
+//  validé manuellement ». On juge donc le rapport TEL QU'IL EST AFFICHÉ (avec
+//  les décisions de rapprochement posées), et c'est la date de signature DU
+//  RAPPORT qui borne la date de résiliation, jamais celle envoyée.
+//  Aucun KPI, aucun paiement, aucune anomalie n'en dépend.
+//  Déclarée AVANT `POST /api/recap2/:mois`, sinon « resiliation » serait lu comme un mois.
+app.post('/api/recap2/resiliation', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim();
+  const studio = String(b.studio || '').trim();
+  const client = String(b.client || '').trim();
+  const date = String(b.date || '').trim();
+  const resilie = b.resilie;
+  const dateResiliation = String(b.dateResiliation || '').trim();
+
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
+  if (typeof resilie !== 'boolean') return res.status(400).json({ error: 'resilie : true ou false' });
+
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const ligne = Recap2Checks.ligneDe(recap2AvecDecisions(lu.rapport), { studio, client, date });
+  if (!ligne) return res.status(404).json({ error: 'Vente introuvable dans le rapport de ' + mois + '.' });
+  if (ligne.annulee) return res.status(409).json({ error: 'Vente annulée : une vente annulée ne se résilie pas.' });
+  if (ligne.retrouve !== true) return res.status(409).json({ error: 'Seule une vente retrouvée dans Deciplus peut être marquée résiliée.' });
+  try {
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
+    const resiliation = Recap2Checks.resilier(getDb(), {
+      mois, studio, client: ligne.client, dateSignature: ligne.date, resilie, dateResiliation, par: String(qui).slice(0, 80),
+    });
+    console.log('recap2 résiliation ' + (resilie ? 'posée' : 'retirée') + ' : ' + mois + ' ' + studio);
+    res.json({ ok: true, resiliation });
+  } catch (e) {
+    console.error('recap2 résiliation :', e && e.message);
+    res.status(400).json({ error: e && e.message ? e.message : 'résiliation refusée' });
+  }
+});
+
 app.post('/api/recap2/:mois', (req, res) => {
   const mois = String(req.params.mois || '');
   if (!recap2CleAttendue()) {

@@ -74,7 +74,9 @@ const Recap2UI = (function () {
     // Les cases de contrôle : `change`, pour ne réagir qu'à un vrai basculement.
     $('#rec2-body').addEventListener('change', (e) => {
       const box = e.target.closest && e.target.closest('input[data-ctl]');
-      if (box && rapport) enregistrerControle(box);
+      if (box && rapport) { enregistrerControle(box); return; }
+      const resil = e.target.closest && e.target.closest('input[data-resil]');
+      if (resil && rapport) basculerResiliation(resil);
     });
     const sel = $('#rec2-commercial');
     if (sel) sel.addEventListener('change', () => { commercial = sel.value; filtreCom = 'tous'; ouvert = ''; render(); });
@@ -117,7 +119,7 @@ const Recap2UI = (function () {
 
   // ── CHARGEMENT ──────────────────────────────────────────────────────────────
   async function charger() {
-    etat = 'chargement'; rapport = null; message = ''; render();
+    etat = 'chargement'; rapport = null; message = ''; editionResil = null; render();
     try {
       const r = await fetch('/api/recap2/' + mois, { headers: H() });
       const j = await r.json().catch(() => null);
@@ -303,11 +305,16 @@ const Recap2UI = (function () {
       ? d.retrouves + ' / ' + n + ' signataire' + (n > 1 ? 's' : '') + ' de ' + moisLabel(rapport.mois)
       : '0 vente signée';
     // Repérable sans ouvrir le détail. Le chiffre de la carte, lui, ne bouge pas.
-    const nDiv = repartition(d.liste, label).divergents;
+    const rep = repartition(d.liste, label);
+    const nDiv = rep.divergents;
     const alerte = nDiv
       ? '<span class="rec2-card-div">⚠ ' + nDiv + ' site' + (nDiv > 1 ? 's' : '') + ' Deciplus divergent' + (nDiv > 1 ? 's' : '') + '</span>'
       : '';
-    return carte(label, 'crm', titre2(), pct(d.taux), sous + alerte, ouvert === label + '|crm', n > 0);
+    // Compteur INFORMATIF : les résiliées restent dans le chiffre de la carte.
+    const resil = rep.resilies
+      ? '<span class="rec2-card-resil">' + rep.resilies + ' résilié' + (rep.resilies > 1 ? 's' : '') + '</span>'
+      : '';
+    return carte(label, 'crm', titre2(), pct(d.taux), sous + alerte + resil, ouvert === label + '|crm', n > 0);
   }
 
   // ── NOM CLIQUABLE VERS LA FICHE DECIPLUS ────────────────────────────────────
@@ -374,6 +381,7 @@ const Recap2UI = (function () {
       // qu'on sache toujours d'où vient un chiffre.
       return '<span class="rec2-etat is-valide">Retrouvé — validé manuellement</span>'
         + (v.valideNom ? ' <span class="rec2-det-date">' + esc(v.valideNom) + '</span>' : '')
+        + badgeResiliation(v)
         + anomalieSite(v, studioAttendu);
     }
     if (!v.retrouve && v.candidat) {
@@ -427,6 +435,7 @@ const Recap2UI = (function () {
     if (pai.note) notes.push(pai.note);
     return '<span class="rec2-etat is-oui">Retrouvée</span>'
       + (notes.length ? ' <span class="rec2-det-date">' + notes.join(' · ') + '</span>' : '')
+      + badgeResiliation(v)
       + pai.alerte
       + anomalieSite(v, studioAttendu);
   }
@@ -481,6 +490,7 @@ const Recap2UI = (function () {
   //  repérage, pas une population de plus dans le décompte.
   //  `studio` : le studio attendu (détail studio) ; absent, celui de la ligne.
   function passeFiltre(v, f, studio) {
+    if (f === 'resilies') return !!(v.resiliation && v.resiliation.resilie);
     if (f === 'divergents') return !!divergence(v, studio);
     if (f === 'annules') return !!v.annulee;
     if (f === 'retrouves') return !v.annulee && !!v.retrouve;
@@ -498,7 +508,9 @@ const Recap2UI = (function () {
     const valides = l.filter((v) => !v.annulee && v.retrouve && v.valideManuellement).length;
     const proposes = l.filter((v) => !v.annulee && !v.retrouve && v.candidat).length;
     const divergents = l.filter((v) => divergence(v, studio)).length;
-    return { total: l.length, annulees, actives: l.length - annulees, retrouves, valides, proposes, divergents,
+    // Résiliés : un repérage, compté à part — ils restent dans `retrouves` et `actives`.
+    const resilies = l.filter((v) => !v.annulee && v.resiliation && v.resiliation.resilie).length;
+    return { total: l.length, annulees, actives: l.length - annulees, retrouves, valides, proposes, divergents, resilies,
       aVerifier: l.length - annulees - retrouves - proposes };
   }
 
@@ -522,6 +534,9 @@ const Recap2UI = (function () {
     { champ: 'reservation', libelle: 'Réservation', aide: 'Réservation / prise de rendez-vous faite' },
   ];
   function casesControle(v, studio) {
+    return casesPrelevementReservation(v, studio) + celluleResiliation(v, studio);
+  }
+  function casesPrelevementReservation(v, studio) {
     return CONTROLES.map((c) => {
       if (v.annulee) return '<td class="rec2-ctl"><span class="rec2-ctl-na" aria-hidden="true">—</span></td>';
       const coche = !!(v.controle && v.controle[c.champ]);
@@ -535,7 +550,8 @@ const Recap2UI = (function () {
         + ' title="' + esc(c.aide + qui) + '" aria-label="' + esc(c.aide + ' — ' + v.client) + '"></td>';
     }).join('');
   }
-  const entetesControle = () => CONTROLES.map((c) => '<th class="rec2-ctl" title="' + esc(c.aide) + '">' + c.libelle + '</th>').join('');
+  const entetesControle = () => CONTROLES.map((c) => '<th class="rec2-ctl" title="' + esc(c.aide) + '">' + c.libelle + '</th>').join('')
+    + '<th class="rec2-ctl" title="Vente résiliée après signature — information, sans effet sur les KPI">Résilié</th>';
 
   // Enregistre UNE case. Pas d'optimisme : la case est bloquée pendant l'appel,
   // et c'est la réponse du serveur qui fait foi. En cas d'échec, elle revient à
@@ -562,6 +578,104 @@ const Recap2UI = (function () {
       box.disabled = false;
       alert('Contrôle non enregistré : ' + (err && err.message ? err.message : 'erreur'));
     }
+  }
+
+  // ── RÉSILIATION MANUELLE ────────────────────────────────────────────────────
+  //  ⚠️ RÉSILIÉ ≠ ANNULÉ. Une vente résiliée a été signée : elle reste
+  //  « Retrouvée », dans les ventes signées et actives, dans le taux et dans
+  //  l'historique du commercial. Le badge est une information de plus — il ne
+  //  masque ni un statut de paiement, ni une anomalie.
+  //  Seulement sur une vente RETROUVÉE non annulée (validée à la main comprise).
+  //  Date OBLIGATOIRE : ni avant la signature, ni dans le futur.
+  //  Enregistrement en deux temps (date, puis confirmation) pour éviter une
+  //  fausse manipulation. Pas de fenêtre de dialogue : tout se passe dans la ligne.
+  let editionResil = null;   // { cle, etape: 'date' | 'confirmer' | 'retirer', date: 'AAAA-MM-JJ', erreur }
+  const cleResil = (studio, v) => studio + '|' + v.client + '|' + (v.date || '');
+  const versIso = (fr) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(fr || '')); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+  const versFr = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
+  const isoAujourdhui = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const resiliable = (v) => v.retrouve === true && !v.annulee;
+
+  function badgeResiliation(v) {
+    const r = v.resiliation;
+    if (!r || !r.resilie) return '';
+    const qui = (r.modifiePar ? 'par ' + r.modifiePar + ' ' : '') + (r.modifieLe ? 'le ' + fmtDate(r.modifieLe) : '');
+    const delai = r.delaiJours == null ? '' : ' — ' + r.delaiJours + ' jour' + (r.delaiJours > 1 ? 's' : '') + ' après la signature';
+    return '<div class="rec2-resil"><span class="rec2-etat is-resil" title="' + esc('Résiliation enregistrée ' + qui + delai) + '">Résilié le '
+      + esc(r.date) + '</span></div>';
+  }
+
+  function celluleResiliation(v, studio) {
+    if (!resiliable(v)) return '<td class="rec2-ctl"><span class="rec2-ctl-na" aria-hidden="true">—</span></td>';
+    const cle = cleResil(studio, v);
+    const e = editionResil && editionResil.cle === cle ? editionResil : null;
+    const data = ' data-studio="' + esc(studio) + '" data-client="' + esc(v.client) + '" data-date="' + esc(v.date || '') + '"';
+    const btn = (action, texte, cls) => '<button type="button" class="' + cls + '" data-resil-action="' + action + '"' + data + '>' + texte + '</button>';
+    const erreur = e && e.erreur ? '<div class="rec2-resil-err">' + esc(e.erreur) + '</div>' : '';
+    if (e && e.etape === 'date') {
+      return '<td class="rec2-ctl rec2-resil-edit"><label class="rec2-resil-lbl">Date de résiliation'
+        + '<input type="date" class="rec2-resil-date" min="' + esc(versIso(v.date)) + '" max="' + isoAujourdhui() + '" value="' + esc(e.date || '') + '"' + data + '></label>'
+        + '<div class="rec2-prop-actions">' + btn('valider', 'Valider la date', 'rec2-btn-ok') + btn('annuler', 'Annuler', 'rec2-btn-non') + '</div>' + erreur + '</td>';
+    }
+    if (e && e.etape === 'confirmer') {
+      return '<td class="rec2-ctl rec2-resil-edit"><div class="rec2-resil-q">Marquer comme résilié le ' + esc(versFr(e.date)) + ' ?</div>'
+        + '<div class="rec2-prop-actions">' + btn('confirmer', 'Oui, résilier', 'rec2-btn-non') + btn('annuler', 'Annuler', 'rec2-btn-ok') + '</div>' + erreur + '</td>';
+    }
+    if (e && e.etape === 'retirer') {
+      return '<td class="rec2-ctl rec2-resil-edit"><div class="rec2-resil-q">Retirer la résiliation du ' + esc((v.resiliation && v.resiliation.date) || '') + ' ?</div>'
+        + '<div class="rec2-prop-actions">' + btn('retirer', 'Oui, retirer', 'rec2-btn-non') + btn('annuler', 'Annuler', 'rec2-btn-ok') + '</div>' + erreur + '</td>';
+    }
+    const coche = !!(v.resiliation && v.resiliation.resilie);
+    return '<td class="rec2-ctl"><input type="checkbox" class="rec2-ctl-box rec2-resil-box"' + (coche ? ' checked' : '') + ' data-resil="1"' + data
+      + ' title="' + (coche ? 'Résilié le ' + esc(v.resiliation.date) + ' — décocher pour retirer' : 'Marquer cette vente comme résiliée') + '"'
+      + ' aria-label="' + esc('Résilié — ' + v.client) + '"></td>';
+  }
+
+  // La case : cochée -> on demande la date ; décochée -> on demande de confirmer le retrait.
+  function basculerResiliation(box) {
+    const d = box.dataset;
+    const cle = d.studio + '|' + d.client + '|' + d.date;
+    editionResil = box.checked ? { cle, etape: 'date', date: '' } : { cle, etape: 'retirer' };
+    render();
+    const champ = $('#rec2-body input.rec2-resil-date');
+    if (champ) champ.focus();
+  }
+
+  async function actionResiliation(bouton) {
+    const d = bouton.dataset;
+    const action = d.resilAction;
+    if (!editionResil) return;
+    if (action === 'annuler') { editionResil = null; render(); return; }
+    if (action === 'valider') {
+      const champ = bouton.closest('td').querySelector('input.rec2-resil-date');
+      const iso = champ ? champ.value : '';
+      const sig = versIso(d.date);
+      editionResil.date = iso;
+      if (!iso) editionResil.erreur = 'La date de résiliation est obligatoire.';
+      else if (sig && iso < sig) editionResil.erreur = 'La résiliation ne peut pas précéder la signature (' + d.date + ').';
+      else if (iso > isoAujourdhui()) editionResil.erreur = 'La date de résiliation ne peut pas être dans le futur.';
+      else { editionResil.erreur = ''; editionResil.etape = 'confirmer'; }
+      render(); return;
+    }
+    // Enregistrer (confirmer) ou retirer : c'est le serveur qui fait foi.
+    const resilie = action === 'confirmer';
+    $$('#rec2-body [data-resil-action]').forEach((b) => { b.disabled = true; });
+    try {
+      const r = await fetch('/api/recap2/resiliation', {
+        method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, client: d.client, date: d.date, resilie, dateResiliation: resilie ? versFr(editionResil.date) : '' }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.resiliation) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      // Posée sur la ligne du RAPPORT : vue studio et vue commercial à jour ensemble.
+      const cr = rapport.studios && rapport.studios[d.studio] && rapport.studios[d.studio].clientsRetrouves;
+      const ligne = cr && (cr.liste || []).find((l) => l.client === d.client && (l.date || '') === d.date);
+      if (ligne) ligne.resiliation = j.resiliation;
+      editionResil = null;
+    } catch (err) {
+      editionResil.erreur = 'Non enregistré : ' + (err && err.message ? err.message : 'erreur');
+    }
+    render();
   }
 
   // La classe d'une ligne : annulée (barrée) ou site divergent (liseré d'alerte).
@@ -631,6 +745,7 @@ const Recap2UI = (function () {
       + (c.proposes ? chip('proposes', 'Rapprochements proposés', c.proposes) : '')
       + chip('verifier', 'À vérifier', c.aVerifier)
       + (c.divergents ? chipDiv(chip, c.divergents) : '')
+      + (c.resilies ? chip('resilies', 'Résiliés', c.resilies) : '')
       + (c.annulees ? chip('annules', 'Annulés', c.annulees) : '') + '</div>';
 
     const lignes = liste.map((v) => '<tr' + classeLigne(v, label) + '><td>' + nomClient(v)
@@ -706,6 +821,7 @@ const Recap2UI = (function () {
       + (rep0.valides ? n(rep0.valides, 'validée à la main', 'validées à la main') : '')
       + (rep0.proposes ? n(rep0.proposes, 'rapprochement proposé', 'rapprochements proposés') : '')
       + n(rep0.aVerifier, 'à vérifier', 'à vérifier')
+      + (rep0.resilies ? n(rep0.resilies, 'résilié', 'résiliés') : '')
       + (rep0.divergents ? '<span class="rec2-com-det rec2-com-det-div"><b>' + rep0.divergents + '</b> '
         + (rep0.divergents > 1 ? 'sites Deciplus divergents' : 'site Deciplus divergent') + '</span>' : '')
       + '</div>';
@@ -721,6 +837,7 @@ const Recap2UI = (function () {
       + (rep0.proposes ? chip('proposes', 'Rapprochements proposés', rep0.proposes) : '')
       + chip('verifier', 'À vérifier', rep0.aVerifier)
       + (rep0.divergents ? chipDiv(chip, rep0.divergents) : '')
+      + (rep0.resilies ? chip('resilies', 'Résiliés', rep0.resilies) : '')
       + (rep0.annulees ? chip('annules', 'Annulés', rep0.annulees) : '') + '</div>'
       + corps
       + '<p class="rec2-det-note">Ce filtre ne concerne que « clients retrouvés dans Deciplus ». '
@@ -730,6 +847,8 @@ const Recap2UI = (function () {
 
   // ── INTERACTIONS ────────────────────────────────────────────────────────────
   function onBodyClick(e) {
+    const resil = e.target.closest('[data-resil-action]');
+    if (resil) { actionResiliation(resil); return; }
     const dec = e.target.closest('[data-match]');
     if (dec) { deciderRapprochement(dec); return; }
     // Un lien de RECHERCHE : on copie le nom pour n'avoir qu'à le coller, et on
