@@ -87,12 +87,17 @@ test('l\'écran Membres ne porte AUCUN paramètre de recherche', () => {
 });
 
 // ── 4. LE RENDU : nouvel onglet, et jamais d'ambiguïté ──────────────────────
-test('4. les deux liens s\'ouvrent dans un nouvel onglet, sans donner la main', () => {
+// Trois destinations depuis le 2026-09-14 : la fiche d'un client retrouvé, la
+// fiche TROUVÉE d'un « à vérifier » sans vente saisie (Esther JHUREEA), et la
+// recherche Membres. Chacune en nouvel onglet, aucune ne donne la main.
+test('4. les trois liens s\'ouvrent dans un nouvel onglet, sans donner la main', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'recap2.js'), 'utf8');
   const i = src.indexOf('function nomClient');
-  const bloc = src.slice(i, i + 1800);
-  assert.equal((bloc.match(/target="_blank"/g) || []).length, 2, 'les DEUX destinations');
-  assert.equal((bloc.match(/rel="noopener noreferrer"/g) || []).length, 2);
+  const bloc = src.slice(i, src.indexOf('\n  }\n', i));
+  assert.equal((bloc.match(/target="_blank"/g) || []).length, 3, 'les TROIS destinations');
+  assert.equal((bloc.match(/rel="noopener noreferrer"/g) || []).length, 3);
+  assert.match(bloc, /lienDeciplusId\(v\.ficheId\)/, 'la fiche trouvée vient de SON id, jamais d\'un nom');
+  assert.match(bloc, /!v\.retrouve && !v\.annulee && v\.ficheId/, 'seulement sur un « à vérifier »');
   assert.match(bloc, /lienDeciplusId/, 'la fiche vient de l\'Id_client');
   assert.match(bloc, /lienRechercheDeciplus/, 'la recherche vient du helper dédié');
   assert.match(bloc, /data-copier=/, 'le nom est copié pour éviter la ressaisie');

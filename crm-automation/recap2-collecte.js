@@ -42,6 +42,8 @@ const FB = require('./lib/booster.js');
 const CTRL = require('./lib/recap2Controles.js');
 const RAPPRO = require('./lib/rapprochement.js');
 const MATCHES = require('../lib/recap2Matches.js');
+const PAI = require('./lib/paiement.js');
+const MEMBRES = require('./lib/deciplusMembres.js');
 const REESSAI = require('./lib/reessai.js');
 const FICHIER = require('./lib/rapportFichier.js');
 
@@ -89,6 +91,7 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
   //  · encaissements M-1 et M -> non-reconduction (question inchangée)
   //  · VENTES de M            -> présence dans le CRM des signatures de M
   const fichiers = {};
+  const fichiersPaiement = {}; // mois après M -> CSV d'encaissements (paiements seulement)
   let fichierVentes = null;
   try {
     const page = pageDe('deciplus');
@@ -123,6 +126,23 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       } catch (e) {
         erreurs.push('Deciplus ventes / ' + mois + ' : ' + e.message);
         dire('⚠️ Deciplus ventes ' + mois + ' : ' + e.message);
+      }
+    }
+    // ENCAISSEMENTS APRÈS M — pour la détection de paiement sur 31 jours.
+    //  Une vente signée le 31/08 a jusqu'au 01/10 : on lit donc M+1, et M+2 si
+    //  la fenêtre y déborde (sans dépasser le mois en cours).
+    //  ⚠️ NON BLOQUANT : ces fichiers ne portent aucun KPI. Un export raté ne
+    //  fait jamais conclure « aucun encaissement » — la couverture le dira.
+    for (const ym of PAI.moisNecessaires(mois).filter((x) => x !== mois)) {
+      const dest = path.join(DOSSIER_EXPORTS, 'encaissements-' + ym + '.csv');
+      if (sansDeciplus && fs.existsSync(dest)) { dire('CSV ' + ym + ' réutilisé pour les paiements (--sans-deciplus)'); fichiersPaiement[ym] = dest; continue; }
+      try {
+        fichiersPaiement[ym] = await REESSAI.avecReessai('export Deciplus ' + ym + ' (paiements)', TENTATIVES, (n) => {
+          dire('Deciplus : export des encaissements de ' + ym + ' pour les paiements' + (n > 1 ? ' — tentative ' + n : '') + '…');
+          return DEC.exporterMois(page, ym, DOSSIER_EXPORTS, dire);
+        }, { remise: () => DEC.reinitialiserFiltres(page), journal: dire });
+      } catch (e) {
+        dire('ℹ️ encaissements ' + ym + ' indisponibles (' + e.message + ') — les paiements concernés resteront non vérifiables');
       }
     }
     await DEC.reinitialiserFiltres(page);
@@ -189,6 +209,38 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     }
   } else erreurs.push('Journal des ventes de ' + mois + ' absent — présence CRM invérifiable');
 
+  // ── 2 ter) ENCAISSEMENTS POUR LES PAIEMENTS (M, puis M+1, M+2) ───────────
+  //  Tous sites, indexés par Id_client. La COUVERTURE dit jusqu'à quel jour
+  //  on sait vraiment : un mois en cours n'est connu que jusqu'à la veille de
+  //  son export, et un mois manquant arrête la couverture.
+  const lignesPaiement = [];
+  const plagesPaiement = [];
+  const moisPaiement = [];
+  if (enc[mois] && fichiers[mois]) {
+    lignesPaiement.push(...enc[mois]);
+    plagesPaiement.push({ periode: rapport.source['deciplus_' + mois].periode, exporteLe: fs.statSync(fichiers[mois]).mtime });
+    moisPaiement.push(mois);
+  }
+  for (const ym of Object.keys(fichiersPaiement).sort()) {
+    try {
+      const p = CSV.parser(fs.readFileSync(fichiersPaiement[ym], 'utf8'));
+      const [a, m] = ((p.periode && p.periode.du) || '').split('-');
+      if (a + '-' + m !== ym) { dire('ℹ️ CSV ' + ym + ' (paiements) : période ' + JSON.stringify(p.periode) + ' — ignoré'); continue; }
+      lignesPaiement.push(...p.lignes);
+      plagesPaiement.push({ periode: p.periode, exporteLe: fs.statSync(fichiersPaiement[ym]).mtime });
+      moisPaiement.push(ym);
+    } catch (e) { dire('ℹ️ CSV ' + ym + ' (paiements) illisible : ' + e.message); }
+  }
+  const parIdPaiement = PAI.indexerParId(lignesPaiement);
+  const couvertPaiement = PAI.couverture(plagesPaiement);
+  rapport.source.paiements = {
+    fenetreJours: PAI.JOURS_FENETRE, moisLus: moisPaiement,
+    couvertDu: couvertPaiement ? PAI.texte(couvertPaiement.du) : null,
+    couvertJusquau: couvertPaiement ? PAI.texte(couvertPaiement.au) : null,
+  };
+  dire('paiements : encaissements lus ' + (moisPaiement.join(', ') || 'aucun')
+    + (couvertPaiement ? ' — couverts du ' + PAI.texte(couvertPaiement.du) + ' au ' + PAI.texte(couvertPaiement.au) : ''));
+
   // ── 3) FITNESS BOOSTER : contrats signés PENDANT M, studio par studio ────
   //  ⚠️ C'EST BIEN M, PAS M-1. RECAP 2 audite le mois M : on contrôle les ventes
   //  signées CE mois-là. Auparavant on lisait M-1, ce qui obligeait à
@@ -234,6 +286,22 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       } else dire('ℹ️ rapprochements : serveur ' + rep.status + ' — on continue sans');
     }
   } catch (e) { dire('ℹ️ rapprochements indisponibles (' + e.message + ') — on continue sans'); }
+
+  // ── 3 ter) RECHERCHE DE FICHES DECIPLUS (« à vérifier » sans piste) ──────
+  //  Ouverte à la demande, dans un onglet à part, refermée à la fin. Si elle
+  //  n'est pas disponible, on continue sans : la ligne reste « à vérifier ».
+  let rechercheFiches = null, rechercheFichesKo = false;
+  const ficheDe = async (identite, studio) => {
+    if (rechercheFichesKo) return null;
+    try {
+      if (!rechercheFiches) rechercheFiches = await MEMBRES.ouvrirRecherche(contexte, DEC.garde);
+      return await rechercheFiches.chercher(identite, studio, M.studioLabel);
+    } catch (e) {
+      rechercheFichesKo = true;
+      dire('ℹ️ recherche de fiches Deciplus indisponible (' + e.message + ') — on continue sans');
+      return null;
+    }
+  };
 
   // ── 4) CALCUL par studio ─────────────────────────────────────────────────
   for (const studio of M.LABELS) {
@@ -324,15 +392,40 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
           candidatSite: q.site || '', candidatId: q.idClient || '',
         };
       };
-      const ligne = (c) => Object.assign({
-        client: ((c.prenom || '') + ' ' + (c.nom || '')).trim(),
-        date: c.date || '', prestation: c.prestation || '', commercial: c.commercial || '',
-        annulee: !!c.annulee, dateAnnulation: c.dateAnnulation || '',
-        retrouve: c.retrouve, site: c.site || '', dateVente: c.dateVente || '',
-        // Id_client Deciplus : sert UNIQUEMENT à ouvrir la fiche membre au
-        // clic. Aucune autre donnée personnelle n'est ajoutée au rapport.
-        idClient: c.idClient || '', encaisse: c.encaisse,
-      }, pisteDe(c));
+      // PAIEMENT sur 31 jours, par Id_client, tous sites (lib/paiement.js).
+      //  Remplace l'ancien « encaissé sur M, dans ce studio, par le nom ».
+      const paiementDe = (c) => {
+        if (c.annulee || !c.retrouve) return null;
+        return PAI.statutPaiement({ idClient: c.idClient, dateSignature: c.date, parId: parIdPaiement, couvert: couvertPaiement });
+      };
+      // FICHE DECIPLUS d'un « à vérifier » sans piste de vente (ni candidat, ni
+      // décision confirmée) : cherchée une fois, avant de construire les lignes.
+      const fiches = new Map();
+      for (const c of cr.clients) {
+        if (c.retrouve || c.annulee || pisteDe(c).candidat) continue;
+        const ident = ((c.prenom || '') + ' ' + (c.nom || '')).trim();
+        const dej = decisions.get(MATCHES.cleDe({ client: ident }));
+        if (dej && dej.confirme) continue;
+        const f = await ficheDe(ident, studio);
+        if (f) { fiches.set(ident, f); dire(studio + ' : fiche Deciplus trouvée pour un « à vérifier » (aucune vente saisie)'); }
+      }
+      const ligne = (c) => {
+        const client = ((c.prenom || '') + ' ' + (c.nom || '')).trim();
+        const paiement = paiementDe(c);
+        const fiche = fiches.get(client);
+        return Object.assign({
+          client,
+          date: c.date || '', prestation: c.prestation || '', commercial: c.commercial || '',
+          annulee: !!c.annulee, dateAnnulation: c.dateAnnulation || '',
+          retrouve: c.retrouve, site: c.site || '', dateVente: c.dateVente || '',
+          // Id_client Deciplus : sert UNIQUEMENT à ouvrir la fiche membre au
+          // clic. Aucune autre donnée personnelle n'est ajoutée au rapport.
+          idClient: c.idClient || '',
+          encaisse: !!paiement && paiement.etat === 'encaisse',
+        }, pisteDe(c),
+        paiement ? { paiement } : {},
+        fiche ? { ficheId: fiche.idClient, ficheNom: fiche.nom, ficheSite: fiche.site } : {});
+      };
       bloc.clientsRetrouves = {
         // `annulees` : comptées, affichées, mais hors du taux. `annulesExclus`
         // est conservé à l'identique pour que les rapports déjà déposés — qui ne
@@ -359,11 +452,20 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       if (pistes) {
         bloc.avertissements.push(pistes + ' rapprochement(s) proposé(s) — à confirmer à la main, hors du taux');
       }
-      const enAttente = cr.clients.filter((c) => c.retrouve && !c.encaisse).length;
-      if (enAttente) {
-        bloc.clientsRetrouves.retrouvesSansEncaissement = enAttente;
-        bloc.avertissements.push(enAttente + ' vente(s) saisie(s) dans le CRM sans encaissement sur ' + mois + ' — normal si l\'échéance tombe plus tard');
+      // Les paiements, comptés par état. Seul « aucun » est une anomalie ;
+      // « attendu » est dit pour mémoire, « indetermine » dit un manque de données.
+      const lignesCr = bloc.clientsRetrouves.liste;
+      const nb = (etat) => lignesCr.filter((l) => l.paiement && l.paiement.etat === etat).length;
+      bloc.clientsRetrouves.paiements = { encaisse: nb('encaisse'), attendu: nb('attendu'), aucun: nb('aucun'), indetermine: nb('indetermine') };
+      const pa = bloc.clientsRetrouves.paiements;
+      if (pa.aucun) bloc.avertissements.push(pa.aucun + ' vente(s) retrouvée(s) sans aucun encaissement sous ' + PAI.JOURS_FENETRE + ' jours après signature');
+      if (pa.attendu) bloc.avertissements.push(pa.attendu + ' premier(s) encaissement(s) attendu(s) — fenêtre de ' + PAI.JOURS_FENETRE + ' jours en cours');
+      if (pa.indetermine) {
+        bloc.avertissements.push(pa.indetermine + ' paiement(s) non vérifiable(s) : encaissements connus jusqu\'au '
+          + (couvertPaiement ? PAI.texte(couvertPaiement.au) : '—') + ' seulement');
       }
+      const nbFiches = lignesCr.filter((l) => l.ficheId).length;
+      if (nbFiches) bloc.avertissements.push(nbFiches + ' « à vérifier » avec fiche Deciplus trouvée mais aucune vente saisie');
       // Le site Deciplus peut différer du studio qui a porté la vente côté FB.
       const ailleurs = cr.clients.filter((c) => c.retrouve && c.site && M.studioLabel(c.site) !== studio);
       if (ailleurs.length) {
@@ -377,6 +479,8 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     rapport.studios[studio] = bloc;
   }
 
+
+  if (rechercheFiches) await rechercheFiches.fermer();
 
   // ── 5) Sortie ────────────────────────────────────────────────────────────
   rapport.erreurs = erreurs;

@@ -337,6 +337,14 @@ const Recap2UI = (function () {
       return '<a class="rec2-lien-fiche" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'
         + ' title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + nom + '</a>';
     }
+    // « À vérifier » dont la FICHE a été trouvée (recherche Membres, identité
+    // exacte et unique) : on ouvre cette fiche — et le libellé dit bien qu'il
+    // n'y a pas de vente derrière.
+    const hrefFiche = (!v.retrouve && !v.annulee && v.ficheId && R.lienDeciplusId) ? R.lienDeciplusId(v.ficheId) : null;
+    if (hrefFiche) {
+      return '<a class="rec2-lien-fiche" href="' + esc(hrefFiche) + '" target="_blank" rel="noopener noreferrer"'
+        + ' title="Ouvrir la fiche Deciplus trouvée — aucune vente saisie pour cette signature">' + nom + '</a>';
+    }
     // ON NE FABRIQUE AUCUN ID : pas de fiche, donc une recherche assumée.
     const rech = R.lienRechercheDeciplus ? R.lienRechercheDeciplus() : null;
     if (!rech) return nom;
@@ -391,19 +399,60 @@ const Recap2UI = (function () {
         + '</div></div>';
     }
     if (!v.retrouve) {
-      // Une PISTE, pas un verdict : le statut reste « à vérifier », et le nom
-      // proposé n'est qu'un candidat à confirmer à la main.
-      // Un rapprochement REFUSÉ le reste : on le dit, pour qu'on ne croie pas
-      // à un oubli du moteur.
-      return '<span class="rec2-etat is-non">À vérifier</span>'
-        + (v.refuse ? ' <span class="rec2-det-date">rapprochement refusé</span>' : '');
+      // « À VÉRIFIER » : aucune vente trouvée. Deux cas, jamais confondus :
+      //  · FICHE TROUVÉE — la personne existe dans Deciplus, mais aucune vente
+      //    n'y est saisie. Accès direct à sa fiche ; RIEN à confirmer, aucun
+      //    effet sur le KPI : trouver la fiche ne prouve pas la vente ;
+      //  · rien de fiable — une vraie action de recherche. Deciplus ne permet
+      //    pas de préremplir la recherche par un lien : on ouvre l'écran
+      //    Membres et on copie le nom, et le libellé le dit.
+      const R = window.Retention;
+      const refus = v.refuse ? ' <span class="rec2-det-date">rapprochement refusé</span>' : '';
+      const hrefFiche = (v.ficheId && R && R.lienDeciplusId) ? R.lienDeciplusId(v.ficheId) : null;
+      if (hrefFiche) {
+        return '<span class="rec2-etat is-non">À vérifier</span>'
+          + ' <span class="rec2-det-date">fiche trouvée, aucune vente saisie</span>' + refus
+          + '<div class="rec2-action"><a class="rec2-lien-fiche" href="' + esc(hrefFiche) + '" target="_blank" rel="noopener noreferrer"'
+          + ' title="Fiche Deciplus ' + esc(v.ficheNom || v.client) + (v.ficheSite ? ' · ' + esc(v.ficheSite) : '') + '">Ouvrir la fiche Deciplus ↗</a></div>';
+      }
+      const rech = (R && R.lienRechercheDeciplus) ? R.lienRechercheDeciplus() : null;
+      return '<span class="rec2-etat is-non">À vérifier</span>' + refus
+        + (rech ? '<div class="rec2-action"><a class="rec2-lien-rech" href="' + esc(rech) + '" target="_blank" rel="noopener noreferrer"'
+          + ' data-copier="' + esc(v.client) + '" title="Ouvre l\'écran Membres de Deciplus — la recherche n\'est pas préremplie, le nom « '
+          + esc(v.client) + ' » est copié dans le presse-papiers">Rechercher dans Deciplus ↗</a></div>' : '');
     }
     const notes = [];
     if (v.dateVente) notes.push('le ' + esc(v.dateVente));
-    if (v.encaisse === false) notes.push('pas encore encaissé');
+    const pai = etatPaiement(v);
+    if (pai.note) notes.push(pai.note);
     return '<span class="rec2-etat is-oui">Retrouvée</span>'
       + (notes.length ? ' <span class="rec2-det-date">' + notes.join(' · ') + '</span>' : '')
+      + pai.alerte
       + anomalieSite(v, studioAttendu);
+  }
+
+  // ── PAIEMENT SUR 31 JOURS ───────────────────────────────────────────────────
+  //  Posé par la collecte (crm-automation/lib/paiement.js), par Id_client, tous
+  //  sites. Aucun effet sur un KPI. Seul « aucun » est une anomalie visible.
+  //  Un rapport d'avant cette règle n'a que `encaisse` : on garde l'ancien
+  //  libellé, pour ne jamais lui prêter une précision qu'il n'a pas.
+  function etatPaiement(v) {
+    const p = v.paiement;
+    if (!p) return { note: v.encaisse === false ? 'pas encore encaissé' : '', alerte: '' };
+    const court = (d) => String(d || '').slice(0, 5);
+    if (p.etat === 'encaisse') {
+      const suivant = p.premier && v.date && p.premier.slice(3) !== String(v.date).slice(3);
+      return { note: 'encaissé le ' + esc(court(p.premier)) + (suivant ? ' (mois suivant)' : ''), alerte: '' };
+    }
+    if (p.etat === 'attendu') return { note: 'premier encaissement attendu', alerte: '' };
+    if (p.etat === 'indetermine') {
+      return { note: 'encaissement non vérifiable' + (p.couvertJusquau ? ' (données au ' + esc(court(p.couvertJusquau)) + ')' : ''), alerte: '' };
+    }
+    return {
+      note: '',
+      alerte: '<div class="rec2-pai"><span class="rec2-etat is-pai" title="Aucun encaissement net positif entre la signature et le '
+        + esc(p.finFenetre || '') + ', données vérifiées jusqu\'au ' + esc(p.couvertJusquau || '') + '">⚠ Aucun encaissement sous 31 jours</span></div>',
+    };
   }
 
   // ── SITE DECIPLUS DIVERGENT ─────────────────────────────────────────────────
