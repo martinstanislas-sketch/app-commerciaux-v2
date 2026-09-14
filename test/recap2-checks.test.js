@@ -115,3 +115,90 @@ test('creerTable est idempotente', () => {
   C.creerTable(db);
   assert.equal(C.controlesDuMois(db, '2026-08').size, 1, 'les données existantes survivent');
 });
+
+// ── RÉSILIATION MANUELLE ────────────────────────────────────────────────────
+//  Résilié ≠ Annulé : une information de plus, date obligatoire, bornée par la
+//  signature et par aujourd'hui (à Paris), jamais un effet sur un compteur.
+const LE_14_09 = new Date('2026-09-14T10:00:00Z');
+const resil = (db, o) => C.resilier(db, Object.assign({ mois: '2026-08', studio: 'Marcq', client: 'Camille Gremez', dateSignature: '05/08/2026', par: 'Stan', maintenant: LE_14_09 }, o));
+
+test('résiliation : date obligatoire, ni avant la signature, ni dans le futur', () => {
+  const db = baseNeuve();
+  assert.throws(() => resil(db, { resilie: true, dateResiliation: '' }), /date de résiliation obligatoire/);
+  assert.throws(() => resil(db, { resilie: true, dateResiliation: '31/02/2026' }), /obligatoire/, 'date impossible');
+  assert.throws(() => resil(db, { resilie: true, dateResiliation: '04/08/2026' }), /ne peut pas précéder la signature/);
+  assert.throws(() => resil(db, { resilie: true, dateResiliation: '15/09/2026' }), /dans le futur/);
+  assert.throws(() => resil(db, { resilie: 'oui', dateResiliation: '10/09/2026' }), /vrai ou faux/);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM recap2_manual_checks').get().n, 0, 'rien n\'a été écrit');
+  assert.equal(resil(db, { resilie: true, dateResiliation: '05/08/2026' }).resilie, true, 'le jour même de la signature : accepté');
+  assert.equal(resil(db, { resilie: true, dateResiliation: '14/09/2026' }).resilie, true, 'aujourd\'hui : accepté');
+});
+
+test('« aujourd\'hui » se juge à Paris : le 14/09 à 23h30 Paris (21h30 UTC) accepte le 14/09, refuse le 15/09', () => {
+  const db = baseNeuve();
+  const soir = new Date('2026-09-14T21:30:00Z');
+  assert.equal(resil(db, { resilie: true, dateResiliation: '14/09/2026', maintenant: soir }).resilie, true);
+  assert.throws(() => resil(db, { resilie: true, dateResiliation: '15/09/2026', maintenant: soir }), /futur/);
+  // 00h30 Paris le 15/09 = 22h30 UTC le 14/09 : le 15/09 n'est PLUS le futur.
+  assert.equal(resil(db, { resilie: true, dateResiliation: '15/09/2026', maintenant: new Date('2026-09-14T22:30:00Z') }).resilie, true);
+});
+
+test('résiliation : date, délai depuis la signature, auteur et date de modification', () => {
+  const db = baseNeuve();
+  const r = resil(db, { resilie: true, dateResiliation: '10/09/2026' });
+  assert.deepEqual([r.resilie, r.date, r.delaiJours, r.modifiePar], [true, '10/09/2026', 36, 'Stan']);
+  assert.ok(r.modifieLe);
+});
+
+test('retirer la résiliation : statut et date effacés, auteur du retrait conservé', () => {
+  const db = baseNeuve();
+  resil(db, { resilie: true, dateResiliation: '10/09/2026' });
+  const r = resil(db, { resilie: false, par: 'Mathieu' });
+  assert.deepEqual([r.resilie, r.date, r.delaiJours, r.modifiePar], [false, '', null, 'Mathieu']);
+});
+
+test('résiliation et Prélèvement / Réservation sont INDÉPENDANTS, dans les deux sens', () => {
+  const db = baseNeuve();
+  ecrire(db, { champ: 'prelevement', valeur: true });
+  resil(db, { resilie: true, dateResiliation: '10/09/2026' });
+  ecrire(db, { champ: 'reservation', valeur: true, par: 'Autre' });
+  const c = C.controlesDuMois(db, '2026-08').get('Marcq|' + C.cleVente({ client: 'Camille Gremez', date: '05/08/2026' }));
+  assert.deepEqual([c.prelevement, c.reservation], [true, true], 'la résiliation n\'a décoché aucune case');
+  assert.deepEqual([c.resiliation.resilie, c.resiliation.date, c.resiliation.modifiePar], [true, '10/09/2026', 'Stan'],
+    'cocher Réservation n\'écrase ni la résiliation ni SON auteur');
+});
+
+test('migration : une table d\'avant la résiliation reçoit ses colonnes, sans perdre une case', () => {
+  const Database2 = require('better-sqlite3');
+  const db = new Database2(':memory:');
+  db.exec(`CREATE TABLE recap2_manual_checks (mois TEXT NOT NULL, studio TEXT NOT NULL, cle_vente TEXT NOT NULL,
+    client TEXT NOT NULL DEFAULT '', date_vente TEXT NOT NULL DEFAULT '', prelevement INTEGER NOT NULL DEFAULT 0,
+    reservation INTEGER NOT NULL DEFAULT 0, modifie_le TEXT NOT NULL, modifie_par TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (mois, studio, cle_vente))`);
+  const cle = C.cleVente({ client: 'Camille Gremez', date: '05/08/2026' });
+  db.prepare("INSERT INTO recap2_manual_checks (mois, studio, cle_vente, prelevement, modifie_le) VALUES ('2026-08','Marcq',?,1,'x')").run(cle);
+  C.creerTable(db); C.creerTable(db);   // deux démarrages de suite
+  const cols = db.prepare('PRAGMA table_info(recap2_manual_checks)').all().map((x) => x.name);
+  ['resilie', 'date_resiliation', 'resilie_le', 'resilie_par'].forEach((k) => assert.ok(cols.includes(k), k));
+  const c = C.controlesDuMois(db, '2026-08').get('Marcq|' + cle);
+  assert.equal(c.prelevement, true, 'la case existante a survécu');
+  assert.equal(c.resiliation.resilie, false);
+});
+
+test('appliquer : résiliation affichée sur une vente retrouvée, jamais sur un « à vérifier » ni une annulée', () => {
+  const db = baseNeuve();
+  resil(db, { resilie: true, dateResiliation: '10/09/2026' });
+  resil(db, { client: 'Ritha Konzo', dateSignature: '06/08/2026', resilie: true, dateResiliation: '10/09/2026' });
+  resil(db, { client: 'Dei Muteba', dateSignature: '10/08/2026', resilie: true, dateResiliation: '11/09/2026' });
+  const source = rapport();
+  const r = C.appliquer(source, C.controlesDuMois(db, '2026-08'));
+  const [retrouvee, aVerifier, annulee] = r.studios.Marcq.clientsRetrouves.liste;
+  assert.equal(retrouvee.resiliation.resilie, true);
+  assert.equal(retrouvee.resiliation.date, '10/09/2026');
+  assert.equal(aVerifier.resiliation.resilie, false, 'un « à vérifier » ne se résilie pas');
+  assert.equal(annulee.resiliation.resilie, false, 'Résilié ≠ Annulé');
+  ['ventesSignees', 'annulees', 'ventesActives', 'signataires', 'retrouves', 'taux', 'tauxPct'].forEach((k) => {
+    assert.equal(r.studios.Marcq.clientsRetrouves[k], source.studios.Marcq.clientsRetrouves[k], k + ' inchangé');
+  });
+  assert.equal(retrouvee.retrouve, true, 'une vente résiliée reste retrouvée');
+});
