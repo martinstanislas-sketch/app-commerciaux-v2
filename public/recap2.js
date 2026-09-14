@@ -310,14 +310,30 @@ const Recap2UI = (function () {
   //
   //  `rel="noopener noreferrer"` : la page ouverte ne doit pas pouvoir manipuler
   //  celle-ci via window.opener.
+  //  DEUX destinations, jamais confondues :
+  //   · client RETROUVÉ avec un Id_client fiable -> SA FICHE, directement ;
+  //   · sinon (« à vérifier », ou annulé) -> l'écran Membres, pour chercher à la
+  //     main. Vérifié le 2026-09-14 : Deciplus ignore les paramètres d'URL sur
+  //     select.php, on ne peut donc pas préremplir la recherche. Le lien le dit
+  //     (libellé, infobulle, icône ↗) et ne se fait JAMAIS passer pour une fiche.
+  //     Pour épargner la ressaisie, le nom part dans le presse-papiers au clic.
   function nomClient(v) {
     const nom = esc(v.client);
-    if (!v || !v.retrouve) return nom;                    // un « à vérifier » n'a pas de fiche
     const R = window.Retention;
-    const href = (R && R.lienDeciplusId) ? R.lienDeciplusId(v.idClient) : null;
-    if (!href) return nom;                                // id absent ou douteux -> texte simple
-    return '<a class="rec2-lien-fiche" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'
-      + ' title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + nom + '</a>';
+    if (!v || !R) return nom;
+    const href = (v.retrouve && R.lienDeciplusId) ? R.lienDeciplusId(v.idClient) : null;
+    if (href) {
+      return '<a class="rec2-lien-fiche" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'
+        + ' title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + nom + '</a>';
+    }
+    // ON NE FABRIQUE AUCUN ID : pas de fiche, donc une recherche assumée.
+    const rech = R.lienRechercheDeciplus ? R.lienRechercheDeciplus() : null;
+    if (!rech) return nom;
+    return '<a class="rec2-lien-rech" href="' + esc(rech) + '" target="_blank" rel="noopener noreferrer"'
+      + ' data-copier="' + esc(v.client) + '"'
+      + ' title="Rechercher « ' + esc(v.client) + ' » dans Deciplus — la recherche n\'est pas préremplie,'
+      + ' le nom est copié dans le presse-papiers">' + nom + '<span class="rec2-lien-ico" aria-hidden="true"> ↗</span>'
+      + '<span class="rec2-sr">(rechercher dans Deciplus)</span></a>';
   }
 
   // ── LES TROIS STATUTS MÉTIER ────────────────────────────────────────────────
@@ -508,6 +524,18 @@ const Recap2UI = (function () {
 
   // ── INTERACTIONS ────────────────────────────────────────────────────────────
   function onBodyClick(e) {
+    // Un lien de RECHERCHE : on copie le nom pour n'avoir qu'à le coller, et on
+    // laisse le navigateur ouvrir l'onglet. La copie ne doit jamais bloquer le
+    // lien — elle échoue silencieusement si le navigateur la refuse.
+    const rech = e.target.closest('[data-copier]');
+    if (rech) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(rech.dataset.copier).catch(() => {});
+        }
+      } catch (_) { /* sans conséquence : le lien s'ouvre quand même */ }
+      return; // on ne préempte pas la navigation
+    }
     if (e.target.closest('[data-alertes]')) { alertesOuvertes = !alertesOuvertes; render(); return; }
     const fil = e.target.closest('[data-filtre]');
     if (fil) { const [label, val] = fil.dataset.filtre.split('|'); filtreComp[label] = val; render(); return; }
