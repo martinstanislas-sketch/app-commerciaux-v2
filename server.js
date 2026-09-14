@@ -4628,6 +4628,15 @@ function ensureRetentionSchema() {
 }
 ensureRetentionSchema();
 
+// ─── RECAP 2 : les rapprochements décidés par un humain ──────────────────────
+//  Création idempotente au démarrage, dans la MÊME base que le reste — donc
+//  dans le volume Railway. Un redéploiement ne détruit donc pas les décisions :
+//  c'est le volume qui les porte, pas l'image.
+function ensureRecap2MatchesSchema() {
+  require('./lib/recap2Matches.js').creerTable(getDb());
+}
+ensureRecap2MatchesSchema();
+
 // ─── LEADS (saisie manuelle par club/mois + comparatif N-1) ──────────────────
 function ensureLeadsSchema() {
   getDb().exec(`
@@ -5216,6 +5225,10 @@ app.get('/api/boss/:mois', requireAuth, requireDirection, (req, res) => {
 //
 //  ⚠️ AUCUNE ÉCRITURE EN BASE : ni tables retention_*, ni quoi que ce soit.
 const Recap2Store = require('./lib/recap2Store.js');
+// Les rapprochements décidés par un humain. Ils vivent en BASE (donc dans le
+// volume Railway, comme le reste), jamais dans le JSON mensuel — qui est
+// remplacé à chaque collecte. Cf. lib/recap2Matches.js.
+const Recap2Matches = require('./lib/recap2Matches.js');
 const RECAP2_MOIS_RE = Recap2Store.MOIS_RE;
 // Chemin historique : le JSON produit localement par la collecte. Sur le Mac,
 // l'écran marche donc sans dépôt ; sur Railway ce dossier n'existe pas (il est
@@ -5237,6 +5250,71 @@ function recap2CleValide(fournie) {
   const b = crypto.createHash('sha256').update(attendue).digest();
   return crypto.timingSafeEqual(a, b);
 }
+
+// ─── CONFIRMER / REFUSER UN RAPPROCHEMENT ───────────────────────────────────
+//  Admin connecté uniquement, comme la lecture. On ne fait AUCUNE confiance au
+//  corps de la requête : chaque champ est validé ici, et le module refuse de
+//  son côté un Id_client non numérique ou un statut inconnu.
+app.post('/api/recap2/matches', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const client = String(b.client || '').trim();
+  const idClient = String(b.idClient || '').trim();
+  const statut = String(b.statut || '').trim();
+  const fbContactId = String(b.fbContactId || '').trim();
+  const nomDeciplus = String(b.nomDeciplus || '').trim();
+  const methode = String(b.methode || 'fuzzy').trim();
+  const score = b.score == null ? null : Number(b.score);
+
+  if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
+  if (!/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'idClient : chiffres attendus' });
+  if (statut !== 'confirmed' && statut !== 'rejected') return res.status(400).json({ error: 'statut : confirmed ou rejected' });
+  if (nomDeciplus.length > 200 || fbContactId.length > 100) return res.status(400).json({ error: 'champ trop long' });
+  if (score != null && (!Number.isFinite(score) || score < 0 || score > 1)) return res.status(400).json({ error: 'score hors bornes' });
+  if (['fuzzy', 'email', 'manuel'].indexOf(methode) < 0) return res.status(400).json({ error: 'méthode inconnue' });
+
+  try {
+    const qui = (req.user && (req.user.name || req.user.role)) || '';
+    const out = Recap2Matches.decider(getDb(), {
+      client, fbContactId, idClient, nomDeciplus, statut, score, methode, decidePar: String(qui).slice(0, 80),
+    });
+    console.log('recap2 rapprochement ' + statut + ' : ' + client + ' -> ' + idClient);
+    res.json({ ok: true, ...out });
+  } catch (e) {
+    console.error('recap2 rapprochement :', e && e.message);
+    res.status(400).json({ error: e && e.message ? e.message : 'décision refusée' });
+  }
+});
+
+// Annuler une décision (se tromper doit être réparable).
+app.delete('/api/recap2/matches', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const client = String(b.client || '').trim();
+  const idClient = String(b.idClient || '').trim();
+  if (!client || !/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'client et idClient requis' });
+  try {
+    const n = Recap2Matches.oublier(getDb(), { client, fbContactId: String(b.fbContactId || ''), idClient });
+    res.json({ ok: true, supprimes: n });
+  } catch (e) { res.status(400).json({ error: 'suppression impossible' }); }
+});
+
+// Les décisions connues — la collecte les lit AVANT son moteur fuzzy.
+//  ⚠️ DEUX PORTES, car deux appelants : l'écran (admin connecté) et la collecte
+//  sur le Mac (clé de dépôt, la même que pour le POST du rapport). Aucune des
+//  deux n'est ouverte : sans clé configurée, la clé ne vaut rien (503 côté
+//  dépôt), et sans session valide requireAuth refuse.
+app.get('/api/recap2/matches', (req, res, next) => {
+  const cle = req.get('X-Recap2-Key');
+  if (cle && recap2CleAttendue() && recap2CleValide(cle)) return next();
+  return requireAuth(req, res, () => requireAdmin(req, res, next));
+}, (req, res) => {
+  try {
+    const out = [];
+    Recap2Matches.toutesLesDecisions(getDb()).forEach((e, cle) => {
+      out.push({ cle, confirme: e.confirme ? { idClient: String(e.confirme.id_client), nomDeciplus: e.confirme.nom_deciplus, clientFb: e.confirme.client_fb } : null, refuses: e.refuses });
+    });
+    res.json({ matches: out });
+  } catch (e) { res.status(500).json({ error: 'lecture impossible' }); }
+});
 
 app.post('/api/recap2/:mois', (req, res) => {
   const mois = String(req.params.mois || '');
@@ -5280,6 +5358,21 @@ app.post('/api/recap2/:mois', (req, res) => {
   }
 });
 
+// ─── LES DÉCISIONS HUMAINES, POSÉES À LA LECTURE ────────────────────────────
+//  Le rapport affiché = le JSON déposé + les décisions en base. Le fichier
+//  historique n'est JAMAIS réécrit pour enregistrer une validation : c'est ce
+//  qui permet à une recollecte de ne pas les écraser.
+function recap2AvecDecisions(rapport) {
+  try {
+    return Recap2Matches.appliquer(rapport, Recap2Matches.toutesLesDecisions(getDb()));
+  } catch (e) {
+    // Une décision illisible ne doit pas priver Stan de son rapport : on sert
+    // le brut et on le dit dans les journaux.
+    console.error('recap2 décisions :', e && e.message);
+    return rapport;
+  }
+}
+
 app.get('/api/recap2/:mois', requireAuth, requireAdmin, (req, res) => {
   const mois = String(req.params.mois || '');
   if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
@@ -5289,7 +5382,7 @@ app.get('/api/recap2/:mois', requireAuth, requireAdmin, (req, res) => {
     if (r.rapport && r.rapport.mois && r.rapport.mois !== mois) {
       return res.status(409).json({ error: 'Le fichier trouvé porte le mois ' + r.rapport.mois + ', pas ' + mois + '.' });
     }
-    return res.json(r.rapport);
+    return res.json(recap2AvecDecisions(r.rapport));
   }
   if (r.etat === 'illisible') {
     console.error('recap2 lecture :', r.raison);
@@ -5300,7 +5393,7 @@ app.get('/api/recap2/:mois', requireAuth, requireAdmin, (req, res) => {
   // vient d'écrire — pratique pour vérifier un mois avant de le déposer.
   const local = path.resolve(RECAP2_DIR_LOCAL, 'recap2-' + mois + '.json');
   if (path.dirname(local) === path.resolve(RECAP2_DIR_LOCAL) && fs.existsSync(local)) {
-    try { return res.json(JSON.parse(fs.readFileSync(local, 'utf8'))); }
+    try { return res.json(recap2AvecDecisions(JSON.parse(fs.readFileSync(local, 'utf8')))); }
     catch (e) { console.error('recap2 lecture locale :', e && e.message); return res.status(500).json({ error: 'Fichier de collecte illisible.' }); }
   }
   res.status(404).json({
