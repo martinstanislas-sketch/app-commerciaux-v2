@@ -101,6 +101,49 @@ const clubAffiche = (page) => page.evaluate(() => {
   return m ? m[1].trim() : '';
 });
 
+// ── ANALYSE D'UNE LIGNE DE DÉTAIL (pure, testable sans navigateur) ─────────
+//  Une ligne complète se présente ainsi :
+//     [0] rang · [1] identité · [2] prestation · [3] source
+//     [4] « 05/08/2026 |  Fabian F. »
+//     [5] « Voir la fiche du contact » · [6] PDF · [7] mandat SEPA
+//
+//  ⚠️ ON NE LIT PLUS PAR POSITION. Bubble peint la ligne PAR MORCEAUX : surpris
+//  en flagrant délit le 2026-09-14 sur Marcq, les segments 2 à 4 manquaient
+//  encore, si bien que l[2] valait « Voir la fiche du contact » et que date
+//  comme commercial ressortaient VIDES. Le compteur était bon (les lignes
+//  existaient), donc rien ne le signalait : le rapport est parti avec 5 ventes
+//  sans commercial. Le KPI restait juste — il ne dépend que de l'identité — mais
+//  la vue par commercial devenait fausse en silence.
+//
+//  La DATE identifie donc sa ligne par son MOTIF (JJ/MM/AAAA en tête de
+//  segment). « Voir le contrat PDF(05/08/26) » ne peut pas être confondue avec
+//  elle : année sur deux chiffres, et pas en tête de segment.
+const RE_DATE = /^(\d{2}\/\d{2}\/\d{4})\s*(?:\|\s*(.*))?$/;
+const RE_UI = /^(Voir la fiche|Voir le contrat|Voir le mandat)/i;
+
+function analyserLigne(texte) {
+  const t = String(texte == null ? '' : texte);
+  const segs = t.split('\n').map((s) => s.trim()).filter(Boolean);
+  const iDate = segs.findIndex((s) => RE_DATE.test(s));
+  const m = iDate >= 0 ? RE_DATE.exec(segs[iDate]) : null;
+  const identite = segs[1] && !RE_UI.test(segs[1]) ? segs[1] : '';
+  // Entre l'identité et la date : prestation puis source. Tout libellé
+  // d'interface qui s'y glisse est écarté plutôt que pris pour une prestation.
+  const milieu = (iDate > 2 ? segs.slice(2, iDate) : []).filter((s) => !RE_UI.test(s));
+  return {
+    rang: segs[0] || '',
+    identite,
+    prestation: milieu[0] || '',
+    source: milieu[1] || '',
+    date: m ? m[1] : '',
+    commercial: m && m[2] ? m[2].trim() : '',
+    annulee: /Vente annul/i.test(t),
+    // Une ligne sans date ou sans identité n'est pas « une donnée absente » :
+    // c'est une lecture trop tôt. On attend, puis on échoue.
+    complete: !!m && !!identite,
+  };
+}
+
 // ── Lecture d'un studio pour un mois ───────────────────────────────────────
 async function lireStudio(page, studio, ym, journal = () => {}) {
   await choisirClub(page, studio, journal);
@@ -154,32 +197,63 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
     throw new Error('Période du détail ' + periodeDetail.du + ' → ' + periodeDetail.au + ' ≠ mois demandé ' + ym);
   }
 
-  // Extraction : le groupe répétitif dont le nombre d'enfants égale le compteur.
-  const lignes = await page.evaluate((n) => {
+  // ── Extraction : le groupe répétitif dont le nombre d'enfants égale le compteur.
+  //
+  //  ⚠️ ON NE LIT PLUS LES CHAMPS PAR POSITION. Une ligne complète ressemble à :
+  //     [0] rang · [1] identité · [2] prestation · [3] source
+  //     [4] « 05/08/2026 |  Fabian F. »
+  //     [5] « Voir la fiche du contact » · [6] PDF · [7] mandat SEPA
+  //  Mais Bubble peint la ligne PAR MORCEAUX. Surpris en flagrant délit le
+  //  2026-09-14 sur Marcq : les segments 2 à 4 n'étaient pas encore là, donc
+  //  l[2] valait « Voir la fiche du contact » et la date comme le commercial
+  //  ressortaient VIDES. Le compteur, lui, était bon (les lignes existaient) :
+  //  le contrôle ne voyait rien, et le rapport partait avec 5 ventes sans
+  //  commercial. Le KPI restait juste — il ne dépend que de l'identité — mais
+  //  la vue par commercial, elle, devenait fausse en silence.
+  //
+  //  D'où deux garde-fous :
+  //   · la DATE identifie sa ligne par son motif (JJ/MM/AAAA en début de
+  //     segment) et non par son rang — « Voir le contrat PDF(05/08/26) » ne
+  //     peut pas être pris pour elle : année sur 2 chiffres, et pas en tête ;
+  //   · une ligne SANS date est réputée pas encore peinte : on attend, puis on
+  //     ÉCHOUE. Mieux vaut rejouer le studio que publier des champs vides.
+  //  Le DOM ne rend que du BRUT (les segments de texte de chaque ligne) ; toute
+  //  l'interprétation se fait dans Node, par analyserLigne() — pure, exportée,
+  //  et donc testable sans navigateur. C'est ce qui permet de rejouer à froid la
+  //  ligne à moitié peinte qui nous a piégés.
+  const BRUT = (n) => {
     const rgs = [...document.querySelectorAll('.bubble-element.RepeatingGroup')];
     const rg = rgs.find((e) => e.children.length === n) || rgs.find((e) => e.children.length > 0 && e.children.length <= n);
     if (!rg) return null;
-    return [...rg.children].map((ch) => {
-      const t = (ch.innerText || '');
-      const l = t.split('\n').map((s) => s.trim()).filter(Boolean);
-      return {
-        rang: l[0] || '', identite: l[1] || '', prestation: l[2] || '', source: l[3] || '',
-        dateEtCommercial: l[4] || '', annulee: /Vente annul/i.test(t),
-      };
-    });
-  }, compteur);
+    return [...rg.children].map((ch) => (ch.innerText || ''));
+  };
+
+  // ATTENTE ACTIVE de lignes COMPLÈTES, pas seulement présentes.
+  let lignes = null;
+  for (let i = 0; i < 15; i++) {
+    const brut = await page.evaluate(BRUT, compteur);
+    lignes = brut && brut.map(analyserLigne);
+    if (lignes && lignes.length === compteur && lignes.every((l) => l.complete)) break;
+    await page.waitForTimeout(1000);
+  }
   if (!lignes) throw new Error('Liste de détail introuvable');
 
   // CONTRÔLE 4, le plus important : lignes extraites = compteur affiché.
   if (lignes.length !== compteur) {
     throw new Error('Extraction incomplète : ' + lignes.length + ' ligne(s) lues pour un compteur de ' + compteur);
   }
+  // CONTRÔLE 5 : chaque ligne est réellement peinte. Un champ vide n'est jamais
+  // « une donnée absente » ici — c'est une lecture trop tôt.
+  const creuses = lignes.filter((l) => !l.complete);
+  if (creuses.length) {
+    throw new Error('Lignes incomplètes après 15 s : ' + creuses.length + '/' + compteur
+      + ' sans date ni identité exploitables (panneau à moitié peint)');
+  }
 
-  const contrats = lignes.map((l) => {
-    const date = (l.dateEtCommercial.split('|')[0] || '').trim();
-    const commercial = (l.dateEtCommercial.split('|')[1] || '').trim();
-    return { identite: l.identite, prestation: l.prestation, source: l.source, date, commercial, annulee: l.annulee };
-  });
+  const contrats = lignes.map((l) => ({
+    identite: l.identite, prestation: l.prestation, source: l.source,
+    date: l.date, commercial: l.commercial, annulee: l.annulee,
+  }));
   const annulees = contrats.filter((c) => c.annulee).length;
   journal(studio + ' : ' + compteur + ' contrat(s) souscrit(s), dont ' + annulees + ' annulé(s) — période ' + periodeDetail.du + ' → ' + periodeDetail.au);
 
@@ -187,4 +261,4 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
   return { studio, club, mois: ym, compteur, contrats, annulees, periodeDetail };
 }
 
-module.exports = { lireStudio, fermerPanneau, choisirClub, CLUBS_FB, decalageMois, urlStats, MOIS_FR2, norm };
+module.exports = { lireStudio, analyserLigne, fermerPanneau, choisirClub, CLUBS_FB, decalageMois, urlStats, MOIS_FR2, norm };

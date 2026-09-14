@@ -195,19 +195,34 @@ test('le message de doublons est celui qu\'on veut lire', () => {
 });
 
 // ─── Les chiffres nommément exigés, écrits en clair ─────────────────────────
+//  ⚠️ LE 2e KPI DÉPEND DE LA RÈGLE MÉTIER DU RAPPORT RELU.
+//  Un mois régénéré en v2 ne porte plus de « complétion » : exiger l'ancien
+//  chiffre sur un rapport v2 ferait tomber le test sur un faux motif. On garde
+//  donc les DEUX jeux validés, et on compare celui que le rapport porte
+//  réellement. La non-reconduction, elle, est exigée à l'identique dans les
+//  deux cas : c'est la garantie qu'elle n'a pas bougé d'un iota avec la v2.
 const ATTENDU = {
   '2026-06': { Wasquehal: { nr: [5, 71, 7.0], comp: [9, 11, 81.8] } },
-  '2026-07': { Wasquehal: { nr: [11, 78, 14.1], comp: [10, 13, 76.9] } },
+  '2026-07': { Wasquehal: { nr: [11, 78, 14.1], comp: [10, 13, 76.9], crm: [9, 10, 90.0] } },
 };
 Object.keys(ATTENDU).forEach((mois) => {
   const m1 = mois === '2026-06' ? '2026-05' : '2026-06';
-  test('Wasquehal ' + mois + ' : non-reconduction et complétion inchangées', { skip: !comparable(mois, m1) && 'pas de rapport de production du même millésime que les CSV' }, () => {
+  test('Wasquehal ' + mois + ' : non-reconduction et 2e KPI inchangés', { skip: !comparable(mois, m1) && 'pas de rapport de production du même millésime que les CSV' }, () => {
     const prod = JSON.parse(fs.readFileSync(jsonDe(mois), 'utf8'));
     const r = rejouer(mois, prod).studios.Wasquehal;
     const a = ATTENDU[mois].Wasquehal;
-    // Non-reconduction : RECALCULÉE depuis le CSV, pas relue.
+    // Non-reconduction : RECALCULÉE depuis le CSV, pas relue. Exigée dans les
+    // deux règles — elle ne dépend ni du journal des ventes ni du commercial.
     assert.deepEqual([r.nonReconduction.nb, r.nonReconduction.base, pct1(r.nonReconduction.taux)], a.nr);
-    // Complétion : relue du rapport, et elle doit valoir ce qui a été validé.
-    assert.deepEqual([r.completion.ontPaye, r.completion.contratsValides, r.completion.tauxPct], a.comp);
+    // 2e KPI : relu du rapport, selon la règle qui l'a produit.
+    const v2 = (prod.businessVersion || 1) >= 2;
+    if (v2) {
+      assert.ok(a.crm, 'chiffre v2 attendu manquant pour ' + mois);
+      const c = prod.studios.Wasquehal.clientsRetrouves;
+      assert.deepEqual([c.retrouves, c.signataires, c.tauxPct], a.crm);
+      assert.equal(r.completion, null, 'un rapport v2 ne porte plus de complétion');
+    } else {
+      assert.deepEqual([r.completion.ontPaye, r.completion.contratsValides, r.completion.tauxPct], a.comp);
+    }
   });
 });

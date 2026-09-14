@@ -282,7 +282,10 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
         liste: cr.clients.map((c) => ({
           client: ((c.prenom || '') + ' ' + (c.nom || '')).trim(),
           date: c.date || '', prestation: c.prestation || '', commercial: c.commercial || '',
-          retrouve: c.retrouve, site: c.site || '', dateVente: c.dateVente || '', encaisse: c.encaisse,
+          retrouve: c.retrouve, site: c.site || '', dateVente: c.dateVente || '',
+          // Id_client Deciplus : sert UNIQUEMENT à ouvrir la fiche membre au
+          // clic. Aucune autre donnée personnelle n'est ajoutée au rapport.
+          idClient: c.idClient || '', encaisse: c.encaisse,
         })),
       };
       // Le taux se lit en SIGNATAIRES UNIQUES : deux ventes d'une même personne

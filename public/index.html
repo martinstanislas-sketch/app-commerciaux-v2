@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ds2-franchise2">
+  <link rel="stylesheet" href="style.css?v=ds2-recap2fiche">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -233,9 +233,16 @@
             <h2 class="rec2-title">RECAP 2</h2>
             <p class="rec2-sub" id="rec2-sub"></p>
           </div>
-          <label class="rec2-mois">Mois analys&eacute; (M)
-            <input type="month" id="rec2-mois" />
-          </label>
+          <div class="rec2-filtres">
+            <label class="rec2-mois">Mois analys&eacute; (M)
+              <input type="month" id="rec2-mois" />
+            </label>
+            <!-- Commercial : ne filtre QUE « clients retrouv&eacute;s dans Deciplus ».
+                 Les options sont d&eacute;riv&eacute;es du rapport, jamais &eacute;crites en dur. -->
+            <label class="rec2-mois rec2-commercial" id="rec2-commercial-wrap" hidden>Commercial
+              <select id="rec2-commercial"></select>
+            </label>
+          </div>
         </header>
         <div id="rec2-body"></div>
       </div>
@@ -1279,11 +1286,11 @@
   <!-- Bottom navigation (mobile only) -->
   <nav id="bottom-nav" class="bottom-nav"></nav>
 
-  <script src="retention.js?v=rec51"></script>
+  <script src="retention.js?v=rec52"></script>
   <script src="retention-parse.js?v=rec16"></script>
   <script src="recap.js?v=rec54"></script>
-  <script src="recap2-metrics.js?v=rec2-2"></script>
-  <script src="recap2.js?v=rec2-3"></script>
+  <script src="recap2-metrics.js?v=rec2-4"></script>
+  <script src="recap2.js?v=rec2-5"></script>
   <script src="lead.js?v=lead5"></script>
   <script src="fan.js?v=fan12"></script>
   <script src="boss.js?v=boss4"></script>
