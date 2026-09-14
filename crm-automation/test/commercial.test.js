@@ -204,13 +204,21 @@ test('août 2026 réel : la somme des commerciaux = la somme des studios',
   { skip: !dispo && 'rapport local absent' }, () => {
     const r = JSON.parse(fs.readFileSync(REEL, 'utf8'));
     if (r.businessVersion !== 2) return;
+    // ⚠️ ON COMPARE DES POPULATIONS COMPARABLES. Depuis que les ventes ANNULÉES
+    // sont visibles, `signataires` ne compte que les ACTIVES alors que la vue
+    // par commercial montre tout ce qui a été signé. L'invariant porte donc sur
+    // les ventes SIGNÉES (actives + annulées) et sur les retrouvées.
     const parStudio = M.LABELS.reduce((a, s) => {
       const cr = r.studios[s].clientsRetrouves;
-      return { t: a.t + cr.signataires, r: a.r + cr.retrouves };
+      return { t: a.t + cr.signataires + (cr.annulees || 0), r: a.r + cr.retrouves };
     }, { t: 0, r: 0 });
     const parCom = M.commerciauxDuRapport(r).reduce((a, c) => ({ t: a.t + c.ventes, r: a.r + c.retrouves }), { t: 0, r: 0 });
     assert.deepEqual(parCom, parStudio,
       'aucune vente ne peut apparaître ou disparaître selon l\'axe de lecture');
+    // Et les annulées se retrouvent des deux côtés, au même nombre.
+    const annulStudio = M.LABELS.reduce((n, s) => n + (r.studios[s].clientsRetrouves.annulees || 0), 0);
+    const annulCom = M.commerciauxDuRapport(r).reduce((n, c) => n + (c.annulees || 0), 0);
+    assert.equal(annulCom, annulStudio, 'les annulées non plus');
   });
 
 test('août 2026 réel : un commercial multi-studios est bien consolidé',
@@ -291,16 +299,11 @@ test('nettoyer() efface tout id non plausible ou orphelin', () => {
   assert.equal(l.find((x) => x.client === 'C').idClient, '', 'l\'id orphelin est effacé');
 });
 
-test('4. le lien s\'ouvre dans un NOUVEL onglet, sans donner la main à la page ouverte', () => {
-  // Le rendu est dans public/recap2.js : on vérifie le contrat sur la source,
-  // faute de DOM ici. target=_blank ET rel=noopener noreferrer, ensemble.
-  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'recap2.js'), 'utf8');
-  const bloc = src.slice(src.indexOf('function nomClient'), src.indexOf('function nomClient') + 1200);
-  assert.match(bloc, /target="_blank"/, 'nouvel onglet');
-  assert.match(bloc, /rel="noopener noreferrer"/, 'la page ouverte ne doit pas manipuler RECAP 2');
-  assert.match(bloc, /lienDeciplusId/, 'le lien vient de l\'Id_client, jamais d\'une recherche par nom');
-  assert.match(bloc, /if \(!v \|\| !v\.retrouve\) return nom;/, 'un « à vérifier » n\'est jamais un lien');
-});
+// Le rendu des liens (fiche directe vs recherche, nouvel onglet, aucun id
+// fabriqué) est désormais tenu par test/liensFiche.test.js : depuis qu'un
+// « à vérifier » ouvre l'écran Membres, l'ancienne assertion « jamais un lien »
+// serait fausse. Un seul fichier décrit cette règle, pour qu'elle ne se
+// contredise pas d'un test à l'autre.
 
 test('août 2026 réel : les retrouvés portent un id, les « à vérifier » aucun',
   { skip: !dispo && 'rapport local absent' }, () => {

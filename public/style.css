@@ -21913,3 +21913,20 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec2-lien-fiche { color: var(--r2-text); text-decoration: none; border-bottom: 1px dotted var(--r2-accent); }
 .rec2-lien-fiche:hover, .rec2-lien-fiche:focus-visible { color: var(--r2-accent); border-bottom-style: solid; }
 .rec2-lien-fiche:focus-visible { outline: 2px solid var(--r2-accent); outline-offset: 2px; border-radius: 2px; }
+
+/* Vente annulée : visible (on contrôle tout ce qui a été signé) mais en retrait
+   — elle ne compte pas dans le taux, l'œil ne doit pas la confondre avec un
+   manque de saisie. */
+.rec2-etat.is-annul { background: rgba(148,163,184,.16); color: var(--r2-text-2); }
+.rec2-ligne-annul td { opacity: .72; }
+.rec2-ligne-annul td:first-child { text-decoration: line-through; text-decoration-color: var(--r2-text-3); }
+
+/* Lien de RECHERCHE (client « à vérifier » ou annulé) : cliquable, mais il ne
+   doit jamais se faire passer pour une fiche directe — d'où la couleur en
+   retrait, l'icône ↗ et l'infobulle explicite. */
+.rec2-lien-rech { color: var(--r2-text-2); text-decoration: none; border-bottom: 1px dashed var(--r2-text-3); }
+.rec2-lien-rech:hover, .rec2-lien-rech:focus-visible { color: var(--r2-text); border-bottom-color: var(--r2-text-2); }
+.rec2-lien-rech:focus-visible { outline: 2px solid var(--r2-accent); outline-offset: 2px; border-radius: 2px; }
+.rec2-lien-ico { font-size: .85em; opacity: .7; }
+/* Réservé aux lecteurs d'écran : dit ce que le ↗ montre à l'œil. */
+.rec2-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

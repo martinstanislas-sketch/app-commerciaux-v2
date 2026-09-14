@@ -119,7 +119,15 @@ const clubAffiche = (page) => page.evaluate(() => {
 //  segment). « Voir le contrat PDF(05/08/26) » ne peut pas être confondue avec
 //  elle : année sur deux chiffres, et pas en tête de segment.
 const RE_DATE = /^(\d{2}\/\d{2}\/\d{4})\s*(?:\|\s*(.*))?$/;
-const RE_UI = /^(Voir la fiche|Voir le contrat|Voir le mandat)/i;
+const RE_UI = /^(Voir la fiche|Voir le contrat|Voir le mandat|Signer le SEPA)/i;
+// « Vente annulée le 24/08/2026 ». La date d'annulation peut tomber APRÈS le
+// mois audité (constaté : une vente d'août annulée le 07/09) — on la rend telle
+// quelle, c'est une information de contrôle, pas un critère de calcul.
+// ⚠️ PAS de « \w » après « annul » : la classe \w ignore le « é » d'« annulée »,
+// si bien que la date n'était jamais capturée. On reste sur la MÊME ligne
+// (`[^\n]*?`) pour ne pas aller chercher la date d'une autre ligne.
+const RE_ANNUL = /Vente annul/i;
+const RE_ANNUL_DATE = /Vente annul[^\n]*?(\d{2}\/\d{2}\/\d{4})/i;
 
 function analyserLigne(texte) {
   const t = String(texte == null ? '' : texte);
@@ -137,7 +145,10 @@ function analyserLigne(texte) {
     source: milieu[1] || '',
     date: m ? m[1] : '',
     commercial: m && m[2] ? m[2].trim() : '',
-    annulee: /Vente annul/i.test(t),
+    annulee: RE_ANNUL.test(t),
+    // La date d'annulation quand Fitness Booster la donne ; '' sinon. On
+    // n'invente rien : une annulation sans date reste une annulation.
+    dateAnnulation: (RE_ANNUL_DATE.exec(t) || [])[1] || '',
     // Une ligne sans date ou sans identité n'est pas « une donnée absente » :
     // c'est une lecture trop tôt. On attend, puis on échoue.
     complete: !!m && !!identite,
@@ -252,7 +263,8 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
 
   const contrats = lignes.map((l) => ({
     identite: l.identite, prestation: l.prestation, source: l.source,
-    date: l.date, commercial: l.commercial, annulee: l.annulee,
+    date: l.date, commercial: l.commercial,
+    annulee: l.annulee, dateAnnulation: l.dateAnnulation,
   }));
   const annulees = contrats.filter((c) => c.annulee).length;
   journal(studio + ' : ' + compteur + ' contrat(s) souscrit(s), dont ' + annulees + ' annulé(s) — période ' + periodeDetail.du + ' → ' + periodeDetail.au);
