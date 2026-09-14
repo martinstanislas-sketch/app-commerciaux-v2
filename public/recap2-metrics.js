@@ -335,6 +335,63 @@
     return studioLabel(site) === attendu ? null : { attendu, site };
   }
 
+  // ── CA NET DU MOIS, PAR STUDIO ─────────────────────────────────────────────
+  //  Un REPÈRE affiché à côté du nom du studio. PAS UN KPI : il n'entre dans
+  //  aucun taux, aucun compteur, aucun contrôle.
+  //
+  //  Ce qu'il vaut : la somme de TOUS les encaissements Deciplus portés sur le
+  //  site du studio pendant le mois audité (rapport.mois), remboursements et
+  //  décaissements déduits. Toutes ventes confondues — pas seulement celles
+  //  signées ce mois-là. Indépendant de tout commercial.
+  //
+  //  D'où il vient : AUCUN recalcul. La collecte recompte déjà, studio par
+  //  studio, le CSV brut du mois (source.deciplus_M.controleParStudio) :
+  //    · `sommeBrute`          = lignes AVEC adhérent ;
+  //    · `montantSansAdherent` = lignes SANS adhérent, écartées des KPI mais
+  //                              bien encaissées (225 € chez Lille en juillet).
+  //  Le CA est leur somme. Dans l'export, un décaissement ou un remboursement
+  //  porte déjà un montant NÉGATIF (vérifié le 2026-09-14 : 128/128 décaissements
+  //  d'août négatifs, aucun positif) : la somme brute EST le net.
+  //
+  //  ⚠️ MOIS PAS ENCORE CLOS. L'export est filtré sur le mois ENTIER (01 → 30/09)
+  //  même collecté le 13/09 : sa période ne dit donc rien. C'est la date de
+  //  collecte (`genere`) qui le dit. Collecté avant la fin du mois -> `partielAu`
+  //  = « 13/09 », et l'écran l'affiche : un CA partiel ne passe pas pour un mois.
+  //
+  //  Rend { montant, lignes, partielAu } ou null — jamais un faux 0 € :
+  //    · pas de recomptage pour ce mois (rapport d'une autre forme) ;
+  //    · recomptage en échec pour ce studio (lignes perdues, sommes divergentes) ;
+  //    · montants illisibles.
+  function caNetStudio(rapport, studio) {
+    const src = rapport && rapport.source && rapport.mois ? rapport.source['deciplus_' + rapport.mois] : null;
+    const c = src && src.controleParStudio ? src.controleParStudio[studio] : null;
+    if (!c || c.ok !== true) return null;
+    const avec = Number(c.sommeBrute);
+    const sans = c.montantSansAdherent == null ? 0 : Number(c.montantSansAdherent);
+    if (typeof c.sommeBrute !== 'number' || !Number.isFinite(avec) || !Number.isFinite(sans)) return null;
+    const lignes = (Number(c.lignesBrutes) || 0) + (Number(c.lignesSansAdherent) || 0);
+    // Au centime (« + 0 » : pas de -0 sur une somme nulle de négatifs).
+    return { montant: Math.round((avec + sans) * 100) / 100 + 0, lignes, partielAu: collecteAvantFinDeMois(rapport) };
+  }
+
+  // « JJ/MM » si la collecte a eu lieu avant le 1er du mois suivant (heure
+  // locale), sinon null. Date de collecte absente ou illisible -> null : on ne
+  // prétend rien.
+  function collecteAvantFinDeMois(rapport) {
+    const m = /^(\d{4})-(\d{2})$/.exec(String(rapport.mois || ''));
+    const g = rapport.genere ? new Date(rapport.genere) : null;
+    if (!m || !g || isNaN(g)) return null;
+    if (g >= new Date(Number(m[1]), Number(m[2]), 1)) return null;
+    return String(g.getDate()).padStart(2, '0') + '/' + String(g.getMonth() + 1).padStart(2, '0');
+  }
+
+  // « 22 363 € » : arrondi à l'euro, milliers séparés par une espace fine
+  // insécable (le montant ne se coupe jamais en fin de ligne).
+  function eurosArrondis(n) {
+    const v = Math.round(Number(n) || 0) + 0;
+    return (v < 0 ? '−' : '') + String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' €';
+  }
+
   // Libellé d'AFFICHAGE : espaces multiples réduits, extrémités coupées. Ne
   // sert JAMAIS de clé — deux commerciaux distincts gardent deux entrées même
   // si leur libellé nettoyé se ressemble.
@@ -365,6 +422,6 @@
     STUDIOS, LABELS, normStudio, studioLabel,
     nonReconduction, completion, clientsRetrouves, analyserStudio,
     ventesDuRapport, commerciauxDuRapport, consoliderCommercial, libelleCommercial,
-    siteDivergent,
+    siteDivergent, caNetStudio, eurosArrondis,
   };
 }));

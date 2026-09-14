@@ -21827,6 +21827,12 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec2-studio { border-top: 1px solid var(--r2-line); padding: 16px 0 4px; }
 .rec2-studio:first-child { border-top: 0; padding-top: 0; }
 .rec2-studio-nom { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--r2-text-2); }
+/* Nom du studio + CA net du mois sur la même ligne ; le CA passe dessous si ça ne tient pas. */
+.rec2-studio-tete { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; row-gap: 2px; margin: 0 0 10px; }
+.rec2-studio-tete .rec2-studio-nom { margin: 0; }
+.rec2-studio-ca { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; color: var(--r2-text-3); white-space: nowrap; }
+.rec2-studio-ca b { font-weight: 700; letter-spacing: .02em; color: var(--r2-text); font-variant-numeric: tabular-nums; }
+.rec2-studio-ca-partiel { font-style: normal; letter-spacing: .02em; color: #fb923c; }
 .rec2-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 640px) { .rec2-cards { grid-template-columns: 1fr; } }
 
