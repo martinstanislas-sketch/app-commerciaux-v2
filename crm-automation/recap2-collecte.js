@@ -267,26 +267,42 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     //  client retrouvé (encaissé ou pas encore), jamais à le déclarer manquant.
     const fbr = contratsFB[studio];
     if (fbr && !fbr.echec && ventesM) {
-      const valides = (fbr.contrats || []).filter((c) => !c.annulee);
+      // ⚠️ LES ANNULÉES NE SONT PLUS ÉCARTÉES DE LA VUE, seulement du TAUX.
+      // On contrôle tout ce qui a été signé dans le mois ; une vente annulée
+      // ensuite reste un acte à regarder. Mais elle ne pénalise pas la saisie
+      // CRM : on ne peut pas reprocher l'absence d'un contrat qui n'existe plus.
+      const toutes = fbr.contrats || [];
+      const valides = toutes.filter((c) => !c.annulee);
+      const annulees = toutes.filter((c) => c.annulee).map((c) => ({
+        prenom: c.identite.trim(), nom: '',
+        date: c.date, prestation: c.prestation, commercial: c.commercial,
+        dateAnnulation: c.dateAnnulation || '',
+      }));
       const signataires = valides.map((c) => ({
         cles: R.clesContrat(c.identite), prenom: c.identite.trim(), nom: '',
         date: c.date, prestation: c.prestation, commercial: c.commercial,
       }));
       const vueVentes = VENTES.vueParNom(ventesM, R.clesContrat);
       const vueEnc = enc[mois] ? CSV.vueParNom(enc[mois], studio, M.studioLabel, R.clesContrat) : [];
-      const cr = M.clientsRetrouves({ signataires, ventesM: vueVentes, encM: vueEnc });
+      const cr = M.clientsRetrouves({ signataires, annulees, ventesM: vueVentes, encM: vueEnc });
+      const ligne = (c) => ({
+        client: ((c.prenom || '') + ' ' + (c.nom || '')).trim(),
+        date: c.date || '', prestation: c.prestation || '', commercial: c.commercial || '',
+        annulee: !!c.annulee, dateAnnulation: c.dateAnnulation || '',
+        retrouve: c.retrouve, site: c.site || '', dateVente: c.dateVente || '',
+        // Id_client Deciplus : sert UNIQUEMENT à ouvrir la fiche membre au
+        // clic. Aucune autre donnée personnelle n'est ajoutée au rapport.
+        idClient: c.idClient || '', encaisse: c.encaisse,
+      });
       bloc.clientsRetrouves = {
-        ventesSignees: fbr.compteur, annulesExclus: fbr.annulees,
-        ventesValides: valides.length, signataires: cr.total, retrouves: cr.nbRetrouves,
+        // `annulees` : comptées, affichées, mais hors du taux. `annulesExclus`
+        // est conservé à l'identique pour que les rapports déjà déposés — qui ne
+        // connaissent que cette clé — restent lisibles tels quels.
+        ventesSignees: fbr.compteur, annulees: annulees.length, annulesExclus: fbr.annulees,
+        ventesActives: valides.length, ventesValides: valides.length,
+        signataires: cr.total, retrouves: cr.nbRetrouves,
         taux: cr.taux, tauxPct: cr.taux == null ? null : +(cr.taux * 100).toFixed(1),
-        liste: cr.clients.map((c) => ({
-          client: ((c.prenom || '') + ' ' + (c.nom || '')).trim(),
-          date: c.date || '', prestation: c.prestation || '', commercial: c.commercial || '',
-          retrouve: c.retrouve, site: c.site || '', dateVente: c.dateVente || '',
-          // Id_client Deciplus : sert UNIQUEMENT à ouvrir la fiche membre au
-          // clic. Aucune autre donnée personnelle n'est ajoutée au rapport.
-          idClient: c.idClient || '', encaisse: c.encaisse,
-        })),
+        liste: cr.clients.map(ligne).concat(cr.annules.map(ligne)),
       };
       // Le taux se lit en SIGNATAIRES UNIQUES : deux ventes d'une même personne
       // ne comptent qu'une fois au dénominateur. On le DIT, on ne l'avale pas.
@@ -297,6 +313,9 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       // Un client retrouvé dans le CRM mais pas encore encaissé n'est PAS une
       // anomalie — c'est précisément ce que l'ancien KPI comptait à tort comme
       // un manque. On le mentionne pour mémoire, jamais comme un défaut.
+      if (annulees.length) {
+        bloc.avertissements.push(annulees.length + ' vente(s) annulée(s) — affichée(s) dans le détail, hors du taux');
+      }
       const enAttente = cr.clients.filter((c) => c.retrouve && !c.encaisse).length;
       if (enAttente) {
         bloc.clientsRetrouves.retrouvesSansEncaissement = enAttente;

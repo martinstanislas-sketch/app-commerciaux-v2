@@ -21913,3 +21913,10 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec2-lien-fiche { color: var(--r2-text); text-decoration: none; border-bottom: 1px dotted var(--r2-accent); }
 .rec2-lien-fiche:hover, .rec2-lien-fiche:focus-visible { color: var(--r2-accent); border-bottom-style: solid; }
 .rec2-lien-fiche:focus-visible { outline: 2px solid var(--r2-accent); outline-offset: 2px; border-radius: 2px; }
+
+/* Vente annulée : visible (on contrôle tout ce qui a été signé) mais en retrait
+   — elle ne compte pas dans le taux, l'œil ne doit pas la confondre avec un
+   manque de saisie. */
+.rec2-etat.is-annul { background: rgba(148,163,184,.16); color: var(--r2-text-2); }
+.rec2-ligne-annul td { opacity: .72; }
+.rec2-ligne-annul td:first-child { text-decoration: line-through; text-decoration-color: var(--r2-text-3); }

@@ -160,7 +160,17 @@
   //  `encM` est facultatif : il ne change aucun compte, il sert seulement à
   //  distinguer « retrouvé ET encaissé » de « retrouvé, pas encore encaissé » —
   //  l'information qui, confondue avec une absence, faussait l'ancien KPI.
-  function clientsRetrouves({ signataires, ventesM, encM } = {}) {
+  //  ⚠️ LES VENTES ANNULÉES SONT VISIBLES, MAIS HORS DU TAUX.
+  //  On contrôle TOUT ce qui a été signé dans le mois — une vente annulée
+  //  ensuite reste un acte de vente à regarder. Mais elle ne pénalise pas la
+  //  saisie CRM : on ne peut pas reprocher à un commercial de n'avoir pas fait
+  //  saisir un contrat qui n'existe plus. D'où deux listes distinctes et un
+  //  dénominateur qui n'en compte qu'une.
+  //
+  //  Une annulée reste « ANNULÉ » même si une trace Deciplus existe : son
+  //  statut principal est son annulation. On ne la cherche donc pas dans le
+  //  journal des ventes, et elle ne porte ni `retrouve` ni Id_client.
+  function clientsRetrouves({ signataires, annulees, ventesM, encM } = {}) {
     // Une clé -> la première vente qui la porte. Première suffit : on répond
     // « présent ou absent », pas « combien de fois ».
     const index = new Map();
@@ -181,6 +191,8 @@
         date: s.date || '',
         prestation: s.prestation || '',
         commercial: s.commercial || '',
+        annulee: false,
+        dateAnnulation: '',
         retrouve: !!vente,
         site: vente ? vente.site : null,
         dateVente: vente ? vente.date : '',
@@ -196,13 +208,36 @@
     clients.sort((x, y) => ((x.nom || '') + ' ' + (x.prenom || '')).localeCompare((y.nom || '') + ' ' + (y.prenom || ''), 'fr'));
 
     const nbRetrouves = clients.filter((c) => c.retrouve).length;
+
+    // Les annulées : rendues telles quelles, ni dédupliquées ni appariées.
+    // Chaque vente annulée du mois est une ligne — c'est bien « toute vente
+    // signée pendant M » que l'on veut voir.
+    const annules = (annulees || []).map((a) => ({
+      nom: Retention.titleCase(a.nom || ''),
+      prenom: Retention.titleCase(a.prenom || ''),
+      date: a.date || '',
+      prestation: a.prestation || '',
+      commercial: a.commercial || '',
+      dateAnnulation: a.dateAnnulation || '',
+      annulee: true,
+      retrouve: false,
+      site: null,
+      dateVente: '',
+      idClient: '',
+      encaisse: false,
+    }));
+    annules.sort((x, y) => ((x.nom || '') + ' ' + (x.prenom || '')).localeCompare((y.nom || '') + ' ' + (y.prenom || ''), 'fr'));
+
     return {
+      // `total` reste le DÉNOMINATEUR DU TAUX : les signataires actifs.
       total: clients.length,
       nbRetrouves,
-      // Aucun signataire -> pas de dénominateur -> taux null (l'écran dira « — »
-      // et « 0 vente signée »), jamais 0 % ni NaN.
+      // Aucun signataire actif -> pas de dénominateur -> taux null (l'écran dira
+      // « — »), jamais 0 % ni NaN. Des ventes annulées seules ne créent pas un
+      // taux : il n'y avait rien à retrouver.
       taux: clients.length > 0 ? nbRetrouves / clients.length : null,
       clients,
+      annules,
     };
   }
 
@@ -240,10 +275,11 @@
     const par = new Map();
     ventesDuRapport(rapport).forEach((v) => {
       const nom = String(v.commercial == null ? '' : v.commercial);
-      if (!par.has(nom)) par.set(nom, { commercial: nom, ventes: 0, retrouves: 0, studios: [] });
+      if (!par.has(nom)) par.set(nom, { commercial: nom, ventes: 0, annulees: 0, retrouves: 0, studios: [] });
       const e = par.get(nom);
       e.ventes += 1;
-      if (v.retrouve) e.retrouves += 1;
+      if (v.annulee) e.annulees += 1;
+      else if (v.retrouve) e.retrouves += 1;
       if (e.studios.indexOf(v.studio) < 0) e.studios.push(v.studio);
     });
     return [...par.values()].sort((a, b) => b.ventes - a.ventes
@@ -251,23 +287,32 @@
   }
 
   // Le bilan consolidé d'UN commercial, tous studios confondus.
-  //  `total` est le dénominateur : ses ventes valides du mois. Les annulées n'y
-  //  sont pas — elles ne sont jamais entrées dans le détail (la collecte les
-  //  écarte en amont), donc il n'y a rien à filtrer ici.
+  //  ⚠️ DEUX COMPTES À NE PAS CONFONDRE :
+  //   · `signees` = tout ce qu'il a signé dans le mois, ANNULÉES COMPRISES. Ce
+  //     que la vue affiche, parce qu'on contrôle tout ce qui a été vendu ;
+  //   · `total`   = ses ventes ACTIVES, et donc le dénominateur du taux. Une
+  //     annulation ne pénalise pas sa saisie CRM.
   function consoliderCommercial(rapport, commercial) {
     const ventes = ventesDuRapport(rapport).filter((v) => v.commercial === commercial);
-    ventes.sort((a, b) => (a.studio || '').localeCompare(b.studio || '', 'fr')
+    // Annulées en dernier : la vue se lit d'abord sur ce qui compte.
+    ventes.sort((a, b) => (a.annulee ? 1 : 0) - (b.annulee ? 1 : 0)
+      || (a.studio || '').localeCompare(b.studio || '', 'fr')
       || (a.client || '').localeCompare(b.client || '', 'fr'));
-    const retrouves = ventes.filter((v) => v.retrouve).length;
+    const annulees = ventes.filter((v) => v.annulee).length;
+    const actives = ventes.length - annulees;
+    const retrouves = ventes.filter((v) => !v.annulee && v.retrouve).length;
     return {
       commercial,
       ventes,
-      total: ventes.length,
+      signees: ventes.length,
+      annulees,
+      total: actives,
       retrouves,
-      aVerifier: ventes.length - retrouves,
+      aVerifier: actives - retrouves,
       studios: ventes.reduce((acc, v) => (acc.indexOf(v.studio) < 0 ? acc.concat([v.studio]) : acc), []),
-      // Pas de vente -> pas de dénominateur -> taux null, jamais 0 % ni NaN.
-      taux: ventes.length > 0 ? retrouves / ventes.length : null,
+      // Pas de vente active -> pas de dénominateur -> taux null, jamais 0 % ni
+      // NaN. Des annulations seules ne créent pas un taux : rien à retrouver.
+      taux: actives > 0 ? retrouves / actives : null,
     };
   }
 

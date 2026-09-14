@@ -320,6 +320,48 @@ const Recap2UI = (function () {
       + ' title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + nom + '</a>';
   }
 
+  // ── LES TROIS STATUTS MÉTIER ────────────────────────────────────────────────
+  //  · ANNULÉ      la vente a été annulée dans Fitness Booster. C'est son statut
+  //                PRINCIPAL : il prime, même si une trace Deciplus existait.
+  //                Elle est visible — on contrôle tout ce qui a été signé — mais
+  //                hors du taux : on ne reproche pas l'absence au CRM d'un
+  //                contrat qui n'existe plus.
+  //  · Retrouvée   une vente Deciplus du mois existe au nom du signataire.
+  //  · À vérifier  aucune vente trouvée. Jamais « absent du CRM » : une saisie
+  //                faite le mois suivant sort du champ de l'audit.
+  function statutVente(v, studioAttendu) {
+    if (v.annulee) {
+      return '<span class="rec2-etat is-annul">Annulé</span>'
+        + (v.dateAnnulation ? ' <span class="rec2-det-date">le ' + esc(v.dateAnnulation) + '</span>' : '');
+    }
+    if (!v.retrouve) return '<span class="rec2-etat is-non">À vérifier</span>';
+    const MM = window.Recap2Metrics;
+    const ailleurs = v.site && MM && MM.studioLabel && MM.studioLabel(v.site) !== studioAttendu;
+    const notes = [];
+    if (v.dateVente) notes.push('le ' + esc(v.dateVente));
+    if (ailleurs) notes.push('site ' + esc(v.site));
+    if (v.encaisse === false) notes.push('pas encore encaissé');
+    return '<span class="rec2-etat is-oui">Retrouvée</span>'
+      + (notes.length ? ' <span class="rec2-det-date">' + notes.join(' · ') + '</span>' : '');
+  }
+
+  // Le filtre d'une ligne : 'tous' | 'retrouves' | 'verifier' | 'annules'.
+  function passeFiltre(v, f) {
+    if (f === 'annules') return !!v.annulee;
+    if (f === 'retrouves') return !v.annulee && v.retrouve;
+    if (f === 'verifier') return !v.annulee && !v.retrouve;
+    return true;
+  }
+
+  // Le bandeau chiffré, identique partout : signées, annulées, actives,
+  // retrouvées, à vérifier — puis le taux, calculé sur les seules actives.
+  function comptes(liste, signataires, retrouves) {
+    const annulees = liste.filter((v) => v.annulee).length;
+    const actives = liste.length - annulees;
+    const nbR = retrouves == null ? liste.filter((v) => !v.annulee && v.retrouve).length : retrouves;
+    return { signees: liste.length, annulees, actives: signataires == null ? actives : signataires, retrouves: nbR };
+  }
+
   // ── DÉTAILS (fermés par défaut, un seul ouvert à la fois) ────────────────────
   function detail(label, b) {
     if (ouvert === label + '|nr') return detailNR(label, b.nonReconduction);
@@ -370,36 +412,27 @@ const Recap2UI = (function () {
   function detailCrm(label, d) {
     const tous = (d && d.liste) || [];
     const f = filtreCrm[label] || 'tous';
-    const liste = tous.filter((c) => f === 'tous' || (f === 'retrouves' ? c.retrouve : !c.retrouve));
-    const nbT = tous.filter((c) => c.retrouve).length;
+    const liste = tous.filter((c) => passeFiltre(c, f));
+    const c = comptes(tous, d && d.signataires, d && d.retrouves);
     const chip = (val, txt, n) => '<button type="button" class="rec2-chip' + (f === val ? ' is-on' : '')
       + '" data-filtrecrm="' + esc(label) + '|' + val + '">' + txt + ' <b>' + n + '</b></button>';
     const chips = '<div class="rec2-chips">' + chip('tous', 'Tous', tous.length)
-      + chip('retrouves', 'Retrouvés', nbT) + chip('verifier', 'À vérifier', tous.length - nbT) + '</div>';
+      + chip('retrouves', 'Retrouvés', c.retrouves)
+      + chip('verifier', 'À vérifier', c.actives - c.retrouves)
+      + (c.annulees ? chip('annules', 'Annulés', c.annulees) : '') + '</div>';
 
-    const statut = (c) => {
-      if (!c.retrouve) return '<span class="rec2-etat is-non">À vérifier</span>';
-      const ailleurs = c.site && window.Recap2Metrics && window.Recap2Metrics.studioLabel
-        && window.Recap2Metrics.studioLabel(c.site) !== label;
-      const notes = [];
-      if (c.dateVente) notes.push('le ' + esc(c.dateVente));
-      if (ailleurs) notes.push('site ' + esc(c.site));
-      if (c.encaisse === false) notes.push('pas encore encaissé');
-      return '<span class="rec2-etat is-oui">Retrouvée</span>'
-        + (notes.length ? ' <span class="rec2-det-date">' + notes.join(' · ') + '</span>' : '');
-    };
-    const lignes = liste.map((c) => '<tr><td>' + nomClient(c)
-      + (c.date ? ' <span class="rec2-det-date">signé le ' + esc(c.date) + '</span>' : '') + '</td>'
-      + '<td>' + esc(c.prestation || '—') + '</td>'
-      + '<td>' + esc(c.commercial || '—') + '</td>'
-      + '<td class="rec2-num">' + statut(c) + '</td></tr>').join('');
+    const lignes = liste.map((v) => '<tr' + (v.annulee ? ' class="rec2-ligne-annul"' : '') + '><td>' + nomClient(v)
+      + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + '</td>'
+      + '<td>' + esc(v.prestation || '—') + '</td>'
+      + '<td>' + esc(v.commercial || '—') + '</td>'
+      + '<td class="rec2-num">' + statutVente(v, label) + '</td></tr>').join('');
     const corps = liste.length
       ? '<table class="rec2-table"><thead><tr><th>Signataire ' + esc(cap(moisLabel(rapport.mois)))
         + '</th><th>Prestation</th><th>Commercial</th><th class="rec2-num">Dans Deciplus</th></tr></thead><tbody>'
         + lignes + '</tbody></table>'
       : '<p class="rec2-info">Aucune vente dans ce filtre.</p>';
     const notes = [];
-    if (d && d.annulesExclus) notes.push(d.annulesExclus + ' vente(s) annulée(s) exclue(s) du calcul.');
+    if (c.annulees) notes.push(c.annulees + ' vente(s) annulée(s) : affichée(s) ici, hors du taux.');
     if (d && d.doublonsSignataire) {
       notes.push(d.doublonsSignataire + ' vente(s) d\'un signataire déjà compté : le taux se lit en signataires uniques.');
     }
@@ -422,35 +455,23 @@ const Recap2UI = (function () {
     const d = MM.consoliderCommercial(rapport, commercial);
     const nom = MM.libelleCommercial(commercial) || '(sans nom)';
 
-    if (!d.total) {
+    if (!d.signees) {
       return '<section class="rec2-com"><div class="rec2-com-head"><h3 class="rec2-com-nom">'
         + esc(nom.toUpperCase()) + ' — ' + esc(cap(moisLabel(rapport.mois))) + '</h3></div>'
         + '<p class="rec2-info">Aucune vente pour ce commercial sur ce mois.</p></section>';
     }
 
-    const liste = d.ventes.filter((v) => filtreCom === 'tous'
-      || (filtreCom === 'retrouves' ? v.retrouve : !v.retrouve));
+    const liste = d.ventes.filter((v) => passeFiltre(v, filtreCom));
     const chip = (val, txt, n) => '<button type="button" class="rec2-chip' + (filtreCom === val ? ' is-on' : '')
       + '" data-filtrecom="' + val + '">' + txt + ' <b>' + n + '</b></button>';
 
-    const statut = (v) => {
-      if (!v.retrouve) return '<span class="rec2-etat is-non">À vérifier</span>';
-      const ailleurs = v.site && MM.studioLabel && MM.studioLabel(v.site) !== v.studio;
-      const notes = [];
-      if (v.dateVente) notes.push('le ' + esc(v.dateVente));
-      if (ailleurs) notes.push('site ' + esc(v.site));
-      if (v.encaisse === false) notes.push('pas encore encaissé');
-      return '<span class="rec2-etat is-oui">Retrouvée</span>'
-        + (notes.length ? ' <span class="rec2-det-date">' + notes.join(' · ') + '</span>' : '');
-    };
-
-    const lignes = liste.map((v) => '<tr>'
+    const lignes = liste.map((v) => '<tr' + (v.annulee ? ' class="rec2-ligne-annul"' : '') + '>'
       + '<td class="rec2-com-studio">' + esc(v.studio) + '</td>'
       + '<td>' + nomClient(v) + '</td>'
       + '<td class="rec2-num">' + esc(v.date || '—') + '</td>'
       + '<td>' + esc(v.prestation || '—') + '</td>'
       + '<td>' + esc(nom) + '</td>'
-      + '<td class="rec2-num">' + statut(v) + '</td></tr>').join('');
+      + '<td class="rec2-num">' + statutVente(v, v.studio) + '</td></tr>').join('');
 
     const corps = liste.length
       ? '<table class="rec2-table rec2-com-table"><thead><tr><th>Studio</th><th>Signataire</th>'
@@ -458,11 +479,16 @@ const Recap2UI = (function () {
         + '<th class="rec2-num">Dans Deciplus</th></tr></thead><tbody>' + lignes + '</tbody></table>'
       : '<p class="rec2-info">Aucune vente dans ce filtre.</p>';
 
+    // Le compte se lit de haut en bas : signées -> annulées -> actives, puis ce
+    // que devient l'actif. Le taux ne porte QUE sur les ventes actives.
+    const n = (x, un, pl) => '<span class="rec2-com-det"><b>' + x + '</b> ' + (x > 1 ? pl : un) + '</span>';
     const stats = '<div class="rec2-com-stats">'
       + '<span class="rec2-com-taux">' + pct(d.taux) + '</span>'
-      + '<span class="rec2-com-det"><b>' + d.total + '</b> vente' + (d.total > 1 ? 's' : '') + ' valide' + (d.total > 1 ? 's' : '') + '</span>'
-      + '<span class="rec2-com-det"><b>' + d.retrouves + '</b> retrouvée' + (d.retrouves > 1 ? 's' : '') + ' dans Deciplus</span>'
-      + '<span class="rec2-com-det"><b>' + d.aVerifier + '</b> à vérifier</span>'
+      + n(d.signees, 'vente signée', 'ventes signées')
+      + (d.annulees ? n(d.annulees, 'annulée', 'annulées') : '')
+      + n(d.total, 'vente active', 'ventes actives')
+      + n(d.retrouves, 'retrouvée dans Deciplus', 'retrouvées dans Deciplus')
+      + n(d.aVerifier, 'à vérifier', 'à vérifier')
       + '</div>';
     const ou = '<p class="rec2-com-studios">Studios : ' + esc(d.studios.join(', ')) + '</p>';
 
@@ -471,8 +497,9 @@ const Recap2UI = (function () {
       + esc(cap(moisLabel(rapport.mois))) + '</h3>'
       + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
       + stats + ou
-      + '<div class="rec2-chips">' + chip('tous', 'Tous', d.total)
-      + chip('retrouves', 'Retrouvés', d.retrouves) + chip('verifier', 'À vérifier', d.aVerifier) + '</div>'
+      + '<div class="rec2-chips">' + chip('tous', 'Tous', d.signees)
+      + chip('retrouves', 'Retrouvés', d.retrouves) + chip('verifier', 'À vérifier', d.aVerifier)
+      + (d.annulees ? chip('annules', 'Annulés', d.annulees) : '') + '</div>'
       + corps
       + '<p class="rec2-det-note">Ce filtre ne concerne que « clients retrouvés dans Deciplus ». '
       + 'La non-reconduction, ci-dessous, ne dépend d\'aucun commercial.</p>'
