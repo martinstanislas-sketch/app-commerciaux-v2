@@ -395,6 +395,15 @@
     return URL_FICHE + encodeURIComponent(v);
   }
 
+  // L'écran « Membres » de Deciplus — la recherche manuelle.
+  //  ⚠️ CE N'EST PAS UNE FICHE, et ça ne doit jamais en avoir l'air. Vérifié le
+  //  2026-09-14 : `select.php` ignore les paramètres d'URL (contenu identique
+  //  avec et sans `?nom=`), il ne préremplit ni n'exécute la recherche. On ne
+  //  peut donc qu'ouvrir l'écran ; c'est à l'appelant de dire clairement qu'il
+  //  s'agit d'une recherche à faire, pas du dossier du client.
+  const URL_MEMBRES = 'https://ginkgo-sport.deciplus.pro/nextgen/legacy?path=select.php';
+  function lienRechercheDeciplus() { return URL_MEMBRES; }
+
   // Résout l'Id_client via le mapping du fichier membres (clé -> id). Sans id,
   // renvoie null (l'UI affiche alors le nom en texte simple, pas un lien cassé).
   function lienDeciplus(cle, mappingIds) {
@@ -408,6 +417,6 @@
     agregerParClient, modeMontant,
     calculerStudio, noteReseau, dedupSignataires,
     jaccard, detecterStudioM, detecterStudioM1,
-    lienDeciplus, lienDeciplusId, MENU,
+    lienDeciplus, lienDeciplusId, lienRechercheDeciplus, URL_MEMBRES, MENU,
   };
 }));
