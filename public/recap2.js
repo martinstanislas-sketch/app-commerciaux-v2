@@ -71,6 +71,11 @@ const Recap2UI = (function () {
       commercial = ''; filtreCom = 'tous'; charger();
     });
     $('#rec2-body').addEventListener('click', onBodyClick);
+    // Les cases de contrôle : `change`, pour ne réagir qu'à un vrai basculement.
+    $('#rec2-body').addEventListener('change', (e) => {
+      const box = e.target.closest && e.target.closest('input[data-ctl]');
+      if (box && rapport) enregistrerControle(box);
+    });
     const sel = $('#rec2-commercial');
     if (sel) sel.addEventListener('change', () => { commercial = sel.value; filtreCom = 'tous'; ouvert = ''; render(); });
   }
@@ -457,6 +462,59 @@ const Recap2UI = (function () {
     return { signees: liste.length, annulees, actives: signataires == null ? actives : signataires, retrouves: nbR };
   }
 
+  // ── CASES DE CONTRÔLE MANUEL : PRÉLÈVEMENT / RÉSERVATION ────────────────────
+  //  Deux cases indépendantes, cochées à la main. L'état vient du SERVEUR
+  //  (`v.controle`, posé à la lecture) : il survit au rechargement, à la
+  //  reconnexion, au redéploiement et à une nouvelle collecte.
+  //  ⚠️ AUCUN EFFET SUR LES KPI : rien ici n'entre dans un compteur.
+  //  Une vente annulée n'a rien à contrôler : pas de case, un tiret.
+  const CONTROLES = [
+    { champ: 'prelevement', libelle: 'Prélèvement', aide: 'Prélèvement bien paramétré' },
+    { champ: 'reservation', libelle: 'Réservation', aide: 'Réservation / prise de rendez-vous faite' },
+  ];
+  function casesControle(v, studio) {
+    return CONTROLES.map((c) => {
+      if (v.annulee) return '<td class="rec2-ctl"><span class="rec2-ctl-na" aria-hidden="true">—</span></td>';
+      const coche = !!(v.controle && v.controle[c.champ]);
+      const qui = (v.controle && coche && v.controle.modifieLe)
+        ? ' — coché le ' + fmtDate(v.controle.modifieLe) + (v.controle.modifiePar ? ' par ' + v.controle.modifiePar : '')
+        : '';
+      return '<td class="rec2-ctl"><input type="checkbox" class="rec2-ctl-box"'
+        + (coche ? ' checked' : '')
+        + ' data-ctl="' + c.champ + '" data-studio="' + esc(studio) + '" data-client="' + esc(v.client)
+        + '" data-date="' + esc(v.date || '') + '"'
+        + ' title="' + esc(c.aide + qui) + '" aria-label="' + esc(c.aide + ' — ' + v.client) + '"></td>';
+    }).join('');
+  }
+  const entetesControle = () => CONTROLES.map((c) => '<th class="rec2-ctl" title="' + esc(c.aide) + '">' + c.libelle + '</th>').join('');
+
+  // Enregistre UNE case. Pas d'optimisme : la case est bloquée pendant l'appel,
+  // et c'est la réponse du serveur qui fait foi. En cas d'échec, elle revient à
+  // son état précédent et on le dit.
+  async function enregistrerControle(box) {
+    const d = box.dataset;
+    const valeur = box.checked;
+    box.disabled = true;
+    try {
+      const r = await fetch('/api/recap2/checks', {
+        method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, client: d.client, date: d.date, champ: d.ctl, valeur }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.controle) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      // On pose la réponse sur la ligne du RAPPORT : vue studio et vue
+      // commercial lisent le même objet, elles sont donc à jour ensemble.
+      const cr = rapport.studios && rapport.studios[d.studio] && rapport.studios[d.studio].clientsRetrouves;
+      const ligne = cr && (cr.liste || []).find((l) => l.client === d.client && (l.date || '') === d.date);
+      if (ligne) ligne.controle = j.controle;
+      render();
+    } catch (err) {
+      box.checked = !valeur;
+      box.disabled = false;
+      alert('Contrôle non enregistré : ' + (err && err.message ? err.message : 'erreur'));
+    }
+  }
+
   // La classe d'une ligne : annulée (barrée) ou site divergent (liseré d'alerte).
   function classeLigne(v, studio) {
     if (v.annulee) return ' class="rec2-ligne-annul"';
@@ -528,12 +586,13 @@ const Recap2UI = (function () {
 
     const lignes = liste.map((v) => '<tr' + classeLigne(v, label) + '><td>' + nomClient(v)
       + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + '</td>'
+      + casesControle(v, label)
       + '<td>' + esc(v.prestation || '—') + '</td>'
       + '<td>' + esc(v.commercial || '—') + '</td>'
       + '<td class="rec2-num">' + statutVente(v, label) + '</td></tr>').join('');
     const corps = liste.length
       ? '<table class="rec2-table"><thead><tr><th>Signataire ' + esc(cap(moisLabel(rapport.mois)))
-        + '</th><th>Prestation</th><th>Commercial</th><th class="rec2-num">Dans Deciplus</th></tr></thead><tbody>'
+        + '</th>' + entetesControle() + '<th>Prestation</th><th>Commercial</th><th class="rec2-num">Dans Deciplus</th></tr></thead><tbody>'
         + lignes + '</tbody></table>'
       : '<p class="rec2-info">Aucune vente dans ce filtre.</p>';
     const notes = [];
@@ -573,13 +632,14 @@ const Recap2UI = (function () {
     const lignes = liste.map((v) => '<tr' + classeLigne(v, v.studio) + '>'
       + '<td class="rec2-com-studio">' + esc(v.studio) + '</td>'
       + '<td>' + nomClient(v) + '</td>'
+      + casesControle(v, v.studio)
       + '<td class="rec2-num">' + esc(v.date || '—') + '</td>'
       + '<td>' + esc(v.prestation || '—') + '</td>'
       + '<td>' + esc(nom) + '</td>'
       + '<td class="rec2-num">' + statutVente(v, v.studio) + '</td></tr>').join('');
 
     const corps = liste.length
-      ? '<table class="rec2-table rec2-com-table"><thead><tr><th>Studio</th><th>Signataire</th>'
+      ? '<table class="rec2-table rec2-com-table"><thead><tr><th>Studio</th><th>Signataire</th>' + entetesControle()
         + '<th class="rec2-num">Signé le</th><th>Prestation</th><th>Commercial</th>'
         + '<th class="rec2-num">Dans Deciplus</th></tr></thead><tbody>' + lignes + '</tbody></table>'
       : '<p class="rec2-info">Aucune vente dans ce filtre.</p>';

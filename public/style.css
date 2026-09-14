@@ -21961,3 +21961,14 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec2-chip.rec2-chip-div.is-on { background: rgba(251,146,60,.16); border-color: #fb923c; }
 .rec2-card-div { display: block; margin-top: 4px; font-size: 12px; font-weight: 650; color: #fb923c; }
 .rec2-com-det.rec2-com-det-div, .rec2-com-det.rec2-com-det-div b { color: #fb923c; }
+
+/* Cases de contrôle manuel (prélèvement / réservation) : discrètes, centrées,
+   sans effet sur les KPI. Colonne étroite pour ne pas pousser le statut. */
+.rec2-table th.rec2-ctl { text-align: center; letter-spacing: .04em; width: 1%; white-space: nowrap; padding-inline: 6px; }
+.rec2-table td.rec2-ctl { text-align: center; width: 1%; padding-inline: 6px; }
+.rec2-ctl-box { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--r2-green); vertical-align: middle; }
+.rec2-ctl-box[disabled] { cursor: progress; opacity: .5; }
+.rec2-ctl-na { color: var(--r2-text-3); }
+/* Deux colonnes de plus : sur écran étroit, le tableau défile dans son cadre
+   plutôt que d'élargir la page. */
+.rec2-detail { overflow-x: auto; }

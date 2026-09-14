@@ -4636,6 +4636,11 @@ function ensureRecap2MatchesSchema() {
   require('./lib/recap2Matches.js').creerTable(getDb());
 }
 ensureRecap2MatchesSchema();
+// Même logique pour les cases de contrôle manuel (prélèvement / réservation).
+function ensureRecap2ChecksSchema() {
+  require('./lib/recap2Checks.js').creerTable(getDb());
+}
+ensureRecap2ChecksSchema();
 
 // ─── LEADS (saisie manuelle par club/mois + comparatif N-1) ──────────────────
 function ensureLeadsSchema() {
@@ -5229,6 +5234,8 @@ const Recap2Store = require('./lib/recap2Store.js');
 // volume Railway, comme le reste), jamais dans le JSON mensuel — qui est
 // remplacé à chaque collecte. Cf. lib/recap2Matches.js.
 const Recap2Matches = require('./lib/recap2Matches.js');
+// Les cases de contrôle manuel, même principe : en base, posées à la lecture.
+const Recap2Checks = require('./lib/recap2Checks.js');
 const RECAP2_MOIS_RE = Recap2Store.MOIS_RE;
 // Chemin historique : le JSON produit localement par la collecte. Sur le Mac,
 // l'écran marche donc sans dépôt ; sur Railway ce dossier n'existe pas (il est
@@ -5273,7 +5280,8 @@ app.post('/api/recap2/matches', requireAuth, requireAdmin, (req, res) => {
   if (['fuzzy', 'email', 'manuel'].indexOf(methode) < 0) return res.status(400).json({ error: 'méthode inconnue' });
 
   try {
-    const qui = (req.user && (req.user.name || req.user.role)) || '';
+    // `requireAuth` pose la session sur `req.session` (et non `req.user`).
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
     const out = Recap2Matches.decider(getDb(), {
       client, fbContactId, idClient, nomDeciplus, statut, score, methode, decidePar: String(qui).slice(0, 80),
     });
@@ -5314,6 +5322,45 @@ app.get('/api/recap2/matches', (req, res, next) => {
     });
     res.json({ matches: out });
   } catch (e) { res.status(500).json({ error: 'lecture impossible' }); }
+});
+
+// ─── CASES DE CONTRÔLE MANUEL : PRÉLÈVEMENT / RÉSERVATION ───────────────────
+//  Admin connecté uniquement. UNE case par appel : { mois, studio, client,
+//  date, champ: 'prelevement'|'reservation', valeur: true|false }.
+//  ⚠️ Déclarée AVANT `POST /api/recap2/:mois`, sinon « checks » serait lu comme
+//  un mois. On refuse une case posée sur une vente absente du rapport du mois :
+//  pas de contrôle orphelin créé par erreur ou par un appel bricolé.
+app.post('/api/recap2/checks', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim();
+  const studio = String(b.studio || '').trim();
+  const client = String(b.client || '').trim();
+  const date = String(b.date || '').trim();
+  const champ = String(b.champ || '').trim();
+  const valeur = b.valeur;
+
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
+  if (Recap2Checks.CHAMPS.indexOf(champ) < 0) return res.status(400).json({ error: 'champ : prelevement ou reservation' });
+  if (typeof valeur !== 'boolean') return res.status(400).json({ error: 'valeur : true ou false' });
+
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  if (!Recap2Checks.venteExiste(lu.rapport, { studio, client, date })) {
+    return res.status(404).json({ error: 'Vente introuvable dans le rapport de ' + mois + '.' });
+  }
+  try {
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
+    const controle = Recap2Checks.enregistrer(getDb(), {
+      mois, studio, client, date, champ, valeur, par: String(qui).slice(0, 80),
+    });
+    console.log('recap2 contrôle ' + champ + '=' + valeur + ' : ' + mois + ' ' + studio);
+    res.json({ ok: true, controle });
+  } catch (e) {
+    console.error('recap2 contrôle :', e && e.message);
+    res.status(400).json({ error: e && e.message ? e.message : 'contrôle refusé' });
+  }
 });
 
 app.post('/api/recap2/:mois', (req, res) => {
@@ -5363,43 +5410,62 @@ app.post('/api/recap2/:mois', (req, res) => {
 //  historique n'est JAMAIS réécrit pour enregistrer une validation : c'est ce
 //  qui permet à une recollecte de ne pas les écraser.
 function recap2AvecDecisions(rapport) {
+  let r = rapport;
   try {
-    return Recap2Matches.appliquer(rapport, Recap2Matches.toutesLesDecisions(getDb()));
+    r = Recap2Matches.appliquer(r, Recap2Matches.toutesLesDecisions(getDb()));
   } catch (e) {
     // Une décision illisible ne doit pas priver Stan de son rapport : on sert
     // le brut et on le dit dans les journaux.
     console.error('recap2 décisions :', e && e.message);
-    return rapport;
   }
+  // Les cases de contrôle manuel, posées elles aussi à la lecture. Aucun
+  // compteur n'est touché. Même tolérance : un souci ici n'efface pas le rapport.
+  try {
+    if (r && r.mois) r = Recap2Checks.appliquer(r, Recap2Checks.controlesDuMois(getDb(), r.mois));
+  } catch (e) {
+    console.error('recap2 contrôles manuels :', e && e.message);
+  }
+  return r;
+}
+
+// Le rapport BRUT d'un mois : le volume d'abord, puis — sur le Mac — le JSON
+// que la collecte vient d'écrire. Une seule lecture pour l'écran et pour les
+// cases de contrôle, pour qu'elles jugent la même vente.
+//   { rapport } | { erreur: { status, corps } }
+function recap2LireRapport(mois) {
+  const r = Recap2Store.lire(mois);
+  if (r.etat === 'ok') {
+    if (r.rapport && r.rapport.mois && r.rapport.mois !== mois) {
+      return { erreur: { status: 409, corps: { error: 'Le fichier trouvé porte le mois ' + r.rapport.mois + ', pas ' + mois + '.' } } };
+    }
+    return { rapport: r.rapport };
+  }
+  if (r.etat === 'illisible') {
+    console.error('recap2 lecture :', r.raison);
+    return { erreur: { status: 500, corps: { error: 'Fichier de collecte illisible.' } } };
+  }
+  // Rien dans le volume : sur le Mac, on retombe sur le JSON que la collecte
+  // vient d'écrire — pratique pour vérifier un mois avant de le déposer.
+  const local = path.resolve(RECAP2_DIR_LOCAL, 'recap2-' + mois + '.json');
+  if (path.dirname(local) === path.resolve(RECAP2_DIR_LOCAL) && fs.existsSync(local)) {
+    try { return { rapport: JSON.parse(fs.readFileSync(local, 'utf8')) }; }
+    catch (e) {
+      console.error('recap2 lecture locale :', e && e.message);
+      return { erreur: { status: 500, corps: { error: 'Fichier de collecte illisible.' } } };
+    }
+  }
+  return { erreur: { status: 404, corps: {
+    error: 'Données non encore collectées pour ce mois.',
+    fichierAttendu: 'DB_DIR/recap2/recap2-' + mois + '.json',
+  } } };
 }
 
 app.get('/api/recap2/:mois', requireAuth, requireAdmin, (req, res) => {
   const mois = String(req.params.mois || '');
   if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
-
-  const r = Recap2Store.lire(mois);
-  if (r.etat === 'ok') {
-    if (r.rapport && r.rapport.mois && r.rapport.mois !== mois) {
-      return res.status(409).json({ error: 'Le fichier trouvé porte le mois ' + r.rapport.mois + ', pas ' + mois + '.' });
-    }
-    return res.json(recap2AvecDecisions(r.rapport));
-  }
-  if (r.etat === 'illisible') {
-    console.error('recap2 lecture :', r.raison);
-    return res.status(500).json({ error: 'Fichier de collecte illisible.' });
-  }
-
-  // Rien dans le volume : sur le Mac, on retombe sur le JSON que la collecte
-  // vient d'écrire — pratique pour vérifier un mois avant de le déposer.
-  const local = path.resolve(RECAP2_DIR_LOCAL, 'recap2-' + mois + '.json');
-  if (path.dirname(local) === path.resolve(RECAP2_DIR_LOCAL) && fs.existsSync(local)) {
-    try { return res.json(recap2AvecDecisions(JSON.parse(fs.readFileSync(local, 'utf8')))); }
-    catch (e) { console.error('recap2 lecture locale :', e && e.message); return res.status(500).json({ error: 'Fichier de collecte illisible.' }); }
-  }
-  res.status(404).json({
-    error: 'Données non encore collectées pour ce mois.',
-    fichierAttendu: 'DB_DIR/recap2/recap2-' + mois + '.json',
-  });
+  const lu = recap2LireRapport(mois);
+  if (lu.erreur) return res.status(lu.erreur.status).json(lu.erreur.corps);
+  return res.json(recap2AvecDecisions(lu.rapport));
 });
 
 const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM
