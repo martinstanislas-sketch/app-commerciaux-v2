@@ -316,6 +316,25 @@
     };
   }
 
+  // ── SITE DECIPLUS DIVERGENT ────────────────────────────────────────────────
+  //  La vente est portée par un studio dans Fitness Booster, mais Deciplus l'a
+  //  enregistrée sur un AUTRE site (ex. FB Marcq, Deciplus Wasquehal).
+  //  ⚠️ C'EST UNE ANOMALIE À CORRIGER, PAS UN ÉCHEC : le client est bien
+  //  retrouvé, la vente reste « Retrouvée » et compte dans le taux. Ce test ne
+  //  change AUCUN compteur — il sert uniquement à le signaler à l'écran.
+  //  Ne s'applique qu'à une vente retrouvée avec un site connu : une annulée,
+  //  un « à vérifier » ou une validation manuelle sans site n'ont rien à comparer.
+  //  Un site Deciplus qui ne correspond à aucun des 6 studios est lui aussi
+  //  divergent — on ne peut pas le rattacher au studio attendu.
+  //  Rend { attendu, site } ou null.
+  function siteDivergent(vente, studioAttendu) {
+    if (!vente || vente.annulee || !vente.retrouve) return null;
+    const site = String(vente.site == null ? '' : vente.site).trim();
+    const attendu = studioAttendu || vente.studio || '';
+    if (!site || !attendu) return null;
+    return studioLabel(site) === attendu ? null : { attendu, site };
+  }
+
   // Libellé d'AFFICHAGE : espaces multiples réduits, extrémités coupées. Ne
   // sert JAMAIS de clé — deux commerciaux distincts gardent deux entrées même
   // si leur libellé nettoyé se ressemble.
@@ -346,5 +365,6 @@
     STUDIOS, LABELS, normStudio, studioLabel,
     nonReconduction, completion, clientsRetrouves, analyserStudio,
     ventesDuRapport, commerciauxDuRapport, consoliderCommercial, libelleCommercial,
+    siteDivergent,
   };
 }));

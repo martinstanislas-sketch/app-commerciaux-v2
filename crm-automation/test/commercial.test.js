@@ -111,6 +111,36 @@ test('le site Deciplus divergent est conservé sur la ligne', () => {
   assert.notEqual(M.studioLabel(v.site), v.studio, 'c\'est bien une divergence, pas un doublon d\'info');
 });
 
+test('siteDivergent : FB Marcq retrouvé sur Wasquehal -> anomalie, studio attendu + site trouvé', () => {
+  const v = vente({ client: 'Mustapha Teir', site: 'My Coach Wasquehal' });
+  assert.deepEqual(M.siteDivergent(v, 'Marcq'), { attendu: 'Marcq', site: 'My Coach Wasquehal' });
+  // Vue commercial : le studio attendu est celui porté par la ligne.
+  const r = rapport({ Marcq: [v] });
+  const l = M.consoliderCommercial(r, 'Fabian F.').ventes[0];
+  assert.deepEqual(M.siteDivergent(l), { attendu: 'Marcq', site: 'My Coach Wasquehal' });
+});
+
+test('siteDivergent : rien à signaler hors d\'une vente retrouvée sur un autre site', () => {
+  assert.equal(M.siteDivergent(vente({ site: 'My Coach Marcq-en-Barœul' }), 'Marcq'), null, 'même studio, autre graphie');
+  assert.equal(M.siteDivergent(vente({ site: '' }), 'Marcq'), null, 'site inconnu : rien à comparer');
+  assert.equal(M.siteDivergent(vente({ retrouve: false, site: 'Wasquehal' }), 'Marcq'), null, '« à vérifier »');
+  assert.equal(M.siteDivergent(vente({ annulee: true, site: 'Wasquehal' }), 'Marcq'), null, 'annulée');
+  assert.equal(M.siteDivergent(null, 'Marcq'), null);
+  assert.deepEqual(M.siteDivergent(vente({ site: 'Ginkgo Sport' }), 'Marcq'),
+    { attendu: 'Marcq', site: 'Ginkgo Sport' }, 'un site hors des 6 studios ne se rattache pas : divergent');
+});
+
+test('site divergent : la vente reste retrouvée, AUCUN compteur ne bouge', () => {
+  const base = rapport({ Marcq: [vente({ client: 'A', site: 'Marcq' }), vente({ client: 'B', retrouve: false })] });
+  const div = rapport({ Marcq: [vente({ client: 'A', site: 'Wasquehal' }), vente({ client: 'B', retrouve: false })] });
+  const d0 = M.consoliderCommercial(base, 'Fabian F.');
+  const d1 = M.consoliderCommercial(div, 'Fabian F.');
+  ['signees', 'annulees', 'total', 'retrouves', 'aVerifier', 'taux'].forEach((k) => {
+    assert.equal(d1[k], d0[k], k + ' identique avec ou sans divergence');
+  });
+  assert.equal(d1.ventes.find((v) => v.client === 'A').retrouve, true);
+});
+
 test('« pas encore encaissé » reste une note, jamais un « à vérifier »', () => {
   const r = rapport({ Lille: [vente({ client: 'A', retrouve: true, encaisse: false })] });
   const v = M.consoliderCommercial(r, 'Fabian F.').ventes[0];
