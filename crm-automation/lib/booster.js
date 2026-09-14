@@ -57,49 +57,196 @@ async function fermerPanneau(page) {
   }
 }
 
+// ⚠️ CHANGER DE CLUB RECHARGE LA PAGE (Bubble). Une lecture surprise pendant ce
+// rechargement lève « Execution context was destroyed » ou trouve un
+// document sans body. Ce n'est pas une réponse : c'est « pas encore ». On
+// attend la fin du chargement et on rend `defaut` — « inconnu », que les
+// vérifications traitent toujours comme un échec, jamais comme un succès.
+async function lirePage(page, fn, arg, defaut) {
+  try {
+    return await page.evaluate(fn, arg);
+  } catch (e) {
+    if (!/context was destroyed|navigation|Cannot read properties of null|Target closed/i.test(e.message || '')) throw e;
+    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+    return defaut;
+  }
+}
+
 async function menuOuvert(page) {
-  return page.evaluate(() => {
+  return lirePage(page, () => {
     const n = (s) => (s || '').replace(/\s+/g, ' ').trim();
     return [...document.querySelectorAll('div')].some((e) => {
       const r = e.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && n(e.innerText) === 'Tous vos clubs Multi-sites';
     });
-  });
+  }, null, false);
 }
 
-async function choisirClub(page, studio, journal = () => {}) {
+// Le nom de club tel que la barre latérale l'affiche (« Marcq-en-Barœul »).
+const clubAttendu = (studio) => (CLUBS_FB[studio] || '').replace('My Coach ', '');
+// Le club affiché est-il EXACTEMENT celui demandé ? Seuls les espaces sont
+// neutralisés : « Marcq » n'est pas « Marcq-en-Barœul », et un affichage vide
+// (menu encore ouvert, page en cours de rendu) n'est jamais un succès.
+function verifierClub(affiche, studio) {
+  const att = clubAttendu(studio);
+  return !!att && norm(affiche) === att;
+}
+
+// ── LA BASCULE, SANS NAVIGATEUR ────────────────────────────────────────────
+//  LE BUG DU 2026-09-14 (collecte de juillet). Le menu des clubs est une liste
+//  DÉFILANTE : 250 px visibles pour 630 px de contenu. Wasquehal, Marcq,
+//  Boulogne, Levallois et Neuilly sont sous le pli de cette liste. L'ancien
+//  code visait le centre de l'entrée — mais à ce point-là, l'élément du dessus
+//  était la barre latérale (ou « Créer un club », « Alertes »). Le clic tombait
+//  À CÔTÉ du menu, qui se refermait sans rien changer ; on écrivait « club
+//  sélectionné » sans l'avoir vérifié, et c'est la lecture des stats qui
+//  constatait « Lille ». Lille « réussissait » parce qu'il était déjà actif.
+//
+//  D'où trois règles, ici :
+//   1. l'entrée est amenée DANS la zone visible de la liste, et on exige
+//      qu'elle soit bien l'élément sous le pointeur avant de cliquer ;
+//   2. après le clic, on ATTEND le club affiché et on le compare exactement ;
+//   3. un club resté faux après `tentatives` passages est un ÉCHEC — le studio
+//      ne sera pas lu, et la collecte reste bloquante.
+//
+//  `ops` isole tout ce qui touche la page (testé avec un faux navigateur) :
+//    fermerMenu() · clubAffiche() · ouvrirMenu() · amenerEntree(libelle) -> {x,y}
+//    · cliquer({x,y}) · attendreClub(attendu) -> club lu en fin d'attente
+const TENTATIVES_BASCULE = 3;
+
+async function basculerClub(ops, studio, { tentatives = TENTATIVES_BASCULE, journal = () => {} } = {}) {
   const libelle = CLUBS_FB[studio];
   if (!libelle) throw new Error('Studio inconnu côté Fitness Booster : ' + studio);
-  await fermerPanneau(page); // sinon le panneau intercepte le clic
-  for (let i = 0; i < 4; i++) {
-    if (await menuOuvert(page)) break;
-    await page.mouse.click(120, 39); // le bloc « My Coach … » en haut à gauche
-    await page.waitForTimeout(2500);
+  const attendu = clubAttendu(studio);
+  const n = Math.max(1, Number(tentatives) || 1);
+  let raison = '';
+  // ⚠️ Toute exception d'un passage (page rechargée en pleine lecture, menu
+  // introuvable…) compte comme un passage RATÉ, rejoué — jamais comme une
+  // réussite, et jamais comme un abandon avant la limite.
+  for (let i = 1; i <= n; i++) {
+    try {
+      await ops.fermerMenu();
+      const avant = await ops.clubAffiche();
+      if (verifierClub(avant, studio)) {
+        journal('club vérifié : ' + libelle + (i === 1 ? ' (déjà actif)' : ''));
+        return norm(avant);
+      }
+      await ops.ouvrirMenu();
+      const pos = await ops.amenerEntree(libelle);
+      await ops.cliquer(pos);
+      const lu = await ops.attendreClub(attendu);
+      if (verifierClub(lu, studio)) {
+        journal('club sélectionné et vérifié : ' + libelle + (i > 1 ? ' (tentative ' + i + ')' : ''));
+        return norm(lu);
+      }
+      raison = 'Club affiché « ' + (lu || '—') + ' » ≠ attendu « ' + attendu + ' »';
+    } catch (e) {
+      raison = e.message;
+    }
+    if (i < n) journal('↻ bascule vers ' + attendu + ' — tentative ' + i + '/' + n + ' : ' + raison);
   }
-  if (!(await menuOuvert(page))) throw new Error('Sélecteur de club impossible à ouvrir');
-  const h = await page.evaluateHandle((lbl) => {
-    const n = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const els = [...document.querySelectorAll('div')].filter((e) => n(e.innerText) === lbl && e.getBoundingClientRect().width > 0);
-    return els.sort((a, b) => a.getElementsByTagName('*').length - b.getElementsByTagName('*').length)[0] || null;
-  }, libelle);
-  const el = h.asElement();
-  if (!el) throw new Error('Entrée « ' + libelle + ' » absente du sélecteur');
-  await el.scrollIntoViewIfNeeded({ timeout: 5000 });
-  await page.waitForTimeout(400);
-  const box = await el.boundingBox();
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await page.waitForTimeout(7000);
-  journal('club sélectionné : ' + libelle);
+  throw new Error('Bascule vers « ' + attendu + ' » impossible après ' + n + ' tentative(s) — ' + raison);
 }
 
 // Le club réellement affiché dans la barre latérale.
 // ⚠️ À lire UNIQUEMENT liste refermée : ouverte, la première occurrence de
 // « My Coach \n <ville> » est une ENTRÉE DU MENU et non le club actif — c'est
-// ainsi qu'on a cru lire « Neuilly » alors qu'on demandait Lille.
-const clubAffiche = (page) => page.evaluate(() => {
+// ainsi qu'on a cru lire « Neuilly » alors qu'on demandait Lille. Menu ouvert,
+// on rend donc '' : « inconnu », jamais un faux positif.
+const clubAffiche = (page) => lirePage(page, () => {
+  if (!document.body) return '';
+  const n = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const ouvert = [...document.querySelectorAll('div')].some((e) => {
+    const r = e.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && n(e.innerText) === 'Tous vos clubs Multi-sites';
+  });
+  if (ouvert) return '';
   const m = (document.body.innerText || '').match(/My Coach\s*\n\s*([^\n]{3,40})/);
   return m ? m[1].trim() : '';
-});
+}, null, '');
+
+// Les opérations réelles, sur la page Fitness Booster.
+function opsPage(page) {
+  return {
+    async fermerMenu() {
+      for (let i = 0; i < 3 && (await menuOuvert(page)); i++) {
+        await page.keyboard.press('Escape').catch(() => {});
+        await page.waitForTimeout(1000);
+      }
+    },
+    clubAffiche: () => clubAffiche(page),
+    async ouvrirMenu() {
+      await fermerPanneau(page); // sinon le panneau intercepte le clic
+      for (let i = 0; i < 4; i++) {
+        if (await menuOuvert(page)) return;
+        await page.mouse.click(120, 39); // le bloc « My Coach … » en haut à gauche
+        await page.waitForTimeout(2500);
+      }
+      if (!(await menuOuvert(page))) throw new Error('Sélecteur de club impossible à ouvrir');
+    },
+    async amenerEntree(libelle) {
+      // 1) Défiler LA LISTE (et non la fenêtre) pour centrer l'entrée.
+      const trouve = await page.evaluate((lbl) => {
+        const n = (s) => (s || '').replace(/\s+/g, ' ').trim();
+        // Une ENTRÉE du menu vit dans une cellule de liste (.group-item) : cela
+        // écarte l'en-tête de la barre latérale, qui porte le même texte.
+        const txt = [...document.querySelectorAll('.group-item div')]
+          .filter((e) => n(e.innerText) === lbl && e.getBoundingClientRect().width > 0)
+          .sort((a, b) => a.getElementsByTagName('*').length - b.getElementsByTagName('*').length)[0];
+        if (!txt) return false;
+        const cible = txt.closest('.clickable-element') || txt;
+        let sc = cible.parentElement;
+        while (sc && !(sc.scrollHeight > sc.clientHeight + 1 && /(auto|scroll|hidden)/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+        if (sc) {
+          const rs = sc.getBoundingClientRect(), rc = cible.getBoundingClientRect();
+          sc.scrollTop += (rc.top - rs.top) - (rs.height - rc.height) / 2;
+        }
+        return true;
+      }, libelle);
+      if (!trouve) throw new Error('Entrée « ' + libelle + ' » absente du sélecteur');
+      await page.waitForTimeout(800);
+      // 2) Mesurer APRÈS défilement, et exiger que le pointeur tombe sur l'entrée.
+      const pos = await page.evaluate((lbl) => {
+        const n = (s) => (s || '').replace(/\s+/g, ' ').trim();
+        const txt = [...document.querySelectorAll('.group-item div')]
+          .filter((e) => n(e.innerText) === lbl && e.getBoundingClientRect().width > 0)
+          .sort((a, b) => a.getElementsByTagName('*').length - b.getElementsByTagName('*').length)[0];
+        if (!txt) return { erreur: 'entrée disparue après défilement' };
+        const cible = txt.closest('.clickable-element') || txt;
+        const r = cible.getBoundingClientRect();
+        const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2);
+        const dessus = document.elementFromPoint(x, y);
+        if (!dessus || !cible.contains(dessus)) {
+          return { erreur: 'entrée hors de la zone cliquable du menu (recouverte par « ' + n(dessus && dessus.innerText).slice(0, 30) + ' »)' };
+        }
+        return { x, y };
+      }, libelle);
+      if (pos.erreur) throw new Error('« ' + libelle + ' » : ' + pos.erreur);
+      return pos;
+    },
+    cliquer: (pos) => page.mouse.click(pos.x, pos.y),
+    async attendreClub(attendu, delaiMs = 25000) {
+      // ATTENTE ACTIVE : la bascule recharge la page, puis Bubble repeint la
+      // barre latérale. On rend le dernier club lu — c'est basculerClub qui
+      // juge. Un club correct doit être lu DEUX FOIS de suite : une lecture
+      // attrapée juste avant le rechargement pourrait encore montrer l'ancien
+      // état, ou un état transitoire.
+      let lu = '', stable = 0;
+      const fin = Date.now() + delaiMs;
+      while (Date.now() < fin) {
+        await page.waitForTimeout(1000);
+        lu = await clubAffiche(page);
+        stable = norm(lu) === attendu ? stable + 1 : 0;
+        if (stable >= 2) return lu;
+      }
+      return lu;
+    },
+  };
+}
+
+async function choisirClub(page, studio, journal = () => {}) {
+  return basculerClub(opsPage(page), studio, { journal });
+}
 
 // ── ANALYSE D'UNE LIGNE DE DÉTAIL (pure, testable sans navigateur) ─────────
 //  Une ligne complète se présente ainsi :
@@ -161,11 +308,14 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
   await page.goto(urlStats(ym), { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(9000);
 
-  // CONTRÔLE 1 : le bon club est affiché (liste refermée avant de lire).
+  // CONTRÔLE 1 : le bon club est TOUJOURS affiché une fois la page de stats
+  // rechargée (liste refermée avant de lire). La bascule a été vérifiée juste
+  // avant ; on revérifie ici, car c'est cette page-là qu'on va lire.
   if (await menuOuvert(page)) { await page.keyboard.press('Escape').catch(() => {}); await page.waitForTimeout(1200); }
   const club = await clubAffiche(page);
-  const attendu = CLUBS_FB[studio].replace('My Coach ', '');
-  if (club !== attendu) throw new Error('Club affiché « ' + club + ' » ≠ attendu « ' + attendu + ' »');
+  if (!verifierClub(club, studio)) {
+    throw new Error('Club affiché « ' + (club || '—') + ' » ≠ attendu « ' + clubAttendu(studio) + ' »');
+  }
 
   // CONTRÔLE 2 : le compteur existe.
   const compteur = await page.evaluate(() => {
@@ -273,4 +423,7 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
   return { studio, club, mois: ym, compteur, contrats, annulees, periodeDetail };
 }
 
-module.exports = { lireStudio, analyserLigne, fermerPanneau, choisirClub, CLUBS_FB, decalageMois, urlStats, MOIS_FR2, norm };
+module.exports = {
+  lireStudio, analyserLigne, fermerPanneau, choisirClub, basculerClub, verifierClub, clubAttendu,
+  CLUBS_FB, TENTATIVES_BASCULE, decalageMois, urlStats, MOIS_FR2, norm,
+};

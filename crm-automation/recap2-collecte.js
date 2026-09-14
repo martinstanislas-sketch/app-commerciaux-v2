@@ -40,6 +40,8 @@ const VENTES = require('./lib/csvVentes.js');
 const DEC = require('./lib/deciplus.js');
 const FB = require('./lib/booster.js');
 const CTRL = require('./lib/recap2Controles.js');
+const RAPPRO = require('./lib/rapprochement.js');
+const MATCHES = require('../lib/recap2Matches.js');
 const REESSAI = require('./lib/reessai.js');
 const FICHIER = require('./lib/rapportFichier.js');
 
@@ -215,6 +217,24 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     annulees: r.annulees == null ? null : r.annulees, echec: r.echec || null,
   }]));
 
+  // ── 3 bis) LES DÉCISIONS HUMAINES DÉJÀ PRISES ────────────────────────────
+  //  Lues sur le serveur AVANT le moteur fuzzy : une correspondance confirmée
+  //  n'a plus à être proposée, et un couple refusé ne doit plus revenir.
+  //  Injoignable ? On continue sans : mieux vaut reproposer que ne rien rendre.
+  let decisions = new Map();
+  try {
+    const base = (process.env.RECAP2_INGEST_URL || '').replace(/\/$/, '');
+    const cle = process.env.RECAP2_INGEST_KEY || '';
+    if (base && cle) {
+      const rep = await fetch(base + '/api/recap2/matches', { headers: { 'X-Recap2-Key': cle } });
+      if (rep.ok) {
+        const j = await rep.json();
+        (j.matches || []).forEach((m) => decisions.set(m.cle, { confirme: m.confirme, refuses: m.refuses || [] }));
+        dire('rapprochements déjà décidés : ' + decisions.size);
+      } else dire('ℹ️ rapprochements : serveur ' + rep.status + ' — on continue sans');
+    }
+  } catch (e) { dire('ℹ️ rapprochements indisponibles (' + e.message + ') — on continue sans'); }
+
   // ── 4) CALCUL par studio ─────────────────────────────────────────────────
   for (const studio of M.LABELS) {
     // Pas de `completion` ici, même à null : ce champ appartient à la règle v1.
@@ -285,7 +305,26 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       const vueVentes = VENTES.vueParNom(ventesM, R.clesContrat);
       const vueEnc = enc[mois] ? CSV.vueParNom(enc[mois], studio, M.studioLabel, R.clesContrat) : [];
       const cr = M.clientsRetrouves({ signataires, annulees, ventesM: vueVentes, encM: vueEnc });
-      const ligne = (c) => ({
+      // QUASI-HOMONYMES : pour un « à vérifier », on cherche un nom très proche
+      // dans le journal des ventes. On PROPOSE une piste, on n'apparie jamais —
+      // la ligne reste « à vérifier » et aucun compteur ne bouge.
+      //  ORDRE : correspondance exacte (déjà faite) -> décision humaine déjà
+      //  prise -> moteur fuzzy, en excluant les couples refusés -> à vérifier.
+      //  Une validation humaine prime TOUJOURS sur le moteur.
+      const pisteDe = (c) => {
+        if (c.annulee || c.retrouve) return {};
+        const ident = ((c.prenom || '') + ' ' + (c.nom || '')).trim();
+        const dej = decisions.get(MATCHES.cleDe({ client: ident }));
+        if (dej && dej.confirme) return {};   // le serveur le posera à la lecture
+        const q = RAPPRO.proposer(ident, ventesM, { exclure: (dej && dej.refuses) || [] });
+        if (!q || q.ambigu) return {};   // plusieurs candidats aussi proches : on se tait
+        return {
+          candidat: q.adherent, candidatScore: q.score, candidatNiveau: q.niveau,
+          candidatIndices: q.indices.slice(0, 4),
+          candidatSite: q.site || '', candidatId: q.idClient || '',
+        };
+      };
+      const ligne = (c) => Object.assign({
         client: ((c.prenom || '') + ' ' + (c.nom || '')).trim(),
         date: c.date || '', prestation: c.prestation || '', commercial: c.commercial || '',
         annulee: !!c.annulee, dateAnnulation: c.dateAnnulation || '',
@@ -293,7 +332,7 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
         // Id_client Deciplus : sert UNIQUEMENT à ouvrir la fiche membre au
         // clic. Aucune autre donnée personnelle n'est ajoutée au rapport.
         idClient: c.idClient || '', encaisse: c.encaisse,
-      });
+      }, pisteDe(c));
       bloc.clientsRetrouves = {
         // `annulees` : comptées, affichées, mais hors du taux. `annulesExclus`
         // est conservé à l'identique pour que les rapports déjà déposés — qui ne
@@ -315,6 +354,10 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       // un manque. On le mentionne pour mémoire, jamais comme un défaut.
       if (annulees.length) {
         bloc.avertissements.push(annulees.length + ' vente(s) annulée(s) — affichée(s) dans le détail, hors du taux');
+      }
+      const pistes = cr.clients.filter((c) => !c.retrouve && !c.annulee && pisteDe(c).candidat).length;
+      if (pistes) {
+        bloc.avertissements.push(pistes + ' rapprochement(s) proposé(s) — à confirmer à la main, hors du taux');
       }
       const enAttente = cr.clients.filter((c) => c.retrouve && !c.encaisse).length;
       if (enAttente) {

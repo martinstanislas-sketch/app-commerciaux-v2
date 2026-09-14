@@ -27,6 +27,7 @@
 
 const Recap2UI = (function () {
   const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
   const T = () => (window.localStorage.getItem('authToken') || '');
   const H = () => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + T() });
   // L'ordre des studios vient du module partagé : une seule liste de référence.
@@ -296,7 +297,12 @@ const Recap2UI = (function () {
     const sous = n > 0
       ? d.retrouves + ' / ' + n + ' signataire' + (n > 1 ? 's' : '') + ' de ' + moisLabel(rapport.mois)
       : '0 vente signée';
-    return carte(label, 'crm', titre2(), pct(d.taux), sous, ouvert === label + '|crm', n > 0);
+    // Repérable sans ouvrir le détail. Le chiffre de la carte, lui, ne bouge pas.
+    const nDiv = repartition(d.liste, label).divergents;
+    const alerte = nDiv
+      ? '<span class="rec2-card-div">⚠ ' + nDiv + ' site' + (nDiv > 1 ? 's' : '') + ' Deciplus divergent' + (nDiv > 1 ? 's' : '') + '</span>'
+      : '';
+    return carte(label, 'crm', titre2(), pct(d.taux), sous + alerte, ouvert === label + '|crm', n > 0);
   }
 
   // ── NOM CLIQUABLE VERS LA FICHE DECIPLUS ────────────────────────────────────
@@ -350,23 +356,96 @@ const Recap2UI = (function () {
       return '<span class="rec2-etat is-annul">Annulé</span>'
         + (v.dateAnnulation ? ' <span class="rec2-det-date">le ' + esc(v.dateAnnulation) + '</span>' : '');
     }
-    if (!v.retrouve) return '<span class="rec2-etat is-non">À vérifier</span>';
-    const MM = window.Recap2Metrics;
-    const ailleurs = v.site && MM && MM.studioLabel && MM.studioLabel(v.site) !== studioAttendu;
+    if (v.retrouve && v.valideManuellement) {
+      // Une certitude, mais obtenue par décision humaine : on le DIT, pour
+      // qu'on sache toujours d'où vient un chiffre.
+      return '<span class="rec2-etat is-valide">Retrouvé — validé manuellement</span>'
+        + (v.valideNom ? ' <span class="rec2-det-date">' + esc(v.valideNom) + '</span>' : '')
+        + anomalieSite(v, studioAttendu);
+    }
+    if (!v.retrouve && v.candidat) {
+      // RAPPROCHEMENT PROPOSÉ : un vrai statut, avec de quoi décider sans
+      // quitter l'écran — la fiche du candidat, puis confirmer ou refuser.
+      const R = window.Retention;
+      const href = (R && R.lienDeciplusId) ? R.lienDeciplusId(v.candidatId) : null;
+      const NIV = { tres_forte: 'très forte', forte: 'élevée', moyenne: 'moyenne' };
+      const raisons = (v.candidatIndices || []).map((x) => '<li>' + esc(x) + '</li>').join('');
+      const jeton = esc(v.client) + '|' + esc(v.candidatId || '') + '|' + esc(v.candidat || '');
+      return '<div class="rec2-prop">'
+        + '<span class="rec2-etat is-prop">Rapprochement proposé</span>'
+        + '<div class="rec2-prop-qui">' + (href
+          ? '<a class="rec2-lien-fiche" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'
+            + ' title="Ouvrir la fiche Deciplus de ce candidat">' + esc(v.candidat) + ' ↗</a>'
+          : esc(v.candidat))
+        + ' <span class="rec2-det-date">confiance ' + esc(NIV[v.candidatNiveau] || 'moyenne')
+        + (v.candidatSite ? ' · ' + esc(v.candidatSite) : '') + '</span></div>'
+        + (raisons ? '<ul class="rec2-prop-pourquoi">' + raisons + '</ul>' : '')
+        + '<div class="rec2-prop-actions">'
+        + '<button type="button" class="rec2-btn-ok" data-match="confirmed|' + jeton + '">✓ Confirmer</button>'
+        + '<button type="button" class="rec2-btn-non" data-match="rejected|' + jeton + '">✕ Refuser</button>'
+        + '</div></div>';
+    }
+    if (!v.retrouve) {
+      // Une PISTE, pas un verdict : le statut reste « à vérifier », et le nom
+      // proposé n'est qu'un candidat à confirmer à la main.
+      // Un rapprochement REFUSÉ le reste : on le dit, pour qu'on ne croie pas
+      // à un oubli du moteur.
+      return '<span class="rec2-etat is-non">À vérifier</span>'
+        + (v.refuse ? ' <span class="rec2-det-date">rapprochement refusé</span>' : '');
+    }
     const notes = [];
     if (v.dateVente) notes.push('le ' + esc(v.dateVente));
-    if (ailleurs) notes.push('site ' + esc(v.site));
     if (v.encaisse === false) notes.push('pas encore encaissé');
     return '<span class="rec2-etat is-oui">Retrouvée</span>'
-      + (notes.length ? ' <span class="rec2-det-date">' + notes.join(' · ') + '</span>' : '');
+      + (notes.length ? ' <span class="rec2-det-date">' + notes.join(' · ') + '</span>' : '')
+      + anomalieSite(v, studioAttendu);
   }
 
-  // Le filtre d'une ligne : 'tous' | 'retrouves' | 'verifier' | 'annules'.
-  function passeFiltre(v, f) {
+  // ── SITE DECIPLUS DIVERGENT ─────────────────────────────────────────────────
+  //  Une anomalie à CORRIGER dans Deciplus, affichée SOUS le statut : la vente
+  //  reste « Retrouvée » et compte dans le taux, mais on doit la voir d'un coup
+  //  d'œil. La règle vit dans Recap2Metrics.siteDivergent — une seule définition
+  //  pour le détail studio, la vue commercial, la carte et le filtre.
+  function divergence(v, studioAttendu) {
+    const MM = window.Recap2Metrics;
+    return (MM && MM.siteDivergent) ? MM.siteDivergent(v, studioAttendu) : null;
+  }
+  function anomalieSite(v, studioAttendu) {
+    const d = divergence(v, studioAttendu);
+    if (!d) return '';
+    return '<div class="rec2-div">'
+      + '<span class="rec2-etat is-div">⚠ Site Deciplus divergent</span>'
+      + '<span class="rec2-div-qui">Studio attendu : <b>' + esc(d.attendu) + '</b>'
+      + ' · Site Deciplus trouvé : <b>' + esc(d.site) + '</b></span></div>';
+  }
+
+  // Le filtre d'une ligne : 'tous' | 'retrouves' | 'proposes' | 'verifier' |
+  //  'divergents' | 'annules'.
+  //  « Retrouvés » englobe les deux certitudes — automatique et validée — mais
+  //  le détail de la ligne dit toujours laquelle des deux s'applique.
+  //  « Sites divergents » est un sous-ensemble des retrouvés : un filtre de
+  //  repérage, pas une population de plus dans le décompte.
+  //  `studio` : le studio attendu (détail studio) ; absent, celui de la ligne.
+  function passeFiltre(v, f, studio) {
+    if (f === 'divergents') return !!divergence(v, studio);
     if (f === 'annules') return !!v.annulee;
-    if (f === 'retrouves') return !v.annulee && v.retrouve;
-    if (f === 'verifier') return !v.annulee && !v.retrouve;
+    if (f === 'retrouves') return !v.annulee && !!v.retrouve;
+    if (f === 'proposes') return !v.annulee && !v.retrouve && !!v.candidat;
+    if (f === 'verifier') return !v.annulee && !v.retrouve && !v.candidat;
     return true;
+  }
+  // Les cinq populations d'une liste, comptées une fois pour toutes.
+  //  `divergents` est compté À PART : il est inclus dans `retrouves`, et
+  //  n'entre dans aucune soustraction.
+  function repartition(liste, studio) {
+    const l = liste || [];
+    const annulees = l.filter((v) => v.annulee).length;
+    const retrouves = l.filter((v) => !v.annulee && v.retrouve).length;
+    const valides = l.filter((v) => !v.annulee && v.retrouve && v.valideManuellement).length;
+    const proposes = l.filter((v) => !v.annulee && !v.retrouve && v.candidat).length;
+    const divergents = l.filter((v) => divergence(v, studio)).length;
+    return { total: l.length, annulees, actives: l.length - annulees, retrouves, valides, proposes, divergents,
+      aVerifier: l.length - annulees - retrouves - proposes };
   }
 
   // Le bandeau chiffré, identique partout : signées, annulées, actives,
@@ -377,6 +456,14 @@ const Recap2UI = (function () {
     const nbR = retrouves == null ? liste.filter((v) => !v.annulee && v.retrouve).length : retrouves;
     return { signees: liste.length, annulees, actives: signataires == null ? actives : signataires, retrouves: nbR };
   }
+
+  // La classe d'une ligne : annulée (barrée) ou site divergent (liseré d'alerte).
+  function classeLigne(v, studio) {
+    if (v.annulee) return ' class="rec2-ligne-annul"';
+    return divergence(v, studio) ? ' class="rec2-ligne-div"' : '';
+  }
+  // Le filtre de repérage, habillé en alerte pour se distinguer des populations.
+  const chipDiv = (chip, n) => chip('divergents', '⚠ Sites divergents', n).replace('rec2-chip', 'rec2-chip rec2-chip-div');
 
   // ── DÉTAILS (fermés par défaut, un seul ouvert à la fois) ────────────────────
   function detail(label, b) {
@@ -428,16 +515,18 @@ const Recap2UI = (function () {
   function detailCrm(label, d) {
     const tous = (d && d.liste) || [];
     const f = filtreCrm[label] || 'tous';
-    const liste = tous.filter((c) => passeFiltre(c, f));
-    const c = comptes(tous, d && d.signataires, d && d.retrouves);
+    const liste = tous.filter((c) => passeFiltre(c, f, label));
+    const c = repartition(tous, label);
     const chip = (val, txt, n) => '<button type="button" class="rec2-chip' + (f === val ? ' is-on' : '')
       + '" data-filtrecrm="' + esc(label) + '|' + val + '">' + txt + ' <b>' + n + '</b></button>';
-    const chips = '<div class="rec2-chips">' + chip('tous', 'Tous', tous.length)
+    const chips = '<div class="rec2-chips">' + chip('tous', 'Tous', c.total)
       + chip('retrouves', 'Retrouvés', c.retrouves)
-      + chip('verifier', 'À vérifier', c.actives - c.retrouves)
+      + (c.proposes ? chip('proposes', 'Rapprochements proposés', c.proposes) : '')
+      + chip('verifier', 'À vérifier', c.aVerifier)
+      + (c.divergents ? chipDiv(chip, c.divergents) : '')
       + (c.annulees ? chip('annules', 'Annulés', c.annulees) : '') + '</div>';
 
-    const lignes = liste.map((v) => '<tr' + (v.annulee ? ' class="rec2-ligne-annul"' : '') + '><td>' + nomClient(v)
+    const lignes = liste.map((v) => '<tr' + classeLigne(v, label) + '><td>' + nomClient(v)
       + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + '</td>'
       + '<td>' + esc(v.prestation || '—') + '</td>'
       + '<td>' + esc(v.commercial || '—') + '</td>'
@@ -481,7 +570,7 @@ const Recap2UI = (function () {
     const chip = (val, txt, n) => '<button type="button" class="rec2-chip' + (filtreCom === val ? ' is-on' : '')
       + '" data-filtrecom="' + val + '">' + txt + ' <b>' + n + '</b></button>';
 
-    const lignes = liste.map((v) => '<tr' + (v.annulee ? ' class="rec2-ligne-annul"' : '') + '>'
+    const lignes = liste.map((v) => '<tr' + classeLigne(v, v.studio) + '>'
       + '<td class="rec2-com-studio">' + esc(v.studio) + '</td>'
       + '<td>' + nomClient(v) + '</td>'
       + '<td class="rec2-num">' + esc(v.date || '—') + '</td>'
@@ -497,14 +586,19 @@ const Recap2UI = (function () {
 
     // Le compte se lit de haut en bas : signées -> annulées -> actives, puis ce
     // que devient l'actif. Le taux ne porte QUE sur les ventes actives.
+    const rep0 = repartition(d.ventes);
     const n = (x, un, pl) => '<span class="rec2-com-det"><b>' + x + '</b> ' + (x > 1 ? pl : un) + '</span>';
     const stats = '<div class="rec2-com-stats">'
       + '<span class="rec2-com-taux">' + pct(d.taux) + '</span>'
       + n(d.signees, 'vente signée', 'ventes signées')
       + (d.annulees ? n(d.annulees, 'annulée', 'annulées') : '')
       + n(d.total, 'vente active', 'ventes actives')
-      + n(d.retrouves, 'retrouvée dans Deciplus', 'retrouvées dans Deciplus')
-      + n(d.aVerifier, 'à vérifier', 'à vérifier')
+      + n(rep0.retrouves, 'retrouvée dans Deciplus', 'retrouvées dans Deciplus')
+      + (rep0.valides ? n(rep0.valides, 'validée à la main', 'validées à la main') : '')
+      + (rep0.proposes ? n(rep0.proposes, 'rapprochement proposé', 'rapprochements proposés') : '')
+      + n(rep0.aVerifier, 'à vérifier', 'à vérifier')
+      + (rep0.divergents ? '<span class="rec2-com-det rec2-com-det-div"><b>' + rep0.divergents + '</b> '
+        + (rep0.divergents > 1 ? 'sites Deciplus divergents' : 'site Deciplus divergent') + '</span>' : '')
       + '</div>';
     const ou = '<p class="rec2-com-studios">Studios : ' + esc(d.studios.join(', ')) + '</p>';
 
@@ -513,9 +607,12 @@ const Recap2UI = (function () {
       + esc(cap(moisLabel(rapport.mois))) + '</h3>'
       + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
       + stats + ou
-      + '<div class="rec2-chips">' + chip('tous', 'Tous', d.signees)
-      + chip('retrouves', 'Retrouvés', d.retrouves) + chip('verifier', 'À vérifier', d.aVerifier)
-      + (d.annulees ? chip('annules', 'Annulés', d.annulees) : '') + '</div>'
+      + '<div class="rec2-chips">' + chip('tous', 'Tous', rep0.total)
+      + chip('retrouves', 'Retrouvés', rep0.retrouves)
+      + (rep0.proposes ? chip('proposes', 'Rapprochements proposés', rep0.proposes) : '')
+      + chip('verifier', 'À vérifier', rep0.aVerifier)
+      + (rep0.divergents ? chipDiv(chip, rep0.divergents) : '')
+      + (rep0.annulees ? chip('annules', 'Annulés', rep0.annulees) : '') + '</div>'
       + corps
       + '<p class="rec2-det-note">Ce filtre ne concerne que « clients retrouvés dans Deciplus ». '
       + 'La non-reconduction, ci-dessous, ne dépend d\'aucun commercial.</p>'
@@ -524,6 +621,8 @@ const Recap2UI = (function () {
 
   // ── INTERACTIONS ────────────────────────────────────────────────────────────
   function onBodyClick(e) {
+    const dec = e.target.closest('[data-match]');
+    if (dec) { deciderRapprochement(dec); return; }
     // Un lien de RECHERCHE : on copie le nom pour n'avoir qu'à le coller, et on
     // laisse le navigateur ouvrir l'onglet. La copie ne doit jamais bloquer le
     // lien — elle échoue silencieusement si le navigateur la refuse.
@@ -553,6 +652,41 @@ const Recap2UI = (function () {
     if (!btn) return;
     ouvert = (ouvert === btn.dataset.open) ? '' : btn.dataset.open; // re-clic = referme
     render();
+  }
+
+  // ── CONFIRMER / REFUSER ─────────────────────────────────────────────────────
+  //  Une seule source de vérité : le serveur. On enregistre, puis on RECHARGE le
+  //  mois — le rapport revient avec les décisions déjà posées dessus. Les vues
+  //  studio et commercial sont donc d'accord sans effort : elles lisent le même
+  //  rapport, et le KPI vient du serveur, jamais d'un calcul local optimiste.
+  async function deciderRapprochement(bouton) {
+    const [statut, client, idClient, nomDeciplus] = String(bouton.dataset.match || '').split('|');
+    if (!client || !idClient) return;
+    // Garde-fou léger sur le refus seulement : confirmer se répare d'un clic,
+    // refuser fait disparaître la proposition.
+    if (statut === 'rejected'
+      && !window.confirm('Refuser ce rapprochement ?\n\n' + client + '   ✕   ' + nomDeciplus
+        + '\n\nIl ne sera plus proposé.')) return;
+
+    const boutons = $$('#rec2-body [data-match]');
+    boutons.forEach((b) => { b.disabled = true; });
+    const avant = bouton.textContent;
+    bouton.textContent = '…';
+    try {
+      const r = await fetch('/api/recap2/matches', {
+        method: 'POST', headers: H(),
+        body: JSON.stringify({ client, idClient, nomDeciplus, statut, methode: 'fuzzy' }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => null);
+        throw new Error((j && j.error) || ('HTTP ' + r.status));
+      }
+      await charger();   // le serveur repose les décisions : l'écran suit
+    } catch (err) {
+      boutons.forEach((b) => { b.disabled = false; });
+      bouton.textContent = avant;
+      alert('Décision non enregistrée : ' + (err && err.message ? err.message : 'erreur'));
+    }
   }
 
   return { open };
