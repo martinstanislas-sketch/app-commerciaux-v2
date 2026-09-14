@@ -342,8 +342,8 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
         bloc.nonReconduction = {
           base: nr.base, nonReconduits: nr.nb,
           taux: nr.taux, tauxPct: nr.taux == null ? null : +(nr.taux * 100).toFixed(1),
-          // Détail nominatif, utile pour l'œil : identité + nets.
-          liste: nr.nonReconduits.map((c) => ({ client: c.nom, netM1: +c.netM1.toFixed(2), netM: +c.netM.toFixed(2) })),
+          // Détail nominatif, utile pour l'œil : identité, Id membre (fiche), nets.
+          liste: CSV.detailNonReconduits(nr.nonReconduits),
         };
       }
     } else bloc.avertissements.push('encaissements manquants (M et/ou M-1)');

@@ -100,6 +100,35 @@ test('valider : une entrée de détail mal formée est refusée', () => {
   assert.match(refuse(r, '2026-07', 'paye non booléen'), /paye : booléen attendu/);
 });
 
+// ── NON-RECONDUITS : l'Id membre qui ouvre la fiche Deciplus ────────────────
+test('non-reconduits : idClient facultatif, des chiffres ou vide, rien d\'autre', () => {
+  const avec = rapport(); avec.studios.Lille.nonReconduction.liste[0].idClient = '42321';
+  assert.equal(S.valider(avec, '2026-07').ok, true, 'un Id membre numérique passe');
+  const vide = rapport(); vide.studios.Lille.nonReconduction.liste[0].idClient = '';
+  assert.equal(S.valider(vide, '2026-07').ok, true, 'vide : pas de fiche, pas de lien');
+  assert.equal(S.valider(rapport(), '2026-07').ok, true, 'absent : un rapport d\'avant reste valide');
+  ['NOM:DUPONT MARIE', '42321 ', '../42321', 'javascript:alert(1)'].forEach((id) => {
+    const r = rapport(); r.studios.Lille.nonReconduction.liste[0].idClient = id;
+    assert.match(refuse(r, '2026-07', 'id bricolé ' + id), /n'est pas un Id_client Deciplus/);
+  });
+  const nombre = rapport(); nombre.studios.Lille.nonReconduction.liste[0].idClient = 42321;
+  assert.match(refuse(nombre, '2026-07', 'id numérique brut'), /idClient : texte attendu/);
+});
+
+test('non-reconduits : nettoyer garde l\'Id membre plausible, n\'en invente aucun', () => {
+  const r = rapport();
+  r.studios.Lille.nonReconduction.liste[0].idClient = '42321';
+  r.studios.Marcq.nonReconduction.liste[0].idClient = '';
+  const p = S.nettoyer(r);
+  assert.deepEqual(p.studios.Lille.nonReconduction.liste[0], { client: 'DUPONT Marie', idClient: '42321', netM1: 60, netM: 0 });
+  assert.deepEqual(p.studios.Marcq.nonReconduction.liste[0], { client: 'DUPONT Marie', netM1: 60, netM: 0 });
+  assert.deepEqual(p.studios.Boulogne.nonReconduction.liste[0], { client: 'DUPONT Marie', netM1: 60, netM: 0 }, 'rapport d\'avant : inchangé');
+  ['base', 'nonReconduits', 'taux', 'tauxPct'].forEach((k) => {
+    assert.equal(p.studios.Lille.nonReconduction[k], r.studios.Lille.nonReconduction[k], k + ' inchangé');
+  });
+  assert.equal(S.valider(p, '2026-07').ok, true, 'la forme canonique reste valide');
+});
+
 test('valider : compteurs non numériques refusés', () => {
   const r = rapport(); r.studios.Lille.nonReconduction.base = '4';
   assert.match(refuse(r, '2026-07', 'base texte'), /base : nombre positif attendu/);

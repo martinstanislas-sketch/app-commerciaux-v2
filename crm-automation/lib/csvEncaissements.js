@@ -354,6 +354,18 @@ function vueParId(lignes, studio, studioLabel) {
       nom: l.adherent, prenom: '',
     }));
 }
+// Le détail nominatif des non-reconduits, tel qu'il part dans le rapport.
+// `idClient` : la clé de la vue « id », c'est-à-dire l'Id membre des
+// encaissements, qui EST l'Id_client Deciplus (vérifié le 2026-09-14 : 1 851
+// ids communs ventes ↔ encaissements, 1 851 au même nom). Il sert UNIQUEMENT à
+// ouvrir la fiche au clic. Une clé de repli « NOM:… » n'est pas un id : vide.
+function detailNonReconduits(nonReconduits) {
+  return (nonReconduits || []).map((c) => ({
+    client: c.nom,
+    idClient: /^[0-9]{1,20}$/.test(String(c.cle || '')) ? String(c.cle) : '',
+    netM1: +c.netM1.toFixed(2), netM: +c.netM.toFixed(2),
+  }));
+}
 function vueParNom(lignes, studio, studioLabel, clesDe) {
   const out = [];
   lignes
@@ -364,4 +376,4 @@ function vueParNom(lignes, studio, studioLabel, clesDe) {
   return out;
 }
 
-module.exports = { parser, verifier, controlerStudios, lignesEcartees, lirePeriode, decouper, montant, euros, moisDe, vueParId, vueParNom, COLONNES_REQUISES };
+module.exports = { parser, verifier, controlerStudios, lignesEcartees, lirePeriode, decouper, montant, euros, moisDe, vueParId, vueParNom, detailNonReconduits, COLONNES_REQUISES };
