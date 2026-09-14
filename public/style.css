@@ -21991,3 +21991,6 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec2-resil-date { font: inherit; font-size: 12.5px; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--r2-line-2); background: transparent; color: var(--r2-text); color-scheme: dark; }
 .rec2-resil-q { font-size: 12.5px; color: var(--r2-text); }
 .rec2-resil-err { margin-top: 4px; font-size: 11.5px; color: var(--r2-red); }
+/* Annulée dans Fitness Booster mais résiliée en réalité : la source reste dite,
+   en second, et la ligne n'est plus barrée (la vente a existé). */
+.rec2-resil-source { margin-top: 4px; font-size: 11.5px; color: var(--r2-text-3); }

@@ -38,7 +38,8 @@ const studio = (nom) => {
       candidat: 'GUEVENOUX Aristide', candidatScore: 0.94, candidatNiveau: 'forte', candidatIndices: ['prénom identique'], candidatSite: '', candidatId: '41856' }),
     aVerifier({ client: 'Makanfing Konate', date: '16/08/2026' }),
     Object.assign(aVerifier({ client: 'Esther Jhureea', date: '24/08/2026' }), { ficheId: '42350', ficheNom: 'JHUREEA Esther', ficheSite: 'My Coach Wasquehal' }),
-    Object.assign(aVerifier({ client: 'Dei Muteba', date: '10/08/2026' }), { annulee: true, dateAnnulation: '24/08/2026' }),
+    // Cas réel : annulée dans Fitness Booster, mais signée puis résiliée en réalité.
+    Object.assign(aVerifier({ client: 'Dei Muteba', date: '19/08/2026' }), { annulee: true, dateAnnulation: '24/08/2026' }),
   ].map((l) => JSON.parse(JSON.stringify(l)));
   return {
     studio: nom,
@@ -104,13 +105,40 @@ test('date : obligatoire, ni avant la signature, ni dans le futur — rien n\'es
   assert.equal(ligne(await lire(), 'Camille Gremez', 'Lille').resiliation.resilie, false);
 });
 
-test('refusée sur un « à vérifier », sur une fiche trouvée sans vente, sur une annulée', async () => {
+test('refusée sur un « à vérifier » et sur une fiche trouvée sans vente', async () => {
   assert.equal((await resilier({ client: 'Makanfing Konate', date: '16/08/2026' })).status, 409);
   assert.equal((await resilier({ client: 'Esther Jhureea', date: '24/08/2026' })).status, 409);
-  const annulee = await resilier({ client: 'Dei Muteba', date: '10/08/2026' });
-  assert.equal(annulee.status, 409);
-  assert.match((await annulee.json()).error, /annulée/);
   assert.equal((await resilier({ client: 'Personne Inventée' })).status, 404);
+});
+
+// ── DEI MUTEBA : ANNULÉE DANS FITNESS BOOSTER, RÉSILIÉE EN RÉALITÉ ──────────
+test('DEI MUTEBA — vente annulée : date obligatoire et bornée par SA signature (19/08)', async () => {
+  const dei = { client: 'Dei Muteba', date: '19/08/2026' };
+  assert.equal((await resilier(Object.assign({ dateResiliation: '' }, dei))).status, 400, 'date obligatoire');
+  assert.equal((await resilier(Object.assign({ dateResiliation: '18/08/2026' }, dei))).status, 400, 'avant la signature');
+  assert.equal((await resilier(Object.assign({ dateResiliation: '01/01/2099' }, dei))).status, 400, 'dans le futur');
+  assert.equal(ligne(await lire(), 'Dei Muteba').resiliation.resilie, false, 'rien n\'a été écrit');
+});
+
+test('DEI MUTEBA — vente annulée -> résiliée le 24/08/2026 : badge, source intacte, KPI identiques', async () => {
+  const avant = await lire();
+  const rep = await resilier({ client: 'Dei Muteba', date: '19/08/2026', dateResiliation: '24/08/2026' });
+  assert.equal(rep.status, 200);
+  const j = await rep.json();
+  assert.deepEqual([j.resiliation.resilie, j.resiliation.date, j.resiliation.delaiJours], [true, '24/08/2026', 5]);
+  const apres = await lire();
+  const l = ligne(apres, 'Dei Muteba');
+  assert.equal(l.resiliation.resilie, true);
+  assert.equal(l.resiliation.date, '24/08/2026');
+  assert.equal(l.annulee, true, 'la donnée source `annulee` de Fitness Booster n\'est pas modifiée');
+  assert.equal(l.dateAnnulation, '24/08/2026');
+  assert.equal(l.retrouve, false);
+  assert.equal(kpi(apres), kpi(avant), 'une annulée reste traitée comme annulée dans TOUS les calculs');
+});
+
+test('DEI MUTEBA — ACTUALISATION : toujours « Résilié le 24/08/2026 », toujours annulée en source', async () => {
+  const l = ligne(await lire(), 'Dei Muteba');
+  assert.deepEqual([l.resiliation.resilie, l.resiliation.date, l.annulee], [true, '24/08/2026', true]);
 });
 
 test('ACCEPTÉE sur « Retrouvé — validé manuellement »', async () => {
@@ -138,6 +166,8 @@ test('NOUVELLE COLLECTE (JSON vierge redéposé) : les résiliations restent', a
   const r = await lire();
   assert.equal(ligne(r, 'Camille Gremez').resiliation.date, '10/09/2026');
   assert.equal(ligne(r, 'Aristide Guevonoux').resiliation.date, '12/09/2026');
+  assert.deepEqual([ligne(r, 'Dei Muteba').resiliation.date, ligne(r, 'Dei Muteba').annulee], ['24/08/2026', true],
+    'Dei Muteba : résiliation gardée, et toujours annulée en source après recollecte');
 });
 
 test('REDÉMARRAGE du serveur (redéploiement) : toujours là', async () => {
@@ -146,6 +176,7 @@ test('REDÉMARRAGE du serveur (redéploiement) : toujours là', async () => {
   const r = await lire();
   assert.equal(ligne(r, 'Camille Gremez').resiliation.resilie, true);
   assert.equal(ligne(r, 'Aristide Guevonoux').resiliation.resilie, true);
+  assert.equal(ligne(r, 'Dei Muteba').resiliation.resilie, true);
 });
 
 test('RETRAIT en cas d\'erreur : le statut disparaît, l\'auteur du retrait est gardé', async () => {
@@ -154,6 +185,12 @@ test('RETRAIT en cas d\'erreur : le statut disparaît, l\'auteur du retrait est 
   const l = ligne(await lire(), 'Camille Gremez');
   assert.deepEqual([l.resiliation.resilie, l.resiliation.date], [false, '']);
   assert.ok(l.resiliation.modifieLe);
+});
+
+test('DEI MUTEBA — RETRAIT : redevient une simple vente annulée, source intacte', async () => {
+  assert.equal((await resilier({ client: 'Dei Muteba', date: '19/08/2026', resilie: false, dateResiliation: '' })).status, 200);
+  const l = ligne(await lire(), 'Dei Muteba');
+  assert.deepEqual([l.resiliation.resilie, l.resiliation.date, l.annulee, l.dateAnnulation], [false, '', true, '24/08/2026']);
 });
 
 test('AUCUN KPI ne bouge, à aucune étape (hors la validation manuelle d\'Aristide, qui est un rapprochement)', async () => {
