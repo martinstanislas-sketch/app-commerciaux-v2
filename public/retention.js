@@ -381,12 +381,26 @@
   }
 
   // ── §7.1 LIEN FICHE DECIPLUS ───────────────────────────────────────────────
+  // UNE seule forme d'URL pour tout le projet : si Deciplus la change un jour,
+  // elle se change ici et nulle part ailleurs.
+  const URL_FICHE = 'https://ginkgo-sport.deciplus.pro/nextgen/legacy?path=check.php?idj=';
+
+  // Depuis un Id_client DÉJÀ CONNU (RECAP 2 le lit dans le journal des ventes).
+  // ⚠️ ON NE FABRIQUE JAMAIS D'ID. Tout ce qui n'est pas une suite de chiffres
+  // rend null : mieux vaut un nom en texte simple qu'un lien qui ouvrirait la
+  // fiche de quelqu'un d'autre.
+  function lienDeciplusId(id) {
+    const v = String(id == null ? '' : id).trim();
+    if (!/^[0-9]+$/.test(v)) return null;
+    return URL_FICHE + encodeURIComponent(v);
+  }
+
   // Résout l'Id_client via le mapping du fichier membres (clé -> id). Sans id,
   // renvoie null (l'UI affiche alors le nom en texte simple, pas un lien cassé).
   function lienDeciplus(cle, mappingIds) {
     const id = mappingIds && mappingIds[cle];
     if (!id) return null;
-    return 'https://ginkgo-sport.deciplus.pro/nextgen/legacy?path=check.php?idj=' + encodeURIComponent(id);
+    return URL_FICHE + encodeURIComponent(id);
   }
 
   return {
@@ -394,6 +408,6 @@
     agregerParClient, modeMontant,
     calculerStudio, noteReseau, dedupSignataires,
     jaccard, detecterStudioM, detecterStudioM1,
-    lienDeciplus, MENU,
+    lienDeciplus, lienDeciplusId, MENU,
   };
 }));

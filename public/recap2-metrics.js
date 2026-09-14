@@ -185,6 +185,11 @@
         site: vente ? vente.site : null,
         dateVente: vente ? vente.date : '',
         prestationCrm: vente ? vente.prestation : '',
+        // L'Id_client de la vente retrouvée : le SEUL moyen d'ouvrir la bonne
+        // fiche Deciplus. On ne le déduit jamais d'un nom, et il n'existe que
+        // pour un client retrouvé — un « à vérifier » n'a par définition aucune
+        // vente, donc aucun id.
+        idClient: vente ? String(vente.idClient || '') : '',
         encaisse: netM > 0,
       };
     });
@@ -200,6 +205,76 @@
       clients,
     };
   }
+
+  // ── VUE PAR COMMERCIAL ─────────────────────────────────────────────────────
+  //  Une LECTURE du rapport v2, pas un second calcul : on regroupe les lignes
+  //  déjà produites par clientsRetrouves() sans rien recalculer ni réapparier.
+  //  Le taux d'un commercial est donc, par construction, cohérent avec les
+  //  cartes studio — c'est le même verdict « retrouvé », juste trié autrement.
+  //
+  //  ⚠️ NE CONCERNE QUE LE 2e KPI. La non-reconduction n'a aucun commercial :
+  //  elle porte sur des clients qui payaient le mois d'avant, pas sur des
+  //  ventes. Aucune fonction d'ici ne la touche.
+  //
+  //  ⚠️ LE NOM EXACT FAIT FOI. « Paméla  L. » (deux espaces) et « Paméla L. »
+  //  resteraient DEUX commerciaux : on ne fusionne jamais deux libellés
+  //  différents, au cas où ce seraient deux personnes. L'assainissement des
+  //  espaces est réservé à l'AFFICHAGE (voir libelleCommercial), la clé métier
+  //  reste la chaîne telle que Fitness Booster l'a donnée.
+
+  // Toutes les ventes du rapport, à plat, chacune portant son studio d'origine.
+  function ventesDuRapport(rapport) {
+    const out = [];
+    LABELS.forEach((s) => {
+      const b = (rapport && rapport.studios && rapport.studios[s]) || null;
+      const cr = b && b.clientsRetrouves;
+      if (!cr || !Array.isArray(cr.liste)) return;
+      cr.liste.forEach((v) => out.push(Object.assign({ studio: s }, v)));
+    });
+    return out;
+  }
+
+  // Les commerciaux présents dans les ventes du mois, dérivés des données.
+  // Rendus avec leur compte, pour que le sélecteur puisse les ordonner.
+  function commerciauxDuRapport(rapport) {
+    const par = new Map();
+    ventesDuRapport(rapport).forEach((v) => {
+      const nom = String(v.commercial == null ? '' : v.commercial);
+      if (!par.has(nom)) par.set(nom, { commercial: nom, ventes: 0, retrouves: 0, studios: [] });
+      const e = par.get(nom);
+      e.ventes += 1;
+      if (v.retrouve) e.retrouves += 1;
+      if (e.studios.indexOf(v.studio) < 0) e.studios.push(v.studio);
+    });
+    return [...par.values()].sort((a, b) => b.ventes - a.ventes
+      || a.commercial.localeCompare(b.commercial, 'fr'));
+  }
+
+  // Le bilan consolidé d'UN commercial, tous studios confondus.
+  //  `total` est le dénominateur : ses ventes valides du mois. Les annulées n'y
+  //  sont pas — elles ne sont jamais entrées dans le détail (la collecte les
+  //  écarte en amont), donc il n'y a rien à filtrer ici.
+  function consoliderCommercial(rapport, commercial) {
+    const ventes = ventesDuRapport(rapport).filter((v) => v.commercial === commercial);
+    ventes.sort((a, b) => (a.studio || '').localeCompare(b.studio || '', 'fr')
+      || (a.client || '').localeCompare(b.client || '', 'fr'));
+    const retrouves = ventes.filter((v) => v.retrouve).length;
+    return {
+      commercial,
+      ventes,
+      total: ventes.length,
+      retrouves,
+      aVerifier: ventes.length - retrouves,
+      studios: ventes.reduce((acc, v) => (acc.indexOf(v.studio) < 0 ? acc.concat([v.studio]) : acc), []),
+      // Pas de vente -> pas de dénominateur -> taux null, jamais 0 % ni NaN.
+      taux: ventes.length > 0 ? retrouves / ventes.length : null,
+    };
+  }
+
+  // Libellé d'AFFICHAGE : espaces multiples réduits, extrémités coupées. Ne
+  // sert JAMAIS de clé — deux commerciaux distincts gardent deux entrées même
+  // si leur libellé nettoyé se ressemble.
+  const libelleCommercial = (nom) => String(nom == null ? '' : nom).replace(/\s+/g, ' ').trim();
 
   // ── Assemblage d'un studio, disponibilité comprise ─────────────────────────
   // Convention d'entrée : `null` = import ABSENT (rien n'a jamais été déposé) ;
@@ -222,5 +297,9 @@
     };
   }
 
-  return { STUDIOS, LABELS, normStudio, studioLabel, nonReconduction, completion, clientsRetrouves, analyserStudio };
+  return {
+    STUDIOS, LABELS, normStudio, studioLabel,
+    nonReconduction, completion, clientsRetrouves, analyserStudio,
+    ventesDuRapport, commerciauxDuRapport, consoliderCommercial, libelleCommercial,
+  };
 }));

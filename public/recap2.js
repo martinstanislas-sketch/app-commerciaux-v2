@@ -51,6 +51,11 @@ const Recap2UI = (function () {
   const versionMetier = () => ((rapport && Number.isFinite(rapport.businessVersion)) ? rapport.businessVersion : 1);
   const estV2 = () => versionMetier() >= 2;
   let alertesOuvertes = false;
+  // Commercial sélectionné : '' = tous. La valeur est la chaîne EXACTE fournie
+  // par Fitness Booster, jamais un libellé nettoyé — deux commerciaux dont les
+  // noms diffèrent ne doivent pas se retrouver confondus par le filtre.
+  let commercial = '';
+  let filtreCom = 'tous';   // 'tous' | 'retrouves' | 'verifier'
 
   function open() {
     if (!inited) { wire(); inited = true; }
@@ -61,9 +66,35 @@ const Recap2UI = (function () {
 
   function wire() {
     $('#rec2-mois').addEventListener('change', () => {
-      mois = $('#rec2-mois').value; ouvert = ''; alertesOuvertes = false; charger();
+      mois = $('#rec2-mois').value; ouvert = ''; alertesOuvertes = false;
+      commercial = ''; filtreCom = 'tous'; charger();
     });
     $('#rec2-body').addEventListener('click', onBodyClick);
+    const sel = $('#rec2-commercial');
+    if (sel) sel.addEventListener('change', () => { commercial = sel.value; filtreCom = 'tous'; ouvert = ''; render(); });
+  }
+
+  // Le sélecteur est rempli DEPUIS LE RAPPORT : aucun nom en dur. Il n'apparaît
+  // que sur un rapport v2 — la règle v1 n'a pas de commercial dans son détail.
+  function majSelecteurCommercial() {
+    const wrap = $('#rec2-commercial-wrap');
+    const sel = $('#rec2-commercial');
+    if (!wrap || !sel) return;
+    const dispo = (etat === 'ok' && rapport && estV2());
+    wrap.hidden = !dispo;
+    if (!dispo) { commercial = ''; sel.innerHTML = ''; return; }
+    const MM = window.Recap2Metrics;
+    const liste = MM ? MM.commerciauxDuRapport(rapport) : [];
+    // Si le commercial retenu n'existe pas dans ce mois, on retombe sur « tous »
+    // plutôt que d'afficher une vue vide sans l'expliquer.
+    if (commercial && !liste.some((c) => c.commercial === commercial)) commercial = '';
+    const opts = ['<option value="">Tous les commerciaux</option>'].concat(liste.map((c) => {
+      const lbl = MM.libelleCommercial(c.commercial) || '(sans nom)';
+      return '<option value="' + esc(c.commercial) + '"' + (c.commercial === commercial ? ' selected' : '') + '>'
+        + esc(lbl) + ' (' + c.ventes + ')</option>';
+    }));
+    sel.innerHTML = opts.join('');
+    sel.value = commercial;
   }
 
   // Mois par défaut = dernier mois calendaire révolu.
@@ -160,7 +191,8 @@ const Recap2UI = (function () {
     if (etat === 'erreur') { host.innerHTML = '<p class="rec2-info rec2-info-err">Lecture impossible' + (message ? ' — ' + esc(message) : '') + '.</p>'; return; }
     if (!rapport) { host.innerHTML = ''; return; }
 
-    host.innerHTML = bandeauSource() + bandeauAlertes() + LABELS.map(blocStudio).join('');
+    majSelecteurCommercial();
+    host.innerHTML = bandeauSource() + bandeauAlertes() + vueCommercial() + LABELS.map(blocStudio).join('');
   }
 
   // Fraîcheur + provenance, discrets, en haut.
@@ -210,6 +242,12 @@ const Recap2UI = (function () {
       const pb = incoherences(b);
       if (pb.length) {
         corps = '<div class="rec2-cards">' + carteNA('NON-RECONDUCTION', pb.join(' · ')) + carteNA(t2, pb.join(' · ')) + '</div>';
+      } else if (commercial && estV2()) {
+        // Un commercial est sélectionné : sa vue consolidée, plus haut, porte
+        // déjà le 2e KPI. On ne répète pas une carte studio qui, elle, compte
+        // TOUS les commerciaux — deux chiffres différents côte à côte se
+        // liraient comme une contradiction.
+        corps = '<div class="rec2-cards rec2-cards-1">' + carteNR(label, b.nonReconduction) + '</div>' + detail(label, b);
       } else {
         const c2 = estV2() ? carteCrm(label, b.clientsRetrouves) : carteComp(label, b.completion);
         corps = '<div class="rec2-cards">' + carteNR(label, b.nonReconduction) + c2 + '</div>' + detail(label, b);
@@ -259,6 +297,27 @@ const Recap2UI = (function () {
       ? d.retrouves + ' / ' + n + ' signataire' + (n > 1 ? 's' : '') + ' de ' + moisLabel(rapport.mois)
       : '0 vente signée';
     return carte(label, 'crm', titre2(), pct(d.taux), sous, ouvert === label + '|crm', n > 0);
+  }
+
+  // ── NOM CLIQUABLE VERS LA FICHE DECIPLUS ────────────────────────────────────
+  //  Le nom d'un client RETROUVÉ devient un lien vers sa fiche membre, ouvert
+  //  dans un nouvel onglet — on contrôle sans perdre sa place dans RECAP 2.
+  //
+  //  ⚠️ UNIQUEMENT depuis l'Id_client rendu par Deciplus. Jamais une recherche
+  //  par nom, jamais un id reconstruit : un mauvais lien ouvrirait la fiche de
+  //  quelqu'un d'autre, ce qui est pire que pas de lien du tout. Sans id
+  //  exploitable, le nom reste du texte simple.
+  //
+  //  `rel="noopener noreferrer"` : la page ouverte ne doit pas pouvoir manipuler
+  //  celle-ci via window.opener.
+  function nomClient(v) {
+    const nom = esc(v.client);
+    if (!v || !v.retrouve) return nom;                    // un « à vérifier » n'a pas de fiche
+    const R = window.Retention;
+    const href = (R && R.lienDeciplusId) ? R.lienDeciplusId(v.idClient) : null;
+    if (!href) return nom;                                // id absent ou douteux -> texte simple
+    return '<a class="rec2-lien-fiche" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'
+      + ' title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + nom + '</a>';
   }
 
   // ── DÉTAILS (fermés par défaut, un seul ouvert à la fois) ────────────────────
@@ -329,7 +388,7 @@ const Recap2UI = (function () {
       return '<span class="rec2-etat is-oui">Retrouvée</span>'
         + (notes.length ? ' <span class="rec2-det-date">' + notes.join(' · ') + '</span>' : '');
     };
-    const lignes = liste.map((c) => '<tr><td>' + esc(c.client)
+    const lignes = liste.map((c) => '<tr><td>' + nomClient(c)
       + (c.date ? ' <span class="rec2-det-date">signé le ' + esc(c.date) + '</span>' : '') + '</td>'
       + '<td>' + esc(c.prestation || '—') + '</td>'
       + '<td>' + esc(c.commercial || '—') + '</td>'
@@ -349,11 +408,89 @@ const Recap2UI = (function () {
       + chips + corps + pied + '</div>';
   }
 
+  // ── VUE CONSOLIDÉE D'UN COMMERCIAL ──────────────────────────────────────────
+  //  Répond à quatre questions, dans cet ordre : qu'a-t-il vendu ce mois-ci,
+  //  combien sont saisies dans Deciplus, lesquelles contrôler, dans quels
+  //  studios. D'où le bandeau chiffré puis UN tableau, tous studios confondus.
+  //
+  //  ⚠️ Aucun recalcul : on relit les verdicts « retrouvé » déjà écrits dans le
+  //  rapport. Le taux du commercial ne peut donc pas diverger des cartes studio.
+  function vueCommercial() {
+    if (!commercial || !estV2()) return '';
+    const MM = window.Recap2Metrics;
+    if (!MM || !MM.consoliderCommercial) return '';
+    const d = MM.consoliderCommercial(rapport, commercial);
+    const nom = MM.libelleCommercial(commercial) || '(sans nom)';
+
+    if (!d.total) {
+      return '<section class="rec2-com"><div class="rec2-com-head"><h3 class="rec2-com-nom">'
+        + esc(nom.toUpperCase()) + ' — ' + esc(cap(moisLabel(rapport.mois))) + '</h3></div>'
+        + '<p class="rec2-info">Aucune vente pour ce commercial sur ce mois.</p></section>';
+    }
+
+    const liste = d.ventes.filter((v) => filtreCom === 'tous'
+      || (filtreCom === 'retrouves' ? v.retrouve : !v.retrouve));
+    const chip = (val, txt, n) => '<button type="button" class="rec2-chip' + (filtreCom === val ? ' is-on' : '')
+      + '" data-filtrecom="' + val + '">' + txt + ' <b>' + n + '</b></button>';
+
+    const statut = (v) => {
+      if (!v.retrouve) return '<span class="rec2-etat is-non">À vérifier</span>';
+      const ailleurs = v.site && MM.studioLabel && MM.studioLabel(v.site) !== v.studio;
+      const notes = [];
+      if (v.dateVente) notes.push('le ' + esc(v.dateVente));
+      if (ailleurs) notes.push('site ' + esc(v.site));
+      if (v.encaisse === false) notes.push('pas encore encaissé');
+      return '<span class="rec2-etat is-oui">Retrouvée</span>'
+        + (notes.length ? ' <span class="rec2-det-date">' + notes.join(' · ') + '</span>' : '');
+    };
+
+    const lignes = liste.map((v) => '<tr>'
+      + '<td class="rec2-com-studio">' + esc(v.studio) + '</td>'
+      + '<td>' + nomClient(v) + '</td>'
+      + '<td class="rec2-num">' + esc(v.date || '—') + '</td>'
+      + '<td>' + esc(v.prestation || '—') + '</td>'
+      + '<td>' + esc(nom) + '</td>'
+      + '<td class="rec2-num">' + statut(v) + '</td></tr>').join('');
+
+    const corps = liste.length
+      ? '<table class="rec2-table rec2-com-table"><thead><tr><th>Studio</th><th>Signataire</th>'
+        + '<th class="rec2-num">Signé le</th><th>Prestation</th><th>Commercial</th>'
+        + '<th class="rec2-num">Dans Deciplus</th></tr></thead><tbody>' + lignes + '</tbody></table>'
+      : '<p class="rec2-info">Aucune vente dans ce filtre.</p>';
+
+    const stats = '<div class="rec2-com-stats">'
+      + '<span class="rec2-com-taux">' + pct(d.taux) + '</span>'
+      + '<span class="rec2-com-det"><b>' + d.total + '</b> vente' + (d.total > 1 ? 's' : '') + ' valide' + (d.total > 1 ? 's' : '') + '</span>'
+      + '<span class="rec2-com-det"><b>' + d.retrouves + '</b> retrouvée' + (d.retrouves > 1 ? 's' : '') + ' dans Deciplus</span>'
+      + '<span class="rec2-com-det"><b>' + d.aVerifier + '</b> à vérifier</span>'
+      + '</div>';
+    const ou = '<p class="rec2-com-studios">Studios : ' + esc(d.studios.join(', ')) + '</p>';
+
+    return '<section class="rec2-com">'
+      + '<div class="rec2-com-head"><h3 class="rec2-com-nom">' + esc(nom.toUpperCase()) + ' — '
+      + esc(cap(moisLabel(rapport.mois))) + '</h3>'
+      + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
+      + stats + ou
+      + '<div class="rec2-chips">' + chip('tous', 'Tous', d.total)
+      + chip('retrouves', 'Retrouvés', d.retrouves) + chip('verifier', 'À vérifier', d.aVerifier) + '</div>'
+      + corps
+      + '<p class="rec2-det-note">Ce filtre ne concerne que « clients retrouvés dans Deciplus ». '
+      + 'La non-reconduction, ci-dessous, ne dépend d\'aucun commercial.</p>'
+      + '</section>';
+  }
+
   // ── INTERACTIONS ────────────────────────────────────────────────────────────
   function onBodyClick(e) {
     if (e.target.closest('[data-alertes]')) { alertesOuvertes = !alertesOuvertes; render(); return; }
     const fil = e.target.closest('[data-filtre]');
     if (fil) { const [label, val] = fil.dataset.filtre.split('|'); filtreComp[label] = val; render(); return; }
+    const fCom = e.target.closest('[data-filtrecom]');
+    if (fCom) { filtreCom = fCom.dataset.filtrecom; render(); return; }
+    if (e.target.closest('[data-toutcom]')) {
+      commercial = ''; filtreCom = 'tous';
+      const sel = $('#rec2-commercial'); if (sel) sel.value = '';
+      render(); return;
+    }
     const filC = e.target.closest('[data-filtrecrm]');
     if (filC) { const [label, val] = filC.dataset.filtrecrm.split('|'); filtreCrm[label] = val; render(); return; }
     if (e.target.closest('[data-close]')) { ouvert = ''; render(); return; }
