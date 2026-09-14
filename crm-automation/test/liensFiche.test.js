@@ -139,3 +139,54 @@ test('août réel : chaque ligne a une destination, et la bonne',
     assert.ok(recherches > 0, 'et des recherches pour le reste');
     assert.equal(fiches + recherches, toutes.length, 'aucune ligne sans destination');
   });
+
+// ── 5. CLIENTS NON RECONDUITS : la fiche, depuis l'Id membre ────────────────
+//  La non-reconduction se calcule PAR Id membre (vue « id » des encaissements).
+//  Cet Id membre EST l'Id_client Deciplus : vérifié le 2026-09-14 sur les
+//  exports réels (1 851 ids communs ventes ↔ encaissements, 1 851 au même nom).
+//  Le nom devient donc un lien vers SA fiche — même lien que pour un client
+//  retrouvé. Sans id (rapport d'avant, clé de repli « NOM:… ») : texte simple.
+const CSV = require('../lib/csvEncaissements.js');
+
+// La décision exacte que prend l'écran (public/recap2.js, nomNonReconduit()).
+const ficheNonReconduit = (c) => (c.idClient ? R.lienDeciplusId(c.idClient) : null);
+
+test('5. non reconduit avec Id membre -> sa fiche ; sans id -> aucun lien', () => {
+  const detail = CSV.detailNonReconduits([
+    { cle: '42321', nom: 'DARMON Muriel', netM1: 59.9, netM: 0 },
+    { cle: 'NOM:DUPONT MARIE', nom: 'DUPONT Marie', netM1: 60, netM: -60 },
+  ]);
+  assert.deepStrictEqual(detail, [
+    { client: 'DARMON Muriel', idClient: '42321', netM1: 59.9, netM: 0 },
+    { client: 'DUPONT Marie', idClient: '', netM1: 60, netM: -60 },
+  ]);
+  assert.strictEqual(ficheNonReconduit(detail[0]), 'https://ginkgo-sport.deciplus.pro/nextgen/legacy?path=check.php?idj=42321');
+  assert.strictEqual(ficheNonReconduit(detail[1]), null, 'une clé de repli n\'est pas un id');
+  assert.strictEqual(ficheNonReconduit({ client: 'Rapport d\'avant', netM1: 1, netM: 0 }), null);
+});
+
+test('5. de bout en bout : vue « id » -> non-reconduction -> lien de la BONNE personne', () => {
+  global.Retention = R;
+  const l = (idMembre, adherent, montant) => ({ idMembre, adherent, montant, decaissement: false, site: 'My Coach Marcq' });
+  const encM1 = [l('41001', 'MARTIN Léa', 60), l('41002', 'DURAND Paul', 60), l('', 'SANS Id', 60)];
+  const encM = [l('41001', 'MARTIN Léa', 60)];
+  const vue = (x) => CSV.vueParId(x, 'Marcq', M.studioLabel);
+  const nr = M.nonReconduction({ encM1: vue(encM1), encM: vue(encM) });
+  const detail = CSV.detailNonReconduits(nr.nonReconduits);
+  assert.strictEqual(nr.nb, 2);
+  const paul = detail.find((c) => c.client === 'DURAND Paul');
+  assert.ok(ficheNonReconduit(paul).endsWith('idj=41002'), 'la fiche de Paul, pas celle de Léa');
+  assert.strictEqual(ficheNonReconduit(detail.find((c) => c.client === 'SANS Id')), null);
+});
+
+test('5. le rendu : nouvel onglet, sans donner la main, jamais de recherche par nom', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'recap2.js'), 'utf8');
+  const i = src.indexOf('function nomNonReconduit');
+  assert.ok(i > 0, 'la fonction existe');
+  const bloc = src.slice(i, src.indexOf('\n  }\n', i));
+  assert.match(bloc, /lienDeciplusId\(c\.idClient\)/, 'la fiche vient de l\'Id membre, jamais d\'un nom');
+  assert.match(bloc, /target="_blank"/);
+  assert.match(bloc, /rel="noopener noreferrer"/);
+  assert.doesNotMatch(bloc, /lienRechercheDeciplus/, 'pas de recherche déguisée');
+  assert.match(src.slice(src.indexOf('function detailNR')), /nomNonReconduit\(c\)/, 'utilisée par le détail');
+});

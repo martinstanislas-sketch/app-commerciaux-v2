@@ -185,7 +185,7 @@ test('migration : une table d\'avant la résiliation reçoit ses colonnes, sans 
   assert.equal(c.resiliation.resilie, false);
 });
 
-test('appliquer : résiliation affichée sur une vente retrouvée, jamais sur un « à vérifier » ni une annulée', () => {
+test('appliquer : résiliation affichée sur une vente retrouvée ou annulée FB, jamais sur un « à vérifier »', () => {
   const db = baseNeuve();
   resil(db, { resilie: true, dateResiliation: '10/09/2026' });
   resil(db, { client: 'Ritha Konzo', dateSignature: '06/08/2026', resilie: true, dateResiliation: '10/09/2026' });
@@ -196,7 +196,11 @@ test('appliquer : résiliation affichée sur une vente retrouvée, jamais sur un
   assert.equal(retrouvee.resiliation.resilie, true);
   assert.equal(retrouvee.resiliation.date, '10/09/2026');
   assert.equal(aVerifier.resiliation.resilie, false, 'un « à vérifier » ne se résilie pas');
-  assert.equal(annulee.resiliation.resilie, false, 'Résilié ≠ Annulé');
+  // Dei Muteba : « annulée » dans Fitness Booster, résiliée en réalité.
+  assert.equal(annulee.resiliation.resilie, true, 'une annulée FB peut être qualifiée « Résiliée »');
+  assert.equal(annulee.resiliation.date, '11/09/2026');
+  assert.equal(annulee.annulee, true, 'la donnée source `annulee` reste intacte');
+  assert.equal(annulee.retrouve, false, 'et elle n\'en devient pas « retrouvée »');
   ['ventesSignees', 'annulees', 'ventesActives', 'signataires', 'retrouves', 'taux', 'tauxPct'].forEach((k) => {
     assert.equal(r.studios.Marcq.clientsRetrouves[k], source.studios.Marcq.clientsRetrouves[k], k + ' inchangé');
   });

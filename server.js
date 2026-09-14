@@ -5366,8 +5366,8 @@ app.post('/api/recap2/checks', requireAuth, requireAdmin, (req, res) => {
 // ─── RÉSILIATION MANUELLE D'UNE VENTE ───────────────────────────────────────
 //  Admin connecté uniquement. { mois, studio, client, date (signature),
 //  resilie: true|false, dateResiliation: 'JJ/MM/AAAA' (obligatoire si true) }.
-//  ⚠️ Seulement sur une vente RETROUVÉE non annulée — y compris « Retrouvé —
-//  validé manuellement ». On juge donc le rapport TEL QU'IL EST AFFICHÉ (avec
+//  ⚠️ Sur une vente RETROUVÉE — y compris « Retrouvé — validé manuellement » —
+//  ou ANNULÉE dans Fitness Booster. On juge donc le rapport TEL QU'IL EST AFFICHÉ (avec
 //  les décisions de rapprochement posées), et c'est la date de signature DU
 //  RAPPORT qui borne la date de résiliation, jamais celle envoyée.
 //  Aucun KPI, aucun paiement, aucune anomalie n'en dépend.
@@ -5390,8 +5390,12 @@ app.post('/api/recap2/resiliation', requireAuth, requireAdmin, (req, res) => {
   if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
   const ligne = Recap2Checks.ligneDe(recap2AvecDecisions(lu.rapport), { studio, client, date });
   if (!ligne) return res.status(404).json({ error: 'Vente introuvable dans le rapport de ' + mois + '.' });
-  if (ligne.annulee) return res.status(409).json({ error: 'Vente annulée : une vente annulée ne se résilie pas.' });
-  if (ligne.retrouve !== true) return res.status(409).json({ error: 'Seule une vente retrouvée dans Deciplus peut être marquée résiliée.' });
+  // Éligibles : vente retrouvée, OU vente annulée dans Fitness Booster (signée
+  // puis résiliée en réalité). Un « à vérifier » reste refusé. `annulee` n'est
+  // jamais modifié : la source reste intacte, les calculs aussi.
+  if (ligne.retrouve !== true && ligne.annulee !== true) {
+    return res.status(409).json({ error: 'Seule une vente retrouvée dans Deciplus, ou annulée dans Fitness Booster, peut être marquée résiliée.' });
+  }
   try {
     const qui = (req.session && (req.session.name || req.session.role)) || '';
     const resiliation = Recap2Checks.resilier(getDb(), {

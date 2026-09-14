@@ -261,7 +261,26 @@ const Recap2UI = (function () {
         corps = '<div class="rec2-cards">' + carteNR(label, b.nonReconduction) + c2 + '</div>' + detail(label, b);
       }
     }
-    return '<section class="rec2-studio"><h3 class="rec2-studio-nom">' + esc(label.toUpperCase()) + '</h3>' + corps + '</section>';
+    return '<section class="rec2-studio"><div class="rec2-studio-tete"><h3 class="rec2-studio-nom">' + esc(label.toUpperCase()) + '</h3>'
+      + caStudio(label, b) + '</div>' + corps + '</section>';
+  }
+
+  // Le CA net du mois, discret, à côté du nom. Un repère, pas un KPI : il ne
+  // dépend ni du commercial sélectionné ni d'aucun filtre (calcul et garde-fous
+  // dans Recap2Metrics.caNetStudio). Rien d'affiché plutôt qu'un chiffre douteux :
+  // studio bloqué, ou recomptage Deciplus du mois absent / en échec.
+  function caStudio(label, b) {
+    const MM = window.Recap2Metrics;
+    if (!b || (b.controleBloquant && b.controleBloquant.ok === false) || !MM || !MM.caNetStudio) return '';
+    const ca = MM.caNetStudio(rapport, label);
+    if (!ca) return '';
+    const titre = 'Net encaissé dans Deciplus sur ' + moisLabel(rapport.mois)
+      + (ca.partielAu ? ', jusqu\'au ' + ca.partielAu + ' seulement — mois non clos à la collecte' : '')
+      + ' — ' + ca.lignes + ' lignes : tous les encaissements du studio, remboursements et décaissements déduits. '
+      + 'Indépendant du commercial sélectionné.';
+    return '<span class="rec2-studio-ca" title="' + esc(titre) + '">CA ' + esc(moisLabel(rapport.mois).toUpperCase())
+      + (ca.partielAu ? ' <i class="rec2-studio-ca-partiel">(au ' + esc(ca.partielAu) + ')</i>' : '')
+      + ' : <b>' + esc(MM.eurosArrondis(ca.montant)) + '</b></span>';
   }
 
   function carte(label, ind, titre, valeur, sous, actif, cliquable) {
@@ -372,6 +391,12 @@ const Recap2UI = (function () {
   //  · À vérifier  aucune vente trouvée. Jamais « absent du CRM » : une saisie
   //                faite le mois suivant sort du champ de l'audit.
   function statutVente(v, studioAttendu) {
+    if (v.annulee && v.resiliation && v.resiliation.resilie) {
+      // ANNULÉE dans FB mais RÉSILIÉE en réalité : la qualification manuelle
+      // s'affiche en premier ; la source reste dite, en second.
+      return '<span class="rec2-etat is-resil" title="' + esc(infoResiliation(v.resiliation)) + '">Résilié le ' + esc(v.resiliation.date) + '</span>'
+        + '<div class="rec2-resil-source">Annulée dans Fitness Booster' + (v.dateAnnulation ? ' le ' + esc(v.dateAnnulation) : '') + '</div>';
+    }
     if (v.annulee) {
       return '<span class="rec2-etat is-annul">Annulé</span>'
         + (v.dateAnnulation ? ' <span class="rec2-det-date">le ' + esc(v.dateAnnulation) + '</span>' : '');
@@ -509,7 +534,8 @@ const Recap2UI = (function () {
     const proposes = l.filter((v) => !v.annulee && !v.retrouve && v.candidat).length;
     const divergents = l.filter((v) => divergence(v, studio)).length;
     // Résiliés : un repérage, compté à part — ils restent dans `retrouves` et `actives`.
-    const resilies = l.filter((v) => !v.annulee && v.resiliation && v.resiliation.resilie).length;
+    // Une annulée FB marquée résiliée compte ici — et reste comptée dans `annulees`.
+    const resilies = l.filter((v) => v.resiliation && v.resiliation.resilie).length;
     return { total: l.length, annulees, actives: l.length - annulees, retrouves, valides, proposes, divergents, resilies,
       aVerifier: l.length - annulees - retrouves - proposes };
   }
@@ -585,7 +611,8 @@ const Recap2UI = (function () {
   //  « Retrouvée », dans les ventes signées et actives, dans le taux et dans
   //  l'historique du commercial. Le badge est une information de plus — il ne
   //  masque ni un statut de paiement, ni une anomalie.
-  //  Seulement sur une vente RETROUVÉE non annulée (validée à la main comprise).
+  //  Sur une vente RETROUVÉE (validée à la main comprise) ou ANNULÉE dans Fitness
+  //  Booster — une annulée qualifiée « Résiliée » reste annulée dans les calculs.
   //  Date OBLIGATOIRE : ni avant la signature, ni dans le futur.
   //  Enregistrement en deux temps (date, puis confirmation) pour éviter une
   //  fausse manipulation. Pas de fenêtre de dialogue : tout se passe dans la ligne.
@@ -594,14 +621,18 @@ const Recap2UI = (function () {
   const versIso = (fr) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(fr || '')); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
   const versFr = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
   const isoAujourdhui = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
-  const resiliable = (v) => v.retrouve === true && !v.annulee;
+  // Retrouvée (validée à la main comprise) OU annulée dans Fitness Booster.
+  const resiliable = (v) => v.retrouve === true || v.annulee === true;
 
+  function infoResiliation(r) {
+    const qui = (r.modifiePar ? 'par ' + r.modifiePar + ' ' : '') + (r.modifieLe ? 'le ' + fmtDate(r.modifieLe) : '');
+    const delai = r.delaiJours == null ? '' : ' — ' + r.delaiJours + ' jour' + (r.delaiJours > 1 ? 's' : '') + ' après la signature';
+    return 'Résiliation enregistrée ' + qui + delai;
+  }
   function badgeResiliation(v) {
     const r = v.resiliation;
     if (!r || !r.resilie) return '';
-    const qui = (r.modifiePar ? 'par ' + r.modifiePar + ' ' : '') + (r.modifieLe ? 'le ' + fmtDate(r.modifieLe) : '');
-    const delai = r.delaiJours == null ? '' : ' — ' + r.delaiJours + ' jour' + (r.delaiJours > 1 ? 's' : '') + ' après la signature';
-    return '<div class="rec2-resil"><span class="rec2-etat is-resil" title="' + esc('Résiliation enregistrée ' + qui + delai) + '">Résilié le '
+    return '<div class="rec2-resil"><span class="rec2-etat is-resil" title="' + esc(infoResiliation(r)) + '">Résilié le '
       + esc(r.date) + '</span></div>';
   }
 
@@ -680,6 +711,8 @@ const Recap2UI = (function () {
 
   // La classe d'une ligne : annulée (barrée) ou site divergent (liseré d'alerte).
   function classeLigne(v, studio) {
+    // Une annulée FB qualifiée « Résiliée » n'est plus barrée : elle a existé.
+    if (v.annulee && v.resiliation && v.resiliation.resilie) return ' class="rec2-ligne-resil"';
     if (v.annulee) return ' class="rec2-ligne-annul"';
     return divergence(v, studio) ? ' class="rec2-ligne-div"' : '';
   }
@@ -696,10 +729,22 @@ const Recap2UI = (function () {
   const detailHead = (titre) => '<div class="rec2-det-head"><span>' + titre + '</span>'
     + '<button type="button" class="rec2-det-x" data-close="1" aria-label="Fermer le détail">✕ Fermer</button></div>';
 
+  // Le nom d'un client non reconduit : lien vers SA fiche Deciplus quand l'Id
+  // membre est connu (même lien, même garde que pour un client retrouvé).
+  // Sans id — un rapport déposé avant, ou une clé de repli — texte simple :
+  // aucune recherche par nom, aucun id reconstruit.
+  function nomNonReconduit(c) {
+    const R = window.Retention;
+    const href = (c.idClient && R && R.lienDeciplusId) ? R.lienDeciplusId(c.idClient) : null;
+    if (!href) return esc(c.client);
+    return '<a class="rec2-lien-fiche" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'
+      + ' title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + esc(c.client) + '</a>';
+  }
+
   function detailNR(label, d) {
     const liste = (d && d.liste) || [];
     const m1 = cap(moisLabel(rapport.m1)), m = cap(moisLabel(rapport.mois));
-    const lignes = liste.map((c) => '<tr><td>' + esc(c.client) + '</td>'
+    const lignes = liste.map((c) => '<tr><td>' + nomNonReconduit(c) + '</td>'
       + '<td class="rec2-num">' + esc(eur(c.netM1)) + '</td>'
       + '<td class="rec2-num">' + esc(eur(c.netM)) + '</td></tr>').join('');
     const corps = liste.length
