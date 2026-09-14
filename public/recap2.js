@@ -710,10 +710,22 @@ const Recap2UI = (function () {
   const detailHead = (titre) => '<div class="rec2-det-head"><span>' + titre + '</span>'
     + '<button type="button" class="rec2-det-x" data-close="1" aria-label="Fermer le détail">✕ Fermer</button></div>';
 
+  // Le nom d'un client non reconduit : lien vers SA fiche Deciplus quand l'Id
+  // membre est connu (même lien, même garde que pour un client retrouvé).
+  // Sans id — un rapport déposé avant, ou une clé de repli — texte simple :
+  // aucune recherche par nom, aucun id reconstruit.
+  function nomNonReconduit(c) {
+    const R = window.Retention;
+    const href = (c.idClient && R && R.lienDeciplusId) ? R.lienDeciplusId(c.idClient) : null;
+    if (!href) return esc(c.client);
+    return '<a class="rec2-lien-fiche" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'
+      + ' title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + esc(c.client) + '</a>';
+  }
+
   function detailNR(label, d) {
     const liste = (d && d.liste) || [];
     const m1 = cap(moisLabel(rapport.m1)), m = cap(moisLabel(rapport.mois));
-    const lignes = liste.map((c) => '<tr><td>' + esc(c.client) + '</td>'
+    const lignes = liste.map((c) => '<tr><td>' + nomNonReconduit(c) + '</td>'
       + '<td class="rec2-num">' + esc(eur(c.netM1)) + '</td>'
       + '<td class="rec2-num">' + esc(eur(c.netM)) + '</td></tr>').join('');
     const corps = liste.length
