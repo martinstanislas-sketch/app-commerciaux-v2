@@ -21972,3 +21972,11 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 /* Deux colonnes de plus : sur écran étroit, le tableau défile dans son cadre
    plutôt que d'élargir la page. */
 .rec2-detail { overflow-x: auto; }
+
+/* Paiement sur 31 jours : seule l'absence d'encaissement est une anomalie
+   visible. « encaissé » et « attendu » restent de simples notes. */
+.rec2-pai { display: flex; justify-content: flex-end; margin-top: 6px; }
+.rec2-etat.is-pai { background: rgba(248,113,113,.14); color: var(--r2-red); }
+/* Action d'un « à vérifier » : ouvrir la fiche trouvée ou rechercher — le
+   verbe écrit en toutes lettres, jamais une icône seule. */
+.rec2-action { margin-top: 5px; font-size: 12px; }
