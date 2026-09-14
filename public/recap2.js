@@ -261,7 +261,26 @@ const Recap2UI = (function () {
         corps = '<div class="rec2-cards">' + carteNR(label, b.nonReconduction) + c2 + '</div>' + detail(label, b);
       }
     }
-    return '<section class="rec2-studio"><h3 class="rec2-studio-nom">' + esc(label.toUpperCase()) + '</h3>' + corps + '</section>';
+    return '<section class="rec2-studio"><div class="rec2-studio-tete"><h3 class="rec2-studio-nom">' + esc(label.toUpperCase()) + '</h3>'
+      + caStudio(label, b) + '</div>' + corps + '</section>';
+  }
+
+  // Le CA net du mois, discret, à côté du nom. Un repère, pas un KPI : il ne
+  // dépend ni du commercial sélectionné ni d'aucun filtre (calcul et garde-fous
+  // dans Recap2Metrics.caNetStudio). Rien d'affiché plutôt qu'un chiffre douteux :
+  // studio bloqué, ou recomptage Deciplus du mois absent / en échec.
+  function caStudio(label, b) {
+    const MM = window.Recap2Metrics;
+    if (!b || (b.controleBloquant && b.controleBloquant.ok === false) || !MM || !MM.caNetStudio) return '';
+    const ca = MM.caNetStudio(rapport, label);
+    if (!ca) return '';
+    const titre = 'Net encaissé dans Deciplus sur ' + moisLabel(rapport.mois)
+      + (ca.partielAu ? ', jusqu\'au ' + ca.partielAu + ' seulement — mois non clos à la collecte' : '')
+      + ' — ' + ca.lignes + ' lignes : tous les encaissements du studio, remboursements et décaissements déduits. '
+      + 'Indépendant du commercial sélectionné.';
+    return '<span class="rec2-studio-ca" title="' + esc(titre) + '">CA ' + esc(moisLabel(rapport.mois).toUpperCase())
+      + (ca.partielAu ? ' <i class="rec2-studio-ca-partiel">(au ' + esc(ca.partielAu) + ')</i>' : '')
+      + ' : <b>' + esc(MM.eurosArrondis(ca.montant)) + '</b></span>';
   }
 
   function carte(label, ind, titre, valeur, sous, actif, cliquable) {
