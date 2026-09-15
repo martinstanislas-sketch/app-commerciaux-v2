@@ -22032,3 +22032,57 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 /* Annulée dans Fitness Booster mais résiliée en réalité : la source reste dite,
    en second, et la ligne n'est plus barrée (la vente a existé). */
 .rec2-resil-source { margin-top: 4px; font-size: 11.5px; color: var(--r2-text-3); }
+
+/* ═══ RECAP 2 — haut d'écran sombre : barre de navigation + bandeau de titre ══
+   Uniquement quand l'onglet RECAP 2 est affiché (`:has(#tab-recap2.active)`) :
+   les autres onglets gardent leur barre claire. Aucune règle de mise en page
+   de la barre n'est changée (hauteur, sticky, ordre), seulement ses couleurs. */
+body:has(#tab-recap2.active) { background: #07080D; }
+body:has(#tab-recap2.active) > header {
+  background: rgba(10, 12, 19, .88);
+  border-bottom-color: rgba(255,255,255,.08);
+  height: auto; min-height: 54px; padding-block: 6px;
+}
+body:has(#tab-recap2.active) > header h1 {
+  background: linear-gradient(135deg, #A5B4FC, #C4B5FD);
+  -webkit-background-clip: text; background-clip: text;
+}
+body:has(#tab-recap2.active) #main-nav { background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+body:has(#tab-recap2.active) #main-nav .tab-btn { color: rgba(237,239,243,.62); }
+body:has(#tab-recap2.active) #main-nav .tab-btn:hover { background: rgba(255,255,255,.06); color: #EDEFF3; }
+body:has(#tab-recap2.active) #main-nav .tab-btn.active {
+  background: rgba(99,102,241,.22); color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(129,140,248,.55);
+}
+body:has(#tab-recap2.active) .user-info #user-name { color: #EDEFF3; }
+body:has(#tab-recap2.active) .user-role-badge.admin { background: rgba(251,191,36,.12); color: #FCD34D; }
+body:has(#tab-recap2.active) .btn-change-pin,
+body:has(#tab-recap2.active) .btn-logout { border-color: rgba(255,255,255,.12); color: rgba(237,239,243,.62); }
+body:has(#tab-recap2.active) .btn-change-pin:hover { background: rgba(99,102,241,.14); border-color: rgba(129,140,248,.5); color: #fff; }
+body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.12); border-color: rgba(248,113,113,.4); color: #FCA5A5; }
+@media (max-width: 900px) {
+  body:has(#tab-recap2.active) .bottom-nav { background: rgba(10,12,19,.96); border-top-color: rgba(255,255,255,.08); box-shadow: none; }
+  body:has(#tab-recap2.active) .bottom-nav-label { color: rgba(237,239,243,.55); }
+  body:has(#tab-recap2.active) .bottom-nav-item.active .bottom-nav-label { color: #A5B4FC; }
+  body:has(#tab-recap2.active) .bottom-nav-item:active { background: rgba(255,255,255,.06); }
+}
+
+/* Bandeau de titre : une surface sombre teintée d'accent, filtres intégrés. */
+.rec2-head {
+  align-items: flex-end; gap: 14px 24px;
+  padding: 18px 20px; margin-bottom: 18px;
+  background: linear-gradient(120deg, rgba(99,102,241,.16) 0%, rgba(99,102,241,.05) 45%, rgba(255,255,255,.015) 100%), var(--r2-surface);
+  border: 1px solid rgba(255,255,255,.08); border-radius: 14px;
+}
+.rec2-title { font-size: 22px; font-weight: 750; color: #fff; letter-spacing: -.02em; line-height: 1.2; }
+.rec2-sub { margin-top: 4px; color: rgba(237,239,243,.65); }
+.rec2-filtres { align-items: flex-end; }
+.rec2-head .rec2-mois { color: rgba(237,239,243,.5); }
+.rec2-head .rec2-mois input,
+.rec2-head .rec2-commercial select {
+  background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.12);
+  color: #EDEFF3; color-scheme: dark; cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+.rec2-head .rec2-mois input:hover,
+.rec2-head .rec2-commercial select:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.22); }
