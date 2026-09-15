@@ -4646,6 +4646,11 @@ function ensureRecap2NotesSchema() {
   require('./lib/recap2Notes.js').creerTable(getDb());
 }
 ensureRecap2NotesSchema();
+// Et pour le suivi des clients non reconduits (Sous contrôle / Résilié / À creuser).
+function ensureRecap2NrStatutsSchema() {
+  require('./lib/recap2NrStatuts.js').creerTable(getDb());
+}
+ensureRecap2NrStatutsSchema();
 
 // ─── LEADS (saisie manuelle par club/mois + comparatif N-1) ──────────────────
 function ensureLeadsSchema() {
@@ -5243,6 +5248,8 @@ const Recap2Matches = require('./lib/recap2Matches.js');
 const Recap2Checks = require('./lib/recap2Checks.js');
 // Les remarques par personne, même principe : en base, posées à la lecture.
 const Recap2Notes = require('./lib/recap2Notes.js');
+// Le suivi des non-reconduits, même principe : en base, posé à la lecture.
+const Recap2NrStatuts = require('./lib/recap2NrStatuts.js');
 const RECAP2_MOIS_RE = Recap2Store.MOIS_RE;
 // Chemin historique : le JSON produit localement par la collecte. Sur le Mac,
 // l'écran marche donc sans dépôt ; sur Railway ce dossier n'existe pas (il est
@@ -5416,6 +5423,47 @@ app.post('/api/recap2/resiliation', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
+// ─── SUIVI D'UN CLIENT NON RECONDUIT ────────────────────────────────────────
+//  Admin connecté uniquement. { mois, studio, client, idClient (facultatif),
+//  statut: 'sous_controle'|'resilie'|'a_creuser'|'' }. '' = aucun statut.
+//  Un seul statut par client : l'écriture REMPLACE le précédent.
+//  Le client doit figurer dans le détail non-reconduits du rapport du mois ;
+//  on enregistre la graphie et l'Id membre DU RAPPORT, jamais ceux envoyés.
+//  Aucun KPI, aucune donnée du rapport n'en dépend.
+//  Déclarée AVANT `POST /api/recap2/:mois`, sinon « nr-statut » serait lu comme un mois.
+app.post('/api/recap2/nr-statut', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim();
+  const studio = String(b.studio || '').trim();
+  const client = String(b.client || '').trim();
+  const idClient = String(b.idClient || '').trim();
+  const statut = String(b.statut == null ? '' : b.statut).trim();
+
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
+  if (idClient && !/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'idClient : chiffres attendus' });
+  if (statut !== '' && Recap2NrStatuts.STATUTS.indexOf(statut) < 0) {
+    return res.status(400).json({ error: 'statut : sous_controle, resilie, a_creuser ou vide' });
+  }
+
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const ligne = Recap2NrStatuts.ligneDe(lu.rapport, { studio, client, idClient });
+  if (!ligne) return res.status(404).json({ error: 'Client introuvable dans les non-reconduits de ' + studio + ' (' + mois + ').' });
+  try {
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
+    const suivi = Recap2NrStatuts.enregistrer(getDb(), {
+      mois, studio, client: ligne.client, idClient: ligne.idClient || '', statut, par: String(qui).slice(0, 80),
+    });
+    console.log('recap2 suivi non-reconduit ' + (statut || 'aucun') + ' : ' + mois + ' ' + studio);
+    res.json({ ok: true, suivi });
+  } catch (e) {
+    console.error('recap2 suivi non-reconduit :', e && e.message);
+    res.status(400).json({ error: e && e.message ? e.message : 'statut refusé' });
+  }
+});
+
 // ─── REMARQUE MANUELLE SUR UNE PERSONNE ─────────────────────────────────────
 //  Admin connecté uniquement. { mois, studio, type: 'vente'|'non_reconduit',
 //  client, idClient (facultatif), remarque }. Remarque vide = suppression.
@@ -5521,6 +5569,12 @@ function recap2AvecDecisions(rapport) {
     if (r && r.mois) r = Recap2Checks.appliquer(r, Recap2Checks.controlesDuMois(getDb(), r.mois));
   } catch (e) {
     console.error('recap2 contrôles manuels :', e && e.message);
+  }
+  // Le suivi des non-reconduits : une information par ligne, aucun compteur touché.
+  try {
+    if (r && r.mois) r = Recap2NrStatuts.appliquer(r, Recap2NrStatuts.statutsDuMois(getDb(), r.mois));
+  } catch (e) {
+    console.error('recap2 suivi non-reconduits :', e && e.message);
   }
   // Les remarques par personne : une information par ligne, aucun compteur touché.
   try {

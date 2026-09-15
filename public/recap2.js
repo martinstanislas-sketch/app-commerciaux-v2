@@ -41,6 +41,7 @@ const Recap2UI = (function () {
   let ouvert = '';          // détail ouvert : '<studio>|nr' ou '<studio>|crm'
   let filtreComp = {};      // studio -> 'tous' | 'payes' | 'nonpayes'   (règle v1)
   let filtreCrm = {};       // studio -> 'tous' | 'retrouves' | 'verifier' (règle v2)
+  let filtreNR = {};        // studio -> 'tous' | 'sous_controle' | 'resilie' | 'a_creuser' | 'aucun'
 
   // La RÈGLE MÉTIER qui a produit le rapport affiché.
   //  v1 (clé absente) : 2e KPI = « complétion » (contrats de M-1 ayant payé en M)
@@ -76,6 +77,8 @@ const Recap2UI = (function () {
     $('#rec2-body').addEventListener('change', (e) => {
       const box = e.target.closest && e.target.closest('input[data-ctl]');
       if (box && rapport) { enregistrerControle(box); return; }
+      const nrBox = e.target.closest && e.target.closest('input[data-nrstatut]');
+      if (nrBox && rapport) { enregistrerStatutNR(nrBox); return; }
       const resil = e.target.closest && e.target.closest('input[data-resil]');
       if (resil && rapport) basculerResiliation(resil);
     });
@@ -897,16 +900,81 @@ const Recap2UI = (function () {
       + ' title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + esc(c.client) + '</a>';
   }
 
+  // ── SUIVI DES NON-RECONDUITS : SOUS CONTRÔLE / RÉSILIÉ / À CREUSER ─────────
+  //  Trois cases EXCLUSIVES : en cocher une remplace l'autre, décocher la
+  //  seule cochée revient à « aucun statut ». L'état vient du SERVEUR
+  //  (`c.suivi`, posé à la lecture) : il survit au rechargement, à la
+  //  reconnexion, au redéploiement et à une nouvelle collecte.
+  //  ⚠️ AUCUN EFFET SUR LA NON-RECONDUCTION : ni la carte, ni le taux, ni le
+  //  nombre de lignes ne dépendent de ces cases.
+  const STATUTS_NR = [
+    { val: 'sous_controle', libelle: 'Sous contrôle', filtre: 'Sous contrôle' },
+    { val: 'resilie', libelle: 'Résilié', filtre: 'Résiliés' },
+    { val: 'a_creuser', libelle: 'À creuser', filtre: 'À creuser' },
+  ];
+  const statutNR = (c) => (c && c.suivi && c.suivi.statut) || '';
+  function casesSuiviNR(c, studio) {
+    const actuel = statutNR(c);
+    const qui = (actuel && c.suivi.modifieLe)
+      ? ' — le ' + fmtDate(c.suivi.modifieLe) + (c.suivi.modifiePar ? ' par ' + c.suivi.modifiePar : '') : '';
+    return STATUTS_NR.map((s) => '<td class="rec2-ctl"><input type="checkbox" class="rec2-ctl-box rec2-nr-box is-' + s.val + '"'
+      + (actuel === s.val ? ' checked' : '')
+      + ' data-nrstatut="' + s.val + '" data-studio="' + esc(studio) + '" data-client="' + esc(c.client)
+      + '" data-idclient="' + esc(c.idClient || '') + '"'
+      + ' title="' + esc(s.libelle + (actuel === s.val ? qui + ' — décocher pour retirer' : '')) + '"'
+      + ' aria-label="' + esc(s.libelle + ' — ' + c.client) + '"></td>').join('');
+  }
+
+  // Enregistre le statut. Pas d'optimisme : les cases de la ligne sont bloquées
+  // pendant l'appel, et c'est la réponse du serveur qui fait foi.
+  async function enregistrerStatutNR(box) {
+    const d = box.dataset;
+    const statut = box.checked ? d.nrstatut : '';
+    const cases = $$('#rec2-body input[data-nrstatut]').filter((b) => b.dataset.studio === d.studio
+      && b.dataset.client === d.client && b.dataset.idclient === d.idclient);
+    cases.forEach((b) => { b.disabled = true; });
+    try {
+      const r = await fetch('/api/recap2/nr-statut', {
+        method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, client: d.client, idClient: d.idclient, statut }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.suivi) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      const nr = rapport.studios && rapport.studios[d.studio] && rapport.studios[d.studio].nonReconduction;
+      const ligne = nr && (nr.liste || []).find((l) => l.client === d.client && String(l.idClient || '') === d.idclient);
+      if (ligne) ligne.suivi = j.suivi;
+      render();
+    } catch (err) {
+      render(); // l'écran revient à l'état connu du serveur
+      alert('Statut non enregistré : ' + (err && err.message ? err.message : 'erreur'));
+    }
+  }
+
   function detailNR(label, d) {
-    const liste = (d && d.liste) || [];
+    const tous = (d && d.liste) || [];
+    const f = filtreNR[label] || 'tous';
+    const passe = (c) => f === 'tous' || (f === 'aucun' ? !statutNR(c) : statutNR(c) === f);
+    const liste = tous.filter(passe);
     const m1 = cap(moisLabel(rapport.m1)), m = cap(moisLabel(rapport.mois));
+    const chip = (val, txt, n) => '<button type="button" class="rec2-chip' + (f === val ? ' is-on' : '')
+      + '" data-filtrenr="' + esc(label) + '|' + val + '">' + txt + ' <b>' + n + '</b></button>';
+    const chips = tous.length
+      ? '<div class="rec2-chips">' + chip('tous', 'Tous', tous.length)
+        + STATUTS_NR.map((s) => chip(s.val, s.filtre, tous.filter((c) => statutNR(c) === s.val).length)).join('')
+        + chip('aucun', 'Non traités', tous.filter((c) => !statutNR(c)).length) + '</div>'
+      : '';
     const lignes = liste.map((c) => '<tr><td>' + nomNonReconduit(c) + blocNote('non_reconduit', label, c) + '</td>'
+      + casesSuiviNR(c, label)
       + '<td class="rec2-num">' + esc(eur(c.netM1)) + '</td>'
       + '<td class="rec2-num">' + esc(eur(c.netM)) + '</td></tr>').join('');
     const corps = liste.length
-      ? '<table class="rec2-table"><thead><tr><th>Client</th><th class="rec2-num">Net ' + esc(m1) + '</th><th class="rec2-num">Net ' + esc(m) + '</th></tr></thead><tbody>' + lignes + '</tbody></table>'
-      : '<p class="rec2-info">Aucun client non reconduit.</p>';
-    return '<div class="rec2-detail">' + detailHead(esc(label) + ' · clients non reconduits — ' + liste.length) + corps + '</div>';
+      ? '<table class="rec2-table"><thead><tr><th>Client</th>'
+        + STATUTS_NR.map((s) => '<th class="rec2-ctl">' + s.libelle + '</th>').join('')
+        + '<th class="rec2-num">Net ' + esc(m1) + '</th><th class="rec2-num">Net ' + esc(m) + '</th></tr></thead><tbody>' + lignes + '</tbody></table>'
+      : '<p class="rec2-info">' + (tous.length ? 'Aucun client dans ce filtre.' : 'Aucun client non reconduit.') + '</p>';
+    const pied = tous.length
+      ? '<p class="rec2-det-note">Statuts de suivi : sans effet sur le taux de non-reconduction.</p>' : '';
+    return '<div class="rec2-detail">' + detailHead(esc(label) + ' · clients non reconduits — ' + tous.length) + chips + corps + pied + '</div>';
   }
 
   function detailComp(label, d) {
@@ -1118,6 +1186,8 @@ const Recap2UI = (function () {
       const sel = $('#rec2-commercial'); if (sel) sel.value = '';
       render(); return;
     }
+    const filNR = e.target.closest('[data-filtrenr]');
+    if (filNR) { const [label, val] = filNR.dataset.filtrenr.split('|'); filtreNR[label] = val; render(); return; }
     const filC = e.target.closest('[data-filtrecrm]');
     if (filC) { const [label, val] = filC.dataset.filtrecrm.split('|'); filtreCrm[label] = val; render(); return; }
     if (e.target.closest('[data-close]')) { ouvert = ''; render(); return; }
