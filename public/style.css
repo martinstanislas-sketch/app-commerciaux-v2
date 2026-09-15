@@ -22251,3 +22251,26 @@ body:has(#tab-recap2.active) .btn-change-pin:hover, body:has(#tab-recap2.active)
 .rec2-btn-ok { background: var(--r2-accent); border-color: var(--r2-accent); color: #fff; }
 .rec2-btn-ok:hover { background: #7C7FF5; border-color: #7C7FF5; color: #fff; }
 .rec2-btn-ok[disabled], .rec2-btn-non[disabled] { opacity: .5; cursor: default; }
+
+/* ═══ RECAP 2 — micro-interactions ═══════════════════════════════════════════ */
+@keyframes rec2-entree { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.rec2-anim-entree { animation: rec2-entree .18s ease-out backwards; }
+.rec2-anim-sortie { opacity: 0; transform: translateY(-6px); transition: opacity .15s ease-in, transform .15s ease-in; pointer-events: none; }
+/* Focus clavier : un seul anneau, couleur d'accent, partout. */
+.rec2-wrap :is(button, a, input, select, textarea, summary):focus-visible,
+body:has(#tab-recap2.active) > header :is(button, a):focus-visible,
+body:has(#tab-recap2.active) .bottom-nav button:focus-visible {
+  outline: 2px solid #818CF8; outline-offset: 2px;
+}
+.rec2-ctl-box:focus-visible { outline-offset: 3px; }
+/* Pression : une réponse brève et identique pour tout ce qui se clique. */
+.rec2-wrap :is(.rec2-det-x, .rec2-copier-btn, .rec2-btn-ok, .rec2-btn-non, .rec2-chip:not([disabled]), .rec2-vni-chip, .rec2-alertes-btn, .rec2-com-refs, .rec2-card[data-open]):active { filter: brightness(.9); }
+.rec2-card { transition: background-color .15s, border-color .15s; }
+/* Copie réussie. Le message reste lu par les lecteurs d'écran, le bouton le montre. */
+.rec2-copier-btn.is-copie, .rec2-copier-btn.is-copie:hover { color: var(--r2-green); border-color: rgba(52,211,153,.5); background: rgba(52,211,153,.08); }
+.rec2-copier-msg.is-ok { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rec2-copier { position: relative; }
+@media (prefers-reduced-motion: reduce) {
+  .rec2-anim-entree { animation: none; }
+  .rec2-wrap *, .rec2-wrap *::after, body:has(#tab-recap2.active) > header * { transition-duration: 0s !important; }
+}
