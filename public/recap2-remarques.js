@@ -36,6 +36,8 @@
   const SECTIONS = [
     { type: 'vente', titre: 'Ventes signées', bloc: 'clientsRetrouves' },
     { type: 'non_reconduit', titre: 'Clients non reconduits', bloc: 'nonReconduction' },
+    // VNI : la liste ACTIVE posée par le serveur (transformés déjà retirés).
+    { type: 'vni', titre: 'VNI', bloc: 'vni' },
   ];
 
   function moisEnClair(ym) {
@@ -82,6 +84,9 @@
   function memePersonne(a, b) {
     const ia = idDe(a.idClient), ib = idDe(b.idClient);
     if (ia && ib) return ia === ib;
+    // Deux contacts Vendor distincts (VNI homonymes) sont deux personnes.
+    const va = String(a.contactId || ''), vb = String(b.contactId || '');
+    if (va && vb) return va === vb;
     return cleIdentite(a.client) === cleIdentite(b.client);
   }
 

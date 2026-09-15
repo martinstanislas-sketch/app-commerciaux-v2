@@ -175,6 +175,13 @@ async function lireReferences(contexte, studio, ym, { journal = () => {} } = {})
   const clubAttendu = CLUBS_STATS[studio];
   if (!clubAttendu) throw new Error('Studio inconnu : ' + studio);
   const contacts = new Map(), users = {}, sources = {};
+  // Pour les VNI (crm-automation/lib/boosterVni.js), captés pendant la MÊME
+  // visite : changements de statut, ventes. Aucune navigation de plus.
+  const evenements = new Map(), ventes = new Map();
+  // ⚠️ Tous les contacts du club arrivent au CHARGEMENT de la page, pas après le
+  // réglage de la période : `contacts` (prises de référence) est vidé à ce
+  // moment-là, `tousContacts` (VNI : identité, Id Deciplus, statut actuel) non.
+  const tousContacts = new Map();
   let capter = true;
   const surReponse = async (r) => {
     if (!capter || !/\/elasticsearch\//.test(r.url())) return;
@@ -184,7 +191,16 @@ async function lireReferences(contexte, studio, ym, { journal = () => {} } = {})
       const s = o._source || o;
       if (o._type === 'custom.sportif' && o._id) {
         contacts.set(o._id, { id: o._id, club: s.club_custom_club, source: s.source_custom_sportif_source, creeLe: s['Created Date'],
-          createur: s['Created By'], client: s.nom_complet_text || ((s.prenom_text || '') + ' ' + (s.nom_text || '')), statut: s.statut_defaut_option_statuts_defaut || '' });
+          createur: s['Created By'], client: s.nom_complet_text || ((s.prenom_text || '') + ' ' + (s.nom_text || '')), statut: s.statut_defaut_option_statuts_defaut || '',
+          // champs lus par les VNI uniquement
+          prenom: s.prenom_text || '', nom: s.nom_text || '', deciplusId: s.member_id_deciplus_number == null ? '' : String(s.member_id_deciplus_number),
+          statutChangeLe: s.statut_changement_last_date_date || null });
+        tousContacts.set(o._id, contacts.get(o._id));
+      } else if (o._type === 'custom.sportif_statutchange' && o._id) {
+        evenements.set(o._id, { id: o._id, club: s.club_custom_club, contact: s.sportif_custom_sportif, statut: s.nouveau_statut_option_statuts_defaut || '',
+          creeLe: s['Created Date'], commercial: s.commercial_user || '', createur: s['Created By'] || '' });
+      } else if (o._type === 'custom.commerciaux_vente' && o._id) {
+        ventes.set(o._id, { id: o._id, contact: s.sportif_custom_sportif, creeLe: s['Created Date'], annuleeLe: s.annulation_date_date || null });
       } else if (o._type === 'user' && o._id) users[o._id] = { prenom: s.prenom_text || '', nom: s.nom_text || '' };
       else if (o._type === 'custom.sportif_source' && o._id) sources[o._id] = { nom: s.source_text || '', club: s.club_custom_club };
       Object.values(o).forEach(w);
@@ -203,6 +219,7 @@ async function lireReferences(contexte, studio, ym, { journal = () => {} } = {})
       throw new Error('club affiché « ' + clubAffiche + ' » ≠ attendu « ' + clubAttendu + ' » sur ' + URL_ANCIENNES);
     }
     contacts.clear(); // seules les réponses de la bonne période comptent
+    evenements.clear(); ventes.clear();
     // Les deux calendriers : de VRAIS clics (un réglage par script n'est pas
     // pris en compte par Vendor — constaté le 2026-09-14).
     const champs = [];
@@ -249,7 +266,11 @@ async function lireReferences(contexte, studio, ym, { journal = () => {} } = {})
       // Libellés des statuts, depuis la définition de Vendor (jamais figés ici).
       const statuts = {};
       try { Object.entries(window.app.option_sets.statuts_defaut.values).forEach(([k, v]) => { statuts[v.db_value || k] = v['%d']; }); } catch (_) { /* libellé brut */ }
-      return { tuile, lignes, periode, statuts };
+      // Tuile « Visiteurs » : le contrôle d'exhaustivité des VNI.
+      const v = [...document.querySelectorAll('div')].find((x) => x.children.length === 0 && n(x.innerText) === 'Visiteurs');
+      let tuileVisiteurs = null;
+      for (let p = v, k = 0; p && k < 4; k++) { p = p.parentElement; const mm = n(p && p.innerText).match(/^Visiteurs (\d+)/); if (mm) { tuileVisiteurs = +mm[1]; break; } }
+      return { tuile, lignes, periode, statuts, tuileVisiteurs };
     });
     const { debut, fin } = bornesMois(ym);
     const duMois = () => [...contacts.values()].filter((c) => c.creeLe >= debut && c.creeLe < fin).length;
@@ -272,6 +293,13 @@ async function lireReferences(contexte, studio, ym, { journal = () => {} } = {})
       studio, club: clubAffiche, mois: ym, ok: verdict.ok, problemes: verdict.problemes,
       total: calcul.retenues.length, affiche: verdict.affiche, tuileContacts: ecran.tuile, contactsDuMois: calcul.contactsDuMois,
       liste: calcul.retenues,
+      // Matière première des VNI. `ecranOk` : club ET période affichés = demandés.
+      vni: {
+        clubId, tuileVisiteurs: ecran.tuileVisiteurs, statuts: ecran.statuts,
+        ecranOk: espaces(clubAffiche) === espaces(clubAttendu) && Array.isArray(ecran.periode)
+          && ecran.periode[0] === periodeAttendue(ym)[0] && ecran.periode[1] === periodeAttendue(ym)[1],
+        contacts: [...tousContacts.values()], evenements: [...evenements.values()], ventes: [...ventes.values()], users,
+      },
     };
   } finally {
     capter = false;

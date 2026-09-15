@@ -339,19 +339,22 @@ function lierCommerciaux(lignes, liaisons) {
     const relu = li ? analyserLigne(li.texte) : null;
     const venteId = li ? idBubble(li.venteId) : '';
     const commercialId = li ? idBubble(li.commercialId) : '';
+    // Le CONTACT de la vente (sportif_custom_sportif) : sert aux VNI, pour relier
+    // une signature à la personne venue en rendez-vous — jamais par le nom.
+    const contactId = li ? idBubble(li.contactId) : '';
     const lie = !!li && li.type === 'custom.commerciaux_vente' && !!venteId
       && relu.identite === l.identite && relu.date === l.date && !vues.has(venteId);
-    if (!lie) { manquants += 1; return { venteId: '', commercialId: '' }; }
+    if (!lie) { manquants += 1; return { venteId: '', commercialId: '', contactId: '' }; }
     vues.add(venteId);
     // Vente bien liée mais SANS commercial dans Vendor (« Pas de commercial ») :
     // l'identifiant vide est alors la vérité, pas une lecture ratée.
     if (!commercialId) {
-      if (String(li.commercialId || '').trim()) { manquants += 1; return { venteId, commercialId: '' }; }
+      if (String(li.commercialId || '').trim()) { manquants += 1; return { venteId, commercialId: '', contactId }; }
       sansCommercial += 1;
     }
-    return { venteId, commercialId };
+    return { venteId, commercialId, contactId };
   });
-  return { ids, manquants, sansCommercial };
+  return { ids, manquants, sansCommercial, sansContact: ids.filter((x) => x.venteId && !x.contactId).length };
 }
 
 // ── Lecture d'un studio pour un mois ───────────────────────────────────────
@@ -471,7 +474,7 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
     const rg = rgs.find((e) => e.children.length === n);
     if (!rg) return null;
     return [...rg.children].map((ch) => {
-      const r = { texte: ch.innerText || '', type: '', venteId: '', commercialId: '' };
+      const r = { texte: ch.innerText || '', type: '', venteId: '', commercialId: '', contactId: '' };
       try {
         const inst = ch.bubble_data && ch.bubble_data.bubble_instance;
         let v = inst && inst.state('group_data');
@@ -481,6 +484,7 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
           r.type = String(raw._type || '');
           r.venteId = String(raw._id || '');
           r.commercialId = String(raw.commercial_user || '');
+          r.contactId = String(raw.sportif_custom_sportif || '');
         }
       } catch (_) { /* liaison illisible : identifiant vide */ }
       return r;
@@ -495,6 +499,7 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
   const contrats = lignes.map((l, i) => ({
     identite: l.identite, prestation: l.prestation, source: l.source,
     date: l.date, commercial: l.commercial, commercialId: lies.ids[i].commercialId, venteId: lies.ids[i].venteId,
+    contactId: lies.ids[i].contactId || '',
     annulee: l.annulee, dateAnnulation: l.dateAnnulation,
   }));
   const annulees = contrats.filter((c) => c.annulee).length;
@@ -503,7 +508,8 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
     + (lies.sansCommercial ? ' (+' + lies.sansCommercial + ' sans commercial)' : ''));
 
   await fermerPanneau(page);
-  return { studio, club, mois: ym, compteur, contrats, annulees, periodeDetail, commerciauxSansId: lies.manquants };
+  if (lies.sansContact) journal('⚠️ ' + studio + ' : identifiant du contact illisible sur ' + lies.sansContact + '/' + compteur + ' contrat(s) — non utilisé(s) pour les VNI');
+  return { studio, club, mois: ym, compteur, contrats, annulees, periodeDetail, commerciauxSansId: lies.manquants, contratsSansContact: lies.sansContact };
 }
 
 module.exports = {
