@@ -364,6 +364,9 @@
       // Pas de vente active -> pas de dénominateur -> taux null, jamais 0 % ni
       // NaN. Des annulations seules ne créent pas un taux : rien à retrouver.
       taux: actives > 0 ? retrouves / actives : null,
+      // Le 2e KPI « contrats validés » du commercial (même règle que la carte studio).
+      valides: contratsValides(ventes).valides,
+      tauxValides: contratsValides(ventes).taux,
       references,
       referencesPresentes: refs.presentes,
       referencesIndisponibles: refs.indisponibles,
@@ -388,6 +391,39 @@
     const attendu = studioAttendu || vente.studio || '';
     if (!site || !attendu) return null;
     return studioLabel(site) === attendu ? null : { attendu, site };
+  }
+
+  // ── CONTRATS VALIDÉS (2e KPI) ──────────────────────────────────────────────
+  //  Une vente ACTIVE (non annulée) est VALIDÉE si au moins une condition est vraie :
+  //   · « automatique »   : retrouvée dans Deciplus par la collecte ;
+  //   · « rapprochement » : rapprochement Deciplus confirmé à la main ;
+  //   · « prelevement »   : case Prélèvement cochée à la main.
+  //  Une seule condition suffit, et une vente ne compte qu'UNE fois.
+  //
+  //  ⚠️ LA VALIDATION MANUELLE COMPLÈTE L'AUTOMATISATION, ELLE NE LA REMPLACE
+  //  JAMAIS : `retrouve` reste la donnée de la collecte, intacte. Une vente
+  //  validée par Prélèvement continue d'être cherchée à chaque collecte ; si elle
+  //  est retrouvée ensuite, son motif devient « automatique » et la case reste
+  //  cochée. Réservation ne valide rien. Calculé à la lecture, depuis les lignes :
+  //  cocher ou décocher Prélèvement se voit immédiatement.
+  const prelevementCoche = (v) => !!(v && v.controle && v.controle.prelevement === true);
+  function motifValidation(v) {
+    if (!v || v.annulee) return '';
+    if (v.retrouve === true) return v.valideManuellement ? 'rapprochement' : 'automatique';
+    return prelevementCoche(v) ? 'prelevement' : '';
+  }
+  const venteValidee = (v) => motifValidation(v) !== '';
+  // { actives, valides, parPrelevement, taux } sur la liste d'un studio (ou toute liste de ventes).
+  function contratsValides(liste) {
+    const actives = (liste || []).filter((v) => v && !v.annulee);
+    const valides = actives.filter(venteValidee).length;
+    return {
+      actives: actives.length,
+      valides,
+      parPrelevement: actives.filter((v) => motifValidation(v) === 'prelevement').length,
+      // Aucune vente active -> pas de dénominateur -> null, jamais 0 %.
+      taux: actives.length ? valides / actives.length : null,
+    };
   }
 
   // ── CA NET DU MOIS, PAR STUDIO ─────────────────────────────────────────────
@@ -477,6 +513,6 @@
     STUDIOS, LABELS, normStudio, studioLabel,
     nonReconduction, completion, clientsRetrouves, analyserStudio,
     ventesDuRapport, commerciauxDuRapport, consoliderCommercial, libelleCommercial, referencesDuRapport, cleCommercial,
-    siteDivergent, caNetStudio, eurosArrondis,
+    siteDivergent, caNetStudio, eurosArrondis, contratsValides, motifValidation, venteValidee,
   };
 }));

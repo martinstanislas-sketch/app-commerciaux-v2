@@ -320,13 +320,17 @@ const Recap2UI = (function () {
   //  ⚠️ « CLIENTS RETROUVÉS » et non « VENTES INTÉGRÉES » : on rapproche par le
   //  nom, donc on prouve qu'un signataire a une vente dans Deciplus sur le mois,
   //  pas que CE contrat précis y est. Le libellé ne promet que ça.
-  const titre2 = () => (estV2() ? 'CLIENTS RETROUVÉS DANS DECIPLUS' : 'COMPLÉTION (ancienne règle)');
+  const titre2 = () => (estV2() ? 'CONTRATS VALIDÉS' : 'COMPLÉTION (ancienne règle)');
 
   function carteCrm(label, d) {
     if (!d) return carteNA(titre2(), 'indicateur absent du fichier');
-    const n = d.signataires;
+    // CONTRATS VALIDÉS : retrouvée automatiquement, rapprochement confirmé, OU
+    // Prélèvement coché (Recap2Metrics.contratsValides). Calculé depuis les
+    // lignes : cocher/décocher Prélèvement se voit immédiatement.
+    const cv = window.Recap2Metrics.contratsValides(d.liste);
+    const n = cv.actives;
     const sous = n > 0
-      ? d.retrouves + ' / ' + n + ' signataire' + (n > 1 ? 's' : '') + ' de ' + moisLabel(rapport.mois)
+      ? cv.valides + ' / ' + n + ' contrat' + (n > 1 ? 's' : '') + ' validé' + (cv.valides > 1 ? 's' : '')
       : '0 vente signée';
     // Repérable sans ouvrir le détail. Le chiffre de la carte, lui, ne bouge pas.
     const rep = repartition(d.liste, label);
@@ -338,7 +342,7 @@ const Recap2UI = (function () {
     const resil = rep.resilies
       ? '<span class="rec2-card-resil">' + rep.resilies + ' résilié' + (rep.resilies > 1 ? 's' : '') + '</span>'
       : '';
-    return carte(label, 'crm', titre2(), pct(d.taux), sous + alerte + resil, ouvert === label + '|crm', n > 0);
+    return carte(label, 'crm', titre2(), pct(cv.taux), sous + alerte + resil, ouvert === label + '|crm', n > 0);
   }
 
   // ── NOM CLIQUABLE VERS LA FICHE DECIPLUS ────────────────────────────────────
@@ -395,7 +399,16 @@ const Recap2UI = (function () {
   //  · Retrouvée   une vente Deciplus du mois existe au nom du signataire.
   //  · À vérifier  aucune vente trouvée. Jamais « absent du CRM » : une saisie
   //                faite le mois suivant sort du champ de l'audit.
+  // Le statut d'une vente validée SEULEMENT par la case Prélèvement : la
+  // validation manuelle d'abord, puis ce que la recherche automatique en dit
+  // toujours (elle continue à chaque collecte).
   function statutVente(v, studioAttendu) {
+    const auto = statutVenteAuto(v, studioAttendu);
+    if (window.Recap2Metrics.motifValidation(v) !== 'prelevement') return auto;
+    return '<span class="rec2-etat is-valide">Validée manuellement — prélèvement vérifié</span>'
+      + '<div class="rec2-valid-auto">Recherche Deciplus automatique : ' + auto + '</div>';
+  }
+  function statutVenteAuto(v, studioAttendu) {
     if (v.annulee && v.resiliation && v.resiliation.resilie) {
       // ANNULÉE dans FB mais RÉSILIÉE en réalité : la qualification manuelle
       // s'affiche en premier ; la source reste dite, en second.
@@ -524,8 +537,10 @@ const Recap2UI = (function () {
     if (f === 'divergents') return !!divergence(v, studio);
     if (f === 'annules') return !!v.annulee;
     if (f === 'retrouves') return !v.annulee && !!v.retrouve;
-    if (f === 'proposes') return !v.annulee && !v.retrouve && !!v.candidat;
-    if (f === 'verifier') return !v.annulee && !v.retrouve && !v.candidat;
+    const prel = window.Recap2Metrics.motifValidation(v) === 'prelevement';
+    if (f === 'prelevements') return prel;
+    if (f === 'proposes') return !v.annulee && !v.retrouve && !!v.candidat && !prel;
+    if (f === 'verifier') return !v.annulee && !v.retrouve && !v.candidat && !prel;
     return true;
   }
   // Les cinq populations d'une liste, comptées une fois pour toutes.
@@ -536,13 +551,15 @@ const Recap2UI = (function () {
     const annulees = l.filter((v) => v.annulee).length;
     const retrouves = l.filter((v) => !v.annulee && v.retrouve).length;
     const valides = l.filter((v) => !v.annulee && v.retrouve && v.valideManuellement).length;
-    const proposes = l.filter((v) => !v.annulee && !v.retrouve && v.candidat).length;
+    // Validées par la seule case Prélèvement : ni « proposées » ni « à vérifier ».
+    const prelevements = l.filter((v) => window.Recap2Metrics.motifValidation(v) === 'prelevement').length;
+    const proposes = l.filter((v) => !v.annulee && !v.retrouve && v.candidat && window.Recap2Metrics.motifValidation(v) !== 'prelevement').length;
     const divergents = l.filter((v) => divergence(v, studio)).length;
     // Résiliés : un repérage, compté à part — ils restent dans `retrouves` et `actives`.
     // Une annulée FB marquée résiliée compte ici — et reste comptée dans `annulees`.
     const resilies = l.filter((v) => v.resiliation && v.resiliation.resilie).length;
-    return { total: l.length, annulees, actives: l.length - annulees, retrouves, valides, proposes, divergents, resilies,
-      aVerifier: l.length - annulees - retrouves - proposes };
+    return { total: l.length, annulees, actives: l.length - annulees, retrouves, valides, proposes, divergents, resilies, prelevements,
+      aVerifier: l.length - annulees - retrouves - proposes - prelevements };
   }
 
   // Le bandeau chiffré, identique partout : signées, annulées, actives,
@@ -793,6 +810,7 @@ const Recap2UI = (function () {
     const chips = '<div class="rec2-chips">' + chip('tous', 'Tous', c.total)
       + chip('retrouves', 'Retrouvés', c.retrouves)
       + (c.proposes ? chip('proposes', 'Rapprochements proposés', c.proposes) : '')
+      + (c.prelevements ? chip('prelevements', 'Validés par prélèvement', c.prelevements) : '')
       + chip('verifier', 'À vérifier', c.aVerifier)
       + (c.divergents ? chipDiv(chip, c.divergents) : '')
       + (c.resilies ? chip('resilies', 'Résiliés', c.resilies) : '')
@@ -866,13 +884,14 @@ const Recap2UI = (function () {
     const rep0 = repartition(d.ventes);
     const n = (x, un, pl) => '<span class="rec2-com-det"><b>' + x + '</b> ' + (x > 1 ? pl : un) + '</span>';
     const stats = '<div class="rec2-com-stats">'
-      + '<span class="rec2-com-taux">' + pct(d.taux) + '</span>'
+      + '<span class="rec2-com-taux">' + pct(d.tauxValides) + '</span>'
       + n(d.signees, 'vente signée', 'ventes signées')
       + (d.annulees ? n(d.annulees, 'annulée', 'annulées') : '')
       + n(d.total, 'vente active', 'ventes actives')
       + n(rep0.retrouves, 'retrouvée dans Deciplus', 'retrouvées dans Deciplus')
       + (rep0.valides ? n(rep0.valides, 'validée à la main', 'validées à la main') : '')
       + (rep0.proposes ? n(rep0.proposes, 'rapprochement proposé', 'rapprochements proposés') : '')
+      + (rep0.prelevements ? n(rep0.prelevements, 'validée par prélèvement', 'validées par prélèvement') : '')
       + n(rep0.aVerifier, 'à vérifier', 'à vérifier')
       + (rep0.resilies ? n(rep0.resilies, 'résilié', 'résiliés') : '')
       + (rep0.divergents ? '<span class="rec2-com-det rec2-com-det-div"><b>' + rep0.divergents + '</b> '
@@ -889,6 +908,7 @@ const Recap2UI = (function () {
       + '<div class="rec2-chips">' + chip('tous', 'Tous', rep0.total)
       + chip('retrouves', 'Retrouvés', rep0.retrouves)
       + (rep0.proposes ? chip('proposes', 'Rapprochements proposés', rep0.proposes) : '')
+      + (rep0.prelevements ? chip('prelevements', 'Validés par prélèvement', rep0.prelevements) : '')
       + chip('verifier', 'À vérifier', rep0.aVerifier)
       + (rep0.divergents ? chipDiv(chip, rep0.divergents) : '')
       + (rep0.resilies ? chip('resilies', 'Résiliés', rep0.resilies) : '')
