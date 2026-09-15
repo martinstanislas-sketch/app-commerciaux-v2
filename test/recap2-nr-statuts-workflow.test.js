@@ -115,6 +115,22 @@ test('REDÉMARRAGE du serveur (redéploiement) : toujours là', async () => {
   assert.equal(kpi(r), KPI0);
 });
 
+test('COHABITATION avec les remarques : statut et remarque du même client sont indépendants', async () => {
+  const noter = (remarque) => fetch(BASE + '/api/recap2/note', { method: 'POST', headers: auth(),
+    body: JSON.stringify({ mois: '2026-08', studio: 'Levallois', type: 'non_reconduit', client: 'DERAED Maxence', idClient: '41002', remarque }) });
+  assert.equal((await noter('Relancé par le coach.')).status, 200);
+  assert.equal((await marquer({ client: 'DERAED Maxence', idClient: '41002', statut: 'a_creuser' })).status, 200);
+  let l = ligne(await lire(), 'DERAED Maxence');
+  assert.deepEqual([l.suivi.statut, l.note.remarque], ['a_creuser', 'Relancé par le coach.']);
+  assert.equal((await marquer({ client: 'DERAED Maxence', idClient: '41002', statut: 'sous_controle' })).status, 200);
+  assert.equal(ligne(await lire(), 'DERAED Maxence').note.remarque, 'Relancé par le coach.', 'changer le statut ne touche pas la remarque');
+  assert.equal((await noter('')).status, 200);
+  l = ligne(await lire(), 'DERAED Maxence');
+  assert.deepEqual([l.suivi.statut, l.note.remarque], ['sous_controle', ''], 'supprimer la remarque ne touche pas le statut');
+  assert.equal((await marquer({ client: 'DERAED Maxence', idClient: '41002', statut: '' })).status, 200);
+  assert.equal(kpi(await lire()), KPI0);
+});
+
 test('DÉCOCHER : retour à aucun statut', async () => {
   assert.equal((await marquer({ statut: '' })).status, 200);
   const r = await lire();
