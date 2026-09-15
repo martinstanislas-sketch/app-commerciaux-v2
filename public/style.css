@@ -22145,3 +22145,9 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
   .rec2-studio-tete .rec2-studio-nom { font-size: 18px; }
   .rec2-studio-tete button { min-height: 34px; }
 }
+
+/* ═══ RECAP 2 — puces de filtre : survol des puces actives, puces à 0 en retrait ═ */
+.rec2-chip { transition: background-color .15s, border-color .15s, color .15s, opacity .15s; }
+.rec2-chip:not([disabled]):not(.is-on):hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.3); color: var(--r2-text); }
+.rec2-chip[disabled] { opacity: .4; cursor: default; border-color: var(--r2-line); }
+.rec2-chip[disabled] b { color: var(--r2-text-2); }
