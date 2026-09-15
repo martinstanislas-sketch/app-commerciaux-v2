@@ -227,7 +227,10 @@ const Recap2UI = (function () {
   }
 
   // ── RENDU ───────────────────────────────────────────────────────────────────
-  const pct = (x) => (x == null ? '—' : (x * 100).toFixed(1).replace('.', ',') + ' %');
+  // Affichage à l'entier le plus proche (14,7 % -> 15 %). Format seulement : le
+  // taux lui-même, les contrôles de cohérence et les ratios restent intacts.
+  // toFixed(6) d'abord : 0,145 × 100 vaut 14,4999… en flottant, et doit donner 15.
+  const pct = (x) => (x == null ? '—' : Math.round(Number((x * 100).toFixed(6))) + ' %');
   const eur = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
   // Cellule de montant : négatif en rouge, nul atténué. Le texte est celui de eur().
   const celluleMontant = (n) => {
